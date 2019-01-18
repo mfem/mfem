@@ -559,7 +559,98 @@ public:
       }
       else if ((_monoType == Rusanov) || (_monoType == Rusanov_FS))
       {
-         ComputeDiffusionCoefficient(fes, coef);
+         schemeOpt = _schemeOpt; // TODO check and code consistently
+         if (!_schemeOpt)
+         {
+            ComputeDiffusionCoefficient(fes, coef);
+         }
+         else
+         {
+            Mesh *mesh = fes->GetMesh();
+            int i, j, k, m, p, nd, dofInd, numBdrs, numDofs, ne = mesh->GetNE(), dim = mesh->Dimension();
+            const int btype = BasisType::Positive;
+            const FiniteElement &dummy = *fes->GetFE(0);
+            DenseMatrix elmat;
+            ElementTransformation *tr;
+            
+            p = dummy.GetOrder();
+            nd = dummy.GetDof();
+            // fill the dofs array to access the correct dofs for boundaries
+            dummy.ExtractBdrDofs(dofs); // TODO repating and put in routine
+            numBdrs = dofs.Width();
+            numDofs = dofs.Height();
+            
+            Mesh *ref_mesh = GetSubcellMesh(mesh, p);
+            DG_FECollection fec1(1, dim, btype);
+            FiniteElementSpace SubFes1(ref_mesh, &fec1);
+            
+            ComputeDiffusionCoefficient(&SubFes1, coef);
+            
+            if (dim==1)
+            {
+               numSubcells = p;
+               numDofsSubcell = 2;
+            }
+            else if (dim==2)
+            {
+               numSubcells = p*p;
+               numDofsSubcell = 4;
+            }
+            else if (dim==3)
+            {
+               numSubcells = p*p*p;
+               numDofsSubcell = 8;
+            }
+            
+            FillSubcell2CellDof(p, dim);
+            
+            BilinearForm Rho(fes);
+            Rho.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
+            Rho.Assemble();
+            Rho.Finalize();
+            fluctMatrix = Rho.SpMat();
+            
+            BilinearFormIntegrator *fluct;
+            fluct = new ConvectionIntegrator(coef, -1.0);
+            fluctSub.SetSize(ne*numSubcells, numDofsSubcell*numDofsSubcell);
+            elmat.SetSize(numDofsSubcell,numDofsSubcell);
+            
+            const IntegrationRule *irF1 = GetFaceIntRule(fes);
+            
+            bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
+            bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
+            bdrIntNeighbor.SetSize(ne*nd, nd*numBdrs); bdrIntNeighbor = 0.;
+            neighborDof.SetSize(ne*numDofs, numBdrs);
+            
+            for (k = 0; k < ne; k++) // NOTE: not optimal: two loops over all elements
+            {
+               ////////////////////////////
+               // Boundary contributions //
+               ////////////////////////////
+               preprocessFluxLumping(fes, coef, k, irF1);
+               
+               ///////////////////////////
+               // Element contributions //
+               ///////////////////////////
+//                const IntegrationRule ir = el.GetNodes(); // TODO rm for RD scheme
+               for (m = 0; m < numSubcells; m++)
+               {
+                  dofInd = k*numSubcells+m;
+                  const FiniteElement *el = SubFes1.GetFE(dofInd);
+                  tr = ref_mesh->GetElementTransformation(dofInd);
+                  fluct->AssembleElementMatrix(*el, *tr, elmat);
+
+                  for (i = 0; i < numDofsSubcell; i++)
+                  {
+                     for (j = 0; j < numDofsSubcell; j++)
+                     {
+                        fluctSub(dofInd, numDofsSubcell*i + j) = elmat(i,j);
+                     }
+                  }
+               }
+            }
+            delete fluct;
+         }
       }
       else if ( (_monoType == ResDist) || (_monoType == ResDist_FS) 
                || (_monoType == ResDist_Lim) || (_monoType == ResDist_LimMass) )
@@ -662,40 +753,25 @@ public:
       // appropriate qOrdE for alpha is tr->OrderW() + 2*dummy.GetOrder(), choose max
       qOrdE = tr->OrderW() + 2*dummy.GetOrder() + 2*max(tr->OrderGrad(&dummy), 0);
       const IntegrationRule *ir = &IntRules.Get(dummy.GetGeomType(), qOrdE);
-
-      // use the first mesh boundary as indicator
-      FaceElementTransformations *Trans = mesh -> GetFaceElementTransformations(0);
-      // qOrdF is chosen such that L2-norm of basis functions is computed accurately.
-      // Normal velocity term relies on L^Inf-norm which is approximated
-      // by its maximum value in the quadrature points of the same rule.
-      if (Trans->Elem1No != 0)
-      {
-         if (Trans->Elem2No != 0)
-         {
-            mfem_error("Boundary edge does not belong to this element.");
-         }
-         else
-         {
-            qOrdF = Trans->Elem2->OrderW() + 2*dummy.GetOrder();
-         }
-      }
-      else
-      {
-         qOrdF = Trans->Elem1->OrderW() + 2*dummy.GetOrder(); // TODO check if this is necessary and do it everywhere or nowhere
-      }
-      const IntegrationRule *irF1 = &IntRules.Get(Trans->FaceGeom, qOrdF);
+      const IntegrationRule *irF1 = GetFaceIntRule(fes); // TODO rename irF1 everywhere
       
-      bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
-      bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
-      bdrIntNeighbor.SetSize(ne*nd, nd*numBdrs); bdrIntNeighbor = 0.;
-      neighborDof.SetSize(ne*numDofs, numBdrs);
+      if (!schemeOpt)
+      {
+         bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
+         bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
+         bdrIntNeighbor.SetSize(ne*nd, nd*numBdrs); bdrIntNeighbor = 0.;
+         neighborDof.SetSize(ne*numDofs, numBdrs);
+      }
 
       for (k = 0; k < ne; k++)
       {
          ////////////////////////////
          // Boundary contributions //
          ////////////////////////////
-         preprocessFluxLumping(fes, coef, k, irF1);
+         if (!schemeOpt)
+         {
+            preprocessFluxLumping(fes, coef, k, irF1);
+         }
          
          ///////////////////////////
          // Element contributions //
@@ -820,8 +896,8 @@ public:
       Rho.Assemble();
       Rho.Finalize();
       fluctMatrix = Rho.SpMat(); // TODO repeating
-		
-		Mesh *ref_mesh = GetSubcellMesh(mesh, p);
+      
+      Mesh *ref_mesh = GetSubcellMesh(mesh, p);
 
       const int btype = BasisType::Positive;
       DG_FECollection fec0(0, dim, btype);
@@ -1151,15 +1227,15 @@ public:
    }
    
    Mesh* GetSubcellMesh(Mesh *mesh, int p)
-	{
-		Mesh *ref_mesh;
+   {
+      Mesh *ref_mesh;
       if (p==1)
       {
          ref_mesh = mesh;
       }
       else if (mesh->Dimension() > 1)
       {
-			int basis_lor = BasisType::ClosedUniform; // to have a uniformly refined mesh
+         int basis_lor = BasisType::ClosedUniform; // to have a uniformly refined mesh
          ref_mesh = new Mesh(mesh, p, basis_lor);
          ref_mesh->SetCurvature(1);
       }
@@ -1169,13 +1245,13 @@ public:
          ref_mesh->SetCurvature(1);
       }
       return ref_mesh;
-	}
-	
-	const IntegrationRule *GetFaceIntRule(FiniteElementSpace *fes)
-	{
-		int qOrdF;
+   }
+   
+   const IntegrationRule *GetFaceIntRule(FiniteElementSpace *fes)
+   {
+      int qOrdF;
       // use the first mesh boundary as indicator
-		const FiniteElement &dummy = *fes->GetFE(0);
+      const FiniteElement &dummy = *fes->GetFE(0);
       FaceElementTransformations *Trans = fes->GetMesh()->GetFaceElementTransformations(0);
       // qOrdF is chosen such that L2-norm of basis functions is computed accurately.
       // Normal velocity term relies on L^Inf-norm which is approximated
@@ -1196,7 +1272,7 @@ public:
          qOrdF = Trans->Elem1->OrderW() + 2*dummy.GetOrder();
       }
       return &IntRules.Get(Trans->FaceGeom, qOrdF);
-	}
+   }
 
    // Destructor
    ~FluxCorrectedTransport() { }
@@ -1205,8 +1281,8 @@ public:
    const MONOTYPE monoType;
 
    bool schemeOpt;
-	int numSubcells, numDofsSubcell;
-	Vector lumpedM, elDiff;
+   int numSubcells, numDofsSubcell;
+   Vector lumpedM, elDiff;
    SparseMatrix KpD, fluctMatrix;
    DenseMatrix dofs, neighborDof, subcell2CellDof, bdrIntNeighbor, bdrInt,
                bdrIntLumped, fluctSub;
@@ -1244,7 +1320,7 @@ public:
    virtual void NeumannSolve(const Vector &b, Vector &x) const;
 
    virtual void LumpFluxTerms(int k, int nd, const Vector &x, Vector &y, const Vector alpha) const;
-	virtual void LumpFluxTerms2(int k, int nd, const Vector &x, Vector &y, const Vector alpha) const;
+   virtual void LumpFluxTerms2(int k, int nd, const Vector &x, Vector &y, const Vector alpha) const;
 
    virtual void ComputeHighOrderSolution(const Vector &x, Vector &y) const;
    virtual void ComputeLowOrderSolution(const Vector &x, Vector &y) const;
@@ -1252,6 +1328,8 @@ public:
                                    const Vector &yL, Vector &y) const;
    virtual void ComputeLimitedSolution(const Vector &x, const Vector &yH,
                                        const Vector &yL, Vector &y) const;
+   virtual void ComputeLimitedSolution2(const Vector &x, const Vector &yH,
+                                        const Vector &yL, Vector &y) const;
 
    virtual ~FE_Evolution() { }
 };
@@ -1569,27 +1647,27 @@ int main(int argc, char *argv[])
 }
 
 void FE_Evolution::NeumannSolve(const Vector &b, Vector &x) const
-{	
-	int i, iter, n = b.Size(), max_iter = 3;
-	Vector y; y.SetSize(n);
-// 	double resid = b.Norml2(), abs_tol = 1.e-9;
+{   
+   int i, iter, n = b.Size(), max_iter = 3;
+   Vector y; y.SetSize(n);
+//    double resid = b.Norml2(), abs_tol = 1.e-9;
 
-	x = 0.;
+   x = 0.;
 
-	for (iter = 1; iter < max_iter; iter++)
-	{
-		M.Mult(x, y);
-		y -= b;
-// 		resid = y.Norml2();
-// 		if (resid <= abs_tol)
-// 		{
-// 			return;
-// 		}
-		for (i = 0; i < n; i++)
-		{
-			x(i) -= y(i) / fct.lumpedM(i);
-		}
-	}
+   for (iter = 1; iter < max_iter; iter++)
+   {
+      M.Mult(x, y);
+      y -= b;
+//       resid = y.Norml2();
+//       if (resid <= abs_tol)
+//       {
+//          return;
+//       }
+      for (i = 0; i < n; i++)
+      {
+         x(i) -= y(i) / fct.lumpedM(i);
+      }
+   }
 }
 
 void FE_Evolution::LumpFluxTerms(int k, int nd, const Vector &x, Vector &y, const Vector alpha) const
@@ -1645,8 +1723,8 @@ void FE_Evolution::LumpFluxTerms2(int k, int nd, const Vector &x, Vector &y, con
    int i, j, m, idx, dofInd, numBdrs(fct.dofs.Width()), numDofs(fct.dofs.Height());
    double xNeighbor, totalFlux;
    Vector xDiff(numDofs);
-	bool useLimiter = true;
-	
+   bool useLimiter = true;
+   
    for (j = 0; j < numBdrs; j++)
    {
       for (i = 0; i < numDofs; i++)
@@ -1654,23 +1732,23 @@ void FE_Evolution::LumpFluxTerms2(int k, int nd, const Vector &x, Vector &y, con
          dofInd = k*nd+fct.dofs(i,j);
          idx = fct.neighborDof(k*numDofs+i,j);
          xNeighbor = idx < 0 ? 0. : x(idx);
-			xDiff(i) = xNeighbor - x(dofInd);
+         xDiff(i) = xNeighbor - x(dofInd);
       }
       
       for (i = 0; i < numDofs; i++)
       {
-			dofInd = k*nd+fct.dofs(i,j);
-			totalFlux = fct.bdrIntLumped(dofInd, j) * xDiff(i);
-			if (useLimiter)
-			{
-				for (m = 0; m < numDofs; m++)
-				{
-					if (i == m) { continue; }
-					totalFlux += alpha(fct.dofs(i,j)) * fct.bdrInt(dofInd, j*nd+fct.dofs(m,j)) * alpha(fct.dofs(m,j)) * (xDiff(i) - xDiff(m));
-				}
-			}
-			y(dofInd) += totalFlux;
-		}
+         dofInd = k*nd+fct.dofs(i,j);
+         totalFlux = fct.bdrIntLumped(dofInd, j) * xDiff(i);
+         if (useLimiter)
+         {
+            for (m = 0; m < numDofs; m++)
+            {
+               if (i == m) { continue; }
+               totalFlux += alpha(fct.dofs(i,j)) * fct.bdrInt(dofInd, j*nd+fct.dofs(m,j)) * alpha(fct.dofs(m,j)) * (xDiff(i) - xDiff(m));
+            }
+         }
+         y(dofInd) += totalFlux;
+      }
    }
 }
 
@@ -1703,15 +1781,35 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
    else if ((fct.monoType == Rusanov) || (fct.monoType == Rusanov_FS))
    {
       Mesh *mesh = fes->GetMesh();
-      int i, j, k, nd, dofInd, dim(mesh->Dimension()), numDofs(fct.dofs.Height()),
+      int i, j, k, m, nd, dofInd, dim(mesh->Dimension()), numDofs(fct.dofs.Height()),
           numBdrs = fct.dofs.Width();
       Array< int > bdrs, orientation;
-      double uSum;
-      Vector alpha;
+      double xSum, rhoP, rhoN, eps = 1.E-15;
+      Vector alpha, fsp, fsm;
+      DenseMatrix fs_e;
+      bool usePSI = true; // two choices of distribution
 
       // Discretization terms
-      K.Mult(x, z);
-      z += b;
+      y = b;
+      if (!fct.schemeOpt)
+      {
+         K.Mult(x, z);
+         z += b;
+      }
+      else
+      {
+         fsp.SetSize(fct.numSubcells);
+         fsm.SetSize(fct.numSubcells);
+         fs_e.SetSize(fct.numSubcells, fct.numDofsSubcell);
+         
+         fct.fluctMatrix.Mult(x, z);
+         if (dim==1)
+         {
+            K.AddMult(x, y);
+            y -= z;
+         }
+      }
+//       K.Mult(x, z); //TODO debug
 
       // Monotonicity terms
       for (k = 0; k < mesh->GetNE(); k++)
@@ -1729,18 +1827,75 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ///////////////////////////
          // Element contributions //
          ///////////////////////////
-         uSum = 0.;
-         for (j = 0; j < nd; j++)
+         if (fct.schemeOpt)
          {
-            uSum += x(k*nd+j);
+            rhoP = rhoN = 0.;
+            fsp = 0.; fsm = 0.;
+            fs_e = 0.;
+            for (j = 0; j < nd; j++)
+            {
+               dofInd = k*nd+j;
+               rhoP += max(0., z(dofInd));
+               rhoN += min(0., z(dofInd));
+            }
+            
+            for (m = 0; m < fct.numSubcells; m++)
+            {
+               xSum = 0.;
+               for (i = 0; i < fct.numDofsSubcell; i++)
+               {
+                  xSum += x(k*nd + fct.subcell2CellDof(m, i));
+               }
+               for (i = 0; i < fct.numDofsSubcell; i++)
+               {
+                  for (j = 0; j < fct.numDofsSubcell; j++)
+                  {
+                     fs_e(m,i) += fct.fluctSub(k*fct.numSubcells+m, fct.numDofsSubcell*i + j) * x(k*nd + fct.subcell2CellDof(m, j));
+                  }
+                  fs_e(m,i) += fct.elDiff(k*fct.numSubcells+m) * (xSum - fct.numDofsSubcell * x(k*nd + fct.subcell2CellDof(m, i)));
+                  
+                  fsp(m) += max(0., fs_e(m,i));
+                  fsm(m) += min(0., fs_e(m,i));
+               }
+            }
+            double sumFSP = fsp.Sum() + eps;
+            double sumFSM = fsm.Sum() - eps;
+            
+            if (usePSI)
+            {
+               for (m = 0; m < fct.numSubcells; m++)
+               {
+                  double fspm = fsp(m) * rhoP / sumFSP + fsm(m) * rhoN / sumFSM;
+                  for (i = 0; i < fct.numDofsSubcell; i++)
+                  {
+                     dofInd = k*nd + fct.subcell2CellDof(m, i);
+//                      y(dofInd) += max(0., fs_e(m,i)) * max(0., fspm) / (fsp(m)+eps)
+//                                 + min(0., fs_e(m,i)) * min(0., fspm) / (fsm(m)-eps); // TODO debug
+                  }
+               }
+            }
+            
+            for (j = 0; j < nd; j++)
+            {
+               // element update and inversion of lumped mass matrix
+               dofInd = k*nd+j;
+               y(dofInd) = (y(dofInd) + z(dofInd)) / fct.lumpedM(dofInd); // TODO debug
+            }
          }
-
-         for (j = 0; j < nd; j++)
+         else
          {
-            // element update and inversion of lumped mass matrix
-            dofInd = k*nd+j;
-            y(dofInd) = ( z(dofInd) + fct.elDiff(k)*(uSum - nd*x(dofInd)) ) / fct.lumpedM(
-                           dofInd);
+            xSum = 0.;
+            for (j = 0; j < nd; j++)
+            {
+               xSum += x(k*nd+j);
+            }
+            
+            for (j = 0; j < nd; j++)
+            {
+               // element update and inversion of lumped mass matrix
+               dofInd = k*nd+j;
+               y(dofInd) = ( z(dofInd) + fct.elDiff(k)*(xSum - nd*x(dofInd)) ) / fct.lumpedM(dofInd);
+            }
          }
       }
    }
@@ -1789,7 +1944,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             dofInd = k*nd+j;
             xMax = max(xMax, x(dofInd));
             xMin = min(xMin, x(dofInd));
-				xSum += x(dofInd);
+            xSum += x(dofInd);
          }
          
          if ( (fct.monoType == ResDist_Lim) || (fct.monoType == ResDist_LimMass) )
@@ -1805,8 +1960,8 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          for (j = 0; j < nd; j++)
          {
             dofInd = k*nd+j;
-				y(dofInd) += alpha(j) * z(dofInd);
-				z(dofInd) *= (1. - alpha(j));
+            y(dofInd) += alpha(j) * z(dofInd);
+            z(dofInd) *= (1. - alpha(j));
 
             rhoP += max(0., z(dofInd));
             rhoN += min(0., z(dofInd)); // TODO just needed for subcells
@@ -1832,7 +1987,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             sumWeightsSubcellP.SetSize(fct.numSubcells);
             sumWeightsSubcellN.SetSize(fct.numSubcells);
             // compute min-/max-values and the fluctuation for subcells
-				for (m = 0; m < fct.numSubcells; m++)
+            for (m = 0; m < fct.numSubcells; m++)
             {
                xMinSubcell(m) = numeric_limits<double>::infinity();
                xMaxSubcell(m) = -xMinSubcell(m);
@@ -1916,9 +2071,9 @@ void FE_Evolution::ComputeHighOrderSolution(const Vector &x, Vector &y) const
    K.Mult(x, z);
    z += b;
    NeumannSolve(z, y); // TODO debug
-// 	M_solver.Mult(z, y);
-// 	for (int i = 0; i < x.Size(); i++)
-// 		y(i) = z(i) / fct.lumpedM(i);
+//    M_solver.Mult(z, y);
+//    for (int i = 0; i < x.Size(); i++)
+//       y(i) = z(i) / fct.lumpedM(i);
 }
 
 void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
@@ -1985,9 +2140,9 @@ void FE_Evolution::ComputeLimitedSolution(const Vector &x, const Vector &yH,
    int* J = M.GetJ();
    double* Mij = M.GetData();
 
-// 	Vector g_e;
-	
-// 	sb.Compute(K, x); // TODO remove that
+//    Vector g_e;
+   
+//    sb.Compute(K, x); // TODO remove that
    
    y = yL;
 
@@ -1996,7 +2151,7 @@ void FE_Evolution::ComputeLimitedSolution(const Vector &x, const Vector &yH,
       const FiniteElement &el = *fes->GetFE(k);
       nd = el.GetDof();
       alphaDot.SetSize(nd);
-// 		g_e.SetSize(nd); g_e = 0.;
+//       g_e.SetSize(nd); g_e = 0.;
             
       xDotMin = numeric_limits<double>::infinity();
       xDotMax = -xDotMin;
@@ -2026,11 +2181,11 @@ void FE_Evolution::ComputeLimitedSolution(const Vector &x, const Vector &yH,
 //          
 //          double tmp = fct.lumpedM(dofInd) / (2.*dt);
 //          double lim = min( tmp * (fct.bnds.x_max(dofInd) - x(dofInd)), 
-// 							  max(tmp * (fct.bnds.x_min(dofInd) - x(dofInd)), g_e(i)) );
+//                        max(tmp * (fct.bnds.x_min(dofInd) - x(dofInd)), g_e(i)) );
 //          
-// 			alphaDot(i) = abs(g_e(i)) <= eps ? 0. : lim / g_e(i);
-// 		}
-		for (i = 0; i < nd; i++)
+//          alphaDot(i) = abs(g_e(i)) <= eps ? 0. : lim / g_e(i);
+//       }
+      for (i = 0; i < nd; i++)
       {
          dofInd = k*nd+i;
          for (j = nd-1; j >= 0; j--) // run backwards through columns
@@ -2055,15 +2210,15 @@ void FE_Evolution::ComputeLimitedSolution2(const Vector &x, const Vector &yH,
    int* I = M.GetI();
    int* J = M.GetJ();
    double* Mij = M.GetData();
-	
-	Vector g_e;
-	
-	// FCT
-// 	double sumPos, sumNeg;
+   
+   Vector g_e;
+   
+   // FCT
+//    double sumPos, sumNeg;
 //    Vector uClipped, fClipped;
-	//
-	
-// 	sb.Compute(K, x); // TODO remove that
+   //
+   
+//    sb.Compute(K, x); // TODO remove that
    
    y = yL;
 
@@ -2071,11 +2226,11 @@ void FE_Evolution::ComputeLimitedSolution2(const Vector &x, const Vector &yH,
    {
       const FiniteElement &el = *fes->GetFE(k);
       nd = el.GetDof();
-		
-		alphaDot.SetSize(nd); 
-		
-// 		// FCT
-// 		uClipped.SetSize(nd); uClipped = 0.;
+      
+      alphaDot.SetSize(nd); 
+      
+//       // FCT
+//       uClipped.SetSize(nd); uClipped = 0.;
 //       fClipped.SetSize(nd); fClipped = 0.;
 //       sumPos = sumNeg = 0.;
 //       for (j = 0; j < nd; j++)
@@ -2090,14 +2245,14 @@ void FE_Evolution::ComputeLimitedSolution2(const Vector &x, const Vector &yH,
 //          sumNeg += min(fClipped(j), 0.);
 //       }
 //       for (j = 0; j < nd; j++)
-// 		{
-// 			alphaDot(j) = 1.;
-// 			if (sumPos + sumNeg > eps)
-// 				alphaDot(j) = - sumNeg / sumPos;
-// 			else if (sumPos + sumNeg < -eps)
-// 				alphaDot(j) = - sumPos / sumNeg;
-// 		}
-// 		//
+//       {
+//          alphaDot(j) = 1.;
+//          if (sumPos + sumNeg > eps)
+//             alphaDot(j) = - sumNeg / sumPos;
+//          else if (sumPos + sumNeg < -eps)
+//             alphaDot(j) = - sumPos / sumNeg;
+//       }
+//       //
 
 //             
 //       xDotMin = numeric_limits<double>::infinity();
@@ -2117,9 +2272,9 @@ void FE_Evolution::ComputeLimitedSolution2(const Vector &x, const Vector &yH,
 //       }
       
       g_e.SetSize(nd); g_e = 0.;
-		double aux = 0.;
-		double sumP = 0.;
-		double sumN = 0.;
+      double aux = 0.;
+      double sumP = 0.;
+      double sumN = 0.;
       
       for (i = 0; i < nd; i++)
       {
@@ -2132,40 +2287,40 @@ void FE_Evolution::ComputeLimitedSolution2(const Vector &x, const Vector &yH,
             ctr++;
          }
 //          if (abs(g_e(i)) > eps)
-// 			{
-// 				double ratio = (fct.lumpedM(dofInd) / (2.*dt) * (fct.bnds.x_max(dofInd) - x(dofInd)) + eps) / g_e(i);
-// 				if (ratio < 1.+eps)
-// 					cout << "+ " << ratio << endl;
-// 				ratio = (fct.lumpedM(dofInd) / (2.*dt) * (fct.bnds.x_min(dofInd) - x(dofInd)) - eps) / g_e(i);
-// 				if (ratio < 1.+eps)
-// 					cout << "- " << ratio << endl;
-// 			}
+//          {
+//             double ratio = (fct.lumpedM(dofInd) / (2.*dt) * (fct.bnds.x_max(dofInd) - x(dofInd)) + eps) / g_e(i);
+//             if (ratio < 1.+eps)
+//                cout << "+ " << ratio << endl;
+//             ratio = (fct.lumpedM(dofInd) / (2.*dt) * (fct.bnds.x_min(dofInd) - x(dofInd)) - eps) / g_e(i);
+//             if (ratio < 1.+eps)
+//                cout << "- " << ratio << endl;
+//          }
 
          double tmp = fct.lumpedM(dofInd) / (2.*dt);
          g_e(i) = min( tmp * (fct.bnds.x_max(dofInd) - x(dofInd)),
-							  max(tmp * (fct.bnds.x_min(dofInd) - x(dofInd)), g_e(i)) );
-			aux += g_e(i);
-			sumP += max(0., g_e(i));
-			sumN += min(0., g_e(i));
-		}
-		
-		for (i = 0; i < nd; i++)
-		{
-			dofInd = k*nd+i;
-			if (aux > eps)
-			{
-				y(dofInd) = (y(dofInd) + min(0., g_e(i)) - max(0., g_e(i)) * sumN / sumP) / fct.lumpedM(dofInd);
-			}
-			else if (aux < -eps)
-			{
-				y(dofInd) = (y(dofInd) + max(0., g_e(i)) - min(0., g_e(i)) * sumP / sumN) / fct.lumpedM(dofInd);
-			}
-			else
-			{
-				y(dofInd) /= fct.lumpedM(dofInd);
-			}
-		}
-	}
+                       max(tmp * (fct.bnds.x_min(dofInd) - x(dofInd)), g_e(i)) );
+         aux += g_e(i);
+         sumP += max(0., g_e(i));
+         sumN += min(0., g_e(i));
+      }
+      
+      for (i = 0; i < nd; i++)
+      {
+         dofInd = k*nd+i;
+         if (aux > eps)
+         {
+            y(dofInd) = (y(dofInd) + min(0., g_e(i)) - max(0., g_e(i)) * sumN / sumP) / fct.lumpedM(dofInd);
+         }
+         else if (aux < -eps)
+         {
+            y(dofInd) = (y(dofInd) + max(0., g_e(i)) - min(0., g_e(i)) * sumP / sumN) / fct.lumpedM(dofInd);
+         }
+         else
+         {
+            y(dofInd) /= fct.lumpedM(dofInd);
+         }
+      }
+   }
 }
 
 // Implementation of class FE_Evolution
@@ -2219,7 +2374,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       ComputeHighOrderSolution(x, yH);
       ComputeLowOrderSolution(x, yL);
       ComputeLimitedSolution(x, yH, yL, y);
-// 		ComputeLimitedSolution2(x, yH, yL, y); // TODO WIP
+//       ComputeLimitedSolution2(x, yH, yL, y); // TODO WIP
    }
 }
 
