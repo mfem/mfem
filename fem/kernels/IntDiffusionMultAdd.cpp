@@ -33,7 +33,7 @@ static void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
                                    double* __restrict solOut)
 {
    const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
-   
+
    GET_OCCA_CONST_MEMORY(dofToQuad);
    GET_OCCA_CONST_MEMORY(dofToQuadD);
    GET_OCCA_CONST_MEMORY(quadToDof);
@@ -41,13 +41,13 @@ static void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
    GET_OCCA_CONST_MEMORY(oper);
    GET_OCCA_CONST_MEMORY(solIn);
    GET_OCCA_MEMORY(solOut);
-   
+
    NEW_OCCA_PROPERTY(props);
    SET_OCCA_PROPERTY(props, NUM_DOFS_1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
-   if (!config::usingGpu()){      
+   if (!config::usingGpu()){
       NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, oIntDiffusionMultAdd.okl, props);
       MultAdd2D_CPU(numElements,
                     o_dofToQuad, o_dofToQuadD,
@@ -449,14 +449,14 @@ void IntDiffusionMultAdd(const int DIM,
    }
    assert(call[id]);
 
-   GET_CONST_ADRS(dofToQuad);
-   GET_CONST_ADRS(dofToQuadD);
-   GET_CONST_ADRS(quadToDof);
-   GET_CONST_ADRS(quadToDofD);
-   GET_CONST_ADRS(op);
-   GET_CONST_ADRS(x);
-   GET_ADRS(y);
-   
+   GET_CONST_PTR(dofToQuad);
+   GET_CONST_PTR(dofToQuadD);
+   GET_CONST_PTR(quadToDof);
+   GET_CONST_PTR(quadToDofD);
+   GET_CONST_PTR(op);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
+
    call[id](numElements,
             d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
             d_op, d_x, d_y);

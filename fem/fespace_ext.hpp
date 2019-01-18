@@ -27,9 +27,9 @@ class kFiniteElementSpace
 private:
    FiniteElementSpace *fes;
    int globalDofs, localDofs;
-   kernels::array<int> offsets;
-   kernels::array<int> indices, *reorderIndices;
-   kernels::array<int> map;
+   kernels::Array<int> offsets;
+   kernels::Array<int> indices, *reorderIndices;
+   kernels::Array<int> map;
 public:
    kFiniteElementSpace(FiniteElementSpace*);
    ~kFiniteElementSpace();

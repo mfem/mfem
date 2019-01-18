@@ -31,15 +31,15 @@ static void oAssemble2D(const int NUM_QUAD_1D,
                         double* __restrict oper)
 {
    const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
-   
+
    GET_OCCA_CONST_MEMORY(quadWeights);
    GET_OCCA_CONST_MEMORY(J);
    GET_OCCA_MEMORY(oper);
-   
+
    NEW_OCCA_PROPERTY(props);
    SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
-   
+
    NEW_OCCA_KERNEL(Assemble2D, fem, oIntDiffusionAssemble.okl, props);
    Assemble2D(numElements, o_quadWeights, o_J, COEFF, o_oper);
 }
@@ -54,10 +54,10 @@ static void Assemble2D(const int NUM_QUAD_1D,
                        const double* __restrict J,
                        const double COEFF,
                        double* __restrict oper)
-{ 
-   GET_CONST_ADRS(quadWeights);
-   GET_CONST_ADRS(J);
-   GET_ADRS(oper);
+{
+   GET_CONST_PTR(quadWeights);
+   GET_CONST_PTR(J);
+   GET_PTR(oper);
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e,numElements,
    {
@@ -85,9 +85,9 @@ static void Assemble3D(const int NUM_QUAD_1D,
                        const double COEFF,
                        double* __restrict oper)
 {
-   GET_CONST_ADRS(quadWeights);
-   GET_CONST_ADRS(J);
-   GET_ADRS(oper);
+   GET_CONST_PTR(quadWeights);
+   GET_CONST_PTR(J);
+   GET_PTR(oper);
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e,numElements,
    {

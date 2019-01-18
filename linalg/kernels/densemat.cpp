@@ -31,9 +31,9 @@ inline void Swap(T &a, T &b)
 void LSolve(const int m, const int n,
             const double *data, const int *ipiv, double *x)
 {
-   GET_CONST_ADRS(data);
-   GET_CONST_ADRS_T(ipiv,int);
-   GET_ADRS(x);
+   GET_CONST_PTR(data);
+   GET_CONST_PTR_T(ipiv,int);
+   GET_PTR(x);
    MFEM_FORALL(k, n,
    {
       double *d_mx = &d_x[k*m];
@@ -57,8 +57,8 @@ void LSolve(const int m, const int n,
 // *****************************************************************************
 void USolve(const int m, const int n, const double *data, double *x)
 {
-   GET_CONST_ADRS(data);
-   GET_ADRS(x);
+   GET_CONST_PTR(data);
+   GET_PTR(x);
    MFEM_FORALL(k, n,
    {
       double *d_mx = &d_x[k*m];
@@ -76,7 +76,7 @@ void USolve(const int m, const int n, const double *data, double *x)
 // *****************************************************************************
 void FactorPrint(const int s, const double *data)
 {
-   GET_CONST_ADRS(data);
+   GET_CONST_PTR(data);
    MFEM_FORALL(i, s,
    {
       printf("\n\td_data[%ld]=%f",i,d_data[i]);
@@ -86,8 +86,8 @@ void FactorPrint(const int s, const double *data)
 // *****************************************************************************
 void FactorSet(const int s, const double *adata, double *ludata)
 {
-   GET_CONST_ADRS(adata);
-   GET_ADRS(ludata);
+   GET_CONST_PTR(adata);
+   GET_PTR(ludata);
    MFEM_FORALL(i, s,
    {
       d_ludata[i] = d_adata[i];
@@ -97,9 +97,8 @@ void FactorSet(const int s, const double *adata, double *ludata)
 // *****************************************************************************
 void Factor(const int m, int *ipiv, double *data)
 {
-   MFEM_GPU_CANNOT_PASS;
-   GET_ADRS_T(ipiv,int);
-   GET_ADRS(data);
+   GET_PTR_T(ipiv,int);
+   GET_PTR(data);
    MFEM_FORALL(i, m,
    {
       // pivoting
@@ -146,7 +145,7 @@ void Factor(const int m, int *ipiv, double *data)
 // **************************************************************************
 void Set(const double d, const size_t size, double *data)
 {
-   GET_ADRS(data);
+   GET_PTR(data);
    MFEM_FORALL(i, size, d_data[i] = d;);
 }
 
@@ -154,8 +153,8 @@ void Set(const double d, const size_t size, double *data)
 void Transpose(const size_t height, const size_t width,
                double *data, const double *mdata)
 {
-   GET_ADRS(data);
-   GET_CONST_ADRS(mdata);
+   GET_PTR(data);
+   GET_CONST_PTR(mdata);
    MFEM_FORALL(i, height,
    {
       for (size_t j=0; j<width; j+=1)
@@ -169,8 +168,8 @@ void Transpose(const size_t height, const size_t width,
 void MultAAt(const size_t height, const size_t width,
              const double *a, double *aat)
 {
-   GET_CONST_ADRS(a);
-   GET_ADRS(aat);
+   GET_CONST_PTR(a);
+   GET_PTR(aat);
    MFEM_FORALL(i, height,
    {
       for (size_t j=0; j<=i; j++)
@@ -188,8 +187,8 @@ void MultAAt(const size_t height, const size_t width,
 // *****************************************************************************
 void GradToDiv(const size_t n, const double *data, double *ddata)
 {
-   GET_CONST_ADRS(data);
-   GET_ADRS(ddata);
+   GET_CONST_PTR(data);
+   GET_PTR(ddata);
    MFEM_FORALL(i, n, d_ddata[i] = d_data[i];);
 }
 
@@ -197,8 +196,8 @@ void GradToDiv(const size_t n, const double *data, double *ddata)
 void AddMult_a_VVt(const size_t n, const double a, const double *v,
                    const size_t height, double *VVt)
 {
-   GET_CONST_ADRS(v);
-   GET_ADRS(VVt);
+   GET_CONST_PTR(v);
+   GET_PTR(VVt);
    MFEM_FORALL(i, n,
    {
       double avi = a * d_v[i];
@@ -216,7 +215,7 @@ void AddMult_a_VVt(const size_t n, const double a, const double *v,
 // *****************************************************************************
 void MultWidth0(const size_t height, double *y)
 {
-   GET_ADRS(y);
+   GET_PTR(y);
    MFEM_FORALL(row, height, d_y[row] = 0.0;);
 }
 
@@ -224,9 +223,9 @@ void MultWidth0(const size_t height, double *y)
 void Mult(const size_t height, const size_t width,
           const double *data, const double *x, double *y)
 {
-   GET_CONST_ADRS(data);
-   GET_CONST_ADRS(x);
-   GET_ADRS(y);
+   GET_CONST_PTR(data);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
    MFEM_FORALL(i, height,
    {
       double sum = 0.0;
@@ -242,9 +241,9 @@ void Mult(const size_t height, const size_t width,
 void Mult(const size_t ah, const size_t aw, const size_t bw,
           const double *bd, const double *cd, double *ad)
 {
-   GET_CONST_ADRS(bd);
-   GET_CONST_ADRS(cd);
-   GET_ADRS(ad);
+   GET_CONST_PTR(bd);
+   GET_CONST_PTR(cd);
+   GET_PTR(ad);
    MFEM_FORALL(i, ah*aw, d_ad[i] = 0.0;);
    MFEM_FORALL(j, aw,
    {
@@ -261,7 +260,7 @@ void Mult(const size_t ah, const size_t aw, const size_t bw,
 // *****************************************************************************
 void Diag(const size_t n, const size_t N, const double c, double *data)
 {
-   GET_ADRS(data);
+   GET_PTR(data);
    MFEM_FORALL(i, N, d_data[i] = 0.0;);
    MFEM_FORALL(i, n, d_data[i*(n+1)] = c;);
 }
@@ -269,8 +268,8 @@ void Diag(const size_t n, const size_t N, const double c, double *data)
 // *****************************************************************************
 void OpEQ(const size_t hw, const double *m, double *data)
 {
-   GET_CONST_ADRS(m);
-   GET_ADRS(data);
+   GET_CONST_PTR(m);
+   GET_PTR(data);
    MFEM_FORALL(i, hw, d_data[i] = d_m[i];);
 }
 
@@ -278,7 +277,7 @@ void OpEQ(const size_t hw, const double *m, double *data)
 double Det2(const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_ADRS(data);
+   GET_PTR(data);
    return d_data[0] * d_data[3] - d_data[1] * d_data[2];
 }
 
@@ -286,7 +285,7 @@ double Det2(const double *data)
 double Det3(const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_ADRS(data);
+   GET_PTR(data);
    return
       d_data[0] * (d_data[4] * d_data[8] - d_data[5] * d_data[7]) +
       d_data[3] * (d_data[2] * d_data[7] - d_data[1] * d_data[8]) +
@@ -297,7 +296,7 @@ double Det3(const double *data)
 double FNormMax(const size_t hw, const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_ADRS(data);
+   GET_PTR(data);
    double max_norm = 0.0;
    for (size_t i = 0; i < hw; i++)
    {
@@ -314,7 +313,7 @@ double FNormMax(const size_t hw, const double *data)
 double FNorm2(const size_t hw, const double max_norm, const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_ADRS(data);
+   GET_PTR(data);
    double fnorm2 = 0.0;
    for (size_t i = 0; i < hw; i++)
    {
@@ -328,8 +327,8 @@ double FNorm2(const size_t hw, const double max_norm, const double *data)
 void CalcInverse2D(const double t, const double *a, double *inva)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_CONST_ADRS(a);
-   GET_ADRS(inva);
+   GET_CONST_PTR(a);
+   GET_PTR(inva);
    d_inva[0+2*0] =  d_a[1+2*1] * t ;
    d_inva[0+2*1] = -d_a[0+2*1] * t ;
    d_inva[1+2*0] = -d_a[1+2*0] * t ;
@@ -340,8 +339,8 @@ void CalcInverse2D(const double t, const double *a, double *inva)
 void CalcInverse3D(const double t, const double *a, double *inva)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_CONST_ADRS(a);
-   GET_ADRS(inva);
+   GET_CONST_PTR(a);
+   GET_PTR(inva);
 
    d_inva[0+3*0] = (d_a[1+3*1]*d_a[2+3*2]-d_a[1+3*2]*d_a[2+3*1])*t;
    d_inva[0+3*1] = (d_a[0+3*2]*d_a[2+3*1]-d_a[0+3*1]*d_a[2+3*2])*t;

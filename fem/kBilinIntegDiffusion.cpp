@@ -26,6 +26,12 @@ KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
     ir(i) {assert(i); assert(fes);}
 
 // *****************************************************************************
+KDiffusionIntegrator::~KDiffusionIntegrator()
+{
+   delete maps;
+}
+
+// *****************************************************************************
 void KDiffusionIntegrator::Assemble()
 {
    const FiniteElement &fe = *(fes->GetFE(0));
@@ -39,7 +45,7 @@ void KDiffusionIntegrator::Assemble()
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int size = symmDims * quadraturePoints * elements;
    vec.SetSize(size);
-   kernels::geometry::Geometry *geo = kernels::geometry::Geometry::Get(*fes, *ir);
+   const kernels::geometry::Geometry *geo = kernels::geometry::Geometry::Get(*fes, *ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
    kernels::fem::IntDiffusionAssemble(dim,
                                       quad1D,
@@ -48,6 +54,7 @@ void KDiffusionIntegrator::Assemble()
                                       geo->J,
                                       1.0,//COEFF
                                       vec);
+   delete geo;
 }
 
 // *****************************************************************************
