@@ -13,17 +13,21 @@
 #define MFEM_FEM_KERNEL_GEOM_HPP
 
 #include "../../config/config.hpp"
-#include "../../general/karray.hpp"
+#include "../../general/array_ext.hpp"
 
 #include "../fespace.hpp"
 
 namespace mfem
 {
+namespace kernels
+{
+namespace geometry
+{
 
 // ***************************************************************************
-// * kGeometry
+// * Geometry
 // ***************************************************************************
-class kGeometry
+class Geometry
 {
 public:
    karray<int> eMap;
@@ -32,15 +36,17 @@ public:
    static const int Jacobian    = (1 << 0);
    static const int JacobianInv = (1 << 1);
    static const int JacobianDet = (1 << 2);
-   static kGeometry* Get(const FiniteElementSpace&,
-                         const IntegrationRule&);
-   static kGeometry* Get(const FiniteElementSpace&,
-                         const IntegrationRule&,
-                         const Vector&);
+   static Geometry* Get(const FiniteElementSpace&,
+                        const IntegrationRule&);
+   static Geometry* Get(const FiniteElementSpace&,
+                        const IntegrationRule&,
+                        const Vector&);
    static void ReorderByVDim(const GridFunction*);
    static void ReorderByNodes(const GridFunction*);
 };
 
-}
+} // namespace geometry
+} // namespace kernels
+} // namespace mfem
 
 #endif // MFEM_FEM_KERNEL_GEOM_HPP

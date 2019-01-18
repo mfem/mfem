@@ -14,9 +14,15 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace mesh
+{
 
-void kQuadChildren(double *data);
+void QuadChildren(double *data);
 
-}
+} // namespace mesh
+} // namespace kernels
+} // namespace mfem
 
 #endif // MFEM_MESH_KERNELS

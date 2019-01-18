@@ -32,6 +32,7 @@ list(APPEND SRCS
 
 list(APPEND HDRS
   array.hpp
+  array_ext.hpp
   binaryio.hpp
   config.hpp
   cuda.hpp
@@ -40,7 +41,6 @@ list(APPEND HDRS
   gzstream.hpp
   hash.hpp
   isockstream.hpp
-  karray.hpp
   mem_alloc.hpp
   mm.hpp
   occa.hpp

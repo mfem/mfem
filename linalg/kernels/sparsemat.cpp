@@ -23,18 +23,45 @@ public:
    int Column;
 };
 
+namespace kernels
+{
+namespace sparsemat
+{
+
 // *****************************************************************************
-void kSparseMatrix(const int nrows, RowNode** Rows)
+void SparseMatrix(const int nrows, RowNode** Rows)
 {
    GET_PTR_T(Rows,RowNode*);
    MFEM_FORALL(i, nrows, d_Rows[i] = NULL;);
 }
 
 // *****************************************************************************
-void kGauss_Seidel_forw_A_NULL(const size_t s,
-                               RowNode **R,
-                               const double *xp,
-                               double *yp)
+void AddMult(const size_t height,
+             const int *I, const int *J, const double *A,
+             const double *x, double *y)
+{
+   GET_CONST_ADRS_T(I,int);
+   GET_CONST_ADRS_T(J,int);
+   GET_CONST_ADRS(A);
+   GET_CONST_ADRS(x);
+   GET_ADRS(y);
+   MFEM_FORALL(i, height,
+   {
+      double d = 0.0;
+      const size_t end = d_I[i+1];
+      for (size_t j=d_I[i]; j < end; j+=1)
+      {
+         d += d_A[j] * d_x[d_J[j]];
+      }
+      d_y[i] += d;
+   });
+}
+
+// *****************************************************************************
+void Gauss_Seidel_forw_A_NULL(const size_t s,
+                              RowNode **R,
+                              const double *xp,
+                              double *yp)
 {
    GET_PTR_T(R,RowNode*);
    GET_CONST_PTR(xp);
@@ -71,10 +98,10 @@ void kGauss_Seidel_forw_A_NULL(const size_t s,
 }
 
 // *****************************************************************************
-void kGauss_Seidel_forw(const size_t height,
-                        const int *Ip, const int *Jp, const double *Ap,
-                        const double *xp,
-                        double *yp)
+void Gauss_Seidel_forw(const size_t height,
+                       const int *Ip, const int *Jp, const double *Ap,
+                       const double *xp,
+                       double *yp)
 {
    GET_CONST_PTR_T(Ip,int);
    GET_CONST_PTR_T(Jp,int);
@@ -108,10 +135,10 @@ void kGauss_Seidel_forw(const size_t height,
 }
 
 // *****************************************************************************
-void kGauss_Seidel_back(const size_t height,
-                        const int *Ip, const int *Jp, const double *Ap,
-                        const double *xp,
-                        double *yp)
+void Gauss_Seidel_back(const size_t height,
+                       const int *Ip, const int *Jp, const double *Ap,
+                       const double *xp,
+                       double *yp)
 {
    GET_CONST_PTR_T(Ip,int);
    GET_CONST_PTR_T(Jp,int);

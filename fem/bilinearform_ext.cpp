@@ -14,9 +14,9 @@
 
 #include "fem.hpp"
 #include "bilininteg.hpp"
+#include "fespace_ext.hpp"
 #include "bilinearform_ext.hpp"
 #include "kBilinIntegDiffusion.hpp"
-#include "kfespace.hpp"
 #include "../linalg/kernels/vector.hpp"
 
 namespace mfem
@@ -135,15 +135,15 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
       assert(xsz>=csz);
       Vector subvec(xsz);
       subvec = 0.0;
-      kVectorGetSubvector(csz,
-                          subvec.GetData(),
-                          X.GetData(),
-                          ess_tdof_list.GetData());
+      kernels::vector::GetSubvector(csz,
+                                    subvec.GetData(),
+                                    X.GetData(),
+                                    ess_tdof_list.GetData());
       X = 0.0;
-      kVectorSetSubvector(csz,
-                          X.GetData(),
-                          subvec.GetData(),
-                          ess_tdof_list.GetData());
+      kernels::vector::SetSubvector(csz,
+                                    X.GetData(),
+                                    subvec.GetData(),
+                                    ess_tdof_list.GetData());
    }
 
    ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(A);

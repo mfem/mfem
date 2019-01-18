@@ -14,17 +14,23 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace fem
+{
 
 // *****************************************************************************
-void kLocalToGlobal(const int NUM_VDIM,
-                    const bool VDIM_ORDERING,
-                    const int globalEntries,
-                    const int localEntries,
-                    const int* __restrict offsets,
-                    const int* __restrict indices,
-                    const double* __restrict localX,
-                    double* __restrict globalX);
+void LocalToGlobal(const int NUM_VDIM,
+                   const bool VDIM_ORDERING,
+                   const int globalEntries,
+                   const int localEntries,
+                   const int* __restrict offsets,
+                   const int* __restrict indices,
+                   const double* __restrict localX,
+                   double* __restrict globalX);
 
-}
+} // namespace fem
+} // namespace kernels
+} // namespace mfem
 
 #endif // MFEM_FEM_KERNELS_LOCAL_GLOBAL_HPP
