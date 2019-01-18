@@ -11,8 +11,8 @@
 
 #include "fem.hpp"
 #include "kBilinIntegDiffusion.hpp"
-#include "kernels/kGeometry.hpp"
-#include "kernels/kIntDiffusion.hpp"
+#include "kernels/Geometry.hpp"
+#include "kernels/IntDiffusion.hpp"
 
 namespace mfem
 {
@@ -66,17 +66,17 @@ void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
    const FiniteElementSpace *f = fes;
    const FiniteElement *fe = f->GetFE(0);
    const int dofs1D = fe->GetOrder() + 1;
-   kIntDiffusionMultAdd(dim,
-                        dofs1D,
-                        quad1D,
-                        fes->GetMesh()->GetNE(),
-                        maps->dofToQuad,
-                        maps->dofToQuadD,
-                        maps->quadToDof,
-                        maps->quadToDofD,
-                        vec,
-                        x,
-                        y);
+   kernels::fem::IntDiffusionMultAdd(dim,
+                                     dofs1D,
+                                     quad1D,
+                                     fes->GetMesh()->GetNE(),
+                                     maps->dofToQuad,
+                                     maps->dofToQuadD,
+                                     maps->quadToDof,
+                                     maps->quadToDofD,
+                                     vec,
+                                     x,
+                                     y);
 }
 
 } // namespace mfem

@@ -19,35 +19,38 @@
 namespace mfem
 {
 
-template <class T, bool xyz = true> class karray;
+namespace kernels
+{
+
+template <class T, bool xyz = true> class array;
 
 // Partial Specializations for xyz==TRUE *************************************
-template <class T> class karray<T,true>
+template <class T> class array<T,true>
 {
 private:
    T* data = NULL;
    size_t sz=0;
    size_t d[4]= {0};
 public:
-   karray():data(NULL),sz(0),d{0,0,0,0} {}
-   karray(const size_t x) {allocate(x);}
-   karray(const size_t x,const size_t y) {allocate(x,y);}
-   karray(const karray<T,true> &r)
+   array():data(NULL),sz(0),d{0,0,0,0} {}
+   array(const size_t x) {allocate(x);}
+   array(const size_t x,const size_t y) {allocate(x,y);}
+   array(const array<T,true> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       mm::memcpy(data,r,r.bytes());
    }
-   karray& operator=(const karray<T,true> &r)
+   array& operator=(const array<T,true> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       mm::memcpy(data,r,r.bytes());
       return *this;
    }
-   ~karray() {mm::free<T>(data);}
+   ~array() {mm::free<T>(data);}
    inline size_t* dim() { return &d[0]; }
    inline operator T* () { return data; }
    inline operator const T* () const { return data; }
-   double operator* (const karray& a) const { return vector_dot(sz, data, a.data); }
+   double operator* (const array& a) const { return vector_dot(sz, data, a.data); }
    inline size_t size() const { return sz; }
    inline size_t Size() const { return sz; }
    inline size_t bytes() const { return size()*sizeof(T); }
@@ -82,7 +85,7 @@ public:
 };
 
 // Partial Specializations for xyz==FALSE ************************************
-template <class T> class karray<T,false>
+template <class T> class array<T,false>
 {
 private:
    static const int DIM = 4;
@@ -90,9 +93,9 @@ private:
    size_t sz=0;
    size_t d[DIM]= {0};
 public:
-   karray():data(NULL),sz(0),d{0,0,0,0} {}
-   karray(const size_t d0) {allocate(d0);}
-   karray(const karray<T,false> &r)
+   array():data(NULL),sz(0),d{0,0,0,0} {}
+   array(const size_t d0) {allocate(d0);}
+   array(const array<T,false> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       mm::memcpy(data,r.GetData(),r.bytes());
@@ -103,11 +106,11 @@ public:
       mm::memcpy(data,r,r.bytes());
       return *this;
    }
-   ~karray() {mm::free<T> (data);}
+   ~array() {mm::free<T> (data);}
    inline size_t* dim() { return &d[0]; }
    inline operator T* () { return data; }
    inline operator const T* () const { return data; }
-   double operator* (const karray& a) const { return vector_dot(sz, data, a.data); }
+   double operator* (const array& a) const { return vector_dot(sz, data, a.data); }
    inline size_t size() const { return sz; }
    inline size_t Size() const { return sz; }
    inline size_t bytes() const { return size()*sizeof(T); }
@@ -149,6 +152,7 @@ public:
    }
 };
 
-} // mfem
+} // namespace kernels
+} // namespace mfem
 
-#endif // MFEM_KARRAY_HPP
+#endif // MFEM_ARRAY_HPP
