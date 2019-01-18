@@ -365,31 +365,6 @@ foreach(DIR IN LISTS MFEM_KERNELS_DIRS)
   add_subdirectory(${DIR}/kernels)
 endforeach()
 add_custom_target(MFEM_KERNELS)
-#if (NOT WIN32)
-#foreach(kernel IN LISTS KERNELS)
-#   get_filename_component(kername ${kernel} NAME_WE)
-#   get_filename_component(dirname ${kernel} DIRECTORY)
-#   file(RELATIVE_PATH relpath ${CMAKE_CURRENT_SOURCE_DIR} ${dirname})
-#   set(KER_RELPATH ${CMAKE_CURRENT_BINARY_DIR}/${relpath})
-#   set(kernel_o ${CMAKE_CURRENT_BINARY_DIR}/${relpath}/${kername}.cpp.o)
-#   set(KER_FLAGS ${CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}})
-#   set(KER_FLAGS ${KER_FLAGS} -std=c++11 -xc++ -c)
-#   # ${CMAKE_CURRENT_BINARY_DIR}/config is where _config.hpp can be found
-#   set(KER_FLAGS ${KER_FLAGS} -I${CMAKE_CURRENT_BINARY_DIR}/config)
-#   set(KER_FLAGS ${KER_FLAGS} -I${dirname})
-#   add_custom_command(
-#       OUTPUT ${kernel_o}
-#       COMMAND ${CMAKE_COMMAND} -E make_directory ${KER_RELPATH}
-#       COMMAND mpp ${kernel} | 
-#       ${CMAKE_CXX_COMPILER} ${KER_FLAGS} -o ${kernel_o} -
-#       DEPENDS mpp ${kernel}
-#   )
-#   string(REPLACE " " "_" kernel_d ${relpath}/${kername})
-#   string(REPLACE "/" "_" kernel_d ${kernel_d})
-#   add_custom_target(${kernel_d} DEPENDS ${kernel_o})
-#   add_dependencies(MFEM_KERNELS ${kernel_d})
-#endforeach()
-#elseif(NOT WIN32)
 foreach(kernel IN LISTS KERNELS)
    get_filename_component(kername ${kernel} NAME_WE)
    get_filename_component(dirname ${kernel} DIRECTORY)
@@ -400,7 +375,6 @@ foreach(kernel IN LISTS KERNELS)
        OUTPUT ${kernel_cpp}
        COMMAND ${CMAKE_COMMAND} -E make_directory ${KER_RELPATH}
        COMMAND  mpp ${kernel} -o ${kernel_cpp}
-       #COMMENT "mpp ${kernel} -o ${kernel_cpp}"
        DEPENDS mpp ${kernel}
    )
    set(SOURCES ${SOURCES} ${kernel_cpp})
@@ -411,7 +385,6 @@ foreach(kernel IN LISTS KERNELS)
    set_source_files_properties(${kernel_cpp} PROPERTIES 
        COMPILE_FLAGS -I${dirname})
 endforeach()
-#endif(NOT WIN32)
 
 #-------------------------------------------------------------------------------
 # Declaring the MFEM library
