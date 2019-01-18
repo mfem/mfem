@@ -10,20 +10,20 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(SRCS
-  kGeometry.cpp
-  kGeometry2D.cpp
-  kGeometry3D.cpp
-  kGlobalToLocal.cpp
-  kIntDiffusionAssemble.cpp
-  kIntDiffusionMultAdd.cpp
-  kLocalToGlobal.cpp
+  Geometry.cpp
+  Geometry2D.cpp
+  Geometry3D.cpp
+  GlobalToLocal.cpp
+  IntDiffusionAssemble.cpp
+  IntDiffusionMultAdd.cpp
+  LocalToGlobal.cpp
 )
 
 set(HDRS
-  kGeometry.hpp
-  kGlobalToLocal.hpp
-  kIntDiffusion.hpp
-  kLocalToGlobal.hpp
+  Geometry.hpp
+  GlobalToLocal.hpp
+  IntDiffusion.hpp
+  LocalToGlobal.hpp
 )
 
 convert_filenames_to_full_paths(SRCS)

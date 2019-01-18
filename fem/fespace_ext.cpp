@@ -12,9 +12,9 @@
 #include "../config/config.hpp"
 
 #include "fem.hpp"
-#include "kfespace.hpp"
-#include "kernels/kGlobalToLocal.hpp"
-#include "kernels/kLocalToGlobal.hpp"
+#include "fespace_ext.hpp"
+#include "kernels/GlobalToLocal.hpp"
+#include "kernels/LocalToGlobal.hpp"
 
 // *****************************************************************************
 namespace mfem
@@ -113,14 +113,14 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
-   kGlobalToLocal(vdim,
-                  vdim_ordering,
-                  globalDofs,
-                  localEntries,
-                  offsets,
-                  indices,
-                  globalVec,
-                  localVec);
+   kernels::fem::GlobalToLocal(vdim,
+                               vdim_ordering,
+                               globalDofs,
+                               localEntries,
+                               offsets,
+                               indices,
+                               globalVec,
+                               localVec);
 }
 
 // ***************************************************************************
@@ -131,14 +131,14 @@ void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
-   kLocalToGlobal(vdim,
-                  vdim_ordering,
-                  globalDofs,
-                  localEntries,
-                  offsets,
-                  indices,
-                  localVec,
-                  globalVec);
+   kernels::fem::LocalToGlobal(vdim,
+                               vdim_ordering,
+                               globalDofs,
+                               localEntries,
+                               offsets,
+                               indices,
+                               localVec,
+                               globalVec);
 }
 
 } // mfem

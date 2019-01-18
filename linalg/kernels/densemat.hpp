@@ -14,50 +14,61 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace densemat
+{
 
-void kLSolve(const int, const int, const double*, const int*, double*);
+void LSolve(const int m, const int n,
+            const double *data, const int *ipiv, double *x);
 
-void kUSolve(const int, const int, const double*, double*);
+void USolve(const int m, const int n, const double *data, double *x);
 
-void kFactorPrint(const int, const double*);
+void FactorPrint(const int s, const double *data);
 
-void kFactorSet(const int, const double*, double*);
+void FactorSet(const int s, const double *adata, double *ludata);
 
-void kFactor(const int, int*, double*);
+void Factor(const int m, int *ipiv, double *data);
 
+void Set(const double d, const size_t size, double *data);
 
-void DenseMatrixSet(const double, const size_t, double*);
+void Transpose(const size_t height, const size_t width,
+               double *data, const double *mdata);
 
-void DenseMatrixTranspose(const size_t, const size_t, double*, const double*);
+void MultAAt(const size_t height, const size_t width,
+              const double *a, double *aat);
 
-void kMultAAt(const size_t, const size_t, const double*, double*);
+void GradToDiv(const size_t n, const double *data, double *ddata);
 
-void kGradToDiv(const size_t, const double*, double*);
+void AddMult_a_VVt(const size_t n, const double a, const double *v,
+                   const size_t height, double *VVt);
 
-void kAddMult_a_VVt(const size_t, const double, const double*, const size_t, double*);
+void MultWidth0(const size_t height, double *y);
 
-void kMultWidth0(const size_t, double*);
+void Mult(const size_t height, const size_t width,
+          const double *data, const double *x, double *y);
 
-void kMult(const size_t, const size_t, const size_t, const double*, const double*, double*);
+void Mult(const size_t ah, const size_t aw, const size_t bw,
+          const double *bd, const double *cd, double *ad);
 
-void kMult(const size_t, const size_t, const double*, const double*, double*);
+void Diag(const size_t n, const size_t N, const double c, double *data);
 
-void kDiag(const size_t, const size_t, const double, double*);
+void OpEQ(const size_t hw, const double *m, double *data);
 
-void kOpEq(const size_t, const double*, double*);
+double Det2(const double *data);
 
-double kDet2(const double*);
+double Det3(const double *data);
 
-double kDet3(const double*);
+double FNormMax(const size_t hw, const double *data);
 
-double kFNormMax(const size_t, const double*);
+double FNorm2(const size_t hw, const double max_norm, const double *data);
 
-double kFNorm2(const size_t, const double, const double*);
+void CalcInverse2D(const double t, const double *a, double *inva);
 
-void kCalcInverse2D(const double, const double*, double*);
+void CalcInverse3D(const double t, const double *a, double *inva);
 
-void kCalcInverse3D(const double, const double*, double*);
-
-} // mfem namespace
+} // namespace densemat
+} // namespace kernels
+} // namespace mfem
 
 #endif // MFEM_DENSEMAT_KERNELS

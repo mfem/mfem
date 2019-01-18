@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 
-#include "../general/karray.hpp"
+#include "../general/array_ext.hpp"
 
 namespace mfem
 {
@@ -27,9 +27,9 @@ class kFiniteElementSpace
 private:
    FiniteElementSpace *fes;
    int globalDofs, localDofs;
-   karray<int> offsets;
-   karray<int> indices, *reorderIndices;
-   karray<int> map;
+   kernels::array<int> offsets;
+   kernels::array<int> indices, *reorderIndices;
+   kernels::array<int> map;
 public:
    kFiniteElementSpace(FiniteElementSpace*);
    ~kFiniteElementSpace();
