@@ -351,7 +351,10 @@ int main(int argc, char *argv[])
    }
 
    // 12. Compute the L2 solution error summed for all components.
-   if (t_final == 2.0)
+   if ((t_final == 2.0 &&
+        strcmp(mesh_file, "../data/periodic-square.mesh") == 0) ||
+       (t_final == 3.0 &&
+        strcmp(mesh_file, "../data/periodic-hexagon.mesh") == 0))
    {
       const double error = sol.ComputeLpError(2, u0);
       if (mpi.Root()) { cout << "Solution error: " << error << endl; }
