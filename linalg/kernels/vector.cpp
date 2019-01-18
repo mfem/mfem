@@ -91,9 +91,9 @@ double Dot(const size_t N, const double *x, const double *y)
 // *****************************************************************************
 void MapDof(const int N, double *y, const double *x, const int *dofs)
 {
-   GET_PTR(v0);
-   GET_CONST_PTR(v1);
-   GET_CONST_PTR_T(dof,int);
+   GET_PTR(y);
+   GET_CONST_PTR(x);
+   GET_CONST_PTR_T(dofs,int);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -104,23 +104,23 @@ void MapDof(const int N, double *y, const double *x, const int *dofs)
 // *****************************************************************************
 void MapDof(double *y, const double *x, const int dof, const int j)
 {
-   GET_PTR(v0);
-   GET_CONST_PTR(v1);
-   MFEM_FORALL(i, 1, d_v0[dof] = d_v1[j]; );
+   GET_PTR(y);
+   GET_CONST_PTR(x);
+   MFEM_FORALL(i, 1, d_y[dof] = d_x[j];);
 }
 
 // *****************************************************************************
 void SetDof(double *y, const double alpha, const int dof)
 {
-   GET_PTR(v0);
-   MFEM_FORALL(i, 1, d_v0[dof] = alpha; );
+   GET_PTR(y);
+   MFEM_FORALL(i, 1, d_y[dof] = alpha;);
 }
 
 // *****************************************************************************
 void SetDof(const int N, double *y, const double alpha, const int *dofs)
 {
-   GET_PTR(v0);
-   GET_CONST_PTR_T(dof,int);
+   GET_PTR(y);
+   GET_CONST_PTR_T(dofs,int);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -144,8 +144,8 @@ void GetSubvector(const int N, double *y, const double *x, const int* dofs)
 // *****************************************************************************
 void SetSubvector(const int N, double *y, const double *x, const int* dofs)
 {
-   GET_PTR(x);
-   GET_CONST_PTR(y);
+   GET_PTR(y);
+   GET_CONST_PTR(x);
    GET_CONST_PTR_T(dofs,int);
    MFEM_FORALL(i, N,
    {
@@ -164,27 +164,28 @@ void SetSubvector(const int N, double *y, const double *x, const int* dofs)
 void AlphaAdd(double *z, const double *x,
               const double a, const double *y, const size_t N)
 {
-   GET_PTR(zp);
-   GET_CONST_PTR(xp);
-   GET_CONST_PTR(yp);
-   MFEM_FORALL(i, N, d_zp[i] = d_xp[i] - d_yp[i];);
+   GET_PTR(z);
+   GET_CONST_PTR(x);
+   GET_CONST_PTR(y);
+   MFEM_FORALL(i, N, d_z[i] = d_x[i] + a * d_y[i];);
 }
 
 // *****************************************************************************
 void Subtract(double *z, const double *x, const double *y, const size_t N)
 {
-   GET_PTR(vp);
-   GET_CONST_PTR(v1p);
-   GET_CONST_PTR(v2p);
-   MFEM_FORALL(i, N, d_vp[i] = d_v1p[i] + alpha * d_v2p[i];);
+   GET_PTR(z);
+   GET_CONST_PTR(x);
+   GET_CONST_PTR(y);
+   MFEM_FORALL(i, N, d_z[i] = d_x[i] - d_y[i];);
 }
 
 
 // *****************************************************************************
 void Print(const size_t N, const double *x)
 {
-   GET_CONST_PTR(data);
-   MFEM_FORALL(k, 1, // Sequential printf to get the same order as the host
+   GET_CONST_PTR(x);
+   // Sequential printf to get the same order as on the host
+   MFEM_FORALL(k, 1,
    {
       for (size_t i=0; i<N; i+=1)
       {
@@ -196,47 +197,47 @@ void Print(const size_t N, const double *x)
 // **************************************************************************
 void Set(const size_t N, const double d, double *y)
 {
-   GET_PTR(data);
-   GET_CONST_PTR(v);
-   MFEM_FORALL(i, N, d_data[i] = d_v[i];);
+   GET_PTR(y);
+   MFEM_FORALL(i, N, d_y[i] = d;);
 }
 
 // *****************************************************************************
 void Assign(const size_t N, const double *x, double *y)
 {
-   GET_PTR(data);
-   MFEM_FORALL(i, N, d_data[i] = value;);
+   GET_PTR(y);
+   GET_CONST_PTR(x);
+   MFEM_FORALL(i, N, d_y[i] = d_x[i];);
 }
 
 // *****************************************************************************
 void OpMultEQ(const size_t N, const double d, double *y)
 {
-   GET_PTR(data);
-   MFEM_FORALL(i, N, d_data[i] *= value;);
+   GET_PTR(y);
+   MFEM_FORALL(i, N, d_y[i] *= d;);
 }
 
 // *****************************************************************************
 void OpPlusEQ(const size_t size, const double *x, double *y)
 {
-   GET_CONST_PTR(v);
-   GET_PTR(data);
-   MFEM_FORALL(i, size, d_data[i] += d_v[i];);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
+   MFEM_FORALL(i, size, d_y[i] += d_x[i];);
 }
 
 // *****************************************************************************
 void OpSubtractEQ(const size_t size, const double *x, double *y)
 {
-   GET_CONST_PTR(v);
-   GET_PTR(data);
-   MFEM_FORALL(i, size, d_data[i] -= d_v[i];);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
+   MFEM_FORALL(i, size, d_y[i] -= d_x[i];);
 }
 
 // *****************************************************************************
 void AddElement(const size_t n, const int *dofs, const double *x, double *y)
 {
    GET_CONST_PTR_T(dofs,int);
-   GET_CONST_PTR(elem_data);
-   GET_PTR(data);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
    MFEM_FORALL(i, n,
    {
       const int j = d_dofs[i];

@@ -5855,7 +5855,7 @@ void Mesh::UniformRefinement2D()
       B,A, C,A, B,B,
       A,B, B,B, A,C
    };
-   kQuadChildren(quad_children);
+   kernels::mesh::QuadChildren(quad_children);
 
    CoarseFineTr.point_matrices[Geometry::TRIANGLE].
    UseExternalData(tri_children, 2, 3, 4);

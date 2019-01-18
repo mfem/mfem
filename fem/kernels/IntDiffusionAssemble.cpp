@@ -48,12 +48,12 @@ static void oAssemble2D(const int NUM_QUAD_1D,
 // *****************************************************************************
 // * OKINA 2D kernel
 // *****************************************************************************
-static void kAssemble2D(const int NUM_QUAD_1D,
-                        const int numElements,
-                        const double* __restrict quadWeights,
-                        const double* __restrict J,
-                        const double COEFF,
-                        double* __restrict oper)
+static void Assemble2D(const int NUM_QUAD_1D,
+                       const int numElements,
+                       const double* __restrict quadWeights,
+                       const double* __restrict J,
+                       const double COEFF,
+                       double* __restrict oper)
 {
    GET_CONST_PTR(quadWeights);
    GET_CONST_PTR(J);

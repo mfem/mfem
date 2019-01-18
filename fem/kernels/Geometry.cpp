@@ -97,7 +97,7 @@ static void Geom(const int DIM,
    };
    if (!call[id])
    {
-      printf("\n[kGeom] id \033[33m0x%X\033[m ",id);
+      printf("\n[Geom] id \033[33m0x%X\033[m ",id);
       fflush(stdout);
    }
    assert(call[id]);
@@ -188,10 +188,10 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
    const int elements = fespace->GetNE();
    const int ndofs    = fespace->GetNDofs();
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
-   rNodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->meshNodes);
-   kGeom(dims, numDofs, numQuad, elements,
-         maps->dofToQuadD,
-         geom->meshNodes, geom->J, geom->invJ, geom->detJ);
+   NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->meshNodes);
+   Geom(dims, numDofs, numQuad, elements,
+        maps->dofToQuadD,
+        geom->meshNodes, geom->J, geom->invJ, geom->detJ);
    delete maps;
    return geom;
 }
@@ -246,8 +246,8 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
       geom->detJ.allocate(numQuad, elements);
    }
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
-   kGeom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
-         geom->meshNodes, geom->J, geom->invJ, geom->detJ);
+   Geom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
+        geom->meshNodes, geom->J, geom->invJ, geom->detJ);
    delete maps;
    return geom;
 }
