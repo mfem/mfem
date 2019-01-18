@@ -165,7 +165,7 @@ endif
 # Compile flags used by MFEM: CPPFLAGS, CXXFLAGS, plus library flags
 INCFLAGS =
 # Link flags used by MFEM: library link flags plus LDFLAGS (added last)
-ALL_LIBS = -ldl
+ALL_LIBS =
 
 # Building static and/or shared libraries:
 MFEM_STATIC ?= $(STATIC)
