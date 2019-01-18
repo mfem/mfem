@@ -14,6 +14,10 @@
 // *****************************************************************************
 namespace mfem
 {
+namespace kernels
+{
+namespace fem
+{
 
 #ifdef __OCCA__
 // *****************************************************************************
@@ -68,14 +72,14 @@ static void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> static
-void kIntDiffusionMultAdd2D(const int numElements,
-                            const double* __restrict dofToQuad,
-                            const double* __restrict dofToQuadD,
-                            const double* __restrict quadToDof,
-                            const double* __restrict quadToDofD,
-                            const double* __restrict oper,
-                            const double* __restrict solIn,
-                            double* __restrict solOut)
+void IntDiffusionMultAdd2D(const int numElements,
+                           const double* __restrict dofToQuad,
+                           const double* __restrict dofToQuadD,
+                           const double* __restrict quadToDof,
+                           const double* __restrict quadToDofD,
+                           const double* __restrict oper,
+                           const double* __restrict solIn,
+                           double* __restrict solOut)
 {
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e, numElements,
@@ -179,14 +183,14 @@ void kIntDiffusionMultAdd2D(const int numElements,
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> static
-void kIntDiffusionMultAdd3D(const int numElements,
-                            const double* __restrict dofToQuad,
-                            const double* __restrict dofToQuadD,
-                            const double* __restrict quadToDof,
-                            const double* __restrict quadToDofD,
-                            const double* __restrict oper,
-                            const double* __restrict solIn,
-                            double* __restrict solOut)
+void IntDiffusionMultAdd3D(const int numElements,
+                           const double* __restrict dofToQuad,
+                           const double* __restrict dofToQuadD,
+                           const double* __restrict quadToDof,
+                           const double* __restrict quadToDofD,
+                           const double* __restrict oper,
+                           const double* __restrict solIn,
+                           double* __restrict solOut)
 {
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e, numElements,
@@ -370,17 +374,17 @@ typedef void (*fDiffusionMultAdd)(const int numElements,
                                   double* __restrict solOut);
 
 // *****************************************************************************
-void kIntDiffusionMultAdd(const int DIM,
-                          const int NUM_DOFS_1D,
-                          const int NUM_QUAD_1D,
-                          const int numElements,
-                          const double* __restrict dofToQuad,
-                          const double* __restrict dofToQuadD,
-                          const double* __restrict quadToDof,
-                          const double* __restrict quadToDofD,
-                          const double* __restrict op,
-                          const double* __restrict x,
-                          double* __restrict y)
+void IntDiffusionMultAdd(const int DIM,
+                         const int NUM_DOFS_1D,
+                         const int NUM_QUAD_1D,
+                         const int numElements,
+                         const double* __restrict dofToQuad,
+                         const double* __restrict dofToQuadD,
+                         const double* __restrict quadToDof,
+                         const double* __restrict quadToDofD,
+                         const double* __restrict op,
+                         const double* __restrict x,
+                         double* __restrict y)
 {
 
 #ifdef __OCCA__
@@ -400,43 +404,43 @@ void kIntDiffusionMultAdd(const int DIM,
    assert(LOG2(NUM_QUAD_1D)<=8);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
    {
-      {0x20101,&kIntDiffusionMultAdd2D<1,1>},
-      {0x20201,&kIntDiffusionMultAdd2D<2,1>},
-      {0x20202,&kIntDiffusionMultAdd2D<2,2>},
-      {0x20303,&kIntDiffusionMultAdd2D<3,3>},
-      {0x20404,&kIntDiffusionMultAdd2D<4,4>},
-      {0x20505,&kIntDiffusionMultAdd2D<5,5>},
-      {0x20606,&kIntDiffusionMultAdd2D<6,6>},
-      {0x20707,&kIntDiffusionMultAdd2D<7,7>},
-      {0x20808,&kIntDiffusionMultAdd2D<8,8>},/*
-      {0x20909,&kIntDiffusionMultAdd2D<9,9>},
-      {0x20A0A,&kIntDiffusionMultAdd2D<10,10>},
-      {0x20B0B,&kIntDiffusionMultAdd2D<11,11>},
-      {0x20C0C,&kIntDiffusionMultAdd2D<12,12>},
-      {0x20D0D,&kIntDiffusionMultAdd2D<13,13>},
-      {0x20E0E,&kIntDiffusionMultAdd2D<14,14>},
-      {0x20F0F,&kIntDiffusionMultAdd2D<15,15>},
-      {0x21010,&kIntDiffusionMultAdd2D<16,16>},
-      {0x21111,&kIntDiffusionMultAdd2D<17,17>},*/
+      {0x20101,&IntDiffusionMultAdd2D<1,1>},
+      {0x20201,&IntDiffusionMultAdd2D<2,1>},
+      {0x20202,&IntDiffusionMultAdd2D<2,2>},
+      {0x20303,&IntDiffusionMultAdd2D<3,3>},
+      {0x20404,&IntDiffusionMultAdd2D<4,4>},
+      {0x20505,&IntDiffusionMultAdd2D<5,5>},
+      {0x20606,&IntDiffusionMultAdd2D<6,6>},
+      {0x20707,&IntDiffusionMultAdd2D<7,7>},
+      {0x20808,&IntDiffusionMultAdd2D<8,8>},/*
+      {0x20909,&IntDiffusionMultAdd2D<9,9>},
+      {0x20A0A,&IntDiffusionMultAdd2D<10,10>},
+      {0x20B0B,&IntDiffusionMultAdd2D<11,11>},
+      {0x20C0C,&IntDiffusionMultAdd2D<12,12>},
+      {0x20D0D,&IntDiffusionMultAdd2D<13,13>},
+      {0x20E0E,&IntDiffusionMultAdd2D<14,14>},
+      {0x20F0F,&IntDiffusionMultAdd2D<15,15>},
+      {0x21010,&IntDiffusionMultAdd2D<16,16>},
+      {0x21111,&IntDiffusionMultAdd2D<17,17>},*/
 
-      {0x30101,&kIntDiffusionMultAdd3D<1,1>},
-      {0x30201,&kIntDiffusionMultAdd3D<2,1>},
-      {0x30202,&kIntDiffusionMultAdd3D<2,2>},
-      {0x30203,&kIntDiffusionMultAdd3D<2,3>},
-      {0x30303,&kIntDiffusionMultAdd3D<3,3>},
-      {0x30404,&kIntDiffusionMultAdd3D<4,4>},
-      {0x30505,&kIntDiffusionMultAdd3D<5,5>},
-      {0x30606,&kIntDiffusionMultAdd3D<6,6>},
-      {0x30707,&kIntDiffusionMultAdd3D<7,7>},
-      {0x30808,&kIntDiffusionMultAdd3D<8,8>},/*
-      {0x30909,&kIntDiffusionMultAdd3D<9,9>},
-      {0x30A0A,&kIntDiffusionMultAdd3D<10,10>},
-      {0x30B0B,&kIntDiffusionMultAdd3D<11,11>},
-      {0x30C0C,&kIntDiffusionMultAdd3D<12,12>},
-      {0x30D0D,&kIntDiffusionMultAdd3D<13,13>},
-      {0x30E0E,&kIntDiffusionMultAdd3D<14,14>},
-      {0x30F0F,&kIntDiffusionMultAdd3D<15,15>},
-      {0x31010,&kIntDiffusionMultAdd3D<16,16>},*/
+      {0x30101,&IntDiffusionMultAdd3D<1,1>},
+      {0x30201,&IntDiffusionMultAdd3D<2,1>},
+      {0x30202,&IntDiffusionMultAdd3D<2,2>},
+      {0x30203,&IntDiffusionMultAdd3D<2,3>},
+      {0x30303,&IntDiffusionMultAdd3D<3,3>},
+      {0x30404,&IntDiffusionMultAdd3D<4,4>},
+      {0x30505,&IntDiffusionMultAdd3D<5,5>},
+      {0x30606,&IntDiffusionMultAdd3D<6,6>},
+      {0x30707,&IntDiffusionMultAdd3D<7,7>},
+      {0x30808,&IntDiffusionMultAdd3D<8,8>},/*
+      {0x30909,&IntDiffusionMultAdd3D<9,9>},
+      {0x30A0A,&IntDiffusionMultAdd3D<10,10>},
+      {0x30B0B,&IntDiffusionMultAdd3D<11,11>},
+      {0x30C0C,&IntDiffusionMultAdd3D<12,12>},
+      {0x30D0D,&IntDiffusionMultAdd3D<13,13>},
+      {0x30E0E,&IntDiffusionMultAdd3D<14,14>},
+      {0x30F0F,&IntDiffusionMultAdd3D<15,15>},
+      {0x31010,&IntDiffusionMultAdd3D<16,16>},*/
    };
    if (!call[id])
    {
@@ -459,4 +463,6 @@ void kIntDiffusionMultAdd(const int DIM,
 }
 
 // *****************************************************************************
-} // mfem
+} // namespace fem
+} // namespace kernels
+} // namespace mfem

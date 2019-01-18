@@ -14,9 +14,9 @@
 
 #include "fem.hpp"
 #include "bilininteg.hpp"
+#include "fespace_ext.hpp"
 #include "bilinearform_ext.hpp"
 #include "kBilinIntegDiffusion.hpp"
-#include "kfespace.hpp"
 #include "../linalg/kernels/vector.hpp"
 
 namespace mfem
