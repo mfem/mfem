@@ -10,22 +10,22 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(SRCS
-  bidiffusionAssemble.cpp
-  bidiffusionMultAdd.cpp
-  bimass.cpp
-  Geometry2D.cpp
-  Geometry3D.cpp
-  Geometry.cpp
-  GlobalToLocal.cpp
-  LocalToGlobal.cpp
+  diffusion_assemble.cpp
+  diffusion_multadd.cpp
+  geometry_2d.cpp
+  geometry_3d.cpp
+  geometry.cpp
+  global_local.cpp
+  local_global.cpp
+  mass.cpp
 )
 
 set(HDRS
-  bidiffusion.hpp
-  bimass.hpp
-  Geometry.hpp
-  GlobalToLocal.hpp
-  LocalToGlobal.hpp
+  diffusion.hpp
+  geometry.hpp
+  global_local.hpp
+  local_global.hpp
+  mass.hpp
 )
 
 convert_filenames_to_full_paths(SRCS)
