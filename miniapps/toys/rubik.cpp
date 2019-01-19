@@ -3498,6 +3498,106 @@ solve_corner_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
 }
 
 void
+solve_bot_corner_locations(Mesh & mesh, GridFunction & color,
+                           socketstream & sock)
+{
+   if (logging_ > 1)
+   {
+      cout << "Entering solve_bot_corner_locations" << endl;
+   }
+   if (logging_ > 2)
+   {
+      print_state(cout);
+   }
+
+   // Locate first corner in the bottom tier
+   {
+      int l0 = locate_corner(0);
+      int i0 = l0 % 8;
+      if (logging_ > 1)
+      {
+         cout << "Location of piece belonging at 0 is " << i0 << endl;
+      }
+      if (i0 != 0)
+      {
+         anim_move('z', 1, i0, mesh, color, sock);
+      }
+   }
+
+   // Locate second corner in bottom tier
+   {
+      int l1 = locate_corner(1);
+      int i1 = l1 % 8;
+      if (logging_ > 1)
+      {
+         cout << "Location of piece belonging at 1 is " << i1 << endl;
+      }
+
+      if (i1 < 0)
+      {
+         cout << "Invalid configuration of corners" << endl;
+      }
+
+      switch (i1)
+      {
+         case 2:
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 2, mesh, color, sock);
+            break;
+         case 3:
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            break;
+      }
+   }
+
+   // Locate second corner in bottom tier
+   {
+      int l2 = locate_corner(2);
+      int i2 = l2 % 8;
+      if (logging_ > 1)
+      {
+         cout << "Location of piece belonging at 2 is " << i2 << endl;
+      }
+
+      if (i2 < 0)
+      {
+         cout << "Invalid configuration of corners" << endl;
+      }
+
+      if (i2 == 3)
+      {
+         anim_move('x', 1, 1, mesh, color, sock);
+         anim_move('z', 1, 1, mesh, color, sock);
+         anim_move('x', 1, 3, mesh, color, sock);
+         anim_move('y', 3, 1, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('y', 3, 3, mesh, color, sock);
+         anim_move('x', 1, 1, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 1, 3, mesh, color, sock);
+         anim_move('z', 1, 2, mesh, color, sock);
+      }
+   }
+}
+
+void
 twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
               bool cw, int * c0, int * c1, int * c2)
 {
@@ -4820,11 +4920,18 @@ solve(Mesh & mesh, GridFunction & color, socketstream & sock)
       cout << "Solving edge blocks in the middle tier..." << endl;
    }
    solve_mid_edges(mesh, color, sock);
+   /*
    if (logging_ > 0)
    {
       cout << "Solving corner block locations..." << endl;
    }
    solve_corner_locations(mesh, color, sock);
+   */
+   if (logging_ > 0)
+   {
+      cout << "Solving corner block locations in the bottom tier..." << endl;
+   }
+   solve_bot_corner_locations(mesh, color, sock);
    if (logging_ > 0)
    {
       cout << "Solving corner block orientations..." << endl;
