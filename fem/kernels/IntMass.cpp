@@ -13,18 +13,22 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace fem
+{
 
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> static
-void kMassMultAdd2D(const int numElements,
-                    const double* __restrict dofToQuad,
-                    const double* __restrict dofToQuadD,
-                    const double* __restrict quadToDof,
-                    const double* __restrict quadToDofD,
-                    const double* __restrict oper,
-                    const double* __restrict solIn,
-                    double* __restrict solOut)
+void IntMassMultAdd2D(const int numElements,
+                      const double* __restrict dofToQuad,
+                      const double* __restrict dofToQuadD,
+                      const double* __restrict quadToDof,
+                      const double* __restrict quadToDofD,
+                      const double* __restrict oper,
+                      const double* __restrict solIn,
+                      double* __restrict solOut)
 {
    MFEM_FORALL(e,numElements,
    {
@@ -97,14 +101,14 @@ void kMassMultAdd2D(const int numElements,
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> static
-void kMassMultAdd3D(const int numElements,
-                    const double* __restrict dofToQuad,
-                    const double* __restrict dofToQuadD,
-                    const double* __restrict quadToDof,
-                    const double* __restrict quadToDofD,
-                    const double* __restrict oper,
-                    const double* __restrict solIn,
-                    double* __restrict solOut)
+void IntMassMultAdd3D(const int numElements,
+                      const double* __restrict dofToQuad,
+                      const double* __restrict dofToQuadD,
+                      const double* __restrict quadToDof,
+                      const double* __restrict quadToDofD,
+                      const double* __restrict oper,
+                      const double* __restrict solIn,
+                      double* __restrict solOut)
 {
    MFEM_FORALL(e,numElements,
    {
@@ -235,17 +239,17 @@ typedef void (*fMassMultAdd)(const int numElements,
                              double* __restrict solOut);
 
 // *****************************************************************************
-void kMassMultAdd(const int DIM,
-                  const int NUM_DOFS_1D,
-                  const int NUM_QUAD_1D,
-                  const int numElements,
-                  const double* __restrict dofToQuad,
-                  const double* __restrict dofToQuadD,
-                  const double* __restrict quadToDof,
-                  const double* __restrict quadToDofD,
-                  const double* __restrict op,
-                  const double* __restrict x,
-                  double* __restrict y)
+void IntMassMultAdd(const int DIM,
+                    const int NUM_DOFS_1D,
+                    const int NUM_QUAD_1D,
+                    const int numElements,
+                    const double* __restrict dofToQuad,
+                    const double* __restrict dofToQuadD,
+                    const double* __restrict quadToDof,
+                    const double* __restrict quadToDofD,
+                    const double* __restrict op,
+                    const double* __restrict x,
+                    double* __restrict y)
 {
    assert(LOG2(DIM)<=4);
    assert((NUM_QUAD_1D&1)==0);
@@ -254,55 +258,55 @@ void kMassMultAdd(const int DIM,
    const unsigned int id = (DIM<<16)|((NUM_DOFS_1D)<<8)|(NUM_QUAD_1D);
    static std::unordered_map<unsigned int, fMassMultAdd> call = {
       // 2D
-      {0x20101,&kMassMultAdd2D<1,1>},
-      {0x20201,&kMassMultAdd2D<2,1>},
-      {0x20202,&kMassMultAdd2D<2,2>},
-      {0x20204,&kMassMultAdd2D<2,4>},
-      {0x20302,&kMassMultAdd2D<3,2>},
-      {0x20304,&kMassMultAdd2D<3,4>},
-      {0x20303,&kMassMultAdd2D<3,3>},
-      {0x20403,&kMassMultAdd2D<4,3>},
-      {0x20408,&kMassMultAdd2D<4,8>},
-      {0x20508,&kMassMultAdd2D<5,8>},
+      {0x20101,&IntMassMultAdd2D<1,1>},
+      {0x20201,&IntMassMultAdd2D<2,1>},
+      {0x20202,&IntMassMultAdd2D<2,2>},
+      {0x20204,&IntMassMultAdd2D<2,4>},
+      {0x20302,&IntMassMultAdd2D<3,2>},
+      {0x20304,&IntMassMultAdd2D<3,4>},
+      {0x20303,&IntMassMultAdd2D<3,3>},
+      {0x20403,&IntMassMultAdd2D<4,3>},
+      {0x20408,&IntMassMultAdd2D<4,8>},
+      {0x20508,&IntMassMultAdd2D<5,8>},
 /*
-  {0x20304,&kMassMultAdd2D<4,8>},    {0x20404,&kMassMultAdd2D<5,8>},
-  {0x20405,&kMassMultAdd2D<5,10>},   {0x20505,&kMassMultAdd2D<6,10>},
-  {0x20506,&kMassMultAdd2D<6,12>},   {0x20606,&kMassMultAdd2D<7,12>},
-  {0x20607,&kMassMultAdd2D<7,14>},   {0x20707,&kMassMultAdd2D<8,14>},
-  {0x20708,&kMassMultAdd2D<8,16>},   {0x20808,&kMassMultAdd2D<9,16>},
-  {0x20809,&kMassMultAdd2D<9,18>},   {0x20909,&kMassMultAdd2D<10,18>},
-  {0x2090A,&kMassMultAdd2D<10,20>},  {0x20A0A,&kMassMultAdd2D<11,20>},
-  {0x20A0B,&kMassMultAdd2D<11,22>},  {0x20B0B,&kMassMultAdd2D<12,22>},
-  {0x20B0C,&kMassMultAdd2D<12,24>},  {0x20C0C,&kMassMultAdd2D<13,24>},
-  {0x20C0D,&kMassMultAdd2D<13,26>},  {0x20D0D,&kMassMultAdd2D<14,26>},
-  {0x20D0E,&kMassMultAdd2D<14,28>},  {0x20E0E,&kMassMultAdd2D<15,28>},
-  {0x20E0F,&kMassMultAdd2D<15,30>},  {0x20F0F,&kMassMultAdd2D<16,30>},
-  {0x20F10,&kMassMultAdd2D<16,32>},  {0x21010,&kMassMultAdd2D<17,32>},
+  {0x20304,&IntMassMultAdd2D<4,8>},    {0x20404,&IntMassMultAdd2D<5,8>},
+  {0x20405,&IntMassMultAdd2D<5,10>},   {0x20505,&IntMassMultAdd2D<6,10>},
+  {0x20506,&IntMassMultAdd2D<6,12>},   {0x20606,&IntMassMultAdd2D<7,12>},
+  {0x20607,&IntMassMultAdd2D<7,14>},   {0x20707,&IntMassMultAdd2D<8,14>},
+  {0x20708,&IntMassMultAdd2D<8,16>},   {0x20808,&IntMassMultAdd2D<9,16>},
+  {0x20809,&IntMassMultAdd2D<9,18>},   {0x20909,&IntMassMultAdd2D<10,18>},
+  {0x2090A,&IntMassMultAdd2D<10,20>},  {0x20A0A,&IntMassMultAdd2D<11,20>},
+  {0x20A0B,&IntMassMultAdd2D<11,22>},  {0x20B0B,&IntMassMultAdd2D<12,22>},
+  {0x20B0C,&IntMassMultAdd2D<12,24>},  {0x20C0C,&IntMassMultAdd2D<13,24>},
+  {0x20C0D,&IntMassMultAdd2D<13,26>},  {0x20D0D,&IntMassMultAdd2D<14,26>},
+  {0x20D0E,&IntMassMultAdd2D<14,28>},  {0x20E0E,&IntMassMultAdd2D<15,28>},
+  {0x20E0F,&IntMassMultAdd2D<15,30>},  {0x20F0F,&IntMassMultAdd2D<16,30>},
+  {0x20F10,&IntMassMultAdd2D<16,32>},  {0x21010,&IntMassMultAdd2D<17,32>},
 */
       // 3D
-      {0x30102,&kMassMultAdd3D<1,2>},
-      {0x30202,&kMassMultAdd3D<2,2>},
-      {0x30204,&kMassMultAdd3D<2,4>},
-      {0x30304,&kMassMultAdd3D<3,4>},
+      {0x30102,&IntMassMultAdd3D<1,2>},
+      {0x30202,&IntMassMultAdd3D<2,2>},
+      {0x30204,&IntMassMultAdd3D<2,4>},
+      {0x30304,&IntMassMultAdd3D<3,4>},
 /*
-  {0x30203,&kMassMultAdd3D<3,6>},    {0x30303,&kMassMultAdd3D<4,6>},
-  {0x30304,&kMassMultAdd3D<4,8>},    {0x30404,&kMassMultAdd3D<5,8>},
-  {0x30405,&kMassMultAdd3D<5,10>},   {0x30505,&kMassMultAdd3D<6,10>},
-  {0x30506,&kMassMultAdd3D<6,12>},   {0x30606,&kMassMultAdd3D<7,12>},
-  {0x30607,&kMassMultAdd3D<7,14>},   {0x30707,&kMassMultAdd3D<8,14>},
-  {0x30708,&kMassMultAdd3D<8,16>},   {0x30808,&kMassMultAdd3D<9,16>},
-  {0x30809,&kMassMultAdd3D<9,18>},   {0x30909,&kMassMultAdd3D<10,18>},
-  {0x3090A,&kMassMultAdd3D<10,20>},  {0x30A0A,&kMassMultAdd3D<11,20>},
-  {0x30A0B,&kMassMultAdd3D<11,22>},  {0x30B0B,&kMassMultAdd3D<12,22>},
-  {0x30B0C,&kMassMultAdd3D<12,24>},  {0x30C0C,&kMassMultAdd3D<13,24>},
-  {0x30C0D,&kMassMultAdd3D<13,26>},  {0x30D0D,&kMassMultAdd3D<14,26>},
-  {0x30D0E,&kMassMultAdd3D<14,28>},  {0x30E0E,&kMassMultAdd3D<15,28>},
-  {0x30E0F,&kMassMultAdd3D<15,30>},  {0x30F0F,&kMassMultAdd3D<16,30>},
-  {0x30F10,&kMassMultAdd3D<16,32>},  {0x31010,&kMassMultAdd3D<17,32>},
+  {0x30203,&IntMassMultAdd3D<3,6>},    {0x30303,&IntMassMultAdd3D<4,6>},
+  {0x30304,&IntMassMultAdd3D<4,8>},    {0x30404,&IntMassMultAdd3D<5,8>},
+  {0x30405,&IntMassMultAdd3D<5,10>},   {0x30505,&IntMassMultAdd3D<6,10>},
+  {0x30506,&IntMassMultAdd3D<6,12>},   {0x30606,&IntMassMultAdd3D<7,12>},
+  {0x30607,&IntMassMultAdd3D<7,14>},   {0x30707,&IntMassMultAdd3D<8,14>},
+  {0x30708,&IntMassMultAdd3D<8,16>},   {0x30808,&IntMassMultAdd3D<9,16>},
+  {0x30809,&IntMassMultAdd3D<9,18>},   {0x30909,&IntMassMultAdd3D<10,18>},
+  {0x3090A,&IntMassMultAdd3D<10,20>},  {0x30A0A,&IntMassMultAdd3D<11,20>},
+  {0x30A0B,&IntMassMultAdd3D<11,22>},  {0x30B0B,&IntMassMultAdd3D<12,22>},
+  {0x30B0C,&IntMassMultAdd3D<12,24>},  {0x30C0C,&IntMassMultAdd3D<13,24>},
+  {0x30C0D,&IntMassMultAdd3D<13,26>},  {0x30D0D,&IntMassMultAdd3D<14,26>},
+  {0x30D0E,&IntMassMultAdd3D<14,28>},  {0x30E0E,&IntMassMultAdd3D<15,28>},
+  {0x30E0F,&IntMassMultAdd3D<15,30>},  {0x30F0F,&IntMassMultAdd3D<16,30>},
+  {0x30F10,&IntMassMultAdd3D<16,32>},  {0x31010,&IntMassMultAdd3D<17,32>},
 */
    };
    if(!call[id]){
-      printf("\n[kMassMultAdd] id \033[33m0x%X\033[m ",id);
+      printf("\n[IntMassMultAdd] id \033[33m0x%X\033[m ",id);
       fflush(0);
    }
    assert(call[id]);
@@ -319,4 +323,6 @@ void kMassMultAdd(const int DIM,
             d_op, d_x, d_y);
 }
 
-} // mfem
+} // namespace fem
+} // namespace kernels
+} // namespace mfem

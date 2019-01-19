@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "fem.hpp"
-#include "kernels/kIntMass.hpp"
+#include "kernels/IntMass.hpp"
 
 namespace mfem
 {
@@ -48,15 +48,15 @@ void KMassIntegrator::MultAdd(Vector &x, Vector &y)
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
-   kMassMultAdd(dim,
-                dofs1D,
-                quad1D,
-                mesh->GetNE(),
-                maps->dofToQuad,
-                maps->dofToQuadD,
-                maps->quadToDof,
-                maps->quadToDofD,
-                op, x, y);
+   kernels::fem::IntMassMultAdd(dim,
+                                dofs1D,
+                                quad1D,
+                                mesh->GetNE(),
+                                maps->dofToQuad,
+                                maps->dofToQuadD,
+                                maps->quadToDof,
+                                maps->quadToDofD,
+                                op, x, y);
 }
 
 } // namespace mfem
