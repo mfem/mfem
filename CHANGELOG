@@ -46,6 +46,9 @@ Other meshing improvements
 
 - Added support for parallel communication groups on non-conforming meshes.
 
+- A boundary in a NURBS mesh can now be connected with another boundary. Such a
+  periodic NURBS mesh is a simple way to impose periodic boundary conditions.
+
 - Added support for reading linear and quadratic 2D quadrilateral and triangular
   Cubit meshes.
 
