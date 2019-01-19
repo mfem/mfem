@@ -26,8 +26,6 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
-  kBilinIntegDiffusion.cpp
-  kBilinIntegMass.cpp
   linearform.cpp
   lininteg.cpp
   nonlinearform.cpp
@@ -54,8 +52,6 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
-  kBilinIntegDiffusion.hpp
-  kBilinIntegMass.hpp
   linearform.hpp
   lininteg.hpp
   nonlinearform.hpp

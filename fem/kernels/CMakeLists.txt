@@ -10,19 +10,21 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(SRCS
-  Geometry.cpp
+  bidiffusionAssemble.cpp
+  bidiffusionMultAdd.cpp
+  bimass.cpp
   Geometry2D.cpp
   Geometry3D.cpp
+  Geometry.cpp
   GlobalToLocal.cpp
-  IntDiffusionAssemble.cpp
-  IntDiffusionMultAdd.cpp
   LocalToGlobal.cpp
 )
 
 set(HDRS
+  bidiffusion.hpp
+  bimass.hpp
   Geometry.hpp
   GlobalToLocal.hpp
-  IntDiffusion.hpp
   LocalToGlobal.hpp
 )
 
