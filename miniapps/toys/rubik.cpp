@@ -92,6 +92,8 @@ void init_state();
 
 void print_state(ostream & out);
 
+void repaint_cube(Mesh & mesh, GridFunction & color, socketstream & sock);
+
 bool validate_centers(const int max_ind = 6);
 
 bool validate_edges(const int max_ind = 12);
@@ -257,6 +259,10 @@ int main(int argc, char *argv[])
             {
                cout << "Can only flip 2 or 4 edges at a time." << endl;
             }
+         }
+         else if ( dir == 'R' )
+         {
+            repaint_cube(mesh, color, sock);
          }
          else if ( dir == 'T' )
          {
@@ -896,6 +902,61 @@ print_state(ostream & out)
           << ":" << rubik.corn_[3 * i + 2];
    }
    out << "\n";
+}
+
+void repaint_cube(Mesh & mesh, GridFunction & color, socketstream & sock)
+{
+   double xData[3];
+   Vector x(xData,3);
+
+   double eps = 0.1;
+
+   Array<int> v;
+   for (int i=0; i<mesh.GetNBE(); i++)
+   {
+      mesh.GetBdrElementVertices(i, v);
+
+      x = 0.0;
+      for (int j=0; j<v.Size(); j++)
+      {
+         Vector vx(mesh.GetVertex(v[j]), 3);
+         x += vx;
+      }
+      x /= v.Size();
+
+      int elem = -1;
+      int info = -1;
+
+      mesh.GetBdrElementAdjacentElement(i, elem, info);
+
+      if (x[0] > 1.5 - eps)
+      {
+         color[elem] = 1.0 / 6.0;
+      }
+      else if (x[0] < -1.5 + eps)
+      {
+         color[elem] = 2.0 / 6.0;
+      }
+      else if (x[1] < -1.5 + eps)
+      {
+         color[elem] = 3.0 / 6.0;
+      }
+      else if (x[1] >  1.5 - eps)
+      {
+         color[elem] = 4.0 / 6.0;
+      }
+      else if (x[2] < -1.5 + eps)
+      {
+         color[elem] = 5.0 / 6.0;
+      }
+      else if (x[2] >  1.5 - eps)
+      {
+         color[elem] = 1.0;
+      }
+   }
+   sock << "solution\n" << mesh << color << flush;
+
+   init_state();
 }
 
 bool validate_centers(const int min_ind, const int max_ind)
