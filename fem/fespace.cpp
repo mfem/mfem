@@ -975,71 +975,29 @@ void FiniteElementSpace::RefinementOperator
    }
 }
 
-void InvertLinearTrans(IsoparametricTransformation &trans,
-                       const DenseMatrix &invdfdx,
-                       const IntegrationPoint &pt, Vector &x)
-{
-   // invert a linear transform with one Newton step
-   IntegrationPoint p0;
-   p0.Set3(0, 0, 0);
-   trans.Transform(p0, x);
-
-   double store[3];
-   Vector v(store, x.Size());
-   pt.Get(v, x.Size());
-   v -= x;
-
-   invdfdx.Mult(v, x);
-}
-
 void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
                                                       DenseTensor &localR) const
 {
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
-   const IntegrationRule &nodes = fe->GetNodes();
 
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
    const DenseTensor &pmats = dtrans.GetPointMatrices(geom);
 
-   int nmat = pmats.SizeK();
-   int ldof = fe->GetDof();
-   int dim = mesh->Dimension();
+   const int nmat = pmats.SizeK();
+   const int ldof = fe->GetDof();
 
-   LinearFECollection linfec;
    IsoparametricTransformation isotr;
-   isotr.SetFE(linfec.FiniteElementForGeometry(geom));
-
-   DenseMatrix invdfdx(dim);
-   IntegrationPoint ipt;
-   Vector pt(&ipt.x, dim), shape(ldof);
+   isotr.SetIdentityTransformation(geom);
 
    // calculate local restriction matrices for all refinement types
    localR.SetSize(ldof, ldof, nmat);
    for (int i = 0; i < nmat; i++)
    {
-      DenseMatrix &lR = localR(i);
-      lR = infinity(); // marks invalid rows
-
       isotr.GetPointMat() = pmats(i);
       isotr.FinalizeTransformation();
-      isotr.SetIntPoint(&nodes[0]);
-      CalcInverse(isotr.Jacobian(), invdfdx);
 
-      for (int j = 0; j < nodes.Size(); j++)
-      {
-         InvertLinearTrans(isotr, invdfdx, nodes[j], pt);
-         if (Geometries.CheckPoint(geom, ipt)) // do we need an epsilon here?
-         {
-            IntegrationPoint ip;
-            ip.Set(pt, dim);
-            MFEM_ASSERT(dynamic_cast<const NodalFiniteElement*>(fe),
-                        "only nodal FEs are implemented");
-            fe->CalcShape(ip, shape); // TODO: H(curl), etc.?
-            lR.SetRow(j, shape);
-         }
-      }
-      lR.Threshold(1e-12);
+      fe->GetLocalRestriction(isotr, localR(i));
    }
 }
 
@@ -1079,6 +1037,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
+   int num_marked = 0;
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
@@ -1105,12 +1064,14 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
                lR.GetRow(i, row);
                R->SetRow(r, old_vdofs, row);
                mark[m] = 1;
+               num_marked++;
             }
          }
       }
    }
 
-   MFEM_ASSERT(mark.Sum() == R->Height(), "Not all rows of R set.");
+   MFEM_VERIFY(num_marked == R->Height(),
+               "internal error: not all rows of R were set.");
    if (elem_geoms.Size() != 1) { R->Finalize(); }
    return R;
 }

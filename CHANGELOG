@@ -58,6 +58,8 @@ Other meshing improvements
   
 Discretization improvements
 ---------------------------
+- Added support for derefinement of vector (RT + ND) spaces.
+
 - Added element flux, and flux energy computation in class ElasticityIntegrator,
   allowing for the use of Zienkiewicz-Zhu type error estimators with the
   integrator. For an illustration of this addition, see the new Example 22.
