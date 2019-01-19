@@ -19,6 +19,9 @@ namespace kernels
 namespace densemat
 {
 
+void GetInverseMatrix(const int m, const int *ipiv,
+                      const double *data, double *x);
+
 void LSolve(const int m, const int n,
             const double *data, const int *ipiv, double *x);
 

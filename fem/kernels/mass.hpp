@@ -9,30 +9,25 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_BILIN_INTEG_DIFFUSION_HPP
-#define MFEM_BILIN_INTEG_DIFFUSION_HPP
-
-#include "../config/config.hpp"
-#include "doftoquad.hpp"
+#ifndef MFEM_KERNELS_MASS
+#define MFEM_KERNELS_MASS
 
 namespace mfem
 {
 
 // *****************************************************************************
-class KDiffusionIntegrator
-{
-private:
-   Vector vec;
-   kDofQuadMaps *maps;
-   const FiniteElementSpace *fes;
-   const IntegrationRule *ir;
-public:
-   KDiffusionIntegrator(const FiniteElementSpace*,const IntegrationRule*);
-   ~KDiffusionIntegrator();
-   void Assemble();
-   void MultAdd(Vector &x, Vector &y);
-};
+void biPAMassMultAdd(const int dim,
+                     const int NUM_DOFS_1D,
+                     const int NUM_QUAD_1D,
+                     const int numElements,
+                     const double* __restrict dofToQuad,
+                     const double* __restrict dofToQuadD,
+                     const double* __restrict quadToDof,
+                     const double* __restrict quadToDofD,
+                     const double* __restrict op,
+                     const double* __restrict x,
+                     double* __restrict y);
 
 }
 
-#endif // MFEM_BILIN_INTEG_DIFFUSION_HPP
+#endif // MFEM_KERNELS_DIFFUSION
