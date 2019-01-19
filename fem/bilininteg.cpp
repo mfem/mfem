@@ -14,9 +14,9 @@
 #include "fem.hpp"
 #include <cmath>
 #include <algorithm>
-#include "kernels/Geometry.hpp"
-#include "kernels/bimass.hpp"
-#include "kernels/bidiffusion.hpp"
+#include "kernels/geometry.hpp"
+#include "kernels/mass.hpp"
+#include "kernels/diffusion.hpp"
 
 using namespace std;
 
