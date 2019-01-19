@@ -85,6 +85,8 @@ public:
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
+   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
+
    virtual ~FE_Evolution() { }
 };
 
@@ -252,6 +254,8 @@ int main(int argc, char *argv[])
       case 22: ode_solver = new ImplicitMidpointSolver; break;
       case 23: ode_solver = new SDIRK23Solver; break;
       case 34: ode_solver = new SDIRK34Solver; break;
+      // Explicit mthods
+      case 4: ode_solver = new RK4Solver; break;
       /*
       case 1: ode_solver = new ForwardEulerSolver; break;
       case 2: ode_solver = new RK2Solver(1.0); break;
@@ -564,6 +568,11 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       mfem::Mult(Me_inv_(i), zmat, ymat);
       y.SetSubVector(vdofs, ymat.GetData());
    }
+}
+
+void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &y)
+{
+  this->Mult(x, y);
 }
 
 // Physicality check (at end)
