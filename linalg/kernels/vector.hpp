@@ -20,6 +20,7 @@ namespace vector
 {
 
 double Dot(const size_t N, const double *x, const double *y);
+double Min(const size_t N, const double *x);
 
 void MapDof(const int N, double *y, const double *x, const int *dofs);
 void MapDof(double *y, const double *x, const int dof, const int j);
@@ -29,6 +30,7 @@ void SetDof(const int N, double *y, const double alpha, const int *dofs);
 
 void GetSubvector(const int N, double *y, const double *x, const int* dofs);
 void SetSubvector(const int N, double *y, const double *x, const int* dofs);
+void SetSubvector(const int N, double *y, const double d, const int* dofs);
 
 void AlphaAdd(double *z, const double *x,
               const double a, const double *y, const size_t N);
@@ -45,9 +47,13 @@ void OpMultEQ(const size_t N, const double d, double *y);
 
 void OpPlusEQ(const size_t size, const double *x, double *y);
 
+void OpAddEQ(const size_t, const double, const double*, double*);
+
 void OpSubtractEQ(const size_t size, const double *x, double *y);
 
-void AddElement(const size_t n, const int *dofs, const double *x, double *y);
+void AddElement(const size_t N, const int *dofs, const double *x, double *y);
+void AddElementAlpha(const size_t, const int*, const double*, double*, const double);
+
 
 } // namespace vector
 } // namespace kernels

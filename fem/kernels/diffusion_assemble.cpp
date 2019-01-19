@@ -40,7 +40,7 @@ static void oAssemble2D(const int NUM_QUAD_1D,
    SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
-   NEW_OCCA_KERNEL(Assemble2D, fem, oIntDiffusionAssemble.okl, props);
+   NEW_OCCA_KERNEL(Assemble2D, fem, bidiffusionAssemble.okl, props);
    Assemble2D(numElements, o_quadWeights, o_J, COEFF, o_oper);
 }
 #endif // __OCCA__
@@ -134,13 +134,13 @@ static void Assemble3D(const int NUM_QUAD_1D,
 }
 
 // *****************************************************************************
-void IntDiffusionAssemble(const int dim,
-                          const int NUM_QUAD_1D,
-                          const int numElements,
-                          const double* __restrict quadWeights,
-                          const double* __restrict J,
-                          const double COEFF,
-                          double* __restrict oper)
+void biPADiffusionAssemble(const int dim,
+                           const int NUM_QUAD_1D,
+                           const int numElements,
+                           const double* __restrict quadWeights,
+                           const double* __restrict J,
+                           const double COEFF,
+                           double* __restrict oper)
 {
    if (dim==1) { assert(false); }
    if (dim==2){

@@ -29,7 +29,6 @@ void LocalToGlobal(const int NUM_VDIM,
                    const double* __restrict localX,
                    double* __restrict globalX)
 {
-
    GET_CONST_PTR_T(offsets,int);
    GET_CONST_PTR_T(indices,int);
    GET_CONST_PTR(localX);

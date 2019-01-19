@@ -13,8 +13,8 @@
 
 #include "fem.hpp"
 #include "fespace_ext.hpp"
-#include "kernels/GlobalToLocal.hpp"
-#include "kernels/LocalToGlobal.hpp"
+#include "kernels/global_local.hpp"
+#include "kernels/local_global.hpp"
 
 // *****************************************************************************
 namespace mfem

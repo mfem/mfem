@@ -72,8 +72,7 @@ static bool Alias(mm::ledger &maps, const void *ptr)
 }
 
 // *****************************************************************************
-// __attribute__((unused)) // VS doesn't like this in Appveyor
-static void debugMode(void)
+/*static void debugMode(void)
 {
    dbg("\033[1K\r%sMM %sHasBeenEnabled %sEnabled %sDisabled \
 %sCPU %sGPU %sPA %sCUDA %sOCCA",
@@ -86,7 +85,7 @@ static void debugMode(void)
        config::usingPA()?"\033[32m":"\033[31m",
        config::usingCuda()?"\033[32m":"\033[31m",
        config::usingOcca()?"\033[32m":"\033[31m");
-}
+}*/
 
 // *****************************************************************************
 // * Adds an address

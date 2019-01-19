@@ -14,7 +14,7 @@
 #include "../../general/okina.hpp"
 #include "../../linalg/kernels/vector.hpp"
 
-#include "Geometry.hpp"
+#include "geometry.hpp"
 #include "../fem.hpp"
 #include "../doftoquad.hpp"
 
