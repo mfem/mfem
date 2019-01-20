@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
    // 2b. We initialize PETSc
    if (use_petsc)
    {
-      PetscInitialize(NULL,NULL,petscrc_file,NULL);
+      MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
    }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
@@ -446,7 +446,7 @@ int main(int argc, char *argv[])
    delete oper;
 
    // We finalize PETSc
-   if (use_petsc) { PetscFinalize(); }
+   if (use_petsc) { MFEMFinalizePetsc(); }
 
    MPI_Finalize();
 

@@ -385,6 +385,9 @@ endif()
 # Enable testing if required
 if (MFEM_ENABLE_TESTING)
   enable_testing()
+  set(MFEM_ALL_TESTS_TARGET_NAME tests)
+  add_mfem_target(${MFEM_ALL_TESTS_TARGET_NAME} OFF)
+  add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif()
 
 # Define a target that all examples and miniapps will depend on.
@@ -404,7 +407,9 @@ add_subdirectory(miniapps EXCLUDE_FROM_ALL)
 # Target to build all executables, i.e. everything.
 add_custom_target(exec)
 add_dependencies(exec
-  ${MFEM_ALL_EXAMPLES_TARGET_NAME} ${MFEM_ALL_MINIAPPS_TARGET_NAME})
+  ${MFEM_ALL_EXAMPLES_TARGET_NAME}
+  ${MFEM_ALL_MINIAPPS_TARGET_NAME}
+  ${MFEM_ALL_TESTS_TARGET_NAME})
 # Here, we want to "add_dependencies(test exec)". However, dependencies for
 # 'test' (and other built-in targets) can not be added with add_dependencies():
 #  - https://gitlab.kitware.com/cmake/cmake/issues/8438
