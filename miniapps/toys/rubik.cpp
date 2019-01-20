@@ -4289,10 +4289,10 @@ solve_edge_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
    for (int i=i0+1; i<12; i++)
    {
       if (i == i1) { continue; }
-      if (!((rubik.edge_[2 * i] == edge_colors_[2 * i] &&
+      if (!((rubik.edge_[2 * i + 0] == edge_colors_[2 * i + 0] &&
              rubik.edge_[2 * i + 1] == edge_colors_[2 * i + 1]) ||
-            (rubik.edge_[2 * i] == edge_colors_[2 * i + 1] &&
-             rubik.edge_[2 * i + 1] == edge_colors_[2 * i])))
+            (rubik.edge_[2 * i + 0] == edge_colors_[2 * i + 1] &&
+             rubik.edge_[2 * i + 1] == edge_colors_[2 * i + 0])))
       {
          i2 = i;
          break;
@@ -4880,17 +4880,6 @@ void
 solve(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
    count_ = 0;
-   /*
-   if (logging_ > 0)
-   {
-      cout << "Solving center blocks..." << endl;
-   }
-   solve_centers(mesh, color, sock);
-   if (logging_ > 0)
-   {
-      cout << "Solving corner block locations..." << endl;
-   }
-   */
    if (logging_ > 0)
    {
       cout << "Solving top center block..." << endl;
@@ -4901,10 +4890,6 @@ solve(Mesh & mesh, GridFunction & color, socketstream & sock)
       cout << "Solving top tier edges..." << endl;
    }
    solve_top_edges(mesh, color, sock);
-   if (logging_ > 0)
-   {
-      cout << "Solving center blocks..." << endl;
-   }
    if (logging_ > 0)
    {
       cout << "Solving top tier corners..." << endl;
