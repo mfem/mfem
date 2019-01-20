@@ -114,6 +114,12 @@ void FiniteElement::GetLocalInterpolation (ElementTransformation &Trans,
    mfem_error ("GetLocalInterpolation (...) is not overloaded !");
 }
 
+void FiniteElement::GetLocalRestriction(ElementTransformation &,
+                                        DenseMatrix &) const
+{
+   mfem_error("FiniteElement::GetLocalRestriction() is not overloaded !");
+}
+
 void FiniteElement::GetTransferMatrix(const FiniteElement &fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix &I) const
@@ -290,6 +296,51 @@ void NodalFiniteElement::ProjectCurl_2D(
          curl(i,j) = curl_shape(j,0);
       }
    }
+}
+
+void InvertLinearTrans(ElementTransformation &trans,
+                       const IntegrationPoint &pt, Vector &x)
+{
+   // invert a linear transform with one Newton step
+   IntegrationPoint p0;
+   p0.Set3(0, 0, 0);
+   trans.Transform(p0, x);
+
+   double store[3];
+   Vector v(store, x.Size());
+   pt.Get(v, x.Size());
+   v -= x;
+
+   trans.InverseJacobian().Mult(v, x);
+}
+
+void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
+                                             DenseMatrix &R) const
+{
+   IntegrationPoint ipt;
+   Vector pt(&ipt.x, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   Vector c_shape(Dof);
+#endif
+
+   Trans.SetIntPoint(&Nodes[0]);
+
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes[j], pt);
+      if (Geometries.CheckPoint(GeomType, ipt)) // do we need an epsilon here?
+      {
+         CalcShape(ipt, c_shape);
+         R.SetRow(j, c_shape);
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
 }
 
 void NodalFiniteElement::Project (
@@ -949,6 +1000,90 @@ void VectorFiniteElement::LocalInterpolation_ND(
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
+}
+
+void VectorFiniteElement::LocalRestriction_RT(
+   const double *nk, const Array<int> &d2n, ElementTransformation &Trans,
+   DenseMatrix &R) const
+{
+   double pt_data[Geometry::MaxDim];
+   IntegrationPoint ip;
+   Vector pt(pt_data, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(Dof, Dim);
+#endif
+
+   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   const DenseMatrix &J = Trans.Jacobian();
+   const double weight = Trans.Weight();
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
+      ip.Set(pt_data, Dim);
+      if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
+      {
+         CalcVShape(ip, vshape);
+         J.MultTranspose(nk+Dim*d2n[j], pt_data);
+         pt /= weight;
+         for (int k = 0; k < Dof; k++)
+         {
+            double R_jk = 0.0;
+            for (int d = 0; d < Dim; d++)
+            {
+               R_jk += vshape(k,d)*pt_data[d];
+            }
+            R(j,k) = R_jk;
+         }
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
+}
+
+void VectorFiniteElement::LocalRestriction_ND(
+   const double *tk, const Array<int> &d2t, ElementTransformation &Trans,
+   DenseMatrix &R) const
+{
+   double pt_data[Geometry::MaxDim];
+   IntegrationPoint ip;
+   Vector pt(pt_data, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(Dof, Dim);
+#endif
+
+   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   const DenseMatrix &Jinv = Trans.InverseJacobian();
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
+      ip.Set(pt_data, Dim);
+      if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
+      {
+         CalcVShape(ip, vshape);
+         Jinv.Mult(tk+Dim*d2t[j], pt_data);
+         for (int k = 0; k < Dof; k++)
+         {
+            double R_jk = 0.0;
+            for (int d = 0; d < Dim; d++)
+            {
+               R_jk += vshape(k,d)*pt_data[d];
+            }
+            R(j,k) = R_jk;
+         }
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
 }
 
 
