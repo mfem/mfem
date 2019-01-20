@@ -337,6 +337,24 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const;
 
+   /** @brief Return a local restriction matrix @a R (Dof x Dof) mapping fine
+       dofs to coarse dofs.
+
+       The fine element is the image of the base geometry under the given
+       transformation, @a Trans.
+
+       The assumption in this method is that a subset of the coarse dofs can be
+       expressed only in terms of the dofs of the given fine element.
+
+       Rows in @a R corresponding to coarse dofs that cannot be expressed in
+       terms of the fine dofs will be marked as invalid by setting the first
+       entry (column 0) in the row to infinity().
+
+       This method assumes that the dimensions of @a R are set before it is
+       called. */
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const;
+
    /** @brief Return interpolation matrix, @a I, which maps dofs from a coarse
        element, @a fe, to the fine dofs on @a this finite element. */
    /** @a Trans represents the mapping from the reference element of @a this
@@ -494,6 +512,9 @@ public:
                                       DenseMatrix &I) const
    { NodalLocalInterpolation(Trans, I, *this); }
 
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const;
+
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
@@ -632,6 +653,14 @@ protected:
                               const double *tk, const Array<int> &d2t,
                               ElementTransformation &Trans,
                               DenseMatrix &I) const;
+
+   void LocalRestriction_RT(const double *nk, const Array<int> &d2n,
+                            ElementTransformation &Trans,
+                            DenseMatrix &R) const;
+
+   void LocalRestriction_ND(const double *tk, const Array<int> &d2t,
+                            ElementTransformation &Trans,
+                            DenseMatrix &R) const;
 
    static const VectorFiniteElement &CheckVectorFE(const FiniteElement &fe)
    {
@@ -2278,6 +2307,9 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
@@ -2331,6 +2363,9 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
@@ -2377,6 +2412,9 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
@@ -2429,6 +2467,9 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
@@ -2479,6 +2520,10 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
 
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
@@ -2537,6 +2582,9 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
@@ -2583,6 +2631,9 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
@@ -2634,6 +2685,9 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
@@ -2677,6 +2731,9 @@ public:
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
