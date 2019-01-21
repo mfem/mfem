@@ -84,6 +84,13 @@ static int corn_colors_[24] =
    4,1,5, 2,1,5, 2,3,5, 4,3,5
 };
 
+struct Move
+{
+   char axis;
+   int tier;
+   int incr;
+};
+
 void init_tet_mesh(Mesh & mesh);
 
 void init_hex_mesh(Mesh & mesh);
@@ -100,9 +107,18 @@ bool validate_edges(const int max_ind = 12);
 
 bool validate_corners(const int max_ind = 8);
 
-void anim_move(char dir, int ind, int deg,
+void anim_move(char axis, int tier, int increment,
                Mesh & mesh, GridFunction & color,
                socketstream & sock);
+
+void anim_move(const Move & move,
+               Mesh & mesh, GridFunction & color,
+               socketstream & sock)
+{
+   anim_move(move.axis, move.tier, move.incr, mesh, color, sock);
+}
+
+void determine_random_moves(Array<Move> & moves);
 
 void swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
                   int * c0 = NULL, int * c1 = NULL);
@@ -216,15 +232,11 @@ int main(int argc, char *argv[])
             // Input the number of moves
             int num;
             cin >> num;
+            Array<Move> moves(num);
+            determine_random_moves(moves);
             for (int i=0; i<num; i++)
             {
-               double ran = drand48();
-               int ir = (int)(26 * ran);
-               deg = (ir % 3) + 1; ir /= 3;
-               ind = (ir % 3) + 1; ir /= 3;
-               dir = (ir == 0)? 'x' : ((ir == 1) ? 'y' : 'z');
-
-               anim_move(dir, ind, deg, mesh, color, sock);
+               anim_move(moves[i], mesh, color, sock);
             }
          }
          else if ( dir == 'p' )
@@ -1176,6 +1188,49 @@ anim_move(char dir, int ind, int deg,
       sock << "solution\n" << mesh << color << flush;
    }
    count_++;
+}
+
+void determine_random_moves(Array<Move> & moves)
+{
+   for (int i=0; i<moves.Size(); i++)
+   {
+      double ran = drand48();
+      int  ir   = (int)(26 * ran);
+      int  incr = (ir % 3) + 1; ir /= 3;
+      int  tier = (ir % 3) + 1; ir /= 3;
+      char axis = (ir == 0)? 'x' : ((ir == 1) ? 'y' : 'z');
+
+      if (i == 0)
+      {
+         moves[i].axis = axis;
+         moves[i].tier = tier;
+         moves[i].incr = incr;
+      }
+      else if (axis == moves[i-1].axis)
+      {
+         if (tier == moves[i-1].tier)
+         {
+            int new_incr = (moves[i-1].incr + incr) % 4;
+            if (new_incr != 0)
+            {
+               moves[i-1].incr = new_incr;
+            }
+            i--;
+         }
+         else if (incr == moves[i-1].incr)
+         {
+            moves[i-1].tier = 6 - moves[i-1].tier - tier;
+            moves[i-1].incr = 4 - incr;
+            i--;
+         }
+      }
+      else
+      {
+         moves[i].axis = axis;
+         moves[i].tier = tier;
+         moves[i].incr = incr;
+      }
+   }
 }
 
 void
