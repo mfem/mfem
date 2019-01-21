@@ -29,7 +29,46 @@
 //  "y13 y33 z31 y13 z31 y13 z31 x13 y31 x12 y33 z31 y11 x13 z31 x11 y31"
 //  "y13 x11 z13 y11 z33 y31 z31 y13 z33 y13 x33 y12 x13 z33 x33 z12"
 //
-
+// Interactive commands:
+//    [xyz][1,2,3][0-3]
+//       Rotate the specified tier (first integer) of the cube
+//       about the given axis (initial character) in the clockwise
+//       direction (looking from the tip of the axis vector towards
+//       the origin) by so many increments (final integer).
+//    r[0-9]+
+//       Initiate a random sequence of moves.  The integer
+//       following 'r' is the number of desired moves.
+//    p
+//       Print the current state of the cube.
+//    c
+//       Swap the corners in the 0th and 1st positions.
+//    t[0,1]
+//       Twist the corners of the bottom tier in the clockwise '1'
+//       or counter-clockwise '0' direction leaving the 3rd corner
+//       unchanged.
+//    e[0,1]
+//       Permute the edges of the bottom tier in the clockwise '1'
+//       or counter-clockwise '0' direction leaving the 3rd edge
+//       unchanged.
+//    f[2,4]
+//       Flip the edges of the bottom tier while keeping them in
+//       place. The integer '2' indicates flipping the 0th and 2nd
+//       edges while '4' indicates flipping all four edges.
+//    R
+//       Resets (or Repaints) the cube to its original configuration.
+//    T
+//       Solve the top tier only.
+//    M
+//       Solve the middle tier only (assumes the top tier has already
+//       been solved.)
+//    B
+//       Solve the bottom tier only (assumes the top two tiers have already
+//       been solved.)
+//    s or S
+//       Solve the cube starting from the top tier and working down.
+//    q or Q
+//       Quit
+//
 #include "mfem.hpp"
 #include "../common/mesh_extras.hpp"
 #include <fstream>
@@ -162,6 +201,47 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       args.PrintUsage(cout);
+
+      cout << "\nInteractive Commands\n"
+           << "   [xyz][1,2,3][0-3]\n"
+           << "\tRotate the specified tier (first integer) of the cube\n"
+           << "\tabout the given axis (initial character) in the clockwise\n"
+           << "\tdirection (looking from the tip of the axis vector towards\n"
+           << "\tthe origin) by so many increments (final integer).\n"
+           << "   r[0-9]+\n"
+           << "\tInitiate a random sequence of moves.  The integer\n"
+           << "\tfollowing 'r' is the number of desired moves.\n"
+           << "   p\n"
+           << "\tPrint the current state of the cube.\n"
+           << "   c\n"
+           << "\tSwap the corners in the 0th and 1st positions.\n"
+           << "   t[0,1]\n"
+           << "\tTwist the corners of the bottom tier in the clockwise '1'\n"
+           << "\tor counter-clockwise '0' direction leaving the 3rd corner\n"
+           << "\tunchanged.\n"
+           << "   e[0,1]\n"
+           << "\tPermute the edges of the bottom tier in the clockwise '1'\n"
+           << "\tor counter-clockwise '0' direction leaving the 3rd edge\n"
+           << "\tunchanged.\n"
+           << "   f[2,4]\n"
+           << "\tFlip the edges of the bottom tier while keeping them in\n"
+           << "\tplace. The integer '2' indicates flipping the 0th and 2nd\n"
+           << "\tedges while '4' indicates flipping all four edges.\n"
+           << "   R\n"
+           << "\tResets (or Repaints) the cube to its original configuration.\n"
+           << "   T\n"
+           << "\tSolve the top tier only.\n"
+           << "   M\n"
+           << "\tSolve the middle tier only (assumes the top tier has already\n"
+           << "\tbeen solved.)\n"
+           << "   B\n"
+           << "\tSolve the bottom tier only (assumes the top two tiers have\n"
+	   << "\talready been solved.)\n"
+           << "   s or S\n"
+           << "\tSolve the cube starting from the top tier and working down.\n"
+           << "   q or Q\n"
+           << "\tQuit\n";
+
       return 1;
    }
    args.PrintOptions(cout);
