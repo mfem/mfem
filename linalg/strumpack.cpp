@@ -145,15 +145,31 @@ void STRUMPACKSolver::SetReorderingStrategy( strumpack::ReorderingStrategy
    solver_->options().set_reordering_method( method );
 }
 
+void STRUMPACKSolver::DisableMatching( )
+{
 #if STRUMPACK_VERSION_MAJOR >= 3
-void STRUMPACKSolver::SetMC64Job( strumpack::MatchingJob job )
-{
-   solver_->options().set_matching( job );
-}
+   solver_->options().set_matching( strumpack::MatchingJob::NONE );
 #else
-void STRUMPACKSolver::SetMC64Job( strumpack::MC64Job job )
+   solver_->options().set_mc64job( strumpack::MC64Job::NONE );
+#endif
+}
+
+void STRUMPACKSolver::EnableMatching( )
 {
-   solver_->options().set_mc64job( job );
+#if STRUMPACK_VERSION_MAJOR >= 3
+   solver_->options().set_matching
+     ( strumpack::MatchingJob::MAX_DIAGONAL_PRODUCT_SCALING );
+#else
+   solver_->options().set_mc64job
+     ( strumpack::MC64Job::MAX_DIAGONAL_PRODUCT_SCALING );
+#endif
+}
+
+#if STRUMPACK_VERSION_MAJOR >= 3
+void STRUMPACKSolver::EnableParallelMatching( )
+{
+   solver_->options().set_matching
+     ( strumpack::MatchingJob::COMBBLAS );
 }
 #endif
 
