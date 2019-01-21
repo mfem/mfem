@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
            << "\tbeen solved.)\n"
            << "   B\n"
            << "\tSolve the bottom tier only (assumes the top two tiers have\n"
-	   << "\talready been solved.)\n"
+           << "\talready been solved.)\n"
            << "   s or S\n"
            << "\tSolve the cube starting from the top tier and working down.\n"
            << "   q or Q\n"
