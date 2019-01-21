@@ -140,6 +140,8 @@ void solve_top(Mesh & mesh, GridFunction & color, socketstream & sock);
 
 void solve_mid(Mesh & mesh, GridFunction & color, socketstream & sock);
 
+void solve_bot(Mesh & mesh, GridFunction & color, socketstream & sock);
+
 void solve(Mesh & mesh, GridFunction & color, socketstream & sock);
 
 int main(int argc, char *argv[])
@@ -284,11 +286,15 @@ int main(int argc, char *argv[])
          {
             solve_mid(mesh, color, sock);
          }
-         else if ( axis == 's' )
+         else if ( axis == 'B' )
+         {
+            solve_bot(mesh, color, sock);
+         }
+         else if ( axis == 's' || axis == 'S')
          {
             solve(mesh, color, sock);
          }
-         else if ( axis == 'q' )
+         else if ( axis == 'q' || axis == 'Q')
          {
             break;
          }
@@ -4932,6 +4938,31 @@ solve_mid(Mesh & mesh, GridFunction & color, socketstream & sock)
 }
 
 void
+solve_bot(Mesh & mesh, GridFunction & color, socketstream & sock)
+{
+   if (logging_ > 0)
+   {
+      cout << "Solving corner block locations in the bottom tier..." << endl;
+   }
+   solve_bot_corner_locations(mesh, color, sock);
+   if (logging_ > 0)
+   {
+      cout << "Solving corner block orientations..." << endl;
+   }
+   solve_corner_orientations(mesh, color, sock);
+   if (logging_ > 0)
+   {
+      cout << "Solving edge block locations..." << endl;
+   }
+   solve_edge_locations(mesh, color, sock);
+   if (logging_ > 0)
+   {
+      cout << "Solving edge block orientations..." << endl;
+   }
+   solve_edge_orientations(mesh, color, sock);
+}
+
+void
 solve(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
    count_ = 0;
@@ -4960,13 +4991,6 @@ solve(Mesh & mesh, GridFunction & color, socketstream & sock)
       cout << "Solving edge blocks in the middle tier..." << endl;
    }
    solve_mid_edges(mesh, color, sock);
-   /*
-   if (logging_ > 0)
-   {
-      cout << "Solving corner block locations..." << endl;
-   }
-   solve_corner_locations(mesh, color, sock);
-   */
    if (logging_ > 0)
    {
       cout << "Solving corner block locations in the bottom tier..." << endl;
