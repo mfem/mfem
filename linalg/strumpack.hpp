@@ -121,28 +121,27 @@ public:
    void SetReorderingStrategy( strumpack::ReorderingStrategy method );
 
    /**
-    * Disable static pivoting for stability. The static pivoting in
-    * strumpack permutes the sparse input matrix in order to get large
-    * (nozero) elements on the diagonal. If the input matrix is
-    * already diagonally dominant, this reordering can be disabled.
+    * Disable static pivoting for stability. The static pivoting in strumpack
+    * permutes the sparse input matrix in order to get large (nonzero) elements
+    * on the diagonal. If the input matrix is already diagonally dominant, this
+    * reordering can be disabled.
     */
    void DisableMatching();
 
    /**
-    * Enable static pivoting for stability using the MC64 algorithm
-    * with job=5. Using a matching algorithm, this will permute the
-    * sparse input matrix in order to get nonzero elements (as large
-    * as possible) on the diagonal. And will also scale the rows and
-    * columns of the matrix.
+    * Enable static pivoting for stability using the MC64 algorithm with
+    * job=5. Using a matching algorithm, this will permute the sparse input
+    * matrix in order to get nonzero elements (as large as possible) on the
+    * diagonal. And will also scale the rows and columns of the matrix.
     */
    void EnableMatching();
 
 #if STRUMPACK_VERSION_MAJOR >= 3
    /**
-    * Use the APWM (approximate weight perfect matching) algortihm
-    * from the Combinatorial BLAS library for static pivoting, ie,
-    * getting large nonzeros on the diagonal. This requires that
-    * strumpack was compiled with support for Combinatorial BLAS.
+    * Use the AWPM (approximate weight perfect matching) algorithm from the
+    * Combinatorial BLAS library for static pivoting, i.e. getting large
+    * nonzeros on the diagonal. This requires that strumpack was compiled with
+    * support for Combinatorial BLAS.
     */
    void EnableParallelMatching();
 #endif
