@@ -207,26 +207,26 @@ int main(int argc, char *argv[])
 
       while (true)
       {
-         char dir;
-         int ind, deg;
-         cout << "Enter direction (x, y, z), tier index (1, 2, 3), "
+         char axis;
+         int tier, incr;
+         cout << "Enter axis (x, y, z), tier index (1, 2, 3), "
               << "and rotation (0, 1, 2, 3) with no spaces: ";
-         cin >> dir;
-         if ( dir == 'x' || dir == 'y' || dir == 'z' )
+         cin >> axis;
+         if ( axis == 'x' || axis == 'y' || axis == 'z' )
          {
-            cin >> ind;
-            deg = ind % 10;
-            ind = ind / 10;
-            if (ind >= 1 && ind <= 3)
+            cin >> tier;
+            incr = tier % 10;
+            tier = tier / 10;
+            if (tier >= 1 && tier <= 3)
             {
-               anim_move(dir, ind, deg, mesh, color, sock);
+               anim_move(axis, tier, incr, mesh, color, sock);
             }
             else
             {
                cout << "tier index must be 1, 2, or 3." << endl;
             }
          }
-         else if ( dir == 'r' )
+         else if ( axis == 'r' )
          {
             // Execute a sequence of random moves
             // Input the number of moves
@@ -239,27 +239,27 @@ int main(int argc, char *argv[])
                anim_move(moves[i], mesh, color, sock);
             }
          }
-         else if ( dir == 'p' )
+         else if ( axis == 'p' )
          {
             print_state(std::cout);
          }
-         else if ( dir == 'c' )
+         else if ( axis == 'c' )
          {
             swap_corners(mesh, color, sock);
          }
-         else if ( dir == 't' )
+         else if ( axis == 't' )
          {
             bool cw;
             cin >> cw;
             twist_corners(mesh, color, sock, cw);
          }
-         else if ( dir == 'e' )
+         else if ( axis == 'e' )
          {
             bool cw;
             cin >> cw;
             permute_edges(mesh, color, sock, cw);
          }
-         else if ( dir == 'f' )
+         else if ( axis == 'f' )
          {
             int n = -1;
             cin >> n;
@@ -272,23 +272,23 @@ int main(int argc, char *argv[])
                cout << "Can only flip 2 or 4 edges at a time." << endl;
             }
          }
-         else if ( dir == 'R' )
+         else if ( axis == 'R' )
          {
             repaint_cube(mesh, color, sock);
          }
-         else if ( dir == 'T' )
+         else if ( axis == 'T' )
          {
             solve_top(mesh, color, sock);
          }
-         else if ( dir == 'M' )
+         else if ( axis == 'M' )
          {
             solve_mid(mesh, color, sock);
          }
-         else if ( dir == 's' )
+         else if ( axis == 's' )
          {
             solve(mesh, color, sock);
          }
-         else if ( dir == 'q' )
+         else if ( axis == 'q' )
          {
             break;
          }
@@ -573,15 +573,15 @@ init_state()
 }
 
 void
-update_centers(char dir, int deg)
+update_centers(char axis, int incr)
 {
-   int i = (dir == 'x') ? 0 : ((dir == 'y') ? 1 : 2);
+   int i = (axis == 'x') ? 0 : ((axis == 'y') ? 1 : 2);
    int i0 = 0 + i * (i - 1) / 2;
    int i1 = 1 + i * (i + 1) / 2;
    int i3 = 3 - i * (3 * i - 5) / 2;
    int i5 = 5 - i * (i - 1);
 
-   switch (deg)
+   switch (incr)
    {
       case 1:
          std::swap(rubik.cent_[i3], rubik.cent_[i0]);
@@ -601,13 +601,13 @@ update_centers(char dir, int deg)
 }
 
 void
-update_corners(char dir, int ind, int deg)
+update_corners(char axis, int tier, int incr)
 {
-   if (ind == 2) { return; }
+   if (tier == 2) { return; }
 
-   int i = (dir == 'x') ? 0 : ((dir == 'y') ? 1 : 2);
+   int i = (axis == 'x') ? 0 : ((axis == 'y') ? 1 : 2);
 
-   if (ind == 1)
+   if (tier == 1)
    {
       // 00:01:02 09:10:11 21:22:23 12:13:14
       // 01:02:00 13:14:12 16:17:15 04:05:03
@@ -628,7 +628,7 @@ update_corners(char dir, int ind, int deg)
       int i23 = 23 - 8 * i;
       int i14 = 14 + i * ( 9 * i - 20);
 
-      switch (deg)
+      switch (incr)
       {
          case 1:
             // 0->12->21->9->0
@@ -694,7 +694,7 @@ update_corners(char dir, int ind, int deg)
       int i20 = 20 + i * ( 3 * i -  7) / 2;
       int i17 = 17 + i * (27 * i - 49) / 2;
 
-      switch (deg)
+      switch (incr)
       {
          case 1:
             // 3->15->18->6->3
@@ -743,18 +743,18 @@ update_corners(char dir, int ind, int deg)
 
 
 void
-update_edges(char dir, int ind, int deg)
+update_edges(char axis, int tier, int incr)
 {
-   int i = (dir == 'x') ? 0 : ((dir == 'y') ? 1 : 2);
+   int i = (axis == 'x') ? 0 : ((axis == 'y') ? 1 : 2);
 
-   if (ind == 1)
+   if (tier == 1)
    {
       int i06 =  6 - i * (13 * i - 23);
       int i14 = 14 - i * ( 9 * i - 13);
       int i16 = 16 + i * (11 * i - 27);
       int i22 = 22 + i * ( 4 * i - 18);
 
-      switch (deg)
+      switch (incr)
       {
          case 1:
             // 6->17->15->22->6, 7->16->14->23->7
@@ -785,7 +785,7 @@ update_edges(char dir, int ind, int deg)
             break;
       }
    }
-   else if (ind == 2)
+   else if (tier == 2)
    {
       // 00:01 04:05 12:13 08:09
       // 06:07 14:15 10:11 02:03
@@ -795,7 +795,7 @@ update_edges(char dir, int ind, int deg)
       int i08 =  8 + i * (13 * i - 19);
       int i12 = 12 + i * ( 6 * i -  8);
 
-      switch (deg)
+      switch (incr)
       {
          case 1:
             //  0->8->12->4->0, 1->9->13->5->1
@@ -836,7 +836,7 @@ update_edges(char dir, int ind, int deg)
       int i18 = 18 + i * (12 * i - 26);
       int i20 = 20 + i * ( 3 * i - 11);
 
-      switch (deg)
+      switch (incr)
       {
          case 1:
             // 2->19->11->20->2, 3->18->10->21->3
@@ -870,23 +870,23 @@ update_edges(char dir, int ind, int deg)
 }
 
 void
-update_state(char dir, int ind, int deg)
+update_state(char axis, int tier, int incr)
 {
-   if (deg == 0) { return; }
+   if (incr == 0) { return; }
 
-   // Centers only change if ind == 2
-   if (ind == 2)
+   // Centers only change if tier == 2
+   if (tier == 2)
    {
-      update_centers(dir, deg);
+      update_centers(axis, incr);
    }
    else
    {
-      // Corners only change if ind != 2
-      update_corners(dir, ind, deg);
+      // Corners only change if tier != 2
+      update_corners(axis, tier, incr);
    }
 
    // Edges always change
-   update_edges(dir, ind, deg);
+   update_edges(axis, tier, incr);
 }
 
 void
@@ -1017,9 +1017,9 @@ bool validate_corners(const int min_ind, const int max_ind)
 }
 
 void
-rotate_step(char dir, int deg, double * x)
+rotate_step(char axis, int incr, double * x)
 {
-   if (deg == 0) { return; }
+   if (incr == 0) { return; }
 
    double y[3];
    Vector xVec(x,3);
@@ -1027,11 +1027,11 @@ rotate_step(char dir, int deg, double * x)
 
    yVec = xVec;
 
-   switch (dir)
+   switch (axis)
    {
       case 'x':
       {
-         switch (deg)
+         switch (incr)
          {
             case 1:
                xVec[1] =  cosa_ * yVec[1] + sina_ * yVec[2];
@@ -1050,7 +1050,7 @@ rotate_step(char dir, int deg, double * x)
       break;
       case 'y':
       {
-         switch (deg)
+         switch (incr)
          {
             case 1:
                xVec[2] =  cosa_ * yVec[2] + sina_ * yVec[0];
@@ -1069,7 +1069,7 @@ rotate_step(char dir, int deg, double * x)
       break;
       case 'z':
       {
-         switch (deg)
+         switch (incr)
          {
             case 1:
                xVec[0] =  cosa_ * yVec[0] + sina_ * yVec[1];
@@ -1090,11 +1090,11 @@ rotate_step(char dir, int deg, double * x)
 }
 
 bool
-anim_step(char dir, int deg, Mesh & mesh)
+anim_step(char axis, int incr, Mesh & mesh)
 {
-   if (deg == 0) { step_ = 0; return false; }
-   if (deg != 2 && step_ == nstep_) { step_ = 0; return false; }
-   if (deg == 2 && step_ == 2 * nstep_) { step_ = 0; return false; }
+   if (incr == 0) { step_ = 0; return false; }
+   if (incr != 2 && step_ == nstep_) { step_ = 0; return false; }
+   if (incr == 2 && step_ == 2 * nstep_) { step_ = 0; return false; }
 
    std::set<int> verts;
    Array<int> v;
@@ -1111,14 +1111,14 @@ anim_step(char dir, int deg, Mesh & mesh)
    }
    for (std::set<int>::iterator sit = verts.begin(); sit!=verts.end(); sit++)
    {
-      rotate_step(dir, deg, mesh.GetVertex(*sit));
+      rotate_step(axis, incr, mesh.GetVertex(*sit));
    }
 
    step_++;
    return  true;
 }
 
-void mark_elements(Mesh & mesh, char dir, int ind)
+void mark_elements(Mesh & mesh, char axis, int tier)
 {
    double xData[3];
    Vector x(xData,3);
@@ -1138,10 +1138,10 @@ void mark_elements(Mesh & mesh, char dir, int ind)
       }
       x /= v.Size();
 
-      switch (dir)
+      switch (axis)
       {
          case 'x':
-            if ( x[0] > -2.5 + ind && x[0] < -1.5 + ind )
+            if ( x[0] > -2.5 + tier && x[0] < -1.5 + tier )
             {
                mesh.SetAttribute(i, 2);
                count++;
@@ -1152,7 +1152,7 @@ void mark_elements(Mesh & mesh, char dir, int ind)
             }
             break;
          case 'y':
-            if ( x[1] > -2.5 + ind && x[1] < -1.5 + ind )
+            if ( x[1] > -2.5 + tier && x[1] < -1.5 + tier )
             {
                mesh.SetAttribute(i, 2);
                count++;
@@ -1163,7 +1163,7 @@ void mark_elements(Mesh & mesh, char dir, int ind)
             }
             break;
          case 'z':
-            if ( x[2] > -2.5 + ind && x[2] < -1.5 + ind )
+            if ( x[2] > -2.5 + tier && x[2] < -1.5 + tier )
             {
                mesh.SetAttribute(i, 2);
                count++;
@@ -1178,12 +1178,12 @@ void mark_elements(Mesh & mesh, char dir, int ind)
 }
 
 void
-anim_move(char dir, int ind, int deg,
+anim_move(char axis, int tier, int incr,
           Mesh & mesh, GridFunction & color, socketstream & sock)
 {
-   update_state(dir, ind, deg);
-   mark_elements(mesh, dir, ind);
-   while (anim_step(dir, deg, mesh))
+   update_state(axis, tier, incr);
+   mark_elements(mesh, axis, tier);
+   while (anim_step(axis, incr, mesh))
    {
       sock << "solution\n" << mesh << color << flush;
    }
@@ -1294,7 +1294,7 @@ solve_centers(Mesh & mesh, GridFunction & color, socketstream & sock)
    {
       // Two are correct.  Determine which axis should be spun and by how much.
       char axis = ' ';
-      int deg = 0;
+      int  incr = 0;
 
       if (rubik.cent_[2] == 2)
       {
@@ -1303,13 +1303,13 @@ solve_centers(Mesh & mesh, GridFunction & color, socketstream & sock)
          switch (rubik.cent_[0])
          {
             case 1:
-               deg = 1;
+               incr = 1;
                break;
             case 5:
-               deg = 2;
+               incr = 2;
                break;
             case 3:
-               deg = 3;
+               incr = 3;
                break;
          }
       }
@@ -1320,13 +1320,13 @@ solve_centers(Mesh & mesh, GridFunction & color, socketstream & sock)
          switch (rubik.cent_[0])
          {
             case 2:
-               deg = 1;
+               incr = 1;
                break;
             case 5:
-               deg = 2;
+               incr = 2;
                break;
             case 4:
-               deg = 3;
+               incr = 3;
                break;
          }
       }
@@ -1337,17 +1337,17 @@ solve_centers(Mesh & mesh, GridFunction & color, socketstream & sock)
          switch (rubik.cent_[1])
          {
             case 4:
-               deg = 1;
+               incr = 1;
                break;
             case 3:
-               deg = 2;
+               incr = 2;
                break;
             case 2:
-               deg = 3;
+               incr = 3;
                break;
          }
       }
-      anim_move(axis, 2, deg, mesh, color, sock);
+      anim_move(axis, 2, incr, mesh, color, sock);
    }
    else
    {
@@ -1363,26 +1363,26 @@ solve_centers(Mesh & mesh, GridFunction & color, socketstream & sock)
       }
 
       char axis = ' ';
-      int deg = 0;
+      int  incr = 0;
       switch (i0)
       {
          case 1:
-            axis = 'x'; deg = 3;
+            axis = 'x'; incr = 3;
             break;
          case 2:
-            axis = 'y'; deg = 3;
+            axis = 'y'; incr = 3;
             break;
          case 3:
-            axis = 'x'; deg = 1;
+            axis = 'x'; incr = 1;
             break;
          case 4:
-            axis = 'y'; deg = 1;
+            axis = 'y'; incr = 1;
             break;
          case 5:
-            axis = 'x'; deg = 2;
+            axis = 'x'; incr = 2;
             break;
       }
-      anim_move(axis, 2, deg, mesh, color, sock);
+      anim_move(axis, 2, incr, mesh, color, sock);
 
       // Two centers should be correct now so recall this function.
       solve_centers(mesh, color, sock);
