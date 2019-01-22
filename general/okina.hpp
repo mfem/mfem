@@ -25,6 +25,7 @@
 // *****************************************************************************
 #include "./cuda.hpp"
 #include "./occa.hpp"
+#include "RAJA/RAJA.hpp"
 
 // *****************************************************************************
 #include "mm.hpp"
@@ -36,15 +37,19 @@
 template <size_t BLOCKS, typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 {
-   const bool gpu = mfem::config::usingGpu();
-   if (gpu)
+   const bool gpu = mfem::config::usingGpu();   //
+   const bool raja = mfem::config::usingRaja(); //
+   if(gpu && raja)
    {
-      return cuWrap<BLOCKS>(N,d_body);
+     return RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N), d_body);
+   }else if (gpu) {
+     return cuWrap<BLOCKS>(N,d_body);
+   }else if (!gpu && raja) {
+     return RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
+   }else {
+     for (size_t k=0; k<N; k+=1) { h_body(k); }
    }
-   else
-   {
-      for (size_t k=0; k<N; k+=1) { h_body(k); }
-   }
+
 }
 
 // *****************************************************************************
