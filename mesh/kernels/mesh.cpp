@@ -14,6 +14,10 @@ using namespace std;
 
 namespace mfem
 {
+namespace kernels
+{
+namespace mesh
+{
 
 // *****************************************************************************
 const __device__ __constant__ double quad_children_init[2*4*4] =
@@ -25,9 +29,9 @@ const __device__ __constant__ double quad_children_init[2*4*4] =
 };
 
 // *****************************************************************************
-void kQuadChildren(double *data)
+void QuadChildren(double *data)
 {
-   GET_ADRS(data);
+   GET_PTR(data);
    const double *d_quad_children_init = quad_children_init;
    const size_t N = 2*4*4;
    MFEM_FORALL(i, N,
@@ -36,4 +40,6 @@ void kQuadChildren(double *data)
    });
 }
 
-}
+} // namespace mesh
+} // namespace kernels
+} // namespace mfem

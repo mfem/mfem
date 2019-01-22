@@ -14,9 +14,8 @@
 
 #include "fem.hpp"
 #include "bilininteg.hpp"
+#include "fespace_ext.hpp"
 #include "bilinearform_ext.hpp"
-#include "kBilinIntegDiffusion.hpp"
-#include "kfespace.hpp"
 #include "../linalg/kernels/vector.hpp"
 
 namespace mfem
@@ -38,7 +37,14 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
    localY(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
    kfes(new kFiniteElementSpace(a->fes)) { }
 
-PABilinearFormExtension::~PABilinearFormExtension() { delete kfes; }
+PABilinearFormExtension::~PABilinearFormExtension()
+{
+   for (int i = 0; i < integrators.Size(); ++i)
+   {
+      delete integrators[i];
+   }
+   delete kfes;
+}
 
 // Adds new Domain Integrator.
 void PABilinearFormExtension::AddDomainIntegrator(
@@ -47,11 +53,8 @@ void PABilinearFormExtension::AddDomainIntegrator(
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
-// *****************************************************************************
-// * WARNING DiffusionGetRule Q order
-// *****************************************************************************
-static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
-                                               const FiniteElement &test_fe)
+static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
+                                             const FiniteElement &test_fe)
 {
    int order;
    if (trial_fe.Space() == FunctionSpace::Pk)
@@ -74,11 +77,11 @@ void PABilinearFormExtension::Assemble()
 {
    assert(integrators.Size()==1);
    const FiniteElement &fe = *a->fes->GetFE(0);
-   const IntegrationRule *ir = &DiffusionGetRule(fe,fe);
-   assert(ir);
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
+      const IntegrationRule *rule = integrators[i]->GetIntRule();
+      const IntegrationRule *ir = rule?rule:&DefaultGetRule(fe,fe);
       integrators[i]->Setup(a->fes,ir);
       integrators[i]->Assemble();
    }
@@ -124,19 +127,17 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
    if (!copy_interior && ess_tdof_list.Size()>0)
    {
       const int csz = ess_tdof_list.Size();
-      const int xsz = X.Size();
-      assert(xsz>=csz);
-      Vector subvec(xsz);
+      Vector subvec(csz);
       subvec = 0.0;
-      kVectorGetSubvector(csz,
-                          subvec.GetData(),
-                          X.GetData(),
-                          ess_tdof_list.GetData());
+      kernels::vector::GetSubvector(csz,
+                                    subvec.GetData(),
+                                    X.GetData(),
+                                    ess_tdof_list.GetData());
       X = 0.0;
-      kVectorSetSubvector(csz,
-                          X.GetData(),
-                          subvec.GetData(),
-                          ess_tdof_list.GetData());
+      kernels::vector::SetSubvector(csz,
+                                    X.GetData(),
+                                    subvec.GetData(),
+                                    ess_tdof_list.GetData());
    }
 
    ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(A);

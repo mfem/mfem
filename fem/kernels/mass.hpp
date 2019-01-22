@@ -9,22 +9,25 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_FEM_KERNELS_GLOBAL_LOCAL_HPP
-#define MFEM_FEM_KERNELS_GLOBAL_LOCAL_HPP
+#ifndef MFEM_KERNELS_MASS
+#define MFEM_KERNELS_MASS
 
 namespace mfem
 {
 
 // *****************************************************************************
-void kGlobalToLocal(const int NUM_VDIM,
-                    const bool VDIM_ORDERING,
-                    const int globalEntries,
-                    const int localEntries,
-                    const int* __restrict offsets,
-                    const int* __restrict indices,
-                    const double* __restrict globalX,
-                    double* __restrict localX);
+void biPAMassMultAdd(const int dim,
+                     const int NUM_DOFS_1D,
+                     const int NUM_QUAD_1D,
+                     const int numElements,
+                     const double* __restrict dofToQuad,
+                     const double* __restrict dofToQuadD,
+                     const double* __restrict quadToDof,
+                     const double* __restrict quadToDofD,
+                     const double* __restrict op,
+                     const double* __restrict x,
+                     double* __restrict y);
 
 }
 
-#endif // MFEM_FEM_KERNELS_GLOBAL_LOCAL_HPP
+#endif // MFEM_KERNELS_DIFFUSION

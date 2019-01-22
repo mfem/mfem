@@ -10,10 +10,13 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
-#include "vector.hpp"
+#include <limits>
 
-// *****************************************************************************
 namespace mfem
+{
+namespace kernels
+{
+namespace vector
 {
 
 // *****************************************************************************
@@ -21,6 +24,51 @@ namespace mfem
 
 // *****************************************************************************
 #define CUDA_BLOCKSIZE 256
+
+// *****************************************************************************
+__global__ void cuKernelMin(const size_t N, double *gdsr, const double *x)
+{
+   __shared__ double s_min[CUDA_BLOCKSIZE];
+   const size_t n = blockDim.x*blockIdx.x + threadIdx.x;
+   if (n>=N) { return; }
+   const size_t bid = blockIdx.x;
+   const size_t tid = threadIdx.x;
+   const size_t bbd = bid*blockDim.x;
+   const size_t rid = bbd+tid;
+   s_min[tid] = x[n];
+   for (size_t workers=blockDim.x>>1; workers>0; workers>>=1)
+   {
+      __syncthreads();
+      if (tid >= workers) { continue; }
+      if (rid >= N) { continue; }
+      const size_t dualTid = tid + workers;
+      if (dualTid >= N) { continue; }
+      const size_t rdd = bbd+dualTid;
+      if (rdd >= N) { continue; }
+      if (dualTid >= blockDim.x) { continue; }
+      s_min[tid] = fmin(s_min[tid], s_min[dualTid]);
+   }
+   if (tid==0) { gdsr[bid] = s_min[0]; }
+}
+
+// *****************************************************************************
+static double cuVectorMin(const size_t N, const double *x)
+{
+   const size_t tpb = CUDA_BLOCKSIZE;
+   const size_t blockSize = CUDA_BLOCKSIZE;
+   const size_t gridSize = (N+blockSize-1)/blockSize;
+   const size_t min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
+   const size_t bytes = min_sz*sizeof(double);
+   static double *h_min = NULL;
+   if (!h_min) { h_min = (double*)calloc(min_sz,sizeof(double)); }
+   static CUdeviceptr gdsr = (CUdeviceptr) NULL;
+   if (!gdsr) { ::cuMemAlloc(&gdsr,bytes); }
+   cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, x);
+   ::cuMemcpy((CUdeviceptr)h_min,(CUdeviceptr)gdsr,bytes);
+   double min = std::numeric_limits<double>::infinity();
+   for (size_t i=0; i<min_sz; i+=1) { min = fmin(min, h_min[i]); }
+   return min;
+}
 
 // *****************************************************************************
 __global__ void cuKernelDot(const size_t N, double *gdsr,
@@ -50,7 +98,7 @@ __global__ void cuKernelDot(const size_t N, double *gdsr,
 }
 
 // *****************************************************************************
-double cuVectorDot(const size_t N, const double *x, const double *y)
+static double cuVectorDot(const size_t N, const double *x, const double *y)
 {
    const size_t tpb = CUDA_BLOCKSIZE;
    const size_t blockSize = CUDA_BLOCKSIZE;
@@ -70,10 +118,25 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
 #endif // __NVCC__
 
 // *****************************************************************************
-double kVectorDot(const size_t N, const double *x, const double *y)
+double Min(const size_t N, const double *x)
 {
-   GET_CONST_ADRS(x);
-   GET_CONST_ADRS(y);
+   GET_CONST_PTR(x);
+   if (config::usingGpu())
+   {
+#ifdef __NVCC__
+      return cuVectorMin(N, d_x);
+#endif // __NVCC__
+   }
+   double min = std::numeric_limits<double>::infinity();
+   for (size_t i=0; i<N; i+=1) { min = fmin(min, d_x[i]); }
+   return min;
+}
+
+// *****************************************************************************
+double Dot(const size_t N, const double *x, const double *y)
+{
+   GET_CONST_PTR(x);
+   GET_CONST_PTR(y);
    if (config::usingGpu())
    {
 #ifdef __NVCC__
@@ -87,45 +150,39 @@ double kVectorDot(const size_t N, const double *x, const double *y)
 }
 
 // *****************************************************************************
-__kernel void kVectorMapDof(const int N,
-                            double *v0, const double *v1, const int *dof)
+__kernel void MapDof(const int N, double *y, const double *x, const int *dofs)
 {
    MFEM_FORALL(i, N,
    {
-      const int dof_i = dof[i];
-      v0[dof_i] = v1[dof_i];
+      const int dof_i = dofs[i];
+      y[dof_i] = x[dof_i];
    });
 }
 
 // *****************************************************************************
-__kernel void kVectorMapDof(double *v0, const double *v1,
-                            const int dof, const int j)
+__kernel void MapDof(double *y, const double *x, const int dof, const int j)
 {
-   MFEM_FORALL(i, 1, v0[dof] = v1[j]; );
+   MFEM_FORALL(i, 1, y[dof] = x[j];);
 }
 
 // *****************************************************************************
-__kernel void kVectorSetDof(double *v0, const double alpha, const int dof)
+__kernel void SetDof(double *y, const double alpha, const int dof)
 {
-   MFEM_FORALL(i, 1, v0[dof] = alpha; );
+   MFEM_FORALL(i, 1, y[dof] = alpha;);
 }
 
 // *****************************************************************************
-__kernel void kVectorSetDof(const int N, double *v0,
-                            const double alpha, const int *dof)
+__kernel void SetDof(const int N, double *y, const double alpha, const int *dofs)
 {
    MFEM_FORALL(i, N,
    {
-      const int dof_i = dof[i];
-      v0[dof_i] = alpha;
+      const int dof_i = dofs[i];
+      y[dof_i] = alpha;
    });
 }
 
 // *****************************************************************************
-__kernel void kVectorGetSubvector(const int N,
-                                  double* y,
-                                  const double* x,
-                                  const int* dofs)
+__kernel void GetSubvector(const int N, double *y, const double *x, const int* dofs)
 {
    MFEM_FORALL(i, N,
    {
@@ -135,102 +192,129 @@ __kernel void kVectorGetSubvector(const int N,
 }
 
 // *****************************************************************************
-__kernel void kVectorSetSubvector(const int N,
-                                  double* x,
-                                  const double* y,
-                                  const int* dofs)
+__kernel void SetSubvector(const int N, double *y, const double *x, const int* dofs)
+{
+   MFEM_FORALL(i, N,
+   {
+      const int dof_i = dofs[i];
+      if (dof_i >= 0)
+      {
+         y[dof_i] = x[i];
+      }
+      else {
+         y[-1-dof_i] = -x[i];
+      }
+   });
+}
+
+// *****************************************************************************
+void SetSubvector(const int N, double* y, const double d, const int* dofs)
 {
    MFEM_FORALL(i, N,
    {
       const int j = dofs[i];
       if (j >= 0)
       {
-         x[j] = y[i];
+         y[j] = d;
       }
       else {
-         x[-1-j] = -y[i];
+         y[-1-j] = -d;
       }
    });
 }
 
 // *****************************************************************************
-__kernel void kVectorSubtract(double *zp, const double *xp, const double *yp,
-                              const size_t N)
+__kernel void AlphaAdd(double *z, const double *x,
+              const double a, const double *y, const size_t N)
 {
-   MFEM_FORALL(i, N, zp[i] = xp[i] - yp[i];);
+   MFEM_FORALL(i, N, z[i] = x[i] + a * y[i];);
 }
 
 // *****************************************************************************
-__kernel void kVectorAlphaAdd(double *vp, const double* v1p,
-                              const double alpha, const double *v2p,
-                              const size_t N)
+__kernel void Subtract(double *z, const double *x, const double *y, const size_t N)
 {
-   MFEM_FORALL(i, N, vp[i] = v1p[i] + alpha * v2p[i];);
+   MFEM_FORALL(i, N, z[i] = x[i] - y[i];);
 }
 
+
 // *****************************************************************************
-__kernel void kVectorPrint(const size_t N, const double *data)
+__kernel void Print(const size_t N, const double *x)
 {
-   MFEM_FORALL(k, 1, // Sequential printf to get the same order as the host
+   // Sequential printf to get the same order as on the host
+   MFEM_FORALL(k, 1,
    {
       for (size_t i=0; i<N; i+=1)
       {
-         printf("\n\t%f",data[i]);
+         printf("\n\t%f",x[i]);
       }
    });
-}
-
-// *****************************************************************************
-__kernel void kVectorAssign(const size_t N, const double* v, double *data)
-{
-   MFEM_FORALL(i, N, data[i] = v[i];);
 }
 
 // **************************************************************************
-__kernel void kVectorSet(const size_t N,
-                         const double value,
-                         double *data)
+__kernel void Set(const size_t N, const double d, double *y)
 {
-   MFEM_FORALL(i, N, data[i] = value;);
+   MFEM_FORALL(i, N, y[i] = d;);
 }
 
 // *****************************************************************************
-__kernel void kVectorMultOp(const size_t N,
-                            const double value,
-                            double *data)
+__kernel void Assign(const size_t N, const double *x, double *y)
 {
-   MFEM_FORALL(i, N, data[i] *= value;);
+   MFEM_FORALL(i, N, y[i] = x[i];);
 }
 
 // *****************************************************************************
-__kernel void kVectorDotOpPlusEQ(const size_t size,
-                                 const double *v, double *data)
+__kernel void OpMultEQ(const size_t N, const double d, double *y)
 {
-   MFEM_FORALL(i, size, data[i] += v[i];);
+   MFEM_FORALL(i, N, y[i] *= d;);
 }
 
 // *****************************************************************************
-__kernel void kVectorOpSubtract(const size_t size,
-                                const double *v, double *data)
+__kernel void OpPlusEQ(const size_t N, const double *x, double *y)
 {
-   MFEM_FORALL(i, size, data[i] -= v[i];);
+   MFEM_FORALL(i, N, y[i] += x[i];);
 }
 
 // *****************************************************************************
-__kernel void kAddElementVector(const size_t n, const int *dofs,
-                                const double *elem_data, double *data)
+__kernel void OpAddEQ(const size_t N, const double a, const double *x, double *y)
 {
-   MFEM_FORALL(i, n,
+   MFEM_FORALL(i, N, y[i] += a * x[i];);
+}
+
+// *****************************************************************************
+__kernel void OpSubtractEQ(const size_t N, const double *x, double *y)
+{
+   MFEM_FORALL(i, N, y[i] -= x[i];);
+}
+
+// *****************************************************************************
+__kernel void AddElement(const size_t N, const int *dofs, const double *x, double *y)
+{
+   MFEM_FORALL(i, N,
    {
       const int j = dofs[i];
       if (j >= 0)
-         data[j] += elem_data[i];
+         y[j] += x[i];
       else
-      {
-         data[-1-j] -= elem_data[i];
-      }
+         y[-1-j] -= x[i];
    });
 }
 
 // *****************************************************************************
-} // mfem
+__kernel void AddElementAlpha(const size_t N, const int *dofs,
+                              const double *x, double *y, const double alpha)
+{
+   MFEM_FORALL(i, N,
+   {
+      const int j = dofs[i];
+      if (j >= 0)
+         y[j] += alpha * x[i];
+      else
+      {
+         y[-1-j] -= alpha * x[i];
+      }
+   });
+}
+
+} // namespace vector
+} // namespace kernels
+} // namespace mfem

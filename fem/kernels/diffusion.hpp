@@ -14,9 +14,13 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace fem
+{
 
 // *****************************************************************************
-void kIntDiffusionAssemble(const int dim,
+void biPADiffusionAssemble(const int dim,
                            const int NUM_QUAD_1D,
                            const int numElements,
                            const double* __restrict quadWeights,
@@ -25,7 +29,7 @@ void kIntDiffusionAssemble(const int dim,
                            double* __restrict oper);
 
 // *****************************************************************************
-void kIntDiffusionMultAdd(const int dim,
+void biPADiffusionMultAdd(const int dim,
                           const int NUM_DOFS_1D,
                           const int NUM_QUAD_1D,
                           const int numElements,
@@ -37,6 +41,8 @@ void kIntDiffusionMultAdd(const int dim,
                           const double* __restrict x,
                           double* __restrict y);
 
-}
+} // namespace fem
+} // namespace kernels
+} // namespace mfem
 
 #endif // MFEM_KERNELS_DIFFUSION

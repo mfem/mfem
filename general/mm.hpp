@@ -9,72 +9,62 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_MM_HPP
-#define MFEM_MM_HPP
+#ifndef MFEM_MM
+#define MFEM_MM
 
-// *****************************************************************************
+#include <cstddef> // for size_t
+using std::size_t;
+
+#include <list>
+#include <unordered_map>
+
+#include "occa.hpp" // for OccaMemory
+
+
 namespace mfem
 {
-
-// *****************************************************************************
-class alias_t;
-
-// *****************************************************************************
-class memory_t
-{
-public:
-   bool host;
-   const size_t bytes;
-   void* const h_adrs;
-   void* d_adrs;
-   OccaMemory o_adrs;
-   std::list<const alias_t*> aliases;
-   memory_t(void* const h, const size_t b):
-      host(true), bytes(b), h_adrs(h), d_adrs(NULL), aliases() {}
-};
-
-// *****************************************************************************
-class alias_t
-{
-public:
-   memory_t* const mem;
-   const size_t offset;
-   alias_t(memory_t* const m, const size_t o):mem(m), offset(o) {}
-};
-
-// *****************************************************************************
-typedef std::unordered_map<const void*, memory_t*> memory_map_t;
-typedef std::unordered_map<const void*, const alias_t*> alias_map_t;
-typedef struct { memory_map_t *memories; alias_map_t *aliases; } mm_t;
-typedef memory_map_t::iterator mm_iterator_t;
 
 // *****************************************************************************
 // * Memory Manager Singleton
 // *****************************************************************************
 class mm
 {
-private:
-   memory_map_t *memories;
-   alias_map_t  *aliases;
-   mm_t *maps;
-private:
-   mm(): memories(new memory_map_t), aliases(new alias_map_t()),
-      maps(new mm_t( {memories, aliases})) {}
-   mm(mm const&);
-   void operator=(mm const&);
-   static inline mm& MM() { static mm singleton; return singleton; }
-private:
-   // **************************************************************************
-   void *Insert(void *adrs, const size_t bytes);
-   void *Erase(void *adrs);
-   void* Adrs(void *adrs);
-   const void* Adrs(const void *adrs);
-   OccaMemory Memory(const void *adrs);
-private:
-   // **************************************************************************
-   void Push(const void *adrs, const size_t bytes =0);
-   void Pull(const void *adrs, const size_t bytes =0);
 public:
+   // **************************************************************************
+   struct alias;
+
+   // TODO: Change this to ptr
+   struct memory
+   {
+      bool host;
+      const size_t bytes;
+
+      void *const h_ptr;
+      void *d_ptr;
+      OccaMemory o_ptr;
+
+      std::list<const alias *> aliases;
+
+      memory(void* const h, const size_t b):
+         host(true), bytes(b), h_ptr(h), d_ptr(NULL), aliases() {}
+   };
+
+   struct alias
+   {
+      memory *const mem;
+      const size_t offset;
+   };
+
+   // **************************************************************************
+   typedef std::unordered_map<const void*, memory> memory_map;
+   typedef std::unordered_map<const void*, const alias*> alias_map;
+
+   struct ledger
+   {
+      memory_map memories;
+      alias_map aliases;
+   };
+
    // **************************************************************************
    // * Main malloc template function
    // * Allocates n*size bytes and returns a pointer to the allocated memory
@@ -91,37 +81,54 @@ public:
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-      void *adrs = mm::MM().Erase(ptr);
-      ::delete[] static_cast<T*>(adrs);
-      adrs = nullptr;
+      mm::MM().Erase(ptr);
+      ::delete[] static_cast<T*>(ptr);
    }
 
    // **************************************************************************
-   // * Translates adrs to host or device address,
-   // * depending on config::Cuda() and the adrs' state
+   // * Translates ptr to host or device address,
+   // * depending on config::Cuda() and the ptr' state
    // **************************************************************************
-   static inline void* adrs(void *a) { return MM().Adrs(a); }
-   static inline const void* adrs(const void *a) { return MM().Adrs(a); }
-   static inline OccaMemory memory(const void *a) { return MM().Memory(a); }
+   static inline void* ptr(void *a) { return MM().Ptr(a); }
+   static inline const void* ptr(const void *a) { return MM().Ptr(a); }
+   static inline OccaMemory occaPtr(const void *a) { return MM().Memory(a); }
 
    // **************************************************************************
-   static inline void push(const void *adrs, const size_t bytes =0)
+   static inline void push(const void *ptr, const size_t bytes = 0)
    {
-      return MM().Push(adrs, bytes);
+      return MM().Push(ptr, bytes);
    }
 
    // **************************************************************************
-   static inline void pull(const void *adrs, const size_t bytes =0)
+   static inline void pull(const void *ptr, const size_t bytes = 0)
    {
-      return MM().Pull(adrs, bytes);
+      return MM().Pull(ptr, bytes);
    }
 
    // **************************************************************************
    static void* memcpy(void *dst, const void *src,
                        size_t bytes, const bool async = false);
+
+private:
+   ledger maps;
+
+   mm() {}
+   mm(mm const&);
+   void operator=(mm const&);
+   static inline mm& MM() { static mm singleton; return singleton; }
+
+   // **************************************************************************
+   void *Insert(void *ptr, const size_t bytes);
+   void *Erase(void *ptr);
+   void* Ptr(void *ptr);
+   const void* Ptr(const void *ptr);
+   OccaMemory Memory(const void *ptr);
+
+   // **************************************************************************
+   void Push(const void *ptr, const size_t bytes = 0);
+   void Pull(const void *ptr, const size_t bytes = 0);
 };
 
-// *****************************************************************************
-} // mfem
+} // namespace mfem
 
-#endif // MFEM_MM_HPP
+#endif

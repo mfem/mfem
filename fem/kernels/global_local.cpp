@@ -13,34 +13,39 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace fem
+{
 
 // *****************************************************************************
-__kernel void kLocalToGlobal(const int NUM_VDIM,
-                             const bool VDIM_ORDERING,
-                             const int globalEntries,
-                             const int localEntries,
-                             const int* __restrict offsets,
-                             const int* __restrict indices,
-                             const double* __restrict localX,
-                             double* __restrict globalX)
+__kernel void GlobalToLocal(const int NUM_VDIM,
+                            const bool VDIM_ORDERING,
+                            const int globalEntries,
+                            const int localEntries,
+                            const int* __restrict offsets,
+                            const int* __restrict indices,
+                            const double* __restrict globalX,
+                            double* __restrict localX)
 {
    MFEM_FORALL(i, globalEntries,
    {
       const int offset = offsets[i];
-      const int nextOffset = offsets[i + 1];
+      const int nextOffset = offsets[i+1];
       for (int v = 0; v < NUM_VDIM; ++v)
       {
-         double dofValue = 0;
+         const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);
+         const double dofValue = globalX[g_offset];
          for (int j = offset; j < nextOffset; ++j)
          {
-            const int l_offset = ijNMt(v,indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
-            dofValue += localX[l_offset];
+            const int l_offset =
+               ijNMt(v,indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
+            localX[l_offset] = dofValue;
          }
-         const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);
-         globalX[g_offset] = dofValue;
       }
    });
-
 }
 
-}
+} // namespace fem
+} // namespace kernels
+} // namespace mfem

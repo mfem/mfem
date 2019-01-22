@@ -10,18 +10,20 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(KERS
-  kGeometry.cpp
-  kGlobalToLocal.cpp
-  kIntDiffusionAssemble.cpp
-  kIntDiffusionMultAdd.cpp
-  kLocalToGlobal.cpp
+  diffusion_assemble.cpp
+  diffusion_multadd.cpp
+  geometry.cpp
+  global_local.cpp
+  local_global.cpp
+  mass.cpp
 )
 
 set(HDRS
-  kGeometry.hpp
-  kGlobalToLocal.hpp
-  kIntDiffusion.hpp
-  kLocalToGlobal.hpp
+  diffusion.hpp
+  geometry.hpp
+  global_local.hpp
+  local_global.hpp
+  mass.hpp
 )
 
 convert_filenames_to_full_paths(KERS)

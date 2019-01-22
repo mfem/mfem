@@ -14,29 +14,33 @@
 // *****************************************************************************
 namespace mfem
 {
+namespace kernels
+{
+namespace fem
+{
 
 // ****************************************************************************
 // * OCCA 2D Assemble kernel
 // *****************************************************************************
 #ifdef __OCCA__
-static void oAssemble2D(const int NUM_QUAD_1D,
-                        const int numElements,
-                        const double* __restrict quadWeights,
-                        const double* __restrict J,
-                        const double COEFF,
-                        double* __restrict oper)
+static void occaAssemble2D(const int NUM_QUAD_1D,
+                           const int numElements,
+                           const double* __restrict quadWeights,
+                           const double* __restrict J,
+                           const double COEFF,
+                           double* __restrict oper)
 {
    const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
-   
+
    GET_OCCA_CONST_MEMORY(quadWeights);
    GET_OCCA_CONST_MEMORY(J);
    GET_OCCA_MEMORY(oper);
-   
+
    NEW_OCCA_PROPERTY(props);
    SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
-   
-   NEW_OCCA_KERNEL(Assemble2D, fem, oIntDiffusionAssemble.okl, props);
+
+   NEW_OCCA_KERNEL(Assemble2D, fem, diffusio_assemble.okl, props);
    Assemble2D(numElements, o_quadWeights, o_J, COEFF, o_oper);
 }
 #endif // __OCCA__
@@ -45,14 +49,14 @@ static void oAssemble2D(const int NUM_QUAD_1D,
 // * OKINA 2D kernel
 // *****************************************************************************
 //__jit
-__kernel
-void kAssemble2D(const int NUM_QUAD_1D,
-                 const int numElements,
-                 const double* __restrict quadWeights,
-                 const double* __restrict J,
-                 const double COEFF,
-                 double* __restrict oper)
-{ 
+__kernel static
+void Assemble2D(const int NUM_QUAD_1D,
+                const int numElements,
+                const double* __restrict quadWeights,
+                const double* __restrict J,
+                const double COEFF,
+                double* __restrict oper)
+{
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e,numElements,
    {
@@ -73,12 +77,13 @@ void kAssemble2D(const int NUM_QUAD_1D,
 // *****************************************************************************
 // * OKINA 3D kernel
 // *****************************************************************************
-__kernel void kAssemble3D(const int NUM_QUAD_1D,
-                          const int numElements,
-                          const double* __restrict quadWeights,
-                          const double* __restrict J,
-                          const double COEFF,
-                          double* __restrict oper)
+__kernel static
+void Assemble3D(const int NUM_QUAD_1D,
+                const int numElements,
+                const double* __restrict quadWeights,
+                const double* __restrict J,
+                const double COEFF,
+                double* __restrict oper)
 {
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e,numElements,
@@ -126,26 +131,28 @@ __kernel void kAssemble3D(const int NUM_QUAD_1D,
 }
 
 // *****************************************************************************
-void kIntDiffusionAssemble(const int dim,
-                           const int NUM_QUAD_1D,
-                           const int numElements,
-                           const double* __restrict quadWeights,
-                           const double* __restrict J,
-                           const double COEFF,
-                           double* __restrict oper)
+void PADiffusionAssemble(const int dim,
+                         const int NUM_QUAD_1D,
+                         const int numElements,
+                         const double* __restrict quadWeights,
+                         const double* __restrict J,
+                         const double COEFF,
+                         double* __restrict oper)
 {
-  if (dim==1) { assert(false); }
-  if (dim==2){
+   if (dim==1) mfem_error("Not implemented");
+   if (dim==2){
 #ifdef __OCCA__
-     if (config::usingOcca()){
-        oAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
-        return;
-     }
+      if (config::usingOcca()){
+         occaAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
+         return;
+      }
 #endif // __OCCA__
-     kAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
-  }
-  if (dim==3) { kAssemble3D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper); }
+      Assemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
+   }
+   if (dim==3)
+      Assemble3D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
 }
 
-// *****************************************************************************
-} // mfem
+} // namespace fem
+} // namespace kernels
+} // namespace mfem

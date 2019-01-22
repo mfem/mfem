@@ -15,6 +15,10 @@
 // *****************************************************************************
 #ifdef __NVCC__
 #include <cuda.h>
+inline void cuCheck(const unsigned int c)
+{
+   MFEM_ASSERT(!c, cudaGetErrorString(cudaGetLastError()));
+}
 template <typename BODY> __global__ static
 void cuKernel(const size_t N, BODY body)
 {
@@ -22,11 +26,11 @@ void cuKernel(const size_t N, BODY body)
    if (k >= N) { return; }
    body(k);
 }
-template <size_t BLOCK_SZ, typename DBODY>
+template <size_t BLOCKS, typename DBODY>
 void cuWrap(const size_t N, DBODY &&d_body)
 {
-   const size_t gridSize = (N+BLOCK_SZ-1)/BLOCK_SZ;
-   cuKernel<<<gridSize, BLOCK_SZ>>>(N,d_body);
+   const size_t GRID = (N+BLOCKS-1)/BLOCKS;
+   cuKernel<<<GRID,BLOCKS>>>(N,d_body);
 }
 constexpr static inline bool usingNvccCompiler() { return true; }
 #else // ***********************************************************************
@@ -36,7 +40,7 @@ constexpr static inline bool usingNvccCompiler() { return true; }
 typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
-template <size_t BLOCK_SIZE, typename DBODY>
+template <size_t BLOCKS, typename DBODY>
 void cuWrap(const size_t N, DBODY &&d_body) {}
 constexpr static inline bool usingNvccCompiler() { return false; }
 #endif // __NVCC__

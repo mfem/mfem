@@ -13,6 +13,10 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace densemat
+{
 
 // *****************************************************************************
 template <class T> __device__ __host__
@@ -24,9 +28,72 @@ inline void Swap(T &a, T &b)
 }
 
 // *****************************************************************************
-__kernel void kLSolve(const int m, const int n,
-		      const double *data, const int *ipiv, double *x)
+__kernel void GetInverseMatrix(const int m, const int *ipiv,
+                               const double *data, double *x){
+   MFEM_GPU_CANNOT_PASS;
+   MFEM_FORALL(_k_, 1,
+      for (int k = 0; k < m; k++)
+      {
+         double *mx = &x[k*m];
+         const double minus_x_k = -( mx[k] = 1.0/data[k+k*m] );
+         for (int i = 0; i < k; i++)
+         {
+            mx[i] = data[i+k*m] * minus_x_k;
+         }
+         for (int j = k-1; j >= 0; j--)
+         {
+            const double x_j = ( mx[j] /= data[j+j*m] );
+            for (int i = 0; i < j; i++)
+            {
+               mx[i] -= data[i+j*m] * x_j;
+            }
+         }
+         //x += m;
+      }
+      // X <- X L^{-1} (use input only from the upper triangular part of X)
+      {
+         int k = m-1;
+         for (int j = 0; j < k; j++)
+         {
+            const double minus_L_kj = -data[k+j*m];
+            for (int i = 0; i <= j; i++)
+            {
+               x[i+j*m] += x[i+k*m] * minus_L_kj;
+            }
+            for (int i = j+1; i < m; i++)
+            {
+               x[i+j*m] = x[i+k*m] * minus_L_kj;
+            }
+         }
+      }
+      for (int k = m-2; k >= 0; k--)
+      {
+         for (int j = 0; j < k; j++)
+         {
+            const double L_kj = data[k+j*m];
+            for (int i = 0; i < m; i++)
+            {
+               x[i+j*m] -= x[i+k*m] * L_kj;
+            }
+         }
+      }
+      // X <- X P
+      for (int k = m-1; k >= 0; k--) {
+         const int piv_k = ipiv[k];
+         if (k != piv_k) {
+            for (int i = 0; i < m; i++) {
+               Swap<double>(x[i+k*m], x[i+piv_k*m]);
+            }
+         }
+      }
+   );
+}
+
+// *****************************************************************************
+__kernel void LSolve(const int m, const int n,
+                     const double *data, const int *ipiv, double *x)
 {
+   MFEM_GPU_CANNOT_PASS;
    MFEM_FORALL(k, n,
    {
       double *mx = &x[k*m];
@@ -51,9 +118,9 @@ __kernel void kLSolve(const int m, const int n,
 }
 
 // *****************************************************************************
-__kernel void kUSolve(const int m, const int n,
-                      const double *data, double *x)
+__kernel void USolve(const int m, const int n, const double *data, double *x)
 {
+   MFEM_GPU_CANNOT_PASS;
    MFEM_FORALL(k, n,
    {
       double *mx = &x[k*m];
@@ -69,26 +136,24 @@ __kernel void kUSolve(const int m, const int n,
 }
 
 // *****************************************************************************
-__kernel void kFactorPrint(const int s, const double *data)
+__kernel void FactorPrint(const int s, const double *x)
 {
    MFEM_FORALL(i, s,
    {
-      printf("\n\tdata[%ld]=%f",i,data[i]);
+      printf("\n\tx[%ld]=%f",i,x[i]);
    });
 }
 
 // *****************************************************************************
-__kernel void kFactorSet(const int s, const double *adata, double *ludata)
+__kernel void FactorSet(const int s, const double *x, double *y)
 {
-   MFEM_FORALL(i, s,
-   {
-      ludata[i] = adata[i];
-   });
+   MFEM_FORALL(i, s, y[i] = x[i];);
 }
 
 // *****************************************************************************
-__kernel void kFactor(const int m, int *ipiv, double *data)
+__kernel void Factor(const int m, int *ipiv, double *data)
 {
+   MFEM_GPU_CANNOT_PASS;
    MFEM_FORALL(i, m,
    {
       // pivoting
@@ -136,31 +201,27 @@ __kernel void kFactor(const int m, int *ipiv, double *data)
 }
 
 // **************************************************************************
-__kernel void DenseMatrixSet(const double dd,
-                             const size_t size,
-                             double *data)
+__kernel void Set(const double d, const size_t size, double *x)
 {
-   MFEM_FORALL(i, size, data[i] = dd;);
+   MFEM_FORALL(i, size, x[i] = d;);
 }
 
 // **************************************************************************
-__kernel void DenseMatrixTranspose(const size_t height,
-                                   const size_t width,
-                                   double *data,
-                                   const double *mdata)
+__kernel void Transpose(const size_t height, const size_t width,
+                        double *y, const double *x)
 {
    MFEM_FORALL(i, height,
    {
       for (size_t j=0; j<width; j+=1)
       {
-         data[i+j*height] = mdata[j+i*height];
+         y[i+j*height] = x[j+i*height];
       }
    });
 }
 
 // *****************************************************************************
-__kernel void kMultAAt(const size_t height, const size_t width,
-                       const double *a, double *aat)
+__kernel void MultAAt(const size_t height, const size_t width,
+                      const double *a, double *aat)
 {
    MFEM_FORALL(i, height,
    {
@@ -177,14 +238,14 @@ __kernel void kMultAAt(const size_t height, const size_t width,
 }
 
 // *****************************************************************************
-__kernel void kGradToDiv(const size_t n, const double *data, double *ddata)
+__kernel void GradToDiv(const size_t n, const double *x, double *y)
 {
-   MFEM_FORALL(i, n, ddata[i] = data[i];);
+   MFEM_FORALL(i, n, y[i] = x[i];);
 }
 
 // *****************************************************************************
-__kernel void kAddMult_a_VVt(const size_t n, const double a,
-                             const double *v, const size_t height, double *VVt)
+__kernel void AddMult_a_VVt(const size_t n, const double a, const double *v,
+                            const size_t height, double *VVt)
 {
    MFEM_FORALL(i, n,
    {
@@ -200,14 +261,14 @@ __kernel void kAddMult_a_VVt(const size_t n, const double a,
 }
 
 // *****************************************************************************
-__kernel void kMultWidth0(const size_t height, double *y)
+__kernel void MultWidth0(const size_t height, double *y)
 {
    MFEM_FORALL(row, height, y[row] = 0.0;);
 }
 
 // *****************************************************************************
-__kernel void kMult(const size_t height, const size_t width,
-                    const double *data, const double *x, double *y)
+__kernel void Mult(const size_t height, const size_t width,
+                   const double *data, const double *x, double *y)
 {
    MFEM_FORALL(i, height,
    {
@@ -221,8 +282,8 @@ __kernel void kMult(const size_t height, const size_t width,
 }
 
 // *****************************************************************************
-__kernel void kMult(const size_t ah, const size_t aw, const size_t bw,
-                    const double *bd, const double *cd, double *ad)
+__kernel void Mult(const size_t ah, const size_t aw, const size_t bw,
+                   const double *bd, const double *cd, double *ad)
 {
    MFEM_FORALL(i, ah*aw, ad[i] = 0.0;);
    MFEM_FORALL(j, aw,
@@ -238,47 +299,45 @@ __kernel void kMult(const size_t ah, const size_t aw, const size_t bw,
 }
 
 // *****************************************************************************
-__kernel void kOpEq(const size_t hw, const double *m, double *data)
+__kernel void OpEQ(const size_t hw, const double *x, double *y)
 {
-   MFEM_FORALL(i, hw, data[i] = m[i];);
+   MFEM_FORALL(i, hw, y[i] = x[i];);
 }
 
 // *****************************************************************************
-__kernel void kDiag(const size_t n, const size_t N, const double c,
-		    double *data)
+__kernel void Diag(const size_t n, const size_t N, const double c, double *y)
 {
-   MFEM_FORALL(i, N, data[i] = 0.0;);
-   MFEM_FORALL(i, n, data[i*(n+1)] = c;);
+   MFEM_FORALL(i, N, y[i] = 0.0;);
+   MFEM_FORALL(i, n, y[i*(n+1)] = c;);
 }
 
+
 // *****************************************************************************
-double kDet2(const double *data)
+double Det2(const double *x)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_ADRS(data);
-   return d_data[0] * d_data[3] - d_data[1] * d_data[2];
+   GET_PTR(x);
+   return d_x[0] * d_x[3] - d_x[1] * d_x[2];
 }
 
 // *****************************************************************************
-double kDet3(const double *data)
+double Det3(const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_ADRS(data);
    return
-      d_data[0] * (d_data[4] * d_data[8] - d_data[5] * d_data[7]) +
-      d_data[3] * (d_data[2] * d_data[7] - d_data[1] * d_data[8]) +
-      d_data[6] * (d_data[1] * d_data[5] - d_data[2] * d_data[4]);
+      data[0] * (data[4] * data[8] - data[5] * data[7]) +
+      data[3] * (data[2] * data[7] - data[1] * data[8]) +
+      data[6] * (data[1] * data[5] - data[2] * data[4]);
 }
 
 // *****************************************************************************
-double kFNormMax(const size_t hw, const double *data)
+double FNormMax(const size_t hw, const double *x)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_ADRS(data);
    double max_norm = 0.0;
    for (size_t i = 0; i < hw; i++)
    {
-      const double entry = fabs(d_data[i]);
+      const double entry = fabs(x[i]);
       if (entry > max_norm)
       {
          max_norm = entry;
@@ -288,23 +347,22 @@ double kFNormMax(const size_t hw, const double *data)
 }
 
 // *****************************************************************************
-double kFNorm2(const size_t hw, const double max_norm, const double *data)
+double FNorm2(const size_t hw, const double max_norm, const double *x)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_ADRS(data);
    double fnorm2 = 0.0;
    for (size_t i = 0; i < hw; i++)
    {
-      const double entry = d_data[i] / max_norm;
+      const double entry = x[i] / max_norm;
       fnorm2 += entry * entry;
    }
    return fnorm2;
 }
 
 // *****************************************************************************
-__kernel void kCalcInverse2D(const double t, const double *a, double *inva)
+__kernel void CalcInverse2D(const double t, const double *a, double *inva)
 {
-   //MFEM_GPU_CANNOT_PASS;
+   MFEM_GPU_CANNOT_PASS;
    inva[0+2*0] =  a[1+2*1] * t ;
    inva[0+2*1] = -a[0+2*1] * t ;
    inva[1+2*0] = -a[1+2*0] * t ;
@@ -312,13 +370,8 @@ __kernel void kCalcInverse2D(const double t, const double *a, double *inva)
 }
 
 // *****************************************************************************
-__kernel void kCalcInverse3D(const double t, const double *a, double *inva)
+__kernel void CalcInverse3D(const double t, const double *a, double *inva)
 {
-   //MFEM_GPU_CANNOT_PASS;
-   inva[0+3*0] = (a[1+3*1]*a[2+3*2]-a[1+3*2]*a[2+3*1])*t;
-   inva[0+3*1] = (a[0+3*2]*a[2+3*1]-a[0+3*1]*a[2+3*2])*t;
-   inva[0+3*2] = (a[0+3*1]*a[1+3*2]-a[0+3*2]*a[1+3*1])*t;
-
    inva[1+3*0] = (a[1+3*2]*a[2+3*0]-a[1+3*0]*a[2+3*2])*t;
    inva[1+3*1] = (a[0+3*0]*a[2+3*2]-a[0+3*2]*a[2+3*0])*t;
    inva[1+3*2] = (a[0+3*2]*a[1+3*0]-a[0+3*0]*a[1+3*2])*t;
@@ -328,4 +381,6 @@ __kernel void kCalcInverse3D(const double t, const double *a, double *inva)
    inva[2+3*2] = (a[0+3*0]*a[1+3*1]-a[0+3*1]*a[1+3*0])*t;
 }
 
+} // namespace densemat
+} // namespace kernels
 } // namespace mfem
