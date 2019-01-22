@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = true;
    bool cuda = false;
-   bool raja = true;
+   bool raja = false;
    bool occa = false;
    bool visualization = 1;
 
@@ -147,6 +147,7 @@ int main(int argc, char *argv[])
    config::usePA(pa);
    if (pa) { mesh->EnsureNodes(); }
    if (cuda) { config::useCuda(); }
+   if (raja) { config::useRaja(); }
    if (occa) { config::useOcca(); }
    config::enableGpu(0/*,occa,cuda*/);
    config::SwitchToGpu();
@@ -159,7 +160,7 @@ int main(int argc, char *argv[])
 
    // Sample values
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   int elem_batch = (cuda || occa) ? mesh->GetNE() : 1;
+   int elem_batch = (cuda || raja || occa) ? mesh->GetNE() : 1;
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
