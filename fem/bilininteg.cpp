@@ -54,15 +54,12 @@ void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
    const int quad1D = IntRules.Get(Geometry::SEGMENT,
                                    ir->GetOrder()).GetNPoints();
    const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
-   biPAMassMultAdd(dim,
-                   dofs1D,
-                   quad1D,
-                   mesh->GetNE(),
-                   maps->dofToQuad,
-                   maps->dofToQuadD,
-                   maps->quadToDof,
-                   maps->quadToDofD,
-                   op, x, y);
+   kernels::fem::PAMassMultAdd(dim, dofs1D, quad1D, mesh->GetNE(),
+                               maps->dofToQuad,
+                               maps->dofToQuadD,
+                               maps->quadToDof,
+                               maps->quadToDofD,
+                               op, x, y);
 }
 
 // *****************************************************************************
@@ -93,13 +90,11 @@ void PADiffusionIntegrator::Assemble()
    const kernels::geometry::Geometry *geo =
       kernels::geometry::Geometry::Get(*fes,*ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
-   kernels::fem::biPADiffusionAssemble(dim,
-                                       quad1D,
-                                       elements,
-                                       maps->quadWeights,
-                                       geo->J,
-                                       1.0,//COEFF
-                                       op);
+   kernels::fem::PADiffusionAssemble(dim, quad1D, elements,
+                                     maps->quadWeights,
+                                     geo->J,
+                                     1.0,//COEFF
+                                     op);
    delete geo;
 }
 
@@ -113,17 +108,13 @@ void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
    const FiniteElementSpace *f = fes;
    const FiniteElement *fe = f->GetFE(0);
    const int dofs1D = fe->GetOrder() + 1;
-   kernels::fem::biPADiffusionMultAdd(dim,
-                                      dofs1D,
-                                      quad1D,
-                                      fes->GetMesh()->GetNE(),
-                                      maps->dofToQuad,
-                                      maps->dofToQuadD,
-                                      maps->quadToDof,
-                                      maps->quadToDofD,
-                                      op,
-                                      x,
-                                      y);
+   kernels::fem::PADiffusionMultAdd(dim, dofs1D, quad1D,
+                                    fes->GetMesh()->GetNE(),
+                                    maps->dofToQuad,
+                                    maps->dofToQuadD,
+                                    maps->quadToDof,
+                                    maps->quadToDofD,
+                                    op, x, y);
 }
 
 void BilinearFormIntegrator::AssembleElementMatrix (

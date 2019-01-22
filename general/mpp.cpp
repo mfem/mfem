@@ -583,13 +583,13 @@ void genPtrOkina(context &pp)
       {
          pp.out << "\n\tconst " << type << "* " << name
                 << " = (" << type << "*)"
-                << " mfem::mm::adrs(_" << name << ");";
+                << " mfem::mm::ptr(_" << name << ");";
       }
       if (! is_const && is_pointer)
       {
          pp.out << "\n\t" << type << "* " << name
                 << " = (" << type << "*)"
-                << " mfem::mm::adrs(_" << name << ");";
+                << " mfem::mm::ptr(_" << name << ");";
       }
    }
 }

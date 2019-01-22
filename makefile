@@ -86,8 +86,8 @@ $(if $(wildcard $(THIS_MK)),,$(error Makefile not found "$(THIS_MK)"))
 MFEM_DIR ?= $(patsubst %/,%,$(dir $(THIS_MK)))
 MFEM_REAL_DIR := $(realpath $(MFEM_DIR))
 $(if $(MFEM_REAL_DIR),,$(error Source directory "$(MFEM_DIR)" is not valid))
-#SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,$(MFEM_REAL_DIR)/)
-SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
+SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,$(MFEM_REAL_DIR)/)
+#SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
 $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
@@ -338,20 +338,21 @@ lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(BUILD_DIR_DEF)
+MFEM_LINK_FLAGS := $(filter-out -x=cu,$(MFEM_BUILD_FLAGS))
 
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 # Rule for compiling kernel source file generator.
-KER_NVXC   = $(if $(MFEM_CXX:nvcc=),,-Xcompiler)
-KER_FLAGS  = $(strip $(MFEM_BUILD_FLAGS) $(KER_NVXC))
-MPP_MFEMS  = -DMFEM_CXX=$(MFEM_CXX)
-MPP_MFEMS += -DMFEM_SRC=$(MFEM_REAL_DIR)
+#KER_NVXC   = $(if $(MFEM_CXX:nvcc=),,-Xcompiler)
+KER_FLAGS  = $(strip $(MFEM_BUILD_FLAGS)) #$(KER_NVXC))
+MPP_MFEMS  = -DMFEM_CXX="$(MFEM_CXX)"
+MPP_MFEMS += -DMFEM_SRC="$(MFEM_REAL_DIR)"
 MPP_MFEMS += -DMFEM_BUILD_FLAGS="$(KER_FLAGS)"
 MPP_FLAGS  = $(if $(MFEM_USE_GPU:YES=),,-DMFEM_USE_GPU)
 MPP_FLAGS += $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
-mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp $(THIS_MK)
+mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp #$(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) $(MPP_MFEMS) $(MPP_FLAGS)
 
 # Rule for compiling kernel source files.
@@ -386,8 +387,8 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER) $(OBJECT_KERNS)
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES) $(OBJECT_KERNS)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
-			$(OBJECT_KERNS) $(EXT_LIBS) -o $(@)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES)\
+ $(OBJECT_KERNS) $(EXT_LIBS) -o $(@)
 
 serial debug:    M_MPI=NO
 parallel pdebug: M_MPI=YES
@@ -443,7 +444,7 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
 
-INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
+INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
