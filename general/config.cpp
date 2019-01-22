@@ -36,6 +36,26 @@ void config::CudaDeviceSetup(const int device)
 }
 
 // *****************************************************************************
+// * RajaDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
+// *****************************************************************************
+void config::RajaDeviceSetup(const int device)
+{
+#ifdef __NVCC__
+   cudaGetDeviceCount(&ngpu);
+   MFEM_ASSERT(ngpu>0, "No CUDA device found!");
+   cuInit(0);
+   dev = device;
+   cuDeviceGet(&cuDevice,dev);
+   cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
+   cuStream = new CUstream;
+   MFEM_ASSERT(cuStream, "CUDA stream could not be created!");
+   cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
+#else
+   MFEM_ABORT("CUDA requested for RAJA but no GPU support has been built!");
+#endif
+}
+
+// *****************************************************************************
 // * OCCA Settings: device, paths & kernels
 // *****************************************************************************
 void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
@@ -73,6 +93,7 @@ void config::MfemDeviceSetup(const int dev)
    MFEM_ASSERT(ngpu==-1, "Only one MfemDeviceSetup allowed");
    ngpu = 0;
    if (cuda) { CudaDeviceSetup(dev); }
+   if (raja) { RajaDeviceSetup(dev); }
    if (occa) { OccaDeviceSetup(cuDevice, cuContext); }
    if (cuda && ngpu==0)
    {

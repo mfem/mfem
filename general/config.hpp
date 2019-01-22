@@ -30,6 +30,7 @@ private:
    int ngpu = -1;
    bool pa = false;
    bool cuda = false;
+   bool raja = false;
    bool occa = false;
    bool sync = false;
    bool nvvp = false;
@@ -56,6 +57,7 @@ private:
    // **************************************************************************
    void MfemDeviceSetup(const int dev =0);
    void CudaDeviceSetup(const int dev =0);
+   void RajaDeviceSetup(const int dev =0);
    void OccaDeviceSetup(const CUdevice cu_dev, const CUcontext cu_ctx);
 
 public:
@@ -81,13 +83,15 @@ public:
    static inline void SwitchToGpu() { Get().mode = config::GPU; }
    static inline void SwitchToCpu() { Get().mode = config::CPU; }
 
-
    static inline bool usingPA() { return Get().pa; }
    static inline void usePA(const bool mode) { Get().pa = mode; }
 
    static inline bool usingCuda() { return Get().cuda; }
    static inline void useCuda() { Get().cuda = true; }
    static inline CUstream Stream() { return *Get().cuStream; }
+
+   static inline bool usingRaja() { return Get().raja; }
+   static inline void useRaja() { Get().raja = true; }
 
    static inline bool usingOcca() { return Get().occa; }
    static inline void useOcca() { Get().occa = true; }
