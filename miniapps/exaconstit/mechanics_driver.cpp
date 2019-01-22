@@ -1064,9 +1064,9 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       int mt = HYPRE_BoomerAMGSetMeasureType(h_amg, 0);
       int st = HYPRE_BoomerAMGSetStrongThreshold(h_amg, st_val);
       int ns = HYPRE_BoomerAMGSetNumSweeps(h_amg, 3);
-      int rt = HYPRE_BoomerAMGSetRelaxType(h_amg, 6);
-      int rwt = HYPRE_BoomerAMGSetRelaxWt(h_amg, rt_val);
-      int ro = HYPRE_BoomerAMGSetOuterWt(h_amg, om_val);
+      int rt = HYPRE_BoomerAMGSetRelaxType(h_amg, 8);
+      //int rwt = HYPRE_BoomerAMGSetRelaxWt(h_amg, rt_val);
+      //int ro = HYPRE_BoomerAMGSetOuterWt(h_amg, om_val);
       //Dimensionality of our problem
       int ss = HYPRE_BoomerAMGSetNumFunctions(h_amg, 3);
       int smt = HYPRE_BoomerAMGSetSmoothType(h_amg, 3);
@@ -1109,9 +1109,9 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       int mt = HYPRE_BoomerAMGSetMeasureType(h_amg, 0);
       int st = HYPRE_BoomerAMGSetStrongThreshold(h_amg, st_val);
       int ns = HYPRE_BoomerAMGSetNumSweeps(h_amg, 3);
-      int rt = HYPRE_BoomerAMGSetRelaxType(h_amg, 6);
-      int rwt = HYPRE_BoomerAMGSetRelaxWt(h_amg, rt_val);
-      int ro = HYPRE_BoomerAMGSetOuterWt(h_amg, om_val);
+      int rt = HYPRE_BoomerAMGSetRelaxType(h_amg, 8);
+      //int rwt = HYPRE_BoomerAMGSetRelaxWt(h_amg, rt_val);
+      //int ro = HYPRE_BoomerAMGSetOuterWt(h_amg, om_val);
       //Dimensionality of our problem
       int ss = HYPRE_BoomerAMGSetNumFunctions(h_amg, 3);
       int smt = HYPRE_BoomerAMGSetSmoothType(h_amg, 3);
@@ -1134,6 +1134,7 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       J_pcg->SetAbsTol(1e-40);
       J_pcg->SetMaxIter(5000);
       J_pcg->SetPrintLevel(1);
+      J_pcg->iterative_mode = true;
       J_pcg->SetPreconditioner(*J_prec);
       J_solver = J_pcg;
 
