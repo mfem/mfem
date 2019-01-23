@@ -31,6 +31,10 @@ using namespace std;
    size_t hash_args(const size_t &s, const T &f, Args... a) noexcept {  \
       return hash_args(hash_combine(s,f), a...);                        \
    }
+
+// *****************************************************************************
+// * Dump the hashing source here to use it
+// *****************************************************************************
 HASH_SRC
 
 // *****************************************************************************
@@ -342,6 +346,7 @@ static inline void hashHeader(context &pp)
    pp.out << "#include <cstddef>\n";
    pp.out << "#include <functional>\n";
    pp.out << STRINGIFY(HASH_SRC) << "\n";
+   pp.out << "#line 1 \"" << pp.file <<"\"\n";
 }
 
 // *****************************************************************************
