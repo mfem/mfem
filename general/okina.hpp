@@ -40,12 +40,12 @@
 template <size_t BLOCKS, typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 {
-   const bool gpu = mfem::config::usingGpu();   //
-   const bool raja = mfem::config::usingRaja(); //
+   const bool gpu  = mfem::config::usingGpu();
+   const bool raja = mfem::config::usingRaja();
+
    if(gpu && raja)
    {
 #ifdef MFEM_USE_RAJA
-     printf("RAJA enabled! \n");
      return RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N), d_body);
 #else
      MFEM_ABORT("RAJA requested for MFEM but RAJA is not enabled!");
