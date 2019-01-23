@@ -316,18 +316,17 @@ __kernel void Diag(const size_t n, const size_t N, const double c, double *y)
 double Det2(const double *x)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_PTR(x);
-   return d_x[0] * d_x[3] - d_x[1] * d_x[2];
+   return x[0] * x[3] - x[1] * x[2];
 }
 
 // *****************************************************************************
-double Det3(const double *data)
+double Det3(const double *x)
 {
    MFEM_GPU_CANNOT_PASS;
    return
-      data[0] * (data[4] * data[8] - data[5] * data[7]) +
-      data[3] * (data[2] * data[7] - data[1] * data[8]) +
-      data[6] * (data[1] * data[5] - data[2] * data[4]);
+      x[0] * (x[4] * x[8] - x[5] * x[7]) +
+      x[3] * (x[2] * x[7] - x[1] * x[8]) +
+      x[6] * (x[1] * x[5] - x[2] * x[4]);
 }
 
 // *****************************************************************************
@@ -360,7 +359,7 @@ double FNorm2(const size_t hw, const double max_norm, const double *x)
 }
 
 // *****************************************************************************
-__kernel void CalcInverse2D(const double t, const double *a, double *inva)
+void CalcInverse2D(const double t, const double *a, double *inva)
 {
    MFEM_GPU_CANNOT_PASS;
    inva[0+2*0] =  a[1+2*1] * t ;
@@ -370,8 +369,12 @@ __kernel void CalcInverse2D(const double t, const double *a, double *inva)
 }
 
 // *****************************************************************************
-__kernel void CalcInverse3D(const double t, const double *a, double *inva)
+void CalcInverse3D(const double t, const double *a, double *inva)
 {
+   inva[0+3*0] = (a[1+3*1]*a[2+3*2]-a[1+3*2]*a[2+3*1])*t;
+   inva[0+3*1] = (a[0+3*2]*a[2+3*1]-a[0+3*1]*a[2+3*2])*t;
+   inva[0+3*2] = (a[0+3*1]*a[1+3*2]-a[0+3*2]*a[1+3*1])*t;
+
    inva[1+3*0] = (a[1+3*2]*a[2+3*0]-a[1+3*0]*a[2+3*2])*t;
    inva[1+3*1] = (a[0+3*0]*a[2+3*2]-a[0+3*2]*a[2+3*0])*t;
    inva[1+3*2] = (a[0+3*2]*a[1+3*0]-a[0+3*0]*a[1+3*2])*t;

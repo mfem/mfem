@@ -40,7 +40,7 @@ static void occaAssemble2D(const int NUM_QUAD_1D,
    SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
-   NEW_OCCA_KERNEL(Assemble2D, fem, diffusio_assemble.okl, props);
+   NEW_OCCA_KERNEL(Assemble2D, fem, diffusion_assemble.okl, props);
    Assemble2D(numElements, o_quadWeights, o_J, COEFF, o_oper);
 }
 #endif // __OCCA__

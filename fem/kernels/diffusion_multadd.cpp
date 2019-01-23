@@ -66,10 +66,6 @@ static void occaMultAdd2D(const int NUM_DOFS_1D,
 #endif // __OCCA__
 
 // *****************************************************************************
-#define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
-#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * NUM_QUAD_1D) + ((Z) * NUM_QUAD_1D*NUM_QUAD_1D))
-
-// *****************************************************************************
 __template __kernel
 void MultAdd2D(const int __range(1-4) NUM_DOFS_1D,
                const int __range(1-5) NUM_QUAD_1D,
@@ -131,7 +127,7 @@ void MultAdd2D(const int __range(1-4) NUM_DOFS_1D,
       {
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
          {
-            const int q = QUAD_2D_ID(qx, qy);
+            const int q = ijN(qx, qy, NUM_QUAD_1D);
 
             const double O11 = oper[ijkNM(0,q,e,3,NUM_QUAD)];
             const double O12 = oper[ijkNM(1,q,e,3,NUM_QUAD)];
@@ -276,7 +272,7 @@ void MultAdd3D(const int __range(1-4) NUM_DOFS_1D,
          {
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
             {
-               const int q = QUAD_3D_ID(qx, qy, qz);
+               const int q = ijkNM(qx, qy, qz, NUM_QUAD_1D, NUM_QUAD_1D*NUM_QUAD_1D);
                const double O11 = oper[ijkNM(0,q,e,6,NUM_QUAD)];
                const double O12 = oper[ijkNM(1,q,e,6,NUM_QUAD)];
                const double O13 = oper[ijkNM(2,q,e,6,NUM_QUAD)];
