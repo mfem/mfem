@@ -154,8 +154,8 @@ __kernel void MapDof(const int N, double *y, const double *x, const int *dofs)
 {
    MFEM_FORALL(i, N,
    {
-      const int dof_i = dofs[i];
-      y[dof_i] = x[dof_i];
+      const int j = dofs[i];
+      y[j] = x[j];
    });
 }
 
@@ -187,7 +187,7 @@ __kernel void GetSubvector(const int N, double *y, const double *x, const int* d
    MFEM_FORALL(i, N,
    {
       const int dof_i = dofs[i];
-      y[i] = dof_i >= 0 ? x[dof_i] : -x[-dof_i-1];
+      y[i] = (dof_i >= 0) ? x[dof_i] : -x[-dof_i-1];
    });
 }
 
@@ -208,7 +208,7 @@ __kernel void SetSubvector(const int N, double *y, const double *x, const int* d
 }
 
 // *****************************************************************************
-void SetSubvector(const int N, double* y, const double d, const int* dofs)
+__kernel void SetSubvector(const int N, double* y, const double d, const int* dofs)
 {
    MFEM_FORALL(i, N,
    {

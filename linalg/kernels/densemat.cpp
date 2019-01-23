@@ -100,7 +100,7 @@ __kernel void LSolve(const int m, const int n,
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-	 //Swap<double>(mx[i], mx[ipiv[i]]);
+         //Swap<double>(mx[i], mx[ipiv[i]]);
          const double tmp = mx[i];
          mx[i] = mx[ipiv[i]];
          mx[ipiv[i]] = tmp;

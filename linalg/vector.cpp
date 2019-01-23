@@ -497,19 +497,18 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
    MFEM_ASSERT(dofs.Size() == elemvect.Size(), "Size mismatch: "
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
-   kernels::vector::AddElement(dofs.Size(), dofs, elemvect.GetData(), data);
+   kernels::vector::AddElement(dofs.Size(), dofs, elemvect, data);
 }
 
-void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
+void Vector::AddElementVector(const Array<int> &dofs, double *y)
 {
-   const int n = dofs.Size();
-   kernels::vector::AddElement(n,dofs,elem_data,data);
+   kernels::vector::AddElement(dofs.Size(), dofs, y, data);
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const double a,
-                              const Vector &elemvect)
+                              const Vector &x)
 {
-   kernels::vector::AddElementAlpha(dofs.Size(), dofs, elemvect, data, a);
+   kernels::vector::AddElementAlpha(dofs.Size(), dofs, x, data, a);
 }
 
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
