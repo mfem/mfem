@@ -306,8 +306,7 @@ void mm::Pull(const void *ptr, const size_t bytes)
 }
 
 // *****************************************************************************
-// __attribute__((unused)) // VS doesn't like this in Appveyor
-static void Dump(const mm::ledger &maps)
+/*static void Dump(const mm::ledger &maps)
 {
    if (!getenv("DBG")) { return; }
    const mm::memory_map &mem = maps.memories;
@@ -342,7 +341,7 @@ static void Dump(const mm::ledger &maps)
       fflush(0);
       k++;
    }
-}
+}*/
 
 // *****************************************************************************
 // * Data will be pushed/pulled before the copy happens on the H or the D

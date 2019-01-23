@@ -355,14 +355,14 @@ MPP_MFEMS += -DMFEM_SRC="$(MFEM_REAL_DIR)"
 MPP_MFEMS += -DMFEM_BUILD_FLAGS="$(KER_FLAGS)"
 MPP_FLAGS  = $(if $(MFEM_USE_GPU:YES=),,-DMFEM_USE_GPU)
 MPP_FLAGS += $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
-mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp #$(THIS_MK)
+mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp #$(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) $(MPP_MFEMS) $(MPP_FLAGS)
 
 # Rule for compiling kernel source files.
 $(SRC)%.cc: $(SRC)%.cpp mpp
 	./mpp $(<) -o $(@)
 $(BLD)%.o: $(SRC)%.cc $(CONFIG_MK)
-	$(MFEM_CXX) $(KER_FLAGS) -c $(<) -o $(@)
+	$(MFEM_CXX) $(KER_FLAGS) -I$(MFEM_REAL_DIR) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -442,7 +442,7 @@ $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
-	rm -f $(addprefix $(BLD),*/*.o */*/*.o */*~ *~ libmfem.* deps.mk mpp)
+	rm -f $(addprefix $(BLD), */*.o */*~ *~ libmfem.* deps.mk */*/*.cc */*/*.o mpp)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/

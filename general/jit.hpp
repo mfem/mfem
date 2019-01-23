@@ -1,5 +1,5 @@
-#ifndef OKRTC_HPP
-#define OKRTC_HPP
+#ifndef MFEM_JIT_HPP
+#define MFEM_JIT_HPP
 
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -11,10 +11,14 @@
 
 using namespace std;
 
+// *****************************************************************************
 typedef union {double d; uint64_t u;} union_du;
-   
-namespace ok{
-// default ok::hash ⇒ std::hash ************************************************
+
+// *****************************************************************************
+namespace mfem{
+namespace jit{
+
+// default jit::hash ⇒ std::hash ************************************************
 template <typename T> struct hash {
    size_t operator()(const T& obj) const noexcept {
       return std::hash<T>{}(obj);
@@ -36,7 +40,7 @@ template <> struct hash<const char*> {
 // *****************************************************************************
 template <class T>
 inline size_t hash_combine(const size_t &seed, const T &v) noexcept {
-   return seed^(ok::hash<T>{}(v)+0x9e3779b9ull+(seed<<6)+(seed>>2));
+   return seed^(mfem::jit::hash<T>{}(v)+0x9e3779b9ull+(seed<<6)+(seed>>2));
 }
 template<typename T>
 size_t hash_args(const size_t &seed, const T &that) noexcept {
@@ -71,7 +75,7 @@ const char *compile(const bool dbg, const size_t hash, const char *xcc,
                     const char *src, const char *incs, Args... args){
    char soName[21] = "k0000000000000000.so";
    char ccName[21] = "k0000000000000000.cc";
-   ok::uint64str(hash,soName,1);
+   jit::uint64str(hash,soName,1);
    uint64str(hash,ccName,1);
    const int fd = open(ccName,O_CREAT|O_RDWR,S_IRUSR|S_IWUSR);
    assert(fd>=0);
@@ -80,7 +84,7 @@ const char *compile(const bool dbg, const size_t hash, const char *xcc,
    const size_t cmd_sz = 4096;
    char xccCommand[cmd_sz];
    const char *CCFLAGS = "-fPIC";
-   const char *NVFLAGS = "--compiler-options '-fPIC' -lcuda";
+   const char *NVFLAGS = "";//--compiler-options '-fPIC' -lcuda";
 #if defined(__clang__) && (__clang_major__ > 6)
    const char *CLANG_FLAGS = "-Wno-gnu-designator -fPIC -L.. -lmfem";
 #else
@@ -106,7 +110,7 @@ void *lookup(const bool dbg, const size_t hash, const char *xcc,
    char soName[21] = "k0000000000000000.so";
    uint64str(hash,soName,1);
    void *handle = dlopen(soName,RTLD_LAZY);
-   if (!handle && !ok::compile(dbg,hash,xcc,src,incs,args...)) return NULL;
+   if (!handle && !jit::compile(dbg,hash,xcc,src,incs,args...)) return NULL;
    if (!(handle=dlopen(soName,RTLD_LAZY))) return NULL;
    return handle;
 }
@@ -127,7 +131,7 @@ static kernel_t getSymbol(const size_t hash,void *handle){
 // *****************************************************************************
 // * MFEM RunTime Compilation
 // *****************************************************************************
-template<typename kernel_t> class okrtc{
+template<typename kernel_t> class kernel{
 private:
    bool dbg;
    size_t seed, hash;
@@ -135,24 +139,23 @@ private:
    kernel_t __kernel;
 public:
    template<typename... Args>
-   okrtc(const char *xcc, const char *src,
-         const char* incs, Args... args):
+   kernel(const char *xcc, const char *src,
+       const char* incs, Args... args):
       dbg(!!getenv("DBG")||!!getenv("dbg")),
-      seed(ok::hash<const char*>()(src)),
+      seed(mfem::jit::hash<const char*>()(src)),
       hash(hash_args(seed,xcc,incs,args...)),
       handle(lookup(dbg,hash,xcc,src,incs,args...)),
       __kernel(getSymbol<kernel_t>(hash,handle)) {
-      //if (dbg) printf("\n\033[32m[okrtc] xcc: '%s', incs: '%s'\033[m",xcc,incs);
-      //if (dbg) printf("\n\033[32m[okrtc] seed:%016lx, hash:%016lx\033[m",seed,hash);
    }
    template<typename... Args>
    void operator_void(Args... args){ __kernel(args...); }
    template<typename return_t,typename... Args>
    return_t operator()(const return_t rtn, Args... args){
       return __kernel(rtn,args...); }
-   ~okrtc(){ dlclose(handle); }
+   ~kernel(){ dlclose(handle); }
 };
   
-} // namespace ok
+} // namespace jit
+} // namespace mfem
   
-#endif // OKRTC_HPP
+#endif // MFEM_JIT_HPP

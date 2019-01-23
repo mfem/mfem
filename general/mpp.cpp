@@ -355,16 +355,14 @@ static inline void hashHeader(context &pp)
 void jitHeader(context &pp)
 {
    if (not pp.jit) { return; }
-   pp.out << "#include \"../../general/okrtc.hpp\"\n";
+   pp.out << "#include \"general/jit.hpp\"\n";
 }
 
 // *****************************************************************************
 void jitKernelArgs(context &pp)
 {
    if (not pp.jit or not pp.ker.jit) { return; }
-   pp.ker.xcc = STRINGIFY(MFEM_CXX) " " \
-                STRINGIFY(MFEM_BUILD_FLAGS) " " \
-                "-O3 -std=c++11 -Wall";
+   pp.ker.xcc = STRINGIFY(MFEM_CXX) " " STRINGIFY(MFEM_BUILD_FLAGS);
    pp.ker.dirname = STRINGIFY(MFEM_SRC);
    pp.ker.static_args.clear();
    pp.ker.static_tmplt.clear();
@@ -383,6 +381,7 @@ void jitKernelArgs(context &pp)
       const bool is_pointer = arg.is_ptr;
       const char *type = arg.type.c_str();
       const char *name = arg.name.c_str();
+      const bool underscore = pp.mm;
       if (is_const && ! is_pointer)
       {
          const bool is_double = strcmp(type,"double")==0;
@@ -390,26 +389,32 @@ void jitKernelArgs(context &pp)
          pp.ker.static_format += is_double?"0x%lx":"%ld";
          if (! pp.ker.static_args.empty()) { pp.ker.static_args += ","; }
          pp.ker.static_args += is_double?"u":"";
+         pp.ker.static_args += underscore?"_":"";
          pp.ker.static_args += name;
          if (! pp.ker.static_tmplt.empty()) { pp.ker.static_tmplt += ","; }
          pp.ker.static_tmplt += "const ";
          pp.ker.static_tmplt += is_double?"uint64_t":type;
          pp.ker.static_tmplt += " ";
          pp.ker.static_tmplt += is_double?"t":"";
+         pp.ker.static_tmplt += underscore?"_":"";
          pp.ker.static_tmplt += name;
          if (is_double)
          {
             {
                pp.ker.d2u += "const double ";
+               pp.ker.d2u += underscore?"_":"";
                pp.ker.d2u += name;
                pp.ker.d2u += " = (union_du){u:t";
+               pp.ker.d2u += underscore?"_":"";
                pp.ker.d2u += name;
                pp.ker.d2u += "}.d;";
             }
             {
                pp.ker.u2d += "const uint64_t u";
+               pp.ker.u2d += underscore?"_":"";
                pp.ker.u2d += name;
                pp.ker.u2d += " = (union_du){";
+               pp.ker.u2d += underscore?"_":"";
                pp.ker.u2d += name;
                pp.ker.u2d += "}.u;";
             }
@@ -418,6 +423,7 @@ void jitKernelArgs(context &pp)
       if (is_const && is_pointer)
       {
          if (! pp.ker.any_pointer_args.empty()) { pp.ker.any_pointer_args += ","; }
+         pp.ker.any_pointer_args += underscore?"_":"";
          pp.ker.any_pointer_args += name;
          if (! pp.ker.any_pointer_params.empty())
          {
@@ -427,13 +433,14 @@ void jitKernelArgs(context &pp)
             pp.ker.any_pointer_params += "const ";
             pp.ker.any_pointer_params += type;
             pp.ker.any_pointer_params += " *";
-            pp.ker.any_pointer_params += (pp.mm?"_":"");
+            pp.ker.any_pointer_params += underscore?"_":"";
             pp.ker.any_pointer_params += name;
          }
       }
       if (! is_const && is_pointer)
       {
          if (! pp.ker.any_pointer_args.empty()) { pp.ker.any_pointer_args += ","; }
+         pp.ker.any_pointer_args += underscore?"_":"";
          pp.ker.any_pointer_args += name;
          if (! pp.ker.any_pointer_params.empty())
          {
@@ -442,7 +449,7 @@ void jitKernelArgs(context &pp)
          {
             pp.ker.any_pointer_params += type;
             pp.ker.any_pointer_params += " *";
-            pp.ker.any_pointer_params += (pp.mm?"_":"");
+            pp.ker.any_pointer_params += underscore?"_":"";
             pp.ker.any_pointer_params += name;
          }
       }
@@ -483,15 +490,15 @@ void jitPostfix(context &pp)
    pp.out << "})_\";";
    // typedef, hash map and launch
    pp.out << "\n\ttypedef void (*kernel_t)("<<pp.ker.any_pointer_params<<");";
-   pp.out << "\n\tstatic std::unordered_map<size_t,ok::okrtc<kernel_t>*> __kernels;";
+   pp.out << "\n\tstatic std::unordered_map<size_t,mfem::jit::kernel<kernel_t>*> __kernels;";
    if (not pp.ker.u2d.empty()) { pp.out << "\n\t" << pp.ker.u2d; }
 
    pp.out << "\n\tconst char *xcc = \"" << pp.ker.xcc << "\";";
    pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
-   pp.out << "\n\tconst size_t args_hash = ok::hash_args(args_seed,"
+   pp.out << "\n\tconst size_t args_hash = mfem::jit::hash_args(args_seed,"
           << pp.ker.static_args << ");";
    pp.out << "\n\tif (!__kernels[args_hash]){";
-   pp.out << "\n\t\t__kernels[args_hash] = new ok::okrtc<kernel_t>"
+   pp.out << "\n\t\t__kernels[args_hash] = new mfem::jit::kernel<kernel_t>"
           << "(xcc,src," << "\"-I" << pp.ker.dirname << "\","
           << pp.ker.static_args << ");";
    pp.out << "}\n\t(__kernels[args_hash]->operator_void("
@@ -543,7 +550,8 @@ bool get_args(context &pp)
       if (id=="float") { pp.out << id; arg.type = id; continue; }
       if (id=="double") { pp.out << id; arg.type = id; continue; }
       if (id=="size_t") { pp.out << id; arg.type = id; continue; }
-      pp.out << ((not pp.mm)?"":"_") << id;
+      const bool underscore = pp.mm;
+      pp.out << (underscore?"_":"") << id;
       // focus on the name, we should have qual & type
       arg.name = id;
       pp.args.push_back(arg);
@@ -577,12 +585,10 @@ void genPtrOkina(context &pp)
       const char *name = a.name.c_str();
       if (is_const && ! is_pointer)
       {
-         //if (!pp.ker.jit)
-         {
-            pp.out << "\n\tconst " << type << " " << name
-                   << " = (" << type << ")"
-                   << " (_" << name << ");";
-         }
+         pp.out << "\n\tconst " << type << " " << name
+                << " = (" << type << ")"
+                << " (_" << name << ");";
+         
       }
       if (is_const && is_pointer)
       {
