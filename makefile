@@ -196,6 +196,11 @@ endif
 
 DEP_CXX ?= $(MFEM_CXX)
 
+# Optional NVCC config file, see config/nvcc.mk
+ifeq ($(MFEM_CXX),nvcc)
+	-include $(BLD)config/nvcc.mk
+endif
+
 # Check OpenMP configuration
 ifeq ($(MFEM_USE_OPENMP),YES)
    MFEM_THREAD_SAFE ?= YES
@@ -338,15 +343,13 @@ lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(BUILD_DIR_DEF)
-MFEM_LINK_FLAGS := $(filter-out -x=cu,$(MFEM_BUILD_FLAGS))
 
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 # Rule for compiling kernel source file generator.
-#KER_NVXC   = $(if $(MFEM_CXX:nvcc=),,-Xcompiler)
-KER_FLAGS  = $(strip $(MFEM_BUILD_FLAGS)) #$(KER_NVXC))
+KER_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
 MPP_MFEMS  = -DMFEM_CXX="$(MFEM_CXX)"
 MPP_MFEMS += -DMFEM_SRC="$(MFEM_REAL_DIR)"
 MPP_MFEMS += -DMFEM_BUILD_FLAGS="$(KER_FLAGS)"
