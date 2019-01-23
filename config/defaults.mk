@@ -38,10 +38,10 @@ ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
    RANLIB  = ranlib
-   PICFLAG = -Xcompiler -fPIC
+   PICFLAG = -fPIC
    SO_EXT  = so
    SO_VER  = so.$(MFEM_VERSION_STRING)
-   BUILD_SOFLAGS = -shared -Xarchive -Wl,-soname,libmfem.$(SO_VER)
+   BUILD_SOFLAGS = -shared -Wl,-soname,libmfem.$(SO_VER)
    BUILD_RPATH = -Wl,-rpath,$(BUILD_REAL_DIR)
    INSTALL_SOFLAGS = $(BUILD_SOFLAGS)
    INSTALL_RPATH = -Wl,-rpath,@MFEM_LIB_DIR@
