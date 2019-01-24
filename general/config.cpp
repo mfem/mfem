@@ -106,7 +106,7 @@ void config::MfemDeviceSetup(const int dev)
 // *****************************************************************************
 config::~config()
 {
-  if (raja || cuda) delete[] cuStream;
+   if (raja || cuda) { delete[] cuStream; }
 }
 
 } // mfem

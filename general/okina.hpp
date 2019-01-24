@@ -43,26 +43,32 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    const bool gpu  = mfem::config::usingGpu();
    const bool raja = mfem::config::usingRaja();
 
-   if(gpu && raja)
+   if (gpu && raja)
    {
 #ifdef MFEM_USE_RAJA
-     return RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N), d_body);
+      return RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N), d_body);
 #else
-     MFEM_ABORT("RAJA requested for MFEM but RAJA is not enabled!");
+      MFEM_ABORT("RAJA requested for MFEM but RAJA is not enabled!");
 #endif
 
-  }else if (gpu) {
-     return cuWrap<BLOCKS>(N,d_body);
-   }else if (!gpu && raja) {
+   }
+   else if (gpu)
+   {
+      return cuWrap<BLOCKS>(N,d_body);
+   }
+   else if (!gpu && raja)
+   {
 
 #ifdef MFEM_USE_RAJA
-     return RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
+      return RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
 #else
-     MFEM_ABORT("RAJA requested for MFEM but RAJA is not enabled!");
+      MFEM_ABORT("RAJA requested for MFEM but RAJA is not enabled!");
 #endif
 
-   }else {
-     for (size_t k=0; k<N; k+=1) { h_body(k); }
+   }
+   else
+   {
+      for (size_t k=0; k<N; k+=1) { h_body(k); }
    }
 
 }
