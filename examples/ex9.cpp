@@ -489,7 +489,6 @@ public:
          
          bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
          bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
-         bdrIntNeighbor.SetSize(ne*nd, nd*numBdrs); bdrIntNeighbor = 0.;
          neighborDof.SetSize(ne*numDofs, numBdrs);
          
          ////////////////////////////
@@ -607,7 +606,6 @@ public:
             
             bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
             bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
-            bdrIntNeighbor.SetSize(ne*nd, nd*numBdrs); bdrIntNeighbor = 0.;
             neighborDof.SetSize(ne*numDofs, numBdrs);
             
             for (k = 0; k < ne; k++) // NOTE: not optimal: two loops over all elements
@@ -746,7 +744,6 @@ public:
       {
          bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
          bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
-         bdrIntNeighbor.SetSize(ne*nd, nd*numBdrs); bdrIntNeighbor = 0.;
          neighborDof.SetSize(ne*numDofs, numBdrs);
       }
 
@@ -823,7 +820,6 @@ public:
       Mesh *mesh = fes->GetMesh();
       int i, j, k, m, p, nd, dofInd, qOrdF, numBdrs, numDofs,
           dim = mesh->Dimension(), ne = mesh->GetNE();
-      double dist;
       DenseMatrix elmat;
       ElementTransformation *tr;
       FaceElementTransformations *Trans;
@@ -886,7 +882,6 @@ public:
       fluctSub.SetSize(ne*numSubcells, numDofsSubcell);
       bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
       bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
-      bdrIntNeighbor.SetSize(ne*nd, nd*numBdrs); bdrIntNeighbor = 0.;
       neighborDof.SetSize(ne*numDofs, numBdrs);
       
 // FOR disc-nurbs.mesh -r 0 -o 1 // TODO
@@ -901,7 +896,6 @@ public:
 //       neighborDof(8,0) = 4; neighborDof(8,1) = 0; neighborDof(8,2) = 12; neighborDof(8,3) = -1;
 //       neighborDof(9,0) = 6; neighborDof(9,1) = 2; neighborDof(9,2) = 13; neighborDof(9,3) = -1;
 
-      dist = 1. / double(p);
 
       for (k = 0; k < ne; k++)
       {
@@ -938,13 +932,13 @@ public:
       const FiniteElement &el = *fes->GetFE(k);
       Mesh *mesh = fes->GetMesh();
       
-      int i, j, l, m, idx, neighborElem, numBdrs = dofs.Width(), numDofs = dofs.Height(), 
+      int i, j, l, m, idx, numBdrs = dofs.Width(), numDofs = dofs.Height(), 
             nd = el.GetDof(), p = el.GetOrder(), dim = mesh->Dimension();
       double vn;
       Array <int> bdrs, orientation;
       FaceElementTransformations *Trans;
       
-      Vector vval, nor(dim), shape(nd), shapeNeighbor(nd);
+      Vector vval, nor(dim), shape(nd);
       
       if (dim==1)
          numBdrs = 0; // Nothing needs to be done for 1D boundaries
@@ -952,7 +946,7 @@ public:
          mesh->GetElementEdges(k, bdrs, orientation);
       else if (dim==3)
          mesh->GetElementFaces(k, bdrs, orientation);
-      
+
       FillNeighborDofs(mesh, numDofs, k, nd, p, dim, bdrs);
 
       for (i = 0; i < numBdrs; i++)
@@ -967,9 +961,13 @@ public:
             Trans->Face->SetIntPoint(&ip);
             
             if (dim == 1)
+				{
                nor(0) = 2.*eip1.x - 1.0;
+				}
             else
+				{
                CalcOrtho(Trans->Face->Jacobian(), nor);
+				}
             
             if (Trans->Elem1No != k)
             {
@@ -979,9 +977,6 @@ public:
                coef.Eval(vval, *Trans->Elem2, eip1);
                nor *= -1.;
                Trans->Loc1.Transform(ip, eip1);
-               el.CalcShape(eip1, shapeNeighbor);
-               
-               neighborElem = Trans->Elem1No;
             }
             else
             {
@@ -990,9 +985,6 @@ public:
                Trans->Elem1->SetIntPoint(&eip1);
                coef.Eval(vval, *Trans->Elem1, eip1);
                Trans->Loc2.Transform(ip, eip1);
-               el.CalcShape(eip1, shapeNeighbor);
-               
-               neighborElem = Trans->Elem2No;
             }
             
             nor /= nor.Norml2();
@@ -1005,16 +997,8 @@ public:
                
                for (m = 0; m < numDofs; m++)
                {
-                  bdrInt(k*nd+dofs(j,i),i*nd+dofs(m,i)) += ip.weight * 
+                  bdrInt(k*nd+dofs(j,i),i*nd+dofs(m,i)) -= ip.weight * 
                   Trans->Face->Weight() * shape(dofs(j,i)) * shape(dofs(m,i)) * vn;
-                  
-                  if (neighborElem != 0)
-                     idx = ((int)(neighborDof(k*numDofs+m,i))) % (neighborElem*nd);
-                  else
-                     idx = neighborDof(k*numDofs+m,i);
-                  
-                  bdrIntNeighbor(k*nd+dofs(j,i),i*nd+dofs(m,i)) += ip.weight * 
-                  Trans->Face->Weight() * shape(dofs(j,i)) * shapeNeighbor(idx) * vn;
                }
             }
          }
@@ -1265,7 +1249,7 @@ public:
    int numSubcells, numDofsSubcell;
    Vector lumpedM, elDiff;
    SparseMatrix KpD, fluctMatrix;
-   DenseMatrix dofs, neighborDof, subcell2CellDof, bdrIntNeighbor, bdrInt,
+   DenseMatrix dofs, neighborDof, subcell2CellDof, bdrInt,
                bdrIntLumped, fluctSub;
    SolutionBounds &bnds;
 };
@@ -1737,8 +1721,7 @@ void FE_Evolution::LumpFluxTerms1(int k, int nd, const Vector &x, Vector &y, con
          {
             idx = fct.neighborDof(k*numDofs+m,j);
             xNeighbor = idx < 0 ? 0. : x(idx);
-            totalFlux(i) += fct.bdrInt(dofInd, j*nd+fct.dofs(m,j)) * x(k*nd+fct.dofs(m,j))
-                          - fct.bdrIntNeighbor(dofInd, j*nd+fct.dofs(m,j)) * xNeighbor;
+            totalFlux(i) += fct.bdrInt(dofInd, j*nd+fct.dofs(m,j)) * (xNeighbor - x(k*nd+fct.dofs(m,j)));
          }
          y(k*nd+fct.dofs(i,j)) += alpha(fct.dofs(i,j)) * totalFlux(i);
       }
@@ -1788,7 +1771,7 @@ void FE_Evolution::LumpFluxTerms2(int k, int nd, const Vector &x, Vector &y, con
             for (m = 0; m < numDofs; m++)
             {
                if (i == m) { continue; }
-               totalFlux += alpha(fct.dofs(i,j)) * fct.bdrInt(dofInd, j*nd+fct.dofs(m,j)) * alpha(fct.dofs(m,j)) * (xDiff(i) - xDiff(m));
+               totalFlux += alpha(fct.dofs(i,j)) * fct.bdrInt(dofInd, j*nd+fct.dofs(m,j)) * alpha(fct.dofs(m,j)) * (xDiff(m) - xDiff(i));
             }
          }
          y(dofInd) += totalFlux;
