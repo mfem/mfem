@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_FEM_KERNELS_LOCAL_GLOBAL_HPP
-#define MFEM_FEM_KERNELS_LOCAL_GLOBAL_HPP
+#ifndef MFEM_KERNELS_GEOM_
+#define MFEM_KERNELS_GEOM
 
 namespace mfem
 {
@@ -20,17 +20,18 @@ namespace fem
 {
 
 // *****************************************************************************
-void LocalToGlobal(const int NUM_VDIM,
-                   const bool VDIM_ORDERING,
-                   const int globalEntries,
-                   const int localEntries,
-                   const int* __restrict offsets,
-                   const int* __restrict indices,
-                   const double* __restrict localX,
-                   double* __restrict globalX);
+void Geom(const int DIM,
+          const int NUM_DOFS,
+          const int NUM_QUAD,
+          const int numElements,
+          const double* __restrict dofToQuadD,
+          const double* __restrict nodes,
+          double* __restrict J,
+          double* __restrict invJ,
+          double* __restrict detJ);
 
 } // namespace fem
 } // namespace kernels
 } // namespace mfem
 
-#endif // MFEM_FEM_KERNELS_LOCAL_GLOBAL_HPP
+#endif // MFEM_KERNELS_GEOM

@@ -10,21 +10,16 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(SRCS
-  diffusion_assemble.cpp
-  diffusion_multadd.cpp
-  geometry_2d.cpp
-  geometry_3d.cpp
-  geometry.cpp
-  global_local.cpp
-  local_global.cpp
+  diffusion.cpp
+  fespace.cpp
+  geom.cpp
   mass.cpp
 )
 
 set(HDRS
   diffusion.hpp
-  geometry.hpp
-  global_local.hpp
-  local_global.hpp
+  fespace.hpp
+  geom.hpp
   mass.hpp
 )
 

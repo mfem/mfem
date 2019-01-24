@@ -13,6 +13,10 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace fem
+{
 
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
@@ -235,17 +239,17 @@ typedef void (*fMassMultAdd)(const int numElements,
                              double* __restrict solOut);
 
 // *****************************************************************************
-void biPAMassMultAdd(const int DIM,
-                     const int NUM_DOFS_1D,
-                     const int NUM_QUAD_1D,
-                     const int numElements,
-                     const double* __restrict dofToQuad,
-                     const double* __restrict dofToQuadD,
-                     const double* __restrict quadToDof,
-                     const double* __restrict quadToDofD,
-                     const double* __restrict op,
-                     const double* __restrict x,
-                     double* __restrict y)
+void MassMultAssembled(const int DIM,
+                       const int NUM_DOFS_1D,
+                       const int NUM_QUAD_1D,
+                       const int numElements,
+                       const double* __restrict dofToQuad,
+                       const double* __restrict dofToQuadD,
+                       const double* __restrict quadToDof,
+                       const double* __restrict quadToDofD,
+                       const double* __restrict op,
+                       const double* __restrict x,
+                       double* __restrict y)
 {
    assert(LOG2(DIM)<=4);
    assert((NUM_QUAD_1D&1)==0);
@@ -319,4 +323,6 @@ void biPAMassMultAdd(const int DIM,
             d_op, d_x, d_y);
 }
 
-} // mfem
+} // namespace fem
+} // namespace kernels
+} // namespace mfem
