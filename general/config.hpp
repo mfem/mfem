@@ -97,8 +97,8 @@ public:
    static inline void useOcca() { Get().occa = true; }
    static inline OccaDevice GetOccaDevice() { return Get().occaDevice; }
 
-  // **************************************************************************
-  ~config();
+   // **************************************************************************
+   ~config();
 
 };
 
