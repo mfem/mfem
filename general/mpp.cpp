@@ -77,6 +77,8 @@ struct kernel
    string u2d;
    bool T;
    struct tpl_t tpl;
+   bool embedding;
+   string embed;
 };
 
 // *****************************************************************************
@@ -156,6 +158,7 @@ inline int put(const char c, context &pp)
 {
    if (is_newline(c)) { pp.line++; }
    pp.out.put(c);
+   if (pp.ker.embedding) pp.ker.embed += c;
    return c;
 }
 
@@ -401,16 +404,24 @@ void jitKernelArgs(context &pp)
          if (is_double)
          {
             {
-               pp.ker.d2u += "const double ";
-               pp.ker.d2u += underscore?"_":"";
+               pp.ker.d2u += "\n\tconst union_du union_";
                pp.ker.d2u += name;
                pp.ker.d2u += " = (union_du){u:t";
                pp.ker.d2u += underscore?"_":"";
                pp.ker.d2u += name;
-               pp.ker.d2u += "}.d;";
+               pp.ker.d2u += "};";
+               
+               pp.ker.d2u += "\n\tconst double ";
+               pp.ker.d2u += underscore?"_":"";
+               pp.ker.d2u += name;
+               //pp.ker.d2u += " = (union_du){/*u:*/t";
+               //pp.ker.d2u += underscore?"_":"";
+               pp.ker.d2u += " = union_";
+               pp.ker.d2u += name;
+               pp.ker.d2u += ".d;";
             }
             {
-               pp.ker.u2d += "const uint64_t u";
+               pp.ker.u2d += "\n\tconst uint64_t u";
                pp.ker.u2d += underscore?"_":"";
                pp.ker.u2d += name;
                pp.ker.u2d += " = (union_du){";
@@ -462,9 +473,14 @@ void jitPrefix(context &pp)
    if (not pp.jit or not pp.ker.jit) { return; }
    pp.out << "\n\tconst char *src=R\"_(\n";
    pp.out << "#include <cstdint>";
+   pp.out << "\n#include <limits>";
    pp.out << "\n#include <cstring>";
    pp.out << "\n#include <stdbool.h>";
    pp.out << "\n#include \"general/okina.hpp\"";
+   pp.out << "\n#pragma push";
+   pp.out << "\n#pragma diag_suppress 177\n"; // declared but never referenced
+   pp.out << pp.ker.embed.c_str();
+   pp.out << "\n#pragma pop\n";
    pp.out << "\ntypedef union {double d; uint64_t u;} union_du;";
    pp.out << "\ntemplate<" << pp.ker.static_tmplt << ">";
    pp.out << "\nvoid jit_" << pp.ker.name << "(";
@@ -893,14 +909,41 @@ void tplPostfix(context &pp)
 }
 
 // *****************************************************************************
+void __embed(context &pp)
+{
+   // Skip "__embed"
+   pp.out << "       ";
+   pp.ker.embedding = true;
+   // Goto first '{'
+   while ('{' != put(pp));
+   // Starts counting the compound statements
+   pp.compound_statements = 0;
+}
+// *****************************************************************************
+void embedPostfix(context &pp)
+{
+   if (not pp.ker.embedding) { return; }
+   if (pp.compound_statements>=0 && pp.in.peek() == '{') { pp.compound_statements++; }
+   if (pp.compound_statements>=0 && pp.in.peek() == '}') { pp.compound_statements--; }
+   if (pp.compound_statements!=-1) { return; }
+   check(pp,pp.in.peek()=='}',"<>No compound statements found");
+   put(pp);
+   pp.compound_statements--;
+   pp.ker.embedding = false;
+   pp.ker.embed += "\n";
+}
+
+// *****************************************************************************
 void tokens(context &pp)
 {
    if (pp.in.peek() != '_') { return; }
    string id = get_id(pp);
    if (id=="__jit") { return __jit(pp); }
+   if (id=="__embed") { return __embed(pp); }
    if (id=="__kernel") { return __kernel(pp); }
    if (id=="__template") { return __template(pp); }
    pp.out << id;
+   if (pp.ker.embedding) pp.ker.embed += id;
 }
 
 // *****************************************************************************
@@ -919,12 +962,14 @@ int process(context &pp)
    hashHeader(pp);
    pp.ker.T = false;
    pp.ker.jit = false;
+   pp.ker.embedding = false;
    do
    {
       tokens(pp);
       comments(pp);
       jitPostfix(pp);
       tplPostfix(pp);
+      embedPostfix(pp);
    }
    while (not eof(pp));
    return 0;

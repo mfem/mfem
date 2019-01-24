@@ -84,7 +84,7 @@ const char *compile(const bool dbg, const size_t hash, const char *xcc,
    const size_t cmd_sz = 4096;
    char xccCommand[cmd_sz];
    const char *CCFLAGS = "-fPIC";
-   const char *NVFLAGS = "";//--compiler-options '-fPIC' -lcuda";
+   const char *NVFLAGS = "";
 #if defined(__clang__) && (__clang_major__ > 6)
    const char *CLANG_FLAGS = "-Wno-gnu-designator -fPIC -L.. -lmfem";
 #else
