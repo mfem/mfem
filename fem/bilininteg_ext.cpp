@@ -49,10 +49,10 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 // *****************************************************************************
 void DiffusionIntegrator::Assemble(const FiniteElementSpace *fes)
 {
-   const FiniteElement &el = *(fes->GetFE(0));
-   const IntegrationRule *rule = IntRule;
-   const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
    const Mesh *mesh = fes->GetMesh();
+   const IntegrationRule *rule = IntRule;
+   const FiniteElement &el = *(fes->GetFE(0));
+   const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int quadraturePoints = ir->GetNPoints();
@@ -74,7 +74,7 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace *fes)
 }
 
 // *****************************************************************************
-void DiffusionIntegrator::MultAdd(Vector &x, Vector &y)
+void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    kernels::fem::biPADiffusionMultAdd(dim, dofs1D, quad1D, ne,
                                       maps->dofToQuad,
@@ -89,12 +89,12 @@ void DiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 // *****************************************************************************
 void MassIntegrator::Assemble(const FiniteElementSpace *fes)
 {
-   const FiniteElement &el = *(fes->GetFE(0));
    const Mesh *mesh = fes->GetMesh();
+   const IntegrationRule *ir = IntRule;
+   const FiniteElement &el = *(fes->GetFE(0));
    dim = mesh->Dimension();
    ne = fes->GetMesh()->GetNE();
    dofs1D = el.GetOrder() + 1;
-   const IntegrationRule *ir = IntRule;
    assert(ir);
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
    maps = kDofQuadMaps::Get(*fes, *fes, *IntRule);
@@ -108,7 +108,7 @@ void MassIntegrator::SetOperator(Vector &v)
 }
 
 // *****************************************************************************
-void MassIntegrator::MultAdd(Vector &x, Vector &y)
+void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    biPAMassMultAdd(dim, dofs1D, quad1D, ne,
                    maps->dofToQuad,

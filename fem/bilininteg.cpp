@@ -24,13 +24,13 @@ void BilinearFormIntegrator::Assemble(const FiniteElementSpace*){
                "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::MultAdd(Vector&, Vector&){
-   mfem_error ("BilinearFormIntegrator::MultAdd (...)\n"
+void BilinearFormIntegrator::MultAssembled(Vector&, Vector&){
+   mfem_error ("BilinearFormIntegrator::MultAssembled (...)\n"
                "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::MultTransposeAdd(Vector&, Vector&){
-   mfem_error ("BilinearFormIntegrator::MultTransposeAdd (...)\n"
+void BilinearFormIntegrator::MultAssembledTranspose(Vector&, Vector&){
+   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose (...)\n"
                "   is not implemented for this class.");
 }
 

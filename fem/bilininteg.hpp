@@ -28,14 +28,14 @@ protected:
       NonlinearFormIntegrator(ir) { }
 
 public:
-   /// TODO
+   /// Method defining partial assembly.
    virtual void Assemble(const FiniteElementSpace*);
 
-   /// TODO
-   virtual void MultAdd(Vector&, Vector&);
-
-   /// TODO
-   virtual void MultTransposeAdd(Vector&, Vector&);
+   /// Method for partially assembled action.
+   virtual void MultAssembled(Vector&, Vector&);
+   
+   /// Method for partially assembled transposed action.
+   virtual void MultAssembledTranspose(Vector&, Vector&);
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -1686,7 +1686,7 @@ public:
 
    /// PA extension
    virtual void Assemble(const FiniteElementSpace*);
-   virtual void MultAdd(Vector&, Vector&);
+   virtual void MultAssembled(Vector&, Vector&);
 
    virtual ~DiffusionIntegrator(){ delete maps; }
 };
@@ -1720,9 +1720,9 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
    /// PA extension
+   void SetOperator(Vector&);
    virtual void Assemble(const FiniteElementSpace*);
-   virtual void SetOperator(Vector&);
-   virtual void MultAdd(Vector&, Vector&);
+   virtual void MultAssembled(Vector&, Vector&);
 
    virtual ~MassIntegrator(){ delete maps; }
 };
