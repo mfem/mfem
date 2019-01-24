@@ -1673,11 +1673,11 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void FE_Evolution::NeumannSolve(const Vector &b, Vector &x) const
+void FE_Evolution::NeumannSolve(const Vector &f, Vector &x) const
 {   
-   int i, iter, n = b.Size(), max_iter = 20;
+   int i, iter, n = f.Size(), max_iter = 20;
    Vector y;
-   double resid = b.Norml2(), abs_tol = 1.e-4;
+   double resid = f.Norml2(), abs_tol = 1.e-4;
 
    y.SetSize(n);
    x = 0.;
@@ -1685,7 +1685,7 @@ void FE_Evolution::NeumannSolve(const Vector &b, Vector &x) const
    for (iter = 1; iter <= max_iter; iter++)
    {
       M.Mult(x, y);
-      y -= b;
+      y -= f;
       resid = y.Norml2();
       if (resid <= abs_tol)
       {
