@@ -105,6 +105,7 @@ private:
    ParGridFunction x_;
 
    HypreParMatrix * M_;
+   HypreParMatrix * D_;
 
    Vector RHS_;
    Vector X_;
@@ -692,6 +693,7 @@ DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
      rhs_(&fes_),
      x_(&vfes_),
      M_(NULL),
+     D_(NULL),
      RHS_(fes_.GetTrueVSize()),
      X_(fes_.GetTrueVSize()),
      solver_(NULL),
@@ -710,6 +712,7 @@ DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
                                                           dg_kappa_));
    d_.Assemble();
    d_.Finalize();
+   D_ = d_.ParallelAssemble();
 }
 
 void DiffusionTDO::ImplicitSolve(const double dt, const Vector &x, Vector &y)
@@ -723,7 +726,7 @@ void DiffusionTDO::ImplicitSolve(const double dt, const Vector &x, Vector &y)
       ParGridFunction xd(&fes_, &(x.GetData()[(d+1) * fes_.GetVSize()]));
       ParGridFunction yd(&fes_, &(y.GetData()[(d+1) * fes_.GetVSize()]));
 
-      d_.Mult(xd, rhs_);
+      D_->Mult(xd, rhs_);
       rhs_ *= -1.0;
       rhs_.ParallelAssemble(RHS_);
 
