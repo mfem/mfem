@@ -3875,7 +3875,7 @@ static PetscErrorCode __mfem_snes_postcheck(SNESLineSearch ls,Vec X,Vec Y,Vec W,
                                             PetscBool *cy,PetscBool *cw, void* ctx)
 {
    __mfem_snes_ctx* snes_ctx = (__mfem_snes_ctx*)ctx;
-   bool lcy,lcw;
+   bool lcy = false,lcw = false;
 
    PetscFunctionBeginUser;
    mfem::PetscParVector x(X,true);
