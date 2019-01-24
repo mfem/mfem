@@ -19,14 +19,14 @@ namespace fem
 {
 
 // *****************************************************************************
-void GlobalToLocal(const int NUM_VDIM,
-                   const bool VDIM_ORDERING,
-                   const int globalEntries,
-                   const int localEntries,
-                   const int* __restrict offsets,
-                   const int* __restrict indices,
-                   const double* __restrict globalX,
-                   double* __restrict localX)
+void L2E(const int NUM_VDIM,
+         const bool VDIM_ORDERING,
+         const int globalEntries,
+         const int localEntries,
+         const int* __restrict offsets,
+         const int* __restrict indices,
+         const double* __restrict globalX,
+         double* __restrict localX)
 {
    GET_CONST_PTR_T(offsets,int);
    GET_CONST_PTR_T(indices,int);
@@ -46,6 +46,39 @@ void GlobalToLocal(const int NUM_VDIM,
                ijNMt(v,d_indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
             d_localX[l_offset] = dofValue;
          }
+      }
+   });
+}
+
+// *****************************************************************************
+void E2L(const int NUM_VDIM,
+         const bool VDIM_ORDERING,
+         const int globalEntries,
+         const int localEntries,
+         const int* __restrict offsets,
+         const int* __restrict indices,
+         const double* __restrict localX,
+         double* __restrict globalX)
+{
+   GET_CONST_PTR_T(offsets,int);
+   GET_CONST_PTR_T(indices,int);
+   GET_CONST_PTR(localX);
+   GET_PTR(globalX);
+   MFEM_FORALL(i, globalEntries,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i + 1];
+      for (int v = 0; v < NUM_VDIM; ++v)
+      {
+         double dofValue = 0;
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int l_offset =
+               ijNMt(v,d_indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
+            dofValue += d_localX[l_offset];
+         }
+         const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);
+         d_globalX[g_offset] = dofValue;
       }
    });
 }

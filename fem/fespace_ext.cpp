@@ -13,15 +13,14 @@
 
 #include "fem.hpp"
 #include "fespace_ext.hpp"
-#include "kernels/global_local.hpp"
-#include "kernels/local_global.hpp"
+#include "kernels/fespace.hpp"
 
 // *****************************************************************************
 namespace mfem
 {
 
 // **************************************************************************
-static void kArrayAssign(const int n, const int *src, int *dest)
+static void ArrayAssign(const int n, const int *src, int *dest)
 {
    GET_CONST_PTR_T(src,int);
    GET_PTR_T(dest,int);
@@ -29,9 +28,9 @@ static void kArrayAssign(const int n, const int *src, int *dest)
 }
 
 // *****************************************************************************
-// * kFiniteElementSpace
+// * FiniteElementSpaceExtension
 // *****************************************************************************
-kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
+FiniteElementSpaceExtension::FiniteElementSpaceExtension(FiniteElementSpace *f)
    :fes(f),
     globalDofs(f->GetNDofs()),
     localDofs(f->GetFE(0)->GetDof()),
@@ -95,50 +94,44 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
 
    const int leN = localDofs*elements;
    const int guN = globalDofs+1;
-   kArrayAssign(guN,h_offsets,offsets);
-   kArrayAssign(leN,h_indices,indices);
-   kArrayAssign(leN,h_map,map);
+   ArrayAssign(guN,h_offsets,offsets);
+   ArrayAssign(leN,h_indices,indices);
+   ArrayAssign(leN,h_map,map);
 }
 
 // ***************************************************************************
-kFiniteElementSpace::~kFiniteElementSpace()
-{
-   // ::delete reorderIndices;
-}
-
-// ***************************************************************************
-void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
-                                        Vector& localVec) const
+void FiniteElementSpaceExtension::L2E(const Vector& lVec,
+                                      Vector& eVec) const
 {
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
-   kernels::fem::GlobalToLocal(vdim,
-                               vdim_ordering,
-                               globalDofs,
-                               localEntries,
-                               offsets,
-                               indices,
-                               globalVec,
-                               localVec);
+   kernels::fem::L2E(vdim,
+                     vdim_ordering,
+                     globalDofs,
+                     localEntries,
+                     offsets,
+                     indices,
+                     lVec,
+                     eVec);
 }
 
 // ***************************************************************************
 // Aggregate local node values to their respective global dofs
-void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
-                                        Vector& globalVec) const
+void FiniteElementSpaceExtension::E2L(const Vector& eVec,
+                                      Vector& lVec) const
 {
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
-   kernels::fem::LocalToGlobal(vdim,
-                               vdim_ordering,
-                               globalDofs,
-                               localEntries,
-                               offsets,
-                               indices,
-                               localVec,
-                               globalVec);
+   kernels::fem::E2L(vdim,
+                     vdim_ordering,
+                     globalDofs,
+                     localEntries,
+                     offsets,
+                     indices,
+                     eVec,
+                     lVec);
 }
 
 } // mfem

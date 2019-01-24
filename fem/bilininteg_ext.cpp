@@ -13,7 +13,7 @@
 #include <cmath>
 #include <algorithm>
 #include "bilininteg.hpp"
-#include "kernels/geometry.hpp"
+#include "geom_ext.hpp"
 #include "kernels/mass.hpp"
 #include "kernels/diffusion.hpp"
 
@@ -60,28 +60,27 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace *fes)
    ne = fes->GetMesh()->GetNE();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   const kernels::geometry::Geometry *geo =
-      kernels::geometry::Geometry::Get(*fes,*ir);
+   const GeometryExtension *geo = GeometryExtension::Get(*fes,*ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
    vec.SetSize(symmDims * quadraturePoints * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
-   kernels::fem::biPADiffusionAssemble(dim, quad1D, ne,
-                                       maps->quadWeights,
-                                       geo->J,
-                                       coeff,
-                                       vec);
+   kernels::fem::DiffusionAssemble(dim, quad1D, ne,
+                                   maps->quadWeights,
+                                   geo->J,
+                                   coeff,
+                                   vec);
    delete geo;
 }
 
 // *****************************************************************************
 void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 {
-   kernels::fem::biPADiffusionMultAdd(dim, dofs1D, quad1D, ne,
-                                      maps->dofToQuad,
-                                      maps->dofToQuadD,
-                                      maps->quadToDof,
-                                      maps->quadToDofD,
-                                      vec, x, y);
+   kernels::fem::DiffusionMultAssembled(dim, dofs1D, quad1D, ne,
+                                        maps->dofToQuad,
+                                        maps->dofToQuadD,
+                                        maps->quadToDof,
+                                        maps->quadToDofD,
+                                        vec, x, y);
 }
 
 // *****************************************************************************
@@ -110,12 +109,12 @@ void MassIntegrator::SetOperator(Vector &v)
 // *****************************************************************************
 void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 {
-   biPAMassMultAdd(dim, dofs1D, quad1D, ne,
-                   maps->dofToQuad,
-                   maps->dofToQuadD,
-                   maps->quadToDof,
-                   maps->quadToDofD,
-                   vec, x, y);
+   kernels::fem::MassMultAssembled(dim, dofs1D, quad1D, ne,
+                                   maps->dofToQuad,
+                                   maps->dofToQuadD,
+                                   maps->quadToDof,
+                                   maps->quadToDofD,
+                                   vec, x, y);
 }
 
 } // namespace mfem

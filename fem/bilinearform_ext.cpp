@@ -35,7 +35,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
    trialFes(a->fes), testFes(a->fes),
    localX(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
    localY(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   kfes(new kFiniteElementSpace(a->fes)) { }
+   fes_ext(new FiniteElementSpaceExtension(a->fes)) { }
 
 PABilinearFormExtension::~PABilinearFormExtension()
 {
@@ -43,7 +43,7 @@ PABilinearFormExtension::~PABilinearFormExtension()
    {
       delete integrators[i];
    }
-   delete kfes;
+   delete fes_ext;
 }
 
 // Adds new Domain Integrator.
@@ -129,27 +129,26 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   kfes->GlobalToLocal(x, localX);
+   fes_ext->L2E(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
    for (int i = 0; i < iSz; ++i)
    {
       integrators[i]->MultAssembled(localX, localY);
    }
-   kfes->LocalToGlobal(localY, y);
+   fes_ext->E2L(localY, y);
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
-   assert(false);
-   kfes->GlobalToLocal(x, localX);
+   fes_ext->L2E(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
    for (int i = 0; i < iSz; ++i)
    {
       integrators[i]->MultAssembledTranspose(localX, localY);
    }
-   kfes->LocalToGlobal(localY, y);
+   fes_ext->E2L(localY, y);
 }
 
 void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
