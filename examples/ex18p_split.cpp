@@ -4,11 +4,7 @@
 //
 // Sample runs:
 //
-//       mpirun -np 4 ex18p -p 1 -rs 2 -rp 1 -o 1 -s 3
-//       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 3 -s 4
-//       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 5 -s 6
-//       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 1 -s 3
-//       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 3 -s 3
+//        ex18p_split -rs 1 -nu 0.01 -ss 1 -dt 0.001 -c -1
 //
 // Description:  This example code solves the compressible Euler system of
 //               equations, a model nonlinear hyperbolic PDE, with a
@@ -56,18 +52,20 @@ const double gas_constant_ = 1.0;
 
 // Scalar coefficient for diffusion of momentum
 static double diffusion_constant_ = 0.1;
+static double dg_sigma_ = -1.0;
+static double dg_kappa_ = -1.0;
 
 // Maximum characteristic speed (updated by integrators)
 static double max_char_speed_;
 
 // Time-dependent operator for the right-hand side of the ODE representing the
-// DG weak form.
-class FE_Evolution : public TimeDependentOperator
+// DG weak form for the advection term.
+class AdvectionTDO : public TimeDependentOperator
 {
 private:
    const int dim_;
 
-   FiniteElementSpace &vfes_;
+   ParFiniteElementSpace &vfes_;
    Operator &A_;
    SparseMatrix &Aflux_;
    DenseTensor Me_inv_;
@@ -80,14 +78,56 @@ private:
    void GetFlux(const DenseMatrix &state, DenseTensor &flux) const;
 
 public:
-   FE_Evolution(FiniteElementSpace &_vfes,
-                Operator &_A, SparseMatrix &_Aflux);
+   AdvectionTDO(ParFiniteElementSpace &_vfes,
+                Operator &A, SparseMatrix &Aflux);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
+   virtual ~AdvectionTDO() { }
+};
+
+// Time-dependent operator for the right-hand side of the ODE representing the
+// DG weak form for the diffusion term.
+class DiffusionTDO : public TimeDependentOperator
+{
+private:
+   const int dim_;
+   double dt_;
+
+   ParFiniteElementSpace &fes_;
+   ParFiniteElementSpace &dfes_;
+   ParFiniteElementSpace &vfes_;
+
+   ParBilinearForm m_;
+   ParBilinearForm d_;
+
+   ParLinearForm rhs_;
+   ParGridFunction x_;
+
+   HypreParMatrix * M_;
+
+   Vector RHS_;
+   Vector X_;
+
+   HypreSolver * solver_;
+   HypreSolver * amg_;
+
+   Coefficient &nuCoef_;
+   ProductCoefficient dtNuCoef_;
+
+   void initSolver(double dt);
+
+public:
+   DiffusionTDO(ParFiniteElementSpace &fes,
+                ParFiniteElementSpace &dfes,
+                ParFiniteElementSpace &_vfes,
+                Coefficient & nuCoef);
+
+   // virtual void Mult(const Vector &x, Vector &y) const;
+
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
 
-   virtual ~FE_Evolution() { }
+   virtual ~DiffusionTDO() { }
 };
 
 // Implements a simple Rusanov flux
@@ -161,7 +201,9 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int par_ref_levels = 1;
    int order = 3;
-   int ode_solver_type = 3;
+   int ode_split_solver_type = 1;
+   int ode_exp_solver_type = 1;
+   int ode_imp_solver_type = 1;
    double t_final = -1.0;
    double dt = -0.01;
    double cfl = 0.3;
@@ -184,16 +226,19 @@ int main(int argc, char *argv[])
                   " partitioning.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
-   /*
-   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
+   args.AddOption(&ode_split_solver_type, "-ss", "--ode-split-solver",
+                  "ODE Split solver:\n"
+                  "            1 - First Order Fractional Step,\n"
+                  "            2 - Strang Splitting (2nd Order).");
+   args.AddOption(&ode_exp_solver_type, "-se", "--ode-exp-solver",
+                  "ODE Explicit solver:\n"
+                  "            1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
-   */
-   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: Implicit L-stable methods\n\t"
+   args.AddOption(&ode_imp_solver_type, "-si", "--ode-imp-solver",
+                  "ODE Implicit solver: L-stable methods\n\t"
                   "            1 - Backward Euler,\n\t"
                   "            2 - SDIRK23, 3 - SDIRK33,\n\t"
-                  "            Implicit A-stable methods (not L-stable)\n\t"
+                  "            A-stable methods (not L-stable)\n\t"
                   "            22 - ImplicitMidPointSolver,\n\t"
                   "            23 - SDIRK23, 34 - SDIRK34.");
    args.AddOption(&t_final, "-tf", "--t-final",
@@ -204,6 +249,12 @@ int main(int argc, char *argv[])
                   "CFL number for timestep calculation.");
    args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
                   "Diffusion constant used in momentum equation.");
+   args.AddOption(&dg_sigma_, "-dgs", "--sigma",
+                  "One of the two DG penalty parameters, typically +1/-1."
+                  " See the documentation of class DGDiffusionIntegrator.");
+   args.AddOption(&dg_kappa_, "-dgk", "--kappa",
+                  "One of the two DG penalty parameters, should be positive."
+                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -216,8 +267,10 @@ int main(int argc, char *argv[])
       if (mpi.Root()) { args.PrintUsage(cout); }
       return 1;
    }
-   if (mpi.Root()) { args.PrintOptions(cout); }
-
+   if (dg_kappa_ < 0)
+   {
+      dg_kappa_ = (order+1)*(order+1);
+   }
    if (t_final < 0.0)
    {
       if (strcmp(mesh_file, "../data/periodic-hexagon.mesh") == 0)
@@ -233,6 +286,7 @@ int main(int argc, char *argv[])
          t_final = 1.0;
       }
    }
+   if (mpi.Root()) { args.PrintOptions(cout); }
 
    // 3. Read the mesh from the given mesh file. This example requires a 2D
    //    periodic mesh, such as ../data/periodic-square.mesh.
@@ -243,30 +297,38 @@ int main(int argc, char *argv[])
 
    // 4. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
-   ODESolver *ode_solver = NULL;
-   switch (ode_solver_type)
+   ODESolver *ode_exp_solver = NULL;
+   ODESolver *ode_imp_solver = NULL;
+   switch (ode_exp_solver_type)
    {
-      // Implicit L-stable methods
-      case 1:  ode_solver = new BackwardEulerSolver; break;
-      case 2:  ode_solver = new SDIRK23Solver(2); break;
-      case 3:  ode_solver = new SDIRK33Solver; break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 34: ode_solver = new SDIRK34Solver; break;
-      // Explicit mthods
-      case 4: ode_solver = new RK4Solver; break;
-      /*
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(1.0); break;
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
-      case 6: ode_solver = new RK6Solver; break;
-      */
+      case 1: ode_exp_solver = new ForwardEulerSolver; break;
+      case 2: ode_exp_solver = new RK2Solver(1.0); break;
+      case 3: ode_exp_solver = new RK3SSPSolver; break;
+      case 4: ode_exp_solver = new RK4Solver; break;
+      case 6: ode_exp_solver = new RK6Solver; break;
       default:
          if (mpi.Root())
          {
-            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+            cout << "Unknown Explicit ODE solver type: "
+                 << ode_exp_solver_type << '\n';
+         }
+         return 3;
+   }
+   switch (ode_imp_solver_type)
+   {
+      // Implicit L-stable methods
+      case 1:  ode_imp_solver = new BackwardEulerSolver; break;
+      case 2:  ode_imp_solver = new SDIRK23Solver(2); break;
+      case 3:  ode_imp_solver = new SDIRK33Solver; break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_imp_solver = new ImplicitMidpointSolver; break;
+      case 23: ode_imp_solver = new SDIRK23Solver; break;
+      case 34: ode_imp_solver = new SDIRK34Solver; break;
+      default:
+         if (mpi.Root())
+         {
+            cout << "Unknown Implicit ODE solver type: "
+                 << ode_imp_solver_type << '\n';
          }
          return 3;
    }
@@ -304,6 +366,11 @@ int main(int argc, char *argv[])
 
    HYPRE_Int glob_size = vfes.GlobalTrueVSize();
    if (mpi.Root()) { cout << "Number of unknowns: " << glob_size << endl; }
+
+   cout << "True V Size: " << fes.GetTrueVSize() << endl;
+   cout << "V Size:      " << fes.GetVSize() << endl;
+
+   ConstantCoefficient nuCoef(diffusion_constant_);
 
    // 8. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
@@ -358,7 +425,8 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution euler(vfes, A, Aflux.SpMat());
+   AdvectionTDO euler(vfes, A, Aflux.SpMat());
+   DiffusionTDO diff(fes, dfes, vfes, nuCoef);
 
    // Visualize the density
    socketstream sout;
@@ -381,7 +449,8 @@ int main(int argc, char *argv[])
       }
       else
       {
-         sout << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
+         sout << "parallel " << mpi.WorldSize() << " "
+              << mpi.WorldRank() << "\n";
          sout.precision(precision);
          sout << "solution\n" << pmesh << mom;
          sout << "pause\n";
@@ -413,7 +482,10 @@ int main(int argc, char *argv[])
 
    double t = 0.0;
    euler.SetTime(t);
-   ode_solver->Init(euler);
+   ode_exp_solver->Init(euler);
+
+   diff.SetTime(t);
+   ode_imp_solver->Init(diff);
 
    if (cfl > 0)
    {
@@ -430,6 +502,14 @@ int main(int argc, char *argv[])
          max_char_speed_ = all_max_char_speed;
       }
       dt = cfl * hmin / max_char_speed_ / (2*order+1);
+
+      if (mpi.Root())
+      {
+         cout << "Minimum Edge Length: " << hmin << '\n';
+         cout << "Maximum Speed:       " << max_char_speed_ << '\n';
+         cout << "CFL fraction:        " << cfl << '\n';
+         cout << "Initial Time Step:   " << dt << '\n';
+      }
    }
 
    // Integrate in time.
@@ -438,7 +518,24 @@ int main(int argc, char *argv[])
    {
       double dt_real = min(dt, t_final - t);
 
-      ode_solver->Step(sol, t, dt_real);
+      if (ode_split_solver_type == 1)
+      {
+         double dt_imp = dt_real;
+         double dt_exp = dt_real;
+         double t_imp = t;
+         ode_imp_solver->Step(sol, t_imp, dt_imp);
+         ode_exp_solver->Step(sol, t, dt_exp);
+      }
+      else
+      {
+         double dt_imp = 0.5 * dt_real;
+         double t_imp = t;
+         double dt_exp = dt_real;
+         ode_imp_solver->Step(sol, t_imp, dt_imp);
+         ode_exp_solver->Step(sol, t, dt_exp);
+         ode_imp_solver->Step(sol, t_imp, dt_imp);
+      }
+
       if (cfl > 0)
       {
          // Reduce to find the global maximum wave speed
@@ -449,6 +546,15 @@ int main(int argc, char *argv[])
             max_char_speed_ = all_max_char_speed;
          }
          dt = cfl * hmin / max_char_speed_ / (2*order+1);
+
+         if (mpi.Root())
+         {
+            cout << "Adjusting time step\n";
+            cout << "Minimum Edge Length: " << hmin << '\n';
+            cout << "Maximum Speed:       " << max_char_speed_ << '\n';
+            cout << "CFL fraction:        " << cfl << '\n';
+            cout << "New Time Step:       " << dt << '\n';
+         }
       }
       ti++;
 
@@ -496,13 +602,14 @@ int main(int argc, char *argv[])
    }
 
    // Free the used memory.
-   delete ode_solver;
+   delete ode_exp_solver;
+   delete ode_imp_solver;
 
    return 0;
 }
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(FiniteElementSpace &vfes,
+AdvectionTDO::AdvectionTDO(ParFiniteElementSpace &vfes,
                            Operator &A, SparseMatrix &Aflux)
    : TimeDependentOperator(A.Height()),
      dim_(vfes.GetFE(0)->GetDim()),
@@ -529,7 +636,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace &vfes,
    }
 }
 
-void FE_Evolution::Mult(const Vector &x, Vector &y) const
+void AdvectionTDO::Mult(const Vector &x, Vector &y) const
 {
    // 0. Reset wavespeed computation before operator application.
    max_char_speed_ = 0.;
@@ -570,9 +677,109 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &y)
+DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
+                           ParFiniteElementSpace &dfes,
+                           ParFiniteElementSpace &vfes,
+                           Coefficient & nuCoef)
+   : TimeDependentOperator(vfes.GetTrueVSize()),
+     dim_(vfes.GetFE(0)->GetDim()),
+     dt_(0.0),
+     fes_(fes),
+     dfes_(dfes),
+     vfes_(vfes),
+     m_(&fes_),
+     d_(&fes_),
+     rhs_(&fes_),
+     x_(&vfes_),
+     M_(NULL),
+     RHS_(fes_.GetTrueVSize()),
+     X_(fes_.GetTrueVSize()),
+     solver_(NULL),
+     amg_(NULL),
+     nuCoef_(nuCoef),
+     dtNuCoef_(0.0, nuCoef_)
 {
-  this->Mult(x, y);
+   m_.AddDomainIntegrator(new MassIntegrator);
+   m_.AddDomainIntegrator(new DiffusionIntegrator(dtNuCoef_));
+   m_.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtNuCoef_,
+                                                          dg_sigma_,
+                                                          dg_kappa_));
+   d_.AddDomainIntegrator(new DiffusionIntegrator(nuCoef_));
+   d_.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(nuCoef_,
+                                                          dg_sigma_,
+                                                          dg_kappa_));
+   d_.Assemble();
+   d_.Finalize();
+}
+
+void DiffusionTDO::ImplicitSolve(const double dt, const Vector &x, Vector &y)
+{
+   y = x;
+
+   this->initSolver(dt);
+
+   for (int d=0; d<dim_; d++)
+   {
+      ParGridFunction xd(&fes_, &(x.GetData()[(d+1) * fes_.GetVSize()]));
+      ParGridFunction yd(&fes_, &(y.GetData()[(d+1) * fes_.GetVSize()]));
+
+      d_.Mult(xd, rhs_);
+      rhs_ *= -1.0;
+      rhs_.ParallelAssemble(RHS_);
+
+      X_ = 0.0;
+      solver_->Mult(RHS_, X_);
+
+      yd = X_;
+   }
+}
+
+void DiffusionTDO::initSolver(double dt)
+{
+   bool newM = false;
+   if (fabs(dt - dt_) > 1e-4 * dt)
+   {
+      dt_ = dt;
+      dtNuCoef_.SetAConst(dt);
+      m_.Assemble(0);
+      m_.Finalize(0);
+      if (M_ != NULL)
+      {
+         delete M_;
+      }
+      M_ = m_.ParallelAssemble();
+      newM = true;
+   }
+
+   if (amg_ == NULL || newM)
+   {
+      if (amg_ != NULL) { delete amg_; }
+      amg_ = new HypreBoomerAMG(*M_);
+   }
+   if (solver_ == NULL || newM)
+   {
+      if (solver_ != NULL) { delete solver_; }
+      if (dg_sigma_ == -1.0)
+      {
+         HyprePCG * pcg = new HyprePCG(*M_);
+         pcg->SetTol(1e-12);
+         pcg->SetMaxIter(200);
+         pcg->SetPrintLevel(0);
+         pcg->SetPreconditioner(*amg_);
+         solver_ = pcg;
+      }
+      else
+      {
+         HypreGMRES * gmres = new HypreGMRES(*M_);
+         gmres->SetTol(1e-12);
+         gmres->SetMaxIter(200);
+         gmres->SetKDim(10);
+         gmres->SetPrintLevel(0);
+         gmres->SetPreconditioner(*amg_);
+         solver_ = gmres;
+      }
+
+   }
 }
 
 // Physicality check (at end)
@@ -665,7 +872,7 @@ inline double ComputeMaxCharSpeed(const Vector &state, const int dim)
 }
 
 // Compute the flux at solution nodes.
-void FE_Evolution::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
+void AdvectionTDO::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
 {
    const int dof = flux.SizeI();
    const int dim = flux.SizeJ();
