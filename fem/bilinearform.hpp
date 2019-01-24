@@ -484,6 +484,7 @@ public:
    virtual ~BilinearForm();
 };
 
+
 /**
    Class for assembling of bilinear forms `a(u,v)` defined on different
    trial and test spaces. The assembled matrix `A` is such that

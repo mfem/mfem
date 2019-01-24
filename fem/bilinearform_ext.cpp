@@ -132,23 +132,22 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
-   assert(iSz==1);
    for (int i = 0; i < iSz; ++i)
    {
-      integrators[i]->MultAdd(localX, localY);
+      integrators[i]->MultAssembled(localX, localY);
    }
    kfes->LocalToGlobal(localY, y);
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
+   assert(false);
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
-   assert(iSz==1);
    for (int i = 0; i < iSz; ++i)
    {
-      integrators[i]->MultTransposeAdd(localX, localY);
+      integrators[i]->MultAssembledTranspose(localX, localY);
    }
    kfes->LocalToGlobal(localY, y);
 }
