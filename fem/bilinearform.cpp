@@ -216,13 +216,13 @@ void BilinearForm::Finalize (int skip_zeros)
    if (hybridization) { hybridization->Finalize(); }
 }
 
-void BilinearForm::AddDomainIntegrator (AbstractBilinearFormIntegrator * bfi)
+void BilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
 {
    switch (assembly)
    {
       case AssemblyLevel::FULL:
          // Use the original BilinearForm implementation for now
-         dbfi.Append (static_cast<BilinearFormIntegrator*>(bfi));
+         dbfi.Append(bfi);
          break;
       case AssemblyLevel::ELEMENT:
          mfem_error("Not supported yet... stay tuned!");
