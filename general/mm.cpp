@@ -110,7 +110,7 @@ void *mm::Erase(void *ptr)
    if (config::gpuDisabled()) { return ptr; }
    const bool known = Known(maps, ptr);
    // if (!known) { BUILTIN_TRAP; }
-   if (!known) { mfem_error("mm::Erase"); }
+   if (!known) { mfem_error("Trying to remove an unknown address!"); }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
    const memory &mem = maps.memories.at(ptr);
    dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
@@ -307,7 +307,7 @@ void mm::Pull(const void *ptr, const size_t bytes)
 
 // *****************************************************************************
 // __attribute__((unused)) // VS doesn't like this in Appveyor
-static void Dump(const mm::ledger &maps)
+/*static void Dump(const mm::ledger &maps)
 {
    if (!getenv("DBG")) { return; }
    const mm::memory_map &mem = maps.memories;
@@ -342,7 +342,7 @@ static void Dump(const mm::ledger &maps)
       fflush(0);
       k++;
    }
-}
+}*/
 
 // *****************************************************************************
 // * Data will be pushed/pulled before the copy happens on the H or the D
