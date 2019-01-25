@@ -111,11 +111,10 @@ public:
 
 private:
    ledger maps;
-
    mm() {}
-   mm(mm const&);
-   void operator=(mm const&);
-   static inline mm& MM() { static mm singleton; return singleton; }
+   mm(mm const&) = delete;
+   void operator=(mm const&) = delete;
+   static inline mm& MM() { static mm *singleton = new mm(); return *singleton; }
 
    // **************************************************************************
    void *Insert(void *ptr, const size_t bytes);
