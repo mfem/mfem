@@ -2943,7 +2943,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
       << ") did not match number of entries changed from matrix-matrix multiply, "
       << counter);
 
-   delete [] B_marker;
+   mm::free<int>(B_marker);
 
    return C;
 }

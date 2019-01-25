@@ -652,9 +652,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // create the conforming restriction matrix cR
    int *cR_J;
    {
-      int *cR_I = new int[n_true_dofs+1];
-      double *cR_A = new double[n_true_dofs];
-      cR_J = new int[n_true_dofs];
+      int *cR_I = mm::malloc<int>(n_true_dofs+1);
+      double *cR_A = mm::malloc<double>(n_true_dofs);
+      cR_J = mm::malloc<int>(n_true_dofs);
       for (int i = 0; i < n_true_dofs; i++)
       {
          cR_I[i] = i;
@@ -1259,7 +1259,7 @@ void FiniteElementSpace::Construct()
       }
       if (have_face_dofs)
       {
-         fdofs = new int[mesh->GetNFaces()+1];
+         fdofs = mm::malloc<int>(mesh->GetNFaces()+1);
          fdofs[0] = 0;
          for (int i = 0; i < mesh->GetNFaces(); i++)
          {
@@ -1271,7 +1271,7 @@ void FiniteElementSpace::Construct()
 
    if (mesh->Dimension() > 0)
    {
-      bdofs = new int[mesh->GetNE()+1];
+      bdofs = mm::malloc<int>(mesh->GetNE()+1);
       bdofs[0] = 0;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
@@ -1708,8 +1708,8 @@ void FiniteElementSpace::Destroy()
       delete elem_dof;
       delete bdrElem_dof;
 
-      delete [] bdofs;
-      delete [] fdofs;
+      mm::free<int>(bdofs);
+      mm::free<int>(fdofs);
    }
 }
 
@@ -2017,7 +2017,7 @@ void QuadratureSpace::Construct()
    // protected method
    int offset = 0;
    const int num_elem = mesh->GetNE();
-   element_offsets = new int[num_elem + 1];
+   element_offsets = mm::malloc<int>(num_elem + 1);
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       int_rule[g] = NULL;
