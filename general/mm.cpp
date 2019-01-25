@@ -108,10 +108,9 @@ void *mm::Erase(void *ptr)
 {
    if (!config::usingMM()) { return ptr; }
    if (config::gpuDisabled()) { return ptr; }
-   if (deleted){ return ptr; }
    const bool known = Known(maps, ptr);
    // if (!known) { BUILTIN_TRAP; }
-   if (!known) { mfem_error("mm::Erase"); }
+   if (!known) { mfem_error("Trying to remove an unknown address!"); }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
    const memory &mem = maps.memories.at(ptr);
    dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
