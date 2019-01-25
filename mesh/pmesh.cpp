@@ -163,7 +163,7 @@ void rec_ArrayElement(MPI_Comm &comm, int tag,
    delete [] buf;
 }
 
-void send_Table(MPI_Comm &comm, int tag, int rec_id, const Table &t)
+void send_Table(MPI_Comm &comm, int tag, int rec_id, Table &t)
 {
    int sizes[2];
    sizes[0] = t.Size();
