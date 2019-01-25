@@ -35,6 +35,8 @@ protected:
    ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
       have_face_nbr_data(false), pncmesh(NULL) {}
 
+   void GenerateParMetaData(Mesh &mesh, int rank_id, int *partitioning);
+
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -58,6 +60,10 @@ protected:
       void Set(const int *w)
       { v[0] = w[0]; v[1] = w[1]; v[2] = w[2]; v[3] = w[3]; }
    };
+   void send_ArrayVertex4(MPI_Comm &comm, int tag,
+                          int rec_id, const Array<Vert4> &a);
+   void rec_ArrayVertex4(MPI_Comm &comm, int tag,
+                         int send_id, Array<Vert4> &a);
 
    Array<Element *> shared_edges;
    // shared face id 'i' is:
@@ -200,6 +206,10 @@ public:
 
    ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
            int part_method = 1);
+
+   ParMesh(MPI_Comm comm, Mesh &mesh, int id_min, int id_max,
+           int *partitioning_ = NULL, int part_method = 1);
+   ParMesh(MPI_Comm comm, int creator_id);
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
    /** The @a refine parameter is passed to the method Mesh::Finalize(). */

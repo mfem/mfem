@@ -28,6 +28,149 @@ using namespace std;
 namespace mfem
 {
 
+void rec_ArrayInt(MPI_Comm &comm, int tag, int send_id, Array<int> &a)
+{
+   MPI_Status status;
+   MPI_Probe(send_id, tag, comm, &status);
+   int size;
+   MPI_Get_count(&status, MPI_DOUBLE, &size);
+   a.SetSize(size);
+   MPI_Recv(a.GetData(), size, MPI_INT, send_id, tag, comm, MPI_STATUS_IGNORE);
+}
+void send_ArrayVertex(MPI_Comm &comm, int tag,
+                      int rec_id, const Array<Vertex> &a)
+{
+   const int datasize = a.Size() * 3;
+   double *data = new double[datasize];
+   for (int i = 0; i < a.Size(); i++)
+   {
+      for (int d = 0; d < 3; d++)
+      {
+         data[3*i + d] = a[i](d);
+      }
+   }
+   MPI_Send(data, datasize, MPI_DOUBLE, rec_id, tag, comm);
+
+   delete data;
+}
+void rec_ArrayVertex(MPI_Comm &comm, int tag,
+                     int send_id, Array<Vertex> &a)
+{
+   MPI_Status status;
+   MPI_Probe(send_id, tag, comm, &status);
+   int size;
+   MPI_Get_count(&status, MPI_DOUBLE, &size);
+   double *buf = new double[size];
+   MPI_Recv(buf, size, MPI_DOUBLE, send_id, tag, comm, MPI_STATUS_IGNORE);
+
+   a.SetSize(size/3);
+   for (int i = 0; i < a.Size(); i++)
+   {
+      a[i].SetCoords(3, buf + 3*i);
+   }
+
+   delete buf;
+}
+void ParMesh::send_ArrayVertex4(MPI_Comm &comm, int tag,
+                                int rec_id, const Array<Vert4> &a)
+{
+   const int datasize = a.Size() * 4;
+   int *data = new int[datasize];
+   for (int i = 0; i < a.Size(); i++)
+   {
+      for (int d = 0; d < 4; d++)
+      {
+         data[4*i + d] = a[i].v[d];
+      }
+   }
+   MPI_Send(data, datasize, MPI_INT, rec_id, tag, comm);
+
+   delete data;
+}
+void ParMesh::rec_ArrayVertex4(MPI_Comm &comm, int tag,
+                               int send_id, Array<Vert4> &a)
+{
+   MPI_Status status;
+   MPI_Probe(send_id, tag, comm, &status);
+   int size;
+   MPI_Get_count(&status, MPI_INT, &size);
+   int *buf = new int[size];
+   MPI_Recv(buf, size, MPI_INT, send_id, tag, comm, MPI_STATUS_IGNORE);
+
+   a.SetSize(size/4);
+   for (int i = 0; i < a.Size(); i++)
+   {
+      a[i].Set(buf + 4*i);
+   }
+
+   delete buf;
+}
+
+void send_ArrayElement(MPI_Comm &comm, int tag,
+                       int rec_id, const Array<Element*> &a, int num_indices)
+{
+   const int size_per_elem = num_indices + 1;
+   const int datasize = a.Size() * size_per_elem;
+   double *data = new double[datasize];
+   for (int i = 0; i < a.Size(); i++)
+   {
+      data[i*size_per_elem] = a[i]->GetAttribute();
+      for (int j = 1; j <= num_indices; j++)
+      {
+         data[i*size_per_elem + j] = a[i]->GetVertices()[j-1];
+      }
+   }
+   MPI_Send(data, datasize, MPI_INT, rec_id, tag, comm);
+
+   delete data;
+}
+// Assumes hexes / quads / segments.
+void rec_ArrayElement(MPI_Comm &comm, int tag,
+                      int send_id, Array<Element*> &a, int num_indices)
+{
+   MPI_Status status;
+   MPI_Probe(send_id, tag, comm, &status);
+   int size;
+   MPI_Get_count(&status, MPI_INT, &size);
+   int *buf = new int[size];
+   MPI_Recv(buf, size, MPI_INT, send_id, tag, comm, MPI_STATUS_IGNORE);
+
+   int size_per_elem = num_indices + 1;
+   a.SetSize(size/size_per_elem);
+   for (int i = 0; i < a.Size(); i++)
+   {
+      if (num_indices == 8)      { a[i] = new Hexahedron; }
+      else if (num_indices == 4) { a[i] = new Quadrilateral; }
+      else                       { a[i] = new Segment; }
+
+      a[i]->SetAttribute(buf[size_per_elem*i]);
+      a[i]->SetVertices(buf + size_per_elem*i + 1);
+   }
+
+   delete buf;
+}
+
+void send_Table(MPI_Comm &comm, int tag, int rec_id, const Table &t)
+{
+   int sizes[2];
+   sizes[0] = t.Size();
+   sizes[1] = t.Size_of_connections();
+   MPI_Send(sizes, 2, MPI_INT, rec_id, tag, comm);
+   MPI_Send(t.GetI(), sizes[0]+1, MPI_INT, rec_id, tag+1, comm);
+   MPI_Send(t.GetJ(), sizes[1], MPI_INT, rec_id, tag+2, comm);
+}
+void rec_Table(MPI_Comm &comm, int tag, int send_id, Table &t)
+{
+   int sizes[2];
+   MPI_Recv(sizes, 2, MPI_INT, send_id, tag, comm, MPI_STATUS_IGNORE);
+   int *I = new int[sizes[0]+1];
+   int *J = new int[sizes[1]];
+   MPI_Recv(I, sizes[0]+1, MPI_INT, send_id, tag+1, comm, MPI_STATUS_IGNORE);
+   MPI_Recv(J, sizes[1], MPI_INT, send_id, tag+2, comm, MPI_STATUS_IGNORE);
+
+   t.SetIJ(I, J, sizes[0]);
+}
+
 ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
    : Mesh(pmesh, false),
      group_svert(pmesh.group_svert),
@@ -273,6 +416,261 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    {
       delete [] partitioning;
    }
+
+   have_face_nbr_data = false;
+}
+
+#define pm_tag 9000
+void ParMesh::GenerateParMetaData(Mesh &mesh, int rank_id, int *partitioning)
+{
+   const int MyRealRank = MyRank;
+
+   Array<bool> activeBdrElem;
+
+   MyRank = rank_id;
+   const bool send = (MyRealRank == rank_id) ? false : true;
+
+   Dim = mesh.Dim;
+   spaceDim = mesh.spaceDim;
+
+   int data[3];
+   if (send)
+   {
+      data[0] = Dim; data[1] = spaceDim;
+      MPI_Send(data, 2, MPI_INT, rank_id, pm_tag, MyComm);
+   }
+
+   ncmesh = pncmesh = NULL;
+
+   Array<int> vert_global_local;
+   NumOfVertices = BuildLocalVertices(mesh, partitioning, vert_global_local);
+   NumOfElements = BuildLocalElements(mesh, partitioning, vert_global_local);
+
+   Table *edge_element = NULL;
+   NumOfBdrElements = BuildLocalBoundary(mesh, partitioning,
+                                         vert_global_local,
+                                         activeBdrElem, edge_element);
+   if (send)
+   {
+      data[0] = NumOfVertices;
+      data[1] = NumOfElements;
+      data[2] = NumOfBdrElements;
+      MPI_Send(data, 3, MPI_INT, rank_id, pm_tag+10, MyComm);
+      send_ArrayVertex(MyComm, pm_tag+11, rank_id, vertices);
+      send_ArrayElement(MyComm, pm_tag+12, rank_id, elements, 8);
+      send_ArrayElement(MyComm, pm_tag+13, rank_id, boundary, 4);
+   }
+
+   SetMeshGen();
+   meshgen = mesh.meshgen; // copy the global 'meshgen'
+
+   mesh.attributes.Copy(attributes);
+   mesh.bdr_attributes.Copy(bdr_attributes);
+
+   if (send)
+   {
+      MPI_Send(attributes.GetData(), attributes.Size(), MPI_INT,
+               rank_id, pm_tag+20, MyComm);
+      MPI_Send(bdr_attributes.GetData(), attributes.Size(), MPI_INT,
+               rank_id, pm_tag+30, MyComm);
+   }
+
+   NumOfEdges = NumOfFaces = 0;
+
+   if (Dim > 1)
+   {
+      el_to_edge = new Table;
+      NumOfEdges = Mesh::GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   }
+
+   STable3D *faces_tbl = NULL;
+   if (Dim == 3)
+   {
+      faces_tbl = GetElementToFaceTable(1);
+   }
+
+   GenerateFaces();
+
+   ListOfIntegerSets  groups;
+   {
+      // the first group is the local one
+      IntegerSet group;
+      group.Recreate(1, &MyRank);
+      groups.Insert(group);
+   }
+
+   MFEM_ASSERT(mesh.GetNFaces() == 0 || Dim >= 3, "");
+
+   Array<int> face_group(mesh.GetNFaces());
+   Table *vert_element = mesh.GetVertexToElementTable(); // we must delete this
+
+   FindSharedFaces(mesh, partitioning, face_group, groups);
+   int nsedges = FindSharedEdges(mesh, partitioning, edge_element, groups);
+   int nsvert = FindSharedVertices(partitioning, vert_element, groups);
+
+   // build the group communication topology
+   //gtopo.Create(groups, 822);
+
+   // fill out group_sface, group_sedge, group_svert
+   int ngroups = groups.Size()-1, nstris, nsquads;
+   BuildFaceGroup(ngroups, mesh, face_group, nstris, nsquads);
+   BuildEdgeGroup(ngroups, *edge_element);
+   BuildVertexGroup(ngroups, *vert_element);
+
+   // build shared_faces and sface_lface mapping
+   BuildSharedFaceElems(nstris, nsquads, mesh, partitioning, faces_tbl,
+                        face_group, vert_global_local);
+   delete faces_tbl;
+
+   // build shared_edges and sedge_ledge mapping
+   BuildSharedEdgeElems(nsedges, mesh, vert_global_local, edge_element);
+   delete edge_element;
+
+   // build svert_lvert mapping
+   BuildSharedVertMapping(nsvert, vert_element, vert_global_local);
+   delete vert_element;
+
+   if (send)
+   {
+      send_Table(MyComm, pm_tag+40, rank_id, group_stria);
+      send_Table(MyComm, pm_tag+41, rank_id, group_squad);
+      send_Table(MyComm, pm_tag+42, rank_id, group_sedge);
+      // no shared_trias.
+      send_Table(MyComm, pm_tag+43, rank_id, group_svert);
+      send_ArrayVertex4(MyComm, pm_tag+44, rank_id, shared_quads);
+      MPI_Send(sface_lface.GetData(), sface_lface.Size(), MPI_INT,
+               rank_id, pm_tag+45, MyComm);
+      send_ArrayElement(MyComm, pm_tag+46, rank_id, shared_edges, 2);
+      MPI_Send(sedge_ledge.GetData(), sedge_ledge.Size(), MPI_INT,
+               rank_id, pm_tag+47, MyComm);
+      MPI_Send(svert_lvert.GetData(), svert_lvert.Size(), MPI_INT,
+               rank_id, pm_tag+48, MyComm);
+   }
+
+   SetMeshGen();
+   meshgen = mesh.meshgen; // copy the global 'meshgen'
+   if (send)
+   {
+      MPI_Send(&meshgen, 1, MPI_INT, rank_id, pm_tag+50, MyComm);
+   }
+
+   MyRank = MyRealRank;
+}
+
+ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int id_min, int id_max,
+                 int *partitioning_, int part_method) : gtopo(comm)
+{
+   MyComm = comm;
+   MPI_Comm_size(MyComm, &NRanks);
+   MPI_Comm_rank(MyComm, &MyRank);
+
+   int *partitioning = NULL;
+   if (partitioning_)
+   {
+      partitioning = partitioning_;
+   }
+   else
+   {
+      partitioning = mesh.GeneratePartitioning(NRanks, part_method);
+   }
+
+   // Assuming conforming.
+
+   for (int rank_id = id_min; rank_id <= id_max; rank_id++)
+   {
+      if (MyRank == rank_id) { continue; }
+      GenerateParMetaData(mesh, rank_id, partitioning);
+   }
+   GenerateParMetaData(mesh, MyRank, partitioning);
+
+   ListOfIntegerSets  groups;
+   {
+      // the first group is the local one
+      IntegerSet group;
+      group.Recreate(1, &MyRank);
+      groups.Insert(group);
+   }
+   // build the group communication topology
+   gtopo.Create(groups, 822);
+
+   // (not needed now) TODO NURBSext.
+   // (not needed now) TODO Nodes.
+
+   if (partitioning != partitioning_)
+   {
+      delete [] partitioning;
+   }
+
+   have_face_nbr_data = false;
+}
+
+// Receives all metadata from creator_id, assuming a conforming mesh.
+ParMesh::ParMesh(MPI_Comm comm, int creator_id) : gtopo(comm)
+{
+   MyComm = comm;
+   MPI_Comm_size(MyComm, &NRanks);
+   MPI_Comm_rank(MyComm, &MyRank);
+
+   int buf[3];
+   MPI_Recv(buf, 2, MPI_INT, creator_id, pm_tag, MyComm, MPI_STATUS_IGNORE);
+   Dim = buf[0];
+   spaceDim = buf[1];
+
+   ncmesh = pncmesh = NULL;
+
+   MPI_Recv(buf, 3, MPI_INT, creator_id, pm_tag+10, MyComm, MPI_STATUS_IGNORE);
+   NumOfVertices = buf[0];
+   NumOfElements = buf[1];
+   NumOfBdrElements = buf[2];
+   rec_ArrayVertex(MyComm, pm_tag+11, creator_id, vertices);
+   rec_ArrayElement(MyComm, pm_tag+12, creator_id, elements, 8);
+   rec_ArrayElement(MyComm, pm_tag+13, creator_id, boundary, 4);
+
+   // get attributes, bdr_attributes.
+   rec_ArrayInt(MyComm, pm_tag+20, creator_id, attributes);
+   rec_ArrayInt(MyComm, pm_tag+30, creator_id, bdr_attributes);
+
+   NumOfEdges = NumOfFaces = 0;
+   if (Dim > 1)
+   {
+      el_to_edge = new Table;
+      NumOfEdges = Mesh::GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   }
+
+   STable3D *faces_tbl = NULL;
+   if (Dim == 3)
+   {
+      faces_tbl = GetElementToFaceTable(1);
+   }
+
+   GenerateFaces();
+
+   rec_Table(MyComm, pm_tag+40, creator_id, group_stria);
+   rec_Table(MyComm, pm_tag+41, creator_id, group_squad);
+   rec_Table(MyComm, pm_tag+42, creator_id, group_sedge);
+   rec_Table(MyComm, pm_tag+43, creator_id, group_svert);
+   rec_ArrayVertex4(MyComm, pm_tag+44, creator_id, shared_quads);
+   rec_ArrayInt(MyComm, pm_tag+45, creator_id, sface_lface);
+   rec_ArrayElement(MyComm, pm_tag+46, creator_id, shared_edges, 2);
+   rec_ArrayInt(MyComm, pm_tag+47, creator_id, sedge_ledge);
+   rec_ArrayInt(MyComm, pm_tag+48, creator_id, svert_lvert);
+
+   SetMeshGen();
+   MPI_Recv(&meshgen, 1, MPI_INT, creator_id, pm_tag+50, MyComm,
+            MPI_STATUS_IGNORE);
+
+   ListOfIntegerSets  groups;
+   {
+      // the first group is the local one
+      IntegerSet group;
+      group.Recreate(1, &MyRank);
+      groups.Insert(group);
+   }
+   // build the group communication topology
+   gtopo.Create(groups, 822);
+
+   // (not needed now) TODO NURBSext.
+   // (not needed now) TODO Nodes.
 
    have_face_nbr_data = false;
 }
