@@ -28,33 +28,33 @@ static std::map<std::string, DofToQuad* > AllDofQuadMaps;
 
 // *****************************************************************************
 DofToQuad* DofToQuad::Get(const FiniteElementSpace& fes,
-                                const IntegrationRule& ir,
-                                const bool transpose)
+                          const IntegrationRule& ir,
+                          const bool transpose)
 {
    return Get(*fes.GetFE(0), *fes.GetFE(0), ir, transpose);
 }
 
 DofToQuad* DofToQuad::Get(const FiniteElementSpace& trialFES,
-                                const FiniteElementSpace& testFES,
-                                const IntegrationRule& ir,
-                                const bool transpose)
+                          const FiniteElementSpace& testFES,
+                          const IntegrationRule& ir,
+                          const bool transpose)
 {
    return Get(*trialFES.GetFE(0), *testFES.GetFE(0), ir, transpose);
 }
 
 DofToQuad* DofToQuad::Get(const FiniteElement& trialFE,
-                                const FiniteElement& testFE,
-                                const IntegrationRule& ir,
-                                const bool transpose)
+                          const FiniteElement& testFE,
+                          const IntegrationRule& ir,
+                          const bool transpose)
 {
    return GetTensorMaps(trialFE, testFE, ir, transpose);
 }
 
 // ***************************************************************************
 DofToQuad* DofToQuad::GetTensorMaps(const FiniteElement& trialFE,
-                                          const FiniteElement& testFE,
-                                          const IntegrationRule& ir,
-                                          const bool transpose)
+                                    const FiniteElement& testFE,
+                                    const IntegrationRule& ir,
+                                    const bool transpose)
 {
    const TensorBasisElement& trialTFE =
       dynamic_cast<const TensorBasisElement&>(trialFE);
@@ -91,8 +91,8 @@ DofToQuad* DofToQuad::GetTensorMaps(const FiniteElement& trialFE,
 
 // ***************************************************************************
 DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
-                                             const IntegrationRule& ir,
-                                             const bool transpose)
+                                       const IntegrationRule& ir,
+                                       const bool transpose)
 {
    const IntegrationRule& ir1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder());
 
@@ -188,17 +188,17 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
 
 // ***************************************************************************
 DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& fe,
-                                           const IntegrationRule& ir,
-                                           const bool transpose)
+                                     const IntegrationRule& ir,
+                                     const bool transpose)
 {
    return GetSimplexMaps(fe, fe, ir, transpose);
 }
 
 // *****************************************************************************
 DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& trialFE,
-                                           const FiniteElement& testFE,
-                                           const IntegrationRule& ir,
-                                           const bool transpose)
+                                     const FiniteElement& testFE,
+                                     const IntegrationRule& ir,
+                                     const bool transpose)
 {
    std::stringstream ss;
    ss << "SimplexMap:"
@@ -228,8 +228,8 @@ DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& trialFE,
 
 // ***************************************************************************
 DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
-                                              const IntegrationRule& ir,
-                                              const bool transpose)
+                                        const IntegrationRule& ir,
+                                        const bool transpose)
 {
    const int dims = fe.GetDim();
    const int numDofs = fe.GetDof();
