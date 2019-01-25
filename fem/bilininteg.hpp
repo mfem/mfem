@@ -33,7 +33,7 @@ public:
 
    /// Method for partially assembled action.
    virtual void MultAssembled(Vector&, Vector&);
-   
+
    /// Method for partially assembled transposed action.
    virtual void MultAssembledTranspose(Vector&, Vector&);
 
@@ -1688,7 +1688,7 @@ public:
    virtual void Assemble(const FiniteElementSpace*);
    virtual void MultAssembled(Vector&, Vector&);
 
-   virtual ~DiffusionIntegrator(){ delete maps; }
+   virtual ~DiffusionIntegrator() { delete maps; }
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -1724,7 +1724,7 @@ public:
    virtual void Assemble(const FiniteElementSpace*);
    virtual void MultAssembled(Vector&, Vector&);
 
-   virtual ~MassIntegrator(){ delete maps; }
+   virtual ~MassIntegrator() { delete maps; }
 };
 
 class BoundaryMassIntegrator : public MassIntegrator
