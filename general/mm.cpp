@@ -107,7 +107,7 @@ void* mm::Insert(void *ptr, const size_t bytes)
 void *mm::Erase(void *ptr)
 {
    if (!config::usingMM()) { return ptr; }
-   if (config::gpuDisabled()) { return ptr; }
+   if (config::gpuDisabled()) { return ptr; } //I think by default the condition should be true.
    const bool known = Known(maps, ptr);
    // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("mm::Erase"); }
