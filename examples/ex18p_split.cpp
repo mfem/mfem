@@ -393,8 +393,10 @@ int main(int argc, char *argv[])
    }
    BlockVector u_block(offsets);
 
-   // Momentum grid function on dfes for visualization.
-   ParGridFunction mom(&dfes, u_block.GetData() + offsets[1]);
+   // Momentum and Energy grid functions on for visualization.
+   ParGridFunction density(&fes, u_block.GetData());
+   ParGridFunction momentum(&dfes, u_block.GetData() + offsets[1]);
+   ParGridFunction energy(&fes, u_block.GetData() + offsets[dim+1]);
 
    // Initialize the state.
    VectorFunctionCoefficient u0(num_equation_, InitialCondition);
@@ -437,8 +439,8 @@ int main(int argc, char *argv[])
    AdvectionTDO euler(vfes, A, Aflux.SpMat());
    DiffusionTDO diff(fes, dfes, vfes, nuCoef);
 
-   // Visualize the density
-   socketstream sout;
+   // Visualize the density, momentum, and energy
+   socketstream sout, pout, eout;
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -446,7 +448,9 @@ int main(int argc, char *argv[])
 
       MPI_Barrier(pmesh.GetComm());
       sout.open(vishost, visport);
-      if (!sout)
+      pout.open(vishost, visport);
+      eout.open(vishost, visport);
+      if (!sout || !pout || !eout)
       {
          if (mpi.Root())
          {
@@ -461,9 +465,27 @@ int main(int argc, char *argv[])
          sout << "parallel " << mpi.WorldSize() << " "
               << mpi.WorldRank() << "\n";
          sout.precision(precision);
-         sout << "solution\n" << pmesh << mom;
+         sout << "solution\n" << pmesh << density;
+         sout << "window_title 'Density'\n";
          sout << "pause\n";
          sout << flush;
+
+         pout << "parallel " << mpi.WorldSize() << " "
+              << mpi.WorldRank() << "\n";
+         pout.precision(precision);
+         pout << "solution\n" << pmesh << momentum;
+         pout << "window_title 'Momentum Density'\n";
+         pout << "pause\n";
+         pout << flush;
+
+         eout << "parallel " << mpi.WorldSize() << " "
+              << mpi.WorldRank() << "\n";
+         eout.precision(precision);
+         eout << "solution\n" << pmesh << energy;
+         eout << "window_title 'Energy Density'\n";
+         eout << "pause\n";
+         eout << flush;
+
          if (mpi.Root())
          {
             cout << "GLVis visualization paused."
@@ -579,7 +601,15 @@ int main(int argc, char *argv[])
             MPI_Barrier(pmesh.GetComm());
             sout << "parallel " << mpi.WorldSize()
                  << " " << mpi.WorldRank() << "\n";
-            sout << "solution\n" << pmesh << mom << flush;
+            sout << "solution\n" << pmesh << density << flush;
+
+            pout << "parallel " << mpi.WorldSize()
+                 << " " << mpi.WorldRank() << "\n";
+            pout << "solution\n" << pmesh << momentum << flush;
+
+            eout << "parallel " << mpi.WorldSize()
+                 << " " << mpi.WorldRank() << "\n";
+            eout << "solution\n" << pmesh << energy << flush;
          }
       }
    }
