@@ -41,6 +41,8 @@ public:
 
    operator Array<int>& () { return me; }
 
+   int * GetData() { return me.GetData(); }
+
    int PickElement() { return me[0]; }
 
    int PickRandomElement();
@@ -69,6 +71,8 @@ public:
    int Lookup(IntegerSet &s);
 
    void AsTable(Table &t);
+
+   IntegerSet * GetIntegerSet(int i) { return TheList[i]; }
 
    ~ListOfIntegerSets();
 };
