@@ -471,7 +471,7 @@ int main(int argc, char *argv[])
          sout.precision(precision);
          sout << "solution\n" << pmesh << density;
          sout << "window_title 'Density'\n";
-         sout << "window_geometry 0 0 400 400\n";
+         sout << "window_geometry 0 0 400 350\n";
          sout << "keys c\n";
          sout << "pause\n";
          sout << flush;
@@ -481,7 +481,7 @@ int main(int argc, char *argv[])
          pout.precision(precision);
          pout << "solution\n" << pmesh << momentum;
          pout << "window_title 'Momentum Density'\n";
-         pout << "window_geometry 400 0 400 400\n";
+         pout << "window_geometry 400 0 400 350\n";
          pout << "keys cvvv\n";
          pout << "pause\n";
          pout << flush;
@@ -491,7 +491,7 @@ int main(int argc, char *argv[])
          eout.precision(precision);
          eout << "solution\n" << pmesh << energy;
          eout << "window_title 'Energy Density'\n";
-         eout << "window_geometry 800 0 400 400\n";
+         eout << "window_geometry 800 0 400 350\n";
          eout << "keys c\n";
          eout << "pause\n";
          eout << flush;
