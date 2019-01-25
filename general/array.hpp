@@ -863,7 +863,7 @@ BlockArray<T>::BlockArray(const BlockArray<T> &other)
    int bsize = mask+1;
    for (int i = 0; i < blocks.Size(); i++)
    {
-      blocks[i] = (T*) new char[bsize * sizeof(T)];
+      blocks[i] = (T*) mm::malloc<char>(bsize * sizeof(T));
    }
 
    // copy all items
@@ -879,7 +879,7 @@ int BlockArray<T>::Alloc()
    int bsize = mask+1;
    if (size >= blocks.Size() * bsize)
    {
-      T* new_block = (T*) new char[bsize * sizeof(T)];
+      T* new_block = (T*) mm::malloc<char>(bsize * sizeof(T));
       blocks.Append(new_block);
    }
    return size++;
