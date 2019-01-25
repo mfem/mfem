@@ -755,7 +755,7 @@ DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
 
 void DiffusionTDO::ImplicitSolve(const double dt, const Vector &x, Vector &y)
 {
-   y = x;
+   y = 0.0;
 
    this->initSolver(dt);
 
