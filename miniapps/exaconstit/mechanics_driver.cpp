@@ -106,6 +106,7 @@ protected:
    /// Variable telling us if we should use the UMAT specific
    /// stuff
    bool umat_used;
+   int newton_iter;
 
 public:
    NonlinearMechOperator(ParFiniteElementSpace &fes,
@@ -141,6 +142,12 @@ public:
    void UpdateEndCoords(const Vector& vel) const;  
    /// Driver for the newton solver
    void Solve(Vector &x) const;
+   
+   /// Solve the Newton system for the 1st time step
+   /// It was found that for large meshes a ramp up to our desired applied BC might
+   /// be needed. It should be noted that this is no longer a const function since
+   /// we modify several values/objects held by our class.
+   void SolveInit(Vector &x);
 
    /// Get essential true dof list, if required
    const Array<int> &GetEssTDofList();
@@ -279,7 +286,7 @@ int main(int argc, char *argv[])
    // newton input args
    double newton_rel_tol = 1.0e-6;
    double newton_abs_tol = 1.0e-8;
-   int newton_iter = 500;
+   int newton_iter = 25;
    
    // solver input args
    // GMRES is currently set as the default iterative solver
@@ -931,10 +938,14 @@ int main(int argc, char *argv[])
 
       // populate the solution vector, v_sol, with the true dofs entries in v_cur.
       v_cur.GetTrueDofs(v_sol);
-
       
-      oper.Solve(v_sol);
-      
+      //For the 1st time step, we might need to solve things using a ramp up to
+      //our desired applied velocity boundary conditions.
+      if(ti == 1){
+         oper.SolveInit(v_sol);
+      }else{
+         oper.Solve(v_sol);
+      }
       // distribute the solution vector to v_cur
       v_cur.Distribute(v_sol);
 
@@ -1087,11 +1098,11 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       //but they should eventually be moved back to being set by the options
 //      J_gmres->iterative_mode = false;
       //The relative tolerance should be at this point or smaller
-      J_gmres->SetRelTol(1e-12);
+      J_gmres->SetRelTol(1e-10);
       //The absolute tolerance could probably get even smaller then this
-      J_gmres->SetAbsTol(1e-40);
-      J_gmres->SetMaxIter(5000);
-      J_gmres->SetPrintLevel(1);
+      J_gmres->SetAbsTol(1e-30);
+      J_gmres->SetMaxIter(150);
+      J_gmres->SetPrintLevel(0);
       J_gmres->SetPreconditioner(*J_prec);
       J_solver = J_gmres;
 
@@ -1129,11 +1140,11 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       //These tolerances are currently hard coded while things are being debugged
       //but they should eventually be moved back to being set by the options
       //The relative tolerance should be at this point or smaller
-      J_pcg->SetRelTol(1e-12);
+      J_pcg->SetRelTol(1e-10);
       //The absolute tolerance could probably get even smaller then this
-      J_pcg->SetAbsTol(1e-40);
-      J_pcg->SetMaxIter(5000);
-      J_pcg->SetPrintLevel(1);
+      J_pcg->SetAbsTol(1e-30);
+      J_pcg->SetMaxIter(150);
+      J_pcg->SetPrintLevel(0);
       J_pcg->iterative_mode = true;
       J_pcg->SetPreconditioner(*J_prec);
       J_solver = J_pcg;
@@ -1158,6 +1169,10 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       J_solver = J_minres;
       
    }
+   //We might want to change our # iterations used in the newton solver
+   //for the 1st time step. We'll want to swap back to the old one after this
+   //step.
+   newton_iter = iter;
 
    // Set the newton solve parameters
    newton_solver.iterative_mode = true;
@@ -1193,6 +1208,140 @@ void NonlinearMechOperator::Solve(Vector &x) const
    //Once the system has finished solving, our current coordinates configuration are based on what our
    //converged velocity field ended up being equal to.
    MFEM_VERIFY(newton_solver.GetConverged(), "Newton Solver did not converge.");
+}
+
+// Solve the Newton system for the 1st time step
+// It was found that for large meshes a ramp up to our desired applied BC might
+// be needed.
+void NonlinearMechOperator::SolveInit(Vector &x)
+{
+   Vector zero;
+   Vector init_x(x);
+   //We shouldn't need more than 5 NR to converge to a solution during our
+   //initial step in our solution.
+   //We'll change this back to the old value at the end of the function.
+   newton_solver.SetMaxIter(5);
+   //We provide an initial guess for what our current coordinates will look like
+   //based on what our last time steps solution was for our velocity field.
+   if(!model->GetEndCoordsMesh()){
+      model->SwapMeshNodes();
+   }
+   //The end nodes are updated before the 1st step of the solution here so we're good.
+   newton_solver.Mult(zero, x);
+   //Just gotta be safe incase something in the solver wasn't playing nice and didn't swap things
+   //back to the current configuration...
+   if(!model->GetEndCoordsMesh()){
+      model->SwapMeshNodes();
+   }
+   
+   //If the step didn't converge we're going to do a ramp up to the applied
+   //velocity that we want. The assumption being made here is that our 1st time
+   //step should be in the linear elastic regime. Therefore, we should be able
+   //to go from our reduced solution to the desired solution. This has been noted
+   //to be a problem when really increasing the mesh size.
+   if(!newton_solver.GetConverged()){
+      //We're going to reset our initial applied BCs to being 1/64 of the original
+      mfem::out << "Solution didn't converge. Reducing initial condition to 1/4 original value\n";
+      x = init_x;
+      x *= 0.25;
+      //We're going to keep track of how many cuts we need to make. Hopefully we
+      //don't have to reduce it anymore then 3 times total.
+      int i = 1;
+      
+      //We provide an initial guess for what our current coordinates will look like
+      //based on what our last time steps solution was for our velocity field.
+      if(!model->GetEndCoordsMesh()){
+         model->SwapMeshNodes();
+      }
+      //The end nodes are updated before the 1st step of the solution here so we're good.
+      newton_solver.Mult(zero, x);
+      //Just gotta be safe incase something in the solver wasn't playing nice and didn't swap things
+      //back to the current configuration...
+      if(!model->GetEndCoordsMesh()){
+         model->SwapMeshNodes();
+      }
+      
+      if(!newton_solver.GetConverged()){
+         //We're going to reset our initial applied BCs to being 1/16 of the original
+         mfem::out << "Solution didn't converge. Reducing initial condition to 1/16 original value\n";
+         x = init_x;
+         x *= 0.0625;
+         //We're going to keep track of how many cuts we need to make. Hopefully we
+         //don't have to reduce it anymore then 3 times total.
+         i++;
+         
+         //We provide an initial guess for what our current coordinates will look like
+         //based on what our last time steps solution was for our velocity field.
+         if(!model->GetEndCoordsMesh()){
+            model->SwapMeshNodes();
+         }
+         //The end nodes are updated before the 1st step of the solution here so we're good.
+         newton_solver.Mult(zero, x);
+         //Just gotta be safe incase something in the solver wasn't playing nice and didn't swap things
+         //back to the current configuration...
+         if(!model->GetEndCoordsMesh()){
+            model->SwapMeshNodes();
+         }
+         
+         if(!newton_solver.GetConverged()){
+            //We're going to reset our initial applied BCs to being 1/64 of the original
+            mfem::out << "Solution didn't converge. Reducing initial condition to 1/64 original value\n";
+            x = init_x;
+            x *= 0.015625;
+            //We're going to keep track of how many cuts we need to make. Hopefully we
+            //don't have to reduce it anymore then 3 times total.
+            i++;
+            
+            //We provide an initial guess for what our current coordinates will look like
+            //based on what our last time steps solution was for our velocity field.
+            if(!model->GetEndCoordsMesh()){
+               model->SwapMeshNodes();
+            }
+            //The end nodes are updated before the 1st step of the solution here so we're good.
+            newton_solver.Mult(zero, x);
+            //Just gotta be safe incase something in the solver wasn't playing nice and didn't swap things
+            //back to the current configuration...
+            if(!model->GetEndCoordsMesh()){
+               model->SwapMeshNodes();
+            }
+            
+            MFEM_VERIFY(newton_solver.GetConverged(), "Newton Solver did not converge after 1/64 reduction of applied BCs.");
+         }// end of 1/64 reduction case
+      }// end of 1/16 reduction case
+      
+      //Here we're upscaling our previous converged solution to the next level.
+      //The upscaling should be a good initial guess, since everything we're doing
+      //is linear in this first step.
+      //We then have the solution try and converge again with our better initial
+      //guess of the solution.
+      //It might be that this process only needs to occur once and we can directly
+      //upscale from the lowest level to our top layer since we're dealing with
+      //supposedly a linear elastic type problem here.
+      for (int j = 0; j < i; j++) {
+         mfem::out << "Upscaling previous solution by factor of 4\n";
+         x *= 4.0;
+         //We provide an initial guess for what our current coordinates will look like
+         //based on what our last time steps solution was for our velocity field.
+         if(!model->GetEndCoordsMesh()){
+            model->SwapMeshNodes();
+         }
+         //The end nodes are updated before the 1st step of the solution here so we're good.
+         newton_solver.Mult(zero, x);
+         //Just gotta be safe incase something in the solver wasn't playing nice and didn't swap things
+         //back to the current configuration...
+         if(!model->GetEndCoordsMesh()){
+            model->SwapMeshNodes();
+         }
+         
+         //Once the system has finished solving, our current coordinates configuration are based on what our
+         //converged velocity field ended up being equal to.
+         //If the update fails we want to exit.
+         MFEM_VERIFY(newton_solver.GetConverged(), "Newton Solver did not converge.");
+      }// end of upscaling process
+   }// end of 1/4 reduction case
+   
+   //Reset our max number of iterations to our original desired value.
+   newton_solver.SetMaxIter(newton_iter);
 }
 
 // compute: y = H(x,p)

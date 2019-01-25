@@ -59,10 +59,7 @@ void ExaNewtonSolver::SetOperator(const Operator &op)
 
    norm0 = norm = Norm(r);
    //Set the value for the norm that we'll exit on
-   norm_max = rel_tol*norm;//std::max(rel_tol*norm, abs_tol);
-
-   printf("Max norm %lf\n", norm_max);
-   printf("Relative Norm %lf\n", rel_tol);
+   norm_max = std::max(rel_tol*norm, abs_tol);
    
    prec->iterative_mode = false;
 
