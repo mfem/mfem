@@ -107,6 +107,7 @@ protected:
    /// stuff
    bool umat_used;
    int newton_iter;
+   int myid;
 
 public:
    NonlinearMechOperator(ParFiniteElementSpace &fes,
@@ -1033,6 +1034,8 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
    Vector * rhs;
    rhs = NULL;
 
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
    umat_used = umat;
      
    // Define the parallel nonlinear form 
@@ -1143,7 +1146,7 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       J_pcg->SetRelTol(1e-10);
       //The absolute tolerance could probably get even smaller then this
       J_pcg->SetAbsTol(1e-30);
-      J_pcg->SetMaxIter(150);
+      J_pcg->SetMaxIter(200);
       J_pcg->SetPrintLevel(0);
       J_pcg->iterative_mode = true;
       J_pcg->SetPreconditioner(*J_prec);
@@ -1241,7 +1244,7 @@ void NonlinearMechOperator::SolveInit(Vector &x)
    //to be a problem when really increasing the mesh size.
    if(!newton_solver.GetConverged()){
       //We're going to reset our initial applied BCs to being 1/64 of the original
-      mfem::out << "Solution didn't converge. Reducing initial condition to 1/4 original value\n";
+      if(myid == 0) mfem::out << "Solution didn't converge. Reducing initial condition to 1/4 original value\n";
       x = init_x;
       x *= 0.25;
       //We're going to keep track of how many cuts we need to make. Hopefully we
@@ -1263,8 +1266,8 @@ void NonlinearMechOperator::SolveInit(Vector &x)
       
       if(!newton_solver.GetConverged()){
          //We're going to reset our initial applied BCs to being 1/16 of the original
-         mfem::out << "Solution didn't converge. Reducing initial condition to 1/16 original value\n";
-         x = init_x;
+	 if(myid == 0) mfem::out << "Solution didn't converge. Reducing initial condition to 1/16 original value\n";
+	 x = init_x;
          x *= 0.0625;
          //We're going to keep track of how many cuts we need to make. Hopefully we
          //don't have to reduce it anymore then 3 times total.
@@ -1285,8 +1288,8 @@ void NonlinearMechOperator::SolveInit(Vector &x)
          
          if(!newton_solver.GetConverged()){
             //We're going to reset our initial applied BCs to being 1/64 of the original
-            mfem::out << "Solution didn't converge. Reducing initial condition to 1/64 original value\n";
-            x = init_x;
+	    if(myid == 0) mfem::out << "Solution didn't converge. Reducing initial condition to 1/64 original value\n";
+	    x = init_x;
             x *= 0.015625;
             //We're going to keep track of how many cuts we need to make. Hopefully we
             //don't have to reduce it anymore then 3 times total.
@@ -1318,7 +1321,7 @@ void NonlinearMechOperator::SolveInit(Vector &x)
       //upscale from the lowest level to our top layer since we're dealing with
       //supposedly a linear elastic type problem here.
       for (int j = 0; j < i; j++) {
-         mfem::out << "Upscaling previous solution by factor of 4\n";
+	 if(myid == 0) mfem::out << "Upscaling previous solution by factor of 4\n";
          x *= 4.0;
          //We provide an initial guess for what our current coordinates will look like
          //based on what our last time steps solution was for our velocity field.
@@ -1833,11 +1836,14 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
    int qf_offset = qf->GetVDim(); // offset = grainSize + stateVarSize
    QuadratureSpace* qspace = qf->GetSpace();
    
+   int myid;
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
    // check to make sure the sum of the input sizes matches the offset of 
    // the input quadrature function
    if (qf_offset != (grainSize + stateVarSize))
    {
-      cerr << "\nsetStateVarData: Input state variable and grain sizes do not "
+      if(myid == 0) cerr << "\nsetStateVarData: Input state variable and grain sizes do not "
                  "match quadrature function initialization." << '\n';
    }
 
@@ -1855,7 +1861,7 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
    {
       // print warning to screen since this case could arise from a user 
       // simply not setting this parameter
-      std::cout << "warning::setStateVarData grain data placed at end of"
+      if(myid == 0) std::cout << "warning::setStateVarData grain data placed at end of"
                 << " state variable array. Check grain_statevar_offset input arg." << "\n";
 
       offset1 = stateVarSize - 1;
