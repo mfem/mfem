@@ -1272,6 +1272,12 @@ public:
   void MultCSL(const mfem::Vector &x, mfem::Vector &y) const;
   
   void Smooth(const int n, const mfem::Vector &x, mfem::Vector &y) const;
+
+  void CorrectionGradient(const mfem::Vector &x, mfem::Vector &y) const;
+  void CorrectionCSL(const mfem::Vector &x, mfem::Vector &y) const;
+  void CorrectionPix(const mfem::Vector &x, mfem::Vector &y) const;
+  void CorrectionPiy(const mfem::Vector &x, mfem::Vector &y) const;
+  void CorrectionPiz(const mfem::Vector &x, mfem::Vector &y) const;
   
   /*
   virtual operator HYPRE_Solver() const { return empty_ams; }

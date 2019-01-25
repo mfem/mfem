@@ -66,7 +66,7 @@ void GetHelmholtzMatrix(ParMesh *pmesh, const int dir, HypreParMatrix *A)
 
   Array<int> ess_tdof_list;
 
-  const bool homogeneousBCeverywhere = true;
+  const bool homogeneousBCeverywhere = false;
   if (homogeneousBCeverywhere)
     {
       if (pmesh->bdr_attributes.Size())
@@ -101,13 +101,12 @@ void GetHelmholtzMatrix(ParMesh *pmesh, const int dir, HypreParMatrix *A)
 	  n[1] = (u[2]*w[0]) - (u[0]*w[2]);
 	  n[2] = (u[0]*w[1]) - (u[1]*w[0]);
 
-	  double t = (n[0]*n[0]) + (n[1]*n[1]) + (n[2]*n[2]);
-
-	  MFEM_VERIFY(fabs(t-1.0) < 1.0e-8, "");
+	  double t = sqrt((n[0]*n[0]) + (n[1]*n[1]) + (n[2]*n[2]));
 
 	  int d = -1;
 	  for (int j=0; j<3; ++j)
 	    {
+	      n[j] /= t;  // normalize
 	      if (fabs(fabs(n[j]) - 1.0) < 1.0e-8)
 		d = j;
 	    }
@@ -129,7 +128,7 @@ void GetHelmholtzMatrix(ParMesh *pmesh, const int dir, HypreParMatrix *A)
       ess_bdr[1] = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
     }
-  
+
   ParBilinearForm *a = new ParBilinearForm(fespace);
   ConstantCoefficient one(1.0);
   ConstantCoefficient neg(SIGMAVAL);
@@ -427,7 +426,8 @@ int main(int argc, char *argv[])
 	   
        Mcopy *= beta2;
 	   
-       ComplexHypreParMatrix chpm(cslRe, &Mcopy, false, false);
+       //ComplexHypreParMatrix chpm(cslRe, &Mcopy, false, false);
+       ComplexHypreParMatrix chpm(&A, &Mcopy, false, false);  // For the case beta1 = 1.
 
        HypreParMatrix *cSysMat = chpm.GetSystemMatrix();
 
@@ -564,8 +564,9 @@ int main(int argc, char *argv[])
 #else
 	   HypreIAMS *iams = new HypreIAMS(A, H, strumpack, NULL, NULL, (HypreAMS*) ams, argc, argv);
 #endif
-	   
+
 	   GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
+	   //FGMRESSolver *gmres = new FGMRESSolver(fespace->GetComm());
 	   //BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
 	   //MINRESSolver *gmres = new MINRESSolver(fespace->GetComm());
 	   

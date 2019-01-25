@@ -3805,30 +3805,8 @@ void HypreIAMS::Smooth(const int n, const mfem::Vector &x, mfem::Vector &y) cons
     }
 }
 
-void HypreIAMS::MultCSL(const mfem::Vector &x, mfem::Vector &y) const
+void HypreIAMS::CorrectionCSL(const mfem::Vector &x, mfem::Vector &y) const
 {
-  const int id_x = 0;
-  const int id_y = 1;
-  const int id_z = 2;
-  const int id_G = 3;
-
-  y = 0.0;
-
-  /*
-  r = 0.0;
-  r -= x;
-  */
-  
-  Smooth(1, x, y);
-
-  m_A->Mult(y, r);
-  r -= x;
-  
-  m_G.MultTranspose(r, w);
-  strumpack[3]->Mult(w, z);
-  m_G.Mult(z, v);
-  y -= v;
-
   m_A->Mult(y, r);
   r -= x;
 
@@ -3840,123 +3818,88 @@ void HypreIAMS::MultCSL(const mfem::Vector &x, mfem::Vector &y) const
   identity.Mult(m_trueBlockY->GetBlock(0), v);
   //v = (mfem::Vector) m_trueBlockY->GetBlock(0);  // Why doesn't this work?
   y -= v;
+}
 
+void HypreIAMS::CorrectionGradient(const mfem::Vector &x, mfem::Vector &y) const
+{
   m_A->Mult(y, r);
   r -= x;
   
   m_G.MultTranspose(r, w);
-  strumpack[id_G]->Mult(w, z);
+  strumpack[3]->Mult(w, z);
   m_G.Mult(z, v);
   y -= v;
+}
 
+void HypreIAMS::CorrectionPix(const mfem::Vector &x, mfem::Vector &y) const
+{
   m_A->Mult(y, r);
   r -= x;
-
+  
   m_Pix.MultTranspose(r, w);
-  strumpack[id_x]->Mult(w, z);
+  strumpack[0]->Mult(w, z);
   m_Pix.Mult(z, v);
   y -= v;
+}
 
-  //Smooth(1, x, y);
-
-  m_A->Mult(y, r);
-  r -= x;
-
-  m_G.MultTranspose(r, w);
-  strumpack[id_G]->Mult(w, z);
-  m_G.Mult(z, v);
-  y -= v;
-
-  //Smooth(2, x, y);
-  
+void HypreIAMS::CorrectionPiy(const mfem::Vector &x, mfem::Vector &y) const
+{
   m_A->Mult(y, r);
   r -= x;
 
   m_Piy.MultTranspose(r, w);
-  strumpack[id_y]->Mult(w, z);
+  strumpack[1]->Mult(w, z);
   m_Piy.Mult(z, v);
   y -= v;
+}
 
-  //Smooth(1, x, y);
-  
-  m_A->Mult(y, r);
-  r -= x;
-
-  m_G.MultTranspose(r, w);
-  strumpack[id_G]->Mult(w, z);
-  m_G.Mult(z, v);
-  y -= v;
-
-  //Smooth(2, x, y);
-
+void HypreIAMS::CorrectionPiz(const mfem::Vector &x, mfem::Vector &y) const
+{
   m_A->Mult(y, r);
   r -= x;
 
   m_Piz.MultTranspose(r, w);
-  strumpack[id_z]->Mult(w, z);
+  strumpack[2]->Mult(w, z);
   m_Piz.Mult(z, v);
   y -= v;
+}
 
-  m_A->Mult(y, r);
-  r -= x;
+void HypreIAMS::MultCSL(const mfem::Vector &x, mfem::Vector &y) const
+{
+  const int id_x = 0;
+  const int id_y = 1;
+  const int id_z = 2;
+  const int id_G = 3;
 
-  m_G.MultTranspose(r, w);
-  strumpack[id_G]->Mult(w, z);
-  m_G.Mult(z, v);
-  y -= v;
+  y = 0.0;
   
-  m_A->Mult(y, r);
-  r -= x;
+  Smooth(1, x, y);
+  CorrectionGradient(x, y);
+
+  CorrectionCSL(x, y);
+  CorrectionGradient(x, y);
+
+  CorrectionPix(x, y);
+  CorrectionGradient(x, y);
+
+  CorrectionPiy(x, y);
+  CorrectionGradient(x, y);
+
+  CorrectionPiz(x, y);
+  CorrectionGradient(x, y);
 
   /*
-  m_Piy.MultTranspose(r, w);
-  strumpack[id_y]->Mult(w, z);
-  m_Piy.Mult(z, v);
-  y -= v;
+  CorrectionPiy(x, y);
+  CorrectionGradient(x, y);
 
-  m_A->Mult(y, r);
-  r -= x;
-
-  m_G.MultTranspose(r, w);
-  strumpack[3]->Mult(w, z);
-  m_G.Mult(z, v);
-  y -= v;
-
-  m_A->Mult(y, r);
-  r -= x;
-
-  m_Pix.MultTranspose(r, w);
-  strumpack[id_x]->Mult(w, z);
-  m_Pix.Mult(z, v);
-  y -= v;
-
-  m_A->Mult(y, r);
-  r -= x;
-
-  m_G.MultTranspose(r, w);
-  strumpack[3]->Mult(w, z);
-  m_G.Mult(z, v);
-  y -= v;
-
-  //Smooth(1, x, y);
-
-  m_A->Mult(y, r);
-  r -= x;
-  */
-  /*
-  m_trueBlockX->GetBlock(0) = r;
-  m_trueBlockX->GetBlock(1) = 0.0;
+  CorrectionPix(x, y);
+  CorrectionGradient(x, y);
   
-  m_CSL->Mult(*m_trueBlockX, *m_trueBlockY);
-  identity.Mult(m_trueBlockY->GetBlock(0), v);
-  //v = (mfem::Vector) m_trueBlockY->GetBlock(0);  // Why doesn't this work?
-  y -= v;
+  CorrectionCSL(x, y);
+  CorrectionGradient(x, y);
 
-  m_A->Mult(y, r);
-  r -= x;
+  Smooth(1, x, y);
   */
-  
-  // Smooth(1, x, y);
 }
 
 void HypreIAMS::MultMultiplicative(const mfem::Vector &x, mfem::Vector &y) const
