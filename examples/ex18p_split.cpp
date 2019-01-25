@@ -207,6 +207,7 @@ int main(int argc, char *argv[])
    int ode_imp_solver_type = -1;
    double t_final = -1.0;
    double dt = -0.01;
+   double dt_rel_tol = 0.1;
    double cfl = 0.3;
    bool visualization = true;
    int vis_steps = 50;
@@ -246,6 +247,9 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step. Positive number skips CFL timestep calculation.");
+   args.AddOption(&dt_rel_tol, "-dttol", "--time-step-tolerance",
+                  "Time step will only be adjusted if the relative difference "
+                  "exceeds dttol.");
    args.AddOption(&cfl, "-c", "--cfl-number",
                   "CFL number for timestep calculation.");
    args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
@@ -582,15 +586,19 @@ int main(int argc, char *argv[])
                           1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
             max_char_speed_ = all_max_char_speed;
          }
-         dt = cfl * hmin / max_char_speed_ / (2*order+1);
+         double new_dt = cfl * hmin / max_char_speed_ / (2*order+1);
 
-         if (mpi.Root())
+         if (fabs(dt - new_dt) > dt_rel_tol * dt)
          {
-            cout << "Adjusting time step\n";
-            cout << "Minimum Edge Length: " << hmin << '\n';
-            cout << "Maximum Speed:       " << max_char_speed_ << '\n';
-            cout << "CFL fraction:        " << cfl << '\n';
-            cout << "New Time Step:       " << dt << '\n';
+            dt = new_dt;
+            if (mpi.Root())
+            {
+               cout << "Adjusting Time Step\n";
+               cout << "Minimum Edge Length: " << hmin << '\n';
+               cout << "Maximum Speed:       " << max_char_speed_ << '\n';
+               cout << "CFL fraction:        " << cfl << '\n';
+               cout << "New Time Step:       " << new_dt << '\n';
+            }
          }
       }
       ti++;
