@@ -476,7 +476,7 @@ int main(int argc, char *argv[])
          pout.precision(precision);
          pout << "solution\n" << pmesh << momentum;
          pout << "window_title 'Momentum Density'\n";
-         pout << "keys c\n";
+         pout << "keys cvvv\n";
          pout << "pause\n";
          pout << flush;
 
