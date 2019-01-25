@@ -72,7 +72,7 @@ public:
    // **************************************************************************
    static inline void enableGpu(const int dev =0) { Get().MfemDeviceSetup(dev); }
    static inline bool gpuEnabled() { return Get().ngpu > 0; }
-   static inline bool gpuDisabled() { return Get().ngpu < 0; }
+   static inline bool gpuDisabled() { return Get().ngpu == 0; }
    static inline bool gpuHasBeenEnabled() { return Get().ngpu >= 0; }
 
    static inline bool usingGpu() { return gpuEnabled() && Get().mode == GPU; }

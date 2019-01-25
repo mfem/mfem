@@ -111,10 +111,11 @@ public:
 
 private:
    ledger maps;
-
+   bool deleted = false;
    mm() {}
-   mm(mm const&);
-   void operator=(mm const&);
+   ~mm() { deleted = true; }
+   mm(mm const&) = delete;
+   void operator=(mm const&) = delete;
    static inline mm& MM() { static mm singleton; return singleton; }
 
    // **************************************************************************
