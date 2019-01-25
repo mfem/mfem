@@ -569,12 +569,12 @@ void ParMesh::GenerateParMetaData(Mesh &mesh, int rank_id, int *partitioning)
    if (send)
    {
       data[0] = groups.Size();
-      MPI_Send(data, 1, MPI_INT, rank_id, pm_tag+160, MyComm);
+      MPI_Send(data, 1, MPI_INT, rank_id, pm_tag+170, MyComm);
       for (int i = 0; i < data[0]; i++)
       {
          MPI_Send(groups.GetIntegerSet(i)->GetData(),
                   groups.GetIntegerSet(i)->Size(),
-                  MPI_INT, rank_id, pm_tag+170+i, MyComm);
+                  MPI_INT, rank_id, pm_tag+180+i, MyComm);
       }
    }
    else
@@ -677,12 +677,12 @@ ParMesh::ParMesh(MPI_Comm comm, int creator_id) : gtopo(comm)
             MPI_STATUS_IGNORE);
 
    ListOfIntegerSets groups;
-   MPI_Recv(buf, 1, MPI_INT, creator_id, pm_tag+160, MyComm, MPI_STATUS_IGNORE);
+   MPI_Recv(buf, 1, MPI_INT, creator_id, pm_tag+170, MyComm, MPI_STATUS_IGNORE);
    const int groups_cnt = buf[0];
    for (int g = 0; g < groups_cnt; g++)
    {
       IntegerSet group;
-      rec_IntegerSet(MyComm, pm_tag+170+g, creator_id, group);
+      rec_IntegerSet(MyComm, pm_tag+180+g, creator_id, group);
       groups.Insert(group);
    }
    gtopo.Create(groups, 822);
