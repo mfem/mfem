@@ -14,18 +14,12 @@
 #include "fem.hpp"
 #include "fespace_ext.hpp"
 #include "kernels/fespace.hpp"
+#include "../general/kernels/array.hpp"
 
 // *****************************************************************************
 namespace mfem
 {
 
-// **************************************************************************
-static void ArrayAssign(const int n, const int *src, int *dest)
-{
-   GET_CONST_PTR_T(src,int);
-   GET_PTR_T(dest,int);
-   MFEM_FORALL(i, n, d_dest[i] = d_src[i];);
-}
 
 // *****************************************************************************
 // * FiniteElementSpaceExtension
@@ -94,9 +88,9 @@ FiniteElementSpaceExtension::FiniteElementSpaceExtension(FiniteElementSpace *f)
 
    const int leN = localDofs*elements;
    const int guN = globalDofs+1;
-   ArrayAssign(guN,h_offsets,offsets);
-   ArrayAssign(leN,h_indices,indices);
-   ArrayAssign(leN,h_map,map);
+   kernels::array::Assign(guN,h_offsets,offsets);
+   kernels::array::Assign(leN,h_indices,indices);
+   kernels::array::Assign(leN,h_map,map);
 }
 
 // ***************************************************************************

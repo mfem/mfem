@@ -97,7 +97,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const int numQuad  = ir.GetNPoints();
    const int elements = fespace->GetNE();
    const int ndofs    = fespace->GetNDofs();
-   const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
+   const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->meshNodes);
    kernels::fem::Geom(dims, numDofs, numQuad, elements,
                       maps->dofToQuadD,
@@ -152,7 +152,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
       geom->invJ.allocate(dims, dims, numQuad, elements);
       geom->detJ.allocate(numQuad, elements);
    }
-   const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
+   const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    kernels::fem::Geom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
                       geom->meshNodes, geom->J, geom->invJ, geom->detJ);
    delete maps;

@@ -42,6 +42,7 @@ void Print(const size_t N, const double *x);
 void Set(const size_t N, const double d, double *y);
 
 void Assign(const size_t N, const double *x, double *y);
+void Assign(const size_t N, const int *x, int *y);
 
 void OpMultEQ(const size_t N, const double d, double *y);
 

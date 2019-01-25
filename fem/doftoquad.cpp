@@ -22,19 +22,19 @@ namespace mfem
 {
 
 // ***************************************************************************
-// * kDofQuadMaps
+// * DofToQuad
 // ***************************************************************************
-static std::map<std::string, kDofQuadMaps* > AllDofQuadMaps;
+static std::map<std::string, DofToQuad* > AllDofQuadMaps;
 
 // *****************************************************************************
-kDofQuadMaps* kDofQuadMaps::Get(const FiniteElementSpace& fes,
+DofToQuad* DofToQuad::Get(const FiniteElementSpace& fes,
                                 const IntegrationRule& ir,
                                 const bool transpose)
 {
    return Get(*fes.GetFE(0), *fes.GetFE(0), ir, transpose);
 }
 
-kDofQuadMaps* kDofQuadMaps::Get(const FiniteElementSpace& trialFES,
+DofToQuad* DofToQuad::Get(const FiniteElementSpace& trialFES,
                                 const FiniteElementSpace& testFES,
                                 const IntegrationRule& ir,
                                 const bool transpose)
@@ -42,7 +42,7 @@ kDofQuadMaps* kDofQuadMaps::Get(const FiniteElementSpace& trialFES,
    return Get(*trialFES.GetFE(0), *testFES.GetFE(0), ir, transpose);
 }
 
-kDofQuadMaps* kDofQuadMaps::Get(const FiniteElement& trialFE,
+DofToQuad* DofToQuad::Get(const FiniteElement& trialFE,
                                 const FiniteElement& testFE,
                                 const IntegrationRule& ir,
                                 const bool transpose)
@@ -51,7 +51,7 @@ kDofQuadMaps* kDofQuadMaps::Get(const FiniteElement& trialFE,
 }
 
 // ***************************************************************************
-kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
+DofToQuad* DofToQuad::GetTensorMaps(const FiniteElement& trialFE,
                                           const FiniteElement& testFE,
                                           const IntegrationRule& ir,
                                           const bool transpose)
@@ -74,11 +74,11 @@ kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
       return AllDofQuadMaps[hash];
    }
    // Otherwise, build them
-   kDofQuadMaps *maps = new kDofQuadMaps();
+   DofToQuad *maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   const kDofQuadMaps* trialMaps = GetD2QTensorMaps(trialFE, ir);
-   const kDofQuadMaps* testMaps  = GetD2QTensorMaps(testFE, ir, true);
+   const DofToQuad* trialMaps = GetD2QTensorMaps(trialFE, ir);
+   const DofToQuad* testMaps  = GetD2QTensorMaps(testFE, ir, true);
    maps->dofToQuad   = trialMaps->dofToQuad;
    maps->dofToQuadD  = trialMaps->dofToQuadD;
    maps->quadToDof   = testMaps->dofToQuad;
@@ -90,7 +90,7 @@ kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
 }
 
 // ***************************************************************************
-kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
+DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
                                              const IntegrationRule& ir,
                                              const bool transpose)
 {
@@ -122,7 +122,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
       return AllDofQuadMaps[hash];
    }
 
-   kDofQuadMaps *maps = new kDofQuadMaps();
+   DofToQuad *maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
 
@@ -187,7 +187,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
 }
 
 // ***************************************************************************
-kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& fe,
+DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& fe,
                                            const IntegrationRule& ir,
                                            const bool transpose)
 {
@@ -195,7 +195,7 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& fe,
 }
 
 // *****************************************************************************
-kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
+DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& trialFE,
                                            const FiniteElement& testFE,
                                            const IntegrationRule& ir,
                                            const bool transpose)
@@ -211,11 +211,11 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
    {
       return AllDofQuadMaps[hash];
    }
-   kDofQuadMaps *maps = new kDofQuadMaps();
+   DofToQuad *maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   const kDofQuadMaps* trialMaps = GetD2QSimplexMaps(trialFE, ir);
-   const kDofQuadMaps* testMaps  = GetD2QSimplexMaps(testFE, ir, true);
+   const DofToQuad* trialMaps = GetD2QSimplexMaps(trialFE, ir);
+   const DofToQuad* testMaps  = GetD2QSimplexMaps(testFE, ir, true);
    maps->dofToQuad   = trialMaps->dofToQuad;
    maps->dofToQuadD  = trialMaps->dofToQuadD;
    maps->quadToDof   = testMaps->dofToQuad;
@@ -227,7 +227,7 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
 }
 
 // ***************************************************************************
-kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
+DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
                                               const IntegrationRule& ir,
                                               const bool transpose)
 {
@@ -248,7 +248,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
       return AllDofQuadMaps[hash];
    }
 
-   kDofQuadMaps* maps = new kDofQuadMaps();
+   DofToQuad* maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
 

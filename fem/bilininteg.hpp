@@ -1646,7 +1646,7 @@ private:
    Coefficient *Q;
    MatrixCoefficient *MQ;
    // PA extension
-   kDofQuadMaps *maps;
+   DofToQuad *maps;
    int dim, ne, dofs1D, quad1D;
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
@@ -1701,7 +1701,7 @@ protected:
    Coefficient *Q;
    // PA extension
    Vector vec;
-   kDofQuadMaps *maps;
+   DofToQuad *maps;
    int dim, ne, dofs1D, quad1D;
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
