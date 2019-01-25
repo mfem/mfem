@@ -1208,7 +1208,7 @@ public:
       }
       else
       {
-         // TODO generalize to general 1D segments (different lengths)
+         // TODO generalize to arbitrary 1D segments (different lengths)
          ref_mesh = new Mesh(mesh->GetNE()*p, 1.);
          ref_mesh->SetCurvature(1);
       }
@@ -1270,7 +1270,7 @@ private:
    CGSolver M_solver;
 
    mutable Vector z;
-   mutable Vector zz; // TODO
+   mutable Vector zz; // TODO if necessary, other wise remove, or implement limiter more practicable
 
    double dt;
    const FluxCorrectedTransport &fct;
@@ -1602,7 +1602,7 @@ int main(int argc, char *argv[])
    }
 
    // check for conservation
-   Vector tmp(u); // TODO initialize like this
+   Vector tmp(u);
    double initialMass = fct.lumpedM * u;
 
    // 8. Define the time-dependent evolution operator describing the ODE
