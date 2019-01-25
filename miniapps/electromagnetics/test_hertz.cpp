@@ -376,8 +376,8 @@ int main(int argc, char *argv[])
 
    double ion_frac = 0.0;
    ConstantCoefficient rhoCoef1(1.0e19);
-   ConstantCoefficient rhoCoef2(rhoCoef1.constant * ion_frac);
-   ConstantCoefficient rhoCoef3(rhoCoef1.constant * (1.0 - ion_frac));
+   ConstantCoefficient rhoCoef2(rhoCoef1.constant * (1.0 - ion_frac));
+   ConstantCoefficient rhoCoef3(rhoCoef1.constant * ion_frac);
    ConstantCoefficient tempCoef(10.0 * q_);
 
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
@@ -904,8 +904,8 @@ void real_epsilon_sigma(double omega, const Vector &B,
                         D * cos(th) * sin(ph));
 
    complex<double> e_yx = std::conj(e_xy);
-   complex<double> e_zx = std::conj(e_zx);
-   complex<double> e_zy = std::conj(e_zy);
+   complex<double> e_zx = std::conj(e_xz);
+   complex<double> e_zy = std::conj(e_yz);
 
    if (real_epsilon != NULL)
    {
