@@ -61,7 +61,7 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace *fes)
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
    const GeometryExtension *geo = GeometryExtension::Get(*fes,*ir);
-   maps = kDofQuadMaps::Get(*fes, *fes, *ir);
+   maps = DofToQuad::Get(*fes, *fes, *ir);
    vec.SetSize(symmDims * quadraturePoints * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
    kernels::fem::DiffusionAssemble(dim, quad1D, ne,
@@ -96,7 +96,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace *fes)
    dofs1D = el.GetOrder() + 1;
    assert(ir);
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   maps = kDofQuadMaps::Get(*fes, *fes, *IntRule);
+   maps = DofToQuad::Get(*fes, *fes, *IntRule);
 }
 
 // *****************************************************************************
