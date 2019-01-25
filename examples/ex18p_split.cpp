@@ -467,6 +467,7 @@ int main(int argc, char *argv[])
          sout.precision(precision);
          sout << "solution\n" << pmesh << density;
          sout << "window_title 'Density'\n";
+         sout << "keys c\n";
          sout << "pause\n";
          sout << flush;
 
@@ -475,6 +476,7 @@ int main(int argc, char *argv[])
          pout.precision(precision);
          pout << "solution\n" << pmesh << momentum;
          pout << "window_title 'Momentum Density'\n";
+         pout << "keys c\n";
          pout << "pause\n";
          pout << flush;
 
@@ -483,6 +485,7 @@ int main(int argc, char *argv[])
          eout.precision(precision);
          eout << "solution\n" << pmesh << energy;
          eout << "window_title 'Energy Density'\n";
+         eout << "keys c\n";
          eout << "pause\n";
          eout << flush;
 
