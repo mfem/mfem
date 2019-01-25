@@ -203,8 +203,8 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 3;
    int ode_split_solver_type = 1;
-   int ode_exp_solver_type = 1;
-   int ode_imp_solver_type = 1;
+   int ode_exp_solver_type = -1;
+   int ode_imp_solver_type = -1;
    double t_final = -1.0;
    double dt = -0.01;
    double cfl = 0.3;
@@ -267,6 +267,14 @@ int main(int argc, char *argv[])
    {
       if (mpi.Root()) { args.PrintUsage(cout); }
       return 1;
+   }
+   if (ode_exp_solver_type < 0)
+   {
+      ode_exp_solver_type = ode_split_solver_type;
+   }
+   if (ode_imp_solver_type < 0)
+   {
+      ode_imp_solver_type = ode_split_solver_type;
    }
    if (dg_kappa_ < 0)
    {
