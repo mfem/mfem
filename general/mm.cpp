@@ -107,7 +107,8 @@ void* mm::Insert(void *ptr, const size_t bytes)
 void *mm::Erase(void *ptr)
 {
    if (!config::usingMM()) { return ptr; }
-   if (config::gpuDisabled()) { return ptr; } //I think by default the condition should be true.
+   if (config::gpuDisabled()) { return ptr; }
+   if (deleted){ return ptr; }
    const bool known = Known(maps, ptr);
    // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("mm::Erase"); }
@@ -307,7 +308,7 @@ void mm::Pull(const void *ptr, const size_t bytes)
 
 // *****************************************************************************
 // __attribute__((unused)) // VS doesn't like this in Appveyor
-static void Dump(const mm::ledger &maps)
+/*static void Dump(const mm::ledger &maps)
 {
    if (!getenv("DBG")) { return; }
    const mm::memory_map &mem = maps.memories;
@@ -342,7 +343,7 @@ static void Dump(const mm::ledger &maps)
       fflush(0);
       k++;
    }
-}
+}*/
 
 // *****************************************************************************
 // * Data will be pushed/pulled before the copy happens on the H or the D
