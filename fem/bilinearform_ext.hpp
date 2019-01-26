@@ -88,6 +88,7 @@ public:
    // void AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator*);
    // void AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator*);
 
+   void Update(FiniteElementSpace *fes);
    void Assemble();
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A);
    void FormLinearSystem(const Array<int> &ess_tdof_list,

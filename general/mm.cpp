@@ -72,7 +72,7 @@ static bool Alias(mm::ledger &maps, const void *ptr)
 }
 
 // *****************************************************************************
-/*static void debugMode(void)
+static void debugMode(void)
 {
    dbg("\033[1K\r%sMM %sHasBeenEnabled %sEnabled %sDisabled \
 %sCPU %sGPU %sPA %sCUDA %sOCCA",
@@ -85,7 +85,7 @@ static bool Alias(mm::ledger &maps, const void *ptr)
        config::usingPA()?"\033[32m":"\033[31m",
        config::usingCuda()?"\033[32m":"\033[31m",
        config::usingOcca()?"\033[32m":"\033[31m");
-}*/
+}
 
 // *****************************************************************************
 // * Adds an address
@@ -93,6 +93,7 @@ static bool Alias(mm::ledger &maps, const void *ptr)
 void* mm::Insert(void *ptr, const size_t bytes)
 {
    if (!config::usingMM()) { return ptr; }
+   debugMode();
    if (config::gpuDisabled()) { return ptr; }
    const bool known = Known(maps, ptr);
    if (known) { BUILTIN_TRAP; }

@@ -50,6 +50,9 @@ static void Geom(const int DIM,
                  double* invJ,
                  double* detJ)
 {
+   stk();
+   static int loop = 0;
+   //if (loop++==1) { assert(false); }
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
    const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
    const unsigned int id = (DIM<<8)|(dofs1D-2)<<4|(quad1D-2);
@@ -201,11 +204,14 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
                         const IntegrationRule& ir)
 {
    Mesh *mesh = fes.GetMesh();
-   const bool geom_to_allocate = !geom;
-   if (geom_to_allocate) { geom = new Geometry(); }
+#warning geom_to_allocate
+   const bool geom_to_allocate = true;//!geom;
+   if (geom_to_allocate) {
+      geom = new Geometry();
+   }
    if (!mesh->GetNodes())
    {
-      // mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+      mesh->EnsureNodes();
    }
    const GridFunction *nodes = mesh->GetNodes();
 
@@ -222,6 +228,11 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
    const Table& e2dTable = fespace->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    mfem::Array<int> eMap(numDofs*elements);
+   dbg("dims=%d",dims);
+   dbg("elements=%d",elements);
+   dbg("numDofs=%d",numDofs);
+   assert(nodes);
+   assert(elementMap);
    GeomFill(dims,
             elements,
             numDofs,
@@ -229,9 +240,11 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
             eMap.GetData(),
             nodes->GetData(),
             meshNodes.GetData());
+   static int loop = 0;
 
    if (geom_to_allocate)
    {
+      dbg("geom_to_allocate: meshNodes, eMap");
       geom->meshNodes.allocate(dims, numDofs, elements);
       geom->eMap.allocate(numDofs, elements);
    }
@@ -241,14 +254,27 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
    if (orderedByNODES) { ReorderByNodes(nodes); }
    if (geom_to_allocate)
    {
+      dbg("geom_to_allocate: J, invJ, detJ");
       geom->J.allocate(dims, dims, numQuad, elements);
       geom->invJ.allocate(dims, dims, numQuad, elements);
       geom->detJ.allocate(numQuad, elements);
    }
+   dbg("maps...");
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
+   assert(geom->J);
+   assert(geom->invJ);
+   assert(geom->detJ);
+   assert(geom->meshNodes);
+   assert(maps);
+   assert(maps->dofToQuadD);
+   //dbg("while..."); if (loop==1) {while(true);}
+   dbg("Geom...");
    Geom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
         geom->meshNodes, geom->J, geom->invJ, geom->detJ);
-   delete maps;
+   //if (loop==1) { assert(false); }
+#warning no delete maps
+   //delete maps;
+   loop++;
    return geom;
 }
 
