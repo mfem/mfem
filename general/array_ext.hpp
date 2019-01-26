@@ -101,6 +101,12 @@ public:
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       mm::memcpy(data,r.GetData(),r.bytes());
    }
+   Array& operator=(const Array<T,true> &r)
+   {
+      allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
+      mm::memcpy(data,r,r.bytes());
+      return *this;
+   }
    Array& operator=(const Array<T,false> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);

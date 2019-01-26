@@ -87,14 +87,29 @@ void PABilinearFormExtension::Assemble()
    }
 }
 
+void PABilinearFormExtension::Update(FiniteElementSpace *fes){
+   height = width = fes->GetVSize();
+   trialFes = fes;
+   testFes = fes;
+   localX.SetSize(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim());
+   localY.SetSize(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim());
+   delete kfes;
+   kfes = new kFiniteElementSpace(fes);
+}
+
 void PABilinearFormExtension::FormSystemOperator(const Array<int>
                                                  &ess_tdof_list,
                                                  Operator *&A)
 {
+   stk();
+//#warning trialP
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
-   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
+   if (trialP) {
+      dbg("trialP");
+      rap = new RAPOperator(*testP, *this, *trialP);
+   }
    const bool own_A = (rap!=this);
    assert(rap);
    A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
@@ -105,12 +120,14 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                Operator *&A, Vector &X, Vector &B,
                                                int copy_interior)
 {
+   stk();
    FormSystemOperator(ess_tdof_list, A);
-
+//#warning P
    const Operator* P = trialFes->GetProlongationMatrix();
    const Operator* R = trialFes->GetRestrictionMatrix();
    if (P)
    {
+      dbg("P");
       // Variational restriction with P
       B.SetSize(P->Width());
       P->MultTranspose(b, B);
@@ -119,6 +136,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
    }
    else
    {
+      dbg("!P");
       // rap, X and B point to the same data as this, x and b
       X.SetSize(x.Size()); X = x;
       B.SetSize(b.Size()); B = b;
@@ -126,6 +144,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    if (!copy_interior && ess_tdof_list.Size()>0)
    {
+      dbg("!copy_interior && ess_tdof_list");
       const int csz = ess_tdof_list.Size();
       Vector subvec(csz);
       subvec = 0.0;
@@ -144,17 +163,23 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
    assert(cA);
    if (cA)
    {
+      dbg("cA");
       cA->EliminateRHS(X, B);
    }
    else
    {
       mfem_error("BilinearForm::InitRHS expects an ConstrainedOperator");
    }
+   dbg("done");
 }
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+   //static int loop = 0;
+   //dbg("loop=%d",loop);
    kfes->GlobalToLocal(x, localX);
+   //dbg("localX size: %d",localX.Size());
+   //dbg("localY size: %d",localY.Size());
    localY = 0.0;
    const int iSz = integrators.Size();
    assert(iSz==1);
@@ -162,7 +187,9 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    {
       integrators[i]->MultAdd(localX, localY);
    }
+   //if (loop==5) {assert(false);}
    kfes->LocalToGlobal(localY, y);
+   //loop++;
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const

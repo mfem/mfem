@@ -1033,6 +1033,7 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    }
 
    height = width = fes->GetVSize();
+   if (pa) { pa->Update(fes); }
 }
 
 void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)

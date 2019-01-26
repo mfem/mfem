@@ -200,7 +200,10 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
                                            const IntegrationRule& ir,
                                            const bool transpose)
 {
+   stk();
+   static int loop = 0;
    std::stringstream ss;
+   dbg("SimplexMap map '%d-%d-%d'",trialFE.GetOrder(), testFE.GetOrder(), ir.GetNPoints());
    ss << "SimplexMap:"
       << " O1:" << trialFE.GetOrder()
       << " O2:" << testFE.GetOrder()
@@ -209,8 +212,13 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
    // If we've already made the dof-quad maps, reuse them
    if (AllDofQuadMaps.find(hash)!=AllDofQuadMaps.end())
    {
-      return AllDofQuadMaps[hash];
+      //dbg("while..."); if (loop==1) {while(true);}
+      dbg("Return known map!");
+      loop++;
+      return AllDofQuadMaps.at(hash);
+      //return AllDofQuadMaps[hash];
    }
+   dbg("Building map '%d-%d-%d'",trialFE.GetOrder(), testFE.GetOrder(), ir.GetNPoints());
    kDofQuadMaps *maps = new kDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
@@ -223,6 +231,8 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
    maps->quadWeights = testMaps->quadWeights;
    delete trialMaps;
    delete testMaps;
+   //dbg("while..."); if (loop==1) {while(true);}
+   loop++;
    return maps;
 }
 
@@ -245,7 +255,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
 
    if (AllDofQuadMaps.find(hash)!=AllDofQuadMaps.end())
    {
-      return AllDofQuadMaps[hash];
+      return AllDofQuadMaps.at(hash);
    }
 
    kDofQuadMaps* maps = new kDofQuadMaps();
