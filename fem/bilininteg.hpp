@@ -1758,16 +1758,17 @@ private:
    Vector shape, te_shape, vec;
    DenseMatrix partelmat;
    DenseMatrix mcoeff;
+   int Q_order;
+
+protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
 
-   int Q_order;
-
 public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator()
-      : vdim(-1), Q(NULL), VQ(NULL), MQ(NULL), Q_order(0) { }
+      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL) { }
    /** Construct an integrator with scalar coefficient q.
        If possible, save memory by using a scalar integrator since
        the resulting matrix is block diagonal with the same diagonal
@@ -1955,9 +1956,6 @@ public:
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
-   Coefficient *Q;
-   VectorCoefficient *VQ;
-   MatrixCoefficient *MQ;
    void Init(Coefficient *q, VectorCoefficient *vq, MatrixCoefficient *mq)
    { Q = q; VQ = vq; MQ = mq; }
 
@@ -1968,6 +1966,11 @@ private:
    DenseMatrix test_vshape;
    DenseMatrix trial_vshape;
 #endif
+
+protected:
+   Coefficient *Q;
+   VectorCoefficient *VQ;
+   MatrixCoefficient *MQ;
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
