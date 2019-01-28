@@ -3305,8 +3305,11 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
 void PrecondConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
-   int nd = el.GetDof();
-   int dim = el.GetDim();
+   int i, j, iter, max_iter = 20, nd = el.GetDof(), dim = el.GetDim();
+   double resid, abs_tol = 1.e-4;
+   Vector f, x, y;
+   x.SetSize(nd); x = 0.;
+   y.SetSize(nd);
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix dshape, adjJ, Q_ir;
@@ -3334,7 +3337,7 @@ void PrecondConvectionIntegrator::AssembleElementMatrix(
    Q.Eval(Q_ir, Trans, *ir);
 
    conv = mass = 0.0;
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   for (i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       el.CalcDShape(ip, dshape);
@@ -3355,10 +3358,28 @@ void PrecondConvectionIntegrator::AssembleElementMatrix(
    }
    lumpedM = mass;
    lumpedM.Lump();
-   mass.Invert();
+
+   for (j = 0; j < nd; j++)
+   {
+      conv.GetColumnReference(j, f);
+      for (iter = 1; iter <= max_iter; iter++)
+      {
+         mass.Mult(x, y);
+         y -= f;
+         resid = y.Norml2();
+         if (resid <= abs_tol)
+         {
+            break;
+         }
+         for (i = 0; i < nd; i++)
+         {
+            x(i) -= y(i) / lumpedM(i,i);
+         }
+      }
+      tmp.SetCol(j, x);
+   }
    
-   MultABt(mass, lumpedM, tmp);
-   MultAtB(tmp, conv, elmat); // using symmetry of mass matrix
+   MultAtB(lumpedM, tmp, elmat); // using symmetry of mass matrix
 }
 
 }
