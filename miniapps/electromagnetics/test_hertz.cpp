@@ -896,12 +896,12 @@ void real_epsilon_sigma(double omega, const Vector &B,
    double e_yy = (P - S) * pow(cos(ph), 2) + S;
    double e_zz = (P - S) * pow(sin(ph), 2) * pow(sin(th), 2) + S;
 
-   complex<double> e_xy((P - S) * cos(ph) * cos(th) * sin(ph),
-                        D * sin(th) * sin(ph));
+   complex<double> e_xy(-(P - S) * cos(ph) * cos(th) * sin(ph),
+                        - D * sin(th) * sin(ph));
    complex<double> e_xz((P - S) * pow(sin(ph), 2) * sin(th) * cos(th),
                         - D * cos(ph));
-   complex<double> e_yz((P - S) * sin(th) * cos(ph) * sin(ph),
-                        D * cos(th) * sin(ph));
+   complex<double> e_yz(-(P - S) * sin(th) * cos(ph) * sin(ph),
+                        - D * cos(th) * sin(ph));
 
    complex<double> e_yx = std::conj(e_xy);
    complex<double> e_zx = std::conj(e_xz);
