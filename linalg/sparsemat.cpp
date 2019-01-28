@@ -183,6 +183,22 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    isSorted = mat.isSorted;
 }
 
+void SparseMatrix::Push() const
+{
+  const int nnz = I[height];
+  mm::push(I, (height+1)*sizeof(double));
+  mm::push(J, nnz*sizeof(double));
+  mm::push(A, nnz*sizeof(double));
+}
+
+void SparseMatrix::Pull() const
+{
+  const int nnz = I[height];
+  mm::pull(I, (height+1)*sizeof(double));
+  mm::pull(J, nnz*sizeof(double));
+  mm::pull(A, nnz*sizeof(double));
+}
+
 SparseMatrix::SparseMatrix(const Vector &v)
    : AbstractSparseMatrix(v.Size(), v.Size())
    , Rows(NULL)

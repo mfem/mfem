@@ -58,6 +58,12 @@ public:
        array. */
    DenseMatrix(double *d, int h, int w);
 
+  /// Copies data from host to device
+  void Push() const;
+  
+  /// Copies data from device to host
+  void Pull() const;
+
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. This method should not be used with

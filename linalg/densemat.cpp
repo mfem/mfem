@@ -141,6 +141,16 @@ DenseMatrix::DenseMatrix(double *d, int h, int w)
    capacity = -h*w;
 }
 
+void DenseMatrix::Push() const
+{
+  mm::push(data, capacity*sizeof(double));
+}
+  
+void DenseMatrix::Pull() const
+{
+  mm::pull(data, capacity*sizeof(double));
+}
+
 void DenseMatrix::SetSize(int h, int w)
 {
    MFEM_ASSERT(h >= 0 && w >= 0,
