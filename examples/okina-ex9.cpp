@@ -308,7 +308,9 @@ int main(int argc, char *argv[])
          }
       }
    }
+#if defined(__NVCC__)
    cudaDeviceSynchronize(); //just to be sure..
+#endif
    auto t2 = Clock::now();
    std::cout << "Delta t2-t1: "
              << std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count()*1e-9
