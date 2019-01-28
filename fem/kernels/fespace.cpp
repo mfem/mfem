@@ -43,7 +43,7 @@ void L2E(const int NUM_VDIM,
          for (int j = offset; j < nextOffset; ++j)
          {
             const int l_offset =
-               ijNMt(v,d_indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
+            ijNMt(v,d_indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
             d_localX[l_offset] = dofValue;
          }
       }
@@ -74,7 +74,7 @@ void E2L(const int NUM_VDIM,
          for (int j = offset; j < nextOffset; ++j)
          {
             const int l_offset =
-               ijNMt(v,d_indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
+            ijNMt(v,d_indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
             dofValue += d_localX[l_offset];
          }
          const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);

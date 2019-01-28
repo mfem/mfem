@@ -545,7 +545,8 @@ status info:
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
-FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
+FORMAT_FILES  = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
+FORMAT_FILES += $(foreach dir,$(DIRS),"$(dir)/kernels/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 

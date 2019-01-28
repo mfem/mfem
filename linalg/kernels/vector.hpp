@@ -53,7 +53,8 @@ void OpAddEQ(const size_t, const double, const double*, double*);
 void OpSubtractEQ(const size_t size, const double *x, double *y);
 
 void AddElement(const size_t N, const int *dofs, const double *x, double *y);
-void AddElementAlpha(const size_t, const int*, const double*, double*, const double);
+void AddElementAlpha(const size_t, const int*, const double*, double*,
+                     const double);
 
 
 } // namespace vector
