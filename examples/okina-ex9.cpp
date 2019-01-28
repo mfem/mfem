@@ -83,13 +83,15 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
+   //const char *mesh_file = "../data/periodic-hexagon.mesh";  
+   const char *mesh_file = "../data/periodic-cube.mesh"; 
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 4;
-   double t_final = 10.0;
+   double t_final = 1.0;
    double dt = 0.01;
    bool visualization = true;
+   bool cuda = true;
    bool visit = false;
    bool binary = false;
    int vis_steps = 200;
@@ -116,6 +118,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
@@ -273,6 +276,11 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   // 8.5 Okina config parameters
+   if (cuda) { config::useCuda(); }
+   config::enableGpu(0/*,occa,cuda*/);
+   config::SwitchToGpu();
+
    bool done = false;
    auto t1 = Clock::now();
    for (int ti = 0; !done; )
@@ -300,6 +308,7 @@ int main(int argc, char *argv[])
          }
       }
    }
+   cudaDeviceSynchronize(); //just to be sure..
    auto t2 = Clock::now();
    std::cout << "Delta t2-t1: "
              << std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count()*1e-9
@@ -312,6 +321,13 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u.Save(osol);
    }
+
+   //9.5 output the solution
+   ofstream myfile;
+   myfile.precision(15);
+   myfile.open("gpu_u.txt");
+   u.Print(myfile, 1);
+   myfile.close();
 
    // 10. Free the used memory.
    delete ode_solver;
@@ -340,7 +356,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // y = M^{-1} (K x + b)
    K.Mult(x, z);
    z += b;
-   M_solver.Mult(z, y);
+   CG(M, z, y, 0, 2000, 1e-12, 0.0); //GPU friendly
+   //M_solver.Mult(z, y);
 }
 
 
