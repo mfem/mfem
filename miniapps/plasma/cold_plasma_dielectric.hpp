@@ -23,6 +23,33 @@ namespace mfem
 namespace plasma
 {
 
+// Cyclotron frequency
+inline double omega_c(double Bmag, double charge, double mass)
+{
+  return charge * q_ * Bmag / (epsilon0_ * mass * u_);
+}
+
+// Plasma frequency
+inline double omega_p(double number, double charge, double mass)
+{
+  return fabs(charge * q_) * sqrt(number / (epsilon0_ * mass * u_));
+}
+
+double R(double omega, double Bmag,
+	 const Vector & number, const Vector & charge, const Vector & mass);
+
+double L(double omega, double Bmag,
+	 const Vector & number, const Vector & charge, const Vector & mass);
+
+double P(double omega,
+	 const Vector & number, const Vector & charge, const Vector & mass);
+
+double S(double omega, double Bmag,
+	 const Vector & number, const Vector & charge, const Vector & mass);
+
+double D(double omega, double Bmag,
+	 const Vector & number, const Vector & charge, const Vector & mass);
+  
 class DielectricTensor: public MatrixCoefficient
 {
 public:

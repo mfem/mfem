@@ -19,6 +19,85 @@ using namespace miniapps;
 namespace plasma
 {
 
+double R(double omega, double Bmag,
+	 const Vector & number, const Vector & charge, const Vector & mass)
+{
+  double val = 1.0;
+  for (int i=0; i<number.Size(); i++)
+  {
+    double n = number[i];
+    double q = charge[i];
+    double m = mass[i];
+    double w_c = omega_c(Bmag, q, m);
+    double w_p = omega_p(n, q, m);
+    val -= w_p * w_p / (omega * (omega + w_c));
+  }
+  return val;
+}
+  
+double L(double omega, double Bmag,
+	 const Vector & number, const Vector & charge, const Vector & mass)
+{
+  double val = 1.0;
+  for (int i=0; i<number.Size(); i++)
+  {
+    double n = number[i];
+    double q = charge[i];
+    double m = mass[i];
+    double w_c = omega_c(Bmag, q, m);
+    double w_p = omega_p(n, q, m);
+    val -= w_p * w_p / (omega * (omega - w_c));
+  }
+  return val;
+}
+  
+double S(double omega, double Bmag,
+	 const Vector & number, const Vector & charge, const Vector & mass)
+{
+  double val = 1.0;
+  for (int i=0; i<number.Size(); i++)
+  {
+    double n = number[i];
+    double q = charge[i];
+    double m = mass[i];
+    double w_c = omega_c(Bmag, q, m);
+    double w_p = omega_p(n, q, m);
+    val -= w_p * w_p / (omega * omega - w_c * w_c);
+  }
+  return val;
+}
+  
+double D(double omega, double Bmag,
+	 const Vector & number, const Vector & charge, const Vector & mass)
+{
+  double val = 0.0;
+  for (int i=0; i<number.Size(); i++)
+  {
+    double n = number[i];
+    double q = charge[i];
+    double m = mass[i];
+    double w_c = omega_c(Bmag, q, m);
+    double w_p = omega_p(n, q, m);
+    val += w_p * w_p * w_c / (omega *(omega * omega - w_c * w_c));
+  }
+  return val;
+}
+
+double P(double omega,
+	 const Vector & number, const Vector & charge, const Vector & mass)
+{
+  double val = 1.0;
+  for (int i=0; i<number.Size(); i++)
+  {
+    double n = number[i];
+    double q = charge[i];
+    double m = mass[i];
+    double w_p = omega_p(n, q, m);
+    val -= w_p * w_p / (omega * omega);
+  }
+  return val;
+}
+  
 void real_epsilon_sigma(double omega, const Vector &B,
                         const Vector &density_vals,
                         const Vector &temperature_vals,

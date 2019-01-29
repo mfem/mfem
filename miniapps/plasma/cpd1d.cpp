@@ -139,6 +139,15 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = true;
 
+   double rho1 = 1.0e19;
+
+   Vector BVec(3);
+   BVec = 0.0; BVec(0) = 0.1;
+
+   Vector numbers;
+   Vector charges;
+   Vector masses;
+   
    Array<int> abcs;
    Array<int> dbcs;
    int num_elements = 10;
@@ -150,6 +159,17 @@ int main(int argc, char *argv[])
    //               "Number of ion species.");
    args.AddOption(&freq_, "-f", "--frequency",
                   "Frequency in Hertz (of course...)");
+   args.AddOption(&rho1, "-rho1", "--density",
+                  "Electron density");
+   args.AddOption(&BVec, "-B", "--magnetic-flux",
+                  "Background magnetic flux vector");
+   args.AddOption(&numbers, "-num", "--number-densites",
+                  "Number densities of the various species");
+   args.AddOption(&charges, "-q", "--charges",
+                  "Charges of the various species "
+		  "(in units of electron charge)");
+   args.AddOption(&masses, "-m", "--masses",
+                  "Masses of the various species (in amu)");
    args.AddOption(&sol, "-s", "--solver",
                   "Solver: 1 - GMRES, 2 - FGMRES w/AMS");
    args.AddOption(&pw_eta_, "-pwz", "--piecewise-eta",
@@ -181,6 +201,24 @@ int main(int argc, char *argv[])
          args.PrintUsage(cout);
       }
       return 1;
+   }
+   if (numbers.Size() == 0)
+   {
+     numbers.SetSize(2);
+     numbers[0] = 1.0e19;
+     numbers[1] = 1.0e19;
+   }
+   if (charges.Size() == 0)
+   {
+     charges.SetSize(2);
+     charges[0] = -1.0;
+     charges[1] =  1.0;
+   }
+   if (masses.Size() == 0)
+   {
+     masses.SetSize(2);
+     masses[0] = me_ / u_;
+     masses[1] = 2.01410178;
    }
    if (num_elements <= 0)
    {
@@ -291,12 +329,10 @@ int main(int argc, char *argv[])
       return 3;
    }
    */
-   Vector BVec(3);
-   BVec = 0.0; BVec(0) = 0.1;
    VectorConstantCoefficient BCoef(BVec);
 
    double ion_frac = 0.0;
-   ConstantCoefficient rhoCoef1(1.0e19);
+   ConstantCoefficient rhoCoef1(rho1);
    ConstantCoefficient rhoCoef2(rhoCoef1.constant * (1.0 - ion_frac));
    ConstantCoefficient rhoCoef3(rhoCoef1.constant * ion_frac);
    ConstantCoefficient tempCoef(10.0 * q_);
@@ -558,8 +594,8 @@ void slab_current_source(const Vector &x, Vector &j)
    j.SetSize(x.Size());
    j = 0.0;
 
-   double half_x_l = mesh_dim_(0) * (0.5 - 0.005);
-   double half_x_r = mesh_dim_(0) * (0.5 + 0.005);
+   double half_x_l = slab_params_(3) * (1.0 - 0.005);
+   double half_x_r = slab_params_(3) * (1.0 + 0.005);
 
    if (x(0) <= half_x_r && x(0) >= half_x_l)
    {
