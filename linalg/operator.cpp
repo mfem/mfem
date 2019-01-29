@@ -69,6 +69,16 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
    }
 }
 
+void Operator::FormParallelOperator(Operator* &Aout)
+{
+   const Operator *P = this->GetProlongation();
+   const Operator *R = this->GetRestriction();
+   Operator * out =
+      new TripleProductOperator(R, this, P,
+                                false, false, false);
+   Aout = out;
+}
+
 void Operator::PrintMatlab(std::ostream & out, int n, int m) const
 {
    using namespace std;

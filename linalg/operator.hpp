@@ -78,8 +78,8 @@ public:
        ParBilinearForm::FormLinearSystem()).
 
        The constraints are specified through the prolongation P from
-       GetProlongation(), and restriction R from GetRestriction() methods, which
-       are e.g. available through the (parallel) finite element space of any
+       GetProlongation(), and we assume the restriction is its transpose.
+       P is e.g. available through the (parallel) finite element space of any
        (parallel) bilinear form operator. We assume that the operator is square,
        using the same input and output space, so we have: `A(X)=[P^t (*this)
        P](X)`, `B=P^t(b)`, and `x=P(X)`.
@@ -112,6 +112,18 @@ public:
        method has identical signature to the analogous method for bilinear
        forms, though currently @a b is not used in the implementation. */
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+
+   /** @brief Return in @A a parallel (on truedofs) version of this operator.
+
+       This has some of the functionality of Operator::FormLinearSystem(), but
+       works additionally on rectangular matrices.
+
+       The constraints are specified through the prolongation P from
+       GetProlongation(), and restriction R from GetRestriction() methods, which
+       are e.g. available through the (parallel) finite element space of any
+       (parallel) bilinear form operator. We have: `A(X)=[R (*this)
+       P](X)`. */
+   void FormParallelOperator(Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
