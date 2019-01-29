@@ -203,7 +203,8 @@ void ScalarFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
    const ScalarFiniteElement &fine_fe) const
 {
-   double v[Geometry::MaxDim];
+   static double *v = mm::malloc<double>(Geometry::MaxDim);
+   //double v[Geometry::MaxDim];
    Vector vv (v, Dim);
    IntegrationPoint f_ip;
 

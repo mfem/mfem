@@ -94,7 +94,8 @@ int main(int argc, char *argv[])
    config::usePA(pa);
    if (pa) { mesh.EnsureNodes(); }
    if (cuda) { config::useCuda(); }
-   //config::enableGpu(0);
+   dbg("enableGpu");
+   config::enableGpu(0);
    //config::SwitchToGpu();
    
    // Sample values
