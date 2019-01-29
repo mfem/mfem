@@ -13,6 +13,7 @@
 #define MFEM_COLD_PLASMA_DIELECTRIC_TENSOR
 
 #include "../common/pfem_extras.hpp"
+#include "plasma.hpp"
 
 #ifdef MFEM_USE_MPI
 

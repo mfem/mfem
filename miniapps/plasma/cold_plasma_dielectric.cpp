@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "cold_plasma_dielectric.hpp" 
-#include "plasma.hpp"
 
 using namespace std;
 namespace mfem
@@ -27,15 +26,15 @@ void real_epsilon_sigma(double omega, const Vector &B,
 {
    double Bnorm = B.Norml2();
 
-   double phi = 0.0;
-   double MData[9] = {cos(phi), 0.0, -sin(phi),
-                      0.0,      1.0,       0.0,
-                      sin(phi), 0.0,  cos(phi)
-                     };
-   DenseMatrix M(MData, 3, 3);
+   // double phi = 0.0;
+   // double MData[9] = {cos(phi), 0.0, -sin(phi),
+   //                    0.0,      1.0,       0.0,
+   //                    sin(phi), 0.0,  cos(phi)
+   //                   };
+   // DenseMatrix M(MData, 3, 3);
 
-   Vector Blocal(3);
-   M.Mult(B, Blocal);
+   // Vector Blocal(3);
+   // M.Mult(B, Blocal);
 
    double Z1 = 1.0, Z2 = 18.0;
    double qe = -q_, qi1 = Z1 * q_, qi2 = Z2 * q_;
