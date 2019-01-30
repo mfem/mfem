@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
-                  "'O' - Ordinary, 'E' - Extraordinary");
+                  "'O' - Ordinary, 'X' - Extraordinary");
    args.AddOption(&BVec, "-B", "--magnetic-flux",
                   "Background magnetic flux vector");
    args.AddOption(&numbers, "-num", "--number-densites",
@@ -848,7 +848,7 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
          }
       }
       break;
-      case 'E':
+      case 'X':
       {
          double S = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_);
          double D = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_);
