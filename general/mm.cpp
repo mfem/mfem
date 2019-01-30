@@ -56,11 +56,13 @@ static const void* InsertAlias(mm::ledger &maps,
    const mm::alias *alias = new mm::alias{&mem, offset};
    dbg("\033[33m%p < (\033[37m%ld) < \033[33m%p", base, offset, ptr);
    maps.aliases.emplace(ptr, alias);
-   { // Sanity checks
+   {
+      // Sanity checks
       mem.aliases.sort();
       for (const mm::alias *a : mem.aliases)
       {
-         if (a->mem == &mem ){
+         if (a->mem == &mem )
+         {
             assert(a->offset != offset);
          }
       }
@@ -103,7 +105,7 @@ static void DumpMode(void)
    cfg.set(config::usingCuda()?2:0);
    cfg.set(config::usingOcca()?1:0);
    cfg>>=1;
-   if (cfg==mode) return;
+   if (cfg==mode) { return; }
    mode=cfg;
    dbg("\033[1K\r[0x%x] %sMM %sHasBeenEnabled %sEnabled %sDisabled \
 %sCPU %sGPU %sPA %sCUDA %sOCCA", mode.to_ulong(),
@@ -149,7 +151,7 @@ static void Dump(const mm::ledger &maps)
          printf("\n[%ld] \033[33m%p \033[35m (%ld) \033[32 -> %p",
                 k, h_ptr, bytes, d_ptr);
       }
-      
+
       for (const mm::alias *alias : m->second.aliases)
       {
          const size_t offset = alias->offset;
@@ -196,7 +198,8 @@ static void Assert(const mm::ledger &maps)
    const mm::alias_map  &aliases = maps.aliases;
    size_t nb_mems = 0;
    size_t nb_aliases = 0;
-   for (mm::memory_map::const_iterator m = memories.begin(); m != memories.end(); m++)
+   for (mm::memory_map::const_iterator m = memories.begin(); m != memories.end();
+        m++)
    {
       const void *h_ptr = m->first;
       assert(h_ptr == m->second.h_ptr);
@@ -226,7 +229,7 @@ static void Assert(const mm::ledger &maps)
       const size_t offset = a->second->offset;
       const void *base = a->second->mem->h_ptr;
       assert(base);
-//#warning no assert(((char*)base + offset)==ptr);
+      //#warning no assert(((char*)base + offset)==ptr);
       /*
       if (((char*)base + offset)!=ptr){
          dbg("\033[33m%p ?<? (\033[37m%ld) ?<? \033[33m%p",
@@ -236,7 +239,7 @@ static void Assert(const mm::ledger &maps)
       */
       nb_aliases++;
    }
-//#warning no assert(nb_aliases==nb_aliases_in_mems)
+   //#warning no assert(nb_aliases==nb_aliases_in_mems)
    //assert(nb_aliases==nb_aliases_in_mems);
 }
 
@@ -340,7 +343,8 @@ static void* PtrAlias(mm::ledger &maps, void *ptr)
    const bool device = !base->host;
    const size_t bytes = base->bytes;
    assert(base);
-   if (not host){
+   if (not host)
+   {
       dbg("\033[1;33m%p < (\033[37m%ld) < \033[33m%p",
           base, alias->offset, ptr);
       Dump(maps);
@@ -443,7 +447,8 @@ static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
 {
    mm::memory &base = maps.memories.at(ptr);
    const bool host = base.host;
-   if (not host) {
+   if (not host)
+   {
       dbg("Already on the device, return!");
       return;
    }
@@ -482,7 +487,8 @@ static void PullKnown(const mm::ledger &maps, const void *ptr,
    //stack();
    const mm::memory &base = maps.memories.at(ptr);
    const bool host = base.host;
-   if (host) {
+   if (host)
+   {
       dbg("Already on the host, return!");
       return;
    }
@@ -498,7 +504,8 @@ static void PullAlias(const mm::ledger &maps, const void *ptr,
    const mm::alias *alias = maps.aliases.at(ptr);
    const mm::memory *base = alias->mem;
    const bool host = base->host;
-   if (host) {
+   if (host)
+   {
       dbg("Already on the host, return!");
       return;
    }

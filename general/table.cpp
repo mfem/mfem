@@ -413,11 +413,13 @@ long Table::MemoryUsage() const
 
 Table::~Table ()
 {
-   if (I) {
+   if (I)
+   {
       //for(int k=0;k<1024*1024;k++) I[k]=0;
       mm::free<int>(I);
    }
-   if (J) {
+   if (J)
+   {
       static int loop = 0;
       //if (loop==2) for(int k=0;k<1024*1024;k++) J[k]=0;
       mm::free<int>(J);
@@ -650,17 +652,17 @@ DSTable::~DSTable()
    // NodesMem.Clear();  // this is done implicitly
 #else
 #warning
-/*
-   for (int i = 0; i < NumRows; i++)
-   {
-      Node *na, *nb = Rows[i];
-      while (nb != NULL)
+   /*
+      for (int i = 0; i < NumRows; i++)
       {
-         na = nb;
-         nb = nb->Prev;
-         mm::free<int>(na);
-      }
-      }*/
+         Node *na, *nb = Rows[i];
+         while (nb != NULL)
+         {
+            na = nb;
+            nb = nb->Prev;
+            mm::free<int>(na);
+         }
+         }*/
 #endif
    mm::free<int>(Rows);
 }

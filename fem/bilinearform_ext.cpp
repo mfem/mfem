@@ -87,12 +87,15 @@ void PABilinearFormExtension::Assemble()
    }
 }
 
-void PABilinearFormExtension::Update(FiniteElementSpace *fes){
+void PABilinearFormExtension::Update(FiniteElementSpace *fes)
+{
    height = width = fes->GetVSize();
    trialFes = fes;
    testFes = fes;
-   localX.SetSize(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim());
-   localY.SetSize(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim());
+   localX.SetSize(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() *
+                  trialFes->GetVDim());
+   localY.SetSize(a->fes->GetNE() * testFes->GetFE(0)->GetDof() *
+                  testFes->GetVDim());
    delete kfes;
    kfes = new kFiniteElementSpace(fes);
 }
@@ -104,7 +107,8 @@ void PABilinearFormExtension::FormSystemOperator(const Array<int>
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
-   if (trialP) {
+   if (trialP)
+   {
       dbg("trialP");
       rap = new RAPOperator(*testP, *this, *trialP);
    }

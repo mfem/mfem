@@ -202,7 +202,8 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
 {
    static int loop = 0;
    std::stringstream ss;
-   dbg("SimplexMap map '%d-%d-%d'",trialFE.GetOrder(), testFE.GetOrder(), ir.GetNPoints());
+   dbg("SimplexMap map '%d-%d-%d'",trialFE.GetOrder(), testFE.GetOrder(),
+       ir.GetNPoints());
    ss << "SimplexMap:"
       << " O1:" << trialFE.GetOrder()
       << " O2:" << testFE.GetOrder()
@@ -217,7 +218,8 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
       return AllDofQuadMaps.at(hash);
       //return AllDofQuadMaps[hash];
    }
-   dbg("Building map '%d-%d-%d'",trialFE.GetOrder(), testFE.GetOrder(), ir.GetNPoints());
+   dbg("Building map '%d-%d-%d'",trialFE.GetOrder(), testFE.GetOrder(),
+       ir.GetNPoints());
    kDofQuadMaps *maps = new kDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;

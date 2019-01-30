@@ -92,18 +92,18 @@ int main(int argc, char *argv[])
    //    one (linear) by default, but this can be changed on the command line.
    H1_FECollection fec(order, dim);
    FiniteElementSpace fespace(&mesh, &fec);
-   
+
    // ?. Set MFEM config parameters from the command line options
    config::usePA(pa);
    if (pa) { mesh.EnsureNodes(); }
    if (cuda) { config::useCuda(); }
    dbg("enableGpu");
    config::enableGpu(0);
-   
+
    // Sample values
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    int elem_batch = (pa) ? mesh.GetNE() : 1;
-   
+
    // 5. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
@@ -113,15 +113,15 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
-   
+
    dbg("DiffusionIntegrator");
    PADiffusionIntegrator *pa_integ = new PADiffusionIntegrator(one);
-     DiffusionIntegrator *   integ = new   DiffusionIntegrator(one);
+   DiffusionIntegrator *   integ = new   DiffusionIntegrator(one);
    if (pa) { a.AddDomainIntegrator(pa_integ); }
    else    { a.AddDomainIntegrator(integ); }
-   
+
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
-   
+
    // 6. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
    dbg("GridFunction");
@@ -152,8 +152,8 @@ int main(int argc, char *argv[])
    FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
    //ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
    ZienkiewiczZhuEstimator estimator = pa?
-      ZienkiewiczZhuEstimator(/*pa_*/*integ, x, flux_fespace):
-      ZienkiewiczZhuEstimator(   *integ, x, flux_fespace);
+                                       ZienkiewiczZhuEstimator(/*pa_*/*integ, x, flux_fespace):
+                                       ZienkiewiczZhuEstimator(   *integ, x, flux_fespace);
    estimator.SetAnisotropic();
 
    // 10. A refiner selects and refines elements based on a refinement strategy.
@@ -176,10 +176,10 @@ int main(int argc, char *argv[])
 
       if (pa) { mesh.EnsureNodes(); }
       //mesh.GetNodes()->Push();
-      
+
       dbg("Assemble the right-hand side");
       b.Assemble();
-      
+
       dbg("13. Set X Dirichlet boundary values");
       // 13. Set Dirichlet boundary values in the GridFunction x.
       //     Determine the list of Dirichlet true DOFs in the linear system.
@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       //dbg("ess_tdof_list:"); ess_tdof_list.Print();
-      
+
       // 12. Assemble the stiffness matrix and the right-hand side.
       dbg("Assemble the stiffness matrix");
       config::SwitchToGpu();
@@ -207,10 +207,13 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_SUITESPARSE
       // 15. Define a simple symmetric Gauss-Seidel preconditioner and use it to
       dbg("Solve the linear system with (P)CG.");
-      if (!pa){
+      if (!pa)
+      {
          GSSmoother M(*static_cast<SparseMatrix*>(A));
          PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
-      }else{
+      }
+      else
+      {
          CG(*A, B, X, 3, 700, 1e-12, 0.0);
       }
 #else
@@ -221,9 +224,9 @@ int main(int argc, char *argv[])
       umf_solver.SetOperator(A);
       umf_solver.Mult(B, X);
 #endif
- 
+
       config::SwitchToCpu();
-      
+
       dbg("16. Reconstruct the solution");
       // 16. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
@@ -242,19 +245,19 @@ int main(int argc, char *argv[])
          cout << "Reached the maximum number of dofs. Stop." << endl;
          break;
       }
-            
+
       dbg("18. Call the refiner to modify the mesh.");
       // 18. Call the refiner to modify the mesh. The refiner calls the error
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
-     refiner.Apply(mesh);
+      refiner.Apply(mesh);
       if (refiner.Stop())
       {
          cout << "Stopping criterion satisfied. Stop." << endl;
          break;
       }
-      
+
       dbg("19. Update the space to reflect the new state of the mesh.");// Also,
       //     interpolate the solution x so that it lies in the new space but
       //     represents the same function. This saves solver iterations later
@@ -269,7 +272,7 @@ int main(int argc, char *argv[])
       a.Update();
       cout << endl<< "Size of a: " << a.Height() <<"x"<< a.Width() << endl;
       b.Update();
-      
+
       // 21. Free the used memory.
       delete A;
    }

@@ -655,7 +655,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       }
       return;
    }
-      
+
    const int N = height;
    GET_CONST_PTR_T(I,int);
    GET_CONST_PTR_T(J,int);
@@ -663,16 +663,17 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    GET_CONST_PTR(x);
    GET_PTR(y);
    MFEM_FORALL_SEQ(
-      for(int i=0; i < N; i++)
+      for (int i=0; i < N; i++)
       {
-      const double xi = a * d_x[i];
-      const int end = d_I[i+1];
-      for(int j = d_I[i]; j < end; j++)
-      {
-      const int Jj = d_J[j];
-      d_y[Jj] += d_A[j] * xi;
-   }
-   });
+         const double xi = a * d_x[i];
+         const int end = d_I[i+1];
+         for (int j = d_I[i]; j < end; j++)
+         {
+            const int Jj = d_J[j];
+            d_y[Jj] += d_A[j] * xi;
+         }
+      }
+   );
 }
 
 void SparseMatrix::PartMult(

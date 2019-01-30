@@ -29,7 +29,8 @@ void cuKernel(const size_t N, BODY body)
 template <typename BODY> __global__ static
 void cuKernelSeq(const size_t N, BODY body)
 {
-   for(size_t k=0; k<N; k+=1){
+   for (size_t k=0; k<N; k+=1)
+   {
       body(k);
    }
 }
