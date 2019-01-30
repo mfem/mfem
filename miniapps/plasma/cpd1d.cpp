@@ -390,19 +390,17 @@ int main(int argc, char *argv[])
    // Create a coefficient describing the magnetic permeability
    // Coefficient * muInvCoef = SetupInvPermeabilityCoefficient();
    ConstantCoefficient muInvCoef(1.0 / mu0_);
-   
-   // Create a tensor coefficient describing the electrical conductivity
-   DielectricTensor conductivity_tensor(BField, temperature, density,
-                                        H1FESpace, L2FESpace,
-                                        nspecies, 2.0 * M_PI * freq_, false);
 
    // Create a coefficient describing the surface admittance
    Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
 
-   // Create a tensor coefficient describing the dielectric permittivity
-   DielectricTensor dielectric_tensor(BField, temperature, density,
-                                      H1FESpace, L2FESpace,
-                                      nspecies, 2.0 * M_PI * freq_);
+   // Create tensor coefficients describing the dielectric permittivity
+   DielectricTensor epsilon_real(BField, density,
+                                 L2FESpace,
+                                 omega, charges, masses, true);
+   DielectricTensor epsilon_imag(BField, density,
+                                 L2FESpace,
+                                 omega, charges, masses, false);
 
    // Create the Magnetostatic solver
    CPD1DSolver CPD1D(pmesh, order, freq_, (CPD1DSolver::SolverType)sol,

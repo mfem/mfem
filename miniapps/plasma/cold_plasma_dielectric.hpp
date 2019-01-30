@@ -63,14 +63,17 @@ double D_cold_plasma(double omega, double Bmag,
 class DielectricTensor: public MatrixCoefficient
 {
 public:
-   DielectricTensor(ParGridFunction & B,
-                    BlockVector & T,
-                    BlockVector & density,
-                    ParFiniteElementSpace & H1FESpace,
-                    ParFiniteElementSpace & L2FESpace,
-                    int nspecies,
+   DielectricTensor(const ParGridFunction & B,
+                    const BlockVector & density,
+                    const ParFiniteElementSpace & L2FESpace,
                     double omega,
+                    const Vector & charges,
+                    const Vector & masses,
                     bool realPart = true);
+
+   void SetRealPart() { realPart_ = true; }
+   void SetImaginaryPart() { realPart_ = false; }
+
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
    // virtual void Dval(DenseMatrix &K, ElementTransformation &T,
@@ -78,20 +81,18 @@ public:
    virtual ~DielectricTensor() {}
 
 private:
-   ParGridFunction * B_;
-   BlockVector * temperature_;
-   BlockVector * density_;
-   ParFiniteElementSpace * H1FESpace_;
-   ParFiniteElementSpace * L2FESpace_;
-   int nspecies_;
+   const ParGridFunction & B_;
+   const BlockVector & density_;
+   const ParFiniteElementSpace & L2FESpace_;
+
    double omega_;
    bool realPart_;
 
    ParGridFunction density_gf_;
-   ParGridFunction temperature_gf_;
 
    Vector density_vals_;
-   Vector temperature_vals_;
+   const Vector & charges_;
+   const Vector & masses_;
 };
 
 } // namespace plasma
