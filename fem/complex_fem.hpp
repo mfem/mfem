@@ -235,6 +235,25 @@ public:
    const ParGridFunction & real() const { return *pgfr_; }
    const ParGridFunction & imag() const { return *pgfi_; }
 
+   virtual double ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
+                                 const IntegrationRule *irs[] = NULL) const
+   {
+      double err_r = pgfr_->ComputeL2Error(exsolr, irs);
+      double err_i = pgfi_->ComputeL2Error(exsoli, irs);
+      return sqrt(err_r * err_r + err_i * err_i);
+   }
+
+   virtual double ComputeL2Error(VectorCoefficient &exsolr,
+                                 VectorCoefficient &exsoli,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
+   {
+      double err_r = pgfr_->ComputeL2Error(exsolr, irs, elems);
+      double err_i = pgfi_->ComputeL2Error(exsoli, irs, elems);
+      return sqrt(err_r * err_r + err_i * err_i);
+   }
+
+
    /// Destroys grid function.
    virtual ~ParComplexGridFunction() { Destroy(); }
 
