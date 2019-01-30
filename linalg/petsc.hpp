@@ -139,8 +139,11 @@ public:
    /// Returns the global number of rows
    PetscInt GlobalSize() const;
 
-   /// Conversion function to PETSc's Vec type
+   /// Typecasting to PETSc's Vec type
    operator Vec() const { return x; }
+
+   /// Typecasting to PETSc object
+   operator PetscObject() const { return (PetscObject)x; }
 
    /// Returns the global vector in each processor
    Vector* GlobalVector() const;
@@ -324,6 +327,9 @@ public:
 
    /// Typecasting to PETSc's Mat type
    operator Mat() const { return A; }
+
+   /// Typecasting to PETSc object
+   operator PetscObject() const { return (PetscObject)A; }
 
    /// Returns the global index of the first local row
    PetscInt GetRowStart() const;
