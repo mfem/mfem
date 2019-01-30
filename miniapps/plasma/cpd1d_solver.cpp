@@ -648,6 +648,13 @@ CPD1DSolver::Solve()
    if ( myid_ == 0 && logging_ > 0 ) { cout << " Solver done. " << endl; }
 }
 
+double
+CPD1DSolver::GetError()
+{
+   return e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
+                             const_cast<VectorCoefficient&>(eiCoef_));
+}
+
 void
 CPD1DSolver::GetErrorEstimates(Vector & errors)
 {

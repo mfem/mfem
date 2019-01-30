@@ -75,6 +75,8 @@ public:
 
    void Solve();
 
+   double GetError();
+
    void GetErrorEstimates(Vector & errors);
 
    void RegisterVisItFields(VisItDataCollection & visit_dc);

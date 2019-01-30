@@ -517,6 +517,13 @@ int main(int argc, char *argv[])
       // Solve the system and compute any auxiliary fields
       CPD1D.Solve();
 
+      // Compute error
+      double glb_error = CPD1D.GetError();
+      if (mpi.Root())
+      {
+         cout << "Global L2 Error " << glb_error << endl;
+      }
+
       // Determine the current size of the linear system
       int prob_size = CPD1D.GetProblemSize();
 
