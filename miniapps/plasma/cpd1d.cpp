@@ -285,6 +285,69 @@ int main(int argc, char *argv[])
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
+   if (mpi.Root())
+   {
+      double lam0 = c0_ / freq;
+      double Bmag = BVec.Norml2();
+      double S = S_cold_plasma(omega, Bmag, numbers, charges, masses);
+      double P = P_cold_plasma(omega, numbers, charges, masses);
+      double D = D_cold_plasma(omega, Bmag, numbers, charges, masses);
+      double R = R_cold_plasma(omega, Bmag, numbers, charges, masses);
+      double L = L_cold_plasma(omega, Bmag, numbers, charges, masses);
+
+      cout << "Convenient Terms:\n";
+      cout << "R = " << R << ",\tL = " << L << endl;
+      cout << "S = " << S << ",\tD = " << D << ",\tP = " << P << endl;
+
+      cout << "\nSpecies Properties (number, charge, mass):\n";
+      for (int i=0; i<numbers.Size(); i++)
+      {
+         cout << numbers[i] << '\t' << charges[i] << '\t' << masses[i] << '\n';
+      }
+      cout << "\nPlasma and Cyclotron Frequencies by Species (GHz):\n";
+      for (int i=0; i<numbers.Size(); i++)
+      {
+         cout << omega_p(numbers[i], charges[i], masses[i]) / (2.0e9 * M_PI)
+              << '\t'
+              << omega_c(Bmag, charges[i], masses[i]) / (2.0e9 * M_PI) << '\n';
+      }
+
+      cout << "\nWavelengths (meters):\n";
+      if (S < D)
+      {
+         cout << "   Decaying L mode:     " << lam0 / sqrt(D-S) << "\n";
+      }
+      else
+      {
+         cout << "   Oscillating L mode:  " << lam0 / sqrt(S-D) << "\n";
+      }
+      if (S < - D)
+      {
+         cout << "   Decaying R mode:     " << lam0 / sqrt(-S-D) << "\n";
+      }
+      else
+      {
+         cout << "   Oscillating R mode:  " << lam0 / sqrt(S+D) << "\n";
+      }
+      if (P < 0)
+      {
+         cout << "   Decaying O mode:     " << lam0 / sqrt(-P) << "\n";
+      }
+      else
+      {
+         cout << "   Oscillating O mode:  " << lam0 / sqrt(P) << "\n";
+      }
+      if ((S * S - D * D) / S < 0)
+      {
+         cout << "   Decaying E mode:     " << lam0 / sqrt(-S/(S*S-D*D)) << "\n";
+      }
+      else
+      {
+         cout << "   Oscillating E mode:  " << lam0 / sqrt(S/(S*S-D*D)) << "\n";
+      }
+      cout << endl;
+   }
+
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
