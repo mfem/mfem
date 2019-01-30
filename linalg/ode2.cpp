@@ -15,26 +15,7 @@
 
 namespace mfem
 {
-
-void AverageAccelerationSolver::Init(TimeDependent2Operator &_f)
-{
-   ODE2Solver::Init(_f);
-   d2xdt2.SetSize(f->Width());
-   d2xdt2 = 0.0;
-}
-
-void AverageAccelerationSolver::Step(Vector &x, Vector &dxdt, double &t,
-                                     double &dt)
-{
-   f->SetTime(t + dt);
-   x.Add(0.5*dt, dxdt);
-   f->ImplicitSolve(0.25*dt*dt, 0.5*dt, x, dxdt, d2xdt2);
-
-   x   .Add(0.25*dt*dt, d2xdt2);
-   dxdt.Add(0.5*dt,     d2xdt2);
-   t += dt;
-}
-
+   
 void NewmarkSolver::Init(TimeDependent2Operator &_f)
 {
    ODE2Solver::Init(_f);
@@ -154,9 +135,10 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    double fac4 = gamma*alpha_f/alpha_m;
    double fac5 = alpha_m;
 
-   // In the first pass d2xdt2 is not yet computed. If parameter choices requires
-   // d2xdt2 then backward Euler is used instead for the first step only.
-   if (first)
+   // In the first pass d2xdt2 is not yet computed.
+   // If parameter choices requires d2xdt2 then
+   // Midpoint is used instead for the first step only.
+   if (first && (fac0 != 0.0) && (fac2 != 0.0))
    {
       fac0 = 0.0;
       fac1 = 1.0;
