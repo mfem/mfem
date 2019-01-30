@@ -269,7 +269,6 @@ void Vector::Neg()
 
 void add(const Vector &v1, const Vector &v2, Vector &v)
 {
-   MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_DEBUG
    if (v.size != v1.size || v.size != v2.size)
    {
@@ -278,12 +277,18 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
 #endif
 
 #ifdef MFEM_USE_OPENMP
+   MFEM_GPU_CANNOT_PASS;
    #pragma omp parallel for
-#endif
    for (int i = 0; i < v.size; i++)
    {
       v.data[i] = v1.data[i] + v2.data[i];
    }
+#else
+   GET_CONST_PTR(v1);
+   GET_CONST_PTR(v2);
+   GET_PTR(v);
+   MFEM_FORALL(i, v.size, d_v[i] = d_v1[i] + d_v2[i];);
+#endif
 }
 
 void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)

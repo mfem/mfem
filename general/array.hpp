@@ -89,7 +89,10 @@ public:
    template <typename CT>
    Array(const Array<CT> &src)
       : BaseArray(src.Size(), 0, sizeof(T))
-   { for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); } }
+   {
+      MFEM_GPU_CANNOT_PASS;
+      for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
+   }
 
    /// Destructor
    inline ~Array() { }
@@ -101,6 +104,7 @@ public:
    template <typename CT>
    Array<T> &operator=(const Array<CT> &src)
    {
+      MFEM_GPU_CANNOT_PASS;
       SetSize(src.Size());
       for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
       return *this;
@@ -190,6 +194,7 @@ public:
    /// Create a copy of the current array
    inline void Copy(Array &copy) const
    {
+      MFEM_GPU_CANNOT_PASS;
       copy.SetSize(Size());
       mm::memcpy(copy.GetData(), data, Size()*sizeof(T));
    }
@@ -617,6 +622,7 @@ inline const T &Array<T>::operator[](int i) const
 template <class T>
 inline int Array<T>::Append(const T &el)
 {
+   MFEM_GPU_CANNOT_PASS;
    SetSize(size+1);
    ((T*)data)[size-1] = el;
    return size;
@@ -625,6 +631,7 @@ inline int Array<T>::Append(const T &el)
 template <class T>
 inline int Array<T>::Append(const T *els, int nels)
 {
+   MFEM_GPU_CANNOT_PASS;
    const int old_size = size;
 
    SetSize(size + nels);
@@ -638,6 +645,7 @@ inline int Array<T>::Append(const T *els, int nels)
 template <class T>
 inline int Array<T>::Prepend(const T &el)
 {
+   MFEM_GPU_CANNOT_PASS;
    SetSize(size+1);
    for (int i = size-1; i > 0; i--)
    {
@@ -695,6 +703,7 @@ inline int Array<T>::FindSorted(const T &el) const
 template <class T>
 inline void Array<T>::DeleteFirst(const T &el)
 {
+   MFEM_GPU_CANNOT_PASS;
    for (int i = 0; i < size; i++)
    {
       if (((T*)data)[i] == el)
@@ -748,6 +757,7 @@ inline void Array<T>::MakeRef(const Array &master)
 template <class T>
 inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa)
 {
+   MFEM_GPU_CANNOT_PASS;
    sa.SetSize(sa_size);
    for (int i = 0; i < sa_size; i++)
    {
@@ -758,10 +768,23 @@ inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa)
 template <class T>
 inline void Array<T>::operator=(const T &a)
 {
+   MFEM_GPU_CANNOT_PASS;
    for (int i = 0; i < size; i++)
    {
       ((T*)data)[i] = a;
    }
+}
+template <>
+inline void Array<double>::operator=(const double &a)
+{
+   GET_PTR(data);
+   MFEM_FORALL(i, size, d_data[i] = a;);
+}
+template <>
+inline void Array<int>::operator=(const int &a)
+{
+   GET_PTR_T(data,int);
+   MFEM_FORALL(i, size, d_data[i] = a;);
 }
 
 template <class T>

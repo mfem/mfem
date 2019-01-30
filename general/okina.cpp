@@ -72,7 +72,12 @@ void dbg_F_L_F_N_A(const char *file, const int line, const char *func,
    fprintf(stdout,"\033[38;5;%dm",color);
    fprintf(stdout,"\n%30s\b\b\b\b:\033[2m%4d\033[22m: %s: \033[1m",
            file, line, func);
-   if (nargs==0) { return; }
+   if (nargs==0) {
+      fprintf(stdout,"\033[m");
+      fflush(stdout);
+      fflush(0);
+      return;
+   }
    va_list args;
    va_start(args,nargs);
    const char *format=va_arg(args,const char*);
