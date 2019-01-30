@@ -48,17 +48,19 @@ public:
       STRUMPACK =  5
    };
 
-   CPD1DSolver(ParMesh & pmesh, int order, double freq,
+   CPD1DSolver(ParMesh & pmesh, int order, double omega,
                CPD1DSolver::SolverType s,
                ComplexOperator::Convention conv,
-               MatrixCoefficient & epsCoef,
+               MatrixCoefficient & epsReCoef,
+               MatrixCoefficient & espImCoef,
                Coefficient & muInvCoef,
-               MatrixCoefficient & sigmaCoef,
                Coefficient * etaInvCoef,
                Array<int> & abcs,
                Array<int> & dbcs,
-               void   (*e_r_bc )(const Vector&, Vector&),
-               void   (*e_i_bc )(const Vector&, Vector&),
+               // void   (*e_r_bc )(const Vector&, Vector&),
+               // void   (*e_i_bc )(const Vector&, Vector&),
+               VectorCoefficient & EReCoef,
+               VectorCoefficient & EImCoef,
                void   (*j_r_src)(const Vector&, Vector&),
                void   (*j_i_src)(const Vector&, Vector&));
    ~CPD1DSolver();
@@ -100,7 +102,7 @@ private:
 
    bool ownsEtaInv_;
 
-   double freq_;
+   double omega_;
 
    ParMesh * pmesh_;
 
@@ -114,71 +116,40 @@ private:
    ParSesquilinearForm * a1_;
    ParBilinearForm * b1_;
 
-   // ParGridFunction * e_r_;  // Real part of electric field (HCurl)
-   // ParGridFunction * e_i_;  // Imaginary part of electric field (HCurl)
    ParComplexGridFunction * e_;  // Complex electric field (HCurl)
    ParComplexGridFunction * j_;  // Complex current density (HCurl)
-   // ParGridFunction * j_i_;  // Imaginary part of current density (HCurl)
-
    ParComplexLinearForm   * jd_; // Dual of complex current density (HCurl)
-   // ParLinearForm   * jd_r_; // Dual of real part of current density (HCurl)
-   // ParLinearForm   * jd_i_; // Dual of imaginary part of current density (HCurl)
-   /*
-    ParBilinearForm * curlMuInvCurl_;
-    ParBilinearForm * hCurlMass_;
-    ParMixedBilinearForm * hDivHCurlMuInv_;
-    ParMixedBilinearForm * weakCurlMuInv_;
-   */
-   // ParDiscreteGradOperator * grad_;
-   // ParDiscreteCurlOperator * curl_;
-   /*
-    ParGridFunction * a_;  // Vector Potential (HCurl)
-    ParGridFunction * b_;  // Magnetic Flux (HDiv)
-    ParGridFunction * h_;  // Magnetic Field (HCurl)
-    ParGridFunction * jr_; // Raw Volumetric Current Density (HCurl)
-    ParGridFunction * j_;  // Volumetric Current Density (HCurl)
-    ParGridFunction * k_;  // Surface Current Density (HCurl)
-    ParGridFunction * m_;  // Magnetization (HDiv)
-    ParGridFunction * bd_; // Dual of B (HCurl)
-    ParGridFunction * jd_; // Dual of J, the rhs vector (HCurl)
-   */
-   // DivergenceFreeProjector * DivFreeProj_;
-   // SurfaceCurrent          * SurfCur_;
 
-   MatrixCoefficient * epsCoef_;   // Dielectric Material Coefficient
-   Coefficient       * muInvCoef_; // Dia/Paramagnetic Material Coefficient
-   MatrixCoefficient * sigmaCoef_; // Electrical Conductivity Coefficient
+   MatrixCoefficient * epsReCoef_;  // Dielectric Material Coefficient
+   MatrixCoefficient * epsImCoef_;  // Dielectric Material Coefficient
+   Coefficient       * muInvCoef_;  // Dia/Paramagnetic Material Coefficient
    Coefficient       * etaInvCoef_; // Admittance Coefficient
 
    Coefficient * omegaCoef_;     // omega expressed as a Coefficient
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
    Coefficient * omega2Coef_;    // omega^2 expressed as a Coefficient
    Coefficient * negOmega2Coef_; // -omega^2 expressed as a Coefficient
-   MatrixCoefficient * massCoef_;      // -omega^2 epsilon
-   MatrixCoefficient * posMassCoef_;   // omega^2 epsilon
-   MatrixCoefficient * lossCoef_;      // -omega sigma
-   // Coefficient * gainCoef_;    // omega sigma
    Coefficient * abcCoef_;       // -omega eta^{-1}
 
-   // VectorCoefficient * aBCCoef_;   // Vector Potential BC Function
+   MatrixCoefficient * massReCoef_;  // -omega^2 Re(epsilon)
+   MatrixCoefficient * massImCoef_;  // omega^2 Im(epsilon)
+   MatrixCoefficient * posMassCoef_; // omega^2 Re(epsilon)
+
    VectorCoefficient * jrCoef_;     // Volume Current Density Function
    VectorCoefficient * jiCoef_;     // Volume Current Density Function
-   VectorCoefficient * erCoef_;     // Electric Field Boundary Condition
-   VectorCoefficient * eiCoef_;     // Electric Field Boundary Condition
-   // VectorCoefficient * mCoef_;     // Magnetization Vector Function
+   const VectorCoefficient & erCoef_;     // Electric Field Boundary Condition
+   const VectorCoefficient & eiCoef_;     // Electric Field Boundary Condition
 
-   // void   (*a_bc_ )(const Vector&, Vector&);
    void   (*j_r_src_)(const Vector&, Vector&);
    void   (*j_i_src_)(const Vector&, Vector&);
-   // void   (*m_src_)(const Vector&, Vector&);
 
    // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_marker_;
 
    // Array of 0's and 1's marking the location of Dirichlet boundaries
    Array<int> dbc_marker_;
-   void   (*e_r_bc_)(const Vector&, Vector&);
-   void   (*e_i_bc_)(const Vector&, Vector&);
+   // void   (*e_r_bc_)(const Vector&, Vector&);
+   // void   (*e_i_bc_)(const Vector&, Vector&);
 
    Array<int> * dbcs_;
    Array<int> ess_bdr_;

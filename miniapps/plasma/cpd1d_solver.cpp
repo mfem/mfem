@@ -25,17 +25,19 @@ namespace plasma
 // Used for combining scalar coefficients
 double prodFunc(double a, double b) { return a * b; }
 
-CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double freq,
+CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
                          CPD1DSolver::SolverType sol,
                          ComplexOperator::Convention conv,
-                         MatrixCoefficient & epsCoef,
+                         MatrixCoefficient & epsReCoef,
+                         MatrixCoefficient & epsImCoef,
                          Coefficient & muInvCoef,
-                         MatrixCoefficient & sigmaCoef,
                          Coefficient * etaInvCoef,
                          Array<int> & abcs,
                          Array<int> & dbcs,
-                         void   (*e_r_bc )(const Vector&, Vector&),
-                         void   (*e_i_bc )(const Vector&, Vector&),
+                         // void   (*e_r_bc )(const Vector&, Vector&),
+                         // void   (*e_i_bc )(const Vector&, Vector&),
+                         VectorCoefficient & EReCoef,
+                         VectorCoefficient & EImCoef,
                          void   (*j_r_src)(const Vector&, Vector&),
                          void   (*j_i_src)(const Vector&, Vector&))
    : myid_(0),
@@ -45,60 +47,34 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double freq,
      sol_(sol),
      conv_(conv),
      ownsEtaInv_(etaInvCoef == NULL),
-     freq_(freq),
+     omega_(omega),
      pmesh_(&pmesh),
-     // H1FESpace_(NULL),
      HCurlFESpace_(NULL),
-     // HDivFESpace_(NULL),
-     // curlMuInvCurl_(NULL),
-     // hCurlMass_(NULL),
-     // hDivHCurlMuInv_(NULL),
-     // weakCurlMuInv_(NULL),
-     // grad_(NULL),
-     // curl_(NULL),
      a1_(NULL),
      b1_(NULL),
-     // e_r_(NULL),
-     // e_i_(NULL),
      e_(NULL),
-     // b_(NULL),
-     // h_(NULL),
-     // j_r_(NULL),
-     // j_i_(NULL),
      j_(NULL),
      jd_(NULL),
-     // jd_r_(NULL),
-     // jd_i_(NULL),
-     // k_(NULL),
-     // m_(NULL),
-     // bd_(NULL),
-     // jd_(NULL),
-     // DivFreeProj_(NULL),
-     // SurfCur_(NULL),
-     epsCoef_(&epsCoef),
+     epsReCoef_(&epsReCoef),
+     epsImCoef_(&epsImCoef),
      muInvCoef_(&muInvCoef),
-     sigmaCoef_(&sigmaCoef),
      etaInvCoef_(etaInvCoef),
-     omegaCoef_(new ConstantCoefficient(2.0 * M_PI * freq_)),
-     negOmegaCoef_(new ConstantCoefficient(-2.0 * M_PI * freq_)),
-     omega2Coef_(new ConstantCoefficient(pow(2.0 * M_PI * freq_, 2))),
-     negOmega2Coef_(new ConstantCoefficient(-pow(2.0 * M_PI * freq_, 2))),
-     massCoef_(NULL),
-     posMassCoef_(NULL),
-     lossCoef_(NULL),
-     // gainCoef_(NULL),
+     omegaCoef_(new ConstantCoefficient(omega_)),
+     negOmegaCoef_(new ConstantCoefficient(-omega_)),
+     omega2Coef_(new ConstantCoefficient(pow(omega_, 2))),
+     negOmega2Coef_(new ConstantCoefficient(-pow(omega_, 2))),
      abcCoef_(NULL),
+     massReCoef_(NULL),
+     massImCoef_(NULL),
+     posMassCoef_(NULL),
      jrCoef_(NULL),
      jiCoef_(NULL),
-     erCoef_(NULL),
-     eiCoef_(NULL),
-     // mCoef_(NULL),
-     // a_bc_(a_bc),
+     erCoef_(EReCoef),
+     eiCoef_(EImCoef),
      j_r_src_(j_r_src),
      j_i_src_(j_i_src),
-     e_r_bc_(e_r_bc),
-     e_i_bc_(e_i_bc),
-     // m_src_(m_src)
+     // e_r_bc_(e_r_bc),
+     // e_i_bc_(e_i_bc),
      dbcs_(&dbcs),
      visit_dc_(NULL)
 {
@@ -114,20 +90,20 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double freq,
    // HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
    if (false)
    {
-     GridFunction * nodes = pmesh_->GetNodes();
-     cout << "nodes is " << nodes << endl;
-     for (int i=0; i<HCurlFESpace_->GetNBE(); i++)
-     {
-       const FiniteElement &be = *HCurlFESpace_->GetBE(i);
-       ElementTransformation *eltrans = HCurlFESpace_->GetBdrElementTransformation (i);
-	 cout << i << '\t' << pmesh_->GetBdrAttribute(i)
-	      << '\t' << be.GetGeomType()
-	      << '\t' << eltrans->ElementNo
-	      << '\t' << eltrans->Attribute
-	      << endl;
-     }
+      GridFunction * nodes = pmesh_->GetNodes();
+      cout << "nodes is " << nodes << endl;
+      for (int i=0; i<HCurlFESpace_->GetNBE(); i++)
+      {
+         const FiniteElement &be = *HCurlFESpace_->GetBE(i);
+         ElementTransformation *eltrans = HCurlFESpace_->GetBdrElementTransformation (i);
+         cout << i << '\t' << pmesh_->GetBdrAttribute(i)
+              << '\t' << be.GetGeomType()
+              << '\t' << eltrans->ElementNo
+              << '\t' << eltrans->Attribute
+              << endl;
+      }
    }
-   
+
    blockTrueOffsets_.SetSize(3);
    blockTrueOffsets_[0] = 0;
    blockTrueOffsets_[1] = HCurlFESpace_->TrueVSize();
@@ -181,13 +157,11 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double freq,
                                                *a_bc_);
    }
    */
-   massCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_, *epsCoef_);
-   posMassCoef_ = new ScalarMatrixProductCoefficient(*omega2Coef_, *epsCoef_);
-   if ( sigmaCoef_ )
-   {
-      lossCoef_ = new ScalarMatrixProductCoefficient(*omegaCoef_, *sigmaCoef_);
-      // gainCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
-   }
+   massReCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_,
+                                                    *epsReCoef_);
+   massImCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_,
+                                                    *epsImCoef_);
+   posMassCoef_ = new ScalarMatrixProductCoefficient(*omega2Coef_, *epsReCoef_);
 
    // Impedance of free space
    if ( abcs.Size() > 0 )
@@ -252,11 +226,8 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double freq,
    // Bilinear Forms
    a1_ = new ParSesquilinearForm(HCurlFESpace_, conv_);
    a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_), NULL);
-   a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
-   if ( lossCoef_ )
-   {
-      a1_->AddDomainIntegrator(NULL, new VectorFEMassIntegrator(*lossCoef_));
-   }
+   a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massReCoef_),
+                            new VectorFEMassIntegrator(*massImCoef_));
    if ( abcCoef_ )
    {
       a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*abcCoef_),
@@ -266,94 +237,31 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double freq,
    b1_ = new ParBilinearForm(HCurlFESpace_);
    b1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
    b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*posMassCoef_));
-   if ( lossCoef_ )
-   {
-      b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*lossCoef_));
-   }
-   /*
-   curlMuInvCurl_  = new ParBilinearForm(HCurlFESpace_);
-   curlMuInvCurl_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
-   BilinearFormIntegrator * hCurlMassInteg = new VectorFEMassIntegrator;
-   hCurlMassInteg->SetIntRule(ir);
-   hCurlMass_      = new ParBilinearForm(HCurlFESpace_);
-   hCurlMass_->AddDomainIntegrator(hCurlMassInteg);
-   BilinearFormIntegrator * hDivHCurlInteg =
-      new VectorFEMassIntegrator(*muInvCoef_);
-   hDivHCurlInteg->SetIntRule(ir);
-   hDivHCurlMuInv_ = new ParMixedBilinearForm(HDivFESpace_, HCurlFESpace_);
-   hDivHCurlMuInv_->AddDomainIntegrator(hDivHCurlInteg);
-   // Discrete Curl operator
-   curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
-   */
+   b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massImCoef_));
 
    // Build grid functions
    e_  = new ParComplexGridFunction(HCurlFESpace_);
    *e_ = 0.0;
-   // e_r_  = new ParGridFunction(HCurlFESpace_);
-   // e_i_  = new ParGridFunction(HCurlFESpace_);
-   // b_  = new ParGridFunction(HDivFESpace_);
-   // h_  = new ParGridFunction(HCurlFESpace_);
-   // bd_ = new ParGridFunction(HCurlFESpace_);
-   // j_r_ = new ParGridFunction(HCurlFESpace_);
-   // j_i_ = new ParGridFunction(HCurlFESpace_);
+
    j_ = new ParComplexGridFunction(HCurlFESpace_);
    j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
-   /*
-   jd_r_ = new ParLinearForm(HCurlFESpace_);
-   jd_i_ = new ParLinearForm(HCurlFESpace_);
-   if ( jrCoef_ )
-   {
-     jd_r_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jrCoef_));
-   }
-   if ( jiCoef_ )
-   {
-     jd_i_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jiCoef_));
-   }
-   */
+
    jd_ = new ParComplexLinearForm(HCurlFESpace_, conv_);
    jd_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jrCoef_),
                             new VectorFEDomainLFIntegrator(*jiCoef_));
    jd_->real().Vector::operator=(0.0);
    jd_->imag().Vector::operator=(0.0);
-   /*
-   if ( jCoef_ || kbcs.Size() > 0 )
-   {
-      grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
-   }
-   if ( jCoef_ )
-   {
-      jr_          = new ParGridFunction(HCurlFESpace_);
-      j_           = new ParGridFunction(HCurlFESpace_);
-      DivFreeProj_ = new DivergenceFreeProjector(*H1FESpace_, *HCurlFESpace_,
-                                                 irOrder, NULL, NULL, grad_);
-   }
-   if ( kbcs.Size() > 0 )
-   {
-      k_ = new ParGridFunction(HCurlFESpace_);
-      // Object to solve the subproblem of computing surface currents
-      SurfCur_ = new SurfaceCurrent(*H1FESpace_, *grad_,
-                                    kbcs, vbcs, vbcv);
-   }
-   if ( mCoef_ )
-   {
-      m_ = new ParGridFunction(HDivFESpace_);
-      weakCurlMuInv_ = new ParMixedBilinearForm(HDivFESpace_, HCurlFESpace_);
-      weakCurlMuInv_->AddDomainIntegrator(
-         new VectorFECurlIntegrator(*muInvCoef_));
-   }
-   */
 }
 
 CPD1DSolver::~CPD1DSolver()
 {
    delete jrCoef_;
    delete jiCoef_;
-   delete erCoef_;
-   delete eiCoef_;
-   delete massCoef_;
+   // delete erCoef_;
+   // delete eiCoef_;
+   delete massReCoef_;
+   delete massImCoef_;
    delete posMassCoef_;
-   delete lossCoef_;
-   // delete gainCoef_;
    delete abcCoef_;
    if ( ownsEtaInv_ ) { delete etaInvCoef_; }
    delete omegaCoef_;
@@ -552,6 +460,8 @@ CPD1DSolver::Solve()
    OperatorHandle A1;
    Vector E, RHS;
    cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
+   e_->ProjectCoefficient(const_cast<VectorCoefficient&>(erCoef_),
+                          const_cast<VectorCoefficient&>(eiCoef_));
    a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *jd_, A1, E, RHS);
 
    cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
@@ -590,7 +500,7 @@ CPD1DSolver::Solve()
          GMRESSolver gmres(HCurlFESpace_->GetComm());
          gmres.SetOperator(*A1.Ptr());
          gmres.SetRelTol(1e-4);
-         gmres.SetMaxIter(10000);
+         gmres.SetMaxIter(20000);
          gmres.SetPrintLevel(1);
 
          gmres.Mult(RHS, E);
@@ -946,8 +856,8 @@ CPD1DSolver::DisplayAnimationToGLVis()
       ostringstream oss;
       oss << "Harmonic Solution (t = " << t << " T)";
 
-      add(cos( 2.0 * M_PI * t), e_->real(),
-          sin( 2.0 * M_PI * t), e_->imag(), e_t);
+      add( cos( 2.0 * M_PI * t), e_->real(),
+           -sin( 2.0 * M_PI * t), e_->imag(), e_t);
       sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
       sol_sock << "solution\n" << *pmesh_ << e_t
                << "window_title '" << oss.str() << "'" << flush;
