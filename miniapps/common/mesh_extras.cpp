@@ -475,7 +475,7 @@ MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
    }
    return per_mesh;
 }
-  
+
 } // namespace miniapps
 
 } // namespace mfem

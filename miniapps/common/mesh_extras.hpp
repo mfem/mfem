@@ -33,7 +33,7 @@ MergeMeshNodes(Mesh * mesh, int logging = 0);
 Mesh *
 MakePeriodicMesh(Mesh * mesh, const std::vector<Vector> & trans_vecs,
                  int logging = 0);
-  
+
 } // namespace miniapps
 
 } // namespace mfem
