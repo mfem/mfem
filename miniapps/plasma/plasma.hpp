@@ -28,6 +28,9 @@ static const double epsilon0_ = 8.8541878176e-12;
 // Permeability of Free Space (units H/m)
 static const double mu0_ = 4.0e-7 * M_PI;
 
+// Speed of light in Free Space (units m/s)
+static const double c0_ = 1.0 / sqrt(epsilon0_ * mu0_);
+
 static const double q_  = 1.60217662e-19;  // Elementary charge in coulombs
 static const double u_  = 1.660539040e-27; // Atomic mass unit in kilograms
 static const double me_ = 9.10938356e-31;  // Mass of electron in kilograms
@@ -37,4 +40,4 @@ static const double me_ = 9.10938356e-31;  // Mass of electron in kilograms
 } // namespace mfem
 
 #endif // MFEM_PLASMA_HPP
-  
+
