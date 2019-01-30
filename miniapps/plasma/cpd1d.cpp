@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
    Vector numbers;
    Vector charges;
    Vector masses;
-   
+
    Array<int> abcs;
    Array<int> dbcs;
    int num_elements = 10;
@@ -204,46 +204,48 @@ int main(int argc, char *argv[])
    }
    if (numbers.Size() == 0)
    {
-     numbers.SetSize(2);
-     numbers[0] = 1.0e19;
-     numbers[1] = 1.0e19;
+      numbers.SetSize(2);
+      numbers[0] = 1.0e19;
+      numbers[1] = 1.0e19;
    }
    if (charges.Size() == 0)
    {
-     charges.SetSize(2);
-     charges[0] = -1.0;
-     charges[1] =  1.0;
+      charges.SetSize(2);
+      charges[0] = -1.0;
+      charges[1] =  1.0;
    }
    if (masses.Size() == 0)
    {
-     masses.SetSize(2);
-     masses[0] = me_ / u_;
-     masses[1] = 2.01410178;
+      masses.SetSize(2);
+      masses[0] = me_ / u_;
+      masses[1] = 2.01410178;
    }
    if (num_elements <= 0)
    {
-     num_elements = 10;
+      num_elements = 10;
    }
    if (mesh_dim_.Size() == 0)
    {
-     mesh_dim_.SetSize(3);
-     mesh_dim_ = 0.0;
+      mesh_dim_.SetSize(3);
+      mesh_dim_ = 0.0;
    }
    else if (mesh_dim_.Size() < 3)
    {
-     double d0 = mesh_dim_[0];
-     double d1 = (mesh_dim_.Size() == 2) ? mesh_dim_[1] : 0.1 * d0;
-     mesh_dim_.SetSize(3);
-     mesh_dim_[0] = d0;
-     mesh_dim_[1] = d1;
-     mesh_dim_[2] = d1;
+      double d0 = mesh_dim_[0];
+      double d1 = (mesh_dim_.Size() == 2) ? mesh_dim_[1] : 0.1 * d0;
+      mesh_dim_.SetSize(3);
+      mesh_dim_[0] = d0;
+      mesh_dim_[1] = d1;
+      mesh_dim_[2] = d1;
    }
    if (mesh_dim_[0] == 0.0)
    {
-     mesh_dim_[0] = 1.0;
-     mesh_dim_[1] = 0.1;
-     mesh_dim_[2] = 0.1;
+      mesh_dim_[0] = 1.0;
+      mesh_dim_[1] = 0.1;
+      mesh_dim_[2] = 0.1;
    }
+   double omega = 2.0 * M_PI * freq;
+
    if (mpi.Root())
    {
       args.PrintOptions(cout);
@@ -257,38 +259,39 @@ int main(int argc, char *argv[])
    // and volume meshes with the same code.
 
    Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
-			  mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+                          mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
    {
-     vector<Vector> trans(2);
-     trans[0].SetSize(3);
-     trans[1].SetSize(3);
-     trans[0] = 0.0; trans[0][1] = mesh_dim_[1];
-     trans[1] = 0.0; trans[1][2] = mesh_dim_[2];
-     Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, trans);
-     cout << "Chekcing eltrans from mesh" << endl;
-     for (int i=0; i<mesh->GetNBE(); i++)
-     {
-       ElementTransformation * eltrans = mesh->GetBdrElementTransformation(i);
-       cout << i
-	    << '\t' << eltrans->ElementNo
-	    << '\t' << eltrans->Attribute
-	    << endl;
-     }
-     cout << "Chekcing eltrans from per_mesh" << endl;
-     for (int i=0; i<per_mesh->GetNBE(); i++)
-     {
-       ElementTransformation * eltrans = per_mesh->GetBdrElementTransformation(i);
-       cout << i
-	    << '\t' << eltrans->ElementNo
-	    << '\t' << eltrans->Attribute
-	    << endl;
-     }
-     delete mesh;
-     mesh = per_mesh;
-
-     ofstream ofs("per_mesh.mesh");
-     mesh->Print(ofs);
-     ofs.close();
+      vector<Vector> trans(2);
+      trans[0].SetSize(3);
+      trans[1].SetSize(3);
+      trans[0] = 0.0; trans[0][1] = mesh_dim_[1];
+      trans[1] = 0.0; trans[1][2] = mesh_dim_[2];
+      Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, trans);
+      /*
+      ofstream ofs("per_mesh.mesh");
+      per_mesh->Print(ofs);
+      ofs.close();
+      cout << "Chekcing eltrans from mesh" << endl;
+      for (int i=0; i<mesh->GetNBE(); i++)
+      {
+        ElementTransformation * eltrans = mesh->GetBdrElementTransformation(i);
+        cout << i
+        << '\t' << eltrans->ElementNo
+        << '\t' << eltrans->Attribute
+        << endl;
+      }
+      cout << "Chekcing eltrans from per_mesh" << endl;
+      for (int i=0; i<per_mesh->GetNBE(); i++)
+      {
+        ElementTransformation * eltrans = per_mesh->GetBdrElementTransformation(i);
+        cout << i
+        << '\t' << eltrans->ElementNo
+        << '\t' << eltrans->Attribute
+        << endl;
+      }
+      */
+      delete mesh;
+      mesh = per_mesh;
    }
    if (mpi.Root())
    {
@@ -307,8 +310,8 @@ int main(int argc, char *argv[])
    {
      for (int i=0; i<pmesh.GetNBE(); i++)
        {
-	 cout << i << '\t' << pmesh.GetBdrElementBaseGeometry(i)
-	      << '\t' << pmesh.GetBdrAttribute(i) << endl;
+    cout << i << '\t' << pmesh.GetBdrElementBaseGeometry(i)
+         << '\t' << pmesh.GetBdrAttribute(i) << endl;
        }
    }
    */
