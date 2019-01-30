@@ -124,9 +124,11 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
    if (P)
    {
       dbg("P");
+      //dbg("b:"); b.Print();
       // Variational restriction with P
       B.SetSize(P->Width());
       P->MultTranspose(b, B);
+      // dbg("B:"); B.Print();
       X.SetSize(R->Height());
       R->Mult(x, X);
    }

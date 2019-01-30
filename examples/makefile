@@ -58,7 +58,7 @@ okmm:
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS) -Xlinker -Wl,-rpath /home/camier1/home/stk -lstk
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS) #-Wl,-rpath /home/camier1/home/stk -lstk
 
 all: $(EXAMPLES) $(SUBDIRS_ALL)
 

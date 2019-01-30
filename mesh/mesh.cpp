@@ -6715,7 +6715,6 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
 {
    MFEM_VERIFY(!NURBSext, "Nonconforming refinement of NURBS meshes is "
                "not supported. Project the NURBS to Nodes first.");
-
    DeleteLazyTables();
 
    if (!ncmesh)

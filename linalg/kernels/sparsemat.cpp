@@ -45,16 +45,18 @@ void AddMult(const size_t height,
    GET_CONST_PTR(A);
    GET_CONST_PTR(x);
    GET_PTR(y);
-   MFEM_FORALL(i, height,
-   {
-      double d = 0.0;
-      const size_t end = d_I[i+1];
-      for (size_t j=d_I[i]; j < end; j+=1)
-      {
-         d += d_A[j] * d_x[d_J[j]];
+   //MFEM_FORALL(i, height,{
+   MFEM_FORALL(_k, 1, {
+      for(int i=0; i<height; i+=1){
+         double d = 0.0;
+         const size_t end = d_I[i+1];
+         for (size_t j=d_I[i]; j < end; j+=1)
+         {
+            d += d_A[j] * d_x[d_J[j]];
+         }
+         d_y[i] += d;
       }
-      d_y[i] += d;
-   });
+      });
 }
 
 // *****************************************************************************
@@ -168,29 +170,6 @@ void Gauss_Seidel_back(const size_t height,
          assert(dpaann || xeqs);
          d_yp[i] = dpaann ? xmsda:sum;
       }
-   });
-}
-
-
-// *****************************************************************************
-void kAddMult(const size_t height,
-              const int *I, const int *J, const double *A,
-              const double *x, double *y)
-{
-   GET_CONST_PTR_T(I,int);
-   GET_CONST_PTR_T(J,int);
-   GET_CONST_PTR(A);
-   GET_CONST_PTR(x);
-   GET_PTR(y);
-   MFEM_FORALL(i, height,
-   {
-      double d = 0.0;
-      const size_t end = d_I[i+1];
-      for (size_t j=d_I[i]; j < end; j+=1)
-      {
-         d += d_A[j] * d_x[d_J[j]];
-      }
-      d_y[i] += d;
    });
 }
 

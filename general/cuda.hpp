@@ -17,7 +17,7 @@
 #include <cuda.h>
 inline void cuCheck(const unsigned int c)
 {
-   MFEM_ASSERT(!c, cudaGetErrorString(cudaGetLastError()));
+   MFEM_ASSERT(not c, cudaGetErrorString(cudaGetLastError()));
 }
 template <typename BODY> __global__ static
 void cuKernel(const size_t N, BODY body)
@@ -26,11 +26,19 @@ void cuKernel(const size_t N, BODY body)
    if (k >= N) { return; }
    body(k);
 }
+template <typename BODY> __global__ static
+void cuKernelSeq(const size_t N, BODY body)
+{
+   for(size_t k=0; k<N; k+=1){
+      body(k);
+   }
+}
 template <size_t BLOCKS, typename DBODY>
 void cuWrap(const size_t N, DBODY &&d_body)
 {
    const size_t GRID = (N+BLOCKS-1)/BLOCKS;
    cuKernel<<<GRID,BLOCKS>>>(N,d_body);
+   //cuKernelSeq<<<1,1>>>(N,d_body);
 }
 constexpr static inline bool usingNvccCompiler() { return true; }
 #else // ***********************************************************************
