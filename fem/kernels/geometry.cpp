@@ -50,7 +50,6 @@ static void Geom(const int DIM,
                  double* invJ,
                  double* detJ)
 {
-   stk();
    static int loop = 0;
    //if (loop++==1) { assert(false); }
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);

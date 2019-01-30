@@ -200,7 +200,6 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
                                            const IntegrationRule& ir,
                                            const bool transpose)
 {
-   stk();
    static int loop = 0;
    std::stringstream ss;
    dbg("SimplexMap map '%d-%d-%d'",trialFE.GetOrder(), testFE.GetOrder(), ir.GetNPoints());

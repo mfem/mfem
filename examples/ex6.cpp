@@ -34,12 +34,15 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "/home/camier1/home/stk/stk.hpp"
 
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   dbg("[main] ex6");
+   stkIni(argv[0]);
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
