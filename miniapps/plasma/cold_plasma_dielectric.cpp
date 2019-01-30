@@ -9,7 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "cold_plasma_dielectric.hpp" 
+#include "cold_plasma_dielectric.hpp"
 
 using namespace std;
 namespace mfem
@@ -19,85 +19,99 @@ using namespace miniapps;
 namespace plasma
 {
 
-double R(double omega, double Bmag,
-	 const Vector & number, const Vector & charge, const Vector & mass)
+double R_cold_plasma(double omega,
+                     double Bmag,
+                     const Vector & number,
+                     const Vector & charge,
+                     const Vector & mass)
 {
-  double val = 1.0;
-  for (int i=0; i<number.Size(); i++)
-  {
-    double n = number[i];
-    double q = charge[i];
-    double m = mass[i];
-    double w_c = omega_c(Bmag, q, m);
-    double w_p = omega_p(n, q, m);
-    val -= w_p * w_p / (omega * (omega + w_c));
-  }
-  return val;
-}
-  
-double L(double omega, double Bmag,
-	 const Vector & number, const Vector & charge, const Vector & mass)
-{
-  double val = 1.0;
-  for (int i=0; i<number.Size(); i++)
-  {
-    double n = number[i];
-    double q = charge[i];
-    double m = mass[i];
-    double w_c = omega_c(Bmag, q, m);
-    double w_p = omega_p(n, q, m);
-    val -= w_p * w_p / (omega * (omega - w_c));
-  }
-  return val;
-}
-  
-double S(double omega, double Bmag,
-	 const Vector & number, const Vector & charge, const Vector & mass)
-{
-  double val = 1.0;
-  for (int i=0; i<number.Size(); i++)
-  {
-    double n = number[i];
-    double q = charge[i];
-    double m = mass[i];
-    double w_c = omega_c(Bmag, q, m);
-    double w_p = omega_p(n, q, m);
-    val -= w_p * w_p / (omega * omega - w_c * w_c);
-  }
-  return val;
-}
-  
-double D(double omega, double Bmag,
-	 const Vector & number, const Vector & charge, const Vector & mass)
-{
-  double val = 0.0;
-  for (int i=0; i<number.Size(); i++)
-  {
-    double n = number[i];
-    double q = charge[i];
-    double m = mass[i];
-    double w_c = omega_c(Bmag, q, m);
-    double w_p = omega_p(n, q, m);
-    val += w_p * w_p * w_c / (omega *(omega * omega - w_c * w_c));
-  }
-  return val;
+   double val = 1.0;
+   for (int i=0; i<number.Size(); i++)
+   {
+      double n = number[i];
+      double q = charge[i];
+      double m = mass[i];
+      double w_c = omega_c(Bmag, q, m);
+      double w_p = omega_p(n, q, m);
+      val -= w_p * w_p / (omega * (omega + w_c));
+   }
+   return val;
 }
 
-double P(double omega,
-	 const Vector & number, const Vector & charge, const Vector & mass)
+double L_cold_plasma(double omega,
+                     double Bmag,
+                     const Vector & number,
+                     const Vector & charge,
+                     const Vector & mass)
 {
-  double val = 1.0;
-  for (int i=0; i<number.Size(); i++)
-  {
-    double n = number[i];
-    double q = charge[i];
-    double m = mass[i];
-    double w_p = omega_p(n, q, m);
-    val -= w_p * w_p / (omega * omega);
-  }
-  return val;
+   double val = 1.0;
+   for (int i=0; i<number.Size(); i++)
+   {
+      double n = number[i];
+      double q = charge[i];
+      double m = mass[i];
+      double w_c = omega_c(Bmag, q, m);
+      double w_p = omega_p(n, q, m);
+      val -= w_p * w_p / (omega * (omega - w_c));
+   }
+   return val;
 }
-  
+
+double S_cold_plasma(double omega,
+                     double Bmag,
+                     const Vector & number,
+                     const Vector & charge,
+                     const Vector & mass)
+{
+   double val = 1.0;
+   for (int i=0; i<number.Size(); i++)
+   {
+      double n = number[i];
+      double q = charge[i];
+      double m = mass[i];
+      double w_c = omega_c(Bmag, q, m);
+      double w_p = omega_p(n, q, m);
+      val -= w_p * w_p / (omega * omega - w_c * w_c);
+   }
+   return val;
+}
+
+double D_cold_plasma(double omega,
+                     double Bmag,
+                     const Vector & number,
+                     const Vector & charge,
+                     const Vector & mass)
+{
+   double val = 0.0;
+   for (int i=0; i<number.Size(); i++)
+   {
+      double n = number[i];
+      double q = charge[i];
+      double m = mass[i];
+      double w_c = omega_c(Bmag, q, m);
+      double w_p = omega_p(n, q, m);
+      val += w_p * w_p * w_c / (omega *(omega * omega - w_c * w_c));
+   }
+   return val;
+}
+
+double P_cold_plasma(double omega,
+                     const Vector & number,
+                     const Vector & charge,
+                     const Vector & mass)
+{
+   double val = 1.0;
+   for (int i=0; i<number.Size(); i++)
+   {
+      double n = number[i];
+      double q = charge[i];
+      double m = mass[i];
+      double w_p = omega_p(n, q, m);
+      val -= w_p * w_p / (omega * omega);
+   }
+   return val;
+}
+
 void real_epsilon_sigma(double omega, const Vector &B,
                         const Vector &density_vals,
                         const Vector &temperature_vals,
@@ -199,59 +213,75 @@ void real_epsilon_sigma(double omega, const Vector &B,
 
 }
 
-DielectricTensor::DielectricTensor(ParGridFunction & B,
-                                   BlockVector & temperature,
-                                   BlockVector & density,
-                                   ParFiniteElementSpace & H1FESpace,
-                                   ParFiniteElementSpace & L2FESpace,
-                                   int nspecies,
+DielectricTensor::DielectricTensor(const ParGridFunction & B,
+                                   const BlockVector & density,
+                                   const ParFiniteElementSpace & L2FESpace,
                                    double omega,
+                                   const Vector & charges,
+                                   const Vector & masses,
                                    bool realPart)
    : MatrixCoefficient(3),
-     B_(&B),
-     temperature_(&temperature),
-     density_(&density),
-     H1FESpace_(&H1FESpace),
-     L2FESpace_(&L2FESpace),
-     nspecies_(nspecies),
+     B_(B),
+     density_(density),
+     L2FESpace_(L2FESpace),
      omega_(omega),
-     realPart_(realPart)
+     realPart_(realPart),
+     charges_(charges),
+     masses_(masses)
 {
-   density_vals_.SetSize(nspecies_ + 1);
-   temperature_vals_.SetSize(nspecies_ + 1);
+   density_vals_.SetSize(charges_.Size());
 }
 
 void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                             const IntegrationPoint &ip)
 {
-   // Initialize dielectric tensor to all zeros
-   epsilon.SetSize(3); epsilon = 0.0;
+   // Initialize dielectric tensor to appropriate size
+   epsilon.SetSize(3);
 
    // Collect density, temperature, and magnetic field values
    Vector B(3);
-   B_->GetVectorValue(T.ElementNo, ip, B);
+   B_.GetVectorValue(T.ElementNo, ip, B);
+   double Bmag = B.Norml2();
+   double th = atan2(B(2), B(0));
+   double ph = atan2(B(0) * cos(th) + B(2) * sin(th), -B(1));
 
-   for (int i=0; i<=nspecies_; i++)
+   for (int i=0; i<density_vals_.Size(); i++)
    {
-      density_gf_.MakeRef(L2FESpace_, density_->GetBlock(i));
-      temperature_gf_.MakeRef(H1FESpace_, temperature_->GetBlock(i));
-      density_vals_[i]     = density_gf_.GetValue(T.ElementNo, ip);
-      temperature_vals_[i] = temperature_gf_.GetValue(T.ElementNo, ip);
+      density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
+                          const_cast<Vector&>(density_.GetBlock(i)));
+      density_vals_[i] = density_gf_.GetValue(T.ElementNo, ip);
    }
 
    if (realPart_)
    {
-      // Populate the dielectric tensor
-      real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
-                         epsilon.Data(), NULL);
+      double S = S_cold_plasma(omega_, Bmag, density_vals_, charges_, masses_);
+      double P = P_cold_plasma(omega_, density_vals_, charges_, masses_);
+
+      epsilon(0,0) =  (P - S) * pow(sin(ph), 2) * pow(cos(th), 2) + S;
+      epsilon(1,1) =  (P - S) * pow(cos(ph), 2) + S;
+      epsilon(2,2) =  (P - S) * pow(sin(ph), 2) * pow(sin(th), 2) + S;
+      epsilon(0,1) = -(P - S) * cos(ph) * cos(th) * sin(ph);
+      epsilon(0,2) =  (P - S) * pow(sin(ph), 2) * sin(th) * cos(th);
+      epsilon(1,2) = -(P - S) * sin(th) * cos(ph) * sin(ph);
+      epsilon(1,0) = epsilon(0,1);
+      epsilon(2,1) = epsilon(1,2);
+      epsilon(0,2) = epsilon(2,0);
    }
    else
    {
-      // Populate the conductivity tensor
-      real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
-                         NULL, epsilon.Data());
+      double D = D_cold_plasma(omega_, Bmag, density_vals_, charges_, masses_);
 
+      epsilon(0,0) =  0.0;
+      epsilon(1,1) =  0.0;
+      epsilon(2,2) =  0.0;
+      epsilon(0,1) = -D * sin(th) * sin(ph);
+      epsilon(0,2) = -D * cos(ph);
+      epsilon(1,2) = -D * cos(th) * sin(ph);
+      epsilon(1,0) = -epsilon(0,1);
+      epsilon(2,1) = -epsilon(1,2);
+      epsilon(0,2) = -epsilon(2,0);
    }
+   epsilon *= epsilon0_;
    /*
    Vector lambda(3);
    epsilon.Eigenvalues(lambda);
