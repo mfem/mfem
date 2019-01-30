@@ -101,8 +101,6 @@ void PABilinearFormExtension::FormSystemOperator(const Array<int>
                                                  &ess_tdof_list,
                                                  Operator *&A)
 {
-   stk();
-//#warning trialP
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
@@ -120,9 +118,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                Operator *&A, Vector &X, Vector &B,
                                                int copy_interior)
 {
-   stk();
    FormSystemOperator(ess_tdof_list, A);
-//#warning P
    const Operator* P = trialFes->GetProlongationMatrix();
    const Operator* R = trialFes->GetRestrictionMatrix();
    if (P)

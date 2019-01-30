@@ -38,6 +38,7 @@ static const void* IsAlias(const mm::ledger &maps, const void *ptr)
         mem != maps.memories.end(); mem++)
    {
       const void *b_ptr = mem->first;
+      assert(b_ptr==mem->second.h_ptr);
       if (b_ptr > ptr) { continue; }
       const void *end = (char*)b_ptr + mem->second.bytes;
       if (ptr < end) { return b_ptr; }
@@ -53,8 +54,18 @@ static const void* InsertAlias(mm::ledger &maps,
    mm::memory &mem = maps.memories.at(base);
    const size_t offset = (char *)ptr - (char *)base;
    const mm::alias *alias = new mm::alias{&mem, offset};
-   assert(alias);
-   maps.aliases[ptr] = alias;
+   dbg("\033[33m%p < (\033[37m%ld) < \033[33m%p", base, offset, ptr);
+   maps.aliases.emplace(ptr, alias);
+   { // Sanity checks
+      mem.aliases.sort();
+      for (const mm::alias *a : mem.aliases)
+      {
+         if (a->mem == &mem ){
+            assert(a->offset != offset);
+         }
+      }
+   }
+   // Add this alias to the memory
    mem.aliases.push_back(alias);
    return ptr;
 }
@@ -74,7 +85,7 @@ static bool Alias(mm::ledger &maps, const void *ptr)
 }
 
 // *****************************************************************************
-static void debugMode(void)
+static void DumpMode(void)
 {
    static bool env_ini = false;
    static bool env_dbg = false;
@@ -108,18 +119,141 @@ static void debugMode(void)
 }
 
 // *****************************************************************************
+static void Dump(const mm::ledger &maps)
+{
+   static bool env_ini = false;
+   static bool env_dbg = false;
+   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
+   if (!env_dbg) { return; }
+   const mm::memory_map &mem = maps.memories;
+   const mm::alias_map  &als = maps.aliases;
+   size_t k = 0;
+   size_t l = 0;
+   printf("\n\033[35mvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv");
+   for (mm::memory_map::const_iterator m = mem.begin(); m != mem.end(); m++)
+   {
+      const void *h_ptr = m->first;
+      assert(h_ptr == m->second.h_ptr);
+      const size_t bytes = m->second.bytes;
+      const void *d_ptr = m->second.d_ptr;
+      if (!d_ptr)
+      {
+         const bool kB = bytes>1024;
+         printf("\n[%ld] \033[33m%p \033[35m(%ld%s)", k, h_ptr,
+                kB?bytes/1024:bytes,
+                kB?"\033[1mk\033[0;35m":"");
+      }
+      else
+      {
+         assert(false);
+         printf("\n[%ld] \033[33m%p \033[35m (%ld) \033[32 -> %p",
+                k, h_ptr, bytes, d_ptr);
+      }
+      
+      for (const mm::alias *alias : m->second.aliases)
+      {
+         const size_t offset = alias->offset;
+         const void *base = alias->mem->h_ptr;
+         assert(base);
+         const void *ptr = (char*)base + offset;
+         printf("\n\t[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",
+                l, base, offset, ptr);
+         assert(((char*)base + offset)==ptr);
+         // check
+         maps.aliases.at(ptr);
+         l++;
+      }
+      fflush(0);
+      k++;
+   }
+   k = 0;
+   for (mm::alias_map::const_iterator a = als.begin(); a != als.end(); a++)
+   {
+      const void *ptr = a->first;
+      const size_t offset = a->second->offset;
+      const void *base = a->second->mem->h_ptr;
+      assert(base);
+      printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",
+             k, base, offset, ptr);
+      fflush(0);
+      assert(((char*)base + offset)==ptr);
+      k++;
+   }
+   printf("\n^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
+   fflush(0);
+}
+
+// *****************************************************************************
+// * WARNING, as all aliases are not removed, this Assert will fail
+// *****************************************************************************
+static void Assert(const mm::ledger &maps)
+{
+   static bool env_ini = false;
+   static bool env_dbg = false;
+   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
+   if (!env_dbg) { return; }
+   const mm::memory_map &memories = maps.memories;
+   const mm::alias_map  &aliases = maps.aliases;
+   size_t nb_mems = 0;
+   size_t nb_aliases = 0;
+   for (mm::memory_map::const_iterator m = memories.begin(); m != memories.end(); m++)
+   {
+      const void *h_ptr = m->first;
+      assert(h_ptr == m->second.h_ptr);
+      //const size_t bytes = m->second.bytes;
+      //const void *d_ptr = m->second.d_ptr;
+      //for (const mm::alias *alias : m->second.aliases)
+      for (auto a = m->second.aliases.begin(); a != m->second.aliases.end(); a++)
+      {
+         const mm::alias *alias = *a;
+         const size_t offset = alias->offset;
+         const void *base = alias->mem->h_ptr;
+         assert(base);
+         const void *ptr = (char*)base + offset;
+         //dbg("\n\t[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p", nb_aliases, base, offset, ptr);
+         assert(((char*)base + offset)==ptr);
+         // check it exists
+         maps.aliases.at(ptr);
+         nb_aliases++;
+      }
+      nb_mems++;
+   }
+   const size_t nb_aliases_in_mems = nb_aliases;
+   nb_aliases = 0;
+   for (mm::alias_map::const_iterator a = aliases.begin(); a != aliases.end(); a++)
+   {
+      const void *ptr = a->first;
+      const size_t offset = a->second->offset;
+      const void *base = a->second->mem->h_ptr;
+      assert(base);
+#warning no assert(((char*)base + offset)==ptr);
+      /*
+      if (((char*)base + offset)!=ptr){
+         dbg("\033[33m%p ?<? (\033[37m%ld) ?<? \033[33m%p",
+             base, offset, ptr);
+      }
+      assert(((char*)base + offset)==ptr);
+      */
+      nb_aliases++;
+   }
+#warning no assert(nb_aliases==nb_aliases_in_mems)
+   //assert(nb_aliases==nb_aliases_in_mems);
+}
+
+// *****************************************************************************
 // * Adds an address
 // *****************************************************************************
 void* mm::Insert(void *ptr, const size_t bytes)
 {
    if (!config::usingMM()) { return ptr; }
    if (config::gpuDisabled()) { return ptr; }
+   //Assert(maps);
    const bool known = Known(maps, ptr);
    if (known) { BUILTIN_TRAP; }
    MFEM_ASSERT(!known, "Trying to add already present address!");
    //dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
    assert(ptr);
-   debugMode();
+   DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes));
    return ptr;
 }
@@ -135,16 +269,32 @@ void *mm::Erase(void *ptr)
    if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("Trying to remove an unknown address!"); }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
-   //dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
    assert(ptr);
-   debugMode();
-   const memory &mem = maps.memories.at(ptr);
-   for (const alias* const alias : mem.aliases)
+   DumpMode();
+   Assert(maps);
+   memory &mem = maps.memories.at(ptr);
+   //dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
+   //dbg("\033[33m BEFORE:");
+   //Dump(maps);
+   //for (const mm::alias* alias : mem.aliases)
+   for (auto alias = mem.aliases.begin(); alias != mem.aliases.end(); alias++)
    {
-      maps.aliases.erase(alias);
-      delete alias;
+      //const size_t offset = alias->offset;
+      //const void *base = alias->mem->h_ptr;
+      //assert(base);
+      //dbg("\t\033[33m maps.aliases.erase %p <- %ld", base, offset);
+      //mem.aliases.erase(alias);
+      maps.aliases.erase(*alias);
+      //dbg("\t\033[33m delete alias %p", alias);
+      //delete *alias;
    }
+   //dbg("\033[33m mem.aliases.clear");
+   //mem.aliases.clear();
+   //dbg("\033[33m maps.memories.erase %p", ptr);
    maps.memories.erase(ptr);
+   //Assert(maps);
+   //dbg("\033[33m AFTER:");
+   //DumpMaps(maps);
    return ptr;
 }
 
@@ -189,7 +339,12 @@ static void* PtrAlias(mm::ledger &maps, void *ptr)
    const bool device = !base->host;
    const size_t bytes = base->bytes;
    assert(base);
-   assert(host==true);
+   if (not host){
+      dbg("\033[1;33m%p < (\033[37m%ld) < \033[33m%p",
+          base, alias->offset, ptr);
+      Dump(maps);
+   }
+   assert(host);
    if (host && !gpu) { return ptr; }
    assert(false);
    if (!base->d_ptr) { cuMemAlloc(&alias->mem->d_ptr, bytes); }
@@ -218,9 +373,10 @@ void* mm::Ptr(void *ptr)
    if (config::gpuDisabled()) { return ptr; }
    if (!config::gpuHasBeenEnabled()) { return ptr; }
    if (Known(maps, ptr)) { return PtrKnown(maps, ptr); }
-   const bool alias = Alias(maps, ptr);
+   dbg("\033[1;31m %p asked but unknown\033[35m", ptr);
+   const bool alias = Alias(maps, ptr); // Alias always returns true
    if (!alias) { BUILTIN_TRAP; }
-   if (!alias) { mfem_error("mm::Ptr"); }
+   if (!alias) { mfem_error("Unknown address!"); }
    MFEM_ASSERT(alias, "Unknown address!");
    return PtrAlias(maps, ptr);
 }
@@ -300,9 +456,10 @@ static void PushAlias(const mm::ledger &maps, const void *ptr,
 // *****************************************************************************
 void mm::Push(const void *ptr, const size_t bytes)
 {
-   if (config::gpuDisabled()) { return; }
    if (!config::usingMM()) { return; }
+   if (!config::gpuEnabled()) { return; }
    if (!config::gpuHasBeenEnabled()) { return; }
+   assert(false);
    if (Known(maps, ptr)) { return PushKnown(maps, ptr, bytes); }
    assert(!config::usingOcca());
    const bool alias = Alias(maps, ptr);
@@ -316,7 +473,6 @@ void mm::Push(const void *ptr, const size_t bytes)
 static void PullKnown(const mm::ledger &maps, const void *ptr,
                       const size_t bytes)
 {
-   assert(false);
    const mm::memory &base = maps.memories.at(ptr);
    cuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes == 0 ? base.bytes : bytes);
 }
@@ -325,7 +481,6 @@ static void PullKnown(const mm::ledger &maps, const void *ptr,
 static void PullAlias(const mm::ledger &maps, const void *ptr,
                       const size_t bytes)
 {
-   assert(false);
    const mm::alias *alias = maps.aliases.at(ptr);
    cuMemcpyDtoH((void *)ptr, (char*)alias->mem->d_ptr + alias->offset, bytes);
 }
@@ -333,9 +488,10 @@ static void PullAlias(const mm::ledger &maps, const void *ptr,
 // *****************************************************************************
 void mm::Pull(const void *ptr, const size_t bytes)
 {
-   if (config::gpuDisabled()) { return; }
    if (!config::usingMM()) { return; }
+   if (!config::gpuEnabled()) { return; }
    if (!config::gpuHasBeenEnabled()) { return; }
+   assert(false);
    if (Known(maps, ptr)) { return PullKnown(maps, ptr, bytes); }
    assert(!config::usingOcca());
    const bool alias = Alias(maps, ptr);
@@ -346,54 +502,15 @@ void mm::Pull(const void *ptr, const size_t bytes)
 }
 
 // *****************************************************************************
-// __attribute__((unused)) // VS doesn't like this in Appveyor
-static void Dump(const mm::ledger &maps)
-{
-   if (!getenv("DBG")) { return; }
-   const mm::memory_map &mem = maps.memories;
-   const mm::alias_map  &als = maps.aliases;
-   size_t k = 0;
-   for (mm::memory_map::const_iterator m = mem.begin(); m != mem.end(); m++)
-   {
-      const void *h_ptr = m->first;
-      assert(h_ptr == m->second.h_ptr);
-      const size_t bytes = m->second.bytes;
-      const void *d_ptr = m->second.d_ptr;
-      if (!d_ptr)
-      {
-         printf("\n[%ld] \033[33m%p \033[35m(%ld)", k, h_ptr, bytes);
-      }
-      else
-      {
-         printf("\n[%ld] \033[33m%p \033[35m (%ld) \033[32 -> %p",
-                k, h_ptr, bytes, d_ptr);
-      }
-      fflush(0);
-      k++;
-   }
-   k = 0;
-   for (mm::alias_map::const_iterator a = als.begin(); a != als.end(); a++)
-   {
-      const void *ptr = a->first;
-      const size_t offset = a->second->offset;
-      const void *base = a->second->mem->h_ptr;
-      printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",
-             k, base, offset, ptr);
-      fflush(0);
-      k++;
-   }
-}
-
-// *****************************************************************************
 // * Data will be pushed/pulled before the copy happens on the H or the D
 // *****************************************************************************
 static void* d2d(void *dst, const void *src, const size_t bytes,
                  const bool async)
 {
+   const bool cpu = config::usingCpu();
+   if (cpu) { return std::memcpy(dst, src, bytes); }
    GET_PTR(src);
    GET_PTR(dst);
-   const bool cpu = config::usingCpu();
-   if (cpu) { return std::memcpy(d_dst, d_src, bytes); }
    if (!async) { return cuMemcpyDtoD(d_dst, (void *)d_src, bytes); }
    return cuMemcpyDtoDAsync(d_dst, (void *)d_src, bytes, config::Stream());
 }

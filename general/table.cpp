@@ -32,8 +32,8 @@ Table::Table(const Table &table)
       const int nnz = table.I[size];
       I = mm::malloc<int>(size+1);
       J = mm::malloc<int>(nnz);
-      memcpy(I, table.I, sizeof(int)*(size+1));
-      memcpy(J, table.J, sizeof(int)*nnz);
+      mm::memcpy(I, table.I, sizeof(int)*(size+1));
+      mm::memcpy(J, table.J, sizeof(int)*nnz);
    }
    else
    {
@@ -100,8 +100,8 @@ void Table::MakeJ()
    {
       j = I[i], I[i] = k, k += j;
    }
-
-   J = mm::malloc<int>(I[size]=k);
+   I[size]=k;
+   J = mm::malloc<int>(k);
 }
 
 void Table::AddConnections (int r, const int *c, int nc)
@@ -206,6 +206,7 @@ void Table::SortRows()
 
 void Table::SetIJ(int *newI, int *newJ, int newsize)
 {
+   assert(false);
    mm::free<int>(I);
    mm::free<int>(J);
    I = newI;
@@ -386,8 +387,8 @@ void Table::Copy(Table & copy) const
       int * i_copy = mm::malloc<int>(size+1);
       int * j_copy = mm::malloc<int>(I[size]);
 
-      memcpy(i_copy, I, sizeof(int)*(size+1));
-      memcpy(j_copy, J, sizeof(int)*I[size]);
+      mm::memcpy(i_copy, I, sizeof(int)*(size+1));
+      mm::memcpy(j_copy, J, sizeof(int)*I[size]);
 
       copy.SetIJ(i_copy, j_copy, size);
    }
@@ -412,8 +413,16 @@ long Table::MemoryUsage() const
 
 Table::~Table ()
 {
-   if (I) { mm::free<int>(I); }
-   if (J) { mm::free<int>(J); }
+   if (I) {
+      //for(int k=0;k<1024*1024;k++) I[k]=0;
+      mm::free<int>(I);
+   }
+   if (J) {
+      static int loop = 0;
+      //if (loop==2) for(int k=0;k<1024*1024;k++) J[k]=0;
+      mm::free<int>(J);
+      loop++;
+   }
 }
 
 void Transpose (const Table &A, Table &At, int _ncols_A)
@@ -640,6 +649,8 @@ DSTable::~DSTable()
 #ifdef MFEM_USE_MEMALLOC
    // NodesMem.Clear();  // this is done implicitly
 #else
+#warning
+/*
    for (int i = 0; i < NumRows; i++)
    {
       Node *na, *nb = Rows[i];
@@ -649,7 +660,7 @@ DSTable::~DSTable()
          nb = nb->Prev;
          mm::free<int>(na);
       }
-   }
+      }*/
 #endif
    mm::free<int>(Rows);
 }

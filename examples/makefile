@@ -46,6 +46,9 @@ SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
 SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))
 SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
+okmm:
+	tput reset && DBG=1 STK=1 ALL=1 MM=1 LD_PRELOAD=/home/camier1/home/okmm/okmm.so ./ex6 -p -cu
+
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
@@ -55,7 +58,7 @@ SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS) -Xlinker -Wl,-rpath /home/camier1/home/stk -lstk
 
 all: $(EXAMPLES) $(SUBDIRS_ALL)
 
