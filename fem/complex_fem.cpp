@@ -658,17 +658,9 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &X, Vector &B,
                                       int ci)
 {
-   ParFiniteElementSpace * pfes = pblfr_->ParFESpace();
-
-   int tvs = pfes->TrueVSize();
-   cout << "TrueVSize returns " << tvs << endl;
-   cout << "GetVSize returns " << pfes->GetVSize() << endl;
-
+   // ParFiniteElementSpace * pfes = pblfr_->ParFESpace();
+   // int tvs = pfes->TrueVSize();
    int vsize = x.Size() / 2;
-   // int vsize  = pfes->GetVSize();
-   // int tvsize = pfes->GetTrueVSize();
-
-   cout << "x.Size/2 returns " << vsize << endl;
 
    double s = (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0;
 
@@ -696,7 +688,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    */
    OperatorHandle A_r, A_i;
    Vector X_0, B_0;
-   cout << "pblfr fls 1" << endl << flush;
+
    b_0 = b_r;
    pblfr_->FormLinearSystem(ess_tdof_list, x_r, b_0, A_r, X_0, B_0, ci);
 
@@ -708,15 +700,15 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    Vector B_r(B.GetData(), tvsize);
    Vector B_i(&(B.GetData())[tvsize], tvsize);
    X_r = X_0; B_r = B_0;
-   cout << "pblfi fls 1" << endl << flush;
+
    b_0 = 0.0;
    pblfi_->FormLinearSystem(ess_tdof_list, x_i, b_0, A_i, X_0, B_0, false);
    B_r -= B_0;
-   cout << "pblfr fls 2" << endl << flush;
+
    b_0 = b_i;
    pblfr_->FormLinearSystem(ess_tdof_list, x_i, b_0, A_r, X_0, B_0, ci);
    X_i = X_0; B_i = B_0;
-   cout << "pblfi fls 2" << endl << flush;
+
    b_0 = 0.0;
    pblfi_->FormLinearSystem(ess_tdof_list, x_r, b_0, A_i, X_0, B_0, false);
    B_i += B_0;
