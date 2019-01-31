@@ -56,7 +56,7 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    wrap<BLOCKS>(N,                                                      \
                 [=] __device__ (size_t i){__VA_ARGS__},                 \
                 [=]            (size_t i){__VA_ARGS__})
-#define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(i,1,MFEM_BLOCKS,__VA_ARGS__)
+#define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(i,1,1,__VA_ARGS__)
 
 // *****************************************************************************
 uint32_t LOG2(uint32_t);

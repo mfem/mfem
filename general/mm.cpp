@@ -38,7 +38,6 @@ static const void* IsAlias(const mm::ledger &maps, const void *ptr)
         mem != maps.memories.end(); mem++)
    {
       const void *b_ptr = mem->first;
-      assert(b_ptr==mem->second.h_ptr);
       if (b_ptr > ptr) { continue; }
       const void *end = (char*)b_ptr + mem->second.bytes;
       if (ptr < end) { return b_ptr; }
@@ -56,8 +55,8 @@ static const void* InsertAlias(mm::ledger &maps,
    const mm::alias *alias = new mm::alias{&mem, offset};
    dbg("\033[33m%p < (\033[37m%ld) < \033[33m%p", base, offset, ptr);
    maps.aliases.emplace(ptr, alias);
+#ifdef MFEM_DEBUG
    {
-      // Sanity checks
       mem.aliases.sort();
       for (const mm::alias *a : mem.aliases)
       {
@@ -67,7 +66,7 @@ static const void* InsertAlias(mm::ledger &maps,
          }
       }
    }
-   // Add this alias to the memory
+#endif // MFEM_DEBUG
    mem.aliases.push_back(alias);
    return ptr;
 }
@@ -250,12 +249,10 @@ void* mm::Insert(void *ptr, const size_t bytes)
 {
    if (!config::usingMM()) { return ptr; }
    if (config::gpuDisabled()) { return ptr; }
-   //Assert(maps);
    const bool known = Known(maps, ptr);
    if (known) { BUILTIN_TRAP; }
    MFEM_ASSERT(!known, "Trying to add already present address!");
-   //dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
-   assert(ptr);
+   dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
    DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes));
    return ptr;
@@ -269,31 +266,17 @@ void *mm::Erase(void *ptr)
    if (!config::usingMM()) { return ptr; }
    if (config::gpuDisabled()) { return ptr; }
    const bool known = Known(maps, ptr);
-   if (!known) { BUILTIN_TRAP; }
+   // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("Trying to remove an unknown address!"); }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
-   assert(ptr);
-   DumpMode();
-   //Assert(maps);
    memory &mem = maps.memories.at(ptr);
-   //dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
-   //for (const mm::alias* alias : mem.aliases)
-   for (auto alias = mem.aliases.begin(); alias != mem.aliases.end(); alias++)
+   dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
+   for (const alias* const alias : mem.aliases)
    {
-      //const size_t offset = alias->offset;
-      //const void *base = alias->mem->h_ptr;
-      //assert(base);
-      //dbg("\t\033[33m maps.aliases.erase %p <- %ld", base, offset);
-      //mem.aliases.erase(alias);
-      maps.aliases.erase(*alias);
-      //dbg("\t\033[33m delete alias %p", alias);
-      //delete *alias;
+      maps.aliases.erase(alias);
    }
-   //dbg("\033[33m mem.aliases.clear");
    mem.aliases.clear();
-   //dbg("\033[33m maps.memories.erase %p", ptr);
    maps.memories.erase(ptr);
-   //Assert(maps);
    return ptr;
 }
 
@@ -336,13 +319,6 @@ static void* PtrAlias(mm::ledger &maps, void *ptr)
    const bool host = base->host;
    const bool device = !base->host;
    const size_t bytes = base->bytes;
-   assert(base);
-   if (not host)
-   {
-      dbg("\033[1;33m%p < (\033[37m%ld) < \033[33m%p",
-          base, alias->offset, ptr);
-      Dump(maps);
-   }
    if (host && !gpu) { return ptr; }
    if (!base->d_ptr) { cuMemAlloc(&alias->mem->d_ptr, bytes); }
    void *a_ptr = (char*)base->d_ptr + alias->offset;
@@ -370,9 +346,8 @@ void* mm::Ptr(void *ptr)
    if (config::gpuDisabled()) { return ptr; }
    if (!config::gpuHasBeenEnabled()) { return ptr; }
    if (Known(maps, ptr)) { return PtrKnown(maps, ptr); }
-   //dbg("\033[1;31m %p asked but unknown\033[35m", ptr);
-   const bool alias = Alias(maps, ptr); // Alias always returns true
-   if (!alias) { BUILTIN_TRAP; }
+   const bool alias = Alias(maps, ptr);
+   // if (!alias) { BUILTIN_TRAP; }
    if (!alias) { mfem_error("Unknown address!"); }
    MFEM_ASSERT(alias, "Unknown address!");
    return PtrAlias(maps, ptr);
@@ -404,7 +379,6 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
    MFEM_ASSERT(occa, "Using OCCA memory without OCCA mode!");
    if (!base.d_ptr)
    {
-      assert(false);
       base.host = false; // This address is no more on the host
       if (gpu)
       {
@@ -437,11 +411,7 @@ static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
 {
    mm::memory &base = maps.memories.at(ptr);
    const bool host = base.host;
-   if (not host)
-   {
-      dbg("Already on the device, return!");
-      return;
-   }
+   if (not host) { return; }
    if (!base.d_ptr) { cuMemAlloc(&base.d_ptr, base.bytes); }
    cuMemcpyHtoD(base.d_ptr, ptr, bytes == 0 ? base.bytes : bytes);
 }
@@ -450,7 +420,6 @@ static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
 static void PushAlias(const mm::ledger &maps, const void *ptr,
                       const size_t bytes)
 {
-   assert(false);
    const mm::alias *alias = maps.aliases.at(ptr);
    cuMemcpyHtoD((char*)alias->mem->d_ptr + alias->offset, ptr, bytes);
 }
@@ -476,11 +445,7 @@ static void PullKnown(const mm::ledger &maps, const void *ptr,
 {
    const mm::memory &base = maps.memories.at(ptr);
    const bool host = base.host;
-   if (host)
-   {
-      dbg("Already on the host, return!");
-      return;
-   }
+   if (host) { return; }
    cuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes == 0 ? base.bytes : bytes);
 }
 
@@ -488,15 +453,10 @@ static void PullKnown(const mm::ledger &maps, const void *ptr,
 static void PullAlias(const mm::ledger &maps, const void *ptr,
                       const size_t bytes)
 {
-   assert(false);
    const mm::alias *alias = maps.aliases.at(ptr);
    const mm::memory *base = alias->mem;
    const bool host = base->host;
-   if (host)
-   {
-      dbg("Already on the host, return!");
-      return;
-   }
+   if (host) { return; }
    cuMemcpyDtoH((void *)ptr, (char*)alias->mem->d_ptr + alias->offset, bytes);
 }
 

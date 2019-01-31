@@ -127,8 +127,8 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
       {
          I = mm::malloc<int>(height+1);
          J = mm::malloc<int>(nnz);
-         mm::memcpy(I, mat.I, sizeof(int)*(height+1));
-         mm::memcpy(J, mat.J, sizeof(int)*nnz);
+         memcpy(I, mat.I, sizeof(int)*(height+1));
+         memcpy(J, mat.J, sizeof(int)*nnz);
          ownGraph = true;
       }
       else
@@ -138,7 +138,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
          ownGraph = false;
       }
       A = mm::malloc<double>(nnz);
-      mm::memcpy(A, mat.A, sizeof(double)*nnz);
+      memcpy(A, mat.A, sizeof(double)*nnz);
       ownData = true;
 
       Rows = NULL;
@@ -2929,7 +2929,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
    B_j    = B.GetJ();
    B_data = B.GetData();
 
-   B_marker = mm::malloc<int>(ncolsB);
+   B_marker = new int[ncolsB];
 
    for (ib = 0; ib < ncolsB; ib++)
    {
@@ -3023,7 +3023,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
       << ") did not match number of entries changed from matrix-matrix multiply, "
       << counter);
 
-   mm::free<int>(B_marker);
+   delete [] B_marker;
 
    return C;
 }

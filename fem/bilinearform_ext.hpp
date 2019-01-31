@@ -88,7 +88,6 @@ public:
    // void AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator*);
    // void AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator*);
 
-   void Update(FiniteElementSpace *fes);
    void Assemble();
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A);
    void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -99,6 +98,7 @@ public:
 
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   void Update(FiniteElementSpace *fes);
 
    ~PABilinearFormExtension();
 };
