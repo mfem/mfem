@@ -577,9 +577,11 @@ public:
       IDEAL_SHAPE_GIVEN_SIZE, /**<
          Ideal shape, given size/volume; the given nodes define the target
          volume at all quadrature points. */
-      GIVEN_SHAPE_AND_SIZE /**<
+      GIVEN_SHAPE_AND_SIZE, /**<
          Given shape, given size/volume; the given nodes define the exact target
          Jacobian matrix at all quadrature points. */
+      GIVEN_FULL /**<
+         Full target tensor is specified at every quadrature point. */
    };
 
 protected:
@@ -588,9 +590,6 @@ protected:
    mutable double avg_volume;
    double volume_scale;
    const TargetType target_type;
-
-   TargetSpecification *target_spec;
-   AdaptivityEvaluator *adapt_eval;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
@@ -629,6 +628,51 @@ public:
 
    /// Used by target type IDEAL_SHAPE_EQUAL_SIZE. The default volume scale is 1.
    void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
+
+   /** @brief Given an element and quadrature rule, computes ref->target
+       transformation Jacobians for each quadrature point in the element. */
+   virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
+                                      const IntegrationRule &ir,
+                                      DenseTensor &Jtr) const;
+};
+
+class AnalyticAdaptTC : public TargetConstructor
+{
+protected:
+   // Mesh object associated with the latest node positions.
+   Mesh *mesh;
+   // Analytic target specification.
+   Coefficient *scalar_tspec;
+   VectorCoefficient *vector_tspec;
+   MatrixCoefficient *matrix_tspec;
+
+public:
+   AnalyticAdaptTC(TargetType ttype)
+      : TargetConstructor(ttype), mesh(NULL),
+        scalar_tspec(NULL), vector_tspec(NULL), matrix_tspec(NULL) { }
+
+   virtual void SetAnalyticTargetSpec(Mesh &m, Coefficient *sspec,
+                                      VectorCoefficient *vspec,
+                                      MatrixCoefficient *mspec);
+
+   /** @brief Given an element and quadrature rule, computes ref->target
+       transformation Jacobians for each quadrature point in the element. */
+   virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
+                                      const IntegrationRule &ir,
+                                      DenseTensor &Jtr) const;
+};
+
+class DiscreteAdaptTC : public TargetConstructor
+{
+protected:
+   // Discrete target specification.
+   TargetSpecification *target_spec;
+   // Evaluation of the discrete target specification on different meshes.
+   AdaptivityEvaluator *adapt_eval;
+
+public:
+   DiscreteAdaptTC(TargetType ttype)
+      : TargetConstructor(ttype), target_spec(NULL), adapt_eval(NULL) { }
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element. */

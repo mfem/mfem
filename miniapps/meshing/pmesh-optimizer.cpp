@@ -32,6 +32,9 @@
 // Compile with: make pmesh-optimizer
 //
 // Sample runs:
+//   Adapted analytic Hessian:
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade limited shape:
@@ -260,6 +263,180 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    return scale;
 }
 
+double ind_values(const Vector &x)
+{
+   const int opt = 2;
+   // Sub-square.
+   //if (x(0) > 0.3 && x(0) < 0.5 && x(1) > 0.5 && x(1) < 0.7) { return 1.0; }
+
+   // Circle from origin.
+   //const double r = sqrt(x(0)*x(0) + x(1)*x(1));
+   //if (r > 0.5 && r < 0.6) { return 1.0; }
+
+   // npoint.
+   //if (x(0) >= 0.1 && x(0) <= 0.2) { return 1.0; }
+   //if (x(1) >= 0.45 && x(1) <= 0.55 && x(0) >= 0.1 ) { return 1.0; }
+
+   // Sine wave.
+   if (opt==1)
+   {
+      const double X = x(0), Y = x(1);
+      return std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+             std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+   }
+
+   if (opt==2)
+   {
+      // Circle in the middle.
+      double val = 0.;
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      double r1 = 0.15;double r2 = 0.35;double sf=30.0;
+      val = 0.5*(std::tanh(sf*(r-r1)) - std::tanh(sf*(r-r2)));
+      if (val > 1.) {val = 1;}
+      return val;
+   }
+
+   if (opt==3)
+   {
+      // cross
+      double val = 0.;
+      const double X = x(0), Y = x(1);
+      double r = sqrt(X*X + Y*Y);
+      double r1 = 0.45;double r2 = 0.55;double sf=40.0;
+      val = ( 0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2)))
+              + 0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))) );
+      if (val > 1.) {val = 1;}
+      return val;
+   }
+
+   if (opt==4)
+   {
+      // Multiple circles
+      double r1,r2,val,rval;
+      double val1,fac1;
+      double sf = 10;
+      val = 0.;
+      fac1 = 0.05;
+      // circle 1
+      r1= 0.25; r2 = 0.25;rval = 0.1;
+      double xc = x(0) - r1, yc = x(1) - r2;
+      double r = sqrt(xc*xc+yc*yc);
+      val =  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval)));// std::exp(val1);
+      // circle 2
+      r1= 0.75; r2 = 0.75;
+      xc = x(0) - r1, yc = x(1) - r2;
+      r = sqrt(xc*xc+yc*yc);
+      val +=  (0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval))));// std::exp(val1);
+      // circle 3
+      r1= 0.75; r2 = 0.25;
+      xc = x(0) - r1, yc = x(1) - r2;
+      r = sqrt(xc*xc+yc*yc);
+      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval)));// std::exp(val1);
+      // circle 4
+      r1= 0.25; r2 = 0.75;
+      xc = x(0) - r1, yc = x(1) - r2;
+      r = sqrt(xc*xc+yc*yc);
+      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval)));
+      if (val > 1.0) {val = 1.;}
+      if (val < 0.0) {val = 0.;}
+
+      return val;
+   }
+
+   if (opt==5)
+   {
+      // cross
+      double val = 0.;
+      double X = x(0)-0.5, Y = x(1)-0.5;
+      double rval = std::sqrt(X*X + Y*Y);
+      double thval = 60.*M_PI/180.;
+      double Xmod,Ymod;
+      Xmod = X*std::cos(thval) + Y*std::sin(thval);
+      Ymod= -X*std::sin(thval) + Y*std::cos(thval);
+      X = Xmod+0.5; Y = Ymod+0.5;
+      double r1 = 0.45;double r2 = 0.55;double sf=30.0;
+      val = ( 0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2)))
+              + 0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))) );
+      if (rval > 0.4) {val = 0.;}
+      if (val > 1.0) {val = 1.;}
+      if (val < 0.0) {val = 0.;}
+      return val;
+   }
+
+   if (opt==6)
+   {
+      double val = 0.;
+      const double xc = x(0) - 0.0, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      double r1 = 0.45;double r2 = 0.55;double sf=30.0;
+      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+      if (val > 1.) {val = 1;}
+      if (val < 0.) {val = 0;}
+      return val;
+   }
+
+   return 0.0;
+}
+
+class ScalarGradCoefficient : public Coefficient
+{
+private:
+   const int comp;
+   ParGridFunction &func;
+
+public:
+   ScalarGradCoefficient(ParGridFunction &f, int c) : func(f), comp(c) { }
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      Vector grad;
+      func.GetGradient(T, grad);
+      return grad(comp);
+   }
+};
+
+class HessianCoefficient : public MatrixCoefficient
+{
+private:
+   int type;
+
+public:
+   HessianCoefficient(int dim, int type_)
+      : MatrixCoefficient(dim), type(type_) { }
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector pos(3);
+      T.Transform(ip, pos);
+
+      if (type == 0)
+      {
+         K(0, 0) = 1.0 + 3.0 * std::sin(M_PI*pos(0));
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+      }
+      else
+      {
+         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+         const double eps = 0.5;
+
+         const double tan1 = std::tanh(sf*(r-r1)),
+                      tan2 = std::tanh(sf*(r-r2));
+
+         K(0, 0) = eps + 1.0 * (tan1 - tan2);
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+      }
+   }
+};
+
 // Additional IntegrationRules that can be used with the --quad-type option.
 IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
@@ -381,6 +558,7 @@ int main (int argc, char *argv[])
       cout << endl;
    }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
 
@@ -510,17 +688,31 @@ int main (int argc, char *argv[])
          return 3;
    }
    TargetConstructor::TargetType target_t;
+   TargetConstructor *target_c;
+   HessianCoefficient *adapt_coeff = NULL;
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+      case 4:
+      {
+         target_t = TargetConstructor::GIVEN_FULL;
+         AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
+         adapt_coeff = new HessianCoefficient(dim, 1);
+         tc->SetAnalyticTargetSpec(*pmesh, NULL, NULL, adapt_coeff);
+         target_c = tc;
+         break;
+      }
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
    }
-   TargetConstructor *target_c;
-   target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
+
+   if (target_c == NULL)
+   {
+      target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
+   }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ;
    he_nlf_integ = new TMOP_Integrator(metric, target_c);
@@ -805,6 +997,7 @@ int main (int argc, char *argv[])
    delete metric2;
    delete coeff1;
    delete target_c;
+   delete adapt_coeff;
    delete metric;
    delete pfespace;
    delete fec;
