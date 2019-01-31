@@ -459,13 +459,13 @@ CPD1DSolver::Solve()
    */
    OperatorHandle A1;
    Vector E, RHS;
-   cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
+   // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
    e_->ProjectCoefficient(const_cast<VectorCoefficient&>(erCoef_),
                           const_cast<VectorCoefficient&>(eiCoef_));
    a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *jd_, A1, E, RHS);
 
-   cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
-   cout << "Norm of RHS: " << RHS.Norml2() << endl;
+   // cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
+   // cout << "Norm of RHS: " << RHS.Norml2() << endl;
 
    OperatorHandle PCOp;
    b1_->FormSystemMatrix(ess_bdr_tdofs_, PCOp);
