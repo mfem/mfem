@@ -120,129 +120,6 @@ static void DumpMode(void)
 }
 
 // *****************************************************************************
-static void Dump(const mm::ledger &maps)
-{
-   static bool env_ini = false;
-   static bool env_dbg = false;
-   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
-   if (!env_dbg) { return; }
-   const mm::memory_map &mem = maps.memories;
-   const mm::alias_map  &als = maps.aliases;
-   size_t k = 0;
-   size_t l = 0;
-   printf("\n\033[35mvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv");
-   for (mm::memory_map::const_iterator m = mem.begin(); m != mem.end(); m++)
-   {
-      const void *h_ptr = m->first;
-      assert(h_ptr == m->second.h_ptr);
-      const size_t bytes = m->second.bytes;
-      const void *d_ptr = m->second.d_ptr;
-      if (!d_ptr)
-      {
-         const bool kB = bytes>1024;
-         printf("\n[%ld] \033[33m%p \033[35m(%ld%s)", k, h_ptr,
-                kB?bytes/1024:bytes,
-                kB?"\033[1mk\033[0;35m":"");
-      }
-      else
-      {
-         assert(false);
-         printf("\n[%ld] \033[33m%p \033[35m (%ld) \033[32 -> %p",
-                k, h_ptr, bytes, d_ptr);
-      }
-
-      for (const mm::alias *alias : m->second.aliases)
-      {
-         const size_t offset = alias->offset;
-         const void *base = alias->mem->h_ptr;
-         assert(base);
-         const void *ptr = (char*)base + offset;
-         printf("\n\t[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",
-                l, base, offset, ptr);
-         assert(((char*)base + offset)==ptr);
-         // check
-         maps.aliases.at(ptr);
-         l++;
-      }
-      fflush(0);
-      k++;
-   }
-   k = 0;
-   for (mm::alias_map::const_iterator a = als.begin(); a != als.end(); a++)
-   {
-      const void *ptr = a->first;
-      const size_t offset = a->second->offset;
-      const void *base = a->second->mem->h_ptr;
-      assert(base);
-      printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",
-             k, base, offset, ptr);
-      fflush(0);
-      assert(((char*)base + offset)==ptr);
-      k++;
-   }
-   printf("\n^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
-   fflush(0);
-}
-
-// *****************************************************************************
-// * WARNING, as all aliases are not removed, this Assert will fail
-// *****************************************************************************
-static void Assert(const mm::ledger &maps)
-{
-   static bool env_ini = false;
-   static bool env_dbg = false;
-   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
-   if (!env_dbg) { return; }
-   const mm::memory_map &memories = maps.memories;
-   const mm::alias_map  &aliases = maps.aliases;
-   size_t nb_mems = 0;
-   size_t nb_aliases = 0;
-   for (mm::memory_map::const_iterator m = memories.begin(); m != memories.end();
-        m++)
-   {
-      const void *h_ptr = m->first;
-      assert(h_ptr == m->second.h_ptr);
-      //const size_t bytes = m->second.bytes;
-      //const void *d_ptr = m->second.d_ptr;
-      //for (const mm::alias *alias : m->second.aliases)
-      for (auto a = m->second.aliases.begin(); a != m->second.aliases.end(); a++)
-      {
-         const mm::alias *alias = *a;
-         const size_t offset = alias->offset;
-         const void *base = alias->mem->h_ptr;
-         assert(base);
-         const void *ptr = (char*)base + offset;
-         //dbg("\n\t[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p", nb_aliases, base, offset, ptr);
-         assert(((char*)base + offset)==ptr);
-         // check it exists
-         maps.aliases.at(ptr);
-         nb_aliases++;
-      }
-      nb_mems++;
-   }
-   //const size_t nb_aliases_in_mems = nb_aliases;
-   nb_aliases = 0;
-   for (mm::alias_map::const_iterator a = aliases.begin(); a != aliases.end(); a++)
-   {
-      const void *ptr = a->first;
-      const size_t offset = a->second->offset;
-      const void *base = a->second->mem->h_ptr;
-      assert(base);
-      //#warning no assert(((char*)base + offset)==ptr);
-      /*
-      if (((char*)base + offset)!=ptr){
-         dbg("\033[33m%p ?<? (\033[37m%ld) ?<? \033[33m%p",
-             base, offset, ptr);
-      }
-      assert(((char*)base + offset)==ptr);
-      */
-      nb_aliases++;
-   }
-   //#warning no assert(nb_aliases==nb_aliases_in_mems)
-   //assert(nb_aliases==nb_aliases_in_mems);
-}
-
-// *****************************************************************************
 static inline bool MmGpuFilter(void){
    if (!config::usingMM()) { return true; }
    if (config::gpuDisabled()) { return true; }
@@ -263,8 +140,8 @@ void* mm::Insert(void *ptr, const size_t bytes)
 {
    if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
-   if (known) { BUILTIN_TRAP; }
-   MFEM_ASSERT(!known, "Trying to add already present address!");
+   // if (known) { BUILTIN_TRAP; }
+   MFEM_ASSERT(!known, "Trying to add an already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
    DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes));
@@ -279,7 +156,6 @@ void *mm::Erase(void *ptr)
    if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
    // if (!known) { BUILTIN_TRAP; }
-   if (!known) { mfem_error("Trying to remove an unknown address!"); }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
    memory &mem = maps.memories.at(ptr);
    dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
