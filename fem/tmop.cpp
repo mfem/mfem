@@ -864,6 +864,43 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
+void AnalyticAdaptTC::SetAnalyticTargetSpec(Mesh &m, Coefficient *sspec,
+                                            VectorCoefficient *vspec,
+                                            MatrixCoefficient *mspec)
+{
+   mesh = &m;
+   scalar_tspec = sspec;
+   vector_tspec = vspec;
+   matrix_tspec = mspec;
+}
+
+void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
+                                              const IntegrationRule &ir,
+                                              DenseTensor &Jtr) const
+{
+   MFEM_VERIFY(mesh != NULL, "Analytic adaptation requires a Mesh object.");
+
+   switch (target_type)
+   {
+      case GIVEN_FULL:
+      {
+         MFEM_VERIFY(matrix_tspec != NULL,
+                     "Target type GIVEN_FULL requires a MatrixCoefficient.");
+         ElementTransformation *et = mesh->GetElementTransformation(e_id);
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            et->SetIntPoint(&ip);
+            matrix_tspec->Eval(Jtr(i), *et, ip);
+         }
+         break;
+      }
+      default:
+         MFEM_ABORT("Incompatible target type for analytic adaptation!");
+   }
+}
+
+
 void TargetSpecificationValidator::ConstructSpecification()
 {
    target_spec.ConstructSpecification();
