@@ -9,14 +9,11 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-# Include the source directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(BEFORE ${PROJECT_BINARY_DIR})
+if (MFEM_USE_MPI)
+  add_mfem_miniapp(cpd1d
+    MAIN cpd1d.cpp
+    EXTRA_SOURCES cpd1d_solver.cpp cold_plasma_dielectric.cpp
+    EXTRA_HEADERS cpd1d_solver.hpp cold_plasma_dielectric.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem_miniapps_common)
 
-set(MINIAPP_COMMON_HEADERS)
-add_subdirectory(common)
-add_subdirectory(electromagnetics)
-add_subdirectory(meshing)
-add_subdirectory(performance)
-add_subdirectory(tools)
-add_subdirectory(nurbs)
-add_subdirectory(plasma)
+endif()
