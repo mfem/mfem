@@ -593,7 +593,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    if (a == 1.0)
    {
 #ifndef MFEM_USE_OPENMP
-      //MFEM_GPU_CANNOT_PASS;
       kernels::sparsemat::AddMult(height,Ip,Jp,Ap,xp,yp);
 #else
       #pragma omp parallel for private(j,end)
@@ -655,25 +654,31 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       }
       return;
    }
-
-   const int N = height;
+   // Prepare the lambda capture and get our pointers from the memory manager
+   const int Height = height;
    GET_CONST_PTR_T(I,int);
    GET_CONST_PTR_T(J,int);
    GET_CONST_PTR(A);
    GET_CONST_PTR(x);
    GET_PTR(y);
-   MFEM_FORALL_SEQ(
-      for (int i=0; i < N; i++)
+   const bool usingGpu = config::usingGpu();
+   MFEM_FORALL(i, Height,
+   {
+      const double xi = a * d_x[i];
+      const int end = d_I[i+1];
+      for (int j = d_I[i]; j < end; j++)
       {
-         const double xi = a * d_x[i];
-         const int end = d_I[i+1];
-         for (int j = d_I[i]; j < end; j++)
+         const int Jj = d_J[j];
+         if (usingGpu)
          {
-            const int Jj = d_J[j];
+            AtomicAdd(&d_y[Jj], d_A[j] * xi);
+         }
+         else
+         {
             d_y[Jj] += d_A[j] * xi;
          }
       }
-   );
+   });
 }
 
 void SparseMatrix::PartMult(

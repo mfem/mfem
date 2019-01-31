@@ -15,10 +15,12 @@
 // *****************************************************************************
 #ifdef __NVCC__
 #include <cuda.h>
+
 inline void cuCheck(const unsigned int c)
 {
    MFEM_ASSERT(not c, cudaGetErrorString(cudaGetLastError()));
 }
+
 template <typename BODY> __global__ static
 void cuKernel(const size_t N, BODY body)
 {
@@ -26,6 +28,7 @@ void cuKernel(const size_t N, BODY body)
    if (k >= N) { return; }
    body(k);
 }
+
 template <typename BODY> __global__ static
 void cuKernelSeq(const size_t N, BODY body)
 {
@@ -34,6 +37,7 @@ void cuKernelSeq(const size_t N, BODY body)
       body(k);
    }
 }
+
 template <size_t BLOCKS, typename DBODY>
 void cuWrap(const size_t N, DBODY &&d_body)
 {
@@ -41,7 +45,14 @@ void cuWrap(const size_t N, DBODY &&d_body)
    cuKernel<<<GRID,BLOCKS>>>(N,d_body);
    //cuKernelSeq<<<1,1>>>(N,d_body);
 }
+
 constexpr static inline bool usingNvccCompiler() { return true; }
+
+template<typename T>
+__host__ __device__ inline T AtomicAdd(T* address, T val)
+{
+   return atomicAdd(address, val);
+}
 #else // ***********************************************************************
 #define __host__
 #define __device__
@@ -52,6 +63,11 @@ typedef void* CUstream;
 template <size_t BLOCKS, typename DBODY>
 void cuWrap(const size_t N, DBODY &&d_body) {}
 constexpr static inline bool usingNvccCompiler() { return false; }
+template<typename T> inline T AtomicAdd(T* address, T val)
+{
+   *address += val;
+   return *address;
+}
 #endif // __NVCC__
 
 // *****************************************************************************

@@ -45,18 +45,16 @@ void AddMult(const size_t height,
    GET_CONST_PTR(A);
    GET_CONST_PTR(x);
    GET_PTR(y);
-   //MFEM_FORALL(i, height,{
-   MFEM_FORALL(_k, 1, {
-      for(int i=0; i<height; i+=1){
-         double d = 0.0;
-         const size_t end = d_I[i+1];
-         for (size_t j=d_I[i]; j < end; j+=1)
-         {
-            d += d_A[j] * d_x[d_J[j]];
-         }
-         d_y[i] += d;
+   MFEM_FORALL(i, height,
+   {
+      double d = 0.0;
+      const size_t end = d_I[i+1];
+      for (size_t j=d_I[i]; j < end; j+=1)
+      {
+         d += d_A[j] * d_x[d_J[j]];
       }
-      });
+      d_y[i] += d;
+   });
 }
 
 // *****************************************************************************
@@ -68,33 +66,36 @@ void Gauss_Seidel_forw_A_NULL(const size_t s,
    GET_PTR_T(R,RowNode*);
    GET_CONST_PTR(xp);
    GET_PTR(yp);
-   MFEM_FORALL(i,s,
+   MFEM_FORALL_SEQ(
    {
-      int c;
-      double sum = 0.0;
-      RowNode *diag_p = NULL;
-      RowNode *n_p;
-      for (n_p = d_R[i]; n_p != NULL; n_p = n_p->Prev)
+      for(int i=0; i<s;i+=1)
       {
-         if ((c = n_p->Column) == (int)i)
+         int c;
+         double sum = 0.0;
+         RowNode *diag_p = NULL;
+         RowNode *n_p;
+         for (n_p = d_R[i]; n_p != NULL; n_p = n_p->Prev)
          {
-            diag_p = n_p;
+            if ((c = n_p->Column) == (int)i)
+            {
+               diag_p = n_p;
+            }
+            else
+            {
+               sum += n_p->Value * d_yp[c];
+            }
          }
-         else
+         if (diag_p != NULL && diag_p->Value != 0.0)
          {
-            sum += n_p->Value * d_yp[c];
+            d_yp[i] = (d_xp[i] - sum) / diag_p->Value;
          }
-      }
-      if (diag_p != NULL && diag_p->Value != 0.0)
-      {
-         d_yp[i] = (d_xp[i] - sum) / diag_p->Value;
-      }
-      else if (d_xp[i] == sum)
-      {
-         d_yp[i] = sum;
-      }
-      else{
-         assert(false);
+         else if (d_xp[i] == sum)
+         {
+            d_yp[i] = sum;
+         }
+         else{
+            assert(false);
+         }
       }
    });
 }
@@ -110,7 +111,7 @@ void Gauss_Seidel_forw(const size_t height,
    GET_CONST_PTR(Ap);
    GET_CONST_PTR(xp);
    GET_PTR(yp);
-   MFEM_FORALL(k,1,
+   MFEM_FORALL_SEQ(
    {
       for (size_t i=0; i<height; i+=1)
       {
@@ -147,7 +148,7 @@ void Gauss_Seidel_back(const size_t height,
    GET_CONST_PTR(Ap);
    GET_CONST_PTR(xp);
    GET_PTR(yp);
-   MFEM_FORALL(k, 1,
+   MFEM_FORALL_SEQ(
    {
       for (int i = height-1; i >= 0; i--)
       {

@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
 
    // 11. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 5000;//0;
+   const int max_dofs = 50000;
 
    for (int it = 0; ; it++)
    {
@@ -174,8 +174,7 @@ int main(int argc, char *argv[])
       cout << "\nAMR iteration " << it << endl;
       cout << "Number of unknowns: " << cdofs << endl;
 
-      if (pa) { mesh.EnsureNodes(); }
-      //mesh.GetNodes()->Push();
+      //if (pa) { mesh.EnsureNodes(); }
 
       dbg("Assemble the right-hand side");
       b.Assemble();
@@ -214,7 +213,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         CG(*A, B, X, 3, 700, 1e-12, 0.0);
+         CG(*A, B, X, 3, 8192, 1e-12, 0.0);
       }
 #else
       // 15. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the

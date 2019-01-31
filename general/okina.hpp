@@ -56,7 +56,7 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    wrap<BLOCKS>(N,                                                      \
                 [=] __device__ (size_t i){__VA_ARGS__},                 \
                 [=]            (size_t i){__VA_ARGS__})
-#define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(_i,1,MFEM_BLOCKS,__VA_ARGS__)
+#define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(i,1,MFEM_BLOCKS,__VA_ARGS__)
 
 // *****************************************************************************
 uint32_t LOG2(uint32_t);
@@ -101,8 +101,8 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 #define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
 
 // *****************************************************************************
-//#define dbg(...)
-#define stack(...) dbg_F_L_F_N_A(_F_L_F_,0)
-#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
+#define dbg(...)
+//#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
+//#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
 
 #endif // MFEM_OKINA_HPP
