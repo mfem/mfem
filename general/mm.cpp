@@ -243,12 +243,25 @@ static void Assert(const mm::ledger &maps)
 }
 
 // *****************************************************************************
+static inline bool MmGpuFilter(void){
+   if (!config::usingMM()) { return true; }
+   if (config::gpuDisabled()) { return true; }
+   return false;
+}
+
+// *****************************************************************************
+static inline bool MmGpuIniFilter(void){
+   if (MmGpuFilter()) { return true; }
+   if (!config::gpuHasBeenEnabled()) { return true; }
+   return false;
+}
+
+// *****************************************************************************
 // * Adds an address
 // *****************************************************************************
 void* mm::Insert(void *ptr, const size_t bytes)
 {
-   if (!config::usingMM()) { return ptr; }
-   if (config::gpuDisabled()) { return ptr; }
+   if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
    if (known) { BUILTIN_TRAP; }
    MFEM_ASSERT(!known, "Trying to add already present address!");
@@ -263,8 +276,7 @@ void* mm::Insert(void *ptr, const size_t bytes)
 // *****************************************************************************
 void *mm::Erase(void *ptr)
 {
-   if (!config::usingMM()) { return ptr; }
-   if (config::gpuDisabled()) { return ptr; }
+   if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
    // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("Trying to remove an unknown address!"); }
@@ -342,22 +354,15 @@ static void* PtrAlias(mm::ledger &maps, void *ptr)
 // *****************************************************************************
 void* mm::Ptr(void *ptr)
 {
-   if (!config::usingMM()) { return ptr; }
-   if (config::gpuDisabled()) { return ptr; }
-   if (!config::gpuHasBeenEnabled()) { return ptr; }
+   if (MmGpuIniFilter()) { return ptr; }
    if (Known(maps, ptr)) { return PtrKnown(maps, ptr); }
-   const bool alias = Alias(maps, ptr);
-   // if (!alias) { BUILTIN_TRAP; }
-   if (!alias) { mfem_error("Unknown address!"); }
-   MFEM_ASSERT(alias, "Unknown address!");
-   return PtrAlias(maps, ptr);
+   if (Alias(maps, ptr)) { return PtrAlias(maps, ptr); }
+   if (config::usingGpu()) { mfem_error("Unknown pointer!"); }
+   return ptr;
 }
 
 // *****************************************************************************
-const void* mm::Ptr(const void *ptr)
-{
-   return (const void *) Ptr((void *)ptr);
-}
+const void* mm::Ptr(const void *ptr) { return (const void *) Ptr((void *)ptr); }
 
 // *****************************************************************************
 static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
@@ -401,10 +406,7 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
 }
 
 // *****************************************************************************
-OccaMemory mm::Memory(const void *ptr)
-{
-   return occaMemory(maps, ptr);
-}
+OccaMemory mm::Memory(const void *ptr) { return occaMemory(maps, ptr); }
 
 // *****************************************************************************
 static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
@@ -427,16 +429,11 @@ static void PushAlias(const mm::ledger &maps, const void *ptr,
 // *****************************************************************************
 void mm::Push(const void *ptr, const size_t bytes)
 {
-   if (!config::usingMM()) { return; }
-   if (!config::gpuEnabled()) { return; }
-   if (!config::gpuHasBeenEnabled()) { return; }
+   if (MmGpuIniFilter()) { return; }
    if (Known(maps, ptr)) { return PushKnown(maps, ptr, bytes); }
+   if (Alias(maps, ptr)) { return PushAlias(maps, ptr, bytes); }
    assert(!config::usingOcca());
-   const bool alias = Alias(maps, ptr);
-   // if (!alias) { BUILTIN_TRAP; }
-   if (!alias) { mfem_error("Unknown address!"); }
-   MFEM_ASSERT(alias, "Unknown address!");
-   return PushAlias(maps, ptr, bytes);
+   if (config::usingGpu()) { mfem_error("Unknown address!"); }
 }
 
 // *****************************************************************************
@@ -463,16 +460,11 @@ static void PullAlias(const mm::ledger &maps, const void *ptr,
 // *****************************************************************************
 void mm::Pull(const void *ptr, const size_t bytes)
 {
-   if (!config::usingMM()) { return; }
-   if (!config::gpuEnabled()) { return; }
-   if (!config::gpuHasBeenEnabled()) { return; }
+   if (MmGpuIniFilter()) { return; }
    if (Known(maps, ptr)) { return PullKnown(maps, ptr, bytes); }
+   if (Alias(maps, ptr)) { return PullAlias(maps, ptr, bytes); }
    assert(!config::usingOcca());
-   const bool alias = Alias(maps, ptr);
-   // if (!alias) { BUILTIN_TRAP; }
-   if (!alias) { mfem_error("Unknown address!"); }
-   MFEM_ASSERT(alias, "Unknown address!");
-   return PullAlias(maps, ptr, bytes);
+   if (config::usingGpu()) { mfem_error("Unknown address!"); }
 }
 
 // *****************************************************************************
