@@ -412,8 +412,6 @@ OccaMemory mm::Memory(const void *ptr) { return occaMemory(maps, ptr); }
 static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
 {
    mm::memory &base = maps.memories.at(ptr);
-   const bool host = base.host;
-   if (not host) { return; }
    if (!base.d_ptr) { cuMemAlloc(&base.d_ptr, base.bytes); }
    cuMemcpyHtoD(base.d_ptr, ptr, bytes == 0 ? base.bytes : bytes);
 }
@@ -451,8 +449,7 @@ static void PullAlias(const mm::ledger &maps, const void *ptr,
                       const size_t bytes)
 {
    const mm::alias *alias = maps.aliases.at(ptr);
-   const mm::memory *base = alias->mem;
-   const bool host = base->host;
+   const bool host = alias->mem->host;
    if (host) { return; }
    cuMemcpyDtoH((void *)ptr, (char*)alias->mem->d_ptr + alias->offset, bytes);
 }
