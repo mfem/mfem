@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
       double R = R_cold_plasma(omega, Bmag, numbers, charges, masses);
       double L = L_cold_plasma(omega, Bmag, numbers, charges, masses);
 
-      cout << "Convenient Terms:\n";
+      cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
       cout << "S = " << S << ",\tD = " << D << ",\tP = " << P << endl;
 
@@ -313,37 +313,40 @@ int main(int argc, char *argv[])
       }
 
       cout << "\nWavelengths (meters):\n";
+      cout << "   Free Space Wavelength: " << lam0 << '\n';
       if (S < D)
       {
-         cout << "   Decaying L mode:     " << lam0 / sqrt(D-S) << "\n";
+         cout << "   Decaying L mode:       " << lam0 / sqrt(D-S) << '\n';
       }
       else
       {
-         cout << "   Oscillating L mode:  " << lam0 / sqrt(S-D) << "\n";
+         cout << "   Oscillating L mode:    " << lam0 / sqrt(S-D) << '\n';
       }
       if (S < - D)
       {
-         cout << "   Decaying R mode:     " << lam0 / sqrt(-S-D) << "\n";
+         cout << "   Decaying R mode:       " << lam0 / sqrt(-S-D) << '\n';
       }
       else
       {
-         cout << "   Oscillating R mode:  " << lam0 / sqrt(S+D) << "\n";
+         cout << "   Oscillating R mode:    " << lam0 / sqrt(S+D) << '\n';
       }
       if (P < 0)
       {
-         cout << "   Decaying O mode:     " << lam0 / sqrt(-P) << "\n";
+         cout << "   Decaying O mode:       " << lam0 / sqrt(-P) << '\n';
       }
       else
       {
-         cout << "   Oscillating O mode:  " << lam0 / sqrt(P) << "\n";
+         cout << "   Oscillating O mode:    " << lam0 / sqrt(P) << '\n';
       }
       if ((S * S - D * D) / S < 0)
       {
-         cout << "   Decaying E mode:     " << lam0 / sqrt(-S/(S*S-D*D)) << "\n";
+         cout << "   Decaying E mode:       " << lam0 / sqrt(-S/(S*S-D*D))
+              << '\n';
       }
       else
       {
-         cout << "   Oscillating E mode:  " << lam0 / sqrt(S/(S*S-D*D)) << "\n";
+         cout << "   Oscillating E mode:    " << lam0 / sqrt(S/(S*S-D*D))
+              << '\n';
       }
       cout << endl;
    }
