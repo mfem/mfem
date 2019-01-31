@@ -563,6 +563,7 @@ CPD1DSolver::Solve()
       break;
 #endif
       default:
+         MFEM_ABORT("Requested solver is not available.");
          break;
    };
 
