@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         CG(*A, B, X, 3, 8192, 1e-12, 0.0);
+         CG(*A, B, X, 3, 2000, 1e-12, 0.0);
       }
 #else
       // 18. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
        config::SwitchToCpu();
-     a.RecoverFEMSolution(X, b, x);
+      a.RecoverFEMSolution(X, b, x);
 
       // 20. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())

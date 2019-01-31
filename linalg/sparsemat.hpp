@@ -519,7 +519,6 @@ SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B);
 
 inline void SparseMatrix::SetColPtr(const int row) const
 {
-   MFEM_GPU_CANNOT_PASS;
    if (Rows)
    {
       if (ColPtrNode == NULL)
@@ -555,7 +554,6 @@ inline void SparseMatrix::SetColPtr(const int row) const
 
 inline void SparseMatrix::ClearColPtr() const
 {
-   MFEM_GPU_CANNOT_PASS;
    if (Rows)
       for (RowNode *node_p = Rows[current_row]; node_p != NULL;
            node_p = node_p->Prev)
@@ -571,7 +569,6 @@ inline void SparseMatrix::ClearColPtr() const
 
 inline double &SparseMatrix::SearchRow(const int col)
 {
-   MFEM_GPU_CANNOT_PASS;
    if (Rows)
    {
       RowNode *node_p = ColPtrNode[col];
@@ -599,7 +596,6 @@ inline double &SparseMatrix::SearchRow(const int col)
 
 inline double SparseMatrix::_Get_(const int col) const
 {
-   MFEM_GPU_CANNOT_PASS;
    if (Rows)
    {
       RowNode *node_p = ColPtrNode[col];
@@ -614,7 +610,6 @@ inline double SparseMatrix::_Get_(const int col) const
 
 inline double &SparseMatrix::SearchRow(const int row, const int col)
 {
-   MFEM_GPU_CANNOT_PASS;
    if (Rows)
    {
       RowNode *node_p;

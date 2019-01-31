@@ -33,9 +33,14 @@ FiniteElement::FiniteElement(int D, Geometry::Type G, int Do, int O, int F)
    DerivRangeType = SCALAR;
    DerivMapType = VALUE;
    for (int i = 0; i < Geometry::MaxDim; i++) { Orders[i] = -1; }
+   v = mm::malloc<double>(Geometry::MaxDim);
 #ifndef MFEM_THREAD_SAFE
    vshape.SetSize(Dof, Dim);
 #endif
+}
+
+FiniteElement::~FiniteElement () {
+   mm::free<double>(v);
 }
 
 void FiniteElement::CalcVShape (
@@ -203,8 +208,6 @@ void ScalarFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
    const ScalarFiniteElement &fine_fe) const
 {
-   static double *v = mm::malloc<double>(Geometry::MaxDim);
-   //double v[Geometry::MaxDim];
    Vector vv (v, Dim);
    IntegrationPoint f_ip;
 

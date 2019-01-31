@@ -284,10 +284,11 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
       v.data[i] = v1.data[i] + v2.data[i];
    }
 #else
+   const int N = v.size;
    GET_CONST_PTR(v1);
    GET_CONST_PTR(v2);
    GET_PTR(v);
-   MFEM_FORALL(i, v.size, d_v[i] = d_v1[i] + d_v2[i];);
+   MFEM_FORALL(i, N, d_v[i] = d_v1[i] + d_v2[i];);
 #endif
 }
 

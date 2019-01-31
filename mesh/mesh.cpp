@@ -2168,14 +2168,14 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
       {
          for (x = 0; x < nx; x++)
          {
-            ind[0] = VTX(x, y, z  );
-            ind[1] = VTX(x+1, y, z  );
+            ind[0] = VTX(x  , y  , z  );
+            ind[1] = VTX(x+1, y  , z  );
             ind[2] = VTX(x+1, y+1, z  );
-            ind[3] = VTX(x, y+1, z  );
-            ind[4] = VTX(x, y, z+1);
-            ind[5] = VTX(x+1, y, z+1);
+            ind[3] = VTX(x  , y+1, z  );
+            ind[4] = VTX(x  , y  , z+1);
+            ind[5] = VTX(x+1, y  , z+1);
             ind[6] = VTX(x+1, y+1, z+1);
-            ind[7] = VTX(x, y+1, z+1);
+            ind[7] = VTX(x  , y+1, z+1);
             if (type == Element::TETRAHEDRON)
             {
                AddHexAsTets(ind, 1);
@@ -2197,10 +2197,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (y = 0; y < ny; y++)
       for (x = 0; x < nx; x++)
       {
-         ind[0] = VTX(x, y, 0);
-         ind[1] = VTX(x, y+1, 0);
+         ind[0] = VTX(x  , y  , 0);
+         ind[1] = VTX(x  , y+1, 0);
          ind[2] = VTX(x+1, y+1, 0);
-         ind[3] = VTX(x+1, y, 0);
+         ind[3] = VTX(x+1, y  , 0);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 1);
@@ -2218,10 +2218,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (y = 0; y < ny; y++)
       for (x = 0; x < nx; x++)
       {
-         ind[0] = VTX(x, y, nz);
-         ind[1] = VTX(x+1, y, nz);
+         ind[0] = VTX(x  , y  , nz);
+         ind[1] = VTX(x+1, y  , nz);
          ind[2] = VTX(x+1, y+1, nz);
-         ind[3] = VTX(x, y+1, nz);
+         ind[3] = VTX(x  , y+1, nz);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 6);
@@ -2239,10 +2239,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (z = 0; z < nz; z++)
       for (y = 0; y < ny; y++)
       {
-         ind[0] = VTX(0, y, z  );
-         ind[1] = VTX(0, y, z+1);
-         ind[2] = VTX(0, y+1, z+1);
-         ind[3] = VTX(0, y+1, z  );
+         ind[0] = VTX(0  , y  , z  );
+         ind[1] = VTX(0  , y  , z+1);
+         ind[2] = VTX(0  , y+1, z+1);
+         ind[3] = VTX(0  , y+1, z  );
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 5);
@@ -2256,10 +2256,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (z = 0; z < nz; z++)
       for (y = 0; y < ny; y++)
       {
-         ind[0] = VTX(nx, y, z  );
+         ind[0] = VTX(nx, y  , z  );
          ind[1] = VTX(nx, y+1, z  );
          ind[2] = VTX(nx, y+1, z+1);
-         ind[3] = VTX(nx, y, z+1);
+         ind[3] = VTX(nx, y  , z+1);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 3);
@@ -2273,10 +2273,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (x = 0; x < nx; x++)
       for (z = 0; z < nz; z++)
       {
-         ind[0] = VTX(x, 0, z  );
+         ind[0] = VTX(x  , 0, z  );
          ind[1] = VTX(x+1, 0, z  );
          ind[2] = VTX(x+1, 0, z+1);
-         ind[3] = VTX(x, 0, z+1);
+         ind[3] = VTX(x  , 0, z+1);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 2);
@@ -2290,8 +2290,8 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (x = 0; x < nx; x++)
       for (z = 0; z < nz; z++)
       {
-         ind[0] = VTX(x, ny, z  );
-         ind[1] = VTX(x, ny, z+1);
+         ind[0] = VTX(x  , ny, z  );
+         ind[1] = VTX(x  , ny, z+1);
          ind[2] = VTX(x+1, ny, z+1);
          ind[3] = VTX(x+1, ny, z  );
          if (type == Element::TETRAHEDRON)
@@ -6715,6 +6715,7 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
 {
    MFEM_VERIFY(!NURBSext, "Nonconforming refinement of NURBS meshes is "
                "not supported. Project the NURBS to Nodes first.");
+
    DeleteLazyTables();
 
    if (!ncmesh)

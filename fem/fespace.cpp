@@ -1259,7 +1259,7 @@ void FiniteElementSpace::Construct()
       }
       if (have_face_dofs)
       {
-         fdofs = mm::malloc<int>(mesh->GetNFaces()+1);
+         fdofs = new int[mesh->GetNFaces()+1];
          fdofs[0] = 0;
          for (int i = 0; i < mesh->GetNFaces(); i++)
          {
@@ -1271,7 +1271,7 @@ void FiniteElementSpace::Construct()
 
    if (mesh->Dimension() > 0)
    {
-      bdofs = mm::malloc<int>(mesh->GetNE()+1);
+      bdofs = new int[mesh->GetNE()+1];
       bdofs[0] = 0;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
@@ -1708,8 +1708,8 @@ void FiniteElementSpace::Destroy()
       delete elem_dof;
       delete bdrElem_dof;
 
-      mm::free<int>(bdofs);
-      mm::free<int>(fdofs);
+      delete [] bdofs;
+      delete [] fdofs;
    }
 }
 
@@ -2017,7 +2017,7 @@ void QuadratureSpace::Construct()
    // protected method
    int offset = 0;
    const int num_elem = mesh->GetNE();
-   element_offsets = mm::malloc<int>(num_elem + 1);
+   element_offsets = new int[num_elem + 1];
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       int_rule[g] = NULL;

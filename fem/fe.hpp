@@ -152,6 +152,7 @@ protected:
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix vshape; // Dof x Dim
 #endif
+  mutable double *v;
 
 public:
    /// Enumeration for RangeType and DerivRangeType
@@ -399,7 +400,7 @@ public:
                            ElementTransformation &Trans,
                            DenseMatrix &div) const;
 
-   virtual ~FiniteElement () { }
+   virtual ~FiniteElement ();
 
    static bool IsClosedType(int b_type)
    {
