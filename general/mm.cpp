@@ -277,8 +277,6 @@ void *mm::Erase(void *ptr)
    //Assert(maps);
    memory &mem = maps.memories.at(ptr);
    //dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
-   //dbg("\033[33m BEFORE:");
-   //Dump(maps);
    //for (const mm::alias* alias : mem.aliases)
    for (auto alias = mem.aliases.begin(); alias != mem.aliases.end(); alias++)
    {
@@ -296,8 +294,6 @@ void *mm::Erase(void *ptr)
    //dbg("\033[33m maps.memories.erase %p", ptr);
    maps.memories.erase(ptr);
    //Assert(maps);
-   //dbg("\033[33m AFTER:");
-   //DumpMaps(maps);
    return ptr;
 }
 
@@ -317,13 +313,11 @@ static void* PtrKnown(mm::ledger &maps, void *ptr)
    if (device &&  gpu) { return base.d_ptr; }
    if (device && !gpu) // Pull
    {
-      //dbg("Pull");
       cuMemcpyDtoH(ptr, base.d_ptr, bytes);
       base.host = true;
       return ptr;
    }
    // Push
-   //dbg("Push");
    assert(host && gpu);
    cuMemcpyHtoD(base.d_ptr, ptr, bytes);
    base.host = false;
@@ -349,22 +343,18 @@ static void* PtrAlias(mm::ledger &maps, void *ptr)
           base, alias->offset, ptr);
       Dump(maps);
    }
-   assert(host);
    if (host && !gpu) { return ptr; }
-   assert(false);
    if (!base->d_ptr) { cuMemAlloc(&alias->mem->d_ptr, bytes); }
    void *a_ptr = (char*)base->d_ptr + alias->offset;
    if (device && gpu) { return a_ptr; }
    if (device && !gpu) // Pull
    {
-      dbg("Pull");
       assert(base->d_ptr);
       cuMemcpyDtoH(base->h_ptr, base->d_ptr, bytes);
       alias->mem->host = true;
       return ptr;
    }
    // Push
-   dbg("Push");
    assert(host && gpu);
    cuMemcpyHtoD(base->d_ptr, base->h_ptr, bytes);
    alias->mem->host = false;
@@ -484,7 +474,6 @@ void mm::Push(const void *ptr, const size_t bytes)
 static void PullKnown(const mm::ledger &maps, const void *ptr,
                       const size_t bytes)
 {
-   //stack();
    const mm::memory &base = maps.memories.at(ptr);
    const bool host = base.host;
    if (host)
@@ -499,7 +488,6 @@ static void PullKnown(const mm::ledger &maps, const void *ptr,
 static void PullAlias(const mm::ledger &maps, const void *ptr,
                       const size_t bytes)
 {
-   //stack();
    assert(false);
    const mm::alias *alias = maps.aliases.at(ptr);
    const mm::memory *base = alias->mem;
@@ -515,7 +503,6 @@ static void PullAlias(const mm::ledger &maps, const void *ptr,
 // *****************************************************************************
 void mm::Pull(const void *ptr, const size_t bytes)
 {
-   //stack();
    if (!config::usingMM()) { return; }
    if (!config::gpuEnabled()) { return; }
    if (!config::gpuHasBeenEnabled()) { return; }
