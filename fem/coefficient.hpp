@@ -499,9 +499,13 @@ public:
    void SetDeltaCoefficient(const DeltaCoefficient& _d) { d = _d; }
    /// Return the associated scalar DeltaCoefficient.
    DeltaCoefficient& GetDeltaCoefficient() { return d; }
+
+   void SetScale(double s) { d.SetScale(s); }
    void SetDirection(const Vector& _d);
 
+   void SetDeltaCenter(const Vector& center) { d.SetDeltaCenter(center); }
    void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }
+
    /** @brief Return the specified direction vector multiplied by the value
        returned by DeltaCoefficient::EvalDelta() of the associated scalar
        DeltaCoefficient. */
