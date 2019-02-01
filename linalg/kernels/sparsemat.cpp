@@ -68,7 +68,7 @@ void Gauss_Seidel_forw_A_NULL(const size_t s,
    GET_PTR(yp);
    MFEM_FORALL_SEQ(
    {
-      for(int i=0; i<s;i+=1)
+      for(size_t i=0; i<s;i+=1)
       {
          int c;
          double sum = 0.0;
