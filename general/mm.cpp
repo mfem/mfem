@@ -55,7 +55,7 @@ static const void* InsertAlias(mm::ledger &maps,
    const mm::alias *alias = new mm::alias{&mem, offset};
    dbg("\033[33m%p < (\033[37m%ld) < \033[33m%p", base, offset, ptr);
    maps.aliases.emplace(ptr, alias);
-#ifdef MFEM_DEBUG
+#ifdef MFEM_DEBUG_MM
    {
       mem.aliases.sort();
       for (const mm::alias *a : mem.aliases)
