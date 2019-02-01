@@ -142,7 +142,10 @@ void* mm::Insert(void *ptr, const size_t bytes)
 {
    if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
-   // if (known) { BUILTIN_TRAP; }
+   if (known) { 
+      BUILTIN_TRAP;
+      mfem_error("Trying to insert a non-MM pointer!");
+   }
    MFEM_ASSERT(!known, "Trying to add an already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
    DumpMode();
@@ -157,7 +160,14 @@ void *mm::Erase(void *ptr)
 {
    if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
-   // if (!known) { BUILTIN_TRAP; }
+   if (!known) {
+      BUILTIN_TRAP;
+      // Even if don't know it, it's OK on CPU-only
+      if (config::usingGpu()){
+         mfem_error("Trying to erase a non-MM pointer!");
+      }
+      return ptr;
+   }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
    memory &mem = maps.memories.at(ptr);
    dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
