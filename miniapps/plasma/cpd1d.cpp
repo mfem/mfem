@@ -126,6 +126,9 @@ public:
                        const Vector & mass,
                        bool realPart = true);
 
+   void SetCurrentSheet(double Jy, double xJ, double Lx)
+   { Jy_ = Jy; xJ_ = xJ; Lx_ = Lx; }
+
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip);
 
@@ -133,6 +136,9 @@ private:
    char type_;
    double omega_;
    double Bmag_;
+   double Jy_;
+   double xJ_;
+   double Lx_;
    bool realPart_;
 
    const Vector & B_;
@@ -507,6 +513,11 @@ int main(int argc, char *argv[])
    ColdPlasmaPlaneWave EImCoef(wave_type[0], omega, BVec,
                                numbers, charges, masses, false);
 
+   if (wave_type[0] == 'J' && slab_params_.Size() > 4)
+   {
+      EReCoef.SetCurrentSheet(slab_params_[1], slab_params_[3], mesh_dim_[0]);
+      EImCoef.SetCurrentSheet(slab_params_[1], slab_params_[3], mesh_dim_[0]);
+   }
    {
       ParComplexGridFunction EField(&HCurlFESpace);
       EField.ProjectCoefficient(EReCoef, EImCoef);
@@ -768,6 +779,9 @@ ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
      type_(type),
      omega_(omega),
      Bmag_(B.Norml2()),
+     Jy_(0.0),
+     xJ_(0.5),
+     Lx_(1.0),
      realPart_(realPart),
      B_(B),
      numbers_(number),
@@ -872,6 +886,52 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
             V[2] = osc ? -S * sin(kE * x[0]) : 0.0;
          }
          V /= sqrt(S * S + D * D);
+      }
+      break;
+      case 'J':
+      {
+         double S = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_);
+         double D = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_);
+
+         bool osc = (S * S - D * D) / S > 0.0;
+         double kE = omega_ * sqrt(fabs((S * S - D * D) / S)) / c0_;
+
+         double csckL = 1.0 / sin(kE * Lx_);
+
+         if (x[0] <= xJ_)
+         {
+            double skLxJ = sin(kE * (Lx_ - xJ_));
+            if (realPart_)
+            {
+               V[0] = osc ? 0.0 : 0.0;
+               V[1] = osc ? 2.0 * sin(kE * x[0]) : 0.0;
+               V[2] = 0.0;
+            }
+            else
+            {
+               V[0] = osc ? 2.0 * D * sin(kE * x[0]) / S : 0.0;
+               V[1] = osc ? 0.0 : 0.0;
+               V[2] = 0.0;
+            }
+            V *= 0.5 * Jy_ * skLxJ * csckL / kE;
+         }
+         else
+         {
+            double skxJ = sin(kE * xJ_);
+            if (realPart_)
+            {
+               V[0] = osc ? 0.0 : 0.0;
+               V[1] = osc ? 2.0 * sin(kE * (Lx_ - x[0])) : 0.0;
+               V[2] = 0.0;
+            }
+            else
+            {
+               V[0] = osc ? 2.0 * D * sin(kE * (Lx_ - x[0])) / S : 0.0;
+               V[1] = osc ? 0.0 : 0.0;
+               V[2] = 0.0;
+            }
+            V *= 0.5 * Jy_ * skxJ * csckL / kE;
+         }
       }
       break;
       case 'Z':
