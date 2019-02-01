@@ -56,7 +56,8 @@ const char *strrnchr(const char *s, const unsigned char c, int n)
 }
 
 // *****************************************************************************
-static inline void dbgFlush(void){
+static inline void dbgFlush(void)
+{
    fprintf(stdout,"\033[m");
    fflush(0);
 }

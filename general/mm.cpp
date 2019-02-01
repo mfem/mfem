@@ -120,14 +120,16 @@ static void DumpMode(void)
 }
 
 // *****************************************************************************
-static inline bool MmGpuFilter(void){
+static inline bool MmGpuFilter(void)
+{
    if (!config::usingMM()) { return true; }
    if (config::gpuDisabled()) { return true; }
    return false;
 }
 
 // *****************************************************************************
-static inline bool MmGpuIniFilter(void){
+static inline bool MmGpuIniFilter(void)
+{
    if (MmGpuFilter()) { return true; }
    if (!config::gpuHasBeenEnabled()) { return true; }
    return false;
