@@ -56,7 +56,7 @@ double inflow_function(const Vector &x);
 Vector bb_min, bb_max;
 
 enum MONOTYPE { None, DiscUpw, DiscUpw_FS, Rusanov, Rusanov_FS, ResDist, ResDist_FS, ResDist_Lim, ResDist_LimMass };
-enum STENCIL  { Full, Local, LocalAndDiag };
+enum STENCIL  { Nodal, Full, Local, LocalAndDiag };
 
 
 class SolutionBounds
@@ -89,7 +89,8 @@ public:
       mesh = fes->GetMesh();
       stencil = _stencil;
 
-      if (stencil > 0) { GetBoundsMap(fes, K); }
+      if (stencil == 0) { GetNodalBoundsMap(); }
+      elseif (stencil > 1) { GetBoundsMap(fes, K); }
    }
 
    void Compute(const SparseMatrix &K, const Vector &x)
@@ -100,10 +101,17 @@ public:
       switch (stencil)
       {
          case 0:
+         {
+            ComputeNodalBounds(x);
+            break;
+         }
+         case 1:
+         {
             ComputeFromSparsity(K, x);
             break;
-         case 1:
-         case 2:
+         }
+         case 3:
+         case 4:
             ComputeLocalBounds(x);
             break;
          default:
@@ -111,6 +119,45 @@ public:
       }
    }
 
+   void ComputeNodalBounds(const Vector& x)
+   {
+      int i, j, k, nd, dofInd, ne = mesh->GetNE();
+      Vector xMax, xMin;
+      xMax.SetSize(ne); xMin.SetSize(ne);
+      
+      for (k = 0; k < ne; k++)
+      {
+         const FiniteElement &el = *fes->GetFE(k);
+         nd = el.GetDof();
+         
+         xMin(k) = numeric_limits<double>::infinity();
+         xMax(k) = -xMin(k);
+         for (j = 0; j < nd; j++)
+         {
+            xMax(k) = max(xMax(k), x(k*nd+j));
+            xMin(k) = min(xMin(k), x(k*nd+j));
+         }
+      }
+      for (k = 0; k < ne; k++)
+      {
+         const FiniteElement &el = *fes->GetFE(k);
+         nd = el.GetDof();
+         
+         for (j = 0; j < nd; j++)
+         {
+            dofInd = k*nd+j;
+            x_min(dofInd) = numeric_limits<double>::infinity();
+            x_max(dofInd) = -x_min(dofInd);
+            
+            for (int i = 0; i < (int)map_for_bounds[dofInd].size(); i++)
+            {
+               x_max(dofInd) = max(x_max(dofInd), xMax(map_for_bounds[dofInd][i]));
+               x_min(dofInd) = min(x_min(dofInd), xMin(map_for_bounds[dofInd][i]));
+            }
+         }
+      }
+   }
+   
    void ComputeFromSparsity(const SparseMatrix& K, const Vector& x)
    {
       const int *I = K.GetI(), *J = K.GetJ(), size = K.Size();
@@ -162,6 +209,174 @@ public:
    }
 
 private:
+   
+   int FindCommonAdjacentElement(int el, int el1, int el2, int dim, int numBdrs)
+   {
+      int i, j, commonNeighbor;
+      bool found = false;
+      Array<int> bdrs1, bdrs2, orientation, neighborElements1, neighborElements2;
+      FaceElementTransformations *Trans;
+      
+      neighborElements1.SetSize(numBdrs); neighborElements2.SetSize(numBdrs);
+      
+      // add neighbor elements sharing a vertex/edge/face according to grid dimension
+      if (dim==1)
+      {
+         numBdrs = 0; //TODO probably getElementVertices, does GetFaceElementTransformations even work? If not workaround
+      }
+      else if (dim==2)
+      {
+         mesh->GetElementEdges(el1, bdrs1, orientation);
+         mesh->GetElementEdges(el2, bdrs2, orientation);
+      }
+      else if (dim==3)
+      {
+         mesh->GetElementFaces(el1, bdrs1, orientation);
+         mesh->GetElementFaces(el2, bdrs2, orientation);
+      }
+
+      for (i = 0; i < numBdrs; i++)
+      {
+         Trans = mesh->GetFaceElementTransformations(bdrs1[i]);
+         neighborElements1[i] = Trans->Elem1No != el1 ? Trans->Elem1No : Trans->Elem2No;
+         
+         Trans = mesh->GetFaceElementTransformations(bdrs2[i]);
+         neighborElements2[i] = Trans->Elem1No != el2 ? Trans->Elem1No : Trans->Elem2No;
+      }
+      
+      for (i = 0; i < numBdrs; i++)
+      {
+         for (j = 0; j < numBdrs; j++)
+         {
+            if ((neighborElements1[i] == neighborElements2[j]) && (neighborElements1[i] != el))
+            {
+               if (!found)
+               {
+                  commonNeighbor = neighborElements1[i];
+                  found = true;
+               }
+               else
+               {
+                  mfem_error("Found multiple common neighbor elements.");
+               }
+            }
+         }
+      }
+      if (found)
+      {
+         return commonNeighbor;
+      }
+      else
+      {
+         mfem_error("No common neighbor element found.");
+      }
+   }
+   
+   void GetNodalBoundsMap()
+   {
+//       Mesh* mesh = fes->GetMesh();
+      const FiniteElement &dummy = *fes->GetFE(0);
+      int i, j, k, dofInd, numBdrs, numDofs, maxElPerNode, dim = mesh->Dimension(), 
+         ne = mesh->GetNE(), nd = dummy.GetDof(), p = dummy.GetOrder();
+      Array<int> bdrs, orientation, neighborElements;
+      DenseMatrix dofs;
+      FaceElementTransformations *Trans;
+
+      maxElPerNode = (int)pow(2., dim);
+      dummy.ExtractBdrDofs(dofs);
+      numBdrs = dofs.Width();
+      numDofs = dofs.Height();
+
+      neighborElements.SetSize(numBdrs);
+      
+      for (k = 0; k < ne; k++)
+      {
+         // add the current element for all dofs of the element
+         for (i = 0; i < nd; i++)
+         {
+            dofInd = k*nd+i;
+            map_for_bounds[dofInd].push_back(k);
+         }
+         
+         // add neighbor elements sharing a vertex/edge/face according to grid dimension
+         if (dim==1)
+            numBdrs = 0; //TODO probably getElementVertices, does GetFaceElementTransformations even work? If not workaround
+         else if (dim==2)
+            mesh->GetElementEdges(k, bdrs, orientation);
+         else if (dim==3)
+            mesh->GetElementFaces(k, bdrs, orientation);
+         
+         for (i = 0; i < numBdrs; i++)
+         {
+            Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+            
+            if (Trans->Elem1No != k)
+            {
+               neighborElements[i] = Trans->Elem1No;
+            }
+            else
+            {
+               neighborElements[i] = Trans->Elem2No;
+            }
+            
+            for (j = 0; j < numDofs; j++)
+            {
+               dofInd = k*nd+dofs(j,i);
+               map_for_bounds[dofInd].push_back(neighborElements[i]);
+            }
+         }
+         
+         if (dim==2)
+         {
+            map_for_bounds[k*nd].push_back(FindCommonAdjacentElement(k, neighborElements[3], neighborElements[0], dim, numBdrs));
+            map_for_bounds[k*nd+p].push_back(FindCommonAdjacentElement(k, neighborElements[0], neighborElements[1], dim, numBdrs));
+            map_for_bounds[(k+1)*nd-1].push_back(FindCommonAdjacentElement(k, neighborElements[1], neighborElements[2], dim, numBdrs));
+            map_for_bounds[k*p*(p+1)].push_back(FindCommonAdjacentElement(k, neighborElements[2], neighborElements[3], dim, numBdrs));
+         }
+         else if (dim==3)
+         {
+            Array<int> neighborElem; neighborElem.SetSize(12); // for each edge
+            neighborElem[0]  = FindCommonAdjacentElement(k, neighborElements[0], neighborElements[1], dim, numBdrs);
+            neighborElem[1]  = FindCommonAdjacentElement(k, neighborElements[0], neighborElements[2], dim, numBdrs);
+            neighborElem[2]  = FindCommonAdjacentElement(k, neighborElements[0], neighborElements[3], dim, numBdrs);
+            neighborElem[3]  = FindCommonAdjacentElement(k, neighborElements[0], neighborElements[4], dim, numBdrs);
+            neighborElem[4]  = FindCommonAdjacentElement(k, neighborElements[5], neighborElements[1], dim, numBdrs);
+            neighborElem[5]  = FindCommonAdjacentElement(k, neighborElements[5], neighborElements[2], dim, numBdrs);
+            neighborElem[6]  = FindCommonAdjacentElement(k, neighborElements[5], neighborElements[3], dim, numBdrs);
+            neighborElem[7]  = FindCommonAdjacentElement(k, neighborElements[5], neighborElements[4], dim, numBdrs);
+            neighborElem[8]  = FindCommonAdjacentElement(k, neighborElements[4], neighborElements[1], dim, numBdrs);
+            neighborElem[9]  = FindCommonAdjacentElement(k, neighborElements[1], neighborElements[2], dim, numBdrs);
+            neighborElem[10] = FindCommonAdjacentElement(k, neighborElements[2], neighborElements[3], dim, numBdrs);
+            neighborElem[11] = FindCommonAdjacentElement(k, neighborElements[3], neighborElements[4], dim, numBdrs);
+            
+            for (j = 0; j <= p; j++)
+            {
+               map_for_bounds[k*nd+j].push_back(neighborElem[0]);
+               map_for_bounds[k*nd+(j+1)*(p+1)-1].push_back(neighborElem[1]);
+               map_for_bounds[k*nd+p*(p+1)+j].push_back(neighborElem[2]);
+               map_for_bounds[k*nd+j*(p+1)].push_back(neighborElem[3]);
+               map_for_bounds[k*nd+(p+1)*(p+1)*p+j].push_back(neighborElem[4]);
+               map_for_bounds[k*nd+(p+1)*(p+1)*p+(j+1)*(p+1)-1].push_back(neighborElem[5]);
+               map_for_bounds[k*nd+(p+1)*(p+1)*p+p*(p+1)+j].push_back(neighborElem[6]);
+               map_for_bounds[k*nd+(p+1)*(p+1)*p+j*(p+1)].push_back(neighborElem[7]);
+               map_for_bounds[k*nd+j*(p+1)*(p+1)].push_back(neighborElem[8]);
+               map_for_bounds[k*nd+p+j*(p+1)*(p+1)].push_back(neighborElem[9]);
+               map_for_bounds[k*nd+(j+1)*(p+1)*(p+1)-1].push_back(neighborElem[10]);
+               map_for_bounds[k*nd+p*(p+1)+j*(p+1)*(p+1)].push_back(neighborElem[11]);
+            }
+            
+            // cube vertices
+            map_for_bounds[k*nd].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[0], neighborElem[3], dim, numBdrs));
+            map_for_bounds[k*nd+p].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[0], neighborElem[1], dim, numBdrs));
+            map_for_bounds[k*nd+p*(p+1)].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[2], neighborElem[3], dim, numBdrs));
+            map_for_bounds[k*nd+(p+1)*(p+1)-1].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[1], neighborElem[2], dim, numBdrs));
+            map_for_bounds[k*nd+(p+1)*(p+1)*p].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[4], neighborElem[7], dim, numBdrs));
+            map_for_bounds[k*nd+(p+1)*(p+1)*p+p].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[4], neighborElem[5], dim, numBdrs));
+            map_for_bounds[k*nd+(p+1)*(p+1)*p+(p+1)*p].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[6], neighborElem[7], dim, numBdrs));
+            map_for_bounds[k*nd+(p+1)*(p+1)*(p+1)-1].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[5], neighborElem[6], dim, numBdrs));
+         }
+      }
+   }
 
    double distance_(const IntegrationPoint &a, const IntegrationPoint &b)
    {
@@ -871,8 +1086,7 @@ public:
 
       const int btype = BasisType::Positive;
       DG_FECollection fec0(0, dim, btype);
-      DG_FECollection fec1(1, dim,
-                           btype);
+      DG_FECollection fec1(1, dim, btype);
 
       FiniteElementSpace SubFes0(ref_mesh, &fec0);
       FiniteElementSpace SubFes1(ref_mesh, &fec1);
@@ -883,7 +1097,7 @@ public:
       bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
       bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
       neighborDof.SetSize(ne*numDofs, numBdrs);
-      
+
 // FOR disc-nurbs.mesh -r 0 -o 1 // TODO
 //       neighborDof(0,0) = 6; neighborDof(0,1) = 10; neighborDof(0,2) = 13; neighborDof(0,3) = 17;
 //       neighborDof(1,0) = 7; neighborDof(1,1) = 11; neighborDof(1,2) = 15; neighborDof(1,3) = 19;
@@ -961,13 +1175,13 @@ public:
             Trans->Face->SetIntPoint(&ip);
             
             if (dim == 1)
-				{
+            {
                nor(0) = 2.*eip1.x - 1.0;
-				}
+            }
             else
-				{
+            {
                CalcOrtho(Trans->Face->Jacobian(), nor);
-				}
+            }
             
             if (Trans->Elem1No != k)
             {
@@ -1270,7 +1484,7 @@ private:
    CGSolver M_solver;
 
    mutable Vector z;
-   mutable Vector zz; // TODO if necessary, other wise remove, or implement limiter more practicable
+   mutable Vector zz; // TODO if necessary, otherwise remove, or implement limiter more practicable
 
    double dt;
    const FluxCorrectedTransport &fct;
@@ -1372,7 +1586,7 @@ int main(int argc, char *argv[])
    int ode_solver_type = 3;
    MONOTYPE monoType = ResDist_LimMass;
    bool schemeOpt = true;
-   STENCIL stencil = Full; // must be Full for ResDist_Lim
+   STENCIL stencil = Nodal;
    double t_final = 4.0;
    double dt = 0.005;
    bool visualization = true;
@@ -1617,11 +1831,6 @@ int main(int argc, char *argv[])
    bool done = false;
    for (int ti = 0; !done; )
    {
-      // compute solution bounds
-      if ((monoType > 0) && (monoType < 7))
-      {
-         fct.bnds.Compute(k.SpMat(), u);
-      }
       adv.SetDt(dt);
 
       double dt_real = min(dt, t_final - t);
@@ -2118,6 +2327,9 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
    int j, k, nd, dofInd;
    double sumPos, sumNeg, eps = 1.E-15;
    Vector uClipped, fClipped;
+   
+   // compute solution bounds
+   fct.bnds.Compute(K, x);
 
    // Monotonicity terms
    for (k = 0; k < fes->GetMesh()->GetNE(); k++)
@@ -2128,11 +2340,11 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
       uClipped.SetSize(nd); uClipped = 0.;
       fClipped.SetSize(nd); fClipped = 0.;
       sumPos = sumNeg = 0.;
+      
       for (j = 0; j < nd; j++)
       {
          dofInd = k*nd+j;
-         uClipped(j) = min(fct.bnds.x_max(dofInd), max(x(dofInd) + dt * yH(dofInd),
-                                                       fct.bnds.x_min(dofInd)));
+         uClipped(j) = min(fct.bnds.x_max(dofInd), max(x(dofInd) + dt * yH(dofInd), fct.bnds.x_min(dofInd)));
          // compute coefficients for the high-order corrections
          fClipped(j) = fct.lumpedM(dofInd) * (uClipped(j) - ( x(dofInd) + dt * yL(dofInd) ));
 
@@ -2564,11 +2776,11 @@ double u0_function(const Vector &x)
          double scale = 0.09;
          double slit = (X(0) <= -0.05) || (X(0) >= 0.05) || (X(1) >= 0.7);
          double cone = (1./sqrt(scale)) * sqrt(pow(X(0), 2.) + pow(X(1) + 0.5,2.));
-         double bump = (1./sqrt(scale)) * sqrt(pow(X(0) - 0.5,2.) + pow(X(1), 2.));
+         double bump = (1./sqrt(scale)) * sqrt(pow(X(0) + 0.5,2.) + pow(X(1), 2.));
 
          return (slit && ((pow(X(0),2.) + pow(X(1) - 0.5,2.)) <= scale)) ? 1. : 0.
                 + (1-cone) * (pow(X(0),2.) + pow(X(1) + 0.5,2.) <= scale)
-                + 0.25*(1.+cos(M_PI*bump))*((pow(X(0) - 0.5,2.) + pow(X(1),2.)) <= scale);
+                + 0.25*(1.+cos(M_PI*bump))*((pow(X(0) + 0.5,2.) + pow(X(1),2.)) <= scale);
       }
       case 5:
       {
