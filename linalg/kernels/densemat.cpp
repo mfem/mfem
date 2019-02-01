@@ -37,64 +37,65 @@ void GetInverseMatrix(const int m, const int *ipiv,
 
    MFEM_GPU_CANNOT_PASS;
    MFEM_FORALL(_k_, 1,
-               for (int k = 0; k < m; k++)
-{
-   double *d_mx = &d_x[k*m];
-      const double minus_x_k = -( d_mx[k] = 1.0/d_data[k+k*m] );
-      for (int i = 0; i < k; i++)
-      {
-         d_mx[i] = d_data[i+k*m] * minus_x_k;
-      }
-      for (int j = k-1; j >= 0; j--)
-      {
-         const double x_j = ( d_mx[j] /= d_data[j+j*m] );
-         for (int i = 0; i < j; i++)
-         {
-            d_mx[i] -= d_data[i+j*m] * x_j;
-         }
-      }
-      //d_x += m;
-   }
-   // X <- X L^{-1} (use input only from the upper triangular part of X)
    {
-      int k = m-1;
-      for (int j = 0; j < k; j++)
+      for (int k = 0; k < m; k++)
       {
-         const double minus_L_kj = -d_data[k+j*m];
-         for (int i = 0; i <= j; i++)
+         double *d_mx = &d_x[k*m];
+         const double minus_x_k = -( d_mx[k] = 1.0/d_data[k+k*m] );
+         for (int i = 0; i < k; i++)
          {
-            d_x[i+j*m] += d_x[i+k*m] * minus_L_kj;
+            d_mx[i] = d_data[i+k*m] * minus_x_k;
          }
-         for (int i = j+1; i < m; i++)
+         for (int j = k-1; j >= 0; j--)
          {
-            d_x[i+j*m] = d_x[i+k*m] * minus_L_kj;
+            const double x_j = ( d_mx[j] /= d_data[j+j*m] );
+            for (int i = 0; i < j; i++)
+            {
+               d_mx[i] -= d_data[i+j*m] * x_j;
+            }
+         }
+         //d_x += m;
+      }
+      // X <- X L^{-1} (use input only from the upper triangular part of X)
+      {
+         int k = m-1;
+         for (int j = 0; j < k; j++)
+         {
+            const double minus_L_kj = -d_data[k+j*m];
+            for (int i = 0; i <= j; i++)
+            {
+               d_x[i+j*m] += d_x[i+k*m] * minus_L_kj;
+            }
+            for (int i = j+1; i < m; i++)
+            {
+               d_x[i+j*m] = d_x[i+k*m] * minus_L_kj;
+            }
          }
       }
-   }
-   for (int k = m-2; k >= 0; k--)
-{
-   for (int j = 0; j < k; j++)
+      for (int k = m-2; k >= 0; k--)
       {
-         const double L_kj = d_data[k+j*m];
-         for (int i = 0; i < m; i++)
+         for (int j = 0; j < k; j++)
          {
-            d_x[i+j*m] -= d_x[i+k*m] * L_kj;
+            const double L_kj = d_data[k+j*m];
+            for (int i = 0; i < m; i++)
+            {
+               d_x[i+j*m] -= d_x[i+k*m] * L_kj;
+            }
          }
       }
-   }
-   // X <- X P
-   for (int k = m-1; k >= 0; k--)
-{
-   const int piv_k = d_ipiv[k];
-      if (k != piv_k)
+      // X <- X P
+      for (int k = m-1; k >= 0; k--)
       {
-         for (int i = 0; i < m; i++)
+         const int piv_k = d_ipiv[k];
+         if (k != piv_k)
          {
-            Swap<double>(d_x[i+k*m], d_x[i+piv_k*m]);
+            for (int i = 0; i < m; i++)
+            {
+               Swap<double>(d_x[i+k*m], d_x[i+piv_k*m]);
+            }
          }
       }
-   }
-              );
+   });
 }
 
 // *****************************************************************************
