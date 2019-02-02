@@ -71,6 +71,15 @@ uint32_t LOG2(uint32_t);
 #define GET_CONST_PTR_T(v,T) const T *d_##v = (const T*) mfem::mm::ptr(v)
 
 // *****************************************************************************
+#ifndef __NVCC__
+#define MFEM_DEVICE
+#define MFEM_DEVICE_FUNCTION
+#else
+#define MFEM_DEVICE __device__
+#define MFEM_DEVICE_FUNCTION __host__ __device__
+#endif
+
+// *****************************************************************************
 #define BUILTIN_TRAP __builtin_trap()
 #define FILE_LINE __FILE__ && __LINE__
 #define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE && false);}
@@ -100,8 +109,11 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 #define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
 
 // *****************************************************************************
-#define dbg(...)
-//#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
-//#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
+#ifndef MFEM_DEBUG
+   #define dbg(...)
+#else
+   #define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
+   #define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
+#endif
 
 #endif // MFEM_OKINA_HPP

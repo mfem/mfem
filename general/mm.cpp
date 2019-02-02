@@ -97,6 +97,7 @@ void* mm::Insert(void *ptr, const size_t bytes)
    const bool known = Known(maps, ptr);
    MFEM_ASSERT(!known, "Trying to add already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
+   //if (ptr > (void*)0xffffffff){ BUILTIN_TRAP; }
    maps.memories.emplace(ptr, memory(ptr, bytes));
    return ptr;
 }
@@ -350,10 +351,10 @@ static void Dump(const mm::ledger &maps)
 static void* d2d(void *dst, const void *src, const size_t bytes,
                  const bool async)
 {
+   const bool cpu = config::usingCpu();
+   if (cpu) { return std::memcpy(dst, src, bytes); }
    GET_PTR(src);
    GET_PTR(dst);
-   const bool cpu = config::usingCpu();
-   if (cpu) { return std::memcpy(d_dst, d_src, bytes); }
    if (!async) { return cuMemcpyDtoD(d_dst, (void *)d_src, bytes); }
    return cuMemcpyDtoDAsync(d_dst, (void *)d_src, bytes, config::Stream());
 }

@@ -173,7 +173,10 @@ void Geom(const int DIM,
       {0x205,&Geom2D<2,7>},
       {0x206,&Geom2D<2,8>},
       {0x207,&Geom2D<2,9>},
-      {0x210,&Geom2D<3,2>},/*
+      {0x210,&Geom2D<3,2>},
+      {0x211,&Geom2D<3,3>},
+      {0x212,&Geom2D<3,4>},
+/*
       {0x208,&Geom2D<2,10>},
       {0x209,&Geom2D<2,11>},
       {0x20A,&Geom2D<2,12>},
@@ -181,7 +184,8 @@ void Geom(const int DIM,
       {0x20C,&Geom2D<2,14>},
       {0x20D,&Geom2D<2,15>},
       {0x20E,&Geom2D<2,16>},
-      {0x20F,&Geom2D<2,17>},*/
+      {0x20F,&Geom2D<2,17>},
+*/
       // 3D
       {0x300,&Geom3D<2,2>},
       {0x301,&Geom3D<2,3>},
