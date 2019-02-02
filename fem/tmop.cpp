@@ -900,32 +900,38 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-
-void TargetSpecificationValidator::ConstructSpecification()
+void DiscreteAdaptTC::UpdateTargetSpecification(Vector &start_x, Vector &new_x)
 {
-   target_spec.ConstructSpecification();
+   MFEM_VERIFY(adapt_eval != NULL, "Use SetAdaptivityEvaluator.");
 
-   analytic = target_spec.analytic;
-   discrete = target_spec.discrete;
+   adapt_eval->ComputeAtNewPosition(start_x, new_x, *target_spec);
+}
 
-   if (analytic == NULL && discrete == NULL)
+void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
+                                            const IntegrationRule &ir,
+                                            DenseTensor &Jtr) const
+{
+   MFEM_VERIFY(target_spec != NULL,
+               "Discrete adaptation requires a GridFunction specification.");
+
+   switch (target_type)
    {
-      MFEM_ABORT("Empty target specification.")
-   }
+      case IDEAL_SHAPE_GIVEN_SIZE:
+      {
+         const DenseMatrix &Wideal =
+            Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
+         const int dim = Wideal.Height();
 
-   if (analytic != NULL && discrete != NULL)
-   {
-      MFEM_ABORT("Duplicate target specification.")
-   }
-
-   if (analytic != NULL)
-   {
-      // TODO switch on the target type and check if the Coefficient is valid.
-   }
-
-   if (discrete != NULL)
-   {
-      // TODO switch on the target type and check if the GridFunction is valid.
+         Vector sizes(ir.GetNPoints());
+         target_spec->GetValues(e_id, ir, sizes);
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            Jtr(i).Set(std::pow(sizes(i) / Wideal.Det(), 1.0/dim), Wideal);
+         }
+         break;
+      }
+      default:
+         MFEM_ABORT("Incompatible target type for analytic adaptation!");
    }
 }
 
