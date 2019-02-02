@@ -532,7 +532,7 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &start_nodes,
                                      const Vector &new_nodes,
-                                     Vector &field) = 0;
+                                     Vector &field) const = 0;
 };
 
 #ifdef MFEM_USE_MPI
@@ -551,8 +551,6 @@ public:
                     const FiniteElementCollection &fec, int num_comp);
 };
 #endif
-
-class TargetSpecification;
 
 /** @brief Base class representing target-matrix construction algorithms for
     mesh optimization via the target-matrix optimization paradigm (TMOP). */
@@ -666,64 +664,31 @@ class DiscreteAdaptTC : public TargetConstructor
 {
 protected:
    // Discrete target specification.
-   TargetSpecification *target_spec;
+   GridFunction *target_spec;
    // Evaluation of the discrete target specification on different meshes.
-   AdaptivityEvaluator *adapt_eval;
+   const AdaptivityEvaluator *adapt_eval;
 
 public:
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype), target_spec(NULL), adapt_eval(NULL) { }
+
+   virtual void SetDiscreteTargetSpec(GridFunction &tspec)
+   {
+      target_spec = &tspec;
+   }
+
+   void SetAdaptivityEvaluator(const AdaptivityEvaluator &ae)
+   {
+      adapt_eval = &ae;
+   }
+
+   void UpdateTargetSpecification(Vector &start_x, Vector &new_x);
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element. */
    virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
                                       const IntegrationRule &ir,
                                       DenseTensor &Jtr) const;
-};
-
-class TargetSpecification
-{
-protected:
-   const TargetConstructor::TargetType target_type;
-
-   // One of these shoud be NULL, depending on the specification type.
-   // It's the user's choice whether analytic and discrete are owned or not.
-   Coefficient *analytic;
-   GridFunction *discrete;
-
-   // Special class for validating the user's input vs the target_type.
-   friend class TargetSpecificationValidator;
-
-public:
-   TargetSpecification(TargetConstructor::TargetType ttype)
-      : target_type(ttype), analytic(NULL), discrete(NULL) { }
-
-   const Coefficient * GetAnalyticSpecification() const { return analytic; }
-   const GridFunction * GetDiscreteSpecification() const { return discrete; }
-
-   /** This function should compute @a analytic or @a discrete, depending on
-       the chosen @a target_type. If the user chooses to allocate these fields,
-       then he must delete them in the destructor of the child class. */
-   virtual void ConstructSpecification() = 0;
-
-   /// If owned, analytic / discrete should be deleted in the child classes.
-   virtual ~TargetSpecification() { }
-};
-
-
-/// Validation proxy of a concrete TargetSpecification.
-class TargetSpecificationValidator : public TargetSpecification
-{
-protected:
-   TargetSpecification &target_spec;
-
-public:
-   TargetSpecificationValidator(TargetSpecification &tspec)
-      : TargetSpecification(tspec.target_type), target_spec(tspec) { }
-
-   /** Calls the ConstructSpecification() method of  @a target_spec and
-       checks if the output is compatible with its @a target_type. */
-   virtual void ConstructSpecification();
 };
 
 class ParGridFunction;
