@@ -55,6 +55,8 @@
 //   By default the sources and fields are all zero
 //     mpirun -np 4 hertz
 //
+// ./cpd1d -md 0.24 -ne 480 -dbcs '3 5' -s 5 -f 80e6 -maxit 1 -B '0 0 5.4' -w J -slab '0 1 0 0.16' -num '2e20 2e20'
+//
 //   Current source in a sphere with absorbing boundary conditions
 //     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
 //                        -abcs '-1' -f 3e8
