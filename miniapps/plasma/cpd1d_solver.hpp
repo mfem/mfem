@@ -106,6 +106,8 @@ private:
 
    double omega_;
 
+   double solNorm_;
+
    ParMesh * pmesh_;
 
    // H1_ParFESpace * H1FESpace_;
@@ -120,7 +122,7 @@ private:
 
    ParComplexGridFunction * e_;  // Complex electric field (HCurl)
    ParComplexGridFunction * j_;  // Complex current density (HCurl)
-   ParComplexLinearForm   * jd_; // Dual of complex current density (HCurl)
+   ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
 
    MatrixCoefficient * epsReCoef_;  // Dielectric Material Coefficient
    MatrixCoefficient * epsImCoef_;  // Dielectric Material Coefficient
@@ -139,6 +141,8 @@ private:
 
    VectorCoefficient * jrCoef_;     // Volume Current Density Function
    VectorCoefficient * jiCoef_;     // Volume Current Density Function
+   VectorCoefficient * rhsrCoef_;     // Volume Current Density Function
+   VectorCoefficient * rhsiCoef_;     // Volume Current Density Function
    const VectorCoefficient & erCoef_;     // Electric Field Boundary Condition
    const VectorCoefficient & eiCoef_;     // Electric Field Boundary Condition
 

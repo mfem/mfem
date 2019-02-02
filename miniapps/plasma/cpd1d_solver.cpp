@@ -48,13 +48,14 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
      conv_(conv),
      ownsEtaInv_(etaInvCoef == NULL),
      omega_(omega),
+     solNorm_(-1.0),
      pmesh_(&pmesh),
      HCurlFESpace_(NULL),
      a1_(NULL),
      b1_(NULL),
      e_(NULL),
      j_(NULL),
-     jd_(NULL),
+     rhs_(NULL),
      epsReCoef_(&epsReCoef),
      epsImCoef_(&epsImCoef),
      muInvCoef_(&muInvCoef),
@@ -69,6 +70,8 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
      posMassCoef_(NULL),
      jrCoef_(NULL),
      jiCoef_(NULL),
+     rhsrCoef_(NULL),
+     rhsiCoef_(NULL),
      erCoef_(EReCoef),
      eiCoef_(EImCoef),
      j_r_src_(j_r_src),
@@ -215,6 +218,8 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
       Vector j(3); j = 0.0;
       jiCoef_ = new VectorConstantCoefficient(j);
    }
+   rhsrCoef_ = new ScalarVectorProductCoefficient(omega_, *jiCoef_);
+   rhsiCoef_ = new ScalarVectorProductCoefficient(-omega_, *jrCoef_);
    /*
    // Magnetization
    if ( m_src_ != NULL )
@@ -242,19 +247,23 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
    // Build grid functions
    e_  = new ParComplexGridFunction(HCurlFESpace_);
    *e_ = 0.0;
+   solNorm_ = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
+                                 const_cast<VectorCoefficient&>(eiCoef_));
 
    j_ = new ParComplexGridFunction(HCurlFESpace_);
    j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
-   jd_ = new ParComplexLinearForm(HCurlFESpace_, conv_);
-   jd_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jrCoef_),
-                            new VectorFEDomainLFIntegrator(*jiCoef_));
-   jd_->real().Vector::operator=(0.0);
-   jd_->imag().Vector::operator=(0.0);
+   rhs_ = new ParComplexLinearForm(HCurlFESpace_, conv_);
+   rhs_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*rhsrCoef_),
+                             new VectorFEDomainLFIntegrator(*rhsiCoef_));
+   rhs_->real().Vector::operator=(0.0);
+   rhs_->imag().Vector::operator=(0.0);
 }
 
 CPD1DSolver::~CPD1DSolver()
 {
+   delete rhsrCoef_;
+   delete rhsiCoef_;
    delete jrCoef_;
    delete jiCoef_;
    // delete erCoef_;
@@ -284,7 +293,7 @@ CPD1DSolver::~CPD1DSolver()
    // delete k_;
    // delete m_;
    // delete bd_;
-   delete jd_;
+   delete rhs_;
    // delete jd_r_;
    // delete jd_i_;
 
@@ -343,7 +352,7 @@ CPD1DSolver::Assemble()
    b1_->Assemble();
    b1_->Finalize();
 
-   jd_->Assemble();
+   rhs_->Assemble();
    /*
    curlMuInvCurl_->Assemble();
    curlMuInvCurl_->Finalize();
@@ -391,7 +400,7 @@ CPD1DSolver::Update()
    // h_->Update();
    // b_->Update();
    // bd_->Update();
-   jd_->Update();
+   rhs_->Update();
    // jd_i_->Update();
    // if ( jr_ ) { jr_->Update(); }
    if ( j_  ) {  j_->Update(); }
@@ -462,7 +471,7 @@ CPD1DSolver::Solve()
    // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
    e_->ProjectCoefficient(const_cast<VectorCoefficient&>(erCoef_),
                           const_cast<VectorCoefficient&>(eiCoef_));
-   a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *jd_, A1, E, RHS);
+   a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *rhs_, A1, E, RHS);
 
    // cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
    // cout << "Norm of RHS: " << RHS.Norml2() << endl;
@@ -652,8 +661,10 @@ CPD1DSolver::Solve()
 double
 CPD1DSolver::GetError()
 {
-   return e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
-                             const_cast<VectorCoefficient&>(eiCoef_));
+   double solErr = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
+                                      const_cast<VectorCoefficient&>(eiCoef_));
+
+   return (solNorm_ > 0.0) ? solErr / solNorm_ : solErr;
 }
 
 void
