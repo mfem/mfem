@@ -1702,7 +1702,7 @@ protected:
    // PA extension
    Vector vec;
    DofToQuad *maps;
-   int dim, ne, dofs1D, quad1D;
+   int dim, ne, nq, dofs1D, quad1D;
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir) { Q = NULL; maps=NULL; }
@@ -1720,7 +1720,7 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
    /// PA extension
-   void SetOperator(Vector&);
+   //void SetOperator(Vector&);
    virtual void Assemble(const FiniteElementSpace*);
    virtual void MultAssembled(Vector&, Vector&);
 

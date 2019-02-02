@@ -55,14 +55,14 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace *fes)
    const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int quadraturePoints = ir->GetNPoints();
+   const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
-   ne = fes->GetMesh()->GetNE();
+   ne = fes->GetNE();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
    const GeometryExtension *geo = GeometryExtension::Get(*fes,*ir);
    maps = DofToQuad::Get(*fes, *fes, *ir);
-   vec.SetSize(symmDims * quadraturePoints * ne);
+   vec.SetSize(symmDims * nq * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
    kernels::fem::DiffusionAssemble(dim, quad1D, ne,
                                    maps->quadWeights,
@@ -86,24 +86,96 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 // *****************************************************************************
 // * PA Mass Integrator Extension
 // *****************************************************************************
+//MFEM_FUNCTION static double rho0(const Vector &x) { return 1.0; }
+
 void MassIntegrator::Assemble(const FiniteElementSpace *fes)
 {
    const Mesh *mesh = fes->GetMesh();
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *rule = IntRule;
    const FiniteElement &el = *(fes->GetFE(0));
+   const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
    dim = mesh->Dimension();
    ne = fes->GetMesh()->GetNE();
+   nq = ir->GetNPoints();
    dofs1D = el.GetOrder() + 1;
-   assert(ir);
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   maps = DofToQuad::Get(*fes, *fes, *IntRule);
-}
-
-// *****************************************************************************
-void MassIntegrator::SetOperator(Vector &v)
-{
-   vec.SetSize(v.Size());
-   vec = v;
+   const GeometryExtension *geo = GeometryExtension::Get(*fes,*ir);
+   maps = DofToQuad::Get(*fes, *fes, *ir);
+   vec.SetSize(ne*nq);
+   // Values of Q->eval * DetJ at all quadrature points ************************
+   /*for (int e = 0; e < ne; e++)
+   {
+      ElementTransformation *eltrans = fes->GetElementTransformation(e);
+      for (int q = 0; q < nq; q++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(q);
+         eltrans->SetIntPoint(&ip);            
+         const double qeval = Q?Q->Eval(*eltrans, ip):1.0;
+         const double weights = eltrans->Weight() * ip.weight;
+         vec(e*nq + q) = weights * qeval;
+      }
+      }*/
+   /*
+   for (int e = 0; e < ne; e++){
+      for (int q = 0; q < nq; q++){
+         printf("\n\t%f",vec(e*nq + q));
+      }
+      }*/
+   // **************************************************************************
+   //const double coeff = 1.0;
+   //Q?static_cast<ConstantCoefficient*>(Q)->constant:1.0;
+   /*
+   ConstantCoefficient *cstq = dynamic_cast<ConstantCoefficient*>(Q);
+   if (!cstq) {
+      mfem_error("ConstantCoefficient only supported yet...!");
+      }
+   dbg("Qeval=%f",cstq->constant);
+   */
+/*
+#warning enabling Gpu
+   config::useCuda();
+   config::enableGpu(0);
+*/
+   if (dim==1) { mfem_error("Not supported yet... stay tuned!"); }
+   if (dim==2)
+   {
+      //config::GPU mode;
+      MFEM_ASSERT(Q, "Q not a Coefficient");      
+      FunctionCoefficient *fctQ = dynamic_cast<FunctionCoefficient*>(Q);
+      double (*coeffFunction)(const Vector &) = fctQ->Get();
+      
+      const Vector &nodes = *mesh->GetNodes();
+      const int NE = ne;
+      const int NQ = nq;
+      const double *w = (const double*) mm::ptr((const double*)maps->quadWeights);
+      const double *J = (const double*) mm::ptr((const double*)geo->J);
+      double *v = (double*) mm::ptr((double*)vec.GetData());
+      MFEM_FORALL(e, NE,
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            const double J11 = J[ijklNM(0,0,q,e,2,NQ)];
+            const double J12 = J[ijklNM(1,0,q,e,2,NQ)];
+            const double J21 = J[ijklNM(0,1,q,e,2,NQ)];
+            const double J22 = J[ijklNM(1,1,q,e,2,NQ)];
+            const double detJ = (J11*J22)-(J21*J12);
+            //v[ijN(q,e,NQ)] =  w[q] * rho0(nodes) * detJ;
+            v[ijN(q,e,NQ)] =  w[q] * coeffFunction(nodes) * detJ;
+         }
+      });
+   }/*
+   vec.Pull();
+   
+   dbg("Kernel:");
+   for (int e = 0; e < ne; e++){
+      for (int q = 0; q < nq; q++){
+         printf("\n\t%f",vec(e*nq + q));
+      }
+      }
+    */
+   if (dim==3){ mfem_error("Not supported yet... stay tuned!"); }
+   //delete geo;
+   //exit(0);
 }
 
 // *****************************************************************************

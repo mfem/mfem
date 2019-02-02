@@ -214,15 +214,28 @@ DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& trialFE,
    DofToQuad *maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
+   dbg("trialMaps GetSimplexMaps");
    const DofToQuad* trialMaps = GetD2QSimplexMaps(trialFE, ir);
+   dbg("testMaps GetSimplexMaps");
    const DofToQuad* testMaps  = GetD2QSimplexMaps(testFE, ir, true);
+   dbg("maps->dofToQuad");
+   const int trialDims = trialFE.GetDim();
+   const int trialNDofs = trialFE.GetDof();
+   const int numQuad = ir.GetNPoints();
+   //kernels::vector::Assign(numQuad*trialNDofs, trialMaps->dofToQuad, maps->dofToQuad);   
    maps->dofToQuad   = trialMaps->dofToQuad;
+   dbg("maps->dofToQuadD");
+   //kernels::vector::Assign(trialDims*numQuad*trialNDofs, trialMaps->dofToQuadD, maps->dofToQuadD);   
    maps->dofToQuadD  = trialMaps->dofToQuadD;
+   dbg("maps->quadToDof");
    maps->quadToDof   = testMaps->dofToQuad;
+   dbg("maps->quadToDofD");
    maps->quadToDofD  = testMaps->dofToQuadD;
+   dbg("maps->quadWeights");
    maps->quadWeights = testMaps->quadWeights;
    delete trialMaps;
    delete testMaps;
+   dbg("done");
    return maps;
 }
 
@@ -252,7 +265,10 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
 
+   dbg("numDofs=%d numQuad=%d", numDofs, numQuad);
+   dbg("dofToQuad.allocate");
    maps->dofToQuad.allocate( numQuad, numDofs,       1, 1, transpose);
+   dbg("dofToQuadD.allocate");
    maps->dofToQuadD.allocate(   dims, numQuad, numDofs, 1, transpose);
    const int dim0 = maps->dofToQuad.dim()[0];
    const int dim1 = maps->dofToQuad.dim()[1];
@@ -264,10 +280,15 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    {
       maps->quadWeights.allocate(numQuad);
    }
+   dbg("d2q");
    mfem::Vector d2q(numDofs);
+   dbg("d2qD");
    mfem::DenseMatrix d2qD(numDofs, dims);
+   dbg("quadWeights");
    mfem::Array<double> quadWeights(numQuad);
+   dbg("dofToQuad");
    mfem::Array<double> dofToQuad(numQuad*numDofs);
+   dbg("dofToQuadD");
    mfem::Array<double> dofToQuadD(dims*numQuad*numDofs);
 
    for (int q = 0; q < numQuad; ++q)

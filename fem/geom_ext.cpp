@@ -102,7 +102,6 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    kernels::fem::Geom(dims, numDofs, numQuad, elements,
                       maps->dofToQuadD,
                       geom->meshNodes, geom->J, geom->invJ, geom->detJ);
-   delete maps;
    return geom;
 }
 
@@ -155,7 +154,6 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    kernels::fem::Geom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
                       geom->meshNodes, geom->J, geom->invJ, geom->detJ);
-   delete maps;
    return geom;
 }
 

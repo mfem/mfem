@@ -155,6 +155,12 @@ public:
    /// Evaluate coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   /// Return the coefficient's C-function
+   double (*Get())(const Vector&){
+      //return reinterpret_cast<double(*)(const Vector&)>(Function);
+      return Function;
+   }
 };
 
 class GridFunction;
