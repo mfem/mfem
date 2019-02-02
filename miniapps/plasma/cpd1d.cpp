@@ -197,7 +197,9 @@ int main(int argc, char *argv[])
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
-                  "'O' - Ordinary, 'X' - Extraordinary, 'Z' - Zero");
+                  "'O' - Ordinary, 'X' - Extraordinary, "
+                  "'J' - Current Sheet (in conjunction with -slab), "
+                  "'Z' - Zero");
    args.AddOption(&BVec, "-B", "--magnetic-flux",
                   "Background magnetic flux vector");
    args.AddOption(&numbers, "-num", "--number-densites",
@@ -346,12 +348,12 @@ int main(int argc, char *argv[])
       }
       if ((S * S - D * D) / S < 0)
       {
-         cout << "   Decaying E mode:       " << lam0 / sqrt(-S/(S*S-D*D))
+         cout << "   Decaying X mode:       " << lam0 / sqrt(-S/(S*S-D*D))
               << '\n';
       }
       else
       {
-         cout << "   Oscillating E mode:    " << lam0 / sqrt(S/(S*S-D*D))
+         cout << "   Oscillating X mode:    " << lam0 / sqrt(S/(S*S-D*D))
               << '\n';
       }
       cout << endl;
@@ -513,7 +515,7 @@ int main(int argc, char *argv[])
    ColdPlasmaPlaneWave EImCoef(wave_type[0], omega, BVec,
                                numbers, charges, masses, false);
 
-   if (wave_type[0] == 'J' && slab_params_.Size() > 4)
+   if (wave_type[0] == 'J' && slab_params_.Size() == 4)
    {
       EReCoef.SetCurrentSheet(slab_params_[1], slab_params_[3], mesh_dim_[0]);
       EImCoef.SetCurrentSheet(slab_params_[1], slab_params_[3], mesh_dim_[0]);
@@ -903,34 +905,35 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
             double skLxJ = sin(kE * (Lx_ - xJ_));
             if (realPart_)
             {
-               V[0] = osc ? 0.0 : 0.0;
-               V[1] = osc ? 2.0 * sin(kE * x[0]) : 0.0;
+               V[0] = osc ? -D / S : 0.0;
+               V[1] = osc ? 0.0 : 0.0;
                V[2] = 0.0;
             }
             else
             {
-               V[0] = osc ? 2.0 * D * sin(kE * x[0]) / S : 0.0;
-               V[1] = osc ? 0.0 : 0.0;
+               V[0] = osc ? 0.0 : 0.0;
+               V[1] = osc ? 1.0 : 0.0;
                V[2] = 0.0;
             }
-            V *= 0.5 * Jy_ * skLxJ * csckL / kE;
+            V *= omega_ * mu0_ * Jy_ * skLxJ * csckL * sin(kE * x[0]) / kE;
          }
          else
          {
             double skxJ = sin(kE * xJ_);
             if (realPart_)
             {
-               V[0] = osc ? 0.0 : 0.0;
-               V[1] = osc ? 2.0 * sin(kE * (Lx_ - x[0])) : 0.0;
+               V[0] = osc ? -D / S : 0.0;
+               V[1] = osc ? 0.0 : 0.0;
                V[2] = 0.0;
             }
             else
             {
-               V[0] = osc ? 2.0 * D * sin(kE * (Lx_ - x[0])) / S : 0.0;
-               V[1] = osc ? 0.0 : 0.0;
+               V[0] = osc ? 0.0 : 0.0;
+               V[1] = osc ? 1.0 : 0.0;
                V[2] = 0.0;
             }
-            V *= 0.5 * Jy_ * skxJ * csckL / kE;
+            V *= omega_ * mu0_ * Jy_ * skxJ * csckL * sin(kE * (Lx_ - x[0]))
+                 / kE;
          }
       }
       break;
