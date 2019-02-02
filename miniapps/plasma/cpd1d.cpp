@@ -905,37 +905,38 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
          if (x[0] <= xJ_)
          {
             double skLxJ = sin(kE * (Lx_ - xJ_));
+            double skx   = sin(kE * x[0]);
             if (realPart_)
             {
-               V[0] = osc ? -D / S : 0.0;
+               V[0] = osc ? D / S : 0.0;
                V[1] = osc ? 0.0 : 0.0;
                V[2] = 0.0;
             }
             else
             {
                V[0] = osc ? 0.0 : 0.0;
-               V[1] = osc ? 1.0 : 0.0;
+               V[1] = osc ? -1.0 : 0.0;
                V[2] = 0.0;
             }
-            V *= omega_ * mu0_ * Jy_ * skLxJ * csckL * sin(kE * x[0]) / kE;
+            V *= 0.5 * omega_ * mu0_ * Jy_ * skLxJ * csckL * skx / kE;
          }
          else
          {
             double skxJ = sin(kE * xJ_);
+            double skLx = sin(kE * (Lx_ - x[0]));
             if (realPart_)
             {
-               V[0] = osc ? -D / S : 0.0;
+               V[0] = osc ? D / S : 0.0;
                V[1] = osc ? 0.0 : 0.0;
                V[2] = 0.0;
             }
             else
             {
                V[0] = osc ? 0.0 : 0.0;
-               V[1] = osc ? 1.0 : 0.0;
+               V[1] = osc ? -1.0 : 0.0;
                V[2] = 0.0;
             }
-            V *= omega_ * mu0_ * Jy_ * skxJ * csckL * sin(kE * (Lx_ - x[0]))
-                 / kE;
+            V *= 0.5 * omega_ * mu0_ * Jy_ * skxJ * csckL * skLx / kE;
          }
       }
       break;
