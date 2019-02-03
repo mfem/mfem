@@ -521,9 +521,9 @@ int main(int argc, char *argv[])
    if (wave_type[0] == 'J' && slab_params_.Size() == 5)
    {
       EReCoef.SetCurrentSlab(slab_params_[1], slab_params_[3], slab_params_[4],
-			     mesh_dim_[0]);
+                             mesh_dim_[0]);
       EImCoef.SetCurrentSlab(slab_params_[1], slab_params_[3], slab_params_[4],
-			     mesh_dim_[0]);
+                             mesh_dim_[0]);
    }
    {
       ParComplexGridFunction EField(&HCurlFESpace);
@@ -752,7 +752,7 @@ void slab_current_source(const Vector &x, Vector &j)
    j = 0.0;
 
    double width = slab_params_(4);
-   double height = 1.0 / width;
+   // double height = 1.0 / width;
    double half_x_l = slab_params_(3) - 0.5 * width;
    double half_x_r = slab_params_(3) + 0.5 * width;
 
@@ -762,7 +762,7 @@ void slab_current_source(const Vector &x, Vector &j)
       j(1) = slab_params_(1);
       j(2) = slab_params_(2);
    }
-   j *= height;
+   // j *= height;
 }
 
 void e_bc_r(const Vector &x, Vector &E)
@@ -906,12 +906,18 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
          bool osc = (S * S - D * D) / S > 0.0;
          double kE = omega_ * sqrt(fabs((S * S - D * D) / S)) / c0_;
 
-         double csckL = 1.0 / sin(kE * Lx_);
+         double skL   = sin(kE * Lx_);
+         double csckL = 1.0 / skL;
 
-         if (x[0] <= xJ_)
+         if (x[0] <= xJ_ - 0.5 * dx_)
          {
-            double skLxJ = sin(kE * (Lx_ - xJ_));
-            double skx   = sin(kE * x[0]);
+            double skx      = sin(kE * x[0]);
+            double ckxJmd   = cos(kE * (xJ_ - 0.5 * dx_));
+            double skxJmd   = sin(kE * (xJ_ - 0.5 * dx_));
+            double ckLxJmd  = cos(kE * (Lx_ - xJ_ - 0.5 * dx_));
+            double skLxJpd  = sin(kE * (Lx_ - xJ_ + 0.5 * dx_));
+            double csckxJmd = 1.0 / skxJmd;
+            double a = skxJmd * ckLxJmd + skLxJpd * ckxJmd - skL;
             if (realPart_)
             {
                V[0] = osc ? D / S : 0.0;
@@ -924,12 +930,38 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
                V[1] = osc ? -1.0 : 0.0;
                V[2] = 0.0;
             }
-            V *= 0.5 * omega_ * mu0_ * Jy_ * skLxJ * csckL * skx / kE;
+            V *= omega_ * mu0_ * Jy_ * a * csckxJmd * csckL * skx / (kE * kE);
+         }
+         else if (x[0] <= xJ_ + 0.5 * dx_)
+         {
+            double skx      = sin(kE * x[0]);
+            double skLx      = sin(kE * (Lx_ - x[0]));
+            double ckxJmd   = cos(kE * (xJ_ - 0.5 * dx_));
+            double ckLxJmd  = cos(kE * (Lx_ - xJ_ - 0.5 * dx_));
+            double a = skx * ckLxJmd + skLx * ckxJmd - skL;
+            if (realPart_)
+            {
+               V[0] = osc ? D / S : 0.0;
+               V[1] = osc ? 0.0 : 0.0;
+               V[2] = 0.0;
+            }
+            else
+            {
+               V[0] = osc ? 0.0 : 0.0;
+               V[1] = osc ? -1.0 : 0.0;
+               V[2] = 0.0;
+            }
+            V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
          }
          else
          {
-            double skxJ = sin(kE * xJ_);
-            double skLx = sin(kE * (Lx_ - x[0]));
+            double skLx      = sin(kE * (Lx_ - x[0]));
+            double ckxJmd    = cos(kE * (xJ_ - 0.5 * dx_));
+            double skxJpd    = sin(kE * (xJ_ + 0.5 * dx_));
+            double ckLxJmd   = cos(kE * (Lx_ - xJ_ - 0.5 * dx_));
+            double skLxJmd   = sin(kE * (Lx_ - xJ_ - 0.5 * dx_));
+            double csckLxJmd = 1.0 / skLxJmd;
+            double a = skxJpd * ckLxJmd + skLxJmd * ckxJmd - skL;
             if (realPart_)
             {
                V[0] = osc ? D / S : 0.0;
@@ -942,7 +974,7 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
                V[1] = osc ? -1.0 : 0.0;
                V[2] = 0.0;
             }
-            V *= 0.5 * omega_ * mu0_ * Jy_ * skxJ * csckL * skLx / kE;
+            V *= omega_ * mu0_ * Jy_ * a * skLx * csckL * csckLxJmd / (kE * kE);
          }
       }
       break;
