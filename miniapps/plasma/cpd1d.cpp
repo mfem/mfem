@@ -128,8 +128,8 @@ public:
                        const Vector & mass,
                        bool realPart = true);
 
-   void SetCurrentSheet(double Jy, double xJ, double Lx)
-   { Jy_ = Jy; xJ_ = xJ; Lx_ = Lx; }
+   void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
+   { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip);
@@ -140,6 +140,7 @@ private:
    double Bmag_;
    double Jy_;
    double xJ_;
+   double dx_;
    double Lx_;
    bool realPart_;
 
@@ -517,10 +518,12 @@ int main(int argc, char *argv[])
    ColdPlasmaPlaneWave EImCoef(wave_type[0], omega, BVec,
                                numbers, charges, masses, false);
 
-   if (wave_type[0] == 'J' && slab_params_.Size() == 4)
+   if (wave_type[0] == 'J' && slab_params_.Size() == 5)
    {
-      EReCoef.SetCurrentSheet(slab_params_[1], slab_params_[3], mesh_dim_[0]);
-      EImCoef.SetCurrentSheet(slab_params_[1], slab_params_[3], mesh_dim_[0]);
+      EReCoef.SetCurrentSlab(slab_params_[1], slab_params_[3], slab_params_[4],
+			     mesh_dim_[0]);
+      EImCoef.SetCurrentSlab(slab_params_[1], slab_params_[3], slab_params_[4],
+			     mesh_dim_[0]);
    }
    {
       ParComplexGridFunction EField(&HCurlFESpace);
@@ -748,8 +751,10 @@ void slab_current_source(const Vector &x, Vector &j)
    j.SetSize(x.Size());
    j = 0.0;
 
-   double half_x_l = slab_params_(3) * (1.0 - 0.005);
-   double half_x_r = slab_params_(3) * (1.0 + 0.005);
+   double width = slab_params_(4);
+   double height = 1.0 / width;
+   double half_x_l = slab_params_(3) - 0.5 * width;
+   double half_x_r = slab_params_(3) + 0.5 * width;
 
    if (x(0) <= half_x_r && x(0) >= half_x_l)
    {
@@ -757,6 +762,7 @@ void slab_current_source(const Vector &x, Vector &j)
       j(1) = slab_params_(1);
       j(2) = slab_params_(2);
    }
+   j *= height;
 }
 
 void e_bc_r(const Vector &x, Vector &E)
