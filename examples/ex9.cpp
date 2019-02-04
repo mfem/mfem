@@ -172,6 +172,9 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
+   tic_toc.Clear();
+   tic_toc.Start();
+
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
@@ -213,6 +216,9 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u.Save(osol);
    }
+
+   tic_toc.Stop();
+   cout << " Initialization time: " << tic_toc.RealTime() << "s." << endl;
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
