@@ -351,12 +351,12 @@ int main(int argc, char *argv[])
       }
       if ((S * S - D * D) / S < 0)
       {
-         cout << "   Decaying X mode:       " << lam0 / sqrt(-S/(S*S-D*D))
+         cout << "   Decaying X mode:       " << lam0 * sqrt(-S/(S*S-D*D))
               << '\n';
       }
       else
       {
-         cout << "   Oscillating X mode:    " << lam0 / sqrt(S/(S*S-D*D))
+         cout << "   Oscillating X mode:    " << lam0 * sqrt(S/(S*S-D*D))
               << '\n';
       }
       cout << endl;
@@ -905,76 +905,59 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
 
          bool osc = (S * S - D * D) / S > 0.0;
          double kE = omega_ * sqrt(fabs((S * S - D * D) / S)) / c0_;
-
-         double skL   = sin(kE * Lx_);
+	 
+	 double (*sfunc)(double) = osc ?
+	   static_cast<double (*)(double)>(&sin) :
+	   static_cast<double (*)(double)>(&sinh);
+	 double (*cfunc)(double) = osc ?
+	   static_cast<double (*)(double)>(&cos) :
+	   static_cast<double (*)(double)>(&cosh);
+	 
+         double skL   = (*sfunc)(kE * Lx_);
          double csckL = 1.0 / skL;
+
+	 if (realPart_)
+	 {
+	   V[0] = D / S;
+	   V[1] = 0.0;
+	   V[2] = 0.0;
+	 }
+	 else
+	 {
+	   V[0] = 0.0;
+	   V[1] = -1.0;
+	   V[2] = 0.0;
+	 }
 
          if (x[0] <= xJ_ - 0.5 * dx_)
          {
-            double skx      = sin(kE * x[0]);
-            double ckxJmd   = cos(kE * (xJ_ - 0.5 * dx_));
-            double skxJmd   = sin(kE * (xJ_ - 0.5 * dx_));
-            double ckLxJmd  = cos(kE * (Lx_ - xJ_ - 0.5 * dx_));
-            double skLxJpd  = sin(kE * (Lx_ - xJ_ + 0.5 * dx_));
-            double csckxJmd = 1.0 / skxJmd;
-            double a = skxJmd * ckLxJmd + skLxJpd * ckxJmd - skL;
-            if (realPart_)
-            {
-               V[0] = osc ? D / S : 0.0;
-               V[1] = osc ? 0.0 : 0.0;
-               V[2] = 0.0;
-            }
-            else
-            {
-               V[0] = osc ? 0.0 : 0.0;
-               V[1] = osc ? -1.0 : 0.0;
-               V[2] = 0.0;
-            }
-            V *= omega_ * mu0_ * Jy_ * a * csckxJmd * csckL * skx / (kE * kE);
+            double skx    = (*sfunc)(kE * x[0]);
+            double skLxJ  = (*sfunc)(kE * (Lx_ - xJ_));
+            double skd    = (*sfunc)(kE * 0.5 * dx_);
+            double a = skx * skLxJ * skd;
+
+            V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
+	    if (!osc) V *= -1.0;
          }
          else if (x[0] <= xJ_ + 0.5 * dx_)
          {
-            double skx      = sin(kE * x[0]);
-            double skLx      = sin(kE * (Lx_ - x[0]));
-            double ckxJmd   = cos(kE * (xJ_ - 0.5 * dx_));
-            double ckLxJmd  = cos(kE * (Lx_ - xJ_ - 0.5 * dx_));
+            double skx      = (*sfunc)(kE * x[0]);
+            double skLx     = (*sfunc)(kE * (Lx_ - x[0]));
+            double ckxJmd   = (*cfunc)(kE * (xJ_ - 0.5 * dx_));
+            double ckLxJmd  = (*cfunc)(kE * (Lx_ - xJ_ - 0.5 * dx_));
             double a = skx * ckLxJmd + skLx * ckxJmd - skL;
-            if (realPart_)
-            {
-               V[0] = osc ? D / S : 0.0;
-               V[1] = osc ? 0.0 : 0.0;
-               V[2] = 0.0;
-            }
-            else
-            {
-               V[0] = osc ? 0.0 : 0.0;
-               V[1] = osc ? -1.0 : 0.0;
-               V[2] = 0.0;
-            }
+
             V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
          }
          else
          {
-            double skLx      = sin(kE * (Lx_ - x[0]));
-            double ckxJmd    = cos(kE * (xJ_ - 0.5 * dx_));
-            double skxJpd    = sin(kE * (xJ_ + 0.5 * dx_));
-            double ckLxJmd   = cos(kE * (Lx_ - xJ_ - 0.5 * dx_));
-            double skLxJmd   = sin(kE * (Lx_ - xJ_ - 0.5 * dx_));
-            double csckLxJmd = 1.0 / skLxJmd;
-            double a = skxJpd * ckLxJmd + skLxJmd * ckxJmd - skL;
-            if (realPart_)
-            {
-               V[0] = osc ? D / S : 0.0;
-               V[1] = osc ? 0.0 : 0.0;
-               V[2] = 0.0;
-            }
-            else
-            {
-               V[0] = osc ? 0.0 : 0.0;
-               V[1] = osc ? -1.0 : 0.0;
-               V[2] = 0.0;
-            }
-            V *= omega_ * mu0_ * Jy_ * a * skLx * csckL * csckLxJmd / (kE * kE);
+            double skLx = (*sfunc)(kE * (Lx_ - x[0]));
+            double skxJ = (*sfunc)(kE * xJ_);
+	    double skd  = (*sfunc)(kE * 0.5 * dx_);
+            double a = skLx * skxJ * skd;
+
+            V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
+	    if (!osc) V *= -1.0;
          }
       }
       break;
