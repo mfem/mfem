@@ -63,6 +63,7 @@
 #include "mechanics_solver.hpp"
 #include "BCData.hpp"
 #include "BCManager.hpp"
+#include "option_parser.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -112,14 +113,7 @@ protected:
 public:
    NonlinearMechOperator(ParFiniteElementSpace &fes,
                          Array<int> &ess_bdr,
-                         double rel_tol,
-                         double abs_tol,
-                         int iter,
-                         bool gmres,
-			 bool cg,
-                         bool slu, 
-                         bool hyperelastic,
-                         bool umat,
+                         ExaOptions &options,
                          QuadratureFunction &q_matVars0,
                          QuadratureFunction &q_matVars1,
                          QuadratureFunction &q_sigma0,
@@ -130,7 +124,7 @@ public:
 			 ParGridFunction &beg_crds,
 			 ParGridFunction &end_crds,
 			 ParMesh *&pmesh,
-                         Vector &matProps, int numProps,
+                         Vector &matProps, 
                          int nStateVars);
 
    /// Required to use the native newton solver
@@ -197,8 +191,7 @@ void DirBdrFunc(const Vector &x, double t, int attr_id, Vector &y);
 void InitGridFunction(const Vector &x, Vector &y);
 
 // material input check routine
-bool checkMaterialArgs(bool hyperelastic, bool umat, bool cp, bool g_euler, 
-                       bool g_q, bool g_custom, int ngrains, int numProps,
+bool checkMaterialArgs(bool hyperelastic, bool umat, bool cp, int ngrains, int numProps,
                        int numStateVars);
 
 // material state variable and grain data setter routine
@@ -244,266 +237,93 @@ int main(int argc, char *argv[])
    double start = MPI_Wtime();
    // print the version of the code being run
    if(myid == 0) printf("MFEM Version: %d \n", GetVersion());
-   
-   // Parse command-line options.
 
-   // mesh variables
-   const char *mesh_file = "../../data/cube-hex-ro.mesh";
-   bool cubit = false;
-   bool hex_mesh_gen = false; // TODO test hex_mesh_gen
-   double mx = 0.0; // edge dimension (mx = my = mz)
-   int  nx = 0; // number of cells on an edge (nx = ny = nz)
- 
+   //All of our options are parsed in this file by default
+   const char *toml_file = "options.toml";
 
-   // serial and parallel refinement levels
-   int ser_ref_levels = 0;
-   int par_ref_levels = 0;
-
-   // polynomial interpolation order
-   int order = 1;
-
-   // final simulation time and time step (set each to 1.0 for 
-   // single step debug)
-   double t_final = 1.0;
-   double dt = 1.0;
-   // We have a custom dt flag
-   bool dt_cust = false;
-   // Number of time steps to take
-   int nsteps = 1;
-   // File to read the custom time steps from
-   const char *dt_file = "custom_dt.txt";
-   // Vector to hold custom time steps if there are any
-   Vector cust_dt;
-
-   // visualization input args
-   bool visualization = true;
-   int vis_steps = 1;
-   // visualization variable for visit
-   bool visit = true;
-
-   //Where to store the end time step files
-   const char *basename = "results/exaconstit";
-   
-   // newton input args
-   double newton_rel_tol = 1.0e-6;
-   double newton_abs_tol = 1.0e-8;
-   int newton_iter = 25;
-   
-   // solver input args
-   // GMRES is currently set as the default iterative solver
-   // until the bug in the PCG solver is found and fixed.
-   bool gmres_solver = true;
-   bool pcg_solver = false;
-   bool slu_solver = false;
-   bool grad_debug = false;
-
-   // input arg to specify Abaqus UMAT
-   bool umat = false;
-
-   // input arg to specify crystal plasticity or hyperelasticity 
-   // (for testing)
-   bool cp = false;
-   bool hyperelastic = false;
-
-   // grain input arguments
-   const char *grain_file = "grains.txt"; // grain orientations (F_p_inv for Curt's UMAT?)
-   const char *grain_map = "grain_map.txt"; // map of grain id to element centroid
-   int ngrains = 0;
-   bool grain_euler = false;
-   bool grain_q = false;
-   bool grain_custom = false; // for custom grain specification
-   int grain_custom_stride = 0; // TODO check that this is used with "grain_custom"
-   int grain_statevar_offset = -1; 
-
-   // material properties input arguments
-   const char *props_file = "props.txt";
-   int nProps = 1; // at least have one dummy property
-
-   // state variables file with constant values used to initialize ALL integration points
-   const char *state_file = "state.txt";
-   int numStateVars = 1; // at least have one dummy property
-  
-   // boundary condition input args
-   Array<int> ess_id;   // essential bc ids for the whole boundary
-   Vector     ess_disp; // vector of displacement components for each attribute in ess_id
-   Array<int> ess_comp; // component combo (x,y,z = -1, x = 1, y = 2, z = 3, 
-                        // xy = 4, yz = 5, xz = 6, free = 0 
-
-   // specify all input arguments
-   // it would be nice if we could just make this all read in from some configuration
-   // file format so we don't have to use the command line.
-   // .toml files might not be a bad option to look into
+   //We're going to use the below to allow us to easily swap between different option files
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
-   args.AddOption(&grain_map, "-gmap", "--grain-map", 
-                  "Map of element/cell centroids to grain ids.");
-   args.AddOption(&grain_file, "-g", "--grain",
-                  "Grain file to use.");
-   args.AddOption(&ngrains, "-ng", "--grain-number",
-                  "Number of grains.");
-   args.AddOption(&props_file, "-props", "--mat-props",
-                  "Material properties file to use.");
-   args.AddOption(&nProps, "-nprops", "--number-props",
-                  "Number of material properties.");
-   args.AddOption(&state_file, "-svars", "--state-vars",
-                  "State variables file.");
-   args.AddOption(&numStateVars, "-nsvars", "--number-state_vars",
-                  "Number of state variables.");
-   args.AddOption(&cubit, "-mcub", "--cubit", "-no-mcub", "--no-cubit",
-                  "Read in a cubit mesh.");
-   args.AddOption(&hex_mesh_gen, "-hexmesh", "--hex-mesh", "-no-hexmesh",
-                  "--no-hex-mesh", "Use an auto-generated parallelepiped hex mesh.");
-   args.AddOption(&mx, "-mx", "--mesh-x", 
-                  "Auto-gen hex mesh length, mx = my = mz.");
-   args.AddOption(&nx, "-nx", "--num-mesh-x", 
-                  "Auto-gen hex mesh element number along edge, nx = ny = nz.");
-   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
-                  "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption(&order, "-o", "--order",
-                  "Order (degree) of the finite elements.");
-   args.AddOption(&t_final, "-tf", "--t-final",
-                  "Final time; start time is 0.");
-   args.AddOption(&dt_cust, "-vardt", "--variabledt", "-no-vardt",
-		  "--no-variabledt", "Use a variable time step or not.");
-   args.AddOption(&nsteps, "-nsteps", "--num_time_steps",
-		  "The number of custom time steps.");
-   args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
-   args.AddOption(&dt_file, "-cust-dt","--custom-dt",
-		  "Custom time step file that can be used");
-   args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
-                  "--no-superlu", "Use the SuperLU Solver.");
-   args.AddOption(&gmres_solver, "-gmres", "--gmres", "-no-gmres", "--no-gmres",
-                   "Use gmres, otherwise minimum residual is used.");
-   args.AddOption(&pcg_solver, "-pcg", "--pcg", "-no-pcg", "--no-pcg",
-		  "Use pcg, otherwise minimum residual is used.");
-   args.AddOption(&grad_debug, "-gdbg", "--grad-debug", "-no-gdbg",
-                  "--no-grad-debug",
-                  "Use finite difference gradient calculation.");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
-   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
-                  "Visualize every n-th timestep.");
-   args.AddOption(&newton_rel_tol, "-rel", "--relative-tolerance",
-                  "Relative tolerance for the Newton solve.");
-   args.AddOption(&newton_abs_tol, "-abs", "--absolute-tolerance",
-                  "Absolute tolerance for the Newton solve.");
-   args.AddOption(&newton_iter, "-it", "--newton-iterations",
-                  "Maximum iterations for the Newton solve.");
-   args.AddOption(&hyperelastic, "-hyperel", "--hyperelastic", "-no-hyperel",
-                  "--no-hyperelastic", 
-                  "Use Neohookean hyperelastic material model.");
-   args.AddOption(&umat, "-umat", "--abaqus-umat", "-no-umat",
-                  "--no-abaqus-umat", 
-                  "Use user-supplied Abaqus UMAT constitutive model.");
-   args.AddOption(&cp, "-cp", "--crystal-plasticity", "-no-cp",
-                  "--no-crystal-plasticity", 
-                  "Use user-supplied Abaqus UMAT crystal plasticity model.");
-   args.AddOption(&visit, "-visit", "--visit", "-no-visit",
-                  "--no-visit",
-                  "Output visit data or not.");
-   args.AddOption(&grain_euler, "-ge", "--euler-grain-orientations", "-no-ge",
-                  "--no-euler-grain-orientations", 
-                  "Use Euler angles to define grain orientations.");
-   args.AddOption(&grain_q, "-gq", "--quaternion-grain-orientations", "-no-gq",
-                  "--no-quaternion-grain-orientations", 
-                  "Use quaternions to define grain orientations.");
-   args.AddOption(&grain_custom, "-gc", "--custom-grain-orientations", "-no-gc",
-                  "--no-custom-grain-orientations",
-                  "Use custom grain orientations.");
-   args.AddOption(&grain_custom_stride, "-gcstride", "--custom-grain-stride", 
-                  "Stride for custom grain orientation data.");
-   args.AddOption(&grain_statevar_offset, "-gsvoffset", "--grain-state-var-offset",
-                  "Offset for grain orientation data insertion into material state array, if applicable.");
-   args.AddOption(&ess_id, "-attrid", "--dirichlet-attribute-ids",
-                  "Attribute IDs for dirichlet boundary conditions.");
-   args.AddOption(&ess_disp, "-disp", "--dirichlet-disp", 
-                  "Final (x,y,z) displacement components for each dirichlet BC.");
-   args.AddOption(&ess_comp, "-bcid", "--bc-comp-id",
-                  "Component ID for essential BCs.");
-
-   // Parse the arguments and check if they are good
+   args.AddOption(&toml_file, "-opt", "--option", "Option file to use.");
    args.Parse();
-   if (!args.Good())
-   {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
+   if (!args.Good()){
+      if (myid == 0){                                                                                                             
+         args.PrintUsage(cout);                                                                                     
       }
       MPI_Finalize();
       return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
 
+   ExaOptions toml_opt(toml_file);
+   toml_opt.parse_options(myid);
 
    //Check to see if a custom dt file was used
    //if so read that in and if not set the nsteps that we're going to use
-   if(dt_cust){
+   if(toml_opt.dt_cust){
      if(myid == 0) printf("Reading in custom dt file. \n");
-      ifstream idt(dt_file);
+      ifstream idt(toml_opt.dt_file.c_str());
       if (!idt && myid == 0)
       {
-         cerr << "\nCannot open grain map file: " << grain_map << '\n' << endl;
-      }                        
-      cust_dt.Load(idt, nsteps);
+         cerr << "\nCannot open grain map file: " << toml_opt.grain_map << '\n' << endl;
+      }     
+      //Now we're calculating the final time                  
+      toml_opt.cust_dt.Load(idt, toml_opt.nsteps);
+      toml_opt.t_final = 0.0;
+      for(int i = 0; i < toml_opt.nsteps; i++){
+         toml_opt.t_final += toml_opt.cust_dt[i]; 
+      }
+
       idt.close();
    }else{
-     nsteps = ceil(t_final/dt);
-     if(myid==0) printf("number of steps %d \n", nsteps);
+     toml_opt.nsteps = ceil(toml_opt.t_final/toml_opt.dt);
+     if(myid==0) printf("number of steps %d \n", toml_opt.nsteps);
    }
    
    // Check material model argument input parameters for valid combinations
    if(myid == 0) printf("after input before checkMaterialArgs. \n");
-   bool err = checkMaterialArgs(hyperelastic, umat, cp, grain_euler, grain_q, grain_custom, 
-              ngrains, nProps, numStateVars);
+   bool err = checkMaterialArgs(toml_opt.hyperelastic, toml_opt.umat, toml_opt.cp, 
+              toml_opt.ngrains, toml_opt.nProps, toml_opt.numStateVars);
    if (!err && myid == 0) 
    {
       cerr << "\nInconsistent material input; check args" << '\n';
    }
 
    // check mesh input arguments
-   if (cubit && hex_mesh_gen)
-   {
-      cerr << "\nCannot specify a cubit mesh and MFEM auto-gen mesh" << '\n';
-   }
+   // the new option parser makes sure there is only 1 mesh type
+   // if (cubit && hex_mesh_gen)
+   // {
+   //    cerr << "\nCannot specify a cubit mesh and MFEM auto-gen mesh" << '\n';
+   // }
 
    // Open the mesh
    if(myid == 0) printf("before reading the mesh. \n");
    Mesh *mesh;
    Vector g_map;
-   if (cubit) 
+   if (toml_opt.mesh_type == MeshType::CUBIT) 
    {
       //named_ifgzstream imesh(mesh_file);
-      mesh = new Mesh(mesh_file, 1, 1);
+      mesh = new Mesh(toml_opt.mesh_file.c_str(), 1, 1);
    }
-   else if (hex_mesh_gen)
+   else if (toml_opt.mesh_type == MeshType::AUTO)
    {
-      if (nx == 0 || mx == 0)
+      if (toml_opt.nx == 0 || toml_opt.mx == 0)
       {
          cerr << "\nMust input mesh geometry/discretization for hex_mesh_gen" << '\n';
       }
 
       // use constructor to generate a 3D cuboidal mesh with 8 node hexes
-      mesh = new Mesh(nx, nx, nx, Element::HEXAHEDRON, 0, mx, mx, mx); 
+      mesh = new Mesh(toml_opt.nx, toml_opt.nx, toml_opt.nx, Element::HEXAHEDRON, 0, toml_opt.mx, toml_opt.mx, toml_opt.mx); 
    }
    else // read in mesh file
    {
       if(myid == 0) printf("opening mesh file \n");
 
-      ifstream imesh(mesh_file);
+      ifstream imesh(toml_opt.mesh_file.c_str());
       if(myid == 0) printf("after declaring imesh \n");
       if (!imesh)
       {
          if (myid == 0)
          {
-            cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
+            cerr << "\nCan not open mesh file: " << toml_opt.mesh_file << '\n' << endl;
          }
          MPI_Finalize();
          return 2;
@@ -514,11 +334,11 @@ int main(int argc, char *argv[])
       if(myid == 0) printf("after declaring new mesh \n");
       imesh.close();
       //If we're doing xtal plasticity stuff read in the grain map file
-      if(cp){
-         ifstream igmap(grain_map);
+      if(toml_opt.cp){
+         ifstream igmap(toml_opt.grain_map.c_str());
          if (!igmap && myid == 0)
          {
-           cerr << "\nCannot open grain map file: " << grain_map << '\n' << endl;
+           cerr << "\nCannot open grain map file: " << toml_opt.grain_map << '\n' << endl;
          }
          //This should here just be the number of elements
          int gmapSize = mesh->GetNE();
@@ -531,14 +351,14 @@ int main(int argc, char *argv[])
    }
 
    // read in the grain map if using a MFEM auto generated cuboidal mesh
-   if (hex_mesh_gen)
+   if (toml_opt.mesh_type == MeshType::AUTO)
    {
       if(myid == 0) printf("using mfem hex mesh generator \n");
 
-      ifstream igmap(grain_map);
+      ifstream igmap(toml_opt.grain_map.c_str());
       if (!igmap && myid == 0)
       {
-         cerr << "\nCannot open grain map file: " << grain_map << '\n' << endl;
+         cerr << "\nCannot open grain map file: " << toml_opt.grain_map << '\n' << endl;
       }
       
       int gmapSize = mesh->GetNE();
@@ -546,7 +366,7 @@ int main(int argc, char *argv[])
       igmap.close();
 
       // reorder elements to conform to ordering convention in grain map file
-      reorderMeshElements(mesh, nx);
+      reorderMeshElements(mesh, toml_opt.nx);
 
       // reset boundary conditions from 
       setBdrConditions(mesh);
@@ -561,13 +381,13 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = NULL;
    
    // mesh refinement if specified in input
-   for (int lev = 0; lev < ser_ref_levels; lev++)
+   for (int lev = 0; lev < toml_opt.ser_ref_levels; lev++)
    {
          mesh->UniformRefinement();
    }
 
    pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   for (int lev = 0; lev < par_ref_levels; lev++)
+   for (int lev = 0; lev < toml_opt.par_ref_levels; lev++)
    {
          pmesh->UniformRefinement();
    }
@@ -580,7 +400,7 @@ int main(int argc, char *argv[])
 
    // Define the finite element spaces for displacement field
    FiniteElementCollection *fe_coll = NULL;
-   fe_coll = new  H1_FECollection(order, dim);
+   fe_coll = new  H1_FECollection(toml_opt.order, dim);
    ParFiniteElementSpace fe_space(pmesh, fe_coll, dim);
 
    int order_v = 1;
@@ -603,22 +423,24 @@ int main(int argc, char *argv[])
    }
 
    // determine the type of grain input for crystal plasticity problems
-   int grain_offset = 0; // note: numMatVars >= 1, no null state vars by construction
-   if (grain_euler) 
-   {
-      grain_offset = 3; 
-   }
-   else if (grain_q) 
-   {
-      grain_offset = 4;
-   }
-   else if (grain_custom) 
-   {
-      if (grain_custom_stride == 0)
-      { 
-         cerr << "\nMust specify a grain stride for grain_custom input" << '\n';
+   int ori_offset = 0; // note: numMatVars >= 1, no null state vars by construction
+   if(toml_opt.cp){
+      if (toml_opt.ori_type == OriType::EULER) 
+      {
+         ori_offset = 3; 
       }
-      grain_offset = grain_custom_stride;
+      else if (toml_opt.ori_type == OriType::QUAT) 
+      {
+         ori_offset = 4;
+      }
+      else if (toml_opt.ori_type == OriType::CUSTOM) 
+      {
+         if (toml_opt.grain_custom_stride == 0)
+         { 
+            cerr << "\nMust specify a grain stride for grain_custom input" << '\n';
+         }
+         ori_offset = toml_opt.grain_custom_stride;
+      }
    }
 
    // set the offset for the matVars quadrature function. This is the number of 
@@ -627,10 +449,10 @@ int main(int argc, char *argv[])
    // integration point. In general, these may come in as different data sets, 
    // even though they will be stored in a single material state variable 
    // quadrature function.
-   int matVarsOffset = numStateVars + grain_offset;
+   int matVarsOffset = toml_opt.numStateVars + ori_offset;
 
    // Define a quadrature space and material history variable QuadratureFunction.
-   int intOrder = 2*order+1;
+   int intOrder = 2 * toml_opt.order + 1;
    QuadratureSpace qspace(pmesh, intOrder); // 3rd order polynomial for 2x2x2 quadrature
                                             // for first order finite elements. 
    QuadratureFunction matVars0(&qspace, matVarsOffset); 
@@ -648,27 +470,27 @@ int main(int argc, char *argv[])
    Vector stateVars;
    if(myid == 0) printf("before reading in matProps and stateVars. \n");
    { // read in props, material state vars and grains if crystal plasticity
-      ifstream iprops(props_file);
+      ifstream iprops(toml_opt.props_file.c_str());
       if (!iprops && myid == 0)
       {
-         cerr << "\nCannot open material properties file: " << props_file << '\n' << endl;
+         cerr << "\nCannot open material properties file: " << toml_opt.props_file << '\n' << endl;
       }
 
       // load material properties
-      matProps.Load(iprops, nProps);
+      matProps.Load(iprops, toml_opt.nProps);
       iprops.close();
       
       if(myid == 0) printf("after loading matProps. \n");
       
       // read in state variables file
-      ifstream istateVars(state_file);
+      ifstream istateVars(toml_opt.state_file.c_str());
       if (!istateVars && myid == 0)
       {
-         cerr << "\nCannot open state variables file: " << state_file << '\n' << endl;
+         cerr << "\nCannot open state variables file: " << toml_opt.state_file << '\n' << endl;
       }
 
       // load state variables
-      stateVars.Load(istateVars, numStateVars);
+      stateVars.Load(istateVars, toml_opt.numStateVars);
       istateVars.close();
       if(myid == 0) printf("after loading stateVars. \n");
 
@@ -677,16 +499,16 @@ int main(int argc, char *argv[])
       // with a stride set previously as grain_offset
       Vector g_orient;
       if(myid == 0) printf("before loading g_orient. \n");
-      if (cp)
+      if (toml_opt.cp)
       {
          // set the grain orientation vector from the input grain file
-         ifstream igrain(grain_file); 
+         ifstream igrain(toml_opt.ori_file.c_str()); 
          if (!igrain && myid == 0)
          {
-            cerr << "\nCannot open grain file: " << grain_file << '\n' << endl;
+            cerr << "\nCannot open orientation file: " << toml_opt.ori_file << '\n' << endl;
          }
          // load separate grain file
-         int gsize = grain_offset * ngrains;
+         int gsize = ori_offset * toml_opt.ngrains;
          g_orient.Load(igrain, gsize);
          igrain.close();
          if(myid == 0) printf("after loading g_orient. \n");
@@ -695,8 +517,8 @@ int main(int argc, char *argv[])
      
       // set the state var data on the quadrature function
       if(myid == 0) printf("before setStateVarData. \n");
-      setStateVarData(&stateVars, &g_orient, &fe_space, pmesh, grain_offset, 
-                      grain_statevar_offset, numStateVars, &matVars0);
+      setStateVarData(&stateVars, &g_orient, &fe_space, pmesh, ori_offset, 
+                      toml_opt.grain_statevar_offset, toml_opt.numStateVars, &matVars0);
       if(myid == 0) printf("after setStateVarData. \n");
       
    } // end read of mat props, state vars and grains
@@ -723,7 +545,7 @@ int main(int argc, char *argv[])
    // hyperelastic calculations. The tangent stiffness of the Cauchy stress will 
    // actually be the real material tangent stiffness (4th order tensor) and have 
    // 36 components due to symmetry.
-   int matGradOffset = (hyperelastic) ? 12 : 36;
+   int matGradOffset = (toml_opt.hyperelastic) ? 12 : 36;
    QuadratureFunction matGrd(&qspace, matGradOffset);
    initQuadFunc(&matGrd, 0.0, &fe_space);
 
@@ -783,14 +605,14 @@ int main(int argc, char *argv[])
    // setup inhomogeneous essential boundary conditions using the boundary 
    // condition manager (BCManager) and boundary condition data (BCData) 
    // classes developed for ExaConstit.
-   if (ess_disp.Size() != 3*ess_id.Size()) {
+   if (toml_opt.ess_disp.Size() != 3*toml_opt.ess_id.Size()) {
       cerr << "\nMust specify three Dirichlet components per essential boundary attribute" << '\n' << endl;
    }
 
    int numDirBCs = 0;
-   for (int i=0; i<ess_id.Size(); ++i) {
+   for (int i=0; i<toml_opt.ess_id.Size(); ++i) {
       // set the boundary condition id based on the attribute id
-      int bcID = ess_id[i];
+      int bcID = toml_opt.ess_id[i];
 
       // instantiate a boundary condition manager instance and 
       // create a BCData object
@@ -798,13 +620,13 @@ int main(int argc, char *argv[])
       BCData & bc = bcManager.CreateBCs( bcID );
 
       // set the displacement component values
-      bc.essDisp[0] = ess_disp[3*i];
-      bc.essDisp[1] = ess_disp[3*i+1];
-      bc.essDisp[2] = ess_disp[3*i+2];
-      bc.compID = ess_comp[i];
+      bc.essDisp[0] = toml_opt.ess_disp[3*i];
+      bc.essDisp[1] = toml_opt.ess_disp[3*i+1];
+      bc.essDisp[2] = toml_opt.ess_disp[3*i+2];
+      bc.compID = toml_opt.ess_comp[i];
 
       // set the final simulation time 
-      bc.tf = t_final;
+      bc.tf = toml_opt.t_final;
 
       // set the boundary condition scales
       bc.setScales();
@@ -828,15 +650,13 @@ int main(int argc, char *argv[])
    // case where there is no grain data.
    if(myid == 0) printf("before NonlinearMechOperator constructor. \n");
    NonlinearMechOperator oper(fe_space, ess_bdr, 
-                              newton_rel_tol, newton_abs_tol, 
-                              newton_iter, gmres_solver,pcg_solver, slu_solver,
-                              hyperelastic, umat, matVars0, 
+                              toml_opt, matVars0, 
                               matVars1, sigma0, sigma1, matGrd,
                               kinVars0, q_vonMises, x_beg, x_cur, pmesh,
-			      matProps, nProps, matVarsOffset);
+			      matProps, matVarsOffset);
    if(myid == 0) printf("after NonlinearMechOperator constructor. \n");
 
-   oper.SetModelDebugFlg(grad_debug);
+   oper.SetModelDebugFlg(toml_opt.grad_debug);
 
    if(myid == 0) printf("after SetModelDebugFlg \n");
    
@@ -846,21 +666,7 @@ int main(int argc, char *argv[])
    // declare incremental nodal displacement solution vector
    Vector v_sol(fe_space.TrueVSize()); // this sizing is correct
    v_sol = 0.0;
-   
-   // initialize visualization if requested 
-   socketstream vis_u, vis_p;
-   if (visualization) {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      vis_u.open(vishost, visport);
-      vis_u.precision(8);
-      visualize(vis_u, pmesh, &x_beg, &x_cur, "Deformation", true);
-      // Make sure all ranks have sent their 'u' solution before initiating
-      // another set of GLVis connections (one from each rank):
-      MPI_Barrier(pmesh->GetComm());
-   }
 
-   
    // Save data for VisIt visualization.
    // The below is used to take advantage of mfem's custom Visit plugin
    // It could also allow for restart files later on.
@@ -870,8 +676,8 @@ int main(int argc, char *argv[])
    // the simulation is currently at. This really becomes noticiable if you have
    // a lot of data that you want to output for the user. It might be nice if this
    // was either a netcdf or hdf5 type format instead.
-   VisItDataCollection visit_dc(basename, pmesh);
-   if (visit)
+   VisItDataCollection visit_dc(toml_opt.basename, pmesh);
+   if (toml_opt.visit)
    {
      visit_dc.RegisterField("Displacement",  &x_diff);
      visit_dc.RegisterQField("Stress", &sigma0);
@@ -900,19 +706,19 @@ int main(int argc, char *argv[])
    }
 
    ess_bdr_func.SetTime(0.0);
-   setBCTimeStep(dt, numDirBCs);
+   setBCTimeStep(toml_opt.dt, numDirBCs);
 
    double dt_real;
    
-   for (int ti = 1; ti <= nsteps; ti++)
+   for (int ti = 1; ti <= toml_opt.nsteps; ti++)
    {
 
       if(myid == 0) printf("inside timestep loop %d \n", ti);
       //Get out our current delta time step
-      if(dt_cust){
-         dt_real = cust_dt[ti - 1];
+      if(toml_opt.dt_cust){
+         dt_real = toml_opt.cust_dt[ti - 1];
       }else{
-         dt_real = min(dt, t_final - t);
+         dt_real = min(toml_opt.dt, toml_opt.t_final - t);
       }
 
       // set the time step on the boundary conditions
@@ -963,20 +769,18 @@ int main(int argc, char *argv[])
       //Update our beginning time step coords with our end time step coords
       x_beg = x_cur;
       
-      last_step = (t >= t_final - 1e-8*dt);
+      last_step = (t >= toml_opt.t_final - 1e-8 * dt_real);
 
-      if (last_step || (ti % vis_steps) == 0)
+      if (last_step || (ti % toml_opt.vis_steps) == 0)
       {
          if (myid == 0)
          {
             cout << "step " << ti << ", t = " << t << endl;
          }
-      }
-
-      { // mesh and stress output. Consider moving this to a separate routine
+          // mesh and stress output. Consider moving this to a separate routine
          //We might not want to update the vonMises stuff
 //         oper.ProjectVonMisesStress(vonMises);
-         if (visit)
+         if (toml_opt.visit)
          {
             visit_dc.SetCycle(ti);
             visit_dc.SetTime(t);
@@ -1008,14 +812,7 @@ int main(int argc, char *argv[])
 
 NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
                                              Array<int> &ess_bdr,
-                                             double rel_tol,
-                                             double abs_tol,
-                                             int iter,
-                                             bool gmres,
-                                             bool pcg,
-                                             bool slu, 
-                                             bool hyperelastic,
-                                             bool umat,
+                                             ExaOptions &options,
                                              QuadratureFunction &q_matVars0,
                                              QuadratureFunction &q_matVars1,
                                              QuadratureFunction &q_sigma0,
@@ -1026,7 +823,7 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
                                              ParGridFunction &beg_crds,
                                              ParGridFunction &end_crds,
                                              ParMesh *&pmesh,
-                                             Vector &matProps, int numProps,
+                                             Vector &matProps,
                                              int nStateVars)
    : TimeDependentOperator(fes.TrueVSize()), fe_space(fes),
      newton_solver(fes.GetComm())
@@ -1036,7 +833,7 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
 
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   umat_used = umat;
+   umat_used = options.umat;
      
    // Define the parallel nonlinear form 
    Hform = new ParNonlinearForm(&fes);
@@ -1044,17 +841,17 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
    // Set the essential boundary conditions
    Hform->SetEssentialBCPartial(ess_bdr, rhs);
    
-   if (umat) {
+   if (options.umat) {
       model = new AbaqusUmatModel(&q_sigma0, &q_sigma1, &q_matGrad, &q_matVars0, &q_matVars1,
                                   &q_kinVars0, &beg_crds, &end_crds, pmesh,
-                                  &matProps, numProps, nStateVars);
+                                  &matProps, options.nProps, nStateVars);
 
       // Add the user defined integrator
       Hform->AddDomainIntegrator(new ExaNLFIntegrator(dynamic_cast<AbaqusUmatModel*>(model)));
-   }else if (hyperelastic) {
+   }else if (options.hyperelastic) {
       model = new NeoHookean(&q_sigma0, &q_sigma1, &q_matGrad, &q_matVars0, 
                              &q_matVars1, &q_kinVars0, &beg_crds, &end_crds, pmesh,
-                             &matProps, numProps, nStateVars,
+                             &matProps, options.nProps, nStateVars,
                              80.E3, 140.E3, 1.0);
 
       // Add the hyperelastic integrator
@@ -1064,7 +861,7 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
 
    model->setVonMisesPtr(&q_vonMises);
 
-   if (gmres) {
+   if (options.solver == KrylovSolver::GMRES) {
       
       HypreBoomerAMG *prec_amg = new HypreBoomerAMG();
       HYPRE_Solver h_amg = (HYPRE_Solver) *prec_amg;
@@ -1101,15 +898,15 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       //but they should eventually be moved back to being set by the options
 //      J_gmres->iterative_mode = false;
       //The relative tolerance should be at this point or smaller
-      J_gmres->SetRelTol(1e-10);
+      J_gmres->SetRelTol(options.krylov_rel_tol);
       //The absolute tolerance could probably get even smaller then this
-      J_gmres->SetAbsTol(1e-30);
-      J_gmres->SetMaxIter(150);
+      J_gmres->SetAbsTol(options.krylov_abs_tol);
+      J_gmres->SetMaxIter(options.krylov_iter);
       J_gmres->SetPrintLevel(0);
       J_gmres->SetPreconditioner(*J_prec);
       J_solver = J_gmres;
 
-   }else if (pcg){
+   }else if (options.solver == KrylovSolver::PCG){
 
       HypreBoomerAMG *prec_amg = new HypreBoomerAMG();
       HYPRE_Solver h_amg = (HYPRE_Solver) *prec_amg;
@@ -1143,10 +940,10 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       //These tolerances are currently hard coded while things are being debugged
       //but they should eventually be moved back to being set by the options
       //The relative tolerance should be at this point or smaller
-      J_pcg->SetRelTol(1e-10);
+      J_pcg->SetRelTol(options.krylov_rel_tol);
       //The absolute tolerance could probably get even smaller then this
-      J_pcg->SetAbsTol(1e-30);
-      J_pcg->SetMaxIter(200);
+      J_pcg->SetAbsTol(options.krylov_abs_tol);
+      J_pcg->SetMaxIter(options.krylov_iter);
       J_pcg->SetPrintLevel(0);
       J_pcg->iterative_mode = true;
       J_pcg->SetPreconditioner(*J_prec);
@@ -1164,9 +961,9 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       J_prec = J_hypreSmoother;
 
       MINRESSolver *J_minres = new MINRESSolver(fe_space.GetComm());
-      J_minres->SetRelTol(rel_tol);
-      J_minres->SetAbsTol(0.0);
-      J_minres->SetMaxIter(300);
+      J_minres->SetRelTol(options.krylov_rel_tol);
+      J_minres->SetAbsTol(options.krylov_abs_tol);
+      J_minres->SetMaxIter(options.krylov_iter);
       J_minres->SetPrintLevel(-1);
       J_minres->SetPreconditioner(*J_prec);
       J_solver = J_minres;
@@ -1175,16 +972,16 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
    //We might want to change our # iterations used in the newton solver
    //for the 1st time step. We'll want to swap back to the old one after this
    //step.
-   newton_iter = iter;
+   newton_iter = options.newton_iter;
 
    // Set the newton solve parameters
    newton_solver.iterative_mode = true;
    newton_solver.SetSolver(*J_solver);
    newton_solver.SetOperator(*this);
    newton_solver.SetPrintLevel(1); 
-   newton_solver.SetRelTol(rel_tol);
-   newton_solver.SetAbsTol(abs_tol);
-   newton_solver.SetMaxIter(iter);
+   newton_solver.SetRelTol(options.newton_rel_tol);
+   newton_solver.SetAbsTol(options.newton_abs_tol);
+   newton_solver.SetMaxIter(options.newton_iter);
 }
 
 const Array<int> &NonlinearMechOperator::GetEssTDofList()
@@ -1767,8 +1564,7 @@ void InitGridFunction(const Vector &x, Vector &y)
    y = 0.;
 }
 
-bool checkMaterialArgs(bool hyperelastic, bool umat, bool cp, bool g_euler, 
-                       bool g_q, bool g_custom, int ngrains, int numProps,
+bool checkMaterialArgs(bool hyperelastic, bool umat, bool cp, int ngrains, int numProps,
                        int numStateVars)
 {
    bool err = true;
@@ -1779,30 +1575,31 @@ bool checkMaterialArgs(bool hyperelastic, bool umat, bool cp, bool g_euler,
       cerr << "Hyperelastic and cp can't both be true. Choose material model." << '\n';
    }
 
-   // only perform checks, don't set anything here
-   if (cp && !g_euler && !g_q && !g_custom)
-   {
-      cerr << "\nMust specify grain data type for use with cp input arg." << '\n';
-      err = false;
-   }
+   //The new option type makes sure that the OriType is only set as one type
+   // // only perform checks, don't set anything here
+   // if (cp && !g_euler && !g_q && !g_custom)
+   // {
+   //    cerr << "\nMust specify grain data type for use with cp input arg." << '\n';
+   //    err = false;
+   // }
 
-   else if (cp && g_euler && g_q)
-   {
-      cerr << "\nCannot specify euler and quaternion grain data input args." << '\n';
-      err = false;
-   }
+   // else if (cp && g_euler && g_q)
+   // {
+   //    cerr << "\nCannot specify euler and quaternion grain data input args." << '\n';
+   //    err = false;
+   // }
 
-   else if (cp && g_euler && g_custom)
-   {
-      cerr << "\nCannot specify euler and uniform grain data input args." << '\n';
-      err = false;
-   }
+   // else if (cp && g_euler && g_custom)
+   // {
+   //    cerr << "\nCannot specify euler and uniform grain data input args." << '\n';
+   //    err = false;
+   // }
 
-   else if (cp && g_q && g_custom)
-   {
-      cerr << "\nCannot specify quaternion and uniform grain data input args." << '\n';
-      err = false;
-   }
+   // else if (cp && g_q && g_custom)
+   // {
+   //    cerr << "\nCannot specify quaternion and uniform grain data input args." << '\n';
+   //    err = false;
+   // }
 
    else if (cp && (ngrains < 1))
    {

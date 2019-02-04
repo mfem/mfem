@@ -1,0 +1,98 @@
+#The below show all of the options available and their default values
+#Although, it should be noted that the BCs options have no default values
+#and require you to input ones that are appropriate for your problem.
+#Also while the below is indented to make things easier to read the parser doesn't care.
+#More information on TOML files can be found at: https://en.wikipedia.org/wiki/TOML
+#and https://github.com/toml-lang/toml/blob/master/README.md 
+[Properties]
+    #The below informs us about the material properties to use
+    [Properties.Matl_Props]
+        floc = "props.txt"
+        num_props = 1
+    #These options tell inform the program about the state variables
+    [Properties.State_Vars]
+        floc = "state.txt"
+        num_vars = 1
+    #These options are only used in xtal plasticity problems
+    [Properties.Grain]
+        ori_state_var_loc = -1
+        ori_stride = 1
+        #The following options are available for orientation type: euler, quat/quaternion, or custom.
+        #If one of these options is not provided the program will exit early.
+        ori_type = "euler"
+        num_grains = 0
+        ori_floc = "ori.txt"
+        grain_floc = "grain_map.txt"
+#All of these options are required
+#If they are not provided the program will exit early
+[BCs]
+    #essential BC ids for the whole boundary
+    essential_ids = [1, 2, 3, 4]
+    #component combo (x,y,z = -1, x = 1, y = 2, z = 3, xy = 4, yz = 5, xz = 6, free = 0)
+    essential_comps = [3, 1, 2, 3]
+    #Vector of vals to be applied for each attribute
+    #The length of this should be #ids * dim of problem
+    essential_vals = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.001]
+[Model]
+    #This option is no longer supported and should probably be removed
+    hyper_elastic = false
+    #This option tells us to run using a UMAT
+    umat = true
+    #This tells us that our model is a crystal plasticity problem
+    cp = false
+#Options related to our time steps
+#If both fields are provided only the Custom field will be used.
+#The Auto field is ignored. Therefore, you should really only include one.
+[Time]
+    [Time.Auto]
+        dt = 1.0
+        t_final = 1.0
+    [Time.Custom]
+        nsteps = 1
+        floc = "custom_dt.txt"
+#Our visualizations options
+[Visualizations]
+    #The stride that we want to use for when to take save off data for visualizations
+    steps = 1
+    visit = false
+    floc = "results/exaconstit"
+[Solvers]
+    #Options for our nonlinear solver
+    #The number of iterations should probably be low
+    #Some problems might have difficulty converging so you might need to relax
+    #the default tolerances
+    [Solvers.NR]
+        iter = 25
+        rel_tol = 1e-5
+        abs_tol = 1e-10
+    #Options for our iterative linear solver
+    #A lot of times the iterative solver converges fairly quickly to a solved value
+    #However, the solvers could at worst take DOFs iterations to converge. In most of these
+    #solid mechanics problems that almost never occcurs unless the mesh is incredibly coarse.
+    [Solvers.Krylov]
+        iter = 200
+        rel_tol = 1e-10
+        abs_tol = 1e-30
+        #The following Krylov solvers are available GMRES, PCG, and MINRES
+        #If one of these options is not used the program will exit early.
+        solver = "GMRES"
+[Mesh]
+    #Serial refinement level
+    ref_ser = 0
+    #Parallel refinement level
+    ref_par = 0
+    #The polynomial refinement/order of our shape functions
+    prefinement = 1
+    #The location of our mesh
+    floc = "../../data/cube-hex-ro.mesh"
+    #Possible values here are cubit, auto, or other
+    #If one of these is not provided the program will exit early
+    type = "other"
+    #The below shows the necessary options needed to automatically generate a mesh
+    #[Mesh.Auto]
+    ##The mesh length is needed
+    #    length = 1.0
+    ##The number of cuts along an edge of the mesh are also needed
+    #    ncuts = 1
+
+
