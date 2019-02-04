@@ -27,8 +27,8 @@ class GeometryExtension
 {
 public:
    kernels::Array<int> eMap;
-   kernels::Array<double> meshNodes;
-   kernels::Array<double> J, invJ, detJ;
+   kernels::Array<double> nodes;
+   kernels::Array<double> x, J, invJ, detJ;
    static const int Jacobian    = (1 << 0);
    static const int JacobianInv = (1 << 1);
    static const int JacobianDet = (1 << 2);

@@ -16,6 +16,7 @@
 #include "geom_ext.hpp"
 #include "kernels/geom.hpp"
 #include "../linalg/kernels/vector.hpp"
+#include "../general/kernels/array.hpp"
 
 namespace mfem
 {
@@ -47,14 +48,6 @@ static void GeomFill(const int dims,
          }
       }
    });
-}
-
-// *****************************************************************************
-static void ArrayAssign(const int n, const int *src, int *dest)
-{
-   GET_CONST_PTR_T(src,int);
-   GET_PTR_T(dest,int);
-   MFEM_FORALL(i, n, d_dest[i] = d_src[i];);
 }
 
 // *****************************************************************************
@@ -98,10 +91,10 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const int elements = fespace->GetNE();
    const int ndofs    = fespace->GetNDofs();
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
-   NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->meshNodes);
+   NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->nodes);
    kernels::fem::Geom(dims, numDofs, numQuad, elements,
-                      maps->dofToQuadD,
-                      geom->meshNodes, geom->J, geom->invJ, geom->detJ);
+                      maps->B, maps->G,
+                      geom->nodes, geom->x, geom->J, geom->invJ, geom->detJ);
    return geom;
 }
 
@@ -138,11 +131,11 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
 
    if (geom_to_allocate)
    {
-      geom->meshNodes.allocate(dims, numDofs, elements);
+      geom->nodes.allocate(dims, numDofs, elements);
       geom->eMap.allocate(numDofs, elements);
    }
-   kernels::vector::Assign(asize, meshNodes.GetData(), geom->meshNodes);
-   ArrayAssign(numDofs*elements, eMap.GetData(), geom->eMap);
+   kernels::vector::Assign(asize, meshNodes, geom->nodes);
+   kernels::array::Assign(numDofs*elements, eMap.GetData(), geom->eMap);
    // Reorder the original gf back
    if (orderedByNODES) { ReorderByNodes(nodes); }
    if (geom_to_allocate)
@@ -150,10 +143,15 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
       geom->J.allocate(dims, dims, numQuad, elements);
       geom->invJ.allocate(dims, dims, numQuad, elements);
       geom->detJ.allocate(numQuad, elements);
+      geom->x.allocate(dims, numQuad, elements);
    }
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
-   kernels::fem::Geom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
-                      geom->meshNodes, geom->J, geom->invJ, geom->detJ);
+   kernels::fem::Geom(dims, numDofs, numQuad, elements,
+                      maps->B,
+                      maps->G,
+                      geom->nodes,
+                      geom->x,
+                      geom->J, geom->invJ, geom->detJ);
    return geom;
 }
 

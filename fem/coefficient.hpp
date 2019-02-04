@@ -157,10 +157,7 @@ public:
                        const IntegrationPoint &ip);
 
    /// Return the coefficient's C-function
-   double (*Get())(const Vector&){
-      //return reinterpret_cast<double(*)(const Vector&)>(Function);
-      return Function;
-   }
+   double (*Get())(const Vector&){ return Function; }
 };
 
 class GridFunction;
