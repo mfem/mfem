@@ -1720,7 +1720,6 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
    /// PA extension
-   //void SetOperator(Vector&);
    virtual void Assemble(const FiniteElementSpace*);
    virtual void MultAssembled(Vector&, Vector&);
 

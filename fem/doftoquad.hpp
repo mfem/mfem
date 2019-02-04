@@ -26,9 +26,9 @@ class DofToQuad
 private:
    std::string hash;
 public:
-   kernels::Array<double, false> dofToQuad, dofToQuadD; // B
-   kernels::Array<double, false> quadToDof, quadToDofD; // B^T
-   kernels::Array<double> quadWeights;
+   kernels::Array<double> W;
+   kernels::Array<double> B, G;
+   kernels::Array<double> Bt, Gt;
 public:
    static void delDofToQuad();
    static DofToQuad* Get(const mfem::FiniteElementSpace&,
