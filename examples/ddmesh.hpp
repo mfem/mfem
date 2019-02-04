@@ -6,6 +6,298 @@
 using namespace mfem;
 using namespace std;
 
+class AdjacencyInterpolator : public DiscreteInterpolator
+{
+public:
+  virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+				      const FiniteElement &ran_fe,
+				      ElementTransformation &Trans,
+				      DenseMatrix &elmat)
+  { elmat.SetSize(ran_fe.GetDof(), dom_fe.GetDof()); elmat = 1.0; }
+};
+
+class SubdomainInterface
+{
+  friend class SubdomainParMeshGenerator;
+  
+private:
+  int sd0, sd1;  // Indices of the two neighboring subdomains, with sd0 < sd1.
+
+  int globalIndex;
+
+protected:
+  std::set<int> vertices, faces;
+  
+public:
+  SubdomainInterface(const int sd0_, const int sd1_) : sd0(sd0_), sd1(sd1_)
+  {
+    MFEM_VERIFY(sd0 < sd1, "");
+    globalIndex = -1;
+  }
+  
+  void InsertVertexIndex(const int v)
+  {
+    vertices.insert(v);
+  }
+
+  void InsertFaceIndex(const int f)
+  {
+    faces.insert(f);
+  }
+
+  int FirstSubdomain() const
+  {
+    return sd0;
+  }
+
+  int SecondSubdomain() const
+  {
+    return sd1;
+  }
+
+  int SetGlobalIndex(const int numSubdomains)
+  {
+    globalIndex = (numSubdomains * sd0) + sd1;
+    return globalIndex;
+  }
+
+  int GetGlobalIndex()
+  {
+    return globalIndex;
+  }
+  
+  int NumVertices() const
+  {
+    return vertices.size();
+  }
+
+  int NumFaces() const
+  {
+    return faces.size();
+  }
+
+  void PrintVertices(const ParMesh *pmesh) const
+  {
+    for (std::set<int>::const_iterator it = vertices.begin(); it != vertices.end(); ++it)
+      {
+	const double* c = pmesh->GetVertex(*it);
+	cout << *it << ": " << c[0] << ", " << c[1] << ", " << c[2] << endl;
+      }
+  }
+};
+
+class SubdomainInterfaceGenerator
+{
+private:
+  int numSubdomains;
+  ParMesh *pmesh;  // global mesh
+  const int d;  // Mesh dimension
+
+public:
+  SubdomainInterfaceGenerator(const int numSubdomains_, ParMesh *pmesh_) :
+    numSubdomains(numSubdomains_), pmesh(pmesh_), d(pmesh_->Dimension())
+  {
+
+  }
+
+  ~SubdomainInterfaceGenerator()
+  {
+
+  }
+
+  void CreateInterfaces(std::vector<SubdomainInterface>& interfaces)
+  {
+    MFEM_VERIFY(d == 3, "");
+
+    interfaces.clear();
+    
+    L2_FECollection elem_fec(0, pmesh->Dimension());
+    H1_FECollection vert_fec(1, pmesh->Dimension());
+    ParFiniteElementSpace elem_fes(pmesh, &elem_fec);
+    ParFiniteElementSpace vert_fes(pmesh, &vert_fec);
+    ParDiscreteLinearOperator vert_elem_oper(&vert_fes, &elem_fes); // maps vert_fes to elem_fes
+    vert_elem_oper.AddDomainInterpolator(new AdjacencyInterpolator);
+    vert_elem_oper.Assemble();
+    vert_elem_oper.Finalize();
+    
+    HypreParMatrix *vert_elem = vert_elem_oper.ParallelAssemble();
+
+    Vector elem_marker(elem_fes.GetTrueVSize());
+    Vector vert_marker(vert_fes.GetTrueVSize());
+
+    ParGridFunction vert_marker_gf(&vert_fes);
+
+    MFEM_VERIFY(elem_marker.Size() == pmesh->GetNE(), "");
+    MFEM_VERIFY(vert_marker_gf.Size() == pmesh->GetNV(), "");
+
+    map<int,int> interfaceGlobalToLocal;
+    
+    for (int s=0; s<numSubdomains; ++s)
+      {
+	// Find all interfaces between subdomain s and subdomains t != s.
+	
+	// Mark all elements in subdomain s.
+	elem_marker = 0.0;
+	for (int i=0; i<pmesh->GetNE(); ++i)
+	  {
+	    if (pmesh->GetAttribute(i) == s+1)
+	      elem_marker[i] = 1.0;
+	  }
+
+	// Find all elements neighboring subdomain s.
+	vert_elem->MultTranspose(elem_marker, vert_marker);
+	vert_elem->Mult(vert_marker, elem_marker);
+
+	vert_marker_gf.SetFromTrueDofs(vert_marker);
+	
+	// If elem_marker(j) > 0.0, then j is a neighbor of an element marked above, or j was marked above.
+	for (int i=0; i<pmesh->GetNE(); ++i)
+	  {
+	    if (pmesh->GetAttribute(i) != s+1 && elem_marker[i] > 0.1)
+	      {
+		// Element i is in a subdomain with index other than s.
+		const int neighborSD = pmesh->GetAttribute(i) - 1;
+
+		const int sd0 = std::min(s, neighborSD);
+		const int sd1 = std::max(s, neighborSD);
+
+		const int gi = (numSubdomains * sd0) + sd1;  // Global index of interface
+		
+		{
+		  map<int, int>::iterator it = interfaceGlobalToLocal.find(gi);
+		  if (it == interfaceGlobalToLocal.end())  // Create a new interface
+		    {
+		      interfaceGlobalToLocal[gi] = interfaces.size();
+		      interfaces.push_back(SubdomainInterface(sd0, sd1));
+		    }
+		}
+		
+		const int interfaceIndex = interfaceGlobalToLocal[gi];
+
+		Array<int> v, f, cor;
+		pmesh->GetElementVertices(i, v);
+		pmesh->GetElementFaces(i, f, cor);
+		
+		for (int j = 0; j < v.Size(); j++)
+		  {
+		    if (vert_marker_gf[v[j]] > 0.1)
+		      interfaces[interfaceIndex].InsertVertexIndex(v[j]);
+		  }
+
+		for (int k = 0; k < f.Size(); ++k)
+		  {
+		    Array<int> fv;
+		    pmesh->GetFaceVertices(f[k], fv);
+		    bool faceOn = true;
+		    for (int j=0; j<fv.Size(); ++j)
+		      {
+			if (vert_marker_gf[fv[j]] < 0.1)
+			  faceOn = false;
+		      }
+
+		    if (faceOn)
+		      interfaces[interfaceIndex].InsertFaceIndex(f[k]);
+		  }
+	      }
+	  }
+      }
+
+    delete vert_elem;
+  }
+
+  int* GetInterfaceGlobalIndices(std::vector<SubdomainInterface>& interfaces)
+  {
+    const int numInterfaces = interfaces.size();
+
+    if (numInterfaces == 0)
+      return NULL;
+
+    int* globalId = new int[numInterfaces];
+
+    for (int i=0; i<numInterfaces; ++i)
+      {
+	globalId[i] = interfaces[i].SetGlobalIndex(numSubdomains);
+      }
+
+    return globalId;
+  }
+
+  int GlobalToLocalInterfaceMap(std::vector<SubdomainInterface>& localInterfaces, std::vector<int>& globalToLocal,
+				std::vector<int>& globalIndices)
+  {
+    int *interfaceGlobalId = GetInterfaceGlobalIndices(localInterfaces);
+
+    const int numLocalInterfaces = localInterfaces.size();
+    
+    int num_procs = -1;
+    int myid = -1;
+
+    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+    int *cts = new int [num_procs];
+    int *offsets = new int [num_procs];
+
+    MPI_Allgather(&numLocalInterfaces, 1, MPI_INT, cts, 1, MPI_INT, MPI_COMM_WORLD);
+
+    int sumcts = cts[0];
+    offsets[0] = 0;
+    for (int i = 1; i < num_procs; ++i)
+      {
+	offsets[i] = offsets[i-1] + cts[i-1];
+	sumcts += cts[i];
+      }
+    
+    int numGI = 0;
+    
+    if (sumcts > 0)
+      {
+	int *allGlobalId = new int [sumcts];
+	MPI_Allgatherv(interfaceGlobalId, numLocalInterfaces, MPI_INT,
+		       allGlobalId, cts, offsets, MPI_INT, MPI_COMM_WORLD);
+
+	std::set<int> allGI;
+	for (int i=0; i<sumcts; ++i)
+	  allGI.insert(allGlobalId[i]);
+
+	numGI = allGI.size();
+	globalToLocal.resize(numGI);
+	globalIndices.resize(numGI);
+	
+	int giPrev = -1;
+	int cnt = 0;
+	for (std::set<int>::const_iterator it = allGI.begin(); it != allGI.end(); ++it, ++cnt)
+	  {
+	    const int gi = *it;
+	    
+	    MFEM_VERIFY(giPrev < gi, "Global indices are not sorted in ascending order.");
+	    giPrev = gi;
+	    
+	    globalIndices[cnt] = gi;
+	    
+	    globalToLocal[cnt] = -1;
+	    for (int i=0; i<numLocalInterfaces; ++i)
+	      {
+		if (gi == interfaceGlobalId[i])
+		  globalToLocal[cnt] = i;
+	      }
+	  }
+
+	MFEM_VERIFY(cnt == numGI, "");
+
+	delete [] allGlobalId;
+      }
+    
+    if (interfaceGlobalId != NULL)
+      delete [] interfaceGlobalId;
+
+    delete [] cts;
+    delete [] offsets;
+
+    return numGI;
+  }
+};
+
 class SubdomainParMeshGenerator
 {
 private:
@@ -27,28 +319,25 @@ private:
   
   H1_FECollection *h1_coll;
   ParFiniteElementSpace *H1_space;
+
+  enum MeshType { SubdomainMesh, InterfaceMesh };
+  MeshType mode;
   
-  int ChooseRootForSubdomain(const int attribute, int& numElements)
+  int NumberOfLocalElementsForSubdomain(const int attribute)
   {
-    numElements = 0;  // Number of elements on this process (in pmesh) in the subdomain (i.e. with the given attribute).
+    int numElements = 0;  // Number of elements on this process (in pmesh) in the subdomain (i.e. with the given attribute).
     for (int i=0; i<pmesh->GetNE(); ++i)
       {
 	if (pmesh->GetAttribute(i) == attribute)
 	  numElements++;
       }
 
-    int idTouching = (numElements > 0) ? myid : -1;
-    int maxId = -1;
-    MPI_Allreduce(&idTouching, &maxId, 1, MPI_INT, MPI_MAX, pmesh->GetComm());
-
-    MFEM_VERIFY(maxId >= 0, "");
-    
-    return maxId;
+    return numElements;
   }
   
-  // Gather subdomain mesh data to all processes.
-  void GatherSubdomainMeshData(const int root, const int attribute, const int numLocalElements,
-			       int& subdomainNumElements)
+  // Gather subdomain or interface mesh data to all processes.
+  void GatherSubdomainOrInterfaceMeshData(const int attribute, const int numLocalElements,
+					  int& subdomainNumElements, const SubdomainInterface *interface)
   {
     MPI_Allgather(&numLocalElements, 1, MPI_INT, cts, 1, MPI_INT, MPI_COMM_WORLD);
 
@@ -66,26 +355,60 @@ private:
     
     // Assumption: all elements are of the same geometric type.
     Array<int> elVert;
-    pmesh->GetElementVertices(0, elVert);
+
+    if (mode == SubdomainMesh)
+      pmesh->GetElementVertices(0, elVert);
+    else
+      {
+	std::set<int>::const_iterator it = interface->faces.begin();
+	pmesh->GetFaceVertices(*it, elVert);
+      }
+    
     numElVert = elVert.Size();  // number of vertices per element
     MFEM_VERIFY(numElVert > 0, "");
-    
+
+    // TODO: reduce allocations by storing these in the class and only reallocating if a larger size is needed.
     vector<int> my_element_vgid(std::max(numElVert*numLocalElements, 1));  // vertex global indices, for each element
     vector<double> my_element_coords(std::max(d*numElVert*numLocalElements, 1));
 
     int conn_idx = 0;
     int coords_idx = 0;
-    
-    for (int elId=0; elId<pmesh->GetNE(); ++elId)
+
+    if (mode == SubdomainMesh)
       {
-	if (pmesh->GetAttribute(elId) == attribute)
+	for (int elId=0; elId<pmesh->GetNE(); ++elId)
 	  {
-	    pmesh->GetElementVertices(elId, elVert);
+	    if (pmesh->GetAttribute(elId) == attribute)
+	      {
+		pmesh->GetElementVertices(elId, elVert);
+		MFEM_VERIFY(numElVert == elVert.Size(), "");  // Assuming a uniform element type in the mesh.
+		// NOTE: to be very careful, it should be verified that this is the same across all processes.
+
+		Array<int> dofs;
+		H1_space->GetElementDofs(elId, dofs);
+		MFEM_VERIFY(numElVert == dofs.Size(), "");  // Assuming a bijection between vertices and H1 dummy space DOF's.
+    
+		for (int i = 0; i < numElVert; ++i)
+		  {
+		    my_element_vgid[conn_idx++] = H1_space->GetGlobalTDofNumber(dofs[i]);
+		    const double* coords = pmesh->GetVertex(elVert[i]);
+		    for (int j=0; j<d; ++j)
+		      my_element_coords[coords_idx++] = coords[j];
+		  }
+	      }
+	  }
+      }
+    else
+      {
+	for (std::set<int>::const_iterator it = interface->faces.begin(); it != interface->faces.end(); ++it)
+	  {
+	    pmesh->GetFaceVertices(*it, elVert);
+
 	    MFEM_VERIFY(numElVert == elVert.Size(), "");  // Assuming a uniform element type in the mesh.
 	    // NOTE: to be very careful, it should be verified that this is the same across all processes.
 
 	    Array<int> dofs;
-	    H1_space->GetElementDofs(elId, dofs);
+	    H1_space->GetFaceDofs(*it, dofs);
 	    MFEM_VERIFY(numElVert == dofs.Size(), "");  // Assuming a bijection between vertices and H1 dummy space DOF's.
     
 	    for (int i = 0; i < numElVert; ++i)
@@ -97,7 +420,7 @@ private:
 	      }
 	  }
       }
-
+    
     MFEM_VERIFY(coords_idx == d*numElVert*numLocalElements, "");
     MFEM_VERIFY(conn_idx == numElVert*numLocalElements, "");
 
@@ -109,6 +432,7 @@ private:
       offsets[i] = offsets[i-1] + cts[i-1];
     }
 
+    // TODO: resize only if a larger size is needed
     element_vgid.resize(numElVert*subdomainNumElements);
     element_coords.resize(d*numElVert*subdomainNumElements);
 
@@ -127,12 +451,12 @@ private:
 
     sendSize = d*numElVert*numLocalElements;
     
-    int res = MPI_Allgatherv(&(my_element_coords[0]), sendSize, MPI_DOUBLE,
-			     &(element_coords[0]), cts, offsets, MPI_DOUBLE, MPI_COMM_WORLD);
+    MPI_Allgatherv(&(my_element_coords[0]), sendSize, MPI_DOUBLE,
+		   &(element_coords[0]), cts, offsets, MPI_DOUBLE, MPI_COMM_WORLD);
   }
 
   // This is a serial function, which should be called only processes touching the subdomain.
-  Mesh* BuildSerialMesh(const int attribute, const int subdomainNumElements)
+  Mesh* BuildSerialMesh(const int attribute, const int subdomainNumElements, const SubdomainInterface *interface)
   {
     // element_vgid holds vertices as global ids.  Vertices may be shared
     // between elements so we don't know the number of unique vertices in the
@@ -160,7 +484,8 @@ private:
       ++idx;
     }
 
-    Mesh *sdmesh = new Mesh(d, subdomainNumVertices, subdomainNumElements);
+    const int dim = (interface == NULL) ? d : d-1;
+    Mesh *smesh = new Mesh(dim, subdomainNumVertices, subdomainNumElements, 0, d);
     
     // For each unique vertex, add its coordinates to the subdomain mesh.
     for (int vert = 0; vert < subdomainNumVertices; ++vert)
@@ -168,7 +493,7 @@ private:
 	int unique_gdof = vertex_2_unique_gdofs[vert];
 	int first_conn_ref = unique_gdofs_first_appearance[unique_gdof];
 	int coord_loc = d*first_conn_ref;
-	sdmesh->AddVertex(&element_coords[coord_loc]);
+	smesh->AddVertex(&element_coords[coord_loc]);
       }
 
     if (subdomainNumElements > sdPartitionAlloc)
@@ -177,7 +502,6 @@ private:
 	  delete [] sdPartition;
 
 	sdPartitionAlloc = subdomainNumElements;
-
 	sdPartition = new int[sdPartitionAlloc];
       }
 
@@ -195,14 +519,14 @@ private:
       }
     
     // Now add each element and give it its attributes and connectivity.
-    const int elGeom = pmesh->GetElementBaseGeometry(0);
+    const int elGeom = (mode == SubdomainMesh) ? pmesh->GetElementBaseGeometry(0) : pmesh->GetFaceBaseGeometry(0);
     idx = 0;
     int ielem = 0;
     for (int p=0; p<num_procs; ++p)
       {
 	for (int i=0; i<procNumElems[p]; ++i, ++ielem)
 	  {
-	    Element* sel = sdmesh->NewElement(elGeom);
+	    Element* sel = smesh->NewElement(elGeom);
 	    sel->SetAttribute(attribute);
 	  
 	    Array<int> sv(numElVert);
@@ -211,7 +535,7 @@ private:
 	    }
 	    sel->SetVertices(sv);
 
-	    sdmesh->AddElement(sel);
+	    smesh->AddElement(sel);
 
 	    sdPartition[ielem] = sdProcId[p];
 	  }
@@ -220,32 +544,30 @@ private:
     MFEM_VERIFY(ielem == subdomainNumElements, "");
     MFEM_VERIFY(idx == numElVert*subdomainNumElements, "");
     
-    sdmesh->FinalizeTopology();
+    smesh->FinalizeTopology();
   
-    return sdmesh;
+    return smesh;
   }
   
-  Mesh* CreateSerialSubdomainMesh(const int attribute)
+  Mesh* CreateSerialSubdomainOrInterfaceMesh(const int attribute, const SubdomainInterface *interface)
   {
-    int numLocalElements = 0;
-    const int root = ChooseRootForSubdomain(attribute, numLocalElements);
-    MFEM_VERIFY(root >= 0, "");
+    int numLocalElements = (interface == NULL) ? NumberOfLocalElementsForSubdomain(attribute) : interface->NumFaces();
 
     int subdomainNumElements = 0;
-    GatherSubdomainMeshData(root, attribute, numLocalElements, subdomainNumElements);
+    GatherSubdomainOrInterfaceMeshData(attribute, numLocalElements, subdomainNumElements, interface);
 
     // Now we have enough data to build the subdomain mesh.
     Mesh *serialMesh = NULL;
 
     if (numLocalElements > 0)
-      serialMesh = BuildSerialMesh(attribute, subdomainNumElements);
+      serialMesh = BuildSerialMesh(attribute, subdomainNumElements, interface);
     
     return serialMesh;
   }
   
 public:
-  SubdomainParMeshGenerator(const int numSubdomains_, ParMesh *pmesh_) : numSubdomains(numSubdomains_), pmesh(pmesh_),
-									 d(pmesh_->Dimension())
+  SubdomainParMeshGenerator(const int numSubdomains_, ParMesh *pmesh_) :
+    numSubdomains(numSubdomains_), pmesh(pmesh_), d(pmesh_->Dimension())
   {
     MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -281,10 +603,12 @@ public:
   ParMesh** CreateParallelSubdomainMeshes()
   {
     ParMesh **pmeshSD = new ParMesh*[numSubdomains];
+
+    mode = SubdomainMesh;
     
     for (int s=0; s<numSubdomains; ++s)  // Loop over subdomains
       {
-	Mesh *sdmesh = CreateSerialSubdomainMesh(s+1);
+	Mesh *sdmesh = CreateSerialSubdomainOrInterfaceMesh(s+1, NULL);
 
 	MPI_Comm sd_com;
 	int color = (sdmesh == NULL);
@@ -303,6 +627,39 @@ public:
     
     return pmeshSD;
   }
+  
+  ParMesh* CreateParallelInterfaceMesh(SubdomainInterface& interface)
+  {
+    mode = InterfaceMesh;
+
+    // interface.vertices is a std::set<int> of local pmesh vertex indices
+    // interface.faces is a std::set<int> of local pmesh face indices
+
+    MFEM_VERIFY(d == 3, "");
+    
+    // Add all faces in interface.faces as elements in a new serial Mesh.
+
+    Mesh *ifmesh = CreateSerialSubdomainOrInterfaceMesh(interface.GetGlobalIndex(), &interface);
+
+    // Create a parallel mesh from ifmesh.
+
+    MPI_Comm if_com;
+    int color = (ifmesh == NULL);
+    const int status = MPI_Comm_split(MPI_COMM_WORLD, color, myid, &if_com);
+    MFEM_VERIFY(status == MPI_SUCCESS,
+		"Construction of hyperreduction comm failed");
+
+    if (ifmesh != NULL)
+      {
+	ParMesh *ifParMesh = new ParMesh(if_com, *ifmesh, sdPartition);
+	delete ifmesh;
+
+	return ifParMesh;
+      }
+
+    return NULL;
+  }
+  
 };
 
 #endif // DDMESH_HPP

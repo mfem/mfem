@@ -39,6 +39,7 @@
 #include <iostream>
 
 #include "ddmesh.hpp"
+#include "ddoper.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -53,27 +54,24 @@ int dim;
 #define SIGMAVAL -250.0
 
 
-void VisitTestPlotParMesh(const int id, ParMesh *pmesh)
+void VisitTestPlotParMesh(const std::string filename, ParMesh *pmesh)
 {
   if (pmesh == NULL)
     return;
-  
-  ostringstream filename;
-  filename << "sd" << setfill('0') << setw(3) << id;
-  
+    
   DataCollection *dc = NULL;
   bool binary = false;
   if (binary)
     {
 #ifdef MFEM_USE_SIDRE
-      dc = new SidreDataCollection(filename.str().c_str(), pmesh);
+      dc = new SidreDataCollection(filename.c_str(), pmesh);
 #else
       MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
     }
   else
     {
-      dc = new VisItDataCollection(filename.str().c_str(), pmesh);
+      dc = new VisItDataCollection(filename.c_str(), pmesh);
       dc->SetPrecision(8);
       // To save the mesh using MFEM's parallel mesh format:
       // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
@@ -210,18 +208,69 @@ int main(int argc, char *argv[])
      cout << myid << ": Element size range: (" << minsize << ", " << maxsize << ")" << endl;
    }
 
-   // 5.5. Create parallel subdomain meshes.
+   // 5.1. Determine subdomain interfaces, and for each interface create a set of local vertex indices in pmesh.
+   SubdomainInterfaceGenerator sdInterfaceGen(numSubdomains, pmesh);
+   vector<SubdomainInterface> interfaces;
+   sdInterfaceGen.CreateInterfaces(interfaces);
+   std::vector<int> interfaceGlobalToLocalMap, interfaceGI;
+   const int numInterfaces = sdInterfaceGen.GlobalToLocalInterfaceMap(interfaces, interfaceGlobalToLocalMap, interfaceGI);
+   
+   cout << myid << ": created " << numSubdomains << " subdomains with " << numInterfaces <<  " interfaces" << endl;
+   
+   // 5.2. Create parallel subdomain meshes.
    SubdomainParMeshGenerator sdMeshGen(numSubdomains, pmesh);
    ParMesh **pmeshSD = sdMeshGen.CreateParallelSubdomainMeshes();
 
    if (pmeshSD == NULL)
      return 2;
 
-   bool testSubdomains = true;
+   // 5.3. Create parallel interface meshes.
+   ParMesh **pmeshInterfaces = (numInterfaces > 0 ) ? new ParMesh*[numInterfaces] : NULL;
+
+   for (int i=0; i<numInterfaces; ++i)
+     {
+       if (interfaceGlobalToLocalMap[i] >= 0)
+	 {
+	   MFEM_VERIFY(interfaceGI[i] == interfaces[i].GetGlobalIndex(), "");
+	   pmeshInterfaces[i] = sdMeshGen.CreateParallelInterfaceMesh(interfaces[i]);
+	 }
+       else
+	 {
+	   // This is not elegant. 
+	   const int sd0 = interfaceGI[i] / numSubdomains;  // globalIndex = (numSubdomains * sd0) + sd1;
+	   const int sd1 = interfaceGI[i] - (numSubdomains * sd0);  // globalIndex = (numSubdomains * sd0) + sd1;
+	   SubdomainInterface emptyInterface(sd0, sd1);
+	   emptyInterface.SetGlobalIndex(numSubdomains);
+	   pmeshInterfaces[i] = sdMeshGen.CreateParallelInterfaceMesh(emptyInterface);
+	 }
+     }
+   
+   const bool testSubdomains = true;
    if (testSubdomains)
      {
        for (int i=0; i<numSubdomains; ++i)
-	 VisitTestPlotParMesh(i, pmeshSD[i]);
+	 {
+	   ostringstream filename;
+	   filename << "sd" << setfill('0') << setw(3) << i;
+	   VisitTestPlotParMesh(filename.str(), pmeshSD[i]);
+	 }
+       
+       for (int i=0; i<numInterfaces; ++i)
+	 {
+	   ostringstream filename;
+	   filename << "sdif" << setfill('0') << setw(3) << i;
+	   VisitTestPlotParMesh(filename.str(), pmeshInterfaces[i]);
+	 }
+       
+       const bool printInterfaceVertices = false;
+       if (printInterfaceVertices)
+	 {
+	   for (int i=0; i<numInterfaces; ++i)
+	     {
+	       cout << myid << ": Interface " << interfaces[i].GetGlobalIndex() << " has " << interfaces[i].NumVertices() << endl;
+	       interfaces[i].PrintVertices(pmesh);
+	     }
+	 }
      }
    
    // 6. Define a parallel finite element space on the parallel mesh. Here we
@@ -236,7 +285,12 @@ int main(int argc, char *argv[])
      cout << "Number of finite element unknowns: " << size << endl;
      cout << "Root local number of finite element unknowns: " << fespace->TrueVSize() << endl;
    }
+
+   // 6.1. Define parallel finite element spaces on the parallel meshes of the interfaces.
+
    
+   //DDMInterfaceOperator ddi(numSubdomains, pmeshSD, order);
+     
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
@@ -468,7 +522,7 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-
+   
    MPI_Finalize();
 
    return 0;
