@@ -842,6 +842,14 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
    SparseMatrix     *pS = const_cast<SparseMatrix *>
                           (dynamic_cast<const SparseMatrix *>(&op));
 
+   if (pA && tid == ANY_TYPE) // use same object and return
+   {
+      ierr = PetscObjectReference((PetscObject)(pA->A));
+      CCHKERRQ(pA->GetComm(),ierr);
+      *A = pA->A;
+      return;
+   }
+
    PetscBool avoidmatconvert = PETSC_FALSE;
    if (pA) // we test for these types since MatConvert will fail
    {
@@ -987,7 +995,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
 #endif
          CCHKERRQ(pH->GetComm(),ierr);
       }
-      else if (tid == PETSC_MATHYPRE)
+      else if (tid == PETSC_MATHYPRE || tid == ANY_TYPE)
       {
 #if defined(PETSC_HAVE_HYPRE)
          ierr = MatCreateFromParCSR(const_cast<HypreParMatrix&>(*pH),MATHYPRE,
@@ -1174,8 +1182,8 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
    }
    else // fallback to general operator
    {
-      MFEM_VERIFY(tid == PETSC_MATSHELL ||
-                  tid == PETSC_MATAIJ,"Supported types are PETSC_MATSHELL or PETSC_MATAIJ");
+      MFEM_VERIFY(tid == PETSC_MATSHELL || tid == PETSC_MATAIJ || tid == ANY_TYPE,
+                  "Supported types are ANY_TYPE, PETSC_MATSHELL or PETSC_MATAIJ");
       MakeWrapper(comm,&op,A);
       if (tid == PETSC_MATAIJ)
       {
@@ -3477,7 +3485,7 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA || pA->GetType() != ts_ctx->jacType)
+   if (!pA || (ts_ctx->jacType != mfem::Operator::ANY_TYPE && pA->GetType() != ts_ctx->jacType))
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
                                     ts_ctx->jacType);
@@ -3566,7 +3574,7 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
    bool delete_mat = false;
    mfem::PetscParMatrix *pJx = const_cast<mfem::PetscParMatrix *>
                                (dynamic_cast<const mfem::PetscParMatrix *>(&oJx));
-   if (!pJx || pJx->GetType() != ts_ctx->jacType)
+   if (!pJx || (ts_ctx->jacType != mfem::Operator::ANY_TYPE && pJx->GetType() != ts_ctx->jacType))
    {
       if (pJx)
       {
@@ -3611,7 +3619,7 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
       mfem::Operator& oJxp = op->GetImplicitGradient(*xx,yy,1.0);
       pJxp = const_cast<mfem::PetscParMatrix *>
              (dynamic_cast<const mfem::PetscParMatrix *>(&oJxp));
-      if (!pJxp || pJxp->GetType() != ts_ctx->jacType)
+      if (!pJxp || (ts_ctx->jacType != mfem::Operator::ANY_TYPE && pJxp->GetType() != ts_ctx->jacType))
       {
          if (pJxp)
          {
@@ -3711,7 +3719,7 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA || pA->GetType() != ts_ctx->jacType)
+   if (!pA || (ts_ctx->jacType != mfem::Operator::ANY_TYPE && pA->GetType() != ts_ctx->jacType))
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
                                     ts_ctx->jacType);
@@ -3813,7 +3821,7 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA || pA->GetType() != snes_ctx->jacType)
+   if (!pA || (snes_ctx->jacType != mfem::Operator::ANY_TYPE && pA->GetType() != snes_ctx->jacType))
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)snes),&J,
                                     snes_ctx->jacType);
