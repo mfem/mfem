@@ -103,15 +103,29 @@ void MassIntegrator::Assemble(const FiniteElementSpace *fes)
    if (dim==1) { mfem_error("Not supported yet... stay tuned!"); }
    if (dim==2)
    {
-      MFEM_ASSERT(Q, "Q not a Coefficient");      
-      FunctionCoefficient* const fcQ = dynamic_cast<FunctionCoefficient*>(Q);
-      double (*coeff)(const Vector &) = fcQ->Get();      
-      const GridFunction &nodes = *mesh->GetNodes();
-
+      bool constant = false;
+      double cCoeff = 0.0;
+      bool function = false;
+      double (*fcCoeff)(const kernels::Vector&) = NULL;
+       if (Q){
+         ConstantCoefficient* const cQ = dynamic_cast<ConstantCoefficient*>(Q);
+         if (cQ){
+            cCoeff = cQ->constant;
+            constant = true;
+         }
+         FunctionCoefficient* const fcQ = dynamic_cast<FunctionCoefficient*>(Q);
+         if (fcQ){
+            function = true;
+            fcCoeff = fcQ->Get();
+         }
+      }
+      assert(constant^function);
       const int NE = ne;
       const int NQ = nq;
-      const double *w = (double*) mm::ptr(maps->W);
-      const double *J = (double*) mm::ptr(geo->J);
+      const double *w = (const double*) mm::ptr(maps->W);
+      const int dims = el.GetDim();
+      const double *x = (const double*) mm::ptr(geo->x);
+      const double *J = (const double*) mm::ptr(geo->J);
       double *v = (double*) mm::ptr(vec);
       MFEM_FORALL(e, NE,
       {
@@ -122,7 +136,14 @@ void MassIntegrator::Assemble(const FiniteElementSpace *fes)
             const double J21 = J[ijklNM(0,1,q,e,2,NQ)];
             const double J22 = J[ijklNM(1,1,q,e,2,NQ)];
             const double detJ = (J11*J22)-(J21*J12);
-            v[ijN(q,e,NQ)] =  w[q] * coeff(nodes) * detJ;
+            const int offset = dims*NQ*e+q;
+            const double ipx[3] = {x[offset], x[offset+1], x[offset+2]};
+            const kernels::Vector transip(ipx);
+            const double coeff =
+               constant ? cCoeff:
+               function ? fcCoeff(transip):
+               0.0;
+            v[ijN(q,e,NQ)] =  w[q] * coeff * detJ;
          }
       });
    }

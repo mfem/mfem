@@ -73,10 +73,10 @@ uint32_t LOG2(uint32_t);
 // *****************************************************************************
 #ifndef __NVCC__
 #define MFEM_DEVICE
-#define MFEM_DEVICE_FUNCTION
+#define MFEM_HOST_DEVICE
 #else
 #define MFEM_DEVICE __device__
-#define MFEM_DEVICE_FUNCTION __host__ __device__
+#define MFEM_HOST_DEVICE __host__ __device__
 #endif
 
 // *****************************************************************************

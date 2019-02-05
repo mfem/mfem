@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 
-#include "../general/array_ext.hpp"
+#include "../general/array.hpp"
 
 namespace mfem
 {

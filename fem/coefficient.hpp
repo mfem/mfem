@@ -46,6 +46,8 @@ public:
        achieved by calling T.SetIntPoint(&ip). */
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) = 0;
+   
+   //virtual double *BatchEval(const int elem, const IntegrationRule &ir);
 
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip at time @a t. */
@@ -157,7 +159,9 @@ public:
                        const IntegrationPoint &ip);
 
    /// Return the coefficient's C-function
-   double (*Get())(const Vector&){ return Function; }
+   double (*Get())(const kernels::Vector&){
+      return reinterpret_cast<double(*)(const kernels::Vector&)>(Function);
+   }
 };
 
 class GridFunction;
