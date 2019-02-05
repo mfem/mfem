@@ -76,7 +76,8 @@ stk::~stk(){
   if (!getenv("STK")) return;
 
   // If we are in ORG_MODE, set tab_char to '*'
-  const bool org_mode = getenv("ORG_MODE")!=NULL;
+  static const bool org_mode = getenv("ORG_MODE")!=NULL;
+  static const bool mm_assert = getenv("MM")!=NULL;
   const std::string tab_char = org_mode?"*":"  ";
   
   // now backtracing if initialized
@@ -149,5 +150,5 @@ stk::~stk(){
   if (!org_mode) std::cout << "[m";
   std::cout << "\n";
   stream.clear();
-  assert(mm);
+  if (mm_assert) assert(mm);
 }
