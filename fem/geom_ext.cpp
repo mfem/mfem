@@ -107,7 +107,6 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    if (geom_to_allocate) { geom = new GeometryExtension(); }
    mesh->EnsureNodes();
    const GridFunction *nodes = mesh->GetNodes();
-
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
    const mfem::FiniteElement *fe = fespace->GetFE(0);
    const int dims     = fe->GetDim();
@@ -125,17 +124,16 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
             elements,
             numDofs,
             elementMap,
-            eMap.GetData(),
+            eMap,
             nodes->GetData(),
-            meshNodes.GetData());
-
+            meshNodes);
    if (geom_to_allocate)
    {
       geom->nodes.allocate(dims, numDofs, elements);
       geom->eMap.allocate(numDofs, elements);
    }
    kernels::vector::Assign(asize, meshNodes, geom->nodes);
-   kernels::array::Assign(numDofs*elements, eMap.GetData(), geom->eMap);
+   kernels::array::Assign(numDofs*elements, eMap, geom->eMap);
    // Reorder the original gf back
    if (orderedByNODES) { ReorderByNodes(nodes); }
    if (geom_to_allocate)

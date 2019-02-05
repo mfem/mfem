@@ -23,8 +23,10 @@ namespace fem
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> static
 void Geom2D(const int numElements,
+            const double* __restrict B,
             const double* __restrict dofToQuadD,
             const double* __restrict nodes,
+            double* __restrict x,
             double* __restrict J,
             double* __restrict invJ,
             double* __restrict detJ)
@@ -75,8 +77,10 @@ void Geom2D(const int numElements,
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> static
 void Geom3D(const int numElements,
+            const double* __restrict B,
             const double* __restrict dofToQuadD,
             const double* __restrict nodes,
+            double* __restrict x,
             double* __restrict J,
             double* __restrict invJ,
             double* __restrict detJ)
@@ -142,17 +146,20 @@ void Geom3D(const int numElements,
 }
 
 // *****************************************************************************
-typedef void (*fIniGeom)(const int,const double*,const double*,
-                         double*, double*, double*);
+typedef void (*fIniGeom)(const int ne,
+                         const double *B,
+                         const double *G,
+                         const double *X,
+                         double *x, double *J, double *invJ, double *detJ);
 
 // *****************************************************************************
 void Geom(const int DIM,
           const int NUM_DOFS,
           const int NUM_QUAD,
           const int numElements,
-          const double* __restrict dofToQuad,
-          const double* __restrict dofToQuadD,
-          const double* __restrict nodes,
+          const double* __restrict B,
+          const double* __restrict G,
+          const double* __restrict X,
           double* __restrict x,
           double* __restrict J,
           double* __restrict invJ,
@@ -213,12 +220,14 @@ void Geom(const int DIM,
       fflush(stdout);
    }
    assert(call[id]);
-   GET_CONST_PTR(dofToQuadD);
-   GET_CONST_PTR(nodes);
+   GET_CONST_PTR(B);
+   GET_CONST_PTR(G);
+   GET_CONST_PTR(X);
+   GET_PTR(x);
    GET_PTR(J);
    GET_PTR(invJ);
    GET_PTR(detJ);
-   call[id](numElements, d_dofToQuadD, d_nodes, d_J, d_invJ, d_detJ);
+   call[id](numElements, d_B, d_G, d_X, d_x, d_J, d_invJ, d_detJ);
 }
 
 } // namespace fem

@@ -107,7 +107,6 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
       (dims == 2) ? numQuad2D :
       (dims == 3) ? numQuad3D : 0;
    assert(numQuad > 0);
-
    std::stringstream ss;
    ss << "D2QTensorMap:"
       << " dims:" << dims
@@ -116,21 +115,17 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
       << " numQuad1D:" << numQuad1D
       << " transpose:"  << (transpose?"true":"false");
    std::string hash = ss.str();
-
    if (AllDofQuadMaps.find(hash)!=AllDofQuadMaps.end())
    {
       return AllDofQuadMaps[hash];
    }
-
    DofToQuad *maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-
-   maps->B.allocate( numQuad1D, numDofs, 1, 1, transpose);
+   maps->B.allocate(numQuad1D, numDofs, 1, 1, transpose);
    maps->G.allocate(numQuad1D, numDofs, 1, 1, transpose);
    const int dim0 = maps->B.dim()[0];
    const int dim1 = maps->B.dim()[1];
-
    if (transpose) // Initialize quad weights only for transpose
    {
       maps->W.allocate(numQuad);
@@ -142,7 +137,6 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
    mfem::Array<double> G1d(numQuad1D*numDofs);
    const TensorBasisElement& tbe = dynamic_cast<const TensorBasisElement&>(fe);
    const Poly_1D::Basis& basis = tbe.GetBasis1D();
-
    for (int q = 0; q < numQuad1D; ++q)
    {
       const IntegrationPoint& ip = ir1D.IntPoint(q);
@@ -173,10 +167,10 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
          if (dims > 2) { w *= W1d[qz]; }
          W[q] = w;
       }
-      kernels::vector::Assign(numQuad, W.GetData(), maps->W);
+      kernels::vector::Assign(numQuad, W, maps->W);
    }
-   kernels::vector::Assign(numQuad1D*numDofs, B1d.GetData(), maps->B);
-   kernels::vector::Assign(numQuad1D*numDofs, G1d.GetData(), maps->G);
+   kernels::vector::Assign(numQuad1D*numDofs, B1d, maps->B);
+   kernels::vector::Assign(numQuad1D*numDofs, G1d, maps->G);
    return maps;
 }
 
@@ -210,9 +204,6 @@ DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& trialFE,
    maps->hash = hash;
    const DofToQuad* trialMaps = GetD2QSimplexMaps(trialFE, ir);
    const DofToQuad* testMaps  = GetD2QSimplexMaps(testFE, ir, true);
-   const int trialDims = trialFE.GetDim();
-   const int trialNDofs = trialFE.GetDof();
-   const int numQuad = ir.GetNPoints();
    maps->B = trialMaps->B;
    maps->G = trialMaps->G;
    maps->Bt = testMaps->B;
@@ -287,10 +278,10 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    }
    if (transpose)
    {
-      kernels::vector::Assign(numQuad, W.GetData(), maps->W);
+      kernels::vector::Assign(numQuad, W, maps->W);
    }
-   kernels::vector::Assign(numQuad*numDofs, B.GetData(), maps->B);
-   kernels::vector::Assign(dims*numQuad*numDofs, G.GetData(), maps->G);
+   kernels::vector::Assign(numQuad*numDofs, B, maps->B);
+   kernels::vector::Assign(dims*numQuad*numDofs, G, maps->G);
    return maps;
 }
 

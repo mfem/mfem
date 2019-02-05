@@ -13,7 +13,7 @@
 #define MFEM_BILIN_DQM_HPP
 
 #include "../config/config.hpp"
-#include "../general/array_ext.hpp"
+#include "../general/array.hpp"
 
 namespace mfem
 {
@@ -27,8 +27,8 @@ private:
    std::string hash;
 public:
    kernels::Array<double> W;
-   kernels::Array<double> B, G;
-   kernels::Array<double> Bt, Gt;
+   kernels::Array<double,false> B, G;
+   kernels::Array<double,false> Bt, Gt;
 public:
    static void delDofToQuad();
    static DofToQuad* Get(const mfem::FiniteElementSpace&,

@@ -13,7 +13,7 @@
 #define MFEM_FEM_GEOM_HPP
 
 #include "../config/config.hpp"
-#include "../general/array_ext.hpp"
+#include "../general/array.hpp"
 
 #include "fespace.hpp"
 
