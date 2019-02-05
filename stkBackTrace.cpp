@@ -27,7 +27,7 @@
 #include "stkBackTraceData.hpp"
 
 // *****************************************************************************
-#define DEMANGLE_LENGTH 4096
+#define DEMANGLE_LENGTH 8192
 static const char* demangle(const char* mangled_name){
    int status;
    static size_t length = DEMANGLE_LENGTH;
@@ -39,7 +39,7 @@ static const char* demangle(const char* mangled_name){
 
 // *****************************************************************************
 static int filter(const char* demangled){
-   //printf("\033[32;1m[full_callback] Filtering OUT '%s'!\033[m\n",demangled);
+   //printf("\n\033[32;1m[full_callback] Filtering OUT '%s'!\033[m\n",demangled);
    return 0;
 }
 
@@ -70,16 +70,18 @@ static int full_callback(void *data,
                          const char *function){
    stkBackTraceData *ctx=static_cast<stkBackTraceData*>(data);
    if (!function){ // symbol hit
-      //printf("\033[32;1m[full_callback] filename:%s, lineno=%d, pc=0x%lx\033[m\n",filename, lineno, pc);
+      //printf("\n\033[32;1m[full_callback] filename:%s, lineno=%d, pc=0x%lx\033[m\n",filename, lineno, pc);
       return backtrace_syminfo(ctx->state(), pc,
                                sym_callback, err_callback, data);
    }
    const char *demangled = demangle(function);
    //if (getenv("ALL")) printf("\t\033[33m[full_callback] '%s'\033[m\n",demangled);
    if (strncmp("std::",demangled,5)==0) return filter(demangled);
+   if (strncmp("__gnu_cxx::",demangled,11)==0) return filter(demangled);
    //if (strncmp("void",demangled,4)==0) return filter(demangled);
    if (ctx->rip() or getenv("ALL"))
       printf("\033[33m%s:%d \033[1m%s\033[m\n",filename,lineno,demangled);
+   ctx->isItMM(demangled,filename, lineno);
    ctx->update(demangled,pc,filename,lineno);
    return 0;
 }
@@ -117,6 +119,7 @@ int stkBackTrace::stk(const bool _rip){
 }
 
 // *****************************************************************************
+bool stkBackTrace::mm(){ return data->mm(); }
 int stkBackTrace::depth(){ return data->depth(); }
 uintptr_t stkBackTrace::address(){ return data->address(); }
 const char* stkBackTrace::function(){ return data->function(); }

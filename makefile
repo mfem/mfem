@@ -50,7 +50,7 @@ lib$(tgt).so: $(OBJ);$(rule)
 #### tst ####
 tst:tst.c lib$(tgt).so makefile
 	$(CXX) -fno-inline-functions $(FLG) -o $@ $< -L. -l$(tgt) \
-	-Wl,-rpath /home/camier1/home/stk -Wl,-rpath $(HOME)/lib -L$(HOME)/lib -lbacktrace
+	-Wl,-rpath /home/camier1/home/okstk -Wl,-rpath $(HOME)/lib -L$(HOME)/lib -lbacktrace
 
 #### ./*.cpp #####
 $(obj)/%.o: $(pwd)/%.cpp $(pwd)/%.hpp;$(rule)

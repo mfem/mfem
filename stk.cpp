@@ -82,6 +82,7 @@ stk::~stk(){
   // now backtracing if initialized
   if (bt.stk(rip)!=0) return;
 
+  const bool mm = bt.mm();
   const int depth = bt.depth();
   assert(depth>0);
   const int frames = depth-(org_mode?-1:1);
@@ -117,15 +118,14 @@ stk::~stk(){
     std::max(first_3A,first_3C):std::min(first_3A,first_3C);
   // If first_3A==first_3C==-1, just take our offunction name  
   const std::string root = (first_3A!=first_3C)?display_function.substr(0,first_3AC):display_function;
+
   //std::cout << "root: '"<<root<<"'\n";
-  
-      
   // Look if this root is wanted or has to be filtered
   if (wanted.find(root)!=wanted.end()){
-    if (!wanted[root]) {
-      stream.clear();
-      return;
-    }
+     if (!wanted[root]) {
+        stream.clear();
+        return;
+     }
   }
         
   if (known_colors.find(display_function)==known_colors.end())
@@ -149,4 +149,5 @@ stk::~stk(){
   if (!org_mode) std::cout << "[m";
   std::cout << "\n";
   stream.clear();
+  assert(mm);
 }

@@ -34,6 +34,7 @@ public:
    int stk(const bool =false);
 public:
    bool rip = false;
+   bool mm();
    int depth();
    uintptr_t address();
    const char* function();

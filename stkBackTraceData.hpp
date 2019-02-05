@@ -27,9 +27,11 @@ public:
    ~stkBackTraceData();
 public:
    void flush();
+   void isItMM(const char*, const char*, const int);
    void update(const char*, uintptr_t, const char* =NULL, const int=0);
    int continue_tracing(){ return m_hit?1:0; }
 public:
+   bool mm(){ return m_mm; }
    void rip(const bool rip){ m_rip = rip; }
    bool rip()const{ return m_rip; }
    int depth(){ return m_depth; }
@@ -46,6 +48,7 @@ private:
    uintptr_t m_address;
    bool m_rip;
    bool m_hit;
+   bool m_mm;
    int m_depth;
 };
 
