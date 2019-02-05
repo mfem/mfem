@@ -4185,8 +4185,8 @@ static PetscErrorCode Convert_Array_IS(MPI_Comm comm, bool islist,
                                        const mfem::Array<int> *list,
                                        PetscInt st, IS* is)
 {
-   PetscInt       n = list->Size(),*idxs;
-   const int      *data = list->GetData();
+   PetscInt       n = list ? list->Size() : 0,*idxs;
+   const int      *data = list ? list->GetData() : NULL;
    PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
