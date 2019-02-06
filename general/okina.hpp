@@ -110,10 +110,10 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 
 // *****************************************************************************
 #ifndef MFEM_DEBUG
-   #define dbg(...)
+#define dbg(...)
 #else
-   #define stack(...) dbg_F_L_F_N_A(_F_L_F_,0)
-   #define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
+#define stack(...) dbg_F_L_F_N_A(_F_L_F_,0)
+#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
 #endif
 
 #endif // MFEM_OKINA_HPP
