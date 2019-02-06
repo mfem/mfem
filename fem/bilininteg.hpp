@@ -29,7 +29,7 @@ protected:
 
 public:
    /// Method defining partial assembly.
-   virtual void Assemble(const FiniteElementSpace*);
+   virtual void Assemble(const FiniteElementSpace&);
 
    /// Method for partially assembled action.
    virtual void MultAssembled(Vector&, Vector&);
@@ -1685,7 +1685,7 @@ public:
                                     Vector &flux, Vector *d_energy = NULL);
 
    /// PA extension
-   virtual void Assemble(const FiniteElementSpace*);
+   virtual void Assemble(const FiniteElementSpace&);
    virtual void MultAssembled(Vector&, Vector&);
 
    virtual ~DiffusionIntegrator() { delete maps; }
@@ -1720,7 +1720,7 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
    /// PA extension
-   virtual void Assemble(const FiniteElementSpace*);
+   virtual void Assemble(const FiniteElementSpace&);
    virtual void MultAssembled(Vector&, Vector&);
 
    virtual ~MassIntegrator() { delete maps; }

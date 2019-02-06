@@ -58,7 +58,7 @@ void PABilinearFormExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->Assemble(a->fes);
+      integrators[i]->Assemble(*a->fes);
    }
 }
 
