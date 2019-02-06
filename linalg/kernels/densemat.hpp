@@ -39,7 +39,7 @@ void Transpose(const size_t height, const size_t width,
                double *data, const double *mdata);
 
 void MultAAt(const size_t height, const size_t width,
-              const double *a, double *aat);
+             const double *a, double *aat);
 
 void GradToDiv(const size_t n, const double *data, double *ddata);
 

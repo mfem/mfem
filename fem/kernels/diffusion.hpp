@@ -20,26 +20,26 @@ namespace fem
 {
 
 // *****************************************************************************
-void biPADiffusionAssemble(const int dim,
-                           const int NUM_QUAD_1D,
-                           const int numElements,
-                           const double* __restrict quadWeights,
-                           const double* __restrict J,
-                           const double COEFF,
-                           double* __restrict oper);
+void DiffusionAssemble(const int dim,
+                       const int NUM_QUAD_1D,
+                       const int numElements,
+                       const double* __restrict quadWeights,
+                       const double* __restrict J,
+                       const double COEFF,
+                       double* __restrict oper);
 
 // *****************************************************************************
-void biPADiffusionMultAdd(const int dim,
-                          const int NUM_DOFS_1D,
-                          const int NUM_QUAD_1D,
-                          const int numElements,
-                          const double* __restrict dofToQuad,
-                          const double* __restrict dofToQuadD,
-                          const double* __restrict quadToDof,
-                          const double* __restrict quadToDofD,
-                          const double* __restrict op,
-                          const double* __restrict x,
-                          double* __restrict y);
+void DiffusionMultAssembled(const int dim,
+                            const int NUM_DOFS_1D,
+                            const int NUM_QUAD_1D,
+                            const int numElements,
+                            const double* __restrict dofToQuad,
+                            const double* __restrict dofToQuadD,
+                            const double* __restrict quadToDof,
+                            const double* __restrict quadToDofD,
+                            const double* __restrict op,
+                            const double* __restrict x,
+                            double* __restrict y);
 
 } // namespace fem
 } // namespace kernels

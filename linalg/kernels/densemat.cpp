@@ -29,13 +29,15 @@ inline void Swap(T &a, T &b)
 
 // *****************************************************************************
 void GetInverseMatrix(const int m, const int *ipiv,
-                      const double *data, double *x){
+                      const double *data, double *x)
+{
    GET_CONST_PTR(data);
    GET_CONST_PTR_T(ipiv,int);
    GET_PTR(x);
 
    MFEM_GPU_CANNOT_PASS;
    MFEM_FORALL(_k_, 1,
+   {
       for (int k = 0; k < m; k++)
       {
          double *d_mx = &d_x[k*m];
@@ -82,15 +84,18 @@ void GetInverseMatrix(const int m, const int *ipiv,
          }
       }
       // X <- X P
-      for (int k = m-1; k >= 0; k--) {
+      for (int k = m-1; k >= 0; k--)
+      {
          const int piv_k = d_ipiv[k];
-         if (k != piv_k) {
-            for (int i = 0; i < m; i++) {
+         if (k != piv_k)
+         {
+            for (int i = 0; i < m; i++)
+            {
                Swap<double>(d_x[i+k*m], d_x[i+piv_k*m]);
             }
          }
       }
-   );
+   });
 }
 
 // *****************************************************************************
