@@ -347,14 +347,9 @@ void OpEQ(const size_t hw, const double *m, double *data)
 // *****************************************************************************
 double Det2(const double *data)
 {
-   static double *result = mm::malloc<double>(1);
+   MFEM_GPU_CANNOT_PASS;
    GET_CONST_PTR(data);
-   GET_PTR(result);
-   MFEM_FORALL(k, 1,
-               d_result[0] = d_data[0] * d_data[3] - d_data[1] * d_data[2];
-              );
-   return result[0];
-
+   return d_data[0] * d_data[3] - d_data[1] * d_data[2];
 }
 
 // *****************************************************************************
