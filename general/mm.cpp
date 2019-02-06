@@ -142,8 +142,7 @@ void* mm::Insert(void *ptr, const size_t bytes)
 {
    if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
-   if (known) { 
-      BUILTIN_TRAP;
+   if (known) {
       mfem_error("Trying to insert a non-MM pointer!");
    }
    MFEM_ASSERT(!known, "Trying to add an already present address!");
@@ -161,7 +160,6 @@ void *mm::Erase(void *ptr)
    if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
    if (!known) {
-      BUILTIN_TRAP;
       // Even if don't know it, it's OK on CPU-only
       if (config::usingGpu()){
          mfem_error("Trying to erase a non-MM pointer!");
@@ -262,7 +260,6 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
       return o_ptr;
    }
    const bool known = Known(maps, ptr);
-   // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("occaMemory"); }
    MFEM_ASSERT(known, "Unknown address!");
    mm::memory &base = maps.memories.at(ptr);
