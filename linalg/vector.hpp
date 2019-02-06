@@ -70,7 +70,7 @@ public:
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a _data can be NULL. The data array can be replaced later
        with SetData(). */
-   MFEM_HOST_DEVICE Vector (double *_data, int _size);
+   Vector (double *_data, int _size);
 
    /// Copies data from host to device
    void Push() const;
@@ -124,7 +124,7 @@ public:
    void Destroy();
 
    /// Returns the size of the vector.
-   MFEM_HOST_DEVICE inline int Size() const { return size; }
+   inline int Size() const { return size; }
 
    /// Return the size of the currently allocated data array.
    /** It is always true that Capacity() >= Size(). */
@@ -165,11 +165,11 @@ public:
 
    /// Access Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   MFEM_HOST_DEVICE inline double & operator() (int i);
+   inline double & operator() (int i);
 
    /// Read only access to Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   MFEM_HOST_DEVICE inline const double & operator() (int i) const;
+   inline const double & operator() (int i) const;
 
    /// Dot product with a `double *` array.
    double operator*(const double *) const;
@@ -368,18 +368,17 @@ inline void Vector::Destroy()
 
 inline double & Vector::operator() (int i)
 {
-/*   MFEM_ASSERT(data && i >= 0 && i < size,
+   MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
-*/
+
    return data[i];
 }
 
 inline const double & Vector::operator() (int i) const
 {
-   /*
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
-   */
+
    return data[i];
 }
 
