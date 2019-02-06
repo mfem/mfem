@@ -62,17 +62,17 @@ void PABilinearFormExtension::Assemble()
    }
 }
 
-void PABilinearFormExtension::Update(FiniteElementSpace *fes)
+void PABilinearFormExtension::Update(FiniteElementSpace &fes)
 {
-   height = width = fes->GetVSize();
-   trialFes = fes;
-   testFes = fes;
+   height = width = fes.GetVSize();
+   trialFes = &fes;
+   testFes = &fes;
    localX.SetSize(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() *
                   trialFes->GetVDim());
    localY.SetSize(a->fes->GetNE() * testFes->GetFE(0)->GetDof() *
                   testFes->GetVDim());
-   delete kfes;
-   kfes = new kFiniteElementSpace(fes);
+   delete fes_ext;
+   fes_ext = new FiniteElementSpaceExtension(fes);
 }
 
 void PABilinearFormExtension::FormSystemOperator(const Array<int>

@@ -98,7 +98,7 @@ public:
 
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   void Update(FiniteElementSpace *fes);
+   void Update(FiniteElementSpace &);
 
    ~PABilinearFormExtension();
 };

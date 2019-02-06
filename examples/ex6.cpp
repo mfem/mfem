@@ -98,7 +98,6 @@ int main(int argc, char *argv[])
    if (cuda) { config::useCuda(); }
    config::enableGpu(0);
 
-
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
@@ -108,10 +107,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
 
-   PADiffusionIntegrator *pa_integ = new PADiffusionIntegrator(one);
    DiffusionIntegrator *integ = new DiffusionIntegrator(one);
-   if (pa) { a.AddDomainIntegrator(pa_integ); }
-   else    { a.AddDomainIntegrator(integ); }
+   a.AddDomainIntegrator(integ);
 
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
 
