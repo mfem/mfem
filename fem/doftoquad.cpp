@@ -122,13 +122,13 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
    DofToQuad *maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   maps->B.allocate(numQuad1D, numDofs, 1, 1, transpose);
-   maps->G.allocate(numQuad1D, numDofs, 1, 1, transpose);
-   const int dim0 = maps->B.dim()[0];
-   const int dim1 = maps->B.dim()[1];
+   maps->B.SetSize(numQuad1D*numDofs);   
+   maps->G.SetSize(numQuad1D*numDofs);
+   const int dim0 = (!transpose)?1:numDofs;
+   const int dim1 = (!transpose)?numQuad1D:1;
    if (transpose) // Initialize quad weights only for transpose
    {
-      maps->W.allocate(numQuad);
+      maps->W.SetSize(numQuad);
    }
    mfem::Vector d2q(numDofs);
    mfem::Vector d2qD(numDofs);
@@ -167,7 +167,7 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
          if (dims > 2) { w *= W1d[qz]; }
          W[q] = w;
       }
-      kernels::vector::Assign(numQuad, W, maps->W);
+      maps->W = W;
    }
    kernels::vector::Assign(numQuad1D*numDofs, B1d, maps->B);
    kernels::vector::Assign(numQuad1D*numDofs, G1d, maps->G);
@@ -236,24 +236,22 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    DofToQuad* maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   maps->B.allocate(numQuad, numDofs,       1, 1, transpose);
-   maps->G.allocate(   dims, numQuad, numDofs, 1, transpose);
-   const int dim0 = maps->B.dim()[0];
-   const int dim1 = maps->B.dim()[1];
-   const int dim0D = maps->G.dim()[0];
-   const int dim1D = maps->G.dim()[1];
-   const int dim2D = maps->G.dim()[2];
-
+   maps->B.SetSize(numQuad*numDofs);
+   maps->G.SetSize(dims*numQuad*numDofs);
+   const int dim0 = (!transpose)?1:numDofs;
+   const int dim1 = (!transpose)?numQuad:1;
+   const int dim0D = (!transpose)?1:numQuad;
+   const int dim1D = (!transpose)?dims:1;
+   const int dim2D = dims*numQuad;
    if (transpose) // Initialize quad weights only for transpose
    {
-      maps->W.allocate(numQuad);
+      maps->W.SetSize(numQuad);
    }
    mfem::Vector d2q(numDofs);
    mfem::DenseMatrix d2qD(numDofs, dims);
    mfem::Array<double> W(numQuad);
    mfem::Array<double> B(numQuad*numDofs);
    mfem::Array<double> G(dims*numQuad*numDofs);
-
    for (int q = 0; q < numQuad; ++q)
    {
       const IntegrationPoint& ip = ir.IntPoint(q);

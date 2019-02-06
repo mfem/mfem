@@ -117,6 +117,10 @@ public:
    /// Returns the data
    inline const T *GetData() const { return (T *)data; }
 
+   /// Returns the data through the memory manager.
+   inline T *GetMmData() { return (T *) mm::ptr(data); }
+   inline const T *GetMmData() const { return (T *) mm::ptr(data); }
+
    /// Return true if the data will be deleted by the array
    inline bool OwnsData() const { return (allocsize > 0); }
 
@@ -932,142 +936,6 @@ BlockArray<T>::~BlockArray()
       bsize = mask+1;
    }
 }
-
-// *****************************************************************************
-namespace kernels
-{
-
-template <class T, bool vdim = true> class Array;
-
-// Partial Specializations for vdim==TRUE **************************************
-template <class T> class Array<T,true>
-{
-private:
-   T* data = NULL;
-   size_t sz=0;
-   size_t d[4]= {0};
-public:
-   Array():data(NULL),sz(0),d{0,0,0,0} {}
-   Array(const size_t x) {allocate(x);}
-   Array(const size_t x,const size_t y) {allocate(x,y);}
-   Array(const Array<T,true> &r)
-   {
-      allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::memcpy(data,r,r.bytes());
-   }
-   Array& operator=(const Array<T,true> &r)
-   {
-      allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::memcpy(data,r,r.bytes());
-      return *this;
-   }
-   ~Array() {mm::free<T>(data);}
-   inline size_t* dim() { return &d[0]; }
-   inline operator T* () { return data; }
-   inline operator const T* () const { return data; }
-   double operator* (const Array& a) const { return vector_dot(sz, data, a.data); }
-   inline size_t size() const { return sz; }
-   inline size_t Size() const { return sz; }
-   inline size_t bytes() const { return size()*sizeof(T); }
-   void allocate(const size_t X, const size_t Y =1,
-                 const size_t Z =1, const size_t D =1,
-                 const bool transposed = false)
-   {
-      d[0]=X; d[1]=Y; d[2]=Z; d[3]=D;
-      sz=d[0]*d[1]*d[2]*d[3];
-      data=(T*) mm::malloc<T>(sz);
-   }
-   inline bool isInitialized(void)const {return true;}
-   inline T& operator[](const size_t x) { return data[x]; }
-   inline T& operator()(const size_t x, const size_t y)
-   {
-      return data[x + d[0]*y];
-   }
-   inline T& operator()(const size_t x, const size_t y, const size_t z)
-   {
-      return data[x + d[0]*(y + d[1]*z)];
-   }
-   void Print(std::ostream& out= std::cout, int width = sizeof(T)) const
-   {
-      mm::pull(data,bytes());
-      for (size_t i=0; i<sz; i+=1)
-      {
-         assert(width==4 or width==8);
-         if (width==4) { printf("\n\t[%ld] %d",i,data[i]); }
-         if (width==8) { printf("\n\t[%ld] %.15e",i,data[i]); }
-      }
-   }
-};
-
-// Partial Specializations for vdim==FALSE *************************************
-template <class T> class Array<T,false>
-{
-private:
-   static const int DIM = 4;
-   T* data = NULL;
-   size_t sz=0;
-   size_t d[DIM]= {0};
-public:
-   Array():data(NULL),sz(0),d{0,0,0,0} {}
-   Array(const size_t d0) {allocate(d0);}
-   Array(const Array<T,false> &r)
-   {
-      allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::memcpy(data,r.GetData(),r.bytes());
-   }
-   Array& operator=(const Array<T,false> &r)
-   {
-      allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::memcpy(data,r,r.bytes());
-      return *this;
-   }
-   ~Array() {mm::free<T> (data);}
-   inline size_t* dim() { return &d[0]; }
-   inline operator T* () { return data; }
-   inline operator const T* () const { return data; }
-   double operator* (const Array& a) const { return vector_dot(sz, data, a.data); }
-   inline size_t size() const { return sz; }
-   inline size_t Size() const { return sz; }
-   inline size_t bytes() const { return size()*sizeof(T); }
-   void allocate(const size_t X, const size_t Y =1,
-                 const size_t Z =1, const size_t D =1,
-                 const bool transposed = false)
-   {
-      d[0]=X; d[1]=Y; d[2]=Z; d[3]=D;
-      sz=d[0]*d[1]*d[2]*d[3];
-      assert(sz>0);
-      data=(T*) mm::malloc<T>(sz);
-      if (transposed) { std::swap(d[0],d[1]); }
-      for (size_t i=1,b=d[0]; i<DIM; std::swap(d[i],b),++i)
-      {
-         d[i]*=d[i-1];
-      }
-      d[0]=1;
-      if (transposed) { std::swap(d[0],d[1]); }
-   }
-   inline bool isInitialized(void)const {return true;}
-   inline T& operator[](const size_t x) { return data[x]; }
-   inline T& operator()(const size_t x, const size_t y)
-   {
-      return data[d[0]*x + d[1]*y];
-   }
-   inline T& operator()(const size_t x, const size_t y, const size_t z)
-   {
-      return data[d[0]*x + d[1]*y + d[2]*z];
-   }
-   void Print(std::ostream& out= std::cout, int width = sizeof(T)) const
-   {
-      mm::pull(data,bytes());
-      for (size_t i=0; i<sz; i+=1)
-      {
-         assert(width==4 or width==8);
-         if (width==4) { printf("\n\t[%ld] %d",i,data[i]); }
-         if (width==8) { printf("\n\t[%ld] %.15e",i,data[i]); }
-      }
-   }
-};
-
-} // namespace kernels
 
 } // namespace mfem
 

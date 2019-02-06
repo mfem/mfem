@@ -96,7 +96,7 @@ void* mm::Insert(void *ptr, const size_t bytes)
    if (config::gpuDisabled()) { return ptr; }
    const bool known = Known(maps, ptr);
    MFEM_ASSERT(!known, "Trying to add already present address!");
-   dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
+   //dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
    //if (ptr > (void*)0xffffffff){ BUILTIN_TRAP; }
    maps.memories.emplace(ptr, memory(ptr, bytes));
    return ptr;
@@ -114,7 +114,7 @@ void *mm::Erase(void *ptr)
    if (!known) { mfem_error("mm::Erase"); }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
    const memory &mem = maps.memories.at(ptr);
-   dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
+   //dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
    for (const alias* const alias : mem.aliases)
    {
       maps.aliases.erase(alias);
@@ -308,7 +308,7 @@ void mm::Pull(const void *ptr, const size_t bytes)
 
 // *****************************************************************************
 // __attribute__((unused)) // VS doesn't like this in Appveyor
-static void Dump(const mm::ledger &maps)
+/*static void Dump(const mm::ledger &maps)
 {
    if (!getenv("DBG")) { return; }
    const mm::memory_map &mem = maps.memories;
@@ -343,7 +343,7 @@ static void Dump(const mm::ledger &maps)
       fflush(0);
       k++;
    }
-}
+}*/
 
 // *****************************************************************************
 // * Data will be pushed/pulled before the copy happens on the H or the D

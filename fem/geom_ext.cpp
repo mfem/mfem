@@ -16,7 +16,6 @@
 #include "geom_ext.hpp"
 #include "kernels/geom.hpp"
 #include "../linalg/kernels/vector.hpp"
-#include "../general/kernels/array.hpp"
 
 namespace mfem
 {
@@ -94,7 +93,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->nodes);
    kernels::fem::Geom(dims, numDofs, numQuad, elements,
                       maps->B, maps->G,
-                      geom->nodes, geom->x, geom->J, geom->invJ, geom->detJ);
+                      geom->nodes, geom->X, geom->J, geom->invJ, geom->detJ);
    return geom;
 }
 
@@ -129,27 +128,26 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
             meshNodes);
    if (geom_to_allocate)
    {
-      geom->nodes.allocate(dims, numDofs, elements);
-      geom->eMap.allocate(numDofs, elements);
+      geom->nodes.SetSize(dims*numDofs*elements);
+      geom->eMap.SetSize(numDofs*elements);
    }
-   kernels::vector::Assign(asize, meshNodes, geom->nodes);
-   kernels::array::Assign(numDofs*elements, eMap, geom->eMap);
+   geom->nodes = meshNodes;
+   geom->eMap = eMap;
    // Reorder the original gf back
    if (orderedByNODES) { ReorderByNodes(nodes); }
    if (geom_to_allocate)
    {
-      geom->J.allocate(dims, dims, numQuad, elements);
-      geom->invJ.allocate(dims, dims, numQuad, elements);
-      geom->detJ.allocate(numQuad, elements);
-      geom->x.allocate(dims, numQuad, elements);
+      geom->X.SetSize(dims*numQuad*elements);
+      geom->J.SetSize(dims*dims*numQuad*elements);
+      geom->invJ.SetSize(dims*dims*numQuad*elements);
+      geom->detJ.SetSize(numQuad*elements);
    }
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    kernels::fem::Geom(dims, numDofs, numQuad, elements,
                       maps->B,
                       maps->G,
                       geom->nodes,
-                      geom->x,
-                      geom->J, geom->invJ, geom->detJ);
+                      geom->X, geom->J, geom->invJ, geom->detJ);
    return geom;
 }
 

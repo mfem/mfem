@@ -26,9 +26,7 @@ class DofToQuad
 private:
    std::string hash;
 public:
-   kernels::Array<double> W;
-   kernels::Array<double,false> B, G;
-   kernels::Array<double,false> Bt, Gt;
+   Array<double> W, B, G, Bt, Gt;
 public:
    static void delDofToQuad();
    static DofToQuad* Get(const mfem::FiniteElementSpace&,
