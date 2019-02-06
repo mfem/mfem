@@ -89,9 +89,9 @@ uint32_t LOG2(uint32_t);
 #define ijN(i,j,N) (i)+N*(j)
 #define ijkN(i,j,k,N) (i)+N*((j)+N*(k))
 #define ijklN(i,j,k,l,N) (i)+N*((j)+N*((k)+N*(l)))
-#define ijNMt(i,j,N,M,t) (t)?((i)+N*(j)):((j)+M*(i))
+#define ijNMt(i,j,N,M,t) (t)?((i)+(N)*(j)):((j)+(M)*(i))
 #define ijkNM(i,j,k,N,M) (i)+N*((j)+M*(k))
-#define ijklNM(i,j,k,l,N,M) (i)+N*((j)+N*((k)+M*(l)))
+#define ijklNM(i,j,k,l,N,M) (i)+N*((j)+N*((k)+(M)*(l)))
 // External offsets
 #define jkliNM(i,j,k,l,N,M) (j)+N*((k)+N*((l)+M*(i)))
 #define jklmiNM(i,j,k,l,m,N,M) (j)+N*((k)+N*((l)+N*((m)+M*(i))))
