@@ -117,6 +117,10 @@ public:
    /// Returns the data
    inline const T *GetData() const { return (T *)data; }
 
+   /// Returns the data through the memory manager.
+   inline T *GetMmData() { return (T *) mm::ptr(data); }
+   inline const T *GetMmData() const { return (T *) mm::ptr(data); }
+
    /// Return true if the data will be deleted by the array
    inline bool OwnsData() const { return (allocsize > 0); }
 

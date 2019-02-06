@@ -303,6 +303,14 @@ void Assign(const size_t N, const double *x, double *y)
 }
 
 // *****************************************************************************
+void Assign(const size_t N, const int *x, int *y)
+{
+   GET_PTR_T(y,int);
+   GET_CONST_PTR_T(x,int);
+   MFEM_FORALL(i, N, d_y[i] = d_x[i];);
+}
+
+// *****************************************************************************
 void OpMultEQ(const size_t N, const double d, double *y)
 {
    GET_PTR(y);

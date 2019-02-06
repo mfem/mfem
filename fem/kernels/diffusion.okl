@@ -9,7 +9,48 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "occa://fem/defines.okl"
+// *****************************************************************************
+typedef double* DofToQuad_t @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+typedef double* QuadToDof_t @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
+typedef double* DLocal2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
+
+#if NUM_QUAD_1D < NUM_DOFS_1D
+#  define NUM_MAX_1D NUM_DOFS_1D
+#else
+#  define NUM_MAX_1D NUM_QUAD_1D
+#endif
+
+#define NUM_MAX_2D (NUM_MAX_1D * NUM_MAX_1D)
+
+#define NUM_QUAD_DOFS_1D (NUM_QUAD_1D * NUM_DOFS_1D)
+
+#define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
+#define DOFS_2D_ID(X, Y) (X + ((Y) * NUM_DOFS_1D))
+
+#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * NUM_QUAD_1D) + ((Z) * NUM_QUAD_2D))
+#define DOFS_3D_ID(X, Y, Z) (X + ((Y) * NUM_DOFS_1D) + ((Z) * NUM_DOFS_2D))
+
+#define M2_ELEMENT_BATCH 32
+
+// *****************************************************************************
+@kernel void Assemble2D(const int numElements,
+                        @restrict const double * quadWeights,
+                        @restrict const Jacobian2D_t J,
+                        const double COEFF,
+                        @restrict SymmOperator2D_t oper) {
+  for (int e = 0; e < numElements; ++e; @outer) {
+    for (int q = 0; q < NUM_QUAD_2D; ++q; @inner) {
+      const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
+      const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
+      const double c_detJ = quadWeights[q] * COEFF / ((J11 * J22) - (J21 * J12));
+      oper(0, q, e) =  c_detJ * (J21*J21 + J22*J22); // (1,1)
+      oper(1, q, e) = -c_detJ * (J21*J11 + J22*J12); // (1,2), (2,1)
+      oper(2, q, e) =  c_detJ * (J11*J11 + J12*J12); // (2,2)
+    }
+  }
+}
 
 // *****************************************************************************
 @kernel void MultAdd2D_CPU(const int numElements,

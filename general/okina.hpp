@@ -55,7 +55,7 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
    wrap<BLOCKS>(N,                                                      \
                 [=] __device__ (size_t i){__VA_ARGS__},                 \
-                [=]            (size_t i){__VA_ARGS__})
+                [&]            (size_t i){__VA_ARGS__})
 #define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(i,1,1,__VA_ARGS__)
 
 // *****************************************************************************
@@ -72,6 +72,15 @@ uint32_t LOG2(uint32_t);
 #define GET_CONST_PTR_T(v,T) const T *d_##v = (const T*) mfem::mm::ptr(v)
 
 // *****************************************************************************
+#ifndef __NVCC__
+#define MFEM_DEVICE
+#define MFEM_HOST_DEVICE
+#else
+#define MFEM_DEVICE __device__
+#define MFEM_HOST_DEVICE __host__ __device__
+#endif
+
+// *****************************************************************************
 #define BUILTIN_TRAP __builtin_trap()
 #define FILE_LINE __FILE__ && __LINE__
 #define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE && false);}
@@ -81,9 +90,9 @@ uint32_t LOG2(uint32_t);
 #define ijN(i,j,N) (i)+N*(j)
 #define ijkN(i,j,k,N) (i)+N*((j)+N*(k))
 #define ijklN(i,j,k,l,N) (i)+N*((j)+N*((k)+N*(l)))
-#define ijNMt(i,j,N,M,t) (t)?((i)+N*(j)):((j)+M*(i))
+#define ijNMt(i,j,N,M,t) (t)?((i)+(N)*(j)):((j)+(M)*(i))
 #define ijkNM(i,j,k,N,M) (i)+N*((j)+M*(k))
-#define ijklNM(i,j,k,l,N,M) (i)+N*((j)+N*((k)+M*(l)))
+#define ijklNM(i,j,k,l,N,M) (i)+N*((j)+N*((k)+(M)*(l)))
 // External offsets
 #define jkliNM(i,j,k,l,N,M) (j)+N*((k)+N*((l)+M*(i)))
 #define jklmiNM(i,j,k,l,m,N,M) (j)+N*((k)+N*((l)+N*((m)+M*(i))))
@@ -101,8 +110,11 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 #define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
 
 // *****************************************************************************
-#define dbg(...)
-//#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
-//#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
+#ifndef MFEM_DEBUG
+   #define dbg(...)
+#else
+   #define stack(...) dbg_F_L_F_N_A(_F_L_F_,0)
+   #define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
+#endif
 
 #endif // MFEM_OKINA_HPP
