@@ -24,14 +24,18 @@ namespace mfem
 // ***************************************************************************
 class FiniteElementSpaceExtension
 {
-private:
-   FiniteElementSpace *fes;
-   int globalDofs, localDofs;
+public:
+   const FiniteElementSpace &fes;
+   const int ne;
+   const int vdim;
+   const bool byvdim;
+   const int NDofs;
+   const int Dof;
+   const int neDofs;
    Array<int> offsets;
    Array<int> indices;
-   Array<int> map;
 public:
-   FiniteElementSpaceExtension(FiniteElementSpace*);
+   FiniteElementSpaceExtension(const FiniteElementSpace&);
    void L2E(const Vector&, Vector&) const;
    void E2L(const Vector&, Vector&) const;
 };

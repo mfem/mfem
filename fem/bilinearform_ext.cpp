@@ -35,7 +35,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
    trialFes(a->fes), testFes(a->fes),
    localX(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
    localY(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   fes_ext(new FiniteElementSpaceExtension(a->fes)) { }
+   fes_ext(new FiniteElementSpaceExtension(*(a->fes))) { }
 
 PABilinearFormExtension::~PABilinearFormExtension()
 {
