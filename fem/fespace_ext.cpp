@@ -21,7 +21,8 @@ namespace mfem
 // *****************************************************************************
 // * FiniteElementSpaceExtension
 // *****************************************************************************
-FiniteElementSpaceExtension::FiniteElementSpaceExtension(const FiniteElementSpace &f)
+FiniteElementSpaceExtension::FiniteElementSpaceExtension(
+   const FiniteElementSpace &f)
    :fes(f),
     ne(fes.GetNE()),
     vdim(fes.GetVDim()),

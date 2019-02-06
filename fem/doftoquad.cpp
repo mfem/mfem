@@ -122,7 +122,7 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
    DofToQuad *maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   maps->B.SetSize(numQuad1D*numDofs);   
+   maps->B.SetSize(numQuad1D*numDofs);
    maps->G.SetSize(numQuad1D*numDofs);
    const int dim0 = (!transpose)?1:numDofs;
    const int dim1 = (!transpose)?numQuad1D:1;
