@@ -47,21 +47,21 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 // *****************************************************************************
 
 // *****************************************************************************
-void DiffusionIntegrator::Assemble(const FiniteElementSpace *fes)
+void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 {
-   const Mesh *mesh = fes->GetMesh();
+   const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
-   const FiniteElement &el = *(fes->GetFE(0));
+   const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
-   ne = fes->GetNE();
+   ne = fes.GetNE();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   const GeometryExtension *geo = GeometryExtension::Get(*fes,*ir);
-   maps = DofToQuad::Get(*fes, *fes, *ir);
+   const GeometryExtension *geo = GeometryExtension::Get(fes,*ir);
+   maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(symmDims * nq * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
    kernels::fem::DiffusionAssemble(dim, quad1D, ne,
@@ -86,19 +86,19 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 // *****************************************************************************
 // * PA Mass Integrator Extension
 // *****************************************************************************
-void MassIntegrator::Assemble(const FiniteElementSpace *fes)
+void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 {
-   const Mesh *mesh = fes->GetMesh();
+   const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
-   const FiniteElement &el = *(fes->GetFE(0));
+   const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
    dim = mesh->Dimension();
-   ne = fes->GetMesh()->GetNE();
+   ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   const GeometryExtension *geo = GeometryExtension::Get(*fes,*ir);
-   maps = DofToQuad::Get(*fes, *fes, *ir);
+   const GeometryExtension *geo = GeometryExtension::Get(fes,*ir);
+   maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(ne*nq);
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
    FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);

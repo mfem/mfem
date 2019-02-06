@@ -19,7 +19,7 @@ using namespace std;
 
 namespace mfem
 {
-void BilinearFormIntegrator::Assemble(const FiniteElementSpace*)
+void BilinearFormIntegrator::Assemble(const FiniteElementSpace&)
 {
    mfem_error ("BilinearFormIntegrator::Assemble (...)\n"
                "   is not implemented for this class.");
