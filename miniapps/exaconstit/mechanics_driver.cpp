@@ -8,53 +8,54 @@
 //   Date: Aug. 6, 2017
 //   Updated: Jan. 15, 2019
 //
-//   Description: The purpose of this code app is to determine bulk 
-//                constitutive properties for 3D printed metal alloys. 
-//                This is a nonlinear quasi-static, implicit solid 
-//                mechanics code built on the MFEM library.
-//                
-//                Currently, only Dirichlet boundary conditions 
-//                (homogeneous and inhomogeneous by dof component) have been 
-//                implemented. Neumann (traction) boundary conditions and a 
-//                body force are not implemented. A new ExaModel class allows 
-//                one to implement arbitrary constitutive models. Currently, 
-//                development efforts have focused on an Abaqus UMAT interface 
-//                class extension off ExaModel and porting over the native 
-//                MFEM NeoHookean hyperelastic model to the ExaModel form for 
-//                the purposes of testing and debugging. Right now, only the 
-//                NeoHookean model is functioning. Furthermore, the code uses 
-//                psuedo-time stepping and the simulation's "final time" and 
-//                "tim step" size are fixed (i.e. no adaptive time stepping).
+//   # Description:
+//         The purpose of this code app is to determine bulk constitutive
+//         properties for 3D printed metal alloys. This is a nonlinear
+//         quasi-static, implicit solid mechanics code built on the MFEM library
+//         based on an updated Lagrangian formulation (velocity based).
 //
-//                To run this code, run the bash script mechanics.bash, found 
-//                in the ExaConstit directory. This script contains notes regarding 
-//                application of Dirichlet boundary conditions and has the command 
-//                line input for an isochoric compression problem on a 1x1x1
-//                3D brick.
+//         Currently, only Dirichlet boundary conditions (homogeneous and
+//         inhomogeneous by dof component) have been implemented. Neumann
+//         (traction) boundary conditions and a body force are not implemented.
+//         A new ExaModel class allows one to implement arbitrary constitutive
+//         models. The code currently successfully allows for various UMATs to
+//         be interfaced within the code framework. Development work is currently
+//         focused on allowing for the mechanical models to run on GPGPUs.
 //
-//                where "np" is number of processors, the mesh is a 
-//                simple cube mesh containing 8 elements, "tf" is the 
-//                final simulation time, and dt is the timestep.
-//                This has to do with how the nonzero Dirichlet BCs are applied.
-//
-//                Remark:
-//                In principle, the mesh may be refined automatically, but 
-//                this has not been thoroughly tested.
-//
-//                The finite element order defaults to 1 (linear), but 
-//                may be increased by passing the argument at the 
-//                command line "-o #" where "#" is the interpolation 
-//                order (e.g. -o 2 for quadratic elements).
+//         The code supports either constant time steps or user supplied delta
+//         time steps. Boundary conditions are supplied for the velocity field
+//         applied on a surface. It supports a number of different preconditioned
+//         Krylov iterative solvers (PCG, GMRES, MINRES) for either symmetric or
+//         nonsymmetric positive-definite systems.
 //
 //
-//                Note: the grain.txt, props.txt and state.txt files are 
-//                expected inputs for CP problems, specifically ones that 
-//                use the Abaqus UMAT interface class under the ExaModel.
+//         ## Remark:
+//            See the included options.toml to see all of the various different
+//            options that are allowable in this code and their default values.
 //
-//   Future Implemenations Notes:
-//                
-//                -Visco-plasticity constitutive model
-//                -debug ability to read different mesh formats
+//            A TOML parser has been included within this directory, since it
+//            has an MIT license. The repository for it can be found at:
+//            https://github.com/skystrife/cpptoml .
+//
+//            Example UMATs maybe obtained from:
+//            https://web.njit.edu/~sac3/Software.html . We have not included
+//            them due to a question of licensing. The ones that have been run
+//            and are known to work are the linear elasticity model and the
+//            neo-Hookean material. Although, we might be able to provide an
+//            example interface so users can base their interface/build scripts
+//            off of what's known to work.
+//
+//            Note: the grain.txt, props.txt and state.txt files are expected
+//            inputs for CP problems, specifically ones that use the Abaqus UMAT
+//            interface class under the ExaModel.
+//
+//   #  Future Implemenations Notes:
+//
+//      * Visco-plasticity constitutive model
+//      * GPGPU material models
+//      * A more in-depth README that better covers the different options available.
+//      * debug ability to read different mesh formats
+//
 //
 //***********************************************************************
 #include "mfem.hpp"
@@ -191,7 +192,7 @@ void DirBdrFunc(const Vector &x, double t, int attr_id, Vector &y);
 void InitGridFunction(const Vector &x, Vector &y);
 
 // material input check routine
-bool checkMaterialArgs(bool hyperelastic, bool umat, bool cp, int ngrains, int numProps,
+bool checkMaterialArgs(bool umat, bool cp, int ngrains, int numProps,
                        int numStateVars);
 
 // material state variable and grain data setter routine
@@ -280,19 +281,12 @@ int main(int argc, char *argv[])
    
    // Check material model argument input parameters for valid combinations
    if(myid == 0) printf("after input before checkMaterialArgs. \n");
-   bool err = checkMaterialArgs(toml_opt.hyperelastic, toml_opt.umat, toml_opt.cp, 
+   bool err = checkMaterialArgs(toml_opt.umat, toml_opt.cp,
               toml_opt.ngrains, toml_opt.nProps, toml_opt.numStateVars);
    if (!err && myid == 0) 
    {
       cerr << "\nInconsistent material input; check args" << '\n';
    }
-
-   // check mesh input arguments
-   // the new option parser makes sure there is only 1 mesh type
-   // if (cubit && hex_mesh_gen)
-   // {
-   //    cerr << "\nCannot specify a cubit mesh and MFEM auto-gen mesh" << '\n';
-   // }
 
    // Open the mesh
    if(myid == 0) printf("before reading the mesh. \n");
@@ -526,9 +520,6 @@ int main(int argc, char *argv[])
    // Declare quadrature functions to store a vector representation of the 
    // Cauchy stress, in Voigt notation (s_11, s_22, s_33, s_23, s_13, s_12), for 
    // the beginning of the step and the end of the step.
-   // For hyperelastic formulations that update the PK1 stress directly we 
-   // compute the Cauchy stress from the PK1 stress and deformation gradient 
-   // and store the 6 symmetric components of Cauchy stress
    int stressOffset = 6;
    QuadratureFunction sigma0(&qspace, stressOffset);
    QuadratureFunction sigma1(&qspace, stressOffset);
@@ -537,15 +528,10 @@ int main(int argc, char *argv[])
    initQuadFunc(&sigma1, 0.0, &fe_space);
    initQuadFunc(&q_vonMises, 0.0, &fe_space);
 
-   // declare a quadrature function to store the material tangent stiffness.
-   // This assumes that a hyperelastic material model will solve directly for the 
-   // PK1 stress and that any other model will more traditionally deal with Cauchy 
-   // stress. The material tangent stiffness of the PK1 stress is actually the full 
-   // element stiffness (24 x 24 for linear hex elements) based on the native MFEM 
-   // hyperelastic calculations. The tangent stiffness of the Cauchy stress will 
+   // The tangent stiffness of the Cauchy stress will
    // actually be the real material tangent stiffness (4th order tensor) and have 
    // 36 components due to symmetry.
-   int matGradOffset = (toml_opt.hyperelastic) ? 12 : 36;
+   int matGradOffset = 36;
    QuadratureFunction matGrd(&qspace, matGradOffset);
    initQuadFunc(&matGrd, 0.0, &fe_space);
 
@@ -848,15 +834,6 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
 
       // Add the user defined integrator
       Hform->AddDomainIntegrator(new ExaNLFIntegrator(dynamic_cast<AbaqusUmatModel*>(model)));
-   }else if (options.hyperelastic) {
-      model = new NeoHookean(&q_sigma0, &q_sigma1, &q_matGrad, &q_matVars0, 
-                             &q_matVars1, &q_kinVars0, &beg_crds, &end_crds, pmesh,
-                             &matProps, options.nProps, nStateVars,
-                             80.E3, 140.E3, 1.0);
-
-      // Add the hyperelastic integrator
-      Hform->AddDomainIntegrator(new ExaNLFIntegrator(dynamic_cast<NeoHookean*>(model)));
-
    }
 
    model->setVonMisesPtr(&q_vonMises);
@@ -868,7 +845,7 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       HYPRE_Real st_val = 0.90;
       HYPRE_Real rt_val = -10.0;
       HYPRE_Real om_val = 1.0;
-//      HypreBoomerAMG *prec_amg = new HypreBoomerAMG();
+
       //
       int ml = HYPRE_BoomerAMGSetMaxLevels(h_amg, 30);
       int ct = HYPRE_BoomerAMGSetCoarsenType(h_amg, 0);
@@ -890,7 +867,6 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       
       prec_amg->SetPrintLevel(0);
 
-//      prec_amg->SetElasticityOptions(&fe_space);
       J_prec = prec_amg;
 
       GMRESSolver *J_gmres = new GMRESSolver(fe_space.GetComm());
@@ -913,7 +889,6 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       HYPRE_Real st_val = 0.90;
       HYPRE_Real rt_val = -10.0;
       HYPRE_Real om_val = 1.0;
-//      HypreBoomerAMG *prec_amg = new HypreBoomerAMG();
       //
       int ml = HYPRE_BoomerAMGSetMaxLevels(h_amg, 30);
       int ct = HYPRE_BoomerAMGSetCoarsenType(h_amg, 0);
@@ -1564,44 +1539,12 @@ void InitGridFunction(const Vector &x, Vector &y)
    y = 0.;
 }
 
-bool checkMaterialArgs(bool hyperelastic, bool umat, bool cp, int ngrains, int numProps,
+bool checkMaterialArgs(bool umat, bool cp, int ngrains, int numProps,
                        int numStateVars)
 {
    bool err = true;
 
-   if (hyperelastic && cp)
-   {
-
-      cerr << "Hyperelastic and cp can't both be true. Choose material model." << '\n';
-   }
-
-   //The new option type makes sure that the OriType is only set as one type
-   // // only perform checks, don't set anything here
-   // if (cp && !g_euler && !g_q && !g_custom)
-   // {
-   //    cerr << "\nMust specify grain data type for use with cp input arg." << '\n';
-   //    err = false;
-   // }
-
-   // else if (cp && g_euler && g_q)
-   // {
-   //    cerr << "\nCannot specify euler and quaternion grain data input args." << '\n';
-   //    err = false;
-   // }
-
-   // else if (cp && g_euler && g_custom)
-   // {
-   //    cerr << "\nCannot specify euler and uniform grain data input args." << '\n';
-   //    err = false;
-   // }
-
-   // else if (cp && g_q && g_custom)
-   // {
-   //    cerr << "\nCannot specify quaternion and uniform grain data input args." << '\n';
-   //    err = false;
-   // }
-
-   else if (cp && (ngrains < 1))
+   if (cp && (ngrains < 1))
    {
       cerr << "\nSpecify number of grains for use with cp input arg." << '\n';
       err = false;

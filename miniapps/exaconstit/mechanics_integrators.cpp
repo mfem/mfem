@@ -811,32 +811,6 @@ void AbaqusUmatModel::UpdateModelVars( ParFiniteElementSpace *fes,
    }
    return;
 }
-   
-void NeoHookean::UpdateModelVars(ParFiniteElementSpace *fes,
-                                 const Vector &x)
-{
-   const FiniteElement *fe;
-   const IntegrationRule *ir;
-   QuadratureFunction* defGrad = defGrad0.GetQuadFunction();
-
-   // update the beginning step deformation gradient
-   if(EndCoordsMesh){
-     SwapMeshNodes();
-   }
-   
-   // update the beginning step deformation gradient
-   computeDefGrad(defGrad, fes, x);
-
-   //We just want to be super careful here in case the functions we call above
-   //swap the mesh nodes without us realizing it. So, we want to swap them back to the
-   //end nodes.
-   if(!EndCoordsMesh){
-     SwapMeshNodes();
-   }
-   
-   defGrad = NULL;
-   return;
-}
 
 void ExaModel::SymVoigtToDenseMat(const double* const A, DenseMatrix& B)
 {
@@ -986,7 +960,8 @@ void ExaModel::ComputeVonMises(const int elemID, const int ipID)
 
 //A helper function that takes in a 3x3 rotation matrix and converts it over
 //to a unit quaternion.
-void ExaModel::RMat2Quat(DenseMatrix& rmat, Vector& quat){
+//rmat should be constant here...
+void ExaModel::RMat2Quat(const DenseMatrix& rmat, Vector& quat){
    double inv2 = 1.0/2.0;
    double phi = 0.0;
    static const double eps = numeric_limits<double>::epsilon();
@@ -1024,7 +999,7 @@ void ExaModel::RMat2Quat(DenseMatrix& rmat, Vector& quat){
 
 //A helper function that takes in a unit quaternion and and returns a 3x3 rotation
 //matrix.
-void ExaModel::Quat2RMat(Vector& quat, DenseMatrix& rmat){
+void ExaModel::Quat2RMat(const Vector& quat, DenseMatrix& rmat){
    double qbar = 0.0;
    
    qbar = quat[0] * quat[0] - (quat[1] * quat[1] + quat[2] * quat[2] + quat[3] * quat[3]);
@@ -1657,37 +1632,7 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
 
    int dof = DS.Height(), dim = DS.Width();
 
-   DenseMatrix temp1;
-   DenseMatrix kmat;
-   //We don't use this for anything
-   temp1.SetSize(dim, dim);
-   temp1 = 0.0;
-   //This is going to be our K stiffness matrix
-   kmat.SetSize(dof*dim);
-   kmat = 0.0;
-   
-   //AbaqusUmatModel::AssembleH(temp1, DS, weight, kmat);
-   //
-   //Ignore the below for now...
-   //
-   //Here we essentially have something that ultimately looks like
-   //B sigma_dot or B^T Kstiff B V + Bgeom^T Sigma Bgeom V
-   //I'm wondering if this Bgeom^T Sigma Bgeom V term should instead be
-   //Bgeom^T Sigma_dot Bgeom V? We could also look to leave it off for now.
-   //Also the B sigma_dot residual is based on Section 3A and 3C
-   //DOI: 10.1061/(ASCE)1532-3641(2002)2:4(471)
-   //This method is based on the knowledge that the tangent stiffness returned is
-   //del sigma/ del disp or Kep in that paper instead of it being
-   //del sigma / del def_rate which would give us lead us to having
-   //a residual based on the B sigma.
-   //We should also save off the kmat term so we don't have to calculate it later
-   //kmat.AddMult(*elvel, *elresid);
-
-   //printf("\nWeight: %lf\n", weight);
-
-   //printf("\nShape Functions: \n");
-   //DS.Print();
-   //The below is essentially letting us just do: Int_{body} B^t sigma dV
+   //The below is letting us just do: Int_{body} B^t sigma dV
    DenseMatrix PMatO, DSt(DS);
    DSt *= weight;
 
@@ -1716,12 +1661,16 @@ void AbaqusUmatModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
    DenseMatrix Cstiff(matGrad, 6, 6);
 
    //Now time to start assembling stuff
-
-   //We'll first be using this for our geomtric contribution
    
    DenseMatrix temp1, kgeom;
    DenseMatrix sbar;
    DenseMatrix BtsigB;
+   
+   //We'll first be using the above variable for our geomtric contribution
+   //
+   //The geometric contribution is currently commented out after not really
+   //seeing it being used in a few other libraries. It can just as easily be added
+   //back if it is deemed desirable in later simulation cases.
    /*
    temp1.SetSize(dim*dim, dof*dim);
    
@@ -1747,7 +1696,6 @@ void AbaqusUmatModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
      sbar(i1 + 2, j1 + 2) = P(2, 2);
    }
 
-   
    sbar *= weight;
    
    GenerateGradGeomMatrix(DS, kgeom);
@@ -1755,6 +1703,7 @@ void AbaqusUmatModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
    MultABt(sbar, kgeom, temp1);
    AddMult(kgeom, temp1, A);
    */
+   
    //temp1 is now going to become the transpose Bmatrix as seen in
    //[B^t][Cstiff][B]
    temp1.SetSize(dof*dim, 6);
@@ -1838,22 +1787,30 @@ void ExaModel::GenerateGradMatrix(const DenseMatrix& DS, DenseMatrix& B){
    //However, it might be fine for our needs.
    //The ordering has now changed such that B matches up with mfem's internal
    //ordering of vectors such that it's [x0...xn, y0...yn, z0...zn] ordering
+   
+   //The previous single loop has been split into 3 so the B matrix
+   //is constructed in chunks now instead of performing multiple striding
+   //operations in a single loop.
+   //x dofs
    for (int i = 0; i < dof; i++){
-     
      B(i, 0) = DS(i, 0);
      B(i, 1) = 0.0;
      B(i, 2) = 0.0;
      B(i, 3) = 0.0;
      B(i, 4) = DS(i, 2);
      B(i, 5) = DS(i, 1);
-
+   }
+   //y dofs
+   for (int i = 0; i < dof; i++){
      B(i + dof, 0) = 0.0;
      B(i + dof, 1) = DS(i, 1);
      B(i + dof, 2) = 0.0;
      B(i + dof, 3) = DS(i, 2);
      B(i + dof, 4) = 0.0;
      B(i + dof, 5) = DS(i, 0);
-
+   }
+   //z dofs
+   for (int i = 0; i < dof; i++){
      B(i + 2*dof, 0) = 0.0;
      B(i + 2*dof, 1) = 0.0;
      B(i + 2*dof, 2) = DS(i, 2);
@@ -1887,9 +1844,13 @@ void ExaModel::GenerateGradGeomMatrix(const DenseMatrix& DS, DenseMatrix& Bgeom)
   //I'm assumming we're in 3D and have just unrolled the loop
   //The ordering has now changed such that Bgeom matches up with mfem's internal
   //ordering of vectors such that it's [x0...xn, y0...yn, z0...zn] ordering
-  int i1;
+  
+  //The previous single loop has been split into 3 so the B matrix
+  //is constructed in chunks now instead of performing multiple striding
+  //operations in a single loop.
+  
+  //x dofs
   for (int i = 0; i < dof; i++){
-    
     Bgeom(i, 0) = DS(i, 0);
     Bgeom(i, 1) = DS(i, 1);
     Bgeom(i, 2) = DS(i, 2);
@@ -1899,7 +1860,9 @@ void ExaModel::GenerateGradGeomMatrix(const DenseMatrix& DS, DenseMatrix& Bgeom)
     Bgeom(i, 6) = 0.0;
     Bgeom(i, 7) = 0.0;
     Bgeom(i, 8) = 0.0;
-
+  }
+  //y dofs
+  for (int i = 0; i < dof; i++){
     Bgeom(i + dof, 0) = 0.0;
     Bgeom(i + dof, 1) = 0.0;
     Bgeom(i + dof, 2) = 0.0;
@@ -1909,7 +1872,9 @@ void ExaModel::GenerateGradGeomMatrix(const DenseMatrix& DS, DenseMatrix& Bgeom)
     Bgeom(i + dof, 6) = 0.0;
     Bgeom(i + dof, 7) = 0.0;
     Bgeom(i + dof, 8) = 0.0;
-
+  }
+  //z dofs
+  for (int i = 0; i < dof; i++){
     Bgeom(i + 2*dof, 0) = 0.0;
     Bgeom(i + 2*dof, 1) = 0.0;
     Bgeom(i + 2*dof, 2) = 0.0;
@@ -1921,147 +1886,6 @@ void ExaModel::GenerateGradGeomMatrix(const DenseMatrix& DS, DenseMatrix& Bgeom)
     Bgeom(i + 2*dof, 8) = DS(i, 2);
   }
   
-}
-
-inline void NeoHookean::EvalCoeffs() const
-{
-   mu = c_mu->Eval(*Ttr, Ttr->GetIntPoint());
-   K = c_K->Eval(*Ttr, Ttr->GetIntPoint());
-   if (c_g)
-   {
-      g = c_g->Eval(*Ttr, Ttr->GetIntPoint());
-   }
-}
-
-void NeoHookean::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
-                           const double weight){
-   EvalModel(J);
-}
-   
-void NeoHookean::EvalModel(const DenseMatrix &J)
-{
-   // note: the J passed in is associated with the incremental 
-   // nodal solution, so this is the incremental deformation 
-   // gradient. 
-
-   //printf("inside EvalModel \n");
-
-   if (have_coeffs)
-   {
-      EvalCoeffs();
-   }
-
-   // compute full end step PK1, old EvalP using the FULL end step 
-   // deformation gradient, NOT the incremental one computed from the 
-   // element transformation
-   
-   int dim = J.Width();
-
-   Z.SetSize(dim);
-   CalcAdjugateTranspose(J, Z);
-
-   double dJ = J.Det();
-   double a  = mu*pow(dJ, -2.0/dim);
-   double b  = K*(dJ/g - 1.0)/g - a*(J*J)/(dim*dJ);
-
-   //printf("dJ: %f \n", dJ);
-
-   P.SetSize(dim);
-   P = 0.0;
-   P.Add(a, J);
-   P.Add(b, Z);
-
-   // convert the incremental PK1 stress to Cauchy stress. Note, we only store 
-   // the 6 unique components of the symmetric Cauchy stress tensor.
-
-   double sigma[6];
-   for (int i=0; i<6; ++i) sigma[i] = 0.0;
-   PK1ToCauchy(P, J, sigma);
-
-   // update total stress; We store the Cauchy stress, so we have to update 
-   // that, and then we want to also carry around a local full PK1 stress 
-   // that is used in the integrator, so we will have to convert back.
-   SetElementStress(elemID, ipID, false, sigma, 6);
-
-   return;
-}
-
-void NeoHookean::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
-                           const double weight, DenseMatrix &A)
-{
-   //All of this was taken from mfem's internal NeoHookean representation of things
-   
-   int dof = DS.Height(), dim = DS.Width();
-
-   if (have_coeffs)
-   {
-      EvalCoeffs();
-   }
-
-   Z.SetSize(dim);
-   G.SetSize(dof, dim);
-   C.SetSize(dof, dim);
-
-   double dJ = J.Det();
-   double sJ = dJ/g;
-   double a  = mu*pow(dJ, -2.0/dim);
-   double bc = a*(J*J)/dim;
-   double b  = bc - K*sJ*(sJ - 1.0);
-   double c  = 2.0*bc/dim + K*sJ*(2.0*sJ - 1.0);
-
-   CalcAdjugateTranspose(J, Z);
-   Z *= (1.0/dJ); // Z = J^{-t}
-
-   MultABt(DS, J, C); // C = DS J^t
-   MultABt(DS, Z, G); // G = DS J^{-1}
-
-   a *= weight;
-   b *= weight;
-   c *= weight;
-
-   // 1.
-   for (int i = 0; i < dof; i++)
-      for (int k = 0; k <= i; k++)
-      {
-         double s = 0.0;
-         for (int d = 0; d < dim; d++)
-         {
-            s += DS(i,d)*DS(k,d);
-         }
-         s *= a;
-
-         for (int d = 0; d < dim; d++)
-         {
-            A(i+d*dof,k+d*dof) += s;
-         }
-
-         if (k != i)
-            for (int d = 0; d < dim; d++)
-            {
-               A(k+d*dof,i+d*dof) += s;
-            }
-      }
-
-   a *= (-2.0/dim);
-
-   // 2.
-   for (int i = 0; i < dof; i++)
-   {
-      for (int j = 0; j < dim; j++)
-      {
-         for (int k = 0; k < dof; k++)
-	 {
-            for (int l = 0; l < dim; l++)
-            {
-               A(i+j*dof,k+l*dof) +=
-                  a*(C(i,j)*G(k,l) + G(i,j)*C(k,l)) +
-                  b*G(i,l)*G(k,j) + c*G(i,j)*G(k,l);
-            }
-         }
-      }
-   }// end all loops
-
-   return;
 }
 
 // member functions for the ExaNLFIntegrator

@@ -141,7 +141,6 @@ void ExaOptions::get_bcs(){
 
 //From the toml file it finds all the values related to the model
 void ExaOptions::get_model(){
-   hyperelastic = toml->get_qualified_as<bool>("Model.hyper_elastic").value_or(false);
    umat = toml->get_qualified_as<bool>("Model.umat").value_or(false);
    cp = toml->get_qualified_as<bool>("Model.cp").value_or(false);
 }//end of model parsing
@@ -289,7 +288,6 @@ void ExaOptions::print_options(){
 
    std::cout << "UMAT being used: " << umat << "\n";
    std::cout << "Xtal Plasticity being used: " << cp << "\n";
-   std::cout << "Hyper elastic being used: " << hyperelastic << "\n";
    
    std::cout << "Orientation file location: " << ori_file << "\n";
    std::cout << "Grain map file location: " << grain_map << "\n";

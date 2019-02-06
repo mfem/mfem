@@ -354,8 +354,8 @@ public:
    //be protected?
    //Also, do we want to think about moving these type of orientation
    //conversions to their own class?
-   void Quat2RMat(Vector& quat, DenseMatrix& rmat);
-   void RMat2Quat(DenseMatrix& rmat, Vector& quat);
+   void Quat2RMat(const Vector& quat, DenseMatrix& rmat);
+   void RMat2Quat(const DenseMatrix& rmat, Vector& quat);
    
    //Converts from Cauchy stress to PK1 stress
    void CauchyToPK1();
@@ -374,7 +374,7 @@ public:
 
 };
 
-// Abaqus Umat class. This has NOT been tested
+// Abaqus Umat class.
 class AbaqusUmatModel : public ExaModel
 {
 protected:
@@ -429,58 +429,6 @@ public:
    //calculates the element length
    void CalcElemLength();
 
-};
-
-class NeoHookean : public ExaModel
-{
-protected:
-   // from fem/nonlininteg.hpp
-   mutable double mu, K, g;
-   Coefficient *c_mu, *c_K, *c_g;
-   bool have_coeffs;
-
-   mutable DenseMatrix Z;    // dim x dim
-   mutable DenseMatrix G, C; // dof x dim
-
-   inline void EvalCoeffs() const;
-public:
-   NeoHookean(QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
-              QuadratureFunction *_q_matGrad, QuadratureFunction *_q_matVars0,
-              QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0,
-	      ParGridFunction *_beg_coords, ParGridFunction *_end_coords, ParMesh *_pmesh,
-              Vector *_props, int _nProps, int _nStateVars, double _mu, double _K, 
-              double _g = 1.0) : 
-              ExaModel(_q_stress0, _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, 
-		       _q_defGrad0, _beg_coords, _end_coords, _pmesh,
-		       _props, _nProps, _nStateVars, false,false), mu(_mu), K(_K), g(_g), 
-              have_coeffs(false) 
-              { c_mu = c_K = c_g = NULL; }
-
-   NeoHookean(QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
-              QuadratureFunction *_q_matGrad, QuadratureFunction *_q_matVars0,
-              QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0, 
-	      ParGridFunction *_beg_coords, ParGridFunction *_end_coords, ParMesh *_pmesh,
-	      Vector *_props, int _nProps, int _nStateVars, Coefficient &_mu, 
-              Coefficient &_K, Coefficient *_g = NULL) : 
-              ExaModel(_q_stress0, _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, 
-		       _q_defGrad0, _beg_coords, _end_coords, _pmesh,
-		       _props, _nProps, _nStateVars, false,false), 
-              mu(0.0), K(0.0), g(1.0), c_mu(&_mu), 
-              c_K(&_K), c_g(_g), have_coeffs(false) { }
-
-   virtual ~NeoHookean() { }
-
-   // place original EvalP and AssembleH into Eval()
-   virtual void EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
-                          const double weight);
-
-  virtual void EvalModel(const DenseMatrix &J);
-  
-   virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A);
-   
-   virtual void UpdateModelVars(ParFiniteElementSpace *fes,
-                                const Vector &x);
 };
 
 class ExaNLFIntegrator : public NonlinearFormIntegrator

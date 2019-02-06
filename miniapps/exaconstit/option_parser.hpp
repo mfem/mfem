@@ -80,10 +80,8 @@ class ExaOptions{
       // input arg to specify Abaqus UMAT
       bool umat;
    
-      // input arg to specify crystal plasticity or hyperelasticity
-      // (for testing)
+      // input arg to specify crystal plasticity
       bool cp;
-      bool hyperelastic;
    
       // grain input arguments
       std::string ori_file; // grain orientations (F_p_inv for Curt's UMAT?)
@@ -128,7 +126,6 @@ class ExaOptions{
       ori_file = "grains.txt";
       
       //Model related parameters
-      hyperelastic = false;
       cp = false;
       umat = false;
       

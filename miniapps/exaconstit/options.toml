@@ -34,8 +34,6 @@
     #The length of this should be #ids * dim of problem
     essential_vals = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.001]
 [Model]
-    #This option is no longer supported and should probably be removed
-    hyper_elastic = false
     #This option tells us to run using a UMAT
     umat = true
     #This tells us that our model is a crystal plasticity problem
