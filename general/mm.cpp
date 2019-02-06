@@ -168,7 +168,7 @@ void *mm::Erase(void *ptr)
       return ptr;
    }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
-   const memory &mem = maps.memories.at(ptr);
+   memory &mem = maps.memories.at(ptr);
    //dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
    for (const alias* const alias : mem.aliases)
    {
