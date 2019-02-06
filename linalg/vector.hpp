@@ -134,6 +134,9 @@ public:
    /** @warning This method should be used with caution as it gives write access
        to the data of const-qualified Vector%s. */
    inline double *GetData() const { return data; }
+   
+   /// Return the Vector data pointer translated by the memory manager.
+   inline double *GetMmData() const { return (double*) mm::ptr(data); }
 
    /// Conversion to `double *`.
    /** @note This conversion function makes it possible to use [] for indexing
@@ -451,28 +454,34 @@ inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
 }
 #endif
 
-namespace kernels
+namespace device
 {
 
-class Vector
+class Vector3
 {
 private:
    double data[3];
 public:
-   Vector(){}
-   Vector(const double *r)
+   Vector3(){}
+   Vector3(const double *r)
    {
       data[0]=r[0];
       data[1]=r[1];
       data[2]=r[2];
    }
-   ~Vector() {}
+   Vector3(const double r0, const double r1, const double r2)
+   {
+      data[0]=r0;
+      data[1]=r1;
+      data[2]=r2;
+   }
+   ~Vector3() {}
    inline operator double* () { return data; }
    inline operator const double* () const { return data; }
    inline double& operator[](const size_t x) { return data[x]; }
 };
 
-} // namespace kernels
+} // namespace device
 
 } // namespace mfem
 

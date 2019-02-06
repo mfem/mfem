@@ -159,8 +159,8 @@ public:
                        const IntegrationPoint &ip);
 
    /// Return the coefficient's C-function
-   double (*Get())(const kernels::Vector&){
-      return reinterpret_cast<double(*)(const kernels::Vector&)>(Function);
+   double (*Get())(const device::Vector3&){
+      return reinterpret_cast<double(*)(const device::Vector3&)>(Function);
    }
 };
 

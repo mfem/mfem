@@ -27,9 +27,9 @@ class FiniteElementSpaceExtension
 private:
    FiniteElementSpace *fes;
    int globalDofs, localDofs;
-   kernels::Array<int> offsets;
-   kernels::Array<int> indices;
-   kernels::Array<int> map;
+   Array<int> offsets;
+   Array<int> indices;
+   Array<int> map;
 public:
    FiniteElementSpaceExtension(FiniteElementSpace*);
    void L2E(const Vector&, Vector&) const;

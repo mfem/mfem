@@ -100,33 +100,33 @@ void MassIntegrator::Assemble(const FiniteElementSpace *fes)
    const GeometryExtension *geo = GeometryExtension::Get(*fes,*ir);
    maps = DofToQuad::Get(*fes, *fes, *ir);
    vec.SetSize(ne*nq);
+   ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
+   FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
+   // TODO: other types of coefficients ...
    if (dim==1) { mfem_error("Not supported yet... stay tuned!"); }
    if (dim==2)
    {
-      bool constant = false;
-      double cCoeff = 0.0;
-      bool function = false;
-      double (*fcCoeff)(const kernels::Vector&) = NULL;
-       if (Q){
-         ConstantCoefficient* const cQ = dynamic_cast<ConstantCoefficient*>(Q);
-         if (cQ){
-            cCoeff = cQ->constant;
-            constant = true;
-         }
-         FunctionCoefficient* const fcQ = dynamic_cast<FunctionCoefficient*>(Q);
-         if (fcQ){
-            function = true;
-            fcCoeff = fcQ->Get();
-         }
+      double constant = 0.0;
+      double (*function)(const device::Vector3&) = NULL;
+      if (const_coeff)
+      {
+         constant = const_coeff->constant;
       }
-      assert(constant^function);
+      else if (function_coeff)
+      {
+         function = function_coeff->Get();
+      }
+      else
+      {
+         MFEM_ABORT("Coefficient type not supported");
+      }
       const int NE = ne;
       const int NQ = nq;
-      const double *w = (const double*) mm::ptr(maps->W);
       const int dims = el.GetDim();
-      const double *x = (const double*) mm::ptr(geo->x);
-      const double *J = (const double*) mm::ptr(geo->J);
-      double *v = (double*) mm::ptr(vec);
+      const double *w = maps->W.GetMmData();
+      const double *x = geo->X.GetMmData();
+      const double *J = geo->J.GetMmData();
+      double *v = vec.GetMmData();
       MFEM_FORALL(e, NE,
       {
          for (int q = 0; q < NQ; ++q)
@@ -137,11 +137,9 @@ void MassIntegrator::Assemble(const FiniteElementSpace *fes)
             const double J22 = J[ijklNM(1,1,q,e,2,NQ)];
             const double detJ = (J11*J22)-(J21*J12);
             const int offset = dims*NQ*e+q;
-            const double ipx[3] = {x[offset], x[offset+1], x[offset+2]};
-            const kernels::Vector transip(ipx);
             const double coeff =
-               constant ? cCoeff:
-               function ? fcCoeff(transip):
+               const_coeff ? constant:
+               function_coeff ? function(device::Vector3(x[offset], x[offset+1], x[offset+2])):
                0.0;
             v[ijN(q,e,NQ)] =  w[q] * coeff * detJ;
          }

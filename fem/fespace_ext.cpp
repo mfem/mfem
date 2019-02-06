@@ -14,12 +14,10 @@
 #include "fem.hpp"
 #include "fespace_ext.hpp"
 #include "kernels/fespace.hpp"
-#include "../general/kernels/array.hpp"
 
 // *****************************************************************************
 namespace mfem
 {
-
 
 // *****************************************************************************
 // * FiniteElementSpaceExtension
@@ -29,42 +27,35 @@ FiniteElementSpaceExtension::FiniteElementSpaceExtension(FiniteElementSpace *f)
     globalDofs(f->GetNDofs()),
     localDofs(f->GetFE(0)->GetDof()),
     offsets(globalDofs+1),
-    indices(localDofs, f->GetNE()),
-    map(localDofs, f->GetNE())
+    indices(localDofs*f->GetNE()),
+    map(localDofs*f->GetNE())
 {
    const FiniteElement *fe = f->GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_ASSERT(el, "Finite element not supported with partial assembly");
-
    const Array<int> &dof_map = el->GetDofMap();
    const bool dof_map_is_identity = (dof_map.Size()==0);
-
    const Table& e2dTable = f->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    const int elements = f->GetNE();
-   Array<int> h_offsets(globalDofs+1);
-
    // We'll be keeping a count of how many local nodes point to its global dof
    for (int i = 0; i <= globalDofs; ++i)
    {
-      h_offsets[i] = 0;
+      offsets[i] = 0;
    }
    for (int e = 0; e < elements; ++e)
    {
       for (int d = 0; d < localDofs; ++d)
       {
          const int gid = elementMap[localDofs*e + d];
-         ++h_offsets[gid + 1];
+         ++offsets[gid + 1];
       }
    }
    // Aggregate to find offsets for each global dof
    for (int i = 1; i <= globalDofs; ++i)
    {
-      h_offsets[i] += h_offsets[i - 1];
+      offsets[i] += offsets[i - 1];
    }
-
-   Array<int> h_indices(localDofs*elements);
-   Array<int> h_map(localDofs*elements);
    // For each global dof, fill in all local nodes that point   to it
    for (int e = 0; e < elements; ++e)
    {
@@ -73,24 +64,17 @@ FiniteElementSpaceExtension::FiniteElementSpaceExtension(FiniteElementSpace *f)
          const int did = dof_map_is_identity?d:dof_map[d];
          const int gid = elementMap[localDofs*e + did];
          const int lid = localDofs*e + d;
-         h_indices[h_offsets[gid]++] = lid;
-         h_map[lid] = gid;
+         indices[offsets[gid]++] = lid;
+         map[lid] = gid;
       }
    }
-
    // We shifted the offsets vector by 1 by using it as a counter
    // Now we shift it back.
    for (int i = globalDofs; i > 0; --i)
    {
-      h_offsets[i] = h_offsets[i - 1];
+      offsets[i] = offsets[i - 1];
    }
-   h_offsets[0] = 0;
-
-   const int leN = localDofs*elements;
-   const int guN = globalDofs+1;
-   kernels::array::Assign(guN,h_offsets,offsets);
-   kernels::array::Assign(leN,h_indices,indices);
-   kernels::array::Assign(leN,h_map,map);
+   offsets[0] = 0;
 }
 
 // ***************************************************************************
