@@ -47,9 +47,9 @@ struct DBurgersRiemann
       }
       else
       {
-         if (cL > 0) Fhat[0] = cL*uL[0];
-         else if (cL*cR < 0) Fhat[0] = 0;
-         else Fhat[0] = cR*uR[0];
+         if (cL > 0) { Fhat[0] = cL*uL[0]; }
+         else if (cL*cR < 0) { Fhat[0] = 0; }
+         else { Fhat[0] = cR*uR[0]; }
       }
    }
 };
