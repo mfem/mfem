@@ -74,9 +74,12 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
      sinkx_(NULL),
      coskx_(NULL),
      negsinkx_(NULL),
+     negMuInvCoef_(NULL),
      massReCoef_(NULL),
      massImCoef_(NULL),
      posMassCoef_(NULL),
+     negMuInvkxkxCoef_(NULL),
+     negMuInvkCoef_(NULL),
      jrCoef_(NULL),
      jiCoef_(NULL),
      rhsrCoef_(NULL),
@@ -111,6 +114,11 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
       sinkx_ = new PhaseCoefficient(*kCoef_, &sin);
       coskx_ = new PhaseCoefficient(*kCoef_, &cos);
       negsinkx_ = new ProductCoefficient(-1.0, *sinkx_);
+
+      negMuInvCoef_ = new ProductCoefficient(-1.0, *muInvCoef_);
+      negMuInvkCoef_ = new ScalarVectorProductCoefficient(*negMuInvCoef_,
+                                                          *kCoef_);
+      negMuInvkxkxCoef_ = new CrossCrossCoefficient(*muInvCoef_, *kCoef_);
    }
    else
    {
@@ -260,6 +268,15 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
    a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_), NULL);
    a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massReCoef_),
                             new VectorFEMassIntegrator(*massImCoef_));
+   if ( kCoef_)
+   {
+      a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*negMuInvkxkxCoef_),
+                               NULL);
+      a1_->AddDomainIntegrator(NULL,
+                               new MixedCrossCurlIntegrator(*negMuInvkCoef_));
+      a1_->AddDomainIntegrator(NULL,
+                               new MixedWeakCurlCrossIntegrator(*negMuInvkCoef_));
+   }
    if ( abcCoef_ )
    {
       a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*abcCoef_),
@@ -289,6 +306,9 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
 
 CPD1DSolver::~CPD1DSolver()
 {
+   delete negMuInvkxkxCoef_;
+   delete negMuInvkCoef_;
+   delete negMuInvCoef_;
    delete negsinkx_;
    delete coskx_;
    delete sinkx_;

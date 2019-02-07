@@ -141,11 +141,14 @@ private:
    Coefficient * sinkx_;         // sin(ky * y + kz * z)
    Coefficient * coskx_;         // cos(ky * y + kz * z)
    Coefficient * negsinkx_;      // -sin(ky * y + kz * z)
+   Coefficient * negMuInvCoef_;  // -1.0 / mu
 
    MatrixCoefficient * massReCoef_;  // -omega^2 Re(epsilon)
    MatrixCoefficient * massImCoef_;  // omega^2 Im(epsilon)
    MatrixCoefficient * posMassCoef_; // omega^2 Re(epsilon)
+   MatrixCoefficient * negMuInvkxkxCoef_; // -\vec{k}\times\vec{k}\times/mu
 
+   VectorCoefficient * negMuInvkCoef_; // -\vec{k}/mu
    VectorCoefficient * jrCoef_;     // Volume Current Density Function
    VectorCoefficient * jiCoef_;     // Volume Current Density Function
    VectorCoefficient * rhsrCoef_;     // Volume Current Density Function
