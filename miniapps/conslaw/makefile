@@ -1,0 +1,87 @@
+# External dependencies
+MFEM_DIR?=../../
+HYPRE_DIR=${MFEM_DIR}/../hypre-2.10.0b/src/hypre
+METIS_DIR=${MFEM_DIR}/../metis-4.0
+
+# Directory structure
+LIB_DIR=lib
+SOURCE_DIR=src
+INC_DIR=include
+BUILD_DIR=build
+APP_DIR=apps
+DEPENDS=$(BUILD_DIR)/.depends
+
+# dgpa shared library
+LIB_NAME=dgpa
+LIB=$(LIB_DIR)/lib$(LIB_NAME).so
+LIB_SOURCES=$(wildcard $(SOURCE_DIR)/*.cpp)
+LIB_OBJECTS=$(LIB_SOURCES:$(SOURCE_DIR)/%.cpp=$(BUILD_DIR)/$(LIB_DIR)/%.o)
+
+# "apps" using the dgpa library
+APP_SOURCES=$(wildcard $(APP_DIR)/*.cpp)
+APP_OBJECTS=$(APP_SOURCES:$(APP_DIR)/%.cpp=$(BUILD_DIR)/$(APP_DIR)/%.o)
+APPS=$(APP_SOURCES:%.cpp=%)
+
+# Compiler configuration
+MPICXX=mpicxx
+CXXFLAGS=-O3 -std=c++11 -Wall
+DEBUGFLAGS=-g -O0 -DDEBUG
+LFLGAS=-L${MFEM_DIR} -L${HYPRE_DIR}/lib -L${METIS_DIR} \
+    -lHYPRE -lmfem -lmetis -lumfpack -lklu
+INCFLAGS=-I$(SOURCE_DIR) -I${INC_DIR} -I${MFEM_DIR} -I${METIS_DIR}/Lib \
+    -I${HYPRE_DIR}/include
+
+# For now turn on debug by default
+CXXFLAGS+=$(DEBUGFLAGS)
+
+.PHONY: all clean style
+all: $(LIB) $(APPS)
+
+# Build all the apps (the library is a dependency)
+$(APPS): $(APP_DIR)/%: $(BUILD_DIR)/$(APP_DIR)/%.o $(LIB)
+	$(MPICXX) $(LFLGAS) -L$(LIB_DIR) -l$(LIB_NAME) -o $@ $<
+
+$(BUILD_DIR)/$(APP_DIR)/%.o: makefile | $(BUILD_DIR)
+	$(MPICXX) -c $(CXXFLAGS) $(INCFLAGS) -o $@ $(APP_DIR)/$*.cpp
+
+# Build the library
+$(LIB): $(LIB_OBJECTS)
+	$(MPICXX) $(LFLGAS) -shared -o $@ $^
+
+$(BUILD_DIR)/$(LIB_DIR)/%.o: makefile | $(BUILD_DIR)
+	$(MPICXX) -c $(CXXFLAGS) $(INCFLAGS) -o $@ $(SOURCE_DIR)/$*.cpp
+
+# Use the compiler to determine dependencies on header files
+# Some awk magic in the next target
+# Prefix all lines matching the regexp /^.*\.o/ with build/ (to match e.g. "file.o:")
+# and leave other lines alone
+$(DEPENDS): $(APP_SOURCES) $(LIB_SOURCES) | $(BUILD_DIR)
+	$(CXX) $(INCFLAGS) -MM $(LIB_SOURCES) \
+		| awk '/^.*\.o:/{ print "$(BUILD_DIR)/$(LIB_DIR)/" $$0; next } 1'  >$@
+	$(CXX) $(INCFLAGS) -MM $(APP_SOURCES) \
+		| awk '/^.*\.o:/{ print "$(BUILD_DIR)/$(APP_DIR)/" $$0; next } 1'  >>$@
+
+# Add this line to the previous target if we want to generate a ctags file
+# ctags -R --exclude='*.js' . ${MFEM_DIR}
+
+# Rebuild dependencies unless doing "make clean" or "make style"
+ifneq ($(MAKECMDGOALS),clean)
+ifneq ($(MAKECMDGOALS),style)
+-include $(DEPENDS)
+endif
+endif
+
+$(BUILD_DIR):
+	mkdir -p $@/$(APP_DIR)
+	mkdir -p $@/$(LIB_DIR)
+	mkdir -p $(LIB_DIR)
+
+clean:
+	rm -rf $(APPS) $(LIB) $(BUILD_DIR)
+
+FORMAT_FILES = $(foreach dir,$(SOURCE_DIR) $(INC_DIR) $(APP_DIR),"$(dir)/*.?pp")
+ASTYLE = astyle --options=$(MFEM_DIR)/config/mfem.astylerc
+style:
+	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
+	   echo "No source files were changed.";\
+	fi
