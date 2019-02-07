@@ -169,7 +169,8 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
       std::fstream vtkFs( fname.c_str(), std::ios::out);
 
       const int ref = 0;
-      mesh.PrintVTK( vtkFs, ref);
+#warning no mesh.PrintVT
+      //mesh.PrintVTK( vtkFs, ref);
       scalarGF.SaveVTK( vtkFs, "scalar_gf", ref);
       vectorGF.SaveVTK( vtkFs, "vector_gf", ref);
    }

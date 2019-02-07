@@ -2417,7 +2417,8 @@ public:
 
 class ND_HexahedronElement : public VectorFiniteElement
 {
-   static const double tk[18];
+   //static const double tk[18];
+   double *tk;
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
@@ -2576,7 +2577,9 @@ public:
 
 class ND_TriangleElement : public VectorFiniteElement
 {
-   static const double tk[8], c;
+   //static const double tk[8], c;
+   static const double c;
+   double *tk;
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l;

@@ -13,6 +13,7 @@
 
 #include <bitset>
 #include <cassert>
+#include "/home/camier1/home/okstk/stk.hpp"
 
 namespace mfem
 {
@@ -140,13 +141,21 @@ static inline bool MmGpuIniFilter(void)
 // *****************************************************************************
 void* mm::Insert(void *ptr, const size_t bytes)
 {
+   DumpMode();
    if (MmGpuFilter()) { return ptr; }
+   stk();
    const bool known = Known(maps, ptr);
    if (known) {
-      mfem_error("Trying to insert a non-MM pointer!");
+      const memory &mem = maps.memories.at(ptr);
+      //if (mem.bytes == bytes) return ptr;
+      dbg("mem.bytes=%d, bytes=%d", mem.bytes, bytes);
+      //BUILTIN_TRAP;
+      double *p = (double*)ptr;
+      for(int k=0;k<1024*1024;k++) p[k]=0.0;
+      mfem_error("Trying to insert an already known pointer!");
    }
-   MFEM_ASSERT(!known, "Trying to add an already present address!");
-   //dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
+   MFEM_ASSERT(!known, "Trying to add an already known pointer!");
+   dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
    //if (ptr > (void*)0xffffffff){ BUILTIN_TRAP; }
    DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes));
@@ -159,17 +168,24 @@ void* mm::Insert(void *ptr, const size_t bytes)
 void *mm::Erase(void *ptr)
 {
    if (MmGpuFilter()) { return ptr; }
+   stk();
    const bool known = Known(maps, ptr);
    if (!known) {
       // Even if don't know it, it's OK on CPU-only
-      if (config::usingGpu()){
+      if (config::usingGpu())
+      {
          mfem_error("Trying to erase a non-MM pointer!");
+      }else{
+#warning Erase mfem_error CPU
+         //double *p = (double*)ptr;
+         //for(int k=0;k<1024*1024;k++) p[k]=0.0;
+         mfem_error("CPU, but trying to erase a non-MM pointer!");
       }
       return ptr;
    }
-   MFEM_ASSERT(known, "Trying to remove an unknown address!");
+   MFEM_ASSERT(known, "Trying to erase a non-MM pointer!");
    memory &mem = maps.memories.at(ptr);
-   //dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
+   dbg("\033[31m %p \033[35m(%ldb)", ptr, mem.bytes);
    for (const alias* const alias : mem.aliases)
    {
       maps.aliases.erase(alias);
@@ -244,7 +260,7 @@ void* mm::Ptr(void *ptr)
    if (MmGpuIniFilter()) { return ptr; }
    if (Known(maps, ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(maps, ptr)) { return PtrAlias(maps, ptr); }
-   if (config::usingGpu()) { mfem_error("Unknown pointer!"); }
+   /*if (config::usingGpu())*/ { mfem_error("Unknown pointer!"); }
    return ptr;
 }
 
@@ -317,7 +333,7 @@ void mm::Push(const void *ptr, const size_t bytes)
    if (Known(maps, ptr)) { return PushKnown(maps, ptr, bytes); }
    if (Alias(maps, ptr)) { return PushAlias(maps, ptr, bytes); }
    assert(!config::usingOcca());
-   if (config::usingGpu()) { mfem_error("Unknown address!"); }
+   /*if (config::usingGpu())*/ { mfem_error("Unknown address!"); }
 }
 
 // *****************************************************************************
@@ -347,7 +363,7 @@ void mm::Pull(const void *ptr, const size_t bytes)
    if (Known(maps, ptr)) { return PullKnown(maps, ptr, bytes); }
    if (Alias(maps, ptr)) { return PullAlias(maps, ptr, bytes); }
    assert(!config::usingOcca());
-   if (config::usingGpu()) { mfem_error("Unknown address!"); }
+   /*if (config::usingGpu())*/ { mfem_error("Unknown address!"); }
 }
 
 // *****************************************************************************
@@ -358,6 +374,7 @@ static void* d2d(void *dst, const void *src, const size_t bytes,
 {
    const bool cpu = config::usingCpu();
    if (cpu) { return std::memcpy(dst, src, bytes); }
+   assert(false);
    GET_PTR(src);
    GET_PTR(dst);
    if (!async) { return cuMemcpyDtoD(d_dst, (void *)d_src, bytes); }

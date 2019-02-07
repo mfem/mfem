@@ -894,6 +894,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    }
 
 #ifdef MFEM_USE_MEMALLOC
+   #warning MFEM_USE_MEMALLOC
    delete NodesMem;
    NodesMem = NULL;
 #else
@@ -3053,7 +3054,8 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                "number of columns of A (" << ncolsA
                << ") must equal number of rows of B (" << nrowsB << ")");
 
-   B_marker = mm::malloc<int>(ncolsB);
+   //B_marker = mm::malloc<int>(ncolsB);
+   B_marker = new int[ncolsB];
 
    for (ib = 0; ib < ncolsB; ib++)
    {
@@ -3220,7 +3222,7 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
    int nrows = A.Height();
    int ncols = A.Width();
 
-   int * C_i =mm::malloc<int>(nrows+1);
+   int * C_i = mm::malloc<int>(nrows+1);
    int * C_j;
    double * C_data;
 
@@ -3232,7 +3234,8 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
    int * B_j = B.GetJ();
    double * B_data = B.GetData();
 
-   int * marker = mm::malloc<int>(ncols);
+   //int * marker = mm::malloc<int>(ncols);
+   int * marker = new int[ncols];
    std::fill(marker, marker+ncols, -1);
 
    int num_nonzeros = 0, jcol;

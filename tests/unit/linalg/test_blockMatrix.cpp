@@ -308,5 +308,6 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
    }
 
    delete A;
-   delete Amono;
+#warning no delete Amono;
+   //delete Amono;
 }
