@@ -399,13 +399,43 @@ double DeterminantCoefficient::Eval(ElementTransformation &T,
    return ma.Det();
 }
 
-VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &A,
-                                           VectorCoefficient &B,
-                                           double _alpha, double _beta)
-   : VectorCoefficient(A.GetVDim()), a(&A), b(&B), alpha(_alpha), beta(_beta),
-     va(A.GetVDim())
+VectorSumCoefficient::VectorSumCoefficient(int dim)
+   : VectorCoefficient(dim),
+     ACoef(NULL), BCoef(NULL),
+     A(dim), B(dim),
+     alphaCoef(NULL), betaCoef(NULL),
+     alpha(1.0), beta(1.0)
 {
-   MFEM_ASSERT(A.GetVDim() == B.GetVDim(),
+   A = 0.0; B = 0.0;
+}
+
+VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &_A,
+                                           VectorCoefficient &_B,
+                                           double _alpha, double _beta)
+   : VectorCoefficient(_A.GetVDim()),
+     ACoef(&_A), BCoef(&_B),
+     A(_A.GetVDim()), B(_A.GetVDim()),
+     alphaCoef(NULL), betaCoef(NULL),
+     alpha(_alpha), beta(_beta)
+{
+   MFEM_ASSERT(_A.GetVDim() == _B.GetVDim(),
+               "VectorSumCoefficient:  "
+               "Arguments must have the same dimension.");
+}
+
+VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &_A,
+                                           VectorCoefficient &_B,
+                                           Coefficient &_alpha,
+                                           Coefficient &_beta)
+   : VectorCoefficient(_A.GetVDim()),
+     ACoef(&_A), BCoef(&_B),
+     A(_A.GetVDim()),
+     B(_A.GetVDim()),
+     alphaCoef(&_alpha),
+     betaCoef(&_beta),
+     alpha(0.0), beta(0.0)
+{
+   MFEM_ASSERT(_A.GetVDim() == _B.GetVDim(),
                "VectorSumCoefficient:  "
                "Arguments must have the same dimension.");
 }
@@ -413,10 +443,12 @@ VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &A,
 void VectorSumCoefficient::Eval(Vector &V, ElementTransformation &T,
                                 const IntegrationPoint &ip)
 {
-   b->Eval(V, T, ip);
-   if ( beta != 1.0 ) { V *= beta; }
-   a->Eval(va, T, ip);
-   V.Add(alpha, va);
+   V.SetSize(A.Size());
+   if (    ACoef) { ACoef->Eval(A, T, ip); }
+   if (    BCoef) { BCoef->Eval(B, T, ip); }
+   if (alphaCoef) { alpha = alphaCoef->Eval(T, ip); }
+   if ( betaCoef) { beta  = betaCoef->Eval(T, ip); }
+   add(alpha, A, beta, B, V);
 }
 
 ScalarVectorProductCoefficient::ScalarVectorProductCoefficient(

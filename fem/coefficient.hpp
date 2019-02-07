@@ -870,33 +870,56 @@ public:
                        const IntegrationPoint &ip);
 };
 
-/// Vector coefficient defined as the sum of two vector coefficients
+/// Vector coefficient defined as the linear combination of two vectors
 class VectorSumCoefficient : public VectorCoefficient
 {
 private:
-   VectorCoefficient * a;
-   VectorCoefficient * b;
+   VectorCoefficient * ACoef;
+   VectorCoefficient * BCoef;
+
+   Vector A;
+   Vector B;
+
+   Coefficient * alphaCoef;
+   Coefficient * betaCoef;
 
    double alpha;
    double beta;
 
-   mutable Vector va;
-
 public:
-   // Result is _alpha * A + _beta * B
-   VectorSumCoefficient(VectorCoefficient &A, VectorCoefficient &B,
+   // To be used with the various "Set" methods
+   VectorSumCoefficient(int dim);
+
+   // Result is _alpha * _A + _beta * _B
+   VectorSumCoefficient(VectorCoefficient &_A, VectorCoefficient &_B,
                         double _alpha = 1.0, double _beta = 1.0);
 
-   void SetACoef(VectorCoefficient &A) { a = &A; }
-   VectorCoefficient * GetACoef() const { return a; }
+   // Result is _alpha * _A + _beta * _B
+   VectorSumCoefficient(VectorCoefficient &_A, VectorCoefficient &_B,
+                        Coefficient &_alpha, Coefficient &_beta);
 
-   void SetBCoef(VectorCoefficient &B) { b = &B; }
-   VectorCoefficient * GetBCoef() const { return b; }
+   void SetACoef(VectorCoefficient &A) { ACoef = &A; }
+   VectorCoefficient * GetACoef() const { return ACoef; }
 
-   void SetAlpha(double _alpha) { alpha = _alpha; }
+   void SetBCoef(VectorCoefficient &B) { BCoef = &B; }
+   VectorCoefficient * GetBCoef() const { return BCoef; }
+
+   void SetAlphaCoef(Coefficient &A) { alphaCoef = &A; }
+   Coefficient * GetAlphaCoef() const { return alphaCoef; }
+
+   void SetBetaCoef(Coefficient &B) { betaCoef = &B; }
+   Coefficient * GetBetaCoef() const { return betaCoef; }
+
+   void SetA(const Vector &_A) { A = _A; ACoef = NULL; }
+   const Vector & GetA() const { return A; }
+
+   void SetB(const Vector &_B) { B = _B; BCoef = NULL; }
+   const Vector & GetB() const { return B; }
+
+   void SetAlpha(double _alpha) { alpha = _alpha; alphaCoef = NULL; }
    double GetAlpha() const { return alpha; }
 
-   void SetBeta(double _beta) { beta = _beta; }
+   void SetBeta(double _beta) { beta = _beta; betaCoef = NULL; }
    double GetBeta() const { return beta; }
 
    /// Evaluate the coefficient
