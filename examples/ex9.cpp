@@ -210,7 +210,7 @@ public:
 
 private:
    
-   // Find a zone id that shares a face with both el1 and el2, but isn't el1.
+   // Find a zone id that shares a face with both el1 and el2, but isn't el.
    int FindCommonAdjacentElement(int el, int el1, int el2, int dim, int numBdrs)
    {
       int i, j, commonNeighbor;
