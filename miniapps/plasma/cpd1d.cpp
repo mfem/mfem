@@ -919,29 +919,29 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
 
          bool osc = (S * S - D * D) / S > 0.0;
          double kE = omega_ * sqrt(fabs((S * S - D * D) / S)) / c0_;
-	 
-	 double (*sfunc)(double) = osc ?
-	   static_cast<double (*)(double)>(&sin) :
-	   static_cast<double (*)(double)>(&sinh);
-	 double (*cfunc)(double) = osc ?
-	   static_cast<double (*)(double)>(&cos) :
-	   static_cast<double (*)(double)>(&cosh);
-	 
+
+         double (*sfunc)(double) = osc ?
+                                   static_cast<double (*)(double)>(&sin) :
+                                   static_cast<double (*)(double)>(&sinh);
+         double (*cfunc)(double) = osc ?
+                                   static_cast<double (*)(double)>(&cos) :
+                                   static_cast<double (*)(double)>(&cosh);
+
          double skL   = (*sfunc)(kE * Lx_);
          double csckL = 1.0 / skL;
 
-	 if (realPart_)
-	 {
-	   V[0] = D / S;
-	   V[1] = 0.0;
-	   V[2] = 0.0;
-	 }
-	 else
-	 {
-	   V[0] = 0.0;
-	   V[1] = -1.0;
-	   V[2] = 0.0;
-	 }
+         if (realPart_)
+         {
+            V[0] = D / S;
+            V[1] = 0.0;
+            V[2] = 0.0;
+         }
+         else
+         {
+            V[0] = 0.0;
+            V[1] = -1.0;
+            V[2] = 0.0;
+         }
 
          if (x[0] <= xJ_ - 0.5 * dx_)
          {
@@ -951,7 +951,7 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
             double a = skx * skLxJ * skd;
 
             V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
-	    if (!osc) V *= -1.0;
+            if (!osc) { V *= -1.0; }
          }
          else if (x[0] <= xJ_ + 0.5 * dx_)
          {
@@ -967,11 +967,11 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
          {
             double skLx = (*sfunc)(kE * (Lx_ - x[0]));
             double skxJ = (*sfunc)(kE * xJ_);
-	    double skd  = (*sfunc)(kE * 0.5 * dx_);
+            double skd  = (*sfunc)(kE * 0.5 * dx_);
             double a = skLx * skxJ * skd;
 
             V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
-	    if (!osc) V *= -1.0;
+            if (!osc) { V *= -1.0; }
          }
       }
       break;
