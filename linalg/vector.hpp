@@ -52,8 +52,8 @@ class Vector
 {
 protected:
 
-   int size, allocsize;
-   double * data;
+   int size =0, allocsize = 0;
+   double * data=NULL;
 
 public:
 
@@ -70,7 +70,7 @@ public:
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a _data can be NULL. The data array can be replaced later
        with SetData(). */
-   MFEM_HOST_DEVICE Vector (double *_data, int _size);
+   Vector (double *_data, int _size, const bool skip = false);
 
    /// Copies data from host to device
    void Push() const;
@@ -124,7 +124,7 @@ public:
    void Destroy();
 
    /// Returns the size of the vector.
-   MFEM_HOST_DEVICE inline int Size() const { return size; }
+   inline int Size() const { return size; }
 
    /// Return the size of the currently allocated data array.
    /** It is always true that Capacity() >= Size(). */
@@ -151,8 +151,8 @@ public:
    inline bool OwnsData() const { return (allocsize > 0); }
 
    /// Changes the ownership of the data; after the call the Vector is empty
-   inline void StealData(double **p)
-   { *p = data; data = 0; size = allocsize = 0; }
+   /*inline*/ void StealData(double **p);
+   //{ *p = data; data = 0; size = allocsize = 0; }
 
    /// Changes the ownership of the data; after the call the Vector is empty
    inline double *StealData() { double *p; StealData(&p); return p; }
@@ -165,11 +165,11 @@ public:
 
    /// Access Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   MFEM_HOST_DEVICE inline double & operator() (int i);
+   inline double & operator() (int i);
 
    /// Read only access to Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   MFEM_HOST_DEVICE inline const double & operator() (int i) const;
+   inline const double & operator() (int i) const;
 
    /// Dot product with a `double *` array.
    double operator*(const double *) const;
@@ -322,9 +322,10 @@ inline int CheckFinite(const double *v, const int n)
    }
    return bad;
 }
-
+/*
 inline Vector::Vector (int s)
 {
+   assert
    if (s > 0)
    {
       allocsize = size = s;
@@ -332,30 +333,48 @@ inline Vector::Vector (int s)
    }
    else
    {
+      assert(false);
       allocsize = size = 0;
       data = NULL;
    }
-}
-
+   }*/
+/*
 inline void Vector::SetSize(int s)
 {
+   dbg("s:%d, size:%d, allocsize:%d", s, size, allocsize);
+   if (s==0)
+   {
+      BUILTIN_TRAP;
+      return;
+   }
    if (s == size)
    {
       return;
    }
    if (s <= abs(allocsize))
    {
+      {
+         //assert(false);
+         if (allocsize>0) mm::free<double>(data);
+         size = s;
+         data = mm::malloc<double>(s);
+         return;
+      }
       size = s;
       return;
    }
    if (allocsize > 0)
    {
+      assert(false);
+      dbg("allocsize > 0, free");
       mm::free<double>(data);
    }
    allocsize = size = s;
+   dbg("malloc %d, allocsize=%d", size, allocsize);
    data = mm::malloc<double>(s);
 }
-
+*/
+/*
 inline void Vector::Destroy()
 {
    if (allocsize > 0)
@@ -365,21 +384,18 @@ inline void Vector::Destroy()
    allocsize = size = 0;
    data = NULL;
 }
-
+*/
 inline double & Vector::operator() (int i)
 {
-/*   MFEM_ASSERT(data && i >= 0 && i < size,
+   MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
-*/
    return data[i];
 }
 
 inline const double & Vector::operator() (int i) const
 {
-   /*
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
-   */
    return data[i];
 }
 

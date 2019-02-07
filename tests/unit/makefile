@@ -44,7 +44,8 @@ all: $(UNIT_TESTS)
 .PHONY: all clean
 
 unit_tests: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LIBS) -o $(@)
+	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LIBS) -o $(@) \
+	-L/home/camier1/home/okstk -lstk -L$(HOME)/lib -lbacktrace
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.

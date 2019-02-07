@@ -517,8 +517,9 @@ void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
 void IntegrationPointTransformation::Transform (const IntegrationPoint &ip1,
                                                 IntegrationPoint &ip2)
 {
-   double vec[3];
-   Vector v (vec, Transf.GetPointMat().Height());
+   //double vec[3];
+   static double *vec = mm::malloc<double>(3);
+   Vector v (vec, Transf.GetPointMat().Height(), true);
 
    Transf.Transform (ip1, v);
    ip2.Set(vec, v.Size());
