@@ -1144,6 +1144,28 @@ public:
                      const IntegrationPoint &ip);
 };
 
+/// Matrix coefficient defined as -a k x k x, for a vector k and scalar a
+class CrossCrossCoefficient : public MatrixCoefficient
+{
+private:
+   Coefficient * a;
+   VectorCoefficient * k;
+
+   mutable Vector vk;
+
+public:
+   CrossCrossCoefficient(Coefficient &A, VectorCoefficient &K);
+
+   void SetACoef(Coefficient &A) { a = &A; }
+   Coefficient * GetACoef() const { return a; }
+
+   void SetKCoef(VectorCoefficient &K) { k = &K; }
+   VectorCoefficient * GetKCoef() const { return k; }
+
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
 /** Compute the Lp norm of a function f.
     \f$ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} \f$ */
 double ComputeLpNorm(double p, Coefficient &coeff, Mesh &mesh,

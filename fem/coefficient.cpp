@@ -621,6 +621,30 @@ void OuterProductCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    }
 }
 
+CrossCrossCoefficient::CrossCrossCoefficient(Coefficient &A,
+                                             VectorCoefficient &K)
+   : MatrixCoefficient(K.GetVDim(), K.GetVDim()), a(&A), k(&K),
+     vk(K.GetVDim())
+{}
+
+void CrossCrossCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   k->Eval(vk, T, ip);
+   M.SetSize(vk.Size(), vk.Size());
+   M = 0.0;
+   double k2 = vk*vk;
+   for (int i=0; i<vk.Size(); i++)
+   {
+      M(i, i) = k2;
+      for (int j=0; j<vk.Size(); j++)
+      {
+         M(i, j) -= vk[i] * vk[j];
+      }
+   }
+   M *= a->Eval(T, ip);
+}
+
 double LpNormLoop(double p, Coefficient &coeff, Mesh &mesh,
                   const IntegrationRule *irs[])
 {
