@@ -32,6 +32,7 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
                          MatrixCoefficient & epsImCoef,
                          Coefficient & muInvCoef,
                          Coefficient * etaInvCoef,
+                         VectorCoefficient * kCoef,
                          Array<int> & abcs,
                          Array<int> & dbcs,
                          // void   (*e_r_bc )(const Vector&, Vector&),
@@ -50,21 +51,29 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
      omega_(omega),
      solNorm_(-1.0),
      pmesh_(&pmesh),
+     L2VFESpace_(NULL),
      HCurlFESpace_(NULL),
      a1_(NULL),
      b1_(NULL),
      e_(NULL),
      j_(NULL),
      rhs_(NULL),
+     e_t_(NULL),
+     e_v_(NULL),
+     j_v_(NULL),
      epsReCoef_(&epsReCoef),
      epsImCoef_(&epsImCoef),
      muInvCoef_(&muInvCoef),
      etaInvCoef_(etaInvCoef),
+     kCoef_(kCoef),
      omegaCoef_(new ConstantCoefficient(omega_)),
      negOmegaCoef_(new ConstantCoefficient(-omega_)),
      omega2Coef_(new ConstantCoefficient(pow(omega_, 2))),
      negOmega2Coef_(new ConstantCoefficient(-pow(omega_, 2))),
      abcCoef_(NULL),
+     sinkx_(NULL),
+     coskx_(NULL),
+     negsinkx_(NULL),
      massReCoef_(NULL),
      massImCoef_(NULL),
      posMassCoef_(NULL),
@@ -90,6 +99,24 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
    // elements.
    // H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
+
+   if (kCoef_)
+   {
+      L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
+                                      pmesh_->SpaceDimension());
+      e_t_ = new ParGridFunction(L2VFESpace_);
+      e_v_ = new ParComplexGridFunction(L2VFESpace_);
+      j_v_ = new ParComplexGridFunction(L2VFESpace_);
+
+      sinkx_ = new PhaseCoefficient(*kCoef_, &sin);
+      coskx_ = new PhaseCoefficient(*kCoef_, &cos);
+      negsinkx_ = new ProductCoefficient(-1.0, *sinkx_);
+   }
+   else
+   {
+      e_t_ = new ParGridFunction(HCurlFESpace_);
+   }
+
    // HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
    if (false)
    {
@@ -262,6 +289,9 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
 
 CPD1DSolver::~CPD1DSolver()
 {
+   delete negsinkx_;
+   delete coskx_;
+   delete sinkx_;
    delete rhsrCoef_;
    delete rhsiCoef_;
    delete jrCoef_;
@@ -281,6 +311,8 @@ CPD1DSolver::~CPD1DSolver()
    // delete DivFreeProj_;
    // delete SurfCur_;
 
+   if (e_v_ != e_) { delete e_v_; }
+   if (j_v_ != j_) { delete j_v_; }
    // delete e_r_;
    // delete e_i_;
    delete e_;
@@ -294,9 +326,9 @@ CPD1DSolver::~CPD1DSolver()
    // delete m_;
    // delete bd_;
    delete rhs_;
+   delete e_t_;
    // delete jd_r_;
    // delete jd_i_;
-
    // delete grad_;
    // delete curl_;
 
@@ -307,6 +339,7 @@ CPD1DSolver::~CPD1DSolver()
    // delete hDivHCurlMuInv_;
    // delete weakCurlMuInv_;
 
+   delete L2VFESpace_;
    // delete H1FESpace_;
    delete HCurlFESpace_;
    // delete HDivFESpace_;
@@ -787,12 +820,26 @@ CPD1DSolver::DisplayToGLVis()
    int Ww = 350, Wh = 350; // window size
    int offx = Ww+10, offy = Wh+45; // window offsets
 
+   if (kCoef_)
+   {
+      VectorGridFunctionCoefficient e_r(&e_->real());
+      VectorGridFunctionCoefficient e_i(&e_->imag());
+      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *sinkx_);
+      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *negsinkx_);
+
+      e_v_->ProjectCoefficient(erCoef, eiCoef);
+   }
+   else
+   {
+      e_v_ = e_;
+   }
+
    VisualizeField(*socks_["Er"], vishost, visport,
-                  e_->real(), "Electric Field, Re(E)", Wx, Wy, Ww, Wh);
+                  e_v_->real(), "Electric Field, Re(E)", Wx, Wy, Ww, Wh);
    Wx += offx;
 
    VisualizeField(*socks_["Ei"], vishost, visport,
-                  e_->imag(), "Electric Field, Im(E)", Wx, Wy, Ww, Wh);
+                  e_v_->imag(), "Electric Field, Im(E)", Wx, Wy, Ww, Wh);
    /*
    Wx += offx;
    VisualizeField(*socks_["B"], vishost, visport,
@@ -802,19 +849,32 @@ CPD1DSolver::DisplayToGLVis()
                   *h_, "Magnetic Field (H)", Wx, Wy, Ww, Wh);
    Wx += offx;
    */
-   Wx = 0; Wy += offy; // next line
-
    if ( j_ )
    {
+      Wx = 0; Wy += offy; // next line
+
       j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
+      if (kCoef_)
+      {
+         VectorGridFunctionCoefficient j_r(&j_->real());
+         VectorGridFunctionCoefficient j_i(&j_->imag());
+         VectorSumCoefficient jrCoef(j_r, j_i, *coskx_, *sinkx_);
+         VectorSumCoefficient jiCoef(j_i, j_r, *coskx_, *negsinkx_);
+
+         j_v_->ProjectCoefficient(jrCoef, jiCoef);
+      }
+      else
+      {
+         j_v_ = j_;
+      }
+
       VisualizeField(*socks_["Jr"], vishost, visport,
-                     j_->real(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
+                     j_v_->real(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
       Wx += offx;
       VisualizeField(*socks_["Ji"], vishost, visport,
-                     j_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
+                     j_v_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
    }
-
    Wx = 0; Wy += offy; // next line
    /*
    if ( k_ )
@@ -842,23 +902,34 @@ CPD1DSolver::DisplayAnimationToGLVis()
 {
    if (myid_ == 0) { cout << "Sending animation data to GLVis ..." << flush; }
 
-   ParGridFunction e_t(HCurlFESpace_);
+   if (kCoef_)
+   {
+      VectorGridFunctionCoefficient e_r(&e_->real());
+      VectorGridFunctionCoefficient e_i(&e_->imag());
+      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *sinkx_);
+      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *negsinkx_);
+
+      e_v_->ProjectCoefficient(erCoef, eiCoef);
+   }
+   else
+   {
+      e_v_ = e_;
+   }
 
    Vector zeroVec(3); zeroVec = 0.0;
    VectorConstantCoefficient zeroCoef(zeroVec);
 
-   e_t = e_->imag();
-   double norm_i = e_t.ComputeMaxError(zeroCoef);
+   double norm_r = e_v_->real().ComputeMaxError(zeroCoef);
+   double norm_i = e_v_->imag().ComputeMaxError(zeroCoef);
 
-   e_t = e_->real();
-   double norm_r = e_t.ComputeMaxError(zeroCoef);
+   *e_t_ = e_v_->real();
 
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
    sol_sock.precision(8);
-   sol_sock << "solution\n" << *pmesh_ << e_t
+   sol_sock << "solution\n" << *pmesh_ << *e_t_
             << "window_title 'Harmonic Solution (t = 0.0 T)'"
             << "valuerange 0.0 " << max(norm_r, norm_i) << "\n"
             << "autoscale off\n"
@@ -875,10 +946,10 @@ CPD1DSolver::DisplayAnimationToGLVis()
       ostringstream oss;
       oss << "Harmonic Solution (t = " << t << " T)";
 
-      add( cos( 2.0 * M_PI * t), e_->real(),
-           -sin( 2.0 * M_PI * t), e_->imag(), e_t);
+      add( cos( 2.0 * M_PI * t), e_v_->real(),
+           -sin( 2.0 * M_PI * t), e_v_->imag(), *e_t_);
       sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
-      sol_sock << "solution\n" << *pmesh_ << e_t
+      sol_sock << "solution\n" << *pmesh_ << *e_t_
                << "window_title '" << oss.str() << "'" << flush;
       i++;
    }

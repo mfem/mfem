@@ -182,6 +182,10 @@ int main(int argc, char *argv[])
    Vector BVec(3);
    BVec = 0.0; BVec(0) = 0.1;
 
+   bool phase_shift = false;
+   Vector kVec(3);
+   kVec = 0.0;
+
    Vector numbers;
    Vector charges;
    Vector masses;
@@ -205,6 +209,10 @@ int main(int argc, char *argv[])
                   "'Z' - Zero");
    args.AddOption(&BVec, "-B", "--magnetic-flux",
                   "Background magnetic flux vector");
+   args.AddOption(&kVec[1], "-ky", "--wave-vector-y",
+                  "y-Component of wave vector.");
+   args.AddOption(&kVec[2], "-kz", "--wave-vector-z",
+                  "z-Component of wave vector.");
    args.AddOption(&numbers, "-num", "--number-densites",
                   "Number densities of the various species");
    args.AddOption(&charges, "-q", "--charges",
@@ -287,6 +295,10 @@ int main(int argc, char *argv[])
       mesh_dim_[2] = 0.1;
    }
    double omega = 2.0 * M_PI * freq;
+   if (kVec[1] != 0.0 || kVec[2] != 0.0)
+   {
+      phase_shift = true;
+   }
 
    if (mpi.Root())
    {
@@ -441,6 +453,7 @@ int main(int argc, char *argv[])
    }
    */
    VectorConstantCoefficient BCoef(BVec);
+   VectorConstantCoefficient kCoef(kVec);
    /*
    double ion_frac = 0.0;
    ConstantCoefficient rhoCoef1(rho1);
@@ -559,6 +572,7 @@ int main(int argc, char *argv[])
    // Create the Magnetostatic solver
    CPD1DSolver CPD1D(pmesh, order, omega, (CPD1DSolver::SolverType)sol,
                      conv, epsilon_real, epsilon_imag, muInvCoef, etaInvCoef,
+                     (phase_shift) ? &kCoef : NULL,
                      abcs, dbcs,
                      // e_bc_r, e_bc_i,
                      EReCoef, EImCoef,

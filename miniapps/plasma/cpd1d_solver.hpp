@@ -55,14 +55,13 @@ public:
                MatrixCoefficient & espImCoef,
                Coefficient & muInvCoef,
                Coefficient * etaInvCoef,
+               VectorCoefficient * kCoef,
                Array<int> & abcs,
                Array<int> & dbcs,
-               // void   (*e_r_bc )(const Vector&, Vector&),
-               // void   (*e_i_bc )(const Vector&, Vector&),
                VectorCoefficient & EReCoef,
                VectorCoefficient & EImCoef,
-               void   (*j_r_src)(const Vector&, Vector&),
-               void   (*j_i_src)(const Vector&, Vector&));
+               void (*j_r_src)(const Vector&, Vector&),
+               void (*j_i_src)(const Vector&, Vector&));
    ~CPD1DSolver();
 
    HYPRE_Int GetProblemSize();
@@ -110,6 +109,7 @@ private:
 
    ParMesh * pmesh_;
 
+   L2_ParFESpace * L2VFESpace_;
    // H1_ParFESpace * H1FESpace_;
    ND_ParFESpace * HCurlFESpace_;
    // RT_ParFESpace * HDivFESpace_;
@@ -120,20 +120,27 @@ private:
    ParSesquilinearForm * a1_;
    ParBilinearForm * b1_;
 
-   ParComplexGridFunction * e_;  // Complex electric field (HCurl)
-   ParComplexGridFunction * j_;  // Complex current density (HCurl)
+   ParComplexGridFunction * e_;   // Complex electric field (HCurl)
+   ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
+   ParGridFunction        * e_t_; // Time dependent Electric field
+   ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
+   ParComplexGridFunction * j_v_; // Complex current density (L2^d)
 
    MatrixCoefficient * epsReCoef_;  // Dielectric Material Coefficient
    MatrixCoefficient * epsImCoef_;  // Dielectric Material Coefficient
    Coefficient       * muInvCoef_;  // Dia/Paramagnetic Material Coefficient
    Coefficient       * etaInvCoef_; // Admittance Coefficient
+   VectorCoefficient * kCoef_;      // Wave Vector
 
    Coefficient * omegaCoef_;     // omega expressed as a Coefficient
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
    Coefficient * omega2Coef_;    // omega^2 expressed as a Coefficient
    Coefficient * negOmega2Coef_; // -omega^2 expressed as a Coefficient
    Coefficient * abcCoef_;       // -omega eta^{-1}
+   Coefficient * sinkx_;         // sin(ky * y + kz * z)
+   Coefficient * coskx_;         // cos(ky * y + kz * z)
+   Coefficient * negsinkx_;      // -sin(ky * y + kz * z)
 
    MatrixCoefficient * massReCoef_;  // -omega^2 Re(epsilon)
    MatrixCoefficient * massImCoef_;  // omega^2 Im(epsilon)
