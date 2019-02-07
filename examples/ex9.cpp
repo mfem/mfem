@@ -90,7 +90,7 @@ public:
       stencil = _stencil;
 
       if (stencil == 0) { GetNodalBoundsMap(); }
-      elseif (stencil > 1) { GetBoundsMap(fes, K); }
+      else if (stencil > 1) { GetBoundsMap(fes, K); }
    }
 
    void Compute(const SparseMatrix &K, const Vector &x)
@@ -210,6 +210,7 @@ public:
 
 private:
    
+   // Find a zone id that shares a face with both el1 and el2, but isn't el1.
    int FindCommonAdjacentElement(int el, int el1, int el2, int dim, int numBdrs)
    {
       int i, j, commonNeighbor;
@@ -266,15 +267,11 @@ private:
       {
          return commonNeighbor;
       }
-      else
-      {
-         mfem_error("No common neighbor element found.");
-      }
+      else { return -1; }
    }
    
    void GetNodalBoundsMap()
    {
-//       Mesh* mesh = fes->GetMesh();
       const FiniteElement &dummy = *fes->GetFE(0);
       int i, j, k, dofInd, numBdrs, numDofs, maxElPerNode, dim = mesh->Dimension(), 
          ne = mesh->GetNE(), nd = dummy.GetDof(), p = dummy.GetOrder();
@@ -326,12 +323,26 @@ private:
             }
          }
          
+         // Diagonal neighbors.
          if (dim==2)
          {
-            map_for_bounds[k*nd].push_back(FindCommonAdjacentElement(k, neighborElements[3], neighborElements[0], dim, numBdrs));
-            map_for_bounds[k*nd+p].push_back(FindCommonAdjacentElement(k, neighborElements[0], neighborElements[1], dim, numBdrs));
-            map_for_bounds[(k+1)*nd-1].push_back(FindCommonAdjacentElement(k, neighborElements[1], neighborElements[2], dim, numBdrs));
-            map_for_bounds[k*p*(p+1)].push_back(FindCommonAdjacentElement(k, neighborElements[2], neighborElements[3], dim, numBdrs));
+            int nbr_id;
+
+            nbr_id = FindCommonAdjacentElement(k, neighborElements[3],
+                                                  neighborElements[0], 2, numBdrs);
+            if (nbr_id > 0) { map_for_bounds[k*nd].push_back(nbr_id); }
+
+            nbr_id = FindCommonAdjacentElement(k, neighborElements[0],
+                                                  neighborElements[1], 2, numBdrs);
+            if (nbr_id > 0) { map_for_bounds[k*nd+p].push_back(nbr_id); }
+
+            nbr_id = FindCommonAdjacentElement(k, neighborElements[1],
+                                                  neighborElements[2], 2, numBdrs);
+            if (nbr_id > 0) { map_for_bounds[(k+1)*nd-1].push_back(nbr_id); }
+
+            nbr_id = FindCommonAdjacentElement(k, neighborElements[2],
+                                                  neighborElements[3], 2, numBdrs);
+            if (nbr_id > 0) { map_for_bounds[k*p*(p+1)].push_back(nbr_id); }
          }
          else if (dim==3)
          {
@@ -548,31 +559,21 @@ private:
             // For each, find if its sparsity pattern contains
             // other DOFs with same physical location, and add them to the map.
             /*
-             *         vector<int> vector_of_internal_dofs = map_for_bounds[ldofs[i]];
-             *         for (int it = 0; it < vector_of_internal_dofs.size(); it++)
-             *         {
-             *            const int idof = vector_of_internal_dofs[it];
-             *            if (idof == ldofs[i]) { continue; }
-             *
-             *            // check sparsity pattern
-             *            for (int j = I[idof]; j < I[idof + 1]; j++)
-             *            {
-             *               if (idof != J[j] && Distance(idof, J[j]) <= tol)
-             *               {
-             *                  boundsmap[ldofs[i]].push_back(J[j]);
-            }
-            }
-            }
+            vector<int> vector_of_internal_dofs = map_for_bounds[ldofs[i]];
+            for (int j = 0; j < vector_of_internal_dofs.size(); j++)
+            {
+               const int idof = vector_of_internal_dofs[j];
+               if (idof == ldofs[i]) { continue; }
 
-            if (ldofs[i] == DOF_ID)
-            {
-            cout << "sdf " << vector_of_internal_dofs.size() << endl;
-            for (int j = 0; j < F.init_state.map_for_bounds[DOF_ID].size(); j++)
-            {
-            cout << boundsmap[DOF_ID][j] << endl;
-            }
-            }
-            */
+               // check sparsity pattern
+               for (int j = I[idof]; j < I[idof + 1]; j++)
+               {
+                  if (idof != J[j] && Distance(idof, J[j]) <= tol)
+                  {
+                     map_for_bounds[ldofs[i]].push_back(J[j]);
+                  }
+               }
+            } */
 
             //////////////
             // SOURCE 2 //
