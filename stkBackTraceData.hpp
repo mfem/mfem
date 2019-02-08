@@ -26,7 +26,7 @@ public:
 public:
    void flush();
    void isItMM(const char*, const char*, const int);
-   void update(const char*, uintptr_t, const char* =NULL, const int=0);
+   void update(const char *symbol, uintptr_t PC, const char* =NULL, const int=0);
    int continue_tracing(){ return m_hit?1:0; }
 public:
    bool mm(){ return m_mm; }
@@ -42,6 +42,7 @@ public:
    const int lineno(){ return m_lineno; }
    backtrace_state* state(){ return m_state; }
 private:
+   const bool m_dbg;
    backtrace_state* m_state;
    const char *m_function;
    const char *m_filename;
@@ -56,7 +57,6 @@ private:
    bool m_got;
    int m_depth;
    char m_stack[STACK_LENGTH];
-   std::map<std::string, bool> addons;
 };
 
 #endif // LIB_STK_BACKTRACE_DATA

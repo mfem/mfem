@@ -13,12 +13,13 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#include "stk.hpp"
+#include "okstk.hpp"
 
 // *****************************************************************************
 // * Backtrace library
 // *****************************************************************************
 stkBackTraceData::stkBackTraceData(backtrace_state* s):
+   m_dbg(getenv("ALL")!=NULL),
    m_state(s),
    m_function(nullptr),
    m_filename(nullptr),
@@ -76,7 +77,7 @@ const char *getFilename(const char *filename, const char d, const int n){
 
 // *****************************************************************************
 void stkBackTraceData::update(const char* demangled,
-                              uintptr_t adrs,
+                              uintptr_t PC,
                               const char* filename,
                               const int lineno) {
    m_hit = !strncmp(demangled,"main",4);
@@ -88,54 +89,29 @@ void stkBackTraceData::update(const char* demangled,
          m_skip |= io | dbg;
       }
       char add[STACK_LENGTH];
-      sprintf(add,"\n\t%s %s:%d",demangled,filename?filename:"???",lineno);
+      const int n_char_printed =
+         snprintf(add, STACK_LENGTH, "\n\t%s %s:%d",
+                  demangled,filename?filename:"???",lineno);
+      assert(n_char_printed<STACK_LENGTH);
       strcat(m_stack,add);
    }
    if (m_function!=nullptr) return;
-   m_function=strdup(demangled);
-   m_filename=filename?strdup(filename):NULL;
-   m_address=adrs;
-   m_lineno=lineno;
+   m_function = strdup(demangled);
+   m_filename = filename?strdup(filename):NULL;
+   m_address = PC;
+   m_lineno = lineno;
 }
 
 // *****************************************************************************
 void stkBackTraceData::isItMM(const char *demangled,
                               const char* filename,
                               const int l){
-   static bool dbg = getenv("ALL")!=NULL;
-   
-   /*
-   printf("\n%s", demangled);
-   printf("\n%s:%d", filename,l);
-   printf("\n1:%s", getFilename(filename,'/',1));
-   printf("\n2:%s", getFilename(filename,'/',2));
-   printf("\n2:%s", getFilename(filename,'/',2));
-   */
-   
+      
    const bool mfem = strncmp(demangled,"mfem::",6)==0;
    const bool add = strncmp(demangled,"mfem::mm::add_this_call_as_mm",29)==0;
    
-   std::stringstream ss;
-   ss << demangled << l;
-   std::string hash = ss.str();
-   const bool addon = addons.find(hash)!=addons.end();
-   
-   if (m_add) {
-      if (!addon)
-      {
-         printf("\n\033[1;31mNew Addon!\033[m");
-         addons[hash];
-      }else{
-         printf("\n\033[1;31mKnown Addon!\033[m");
-      }
-      printf("\n\033[1;31m Add %s:%d (%s)\033[m",demangled,l,hash.c_str());
-      fflush(0);
-      m_add=false;
-   }
    if (add){ m_add=true; }
-
-
-   if (dbg) printf("%s", mfem?"mfem::":"");
+   if (m_dbg) printf("%s", mfem?"mfem::":"");
    
    m_mfem |= mfem;
    m_add |= add;
@@ -144,12 +120,12 @@ void stkBackTraceData::isItMM(const char *demangled,
    const bool mm_cpp = strncmp(getFilename(filename,'/',2),"general/mm.cpp",13)==0;
    const bool mm_space = strncmp(demangled,"mfem::mm",8)==0;
    const bool mm = mm_cpp or mm_hpp or mm_space;
-   if (dbg) printf("%s", mm?"MM::":"");
+   if (m_dbg) printf("%s", mm?"MM::":"");
 
    if (m_skip) { // _IO, etc.
-      if (dbg) printf("%s", m_skip?"skip::":"");
+      if (m_dbg) printf("%s", m_skip?"skip::":"");
    } 
    
-   m_mm |= mm |addon | m_skip;
+   m_mm |= mm | m_skip;//|addon
 
 }

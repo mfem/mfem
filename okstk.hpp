@@ -13,30 +13,34 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#ifndef STK_HPP
-#define STK_HPP
+#ifndef OKSTK_HPP
+#define OKSTK_HPP
 
+#include <map>
 #include <sstream>
+#include <cassert>
+#include <cxxabi.h>
+#include <string.h>
 
-class stk{
-public:
-   stk(const bool =false);
-   stk(const void*, const bool, const bool =false);
-   stk(const char*, const bool =false);
-   ~stk();
-   template<class T>
-   stk& operator<<(const T& t){
-      stream << t;
-      return *this;
-   }
-private:
-   const void *ptr;
-   const bool new_or_delete;
-   const bool rip;
-   std::stringstream stream;
-   const char *options;
-};
+#include <backtrace.h>
+#include <backtrace-supported.h>
 
-void stkIni(char*);
+#define DEMANGLE_LENGTH 32768
+#define STACK_LENGTH 32768
 
-#endif // STK_HPP
+#include "stk.h"
+#include "stkBackTrace.hpp"
+#include "stkBackTraceData.hpp"
+
+
+#include <regex>
+#include <iostream>
+#include <unordered_map>
+
+#include "stk.h"
+#include "stk.hpp"
+#include "stkBackTrace.hpp"
+
+#include "/home/camier1/home/mfem/okina-examples/general/okina.hpp"
+
+#endif // OKSTK_HPP

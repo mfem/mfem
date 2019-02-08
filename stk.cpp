@@ -13,17 +13,7 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#include <assert.h>
-
-#include <regex>
-#include <iostream>
-#include <unordered_map>
-
-#include "stk.h"
-#include "stk.hpp"
-#include "stkBackTrace.hpp"
-
-#include "/home/camier1/home/mfem/okina-examples/general/okina.hpp"
+#include "okstk.hpp"
 
 // *****************************************************************************
 // * 
@@ -145,9 +135,9 @@ stk::~stk(){
            }else if (known and is_del){
               printf("\033[1;31m\nTrying to delete a pointer that is known by the MM!\033[m");
               printf("\033[32mSTACK: %s\033[m",bt->stack()); 
-              fflush(0);
               mfem::mm::dump((void*)ptr);
-              assert(false);
+              fflush(0);
+              exit(0);
            }else{
               printf("\033[31m, unknown: ok\033[m");
            }

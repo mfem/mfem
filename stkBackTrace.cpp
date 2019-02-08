@@ -13,15 +13,28 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#include "stk.hpp"
+#include "okstk.hpp"
 
 // *****************************************************************************
-static const char* demangle(const char* mangled_name){
+static const char* cxx_demangle(const char* mangled_name){
    int status;
-   static size_t length = DEMANGLE_LENGTH;
-   static char output_buffer[DEMANGLE_LENGTH];
+   size_t length;
    const char *demangled_name =
-      abi::__cxa_demangle(mangled_name,output_buffer,&length,&status);
+      abi::__cxa_demangle(mangled_name, NULL, &length, &status);
+   const bool succeeded = status == 0;
+   const bool memory_allocation_failure_occurred = status == -1;
+   const bool one_argument_is_invalid = status == -3;
+   assert(not one_argument_is_invalid);
+   if (succeeded and length >= DEMANGLE_LENGTH){
+      printf("[demangle] length=%ld", length);
+      fflush(0);
+      assert(false);
+   }
+   if (memory_allocation_failure_occurred){
+      printf("[demangle] memory_allocation_failure_occurred!");
+      fflush(0);
+      assert(false);
+   }
    return (status==0)?demangled_name:mangled_name;
 }
 
@@ -38,11 +51,9 @@ static void sym_callback(void *data,
                          uintptr_t symval,
                          uintptr_t symsize){
    if (!symname) return;
-   assert(symname);
    stkBackTraceData *ctx=static_cast<stkBackTraceData*>(data);
-   const char *symbol = demangle(symname);
-   //printf("\033[32;1m[sym_callback] %s\033[m\n",symbol);
-   ctx->update(symbol,pc);
+   const char *demangled = cxx_demangle(symname);
+   ctx->update(demangled,pc);
 }
 
 // *****************************************************************************
@@ -56,22 +67,22 @@ static int full_callback(void *data,
                          const char *filename,
                          int lineno,
                          const char *function){
-   stkBackTraceData *ctx=static_cast<stkBackTraceData*>(data);
+   stkBackTraceData *ctx = static_cast<stkBackTraceData*>(data);
    if (!function){ // symbol hit
       //printf("\n\033[32;1m[full_callback] filename:%s, lineno=%d, pc=0x%lx\033[m",filename, lineno, pc);
       return backtrace_syminfo(ctx->state(), pc,
                                sym_callback, err_callback, data);
    }
-   const char *demangled = demangle(function);
+   const char *demangled = cxx_demangle(function);
    // Filtering
    if (strncmp("std::",demangled,5)==0) return filter(demangled);
    if (strncmp("__gnu_cxx::",demangled,11)==0) return filter(demangled);
    //if (strncmp("void",demangled,4)==0) return filter(demangled);
    
    // Update context
-   ctx->isItMM(demangled,filename, lineno);
-   ctx->update(demangled,pc,filename,lineno);
-
+   ctx->isItMM(demangled, filename, lineno);
+   ctx->update(demangled, pc, filename, lineno);
+   
    // Debug if ALL
    if (ctx->rip() or getenv("ALL")){
       printf("\033[33m%s:%d \033[1m%s\033[m\n",filename,lineno,demangled);
@@ -85,7 +96,6 @@ static int simple_callback(void *data, uintptr_t pc){
    backtrace_pcinfo(ctx->state(), pc, full_callback, err_callback, data);
    return ctx->continue_tracing();
 }
-
 
 // ***************************************************************************
 // * stkBackTrace
