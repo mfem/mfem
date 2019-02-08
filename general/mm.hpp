@@ -13,31 +13,25 @@
 #define MFEM_MM
 
 #include <cstddef> // for size_t
-using std::size_t;
 
 #include <list>
 #include <unordered_map>
 
 #include "occa.hpp" // for OccaMemory
 
-
 namespace mfem
 {
 
-// *****************************************************************************
-// * Memory Manager Singleton
-// *****************************************************************************
-class mm
+class DefaultMemoryManager
 {
 public:
-   // **************************************************************************
    struct alias;
 
    // TODO: Change this to ptr
    struct memory
    {
       bool host;
-      const size_t bytes;
+      const std::size_t bytes;
 
       void *const h_ptr;
       void *d_ptr;
@@ -45,17 +39,16 @@ public:
 
       std::list<const alias *> aliases;
 
-      memory(void* const h, const size_t b):
+      memory(void* const h, const std::size_t b):
          host(true), bytes(b), h_ptr(h), d_ptr(NULL), aliases() {}
    };
 
    struct alias
    {
       memory *const mem;
-      const size_t offset;
+      const std::size_t offset;
    };
 
-   // **************************************************************************
    typedef std::unordered_map<const void*, memory> memory_map;
    typedef std::unordered_map<const void*, const alias*> alias_map;
 
@@ -66,67 +59,85 @@ public:
    };
 
    // **************************************************************************
-   // * Main malloc template function
-   // * Allocates n*size bytes and returns a pointer to the allocated memory
-   // **************************************************************************
-   template<class T>
-   static inline T* malloc(const size_t n, const size_t size = sizeof(T))
-   { return (T*) MM().Insert(::new T[n], n*size); }
 
-   // **************************************************************************
-   // * Frees the memory space pointed to by ptr, which must have been
-   // * returned by a previous call to mm::malloc
-   // **************************************************************************
-   template<class T>
-   static inline void free(void *ptr)
+   // Allocate a host pointer and add it to the registry
+   template<typename T>
+   inline T* allocate(const std::size_t n)
    {
-      if (!ptr) { return; }
-      mm::MM().Erase(ptr);
-      ::delete[] static_cast<T*>(ptr);
+      return static_cast<T*>(Insert(::new T[n], n*sizeof(T)));
    }
 
-   // **************************************************************************
-   // * Translates ptr to host or device address,
-   // * depending on config::Cuda() and the ptr' state
-   // **************************************************************************
-   static inline void* ptr(void *a) { return MM().Ptr(a); }
-   static inline const void* ptr(const void *a) { return MM().Ptr(a); }
-   static inline OccaMemory occaPtr(const void *a) { return MM().Memory(a); }
-
-   // **************************************************************************
-   static inline void push(const void *ptr, const size_t bytes = 0)
+   // Deallocate a pointer and remove it and all device allocations from the registry
+   template<typename T>
+   inline void deallocate(T *ptr)
    {
-      return MM().Push(ptr, bytes);
+      if (ptr != nullptr) {
+         Erase(ptr);
+         ::delete[] static_cast<T*>(ptr);
+      }
    }
 
-   // **************************************************************************
-   static inline void pull(const void *ptr, const size_t bytes = 0)
-   {
-      return MM().Pull(ptr, bytes);
-   }
+   // For a given host or device pointer, return the device or host corresponding pointer
+   // NOTE This may be offset from the original pointer in the registry
+   const void* getMatchingPointer(const void *a);
+   void* getMatchingPointer(void *a);
 
-   // **************************************************************************
-   static void* memcpy(void *dst, const void *src,
-                       size_t bytes, const bool async = false);
+   // Get the matching OCCA pointer
+   // TODO Remove this method -- wrap the d_ptr instead
+   OccaMemory getOccaPointer(const void *a);
+
+   // Given a host pointer, push bytes beginning at address ptr to the device allocation
+   // NOTE This may be offset from the original pointer in the registry
+   void pushData(const void *ptr, const std::size_t bytes = 0);
+
+   // Given a device pointer, pull size bytes beginning at address ptr to the host allocation
+   // NOTE This may be offset from the original pointer in the registry
+   void pullData(const void *ptr, const std::size_t bytes = 0);
+
+   // Copies bytes from src to dst, using the registry to determine where src and dst are located.
+   // NOTE These may be offset from the original pointers in the registry
+   void copyData(void *dst, const void *src, std::size_t bytes, const bool async = false);
+
+   // Default constructor
+   DefaultMemoryManager() = default;
 
 private:
    ledger maps;
-   mm() {}
-   mm(mm const&) = delete;
-   void operator=(mm const&) = delete;
-   static inline mm& MM() { static mm *singleton = new mm(); return *singleton; }
 
-   // **************************************************************************
-   void *Insert(void *ptr, const size_t bytes);
+   void *Insert(void *ptr, const std::size_t bytes);
    void *Erase(void *ptr);
-   void* Ptr(void *ptr);
-   const void* Ptr(const void *ptr);
-   OccaMemory Memory(const void *ptr);
-
-   // **************************************************************************
-   void Push(const void *ptr, const size_t bytes = 0);
-   void Pull(const void *ptr, const size_t bytes = 0);
 };
+
+#if defined(MFEM_ENABLE_UMPIRE)
+using MemoryManager = UmpireMemoryManager;
+#else
+using MemoryManager = DefaultMemoryManager;
+#endif
+
+namespace mm
+{
+MemoryManager& getInstance();
+
+template<class T>
+T* malloc(const std::size_t n, const std::size_t size = sizeof(T)) { return getInstance().allocate<T>(n * size); }
+
+template<class T>
+void free(void *ptr) { getInstance().deallocate(static_cast<T*>(ptr)); }
+
+void* ptr(void *a);
+
+const void* ptr(const void *a);
+
+OccaMemory occaPtr(const void *a);
+
+void push(const void *ptr, const std::size_t bytes = 0);
+
+void pull(const void *ptr, const std::size_t bytes = 0);
+
+void memcpy(void *dst, const void *src,
+            const std::size_t bytes, const bool async = false);
+
+} // namespace mm
 
 } // namespace mfem
 

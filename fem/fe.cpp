@@ -3941,13 +3941,11 @@ void P0HexFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
    : NodalFiniteElement(3, Geometry::CUBE, (degree+1)*(degree+1)*(degree+1),
-                        degree, FunctionSpace::Qk)
+                        degree, FunctionSpace::Qk),
+     I(new int[Dof]), J(new int[Dof]), K(new int[Dof])
 {
    if (degree == 2)
    {
-      I = mm::malloc<int>(Dof);
-      J = mm::malloc<int>(Dof);
-      K = mm::malloc<int>(Dof);
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
       I[ 1] = 1; J[ 1] = 0; K[ 1] = 0;
@@ -3982,9 +3980,6 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
    }
    else if (degree == 3)
    {
-      I = mm::malloc<int>(Dof);
-      J = mm::malloc<int>(Dof);
-      K = mm::malloc<int>(Dof);
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
       I[ 1] = 1; J[ 1] = 0; K[ 1] = 0;
