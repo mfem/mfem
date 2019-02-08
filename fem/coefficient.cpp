@@ -140,7 +140,7 @@ VectorArrayCoefficient::~VectorArrayCoefficient()
 {
    for (int i = 0; i < vdim; i++)
    {
-      delete Coeff[i];
+      mm_delete(Coeff[i]);
    }
 }
 
@@ -323,7 +323,7 @@ MatrixArrayCoefficient::~MatrixArrayCoefficient ()
 {
    for (int i=0; i < height*width; i++)
    {
-      delete Coeff[i];
+      mm_delete(Coeff[i]);
    }
 }
 

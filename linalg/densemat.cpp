@@ -434,7 +434,7 @@ void DenseMatrix::InvSymmetricScaling(const Vector & s)
          *(it_data++) *= ss[i]*ss[j];
       }
 
-   delete[] ss;
+   mm_delete([] ss);
 }
 
 double DenseMatrix::Trace() const
@@ -677,8 +677,8 @@ void DenseMatrix::Invert()
       mfem_error("DenseMatrix::Invert() : Error in DGETRI");
    }
 
-   delete [] work;
-   delete [] ipiv;
+   mm_delete([] work);
+   mm_delete([] ipiv);
 #else
    int c, i, j, n = Width();
    double a, b;
@@ -1000,10 +1000,10 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    }
 #endif
 
-   delete [] IWORK;
-   delete [] WORK;
-   delete [] ISUPPZ;
-   delete [] A;
+   mm_delete([] IWORK);
+   mm_delete([] WORK);
+   mm_delete([] ISUPPZ);
+   mm_delete([] A);
 
 #endif
 }
@@ -1058,8 +1058,8 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
       mfem_error();
    }
 
-   delete [] WORK;
-   if (evect == NULL) { delete [] A; }
+   mm_delete([] WORK);
+   if (evect == NULL) { mm_delete([] A); }
 #endif
 }
 
@@ -1133,9 +1133,9 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
       mfem_error();
    }
 
-   delete [] WORK;
-   delete [] B;
-   if (evect == NULL) { delete [] A; }
+   mm_delete([] WORK);
+   mm_delete([] B);
+   if (evect == NULL) { mm_delete([] A); }
 #endif
 }
 
@@ -1181,7 +1181,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
    dgesvd_(&jobu, &jobvt, &m, &n, a, &m,
            s, u, &m, vt, &n, work, &lwork, &info);
 
-   delete [] work;
+   mm_delete([] work);
    if (info)
    {
       mfem::err << "DenseMatrix::SingularValues : info = " << info << endl;
@@ -4253,7 +4253,7 @@ void DenseMatrixEigensystem::Eval()
 DenseMatrixEigensystem::~DenseMatrixEigensystem()
 {
 #ifdef MFEM_USE_LAPACK
-   delete [] work;
+   mm_delete([] work);
 #endif
 }
 
@@ -4319,7 +4319,7 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
 DenseMatrixSVD::~DenseMatrixSVD()
 {
 #ifdef MFEM_USE_LAPACK
-   delete [] work;
+   mm_delete([] work);
 #endif
 }
 

@@ -4151,11 +4151,11 @@ void LagrangeHexFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 LagrangeHexFiniteElement::~LagrangeHexFiniteElement ()
 {
-   delete fe1d;
+   mm_delete(fe1d);
 
-   delete [] I;
-   delete [] J;
-   delete [] K;
+   mm_delete([] I);
+   mm_delete([] J);
+   mm_delete([] K);
 }
 
 
@@ -6733,7 +6733,7 @@ Poly_1D::~Poly_1D()
       {
          mm_free(double,pts[i]);
       }
-      delete it->second;
+      mm_delete(it->second);
    }
 
    for (BasisMap::iterator it = bases_container.begin();
@@ -6742,9 +6742,9 @@ Poly_1D::~Poly_1D()
       Array<Basis*>& bases = *it->second;
       for ( int i = 0 ; i < bases.Size() ; ++i )
       {
-         delete bases[i];
+         mm_delete(bases[i]);
       }
-      delete it->second;
+      mm_delete(it->second);
    }
 }
 

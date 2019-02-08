@@ -214,7 +214,7 @@ void FiniteElementSpace::BuildElementToDofTable() const
 {
    if (elem_dof) { return; }
 
-   Table *el_dof = new Table;
+   Table *el_dof = mm_new(Table);
    Array<int> dofs;
    el_dof -> MakeI (mesh -> GetNE());
    for (int i = 0; i < mesh -> GetNE(); i++)
@@ -234,7 +234,7 @@ void FiniteElementSpace::BuildElementToDofTable() const
 
 void FiniteElementSpace::RebuildElementToDofTable()
 {
-   delete elem_dof;
+   mm_delete(elem_dof);
    elem_dof = NULL;
    BuildElementToDofTable();
 }
@@ -432,7 +432,7 @@ FiniteElementSpace::D2C_GlobalRestrictionMatrix (FiniteElementSpace *cfes)
    Array<int> d_vdofs, c_vdofs;
    SparseMatrix *R;
 
-   R = new SparseMatrix (cfes -> GetVSize(), GetVSize());
+   R = mm_new(SparseMatrix (cfes -> GetVSize(), GetVSize()));
 
    for (i = 0; i < mesh -> GetNE(); i++)
    {
@@ -464,7 +464,7 @@ FiniteElementSpace::D2Const_GlobalRestrictionMatrix(FiniteElementSpace *cfes)
    Array<int> d_dofs, c_dofs;
    SparseMatrix *R;
 
-   R = new SparseMatrix (cfes -> GetNDofs(), ndofs);
+   R = mm_new(SparseMatrix (cfes -> GetNDofs(), ndofs));
 
    for (i = 0; i < mesh -> GetNE(); i++)
    {
@@ -495,7 +495,7 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
    DenseMatrix loc_restr;
    Array<int> l_dofs, h_dofs;
 
-   R = new SparseMatrix (lfes -> GetNDofs(), ndofs);
+   R = mm_new(SparseMatrix (lfes -> GetNDofs(), ndofs));
 
    Geometry::Type cached_geom = Geometry::INVALID;
    const FiniteElement *h_fe = NULL;
@@ -661,11 +661,11 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          cR_A[i] = 1.0;
       }
       cR_I[n_true_dofs] = n_true_dofs;
-      cR = new SparseMatrix(cR_I, cR_J, cR_A, n_true_dofs, ndofs);
+      cR = mm_new(SparseMatrix(cR_I, cR_J, cR_A, n_true_dofs, ndofs));
    }
 
    // create the conforming prolongation matrix cP
-   cP = new SparseMatrix(ndofs, n_true_dofs);
+   cP = mm_new(SparseMatrix(ndofs, n_true_dofs));
 
    Array<bool> finalized(ndofs);
    finalized = false;
@@ -741,7 +741,7 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
    int height = mat.Height();
    int width = mat.Width();
 
-   SparseMatrix *vmat = new SparseMatrix(vdim*height, vdim*width);
+   SparseMatrix *vmat = mm_new(SparseMatrix(vdim*height, vdim*width));
 
    Array<int> dofs, vdofs;
    Vector srow;
@@ -758,7 +758,7 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
    vmat->Finalize();
 
    mat.Swap(*vmat);
-   delete vmat;
+   mm_delete(vmat);
 }
 
 
@@ -797,11 +797,11 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    if (elem_geoms.Size() == 1)
    {
       const int coarse_ldof = localP[elem_geoms[0]].SizeJ();
-      P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim, coarse_ldof);
+      P = mm_new(SparseMatrix(GetVSize(), coarse_ndofs*vdim, coarse_ldof));
    }
    else
    {
-      P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim);
+      P = mm_new(SparseMatrix(GetVSize(), coarse_ndofs*vdim));
    }
 
    Array<int> mark(P->Height());
@@ -917,12 +917,12 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
    }
 
    // Make a copy of the coarse elem_dof Table.
-   old_elem_dof = new Table(coarse_fes->GetElementToDofTable());
+   old_elem_dof = mm_new(Table(coarse_fes->GetElementToDofTable()));
 }
 
 FiniteElementSpace::RefinementOperator::~RefinementOperator()
 {
-   delete old_elem_dof;
+   mm_delete(old_elem_dof);
 }
 
 void FiniteElementSpace::RefinementOperator
@@ -1064,12 +1064,12 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    SparseMatrix *R;
    if (elem_geoms.Size() == 1)
    {
-      R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
-                           localR[elem_geoms[0]].SizeI());
+      R = mm_new(SparseMatrix(ndofs*vdim, old_ndofs*vdim,
+                              localR[elem_geoms[0]].SizeI()));
    }
    else
    {
-      R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
+      R = mm_new(SparseMatrix(ndofs*vdim, old_ndofs*vdim));
    }
    Array<int> mark(R->Height());
    mark = 0;
@@ -1692,8 +1692,8 @@ FiniteElementSpace::~FiniteElementSpace()
 
 void FiniteElementSpace::Destroy()
 {
-   delete cR;
-   delete cP;
+   mm_delete(cR);
+   mm_delete(cP);
    Th.Clear();
 
    dof_elem_array.DeleteAll();
@@ -1701,15 +1701,15 @@ void FiniteElementSpace::Destroy()
 
    if (NURBSext)
    {
-      if (own_ext) { delete NURBSext; }
+      if (own_ext) { mm_delete(NURBSext); }
    }
    else
    {
-      delete elem_dof;
-      delete bdrElem_dof;
+      mm_delete(elem_dof);
+      mm_delete(bdrElem_dof);
 
-      delete [] bdofs;
-      delete [] fdofs;
+      mm_delete([] bdofs);
+      mm_delete([] fdofs);
    }
 }
 
@@ -1734,7 +1734,7 @@ void FiniteElementSpace::GetTransferOperator(
    }
    else
    {
-      T.Reset(new RefinementOperator(this, &coarse_fes));
+      T.Reset(mm_new(RefinementOperator(this, &coarse_fes)));
    }
 }
 
@@ -1766,14 +1766,14 @@ void FiniteElementSpace::GetTrueTransferOperator(
       switch (RP_case)
       {
          case 1:
-            T.Reset(new ProductOperator(cR, T.Ptr(), false, owner));
+            T.Reset(mm_new(ProductOperator(cR, T.Ptr(), false, owner)));
             break;
          case 2:
-            T.Reset(new ProductOperator(T.Ptr(), coarse_P, owner, false));
+            T.Reset(mm_new(ProductOperator(T.Ptr(), coarse_P, owner, false)));
             break;
          case 3:
-            T.Reset(new TripleProductOperator(
-                       cR, T.Ptr(), coarse_P, false, owner, false));
+            T.Reset(mm_new(TripleProductOperator(
+                                                 cR, T.Ptr(), coarse_P, false, owner, false)));
             break;
       }
    }
@@ -1822,7 +1822,7 @@ void FiniteElementSpace::Update(bool want_transform)
          {
             if (Th.Type() != Operator::MFEM_SPARSEMAT)
             {
-               Th.Reset(new RefinementOperator(this, old_elem_dof, old_ndofs));
+               Th.Reset(mm_new(RefinementOperator(this, old_elem_dof, old_ndofs)));
                // The RefinementOperator takes ownership of 'old_elem_dof', so
                // we no longer own it:
                old_elem_dof = NULL;
@@ -1842,8 +1842,8 @@ void FiniteElementSpace::Update(bool want_transform)
             if (cP && cR)
             {
                Th.SetOperatorOwner(false);
-               Th.Reset(new TripleProductOperator(cP, cR, Th.Ptr(),
-                                                  false, false, true));
+               Th.Reset(mm_new(TripleProductOperator(cP, cR, Th.Ptr(),
+                                                     false, false, true)));
             }
             break;
          }
@@ -1852,7 +1852,7 @@ void FiniteElementSpace::Update(bool want_transform)
             break;
       }
 
-      delete old_elem_dof;
+      mm_delete(old_elem_dof);
    }
 }
 
@@ -1952,7 +1952,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
          if (order != m->NURBSext->GetOrder() &&
              order != NURBSFECollection::VariableOrder)
          {
-            NURBSext = new NURBSExtension(m->NURBSext, order);
+            NURBSext = mm_new(NURBSExtension(m->NURBSext, order));
          }
       }
    }
@@ -1974,13 +1974,13 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
             {
                int order;
                input >> order;
-               NURBSext = new NURBSExtension(m->NURBSext, order);
+               NURBSext = mm_new(NURBSExtension(m->NURBSext, order));
             }
             else
             {
                Array<int> orders;
                orders.Load(m->NURBSext->GetNKV(), input);
-               NURBSext = new NURBSExtension(m->NURBSext, orders);
+               NURBSext = mm_new(NURBSExtension(m->NURBSext, orders));
             }
          }
          else if (buff == "NURBS_weights")
@@ -2017,7 +2017,8 @@ void QuadratureSpace::Construct()
    // protected method
    int offset = 0;
    const int num_elem = mesh->GetNE();
-   element_offsets = new int[num_elem + 1];
+#warning here?
+   element_offsets = mm_new(int[num_elem + 1]);
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       int_rule[g] = NULL;

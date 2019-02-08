@@ -1555,7 +1555,7 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
       {
          mvertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i]));
       }
-      delete [] tmp_vertex;
+      mm_delete([] tmp_vertex);
    }
    // NOTE: if the mesh is curved (top_vertex_pos is empty), mvertices are left
    // uninitialized here; they will be initialized later by the Mesh from Nodes
@@ -2259,13 +2259,13 @@ void NCMesh::BuildElementToVertexTable()
    {
       int cnt = I[i+1] - I[i];
       memcpy(J+nnz, JJ[i], cnt * sizeof(int));
-      delete [] JJ[i];
+      mm_delete([] JJ[i]);
       nnz += cnt;
    }
 
    element_vertex.SetIJ(I, J, nrows);
 
-   delete [] JJ;
+   mm_delete([] JJ);
 }
 
 
@@ -3691,7 +3691,7 @@ void NCMesh::DebugDump(std::ostream &out) const
           << node->vert_index << " " << node->edge_index << " "
           << 0 << "\n";
    }
-   delete [] tmp_vertex;
+   mm_delete([] tmp_vertex);
    out << "\n";
 
    // dump elements

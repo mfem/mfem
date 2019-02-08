@@ -70,7 +70,7 @@ void BlockVector::Update(double *data, const Array<int> & bOffsets)
    blockOffsets = bOffsets.GetData();
    if (numBlocks != bOffsets.Size()-1)
    {
-      delete [] blocks;
+      mm_delete([] blocks);
       numBlocks = bOffsets.Size()-1;
       blocks = new Vector[numBlocks];
    }
@@ -103,7 +103,7 @@ void BlockVector::Update(const Array<int> &bOffsets, bool force)
    blockOffsets = bOffsets.GetData();
    if (numBlocks != bOffsets.Size()-1)
    {
-      delete [] blocks;
+      mm_delete([] blocks);
       numBlocks = bOffsets.Size()-1;
       blocks = new Vector[numBlocks];
    }
@@ -137,7 +137,7 @@ BlockVector & BlockVector::operator=(double val)
 //! Destructor
 BlockVector::~BlockVector()
 {
-   delete [] blocks;
+   mm_delete([] blocks);
 }
 
 void BlockVector::GetBlockView(int i, Vector & blockView)

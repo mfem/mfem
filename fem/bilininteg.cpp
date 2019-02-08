@@ -138,7 +138,7 @@ SumIntegrator::~SumIntegrator()
    {
       for (int i = 0; i < integrators.Size(); i++)
       {
-         delete integrators[i];
+         mm_delete(integrators[i]);
       }
    }
 }
@@ -1610,7 +1610,7 @@ double CurlCurlIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
       *d_energy = 1.0;
 #endif
 
-      delete [] pfluxes;
+      mm_delete([] pfluxes);
    }
 
    return energy;

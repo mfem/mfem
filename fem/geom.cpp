@@ -219,9 +219,9 @@ Geometry::~Geometry()
 {
    for (int i = 0; i < NumGeom; i++)
    {
-      delete PerfGeomToGeomJac[i];
-      delete GeomToPerfGeomJac[i];
-      delete GeomVert[i];
+      mm_delete(PerfGeomToGeomJac[i]);
+      mm_delete(GeomToPerfGeomJac[i]);
+      mm_delete(GeomVert[i]);
    }
 }
 
@@ -890,8 +890,8 @@ GeometryRefiner::~GeometryRefiner()
 {
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
-      for (int j = 0; j < RGeom[i].Size(); j++) { delete RGeom[i][j]; }
-      for (int j = 0; j < IntPts[i].Size(); j++) { delete IntPts[i][j]; }
+      for (int j = 0; j < RGeom[i].Size(); j++) { mm_delete(RGeom[i][j]); }
+      for (int j = 0; j < IntPts[i].Size(); j++) { mm_delete(IntPts[i][j]); }
    }
 }
 

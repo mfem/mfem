@@ -160,9 +160,11 @@ void* mm::Insert(void *ptr, const size_t bytes,
    if (known) {
       const memory &mem = maps.memories.at(ptr);
       //if (mem.bytes == bytes) return ptr;
-      printf("mem.bytes=%ld, bytes=%ld", mem.bytes, bytes);fflush(0);
-      printf("%s:%d:%s", filename, lineno, function);fflush(0);
-      BUILTIN_TRAP;
+      printf("\nthis: %s:%d, func: %s @%p", filename, lineno, function, ptr);
+      printf("\nmem : %s:%d, func: %s @%p", mem.filename, mem.lineno, mem.function, mem.h_ptr);
+      printf("\nmem.bytes=%ld, bytes=%ld", mem.bytes, bytes);
+      fflush(0);
+      //BUILTIN_TRAP;
       double *p = (double*)ptr;
       for(int k=0;k<1024*1024*1024;k++) p[k]=0.0;
       BUILTIN_TRAP;
@@ -172,7 +174,7 @@ void* mm::Insert(void *ptr, const size_t bytes,
    dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
    //if (ptr > (void*)0xffffffff){ BUILTIN_TRAP; }
    DumpMode();
-   maps.memories.emplace(ptr, memory(ptr, bytes));
+   maps.memories.emplace(ptr, memory(ptr, bytes, filename, lineno, function));
    return ptr;
 }
 

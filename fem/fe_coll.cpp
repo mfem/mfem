@@ -50,230 +50,230 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
 
    if (!strcmp(name, "Linear"))
    {
-      fec = new LinearFECollection;
+      fec = mm_new(LinearFECollection);
    }
    else if (!strcmp(name, "Quadratic"))
    {
-      fec = new QuadraticFECollection;
+      fec = mm_new(QuadraticFECollection);
    }
    else if (!strcmp(name, "QuadraticPos"))
    {
-      fec = new QuadraticPosFECollection;
+      fec = mm_new(QuadraticPosFECollection);
    }
    else if (!strcmp(name, "Cubic"))
    {
-      fec = new CubicFECollection;
+      fec = mm_new(CubicFECollection);
    }
    else if (!strcmp(name, "Const3D"))
    {
-      fec = new Const3DFECollection;
+      fec = mm_new(Const3DFECollection);
    }
    else if (!strcmp(name, "Const2D"))
    {
-      fec = new Const2DFECollection;
+      fec = mm_new(Const2DFECollection);
    }
    else if (!strcmp(name, "LinearDiscont2D"))
    {
-      fec = new LinearDiscont2DFECollection;
+      fec = mm_new(LinearDiscont2DFECollection);
    }
    else if (!strcmp(name, "GaussLinearDiscont2D"))
    {
-      fec = new GaussLinearDiscont2DFECollection;
+      fec = mm_new(GaussLinearDiscont2DFECollection);
    }
    else if (!strcmp(name, "P1OnQuad"))
    {
-      fec = new P1OnQuadFECollection;
+      fec = mm_new(P1OnQuadFECollection);
    }
    else if (!strcmp(name, "QuadraticDiscont2D"))
    {
-      fec = new QuadraticDiscont2DFECollection;
+      fec = mm_new(QuadraticDiscont2DFECollection);
    }
    else if (!strcmp(name, "QuadraticPosDiscont2D"))
    {
-      fec = new QuadraticPosDiscont2DFECollection;
+      fec = mm_new(QuadraticPosDiscont2DFECollection);
    }
    else if (!strcmp(name, "GaussQuadraticDiscont2D"))
    {
-      fec = new GaussQuadraticDiscont2DFECollection;
+      fec = mm_new(GaussQuadraticDiscont2DFECollection);
    }
    else if (!strcmp(name, "CubicDiscont2D"))
    {
-      fec = new CubicDiscont2DFECollection;
+      fec = mm_new(CubicDiscont2DFECollection);
    }
    else if (!strcmp(name, "LinearDiscont3D"))
    {
-      fec = new LinearDiscont3DFECollection;
+      fec = mm_new(LinearDiscont3DFECollection);
    }
    else if (!strcmp(name, "QuadraticDiscont3D"))
    {
-      fec = new QuadraticDiscont3DFECollection;
+      fec = mm_new(QuadraticDiscont3DFECollection);
    }
    else if (!strcmp(name, "LinearNonConf3D"))
    {
-      fec = new LinearNonConf3DFECollection;
+      fec = mm_new(LinearNonConf3DFECollection);
    }
    else if (!strcmp(name, "CrouzeixRaviart"))
    {
-      fec = new CrouzeixRaviartFECollection;
+      fec = mm_new(CrouzeixRaviartFECollection);
    }
    else if (!strcmp(name, "ND1_3D"))
    {
-      fec = new ND1_3DFECollection;
+      fec = mm_new(ND1_3DFECollection);
    }
    else if (!strcmp(name, "RT0_2D"))
    {
-      fec = new RT0_2DFECollection;
+      fec = mm_new(RT0_2DFECollection);
    }
    else if (!strcmp(name, "RT1_2D"))
    {
-      fec = new RT1_2DFECollection;
+      fec = mm_new(RT1_2DFECollection);
    }
    else if (!strcmp(name, "RT2_2D"))
    {
-      fec = new RT2_2DFECollection;
+      fec = mm_new(RT2_2DFECollection);
    }
    else if (!strcmp(name, "RT0_3D"))
    {
-      fec = new RT0_3DFECollection;
+      fec = mm_new(RT0_3DFECollection);
    }
    else if (!strcmp(name, "RT1_3D"))
    {
-      fec = new RT1_3DFECollection;
+      fec = mm_new(RT1_3DFECollection);
    }
    else if (!strncmp(name, "H1_Trace_", 9))
    {
-      fec = new H1_Trace_FECollection(atoi(name + 13), atoi(name + 9));
+      fec = mm_new(H1_Trace_FECollection(atoi(name + 13), atoi(name + 9)));
    }
    else if (!strncmp(name, "H1_Trace@", 9))
    {
-      fec = new H1_Trace_FECollection(atoi(name + 15), atoi(name + 11),
-                                      BasisType::GetType(name[9]));
+      fec = mm_new(H1_Trace_FECollection(atoi(name + 15), atoi(name + 11),
+                                         BasisType::GetType(name[9])));
    }
    else if (!strncmp(name, "H1_", 3))
    {
-      fec = new H1_FECollection(atoi(name + 7), atoi(name + 3));
+      fec = mm_new(H1_FECollection(atoi(name + 7), atoi(name + 3)));
    }
    else if (!strncmp(name, "H1Pos_Trace_", 12))
    {
-      fec = new H1_Trace_FECollection(atoi(name + 16), atoi(name + 12),
-                                      BasisType::Positive);
+      fec = mm_new(H1_Trace_FECollection(atoi(name + 16), atoi(name + 12),
+                                         BasisType::Positive));
    }
    else if (!strncmp(name, "H1Pos_", 6))
    {
-      fec = new H1Pos_FECollection(atoi(name + 10), atoi(name + 6));
+      fec = mm_new(H1Pos_FECollection(atoi(name + 10), atoi(name + 6)));
    }
    else if (!strncmp(name, "H1@", 3))
    {
-      fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
-                                BasisType::GetType(name[3]));
+      fec = mm_new(H1_FECollection(atoi(name + 9), atoi(name + 5),
+                                   BasisType::GetType(name[3])));
    }
    else if (!strncmp(name, "L2_T", 4))
    {
-      fec = new L2_FECollection(atoi(name + 10), atoi(name + 6),
-                                atoi(name + 4));
+      fec = mm_new(L2_FECollection(atoi(name + 10), atoi(name + 6),
+                                   atoi(name + 4)));
    }
    else if (!strncmp(name, "L2_", 3))
    {
-      fec = new L2_FECollection(atoi(name + 7), atoi(name + 3));
+      fec = mm_new(L2_FECollection(atoi(name + 7), atoi(name + 3)));
    }
    else if (!strncmp(name, "L2Int_T", 7))
    {
-      fec = new L2_FECollection(atoi(name + 13), atoi(name + 9),
-                                atoi(name + 7), FiniteElement::INTEGRAL);
+      fec = mm_new(L2_FECollection(atoi(name + 13), atoi(name + 9),
+                                   atoi(name + 7), FiniteElement::INTEGRAL));
    }
    else if (!strncmp(name, "L2Int_", 6))
    {
-      fec = new L2_FECollection(atoi(name + 10), atoi(name + 6),
+      fec = mm_new(L2_FECollection(atoi(name + 10), atoi(name + 6),
                                 BasisType::GaussLegendre,
-                                FiniteElement::INTEGRAL);
+                                   FiniteElement::INTEGRAL));
    }
    else if (!strncmp(name, "RT_Trace_", 9))
    {
-      fec = new RT_Trace_FECollection(atoi(name + 13), atoi(name + 9));
+      fec = mm_new(RT_Trace_FECollection(atoi(name + 13), atoi(name + 9)));
    }
    else if (!strncmp(name, "RT_ValTrace_", 12))
    {
-      fec = new RT_Trace_FECollection(atoi(name + 16), atoi(name + 12),
-                                      FiniteElement::VALUE);
+      fec = mm_new(RT_Trace_FECollection(atoi(name + 16), atoi(name + 12),
+                                         FiniteElement::VALUE));
    }
    else if (!strncmp(name, "RT_Trace@", 9))
    {
-      fec = new RT_Trace_FECollection(atoi(name + 15), atoi(name + 11),
+      fec = mm_new(RT_Trace_FECollection(atoi(name + 15), atoi(name + 11),
                                       FiniteElement::INTEGRAL,
-                                      BasisType::GetType(name[9]));
+                                         BasisType::GetType(name[9])));
    }
    else if (!strncmp(name, "RT_ValTrace@", 12))
    {
-      fec = new RT_Trace_FECollection(atoi(name + 18), atoi(name + 14),
+      fec = mm_new(RT_Trace_FECollection(atoi(name + 18), atoi(name + 14),
                                       FiniteElement::VALUE,
-                                      BasisType::GetType(name[12]));
+                                         BasisType::GetType(name[12])));
    }
    else if (!strncmp(name, "DG_Iface_", 9))
    {
-      fec = new DG_Interface_FECollection(atoi(name + 13), atoi(name + 9));
+      fec = mm_new(DG_Interface_FECollection(atoi(name + 13), atoi(name + 9)));
    }
    else if (!strncmp(name, "DG_Iface@", 9))
    {
-      fec = new DG_Interface_FECollection(atoi(name + 15), atoi(name + 11),
+      fec = mm_new(DG_Interface_FECollection(atoi(name + 15), atoi(name + 11),
                                           FiniteElement::VALUE,
-                                          BasisType::GetType(name[9]));
+                                             BasisType::GetType(name[9])));
    }
    else if (!strncmp(name, "DG_IntIface_", 12))
    {
-      fec = new DG_Interface_FECollection(atoi(name + 16), atoi(name + 12),
-                                          FiniteElement::INTEGRAL);
+      fec = mm_new(DG_Interface_FECollection(atoi(name + 16), atoi(name + 12),
+                                             FiniteElement::INTEGRAL));
    }
    else if (!strncmp(name, "DG_IntIface@", 12))
    {
-      fec = new DG_Interface_FECollection(atoi(name + 18), atoi(name + 14),
+      fec = mm_new(DG_Interface_FECollection(atoi(name + 18), atoi(name + 14),
                                           FiniteElement::INTEGRAL,
-                                          BasisType::GetType(name[12]));
+                                             BasisType::GetType(name[12])));
    }
    else if (!strncmp(name, "RT_", 3))
    {
-      fec = new RT_FECollection(atoi(name + 7), atoi(name + 3));
+      fec = mm_new(RT_FECollection(atoi(name + 7), atoi(name + 3)));
    }
    else if (!strncmp(name, "RT@", 3))
    {
-      fec = new RT_FECollection(atoi(name + 10), atoi(name + 6),
+      fec = mm_new(RT_FECollection(atoi(name + 10), atoi(name + 6),
                                 BasisType::GetType(name[3]),
-                                BasisType::GetType(name[4]));
+                                   BasisType::GetType(name[4])));
    }
    else if (!strncmp(name, "ND_Trace_", 9))
    {
-      fec = new ND_Trace_FECollection(atoi(name + 13), atoi(name + 9));
+      fec = mm_new(ND_Trace_FECollection(atoi(name + 13), atoi(name + 9)));
    }
    else if (!strncmp(name, "ND_Trace@", 9))
    {
-      fec = new ND_Trace_FECollection(atoi(name + 16), atoi(name + 12),
+      fec = mm_new(ND_Trace_FECollection(atoi(name + 16), atoi(name + 12),
                                       BasisType::GetType(name[9]),
-                                      BasisType::GetType(name[10]));
+                                         BasisType::GetType(name[10])));
    }
    else if (!strncmp(name, "ND_", 3))
    {
-      fec = new ND_FECollection(atoi(name + 7), atoi(name + 3));
+      fec = mm_new(ND_FECollection(atoi(name + 7), atoi(name + 3)));
    }
    else if (!strncmp(name, "ND@", 3))
    {
-      fec = new ND_FECollection(atoi(name + 10), atoi(name + 6),
+      fec = mm_new(ND_FECollection(atoi(name + 10), atoi(name + 6),
                                 BasisType::GetType(name[3]),
-                                BasisType::GetType(name[4]));
+                                   BasisType::GetType(name[4])));
    }
    else if (!strncmp(name, "Local_", 6))
    {
-      fec = new Local_FECollection(name + 6);
+      fec = mm_new(Local_FECollection(name + 6));
    }
    else if (!strncmp(name, "NURBS", 5))
    {
       if (name[5] != '\0')
       {
          // "NURBS" + "number" --> fixed order nurbs collection
-         fec = new NURBSFECollection(atoi(name + 5));
+         fec = mm_new(NURBSFECollection(atoi(name + 5)));
       }
       else
       {
          // "NURBS" --> variable order nurbs collection
-         fec = new NURBSFECollection();
+         fec = mm_new(NURBSFECollection());
       }
    }
    else
@@ -1552,18 +1552,18 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
    }
 
    H1_dof[Geometry::POINT] = 1;
-   H1_Elements[Geometry::POINT] = new PointFiniteElement;
+   H1_Elements[Geometry::POINT] = mm_new(PointFiniteElement);
 
    if (dim >= 1)
    {
       H1_dof[Geometry::SEGMENT] = pm1;
       if (b_type == BasisType::Positive)
       {
-         H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
+         H1_Elements[Geometry::SEGMENT] = mm_new(H1Pos_SegmentElement(p));
       }
       else
       {
-         H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, btype);
+         H1_Elements[Geometry::SEGMENT] = mm_new(H1_SegmentElement(p, btype));
       }
 
       SegDofOrd[0] = mm_malloc(int,2*pm1);
@@ -1581,13 +1581,13 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       H1_dof[Geometry::SQUARE] = pm1*pm1;
       if (b_type == BasisType::Positive)
       {
-         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
-         H1_Elements[Geometry::SQUARE] = new H1Pos_QuadrilateralElement(p);
+         H1_Elements[Geometry::TRIANGLE] = mm_new(H1Pos_TriangleElement(p));
+         H1_Elements[Geometry::SQUARE] = mm_new(H1Pos_QuadrilateralElement(p));
       }
       else
       {
-         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
-         H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
+         H1_Elements[Geometry::TRIANGLE] = mm_new(H1_TriangleElement(p, btype));
+         H1_Elements[Geometry::SQUARE] = mm_new(H1_QuadrilateralElement(p, btype));
       }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
@@ -1642,16 +1642,16 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_dof[Geometry::PRISM] = TriDof*pm1;
          if (b_type == BasisType::Positive)
          {
-            H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
-            H1_Elements[Geometry::CUBE] = new H1Pos_HexahedronElement(p);
-            H1_Elements[Geometry::PRISM] = new H1Pos_WedgeElement(p);
+            H1_Elements[Geometry::TETRAHEDRON] = mm_new(H1Pos_TetrahedronElement(p));
+            H1_Elements[Geometry::CUBE] = mm_new(H1Pos_HexahedronElement(p));
+            H1_Elements[Geometry::PRISM] = mm_new(H1Pos_WedgeElement(p));
          }
          else
          {
             H1_Elements[Geometry::TETRAHEDRON] =
-               new H1_TetrahedronElement(p, btype);
-            H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
-            H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
+               mm_new(H1_TetrahedronElement(p, btype));
+            H1_Elements[Geometry::CUBE] = mm_new(H1_HexahedronElement(p, btype));
+            H1_Elements[Geometry::PRISM] = mm_new(H1_WedgeElement(p, btype));
          }
       }
    }
@@ -1691,7 +1691,7 @@ FiniteElementCollection *H1_FECollection::GetTraceCollection() const
    {
       dim = atoi(h1_name + 5);
    }
-   return (dim < 0) ? NULL : new H1_Trace_FECollection(p, dim, b_type);
+   return (dim < 0) ? NULL : mm_new(H1_Trace_FECollection(p, dim, b_type));
 }
 
 const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
@@ -1722,7 +1722,7 @@ H1_FECollection::~H1_FECollection()
    mm_free(int,QuadDofOrd[0]);
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-      delete H1_Elements[g];
+      mm_delete(H1_Elements[g]);
    }
 }
 
@@ -1787,21 +1787,21 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
 
    if (dim == 0)
    {
-      L2_Elements[Geometry::POINT] = new PointFiniteElement;
+      L2_Elements[Geometry::POINT] = mm_new(PointFiniteElement);
    }
    else if (dim == 1)
    {
       if (b_type == BasisType::Positive)
       {
-         L2_Elements[Geometry::SEGMENT] = new L2Pos_SegmentElement(p);
+         L2_Elements[Geometry::SEGMENT] = mm_new(L2Pos_SegmentElement(p));
       }
       else
       {
-         L2_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, btype);
+         L2_Elements[Geometry::SEGMENT] = mm_new(L2_SegmentElement(p, btype));
       }
       L2_Elements[Geometry::SEGMENT]->SetMapType(map_type);
 
-      Tr_Elements[Geometry::POINT] = new PointFiniteElement;
+      Tr_Elements[Geometry::POINT] = mm_new(PointFiniteElement);
       // No need to set the map_type for Tr_Elements.
 
       const int pp1 = p + 1;
@@ -1817,18 +1817,18 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    {
       if (b_type == BasisType::Positive)
       {
-         L2_Elements[Geometry::TRIANGLE] = new L2Pos_TriangleElement(p);
-         L2_Elements[Geometry::SQUARE] = new L2Pos_QuadrilateralElement(p);
+         L2_Elements[Geometry::TRIANGLE] = mm_new(L2Pos_TriangleElement(p));
+         L2_Elements[Geometry::SQUARE] = mm_new(L2Pos_QuadrilateralElement(p));
       }
       else
       {
-         L2_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, btype);
-         L2_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, btype);
+         L2_Elements[Geometry::TRIANGLE] = mm_new(L2_TriangleElement(p, btype));
+         L2_Elements[Geometry::SQUARE] = mm_new(L2_QuadrilateralElement(p, btype));
       }
       L2_Elements[Geometry::TRIANGLE]->SetMapType(map_type);
       L2_Elements[Geometry::SQUARE]->SetMapType(map_type);
       // All trace elements use the default Gauss-Legendre points
-      Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
+      Tr_Elements[Geometry::SEGMENT] = mm_new(L2_SegmentElement(p));
 
       const int TriDof = L2_Elements[Geometry::TRIANGLE]->GetDof();
       TriDofOrd[0] = mm_malloc(int,6*TriDof);
@@ -1862,23 +1862,23 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    {
       if (b_type == BasisType::Positive)
       {
-         L2_Elements[Geometry::TETRAHEDRON] = new L2Pos_TetrahedronElement(p);
-         L2_Elements[Geometry::CUBE] = new L2Pos_HexahedronElement(p);
-         L2_Elements[Geometry::PRISM] = new L2Pos_WedgeElement(p);
+         L2_Elements[Geometry::TETRAHEDRON] = mm_new(L2Pos_TetrahedronElement(p));
+         L2_Elements[Geometry::CUBE] = mm_new(L2Pos_HexahedronElement(p));
+         L2_Elements[Geometry::PRISM] = mm_new(L2Pos_WedgeElement(p));
       }
       else
       {
          L2_Elements[Geometry::TETRAHEDRON] =
-            new L2_TetrahedronElement(p, btype);
-         L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, btype);
-         L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
+            mm_new(L2_TetrahedronElement(p, btype));
+         L2_Elements[Geometry::CUBE] = mm_new(L2_HexahedronElement(p, btype));
+         L2_Elements[Geometry::PRISM] = mm_new(L2_WedgeElement(p, btype));
       }
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
       L2_Elements[Geometry::PRISM]->SetMapType(map_type);
       // All trace element use the default Gauss-Legendre nodal points
-      Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
-      Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
+      Tr_Elements[Geometry::TRIANGLE] = mm_new(L2_TriangleElement(p));
+      Tr_Elements[Geometry::SQUARE] = mm_new(L2_QuadrilateralElement(p));
 
       const int TetDof = L2_Elements[Geometry::TETRAHEDRON]->GetDof();
       const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();
@@ -1921,8 +1921,8 @@ L2_FECollection::~L2_FECollection()
    mm_free(int,TriDofOrd[0]);
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
-      delete L2_Elements[i];
-      delete Tr_Elements[i];
+      mm_delete(L2_Elements[i]);
+      mm_delete(Tr_Elements[i]);
    }
 }
 
@@ -1964,21 +1964,21 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
    if (dim == 2)
    {
       // TODO: cb_type, ob_type for triangles
-      RT_Elements[Geometry::TRIANGLE] = new RT_TriangleElement(p);
+      RT_Elements[Geometry::TRIANGLE] = mm_new(RT_TriangleElement(p));
       RT_dof[Geometry::TRIANGLE] = p*pp1;
 
-      RT_Elements[Geometry::SQUARE] = new RT_QuadrilateralElement(p, cb_type,
-                                                                  ob_type);
+      RT_Elements[Geometry::SQUARE] = mm_new(RT_QuadrilateralElement(p, cb_type,
+                                                                     ob_type));
       // two vector components * n_unk_face *
       RT_dof[Geometry::SQUARE] = 2*p*pp1;
    }
    else if (dim == 3)
    {
       // TODO: cb_type, ob_type for tets
-      RT_Elements[Geometry::TETRAHEDRON] = new RT_TetrahedronElement(p);
+      RT_Elements[Geometry::TETRAHEDRON] = mm_new(RT_TetrahedronElement(p));
       RT_dof[Geometry::TETRAHEDRON] = p*pp1*(p + 2)/2;
 
-      RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
+      RT_Elements[Geometry::CUBE] = mm_new(RT_HexahedronElement(p, cb_type, ob_type));
       RT_dof[Geometry::CUBE] = 3*p*pp1*pp1;
    }
    else
@@ -2033,7 +2033,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
 
    if (dim == 2)
    {
-      L2_SegmentElement *l2_seg = new L2_SegmentElement(p, ob_type);
+      L2_SegmentElement *l2_seg = mm_new(L2_SegmentElement(p, ob_type));
       l2_seg->SetMapType(map_type);
       RT_Elements[Geometry::SEGMENT] = l2_seg;
       RT_dof[Geometry::SEGMENT] = pp1;
@@ -2048,12 +2048,12 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
    }
    else if (dim == 3)
    {
-      L2_TriangleElement *l2_tri = new L2_TriangleElement(p, ob_type);
+      L2_TriangleElement *l2_tri = mm_new(L2_TriangleElement(p, ob_type));
       l2_tri->SetMapType(map_type);
       RT_Elements[Geometry::TRIANGLE] = l2_tri;
       RT_dof[Geometry::TRIANGLE] = pp1*pp2/2;
 
-      L2_QuadrilateralElement *l2_quad = new L2_QuadrilateralElement(p, ob_type);
+      L2_QuadrilateralElement *l2_quad = mm_new(L2_QuadrilateralElement(p, ob_type));
       l2_quad->SetMapType(map_type);
       RT_Elements[Geometry::SQUARE] = l2_quad;
       RT_dof[Geometry::SQUARE] = pp1*pp1;
@@ -2151,7 +2151,7 @@ FiniteElementCollection *RT_FECollection::GetTraceCollection() const
       dim = atoi(rt_name + 6);
       p = atoi(rt_name + 10);
    }
-   return new RT_Trace_FECollection(p, dim, FiniteElement::INTEGRAL, ob_type);
+   return mm_new(RT_Trace_FECollection(p, dim, FiniteElement::INTEGRAL, ob_type));
 }
 
 RT_FECollection::~RT_FECollection()
@@ -2161,7 +2161,7 @@ RT_FECollection::~RT_FECollection()
    mm_free(int,QuadDofOrd[0]);
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-      delete RT_Elements[g];
+      mm_delete(RT_Elements[g]);
    }
 }
 
@@ -2260,7 +2260,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
 
    if (dim >= 1)
    {
-      ND_Elements[Geometry::SEGMENT] = new ND_SegmentElement(p, ob_type);
+      ND_Elements[Geometry::SEGMENT] = mm_new(ND_SegmentElement(p, ob_type));
       ND_dof[Geometry::SEGMENT] = p;
 
       SegDofOrd[0] = mm_malloc(int,2*p);
@@ -2274,12 +2274,12 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
 
    if (dim >= 2)
    {
-      ND_Elements[Geometry::SQUARE] = new ND_QuadrilateralElement(p, cb_type,
-                                                                  ob_type);
+      ND_Elements[Geometry::SQUARE] = mm_new(ND_QuadrilateralElement(p, cb_type,
+                                                                     ob_type));
       ND_dof[Geometry::SQUARE] = 2*p*pm1;
 
       // TODO: cb_type and ob_type for triangles
-      ND_Elements[Geometry::TRIANGLE] = new ND_TriangleElement(p);
+      ND_Elements[Geometry::TRIANGLE] = mm_new(ND_TriangleElement(p));
       ND_dof[Geometry::TRIANGLE] = p*pm1;
 
       int QuadDof = ND_dof[Geometry::SQUARE];
@@ -2356,11 +2356,11 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
 
    if (dim >= 3)
    {
-      ND_Elements[Geometry::CUBE] = new ND_HexahedronElement(p, cb_type, ob_type);
+      ND_Elements[Geometry::CUBE] = mm_new(ND_HexahedronElement(p, cb_type, ob_type));
       ND_dof[Geometry::CUBE] = 3*p*pm1*pm1;
 
       // TODO: cb_type and ob_type for tets
-      ND_Elements[Geometry::TETRAHEDRON] = new ND_TetrahedronElement(p);
+      ND_Elements[Geometry::TETRAHEDRON] = mm_new(ND_TetrahedronElement(p));
       ND_dof[Geometry::TETRAHEDRON] = p*pm1*pm2/2;
    }
 }
@@ -2405,7 +2405,7 @@ FiniteElementCollection *ND_FECollection::GetTraceCollection() const
       cb_type = BasisType::GetType(nd_name[3]);
       ob_type = BasisType::GetType(nd_name[4]);
    }
-   return new ND_Trace_FECollection(p, dim, cb_type, ob_type);
+   return mm_new(ND_Trace_FECollection(p, dim, cb_type, ob_type));
 }
 
 ND_FECollection::~ND_FECollection()
@@ -2415,7 +2415,7 @@ ND_FECollection::~ND_FECollection()
    mm_free(int,QuadDofOrd[0]);
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-      delete ND_Elements[g];
+      mm_delete(ND_Elements[g]);
    }
 }
 
@@ -2449,28 +2449,28 @@ Local_FECollection::Local_FECollection(const char *fe_name)
        !strcmp(fe_name, "Quad_Q3"))
    {
       GeomType = Geometry::SQUARE;
-      Local_Element = new BiCubic2DFiniteElement;
+      Local_Element = mm_new(BiCubic2DFiniteElement);
    }
    else if (!strcmp(fe_name, "Nedelec1HexFiniteElement") ||
             !strcmp(fe_name, "Hex_ND1"))
    {
       GeomType = Geometry::CUBE;
-      Local_Element = new Nedelec1HexFiniteElement;
+      Local_Element = mm_new(Nedelec1HexFiniteElement);
    }
    else if (!strncmp(fe_name, "H1_", 3))
    {
       GeomType = Geometry::SQUARE;
-      Local_Element = new H1_QuadrilateralElement(atoi(fe_name + 7));
+      Local_Element = mm_new(H1_QuadrilateralElement(atoi(fe_name + 7)));
    }
    else if (!strncmp(fe_name, "H1Pos_", 6))
    {
       GeomType = Geometry::SQUARE;
-      Local_Element = new H1Pos_QuadrilateralElement(atoi(fe_name + 10));
+      Local_Element = mm_new(H1Pos_QuadrilateralElement(atoi(fe_name + 10)));
    }
    else if (!strncmp(fe_name, "L2_", 3))
    {
       GeomType = Geometry::SQUARE;
-      Local_Element = new L2_QuadrilateralElement(atoi(fe_name + 7));
+      Local_Element = mm_new(L2_QuadrilateralElement(atoi(fe_name + 7)));
    }
    else
    {
@@ -2484,9 +2484,9 @@ Local_FECollection::Local_FECollection(const char *fe_name)
 NURBSFECollection::NURBSFECollection(int Order)
 {
    const int order = (Order == VariableOrder) ? 1 : Order;
-   SegmentFE        = new NURBS1DFiniteElement(order);
-   QuadrilateralFE  = new NURBS2DFiniteElement(order);
-   ParallelepipedFE = new NURBS3DFiniteElement(order);
+   SegmentFE        = mm_new(NURBS1DFiniteElement(order));
+   QuadrilateralFE  = mm_new(NURBS2DFiniteElement(order));
+   ParallelepipedFE = mm_new(NURBS3DFiniteElement(order));
 
    SetOrder(Order);
 }
@@ -2506,9 +2506,9 @@ void NURBSFECollection::SetOrder(int Order) const
 
 NURBSFECollection::~NURBSFECollection()
 {
-   delete ParallelepipedFE;
-   delete QuadrilateralFE;
-   delete SegmentFE;
+   mm_delete(ParallelepipedFE);
+   mm_delete(QuadrilateralFE);
+   mm_delete(SegmentFE);
 }
 
 const FiniteElement *
