@@ -90,7 +90,7 @@ public:
       stencil = _stencil;
 
       if (stencil == 0) { GetNodalBoundsMap(); }
-      elseif (stencil > 1) { GetBoundsMap(fes, K); }
+      else if (stencil > 1) { GetBoundsMap(fes, K); }
    }
 
    void Compute(const SparseMatrix &K, const Vector &x)
@@ -269,6 +269,7 @@ private:
       else
       {
          mfem_error("No common neighbor element found.");
+         return 0;
       }
    }
    
@@ -1517,12 +1518,15 @@ public:
 
 double ComputeIntegralNorm(FiniteElementSpace* fes, const Vector u, const double q)
 {
-   int i, j, k, nd, qOrdE;
-   double tmp, err = 0.;
-   Vector shape;
    Mesh* mesh = fes->GetMesh();
+   int i, j, k, nd, qOrdE, dim = mesh->Dimension();
+   double tmp, scale = pow(0.5, double(dim)), err = 0.;
+   Vector shape;
+
    // use the first mesh element as indicator
    const FiniteElement &dummy = *fes->GetFE(0);
+   nd = dummy.GetDof();
+   shape.SetSize(nd);
    ElementTransformation *tr = mesh->GetElementTransformation(0);
    
    if (q < 1.)
@@ -1544,8 +1548,6 @@ double ComputeIntegralNorm(FiniteElementSpace* fes, const Vector u, const double
    {
       const FiniteElement &el = *fes->GetFE(k);
       tr = mesh->GetElementTransformation(k);
-      nd = el.GetDof();
-      shape.SetSize(nd);
 
       for (j = 0; j < ir->GetNPoints(); j++)
       {
@@ -1564,7 +1566,7 @@ double ComputeIntegralNorm(FiniteElementSpace* fes, const Vector u, const double
          }
          else
          {
-            err += ip.weight * tr->Weight() * pow(abs(tmp), q);
+            err += ip.weight * scale * tr->Weight() * pow(abs(tmp), q);
          }
       }
    }
@@ -1867,12 +1869,28 @@ int main(int argc, char *argv[])
 
    // check for conservation
    double finalMass = fct.lumpedM * u;
-   cout << "Initial mass: " << initialMass << ", final mass: " << finalMass
-         << ", mass loss: " << abs(initialMass - finalMass) << endl;
+   cout << "Mass loss: " << abs(initialMass - finalMass) << endl;
    // Compute errors for problems, where the initial condition is equal to the final solution
    tmp -= u;
    cout << "L1-error: " << ComputeIntegralNorm(&fes, tmp, 1.) << ", L-Inf-error: "
          << ComputeIntegralNorm(&fes, tmp, numeric_limits<double>::infinity()) << "." << endl;
+
+//    // write output
+//    ofstream file("errors.txt", ios_base::app);
+//    
+//    if (!file)
+//    {
+//       mfem_error(".");
+//       return 0;
+//    }
+//    else
+//    {
+//       ostringstream strs;
+//       strs << ComputeIntegralNorm(&fes, tmp, 1.) << " " << ComputeIntegralNorm(&fes, tmp, numeric_limits<double>::infinity()) << "\n";
+//       string str = strs.str();
+//       file << str;
+//       file.close();
+//    }
 
    // 10. Free the used memory.
    delete mesh;
