@@ -13,6 +13,7 @@
 #define MFEM_FE_COLLECTION
 
 #include "../config/config.hpp"
+#include "../general/mm.hpp"
 #include "geom.hpp"
 #include "fe.hpp"
 

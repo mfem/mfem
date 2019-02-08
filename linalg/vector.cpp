@@ -36,7 +36,7 @@ void Vector::Destroy()
    assert(false);
    if (allocsize > 0)
    {
-      mm::free<double>(data);
+      mm_free(double,data);
    }
    allocsize = size = 0;
    data = NULL;
@@ -69,8 +69,8 @@ inline Vector::Vector (int s)
 #warning size and allocsize must be set to 0!
 Vector::Vector (int s)
 {
-   assert(s>0);
-   assert(!data);
+   //assert(s>0);
+   //assert(!data);
    
    if (s <= abs(allocsize))
    {
@@ -80,13 +80,13 @@ Vector::Vector (int s)
    
    if (allocsize > 0)
    {
-      mm::free<double>(data);
+      mm_free(double,data);
    }
 
    if (s > 0)
    {
       allocsize = size = s;
-      data = mm::malloc<double>(s);
+      data = mm_malloc(double,s);
    }
    else
    {
@@ -118,12 +118,12 @@ void Vector::SetSize(int s)
    {
       //assert(false);
       dbg("allocsize > 0, free");
-      mm::free<double>(data);
+      mm_free(double,data);
    }
    assert(s>0);
    allocsize = size = s;
    dbg("malloc %d, allocsize=%d", size, allocsize);
-   data = mm::malloc<double>(s);
+   data = mm_malloc(double,s);
 }
 
 void Vector::Push() const
@@ -144,7 +144,7 @@ Vector::Vector(const Vector &v)
    {
       MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
-      data = mm::malloc<double>(s);
+      data = mm_malloc(double,s);
       mm::memcpy(data, v.data, sizeof(double)*s);
    }
    else
@@ -158,7 +158,7 @@ Vector::Vector(const Vector &v)
 Vector::Vector(double *_data, int _size, const bool skip)
 {
 #warning Vector BUILTIN_TRAP
-   //if (!skip) { BUILTIN_TRAP; }
+   if (!skip) { BUILTIN_TRAP; }
    data = _data;
    size = _size;
    allocsize = -size;

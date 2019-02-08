@@ -13,10 +13,18 @@
 
 #include <bitset>
 #include <cassert>
+
 #include "/home/camier1/home/okstk/stk.hpp"
 
 namespace mfem
 {
+// *****************************************************************************
+/*void* MMNew::Allocate(size_t count) {
+   void* result = nullptr;
+   const auto alloc_failed = posix_memalign(&result, ALIGNMENT, count);
+   if (alloc_failed)  throw ::std::bad_alloc();
+   return result;
+   }*/
 
 // *****************************************************************************
 // * Tests if ptr is a known address
@@ -139,19 +147,25 @@ static inline bool MmGpuIniFilter(void)
 // *****************************************************************************
 // * Adds an address
 // *****************************************************************************
-void* mm::Insert(void *ptr, const size_t bytes)
+void* mm::Insert(void *ptr, const size_t bytes,
+                char const* const filename, int const lineno,
+                char const* const function)
 {
+   stk();
+   dbg("%s:%d:%s", filename, lineno, function);
    DumpMode();
    if (MmGpuFilter()) { return ptr; }
-   stk();
+   //if (bytes==0) { return ptr; }
    const bool known = Known(maps, ptr);
    if (known) {
       const memory &mem = maps.memories.at(ptr);
       //if (mem.bytes == bytes) return ptr;
-      dbg("mem.bytes=%d, bytes=%d", mem.bytes, bytes);
-      //BUILTIN_TRAP;
+      printf("mem.bytes=%ld, bytes=%ld", mem.bytes, bytes);fflush(0);
+      printf("%s:%d:%s", filename, lineno, function);fflush(0);
+      BUILTIN_TRAP;
       double *p = (double*)ptr;
-      for(int k=0;k<1024*1024;k++) p[k]=0.0;
+      for(int k=0;k<1024*1024*1024;k++) p[k]=0.0;
+      BUILTIN_TRAP;
       mfem_error("Trying to insert an already known pointer!");
    }
    MFEM_ASSERT(!known, "Trying to add an already known pointer!");
@@ -165,10 +179,12 @@ void* mm::Insert(void *ptr, const size_t bytes)
 // *****************************************************************************
 // * Remove the address from the map, as well as all the address' aliases
 // *****************************************************************************
-void *mm::Erase(void *ptr)
+void *mm::Erase(void *ptr, char const* const filename, int const lineno,
+                char const* const function)
 {
-   if (MmGpuFilter()) { return ptr; }
    stk();
+   dbg("%s:%d:%s", filename, lineno, function);
+   if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
    if (!known) {
       // Even if don't know it, it's OK on CPU-only
@@ -176,15 +192,18 @@ void *mm::Erase(void *ptr)
       {
          mfem_error("Trying to erase a non-MM pointer!");
       }else{
-#warning Erase mfem_error CPU
-         //double *p = (double*)ptr;
-         //for(int k=0;k<1024*1024;k++) p[k]=0.0;
+/*#warning Erase mfem_error CPU
+         double *p = (double*)ptr;
+         for(int k=0;k<1024*1024;k++) p[k]=0.0;
+         BUILTIN_TRAP;
          mfem_error("CPU, but trying to erase a non-MM pointer!");
+*/
       }
       return ptr;
    }
    MFEM_ASSERT(known, "Trying to erase a non-MM pointer!");
    memory &mem = maps.memories.at(ptr);
+   //if (mem.bytes==0) { return ptr; }
    dbg("\033[31m %p \033[35m(%ldb)", ptr, mem.bytes);
    for (const alias* const alias : mem.aliases)
    {

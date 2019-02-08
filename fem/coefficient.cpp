@@ -33,7 +33,7 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 {
 #warning static double for x[3]
    //double x[3];
-   static double *x = mm::malloc<double>(3);
+   static double *x = mm_malloc(double,3);
    Vector transip(x, 3, true);
 
    T.Transform(ip, transip);
@@ -107,7 +107,7 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
    //double x[3];
-   static double *x = mm::malloc<double>(3);
+   static double *x = mm_malloc(double,3);
    Vector transip(x, 3, true);
 
    T.Transform(ip, transip);
@@ -284,7 +284,7 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
    //double x[3];
-   static double *x = mm::malloc<double>(3);
+   static double *x = mm_malloc(double,3);
    Vector transip(x, 3, true);
 
    T.Transform(ip, transip);

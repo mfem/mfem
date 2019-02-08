@@ -652,9 +652,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // create the conforming restriction matrix cR
    int *cR_J;
    {
-      int *cR_I = mm::malloc<int>(n_true_dofs+1);
-      double *cR_A = mm::malloc<double>(n_true_dofs);
-      cR_J = mm::malloc<int>(n_true_dofs);
+      int *cR_I = mm_malloc(int,n_true_dofs+1);
+      double *cR_A = mm_malloc(double,n_true_dofs);
+      cR_J = mm_malloc(int,n_true_dofs);
       for (int i = 0; i < n_true_dofs; i++)
       {
          cR_I[i] = i;
@@ -1259,7 +1259,7 @@ void FiniteElementSpace::Construct()
       }
       if (have_face_dofs)
       {
-         fdofs = new int[mesh->GetNFaces()+1];
+         fdofs = mm_malloc(int,mesh->GetNFaces()+1);
          fdofs[0] = 0;
          for (int i = 0; i < mesh->GetNFaces(); i++)
          {
@@ -1271,7 +1271,7 @@ void FiniteElementSpace::Construct()
 
    if (mesh->Dimension() > 0)
    {
-      bdofs = new int[mesh->GetNE()+1];
+      bdofs = mm_malloc(int,mesh->GetNE()+1);
       bdofs[0] = 0;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
