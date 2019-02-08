@@ -3965,9 +3965,10 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
 {
    if (degree == 2)
    {
-      I = mm_malloc(int,Dof);
-      J = mm_malloc(int,Dof);
-      K = mm_malloc(int,Dof);
+#warning HERE
+      I = new int[Dof];
+      J = new int[Dof];
+      K = new int[Dof];
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
       I[ 1] = 1; J[ 1] = 0; K[ 1] = 0;
@@ -8309,8 +8310,6 @@ H1_WedgeElement::H1_WedgeElement(const int p,
      SegmentFE(p, btype)
 {
 #ifndef MFEM_THREAD_SAFE
-   static int loop = 0;
-   printf("\n[H1_WedgeElement:%d] loop=%d",p,loop++);fflush(0);
    t_shape.SetSize(TriangleFE.GetDof());
    s_shape.SetSize(SegmentFE.GetDof());
    t_dshape.SetSize(TriangleFE.GetDof(), 2);

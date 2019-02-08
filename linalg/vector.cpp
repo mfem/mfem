@@ -33,7 +33,6 @@ namespace mfem
 
 void Vector::Destroy()
 {
-   assert(false);
    if (allocsize > 0)
    {
       mm_free(double,data);
@@ -45,7 +44,6 @@ void Vector::Destroy()
 /// Changes the ownership of the data; after the call the Vector is empty
 void Vector::StealData(double **p)
 {
-   assert(false);
    *p = data; data = 0; size = allocsize = 0;
 }
 
@@ -99,7 +97,6 @@ Vector::Vector (int s)
 // *****************************************************************************
 void Vector::SetSize(int s)
 {
-   dbg("s:%d, size:%d, allocsize:%d", s, size, allocsize);
    if (s==0)
    {
       //BUILTIN_TRAP;
@@ -116,13 +113,10 @@ void Vector::SetSize(int s)
    }
    if (allocsize > 0)
    {
-      //assert(false);
-      dbg("allocsize > 0, free");
       mm_free(double,data);
    }
    assert(s>0);
    allocsize = size = s;
-   dbg("malloc %d, allocsize=%d", size, allocsize);
    data = mm_malloc(double,s);
 }
 
@@ -157,8 +151,8 @@ Vector::Vector(const Vector &v)
 
 Vector::Vector(double *_data, int _size, const bool skip)
 {
-#warning Vector BUILTIN_TRAP
-   if (!skip) { BUILTIN_TRAP; }
+//#warning Vector BUILTIN_TRAP
+//   if (!skip) { BUILTIN_TRAP; }
    data = _data;
    size = _size;
    allocsize = -size;

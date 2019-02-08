@@ -105,14 +105,17 @@ public:
 #define mm_malloc(T,n) mm::malloc<T>(n,_F_L_F_)
    
    // **************************************************************************
-   static __attribute__ ((noinline)) void add_this_call_as_mm() {
+/*   static __attribute__ ((noinline)) void add_this_call_as_mm() {
       printf(" \b");
       fflush(0);
       volatile double a = 3.14; a+=1.0;
-   }
+      }
 #define mm_new(...) (mm::add_this_call_as_mm(),new __VA_ARGS__)
 #define mm_delete(...) (mm::add_this_call_as_mm(),delete __VA_ARGS__)
-
+*/
+#define mm_new(...) new __VA_ARGS__
+#define mm_delete(...) delete __VA_ARGS__
+   
    // **************************************************************************
    // * Frees the memory space pointed to by ptr, which must have been
    // * returned by a previous call to mm::malloc
@@ -134,6 +137,8 @@ public:
    // * Translates ptr to host or device address,
    // * depending on config::Cuda() and the ptr' state
    // **************************************************************************
+   static inline bool known(void *a) { return MM().IsInMM(a); }
+   static inline void dump(void *a) { return MM().Dump(a); }
    static inline void* ptr(void *a) { return MM().Ptr(a); }
    static inline const void* ptr(const void *a) { return MM().Ptr(a); }
    static inline OccaMemory occaPtr(const void *a) { return MM().Memory(a); }
@@ -166,6 +171,8 @@ private:
                 char const* const, int const, char const* const);
    void *Erase(void *ptr, char const* const, int const, char const* const);
    void* Ptr(void *ptr);
+   bool IsInMM(const void *ptr);
+   void Dump(const void *ptr);
    const void* Ptr(const void *ptr);
    OccaMemory Memory(const void *ptr);
    

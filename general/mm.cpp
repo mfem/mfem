@@ -38,6 +38,21 @@ static bool Known(const mm::ledger &maps, const void *ptr)
 }
 
 // *****************************************************************************
+bool mm::IsInMM(const void *ptr){
+   assert(ptr);
+   return Known(maps,ptr);
+}
+
+// *****************************************************************************
+void mm::Dump(const void *ptr){
+   const bool known = Known(maps, ptr);
+   assert(known);
+   const memory &mem = maps.memories.at(ptr);
+   printf("\nmem : %s:%d, func: %s @%p\n", mem.filename, mem.lineno, mem.function, mem.h_ptr);
+   fflush(0);
+}
+
+// *****************************************************************************
 // * Looks if ptr is an alias of one memory
 // *****************************************************************************
 static const void* IsAlias(const mm::ledger &maps, const void *ptr)
@@ -151,9 +166,9 @@ void* mm::Insert(void *ptr, const size_t bytes,
                 char const* const filename, int const lineno,
                 char const* const function)
 {
-   stk();
-   dbg("%s:%d:%s", filename, lineno, function);
-   DumpMode();
+   //stk();
+   //dbg("\033[33m%s:%d:%s", filename, lineno, function);
+   //DumpMode();
    if (MmGpuFilter()) { return ptr; }
    //if (bytes==0) { return ptr; }
    const bool known = Known(maps, ptr);
@@ -165,13 +180,13 @@ void* mm::Insert(void *ptr, const size_t bytes,
       printf("\nmem.bytes=%ld, bytes=%ld", mem.bytes, bytes);
       fflush(0);
       //BUILTIN_TRAP;
-      double *p = (double*)ptr;
-      for(int k=0;k<1024*1024*1024;k++) p[k]=0.0;
+      mfem_error("unwind?");
+      for(int k=0;k<1024*1024*1024;k++) ((double*)ptr)[k]=0.0;
       BUILTIN_TRAP;
       mfem_error("Trying to insert an already known pointer!");
    }
    MFEM_ASSERT(!known, "Trying to add an already known pointer!");
-   dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
+   //dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
    //if (ptr > (void*)0xffffffff){ BUILTIN_TRAP; }
    DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes, filename, lineno, function));
@@ -184,29 +199,28 @@ void* mm::Insert(void *ptr, const size_t bytes,
 void *mm::Erase(void *ptr, char const* const filename, int const lineno,
                 char const* const function)
 {
-   stk();
-   dbg("%s:%d:%s", filename, lineno, function);
+   //stk();
+   //dbg("\033[31m%s:%d:%s", filename, lineno, function);
    if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
    if (!known) {
-      // Even if don't know it, it's OK on CPU-only
       if (config::usingGpu())
       {
          mfem_error("Trying to erase a non-MM pointer!");
       }else{
-/*#warning Erase mfem_error CPU
-         double *p = (double*)ptr;
-         for(int k=0;k<1024*1024;k++) p[k]=0.0;
-         BUILTIN_TRAP;
-         mfem_error("CPU, but trying to erase a non-MM pointer!");
-*/
+         //printf("\nthis: %s:%d, func: %s @%p", filename, lineno, function, ptr);
+         //mfem_error("unwind?");
+         // Even if don't know it, it's OK on CPU-only
+         //for(int k=0;k<1024*1024;k++) ((double*)ptr)[k]=0.0;
+         //BUILTIN_TRAP;
+         //mfem_error("CPU, but trying to erase a non-MM pointer!");
       }
       return ptr;
    }
    MFEM_ASSERT(known, "Trying to erase a non-MM pointer!");
    memory &mem = maps.memories.at(ptr);
    //if (mem.bytes==0) { return ptr; }
-   dbg("\033[31m %p \033[35m(%ldb)", ptr, mem.bytes);
+   //dbg("\033[31m %p \033[35m(%ldb)", ptr, mem.bytes);
    for (const alias* const alias : mem.aliases)
    {
       maps.aliases.erase(alias);

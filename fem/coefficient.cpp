@@ -31,9 +31,7 @@ double PWConstCoefficient::Eval(ElementTransformation & T,
 double FunctionCoefficient::Eval(ElementTransformation & T,
                                  const IntegrationPoint & ip)
 {
-#warning static double for x[3]
-   //double x[3];
-   static double *x = mm_malloc(double,3);
+   double x[3];
    Vector transip(x, 3, true);
 
    T.Transform(ip, transip);
@@ -106,9 +104,8 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
-   //double x[3];
-   static double *x = mm_malloc(double,3);
-   Vector transip(x, 3, true);
+   double x[3];
+   Vector transip(x, 3);
 
    T.Transform(ip, transip);
 
@@ -283,9 +280,8 @@ void VectorRestrictedCoefficient::Eval(
 void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
-   //double x[3];
-   static double *x = mm_malloc(double,3);
-   Vector transip(x, 3, true);
+   double x[3];
+   Vector transip(x, 3);
 
    T.Transform(ip, transip);
 
