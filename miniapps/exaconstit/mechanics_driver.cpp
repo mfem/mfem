@@ -566,7 +566,7 @@ int main(int argc, char *argv[])
      visit_dc.RegisterField("Velocity", &v_cur);
      //visit_dc.RegisterQField("State Variables", &matVars0);
      //visit_dc.RegisterQField("DefGrad", &kinVars0);
-     //visit_dc.RegisterField("VonMises", &vonMises);
+     visit_dc.RegisterField("VonMises", &vonMises);
       
      visit_dc.SetCycle(0);
      visit_dc.SetTime(0.0);
@@ -661,7 +661,7 @@ int main(int argc, char *argv[])
          }
           // mesh and stress output. Consider moving this to a separate routine
          //We might not want to update the vonMises stuff
-//         oper.ProjectVonMisesStress(vonMises);
+         oper.ProjectVonMisesStress(vonMises);
          if (toml_opt.visit)
          {
             visit_dc.SetCycle(ti);

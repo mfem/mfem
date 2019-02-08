@@ -216,6 +216,7 @@ public:
       for (int i = 0; i < this->Size(); i++)
       {
          (*this)[i].Init();
+	 (*this)[i].SetIpID(i);
       }
    }
 
