@@ -41,9 +41,9 @@ PABilinearFormExtension::~PABilinearFormExtension()
 {
    for (int i = 0; i < integrators.Size(); ++i)
    {
-      delete integrators[i];
+      mm_delete(integrators[i]);
    }
-   delete fes_ext;
+   mm_delete(fes_ext);
 }
 
 // Adds new Domain Integrator.
@@ -71,7 +71,7 @@ void PABilinearFormExtension::Update(FiniteElementSpace &fes)
                   trialFes->GetVDim());
    localY.SetSize(a->fes->GetNE() * testFes->GetFE(0)->GetDof() *
                   testFes->GetVDim());
-   delete fes_ext;
+   mm_delete(fes_ext);
    fes_ext = new FiniteElementSpaceExtension(fes);
 }
 

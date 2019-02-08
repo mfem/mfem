@@ -23,7 +23,7 @@ void BilinearForm::AllocMat()
 
    if (precompute_sparsity == 0 || fes->GetVDim() > 1)
    {
-      mat = new SparseMatrix(height);
+      mat = mm_new(SparseMatrix(height));
       return;
    }
 
@@ -37,7 +37,7 @@ void BilinearForm::AllocMat()
       {
          Table *face_elem = fes->GetMesh()->GetFaceToElementTable();
          mfem::Mult(*face_elem, elem_dof, face_dof);
-         delete face_elem;
+         mm_delete(face_elem);
       }
       Transpose(face_dof, dof_face, height);
       mfem::Mult(dof_face, face_dof, dof_dof);
@@ -57,7 +57,7 @@ void BilinearForm::AllocMat()
    //double *data = new double[I[height]];
    double *data = mm_malloc(double,I[height]);
 
-   mat = new SparseMatrix(I, J, data, height, height, true, true, true);
+   mat = mm_new(SparseMatrix(I, J, data, height, height, true, true, true));
    *mat = 0.0;
 
    dof_dof.LoseData();
@@ -91,7 +91,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f,
          mfem_error("Not supported yet... stay tuned!");
          break;
       case AssemblyLevel::PARTIAL:
-         pa = new PABilinearFormExtension(this);
+         pa = mm_new(PABilinearFormExtension(this));
          break;
       case AssemblyLevel::NONE:
          mfem_error("Not supported yet... stay tuned!");
@@ -130,14 +130,14 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 
 void BilinearForm::EnableStaticCondensation()
 {
-   delete static_cond;
+   mm_delete(static_cond);
    if (assembly != AssemblyLevel::FULL)
    {
       static_cond = NULL;
       MFEM_WARNING("Static condensation not supported for this assembly level");
       return;
    }
-   static_cond = new StaticCondensation(fes);
+   static_cond = mm_new(StaticCondensation(fes));
    if (static_cond->ReducesTrueVSize())
    {
       bool symmetric = false;      // TODO
@@ -146,7 +146,7 @@ void BilinearForm::EnableStaticCondensation()
    }
    else
    {
-      delete static_cond;
+      mm_delete(static_cond);
       static_cond = NULL;
    }
 }
@@ -155,15 +155,15 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
                                        BilinearFormIntegrator *constr_integ,
                                        const Array<int> &ess_tdof_list)
 {
-   delete hybridization;
+   mm_delete(hybridization);
    if (assembly != AssemblyLevel::FULL)
    {
-      delete constr_integ;
+      mm_delete(constr_integ);
       hybridization = NULL;
       MFEM_WARNING("Hybridization not supported for this assembly level");
       return;
    }
-   hybridization = new Hybridization(fes, constr_space);
+   hybridization = mm_new(Hybridization(fes, constr_space));
    hybridization->SetConstraintIntegrator(constr_integ);
    hybridization->Init(ess_tdof_list);
 }
@@ -178,10 +178,10 @@ void BilinearForm::UseSparsity(int *I, int *J, bool isSorted)
       {
          return; // mat is already using the given sparsity
       }
-      delete mat;
+      mm_delete(mat);
    }
    height = width = fes->GetVSize();
-   mat = new SparseMatrix(I, J, NULL, height, width, false, true, isSorted);
+   mat = mm_new(SparseMatrix(I, J, NULL, height, width, false, true, isSorted));
 }
 
 void BilinearForm::UseSparsity(SparseMatrix &A)
@@ -570,20 +570,20 @@ void BilinearForm::ConformingAssemble()
 
    SparseMatrix *R = Transpose(*P);
    SparseMatrix *RA = mfem::Mult(*R, *mat);
-   delete mat;
+   mm_delete(mat);
    if (mat_e)
    {
       SparseMatrix *RAe = mfem::Mult(*R, *mat_e);
-      delete mat_e;
+      mm_delete(mat_e);
       mat_e = RAe;
    }
-   delete R;
+   mm_delete(R);
    mat = mfem::Mult(*RA, *P);
-   delete RA;
+   mm_delete(RA);
    if (mat_e)
    {
       SparseMatrix *RAeP = mfem::Mult(*mat_e, *P);
-      delete mat_e;
+      mm_delete(mat_e);
       mat_e = RAeP;
    }
 
@@ -826,8 +826,8 @@ void BilinearForm::ComputeElementMatrices()
    int num_elements = fes->GetNE();
    int num_dofs_per_el = fes->GetFE(0)->GetDof() * fes->GetVDim();
 
-   element_matrices = new DenseTensor(num_dofs_per_el, num_dofs_per_el,
-                                      num_elements);
+   element_matrices = mm_new(DenseTensor(num_dofs_per_el, num_dofs_per_el,
+                                         num_elements));
 
    DenseMatrix tmp;
    IsoparametricTransformation eltrans;
@@ -933,7 +933,7 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
 {
    if (mat_e == NULL)
    {
-      mat_e = new SparseMatrix(height);
+   mat_e = mm_new(SparseMatrix(height));
    }
 
    for (int i = 0; i < vdofs.Size(); i++)
@@ -1013,17 +1013,17 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
                      sequence < fes->GetSequence());
    }
 
-   delete mat_e;
+   mm_delete(mat_e);
    mat_e = NULL;
    FreeElementMatrices();
-   delete static_cond;
+   mm_delete(static_cond);
    static_cond = NULL;
 
    if (full_update)
    {
-      delete mat;
+      mm_delete(mat);
       mat = NULL;
-      delete hybridization;
+      mm_delete(hybridization);
       hybridization = NULL;
       sequence = fes->GetSequence();
    }
@@ -1044,25 +1044,25 @@ void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)
 
 BilinearForm::~BilinearForm()
 {
-   delete mat_e;
-   delete mat;
-   delete element_matrices;
-   delete static_cond;
-   delete hybridization;
+   mm_delete(mat_e);
+   mm_delete(mat);
+   mm_delete(element_matrices);
+   mm_delete(static_cond);
+   mm_delete(hybridization);
 
    if (!extern_bfs)
    {
       int k;
-      for (k=0; k < dbfi.Size(); k++) { delete dbfi[k]; }
-      for (k=0; k < bbfi.Size(); k++) { delete bbfi[k]; }
-      for (k=0; k < fbfi.Size(); k++) { delete fbfi[k]; }
-      for (k=0; k < bfbfi.Size(); k++) { delete bfbfi[k]; }
+      for (k=0; k < dbfi.Size(); k++) { mm_delete(dbfi[k]); }
+      for (k=0; k < bbfi.Size(); k++) { mm_delete(bbfi[k]); }
+      for (k=0; k < fbfi.Size(); k++) { mm_delete(fbfi[k]); }
+      for (k=0; k < bfbfi.Size(); k++) { mm_delete(bfbfi[k]); }
    }
 
-   if (fa) { delete fa; }
-   if (ea) { delete ea; }
-   if (pa) { delete pa; }
-   if (mf) { delete mf; }
+   if (fa) { mm_delete(fa); }
+   if (ea) { mm_delete(ea); }
+   if (pa) { mm_delete(pa); }
+   if (mf) { mm_delete(mf); }
 }
 
 
@@ -1167,7 +1167,7 @@ void MixedBilinearForm::Assemble (int skip_zeros)
 
    if (mat == NULL)
    {
-      mat = new SparseMatrix(height, width);
+      mat = mm_new(SparseMatrix(height, width));
    }
 
    if (dom.Size())
@@ -1250,8 +1250,8 @@ void MixedBilinearForm::ConformingAssemble()
    {
       SparseMatrix *R = Transpose(*P2);
       SparseMatrix *RA = mfem::Mult(*R, *mat);
-      delete R;
-      delete mat;
+      mm_delete(R);
+      mm_delete(mat);
       mat = RA;
    }
 
@@ -1259,7 +1259,7 @@ void MixedBilinearForm::ConformingAssemble()
    if (P1)
    {
       SparseMatrix *RAP = mfem::Mult(*mat, *P1);
-      delete mat;
+      mm_delete(mat);
       mat = RAP;
    }
 
@@ -1318,7 +1318,7 @@ void MixedBilinearForm::EliminateTestDofs (Array<int> &bdr_attr_is_ess)
 
 void MixedBilinearForm::Update()
 {
-   delete mat;
+   mm_delete(mat);
    mat = NULL;
    height = test_fes->GetVSize();
    width = trial_fes->GetVSize();
@@ -1326,13 +1326,13 @@ void MixedBilinearForm::Update()
 
 MixedBilinearForm::~MixedBilinearForm()
 {
-   if (mat) { delete mat; }
+   if (mat) { mm_delete(mat); }
    if (!extern_bfs)
    {
       int i;
-      for (i = 0; i < dom.Size(); i++) { delete dom[i]; }
-      for (i = 0; i < bdr.Size(); i++) { delete bdr[i]; }
-      for (i = 0; i < skt.Size(); i++) { delete skt[i]; }
+      for (i = 0; i < dom.Size(); i++) { mm_delete(dom[i]); }
+      for (i = 0; i < bdr.Size(); i++) { mm_delete(bdr[i]); }
+      for (i = 0; i < skt.Size(); i++) { mm_delete(skt[i]); }
    }
 }
 
@@ -1346,7 +1346,7 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
 
    if (mat == NULL)
    {
-      mat = new SparseMatrix(height, width);
+      mat = mm_new(SparseMatrix(height, width));
    }
 
    if (dom.Size() > 0)

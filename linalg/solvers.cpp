@@ -695,7 +695,7 @@ finish:
    }
    for (i = 0; i < v.Size(); i++)
    {
-      delete v[i];
+      mm_delete(v[i]);
    }
 }
 
@@ -803,8 +803,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
             converged = 1;
             for (i= 0; i<=m; i++)
             {
-               if (v[i]) { delete v[i]; }
-               if (z[i]) { delete z[i]; }
+               if (v[i]) { mm_delete(v[i]); }
+               if (z[i]) { mm_delete(z[i]); }
             }
             return;
          }
@@ -828,8 +828,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          converged = 1;
          for (i= 0; i<=m; i++)
          {
-            if (v[i]) { delete v[i]; }
-            if (z[i]) { delete z[i]; }
+            if (v[i]) { mm_delete(v[i]); }
+            if (z[i]) { mm_delete(z[i]); }
          }
          return;
       }
@@ -837,8 +837,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
    for (i = 0; i <= m; i++)
    {
-      if (v[i]) { delete v[i]; }
-      if (z[i]) { delete z[i]; }
+      if (v[i]) { mm_delete(v[i]); }
+      if (z[i]) { mm_delete(z[i]); }
    }
    converged = 0;
    return;
@@ -1420,7 +1420,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
             max_iter = j;
             for (i= 0; i<=m; i++)
             {
-               delete v[i];
+               mm_delete(v[i]);
             }
             return 0;
          }
@@ -1443,7 +1443,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
          max_iter = j;
          for (i= 0; i<=m; i++)
          {
-            delete v[i];
+            mm_delete(v[i]);
          }
          return 0;
       }
@@ -1466,7 +1466,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    tol = resid * resid;
    for (i= 0; i<=m; i++)
    {
-      delete v[i];
+      mm_delete(v[i]);
    }
    return 1;
 }
@@ -1751,8 +1751,8 @@ void UMFPackSolver::SetOperator(const Operator &op)
    {
       SuiteSparse_long status;
 
-      delete [] AJ;
-      delete [] AI;
+      mm_delete([] AJ);
+      mm_delete([] AI);
       AI = new SuiteSparse_long[width + 1];
       AJ = new SuiteSparse_long[Ap[width]];
       for (int i = 0; i <= width; i++)
@@ -1855,8 +1855,8 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
 
 UMFPackSolver::~UMFPackSolver()
 {
-   delete [] AJ;
-   delete [] AI;
+   mm_delete([] AJ);
+   mm_delete([] AI);
    if (Numeric)
    {
       if (!use_long_ints)

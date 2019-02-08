@@ -53,7 +53,7 @@ BlockMatrix::~BlockMatrix()
       for (SparseMatrix ** it = Aij.GetRow(0);
            it != Aij.GetRow(0)+(Aij.NumRows()*Aij.NumCols()); ++it)
       {
-         delete *it;
+         mm_delete(*it);
       }
 }
 
@@ -608,7 +608,7 @@ BlockMatrix * Mult(const BlockMatrix & A, const BlockMatrix & B)
             for (SparseMatrix ** it = CijPieces.GetData();
                  it != CijPieces.GetData()+CijPieces.Size(); ++it)
             {
-               delete *it;
+               mm_delete(*it);
             }
          }
          else if (CijPieces.Size() == 1)

@@ -344,12 +344,12 @@ void SparseMatrix::SetWidth(int newWidth)
       // We need to reset ColPtr, since now we may have additional columns.
       if (Rows != NULL)
       {
-         delete [] ColPtrNode;
+         mm_delete([] ColPtrNode);
          ColPtrNode = static_cast<RowNode **>(NULL);
       }
       else
       {
-         delete [] ColPtrJ;
+         mm_delete([] ColPtrJ);
          ColPtrJ = static_cast<int *>(NULL);
       }
       width = newWidth;
@@ -895,7 +895,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 
 #ifdef MFEM_USE_MEMALLOC
    #warning MFEM_USE_MEMALLOC
-   delete NodesMem;
+   mm_delete(NodesMem);
    NodesMem = NULL;
 #else
    for (i = 0; i < height; i++)
@@ -2722,7 +2722,7 @@ void SparseMatrix::Destroy()
 #ifdef MFEM_USE_MEMALLOC
    if (NodesMem != NULL)
    {
-      delete NodesMem;
+      mm_delete(NodesMem);
    }
 #endif
 }
@@ -3019,7 +3019,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
       << ") did not match number of entries changed from matrix-matrix multiply, "
       << counter);
 
-   delete [] B_marker;
+   mm_delete([] B_marker);
 
    return C;
 }
@@ -3029,7 +3029,7 @@ SparseMatrix * TransposeMult(const SparseMatrix &A, const SparseMatrix &B)
    MFEM_GPU_CANNOT_PASS;
    SparseMatrix *At  = Transpose(A);
    SparseMatrix *AtB = Mult(*At, B);
-   delete At;
+   mm_delete(At);
    return AtB;
 }
 
@@ -3127,7 +3127,7 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
       }
    }
 
-   delete [] B_marker;
+   mm_delete([] B_marker);
 
    return C;
 }
@@ -3153,7 +3153,7 @@ DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
    DenseMatrix *AP   = Mult (A, P);
    DenseMatrix *_RAP = new DenseMatrix(R.Height(), AP->Width());
    Mult (R, *AP, *_RAP);
-   delete AP;
+   mm_delete(AP);
    return _RAP;
 }
 
@@ -3163,11 +3163,11 @@ DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
    SparseMatrix *R  = Transpose(P);
    DenseMatrix  *RA = Mult(*R, A);
    DenseMatrix   AtP(*RA, 't');
-   delete RA;
+   mm_delete(RA);
    DenseMatrix  *RAtP = Mult(*R, AtP);
-   delete R;
+   mm_delete(R);
    DenseMatrix * _RAP = new DenseMatrix(*RAtP, 't');
-   delete RAtP;
+   mm_delete(RAtP);
    return _RAP;
 }
 
@@ -3177,9 +3177,9 @@ SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
    MFEM_GPU_CANNOT_PASS;
    SparseMatrix *P  = Transpose (R);
    SparseMatrix *AP = Mult (A, *P);
-   delete P;
+   mm_delete(P);
    SparseMatrix *_RAP = Mult (R, *AP, ORAP);
-   delete AP;
+   mm_delete(AP);
    return _RAP;
 }
 
@@ -3189,9 +3189,9 @@ SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
    MFEM_GPU_CANNOT_PASS;
    SparseMatrix * R = Transpose(Rt);
    SparseMatrix * RA = Mult(*R,A);
-   delete R;
+   mm_delete(R);
    SparseMatrix * out = Mult(*RA, P);
-   delete RA;
+   mm_delete(RA);
    return out;
 }
 
@@ -3211,7 +3211,7 @@ SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
       At_data[i] *= D(At_j[i]);
    }
    SparseMatrix *AtDA = Mult (*At, A, OAtDA);
-   delete At;
+   mm_delete(At);
    return AtDA;
 }
 
@@ -3318,7 +3318,7 @@ SparseMatrix * Add(Array<SparseMatrix *> & Ai)
       result = Add(*accumulate, *Ai[i]);
       if (i != 1)
       {
-         delete accumulate;
+         mm_delete(accumulate);
       }
 
       accumulate = result;

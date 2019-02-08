@@ -61,10 +61,18 @@ public:
       void *d_ptr;
       OccaMemory o_ptr;
 
+      const char *filename;
+      const int lineno;
+      const char *function;
+      
       std::list<const alias *> aliases;
 
-      memory(void* const h, const size_t b):
-         host(true), bytes(b), h_ptr(h), d_ptr(NULL), aliases() {}
+      memory(void* const h, const size_t b,
+             char const* const fn, int const line,
+             char const* const fct):
+         host(true), bytes(b), h_ptr(h), d_ptr(NULL),
+         filename(fn),lineno(line),function(fct),
+         aliases() {}
    };
 
    struct alias
@@ -94,9 +102,17 @@ public:
                            char const* const function = __FUNCTION__,
                            size_t const size = sizeof(T))
    { return (T*) MM().Insert(::new T[n], n*size, filename, lineno, function); }
-//#define mm_malloc(T,n) mm::malloc<T>(n,__FILE__,__LINE__,__FUNCTION__)
 #define mm_malloc(T,n) mm::malloc<T>(n,_F_L_F_)
    
+   // **************************************************************************
+   static __attribute__ ((noinline)) void add_this_call_as_mm() {
+      printf(" \b");
+      fflush(0);
+      volatile double a = 3.14; a+=1.0;
+   }
+#define mm_new(...) (mm::add_this_call_as_mm(),new __VA_ARGS__)
+#define mm_delete(...) (mm::add_this_call_as_mm(),delete __VA_ARGS__)
+
    // **************************************************************************
    // * Frees the memory space pointed to by ptr, which must have been
    // * returned by a previous call to mm::malloc

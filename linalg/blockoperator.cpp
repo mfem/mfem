@@ -120,7 +120,7 @@ BlockOperator::~BlockOperator()
       for (int iRow=0; iRow < nRowBlocks; ++iRow)
          for (int jCol=0; jCol < nColBlocks; ++jCol)
          {
-            delete op(jCol,iRow);
+            mm_delete(op(jCol,iRow));
          }
 }
 
@@ -193,7 +193,7 @@ BlockDiagonalPreconditioner::~BlockDiagonalPreconditioner()
    if (owns_blocks)
       for (int i=0; i<nBlocks; ++i)
       {
-         delete op[i];
+         mm_delete(op[i]);
       }
 }
 
@@ -310,7 +310,7 @@ BlockLowerTriangularPreconditioner::~BlockLowerTriangularPreconditioner()
       {
          for (int jCol=0; jCol < nBlocks; ++jCol)
          {
-            delete op(jCol,iRow);
+            mm_delete(op(jCol,iRow));
          }
       }
    }
