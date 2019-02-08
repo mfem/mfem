@@ -42,6 +42,8 @@ stk::~stk(){
 
   // If no STK varibale environment is set, just return
   static const bool stk = getenv("STK")!=NULL;
+  static const bool out = getenv("OUT")!=NULL;
+  static const bool args = getenv("ARGS")!=NULL;
   if (not stk) return;
 
   // If we are in ORG_MODE, set tab_char to '*'
@@ -66,7 +68,7 @@ stk::~stk(){
   const std::string demangled_function(backtraced_function);
    
   if (known_address.find(address)==known_address.end()){
-    if (!getenv("ARGS")){ // Get rid of arguments, or not
+    if (args){ // Get rid of arguments, or not
       const int first_parenthesis = demangled_function.find_first_of('(');
       const std::string function = demangled_function.substr(0,first_parenthesis);
       known_address[address]=function;
@@ -87,27 +89,29 @@ stk::~stk(){
     known_colors[display_function] = known_colors.size()%(256-46)+46;
   const int color = known_colors[display_function];
 
-  // Generating tabs
-  for(int k=0;k<frames;++k) std::cout<<tab_char;
-  
-  // Outputing 
-  if (!org_mode)
-    std::cout << "\033[" << options
-              << ";38;5;"<< color
-              << ";1m"; // bold
-  else std::cout << " ";
-  std::cout << "["<<filename<<":"<<lineno<<":"<<display_function<<"]\033[m ";
-  // reset + normal color if !empty
-  if (!org_mode)
-    std::cout << "\033[38;5;"<<color<<"m";
-  std::cout << stream.str();
-  if (!org_mode) std::cout << "[m";
-  stream.clear();
+  if (out){
+     // Generating tabs
+     for(int k=0;k<frames;++k) std::cout<<tab_char;
+     // Outputing 
+     if (!org_mode)
+        std::cout << "\033[" << options
+                  << ";38;5;"<< color
+                  << ";1m"; // bold
+     else std::cout << " ";
+     std::cout << "["<<filename<<":"<<lineno<<":"<<display_function<<"]\033[m ";
+     // reset + normal color if !empty
+     if (!org_mode)
+        std::cout << "\033[38;5;"<<color<<"m";
+     std::cout << stream.str();
+     if (!org_mode) std::cout << "[m";
+     stream.clear();
+  }
+
   // if MM was set, make sure all "mfem::*" calls go through the mm.*pp file
   if (mm_assert and mfem){
-     printf("\033[1;32mMFEM\033[m");
+     if (out) printf("\033[1;32mMFEM\033[m");
      if (mm){
-        printf("\033[1;32m, MM\033[m");
+        if (out) printf("\033[1;32m, MM\033[m");
         if (ptr) {
            const bool is_new = new_or_delete;
            const bool is_del = not new_or_delete;
@@ -119,11 +123,11 @@ stk::~stk(){
               //printf("\033[1;31m\nTrying to delete a pointer that is not known by the MM!\033[m");
               //assert(false);
            }else{
-              printf("\033[32m, known: ok\033[m");
+              if (out) printf("\033[32m, known: ok\033[m");
            }
         }
      }else{
-        printf("\033[31m, !MM\033[m");
+        if (out) printf("\033[31m, !MM\033[m");
         // if a pointer has been given, use it to test if it known in the mm
         if (ptr) {
            const bool is_new = new_or_delete;
@@ -139,14 +143,12 @@ stk::~stk(){
               fflush(0);
               exit(0);
            }else{
-              printf("\033[31m, unknown: ok\033[m");
+              if (out) printf("\033[31m, unknown: ok\033[m");
            }
         }
-     
-        //assert(false);
      }
   }else if (mm_assert and not mfem){
-     printf("\033[1;31mNot MFEM\033[m");
+     if (out) printf("\033[1;31mNot MFEM\033[m");
      // if a pointer has been given, use it to test if it known in the mm
      if (ptr) {
         const bool known = mfem::mm::known((void*)ptr);
@@ -156,6 +158,6 @@ stk::~stk(){
         }
      }
   }
-  fflush(0);
-  std::cout << "\n";
+  if (out) fflush(0);
+  if (out) std::cout << "\n";
 }
