@@ -1,5 +1,5 @@
 CXXFLAGS = -fno-inline-functions -g -shared -fPIC -Wall 
-LIBS = -Wl,-rpath,/home/camier1/home/okmm -Wl,-rpath,/home/camier1/home/stk -L/home/camier1/home/stk
+LIBS = -Wl,-rpath,/home/camier1/home/okmm -Wl,-rpath,/home/camier1/home/okstk -L/home/camier1/home/okstk
 
 all: okmm.so
 
