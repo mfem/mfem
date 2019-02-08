@@ -47,8 +47,6 @@
 using namespace std;
 using namespace mfem;
 
-//MFEM_HOST_DEVICE double fctCoeff(const Vector &x) { return 1.0; }
-
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -154,7 +152,7 @@ int main(int argc, char *argv[])
    if (occa) { config::useOcca(); }
    config::enableGpu(0/*,occa,cuda*/);
    config::SwitchToGpu();
-
+   
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.

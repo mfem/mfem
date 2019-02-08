@@ -4139,6 +4139,7 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
    {
       height = width = mat.width;
       mm_free(double,lu.data);
+      mm_free(double,lu.data);
       lu.data = mm_malloc(double,width*width);
       mm_free(double,lu.ipiv);
       lu.ipiv = mm_malloc(int,width);

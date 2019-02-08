@@ -858,7 +858,6 @@ BlockArray<T>::BlockArray(int block_size)
 template<typename T>
 BlockArray<T>::BlockArray(const BlockArray<T> &other)
 {
-   assert(false);
    blocks.SetSize(other.blocks.Size());
 
    size = other.size;
@@ -882,7 +881,6 @@ BlockArray<T>::BlockArray(const BlockArray<T> &other)
 template<typename T>
 int BlockArray<T>::Alloc()
 {
-   assert(false);
    int bsize = mask+1;
    if (size >= blocks.Size() * bsize)
    {
