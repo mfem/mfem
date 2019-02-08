@@ -77,7 +77,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    if (hw > 0)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
-      data = mm::malloc<double>(hw);
+      data = mm_malloc(double,hw);
       capacity = hw;
       mm::memcpy(data, m.data, sizeof(double)*hw);
    }
@@ -94,7 +94,7 @@ DenseMatrix::DenseMatrix(int s) : Matrix(s)
    capacity = s*s;
    if (capacity > 0)
    {
-      data = mm::malloc<double>(capacity);
+      data = mm_malloc(double,capacity);
       kernels::densemat::Set(0.0,capacity,data);
    }
    else
@@ -110,7 +110,7 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    capacity = m*n;
    if (capacity > 0)
    {
-      data = mm::malloc<double>(capacity);
+      data = mm_malloc(double,capacity);
       kernels::densemat::Set(0.0,capacity,data);
    }
    else
@@ -125,7 +125,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    capacity = height*width;
    if (capacity > 0)
    {
-      data = mm::malloc<double>(capacity);
+      data = mm_malloc(double,capacity);
       kernels::densemat::Transpose(height,width,data,mat.Data());
    }
    else
@@ -156,10 +156,10 @@ void DenseMatrix::SetSize(int h, int w)
    {
       if (capacity > 0)
       {
-         mm::free<double>(data);
+         mm_free(double,data);
       }
       capacity = hw;
-      data = mm::malloc<double>(capacity);
+      data = mm_malloc(double,capacity);
       kernels::densemat::Set(0.0, capacity, data);
    }
 }
@@ -392,7 +392,7 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
       mfem_error("DenseMatrix::SymmetricScaling");
    }
 
-   double * ss = mm::malloc<double>(width);
+   double * ss = mm_malloc(double,width);
    double * it_s = s.GetData();
    double * it_ss = ss;
    for ( double * end_s = it_s + width; it_s != end_s; ++it_s)
@@ -407,7 +407,7 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
          *(it_data++) *= ss[i]*ss[j];
       }
 
-   mm::free<double>(ss);
+   mm_free(double,ss);
 }
 
 // InvSymmetricScaling this = diag(sqrt(1./s)) * this * diag(sqrt(1./s))
@@ -1012,6 +1012,7 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 {
    MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_USE_LAPACK
+#warning MFEM_USE_LAPACK
    int   N      = a.Width();
    char  JOBZ   = 'N';
    char  UPLO   = 'U';
@@ -3026,7 +3027,7 @@ DenseMatrix::~DenseMatrix()
 {
    if (capacity > 0)
    {
-      mm::free<double>(data);
+      mm_free(double,data);
    }
 }
 
@@ -4099,8 +4100,8 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix &mat)
    MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(height == width, "not a square matrix");
    a = &mat;
-   lu.data = mm::malloc<double>(width*width);
-   lu.ipiv = mm::malloc<int>(width);
+   lu.data = mm_malloc(double,width*width);
+   lu.ipiv = mm_malloc(int,width);
    Factor();
 }
 
@@ -4110,8 +4111,8 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix *mat)
    MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(height == width, "not a square matrix");
    a = mat;
-   lu.data = mm::malloc<double>(width*width);
-   lu.ipiv = mm::malloc<int>(width);
+   lu.data = mm_malloc(double,width*width);
+   lu.ipiv = mm_malloc(int,width);
 }
 
 void DenseMatrixInverse::Factor()
@@ -4137,10 +4138,10 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
    if (width != mat.width)
    {
       height = width = mat.width;
-      mm::free<double>(lu.data);
-      lu.data = mm::malloc<double>(width*width);
-      mm::free<double>(lu.ipiv);
-      lu.ipiv = mm::malloc<int>(width);
+      mm_free(double,lu.data);
+      lu.data = mm_malloc(double,width*width);
+      mm_free(double,lu.ipiv);
+      lu.ipiv = mm_malloc(int,width);
    }
    a = &mat;
    Factor();
@@ -4182,8 +4183,8 @@ void DenseMatrixInverse::TestInversion()
 
 DenseMatrixInverse::~DenseMatrixInverse()
 {
-   mm::free<double>(lu.data);
-   mm::free<int>(lu.ipiv);
+   mm_free(double,lu.data);
+   mm_free(int,lu.ipiv);
 }
 
 

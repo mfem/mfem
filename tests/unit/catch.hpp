@@ -10487,8 +10487,7 @@ namespace Catch {
 #include "/home/camier1/home/okstk/stk.hpp"
 int main (int argc, char * argv[]) {
    stkIni(argv[0]);
-   //stk();
-    return Catch::Session().run( argc, argv );
+   return Catch::Session().run( argc, argv );
 }
 
 #else // __OBJC__

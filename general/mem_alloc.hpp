@@ -13,6 +13,7 @@
 #define MFEM_MEM_ALLOC
 
 #include "../config/config.hpp"
+#include "../general/okina.hpp"
 #include <cstddef>
 
 namespace mfem
@@ -23,7 +24,9 @@ class StackPart
 {
 public:
    StackPart<Elem, Num> *Prev;
-   Elem Elements[Num];
+   Elem *Elements;
+   StackPart(): Elements(mm_malloc(Elem,Num)){}
+   ~StackPart() { mm_free(Elem,Elements); }
 };
 
 template <class Elem, int Num>
@@ -123,7 +126,9 @@ class MemAllocNode
 {
 public:
    MemAllocNode <Elem, Num> *Prev;
-   Elem Elements[Num];
+   Elem *Elements;
+   MemAllocNode(): Elements(mm_malloc(Elem,Num)){}
+   ~MemAllocNode() { mm_free(Elem,Elements); }
 };
 
 template <class Elem, int Num>

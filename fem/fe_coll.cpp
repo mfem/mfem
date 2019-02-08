@@ -1566,7 +1566,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, btype);
       }
 
-      SegDofOrd[0] = mm::malloc<int>(2*pm1);
+      SegDofOrd[0] = mm_malloc(int,2*pm1);
       SegDofOrd[1] = SegDofOrd[0] + pm1;
       for (int i = 0; i < pm1; i++)
       {
@@ -1592,7 +1592,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
       const int &QuadDof = H1_dof[Geometry::SQUARE];
-      TriDofOrd[0] = mm::malloc<int>(6*TriDof);
+      TriDofOrd[0] = mm_malloc(int,6*TriDof);
       for (int i = 1; i < 6; i++)
       {
          TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
@@ -1613,7 +1613,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          }
       }
 
-      QuadDofOrd[0] =mm::malloc<int>(8*QuadDof);
+      QuadDofOrd[0] =mm_malloc(int,8*QuadDof);
       for (int i = 1; i < 8; i++)
       {
          QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
@@ -1717,9 +1717,9 @@ const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
 
 H1_FECollection::~H1_FECollection()
 {
-   mm::free<int>(SegDofOrd[0]);
-   mm::free<int>(TriDofOrd[0]);
-   mm::free<int>(QuadDofOrd[0]);
+   mm_free(int,SegDofOrd[0]);
+   mm_free(int,TriDofOrd[0]);
+   mm_free(int,QuadDofOrd[0]);
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       delete H1_Elements[g];
@@ -1805,7 +1805,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       // No need to set the map_type for Tr_Elements.
 
       const int pp1 = p + 1;
-      SegDofOrd[0] = mm::malloc<int>(2*pp1);
+      SegDofOrd[0] = mm_malloc(int,2*pp1);
       SegDofOrd[1] = SegDofOrd[0] + pp1;
       for (int i = 0; i <= p; i++)
       {
@@ -1831,7 +1831,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
 
       const int TriDof = L2_Elements[Geometry::TRIANGLE]->GetDof();
-      TriDofOrd[0] = mm::malloc<int>(6*TriDof);
+      TriDofOrd[0] = mm_malloc(int,6*TriDof);
       for (int i = 1; i < 6; i++)
       {
          TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
@@ -1852,7 +1852,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          }
       }
       const int QuadDof = L2_Elements[Geometry::SQUARE]->GetDof();
-      OtherDofOrd = mm::malloc<int>(QuadDof);
+      OtherDofOrd = mm_malloc(int,QuadDof);
       for (int j = 0; j < QuadDof; j++)
       {
          OtherDofOrd[j] = j; // for Or == 0
@@ -1884,7 +1884,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();
       const int PriDof = L2_Elements[Geometry::PRISM]->GetDof();
       const int MaxDof = std::max(TetDof, std::max(PriDof, HexDof));
-      OtherDofOrd = mm::malloc<int>(MaxDof);
+      OtherDofOrd = mm_malloc(int,MaxDof);
       for (int j = 0; j < MaxDof; j++)
       {
          OtherDofOrd[j] = j; // for Or == 0
@@ -1916,9 +1916,9 @@ const int *L2_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
 
 L2_FECollection::~L2_FECollection()
 {
-   mm::free<int>(OtherDofOrd);
-   mm::free<int>(SegDofOrd[0]);
-   mm::free<int>(TriDofOrd[0]);
+   mm_free(int,OtherDofOrd);
+   mm_free(int,SegDofOrd[0]);
+   mm_free(int,TriDofOrd[0]);
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
       delete L2_Elements[i];
@@ -2038,7 +2038,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
       RT_Elements[Geometry::SEGMENT] = l2_seg;
       RT_dof[Geometry::SEGMENT] = pp1;
 
-      SegDofOrd[0] = mm::malloc<int>(2*pp1);
+      SegDofOrd[0] = mm_malloc(int,2*pp1);
       SegDofOrd[1] = SegDofOrd[0] + pp1;
       for (int i = 0; i <= p; i++)
       {
@@ -2059,7 +2059,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
       RT_dof[Geometry::SQUARE] = pp1*pp1;
 
       int TriDof = RT_dof[Geometry::TRIANGLE];
-      TriDofOrd[0] = mm::malloc<int>(6*TriDof);
+      TriDofOrd[0] = mm_malloc(int,6*TriDof);
       for (int i = 1; i < 6; i++)
       {
          TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
@@ -2089,7 +2089,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
       }
 
       int QuadDof = RT_dof[Geometry::SQUARE];
-      QuadDofOrd[0] = mm::malloc<int>(8*QuadDof);
+      QuadDofOrd[0] = mm_malloc(int,8*QuadDof);
       for (int i = 1; i < 8; i++)
       {
          QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
@@ -2156,9 +2156,9 @@ FiniteElementCollection *RT_FECollection::GetTraceCollection() const
 
 RT_FECollection::~RT_FECollection()
 {
-   mm::free<int>(SegDofOrd[0]);
-   mm::free<int>(TriDofOrd[0]);
-   mm::free<int>(QuadDofOrd[0]);
+   mm_free(int,SegDofOrd[0]);
+   mm_free(int,TriDofOrd[0]);
+   mm_free(int,QuadDofOrd[0]);
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       delete RT_Elements[g];
@@ -2263,7 +2263,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       ND_Elements[Geometry::SEGMENT] = new ND_SegmentElement(p, ob_type);
       ND_dof[Geometry::SEGMENT] = p;
 
-      SegDofOrd[0] = mm::malloc<int>(2*p);
+      SegDofOrd[0] = mm_malloc(int,2*p);
       SegDofOrd[1] = SegDofOrd[0] + p;
       for (int i = 0; i < p; i++)
       {
@@ -2283,7 +2283,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       ND_dof[Geometry::TRIANGLE] = p*pm1;
 
       int QuadDof = ND_dof[Geometry::SQUARE];
-      QuadDofOrd[0] = mm::malloc<int>(8*QuadDof);
+      QuadDofOrd[0] = mm_malloc(int,8*QuadDof);
       for (int i = 1; i < 8; i++)
       {
          QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
@@ -2327,7 +2327,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       }
 
       int TriDof = ND_dof[Geometry::TRIANGLE];
-      TriDofOrd[0] = mm::malloc<int>(6*TriDof);
+      TriDofOrd[0] = mm_malloc(int,6*TriDof);
       for (int i = 1; i < 6; i++)
       {
          TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
@@ -2410,9 +2410,9 @@ FiniteElementCollection *ND_FECollection::GetTraceCollection() const
 
 ND_FECollection::~ND_FECollection()
 {
-   mm::free<int>(SegDofOrd[0]);
-   mm::free<int>(TriDofOrd[0]);
-   mm::free<int>(QuadDofOrd[0]);
+   mm_free(int,SegDofOrd[0]);
+   mm_free(int,TriDofOrd[0]);
+   mm_free(int,QuadDofOrd[0]);
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       delete ND_Elements[g];

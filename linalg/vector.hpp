@@ -114,7 +114,7 @@ public:
        @sa SetDataAndSize(). */
    void NewDataAndSize(double *d, int s)
    {
-      if (allocsize > 0) { mm::free<double>(data); }
+      if (allocsize > 0) { mm_free(double,data); }
       SetDataAndSize(d, s);
    }
 
@@ -329,7 +329,7 @@ inline Vector::Vector (int s)
    if (s > 0)
    {
       allocsize = size = s;
-      data = mm::malloc<double>(s);
+      data = mm_malloc(double,s);
    }
    else
    {
@@ -355,9 +355,9 @@ inline void Vector::SetSize(int s)
    {
       {
          //assert(false);
-         if (allocsize>0) mm::free<double>(data);
+         if (allocsize>0) mm_free(double,data);
          size = s;
-         data = mm::malloc<double>(s);
+         data = mm_malloc(double,s);
          return;
       }
       size = s;
@@ -367,11 +367,11 @@ inline void Vector::SetSize(int s)
    {
       assert(false);
       dbg("allocsize > 0, free");
-      mm::free<double>(data);
+      mm_free(double,data);
    }
    allocsize = size = s;
    dbg("malloc %d, allocsize=%d", size, allocsize);
-   data = mm::malloc<double>(s);
+   data = mm_malloc(double,s);
 }
 */
 /*
@@ -379,7 +379,7 @@ inline void Vector::Destroy()
 {
    if (allocsize > 0)
    {
-      mm::free<double>(data);
+      mm_free(double,data);
    }
    allocsize = size = 0;
    data = NULL;
@@ -416,7 +416,7 @@ inline Vector::~Vector()
 {
    if (allocsize > 0)
    {
-      mm::free<double>(data);
+      mm_free(double,data);
    }
 }
 

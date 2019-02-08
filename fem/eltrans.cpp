@@ -518,7 +518,7 @@ void IntegrationPointTransformation::Transform (const IntegrationPoint &ip1,
                                                 IntegrationPoint &ip2)
 {
    //double vec[3];
-   static double *vec = mm::malloc<double>(3);
+   static double *vec = mm_malloc(double,3);
    Vector v (vec, Transf.GetPointMat().Height(), true);
 
    Transf.Transform (ip1, v);
