@@ -16,12 +16,27 @@
 #ifndef LIB_STK
 #define LIB_STK
 
+#include <map>
 #include <sstream>
-   
+#include <cassert>
+#include <cxxabi.h>
+#include <string.h>
+
+#include <backtrace.h>
+#include <backtrace-supported.h>
+
+#define DEMANGLE_LENGTH 32768
+#define STACK_LENGTH 32768
+
+#include "stk.h"
+#include "stkBackTrace.hpp"
+#include "stkBackTraceData.hpp"
+
 class stk{
 public:
    stk(const bool =false);
-   stk(const char*,const bool =false);
+   stk(const void*, const bool, const bool =false);
+   stk(const char*, const bool =false);
    ~stk();
    template<class T>
    stk& operator<<(const T& t){
@@ -29,6 +44,8 @@ public:
       return *this;
    }
 private:
+   const void *ptr;
+   const bool new_or_delete;
    const bool rip;
    std::stringstream stream;
    const char *options;

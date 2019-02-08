@@ -16,8 +16,6 @@
 #ifndef LIB_STK_BACKTRACE_DATA
 #define LIB_STK_BACKTRACE_DATA
 
-struct backtrace_state;
-
 // *****************************************************************************
 // * Backtrace library
 // *****************************************************************************
@@ -32,9 +30,12 @@ public:
    int continue_tracing(){ return m_hit?1:0; }
 public:
    bool mm(){ return m_mm; }
+   bool mfem(){ return m_mfem; }
+   bool add(){ return m_add; }
    void rip(const bool rip){ m_rip = rip; }
    bool rip()const{ return m_rip; }
    int depth(){ return m_depth; }
+   char *stack() { return m_stack; }
    uintptr_t address(){ return m_address; }
    const char* function(){ return m_function; }
    const char* filename(){ return m_filename; }
@@ -49,7 +50,13 @@ private:
    bool m_rip;
    bool m_hit;
    bool m_mm;
+   bool m_mfem;
+   bool m_skip;
+   bool m_add;
+   bool m_got;
    int m_depth;
+   char m_stack[STACK_LENGTH];
+   std::map<std::string, bool> addons;
 };
 
 #endif // LIB_STK_BACKTRACE_DATA

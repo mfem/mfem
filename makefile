@@ -39,7 +39,7 @@ quiet := --quiet
 
 #### 
 all: | $(shell mkdir -p $(obj));$(rule)
-	$(MAKE) $(quiet) -j $(CPU) lib$(tgt).so tst
+	$(MAKE) $(quiet) -j $(CPU) lib$(tgt).so #tst
 
 #### Main target ####
 lib$(tgt).so: $(OBJ);$(rule)

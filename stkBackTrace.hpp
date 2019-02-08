@@ -35,11 +35,14 @@ public:
 public:
    bool rip = false;
    bool mm();
+   bool mfem();
+   bool add();
    int depth();
    uintptr_t address();
    const char* function();
    const char* filename();
    const int lineno();
+   char *stack();
 };
 
 #endif // LIB_STK_BACKTRACE

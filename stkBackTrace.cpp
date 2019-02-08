@@ -13,21 +13,9 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#include <cxxabi.h>
-#include <string.h>
-#include <stdlib.h>
-
-#include "stk.h"
-#include "assert.h"
-
-#include <backtrace.h>
-#include <backtrace-supported.h>
-
-#include "stkBackTrace.hpp"
-#include "stkBackTraceData.hpp"
+#include "stk.hpp"
 
 // *****************************************************************************
-#define DEMANGLE_LENGTH 8192
 static const char* demangle(const char* mangled_name){
    int status;
    static size_t length = DEMANGLE_LENGTH;
@@ -70,19 +58,24 @@ static int full_callback(void *data,
                          const char *function){
    stkBackTraceData *ctx=static_cast<stkBackTraceData*>(data);
    if (!function){ // symbol hit
-      //printf("\n\033[32;1m[full_callback] filename:%s, lineno=%d, pc=0x%lx\033[m\n",filename, lineno, pc);
+      //printf("\n\033[32;1m[full_callback] filename:%s, lineno=%d, pc=0x%lx\033[m",filename, lineno, pc);
       return backtrace_syminfo(ctx->state(), pc,
                                sym_callback, err_callback, data);
    }
    const char *demangled = demangle(function);
-   //if (getenv("ALL")) printf("\t\033[33m[full_callback] '%s'\033[m\n",demangled);
+   // Filtering
    if (strncmp("std::",demangled,5)==0) return filter(demangled);
    if (strncmp("__gnu_cxx::",demangled,11)==0) return filter(demangled);
    //if (strncmp("void",demangled,4)==0) return filter(demangled);
-   if (ctx->rip() or getenv("ALL"))
-      printf("\033[33m%s:%d \033[1m%s\033[m\n",filename,lineno,demangled);
+   
+   // Update context
    ctx->isItMM(demangled,filename, lineno);
    ctx->update(demangled,pc,filename,lineno);
+
+   // Debug if ALL
+   if (ctx->rip() or getenv("ALL")){
+      printf("\033[33m%s:%d \033[1m%s\033[m\n",filename,lineno,demangled);
+   }
    return 0;
 }
 
@@ -102,10 +95,10 @@ stkBackTrace::~stkBackTrace(){ delete data; }
 
 // *****************************************************************************
 void stkBackTrace::ini(const char* argv0){
-   state=backtrace_create_state(argv0,
-                                BACKTRACE_SUPPORTS_THREADS,
-                                err_callback,NULL);
-   data=new stkBackTraceData(state);
+   state = backtrace_create_state(argv0,
+                                  BACKTRACE_SUPPORTS_THREADS,
+                                  err_callback,NULL);
+   data = new stkBackTraceData(state);
 }
 
 // *****************************************************************************
@@ -120,9 +113,12 @@ int stkBackTrace::stk(const bool _rip){
 
 // *****************************************************************************
 bool stkBackTrace::mm(){ return data->mm(); }
+bool stkBackTrace::mfem(){ return data->mfem(); }
+bool stkBackTrace::add(){ return data->add(); }
 int stkBackTrace::depth(){ return data->depth(); }
 uintptr_t stkBackTrace::address(){ return data->address(); }
 const char* stkBackTrace::function(){ return data->function(); }
 const char* stkBackTrace::filename(){ return data->filename(); }
 const int stkBackTrace::lineno(){ return data->lineno(); }
+char *stkBackTrace::stack(){ return data->stack(); }
 
