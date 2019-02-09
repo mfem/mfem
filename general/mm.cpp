@@ -398,4 +398,40 @@ void DefaultMemoryManager::copyData(void *dst, const void *src,
    }
 }
 
+// ********** UmpireMemoryManager **********
+#if defined(MFEM_USE_UMPIRE)
+
+const void* UmpireMemoryManager::getMatchingPointer(const void *a)
+{
+   mfem_error("TBD");
+}
+
+void* UmpireMemoryManager::getMatchingPointer(void *a)
+{
+   mfem_error("TBD");
+}
+
+OccaMemory UmpireMemoryManager::getOccaPointer(const void *a)
+{
+   mfem_error("TBD");
+}
+
+void UmpireMemoryManager::pushData(const void *ptr, const std::size_t bytes)
+{
+   mfem_error("TBD");
+}
+
+void UmpireMemoryManager::pullData(const void *ptr, const std::size_t bytes)
+{
+   mfem_error("TBD");
+}
+
+void UmpireMemoryManager::copyData(void *dst, const void *src, std::size_t bytes, const bool async)
+{
+   mfem_error("TBD");
+}
+
+#endif
+
+
 } // namespace mfem

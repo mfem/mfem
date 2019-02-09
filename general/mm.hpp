@@ -19,6 +19,10 @@
 
 #include "occa.hpp" // for OccaMemory
 
+#if defined(MFEM_USE_UMPIRE)
+#include "umpire/Umpire.hpp"
+#endif
+
 namespace mfem
 {
 
@@ -108,7 +112,58 @@ private:
    void *Erase(void *ptr);
 };
 
-#if defined(MFEM_ENABLE_UMPIRE)
+#if defined(MFEM_USE_UMPIRE)
+class UmpireMemoryManager
+{
+public:
+   // Allocate a host pointer and add it to the registry
+   template<typename T>
+   inline T* allocate(const std::size_t n)
+   {
+      mfem_error("TBD");
+   }
+
+   // Deallocate a pointer and remove it and all device allocations from the registry
+   template<typename T>
+   inline void deallocate(T *ptr)
+   {
+      mfem_error("TBD");
+   }
+
+   // For a given host or device pointer, return the device or host corresponding pointer
+   // NOTE This may be offset from the original pointer in the registry
+   const void* getMatchingPointer(const void *a);
+   void* getMatchingPointer(void *a);
+
+   // Get the matching OCCA pointer
+   // TODO Remove this method -- wrap the d_ptr instead
+   OccaMemory getOccaPointer(const void *a);
+
+   // Given a host pointer, push bytes beginning at address ptr to the device allocation
+   // NOTE This may be offset from the original pointer in the registry
+   void pushData(const void *ptr, const std::size_t bytes = 0);
+
+   // Given a device pointer, pull size bytes beginning at address ptr to the host allocation
+   // NOTE This may be offset from the original pointer in the registry
+   void pullData(const void *ptr, const std::size_t bytes = 0);
+
+   // Copies bytes from src to dst, using the registry to determine where src and dst are located.
+   // NOTE These may be offset from the original pointers in the registry
+   void copyData(void *dst, const void *src, std::size_t bytes, const bool async = false);
+
+   // Constructor
+   UmpireMemoryManager()
+   {
+
+   }
+
+private:
+   umpire::Allocator host_alloc;
+   umpire::Allocator device_alloc;
+};
+#endif
+
+#if defined(MFEM_USE_UMPIRE)
 using MemoryManager = UmpireMemoryManager;
 #else
 using MemoryManager = DefaultMemoryManager;
