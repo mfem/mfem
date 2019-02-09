@@ -148,7 +148,8 @@ void* mm::Insert(void *ptr, const size_t bytes)
 {
    if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
-   if (known) {
+   if (known)
+   {
       mfem_error("Trying to insert a non-MM pointer!");
    }
    MFEM_ASSERT(!known, "Trying to add an already present address!");
@@ -166,9 +167,11 @@ void *mm::Erase(void *ptr)
 {
    if (MmGpuFilter()) { return ptr; }
    const bool known = Known(maps, ptr);
-   if (!known) {
+   if (!known)
+   {
       // Even if don't know it, it's OK on CPU-only
-      if (config::usingGpu()){
+      if (config::usingGpu())
+      {
          mfem_error("Trying to erase a non-MM pointer!");
       }
       return ptr;

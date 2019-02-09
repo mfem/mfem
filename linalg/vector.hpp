@@ -134,7 +134,7 @@ public:
    /** @warning This method should be used with caution as it gives write access
        to the data of const-qualified Vector%s. */
    inline double *GetData() const { return data; }
-   
+
    /// Return the Vector data pointer translated by the memory manager.
    inline double *GetMmData() const { return (double*) mm::ptr(data); }
 
@@ -368,9 +368,9 @@ inline void Vector::Destroy()
 
 inline double & Vector::operator() (int i)
 {
-/*   MFEM_ASSERT(data && i >= 0 && i < size,
-               "index [" << i << "] is out of range [0," << size << ")");
-*/
+   /*   MFEM_ASSERT(data && i >= 0 && i < size,
+                  "index [" << i << "] is out of range [0," << size << ")");
+   */
    return data[i];
 }
 
@@ -462,7 +462,7 @@ class Vector3
 private:
    double data[3];
 public:
-   Vector3(){}
+   Vector3() {}
    Vector3(const double *r)
    {
       data[0]=r[0];

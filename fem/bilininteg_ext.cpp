@@ -138,14 +138,14 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double detJ = (J11*J22)-(J21*J12);
             const int offset = dims*NQ*e+q;
             const double coeff =
-               const_coeff ? constant:
-               function_coeff ? function(device::Vector3(x[offset], x[offset+1], x[offset+2])):
-               0.0;
+            const_coeff ? constant:
+            function_coeff ? function(device::Vector3(x[offset], x[offset+1], x[offset+2])):
+            0.0;
             v[ijN(q,e,NQ)] =  w[q] * coeff * detJ;
          }
       });
    }
-   if (dim==3){ mfem_error("Not supported yet... stay tuned!"); }
+   if (dim==3) { mfem_error("Not supported yet... stay tuned!"); }
    //delete geo;
 }
 
