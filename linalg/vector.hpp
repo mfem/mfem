@@ -368,18 +368,17 @@ inline void Vector::Destroy()
 
 inline double & Vector::operator() (int i)
 {
-   /*   MFEM_ASSERT(data && i >= 0 && i < size,
-                  "index [" << i << "] is out of range [0," << size << ")");
-   */
+   MFEM_ASSERT(data && i >= 0 && i < size,
+               "index [" << i << "] is out of range [0," << size << ")");
+
    return data[i];
 }
 
 inline const double & Vector::operator() (int i) const
 {
-   /*
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
-   */
+
    return data[i];
 }
 

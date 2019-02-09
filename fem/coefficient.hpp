@@ -47,8 +47,6 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) = 0;
 
-   //virtual double *BatchEval(const int elem, const IntegrationRule &ir);
-
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip at time @a t. */
    /** @note When this method is called, the caller must make sure that the
@@ -159,7 +157,7 @@ public:
                        const IntegrationPoint &ip);
 
    /// Return the coefficient's C-function
-   double (*Get())(const device::Vector3&)
+   double (*GetFunction())(const device::Vector3&)
    {
       return reinterpret_cast<double(*)(const device::Vector3&)>(Function);
    }

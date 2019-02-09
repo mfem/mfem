@@ -138,7 +138,6 @@ int main(int argc, char *argv[])
    //    the basis functions in the finite element fespace.
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
-   //FunctionCoefficient fct(fctCoeff);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
@@ -165,8 +164,6 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace, assembly, elem_batch);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   //#warning fct
-   //a->AddDomainIntegrator(new DiffusionIntegrator(fct));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
