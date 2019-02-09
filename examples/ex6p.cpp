@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
       pcg.SetPrintLevel(3); // print the first and the last iterations only
       pcg.Mult(B, X);
       */
-      
+
       // 16. Extract the parallel grid function corresponding to the finite element
       //     approximation X. This is the local solution on each processor.
       a.RecoverFEMSolution(X, b, x);
