@@ -950,7 +950,7 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
             double skd    = (*sfunc)(kE * 0.5 * dx_);
             double a = skx * skLxJ * skd;
 
-            V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
+            V *= 2.0 * omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
             if (!osc) { V *= -1.0; }
          }
          else if (x[0] <= xJ_ + 0.5 * dx_)
@@ -970,7 +970,7 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
             double skd  = (*sfunc)(kE * 0.5 * dx_);
             double a = skLx * skxJ * skd;
 
-            V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
+            V *= 2.0 * omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
             if (!osc) { V *= -1.0; }
          }
       }
