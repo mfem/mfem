@@ -1555,7 +1555,7 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
       {
          mvertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i]));
       }
-      mm_delete([] tmp_vertex);
+      delete [] tmp_vertex;
    }
    // NOTE: if the mesh is curved (top_vertex_pos is empty), mvertices are left
    // uninitialized here; they will be initialized later by the Mesh from Nodes
@@ -2198,7 +2198,7 @@ void NCMesh::CollectFaceVertices(int v0, int v1, int v2, int v3,
 void NCMesh::BuildElementToVertexTable()
 {
    int nrows = leaf_elements.Size();
-   int* I = mm_malloc(int,nrows + 1);
+   int* I = mm::malloc<int>(nrows + 1);
    //int* I = new int[nrows + 1];
    int** JJ = new int*[nrows];
 
@@ -2252,20 +2252,20 @@ void NCMesh::BuildElementToVertexTable()
    I[nrows] = nnz;
 
    // copy the temporarily stored rows into one J array
-   int *J = mm_malloc(int,nnz);
+   int *J = mm::malloc<int>(nnz);
    //int *J = new int[nnz];
    nnz = 0;
    for (int i = 0; i < nrows; i++)
    {
       int cnt = I[i+1] - I[i];
       memcpy(J+nnz, JJ[i], cnt * sizeof(int));
-      mm_delete([] JJ[i]);
+      delete [] JJ[i];
       nnz += cnt;
    }
 
    element_vertex.SetIJ(I, J, nrows);
 
-   mm_delete([] JJ);
+   delete [] JJ;
 }
 
 
@@ -3691,7 +3691,7 @@ void NCMesh::DebugDump(std::ostream &out) const
           << node->vert_index << " " << node->edge_index << " "
           << 0 << "\n";
    }
-   mm_delete([] tmp_vertex);
+   delete [] tmp_vertex;
    out << "\n";
 
    // dump elements

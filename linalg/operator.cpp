@@ -108,8 +108,8 @@ ProductOperator::ProductOperator(const Operator *A, const Operator *B,
 
 ProductOperator::~ProductOperator()
 {
-   if (ownA) { mm_delete(A); }
-   if (ownB) { mm_delete(B); }
+   if (ownA) { delete A; }
+   if (ownB) { delete B; }
 }
 
 
@@ -145,9 +145,9 @@ TripleProductOperator::TripleProductOperator(
 
 TripleProductOperator::~TripleProductOperator()
 {
-   if (ownA) { mm_delete(A); }
-   if (ownB) { mm_delete(B); }
-   if (ownC) { mm_delete(C); }
+   if (ownA) { delete A; }
+   if (ownB) { delete B; }
+   if (ownC) { delete C; }
 }
 
 

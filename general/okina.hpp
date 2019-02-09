@@ -108,13 +108,12 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 #define _NA_(...) _XA_(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
 #define __FILENAME__ ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
 #define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
-#define F_L_F __FILE__,__LINE__,__FUNCTION__
 
 // *****************************************************************************
 #ifndef MFEM_DEBUG
    #define dbg(...)
 #else
-   #define show_stack(...) dbg_F_L_F_N_A(_F_L_F_,0)
+   #define stack(...) dbg_F_L_F_N_A(_F_L_F_,0)
    #define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
 #endif
 

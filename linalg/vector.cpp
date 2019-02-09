@@ -11,7 +11,6 @@
 
 // Implementation of data type vector
 
-#warning Vector::SetSize
 #include "../general/okina.hpp"
 #include "vector.hpp"
 #include "kernels/vector.hpp"
@@ -31,95 +30,6 @@
 namespace mfem
 {
 
-void Vector::Destroy()
-{
-   if (allocsize > 0)
-   {
-      mm_free(double,data);
-   }
-   allocsize = size = 0;
-   data = NULL;
-}
-
-/// Changes the ownership of the data; after the call the Vector is empty
-void Vector::StealData(double **p)
-{
-   *p = data; data = 0; size = allocsize = 0;
-}
-
-/*
-inline Vector::Vector (int s)
-{
-   if (s > 0)
-   {
-      allocsize = size = s;
-      data = new double[s];
-   }
-   else
-   {
-      allocsize = size = 0;
-      data = NULL;
-   }
-}
-*/
-// *****************************************************************************
-// * MUTABLE logic here!!
-#warning size and allocsize must be set to 0!
-Vector::Vector (int s)
-{
-   //assert(s>0);
-   //assert(!data);
-   
-   if (s <= abs(allocsize))
-   {
-      size = s;
-      return;
-   }
-   
-   if (allocsize > 0)
-   {
-      mm_free(double,data);
-   }
-
-   if (s > 0)
-   {
-      allocsize = size = s;
-      data = mm_malloc(double,s);
-   }
-   else
-   {
-      assert(false);
-      allocsize = size = 0;
-      data = NULL;
-   }
-}
-
-// *****************************************************************************
-void Vector::SetSize(int s)
-{
-   if (s==0)
-   {
-      //BUILTIN_TRAP;
-      return;
-   }
-   if (s == size)
-   {
-      return;
-   }
-   if (s <= abs(allocsize))
-   {
-      size = s;
-      return;
-   }
-   if (allocsize > 0)
-   {
-      mm_free(double,data);
-   }
-   assert(s>0);
-   allocsize = size = s;
-   data = mm_malloc(double,s);
-}
-
 void Vector::Push() const
 {
    mm::push(data, size*sizeof(double));
@@ -138,21 +48,18 @@ Vector::Vector(const Vector &v)
    {
       MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
-      data = mm_malloc(double,s);
+      data = mm::malloc<double>(s);
       mm::memcpy(data, v.data, sizeof(double)*s);
    }
    else
    {
-      assert(false);
       allocsize = size = 0;
       data = NULL;
    }
 }
 
-Vector::Vector(double *_data, int _size, const bool skip)
+Vector::Vector(double *_data, int _size)
 {
-//#warning Vector BUILTIN_TRAP
-//   if (!skip) { BUILTIN_TRAP; }
    data = _data;
    size = _size;
    allocsize = -size;
