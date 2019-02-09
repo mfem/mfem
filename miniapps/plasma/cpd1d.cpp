@@ -131,6 +131,8 @@ public:
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
 
+   void SetPhaseShift(const Vector &k) { k_ = k; }
+
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip);
 
@@ -143,6 +145,7 @@ private:
    double xJ_;
    double dx_;
    double Lx_;
+   Vector k_;
 
    const Vector & B_;
    const Vector & numbers_;
@@ -208,7 +211,7 @@ int main(int argc, char *argv[])
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
                   "'O' - Ordinary, 'X' - Extraordinary, "
-                  "'J' - Current Sheet (in conjunction with -slab), "
+                  "'J' - Current Slab (in conjunction with -slab), "
                   "'Z' - Zero");
    args.AddOption(&BVec, "-B", "--magnetic-flux",
                   "Background magnetic flux vector");
@@ -541,6 +544,11 @@ int main(int argc, char *argv[])
       EImCoef.SetCurrentSlab(slab_params_[1], slab_params_[3], slab_params_[4],
                              mesh_dim_[0]);
    }
+   if (phase_shift)
+   {
+      EReCoef.SetPhaseShift(kVec);
+      EImCoef.SetPhaseShift(kVec);
+   }
    {
       ParComplexGridFunction EField(&HCurlFESpace);
       EField.ProjectCoefficient(EReCoef, EImCoef);
@@ -810,6 +818,7 @@ ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
      Jy_(0.0),
      xJ_(0.5),
      Lx_(1.0),
+     k_(0),
      B_(B),
      numbers_(number),
      charges_(charge),
@@ -910,6 +919,7 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
       break;
       case 'J':
       {
+         if (k_.Size() == 0)
          {
             bool osc = (S_ * S_ - D_ * D_) / S_ > 0.0;
             double kE = omega_ * sqrt(fabs((S_ * S_ - D_ * D_) / S_)) / c0_;
@@ -944,7 +954,7 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
                double skd    = (*sfunc)(kE * 0.5 * dx_);
                double a = skx * skLxJ * skd;
 
-               V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
+               V *= 2.0 * omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
                if (!osc) { V *= -1.0; }
             }
             else if (x[0] <= xJ_ + 0.5 * dx_)
@@ -964,46 +974,13 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
                double skd  = (*sfunc)(kE * 0.5 * dx_);
                double a = skLx * skxJ * skd;
 
-               V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
+               V *= 2.0 * omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
                if (!osc) { V *= -1.0; }
             }
          }
          else
          {
-            V[0] = 0.0;
-            V[1] = -1.0;
-            V[2] = 0.0;
-         }
-
-         if (x[0] <= xJ_ - 0.5 * dx_)
-         {
-            double skx    = (*sfunc)(kE * x[0]);
-            double skLxJ  = (*sfunc)(kE * (Lx_ - xJ_));
-            double skd    = (*sfunc)(kE * 0.5 * dx_);
-            double a = skx * skLxJ * skd;
-
-            V *= 2.0 * omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
-            if (!osc) { V *= -1.0; }
-         }
-         else if (x[0] <= xJ_ + 0.5 * dx_)
-         {
-            double skx      = (*sfunc)(kE * x[0]);
-            double skLx     = (*sfunc)(kE * (Lx_ - x[0]));
-            double ckxJmd   = (*cfunc)(kE * (xJ_ - 0.5 * dx_));
-            double ckLxJmd  = (*cfunc)(kE * (Lx_ - xJ_ - 0.5 * dx_));
-            double a = skx * ckLxJmd + skLx * ckxJmd - skL;
-
-            V *= omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
-         }
-         else
-         {
-            double skLx = (*sfunc)(kE * (Lx_ - x[0]));
-            double skxJ = (*sfunc)(kE * xJ_);
-            double skd  = (*sfunc)(kE * 0.5 * dx_);
-            double a = skLx * skxJ * skd;
-
-            V *= 2.0 * omega_ * mu0_ * Jy_ * a * csckL / (kE * kE);
-            if (!osc) { V *= -1.0; }
+            // General phase shift
          }
       }
       break;
