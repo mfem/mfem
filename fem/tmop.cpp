@@ -926,6 +926,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          target_spec->GetValues(e_id, ir, sizes);
          for (int i = 0; i < ir.GetNPoints(); i++)
          {
+            if (sizes(i) <= 0.0) { sizes(i) = 0.001; }
             Jtr(i).Set(std::pow(sizes(i) / Wideal.Det(), 1.0/dim), Wideal);
          }
          break;
