@@ -14,17 +14,8 @@
 #include <bitset>
 #include <cassert>
 
-#include "/home/camier1/home/okstk/stk.hpp"
-
 namespace mfem
 {
-// *****************************************************************************
-/*void* MMNew::Allocate(size_t count) {
-   void* result = nullptr;
-   const auto alloc_failed = posix_memalign(&result, ALIGNMENT, count);
-   if (alloc_failed)  throw ::std::bad_alloc();
-   return result;
-   }*/
 
 // *****************************************************************************
 // * Tests if ptr is a known address

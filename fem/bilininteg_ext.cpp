@@ -69,7 +69,7 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
                                    geo->J,
                                    coeff,
                                    vec);
-   mm_delete(geo);
+   delete geo;
 }
 
 // *****************************************************************************
@@ -146,7 +146,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       });
    }
    if (dim==3){ mfem_error("Not supported yet... stay tuned!"); }
-   //mm_delete(geo;
+   //delete geo;
 }
 
 // *****************************************************************************

@@ -30,8 +30,8 @@ Table::Table(const Table &table)
    if (size >= 0)
    {
       const int nnz = table.I[size];
-      I = mm_malloc(int,size+1);
-      J = mm_malloc(int,nnz);
+      I = mm::malloc<int>(size+1);
+      J = mm::malloc<int>(nnz);
       memcpy(I, table.I, sizeof(int)*(size+1));
       memcpy(J, table.J, sizeof(int)*nnz);
    }
@@ -56,8 +56,8 @@ Table::Table (int dim, int connections_per_row)
    int i, j, sum = dim * connections_per_row;
 
    size = dim;
-   I = mm_malloc(int,size+1);
-   J = mm_malloc(int,sum);
+   I = mm::malloc<int>(size+1);
+   J = mm::malloc<int>(sum);
 
    I[0] = 0;
    for (i = 1; i <= size; i++)
@@ -71,8 +71,8 @@ Table::Table (int nrows, int *partitioning)
 {
    size = nrows;
 
-   I = mm_malloc(int,size+1);
-   J = mm_malloc(int,size);
+   I = mm::malloc<int>(size+1);
+   J = mm::malloc<int>(size);
 
    for (int i = 0; i < size; i++)
    {
@@ -101,7 +101,7 @@ void Table::MakeJ()
       j = I[i], I[i] = k, k += j;
    }
 
-   J = mm_malloc(int,I[size]=k);
+   J = mm::malloc<int>(I[size]=k);
 }
 
 void Table::AddConnections (int r, const int *c, int nc)
@@ -148,14 +148,14 @@ void Table::SetDims(int rows, int nnz)
    if (size != rows)
    {
       size = rows;
-      if (I) { mm_free(int,I); }
-      I = (rows >= 0) ? (mm_malloc(int,rows+1)) : (NULL);
+      if (I) { mm::free<int>(I); }
+      I = (rows >= 0) ? (mm::malloc<int>(rows+1)) : (NULL);
    }
 
    if (j != nnz)
    {
-      if (J) { mm_free(int,J); }
-      J = (nnz > 0) ? (mm_malloc(int,nnz)) : (NULL);
+      if (J) { mm::free<int>(J); }
+      J = (nnz > 0) ? (mm::malloc<int>(nnz)) : (NULL);
    }
 
    if (size >= 0)
@@ -206,8 +206,8 @@ void Table::SortRows()
 
 void Table::SetIJ(int *newI, int *newJ, int newsize)
 {
-   mm_free(int,I);
-   mm_free(int,J);
+   mm::free<int>(I);
+   mm::free<int>(J);
    I = newI;
    J = newJ;
    if (newsize >= 0)
@@ -249,7 +249,7 @@ void Table::Finalize()
 
    if (sum != I[size])
    {
-      int *NewJ = mm_malloc(int,sum);
+      int *NewJ = mm::malloc<int>(sum);
 
       for (i=0; i<size; i++)
       {
@@ -264,7 +264,7 @@ void Table::Finalize()
       }
       I[size] = sum;
 
-      mm_free(int,J);
+      mm::free<int>(J);
 
       J = NewJ;
 
@@ -279,8 +279,8 @@ void Table::MakeFromList(int nrows, const Array<Connection> &list)
    size = nrows;
    int nnz = list.Size();
 
-   I = mm_malloc(int,size+1);
-   J = mm_malloc(int,nnz);
+   I = mm::malloc<int>(size+1);
+   J = mm::malloc<int>(nnz);
 
    for (int i = 0, k = 0; i <= size; i++)
    {
@@ -354,17 +354,17 @@ void Table::Save(std::ostream &out) const
 
 void Table::Load(std::istream &in)
 {
-   mm_free(int,I);
-   mm_free(int,J);
+   mm::free<int>(I);
+   mm::free<int>(J);
 
    in >> size;
-   I = mm_malloc(int,size+1);
+   I = mm::malloc<int>(size+1);
    for (int i = 0; i <= size; i++)
    {
       in >> I[i];
    }
    int nnz = I[size];
-   J =mm_malloc(int,nnz);
+   J =mm::malloc<int>(nnz);
    for (int j = 0; j < nnz; j++)
    {
       in >> J[j];
@@ -373,8 +373,8 @@ void Table::Load(std::istream &in)
 
 void Table::Clear()
 {
-   mm_free(int,I);
-   mm_free(int,J);
+   mm::free<int>(I);
+   mm::free<int>(J);
    size = -1;
    I = J = NULL;
 }
@@ -383,8 +383,8 @@ void Table::Copy(Table & copy) const
 {
    if (size >= 0)
    {
-      int * i_copy = mm_malloc(int,size+1);
-      int * j_copy = mm_malloc(int,I[size]);
+      int * i_copy = mm::malloc<int>(size+1);
+      int * j_copy = mm::malloc<int>(I[size]);
 
       memcpy(i_copy, I, sizeof(int)*(size+1));
       memcpy(j_copy, J, sizeof(int)*I[size]);
@@ -412,8 +412,8 @@ long Table::MemoryUsage() const
 
 Table::~Table ()
 {
-   if (I) { mm_free(int,I); }
-   if (J) { mm_free(int,J); }
+   if (I) { mm::free<int>(I); }
+   if (J) { mm::free<int>(J); }
 }
 
 void Transpose (const Table &A, Table &At, int _ncols_A)
@@ -585,7 +585,7 @@ int STable::Push( int i, int j )
 
 DSTable::DSTable(int nrows)
 {
-   Rows = mm_malloc(Node*,nrows);
+   Rows = mm::malloc<Node*>(nrows);
    for (int i = 0; i < nrows; i++)
    {
       Rows[i] = NULL;
@@ -609,7 +609,7 @@ int DSTable::Push_(int r, int c)
 #ifdef MFEM_USE_MEMALLOC
    n = NodesMem.Alloc ();
 #else
-   n = mm_malloc(Node,1);
+   n = mm::malloc<Node>(1);
 #endif
    n->Column = c;
    n->Index  = NumEntries;
@@ -647,11 +647,11 @@ DSTable::~DSTable()
       {
          na = nb;
          nb = nb->Prev;
-         mm_free(int,na);
+         mm::free<int>(na);
       }
    }
 #endif
-   mm_free(int,Rows);
+   mm::free<int>(Rows);
 }
 
 }

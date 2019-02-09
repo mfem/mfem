@@ -173,7 +173,7 @@ void GeometryExtension::ReorderByVDim(const GridFunction *nodes)
    {
       data[i] = temp[i];
    }
-   mm_delete([] temp);
+   delete [] temp;
 }
 
 // ***************************************************************************
@@ -195,7 +195,7 @@ void GeometryExtension::ReorderByNodes(const GridFunction *nodes)
    {
       data[i] = temp[i];
    }
-   mm_delete([] temp);
+   delete [] temp;
 }
 
 } // namespace mfem
