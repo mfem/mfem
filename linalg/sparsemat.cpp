@@ -34,7 +34,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      I(NULL),
      J(NULL),
      A(NULL),
-     Rows(mm_malloc(RowNode*,nrows)),
+     Rows(mm::malloc<RowNode*>(nrows)),
      current_row(-1),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
@@ -87,7 +87,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
    {
       ownData = true;
       const int nnz = I[height];
-      A = mm_malloc(double,nnz);
+      A = mm::malloc<double>(nnz);
       for (int i=0; i<nnz; ++i)
       {
          A[i] = 0.0;
@@ -107,9 +107,9 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
-   I = mm_malloc(int,nrows + 1);
-   J = mm_malloc(int,nrows * rowsize);
-   A = mm_malloc(double,nrows * rowsize);
+   I = mm::malloc<int>(nrows + 1);
+   J = mm::malloc<int>(nrows * rowsize);
+   A = mm::malloc<double>(nrows * rowsize);
 
    for (int i = 0; i <= nrows; i++)
    {
@@ -125,8 +125,8 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
       const int nnz = mat.I[height];
       if (copy_graph)
       {
-         I = mm_malloc(int,height+1);
-         J = mm_malloc(int,nnz);
+         I = mm::malloc<int>(height+1);
+         J = mm::malloc<int>(nnz);
          memcpy(I, mat.I, sizeof(int)*(height+1));
          memcpy(J, mat.J, sizeof(int)*nnz);
          ownGraph = true;
@@ -137,7 +137,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
          J = mat.J;
          ownGraph = false;
       }
-      A = mm_malloc(double,nnz);
+      A = mm::malloc<double>(nnz);
       memcpy(A, mat.A, sizeof(double)*nnz);
       ownData = true;
 
@@ -151,7 +151,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
 #ifdef MFEM_USE_MEMALLOC
       NodesMem = new RowNodeAlloc;
 #endif
-      Rows = mm_malloc(RowNode*,height);
+      Rows = mm::malloc<RowNode*>(height);
       for (int i = 0; i < height; i++)
       {
          RowNode **node_pp = &Rows[i];
@@ -160,7 +160,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
 #ifdef MFEM_USE_MEMALLOC
             RowNode *new_node_p = NodesMem->Alloc();
 #else
-            RowNode *new_node_p = mm_malloc(RowNode,1);
+            RowNode *new_node_p = mm::malloc<RowNode>(1);
 #endif
             new_node_p->Value = node_p->Value;
             new_node_p->Column = node_p->Column;
@@ -195,9 +195,9 @@ SparseMatrix::SparseMatrix(const Vector &v)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
-   I = mm_malloc(int,height + 1);
-   J = mm_malloc(int,height);
-   A = mm_malloc(double,height);
+   I = mm::malloc<int>(height + 1);
+   J = mm::malloc<int>(height);
+   A = mm::malloc<double>(height);
 
    for (int i = 0; i <= height; i++)
    {
@@ -344,12 +344,12 @@ void SparseMatrix::SetWidth(int newWidth)
       // We need to reset ColPtr, since now we may have additional columns.
       if (Rows != NULL)
       {
-         mm_delete([] ColPtrNode);
+         delete [] ColPtrNode;
          ColPtrNode = static_cast<RowNode **>(NULL);
       }
       else
       {
-         mm_delete([] ColPtrJ);
+         delete [] ColPtrJ;
          ColPtrJ = static_cast<int *>(NULL);
       }
       width = newWidth;
@@ -842,10 +842,10 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       return;
    }
 
-   mm_free(double,ColPtrNode);
+   mm::free<double>(ColPtrNode);
    ColPtrNode = NULL;
 
-   I = mm_malloc(int,height+1);
+   I = mm::malloc<int>(height+1);
    I[0] = 0;
    for (i = 1; i <= height; i++)
    {
@@ -860,8 +860,8 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    }
 
    nz = I[height];
-   J = mm_malloc(int,nz);
-   A = mm_malloc(double,nz);
+   J = mm::malloc<int>(nz);
+   A = mm::malloc<double>(nz);
    // Assume we're sorted until we find out otherwise
    isSorted = true;
    for (j = i = 0; i < height; i++)
@@ -894,8 +894,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    }
 
 #ifdef MFEM_USE_MEMALLOC
-   #warning MFEM_USE_MEMALLOC
-   mm_delete(NodesMem);
+   delete NodesMem;
    NodesMem = NULL;
 #else
    for (i = 0; i < height; i++)
@@ -905,12 +904,12 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       {
          aux = node_p;
          node_p = node_p->Prev;
-         mm_free(RowNode,aux);
+         mm::free<RowNode>(aux);
       }
    }
 #endif
 
-   mm_free(double,Rows);
+   mm::free<double>(Rows);
    Rows = NULL;
 }
 
@@ -924,7 +923,7 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
    {
       for (int i = 0; i < br; i++)
       {
-         int *bI = mm_malloc(int,nr + 1);
+         int *bI = mm::malloc<int>(nr + 1);
          for (int k = 0; k <= nr; k++)
          {
             bI[k] = 0;
@@ -968,8 +967,8 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
          {
             rs = b.I[k], b.I[k] = nnz, nnz += rs;
          }
-         b.J = mm_malloc(int,nnz);
-         b.A = mm_malloc(double,nnz);
+         b.J = mm::malloc<int>(nnz);
+         b.A = mm::malloc<double>(nnz);
       }
    }
 
@@ -2683,15 +2682,15 @@ void SparseMatrix::Destroy()
 {
    if (I != NULL && ownGraph)
    {
-      mm_free(int,I);
+      mm::free<int>(I);
    }
    if (J != NULL && ownGraph)
    {
-      mm_free(int,J);
+      mm::free<int>(J);
    }
    if (A != NULL && ownData)
    {
-      mm_free(double,A);
+      mm::free<double>(A);
    }
 
    if (Rows != NULL)
@@ -2704,25 +2703,25 @@ void SparseMatrix::Destroy()
          {
             aux = node_p;
             node_p = node_p->Prev;
-            mm_free(RowNode,aux);
+            mm::free<RowNode>(aux);
          }
       }
 #endif
-      mm_free(RowNode*,Rows);
+      mm::free<RowNode*>(Rows);
    }
 
    if (ColPtrJ != NULL)
    {
-      mm_free(int,ColPtrJ);
+      mm::free<int>(ColPtrJ);
    }
    if (ColPtrNode != NULL)
    {
-      mm_free(RowNode*,ColPtrNode);
+      mm::free<RowNode*>(ColPtrNode);
    }
 #ifdef MFEM_USE_MEMALLOC
    if (NodesMem != NULL)
    {
-      mm_delete(NodesMem);
+      delete NodesMem;
    }
 #endif
 }
@@ -2782,9 +2781,9 @@ SparseMatrix *Transpose (const SparseMatrix &A)
    A_j    = A.GetJ();
    A_data = A.GetData();
 
-   At_i = mm_malloc(int,n+1);
-   At_j = mm_malloc(int,nnz);
-   At_data = mm_malloc(double,nnz);
+   At_i = mm::malloc<int>(n+1);
+   At_j = mm::malloc<int>(nnz);
+   At_data = mm::malloc<double>(nnz);
 
    for (i = 0; i <= n; i++)
    {
@@ -2854,9 +2853,9 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
    }
    nnz = A.NumNonZeroElems();
 
-   At_i =mm_malloc(int,n+1);
-   At_j = mm_malloc(int,nnz);
-   At_data = mm_malloc(double,nnz);
+   At_i =mm::malloc<int>(n+1);
+   At_j = mm::malloc<int>(nnz);
+   At_data = mm::malloc<double>(nnz);
 
    for (i = 0; i <= n; i++)
    {
@@ -2934,7 +2933,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
 
    if (OAB == NULL)
    {
-      C_i = mm_malloc(int,nrowsA+1);
+      C_i = mm::malloc<int>(nrowsA+1);
 
       C_i[0] = num_nonzeros = 0;
       for (ic = 0; ic < nrowsA; ic++)
@@ -2955,8 +2954,8 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
          C_i[ic+1] = num_nonzeros;
       }
 
-      C_j    = mm_malloc(int,num_nonzeros);
-      C_data = mm_malloc(double,num_nonzeros);
+      C_j    = mm::malloc<int>(num_nonzeros);
+      C_data = mm::malloc<double>(num_nonzeros);
 
       C = new SparseMatrix (C_i, C_j, C_data, nrowsA, ncolsB);
 
@@ -3019,7 +3018,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
       << ") did not match number of entries changed from matrix-matrix multiply, "
       << counter);
 
-   mm_delete([] B_marker);
+   delete [] B_marker;
 
    return C;
 }
@@ -3029,7 +3028,7 @@ SparseMatrix * TransposeMult(const SparseMatrix &A, const SparseMatrix &B)
    MFEM_GPU_CANNOT_PASS;
    SparseMatrix *At  = Transpose(A);
    SparseMatrix *AtB = Mult(*At, B);
-   mm_delete(At);
+   delete At;
    return AtB;
 }
 
@@ -3054,7 +3053,6 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                "number of columns of A (" << ncolsA
                << ") must equal number of rows of B (" << nrowsB << ")");
 
-   //B_marker = mm_malloc(int,ncolsB);
    B_marker = new int[ncolsB];
 
    for (ib = 0; ib < ncolsB; ib++)
@@ -3062,7 +3060,7 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
       B_marker[ib] = -1;
    }
 
-   C_i = mm_malloc(int,nrowsA+1);
+   C_i = mm::malloc<int>(nrowsA+1);
 
    C_i[0] = num_nonzeros = 0;
 
@@ -3088,8 +3086,8 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
       C_i[ic+1] = num_nonzeros;
    }
 
-   C_j    = mm_malloc(int,num_nonzeros);
-   C_data = mm_malloc(double,num_nonzeros);
+   C_j    = mm::malloc<int>(num_nonzeros);
+   C_data = mm::malloc<double>(num_nonzeros);
 
    C = new SparseMatrix(C_i, C_j, C_data, nrowsA, ncolsB);
 
@@ -3127,7 +3125,7 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
       }
    }
 
-   mm_delete([] B_marker);
+   delete [] B_marker;
 
    return C;
 }
@@ -3153,7 +3151,7 @@ DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
    DenseMatrix *AP   = Mult (A, P);
    DenseMatrix *_RAP = new DenseMatrix(R.Height(), AP->Width());
    Mult (R, *AP, *_RAP);
-   mm_delete(AP);
+   delete AP;
    return _RAP;
 }
 
@@ -3163,11 +3161,11 @@ DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
    SparseMatrix *R  = Transpose(P);
    DenseMatrix  *RA = Mult(*R, A);
    DenseMatrix   AtP(*RA, 't');
-   mm_delete(RA);
+   delete RA;
    DenseMatrix  *RAtP = Mult(*R, AtP);
-   mm_delete(R);
+   delete R;
    DenseMatrix * _RAP = new DenseMatrix(*RAtP, 't');
-   mm_delete(RAtP);
+   delete RAtP;
    return _RAP;
 }
 
@@ -3177,9 +3175,9 @@ SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
    MFEM_GPU_CANNOT_PASS;
    SparseMatrix *P  = Transpose (R);
    SparseMatrix *AP = Mult (A, *P);
-   mm_delete(P);
+   delete P;
    SparseMatrix *_RAP = Mult (R, *AP, ORAP);
-   mm_delete(AP);
+   delete AP;
    return _RAP;
 }
 
@@ -3189,9 +3187,9 @@ SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
    MFEM_GPU_CANNOT_PASS;
    SparseMatrix * R = Transpose(Rt);
    SparseMatrix * RA = Mult(*R,A);
-   mm_delete(R);
+   delete R;
    SparseMatrix * out = Mult(*RA, P);
-   mm_delete(RA);
+   delete RA;
    return out;
 }
 
@@ -3211,7 +3209,7 @@ SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
       At_data[i] *= D(At_j[i]);
    }
    SparseMatrix *AtDA = Mult (*At, A, OAtDA);
-   mm_delete(At);
+   delete At;
    return AtDA;
 }
 
@@ -3222,7 +3220,7 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
    int nrows = A.Height();
    int ncols = A.Width();
 
-   int * C_i = mm_malloc(int,nrows+1);
+   int * C_i =mm::malloc<int>(nrows+1);
    int * C_j;
    double * C_data;
 
@@ -3234,7 +3232,6 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
    int * B_j = B.GetJ();
    double * B_data = B.GetData();
 
-   //int * marker = mm_malloc(int,ncols);
    int * marker = new int[ncols];
    std::fill(marker, marker+ncols, -1);
 
@@ -3260,8 +3257,8 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
       C_i[ic+1] = num_nonzeros;
    }
 
-   C_j = mm_malloc(int,num_nonzeros);
-   C_data = mm_malloc(double,num_nonzeros);
+   C_j = mm::malloc<int>(num_nonzeros);
+   C_data = mm::malloc<double>(num_nonzeros);
 
    for (int ia = 0; ia < ncols; ia++)
    {
@@ -3318,7 +3315,7 @@ SparseMatrix * Add(Array<SparseMatrix *> & Ai)
       result = Add(*accumulate, *Ai[i]);
       if (i != 1)
       {
-         mm_delete(accumulate);
+         delete accumulate;
       }
 
       accumulate = result;

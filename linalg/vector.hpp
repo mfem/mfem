@@ -52,8 +52,8 @@ class Vector
 {
 protected:
 
-   int size =0, allocsize = 0;
-   double * data=NULL;
+   int size, allocsize;
+   double * data;
 
 public:
 
@@ -70,7 +70,7 @@ public:
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a _data can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector (double *_data, int _size, const bool skip = false);
+   Vector (double *_data, int _size);
 
    /// Copies data from host to device
    void Push() const;
@@ -114,7 +114,7 @@ public:
        @sa SetDataAndSize(). */
    void NewDataAndSize(double *d, int s)
    {
-      if (allocsize > 0) { mm_free(double,data); }
+      if (allocsize > 0) { mm::free<double>(data); }
       SetDataAndSize(d, s);
    }
 
@@ -151,8 +151,8 @@ public:
    inline bool OwnsData() const { return (allocsize > 0); }
 
    /// Changes the ownership of the data; after the call the Vector is empty
-   /*inline*/ void StealData(double **p);
-   //{ *p = data; data = 0; size = allocsize = 0; }
+   inline void StealData(double **p)
+   { *p = data; data = 0; size = allocsize = 0; }
 
    /// Changes the ownership of the data; after the call the Vector is empty
    inline double *StealData() { double *p; StealData(&p); return p; }
@@ -322,80 +322,64 @@ inline int CheckFinite(const double *v, const int n)
    }
    return bad;
 }
-/*
+
 inline Vector::Vector (int s)
 {
-   assert
    if (s > 0)
    {
       allocsize = size = s;
-      data = mm_malloc(double,s);
+      data = mm::malloc<double>(s);
    }
    else
    {
-      assert(false);
       allocsize = size = 0;
       data = NULL;
    }
-   }*/
-/*
+}
+
 inline void Vector::SetSize(int s)
 {
-   dbg("s:%d, size:%d, allocsize:%d", s, size, allocsize);
-   if (s==0)
-   {
-      BUILTIN_TRAP;
-      return;
-   }
    if (s == size)
    {
       return;
    }
    if (s <= abs(allocsize))
    {
-      {
-         //assert(false);
-         if (allocsize>0) mm_free(double,data);
-         size = s;
-         data = mm_malloc(double,s);
-         return;
-      }
       size = s;
       return;
    }
    if (allocsize > 0)
    {
-      assert(false);
-      dbg("allocsize > 0, free");
-      mm_free(double,data);
+      mm::free<double>(data);
    }
    allocsize = size = s;
-   dbg("malloc %d, allocsize=%d", size, allocsize);
-   data = mm_malloc(double,s);
+   data = mm::malloc<double>(s);
 }
-*/
-/*
+
 inline void Vector::Destroy()
 {
    if (allocsize > 0)
    {
-      mm_free(double,data);
+      mm::free<double>(data);
    }
    allocsize = size = 0;
    data = NULL;
 }
-*/
+
 inline double & Vector::operator() (int i)
 {
-   MFEM_ASSERT(data && i >= 0 && i < size,
+/*   MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
+*/
    return data[i];
 }
 
 inline const double & Vector::operator() (int i) const
 {
+   /*
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
+   */
    return data[i];
 }
 
@@ -416,7 +400,7 @@ inline Vector::~Vector()
 {
    if (allocsize > 0)
    {
-      mm_free(double,data);
+      mm::free<double>(data);
    }
 }
 
