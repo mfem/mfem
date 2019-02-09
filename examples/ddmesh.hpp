@@ -26,7 +26,7 @@ private:
   int globalIndex;
 
 protected:
-  std::set<int> vertices, faces;
+  std::set<int> vertices, faces;  // local pmesh vertex and face indices
   
 public:
   SubdomainInterface(const int sd0_, const int sd1_) : sd0(sd0_), sd1(sd1_)
@@ -620,6 +620,8 @@ public:
 	  {
 	    pmeshSD[s] = new ParMesh(sd_com, *sdmesh, sdPartition);
 	    delete sdmesh;
+
+	    cout << myid << ": Subdomain mesh NBE " << pmeshSD[s]->GetNBE() << endl;
 	  }
 	else
 	  pmeshSD[s] = NULL;

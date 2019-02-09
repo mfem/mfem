@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
 
    // 5.1. Determine subdomain interfaces, and for each interface create a set of local vertex indices in pmesh.
    SubdomainInterfaceGenerator sdInterfaceGen(numSubdomains, pmesh);
-   vector<SubdomainInterface> interfaces;
+   vector<SubdomainInterface> interfaces;  // Local interfaces
    sdInterfaceGen.CreateInterfaces(interfaces);
    std::vector<int> interfaceGlobalToLocalMap, interfaceGI;
    const int numInterfaces = sdInterfaceGen.GlobalToLocalInterfaceMap(interfaces, interfaceGlobalToLocalMap, interfaceGI);
@@ -229,10 +229,11 @@ int main(int argc, char *argv[])
 
    for (int i=0; i<numInterfaces; ++i)
      {
-       if (interfaceGlobalToLocalMap[i] >= 0)
+       const int iloc = interfaceGlobalToLocalMap[i];  // Local interface index
+       if (iloc >= 0)
 	 {
-	   MFEM_VERIFY(interfaceGI[i] == interfaces[i].GetGlobalIndex(), "");
-	   pmeshInterfaces[i] = sdMeshGen.CreateParallelInterfaceMesh(interfaces[i]);
+	   MFEM_VERIFY(interfaceGI[i] == interfaces[iloc].GetGlobalIndex(), "");
+	   pmeshInterfaces[i] = sdMeshGen.CreateParallelInterfaceMesh(interfaces[iloc]);
 	 }
        else
 	 {
@@ -265,7 +266,7 @@ int main(int argc, char *argv[])
        const bool printInterfaceVertices = false;
        if (printInterfaceVertices)
 	 {
-	   for (int i=0; i<numInterfaces; ++i)
+	   for (int i=0; i<interfaces.size(); ++i)
 	     {
 	       cout << myid << ": Interface " << interfaces[i].GetGlobalIndex() << " has " << interfaces[i].NumVertices() << endl;
 	       interfaces[i].PrintVertices(pmesh);
@@ -286,10 +287,9 @@ int main(int argc, char *argv[])
      cout << "Root local number of finite element unknowns: " << fespace->TrueVSize() << endl;
    }
 
-   // 6.1. Define parallel finite element spaces on the parallel meshes of the interfaces.
-
-   
-   //DDMInterfaceOperator ddi(numSubdomains, pmeshSD, order);
+   // 6.1. Create interface operator.
+   DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
+			    &interfaces, &interfaceGlobalToLocalMap);  // PengLee2012 uses order 2 
      
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined

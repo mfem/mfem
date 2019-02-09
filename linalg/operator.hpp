@@ -365,6 +365,25 @@ public:
    virtual ~ProductOperator();
 };
 
+/// General product operator: x -> A(x)+B(x)
+class SumOperator : public Operator
+{
+  const Operator *A, *B;
+  bool ownA, ownB;
+  mutable Vector z, w;
+  double cA, cB;
+  
+public:
+  SumOperator(const Operator *A_, const Operator *B_, bool ownA_, bool ownB_, double cA_, double cB_);
+  
+  virtual void Mult(const Vector &x, Vector &y) const
+  { B->Mult(x, z); A->Mult(x, y); y *= cA; z *= cB; y += z;}
+
+  virtual void MultTranspose(const Vector &x, Vector &y) const
+  { B->MultTranspose(x, w); A->MultTranspose(x, y); y *= cA; w *= cB; y += w;}
+  
+  virtual ~SumOperator();
+};
 
 /// The operator x -> R*A*P*x constructed through the actions of R^T, A and P
 class RAPOperator : public Operator

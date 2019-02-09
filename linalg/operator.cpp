@@ -111,6 +111,22 @@ ProductOperator::~ProductOperator()
    if (ownB) { delete B; }
 }
 
+SumOperator::SumOperator(const Operator *A_, const Operator *B_,
+			 bool ownA_, bool ownB_, double cA_, double cB_)
+   : Operator(A_->Height(), B_->Width()),
+     A(A_), B(B_), ownA(ownA_), ownB(ownB_), z(A_->Height()), w(A_->Width()), cA(cA_), cB(cB_)
+{
+  MFEM_VERIFY(A->Width() == B->Width() && A->Height() == B->Height(),
+	      "incompatible Operators: A->Width() = " << A->Width()
+	      << ", B->Height() = " << B->Height());
+}
+
+SumOperator::~SumOperator()
+{
+   if (ownA) { delete A; }
+   if (ownB) { delete B; }
+}
+
 
 RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
                          const Operator &P_)
