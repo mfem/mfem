@@ -1708,8 +1708,8 @@ void FiniteElementSpace::Destroy()
       delete elem_dof;
       delete bdrElem_dof;
 
-      mm::free<int>(bdofs);
-      mm::free<int>(fdofs);
+      delete [] bdofs;
+      delete [] fdofs;
    }
 }
 
