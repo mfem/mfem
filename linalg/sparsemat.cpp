@@ -237,7 +237,7 @@ void SparseMatrix::MakeRef(const SparseMatrix &master)
 
 void SparseMatrix::SetEmpty()
 {
-   MFEM_GPU_CANNOT_PASS;
+   //MFEM_GPU_CANNOT_PASS;
    height = width = 0;
    I = J = NULL;
    A = NULL;
@@ -717,7 +717,7 @@ void SparseMatrix::PartAddMult(
 
 void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
 {
-   MFEM_GPU_CANNOT_PASS;
+   //MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
    MFEM_ASSERT(x.Size() == Width(), "Input vector size (" << x.Size()
                << ") must match matrix width (" << Width() << ")");
@@ -1065,7 +1065,7 @@ void SparseMatrix::Symmetrize()
 
 int SparseMatrix::NumNonZeroElems() const
 {
-   MFEM_GPU_CANNOT_PASS;
+   //MFEM_GPU_CANNOT_PASS;
    if (A != NULL)  // matrix is finalized
    {
       return I[height];
@@ -2765,7 +2765,7 @@ void SparseMatrixFunction (SparseMatrix & S, double (*f)(double))
 
 SparseMatrix *Transpose (const SparseMatrix &A)
 {
-   MFEM_GPU_CANNOT_PASS;
+   //MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(
       A.Finalized(),
       "Finalize must be called before Transpose. Use TransposeRowMatrix instead");
@@ -3455,7 +3455,7 @@ SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B)
 
 void SparseMatrix::Swap(SparseMatrix &other)
 {
-   MFEM_GPU_CANNOT_PASS;
+   //MFEM_GPU_CANNOT_PASS;
    mfem::Swap(width, other.width);
    mfem::Swap(height, other.height);
    mfem::Swap(I, other.I);

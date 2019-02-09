@@ -616,7 +616,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
                                HYPRE_Int *i_offd, HYPRE_Int *j_offd,
                                HYPRE_Int *cmap, HYPRE_Int cmap_size)
 {
-   MFEM_GPU_CANNOT_PASS;
+   //MFEM_GPU_CANNOT_PASS;
    HYPRE_Int diag_nnz, offd_nnz;
 
    Init();
@@ -991,7 +991,7 @@ void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
 
 HypreParMatrix * HypreParMatrix::Transpose() const
 {
-   MFEM_GPU_CANNOT_PASS;
+   //MFEM_GPU_CANNOT_PASS;
    hypre_ParCSRMatrix * At;
    hypre_ParCSRMatrixTranspose(A, &At, 1);
    hypre_ParCSRMatrixSetNumNonzeros(At);
