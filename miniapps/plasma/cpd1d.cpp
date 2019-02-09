@@ -981,6 +981,7 @@ void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
          else
          {
             // General phase shift
+            V = 0.0; // For now...
          }
       }
       break;
