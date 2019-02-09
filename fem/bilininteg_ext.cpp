@@ -114,7 +114,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       }
       else if (function_coeff)
       {
-         function = function_coeff->Get();
+         function = function_coeff->GetFunction();
       }
       else
       {
