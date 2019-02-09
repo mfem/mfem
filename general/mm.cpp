@@ -169,10 +169,11 @@ void *mm::Erase(void *ptr)
    const bool known = Known(maps, ptr);
    if (!known)
    {
+#warning No-Op on unknown address in Erase
       // Even if don't know it, it's OK on CPU-only
       if (config::usingGpu())
       {
-         mfem_error("Trying to erase a non-MM pointer!");
+         //mfem_error("Trying to erase a non-MM pointer!");
       }
       return ptr;
    }
