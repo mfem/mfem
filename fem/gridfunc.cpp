@@ -138,8 +138,8 @@ void GridFunction::Destroy()
 {
    if (fec)
    {
-      mm_delete(fes);
-      mm_delete(fec);
+      delete fes;
+      delete fec;
       fec = NULL;
    }
 }
@@ -751,7 +751,7 @@ void GridFunction::ReorderByNodes()
       data[i] = temp[i];
    }
 
-   mm_delete([] temp);
+   delete [] temp;
 }
 
 void GridFunction::GetVectorFieldNodalValues(Vector &val, int comp) const

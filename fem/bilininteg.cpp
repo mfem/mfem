@@ -138,7 +138,7 @@ SumIntegrator::~SumIntegrator()
    {
       for (int i = 0; i < integrators.Size(); i++)
       {
-         mm_delete(integrators[i]);
+         delete integrators[i];
       }
    }
 }
@@ -339,8 +339,8 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
    vshape_tmp.SetSize(vec_nd);
 #endif
 
-   Vector V_test(transpose?shape.GetData():vshape_tmp.GetData(),test_nd, true);
-   Vector W_trial(transpose?vshape_tmp.GetData():shape.GetData(),trial_nd, true);
+   Vector V_test(transpose?shape.GetData():vshape_tmp.GetData(),test_nd);
+   Vector W_trial(transpose?vshape_tmp.GetData():shape.GetData(),trial_nd);
 
    elmat.SetSize(test_nd, trial_nd);
 
@@ -1610,7 +1610,7 @@ double CurlCurlIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
       *d_energy = 1.0;
 #endif
 
-      mm_delete([] pfluxes);
+      delete [] pfluxes;
    }
 
    return energy;

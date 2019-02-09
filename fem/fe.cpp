@@ -203,9 +203,8 @@ void ScalarFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
    const ScalarFiniteElement &fine_fe) const
 {
-   //double v[Geometry::MaxDim];
-   static double *v = mm_malloc(double, Geometry::MaxDim);
-   Vector vv (v, Dim, true);
+   double v[Geometry::MaxDim];
+   Vector vv (v, Dim);
    IntegrationPoint f_ip;
 
 #ifdef MFEM_THREAD_SAFE
@@ -240,9 +239,8 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
 {
    // General "interpolation", defined by L2 projection
 
-   //double v[Geometry::MaxDim];
-   static double *v = mm_malloc(double,Geometry::MaxDim);
-   Vector vv (v, Dim, true);
+   double v[Geometry::MaxDim];
+   Vector vv (v, Dim);
    IntegrationPoint f_ip;
 
    const int fs = fine_fe.GetDof(), cs = this->GetDof();
@@ -593,11 +591,10 @@ void VectorFiniteElement::Project_RT(
    const double *nk, const Array<int> &d2n,
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   //double vk[Geometry::MaxDim];
-   static double *vk = mm_malloc(double,Geometry::MaxDim);
+   double vk[Geometry::MaxDim];
    const int sdim = Trans.GetSpaceDim();
    MFEM_ASSERT(vc.GetVDim() == sdim, "");
-   Vector xk(vk, sdim, true);
+   Vector xk(vk, sdim);
    const bool square_J = (Dim == sdim);
 
    for (int k = 0; k < Dof; k++)
@@ -644,8 +641,7 @@ void VectorFiniteElement::Project_RT(
 {
    if (fe.GetRangeType() == SCALAR)
    {
-      //double vk[Geometry::MaxDim];
-      static double *vk = mm_malloc(double,Geometry::MaxDim);
+      double vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
       int sdim = Trans.GetSpaceDim();
 
@@ -774,9 +770,8 @@ void VectorFiniteElement::Project_ND(
    const double *tk, const Array<int> &d2t,
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   //double vk[Geometry::MaxDim];
-   static double *vk = mm_malloc(double,Geometry::MaxDim);
-   Vector xk(vk, vc.GetVDim(), true);
+   double vk[Geometry::MaxDim];
+   Vector xk(vk, vc.GetVDim());
 
    for (int k = 0; k < Dof; k++)
    {
@@ -821,8 +816,7 @@ void VectorFiniteElement::Project_ND(
    if (fe.GetRangeType() == SCALAR)
    {
       int sdim = Trans.GetSpaceDim();
-      //double vk[Geometry::MaxDim];
-      static double *vk = mm_malloc(double,Geometry::MaxDim);
+      double vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
 
       I.SetSize(Dof, sdim*fe.GetDof());
@@ -889,9 +883,8 @@ void VectorFiniteElement::LocalInterpolation_RT(
 {
    MFEM_ASSERT(MapType == cfe.GetMapType(), "");
 
-   //double vk[Geometry::MaxDim];
-   static double *vk = mm_malloc(double,Geometry::MaxDim);
-   Vector xk(vk, Dim, true);
+   double vk[Geometry::MaxDim];
+   Vector xk(vk, Dim);
    IntegrationPoint ip;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(cfe.GetDof(), cfe.GetDim());
@@ -927,9 +920,8 @@ void VectorFiniteElement::LocalInterpolation_ND(
    const VectorFiniteElement &cfe, const double *tk, const Array<int> &d2t,
    ElementTransformation &Trans, DenseMatrix &I) const
 {
-   //double vk[Geometry::MaxDim];
-   static double *vk = mm_malloc(double,Geometry::MaxDim);
-   Vector xk(vk, Dim, true);
+   double vk[Geometry::MaxDim];
+   Vector xk(vk, Dim);
    IntegrationPoint ip;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(cfe.GetDof(), cfe.GetDim());
@@ -1619,10 +1611,9 @@ void BiQuadPos2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 void BiQuadPos2DFiniteElement::GetLocalInterpolation(
    ElementTransformation &Trans, DenseMatrix &I) const
 {
-   //double s[9];
-   static double *s = mm_malloc(double,9);
+   double s[9];
    IntegrationPoint tr_ip;
-   Vector xx(&tr_ip.x, 2), shape(s, 9, true);
+   Vector xx(&tr_ip.x, 2), shape(s, 9);
 
    for (int i = 0; i < 9; i++)
    {
@@ -1669,9 +1660,8 @@ void BiQuadPos2DFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   //double v[3];
-   static double *v = mm_malloc(double,3);
-   Vector x (v, vc.GetVDim(), true);
+   double v[3];
+   Vector x (v, vc.GetVDim());
 
    for (int i = 0; i < 9; i++)
    {
@@ -2732,9 +2722,8 @@ void RT0TriangleFiniteElement::GetLocalInterpolation (
    // Trans must be linear
    // set Jinv = |J| J^{-t} = adj(J)^t
    CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
-   //double vk[2];
-   static double *vk = mm_malloc(double,2);
-   Vector xk (vk, 2, true);
+   double vk[2];
+   Vector xk (vk, 2);
 
    for (k = 0; k < 3; k++)
    {
@@ -2756,9 +2745,8 @@ void RT0TriangleFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   //double vk[2];
-   static double *vk = mm_malloc(double,2);
-   Vector xk (vk, 2, true);
+   double vk[2];
+   Vector xk (vk, 2);
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix Jinv(Dim);
 #endif
@@ -2849,9 +2837,8 @@ void RT0QuadFiniteElement::GetLocalInterpolation (
    // Trans must be linear (more to have embedding?)
    // set Jinv = |J| J^{-t} = adj(J)^t
    CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
-   //double vk[2];
-   static double *vk = mm_malloc(double,2);
-   Vector xk (vk, 2, true);
+   double vk[2];
+   Vector xk (vk, 2);
 
    for (k = 0; k < 4; k++)
    {
@@ -2873,9 +2860,8 @@ void RT0QuadFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   //double vk[2];
-   static double *vk = mm_malloc(double,2);
-   Vector xk (vk, 2, true);
+   double vk[2];
+   Vector xk (vk, 2);
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix Jinv(Dim);
 #endif
@@ -2993,9 +2979,8 @@ void RT1TriangleFiniteElement::GetLocalInterpolation (
    // Trans must be linear (more to have embedding?)
    // set Jinv = |J| J^{-t} = adj(J)^t
    CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
-   //double vk[2];
-   static double *vk = mm_malloc(double,2);
-   Vector xk (vk, 2, true);
+   double vk[2];
+   Vector xk (vk, 2);
 
    for (k = 0; k < 8; k++)
    {
@@ -3016,9 +3001,8 @@ void RT1TriangleFiniteElement::GetLocalInterpolation (
 void RT1TriangleFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   //double vk[2];
-   static double *vk = mm_malloc(double,2);
-   Vector xk (vk, 2, true);
+   double vk[2];
+   Vector xk (vk, 2);
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix Jinv(Dim);
 #endif
@@ -3177,9 +3161,8 @@ void RT1QuadFiniteElement::GetLocalInterpolation (
    // Trans must be linear (more to have embedding?)
    // set Jinv = |J| J^{-t} = adj(J)^t
    CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
-   //double vk[2];
-   static double *vk = mm_malloc(double,2);
-   Vector xk (vk, 2, true);
+   double vk[2];
+   Vector xk (vk, 2);
 
    for (k = 0; k < 12; k++)
    {
@@ -3200,9 +3183,8 @@ void RT1QuadFiniteElement::GetLocalInterpolation (
 void RT1QuadFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   //double vk[2];
-   static double *vk = mm_malloc(double,2);
-   Vector xk (vk, 2, true);
+   double vk[2];
+   Vector xk (vk, 2);
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix Jinv(Dim);
 #endif
@@ -3631,9 +3613,8 @@ void RT2QuadFiniteElement::GetLocalInterpolation (
    // Trans must be linear (more to have embedding?)
    // set Jinv = |J| J^{-t} = adj(J)^t
    CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
-   //double vk[2];
-   static double *vk = mm_malloc(double,2);
-   Vector xk (vk, 2, true);
+   double vk[2];
+   Vector xk (vk, 2);
 
    for (k = 0; k < 24; k++)
    {
@@ -3654,9 +3635,8 @@ void RT2QuadFiniteElement::GetLocalInterpolation (
 void RT2QuadFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   //double vk[2];
-   static double *vk = mm_malloc(double,2);
-   Vector xk (vk, 2, true);
+   double vk[2];
+   Vector xk (vk, 2);
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix Jinv(Dim);
 #endif
@@ -3965,7 +3945,6 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
 {
    if (degree == 2)
    {
-#warning HERE
       I = new int[Dof];
       J = new int[Dof];
       K = new int[Dof];
@@ -4003,9 +3982,9 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
    }
    else if (degree == 3)
    {
-      I = mm_malloc(int,Dof);
-      J = mm_malloc(int,Dof);
-      K = mm_malloc(int,Dof);
+      I = new int[Dof];
+      J = new int[Dof];
+      K = new int[Dof];
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
       I[ 1] = 1; J[ 1] = 0; K[ 1] = 0;
@@ -4152,11 +4131,11 @@ void LagrangeHexFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 LagrangeHexFiniteElement::~LagrangeHexFiniteElement ()
 {
-   mm_delete(fe1d);
+   delete fe1d;
 
-   mm_delete([] I);
-   mm_delete([] J);
-   mm_delete([] K);
+   delete [] I;
+   delete [] J;
+   delete [] K;
 }
 
 
@@ -5268,9 +5247,8 @@ void Nedelec1HexFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear (more to have embedding?)
    const DenseMatrix &J = Trans.Jacobian();
-   //double vk[3];
-   static double *vk = mm_malloc(double,3);
-   Vector xk (vk, 3, true);
+   double vk[3];
+   Vector xk (vk, 3);
 
    for (k = 0; k < 12; k++)
    {
@@ -5294,9 +5272,8 @@ void Nedelec1HexFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   //double vk[3];
-   static double *vk = mm_malloc(double,3);
-   Vector xk (vk, 3, true);
+   double vk[3];
+   Vector xk (vk, 3);
 
    for (int k = 0; k < 12; k++)
    {
@@ -5436,9 +5413,8 @@ void Nedelec1TetFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear
    const DenseMatrix &J = Trans.Jacobian();
-   //double vk[3];
-   static double *vk = mm_malloc(double,3);
-   Vector xk (vk, 3, true);
+   double vk[3];
+   Vector xk (vk, 3);
 
    for (k = 0; k < 6; k++)
    {
@@ -5462,9 +5438,8 @@ void Nedelec1TetFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   //double vk[3];
-   static double *vk = mm_malloc(double,3);
-   Vector xk (vk, 3, true);
+   double vk[3];
+   Vector xk (vk, 3);
 
    for (int k = 0; k < 6; k++)
    {
@@ -5588,9 +5563,8 @@ void RT0HexFiniteElement::GetLocalInterpolation (
    // Trans must be linear
    // set Jinv = |J| J^{-t} = adj(J)^t
    CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
-   //double vk[3];
-   static double *vk = mm_malloc(double,3);
-   Vector xk (vk, 3, true);
+   double vk[3];
+   Vector xk (vk, 3);
 
    for (k = 0; k < 6; k++)
    {
@@ -5614,9 +5588,8 @@ void RT0HexFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   //double vk[3];
-   static double *vk = mm_malloc(double,3);
-   Vector xk (vk, 3, true);
+   double vk[3];
+   Vector xk (vk, 3);
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix Jinv(Dim);
 #endif
@@ -5979,9 +5952,8 @@ void RT1HexFiniteElement::GetLocalInterpolation (
    // Trans must be linear
    // set Jinv = |J| J^{-t} = adj(J)^t
    CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
-   //double vk[3];
-   static double *vk = mm_malloc(double,3);
-   Vector xk (vk, 3, true);
+   double vk[3];
+   Vector xk (vk, 3);
 
    for (k = 0; k < 36; k++)
    {
@@ -6005,9 +5977,8 @@ void RT1HexFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   //double vk[3];
-   static double *vk = mm_malloc(double,3);
-   Vector xk (vk, 3, true);
+   double vk[3];
+   Vector xk (vk, 3);
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix Jinv(Dim);
 #endif
@@ -6116,9 +6087,8 @@ void RT0TetFiniteElement::GetLocalInterpolation (
    // Trans must be linear
    // set Jinv = |J| J^{-t} = adj(J)^t
    CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
-   //double vk[3];
-   static double *vk = mm_malloc(double,3);
-   Vector xk (vk, 3, true);
+   double vk[3];
+   Vector xk (vk, 3);
 
    for (k = 0; k < 4; k++)
    {
@@ -6142,9 +6112,8 @@ void RT0TetFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   //double vk[3];
-   static double *vk = mm_malloc(double,3);
-   Vector xk (vk, 3, true);
+   double vk[3];
+   Vector xk (vk, 3);
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix Jinv(Dim);
 #endif
@@ -6696,7 +6665,7 @@ const double *Poly_1D::GetPoints(const int p, const int btype)
    }
    if (pts[p] == NULL)
    {
-      pts[p] = mm_malloc(double,p + 1);
+      pts[p] = mm::malloc<double>(p + 1);
       quad_func.GivePolyPoints(p+1, pts[p], qtype);
    }
    return pts[p];
@@ -6732,9 +6701,9 @@ Poly_1D::~Poly_1D()
       Array<double*>& pts = *it->second;
       for ( int i = 0 ; i < pts.Size() ; ++i )
       {
-         mm_free(double,pts[i]);
+         mm::free<double>(pts[i]);
       }
-      mm_delete(it->second);
+      delete it->second;
    }
 
    for (BasisMap::iterator it = bases_container.begin();
@@ -6743,9 +6712,9 @@ Poly_1D::~Poly_1D()
       Array<Basis*>& bases = *it->second;
       for ( int i = 0 ; i < bases.Size() ; ++i )
       {
-         mm_delete(bases[i]);
+         delete bases[i];
       }
-      mm_delete(it->second);
+      delete it->second;
    }
 }
 
@@ -8314,8 +8283,6 @@ H1_WedgeElement::H1_WedgeElement(const int p,
    s_shape.SetSize(SegmentFE.GetDof());
    t_dshape.SetSize(TriangleFE.GetDof(), 2);
    s_dshape.SetSize(SegmentFE.GetDof(), 1);
-#else
-#warning MFEM_THREAD_SAFE
 #endif
 
    t_dof.SetSize(Dof);
@@ -10531,25 +10498,22 @@ void RT_TetrahedronElement::CalcDivShape(const IntegrationPoint &ip,
    Ti.Mult(divu, divshape);
 }
 
-#warning ND_HexahedronElement::tk
-//const double ND_HexahedronElement::tk[18] =
-//{ 1.,0.,0.,  0.,1.,0.,  0.,0.,1., -1.,0.,0.,  0.,-1.,0.,  0.,0.,-1. };
+
+const double ND_HexahedronElement::tk[18] =
+{ 1.,0.,0.,  0.,1.,0.,  0.,0.,1., -1.,0.,0.,  0.,-1.,0.,  0.,0.,-1. };
 
 ND_HexahedronElement::ND_HexahedronElement(const int p,
                                            const int cb_type, const int ob_type)
    : VectorFiniteElement(3, Geometry::CUBE, 3*p*(p + 1)*(p + 1), p,
                          H_CURL, FunctionSpace::Qk),
-     tk(mm_malloc(double,18)),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type))),
      dof_map(Dof), dof2tk(Dof)
 {
-   for(int i=0;i<18;i+=1) tk[i] = 0.0;
-   tk[0] = tk[4] = tk[8] = 1.0;
-   tk[9] = tk[13] = tk[17] = -1.0;
    const double *cp = poly1d.ClosedPoints(p, cb_type);
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
    const int dof3 = Dof/3;
+
 #ifndef MFEM_THREAD_SAFE
    shape_cx.SetSize(p + 1);
    shape_ox.SetSize(p);
@@ -11357,26 +11321,17 @@ void ND_TetrahedronElement::CalcCurlShape(const IntegrationPoint &ip,
    Ti.Mult(u, curl_shape);
 }
 
-#warning tk
-//const double ND_TriangleElement::tk[8] =
-//{ 1.,0.,  -1.,1.,  0.,-1.,  0.,1. };
+
+const double ND_TriangleElement::tk[8] =
+{ 1.,0.,  -1.,1.,  0.,-1.,  0.,1. };
 
 const double ND_TriangleElement::c = 1./3.;
 
 ND_TriangleElement::ND_TriangleElement(const int p)
    : VectorFiniteElement(2, Geometry::TRIANGLE, p*(p + 2), p,
                          H_CURL, FunctionSpace::Pk),
-     tk(mm_malloc(double, 8)),
      dof2tk(Dof)
 {
-   tk[0] = 1.;
-   tk[1] = 0.;
-   tk[2] =-1.;
-   tk[3] = 1.;
-   tk[4] = 0.;
-   tk[5] = -1.;
-   tk[6] = 0.;
-   tk[7] = 1.;
    const double *eop = poly1d.OpenPoints(p - 1);
    const double *iop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
 

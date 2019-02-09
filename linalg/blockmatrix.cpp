@@ -53,7 +53,7 @@ BlockMatrix::~BlockMatrix()
       for (SparseMatrix ** it = Aij.GetRow(0);
            it != Aij.GetRow(0)+(Aij.NumRows()*Aij.NumCols()); ++it)
       {
-         mm_delete(*it);
+         delete *it;
       }
 }
 
@@ -469,9 +469,9 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
    MFEM_GPU_CANNOT_PASS;
    int nnz = NumNonZeroElems();
 
-   int * i_amono = mm_malloc(int,row_offsets[nRowBlocks]+2);
-   int * j_amono = mm_malloc(int,nnz);
-   double * data = mm_malloc(double,nnz);
+   int * i_amono = new int[ row_offsets[nRowBlocks]+2 ];
+   int * j_amono = new int[ nnz ];
+   double * data = new double[ nnz ];
 
    for (int i = 0; i < row_offsets[nRowBlocks]+2; i++)
    {
@@ -608,7 +608,7 @@ BlockMatrix * Mult(const BlockMatrix & A, const BlockMatrix & B)
             for (SparseMatrix ** it = CijPieces.GetData();
                  it != CijPieces.GetData()+CijPieces.Size(); ++it)
             {
-               mm_delete(*it);
+               delete *it;
             }
          }
          else if (CijPieces.Size() == 1)

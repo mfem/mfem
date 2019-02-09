@@ -360,7 +360,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    {
       if (cP)
       {
-         mm_delete(cGrad);
+         delete cGrad;
          cGrad = RAP(*cP, *Grad, *cP);
          mGrad = cGrad;
       }
@@ -378,8 +378,8 @@ void NonlinearForm::Update()
    if (sequence == fes->GetSequence()) { return; }
 
    height = width = fes->GetTrueVSize();
-   mm_delete(cGrad); cGrad = NULL;
-   mm_delete(Grad); Grad = NULL;
+   delete cGrad; cGrad = NULL;
+   delete Grad; Grad = NULL;
    ess_tdof_list.SetSize(0); // essential b.c. will need to be set again
    sequence = fes->GetSequence();
    // Do not modify aux1 and aux2, their size will be set before use.
@@ -389,11 +389,11 @@ void NonlinearForm::Update()
 
 NonlinearForm::~NonlinearForm()
 {
-   mm_delete(cGrad);
-   mm_delete(Grad);
-   for (int i = 0; i <  dnfi.Size(); i++) { mm_delete( dnfi[i]); }
-   for (int i = 0; i <  fnfi.Size(); i++) { mm_delete( fnfi[i]); }
-   for (int i = 0; i < bfnfi.Size(); i++) { mm_delete(bfnfi[i]); }
+   delete cGrad;
+   delete Grad;
+   for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
+   for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
+   for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
 }
 
 
@@ -406,18 +406,18 @@ BlockNonlinearForm::BlockNonlinearForm() :
 
 void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 {
-   mm_delete(BlockGrad);
+   delete BlockGrad;
    BlockGrad = NULL;
    for (int i=0; i<Grads.NumRows(); ++i)
    {
       for (int j=0; j<Grads.NumCols(); ++j)
       {
-         mm_delete(Grads(i,j));
+         delete Grads(i,j);
       }
    }
    for (int i = 0; i < ess_vdofs.Size(); ++i)
    {
-      mm_delete(ess_vdofs[i]);
+      delete ess_vdofs[i];
    }
 
    height = 0;
@@ -703,10 +703,10 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
    for (int s=0; s<fes.Size(); ++s)
    {
-      mm_delete(vdofs2[s]);
-      mm_delete(vdofs[s]);
-      mm_delete(el_y[s]);
-      mm_delete(el_x[s]);
+      delete vdofs2[s];
+      delete vdofs[s];
+      delete el_y[s];
+      delete el_x[s];
       by.GetBlock(s).SetSubVector(*ess_vdofs[s], 0.0);
    }
 }
@@ -732,7 +732,7 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
 
    if (BlockGrad != NULL)
    {
-      mm_delete(BlockGrad);
+      delete BlockGrad;
    }
 
    BlockGrad = new BlockOperator(block_offsets);
@@ -925,11 +925,11 @@ Operator &BlockNonlinearForm::GetGradientBlocked(const BlockVector &bx) const
       for (int j=0; j<fes.Size(); ++j)
       {
          BlockGrad->SetBlock(i,j,Grads(i,j));
-         mm_delete(elmats(i,j));
+         delete elmats(i,j);
       }
-      mm_delete(vdofs2[i]);
-      mm_delete(vdofs[i]);
-      mm_delete(el_x[i]);
+      delete vdofs2[i];
+      delete vdofs[i];
+      delete el_x[i];
    }
 
    return *BlockGrad;
@@ -943,29 +943,29 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
 
 BlockNonlinearForm::~BlockNonlinearForm()
 {
-   mm_delete(BlockGrad);
+   delete BlockGrad;
    for (int i=0; i<fes.Size(); ++i)
    {
       for (int j=0; j<fes.Size(); ++j)
       {
-         mm_delete(Grads(i,j));
+         delete Grads(i,j);
       }
-      mm_delete(ess_vdofs[i]);
+      delete ess_vdofs[i];
    }
 
    for (int i = 0; i < dnfi.Size(); ++i)
    {
-      mm_delete(dnfi[i]);
+      delete dnfi[i];
    }
 
    for (int i = 0; i < fnfi.Size(); ++i)
    {
-      mm_delete(fnfi[i]);
+      delete fnfi[i];
    }
 
    for (int i = 0; i < bfnfi.Size(); ++i)
    {
-      mm_delete(bfnfi[i]);
+      delete bfnfi[i];
    }
 
 }

@@ -718,7 +718,7 @@ inline void Array<T>::DeleteAll()
 {
    if (allocsize > 0)
    {
-      mm_free(char,data);
+      mm::free<char>(data);
    }
    data = NULL;
    size = allocsize = 0;
@@ -729,7 +729,7 @@ inline void Array<T>::MakeRef(T *p, int s)
 {
    if (allocsize > 0)
    {
-      mm_free(char,data);
+      mm::free<char>(data);
    }
    data = p;
    size = s;
@@ -741,7 +741,7 @@ inline void Array<T>::MakeRef(const Array &master)
 {
    if (allocsize > 0)
    {
-      mm_free(char,data);
+      mm::free<char>(data);
    }
    data = master.data;
    size = master.size;
@@ -867,8 +867,7 @@ BlockArray<T>::BlockArray(const BlockArray<T> &other)
    int bsize = mask+1;
    for (int i = 0; i < blocks.Size(); i++)
    {
-      //blocks[i] = (T*) new char[bsize * sizeof(T)];
-      blocks[i] = (T*) mm_malloc(char,bsize * sizeof(T));
+      blocks[i] = (T*) new char[bsize * sizeof(T)];
    }
 
    // copy all items
@@ -884,8 +883,7 @@ int BlockArray<T>::Alloc()
    int bsize = mask+1;
    if (size >= blocks.Size() * bsize)
    {
-      //T* new_block = (T*) new char[bsize * sizeof(T)];
-      T* new_block = (T*) mm_malloc(char,bsize * sizeof(T));
+      T* new_block = (T*) new char[bsize * sizeof(T)];
       blocks.Append(new_block);
    }
    return size++;
@@ -934,8 +932,7 @@ BlockArray<T>::~BlockArray()
       {
          block[--j].~T();
       }
-      //delete [] (char*) block;
-      mm_free(char,block);
+      delete [] (char*) block;
       bsize = mask+1;
    }
 }

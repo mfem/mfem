@@ -250,10 +250,10 @@ LinearForm::~LinearForm()
    if (!extern_lfs)
    {
       int k;
-      for (k=0; k < dlfi_delta.Size(); k++) { mm_delete(dlfi_delta[k]); }
-      for (k=0; k < dlfi.Size(); k++) { mm_delete(dlfi[k]); }
-      for (k=0; k < blfi.Size(); k++) { mm_delete(blfi[k]); }
-      for (k=0; k < flfi.Size(); k++) { mm_delete(flfi[k]); }
+      for (k=0; k < dlfi_delta.Size(); k++) { delete dlfi_delta[k]; }
+      for (k=0; k < dlfi.Size(); k++) { delete dlfi[k]; }
+      for (k=0; k < blfi.Size(); k++) { delete blfi[k]; }
+      for (k=0; k < flfi.Size(); k++) { delete flfi[k]; }
    }
 }
 

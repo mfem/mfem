@@ -92,17 +92,14 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = 1;
-      //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels =
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
 
-   // Try
-   LinearFECollection lfec;
- 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -152,7 +149,7 @@ int main(int argc, char *argv[])
    if (occa) { config::useOcca(); }
    config::enableGpu(0/*,occa,cuda*/);
    config::SwitchToGpu();
-   
+
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.

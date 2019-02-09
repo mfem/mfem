@@ -10484,9 +10484,7 @@ namespace Catch {
 #ifndef __OBJC__
 
 // Standard C/C++ main entry point
-#include "/home/camier1/home/okstk/stk.hpp"
 int main (int argc, char * argv[]) {
-   stkIni(argv[0]);
    return Catch::Session().run( argc, argv );
 }
 

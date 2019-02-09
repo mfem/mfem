@@ -32,7 +32,7 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
                                  const IntegrationPoint & ip)
 {
    double x[3];
-   Vector transip(x, 3, true);
+   Vector transip(x, 3);
 
    T.Transform(ip, transip);
 
@@ -137,7 +137,7 @@ VectorArrayCoefficient::~VectorArrayCoefficient()
 {
    for (int i = 0; i < vdim; i++)
    {
-      mm_delete(Coeff[i]);
+      delete Coeff[i];
    }
 }
 
@@ -319,7 +319,7 @@ MatrixArrayCoefficient::~MatrixArrayCoefficient ()
 {
    for (int i=0; i < height*width; i++)
    {
-      mm_delete(Coeff[i]);
+      delete Coeff[i];
    }
 }
 
