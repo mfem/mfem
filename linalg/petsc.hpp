@@ -63,6 +63,8 @@ namespace mfem
 {
 
 /// Convenience functions to initialize/finalize PETSc
+void MFEMInitializePetsc();
+void MFEMInitializePetsc(int*,char***);
 void MFEMInitializePetsc(int*,char***,const char[],const char[]);
 void MFEMFinalizePetsc();
 

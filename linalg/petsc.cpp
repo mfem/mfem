@@ -152,6 +152,16 @@ using namespace std;
 namespace mfem
 {
 
+void MFEMInitializePetsc()
+{
+   MFEMInitializePetsc(NULL,NULL,NULL,NULL);
+}
+
+void MFEMInitializePetsc(int *argc,char*** argv)
+{
+   MFEMInitializePetsc(argc,argv,NULL,NULL);
+}
+
 void MFEMInitializePetsc(int *argc,char ***argv,const char rc_file[],
                          const char help[])
 {
