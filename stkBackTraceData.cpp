@@ -25,12 +25,10 @@ stkBackTraceData::stkBackTraceData(backtrace_state* s):
    m_filename(nullptr),
    m_lineno(0),
    m_address(0x0),
-   m_rip(false),
+   m_dump(false),
    m_hit(false),
    m_mm(false),
-   m_mfem(false), 
-   m_skip(false), 
-   m_add(false), 
+   m_mfem(false),
    m_got(false), 
    m_depth(0){}
 
@@ -40,15 +38,14 @@ stkBackTraceData::~stkBackTraceData(){
 }
 
 // *****************************************************************************
-void stkBackTraceData::flush(){
+void stkBackTraceData::ini(const bool dump){
    if (m_function) free((void*)m_function);
    m_function=nullptr;
    m_address=0;
+   m_dump = dump;
    m_hit=false;
    m_mm=false;
    m_mfem=false; 
-   m_skip=false; 
-   m_add=false;
    m_got=false;
    m_depth=0;
    m_stack[0]=0;
@@ -80,14 +77,22 @@ void stkBackTraceData::update(const char* demangled,
                               uintptr_t PC,
                               const char* filename,
                               const int lineno) {
+   
+   {
+      const bool mfem = strncmp(demangled,"mfem::",6)==0;
+      if (m_dbg) printf("%s", mfem?"mfem::":"");
+      m_mfem |= mfem;
+      const bool mm_hpp = strncmp(getFilename(filename,'/',2),"general/mm.hpp",13)==0;
+      const bool mm_cpp = strncmp(getFilename(filename,'/',2),"general/mm.cpp",13)==0;
+      const bool mm_space = strncmp(demangled,"mfem::mm",8)==0;
+      const bool mm = mm_cpp or mm_hpp or mm_space;
+      if (m_dbg) printf("%s", mm?"MM::":"");
+      m_mm |= mm;
+   }
+   
    m_hit = !strncmp(demangled,"main",4);
    m_depth+=1;
    {
-      { // SKIP tests
-         const bool io = strncmp(demangled,"_IO",3)==0;
-         const bool dbg = strncmp(demangled,"dbg_",4)==0;
-         m_skip |= io | dbg;
-      }
       char add[STACK_LENGTH];
       const int n_char_printed =
          snprintf(add, STACK_LENGTH, "\n\t%s %s:%d",
@@ -100,32 +105,4 @@ void stkBackTraceData::update(const char* demangled,
    m_filename = filename?strdup(filename):NULL;
    m_address = PC;
    m_lineno = lineno;
-}
-
-// *****************************************************************************
-void stkBackTraceData::isItMM(const char *demangled,
-                              const char* filename,
-                              const int l){
-      
-   const bool mfem = strncmp(demangled,"mfem::",6)==0;
-   const bool add = strncmp(demangled,"mfem::mm::add_this_call_as_mm",29)==0;
-   
-   if (add){ m_add=true; }
-   if (m_dbg) printf("%s", mfem?"mfem::":"");
-   
-   m_mfem |= mfem;
-   m_add |= add;
-      
-   const bool mm_hpp = strncmp(getFilename(filename,'/',2),"general/mm.hpp",13)==0;
-   const bool mm_cpp = strncmp(getFilename(filename,'/',2),"general/mm.cpp",13)==0;
-   const bool mm_space = strncmp(demangled,"mfem::mm",8)==0;
-   const bool mm = mm_cpp or mm_hpp or mm_space;
-   if (m_dbg) printf("%s", mm?"MM::":"");
-
-   if (m_skip) { // _IO, etc.
-      if (m_dbg) printf("%s", m_skip?"skip::":"");
-   } 
-   
-   m_mm |= mm | m_skip;//|addon
-
 }

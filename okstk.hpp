@@ -22,25 +22,19 @@
 #include <cxxabi.h>
 #include <string.h>
 
-#include <backtrace.h>
-#include <backtrace-supported.h>
-
-#define DEMANGLE_LENGTH 32768
-#define STACK_LENGTH 32768
-
-#include "stk.h"
-#include "stkBackTrace.hpp"
-#include "stkBackTraceData.hpp"
-
-
 #include <regex>
 #include <iostream>
 #include <unordered_map>
 
-#include "stk.h"
+#include <backtrace.h>
+#include <backtrace-supported.h>
+
+#define STACK_LENGTH 32768
+
 #include "stk.hpp"
 #include "stkBackTrace.hpp"
+#include "stkBackTraceData.hpp"
 
-#include "/home/camier1/home/mfem/okina-examples/general/okina.hpp"
+#include "/home/camier1/home/mfem/okina-mmcheck/general/okina.hpp"
 
 #endif // OKSTK_HPP

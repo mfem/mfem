@@ -31,7 +31,7 @@ public:
    ~stkBackTrace();
 public:
    void ini(const char*);
-   int stk(const bool =false);
+   int backtrace(const bool =false);
 public:
    bool rip = false;
    bool mm();

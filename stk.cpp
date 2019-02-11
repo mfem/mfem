@@ -18,146 +18,201 @@
 // *****************************************************************************
 // * 
 // *****************************************************************************
-static stkBackTrace *bt;
-void stkIni(char* argv0){
+static stkBackTrace *bt = NULL;
+
+// *****************************************************************************
+struct info_t{
+   const bool new_or_del;
+   const char *filename;
+   const int line;
+   info_t(const bool nd, const char *f, const int l):
+      new_or_del(nd), filename(f), line(l){}
+};
+typedef std::unordered_map<const void*,info_t> mm_t;
+static mm_t *mm = NULL;
+
+// *****************************************************************************
+void mmAdd(const void *ptr, const bool new_or_delete,
+           const char *filename, const int line){
+   assert(mm);
+   const auto found = mm->find(ptr);
+   const bool is_new = new_or_delete;
+   const bool known = found != mm->end();
+   if (is_new){
+      assert(not known);
+      printf("new @%p: %s:%d", ptr, filename, line);
+      mm->emplace(ptr, info_t(new_or_delete, filename, line));
+   }else{
+      assert(known);
+      mm->erase(ptr);
+   }
+}
+
+// *****************************************************************************
+void backtraceIni(char* argv0){
    bt = new stkBackTrace();
-  _stk("[stkIni] argv0=%s",argv0);
+   mm = new mm_t();
   bt->ini(argv0);
 }
 
+// *****************************************************************************
+void backtraceEnd(){
+   delete bt;
+   bt=NULL;   
+   delete mm;
+   mm=NULL;   
+}
+
 // ***************************************************************************
-// * stk 
+// * backtrace 
 // ***************************************************************************
-stk::stk(const bool _rip):
-   ptr(NULL),new_or_delete(false),rip(_rip),options(""){}
-stk::stk(const void *p,const bool nd, const bool _rip):
-   ptr(p),new_or_delete(nd),rip(_rip),options(""){}
-stk::stk(const char* opt,const bool _rip):
-   ptr(NULL),new_or_delete(false),rip(_rip),options(opt){}
-stk::~stk(){
+backtrace::backtrace(const bool d):
+   ptr(NULL), new_or_delete(false), dump(d), options(""){}
+
+backtrace::backtrace(const void *p, const bool nd, const bool d):
+   ptr(p), new_or_delete(nd), dump(d), options(""){}
+
+backtrace::backtrace(const char* opt, const bool d):
+   ptr(NULL), new_or_delete(false), dump(d), options(opt){}
+
+// *****************************************************************************
+backtrace::~backtrace(){
+   static std::unordered_map<std::string, int> known_colors;
+   static std::unordered_map<uintptr_t,std::string> known_address;
+
+   // If no STK varibale environment is set, just return
+   static const bool stk = getenv("STK")!=NULL;
+   static const bool out = getenv("OUT")!=NULL;
+   static const bool args = getenv("ARGS")!=NULL;
+   if (not stk) return;
+
+   // If we are in ORG_MODE, set tab_char to '*'
+   static const bool org_mode = getenv("ORG_MODE")!=NULL;
+   static const bool mm_assert = getenv("MM")!=NULL;
+   const std::string tab_char = org_mode?"*":"  ";
   
-  static std::unordered_map<std::string, int> known_colors;
- 
-  static std::unordered_map<uintptr_t,std::string> known_address;
+   // now backtracing if initialized
+   if (!bt) return;
+   if (bt->backtrace(dump)!=0) return;
 
-  // If no STK varibale environment is set, just return
-  static const bool stk = getenv("STK")!=NULL;
-  static const bool out = getenv("OUT")!=NULL;
-  static const bool args = getenv("ARGS")!=NULL;
-  if (not stk) return;
-
-  // If we are in ORG_MODE, set tab_char to '*'
-  static const bool org_mode = getenv("ORG_MODE")!=NULL;
-  static const bool mm_assert = getenv("MM")!=NULL;
-  const std::string tab_char = org_mode?"*":"  ";
-  
-  // now backtracing if initialized
-  if (!bt) return;
-  if (bt->stk(rip)!=0) return;
-
-  const bool mm = bt->mm();
-  const bool mfem = bt->mfem();
-  const int depth = bt->depth();
-  assert(depth>0);
-  const int frames = depth-(org_mode?-1:1);
-  const uintptr_t address = bt->address();
-  //printf("\033[33m[stk] address 0x%lx\033[m\n",address);fflush(0);
-  const char *backtraced_function = bt->function();
-  const char *filename = bt->filename();
-  const int lineno = bt->lineno();
-  const std::string demangled_function(backtraced_function);
+   const bool mm = bt->mm();
+   const bool mfem = bt->mfem();
+   const int depth = bt->depth();
+   assert(depth>0);
+   const int frames = depth-(org_mode?-1:1);
+   const uintptr_t address = bt->address();
+   //printf("\033[33m[stk] address 0x%lx\033[m\n",address);fflush(0);
+   const char *backtraced_function = bt->function();
+   const char *filename = bt->filename();
+   const int lineno = bt->lineno();
+   const std::string demangled_function(backtraced_function);
    
-  if (known_address.find(address)==known_address.end()){
-    if (args){ // Get rid of arguments, or not
-      const int first_parenthesis = demangled_function.find_first_of('(');
-      const std::string function = demangled_function.substr(0,first_parenthesis);
-      known_address[address]=function;
-    }else known_address[address]=demangled_function;
-  }
+   if (known_address.find(address)==known_address.end()){
+      if (args){ // Get rid of arguments, or not
+         const int first_parenthesis = demangled_function.find_first_of('(');
+         const std::string function = demangled_function.substr(0,first_parenthesis);
+         known_address[address]=function;
+      }else known_address[address]=demangled_function;
+   }
 
-  const std::string display_function = known_address[address];
+   const std::string display_function = known_address[address];
   
-  const int first_3A = display_function.find_first_of(':');
-  const int first_3C = display_function.find_first_of('<');
-  const int first_5B = display_function.find_first_of('[');
-  assert(first_3A<=(first_5B<0)?first_3A:first_5B);
-  const int first_3AC = ((first_3A^first_3C)<0)?
-    std::max(first_3A,first_3C):std::min(first_3A,first_3C);
-  const std::string root = (first_3A!=first_3C)?display_function.substr(0,first_3AC):display_function;
+   const int first_3A = display_function.find_first_of(':');
+   const int first_3C = display_function.find_first_of('<');
+   const int first_5B = display_function.find_first_of('[');
+   assert(first_3A<=(first_5B<0)?first_3A:first_5B);
+   const int first_3AC = ((first_3A^first_3C)<0)?
+      std::max(first_3A,first_3C):std::min(first_3A,first_3C);
+   const std::string root = (first_3A!=first_3C)?display_function.substr(0,first_3AC):display_function;
         
-  if (known_colors.find(display_function)==known_colors.end())
-    known_colors[display_function] = known_colors.size()%(256-46)+46;
-  const int color = known_colors[display_function];
+   if (known_colors.find(display_function)==known_colors.end())
+      known_colors[display_function] = known_colors.size()%(256-46)+46;
+   const int color = known_colors[display_function];
 
-  if (out){
-     // Generating tabs
-     for(int k=0;k<frames;++k) std::cout<<tab_char;
-     // Outputing 
-     if (!org_mode)
-        std::cout << "\033[" << options
-                  << ";38;5;"<< color
-                  << ";1m"; // bold
-     else std::cout << " ";
-     std::cout << "["<<filename<<":"<<lineno<<":"<<display_function<<"]\033[m ";
-     // reset + normal color if !empty
-     if (!org_mode)
-        std::cout << "\033[38;5;"<<color<<"m";
-     std::cout << stream.str();
-     if (!org_mode) std::cout << "[m";
-     stream.clear();
-  }
+   if (out){
+      // Generating tabs
+      for(int k=0;k<frames;++k) std::cout<<tab_char;
+      // Outputing 
+      if (!org_mode)
+         std::cout << "\033[" << options
+                   << ";38;5;"<< color
+                   << ";1m"; // bold
+      else std::cout << " ";
+      std::cout << "["<<filename<<":"<<lineno<<":"<<display_function<<"]\033[m ";
+      // reset + normal color if !empty
+      if (!org_mode)
+         std::cout << "\033[38;5;"<<color<<"m";
+      std::cout << stream.str();
+      if (!org_mode) std::cout << "[m";
+      stream.clear();
+   }
 
-  // if MM was set, make sure all "mfem::*" calls go through the mm.*pp file
-  if (mm_assert and mfem){
-     if (out) printf("\033[1;32mMFEM\033[m");
-     if (mm){
-        if (out) printf("\033[1;32m, MM\033[m");
-        if (ptr) {
-           const bool is_new = new_or_delete;
-           const bool is_del = not new_or_delete;
-           const bool known = mfem::mm::known((void*)ptr);
-           if (known and is_new){
-              printf("\033[1;31m\nTrying to insert a pointer that is known by the MM!\033[m");
-              assert(false);
-           }else if (not known and is_del){
-              //printf("\033[1;31m\nTrying to delete a pointer that is not known by the MM!\033[m");
-              //assert(false);
-           }else{
-              if (out) printf("\033[32m, known: ok\033[m");
-           }
-        }
-     }else{
-        if (out) printf("\033[31m, !MM\033[m");
-        // if a pointer has been given, use it to test if it known in the mm
-        if (ptr) {
-           const bool is_new = new_or_delete;
-           const bool is_del = not new_or_delete;
-           const bool known = mfem::mm::known((void*)ptr);
-           if (known and is_new){
-              printf("\033[1;31m\nTrying to insert a pointer that is known by the MM!\033[m");
-              assert(false);
-           }else if (known and is_del){
-              printf("\033[1;31m\nTrying to delete a pointer that is known by the MM!\033[m");
-              printf("\033[32mSTACK: %s\033[m",bt->stack()); 
-              mfem::mm::dump((void*)ptr);
-              fflush(0);
-              exit(0);
-           }else{
-              if (out) printf("\033[31m, unknown: ok\033[m");
-           }
-        }
-     }
-  }else if (mm_assert and not mfem){
-     if (out) printf("\033[1;31mNot MFEM\033[m");
-     // if a pointer has been given, use it to test if it known in the mm
-     if (ptr) {
-        const bool known = mfem::mm::known((void*)ptr);
-        if (known){
-           printf("\033[1;31m\nTrying to delete a pointer that is known by the MM!\033[m");
-           assert(false);
-        }
-     }
-  }
-  if (out) fflush(0);
-  if (out) std::cout << "\n";
+   // If a pointer was given, use it to test if it is known by the MM
+   if (ptr and mm_assert){  
+      const bool is_new = new_or_delete;
+      const bool is_del = not new_or_delete;
+      const bool known = mfem::mm::known((void*)ptr);
+      mmAdd(ptr, new_or_delete, bt->filename(), bt->lineno());
+      if (out) printf("\033[1;32m%sMFEM\033[m",mfem?"":"Not ");
+      if (mfem){
+         if (mm){
+            if (known and is_new){
+               printf("\033[1;31m\nTrying to 'insert' a pointer that is known by the MM!\033[m");
+               printf("\033[32m%s\033[m",bt->stack());
+               assert(false);
+            }else if (not known and is_del){
+               // Check done in the mm
+               // We don't want to re-check during the maps.memories.erase(ptr);
+               printf("\033[1;31m\n[MFEM,MM] Trying to 'erase' a pointer that is not known by the MM!\033[m");
+               printf("\033[32m%s\033[m",bt->stack());
+               assert(false);
+            }else{
+               if (out) printf("\033[32m, known: ok\033[m");
+            }
+         }else{
+            if (out) printf("\033[31m, !MM\033[m");
+            if (known and is_new){
+               printf("\033[1;31m\nTrying to 'new' a pointer that is known by the MM!\033[m");
+               printf("\033[32m%s\033[m",bt->stack()); 
+               assert(false);
+            }else if (known and is_del){
+               printf("\033[1;31m\nTrying to 'delete' a pointer that is known by the MM!\033[m");
+               printf("\033[32m%s\033[m",bt->stack()); 
+               assert(false);
+            }else{
+               if (out) printf("\033[31m, unknown: ok\033[m");
+            }        
+         }
+      }else{ // not mfem
+         if (mm){ // MM but not mfem namespace
+            if (known and is_new){
+               printf("\033[1;31m\nTrying to 'insert' a pointer that is known by the MM!\033[m");
+               printf("\033[32m%s\033[m",bt->stack());
+               assert(false);
+            }else if (not known and is_del){
+               printf("\033[1;31m\n[!MFEM,MM] Trying to 'erase' a pointer that is not known by the MM!\033[m");
+               printf("\033[32m%s\033[m",bt->stack());
+               assert(false);
+            }else{
+               if (out) printf("\033[32m, known: ok\033[m");
+            }
+         }else{ // not MM, not mfem namespace
+            if (known){
+               if (known and is_new){
+                  printf("\033[1;31m\nTrying to 'new' a pointer that is known by the MM!\033[m");
+                  printf("\033[32m%s\033[m",bt->stack()); 
+                  assert(false);
+               }else if (known and is_del){
+                  printf("\033[1;31m\nTrying to 'delete' a pointer that is known by the MM!\033[m");
+                  printf("\033[32m%s\033[m",bt->stack()); 
+                  assert(false);
+               }else{
+                  if (out) printf("\033[31m, unknown: ok\033[m");
+               }
+            }
+         }
+      }
+   }
+   if (out) fflush(0);
+   if (out) std::cout << "\n";
 }

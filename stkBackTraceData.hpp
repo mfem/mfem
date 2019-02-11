@@ -24,16 +24,13 @@ public:
    stkBackTraceData(backtrace_state*);
    ~stkBackTraceData();
 public:
-   void flush();
-   void isItMM(const char*, const char*, const int);
+   void ini(const bool dump =false);
    void update(const char *symbol, uintptr_t PC, const char* =NULL, const int=0);
    int continue_tracing(){ return m_hit?1:0; }
 public:
    bool mm(){ return m_mm; }
    bool mfem(){ return m_mfem; }
-   bool add(){ return m_add; }
-   void rip(const bool rip){ m_rip = rip; }
-   bool rip()const{ return m_rip; }
+   bool dump()const{ return m_dump; }
    int depth(){ return m_depth; }
    char *stack() { return m_stack; }
    uintptr_t address(){ return m_address; }
@@ -48,12 +45,10 @@ private:
    const char *m_filename;
    int m_lineno;
    uintptr_t m_address;
-   bool m_rip;
+   bool m_dump;
    bool m_hit;
    bool m_mm;
    bool m_mfem;
-   bool m_skip;
-   bool m_add;
    bool m_got;
    int m_depth;
    char m_stack[STACK_LENGTH];

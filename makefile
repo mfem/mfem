@@ -7,7 +7,7 @@ obj = $(pwd)/obj
 
 #### Object files ####
 OBJ = $(obj)/$(tgt).o
-OBJ += $(obj)/$(tgt).co
+#OBJ += $(obj)/$(tgt).co
 OBJ += $(obj)/stkBackTrace.o
 OBJ += $(obj)/stkBackTraceData.o
 

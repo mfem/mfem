@@ -18,25 +18,27 @@
 
 #include <sstream>
 
-class stk{
+// *****************************************************************************
+class backtrace{
 public:
-   stk(const bool =false);
-   stk(const void*, const bool, const bool =false);
-   stk(const char*, const bool =false);
-   ~stk();
+   backtrace(const bool dump=false);
+   backtrace(const void *pointer, const bool new_or_del, const bool dump=false);
+   backtrace(const char *options, const bool dump=false);
+   ~backtrace();
    template<class T>
-   stk& operator<<(const T& t){
+   backtrace& operator<<(const T& t){
       stream << t;
       return *this;
    }
 private:
    const void *ptr;
    const bool new_or_delete;
-   const bool rip;
+   const bool dump;
    std::stringstream stream;
    const char *options;
 };
 
-void stkIni(char*);
+void backtraceIni(char*);
+void backtraceEnd();
 
 #endif // STK_HPP

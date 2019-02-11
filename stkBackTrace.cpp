@@ -18,24 +18,18 @@
 // *****************************************************************************
 static const char* cxx_demangle(const char* mangled_name){
    int status;
-   size_t length;
    const char *demangled_name =
-      abi::__cxa_demangle(mangled_name, NULL, &length, &status);
+      abi::__cxa_demangle(mangled_name, NULL, NULL, &status);
    const bool succeeded = status == 0;
    const bool memory_allocation_failure_occurred = status == -1;
    const bool one_argument_is_invalid = status == -3;
    assert(not one_argument_is_invalid);
-   if (succeeded and length >= DEMANGLE_LENGTH){
-      printf("[demangle] length=%ld", length);
-      fflush(0);
-      assert(false);
-   }
    if (memory_allocation_failure_occurred){
       printf("[demangle] memory_allocation_failure_occurred!");
       fflush(0);
       assert(false);
    }
-   return (status==0)?demangled_name:mangled_name;
+   return (succeeded)?demangled_name:mangled_name;
 }
 
 // *****************************************************************************
@@ -58,7 +52,7 @@ static void sym_callback(void *data,
 
 // *****************************************************************************
 static void err_callback(void *data, const char *msg, int errnum){
-   _stk("err_callback");
+   assert(false);
 }
 
 // *****************************************************************************
@@ -74,17 +68,16 @@ static int full_callback(void *data,
                                sym_callback, err_callback, data);
    }
    const char *demangled = cxx_demangle(function);
+   
    // Filtering
    if (strncmp("std::",demangled,5)==0) return filter(demangled);
    if (strncmp("__gnu_cxx::",demangled,11)==0) return filter(demangled);
-   //if (strncmp("void",demangled,4)==0) return filter(demangled);
    
    // Update context
-   ctx->isItMM(demangled, filename, lineno);
    ctx->update(demangled, pc, filename, lineno);
    
    // Debug if ALL
-   if (ctx->rip() or getenv("ALL")){
+   if (ctx->dump() or getenv("ALL")){
       printf("\033[33m%s:%d \033[1m%s\033[m\n",filename,lineno,demangled);
    }
    return 0;
@@ -112,11 +105,10 @@ void stkBackTrace::ini(const char* argv0){
 }
 
 // *****************************************************************************
-int stkBackTrace::stk(const bool _rip){
-   if (state==NULL || data==NULL) return -1;
-   data->flush();
+int stkBackTrace::backtrace(const bool dump){
+   if (state==NULL or data==NULL) return -1;
+   data->ini(dump);
    // skip 2 frames to be on last function call
-   data->rip(_rip);
    backtrace_simple(state,2,simple_callback,err_callback,data);
    return 0;
 }
@@ -124,7 +116,6 @@ int stkBackTrace::stk(const bool _rip){
 // *****************************************************************************
 bool stkBackTrace::mm(){ return data->mm(); }
 bool stkBackTrace::mfem(){ return data->mfem(); }
-bool stkBackTrace::add(){ return data->add(); }
 int stkBackTrace::depth(){ return data->depth(); }
 uintptr_t stkBackTrace::address(){ return data->address(); }
 const char* stkBackTrace::function(){ return data->function(); }
