@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
+#include "../fem/pgridfunc.hpp"
 
 namespace mfem
 {
@@ -544,11 +545,12 @@ protected:
    ParFiniteElementSpace *pfes;
 
 public:
-   ParAdaptivityEvaluator() : AdaptivityEvaluator(), pmesh(NULL), pfes(NULL) { }
+   ParAdaptivityEvaluator() : AdaptivityEvaluator(),
+                              pmesh(NULL), pfes(NULL) { }
    virtual ~ParAdaptivityEvaluator();
 
-   void SetMetaInfo(const ParMesh &m,
-                    const FiniteElementCollection &fec, int num_comp);
+   void SetParMetaInfo(const ParMesh &m,
+                       const FiniteElementCollection &fec, int num_comp);
 };
 #endif
 
@@ -660,29 +662,36 @@ public:
                                       DenseTensor &Jtr) const;
 };
 
+class ParGridFunction;
+
 class DiscreteAdaptTC : public TargetConstructor
 {
 protected:
    // Discrete target specification.
-   GridFunction *target_spec;
+   ParGridFunction *target_spec;
    Vector ts_nodes;
 
    // Evaluation of the discrete target specification on different meshes.
-   AdaptivityEvaluator *adapt_eval;
+   // Owned.
+   ParAdaptivityEvaluator *adapt_eval;
 
 public:
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
         target_spec(NULL), ts_nodes(), adapt_eval(NULL) { }
 
-   virtual void SetDiscreteTargetSpec(GridFunction &tspec);
+   virtual ~DiscreteAdaptTC() { delete adapt_eval; }
 
-   void SetAdaptivityEvaluator(AdaptivityEvaluator &ae)
-   {
-      adapt_eval = &ae;
-   }
+   virtual void SetDiscreteTargetSpec(ParGridFunction &tspec);
 
    void UpdateTargetSpecification(const Vector &new_x);
+
+   void SetAdaptivityEvaluator(ParAdaptivityEvaluator &ae)
+   {
+      if (adapt_eval) { delete adapt_eval; }
+
+      adapt_eval = &ae;
+   }
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element. */
@@ -690,8 +699,6 @@ public:
                                       const IntegrationRule &ir,
                                       DenseTensor &Jtr) const;
 };
-
-class ParGridFunction;
 
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.

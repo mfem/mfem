@@ -17,11 +17,11 @@ namespace mfem
 using namespace mfem;
 
 AdvectorCGOperator::AdvectorCGOperator(const Vector &x_start,
-                                       ParGridFunction &vel,
+                                       GridFunction &vel,
                                        Vector &xn,
                                        ParFiniteElementSpace &pfes)
    : TimeDependentOperator(pfes.GetVSize()),
-     x0(x_start), u(vel), x_now(xn), u_coeff(&u), M(&pfes), K(&pfes)
+     x0(x_start), x_now(xn), u(vel), u_coeff(&u), M(&pfes), K(&pfes)
 {
    ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
    K.AddDomainIntegrator(Kinteg);
@@ -84,15 +84,16 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &x_start,
                                       const Vector &x_end,
                                       Vector &ind)
 {
-   ParGridFunction mesh_nodes(pfes);
-   mesh_nodes = x_start;
-   pmesh->SetNodalGridFunction(&mesh_nodes);
+   // This will be used to move the positions.
+   GridFunction *mesh_nodes = pmesh->GetNodes();
+   *mesh_nodes = x_start;
 
-   ParGridFunction u(pfes);
+   // Velocity of the positions.
+   GridFunction u(mesh_nodes->FESpace());
    subtract(x_end, x_start, u);
 
    // This must be the fes of the ind, associated with the object's mesh.
-   AdvectorCGOperator oper(x_start, u, mesh_nodes, *pfes);
+   AdvectorCGOperator oper(x_start, u, *mesh_nodes, *pfes);
    ode_solver.Init(oper);
 
    // Compute some time step [mesh_size / speed].
@@ -102,7 +103,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &x_start,
       min_h = std::min(min_h, pmesh->GetElementSize(1));
    }
    double v_max = 0.0;
-   int s = u.ParFESpace()->GetVSize() / 2;
+   int s = u.FESpace()->GetVSize() / 2;
    for (int i = 0; i < s; i++)
    {
       double vel = std::sqrt( u(i) * u(i) + u(i+s) * u(i+s) + 1e-14);
@@ -116,6 +117,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &x_start,
    MPI_Comm_rank(pfes->GetComm(), &myid);
    double t = 0.0;
    bool last_step = false;
+
    for (int ti = 1; !last_step; ti++)
    {
       if (t + glob_dt >= 1.0)
@@ -129,13 +131,6 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &x_start,
          last_step = true;
       }
       ode_solver.Step(ind, t, glob_dt);
-   }
-
-   // Trim to put it in [0, 1].
-   for (int i = 0; i < ind.Size(); i++)
-   {
-      if (ind(i) < 0.0) { ind(i) = 0.0; }
-      if (ind(i) > 1.0) { ind(i) = 1.0; }
    }
 }
 

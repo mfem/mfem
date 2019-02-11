@@ -24,15 +24,15 @@ class AdvectorCGOperator : public TimeDependentOperator
 private:
    const Vector &x0;
    Vector &x_now;
-   ParGridFunction &u;
+   GridFunction &u;
 
    VectorGridFunctionCoefficient u_coeff;
    mutable ParBilinearForm M, K;
 
 public:
    // Note: pfes must be the ParFESpace of the mesh that will be moved.
-   //       xn must be the Nodes valus of the mesh that will be moved.
-   AdvectorCGOperator(const Vector &x_start, ParGridFunction &vel,
+   //       xn must be the Nodes values of the mesh that will be moved.
+   AdvectorCGOperator(const Vector &x_start, GridFunction &vel,
                       Vector &xn, ParFiniteElementSpace &pfes);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;

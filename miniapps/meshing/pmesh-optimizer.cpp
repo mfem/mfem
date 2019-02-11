@@ -98,7 +98,7 @@ private:
    ParFiniteElementSpace *pfes;
    mutable ParGridFunction x_gf;
 
-   DiscreteAdaptTC *discr_tc;
+   mutable DiscreteAdaptTC *discr_tc;
 
 public:
    RelaxedNewtonSolver(const IntegrationRule &irule, ParFiniteElementSpace *pf)
@@ -109,9 +109,13 @@ public:
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
-   virtual void ProcessNewState(const Vector &x)
+   virtual void ProcessNewState(const Vector &x) const
    {
-      if (discr_tc) { discr_tc->UpdateTargetSpecification(x); }
+      if (discr_tc)
+      {
+         x_gf.Distribute(x);
+         discr_tc->UpdateTargetSpecification(x_gf);
+      }
    }
 };
 

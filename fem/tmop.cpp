@@ -12,6 +12,7 @@
 #include "tmop.hpp"
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
+#include "tmop_tools.hpp"
 
 namespace mfem
 {
@@ -900,7 +901,7 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-void DiscreteAdaptTC::SetDiscreteTargetSpec(GridFunction &tspec)
+void DiscreteAdaptTC::SetDiscreteTargetSpec(ParGridFunction &tspec)
 {
    target_spec = &tspec;
    target_spec->FESpace()->GetMesh()->GetNodes(ts_nodes);
@@ -908,7 +909,14 @@ void DiscreteAdaptTC::SetDiscreteTargetSpec(GridFunction &tspec)
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
 {
-   MFEM_VERIFY(adapt_eval != NULL, "Use SetAdaptivityEvaluator.");
+   // Default evaluator is based on CG advection.
+   if (adapt_eval == NULL)
+   {
+      adapt_eval = new AdvectorCG;
+      adapt_eval->SetParMetaInfo(*target_spec->ParFESpace()->GetParMesh(),
+                                 *target_spec->ParFESpace()->FEColl(),
+                                 target_spec->ParFESpace()->GetVDim());
+   }
 
    adapt_eval->ComputeAtNewPosition(ts_nodes, new_x, *target_spec);
    ts_nodes = new_x;
@@ -952,12 +960,12 @@ void AdaptivityEvaluator::SetMetaInfo(const Mesh &m,
 }
 
 #ifdef MFEM_USE_MPI
-void ParAdaptivityEvaluator::SetMetaInfo(const ParMesh &m,
-                                         const FiniteElementCollection &fec,
-                                         int num_comp)
+void ParAdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
+                                            const FiniteElementCollection &fec,
+                                            int num_comp)
 {
    pmesh = new ParMesh(m, true);
-   fes = new ParFiniteElementSpace(pmesh, &fec, num_comp);
+   pfes  = new ParFiniteElementSpace(pmesh, &fec, num_comp);
 }
 #endif
 
