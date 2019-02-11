@@ -283,6 +283,10 @@ public:
        value of 0 indicates a failure, interrupting the Newton iteration. */
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const
    { return 1.0; }
+
+   /** @brief This method can be overloaded in derived classes to perform
+       computations that need knowledge of the newest Newton state. */
+   virtual void ProcessNewState(const Vector &x) const { }
 };
 
 /** Adaptive restarted GMRES.

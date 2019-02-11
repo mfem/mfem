@@ -665,24 +665,24 @@ class DiscreteAdaptTC : public TargetConstructor
 protected:
    // Discrete target specification.
    GridFunction *target_spec;
+   Vector ts_nodes;
+
    // Evaluation of the discrete target specification on different meshes.
-   const AdaptivityEvaluator *adapt_eval;
+   AdaptivityEvaluator *adapt_eval;
 
 public:
    DiscreteAdaptTC(TargetType ttype)
-      : TargetConstructor(ttype), target_spec(NULL), adapt_eval(NULL) { }
+      : TargetConstructor(ttype),
+        target_spec(NULL), ts_nodes(), adapt_eval(NULL) { }
 
-   virtual void SetDiscreteTargetSpec(GridFunction &tspec)
-   {
-      target_spec = &tspec;
-   }
+   virtual void SetDiscreteTargetSpec(GridFunction &tspec);
 
-   void SetAdaptivityEvaluator(const AdaptivityEvaluator &ae)
+   void SetAdaptivityEvaluator(AdaptivityEvaluator &ae)
    {
       adapt_eval = &ae;
    }
 
-   void UpdateTargetSpecification(Vector &start_x, Vector &new_x);
+   void UpdateTargetSpecification(const Vector &new_x);
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element. */
