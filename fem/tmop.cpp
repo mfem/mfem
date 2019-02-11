@@ -900,11 +900,18 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-void DiscreteAdaptTC::UpdateTargetSpecification(Vector &start_x, Vector &new_x)
+void DiscreteAdaptTC::SetDiscreteTargetSpec(GridFunction &tspec)
+{
+   target_spec = &tspec;
+   target_spec->FESpace()->GetMesh()->GetNodes(ts_nodes);
+}
+
+void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
 {
    MFEM_VERIFY(adapt_eval != NULL, "Use SetAdaptivityEvaluator.");
 
-   adapt_eval->ComputeAtNewPosition(start_x, new_x, *target_spec);
+   adapt_eval->ComputeAtNewPosition(ts_nodes, new_x, *target_spec);
+   ts_nodes = new_x;
 }
 
 void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
