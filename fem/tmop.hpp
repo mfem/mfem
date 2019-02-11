@@ -532,7 +532,7 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &start_nodes,
                                      const Vector &new_nodes,
-                                     Vector &field) const = 0;
+                                     Vector &field) = 0;
 };
 
 #ifdef MFEM_USE_MPI

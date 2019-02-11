@@ -936,6 +936,24 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
+void AdaptivityEvaluator::SetMetaInfo(const Mesh &m,
+                                      const FiniteElementCollection &fec,
+                                      int num_comp)
+{
+   mesh = new Mesh(m, true);
+   fes = new FiniteElementSpace(mesh, &fec, num_comp);
+}
+
+#ifdef MFEM_USE_MPI
+void ParAdaptivityEvaluator::SetMetaInfo(const ParMesh &m,
+                                         const FiniteElementCollection &fec,
+                                         int num_comp)
+{
+   pmesh = new ParMesh(m, true);
+   fes = new ParFiniteElementSpace(pmesh, &fec, num_comp);
+}
+#endif
+
 AdaptivityEvaluator::~AdaptivityEvaluator()
 {
    delete fes;
