@@ -40,31 +40,47 @@
 template <size_t BLOCKS, typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 {
+   const bool omp  = mfem::config::usingOmp();
    const bool gpu  = mfem::config::usingGpu();
    const bool raja = mfem::config::usingRaja();
 
    if (gpu && raja)
    {
-#ifdef MFEM_USE_RAJA
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
       return RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N), d_body);
 #else
-      MFEM_ABORT("RAJA requested for MFEM but RAJA is not enabled!");
+      MFEM_ABORT("RAJA::Cuda requested for MFEM but RAJA::Cuda is not enabled!");
 #endif
-
    }
    else if (gpu)
    {
       return cuWrap<BLOCKS>(N,d_body);
    }
-   else if (!gpu && raja)
+   else if (omp && raja)
    {
-
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
+     return RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(0,N), h_body);
+#else
+      MFEM_ABORT("RAJA::OpenMP requested for MFEM but RAJA::OpenMP is not enabled!");
+#endif
+   }
+   else if (omp)
+   {
+#if defined(_OPENMP)
+#pragma omp parallel for
+     for (size_t k=0; k<N; k+=1) { h_body(k); }
+     return;
+#else
+      MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
+#endif
+   }
+   else if (raja)
+   {
 #ifdef MFEM_USE_RAJA
       return RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
 #else
       MFEM_ABORT("RAJA requested for MFEM but RAJA is not enabled!");
 #endif
-
    }
    else
    {

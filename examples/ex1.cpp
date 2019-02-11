@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = false;
    bool cuda = false;
+   bool omp  = false;
    bool raja = false;
    bool occa = false;
    bool visualization = 1;
@@ -70,6 +71,7 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
+   args.AddOption(&omp, "-om", "--omp", "-no-om", "--no-omp", "Enable OpenMP.");
    args.AddOption(&raja, "-ra", "--raja", "-no-ra", "--no-raja", "Enable RAJA.");
    args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -147,6 +149,7 @@ int main(int argc, char *argv[])
    config::usePA(pa);
    if (pa) { mesh->EnsureNodes(); }
    if (cuda) { config::useCuda(); }
+   if (omp)  { config::useOmp();  }
    if (raja) { config::useRaja(); }
    if (occa) { config::useOcca(); }
    config::enableGpu(0/*,occa,cuda*/);
