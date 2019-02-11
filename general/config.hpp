@@ -32,6 +32,7 @@ private:
    bool cuda = false;
    bool raja = false;
    bool occa = false;
+   bool omp = false;
    bool sync = false;
    bool nvvp = false;
    CUdevice cuDevice;
@@ -89,6 +90,9 @@ public:
    static inline bool usingCuda() { return Get().cuda; }
    static inline void useCuda() { Get().cuda = true; }
    static inline CUstream Stream() { return *Get().cuStream; }
+
+   static inline bool usingOmp() { return Get().omp; }
+   static inline void useOmp() { Get().omp = true; }
 
    static inline bool usingRaja() { return Get().raja; }
    static inline void useRaja() { Get().raja = true; }
