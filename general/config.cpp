@@ -40,7 +40,7 @@ void config::CudaDeviceSetup(const int device)
 // *****************************************************************************
 void config::RajaDeviceSetup(const int device)
 {
-#ifdef __NVCC__
+#if defined(__NVCC__) && defined(MFEM_USE_RAJA)
    cudaGetDeviceCount(&ngpu);
    MFEM_ASSERT(ngpu>0, "No CUDA device found!");
    cuInit(0);
@@ -50,8 +50,8 @@ void config::RajaDeviceSetup(const int device)
    cuStream = new CUstream;
    MFEM_ASSERT(cuStream, "CUDA stream could not be created!");
    cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
-#else
-   MFEM_ABORT("CUDA requested for RAJA but no GPU support has been built!");
+#elif !defined(MFEM_USE_RAJA)
+   MFEM_ABORT("RAJA requested but no RAJA support has been built!");
 #endif
 }
 
