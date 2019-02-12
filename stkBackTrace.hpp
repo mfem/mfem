@@ -16,26 +16,20 @@
 #ifndef LIB_STK_BACKTRACE
 #define LIB_STK_BACKTRACE
 
-struct backtrace_state;
-class stkBackTraceData;
-
 // ***************************************************************************
-// * stkBackTrace
+// * Backtrace
 // ***************************************************************************
 class stkBackTrace {
-private:
-   backtrace_state *state = NULL;
-   stkBackTraceData *data = NULL;
 public:
    stkBackTrace();
    ~stkBackTrace();
 public:
    void ini(const char*);
-   int backtrace(const bool =false);
+   int backtrace(const bool dump=false);
 public:
-   bool rip = false;
    bool mm();
    bool mfem();
+   bool skip();
    bool add();
    int depth();
    uintptr_t address();
@@ -43,6 +37,9 @@ public:
    const char* filename();
    const int lineno();
    char *stack();
+private:
+   backtrace_state *state;
+   stkBackTraceData *data;
 };
 
 #endif // LIB_STK_BACKTRACE

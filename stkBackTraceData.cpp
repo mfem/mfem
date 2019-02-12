@@ -30,7 +30,8 @@ stkBackTraceData::stkBackTraceData(backtrace_state* s):
    m_mm(false),
    m_mfem(false),
    m_got(false), 
-   m_depth(0){}
+   m_depth(0),
+   m_skip(false){}
 
 // *****************************************************************************
 stkBackTraceData::~stkBackTraceData(){
@@ -49,6 +50,7 @@ void stkBackTraceData::ini(const bool dump){
    m_got=false;
    m_depth=0;
    m_stack[0]=0;
+   m_skip=false;
 }
 
 // *****************************************************************************
@@ -77,32 +79,49 @@ void stkBackTraceData::update(const char* demangled,
                               uintptr_t PC,
                               const char* filename,
                               const int lineno) {
-   
-   {
-      const bool mfem = strncmp(demangled,"mfem::",6)==0;
-      if (m_dbg) printf("%s", mfem?"mfem::":"");
-      m_mfem |= mfem;
-      const bool mm_hpp = strncmp(getFilename(filename,'/',2),"general/mm.hpp",13)==0;
-      const bool mm_cpp = strncmp(getFilename(filename,'/',2),"general/mm.cpp",13)==0;
-      const bool mm_space = strncmp(demangled,"mfem::mm",8)==0;
-      const bool mm = mm_cpp or mm_hpp or mm_space;
-      if (m_dbg) printf("%s", mm?"MM::":"");
-      m_mm |= mm;
-   }
-   
-   m_hit = !strncmp(demangled,"main",4);
+   m_hit = !strncmp(demangled,"main",4);   
    m_depth+=1;
-   {
+   
+   // MFEM namespace test
+   const bool mfem = strncmp(demangled,"mfem::",6)==0;
+   if (m_dbg) printf("%s", mfem?"mfem::":"");
+   m_mfem |= mfem;
+   
+   
+   { // MM test
+      if (filename){
+         const bool mm_hpp = strncmp(getFilename(filename,'/',2),"general/mm.hpp",13)==0;
+         const bool mm_cpp = strncmp(getFilename(filename,'/',2),"general/mm.cpp",13)==0;
+         const bool mm_space = strncmp(demangled,"mfem::mm",8)==0;
+         // We do want the allocations, but NOT the ones done in the MM!
+         // Allocations inside 'mm.cpp' trig (mfem and mm_cpp)
+         //const bool mm = (not m_mfem) and (mm_cpp or mm_hpp or mm_space);
+         const bool mm = (mm_cpp or mm_hpp or mm_space);
+         if (m_dbg) printf("%s", mm?"MM::":"");
+         m_mm |= mm;
+         {
+            // Skip
+            const bool insert = (lineno==160) and mm_cpp;
+            const bool erase = (lineno==185) and mm_cpp;
+            const bool skip = insert or erase;
+            m_skip |= skip;
+            if (m_dbg) printf("%s", m_skip?"skip::":"");
+         }
+      }
+   }
+   { // Record the stack
       char add[STACK_LENGTH];
       const int n_char_printed =
          snprintf(add, STACK_LENGTH, "\n\t%s %s:%d",
                   demangled,filename?filename:"???",lineno);
       assert(n_char_printed<STACK_LENGTH);
       strcat(m_stack,add);
-   }
+   }   
    if (m_function!=nullptr) return;
    m_function = strdup(demangled);
    m_filename = filename?strdup(filename):NULL;
    m_address = PC;
    m_lineno = lineno;
+   //if (m_dbg) printf("Setting function:%s, filename:%s:%d", m_function, m_filename, m_lineno);
+
 }

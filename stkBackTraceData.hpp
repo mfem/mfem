@@ -17,7 +17,7 @@
 #define LIB_STK_BACKTRACE_DATA
 
 // *****************************************************************************
-// * Backtrace library
+// * Backtrace Data
 // *****************************************************************************
 class stkBackTraceData {
 public:
@@ -30,6 +30,7 @@ public:
 public:
    bool mm(){ return m_mm; }
    bool mfem(){ return m_mfem; }
+   bool skip(){ return m_skip; }
    bool dump()const{ return m_dump; }
    int depth(){ return m_depth; }
    char *stack() { return m_stack; }
@@ -52,6 +53,7 @@ private:
    bool m_got;
    int m_depth;
    char m_stack[STACK_LENGTH];
+   bool m_skip;
 };
 
 #endif // LIB_STK_BACKTRACE_DATA

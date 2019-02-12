@@ -16,29 +16,13 @@
 #ifndef STK_HPP
 #define STK_HPP
 
-#include <sstream>
+// *****************************************************************************
+void backtraceIni(const char*);
 
 // *****************************************************************************
-class backtrace{
-public:
-   backtrace(const bool dump=false);
-   backtrace(const void *pointer, const bool new_or_del, const bool dump=false);
-   backtrace(const char *options, const bool dump=false);
-   ~backtrace();
-   template<class T>
-   backtrace& operator<<(const T& t){
-      stream << t;
-      return *this;
-   }
-private:
-   const void *ptr;
-   const bool new_or_delete;
-   const bool dump;
-   std::stringstream stream;
-   const char *options;
-};
+void backtrace(const void *ptr, const bool new_or_del, const bool dump=false);
 
-void backtraceIni(char*);
+// *****************************************************************************
 void backtraceEnd();
 
 #endif // STK_HPP

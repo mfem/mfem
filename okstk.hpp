@@ -17,23 +17,15 @@
 #define OKSTK_HPP
 
 #include <map>
-#include <sstream>
-#include <cassert>
 #include <cxxabi.h>
-#include <string.h>
-
-#include <regex>
-#include <iostream>
-#include <unordered_map>
 
 #include <backtrace.h>
 #include <backtrace-supported.h>
 
-#define STACK_LENGTH 32768
-
 #include "stk.hpp"
-#include "stkBackTrace.hpp"
+#define STACK_LENGTH 32768
 #include "stkBackTraceData.hpp"
+#include "stkBackTrace.hpp"
 
 #include "/home/camier1/home/mfem/okina-mmcheck/general/okina.hpp"
 

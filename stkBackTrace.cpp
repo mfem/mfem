@@ -61,7 +61,9 @@ static int full_callback(void *data,
                          const char *filename,
                          int lineno,
                          const char *function){
+   static const bool all = getenv("ALL");
    stkBackTraceData *ctx = static_cast<stkBackTraceData*>(data);
+   const bool dbg = ctx->dump() or all;
    if (!function){ // symbol hit
       //printf("\n\033[32;1m[full_callback] filename:%s, lineno=%d, pc=0x%lx\033[m",filename, lineno, pc);
       return backtrace_syminfo(ctx->state(), pc,
@@ -73,12 +75,15 @@ static int full_callback(void *data,
    if (strncmp("std::",demangled,5)==0) return filter(demangled);
    if (strncmp("__gnu_cxx::",demangled,11)==0) return filter(demangled);
    
+   // Debug if ALL
+   if (dbg){ printf("\n\t"); }
+   
    // Update context
    ctx->update(demangled, pc, filename, lineno);
    
    // Debug if ALL
-   if (ctx->dump() or getenv("ALL")){
-      printf("\033[33m%s:%d \033[1m%s\033[m\n",filename,lineno,demangled);
+   if (dbg){
+      printf("\033[33m%s:%d\033[1m %s\033[m",filename,lineno,demangled);
    }
    return 0;
 }
@@ -108,18 +113,21 @@ void stkBackTrace::ini(const char* argv0){
 int stkBackTrace::backtrace(const bool dump){
    if (state==NULL or data==NULL) return -1;
    data->ini(dump);
-   // skip 2 frames to be on last function call
-   backtrace_simple(state,2,simple_callback,err_callback,data);
+   backtrace_simple(state,
+                    3, // skip frames to point on previous function call
+                    simple_callback,
+                    err_callback,
+                    data);
    return 0;
 }
 
 // *****************************************************************************
 bool stkBackTrace::mm(){ return data->mm(); }
 bool stkBackTrace::mfem(){ return data->mfem(); }
+bool stkBackTrace::skip(){ return data->skip(); }
 int stkBackTrace::depth(){ return data->depth(); }
 uintptr_t stkBackTrace::address(){ return data->address(); }
 const char* stkBackTrace::function(){ return data->function(); }
 const char* stkBackTrace::filename(){ return data->filename(); }
 const int stkBackTrace::lineno(){ return data->lineno(); }
 char *stkBackTrace::stack(){ return data->stack(); }
-
