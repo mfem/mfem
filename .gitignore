@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ------------------------------------------------------------------------------
 # Ignore files that are generated from the repository sources by either building
 # the code or running it. These should be the same as the files erased by
@@ -182,3 +183,37 @@ miniapps/nurbs/Example1*
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
+=======
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+>>>>>>> okstk
