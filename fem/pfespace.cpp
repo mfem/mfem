@@ -613,15 +613,15 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    int ldof  = GetVSize();
    int ltdof = TrueVSize();
 
-   HYPRE_Int *i_diag = new HYPRE_Int[ldof+1];
-   HYPRE_Int *j_diag = new HYPRE_Int[ltdof];
+   HYPRE_Int *i_diag = mm::malloc<HYPRE_Int>(ldof+1);
+   HYPRE_Int *j_diag = mm::malloc<HYPRE_Int>(ltdof);
    int diag_counter;
 
-   HYPRE_Int *i_offd = new HYPRE_Int[ldof+1];
-   HYPRE_Int *j_offd = new HYPRE_Int[ldof-ltdof];
+   HYPRE_Int *i_offd = mm::malloc<HYPRE_Int>(ldof+1);
+   HYPRE_Int *j_offd = mm::malloc<HYPRE_Int>(ldof-ltdof);
    int offd_counter;
 
-   HYPRE_Int *cmap   = new HYPRE_Int[ldof-ltdof];
+   HYPRE_Int *cmap   = mm::malloc<HYPRE_Int>(ldof-ltdof);
 
    HYPRE_Int *col_starts = GetTrueDofOffsets();
    HYPRE_Int *row_starts = GetDofOffsets();
