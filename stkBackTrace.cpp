@@ -65,7 +65,7 @@ static int full_callback(void *data,
    stkBackTraceData *ctx = static_cast<stkBackTraceData*>(data);
    const bool dbg = ctx->dump() or all;
    if (!function){ // symbol hit
-      //printf("\n\033[32;1m[full_callback] filename:%s, lineno=%d, pc=0x%lx\033[m",filename, lineno, pc);
+      //if (dbg) printf("\n\033[32;1m[full_callback] filename:%s, lineno=%d, pc=0x%lx\033[m",filename, lineno, pc);
       return backtrace_syminfo(ctx->state(), pc,
                                sym_callback, err_callback, data);
    }

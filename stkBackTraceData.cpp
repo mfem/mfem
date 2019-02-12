@@ -100,10 +100,11 @@ void stkBackTraceData::update(const char* demangled,
          if (m_dbg) printf("%s", mm?"MM::":"");
          m_mm |= mm;
          {
-            // Skip
+            // Skip where the 'emplace' are done
             const bool insert = strncmp(demangled,"mfem::mm::Insert",16)==0;
+            const bool alias = strncmp(demangled,"InsertAlias",11)==0;
             const bool erase = strncmp(demangled,"mfem::mm::Erase",15)==0;            
-            const bool skip = insert or erase;
+            const bool skip = insert or erase or alias;
             m_skip |= skip;
             if (m_dbg) printf("%s", m_skip?"skip::":"");
          }

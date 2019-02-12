@@ -15,7 +15,7 @@ OBJ += $(obj)/stkBackTraceData.o
 #### Compilation variables ####
 CXX = g++
 CPU = $(shell echo $(shell getconf _NPROCESSORS_ONLN)*2|bc -l)
-INC = -I/home/camier1/include
+INC = -I$(HOME)/usr/local/include
 FLG = -std=c++11 -fPIC -Wall -g $(INC)
 LIB = -Wl,-rpath -Wl,/home/camier1/lib -Wl,-rpath -Wl,$(pwd)
 
