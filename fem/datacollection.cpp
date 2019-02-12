@@ -161,6 +161,14 @@ void DataCollection::SetFormat(int fmt)
    format = fmt;
 }
 
+void DataCollection::SetCompression(bool comp)
+{
+   compression = comp;
+#ifdef MFEM_USE_GZSTREAM
+   MFEM_ASSERT(!compression, "GZStream not enabled in MFEM build.");
+#endif
+}
+
 void DataCollection::SetPrefixPath(const std::string& prefix)
 {
    if (!prefix.empty())
@@ -219,7 +227,8 @@ void DataCollection::SaveMesh()
    }
 
    std::string mesh_name = GetMeshFileName();
-   std::ofstream mesh_file(mesh_name.c_str());
+   const char *mode = (compression) ? "zwb6" : "w";
+   ofgzstream mesh_file(mesh_name.c_str(), mode);
    mesh_file.precision(precision);
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
@@ -267,7 +276,9 @@ const
 
 void DataCollection::SaveOneField(const FieldMapIterator &it)
 {
-   std::ofstream field_file(GetFieldFileName(it->first).c_str());
+   const char *mode = (compression) ? "zwb6" : "w";
+   ofgzstream field_file(GetFieldFileName(it->first).c_str(), mode);
+
    field_file.precision(precision);
    (it->second)->Save(field_file);
    if (!field_file)
@@ -279,7 +290,8 @@ void DataCollection::SaveOneField(const FieldMapIterator &it)
 
 void DataCollection::SaveOneQField(const QFieldMapIterator &it)
 {
-   std::ofstream q_field_file(GetFieldFileName(it->first).c_str());
+   const char *mode = (compression) ? "zwb6" : "w";
+   ofgzstream q_field_file(GetFieldFileName(it->first).c_str(), mode);
    q_field_file.precision(precision);
    (it->second)->Save(q_field_file);
    if (!q_field_file)
@@ -576,7 +588,7 @@ void VisItDataCollection::LoadFields()
         it != field_info_map.end(); ++it)
    {
       std::string fname = path_left + it->first + path_right;
-      std::ifstream file(fname.c_str());
+      ifgzstream file(fname.c_str());
       // TODO: in parallel, check for errors on all processors
       if (!file)
       {
