@@ -17,7 +17,6 @@ static bool hooked = false;
 static bool dlsymd = false;
 
 // *****************************************************************************
-//static mm_t *mm = NULL;
 static free_t *_free = NULL;
 static malloc_t *_malloc = NULL;
 static calloc_t *_calloc = NULL;
@@ -32,8 +31,7 @@ static void _init(void){
    _malloc = (malloc_t*) dlsym(RTLD_NEXT, "malloc");
    _realloc = (realloc_t*) dlsym(RTLD_NEXT, "realloc");
    _memalign = (memalign_t*) dlsym(RTLD_NEXT, "memalign");
-   //mm = new mm_t();
-   assert(_free and _malloc and _calloc and _realloc and _memalign /*and mm*/);
+   assert(_free and _malloc and _calloc and _realloc and _memalign);
    hooked = dlsymd = true;
 }
 
@@ -46,9 +44,7 @@ void *malloc(size_t size){ // Red
    void *ptr = _malloc(size);
    assert(ptr);
    if (dbg) printf("\n\033[31m[malloc] %p (%ld)\033[m", ptr, size);
-   //assert(mm->find(ptr) == mm->end());
    backtrace(ptr, true, false); // new, dont show full stack
-   //mm->emplace(ptr, size);
    hooked = true;
    return ptr;
 }
@@ -60,9 +56,7 @@ void free(void *ptr){ // Green
    if (!ptr) return;
    hooked = false;
    if (dbg) printf("\n\033[32m[free] %p\033[m", ptr);
-   //assert(mm->find(ptr) != mm->end());
    backtrace(ptr, false, false); // delete, dont show full stack
-   //mm->erase(ptr);
    _free(ptr);
    hooked = true;
 }
@@ -84,9 +78,7 @@ void *calloc(size_t nmemb, size_t size){ // Yellow
    hooked = false;
    void *ptr = _calloc(nmemb, size);
    if (dbg) printf("\n\033[33m[calloc] %p (%ld)\033[m", ptr, size);
-   //assert(mm->find(ptr) == mm->end());
-   //backtrace(ptr, true, false); // new, dont show full stack
-   //mm->emplace(ptr, info_t(size, NULL, 0));
+   backtrace(ptr, true, false); // new, show full stack
    hooked = true;
    return ptr;
 }
@@ -99,8 +91,7 @@ void *realloc(void *ptr, size_t size){ // Blue
    void *nptr = _realloc(ptr, size);
    assert(nptr);
    if (dbg) printf("\n\033[34;7m[realloc] %p(%ld)\033[m", nptr, size);
-   //assert(mm->find(ptr) == mm->end());
-   //backtrace(nptr, true, false); // new, dont show full stack
+   backtrace(nptr, true, true); // new, show full stack
    hooked = true;
    return nptr;
 }
@@ -113,9 +104,7 @@ void *memalign(size_t alignment, size_t size){ // Magenta
    void *ptr = _memalign(alignment, size);
    assert(ptr);
    if (dbg) printf("\n\033[35;7m[memalign] %p(%ld)\033[m", ptr, size);
-   //assert(mm->find(ptr) == mm->end());
-   //known(ptr,false);
-   //backtrace(ptr, true, false); // new, dont show full stack
+   backtrace(ptr, true, true); // new, show full stack
    hooked = true;
    return ptr;
 }
