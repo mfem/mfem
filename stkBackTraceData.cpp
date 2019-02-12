@@ -101,8 +101,8 @@ void stkBackTraceData::update(const char* demangled,
          m_mm |= mm;
          {
             // Skip
-            const bool insert = (lineno==160) and mm_cpp;
-            const bool erase = (lineno==185) and mm_cpp;
+            const bool insert = strncmp(demangled,"mfem::mm::Insert",16)==0;
+            const bool erase = strncmp(demangled,"mfem::mm::Erase",15)==0;            
             const bool skip = insert or erase;
             m_skip |= skip;
             if (m_dbg) printf("%s", m_skip?"skip::":"");

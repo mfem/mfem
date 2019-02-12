@@ -26,9 +26,6 @@ typedef std::unordered_map<const void*,const char*> mm_t;
 static mm_t *mm = NULL;
 static stkBackTrace *bt = NULL;
 
-//static std::unordered_map<std::string, int> known_colors;
-//static std::unordered_map<uintptr_t,std::string> known_address;
-
 // *****************************************************************************
 const char *stack(const void *ptr){
    return mm->at(ptr);
@@ -42,12 +39,10 @@ void mmAdd(const void *ptr, const bool new_or_del, const char *stack){
    const bool known = mm->find(ptr) != mm->end();
    if (is_new){
       if (not known){
-         //printf("\n\033[31m(@%p) Stack: %s\033[m", ptr, stack);
          mm->emplace(ptr, strdup(stack));
       }
    }else{
       if (known){
-         //printf("\n\033[32m(@%p) Erase:\033[m", ptr);
          mm->erase(ptr);
       }
    }
@@ -73,7 +68,7 @@ void backtrace(const void *ptr,
    static const bool args = getenv("ARGS")!=NULL;
 
    // If we are in ORG_MODE, set tab_char to '*'
-   static const bool org_mode = getenv("ORG_MODE")!=NULL;
+   static const bool org_mode = getenv("ORG")!=NULL;
    static const bool mm_assert = getenv("MM")!=NULL;
    const std::string tab_char = org_mode?"*":"  ";
   
@@ -93,15 +88,6 @@ void backtrace(const void *ptr,
    const std::string demangled_function(function);
    const int first_parenthesis = demangled_function.find_first_of('(');
    const std::string no_args_demangled_function = demangled_function.substr(0,first_parenthesis);
-   //printf("\n[backtraceWalk] backtraced_function: %s", function);
-   //printf("\n[backtraceWalk] demangled_function: %s", demangled_function.c_str());
-   //printf("\n[backtraceWalk] no_args_demangled_function: %s", no_args_demangled_function.c_str());
-   //if (is_new) printf("\n[backtraceWalk] caller_filename: %s:%d", bt->caller_filename(), bt->caller_lineno());
-   //const bool is_a_known_function = known_address.find(address)!=known_address.end();
-   //if (not is_a_known_function){
-   //known_address[address] = (args)?demangled_function:no_args_demangled_function;
-//}
-   //const std::string display_function = known_address[address];  
    const std::string display_function = (args)?demangled_function:no_args_demangled_function;  
    const int first_3A = display_function.find_first_of(':');
    const int first_3C = display_function.find_first_of('<');
@@ -110,12 +96,6 @@ void backtrace(const void *ptr,
    const int first_3AC = ((first_3A^first_3C)<0)?
       std::max(first_3A,first_3C):std::min(first_3A,first_3C);
    const std::string root = (first_3A!=first_3C)?display_function.substr(0,first_3AC):display_function;
-   //printf("\n[backtraceWalk] root: %s", root.c_str());
-   //const bool is_a_known_color = known_colors.find(display_function)!=known_colors.end();
-   //if (not is_a_known_color){
-   //   known_colors[display_function] = known_colors.size()%(256-46)+46;
-   //}
-   //const int color = known_colors[display_function];
    const int color = address%(256-46)+46;
 
    if (dbg){
@@ -130,25 +110,23 @@ void backtrace(const void *ptr,
       // reset + normal color if !empty
       if (!org_mode)
          std::cout << "\033[38;5;"<<color<<"m";
-      //std::cout << stream.str();
       if (!org_mode) std::cout << "[m";
-      //stream.clear();
    }
 
    // If a pointer was given, use it to test if it is known by the MM
-   if (mm_assert){
+   if (mm_assert and not skip){
       const bool known = mfem::mm::known((void*)ptr);
-      if (dbg) printf("\033[1;32m%sMFEM\033[m",mfem?"":"Not ");
+      if (dbg) printf(" %sMFEM\033[m",mfem?"\033[1;32m":"\033[1;31mNot ");
       if (mfem){
-         if (mm and not skip){
+         if (mm){
             if (known and is_new){ // ******************************************
-               printf("\033[1;31m\nTrying to 'insert' a pointer (@%p) that is known by the MM!\033[m",ptr);
+               printf("\033[1;31m\nTrying to 'insert' a pointer (%p) that is known by the MM!\033[m",ptr);
                printf("\033[32m%s\033[m",bt->stack());
                printf("\nFirst:%s\n", stack(ptr));
                fflush(0);
                assert(false);
             }else if (not known and is_del){ // ********************************
-               printf("\n\033[1;31m[MFEM,MM] Trying to 'erase' a pointer (@%p) that is not known by the MM!\033[m",ptr);
+               printf("\n\033[1;31m[MFEM,MM] Trying to 'erase' a pointer (%p) that is not known by the MM!\033[m",ptr);
                printf("\nStack:%s\n\033[m",bt->stack());
                printf("\nFirst:%s\n", stack(ptr));
                fflush(0);
@@ -159,13 +137,13 @@ void backtrace(const void *ptr,
          }else{
             if (dbg) printf("\033[31m, !MM\033[m");
             if (known and is_new){ //  *****************************************
-               printf("\033[1;31m\nTrying to 'new' a pointer (@%p) that is known by the MM!\033[m",ptr);
+               printf("\033[1;31m\nTrying to 'new' a pointer (%p) that is known by the MM!\033[m",ptr);
                printf("\033[32m%s\n\033[m",bt->stack());
                printf("\nFirst:%s\n", stack(ptr));
                fflush(0);
                assert(false);
             }else if (known and is_del){ // ************************************
-               printf("\033[1;31m\nTrying to 'delete' a pointer (@%p) that is known by the MM!\033[m",ptr);
+               printf("\033[1;31m\nTrying to 'delete' a pointer (%p) that is known by the MM!\033[m",ptr);
                printf("\033[32m%s\n\033[m",bt->stack()); 
                printf("\nFirst:%s\n", stack(ptr));
                fflush(0);
@@ -175,15 +153,15 @@ void backtrace(const void *ptr,
             }        
          }
       }else{ // not mfem
-         if (mm and not skip){ // MM but not mfem namespace
+         if (mm){ // MM but not mfem namespace
             if (known and is_new){ // ******************************************
-               printf("\033[1;31m\nTrying to 'insert' a pointer (@%p) that is known by the MM!\033[m",ptr);
+               printf("\033[1;31m\nTrying to 'insert' a pointer (%p) that is known by the MM!\033[m",ptr);
                printf("\033[32m%s\033[m",bt->stack());
                printf("\nFirst:%s\n", stack(ptr));
                fflush(0);
                assert(false);
             }else if (not known and is_del){ // ********************************
-               printf("\033[1;31m[!MFEM,MM] Trying to 'erase' a pointer (@%p) that is not known by the MM!",ptr);
+               printf("\033[1;31m[!MFEM,MM] Trying to 'erase' a pointer (%p) that is not known by the MM!",ptr);
                printf("\nStack:%s\033[m",bt->stack());
                printf("\nFirst added:%s\n", stack(ptr));
                fflush(0);
@@ -194,13 +172,13 @@ void backtrace(const void *ptr,
          }else{ // not MM, not mfem namespace
             if (known){
                if (known and is_new){ // ***************************************
-                  printf("\033[1;31m\nTrying to 'new' a pointer (@%p) that is known by the MM!\033[m",ptr);
+                  printf("\033[1;31m\nTrying to 'new' a pointer (%p) that is known by the MM!\033[m",ptr);
                   printf("\033[32m%s\n\033[m",bt->stack());
                   printf("\nFirst:%s\n", stack(ptr));
                   fflush(0);
                   assert(false);
                }else if (known and is_del){ // *********************************
-                  printf("\033[1;31mTrying to 'delete' a pointer (@%p) that is known by the MM!",ptr);
+                  printf("\033[1;31mTrying to 'delete' a pointer (%p) that is known by the MM!",ptr);
                   printf("\nStack:%s\033[m",bt->stack());
                   printf("\nFirst:%s\n", stack(ptr));
                   fflush(0);
