@@ -81,8 +81,8 @@ public:
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-      mm::MM().Erase(ptr);
-      ::delete[] static_cast<T*>(ptr);
+      // We want to do the ::delete before giving the ptr to mm::Erase
+      mm::MM().Erase((::delete[] static_cast<T*>(ptr),ptr));
    }
 
    // **************************************************************************
@@ -110,7 +110,10 @@ public:
                        size_t bytes, const bool async = false);
 
    // **************************************************************************
-   static inline bool known(void *a) { return MM().IsInMM(a); }
+   static inline bool known(const void *a)
+   {
+      return MM().Known(a);
+   }
 
 private:
    ledger maps;
@@ -123,7 +126,8 @@ private:
    void *Insert(void *ptr, const size_t bytes);
    void *Erase(void *ptr);
    void* Ptr(void *ptr);
-   bool IsInMM(const void *ptr);
+   bool Known(const void *ptr);
+   bool Alias(const void *ptr);
    const void* Ptr(const void *ptr);
    OccaMemory Memory(const void *ptr);
 
