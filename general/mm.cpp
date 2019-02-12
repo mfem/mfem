@@ -39,7 +39,7 @@ bool mm::Known(const void *ptr)
 // *****************************************************************************
 static const void* IsAlias(const mm::ledger &maps, const void *ptr)
 {
-   MFEM_ASSERT(!Known(ptr), "Ptr is an already known address!");
+   MFEM_ASSERT(!Known(maps, ptr), "Ptr is an already known address!");
    for (mm::memory_map::const_iterator mem = maps.memories.begin();
         mem != maps.memories.end(); mem++)
    {
