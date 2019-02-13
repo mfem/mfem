@@ -22,7 +22,6 @@ namespace mfem
 class config
 {
 private:
-   //enum BACKENDS{CUDA, OCCA};
    enum MODES {CPU, GPU};
 private:
    MODES mode;
@@ -56,6 +55,7 @@ private:
 
 private:
    // **************************************************************************
+   void GpuDeviceSetup(const int dev);
    void MfemDeviceSetup(const int dev =0);
    void CudaDeviceSetup(const int dev =0);
    void RajaDeviceSetup(const int dev =0);

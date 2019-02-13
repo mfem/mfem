@@ -25,14 +25,40 @@
 // *****************************************************************************
 #include "./cuda.hpp"
 #include "./occa.hpp"
-
-#ifdef MFEM_USE_RAJA
-#include "RAJA/RAJA.hpp"
-#endif
+#include "./raja.hpp"
 
 // *****************************************************************************
 #include "mm.hpp"
 #include "config.hpp"
+
+// *****************************************************************************
+// * Standard OpenMP wrapper
+// *****************************************************************************
+template <typename HBODY>
+void ompWrap(const size_t N, HBODY &&h_body)
+{
+#if defined(_OPENMP)
+   #pragma omp parallel for
+   for (size_t k=0; k<N; k+=1)
+   {
+      h_body(k);
+   }
+#else
+   MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
+#endif
+}
+
+// *****************************************************************************
+// * Standard sequential wrapper
+// *****************************************************************************
+template <typename HBODY>
+void seqWrap(const size_t N, HBODY &&h_body)
+{
+   for (size_t k=0; k<N; k+=1)
+   {
+      h_body(k);
+   }
+}
 
 // *****************************************************************************
 // * GPU & HOST FOR_LOOP bodies wrapper
@@ -43,50 +69,12 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    const bool omp  = mfem::config::usingOmp();
    const bool gpu  = mfem::config::usingGpu();
    const bool raja = mfem::config::usingRaja();
-
-   if (gpu && raja)
-   {
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
-      return RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N), d_body);
-#else
-      MFEM_ABORT("RAJA::Cuda requested for MFEM but RAJA::Cuda is not enabled!");
-#endif
-   }
-   else if (gpu)
-   {
-      return cuWrap<BLOCKS>(N,d_body);
-   }
-   else if (omp && raja)
-   {
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
-     return RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(0,N), h_body);
-#else
-      MFEM_ABORT("RAJA::OpenMP requested for MFEM but RAJA::OpenMP is not enabled!");
-#endif
-   }
-   else if (omp)
-   {
-#if defined(_OPENMP)
-#pragma omp parallel for
-     for (size_t k=0; k<N; k+=1) { h_body(k); }
-     return;
-#else
-      MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
-#endif
-   }
-   else if (raja)
-   {
-#ifdef MFEM_USE_RAJA
-      return RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
-#else
-      MFEM_ABORT("RAJA requested for MFEM but RAJA is not enabled!");
-#endif
-   }
-   else
-   {
-      for (size_t k=0; k<N; k+=1) { h_body(k); }
-   }
-
+   if (gpu && raja) { return rajaCudaWrap<BLOCKS>(N, d_body); }
+   if (gpu)         { return cuWrap<BLOCKS>(N, d_body); }
+   if (omp && raja) { return rajaOmpWrap(N, h_body); }
+   if (raja)        { return rajaSeqWrap(N, h_body); }
+   if (omp)         { return ompWrap(N, h_body);  }
+   seqWrap(N, h_body);
 }
 
 // *****************************************************************************

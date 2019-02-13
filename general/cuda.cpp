@@ -21,9 +21,7 @@ namespace mfem
 
 #else
 #define CU_STUB(...) {                                                  \
-      printf("No CUDA available!\n");                                   \
-      fflush(0);                                                        \
-      exit(-1);                                                         \
+      MFEM_ABORT("CUDA requested for MFEM but CUDA is not enabled!");   \
       return (void*)NULL;                                               \
    }
 #endif

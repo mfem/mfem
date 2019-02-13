@@ -16,11 +16,11 @@ namespace mfem
 {
 
 // *****************************************************************************
-// * cudaDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
+// * CUDA device setup, called when CUDA or RAJA mode with NVCC
 // *****************************************************************************
-void config::CudaDeviceSetup(const int device)
-{
 #ifdef __NVCC__
+void config::GpuDeviceSetup(const int device)
+{
    cudaGetDeviceCount(&ngpu);
    MFEM_ASSERT(ngpu>0, "No CUDA device found!");
    cuInit(0);
@@ -30,6 +30,16 @@ void config::CudaDeviceSetup(const int device)
    cuStream = new CUstream;
    MFEM_ASSERT(cuStream, "CUDA stream could not be created!");
    cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
+}
+#endif
+
+// *****************************************************************************
+// * cudaDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
+// *****************************************************************************
+void config::CudaDeviceSetup(const int device)
+{
+#ifdef __NVCC__
+   GpuDeviceSetup(device);
 #else
    MFEM_ABORT("CUDA requested but no GPU support has been built!");
 #endif
@@ -41,15 +51,7 @@ void config::CudaDeviceSetup(const int device)
 void config::RajaDeviceSetup(const int device)
 {
 #if defined(__NVCC__) && defined(MFEM_USE_RAJA)
-   cudaGetDeviceCount(&ngpu);
-   MFEM_ASSERT(ngpu>0, "No CUDA device found!");
-   cuInit(0);
-   dev = device;
-   cuDeviceGet(&cuDevice,dev);
-   cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
-   cuStream = new CUstream;
-   MFEM_ASSERT(cuStream, "CUDA stream could not be created!");
-   cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
+   GpuDeviceSetup(device);
 #elif !defined(MFEM_USE_RAJA)
    MFEM_ABORT("RAJA requested but no RAJA support has been built!");
 #endif
