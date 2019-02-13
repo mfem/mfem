@@ -314,7 +314,7 @@ endif
 
 # Source dirs in logical order
 DIRS = general linalg mesh fem
-KERNEL_DIRS  = general/kernels linalg/kernels mesh/kernels fem/kernels
+KERNEL_DIRS = $(DIRS:=/kernels)
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 SOURCE_FILES += $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
