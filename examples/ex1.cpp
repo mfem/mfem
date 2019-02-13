@@ -43,6 +43,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+extern void mmCheckIni(const char*);
 
 using namespace std;
 using namespace mfem;
@@ -57,7 +58,8 @@ int main(int argc, char *argv[])
    bool cuda = false;
    bool occa = false;
    bool visualization = 1;
-
+   mmCheckIni(argv[0]);
+   
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
