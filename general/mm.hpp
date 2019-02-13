@@ -120,14 +120,16 @@ public:
    template<typename T>
    inline T* allocate(const std::size_t n)
    {
-      mfem_error("TBD");
+      void *mem = m_host.allocate(n * sizeof(T));
+      Insert(new (mem) T[n]);
    }
 
    // Deallocate a pointer and remove it and all device allocations from the registry
    template<typename T>
    inline void deallocate(T *ptr)
    {
-      mfem_error("TBD");
+      // TODO: Missing array placement delete
+      m_host.deallocate(ptr);
    }
 
    // For a given host or device pointer, return the device or host corresponding pointer
@@ -152,14 +154,18 @@ public:
    void copyData(void *dst, const void *src, std::size_t bytes, const bool async = false);
 
    // Constructor
-   UmpireMemoryManager()
-   {
-
-   }
+   UmpireMemoryManager();
 
 private:
-   umpire::Allocator host_alloc;
-   umpire::Allocator device_alloc;
+
+   void *Insert(void *ptr, const std::size_t bytes);
+   void *Erase(void *ptr);
+
+   std::map< void*, std::vector<void*> >
+
+   umpire::ResourceManager& m_rm;
+   umpire::Allocator m_host;
+   umpire::Allocator m_device;
 };
 #endif
 

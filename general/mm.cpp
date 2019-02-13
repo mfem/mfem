@@ -431,6 +431,13 @@ void UmpireMemoryManager::copyData(void *dst, const void *src, std::size_t bytes
    mfem_error("TBD");
 }
 
+UmpireMemoryManager::UmpireMemoryManager() :
+   m_rm(umpire::ResourceManager::getInstance()),
+   m_host(m_rm.makeAllocator<umpire::strategy::DynamicPool>("host_pool", m_rm.getAllocator("HOST"))),
+   m_device(config::gpuEnabled() ?
+            m_rm.makeAllocator<umpire::strategy::DynamicPool>("host_pool", m_rm.getAllocator("HOST")) :
+            m_rm.makeAllocator<umpire::strategy::DynamicPool>("device_pool", m_rm.getAllocator("DEVICE"))) {}
+
 #endif
 
 

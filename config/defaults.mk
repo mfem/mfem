@@ -294,7 +294,7 @@ endif
 
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include
-UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire -lumpire_op -lumpire_resource -lumpire_strategy -lumpire_tpl_judy -lumpire_util
 
 # If YES, enable some informational messages
 VERBOSE = NO
