@@ -157,7 +157,6 @@ void* mm::Insert(void *ptr, const size_t bytes)
    const bool known = Known(ptr);
    if (known)
    {
-      //for(int k=0;k<1024*1024;k+=1) ((double*)ptr)[k]=0.0;
       mfem_error("Trying to insert a non-MM pointer!");
    }
    MFEM_ASSERT(!known, "Trying to add an already present address!");
@@ -176,8 +175,6 @@ void *mm::Erase(void *ptr)
    const bool known = Known(ptr);
    if (!known)
    {
-      // We can come here even with mmcheck if it has not been initialized yet
-      //for(int k=0;k<1024*1024;k+=1) ((double*)ptr)[k]=0.0;
       mfem_error("Trying to erase an unknown pointer!");
    }
    MFEM_ASSERT(known, "Trying to erase an unknown pointer!");
@@ -255,7 +252,6 @@ static void* PtrAlias(mm::ledger &maps, void *ptr)
 void* mm::Ptr(void *ptr)
 {
    if (MmGpuIniFilter()) { return ptr; }
-   //assert(Known(ptr));
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
    mfem_error("Unknown pointer!");

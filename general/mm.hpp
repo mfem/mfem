@@ -81,7 +81,6 @@ public:
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-      // We want to do the ::delete before giving the ptr to mm::Erase
       mm::MM().Erase((::delete[] static_cast<T*>(ptr),ptr));
    }
 
