@@ -108,18 +108,21 @@ static double cuVectorDot(const size_t N, const double *x, const double *y)
    const size_t bytes = dot_sz*sizeof(double);
    static double *h_dot = NULL;
    dbg("\033[7mdot_sz:%d",dot_sz);
-   if (!h_dot or dot_block_sz!=dot_sz) {
-      if (h_dot) free(h_dot);
+   if (!h_dot or dot_block_sz!=dot_sz)
+   {
+      if (h_dot) { free(h_dot); }
       dbg("\033[7mNEW h_dot");
       h_dot = (double*)calloc(dot_sz,sizeof(double));
    }
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
-   if (!gdsr or dot_block_sz!=dot_sz) {
+   if (!gdsr or dot_block_sz!=dot_sz)
+   {
       dbg("\033[7mNEW gdsr");
-      if (gdsr) cuCheck(::cuMemFree(gdsr));
+      if (gdsr) { cuCheck(::cuMemFree(gdsr)); }
       cuCheck(::cuMemAlloc(&gdsr,bytes));
    }
-   if (dot_block_sz!=dot_sz) {
+   if (dot_block_sz!=dot_sz)
+   {
       dot_block_sz = dot_sz;
       dbg("\033[7mUPDATED dot_block_sz:%d, bytes:%d",dot_block_sz, bytes);
    }

@@ -82,6 +82,7 @@ uint32_t LOG2(uint32_t);
 
 // *****************************************************************************
 #define BUILTIN_TRAP __builtin_trap()
+#define MFEM_SIGSEGV(ptr) for(int k=0;k<1024*1024;k+=1)((int*)ptr)[k]=0;
 #define FILE_LINE __FILE__ && __LINE__
 #define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE && false);}
 #define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::usingGpu());}
@@ -113,7 +114,7 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 #ifndef MFEM_DEBUG
 #define dbg(...)
 #else
-#define stack(...) dbg_F_L_F_N_A(_F_L_F_,0)
+#define dbg_stack(...) dbg_F_L_F_N_A(_F_L_F_,0)
 #define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
 #endif
 
