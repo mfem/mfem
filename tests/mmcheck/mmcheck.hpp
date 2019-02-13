@@ -15,7 +15,7 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 #ifndef MMCHECK_HPP
 #define MMCHECK_HPP
-    
+
 #include <map>
 #include <cxxabi.h>
 
@@ -24,11 +24,12 @@
 
 #define MMCHECK_MAX_SIZE 32768
 #include "../../general/okina.hpp"
-    
+
 // *****************************************************************************
 // * Backtrace Data
 // *****************************************************************************
-class mmBackTraceData {
+class mmBackTraceData
+{
 public:
    const bool debug;
    backtrace_state*state;
@@ -44,42 +45,44 @@ public:
    int depth;
    char stack[MMCHECK_MAX_SIZE];
    bool skip;
-   
-   mmBackTraceData(backtrace_state *s):
-   debug(getenv("ALL")),
-   state(s),
-   function(nullptr),
-   filename(nullptr),
-   lineno(0),
-   address(0x0),
-   dump(false),
-   hit(false),
-   mm(false),
-   mfem(false),
-   got(false), 
-   depth(0),
-   skip(false) {}
 
-   ~mmBackTraceData() {
-      if (!function) return;
+   mmBackTraceData(backtrace_state *s):
+      debug(getenv("ALL")),
+      state(s),
+      function(nullptr),
+      filename(nullptr),
+      lineno(0),
+      address(0x0),
+      dump(false),
+      hit(false),
+      mm(false),
+      mfem(false),
+      got(false),
+      depth(0),
+      skip(false) {}
+
+   ~mmBackTraceData()
+   {
+      if (!function) { return; }
       free(function);
    }
 
-   void flush(const bool dmp =false){
-      if (function) free(function);
+   void flush(const bool dmp =false)
+   {
+      if (function) { free(function); }
       function = nullptr;
       address = 0;
       dump = dmp;
       hit = false;
       mm = false;
-      mfem = false; 
+      mfem = false;
       got = false;
       depth = 0;
       stack[0] = 0;
       skip = false;
    }
 
-   int continue_tracing(){ return hit?1:0; }
+   int continue_tracing() { return hit?1:0; }
 
    void update(const char *symbol, uintptr_t PC,
                const char *filename=NULL, const int line=0);
@@ -88,7 +91,8 @@ public:
 // ***************************************************************************
 // * Backtrace
 // ***************************************************************************
-class mmBackTrace {
+class mmBackTrace
+{
 private:
    backtrace_state *state;
    mmBackTraceData *data;
@@ -103,7 +107,7 @@ public:
    const int lineno() { return data->lineno; }
    char *stack() { return data->stack; }
 public:
-   mmBackTrace(): state(NULL), data(NULL){}
+   mmBackTrace(): state(NULL), data(NULL) {}
    ~mmBackTrace() { delete data; }
 public:
    void ini(const char*);

@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
    bool occa = false;
    bool visualization = 1;
    //mmCheckIni(argv[0]);
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
