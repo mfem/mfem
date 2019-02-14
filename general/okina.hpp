@@ -106,6 +106,68 @@ uint32_t LOG2(uint32_t);
 #define xyzeijDQE(i,j,x,y,z,e,D,Q,E) (x)+Q*((y)+Q*((z)+Q*((e)+E*((i)+D*j))))
 
 // *****************************************************************************
+template <typename T> class XS{
+private:
+   size_t N,M,P,Q;
+   T *data;
+public:
+   // 1D
+   XS(T *d): data(d){}
+   XS(const size_t n, const T *d) : N(n), data((T*)mfem::mm::ptr(d)){}
+   __host__ __device__ T operator[](const size_t i) { return data[i];}
+   __host__ __device__ T operator[](const size_t i) const { return data[i];}
+   __host__ __device__ T& operator()(const size_t i) { return data[i];}
+   __host__ __device__ T& operator()(const size_t i) const { return data[i];}
+   
+   // 2D
+   XS(const size_t n, const size_t m, const T *d)
+      :N(n), M(m), data((T*)mfem::mm::ptr(d)){}
+   __host__ __device__ T& operator()(const size_t i, const size_t j)
+   {
+      return data[i*N+j];
+   }
+   __host__ __device__ T& operator()(const size_t i, const size_t j) const
+   {
+      return data[i*N+j];
+   }
+   
+   // 3D
+   XS(const size_t n, const size_t m,
+               const size_t p, const T *d)
+      :N(n), M(m), P(p), data((T*)mfem::mm::ptr(d)){}
+   __host__ __device__ T& operator()(const size_t i, const size_t j,
+                                     const size_t k)
+   {
+      const size_t ijkNM = (i)+N*((j)+M*(k));
+      return data[ijkNM];
+   }
+   __host__ __device__ T& operator()(const size_t i, const size_t j,
+                                     const size_t k) const
+   {
+      const size_t ijkNM = (i)+N*((j)+M*(k));
+      return data[ijkNM];
+   }
+   
+   // 4D
+   XS(const size_t n, const size_t m,
+               const size_t p, const size_t q, const T *d)
+      :N(n), M(m), P(p), Q(q), data((T*)mfem::mm::ptr(d)){}   
+   __host__ __device__ T& operator()(const size_t i, const size_t j,
+                                     const size_t k, const size_t l)
+   {
+      const size_t ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
+      return data[ijklNM];
+   }
+   __host__ __device__ T& operator()(const size_t i, const size_t j,
+                                     const size_t k, const size_t l) const
+   {
+      const size_t ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
+      return data[ijklNM];
+   }
+};
+typedef XS<double> dArray;
+
+// *****************************************************************************
 const char *strrnchr(const char*, const unsigned char, const int);
 void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 

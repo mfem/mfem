@@ -16,89 +16,6 @@ namespace mfem
 {
 namespace kernels
 {
-
-// *****************************************************************************
-template <typename T> class Array{
-protected:
-   size_t N,M,P,Q;
-   T *data;
-public:
-   // 1D
-   explicit Array(T *d): data(d){}
-   explicit Array(const size_t n, T *d):N(n),data(d){}
-   // 2D
-   explicit Array(const size_t n, const size_t m, T *d):N(n),M(m),data(d){}
-   // 3D
-   explicit Array(const size_t n, const size_t m,
-                  const size_t p, T *d):N(n),M(m),P(p),data(d){}
-   // 4D
-   explicit Array(const size_t n, const size_t m,
-                  const size_t p, const size_t q, T *d):N(n),M(m),P(p),Q(q),
-                                                        data(d){}
-   T operator[](const size_t i) { return data[i];}
-   T operator[](const size_t i) const { return data[i];}
-   T& operator()(const size_t i) { return data[i];}
-   T& operator()(const size_t i, const size_t j) { return data[i*N+j];}
-   T& operator()(const size_t i, const size_t j,
-                 const size_t k) { return data[i*N+j];}
-   T& operator()(const size_t i, const size_t j,
-                 const size_t k, const size_t l) { return data[i*N+j];}
-};
-
-// *****************************************************************************
-template <class T> struct CPU{ T spec; };
-template <class T> struct GPU{ T spec; };
-template <typename U> class Array< GPU<U> >{
-protected:
-   size_t N,M,P,Q;
-   U *data;
-public:
-   // 1D
-   explicit Array(U *d): data(d){}
-   explicit Array(const size_t n, U *d):N(n),data(d){}
-   // 2D
-   explicit Array(const size_t n, const size_t m, U *d):N(n),M(m),data(d){}
-   // 3D
-   explicit Array(const size_t n, const size_t m,
-                  const size_t p, U *d):N(n),M(m),P(p),data(d){}
-   // 4D
-   explicit Array(const size_t n, const size_t m,
-                  const size_t p, const size_t q, U *d):N(n),M(m),P(p),Q(q),
-                                                        data(d){}
-   __host__ __device__ U operator[](const int i) { return data[i];}
-   __host__ __device__ U operator[](const int i) const { return data[i];}
-   
-   __host__ __device__ U& operator()(const int i) { return data[i];}
-   __host__ __device__ U& operator()(const int i) const { return data[i];}
-   
-   __host__ __device__ U& operator()(const int i, const int j) { return data[i*N+j];}
-   __host__ __device__ U& operator()(const int i, const int j) const { return data[i*N+j];}
-   
-   __host__ __device__ U& operator()(const int i, const int j, const int k)
-   {
-      const int ijkNM = (i)+N*((j)+M*(k));
-      return data[ijkNM];
-   }
-   __host__ __device__ U& operator()(const int i, const int j, const int k) const
-   {
-      const int ijkNM = (i)+N*((j)+M*(k));
-      return data[ijkNM];
-   }
-   
-   __host__ __device__ U& operator()(const int i, const int j, const int k, const int l)
-   {
-      const int ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
-      return data[ijklNM];
-   }
-   __host__ __device__ U& operator()(const int i, const int j, const int k, const int l) const
-   {
-      const int ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
-      return data[ijklNM];
-   }
-};
-
-
-
 namespace fem
 {
 
@@ -131,29 +48,28 @@ static void occaDiffusionAssemble2D(const int NUM_QUAD_1D,
 // *****************************************************************************
 // * Diffusion Assemble 2D kernel
 // *****************************************************************************
-static void DiffusionAssemble2D(const int NUM_QUAD_1D,
+static void DiffusionAssemble2D(const int NQ,
                                 const int NE,
                                 const double* __restrict w,
                                 const double* __restrict j,
                                 const double COEFF,
                                 double* __restrict o)
 {
-   const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
-   const Array<GPU<double>> W(NUM_QUAD,(double*) mm::ptr(w));
-   const Array<GPU<double>> J(2,2,2,NUM_QUAD,(double*) mm::ptr(j));
-   Array<GPU<double>> O(3,NUM_QUAD,NE,(double*) mm::ptr(o));
+   const dArray W(NQ, w);
+   const dArray J(2,2,2,NQ,j);
+   dArray oper(3,NQ,NE,o);
    MFEM_FORALL(e, NE,
    {
-      for (int q = 0; q < NUM_QUAD; ++q)
+      for (int q = 0; q < NQ; ++q)
       {
          const double J11 = J(0,0,q,e);
          const double J12 = J(1,0,q,e);
          const double J21 = J(0,1,q,e);
          const double J22 = J(1,1,q,e);
          const double c_detJ = W(q) * COEFF / ((J11*J22)-(J21*J12));
-         O(0,q,e) =  c_detJ * (J21*J21 + J22*J22);
-         O(1,q,e) = -c_detJ * (J21*J11 + J22*J12);
-         O(2,q,e) =  c_detJ * (J11*J11 + J12*J12);
+         oper(0,q,e) =  c_detJ * (J21*J21 + J22*J22);
+         oper(1,q,e) = -c_detJ * (J21*J11 + J22*J12);
+         oper(2,q,e) =  c_detJ * (J11*J11 + J12*J12);
       }
    });
 }
@@ -161,35 +77,33 @@ static void DiffusionAssemble2D(const int NUM_QUAD_1D,
 // *****************************************************************************
 // * Diffusion Assemble 3D kernel
 // *****************************************************************************
-static void DiffusionAssemble3D(const int NUM_QUAD_1D,
-                                const int numElements,
-                                const double* __restrict _W,
-                                const double* __restrict _J,
+static void DiffusionAssemble3D(const int NQ,
+                                const int NE,
+                                const double* __restrict w,
+                                const double* __restrict j,
                                 const double COEFF,
-                                double* __restrict _oper)
+                                double* __restrict y)
 {
-   //Array<double> _sol_xy(NUM_QUAD_1D*NUM_QUAD_1D,__shared);
-   const double *W = (double*) mm::ptr(_W);
-   const double *J = (double*) mm::ptr(_J);
-   double *oper = (double*) mm::ptr(_oper);
-   const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
-   MFEM_FORALL(e,numElements,
+   const dArray W(NQ, w);
+   const dArray J(3,3,3,NQ,j);
+   dArray oper(6,NQ,NE,y);   
+   MFEM_FORALL(e, NE,
    {
-      for (int q = 0; q < NUM_QUAD; ++q)
+      for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J[ijklNM(0,0,q,e,3,NUM_QUAD)];
-         const double J12 = J[ijklNM(1,0,q,e,3,NUM_QUAD)];
-         const double J13 = J[ijklNM(2,0,q,e,3,NUM_QUAD)];
-         const double J21 = J[ijklNM(0,1,q,e,3,NUM_QUAD)];
-         const double J22 = J[ijklNM(1,1,q,e,3,NUM_QUAD)];
-         const double J23 = J[ijklNM(2,1,q,e,3,NUM_QUAD)];
-         const double J31 = J[ijklNM(0,2,q,e,3,NUM_QUAD)];
-         const double J32 = J[ijklNM(1,2,q,e,3,NUM_QUAD)];
-         const double J33 = J[ijklNM(2,2,q,e,3,NUM_QUAD)];
+         const double J11 = J(0,0,q,e);
+         const double J12 = J(1,0,q,e);
+         const double J13 = J(2,0,q,e);
+         const double J21 = J(0,1,q,e);
+         const double J22 = J(1,1,q,e);
+         const double J23 = J(2,1,q,e);
+         const double J31 = J(0,2,q,e);
+         const double J32 = J(1,2,q,e);
+         const double J33 = J(2,2,q,e);
          const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) +
          (J13 * J21 * J32) - (J13 * J22 * J31) -
          (J12 * J21 * J33) - (J11 * J23 * J32));
-         const double c_detJ = W[q] * COEFF / detJ;
+         const double c_detJ = W(q) * COEFF / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J23 * J31) - (J21 * J33);
@@ -201,26 +115,20 @@ static void DiffusionAssemble3D(const int NUM_QUAD_1D,
          const double A32 = (J13 * J21) - (J11 * J23);
          const double A33 = (J11 * J22) - (J12 * J21);
          // adj(J)^Tadj(J)
-         oper[ijkNM(0,q,e,6,NUM_QUAD)] = c_detJ *
-         (A11*A11 + A21*A21 + A31*A31); // (1,1)
-         oper[ijkNM(1,q,e,6,NUM_QUAD)] = c_detJ *
-         (A11*A12 + A21*A22 + A31*A32); // (1,2), (2,1)
-         oper[ijkNM(2,q,e,6,NUM_QUAD)] = c_detJ *
-         (A11*A13 + A21*A23 + A31*A33); // (1,3), (3,1)
-         oper[ijkNM(3,q,e,6,NUM_QUAD)] = c_detJ *
-         (A12*A12 + A22*A22 + A32*A32); // (2,2)
-         oper[ijkNM(4,q,e,6,NUM_QUAD)] = c_detJ *
-         (A12*A13 + A22*A23 + A32*A33); // (2,3), (3,2)
-         oper[ijkNM(5,q,e,6,NUM_QUAD)] = c_detJ *
-         (A13*A13 + A23*A23 + A33*A33); // (3,3)
+         oper(0,q,e) = c_detJ * (A11*A11 + A21*A21 + A31*A31);
+         oper(1,q,e) = c_detJ * (A11*A12 + A21*A22 + A31*A32);
+         oper(2,q,e) = c_detJ * (A11*A13 + A21*A23 + A31*A33);
+         oper(3,q,e) = c_detJ * (A12*A12 + A22*A22 + A32*A32);
+         oper(4,q,e) = c_detJ * (A12*A13 + A22*A23 + A32*A33);
+         oper(5,q,e) = c_detJ * (A13*A13 + A23*A23 + A33*A33);
       }
    });
 }
 
 // *****************************************************************************
 void DiffusionAssemble(const int dim,
-                       const int NUM_QUAD_1D,
-                       const int numElements,
+                       const int NQ1d,
+                       const int NE,
                        const double* __restrict quadWeights,
                        const double* __restrict J,
                        const double COEFF,
@@ -232,17 +140,17 @@ void DiffusionAssemble(const int dim,
 #ifdef __OCCA__
       if (config::usingOcca())
       {
-         occaDiffusionAssemble2D(NUM_QUAD_1D, numElements,
+         occaDiffusionAssemble2D(NQ1d*NQ1d, NE,
                                  quadWeights, J, COEFF, oper);
          return;
       }
 #endif // __OCCA__
-      DiffusionAssemble2D(NUM_QUAD_1D, numElements,
+      DiffusionAssemble2D(NQ1d*NQ1d, NE,
                           quadWeights, J, COEFF, oper);
    }
    if (dim==3)
    {
-      DiffusionAssemble3D(NUM_QUAD_1D, numElements,
+      DiffusionAssemble3D(NQ1d*NQ1d*NQ1d, NE,
                           quadWeights, J, COEFF, oper);
    }
 }
@@ -250,75 +158,75 @@ void DiffusionAssemble(const int dim,
 #ifdef __OCCA__
 // *****************************************************************************
 static void occaDiffusionMultAdd2D(const int NUM_DOFS_1D,
-                                   const int NUM_QUAD_1D,
-                                   const int numElements,
-                                   const double* __restrict dofToQuad,
+                                   const int NQ1d,
+                                   const int NE,
+                                   const double* __restrict B,
                                    const double* __restrict dofToQuadD,
-                                   const double* __restrict quadToDof,
+                                   const double* __restrict Bt,
                                    const double* __restrict quadToDofD,
                                    const double* __restrict oper,
                                    const double* __restrict solIn,
-                                   double* __restrict solOut)
+                                   double* __restrict y)
 {
-   const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
+   const int NUM_QUAD_2D = NQ1d*NQ1d;
 
-   GET_OCCA_CONST_MEMORY(dofToQuad);
+   GET_OCCA_CONST_MEMORY(B);
    GET_OCCA_CONST_MEMORY(dofToQuadD);
-   GET_OCCA_CONST_MEMORY(quadToDof);
+   GET_OCCA_CONST_MEMORY(Bt);
    GET_OCCA_CONST_MEMORY(quadToDofD);
    GET_OCCA_CONST_MEMORY(oper);
    GET_OCCA_CONST_MEMORY(solIn);
-   GET_OCCA_MEMORY(solOut);
+   GET_OCCA_MEMORY(y);
 
    NEW_OCCA_PROPERTY(props);
    SET_OCCA_PROPERTY(props, NUM_DOFS_1D);
-   SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
+   SET_OCCA_PROPERTY(props, NQ1d);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
    if (!config::usingGpu())
    {
       NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, bidiffusionMultAdd.okl, props);
-      MultAdd2D_CPU(numElements,
-                    o_dofToQuad, o_dofToQuadD,
-                    o_quadToDof, o_quadToDofD,
+      MultAdd2D_CPU(NE,
+                    o_B, o_dofToQuadD,
+                    o_Bt, o_quadToDofD,
                     o_oper, o_solIn,
-                    o_solOut);
+                    o_y);
    }
    else
    {
       NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, bidiffusionMultAdd.okl, props);
-      MultAdd2D_GPU(numElements,
-                    o_dofToQuad, o_dofToQuadD,
-                    o_quadToDof, o_quadToDofD,
+      MultAdd2D_GPU(NE,
+                    o_B, o_dofToQuadD,
+                    o_Bt, o_quadToDofD,
                     o_oper, o_solIn,
-                    o_solOut);
+                    o_y);
    }
 }
 #endif // __OCCA__
 
 // *****************************************************************************
-#define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
-#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * NUM_QUAD_1D) + ((Z) * NUM_QUAD_1D*NUM_QUAD_1D))
+#define QUAD_2D_ID(X, Y) (X + ((Y) * NQ1d))
+#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * NQ1d) + ((Z) * NQ1d*NQ1d))
 
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
-         const int NUM_QUAD_1D> static
-void DiffusionMultAssembled2D(const int numElements,
-                              const double* __restrict dofToQuad,
-                              const double* __restrict dofToQuadD,
-                              const double* __restrict quadToDof,
-                              const double* __restrict quadToDofD,
+         const int NQ1d> static
+void DiffusionMultAssembled2D(const int NE,
+                              const double* __restrict B,
+                              const double* __restrict G,
+                              const double* __restrict Bt,
+                              const double* __restrict Gt,
                               const double* __restrict oper,
-                              const double* __restrict solIn,
-                              double* __restrict solOut)
+                              const double* __restrict x,
+                              double* __restrict y)
 {
-   const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
-   MFEM_FORALL(e, numElements,
+   const int NUM_QUAD = NQ1d*NQ1d;
+   MFEM_FORALL(e, NE,
    {
-      double grad[NUM_QUAD_1D][NUM_QUAD_1D][2];
-      for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+      double grad[NQ1d][NQ1d][2];
+      for (int qy = 0; qy < NQ1d; ++qy)
       {
-         for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+         for (int qx = 0; qx < NQ1d; ++qx)
          {
             grad[qy][qx][0] = 0.0;
             grad[qy][qx][1] = 0.0;
@@ -327,8 +235,8 @@ void DiffusionMultAssembled2D(const int numElements,
 
       for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
       {
-         double gradX[NUM_QUAD_1D][2];
-         for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+         double gradX[NQ1d][2];
+         for (int qx = 0; qx < NQ1d; ++qx)
          {
             gradX[qx][0] = 0.0;
             gradX[qx][1] = 0.0;
@@ -336,19 +244,19 @@ void DiffusionMultAssembled2D(const int numElements,
 
          for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
          {
-            const double s = solIn[ijkN(dx,dy,e,NUM_DOFS_1D)];
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            const double s = x[ijkN(dx,dy,e,NUM_DOFS_1D)];
+            for (int qx = 0; qx < NQ1d; ++qx)
             {
-               gradX[qx][0] += s * dofToQuad[ijN(qx,dx,NUM_QUAD_1D)];
-               gradX[qx][1] += s * dofToQuadD[ijN(qx,dx,NUM_QUAD_1D)];
+               gradX[qx][0] += s * B[ijN(qx,dx,NQ1d)];
+               gradX[qx][1] += s * G[ijN(qx,dx,NQ1d)];
             }
          }
 
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+         for (int qy = 0; qy < NQ1d; ++qy)
          {
-            const double wy  = dofToQuad[ijN(qy,dy,NUM_QUAD_1D)];
-            const double wDy = dofToQuadD[ijN(qy,dy,NUM_QUAD_1D)];
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            const double wy  = B[ijN(qy,dy,NQ1d)];
+            const double wDy = G[ijN(qy,dy,NQ1d)];
+            for (int qx = 0; qx < NQ1d; ++qx)
             {
                grad[qy][qx][0] += gradX[qx][1] * wy;
                grad[qy][qx][1] += gradX[qx][0] * wDy;
@@ -357,9 +265,9 @@ void DiffusionMultAssembled2D(const int numElements,
       }
 
       // Calculate Dxy, xDy in plane
-      for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+      for (int qy = 0; qy < NQ1d; ++qy)
       {
-         for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+         for (int qx = 0; qx < NQ1d; ++qx)
          {
             const int q = QUAD_2D_ID(qx, qy);
 
@@ -375,7 +283,7 @@ void DiffusionMultAssembled2D(const int numElements,
          }
       }
 
-      for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+      for (int qy = 0; qy < NQ1d; ++qy)
       {
          double gradX[NUM_DOFS_1D][2];
          for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
@@ -384,14 +292,14 @@ void DiffusionMultAssembled2D(const int numElements,
             gradX[dx][1] = 0;
          }
 
-         for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+         for (int qx = 0; qx < NQ1d; ++qx)
          {
             const double gX = grad[qy][qx][0];
             const double gY = grad[qy][qx][1];
             for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
             {
-               const double wx  = quadToDof[ijN(dx,qx,NUM_DOFS_1D)];
-               const double wDx = quadToDofD[ijN(dx,qx,NUM_DOFS_1D)];
+               const double wx  = Bt[ijN(dx,qx,NUM_DOFS_1D)];
+               const double wDx = Gt[ijN(dx,qx,NUM_DOFS_1D)];
                gradX[dx][0] += gX * wDx;
                gradX[dx][1] += gY * wx;
             }
@@ -399,11 +307,11 @@ void DiffusionMultAssembled2D(const int numElements,
 
          for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
          {
-            const double wy  = quadToDof[ijN(dy,qy,NUM_DOFS_1D)];
-            const double wDy = quadToDofD[ijN(dy,qy,NUM_DOFS_1D)];
+            const double wy  = Bt[ijN(dy,qy,NUM_DOFS_1D)];
+            const double wDy = Gt[ijN(dy,qy,NUM_DOFS_1D)];
             for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
             {
-               solOut[ijkN(dx,dy,e,NUM_DOFS_1D)] += ((gradX[dx][0] * wy) +
+               y[ijkN(dx,dy,e,NUM_DOFS_1D)] += ((gradX[dx][0] * wy) +
                                                      (gradX[dx][1] * wDy));
             }
          }
@@ -413,25 +321,25 @@ void DiffusionMultAssembled2D(const int numElements,
 
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
-         const int NUM_QUAD_1D> static
-void DiffusionMultAssembled3D(const int numElements,
-                              const double* __restrict dofToQuad,
-                              const double* __restrict dofToQuadD,
-                              const double* __restrict quadToDof,
-                              const double* __restrict quadToDofD,
+         const int NQ1d> static
+void DiffusionMultAssembled3D(const int NE,
+                              const double* __restrict B,
+                              const double* __restrict G,
+                              const double* __restrict Bt,
+                              const double* __restrict Gt,
                               const double* __restrict oper,
-                              const double* __restrict solIn,
-                              double* __restrict solOut)
+                              const double* __restrict x,
+                              double* __restrict y)
 {
-   const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
-   MFEM_FORALL(e, numElements,
+   const int NUM_QUAD = NQ1d*NQ1d*NQ1d;
+   MFEM_FORALL(e, NE,
    {
-      double grad[NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D][4];
-      for (int qz = 0; qz < NUM_QUAD_1D; ++qz)
+      double grad[NQ1d][NQ1d][NQ1d][4];
+      for (int qz = 0; qz < NQ1d; ++qz)
       {
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+         for (int qy = 0; qy < NQ1d; ++qy)
          {
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            for (int qx = 0; qx < NQ1d; ++qx)
             {
                grad[qz][qy][qx][0] = 0.0;
                grad[qz][qy][qx][1] = 0.0;
@@ -441,10 +349,10 @@ void DiffusionMultAssembled3D(const int numElements,
       }
       for (int dz = 0; dz < NUM_DOFS_1D; ++dz)
       {
-         double gradXY[NUM_QUAD_1D][NUM_QUAD_1D][4];
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+         double gradXY[NQ1d][NQ1d][4];
+         for (int qy = 0; qy < NQ1d; ++qy)
          {
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            for (int qx = 0; qx < NQ1d; ++qx)
             {
                gradXY[qy][qx][0] = 0.0;
                gradXY[qy][qx][1] = 0.0;
@@ -453,26 +361,26 @@ void DiffusionMultAssembled3D(const int numElements,
          }
          for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
          {
-            double gradX[NUM_QUAD_1D][2];
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            double gradX[NQ1d][2];
+            for (int qx = 0; qx < NQ1d; ++qx)
             {
                gradX[qx][0] = 0.0;
                gradX[qx][1] = 0.0;
             }
             for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
             {
-               const double s = solIn[ijklN(dx,dy,dz,e,NUM_DOFS_1D)];
-               for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+               const double s = x[ijklN(dx,dy,dz,e,NUM_DOFS_1D)];
+               for (int qx = 0; qx < NQ1d; ++qx)
                {
-                  gradX[qx][0] += s * dofToQuad[ijN(qx,dx,NUM_QUAD_1D)];
-                  gradX[qx][1] += s * dofToQuadD[ijN(qx,dx,NUM_QUAD_1D)];
+                  gradX[qx][0] += s * B[ijN(qx,dx,NQ1d)];
+                  gradX[qx][1] += s * G[ijN(qx,dx,NQ1d)];
                }
             }
-            for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+            for (int qy = 0; qy < NQ1d; ++qy)
             {
-               const double wy  = dofToQuad[ijN(qy,dy,NUM_QUAD_1D)];
-               const double wDy = dofToQuadD[ijN(qy,dy,NUM_QUAD_1D)];
-               for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+               const double wy  = B[ijN(qy,dy,NQ1d)];
+               const double wDy = G[ijN(qy,dy,NQ1d)];
+               for (int qx = 0; qx < NQ1d; ++qx)
                {
                   const double wx  = gradX[qx][0];
                   const double wDx = gradX[qx][1];
@@ -482,13 +390,13 @@ void DiffusionMultAssembled3D(const int numElements,
                }
             }
          }
-         for (int qz = 0; qz < NUM_QUAD_1D; ++qz)
+         for (int qz = 0; qz < NQ1d; ++qz)
          {
-            const double wz  = dofToQuad[ijN(qz,dz,NUM_QUAD_1D)];
-            const double wDz = dofToQuadD[ijN(qz,dz,NUM_QUAD_1D)];
-            for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+            const double wz  = B[ijN(qz,dz,NQ1d)];
+            const double wDz = G[ijN(qz,dz,NQ1d)];
+            for (int qy = 0; qy < NQ1d; ++qy)
             {
-               for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+               for (int qx = 0; qx < NQ1d; ++qx)
                {
                   grad[qz][qy][qx][0] += gradXY[qy][qx][0] * wz;
                   grad[qz][qy][qx][1] += gradXY[qy][qx][1] * wz;
@@ -499,11 +407,11 @@ void DiffusionMultAssembled3D(const int numElements,
       }
 
       // Calculate Dxyz, xDyz, xyDz in plane
-      for (int qz = 0; qz < NUM_QUAD_1D; ++qz)
+      for (int qz = 0; qz < NQ1d; ++qz)
       {
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+         for (int qy = 0; qy < NQ1d; ++qy)
          {
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            for (int qx = 0; qx < NQ1d; ++qx)
             {
                const int q = QUAD_3D_ID(qx, qy, qz);
                const double O11 = oper[ijkNM(0,q,e,6,NUM_QUAD)];
@@ -524,7 +432,7 @@ void DiffusionMultAssembled3D(const int numElements,
          }
       }
 
-      for (int qz = 0; qz < NUM_QUAD_1D; ++qz)
+      for (int qz = 0; qz < NQ1d; ++qz)
       {
          double gradXY[NUM_DOFS_1D][NUM_DOFS_1D][4];
          for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
@@ -537,7 +445,7 @@ void DiffusionMultAssembled3D(const int numElements,
             }
          }
 
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+         for (int qy = 0; qy < NQ1d; ++qy)
          {
             double gradX[NUM_DOFS_1D][4];
             for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
@@ -547,15 +455,15 @@ void DiffusionMultAssembled3D(const int numElements,
                gradX[dx][2] = 0;
             }
 
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            for (int qx = 0; qx < NQ1d; ++qx)
             {
                const double gX = grad[qz][qy][qx][0];
                const double gY = grad[qz][qy][qx][1];
                const double gZ = grad[qz][qy][qx][2];
                for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
                {
-                  const double wx  = quadToDof[ijN(dx,qx,NUM_DOFS_1D)];
-                  const double wDx = quadToDofD[ijN(dx,qx,NUM_DOFS_1D)];
+                  const double wx  = Bt[ijN(dx,qx,NUM_DOFS_1D)];
+                  const double wDx = Gt[ijN(dx,qx,NUM_DOFS_1D)];
                   gradX[dx][0] += gX * wDx;
                   gradX[dx][1] += gY * wx;
                   gradX[dx][2] += gZ * wx;
@@ -564,8 +472,8 @@ void DiffusionMultAssembled3D(const int numElements,
 
             for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
             {
-               const double wy  = quadToDof[ijN(dy,qy,NUM_DOFS_1D)];
-               const double wDy = quadToDofD[ijN(dy,qy,NUM_DOFS_1D)];
+               const double wy  = Bt[ijN(dy,qy,NUM_DOFS_1D)];
+               const double wDy = Gt[ijN(dy,qy,NUM_DOFS_1D)];
                for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
                {
                   gradXY[dy][dx][0] += gradX[dx][0] * wy;
@@ -577,13 +485,13 @@ void DiffusionMultAssembled3D(const int numElements,
 
          for (int dz = 0; dz < NUM_DOFS_1D; ++dz)
          {
-            const double wz  = quadToDof[ijN(dz,qz,NUM_DOFS_1D)];
-            const double wDz = quadToDofD[ijN(dz,qz,NUM_DOFS_1D)];
+            const double wz  = Bt[ijN(dz,qz,NUM_DOFS_1D)];
+            const double wDz = Gt[ijN(dz,qz,NUM_DOFS_1D)];
             for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
             {
                for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
                {
-                  solOut[ijklN(dx,dy,dz,e,NUM_DOFS_1D)] +=
+                  y[ijklN(dx,dy,dz,e,NUM_DOFS_1D)] +=
                      ((gradXY[dy][dx][0] * wz) +
                       (gradXY[dy][dx][1] * wz) +
                       (gradXY[dy][dx][2] * wDz));
@@ -595,24 +503,24 @@ void DiffusionMultAssembled3D(const int numElements,
 }
 
 // *****************************************************************************
-typedef void (*fDiffusionMultAdd)(const int numElements,
-                                  const double* __restrict dofToQuad,
-                                  const double* __restrict dofToQuadD,
-                                  const double* __restrict quadToDof,
-                                  const double* __restrict quadToDofD,
+typedef void (*fDiffusionMultAdd)(const int NE,
+                                  const double* __restrict B,
+                                  const double* __restrict G,
+                                  const double* __restrict Bt,
+                                  const double* __restrict Gt,
                                   const double* __restrict oper,
-                                  const double* __restrict solIn,
-                                  double* __restrict solOut);
+                                  const double* __restrict x,
+                                  double* __restrict y);
 
 // *****************************************************************************
 void DiffusionMultAssembled(const int DIM,
                             const int NUM_DOFS_1D,
-                            const int NUM_QUAD_1D,
-                            const int numElements,
-                            const double* __restrict dofToQuad,
-                            const double* __restrict dofToQuadD,
-                            const double* __restrict quadToDof,
-                            const double* __restrict quadToDofD,
+                            const int NQ1d,
+                            const int NE,
+                            const double* __restrict B,
+                            const double* __restrict G,
+                            const double* __restrict Bt,
+                            const double* __restrict Gt,
                             const double* __restrict op,
                             const double* __restrict x,
                             double* __restrict y)
@@ -622,18 +530,18 @@ void DiffusionMultAssembled(const int DIM,
    if (config::usingOcca())
    {
       assert(DIM==2);
-      occaDiffusionMultAssembled2D(NUM_DOFS_1D, NUM_QUAD_1D,
-                                   numElements,
-                                   dofToQuad, dofToQuadD,
-                                   quadToDof, quadToDofD,
+      occaDiffusionMultAssembled2D(NUM_DOFS_1D, NQ1d,
+                                   NE,
+                                   B, G,
+                                   Bt, Gt,
                                    op, x, y);
       return;
    }
 #endif // __OCCA__
 
-   const unsigned int id = (DIM<<16)|(NUM_DOFS_1D<<8)|(NUM_QUAD_1D);
+   const unsigned int id = (DIM<<16)|(NUM_DOFS_1D<<8)|(NQ1d);
    assert(LOG2(NUM_DOFS_1D)<=8);
-   assert(LOG2(NUM_QUAD_1D)<=8);
+   assert(LOG2(NQ1d)<=8);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
    {
       //{0x20101,&DiffusionMultAssembled2D<1,1>},
@@ -659,8 +567,8 @@ void DiffusionMultAssembled(const int DIM,
       /*
       {0x30101,&DiffusionMultAssembled3D<1,1>},
       {0x30201,&DiffusionMultAssembled3D<2,1>},
-      {0x30202,&DiffusionMultAssembled3D<2,2>},
-      {0x30203,&DiffusionMultAssembled3D<2,3>},
+      {0x30202,&DiffusionMultAssembled3D<2,2>},*/
+      {0x30203,&DiffusionMultAssembled3D<2,3>},/*
       {0x30303,&DiffusionMultAssembled3D<3,3>},
       {0x30404,&DiffusionMultAssembled3D<4,4>},
       {0x30505,&DiffusionMultAssembled3D<5,5>},
@@ -685,16 +593,16 @@ void DiffusionMultAssembled(const int DIM,
    }
    assert(call[id]);
 
-   GET_CONST_PTR(dofToQuad);
-   GET_CONST_PTR(dofToQuadD);
-   GET_CONST_PTR(quadToDof);
-   GET_CONST_PTR(quadToDofD);
+   GET_CONST_PTR(B);
+   GET_CONST_PTR(G);
+   GET_CONST_PTR(Bt);
+   GET_CONST_PTR(Gt);
    GET_CONST_PTR(op);
    GET_CONST_PTR(x);
    GET_PTR(y);
 
-   call[id](numElements,
-            d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
+   call[id](NE,
+            d_B, d_G, d_Bt, d_Gt,
             d_op, d_x, d_y);
 }
 
