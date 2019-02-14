@@ -20,22 +20,22 @@ namespace fem
 {
 
 // *****************************************************************************
-template<const int NUM_DOFS_1D,
-         const int NUM_QUAD_1D> static
-void Geom2D(const int numElements,
-            const double* __restrict B,
-            const double* __restrict dofToQuadD,
-            const double* __restrict nodes,
-            double* __restrict x,
-            double* __restrict J,
-            double* __restrict invJ,
-            double* __restrict detJ)
+static void Geom2D(const int NUM_DOFS,
+                   const int NUM_QUAD,
+                   const int ne,
+                   const double* __restrict B,
+                   const double* __restrict dofToQuadD,
+                   const double* __restrict nodes,
+                   double* __restrict x,
+                   double* __restrict J,
+                   double* __restrict invJ,
+                   double* __restrict detJ)
 {
-   const int NUM_DOFS = NUM_DOFS_1D*NUM_DOFS_1D;
-   const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
-   MFEM_FORALL(e, numElements,
+   // number of doubles in shared memory per threads
+   const int Nspt = 2*NUM_DOFS;
+   MFEM_FORALL_SHARED(e, ne, Nspt,
    {
-      double s_nodes[2 * NUM_DOFS_1D * NUM_DOFS_1D];
+      double *s_nodes = __shared;
       for (int q = 0; q < NUM_QUAD; ++q)
       {
          for (int d = q; d < NUM_DOFS; d +=NUM_QUAD)
@@ -74,22 +74,22 @@ void Geom2D(const int numElements,
 }
 
 // *****************************************************************************
-template<const int NUM_DOFS_1D,
-         const int NUM_QUAD_1D> static
-void Geom3D(const int numElements,
-            const double* __restrict B,
-            const double* __restrict dofToQuadD,
-            const double* __restrict nodes,
-            double* __restrict x,
-            double* __restrict J,
-            double* __restrict invJ,
-            double* __restrict detJ)
+static void Geom3D(const int NUM_DOFS,
+                   const int NUM_QUAD,
+                   const int ne,
+                   const double* __restrict B,
+                   const double* __restrict dofToQuadD,
+                   const double* __restrict nodes,
+                   double* __restrict x,
+                   double* __restrict J,
+                   double* __restrict invJ,
+                   double* __restrict detJ)
 {
-   const int NUM_DOFS = NUM_DOFS_1D*NUM_DOFS_1D*NUM_DOFS_1D;
-   const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
-   MFEM_FORALL(e,numElements,
+   // number of doubles in shared memory per threads
+   const int Nspt = 3 * NUM_DOFS;
+   MFEM_FORALL_SHARED(e, ne, Nspt,
    {
-      double s_nodes[3 * NUM_DOFS_1D * NUM_DOFS_1D * NUM_DOFS_1D];
+      double *s_nodes = __shared;
       for (int q = 0; q < NUM_QUAD; ++q)
       {
          for (int d = q; d < NUM_DOFS; d += NUM_QUAD)
@@ -146,13 +146,6 @@ void Geom3D(const int numElements,
 }
 
 // *****************************************************************************
-typedef void (*fIniGeom)(const int ne,
-                         const double *B,
-                         const double *G,
-                         const double *X,
-                         double *x, double *J, double *invJ, double *detJ);
-
-// *****************************************************************************
 void Geom(const int DIM,
           const int NUM_DOFS,
           const int NUM_QUAD,
@@ -165,61 +158,6 @@ void Geom(const int DIM,
           double* __restrict invJ,
           double* __restrict detJ)
 {
-   const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
-   const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
-   const unsigned int id = (DIM<<8)|(dofs1D-2)<<4|(quad1D-2);
-   assert(LOG2(DIM)<=4);
-   assert(LOG2(dofs1D-2)<=4);
-   assert(LOG2(quad1D-2)<=4);
-   static std::unordered_map<unsigned int, fIniGeom> call =
-   {
-      // 2D
-      {0x200,&Geom2D<2,2>},
-      {0x201,&Geom2D<2,3>},
-      {0x202,&Geom2D<2,4>},
-      {0x203,&Geom2D<2,5>},
-      {0x204,&Geom2D<2,6>},
-      {0x205,&Geom2D<2,7>},
-      {0x206,&Geom2D<2,8>},
-      {0x207,&Geom2D<2,9>},
-      {0x210,&Geom2D<3,2>},
-      {0x211,&Geom2D<3,3>},
-      {0x212,&Geom2D<3,4>},
-      /*
-            {0x208,&Geom2D<2,10>},
-            {0x209,&Geom2D<2,11>},
-            {0x20A,&Geom2D<2,12>},
-            {0x20B,&Geom2D<2,13>},
-            {0x20C,&Geom2D<2,14>},
-            {0x20D,&Geom2D<2,15>},
-            {0x20E,&Geom2D<2,16>},
-            {0x20F,&Geom2D<2,17>},
-      */
-      // 3D
-      {0x300,&Geom3D<2,2>},
-      {0x301,&Geom3D<2,3>},
-      {0x302,&Geom3D<2,4>},
-      {0x303,&Geom3D<2,5>},
-      {0x304,&Geom3D<2,6>},
-      {0x305,&Geom3D<2,7>},
-      {0x306,&Geom3D<2,8>},
-      {0x307,&Geom3D<2,9>},
-      {0x321,&Geom3D<4,3>},/*
-      {0x308,&Geom3D<2,10>},
-      {0x309,&Geom3D<2,11>},
-      {0x30A,&Geom3D<2,12>},
-      {0x30B,&Geom3D<2,13>},
-      {0x30C,&Geom3D<2,14>},
-      {0x30D,&Geom3D<2,15>},
-      {0x30E,&Geom3D<2,16>},
-      {0x30F,&Geom3D<2,17>},*/
-   };
-   if (!call[id])
-   {
-      printf("\n[Geom] id \033[33m0x%X\033[m ",id);
-      fflush(stdout);
-   }
-   assert(call[id]);
    GET_CONST_PTR(B);
    GET_CONST_PTR(G);
    GET_CONST_PTR(X);
@@ -227,7 +165,16 @@ void Geom(const int DIM,
    GET_PTR(J);
    GET_PTR(invJ);
    GET_PTR(detJ);
-   call[id](numElements, d_B, d_G, d_X, d_x, d_J, d_invJ, d_detJ);
+   
+   if (DIM==2){
+      return Geom2D(NUM_DOFS, NUM_QUAD,
+                    numElements, d_B, d_G, d_X, d_x, d_J, d_invJ, d_detJ);
+   }
+   
+   if (DIM==2){
+      return Geom3D(NUM_DOFS, NUM_QUAD,
+                    numElements, d_B, d_G, d_X, d_x, d_J, d_invJ, d_detJ);
+   }
 }
 
 } // namespace fem

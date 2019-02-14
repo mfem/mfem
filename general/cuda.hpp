@@ -19,18 +19,23 @@ inline void cuCheck(const unsigned int c)
 {
    MFEM_ASSERT(!c, cudaGetErrorString(cudaGetLastError()));
 }
+
+extern __shared__ double gpu_mem_s[];
+
 template <typename BODY> __global__ static
-void cuKernel(const size_t N, BODY body)
+void cuKernel(const size_t N, const size_t Nspt, BODY body)
 {
-   const size_t k = blockDim.x*blockIdx.x + threadIdx.x;
+   const size_t tid = threadIdx.x;
+   const size_t k = blockDim.x*blockIdx.x + tid;
    if (k >= N) { return; }
-   body(k);
+   body(k, gpu_mem_s+tid*Nspt);
 }
-template <size_t BLOCKS, typename DBODY>
-void cuWrap(const size_t N, DBODY &&d_body)
+template <size_t Db, typename DBODY>
+void cuWrap(const size_t N, const size_t Nspt, DBODY &&d_body)
 {
-   const size_t GRID = (N+BLOCKS-1)/BLOCKS;
-   cuKernel<<<GRID,BLOCKS>>>(N,d_body);
+   const size_t Dg = (N+Db-1)/Db;
+   const size_t Ns = Nspt*Db*sizeof(double);
+   cuKernel<<<Dg,Db,Ns>>>(N,Nspt,d_body);
 }
 template<typename T>
 __host__ __device__ inline T AtomicAdd(T* address, T val)
@@ -44,8 +49,8 @@ __host__ __device__ inline T AtomicAdd(T* address, T val)
 typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
-template <size_t BLOCKS, typename DBODY>
-void cuWrap(const size_t N, DBODY &&d_body) {}
+template <size_t Db, typename DBODY>
+void cuWrap(const size_t N, size_t Nspt, DBODY &&d_body) {}
 template<typename T> inline T AtomicAdd(T* address, T val)
 {
    return *address += val;

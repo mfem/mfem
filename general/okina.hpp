@@ -33,17 +33,18 @@
 // *****************************************************************************
 // * GPU & HOST FOR_LOOP bodies wrapper
 // *****************************************************************************
-template <size_t BLOCKS, typename DBODY, typename HBODY>
-void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
+template <size_t Db, typename DBODY, typename HBODY>
+void wrap(const size_t N, size_t Ns, DBODY &&d_body, HBODY &&h_body)
 {
    const bool gpu = mfem::config::usingGpu();
    if (gpu)
    {
-      return cuWrap<BLOCKS>(N,d_body);
+      return cuWrap<Db>(N,Ns,d_body);
    }
    else
    {
-      for (size_t k=0; k<N; k+=1) { h_body(k); }
+      double cpu_mem_s[Ns];
+      for (size_t k=0; k<N; k+=1) { h_body(k, cpu_mem_s); }
    }
 }
 
@@ -51,12 +52,16 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 // * MFEM_FORALL splitter
 // *****************************************************************************
 #define MFEM_BLOCKS 256
-#define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
-#define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
-   wrap<BLOCKS>(N,                                                      \
-                [=] __device__ (size_t i){__VA_ARGS__},                 \
-                [&]            (size_t i){__VA_ARGS__})
-#define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(i,1,1,__VA_ARGS__)
+#define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,0,__VA_ARGS__)
+#define MFEM_FORALL_SHARED(i,N,Nspt,...)                                \
+   MFEM_FORALL_K(i,N,MFEM_BLOCKS,Nspt,__VA_ARGS__)
+#define MFEM_FORALL_K(i,N,Db,Nspt,...)                                  \
+   wrap<Db>(N, Nspt,                                                    \
+            [=] __device__ (const size_t i,                             \
+                            double *__shared){__VA_ARGS__},             \
+            [&]            (const size_t i,                             \
+                            double *__shared){__VA_ARGS__})
+#define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(i,1,1,0,__VA_ARGS__)
 
 // *****************************************************************************
 uint32_t LOG2(uint32_t);
