@@ -604,13 +604,14 @@ private:
 
 public:
    PetscLinearSolver(MPI_Comm comm, const std::string &prefix = std::string(),
-                     bool wrap = false);
+                     bool wrap = true);
    PetscLinearSolver(const PetscParMatrix &A,
                      const std::string &prefix = std::string());
    /// Constructs a solver using a HypreParMatrix.
    /** If @a wrap is true, then the MatMult ops of HypreParMatrix are wrapped.
        No preconditioner can be automatically constructed from PETSc. If
-       @a wrap is false, the HypreParMatrix is converted into PETSc format. */
+       @a wrap is false, the HypreParMatrix is converted into a the AIJ
+       PETSc format, which is suitable for most preconditioning methods. */
    PetscLinearSolver(const HypreParMatrix &A, bool wrap = true,
                      const std::string &prefix = std::string());
    virtual ~PetscLinearSolver();
