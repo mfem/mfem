@@ -15,6 +15,7 @@ namespace mfem
 {
 namespace kernels
 {
+
 namespace fem
 {
 
@@ -22,15 +23,16 @@ namespace fem
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> static
 void MassMultAdd2D(const int numElements,
-                   const double* __restrict dofToQuad,
-                   const double* __restrict dofToQuadD,
-                   const double* __restrict quadToDof,
-                   const double* __restrict quadToDofD,
+                   const double* __restrict B,
+                   const double* __restrict G,
+                   const double* __restrict Bt,
+                   const double* __restrict Gt,
                    const double* __restrict oper,
                    const double* __restrict solIn,
                    double* __restrict solOut)
 {
-   MFEM_FORALL(e,numElements,
+   const int Nspt = NUM_QUAD_1D * NUM_QUAD_1D;
+   MFEM_FORALL_SHARED(e, numElements, Nspt,
    {
       double sol_xy[NUM_QUAD_1D][NUM_QUAD_1D];
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
@@ -52,12 +54,12 @@ void MassMultAdd2D(const int numElements,
             const double s = solIn[ijkN(dx,dy,e,NUM_DOFS_1D)];
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
             {
-               sol_x[qx] += dofToQuad[ijN(qx,dx,NUM_QUAD_1D)]* s;
+               sol_x[qx] += B[ijN(qx,dx,NUM_QUAD_1D)]* s;
             }
          }
          for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
          {
-            const double d2q = dofToQuad[ijN(qy,dy,NUM_QUAD_1D)];
+            const double d2q = B[ijN(qy,dy,NUM_QUAD_1D)];
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
             {
                sol_xy[qy][qx] += d2q * sol_x[qx];
@@ -83,12 +85,12 @@ void MassMultAdd2D(const int numElements,
             const double s = sol_xy[qy][qx];
             for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
             {
-               sol_x[dx] += quadToDof[ijN(dx,qx,NUM_DOFS_1D)] * s;
+               sol_x[dx] += Bt[ijN(dx,qx,NUM_DOFS_1D)] * s;
             }
          }
          for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
          {
-            const double q2d = quadToDof[ijN(dy,qy,NUM_DOFS_1D)];
+            const double q2d = Bt[ijN(dy,qy,NUM_DOFS_1D)];
             for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
             {
                solOut[ijkN(dx,dy,e,NUM_DOFS_1D)] += q2d * sol_x[dx];
@@ -102,10 +104,10 @@ void MassMultAdd2D(const int numElements,
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> static
 void MassMultAdd3D(const int numElements,
-                   const double* __restrict dofToQuad,
-                   const double* __restrict dofToQuadD,
-                   const double* __restrict quadToDof,
-                   const double* __restrict quadToDofD,
+                   const double* __restrict B,
+                   const double* __restrict G,
+                   const double* __restrict Bt,
+                   const double* __restrict Gt,
                    const double* __restrict oper,
                    const double* __restrict solIn,
                    double* __restrict solOut)
@@ -145,12 +147,12 @@ void MassMultAdd3D(const int numElements,
                const double s = solIn[ijklN(dx,dy,dz,e,NUM_DOFS_1D)];
                for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
                {
-                  sol_x[qx] += dofToQuad[ijN(qx,dx,NUM_QUAD_1D)] * s;
+                  sol_x[qx] += B[ijN(qx,dx,NUM_QUAD_1D)] * s;
                }
             }
             for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
             {
-               const double wy = dofToQuad[ijN(qy,dy,NUM_QUAD_1D)];
+               const double wy = B[ijN(qy,dy,NUM_QUAD_1D)];
                for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
                {
                   sol_xy[qy][qx] += wy * sol_x[qx];
@@ -159,7 +161,7 @@ void MassMultAdd3D(const int numElements,
          }
          for (int qz = 0; qz < NUM_QUAD_1D; ++qz)
          {
-            const double wz = dofToQuad[ijN(qz,dz,NUM_QUAD_1D)];
+            const double wz = B[ijN(qz,dz,NUM_QUAD_1D)];
             for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
             {
                for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
@@ -201,12 +203,12 @@ void MassMultAdd3D(const int numElements,
                const double s = sol_xyz[qz][qy][qx];
                for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
                {
-                  sol_x[dx] += quadToDof[ijN(dx,qx,NUM_DOFS_1D)] * s;
+                  sol_x[dx] += Bt[ijN(dx,qx,NUM_DOFS_1D)] * s;
                }
             }
             for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
             {
-               const double wy = quadToDof[ijN(dy,qy,NUM_DOFS_1D)];
+               const double wy = Bt[ijN(dy,qy,NUM_DOFS_1D)];
                for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
                {
                   sol_xy[dy][dx] += wy * sol_x[dx];
@@ -215,7 +217,7 @@ void MassMultAdd3D(const int numElements,
          }
          for (int dz = 0; dz < NUM_DOFS_1D; ++dz)
          {
-            const double wz = quadToDof[ijN(dz,qz,NUM_DOFS_1D)];
+            const double wz = Bt[ijN(dz,qz,NUM_DOFS_1D)];
             for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
             {
                for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
@@ -230,10 +232,10 @@ void MassMultAdd3D(const int numElements,
 
 // *****************************************************************************
 typedef void (*fMassMultAdd)(const int numElements,
-                             const double* __restrict dofToQuad,
-                             const double* __restrict dofToQuadD,
-                             const double* __restrict quadToDof,
-                             const double* __restrict quadToDofD,
+                             const double* __restrict B,
+                             const double* __restrict G,
+                             const double* __restrict Bt,
+                             const double* __restrict Gt,
                              const double* __restrict oper,
                              const double* __restrict solIn,
                              double* __restrict solOut);
@@ -243,10 +245,10 @@ void MassMultAssembled(const int DIM,
                        const int NUM_DOFS_1D,
                        const int NUM_QUAD_1D,
                        const int numElements,
-                       const double* __restrict dofToQuad,
-                       const double* __restrict dofToQuadD,
-                       const double* __restrict quadToDof,
-                       const double* __restrict quadToDofD,
+                       const double* __restrict B,
+                       const double* __restrict G,
+                       const double* __restrict Bt,
+                       const double* __restrict Gt,
                        const double* __restrict op,
                        const double* __restrict x,
                        double* __restrict y)
@@ -313,16 +315,14 @@ void MassMultAssembled(const int DIM,
    }
    assert(call[id]);
 
-   GET_CONST_PTR(dofToQuad);
-   GET_CONST_PTR(dofToQuadD);
-   GET_CONST_PTR(quadToDof);
-   GET_CONST_PTR(quadToDofD);
+   GET_CONST_PTR(B);
+   GET_CONST_PTR(G);
+   GET_CONST_PTR(Bt);
+   GET_CONST_PTR(Gt);
    GET_CONST_PTR(op);
    GET_CONST_PTR(x);
    GET_PTR(y);
-   call[id](numElements,
-            d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
-            d_op, d_x, d_y);
+   call[id](numElements, d_B, d_G, d_Bt, d_Gt, d_op, d_x, d_y);
 }
 
 } // namespace fem

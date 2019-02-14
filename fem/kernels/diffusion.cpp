@@ -16,6 +16,89 @@ namespace mfem
 {
 namespace kernels
 {
+
+// *****************************************************************************
+template <typename T> class Array{
+protected:
+   size_t N,M,P,Q;
+   T *data;
+public:
+   // 1D
+   explicit Array(T *d): data(d){}
+   explicit Array(const size_t n, T *d):N(n),data(d){}
+   // 2D
+   explicit Array(const size_t n, const size_t m, T *d):N(n),M(m),data(d){}
+   // 3D
+   explicit Array(const size_t n, const size_t m,
+                  const size_t p, T *d):N(n),M(m),P(p),data(d){}
+   // 4D
+   explicit Array(const size_t n, const size_t m,
+                  const size_t p, const size_t q, T *d):N(n),M(m),P(p),Q(q),
+                                                        data(d){}
+   T operator[](const size_t i) { return data[i];}
+   T operator[](const size_t i) const { return data[i];}
+   T& operator()(const size_t i) { return data[i];}
+   T& operator()(const size_t i, const size_t j) { return data[i*N+j];}
+   T& operator()(const size_t i, const size_t j,
+                 const size_t k) { return data[i*N+j];}
+   T& operator()(const size_t i, const size_t j,
+                 const size_t k, const size_t l) { return data[i*N+j];}
+};
+
+// *****************************************************************************
+template <class T> struct CPU{ T spec; };
+template <class T> struct GPU{ T spec; };
+template <typename U> class Array< GPU<U> >{
+protected:
+   size_t N,M,P,Q;
+   U *data;
+public:
+   // 1D
+   explicit Array(U *d): data(d){}
+   explicit Array(const size_t n, U *d):N(n),data(d){}
+   // 2D
+   explicit Array(const size_t n, const size_t m, U *d):N(n),M(m),data(d){}
+   // 3D
+   explicit Array(const size_t n, const size_t m,
+                  const size_t p, U *d):N(n),M(m),P(p),data(d){}
+   // 4D
+   explicit Array(const size_t n, const size_t m,
+                  const size_t p, const size_t q, U *d):N(n),M(m),P(p),Q(q),
+                                                        data(d){}
+   __host__ __device__ U operator[](const int i) { return data[i];}
+   __host__ __device__ U operator[](const int i) const { return data[i];}
+   
+   __host__ __device__ U& operator()(const int i) { return data[i];}
+   __host__ __device__ U& operator()(const int i) const { return data[i];}
+   
+   __host__ __device__ U& operator()(const int i, const int j) { return data[i*N+j];}
+   __host__ __device__ U& operator()(const int i, const int j) const { return data[i*N+j];}
+   
+   __host__ __device__ U& operator()(const int i, const int j, const int k)
+   {
+      const int ijkNM = (i)+N*((j)+M*(k));
+      return data[ijkNM];
+   }
+   __host__ __device__ U& operator()(const int i, const int j, const int k) const
+   {
+      const int ijkNM = (i)+N*((j)+M*(k));
+      return data[ijkNM];
+   }
+   
+   __host__ __device__ U& operator()(const int i, const int j, const int k, const int l)
+   {
+      const int ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
+      return data[ijklNM];
+   }
+   __host__ __device__ U& operator()(const int i, const int j, const int k, const int l) const
+   {
+      const int ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
+      return data[ijklNM];
+   }
+};
+
+
+
 namespace fem
 {
 
@@ -49,28 +132,28 @@ static void occaDiffusionAssemble2D(const int NUM_QUAD_1D,
 // * Diffusion Assemble 2D kernel
 // *****************************************************************************
 static void DiffusionAssemble2D(const int NUM_QUAD_1D,
-                                const int numElements,
-                                const double* __restrict quadWeights,
-                                const double* __restrict J,
+                                const int NE,
+                                const double* __restrict w,
+                                const double* __restrict j,
                                 const double COEFF,
-                                double* __restrict oper)
+                                double* __restrict o)
 {
-   GET_CONST_PTR(quadWeights);
-   GET_CONST_PTR(J);
-   GET_PTR(oper);
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
-   MFEM_FORALL(e,numElements,
+   const Array<GPU<double>> W(NUM_QUAD,(double*) mm::ptr(w));
+   const Array<GPU<double>> J(2,2,2,NUM_QUAD,(double*) mm::ptr(j));
+   Array<GPU<double>> O(3,NUM_QUAD,NE,(double*) mm::ptr(o));
+   MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NUM_QUAD; ++q)
       {
-         const double J11 = d_J[ijklNM(0,0,q,e,2,NUM_QUAD)];
-         const double J12 = d_J[ijklNM(1,0,q,e,2,NUM_QUAD)];
-         const double J21 = d_J[ijklNM(0,1,q,e,2,NUM_QUAD)];
-         const double J22 = d_J[ijklNM(1,1,q,e,2,NUM_QUAD)];
-         const double c_detJ = d_quadWeights[q] * COEFF / ((J11*J22)-(J21*J12));
-         d_oper[ijkNM(0,q,e,3,NUM_QUAD)] =  c_detJ * (J21*J21 + J22*J22);
-         d_oper[ijkNM(1,q,e,3,NUM_QUAD)] = -c_detJ * (J21*J11 + J22*J12);
-         d_oper[ijkNM(2,q,e,3,NUM_QUAD)] =  c_detJ * (J11*J11 + J12*J12);
+         const double J11 = J(0,0,q,e);
+         const double J12 = J(1,0,q,e);
+         const double J21 = J(0,1,q,e);
+         const double J22 = J(1,1,q,e);
+         const double c_detJ = W(q) * COEFF / ((J11*J22)-(J21*J12));
+         O(0,q,e) =  c_detJ * (J21*J21 + J22*J22);
+         O(1,q,e) = -c_detJ * (J21*J11 + J22*J12);
+         O(2,q,e) =  c_detJ * (J11*J11 + J12*J12);
       }
    });
 }
@@ -80,32 +163,33 @@ static void DiffusionAssemble2D(const int NUM_QUAD_1D,
 // *****************************************************************************
 static void DiffusionAssemble3D(const int NUM_QUAD_1D,
                                 const int numElements,
-                                const double* __restrict quadWeights,
-                                const double* __restrict J,
+                                const double* __restrict _W,
+                                const double* __restrict _J,
                                 const double COEFF,
-                                double* __restrict oper)
+                                double* __restrict _oper)
 {
-   GET_CONST_PTR(quadWeights);
-   GET_CONST_PTR(J);
-   GET_PTR(oper);
+   //Array<double> _sol_xy(NUM_QUAD_1D*NUM_QUAD_1D,__shared);
+   const double *W = (double*) mm::ptr(_W);
+   const double *J = (double*) mm::ptr(_J);
+   double *oper = (double*) mm::ptr(_oper);
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e,numElements,
    {
       for (int q = 0; q < NUM_QUAD; ++q)
       {
-         const double J11 = d_J[ijklNM(0,0,q,e,3,NUM_QUAD)];
-         const double J12 = d_J[ijklNM(1,0,q,e,3,NUM_QUAD)];
-         const double J13 = d_J[ijklNM(2,0,q,e,3,NUM_QUAD)];
-         const double J21 = d_J[ijklNM(0,1,q,e,3,NUM_QUAD)];
-         const double J22 = d_J[ijklNM(1,1,q,e,3,NUM_QUAD)];
-         const double J23 = d_J[ijklNM(2,1,q,e,3,NUM_QUAD)];
-         const double J31 = d_J[ijklNM(0,2,q,e,3,NUM_QUAD)];
-         const double J32 = d_J[ijklNM(1,2,q,e,3,NUM_QUAD)];
-         const double J33 = d_J[ijklNM(2,2,q,e,3,NUM_QUAD)];
+         const double J11 = J[ijklNM(0,0,q,e,3,NUM_QUAD)];
+         const double J12 = J[ijklNM(1,0,q,e,3,NUM_QUAD)];
+         const double J13 = J[ijklNM(2,0,q,e,3,NUM_QUAD)];
+         const double J21 = J[ijklNM(0,1,q,e,3,NUM_QUAD)];
+         const double J22 = J[ijklNM(1,1,q,e,3,NUM_QUAD)];
+         const double J23 = J[ijklNM(2,1,q,e,3,NUM_QUAD)];
+         const double J31 = J[ijklNM(0,2,q,e,3,NUM_QUAD)];
+         const double J32 = J[ijklNM(1,2,q,e,3,NUM_QUAD)];
+         const double J33 = J[ijklNM(2,2,q,e,3,NUM_QUAD)];
          const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) +
          (J13 * J21 * J32) - (J13 * J22 * J31) -
          (J12 * J21 * J33) - (J11 * J23 * J32));
-         const double c_detJ = d_quadWeights[q] * COEFF / detJ;
+         const double c_detJ = W[q] * COEFF / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J23 * J31) - (J21 * J33);
@@ -117,17 +201,17 @@ static void DiffusionAssemble3D(const int NUM_QUAD_1D,
          const double A32 = (J13 * J21) - (J11 * J23);
          const double A33 = (J11 * J22) - (J12 * J21);
          // adj(J)^Tadj(J)
-         d_oper[ijkNM(0,q,e,6,NUM_QUAD)] = c_detJ *
+         oper[ijkNM(0,q,e,6,NUM_QUAD)] = c_detJ *
          (A11*A11 + A21*A21 + A31*A31); // (1,1)
-         d_oper[ijkNM(1,q,e,6,NUM_QUAD)] = c_detJ *
+         oper[ijkNM(1,q,e,6,NUM_QUAD)] = c_detJ *
          (A11*A12 + A21*A22 + A31*A32); // (1,2), (2,1)
-         d_oper[ijkNM(2,q,e,6,NUM_QUAD)] = c_detJ *
+         oper[ijkNM(2,q,e,6,NUM_QUAD)] = c_detJ *
          (A11*A13 + A21*A23 + A31*A33); // (1,3), (3,1)
-         d_oper[ijkNM(3,q,e,6,NUM_QUAD)] = c_detJ *
+         oper[ijkNM(3,q,e,6,NUM_QUAD)] = c_detJ *
          (A12*A12 + A22*A22 + A32*A32); // (2,2)
-         d_oper[ijkNM(4,q,e,6,NUM_QUAD)] = c_detJ *
+         oper[ijkNM(4,q,e,6,NUM_QUAD)] = c_detJ *
          (A12*A13 + A22*A23 + A32*A33); // (2,3), (3,2)
-         d_oper[ijkNM(5,q,e,6,NUM_QUAD)] = c_detJ *
+         oper[ijkNM(5,q,e,6,NUM_QUAD)] = c_detJ *
          (A13*A13 + A23*A23 + A33*A33); // (3,3)
       }
    });
@@ -552,15 +636,16 @@ void DiffusionMultAssembled(const int DIM,
    assert(LOG2(NUM_QUAD_1D)<=8);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
    {
-      {0x20101,&DiffusionMultAssembled2D<1,1>},
-      {0x20201,&DiffusionMultAssembled2D<2,1>},
-      {0x20202,&DiffusionMultAssembled2D<2,2>},
+      //{0x20101,&DiffusionMultAssembled2D<1,1>},
+      //{0x20201,&DiffusionMultAssembled2D<2,1>},
+      {0x20202,&DiffusionMultAssembled2D<2,2>},/*
       {0x20303,&DiffusionMultAssembled2D<3,3>},
       {0x20404,&DiffusionMultAssembled2D<4,4>},
       {0x20505,&DiffusionMultAssembled2D<5,5>},
       {0x20606,&DiffusionMultAssembled2D<6,6>},
       {0x20707,&DiffusionMultAssembled2D<7,7>},
-      {0x20808,&DiffusionMultAssembled2D<8,8>},/*
+      {0x20808,&DiffusionMultAssembled2D<8,8>},
+                                               *//*
       {0x20909,&DiffusionMultAssembled2D<9,9>},
       {0x20A0A,&DiffusionMultAssembled2D<10,10>},
       {0x20B0B,&DiffusionMultAssembled2D<11,11>},
@@ -571,6 +656,7 @@ void DiffusionMultAssembled(const int DIM,
       {0x21010,&DiffusionMultAssembled2D<16,16>},
       {0x21111,&DiffusionMultAssembled2D<17,17>},*/
 
+      /*
       {0x30101,&DiffusionMultAssembled3D<1,1>},
       {0x30201,&DiffusionMultAssembled3D<2,1>},
       {0x30202,&DiffusionMultAssembled3D<2,2>},
@@ -580,7 +666,9 @@ void DiffusionMultAssembled(const int DIM,
       {0x30505,&DiffusionMultAssembled3D<5,5>},
       {0x30606,&DiffusionMultAssembled3D<6,6>},
       {0x30707,&DiffusionMultAssembled3D<7,7>},
-      {0x30808,&DiffusionMultAssembled3D<8,8>},/*
+      {0x30808,&DiffusionMultAssembled3D<8,8>},
+      */
+/*
       {0x30909,&DiffusionMultAssembled3D<9,9>},
       {0x30A0A,&DiffusionMultAssembled3D<10,10>},
       {0x30B0B,&DiffusionMultAssembled3D<11,11>},
