@@ -76,38 +76,39 @@ static void NodeCopyByVDim(const int elements,
 }
 
 // *****************************************************************************
-static void Geom2D(const int NUM_DOFS,
-                   const int NUM_QUAD,
+static void Geom2D(const int ND, const int ND1d,
+                   const int NQ, const int NQ1d,
                    const int ne,
-                   const double* __restrict B,
                    const double* __restrict G,
                    const double* __restrict X,
                    double* __restrict x,
                    double* __restrict J,
                    double* __restrict invJ,
                    double* __restrict detJ)
-{
+{   
    // number of doubles in shared memory per threads
-   const int Nspt = 2*NUM_DOFS;
+   const int Nspt = 2*ND;
    MFEM_FORALL_SHARED(e, ne, Nspt,
    {
       double *s_X = __shared;
-      for (int q = 0; q < NUM_QUAD; ++q)
+      for (int q = 0; q < NQ; ++q)
       {
-         for (int d = q; d < NUM_DOFS; d +=NUM_QUAD)
+         for (int d = q; d < ND; d +=NQ)
          {
-            s_X[ijN(0,d,2)] = X[ijkNM(0,d,e,2,NUM_DOFS)];
-            s_X[ijN(1,d,2)] = X[ijkNM(1,d,e,2,NUM_DOFS)];
+            s_X[ijN(0,d,2)] = X[ijkNM(0,d,e,2,ND)];
+            s_X[ijN(1,d,2)] = X[ijkNM(1,d,e,2,ND)];
          }
       }
-      for (int q = 0; q < NUM_QUAD; ++q)
+      for (int q = 0; q < NQ; ++q)
       {
          double J11 = 0; double J12 = 0;
          double J21 = 0; double J22 = 0;
-         for (int d = 0; d < NUM_DOFS; ++d)
+         for (int d = 0; d < ND; ++d)
          {
-            const double wx = G[ijkNM(0,q,d,2,NUM_QUAD)];
-            const double wy = G[ijkNM(1,q,d,2,NUM_QUAD)];
+            const double wx = G[ijkNM(0,q,d,2,NQ)];
+            //printf("\n\t%f vs %f",wx,twx);
+            //assert(twx==wx);
+            const double wy = G[ijkNM(1,q,d,2,NQ)];
             const double x = s_X[ijN(0,d,2)];
             const double y = s_X[ijN(1,d,2)];
             J11 += (wx * x); J12 += (wx * y);
@@ -115,25 +116,24 @@ static void Geom2D(const int NUM_DOFS,
          }
          const double r_detJ = (J11 * J22)-(J12 * J21);
          assert(r_detJ!=0.0);
-         J[ijklNM(0,0,q,e,2,NUM_QUAD)] = J11;
-         J[ijklNM(1,0,q,e,2,NUM_QUAD)] = J12;
-         J[ijklNM(0,1,q,e,2,NUM_QUAD)] = J21;
-         J[ijklNM(1,1,q,e,2,NUM_QUAD)] = J22;
+         J[ijklNM(0,0,q,e,2,NQ)] = J11;
+         J[ijklNM(1,0,q,e,2,NQ)] = J12;
+         J[ijklNM(0,1,q,e,2,NQ)] = J21;
+         J[ijklNM(1,1,q,e,2,NQ)] = J22;
          const double r_idetJ = 1.0 / r_detJ;
-         invJ[ijklNM(0,0,q,e,2,NUM_QUAD)] =  J22 * r_idetJ;
-         invJ[ijklNM(1,0,q,e,2,NUM_QUAD)] = -J12 * r_idetJ;
-         invJ[ijklNM(0,1,q,e,2,NUM_QUAD)] = -J21 * r_idetJ;
-         invJ[ijklNM(1,1,q,e,2,NUM_QUAD)] =  J11 * r_idetJ;
-         detJ[ijN(q,e,NUM_QUAD)] = r_detJ;
+         invJ[ijklNM(0,0,q,e,2,NQ)] =  J22 * r_idetJ;
+         invJ[ijklNM(1,0,q,e,2,NQ)] = -J12 * r_idetJ;
+         invJ[ijklNM(0,1,q,e,2,NQ)] = -J21 * r_idetJ;
+         invJ[ijklNM(1,1,q,e,2,NQ)] =  J11 * r_idetJ;
+         detJ[ijN(q,e,NQ)] = r_detJ;
       }
    });
 }
 
 // *****************************************************************************
-static void Geom3D(const int NUM_DOFS,
-                   const int NUM_QUAD,
+static void Geom3D(const int ND,
+                   const int NQ,
                    const int ne,
-                   const double* __restrict B,
                    const double* __restrict G,
                    const double* __restrict X,
                    double* __restrict x,
@@ -142,29 +142,29 @@ static void Geom3D(const int NUM_DOFS,
                    double* __restrict detJ)
 {
    // number of doubles in shared memory per threads
-   const int Nspt = 3 * NUM_DOFS;
+   const int Nspt = 3 * ND;
    MFEM_FORALL_SHARED(e, ne, Nspt,
    {
       double *s_X = __shared;
-      for (int q = 0; q < NUM_QUAD; ++q)
+      for (int q = 0; q < NQ; ++q)
       {
-         for (int d = q; d < NUM_DOFS; d += NUM_QUAD)
+         for (int d = q; d < ND; d += NQ)
          {
-            s_X[ijN(0,d,3)] = X[ijkNM(0,d,e,3,NUM_DOFS)];
-            s_X[ijN(1,d,3)] = X[ijkNM(1,d,e,3,NUM_DOFS)];
-            s_X[ijN(2,d,3)] = X[ijkNM(2,d,e,3,NUM_DOFS)];
+            s_X[ijN(0,d,3)] = X[ijkNM(0,d,e,3,ND)];
+            s_X[ijN(1,d,3)] = X[ijkNM(1,d,e,3,ND)];
+            s_X[ijN(2,d,3)] = X[ijkNM(2,d,e,3,ND)];
          }
       }
-      for (int q = 0; q < NUM_QUAD; ++q)
+      for (int q = 0; q < NQ; ++q)
       {
          double J11 = 0; double J12 = 0; double J13 = 0;
          double J21 = 0; double J22 = 0; double J23 = 0;
          double J31 = 0; double J32 = 0; double J33 = 0;
-         for (int d = 0; d < NUM_DOFS; ++d)
+         for (int d = 0; d < ND; ++d)
          {
-            const double wx = G[ijkNM(0,q,d,3,NUM_QUAD)];
-            const double wy = G[ijkNM(1,q,d,3,NUM_QUAD)];
-            const double wz = G[ijkNM(2,q,d,3,NUM_QUAD)];
+            const double wx = G[ijkNM(0,q,d,3,NQ)];
+            const double wy = G[ijkNM(1,q,d,3,NQ)];
+            const double wz = G[ijkNM(2,q,d,3,NQ)];
             const double x = s_X[ijN(0,d,3)];
             const double y = s_X[ijN(1,d,3)];
             const double z = s_X[ijN(2,d,3)];
@@ -176,27 +176,27 @@ static void Geom3D(const int NUM_DOFS,
                                 (J13 * J21 * J32) - (J13 * J22 * J31) -
                                 (J12 * J21 * J33) - (J11 * J23 * J32));
          assert(r_detJ!=0.0);
-         J[ijklNM(0,0,q,e,3,NUM_QUAD)] = J11;
-         J[ijklNM(1,0,q,e,3,NUM_QUAD)] = J12;
-         J[ijklNM(2,0,q,e,3,NUM_QUAD)] = J13;
-         J[ijklNM(0,1,q,e,3,NUM_QUAD)] = J21;
-         J[ijklNM(1,1,q,e,3,NUM_QUAD)] = J22;
-         J[ijklNM(2,1,q,e,3,NUM_QUAD)] = J23;
-         J[ijklNM(0,2,q,e,3,NUM_QUAD)] = J31;
-         J[ijklNM(1,2,q,e,3,NUM_QUAD)] = J32;
-         J[ijklNM(2,2,q,e,3,NUM_QUAD)] = J33;
+         J[ijklNM(0,0,q,e,3,NQ)] = J11;
+         J[ijklNM(1,0,q,e,3,NQ)] = J12;
+         J[ijklNM(2,0,q,e,3,NQ)] = J13;
+         J[ijklNM(0,1,q,e,3,NQ)] = J21;
+         J[ijklNM(1,1,q,e,3,NQ)] = J22;
+         J[ijklNM(2,1,q,e,3,NQ)] = J23;
+         J[ijklNM(0,2,q,e,3,NQ)] = J31;
+         J[ijklNM(1,2,q,e,3,NQ)] = J32;
+         J[ijklNM(2,2,q,e,3,NQ)] = J33;
 
          const double r_idetJ = 1.0 / r_detJ;
-         invJ[ijklNM(0,0,q,e,3,NUM_QUAD)] = r_idetJ * ((J22 * J33)-(J23 * J32));
-         invJ[ijklNM(1,0,q,e,3,NUM_QUAD)] = r_idetJ * ((J32 * J13)-(J33 * J12));
-         invJ[ijklNM(2,0,q,e,3,NUM_QUAD)] = r_idetJ * ((J12 * J23)-(J13 * J22));
-         invJ[ijklNM(0,1,q,e,3,NUM_QUAD)] = r_idetJ * ((J23 * J31)-(J21 * J33));
-         invJ[ijklNM(1,1,q,e,3,NUM_QUAD)] = r_idetJ * ((J33 * J11)-(J31 * J13));
-         invJ[ijklNM(2,1,q,e,3,NUM_QUAD)] = r_idetJ * ((J13 * J21)-(J11 * J23));
-         invJ[ijklNM(0,2,q,e,3,NUM_QUAD)] = r_idetJ * ((J21 * J32)-(J22 * J31));
-         invJ[ijklNM(1,2,q,e,3,NUM_QUAD)] = r_idetJ * ((J31 * J12)-(J32 * J11));
-         invJ[ijklNM(2,2,q,e,3,NUM_QUAD)] = r_idetJ * ((J11 * J22)-(J12 * J21));
-         detJ[ijN(q, e,NUM_QUAD)] = r_detJ;
+         invJ[ijklNM(0,0,q,e,3,NQ)] = r_idetJ * ((J22 * J33)-(J23 * J32));
+         invJ[ijklNM(1,0,q,e,3,NQ)] = r_idetJ * ((J32 * J13)-(J33 * J12));
+         invJ[ijklNM(2,0,q,e,3,NQ)] = r_idetJ * ((J12 * J23)-(J13 * J22));
+         invJ[ijklNM(0,1,q,e,3,NQ)] = r_idetJ * ((J23 * J31)-(J21 * J33));
+         invJ[ijklNM(1,1,q,e,3,NQ)] = r_idetJ * ((J33 * J11)-(J31 * J13));
+         invJ[ijklNM(2,1,q,e,3,NQ)] = r_idetJ * ((J13 * J21)-(J11 * J23));
+         invJ[ijklNM(0,2,q,e,3,NQ)] = r_idetJ * ((J21 * J32)-(J22 * J31));
+         invJ[ijklNM(1,2,q,e,3,NQ)] = r_idetJ * ((J31 * J12)-(J32 * J11));
+         invJ[ijklNM(2,2,q,e,3,NQ)] = r_idetJ * ((J11 * J22)-(J12 * J21));
+         detJ[ijN(q, e,NQ)] = r_detJ;
       }
    });
 }
@@ -210,29 +210,31 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const Mesh *mesh = fes.GetMesh();
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
-   const FiniteElement *fe = fespace->GetFE(0);
-   const int dims     = fe->GetDim();
-   const int numDofs  = fe->GetDof();
-   const int numQuad  = ir.GetNPoints();
-   const int elements = fespace->GetNE();
-   const int ndofs    = fespace->GetNDofs();
-   const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
-   NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->nodes);
-   const double *B = (double*) mm::ptr(maps->B);
+   const FiniteElement &fe = *fespace->GetFE(0);
+   const int dim = fe.GetDim();
+   const int feND = fe.GetDof();
+   const int NQ = ir.GetNPoints();
+   const int NQ1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
+   const int NE = fespace->GetNE();
+   const int fesND = fespace->GetNDofs();
+   const int ND1d = fe.GetOrder() + 1;
+   const DofToQuad* maps = DofToQuad::GetSimplexMaps(fe, ir);
+   NodeCopyByVDim(NE,feND,fesND,dim,geom->eMap,Sx,geom->nodes);
+      
    const double *G = (double*) mm::ptr(maps->G);
    const double *X = (double*) mm::ptr(geom->nodes);
    double *x = (double*) mm::ptr(geom->X);
    double *J = (double*) mm::ptr(geom->J);
    double *invJ = (double*) mm::ptr(geom->invJ);
    double *detJ = (double*) mm::ptr(geom->detJ);
-   if (dims==2)
+   if (dim==2)
    {
-      Geom2D(numDofs, numQuad, elements, B, G, X, x, J, invJ, detJ);
+      Geom2D(feND, ND1d, NQ, NQ1d, NE, G, X, x, J, invJ, detJ);
    }
 
-   if (dims==3)
+   if (dim==3)
    {
-      Geom3D(numDofs, numQuad, elements, B, G, X, x, J, invJ, detJ);
+      Geom3D(feND, NQ, NE, G, X, x, J, invJ, detJ);
    }
    return geom;
 }
@@ -248,29 +250,25 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    mesh->EnsureNodes();
    const GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
-   const mfem::FiniteElement *fe = fespace->GetFE(0);
-   const int dims     = fe->GetDim();
-   const int elements = fespace->GetNE();
-   const int numDofs  = fe->GetDof();
-   const int numQuad  = ir.GetNPoints();
+   const mfem::FiniteElement &el = *fespace->GetFE(0);
+   const int dim = el.GetDim();
+   const int NE = fespace->GetNE();
+   const int ND  = el.GetDof();
+   const int ND1d = el.GetOrder() + 1;
+   const int NQ  = ir.GetNPoints();
+   const int NQ1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
    const bool orderedByNODES = (fespace->GetOrdering() == Ordering::byNODES);
    if (orderedByNODES) { ReorderByVDim(nodes); }
-   const int asize = dims*numDofs*elements;
+   const int asize = dim*ND*NE;
    mfem::Array<double> meshNodes(asize);
    const Table& e2dTable = fespace->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
-   mfem::Array<int> eMap(numDofs*elements);
-   GeomFill(dims,
-            elements,
-            numDofs,
-            elementMap,
-            eMap,
-            nodes->GetData(),
-            meshNodes);
+   mfem::Array<int> eMap(ND*NE);
+   GeomFill(dim, NE, ND, elementMap, eMap, nodes->GetData(), meshNodes);
    if (geom_to_allocate)
    {
-      geom->nodes.SetSize(dims*numDofs*elements);
-      geom->eMap.SetSize(numDofs*elements);
+      geom->nodes.SetSize(dim*ND*NE);
+      geom->eMap.SetSize(ND*NE);
    }
    geom->nodes = meshNodes;
    geom->eMap = eMap;
@@ -278,27 +276,28 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    if (orderedByNODES) { ReorderByNodes(nodes); }
    if (geom_to_allocate)
    {
-      geom->X.SetSize(dims*numQuad*elements);
-      geom->J.SetSize(dims*dims*numQuad*elements);
-      geom->invJ.SetSize(dims*dims*numQuad*elements);
-      geom->detJ.SetSize(numQuad*elements);
+      geom->detJ.SetSize(NQ*NE);
+      geom->X.SetSize(dim*NQ*NE);
+      geom->J.SetSize(dim*dim*NQ*NE);
+      geom->invJ.SetSize(dim*dim*NQ*NE);
    }
-   const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
-   const double *B = (double*) mm::ptr(maps->B);
-   const double *G = (double*) mm::ptr(maps->G);
+   const DofToQuad* smaps = DofToQuad::GetSimplexMaps(el, ir);
+   //const DofToQuad* tmaps = DofToQuad::GetTensorMaps(el, el, ir);
+   
+   const double *G = (double*) mm::ptr(smaps->G);
    const double *X = (double*) mm::ptr(geom->nodes);
    double *x = (double*) mm::ptr(geom->X);
    double *J = (double*) mm::ptr(geom->J);
    double *invJ = (double*) mm::ptr(geom->invJ);
    double *detJ = (double*) mm::ptr(geom->detJ);
-   if (dims==2)
+   if (dim==2)
    {
-      Geom2D(numDofs, numQuad, elements, B, G, X, x, J, invJ, detJ);
+      Geom2D(ND, ND1d, NQ, NQ1d, NE, G, X, x, J, invJ, detJ);
    }
 
-   if (dims==3)
+   if (dim==3)
    {
-      Geom3D(numDofs, numQuad, elements, B, G, X, x, J, invJ, detJ);
+      Geom3D(ND, NQ, NE, G, X, x, J, invJ, detJ);
    }
    return geom;
 }

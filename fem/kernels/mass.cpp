@@ -24,22 +24,18 @@ static void MassMultAdd2D(const int ND1d,
                           const int NQ1d,
                           const int NE,
                           const double* __restrict _B,
-                          const double* __restrict _G,
                           const double* __restrict _Bt,
-                          const double* __restrict _Gt,
                           const double* __restrict _op,
                           const double* __restrict _x,
                           double* __restrict _y)
 {
    const int NQ = NQ1d*NQ1d;
    const int Nspt = NQ + max(NQ1d,ND1d);
-   const Vector B(NQ1d,_B);
-   const Vector G(NQ1d,_G);
-   const Vector Bt(ND1d,_Bt);
-   const Vector Gt(ND1d,_Gt);
-   const Vector op(NQ1d,NQ1d,_op);
-   const Vector x(ND1d,ND1d,_x);
-   Vector y(ND1d,ND1d,_y);
+   const Vector B(NQ1d,ND1d,_B);
+   const Vector Bt(ND1d,NQ1d,_Bt);
+   const Vector op(NQ1d,NQ1d,NE,_op);
+   const Vector x(ND1d,ND1d,NE,_x);
+   Vector y(ND1d,ND1d,NE,_y);
 
    MFEM_FORALL_SHARED(e, NE, Nspt,
    {
@@ -114,9 +110,7 @@ static void MassMultAdd3D(const int ND1d,
                           const int NQ1d,
                           const int NE,
                           const double* __restrict _B,
-                          const double* __restrict _G,
                           const double* __restrict _Bt,
-                          const double* __restrict _Gt,
                           const double* __restrict _oper,
                           const double* __restrict _solIn,
                           double* __restrict _solOut)
@@ -126,13 +120,11 @@ static void MassMultAdd3D(const int ND1d,
    const int maxDQ2 = maxDQ * maxDQ;
    const int Nspt = NQ + maxDQ2 + maxDQ;
 
-   const Vector B(NQ1d,_B);
-   const Vector G(NQ1d,_G);
-   const Vector Bt(ND1d,_Bt);
-   const Vector Gt(ND1d,_Gt);
-   const Vector oper(NQ1d,NQ1d,NQ1d,_oper);
-   const Vector x(ND1d,ND1d,ND1d,_solIn);
-   Vector y(ND1d,ND1d,ND1d,_solOut);
+   const Vector B(NQ1d,ND1d,_B);
+   const Vector Bt(ND1d,NQ1d,_Bt);
+   const Vector oper(NQ1d,NQ1d,NQ1d,NE,_oper);
+   const Vector x(ND1d,ND1d,ND1d,NE,_solIn);
+   Vector y(ND1d,ND1d,ND1d,NE,_solOut);
 
    MFEM_FORALL_SHARED(e, NE, Nspt,
    {
@@ -169,12 +161,12 @@ static void MassMultAdd3D(const int ND1d,
                const double s = x(dx,dy,dz,e);
                for (int qx = 0; qx < NQ1d; ++qx)
                {
-                  sol_x(qx) += B(qx,dx) * s; //(qx,dx)
+                  sol_x(qx) += B(qx,dx) * s;
                }
             }
             for (int qy = 0; qy < NQ1d; ++qy)
             {
-               const double wy = B(qy,dy);//(qy,dy);
+               const double wy = B(qy,dy);
                for (int qx = 0; qx < NQ1d; ++qx)
                {
                   sol_xy(qy,qx) += wy * sol_x(qx);
@@ -183,7 +175,7 @@ static void MassMultAdd3D(const int ND1d,
          }
          for (int qz = 0; qz < NQ1d; ++qz)
          {
-            const double wz =  B(qz,dz);//(qz,dz);
+            const double wz =  B(qz,dz);
             for (int qy = 0; qy < NQ1d; ++qy)
             {
                for (int qx = 0; qx < NQ1d; ++qx)
@@ -225,12 +217,12 @@ static void MassMultAdd3D(const int ND1d,
                const double s = sol_xyz(qz,qy,qx);
                for (int dx = 0; dx < ND1d; ++dx)
                {
-                  sol_x(dx) += Bt(dx,qx) * s;//(dx,qx)
+                  sol_x(dx) += Bt(dx,qx) * s;
                }
             }
             for (int dy = 0; dy < ND1d; ++dy)
             {
-               const double wy = Bt(dy,qy);//(dy,qy);
+               const double wy = Bt(dy,qy);
                for (int dx = 0; dx < ND1d; ++dx)
                {
                   sol_xy(dy,dx) += wy * sol_x(dx);
@@ -239,7 +231,7 @@ static void MassMultAdd3D(const int ND1d,
          }
          for (int dz = 0; dz < ND1d; ++dz)
          {
-            const double wz = Bt(dz,qz);//(dz,qz);
+            const double wz = Bt(dz,qz);
             for (int dy = 0; dy < ND1d; ++dy)
             {
                for (int dx = 0; dx < ND1d; ++dx)
@@ -258,21 +250,19 @@ void MassMultAssembled(const int DIM,
                        const int NQ1d,
                        const int NE,
                        const double* __restrict B,
-                       const double* __restrict G,
                        const double* __restrict Bt,
-                       const double* __restrict Gt,
                        const double* __restrict op,
                        const double* __restrict x,
                        double* __restrict y)
 {
    if (DIM==2)
    {
-      MassMultAdd2D(ND1d, NQ1d, NE, B, G, Bt, Gt, op, x, y);
+      MassMultAdd2D(ND1d, NQ1d, NE, B, Bt, op, x, y);
       return;
    }
    if (DIM==3)
    {
-      MassMultAdd3D(ND1d, NQ1d, NE, B, G, Bt, Gt, op, x, y);
+      MassMultAdd3D(ND1d, NQ1d, NE, B, Bt, op, x, y);
       return;
    }
 }

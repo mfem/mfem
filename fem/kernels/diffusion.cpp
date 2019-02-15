@@ -228,9 +228,9 @@ static void DiffusionMultAssembled2D(const int ND1d,
    const Vector G(NQ1d,ND1d,_G);
    const Vector Bt(ND1d,NQ1d,_Bt);
    const Vector Gt(ND1d,NQ1d,_Gt);
-   const Vector op(3,NQ,_op);
-   const Vector x(ND1d,ND1d,_x);
-   Vector y(ND1d,ND1d,_y);
+   const Vector op(3,NQ,NE,_op);
+   const Vector x(ND1d,ND1d,NE,_x);
+   Vector y(ND1d,ND1d,NE,_y);
 
    MFEM_FORALL_SHARED(e, NE, Nspt,
    {
@@ -340,9 +340,9 @@ static void DiffusionMultAssembled3D(const int ND1d,
    const Vector G(NQ1d,ND1d,_G);
    const Vector Bt(ND1d,NQ1d,_Bt);
    const Vector Gt(ND1d,NQ1d,_Gt);
-   const Vector op(6,NQ,_op);
-   const Vector x(ND1d,ND1d,ND1d,_x);
-   Vector y(ND1d,ND1d,ND1d,_y);
+   const Vector op(6,NQ,NE,_op);
+   const Vector x(ND1d,ND1d,ND1d,NE,_x);
+   Vector y(ND1d,ND1d,ND1d,NE,_y);
 
    MFEM_FORALL_SHARED(e, NE, Nspt,
    {
