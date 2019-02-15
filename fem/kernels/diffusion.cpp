@@ -58,7 +58,7 @@ static void DiffusionAssemble3D(const int NQ,
 {
    const Vector W(NQ, w);
    const Vector J(3,3,3,NQ,j);
-   Vector oper(6,NQ,NE,y);   
+   Vector oper(6,NQ,NE,y);
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -527,7 +527,7 @@ void DiffusionMultAssembled(const int DIM,
       return;
    }
 #endif // __OCCA__
-   
+
    if (DIM==2)
    {
       DiffusionMultAssembled2D(ND1d, NQ1d, NE, B, G, Bt, Gt, op, x, y);

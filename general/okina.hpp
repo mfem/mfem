@@ -113,55 +113,58 @@ namespace mfem
 namespace kernels
 {
 // *****************************************************************************
-class Vector2{
-   private:
+class Vector2
+{
+private:
    size_t N,M;
    double *data;
 public:
    __host__ __device__ Vector2(const size_t n,
-                          const size_t m,
-                          double *d)
-      :N(n), M(m), data(d){}
+                               const size_t m,
+                               double *d)
+      :N(n), M(m), data(d) {}
    __host__ __device__ double& operator()(const size_t i,
-                                 const size_t j)
+                                          const size_t j)
    {
       return data[i*N+j];
    }
    __host__ __device__ double& operator()(const size_t i,
-                                 const size_t j) const
+                                          const size_t j) const
    {
       return data[i*N+j];
    }
 };
 // *****************************************************************************
-class Vector3{
-   private:
+class Vector3
+{
+private:
    size_t N,M,P;
    double *data;
 public:
    __host__ __device__ Vector3(const size_t n,
-                          const size_t m,
-                          const size_t p,
-                          double *d)
-      :N(n), M(m), P(p), data(d){}
+                               const size_t m,
+                               const size_t p,
+                               double *d)
+      :N(n), M(m), P(p), data(d) {}
    __host__ __device__ double& operator()(const size_t i,
-                                 const size_t j,
-                                 const size_t k)
+                                          const size_t j,
+                                          const size_t k)
    {
       const size_t ijkNM = (i)+N*((j)+M*(k));
       return data[ijkNM];
    }
    __host__ __device__ double& operator()(const size_t i,
-                                 const size_t j,
-                                 const size_t k) const
+                                          const size_t j,
+                                          const size_t k) const
    {
       const size_t ijkNM = (i)+N*((j)+M*(k));
       return data[ijkNM];
    }
 };
 // *****************************************************************************
-class Vector4{
-   private:
+class Vector4
+{
+private:
    size_t N,M,P,Q;
    double *data;
 public:
@@ -170,7 +173,7 @@ public:
                                const size_t p,
                                const size_t q,
                                double *d)
-      :N(n), M(m), P(p), Q(q), data(d){}
+      :N(n), M(m), P(p), Q(q), data(d) {}
    __host__ __device__ double& operator()(const size_t i,
                                           const size_t j,
                                           const size_t k,
@@ -190,22 +193,23 @@ public:
 };
 
 // *****************************************************************************
-template <typename T> class XS{
+template <typename T> class XS
+{
 private:
    size_t N,M,P,Q;
    T *data;
 public:
    // 1D
-   XS(T *d): data(d){}
-   XS(const size_t n, const T *d) : N(n), data((T*)mfem::mm::ptr(d)){}
+   XS(T *d): data(d) {}
+   XS(const size_t n, const T *d) : N(n), data((T*)mfem::mm::ptr(d)) {}
    __host__ __device__ T operator[](const size_t i) { return data[i];}
    __host__ __device__ T operator[](const size_t i) const { return data[i];}
    __host__ __device__ T& operator()(const size_t i) { return data[i];}
    __host__ __device__ T& operator()(const size_t i) const { return data[i];}
-   
+
    // 2D
    XS(const size_t n, const size_t m, const T *d)
-      :N(n), M(m), data((T*)mfem::mm::ptr(d)){}
+      :N(n), M(m), data((T*)mfem::mm::ptr(d)) {}
    __host__ __device__ T& operator()(const size_t i, const size_t j)
    {
       return data[i*N+j];
@@ -214,10 +218,10 @@ public:
    {
       return data[i*N+j];
    }
-   
+
    // 3D
    XS(const size_t n, const size_t m, const size_t p, const T *d)
-      :N(n), M(m), P(p), data((T*)mfem::mm::ptr(d)){}
+      :N(n), M(m), P(p), data((T*)mfem::mm::ptr(d)) {}
    __host__ __device__ T& operator()(const size_t i, const size_t j,
                                      const size_t k)
    {
@@ -231,11 +235,11 @@ public:
       const size_t ijkNM = (i)+N*((j)+M*(k));
       return data[ijkNM];
    }
-   
+
    // 4D
    XS(const size_t n, const size_t m,
-               const size_t p, const size_t q, const T *d)
-      :N(n), M(m), P(p), Q(q), data((T*)mfem::mm::ptr(d)){}   
+      const size_t p, const size_t q, const T *d)
+      :N(n), M(m), P(p), Q(q), data((T*)mfem::mm::ptr(d)) {}
    __host__ __device__ T& operator()(const size_t i, const size_t j,
                                      const size_t k, const size_t l)
    {

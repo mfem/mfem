@@ -11,13 +11,11 @@
 
 set(SRCS
   diffusion.cpp
-  geom.cpp
   mass.cpp
 )
 
 set(HDRS
   diffusion.hpp
-  geom.hpp
   mass.hpp
 )
 

@@ -14,7 +14,6 @@
 
 #include "fem.hpp"
 #include "geom_ext.hpp"
-#include "kernels/geom.hpp"
 #include "../linalg/kernels/vector.hpp"
 
 namespace mfem
@@ -226,11 +225,13 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    double *J = (double*) mm::ptr(geom->J);
    double *invJ = (double*) mm::ptr(geom->invJ);
    double *detJ = (double*) mm::ptr(geom->detJ);
-   if (dims==2){
+   if (dims==2)
+   {
       Geom2D(numDofs, numQuad, elements, B, G, X, x, J, invJ, detJ);
    }
-   
-   if (dims==3){
+
+   if (dims==3)
+   {
       Geom3D(numDofs, numQuad, elements, B, G, X, x, J, invJ, detJ);
    }
    return geom;
@@ -290,11 +291,13 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    double *J = (double*) mm::ptr(geom->J);
    double *invJ = (double*) mm::ptr(geom->invJ);
    double *detJ = (double*) mm::ptr(geom->detJ);
-   if (dims==2){
+   if (dims==2)
+   {
       Geom2D(numDofs, numQuad, elements, B, G, X, x, J, invJ, detJ);
    }
-   
-   if (dims==3){
+
+   if (dims==3)
+   {
       Geom3D(numDofs, numQuad, elements, B, G, X, x, J, invJ, detJ);
    }
    return geom;
