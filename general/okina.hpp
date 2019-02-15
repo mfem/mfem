@@ -53,6 +53,8 @@ void wrap(const size_t N, size_t Ns, DBODY &&d_body, HBODY &&h_body)
 // *****************************************************************************
 #define MFEM_BLOCKS 256
 #define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,0,__VA_ARGS__)
+#define MFEM_FORALL_BLOCKS_SHARED(i,N,B,Nspt,...)                       \
+   MFEM_FORALL_K(i,N,B,Nspt,__VA_ARGS__)
 #define MFEM_FORALL_SHARED(i,N,Nspt,...)                                \
    MFEM_FORALL_K(i,N,MFEM_BLOCKS,Nspt,__VA_ARGS__)
 #define MFEM_FORALL_K(i,N,Db,Nspt,...)                                  \
@@ -155,6 +157,35 @@ public:
    {
       const size_t ijkNM = (i)+N*((j)+M*(k));
       return data[ijkNM];
+   }
+};
+// *****************************************************************************
+class Vector4{
+   private:
+   size_t N,M,P,Q;
+   double *data;
+public:
+   __host__ __device__ Vector4(const size_t n,
+                               const size_t m,
+                               const size_t p,
+                               const size_t q,
+                               double *d)
+      :N(n), M(m), P(p), Q(q), data(d){}
+   __host__ __device__ double& operator()(const size_t i,
+                                          const size_t j,
+                                          const size_t k,
+                                          const size_t l)
+   {
+      const size_t ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
+      return data[ijklNM];
+   }
+   __host__ __device__ double& operator()(const size_t i,
+                                          const size_t j,
+                                          const size_t k,
+                                          const size_t l) const
+   {
+      const size_t ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
+      return data[ijklNM];
    }
 };
 

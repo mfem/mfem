@@ -15,10 +15,10 @@
 // *****************************************************************************
 #ifdef __NVCC__
 #include <cuda.h>
-inline void cuCheck(const unsigned int c)
-{
-   MFEM_ASSERT(!c, cudaGetErrorString(cudaGetLastError()));
-}
+#define cuCheck(c)                                                      \
+   {                                                                    \
+      MFEM_ASSERT(!c, cudaGetErrorString(cudaGetLastError()));          \
+   }
 
 extern __shared__ double gpu_mem_s[];
 
@@ -35,6 +35,9 @@ void cuWrap(const size_t N, const size_t Nspt, DBODY &&d_body)
 {
    const size_t Dg = (N+Db-1)/Db;
    const size_t Ns = Nspt*Db*sizeof(double);
+   const size_t total_shared_memory_per_block = 49152;
+   MFEM_ASSERT(Ns < total_shared_memory_per_block,
+               "Not enough shared memory per block!");
    cuKernel<<<Dg,Db,Ns>>>(N,Nspt,d_body);
 }
 template<typename T>

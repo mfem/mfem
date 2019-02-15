@@ -27,9 +27,9 @@ static void DiffusionAssemble2D(const int NQ,
                                 const double COEFF,
                                 double* __restrict o)
 {
-   const Array W(NQ, w);
-   const Array J(2,2,2,NQ,j);
-   Array oper(3,NQ,NE,o);
+   const Vector W(NQ, w);
+   const Vector J(2,2,2,NQ,j);
+   Vector oper(3,NQ,NE,o);
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -56,9 +56,9 @@ static void DiffusionAssemble3D(const int NQ,
                                 const double COEFF,
                                 double* __restrict y)
 {
-   const Array W(NQ, w);
-   const Array J(3,3,3,NQ,j);
-   Array oper(6,NQ,NE,y);   
+   const Vector W(NQ, w);
+   const Vector J(3,3,3,NQ,j);
+   Vector oper(6,NQ,NE,y);   
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -209,16 +209,16 @@ static void occaDiffusionMultAdd2D(const int ND1d,
 #define QUAD_3D_ID(X, Y, Z) (X + ((Y) * NQ1d) + ((Z) * NQ1d*NQ1d))
 
 // *****************************************************************************
-void DiffusionMultAssembled2D(const int ND1d,
-                              const int NQ1d,
-                              const int NE,
-                              const double* __restrict _B,
-                              const double* __restrict _G,
-                              const double* __restrict _Bt,
-                              const double* __restrict _Gt,
-                              const double* __restrict _op,
-                              const double* __restrict _x,
-                              double* __restrict _y)
+static void DiffusionMultAssembled2D(const int ND1d,
+                                     const int NQ1d,
+                                     const int NE,
+                                     const double* __restrict _B,
+                                     const double* __restrict _G,
+                                     const double* __restrict _Bt,
+                                     const double* __restrict _Gt,
+                                     const double* __restrict _op,
+                                     const double* __restrict _x,
+                                     double* __restrict _y)
 {
    const int NQ = NQ1d*NQ1d;
    const Vector B(NQ1d,_B);
@@ -317,95 +317,96 @@ void DiffusionMultAssembled2D(const int ND1d,
 }
 
 // *****************************************************************************
-template<const int ND1d,
-         const int NQ1d> static
-void DiffusionMultAssembled3D(const int NE,
-                              const double* __restrict _B,
-                              const double* __restrict _G,
-                              const double* __restrict _Bt,
-                              const double* __restrict _Gt,
-                              const double* __restrict _op,
-                              const double* __restrict _x,
-                              double* __restrict _y)
+static void DiffusionMultAssembled3D(const int ND1d,
+                                     const int NQ1d,
+                                     const int NE,
+                                     const double* __restrict _B,
+                                     const double* __restrict _G,
+                                     const double* __restrict _Bt,
+                                     const double* __restrict _Gt,
+                                     const double* __restrict _op,
+                                     const double* __restrict _x,
+                                     double* __restrict _y)
 {
    const int NQ = NQ1d*NQ1d*NQ1d;
-   const double *B = (double*) mm::ptr(_B);
-   const double *G = (double*) mm::ptr(_G);
-   const double *Bt = (double*) mm::ptr(_Bt);
-   const double *Gt = (double*) mm::ptr(_Gt);
-   const double *op = (double*) mm::ptr(_op);
-   const double *x = (double*) mm::ptr(_x);
-   double *y = (double*) mm::ptr(_y);
+   const Vector B(NQ1d,_B);
+   const Vector G(NQ1d,_G);
+   const Vector Bt(ND1d,_Bt);
+   const Vector Gt(ND1d,_Gt);
+   const Vector op(6,NQ,_op);
+   const Vector x(ND1d,ND1d,ND1d,_x);
+   Vector y(ND1d,ND1d,ND1d,_y);
 
-   MFEM_FORALL(e, NE,
+   const int Nspt = 3*NQ + 3*NQ1d*NQ1d + 3*NQ1d;
+   MFEM_FORALL_BLOCKS_SHARED(e, NE, 48, Nspt,
    {
-      double grad[NQ1d][NQ1d][NQ1d][4];
+      Vector4 grad(NQ1d,NQ1d,NQ1d,3,__shared);
       for (int qz = 0; qz < NQ1d; ++qz)
       {
          for (int qy = 0; qy < NQ1d; ++qy)
          {
             for (int qx = 0; qx < NQ1d; ++qx)
             {
-               grad[qz][qy][qx][0] = 0.0;
-               grad[qz][qy][qx][1] = 0.0;
-               grad[qz][qy][qx][2] = 0.0;
+               grad(qz,qy,qx,0) = 0.0;
+               grad(qz,qy,qx,1) = 0.0;
+               grad(qz,qy,qx,2) = 0.0;
             }
          }
       }
       for (int dz = 0; dz < ND1d; ++dz)
       {
-         double gradXY[NQ1d][NQ1d][4];
+         Vector3 gradXY(NQ1d,NQ1d,3,__shared+3*NQ);
          for (int qy = 0; qy < NQ1d; ++qy)
          {
             for (int qx = 0; qx < NQ1d; ++qx)
             {
-               gradXY[qy][qx][0] = 0.0;
-               gradXY[qy][qx][1] = 0.0;
-               gradXY[qy][qx][2] = 0.0;
+               gradXY(qy,qx,0) = 0.0;
+               gradXY(qy,qx,1) = 0.0;
+               gradXY(qy,qx,2) = 0.0;
             }
          }
          for (int dy = 0; dy < ND1d; ++dy)
          {
-            double gradX[NQ1d][2];
+            Vector2 gradX(NQ1d, 3, __shared + 3*NQ + 3*NQ1d*NQ1d);
             for (int qx = 0; qx < NQ1d; ++qx)
             {
-               gradX[qx][0] = 0.0;
-               gradX[qx][1] = 0.0;
+               gradX(qx,0) = 0.0;
+               gradX(qx,1) = 0.0;
             }
             for (int dx = 0; dx < ND1d; ++dx)
             {
-               const double s = x[ijklN(dx,dy,dz,e,ND1d)];
+               const double s = x(dx,dy,dz,e);
                for (int qx = 0; qx < NQ1d; ++qx)
                {
-                  gradX[qx][0] += s * B[ijN(qx,dx,NQ1d)];
-                  gradX[qx][1] += s * G[ijN(qx,dx,NQ1d)];
+                  gradX(qx,0) += s * B(dx,qx); // (qx,dx)
+                  gradX(qx,1) += s * G(dx,qx); // (qx,dx);
                }
             }
             for (int qy = 0; qy < NQ1d; ++qy)
             {
-               const double wy  = B[ijN(qy,dy,NQ1d)];
-               const double wDy = G[ijN(qy,dy,NQ1d)];
+               const double wy  = B(dy,qy);//(qy,dy);
+               const double wDy = G(dy,qy);//(qy,dy);
                for (int qx = 0; qx < NQ1d; ++qx)
                {
-                  const double wx  = gradX[qx][0];
-                  const double wDx = gradX[qx][1];
-                  gradXY[qy][qx][0] += wDx * wy;
-                  gradXY[qy][qx][1] += wx  * wDy;
-                  gradXY[qy][qx][2] += wx  * wy;
+                  const double wx  = gradX(qx,0);
+                  const double wDx = gradX(qx,1);
+                  gradXY(qy,qx,0) += wDx * wy;
+                  gradXY(qy,qx,1) += wx  * wDy;
+                  gradXY(qy,qx,2) += wx  * wy;
                }
             }
          }
          for (int qz = 0; qz < NQ1d; ++qz)
          {
-            const double wz  = B[ijN(qz,dz,NQ1d)];
-            const double wDz = G[ijN(qz,dz,NQ1d)];
+            const double wz  = B(dz,qz);//(qz,dz);
+            const double wDz = G(dz,qz);//(qz,dz);
             for (int qy = 0; qy < NQ1d; ++qy)
             {
                for (int qx = 0; qx < NQ1d; ++qx)
                {
-                  grad[qz][qy][qx][0] += gradXY[qy][qx][0] * wz;
-                  grad[qz][qy][qx][1] += gradXY[qy][qx][1] * wz;
-                  grad[qz][qy][qx][2] += gradXY[qy][qx][2] * wDz;
+                  grad(qz,qy,qx,0) += gradXY(qy,qx,0) * wz;
+                  grad(qz,qy,qx,1) += gradXY(qy,qx,1) * wz;
+                  grad(qz,qy,qx,2) += gradXY(qy,qx,2) * wDz;
                }
             }
          }
@@ -419,103 +420,86 @@ void DiffusionMultAssembled3D(const int NE,
             for (int qx = 0; qx < NQ1d; ++qx)
             {
                const int q = QUAD_3D_ID(qx, qy, qz);
-               const double O11 = op[ijkNM(0,q,e,6,NQ)];
-               const double O12 = op[ijkNM(1,q,e,6,NQ)];
-               const double O13 = op[ijkNM(2,q,e,6,NQ)];
-               const double O22 = op[ijkNM(3,q,e,6,NQ)];
-               const double O23 = op[ijkNM(4,q,e,6,NQ)];
-               const double O33 = op[ijkNM(5,q,e,6,NQ)];
-
-               const double gradX = grad[qz][qy][qx][0];
-               const double gradY = grad[qz][qy][qx][1];
-               const double gradZ = grad[qz][qy][qx][2];
-
-               grad[qz][qy][qx][0] = (O11 * gradX) + (O12 * gradY) + (O13 * gradZ);
-               grad[qz][qy][qx][1] = (O12 * gradX) + (O22 * gradY) + (O23 * gradZ);
-               grad[qz][qy][qx][2] = (O13 * gradX) + (O23 * gradY) + (O33 * gradZ);
+               const double O11 = op(0,q,e);
+               const double O12 = op(1,q,e);
+               const double O13 = op(2,q,e);
+               const double O22 = op(3,q,e);
+               const double O23 = op(4,q,e);
+               const double O33 = op(5,q,e);
+               const double gradX = grad(qz,qy,qx,0);
+               const double gradY = grad(qz,qy,qx,1);
+               const double gradZ = grad(qz,qy,qx,2);
+               grad(qz,qy,qx,0) = (O11 * gradX) + (O12 * gradY) + (O13 * gradZ);
+               grad(qz,qy,qx,1) = (O12 * gradX) + (O22 * gradY) + (O23 * gradZ);
+               grad(qz,qy,qx,2) = (O13 * gradX) + (O23 * gradY) + (O33 * gradZ);
             }
          }
       }
-
       for (int qz = 0; qz < NQ1d; ++qz)
       {
-         double gradXY[ND1d][ND1d][4];
+         Vector3 gradXY(NQ1d,NQ1d,3,__shared+3*NQ);
          for (int dy = 0; dy < ND1d; ++dy)
          {
             for (int dx = 0; dx < ND1d; ++dx)
             {
-               gradXY[dy][dx][0] = 0;
-               gradXY[dy][dx][1] = 0;
-               gradXY[dy][dx][2] = 0;
+               gradXY(dy,dx,0) = 0;
+               gradXY(dy,dx,1) = 0;
+               gradXY(dy,dx,2) = 0;
             }
          }
-
          for (int qy = 0; qy < NQ1d; ++qy)
          {
-            double gradX[ND1d][4];
+            Vector2 gradX(NQ1d, 3, __shared + 3*NQ + 3*NQ1d*NQ1d);
             for (int dx = 0; dx < ND1d; ++dx)
             {
-               gradX[dx][0] = 0;
-               gradX[dx][1] = 0;
-               gradX[dx][2] = 0;
+               gradX(dx,0) = 0;
+               gradX(dx,1) = 0;
+               gradX(dx,2) = 0;
             }
-
             for (int qx = 0; qx < NQ1d; ++qx)
             {
-               const double gX = grad[qz][qy][qx][0];
-               const double gY = grad[qz][qy][qx][1];
-               const double gZ = grad[qz][qy][qx][2];
+               const double gX = grad(qz,qy,qx,0);
+               const double gY = grad(qz,qy,qx,1);
+               const double gZ = grad(qz,qy,qx,2);
                for (int dx = 0; dx < ND1d; ++dx)
                {
-                  const double wx  = Bt[ijN(dx,qx,ND1d)];
-                  const double wDx = Gt[ijN(dx,qx,ND1d)];
-                  gradX[dx][0] += gX * wDx;
-                  gradX[dx][1] += gY * wx;
-                  gradX[dx][2] += gZ * wx;
+                  const double wx  = Bt(qx,dx);//(dx,qx);
+                  const double wDx = Gt(qx,dx);//(dx,qx);
+                  gradX(dx,0) += gX * wDx;
+                  gradX(dx,1) += gY * wx;
+                  gradX(dx,2) += gZ * wx;
                }
             }
-
             for (int dy = 0; dy < ND1d; ++dy)
             {
-               const double wy  = Bt[ijN(dy,qy,ND1d)];
-               const double wDy = Gt[ijN(dy,qy,ND1d)];
+               const double wy  = Bt(qy,dy);//(dy,qy);
+               const double wDy = Gt(qy,dy);//(dy,qy);
                for (int dx = 0; dx < ND1d; ++dx)
                {
-                  gradXY[dy][dx][0] += gradX[dx][0] * wy;
-                  gradXY[dy][dx][1] += gradX[dx][1] * wDy;
-                  gradXY[dy][dx][2] += gradX[dx][2] * wy;
+                  gradXY(dy,dx,0) += gradX(dx,0) * wy;
+                  gradXY(dy,dx,1) += gradX(dx,1) * wDy;
+                  gradXY(dy,dx,2) += gradX(dx,2) * wy;
                }
             }
          }
-
          for (int dz = 0; dz < ND1d; ++dz)
          {
-            const double wz  = Bt[ijN(dz,qz,ND1d)];
-            const double wDz = Gt[ijN(dz,qz,ND1d)];
+            const double wz  = Bt(qz,dz);//(dz,qz);
+            const double wDz = Gt(qz,dz);//(dz,qz);
             for (int dy = 0; dy < ND1d; ++dy)
             {
                for (int dx = 0; dx < ND1d; ++dx)
                {
-                  y[ijklN(dx,dy,dz,e,ND1d)] +=
-                     ((gradXY[dy][dx][0] * wz) +
-                      (gradXY[dy][dx][1] * wz) +
-                      (gradXY[dy][dx][2] * wDz));
+                  y(dx,dy,dz,e) +=
+                     ((gradXY(dy,dx,0) * wz) +
+                      (gradXY(dy,dx,1) * wz) +
+                      (gradXY(dy,dx,2) * wDz));
                }
             }
          }
       }
    });
 }
-
-// *****************************************************************************
-typedef void (*fDiffusionMultAdd)(const int NE,
-                                  const double* __restrict B,
-                                  const double* __restrict G,
-                                  const double* __restrict Bt,
-                                  const double* __restrict Gt,
-                                  const double* __restrict oper,
-                                  const double* __restrict x,
-                                  double* __restrict y);
 
 // *****************************************************************************
 void DiffusionMultAssembled(const int DIM,
@@ -546,49 +530,14 @@ void DiffusionMultAssembled(const int DIM,
    
    if (DIM==2)
    {
-      DiffusionMultAssembled2D(ND1d, NQ1d,
-                                      NE,
-                                      B, G,
-                                      Bt, Gt,
-                                      op, x, y);
+      DiffusionMultAssembled2D(ND1d, NQ1d, NE, B, G, Bt, Gt, op, x, y);
       return;
    }
-   
-   const unsigned int id = (DIM<<16)|(ND1d<<8)|(NQ1d);
-   assert(LOG2(ND1d)<=8);
-   assert(LOG2(NQ1d)<=8);
-   static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
+   if (DIM==3)
    {
-      /*
-      {0x30101,&DiffusionMultAssembled3D<1,1>},
-      {0x30201,&DiffusionMultAssembled3D<2,1>},
-      {0x30202,&DiffusionMultAssembled3D<2,2>},*/
-      {0x30203,&DiffusionMultAssembled3D<2,3>},/*
-      {0x30303,&DiffusionMultAssembled3D<3,3>},
-      {0x30404,&DiffusionMultAssembled3D<4,4>},
-      {0x30505,&DiffusionMultAssembled3D<5,5>},
-      {0x30606,&DiffusionMultAssembled3D<6,6>},
-      {0x30707,&DiffusionMultAssembled3D<7,7>},
-      {0x30808,&DiffusionMultAssembled3D<8,8>},
-      */
-/*
-      {0x30909,&DiffusionMultAssembled3D<9,9>},
-      {0x30A0A,&DiffusionMultAssembled3D<10,10>},
-      {0x30B0B,&DiffusionMultAssembled3D<11,11>},
-      {0x30C0C,&DiffusionMultAssembled3D<12,12>},
-      {0x30D0D,&DiffusionMultAssembled3D<13,13>},
-      {0x30E0E,&DiffusionMultAssembled3D<14,14>},
-      {0x30F0F,&DiffusionMultAssembled3D<15,15>},
-      {0x31010,&DiffusionMultAssembled3D<16,16>},*/
-   };
-   if (!call[id])
-   {
-      printf("\n[kIntDiffusionMultAdd] id \033[33m0x%X\033[m ",id);
-      fflush(stdout);
+      DiffusionMultAssembled3D(ND1d, NQ1d, NE, B, G, Bt, Gt, op, x, y);
+      return;
    }
-   assert(call[id]);
-
-   call[id](NE, B, G, Bt, Gt, op, x, y);
 }
 
 } // namespace fem
