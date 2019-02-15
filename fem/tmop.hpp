@@ -517,42 +517,46 @@ public:
 
 class FiniteElementCollection;
 class FiniteElementSpace;
+class ParFiniteElementSpace;
 
 class AdaptivityEvaluator
 {
 protected:
+   // Owned.
    Mesh *mesh;
    FiniteElementSpace *fes;
 
+#ifdef MFEM_USE_MPI
+   // Owned.
+   ParMesh *pmesh;
+   ParFiniteElementSpace *pfes;
+#endif
+
 public:
-   AdaptivityEvaluator() : mesh(NULL), fes(NULL) { }
+   AdaptivityEvaluator() : mesh(NULL), fes(NULL)
+   {
+#ifdef MFEM_USE_MPI
+      pmesh = NULL;
+      pfes = NULL;
+#endif
+   }
    virtual ~AdaptivityEvaluator();
 
    void SetMetaInfo(const Mesh &m,
                     const FiniteElementCollection &fec, int num_comp);
 
-   virtual void ComputeAtNewPosition(const Vector &start_nodes,
-                                     const Vector &new_nodes,
-                                     Vector &field) = 0;
-};
-
 #ifdef MFEM_USE_MPI
-class ParFiniteElementSpace;
-class ParAdaptivityEvaluator : public AdaptivityEvaluator
-{
-protected:
-   ParMesh *pmesh;
-   ParFiniteElementSpace *pfes;
-
-public:
-   ParAdaptivityEvaluator() : AdaptivityEvaluator(),
-                              pmesh(NULL), pfes(NULL) { }
-   virtual ~ParAdaptivityEvaluator();
-
    void SetParMetaInfo(const ParMesh &m,
                        const FiniteElementCollection &fec, int num_comp);
-};
 #endif
+
+   // TODO use GridFunctions to make clear it's on the ldofs?
+   virtual void SetInitialField(const Vector &init_nodes,
+                                const Vector &init_field) = 0;
+
+   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+                                     Vector &new_field) = 0;
+};
 
 /** @brief Base class representing target-matrix construction algorithms for
     mesh optimization via the target-matrix optimization paradigm (TMOP). */
@@ -668,12 +672,12 @@ class DiscreteAdaptTC : public TargetConstructor
 {
 protected:
    // Discrete target specification.
-   ParGridFunction *target_spec;
+   GridFunction *target_spec;
    Vector ts_nodes;
 
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
-   ParAdaptivityEvaluator *adapt_eval;
+   AdaptivityEvaluator *adapt_eval;
 
 public:
    DiscreteAdaptTC(TargetType ttype)
@@ -682,11 +686,14 @@ public:
 
    virtual ~DiscreteAdaptTC() { delete adapt_eval; }
 
-   virtual void SetDiscreteTargetSpec(ParGridFunction &tspec);
+   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec);
+#ifdef MFEM_USE_MPI
+   virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec);
+#endif
 
    void UpdateTargetSpecification(const Vector &new_x);
 
-   void SetAdaptivityEvaluator(ParAdaptivityEvaluator &ae)
+   void SetAdaptivityEvaluator(AdaptivityEvaluator &ae)
    {
       if (adapt_eval) { delete adapt_eval; }
 

@@ -901,25 +901,45 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-void DiscreteAdaptTC::SetDiscreteTargetSpec(ParGridFunction &tspec)
+void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec)
 {
    target_spec = &tspec;
-   target_spec->FESpace()->GetMesh()->GetNodes(ts_nodes);
-}
 
-void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
-{
    // Default evaluator is based on CG advection.
    if (adapt_eval == NULL)
    {
       adapt_eval = new AdvectorCG;
-      adapt_eval->SetParMetaInfo(*target_spec->ParFESpace()->GetParMesh(),
-                                 *target_spec->ParFESpace()->FEColl(),
-                                 target_spec->ParFESpace()->GetVDim());
-   }
+      adapt_eval->SetParMetaInfo(*tspec.ParFESpace()->GetParMesh(),
+                                 *target_spec->FESpace()->FEColl(),
+                                  target_spec->FESpace()->GetVDim());
 
-   adapt_eval->ComputeAtNewPosition(ts_nodes, new_x, *target_spec);
-   ts_nodes = new_x;
+      adapt_eval->SetInitialField
+         (*target_spec->FESpace()->GetMesh()->GetNodes(), *target_spec);
+   }
+}
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec)
+{
+   target_spec = &tspec;
+
+   // Default evaluator is based on CG advection.
+   if (adapt_eval == NULL)
+   {
+      adapt_eval = new AdvectorCG;
+      adapt_eval->SetMetaInfo(*target_spec->FESpace()->GetMesh(),
+                              *target_spec->FESpace()->FEColl(),
+                               target_spec->FESpace()->GetVDim());
+
+      adapt_eval->SetInitialField
+         (*target_spec->FESpace()->GetMesh()->GetNodes(), *target_spec);
+   }
+}
+
+void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
+{
+   MFEM_VERIFY(target_spec != NULL, "Target specification is not set!");
+
+   adapt_eval->ComputeAtNewPosition(new_x, *target_spec);
 }
 
 void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
@@ -960,9 +980,9 @@ void AdaptivityEvaluator::SetMetaInfo(const Mesh &m,
 }
 
 #ifdef MFEM_USE_MPI
-void ParAdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
-                                            const FiniteElementCollection &fec,
-                                            int num_comp)
+void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
+                                         const FiniteElementCollection &fec,
+                                         int num_comp)
 {
    pmesh = new ParMesh(m, true);
    pfes  = new ParFiniteElementSpace(pmesh, &fec, num_comp);
@@ -973,12 +993,10 @@ AdaptivityEvaluator::~AdaptivityEvaluator()
 {
    delete fes;
    delete mesh;
-}
-
-ParAdaptivityEvaluator::~ParAdaptivityEvaluator()
-{
+#ifdef MFEM_USE_MPI
    delete pfes;
    delete pmesh;
+#endif
 }
 
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0,

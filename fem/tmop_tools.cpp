@@ -80,33 +80,40 @@ void AdvectorCGOperator::Mult(const Vector &ind, Vector &di_dt) const
    delete RHS;
 }
 
-void AdvectorCG::ComputeAtNewPosition(const Vector &x_start,
-                                      const Vector &x_end,
-                                      Vector &ind)
+void AdvectorCG::SetInitialField(const Vector &init_nodes,
+                                 const Vector &init_field)
+{
+   nodes0 = init_nodes;
+   field0 = init_field;
+}
+
+void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
+                                      Vector &new_field)
 {
    // This will be used to move the positions.
    GridFunction *mesh_nodes = pmesh->GetNodes();
-   *mesh_nodes = x_start;
+   *mesh_nodes = nodes0;
+   new_field = field0;
 
    // Velocity of the positions.
    GridFunction u(mesh_nodes->FESpace());
-   subtract(x_end, x_start, u);
+   subtract(new_nodes, nodes0, u);
 
    // This must be the fes of the ind, associated with the object's mesh.
-   AdvectorCGOperator oper(x_start, u, *mesh_nodes, *pfes);
+   AdvectorCGOperator oper(nodes0, u, *mesh_nodes, *pfes);
    ode_solver.Init(oper);
 
    // Compute some time step [mesh_size / speed].
    double min_h = std::numeric_limits<double>::infinity();
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
-      min_h = std::min(min_h, pmesh->GetElementSize(1));
+      min_h = std::min(min_h, pmesh->GetElementSize(i));
    }
    double v_max = 0.0;
-   int s = u.FESpace()->GetVSize() / 2;
+   const int s = u.FESpace()->GetVSize() / 2;
    for (int i = 0; i < s; i++)
    {
-      double vel = std::sqrt( u(i) * u(i) + u(i+s) * u(i+s) + 1e-14);
+      const double vel = std::sqrt( u(i) * u(i) + u(i+s) * u(i+s) + 1e-14);
       v_max = std::max(v_max, vel);
    }
    double dt = 0.5 * min_h / v_max;
@@ -130,8 +137,11 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &x_start,
          glob_dt = 1.0 - t;
          last_step = true;
       }
-      ode_solver.Step(ind, t, glob_dt);
+      ode_solver.Step(new_field, t, glob_dt);
    }
+
+   nodes0 = new_nodes;
+   field0 = new_field;
 }
 
 }
