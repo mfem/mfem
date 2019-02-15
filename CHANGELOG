@@ -71,6 +71,8 @@ Discretization improvements
 New and improved solvers and preconditioners
 --------------------------------------------
 - Added support for parallel ILU preconditioning via hypre's Euclid solver.
+- Added support for STRUMPACK v3 with a small API change in the class
+  STRUMPACKSolver, see "API changes" below.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -115,6 +117,8 @@ API changes
 - Removed the virtual method Element::GetRefinementFlag, it is only used by the
   derived class Tetrahedron.
 - Added new methods: Array::CopyTo, Tetrahedron::Init.
+- In class STRUMPACKSolver, the method SetMC64Job() was replaced by the new
+  methods: DisableMatching(), EnableMatching(), and EnableParallelMatching().
 
 
 Version 3.4, released on May 29, 2018
