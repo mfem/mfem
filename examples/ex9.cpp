@@ -681,83 +681,91 @@ public:
    FluxCorrectedTransport(const MONOTYPE _monoType, bool &_schemeOpt,
                           FiniteElementSpace* _fes,
                           const SparseMatrix &K, VectorFunctionCoefficient &coef, SolutionBounds &_bnds) :
-      fes(_fes), monoType(_monoType), schemeOpt(_schemeOpt), bnds(_bnds), KpD(K) // TODO K, schemeOpt, seems to work though
+      fes(_fes), monoType(_monoType), schemeOpt(_schemeOpt), bnds(_bnds) // TODO schemeOpt
    {
+      // NOTE: D is initialized later, due to the need to have identical sparisty with corresponding 
+      //         advection operator K or preconditioned volume terms, depending on the scheme.
+      
       // Compute the lumped mass matrix algebraicly
       BilinearForm m(fes);
       m.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
       m.Assemble();
       m.Finalize();
-      m.SpMat().GetDiag(lumpedM); // TODO for comparison with discrete upwinding: different versions possible
+      m.SpMat().GetDiag(lumpedM);
+      
+      // TODO: rename Rho to VolumeTerms
+      //         
       
       if (_monoType == None) { return; }
       
       if ((_monoType == DiscUpw) || (_monoType == DiscUpw_FS))
       {
-         Mesh *mesh = fes->GetMesh();
-         const FiniteElement &dummy = *fes->GetFE(0);
-         int dim = mesh->Dimension(), ne = mesh->GetNE(), nd = dummy.GetDof();
-         
-         // fill the dofs array to access the correct dofs for boundaries later
-         dummy.ExtractBdrDofs(dofs);
-         int numBdrs = dofs.Width();
-         int numDofs = dofs.Height();
-         
-         bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
-         bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
-         neighborDof.SetSize(ne*numDofs, numBdrs);
-         
-         ////////////////////////////
-         // Boundary contributions //
-         ////////////////////////////
-         const IntegrationRule *irF = GetFaceIntRule(fes);
-         
-         for (int k = 0; k < ne; k++)
-            preprocessFluxLumping(fes, coef, k, irF);
-         
          if (_schemeOpt)
          {
+            ////////////////////////////
+            // Boundary contributions //
+            ////////////////////////////
+            Mesh *mesh = fes->GetMesh();
+            const FiniteElement &dummy = *fes->GetFE(0);
+            int dim = mesh->Dimension(), ne = mesh->GetNE(), nd = dummy.GetDof();
+            
+            // fill the dofs array to access the correct dofs for boundaries later
+            dummy.ExtractBdrDofs(dofs);
+            int numBdrs = dofs.Width();
+            int numDofs = dofs.Height();
+            
+            bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
+            bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
+            neighborDof.SetSize(ne*numDofs, numBdrs);
+            
+            const IntegrationRule *irF = GetFaceIntRule(fes);
+            
+            for (int k = 0; k < ne; k++)
+            {
+               preprocessFluxLumping(fes, coef, k, irF);
+            }
+            
+            ///////////////////////////
+            // Element contributions //
+            ///////////////////////////
             BilinearForm prec(fes);
             prec.AddDomainIntegrator(new PrecondConvectionIntegrator(coef, -1.0));
             prec.Assemble(0);
             prec.Finalize(0);
-
-            SparseMatrix kPrec(prec.SpMat());
+            
+            D = prec.SpMat();
+            ComputeDiscreteUpwindingMatrix(prec.SpMat(), D);
             
             if (dim==1)
             {
-               BilinearForm bdrTerms(fes);
-               bdrTerms.AddInteriorFaceIntegrator(
-                  new TransposeIntegrator(new DGTraceIntegrator(coef, 1.0, -0.5)));
-               bdrTerms.AddBdrFaceIntegrator(
-                  new TransposeIntegrator(new DGTraceIntegrator(coef, 1.0, -0.5)));
-               bdrTerms.Assemble(0);
-               bdrTerms.Finalize(0);
+               // NOTE: Nothing needs to be done in terms of monotonicity for 1D flux terms.
+               //       They are includef in the global matrix fluctMatrix.
+               BilinearForm VolumeTerms(fes);
+               // altered sign of alpha in order to be able to add matrices later
+               VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef, 1.0));
+               VolumeTerms.Assemble(0);
+               VolumeTerms.Finalize(0);
             
-               KpD = bdrTerms.SpMat();
+               fluctMatrix = K;
+               fluctMatrix += VolumeTerms.SpMat(); // subtract volume terms
+               fluctMatrix += prec.SpMat(); // add preconditioned volume terms
             }
             else
             {
-               KpD = kPrec;
+               fluctMatrix = prec.SpMat(); // add preconditioned volume terms
             }
-            
-            ComputeDiscreteUpwindingMatrix(prec.SpMat(), kPrec);
-            
-            if (dim==1)
-               KpD += prec.SpMat();
-
-            KpD += kPrec;
          }
          else
          {
-//             BilinearForm Rho(fes);
-//             Rho.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
-//             Rho.Assemble(0); // TODO find a way to avoid if (dim==1)
-//             Rho.Finalize(0); // TODO repeating
-//             KpD = Rho.SpMat();
-//             KpD = K;
-            ComputeDiscreteUpwindingMatrix(K, KpD);
-            KpD += K;
+            // NOTE: This is the most basic low order scheme. It works completely
+            //       independent of the operator. It is used as comparison, 
+            //       because all other schemes are new. This is the only scheme 
+            //       NOT using the FluxLumping routines. Monotonicity for flux 
+            //       terms is ensured via matrix D. The 1D case is not handled
+            //       differnetly from the multi-dimensional one (contrary to PDU)
+            
+            D = K; // make sure sparsity is identical
+            ComputeDiscreteUpwindingMatrix(K, D);
          }
       }
       else if ((_monoType == Rusanov) || (_monoType == Rusanov_FS))
@@ -1235,7 +1243,7 @@ public:
          {
             if (dim == 1)
             {
-               subcell2CellDof(m,j) = m + j;
+               subcell2CellDof(m,j) = m + j; // not really necessary
             }
             else if (dim == 2)
             {
@@ -1467,7 +1475,7 @@ public:
    bool schemeOpt;
    int numSubcells, numDofsSubcell;
    Vector lumpedM, elDiff;
-   SparseMatrix KpD, fluctMatrix;
+   SparseMatrix D, fluctMatrix;
    DenseMatrix dofs, neighborDof, subcell2CellDof, bdrInt,
                bdrIntLumped, fluctSub;
    SolutionBounds &bnds;
@@ -1502,6 +1510,12 @@ public:
 
    virtual void SetDt(double _dt) { dt = _dt; }
    
+   virtual void ComputeMonolithicCorrectionFactors(int k, int nd, double beta, double xMax, double xMin, 
+                                                   const Vector &x, const Vector &v, Vector &alpha) const;
+
+   virtual void ApplyMonolithicLimiter(int k, int nd, int &ctr, const Vector alpha, const double* Dij, 
+                                       const Vector yH, Vector &y, double coef) const;
+
    virtual void NeumannSolve(const Vector &b, Vector &x) const;
 
    virtual void NonlinearFluxLumping(int k, int nd, const Vector &x, Vector &y, const Vector alpha) const;
@@ -1874,10 +1888,14 @@ int main(int argc, char *argv[])
    // check for conservation
    double finalMass = fct.lumpedM * u;
    cout << "Mass loss: " << abs(initialMass - finalMass) << endl;
+   
    // Compute errors for problems, where the initial condition is equal to the final solution
    tmp -= u;
-   cout << "L1-error: " << ComputeIntegralNorm(&fes, tmp, 1.) << ", L-Inf-error: "
-         << ComputeIntegralNorm(&fes, tmp, numeric_limits<double>::infinity()) << "." << endl;
+   if (problem == 4) // solid body rotation
+   {
+      cout << "L1-error: " << ComputeIntegralNorm(&fes, tmp, 1.) << ", L-Inf-error: "
+           << ComputeIntegralNorm(&fes, tmp, numeric_limits<double>::infinity()) << "." << endl;
+   }
 
 //    // write output
 //    ofstream file("errors.txt", ios_base::app);
@@ -1902,6 +1920,39 @@ int main(int argc, char *argv[])
    delete dc;
 
    return 0;
+}
+
+void FE_Evolution::ComputeMonolithicCorrectionFactors(int k, int nd, double beta, double vMax, double vMin,
+                                                      const Vector &x, const Vector &v, Vector &alpha) const
+{
+   double eps = 1.E-15;
+   for (int j = 0; j < nd; j++)
+   {
+      int dofInd = k*nd+j;
+      alpha(j) = min( 1., beta * min(fct.bnds.x_max(dofInd) - x(dofInd), x(dofInd) - fct.bnds.x_min(dofInd)) 
+                     / (max(vMax - v(dofInd), v(dofInd) - vMin) + eps) );
+      if (alpha(j) < -eps)
+      {
+         mfem_error("Negative correction factor.");
+      }
+   }
+}
+
+void FE_Evolution::ApplyMonolithicLimiter(int k, int nd, int &ctr, const Vector alpha, const double* Dij, 
+                                          const Vector yH, Vector &y, double coef = 1.0) const // TODO rename y, yH
+{
+   int i, j, dofInd;
+   for (i = 0; i < nd; i++)
+   {
+      dofInd = k*nd+i;
+      for (j = nd-1; j >= 0; j--) // run backwards through columns
+      {
+         if (i==j) { ctr++; continue; }
+         
+         y(dofInd) += coef * alpha(i) * Dij[ctr] * alpha(j) * (yH(dofInd) - yH(k*nd+j)); // use knowledge of how M looks like
+         ctr++;
+      }
+   }
 }
 
 void FE_Evolution::NeumannSolve(const Vector &f, Vector &x) const
@@ -2014,24 +2065,74 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 {
    if ((fct.monoType == DiscUpw) || (fct.monoType == DiscUpw_FS))
    {
+      int k, j, dofInd, nd, ctr1 = 0, ctr2 = 0;
+      double xMax, xMin, vMax, vMin, beta = 10.;
+      const double* Dij = fct.D.GetData();
+      const double* Mij = M.GetData();
       Vector alpha;
-      // Discretization AND monotonicity terms
-      fct.KpD.Mult(x, y);
+      bool MonoLim = true;
+      
+      // compute solution bounds
+      if (MonoLim)
+      {
+         if (!fct.schemeOpt)
+            mfem_error("Not yet implemented."); // sparsity of D may be problematic (different to that of M)
+         
+         fct.fluctMatrix.Mult(x, z);
+
+         fct.bnds.Compute(K, x); // TODO reorder and combine schemes and avoid repetition of this computation in case of FCT
+      }
+      
+      // Discretization terms
+      if (!fct.schemeOpt)
+      {
+         K.Mult(x, y);
+      }
+      else
+      {
+         fct.fluctMatrix.Mult(x, y);
+      }
       y += b;
-      for (int k = 0; k < fes->GetNE(); k++)
+      
+      // Monotonicity terms
+      fct.D.AddMult(x, y);
+      
+      // Division by lumped mass matrix and inclusion of boundary terms in case of PDU
+      for (k = 0; k < fes->GetNE(); k++)
       {
          const FiniteElement &el = *fes->GetFE(k);
-         int nd = el.GetDof();
+         nd = el.GetDof();
          alpha.SetSize(nd); alpha = 0.; // TODO Limiter
          
+         if (MonoLim)
+         {
+            xMin = vMin = numeric_limits<double>::infinity();
+            xMax = vMax = -xMin;
+            for (j = 0; j < nd; j++)
+            {
+               dofInd = k*nd+j;
+               xMax = max(xMax, x(dofInd));
+               xMin = min(xMin, x(dofInd));
+               
+               z(dofInd) /= fct.lumpedM(dofInd);
+               vMax = max(vMax, z(dofInd));
+               vMin = min(vMin, z(dofInd));
+            }
+            ComputeMonolithicCorrectionFactors(k, nd, beta, vMax, vMin, x, z, alpha);
+            ApplyMonolithicLimiter(k, nd, ctr1, alpha, Mij, z, y, -1.);
+            
+            ComputeMonolithicCorrectionFactors(k, nd, beta, xMax, xMin, x, x, alpha);
+            ApplyMonolithicLimiter(k, nd, ctr2, alpha, Dij, x, y);
+         }
+
          if (fct.schemeOpt)
          {
             LinearFluxLumping(k, nd, x, y, alpha);
          }
 
-         for (int j = 0; j < nd; j++)
+         for (j = 0; j < nd; j++)
          {
-            int dofInd = k*nd+j;
+            dofInd = k*nd+j;
             y(dofInd) /= fct.lumpedM(dofInd);
          }
       }
@@ -2164,7 +2265,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       int i, j, k, m, nd, dofInd, dofInd2, loc, ne(fes->GetNE()), dim(mesh->Dimension());
       double xMax, xMin, xSum, xNeighbor, sumFluctSubcellP, sumFluctSubcellN,
              sumWeightsP, sumWeightsN, weightP, weightN, rhoP, rhoN, gammaP, gammaN,
-             minGammaP, minGammaN, aux, fluct, gamma = 10., beta = 10., eps = 1.E-15;
+             minGammaP, minGammaN, aux, fluct, beta = 10., gamma = 10., eps = 1.E-15;
       Vector xMaxSubcell, xMinSubcell, sumWeightsSubcellP, sumWeightsSubcellN,
              fluctSubcellP, fluctSubcellN, nodalWeightsP, nodalWeightsN, alpha;
 
@@ -2202,12 +2303,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          
          if ( (fct.monoType == ResDist_Lim) || (fct.monoType == ResDist_LimMass) )
          {
-            for (j = 0; j < nd; j++)
-            {
-               dofInd = k*nd+j;
-               alpha(j) = min( 1., beta * min(fct.bnds.x_max(dofInd) - x(dofInd), x(dofInd) - fct.bnds.x_min(dofInd)) 
-                                       / (max(xMax - x(dofInd), x(dofInd) - xMin) + eps) );
-            }
+            ComputeMonolithicCorrectionFactors(k, nd, beta, xMax, xMin, x, x, alpha);
          }
          
          for (j = 0; j < nd; j++)
