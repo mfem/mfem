@@ -322,7 +322,6 @@ double ind_values(const Vector &x)
       // cross
       double val = 0.;
       const double X = x(0), Y = x(1);
-      double r = sqrt(X*X + Y*Y);
       double r1 = 0.45;double r2 = 0.55;double sf=40.0;
       val = ( 0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2)))
               + 0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))) );
@@ -334,10 +333,8 @@ double ind_values(const Vector &x)
    {
       // Multiple circles
       double r1,r2,val,rval;
-      double val1,fac1;
       double sf = 10;
       val = 0.;
-      fac1 = 0.05;
       // circle 1
       r1= 0.25; r2 = 0.25;rval = 0.1;
       double xc = x(0) - r1, yc = x(1) - r2;
@@ -715,7 +712,7 @@ int main (int argc, char *argv[])
          size.SetSpace(&ind_fes);
          FunctionCoefficient ind_coeff(ind_values);
          size.ProjectCoefficient(ind_coeff);
-         tc->SetDiscreteTargetSpec(size);
+         tc->SetParDiscreteTargetSpec(size);
          target_c = tc;
          break;
       }

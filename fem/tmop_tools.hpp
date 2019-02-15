@@ -39,17 +39,21 @@ public:
 };
 
 // Performs the whole advection loop.
-class AdvectorCG : public ParAdaptivityEvaluator
+class AdvectorCG : public AdaptivityEvaluator
 {
 private:
    RK4Solver ode_solver;
+   Vector nodes0;
+   Vector field0;
 
 public:
-   AdvectorCG() : ode_solver() { }
+   AdvectorCG() : AdaptivityEvaluator(), ode_solver(), nodes0(), field0() { }
 
-   virtual void ComputeAtNewPosition(const Vector &start_nodes,
-                                     const Vector &new_nodes,
-                                     Vector &field);
+   virtual void SetInitialField(const Vector &init_nodes,
+                                const Vector &init_field);
+
+   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+                                     Vector &new_field);
 };
 
 }
