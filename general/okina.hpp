@@ -106,6 +106,59 @@ uint32_t LOG2(uint32_t);
 #define xyzeijDQE(i,j,x,y,z,e,D,Q,E) (x)+Q*((y)+Q*((z)+Q*((e)+E*((i)+D*j))))
 
 // *****************************************************************************
+namespace mfem
+{
+namespace kernels
+{
+// *****************************************************************************
+class Vector2{
+   private:
+   size_t N,M;
+   double *data;
+public:
+   __host__ __device__ Vector2(const size_t n,
+                          const size_t m,
+                          double *d)
+      :N(n), M(m), data(d){}
+   __host__ __device__ double& operator()(const size_t i,
+                                 const size_t j)
+   {
+      return data[i*N+j];
+   }
+   __host__ __device__ double& operator()(const size_t i,
+                                 const size_t j) const
+   {
+      return data[i*N+j];
+   }
+};
+// *****************************************************************************
+class Vector3{
+   private:
+   size_t N,M,P;
+   double *data;
+public:
+   __host__ __device__ Vector3(const size_t n,
+                          const size_t m,
+                          const size_t p,
+                          double *d)
+      :N(n), M(m), P(p), data(d){}
+   __host__ __device__ double& operator()(const size_t i,
+                                 const size_t j,
+                                 const size_t k)
+   {
+      const size_t ijkNM = (i)+N*((j)+M*(k));
+      return data[ijkNM];
+   }
+   __host__ __device__ double& operator()(const size_t i,
+                                 const size_t j,
+                                 const size_t k) const
+   {
+      const size_t ijkNM = (i)+N*((j)+M*(k));
+      return data[ijkNM];
+   }
+};
+
+// *****************************************************************************
 template <typename T> class XS{
 private:
    size_t N,M,P,Q;
@@ -132,12 +185,12 @@ public:
    }
    
    // 3D
-   XS(const size_t n, const size_t m,
-               const size_t p, const T *d)
+   XS(const size_t n, const size_t m, const size_t p, const T *d)
       :N(n), M(m), P(p), data((T*)mfem::mm::ptr(d)){}
    __host__ __device__ T& operator()(const size_t i, const size_t j,
                                      const size_t k)
    {
+      //const size_t ijkN = (i)+N*((j)+N*(k));
       const size_t ijkNM = (i)+N*((j)+M*(k));
       return data[ijkNM];
    }
@@ -165,7 +218,10 @@ public:
       return data[ijklNM];
    }
 };
-typedef XS<double> dArray;
+typedef XS<double> Array;
+typedef XS<double> Vector;
+} // namespace kernels
+} // namespace mfem
 
 // *****************************************************************************
 const char *strrnchr(const char*, const unsigned char, const int);

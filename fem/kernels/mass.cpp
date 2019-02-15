@@ -22,7 +22,7 @@ namespace fem
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> static
-void MassMultAdd2D(const int numElements,
+void MassMultAdd2D(const int NE,
                    const double* __restrict B,
                    const double* __restrict G,
                    const double* __restrict Bt,
@@ -32,7 +32,7 @@ void MassMultAdd2D(const int numElements,
                    double* __restrict solOut)
 {
    const int Nspt = NUM_QUAD_1D * NUM_QUAD_1D;
-   MFEM_FORALL_SHARED(e, numElements, Nspt,
+   MFEM_FORALL_SHARED(e, NE, Nspt,
    {
       double sol_xy[NUM_QUAD_1D][NUM_QUAD_1D];
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
@@ -103,7 +103,7 @@ void MassMultAdd2D(const int numElements,
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> static
-void MassMultAdd3D(const int numElements,
+void MassMultAdd3D(const int NE,
                    const double* __restrict B,
                    const double* __restrict G,
                    const double* __restrict Bt,
@@ -112,7 +112,7 @@ void MassMultAdd3D(const int numElements,
                    const double* __restrict solIn,
                    double* __restrict solOut)
 {
-   MFEM_FORALL(e,numElements,
+   MFEM_FORALL(e,NE,
    {
       double sol_xyz[NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D];
       for (int qz = 0; qz < NUM_QUAD_1D; ++qz)
@@ -231,7 +231,7 @@ void MassMultAdd3D(const int numElements,
 }
 
 // *****************************************************************************
-typedef void (*fMassMultAdd)(const int numElements,
+typedef void (*fMassMultAdd)(const int NE,
                              const double* __restrict B,
                              const double* __restrict G,
                              const double* __restrict Bt,
@@ -244,7 +244,7 @@ typedef void (*fMassMultAdd)(const int numElements,
 void MassMultAssembled(const int DIM,
                        const int NUM_DOFS_1D,
                        const int NUM_QUAD_1D,
-                       const int numElements,
+                       const int NE,
                        const double* __restrict B,
                        const double* __restrict G,
                        const double* __restrict Bt,
@@ -322,7 +322,7 @@ void MassMultAssembled(const int DIM,
    GET_CONST_PTR(op);
    GET_CONST_PTR(x);
    GET_PTR(y);
-   call[id](numElements, d_B, d_G, d_Bt, d_Gt, d_op, d_x, d_y);
+   call[id](NE, d_B, d_G, d_Bt, d_Gt, d_op, d_x, d_y);
 }
 
 } // namespace fem
