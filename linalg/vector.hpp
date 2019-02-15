@@ -455,7 +455,7 @@ inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
 
 namespace device
 {
-
+// *****************************************************************************
 class Vector3
 {
 private:

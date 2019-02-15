@@ -15,13 +15,8 @@
 // *****************************************************************************
 #ifdef __NVCC__
 #include <cuda.h>
-#define cuCheck(c)                                                      \
-   {                                                                    \
-      MFEM_ASSERT(!c, cudaGetErrorString(cudaGetLastError()));          \
-   }
-
+#define cuCheck(c) { MFEM_ASSERT(!c, cudaGetErrorString(cudaGetLastError())); }
 extern __shared__ double gpu_mem_s[];
-
 template <typename BODY> __global__ static
 void cuKernel(const size_t N, const size_t Nspt, BODY body)
 {
@@ -30,14 +25,19 @@ void cuKernel(const size_t N, const size_t Nspt, BODY body)
    if (k >= N) { return; }
    body(k, gpu_mem_s+tid*Nspt);
 }
-template <size_t Db, typename DBODY>
-void cuWrap(const size_t N, const size_t Nspt, DBODY &&d_body)
+template <typename DBODY>
+void cuWrap(const size_t N, const size_t Nspt,
+            const size_t smpb, DBODY &&d_body)
 {
+   // shared bytes per thread
+   const size_t spt = 1 + Nspt*sizeof(double);
+   // block dimension, constrainted by shared byte size
+   const size_t Db = min(1024ull, 1ull<<LOG2(smpb/spt));
+   // grid dimension
    const size_t Dg = (N+Db-1)/Db;
-   const size_t Ns = Nspt*Db*sizeof(double);
-   const size_t total_shared_memory_per_block = 49152;
-   MFEM_ASSERT(Ns < total_shared_memory_per_block,
-               "Not enough shared memory per block!");
+   // shared bytes per block
+   const size_t Ns = spt*Db;
+   MFEM_ASSERT(Ns < smpb, "Not enough shared memory per block!");
    cuKernel<<<Dg,Db,Ns>>>(N,Nspt,d_body);
 }
 template<typename T>
@@ -52,8 +52,9 @@ __host__ __device__ inline T AtomicAdd(T* address, T val)
 typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
-template <size_t Db, typename DBODY>
-void cuWrap(const size_t N, size_t Nspt, DBODY &&d_body) {}
+template <typename DBODY>
+void cuWrap(const size_t N, size_t Nspt,
+            const size_t smpb, DBODY &&d_body) {}
 template<typename T> inline T AtomicAdd(T* address, T val)
 {
    return *address += val;

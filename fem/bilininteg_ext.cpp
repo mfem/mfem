@@ -123,29 +123,73 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       const int NE = ne;
       const int NQ = nq;
       const int dims = el.GetDim();
-      const double *w = maps->W.GetMmData();
-      const double *x = geo->X.GetMmData();
-      const double *J = geo->J.GetMmData();
-      double *v = vec.GetMmData();
+      const kernels::Vector w(NQ,maps->W.GetData());
+      const kernels::Vector x(3,NQ,geo->X.GetData());
+      const kernels::Vector J(2,2,NQ,geo->J.GetData());
+      kernels::Vector v(NQ,NE,vec.GetData());
       MFEM_FORALL(e, NE,
       {
          for (int q = 0; q < NQ; ++q)
          {
-            const double J11 = J[ijklNM(0,0,q,e,2,NQ)];
-            const double J12 = J[ijklNM(1,0,q,e,2,NQ)];
-            const double J21 = J[ijklNM(0,1,q,e,2,NQ)];
-            const double J22 = J[ijklNM(1,1,q,e,2,NQ)];
+            const double J11 = J(0,0,q,e);
+            const double J12 = J(1,0,q,e);
+            const double J21 = J(0,1,q,e);
+            const double J22 = J(1,1,q,e);
             const double detJ = (J11*J22)-(J21*J12);
             const int offset = dims*NQ*e+q;
             const double coeff =
-            const_coeff ? constant:
-            function_coeff ? function(device::Vector3(x[offset], x[offset+1], x[offset+2])):
-            0.0;
-            v[ijN(q,e,NQ)] =  w[q] * coeff * detJ;
+               const_coeff ? constant:
+               function_coeff ? function(device::Vector3(x[offset],
+                                                         x[offset+1],
+                                                         x[offset+2])):
+               0.0;
+            v(q,e) =  w(q) * coeff * detJ;
          }
       });
    }
-   if (dim==3) { mfem_error("Not supported yet... stay tuned!"); }
+   if (dim==3) {
+      double constant = 0.0;
+      double (*function)(const device::Vector3&) = NULL;
+      if (const_coeff)
+      {
+         constant = const_coeff->constant;
+      }
+      else if (function_coeff)
+      {
+         function = function_coeff->GetFunction();
+      }
+      else
+      {
+         MFEM_ABORT("Coefficient type not supported");
+      }
+      const int NE = ne;
+      const int NQ = nq;
+      const int dims = el.GetDim();
+      const kernels::Vector W(NQ,maps->W.GetData());
+      const kernels::Vector x(3,NQ,geo->X.GetData());
+      const kernels::Vector J(3,3,NQ,geo->J.GetData());
+      kernels::Vector v(NQ,NE,vec.GetData());
+      MFEM_FORALL(e, NE,
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            const double J11 = J(0,0,q,e),J12 = J(1,0,q,e),J13 = J(2,0,q,e);
+            const double J21 = J(0,1,q,e),J22 = J(1,1,q,e),J23 = J(2,1,q,e);
+            const double J31 = J(0,2,q,e),J32 = J(1,2,q,e),J33 = J(2,2,q,e);
+            const double detJ =
+               ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
+                (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
+            const int offset = dims*NQ*e+q;
+            const double coeff =
+            const_coeff ? constant:
+            function_coeff ? function(device::Vector3(x[offset],
+                                                      x[offset+1],
+                                                      x[offset+2])):
+            0.0;
+            v(q,e) = W(q) * coeff * detJ;
+         }
+      });
+   }
    //delete geo;
 }
 

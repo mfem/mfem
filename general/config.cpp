@@ -30,6 +30,11 @@ void config::CudaDeviceSetup(const int device)
    cuStream = new CUstream;
    MFEM_ASSERT(cuStream, "CUDA stream could not be created!");
    cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
+   //cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
+   cudaDeviceProp deviceProp;
+   cudaGetDeviceProperties(&deviceProp, dev);
+   smpb = deviceProp.sharedMemPerBlock;
+   dbg("smpb=%ld bytes",smpb);
 #else
    MFEM_ABORT("CUDA requested but no GPU support has been built!");
 #endif

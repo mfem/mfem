@@ -23,6 +23,12 @@
 #include <iostream>
 
 // *****************************************************************************
+uint32_t LOG2(uint32_t);
+#define ISQRT(N) static_cast<unsigned>(sqrt(static_cast<float>(N)))
+#define ICBRT(N) static_cast<unsigned>(cbrt(static_cast<float>(N)))
+#define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
+
+// *****************************************************************************
 #include "./cuda.hpp"
 #include "./occa.hpp"
 
@@ -33,13 +39,14 @@
 // *****************************************************************************
 // * GPU & HOST FOR_LOOP bodies wrapper
 // *****************************************************************************
-template <size_t Db, typename DBODY, typename HBODY>
+template <typename DBODY, typename HBODY>
 void wrap(const size_t N, size_t Ns, DBODY &&d_body, HBODY &&h_body)
 {
    const bool gpu = mfem::config::usingGpu();
    if (gpu)
    {
-      return cuWrap<Db>(N,Ns,d_body);
+      const size_t smpb = mfem::config::SharedMemPerBlock();
+      return cuWrap(N, Ns, smpb, d_body);
    }
    else
    {
@@ -51,25 +58,14 @@ void wrap(const size_t N, size_t Ns, DBODY &&d_body, HBODY &&h_body)
 // *****************************************************************************
 // * MFEM_FORALL splitter
 // *****************************************************************************
-#define MFEM_BLOCKS 256
-#define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,0,__VA_ARGS__)
-#define MFEM_FORALL_BLOCKS_SHARED(i,N,B,Nspt,...)                       \
-   MFEM_FORALL_K(i,N,B,Nspt,__VA_ARGS__)
+#define MFEM_FORALL(i,N,...) MFEM_FORALL_SHARED(i,N,0,__VA_ARGS__)
+#define MFEM_FORALL_SEQ(...) MFEM_FORALL_SHARED(i,1,0,__VA_ARGS__)
 #define MFEM_FORALL_SHARED(i,N,Nspt,...)                                \
-   MFEM_FORALL_K(i,N,MFEM_BLOCKS,Nspt,__VA_ARGS__)
-#define MFEM_FORALL_K(i,N,Db,Nspt,...)                                  \
-   wrap<Db>(N, Nspt,                                                    \
-            [=] __device__ (const size_t i,                             \
-                            double *__shared){__VA_ARGS__},             \
-            [&]            (const size_t i,                             \
-                            double *__shared){__VA_ARGS__})
-#define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(i,1,1,0,__VA_ARGS__)
-
-// *****************************************************************************
-uint32_t LOG2(uint32_t);
-#define ISQRT(N) static_cast<unsigned>(sqrt(static_cast<float>(N)))
-#define ICBRT(N) static_cast<unsigned>(cbrt(static_cast<float>(N)))
-#define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
+   wrap(N, Nspt,                                                        \
+        [=] __device__ (const size_t i,                                 \
+                        double *__shared){__VA_ARGS__},                 \
+        [&]            (const size_t i,                                 \
+                        double *__shared){__VA_ARGS__})
 
 // *****************************************************************************
 #define GET_GPU const bool gpu = config::usingGpu();
@@ -113,27 +109,36 @@ namespace mfem
 namespace kernels
 {
 // *****************************************************************************
+class Vector1
+{
+private:
+   size_t N;
+   double *data;
+public:
+   MFEM_HOST_DEVICE Vector1(const size_t n, double *d): N(n), data(d) {}
+   MFEM_HOST_DEVICE double& operator()(const size_t i) { return data[i]; }
+   MFEM_HOST_DEVICE double& operator()(const size_t i) const { return data[i]; }
+};
+
+// *****************************************************************************
 class Vector2
 {
 private:
    size_t N,M;
    double *data;
 public:
-   __host__ __device__ Vector2(const size_t n,
-                               const size_t m,
-                               double *d)
+   MFEM_HOST_DEVICE Vector2(const size_t n, const size_t m, double *d)
       :N(n), M(m), data(d) {}
-   __host__ __device__ double& operator()(const size_t i,
-                                          const size_t j)
+   MFEM_HOST_DEVICE double& operator()(const size_t i, const size_t j)
    {
-      return data[i*N+j];
+      return data[i+N*j];
    }
-   __host__ __device__ double& operator()(const size_t i,
-                                          const size_t j) const
+   MFEM_HOST_DEVICE double& operator()(const size_t i, const size_t j) const
    {
-      return data[i*N+j];
+      return data[i+N*j];
    }
 };
+
 // *****************************************************************************
 class Vector3
 {
@@ -179,7 +184,7 @@ public:
                                           const size_t k,
                                           const size_t l)
    {
-      const size_t ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
+      const size_t ijklNM = (i)+N*((j)+M*((k)+(P)*(l)));
       return data[ijklNM];
    }
    __host__ __device__ double& operator()(const size_t i,
@@ -187,7 +192,7 @@ public:
                                           const size_t k,
                                           const size_t l) const
    {
-      const size_t ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
+      const size_t ijklNM = (i)+N*((j)+M*((k)+(P)*(l)));
       return data[ijklNM];
    }
 };
@@ -212,11 +217,11 @@ public:
       :N(n), M(m), data((T*)mfem::mm::ptr(d)) {}
    __host__ __device__ T& operator()(const size_t i, const size_t j)
    {
-      return data[i*N+j];
+      return data[i+N*j];
    }
    __host__ __device__ T& operator()(const size_t i, const size_t j) const
    {
-      return data[i*N+j];
+      return data[i+N*j];
    }
 
    // 3D
@@ -225,7 +230,6 @@ public:
    __host__ __device__ T& operator()(const size_t i, const size_t j,
                                      const size_t k)
    {
-      //const size_t ijkN = (i)+N*((j)+N*(k));
       const size_t ijkNM = (i)+N*((j)+M*(k));
       return data[ijkNM];
    }
@@ -243,13 +247,13 @@ public:
    __host__ __device__ T& operator()(const size_t i, const size_t j,
                                      const size_t k, const size_t l)
    {
-      const size_t ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
+      const size_t ijklNM = (i)+N*((j)+M*((k)+(P)*(l)));
       return data[ijklNM];
    }
    __host__ __device__ T& operator()(const size_t i, const size_t j,
                                      const size_t k, const size_t l) const
    {
-      const size_t ijklNM = (i)+N*((j)+N*((k)+(M)*(l)));
+      const size_t ijklNM = (i)+N*((j)+M*((k)+(P)*(l)));
       return data[ijklNM];
    }
 };

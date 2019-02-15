@@ -27,6 +27,7 @@ private:
    Mode mode;
    int dev = 0;
    int ngpu = -1;
+   size_t smpb = 0; // total shared memory per block
    bool pa = false;
    bool cuda = false;
    bool occa = false;
@@ -96,6 +97,7 @@ public:
    static inline bool usingOcca() { return Get().occa; }
    static inline void useOcca() { Get().occa = true; }
    static inline OccaDevice GetOccaDevice() { return Get().occaDevice; }
+   static inline size_t SharedMemPerBlock() { return Get().smpb; }
 };
 
 // *****************************************************************************
