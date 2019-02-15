@@ -40,52 +40,68 @@ static void MassMultAdd2D(const int ND1d,
    const Vector op(NQ1d,NQ1d,_op);
    const Vector x(ND1d,ND1d,_x);
    Vector y(ND1d,ND1d,_y);
-   
+
    MFEM_FORALL_SHARED(e, NE, Nspt,
    {
       Vector2 sol_xy(NQ1d,NQ1d,__shared);
-      for (int qy = 0; qy < NQ1d; ++qy) {
-         for (int qx = 0; qx < NQ1d; ++qx) {
+      for (int qy = 0; qy < NQ1d; ++qy)
+      {
+         for (int qx = 0; qx < NQ1d; ++qx)
+         {
             sol_xy(qy,qx) = 0.0;
          }
       }
-      for (int dy = 0; dy < ND1d; ++dy) {
+      for (int dy = 0; dy < ND1d; ++dy)
+      {
          Vector1 sol_x(NQ1d,__shared + NQ);
-         for (int qy = 0; qy < NQ1d; ++qy) {
+         for (int qy = 0; qy < NQ1d; ++qy)
+         {
             sol_x(qy) = 0.0;
          }
-         for (int dx = 0; dx < ND1d; ++dx) {
+         for (int dx = 0; dx < ND1d; ++dx)
+         {
             const double s = x(dx,dy,e);
-            for (int qx = 0; qx < NQ1d; ++qx) {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                sol_x(qx) += B(qx,dx)* s;
             }
          }
-         for (int qy = 0; qy < NQ1d; ++qy) {
+         for (int qy = 0; qy < NQ1d; ++qy)
+         {
             const double d2q = B(qy,dy);
-            for (int qx = 0; qx < NQ1d; ++qx) {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                sol_xy(qy,qx) += d2q * sol_x(qx);
             }
          }
       }
-      for (int qy = 0; qy < NQ1d; ++qy) {
-         for (int qx = 0; qx < NQ1d; ++qx) {
+      for (int qy = 0; qy < NQ1d; ++qy)
+      {
+         for (int qx = 0; qx < NQ1d; ++qx)
+         {
             sol_xy(qy,qx) *= op(qx,qy,e);
          }
       }
-      for (int qy = 0; qy < NQ1d; ++qy) {
+      for (int qy = 0; qy < NQ1d; ++qy)
+      {
          Vector1 sol_x(ND1d,__shared + NQ);
-         for (int dx = 0; dx < ND1d; ++dx) {
+         for (int dx = 0; dx < ND1d; ++dx)
+         {
             sol_x(dx) = 0.0;
          }
-         for (int qx = 0; qx < NQ1d; ++qx) {
+         for (int qx = 0; qx < NQ1d; ++qx)
+         {
             const double s = sol_xy(qy,qx);
-            for (int dx = 0; dx < ND1d; ++dx) {
+            for (int dx = 0; dx < ND1d; ++dx)
+            {
                sol_x(dx) += Bt(dx,qx) * s;
             }
          }
-         for (int dy = 0; dy < ND1d; ++dy) {
+         for (int dy = 0; dy < ND1d; ++dy)
+         {
             const double q2d = Bt(dy,qy);
-            for (int dx = 0; dx < ND1d; ++dx) {
+            for (int dx = 0; dx < ND1d; ++dx)
+            {
                y(dx,dy,e) += q2d * sol_x(dx);
             }
          }
@@ -109,7 +125,7 @@ static void MassMultAdd3D(const int ND1d,
    const int maxDQ = max(NQ1d,ND1d);
    const int maxDQ2 = maxDQ * maxDQ;
    const int Nspt = NQ + maxDQ2 + maxDQ;
-   
+
    const Vector B(NQ1d,_B);
    const Vector G(NQ1d,_G);
    const Vector Bt(ND1d,_Bt);
@@ -117,92 +133,122 @@ static void MassMultAdd3D(const int ND1d,
    const Vector oper(NQ1d,NQ1d,NQ1d,_oper);
    const Vector x(ND1d,ND1d,ND1d,_solIn);
    Vector y(ND1d,ND1d,ND1d,_solOut);
-   
+
    MFEM_FORALL_SHARED(e, NE, Nspt,
    {
       Vector3 sol_xyz(NQ1d,NQ1d,NQ1d,__shared);
-      for (int qz = 0; qz < NQ1d; ++qz) {
-         for (int qy = 0; qy < NQ1d; ++qy) {
-            for (int qx = 0; qx < NQ1d; ++qx) {
+      for (int qz = 0; qz < NQ1d; ++qz)
+      {
+         for (int qy = 0; qy < NQ1d; ++qy)
+         {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                sol_xyz(qz,qy,qx) = 0.0;
             }
          }
       }
-      for (int dz = 0; dz < ND1d; ++dz) {
+      for (int dz = 0; dz < ND1d; ++dz)
+      {
          Vector2 sol_xy(NQ1d,NQ1d,__shared + NQ);
-         for (int qy = 0; qy < NQ1d; ++qy) {
-            for (int qx = 0; qx < NQ1d; ++qx) {
+         for (int qy = 0; qy < NQ1d; ++qy)
+         {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                sol_xy(qy,qx) = 0.0;
             }
          }
-         for (int dy = 0; dy < ND1d; ++dy) {
+         for (int dy = 0; dy < ND1d; ++dy)
+         {
             Vector1 sol_x(NQ1d, __shared + NQ + maxDQ2);
-            for (int qx = 0; qx < NQ1d; ++qx) {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                sol_x(qx) = 0.0;
             }
-            for (int dx = 0; dx < ND1d; ++dx) {
+            for (int dx = 0; dx < ND1d; ++dx)
+            {
                const double s = x(dx,dy,dz,e);
-               for (int qx = 0; qx < NQ1d; ++qx) {
+               for (int qx = 0; qx < NQ1d; ++qx)
+               {
                   sol_x(qx) += B(qx,dx) * s; //(qx,dx)
                }
             }
-            for (int qy = 0; qy < NQ1d; ++qy) {
+            for (int qy = 0; qy < NQ1d; ++qy)
+            {
                const double wy = B(qy,dy);//(qy,dy);
-               for (int qx = 0; qx < NQ1d; ++qx) {
+               for (int qx = 0; qx < NQ1d; ++qx)
+               {
                   sol_xy(qy,qx) += wy * sol_x(qx);
                }
             }
          }
-         for (int qz = 0; qz < NQ1d; ++qz) {
+         for (int qz = 0; qz < NQ1d; ++qz)
+         {
             const double wz =  B(qz,dz);//(qz,dz);
-            for (int qy = 0; qy < NQ1d; ++qy) {
-               for (int qx = 0; qx < NQ1d; ++qx) {
+            for (int qy = 0; qy < NQ1d; ++qy)
+            {
+               for (int qx = 0; qx < NQ1d; ++qx)
+               {
                   sol_xyz(qz,qy,qx) += wz * sol_xy(qy,qx);
                }
             }
          }
       }
-      for (int qz = 0; qz < NQ1d; ++qz) {
-         for (int qy = 0; qy < NQ1d; ++qy) {
-            for (int qx = 0; qx < NQ1d; ++qx) {
+      for (int qz = 0; qz < NQ1d; ++qz)
+      {
+         for (int qy = 0; qy < NQ1d; ++qy)
+         {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                sol_xyz(qz,qy,qx) *= oper(qx,qy,qz,e);
             }
          }
       }
-      for (int qz = 0; qz < NQ1d; ++qz) {
+      for (int qz = 0; qz < NQ1d; ++qz)
+      {
          Vector2 sol_xy(ND1d,ND1d,__shared + NQ);
-         for (int dy = 0; dy < ND1d; ++dy) {
-            for (int dx = 0; dx < ND1d; ++dx) {
+         for (int dy = 0; dy < ND1d; ++dy)
+         {
+            for (int dx = 0; dx < ND1d; ++dx)
+            {
                sol_xy(dy,dx) = 0.0;
             }
          }
-         for (int qy = 0; qy < NQ1d; ++qy) {
+         for (int qy = 0; qy < NQ1d; ++qy)
+         {
             Vector1 sol_x(ND1d, __shared + NQ + maxDQ2);
-            for (int dx = 0; dx < ND1d; ++dx) {
+            for (int dx = 0; dx < ND1d; ++dx)
+            {
                sol_x(dx) = 0.0;
             }
-            for (int qx = 0; qx < NQ1d; ++qx) {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                const double s = sol_xyz(qz,qy,qx);
-               for (int dx = 0; dx < ND1d; ++dx) {
+               for (int dx = 0; dx < ND1d; ++dx)
+               {
                   sol_x(dx) += Bt(dx,qx) * s;//(dx,qx)
                }
             }
-            for (int dy = 0; dy < ND1d; ++dy) {
+            for (int dy = 0; dy < ND1d; ++dy)
+            {
                const double wy = Bt(dy,qy);//(dy,qy);
-               for (int dx = 0; dx < ND1d; ++dx) {
+               for (int dx = 0; dx < ND1d; ++dx)
+               {
                   sol_xy(dy,dx) += wy * sol_x(dx);
                }
             }
          }
-         for (int dz = 0; dz < ND1d; ++dz) {
+         for (int dz = 0; dz < ND1d; ++dz)
+         {
             const double wz = Bt(dz,qz);//(dz,qz);
-            for (int dy = 0; dy < ND1d; ++dy) {
-               for (int dx = 0; dx < ND1d; ++dx) {
+            for (int dy = 0; dy < ND1d; ++dy)
+            {
+               for (int dx = 0; dx < ND1d; ++dx)
+               {
                   y(dx,dy,dz,e) += wz * sol_xy(dy,dx);
                }
             }
          }
-         }
+      }
    });
 }
 

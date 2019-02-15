@@ -138,16 +138,17 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double detJ = (J11*J22)-(J21*J12);
             const int offset = dims*NQ*e+q;
             const double coeff =
-               const_coeff ? constant:
-               function_coeff ? function(device::Vector3(x[offset],
-                                                         x[offset+1],
-                                                         x[offset+2])):
-               0.0;
+            const_coeff ? constant:
+            function_coeff ? function(device::Vector3(x[offset],
+            x[offset+1],
+            x[offset+2])):
+            0.0;
             v(q,e) =  w(q) * coeff * detJ;
          }
       });
    }
-   if (dim==3) {
+   if (dim==3)
+   {
       double constant = 0.0;
       double (*function)(const device::Vector3&) = NULL;
       if (const_coeff)
@@ -177,14 +178,14 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double J21 = J(0,1,q,e),J22 = J(1,1,q,e),J23 = J(2,1,q,e);
             const double J31 = J(0,2,q,e),J32 = J(1,2,q,e),J33 = J(2,2,q,e);
             const double detJ =
-               ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
-                (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
+            ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
+            (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
             const int offset = dims*NQ*e+q;
             const double coeff =
             const_coeff ? constant:
             function_coeff ? function(device::Vector3(x[offset],
-                                                      x[offset+1],
-                                                      x[offset+2])):
+            x[offset+1],
+            x[offset+2])):
             0.0;
             v(q,e) = W(q) * coeff * detJ;
          }

@@ -235,38 +235,47 @@ static void DiffusionMultAssembled2D(const int ND1d,
    MFEM_FORALL_SHARED(e, NE, Nspt,
    {
       Vector3 grad(NQ1d, NQ1d, 2, __shared);
-      for (int qy = 0; qy < NQ1d; ++qy) {
-         for (int qx = 0; qx < NQ1d; ++qx) {
+      for (int qy = 0; qy < NQ1d; ++qy)
+      {
+         for (int qx = 0; qx < NQ1d; ++qx)
+         {
             grad(qy,qx,0) = 0.0;
             grad(qy,qx,1) = 0.0;
          }
       }
-      for (int dy = 0; dy < ND1d; ++dy) {
+      for (int dy = 0; dy < ND1d; ++dy)
+      {
          Vector2 gradX(NQ1d, 2, __shared + 2*NQ);
          for (int qx = 0; qx < NQ1d; ++qx)
          {
             gradX(qx,0) = 0.0;
             gradX(qx,1) = 0.0;
          }
-         for (int dx = 0; dx < ND1d; ++dx) {
+         for (int dx = 0; dx < ND1d; ++dx)
+         {
             const double s = x(dx,dy,e);
-            for (int qx = 0; qx < NQ1d; ++qx) {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                gradX(qx,0) += s * B(qx,dx);
                gradX(qx,1) += s * G(qx,dx);
             }
          }
-         for (int qy = 0; qy < NQ1d; ++qy) {
+         for (int qy = 0; qy < NQ1d; ++qy)
+         {
             const double wy  = B(qy,dy);
             const double wDy = G(qy,dy);
-            for (int qx = 0; qx < NQ1d; ++qx) {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                grad(qy,qx,0) += gradX(qx,1) * wy;
                grad(qy,qx,1) += gradX(qx,0) * wDy;
             }
          }
       }
       // Calculate Dxy, xDy in plane
-      for (int qy = 0; qy < NQ1d; ++qy) {
-         for (int qx = 0; qx < NQ1d; ++qx) {
+      for (int qy = 0; qy < NQ1d; ++qy)
+      {
+         for (int qx = 0; qx < NQ1d; ++qx)
+         {
             const int q = QUAD_2D_ID(qx, qy);
             const double O11 = op(0,q,e);
             const double O12 = op(1,q,e);
@@ -280,24 +289,29 @@ static void DiffusionMultAssembled2D(const int ND1d,
       for (int qy = 0; qy < NQ1d; ++qy)
       {
          Vector2 gradX(ND1d, 2, __shared + 2*NQ);
-         for (int dx = 0; dx < ND1d; ++dx) {
+         for (int dx = 0; dx < ND1d; ++dx)
+         {
             gradX(dx,0) = 0.0;
             gradX(dx,1) = 0.0;
          }
-         for (int qx = 0; qx < NQ1d; ++qx) {
+         for (int qx = 0; qx < NQ1d; ++qx)
+         {
             const double gX = grad(qy,qx,0);
             const double gY = grad(qy,qx,1);
-            for (int dx = 0; dx < ND1d; ++dx) {
+            for (int dx = 0; dx < ND1d; ++dx)
+            {
                const double wx  = Bt(dx,qx);
                const double wDx = Gt(dx,qx);
                gradX(dx,0) += gX * wDx;
                gradX(dx,1) += gY * wx;
             }
          }
-         for (int dy = 0; dy < ND1d; ++dy) {
+         for (int dy = 0; dy < ND1d; ++dy)
+         {
             const double wy  = Bt(dy,qy);
             const double wDy = Gt(dy,qy);
-            for (int dx = 0; dx < ND1d; ++dx) {
+            for (int dx = 0; dx < ND1d; ++dx)
+            {
                y(dx,dy,e) += ((gradX(dx,0) * wy) + (gradX(dx,1) * wDy));
             }
          }
@@ -333,41 +347,53 @@ static void DiffusionMultAssembled3D(const int ND1d,
    MFEM_FORALL_SHARED(e, NE, Nspt,
    {
       Vector4 grad(NQ1d,NQ1d,NQ1d,3,__shared);
-      for (int qz = 0; qz < NQ1d; ++qz) {
-         for (int qy = 0; qy < NQ1d; ++qy) {
-            for (int qx = 0; qx < NQ1d; ++qx) {
+      for (int qz = 0; qz < NQ1d; ++qz)
+      {
+         for (int qy = 0; qy < NQ1d; ++qy)
+         {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                grad(qz,qy,qx,0) = 0.0;
                grad(qz,qy,qx,1) = 0.0;
                grad(qz,qy,qx,2) = 0.0;
             }
          }
       }
-      for (int dz = 0; dz < ND1d; ++dz) {
+      for (int dz = 0; dz < ND1d; ++dz)
+      {
          Vector3 gradXY(NQ1d,NQ1d,3,__shared+3*NQ);
-         for (int qy = 0; qy < NQ1d; ++qy) {
-            for (int qx = 0; qx < NQ1d; ++qx) {
+         for (int qy = 0; qy < NQ1d; ++qy)
+         {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                gradXY(qy,qx,0) = 0.0;
                gradXY(qy,qx,1) = 0.0;
                gradXY(qy,qx,2) = 0.0;
             }
          }
-         for (int dy = 0; dy < ND1d; ++dy) {
+         for (int dy = 0; dy < ND1d; ++dy)
+         {
             Vector2 gradX(NQ1d, 3, __shared + 3*NQ + 3*maxDQ2);
-            for (int qx = 0; qx < NQ1d; ++qx) {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                gradX(qx,0) = 0.0;
                gradX(qx,1) = 0.0;
             }
-            for (int dx = 0; dx < ND1d; ++dx) {
+            for (int dx = 0; dx < ND1d; ++dx)
+            {
                const double s = x(dx,dy,dz,e);
-               for (int qx = 0; qx < NQ1d; ++qx) {
+               for (int qx = 0; qx < NQ1d; ++qx)
+               {
                   gradX(qx,0) += s * B(qx,dx);
                   gradX(qx,1) += s * G(qx,dx);
                }
             }
-            for (int qy = 0; qy < NQ1d; ++qy) {
+            for (int qy = 0; qy < NQ1d; ++qy)
+            {
                const double wy  = B(qy,dy);
                const double wDy = G(qy,dy);
-               for (int qx = 0; qx < NQ1d; ++qx) {
+               for (int qx = 0; qx < NQ1d; ++qx)
+               {
                   const double wx  = gradX(qx,0);
                   const double wDx = gradX(qx,1);
                   gradXY(qy,qx,0) += wDx * wy;
@@ -376,11 +402,14 @@ static void DiffusionMultAssembled3D(const int ND1d,
                }
             }
          }
-         for (int qz = 0; qz < NQ1d; ++qz) {
+         for (int qz = 0; qz < NQ1d; ++qz)
+         {
             const double wz  = B(qz,dz);
             const double wDz = G(qz,dz);
-            for (int qy = 0; qy < NQ1d; ++qy) {
-               for (int qx = 0; qx < NQ1d; ++qx) {
+            for (int qy = 0; qy < NQ1d; ++qy)
+            {
+               for (int qx = 0; qx < NQ1d; ++qx)
+               {
                   grad(qz,qy,qx,0) += gradXY(qy,qx,0) * wz;
                   grad(qz,qy,qx,1) += gradXY(qy,qx,1) * wz;
                   grad(qz,qy,qx,2) += gradXY(qy,qx,2) * wDz;
@@ -390,9 +419,12 @@ static void DiffusionMultAssembled3D(const int ND1d,
       }
 
       // Calculate Dxyz, xDyz, xyDz in plane
-      for (int qz = 0; qz < NQ1d; ++qz) {
-         for (int qy = 0; qy < NQ1d; ++qy) {
-            for (int qx = 0; qx < NQ1d; ++qx) {
+      for (int qz = 0; qz < NQ1d; ++qz)
+      {
+         for (int qy = 0; qy < NQ1d; ++qy)
+         {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                const int q = QUAD_3D_ID(qx, qy, qz);
                const double O11 = op(0,q,e);
                const double O12 = op(1,q,e);
@@ -409,27 +441,34 @@ static void DiffusionMultAssembled3D(const int ND1d,
             }
          }
       }
-      for (int qz = 0; qz < NQ1d; ++qz) {
+      for (int qz = 0; qz < NQ1d; ++qz)
+      {
          Vector3 gradXY(ND1d,ND1d, 3, __shared + 3*NQ);
-         for (int dy = 0; dy < ND1d; ++dy) {
-            for (int dx = 0; dx < ND1d; ++dx) {
+         for (int dy = 0; dy < ND1d; ++dy)
+         {
+            for (int dx = 0; dx < ND1d; ++dx)
+            {
                gradXY(dy,dx,0) = 0.0;
                gradXY(dy,dx,1) = 0.0;
                gradXY(dy,dx,2) = 0.0;
             }
          }
-         for (int qy = 0; qy < NQ1d; ++qy) {
+         for (int qy = 0; qy < NQ1d; ++qy)
+         {
             Vector2 gradX(ND1d, 3, __shared + 3*NQ + 3*maxDQ2);
-            for (int dx = 0; dx < ND1d; ++dx) {
+            for (int dx = 0; dx < ND1d; ++dx)
+            {
                gradX(dx,0) = 0.0;
                gradX(dx,1) = 0.0;
                gradX(dx,2) = 0.0;
             }
-            for (int qx = 0; qx < NQ1d; ++qx) {
+            for (int qx = 0; qx < NQ1d; ++qx)
+            {
                const double gX = grad(qz,qy,qx,0);
                const double gY = grad(qz,qy,qx,1);
                const double gZ = grad(qz,qy,qx,2);
-               for (int dx = 0; dx < ND1d; ++dx) {
+               for (int dx = 0; dx < ND1d; ++dx)
+               {
                   const double wx  = Bt(dx,qx);
                   const double wDx = Gt(dx,qx);
                   gradX(dx,0) += gX * wDx;
@@ -437,21 +476,26 @@ static void DiffusionMultAssembled3D(const int ND1d,
                   gradX(dx,2) += gZ * wx;
                }
             }
-            for (int dy = 0; dy < ND1d; ++dy) {
+            for (int dy = 0; dy < ND1d; ++dy)
+            {
                const double wy  = Bt(dy,qy);
                const double wDy = Gt(dy,qy);
-               for (int dx = 0; dx < ND1d; ++dx) {
+               for (int dx = 0; dx < ND1d; ++dx)
+               {
                   gradXY(dy,dx,0) += gradX(dx,0) * wy;
                   gradXY(dy,dx,1) += gradX(dx,1) * wDy;
                   gradXY(dy,dx,2) += gradX(dx,2) * wy;
                }
             }
          }
-         for (int dz = 0; dz < ND1d; ++dz) {
+         for (int dz = 0; dz < ND1d; ++dz)
+         {
             const double wz  = Bt(dz,qz);
             const double wDz = Gt(dz,qz);
-            for (int dy = 0; dy < ND1d; ++dy) {
-               for (int dx = 0; dx < ND1d; ++dx) {
+            for (int dy = 0; dy < ND1d; ++dy)
+            {
+               for (int dx = 0; dx < ND1d; ++dx)
+               {
                   y(dx,dy,dz,e) +=
                      ((gradXY(dy,dx,0) * wz) +
                       (gradXY(dy,dx,1) * wz) +

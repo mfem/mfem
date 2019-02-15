@@ -32,7 +32,7 @@ void cuWrap(const size_t N, const size_t Nspt,
    // shared bytes per thread
    const size_t spt = 1 + Nspt*sizeof(double);
    // block dimension, constrainted by shared byte size
-   const size_t Db = min(1024ull, 1ull<<LOG2(smpb/spt));
+   const size_t Db = min(256ull, 1ull<<LOG2(smpb/spt));
    // grid dimension
    const size_t Dg = (N+Db-1)/Db;
    // shared bytes per block
