@@ -793,22 +793,28 @@ void ExaModel::SwapMeshNodes(){
   
 }
 
-void AbaqusUmatModel::UpdateModelVars( ParFiniteElementSpace *fes,
-                              const Vector &x)
+void AbaqusUmatModel::UpdateModelVars()
 {
    // update the beginning step deformation gradient
    QuadratureFunction* defGrad = defGrad0.GetQuadFunction();
-   if(EndCoordsMesh){
-     SwapMeshNodes();
+   double* dgrad0 = defGrad -> GetData();
+   double* dgrad1 = end_def_grad.GetData();
+//   if(EndCoordsMesh){
+//     SwapMeshNodes();
+//   }
+   //We just need to update our beginning of time step def. grad. with our
+   //end step def. grad. now that they are equal.
+   for(int i = 0; i < defGrad -> Size(); i++){
+      dgrad0[i] = dgrad1[i];
    }
-   computeDefGrad(defGrad, fes, x);
-   defGrad = NULL;
+//   computeDefGrad(defGrad, fes, x);
+//   defGrad = NULL;
    //We just want to be super careful here in case the functions we call above
    //swap the mesh nodes without us realizing it. So, we want to swap them back to the
    //end nodes.
-   if(!EndCoordsMesh){
-     SwapMeshNodes();
-   }
+//   if(!EndCoordsMesh){
+//     SwapMeshNodes();
+//   }
    return;
 }
 
@@ -1125,12 +1131,11 @@ void ExaModel::CalcPolarDecompDefGrad(DenseMatrix& R, DenseMatrix& U,
 
 //This method calculates the Eulerian strain which is given as:
 //e = 1/2 (I - B^(-1)) = 1/2 (I - F(^-T)F^(-1))
-void ExaModel::CalcEulerianStrain(DenseMatrix& E){
+void ExaModel::CalcEulerianStrain(DenseMatrix& E, const DenseMatrix &F){
    
    int dim = Ttr->GetDimension();
 
    DenseMatrix Finv(dim), Binv(dim);
-   DenseMatrix F(Jpt1, dim);
    
    double half = 1.0/2.0;
    
@@ -1152,11 +1157,11 @@ void ExaModel::CalcEulerianStrain(DenseMatrix& E){
    
 //This method calculates the Lagrangian strain which is given as:
 //E = 1/2 (C - I) = 1/2 (F^(T)F - I)
-void ExaModel::CalcLagrangianStrain(DenseMatrix& E){
+void ExaModel::CalcLagrangianStrain(DenseMatrix& E, const DenseMatrix &F){
    
    int dim = Ttr->GetDimension();
 
-   DenseMatrix F(Jpt1, dim);
+//   DenseMatrix F(Jpt, dim);
    DenseMatrix C(dim);
    
    double half = 1.0/2.0;
@@ -1177,11 +1182,11 @@ void ExaModel::CalcLagrangianStrain(DenseMatrix& E){
    
 //This method calculates the Biot strain which is given as:
 //E = (U - I) or sometimes seen as E = (V - I) if R = I
-void ExaModel::CalcBiotStrain(DenseMatrix& E){
+void ExaModel::CalcBiotStrain(DenseMatrix& E, const DenseMatrix &F){
 
    int dim = Ttr->GetDimension();
   
-   DenseMatrix rmat(Jpt1, dim);
+   DenseMatrix rmat(F, dim);
    DenseMatrix umat, vmat;
    
    umat.SetSize(dim);
@@ -1197,7 +1202,7 @@ void ExaModel::CalcBiotStrain(DenseMatrix& E){
    return;
 }
 
-void ExaModel::CalcLogStrain(DenseMatrix& E)
+void ExaModel::CalcLogStrain(DenseMatrix& E, const DenseMatrix &F)
 {
    // calculate current end step logorithmic strain (Hencky Strain) 
    // which is taken to be E = ln(U) = 1/2 ln(C), where C = (F_T)F. 
@@ -1207,14 +1212,14 @@ void ExaModel::CalcLogStrain(DenseMatrix& E)
    // eigenvalues
    // UMAT uses the E = ln(V) approach instead
 
-   DenseMatrix B, F;
+   DenseMatrix B;
 
    int dim = Ttr->GetDimension();
 
    B.SetSize(dim);
-   F.SetSize(dim);
+//   F.SetSize(dim);
 
-   F = Jpt1;
+//   F = Jpt;
 
    MultABt(F, F, B);
 
@@ -1240,6 +1245,204 @@ void ExaModel::CalcLogStrain(DenseMatrix& E)
    }
    
    return;
+}
+//Work through the initialization of all of this...
+void AbaqusUmatModel::init_loc_sf_grads(ParFiniteElementSpace *fes){
+   
+   const FiniteElement *fe;
+   const IntegrationRule *ir;
+   QuadratureFunction* _defgrad0 = defGrad0.GetQuadFunction();
+   QuadratureSpace* qspace = _defgrad0->GetSpace();
+   
+   ir = &(qspace->GetElementIntRule(0));
+   
+   const int NE = fes->GetNE();
+   const int NQPTS = ir->GetNPoints();
+   
+   // get element transformation for the 0th element
+   // We just want to get some basic stuff for now
+   fe = fes->GetFE(0);
+   
+   // declare data to store shape function gradients
+   // and element Jacobians
+   DenseMatrix Jrt, DSh, DS;
+   int dof = fe->GetDof(), dim = fe->GetDim();
+   const int VDIM = dof * dim;
+   
+   DSh.SetSize(dof,dim);
+   //This should probably be linked to the underlying quadrature function
+   DS.SetSize(dof,dim);
+   Jrt.SetSize(dim);
+   
+   //We now have enough information to create our loc0_sf_grad
+   
+   loc0_sf_grad.SetSpace(qspace, VDIM);
+   double* data = loc0_sf_grad.GetData();
+   
+   // loop over elements
+   for (int i = 0; i < NE; ++i)
+   {
+      // get element transformation for the ith element
+      ElementTransformation* Ttr = fes->GetElementTransformation(i);
+      fe = fes->GetFE(i);
+      
+      //PMatI.UseExternalData(el_x.GetData(), dof, dim);
+      
+      ir = &(qspace->GetElementIntRule(i));
+      
+      // loop over integration points where the quadrature function is
+      // stored
+      for (int j = 0; j < NQPTS; ++j)
+      {
+         //The offset is the current location of the data
+         int offset = (i * NQPTS * VDIM) + (j * VDIM);
+         double* data_offset = data + offset;
+         
+         DS.UseExternalData(data_offset, dof, dim);
+         
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Ttr->SetIntPoint(&ip);
+         CalcInverse(Ttr->Jacobian(), Jrt);
+         
+         fe->CalcDShape(ip, DSh);
+         Mult(DSh, Jrt, DS);
+      }
+   }
+   
+}
+
+void AbaqusUmatModel::init_incr_end_def_grad(){
+   
+   const IntegrationRule *ir;
+   QuadratureFunction* _defgrad0 = defGrad0.GetQuadFunction();
+   QuadratureSpace* qspace = _defgrad0->GetSpace();
+   
+   ir = &(qspace->GetElementIntRule(0));
+   
+   const int TOTQPTS = qspace->GetSize();
+   const int NQPTS = ir->GetNPoints();
+   //We've got the same elements everywhere so we can do this.
+   //If this assumption is no longer true we need to update the code
+   const int NE = TOTQPTS/NQPTS;
+   const int VDIM = _defgrad0->GetVDim();
+   const int dim = 3;
+   
+   incr_def_grad.SetSpace(qspace, VDIM);
+   double* incr_data = incr_def_grad.GetData();
+   
+   end_def_grad.SetSpace(qspace, VDIM);
+   double* end_data = end_def_grad.GetData();
+   
+   DenseMatrix f_incr(dim, dim);
+   DenseMatrix f_end(dim, dim);
+   
+   // loop over elements
+   for (int i = 0; i < NE; ++i)
+   {
+      // loop over integration points where the quadrature function is
+      // stored
+      for (int j = 0; j < NQPTS; ++j)
+      {
+         //The offset is the current location of the data
+         int offset = (i * NQPTS * VDIM) + (j * VDIM);
+         double* incr_data_offset = incr_data + offset;
+         double* end_data_offset = end_data + offset;
+         
+         f_incr.UseExternalData(incr_data_offset, dim, dim);
+         //It's now just initialized to being the identity matrix
+         f_incr = 0.0;
+         f_incr(0, 0) = 1.0;
+         f_incr(1, 1) = 1.0;
+         f_incr(2, 2) = 1.0;
+         
+         f_end.UseExternalData(end_data_offset, dim, dim);
+         //It's now just initialized to being the identity matrix
+         f_end = 0.0;
+         f_end(0, 0) = 1.0;
+         f_end(1, 1) = 1.0;
+         f_end(2, 2) = 1.0;
+      }
+   }
+}
+
+void AbaqusUmatModel::calc_incr_end_def_grad(const Vector &x0)
+{
+   
+   const IntegrationRule *ir;
+   QuadratureFunction* _defgrad0 = defGrad0.GetQuadFunction();
+   QuadratureSpace* qspace = _defgrad0->GetSpace();
+   
+   ir = &(qspace->GetElementIntRule(0));
+   
+   const int TOTQPTS = qspace->GetSize();
+   const int NQPTS = ir->GetNPoints();
+   //We've got the same type of elements everywhere so we can do this.
+   //If this assumption is no longer true we need to update the code
+   const int NE = TOTQPTS/NQPTS;
+   const int VDIM = _defgrad0->GetVDim();
+   //We also assume we're only dealing with 3D type elements.
+   //If we aren't then this needs to change...
+   const int DIM = 3;
+   const int VDIM2 = loc0_sf_grad.GetVDim();
+   const int DOF = VDIM2 / DIM;
+   
+   double* incr_data = incr_def_grad.GetData();
+   double* end_data = end_def_grad.GetData();
+   double* int_data = _defgrad0 -> GetData();
+   double* ds_data = loc0_sf_grad.GetData();
+   
+   ParGridFunction x_gf;
+   
+   double* vals = x0.GetData();
+   
+   x_gf.MakeTRef(loc_fes, vals);
+   x_gf.SetFromTrueVector();
+   
+   DenseMatrix f_incr(DIM, DIM);
+   DenseMatrix f_end(DIM, DIM);
+   DenseMatrix f_beg(DIM, DIM);
+   DenseMatrix f_beg_invr(DIM, DIM);
+   DenseMatrix DS(DOF, DIM);
+   DenseMatrix PMatI(DOF, DIM);
+   //The below are constant but will change between steps
+   Array<int> vdofs(VDIM2);
+   Vector el_x(PMatI.Data(), VDIM2);
+   
+   // loop over elements
+   for (int i = 0; i < NE; ++i)
+   {
+      loc_fes->GetElementVDofs(i, vdofs);
+      //Our PMatI is now updated to the correct elemental values
+      x_gf.GetSubVector(vdofs, el_x);
+      // loop over integration points where the quadrature function is
+      // stored
+      for (int j = 0; j < NQPTS; ++j)
+      {
+         //The offset is the current location of the data
+         int offset = (i * NQPTS * VDIM) + (j * VDIM);
+         int offset2 = (i * NQPTS * VDIM2) + (j * VDIM2);
+         double* incr_data_offset = incr_data + offset;
+         double* end_data_offset = end_data + offset;
+         double* int_data_offset = int_data + offset;
+         double* ds_data_offset = ds_data + offset2;
+         
+         f_end.UseExternalData(end_data_offset, DIM, DIM);
+         f_beg.UseExternalData(int_data_offset, DIM, DIM);
+         f_incr.UseExternalData(incr_data_offset, DIM, DIM);
+         DS.UseExternalData(ds_data_offset, DOF, DIM);
+         
+         //Get the inverse of the beginning time step def. grad
+         f_beg_invr = f_beg;
+         f_beg_invr.Invert();
+         
+         //Find the end time step def. grad
+         MultAtB(PMatI, DS, f_end);
+         
+         //Our incremental def. grad is now
+         Mult(f_end, f_beg_invr, f_incr);
+      }
+   }
+   
 }
 
 void AbaqusUmatModel::CalcLogStrainIncrement(DenseMatrix& dE, const DenseMatrix &Jpt)
@@ -1473,9 +1676,28 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    double dfgrd1[9]; // defomration gradient at the end of the increment.
                         // set to zero if nonlinear geometric effects are not 
                         // included in the step as is the case for ExaConstit
+
+   QuadratureFunction* _defgrad0 = defGrad0.GetQuadFunction();
+   QuadratureSpace* qspace = _defgrad0->GetSpace();
+   
+   const IntegrationRule* ir;
+   ir = &(qspace->GetElementIntRule(0));
+   
+   double* defgrad0 = _defgrad0 -> GetData();
+   double* defgrad1 = end_def_grad.GetData();
+   double* incr_defgrad = incr_def_grad.GetData();
+   DenseMatrix incr_dgrad, dgrad0, dgrad1;
+   
+   const int NQPTS = ir->GetNPoints();
+   const int VDIM = end_def_grad.GetVDim();
+   const int offset = elemID * NQPTS * VDIM + ipID * VDIM;
+   
+   incr_dgrad.UseExternalData((incr_defgrad + offset), 3, 3);
+   dgrad0.UseExternalData((defgrad0 + offset), 3, 3);
+   dgrad1.UseExternalData((defgrad1 + offset), 3, 3);
    
    DenseMatrix Uincr(3), Vincr(3);
-   DenseMatrix Rincr(J, 3);
+   DenseMatrix Rincr(incr_dgrad, 3);
    CalcPolarDecompDefGrad(Rincr, Uincr, Vincr);
    
    drot = Rincr.GetData();
@@ -1487,8 +1709,8 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
       for (int j=0; j<ndi; ++j)
       {
          //Dense matrices have column major layout so the below is fine.
-         dfgrd0[(i * 3) + j] = Jpt0(j,i);
-         dfgrd1[(i * 3) + j] = Jpt1(j,i);
+         dfgrd0[(i * 3) + j] = dgrad0(j, i);
+         dfgrd1[(i * 3) + j] = dgrad1(j, i);
       }
    }
 
@@ -1522,7 +1744,7 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    //log strain?
    DenseMatrix LogStrain;
    LogStrain.SetSize(ndi); // ndi x ndi
-   CalcEulerianStrain(LogStrain);
+   CalcEulerianStrain(LogStrain, dgrad1);
 
    // populate STRAN (symmetric) 
    //------------------------------------------------------------------
@@ -1541,7 +1763,7 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    // compute incremental strain, DSTRAN
    DenseMatrix dLogStrain;
    dLogStrain.SetSize(ndi);
-   CalcEulerianStrainIncr(dLogStrain, J);
+   CalcEulerianStrainIncr(dLogStrain, incr_dgrad);
 
    // populate DSTRAN (symmetric)
    //------------------------------------------------------------------
@@ -1731,23 +1953,35 @@ void AbaqusUmatModel::CalcElemLength()
    // unclear how important a characteristic element length is to 
    // a UMAT for implicit mechanics. Just compute the largest 
    // euclidean distance between the first node and any other node
-   int dim = Ttr->GetDimension();
+//   int dim = Ttr->GetDimension();
+   //It can also be approximated as the cube root of the element's volume.
+   //I think this one might be a little nicer to use because for distorted elements
+   //you might not want the largest length. Also, I don't have to deal with
+   //trying to figure out how to get the element coordinates into this function
+   //with the new rewrite of things...
+   //According to https://abaqus-docs.mit.edu/2017/English/SIMACAEKEYRefMap/simakey-r-characteristiclength.htm
+   //it looks like this might be the right way to do it...
+   //although this does change from integration to integration point
+   //since we're using the determinate instead of the actual volume. However,
+   //it should be good enough for our needs...
+   double volume = Ttr->Weight();
+   elemLength = cbrt(volume);
 
-   double len[dim]; 
-   double maxLen = 0.0;
-   double mag = 0.0;
-   for (int i=1; i<dim; ++i)
-   {
-      len[0] = currElemCoords(i,0) - currElemCoords(0,0);
-      len[1] = currElemCoords(i,1) - currElemCoords(0,1);
-      len[2] = currElemCoords(i,2) - currElemCoords(0,2);
-
-      mag = sqrt(len[0]*len[0] + len[1]*len[1] + len[2]*len[2]);
-
-      if (mag > maxLen) maxLen = mag; 
-   }
-
-   elemLength = mag;
+//   double len[dim];
+//   double maxLen = 0.0;
+//   double mag = 0.0;
+//   for (int i=1; i<dim; ++i)
+//   {
+//      len[0] = currElemCoords(i,0) - currElemCoords(0,0);
+//      len[1] = currElemCoords(i,1) - currElemCoords(0,1);
+//      len[2] = currElemCoords(i,2) - currElemCoords(0,2);
+//
+//      mag = sqrt(len[0]*len[0] + len[1]*len[1] + len[2]*len[2]);
+//
+//      if (mag > maxLen) maxLen = mag;
+//   }
+//
+//   elemLength = mag;
 
    return;
 }
@@ -1938,14 +2172,10 @@ void ExaNLFIntegrator::AssembleElementVector(
    // set element id and attribute on model
    model->SetElementID(Ttr.ElementNo, Ttr.Attribute);
 
-   // set the incremental nodal displacements on the model for 
-   // the current element
-   model->SetCoords(PMatI);
-
-   //We want to use the Cauchy stress here
-   //Get access to Pmat stored in the model
-   PMat = model->GetCauchyStress();
-
+   //Our velocity, residual, and coords are passed as reference here
+   model->SetVel(&elfun);
+   model->SetResid(&elvect);
+   
    // get the timestep off the boundary condition manager. This isn't 
    // ideal, but in main(), the time step is just a local variable. 
    // Consider adding a simulation control class
@@ -1972,23 +2202,16 @@ void ExaNLFIntegrator::AssembleElementVector(
       // compute Jacobian of the transformation
       CalcInverse(Ttr.Jacobian(), Jrt); // Jrt = dxi / dX
 
-      // compute Jpt, which is the incremental deformation gradient
+      // compute Jpt, which is the velocity gradient
       el.CalcDShape(ip, DSh);
       Mult(DSh, Jrt, DS); // dN_a(xi) / dX = dN_a(xi)/dxi * dxi/dX
-      MultAtB(PMatI, DS, Jpt); // Jpt = F = dx/dX, PMatI = current config. coords.
+      MultAtB(PMatI, DS, Jpt); // Jpt = Vgrad = dV/dX, PMatI = current config. coords.
 
       // Jpt here would be our velocity gradient
       // get the stress update, set on the model (model->P)
+      // Then our residual vector is updated in this function as well...
       model->EvalModel(Jpt, DS, ip.weight * Ttr.Weight());
 
-      // multiply Cauchy stress by integration point weight and
-      // determinant of the Jacobian of the transformation. Note that EvalModel
-      // takes the weight input argument to conform to the old 
-      // AssembleH where the weight was used in the NeoHookean model
-      *PMat *= ip.weight * Ttr.Weight(); // Ttr.Weight is det() of Jacob. of 
-                                            // transformation from ref. config. to 
-                                            // parent space.
-      AddMult(DS, *PMat, PMatO);
    }
 
    PMat = NULL;
@@ -2029,13 +2252,7 @@ void ExaNLFIntegrator::AssembleElementVector(
    Jrt.SetSize(dim);
    Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
-   /*printf("\n Coordinates: \n");
-   for(int i = 0; i<dof; i++){
-     for(int j = 0; j<dim; j++){
-       printf("%lf ", PMatI(i,j));
-     }
-     printf("\n");
-   }*/
+
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dim, dof);
 
@@ -2059,7 +2276,7 @@ void ExaNLFIntegrator::AssembleElementVector(
    model->SetCrds(&elfun);
 
    //Get access to Pmat stored in the model
-   PMat = model->GetCauchyStress();
+//   PMat = model->GetCauchyStress();
    //Vgrad = model->GetVGrad();
 
    // get the timestep off the boundary condition manager. This isn't 

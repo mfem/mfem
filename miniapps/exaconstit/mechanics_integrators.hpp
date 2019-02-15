@@ -97,7 +97,7 @@ protected:
    // add QuadratureVectorFunctionCoefficient to store the beginning step 
    // Note you can compute the end step def grad from the incremental def 
    // grad (from the solution: Jpt) and the beginning step def grad
-   QuadratureVectorFunctionCoefficient defGrad0; 
+   QuadratureVectorFunctionCoefficient defGrad0;
 
    // add QuadratureVectorFunctionCoefficient to store von Mises 
    // scalar stress measure
@@ -174,12 +174,20 @@ public:
    //linearization of our nonlinear system of equations
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) = 0;
+   
+   //This function is needed in the UMAT child class to drive parts of the
+   //solution in the mechanics_operator file. It should just be set as a no-op
+   //in other children class if they aren't using it.
+   virtual void calc_incr_end_def_grad(ParFiniteElementSpace *fes,
+                                       const Vector &x0) = 0;
+   
+   //For when the ParFinitieElementSpace is stored on the class...
+   virtual void calc_incr_end_def_grad(const Vector &x0) = 0;
 
    // routine to update the beginning step deformation gradient. This must
    // be written by a model class extension to update whatever else
    // may be required for that particular model
-   virtual void UpdateModelVars(ParFiniteElementSpace *fes, 
-                                const Vector &x) = 0;
+   virtual void UpdateModelVars() = 0;
 
    // routine to set the element id and integration point number for 
    // the current element
@@ -341,13 +349,13 @@ public:
    //Same as above should these be a protected function?
    
    //Lagrangian is simply E = 1/2(F^tF - I)
-   void CalcLagrangianStrain(DenseMatrix& E);
+   void CalcLagrangianStrain(DenseMatrix& E, const DenseMatrix &F);
    //Eulerian is simply e = 1/2(I - F^(-t)F^(-1))
-   void CalcEulerianStrain(DenseMatrix& E);
+   void CalcEulerianStrain(DenseMatrix& E, const DenseMatrix &F);
    //Biot strain is simply B = U - I
-   void CalcBiotStrain(DenseMatrix& E);
+   void CalcBiotStrain(DenseMatrix& E, const DenseMatrix &F);
    //Log strain is equal to e = 1/2 * ln(C) or for UMATs its e = 1/2 * ln(B)
-   void CalcLogStrain(DenseMatrix& E);
+   void CalcLogStrain(DenseMatrix& E, const DenseMatrix &F);
    
    //Some useful rotation functions that we can use
    //Do we want to have these exposed publically or should they
@@ -381,6 +389,16 @@ protected:
 
    // add member variables. 
    double elemLength;
+   
+   //The initial local shape function gradients.
+   QuadratureFunction loc0_sf_grad;
+   
+   //The incremental deformation gradients.
+   QuadratureFunction incr_def_grad;
+   
+   //The end step deformation gradients.
+   QuadratureFunction end_def_grad;
+   ParFiniteElementSpace* loc_fes;
   
    // pointer to umat function
    // we really don't use this in the code
@@ -402,10 +420,15 @@ public:
 		   QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0,
 		   ParGridFunction* _beg_coords, ParGridFunction* _end_coords, ParMesh *_pmesh,
                    Vector *_props, int _nProps, 
-                   int _nStateVars) : ExaModel(_q_stress0, 
+                   int _nStateVars, ParFiniteElementSpace* fes) : ExaModel(_q_stress0,
                       _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, _q_defGrad0,
 		      _beg_coords, _end_coords,_pmesh,
-		      _props, _nProps, _nStateVars, true, false) { }
+		      _props, _nProps, _nStateVars, true, false), loc_fes(fes)
+   {
+      init_loc_sf_grads(fes);
+      init_incr_end_def_grad();
+   }
+   
    virtual ~AbaqusUmatModel() { }
 
    virtual void EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
@@ -413,9 +436,12 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A);
+   virtual void calc_incr_end_def_grad(ParFiniteElementSpace *fes,
+                                       const Vector &x0) {}
    
-   virtual void UpdateModelVars(ParFiniteElementSpace *fes,
-                                const Vector &x);
+   //For when the ParFinitieElementSpace is stored on the class...
+   virtual void calc_incr_end_def_grad(const Vector &x0);
+   virtual void UpdateModelVars();
    
    //Calculates the incremental versions of the strain measures that we're given
    //above
@@ -428,6 +454,10 @@ public:
    
    //calculates the element length
    void CalcElemLength();
+   
+   void init_loc_sf_grads(ParFiniteElementSpace *fes);
+   void init_incr_end_def_grad();
+   
 
 };
 
