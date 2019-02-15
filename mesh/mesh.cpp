@@ -4931,8 +4931,8 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          int m = iI[n];
          I = new idx_t[n+1];
          J = new idx_t[m];
-         for (int k = 0; k < n+1; k++) I[k] = iI[k];
-         for (int k = 0; k < m; k++) J[k] = iJ[k];
+         for (int k = 0; k < n+1; k++) { I[k] = iI[k]; }
+         for (int k = 0; k < m; k++) { J[k] = iJ[k]; }
          mpartitioning = new idx_t[n];
          freedata = true;
       }
@@ -5072,7 +5072,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       nparts = (int) mparts;
       if (mpartitioning != (idx_t*)partitioning)
       {
-         for (int k = 0; k<NumOfElements; k++) partitioning[k] = mpartitioning[k];
+         for (int k = 0; k<NumOfElements; k++) { partitioning[k] = mpartitioning[k]; }
       }
       if (freedata)
       {

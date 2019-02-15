@@ -714,8 +714,8 @@ BlockDiagonalConstructor(MPI_Comm comm,
       PetscInt *pII,*pJJ;
       int m = diag->Height()+1, nnz = II[diag->Height()];
       ierr = PetscMalloc2(m,&pII,nnz,&pJJ); PCHKERRQ(lA,ierr);
-      for (int i = 0; i < m; i++) pII[i] = II[i];
-      for (int i = 0; i < nnz; i++) pJJ[i] = JJ[i];
+      for (int i = 0; i < m; i++) { pII[i] = II[i]; }
+      for (int i = 0; i < nnz; i++) { pJJ[i] = JJ[i]; }
       ierr = MatSeqAIJSetPreallocationCSR(lA,pII,pJJ,
                                           diag->GetData()); PCHKERRQ(lA,ierr);
       ierr = PetscFree2(pII,pJJ); PCHKERRQ(lA,ierr);
@@ -747,8 +747,8 @@ BlockDiagonalConstructor(MPI_Comm comm,
       {
          int *iii = diag->GetI();
          int *jjj = diag->GetJ();
-         for (int i = 0; i < m; i++) dii[i] = iii[i];
-         for (int i = 0; i < nnz; i++) djj[i] = jjj[i];
+         for (int i = 0; i < m; i++) { dii[i] = iii[i]; }
+         for (int i = 0; i < nnz; i++) { djj[i] = jjj[i]; }
       }
       ierr = PetscMemcpy(da,diag->GetData(),nnz*sizeof(PetscScalar));
       CCHKERRQ(PETSC_COMM_SELF,ierr);
@@ -4235,8 +4235,8 @@ static PetscErrorCode Convert_Vmarks_IS(MPI_Comm comm,
       int  nnz = (int)ii[m];
       int *mii = new int[m+1];
       int *mjj = new int[nnz];
-      for (int j = 0; j < m+1; j++) mii[j] = (int)ii[j];
-      for (int j = 0; j < nnz; j++) mjj[j] = (int)jj[j];
+      for (int j = 0; j < m+1; j++) { mii[j] = (int)ii[j]; }
+      for (int j = 0; j < nnz; j++) { mjj[j] = (int)jj[j]; }
       l2l[i] = new mfem::SparseMatrix(mii,mjj,NULL,m,n,true,true,true);
 #else
       l2l[i] = new mfem::SparseMatrix(ii,jj,NULL,m,n,false,true,true);
