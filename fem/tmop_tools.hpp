@@ -18,7 +18,25 @@
 namespace mfem
 {
 
-// Performs an advection step.
+// Performs the full remap advection loop.
+class AdvectorCG : public AdaptivityEvaluator
+{
+private:
+   RK4Solver ode_solver;
+   Vector nodes0;
+   Vector field0;
+
+public:
+   AdvectorCG() : AdaptivityEvaluator(), ode_solver(), nodes0(), field0() { }
+
+   virtual void SetInitialField(const Vector &init_nodes,
+                                const Vector &init_field);
+
+   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+                                     Vector &new_field);
+};
+
+// Performs a single remap advection step.
 class AdvectorCGOperator : public TimeDependentOperator
 {
 private:
@@ -38,23 +56,50 @@ public:
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
 
-// Performs the whole advection loop.
-class AdvectorCG : public AdaptivityEvaluator
+class TMOPNewtonSolver : public NewtonSolver
 {
 private:
-   RK4Solver ode_solver;
-   Vector nodes0;
-   Vector field0;
+   // Quadrature points that are checked for negative Jacobians etc.
+   const IntegrationRule &ir;
+   ParFiniteElementSpace *pfes;
+   mutable ParGridFunction x_gf;
+
+   mutable DiscreteAdaptTC *discr_tc;
 
 public:
-   AdvectorCG() : AdaptivityEvaluator(), ode_solver(), nodes0(), field0() { }
+   TMOPNewtonSolver(const IntegrationRule &irule, ParFiniteElementSpace *pf)
+      : NewtonSolver(pf->GetComm()),
+        ir(irule), pfes(pf), x_gf(),
+        discr_tc(NULL) { }
 
-   virtual void SetInitialField(const Vector &init_nodes,
-                                const Vector &init_field);
+   void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) { discr_tc = tc; }
 
-   virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field);
+   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
+
+   virtual void ProcessNewState(const Vector &x) const;
 };
+
+/// Allows negative Jacobians. Used for untangling.
+class TMOPDescentNewtonSolver : public NewtonSolver
+{
+private:
+   // Quadrature points that are checked for negative Jacobians etc.
+   const IntegrationRule &ir;
+   ParFiniteElementSpace *pfes;
+   mutable ParGridFunction x_gf;
+
+public:
+   TMOPDescentNewtonSolver(const IntegrationRule &irule,
+                           ParFiniteElementSpace *pf)
+      : NewtonSolver(pf->GetComm()),
+        ir(irule), pfes(pf), x_gf() { }
+
+   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
+};
+
+void vis_tmop_metric(int order, TMOP_QualityMetric &qm,
+                     const TargetConstructor &tc, ParMesh &pmesh,
+                     char *title, int position);
 
 }
 
