@@ -975,6 +975,139 @@ void FiniteElementSpace::RefinementOperator
    }
 }
 
+FiniteElementSpace::DerefinementOperator::DerefinementOperator(
+   const FiniteElementSpace *f_fes, const FiniteElementSpace *c_fes,
+   BilinearFormIntegrator &mass_integ)
+   : Operator(c_fes->GetVSize(), f_fes->GetVSize()),
+     fine_fes(f_fes)
+{
+   MFEM_VERIFY(c_fes->GetOrdering() == f_fes->GetOrdering() &&
+               c_fes->GetVDim() == f_fes->GetVDim(),
+               "incompatible coarse and fine FE spaces");
+
+   IsoparametricTransformation emb_tr;
+   Mesh *f_mesh = f_fes->GetMesh();
+   const CoarseFineTransformations &rtrans = f_mesh->GetRefinementTransforms();
+
+   Mesh::GeometryList elem_geoms(*f_mesh);
+   DenseTensor localP[Geometry::NumGeom], localM[Geometry::NumGeom];
+   for (int gi = 0; gi < elem_geoms.Size(); gi++)
+   {
+      const Geometry::Type geom = elem_geoms[gi];
+      DenseTensor &lP = localP[geom], &lM = localM[geom];
+      const FiniteElement *fine_fe =
+         f_fes->fec->FiniteElementForGeometry(geom);
+      const FiniteElement *coarse_fe =
+         c_fes->fec->FiniteElementForGeometry(geom);
+      const DenseTensor &pmats = rtrans.GetPointMatrices(geom);
+
+      lP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), pmats.SizeK());
+      lM.SetSize(fine_fe->GetDof(),   fine_fe->GetDof(), pmats.SizeK());
+      emb_tr.SetIdentityTransformation(geom);
+      for (int i = 0; i < pmats.SizeK(); i++)
+      {
+         emb_tr.GetPointMat() = pmats(i);
+         emb_tr.FinalizeTransformation();
+         // Get the local interpolation matrix for this refinement type
+         fine_fe->GetTransferMatrix(*coarse_fe, emb_tr, lP(i));
+         // Get the local mass matrix for this refinement type
+         mass_integ.AssembleElementMatrix(*fine_fe, emb_tr, lM(i));
+      }
+   }
+
+   Table ref_type_to_matrix;
+   rtrans.GetCoarseToFineMap(*f_mesh, coarse_to_fine, coarse_to_ref_type,
+                             ref_type_to_matrix, ref_type_to_geom);
+   MFEM_ASSERT(coarse_to_fine.Size() == c_fes->GetNE(), "");
+
+   const int total_ref_types = ref_type_to_geom.Size();
+   int num_ref_types[Geometry::NumGeom], num_fine_elems[Geometry::NumGeom];
+   Array<int> ref_type_to_coarse_elem_offset(total_ref_types);
+   ref_type_to_fine_elem_offset.SetSize(total_ref_types);
+   std::fill(num_ref_types, num_ref_types+Geometry::NumGeom, 0);
+   std::fill(num_fine_elems, num_fine_elems+Geometry::NumGeom, 0);
+   for (int i = 0; i < total_ref_types; i++)
+   {
+      Geometry::Type g = ref_type_to_geom[i];
+      ref_type_to_coarse_elem_offset[i] = num_ref_types[g];
+      ref_type_to_fine_elem_offset[i] = num_fine_elems[g];
+      num_ref_types[g]++;
+      num_fine_elems[g] += ref_type_to_matrix.RowSize(i);
+   }
+   DenseTensor localPtMP[Geometry::NumGeom];
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      if (num_ref_types[g] == 0) { continue; }
+      const int fine_dofs = localP[g].SizeI();
+      const int coarse_dofs = localP[g].SizeJ();
+      localPtMP[g].SetSize(coarse_dofs, coarse_dofs, num_ref_types[g]);
+      localR[g].SetSize(coarse_dofs, fine_dofs, num_fine_elems[g]);
+   }
+   for (int i = 0; i < total_ref_types; i++)
+   {
+      Geometry::Type g = ref_type_to_geom[i];
+      DenseMatrix &lPtMP = localPtMP[g](ref_type_to_coarse_elem_offset[i]);
+      int lR_offset = ref_type_to_fine_elem_offset[i]; // offset in localR[g]
+      const int *mi = ref_type_to_matrix.GetRow(i);
+      const int nm = ref_type_to_matrix.RowSize(i);
+      lPtMP = 0.0;
+      for (int s = 0; s < nm; s++)
+      {
+         DenseMatrix &lP = localP[g](mi[s]);
+         DenseMatrix &lM = localM[g](mi[s]);
+         DenseMatrix &lR = localR[g](lR_offset+s);
+         MultAtB(lP, lM, lR); // lR = lP^T lM
+         AddMult(lR, lP, lPtMP); // lPtMP += lP^T lM lP
+      }
+      DenseMatrixInverse lPtMP_inv(lPtMP);
+      for (int s = 0; s < nm; s++)
+      {
+         DenseMatrix &lR = localR[g](lR_offset+s);
+         lPtMP_inv.Mult(lR); // lR <- (P^T M P)^{-1} P^T M
+      }
+   }
+
+   // Make a copy of the coarse element-to-dof Table.
+   coarse_elem_dof = new Table(c_fes->GetElementToDofTable());
+}
+
+FiniteElementSpace::DerefinementOperator::~DerefinementOperator()
+{
+   delete coarse_elem_dof;
+}
+
+void FiniteElementSpace::DerefinementOperator
+::Mult(const Vector &x, Vector &y) const
+{
+   Array<int> c_vdofs, f_vdofs;
+   Vector loc_x, loc_y;
+   DenseMatrix loc_x_mat, loc_y_mat;
+   const int vdim = fine_fes->GetVDim();
+   const int coarse_ndofs = height/vdim;
+   for (int coarse_el = 0; coarse_el < coarse_to_fine.Size(); coarse_el++)
+   {
+      coarse_elem_dof->GetRow(coarse_el, c_vdofs);
+      fine_fes->DofsToVDofs(c_vdofs, coarse_ndofs);
+      loc_y.SetSize(c_vdofs.Size());
+      loc_y = 0.0;
+      loc_y_mat.UseExternalData(loc_y.GetData(), c_vdofs.Size()/vdim, vdim);
+      const int ref_type = coarse_to_ref_type[coarse_el];
+      const Geometry::Type geom = ref_type_to_geom[ref_type];
+      const int *fine_elems = coarse_to_fine.GetRow(coarse_el);
+      const int num_fine_elems = coarse_to_fine.RowSize(coarse_el);
+      const int lR_offset = ref_type_to_fine_elem_offset[ref_type];
+      for (int s = 0; s < num_fine_elems; s++)
+      {
+         const DenseMatrix &lR = localR[geom](lR_offset+s);
+         fine_fes->GetElementVDofs(fine_elems[s], f_vdofs);
+         x.GetSubVector(f_vdofs, loc_x);
+         loc_x_mat.UseExternalData(loc_x.GetData(), f_vdofs.Size()/vdim, vdim);
+         AddMult(lR, loc_x_mat, loc_y_mat);
+      }
+      y.SetSubVector(c_vdofs, loc_y);
+   }
+}
+
 void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
                                                       DenseTensor &localR) const
 {
@@ -1697,6 +1830,13 @@ void FiniteElementSpace::GetTransferOperator(
    {
       T.Reset(new RefinementOperator(this, &coarse_fes));
    }
+}
+
+void FiniteElementSpace::GetReverseTransferOperator(
+   BilinearFormIntegrator &mass_integ, const FiniteElementSpace &coarse_fes,
+   OperatorHandle &R) const
+{
+   R.Reset(new DerefinementOperator(this, &coarse_fes, mass_integ));
 }
 
 void FiniteElementSpace::GetTrueTransferOperator(

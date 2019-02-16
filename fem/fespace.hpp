@@ -59,7 +59,10 @@ Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
 }
 
 
+// Forward declarations
 class NURBSExtension;
+class BilinearFormIntegrator;
+
 
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
     mesh, mainly managing the set of degrees of freedom. */
@@ -148,6 +151,25 @@ protected:
                          const FiniteElementSpace *coarse_fes);
       virtual void Mult(const Vector &x, Vector &y) const;
       virtual ~RefinementOperator();
+   };
+
+   // Derefinement operator, used by GetReverseTransferOperator().
+   class DerefinementOperator : public Operator
+   {
+      const FiniteElementSpace *fine_fes; // Not owned.
+      DenseTensor localR[Geometry::NumGeom];
+      Table *coarse_elem_dof; // Owned.
+      Table coarse_to_fine;
+      Array<int> coarse_to_ref_type;
+      Array<Geometry::Type> ref_type_to_geom;
+      Array<int> ref_type_to_fine_elem_offset;
+
+   public:
+      DerefinementOperator(const FiniteElementSpace *f_fes,
+                           const FiniteElementSpace *c_fes,
+                           BilinearFormIntegrator &mass_integ);
+      virtual void Mult(const Vector &x, Vector &y) const;
+      virtual ~DerefinementOperator();
    };
 
    // This method makes the same assumptions as the method:
@@ -472,6 +494,19 @@ public:
        the MPI task when the input is a synchronized ParGridFunction. */
    void GetTransferOperator(const FiniteElementSpace &coarse_fes,
                             OperatorHandle &T) const;
+
+   /** @brief Construct and return an Operator that can be used to transfer
+       GridFunction data from @a this FE space, defined on a fine mesh, to @a
+       coarse_fes, defined on a coarse mesh. */
+   /** This method returns a left inverse of the Operator returned by
+       GetTransferOperator().
+
+       The @a mass_integ must be compatible with @a this FE space.
+
+       At the moment, the type of @a R is ignored. */
+   void GetReverseTransferOperator(BilinearFormIntegrator &mass_integ,
+                                   const FiniteElementSpace &coarse_fes,
+                                   OperatorHandle &R) const;
 
    /** @brief Construct and return an Operator that can be used to transfer
        true-dof data from @a coarse_fes, defined on a coarse mesh, to @a this FE
