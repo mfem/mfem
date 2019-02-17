@@ -674,11 +674,12 @@ protected:
    bool                  ess_dof_local;
    const Array<int>      *nat_dof;
    bool                  nat_dof_local;
+   bool                  netflux;
    friend class PetscBDDCSolver;
 
 public:
    PetscBDDCSolverParams() : fespace(NULL), ess_dof(NULL), ess_dof_local(false),
-      nat_dof(NULL), nat_dof_local(false)
+      nat_dof(NULL), nat_dof_local(false), netflux(false)
    {}
    void SetSpace(ParFiniteElementSpace *fe) { fespace = fe; }
 
@@ -697,6 +698,11 @@ public:
    {
       nat_dof = natdofs;
       nat_dof_local = loc;
+   }
+   /// Setup BDDC with no-net-flux local solvers. Needs a ParFiniteElementSpace attached
+   void SetComputeNetFlux(bool net = true)
+   {
+      netflux = net;
    }
 };
 
