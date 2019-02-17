@@ -70,9 +70,9 @@ void wrapWithShared(const size_t N, const size_t Nspt,
    }
    else
    {
-      double cpu_mem_s[Nspt];
       for (size_t k = 0; k < N; k += 1)
       {
+         double cpu_mem_s[Nspt];
          h_body(k, Nspt, cpu_mem_s);
       }
    }
@@ -92,8 +92,8 @@ void wrapWithShared(const size_t N, const size_t Nspt,
    wrapWithShared(N, Nspt,                                          \
                   [=] __device__(const size_t i,                    \
                                  double *__shared) { __VA_ARGS__ }, \
-                  [&,Nspt](const size_t i,               \
-                      double *__shared) { __VA_ARGS__ })
+                  [&](const size_t i,               \
+                      double *__shared) mutable { __VA_ARGS__ })
 
 // *****************************************************************************
 #define GET_GPU const bool gpu = config::usingGpu();
