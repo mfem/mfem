@@ -27,6 +27,7 @@ uint32_t LOG2(uint32_t);
 #define ISQRT(N) static_cast<unsigned>(sqrt(static_cast<float>(N)))
 #define ICBRT(N) static_cast<unsigned>(cbrt(static_cast<float>(N)))
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
+#define MAX(a,b) ((a)>(b)?(a):(b))
 
 // *****************************************************************************
 #include "./cuda.hpp"
