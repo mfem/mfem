@@ -127,8 +127,8 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       const kernels::Vector x(3,NQ,geo->X.GetData());
       const kernels::Vector J(2,2,NQ,geo->J.GetData());
       kernels::Vector v(NQ,NE,vec.GetData());
-      const size_t NS = 0,
-      MFEM_FORALL_SHARED(e, NE, Ns
+      const size_t NS = 0;
+      MFEM_FORALL_SHARED(e, NE, NS,
       {
          for (int q = 0; q < NQ; ++q)
          {
