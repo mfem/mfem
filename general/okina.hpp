@@ -70,7 +70,8 @@ void wrapWithShared(const size_t N, const size_t Nspt,
    }
    else
    {
-      double cpu_mem_s[Nspt];
+      const int nspt = Nspt;
+      double cpu_mem_s[nspt];
       for (size_t k = 0; k < N; k += 1)
       {
          h_body(k, cpu_mem_s);
