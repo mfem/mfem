@@ -161,6 +161,6 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          REQUIRE(remove("base_00005/v.00000") == 0);
          REQUIRE(rmdir("base_00005") == 0);
       }
-#endif 
+#endif
    }
 }
