@@ -93,8 +93,8 @@ void wrapWithShared(const size_t N, const size_t Nspt,
    wrapWithShared(N, Nspt,                                          \
                   [=] __device__(const size_t i,                    \
                                  double *__shared) { __VA_ARGS__ }, \
-                  [&](const size_t i,               \
-                      double *__shared) mutable { __VA_ARGS__ })
+                  [&, Nspt](const size_t i,                         \
+                            double *__shared) { __VA_ARGS__ })
 
 // *****************************************************************************
 #define GET_GPU const bool gpu = config::usingGpu();

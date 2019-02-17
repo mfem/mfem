@@ -87,8 +87,8 @@ static void Geom2D(const int ND, const int ND1d,
                    double* __restrict detJ)
 {   
    // number of doubles in shared memory per threads
-   const int Nspt = 2*ND;
-   MFEM_FORALL_SHARED(e, ne, Nspt,
+   const int _Nspt = 2*ND;
+   MFEM_FORALL_SHARED(e, ne, _Nspt,
    {
       double *s_X = __shared;
       for (int q = 0; q < NQ; ++q)
