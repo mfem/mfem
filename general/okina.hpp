@@ -63,7 +63,7 @@ void wrap(const size_t N, const size_t Nspt, DBODY &&d_body, HBODY &&h_body)
 #define MFEM_FORALL(i,N,...) MFEM_FORALL_SHARED(i,N,0,__VA_ARGS__)
 #define MFEM_FORALL_SEQ(...) MFEM_FORALL_SHARED(i,1,0,__VA_ARGS__)
 #define MFEM_FORALL_SHARED(i,N,Nspt,...)                                \
-   wrap(N, Nspt,                                                        \
+   wrap(N, (const int) Nspt,                                                        \
         [=] __device__ (const size_t i,                                 \
                         double *__shared){__VA_ARGS__},                 \
         [&]            (const size_t i,                                 \
