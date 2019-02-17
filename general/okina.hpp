@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <algorithm>
 
 // *****************************************************************************
 uint32_t LOG2(uint32_t);
