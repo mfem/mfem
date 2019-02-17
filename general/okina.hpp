@@ -41,16 +41,17 @@ uint32_t LOG2(uint32_t);
 // * GPU & HOST FOR_LOOP bodies wrapper
 // *****************************************************************************
 template <typename DBODY, typename HBODY>
-void wrap(const size_t N, const size_t Ns, DBODY &&d_body, HBODY &&h_body)
+void wrap(const size_t N, const size_t Nspt, DBODY &&d_body, HBODY &&h_body)
 {
    const bool gpu = mfem::config::usingGpu();
    if (gpu)
    {
       const size_t smpb = mfem::config::SharedMemPerBlock();
-      return cuWrap(N, Ns, smpb, d_body);
+      return cuWrap(N, Nspt, smpb, d_body);
    }
    else
    {
+      const int Ns = Nspt;
       double cpu_mem_s[Ns];
       for (size_t k=0; k<N; k+=1) { h_body(k, cpu_mem_s); }
    }
