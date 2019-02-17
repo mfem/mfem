@@ -2674,6 +2674,12 @@ PetscPreconditioner::~PetscPreconditioner()
 
 // PetscBDDCSolver methods
 
+// Coordinates sampling function
+static void func_coords(const Vector &x, Vector &y)
+{
+   for (int i = 0; i < x.Size(); i++) y(i) = x(i);
+}
+
 void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
 {
    MPI_Comm comm = PetscObjectComm(obj);
@@ -2689,16 +2695,170 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
    PCHKERRQ(pA,ierr);
    MFEM_VERIFY(ismatis,"PetscBDDCSolver needs the matrix in unassembled format");
 
+   // Check options
+   ParFiniteElementSpace *fespace = opts.fespace;
+   if (opts.netflux && !fespace)
+   {
+      MFEM_WARNING("Don't know how to compute an auxiliary quadrature form without a ParFiniteElementSpace");
+   }
+
+   // Attach default near-null space to local matrices
+   {
+      MatNullSpace nnsp;
+      Mat lA;
+      ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(comm,ierr);
+      ierr = MatNullSpaceCreate(PetscObjectComm((PetscObject)lA),PETSC_TRUE,0,NULL,&nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+      ierr = MatSetNearNullSpace(lA,nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+      ierr = MatNullSpaceDestroy(&nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+   }
+
    // set PETSc PC type to PCBDDC
    ierr = PCSetType(pc,PCBDDC); PCHKERRQ(obj,ierr);
 
-   // index sets for fields splitting
+   PetscInt rst,nl;
+   ierr = MatGetOwnershipRange(pA,&rst,NULL); PCHKERRQ(pA,ierr);
+   ierr = MatGetLocalSize(pA,&nl,NULL); PCHKERRQ(pA,ierr);
+
+   // index sets for fields splitting and coordinates for nodal spaces
    IS *fields = NULL;
    PetscInt nf = 0;
+   PetscInt sdim = 0;
+   PetscReal *coords = NULL;
+   if (fespace)
+   {
+      int vdim = fespace->GetVDim();
+
+      // Ideally, the block size should be set at matrix creation
+      // but the MFEM assembly does not allow to do so
+      if (fespace->GetOrdering() == Ordering::byVDIM)
+      {
+         Mat lA;
+         ierr = MatSetBlockSize(pA,vdim); PCHKERRQ(pA,ierr);
+         ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(PETSC_COMM_SELF,ierr);
+         ierr = MatSetBlockSize(lA,vdim); PCHKERRQ(pA,ierr);
+      }
+
+      // fields
+      if (vdim > 1)
+      {
+        PetscInt st = rst, bs, inc, nlf;
+        nf = vdim;
+        nlf = nl/nf;
+        ierr = PetscMalloc1(nf,&fields); CCHKERRQ(PETSC_COMM_SELF,ierr);
+        if (fespace->GetOrdering() == Ordering::byVDIM)
+        {
+           inc = 1;
+           bs = vdim;
+        }
+        else
+        {
+           inc = nlf;
+           bs = 1;
+        }
+        for (PetscInt i = 0; i < nf; i++)
+        {
+           ierr = ISCreateStride(comm,nlf,st,bs,&fields[i]); CCHKERRQ(comm,ierr);
+           st += inc;
+        }
+      }
+
+      // coordinates
+      const FiniteElementCollection *fec = fespace->FEColl();
+      bool h1space = dynamic_cast<const H1_FECollection*>(fec);
+      if (h1space)
+      {
+         ParFiniteElementSpace *fespace_coords = fespace;
+
+         sdim = fespace->GetParMesh()->SpaceDimension();
+         if (vdim != sdim || fespace->GetOrdering() != Ordering::byVDIM)
+         {
+            fespace_coords = new ParFiniteElementSpace(fespace->GetParMesh(),fec,sdim,Ordering::byVDIM);
+         }
+         VectorFunctionCoefficient coeff_coords(sdim, func_coords);
+         ParGridFunction gf_coords(fespace_coords);
+         gf_coords.ProjectCoefficient(coeff_coords);
+         HypreParVector *hvec_coords = gf_coords.ParallelProject();
+
+         // likely elasticity -> we attach rigid-body modes as near-null space information to the local matrices
+         if (vdim == sdim)
+         {
+            MatNullSpace nnsp;
+            Mat lA;
+            Vec pvec_coords,lvec_coords;
+            ISLocalToGlobalMapping l2g;
+            PetscSF sf;
+            PetscLayout rmap;
+            const PetscInt *gidxs;
+            PetscInt nleaves;
+
+            ierr = VecCreateMPIWithArray(comm,sdim,hvec_coords->Size(),hvec_coords->GlobalSize(),hvec_coords->GetData(),&pvec_coords); CCHKERRQ(comm,ierr);
+            ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatCreateVecs(lA,&lvec_coords,NULL); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = VecSetBlockSize(lvec_coords,sdim); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatGetLocalToGlobalMapping(pA,&l2g,NULL); CCHKERRQ(comm,ierr);
+            ierr = MatGetLayouts(pA,&rmap,NULL); CCHKERRQ(comm,ierr);
+            ierr = PetscSFCreate(comm,&sf); CCHKERRQ(comm,ierr);
+            ierr = ISLocalToGlobalMappingGetIndices(l2g,&gidxs); CCHKERRQ(comm,ierr);
+            ierr = ISLocalToGlobalMappingGetSize(l2g,&nleaves); CCHKERRQ(comm,ierr);
+            ierr = PetscSFSetGraphLayout(sf,rmap,nleaves,NULL,PETSC_OWN_POINTER,gidxs); CCHKERRQ(comm,ierr);
+            ierr = ISLocalToGlobalMappingRestoreIndices(l2g,&gidxs); CCHKERRQ(comm,ierr);
+            {
+               const PetscScalar *garray;
+               PetscScalar *larray;
+
+               ierr = VecGetArrayRead(pvec_coords,&garray); CCHKERRQ(PETSC_COMM_SELF,ierr);
+               ierr = VecGetArray(lvec_coords,&larray); CCHKERRQ(PETSC_COMM_SELF,ierr);
+               ierr = PetscSFBcastBegin(sf,MPIU_SCALAR,garray,larray); CCHKERRQ(comm,ierr);
+               ierr = PetscSFBcastEnd(sf,MPIU_SCALAR,garray,larray); CCHKERRQ(comm,ierr);
+               ierr = VecRestoreArrayRead(pvec_coords,&garray); CCHKERRQ(PETSC_COMM_SELF,ierr);
+               ierr = VecRestoreArray(lvec_coords,&larray); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            }
+            ierr = VecDestroy(&pvec_coords); CCHKERRQ(comm,ierr);
+            ierr = MatNullSpaceCreateRigidBody(lvec_coords,&nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = VecDestroy(&lvec_coords); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatSetNearNullSpace(lA,nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatNullSpaceDestroy(&nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = PetscSFDestroy(&sf); CCHKERRQ(PETSC_COMM_SELF,ierr);
+         }
+
+         // each single dof has associated a tuple of coordinates
+         ierr = PetscMalloc1(nl*sdim,&coords); CCHKERRQ(PETSC_COMM_SELF,ierr);
+         if (nf > 0)
+         {
+            PetscScalar *data = hvec_coords->GetData();
+            for (PetscInt i = 0; i < nf; i++)
+            {
+               const PetscInt *idxs;
+               PetscInt nn;
+
+               // It also handles the case of fespace not ordered by VDIM
+               ierr = ISGetLocalSize(fields[i],&nn); CCHKERRQ(comm,ierr);
+               ierr = ISGetIndices(fields[i],&idxs); CCHKERRQ(comm,ierr);
+               for (PetscInt j = 0; j < nn; j++)
+               {
+                  PetscInt idx = idxs[j]-rst;
+                  for (PetscInt d = 0; d < sdim; d++)
+                  {
+                     coords[sdim*idx+d] = data[sdim*j+d];
+                  }
+               }
+               ierr = ISRestoreIndices(fields[i],&idxs); CCHKERRQ(comm,ierr);
+            }
+         }
+         else
+         {
+            ierr = PetscMemcpy(coords,hvec_coords->GetData(),nl*sdim*sizeof(PetscReal)); CCHKERRQ(comm,ierr);
+         }
+         if (fespace_coords != fespace)
+         {
+            delete fespace_coords;
+         }
+         delete hvec_coords;
+      }
+   }
 
    // index sets for boundary dofs specification (Essential = dir, Natural = neu)
    IS dir = NULL, neu = NULL;
-   PetscInt rst;
 
    // Extract l2l matrices
    Array<Mat> *l2l = NULL;
@@ -2736,7 +2896,6 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
 #endif
 
    // boundary sets
-   ierr = MatGetOwnershipRange(pA,&rst,NULL); PCHKERRQ(pA,ierr);
    if (opts.ess_dof)
    {
       PetscInt st = opts.ess_dof_local ? 0 : rst;
@@ -2775,35 +2934,41 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
    }
 
    // field splitting
-   if (nf)
+   if (fields)
    {
       ierr = PCBDDCSetDofsSplitting(pc,nf,fields); PCHKERRQ(pc,ierr);
-      for (int i = 0; i < nf; i++)
-      {
-         ierr = ISDestroy(&fields[i]); CCHKERRQ(comm,ierr);
-      }
-      ierr = PetscFree(fields); PCHKERRQ(pc,ierr);
    }
+   for (PetscInt i = 0; i < nf; i++)
+   {
+      ierr = ISDestroy(&fields[i]); CCHKERRQ(comm,ierr);
+   }
+   ierr = PetscFree(fields); CCHKERRQ(PETSC_COMM_SELF,ierr);
+
+   // coordinates
+   if (coords)
+   {
+      ierr = PCSetCoordinates(pc,sdim,nl,coords); PCHKERRQ(pc,ierr);
+   }
+   ierr = PetscFree(coords); CCHKERRQ(PETSC_COMM_SELF,ierr);
 
    // code for block size is disabled since we cannot change the matrix
    // block size after it has been setup
    // int bs = 1;
 
    // Customize using the finite element space (if any)
-   ParFiniteElementSpace *fespace = opts.fespace;
    if (fespace)
    {
       const     FiniteElementCollection *fec = fespace->FEColl();
-      bool      edgespace, rtspace;
-      bool      needint = false;
+      bool      edgespace, rtspace, h1space;
+      bool      needint = opts.netflux;
       bool      tracespace, rt_tracespace, edge_tracespace;
-      int       dim, p;
+      int       vdim, dim, p;
       PetscBool B_is_Trans = PETSC_FALSE;
 
       ParMesh *pmesh = (ParMesh *) fespace->GetMesh();
       dim = pmesh->Dimension();
-      // bs = fec->DofForGeometry(Geometry::POINT);
-      // bs = bs ? bs : 1;
+      vdim = fespace->GetVDim();
+      h1space = dynamic_cast<const H1_FECollection*>(fec);
       rtspace = dynamic_cast<const RT_FECollection*>(fec);
       edgespace = dynamic_cast<const ND_FECollection*>(fec);
       edge_tracespace = dynamic_cast<const ND_Trace_FECollection*>(fec);
@@ -2884,20 +3049,30 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
             needint = false;
          }
       }
-      //else if (bs == dim) // Elasticity?
-      //{
-      //   needint = true;
-      //}
+      else if (h1space) // H(grad), only for the vector case
+      {
+         if (vdim != dim) needint = false;
+      }
 
       PetscParMatrix *B = NULL;
       if (needint)
       {
          // Generate bilinear form in unassembled format which is used to
          // compute the net-flux across subdomain boundaries for H(div) and
-         // Elasticity, and the line integral \int u x n of 2D H(curl) fields
+         // Elasticity/Stokes, and the line integral \int u x n of 2D H(curl) fields
          FiniteElementCollection *auxcoll;
          if (tracespace) { auxcoll = new RT_Trace_FECollection(p,dim); }
-         else { auxcoll = new L2_FECollection(p,dim); };
+         else
+         {
+            if (h1space)
+            {
+               auxcoll = new H1_FECollection(std::max(p-1,1),dim);
+            }
+            else
+            {
+               auxcoll = new L2_FECollection(p,dim);
+            }
+         }
          ParFiniteElementSpace *pspace = new ParFiniteElementSpace(pmesh,auxcoll);
          ParMixedBilinearForm *b = new ParMixedBilinearForm(fespace,pspace);
 
@@ -2912,7 +3087,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
                b->AddDomainIntegrator(new VectorFECurlIntegrator);
             }
          }
-         else
+         else if (rtspace)
          {
             if (tracespace)
             {
@@ -2922,6 +3097,10 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
             {
                b->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
             }
+         }
+         else
+         {
+            b->AddDomainIntegrator(new VectorDivergenceIntegrator);
          }
          b->Assemble();
          b->Finalize();
@@ -4162,7 +4341,7 @@ PetscErrorCode MakeShellPC(PC pc, mfem::Solver &precond, bool ownsop)
    ctx->numprec = 0;
 
    ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
-   ierr = PCShellSetName(pc,"MFEM Solver"); CHKERRQ(ierr);
+   ierr = PCShellSetName(pc,"MFEM Solver (unknown Pmat)"); CHKERRQ(ierr);
    ierr = PCShellSetContext(pc,(void *)ctx); CHKERRQ(ierr);
    ierr = PCShellSetApply(pc,__mfem_pc_shell_apply); CHKERRQ(ierr);
    ierr = PCShellSetApplyTranspose(pc,__mfem_pc_shell_apply_transpose);
