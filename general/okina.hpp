@@ -40,6 +40,27 @@ uint32_t LOG2(uint32_t);
 // *****************************************************************************
 // * GPU & HOST FOR_LOOP bodies wrapper
 // *****************************************************************************
+template <typename HBODY>
+void cpuWrapNs(const size_t N, const int Nspt, HBODY &&h_body)
+{
+   double cpu_mem_s[Nspt];
+   for (size_t k = 0; k < N; k += 1)
+   {
+      h_body(k, cpu_mem_s);
+   }
+}
+
+// *****************************************************************************
+template <typename HBODY>
+void cpuWrap0(const size_t N, HBODY &&h_body)
+{
+   for (size_t k = 0; k < N; k += 1)
+   {
+      h_body(k, NULL);
+   }
+}
+
+// *****************************************************************************
 template <typename DBODY, typename HBODY>
 void wrap(const size_t N, const size_t Nspt, DBODY &&d_body, HBODY &&h_body)
 {
@@ -51,12 +72,7 @@ void wrap(const size_t N, const size_t Nspt, DBODY &&d_body, HBODY &&h_body)
    }
    else
    {
-      const int nspt = Nspt;
-      double cpu_mem_s[nspt];
-      for (size_t k = 0; k < N; k += 1)
-      {
-         h_body(k, (nspt > 0) ? cpu_mem_s : NULL);
-      }
+      return (Nspt > 0) ? cpuWrapNs(N, Nspt, h_body) : cpuWrap0(N, h_body);
    }
 }
 
