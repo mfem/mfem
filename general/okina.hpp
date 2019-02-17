@@ -70,10 +70,11 @@ void wrapWithShared(const size_t N, const size_t Nspt,
    }
    else
    {
+      const int nspt = Nspt;
+      double cpu_mem_s[nspt];
       for (size_t k = 0; k < N; k += 1)
       {
-         double cpu_mem_s[Nspt];
-         h_body(k, Nspt, cpu_mem_s);
+         h_body(k, cpu_mem_s);
       }
    }
 }
@@ -86,7 +87,7 @@ void wrapWithShared(const size_t N, const size_t Nspt,
    wrapNoShared(N,                                                \
                 [=] __device__(const size_t i,                    \
                                double *__shared) { __VA_ARGS__ }, \
-                [=](const size_t i,                               \
+                [&](const size_t i,                               \
                     double *__shared) { __VA_ARGS__ })
 #define MFEM_FORALL_SHARED(i, N, Nspt, ...)                         \
    wrapWithShared(N, Nspt,                                          \
