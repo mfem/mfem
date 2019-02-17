@@ -62,20 +62,18 @@ template <typename DBODY, typename HBODY>
 void wrapWithShared(const size_t N, const size_t Nspt,
                     DBODY &&d_body, HBODY &&h_body)
 {
-   const int nspt = Nspt;
-   //assert(nspt<1024);
-   double cpu_mem_s[nspt];
    const bool gpu = mfem::config::usingGpu();
    if (gpu)
    {
       const size_t smpb = mfem::config::SharedMemPerBlock();
-      return cuWrap(N, nspt, smpb, d_body);
+      return cuWrap(N, Nspt, smpb, d_body);
    }
    else
    {
+      double cpu_mem_s[Nspt];
       for (size_t k = 0; k < N; k += 1)
       {
-         h_body(k, cpu_mem_s);
+         h_body(k, Nspt, cpu_mem_s);
       }
    }
 }
@@ -94,7 +92,7 @@ void wrapWithShared(const size_t N, const size_t Nspt,
    wrapWithShared(N, Nspt,                                          \
                   [=] __device__(const size_t i,                    \
                                  double *__shared) { __VA_ARGS__ }, \
-                  [=](const size_t i,                               \
+                  [&,Nspt](const size_t i,               \
                       double *__shared) { __VA_ARGS__ })
 
 // *****************************************************************************
