@@ -28,7 +28,8 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
                          double (*phi_bc )(const Vector&),
                          double (*rho_src)(const Vector&),
                          void   (*p_src  )(const Vector&, Vector&),
-                         Vector & point_charges)
+                         Vector & point_charges,
+			 Vector & cyl_sym_params)
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -60,11 +61,13 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
      phiBCCoef_(NULL),
      rhoCoef_(NULL),
      pCoef_(NULL),
+     epsRCoef_(NULL),
      phi_bc_(phi_bc),
      rho_src_(rho_src),
      p_src_(p_src),
      point_charge_params_(point_charges),
-     point_charges_(0)
+     point_charges_(0),
+     cyl_sym_params_(cyl_sym_params)
 {
    // Initialize MPI variables
    MPI_Comm_size(pmesh_->GetComm(), &num_procs_);
@@ -108,8 +111,16 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
 
    // Bilinear Forms
    divEpsGrad_  = new ParBilinearForm(H1FESpace_);
-   divEpsGrad_->AddDomainIntegrator(new DiffusionIntegrator(*epsCoef_));
-
+   if ( cyl_sym_params_.Size() == 4 )
+   {
+      epsRCoef_ = new CylSymCoefficient(cyl_sym_params_, epsCoef_);
+      divEpsGrad_->AddDomainIntegrator(new DiffusionIntegrator(*epsRCoef_));
+   }
+   else
+   {
+      divEpsGrad_->AddDomainIntegrator(new DiffusionIntegrator(*epsCoef_));
+   }
+   
    hDivMass_ = new ParBilinearForm(HDivFESpace_);
    hDivMass_->AddDomainIntegrator(new VectorFEMassIntegrator);
 
@@ -183,7 +194,8 @@ VoltaSolver::~VoltaSolver()
    delete phiBCCoef_;
    delete rhoCoef_;
    delete pCoef_;
-
+   delete epsRCoef_;
+   
    delete phi_;
    delete rho_;
    delete rhod_;
@@ -456,7 +468,7 @@ VoltaSolver::GetErrorEstimates(Vector & errors)
    if (myid_ == 0) { cout << "Estimating Error ... " << flush; }
 
    // Space for the discontinuous (original) flux
-   DiffusionIntegrator flux_integrator(*epsCoef_);
+   DiffusionIntegrator flux_integrator((!epsRCoef_)?(*epsCoef_):(*epsRCoef_));
    L2_FECollection flux_fec(order_, pmesh_->Dimension());
    // ND_FECollection flux_fec(order_, pmesh_->Dimension());
    ParFiniteElementSpace flux_fes(pmesh_, &flux_fec, pmesh_->SpaceDimension());
@@ -578,6 +590,77 @@ VoltaSolver::DisplayToGLVis()
    if (myid_ == 0) { cout << " done." << endl; }
 }
 
+CylSymCoefficient::CylSymCoefficient(const Vector & params, Coefficient * Q)
+  : origin_(2),
+    rhoUnitVec_(2),
+    offset_(0.0),
+    Q_(Q)
+{
+  origin_[0] = params[0];
+  origin_[1] = params[1];
+
+  rhoUnitVec_[0] = params[3] - params[1];
+  rhoUnitVec_[1] = params[0] - params[2];
+
+  double rhoNorm = rhoUnitVec_.Norml2();
+  rhoUnitVec_ /= rhoNorm;
+
+  offset_ = origin_ * rhoUnitVec_;
+}
+
+double
+CylSymCoefficient::Eval(ElementTransformation & T,
+			const IntegrationPoint & ip)
+{
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   double rho = transip * rhoUnitVec_ - offset_;
+
+   if (Q_) rho *= Q_->Eval(T, ip);
+
+   return rho;
+}
+
+CylSymVectorCoefficient::CylSymVectorCoefficient(const Vector & params,
+						 Coefficient * Q)
+  : VectorCoefficient(2),
+    origin_(2),
+    rhoUnitVec_(2),
+    offset_(0.0),
+    Q_(Q)
+{
+  origin_[0] = params[0];
+  origin_[1] = params[1];
+
+  rhoUnitVec_[0] = params[3] - params[1];
+  rhoUnitVec_[1] = params[0] - params[2];
+
+  double rhoNorm = rhoUnitVec_.Norml2();
+  rhoUnitVec_ /= rhoNorm;
+
+  offset_ = origin_ * rhoUnitVec_;
+}
+
+void
+CylSymVectorCoefficient::Eval(Vector & V, ElementTransformation & T,
+			      const IntegrationPoint & ip)
+{
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   V = rhoUnitVec_;
+   if (Q_) V *= Q_->Eval(T, ip);
+
+   double rho = transip * rhoUnitVec_ - offset_;
+   // cout << "rho = " << rho << endl;
+   V /= -rho;
+}
+  
 } // namespace electromagnetics
 
 } // namespace mfem

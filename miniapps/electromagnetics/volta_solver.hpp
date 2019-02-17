@@ -41,7 +41,8 @@ public:
                double (*phi_bc )(const Vector&),
                double (*rho_src)(const Vector&),
                void   (*p_src  )(const Vector&, Vector&),
-               Vector & point_charges);
+               Vector & point_charges,
+               Vector & cyl_sym_params);
    ~VoltaSolver();
 
    HYPRE_Int GetProblemSize();
@@ -109,6 +110,7 @@ private:
    Coefficient       * phiBCCoef_; // Scalar Potential Boundary Condition
    Coefficient       * rhoCoef_;   // Charge Density Coefficient
    VectorCoefficient * pCoef_;     // Polarization Vector Field Coefficient
+   Coefficient       * epsRCoef_;  // epsilon rho
 
    // Source functions
    double (*phi_bc_ )(const Vector&);          // Scalar Potential BC
@@ -119,11 +121,41 @@ private:
 
    std::vector<DeltaCoefficient*> point_charges_;
 
+   const Vector & cyl_sym_params_;
+
    std::map<std::string,socketstream*> socks_; // Visualization sockets
 
    Array<int> ess_bdr_, ess_bdr_tdofs_; // Essential Boundary Condition DoFs
 };
 
+class CylSymCoefficient : public Coefficient
+{
+public:
+  CylSymCoefficient(const Vector & params, Coefficient * Q = NULL);
+
+  double Eval(ElementTransformation & T, const IntegrationPoint & ip);
+  
+private:
+  Vector origin_;
+  Vector rhoUnitVec_;
+  double offset_;
+  Coefficient * Q_;
+};
+  
+class CylSymVectorCoefficient : public VectorCoefficient
+{
+public:
+  CylSymVectorCoefficient(const Vector & params, Coefficient * Q = NULL);
+
+  void Eval(Vector & V, ElementTransformation & T, const IntegrationPoint & ip);
+  
+private:
+  Vector origin_;
+  Vector rhoUnitVec_;
+  double offset_;
+  Coefficient * Q_;
+};
+  
 } // namespace electromagnetics
 
 } // namespace mfem

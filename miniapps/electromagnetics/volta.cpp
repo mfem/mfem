@@ -95,6 +95,13 @@ void voltaic_pile(const Vector &, Vector &);
 static Vector e_uniform_(0);
 double phi_bc_uniform(const Vector &);
 
+// Cylindrical symmetry
+static Vector cyl_sym_params_(0); // Rotation axis start and end 
+
+// Statistical functions used during adaptive mesh refinement
+double find_mean(const Vector & vals, const MPI_Comm & comm);
+double find_std_dev(const Vector & errors, double mean, const MPI_Comm & comm);
+
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
 
@@ -157,6 +164,8 @@ int main(int argc, char *argv[])
                   "Neumann Boundary Condition Values");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
+   args.AddOption(&cyl_sym_params_, "-cyl", "--cylindrical-symmetry",
+                  "Axis of rotation end-points for cylindrical symmetry");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -253,7 +262,8 @@ int main(int argc, char *argv[])
                      ( e_uniform_.Size() > 0 ) ? phi_bc_uniform    : NULL,
                      ( cs_params_.Size() > 0 ) ? charged_sphere    : NULL,
                      ( vp_params_.Size() > 0 ) ? voltaic_pile      : NULL,
-                     pc_params_);
+                     pc_params_,
+		     cyl_sym_params_);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -344,6 +354,7 @@ int main(int argc, char *argv[])
       Vector errors(pmesh.GetNE());
       Volta.GetErrorEstimates(errors);
 
+      /*
       double local_max_err = errors.Max();
       double global_max_err;
       MPI_Allreduce(&local_max_err, &global_max_err, 1,
@@ -353,6 +364,11 @@ int main(int argc, char *argv[])
       // maximum element error.
       const double frac = 0.7;
       double threshold = frac * global_max_err;
+      */
+      double mean  = find_mean(errors, pmesh.GetComm());
+      double stdev = find_std_dev(errors, mean, pmesh.GetComm());
+      double threshold = mean + stdev;
+      
       if (mpi.Root()) { cout << "Refining ..." << endl; }
       pmesh.RefineByError(errors, threshold);
 
@@ -518,4 +534,38 @@ double phi_bc_uniform(const Vector &x)
    }
 
    return phi;
+}
+
+double find_mean(const Vector & vals, const MPI_Comm & comm)
+{
+  double local_sum = 0.0;
+  for (int i=0; i<vals.Size(); i++) local_sum += vals[i];
+
+  double global_sum;
+  MPI_Allreduce(&local_sum, &global_sum, 1,
+		MPI_DOUBLE, MPI_SUM, comm);
+
+  int local_size = vals.Size();
+  int global_size;
+  MPI_Allreduce(&local_size, &global_size, 1,
+		MPI_INTEGER, MPI_SUM, comm);
+  
+  return global_sum / global_size;
+}
+
+double find_std_dev(const Vector & vals, double mean, const MPI_Comm & comm)
+{
+  double local_sum = 0.0;
+  for (int i=0; i<vals.Size(); i++) local_sum += pow(vals[i]-mean, 2.0);
+
+  double global_sum;
+  MPI_Allreduce(&local_sum, &global_sum, 1,
+		MPI_DOUBLE, MPI_SUM, comm);
+
+  int local_size = vals.Size();
+  int global_size;
+  MPI_Allreduce(&local_size, &global_size, 1,
+		MPI_INTEGER, MPI_SUM, comm);
+  
+  return sqrt(global_sum / (global_size - 1));
 }
