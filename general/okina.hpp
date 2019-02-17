@@ -27,7 +27,6 @@ uint32_t LOG2(uint32_t);
 #define ISQRT(N) static_cast<unsigned>(sqrt(static_cast<float>(N)))
 #define ICBRT(N) static_cast<unsigned>(cbrt(static_cast<float>(N)))
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
-#define MAX(a,b) ((a)>(b)?(a):(b))
 
 // *****************************************************************************
 #include "./cuda.hpp"
@@ -38,29 +37,11 @@ uint32_t LOG2(uint32_t);
 #include "config.hpp"
 
 // *****************************************************************************
-// * GPU & HOST FOR_LOOP bodies wrapper
+// * GPU & HOST FOR_LOOP lambda wrapper
 // *****************************************************************************
 template <typename DBODY, typename HBODY>
-void wrapNoShared(const size_t N, DBODY &&d_body, HBODY &&h_body)
-{
-   const bool gpu = mfem::config::usingGpu();
-   if (gpu)
-   {
-      return cuWrap(N, 0, 0, d_body);
-   }
-   else
-   {
-      for (size_t k = 0; k < N; k += 1)
-      {
-         h_body(k, NULL);
-      }
-   }
-}
-
-// *****************************************************************************
-template <typename DBODY, typename HBODY>
-void wrapWithShared(const size_t N, const size_t Nspt,
-                    DBODY &&d_body, HBODY &&h_body)
+void LambdaWrap(const size_t N, const size_t Nspt,
+                DBODY &&d_body, HBODY &&h_body)
 {
    const bool gpu = mfem::config::usingGpu();
    if (gpu)
@@ -71,8 +52,9 @@ void wrapWithShared(const size_t N, const size_t Nspt,
    else
    {
       static double *cpu_mem_s = NULL;
-      if (!cpu_mem_s) {
-         cpu_mem_s = (double*)malloc(Nspt*sizeof(double));
+      if (!cpu_mem_s)
+      {
+         cpu_mem_s = (double *)malloc(Nspt * sizeof(double));
       }
       for (size_t k = 0; k < N; k += 1)
       {
@@ -84,19 +66,13 @@ void wrapWithShared(const size_t N, const size_t Nspt,
 // *****************************************************************************
 // * MFEM_FORALL splitter
 // *****************************************************************************
-#define MFEM_FORALL_SEQ(...) MFEM_FORALL(i, 1, __VA_ARGS__)
-#define MFEM_FORALL(i, N, ...)                                    \
-   wrapNoShared(N,                                                \
-                [=] __device__(const size_t i,                    \
-                               double *__shared) { __VA_ARGS__ }, \
-                [&](const size_t i,                               \
-                    double *__shared) { __VA_ARGS__ })
-#define MFEM_FORALL_SHARED(i, N, Nspt, ...)                         \
-   wrapWithShared(N, Nspt,                                          \
-                  [=] __device__(const size_t i,                    \
-                                 double *__shared) { __VA_ARGS__ }, \
-                  [&](const size_t i,                               \
-                      double *__shared) { __VA_ARGS__ })
+#define MFEM_FORALL_SHARED(i, N, Nspt, ...)                     \
+   LambdaWrap(N, Nspt,                                          \
+              [=] __device__(const size_t i,                    \
+                             double *__shared) { __VA_ARGS__ }, \
+              [&](const size_t i, double *__shared) { __VA_ARGS__ })
+#define MFEM_FORALL_SEQ(...) MFEM_FORALL_SHARED(i, 1, 0, __VA_ARGS__)
+#define MFEM_FORALL(i, N, ...) MFEM_FORALL_SHARED(i, N, 0, __VA_ARGS__)
 
 // *****************************************************************************
 #define GET_GPU const bool gpu = config::usingGpu();

@@ -221,7 +221,7 @@ static void DiffusionMultAssembled2D(const int ND1d,
                                      double* __restrict _y)
 {
    const int NQ = NQ1d * NQ1d;
-   const int maxDQ = MAX(NQ1d, ND1d);
+   const int maxDQ = std::max(NQ1d, ND1d);
    const int Nspt = 2*(NQ + maxDQ);
 
    const Vector B(NQ1d,ND1d,_B);
@@ -332,7 +332,7 @@ static void DiffusionMultAssembled3D(const int ND1d,
                                      double* __restrict _y)
 {
    const int NQ = NQ1d * NQ1d * NQ1d;
-   const int maxDQ = MAX(NQ1d, ND1d);
+   const int maxDQ = std::max(NQ1d, ND1d);
    const int maxDQ2 = maxDQ * maxDQ;
    const int Nspt = 3*(NQ + maxDQ2 + maxDQ);
 

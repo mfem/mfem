@@ -30,7 +30,7 @@ static void MassMultAdd2D(const int ND1d,
                           double* __restrict _y)
 {
    const int NQ = NQ1d*NQ1d;
-   const int Nspt = NQ + MAX(NQ1d,ND1d);
+   const int Nspt = NQ + std::max(NQ1d,ND1d);
    const Vector B(NQ1d,ND1d,_B);
    const Vector Bt(ND1d,NQ1d,_Bt);
    const Vector op(NQ1d,NQ1d,NE,_op);
@@ -116,7 +116,7 @@ static void MassMultAdd3D(const int ND1d,
                           double* __restrict _solOut)
 {
    const int NQ = NQ1d*NQ1d*NQ1d;
-   const int maxDQ = MAX(NQ1d,ND1d);
+   const int maxDQ = std::max(NQ1d,ND1d);
    const int maxDQ2 = maxDQ * maxDQ;
    const int Nspt = NQ + maxDQ2 + maxDQ;
 
