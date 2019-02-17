@@ -41,7 +41,7 @@ uint32_t LOG2(uint32_t);
 // * GPU & HOST FOR_LOOP bodies wrapper
 // *****************************************************************************
 template <typename DBODY, typename HBODY>
-void wrap(const size_t N, size_t Ns, DBODY &&d_body, HBODY &&h_body)
+void wrap(const size_t N, const size_t Ns, DBODY &&d_body, HBODY &&h_body)
 {
    const bool gpu = mfem::config::usingGpu();
    if (gpu)
