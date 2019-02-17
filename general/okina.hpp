@@ -63,8 +63,8 @@ void wrapWithShared(const size_t N, const size_t Nspt,
                     DBODY &&d_body, HBODY &&h_body)
 {
    const int nspt = Nspt;
-   assert(nspt<1024);
-   double cpu_mem_s[1024];
+   //assert(nspt<1024);
+   double cpu_mem_s[nspt];
    const bool gpu = mfem::config::usingGpu();
    if (gpu)
    {
@@ -88,13 +88,13 @@ void wrapWithShared(const size_t N, const size_t Nspt,
    wrapNoShared(N,                                                \
                 [=] __device__(const size_t i,                    \
                                double *__shared) { __VA_ARGS__ }, \
-                [&](const size_t i,                               \
+                [=](const size_t i,                               \
                     double *__shared) { __VA_ARGS__ })
 #define MFEM_FORALL_SHARED(i, N, Nspt, ...)                         \
    wrapWithShared(N, Nspt,                                          \
                   [=] __device__(const size_t i,                    \
                                  double *__shared) { __VA_ARGS__ }, \
-                  [&](const size_t i,                               \
+                  [=](const size_t i,                               \
                       double *__shared) { __VA_ARGS__ })
 
 // *****************************************************************************
