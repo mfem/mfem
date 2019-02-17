@@ -63,7 +63,8 @@ void wrapWithShared(const size_t N, const size_t Nspt,
                     DBODY &&d_body, HBODY &&h_body)
 {
    const int nspt = Nspt;
-   double cpu_mem_s[nspt];
+   assert(nspt<1024);
+   double cpu_mem_s[1024];
    const bool gpu = mfem::config::usingGpu();
    if (gpu)
    {
