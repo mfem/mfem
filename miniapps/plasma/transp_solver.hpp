@@ -1,10 +1,30 @@
-#include "mfem.hpp"
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
 
-using namespace std;
-using namespace mfem;
+#ifndef MFEM_TRANSP_SOLVER
+#define MFEM_TRANSP_SOLVER
+
+#include "../common/pfem_extras.hpp"
+#include "plasma.hpp"
+
+#ifdef MFEM_USE_MPI
+
+namespace mfem
+{
+
+namespace plasma
+{
 
 // Time-dependent operator for the right-hand side of the ODE representing the
-// DG weak form for the diffusion term.
+// DG weak form for the diffusion term. (modified from ex14p)
 class DiffusionTDO : public TimeDependentOperator
 {
 private:
@@ -52,3 +72,99 @@ public:
    virtual ~DiffusionTDO() { }
 };
 
+// Time-dependent operator for the right-hand side of the ODE representing the
+// DG weak form for the advection term.
+class AdvectionTDO : public TimeDependentOperator
+{
+private:
+   const int dim_;
+   const int num_equation_;
+  
+   ParFiniteElementSpace &vfes_;
+   Operator &A_;
+   SparseMatrix &Aflux_;
+   DenseTensor Me_inv_;
+
+   mutable Vector state_;
+   mutable DenseMatrix f_;
+   mutable DenseTensor flux_;
+   mutable Vector z_;
+
+   void GetFlux(const DenseMatrix &state, DenseTensor &flux) const;
+
+public:
+   AdvectionTDO(ParFiniteElementSpace &_vfes,
+                Operator &A, SparseMatrix &Aflux, int num_equation);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual ~AdvectionTDO() { }
+};
+
+// Implements a simple Rusanov flux
+class RiemannSolver
+{
+private:
+   int num_equation_;
+   Vector flux1_;
+   Vector flux2_;
+
+public:
+   RiemannSolver(int num_equation);
+   double Eval(const Vector &state1, const Vector &state2,
+               const Vector &nor, Vector &flux);
+};
+
+
+// Constant (in time) mixed bilinear form multiplying the flux grid function.
+// The form is (vec(v), grad(w)) where the trial space = vector L2 space (mesh
+// dim) and test space = scalar L2 space.
+class DomainIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector shape_;
+   DenseMatrix flux_;
+   DenseMatrix dshapedr_;
+   DenseMatrix dshapedx_;
+
+public:
+  DomainIntegrator(const int dim, const int num_equation);
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Tr,
+                                       DenseMatrix &elmat);
+};
+
+// Interior face term: <F.n(u),[w]>
+class FaceIntegrator : public NonlinearFormIntegrator
+{
+private:
+   int num_equation_;
+   RiemannSolver rsolver_;
+   Vector shape1_;
+   Vector shape2_;
+   Vector funval1_;
+   Vector funval2_;
+   Vector nor_;
+   Vector fluxN_;
+   IntegrationPoint eip1_;
+   IntegrationPoint eip2_;
+
+public:
+  FaceIntegrator(RiemannSolver &rsolver_, const int dim,
+		 const int num_equation);
+
+   virtual void AssembleFaceVector(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Vector &elfun, Vector &elvect);
+};
+
+} // namespace plasma
+
+} // namespace mfem
+
+#endif // MFEM_USE_MPI
+
+#endif // MFEM_TRANSP_SOLVER

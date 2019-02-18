@@ -1,4 +1,25 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
 #include "transp_solver.hpp"
+
+#ifdef MFEM_USE_MPI
+
+using namespace std;
+namespace mfem
+{
+using namespace miniapps;
+
+namespace plasma
+{
 
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
                            ParFiniteElementSpace &dfes,
@@ -115,3 +136,421 @@ void DiffusionTDO::initSolver(double dt)
    }
 }
 
+// Implementation of class FE_Evolution
+AdvectionTDO::AdvectionTDO(ParFiniteElementSpace &vfes,
+                           Operator &A, SparseMatrix &Aflux, int num_equation)
+   : TimeDependentOperator(A.Height()),
+     dim_(vfes.GetFE(0)->GetDim()),
+     num_equation_(num_equation),
+     vfes_(vfes),
+     A_(A),
+     Aflux_(Aflux),
+     Me_inv_(vfes.GetFE(0)->GetDof(), vfes.GetFE(0)->GetDof(), vfes.GetNE()),
+     state_(num_equation_),
+     f_(num_equation_, dim_),
+     flux_(vfes.GetNDofs(), dim_, num_equation_),
+     z_(A.Height())
+{
+   // Standard local assembly and inversion for energy mass matrices.
+   const int dof = vfes_.GetFE(0)->GetDof();
+   DenseMatrix Me(dof);
+   DenseMatrixInverse inv(&Me);
+   MassIntegrator mi;
+   for (int i = 0; i < vfes_.GetNE(); i++)
+   {
+      mi.AssembleElementMatrix(*vfes_.GetFE(i),
+                               *vfes_.GetElementTransformation(i), Me);
+      inv.Factor();
+      inv.GetInverseMatrix(Me_inv_(i));
+   }
+}
+
+void AdvectionTDO::Mult(const Vector &x, Vector &y) const
+{
+   // 0. Reset wavespeed computation before operator application.
+   max_char_speed_ = 0.;
+
+   // 1. Create the vector z with the face terms -<F.n(u), [w]>.
+   A_.Mult(x, z_);
+
+   // 2. Add the element terms.
+   // i.  computing the flux approximately as a grid function by interpolating
+   //     at the solution nodes.
+   // ii. multiplying this grid function by a (constant) mixed bilinear form for
+   //     each of the num_equation, computing (F(u), grad(w)) for each equation.
+
+   DenseMatrix xmat(x.GetData(), vfes_.GetNDofs(), num_equation_);
+   GetFlux(xmat, flux_);
+
+   for (int k = 0; k < num_equation_; k++)
+   {
+      Vector fk(flux_(k).GetData(), dim_ * vfes_.GetNDofs());
+      Vector zk(z_.GetData() + k * vfes_.GetNDofs(), vfes_.GetNDofs());
+      Aflux_.AddMult(fk, zk);
+   }
+
+   // 3. Multiply element-wise by the inverse mass matrices.
+   Vector zval;
+   Array<int> vdofs;
+   const int dof = vfes_.GetFE(0)->GetDof();
+   DenseMatrix zmat, ymat(dof, num_equation_);
+
+   for (int i = 0; i < vfes_.GetNE(); i++)
+   {
+      // Return the vdofs ordered byNODES
+      vfes_.GetElementVDofs(i, vdofs);
+      z_.GetSubVector(vdofs, zval);
+      zmat.UseExternalData(zval.GetData(), dof, num_equation_);
+      mfem::Mult(Me_inv_(i), zmat, ymat);
+      y.SetSubVector(vdofs, ymat.GetData());
+   }
+}
+
+// Physicality check (at end)
+bool StateIsPhysical(const Vector &state, const int dim);
+
+// Pressure (EOS) computation
+inline double ComputePressure(const Vector &state, int dim)
+{
+   const double den = state(0);
+   const Vector den_vel(state.GetData() + 1, dim);
+   const double den_energy = state(1 + dim);
+
+   double den_vel2 = 0;
+   for (int d = 0; d < dim; d++) { den_vel2 += den_vel(d) * den_vel(d); }
+   den_vel2 /= den;
+
+   return (specific_heat_ratio_ - 1.0) * (den_energy - 0.5 * den_vel2);
+}
+
+// Compute the vector flux F(u)
+void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux)
+{
+   const double den = state(0);
+   const Vector den_vel(state.GetData() + 1, dim);
+   const double den_energy = state(1 + dim);
+
+   MFEM_ASSERT(StateIsPhysical(state, dim), "");
+
+   const double pres = ComputePressure(state, dim);
+
+   for (int d = 0; d < dim; d++)
+   {
+      flux(0, d) = den_vel(d);
+      for (int i = 0; i < dim; i++)
+      {
+         flux(1+i, d) = den_vel(i) * den_vel(d) / den;
+      }
+      flux(1+d, d) += pres;
+   }
+
+   const double H = (den_energy + pres) / den;
+   for (int d = 0; d < dim; d++)
+   {
+      flux(1+dim, d) = den_vel(d) * H;
+   }
+}
+
+// Compute the scalar F(u).n
+void ComputeFluxDotN(const Vector &state, const Vector &nor,
+                     Vector &fluxN)
+{
+   // NOTE: nor in general is not a unit normal
+   const int dim = nor.Size();
+   const double den = state(0);
+   const Vector den_vel(state.GetData() + 1, dim);
+   const double den_energy = state(1 + dim);
+
+   MFEM_ASSERT(StateIsPhysical(state, dim), "");
+
+   const double pres = ComputePressure(state, dim);
+
+   double den_velN = 0;
+   for (int d = 0; d < dim; d++) { den_velN += den_vel(d) * nor(d); }
+
+   fluxN(0) = den_velN;
+   for (int d = 0; d < dim; d++)
+   {
+      fluxN(1+d) = den_velN * den_vel(d) / den + pres * nor(d);
+   }
+
+   const double H = (den_energy + pres) / den;
+   fluxN(1 + dim) = den_velN * H;
+}
+
+// Compute the maximum characteristic speed.
+inline double ComputeMaxCharSpeed(const Vector &state, const int dim)
+{
+   const double den = state(0);
+   const Vector den_vel(state.GetData() + 1, dim);
+
+   double den_vel2 = 0;
+   for (int d = 0; d < dim; d++) { den_vel2 += den_vel(d) * den_vel(d); }
+   den_vel2 /= den;
+
+   const double pres = ComputePressure(state, dim);
+   const double sound = sqrt(specific_heat_ratio_ * pres / den);
+   const double vel = sqrt(den_vel2 / den);
+
+   return vel + sound;
+}
+
+// Compute the flux at solution nodes.
+void AdvectionTDO::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
+{
+   const int dof = flux.SizeI();
+   const int dim = flux.SizeJ();
+
+   for (int i = 0; i < dof; i++)
+   {
+      for (int k = 0; k < num_equation_; k++) { state_(k) = x(i, k); }
+      ComputeFlux(state_, dim, f_);
+
+      for (int d = 0; d < dim; d++)
+      {
+         for (int k = 0; k < num_equation_; k++)
+         {
+            flux(i, d, k) = f_(k, d);
+         }
+      }
+
+      // Update max char speed
+      const double mcs = ComputeMaxCharSpeed(state_, dim);
+      if (mcs > max_char_speed_) { max_char_speed_ = mcs; }
+   }
+}
+
+// Implementation of class RiemannSolver
+RiemannSolver::RiemannSolver(int num_equation) :
+   num_equation_(num_equation),
+   flux1_(num_equation),
+   flux2_(num_equation) { }
+
+double RiemannSolver::Eval(const Vector &state1, const Vector &state2,
+                           const Vector &nor, Vector &flux)
+{
+   // NOTE: nor in general is not a unit normal
+   const int dim = nor.Size();
+
+   MFEM_ASSERT(StateIsPhysical(state1, dim), "");
+   MFEM_ASSERT(StateIsPhysical(state2, dim), "");
+
+   const double maxE1 = ComputeMaxCharSpeed(state1, dim);
+   const double maxE2 = ComputeMaxCharSpeed(state2, dim);
+
+   const double maxE = max(maxE1, maxE2);
+
+   ComputeFluxDotN(state1, nor, flux1_);
+   ComputeFluxDotN(state2, nor, flux2_);
+
+   double normag = 0;
+   for (int i = 0; i < dim; i++)
+   {
+      normag += nor(i) * nor(i);
+   }
+   normag = sqrt(normag);
+
+   for (int i = 0; i < num_equation_; i++)
+   {
+      flux(i) = 0.5 * (flux1_(i) + flux2_(i))
+                - 0.5 * maxE * (state2(i) - state1(i)) * normag;
+   }
+
+   return maxE;
+}
+
+// Implementation of class DomainIntegrator
+DomainIntegrator::DomainIntegrator(const int dim, int num_equation)
+   : flux_(num_equation, dim) { }
+
+void DomainIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                              const FiniteElement &test_fe,
+                                              ElementTransformation &Tr,
+                                              DenseMatrix &elmat)
+{
+   // Assemble the form (vec(v), grad(w))
+
+   // Trial space = vector L2 space (mesh dim)
+   // Test space  = scalar L2 space
+
+   const int dof_trial = trial_fe.GetDof();
+   const int dof_test = test_fe.GetDof();
+   const int dim = trial_fe.GetDim();
+
+   shape_.SetSize(dof_trial);
+   dshapedr_.SetSize(dof_test, dim);
+   dshapedx_.SetSize(dof_test, dim);
+
+   elmat.SetSize(dof_test, dof_trial * dim);
+   elmat = 0.0;
+
+   const int maxorder = max(trial_fe.GetOrder(), test_fe.GetOrder());
+   const int intorder = 2 * maxorder;
+   const IntegrationRule *ir = &IntRules.Get(trial_fe.GetGeomType(), intorder);
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      // Calculate the shape functions
+      trial_fe.CalcShape(ip, shape_);
+      shape_ *= ip.weight;
+
+      // Compute the physical gradients of the test functions
+      Tr.SetIntPoint(&ip);
+      test_fe.CalcDShape(ip, dshapedr_);
+      Mult(dshapedr_, Tr.AdjugateJacobian(), dshapedx_);
+
+      for (int d = 0; d < dim; d++)
+      {
+         for (int j = 0; j < dof_test; j++)
+         {
+            for (int k = 0; k < dof_trial; k++)
+            {
+               elmat(j, k + d * dof_trial) += shape_(k) * dshapedx_(j, d);
+            }
+         }
+      }
+   }
+}
+
+// Implementation of class FaceIntegrator
+FaceIntegrator::FaceIntegrator(RiemannSolver &rsolver, const int dim,
+			       const int num_equation) :
+   num_equation_(num_equation),
+   rsolver_(rsolver),
+   funval1_(num_equation_),
+   funval2_(num_equation_),
+   nor_(dim),
+   fluxN_(num_equation_) { }
+
+void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
+                                        const FiniteElement &el2,
+                                        FaceElementTransformations &Tr,
+                                        const Vector &elfun, Vector &elvect)
+{
+   // Compute the term <F.n(u),[w]> on the interior faces.
+   const int dof1 = el1.GetDof();
+   const int dof2 = el2.GetDof();
+
+   shape1_.SetSize(dof1);
+   shape2_.SetSize(dof2);
+
+   elvect.SetSize((dof1 + dof2) * num_equation_);
+   elvect = 0.0;
+
+   DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equation_);
+   DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equation_, dof2,
+                          num_equation_);
+
+   DenseMatrix elvect1_mat(elvect.GetData(), dof1, num_equation_);
+   DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equation_, dof2,
+                           num_equation_);
+
+   // Integration order calculation from DGTraceIntegrator
+   int intorder;
+   if (Tr.Elem2No >= 0)
+      intorder = (min(Tr.Elem1->OrderW(), Tr.Elem2->OrderW()) +
+                  2*max(el1.GetOrder(), el2.GetOrder()));
+   else
+   {
+      intorder = Tr.Elem1->OrderW() + 2*el1.GetOrder();
+   }
+   if (el1.Space() == FunctionSpace::Pk)
+   {
+      intorder++;
+   }
+   const IntegrationRule *ir = &IntRules.Get(Tr.FaceGeom, intorder);
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.Loc1.Transform(ip, eip1_);
+      Tr.Loc2.Transform(ip, eip2_);
+
+      // Calculate basis functions on both elements at the face
+      el1.CalcShape(eip1_, shape1_);
+      el2.CalcShape(eip2_, shape2_);
+
+      // Interpolate elfun at the point
+      elfun1_mat.MultTranspose(shape1_, funval1_);
+      elfun2_mat.MultTranspose(shape2_, funval2_);
+
+      Tr.Face->SetIntPoint(&ip);
+
+      // Get the normal vector and the flux on the face
+      CalcOrtho(Tr.Face->Jacobian(), nor_);
+      const double mcs = rsolver_.Eval(funval1_, funval2_, nor_, fluxN_);
+
+      // Update max char speed
+      if (mcs > max_char_speed_) { max_char_speed_ = mcs; }
+
+      fluxN_ *= ip.weight;
+      for (int k = 0; k < num_equation_; k++)
+      {
+         for (int s = 0; s < dof1; s++)
+         {
+            elvect1_mat(s, k) -= fluxN_(k) * shape1_(s);
+         }
+         for (int s = 0; s < dof2; s++)
+         {
+            elvect2_mat(s, k) += fluxN_(k) * shape2_(s);
+         }
+      }
+   }
+}
+
+// Check that the state is physical - enabled in debug mode
+bool StateIsPhysical(const Vector &state, const int dim)
+{
+   const double den = state(0);
+   const Vector den_vel(state.GetData() + 1, dim);
+   const double den_energy = state(1 + dim);
+
+   if (den < 0)
+   {
+      cout << "Negative density: ";
+      for (int i = 0; i < state.Size(); i++)
+      {
+         cout << state(i) << " ";
+      }
+      cout << endl;
+      return false;
+   }
+   if (den_energy <= 0)
+   {
+      cout << "Negative energy: ";
+      for (int i = 0; i < state.Size(); i++)
+      {
+         cout << state(i) << " ";
+      }
+      cout << endl;
+      return false;
+   }
+
+   double den_vel2 = 0;
+   for (int i = 0; i < dim; i++) { den_vel2 += den_vel(i) * den_vel(i); }
+   den_vel2 /= den;
+
+   const double pres = (specific_heat_ratio_ - 1.0) *
+                       (den_energy - 0.5 * den_vel2);
+
+   if (pres <= 0)
+   {
+      cout << "Negative pressure: " << pres << ", state: ";
+      for (int i = 0; i < state.Size(); i++)
+      {
+         cout << state(i) << " ";
+      }
+      cout << endl;
+      return false;
+   }
+   return true;
+}
+
+} // namespace plasma
+
+} // namespace mfem
+
+#endif // MFEM_USE_MPI
