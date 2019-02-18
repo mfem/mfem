@@ -82,7 +82,7 @@ private:
    const double specific_heat_ratio_;
 
    mutable double max_char_speed_;
-  
+
    ParFiniteElementSpace &vfes_;
    Operator &A_;
    SparseMatrix &Aflux_;
@@ -98,7 +98,7 @@ private:
 public:
    AdvectionTDO(ParFiniteElementSpace &_vfes,
                 Operator &A, SparseMatrix &Aflux, int num_equation,
-		double specific_heat_ratio);
+                double specific_heat_ratio);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -133,7 +133,7 @@ private:
    DenseMatrix dshapedx_;
 
 public:
-  DomainIntegrator(const int dim, const int num_equation);
+   DomainIntegrator(const int dim, const int num_equation);
 
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                        const FiniteElement &test_fe,
@@ -158,8 +158,8 @@ private:
    IntegrationPoint eip2_;
 
 public:
-  FaceIntegrator(RiemannSolver &rsolver_, const int dim,
-		 const int num_equation);
+   FaceIntegrator(RiemannSolver &rsolver_, const int dim,
+                  const int num_equation);
 
    virtual void AssembleFaceVector(const FiniteElement &el1,
                                    const FiniteElement &el2,

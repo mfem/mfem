@@ -139,7 +139,7 @@ void DiffusionTDO::initSolver(double dt)
 // Implementation of class FE_Evolution
 AdvectionTDO::AdvectionTDO(ParFiniteElementSpace &vfes,
                            Operator &A, SparseMatrix &Aflux, int num_equation,
-			   double specific_heat_ratio)
+                           double specific_heat_ratio)
    : TimeDependentOperator(A.Height()),
      dim_(vfes.GetFE(0)->GetDim()),
      num_equation_(num_equation),
@@ -210,11 +210,11 @@ void AdvectionTDO::Mult(const Vector &x, Vector &y) const
 
 // Physicality check (at end)
 bool StateIsPhysical(const Vector &state, const int dim,
-		     const double specific_heat_ratio);
+                     const double specific_heat_ratio);
 
 // Pressure (EOS) computation
 inline double ComputePressure(const Vector &state, int dim,
-			      double specific_heat_ratio)
+                              double specific_heat_ratio)
 {
    const double den = state(0);
    const Vector den_vel(state.GetData() + 1, dim);
@@ -229,7 +229,7 @@ inline double ComputePressure(const Vector &state, int dim,
 
 // Compute the vector flux F(u)
 void ComputeFlux(const Vector &state, int dim, double specific_heat_ratio,
-		 DenseMatrix &flux)
+                 DenseMatrix &flux)
 {
    const double den = state(0);
    const Vector den_vel(state.GetData() + 1, dim);
@@ -258,7 +258,7 @@ void ComputeFlux(const Vector &state, int dim, double specific_heat_ratio,
 
 // Compute the scalar F(u).n
 void ComputeFluxDotN(const Vector &state, const Vector &nor,
-		     double specific_heat_ratio,
+                     double specific_heat_ratio,
                      Vector &fluxN)
 {
    // NOTE: nor in general is not a unit normal
@@ -286,7 +286,7 @@ void ComputeFluxDotN(const Vector &state, const Vector &nor,
 
 // Compute the maximum characteristic speed.
 inline double ComputeMaxCharSpeed(const Vector &state,
-				  int dim, double specific_heat_ratio)
+                                  int dim, double specific_heat_ratio)
 {
    const double den = state(0);
    const Vector den_vel(state.GetData() + 1, dim);
@@ -424,7 +424,7 @@ void DomainIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
 
 // Implementation of class FaceIntegrator
 FaceIntegrator::FaceIntegrator(RiemannSolver &rsolver, const int dim,
-			       const int num_equation) :
+                               const int num_equation) :
    num_equation_(num_equation),
    max_char_speed_(0.0),
    rsolver_(rsolver),
@@ -512,7 +512,7 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
 
 // Check that the state is physical - enabled in debug mode
 bool StateIsPhysical(const Vector &state, int dim,
-		     double specific_heat_ratio)
+                     double specific_heat_ratio)
 {
    const double den = state(0);
    const Vector den_vel(state.GetData() + 1, dim);

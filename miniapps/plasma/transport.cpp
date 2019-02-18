@@ -521,7 +521,7 @@ int main(int argc, char *argv[])
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
    AdvectionTDO adv(vfes, A, Aflux.SpMat(), num_equation_,
-		    specific_heat_ratio_);
+                    specific_heat_ratio_);
    DiffusionTDO diff(fes, dfes, vfes, nuCoef, dg_sigma_, dg_kappa_);
 
    // Visualize the density, momentum, and energy
