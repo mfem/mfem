@@ -69,14 +69,25 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
    }
 }
 
-void Operator::FormParallelOperator(Operator* &Aout)
+void Operator::FormSystemOperator(const Array<int> &ess_tdof_list,
+                                  Operator* &Aout)
 {
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
    Operator * out =
       new TripleProductOperator(R, this, P,
                                 false, false, false);
-   Aout = out;
+
+   if (ess_tdof_list.Size())
+   {
+      MFEM_ASSERT(height == width,
+                  "Essential dofs do not make sense in rectangular case!");
+      Aout = new ConstrainedOperator(out, ess_tdof_list, true);
+   }
+   else
+   {
+      Aout = out;
+   }
 }
 
 void Operator::PrintMatlab(std::ostream & out, int n, int m) const

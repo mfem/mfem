@@ -116,14 +116,18 @@ public:
    /** @brief Return in @A a parallel (on truedofs) version of this operator.
 
        This has some of the functionality of Operator::FormLinearSystem(), but
-       works additionally on rectangular matrices.
+       works additionally on rectangular matrices. For square matrices it uses
+       both R and P, where FormLinearSystem() only uses P. For rectangular
+       matrices ess_tdof_list does not really make sense and should probably
+       be empty.
 
        The constraints are specified through the prolongation P from
        GetProlongation(), and restriction R from GetRestriction() methods, which
        are e.g. available through the (parallel) finite element space of any
        (parallel) bilinear form operator. We have: `A(X)=[R (*this)
        P](X)`. */
-   void FormParallelOperator(Operator* &A);
+   void FormSystemOperator(const Array<int> &ess_tdof_list,
+                           Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
