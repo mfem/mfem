@@ -39,7 +39,7 @@
 #include <sstream>
 #include <iostream>
 
-#include "transp_solver.hpp"
+#include "transport_solver.hpp"
 
 using namespace std;
 using namespace mfem;
