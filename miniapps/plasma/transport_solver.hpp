@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_TRANSP_SOLVER
-#define MFEM_TRANSP_SOLVER
+#ifndef MFEM_TRANSPORT_SOLVER
+#define MFEM_TRANSPORT_SOLVER
 
 #include "../common/pfem_extras.hpp"
 #include "plasma.hpp"
@@ -79,6 +79,9 @@ class AdvectionTDO : public TimeDependentOperator
 private:
    const int dim_;
    const int num_equation_;
+   const double specific_heat_ratio_;
+
+   mutable double max_char_speed_;
   
    ParFiniteElementSpace &vfes_;
    Operator &A_;
@@ -94,7 +97,8 @@ private:
 
 public:
    AdvectionTDO(ParFiniteElementSpace &_vfes,
-                Operator &A, SparseMatrix &Aflux, int num_equation);
+                Operator &A, SparseMatrix &Aflux, int num_equation,
+		double specific_heat_ratio);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -106,11 +110,12 @@ class RiemannSolver
 {
 private:
    int num_equation_;
+   double specific_heat_ratio_;
    Vector flux1_;
    Vector flux2_;
 
 public:
-   RiemannSolver(int num_equation);
+   RiemannSolver(int num_equation, double specific_heat_ratio);
    double Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, Vector &flux);
 };
@@ -141,6 +146,7 @@ class FaceIntegrator : public NonlinearFormIntegrator
 {
 private:
    int num_equation_;
+   double max_char_speed_;
    RiemannSolver rsolver_;
    Vector shape1_;
    Vector shape2_;
@@ -167,4 +173,4 @@ public:
 
 #endif // MFEM_USE_MPI
 
-#endif // MFEM_TRANSP_SOLVER
+#endif // MFEM_TRANSPORT_SOLVER

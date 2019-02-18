@@ -157,6 +157,7 @@ double TFunc(const Vector &x, double t)
          return cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
       }
    }
+   return 0.0;
 }
 
 void bFunc(const Vector &x, Vector &B)
@@ -509,17 +510,18 @@ int main(int argc, char *argv[])
    // 9. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
    MixedBilinearForm Aflux(&dfes, &fes);
-   Aflux.AddDomainIntegrator(new DomainIntegrator(dim));
+   Aflux.AddDomainIntegrator(new DomainIntegrator(dim, num_equation_));
    Aflux.Assemble();
 
    ParNonlinearForm A(&vfes);
-   RiemannSolver rsolver;
-   A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim));
+   RiemannSolver rsolver(num_equation_, specific_heat_ratio_);
+   A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim, num_equation_));
 
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   AdvectionTDO euler(vfes, A, Aflux.SpMat(), num_equation_);
+   AdvectionTDO adv(vfes, A, Aflux.SpMat(), num_equation_,
+		    specific_heat_ratio_);
    DiffusionTDO diff(fes, dfes, vfes, nuCoef, dg_sigma_, dg_kappa_);
 
    // Visualize the density, momentum, and energy
