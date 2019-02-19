@@ -29,7 +29,9 @@ private:
    int ngpu = -1;
    bool pa = false;
    bool cuda = false;
+   bool raja = false;
    bool occa = false;
+   bool omp = false;
    bool sync = false;
    bool nvvp = false;
    CUdevice cuDevice;
@@ -53,8 +55,10 @@ private:
 
 private:
    // **************************************************************************
+   void GpuDeviceSetup(const int dev);
    void MfemDeviceSetup(const int dev =0);
    void CudaDeviceSetup(const int dev =0);
+   void RajaDeviceSetup(const int dev =0);
    void OccaDeviceSetup(const CUdevice cu_dev, const CUcontext cu_ctx);
 
 public:
@@ -93,9 +97,19 @@ public:
    static inline void useCuda() { Get().cuda = true; }
    static inline CUstream Stream() { return *Get().cuStream; }
 
+   static inline bool usingOmp() { return Get().omp; }
+   static inline void useOmp() { Get().omp = true; }
+
+   static inline bool usingRaja() { return Get().raja; }
+   static inline void useRaja() { Get().raja = true; }
+
    static inline bool usingOcca() { return Get().occa; }
    static inline void useOcca() { Get().occa = true; }
    static inline OccaDevice GetOccaDevice() { return Get().occaDevice; }
+
+   // **************************************************************************
+   ~config();
+
 };
 
 // *****************************************************************************
