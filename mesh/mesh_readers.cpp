@@ -861,6 +861,30 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
    return; // done with inline mesh construction
 }
 
+
+void Mesh::ReadGmshV4(std::istream &input, int binary)
+{
+
+   string buff;
+   // A map between a serial number of the vertex and its number in the file
+   // (there may be gaps in the numbering, and also Gmsh enumerates vertices
+   // starting from 1, not 0)
+   map<int, int> vertices_map;
+   // Read the lines of the mesh file. If we face specific keyword, we'll treat
+   // the section.
+   while (input >> buff)
+   {
+      if (buff == "$Nodes") // reading mesh vertices
+      {
+      }  // section '$Nodes'
+      else if (buff == "$Elements") // reading mesh elements
+      {
+      } // section '$Elements'
+
+   }  // we reach the end of the file
+}
+
+
 void Mesh::ReadGmshV2(std::istream &input, int binary)
 {
 
