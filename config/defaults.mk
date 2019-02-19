@@ -108,6 +108,7 @@ MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
 MFEM_USE_CONDUIT     = NO
 MFEM_USE_PUMI        = NO
+MFEM_USE_RAJA        = NO
 MFEM_USE_OCCA        = NO
 MFEM_USE_MM          = NO
 
