@@ -861,32 +861,10 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
    return; // done with inline mesh construction
 }
 
-void Mesh::ReadGmshMesh(std::istream &input)
+void Mesh::ReadGmshV2(std::istream &input, int binary)
 {
-   string buff;
-   double version;
-   int binary, dsize;
-   input >> version >> binary >> dsize;
-   if (version < 2.2)
-   {
-      MFEM_ABORT("Gmsh file version < 2.2");
-   }
-   if (dsize != sizeof(double))
-   {
-      MFEM_ABORT("Gmsh file : dsize != sizeof(double)");
-   }
-   getline(input, buff);
-   // There is a number 1 in binary format
-   if (binary)
-   {
-      int one;
-      input.read(reinterpret_cast<char*>(&one), sizeof(one));
-      if (one != 1)
-      {
-         MFEM_ABORT("Gmsh file : wrong binary format");
-      }
-   }
 
+   string buff;
    // A map between a serial number of the vertex and its number in the file
    // (there may be gaps in the numbering, and also Gmsh enumerates vertices
    // starting from 1, not 0)
@@ -1266,6 +1244,37 @@ void Mesh::ReadGmshMesh(std::istream &input)
 
       } // section '$Elements'
    } // we reach the end of the file
+}
+
+void Mesh::ReadGmshMesh(std::istream &input)
+{
+   string buff;
+   double version;
+   int binary, dsize;
+   input >> version >> binary >> dsize;
+   if (version < 2.2 || version > 4.0)
+   {
+      MFEM_ABORT("Gmsh file version < 2.2 || version > 4.0");
+   }
+   if (dsize != sizeof(double))
+   {
+      MFEM_ABORT("Gmsh file : dsize != sizeof(double)");
+   }
+   getline(input, buff);
+   // There is a number 1 in binary format
+   if (binary)
+   {
+      int one;
+      input.read(reinterpret_cast<char*>(&one), sizeof(one));
+      if (one != 1)
+      {
+         MFEM_ABORT("Gmsh file : wrong binary format");
+      }
+   }
+   if(version == 2.2) { ReadGmshV2(input,binary);}
+   else if(version == 4.0) { MFEM_ABORT("Gmsh file version 4.0 unsupported")}
+   else { MFEM_ABORT("Gmsh file version unsupported")}
+
 }
 
 

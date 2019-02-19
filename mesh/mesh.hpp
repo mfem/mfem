@@ -209,6 +209,8 @@ protected:
    void ReadVTKMesh(std::istream &input, int &curved, int &read_gf);
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, int generate_edges = 0);
+
+   void ReadGmshV2(std::istream &input, int binary);
    void ReadGmshMesh(std::istream &input);
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
