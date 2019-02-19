@@ -42,13 +42,14 @@ uint32_t LOG2(uint32_t);
 // * Standard OpenMP wrapper
 // *****************************************************************************
 template <typename HBODY>
-void ompWrap(const size_t N, HBODY &&h_body)
+void ompWrap(const size_t N, const size_t Nspt, HBODY &&h_body)
 {
 #if defined(_OPENMP)
+   double cpu_mem_s[Nspt];
    #pragma omp parallel for
    for (size_t k=0; k<N; k+=1)
    {
-      h_body(k);
+      h_body(k, cpu_mem_s);
    }
 #else
    MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
@@ -60,7 +61,7 @@ void ompWrap(const size_t N, HBODY &&h_body)
 // * Standard sequential wrapper
 // *****************************************************************************
 template <typename HBODY>
-void seqWrap(const size_t N, HBODY &&h_body)
+void seqWrap(const size_t N, const size_t Nspt, HBODY &&h_body)
 {
    static double *cpu_mem_s = NULL;
    if (!cpu_mem_s)
@@ -76,18 +77,19 @@ void seqWrap(const size_t N, HBODY &&h_body)
 // *****************************************************************************
 // * GPU & HOST FOR_LOOP bodies wrapper
 // *****************************************************************************
-template <size_t BLOCKS, typename DBODY, typename HBODY>
-void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
+template <typename DBODY, typename HBODY>
+void LambdaWrap(const size_t N, const size_t Nspt,
+                DBODY &&d_body, HBODY &&h_body)
 {
    const bool omp  = mfem::config::usingOmp();
    const bool gpu  = mfem::config::usingGpu();
    const bool raja = mfem::config::usingRaja();
-   if (gpu && raja) { return rajaCudaWrap<BLOCKS>(N, d_body); }
-   if (gpu)         { return cuWrap<BLOCKS>(N, d_body); }
-   if (omp && raja) { return rajaOmpWrap(N, h_body); }
-   if (raja)        { return rajaSeqWrap(N, h_body); }
-   if (omp)         { return ompWrap(N, h_body);  }
-   seqWrap(N, h_body);
+   if (gpu && raja) { rajaCudaWrap(N, Nspt, d_body); return;}
+   if (gpu)         { cuWrap(N, Nspt, d_body); return;}
+   if (omp && raja) { rajaOmpWrap(N, Nspt, h_body); return;}
+   if (raja)        { rajaSeqWrap(N, Nspt, h_body); return;}
+   if (omp)         { ompWrap(N, Nspt, h_body);  return;}
+   seqWrap(N, Nspt, h_body);
 }
 
 // *****************************************************************************

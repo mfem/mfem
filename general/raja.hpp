@@ -19,11 +19,11 @@
 // *****************************************************************************
 // * RAJA Cuda wrapper
 // *****************************************************************************
-template <size_t BLOCKS, typename DBODY>
-void rajaCudaWrap(const size_t N, DBODY &&d_body)
+template <typename DBODY>
+void rajaCudaWrap(const size_t N, const size_t Nspt, DBODY &&d_body)
 {
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
-   RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N),d_body);
+   RAJA::forall<RAJA::cuda_exec<256>>(RAJA::RangeSegment(0,N),d_body);
 #else
    MFEM_ABORT("RAJA::Cuda requested but RAJA::Cuda is not enabled!");
 #endif
@@ -33,7 +33,7 @@ void rajaCudaWrap(const size_t N, DBODY &&d_body)
 // * RAJA OpenMP wrapper
 // *****************************************************************************
 template <typename HBODY>
-void rajaOmpWrap(const size_t N, HBODY &&h_body)
+void rajaOmpWrap(const size_t N, const size_t Nspt, HBODY &&h_body)
 {
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(0,N), h_body);
@@ -46,7 +46,7 @@ void rajaOmpWrap(const size_t N, HBODY &&h_body)
 // * RAJA sequential loop wrapper
 // *****************************************************************************
 template <typename HBODY>
-void rajaSeqWrap(const size_t N, HBODY &&h_body)
+void rajaSeqWrap(const size_t N, const size_t Nspt, HBODY &&h_body)
 {
 #ifdef MFEM_USE_RAJA
    RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
