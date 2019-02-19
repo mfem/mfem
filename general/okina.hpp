@@ -32,36 +32,62 @@ uint32_t LOG2(uint32_t);
 // *****************************************************************************
 #include "./cuda.hpp"
 #include "./occa.hpp"
+#include "./raja.hpp"
 
 // *****************************************************************************
 #include "mm.hpp"
 #include "config.hpp"
 
 // *****************************************************************************
-// * GPU & HOST FOR_LOOP lambda wrapper
+// * Standard OpenMP wrapper
 // *****************************************************************************
-template <typename DBODY, typename HBODY>
-void LambdaWrap(const size_t N, const size_t Nspt,
-                DBODY &&d_body, HBODY &&h_body)
+template <typename HBODY>
+void ompWrap(const size_t N, HBODY &&h_body)
 {
-   const bool gpu = mfem::config::usingGpu();
-   if (gpu)
+#if defined(_OPENMP)
+   #pragma omp parallel for
+   for (size_t k=0; k<N; k+=1)
    {
-      const size_t smpb = mfem::config::SharedMemPerBlock();
-      return cuWrap(N, Nspt, smpb, d_body);
+      h_body(k);
    }
-   else
+#else
+   MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
+#endif
+}
+
+
+// *****************************************************************************
+// * Standard sequential wrapper
+// *****************************************************************************
+template <typename HBODY>
+void seqWrap(const size_t N, HBODY &&h_body)
+{
+   static double *cpu_mem_s = NULL;
+   if (!cpu_mem_s)
    {
-      static double *cpu_mem_s = NULL;
-      if (!cpu_mem_s)
-      {
-         cpu_mem_s = (double *)malloc(Nspt * sizeof(double));
-      }
-      for (size_t k = 0; k < N; k += 1)
-      {
-         h_body(k, cpu_mem_s);
-      }
+      cpu_mem_s = (double *)malloc(Nspt * sizeof(double));
    }
+   for (size_t k = 0; k < N; k += 1)
+   {
+      h_body(k, cpu_mem_s);
+   }
+}
+
+// *****************************************************************************
+// * GPU & HOST FOR_LOOP bodies wrapper
+// *****************************************************************************
+template <size_t BLOCKS, typename DBODY, typename HBODY>
+void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
+{
+   const bool omp  = mfem::config::usingOmp();
+   const bool gpu  = mfem::config::usingGpu();
+   const bool raja = mfem::config::usingRaja();
+   if (gpu && raja) { return rajaCudaWrap<BLOCKS>(N, d_body); }
+   if (gpu)         { return cuWrap<BLOCKS>(N, d_body); }
+   if (omp && raja) { return rajaOmpWrap(N, h_body); }
+   if (raja)        { return rajaSeqWrap(N, h_body); }
+   if (omp)         { return ompWrap(N, h_body);  }
+   seqWrap(N, h_body);
 }
 
 // *****************************************************************************
