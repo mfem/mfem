@@ -2070,7 +2070,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       const double* Dij = fct.D.GetData();
       const double* Mij = M.GetData();
       Vector alpha;
-      bool MonoLim = true;
+      bool MonoLim = false;
       
       // compute solution bounds
       if (MonoLim)
