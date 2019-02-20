@@ -106,6 +106,22 @@ public:
    }
 
    /**
+   *  A constructor to initialize a tensor from the Scalar array _data
+   */
+   DeviceTensor(const Scalar* _data)
+   {
+      data = (Scalar*)mfem::mm::ptr(_data);
+   }
+
+   /**
+   *  A constructor to initialize a tensor from the Scalar array _data
+   */
+   DeviceTensor(Scalar* _data)
+   {
+      data = (Scalar*)mfem::mm::ptr(_data);
+   }
+
+   /**
    *  A constructor to initialize a tensor from the const Scalar array _data
    */
    template <typename... Args>
@@ -129,7 +145,13 @@ public:
       }
       data = const_cast<Scalar*>(t.getData());
    }
-
+   
+   /// Conversion to `double *`.
+   inline operator double *() { return data; }
+   
+   /// Conversion to `const double *`.
+   inline operator const double *() const { return data; }
+   
    /**
    *  Returns the size of the i-th dimension #UNSAFE#
    */
@@ -153,7 +175,7 @@ public:
    template <typename... Args> MFEM_HOST_DEVICE
    const Scalar& operator()(Args... args) const
    {
-      //static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
+      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
    }
 
