@@ -127,8 +127,7 @@ public:
       {
          sizes[i] = t.size(i);
       }
-      //data = const_cast<Scalar*>(t.getData());
-      data = (Scalar*)(t.getData());
+      data = const_cast<Scalar*>(t.getData());
    }
 
    /**
