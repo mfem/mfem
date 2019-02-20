@@ -21,13 +21,11 @@ namespace fem
 
 // *****************************************************************************
 void MassMultAssembled(const int dim,
-                       const int NUM_DOFS_1D,
-                       const int NUM_QUAD_1D,
-                       const int numElements,
-                       const double* __restrict dofToQuad,
-                       const double* __restrict dofToQuadD,
-                       const double* __restrict quadToDof,
-                       const double* __restrict quadToDofD,
+                       const int ND1d,
+                       const int NQ1d,
+                       const int NE,
+                       const double* __restrict B,
+                       const double* __restrict Bt,
                        const double* __restrict op,
                        const double* __restrict x,
                        double* __restrict y);
