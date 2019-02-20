@@ -107,7 +107,7 @@ uint32_t LOG2(uint32_t);
 #define MFEM_HOST_DEVICE
 #else
 #define MFEM_DEVICE __device__
-#define MFEM_HOST_DEVICE __host__ __device__ //__forceinline__
+#define MFEM_HOST_DEVICE __host__ __device__
 #endif
 
 // *****************************************************************************
@@ -116,19 +116,6 @@ uint32_t LOG2(uint32_t);
 #define FILE_LINE __FILE__ && __LINE__
 #define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE && false);}
 #define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::usingGpu());}
-
-// Offsets *********************************************************************
-#define ijN(i,j,N) (i)+N*(j)
-#define ijkN(i,j,k,N) (i)+N*((j)+N*(k))
-#define ijklN(i,j,k,l,N) (i)+N*((j)+N*((k)+N*(l)))
-#define ijNMt(i,j,N,M,t) (t)?((i)+(N)*(j)):((j)+(M)*(i))
-#define ijkNM(i,j,k,N,M) (i)+N*((j)+M*(k))
-#define ijklNM(i,j,k,l,N,M) (i)+N*((j)+N*((k)+(M)*(l)))
-// External offsets
-#define jkliNM(i,j,k,l,N,M) (j)+N*((k)+N*((l)+M*(i)))
-#define jklmiNM(i,j,k,l,m,N,M) (j)+N*((k)+N*((l)+N*((m)+M*(i))))
-#define xyeijDQE(i,j,x,y,e,D,Q,E) (x)+Q*((y)+Q*((e)+E*((i)+D*j)))
-#define xyzeijDQE(i,j,x,y,z,e,D,Q,E) (x)+Q*((y)+Q*((z)+Q*((e)+E*((i)+D*j))))
 
 // *****************************************************************************
 const char *strrnchr(const char*, const unsigned char, const int);

@@ -267,6 +267,8 @@ void MassMultAssembled(const int dim,
       {0x20304,&MassMultAdd2D<3,4>},
       // 3D
       {0x30203,&MassMultAdd3D<2,3>},
+      {0x30204,&MassMultAdd3D<2,4>},
+      {0x30304,&MassMultAdd3D<3,4>},
    };
    if (!call[id])
    {

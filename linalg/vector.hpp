@@ -124,7 +124,7 @@ public:
    void Destroy();
 
    /// Returns the size of the vector.
-   inline int Size() const { return size; }
+   MFEM_HOST_DEVICE inline int Size() const { return size; }
 
    /// Return the size of the currently allocated data array.
    /** It is always true that Capacity() >= Size(). */
@@ -165,11 +165,11 @@ public:
 
    /// Access Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline double & operator() (int i);
+   MFEM_HOST_DEVICE inline double & operator() (int i);
 
    /// Read only access to Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline const double & operator() (int i) const;
+   MFEM_HOST_DEVICE inline const double & operator() (int i) const;
 
    /// Dot product with a `double *` array.
    double operator*(const double *) const;
@@ -368,17 +368,19 @@ inline void Vector::Destroy()
 
 inline double & Vector::operator() (int i)
 {
+#ifndef __NVCC__
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
-
+#endif
    return data[i];
 }
 
 inline const double & Vector::operator() (int i) const
 {
+#ifndef __NVCC__
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
-
+#endif
    return data[i];
 }
 
