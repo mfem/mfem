@@ -107,7 +107,7 @@ uint32_t LOG2(uint32_t);
 #define MFEM_HOST_DEVICE
 #else
 #define MFEM_DEVICE __device__
-#define MFEM_HOST_DEVICE __host__ __device__
+#define MFEM_HOST_DEVICE __host__ __device__ //__forceinline__
 #endif
 
 // *****************************************************************************

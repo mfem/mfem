@@ -24,9 +24,11 @@ template <int N, int Dim, typename T, typename... Args>
 class TensorInd
 {
 public:
-   static int result(const int* sizes, T first, Args... args)
+   MFEM_HOST_DEVICE static int result(const int* sizes, T first, Args... args)
    {
+#ifndef __NVCC__
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
+#endif
       return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >::result(sizes,
                                                                               args...);
    }
@@ -36,9 +38,11 @@ template <int Dim, typename T, typename... Args>
 class TensorInd<Dim, Dim, T, Args...>
 {
 public:
-   static int result(const int* sizes, T first, Args... args)
+   MFEM_HOST_DEVICE static int result(const int* sizes, T first, Args... args)
    {
+#ifndef __NVCC__
       MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
+#endif
       return first;
    }
 };
@@ -111,9 +115,7 @@ public:
       // Initialize sizes, and compute the number of values
       long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      printf("here");fflush(0);
       data = const_cast<Scalar*>((Scalar*)mfem::mm::ptr(_data));
-      printf("done");fflush(0);
    }
 
    /**
@@ -132,7 +134,7 @@ public:
    /**
    *  Returns the size of the i-th dimension #UNSAFE#
    */
-   const int size(int i) const
+   int size(int i) const
    {
       return sizes[i];
    }
@@ -149,29 +151,29 @@ public:
    /**
    *  A const accessor for the data
    */
-   template <typename... Args>
+   template <typename... Args> MFEM_HOST_DEVICE
    const Scalar& operator()(Args... args) const
    {
-      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
+      //static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
    }
 
    /**
    *  A reference accessor to the data
    */
-   template <typename... Args>
+   template <typename... Args> MFEM_HOST_DEVICE
    Scalar& operator()(Args... args)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
    }
 
-   const Scalar& operator[](int i) const
+   MFEM_HOST_DEVICE const Scalar& operator[](int i) const
    {
       return data[i];
    }
 
-   Scalar& operator[](int i)
+   MFEM_HOST_DEVICE Scalar& operator[](int i)
    {
       return data[i];
    }
@@ -179,7 +181,7 @@ public:
    /**
    *  Returns the length of the DeviceTensor (number of values, may be different from capacity)
    */
-   const int length() const
+   int length() const
    {
       int res = 1;
       for (int i = 0; i < Dim; ++i)
@@ -192,7 +194,7 @@ public:
    /**
    *  Returns the dimension of the tensor.
    */
-   const int dimension() const
+   int dimension() const
    {
       return Dim;
    }
@@ -214,6 +216,7 @@ public:
 
 typedef DeviceTensor<1,int> DeviceArray;
 typedef DeviceTensor<1,double> DeviceVector;
+typedef DeviceTensor<2,double> DeviceMatrix;
 
 } // mfem namespace
 
