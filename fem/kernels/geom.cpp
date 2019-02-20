@@ -100,7 +100,7 @@ void Geom3D(const int NE,
    DeviceMatrix detJ(_detJ, NQ,NE);
    MFEM_FORALL(e,NE,
    {
-      double s_nodes[3 * ND1d*ND1d*ND1d];
+      double s_nodes[3*ND1d*ND1d*ND1d];
       for (int q = 0; q < NQ; ++q)
       {
          for (int d = q; d < ND; d += NQ)
@@ -183,6 +183,7 @@ void Geom(const int dim,
       {0x222,&Geom2D<2,2>},
       {0x234,&Geom2D<3,4>},
       {0x323,&Geom3D<2,3>},
+      {0x334,&Geom3D<3,4>},
    };
    if (!call[id])
    {

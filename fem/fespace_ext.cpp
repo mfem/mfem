@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../config/config.hpp"
-
+#include "../linalg/device.hpp"
 #include "fem.hpp"
 #include "fespace_ext.hpp"
 
@@ -85,23 +85,21 @@ void FiniteElementSpaceExtension::L2E(const Vector& lVec, Vector& eVec) const
    const int vd = vdim;
    const bool t = byvdim;
    const int ne = neDofs;
-   const int *d_offsets = (int*) mm::ptr(offsets);
-   const int *d_indices = (int*) mm::ptr(indices);
-   const double *d_lVec = (double*) mm::ptr(lVec);
-   double *d_eVec = (double*) mm::ptr(eVec);
+   const DeviceArray d_offsets(offsets, nd+1);
+   const DeviceArray d_indices(indices, neDofs);
+   const DeviceMatrix d_lVec(lVec, t?vd:nd, t?nd:vd);
+   DeviceMatrix d_eVec(eVec, t?vd:ne, t?ne:vd);
    MFEM_FORALL(i, nd,
    {
       const int offset = d_offsets[i];
       const int nextOffset = d_offsets[i+1];
-      for (int v = 0; v < vd; ++v)
+      for (int c = 0; c < vd; ++c)
       {
-         const int g_offset = ijNMt(v,i,vd,nd,t);
-         const double dofValue = d_lVec[g_offset];
+         const double dofValue = d_lVec(t?c:i,t?i:c);
          for (int j = offset; j < nextOffset; ++j)
          {
-            const int l_offset =
-            ijNMt(v,d_indices[j],vd,ne,t);
-            d_eVec[l_offset] = dofValue;
+            const int idx_j = d_indices[j];
+            d_eVec(t?c:idx_j,t?idx_j:c) = dofValue;            
          }
       }
    });
@@ -114,25 +112,23 @@ void FiniteElementSpaceExtension::E2L(const Vector& eVec, Vector& lVec) const
    const int vd = vdim;
    const bool t = byvdim;
    const int ne = neDofs;
-   const int *d_offsets = (int*) mm::ptr(offsets);
-   const int *d_indices = (int*) mm::ptr(indices);
-   const double *d_eVec = (double*) mm::ptr(eVec);
-   double *d_lVec = (double*) mm::ptr(lVec);
+   const DeviceArray d_offsets(offsets, nd+1);
+   const DeviceArray d_indices(indices, neDofs);
+   const DeviceMatrix d_eVec(eVec, t?vd:ne, t?ne:vd);
+   DeviceMatrix d_lVec(lVec, t?vd:nd, t?nd:vd);
    MFEM_FORALL(i, nd,
    {
       const int offset = d_offsets[i];
       const int nextOffset = d_offsets[i + 1];
-      for (int v = 0; v < vd; ++v)
+      for (int c = 0; c < vd; ++c)
       {
          double dofValue = 0;
          for (int j = offset; j < nextOffset; ++j)
          {
-            const int l_offset =
-            ijNMt(v,d_indices[j],vd,ne,t);
-            dofValue += d_eVec[l_offset];
+            const int idx_j = d_indices[j];
+            dofValue +=  d_eVec(t?c:idx_j,t?idx_j:c);
          }
-         const int g_offset = ijNMt(v,i,vd,nd,t);
-         d_lVec[g_offset] = dofValue;
+         d_lVec(t?c:i,t?i:c) = dofValue;
       }
    });
 }

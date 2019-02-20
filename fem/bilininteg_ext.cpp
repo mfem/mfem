@@ -143,7 +143,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             function_coeff ?
                function(Vector3(x[offset], x[offset+1], x[offset+2])):
             0.0;
-            v[ijN(q,e,NQ)] =  w[q] * coeff * detJ;
+            v(q,e) =  w[q] * coeff * detJ;
          }
       });
    }
