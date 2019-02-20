@@ -512,7 +512,7 @@ typedef void (*fDiffusionMultAdd)(const int NE,
                                   double* __restrict solOut);
 
 // *****************************************************************************
-void DiffusionMultAssembled(const int DIM,
+void DiffusionMultAssembled(const int dim,
                             const int ND1d,
                             const int NQ1d,
                             const int NE,
@@ -527,12 +527,12 @@ void DiffusionMultAssembled(const int DIM,
 #ifdef __OCCA__
    if (config::usingOcca())
    {
-      assert(DIM==2);
+      assert(dim==2);
       occaDiffusionMultAssembled2D(ND1d, NQ1d, NE, B, G, Bt, Gt, op, x, y);
       return;
    }
 #endif // __OCCA__
-   const unsigned int id = (DIM<<16)|(ND1d<<8)|(NQ1d);
+   const unsigned int id = (dim<<16)|(ND1d<<8)|(NQ1d);
    assert(LOG2(ND1d)<=8);
    assert(LOG2(NQ1d)<=8);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
@@ -577,8 +577,8 @@ void DiffusionMultAssembled(const int DIM,
    };
    if (!call[id])
    {
-      printf("\n[kIntDiffusionMultAdd] id \033[33m0x%X\033[m ",id);
-      fflush(stdout);
+      printf("dim=%d, ND1d=%d and NQ1d=%d",dim, ND1d, NQ1d);
+      mfem_error("DiffusionMultAssembled kernel not instanciated");
    }
    assert(call[id]);
    call[id](NE, B, G, Bt, Gt, op, x, y);

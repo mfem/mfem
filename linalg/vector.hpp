@@ -453,9 +453,6 @@ inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
 }
 #endif
 
-namespace device
-{
-
 class Vector3
 {
 private:
@@ -479,8 +476,6 @@ public:
    inline operator const double* () const { return data; }
    inline double& operator[](const size_t x) { return data[x]; }
 };
-
-} // namespace device
 
 } // namespace mfem
 
