@@ -95,13 +95,6 @@ uint32_t LOG2(uint32_t);
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
 
 // *****************************************************************************
-#define GET_GPU const bool gpu = config::usingGpu();
-#define GET_PTR(v) double *d_##v = (double*) mfem::mm::ptr(v)
-#define GET_PTR_T(v,T) T *d_##v = (T*) mfem::mm::ptr(v)
-#define GET_CONST_PTR(v) const double *d_##v = (const double*) mfem::mm::ptr(v)
-#define GET_CONST_PTR_T(v,T) const T *d_##v = (const T*) mfem::mm::ptr(v)
-
-// *****************************************************************************
 #ifndef __NVCC__
 #define MFEM_DEVICE
 #define MFEM_HOST_DEVICE
@@ -111,28 +104,8 @@ uint32_t LOG2(uint32_t);
 #endif
 
 // *****************************************************************************
-#define BUILTIN_TRAP __builtin_trap()
-#define MFEM_SIGSEGV(ptr) for(int k=0;k<1024*1024;k+=1)((int*)ptr)[k]=0;
 #define FILE_LINE __FILE__ && __LINE__
 #define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE && false);}
 #define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::usingGpu());}
-
-// *****************************************************************************
-const char *strrnchr(const char*, const unsigned char, const int);
-void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
-
-// *****************************************************************************
-#define _XA_(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
-#define _NA_(...) _XA_(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
-#define __FILENAME__ ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
-#define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
-
-// *****************************************************************************
-#ifndef MFEM_DEBUG
-#define dbg(...)
-#else
-#define dbg_stack(...) dbg_F_L_F_N_A(_F_L_F_,0)
-#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
-#endif
 
 #endif // MFEM_OKINA_HPP

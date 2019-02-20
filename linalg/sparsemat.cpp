@@ -12,6 +12,7 @@
 // Implementation of sparse matrix
 
 #include "linalg.hpp"
+#include "device.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
 
@@ -652,11 +653,11 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    }
    // Prepare the lambda capture and get our pointers from the memory manager
    const int Height = height;
-   GET_CONST_PTR_T(I,int);
-   GET_CONST_PTR_T(J,int);
-   GET_CONST_PTR(A);
-   GET_CONST_PTR(x);
-   GET_PTR(y);
+   const DeviceArray d_I(I);
+   const DeviceArray d_J(J);
+   const DeviceVector d_A(A);
+   const DeviceVector d_x(x,Height);
+   DeviceVector d_y(y,Height);
    const bool usingGpu = config::usingGpu();
    MFEM_FORALL(i, Height,
    {

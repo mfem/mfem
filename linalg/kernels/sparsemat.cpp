@@ -10,19 +10,11 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
+#include "../sparsemat.hpp"
+#include "../device.hpp"
 
 namespace mfem
 {
-
-// *****************************************************************************
-class RowNode
-{
-public:
-   double Value;
-   RowNode *Prev;
-   int Column;
-};
-
 namespace kernels
 {
 namespace sparsemat
@@ -31,7 +23,7 @@ namespace sparsemat
 // *****************************************************************************
 void SparseMatrix(const int nrows, RowNode** Rows)
 {
-   GET_PTR_T(Rows,RowNode*);
+   DeviceTensor<1,RowNode*> d_Rows(Rows);
    MFEM_FORALL(i, nrows, d_Rows[i] = NULL;);
 }
 
@@ -40,11 +32,11 @@ void AddMult(const size_t height,
              const int *I, const int *J, const double *A,
              const double *x, double *y)
 {
-   GET_CONST_PTR_T(I,int);
-   GET_CONST_PTR_T(J,int);
-   GET_CONST_PTR(A);
-   GET_CONST_PTR(x);
-   GET_PTR(y);
+   const DeviceArray d_I(I);
+   const DeviceArray d_J(J);
+   const DeviceVector d_A(A);
+   const DeviceVector d_x(x,height);
+   DeviceVector d_y(y,height);
    MFEM_FORALL(i, height,
    {
       double d = 0.0;
@@ -63,9 +55,9 @@ void Gauss_Seidel_forw_A_NULL(const size_t s,
                               const double *xp,
                               double *yp)
 {
-   GET_PTR_T(R,RowNode*);
-   GET_CONST_PTR(xp);
-   GET_PTR(yp);
+   const DeviceTensor<1,RowNode*> d_R(R);
+   const DeviceVector d_xp(xp);
+   DeviceVector d_yp(yp);
    MFEM_FORALL_SEQ(
    {
       for (size_t i=0; i<s; i+=1)
@@ -107,11 +99,11 @@ void Gauss_Seidel_forw(const size_t height,
                        const double *xp,
                        double *yp)
 {
-   GET_CONST_PTR_T(Ip,int);
-   GET_CONST_PTR_T(Jp,int);
-   GET_CONST_PTR(Ap);
-   GET_CONST_PTR(xp);
-   GET_PTR(yp);
+   const DeviceArray d_Ip(Ip);
+   const DeviceArray d_Jp(Jp);
+   const DeviceVector d_Ap(Ap);
+   const DeviceVector d_xp(xp,height);
+   DeviceVector d_yp(yp,height);
    MFEM_FORALL_SEQ(
    {
       for (size_t i=0; i<height; i+=1)
@@ -144,11 +136,11 @@ void Gauss_Seidel_back(const size_t height,
                        const double *xp,
                        double *yp)
 {
-   GET_CONST_PTR_T(Ip,int);
-   GET_CONST_PTR_T(Jp,int);
-   GET_CONST_PTR(Ap);
-   GET_CONST_PTR(xp);
-   GET_PTR(yp);
+   const DeviceArray d_Ip(Ip);
+   const DeviceArray d_Jp(Jp);
+   const DeviceVector d_Ap(Ap);
+   const DeviceVector d_xp(xp,height);
+   DeviceVector d_yp(yp,height);
    MFEM_FORALL_SEQ(
    {
       for (int i = height-1; i >= 0; i--)

@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
+#include "../../linalg/device.hpp"
 #include <limits>
 
 namespace mfem
@@ -107,24 +108,20 @@ static double cuVectorDot(const int N, const double *x, const double *y)
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    const int bytes = dot_sz*sizeof(double);
    static double *h_dot = NULL;
-   dbg("\033[7mdot_sz:%d",dot_sz);
    if (!h_dot or dot_block_sz!=dot_sz)
    {
       if (h_dot) { free(h_dot); }
-      dbg("\033[7mNEW h_dot");
       h_dot = (double*)calloc(dot_sz,sizeof(double));
    }
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
    if (!gdsr or dot_block_sz!=dot_sz)
    {
-      dbg("\033[7mNEW gdsr");
       if (gdsr) { cuCheck(::cuMemFree(gdsr)); }
       cuCheck(::cuMemAlloc(&gdsr,bytes));
    }
    if (dot_block_sz!=dot_sz)
    {
       dot_block_sz = dot_sz;
-      dbg("\033[7mUPDATED dot_block_sz:%d, bytes:%d",dot_block_sz, bytes);
    }
    cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
    cuCheck(::cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
@@ -137,7 +134,7 @@ static double cuVectorDot(const int N, const double *x, const double *y)
 // *****************************************************************************
 double Min(const int N, const double *x)
 {
-   GET_CONST_PTR(x);
+   const DeviceVector d_x(x,N);
    if (config::usingGpu())
    {
 #ifdef __NVCC__
@@ -152,8 +149,8 @@ double Min(const int N, const double *x)
 // *****************************************************************************
 double Dot(const int N, const double *x, const double *y)
 {
-   GET_CONST_PTR(x);
-   GET_CONST_PTR(y);
+   const DeviceVector d_x(x,N);
+   const DeviceVector d_y(y,N);
    if (config::usingGpu())
    {
 #ifdef __NVCC__
@@ -169,9 +166,9 @@ double Dot(const int N, const double *x, const double *y)
 // *****************************************************************************
 void MapDof(const int N, double *y, const double *x, const int *dofs)
 {
-   GET_PTR(y);
-   GET_CONST_PTR(x);
-   GET_CONST_PTR_T(dofs,int);
+   const DeviceArray d_dofs(dofs,N);
+   const DeviceVector d_x(x,N);
+   DeviceVector d_y(y,N);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -182,23 +179,23 @@ void MapDof(const int N, double *y, const double *x, const int *dofs)
 // *****************************************************************************
 void MapDof(double *y, const double *x, const int dof, const int j)
 {
-   GET_PTR(y);
-   GET_CONST_PTR(x);
-   MFEM_FORALL(i, 1, d_y[dof] = d_x[j];);
+   const DeviceVector d_x(x);
+   DeviceVector d_y(y);
+   MFEM_FORALL(i, 1, d_y(dof) = d_x[j];);
 }
 
 // *****************************************************************************
 void SetDof(double *y, const double alpha, const int dof)
 {
-   GET_PTR(y);
+   DeviceVector d_y(y);
    MFEM_FORALL(i, 1, d_y[dof] = alpha;);
 }
 
 // *****************************************************************************
 void SetDof(const int N, double *y, const double alpha, const int *dofs)
 {
-   GET_PTR(y);
-   GET_CONST_PTR_T(dofs,int);
+   DeviceVector d_y(y,N);
+   const DeviceArray d_dofs(dofs,N);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -209,9 +206,9 @@ void SetDof(const int N, double *y, const double alpha, const int *dofs)
 // *****************************************************************************
 void GetSubvector(const int N, double *y, const double *x, const int* dofs)
 {
-   GET_PTR(y);
-   GET_CONST_PTR(x);
-   GET_CONST_PTR_T(dofs,int);
+   DeviceVector d_y(y,N);
+   const DeviceVector d_x(x,N);
+   const DeviceArray d_dofs(dofs,N);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -222,9 +219,9 @@ void GetSubvector(const int N, double *y, const double *x, const int* dofs)
 // *****************************************************************************
 void SetSubvector(const int N, double *y, const double *x, const int* dofs)
 {
-   GET_PTR(y);
-   GET_CONST_PTR(x);
-   GET_CONST_PTR_T(dofs,int);
+   DeviceVector d_y(y,N);
+   const DeviceVector d_x(x,N);
+   const DeviceArray d_dofs(dofs,N);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -241,8 +238,8 @@ void SetSubvector(const int N, double *y, const double *x, const int* dofs)
 // *****************************************************************************
 void SetSubvector(const int N, double* y, const double d, const int* dofs)
 {
-   GET_PTR(y);
-   GET_CONST_PTR_T(dofs,int);
+   DeviceVector d_y(y,N);
+   const DeviceArray d_dofs(dofs,N);
    MFEM_FORALL(i, N,
    {
       const int j = d_dofs[i];
@@ -260,18 +257,18 @@ void SetSubvector(const int N, double* y, const double d, const int* dofs)
 void AlphaAdd(double *z, const double *x,
               const double a, const double *y, const int N)
 {
-   GET_PTR(z);
-   GET_CONST_PTR(x);
-   GET_CONST_PTR(y);
+   DeviceVector d_z(z,N);
+   const DeviceVector d_x(x,N);
+   const DeviceVector d_y(y,N);
    MFEM_FORALL(i, N, d_z[i] = d_x[i] + a * d_y[i];);
 }
 
 // *****************************************************************************
 void Subtract(double *z, const double *x, const double *y, const int N)
 {
-   GET_PTR(z);
-   GET_CONST_PTR(x);
-   GET_CONST_PTR(y);
+   DeviceVector d_z(z,N);
+   const DeviceVector d_x(x,N);
+   const DeviceVector d_y(y,N);
    MFEM_FORALL(i, N, d_z[i] = d_x[i] - d_y[i];);
 }
 
@@ -279,7 +276,7 @@ void Subtract(double *z, const double *x, const double *y, const int N)
 // *****************************************************************************
 void Print(const int N, const double *x)
 {
-   GET_CONST_PTR(x);
+   const DeviceVector d_x(x,N);
    // Sequential printf to get the same order as on the host
    MFEM_FORALL(k, 1,
    {
@@ -293,63 +290,63 @@ void Print(const int N, const double *x)
 // **************************************************************************
 void Set(const int N, const double d, double *y)
 {
-   GET_PTR(y);
+   DeviceVector d_y(y,N);
    MFEM_FORALL(i, N, d_y[i] = d;);
 }
 
 // *****************************************************************************
 void Assign(const int N, const double *x, double *y)
 {
-   GET_PTR(y);
-   GET_CONST_PTR(x);
+   DeviceVector d_y(y,N);
+   const DeviceVector d_x(x,N);
    MFEM_FORALL(i, N, d_y[i] = d_x[i];);
 }
 
 // *****************************************************************************
 void Assign(const int N, const int *x, int *y)
 {
-   GET_PTR_T(y,int);
-   GET_CONST_PTR_T(x,int);
+   DeviceArray d_y(y,N);
+   const DeviceArray d_x(x,N);
    MFEM_FORALL(i, N, d_y[i] = d_x[i];);
 }
 
 // *****************************************************************************
 void OpMultEQ(const int N, const double d, double *y)
 {
-   GET_PTR(y);
+   DeviceVector d_y(y,N);
    MFEM_FORALL(i, N, d_y[i] *= d;);
 }
 
 // *****************************************************************************
 void OpPlusEQ(const int N, const double *x, double *y)
 {
-   GET_CONST_PTR(x);
-   GET_PTR(y);
+   DeviceVector d_y(y,N);
+   const DeviceVector d_x(x,N);
    MFEM_FORALL(i, N, d_y[i] += d_x[i];);
 }
 
 // *****************************************************************************
 void OpAddEQ(const int N, const double a, const double *x, double *y)
 {
-   GET_CONST_PTR(x);
-   GET_PTR(y);
+   DeviceVector d_y(y,N);
+   const DeviceVector d_x(x,N);
    MFEM_FORALL(i, N, d_y[i] += a * d_x[i];);
 }
 
 // *****************************************************************************
 void OpSubtractEQ(const int N, const double *x, double *y)
 {
-   GET_CONST_PTR(x);
-   GET_PTR(y);
+   DeviceVector d_y(y,N);
+   const DeviceVector d_x(x,N);
    MFEM_FORALL(i, N, d_y[i] -= d_x[i];);
 }
 
 // *****************************************************************************
 void AddElement(const int N, const int *dofs, const double *x, double *y)
 {
-   GET_CONST_PTR_T(dofs,int);
-   GET_CONST_PTR(x);
-   GET_PTR(y);
+   DeviceVector d_y(y,N);
+   const DeviceVector d_x(x,N);
+   const DeviceArray d_dofs(dofs,N);
    MFEM_FORALL(i, N,
    {
       const int j = d_dofs[i];
@@ -366,9 +363,9 @@ void AddElement(const int N, const int *dofs, const double *x, double *y)
 void AddElementAlpha(const int N, const int *dofs,
                      const double *x, double *y, const double alpha)
 {
-   GET_CONST_PTR_T(dofs,int);
-   GET_CONST_PTR(x);
-   GET_PTR(y);
+   DeviceVector d_y(y,N);
+   const DeviceVector d_x(x,N);
+   const DeviceArray d_dofs(dofs,N);
    MFEM_FORALL(i, N,
    {
       const int j = d_dofs[i];

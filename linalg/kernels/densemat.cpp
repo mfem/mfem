@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
+#include "../device.hpp"
 
 namespace mfem
 {
@@ -31,10 +32,9 @@ inline void Swap(T &a, T &b)
 void GetInverseMatrix(const int m, const int *ipiv,
                       const double *data, double *x)
 {
-   GET_CONST_PTR(data);
-   GET_CONST_PTR_T(ipiv,int);
-   GET_PTR(x);
-
+   const DeviceVector d_data(data);
+   const DeviceArray d_ipiv(ipiv);
+   DeviceVector d_x(x);
    MFEM_GPU_CANNOT_PASS;
    MFEM_FORALL(_k_, 1,
    {
@@ -102,9 +102,9 @@ void GetInverseMatrix(const int m, const int *ipiv,
 void LSolve(const int m, const int n,
             const double *data, const int *ipiv, double *x)
 {
-   GET_CONST_PTR(data);
-   GET_CONST_PTR_T(ipiv,int);
-   GET_PTR(x);
+   const DeviceVector d_data(data);
+   const DeviceArray d_ipiv(ipiv);
+   DeviceVector d_x(x);
    MFEM_FORALL(k, n,
    {
       double *d_mx = &d_x[k*m];
@@ -128,8 +128,8 @@ void LSolve(const int m, const int n,
 // *****************************************************************************
 void USolve(const int m, const int n, const double *data, double *x)
 {
-   GET_CONST_PTR(data);
-   GET_PTR(x);
+   const DeviceVector d_data(data);
+   DeviceVector d_x(x);
    MFEM_FORALL(k, n,
    {
       double *d_mx = &d_x[k*m];
@@ -147,7 +147,7 @@ void USolve(const int m, const int n, const double *data, double *x)
 // *****************************************************************************
 void FactorPrint(const int s, const double *data)
 {
-   GET_CONST_PTR(data);
+   const DeviceVector d_data(data);
    MFEM_FORALL(i, s,
    {
       printf("\n\td_data[%d]=%f",i,d_data[i]);
@@ -155,21 +155,21 @@ void FactorPrint(const int s, const double *data)
 }
 
 // *****************************************************************************
-void FactorSet(const int s, const double *adata, double *ludata)
+void FactorSet(const int s, const double *data, double *ludata)
 {
-   GET_CONST_PTR(adata);
-   GET_PTR(ludata);
+   const DeviceVector d_data(data);
+   DeviceVector d_ludata(ludata);
    MFEM_FORALL(i, s,
    {
-      d_ludata[i] = d_adata[i];
+      d_ludata[i] = d_data[i];
    });
 }
 
 // *****************************************************************************
 void Factor(const int m, int *ipiv, double *data)
 {
-   GET_PTR_T(ipiv,int);
-   GET_PTR(data);
+   DeviceArray d_ipiv(ipiv);
+   DeviceVector d_data(data);
    MFEM_FORALL(i, m,
    {
       // pivoting
@@ -216,7 +216,7 @@ void Factor(const int m, int *ipiv, double *data)
 // **************************************************************************
 void Set(const double d, const int size, double *data)
 {
-   GET_PTR(data);
+   DeviceVector d_data(data);
    MFEM_FORALL(i, size, d_data[i] = d;);
 }
 
@@ -224,8 +224,8 @@ void Set(const double d, const int size, double *data)
 void Transpose(const int height, const int width,
                double *data, const double *mdata)
 {
-   GET_PTR(data);
-   GET_CONST_PTR(mdata);
+   DeviceVector d_data(data);
+   const DeviceVector d_mdata(mdata);
    MFEM_FORALL(i, height,
    {
       for (int j=0; j<width; j+=1)
@@ -239,8 +239,8 @@ void Transpose(const int height, const int width,
 void MultAAt(const int height, const int width,
              const double *a, double *aat)
 {
-   GET_CONST_PTR(a);
-   GET_PTR(aat);
+   const DeviceVector d_a(a);
+   DeviceVector d_aat(aat);
    MFEM_FORALL(i, height,
    {
       for (int j=0; j<=i; j++)
@@ -258,8 +258,8 @@ void MultAAt(const int height, const int width,
 // *****************************************************************************
 void GradToDiv(const int n, const double *data, double *ddata)
 {
-   GET_CONST_PTR(data);
-   GET_PTR(ddata);
+   const DeviceVector d_data(data);
+   DeviceVector d_ddata(ddata);
    MFEM_FORALL(i, n, d_ddata[i] = d_data[i];);
 }
 
@@ -267,8 +267,8 @@ void GradToDiv(const int n, const double *data, double *ddata)
 void AddMult_a_VVt(const int n, const double a, const double *v,
                    const int height, double *VVt)
 {
-   GET_CONST_PTR(v);
-   GET_PTR(VVt);
+   const DeviceVector d_v(v);
+   DeviceVector d_VVt(VVt);
    MFEM_FORALL(i, n,
    {
       double avi = a * d_v[i];
@@ -286,7 +286,7 @@ void AddMult_a_VVt(const int n, const double a, const double *v,
 // *****************************************************************************
 void MultWidth0(const int height, double *y)
 {
-   GET_PTR(y);
+   DeviceVector d_y(y);
    MFEM_FORALL(row, height, d_y[row] = 0.0;);
 }
 
@@ -294,9 +294,9 @@ void MultWidth0(const int height, double *y)
 void Mult(const int height, const int width,
           const double *data, const double *x, double *y)
 {
-   GET_CONST_PTR(data);
-   GET_CONST_PTR(x);
-   GET_PTR(y);
+   const DeviceVector d_data(data);
+   const DeviceVector d_x(x);
+   DeviceVector d_y(y);
    MFEM_FORALL(i, height,
    {
       double sum = 0.0;
@@ -312,9 +312,9 @@ void Mult(const int height, const int width,
 void Mult(const int ah, const int aw, const int bw,
           const double *bd, const double *cd, double *ad)
 {
-   GET_CONST_PTR(bd);
-   GET_CONST_PTR(cd);
-   GET_PTR(ad);
+   const DeviceVector d_bd(bd);
+   const DeviceVector d_cd(cd);
+   DeviceVector d_ad(ad);
    MFEM_FORALL(i, ah*aw, d_ad[i] = 0.0;);
    MFEM_FORALL(j, aw,
    {
@@ -331,7 +331,7 @@ void Mult(const int ah, const int aw, const int bw,
 // *****************************************************************************
 void Diag(const int n, const int N, const double c, double *data)
 {
-   GET_PTR(data);
+   DeviceVector d_data(data);
    MFEM_FORALL(i, N, d_data[i] = 0.0;);
    MFEM_FORALL(i, n, d_data[i*(n+1)] = c;);
 }
@@ -339,8 +339,8 @@ void Diag(const int n, const int N, const double c, double *data)
 // *****************************************************************************
 void OpEQ(const int hw, const double *m, double *data)
 {
-   GET_CONST_PTR(m);
-   GET_PTR(data);
+   const DeviceVector d_m(m);
+   DeviceVector d_data(data);
    MFEM_FORALL(i, hw, d_data[i] = d_m[i];);
 }
 
@@ -348,7 +348,7 @@ void OpEQ(const int hw, const double *m, double *data)
 double Det2(const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_CONST_PTR(data);
+   const DeviceVector d_data(data);
    return d_data[0] * d_data[3] - d_data[1] * d_data[2];
 }
 
@@ -356,7 +356,7 @@ double Det2(const double *data)
 double Det3(const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_PTR(data);
+   const DeviceVector d_data(data);
    return
       d_data[0] * (d_data[4] * d_data[8] - d_data[5] * d_data[7]) +
       d_data[3] * (d_data[2] * d_data[7] - d_data[1] * d_data[8]) +
@@ -367,7 +367,7 @@ double Det3(const double *data)
 double FNormMax(const int hw, const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_PTR(data);
+   DeviceVector d_data(data);
    double max_norm = 0.0;
    for (int i = 0; i < hw; i++)
    {
@@ -384,7 +384,7 @@ double FNormMax(const int hw, const double *data)
 double FNorm2(const int hw, const double max_norm, const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_PTR(data);
+   DeviceVector d_data(data);
    double fnorm2 = 0.0;
    for (int i = 0; i < hw; i++)
    {
@@ -398,20 +398,20 @@ double FNorm2(const int hw, const double max_norm, const double *data)
 void CalcInverse2D(const double t, const double *a, double *inva)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_CONST_PTR(a);
-   GET_PTR(inva);
-   d_inva[0+2*0] =  d_a[1+2*1] * t ;
-   d_inva[0+2*1] = -d_a[0+2*1] * t ;
-   d_inva[1+2*0] = -d_a[1+2*0] * t ;
-   d_inva[1+2*1] =  d_a[0+2*0] * t ;
+   const DeviceVector d_a(a);
+   DeviceVector d_inva(inva);
+   d_inva[0+2*0] =  d_a[1+2*1] * t;
+   d_inva[0+2*1] = -d_a[0+2*1] * t;
+   d_inva[1+2*0] = -d_a[1+2*0] * t;
+   d_inva[1+2*1] =  d_a[0+2*0] * t;
 }
 
 // *****************************************************************************
 void CalcInverse3D(const double t, const double *a, double *inva)
 {
    MFEM_GPU_CANNOT_PASS;
-   GET_CONST_PTR(a);
-   GET_PTR(inva);
+   const DeviceVector d_a(a);
+   DeviceVector d_inva(inva);
 
    d_inva[0+3*0] = (d_a[1+3*1]*d_a[2+3*2]-d_a[1+3*2]*d_a[2+3*1])*t;
    d_inva[0+3*1] = (d_a[0+3*2]*d_a[2+3*1]-d_a[0+3*1]*d_a[2+3*2])*t;

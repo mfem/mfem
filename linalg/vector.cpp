@@ -12,6 +12,7 @@
 // Implementation of data type vector
 
 #include "../general/okina.hpp"
+#include "device.hpp"
 #include "vector.hpp"
 #include "kernels/vector.hpp"
 
@@ -285,9 +286,9 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
    }
 #else
    const int N = v.size;
-   GET_CONST_PTR(v1);
-   GET_CONST_PTR(v2);
-   GET_PTR(v);
+   DeviceVector d_v(v,N);
+   const DeviceVector d_v1(v1,N);
+   const DeviceVector d_v2(v2,N);
    MFEM_FORALL(i, N, d_v[i] = d_v1[i] + d_v2[i];);
 #endif
 }

@@ -59,7 +59,6 @@ static const void* InsertAlias(mm::ledger &maps,
    mm::memory &mem = maps.memories.at(base);
    const size_t offset = (char *)ptr - (char *)base;
    const mm::alias *alias = new mm::alias{&mem, offset};
-   dbg("\033[33m%p < (\033[37m%ld) < \033[33m%p", base, offset, ptr);
    maps.aliases.emplace(ptr, alias);
 #ifdef MFEM_DEBUG_MM
    {
@@ -118,7 +117,7 @@ static void DumpMode(void)
    cfg>>=1;
    if (cfg==mode) { return; }
    mode=cfg;
-   dbg("\033[1K\r[0x%x] %sMM %sHasBeenEnabled %sEnabled %sDisabled \
+   printf("\033[1K\r[0x%x] %sMM %sHasBeenEnabled %sEnabled %sDisabled \
 %sCPU %sGPU %sPA %sCUDA %sOCCA", mode.to_ulong(),
        config::usingMM()?"\033[32m":"\033[31m",
        config::gpuHasBeenEnabled()?"\033[32m":"\033[31m",
@@ -368,8 +367,8 @@ static void* d2d(void *dst, const void *src, const size_t bytes,
 {
    const bool cpu = config::usingCpu();
    if (cpu) { return std::memcpy(dst, src, bytes); }
-   GET_PTR(src);
-   GET_PTR(dst);
+   const void *d_src = mm::ptr(src);
+   void *d_dst = mm::ptr(dst);
    if (!async) { return cuMemcpyDtoD(d_dst, (void *)d_src, bytes); }
    return cuMemcpyDtoDAsync(d_dst, (void *)d_src, bytes, config::Stream());
 }
