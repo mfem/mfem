@@ -536,44 +536,9 @@ void DiffusionMultAssembled(const int dim,
    assert(LOG2(ND1d)<=8);
    assert(LOG2(NQ1d)<=8);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
-   {/*
-      {0x20101,&DiffusionMultAssembled2D<1,1>},
-      {0x20201,&DiffusionMultAssembled2D<2,1>},*/
-      {0x20202,&DiffusionMultAssembled2D<2,2>},/*
-      {0x20303,&DiffusionMultAssembled2D<3,3>},
-      {0x20404,&DiffusionMultAssembled2D<4,4>},
-      {0x20505,&DiffusionMultAssembled2D<5,5>},
-      {0x20606,&DiffusionMultAssembled2D<6,6>},
-      {0x20707,&DiffusionMultAssembled2D<7,7>},
-      {0x20808,&DiffusionMultAssembled2D<8,8>},
-      {0x20909,&DiffusionMultAssembled2D<9,9>},
-      {0x20A0A,&DiffusionMultAssembled2D<10,10>},
-      {0x20B0B,&DiffusionMultAssembled2D<11,11>},
-      {0x20C0C,&DiffusionMultAssembled2D<12,12>},
-      {0x20D0D,&DiffusionMultAssembled2D<13,13>},
-      {0x20E0E,&DiffusionMultAssembled2D<14,14>},
-      {0x20F0F,&DiffusionMultAssembled2D<15,15>},
-      {0x21010,&DiffusionMultAssembled2D<16,16>},
-      {0x21111,&DiffusionMultAssembled2D<17,17>},*/
-/*
-      {0x30101,&DiffusionMultAssembled3D<1,1>},
-      {0x30201,&DiffusionMultAssembled3D<2,1>},
-      {0x30202,&DiffusionMultAssembled3D<2,2>},*/
-      {0x30203,&DiffusionMultAssembled3D<2,3>},/*
-      {0x30303,&DiffusionMultAssembled3D<3,3>},
-      {0x30404,&DiffusionMultAssembled3D<4,4>},
-      {0x30505,&DiffusionMultAssembled3D<5,5>},
-      {0x30606,&DiffusionMultAssembled3D<6,6>},
-      {0x30707,&DiffusionMultAssembled3D<7,7>},
-      {0x30808,&DiffusionMultAssembled3D<8,8>},
-      {0x30909,&DiffusionMultAssembled3D<9,9>},
-      {0x30A0A,&DiffusionMultAssembled3D<10,10>},
-      {0x30B0B,&DiffusionMultAssembled3D<11,11>},
-      {0x30C0C,&DiffusionMultAssembled3D<12,12>},
-      {0x30D0D,&DiffusionMultAssembled3D<13,13>},
-      {0x30E0E,&DiffusionMultAssembled3D<14,14>},
-      {0x30F0F,&DiffusionMultAssembled3D<15,15>},
-      {0x31010,&DiffusionMultAssembled3D<16,16>},*/
+   {
+      {0x20202,&DiffusionMultAssembled2D<2,2>},
+      {0x30203,&DiffusionMultAssembled3D<2,3>},
    };
    if (!call[id])
    {

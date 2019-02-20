@@ -94,8 +94,8 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->nodes);
    kernels::fem::Geom(dims, numDofs, numQuad, elements,
-                      maps->B, maps->G,
-                      geom->nodes, geom->X, geom->J, geom->invJ, geom->detJ);
+                      maps->G, geom->nodes,
+                      geom->X, geom->J, geom->invJ, geom->detJ);
    return geom;
 }
 
@@ -147,9 +147,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    }
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    kernels::fem::Geom(dims, numDofs, numQuad, elements,
-                      maps->B,
-                      maps->G,
-                      geom->nodes,
+                      maps->G, geom->nodes,
                       geom->X, geom->J, geom->invJ, geom->detJ);
    return geom;
 }
