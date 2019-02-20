@@ -26,24 +26,24 @@ namespace vector
 #define CUDA_BLOCKSIZE 256
 
 // *****************************************************************************
-__global__ void cuKernelMin(const size_t N, double *gdsr, const double *x)
+__global__ void cuKernelMin(const int N, double *gdsr, const double *x)
 {
    __shared__ double s_min[CUDA_BLOCKSIZE];
-   const size_t n = blockDim.x*blockIdx.x + threadIdx.x;
+   const int n = blockDim.x*blockIdx.x + threadIdx.x;
    if (n>=N) { return; }
-   const size_t bid = blockIdx.x;
-   const size_t tid = threadIdx.x;
-   const size_t bbd = bid*blockDim.x;
-   const size_t rid = bbd+tid;
+   const int bid = blockIdx.x;
+   const int tid = threadIdx.x;
+   const int bbd = bid*blockDim.x;
+   const int rid = bbd+tid;
    s_min[tid] = x[n];
-   for (size_t workers=blockDim.x>>1; workers>0; workers>>=1)
+   for (int workers=blockDim.x>>1; workers>0; workers>>=1)
    {
       __syncthreads();
       if (tid >= workers) { continue; }
       if (rid >= N) { continue; }
-      const size_t dualTid = tid + workers;
+      const int dualTid = tid + workers;
       if (dualTid >= N) { continue; }
-      const size_t rdd = bbd+dualTid;
+      const int rdd = bbd+dualTid;
       if (rdd >= N) { continue; }
       if (dualTid >= blockDim.x) { continue; }
       s_min[tid] = fmin(s_min[tid], s_min[dualTid]);
@@ -52,13 +52,13 @@ __global__ void cuKernelMin(const size_t N, double *gdsr, const double *x)
 }
 
 // *****************************************************************************
-static double cuVectorMin(const size_t N, const double *x)
+static double cuVectorMin(const int N, const double *x)
 {
-   const size_t tpb = CUDA_BLOCKSIZE;
-   const size_t blockSize = CUDA_BLOCKSIZE;
-   const size_t gridSize = (N+blockSize-1)/blockSize;
-   const size_t min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   const size_t bytes = min_sz*sizeof(double);
+   const int tpb = CUDA_BLOCKSIZE;
+   const int blockSize = CUDA_BLOCKSIZE;
+   const int gridSize = (N+blockSize-1)/blockSize;
+   const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
+   const int bytes = min_sz*sizeof(double);
    static double *h_min = NULL;
    if (!h_min) { h_min = (double*)calloc(min_sz,sizeof(double)); }
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
@@ -66,30 +66,30 @@ static double cuVectorMin(const size_t N, const double *x)
    cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, x);
    ::cuMemcpy((CUdeviceptr)h_min,(CUdeviceptr)gdsr,bytes);
    double min = std::numeric_limits<double>::infinity();
-   for (size_t i=0; i<min_sz; i+=1) { min = fmin(min, h_min[i]); }
+   for (int i=0; i<min_sz; i+=1) { min = fmin(min, h_min[i]); }
    return min;
 }
 
 // *****************************************************************************
-__global__ void cuKernelDot(const size_t N, double *gdsr,
+__global__ void cuKernelDot(const int N, double *gdsr,
                             const double *x, const double *y)
 {
    __shared__ double s_dot[CUDA_BLOCKSIZE];
-   const size_t n = blockDim.x*blockIdx.x + threadIdx.x;
+   const int n = blockDim.x*blockIdx.x + threadIdx.x;
    if (n>=N) { return; }
-   const size_t bid = blockIdx.x;
-   const size_t tid = threadIdx.x;
-   const size_t bbd = bid*blockDim.x;
-   const size_t rid = bbd+tid;
+   const int bid = blockIdx.x;
+   const int tid = threadIdx.x;
+   const int bbd = bid*blockDim.x;
+   const int rid = bbd+tid;
    s_dot[tid] = x[n] * y[n];
-   for (size_t workers=blockDim.x>>1; workers>0; workers>>=1)
+   for (int workers=blockDim.x>>1; workers>0; workers>>=1)
    {
       __syncthreads();
       if (tid >= workers) { continue; }
       if (rid >= N) { continue; }
-      const size_t dualTid = tid + workers;
+      const int dualTid = tid + workers;
       if (dualTid >= N) { continue; }
-      const size_t rdd = bbd+dualTid;
+      const int rdd = bbd+dualTid;
       if (rdd >= N) { continue; }
       if (dualTid >= blockDim.x) { continue; }
       s_dot[tid] += s_dot[dualTid];
@@ -98,14 +98,14 @@ __global__ void cuKernelDot(const size_t N, double *gdsr,
 }
 
 // *****************************************************************************
-static double cuVectorDot(const size_t N, const double *x, const double *y)
+static double cuVectorDot(const int N, const double *x, const double *y)
 {
-   static size_t dot_block_sz = 0;
-   const size_t tpb = CUDA_BLOCKSIZE;
-   const size_t blockSize = CUDA_BLOCKSIZE;
-   const size_t gridSize = (N+blockSize-1)/blockSize;
-   const size_t dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   const size_t bytes = dot_sz*sizeof(double);
+   static int dot_block_sz = 0;
+   const int tpb = CUDA_BLOCKSIZE;
+   const int blockSize = CUDA_BLOCKSIZE;
+   const int gridSize = (N+blockSize-1)/blockSize;
+   const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
+   const int bytes = dot_sz*sizeof(double);
    static double *h_dot = NULL;
    dbg("\033[7mdot_sz:%d",dot_sz);
    if (!h_dot or dot_block_sz!=dot_sz)
@@ -129,13 +129,13 @@ static double cuVectorDot(const size_t N, const double *x, const double *y)
    cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
    cuCheck(::cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
    double dot = 0.0;
-   for (size_t i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
+   for (int i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
    return dot;
 }
 #endif // __NVCC__
 
 // *****************************************************************************
-double Min(const size_t N, const double *x)
+double Min(const int N, const double *x)
 {
    GET_CONST_PTR(x);
    if (config::usingGpu())
@@ -145,12 +145,12 @@ double Min(const size_t N, const double *x)
 #endif // __NVCC__
    }
    double min = std::numeric_limits<double>::infinity();
-   for (size_t i=0; i<N; i+=1) { min = fmin(min, d_x[i]); }
+   for (int i=0; i<N; i+=1) { min = fmin(min, d_x[i]); }
    return min;
 }
 
 // *****************************************************************************
-double Dot(const size_t N, const double *x, const double *y)
+double Dot(const int N, const double *x, const double *y)
 {
    GET_CONST_PTR(x);
    GET_CONST_PTR(y);
@@ -162,7 +162,7 @@ double Dot(const size_t N, const double *x, const double *y)
    }
 
    double dot = 0.0;
-   for (size_t i=0; i<N; i+=1) { dot += d_x[i] * d_y[i]; }
+   for (int i=0; i<N; i+=1) { dot += d_x[i] * d_y[i]; }
    return dot;
 }
 
@@ -258,7 +258,7 @@ void SetSubvector(const int N, double* y, const double d, const int* dofs)
 
 // *****************************************************************************
 void AlphaAdd(double *z, const double *x,
-              const double a, const double *y, const size_t N)
+              const double a, const double *y, const int N)
 {
    GET_PTR(z);
    GET_CONST_PTR(x);
@@ -267,7 +267,7 @@ void AlphaAdd(double *z, const double *x,
 }
 
 // *****************************************************************************
-void Subtract(double *z, const double *x, const double *y, const size_t N)
+void Subtract(double *z, const double *x, const double *y, const int N)
 {
    GET_PTR(z);
    GET_CONST_PTR(x);
@@ -277,13 +277,13 @@ void Subtract(double *z, const double *x, const double *y, const size_t N)
 
 
 // *****************************************************************************
-void Print(const size_t N, const double *x)
+void Print(const int N, const double *x)
 {
    GET_CONST_PTR(x);
    // Sequential printf to get the same order as on the host
    MFEM_FORALL(k, 1,
    {
-      for (size_t i=0; i<N; i+=1)
+      for (int i=0; i<N; i+=1)
       {
          printf("\n\t%f",d_x[i]);
       }
@@ -291,14 +291,14 @@ void Print(const size_t N, const double *x)
 }
 
 // **************************************************************************
-void Set(const size_t N, const double d, double *y)
+void Set(const int N, const double d, double *y)
 {
    GET_PTR(y);
    MFEM_FORALL(i, N, d_y[i] = d;);
 }
 
 // *****************************************************************************
-void Assign(const size_t N, const double *x, double *y)
+void Assign(const int N, const double *x, double *y)
 {
    GET_PTR(y);
    GET_CONST_PTR(x);
@@ -306,7 +306,7 @@ void Assign(const size_t N, const double *x, double *y)
 }
 
 // *****************************************************************************
-void Assign(const size_t N, const int *x, int *y)
+void Assign(const int N, const int *x, int *y)
 {
    GET_PTR_T(y,int);
    GET_CONST_PTR_T(x,int);
@@ -314,14 +314,14 @@ void Assign(const size_t N, const int *x, int *y)
 }
 
 // *****************************************************************************
-void OpMultEQ(const size_t N, const double d, double *y)
+void OpMultEQ(const int N, const double d, double *y)
 {
    GET_PTR(y);
    MFEM_FORALL(i, N, d_y[i] *= d;);
 }
 
 // *****************************************************************************
-void OpPlusEQ(const size_t N, const double *x, double *y)
+void OpPlusEQ(const int N, const double *x, double *y)
 {
    GET_CONST_PTR(x);
    GET_PTR(y);
@@ -329,7 +329,7 @@ void OpPlusEQ(const size_t N, const double *x, double *y)
 }
 
 // *****************************************************************************
-void OpAddEQ(const size_t N, const double a, const double *x, double *y)
+void OpAddEQ(const int N, const double a, const double *x, double *y)
 {
    GET_CONST_PTR(x);
    GET_PTR(y);
@@ -337,7 +337,7 @@ void OpAddEQ(const size_t N, const double a, const double *x, double *y)
 }
 
 // *****************************************************************************
-void OpSubtractEQ(const size_t N, const double *x, double *y)
+void OpSubtractEQ(const int N, const double *x, double *y)
 {
    GET_CONST_PTR(x);
    GET_PTR(y);
@@ -345,7 +345,7 @@ void OpSubtractEQ(const size_t N, const double *x, double *y)
 }
 
 // *****************************************************************************
-void AddElement(const size_t N, const int *dofs, const double *x, double *y)
+void AddElement(const int N, const int *dofs, const double *x, double *y)
 {
    GET_CONST_PTR_T(dofs,int);
    GET_CONST_PTR(x);
@@ -363,7 +363,7 @@ void AddElement(const size_t N, const int *dofs, const double *x, double *y)
 }
 
 // *****************************************************************************
-void AddElementAlpha(const size_t N, const int *dofs,
+void AddElementAlpha(const int N, const int *dofs,
                      const double *x, double *y, const double alpha)
 {
    GET_CONST_PTR_T(dofs,int);

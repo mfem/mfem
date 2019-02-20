@@ -19,8 +19,8 @@ namespace kernels
 namespace vector
 {
 
-double Dot(const size_t N, const double *x, const double *y);
-double Min(const size_t N, const double *x);
+double Dot(const int N, const double *x, const double *y);
+double Min(const int N, const double *x);
 
 void MapDof(const int N, double *y, const double *x, const int *dofs);
 void MapDof(double *y, const double *x, const int dof, const int j);
@@ -33,27 +33,27 @@ void SetSubvector(const int N, double *y, const double *x, const int* dofs);
 void SetSubvector(const int N, double *y, const double d, const int* dofs);
 
 void AlphaAdd(double *z, const double *x,
-              const double a, const double *y, const size_t N);
+              const double a, const double *y, const int N);
 
-void Subtract(double *z, const double *x, const double *y, const size_t N);
+void Subtract(double *z, const double *x, const double *y, const int N);
 
-void Print(const size_t N, const double *x);
+void Print(const int N, const double *x);
 
-void Set(const size_t N, const double d, double *y);
+void Set(const int N, const double d, double *y);
 
-void Assign(const size_t N, const double *x, double *y);
-void Assign(const size_t N, const int *x, int *y);
+void Assign(const int N, const double *x, double *y);
+void Assign(const int N, const int *x, int *y);
 
-void OpMultEQ(const size_t N, const double d, double *y);
+void OpMultEQ(const int N, const double d, double *y);
 
-void OpPlusEQ(const size_t size, const double *x, double *y);
+void OpPlusEQ(const int size, const double *x, double *y);
 
-void OpAddEQ(const size_t, const double, const double*, double*);
+void OpAddEQ(const int, const double, const double*, double*);
 
-void OpSubtractEQ(const size_t size, const double *x, double *y);
+void OpSubtractEQ(const int size, const double *x, double *y);
 
-void AddElement(const size_t N, const int *dofs, const double *x, double *y);
-void AddElementAlpha(const size_t, const int*, const double*, double*,
+void AddElement(const int N, const int *dofs, const double *x, double *y);
+void AddElementAlpha(const int, const int*, const double*, double*,
                      const double);
 
 
