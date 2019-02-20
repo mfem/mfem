@@ -150,7 +150,7 @@ void FactorPrint(const int s, const double *data)
    GET_CONST_PTR(data);
    MFEM_FORALL(i, s,
    {
-      printf("\n\td_data[%ld]=%f",i,d_data[i]);
+      printf("\n\td_data[%d]=%f",i,d_data[i]);
    });
 }
 
@@ -214,21 +214,21 @@ void Factor(const int m, int *ipiv, double *data)
 }
 
 // **************************************************************************
-void Set(const double d, const size_t size, double *data)
+void Set(const double d, const int size, double *data)
 {
    GET_PTR(data);
    MFEM_FORALL(i, size, d_data[i] = d;);
 }
 
 // **************************************************************************
-void Transpose(const size_t height, const size_t width,
+void Transpose(const int height, const int width,
                double *data, const double *mdata)
 {
    GET_PTR(data);
    GET_CONST_PTR(mdata);
    MFEM_FORALL(i, height,
    {
-      for (size_t j=0; j<width; j+=1)
+      for (int j=0; j<width; j+=1)
       {
          d_data[i+j*height] = d_mdata[j+i*height];
       }
@@ -236,17 +236,17 @@ void Transpose(const size_t height, const size_t width,
 }
 
 // *****************************************************************************
-void MultAAt(const size_t height, const size_t width,
+void MultAAt(const int height, const int width,
              const double *a, double *aat)
 {
    GET_CONST_PTR(a);
    GET_PTR(aat);
    MFEM_FORALL(i, height,
    {
-      for (size_t j=0; j<=i; j++)
+      for (int j=0; j<=i; j++)
       {
          double temp = 0.0;
-         for (size_t k=0; k<width; k++)
+         for (int k=0; k<width; k++)
          {
             temp += d_a[i+k*height] * d_a[j+k*height];
          }
@@ -256,7 +256,7 @@ void MultAAt(const size_t height, const size_t width,
 }
 
 // *****************************************************************************
-void GradToDiv(const size_t n, const double *data, double *ddata)
+void GradToDiv(const int n, const double *data, double *ddata)
 {
    GET_CONST_PTR(data);
    GET_PTR(ddata);
@@ -264,15 +264,15 @@ void GradToDiv(const size_t n, const double *data, double *ddata)
 }
 
 // *****************************************************************************
-void AddMult_a_VVt(const size_t n, const double a, const double *v,
-                   const size_t height, double *VVt)
+void AddMult_a_VVt(const int n, const double a, const double *v,
+                   const int height, double *VVt)
 {
    GET_CONST_PTR(v);
    GET_PTR(VVt);
    MFEM_FORALL(i, n,
    {
       double avi = a * d_v[i];
-      for (size_t j = 0; j < i; j++)
+      for (int j = 0; j < i; j++)
       {
          double avivj = avi * d_v[j];
          d_VVt[i+j*height] += avivj;
@@ -284,14 +284,14 @@ void AddMult_a_VVt(const size_t n, const double a, const double *v,
 }
 
 // *****************************************************************************
-void MultWidth0(const size_t height, double *y)
+void MultWidth0(const int height, double *y)
 {
    GET_PTR(y);
    MFEM_FORALL(row, height, d_y[row] = 0.0;);
 }
 
 // *****************************************************************************
-void Mult(const size_t height, const size_t width,
+void Mult(const int height, const int width,
           const double *data, const double *x, double *y)
 {
    GET_CONST_PTR(data);
@@ -300,7 +300,7 @@ void Mult(const size_t height, const size_t width,
    MFEM_FORALL(i, height,
    {
       double sum = 0.0;
-      for (size_t j=0; j<width; j+=1)
+      for (int j=0; j<width; j+=1)
       {
          sum += d_x[j]*d_data[i+j*height];
       }
@@ -309,7 +309,7 @@ void Mult(const size_t height, const size_t width,
 }
 
 // *****************************************************************************
-void Mult(const size_t ah, const size_t aw, const size_t bw,
+void Mult(const int ah, const int aw, const int bw,
           const double *bd, const double *cd, double *ad)
 {
    GET_CONST_PTR(bd);
@@ -318,9 +318,9 @@ void Mult(const size_t ah, const size_t aw, const size_t bw,
    MFEM_FORALL(i, ah*aw, d_ad[i] = 0.0;);
    MFEM_FORALL(j, aw,
    {
-      for (size_t k = 0; k < bw; k++)
+      for (int k = 0; k < bw; k++)
       {
-         for (size_t i = 0; i < ah; i++)
+         for (int i = 0; i < ah; i++)
          {
             d_ad[i+j*ah] += d_bd[i+k*ah] * d_cd[k+j*bw];
          }
@@ -329,7 +329,7 @@ void Mult(const size_t ah, const size_t aw, const size_t bw,
 }
 
 // *****************************************************************************
-void Diag(const size_t n, const size_t N, const double c, double *data)
+void Diag(const int n, const int N, const double c, double *data)
 {
    GET_PTR(data);
    MFEM_FORALL(i, N, d_data[i] = 0.0;);
@@ -337,7 +337,7 @@ void Diag(const size_t n, const size_t N, const double c, double *data)
 }
 
 // *****************************************************************************
-void OpEQ(const size_t hw, const double *m, double *data)
+void OpEQ(const int hw, const double *m, double *data)
 {
    GET_CONST_PTR(m);
    GET_PTR(data);
@@ -364,12 +364,12 @@ double Det3(const double *data)
 }
 
 // *****************************************************************************
-double FNormMax(const size_t hw, const double *data)
+double FNormMax(const int hw, const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
    GET_PTR(data);
    double max_norm = 0.0;
-   for (size_t i = 0; i < hw; i++)
+   for (int i = 0; i < hw; i++)
    {
       const double entry = fabs(d_data[i]);
       if (entry > max_norm)
@@ -381,12 +381,12 @@ double FNormMax(const size_t hw, const double *data)
 }
 
 // *****************************************************************************
-double FNorm2(const size_t hw, const double max_norm, const double *data)
+double FNorm2(const int hw, const double max_norm, const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
    GET_PTR(data);
    double fnorm2 = 0.0;
-   for (size_t i = 0; i < hw; i++)
+   for (int i = 0; i < hw; i++)
    {
       const double entry = d_data[i] / max_norm;
       fnorm2 += entry * entry;

@@ -35,11 +35,11 @@
 // * Standard OpenMP wrapper
 // *****************************************************************************
 template <typename HBODY>
-void ompWrap(const size_t N, HBODY &&h_body)
+void ompWrap(const int N, HBODY &&h_body)
 {
 #if defined(_OPENMP)
    #pragma omp parallel for
-   for (size_t k=0; k<N; k+=1)
+   for (int k=0; k<N; k+=1)
    {
       h_body(k);
    }
@@ -52,9 +52,9 @@ void ompWrap(const size_t N, HBODY &&h_body)
 // * Standard sequential wrapper
 // *****************************************************************************
 template <typename HBODY>
-void seqWrap(const size_t N, HBODY &&h_body)
+void seqWrap(const int N, HBODY &&h_body)
 {
-   for (size_t k=0; k<N; k+=1)
+   for (int k=0; k<N; k+=1)
    {
       h_body(k);
    }
@@ -63,8 +63,8 @@ void seqWrap(const size_t N, HBODY &&h_body)
 // *****************************************************************************
 // * GPU & HOST FOR_LOOP bodies wrapper
 // *****************************************************************************
-template <size_t BLOCKS, typename DBODY, typename HBODY>
-void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
+template <int BLOCKS, typename DBODY, typename HBODY>
+void wrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {
    const bool omp  = mfem::config::usingOmp();
    const bool gpu  = mfem::config::usingGpu();
@@ -84,8 +84,8 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
 #define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
    wrap<BLOCKS>(N,                                                      \
-                [=] __device__ (size_t i){__VA_ARGS__},                 \
-                [&]            (size_t i){__VA_ARGS__})
+                [=] __device__ (int i)mutable{__VA_ARGS__},             \
+                [&]            (int i){__VA_ARGS__})
 #define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(i,1,1,__VA_ARGS__)
 
 // *****************************************************************************
