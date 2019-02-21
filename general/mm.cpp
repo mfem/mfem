@@ -54,7 +54,7 @@ const void* ptr(const void *a) {
 OccaMemory occaPtr(const void *a) {
    if (config::usingMM())
    {
-      return getInstance().getOccaPointer(a);
+      return getInstance().getOccaPtr(a);
    }
    else
    {
@@ -255,9 +255,8 @@ void* DefaultMemoryManager::getDevicePtr(void *ptr)
    return PtrAlias(maps, ptr);
 }
 
-
 // *****************************************************************************
-static OccaMemory occaMemory(DefaultMemoryManager::ledger &maps, const void *ptr)
+OccaMemory DefaultMemoryManager::getOccaPtr(const void *ptr)
 {
    OccaDevice occaDevice = config::GetOccaDevice();
    const bool known = Known(maps, ptr);
@@ -290,12 +289,6 @@ static OccaMemory occaMemory(DefaultMemoryManager::ledger &maps, const void *ptr
       return occaWrapMemory(occaDevice, base.d_ptr, bytes);
    }
    return base.o_ptr;
-}
-
-// *****************************************************************************
-OccaMemory DefaultMemoryManager::getOccaPointer(const void *ptr)
-{
-   return occaMemory(maps, ptr);
 }
 
 // *****************************************************************************
@@ -397,19 +390,22 @@ void DefaultMemoryManager::pullData(const void *ptr, const std::size_t bytes)
 void DefaultMemoryManager::copyData(void *dst, const void *src,
                                     const std::size_t bytes, const bool async)
 {
-   GET_PTR(src);
-   GET_PTR(dst);
    if (config::usingCpu())
    {
-      std::memcpy(d_dst, d_src, bytes);
-   }
-   else if (!async)
-   {
-      cuMemcpyDtoD(d_dst, (void *)d_src, bytes);
+      std::memcpy(dst, src, bytes);
    }
    else
    {
-      cuMemcpyDtoDAsync(d_dst, (void *)d_src, bytes, config::Stream());
+      GET_PTR(src);
+      GET_PTR(dst);
+      if (!async)
+      {
+         cuMemcpyDtoD(d_dst, (void *)d_src, bytes);
+      }
+      else
+      {
+         cuMemcpyDtoDAsync(d_dst, (void *)d_src, bytes, config::Stream());
+      }
    }
 }
 
@@ -426,7 +422,7 @@ void UmpireMemoryManager::removeAddress(void *ptr)
 {
    // Get the base pointer
    const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(ptr);
-   void* base_ptr = rec->m_ptr;
+   char* base_ptr = static_cast<char*>(rec->m_ptr);
 
    // Look it up in the map
    MapType::const_iterator iter = m_map.find(base_ptr);
@@ -441,36 +437,45 @@ void* UmpireMemoryManager::getDevicePtr(void *a)
 {
    // Get the base pointer
    const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(a);
-   void* ptr = rec->m_ptr;
+   char* base_ptr = static_cast<char*>(rec->m_ptr);
 
    // Look it up in the map
-   MapType::const_iterator iter = m_map.find(ptr);
+   MapType::const_iterator iter = m_map.find(base_ptr);
 
    // Calculate the offset
-   const std::size_t offset = (char*) a - (char*) ptr;
+   const std::size_t offset = static_cast<char*>(a) - base_ptr;
 
    if (iter != m_map.end())
    {
-      return iter->second;
+      return static_cast<void*>(iter->second + offset);
    }
    else
    {
-      void* d_ptr = m_map[ptr] = m_device.allocate(rec->m_size);
-      return (char*) d_ptr + offset;
+      char* d_ptr = m_map[base_ptr] = static_cast<char*>(m_device.allocate(rec->m_size));
+      return d_ptr + offset;
    }
 }
 
-OccaMemory UmpireMemoryManager::getOccaPointer(const void *a)
+OccaMemory UmpireMemoryManager::getOccaPtr(const void *a)
 {
-   mfem_error("TBD");
+   // Get the base pointer
+   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(const_cast<void*>(a));
+   char* base_ptr = static_cast<char*>(rec->m_ptr);
+
+   // Look it up in the map
+   MapType::const_iterator iter = m_map.find(base_ptr);
+
+   void* d_ptr = (iter != m_map.end()) ? iter->second : nullptr;
+
+   return occaWrapMemory(config::GetOccaDevice(), d_ptr, rec->m_size);
 }
 
 void UmpireMemoryManager::pushData(const void *ptr, const std::size_t bytes)
 {
-   void* host_ptr = const_cast<void*>(ptr);
+   char* host_ptr = const_cast<char*>(static_cast<const char*>(ptr));
    // Get the base pointer
    const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(host_ptr);
-   void* base_ptr = rec->m_ptr;
+   char* base_ptr = static_cast<char*>(rec->m_ptr);
 
    // Get the device pointer from the map offset by the same distance
    MapType::const_iterator iter = m_map.find(base_ptr);
@@ -478,18 +483,19 @@ void UmpireMemoryManager::pushData(const void *ptr, const std::size_t bytes)
    {
       mfem_error("Could not find an allocation record assocated with address");
    }
-   std::size_t host_offset = (char*)host_ptr - (char*)base_ptr;
-   void *dev_ptr = static_cast<void*>((char*)iter->second + host_offset);
+
+   std::size_t host_offset = host_ptr - base_ptr;
+   char* dev_ptr = iter->second + host_offset;
 
    m_rm.copy(dev_ptr, host_ptr, bytes);
 }
 
 void UmpireMemoryManager::pullData(const void *ptr, const std::size_t bytes)
 {
-   void* host_ptr = const_cast<void*>(ptr);
+   char* host_ptr = const_cast<char*>(static_cast<const char*>(ptr));
    // Get the base pointer
    const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(host_ptr);
-   void* base_ptr = rec->m_ptr;
+   char* base_ptr = static_cast<char*>(rec->m_ptr);
 
    // Get the device pointer from the map offset by the same distance
    MapType::const_iterator iter = m_map.find(base_ptr);
@@ -497,14 +503,16 @@ void UmpireMemoryManager::pullData(const void *ptr, const std::size_t bytes)
    {
       mfem_error("Could not find an allocation record assocated with address");
    }
-   std::size_t host_offset = (char*)host_ptr - (char*)base_ptr;
-   void *dev_ptr = static_cast<void*>((char*)iter->second + host_offset);
+
+   std::size_t host_offset = host_ptr - base_ptr;
+   char* dev_ptr = iter->second + host_offset;
 
    m_rm.copy(host_ptr, dev_ptr, bytes);
 }
 
 void UmpireMemoryManager::copyData(void *dst, const void *src, std::size_t bytes, const bool async)
 {
+   // TODO Async copy in a stream
    m_rm.copy(dst, const_cast<void*>(src), bytes);
 }
 

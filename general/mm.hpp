@@ -99,7 +99,7 @@ public:
 
    // Get the matching OCCA pointer
    // TODO Remove this method -- wrap the d_ptr instead
-   OccaMemory getOccaPointer(const void *a);
+   OccaMemory getOccaPtr(const void *a);
 
    // Given a host pointer, push bytes beginning at address ptr to the device allocation
    // NOTE This may be offset from the original pointer in the registry
@@ -156,7 +156,7 @@ public:
 
    // Get the matching OCCA pointer
    // TODO Remove this method -- wrap the d_ptr instead
-   OccaMemory getOccaPointer(const void *a);
+   OccaMemory getOccaPtr(const void *a);
 
    // Given a host pointer, push bytes beginning at address ptr to the device allocation
    // NOTE This may be offset from the original pointer in the registry
@@ -174,7 +174,7 @@ public:
    UmpireMemoryManager();
 
 private:
-   typedef std::unordered_map< void*, void* > MapType;
+   typedef std::unordered_map< char*, char* > MapType;
 
    MapType m_map;
 
