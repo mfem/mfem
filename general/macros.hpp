@@ -12,6 +12,8 @@
 #ifndef MFEM_FOR_EACH_MACROS_HPP
 #define MFEM_FOR_EACH_MACROS_HPP
 
+#ifndef  _WIN32
+
 // *****************************************************************************
 #define VOID()
 #define DROP(...)
@@ -162,11 +164,12 @@
    MAP_POSTFIX_(map)
 
 // *****************************************************************************
-// * MFEM_TEMPLATES_FOREACH_2D
+// * MFEM_TEMPLATES_FOREACH_2D, default
 // *****************************************************************************
 #define MFEM_TEMPLATES_2D(a,b) ((a*100) + (b))
 #define MFEM_MAP_FCT_2D(f,a,b) {MFEM_TEMPLATES_ID(a,b), &f<a,b>},
-#define MFEM_TEMPLATES_FOREACH_2D(map,fct_p,fct,...)                    \
+#define MFEM_TEMPLATES_FOREACH_2D(map,id,a,b,fct_p,fct,...)             \
+   const unsigned int id = MFEM_TEMPLATES_2D(a,b);                      \
    MAP_PREFIX_(map,fct_p)                                               \
    FOR_EACH_2D(MFEM_MAP_FCT_2D,fct,__VA_ARGS__)                         \
    MAP_POSTFIX_(map)
@@ -181,7 +184,7 @@
    MAP_POSTFIX_(map)
 
 // *****************************************************************************
-// * MFEM_TEMPLATES_FOREACH_3D
+// * MFEM_TEMPLATES_FOREACH_3D, default
 // *****************************************************************************
 #define MFEM_TEMPLATES_3D(a,b,c) ((a*100*100) + (b*100) + (c))
 #define MFEM_MAP_FCT_3D(f,a,b,c) {MFEM_TEMPLATES_3D(a,b,c), &f<a,b,c>},
@@ -190,5 +193,19 @@
    MAP_PREFIX_(map,fct_p)                                               \
    FOR_EACH_3D(MFEM_MAP_FCT_3D,fct,__VA_ARGS__)                         \
    MAP_POSTFIX_(map)
+
+#else // _WIN32 ****************************************************************
+
+#define MFEM_TEMPLATES_FOREACH(map,id,fct_p)                            \
+   const unsigned int id = 0;                                           \
+   const fct_p map[1] = {NULL};
+
+#define MFEM_TEMPLATES_FOREACH_2D(map,id,a,b,fct_p,fct,...)             \
+   MFEM_TEMPLATES_FOREACH(map,id,fct_p)
+
+#define MFEM_TEMPLATES_FOREACH_3D(map,id,a,b,c,fct_p,fct,...)           \
+   MFEM_TEMPLATES_FOREACH(map,id,fct_p)
+
+#endif // _WIN32
 
 #endif // MFEM_FOR_EACH_MACROS_HPP
