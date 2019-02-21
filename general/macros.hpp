@@ -58,7 +58,7 @@
 // *****************************************************************************
 #define EXTRACT_VALUE_EXISTS(...) __VA_ARGS__
 #define EXTRACT_VALUE(value) CAT(EXTRACT_VALUE_, value)
-#define EXTRACT_EXISTS(value, ...) \
+#define EXTRACT_EXISTS(value, ...)                                      \
    IF (EXIST(IF_EXISTS(value))) (EXTRACT_VALUE(value), __VA_ARGS__ )
 
 // *****************************************************************************
@@ -84,8 +84,8 @@
 #define IS_ENCLOSED_TEST(...) EXISTS(1)
 #define IS_ENCLOSED(x, ...) EXTRACT_EXISTS ( IS_ENCLOSED_TEST x, 0 )
 #define IF_ENCLOSED(...) CAT(IF_, IS_ENCLOSED(__VA_ARGS__))
-#define ENCLOSED(...) \
-  IF_ENCLOSED (__VA_ARGS__) ( REM_ENCLOSE(__VA_ARGS__), __VA_ARGS__ )
+#define ENCLOSED(...)                                                   \
+   IF_ENCLOSED (__VA_ARGS__) ( REM_ENCLOSE(__VA_ARGS__), __VA_ARGS__ )
 
 // *****************************************************************************
 // * FOR_EACH_1D
@@ -136,7 +136,7 @@
 // * Map prefix
 // *****************************************************************************
 #define MAP_PREFIX_(map,fct_p)                                          \
-  static std::unordered_map<unsigned int, fct_p> map = {
+   static std::unordered_map<unsigned int, fct_p> map = {
 
 // *****************************************************************************
 // * Map postfix
@@ -144,28 +144,49 @@
 #define MAP_POSTFIX_(map) }
 
 // *****************************************************************************
-// * MFEM_TEMPLATES_FOREACH_1D
+// * MFEM_TEMPLATES_FOREACH_1D, where the user defined MFEM_TEMPLATES_ID is used
 // *****************************************************************************
-#define MFEM_MAP_FCT_1D(f,a) {a, &f<a>},
+#define MFEM_MAP_FCT_1D(f,a) {MFEM_TEMPLATES_ID(a), &f<a>},
 #define MFEM_TEMPLATES_FOREACH_1D(map,fct_p,fct,...)                    \
-  MAP_PREFIX_(map,fct_p)                                                \
-  FOR_EACH_1D(MFEM_MAP_FCT_1D,fct,__VA_ARGS__)                          \
-  MAP_POSTFIX_(map)
+   MAP_PREFIX_(map,fct_p)                                               \
+   FOR_EACH_1D(MFEM_MAP_FCT_1D,fct,__VA_ARGS__)                         \
+   MAP_POSTFIX_(map)
+
+// *****************************************************************************
+// * MFEM_TEMPLATES_FOREACH_2D, where the user defined MFEM_TEMPLATES_ID is used
+// *****************************************************************************
+#define MFEM_MAP_FCT_2D_ID(f,a,b) {MFEM_TEMPLATES_ID(a,b), &f<a,b>},
+#define MFEM_TEMPLATES_FOREACH_2D_ID(map,fct_p,fct,...)                 \
+   MAP_PREFIX_(map,fct_p)                                               \
+   FOR_EACH_2D(MFEM_MAP_FCT_2D_ID,fct,__VA_ARGS__)                      \
+   MAP_POSTFIX_(map)
 
 // *****************************************************************************
 // * MFEM_TEMPLATES_FOREACH_2D
 // *****************************************************************************
-#define MFEM_MAP_FCT_2D(f,a,b) {CAT(a,b), &f<a,b>},
+#define MFEM_TEMPLATES_2D(a,b) ((a*100) + (b))
+#define MFEM_MAP_FCT_2D(f,a,b) {MFEM_TEMPLATES_ID(a,b), &f<a,b>},
 #define MFEM_TEMPLATES_FOREACH_2D(map,fct_p,fct,...)                    \
-  MAP_PREFIX_(map,fct_p)                                                \
-  FOR_EACH_2D(MFEM_MAP_FCT_2D,fct,__VA_ARGS__)                          \
-  MAP_POSTFIX_(map)
+   MAP_PREFIX_(map,fct_p)                                               \
+   FOR_EACH_2D(MFEM_MAP_FCT_2D,fct,__VA_ARGS__)                         \
+   MAP_POSTFIX_(map)
+
+// *****************************************************************************
+// * MFEM_TEMPLATES_FOREACH_3D_ID, where the user defined MFEM_TEMPLATES_ID is used
+// *****************************************************************************
+#define MFEM_MAP_FCT_3D_ID(f,a,b,c) {MFEM_TEMPLATES_ID(a,b,c), &f<a,b,c>},
+#define MFEM_TEMPLATES_FOREACH_3D_ID(map,fct_p,fct,...)                 \
+   MAP_PREFIX_(map,fct_p)                                               \
+   FOR_EACH_3D(MFEM_MAP_FCT_3D_ID,fct,__VA_ARGS__)                      \
+   MAP_POSTFIX_(map)
 
 // *****************************************************************************
 // * MFEM_TEMPLATES_FOREACH_3D
 // *****************************************************************************
-#define MFEM_MAP_FCT_3D(f,a,b,c) {CAT(CAT(a,b),c), &f<a,b,c>},
-#define MFEM_TEMPLATES_FOREACH_3D(map,fct_p,fct,...)                    \
+#define MFEM_TEMPLATES_3D(a,b,c) ((a*100*100) + (b*100) + (c))
+#define MFEM_MAP_FCT_3D(f,a,b,c) {MFEM_TEMPLATES_3D(a,b,c), &f<a,b,c>},
+#define MFEM_TEMPLATES_FOREACH_3D(map,id,a,b,c,fct_p,fct,...)           \
+   const unsigned int id = MFEM_TEMPLATES_3D(a,b,c);                    \
    MAP_PREFIX_(map,fct_p)                                               \
    FOR_EACH_3D(MFEM_MAP_FCT_3D,fct,__VA_ARGS__)                         \
    MAP_POSTFIX_(map)

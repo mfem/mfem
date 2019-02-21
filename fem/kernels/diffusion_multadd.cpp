@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
+#include "../../general/macros.hpp"
 
 // *****************************************************************************
 namespace mfem
@@ -374,6 +375,24 @@ typedef void (*fDiffusionMultAdd)(const int numElements,
                                   double* __restrict solOut);
 
 // *****************************************************************************
+template<const int DIM,
+         const int NUM_DOFS_1D,
+         const int NUM_QUAD_1D> static
+void biPADiffusionMultAdd(const int numElements,
+                          const double* __restrict dofToQuad,
+                          const double* __restrict dofToQuadD,
+                          const double* __restrict quadToDof,
+                          const double* __restrict quadToDofD,
+                          const double* __restrict oper,
+                          const double* __restrict solIn,
+                          double* __restrict solOut){
+   fDiffusionMultAdd f = NULL;
+   if (DIM==2) f = &biPADiffusionMultAdd2D<NUM_DOFS_1D,NUM_QUAD_1D>;
+   if (DIM==3) f = &biPADiffusionMultAdd3D<NUM_DOFS_1D,NUM_QUAD_1D>;
+   f(numElements,dofToQuad,dofToQuadD,quadToDof,quadToDofD,oper,solIn,solOut);
+}
+
+// *****************************************************************************
 void biPADiffusionMultAdd(const int DIM,
                           const int NUM_DOFS_1D,
                           const int NUM_QUAD_1D,
@@ -398,56 +417,22 @@ void biPADiffusionMultAdd(const int DIM,
       return;
    }
 #endif // __OCCA__
-
-   const unsigned int id = (DIM<<16)|(NUM_DOFS_1D<<8)|(NUM_QUAD_1D);
-   assert(LOG2(NUM_DOFS_1D)<=8);
-   assert(LOG2(NUM_QUAD_1D)<=8);
-   static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
+   // Generate the map at compiled time
+   MFEM_TEMPLATES_FOREACH_3D(action, // name of the map
+                             id, // name of the index variable
+                             DIM, NUM_DOFS_1D, NUM_QUAD_1D, // runtime parameters
+                             fDiffusionMultAdd, // function signature
+                             biPADiffusionMultAdd, // funtion that will be call
+                             (2,3), // 1st parameter range: DIM
+                             (2,3), // 2nd parameter range: NUM_DOFS_1D
+                             (2,3));// 3rd parameter range: NUM_QUAD_1D
+   // Now test if the function is known in the map
+   if (!action[id])
    {
-      {0x20101,&biPADiffusionMultAdd2D<1,1>},
-      {0x20201,&biPADiffusionMultAdd2D<2,1>},
-      {0x20202,&biPADiffusionMultAdd2D<2,2>},
-      {0x20303,&biPADiffusionMultAdd2D<3,3>},
-      {0x20404,&biPADiffusionMultAdd2D<4,4>},
-      {0x20505,&biPADiffusionMultAdd2D<5,5>},
-      {0x20606,&biPADiffusionMultAdd2D<6,6>},
-      {0x20707,&biPADiffusionMultAdd2D<7,7>},
-      {0x20808,&biPADiffusionMultAdd2D<8,8>},/*
-      {0x20909,&biPADiffusionMultAdd2D<9,9>},
-      {0x20A0A,&biPADiffusionMultAdd2D<10,10>},
-      {0x20B0B,&biPADiffusionMultAdd2D<11,11>},
-      {0x20C0C,&biPADiffusionMultAdd2D<12,12>},
-      {0x20D0D,&biPADiffusionMultAdd2D<13,13>},
-      {0x20E0E,&biPADiffusionMultAdd2D<14,14>},
-      {0x20F0F,&biPADiffusionMultAdd2D<15,15>},
-      {0x21010,&biPADiffusionMultAdd2D<16,16>},
-      {0x21111,&biPADiffusionMultAdd2D<17,17>},*/
-
-      {0x30101,&biPADiffusionMultAdd3D<1,1>},
-      {0x30201,&biPADiffusionMultAdd3D<2,1>},
-      {0x30202,&biPADiffusionMultAdd3D<2,2>},
-      {0x30203,&biPADiffusionMultAdd3D<2,3>},
-      {0x30303,&biPADiffusionMultAdd3D<3,3>},
-      {0x30404,&biPADiffusionMultAdd3D<4,4>},
-      {0x30505,&biPADiffusionMultAdd3D<5,5>},
-      {0x30606,&biPADiffusionMultAdd3D<6,6>},
-      {0x30707,&biPADiffusionMultAdd3D<7,7>},
-      {0x30808,&biPADiffusionMultAdd3D<8,8>},/*
-      {0x30909,&biPADiffusionMultAdd3D<9,9>},
-      {0x30A0A,&biPADiffusionMultAdd3D<10,10>},
-      {0x30B0B,&biPADiffusionMultAdd3D<11,11>},
-      {0x30C0C,&biPADiffusionMultAdd3D<12,12>},
-      {0x30D0D,&biPADiffusionMultAdd3D<13,13>},
-      {0x30E0E,&biPADiffusionMultAdd3D<14,14>},
-      {0x30F0F,&biPADiffusionMultAdd3D<15,15>},
-      {0x31010,&biPADiffusionMultAdd3D<16,16>},*/
-   };
-   if (!call[id])
-   {
-      printf("\n[kIntDiffusionMultAdd] id \033[33m0x%X\033[m ",id);
+      printf("\n[kIntDiffusionMultAdd] id \033[33m%d\033[m ",id);
       fflush(stdout);
    }
-   assert(call[id]);
+   assert(action[id]);
 
    GET_CONST_PTR(dofToQuad);
    GET_CONST_PTR(dofToQuadD);
@@ -457,7 +442,7 @@ void biPADiffusionMultAdd(const int DIM,
    GET_CONST_PTR(x);
    GET_PTR(y);
 
-   call[id](numElements,
+   action[id](numElements,
             d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
             d_op, d_x, d_y);
 }
