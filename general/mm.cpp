@@ -481,7 +481,7 @@ void UmpireMemoryManager::pushData(const void *ptr, const std::size_t bytes)
    std::size_t host_offset = (char*)host_ptr - (char*)base_ptr;
    void *dev_ptr = static_cast<void*>((char*)iter->second + host_offset);
 
-   m_rm.copy(host_ptr, dev_ptr, bytes);
+   m_rm.copy(dev_ptr, host_ptr, bytes);
 }
 
 void UmpireMemoryManager::pullData(const void *ptr, const std::size_t bytes)
@@ -500,12 +500,12 @@ void UmpireMemoryManager::pullData(const void *ptr, const std::size_t bytes)
    std::size_t host_offset = (char*)host_ptr - (char*)base_ptr;
    void *dev_ptr = static_cast<void*>((char*)iter->second + host_offset);
 
-   m_rm.copy(dev_ptr, host_ptr, bytes);
+   m_rm.copy(host_ptr, dev_ptr, bytes);
 }
 
 void UmpireMemoryManager::copyData(void *dst, const void *src, std::size_t bytes, const bool async)
 {
-   m_rm.copy(const_cast<void*>(src), dst, bytes);
+   m_rm.copy(dst, const_cast<void*>(src), bytes);
 }
 
 UmpireMemoryManager::UmpireMemoryManager() :
