@@ -26,22 +26,64 @@ MemoryManager& getInstance() {
 
 // TODO This wraps the d_ptr -- check if this works
 // OccaMemory occaPtr(const void *a) {
-// void *d_ptr = getInstance().getMatchingPointer(a);
+// void *d_ptr = getInstance().getDevicePtr(a);
 // return occaWrapMemory(config::GetOccaDevice(), d_ptr, bytes);
 // }
 
-void* ptr(void *a) { return getInstance().getMatchingPointer(a); }
+void* ptr(void *a) {
+   if (config::usingMM() && config::gpuEnabled() && config::gpuHasBeenEnabled())
+   {
+      return getInstance().getDevicePtr(a);
+   }
+   else
+   {
+      return a;
+   }
+}
 
-const void* ptr(const void *a) { return getInstance().getMatchingPointer(a); }
+const void* ptr(const void *a) {
+   if (config::usingMM() && config::gpuEnabled() && config::gpuHasBeenEnabled())
+   {
+      return getInstance().getDevicePtr(const_cast<void*>(a));
+   }
+   else {
+      return a;
+   }
+}
 
-OccaMemory occaPtr(const void *a) { return getInstance().getOccaPointer(a); }
+OccaMemory occaPtr(const void *a) {
+   if (config::usingMM())
+   {
+      return getInstance().getOccaPointer(a);
+   }
+   else
+   {
+      OccaMemory o_ptr = occaWrapMemory(config::GetOccaDevice(), const_cast<void*>(a), 0);
+      return o_ptr;
+   }
+}
 
-void push(const void *ptr, const std::size_t bytes) { getInstance().pushData(ptr, bytes); }
+void push(const void *ptr, const std::size_t bytes) {
+   if (config::usingMM() && config::gpuEnabled() && config::gpuHasBeenEnabled())
+   {
+      getInstance().pushData(ptr, bytes);
+   }
+}
 
-void pull(const void *ptr, const std::size_t bytes) { getInstance().pullData(ptr, bytes); }
+void pull(const void *ptr, const std::size_t bytes) {
+   if (config::usingMM() && config::gpuEnabled() && config::gpuHasBeenEnabled())
+   {
+      getInstance().pullData(ptr, bytes);
+   }
+}
 
 void memcpy(void *dst, const void *src,
-            const std::size_t bytes, const bool async) { getInstance().copyData(dst, src, bytes, async); }
+            const std::size_t bytes, const bool async) {
+   if (bytes > 0)
+   {
+      getInstance().copyData(dst, src, bytes, async);
+   }
+}
 
 } // namespace mm
 
@@ -122,24 +164,19 @@ static bool Alias(DefaultMemoryManager::ledger &maps, const void *ptr)
 // *****************************************************************************
 // * Adds an address
 // *****************************************************************************
-void* DefaultMemoryManager::Insert(void *ptr, const std::size_t bytes)
+void DefaultMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
 {
-   if (!config::usingMM()) { return ptr; }
-   if (config::gpuDisabled()) { return ptr; }
    const bool known = Known(maps, ptr);
    MFEM_ASSERT(!known, "Trying to add already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
    maps.memories.emplace(ptr, memory(ptr, bytes));
-   return ptr;
 }
 
 // *****************************************************************************
 // * Remove the address from the map, as well as all the address' aliases
 // *****************************************************************************
-void *DefaultMemoryManager::Erase(void *ptr)
+void DefaultMemoryManager::removeAddress(void *ptr)
 {
-   if (!config::usingMM()) { return ptr; }
-   if (config::gpuDisabled()) { return ptr; }
    const bool known = Known(maps, ptr);
    // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("Trying to remove an unknown address!"); }
@@ -152,7 +189,6 @@ void *DefaultMemoryManager::Erase(void *ptr)
       delete alias;
    }
    maps.memories.erase(ptr);
-   return ptr;
 }
 
 // *****************************************************************************
@@ -209,11 +245,8 @@ static void* PtrAlias(DefaultMemoryManager::ledger &maps, void *ptr)
 // *****************************************************************************
 // * Turn an address to the right host or device one
 // *****************************************************************************
-void* DefaultMemoryManager::getMatchingPointer(void *ptr)
+void* DefaultMemoryManager::getDevicePtr(void *ptr)
 {
-   if (!config::usingMM()) { return ptr; }
-   if (config::gpuDisabled()) { return ptr; }
-   if (!config::gpuHasBeenEnabled()) { return ptr; }
    if (Known(maps, ptr)) { return PtrKnown(maps, ptr); }
    const bool alias = Alias(maps, ptr);
    // if (!alias) { BUILTIN_TRAP; }
@@ -222,20 +255,11 @@ void* DefaultMemoryManager::getMatchingPointer(void *ptr)
    return PtrAlias(maps, ptr);
 }
 
-const void* DefaultMemoryManager::getMatchingPointer(const void *ptr) {
-   return const_cast<const void*>(getMatchingPointer(const_cast<void *>(ptr)));
-}
-
 
 // *****************************************************************************
 static OccaMemory occaMemory(DefaultMemoryManager::ledger &maps, const void *ptr)
 {
    OccaDevice occaDevice = config::GetOccaDevice();
-   if (!config::usingMM())
-   {
-      OccaMemory o_ptr = occaWrapMemory(occaDevice, (void *)ptr, 0);
-      return o_ptr;
-   }
    const bool known = Known(maps, ptr);
    // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("occaMemory"); }
@@ -293,9 +317,6 @@ static void PushAlias(const DefaultMemoryManager::ledger &maps, const void *ptr,
 // *****************************************************************************
 void DefaultMemoryManager::pushData(const void *ptr, const std::size_t bytes)
 {
-   if (config::gpuDisabled()) { return; }
-   if (!config::usingMM()) { return; }
-   if (!config::gpuHasBeenEnabled()) { return; }
    if (Known(maps, ptr)) { return PushKnown(maps, ptr, bytes); }
    assert(!config::usingOcca());
    const bool alias = Alias(maps, ptr);
@@ -324,9 +345,6 @@ static void PullAlias(const DefaultMemoryManager::ledger &maps, const void *ptr,
 // *****************************************************************************
 void DefaultMemoryManager::pullData(const void *ptr, const std::size_t bytes)
 {
-   if (config::gpuDisabled()) { return; }
-   if (!config::usingMM()) { return; }
-   if (!config::gpuHasBeenEnabled()) { return; }
    if (Known(maps, ptr)) { return PullKnown(maps, ptr, bytes); }
    assert(!config::usingOcca());
    const bool alias = Alias(maps, ptr);
@@ -379,36 +397,35 @@ void DefaultMemoryManager::pullData(const void *ptr, const std::size_t bytes)
 void DefaultMemoryManager::copyData(void *dst, const void *src,
                                     const std::size_t bytes, const bool async)
 {
-   if (bytes > 0)
+   GET_PTR(src);
+   GET_PTR(dst);
+   if (config::usingCpu())
    {
-      GET_PTR(src);
-      GET_PTR(dst);
-      if (config::usingCpu())
-      {
-         std::memcpy(d_dst, d_src, bytes);
-      }
-      else if (!async)
-      {
-         cuMemcpyDtoD(d_dst, (void *)d_src, bytes);
-      }
-      else
-      {
-         cuMemcpyDtoDAsync(d_dst, (void *)d_src, bytes, config::Stream());
-      }
+      std::memcpy(d_dst, d_src, bytes);
+   }
+   else if (!async)
+   {
+      cuMemcpyDtoD(d_dst, (void *)d_src, bytes);
+   }
+   else
+   {
+      cuMemcpyDtoDAsync(d_dst, (void *)d_src, bytes, config::Stream());
    }
 }
 
+
 // ********** UmpireMemoryManager **********
 #if defined(MFEM_USE_UMPIRE)
-
-const void* UmpireMemoryManager::getMatchingPointer(const void *a)
+void* UmpireMemoryManager::getDevicePtr(void *a)
 {
-   mfem_error("TBD");
-}
+   // Get the base pointer
+   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(a);
+   void* ptr = rec->m_ptr;
 
-void* UmpireMemoryManager::getMatchingPointer(void *a)
-{
-   mfem_error("TBD");
+   // Look it up in the map
+   MapType::const_iterator iter = m_map.find(ptr);
+
+   return iter->second;
 }
 
 OccaMemory UmpireMemoryManager::getOccaPointer(const void *a)

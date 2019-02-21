@@ -522,6 +522,7 @@ status info:
 	$(info MFEM_USE_CONDUIT     = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI        = $(MFEM_USE_PUMI))
 	$(info MFEM_USE_OCCA        = $(MFEM_USE_OCCA))
+	$(info MFEM_USE_UMPIRE      = $(MFEM_USE_UMPIRE))
 	$(info MFEM_USE_MM          = $(MFEM_USE_MM))
 	$(info MFEM_CXX             = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS        = $(value MFEM_CPPFLAGS))
