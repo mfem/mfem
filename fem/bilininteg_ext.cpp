@@ -198,7 +198,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    kernels::fem::MassMultAssembled(dim, dofs1D, quad1D, ne,
-                                   maps->B, maps->Bt, 
+                                   maps->B, maps->Bt,
                                    vec, x, y);
 }
 

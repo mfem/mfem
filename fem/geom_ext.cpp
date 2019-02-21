@@ -85,7 +85,7 @@ static void Geom2D(const int ND, const int ND1d,
                    double* __restrict J,
                    double* __restrict invJ,
                    double* __restrict detJ)
-{   
+{
    // number of doubles in shared memory per threads
    const int _Nspt = 2*ND;
    MFEM_FORALL_SHARED(e, ne, _Nspt,
@@ -220,7 +220,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const int ND1d = fe.GetOrder() + 1;
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(fe, ir);
    NodeCopyByVDim(NE,feND,fesND,dim,geom->eMap,Sx,geom->nodes);
-      
+
    const double *G = (double*) mm::ptr(maps->G);
    const double *X = (double*) mm::ptr(geom->nodes);
    double *x = (double*) mm::ptr(geom->X);
@@ -283,7 +283,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    }
    const DofToQuad* smaps = DofToQuad::GetSimplexMaps(el, ir);
    //const DofToQuad* tmaps = DofToQuad::GetTensorMaps(el, el, ir);
-   
+
    const double *G = (double*) mm::ptr(smaps->G);
    const double *X = (double*) mm::ptr(geom->nodes);
    double *x = (double*) mm::ptr(geom->X);
