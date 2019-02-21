@@ -55,6 +55,8 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = false;
    bool cuda = false;
+   bool omp  = false;
+   bool raja = false;
    bool occa = false;
    bool visualization = 1;
 
@@ -69,6 +71,8 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
+   args.AddOption(&omp, "-om", "--omp", "-no-om", "--no-omp", "Enable OpenMP.");
+   args.AddOption(&raja, "-ra", "--raja", "-no-ra", "--no-raja", "Enable RAJA.");
    args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -145,6 +149,8 @@ int main(int argc, char *argv[])
    config::usePA(pa);
    if (pa) { mesh->EnsureNodes(); }
    if (cuda) { config::useCuda(); }
+   if (omp)  { config::useOmp();  }
+   if (raja) { config::useRaja(); }
    if (occa) { config::useOcca(); }
    config::enableGpu(0/*,occa,cuda*/);
    config::SwitchToGpu();
@@ -157,7 +163,7 @@ int main(int argc, char *argv[])
 
    // Sample values
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   int elem_batch = (cuda || occa) ? mesh->GetNE() : 1;
+   int elem_batch = (cuda || raja || occa) ? mesh->GetNE() : 1;
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
