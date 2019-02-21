@@ -16,6 +16,7 @@
 
 #include <list>
 #include <unordered_map>
+#include <new>
 
 #include "config.hpp"
 #include "occa.hpp" // for OccaMemory
@@ -130,8 +131,8 @@ public:
    {
       const std::size_t size = n * sizeof(T);
       void *mem = m_host.allocate(size);
+      insertAddress(mem, size);
       T* objs = new (mem) T[n];
-      insertAddress(objs, size);
       return objs;
    }
 

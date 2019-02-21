@@ -424,6 +424,17 @@ void UmpireMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
 // Remove an address
 void UmpireMemoryManager::removeAddress(void *ptr)
 {
+   // Get the base pointer
+   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(ptr);
+   void* base_ptr = rec->m_ptr;
+
+   // Look it up in the map
+   MapType::const_iterator iter = m_map.find(base_ptr);
+
+   if (iter != m_map.end())
+   {
+      m_device.deallocate(iter->second);
+   }
 }
 
 void* UmpireMemoryManager::getDevicePtr(void *a)
@@ -435,11 +446,18 @@ void* UmpireMemoryManager::getDevicePtr(void *a)
    // Look it up in the map
    MapType::const_iterator iter = m_map.find(ptr);
 
-   if (iter == m_map.end())
+   // Calculate the offset
+   const std::size_t offset = (char*) a - (char*) ptr;
+
+   if (iter != m_map.end())
    {
-      mfem_error("Could not find an allocation record assocated with address");
+      return iter->second;
    }
-   return iter->second;
+   else
+   {
+      void* d_ptr = m_map[ptr] = m_device.allocate(rec->m_size);
+      return (char*) d_ptr + offset;
+   }
 }
 
 OccaMemory UmpireMemoryManager::getOccaPointer(const void *a)
