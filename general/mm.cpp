@@ -416,6 +416,16 @@ void DefaultMemoryManager::copyData(void *dst, const void *src,
 
 // ********** UmpireMemoryManager **********
 #if defined(MFEM_USE_UMPIRE)
+// Register an address
+void UmpireMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
+{
+}
+
+// Remove an address
+void UmpireMemoryManager::removeAddress(void *ptr)
+{
+}
+
 void* UmpireMemoryManager::getDevicePtr(void *a)
 {
    // Get the base pointer
@@ -425,6 +435,10 @@ void* UmpireMemoryManager::getDevicePtr(void *a)
    // Look it up in the map
    MapType::const_iterator iter = m_map.find(ptr);
 
+   if (iter == m_map.end())
+   {
+      mfem_error("Could not find an allocation record assocated with address");
+   }
    return iter->second;
 }
 
@@ -435,12 +449,40 @@ OccaMemory UmpireMemoryManager::getOccaPointer(const void *a)
 
 void UmpireMemoryManager::pushData(const void *ptr, const std::size_t bytes)
 {
-   mfem_error("TBD");
+   void* host_ptr = const_cast<void*>(ptr);
+   // Get the base pointer
+   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(host_ptr);
+   void* base_ptr = rec->m_ptr;
+
+   // Get the device pointer from the map offset by the same distance
+   MapType::const_iterator iter = m_map.find(base_ptr);
+   if (iter == m_map.end())
+   {
+      mfem_error("Could not find an allocation record assocated with address");
+   }
+   std::size_t host_offset = (char*)host_ptr - (char*)base_ptr;
+   void *dev_ptr = static_cast<void*>((char*)iter->second + host_offset);
+
+   m_rm.copy(host_ptr, dev_ptr, bytes);
 }
 
 void UmpireMemoryManager::pullData(const void *ptr, const std::size_t bytes)
 {
-   mfem_error("TBD");
+   void* host_ptr = const_cast<void*>(ptr);
+   // Get the base pointer
+   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(host_ptr);
+   void* base_ptr = rec->m_ptr;
+
+   // Get the device pointer from the map offset by the same distance
+   MapType::const_iterator iter = m_map.find(base_ptr);
+   if (iter == m_map.end())
+   {
+      mfem_error("Could not find an allocation record assocated with address");
+   }
+   std::size_t host_offset = (char*)host_ptr - (char*)base_ptr;
+   void *dev_ptr = static_cast<void*>((char*)iter->second + host_offset);
+
+   m_rm.copy(dev_ptr, host_ptr, bytes);
 }
 
 void UmpireMemoryManager::copyData(void *dst, const void *src, std::size_t bytes, const bool async)
@@ -452,8 +494,8 @@ UmpireMemoryManager::UmpireMemoryManager() :
    m_rm(umpire::ResourceManager::getInstance()),
    m_host(m_rm.makeAllocator<umpire::strategy::DynamicPool>("host_pool", m_rm.getAllocator("HOST"))),
    m_device(config::gpuEnabled() ?
-            m_rm.makeAllocator<umpire::strategy::DynamicPool>("host_pool", m_rm.getAllocator("HOST")) :
-            m_rm.makeAllocator<umpire::strategy::DynamicPool>("device_pool", m_rm.getAllocator("DEVICE"))) {}
+            m_rm.makeAllocator<umpire::strategy::DynamicPool>("target_pool", m_rm.getAllocator("DEVICE")) :
+            m_rm.makeAllocator<umpire::strategy::DynamicPool>("target_pool", m_rm.getAllocator("HOST"))) {}
 
 #endif
 
