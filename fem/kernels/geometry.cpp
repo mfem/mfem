@@ -12,6 +12,7 @@
 #include "../../config/config.hpp"
 
 #include "../../general/okina.hpp"
+#include "../../general/macros.hpp"
 #include "../../linalg/kernels/vector.hpp"
 
 #include "geometry.hpp"
@@ -40,6 +41,22 @@ typedef void (*fIniGeom)(const int,const double*,const double*,
                          double*, double*, double*);
 
 // *****************************************************************************
+template<const int DIM,
+         const int NUM_DOFS_1D,
+         const int NUM_QUAD_1D> static
+void Geom(const int numElements,
+          const double* dofToQuadD,
+          const double* nodes,
+          double* J,
+          double* invJ,
+          double* detJ){
+   fIniGeom f = NULL;
+   if (DIM==2) f = &Geom2D<NUM_DOFS_1D,NUM_QUAD_1D>;
+   if (DIM==3) f = &Geom3D<NUM_DOFS_1D,NUM_QUAD_1D>;
+   f(numElements, dofToQuadD, nodes, J, invJ, detJ);
+}
+
+// *****************************************************************************
 static void Geom(const int DIM,
                  const int NUM_DOFS,
                  const int NUM_QUAD,
@@ -52,52 +69,18 @@ static void Geom(const int DIM,
 {
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
    const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
-   const unsigned int id = (DIM<<8)|(dofs1D-2)<<4|(quad1D-2);
-   assert(LOG2(DIM)<=4);
-   assert(LOG2(dofs1D-2)<=4);
-   assert(LOG2(quad1D-2)<=4);
-   static std::unordered_map<unsigned int, fIniGeom> call =
-   {
-      // 2D
-      {0x200,&Geom2D<2,2>},
-      {0x201,&Geom2D<2,3>},
-      {0x202,&Geom2D<2,4>},
-      {0x203,&Geom2D<2,5>},
-      {0x204,&Geom2D<2,6>},
-      {0x205,&Geom2D<2,7>},
-      {0x206,&Geom2D<2,8>},
-      {0x207,&Geom2D<2,9>},
-      {0x210,&Geom2D<3,2>},/*
-      {0x208,&Geom2D<2,10>},
-      {0x209,&Geom2D<2,11>},
-      {0x20A,&Geom2D<2,12>},
-      {0x20B,&Geom2D<2,13>},
-      {0x20C,&Geom2D<2,14>},
-      {0x20D,&Geom2D<2,15>},
-      {0x20E,&Geom2D<2,16>},
-      {0x20F,&Geom2D<2,17>},*/
-      // 3D
-      {0x300,&Geom3D<2,2>},
-      {0x301,&Geom3D<2,3>},
-      {0x302,&Geom3D<2,4>},
-      {0x303,&Geom3D<2,5>},
-      {0x304,&Geom3D<2,6>},
-      {0x305,&Geom3D<2,7>},
-      {0x306,&Geom3D<2,8>},
-      {0x307,&Geom3D<2,9>},
-      {0x321,&Geom3D<4,3>},/*
-      {0x308,&Geom3D<2,10>},
-      {0x309,&Geom3D<2,11>},
-      {0x30A,&Geom3D<2,12>},
-      {0x30B,&Geom3D<2,13>},
-      {0x30C,&Geom3D<2,14>},
-      {0x30D,&Geom3D<2,15>},
-      {0x30E,&Geom3D<2,16>},
-      {0x30F,&Geom3D<2,17>},*/
-   };
+   // Generate the Geom map at compiled time
+   MFEM_TEMPLATES_FOREACH_3D(call, // name of the map
+                             id, // name of the index variable
+                             DIM, dofs1D, quad1D, // runtime parameters
+                             fIniGeom, // function signature
+                             Geom, // funtion that will be call
+                             (2,3), // 1st parameter range: DIM
+                             (2,3), // 2nd parameter range: dofs1D
+                             (2,3,4));// 3rd parameter range: quad1D
    if (!call[id])
    {
-      printf("\n[Geom] id \033[33m0x%X\033[m ",id);
+      printf("\n[Geom] id \033[33m%d\033[m ",id);
       fflush(stdout);
    }
    assert(call[id]);

@@ -417,7 +417,7 @@ void biPADiffusionMultAdd(const int DIM,
       return;
    }
 #endif // __OCCA__
-   // Generate the map at compiled time
+   // Generate the biPADiffusionMultAdd map at compiled time
    MFEM_TEMPLATES_FOREACH_3D(action, // name of the map
                              id, // name of the index variable
                              DIM, NUM_DOFS_1D, NUM_QUAD_1D, // runtime parameters
