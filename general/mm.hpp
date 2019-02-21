@@ -73,7 +73,6 @@ public:
    inline T* allocate(const std::size_t n)
    {
       T* addr = ::new T[n];
-      insertAddress(addr, n * sizeof(T));
       return addr;
    }
 
@@ -81,10 +80,7 @@ public:
    template<typename T>
    inline void deallocate(T *ptr)
    {
-      if (ptr != nullptr) {
-         removeAddress(ptr);
-         ::delete[] ptr;
-      }
+      ::delete[] ptr;
    }
 
    // Register an address
@@ -218,11 +214,10 @@ T* malloc(const std::size_t n, const std::size_t size = sizeof(T)) {
 template<class T>
 void free(void *ptr) {
    if (ptr != nullptr) {
-
-      if (config::usingMM() && config::gpuEnabled()) {
+      if (config::usingMM() && config::gpuEnabled())
+      {
          getInstance().removeAddress(ptr);
       }
-
       getInstance().deallocate(static_cast<T*>(ptr));
    }
 }
