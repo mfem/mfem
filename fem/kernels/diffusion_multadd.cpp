@@ -424,8 +424,8 @@ void biPADiffusionMultAdd(const int DIM,
                              fDiffusionMultAdd, // function signature
                              biPADiffusionMultAdd, // funtion that will be call
                              (2,3), // 1st parameter range: DIM
-                             (2,3), // 2nd parameter range: NUM_DOFS_1D
-                             (2,3));// 3rd parameter range: NUM_QUAD_1D
+                             (2,3,4), // 2nd parameter range: NUM_DOFS_1D
+                             (2,3,4));// 3rd parameter range: NUM_QUAD_1D
    // Now test if the function is known in the map
    if (!action[id])
    {
