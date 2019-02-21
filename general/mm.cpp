@@ -512,7 +512,10 @@ void UmpireMemoryManager::pullData(const void *ptr, const std::size_t bytes)
 
 void UmpireMemoryManager::copyData(void *dst, const void *src, std::size_t bytes, const bool async)
 {
-   // TODO Async copy in a stream
+   if (async)
+   {
+      mfem_warning("Async transfers are not yet implemented. Will block for now.");
+   }
    m_rm.copy(dst, const_cast<void*>(src), bytes);
 }
 
