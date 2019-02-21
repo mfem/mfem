@@ -45,7 +45,7 @@
 #define EXPAND_IF_EXISTS(...) EXPAND, EXISTS(__VA_ARGS__) ) DROP (
 #define GET_IF_EXIST_RESULT(x) (CAT(EXPAND_IF_,x), NOT_EXIST)
 #define GET_IF_EXIST_EXPAND(expand, value) value
-#define GET_IF_EXIST(x) GET_IF_EXIST_EXPAND  x 
+#define GET_IF_EXIST(x) GET_IF_EXIST_EXPAND  x
 #define IF_EXISTS(x) GET_IF_EXIST(GET_IF_EXIST_RESULT(x))
 
 // *****************************************************************************
@@ -79,7 +79,7 @@
 #define ENCLOSE(...) ( __VA_ARGS__ )
 #define REM_ENCLOSE_(...) __VA_ARGS__
 #define REM_ENCLOSE(...) REM_ENCLOSE_ __VA_ARGS__
-   
+
 // *****************************************************************************
 #define IS_ENCLOSED_TEST(...) EXISTS(1)
 #define IS_ENCLOSED(x, ...) EXTRACT_EXISTS ( IS_ENCLOSED_TEST x, 0 )
@@ -95,7 +95,7 @@
    IF (IS_LIST_NOT_VOID( __VA_ARGS__ ))                                 \
    (expr(f, ENCLOSED(HEAD(__VA_ARGS__)))                                \
     DEFER2 ( FOR_EACH_INDIRECT ) () (f, expr, TAIL(__VA_ARGS__)))
-#define FOR_EACH_1D(expr, f, ...) EVAL(FOR_EACH_NO_EVAL(f,expr, __VA_ARGS__)) 
+#define FOR_EACH_1D(expr, f, ...) EVAL(FOR_EACH_NO_EVAL(f,expr, __VA_ARGS__))
 
 // *****************************************************************************
 // * FOR_EACH_2D

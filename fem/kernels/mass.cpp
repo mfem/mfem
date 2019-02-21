@@ -270,7 +270,7 @@ void biPAMassMultAdd(const int DIM,
    assert((NUM_QUAD_1D&1)==0);
    assert(LOG2(NUM_DOFS_1D)<=8);
    assert(LOG2(NUM_QUAD_1D)<=8);
-   // Generate the biPADiffusionMultAdd map at compiled time
+   // Generate the biPAMassMultAdd map at compiled time
    MFEM_TEMPLATES_FOREACH_3D(call, // name of the map
                              id, // name of the index variable
                              DIM, NUM_DOFS_1D, NUM_QUAD_1D, // runtime parameters
