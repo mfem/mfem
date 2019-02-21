@@ -12,8 +12,6 @@
 set(SRCS
   diffusion_assemble.cpp
   diffusion_multadd.cpp
-  geometry_2d.cpp
-  geometry_3d.cpp
   geometry.cpp
   global_local.cpp
   local_global.cpp
