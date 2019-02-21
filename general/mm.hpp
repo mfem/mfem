@@ -108,7 +108,7 @@ public:
    // NOTE This may be offset from the original pointer in the registry
    void pullData(const void *ptr, const std::size_t bytes = 0);
 
-   // Copies bytes from src to dst, using the registry to determine where src and dst are located.
+   // Copies bytes from src to dst, which are both device addresses
    // NOTE These may be offset from the original pointers in the registry
    void copyData(void *dst, const void *src, std::size_t bytes, const bool async = false);
 
@@ -165,7 +165,7 @@ public:
    // NOTE This may be offset from the original pointer in the registry
    void pullData(const void *ptr, const std::size_t bytes = 0);
 
-   // Copies bytes from src to dst, using the registry to determine where src and dst are located.
+   // Copies bytes from src to dst, which are both device addresses
    // NOTE These may be offset from the original pointers in the registry
    void copyData(void *dst, const void *src, std::size_t bytes, const bool async = false);
 
@@ -241,7 +241,7 @@ void push(const void *ptr, const std::size_t bytes = 0);
 // Pull data from the device to host alloc
 void pull(const void *ptr, const std::size_t bytes = 0);
 
-// Copy memory from dst to src (manager checks where pointers exist)
+// Copy data between device addresses
 void memcpy(void *dst, const void *src,
             const std::size_t bytes, const bool async = false);
 

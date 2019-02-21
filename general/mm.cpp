@@ -487,7 +487,7 @@ void UmpireMemoryManager::pullData(const void *ptr, const std::size_t bytes)
 
 void UmpireMemoryManager::copyData(void *dst, const void *src, std::size_t bytes, const bool async)
 {
-   mfem_error("TBD");
+   m_rm.copy(const_cast<void*>(src), dst, bytes);
 }
 
 UmpireMemoryManager::UmpireMemoryManager() :
