@@ -874,14 +874,272 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
    // the section.
    while (input >> buff)
    {
+      //cerr << buff << endl;
       if (buff == "$Nodes") // reading mesh vertices
       {
+         int numEntityBlocks, serial_number, ver=0;
+         const int gmsh_dim = 3;
+         double coord[gmsh_dim];
+         input >> numEntityBlocks >> NumOfVertices;
+         vertices.SetSize(NumOfVertices);
+         //cerr << "numEntityBlocks " << numEntityBlocks << endl;
+         //cerr << "NumOfVertices " << NumOfVertices << endl;
+         for(int numBlock=0; numBlock < numEntityBlocks; ++numBlock)
+         {
+            int tagEntity, dimEntity, parametric, numNodes;
+            input >> tagEntity >> dimEntity >> parametric >> numNodes;
+            //cerr << tagEntity << dimEntity << parametric << numNodes << endl;
+            for(int node=0; node < numNodes; ++node)
+            {
+               input >> serial_number;
+               //cerr << serial_number << endl;
+               for (int ci = 0; ci < gmsh_dim; ++ci)
+               {
+                  input >> coord[ci];
+               }
+               //cerr << coord[0] << " " << coord[1] << " " << coord[2] << endl;
+               vertices[ver] = Vertex(coord, gmsh_dim);
+               vertices_map[serial_number] = ver;
+               ver++;
+            }
+         }
+
       }  // section '$Nodes'
       else if (buff == "$Elements") // reading mesh elements
       {
-      } // section '$Elements'
+         int numEntityBlocks, num_of_all_elements;
+         input >> numEntityBlocks >> num_of_all_elements;
+         //getline(input, buff);
+
+         // cerr << "numEntityBlocks " << numEntityBlocks << "num_of_all_elements " << num_of_all_elements << endl;
+
+         int entity;
+         int dimEntity;
+         int serial_number; // serial number of an element
+         int type_of_element; // ID describing a type of a mesh element
+         int numElements;
+         int n_tags; // number of different tags describing an element
+
+         // set up some defaults as these tag descriptors are not in v4
+         int phys_domain=1; // element's attribute
+         int elem_domain=0; // another element's attribute (rarely used)
+         int n_partitions=0; // number of partitions where an element takes place
+
+
+         // number of nodes for each type of Gmsh elements, type is the index of
+         // the array + 1
+         int nodes_of_gmsh_element[] =
+         {
+            2, // 2-node line.
+            3, // 3-node triangle.
+            4, // 4-node quadrangle.
+            4, // 4-node tetrahedron.
+            8, // 8-node hexahedron.
+            6, // 6-node prism.
+            5, // 5-node pyramid.
+            3, /* 3-node second order line (2 nodes associated with the vertices
+                    and 1 with the edge). */
+            6, /* 6-node second order triangle (3 nodes associated with the
+                    vertices and 3 with the edges). */
+            9, /* 9-node second order quadrangle (4 nodes associated with the
+                    vertices, 4 with the edges and 1 with the face). */
+            10,/* 10-node second order tetrahedron (4 nodes associated with the
+                     vertices and 6 with the edges). */
+            27,/* 27-node second order hexahedron (8 nodes associated with the
+                     vertices, 12 with the edges, 6 with the faces and 1 with
+                     the volume). */
+            18,/* 18-node second order prism (6 nodes associated with the
+                     vertices, 9 with the edges and 3 with the quadrangular
+                     faces). */
+            14,/* 14-node second order pyramid (5 nodes associated with the
+                     vertices, 8 with the edges and 1 with the quadrangular
+                     face). */
+            1, // 1-node point.
+            8, /* 8-node second order quadrangle (4 nodes associated with the
+                    vertices and 4 with the edges). */
+            20,/* 20-node second order hexahedron (8 nodes associated with the
+                     vertices and 12 with the edges). */
+            15,/* 15-node second order prism (6 nodes associated with the
+                     vertices and 9 with the edges). */
+            13,/* 13-node second order pyramid (5 nodes associated with the
+                     vertices and 8 with the edges). */
+            9, /* 9-node third order incomplete triangle (3 nodes associated
+                    with the vertices, 6 with the edges) */
+            10,/* 10-node third order triangle (3 nodes associated with the
+                     vertices, 6 with the edges, 1 with the face) */
+            12,/* 12-node fourth order incomplete triangle (3 nodes associated
+                     with the vertices, 9 with the edges) */
+            15,/* 15-node fourth order triangle (3 nodes associated with the
+                     vertices, 9 with the edges, 3 with the face) */
+            15,/* 15-node fifth order incomplete triangle (3 nodes associated
+                     with the vertices, 12 with the edges) */
+            21,/* 21-node fifth order complete triangle (3 nodes associated with
+                     the vertices, 12 with the edges, 6 with the face) */
+            4, /* 4-node third order edge (2 nodes associated with the vertices,
+                    2 internal to the edge) */
+            5, /* 5-node fourth order edge (2 nodes associated with the
+                    vertices, 3 internal to the edge) */
+            6, /* 6-node fifth order edge (2 nodes associated with the vertices,
+                    4 internal to the edge) */
+            20 /* 20-node third order tetrahedron (4 nodes associated with the
+                     vertices, 12 with the edges, 4 with the faces) */
+         };
+
+         vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
+         elements_0D.reserve(num_of_all_elements);
+         elements_1D.reserve(num_of_all_elements);
+         elements_2D.reserve(num_of_all_elements);
+         elements_3D.reserve(num_of_all_elements);
+
+         for(int entityBlock = 0; entityBlock < numEntityBlocks; ++entityBlock) 
+         {
+            input >> entity >> dimEntity >> type_of_element >> numElements;
+            //cerr << "numElements " << numElements << endl;
+            for(int ele= 0; ele < numElements; ++ele)
+            {
+               const int n_elem_nodes = nodes_of_gmsh_element[type_of_element-1];
+               vector<int> vert_indices(n_elem_nodes);
+               int index;
+               input >> serial_number;
+               //cerr << "serial_number " << serial_number << endl;
+               for (int vi = 0; vi < n_elem_nodes; ++vi)
+               {
+                  input >> index;
+                  //cerr << "index " << index << endl;
+                  map<int, int>::const_iterator it = vertices_map.find(index);
+                  if (it == vertices_map.end())
+                  {
+                     MFEM_ABORT("Gmsh file : vertex index doesn't exist");
+                  }
+                  vert_indices[vi] = it->second;
+               }
+
+               // initialize the mesh element
+               switch (type_of_element)
+               {
+                  case 1: // 2-node line
+                  {
+                     elements_1D.push_back(
+                        new Segment(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 2: // 3-node triangle
+                  {
+                     elements_2D.push_back(
+                        new Triangle(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 3: // 4-node quadrangle
+                  {
+                     elements_2D.push_back(
+                        new Quadrilateral(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 4: // 4-node tetrahedron
+                  {
+                     elements_3D.push_back(
+                        new Tetrahedron(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 5: // 8-node hexahedron
+                  {
+                     elements_3D.push_back(
+                        new Hexahedron(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  case 15: // 1-node point
+                  {
+                     elements_0D.push_back(
+                        new Point(&vert_indices[0], phys_domain));
+                     break;
+                  }
+                  default: // any other element
+                     MFEM_WARNING("Unsupported Gmsh element type.");
+                     break;
+
+               } // switch (type_of_element)
+
+            } // for numElements
+         } // for entityBlock
+
+         if (!elements_3D.empty())
+         {
+            Dim = 3;
+            NumOfElements = elements_3D.size();
+            elements.SetSize(NumOfElements);
+            for (int el = 0; el < NumOfElements; ++el)
+            {
+               elements[el] = elements_3D[el];
+            }
+            NumOfBdrElements = elements_2D.size();
+            boundary.SetSize(NumOfBdrElements);
+            for (int el = 0; el < NumOfBdrElements; ++el)
+            {
+               boundary[el] = elements_2D[el];
+            }
+            // discard other elements
+            for (size_t el = 0; el < elements_1D.size(); ++el)
+            {
+               delete elements_1D[el];
+            }
+            for (size_t el = 0; el < elements_0D.size(); ++el)
+            {
+               delete elements_0D[el];
+            }
+         }
+         else if (!elements_2D.empty())
+         {
+            Dim = 2;
+            NumOfElements = elements_2D.size();
+            elements.SetSize(NumOfElements);
+            for (int el = 0; el < NumOfElements; ++el)
+            {
+               elements[el] = elements_2D[el];
+            }
+            NumOfBdrElements = elements_1D.size();
+            boundary.SetSize(NumOfBdrElements);
+            for (int el = 0; el < NumOfBdrElements; ++el)
+            {
+               boundary[el] = elements_1D[el];
+            }
+            // discard other elements
+            for (size_t el = 0; el < elements_0D.size(); ++el)
+            {
+               delete elements_0D[el];
+            }
+         }
+         else if (!elements_1D.empty())
+         {
+            Dim = 1;
+            NumOfElements = elements_1D.size();
+            elements.SetSize(NumOfElements);
+            for (int el = 0; el < NumOfElements; ++el)
+            {
+               elements[el] = elements_1D[el];
+            }
+            NumOfBdrElements = elements_0D.size();
+            boundary.SetSize(NumOfBdrElements);
+            for (int el = 0; el < NumOfBdrElements; ++el)
+            {
+               boundary[el] = elements_0D[el];
+            }
+         }
+         else
+         {
+            MFEM_ABORT("Gmsh file : no elements found");
+            return;
+         }
+
+         MFEM_CONTRACT_VAR(n_partitions);
+         MFEM_CONTRACT_VAR(elem_domain);
+
+
+
+      } // section '$Elements' 
 
    }  // we reach the end of the file
+   // core dump here until we actually get this version working
+   //MFEM_ABORT("Gmsh file version 4 currently unsupported");
 }
 
 
@@ -1295,9 +1553,9 @@ void Mesh::ReadGmshMesh(std::istream &input)
          MFEM_ABORT("Gmsh file : wrong binary format");
       }
    }
-   if(version == 2.2) { ReadGmshV2(input,binary);}
-   else if(version == 4.0) { MFEM_ABORT("Gmsh file version 4.0 unsupported")}
-   else { MFEM_ABORT("Gmsh file version unsupported")}
+   if(version == 2.2) {ReadGmshV2(input,binary);}
+   else if(version == 4.0) {ReadGmshV4(input,binary);}
+   else {MFEM_ABORT("Gmsh file version unsupported")}
 
 }
 
