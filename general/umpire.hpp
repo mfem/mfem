@@ -66,7 +66,8 @@ public:
 
    // Copies bytes from src to dst, which are both device addresses
    // NOTE These may be offset from the original pointers in the registry
-   void copyData(void *dst, const void *src, std::size_t bytes, const bool async = false);
+   void copyData(void *dst, const void *src, std::size_t bytes,
+                 const bool async = false);
 
    // Constructor
    UmpireMemoryManager();

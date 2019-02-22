@@ -60,7 +60,8 @@ void* UmpireMemoryManager::getPtr(void *a)
    }
    else
    {
-      char* d_ptr = m_map[base_ptr] = static_cast<char*>(m_device.allocate(rec->m_size));
+      char* d_ptr = m_map[base_ptr] = static_cast<char*>(m_device.allocate(
+                                                            rec->m_size));
       return d_ptr + offset;
    }
 }
@@ -68,7 +69,8 @@ void* UmpireMemoryManager::getPtr(void *a)
 OccaMemory UmpireMemoryManager::getOccaPtr(const void *a)
 {
    // Get the base pointer
-   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(const_cast<void*>(a));
+   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(
+                                                  const_cast<void*>(a));
    char* base_ptr = static_cast<char*>(rec->m_ptr);
 
    // Look it up in the map
@@ -119,7 +121,8 @@ void UmpireMemoryManager::pullData(const void *ptr, const std::size_t bytes)
    m_rm.copy(host_ptr, dev_ptr, bytes);
 }
 
-void UmpireMemoryManager::copyData(void *dst, const void *src, std::size_t bytes, const bool async)
+void UmpireMemoryManager::copyData(void *dst, const void *src,
+                                   std::size_t bytes, const bool async)
 {
    if (async)
    {
@@ -130,10 +133,13 @@ void UmpireMemoryManager::copyData(void *dst, const void *src, std::size_t bytes
 
 UmpireMemoryManager::UmpireMemoryManager() :
    m_rm(umpire::ResourceManager::getInstance()),
-   m_host(m_rm.makeAllocator<umpire::strategy::DynamicPool>("host_pool", m_rm.getAllocator("HOST"))),
+   m_host(m_rm.makeAllocator<umpire::strategy::DynamicPool>("host_pool",
+                                                            m_rm.getAllocator("HOST"))),
    m_device(config::gpuEnabled() ?
-            m_rm.makeAllocator<umpire::strategy::DynamicPool>("target_pool", m_rm.getAllocator("DEVICE")) :
-            m_rm.makeAllocator<umpire::strategy::DynamicPool>("target_pool", m_rm.getAllocator("HOST"))) {}
+            m_rm.makeAllocator<umpire::strategy::DynamicPool>("target_pool",
+                                                              m_rm.getAllocator("DEVICE")) :
+            m_rm.makeAllocator<umpire::strategy::DynamicPool>("target_pool",
+                                                              m_rm.getAllocator("HOST"))) {}
 
 } // namespace mfem
 

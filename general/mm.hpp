@@ -94,7 +94,8 @@ public:
 
    // Copies bytes from src to dst, which are both device addresses
    // NOTE These may be offset from the original pointers in the registry
-   void copyData(void *dst, const void *src, std::size_t bytes, const bool async = false);
+   void copyData(void *dst, const void *src, std::size_t bytes,
+                 const bool async = false);
 
    // Tells if the host address is known by the memory manager
    bool Known(const void *a);
@@ -131,9 +132,11 @@ MemoryManager& getInstance();
 
 // Allocate memory
 template<class T>
-T* malloc(const std::size_t n, const std::size_t size = sizeof(T)) {
+T* malloc(const std::size_t n, const std::size_t size = sizeof(T))
+{
    T* ptr = getInstance().allocate<T>(n);
-   if (config::usingMM()) {
+   if (config::usingMM())
+   {
       getInstance().insertAddress(ptr, n*size);
    }
    return ptr;
@@ -141,8 +144,10 @@ T* malloc(const std::size_t n, const std::size_t size = sizeof(T)) {
 
 // Deallocate memory
 template<class T>
-void free(void *ptr) {
-   if (ptr != nullptr) {
+void free(void *ptr)
+{
+   if (ptr != nullptr)
+   {
       getInstance().deallocate(static_cast<T*>(ptr));
       if (config::usingMM())
       {

@@ -18,7 +18,8 @@ namespace mfem
 namespace mm
 {
 
-MemoryManager& getInstance() {
+MemoryManager& getInstance()
+{
    static MemoryManager* s_instance = new MemoryManager();
    return *s_instance;
 }
@@ -29,14 +30,16 @@ MemoryManager& getInstance() {
 // return occaWrapMemory(config::GetOccaDevice(), d_ptr, bytes);
 // }
 
-static inline bool useMM(){
+static inline bool useMM()
+{
    const bool usingMM = config::usingMM();
    const bool gpuNotDisabled = !config::gpuDisabled();
    const bool gpuHasBeenEnabled = config::gpuHasBeenEnabled();
    return usingMM && gpuHasBeenEnabled && gpuNotDisabled;
 }
 
-void* ptr(void *a) {
+void* ptr(void *a)
+{
    if (useMM())
    {
       return getInstance().getPtr(a);
@@ -47,11 +50,13 @@ void* ptr(void *a) {
    }
 }
 
-const void* ptr(const void *a) {
+const void* ptr(const void *a)
+{
    return ptr(const_cast<void*>(a));
 }
 
-OccaMemory occaPtr(const void *a) {
+OccaMemory occaPtr(const void *a)
+{
    if (config::usingMM())
    {
       return getInstance().getOccaPtr(a);
@@ -64,14 +69,16 @@ OccaMemory occaPtr(const void *a) {
    }
 }
 
-void push(const void *ptr, const std::size_t bytes) {
+void push(const void *ptr, const std::size_t bytes)
+{
    if (useMM())
    {
       getInstance().pushData(ptr, bytes);
    }
 }
 
-void pull(const void *ptr, const std::size_t bytes) {
+void pull(const void *ptr, const std::size_t bytes)
+{
    if (useMM())
    {
       getInstance().pullData(ptr, bytes);
@@ -79,7 +86,8 @@ void pull(const void *ptr, const std::size_t bytes) {
 }
 
 void memcpy(void *dst, const void *src,
-            const std::size_t bytes, const bool async) {
+            const std::size_t bytes, const bool async)
+{
    if (bytes > 0)
    {
       getInstance().copyData(dst, src, bytes, async);
@@ -97,7 +105,7 @@ void memcpy(void *dst, const void *src,
 static bool Known(const DefaultMemoryManager::ledger &maps, const void *ptr)
 {
    const DefaultMemoryManager::memory_map::const_iterator
-      found = maps.memories.find(ptr);
+   found = maps.memories.find(ptr);
    const bool known = found != maps.memories.end();
    if (known) { return true; }
    return false;
@@ -117,7 +125,7 @@ static const void* IsAlias(const DefaultMemoryManager::ledger &maps,
 {
    MFEM_ASSERT(!Known(maps, ptr), "Ptr is an already known address!");
    for (DefaultMemoryManager::memory_map::const_iterator
-           mem = maps.memories.begin();
+        mem = maps.memories.begin();
         mem != maps.memories.end(); mem++)
    {
       const void *b_ptr = mem->first;
@@ -208,7 +216,7 @@ void DefaultMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
    }
    MFEM_ASSERT(!known, "Trying to add already present address!");
    //dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
-   DumpMode();   
+   DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes));
 }
 
