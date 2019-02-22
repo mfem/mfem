@@ -207,6 +207,7 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
    {
       // mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    }
+   mesh->EnsureNodes();
    const GridFunction *nodes = mesh->GetNodes();
 
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
@@ -248,7 +249,7 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
    Geom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
         geom->meshNodes, geom->J, geom->invJ, geom->detJ);
-   delete maps;
+   //delete maps;
    return geom;
 }
 

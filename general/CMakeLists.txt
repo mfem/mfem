@@ -27,6 +27,7 @@ list(APPEND SRCS
   stable3d.cpp
   table.cpp
   tic_toc.cpp
+  umpire.cpp
   version.cpp
   )
 
@@ -56,6 +57,7 @@ list(APPEND HDRS
   tassign.hpp
   tic_toc.hpp
   text.hpp
+  umpire.hpp
   version.hpp
   )
 

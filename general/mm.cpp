@@ -9,9 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/okina.hpp"
-
-#include <cassert>
+#include "okina.hpp"
+#include <bitset>
 
 namespace mfem
 {
@@ -31,9 +30,9 @@ MemoryManager& getInstance() {
 // }
 
 void* ptr(void *a) {
-   if (config::usingMM() && config::gpuEnabled() && config::gpuHasBeenEnabled())
+   if (config::usingMM() && config::gpuHasBeenEnabled() && !config::gpuDisabled())
    {
-      return getInstance().getDevicePtr(a);
+      return getInstance().getPtr(a);
    }
    else
    {
@@ -42,13 +41,7 @@ void* ptr(void *a) {
 }
 
 const void* ptr(const void *a) {
-   if (config::usingMM() && config::gpuEnabled() && config::gpuHasBeenEnabled())
-   {
-      return getInstance().getDevicePtr(const_cast<void*>(a));
-   }
-   else {
-      return a;
-   }
+   return getInstance().getPtr(const_cast<void*>(a));
 }
 
 OccaMemory occaPtr(const void *a) {
@@ -64,14 +57,14 @@ OccaMemory occaPtr(const void *a) {
 }
 
 void push(const void *ptr, const std::size_t bytes) {
-   if (config::usingMM() && config::gpuEnabled() && config::gpuHasBeenEnabled())
+   if (config::usingMM() && config::gpuHasBeenEnabled() && !config::gpuDisabled())
    {
       getInstance().pushData(ptr, bytes);
    }
 }
 
 void pull(const void *ptr, const std::size_t bytes) {
-   if (config::usingMM() && config::gpuEnabled() && config::gpuHasBeenEnabled())
+   if (config::usingMM() && config::gpuHasBeenEnabled() && !config::gpuDisabled())
    {
       getInstance().pullData(ptr, bytes);
    }
@@ -95,19 +88,28 @@ void memcpy(void *dst, const void *src,
 // *****************************************************************************
 static bool Known(const DefaultMemoryManager::ledger &maps, const void *ptr)
 {
-   const DefaultMemoryManager::memory_map::const_iterator found = maps.memories.find(ptr);
+   const DefaultMemoryManager::memory_map::const_iterator
+      found = maps.memories.find(ptr);
    const bool known = found != maps.memories.end();
    if (known) { return true; }
    return false;
 }
 
 // *****************************************************************************
+bool DefaultMemoryManager::Known(const void *ptr)
+{
+   return mfem::Known(maps,ptr);
+}
+
+// *****************************************************************************
 // * Looks if ptr is an alias of one memory
 // *****************************************************************************
-static const void* IsAlias(const DefaultMemoryManager::ledger &maps, const void *ptr)
+static const void* IsAlias(const DefaultMemoryManager::ledger &maps,
+                           const void *ptr)
 {
    MFEM_ASSERT(!Known(maps, ptr), "Ptr is an already known address!");
-   for (DefaultMemoryManager::memory_map::const_iterator mem = maps.memories.begin();
+   for (DefaultMemoryManager::memory_map::const_iterator
+           mem = maps.memories.begin();
         mem != maps.memories.end(); mem++)
    {
       const void *b_ptr = mem->first;
@@ -120,13 +122,13 @@ static const void* IsAlias(const DefaultMemoryManager::ledger &maps, const void 
 
 // *****************************************************************************
 static const void* InsertAlias(DefaultMemoryManager::ledger &maps,
-                               const void *base,
-                               const void *ptr)
+                               const void *base, const void *ptr)
 {
    DefaultMemoryManager::memory &mem = maps.memories.at(base);
    const std::size_t offset = (char *)ptr - (char *)base;
-   const DefaultMemoryManager::alias *alias = new DefaultMemoryManager::alias{&mem, offset};
-   maps.aliases[ptr] = alias;
+   const DefaultMemoryManager::alias *alias =
+      new DefaultMemoryManager::alias{&mem, offset};
+   maps.aliases.emplace(ptr, alias);
    mem.aliases.push_back(alias);
    return ptr;
 }
@@ -136,7 +138,8 @@ static const void* InsertAlias(DefaultMemoryManager::ledger &maps,
 // *****************************************************************************
 static bool Alias(DefaultMemoryManager::ledger &maps, const void *ptr)
 {
-   const DefaultMemoryManager::alias_map::const_iterator found = maps.aliases.find(ptr);
+   const DefaultMemoryManager::alias_map::const_iterator found =
+      maps.aliases.find(ptr);
    const bool alias = found != maps.aliases.end();
    if (alias) { return true; }
    const void *base = IsAlias(maps, ptr);
@@ -146,10 +149,34 @@ static bool Alias(DefaultMemoryManager::ledger &maps, const void *ptr)
 }
 
 // *****************************************************************************
-/*static void debugMode(void)
+bool DefaultMemoryManager::Alias(const void *ptr)
 {
-   dbg("\033[1K\r%sMM %sHasBeenEnabled %sEnabled %sDisabled \
-%sCPU %sGPU %sPA %sCUDA %sOCCA",
+   return mfem::Alias(maps,ptr);
+}
+
+// *****************************************************************************
+static void DumpMode(void)
+{
+   static bool env_ini = false;
+   static bool env_dbg = false;
+   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
+   if (!env_dbg) { return; }
+   static std::bitset<9+1> mode;
+   std::bitset<9+1> cfg;
+   cfg.set(config::usingMM()?9:0);
+   cfg.set(config::gpuHasBeenEnabled()?8:0);
+   cfg.set(config::gpuEnabled()?7:0);
+   cfg.set(config::gpuDisabled()?6:0);
+   cfg.set(config::usingCpu()?5:0);
+   cfg.set(config::usingGpu()?4:0);
+   cfg.set(config::usingPA()?3:0);
+   cfg.set(config::usingCuda()?2:0);
+   cfg.set(config::usingOcca()?1:0);
+   cfg>>=1;
+   if (cfg==mode) { return; }
+   mode=cfg;
+   dbg("\033[1K\r[0x%x] %sMM %sHasBeenEnabled %sEnabled %sDisabled \
+%sCPU %sGPU %sPA %sCUDA %sOCCA", mode.to_ulong(),
        config::usingMM()?"\033[32m":"\033[31m",
        config::gpuHasBeenEnabled()?"\033[32m":"\033[31m",
        config::gpuEnabled()?"\033[32m":"\033[31m",
@@ -159,16 +186,21 @@ static bool Alias(DefaultMemoryManager::ledger &maps, const void *ptr)
        config::usingPA()?"\033[32m":"\033[31m",
        config::usingCuda()?"\033[32m":"\033[31m",
        config::usingOcca()?"\033[32m":"\033[31m");
-}*/
+}
 
 // *****************************************************************************
 // * Adds an address
 // *****************************************************************************
+#warning n*size in mm.hpp
 void DefaultMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
 {
-   const bool known = Known(maps, ptr);
+   const bool known = Known(ptr);
+   if (known)
+   {
+      mfem_error("Trying to insert a non-MM pointer!");
+   }
    MFEM_ASSERT(!known, "Trying to add already present address!");
-   dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
+   DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes));
 }
 
@@ -177,17 +209,18 @@ void DefaultMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
 // *****************************************************************************
 void DefaultMemoryManager::removeAddress(void *ptr)
 {
-   const bool known = Known(maps, ptr);
-   // if (!known) { BUILTIN_TRAP; }
-   if (!known) { mfem_error("Trying to remove an unknown address!"); }
+   const bool known = Known(ptr);
+   if (!known)
+   {
+      mfem_error("Trying to remove an unknown address!");
+   }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
-   const memory &mem = maps.memories.at(ptr);
-   dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
+   memory &mem = maps.memories.at(ptr);
    for (const alias* const alias : mem.aliases)
    {
       maps.aliases.erase(alias);
-      delete alias;
    }
+   mem.aliases.clear();
    maps.memories.erase(ptr);
 }
 
@@ -245,29 +278,34 @@ static void* PtrAlias(DefaultMemoryManager::ledger &maps, void *ptr)
 // *****************************************************************************
 // * Turn an address to the right host or device one
 // *****************************************************************************
-void* DefaultMemoryManager::getDevicePtr(void *ptr)
+void* DefaultMemoryManager::getPtr(void *ptr)
 {
-   if (Known(maps, ptr)) { return PtrKnown(maps, ptr); }
-   const bool alias = Alias(maps, ptr);
-   // if (!alias) { BUILTIN_TRAP; }
-   if (!alias) { mfem_error("DefaultMemoryManager::Ptr"); }
-   MFEM_ASSERT(alias, "Unknown address!");
-   return PtrAlias(maps, ptr);
+   if (Known(ptr)) { return PtrKnown(maps, ptr); }
+   if (Alias(ptr)) { return PtrAlias(maps, ptr); }
+   if (config::usingGpu())
+   {
+      mfem_error("Trying to use unknown pointer on the GPU!");
+   }
+   return ptr;
 }
 
 // *****************************************************************************
 OccaMemory DefaultMemoryManager::getOccaPtr(const void *ptr)
 {
    OccaDevice occaDevice = config::GetOccaDevice();
-   const bool known = Known(maps, ptr);
+   if (!config::usingMM())
+   {
+      OccaMemory o_ptr = occaWrapMemory(occaDevice, (void *)ptr, 0);
+      return o_ptr;
+   }
+   const bool known = Known(ptr);
    // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("occaMemory"); }
    MFEM_ASSERT(known, "Unknown address!");
    DefaultMemoryManager::memory &base = maps.memories.at(ptr);
    const std::size_t bytes = base.bytes;
    const bool gpu = config::usingGpu();
-   const bool occa = config::usingOcca();
-   MFEM_ASSERT(occa, "Using OCCA memory without OCCA mode!");
+   MFEM_ASSERT(config::usingOcca(), "Using OCCA memory without OCCA mode!");
    if (!base.d_ptr)
    {
       base.host = false; // This address is no more on the host
@@ -292,7 +330,8 @@ OccaMemory DefaultMemoryManager::getOccaPtr(const void *ptr)
 }
 
 // *****************************************************************************
-static void PushKnown(DefaultMemoryManager::ledger &maps, const void *ptr, const std::size_t bytes)
+static void PushKnown(DefaultMemoryManager::ledger &maps,
+                      const void *ptr, const std::size_t bytes)
 {
    DefaultMemoryManager::memory &base = maps.memories.at(ptr);
    if (!base.d_ptr) { cuMemAlloc(&base.d_ptr, base.bytes); }
@@ -300,8 +339,8 @@ static void PushKnown(DefaultMemoryManager::ledger &maps, const void *ptr, const
 }
 
 // *****************************************************************************
-static void PushAlias(const DefaultMemoryManager::ledger &maps, const void *ptr,
-                      const std::size_t bytes)
+static void PushAlias(const DefaultMemoryManager::ledger &maps,
+                      const void *ptr, const std::size_t bytes)
 {
    const DefaultMemoryManager::alias *alias = maps.aliases.at(ptr);
    cuMemcpyHtoD((char*)alias->mem->d_ptr + alias->offset, ptr, bytes);
@@ -310,81 +349,38 @@ static void PushAlias(const DefaultMemoryManager::ledger &maps, const void *ptr,
 // *****************************************************************************
 void DefaultMemoryManager::pushData(const void *ptr, const std::size_t bytes)
 {
-   if (Known(maps, ptr)) { return PushKnown(maps, ptr, bytes); }
-   assert(!config::usingOcca());
-   const bool alias = Alias(maps, ptr);
-   // if (!alias) { BUILTIN_TRAP; }
-   if (!alias) { mfem_error("DefaultMemoryManager::push"); }
-   MFEM_ASSERT(alias, "Unknown address!");
-   return PushAlias(maps, ptr, bytes);
+   if (Known(ptr)) { return PushKnown(maps, ptr, bytes); }
+   if (Alias(ptr)) { return PushAlias(maps, ptr, bytes); }
+   mfem_error("Unknown address!");
 }
 
 // *****************************************************************************
-static void PullKnown(const DefaultMemoryManager::ledger &maps, const void *ptr,
-                      const std::size_t bytes)
+static void PullKnown(const DefaultMemoryManager::ledger &maps,
+                      const void *ptr, const std::size_t bytes)
 {
    const DefaultMemoryManager::memory &base = maps.memories.at(ptr);
+   const bool host = base.host;
+   if (host) { return; }
    cuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes == 0 ? base.bytes : bytes);
 }
 
 // *****************************************************************************
-static void PullAlias(const DefaultMemoryManager::ledger &maps, const void *ptr,
-                      const std::size_t bytes)
+static void PullAlias(const DefaultMemoryManager::ledger &maps,
+                      const void *ptr, const std::size_t bytes)
 {
    const DefaultMemoryManager::alias *alias = maps.aliases.at(ptr);
+   const bool host = alias->mem->host;
+   if (host) { return; }
    cuMemcpyDtoH((void *)ptr, (char*)alias->mem->d_ptr + alias->offset, bytes);
 }
 
 // *****************************************************************************
 void DefaultMemoryManager::pullData(const void *ptr, const std::size_t bytes)
 {
-   if (Known(maps, ptr)) { return PullKnown(maps, ptr, bytes); }
-   assert(!config::usingOcca());
-   const bool alias = Alias(maps, ptr);
-   // if (!alias) { BUILTIN_TRAP; }
-   if (!alias) { mfem_error("DefaultMemoryManager::pull"); }
-   MFEM_ASSERT(alias, "Unknown address!");
-   return PullAlias(maps, ptr, bytes);
+   if (Known(ptr)) { return PullKnown(maps, ptr, bytes); }
+   if (Alias(ptr)) { return PullAlias(maps, ptr, bytes); }
+   mfem_error("Unknown address!");
 }
-
-// *****************************************************************************
-// __attribute__((unused)) // VS doesn't like this in Appveyor
-/*static void Dump(const DefaultMemoryManager::ledger &maps)
-{
-   if (!getenv("DBG")) { return; }
-   const DefaultMemoryManager::memory_map &mem = maps.memories;
-   const DefaultMemoryManager::alias_map  &als = maps.aliases;
-   std::size_t k = 0;
-   for (DefaultMemoryManager::memory_map::const_iterator m = mem.begin(); m != mem.end(); m++)
-   {
-      const void *h_ptr = m->first;
-      assert(h_ptr == m->second.h_ptr);
-      const std::size_t bytes = m->second.bytes;
-      const void *d_ptr = m->second.d_ptr;
-      if (!d_ptr)
-      {
-         printf("\n[%ld] \033[33m%p \033[35m(%ld)", k, h_ptr, bytes);
-      }
-      else
-      {
-         printf("\n[%ld] \033[33m%p \033[35m (%ld) \033[32 -> %p",
-                k, h_ptr, bytes, d_ptr);
-      }
-      fflush(0);
-      k++;
-   }
-   k = 0;
-   for (DefaultMemoryManager::alias_map::const_iterator a = als.begin(); a != als.end(); a++)
-   {
-      const void *ptr = a->first;
-      const std::size_t offset = a->second->offset;
-      const void *base = a->second->mem->h_ptr;
-      printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",
-             k, base, offset, ptr);
-      fflush(0);
-      k++;
-   }
-}*/
 
 // *****************************************************************************
 void DefaultMemoryManager::copyData(void *dst, const void *src,
@@ -408,125 +404,5 @@ void DefaultMemoryManager::copyData(void *dst, const void *src,
       }
    }
 }
-
-
-// ********** UmpireMemoryManager **********
-#if defined(MFEM_USE_UMPIRE)
-// Register an address
-void UmpireMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
-{
-}
-
-// Remove an address
-void UmpireMemoryManager::removeAddress(void *ptr)
-{
-   // Get the base pointer
-   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(ptr);
-   char* base_ptr = static_cast<char*>(rec->m_ptr);
-
-   // Look it up in the map
-   MapType::const_iterator iter = m_map.find(base_ptr);
-
-   if (iter != m_map.end())
-   {
-      m_device.deallocate(iter->second);
-   }
-}
-
-void* UmpireMemoryManager::getDevicePtr(void *a)
-{
-   // Get the base pointer
-   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(a);
-   char* base_ptr = static_cast<char*>(rec->m_ptr);
-
-   // Look it up in the map
-   MapType::const_iterator iter = m_map.find(base_ptr);
-
-   // Calculate the offset
-   const std::size_t offset = static_cast<char*>(a) - base_ptr;
-
-   if (iter != m_map.end())
-   {
-      return static_cast<void*>(iter->second + offset);
-   }
-   else
-   {
-      char* d_ptr = m_map[base_ptr] = static_cast<char*>(m_device.allocate(rec->m_size));
-      return d_ptr + offset;
-   }
-}
-
-OccaMemory UmpireMemoryManager::getOccaPtr(const void *a)
-{
-   // Get the base pointer
-   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(const_cast<void*>(a));
-   char* base_ptr = static_cast<char*>(rec->m_ptr);
-
-   // Look it up in the map
-   MapType::const_iterator iter = m_map.find(base_ptr);
-
-   void* d_ptr = (iter != m_map.end()) ? iter->second : nullptr;
-
-   return occaWrapMemory(config::GetOccaDevice(), d_ptr, rec->m_size);
-}
-
-void UmpireMemoryManager::pushData(const void *ptr, const std::size_t bytes)
-{
-   char* host_ptr = const_cast<char*>(static_cast<const char*>(ptr));
-   // Get the base pointer
-   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(host_ptr);
-   char* base_ptr = static_cast<char*>(rec->m_ptr);
-
-   // Get the device pointer from the map offset by the same distance
-   MapType::const_iterator iter = m_map.find(base_ptr);
-   if (iter == m_map.end())
-   {
-      mfem_error("Could not find an allocation record assocated with address");
-   }
-
-   std::size_t host_offset = host_ptr - base_ptr;
-   char* dev_ptr = iter->second + host_offset;
-
-   m_rm.copy(dev_ptr, host_ptr, bytes);
-}
-
-void UmpireMemoryManager::pullData(const void *ptr, const std::size_t bytes)
-{
-   char* host_ptr = const_cast<char*>(static_cast<const char*>(ptr));
-   // Get the base pointer
-   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(host_ptr);
-   char* base_ptr = static_cast<char*>(rec->m_ptr);
-
-   // Get the device pointer from the map offset by the same distance
-   MapType::const_iterator iter = m_map.find(base_ptr);
-   if (iter == m_map.end())
-   {
-      mfem_error("Could not find an allocation record assocated with address");
-   }
-
-   std::size_t host_offset = host_ptr - base_ptr;
-   char* dev_ptr = iter->second + host_offset;
-
-   m_rm.copy(host_ptr, dev_ptr, bytes);
-}
-
-void UmpireMemoryManager::copyData(void *dst, const void *src, std::size_t bytes, const bool async)
-{
-   if (async)
-   {
-      mfem_warning("Async transfers are not yet implemented. Will block for now.");
-   }
-   m_rm.copy(dst, const_cast<void*>(src), bytes);
-}
-
-UmpireMemoryManager::UmpireMemoryManager() :
-   m_rm(umpire::ResourceManager::getInstance()),
-   m_host(m_rm.makeAllocator<umpire::strategy::DynamicPool>("host_pool", m_rm.getAllocator("HOST"))),
-   m_device(config::gpuEnabled() ?
-            m_rm.makeAllocator<umpire::strategy::DynamicPool>("target_pool", m_rm.getAllocator("DEVICE")) :
-            m_rm.makeAllocator<umpire::strategy::DynamicPool>("target_pool", m_rm.getAllocator("HOST"))) {}
-
-#endif
-
 
 } // namespace mfem

@@ -26,6 +26,7 @@
 #include "./cuda.hpp"
 #include "./occa.hpp"
 #include "./raja.hpp"
+#include "./umpire.hpp"
 
 // *****************************************************************************
 #include "mm.hpp"

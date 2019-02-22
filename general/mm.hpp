@@ -12,68 +12,55 @@
 #ifndef MFEM_MM
 #define MFEM_MM
 
-#include <cstddef> // for size_t
-
-#include <list>
-#include <unordered_map>
 #include <new>
-
-#include "config.hpp"
-#include "occa.hpp" // for OccaMemory
+#include <list>
+#include <cstddef>
+#include <unordered_map>
 
 #include "../config/config.hpp"
-#if defined(MFEM_USE_UMPIRE)
-#include "umpire/Umpire.hpp"
-#endif
+#include "occa.hpp"
+#include "config.hpp"
+#include "umpire.hpp"
 
 namespace mfem
 {
 
-// The default memory manager implementation
+// *****************************************************************************
+// * The default memory manager implementation
+// *****************************************************************************
 class DefaultMemoryManager
 {
 public:
    struct alias;
-
-   // TODO: Change this to ptr
    struct memory
    {
       bool host;
       const std::size_t bytes;
-
       void *const h_ptr;
       void *d_ptr;
       OccaMemory o_ptr;
-
       std::list<const alias *> aliases;
-
       memory(void* const h, const std::size_t b):
          host(true), bytes(b), h_ptr(h), d_ptr(NULL), aliases() {}
    };
-
    struct alias
    {
       memory *const mem;
       const std::size_t offset;
    };
-
    typedef std::unordered_map<const void*, memory> memory_map;
    typedef std::unordered_map<const void*, const alias*> alias_map;
-
    struct ledger
    {
       memory_map memories;
       alias_map aliases;
    };
 
-   // **************************************************************************
-
    // Allocate a host pointer and add it to the registry
    template<typename T>
    inline T* allocate(const std::size_t n)
    {
-      T* addr = ::new T[n];
-      return addr;
+      return ::new T[n];
    }
 
    // Deallocate a pointer and remove it and all device allocations from the registry
@@ -89,9 +76,9 @@ public:
    // Remove an address
    void removeAddress(void *ptr);
 
-   // For a given host address, return the coresponding device address
+   // For a given host address, return the current mode's address
    // NOTE This may be offset from the original pointer in the registry
-   void* getDevicePtr(void *a);
+   void* getPtr(void *a);
 
    // Get the matching OCCA pointer
    // TODO Remove this method -- wrap the d_ptr instead
@@ -108,6 +95,12 @@ public:
    // Copies bytes from src to dst, which are both device addresses
    // NOTE These may be offset from the original pointers in the registry
    void copyData(void *dst, const void *src, std::size_t bytes, const bool async = false);
+
+   // Tells if the host address is known by the memory manager
+   bool Known(const void *a);
+
+   // Tells if the host address is a known alias by the memory manager
+   bool Alias(const void *ptr);
 
    // Default constructor
    DefaultMemoryManager() = default;
@@ -116,82 +109,20 @@ private:
    ledger maps;
 };
 
-// Umpire memory manager implementation
-#if defined(MFEM_USE_UMPIRE)
-class UmpireMemoryManager
-{
-public:
-   // Allocate a host pointer and add it to the registry
-   template<typename T>
-   inline T* allocate(const std::size_t n)
-   {
-      const std::size_t size = n * sizeof(T);
-      void *mem = m_host.allocate(size);
-      insertAddress(mem, size);
-      T* objs = new (mem) T[n];
-      return objs;
-   }
-
-   // Deallocate a pointer and remove it and all device allocations from the registry
-   template<typename T>
-   inline void deallocate(T *ptr)
-   {
-      // TODO: Missing array placement delete
-      m_host.deallocate(ptr);
-   }
-
-   // Register an address
-   void insertAddress(void *ptr, const std::size_t bytes);
-
-   // Remove an address
-   void removeAddress(void *ptr);
-
-   // For a given host address, return the coresponding device address
-   // NOTE This may be offset from the original pointer in the registry
-   void* getDevicePtr(void *a);
-
-   // Get the matching OCCA pointer
-   // TODO Remove this method -- wrap the d_ptr instead
-   OccaMemory getOccaPtr(const void *a);
-
-   // Given a host pointer, push bytes beginning at address ptr to the device allocation
-   // NOTE This may be offset from the original pointer in the registry
-   void pushData(const void *ptr, const std::size_t bytes = 0);
-
-   // Given a device pointer, pull size bytes beginning at address ptr to the host allocation
-   // NOTE This may be offset from the original pointer in the registry
-   void pullData(const void *ptr, const std::size_t bytes = 0);
-
-   // Copies bytes from src to dst, which are both device addresses
-   // NOTE These may be offset from the original pointers in the registry
-   void copyData(void *dst, const void *src, std::size_t bytes, const bool async = false);
-
-   // Constructor
-   UmpireMemoryManager();
-
-private:
-   typedef std::unordered_map< char*, char* > MapType;
-
-   MapType m_map;
-
-   umpire::ResourceManager& m_rm;
-   umpire::Allocator m_host;
-   umpire::Allocator m_device;
-};
-#endif
-
-
-// Define the type of memory manager
-
-// NOTE This is needed because malloc and free are templated on the
-// type throughout okina, and virtual templated methods are forbidden.
+// *****************************************************************************
+// * Define the type of memory manager
+// * NOTE This is needed because malloc and free are templated on the
+// * type throughout okina, and virtual templated methods are forbidden.
+// *****************************************************************************
 #if defined(MFEM_USE_UMPIRE)
 using MemoryManager = UmpireMemoryManager;
 #else
 using MemoryManager = DefaultMemoryManager;
 #endif
 
-// This namespace defines the interface functions that the rest of MFEM uses
+// *****************************************************************************
+// * This namespace defines the interface functions that the rest of MFEM uses
+// *****************************************************************************
 namespace mm
 {
 
@@ -201,12 +132,10 @@ MemoryManager& getInstance();
 // Allocate memory
 template<class T>
 T* malloc(const std::size_t n, const std::size_t size = sizeof(T)) {
-   T* ptr = getInstance().allocate<T>(n * size);
-
-   if (config::usingMM() && config::gpuEnabled()) {
+   T* ptr = getInstance().allocate<T>(n/* * size*/);
+   if (config::usingMM()) {
       getInstance().insertAddress(ptr, size);
    }
-
    return ptr;
 }
 
@@ -214,11 +143,11 @@ T* malloc(const std::size_t n, const std::size_t size = sizeof(T)) {
 template<class T>
 void free(void *ptr) {
    if (ptr != nullptr) {
-      if (config::usingMM() && config::gpuEnabled())
+      getInstance().deallocate(static_cast<T*>(ptr));
+      if (config::usingMM())
       {
          getInstance().removeAddress(ptr);
       }
-      getInstance().deallocate(static_cast<T*>(ptr));
    }
 }
 
@@ -227,6 +156,9 @@ void* ptr(void *a);
 
 // Get the device pointer (const version)
 const void* ptr(const void *a);
+
+// Tells if the pointer is known by the memory manager
+bool Known(const void *a);
 
 // Get the device memory wrapped in an occa::Device
 OccaMemory occaPtr(const void *a);
@@ -240,6 +172,12 @@ void pull(const void *ptr, const std::size_t bytes = 0);
 // Copy data between device addresses
 void memcpy(void *dst, const void *src,
             const std::size_t bytes, const bool async = false);
+
+// Tells if the host address is known by the memory manager
+bool Known(const void *ptr);
+
+// Tells if the host address is a known alias by the memory manager
+bool Alias(const void *ptr);
 
 } // namespace mm
 
