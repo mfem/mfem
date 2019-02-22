@@ -132,9 +132,9 @@ MemoryManager& getInstance();
 // Allocate memory
 template<class T>
 T* malloc(const std::size_t n, const std::size_t size = sizeof(T)) {
-   T* ptr = getInstance().allocate<T>(n/* * size*/);
+   T* ptr = getInstance().allocate<T>(n);
    if (config::usingMM()) {
-      getInstance().insertAddress(ptr, size);
+      getInstance().insertAddress(ptr, n*size);
    }
    return ptr;
 }

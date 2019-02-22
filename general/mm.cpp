@@ -29,8 +29,15 @@ MemoryManager& getInstance() {
 // return occaWrapMemory(config::GetOccaDevice(), d_ptr, bytes);
 // }
 
+static inline bool useMM(){
+   const bool usingMM = config::usingMM();
+   const bool gpuNotDisabled = !config::gpuDisabled();
+   const bool gpuHasBeenEnabled = config::gpuHasBeenEnabled();
+   return usingMM && gpuHasBeenEnabled && gpuNotDisabled;
+}
+
 void* ptr(void *a) {
-   if (config::usingMM() && config::gpuHasBeenEnabled() && !config::gpuDisabled())
+   if (useMM())
    {
       return getInstance().getPtr(a);
    }
@@ -41,7 +48,7 @@ void* ptr(void *a) {
 }
 
 const void* ptr(const void *a) {
-   return getInstance().getPtr(const_cast<void*>(a));
+   return ptr(const_cast<void*>(a));
 }
 
 OccaMemory occaPtr(const void *a) {
@@ -51,20 +58,21 @@ OccaMemory occaPtr(const void *a) {
    }
    else
    {
-      OccaMemory o_ptr = occaWrapMemory(config::GetOccaDevice(), const_cast<void*>(a), 0);
+      OccaMemory o_ptr = occaWrapMemory(config::GetOccaDevice(),
+                                        const_cast<void*>(a), 0);
       return o_ptr;
    }
 }
 
 void push(const void *ptr, const std::size_t bytes) {
-   if (config::usingMM() && config::gpuHasBeenEnabled() && !config::gpuDisabled())
+   if (useMM())
    {
       getInstance().pushData(ptr, bytes);
    }
 }
 
 void pull(const void *ptr, const std::size_t bytes) {
-   if (config::usingMM() && config::gpuHasBeenEnabled() && !config::gpuDisabled())
+   if (useMM())
    {
       getInstance().pullData(ptr, bytes);
    }
@@ -191,7 +199,6 @@ static void DumpMode(void)
 // *****************************************************************************
 // * Adds an address
 // *****************************************************************************
-#warning n*size in mm.hpp
 void DefaultMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
 {
    const bool known = Known(ptr);
@@ -200,7 +207,8 @@ void DefaultMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
       mfem_error("Trying to insert a non-MM pointer!");
    }
    MFEM_ASSERT(!known, "Trying to add already present address!");
-   DumpMode();
+   //dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
+   DumpMode();   
    maps.memories.emplace(ptr, memory(ptr, bytes));
 }
 
@@ -216,6 +224,7 @@ void DefaultMemoryManager::removeAddress(void *ptr)
    }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
    memory &mem = maps.memories.at(ptr);
+   //dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
    for (const alias* const alias : mem.aliases)
    {
       maps.aliases.erase(alias);
@@ -392,8 +401,8 @@ void DefaultMemoryManager::copyData(void *dst, const void *src,
    }
    else
    {
-      GET_PTR(src);
-      GET_PTR(dst);
+      const void *d_src = mm::ptr(src);
+      void *d_dst = mm::ptr(dst);
       if (!async)
       {
          cuMemcpyDtoD(d_dst, (void *)d_src, bytes);
