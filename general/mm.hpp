@@ -148,11 +148,11 @@ void free(void *ptr)
 {
    if (ptr != nullptr)
    {
-      getInstance().deallocate(static_cast<T*>(ptr));
       if (config::usingMM())
       {
          getInstance().removeAddress(ptr);
       }
+      getInstance().deallocate(static_cast<T*>(ptr));
    }
 }
 
