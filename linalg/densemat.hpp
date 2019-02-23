@@ -730,7 +730,9 @@ public:
 
    double *GetData(int k) { return tdata+k*Mk.Height()*Mk.Width(); }
 
-   double *Data() const { return tdata; }
+   double *Data() { return tdata; }
+   
+   const double *Data() const { return tdata; }
 
    /** Matrix-vector product from unassembled element matrices, assuming both
        'x' and 'y' use the same elem_dof table. */
