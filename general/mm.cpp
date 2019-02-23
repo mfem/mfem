@@ -171,7 +171,7 @@ bool DefaultMemoryManager::Alias(const void *ptr)
 }
 
 // *****************************************************************************
-static void DumpMode(void)
+/*static void DumpMode(void)
 {
    static bool env_ini = false;
    static bool env_dbg = false;
@@ -202,7 +202,7 @@ static void DumpMode(void)
        config::usingPA()?"\033[32m":"\033[31m",
        config::usingCuda()?"\033[32m":"\033[31m",
        config::usingOcca()?"\033[32m":"\033[31m");
-}
+       }*/
 
 // *****************************************************************************
 // * Adds an address
@@ -216,7 +216,7 @@ void DefaultMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
    }
    MFEM_ASSERT(!known, "Trying to add already present address!");
    //dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
-   DumpMode();
+   //DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes));
 }
 

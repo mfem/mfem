@@ -26,19 +26,23 @@ namespace mfem
 // * A dirty least significant bit is used in the second field of MapType.
 // * It tells if a device address has been pulled on the host.
 // *****************************************************************************
-static inline char *FlushHostBit(char *ptr){
+static inline char *FlushHostBit(char *ptr)
+{
    return reinterpret_cast<char*>(reinterpret_cast<uintptr_t>(ptr) & ~1ul);
 }
 
-static inline char *SetHostBit(char *ptr){
+static inline char *SetHostBit(char *ptr)
+{
    return reinterpret_cast<char*>(reinterpret_cast<uintptr_t>(ptr) | 1ul);
 }
 
-static inline char *ToggleHostBit(char **ptr){
+static inline char *ToggleHostBit(char **ptr)
+{
    return *ptr=reinterpret_cast<char*>(reinterpret_cast<uintptr_t>(*ptr) ^ 1ul);
 }
 
-static inline bool HasHostBit(const char *ptr){
+static inline bool HasHostBit(const char *ptr)
+{
    return (reinterpret_cast<uintptr_t>(ptr) & 1ul)==1ul;
 }
 
@@ -74,17 +78,18 @@ void* UmpireMemoryManager::getPtr(void *ptr)
    const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(ptr);
    char* base_ptr = static_cast<char*>(rec->m_ptr);
    const std::size_t bytes = rec->m_size;
-   
+
    // Calculate the offset
    const std::size_t offset = static_cast<char*>(ptr) - base_ptr;
    assert(offset==0); // no alias seen yet
-   
+
    // Look it up in the map
    MapType::iterator iter = m_map.find(base_ptr);
    const bool allocated_on_device = iter != m_map.end();
 
    // Get the device pointer, do the allocation if needed
-   if (!allocated_on_device){
+   if (!allocated_on_device)
+   {
       char *d_ptr = static_cast<char*>(m_device.allocate(rec->m_size));
       // Assert we can use the host dirty bit
       MFEM_ASSERT(!(reinterpret_cast<uintptr_t>(d_ptr)%2),
@@ -95,7 +100,7 @@ void* UmpireMemoryManager::getPtr(void *ptr)
       iter = m_map.find(base_ptr);
    }
    char *d_ptr = iter->second;
-   
+
    // Get the states of our config and pointer
    const bool cpu = HasHostBit(d_ptr);
    const bool gpu = !cpu;
