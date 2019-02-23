@@ -15,7 +15,6 @@
 #if defined(MFEM_USE_UMPIRE)
 
 #include "umpire/Umpire.hpp"
-//#include "umpire/Allocator.hpp"
 
 namespace mfem
 {
@@ -30,7 +29,6 @@ public:
    {
       const std::size_t bytes = n * sizeof(T);
       void *mem = m_host.allocate(bytes);
-      //insertAddress(mem, bytes);
       T* objs = new (mem) T[n];
       return objs;
    }
@@ -73,16 +71,8 @@ public:
    // Constructor
    UmpireMemoryManager();
 
-public:
-   struct umpire_memory{
-      bool host;
-      //std::size_t bytes;
-      char *d_ptr;
-      umpire_memory(char *p/*, std::size_t b*/):host(true), /*bytes(b),*/ d_ptr(p){}
-   };
-   typedef std::unordered_map< char*, umpire_memory > MapType;
-
 private:
+   typedef std::unordered_map< char*, char* > MapType;
    MapType m_map;
 
    umpire::ResourceManager& m_rm;

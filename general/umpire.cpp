@@ -20,40 +20,33 @@
 namespace mfem
 {
 
-// ********** UmpireMemoryManager **********
+// **************************** UmpireMemoryManager ****************************
 
 // *****************************************************************************
-// * Tests if ptr is a known address
+// * A dirty least significant bit is used in the second field of MapType.
+// * It tells if a device address has been pulled on the host.
 // *****************************************************************************
-/*static bool Known(const umpire::ResourceManager& rm,
-                  const UmpireMemoryManager::MapType &map, char *ptr)
-{
-   const umpire::util::AllocationRecord *rec = rm.findAllocationRecord(ptr);
-   assert(rec);
-   char* base_ptr = static_cast<char*>(rec->m_ptr);
-   assert(base_ptr);
-   assert(base_ptr==ptr); // no alias
-   dbg("\033[33m%p \033[35m", ptr);
-   return true;
-   //const UmpireMemoryManager::MapType::const_iterator found = map.find(ptr);
-   //const bool known = found != map.end();
-   //if (known) { return true; }
-   //return false;
-   }*/
+static inline char *FlushHostBit(char *ptr){
+   return reinterpret_cast<char*>(reinterpret_cast<uintptr_t>(ptr) & ~1ul);
+}
+
+static inline char *SetHostBit(char *ptr){
+   return reinterpret_cast<char*>(reinterpret_cast<uintptr_t>(ptr) | 1ul);
+}
+
+static inline char *ToggleHostBit(char **ptr){
+   return *ptr=reinterpret_cast<char*>(reinterpret_cast<uintptr_t>(*ptr) ^ 1ul);
+}
+
+static inline bool HasHostBit(const char *ptr){
+   return (reinterpret_cast<uintptr_t>(ptr) & 1ul)==1ul;
+}
 
 // *****************************************************************************
 // * Register an address
 // *****************************************************************************
 void UmpireMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
 {
-   //dbg("\033[32m%p \033[35m(%ldb)", ptr, bytes);
-   //const bool known = Known(m_rm, m_map, static_cast<char*>(ptr));
-   //if (known)
-   //{
-   //mfem_error("Trying to insert a non-MM pointer!");
-//}
-   //MFEM_ASSERT(not known, "Trying to add already present address!");
-   //m_map.emplace(ptr, ptr);
 }
 
 // *****************************************************************************
@@ -61,13 +54,6 @@ void UmpireMemoryManager::insertAddress(void *ptr, const std::size_t bytes)
 // *****************************************************************************
 void UmpireMemoryManager::removeAddress(void *ptr)
 {
-   //dbg("\033[31m%p \033[35m", ptr);
-   //const bool known = Known(m_rm, m_map, static_cast<char*>(ptr));
-   //if (not known)
-   //{
-   //mfem_error("Trying to remove an unknown address!");
-//}
-   //MFEM_ASSERT(known, "Trying to remove an unknown address!");
    const umpire::util::AllocationRecord *rec = m_rm.findAllocationRecord(ptr);
    char* base_ptr = static_cast<char*>(rec->m_ptr);
    // Look it up in the map
@@ -75,7 +61,7 @@ void UmpireMemoryManager::removeAddress(void *ptr)
    if (iter != m_map.end())
    {
       // if known, free on the device side
-      m_device.deallocate(iter->second.d_ptr);
+      m_device.deallocate(FlushHostBit(iter->second));
       // and remove it from the device host/device map
       m_map.erase(base_ptr);
    }
@@ -84,55 +70,57 @@ void UmpireMemoryManager::removeAddress(void *ptr)
 // *****************************************************************************
 void* UmpireMemoryManager::getPtr(void *ptr)
 {
-   //dbg("\033[31m%p \033[35m", ptr);
    // Get the base pointer
    const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(ptr);
-   assert(rec);
    char* base_ptr = static_cast<char*>(rec->m_ptr);
-   assert(base_ptr);
    const std::size_t bytes = rec->m_size;
+   
+   // Calculate the offset
+   const std::size_t offset = static_cast<char*>(ptr) - base_ptr;
+   assert(offset==0); // no alias seen yet
    
    // Look it up in the map
    MapType::iterator iter = m_map.find(base_ptr);
-   const bool known_in_device = iter != m_map.end();
+   const bool allocated_on_device = iter != m_map.end();
 
-   // Calculate the offset
-   const std::size_t offset = static_cast<char*>(ptr) - base_ptr;
-   assert(offset==0); // no alias
-
-   // get device pointer, allocate if needed
-   char *d_ptr = known_in_device ? iter->second.d_ptr :
-      static_cast<char*>(m_device.allocate(rec->m_size));
-
-   // add it in our map
-   if (not known_in_device){
-      m_map.emplace(base_ptr, d_ptr);
-      //dbg("\033[33mnew device @%p => @%p", ptr, d_ptr);
-      //dbg("\033[33mnew device offset: %d, bytes: %d", offset, bytes);
+   // Get the device pointer, do the allocation if needed
+   if (!allocated_on_device){
+      char *d_ptr = static_cast<char*>(m_device.allocate(rec->m_size));
+      // Assert we can use the host dirty bit
+      MFEM_ASSERT(!(reinterpret_cast<uintptr_t>(d_ptr)%2),
+                  "UmpireMemoryManager can not handle the returned address");
+      // add it in our map
+      m_map.emplace(base_ptr, SetHostBit(d_ptr));
+      // refresh iter
+      iter = m_map.find(base_ptr);
    }
-
-   // refresh iter
-   iter = m_map.find(base_ptr);
-   const bool known = iter != m_map.end();
-   assert(known);
+   char *d_ptr = iter->second;
    
-   const bool host = known_in_device ? iter->second.host : true;
-   const bool device = not host;
-   const bool gpu = config::usingGpu();
+   // Get the states of our config and pointer
+   const bool cpu = HasHostBit(d_ptr);
+   const bool gpu = !cpu;
+   const bool usingGpu = config::usingGpu();
+   const bool usingCpu = !usingGpu;
 
-   if (host && !gpu) { return ptr; }
-   if (device && gpu) { return d_ptr; }
-   if (device && !gpu) // Pull
+   // CPU mode and pointer, nothing to do
+   if (cpu && usingCpu) { return ptr; }
+
+   // GPU mode and pointer, nothing to do
+   if (gpu && usingGpu) { return d_ptr; }
+
+   // CPU mode with a GPU pointer => Pull
+   if (gpu && usingCpu)
    {
-      iter->second.host = true;
       cuMemcpyDtoH(ptr, d_ptr, bytes);
+      ToggleHostBit(&iter->second);
       return ptr;
    }
-   // Push
-   cuMemcpyHtoD(d_ptr, ptr, bytes);
-   iter->second.host = false;
-   return d_ptr;
 
+   // Else push
+   assert(cpu && usingGpu);
+   d_ptr=ToggleHostBit(&iter->second);
+   cuMemcpyHtoD(d_ptr, ptr, bytes);
+   return d_ptr;
 }
 
 // *****************************************************************************
@@ -142,12 +130,9 @@ OccaMemory UmpireMemoryManager::getOccaPtr(const void *a)
    const umpire::util::AllocationRecord* rec =
       m_rm.findAllocationRecord(const_cast<void*>(a));
    char* base_ptr = static_cast<char*>(rec->m_ptr);
-
    // Look it up in the map
    MapType::const_iterator iter = m_map.find(base_ptr);
-
-   void* d_ptr = (iter != m_map.end()) ? iter->second.d_ptr : nullptr;
-
+   void* d_ptr = (iter != m_map.end()) ? iter->second : nullptr;
    return occaWrapMemory(config::GetOccaDevice(), d_ptr, rec->m_size);
 }
 
@@ -156,79 +141,51 @@ void UmpireMemoryManager::pushData(const void *ptr, const std::size_t bytes)
 {
    dbg("\033[33m ptr %p \033[35m", ptr);
    assert(false);
-   char* host_ptr = const_cast<char*>(static_cast<const char*>(ptr));
+   char* h_ptr = const_cast<char*>(static_cast<const char*>(ptr));
    // Get the base pointer
-   const umpire::util::AllocationRecord* rec = m_rm.findAllocationRecord(host_ptr);
+   const umpire::util::AllocationRecord *rec = m_rm.findAllocationRecord(h_ptr);
    char* base_ptr = static_cast<char*>(rec->m_ptr);
-
    // Get the device pointer from the map offset by the same distance
-   MapType::const_iterator iter = m_map.find(base_ptr);
+   const MapType::const_iterator iter = m_map.find(base_ptr);
    if (iter == m_map.end())
    {
       mfem_error("Could not find an allocation record assocated with address");
    }
-
-   std::size_t host_offset = host_ptr - base_ptr;
-   char* dev_ptr = iter->second.d_ptr + host_offset;
-
-   m_rm.copy(dev_ptr, host_ptr, bytes);
+   const std::size_t offset = h_ptr - base_ptr;
+   char* dev_ptr = iter->second + offset;
+   m_rm.copy(dev_ptr, h_ptr, bytes);
 }
 
 // *****************************************************************************
 void UmpireMemoryManager::pullData(const void *ptr, const std::size_t bytes)
 {
-   //dbg("\033[33m ptr %p \033[35m", ptr);
-   char* host_ptr = const_cast<char*>(static_cast<const char*>(ptr));
+   char* h_ptr = const_cast<char*>(static_cast<const char*>(ptr));
    // Get the base pointer
-   const umpire::util::AllocationRecord *rec = m_rm.findAllocationRecord(host_ptr);
-   assert(rec);
+   const umpire::util::AllocationRecord *rec = m_rm.findAllocationRecord(h_ptr);
    char *base_ptr = static_cast<char*>(rec->m_ptr);
    const std::size_t base_bytes = rec->m_size;
-   assert(base_ptr);
-
    // Get the device pointer from the map offset by the same distance
    MapType::const_iterator iter = m_map.find(base_ptr);
    if (iter == m_map.end())
    {
       mfem_error("Could not find an allocation record assocated with address");
    }
-   
-   const bool host = iter->second.host;
+   const bool host = HasHostBit(iter->second);
    if (host) { return; }
-   
-   std::size_t host_offset = host_ptr - base_ptr;
-   assert(host_offset==0);
-   char* dev_ptr = iter->second.d_ptr + host_offset;
-
-   cuMemcpyDtoH(host_ptr, dev_ptr, bytes == 0 ? base_bytes : bytes);
-   //m_rm.copy(host_ptr, dev_ptr, bytes);
+   const std::size_t offset = h_ptr - base_ptr;
+   char* dev_ptr = iter->second + offset;
+   m_rm.copy(h_ptr, dev_ptr, bytes == 0 ? base_bytes : bytes);
 }
 
 // *****************************************************************************
 void UmpireMemoryManager::copyData(void *dst, const void *src,
                                    std::size_t bytes, const bool async)
 {
-   //dbg("\033[33m ptr %p => %p \033[35m", src, dst);
-   if (config::usingCpu())
+   if (async)
    {
-      std::memcpy(dst, src, bytes);
+      mfem_warning("Async copy are not yet implemented. Will block for now.");
    }
-   else
-   {
-      const void *d_src = mm::ptr(src);
-      void *d_dst = mm::ptr(dst);
-      if (!async)
-      {
-         //cuMemcpyDtoD(d_dst, (void *)d_src, bytes);
-         //m_rm.copy(dst, const_cast<void*>(src), bytes);
-      }
-      else
-      {
-         mfem_warning("Async transfers are not yet implemented. Will block for now.");
-      }
-      cuMemcpyDtoD(d_dst, (void *)d_src, bytes);
-      //m_rm.copy(dst, const_cast<void*>(src), bytes);
-   }
+   m_rm.copy(mm::ptr(dst), (void*)mm::ptr(src), bytes);
 }
 
 // *****************************************************************************
