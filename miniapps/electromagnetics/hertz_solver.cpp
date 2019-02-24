@@ -650,7 +650,13 @@ HertzSolver::Solve()
          HypreParMatrix * A1C = A1Z->GetSystemMatrix();
          STRUMPACKRowLocMatrix A_STRUMPACK(*A1C);
          STRUMPACKSolver solver(0, NULL, MPI_COMM_WORLD);
+         solver.SetPrintFactorStatistics(true);
+         solver.SetPrintSolveStatistics(false);
+         solver.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+         solver.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+         solver.DisableMatching();
          solver.SetOperator(A_STRUMPACK);
+         solver.SetFromCommandLine();
          solver.Mult(RHS, E);
          delete A1C;
          // delete A1Z;

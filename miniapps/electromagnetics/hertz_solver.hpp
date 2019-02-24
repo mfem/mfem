@@ -27,7 +27,6 @@ using miniapps::ND_ParFESpace;
 using miniapps::RT_ParFESpace;
 using miniapps::ParDiscreteGradOperator;
 using miniapps::ParDiscreteCurlOperator;
-using miniapps::DivergenceFreeProjector;
 
 namespace electromagnetics
 {
