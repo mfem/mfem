@@ -3473,7 +3473,7 @@ HypreLOBPCG::SetPreconditioner(Solver & precond)
 void
 HypreLOBPCG::SetOperator(Operator & A)
 {
-   int locSize = A.Width();
+   HYPRE_Int locSize = A.Width();
 
    if (HYPRE_AssumedPartitionCheck())
    {
@@ -3489,7 +3489,7 @@ HypreLOBPCG::SetOperator(Operator & A)
    {
       part = new HYPRE_Int[numProcs+1];
 
-      MPI_Allgather(&locSize, 1, MPI_INT,
+      MPI_Allgather(&locSize, 1, HYPRE_MPI_INT,
                     &part[1], 1, HYPRE_MPI_INT, comm);
 
       part[0] = 0;
