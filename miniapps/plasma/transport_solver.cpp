@@ -21,6 +21,139 @@ using namespace miniapps;
 namespace plasma
 {
 
+double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda)
+{
+   double tau = 0.0;
+   for (int i=0; i<ns; i++)
+   {
+      tau += meanElectronIonCollisionTime(Te, ni[i], zi[i], lnLambda);
+   }
+   return tau;
+}
+
+double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
+             double lnLambda)
+{
+   double tau = 0.0;
+   for (int i=0; i<ns; i++)
+   {
+      tau += meanIonIonCollisionTime(ma, Ta, ni[i], zi[ion], zi[i], lnLambda);
+   }
+   return tau;
+}
+
+ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, Array<int> & z)
+   : nBV_(nBV),
+     ion_(-1),
+     z_(z),
+     m_(NULL),
+     n_(z.Size())
+{}
+
+ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, int ion_species,
+                                       Array<int> & z, Vector & m)
+   : nBV_(nBV),
+     ion_(ion_species),
+     z_(z),
+     m_(&m),
+     n_(z.Size())
+{}
+
+void ChiParaCoefficient::SetT(ParGridFunction & T)
+{
+   TCoef_.SetGridFunction(&T);
+   nGF_.MakeRef(T.ParFESpace(), nBV_.GetBlock(0));
+}
+
+double
+ChiParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
+{
+   double temp = TCoef_.Eval(T, ip);
+
+   for (int i=0; i<z_.Size(); i++)
+   {
+      nGF_.SetData(nBV_.GetBlock(i));
+      nCoef_.SetGridFunction(&nGF_);
+      n_[i] = nCoef_.Eval(T, ip);
+   }
+
+   if (ion_ < 0)
+   {
+      return chi_e_para(temp, z_.Size(), n_, z_);
+   }
+   else
+   {
+      return chi_i_para((*m_)[ion_], temp, ion_, z_.Size(), n_, z_);
+   }
+}
+
+EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, Array<int> & z)
+   : nBV_(nBV),
+     ion_(-1),
+     z_(z),
+     m_(NULL),
+     n_(z.Size())
+{}
+
+EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, int ion_species,
+                                       Array<int> & z, Vector & m)
+   : nBV_(nBV),
+     ion_(ion_species),
+     z_(z),
+     m_(&m),
+     n_(z.Size())
+{}
+
+void EtaParaCoefficient::SetT(ParGridFunction & T)
+{
+   TCoef_.SetGridFunction(&T);
+   nGF_.MakeRef(T.ParFESpace(), nBV_.GetBlock(0));
+}
+
+double
+EtaParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
+{
+   double temp = TCoef_.Eval(T, ip);
+
+   for (int i=0; i<z_.Size(); i++)
+   {
+      nGF_.SetData(nBV_.GetBlock(i));
+      nCoef_.SetGridFunction(&nGF_);
+      n_[i] = nCoef_.Eval(T, ip);
+   }
+
+   if (ion_ < 0)
+   {
+      return eta_e_para(temp, z_.Size(), z_.Size(), n_, z_);
+   }
+   else
+   {
+      return eta_i_para((*m_)[ion_], temp, ion_, z_.Size(), n_, z_);
+   }
+}
+
+TransportSolver::TransportSolver(ODESolver * implicitSolver,
+                                 ODESolver * explicitSolver,
+                                 ParFiniteElementSpace & sfes,
+                                 ParFiniteElementSpace & vfes,
+                                 ParFiniteElementSpace & ffes,
+                                 Array<int> & charges,
+                                 Vector & masses)
+   : impSolver_(implicitSolver),
+     expSolver_(explicitSolver),
+     sfes_(sfes),
+     vfes_(vfes),
+     ffes_(ffes),
+     charges_(charges),
+     masses_(masses)
+{}
+
+TransportSolver::~TransportSolver()
+{}
+
+void TransportSolver::Step(Vector &x, double &t, double &dt)
+{}
+
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
                            ParFiniteElementSpace &dfes,
                            ParFiniteElementSpace &vfes,

@@ -39,17 +39,20 @@
 #include <sstream>
 #include <iostream>
 
+#include "../common/pfem_extras.hpp"
 #include "transport_solver.hpp"
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::miniapps;
 using namespace mfem::plasma;
 
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
 int problem_;
 
 // Equation constant parameters.
-const int num_equation_ = 4;
+int num_species_ = -1;
+int num_equations_ = -1;
 const double specific_heat_ratio_ = 1.4;
 const double gas_constant_ = 1.0;
 
@@ -58,6 +61,7 @@ static double diffusion_constant_ = 0.1;
 static double dg_sigma_ = -1.0;
 static double dg_kappa_ = -1.0;
 
+static double B_max_ = 1.0;
 static double v_max_ = 0.0;
 
 // Maximum characteristic speed (updated by integrators)
@@ -186,11 +190,12 @@ void bFunc(const Vector &x, Vector &B)
          double a = 0.4;
          double b = 0.8;
 
-         double den = pow(b * b * x[0], 2) + pow(a * a * x[1], 2);
+         // double den = pow(b * b * x[0], 2) + pow(a * a * x[1], 2);
 
-         B[0] =  a * a * x[1];
-         B[1] = -b * b * x[0];
+         B[0] =  a * x[1] / (b * b);
+         B[1] = -x[0] / a;
          // B *= 1.0 / sqrt(den);
+         B *= B_max_;
       }
       break;
       case 3:
@@ -271,7 +276,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    problem_ = 1;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
+   const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
    int ser_ref_levels = 0;
    int par_ref_levels = 1;
    int order = 3;
@@ -284,6 +289,9 @@ int main(int argc, char *argv[])
    double cfl = 0.3;
    bool visualization = true;
    int vis_steps = 50;
+
+   Array<int> ion_charges;
+   Vector ion_masses;
 
    int precision = 8;
    cout.precision(precision);
@@ -325,6 +333,11 @@ int main(int argc, char *argv[])
                   "exceeds dttol.");
    args.AddOption(&cfl, "-c", "--cfl-number",
                   "CFL number for timestep calculation.");
+   args.AddOption(&ion_charges, "-qi", "--ion-charges",
+                  "Charges of the various species "
+                  "(in units of electron charge)");
+   args.AddOption(&ion_masses, "-mi", "--ion-masses",
+                  "Masses of the various species (in amu)");
    args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
                   "Diffusion constant used in momentum equation.");
    args.AddOption(&dg_sigma_, "-dgs", "--sigma",
@@ -333,6 +346,8 @@ int main(int argc, char *argv[])
    args.AddOption(&dg_kappa_, "-dgk", "--kappa",
                   "One of the two DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
+   args.AddOption(&B_max_, "-B", "--B-magnitude",
+                  "");
    args.AddOption(&v_max_, "-v", "--velocity",
                   "");
    args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
@@ -358,6 +373,16 @@ int main(int argc, char *argv[])
    if (ode_imp_solver_type < 0)
    {
       ode_imp_solver_type = ode_split_solver_type;
+   }
+   if (ion_charges.Size() == 0)
+   {
+      ion_charges.SetSize(1);
+      ion_charges[0] =  1.0;
+   }
+   if (ion_masses.Size() == 0)
+   {
+      ion_masses.SetSize(1);
+      ion_masses[0] = 2.01410178;
    }
    if (dg_kappa_ < 0)
    {
@@ -386,6 +411,9 @@ int main(int argc, char *argv[])
    const int dim = mesh.Dimension();
 
    MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
+
+   num_species_   = ion_charges.Size();
+   num_equations_ = (num_species_ + 1) * (dim + 2);
 
    // 4. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -447,143 +475,204 @@ int main(int argc, char *argv[])
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
-   ParFiniteElementSpace fes(&pmesh, &fec);
+   ParFiniteElementSpace sfes(&pmesh, &fec);
    // Finite element space for a mesh-dim vector quantity (momentum)
-   ParFiniteElementSpace dfes(&pmesh, &fec, dim, Ordering::byNODES);
-   // Finite element space for all variables together (total thermodynamic state)
-   ParFiniteElementSpace vfes(&pmesh, &fec, num_equation_, Ordering::byNODES);
+   ParFiniteElementSpace vfes(&pmesh, &fec, dim, Ordering::byNODES);
+   // Finite element space for all variables together (full thermodynamic state)
+   ParFiniteElementSpace ffes(&pmesh, &fec, num_equations_, Ordering::byNODES);
 
    // This example depends on this ordering of the space.
-   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
+   MFEM_ASSERT(ffes.GetOrdering() == Ordering::byNODES, "");
 
-   HYPRE_Int glob_size = vfes.GlobalTrueVSize();
-   if (mpi.Root()) { cout << "Number of unknowns: " << glob_size << endl; }
-
-   cout << "True V Size: " << fes.GetTrueVSize() << endl;
-   cout << "V Size:      " << fes.GetVSize() << endl;
+   HYPRE_Int glob_size_sca = sfes.GlobalTrueVSize();
+   HYPRE_Int glob_size_tot = ffes.GlobalTrueVSize();
+   if (mpi.Root())
+   { cout << "Number of unknowns per field: " << glob_size_sca << endl; }
+   if (mpi.Root())
+   { cout << "Total number of unknowns:     " << glob_size_tot << endl; }
 
    //ConstantCoefficient nuCoef(diffusion_constant_);
-   MatrixFunctionCoefficient nuCoef(2, ChiFunc);
+   // MatrixFunctionCoefficient nuCoef(dim, ChiFunc);
 
    // 8. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
 
-   // The solution u has components {density, x-momentum, y-momentum, energy}.
+   // The solution u has components {particle density, x-velocity,
+   // y-velocity, temperature} for each species (species loop is the outermost).
    // These are stored contiguously in the BlockVector u_block.
-   Array<int> offsets(num_equation_ + 1);
-   for (int k = 0; k <= num_equation_; k++)
+   Array<int> offsets(num_equations_ + 1);
+   for (int k = 0; k <= num_equations_; k++)
    {
-      offsets[k] = k * vfes.GetNDofs();
+      offsets[k] = k * sfes.GetNDofs();
    }
    BlockVector u_block(offsets);
 
+   Array<int> n_offsets(num_species_ + 2);
+   for (int k = 0; k <= num_species_ + 1; k++)
+   {
+      n_offsets[k] = offsets[k];
+   }
+   BlockVector n_block(u_block, n_offsets);
+
    // Momentum and Energy grid functions on for visualization.
+   /*
    ParGridFunction density(&fes, u_block.GetData());
-   ParGridFunction momentum(&dfes, u_block.GetData() + offsets[1]);
-   ParGridFunction energy(&fes, u_block.GetData() + offsets[dim+1]);
+   ParGridFunction velocity(&dfes, u_block.GetData() + offsets[1]);
+   ParGridFunction temperature(&fes, u_block.GetData() + offsets[dim+1]);
+   */
 
    // Initialize the state.
-   VectorFunctionCoefficient u0(num_equation_, InitialCondition);
-   ParGridFunction sol(&vfes, u_block.GetData());
+   VectorFunctionCoefficient u0(num_equations_, InitialCondition);
+   ParGridFunction sol(&ffes, u_block.GetData());
    sol.ProjectCoefficient(u0);
 
    // Output the initial solution.
+   /*
    {
       ostringstream mesh_name;
-      mesh_name << "vortex-mesh." << setfill('0') << setw(6) << mpi.WorldRank();
+      mesh_name << "transport-mesh." << setfill('0') << setw(6)
+      << mpi.WorldRank();
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(precision);
       mesh_ofs << pmesh;
 
-      for (int k = 0; k < num_equation_; k++)
-      {
-         ParGridFunction uk(&fes, u_block.GetBlock(k));
-         ostringstream sol_name;
-         sol_name << "vortex-" << k << "-init."
-                  << setfill('0') << setw(6) << mpi.WorldRank();
-         ofstream sol_ofs(sol_name.str().c_str());
-         sol_ofs.precision(precision);
-         sol_ofs << uk;
-      }
+      for (int i = 0; i < num_species_; i++)
+   for (int j = 0; j < dim + 2; j++)
+   {
+      int k = 0;
+      ParGridFunction uk(&sfes, u_block.GetBlock(k));
+      ostringstream sol_name;
+      sol_name << "species-" << i << "-field-" << j << "-init."
+          << setfill('0') << setw(6) << mpi.WorldRank();
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(precision);
+      sol_ofs << uk;
    }
+   }
+   */
 
    // 9. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
+   /*
    MixedBilinearForm Aflux(&dfes, &fes);
-   Aflux.AddDomainIntegrator(new DomainIntegrator(dim, num_equation_));
+   Aflux.AddDomainIntegrator(new DomainIntegrator(dim, num_equations_));
    Aflux.Assemble();
 
    ParNonlinearForm A(&vfes);
-   RiemannSolver rsolver(num_equation_, specific_heat_ratio_);
-   A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim, num_equation_));
+   RiemannSolver rsolver(num_equations_, specific_heat_ratio_);
+   A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim,
+                    num_equations_));
 
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   AdvectionTDO adv(vfes, A, Aflux.SpMat(), num_equation_,
+   AdvectionTDO adv(vfes, A, Aflux.SpMat(), num_equations_,
                     specific_heat_ratio_);
    DiffusionTDO diff(fes, dfes, vfes, nuCoef, dg_sigma_, dg_kappa_);
+   */
+   TransportSolver transp(ode_imp_solver, ode_exp_solver, sfes, vfes, ffes,
+                          ion_charges, ion_masses);
 
    // Visualize the density, momentum, and energy
-   socketstream sout, pout, eout;
+   vector<socketstream> dout(num_species_+1), vout(num_species_+1),
+          tout(num_species_+1), xout(num_species_+1), eout(num_species_+1);
+
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
 
+      int Wx = 0, Wy = 0; // window position
+      int Ww = 275, Wh = 250; // window size
+      int offx = Ww + 3, offy = Wh + 25; // window offsets
+
       MPI_Barrier(pmesh.GetComm());
-      sout.open(vishost, visport);
-      pout.open(vishost, visport);
-      eout.open(vishost, visport);
-      if (!sout || !pout || !eout)
+
+      for (int i=0; i<=num_species_; i++)
       {
-         if (mpi.Root())
+         int doff = offsets[i];
+         int voff = offsets[i * dim + num_species_ + 1];
+         int toff = offsets[i + (num_species_ + 1) * (dim + 1)];
+         double * u_data = u_block.GetData();
+         ParGridFunction density(&sfes, u_data + doff);
+         ParGridFunction velocity(&vfes, u_data + voff);
+         ParGridFunction temperature(&sfes, u_data + toff);
+
+
+         ParGridFunction chi_para(&sfes);
+         ParGridFunction eta_para(&sfes);
+         if (i==0)
          {
-            cout << "Unable to connect to GLVis server at "
-                 << vishost << ':' << visport << endl;
+            ChiParaCoefficient chiParaCoef(n_block, ion_charges);
+            chiParaCoef.SetT(temperature);
+            chi_para.ProjectCoefficient(chiParaCoef);
+
+            EtaParaCoefficient etaParaCoef(n_block, ion_charges);
+            etaParaCoef.SetT(temperature);
+            eta_para.ProjectCoefficient(etaParaCoef);
          }
-         visualization = false;
-         if (mpi.Root()) { cout << "GLVis visualization disabled.\n"; }
-      }
-      else
-      {
-         sout << "parallel " << mpi.WorldSize() << " "
-              << mpi.WorldRank() << "\n";
-         sout.precision(precision);
-         sout << "solution\n" << pmesh << density;
-         sout << "window_title 'Density'\n";
-         sout << "window_geometry 0 0 400 350\n";
-         sout << "keys c\n";
-         sout << "pause\n";
-         sout << flush;
-
-         pout << "parallel " << mpi.WorldSize() << " "
-              << mpi.WorldRank() << "\n";
-         pout.precision(precision);
-         pout << "solution\n" << pmesh << momentum;
-         pout << "window_title 'Momentum Density'\n";
-         pout << "window_geometry 400 0 400 350\n";
-         pout << "keys cvvv\n";
-         pout << "pause\n";
-         pout << flush;
-
-         eout << "parallel " << mpi.WorldSize() << " "
-              << mpi.WorldRank() << "\n";
-         eout.precision(precision);
-         eout << "solution\n" << pmesh << energy;
-         eout << "window_title 'Energy Density'\n";
-         eout << "window_geometry 800 0 400 350\n";
-         eout << "keys c\n";
-         eout << "pause\n";
-         eout << flush;
-
-         if (mpi.Root())
+         else
          {
-            cout << "GLVis visualization paused."
-                 << " Press space (in the GLVis window) to resume it.\n";
+            ChiParaCoefficient chiParaCoef(n_block, i - 1,
+                                           ion_charges,
+                                           ion_masses);
+            chiParaCoef.SetT(temperature);
+            chi_para.ProjectCoefficient(chiParaCoef);
+
+            EtaParaCoefficient etaParaCoef(n_block, i - 1,
+                                           ion_charges,
+                                           ion_masses);
+            etaParaCoef.SetT(temperature);
+            eta_para.ProjectCoefficient(etaParaCoef);
          }
+
+         ostringstream head;
+         if (i==0)
+         {
+            head << "Electron";
+         }
+         else
+         {
+            head << "Species " << i;
+         }
+
+         ostringstream doss;
+         doss << head.str() << " Density";
+         VisualizeField(dout[i], vishost, visport,
+                        density, doss.str().c_str(),
+                        Wx, Wy, Ww, Wh);
+         Wx += offx;
+
+         ostringstream voss; voss << head.str() << " Velocity";
+         VisualizeField(vout[i], vishost, visport,
+                        velocity, voss.str().c_str(),
+                        Wx, Wy, Ww, Wh, true);
+         Wx += offx;
+
+         ostringstream toss; toss << head.str() << " Temperature";
+         VisualizeField(tout[i], vishost, visport,
+                        temperature, toss.str().c_str(),
+                        Wx, Wy, Ww, Wh);
+
+         Wx += offx;
+
+         ostringstream xoss; xoss << head.str() << " Chi Parallel";
+         VisualizeField(xout[i], vishost, visport,
+                        chi_para, xoss.str().c_str(),
+                        Wx, Wy, Ww, Wh);
+
+         Wx += offx;
+
+         ostringstream eoss; eoss << head.str() << " Eta Parallel";
+         VisualizeField(eout[i], vishost, visport,
+                        eta_para, eoss.str().c_str(),
+                        Wx, Wy, Ww, Wh);
+
+         Wx -= 4 * offx;
+         Wy += offy;
       }
    }
+   exit(0);
 
    // Determine the minimum element size.
    double hmin;
@@ -601,7 +690,7 @@ int main(int argc, char *argv[])
    // Start the timer.
    tic_toc.Clear();
    tic_toc.Start();
-
+   /*
    double t = 0.0;
    adv.SetTime(t);
    ode_exp_solver->Init(adv);
@@ -694,35 +783,50 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             MPI_Barrier(pmesh.GetComm());
-            sout << "parallel " << mpi.WorldSize()
-                 << " " << mpi.WorldRank() << "\n";
-            sout << "solution\n" << pmesh << density << flush;
+            for (int i=0; i<num_species_; i++)
+            {
+       int doff = offsets[i * (dim + 2) + 0];
+       int voff = offsets[i * (dim + 2) + 1];
+       int toff = offsets[i * (dim + 2) + dim + 1];
+          double * u_data = u_block.GetData();
+          ParGridFunction density(&fes, u_data + doff);
+          ParGridFunction velocity(&dfes, u_data + voff);
+          ParGridFunction temperature(&fes, u_data + toff);
+               dout[i] << "parallel " << mpi.WorldSize()
+             << " " << mpi.WorldRank() << "\n";
+          dout[i] << "solution\n" << pmesh << density << flush;
 
-            pout << "parallel " << mpi.WorldSize()
-                 << " " << mpi.WorldRank() << "\n";
-            pout << "solution\n" << pmesh << momentum << flush;
+          vout[i] << "parallel " << mpi.WorldSize()
+             << " " << mpi.WorldRank() << "\n";
+          vout[i] << "solution\n" << pmesh << velocity << flush;
 
-            eout << "parallel " << mpi.WorldSize()
-                 << " " << mpi.WorldRank() << "\n";
-            eout << "solution\n" << pmesh << energy << flush;
-         }
+          tout[i] << "parallel " << mpi.WorldSize()
+             << " " << mpi.WorldRank() << "\n";
+          tout[i] << "solution\n" << pmesh << temperature << flush;
+       }
+    }
       }
    }
-
+   */
    tic_toc.Stop();
    if (mpi.Root()) { cout << " done, " << tic_toc.RealTime() << "s." << endl; }
 
    // 11. Save the final solution. This output can be viewed later using GLVis:
-   //     "glvis -np 4 -m vortex-mesh -g vortex-1-final".
-   for (int k = 0; k < num_equation_; k++)
+   //     "glvis -np 4 -m transport-mesh -g species-0-field-0-final".
    {
-      ParGridFunction uk(&fes, u_block.GetBlock(k));
-      ostringstream sol_name;
-      sol_name << "vortex-" << k << "-final."
-               << setfill('0') << setw(6) << mpi.WorldRank();
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(precision);
-      sol_ofs << uk;
+      int k = 0;
+      for (int i = 0; i < num_species_; i++)
+         for (int j = 0; j < dim + 2; j++)
+         {
+            ParGridFunction uk(&sfes, u_block.GetBlock(k));
+            ostringstream sol_name;
+            sol_name << "species-" << i << "-field-" << j << "-final."
+                     << setfill('0') << setw(6) << mpi.WorldRank();
+            ofstream sol_ofs(sol_name.str().c_str());
+            sol_ofs.precision(precision);
+            sol_ofs << uk;
+            k++;
+         }
    }
 
    // 12. Compute the L2 solution error summed for all components.
@@ -805,15 +909,34 @@ void InitialCondition(const Vector &x, Vector &y)
    y(3) = den * energy;
    */
    // double VMag = 1e2;
+   if (y.Size() != num_equations_) { cout << "y is wrong size!" << endl; }
+
+   int dim = 2;
+   double a = 0.4;
+   double b = 0.8;
 
    Vector V(2);
    bFunc(x, V);
-   V *= v_max_;
+   V *= (v_max_ / B_max_) * sqrt(pow(x[0]/a,2)+pow(x[1]/b,2));
 
-   double den = 1.0e-3;
-   y(0) = den;
-   y(1) = den * V[0];
-   y(2) = den * V[1];
-   y(3) = den * (0.5 * v_max_ * v_max_ + 1e3 * TFunc(x, 0.0));
+   double den = 1.0e18;
+   for (int i=1; i<=num_species_; i++)
+   {
+      y(i) = den;
+      y(i * dim + num_species_ + 1) = V(0);
+      y(i * dim + num_species_ + 2) = V(1);
+      y(i + (num_species_ + 1) * (dim + 1)) = 10.0 * TFunc(x, 0.0);
+   }
 
+   // Impose neutrality
+   y(0) = 0.0;
+   for (int i=1; i<num_species_; i++)
+   {
+      y(0) += y(i);
+   }
+   y(num_species_ + 1) = V(0);
+   y(num_species_ + 2) = V(1);
+   y((num_species_ + 1) * (dim + 1)) = 5.0 * TFunc(x, 0.0);
+
+   // y.Print(cout, dim+2); cout << endl;
 }
