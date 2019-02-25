@@ -481,15 +481,22 @@ int main(int argc, char *argv[])
    // Finite element space for all variables together (full thermodynamic state)
    ParFiniteElementSpace ffes(&pmesh, &fec, num_equations_, Ordering::byNODES);
 
+   RT_FECollection fec_rt(order, dim);
+   // Finite element space for the magnetic field
+   ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
+
    // This example depends on this ordering of the space.
    MFEM_ASSERT(ffes.GetOrdering() == Ordering::byNODES, "");
 
    HYPRE_Int glob_size_sca = sfes.GlobalTrueVSize();
    HYPRE_Int glob_size_tot = ffes.GlobalTrueVSize();
+   HYPRE_Int glob_size_rt  = fes_rt.GlobalTrueVSize();
    if (mpi.Root())
    { cout << "Number of unknowns per field: " << glob_size_sca << endl; }
    if (mpi.Root())
    { cout << "Total number of unknowns:     " << glob_size_tot << endl; }
+   if (mpi.Root())
+   { cout << "Number of magnetic field unknowns: " << glob_size_rt << endl; }
 
    //ConstantCoefficient nuCoef(diffusion_constant_);
    // MatrixFunctionCoefficient nuCoef(dim, ChiFunc);
@@ -526,6 +533,10 @@ int main(int argc, char *argv[])
    ParGridFunction sol(&ffes, u_block.GetData());
    sol.ProjectCoefficient(u0);
 
+   VectorFunctionCoefficient BCoef(dim, bFunc);
+   ParGridFunction B(&fes_rt);
+   B.ProjectCoefficient(BCoef);
+   
    // Output the initial solution.
    /*
    {
@@ -571,7 +582,7 @@ int main(int argc, char *argv[])
    DiffusionTDO diff(fes, dfes, vfes, nuCoef, dg_sigma_, dg_kappa_);
    */
    TransportSolver transp(ode_imp_solver, ode_exp_solver, sfes, vfes, ffes,
-                          ion_charges, ion_masses);
+                          n_block, B, ion_charges, ion_masses);
 
    // Visualize the density, momentum, and energy
    vector<socketstream> dout(num_species_+1), vout(num_species_+1),

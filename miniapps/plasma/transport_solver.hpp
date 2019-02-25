@@ -61,11 +61,8 @@ inline double chi_e_para(double Te, int ns, double * ni, int * zi)
 /**
   Thermal diffusion coefficient perpendicular to B field for electrons
   Return value is in m^2/s.
-   Te is the electron temperature in eV
-   ni is the density of ions (assuming ni=ne) in particles per meter^3
-   z is the charge number of the ion species
 */
-inline double chi_e_perp(double Te, double ni, int z)
+inline double chi_e_perp()
 {
    // The factor of q_ is included to convert Te from eV to Joules
    return 1.0;
@@ -79,7 +76,7 @@ inline double chi_e_perp(double Te, double ni, int z)
    ni is the density of ions (assuming ni=ne) in particles per meter^3
    z is the charge number of the ion species
 */
-inline double chi_e_cross(double Te, double ni, int z)
+inline double chi_e_cross()
 {
    // The factor of q_ is included to convert Te from eV to Joules
    return 0.0;
@@ -106,12 +103,8 @@ inline double chi_i_para(double ma, double Ta,
 /**
   Thermal diffusion coefficient perpendicular to B field for ions
   Return value is in m^2/s.
-   mi is the ion mass in a.m.u.
-   Ti is the ion temperature in eV
-   ni is the density of ions in particles per meter^3
-   z is the charge number of the ion species
 */
-inline double chi_i_perp(double mi, double Ti, double ni, int z)
+inline double chi_i_perp()
 {
    // The factor of q_ is included to convert Ti from eV to Joules
    // The factor of u_ is included to convert mi from a.m.u to kg
@@ -122,12 +115,8 @@ inline double chi_i_perp(double mi, double Ti, double ni, int z)
   Thermal diffusion coefficient perpendicular to both B field and
   thermal gradient for ions
   Return value is in m^2/s.
-   mi is the ion mass in a.m.u.
-   Ti is the ion temperature in eV
-   ni is the density of ions in particles per meter^3
-   z is the charge number of the ion species
 */
-inline double chi_i_cross(double mi, double Ti, double ni, int z)
+inline double chi_i_cross()
 {
    // The factor of q_ is included to convert Ti from eV to Joules
    // The factor of u_ is included to convert mi from a.m.u to kg
@@ -182,6 +171,10 @@ private:
    ParFiniteElementSpace & vfes_; // Vector fields
    ParFiniteElementSpace & ffes_; // Full system
 
+   BlockVector & nBV_;
+
+   ParGridFunction & B_;
+  
    Array<int> & charges_;
    Vector & masses_;
 
@@ -194,12 +187,15 @@ public:
                    ParFiniteElementSpace & sfes,
                    ParFiniteElementSpace & vfes,
                    ParFiniteElementSpace & ffes,
+		   BlockVector & nBV,
+		   ParGridFunction & B,
                    Array<int> & charges,
                    Vector & masses);
    ~TransportSolver();
 
-   void Step(Vector &x, double &t, double &dt);
    void Update();
+
+   void Step(Vector &x, double &t, double &dt);
 };
 
 class ChiParaCoefficient : public Coefficient
@@ -224,19 +220,50 @@ public:
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
+class ChiPerpCoefficient : public Coefficient
+{
+private:
+   int ion_;
+
+public:
+   ChiPerpCoefficient(BlockVector & nBV, Array<int> & charges);
+   ChiPerpCoefficient(BlockVector & nBV, int ion_species,
+                      Array<int> & charges, Vector & masses);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+class ChiCrossCoefficient : public Coefficient
+{
+private:
+   int ion_;
+
+public:
+   ChiCrossCoefficient(BlockVector & nBV, Array<int> & charges);
+   ChiCrossCoefficient(BlockVector & nBV, int ion_species,
+                      Array<int> & charges, Vector & masses);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
 class ChiCoefficient : public MatrixCoefficient
 {
 private:
-   GridFunctionCoefficient nCoef_;
-   GridFunctionCoefficient TCoef_;
+   ChiParaCoefficient  chiParaCoef_;
+   ChiPerpCoefficient  chiPerpCoef_;
+   ChiCrossCoefficient chiCrossCoef_;
    VectorGridFunctionCoefficient BCoef_;
 
    Vector bHat_;
-   bool   ion_;
 
 public:
-   ChiCoefficient(int dim, bool ion);
+   ChiCoefficient(int dim, BlockVector & nBV, Array<int> & charges);
+   ChiCoefficient(int dim, BlockVector & nBV, int ion_species,
+		  Array<int> & charges, Vector & masses);
 
+   void SetT(ParGridFunction & T);
+   void SetB(ParGridFunction & B);
+  
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip);
 };
@@ -270,7 +297,7 @@ private:
    ParFiniteElementSpace &sfes_;
    ParFiniteElementSpace &vfes_;
 
-   BlockVector nBV_;
+   BlockVector & nBV_;
 
    Array<int> & charges_;
    Vector & masses_;
@@ -281,14 +308,17 @@ private:
 public:
    MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
                          ParFiniteElementSpace & vfes,
+			 BlockVector & nBV,
                          Array<int> & charges,
                          Vector & masses);
 
    ~MultiSpeciesDiffusion();
 
-   void ImplicitSolve(const double dt, const Vector &x, Vector &y);
+   void Assemble();
 
    void Update();
+
+   void ImplicitSolve(const double dt, const Vector &x, Vector &y);
 };
 
 
