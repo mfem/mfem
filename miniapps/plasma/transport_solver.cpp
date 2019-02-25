@@ -114,7 +114,7 @@ ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, Array<int> & z)
 {}
 
 ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, int ion_species,
-					 Array<int> & z, Vector & m)
+                                         Array<int> & z, Vector & m)
    : ion_(ion_species)
 {}
 
@@ -132,34 +132,34 @@ ChiCrossCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
 }
 
 ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, Array<int> & charges)
-  : MatrixCoefficient(dim),
-    chiParaCoef_(nBV, charges),
-    chiPerpCoef_(nBV, charges),
-    chiCrossCoef_(nBV, charges),
-    bHat_(dim)
+   : MatrixCoefficient(dim),
+     chiParaCoef_(nBV, charges),
+     chiPerpCoef_(nBV, charges),
+     chiCrossCoef_(nBV, charges),
+     bHat_(dim)
 {}
-  
+
 ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, int ion_species,
-			       Array<int> & charges, Vector & masses)
-  : MatrixCoefficient(dim),
-    chiParaCoef_(nBV, ion_species, charges, masses),
-    chiPerpCoef_(nBV, ion_species, charges, masses),
-    chiCrossCoef_(nBV, ion_species, charges, masses),
-    bHat_(dim)
+                               Array<int> & charges, Vector & masses)
+   : MatrixCoefficient(dim),
+     chiParaCoef_(nBV, ion_species, charges, masses),
+     chiPerpCoef_(nBV, ion_species, charges, masses),
+     chiCrossCoef_(nBV, ion_species, charges, masses),
+     bHat_(dim)
 {}
 
 void ChiCoefficient::SetT(ParGridFunction & T)
 {
-  chiParaCoef_.SetT(T);
+   chiParaCoef_.SetT(T);
 }
-  
+
 void ChiCoefficient::SetB(ParGridFunction & B)
 {
-  BCoef_.SetGridFunction(&B);
+   BCoef_.SetGridFunction(&B);
 }
-  
+
 void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-			  const IntegrationPoint &ip)
+                          const IntegrationPoint &ip)
 {
    double chi_para  = chiParaCoef_.Eval(T, ip);
    double chi_perp  = chiPerpCoef_.Eval(T, ip);
@@ -167,7 +167,7 @@ void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
    BCoef_.Eval(bHat_, T, ip);
    bHat_ /= bHat_.Norml2();
-   
+
    K.SetSize(bHat_.Size());
 
    if (width == 2)
@@ -249,8 +249,8 @@ TransportSolver::TransportSolver(ODESolver * implicitSolver,
                                  ParFiniteElementSpace & sfes,
                                  ParFiniteElementSpace & vfes,
                                  ParFiniteElementSpace & ffes,
-				 BlockVector & nBV,
-				 ParGridFunction & B,
+                                 BlockVector & nBV,
+                                 ParGridFunction & B,
                                  Array<int> & charges,
                                  Vector & masses)
    : impSolver_(implicitSolver),
@@ -264,40 +264,40 @@ TransportSolver::TransportSolver(ODESolver * implicitSolver,
      masses_(masses),
      msDiff_(NULL)
 {
-  this->initDiffusion();
+   this->initDiffusion();
 }
 
 TransportSolver::~TransportSolver()
 {
-  delete msDiff_;
+   delete msDiff_;
 }
 
 void TransportSolver::initDiffusion()
 {
-  msDiff_ = new MultiSpeciesDiffusion(sfes_, vfes_, nBV_, charges_, masses_);
+   msDiff_ = new MultiSpeciesDiffusion(sfes_, vfes_, nBV_, charges_, masses_);
 }
-  
+
 void TransportSolver::Update()
 {
-  msDiff_->Update();
+   msDiff_->Update();
 }
-  
+
 void TransportSolver::Step(Vector &x, double &t, double &dt)
 {
-  msDiff_->Assemble();
-  impSolver_->Step(x, t, dt);
+   msDiff_->Assemble();
+   impSolver_->Step(x, t, dt);
 }
 
 MultiSpeciesDiffusion::MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
-					     ParFiniteElementSpace & vfes,
-					     BlockVector & nBV,
-					     Array<int> & charges,
-					     Vector & masses)
-  : sfes_(sfes),
-    vfes_(vfes),
-    nBV_(nBV),
-    charges_(charges),
-    masses_(masses)
+                                             ParFiniteElementSpace & vfes,
+                                             BlockVector & nBV,
+                                             Array<int> & charges,
+                                             Vector & masses)
+   : sfes_(sfes),
+     vfes_(vfes),
+     nBV_(nBV),
+     charges_(charges),
+     masses_(masses)
 {}
 
 MultiSpeciesDiffusion::~MultiSpeciesDiffusion()
@@ -305,7 +305,7 @@ MultiSpeciesDiffusion::~MultiSpeciesDiffusion()
 
 void MultiSpeciesDiffusion::initCoefficients()
 {}
-  
+
 void MultiSpeciesDiffusion::initBilinearForms()
 {}
 
@@ -316,7 +316,7 @@ void MultiSpeciesDiffusion::Update()
 {}
 
 void MultiSpeciesDiffusion::ImplicitSolve(const double dt,
-					  const Vector &x, Vector &y)
+                                          const Vector &x, Vector &y)
 {}
 
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,

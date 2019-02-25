@@ -174,7 +174,7 @@ private:
    BlockVector & nBV_;
 
    ParGridFunction & B_;
-  
+
    Array<int> & charges_;
    Vector & masses_;
 
@@ -187,8 +187,8 @@ public:
                    ParFiniteElementSpace & sfes,
                    ParFiniteElementSpace & vfes,
                    ParFiniteElementSpace & ffes,
-		   BlockVector & nBV,
-		   ParGridFunction & B,
+                   BlockVector & nBV,
+                   ParGridFunction & B,
                    Array<int> & charges,
                    Vector & masses);
    ~TransportSolver();
@@ -241,7 +241,7 @@ private:
 public:
    ChiCrossCoefficient(BlockVector & nBV, Array<int> & charges);
    ChiCrossCoefficient(BlockVector & nBV, int ion_species,
-                      Array<int> & charges, Vector & masses);
+                       Array<int> & charges, Vector & masses);
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -259,11 +259,11 @@ private:
 public:
    ChiCoefficient(int dim, BlockVector & nBV, Array<int> & charges);
    ChiCoefficient(int dim, BlockVector & nBV, int ion_species,
-		  Array<int> & charges, Vector & masses);
+                  Array<int> & charges, Vector & masses);
 
    void SetT(ParGridFunction & T);
    void SetB(ParGridFunction & B);
-  
+
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip);
 };
@@ -308,7 +308,7 @@ private:
 public:
    MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
                          ParFiniteElementSpace & vfes,
-			 BlockVector & nBV,
+                         BlockVector & nBV,
                          Array<int> & charges,
                          Vector & masses);
 

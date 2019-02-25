@@ -536,7 +536,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient BCoef(dim, bFunc);
    ParGridFunction B(&fes_rt);
    B.ProjectCoefficient(BCoef);
-   
+
    // Output the initial solution.
    /*
    {
