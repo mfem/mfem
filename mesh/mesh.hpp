@@ -1374,7 +1374,7 @@ inline int Mesh::NodesOfGmshElement(int eleType)
       20 /* 20-node third order tetrahedron (4 nodes associated with the
                vertices, 12 with the edges, 4 with the faces) */
    };
-   return(nodes_of_gmsh_element[eleType]);
+   return (nodes_of_gmsh_element[eleType]);
 }
 
 

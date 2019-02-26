@@ -888,9 +888,9 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
 
 
 void Mesh::ReadGmshBoundaryElements(std::vector<Element*> &elements_0D,
-                                 std::vector<Element*> &elements_1D,
-                                 std::vector<Element*> &elements_2D,
-                                 std::vector<Element*> &elements_3D)
+                                    std::vector<Element*> &elements_1D,
+                                    std::vector<Element*> &elements_2D,
+                                    std::vector<Element*> &elements_3D)
 {
    if (!elements_3D.empty())
    {
@@ -968,7 +968,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
    // A map between a serial number of the vertex and its number in the file
    // (there may be gaps in the numbering, and also Gmsh enumerates vertices
    // starting from 1, not 0)
-   map<std::size_t, std::size_t> vertices_map; 
+   map<std::size_t, std::size_t> vertices_map;
    // Read the lines of the mesh file. If we face specific keyword, we'll treat
    // the section.
    while (input >> buff)
@@ -982,22 +982,22 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
 
          getline(input,buff);
 
-         if(binary)
+         if (binary)
          {
             input.read(reinterpret_cast<char*>(&numEntityBlocks), sizeof(unsigned long));
             input.read(reinterpret_cast<char*>(&NumOfVertices), sizeof(unsigned long));
          }
-         else //ASCII 
+         else //ASCII
          {
             input >> numEntityBlocks >> NumOfVertices;
-         }   
+         }
 
          vertices.SetSize(NumOfVertices);
-         for(int numBlock=0; numBlock < numEntityBlocks; ++numBlock)
+         for (int numBlock=0; numBlock < numEntityBlocks; ++numBlock)
          {
             int tagEntity, dimEntity, parametric;
             unsigned long numNodes;
-            if(binary)
+            if (binary)
             {
                input.read(reinterpret_cast<char*>(&tagEntity), sizeof(int));
                input.read(reinterpret_cast<char*>(&dimEntity), sizeof(int));
@@ -1008,10 +1008,10 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
             else //ASCII
             {
                input >> tagEntity >> dimEntity >> parametric >> numNodes;
-            }   
-            for(int node=0; node < numNodes; ++node)
+            }
+            for (int node=0; node < numNodes; ++node)
             {
-               if(binary)
+               if (binary)
                {
                   input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
                   input.read(reinterpret_cast<char*>(coord), gmsh_dim*sizeof(double));
@@ -1038,10 +1038,11 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
       {
          unsigned long numEntityBlocks, num_of_all_elements;
          getline(input, buff);
-         if(binary)
+         if (binary)
          {
-               input.read(reinterpret_cast<char*>(&numEntityBlocks), sizeof(unsigned long));
-               input.read(reinterpret_cast<char*>(&num_of_all_elements), sizeof(unsigned long));
+            input.read(reinterpret_cast<char*>(&numEntityBlocks), sizeof(unsigned long));
+            input.read(reinterpret_cast<char*>(&num_of_all_elements),
+                       sizeof(unsigned long));
          }
          else // ASCII
          {
@@ -1066,9 +1067,9 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
          elements_2D.reserve(num_of_all_elements);
          elements_3D.reserve(num_of_all_elements);
 
-         for(int entityBlock = 0; entityBlock < numEntityBlocks; ++entityBlock) 
+         for (int entityBlock = 0; entityBlock < numEntityBlocks; ++entityBlock)
          {
-            if(binary)
+            if (binary)
             {
                input.read(reinterpret_cast<char*>(&entity), sizeof(int));
                input.read(reinterpret_cast<char*>(&dimEntity), sizeof(int));
@@ -1079,14 +1080,14 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
             {
                input >> entity >> dimEntity >> type_of_element >> numElements;
             }
-            for(int ele= 0; ele < numElements; ++ele)
+            for (int ele= 0; ele < numElements; ++ele)
             {
                // number of nodes for each type of Gmsh elements, type is the index of
                // the array + 1
                const int n_elem_nodes = NodesOfGmshElement(type_of_element-1);
                vector<int> vert_indices(n_elem_nodes);
                int index;
-               if(binary)
+               if (binary)
                {
                   input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
                }
@@ -1095,8 +1096,8 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                   input >> serial_number;
                }
                for (int vi = 0; vi < n_elem_nodes; ++vi)
-               {  
-                  if(binary)
+               {
+                  if (binary)
                   {
                      input.read(reinterpret_cast<char*>(&index), sizeof(int));
                   }
@@ -1165,7 +1166,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                                   elements_3D);
          MFEM_CONTRACT_VAR(n_partitions);
          MFEM_CONTRACT_VAR(elem_domain);
-      } // section '$Elements' 
+      } // section '$Elements'
    }  // we reach the end of the file
 }
 
@@ -1177,7 +1178,7 @@ void Mesh::ReadGmshV2(std::istream &input, int binary)
    // A map between a serial number of the vertex and its number in the file
    // (there may be gaps in the numbering, and also Gmsh enumerates vertices
    // starting from 1, not 0)
-   map<std::size_t, std::size_t> vertices_map; 
+   map<std::size_t, std::size_t> vertices_map;
    // Read the lines of the mesh file. If we face specific keyword, we'll treat
    // the section.
    while (input >> buff)
@@ -1459,8 +1460,8 @@ void Mesh::ReadGmshMesh(std::istream &input)
          MFEM_ABORT("Gmsh file : wrong binary format");
       }
    }
-   if(version == 2.2) {ReadGmshV2(input,binary);}
-   else if(version == 4.0) {ReadGmshV4(input,binary);}
+   if (version == 2.2) {ReadGmshV2(input,binary);}
+   else if (version == 4.0) {ReadGmshV4(input,binary);}
    else {MFEM_ABORT("Gmsh file version unsupported")}
 }
 
