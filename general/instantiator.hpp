@@ -19,9 +19,6 @@ using std::tuple_size;
 using std::decay;
 using std::forward;
 
-namespace mfem
-{
-
 template<const int N, typename Key, typename Kernel>
 class Instantiator
 {
@@ -62,7 +59,5 @@ public:
       return map.at(id);
    }
 };
-
-} // namespace mfem
 
 #endif // MFEM_INSTANTIATOR_HPP

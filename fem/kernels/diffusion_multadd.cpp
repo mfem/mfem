@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
-#include "../../general/macros.hpp"
+//#include "../../general/macros.hpp"
 
 // *****************************************************************************
 namespace mfem
@@ -393,6 +393,19 @@ void biPADiffusionMultAdd(const int numElements,
 }
 
 // *****************************************************************************
+using Key_t = unsigned int;
+using Kernel_t = fDiffusionMultAdd;
+constexpr std::size_t NID = 5;
+constexpr std::array<Key_t, NID> ids = {0x222, 0x233, 0x244, 0x323, 0x334};
+template<typename Key_t>
+constexpr Key_t GetKey(const std::size_t N) { return ids.at(N); }
+template<typename Kernel_t, Key_t N> constexpr Kernel_t GetValue()
+{
+   return &biPADiffusionMultAdd<(N>>8)&0xF, (N>>4)&0xF, (N)&0xF>;
+}
+#include "../../general/instantiator.hpp"
+
+// *****************************************************************************
 void biPADiffusionMultAdd(const int DIM,
                           const int NUM_DOFS_1D,
                           const int NUM_QUAD_1D,
@@ -417,23 +430,13 @@ void biPADiffusionMultAdd(const int DIM,
       return;
    }
 #endif // __OCCA__
-   // Generate the biPADiffusionMultAdd map at compiled time
-   MFEM_TEMPLATES_FOREACH_3D(action, // name of the map
-                             id, // name of the index variable
-                             DIM, NUM_DOFS_1D, NUM_QUAD_1D, // runtime parameters
-                             fDiffusionMultAdd, // function signature
-                             biPADiffusionMultAdd, // funtion that will be call
-                             (2,3), // 1st parameter range: DIM
-                             (2,3,4), // 2nd parameter range: NUM_DOFS_1D
-                             (2,3,4));// 3rd parameter range: NUM_QUAD_1D
-   // Now test if the function is known in the map
-   if (!action[id])
-   {
-      printf("\n[kIntDiffusionMultAdd] id \033[33m%d\033[m ",id);
-      fflush(stdout);
-   }
-   assert(action[id]);
 
+   Instantiator<NID, Key_t, Kernel_t> kernels(ids);
+   const Key_t id = (DIM<<8)+(NUM_DOFS_1D<<4)+(NUM_QUAD_1D);
+   const bool found = kernels.Find(id);
+   if (!found){
+      mfem_error("Kernel is not available!");
+   }   
    GET_CONST_PTR(dofToQuad);
    GET_CONST_PTR(dofToQuadD);
    GET_CONST_PTR(quadToDof);
@@ -441,10 +444,9 @@ void biPADiffusionMultAdd(const int DIM,
    GET_CONST_PTR(op);
    GET_CONST_PTR(x);
    GET_PTR(y);
-
-   action[id](numElements,
-            d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
-            d_op, d_x, d_y);
+   kernels.At(id)(numElements,
+                  d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
+                  d_op, d_x, d_y);
 }
 
 // *****************************************************************************
