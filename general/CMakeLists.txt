@@ -40,6 +40,7 @@ list(APPEND HDRS
   globals.hpp
   gzstream.hpp
   hash.hpp
+  instantiator.hpp
   isockstream.hpp
   mem_alloc.hpp
   mm.hpp
