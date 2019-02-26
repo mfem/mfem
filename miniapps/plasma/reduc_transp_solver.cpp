@@ -21,7 +21,7 @@ using namespace miniapps;
 namespace plasma
 {
 
-double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda)
+double tau_e(double Te, int ns, double * ni, double * zi, double lnLambda)
 {
    double tau = 0.0;
    for (int i=0; i<ns; i++)
@@ -31,7 +31,7 @@ double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda)
    return tau;
 }
 
-double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
+double tau_i(double ma, double Ta, int ion, int ns, double * ni, double * zi,
              double lnLambda)
 {
    double tau = 0.0;
@@ -42,7 +42,7 @@ double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
    return tau;
 }
 
-ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, Array<int> & z)
+ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, Vector & z)
    : nBV_(nBV),
      ion_(-1),
      z_(z),
@@ -51,7 +51,7 @@ ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, Array<int> & z)
 {}
 
 ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, int ion_species,
-                                       Array<int> & z, Vector & m)
+                                       Vector & z, Vector & m)
    : nBV_(nBV),
      ion_(ion_species),
      z_(z),
@@ -87,12 +87,12 @@ ChiParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 
-ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV, Array<int> & z)
+ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV, Vector & z)
    : ion_(-1)
 {}
 
 ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV, int ion_species,
-                                       Array<int> & z, Vector & m)
+                                       Vector & z, Vector & m)
    : ion_(ion_species)
 {}
 
@@ -109,12 +109,12 @@ ChiPerpCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 
-ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, Array<int> & z)
+ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, Vector & z)
    : ion_(-1)
 {}
 
 ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, int ion_species,
-                                         Array<int> & z, Vector & m)
+                                         Vector & z, Vector & m)
    : ion_(ion_species)
 {}
 
@@ -131,7 +131,7 @@ ChiCrossCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 
-ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, Array<int> & charges)
+ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, Vector & charges)
    : MatrixCoefficient(dim),
      chiParaCoef_(nBV, charges),
      chiPerpCoef_(nBV, charges),
@@ -140,7 +140,7 @@ ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, Array<int> & charges)
 {}
 
 ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, int ion_species,
-                               Array<int> & charges, Vector & masses)
+                               Vector & charges, Vector & masses)
    : MatrixCoefficient(dim),
      chiParaCoef_(nBV, ion_species, charges, masses),
      chiPerpCoef_(nBV, ion_species, charges, masses),
@@ -199,7 +199,7 @@ void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
-EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, Array<int> & z)
+EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, Vector & z)
    : nBV_(nBV),
      ion_(-1),
      z_(z),
@@ -208,7 +208,7 @@ EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, Array<int> & z)
 {}
 
 EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, int ion_species,
-                                       Array<int> & z, Vector & m)
+                                       Vector & z, Vector & m)
    : nBV_(nBV),
      ion_(ion_species),
      z_(z),
@@ -251,7 +251,7 @@ ReducedTransportSolver::ReducedTransportSolver(ODESolver * implicitSolver,
 					       ParFiniteElementSpace & ffes,
 					       BlockVector & nBV,
 					       ParGridFunction & B,
-					       Array<int> & charges,
+					       Vector & charges,
 					       Vector & masses)
    : impSolver_(implicitSolver),
      expSolver_(explicitSolver),
@@ -291,7 +291,7 @@ void ReducedTransportSolver::Step(Vector &x, double &t, double &dt)
 MultiSpeciesDiffusion::MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
                                              ParFiniteElementSpace & vfes,
                                              BlockVector & nBV,
-                                             Array<int> & charges,
+                                             Vector & charges,
                                              Vector & masses)
    : sfes_(sfes),
      vfes_(vfes),
