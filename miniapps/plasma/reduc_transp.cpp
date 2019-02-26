@@ -376,12 +376,12 @@ int main(int argc, char *argv[])
       ode_imp_solver_type = ode_split_solver_type;
    }
    MFEM_ASSERT(ion_charges_.Size() <= 1 && ion_masses_.Size() <= 1,
-	       "The reduced transport equations only support one ion species.");
+               "The reduced transport equations only support one ion species.");
    if (ion_charges_.Size() == 0)
    {
       ion_charges_.SetSize(1);
       ion_charges_[0] = 1.0;
-   }     
+   }
    if (ion_masses_.Size() == 0)
    {
       ion_masses_.SetSize(1);
@@ -515,15 +515,33 @@ int main(int argc, char *argv[])
    {
       offsets[k] = k * sfes.GetNDofs();
    }
-   BlockVector u_block(offsets);
+   BlockVector x_block(offsets);
 
    Array<int> n_offsets(num_species_ + 2);
    for (int k = 0; k <= num_species_ + 1; k++)
    {
       n_offsets[k] = offsets[k];
    }
-   BlockVector n_block(u_block, n_offsets);
+   BlockVector n_block(&x_block[0], n_offsets);
 
+   Array<int> u_offsets(num_species_ + 2);
+   for (int k = 0; k <= num_species_ + 1; k++)
+   {
+      u_offsets[k] = offsets[k * dim + num_species_ + 1] -
+	offsets[num_species_ + 1];
+   }
+   BlockVector u_block(&x_block[offsets[num_species_+1]], u_offsets);
+
+   Array<int> T_offsets(num_species_ + 2);
+   for (int k = 0; k <= num_species_ + 1; k++)
+   {
+     T_offsets[k] = offsets[k + (dim + 1) * (num_species_ + 1)] -
+       offsets[(dim + 1) * (num_species_ + 1)];
+   }
+   BlockVector T_block(&x_block[offsets[(dim + 1) * (num_species_ + 1)]],
+		       T_offsets);
+
+   
    // Momentum and Energy grid functions on for visualization.
    /*
    ParGridFunction density(&fes, u_block.GetData());
@@ -532,9 +550,9 @@ int main(int argc, char *argv[])
    */
 
    // Initialize the state.
-   VectorFunctionCoefficient u0(num_equations_, InitialCondition);
-   ParGridFunction sol(&ffes, u_block.GetData());
-   sol.ProjectCoefficient(u0);
+   VectorFunctionCoefficient x0(num_equations_, InitialCondition);
+   ParGridFunction sol(&ffes, x_block.GetData());
+   sol.ProjectCoefficient(x0);
 
    VectorFunctionCoefficient BCoef(dim, bFunc);
    ParGridFunction B(&fes_rt);
@@ -585,8 +603,9 @@ int main(int argc, char *argv[])
    DiffusionTDO diff(fes, dfes, vfes, nuCoef, dg_sigma_, dg_kappa_);
    */
    ReducedTransportSolver transp(ode_imp_solver, ode_exp_solver,
-				 sfes, vfes, ffes,
-				 n_block, B, ion_charges_, ion_masses_);
+                                 sfes, vfes, ffes,
+                                 n_block, u_block, T_block,
+				 B, ion_charges_, ion_masses_);
 
    // Visualize the density, momentum, and energy
    vector<socketstream> dout(num_species_+1), vout(num_species_+1),
@@ -605,15 +624,20 @@ int main(int argc, char *argv[])
 
       for (int i=0; i<=num_species_; i++)
       {
+	/*
          int doff = offsets[i];
          int voff = offsets[i * dim + num_species_ + 1];
          int toff = offsets[i + (num_species_ + 1) * (dim + 1)];
-         double * u_data = u_block.GetData();
-         ParGridFunction density(&sfes, u_data + doff);
-         ParGridFunction velocity(&vfes, u_data + voff);
-         ParGridFunction temperature(&sfes, u_data + toff);
-
-
+         double * x_data = x_block.GetData();
+         ParGridFunction density(&sfes, x_data + doff);
+         ParGridFunction velocity(&vfes, x_data + voff);
+         ParGridFunction temperature(&sfes, x_data + toff);
+	*/
+	
+	 ParGridFunction density(&sfes, n_block.GetBlock(i));
+         ParGridFunction velocity(&vfes, u_block.GetBlock(i));
+         ParGridFunction temperature(&sfes, T_block.GetBlock(i));
+	
          ParGridFunction chi_para(&sfes);
          ParGridFunction eta_para(&sfes);
          if (i==0)
@@ -850,7 +874,7 @@ int main(int argc, char *argv[])
        (t_final == 3.0 &&
         strcmp(mesh_file, "../data/periodic-hexagon.mesh") == 0))
    {
-      const double error = sol.ComputeLpError(2, u0);
+      const double error = sol.ComputeLpError(2, x0);
       if (mpi.Root()) { cout << "Solution error: " << error << endl; }
    }
 

@@ -245,20 +245,24 @@ EtaParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
 }
 
 ReducedTransportSolver::ReducedTransportSolver(ODESolver * implicitSolver,
-					       ODESolver * explicitSolver,
-					       ParFiniteElementSpace & sfes,
-					       ParFiniteElementSpace & vfes,
-					       ParFiniteElementSpace & ffes,
-					       BlockVector & nBV,
-					       ParGridFunction & B,
-					       Vector & charges,
-					       Vector & masses)
+                                               ODESolver * explicitSolver,
+                                               ParFiniteElementSpace & sfes,
+                                               ParFiniteElementSpace & vfes,
+                                               ParFiniteElementSpace & ffes,
+                                               BlockVector & nBV,
+                                               BlockVector & uBV,
+                                               BlockVector & TBV,
+                                               ParGridFunction & B,
+                                               Vector & charges,
+                                               Vector & masses)
    : impSolver_(implicitSolver),
      expSolver_(explicitSolver),
      sfes_(sfes),
      vfes_(vfes),
      ffes_(ffes),
      nBV_(nBV),
+     uBV_(uBV),
+     TBV_(TBV),
      B_(B),
      charges_(charges),
      masses_(masses),
@@ -274,7 +278,8 @@ ReducedTransportSolver::~ReducedTransportSolver()
 
 void ReducedTransportSolver::initDiffusion()
 {
-   msDiff_ = new MultiSpeciesDiffusion(sfes_, vfes_, nBV_, charges_, masses_);
+   msDiff_ = new MultiSpeciesDiffusion(sfes_, vfes_, nBV_, uBV_, TBV_,
+				       charges_, masses_);
 }
 
 void ReducedTransportSolver::Update()
@@ -291,11 +296,16 @@ void ReducedTransportSolver::Step(Vector &x, double &t, double &dt)
 MultiSpeciesDiffusion::MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
                                              ParFiniteElementSpace & vfes,
                                              BlockVector & nBV,
+                                             BlockVector & uBV,
+                                             BlockVector & TBV,
                                              Vector & charges,
                                              Vector & masses)
-   : sfes_(sfes),
+   : dim_(sfes.GetParMesh()->SpaceDimension()),
+     sfes_(sfes),
      vfes_(vfes),
      nBV_(nBV),
+     uBV_(uBV),
+     TBV_(TBV),
      charges_(charges),
      masses_(masses)
 {}

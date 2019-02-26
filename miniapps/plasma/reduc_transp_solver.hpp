@@ -172,6 +172,8 @@ private:
    ParFiniteElementSpace & ffes_; // Full system
 
    BlockVector & nBV_;
+   BlockVector & uBV_;
+   BlockVector & TBV_;
 
    ParGridFunction & B_;
 
@@ -184,14 +186,16 @@ private:
 
 public:
    ReducedTransportSolver(ODESolver * implicitSolver,
-			  ODESolver * explicitSolver,
-			  ParFiniteElementSpace & sfes,
-			  ParFiniteElementSpace & vfes,
-			  ParFiniteElementSpace & ffes,
-			  BlockVector & nBV,
-			  ParGridFunction & B,
-			  Vector & charges,
-			  Vector & masses);
+                          ODESolver * explicitSolver,
+                          ParFiniteElementSpace & sfes,
+                          ParFiniteElementSpace & vfes,
+                          ParFiniteElementSpace & ffes,
+                          BlockVector & nBV,
+                          BlockVector & uBV,
+                          BlockVector & TBV,
+                          ParGridFunction & B,
+                          Vector & charges,
+                          Vector & masses);
    ~ReducedTransportSolver();
 
    void Update();
@@ -299,6 +303,8 @@ private:
    ParFiniteElementSpace &vfes_;
 
    BlockVector & nBV_;
+   BlockVector & uBV_;
+   BlockVector & TBV_;
 
    Vector & charges_;
    Vector & masses_;
@@ -313,6 +319,8 @@ public:
    MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
                          ParFiniteElementSpace & vfes,
                          BlockVector & nBV,
+                         BlockVector & uBV,
+                         BlockVector & TBV,
                          Vector & charges,
                          Vector & masses);
 
