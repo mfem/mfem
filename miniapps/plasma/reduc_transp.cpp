@@ -53,6 +53,10 @@ int problem_;
 // Equation constant parameters.
 int num_species_ = -1;
 int num_equations_ = -1;
+
+Vector ion_charges_;
+Vector ion_masses_;
+
 const double specific_heat_ratio_ = 1.4;
 const double gas_constant_ = 1.0;
 
@@ -290,9 +294,6 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int vis_steps = 50;
 
-   Array<int> ion_charges;
-   Vector ion_masses;
-
    int precision = 8;
    cout.precision(precision);
 
@@ -333,11 +334,11 @@ int main(int argc, char *argv[])
                   "exceeds dttol.");
    args.AddOption(&cfl, "-c", "--cfl-number",
                   "CFL number for timestep calculation.");
-   args.AddOption(&ion_charges, "-qi", "--ion-charges",
-                  "Charges of the various species "
+   args.AddOption(&ion_charges_, "-qi", "--ion-charge",
+                  "Charge of the ion species "
                   "(in units of electron charge)");
-   args.AddOption(&ion_masses, "-mi", "--ion-masses",
-                  "Masses of the various species (in amu)");
+   args.AddOption(&ion_masses_, "-mi", "--ion-mass",
+                  "Mass of the ion species (in amu)");
    // args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
    //               "Diffusion constant used in momentum equation.");
    args.AddOption(&dg_sigma_, "-dgs", "--sigma",
@@ -374,15 +375,17 @@ int main(int argc, char *argv[])
    {
       ode_imp_solver_type = ode_split_solver_type;
    }
-   if (ion_charges.Size() == 0)
+   MFEM_ASSERT(ion_charges_.Size() <= 1 && ion_masses_.Size() <= 1,
+	       "The reduced transport equations only support one ion species.");
+   if (ion_charges_.Size() == 0)
    {
-      ion_charges.SetSize(1);
-      ion_charges[0] =  1.0;
-   }
-   if (ion_masses.Size() == 0)
+      ion_charges_.SetSize(1);
+      ion_charges_[0] = 1.0;
+   }     
+   if (ion_masses_.Size() == 0)
    {
-      ion_masses.SetSize(1);
-      ion_masses[0] = 2.01410178;
+      ion_masses_.SetSize(1);
+      ion_masses_[0] = 1.0;
    }
    if (dg_kappa_ < 0)
    {
@@ -412,7 +415,7 @@ int main(int argc, char *argv[])
 
    MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
 
-   num_species_   = ion_charges.Size();
+   num_species_   = 1;
    num_equations_ = (num_species_ + 1) * (dim + 2);
 
    // 4. Define the ODE solver used for time integration. Several explicit
@@ -583,7 +586,7 @@ int main(int argc, char *argv[])
    */
    ReducedTransportSolver transp(ode_imp_solver, ode_exp_solver,
 				 sfes, vfes, ffes,
-				 n_block, B, ion_charges, ion_masses);
+				 n_block, B, ion_charges_, ion_masses_);
 
    // Visualize the density, momentum, and energy
    vector<socketstream> dout(num_species_+1), vout(num_species_+1),
@@ -615,25 +618,25 @@ int main(int argc, char *argv[])
          ParGridFunction eta_para(&sfes);
          if (i==0)
          {
-            ChiParaCoefficient chiParaCoef(n_block, ion_charges);
+            ChiParaCoefficient chiParaCoef(n_block, ion_charges_);
             chiParaCoef.SetT(temperature);
             chi_para.ProjectCoefficient(chiParaCoef);
 
-            EtaParaCoefficient etaParaCoef(n_block, ion_charges);
+            EtaParaCoefficient etaParaCoef(n_block, ion_charges_);
             etaParaCoef.SetT(temperature);
             eta_para.ProjectCoefficient(etaParaCoef);
          }
          else
          {
             ChiParaCoefficient chiParaCoef(n_block, i - 1,
-                                           ion_charges,
-                                           ion_masses);
+                                           ion_charges_,
+                                           ion_masses_);
             chiParaCoef.SetT(temperature);
             chi_para.ProjectCoefficient(chiParaCoef);
 
             EtaParaCoefficient etaParaCoef(n_block, i - 1,
-                                           ion_charges,
-                                           ion_masses);
+                                           ion_charges_,
+                                           ion_masses_);
             etaParaCoef.SetT(temperature);
             eta_para.ProjectCoefficient(etaParaCoef);
          }
