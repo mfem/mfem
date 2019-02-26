@@ -213,6 +213,11 @@ protected:
    void ReadGmshV2(std::istream &input, int binary);
    void ReadGmshV4(std::istream &input, int binary);
    void ReadGmshMesh(std::istream &input);
+   void ReadGmshBoundaryElements(std::vector<Element*> &elements_0D,
+                                 std::vector<Element*> &elements_1D,
+                                 std::vector<Element*> &elements_2D,
+                                 std::vector<Element*> &elements_3D);
+   inline static int NodesOfGmshElement(int eleType);
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
    void ReadCubit(const char *filename, int &curved, int &read_gf);
@@ -1206,6 +1211,69 @@ inline void Mesh::Rotate3(int &a, int &b, int &c)
    }
 }
 
+inline int Mesh::NodesOfGmshElement(int eleType)
+{
+   int nodes_of_gmsh_element[] =
+   {
+      2, // 2-node line.
+      3, // 3-node triangle.
+      4, // 4-node quadrangle.
+      4, // 4-node tetrahedron.
+      8, // 8-node hexahedron.
+      6, // 6-node prism.
+      5, // 5-node pyramid.
+      3, /* 3-node second order line (2 nodes associated with the vertices
+               and 1 with the edge). */
+      6, /* 6-node second order triangle (3 nodes associated with the
+               vertices and 3 with the edges). */
+      9, /* 9-node second order quadrangle (4 nodes associated with the
+               vertices, 4 with the edges and 1 with the face). */
+      10,/* 10-node second order tetrahedron (4 nodes associated with the
+               vertices and 6 with the edges). */
+      27,/* 27-node second order hexahedron (8 nodes associated with the
+               vertices, 12 with the edges, 6 with the faces and 1 with
+               the volume). */
+      18,/* 18-node second order prism (6 nodes associated with the
+               vertices, 9 with the edges and 3 with the quadrangular
+               faces). */
+      14,/* 14-node second order pyramid (5 nodes associated with the
+               vertices, 8 with the edges and 1 with the quadrangular
+               face). */
+      1, // 1-node point.
+      8, /* 8-node second order quadrangle (4 nodes associated with the
+               vertices and 4 with the edges). */
+      20,/* 20-node second order hexahedron (8 nodes associated with the
+               vertices and 12 with the edges). */
+      15,/* 15-node second order prism (6 nodes associated with the
+               vertices and 9 with the edges). */
+      13,/* 13-node second order pyramid (5 nodes associated with the
+               vertices and 8 with the edges). */
+      9, /* 9-node third order incomplete triangle (3 nodes associated
+               with the vertices, 6 with the edges) */
+      10,/* 10-node third order triangle (3 nodes associated with the
+               vertices, 6 with the edges, 1 with the face) */
+      12,/* 12-node fourth order incomplete triangle (3 nodes associated
+               with the vertices, 9 with the edges) */
+      15,/* 15-node fourth order triangle (3 nodes associated with the
+               vertices, 9 with the edges, 3 with the face) */
+      15,/* 15-node fifth order incomplete triangle (3 nodes associated
+               with the vertices, 12 with the edges) */
+      21,/* 21-node fifth order complete triangle (3 nodes associated with
+               the vertices, 12 with the edges, 6 with the face) */
+      4, /* 4-node third order edge (2 nodes associated with the vertices,
+               2 internal to the edge) */
+      5, /* 5-node fourth order edge (2 nodes associated with the
+               vertices, 3 internal to the edge) */
+      6, /* 6-node fifth order edge (2 nodes associated with the vertices,
+               4 internal to the edge) */
+      20 /* 20-node third order tetrahedron (4 nodes associated with the
+               vertices, 12 with the edges, 4 with the faces) */
+   };
+   return(nodes_of_gmsh_element[eleType]);
 }
+
+
+
+} //Namespace mfem
 
 #endif
