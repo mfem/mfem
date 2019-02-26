@@ -941,7 +941,7 @@ void InitialCondition(const Vector &x, Vector &y)
 
    // Impose neutrality
    y(0) = 0.0;
-   for (int i=1; i<num_species_; i++)
+   for (int i=1; i<=num_species_; i++)
    {
       y(0) += y(i);
    }
