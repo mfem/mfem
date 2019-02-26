@@ -289,7 +289,6 @@ void MultWidth0(const size_t height, double *y)
 void Mult(const size_t height, const size_t width,
           const double *data, const double *x, double *y)
 {
-
   MFEM_GPU_CANNOT_PASS;
   for(int i=0; i<height; ++i) {
     double sum = 0.0;
@@ -299,7 +298,11 @@ void Mult(const size_t height, const size_t width,
       }
     y[i] = sum;
   }
-
+   
+  // Carrying out mult on the GPU breaks the 
+  // ComputeL2Error method in the gridfunction class                                                                                                                                                                                          
+  // as certain pointers are not being tracked by the memory manager.
+  // This is a temporary workaround. 
 #if 0
    GET_CONST_PTR(data);
    GET_CONST_PTR(x);
@@ -314,7 +317,6 @@ void Mult(const size_t height, const size_t width,
       d_y[i] = sum;
    });
 #endif
-
 }
 
 // *****************************************************************************
