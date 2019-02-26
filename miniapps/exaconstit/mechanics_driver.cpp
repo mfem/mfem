@@ -66,7 +66,8 @@
 #include "BCData.hpp"
 #include "BCManager.hpp"
 #include "option_parser.hpp"
-#include <iostream>
+#include <string>
+#include <sstream>
 
 using namespace std;
 using namespace mfem;
@@ -132,6 +133,13 @@ int main(int argc, char *argv[])
 
    //Here we start a timer to time everything
    double start = MPI_Wtime();
+   //Here we're going to measure the times of each solve.
+   //It'll give us a good idea of strong and weak scaling in
+   //comparison to the global value of things.
+   //It'll make it easier to point out where some scaling issues might
+   //be occurring.
+   std::vector<double> times;
+   double t1, t2;
    // print the version of the code being run
    if(myid == 0) printf("MFEM Version: %d \n", GetVersion());
 
@@ -174,6 +182,8 @@ int main(int argc, char *argv[])
      toml_opt.nsteps = ceil(toml_opt.t_final/toml_opt.dt);
      if(myid==0) printf("number of steps %d \n", toml_opt.nsteps);
    }
+   
+   times.reserve(toml_opt.nsteps);
    
    // Check material model argument input parameters for valid combinations
    if(myid == 0) printf("after input before checkMaterialArgs. \n");
@@ -630,11 +640,15 @@ int main(int argc, char *argv[])
       
       //For the 1st time step, we might need to solve things using a ramp up to
       //our desired applied velocity boundary conditions.
+      t1 = MPI_Wtime();
       if(ti == 1){
          oper.SolveInit(v_sol);
       }else{
          oper.Solve(v_sol);
       }
+      t2 = MPI_Wtime();
+      times[ti - 1] = t2 - t1;
+      
       // distribute the solution vector to v_cur
       v_cur.Distribute(v_sol);
 
@@ -646,6 +660,7 @@ int main(int argc, char *argv[])
       // prior to the next time step for all Exa material models
       // This also updates the deformation gradient with the beginning step 
       // deformation gradient stored on an Exa model
+      
       oper.UpdateModel(v_sol);
 
       //Update our beginning time step coords with our end time step coords
@@ -685,7 +700,33 @@ int main(int argc, char *argv[])
    delete pmesh;
    //Now find out how long everything took to run roughly
    double end = MPI_Wtime();
-   if(myid == 0) printf("The process took %lf seconds to run\n", (end-start));
+   
+   double sim_time = end - start;
+   double avg_sim_time;
+   
+   MPI_Allreduce(&sim_time, &avg_sim_time, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   int world_size;
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+      
+   {
+      std::ostringstream oss;
+      
+      oss << "./time/time_solve." << myid << ".txt";
+      std::string file_name = oss.str();
+      std::ofstream file;
+      file.open(file_name, std::ios::out | std::ios::app);
+      
+      for(int i = 0; i < toml_opt.nsteps; i++){
+         std::ostringstream strs;
+         strs << setprecision(8) << times[i] << "\n";
+         std::string str = strs.str();
+         file << str;
+      }
+      file.close();
+   }
+   
+   
+   if(myid == 0) printf("The process took %lf seconds to run\n", (avg_sim_time / world_size));
 
    MPI_Finalize();
 
