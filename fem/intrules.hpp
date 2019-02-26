@@ -31,6 +31,7 @@ public:
 
    void Set(const double *p, const int dim)
    {
+      MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
       x = p[0];
       if (dim > 1)
       {
@@ -44,6 +45,7 @@ public:
 
    void Get(double *p, const int dim) const
    {
+      MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
       p[0] = x;
       if (dim > 1)
       {
@@ -304,6 +306,7 @@ private:
    Array<IntegrationRule *> TriangleIntRules;
    Array<IntegrationRule *> SquareIntRules;
    Array<IntegrationRule *> TetrahedronIntRules;
+   Array<IntegrationRule *> PrismIntRules;
    Array<IntegrationRule *> CubeIntRules;
 
    void AllocIntRule(Array<IntegrationRule *> &ir_array, int Order)
@@ -328,6 +331,7 @@ private:
    IntegrationRule *TriangleIntegrationRule(int Order);
    IntegrationRule *SquareIntegrationRule(int Order);
    IntegrationRule *TetrahedronIntegrationRule(int Order);
+   IntegrationRule *PrismIntegrationRule(int Order);
    IntegrationRule *CubeIntegrationRule(int Order);
 
    void DeleteIntRuleArray(Array<IntegrationRule *> &ir_array);
