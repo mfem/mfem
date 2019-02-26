@@ -947,7 +947,7 @@ void InitialCondition(const Vector &x, Vector &y)
    y(0) = 0.0;
    for (int i=1; i<=num_species_; i++)
    {
-      y(0) += y(i);
+      y(0) += ion_charges_[i-1] * y(i);
    }
    y(num_species_ + 1) = V(0);
    y(num_species_ + 2) = V(1);
