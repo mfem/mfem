@@ -45,6 +45,29 @@ double tau_i(double ma, double Ta, int ion, int ns, double * ni, double * zi,
              double lnLambda);
 
 /**
+  Particle diffusion coefficient perpendicular to B field for ions
+  Return value is in m^2/s.
+*/
+inline double diff_i_perp()
+{
+   // The factor of q_ is included to convert Ti from eV to Joules
+   // The factor of u_ is included to convert mi from a.m.u to kg
+   return 1.0;
+}
+
+/**
+  Particle diffusion coefficient perpendicular to both B field and
+  particle gradient for ions
+  Return value is in m^2/s.
+*/
+inline double diff_i_cross()
+{
+   // The factor of q_ is included to convert Ti from eV to Joules
+   // The factor of u_ is included to convert mi from a.m.u to kg
+   return 0.0;
+}
+
+/**
   Thermal diffusion coefficient along B field for electrons
   Return value is in m^2/s.
    Te is the electron temperature in eV
@@ -203,6 +226,50 @@ public:
    void Step(Vector &x, double &t, double &dt);
 };
 
+class DiffPerpCoefficient : public Coefficient
+{
+private:
+   int ion_;
+
+public:
+   DiffPerpCoefficient(BlockVector & nBV, int ion_species,
+		    Vector & charges, Vector & masses);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+class DiffCrossCoefficient : public Coefficient
+{
+private:
+   int ion_;
+
+public:
+   DiffCrossCoefficient(BlockVector & nBV, int ion_species,
+		     Vector & charges, Vector & masses);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+class DiffCoefficient : public MatrixCoefficient
+{
+private:
+   DiffPerpCoefficient  diffPerpCoef_;
+   DiffCrossCoefficient diffCrossCoef_;
+   VectorGridFunctionCoefficient BCoef_;
+
+   Vector bHat_;
+
+public:
+   DiffCoefficient(int dim, BlockVector & nBV, int ion_species,
+		   Vector & charges, Vector & masses);
+
+   void SetT(ParGridFunction & T);
+   void SetB(ParGridFunction & B);
+
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip);
+};
+
 class ChiParaCoefficient : public Coefficient
 {
 private:
@@ -296,9 +363,44 @@ public:
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
+class dEdnCoefficient : public Coefficient
+{
+private:
+  Coefficient & TCoef_;
+  VectorCoefficient & uCoef_;
+  double m_;
+
+  mutable Vector u_;
+  
+public:
+  dEdnCoefficient(Coefficient & TCoef, double m, VectorCoefficient & uCoef);
+
+  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+typedef ProductCoefficient dEdTCoefficient;
+  
+class dEduCoefficient : public Coefficient
+{
+private:
+  int c_;
+  double m_;
+  Coefficient & nCoef_;
+  VectorCoefficient & uCoef_;
+  mutable Vector u_;
+  
+public:
+  dEduCoefficient(int c, double m, Coefficient & nCoef,
+		  VectorCoefficient & uCoef);
+
+  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+  
 class MultiSpeciesDiffusion : public TimeDependentOperator
 {
 private:
+   int dim_;
+  
    ParFiniteElementSpace &sfes_;
    ParFiniteElementSpace &vfes_;
 
@@ -309,9 +411,23 @@ private:
    Vector & charges_;
    Vector & masses_;
 
-   std::vector<ChiCoefficient *> chiCoef_;
-   std::vector<ScalarMatrixProductCoefficient *> dtChiCoef_;
+   std::vector<ParGridFunction> nGF_;
+   std::vector<ParGridFunction> uGF_;
+   std::vector<ParGridFunction> TGF_;
   
+   std::vector<GridFunctionCoefficient>       nCoef_;
+   std::vector<VectorGridFunctionCoefficient> uCoef_;
+   std::vector<GridFunctionCoefficient>       TCoef_;
+
+   std::vector<dEdnCoefficient *>    dEdnCoef_;
+   std::vector<dEduCoefficient *>    dEduCoef_;
+   std::vector<dEdTCoefficient *> dEdTCoef_;
+  
+   std::vector<DiffCoefficient *> diffCoef_;
+   std::vector<ChiCoefficient *>  chiCoef_;
+   std::vector<ScalarMatrixProductCoefficient *> dtChiCoef_;
+   std::vector<ScalarMatrixProductCoefficient *> dtDiffCoef_;
+
    void initCoefficients();
    void initBilinearForms();
 
