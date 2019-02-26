@@ -289,6 +289,18 @@ void MultWidth0(const size_t height, double *y)
 void Mult(const size_t height, const size_t width,
           const double *data, const double *x, double *y)
 {
+
+  MFEM_GPU_CANNOT_PASS;
+  for(int i=0; i<height; ++i) {
+    double sum = 0.0;
+    for (size_t j=0; j<width; j+=1)
+      {
+        sum += x[j]*data[i+j*height];
+      }
+    y[i] = sum;
+  }
+
+#if 0
    GET_CONST_PTR(data);
    GET_CONST_PTR(x);
    GET_PTR(y);
@@ -301,6 +313,8 @@ void Mult(const size_t height, const size_t width,
       }
       d_y[i] = sum;
    });
+#endif
+
 }
 
 // *****************************************************************************
