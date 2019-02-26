@@ -57,7 +57,7 @@ const double specific_heat_ratio_ = 1.4;
 const double gas_constant_ = 1.0;
 
 // Scalar coefficient for diffusion of momentum
-static double diffusion_constant_ = 0.1;
+//static double diffusion_constant_ = 0.1;
 static double dg_sigma_ = -1.0;
 static double dg_kappa_ = -1.0;
 
@@ -71,9 +71,9 @@ static double max_char_speed_;
 static int prob_ = 4;
 static int gamma_ = 10;
 static double alpha_ = NAN;
-static double chi_max_ratio_ = 1.0;
-static double chi_min_ratio_ = 1.0;
-
+//static double chi_max_ratio_ = 1.0;
+//static double chi_min_ratio_ = 1.0;
+/*
 void ChiFunc(const Vector &x, DenseMatrix &M)
 {
    M.SetSize(2);
@@ -129,7 +129,7 @@ void ChiFunc(const Vector &x, DenseMatrix &M)
       break;
    }
 }
-
+*/
 double TFunc(const Vector &x, double t)
 {
    switch (prob_)
@@ -338,8 +338,8 @@ int main(int argc, char *argv[])
                   "(in units of electron charge)");
    args.AddOption(&ion_masses, "-mi", "--ion-masses",
                   "Masses of the various species (in amu)");
-   args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
-                  "Diffusion constant used in momentum equation.");
+   // args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
+   //               "Diffusion constant used in momentum equation.");
    args.AddOption(&dg_sigma_, "-dgs", "--sigma",
                   "One of the two DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
@@ -350,10 +350,10 @@ int main(int argc, char *argv[])
                   "");
    args.AddOption(&v_max_, "-v", "--velocity",
                   "");
-   args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
-                  "Ratio of chi_max_parallel/chi_perp.");
-   args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
-                  "Ratio of chi_min_parallel/chi_perp.");
+   // args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
+   //               "Ratio of chi_max_parallel/chi_perp.");
+   // args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
+   //               "Ratio of chi_min_parallel/chi_perp.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
