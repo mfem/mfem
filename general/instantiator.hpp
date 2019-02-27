@@ -12,9 +12,9 @@
 #ifndef MFEM_INSTANTIATOR_HPP
 #define MFEM_INSTANTIATOR_HPP
 
-#include <unordered_map>
-#include <type_traits>
 #include <array>
+#include <type_traits>
+#include <unordered_map>
 
 using std::decay;
 using std::array;
@@ -24,7 +24,7 @@ using std::enable_if;
 using std::tuple_size;
 using std::unordered_map;
 
-template<const int N, typename Key, typename Kernel>
+template<const std::size_t N, typename Key, typename Kernel>
 class Instantiator
 {
 private:
@@ -36,14 +36,15 @@ private:
    {
       static void add(const T& id, map_t &map)
       {
-         map.emplace(GetKey<Key>(I), GetValue<Kernel,GetKey<Key>(I)>());
+         map.emplace(GetKey<Key>(I), GetValue<Kernel, GetKey<Key>(I)>());
          Kernels<T,I+1u>::add(forward<T>(id), map);
       }
    };
 
    template<class T, size_t I>
    struct Kernels<T, I,
-             typename enable_if<I==tuple_size< typename decay<T>::type>::value>::type>
+             typename enable_if<I==tuple_size<
+             typename decay<T>::type>::value>::type>
    {
       static void add(T&, map_t&) {}
    };

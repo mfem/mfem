@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
-#include <array>
 
 // *****************************************************************************
 namespace mfem
@@ -395,7 +394,8 @@ void biPADiffusionMultAdd(const int numElements,
 // *****************************************************************************
 using Key_t = unsigned int;
 using Kernel_t = fDiffusionMultAdd;
-constexpr std::array<unsigned int, 5> ids = {0x222, 0x233, 0x244, 0x323, 0x334};
+constexpr std::size_t NID = 5;
+constexpr std::array<Key_t, NID> ids = {0x222, 0x233, 0x244, 0x323, 0x334};
 template<typename Key_t>
 constexpr Key_t GetKey(const std::size_t N) { return ids.at(N); }
 template<typename Kernel_t, Key_t N> constexpr Kernel_t GetValue()
@@ -430,7 +430,7 @@ void biPADiffusionMultAdd(const int DIM,
    }
 #endif // __OCCA__
 
-   Instantiator<5, Key_t, Kernel_t> kernels(ids);
+   Instantiator<NID, Key_t, Kernel_t> kernels(ids);
    const Key_t id = (DIM<<8)+(NUM_DOFS_1D<<4)+(NUM_QUAD_1D);
    const bool found = kernels.Find(id);
    if (!found){
