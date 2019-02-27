@@ -419,14 +419,17 @@ private:
    std::vector<VectorGridFunctionCoefficient> uCoef_;
    std::vector<GridFunctionCoefficient>       TCoef_;
 
-   std::vector<dEdnCoefficient *>    dEdnCoef_;
-   std::vector<dEduCoefficient *>    dEduCoef_;
+   std::vector<dEdnCoefficient *> dEdnCoef_;
+   std::vector<dEduCoefficient *> dEduCoef_;
    std::vector<dEdTCoefficient *> dEdTCoef_;
   
    std::vector<DiffCoefficient *> diffCoef_;
    std::vector<ChiCoefficient *>  chiCoef_;
-   std::vector<ScalarMatrixProductCoefficient *> dtChiCoef_;
+
+   std::vector<ProductCoefficient *> dtnCoef_;
+  
    std::vector<ScalarMatrixProductCoefficient *> dtDiffCoef_;
+   std::vector<ScalarMatrixProductCoefficient *> dtnChiCoef_;
 
    void initCoefficients();
    void initBilinearForms();

@@ -439,9 +439,13 @@ MultiSpeciesDiffusion::~MultiSpeciesDiffusion()
   {
     delete dtDiffCoef_[i];
   }
-  for (unsigned int i=0; i<dtChiCoef_.size(); i++)
+  for (unsigned int i=0; i<dtnChiCoef_.size(); i++)
   {
-    delete dtChiCoef_[i];
+    delete dtnChiCoef_[i];
+  }
+  for (unsigned int i=0; i<dtnCoef_.size(); i++)
+  {
+    delete dtnCoef_[i];
   }
   for (unsigned int i=0; i<diffCoef_.size(); i++)
   {
@@ -490,13 +494,17 @@ void MultiSpeciesDiffusion::initCoefficients()
   }
 
   chiCoef_.resize(ns+1);
-  dtChiCoef_.resize(ns+1);
+  dtnCoef_.resize(ns+1);
+  dtnChiCoef_.resize(ns+1);
   chiCoef_[0] = new ChiCoefficient(dim_, nBV_, charges_);
-  dtChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[0]);
+  dtnCoef_[0] = new ProductCoefficient(0.0, nCoef_[0]);
+  dtnChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[0]);
   for (int i=0; i<ns; i++)
   {
     chiCoef_[i+1] = new ChiCoefficient(dim_, nBV_, i, charges_, masses_);
-    dtChiCoef_[i+1] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[i+1]);
+    dtnCoef_[i+1] = new ProductCoefficient(0.0, nCoef_[i+1]);
+    dtnChiCoef_[i+1] = new ScalarMatrixProductCoefficient(*dtnCoef_[i+1],
+							  *chiCoef_[i+1]);
   }
 }
 
