@@ -24,11 +24,11 @@ using std::enable_if;
 using std::tuple_size;
 using std::unordered_map;
 
-template<const std::size_t N, typename Key, typename Kernel>
+template<typename Params, const std::size_t NID, typename Key, typename Kernel>
 class Instantiator
 {
 private:
-   using map_t = unordered_map<Key,Kernel>;
+   using map_t = unordered_map<Key, Kernel>;
    map_t map;
 
    template<class T, size_t I, class = void>
@@ -36,7 +36,9 @@ private:
    {
       static void add(const T& id, map_t &map)
       {
-         map.emplace(GetKey<Key>(I), GetValue<Kernel, GetKey<Key>(I)>());
+         constexpr Key key = GetKey<I>();
+         constexpr Kernel value = GetValue<Kernel, key>();
+         map.emplace(key, value);
          Kernels<T,I+1u>::add(forward<T>(id), map);
       }
    };
@@ -53,7 +55,7 @@ private:
    void foreach(T&& id) { Kernels<T,0u>::add(forward<T>(id), map); }
 
 public:
-   Instantiator(const array<Key, N> &ids) { foreach(ids); }
+   Instantiator(const Params &ids) { foreach(ids); }
 
    bool Find(const Key id)
    {

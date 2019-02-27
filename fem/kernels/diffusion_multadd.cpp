@@ -392,12 +392,14 @@ void biPADiffusionMultAdd(const int numElements,
 }
 
 // *****************************************************************************
+constexpr std::size_t NID = 5;
 using Key_t = unsigned int;
 using Kernel_t = fDiffusionMultAdd;
-constexpr std::size_t NID = 5;
-constexpr std::array<Key_t, NID> ids = {0x222, 0x233, 0x244, 0x323, 0x334};
-template<typename Key_t>
-constexpr Key_t GetKey(const std::size_t N) { return ids.at(N); }
+using Params_t = std::array<Key_t, 5>;
+constexpr Params_t ids {{0x222, 0x233, 0x244, 0x323, 0x334}};
+template<size_t I> constexpr Key_t GetKey() {
+   return I==0?0x222:I==1?0x233:I==3?0x244:I==4?0x323:0x334;
+}
 template<typename Kernel_t, Key_t N> constexpr Kernel_t GetValue()
 {
    return &biPADiffusionMultAdd<(N>>8)&0xF, (N>>4)&0xF, (N)&0xF>;
@@ -430,7 +432,7 @@ void biPADiffusionMultAdd(const int DIM,
    }
 #endif // __OCCA__
 
-   Instantiator<NID, Key_t, Kernel_t> kernels(ids);
+   Instantiator<Params_t, NID, Key_t, Kernel_t> kernels(ids);
    const Key_t id = (DIM<<8)+(NUM_DOFS_1D<<4)+(NUM_QUAD_1D);
    const bool found = kernels.Find(id);
    if (!found){
