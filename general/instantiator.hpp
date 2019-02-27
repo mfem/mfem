@@ -14,31 +14,36 @@
 
 #include <unordered_map>
 #include <type_traits>
+#include <array>
+
+using std::decay;
+using std::array;
+using std::size_t;
+using std::forward;
 using std::enable_if;
 using std::tuple_size;
-using std::decay;
-using std::forward;
+using std::unordered_map;
 
 template<const int N, typename Key, typename Kernel>
 class Instantiator
 {
 private:
-   using map_t = std::unordered_map<Key,Kernel>;
+   using map_t = unordered_map<Key,Kernel>;
    map_t map;
 
-   template<class T, std::size_t I, class = void>
+   template<class T, size_t I, class = void>
    struct Kernels
    {
       static void add(const T& id, map_t &map)
       {
          map.emplace(GetKey<Key>(I), GetValue<Kernel,GetKey<Key>(I)>());
-         Kernels<T,I+1u>::add(std::forward<T>(id), map);
+         Kernels<T,I+1u>::add(forward<T>(id), map);
       }
    };
 
-   template<class T, std::size_t I>
+   template<class T, size_t I>
    struct Kernels<T, I,
-      typename enable_if<I==tuple_size< typename decay<T>::type>::value>::type>
+             typename enable_if<I==tuple_size< typename decay<T>::type>::value>::type>
    {
       static void add(T&, map_t&) {}
    };
@@ -47,7 +52,7 @@ private:
    void foreach(T&& id) { Kernels<T,0u>::add(forward<T>(id), map); }
 
 public:
-   Instantiator(const std::array<Key, N> &ids) { foreach(ids); }
+   Instantiator(const array<Key, N> &ids) { foreach(ids); }
 
    bool Find(const Key id)
    {
