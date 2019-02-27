@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
-//#include "../../general/macros.hpp"
+#include <array>
 
 // *****************************************************************************
 namespace mfem
@@ -395,7 +395,7 @@ void biPADiffusionMultAdd(const int numElements,
 // *****************************************************************************
 using Key_t = unsigned int;
 using Kernel_t = fDiffusionMultAdd;
-constexpr std::array<Key_t, 5> ids = {0x222, 0x233, 0x244, 0x323, 0x334};
+constexpr std::array<unsigned int, 5> ids = {0x222, 0x233, 0x244, 0x323, 0x334};
 template<typename Key_t>
 constexpr Key_t GetKey(const std::size_t N) { return ids.at(N); }
 template<typename Kernel_t, Key_t N> constexpr Kernel_t GetValue()
