@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
+#include "../../general/instantiator.hpp"
 
 // *****************************************************************************
 namespace mfem
@@ -392,19 +393,27 @@ void biPADiffusionMultAdd(const int numElements,
 }
 
 // *****************************************************************************
-constexpr std::size_t NID = 5;
-using Key_t = unsigned int;
-using Kernel_t = fDiffusionMultAdd;
-using Params_t = std::array<Key_t, 5>;
-constexpr Params_t ids {{0x222, 0x233, 0x244, 0x323, 0x334}};
-template<size_t I> constexpr Key_t GetKey() {
-   return I==0?0x222:I==1?0x233:I==3?0x244:I==4?0x323:0x334;
-}
-template<typename Kernel_t, Key_t N> constexpr Kernel_t GetValue()
+// * Templated kernels
+// *****************************************************************************
+struct TemplatedKernels
 {
-   return &biPADiffusionMultAdd<(N>>8)&0xF, (N>>4)&0xF, (N)&0xF>;
-}
-#include "../../general/instantiator.hpp"
+   static const int N = 5;
+   using Key_t = std::size_t;
+   using Kernel_t = fDiffusionMultAdd;
+   template<Key_t I> static constexpr Key_t GetKey() noexcept{
+      return I==0 ? 0x222 :
+             I==1 ? 0x233 :
+             I==2 ? 0x244 :
+             I==3 ? 0x323 :
+             I==4 ? 0x334 :
+             0;
+   }
+   template<Key_t K> static constexpr Kernel_t GetValue() noexcept
+   {
+      return &biPADiffusionMultAdd<(K>>8)&0xF, (K>>4)&0xF, (K)&0xF>;
+   }
+};
+using TK = TemplatedKernels;
 
 // *****************************************************************************
 void biPADiffusionMultAdd(const int DIM,
@@ -432,12 +441,13 @@ void biPADiffusionMultAdd(const int DIM,
    }
 #endif // __OCCA__
 
-   Instantiator<Params_t, NID, Key_t, Kernel_t> kernels(ids);
-   const Key_t id = (DIM<<8)+(NUM_DOFS_1D<<4)+(NUM_QUAD_1D);
+   // #warning Instantiator should be done once
+   Instantiator<TK> kernels;   
+   const TK::Key_t id = (DIM<<8)+(NUM_DOFS_1D<<4)+(NUM_QUAD_1D);
    const bool found = kernels.Find(id);
    if (!found){
       mfem_error("Kernel is not available!");
-   }   
+   }
    GET_CONST_PTR(dofToQuad);
    GET_CONST_PTR(dofToQuadD);
    GET_CONST_PTR(quadToDof);

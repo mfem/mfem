@@ -17,7 +17,6 @@
 #include "../general/error.hpp"
 
 // *****************************************************************************
-#include <array>
 #include <cmath>
 #include <cassert>
 #include <cstring>

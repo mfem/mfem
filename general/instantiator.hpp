@@ -12,57 +12,99 @@
 #ifndef MFEM_INSTANTIATOR_HPP
 #define MFEM_INSTANTIATOR_HPP
 
-#include <array>
-#include <type_traits>
 #include <unordered_map>
-
-using std::decay;
-using std::array;
-using std::size_t;
-using std::forward;
-using std::enable_if;
-using std::tuple_size;
 using std::unordered_map;
+using std::integral_constant;
 
-template<typename Params, const std::size_t NID, typename Key, typename Kernel>
+// *****************************************************************************
+// * Generic emplace
+// *****************************************************************************
+template<typename K, const int N,
+         typename Key_t = typename K::Key_t,
+         typename Kernel_t = typename K::Kernel_t>
+void emplace(std::unordered_map<Key_t, Kernel_t> &map)
+{
+   constexpr Key_t key = K::template GetKey<N>();
+   constexpr Kernel_t value = K::template GetValue<key>();
+   map.emplace(key, value);
+}
+
+// *****************************************************************************
+// * instances
+// *****************************************************************************
+template<class K, typename T, T... idx>
+struct instances
+{
+   static void Fill(unordered_map<typename K::Key_t, typename K::Kernel_t> &map)
+   {
+      using unused = int[];
+      (void) unused {0, (emplace<K,idx>(map), 0)... };
+   }
+};
+
+// *****************************************************************************
+// * cat instances
+// *****************************************************************************
+template<class K, typename Offset, typename Lhs, typename Rhs> struct cat;
+template<class K, typename T, T Offset, T... Lhs, T... Rhs>
+struct cat<K, integral_constant<T, Offset>,
+          instances<K, T, Lhs...>, instances<K, T, Rhs...> >
+{
+   using type = instances<K, T, Lhs..., (Offset + Rhs)...>;
+};
+
+// *****************************************************************************
+// * sequence, empty and one element terminal cases
+// *****************************************************************************
+template<class K, typename T, typename N>
+struct sequence
+{
+   using Lhs = integral_constant<T, N::value/2>;
+   using Rhs = integral_constant<T, N::value-Lhs::value>;
+   using type = typename cat<K, Lhs,
+         typename sequence<K, T, Lhs>::type,
+         typename sequence<K, T, Rhs>::type>::type;
+};
+template<class K, typename T>
+struct sequence<K, T, integral_constant<T,0> >
+{
+   using type = instances<K,T>;
+};
+
+template<class K, typename T>
+struct sequence<K, T, integral_constant<T,1> >
+{
+   using type = instances<K,T,0>;
+};
+
+// *****************************************************************************
+// * make_sequence
+// *****************************************************************************
+template<class I, typename T = typename I::Key_t>
+using make_sequence = typename sequence<I, T, integral_constant<T,I::N> >::type;
+
+// *****************************************************************************
+// *****************************************************************************
+template<class Instance,
+         typename Key_t = typename Instance::Key_t,
+         typename Kernel_t = typename Instance::Kernel_t>
 class Instantiator
 {
 private:
-   using map_t = unordered_map<Key, Kernel>;
+   using map_t = std::unordered_map<Key_t, Kernel_t>;
    map_t map;
-
-   template<class T, size_t I, class = void>
-   struct Kernels
-   {
-      static void add(const T& id, map_t &map)
-      {
-         constexpr Key key = GetKey<I>();
-         constexpr Kernel value = GetValue<Kernel, key>();
-         map.emplace(key, value);
-         Kernels<T,I+1u>::add(forward<T>(id), map);
-      }
-   };
-
-   template<class T, size_t I>
-   struct Kernels<T, I,
-             typename enable_if<I==tuple_size<
-             typename decay<T>::type>::value>::type>
-   {
-      static void add(T&, map_t&) {}
-   };
-
-   template<class T>
-   void foreach(T&& id) { Kernels<T,0u>::add(forward<T>(id), map); }
-
 public:
-   Instantiator(const Params &ids) { foreach(ids); }
+   Instantiator()
+   {
+      make_sequence<Instance>().Fill(map);
+   }
 
-   bool Find(const Key id)
+   bool Find(const Key_t id)
    {
       return (map.find(id) != map.end()) ? true : false;
    }
 
-   Kernel At(const Key id)
+   Kernel_t At(const Key_t id)
    {
       return map.at(id);
    }
