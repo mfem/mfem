@@ -26,6 +26,9 @@
 namespace mfem
 {
 
+class FiniteElementSpace;
+
+
 /** \brief A parallel extension of the NCMesh class.
  *
  *  The basic idea (and assumption) is that all processors share the coarsest
@@ -63,6 +66,8 @@ class ParNCMesh : public NCMesh
 public:
    ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh);
 
+   ParNCMesh(const ParNCMesh &other);
+
    virtual ~ParNCMesh();
 
    /** An override of NCMesh::Refine, which is called eventually, after making
@@ -94,6 +99,9 @@ public:
    int GetNGhostEdges() const { return NGhostEdges; }
    int GetNGhostFaces() const { return NGhostFaces; }
    int GetNGhostElements() const { return NGhostElements; }
+
+   Geometry::Type GetGhostFaceGeometry(int ghost_face_id) const
+   { return Geometry::SQUARE; }
 
    // Return a list of vertices/edges/faces shared by this processor and at
    // least one other processor. These are subsets of NCMesh::<entity>_list. */
@@ -176,13 +184,6 @@ public:
    }
 
 
-   // interface for ParMesh
-
-   /** Populate face neighbor members of ParMesh from the ghost layer, without
-       communication. */
-   void GetFaceNeighbors(class ParMesh &pmesh);
-
-
    // utility
 
    int GetMyRank() const { return MyRank; }
@@ -227,7 +228,22 @@ public:
    void GetDebugMesh(Mesh &debug_mesh) const;
 
 
-protected:
+protected: // interface for ParMesh
+
+   friend class ParMesh;
+
+   /** For compatibility with conforming code in ParMesh and ParFESpace.
+       Initializes shared structures in ParMesh: gtopo, shared_*, group_s*, s*_l*.
+       The ParMesh then acts as a parallel mesh cut along the NC interfaces. */
+   void GetConformingSharedStructures(class ParMesh &pmesh);
+
+   /** Populate face neighbor members of ParMesh from the ghost layer, without
+       communication. */
+   void GetFaceNeighbors(class ParMesh &pmesh);
+
+
+protected: // implementation
+
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -242,8 +258,13 @@ protected:
 
    // owner rank for each vertex, edge and face (encoded as singleton groups)
    Array<GroupId> entity_owner[3];
-   // P matrix comm pattern groups for each vertex, edge and face (0/1/2)
+   // P matrix comm pattern groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_pmat_group[3];
+
+   // ParMesh-compatible (conforming) groups for each vertex/edge/face (0/1/2)
+   Array<GroupId> entity_conf_group[3];
+   // ParMesh compatibility helper arrays to order groups, also temporary
+   Array<int> leaf_glob_order, entity_elem_local[3];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices, shared_edges, shared_faces;
@@ -289,9 +310,9 @@ protected:
    virtual void BuildEdgeList();
    virtual void BuildVertexList();
 
-   virtual void ElementSharesFace(int elem, int face);
-   virtual void ElementSharesEdge(int elem, int enode);
-   virtual void ElementSharesVertex(int elem, int vnode);
+   virtual void ElementSharesFace(int elem, int local, int face);
+   virtual void ElementSharesEdge(int elem, int local, int enode);
+   virtual void ElementSharesVertex(int elem, int local, int vnode);
 
    GroupId GetGroupId(const CommGroup &group);
    GroupId GetSingletonGroup(int rank);
@@ -313,6 +334,9 @@ protected:
    void CalcFaceOrientations();
 
    void UpdateLayers();
+
+   void MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
+                        Table &group_shared);
 
    /** Uniquely encodes a set of leaf elements in the refinement hierarchy of
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,
@@ -504,9 +528,9 @@ protected:
 
    static bool compare_ranks_indices(const Element* a, const Element* b);
 
-   friend class ParMesh;
    friend class NeighborRowMessage;
 };
+
 
 
 // comparison operator so that MeshId can be used as key in std::map
