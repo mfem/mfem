@@ -26,9 +26,8 @@ void cuKernel(const size_t N, const size_t Nspt, BODY body)
    body(k, gpu_mem_s+tid*Nspt);
 }
 template <typename DBODY>
-void cuWrap(const size_t N, const size_t Nspt, DBODY &&d_body)
+void cuWrap(const size_t N, const size_t Nspt, const size_t smpb, DBODY &&d_body)
 {
-   const size_t smpb = mfem::config::SharedMemPerBlock();
    // shared bytes per thread
    const size_t spt = 1 + Nspt*sizeof(double);
    // block dimension, constrainted by shared byte size

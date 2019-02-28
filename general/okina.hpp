@@ -84,8 +84,9 @@ void LambdaWrap(const size_t N, const size_t Nspt,
    const bool omp  = mfem::config::usingOmp();
    const bool gpu  = mfem::config::usingGpu();
    const bool raja = mfem::config::usingRaja();
+   const size_t smpb = mfem::config::SharedMemPerBlock();
    if (gpu && raja) { rajaCudaWrap(N, Nspt, d_body); return;}
-   if (gpu)         { cuWrap(N, Nspt, d_body); return;}
+   if (gpu)         { cuWrap(N, Nspt, smpb, d_body); return;}
    if (omp && raja) { rajaOmpWrap(N, Nspt, h_body); return;}
    if (raja)        { rajaSeqWrap(N, Nspt, h_body); return;}
    if (omp)         { ompWrap(N, Nspt, h_body);  return;}
