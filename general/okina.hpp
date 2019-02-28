@@ -48,6 +48,14 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    }
 }
 
+//GPU only version - need cuda atomics...
+template <size_t BLOCKS, typename DBODY>
+void wrap(const size_t N, DBODY &&d_body)
+{
+   const bool gpu = mfem::config::usingGpu();
+   return cuWrap<BLOCKS>(N,d_body);
+}
+
 // *****************************************************************************
 // * MFEM_FORALL splitter
 // *****************************************************************************
@@ -57,6 +65,12 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    wrap<BLOCKS>(N,                                                      \
                 [=] __device__ (size_t i){__VA_ARGS__},                 \
                 [=]            (size_t i){__VA_ARGS__})
+
+//GPU only variant - need cuda atomics..
+#define MFEM_FORALL_GPU(i,N,...) MFEM_FORALL_K_GPU(i,N,MFEM_BLOCKS,__VA_ARGS__)
+#define MFEM_FORALL_K_GPU(i,N,BLOCKS,...)                                     \
+   wrap<BLOCKS>(N,                                                            \
+                [=] __device__ (size_t i){__VA_ARGS__})
 
 // *****************************************************************************
 uint32_t LOG2(uint32_t);

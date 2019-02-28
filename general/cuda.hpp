@@ -12,6 +12,7 @@
 #ifndef MFEM_CUDA_HPP
 #define MFEM_CUDA_HPP
 
+
 // *****************************************************************************
 #ifdef __NVCC__
 #include <cuda.h>
