@@ -400,7 +400,8 @@ double dEduCoefficient::Eval(ElementTransformation &T,
 
 ReducedTransportSolver::ReducedTransportSolver(ODESolver * implicitSolver,
                                                ODESolver * explicitSolver,
-                                               ParFiniteElementSpace & sfes,
+                                               DGParams & dg,
+					       ParFiniteElementSpace & sfes,
                                                ParFiniteElementSpace & vfes,
                                                ParFiniteElementSpace & ffes,
                                                BlockVector & nBV,
@@ -411,6 +412,7 @@ ReducedTransportSolver::ReducedTransportSolver(ODESolver * implicitSolver,
                                                Vector & masses)
    : impSolver_(implicitSolver),
      expSolver_(explicitSolver),
+     dg_(dg),
      sfes_(sfes),
      vfes_(vfes),
      ffes_(ffes),
@@ -432,7 +434,7 @@ ReducedTransportSolver::~ReducedTransportSolver()
 
 void ReducedTransportSolver::initDiffusion()
 {
-   msDiff_ = new MultiSpeciesDiffusion(sfes_, vfes_, nBV_, uBV_, TBV_,
+   msDiff_ = new MultiSpeciesDiffusion(dg_, sfes_, vfes_, nBV_, uBV_, TBV_,
 				       charges_, masses_);
 }
 
@@ -447,7 +449,8 @@ void ReducedTransportSolver::Step(Vector &x, double &t, double &dt)
    impSolver_->Step(x, t, dt);
 }
 
-MultiSpeciesDiffusion::MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
+MultiSpeciesDiffusion::MultiSpeciesDiffusion(DGParams & dg,
+					     ParFiniteElementSpace & sfes,
                                              ParFiniteElementSpace & vfes,
                                              BlockVector & nBV,
                                              BlockVector & uBV,
@@ -455,6 +458,7 @@ MultiSpeciesDiffusion::MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
                                              Vector & charges,
                                              Vector & masses)
    : dim_(sfes.GetParMesh()->SpaceDimension()),
+     dg_(dg),
      sfes_(sfes),
      vfes_(vfes),
      nBV_(nBV),

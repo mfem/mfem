@@ -294,6 +294,10 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int vis_steps = 50;
 
+   DGParams dg;
+   dg.sigma = -1.0;
+   dg.kappa = -1.0;
+   
    int precision = 8;
    cout.precision(precision);
 
@@ -334,6 +338,12 @@ int main(int argc, char *argv[])
                   "exceeds dttol.");
    args.AddOption(&cfl, "-c", "--cfl-number",
                   "CFL number for timestep calculation.");
+   args.AddOption(&dg.sigma, "-dgs", "--dg-sigma",
+                  "One of the two DG penalty parameters, typically +1/-1."
+                  " See the documentation of class DGDiffusionIntegrator.");
+   args.AddOption(&dg.kappa, "-dgk", "--dg-kappa",
+                  "One of the two DG penalty parameters, should be positive."
+                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&ion_charges_, "-qi", "--ion-charge",
                   "Charge of the ion species "
                   "(in units of electron charge)");
@@ -375,6 +385,12 @@ int main(int argc, char *argv[])
    {
       ode_imp_solver_type = ode_split_solver_type;
    }
+   
+   if (dg.kappa < 0.0)
+   {
+     dg.kappa = (double)(order+1)*(order+1);
+   }
+   
    MFEM_ASSERT(ion_charges_.Size() <= 1 && ion_masses_.Size() <= 1,
                "The reduced transport equations only support one ion species.");
    if (ion_charges_.Size() == 0)
@@ -603,7 +619,7 @@ int main(int argc, char *argv[])
    DiffusionTDO diff(fes, dfes, vfes, nuCoef, dg_sigma_, dg_kappa_);
    */
    ReducedTransportSolver transp(ode_imp_solver, ode_exp_solver,
-                                 sfes, vfes, ffes,
+                                 dg, sfes, vfes, ffes,
                                  n_block, u_block, T_block,
 				 B, ion_charges_, ion_masses_);
 

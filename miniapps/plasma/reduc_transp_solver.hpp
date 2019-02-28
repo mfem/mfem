@@ -182,6 +182,12 @@ inline double eta_i_para(double ma, double Ta,
           tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 
+struct DGParams
+{
+  double sigma;
+  double kappa;
+};
+
 class MultiSpeciesDiffusion;
 class MultiSpeciesAdvection;
 
@@ -191,6 +197,8 @@ private:
    ODESolver * impSolver_;
    ODESolver * expSolver_;
 
+   DGParams & dg_;
+  
    ParFiniteElementSpace & sfes_; // Scalar fields
    ParFiniteElementSpace & vfes_; // Vector fields
    ParFiniteElementSpace & ffes_; // Full system
@@ -211,6 +219,7 @@ private:
 public:
    ReducedTransportSolver(ODESolver * implicitSolver,
                           ODESolver * explicitSolver,
+			  DGParams & dg,
                           ParFiniteElementSpace & sfes,
                           ParFiniteElementSpace & vfes,
                           ParFiniteElementSpace & ffes,
@@ -427,6 +436,8 @@ class MultiSpeciesDiffusion : public TimeDependentOperator
 {
 private:
    int dim_;
+
+   DGParams & dg_;
   
    ParFiniteElementSpace &sfes_;
    ParFiniteElementSpace &vfes_;
@@ -462,7 +473,8 @@ private:
    void initBilinearForms();
 
 public:
-   MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
+   MultiSpeciesDiffusion(DGParams & dg,
+			 ParFiniteElementSpace & sfes,
                          ParFiniteElementSpace & vfes,
                          BlockVector & nBV,
                          BlockVector & uBV,
