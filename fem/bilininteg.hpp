@@ -59,7 +59,7 @@ class PAMassIntegrator: public BilinearPAFormIntegrator
 {
 private:
    Vector op;
-   kDofQuadMaps *maps;
+   DofToQuad *maps;
    const FiniteElementSpace *fes;
    const IntegrationRule *ir;
 public:
@@ -79,7 +79,7 @@ class PADiffusionIntegrator: public BilinearPAFormIntegrator
 private:
    Coefficient *Q;
    Vector op;
-   kDofQuadMaps *maps;
+   DofToQuad *maps;
    const FiniteElementSpace *fes;
    const IntegrationRule *ir;
 public:

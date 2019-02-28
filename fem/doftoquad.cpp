@@ -22,39 +22,39 @@ namespace mfem
 {
 
 // ***************************************************************************
-// * kDofQuadMaps
+// * DofToQuad
 // ***************************************************************************
-static std::map<std::string, kDofQuadMaps* > AllDofQuadMaps;
+static std::map<std::string, DofToQuad* > AllDofQuadMaps;
 
 // *****************************************************************************
-kDofQuadMaps* kDofQuadMaps::Get(const FiniteElementSpace& fes,
-                                const IntegrationRule& ir,
-                                const bool transpose)
+DofToQuad* DofToQuad::Get(const FiniteElementSpace& fes,
+                          const IntegrationRule& ir,
+                          const bool transpose)
 {
    return Get(*fes.GetFE(0), *fes.GetFE(0), ir, transpose);
 }
 
-kDofQuadMaps* kDofQuadMaps::Get(const FiniteElementSpace& trialFES,
-                                const FiniteElementSpace& testFES,
-                                const IntegrationRule& ir,
-                                const bool transpose)
+DofToQuad* DofToQuad::Get(const FiniteElementSpace& trialFES,
+                          const FiniteElementSpace& testFES,
+                          const IntegrationRule& ir,
+                          const bool transpose)
 {
    return Get(*trialFES.GetFE(0), *testFES.GetFE(0), ir, transpose);
 }
 
-kDofQuadMaps* kDofQuadMaps::Get(const FiniteElement& trialFE,
-                                const FiniteElement& testFE,
-                                const IntegrationRule& ir,
-                                const bool transpose)
+DofToQuad* DofToQuad::Get(const FiniteElement& trialFE,
+                          const FiniteElement& testFE,
+                          const IntegrationRule& ir,
+                          const bool transpose)
 {
    return GetTensorMaps(trialFE, testFE, ir, transpose);
 }
 
 // ***************************************************************************
-kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
-                                          const FiniteElement& testFE,
-                                          const IntegrationRule& ir,
-                                          const bool transpose)
+DofToQuad* DofToQuad::GetTensorMaps(const FiniteElement& trialFE,
+                                    const FiniteElement& testFE,
+                                    const IntegrationRule& ir,
+                                    const bool transpose)
 {
    const TensorBasisElement& trialTFE =
       dynamic_cast<const TensorBasisElement&>(trialFE);
@@ -74,25 +74,25 @@ kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
       return AllDofQuadMaps[hash];
    }
    // Otherwise, build them
-   kDofQuadMaps *maps = new kDofQuadMaps();
+   DofToQuad *maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   const kDofQuadMaps* trialMaps = GetD2QTensorMaps(trialFE, ir);
-   const kDofQuadMaps* testMaps  = GetD2QTensorMaps(testFE, ir, true);
-   maps->dofToQuad   = trialMaps->dofToQuad;
-   maps->dofToQuadD  = trialMaps->dofToQuadD;
-   maps->quadToDof   = testMaps->dofToQuad;
-   maps->quadToDofD  = testMaps->dofToQuadD;
-   maps->quadWeights = testMaps->quadWeights;
+   const DofToQuad* trialMaps = GetD2QTensorMaps(trialFE, ir);
+   const DofToQuad* testMaps  = GetD2QTensorMaps(testFE, ir, true);
+   maps->B = trialMaps->B;
+   maps->G = trialMaps->G;
+   maps->Bt = testMaps->B;
+   maps->Gt = testMaps->G;
+   maps->W = testMaps->W;
    delete trialMaps;
    delete testMaps;
    return maps;
 }
 
 // ***************************************************************************
-kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
-                                             const IntegrationRule& ir,
-                                             const bool transpose)
+DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
+                                       const IntegrationRule& ir,
+                                       const bool transpose)
 {
    const IntegrationRule& ir1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder());
 
@@ -107,7 +107,6 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
       (dims == 2) ? numQuad2D :
       (dims == 3) ? numQuad3D : 0;
    assert(numQuad > 0);
-
    std::stringstream ss;
    ss << "D2QTensorMap:"
       << " dims:" << dims
@@ -116,39 +115,34 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
       << " numQuad1D:" << numQuad1D
       << " transpose:"  << (transpose?"true":"false");
    std::string hash = ss.str();
-
    if (AllDofQuadMaps.find(hash)!=AllDofQuadMaps.end())
    {
       return AllDofQuadMaps[hash];
    }
-
-   kDofQuadMaps *maps = new kDofQuadMaps();
+   DofToQuad *maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-
-   maps->dofToQuad.allocate( numQuad1D, numDofs, 1, 1, transpose);
-   maps->dofToQuadD.allocate(numQuad1D, numDofs, 1, 1, transpose);
-   const int dim0 = maps->dofToQuad.dim()[0];
-   const int dim1 = maps->dofToQuad.dim()[1];
-
+   maps->B.SetSize(numQuad1D*numDofs);
+   maps->G.SetSize(numQuad1D*numDofs);
+   const int dim0 = (!transpose)?1:numDofs;
+   const int dim1 = (!transpose)?numQuad1D:1;
    if (transpose) // Initialize quad weights only for transpose
    {
-      maps->quadWeights.allocate(numQuad);
+      maps->W.SetSize(numQuad);
    }
    mfem::Vector d2q(numDofs);
    mfem::Vector d2qD(numDofs);
-   mfem::Array<double> quadWeights1D(numQuad1D);
-   mfem::Array<double> dofToQuad(numQuad1D*numDofs);
-   mfem::Array<double> dofToQuadD(numQuad1D*numDofs);
+   mfem::Array<double> W1d(numQuad1D);
+   mfem::Array<double> B1d(numQuad1D*numDofs);
+   mfem::Array<double> G1d(numQuad1D*numDofs);
    const TensorBasisElement& tbe = dynamic_cast<const TensorBasisElement&>(fe);
    const Poly_1D::Basis& basis = tbe.GetBasis1D();
-
    for (int q = 0; q < numQuad1D; ++q)
    {
       const IntegrationPoint& ip = ir1D.IntPoint(q);
       if (transpose)
       {
-         quadWeights1D[q] = ip.weight;
+         W1d[q] = ip.weight;
       }
       basis.Eval(ip.x, d2q, d2qD);
       for (int d = 0; d < numDofs; ++d)
@@ -156,49 +150,43 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
          const double w = d2q[d];
          const double wD = d2qD[d];
          const int idx = dim0*q + dim1*d;
-         dofToQuad[idx] = w;
-         dofToQuadD[idx] = wD;
+         B1d[idx] = w;
+         G1d[idx] = wD;
       }
    }
    if (transpose)
    {
-      mfem::Array<double> quadWeights(numQuad);
+      mfem::Array<double> W(numQuad);
       for (int q = 0; q < numQuad; ++q)
       {
          const int qx = q % numQuad1D;
          const int qz = q / numQuad2D;
          const int qy = (q - qz*numQuad2D) / numQuad1D;
-         double w = quadWeights1D[qx];
-         if (dims > 1) { w *= quadWeights1D[qy]; }
-         if (dims > 2) { w *= quadWeights1D[qz]; }
-         quadWeights[q] = w;
+         double w = W1d[qx];
+         if (dims > 1) { w *= W1d[qy]; }
+         if (dims > 2) { w *= W1d[qz]; }
+         W[q] = w;
       }
-      //maps->quadWeights = quadWeights;
-      kernels::vector::Assign(numQuad, quadWeights.GetData(), maps->quadWeights);
+      maps->W = W;
    }
-   //maps->dofToQuad = dofToQuad;
-   kernels::vector::Assign(numQuad1D*numDofs, dofToQuad.GetData(),
-                           maps->dofToQuad);
-
-   //maps->dofToQuadD = dofToQuadD;
-   kernels::vector::Assign(numQuad1D*numDofs, dofToQuadD.GetData(),
-                           maps->dofToQuadD);
+   kernels::vector::Assign(numQuad1D*numDofs, B1d, maps->B);
+   kernels::vector::Assign(numQuad1D*numDofs, G1d, maps->G);
    return maps;
 }
 
 // ***************************************************************************
-kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& fe,
-                                           const IntegrationRule& ir,
-                                           const bool transpose)
+DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& fe,
+                                     const IntegrationRule& ir,
+                                     const bool transpose)
 {
    return GetSimplexMaps(fe, fe, ir, transpose);
 }
 
 // *****************************************************************************
-kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
-                                           const FiniteElement& testFE,
-                                           const IntegrationRule& ir,
-                                           const bool transpose)
+DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& trialFE,
+                                     const FiniteElement& testFE,
+                                     const IntegrationRule& ir,
+                                     const bool transpose)
 {
    std::stringstream ss;
    ss << "SimplexMap:"
@@ -211,30 +199,29 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
    {
       return AllDofQuadMaps[hash];
    }
-   kDofQuadMaps *maps = new kDofQuadMaps();
+   DofToQuad *maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   const kDofQuadMaps* trialMaps = GetD2QSimplexMaps(trialFE, ir);
-   const kDofQuadMaps* testMaps  = GetD2QSimplexMaps(testFE, ir, true);
-   maps->dofToQuad   = trialMaps->dofToQuad;
-   maps->dofToQuadD  = trialMaps->dofToQuadD;
-   maps->quadToDof   = testMaps->dofToQuad;
-   maps->quadToDofD  = testMaps->dofToQuadD;
-   maps->quadWeights = testMaps->quadWeights;
+   const DofToQuad* trialMaps = GetD2QSimplexMaps(trialFE, ir);
+   const DofToQuad* testMaps  = GetD2QSimplexMaps(testFE, ir, true);
+   maps->B = trialMaps->B;
+   maps->G = trialMaps->G;
+   maps->Bt = testMaps->B;
+   maps->Gt = testMaps->G;
+   maps->W = testMaps->W;
    delete trialMaps;
    delete testMaps;
    return maps;
 }
 
 // ***************************************************************************
-kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
-                                              const IntegrationRule& ir,
-                                              const bool transpose)
+DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
+                                        const IntegrationRule& ir,
+                                        const bool transpose)
 {
    const int dims = fe.GetDim();
    const int numDofs = fe.GetDof();
    const int numQuad = ir.GetNPoints();
-
    std::stringstream ss ;
    ss << "D2QSimplexMap:"
       << " Dim:" << dims
@@ -242,40 +229,35 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
       << " numQuad:" << numQuad
       << " transpose:" << (transpose?"true":"false");
    std::string hash = ss.str();
-
    if (AllDofQuadMaps.find(hash)!=AllDofQuadMaps.end())
    {
       return AllDofQuadMaps[hash];
    }
-
-   kDofQuadMaps* maps = new kDofQuadMaps();
+   DofToQuad* maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-
-   maps->dofToQuad.allocate( numQuad, numDofs,       1, 1, transpose);
-   maps->dofToQuadD.allocate(   dims, numQuad, numDofs, 1, transpose);
-   const int dim0 = maps->dofToQuad.dim()[0];
-   const int dim1 = maps->dofToQuad.dim()[1];
-   const int dim0D = maps->dofToQuadD.dim()[0];
-   const int dim1D = maps->dofToQuadD.dim()[1];
-   const int dim2D = maps->dofToQuadD.dim()[2];
-
+   maps->B.SetSize(numQuad*numDofs);
+   maps->G.SetSize(dims*numQuad*numDofs);
+   const int dim0 = (!transpose)?1:numDofs;
+   const int dim1 = (!transpose)?numQuad:1;
+   const int dim0D = (!transpose)?1:numQuad;
+   const int dim1D = (!transpose)?dims:1;
+   const int dim2D = dims*numQuad;
    if (transpose) // Initialize quad weights only for transpose
    {
-      maps->quadWeights.allocate(numQuad);
+      maps->W.SetSize(numQuad);
    }
    mfem::Vector d2q(numDofs);
    mfem::DenseMatrix d2qD(numDofs, dims);
-   mfem::Array<double> quadWeights(numQuad);
-   mfem::Array<double> dofToQuad(numQuad*numDofs);
-   mfem::Array<double> dofToQuadD(dims*numQuad*numDofs);
-
+   mfem::Array<double> W(numQuad);
+   mfem::Array<double> B(numQuad*numDofs);
+   mfem::Array<double> G(dims*numQuad*numDofs);
    for (int q = 0; q < numQuad; ++q)
    {
       const IntegrationPoint& ip = ir.IntPoint(q);
       if (transpose)
       {
-         quadWeights[q] = ip.weight;
+         W[q] = ip.weight;
       }
       fe.CalcShape(ip, d2q);
       fe.CalcDShape(ip, d2qD);
@@ -283,27 +265,21 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
       {
          const double w = d2q[d];
          const int idx = dim0*q + dim1*d;
-         dofToQuad[idx] = w;
+         B[idx] = w;
          for (int dim = 0; dim < dims; ++dim)
          {
             const double wD = d2qD(d, dim);
             const int idxD = dim0D*dim + dim1D*q + dim2D*d;
-            dofToQuadD[idxD] = wD;
+            G[idxD] = wD;
          }
       }
    }
    if (transpose)
    {
-      //maps->quadWeights = quadWeights;
-      kernels::vector::Assign(numQuad, quadWeights.GetData(), maps->quadWeights);
+      kernels::vector::Assign(numQuad, W, maps->W);
    }
-
-   //maps->dofToQuad = dofToQuad;
-   kernels::vector::Assign(numQuad*numDofs, dofToQuad.GetData(), maps->dofToQuad);
-
-   //maps->dofToQuadD = dofToQuadD;
-   kernels::vector::Assign(dims*numQuad*numDofs, dofToQuadD.GetData(),
-                           maps->dofToQuadD);
+   kernels::vector::Assign(numQuad*numDofs, B, maps->B);
+   kernels::vector::Assign(dims*numQuad*numDofs, G, maps->G);
    return maps;
 }
 
