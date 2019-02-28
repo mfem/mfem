@@ -52,7 +52,7 @@ typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
 template <typename DBODY>
-void cuWrap(const size_t N, size_t Nspt, DBODY &&d_body) {}
+void cuWrap(const size_t N, size_t Nspt, const size_t smpb, DBODY &&d_body) {}
 template<typename T> inline T AtomicAdd(T* address, T val)
 {
    return *address += val;
