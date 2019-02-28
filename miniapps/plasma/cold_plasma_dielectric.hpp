@@ -26,13 +26,13 @@ namespace plasma
 // Cyclotron frequency
 inline double omega_c(double Bmag, double charge, double mass)
 {
-   return charge * q_ * Bmag / (mass * u_);
+   return charge * q_ * Bmag / (mass * amu_);
 }
 
 // Plasma frequency
 inline double omega_p(double number, double charge, double mass)
 {
-   return fabs(charge * q_) * sqrt(number / (epsilon0_ * mass * u_));
+   return fabs(charge * q_) * sqrt(number / (epsilon0_ * mass * amu_));
 }
 
 double R_cold_plasma(double omega, double Bmag,

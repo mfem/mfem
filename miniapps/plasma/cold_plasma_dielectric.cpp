@@ -131,7 +131,7 @@ void real_epsilon_sigma(double omega, const Vector &B,
 
    double Z1 = 1.0, Z2 = 18.0;
    double qe = -q_, qi1 = Z1 * q_, qi2 = Z2 * q_;
-   double mi1 = 2.01410178 * u_, mi2 = 39.948 * u_;
+   double mi1 = 2.01410178 * amu_, mi2 = 39.948 * amu_;
    double ne = density_vals[0], ni1 = density_vals[1], ni2 = density_vals[2];
    // double Te = temperature_vals[0];
    // double Ti1 = temperature_vals[1];
@@ -146,12 +146,12 @@ void real_epsilon_sigma(double omega, const Vector &B,
    //   (4.0 * M_PI * pow(epsilon0_ * me_, 2) * pow(Te, 3.0/2.0));
 
    // Squared plasma frequencies for each species
-   double wpe  = (ne  * pow( qe, 2))/(me_ * epsilon0_);
+   double wpe  = (ne  * pow( qe, 2))/(me_kg_ * epsilon0_);
    double wpi1 = (ni1 * pow(qi1, 2))/(mi1 * epsilon0_);
    double wpi2 = (ni2 * pow(qi2, 2))/(mi2 * epsilon0_);
 
    // Cyclotron frequencies for each species
-   double wce  = qe  * Bnorm / me_;
+   double wce  = qe  * Bnorm / me_kg_;
    double wci1 = qi1 * Bnorm / mi1;
    double wci2 = qi2 * Bnorm / mi2;
 

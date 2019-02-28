@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
    if (masses.Size() == 0)
    {
       masses.SetSize(2);
-      masses[0] = me_ / u_;
+      masses[0] = me_u_;
       masses[1] = 2.01410178;
    }
    if (num_elements <= 0)

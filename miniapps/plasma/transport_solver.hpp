@@ -55,7 +55,7 @@ double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
 inline double chi_e_para(double Te, int ns, double * ni, int * zi)
 {
    // The factor of q_ is included to convert Te from eV to Joules
-   return 3.16 * (q_ * Te / me_) * tau_e(Te, ns, ni, zi, 17.0);
+   return 3.16 * (q_ * Te / me_kg_) * tau_e(Te, ns, ni, zi, 17.0);
 }
 
 /**
@@ -97,7 +97,8 @@ inline double chi_i_para(double ma, double Ta,
 {
    // The factor of q_ is included to convert Ta from eV to Joules
    // The factor of u_ is included to convert ma from a.m.u to kg
-   return 3.9 * (q_ * Ta / (ma * u_ ) ) * tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
+   return 3.9 * (q_ * Ta / (ma * amu_ ) ) *
+     tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 
 /**
@@ -136,7 +137,7 @@ inline double eta_e_para(double ne, double Te, int ns, double * ni, int * zi)
 {
    // The factor of q_ is included to convert Te from eV to Joules
    // The factor of u_ is included to convert from kg to a.m.u
-   return 0.73 * ne * (q_ * Te / u_) * tau_e(Te, ns, ni, zi, 17.0);
+   return 0.73 * ne * (q_ * Te / amu_) * tau_e(Te, ns, ni, zi, 17.0);
 }
 
 /**
@@ -154,7 +155,7 @@ inline double eta_i_para(double ma, double Ta,
 {
    // The factor of q_ is included to convert Ti from eV to Joules
    // The factor of u_ is included to convert from kg to a.m.u
-   return 0.96 * nb[ion] * (q_ * Ta / u_) *
+   return 0.96 * nb[ion] * (q_ * Ta / amu_) *
           tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 
