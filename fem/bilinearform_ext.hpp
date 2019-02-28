@@ -79,7 +79,7 @@ private:
    const FiniteElementSpace *trialFes, *testFes;
    Array<BilinearPAFormIntegrator*> integrators;
    mutable Vector localX, localY;
-   kFiniteElementSpace *kfes;
+   FiniteElementSpaceExtension *fes_ext;
 
 public:
    PABilinearFormExtension(BilinearForm*);
