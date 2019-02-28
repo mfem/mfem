@@ -708,15 +708,21 @@ BlockDiagonalConstructor(MPI_Comm comm,
       // Copy SparseMatrix into PETSc SeqAIJ format
       Mat lA;
       ierr = MatISGetLocalMat(A,&lA); PCHKERRQ(A,ierr);
-      if (sizeof(PetscInt) == sizeof(int))
-      {
-         ierr = MatSeqAIJSetPreallocationCSR(lA,diag->GetI(),diag->GetJ(),
-                                             diag->GetData()); PCHKERRQ(lA,ierr);
-      }
-      else
-      {
-         MFEM_ABORT("64bit indices not yet supported");
-      }
+      int *II = diag->GetI();
+      int *JJ = diag->GetJ();
+#if defined(PETSC_USE_64BIT_INDICES)
+      PetscInt *pII,*pJJ;
+      int m = diag->Height()+1, nnz = II[diag->Height()];
+      ierr = PetscMalloc2(m,&pII,nnz,&pJJ); PCHKERRQ(lA,ierr);
+      for (int i = 0; i < m; i++) { pII[i] = II[i]; }
+      for (int i = 0; i < nnz; i++) { pJJ[i] = JJ[i]; }
+      ierr = MatSeqAIJSetPreallocationCSR(lA,pII,pJJ,
+                                          diag->GetData()); PCHKERRQ(lA,ierr);
+      ierr = PetscFree2(pII,pJJ); PCHKERRQ(lA,ierr);
+#else
+      ierr = MatSeqAIJSetPreallocationCSR(lA,II,JJ,
+                                          diag->GetData()); PCHKERRQ(lA,ierr);
+#endif
    }
    else
    {
@@ -736,13 +742,16 @@ BlockDiagonalConstructor(MPI_Comm comm,
          CCHKERRQ(PETSC_COMM_SELF,ierr);
          ierr = PetscMemcpy(djj,diag->GetJ(),nnz*sizeof(PetscInt));
          CCHKERRQ(PETSC_COMM_SELF,ierr);
-         ierr = PetscMemcpy(da,diag->GetData(),nnz*sizeof(PetscScalar));
-         CCHKERRQ(PETSC_COMM_SELF,ierr);
       }
       else
       {
-         MFEM_ABORT("64bit indices not yet supported");
+         int *iii = diag->GetI();
+         int *jjj = diag->GetJ();
+         for (int i = 0; i < m; i++) { dii[i] = iii[i]; }
+         for (int i = 0; i < nnz; i++) { djj[i] = jjj[i]; }
       }
+      ierr = PetscMemcpy(da,diag->GetData(),nnz*sizeof(PetscScalar));
+      CCHKERRQ(PETSC_COMM_SELF,ierr);
       ierr = PetscCalloc1(m,&oii);
       CCHKERRQ(PETSC_COMM_SELF,ierr);
       if (commsize > 1)
@@ -1051,7 +1060,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          ierr = MatConvert(*A,MATIS,MAT_INPLACE_MATRIX,A); CCHKERRQ(comm,ierr);
 
          mfem::Array<Mat> *vmatsl2l = new mfem::Array<Mat>(nr);
-         for (PetscInt i=0; i<nr; i++) { (*vmatsl2l)[i] = matsl2l[i]; }
+         for (int i=0; i<(int)nr; i++) { (*vmatsl2l)[i] = matsl2l[i]; }
          ierr = PetscFree(matsl2l); CCHKERRQ(PETSC_COMM_SELF,ierr);
 
          PetscContainer c;
@@ -2150,7 +2159,7 @@ void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
    y = x;
    if (bctype == ZERO)
    {
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = 0.0;
       }
@@ -2162,7 +2171,7 @@ void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
          Eval(eval_t,eval_g);
          eval_t_cached = eval_t;
       }
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = eval_g[ess_tdof_list[i]];
       }
@@ -2174,7 +2183,7 @@ void PetscBCHandler::ApplyBC(Vector &x)
    (*this).SetUp(x.Size());
    if (bctype == ZERO)
    {
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          x[ess_tdof_list[i]] = 0.0;
       }
@@ -2186,7 +2195,7 @@ void PetscBCHandler::ApplyBC(Vector &x)
          Eval(eval_t,eval_g);
          eval_t_cached = eval_t;
       }
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          x[ess_tdof_list[i]] = eval_g[ess_tdof_list[i]];
       }
@@ -2198,14 +2207,14 @@ void PetscBCHandler::FixResidualBC(const Vector& x, Vector& y)
    (*this).SetUp(x.Size());
    if (bctype == ZERO)
    {
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = x[ess_tdof_list[i]];
       }
    }
    else
    {
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = x[ess_tdof_list[i]] - eval_g[ess_tdof_list[i]];
       }
@@ -3875,7 +3884,7 @@ static PetscErrorCode __mfem_snes_postcheck(SNESLineSearch ls,Vec X,Vec Y,Vec W,
                                             PetscBool *cy,PetscBool *cw, void* ctx)
 {
    __mfem_snes_ctx* snes_ctx = (__mfem_snes_ctx*)ctx;
-   bool lcy,lcw;
+   bool lcy = false,lcw = false;
 
    PetscFunctionBeginUser;
    mfem::PetscParVector x(X,true);
@@ -4222,7 +4231,21 @@ static PetscErrorCode Convert_Vmarks_IS(MPI_Comm comm,
                          (const PetscInt**)&jj,&done); CHKERRQ(ierr);
       MFEM_VERIFY(done,"Unable to perform MatGetRowIJ on " << i << " l2l matrix");
       ierr = MatGetSize(pl2l[i],NULL,&n); CHKERRQ(ierr);
+#if defined(PETSC_USE_64BIT_INDICES)
+      int  nnz = (int)ii[m];
+      int *mii = new int[m+1];
+      int *mjj = new int[nnz];
+      for (int j = 0; j < m+1; j++) { mii[j] = (int)ii[j]; }
+      for (int j = 0; j < nnz; j++) { mjj[j] = (int)jj[j]; }
+      l2l[i] = new mfem::SparseMatrix(mii,mjj,NULL,m,n,true,true,true);
+#else
       l2l[i] = new mfem::SparseMatrix(ii,jj,NULL,m,n,false,true,true);
+#endif
+      ierr = MatRestoreRowIJ(pl2l[i],0,PETSC_FALSE,PETSC_FALSE,&m,
+                             (const PetscInt**)&ii,
+                             (const PetscInt**)&jj,&done); CHKERRQ(ierr);
+      MFEM_VERIFY(done,"Unable to perform MatRestoreRowIJ on "
+                  << i << " l2l matrix");
    }
    nl = 0;
    for (int i = 0; i < l2l.Size(); i++) { nl += l2l[i]->Width(); }
@@ -4242,14 +4265,6 @@ static PetscErrorCode Convert_Vmarks_IS(MPI_Comm comm,
    ierr = Convert_Array_IS(comm,false,&sub_dof_marker,st,is); CCHKERRQ(comm,ierr);
    for (int i = 0; i < pl2l.Size(); i++)
    {
-      PetscInt  m = l2l[i]->Height();
-      PetscInt  *ii = l2l[i]->GetI(),*jj = l2l[i]->GetJ();
-      PetscBool done;
-      ierr = MatRestoreRowIJ(pl2l[i],0,PETSC_FALSE,PETSC_FALSE,&m,
-                             (const PetscInt**)&ii,
-                             (const PetscInt**)&jj,&done); CHKERRQ(ierr);
-      MFEM_VERIFY(done,"Unable to perform MatRestoreRowIJ on "
-                  << i << " l2l matrix");
       delete l2l[i];
    }
    PetscFunctionReturn(0);

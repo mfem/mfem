@@ -57,15 +57,20 @@ Other meshing improvements
 
 - Added support for parallel communication groups on non-conforming meshes.
 
+- A boundary in a NURBS mesh can now be connected with another boundary. Such a
+  periodic NURBS mesh is a simple way to impose periodic boundary conditions.
+
 - Added support for reading linear and quadratic 2D quadrilateral and triangular
   Cubit meshes.
 
 - The TMOP mesh optimization algorithms were extended to support user-defined
   space-dependent limiting terms. Improved the TMOP objective functions by
   more accurate normalization of the different terms.
-  
+
 Discretization improvements
 ---------------------------
+- Added support for derefinement of vector (RT + ND) spaces.
+
 - Added element flux, and flux energy computation in class ElasticityIntegrator,
   allowing for the use of Zienkiewicz-Zhu type error estimators with the
   integrator. For an illustration of this addition, see the new Example 22.
@@ -77,6 +82,8 @@ Discretization improvements
 New and improved solvers and preconditioners
 --------------------------------------------
 - Added support for parallel ILU preconditioning via hypre's Euclid solver.
+- Added support for STRUMPACK v3 with a small API change in the class
+  STRUMPACKSolver, see "API changes" below.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -121,6 +128,8 @@ API changes
 - Removed the virtual method Element::GetRefinementFlag, it is only used by the
   derived class Tetrahedron.
 - Added new methods: Array::CopyTo, Tetrahedron::Init.
+- In class STRUMPACKSolver, the method SetMC64Job() was replaced by the new
+  methods: DisableMatching(), EnableMatching(), and EnableParallelMatching().
 
 
 Version 3.4, released on May 29, 2018
