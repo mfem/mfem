@@ -62,8 +62,22 @@ void BaseArray::GrowSize(int minsize, int elementsize)
 }
 
 template <class T>
+void Array<T>::Push() const
+{
+   mm::push(data, size*sizeof(double));
+}
+
+template <class T>
+void Array<T>::Pull() const
+{
+   mm::pull(data, size*sizeof(double));
+}
+
+
+template <class T>
 void Array<T>::Print(std::ostream &out, int width) const
 {
+  this->Pull(); //pull data over..
    for (int i = 0; i < size; i++)
    {
       out << ((T*)data)[i];

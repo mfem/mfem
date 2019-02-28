@@ -31,6 +31,18 @@ void cuWrap(const size_t N, DBODY &&d_body)
 {
    const size_t GRID = (N+BLOCKS-1)/BLOCKS;
    cuKernel<<<GRID,BLOCKS>>>(N,d_body);
+
+   // make the host block until the device is finished with foo
+   cudaDeviceSynchronize();
+
+   // check for error
+   cudaError_t error = cudaGetLastError();
+   if(error != cudaSuccess)
+     {
+       // print the CUDA error message and exit
+       printf("CUDA error: %s\n", cudaGetErrorString(error));
+       exit(-1);
+     }
 }
 constexpr static inline bool usingNvccCompiler() { return true; }
 #else // ***********************************************************************

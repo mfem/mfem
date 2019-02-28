@@ -117,6 +117,7 @@ public:
    /// Returns the data
    inline const T *GetData() const { return (T *)data; }
 
+
    /// Return true if the data will be deleted by the array
    inline bool OwnsData() const { return (allocsize > 0); }
 
@@ -201,6 +202,12 @@ public:
    inline void MakeRef(const Array &master);
 
    inline void GetSubArray(int offset, int sa_size, Array<T> &sa);
+
+   /// Copies data from host to device
+   void Push() const;
+
+   /// Copies data from device to host
+   void Pull() const;
 
    /// Prints array to stream with width elements per row
    void Print(std::ostream &out = mfem::out, int width = 4) const;

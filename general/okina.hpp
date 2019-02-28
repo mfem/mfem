@@ -39,6 +39,7 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    const bool gpu = mfem::config::usingGpu();
    if (gpu)
    {
+      printf("Gpu kernel launch! \n");
       return cuWrap<BLOCKS>(N,d_body);
    }
    else
