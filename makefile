@@ -116,7 +116,7 @@ MFEM_BUILD_DIR ?= .
 BUILD_DIR := $(MFEM_BUILD_DIR)
 BUILD_REAL_DIR := $(abspath $(BUILD_DIR))
 ifneq ($(BUILD_REAL_DIR),$(MFEM_REAL_DIR))
-   BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc $(TEST_DIRS)
+   BUILD_SUBDIRS = $(DIRS) $(KERNEL_DIRS) config $(EM_DIRS) doc $(TEST_DIRS)
    BUILD_DIR_DEF = -DMFEM_BUILD_DIR="$(BUILD_REAL_DIR)"
    BLD := $(if $(BUILD_REAL_DIR:$(CURDIR)=),$(BUILD_DIR)/,)
    $(if $(word 2,$(BLD)),$(error Spaces in BLD = "$(BLD)" are not supported))
@@ -254,7 +254,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
  MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI\
- MFEM_USE_OCCA MFEM_USE_MM
+ MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -314,7 +314,8 @@ endif
 
 # Source dirs in logical order
 DIRS = general linalg mesh fem
-SOURCE_FILES  = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
+KERNEL_DIRS = $(DIRS:=/kernels)
+SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 SOURCE_FILES += $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
@@ -521,6 +522,7 @@ status info:
 	$(info MFEM_USE_SIDRE       = $(MFEM_USE_SIDRE))
 	$(info MFEM_USE_CONDUIT     = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI        = $(MFEM_USE_PUMI))
+	$(info MFEM_USE_RAJA        = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA        = $(MFEM_USE_OCCA))
 	$(info MFEM_USE_MM          = $(MFEM_USE_MM))
 	$(info MFEM_CXX             = $(value MFEM_CXX))

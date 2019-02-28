@@ -254,7 +254,10 @@ void* mm::Ptr(void *ptr)
    if (MmGpuIniFilter()) { return ptr; }
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
-   mfem_error("Unknown pointer!");
+   if (config::usingGpu())
+   {
+      mfem_error("Trying to use unknown pointer on the GPU!");
+   }
    return ptr;
 }
 
