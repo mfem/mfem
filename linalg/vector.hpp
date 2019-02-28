@@ -135,9 +135,6 @@ public:
        to the data of const-qualified Vector%s. */
    inline double *GetData() const { return data; }
 
-   /// Return the Vector data pointer translated by the memory manager.
-   inline double *GetMmData() const { return (double*) mm::ptr(data); }
-
    /// Conversion to `double *`.
    /** @note This conversion function makes it possible to use [] for indexing
        in addition to the overloaded operator()(int). */
@@ -453,35 +450,6 @@ inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
 }
 #endif
 
-namespace device
-{
-
-class Vector3
-{
-private:
-   double data[3];
-public:
-   Vector3() {}
-   Vector3(const double *r)
-   {
-      data[0]=r[0];
-      data[1]=r[1];
-      data[2]=r[2];
-   }
-   Vector3(const double r0, const double r1, const double r2)
-   {
-      data[0]=r0;
-      data[1]=r1;
-      data[2]=r2;
-   }
-   ~Vector3() {}
-   inline operator double* () { return data; }
-   inline operator const double* () const { return data; }
-   inline double& operator[](const size_t x) { return data[x]; }
-};
-
-} // namespace device
-
-} // namespace mfem
+}
 
 #endif

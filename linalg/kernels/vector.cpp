@@ -100,34 +100,17 @@ __global__ void cuKernelDot(const size_t N, double *gdsr,
 // *****************************************************************************
 static double cuVectorDot(const size_t N, const double *x, const double *y)
 {
-   static size_t dot_block_sz = 0;
    const size_t tpb = CUDA_BLOCKSIZE;
    const size_t blockSize = CUDA_BLOCKSIZE;
    const size_t gridSize = (N+blockSize-1)/blockSize;
    const size_t dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    const size_t bytes = dot_sz*sizeof(double);
    static double *h_dot = NULL;
-   dbg("\033[7mdot_sz:%d",dot_sz);
-   if (!h_dot or dot_block_sz!=dot_sz)
-   {
-      if (h_dot) { free(h_dot); }
-      dbg("\033[7mNEW h_dot");
-      h_dot = (double*)calloc(dot_sz,sizeof(double));
-   }
+   if (!h_dot) { h_dot = (double*)calloc(dot_sz,sizeof(double)); }
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
-   if (!gdsr or dot_block_sz!=dot_sz)
-   {
-      dbg("\033[7mNEW gdsr");
-      if (gdsr) { cuCheck(::cuMemFree(gdsr)); }
-      cuCheck(::cuMemAlloc(&gdsr,bytes));
-   }
-   if (dot_block_sz!=dot_sz)
-   {
-      dot_block_sz = dot_sz;
-      dbg("\033[7mUPDATED dot_block_sz:%d, bytes:%d",dot_block_sz, bytes);
-   }
+   if (!gdsr) { ::cuMemAlloc(&gdsr,bytes); }
    cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
-   cuCheck(::cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
+   ::cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes);
    double dot = 0.0;
    for (size_t i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
    return dot;
@@ -306,14 +289,6 @@ void Assign(const size_t N, const double *x, double *y)
 }
 
 // *****************************************************************************
-void Assign(const size_t N, const int *x, int *y)
-{
-   GET_PTR_T(y,int);
-   GET_CONST_PTR_T(x,int);
-   MFEM_FORALL(i, N, d_y[i] = d_x[i];);
-}
-
-// *****************************************************************************
 void OpMultEQ(const size_t N, const double d, double *y)
 {
    GET_PTR(y);
@@ -373,10 +348,10 @@ void AddElementAlpha(const size_t N, const int *dofs,
    {
       const int j = d_dofs[i];
       if (j >= 0)
-         d_y[j] += alpha * d_x[i];
+         d_y[j] += d_x[i];
       else
       {
-         d_y[-1-j] -= alpha * d_x[i];
+         d_y[-1-j] -= d_x[i];
       }
    });
 }

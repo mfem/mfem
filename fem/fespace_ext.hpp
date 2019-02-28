@@ -9,37 +9,35 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_FESPACE_EXT
-#define MFEM_FESPACE_EXT
+#ifndef MFEM_KFESPACE_HPP
+#define MFEM_KFESPACE_HPP
 
 #include "../config/config.hpp"
 
-#include "../general/array.hpp"
+#include "../general/array_ext.hpp"
 
 namespace mfem
 {
 
 // ***************************************************************************
-// * FiniteElementSpaceExtension
-// ***************************************************************************
-class FiniteElementSpaceExtension
+// * kFiniteElementSpace
+//  **************************************************************************
+class kFiniteElementSpace
 {
+private:
+   FiniteElementSpace *fes;
+   int globalDofs, localDofs;
+   kernels::Array<int> offsets;
+   kernels::Array<int> indices, *reorderIndices;
+   kernels::Array<int> map;
 public:
-   const FiniteElementSpace &fes;
-   const int ne;
-   const int vdim;
-   const bool byvdim;
-   const int NDofs;
-   const int Dof;
-   const int neDofs;
-   Array<int> offsets;
-   Array<int> indices;
-public:
-   FiniteElementSpaceExtension(const FiniteElementSpace&);
-   void L2E(const Vector&, Vector&) const;
-   void E2L(const Vector&, Vector&) const;
+   kFiniteElementSpace(FiniteElementSpace*);
+   ~kFiniteElementSpace();
+   void GlobalToLocal(const Vector&, Vector&) const;
+   void LocalToGlobal(const Vector&, Vector&) const;
+   FiniteElementSpace& GetFes() { return *fes; }
 };
 
 } // namespace mfem
 
-#endif // MFEM_KFESPACE_EXT
+#endif // MFEM_KFESPACE_HPP

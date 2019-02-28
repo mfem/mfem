@@ -43,7 +43,6 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-//extern void mmCheckIni(const char*);
 
 using namespace std;
 using namespace mfem;
@@ -60,7 +59,6 @@ int main(int argc, char *argv[])
    bool raja = false;
    bool occa = false;
    bool visualization = 1;
-   //mmCheckIni(argv[0]);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -171,7 +169,10 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace, assembly, elem_batch);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+
+   // These will be unified in methods of DiffusionIntegrator
+   if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
+   else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary

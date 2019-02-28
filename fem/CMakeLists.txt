@@ -13,7 +13,6 @@ set(SRCS
   bilinearform.cpp
   bilinearform_ext.cpp
   bilininteg.cpp
-  bilininteg_ext.cpp
   coefficient.cpp
   datacollection.cpp
   doftoquad.cpp
@@ -24,7 +23,6 @@ set(SRCS
   fespace.cpp
   fespace_ext.cpp
   geom.cpp
-  geom_ext.cpp
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
@@ -51,7 +49,6 @@ set(HDRS
   fespace.hpp
   fespace_ext.hpp
   geom.hpp
-  geom_ext.hpp
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp

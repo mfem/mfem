@@ -14,26 +14,20 @@
 
 namespace mfem
 {
-namespace kernels
-{
-namespace fem
-{
 
 // *****************************************************************************
-void MassMultAssembled(const int dim,
-                       const int NUM_DOFS_1D,
-                       const int NUM_QUAD_1D,
-                       const int numElements,
-                       const double* __restrict dofToQuad,
-                       const double* __restrict dofToQuadD,
-                       const double* __restrict quadToDof,
-                       const double* __restrict quadToDofD,
-                       const double* __restrict op,
-                       const double* __restrict x,
-                       double* __restrict y);
+void biPAMassMultAdd(const int dim,
+                     const int NUM_DOFS_1D,
+                     const int NUM_QUAD_1D,
+                     const int numElements,
+                     const double* __restrict dofToQuad,
+                     const double* __restrict dofToQuadD,
+                     const double* __restrict quadToDof,
+                     const double* __restrict quadToDofD,
+                     const double* __restrict op,
+                     const double* __restrict x,
+                     double* __restrict y);
 
-} // namespace fem
-} // namespace kernels
-} // namespace mfem
+}
 
-#endif // MFEM_KERNELS_MASS
+#endif // MFEM_KERNELS_DIFFUSION

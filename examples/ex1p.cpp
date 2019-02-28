@@ -188,13 +188,14 @@ int main(int argc, char *argv[])
 
    // Sample values
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   int elem_batch = (cuda || occa) ? pmesh->GetNE() : 1;
+   int elem_batch = (cuda || occa) ? mesh->GetNE() : 1;
 
    // 10. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace, assembly, elem_batch);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
+   else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel

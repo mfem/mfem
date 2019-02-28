@@ -42,7 +42,6 @@ void Print(const size_t N, const double *x);
 void Set(const size_t N, const double d, double *y);
 
 void Assign(const size_t N, const double *x, double *y);
-void Assign(const size_t N, const int *x, int *y);
 
 void OpMultEQ(const size_t N, const double d, double *y);
 
@@ -53,8 +52,7 @@ void OpAddEQ(const size_t, const double, const double*, double*);
 void OpSubtractEQ(const size_t size, const double *x, double *y);
 
 void AddElement(const size_t N, const int *dofs, const double *x, double *y);
-void AddElementAlpha(const size_t, const int*, const double*, double*,
-                     const double);
+void AddElementAlpha(const size_t, const int*, const double*, double*, const double);
 
 
 } // namespace vector
