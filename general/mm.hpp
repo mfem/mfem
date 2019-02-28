@@ -109,6 +109,12 @@ public:
    static void* memcpy(void *dst, const void *src,
                        size_t bytes, const bool async = false);
 
+   // **************************************************************************
+   static inline bool known(const void *a)
+   {
+      return MM().Known(a);
+   }
+
 private:
    ledger maps;
    mm() {}
@@ -120,6 +126,7 @@ private:
    void *Insert(void *ptr, const size_t bytes);
    void *Erase(void *ptr);
    void* Ptr(void *ptr);
+   bool Known(const void *ptr);
    const void* Ptr(const void *ptr);
    OccaMemory Memory(const void *ptr);
 

@@ -28,6 +28,12 @@ static bool Known(const mm::ledger &maps, const void *ptr)
 }
 
 // *****************************************************************************
+bool mm::Known(const void *ptr)
+{
+   return mfem::Known(maps,ptr);
+}
+
+// *****************************************************************************
 // * Looks if ptr is an alias of one memory
 // *****************************************************************************
 static const void* IsAlias(const mm::ledger &maps, const void *ptr)
@@ -94,7 +100,7 @@ void* mm::Insert(void *ptr, const size_t bytes)
 {
    if (!config::usingMM()) { return ptr; }
    if (config::gpuDisabled()) { return ptr; }
-   const bool known = Known(maps, ptr);
+   const bool known = Known(ptr);
    MFEM_ASSERT(!known, "Trying to add already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
    maps.memories.emplace(ptr, memory(ptr, bytes));
@@ -108,7 +114,7 @@ void *mm::Erase(void *ptr)
 {
    if (!config::usingMM()) { return ptr; }
    if (config::gpuDisabled()) { return ptr; }
-   const bool known = Known(maps, ptr);
+   const bool known = Known(ptr);
    // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("Trying to remove an unknown address!"); }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
@@ -182,7 +188,7 @@ void* mm::Ptr(void *ptr)
    if (!config::usingMM()) { return ptr; }
    if (config::gpuDisabled()) { return ptr; }
    if (!config::gpuHasBeenEnabled()) { return ptr; }
-   if (Known(maps, ptr)) { return PtrKnown(maps, ptr); }
+   if (Known(ptr)) { return PtrKnown(maps, ptr); }
    const bool alias = Alias(maps, ptr);
    // if (!alias) { BUILTIN_TRAP; }
    if (!alias) { mfem_error("mm::Ptr"); }
@@ -265,7 +271,7 @@ void mm::Push(const void *ptr, const size_t bytes)
    if (config::gpuDisabled()) { return; }
    if (!config::usingMM()) { return; }
    if (!config::gpuHasBeenEnabled()) { return; }
-   if (Known(maps, ptr)) { return PushKnown(maps, ptr, bytes); }
+   if (Known(ptr)) { return PushKnown(maps, ptr, bytes); }
    assert(!config::usingOcca());
    const bool alias = Alias(maps, ptr);
    // if (!alias) { BUILTIN_TRAP; }
@@ -296,7 +302,7 @@ void mm::Pull(const void *ptr, const size_t bytes)
    if (config::gpuDisabled()) { return; }
    if (!config::usingMM()) { return; }
    if (!config::gpuHasBeenEnabled()) { return; }
-   if (Known(maps, ptr)) { return PullKnown(maps, ptr, bytes); }
+   if (Known(ptr)) { return PullKnown(maps, ptr, bytes); }
    assert(!config::usingOcca());
    const bool alias = Alias(maps, ptr);
    // if (!alias) { BUILTIN_TRAP; }
