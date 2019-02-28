@@ -47,14 +47,17 @@ static void oBiPADiffusionMultAdd2D(const int NUM_DOFS_1D,
    SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
-   if (!config::usingGpu()){
+   if (!config::usingGpu())
+   {
       NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, bidiffusionMultAdd.okl, props);
       MultAdd2D_CPU(numElements,
                     o_dofToQuad, o_dofToQuadD,
                     o_quadToDof, o_quadToDofD,
                     o_oper, o_solIn,
                     o_solOut);
-   }else{
+   }
+   else
+   {
       NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, bidiffusionMultAdd.okl, props);
       MultAdd2D_GPU(numElements,
                     o_dofToQuad, o_dofToQuadD,
@@ -388,7 +391,8 @@ void biPADiffusionMultAdd(const int DIM,
 {
 
 #ifdef __OCCA__
-   if (config::usingOcca()){
+   if (config::usingOcca())
+   {
       assert(DIM==2);
       oBiPADiffusionMultAdd2D(NUM_DOFS_1D, NUM_QUAD_1D,
                               numElements,

@@ -22,11 +22,11 @@ namespace geometry
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D>
 void Geom3D(const int numElements,
-             const double* __restrict dofToQuadD,
-             const double* __restrict nodes,
-             double* __restrict J,
-             double* __restrict invJ,
-             double* __restrict detJ)
+            const double* __restrict dofToQuadD,
+            const double* __restrict nodes,
+            double* __restrict J,
+            double* __restrict invJ,
+            double* __restrict detJ)
 {
    const int NUM_DOFS = NUM_DOFS_1D*NUM_DOFS_1D*NUM_DOFS_1D;
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;

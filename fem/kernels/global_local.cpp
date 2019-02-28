@@ -43,7 +43,7 @@ void GlobalToLocal(const int NUM_VDIM,
          for (int j = offset; j < nextOffset; ++j)
          {
             const int l_offset =
-               ijNMt(v,d_indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
+            ijNMt(v,d_indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
             d_localX[l_offset] = dofValue;
          }
       }
