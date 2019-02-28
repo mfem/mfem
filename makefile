@@ -321,7 +321,6 @@ endif
 DIRS = general linalg mesh fem
 KERNEL_DIRS = $(DIRS:=/kernels)
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
-SOURCE_FILES += $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
@@ -355,9 +354,9 @@ KER_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
 MPP_MFEMS  = -DMFEM_CXX="$(MFEM_CXX)"
 MPP_MFEMS += -DMFEM_SRC="$(MFEM_REAL_DIR)"
 MPP_MFEMS += -DMFEM_BUILD_FLAGS="$(KER_FLAGS)"
-MPP_FLAGS  = $(if $(MFEM_USE_GPU:YES=),,-DMFEM_USE_GPU)
+MPP_FLAGS  = $(if $(MFEM_USE_MM:YES=),,-DMFEM_USE_MM)
 MPP_FLAGS += $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
-mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp #$(THIS_MK)
+mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp $(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) $(MPP_MFEMS) $(MPP_FLAGS)
 
 # Rule for compiling kernel source files.
@@ -549,7 +548,7 @@ status info:
 	$(info MFEM_USE_PUMI        = $(MFEM_USE_PUMI))
 	$(info MFEM_USE_RAJA        = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA        = $(MFEM_USE_OCCA))
-	$(info MFEM_USE_GPU         = $(MFEM_USE_GPU))
+	$(info MFEM_USE_MM          = $(MFEM_USE_MM))
 	$(info MFEM_USE_JIT         = $(MFEM_USE_JIT))
 	$(info MFEM_CXX             = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS        = $(value MFEM_CPPFLAGS))

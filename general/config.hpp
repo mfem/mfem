@@ -65,7 +65,7 @@ public:
    // **************************************************************************
    constexpr static inline bool usingMM()
    {
-#ifdef MFEM_USE_GPU
+#ifdef MFEM_USE_MM
       return true;
 #else
       return false;
