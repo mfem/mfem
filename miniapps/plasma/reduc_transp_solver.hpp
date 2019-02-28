@@ -363,7 +363,33 @@ public:
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
+  
+class dpdnCoefficient : public Coefficient
+{
+private:
+  int c_;
+  double m_;
+  VectorCoefficient & uCoef_;
+  mutable Vector u_;
+  
+public:
+  dpdnCoefficient(int c, double m, VectorCoefficient & uCoef);
 
+  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+  
+class dpduCoefficient : public Coefficient
+{
+private:
+  double m_;
+  Coefficient & nCoef_;
+  
+public:
+  dpduCoefficient(double m, Coefficient & nCoef);
+
+  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+  
 class dEdnCoefficient : public Coefficient
 {
 private:
@@ -379,8 +405,6 @@ public:
   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
-typedef ProductCoefficient dEdTCoefficient;
-  
 class dEduCoefficient : public Coefficient
 {
 private:
@@ -396,6 +420,8 @@ public:
 
   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
+  
+typedef ProductCoefficient dEdTCoefficient;
   
 class MultiSpeciesDiffusion : public TimeDependentOperator
 {
@@ -420,17 +446,17 @@ private:
    std::vector<VectorGridFunctionCoefficient> uCoef_;
    std::vector<GridFunctionCoefficient>       TCoef_;
 
+   std::vector<dpdnCoefficient *> dpdnCoef_;
+   std::vector<dpduCoefficient *> dpduCoef_;
+  
    std::vector<dEdnCoefficient *> dEdnCoef_;
    std::vector<dEduCoefficient *> dEduCoef_;
    std::vector<dEdTCoefficient *> dEdTCoef_;
   
    std::vector<DiffCoefficient *> diffCoef_;
    std::vector<ChiCoefficient *>  chiCoef_;
-
-   std::vector<ProductCoefficient *> dtnCoef_;
-  
+   std::vector<ScalarMatrixProductCoefficient *> dtChiCoef_;
    std::vector<ScalarMatrixProductCoefficient *> dtDiffCoef_;
-   std::vector<ScalarMatrixProductCoefficient *> dtnChiCoef_;
 
    void initCoefficients();
    void initBilinearForms();

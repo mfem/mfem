@@ -327,6 +327,37 @@ EtaParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
   
+dpdnCoefficient::dpdnCoefficient(int c,
+				 double m,
+				 VectorCoefficient & uCoef)
+  : c_(c),
+    m_(m),
+    uCoef_(uCoef),
+    u_(uCoef.GetVDim())
+{
+}
+
+double dpdnCoefficient::Eval(ElementTransformation &T,
+			     const IntegrationPoint &ip)
+{
+  uCoef_.Eval(u_, T, ip);
+
+  return m_ * u_[c_]; 
+}
+
+dpduCoefficient::dpduCoefficient(double m,
+				 Coefficient & nCoef)
+  : m_(m),
+    nCoef_(nCoef)
+{
+}
+
+double dpduCoefficient::Eval(ElementTransformation &T,
+			     const IntegrationPoint &ip)
+{
+  return m_ * nCoef_.Eval(T, ip); 
+}
+
 dEdnCoefficient::dEdnCoefficient(Coefficient & TCoef,
 				 double m,
 				 VectorCoefficient & uCoef)
@@ -435,6 +466,28 @@ MultiSpeciesDiffusion::MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
 
 MultiSpeciesDiffusion::~MultiSpeciesDiffusion()
 {
+  for (unsigned int i=0; i<dpdnCoef_.size(); i++)
+  {
+    delete dpdnCoef_[i];
+  }
+  for (unsigned int i=0; i<dpduCoef_.size(); i++)
+  {
+    delete dpduCoef_[i];
+  }
+
+  for (unsigned int i=0; i<dEdnCoef_.size(); i++)
+  {
+    delete dEdnCoef_[i];
+  }
+  for (unsigned int i=0; i<dEduCoef_.size(); i++)
+  {
+    delete dEduCoef_[i];
+  }
+  for (unsigned int i=0; i<dEdTCoef_.size(); i++)
+  {
+    delete dEdTCoef_[i];
+  }
+
   for (unsigned int i=0; i<dtDiffCoef_.size(); i++)
   {
     delete dtDiffCoef_[i];
@@ -447,6 +500,7 @@ MultiSpeciesDiffusion::~MultiSpeciesDiffusion()
   {
     delete dtnCoef_[i];
   }
+
   for (unsigned int i=0; i<diffCoef_.size(); i++)
   {
     delete diffCoef_[i];
@@ -484,7 +538,53 @@ void MultiSpeciesDiffusion::initCoefficients()
     TGF_[i].MakeRef(&sfes_, TBV_.GetBlock(i));
     TCoef_[i].SetGridFunction(&TGF_[i]);
   }
-    
+
+  dpdnCoef_.resize(dim_ * ns);
+  for (int i=0; i<ns; i++)
+  {
+    for (int d=0; d<dim_; d++)
+    {
+      dpdnCoef_[dim_ * i + d] = new dpdnCoefficient(d, masses_[i],
+						    uCoef_[i + 1]);
+    }
+  }
+  
+  dpduCoef_.resize(ns);
+  for (int i=0; i<ns; i++)
+  {
+    dpduCoef_[i] = new dpduCoefficient(masses_[i], nCoef_[i + 1]);
+  }
+  
+  dEdnCoef_.resize(ns + 1);
+  dEdnCoef_[0] = new dEdnCoefficient(TCoef_[0], me_u_, uCoef_[0]);
+  for (int i=0; i<ns; i++)
+  {
+    dEdnCoef_[i + 1] = new dEdnCoefficient(TCoef_[i + 1], masses_[i],
+					   uCoef_[i + 1]);
+  }
+  
+  dEduCoef_.resize(dim_ * (ns + 1));
+  for (int d=0; d<dim_; d++)
+  {
+    dEduCoef_[d] = new dEduCoefficient(d, me_u_,
+				       nCoef_[0], uCoef_[0]);
+  }
+  for (int i=0; i<ns; i++)
+  {
+    for (int d=0; d<dim_; d++)
+    {
+      dEduCoef_[dim_ * (i + 1) + d] = new dEduCoefficient(d, masses_[i],
+							  nCoef_[i + 1],
+							  uCoef_[i + 1]);
+    }
+  }
+  
+  dEdTCoef_.resize(ns + 1);
+  for (int i=0; i<=ns; i++)
+  {
+    dEdTCoef_[i] = new dEdTCoefficient(1.5, nCoef_[i]);
+  }
+  
   diffCoef_.resize(ns);
   dtDiffCoef_.resize(ns);
   for (int i=0; i<ns; i++)
