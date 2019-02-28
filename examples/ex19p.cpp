@@ -7,6 +7,7 @@
 //    mpirun -np 2 ex19p -m ../data/beam-tri.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-hex.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-tet.mesh
+//    mpirun -np 2 ex19p -m ../data/beam-wedge.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an

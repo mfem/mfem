@@ -406,9 +406,6 @@ public:
    /// Print various sparse matrix staticstics.
    void PrintInfo(std::ostream &out) const;
 
-   /// Walks the sparse matrix
-   int Walk(int &i, int &j, double &a);
-
    /// Returns max_{i,j} |(i,j)-(j,i)| for a finalized matrix
    double IsSymmetric() const;
 

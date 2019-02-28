@@ -209,6 +209,8 @@ int main(int argc, char *argv[])
    {
       pmesh.UniformRefinement();
    }
+   // Make sure tet-only meshes are marked for local refinement.
+   pmesh.Finalize(true);
 
    // If the gradient bc was selected but the E field was not specified
    // set a default vector value.

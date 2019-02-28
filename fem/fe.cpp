@@ -22,7 +22,7 @@ namespace mfem
 
 using namespace std;
 
-FiniteElement::FiniteElement(int D, int G, int Do, int O, int F)
+FiniteElement::FiniteElement(int D, Geometry::Type G, int Do, int O, int F)
    : Nodes(Do)
 {
    Dim = D ; GeomType = G ; Dof = Do ; Order = O ; FuncSpace = F;
@@ -112,6 +112,12 @@ void FiniteElement::GetLocalInterpolation (ElementTransformation &Trans,
                                            DenseMatrix &I) const
 {
    mfem_error ("GetLocalInterpolation (...) is not overloaded !");
+}
+
+void FiniteElement::GetLocalRestriction(ElementTransformation &,
+                                        DenseMatrix &) const
+{
+   mfem_error("FiniteElement::GetLocalRestriction() is not overloaded !");
 }
 
 void FiniteElement::GetTransferMatrix(const FiniteElement &fe,
@@ -292,6 +298,51 @@ void NodalFiniteElement::ProjectCurl_2D(
    }
 }
 
+void InvertLinearTrans(ElementTransformation &trans,
+                       const IntegrationPoint &pt, Vector &x)
+{
+   // invert a linear transform with one Newton step
+   IntegrationPoint p0;
+   p0.Set3(0, 0, 0);
+   trans.Transform(p0, x);
+
+   double store[3];
+   Vector v(store, x.Size());
+   pt.Get(v, x.Size());
+   v -= x;
+
+   trans.InverseJacobian().Mult(v, x);
+}
+
+void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
+                                             DenseMatrix &R) const
+{
+   IntegrationPoint ipt;
+   Vector pt(&ipt.x, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   Vector c_shape(Dof);
+#endif
+
+   Trans.SetIntPoint(&Nodes[0]);
+
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes[j], pt);
+      if (Geometries.CheckPoint(GeomType, ipt)) // do we need an epsilon here?
+      {
+         CalcShape(ipt, c_shape);
+         R.SetRow(j, c_shape);
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
+}
+
 void NodalFiniteElement::Project (
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
@@ -463,6 +514,24 @@ void PositiveFiniteElement::Project(
       const IntegrationPoint &ip = Nodes.IntPoint(i);
       Trans.SetIntPoint(&ip);
       dofs(i) = coeff.Eval(Trans, ip);
+   }
+}
+
+void PositiveFiniteElement::Project(
+   VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
+   Vector x(vc.GetVDim());
+
+   for (int i = 0; i < Dof; i++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(i);
+      Trans.SetIntPoint(&ip);
+      vc.Eval (x, Trans, ip);
+      for (int j = 0; j < x.Size(); j++)
+      {
+         dofs(Dof*j+i) = x(j);
+      }
    }
 }
 
@@ -931,6 +1000,90 @@ void VectorFiniteElement::LocalInterpolation_ND(
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
+}
+
+void VectorFiniteElement::LocalRestriction_RT(
+   const double *nk, const Array<int> &d2n, ElementTransformation &Trans,
+   DenseMatrix &R) const
+{
+   double pt_data[Geometry::MaxDim];
+   IntegrationPoint ip;
+   Vector pt(pt_data, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(Dof, Dim);
+#endif
+
+   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   const DenseMatrix &J = Trans.Jacobian();
+   const double weight = Trans.Weight();
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
+      ip.Set(pt_data, Dim);
+      if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
+      {
+         CalcVShape(ip, vshape);
+         J.MultTranspose(nk+Dim*d2n[j], pt_data);
+         pt /= weight;
+         for (int k = 0; k < Dof; k++)
+         {
+            double R_jk = 0.0;
+            for (int d = 0; d < Dim; d++)
+            {
+               R_jk += vshape(k,d)*pt_data[d];
+            }
+            R(j,k) = R_jk;
+         }
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
+}
+
+void VectorFiniteElement::LocalRestriction_ND(
+   const double *tk, const Array<int> &d2t, ElementTransformation &Trans,
+   DenseMatrix &R) const
+{
+   double pt_data[Geometry::MaxDim];
+   IntegrationPoint ip;
+   Vector pt(pt_data, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(Dof, Dim);
+#endif
+
+   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   const DenseMatrix &Jinv = Trans.InverseJacobian();
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
+      ip.Set(pt_data, Dim);
+      if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
+      {
+         CalcVShape(ip, vshape);
+         Jinv.Mult(tk+Dim*d2t[j], pt_data);
+         for (int k = 0; k < Dof; k++)
+         {
+            double R_jk = 0.0;
+            for (int d = 0; d < Dim; d++)
+            {
+               R_jk += vshape(k,d)*pt_data[d];
+            }
+            R(j,k) = R_jk;
+         }
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
 }
 
 
@@ -2549,6 +2702,7 @@ void TriLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dshape(7,1) =   ox *  z;
    dshape(7,2) =   ox *  y;
 }
+
 
 P0SegmentFiniteElement::P0SegmentFiniteElement(int Ord)
    : NodalFiniteElement(1, Geometry::SEGMENT, 1, Ord)   // defaul Ord = 0
@@ -6697,8 +6851,8 @@ Poly_1D::~Poly_1D()
    }
 }
 
-Poly_1D poly1d;
 Array2D<int> Poly_1D::binom;
+Poly_1D poly1d;
 
 
 TensorBasisElement::TensorBasisElement(const int dims, const int p,
@@ -8250,6 +8404,294 @@ void H1Pos_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 
+H1_WedgeElement::H1_WedgeElement(const int p,
+                                 const int btype)
+   : NodalFiniteElement(3, Geometry::PRISM, ((p + 1)*(p + 1)*(p + 2))/2,
+                        p, FunctionSpace::Qk),
+     TriangleFE(p, btype),
+     SegmentFE(p, btype)
+{
+#ifndef MFEM_THREAD_SAFE
+   t_shape.SetSize(TriangleFE.GetDof());
+   s_shape.SetSize(SegmentFE.GetDof());
+   t_dshape.SetSize(TriangleFE.GetDof(), 2);
+   s_dshape.SetSize(SegmentFE.GetDof(), 1);
+#endif
+
+   t_dof.SetSize(Dof);
+   s_dof.SetSize(Dof);
+
+   // Nodal DoFs
+   t_dof[0] = 0; s_dof[0] = 0;
+   t_dof[1] = 1; s_dof[1] = 0;
+   t_dof[2] = 2; s_dof[2] = 0;
+   t_dof[3] = 0; s_dof[3] = 1;
+   t_dof[4] = 1; s_dof[4] = 1;
+   t_dof[5] = 2; s_dof[5] = 1;
+
+   // Edge DoFs
+   int ne = p-1;
+   for (int i=1; i<p; i++)
+   {
+      t_dof[5 + 0 * ne + i] = 2 + 0 * ne + i; s_dof[5 + 0 * ne + i] = 0;
+      t_dof[5 + 1 * ne + i] = 2 + 1 * ne + i; s_dof[5 + 1 * ne + i] = 0;
+      t_dof[5 + 2 * ne + i] = 2 + 2 * ne + i; s_dof[5 + 2 * ne + i] = 0;
+      t_dof[5 + 3 * ne + i] = 2 + 0 * ne + i; s_dof[5 + 3 * ne + i] = 1;
+      t_dof[5 + 4 * ne + i] = 2 + 1 * ne + i; s_dof[5 + 4 * ne + i] = 1;
+      t_dof[5 + 5 * ne + i] = 2 + 2 * ne + i; s_dof[5 + 5 * ne + i] = 1;
+      t_dof[5 + 6 * ne + i] = 0;              s_dof[5 + 6 * ne + i] = i + 1;
+      t_dof[5 + 7 * ne + i] = 1;              s_dof[5 + 7 * ne + i] = i + 1;
+      t_dof[5 + 8 * ne + i] = 2;              s_dof[5 + 8 * ne + i] = i + 1;
+   }
+
+   // Triangular Face DoFs
+   int k=0;
+   int nt = (p-1)*(p-2)/2;
+   for (int j=1; j<p; j++)
+   {
+      for (int i=1; i<p-j; i++)
+      {
+         int l = j - p + (((2 * p - 1) - i) * i) / 2;
+         t_dof[6 + 9 * ne + k]      = 3 * p + l; s_dof[6 + 9 * ne + k]      = 0;
+         t_dof[6 + 9 * ne + nt + k] = 3 * p + k; s_dof[6 + 9 * ne + nt + k] = 1;
+         k++;
+      }
+   }
+
+   // Quadrilateral Face DoFs
+   k=0;
+   int nq = (p-1)*(p-1);
+   for (int j=1; j<p; j++)
+   {
+      for (int i=1; i<p; i++)
+      {
+         t_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 2 + 0 * ne + i;
+         t_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 2 + 1 * ne + i;
+         t_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 2 + 2 * ne + i;
+
+         s_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 1 + j;
+         s_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 1 + j;
+         s_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 1 + j;
+
+         k++;
+      }
+   }
+
+   // Interior DoFs
+   int m=0;
+   for (int k=1; k<p; k++)
+   {
+      int l=0;
+      for (int j=1; j<p; j++)
+      {
+         for (int i=1; i<j; i++)
+         {
+            t_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 3 * p + l;
+            s_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 1 + k;
+            l++; m++;
+         }
+      }
+   }
+
+   // Define Nodes
+   const IntegrationRule & t_Nodes = TriangleFE.GetNodes();
+   const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
+   for (int i=0; i<Dof; i++)
+   {
+      Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
+      Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
+      Nodes.IntPoint(i).z = s_Nodes.IntPoint(s_dof[i]).x;
+   }
+}
+
+void H1_WedgeElement::CalcShape(const IntegrationPoint &ip,
+                                Vector &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector t_shape(TriangleFE.GetDof());
+   Vector s_shape(SegmentFE.GetDof());
+#endif
+
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   TriangleFE.CalcShape(ip, t_shape);
+   SegmentFE.CalcShape(ipz, s_shape);
+
+   for (int i=0; i<Dof; i++)
+   {
+      shape[i] = t_shape[t_dof[i]] * s_shape[s_dof[i]];
+   }
+}
+
+void H1_WedgeElement::CalcDShape(const IntegrationPoint &ip,
+                                 DenseMatrix &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector      t_shape(TriangleFE.GetDof());
+   DenseMatrix t_dshape(TriangleFE.GetDof(), 2);
+   Vector      s_shape(SegmentFE.GetDof());
+   DenseMatrix s_dshape(SegmentFE.GetDof(), 1);
+#endif
+
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   TriangleFE.CalcShape(ip, t_shape);
+   TriangleFE.CalcDShape(ip, t_dshape);
+   SegmentFE.CalcShape(ipz, s_shape);
+   SegmentFE.CalcDShape(ipz, s_dshape);
+
+   for (int i=0; i<Dof; i++)
+   {
+      dshape(i, 0) = t_dshape(t_dof[i],0) * s_shape[s_dof[i]];
+      dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
+      dshape(i, 2) = t_shape[t_dof[i]] * s_dshape(s_dof[i],0);
+   }
+}
+
+
+H1Pos_WedgeElement::H1Pos_WedgeElement(const int p)
+   : PositiveFiniteElement(3, Geometry::PRISM,
+                           ((p + 1)*(p + 1)*(p + 2))/2, p, FunctionSpace::Qk),
+     TriangleFE(p),
+     SegmentFE(p)
+{
+#ifndef MFEM_THREAD_SAFE
+   t_shape.SetSize(TriangleFE.GetDof());
+   s_shape.SetSize(SegmentFE.GetDof());
+   t_dshape.SetSize(TriangleFE.GetDof(), 2);
+   s_dshape.SetSize(SegmentFE.GetDof(), 1);
+#endif
+
+   t_dof.SetSize(Dof);
+   s_dof.SetSize(Dof);
+
+   // Nodal DoFs
+   t_dof[0] = 0; s_dof[0] = 0;
+   t_dof[1] = 1; s_dof[1] = 0;
+   t_dof[2] = 2; s_dof[2] = 0;
+   t_dof[3] = 0; s_dof[3] = 1;
+   t_dof[4] = 1; s_dof[4] = 1;
+   t_dof[5] = 2; s_dof[5] = 1;
+
+   // Edge DoFs
+   int ne = p-1;
+   for (int i=1; i<p; i++)
+   {
+      t_dof[5 + 0 * ne + i] = 2 + 0 * ne + i; s_dof[5 + 0 * ne + i] = 0;
+      t_dof[5 + 1 * ne + i] = 2 + 1 * ne + i; s_dof[5 + 1 * ne + i] = 0;
+      t_dof[5 + 2 * ne + i] = 2 + 2 * ne + i; s_dof[5 + 2 * ne + i] = 0;
+      t_dof[5 + 3 * ne + i] = 2 + 0 * ne + i; s_dof[5 + 3 * ne + i] = 1;
+      t_dof[5 + 4 * ne + i] = 2 + 1 * ne + i; s_dof[5 + 4 * ne + i] = 1;
+      t_dof[5 + 5 * ne + i] = 2 + 2 * ne + i; s_dof[5 + 5 * ne + i] = 1;
+      t_dof[5 + 6 * ne + i] = 0;              s_dof[5 + 6 * ne + i] = i + 1;
+      t_dof[5 + 7 * ne + i] = 1;              s_dof[5 + 7 * ne + i] = i + 1;
+      t_dof[5 + 8 * ne + i] = 2;              s_dof[5 + 8 * ne + i] = i + 1;
+   }
+
+   // Triangular Face DoFs
+   int k=0;
+   int nt = (p-1)*(p-2)/2;
+   for (int j=1; j<p; j++)
+   {
+      for (int i=1; i<j; i++)
+      {
+         t_dof[6 + 9 * ne + k]      = 3 * p + k; s_dof[6 + 9 * ne + k]      = 0;
+         t_dof[6 + 9 * ne + nt + k] = 3 * p + k; s_dof[6 + 9 * ne + nt + k] = 1;
+         k++;
+      }
+   }
+
+   // Quadrilateral Face DoFs
+   k=0;
+   int nq = (p-1)*(p-1);
+   for (int j=1; j<p; j++)
+   {
+      for (int i=1; i<p; i++)
+      {
+         t_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 2 + 0 * ne + i;
+         t_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 2 + 1 * ne + i;
+         t_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 2 + 2 * ne + i;
+
+         s_dof[6 + 9 * ne + 2 * nt + 0 * nq + k] = 1 + j;
+         s_dof[6 + 9 * ne + 2 * nt + 1 * nq + k] = 1 + j;
+         s_dof[6 + 9 * ne + 2 * nt + 2 * nq + k] = 1 + j;
+
+         k++;
+      }
+   }
+
+   // Interior DoFs
+   int m=0;
+   for (int k=1; k<p; k++)
+   {
+      int l=0;
+      for (int j=1; j<p; j++)
+      {
+         for (int i=1; i<j; i++)
+         {
+            t_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 3 * p + l;
+            s_dof[6 + 9 * ne + 2 * nt + 3 * nq + m] = 1 + k;
+            l++; m++;
+         }
+      }
+   }
+
+   // Define Nodes
+   const IntegrationRule & t_Nodes = TriangleFE.GetNodes();
+   const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
+   for (int i=0; i<Dof; i++)
+   {
+      Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
+      Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
+      Nodes.IntPoint(i).z = s_Nodes.IntPoint(s_dof[i]).x;
+   }
+}
+
+void H1Pos_WedgeElement::CalcShape(const IntegrationPoint &ip,
+                                   Vector &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector t_shape(TriangleFE.GetDof());
+   Vector s_shape(SegmentFE.GetDof());
+#endif
+
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   TriangleFE.CalcShape(ip, t_shape);
+   SegmentFE.CalcShape(ipz, s_shape);
+
+   for (int i=0; i<Dof; i++)
+   {
+      shape[i] = t_shape[t_dof[i]] * s_shape[s_dof[i]];
+   }
+}
+
+void H1Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
+                                    DenseMatrix &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector      t_shape(TriangleFE.GetDof());
+   DenseMatrix t_dshape(TriangleFE.GetDof(), 2);
+   Vector      s_shape(SegmentFE.GetDof());
+   DenseMatrix s_dshape(SegmentFE.GetDof(), 1);
+#endif
+
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   TriangleFE.CalcShape(ip, t_shape);
+   TriangleFE.CalcDShape(ip, t_dshape);
+   SegmentFE.CalcShape(ipz, s_shape);
+   SegmentFE.CalcDShape(ipz, s_dshape);
+
+   for (int i=0; i<Dof; i++)
+   {
+      dshape(i, 0) = t_dshape(t_dof[i],0) * s_shape[s_dof[i]];
+      dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
+      dshape(i, 2) = t_shape[t_dof[i]] * s_dshape(s_dof[i],0);
+   }
+}
+
+
 L2_SegmentElement::L2_SegmentElement(const int p, const int btype)
    : NodalTensorFiniteElement(1, p, VerifyOpen(btype), L2_DOF_MAP)
 {
@@ -9149,6 +9591,182 @@ void L2Pos_TetrahedronElement::ProjectDelta(int vertex, Vector &dofs) const
       case 1: dofs[Order] = 1.0; break;
       case 2: dofs[(Order*(Order+3))/2] = 1.0; break;
       case 3: dofs[Dof-1] = 1.0; break;
+   }
+}
+
+
+L2_WedgeElement::L2_WedgeElement(const int p, const int btype)
+   : NodalFiniteElement(3, Geometry::PRISM, ((p + 1)*(p + 1)*(p + 2))/2,
+                        p, FunctionSpace::Qk),
+     TriangleFE(p, btype),
+     SegmentFE(p, btype)
+{
+#ifndef MFEM_THREAD_SAFE
+   t_shape.SetSize(TriangleFE.GetDof());
+   s_shape.SetSize(SegmentFE.GetDof());
+   t_dshape.SetSize(TriangleFE.GetDof(), 2);
+   s_dshape.SetSize(SegmentFE.GetDof(), 1);
+#endif
+
+   t_dof.SetSize(Dof);
+   s_dof.SetSize(Dof);
+
+   // Interior DoFs
+   int m=0;
+   for (int k=0; k<=p; k++)
+   {
+      int l=0;
+      for (int j=0; j<=p; j++)
+      {
+         for (int i=0; i<=j; i++)
+         {
+            t_dof[m] = l;
+            s_dof[m] = k;
+            l++; m++;
+         }
+      }
+   }
+
+   // Define Nodes
+   const IntegrationRule & t_Nodes = TriangleFE.GetNodes();
+   const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
+   for (int i=0; i<Dof; i++)
+   {
+      Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
+      Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
+      Nodes.IntPoint(i).z = s_Nodes.IntPoint(s_dof[i]).x;
+   }
+}
+
+void L2_WedgeElement::CalcShape(const IntegrationPoint &ip,
+                                Vector &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector t_shape(TriangleFE.GetDof());
+   Vector s_shape(SegmentFE.GetDof());
+#endif
+
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   TriangleFE.CalcShape(ip, t_shape);
+   SegmentFE.CalcShape(ipz, s_shape);
+
+   for (int i=0; i<Dof; i++)
+   {
+      shape[i] = t_shape[t_dof[i]] * s_shape[s_dof[i]];
+   }
+}
+
+void L2_WedgeElement::CalcDShape(const IntegrationPoint &ip,
+                                 DenseMatrix &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector      t_shape(TriangleFE.GetDof());
+   DenseMatrix t_dshape(TriangleFE.GetDof(), 2);
+   Vector      s_shape(SegmentFE.GetDof());
+   DenseMatrix s_dshape(SegmentFE.GetDof(), 1);
+#endif
+
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   TriangleFE.CalcShape(ip, t_shape);
+   TriangleFE.CalcDShape(ip, t_dshape);
+   SegmentFE.CalcShape(ipz, s_shape);
+   SegmentFE.CalcDShape(ipz, s_dshape);
+
+   for (int i=0; i<Dof; i++)
+   {
+      dshape(i, 0) = t_dshape(t_dof[i],0) * s_shape[s_dof[i]];
+      dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
+      dshape(i, 2) = t_shape[t_dof[i]] * s_dshape(s_dof[i],0);
+   }
+}
+
+
+L2Pos_WedgeElement::L2Pos_WedgeElement(const int p)
+   : PositiveFiniteElement(3, Geometry::PRISM,
+                           ((p + 1)*(p + 1)*(p + 2))/2, p, FunctionSpace::Qk),
+     TriangleFE(p),
+     SegmentFE(p)
+{
+#ifndef MFEM_THREAD_SAFE
+   t_shape.SetSize(TriangleFE.GetDof());
+   s_shape.SetSize(SegmentFE.GetDof());
+   t_dshape.SetSize(TriangleFE.GetDof(), 2);
+   s_dshape.SetSize(SegmentFE.GetDof(), 1);
+#endif
+
+   t_dof.SetSize(Dof);
+   s_dof.SetSize(Dof);
+
+   // Interior DoFs
+   int m=0;
+   for (int k=0; k<=p; k++)
+   {
+      int l=0;
+      for (int j=0; j<=p; j++)
+      {
+         for (int i=0; i<=j; i++)
+         {
+            t_dof[m] = l;
+            s_dof[m] = k;
+            l++; m++;
+         }
+      }
+   }
+
+   // Define Nodes
+   const IntegrationRule & t_Nodes = TriangleFE.GetNodes();
+   const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
+   for (int i=0; i<Dof; i++)
+   {
+      Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
+      Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
+      Nodes.IntPoint(i).z = s_Nodes.IntPoint(s_dof[i]).x;
+   }
+}
+
+void L2Pos_WedgeElement::CalcShape(const IntegrationPoint &ip,
+                                   Vector &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector t_shape(TriangleFE.GetDof());
+   Vector s_shape(SegmentFE.GetDof());
+#endif
+
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   TriangleFE.CalcShape(ip, t_shape);
+   SegmentFE.CalcShape(ipz, s_shape);
+
+   for (int i=0; i<Dof; i++)
+   {
+      shape[i] = t_shape[t_dof[i]] * s_shape[s_dof[i]];
+   }
+}
+
+void L2Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
+                                    DenseMatrix &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector      t_shape(TriangleFE.GetDof());
+   DenseMatrix t_dshape(TriangleFE.GetDof(), 2);
+   Vector      s_shape(SegmentFE.GetDof());
+   DenseMatrix s_dshape(SegmentFE.GetDof(), 1);
+#endif
+
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   TriangleFE.CalcShape(ip, t_shape);
+   TriangleFE.CalcDShape(ip, t_dshape);
+   SegmentFE.CalcShape(ipz, s_shape);
+   SegmentFE.CalcDShape(ipz, s_dshape);
+
+   for (int i=0; i<Dof; i++)
+   {
+      dshape(i, 0) = t_dshape(t_dof[i],0) * s_shape[s_dof[i]];
+      dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
+      dshape(i, 2) = t_shape[t_dof[i]] * s_dshape(s_dof[i],0);
    }
 }
 
@@ -11226,5 +11844,26 @@ void NURBS3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
       dshape(o,2) = dshape(o,2)*sum - u(o)*dsum[2];
    }
 }
+
+
+// Global object definitions
+
+
+// Object declared in mesh/triangle.hpp.
+// Defined here to ensure it is constructed before 'Geometries'.
+Linear2DFiniteElement TriangleFE;
+
+// Object declared in mesh/tetrahedron.hpp.
+// Defined here to ensure it is constructed before 'Geometries'.
+Linear3DFiniteElement TetrahedronFE;
+
+// Object declared in mesh/wedge.hpp.
+// Defined here to ensure it is constructed after 'poly1d' and before
+// 'Geometries'.
+H1_WedgeElement WedgeFE(1);
+
+// Object declared in geom.hpp.
+// Construct 'Geometries' after 'TriangleFE', 'TetrahedronFE', and 'WedgeFE'.
+Geometry Geometries;
 
 }
