@@ -187,10 +187,10 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
    const int numQuad  = ir.GetNPoints();
    const int elements = fespace->GetNE();
    const int ndofs    = fespace->GetNDofs();
-   const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
+   const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->meshNodes);
    Geom(dims, numDofs, numQuad, elements,
-        maps->dofToQuadD,
+        maps->G,
         geom->meshNodes, geom->J, geom->invJ, geom->detJ);
    delete maps;
    return geom;
@@ -245,8 +245,8 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
       geom->invJ.allocate(dims, dims, numQuad, elements);
       geom->detJ.allocate(numQuad, elements);
    }
-   const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
-   Geom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
+   const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
+   Geom(dims, numDofs, numQuad, elements, maps->G,
         geom->meshNodes, geom->J, geom->invJ, geom->detJ);
    delete maps;
    return geom;

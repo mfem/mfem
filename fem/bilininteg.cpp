@@ -36,7 +36,7 @@ void PAMassIntegrator::Setup(const FiniteElementSpace *f,
 // *****************************************************************************
 void PAMassIntegrator::Assemble()
 {
-   maps = kDofQuadMaps::Get(*fes, *fes, *ir);
+   maps = DofToQuad::Get(*fes, *fes, *ir);
 }
 
 // *****************************************************************************
@@ -58,10 +58,10 @@ void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
                    dofs1D,
                    quad1D,
                    mesh->GetNE(),
-                   maps->dofToQuad,
-                   maps->dofToQuadD,
-                   maps->quadToDof,
-                   maps->quadToDofD,
+                   maps->B,
+                   maps->G,
+                   maps->Bt,
+                   maps->Gt,
                    op, x, y);
 }
 
@@ -92,11 +92,11 @@ void PADiffusionIntegrator::Assemble()
    op.SetSize(size);
    const kernels::geometry::Geometry *geo =
       kernels::geometry::Geometry::Get(*fes,*ir);
-   maps = kDofQuadMaps::Get(*fes, *fes, *ir);
+   maps = DofToQuad::Get(*fes, *fes, *ir);
    kernels::fem::biPADiffusionAssemble(dim,
                                        quad1D,
                                        elements,
-                                       maps->quadWeights,
+                                       maps->W,
                                        geo->J,
                                        1.0,//COEFF
                                        op);
@@ -117,10 +117,10 @@ void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
                                       dofs1D,
                                       quad1D,
                                       fes->GetMesh()->GetNE(),
-                                      maps->dofToQuad,
-                                      maps->dofToQuadD,
-                                      maps->quadToDof,
-                                      maps->quadToDofD,
+                                      maps->B,
+                                      maps->G,
+                                      maps->Bt,
+                                      maps->Gt,
                                       op,
                                       x,
                                       y);

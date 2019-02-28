@@ -13,52 +13,50 @@
 #define MFEM_BILIN_DQM_HPP
 
 #include "../config/config.hpp"
-#include "../general/array_ext.hpp"
+#include "../general/array.hpp"
 
 namespace mfem
 {
 
 // ***************************************************************************
-// * kDofQuadMaps
+// * DofToQuad
 // ***************************************************************************
-class kDofQuadMaps
+class DofToQuad
 {
 private:
    std::string hash;
 public:
-   kernels::Array<double, false> dofToQuad, dofToQuadD; // B
-   kernels::Array<double, false> quadToDof, quadToDofD; // B^T
-   kernels::Array<double> quadWeights;
+   Array<double> W, B, G, Bt, Gt;
 public:
-   static void delkDofQuadMaps();
-   static kDofQuadMaps* Get(const mfem::FiniteElementSpace&,
-                            const mfem::IntegrationRule&,
-                            const bool = false);
-   static kDofQuadMaps* Get(const mfem::FiniteElementSpace&,
-                            const mfem::FiniteElementSpace&,
-                            const mfem::IntegrationRule&,
-                            const bool = false);
-   static kDofQuadMaps* Get(const mfem::FiniteElement&,
-                            const mfem::FiniteElement&,
-                            const mfem::IntegrationRule&,
-                            const bool = false);
-   static kDofQuadMaps* GetTensorMaps(const mfem::FiniteElement&,
-                                      const mfem::FiniteElement&,
+   static void delDofToQuad();
+   static DofToQuad* Get(const mfem::FiniteElementSpace&,
+                         const mfem::IntegrationRule&,
+                         const bool = false);
+   static DofToQuad* Get(const mfem::FiniteElementSpace&,
+                         const mfem::FiniteElementSpace&,
+                         const mfem::IntegrationRule&,
+                         const bool = false);
+   static DofToQuad* Get(const mfem::FiniteElement&,
+                         const mfem::FiniteElement&,
+                         const mfem::IntegrationRule&,
+                         const bool = false);
+   static DofToQuad* GetTensorMaps(const mfem::FiniteElement&,
+                                   const mfem::FiniteElement&,
+                                   const mfem::IntegrationRule&,
+                                   const bool = false);
+   static DofToQuad* GetD2QTensorMaps(const mfem::FiniteElement&,
                                       const mfem::IntegrationRule&,
                                       const bool = false);
-   static kDofQuadMaps* GetD2QTensorMaps(const mfem::FiniteElement&,
-                                         const mfem::IntegrationRule&,
-                                         const bool = false);
-   static kDofQuadMaps* GetSimplexMaps(const mfem::FiniteElement&,
+   static DofToQuad* GetSimplexMaps(const mfem::FiniteElement&,
+                                    const mfem::IntegrationRule&,
+                                    const bool = false);
+   static DofToQuad* GetSimplexMaps(const mfem::FiniteElement&,
+                                    const mfem::FiniteElement&,
+                                    const mfem::IntegrationRule&,
+                                    const bool = false);
+   static DofToQuad* GetD2QSimplexMaps(const mfem::FiniteElement&,
                                        const mfem::IntegrationRule&,
                                        const bool = false);
-   static kDofQuadMaps* GetSimplexMaps(const mfem::FiniteElement&,
-                                       const mfem::FiniteElement&,
-                                       const mfem::IntegrationRule&,
-                                       const bool = false);
-   static kDofQuadMaps* GetD2QSimplexMaps(const mfem::FiniteElement&,
-                                          const mfem::IntegrationRule&,
-                                          const bool = false);
 };
 
 } // namespace mfem
