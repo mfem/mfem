@@ -2545,7 +2545,6 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
 
 void DenseMatrix::GradToDiv(Vector &div)
 {
-
 #ifdef MFEM_DEBUG
    if (Width()*Height() != div.Size())
    {

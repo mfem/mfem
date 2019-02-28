@@ -2849,7 +2849,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
    B_j    = B.GetJ();
    B_data = B.GetData();
 
-   B_marker = mm::malloc<int>(ncolsB);
+   B_marker = new int[ncolsB];
 
    for (ib = 0; ib < ncolsB; ib++)
    {
@@ -2976,7 +2976,7 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                "number of columns of A (" << ncolsA
                << ") must equal number of rows of B (" << nrowsB << ")");
 
-   B_marker = mm::malloc<int>(ncolsB);
+   B_marker = new int[ncolsB];
 
    for (ib = 0; ib < ncolsB; ib++)
    {
@@ -3148,7 +3148,7 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
    int * B_j = B.GetJ();
    double * B_data = B.GetData();
 
-   int * marker = mm::malloc<int>(ncols);
+   int * marker = new int[ncols];
    std::fill(marker, marker+ncols, -1);
 
    int num_nonzeros = 0, jcol;
