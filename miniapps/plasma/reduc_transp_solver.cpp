@@ -343,7 +343,7 @@ dEdnCoefficient::Eval(ElementTransformation &T,
   double temp = TCoef_.Eval(T, ip);
   uCoef_.Eval(u_, T, ip);
 
-  return(1.5 * temp + 0.5 * m_ * (u_ * u_)  /  plasma::u_);
+  return 1.5 * temp + 0.5 * m_ * (u_ * u_);
 }
 
 dEduCoefficient::dEduCoefficient(int c,
@@ -364,7 +364,7 @@ double dEduCoefficient::Eval(ElementTransformation &T,
   double n = nCoef_.Eval(T, ip);
   uCoef_.Eval(u_, T, ip);
 
-  return m_ * n * u_[c_]/ plasma::u_; 
+  return m_ * n * u_[c_]; 
 }
 
 ReducedTransportSolver::ReducedTransportSolver(ODESolver * implicitSolver,
