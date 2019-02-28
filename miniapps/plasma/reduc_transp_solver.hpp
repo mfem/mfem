@@ -431,7 +431,7 @@ public:
 };
   
 typedef ProductCoefficient dEdTCoefficient;
-  
+
 class MultiSpeciesDiffusion : public TimeDependentOperator
 {
 private:
@@ -466,11 +466,23 @@ private:
   
    std::vector<DiffCoefficient *> diffCoef_;
    std::vector<ChiCoefficient *>  chiCoef_;
-   std::vector<ScalarMatrixProductCoefficient *> dtChiCoef_;
+
+   std::vector<ScalarMatrixProductCoefficient *> nChiCoef_;
+  
+   std::vector<ScalarMatrixProductCoefficient *> dtnChiCoef_;
    std::vector<ScalarMatrixProductCoefficient *> dtDiffCoef_;
 
+   // Bilinear Forms for energy equation
+   std::vector<ParBilinearForm *> a_dEdn_;
+   std::vector<ParBilinearForm *> a_dEdu_;
+   std::vector<ParBilinearForm *> a_dEdT_;
+   std::vector<ParBilinearForm *> stiff_nChi_;
+  
    void initCoefficients();
    void initBilinearForms();
+
+   void deleteCoefficients();
+   void deleteBilinearForms();
 
 public:
    MultiSpeciesDiffusion(DGParams & dg,

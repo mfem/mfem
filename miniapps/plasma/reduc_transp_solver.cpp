@@ -470,6 +470,32 @@ MultiSpeciesDiffusion::MultiSpeciesDiffusion(DGParams & dg,
 
 MultiSpeciesDiffusion::~MultiSpeciesDiffusion()
 {
+  this->deleteBilinearForms();
+  this->deleteCoefficients();
+}
+
+void MultiSpeciesDiffusion::deleteBilinearForms()
+{
+  for (unsigned int i=0; i<a_dEdn_.size(); i++)
+  {
+    delete a_dEdn_[i];
+  }
+  for (unsigned int i=0; i<a_dEdu_.size(); i++)
+  {
+    delete a_dEdu_[i];
+  }
+  for (unsigned int i=0; i<a_dEdT_.size(); i++)
+  {
+    delete a_dEdT_[i];
+  }
+  for (unsigned int i=0; i<stiff_nChi_.size(); i++)
+  {
+    delete stiff_nChi_[i];
+  }
+}
+
+void MultiSpeciesDiffusion::deleteCoefficients()
+{
   for (unsigned int i=0; i<dpdnCoef_.size(); i++)
   {
     delete dpdnCoef_[i];
@@ -500,9 +526,9 @@ MultiSpeciesDiffusion::~MultiSpeciesDiffusion()
   {
     delete dtnChiCoef_[i];
   }
-  for (unsigned int i=0; i<dtnCoef_.size(); i++)
+  for (unsigned int i=0; i<nChiCoef_.size(); i++)
   {
-    delete dtnCoef_[i];
+    delete nChiCoef_[i];
   }
 
   for (unsigned int i=0; i<diffCoef_.size(); i++)
@@ -560,11 +586,11 @@ void MultiSpeciesDiffusion::initCoefficients()
   }
   
   dEdnCoef_.resize(ns + 1);
-  dEdnCoef_[0] = new dEdnCoefficient(TCoef_[0], me_u_, uCoef_[0]);
-  for (int i=0; i<ns; i++)
+  for (int i=0; i<=ns; i++)
   {
-    dEdnCoef_[i + 1] = new dEdnCoefficient(TCoef_[i + 1], masses_[i],
-					   uCoef_[i + 1]);
+    dEdnCoef_[i] = new dEdnCoefficient(TCoef_[i],
+				       (i==0)? me_u_ : masses_[i - 1],
+				       uCoef_[i]);
   }
   
   dEduCoef_.resize(dim_ * (ns + 1));
@@ -598,22 +624,59 @@ void MultiSpeciesDiffusion::initCoefficients()
   }
 
   chiCoef_.resize(ns+1);
-  dtnCoef_.resize(ns+1);
+  nChiCoef_.resize(ns+1);
   dtnChiCoef_.resize(ns+1);
   chiCoef_[0] = new ChiCoefficient(dim_, nBV_, charges_);
-  dtnCoef_[0] = new ProductCoefficient(0.0, nCoef_[0]);
-  dtnChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[0]);
+  nChiCoef_[0] = new ScalarMatrixProductCoefficient(nCoef_[0], *chiCoef_[0]);
+  dtnChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *nChiCoef_[0]);
   for (int i=0; i<ns; i++)
   {
     chiCoef_[i+1] = new ChiCoefficient(dim_, nBV_, i, charges_, masses_);
-    dtnCoef_[i+1] = new ProductCoefficient(0.0, nCoef_[i+1]);
-    dtnChiCoef_[i+1] = new ScalarMatrixProductCoefficient(*dtnCoef_[i+1],
-							  *chiCoef_[i+1]);
+    nChiCoef_[i+1] = new ScalarMatrixProductCoefficient(nCoef_[i+1],
+							*chiCoef_[i+1]);
+    dtnChiCoef_[i+1] = new ScalarMatrixProductCoefficient(0.0, *nChiCoef_[i+1]);
   }
 }
 
 void MultiSpeciesDiffusion::initBilinearForms()
-{}
+{
+  a_dEdn_.resize(dEdnCoef_.size());
+  for (unsigned int i=0; i<dEdnCoef_.size(); i++)
+  {
+    a_dEdn_[i] = new ParBilinearForm(&sfes_);
+    a_dEdn_[i]->AddDomainIntegrator(new MassIntegrator(*dEdnCoef_[i]));
+  }
+
+  a_dEdu_.resize(dEduCoef_.size());
+  for (unsigned int i=0; i<dEduCoef_.size(); i++)
+  {
+    a_dEdu_[i] = new ParBilinearForm(&sfes_);
+    a_dEdu_[i]->AddDomainIntegrator(new MassIntegrator(*dEduCoef_[i]));
+  }
+
+  a_dEdT_.resize(dEdTCoef_.size());
+  for (unsigned int i=0; i<dEdTCoef_.size(); i++)
+  {
+    a_dEdT_[i] = new ParBilinearForm(&sfes_);
+    a_dEdT_[i]->AddDomainIntegrator(new MassIntegrator(*dEdTCoef_[i]));
+    a_dEdT_[i]->AddDomainIntegrator(new DiffusionIntegrator(*dtnChiCoef_[i]));
+    a_dEdT_[i]->AddInteriorFaceIntegrator(
+       new DGDiffusionIntegrator(*dtnChiCoef_[i], dg_.sigma, dg_.kappa));
+    a_dEdT_[i]->AddBdrFaceIntegrator(
+       new DGDiffusionIntegrator(*dtnChiCoef_[i], dg_.sigma, dg_.kappa));
+  }
+
+  stiff_nChi_.resize(nChiCoef_.size());
+  for (unsigned int i=0; i<nChiCoef_.size(); i++)
+  {
+    stiff_nChi_[i] = new ParBilinearForm(&sfes_);
+    stiff_nChi_[i]->AddDomainIntegrator(new DiffusionIntegrator(*nChiCoef_[i]));
+    stiff_nChi_[i]->AddInteriorFaceIntegrator(
+       new DGDiffusionIntegrator(*nChiCoef_[i], dg_.sigma, dg_.kappa));
+    stiff_nChi_[i]->AddBdrFaceIntegrator(
+       new DGDiffusionIntegrator(*nChiCoef_[i], dg_.sigma, dg_.kappa));
+  }
+}
 
 void MultiSpeciesDiffusion::Assemble()
 {}
