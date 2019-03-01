@@ -616,7 +616,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
                                HYPRE_Int *i_offd, HYPRE_Int *j_offd,
                                HYPRE_Int *cmap, HYPRE_Int cmap_size)
 {
-   //MFEM_GPU_CANNOT_PASS;
    HYPRE_Int diag_nnz, offd_nnz;
 
    Init();
@@ -991,7 +990,6 @@ void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
 
 HypreParMatrix * HypreParMatrix::Transpose() const
 {
-   //MFEM_GPU_CANNOT_PASS;
    hypre_ParCSRMatrix * At;
    hypre_ParCSRMatrixTranspose(A, &At, 1);
    hypre_ParCSRMatrixSetNumNonzeros(At);
@@ -1017,9 +1015,7 @@ HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
 
 void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
 {
-   //MFEM_GPU_CANNOT_PASS;
    x.Pull();
-   //y.Pull();
    MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Width());
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
@@ -1049,9 +1045,7 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
 void HypreParMatrix::MultTranspose(double a, const Vector &x,
                                    double b, Vector &y) const
 {
-   //MFEM_GPU_CANNOT_PASS;
    x.Pull();
-   //y.Pull();
    MFEM_ASSERT(x.Size() == Height(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Height());
    MFEM_ASSERT(y.Size() == Width(), "invalid y.Size() = " << y.Size()
