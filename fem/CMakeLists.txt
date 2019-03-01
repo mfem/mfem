@@ -24,7 +24,7 @@ set(SRCS
   fespace.cpp
   fespace_ext.cpp
   geom.cpp
-  geom_ext.cpp
+  geom_pa.cpp
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
@@ -51,7 +51,7 @@ set(HDRS
   fespace.hpp
   fespace_ext.hpp
   geom.hpp
-  geom_ext.hpp
+  geom_pa.hpp
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
