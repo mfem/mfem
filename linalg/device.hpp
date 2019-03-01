@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_TENSOR
-#define MFEM_TENSOR
+#ifndef MFEM_DEVICE
+#define MFEM_DEVICE
 
 #include "../general/okina.hpp"
 
@@ -266,4 +266,4 @@ typedef DeviceTensor<2,double> DeviceMatrix;
 
 } // mfem namespace
 
-#endif // MFEM_TENSOR
+#endif // MFEM_DEVICE
