@@ -13,7 +13,7 @@
 #include "../general/okina.hpp"
 
 #include "fem.hpp"
-#include "geom_ext.hpp"
+#include "geom_pa.hpp"
 #include "kernels/geom.hpp"
 #include "../linalg/kernels/vector.hpp"
 

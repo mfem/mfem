@@ -13,7 +13,7 @@
 #include <cmath>
 #include <algorithm>
 #include "bilininteg.hpp"
-#include "geom_ext.hpp"
+#include "geom_pa.hpp"
 #include "kernels/mass.hpp"
 #include "kernels/diffusion.hpp"
 
