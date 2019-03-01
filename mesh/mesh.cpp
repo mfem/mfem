@@ -5612,7 +5612,7 @@ void Mesh::SetVertices(const Vector &vert_coord)
       }
 }
 
-void Mesh::GetNode(int i, double *coord)
+void Mesh::GetNode(int i, double *coord) const
 {
    if (Nodes)
    {
