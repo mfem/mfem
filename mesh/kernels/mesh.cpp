@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
+#include "../../linalg/device.hpp"
 using namespace std;
 
 namespace mfem
@@ -31,9 +32,9 @@ const __device__ __constant__ double quad_children_init[2*4*4] =
 // *****************************************************************************
 void QuadChildren(double *data)
 {
-   GET_PTR(data);
-   const double *d_quad_children_init = quad_children_init;
    const size_t N = 2*4*4;
+   DeviceVector d_data(data,N);
+   const double *d_quad_children_init = quad_children_init;
    MFEM_FORALL(i, N,
    {
       d_data[i] = d_quad_children_init[i];

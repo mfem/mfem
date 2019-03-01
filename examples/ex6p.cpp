@@ -49,6 +49,8 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   bool pa = false;
+   bool cuda = false;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -56,6 +58,9 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
+                  "Enable Partial Assembly.");
+   args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -106,10 +111,18 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
 
+   // 5. Set MFEM config parameters from the command line options
+   config::usePA(pa);
+   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+   int elem_batch = (pa) ? pmesh.GetNE() : 1;
+   if (pa) { pmesh.EnsureNodes(); }
+   if (cuda) { config::useCuda(); }
+   config::enableGpu(0);
+
    // 7. As in Example 1p, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
-   ParBilinearForm a(&fespace);
+   ParBilinearForm a(&fespace, assembly, elem_batch);
    ParLinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
@@ -191,13 +204,21 @@ int main(int argc, char *argv[])
       Array<int> ess_tdof_list;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      HypreParMatrix A;
+      Operator *A;
+      if (!pa) { A = new HypreParMatrix(); }
       Vector B, X;
       const int copy_interior = 1;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
 
       // 15. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
       //     preconditioner from hypre.
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(3);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      /*
       HypreBoomerAMG amg;
       amg.SetPrintLevel(0);
       CGSolver pcg(A.GetComm());
@@ -207,6 +228,7 @@ int main(int argc, char *argv[])
       pcg.SetMaxIter(200);
       pcg.SetPrintLevel(3); // print the first and the last iterations only
       pcg.Mult(B, X);
+      */
 
       // 16. Extract the parallel grid function corresponding to the finite element
       //     approximation X. This is the local solution on each processor.
@@ -266,6 +288,7 @@ int main(int argc, char *argv[])
       //     changed.
       a.Update();
       b.Update();
+      delete A;
    }
 
    MPI_Finalize();
