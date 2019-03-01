@@ -53,37 +53,13 @@ void PABilinearFormExtension::AddDomainIntegrator(
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
-static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
-                                             const FiniteElement &test_fe)
-{
-   int order;
-   if (trial_fe.Space() == FunctionSpace::Pk)
-   {
-      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
-   }
-   else
-   {
-      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
-      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
-   }
-   if (trial_fe.Space() == FunctionSpace::rQk)
-   {
-      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
-   }
-   return IntRules.Get(trial_fe.GetGeomType(), order);
-}
-
 void PABilinearFormExtension::Assemble()
 {
    assert(integrators.Size()==1);
-   const FiniteElement &fe = *a->fes->GetFE(0);
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      const IntegrationRule *rule = integrators[i]->GetIntRule();
-      const IntegrationRule *ir = rule?rule:&DefaultGetRule(fe,fe);
-      integrators[i]->Setup(a->fes,ir);
-      integrators[i]->Assemble();
+      integrators[i]->Assemble(*a->fes);
    }
 }
 

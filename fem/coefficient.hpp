@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
+#include "../linalg/device.hpp"
 #include "intrules.hpp"
 #include "eltrans.hpp"
 
@@ -155,6 +156,12 @@ public:
    /// Evaluate coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   /// Return the coefficient's C-function
+   double (*GetFunction())(const DeviceVector3&)
+   {
+      return reinterpret_cast<double(*)(const DeviceVector3&)>(Function);
+   }
 };
 
 class GridFunction;
