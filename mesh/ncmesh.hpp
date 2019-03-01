@@ -289,6 +289,9 @@ public:
    /// Return the distance of leaf 'i' from the root.
    int GetElementDepth(int i) const;
 
+   /// Return the faces and face attributes of leaf element 'i'.
+   void GetElementFacesAttributes(int i, Array<int> &faces, Array<int> &fattr) const;
+
    /// I/O: Print the "vertex_parents" section of the mesh file (ver. >= 1.1).
    void PrintVertexParents(std::ostream &out) const;
 

@@ -772,7 +772,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
    }
 
    // create child elements
-   if (el.geom == Geometry::CUBE)
+   if (el.Geom() == Geometry::CUBE)
    {
       // Vertex numbering is assumed to be as follows:
       //
@@ -1037,7 +1037,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
       if (ref_type != 7) { Iso = false; }
    }
-   else if (el.geom == Geometry::PRISM)
+   else if (el.Geom() == Geometry::PRISM)
    {
       // Wedge vertex numbering:
       //
@@ -1166,7 +1166,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
       if (ref_type != 7) { Iso = false; }
    }
-   else if (el.geom == Geometry::SQUARE)
+   else if (el.Geom() == Geometry::SQUARE)
    {
       ref_type &= ~4; // ignore Z bit
 
@@ -1220,7 +1220,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
       if (ref_type != 3) { Iso = false; }
    }
-   else if (el.geom == Geometry::TRIANGLE)
+   else if (el.Geom() == Geometry::TRIANGLE)
    {
       ref_type = 3; // for consistence
 
@@ -1347,7 +1347,7 @@ void NCMesh::DerefineElement(int elem)
 
    // retrieve original corner nodes and face attributes from the children
    int fa[6];
-   if (el.geom == Geometry::CUBE)
+   if (el.Geom() == Geometry::CUBE)
    {
       const int table[7][8 + 6] =
       {
@@ -1371,7 +1371,11 @@ void NCMesh::DerefineElement(int elem)
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
    }
-   else if (el.geom == Geometry::SQUARE)
+   else if (el.Geom() == Geometry::PRISM)
+   {
+      MFEM_ABORT("TODO");
+   }
+   else if (el.Geom() == Geometry::SQUARE)
    {
       const int table[3][4 + 4] =
       {
@@ -1391,7 +1395,7 @@ void NCMesh::DerefineElement(int elem)
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
    }
-   else if (el.geom == Geometry::TRIANGLE)
+   else if (el.Geom() == Geometry::TRIANGLE)
    {
       for (int i = 0; i < 3; i++)
       {
@@ -1644,7 +1648,7 @@ void NCMesh::CollectLeafElements(int elem, int state)
    }
    else
    {
-      if (el.geom == Geometry::SQUARE && el.ref_type == 3)
+      if (el.Geom() == Geometry::SQUARE && el.ref_type == 3)
       {
          for (int i = 0; i < 4; i++)
          {
@@ -1653,7 +1657,7 @@ void NCMesh::CollectLeafElements(int elem, int state)
             CollectLeafElements(el.child[ch], st);
          }
       }
-      else if (el.geom == Geometry::CUBE && el.ref_type == 7)
+      else if (el.Geom() == Geometry::CUBE && el.ref_type == 7)
       {
          for (int i = 0; i < 8; i++)
          {
@@ -3534,6 +3538,27 @@ int NCMesh::GetElementDepth(int i) const
    return depth;
 }
 
+void NCMesh::GetElementFacesAttributes(int i,
+                                       Array<int> &faces,
+                                       Array<int> &fattr) const
+{
+   const Element &el = elements[leaf_elements[i]];
+   const GeomInfo& gi = GI[el.Geom()];
+
+   faces.SetSize(gi.nf);
+   fattr.SetSize(gi.nf);
+
+   for (int i = 0; i < gi.nf; i++)
+   {
+      const int* fv = gi.faces[i];
+      const Face *face = this->faces.Find(el.node[fv[0]], el.node[fv[1]],
+                                          el.node[fv[2]], el.node[fv[3]]);
+      MFEM_ASSERT(face, "face not found");
+      faces[i] = face->index;
+      fattr[i] = face->attribute;
+   }
+}
+
 void NCMesh::FindFaceNodes(int face, int node[4])
 {
    // Obtain face nodes from one of its elements (note that face->p1, p2, p3
@@ -3671,16 +3696,19 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
       elevel[i] = EdgeSplitLevel(node[ev[0]], node[ev[1]]);
    }
 
-   if (el.Geom() == Geometry::CUBE)
+   int flevel[6][2];
+   if (Dim >= 3)
    {
-      int flevel[6][2];
       for (int i = 0; i < gi.nf; i++)
       {
          const int* fv = gi.faces[i];
          FaceSplitLevel(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]],
                         flevel[i][1], flevel[i][0]);
       }
+   }
 
+   if (el.Geom() == Geometry::CUBE)
+   {
       splits[0] = max8(flevel[0][0], flevel[1][0], flevel[3][0], flevel[5][0],
                        elevel[0], elevel[2], elevel[4], elevel[6]);
 
@@ -3689,6 +3717,10 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
 
       splits[2] = max8(flevel[1][1], flevel[2][1], flevel[3][1], flevel[4][1],
                        elevel[8], elevel[9], elevel[10], elevel[11]);
+   }
+   else if (el.Geom() == Geometry::PRISM)
+   {
+      MFEM_ABORT("TODO");
    }
    else if (el.Geom() == Geometry::SQUARE)
    {

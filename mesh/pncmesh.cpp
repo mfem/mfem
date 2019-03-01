@@ -635,14 +635,15 @@ int ParNCMesh::get_face_orientation(Face &face, Element &e1, Element &e2,
    {
       // get local face number (remember that p1, p2, p3 are not in order, and
       // p4 is not stored)
-      int lf = find_hex_face(find_node(*e[i], face.p1),
-                             find_node(*e[i], face.p2),
-                             find_node(*e[i], face.p3));
+      int lf = find_local_face(e[i]->Geom(),
+                               find_node(*e[i], face.p1),
+                               find_node(*e[i], face.p2),
+                               find_node(*e[i], face.p3));
       // optional output
       if (local) { local[i] = lf; }
 
       // get node IDs for the face as seen from e[i]
-      const int* fv = GI[Geometry::CUBE].faces[lf];
+      const int* fv = GI[e[i]->Geom()].faces[lf];
       for (int j = 0; j < 4; j++)
       {
          ids[i][j] = e[i]->node[fv[j]];
