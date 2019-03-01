@@ -135,6 +135,9 @@ public:
        to the data of const-qualified Vector%s. */
    inline double *GetData() const { return data; }
 
+   /// Return the Vector data pointer translated by the memory manager.
+   inline double *GetMmData() const { return (double*) mm::ptr(data); }
+
    /// Conversion to `double *`.
    /** @note This conversion function makes it possible to use [] for indexing
        in addition to the overloaded operator()(int). */
@@ -450,6 +453,6 @@ inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
 }
 #endif
 
-}
+} // namespace mfem
 
 #endif
