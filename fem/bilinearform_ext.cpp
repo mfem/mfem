@@ -47,9 +47,10 @@ PABilinearFormExtension::~PABilinearFormExtension()
 }
 
 // Adds new Domain Integrator.
-void PABilinearFormExtension::AddDomainIntegrator(BilinearFormIntegrator *i)
+void PABilinearFormExtension::AddDomainIntegrator(
+   AbstractBilinearFormIntegrator *i)
 {
-   integrators.Append(i);
+   integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
 void PABilinearFormExtension::Assemble()
@@ -60,19 +61,6 @@ void PABilinearFormExtension::Assemble()
    {
       integrators[i]->Assemble(*a->fes);
    }
-}
-
-void PABilinearFormExtension::Update(FiniteElementSpace &fes)
-{
-   height = width = fes.GetVSize();
-   trialFes = &fes;
-   testFes = &fes;
-   localX.SetSize(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() *
-                  trialFes->GetVDim());
-   localY.SetSize(a->fes->GetNE() * testFes->GetFE(0)->GetDof() *
-                  testFes->GetVDim());
-   delete fes_ext;
-   fes_ext = new FiniteElementSpaceExtension(fes);
 }
 
 void PABilinearFormExtension::FormSystemOperator(const Array<int>
@@ -145,9 +133,10 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    fes_ext->L2E(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
+   assert(iSz==1);
    for (int i = 0; i < iSz; ++i)
    {
-      integrators[i]->MultAssembled(localX, localY);
+      integrators[i]->MultAdd(localX, localY);
    }
    fes_ext->E2L(localY, y);
 }
@@ -157,9 +146,10 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    fes_ext->L2E(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
+   assert(iSz==1);
    for (int i = 0; i < iSz; ++i)
    {
-      integrators[i]->MultAssembledTranspose(localX, localY);
+      integrators[i]->MultTransposeAdd(localX, localY);
    }
    fes_ext->E2L(localY, y);
 }

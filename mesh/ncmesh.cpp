@@ -2199,7 +2199,6 @@ void NCMesh::BuildElementToVertexTable()
 {
    int nrows = leaf_elements.Size();
    int* I = mm::malloc<int>(nrows + 1);
-   //int* I = new int[nrows + 1];
    int** JJ = new int*[nrows];
 
    Array<int> indices;
@@ -2253,7 +2252,6 @@ void NCMesh::BuildElementToVertexTable()
 
    // copy the temporarily stored rows into one J array
    int *J = mm::malloc<int>(nnz);
-   //int *J = new int[nnz];
    nnz = 0;
    for (int i = 0; i < nrows; i++)
    {

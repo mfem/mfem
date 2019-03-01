@@ -13,10 +13,12 @@
 #include <cmath>
 #include <algorithm>
 #include "bilininteg.hpp"
-#include "geom_ext.hpp"
+#include "geom_pa.hpp"
 #include "kernels/mass.hpp"
 #include "kernels/diffusion.hpp"
 #include "../linalg/device.hpp"
+
+using namespace std;
 
 namespace mfem
 {
@@ -42,13 +44,10 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
-
 // *****************************************************************************
-// * PA DiffusionIntegrator Extension
+// * PADiffusionIntegrator
 // *****************************************************************************
-
-// *****************************************************************************
-void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
+void PADiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 {
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
@@ -74,7 +73,7 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 }
 
 // *****************************************************************************
-void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
+void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
    kernels::fem::DiffusionMultAssembled(dim, dofs1D, quad1D, ne,
                                         maps->B,
@@ -84,10 +83,11 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
                                         vec, x, y);
 }
 
+
 // *****************************************************************************
-// * PA Mass Integrator Extension
+// * PAMassIntegrator
 // *****************************************************************************
-void MassIntegrator::Assemble(const FiniteElementSpace &fes)
+void PAMassIntegrator::Assemble(const FiniteElementSpace &fes)
 {
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
@@ -108,7 +108,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    if (dim==2)
    {
       double constant = 0.0;
-      double (*function)(const Vector3&) = NULL;
+      double (*function)(const DeviceVector3&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
@@ -141,7 +141,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double coeff =
             const_coeff ? constant:
             function_coeff ?
-               function(Vector3(x[offset], x[offset+1], x[offset+2])):
+            function(DeviceVector3(x[offset], x[offset+1], x[offset+2])):
             0.0;
             v(q,e) =  w[q] * coeff * detJ;
          }
@@ -184,7 +184,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double coeff =
             const_coeff ? constant:
             function_coeff ?
-               function(Vector3(x[offset], x[offset+1], x[offset+2])):
+            function(DeviceVector3(x[offset], x[offset+1], x[offset+2])):
             0.0;
             v(q,e) = W(q) * coeff * detJ;
          }
@@ -194,7 +194,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 }
 
 // *****************************************************************************
-void MassIntegrator::MultAssembled(Vector &x, Vector &y)
+void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
 {
    kernels::fem::MassMultAssembled(dim, dofs1D, quad1D, ne,
                                    maps->B, maps->Bt,

@@ -104,9 +104,9 @@ static void DiffusionAssemble3D(const int NQ1d,
          const double J32 = J(1,2,q,e);
          const double J33 = J(2,2,q,e);
          const double detJ =
-            ((J11 * J22 * J33) + (J12 * J23 * J31) +
-             (J13 * J21 * J32) - (J13 * J22 * J31) -
-             (J12 * J21 * J33) - (J11 * J23 * J32));
+         ((J11 * J22 * J33) + (J12 * J23 * J31) +
+         (J13 * J21 * J32) - (J13 * J22 * J31) -
+         (J12 * J21 * J33) - (J11 * J23 * J32));
          const double c_detJ = W(q) * COEFF / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
@@ -221,14 +221,14 @@ void DiffusionMultAssembled2D(const int NE,
                               const double* __restrict _x,
                               double* __restrict _y)
 {
-   const int NQ = NQ1d*NQ1d;   
+   const int NQ = NQ1d*NQ1d;
    const DeviceMatrix B(b,NQ1d,ND1d);
    const DeviceMatrix G(g,NQ1d,ND1d);
    const DeviceMatrix Bt(bt,ND1d,NQ1d);
    const DeviceMatrix Gt(gt,ND1d,NQ1d);
    const DeviceTensor<3> op(_op,3,NQ,NE);
    const DeviceTensor<3> x(_x,ND1d,ND1d,NE);
-   DeviceTensor<3> y(_y,ND1d,ND1d,NE);   
+   DeviceTensor<3> y(_y,ND1d,ND1d,NE);
    MFEM_FORALL(e, NE,
    {
       double grad[NQ1d][NQ1d][2];

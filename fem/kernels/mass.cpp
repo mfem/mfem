@@ -117,7 +117,7 @@ void MassMultAdd3D(const int NE,
    const DeviceTensor<4> op(_op, NQ1d,NQ1d,NQ1d,NE);
    const DeviceTensor<4> x(_x, ND1d,ND1d,ND1d,NE);
    DeviceTensor<4> y(_y, ND1d,ND1d,ND1d,NE);
-   
+
    MFEM_FORALL(e,NE,
    {
       double sol_xyz[NQ1d][NQ1d][NQ1d];
