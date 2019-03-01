@@ -59,7 +59,6 @@ static const void* InsertAlias(mm::ledger &maps,
    mm::memory &mem = maps.memories.at(base);
    const size_t offset = (char *)ptr - (char *)base;
    const mm::alias *alias = new mm::alias{&mem, offset};
-   dbg("\033[33m%p < (\033[37m%ld) < \033[33m%p", base, offset, ptr);
    maps.aliases.emplace(ptr, alias);
 #ifdef MFEM_DEBUG_MM
    {
@@ -118,7 +117,7 @@ static void DumpMode(void)
    cfg>>=1;
    if (cfg==mode) { return; }
    mode=cfg;
-   dbg("\033[1K\r[0x%x] %sMM %sHasBeenEnabled %sEnabled %sDisabled \
+   printf("\033[1K\r[0x%x] %sMM %sHasBeenEnabled %sEnabled %sDisabled \
 %sCPU %sGPU %sPA %sCUDA %sOCCA", mode.to_ulong(),
        config::usingMM()?"\033[32m":"\033[31m",
        config::gpuHasBeenEnabled()?"\033[32m":"\033[31m",
@@ -160,7 +159,6 @@ void* mm::Insert(void *ptr, const size_t bytes)
       mfem_error("Trying to insert a non-MM pointer!");
    }
    MFEM_ASSERT(!known, "Trying to add an already present address!");
-   //dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
    DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes));
    return ptr;
@@ -179,7 +177,6 @@ void *mm::Erase(void *ptr)
    }
    MFEM_ASSERT(known, "Trying to erase an unknown pointer!");
    memory &mem = maps.memories.at(ptr);
-   //dbg("\033[33m %p \033[35m(%ldb)", ptr, mem.bytes);
    for (const alias* const alias : mem.aliases)
    {
       maps.aliases.erase(alias);
