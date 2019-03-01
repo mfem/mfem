@@ -216,13 +216,13 @@ void BilinearForm::Finalize (int skip_zeros)
    if (hybridization) { hybridization->Finalize(); }
 }
 
-void BilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
+void BilinearForm::AddDomainIntegrator (AbstractBilinearFormIntegrator * bfi)
 {
    switch (assembly)
    {
       case AssemblyLevel::FULL:
          // Use the original BilinearForm implementation for now
-         dbfi.Append(bfi);
+         dbfi.Append (static_cast<BilinearFormIntegrator*>(bfi));
          break;
       case AssemblyLevel::ELEMENT:
          mfem_error("Not supported yet... stay tuned!");
@@ -1033,7 +1033,6 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    }
 
    height = width = fes->GetVSize();
-   if (pa) { pa->Update(*fes); }
 }
 
 void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)

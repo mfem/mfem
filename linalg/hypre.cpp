@@ -616,7 +616,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
                                HYPRE_Int *i_offd, HYPRE_Int *j_offd,
                                HYPRE_Int *cmap, HYPRE_Int cmap_size)
 {
-   //MFEM_GPU_CANNOT_PASS;
    HYPRE_Int diag_nnz, offd_nnz;
 
    Init();
@@ -925,7 +924,6 @@ void HypreParMatrix::CopyColStarts()
 
 void HypreParMatrix::GetDiag(Vector &diag) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int size = Height();
    diag.SetSize(size);
    for (int j = 0; j < size; j++)
@@ -970,7 +968,6 @@ void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
                                bool interleaved_rows,
                                bool interleaved_cols) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int nr = blocks.NumRows();
    int nc = blocks.NumCols();
 
@@ -991,7 +988,6 @@ void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
 
 HypreParMatrix * HypreParMatrix::Transpose() const
 {
-   //MFEM_GPU_CANNOT_PASS;
    hypre_ParCSRMatrix * At;
    hypre_ParCSRMatrixTranspose(A, &At, 1);
    hypre_ParCSRMatrixSetNumNonzeros(At);
@@ -1011,15 +1007,12 @@ HypreParMatrix * HypreParMatrix::Transpose() const
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                double a, double b)
 {
-   MFEM_GPU_CANNOT_PASS;
    return hypre_ParCSRMatrixMatvec(a, A, x, b, y);
 }
 
 void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
 {
-   //MFEM_GPU_CANNOT_PASS;
    x.Pull();
-   //y.Pull();
    MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Width());
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
@@ -1049,9 +1042,7 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
 void HypreParMatrix::MultTranspose(double a, const Vector &x,
                                    double b, Vector &y) const
 {
-   //MFEM_GPU_CANNOT_PASS;
    x.Pull();
-   //y.Pull();
    MFEM_ASSERT(x.Size() == Height(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Height());
    MFEM_ASSERT(y.Size() == Width(), "invalid y.Size() = " << y.Size()
@@ -1192,7 +1183,6 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
 
 void HypreParMatrix::ScaleRows(const Vector &diag)
 {
-   MFEM_GPU_CANNOT_PASS;
    if (hypre_CSRMatrixNumRows(A->diag) != hypre_CSRMatrixNumRows(A->offd))
    {
       mfem_error("Row does not match");
@@ -1228,7 +1218,6 @@ void HypreParMatrix::ScaleRows(const Vector &diag)
 
 void HypreParMatrix::InvScaleRows(const Vector &diag)
 {
-   MFEM_GPU_CANNOT_PASS;
    if (hypre_CSRMatrixNumRows(A->diag) != hypre_CSRMatrixNumRows(A->offd))
    {
       mfem_error("Row does not match");
@@ -1270,7 +1259,6 @@ void HypreParMatrix::InvScaleRows(const Vector &diag)
 
 void HypreParMatrix::operator*=(double s)
 {
-   MFEM_GPU_CANNOT_PASS;
    if (hypre_CSRMatrixNumRows(A->diag) != hypre_CSRMatrixNumRows(A->offd))
    {
       mfem_error("Row does not match");
@@ -1539,7 +1527,6 @@ void HypreParMatrix::Destroy()
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    hypre_ParCSRMatrix *C_hypre =
       internal::hypre_ParCSRMatrixAdd(const_cast<HypreParMatrix &>(A),
                                       const_cast<HypreParMatrix &>(B));
@@ -1556,7 +1543,6 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
 
 HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B)
 {
-   MFEM_GPU_CANNOT_PASS;
    hypre_ParCSRMatrix * ab;
    ab = hypre_ParMatmul(*A,*B);
    hypre_ParCSRMatrixSetNumNonzeros(ab);
@@ -1568,7 +1554,6 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B)
 
 HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 {
-   MFEM_GPU_CANNOT_PASS;
    hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
 
    hypre_MatvecCommPkgCreate(C);
@@ -1578,7 +1563,6 @@ HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 
 HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
 {
-   MFEM_GPU_CANNOT_PASS;
    HYPRE_Int P_owns_its_col_starts =
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
 
@@ -1603,7 +1587,6 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
 HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
                      const HypreParMatrix *P)
 {
-   MFEM_GPU_CANNOT_PASS;
    HYPRE_Int P_owns_its_col_starts =
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
    HYPRE_Int Rt_owns_its_col_starts =
@@ -1636,7 +1619,6 @@ void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
                  const Array<int> &ess_dof_list,
                  const Vector &X, Vector &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    // B -= Ae*X
    Ae.Mult(-1.0, X, 1.0, B);
 
@@ -1693,7 +1675,6 @@ int ParCSRRelax_Taubin(hypre_ParCSRMatrix *A, // matrix to relax with
                        hypre_ParVector *r     // another temp vector
                       )
 {
-   MFEM_GPU_CANNOT_PASS;
    hypre_CSRMatrix *A_diag = hypre_ParCSRMatrixDiag(A);
    HYPRE_Int num_rows = hypre_CSRMatrixNumRows(A_diag);
 
@@ -1733,7 +1714,6 @@ int ParCSRRelax_FIR(hypre_ParCSRMatrix *A, // matrix to relax with
                     hypre_ParVector *x3)
 
 {
-   MFEM_GPU_CANNOT_PASS;
    hypre_CSRMatrix *A_diag = hypre_ParCSRMatrixDiag(A);
    HYPRE_Int num_rows = hypre_CSRMatrixNumRows(A_diag);
 
@@ -2130,7 +2110,6 @@ HypreSolver::HypreSolver(HypreParMatrix *_A)
 
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 {
-   MFEM_GPU_CANNOT_PASS;
    if (A == NULL)
    {
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
@@ -2151,7 +2130,6 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 
 void HypreSolver::Mult(const Vector &b, Vector &x) const
 {
-   MFEM_GPU_CANNOT_PASS;
    if (A == NULL)
    {
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
@@ -2238,7 +2216,6 @@ void HyprePCG::SetResidualConvergenceOptions(int res_frequency, double rtol)
 
 void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int myid;
    HYPRE_Int time_index = 0;
    HYPRE_Int num_iterations;
@@ -2369,7 +2346,6 @@ void HypreGMRES::SetPreconditioner(HypreSolver &precond)
 
 void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int myid;
    HYPRE_Int time_index = 0;
    HYPRE_Int num_iterations;
@@ -3263,7 +3239,6 @@ HypreLOBPCG::HypreMultiVector::GetVector(unsigned int i)
 HypreParVector **
 HypreLOBPCG::HypreMultiVector::StealVectors()
 {
-   MFEM_GPU_CANNOT_PASS;
    HypreParVector ** hpv_ret = hpv;
 
    hpv = NULL;
@@ -3359,7 +3334,6 @@ HypreLOBPCG::SetPreconditioner(Solver & precond)
 void
 HypreLOBPCG::SetOperator(Operator & A)
 {
-   MFEM_GPU_CANNOT_PASS;
    HYPRE_Int locSize = A.Width();
 
    if (HYPRE_AssumedPartitionCheck())

@@ -36,7 +36,7 @@ public:
    FABilinearFormExtension(BilinearForm *form);
 
    /// TODO
-   void AddDomainIntegrator(BilinearFormIntegrator*) {}
+   void AddDomainIntegrator(AbstractBilinearFormIntegrator*) {}
    void Assemble() {}
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A) {}
    void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -58,7 +58,7 @@ public:
    EABilinearFormExtension(BilinearForm *form);
 
    /// TODO
-   void AddDomainIntegrator(BilinearFormIntegrator*) {}
+   void AddDomainIntegrator(AbstractBilinearFormIntegrator*) {}
    void Assemble() {}
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A) {}
    void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -77,16 +77,16 @@ class PABilinearFormExtension : public Operator
 private:
    BilinearForm *a;
    const FiniteElementSpace *trialFes, *testFes;
-   Array<BilinearFormIntegrator*> integrators;
+   Array<BilinearPAFormIntegrator*> integrators;
    mutable Vector localX, localY;
    FiniteElementSpaceExtension *fes_ext;
 
 public:
    PABilinearFormExtension(BilinearForm*);
-   void AddDomainIntegrator(BilinearFormIntegrator*);
-   // void AddBoundaryIntegrator(BilinearFormIntegrator*);
-   // void AddInteriorFaceIntegrator(BilinearFormIntegrator*);
-   // void AddBoundaryFaceIntegrator(BilinearFormIntegrator*);
+   void AddDomainIntegrator(AbstractBilinearFormIntegrator*);
+   // void AddBoundaryIntegrator(AbstractBilinearFormIntegrator*);
+   // void AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator*);
+   // void AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator*);
 
    void Assemble();
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A);
@@ -98,7 +98,6 @@ public:
 
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   void Update(FiniteElementSpace &);
 
    ~PABilinearFormExtension();
 };
@@ -112,7 +111,7 @@ public:
    MFBilinearFormExtension(BilinearForm *form);
 
    /// TODO
-   void AddDomainIntegrator(BilinearFormIntegrator*) {}
+   void AddDomainIntegrator(AbstractBilinearFormIntegrator*) {}
    void Assemble() {}
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A) {}
    void FormLinearSystem(const Array<int> &ess_tdof_list,

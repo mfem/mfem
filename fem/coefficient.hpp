@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
+#include "../linalg/device.hpp"
 #include "intrules.hpp"
 #include "eltrans.hpp"
 
@@ -157,9 +158,9 @@ public:
                        const IntegrationPoint &ip);
 
    /// Return the coefficient's C-function
-   double (*GetFunction())(const Vector3&)
+   double (*GetFunction())(const DeviceVector3&)
    {
-      return reinterpret_cast<double(*)(const Vector3&)>(Function);
+      return reinterpret_cast<double(*)(const DeviceVector3&)>(Function);
    }
 };
 

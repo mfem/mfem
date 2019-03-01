@@ -145,13 +145,13 @@ public:
       }
       data = const_cast<Scalar*>(t.getData());
    }
-   
+
    /// Conversion to `double *`.
    inline operator double *() { return data; }
-   
+
    /// Conversion to `const double *`.
    inline operator const double *() const { return data; }
-   
+
    /**
    *  Returns the size of the i-th dimension #UNSAFE#
    */

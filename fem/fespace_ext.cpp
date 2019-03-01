@@ -99,7 +99,7 @@ void FiniteElementSpaceExtension::L2E(const Vector& lVec, Vector& eVec) const
          for (int j = offset; j < nextOffset; ++j)
          {
             const int idx_j = d_indices[j];
-            d_eVec(t?c:idx_j,t?idx_j:c) = dofValue;            
+            d_eVec(t?c:idx_j,t?idx_j:c) = dofValue;
          }
       }
    });

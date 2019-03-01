@@ -124,7 +124,7 @@ public:
    void Destroy();
 
    /// Returns the size of the vector.
-   MFEM_HOST_DEVICE inline int Size() const { return size; }
+   inline int Size() const { return size; }
 
    /// Return the size of the currently allocated data array.
    /** It is always true that Capacity() >= Size(). */
@@ -165,11 +165,11 @@ public:
 
    /// Access Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   MFEM_HOST_DEVICE inline double & operator() (int i);
+   inline double & operator() (int i);
 
    /// Read only access to Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   MFEM_HOST_DEVICE inline const double & operator() (int i) const;
+   inline const double & operator() (int i) const;
 
    /// Dot product with a `double *` array.
    double operator*(const double *) const;
@@ -368,19 +368,17 @@ inline void Vector::Destroy()
 
 inline double & Vector::operator() (int i)
 {
-#ifndef __NVCC__
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
-#endif
+
    return data[i];
 }
 
 inline const double & Vector::operator() (int i) const
 {
-#ifndef __NVCC__
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
-#endif
+
    return data[i];
 }
 
@@ -454,30 +452,6 @@ inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
    return glb_prod;
 }
 #endif
-
-class Vector3
-{
-private:
-   double data[3];
-public:
-   Vector3() {}
-   Vector3(const double *r)
-   {
-      data[0]=r[0];
-      data[1]=r[1];
-      data[2]=r[2];
-   }
-   Vector3(const double r0, const double r1, const double r2)
-   {
-      data[0]=r0;
-      data[1]=r1;
-      data[2]=r2;
-   }
-   ~Vector3() {}
-   inline operator double* () { return data; }
-   inline operator const double* () const { return data; }
-   inline double& operator[](const size_t x) { return data[x]; }
-};
 
 } // namespace mfem
 
