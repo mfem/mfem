@@ -306,9 +306,9 @@ protected:
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
                                           int op = 1);
-
-   /// Derefine elements once a list of derefinements is known.
-   void DerefineMesh(const Array<int> &derefinements);
+   /// Derefinement helper.
+   double AggregateError(const Array<double> &elem_error,
+                         const int *fine, int nfine, int op);
 
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
@@ -432,7 +432,7 @@ protected:
 
    /// Swaps internal data with another mesh. By default, non-geometry members
    /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
-   void Swap(Mesh& other, bool non_geometry = false);
+   void Swap(Mesh& other, bool non_geometry);
 
    // used in GetElementData() and GetBdrElementData()
    void GetElementData(const Array<Element*> &elem_array, int geom,
@@ -935,8 +935,8 @@ public:
    {
       return (faces_info[FaceNo].Elem2No >= 0);
    }
-   void GetFaceElements (int Face, int *Elem1, int *Elem2);
-   void GetFaceInfos (int Face, int *Inf1, int *Inf2);
+   void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
+   void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
 
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;
@@ -1040,15 +1040,16 @@ public:
                      int ordering = 1);
 
    /// Refine all mesh elements.
-   /** @param[in] ref_algo Refinement algorithm. Currently used only for pure
+   /** @param[in] ref_algo %Refinement algorithm. Currently used only for pure
        tetrahedral meshes. If set to zero (default), a tet mesh will be refined
        using algorithm A, that produces elements with better quality compared to
-       algorithm B used when the parameter is non-zero.  For tetrahedral meshes,
-       after using algorithm A, the mesh cannot be refined locally using methods
-       like GeneralRefinement() unless it is re-finalized using Finalize() with
-       the parameter @a refine set to true.  Note that calling Finalize() in
-       this way will generally invalidate any FiniteElementSpace%s and
-       GridFuncion%s defined on the mesh. */
+       algorithm B used when the parameter is non-zero.
+
+       For tetrahedral meshes, after using algorithm A, the mesh cannot be
+       refined locally using methods like GeneralRefinement() unless it is
+       re-finalized using Finalize() with the parameter @a refine set to true.
+       Note that calling Finalize() in this way will generally invalidate any
+       FiniteElementSpace%s and GridFunction%s defined on the mesh. */
    void UniformRefinement(int ref_algo = 0);
 
    /** Refine selected mesh elements. Refinement type can be specified for each

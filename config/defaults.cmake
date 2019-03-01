@@ -42,6 +42,8 @@ option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
 
+set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
+
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
 # need is the library, building all that stuff adds unnecessary overhead). Note
@@ -100,6 +102,7 @@ set(SuperLUDist_REQUIRED_PACKAGES "MPI" "BLAS" "ParMETIS" CACHE STRING
 set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
     "Path to the STRUMPACK library.")
 # STRUMPACK may also depend on "OpenMP", depending on how it was compiled.
+# Starting with v2.2.0 of STRUMPACK, ParMETIS and Scotch are optional.
 set(STRUMPACK_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
     "ScaLAPACK" "Scotch/ptscotch/ptscotcherr/scotch/scotcherr" CACHE STRING
     "Additional packages required by STRUMPACK.")
@@ -107,7 +110,8 @@ set(STRUMPACK_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
 # set(STRUMPACK_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
 #     "Additional libraries required by STRUMPACK.")
 
-# The Scotch library, required by STRUMPACK
+# The Scotch library, required by STRUMPACK <= v2.1.0, optional in STRUMPACK >=
+# v2.2.0.
 set(Scotch_DIR "${MFEM_DIR}/../scotch_6.0.4" CACHE PATH
     "Path to the Scotch and PT-Scotch libraries.")
 set(Scotch_REQUIRED_PACKAGES "Threads" CACHE STRING
