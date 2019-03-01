@@ -36,6 +36,14 @@
 using namespace std;
 using namespace mfem;
 
+double cx = 1.0;
+double cy = 1.0;
+double omega = 2*M_PI;
+double tfinal = 1.2;
+
+#define OKINA
+#undef OKINA
+
 // Choice for the problem setup. The fluid velocity, initial condition and
 // inflow boundary condition are chosen based on this parameter.
 int problem;
@@ -45,6 +53,10 @@ void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
 double u0_function(const Vector &x);
+
+//My intial condition
+double g0_function(const Vector &x);
+double gf_function(const Vector &x);
 
 // Inflow boundary condition
 double inflow_function(const Vector &x);
@@ -81,16 +93,20 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ref_levels = 2;
-   int order = 3;
+   const char *mesh_file = "../data/periodic-square.mesh";
+   int ref_levels = 3;
+   int order = 2;
    int ode_solver_type = 4;
-   double t_final = 10.0;
-   double dt = 0.01;
-   bool visualization = true;
+   double t_final = tfinal;
+
+   double dt = 0.001;
+   int NSteps = std::ceil(t_final/dt);
+   dt = t_final/NSteps;
+
+   bool visualization = false;
    bool visit = false;
    bool binary = false;
-   int vis_steps = 5;
+   int vis_steps = 10000;   
 
    int precision = 8;
    cout.precision(precision);
@@ -177,7 +193,9 @@ int main(int argc, char *argv[])
    //    interior faces.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
-   FunctionCoefficient u0(u0_function);
+   //FunctionCoefficient u0(u0_function);
+   FunctionCoefficient g0(g0_function);
+   FunctionCoefficient gf(gf_function);
 
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
@@ -203,7 +221,8 @@ int main(int argc, char *argv[])
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    GridFunction u(&fes);
-   u.ProjectCoefficient(u0);
+   //u.ProjectCoefficient(u0);
+   u.ProjectCoefficient(g0);
 
    {
       ofstream omesh("ex9.mesh");
@@ -271,6 +290,13 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   //8.5 Set up GPU
+#if defined(OKINA)
+   config::useCuda();
+   config::enableGpu(0);
+   config::SwitchToGpu();
+#endif
+
    bool done = false;
    for (int ti = 0; !done; )
    {
@@ -282,7 +308,7 @@ int main(int argc, char *argv[])
 
       if (done || ti % vis_steps == 0)
       {
-         cout << "time step: " << ti << ", time: " << t << endl;
+        cout << "time step: " << ti << ", time: " << t << endl;
 
          if (visualization)
          {
@@ -298,6 +324,7 @@ int main(int argc, char *argv[])
       }
    }
 
+
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
    {
@@ -305,6 +332,16 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u.Save(osol);
    }
+
+   // 9.5 Compute L2 error
+#if defined(OKINA)
+   u.Pull();
+   config::SwitchToCpu(); //do not do cumputations on the gpu...
+#endif
+   cout<<"\nL2 norm of error: " << u.ComputeL2Error(gf) << endl;
+   cout<<"\ndx: "<<mesh->GetElementSize(0)<<endl;
+
+   
 
    // 10. Free the used memory.
    delete ode_solver;
@@ -358,7 +395,8 @@ void velocity_function(const Vector &x, Vector &v)
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            //case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            case 2: v(0) = cx; v(1) = cy; break;
             case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
                break;
          }
@@ -393,6 +431,23 @@ void velocity_function(const Vector &x, Vector &v)
       }
    }
 }
+
+//Intial function - t
+double g0_function(const Vector &x)
+{
+  double t = 0;  
+  return sin(omega*(x(0) - cx*t))*sin(omega*(x(1) - cy*t));
+}
+
+//final function - t
+double gf_function(const Vector &x)
+{
+
+  double t = tfinal;  
+  return sin(omega*(x(0) - cx*t))*sin(omega*(x(1) - cy*t));
+}
+
+
 
 // Initial condition
 double u0_function(const Vector &x)
