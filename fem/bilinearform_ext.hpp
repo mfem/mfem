@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
 #include "fespace.hpp"
-#include "fespace_ext.hpp"
 #include "gridfunc.hpp"
 #include "linearform.hpp"
 #include "bilininteg.hpp"
@@ -26,6 +25,25 @@ namespace mfem
 {
 
 class BilinearForm;
+
+/// Element <=> Local vector operator
+class E2LOperator: public Operator
+{
+public:
+   const FiniteElementSpace &fes;
+   const int ne;
+   const int vdim;
+   const bool byvdim;
+   const int ndofs;
+   const int dof;
+   const int nedofs;
+   Array<int> offsets;
+   Array<int> indices;
+public:
+   E2LOperator(const FiniteElementSpace&);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+};
 
 /// Data and methods for fully-assembled bilinear forms
 class FABilinearFormExtension : public Operator
@@ -79,7 +97,7 @@ private:
    const FiniteElementSpace *trialFes, *testFes;
    Array<BilinearPAFormIntegrator*> integrators;
    mutable Vector localX, localY;
-   FiniteElementSpaceExtension *fes_ext;
+   E2LOperator e2l;
 
 public:
    PABilinearFormExtension(BilinearForm*);

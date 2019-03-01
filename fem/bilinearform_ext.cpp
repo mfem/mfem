@@ -14,7 +14,6 @@
 
 #include "fem.hpp"
 #include "bilininteg.hpp"
-#include "fespace_ext.hpp"
 #include "bilinearform_ext.hpp"
 #include "../linalg/kernels/vector.hpp"
 
@@ -35,7 +34,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
    trialFes(a->fes), testFes(a->fes),
    localX(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
    localY(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   fes_ext(new FiniteElementSpaceExtension(*(a->fes))) { }
+   e2l(*a->fes) { }
 
 PABilinearFormExtension::~PABilinearFormExtension()
 {
@@ -43,7 +42,6 @@ PABilinearFormExtension::~PABilinearFormExtension()
    {
       delete integrators[i];
    }
-   delete fes_ext;
 }
 
 // Adds new Domain Integrator.
@@ -130,7 +128,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   fes_ext->L2E(x, localX);
+   e2l.Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
    assert(iSz==1);
@@ -138,12 +136,12 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    {
       integrators[i]->MultAdd(localX, localY);
    }
-   fes_ext->E2L(localY, y);
+   e2l.MultTranspose(localY, y);
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
-   fes_ext->L2E(x, localX);
+   e2l.Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
    assert(iSz==1);
@@ -151,7 +149,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    {
       integrators[i]->MultTransposeAdd(localX, localY);
    }
-   fes_ext->E2L(localY, y);
+   e2l.MultTranspose(localY, y);
 }
 
 void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
@@ -174,4 +172,112 @@ void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
 MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
    : Operator(form->Size()), a(form) { }
 
+// *****************************************************************************
+E2LOperator::E2LOperator(const FiniteElementSpace &f)
+   :fes(f),
+    ne(fes.GetNE()),
+    vdim(fes.GetVDim()),
+    byvdim(fes.GetOrdering() == Ordering::byVDIM),
+    ndofs(fes.GetNDofs()),
+    dof(fes.GetFE(0)->GetDof()),
+    nedofs(ne*dof),
+    offsets(ndofs+1),
+    indices(ne*dof)
+{
+   const FiniteElement *fe = fes.GetFE(0);
+   const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_ASSERT(el, "Finite element not supported with partial assembly");
+   const Array<int> &dof_map = el->GetDofMap();
+   const bool dof_map_is_identity = (dof_map.Size()==0);
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elementMap = e2dTable.GetJ();
+   // We'll be keeping a count of how many local nodes point to its global dof
+   for (int i = 0; i <= ndofs; ++i)
+   {
+      offsets[i] = 0;
+   }
+   for (int e = 0; e < ne; ++e)
+   {
+      for (int d = 0; d < dof; ++d)
+      {
+         const int gid = elementMap[dof*e + d];
+         ++offsets[gid + 1];
+      }
+   }
+   // Aggregate to find offsets for each global dof
+   for (int i = 1; i <= ndofs; ++i)
+   {
+      offsets[i] += offsets[i - 1];
+   }
+   // For each global dof, fill in all local nodes that point   to it
+   for (int e = 0; e < ne; ++e)
+   {
+      for (int d = 0; d < dof; ++d)
+      {
+         const int did = dof_map_is_identity?d:dof_map[d];
+         const int gid = elementMap[dof*e + did];
+         const int lid = dof*e + d;
+         indices[offsets[gid]++] = lid;
+      }
+   }
+   // We shifted the offsets vector by 1 by using it as a counter
+   // Now we shift it back.
+   for (int i = ndofs; i > 0; --i)
+   {
+      offsets[i] = offsets[i - 1];
+   }
+   offsets[0] = 0;
 }
+
+// ***************************************************************************
+void E2LOperator::Mult(const Vector& x, Vector& y) const
+{
+   const int vd = vdim;
+   const bool t = byvdim;
+   const DeviceArray d_offsets(offsets, ndofs+1);
+   const DeviceArray d_indices(indices, nedofs);
+   const DeviceMatrix d_x(x, t?vd:ndofs, t?ndofs:vd);
+   DeviceMatrix d_y(y, t?vd:nedofs, t?nedofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i+1];
+      for (int c = 0; c < vd; ++c)
+      {
+         const double dofValue = d_x(t?c:i,t?i:c);
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int idx_j = d_indices[j];
+            d_y(t?c:idx_j,t?idx_j:c) = dofValue;
+         }
+      }
+   });
+}
+
+// ***************************************************************************
+void E2LOperator::MultTranspose(const Vector& x, Vector& y) const
+{
+   const int vd = vdim;
+   const bool t = byvdim;
+   const DeviceArray d_offsets(offsets, ndofs+1);
+   const DeviceArray d_indices(indices, nedofs);
+   const DeviceMatrix d_x(x, t?vd:nedofs, t?nedofs:vd);
+   DeviceMatrix d_y(y, t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dofValue = 0;
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int idx_j = d_indices[j];
+            dofValue +=  d_x(t?c:idx_j,t?idx_j:c);
+         }
+         d_y(t?c:i,t?i:c) = dofValue;
+      }
+   });
+}
+
+} // namespace mfem
