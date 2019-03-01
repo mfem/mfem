@@ -84,8 +84,8 @@ void wrap(const int N, DBODY &&d_body, HBODY &&h_body)
 #define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
 #define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
    wrap<BLOCKS>(N,                                                      \
-                [=] __device__ (int i){__VA_ARGS__},             \
-                [=]            (int i){__VA_ARGS__})
+                [=] __device__ (int i)mutable{__VA_ARGS__},             \
+                [&]            (int i){__VA_ARGS__})
 #define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(i,1,1,__VA_ARGS__)
 
 // *****************************************************************************
@@ -94,6 +94,12 @@ uint32_t LOG2(uint32_t);
 #define ICBRT(N) static_cast<unsigned>(cbrt(static_cast<float>(N)))
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
 
+// *****************************************************************************
+#ifndef __NVCC__
+#define MFEM_HOST_DEVICE
+#else
+#define MFEM_HOST_DEVICE __host__ __device__
+#endif
 
 // *****************************************************************************
 #define FILE_LINE __FILE__ && __LINE__

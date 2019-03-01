@@ -194,7 +194,8 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace, assembly, elem_batch);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
+   else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel

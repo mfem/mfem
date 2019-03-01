@@ -32,7 +32,11 @@ void cuWrap(const size_t N, DBODY &&d_body)
    const size_t GRID = (N+BLOCKS-1)/BLOCKS;
    cuKernel<<<GRID,BLOCKS>>>(N,d_body);
 }
-constexpr static inline bool usingNvccCompiler() { return true; }
+template<typename T>
+__host__ __device__ inline T AtomicAdd(T* address, T val)
+{
+   return atomicAdd(address, val);
+}
 #else // ***********************************************************************
 #define __host__
 #define __device__
@@ -42,7 +46,10 @@ typedef int CUcontext;
 typedef void* CUstream;
 template <size_t BLOCKS, typename DBODY>
 void cuWrap(const size_t N, DBODY &&d_body) {}
-constexpr static inline bool usingNvccCompiler() { return false; }
+template<typename T> inline T AtomicAdd(T* address, T val)
+{
+   return *address += val;
+}
 #endif // __NVCC__
 
 // *****************************************************************************

@@ -14,10 +14,6 @@
 #include "fem.hpp"
 #include <cmath>
 #include <algorithm>
-#include "geom_pa.hpp"
-#include "../linalg/device.hpp"
-#include "kernels/mass.hpp"
-#include "kernels/diffusion.hpp"
 
 using namespace std;
 

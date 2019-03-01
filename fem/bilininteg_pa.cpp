@@ -150,7 +150,7 @@ void PAMassIntegrator::Assemble(const FiniteElementSpace &fes)
    if (dim==3)
    {
       double constant = 0.0;
-      double (*function)(const Vector3&) = NULL;
+      double (*function)(const DeviceVector3&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
