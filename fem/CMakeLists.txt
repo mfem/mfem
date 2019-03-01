@@ -22,7 +22,6 @@ set(SRCS
   fe.cpp
   fe_coll.cpp
   fespace.cpp
-  fespace_ext.cpp
   geom.cpp
   geom_pa.cpp
   gridfunc.cpp
@@ -49,7 +48,6 @@ set(HDRS
   fe_coll.hpp
   fem.hpp
   fespace.hpp
-  fespace_ext.hpp
   geom.hpp
   geom_pa.hpp
   gridfunc.hpp
