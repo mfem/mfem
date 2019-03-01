@@ -33,38 +33,38 @@ void FactorSet(const int s, const double *adata, double *ludata);
 
 void Factor(const int m, int *ipiv, double *data);
 
-void Set(const double d, const size_t size, double *data);
+void Set(const double d, const int size, double *data);
 
-void Transpose(const size_t height, const size_t width,
+void Transpose(const int height, const int width,
                double *data, const double *mdata);
 
-void MultAAt(const size_t height, const size_t width,
-              const double *a, double *aat);
+void MultAAt(const int height, const int width,
+             const double *a, double *aat);
 
-void GradToDiv(const size_t n, const double *data, double *ddata);
+void GradToDiv(const int n, const double *data, double *ddata);
 
-void AddMult_a_VVt(const size_t n, const double a, const double *v,
-                   const size_t height, double *VVt);
+void AddMult_a_VVt(const int n, const double a, const double *v,
+                   const int height, double *VVt);
 
-void MultWidth0(const size_t height, double *y);
+void MultWidth0(const int height, double *y);
 
-void Mult(const size_t height, const size_t width,
+void Mult(const int height, const int width,
           const double *data, const double *x, double *y);
 
-void Mult(const size_t ah, const size_t aw, const size_t bw,
+void Mult(const int ah, const int aw, const int bw,
           const double *bd, const double *cd, double *ad);
 
-void Diag(const size_t n, const size_t N, const double c, double *data);
+void Diag(const int n, const int N, const double c, double *data);
 
-void OpEQ(const size_t hw, const double *m, double *data);
+void OpEQ(const int hw, const double *m, double *data);
 
 double Det2(const double *data);
 
 double Det3(const double *data);
 
-double FNormMax(const size_t hw, const double *data);
+double FNormMax(const int hw, const double *data);
 
-double FNorm2(const size_t hw, const double max_norm, const double *data);
+double FNorm2(const int hw, const double max_norm, const double *data);
 
 void CalcInverse2D(const double t, const double *a, double *inva);
 

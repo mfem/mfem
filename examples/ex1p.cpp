@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
 
    // Sample values
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   int elem_batch = (cuda || occa) ? mesh->GetNE() : 1;
+   int elem_batch = (cuda || occa) ? pmesh->GetNE() : 1;
 
    // 10. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion

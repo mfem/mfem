@@ -20,14 +20,13 @@ namespace fem
 {
 
 // *****************************************************************************
-void Geom(const int DIM,
-          const int NUM_DOFS,
-          const int NUM_QUAD,
-          const int numElements,
-          const double* __restrict B,
+void Geom(const int dim,
+          const int ND,
+          const int NQ,
+          const int NE,
           const double* __restrict G,
           const double* __restrict X,
-          double* __restrict x,
+          double* __restrict Xq,
           double* __restrict J,
           double* __restrict invJ,
           double* __restrict detJ);

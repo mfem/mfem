@@ -11,6 +11,7 @@
 
 #include "../config/config.hpp"
 #include "../general/okina.hpp"
+#include "../linalg/device.hpp"
 
 #include "fem.hpp"
 #include "geom_pa.hpp"
@@ -25,27 +26,27 @@ static long sequence = -1;
 static GeometryExtension *geom = NULL;
 
 // *****************************************************************************
-static void GeomFill(const int dims,
-                     const size_t elements, const size_t numDofs,
+static void GeomFill(const int vdim,
+                     const size_t NE, const size_t ND, const size_t NX,
                      const int* elementMap, int* eMap,
-                     const double *nodes, double *meshNodes)
+                     const double *_X, double *meshNodes)
 {
-   GET_CONST_PTR_T(elementMap,int);
-   GET_PTR_T(eMap,int);
-   GET_CONST_PTR(nodes);
-   GET_PTR(meshNodes);
-   MFEM_FORALL(e, elements,
+   const DeviceArray d_elementMap(elementMap, ND*NE);
+   DeviceArray d_eMap(eMap, ND*NE);
+   const DeviceVector X(_X, NX);
+   DeviceVector d_meshNodes(meshNodes, vdim*ND*NE);
+   MFEM_FORALL(e, NE,
    {
-      for (size_t d = 0; d < numDofs; ++d)
+      for (size_t d = 0; d < ND; ++d)
       {
-         const int lid = d+numDofs*e;
+         const int lid = d+ND*e;
          const int gid = d_elementMap[lid];
          d_eMap[lid] = gid;
-         for (int v = 0; v < dims; ++v)
+         for (int v = 0; v < vdim; ++v)
          {
-            const int moffset = v+dims*lid;
-            const int xoffset = v+dims*gid;
-            d_meshNodes[moffset] = d_nodes[xoffset];
+            const int moffset = v+vdim*lid;
+            const int xoffset = v+vdim*gid;
+            d_meshNodes[moffset] = X[xoffset];
          }
       }
    });
@@ -94,8 +95,8 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->nodes);
    kernels::fem::Geom(dims, numDofs, numQuad, elements,
-                      maps->B, maps->G,
-                      geom->nodes, geom->X, geom->J, geom->invJ, geom->detJ);
+                      maps->G, geom->nodes,
+                      geom->X, geom->J, geom->invJ, geom->detJ);
    return geom;
 }
 
@@ -125,6 +126,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    GeomFill(dims,
             elements,
             numDofs,
+            nodes->Size(),
             elementMap,
             eMap,
             nodes->GetData(),
@@ -147,9 +149,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    }
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    kernels::fem::Geom(dims, numDofs, numQuad, elements,
-                      maps->B,
-                      maps->G,
-                      geom->nodes,
+                      maps->G, geom->nodes,
                       geom->X, geom->J, geom->invJ, geom->detJ);
    return geom;
 }
