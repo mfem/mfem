@@ -30,7 +30,7 @@ groups_serial=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1}[0-9].cpp"'
+   "ex{,1,2}[0-9].cpp"'
 #   "ex1.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -44,14 +44,15 @@ groups_serial=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp shaper.cpp mesh-optimizer.cpp"'
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
+    mesh-optimizer.cpp"'
 )
 # Parallel groups
 groups_parallel=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1}[0-9]p.cpp"'
+   "ex{,1,2}[0-9]p.cpp"'
 #   "ex1p.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -81,7 +82,7 @@ groups_all=(
 '"examples"
    "Examples:"
    "examples"
-   "ex\"{,1}[0-9]\"{,p}.cpp"'
+   "ex\"{,1,2}[0-9]\"{,p}.cpp"'
 '"sundials"
    "SUNDIALS examples:"
    "examples/sundials"
@@ -97,7 +98,8 @@ groups_all=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp shaper.cpp {,p}mesh-optimizer.cpp"'
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
+    {,p}mesh-optimizer.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
