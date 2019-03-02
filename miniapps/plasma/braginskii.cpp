@@ -40,7 +40,7 @@
 #include <iostream>
 
 #include "../common/pfem_extras.hpp"
-#include "reduc_transp_solver.hpp"
+#include "braginskii_solver.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -53,15 +53,11 @@ int problem_;
 // Equation constant parameters.
 int num_species_ = -1;
 int num_equations_ = -1;
-
-Vector ion_charges_;
-Vector ion_masses_;
-
 const double specific_heat_ratio_ = 1.4;
 const double gas_constant_ = 1.0;
 
 // Scalar coefficient for diffusion of momentum
-//static double diffusion_constant_ = 0.1;
+static double diffusion_constant_ = 0.1;
 static double dg_sigma_ = -1.0;
 static double dg_kappa_ = -1.0;
 
@@ -75,9 +71,9 @@ static double max_char_speed_;
 static int prob_ = 4;
 static int gamma_ = 10;
 static double alpha_ = NAN;
-//static double chi_max_ratio_ = 1.0;
-//static double chi_min_ratio_ = 1.0;
-/*
+static double chi_max_ratio_ = 1.0;
+static double chi_min_ratio_ = 1.0;
+
 void ChiFunc(const Vector &x, DenseMatrix &M)
 {
    M.SetSize(2);
@@ -133,7 +129,7 @@ void ChiFunc(const Vector &x, DenseMatrix &M)
       break;
    }
 }
-*/
+
 double TFunc(const Vector &x, double t)
 {
    switch (prob_)
@@ -294,10 +290,9 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int vis_steps = 50;
 
-   DGParams dg;
-   dg.sigma = -1.0;
-   dg.kappa = -1.0;
-   
+   Array<int> ion_charges;
+   Vector ion_masses;
+
    int precision = 8;
    cout.precision(precision);
 
@@ -338,19 +333,13 @@ int main(int argc, char *argv[])
                   "exceeds dttol.");
    args.AddOption(&cfl, "-c", "--cfl-number",
                   "CFL number for timestep calculation.");
-   args.AddOption(&dg.sigma, "-dgs", "--dg-sigma",
-                  "One of the two DG penalty parameters, typically +1/-1."
-                  " See the documentation of class DGDiffusionIntegrator.");
-   args.AddOption(&dg.kappa, "-dgk", "--dg-kappa",
-                  "One of the two DG penalty parameters, should be positive."
-                  " Negative values are replaced with (order+1)^2.");
-   args.AddOption(&ion_charges_, "-qi", "--ion-charge",
-                  "Charge of the ion species "
+   args.AddOption(&ion_charges, "-qi", "--ion-charges",
+                  "Charges of the various species "
                   "(in units of electron charge)");
-   args.AddOption(&ion_masses_, "-mi", "--ion-mass",
-                  "Mass of the ion species (in amu)");
-   // args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
-   //               "Diffusion constant used in momentum equation.");
+   args.AddOption(&ion_masses, "-mi", "--ion-masses",
+                  "Masses of the various species (in amu)");
+   args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
+                  "Diffusion constant used in momentum equation.");
    args.AddOption(&dg_sigma_, "-dgs", "--sigma",
                   "One of the two DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
@@ -361,10 +350,10 @@ int main(int argc, char *argv[])
                   "");
    args.AddOption(&v_max_, "-v", "--velocity",
                   "");
-   // args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
-   //               "Ratio of chi_max_parallel/chi_perp.");
-   // args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
-   //               "Ratio of chi_min_parallel/chi_perp.");
+   args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
+                  "Ratio of chi_max_parallel/chi_perp.");
+   args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
+                  "Ratio of chi_min_parallel/chi_perp.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -385,23 +374,15 @@ int main(int argc, char *argv[])
    {
       ode_imp_solver_type = ode_split_solver_type;
    }
-   
-   if (dg.kappa < 0.0)
+   if (ion_charges.Size() == 0)
    {
-     dg.kappa = (double)(order+1)*(order+1);
+      ion_charges.SetSize(1);
+      ion_charges[0] =  1.0;
    }
-   
-   MFEM_ASSERT(ion_charges_.Size() <= 1 && ion_masses_.Size() <= 1,
-               "The reduced transport equations only support one ion species.");
-   if (ion_charges_.Size() == 0)
+   if (ion_masses.Size() == 0)
    {
-      ion_charges_.SetSize(1);
-      ion_charges_[0] = 1.0;
-   }
-   if (ion_masses_.Size() == 0)
-   {
-      ion_masses_.SetSize(1);
-      ion_masses_[0] = 1.0;
+      ion_masses.SetSize(1);
+      ion_masses[0] = 2.01410178;
    }
    if (dg_kappa_ < 0)
    {
@@ -431,7 +412,7 @@ int main(int argc, char *argv[])
 
    MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
 
-   num_species_   = 1;
+   num_species_   = ion_charges.Size();
    num_equations_ = (num_species_ + 1) * (dim + 2);
 
    // 4. Define the ODE solver used for time integration. Several explicit
@@ -531,33 +512,15 @@ int main(int argc, char *argv[])
    {
       offsets[k] = k * sfes.GetNDofs();
    }
-   BlockVector x_block(offsets);
+   BlockVector u_block(offsets);
 
    Array<int> n_offsets(num_species_ + 2);
    for (int k = 0; k <= num_species_ + 1; k++)
    {
       n_offsets[k] = offsets[k];
    }
-   BlockVector n_block(&x_block[0], n_offsets);
+   BlockVector n_block(u_block, n_offsets);
 
-   Array<int> u_offsets(num_species_ + 2);
-   for (int k = 0; k <= num_species_ + 1; k++)
-   {
-      u_offsets[k] = offsets[k * dim + num_species_ + 1] -
-	offsets[num_species_ + 1];
-   }
-   BlockVector u_block(&x_block[offsets[num_species_+1]], u_offsets);
-
-   Array<int> T_offsets(num_species_ + 2);
-   for (int k = 0; k <= num_species_ + 1; k++)
-   {
-     T_offsets[k] = offsets[k + (dim + 1) * (num_species_ + 1)] -
-       offsets[(dim + 1) * (num_species_ + 1)];
-   }
-   BlockVector T_block(&x_block[offsets[(dim + 1) * (num_species_ + 1)]],
-		       T_offsets);
-
-   
    // Momentum and Energy grid functions on for visualization.
    /*
    ParGridFunction density(&fes, u_block.GetData());
@@ -566,9 +529,9 @@ int main(int argc, char *argv[])
    */
 
    // Initialize the state.
-   VectorFunctionCoefficient x0(num_equations_, InitialCondition);
-   ParGridFunction sol(&ffes, x_block.GetData());
-   sol.ProjectCoefficient(x0);
+   VectorFunctionCoefficient u0(num_equations_, InitialCondition);
+   ParGridFunction sol(&ffes, u_block.GetData());
+   sol.ProjectCoefficient(u0);
 
    VectorFunctionCoefficient BCoef(dim, bFunc);
    ParGridFunction B(&fes_rt);
@@ -618,10 +581,8 @@ int main(int argc, char *argv[])
                     specific_heat_ratio_);
    DiffusionTDO diff(fes, dfes, vfes, nuCoef, dg_sigma_, dg_kappa_);
    */
-   ReducedTransportSolver transp(ode_imp_solver, ode_exp_solver,
-                                 dg, sfes, vfes, ffes,
-                                 n_block, u_block, T_block,
-				 B, ion_charges_, ion_masses_);
+   TransportSolver transp(ode_imp_solver, ode_exp_solver, sfes, vfes, ffes,
+                          n_block, B, ion_charges, ion_masses);
 
    // Visualize the density, momentum, and energy
    vector<socketstream> dout(num_species_+1), vout(num_species_+1),
@@ -640,43 +601,38 @@ int main(int argc, char *argv[])
 
       for (int i=0; i<=num_species_; i++)
       {
-	/*
          int doff = offsets[i];
          int voff = offsets[i * dim + num_species_ + 1];
          int toff = offsets[i + (num_species_ + 1) * (dim + 1)];
-         double * x_data = x_block.GetData();
-         ParGridFunction density(&sfes, x_data + doff);
-         ParGridFunction velocity(&vfes, x_data + voff);
-         ParGridFunction temperature(&sfes, x_data + toff);
-	*/
-	
-	 ParGridFunction density(&sfes, n_block.GetBlock(i));
-         ParGridFunction velocity(&vfes, u_block.GetBlock(i));
-         ParGridFunction temperature(&sfes, T_block.GetBlock(i));
-	
+         double * u_data = u_block.GetData();
+         ParGridFunction density(&sfes, u_data + doff);
+         ParGridFunction velocity(&vfes, u_data + voff);
+         ParGridFunction temperature(&sfes, u_data + toff);
+
+
          ParGridFunction chi_para(&sfes);
          ParGridFunction eta_para(&sfes);
          if (i==0)
          {
-            ChiParaCoefficient chiParaCoef(n_block, ion_charges_);
+            ChiParaCoefficient chiParaCoef(n_block, ion_charges);
             chiParaCoef.SetT(temperature);
             chi_para.ProjectCoefficient(chiParaCoef);
 
-            EtaParaCoefficient etaParaCoef(n_block, ion_charges_);
+            EtaParaCoefficient etaParaCoef(n_block, ion_charges);
             etaParaCoef.SetT(temperature);
             eta_para.ProjectCoefficient(etaParaCoef);
          }
          else
          {
             ChiParaCoefficient chiParaCoef(n_block, i - 1,
-                                           ion_charges_,
-                                           ion_masses_);
+                                           ion_charges,
+                                           ion_masses);
             chiParaCoef.SetT(temperature);
             chi_para.ProjectCoefficient(chiParaCoef);
 
             EtaParaCoefficient etaParaCoef(n_block, i - 1,
-                                           ion_charges_,
-                                           ion_masses_);
+                                           ion_charges,
+                                           ion_masses);
             etaParaCoef.SetT(temperature);
             eta_para.ProjectCoefficient(etaParaCoef);
          }
@@ -890,7 +846,7 @@ int main(int argc, char *argv[])
        (t_final == 3.0 &&
         strcmp(mesh_file, "../data/periodic-hexagon.mesh") == 0))
    {
-      const double error = sol.ComputeLpError(2, x0);
+      const double error = sol.ComputeLpError(2, u0);
       if (mpi.Root()) { cout << "Solution error: " << error << endl; }
    }
 
@@ -987,7 +943,7 @@ void InitialCondition(const Vector &x, Vector &y)
    y(0) = 0.0;
    for (int i=1; i<=num_species_; i++)
    {
-      y(0) += ion_charges_[i-1] * y(i);
+      y(0) += y(i);
    }
    y(num_species_ + 1) = V(0);
    y(num_species_ + 2) = V(1);

@@ -22,10 +22,10 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS transport_solver.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem_miniapps_common)
 
-  add_mfem_miniapp(reduc_transp
-    MAIN reduc_transp.cpp
-    EXTRA_SOURCES reduc_transp_solver.cpp
-    EXTRA_HEADERS reduc_transp_solver.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+  add_mfem_miniapp(braginskii
+    MAIN braginskii.cpp
+    EXTRA_SOURCES braginskii_solver.cpp
+    EXTRA_HEADERS braginskii_solver.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem_miniapps_common)
 
 endif()
