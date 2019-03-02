@@ -339,7 +339,7 @@ int RecoverFluxatMasterFaces(BilinearForm &a,
       if (!master_dofs.Size()) { continue; }
 
       //get local index of the face dofs
-      int mindex = master.element->index;
+      int mindex = master.element;
       fes->GetElementDofs(mindex, master_edofs);
 
       int nfdof = master_dofs.Size();
@@ -790,7 +790,7 @@ int main(int argc, char *argv[])
       if (visualization && sol_sock.good())
       {
          sol_sock.precision(8);
-         sol_sock << "solution\n" << mesh << x << flush;
+         sol_sock << "solution\n" << mesh << x << "pause\n" << flush;
       }
 
       if (cdofs > max_dofs)
