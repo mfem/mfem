@@ -21,7 +21,7 @@ using namespace miniapps;
 namespace plasma
 {
 
-double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda)
+double tau_e(double Te, int ns, double * ni, double * zi, double lnLambda)
 {
    double tau = 0.0;
    for (int i=0; i<ns; i++)
@@ -31,7 +31,7 @@ double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda)
    return tau;
 }
 
-double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
+double tau_i(double ma, double Ta, int ion, int ns, double * ni, double * zi,
              double lnLambda)
 {
    double tau = 0.0;
@@ -42,7 +42,88 @@ double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
    return tau;
 }
 
-ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, Array<int> & z)
+DiffPerpCoefficient::DiffPerpCoefficient(BlockVector & nBV, int ion_species,
+					 Vector & z, Vector & m)
+   : ion_(ion_species)
+{}
+
+double
+DiffPerpCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
+{
+   return diff_i_perp();
+}
+
+DiffCrossCoefficient::DiffCrossCoefficient(BlockVector & nBV, int ion_species,
+					   Vector & z, Vector & m)
+   : ion_(ion_species)
+{}
+
+double
+DiffCrossCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
+{
+   return diff_i_cross();
+}
+
+DiffCoefficient::DiffCoefficient(int dim, BlockVector & nBV, int ion_species,
+				 Vector & charges, Vector & masses)
+   : MatrixCoefficient(dim),
+     diffPerpCoef_(nBV, ion_species, charges, masses),
+     diffCrossCoef_(nBV, ion_species, charges, masses),
+     bHat_(dim)
+{}
+
+void DiffCoefficient::SetT(ParGridFunction & T)
+{
+}
+
+void DiffCoefficient::SetB(ParGridFunction & B)
+{
+   BCoef_.SetGridFunction(&B);
+}
+
+void DiffCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
+                          const IntegrationPoint &ip)
+{
+   double diff_perp  = diffPerpCoef_.Eval(T, ip);
+   double diff_cross = (width > 2) ? diffCrossCoef_.Eval(T, ip) : 0.0;
+
+   BCoef_.Eval(bHat_, T, ip);
+   bHat_ /= bHat_.Norml2();
+
+   K.SetSize(bHat_.Size());
+
+   if (width == 2)
+   {
+      K(0,0) = (1.0 - bHat_[0] * bHat_[0]) * diff_perp;
+      K(0,1) = -bHat_[0] * bHat_[1] * diff_perp;
+      K(1,0) = K(0,1);
+      K(1,1) = (1.0 - bHat_[1] * bHat_[1]) * diff_perp;
+   }
+   else
+   {
+      K(0,0) = (1.0 - bHat_[0] * bHat_[0]) * diff_perp;
+      K(0,1) = -bHat_[0] * bHat_[1] * diff_perp;
+      K(0,2) = -bHat_[0] * bHat_[2] * diff_perp;
+      K(1,0) = K(0,1);
+      K(1,1) = (1.0 - bHat_[1] * bHat_[1]) * diff_perp;
+      K(1,2) = -bHat_[1] * bHat_[2] * diff_perp;
+      K(2,0) = K(0,2);
+      K(2,1) = K(1,2);
+      K(2,2) = (1.0 - bHat_[2] * bHat_[2]) * diff_perp;
+
+      if (diff_cross != 0.0)
+      {
+	K(1,2) -= bHat_[0] * diff_cross;
+	K(2,0) -= bHat_[1] * diff_cross;
+	K(0,1) -= bHat_[2] * diff_cross;
+	K(2,1) += bHat_[0] * diff_cross;
+	K(0,2) += bHat_[1] * diff_cross;
+	K(1,0) += bHat_[2] * diff_cross;
+      }
+   }
+}
+
+ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, Vector & z)
    : nBV_(nBV),
      ion_(-1),
      z_(z),
@@ -51,7 +132,7 @@ ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, Array<int> & z)
 {}
 
 ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, int ion_species,
-                                       Array<int> & z, Vector & m)
+                                       Vector & z, Vector & m)
    : nBV_(nBV),
      ion_(ion_species),
      z_(z),
@@ -87,12 +168,12 @@ ChiParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 
-ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV, Array<int> & z)
+ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV, Vector & z)
    : ion_(-1)
 {}
 
 ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV, int ion_species,
-                                       Array<int> & z, Vector & m)
+                                       Vector & z, Vector & m)
    : ion_(ion_species)
 {}
 
@@ -109,12 +190,12 @@ ChiPerpCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 
-ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, Array<int> & z)
+ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, Vector & z)
    : ion_(-1)
 {}
 
 ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, int ion_species,
-                                         Array<int> & z, Vector & m)
+                                         Vector & z, Vector & m)
    : ion_(ion_species)
 {}
 
@@ -131,7 +212,7 @@ ChiCrossCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 
-ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, Array<int> & charges)
+ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, Vector & charges)
    : MatrixCoefficient(dim),
      chiParaCoef_(nBV, charges),
      chiPerpCoef_(nBV, charges),
@@ -140,7 +221,7 @@ ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, Array<int> & charges)
 {}
 
 ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, int ion_species,
-                               Array<int> & charges, Vector & masses)
+                               Vector & charges, Vector & masses)
    : MatrixCoefficient(dim),
      chiParaCoef_(nBV, ion_species, charges, masses),
      chiPerpCoef_(nBV, ion_species, charges, masses),
@@ -189,17 +270,19 @@ void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
       K(2,1) = K(1,2);
       K(2,2) = bHat_[2] * bHat_[2] * (chi_para - chi_perp) + chi_perp;
 
-      K(1,2) -= bHat_[0] * chi_cross;
-      K(2,0) -= bHat_[1] * chi_cross;
-      K(0,1) -= bHat_[2] * chi_cross;
-      K(2,1) += bHat_[0] * chi_cross;
-      K(0,2) += bHat_[1] * chi_cross;
-      K(1,0) += bHat_[2] * chi_cross;
-
+      if (chi_cross != 0.0)
+      {
+	K(1,2) -= bHat_[0] * chi_cross;
+	K(2,0) -= bHat_[1] * chi_cross;
+	K(0,1) -= bHat_[2] * chi_cross;
+	K(2,1) += bHat_[0] * chi_cross;
+	K(0,2) += bHat_[1] * chi_cross;
+	K(1,0) += bHat_[2] * chi_cross;
+      }
    }
 }
 
-EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, Array<int> & z)
+EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, Vector & z)
    : nBV_(nBV),
      ion_(-1),
      z_(z),
@@ -208,7 +291,7 @@ EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, Array<int> & z)
 {}
 
 EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, int ion_species,
-                                       Array<int> & z, Vector & m)
+                                       Vector & z, Vector & m)
    : nBV_(nBV),
      ion_(ion_species),
      z_(z),
@@ -243,22 +326,99 @@ EtaParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
       return eta_i_para((*m_)[ion_], temp, ion_, z_.Size(), n_, z_);
    }
 }
+  
+dpdnCoefficient::dpdnCoefficient(int c,
+				 double m,
+				 VectorCoefficient & uCoef)
+  : c_(c),
+    m_(m),
+    uCoef_(uCoef),
+    u_(uCoef.GetVDim())
+{
+}
 
-TransportSolver::TransportSolver(ODESolver * implicitSolver,
-                                 ODESolver * explicitSolver,
-                                 ParFiniteElementSpace & sfes,
-                                 ParFiniteElementSpace & vfes,
-                                 ParFiniteElementSpace & ffes,
-                                 BlockVector & nBV,
-                                 ParGridFunction & B,
-                                 Array<int> & charges,
-                                 Vector & masses)
+double dpdnCoefficient::Eval(ElementTransformation &T,
+			     const IntegrationPoint &ip)
+{
+  uCoef_.Eval(u_, T, ip);
+
+  return m_ * u_[c_]; 
+}
+
+dpduCoefficient::dpduCoefficient(double m,
+				 Coefficient & nCoef)
+  : m_(m),
+    nCoef_(nCoef)
+{
+}
+
+double dpduCoefficient::Eval(ElementTransformation &T,
+			     const IntegrationPoint &ip)
+{
+  return m_ * nCoef_.Eval(T, ip); 
+}
+
+dEdnCoefficient::dEdnCoefficient(Coefficient & TCoef,
+				 double m,
+				 VectorCoefficient & uCoef)
+  : TCoef_(TCoef),
+    uCoef_(uCoef),
+    m_(m),
+    u_(uCoef.GetVDim())
+{}
+  
+double
+dEdnCoefficient::Eval(ElementTransformation &T,
+		      const IntegrationPoint &ip)
+{
+  double temp = TCoef_.Eval(T, ip);
+  uCoef_.Eval(u_, T, ip);
+
+  return 1.5 * temp + 0.5 * m_ * (u_ * u_);
+}
+
+dEduCoefficient::dEduCoefficient(int c,
+				 double m,
+				 Coefficient & nCoef,
+				 VectorCoefficient & uCoef)
+  : c_(c),
+    m_(m),
+    nCoef_(nCoef),
+    uCoef_(uCoef),
+    u_(uCoef.GetVDim())
+{
+}
+
+double dEduCoefficient::Eval(ElementTransformation &T,
+			     const IntegrationPoint &ip)
+{
+  double n = nCoef_.Eval(T, ip);
+  uCoef_.Eval(u_, T, ip);
+
+  return m_ * n * u_[c_]; 
+}
+
+ReducedTransportSolver::ReducedTransportSolver(ODESolver * implicitSolver,
+                                               ODESolver * explicitSolver,
+                                               DGParams & dg,
+					       ParFiniteElementSpace & sfes,
+                                               ParFiniteElementSpace & vfes,
+                                               ParFiniteElementSpace & ffes,
+                                               BlockVector & nBV,
+                                               BlockVector & uBV,
+                                               BlockVector & TBV,
+                                               ParGridFunction & B,
+                                               Vector & charges,
+                                               Vector & masses)
    : impSolver_(implicitSolver),
      expSolver_(explicitSolver),
+     dg_(dg),
      sfes_(sfes),
      vfes_(vfes),
      ffes_(ffes),
      nBV_(nBV),
+     uBV_(uBV),
+     TBV_(TBV),
      B_(B),
      charges_(charges),
      masses_(masses),
@@ -267,47 +427,256 @@ TransportSolver::TransportSolver(ODESolver * implicitSolver,
    this->initDiffusion();
 }
 
-TransportSolver::~TransportSolver()
+ReducedTransportSolver::~ReducedTransportSolver()
 {
    delete msDiff_;
 }
 
-void TransportSolver::initDiffusion()
+void ReducedTransportSolver::initDiffusion()
 {
-   msDiff_ = new MultiSpeciesDiffusion(sfes_, vfes_, nBV_, charges_, masses_);
+   msDiff_ = new MultiSpeciesDiffusion(dg_, sfes_, vfes_, nBV_, uBV_, TBV_,
+				       charges_, masses_);
 }
 
-void TransportSolver::Update()
+void ReducedTransportSolver::Update()
 {
    msDiff_->Update();
 }
 
-void TransportSolver::Step(Vector &x, double &t, double &dt)
+void ReducedTransportSolver::Step(Vector &x, double &t, double &dt)
 {
    msDiff_->Assemble();
    impSolver_->Step(x, t, dt);
 }
 
-MultiSpeciesDiffusion::MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
+MultiSpeciesDiffusion::MultiSpeciesDiffusion(DGParams & dg,
+					     ParFiniteElementSpace & sfes,
                                              ParFiniteElementSpace & vfes,
                                              BlockVector & nBV,
-                                             Array<int> & charges,
+                                             BlockVector & uBV,
+                                             BlockVector & TBV,
+                                             Vector & charges,
                                              Vector & masses)
-   : sfes_(sfes),
+   : dim_(sfes.GetParMesh()->SpaceDimension()),
+     dg_(dg),
+     sfes_(sfes),
      vfes_(vfes),
      nBV_(nBV),
+     uBV_(uBV),
+     TBV_(TBV),
      charges_(charges),
      masses_(masses)
 {}
 
 MultiSpeciesDiffusion::~MultiSpeciesDiffusion()
-{}
+{
+  this->deleteBilinearForms();
+  this->deleteCoefficients();
+}
+
+void MultiSpeciesDiffusion::deleteBilinearForms()
+{
+  for (unsigned int i=0; i<a_dEdn_.size(); i++)
+  {
+    delete a_dEdn_[i];
+  }
+  for (unsigned int i=0; i<a_dEdu_.size(); i++)
+  {
+    delete a_dEdu_[i];
+  }
+  for (unsigned int i=0; i<a_dEdT_.size(); i++)
+  {
+    delete a_dEdT_[i];
+  }
+  for (unsigned int i=0; i<stiff_nChi_.size(); i++)
+  {
+    delete stiff_nChi_[i];
+  }
+}
+
+void MultiSpeciesDiffusion::deleteCoefficients()
+{
+  for (unsigned int i=0; i<dpdnCoef_.size(); i++)
+  {
+    delete dpdnCoef_[i];
+  }
+  for (unsigned int i=0; i<dpduCoef_.size(); i++)
+  {
+    delete dpduCoef_[i];
+  }
+
+  for (unsigned int i=0; i<dEdnCoef_.size(); i++)
+  {
+    delete dEdnCoef_[i];
+  }
+  for (unsigned int i=0; i<dEduCoef_.size(); i++)
+  {
+    delete dEduCoef_[i];
+  }
+  for (unsigned int i=0; i<dEdTCoef_.size(); i++)
+  {
+    delete dEdTCoef_[i];
+  }
+
+  for (unsigned int i=0; i<dtDiffCoef_.size(); i++)
+  {
+    delete dtDiffCoef_[i];
+  }
+  for (unsigned int i=0; i<dtnChiCoef_.size(); i++)
+  {
+    delete dtnChiCoef_[i];
+  }
+  for (unsigned int i=0; i<nChiCoef_.size(); i++)
+  {
+    delete nChiCoef_[i];
+  }
+
+  for (unsigned int i=0; i<diffCoef_.size(); i++)
+  {
+    delete diffCoef_[i];
+  }
+  for (unsigned int i=0; i<chiCoef_.size(); i++)
+  {
+    delete chiCoef_[i];
+  }
+}
 
 void MultiSpeciesDiffusion::initCoefficients()
-{}
+{
+  int ns = charges_.Size();
+
+  nGF_.resize(ns+1);
+  nCoef_.resize(ns+1);
+  for (int i=0; i<=ns; i++)
+  {
+    nGF_[i].MakeRef(&sfes_, nBV_.GetBlock(i));
+    nCoef_[i].SetGridFunction(&nGF_[i]);
+  }
+    
+  uGF_.resize(ns+1);
+  uCoef_.resize(ns+1);
+  for (int i=0; i<=ns; i++)
+  {
+    uGF_[i].MakeRef(&vfes_, uBV_.GetBlock(i));
+    uCoef_[i].SetGridFunction(&uGF_[i]);
+  }
+
+  TGF_.resize(ns+1);
+  TCoef_.resize(ns+1);
+  for (int i=0; i<=ns; i++)
+  {
+    TGF_[i].MakeRef(&sfes_, TBV_.GetBlock(i));
+    TCoef_[i].SetGridFunction(&TGF_[i]);
+  }
+
+  dpdnCoef_.resize(dim_ * ns);
+  for (int i=0; i<ns; i++)
+  {
+    for (int d=0; d<dim_; d++)
+    {
+      dpdnCoef_[dim_ * i + d] = new dpdnCoefficient(d, masses_[i],
+						    uCoef_[i + 1]);
+    }
+  }
+  
+  dpduCoef_.resize(ns);
+  for (int i=0; i<ns; i++)
+  {
+    dpduCoef_[i] = new dpduCoefficient(masses_[i], nCoef_[i + 1]);
+  }
+  
+  dEdnCoef_.resize(ns + 1);
+  for (int i=0; i<=ns; i++)
+  {
+    dEdnCoef_[i] = new dEdnCoefficient(TCoef_[i],
+				       (i==0)? me_u_ : masses_[i - 1],
+				       uCoef_[i]);
+  }
+  
+  dEduCoef_.resize(dim_ * (ns + 1));
+  for (int d=0; d<dim_; d++)
+  {
+    dEduCoef_[d] = new dEduCoefficient(d, me_u_,
+				       nCoef_[0], uCoef_[0]);
+  }
+  for (int i=0; i<ns; i++)
+  {
+    for (int d=0; d<dim_; d++)
+    {
+      dEduCoef_[dim_ * (i + 1) + d] = new dEduCoefficient(d, masses_[i],
+							  nCoef_[i + 1],
+							  uCoef_[i + 1]);
+    }
+  }
+  
+  dEdTCoef_.resize(ns + 1);
+  for (int i=0; i<=ns; i++)
+  {
+    dEdTCoef_[i] = new dEdTCoefficient(1.5, nCoef_[i]);
+  }
+  
+  diffCoef_.resize(ns);
+  dtDiffCoef_.resize(ns);
+  for (int i=0; i<ns; i++)
+  {
+    diffCoef_[i] = new DiffCoefficient(dim_, nBV_, i, charges_, masses_);
+    dtDiffCoef_[i] = new ScalarMatrixProductCoefficient(0.0, *diffCoef_[i]);
+  }
+
+  chiCoef_.resize(ns+1);
+  nChiCoef_.resize(ns+1);
+  dtnChiCoef_.resize(ns+1);
+  chiCoef_[0] = new ChiCoefficient(dim_, nBV_, charges_);
+  nChiCoef_[0] = new ScalarMatrixProductCoefficient(nCoef_[0], *chiCoef_[0]);
+  dtnChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *nChiCoef_[0]);
+  for (int i=0; i<ns; i++)
+  {
+    chiCoef_[i+1] = new ChiCoefficient(dim_, nBV_, i, charges_, masses_);
+    nChiCoef_[i+1] = new ScalarMatrixProductCoefficient(nCoef_[i+1],
+							*chiCoef_[i+1]);
+    dtnChiCoef_[i+1] = new ScalarMatrixProductCoefficient(0.0, *nChiCoef_[i+1]);
+  }
+}
 
 void MultiSpeciesDiffusion::initBilinearForms()
-{}
+{
+  a_dEdn_.resize(dEdnCoef_.size());
+  for (unsigned int i=0; i<dEdnCoef_.size(); i++)
+  {
+    a_dEdn_[i] = new ParBilinearForm(&sfes_);
+    a_dEdn_[i]->AddDomainIntegrator(new MassIntegrator(*dEdnCoef_[i]));
+  }
+
+  a_dEdu_.resize(dEduCoef_.size());
+  for (unsigned int i=0; i<dEduCoef_.size(); i++)
+  {
+    a_dEdu_[i] = new ParBilinearForm(&sfes_);
+    a_dEdu_[i]->AddDomainIntegrator(new MassIntegrator(*dEduCoef_[i]));
+  }
+
+  a_dEdT_.resize(dEdTCoef_.size());
+  for (unsigned int i=0; i<dEdTCoef_.size(); i++)
+  {
+    a_dEdT_[i] = new ParBilinearForm(&sfes_);
+    a_dEdT_[i]->AddDomainIntegrator(new MassIntegrator(*dEdTCoef_[i]));
+    a_dEdT_[i]->AddDomainIntegrator(new DiffusionIntegrator(*dtnChiCoef_[i]));
+    a_dEdT_[i]->AddInteriorFaceIntegrator(
+       new DGDiffusionIntegrator(*dtnChiCoef_[i], dg_.sigma, dg_.kappa));
+    a_dEdT_[i]->AddBdrFaceIntegrator(
+       new DGDiffusionIntegrator(*dtnChiCoef_[i], dg_.sigma, dg_.kappa));
+  }
+
+  stiff_nChi_.resize(nChiCoef_.size());
+  for (unsigned int i=0; i<nChiCoef_.size(); i++)
+  {
+    stiff_nChi_[i] = new ParBilinearForm(&sfes_);
+    stiff_nChi_[i]->AddDomainIntegrator(new DiffusionIntegrator(*nChiCoef_[i]));
+    stiff_nChi_[i]->AddInteriorFaceIntegrator(
+       new DGDiffusionIntegrator(*nChiCoef_[i], dg_.sigma, dg_.kappa));
+    stiff_nChi_[i]->AddBdrFaceIntegrator(
+       new DGDiffusionIntegrator(*nChiCoef_[i], dg_.sigma, dg_.kappa));
+  }
+}
 
 void MultiSpeciesDiffusion::Assemble()
 {}

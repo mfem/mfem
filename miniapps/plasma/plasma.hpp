@@ -69,7 +69,7 @@ inline double meanIonIonCollisionTime(double ma, double Ta, double nb,
    // The factor of q_^{3/2} is included to convert Ti from eV to Joules
    return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
           sqrt(ma * amu_ * pow(q_ * Ta, 3) / M_PI) /
-          (lnLambda * pow(q_, 4) * za * zb * nb);
+          (lnLambda * pow(q_, 4) * za * za * zb * zb * nb);
 }
 
 } // namespace plasma

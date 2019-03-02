@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_TRANSPORT_SOLVER
-#define MFEM_TRANSPORT_SOLVER
+#ifndef MFEM_BRAGINSKII_TRANSPORT_SOLVER
+#define MFEM_BRAGINSKII_TRANSPORT_SOLVER
 
 #include "../common/pfem_extras.hpp"
 #include "plasma.hpp"
@@ -30,7 +30,7 @@ namespace plasma
    zi is the charge number of the ion species
    lnLambda is the Coulomb Logarithm
 */
-double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda);
+double tau_e(double Te, int ns, double * ni, double * zi, double lnLambda);
 
 /** Multispecies Ion-Ion Collision Time in seconds
    ma is the ion mass in a.m.u
@@ -41,8 +41,31 @@ double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda);
    zi is the charge number of the ion species
    lnLambda is the Coulomb Logarithm
 */
-double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
+double tau_i(double ma, double Ta, int ion, int ns, double * ni, double * zi,
              double lnLambda);
+
+/**
+  Particle diffusion coefficient perpendicular to B field for ions
+  Return value is in m^2/s.
+*/
+inline double diff_i_perp()
+{
+   // The factor of q_ is included to convert Ti from eV to Joules
+   // The factor of u_ is included to convert mi from a.m.u to kg
+   return 1.0;
+}
+
+/**
+  Particle diffusion coefficient perpendicular to both B field and
+  particle gradient for ions
+  Return value is in m^2/s.
+*/
+inline double diff_i_cross()
+{
+   // The factor of q_ is included to convert Ti from eV to Joules
+   // The factor of u_ is included to convert mi from a.m.u to kg
+   return 0.0;
+}
 
 /**
   Thermal diffusion coefficient along B field for electrons
@@ -52,7 +75,7 @@ double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
    ni is the density of ions (assuming ni=ne) in particles per meter^3
    zi is the charge number of the ion species
 */
-inline double chi_e_para(double Te, int ns, double * ni, int * zi)
+inline double chi_e_para(double Te, int ns, double * ni, double * zi)
 {
    // The factor of q_ is included to convert Te from eV to Joules
    return 3.16 * (q_ * Te / me_kg_) * tau_e(Te, ns, ni, zi, 17.0);
@@ -93,7 +116,7 @@ inline double chi_e_cross()
    zb is the charge number of the ion species
 */
 inline double chi_i_para(double ma, double Ta,
-                         int ion, int ns, double * nb, int * zb)
+                         int ion, int ns, double * nb, double * zb)
 {
    // The factor of q_ is included to convert Ta from eV to Joules
    // The factor of u_ is included to convert ma from a.m.u to kg
@@ -133,7 +156,7 @@ inline double chi_i_cross()
    ni is the density of ions (assuming ni=ne) in particles per meter^3
    zi is the charge number of the ion species
 */
-inline double eta_e_para(double ne, double Te, int ns, double * ni, int * zi)
+inline double eta_e_para(double ne, double Te, int ns, double * ni, double * zi)
 {
    // The factor of q_ is included to convert Te from eV to Joules
    // The factor of u_ is included to convert from kg to a.m.u
@@ -151,7 +174,7 @@ inline double eta_e_para(double ne, double Te, int ns, double * ni, int * zi)
    zb is the charge number of the ion species
 */
 inline double eta_i_para(double ma, double Ta,
-                         int ion, int ns, double * nb, int * zb)
+                         int ion, int ns, double * nb, double * zb)
 {
    // The factor of q_ is included to convert Ti from eV to Joules
    // The factor of u_ is included to convert from kg to a.m.u
@@ -159,24 +182,34 @@ inline double eta_i_para(double ma, double Ta,
           tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 
+struct DGParams
+{
+  double sigma;
+  double kappa;
+};
+
 class MultiSpeciesDiffusion;
 class MultiSpeciesAdvection;
 
-class TransportSolver : public ODESolver
+class ReducedTransportSolver : public ODESolver
 {
 private:
    ODESolver * impSolver_;
    ODESolver * expSolver_;
 
+   DGParams & dg_;
+  
    ParFiniteElementSpace & sfes_; // Scalar fields
    ParFiniteElementSpace & vfes_; // Vector fields
    ParFiniteElementSpace & ffes_; // Full system
 
    BlockVector & nBV_;
+   BlockVector & uBV_;
+   BlockVector & TBV_;
 
    ParGridFunction & B_;
 
-   Array<int> & charges_;
+   Vector & charges_;
    Vector & masses_;
 
    MultiSpeciesDiffusion * msDiff_;
@@ -184,19 +217,67 @@ private:
    void initDiffusion();
 
 public:
-   TransportSolver(ODESolver * implicitSolver, ODESolver * explicitSolver,
-                   ParFiniteElementSpace & sfes,
-                   ParFiniteElementSpace & vfes,
-                   ParFiniteElementSpace & ffes,
-                   BlockVector & nBV,
-                   ParGridFunction & B,
-                   Array<int> & charges,
-                   Vector & masses);
-   ~TransportSolver();
+   ReducedTransportSolver(ODESolver * implicitSolver,
+                          ODESolver * explicitSolver,
+			  DGParams & dg,
+                          ParFiniteElementSpace & sfes,
+                          ParFiniteElementSpace & vfes,
+                          ParFiniteElementSpace & ffes,
+                          BlockVector & nBV,
+                          BlockVector & uBV,
+                          BlockVector & TBV,
+                          ParGridFunction & B,
+                          Vector & charges,
+                          Vector & masses);
+   ~ReducedTransportSolver();
 
    void Update();
 
    void Step(Vector &x, double &t, double &dt);
+};
+
+class DiffPerpCoefficient : public Coefficient
+{
+private:
+   int ion_;
+
+public:
+   DiffPerpCoefficient(BlockVector & nBV, int ion_species,
+		    Vector & charges, Vector & masses);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+class DiffCrossCoefficient : public Coefficient
+{
+private:
+   int ion_;
+
+public:
+   DiffCrossCoefficient(BlockVector & nBV, int ion_species,
+		     Vector & charges, Vector & masses);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+class DiffCoefficient : public MatrixCoefficient
+{
+private:
+   DiffPerpCoefficient  diffPerpCoef_;
+   DiffCrossCoefficient diffCrossCoef_;
+   VectorGridFunctionCoefficient BCoef_;
+
+   Vector bHat_;
+
+public:
+   DiffCoefficient(int dim, BlockVector & nBV, int ion_species,
+		   Vector & charges, Vector & masses);
+
+   void SetT(ParGridFunction & T);
+   void SetB(ParGridFunction & B);
+
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip);
 };
 
 class ChiParaCoefficient : public Coefficient
@@ -208,14 +289,14 @@ private:
    GridFunctionCoefficient TCoef_;
 
    int ion_;
-   Array<int> & z_;
-   Vector     * m_;
-   Vector       n_;
+   Vector & z_;
+   Vector * m_;
+   Vector   n_;
 
 public:
-   ChiParaCoefficient(BlockVector & nBV, Array<int> & charges);
+   ChiParaCoefficient(BlockVector & nBV, Vector & charges);
    ChiParaCoefficient(BlockVector & nBV, int ion_species,
-                      Array<int> & charges, Vector & masses);
+                      Vector & charges, Vector & masses);
    void SetT(ParGridFunction & T);
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
@@ -227,9 +308,9 @@ private:
    int ion_;
 
 public:
-   ChiPerpCoefficient(BlockVector & nBV, Array<int> & charges);
+   ChiPerpCoefficient(BlockVector & nBV, Vector & charges);
    ChiPerpCoefficient(BlockVector & nBV, int ion_species,
-                      Array<int> & charges, Vector & masses);
+                      Vector & charges, Vector & masses);
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -240,9 +321,9 @@ private:
    int ion_;
 
 public:
-   ChiCrossCoefficient(BlockVector & nBV, Array<int> & charges);
+   ChiCrossCoefficient(BlockVector & nBV, Vector & charges);
    ChiCrossCoefficient(BlockVector & nBV, int ion_species,
-                       Array<int> & charges, Vector & masses);
+                       Vector & charges, Vector & masses);
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -258,9 +339,9 @@ private:
    Vector bHat_;
 
 public:
-   ChiCoefficient(int dim, BlockVector & nBV, Array<int> & charges);
+   ChiCoefficient(int dim, BlockVector & nBV, Vector & charges);
    ChiCoefficient(int dim, BlockVector & nBV, int ion_species,
-                  Array<int> & charges, Vector & masses);
+                  Vector & charges, Vector & masses);
 
    void SetT(ParGridFunction & T);
    void SetB(ParGridFunction & B);
@@ -278,42 +359,139 @@ private:
    GridFunctionCoefficient TCoef_;
 
    int ion_;
-   Array<int> & z_;
-   Vector     * m_;
-   Vector       n_;
+   Vector & z_;
+   Vector * m_;
+   Vector   n_;
 
 public:
-   EtaParaCoefficient(BlockVector & nBV, Array<int> & charges);
+   EtaParaCoefficient(BlockVector & nBV, Vector & charges);
    EtaParaCoefficient(BlockVector & nBV, int ion_species,
-                      Array<int> & charges, Vector & masses);
+                      Vector & charges, Vector & masses);
 
    void SetT(ParGridFunction & T);
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
+  
+class dpdnCoefficient : public Coefficient
+{
+private:
+  int c_;
+  double m_;
+  VectorCoefficient & uCoef_;
+  mutable Vector u_;
+  
+public:
+  dpdnCoefficient(int c, double m, VectorCoefficient & uCoef);
+
+  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+  
+class dpduCoefficient : public Coefficient
+{
+private:
+  double m_;
+  Coefficient & nCoef_;
+  
+public:
+  dpduCoefficient(double m, Coefficient & nCoef);
+
+  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+  
+class dEdnCoefficient : public Coefficient
+{
+private:
+  Coefficient & TCoef_;
+  VectorCoefficient & uCoef_;
+  double m_;
+
+  mutable Vector u_;
+  
+public:
+  dEdnCoefficient(Coefficient & TCoef, double m, VectorCoefficient & uCoef);
+
+  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+class dEduCoefficient : public Coefficient
+{
+private:
+  int c_;
+  double m_;
+  Coefficient & nCoef_;
+  VectorCoefficient & uCoef_;
+  mutable Vector u_;
+  
+public:
+  dEduCoefficient(int c, double m, Coefficient & nCoef,
+		  VectorCoefficient & uCoef);
+
+  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+  
+typedef ProductCoefficient dEdTCoefficient;
 
 class MultiSpeciesDiffusion : public TimeDependentOperator
 {
 private:
+   int dim_;
+
+   DGParams & dg_;
+  
    ParFiniteElementSpace &sfes_;
    ParFiniteElementSpace &vfes_;
 
    BlockVector & nBV_;
+   BlockVector & uBV_;
+   BlockVector & TBV_;
 
-   Array<int> & charges_;
+   Vector & charges_;
    Vector & masses_;
 
-   std::vector<ChiCoefficient *> chiCoef_;
-   std::vector<ScalarMatrixProductCoefficient *> dtChiCoef_;
+   std::vector<ParGridFunction> nGF_;
+   std::vector<ParGridFunction> uGF_;
+   std::vector<ParGridFunction> TGF_;
+  
+   std::vector<GridFunctionCoefficient>       nCoef_;
+   std::vector<VectorGridFunctionCoefficient> uCoef_;
+   std::vector<GridFunctionCoefficient>       TCoef_;
 
+   std::vector<dpdnCoefficient *> dpdnCoef_;
+   std::vector<dpduCoefficient *> dpduCoef_;
+  
+   std::vector<dEdnCoefficient *> dEdnCoef_;
+   std::vector<dEduCoefficient *> dEduCoef_;
+   std::vector<dEdTCoefficient *> dEdTCoef_;
+  
+   std::vector<DiffCoefficient *> diffCoef_;
+   std::vector<ChiCoefficient *>  chiCoef_;
+
+   std::vector<ScalarMatrixProductCoefficient *> nChiCoef_;
+  
+   std::vector<ScalarMatrixProductCoefficient *> dtnChiCoef_;
+   std::vector<ScalarMatrixProductCoefficient *> dtDiffCoef_;
+
+   // Bilinear Forms for energy equation
+   std::vector<ParBilinearForm *> a_dEdn_;
+   std::vector<ParBilinearForm *> a_dEdu_;
+   std::vector<ParBilinearForm *> a_dEdT_;
+   std::vector<ParBilinearForm *> stiff_nChi_;
+  
    void initCoefficients();
    void initBilinearForms();
 
+   void deleteCoefficients();
+   void deleteBilinearForms();
+
 public:
-   MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
+   MultiSpeciesDiffusion(DGParams & dg,
+			 ParFiniteElementSpace & sfes,
                          ParFiniteElementSpace & vfes,
                          BlockVector & nBV,
-                         Array<int> & charges,
+                         BlockVector & uBV,
+                         BlockVector & TBV,
+                         Vector & charges,
                          Vector & masses);
 
    ~MultiSpeciesDiffusion();
@@ -476,4 +654,4 @@ public:
 
 #endif // MFEM_USE_MPI
 
-#endif // MFEM_TRANSPORT_SOLVER
+#endif // MFEM_BRAGINSKII_TRANSPORT_SOLVER
