@@ -53,13 +53,17 @@ int problem_;
 // Equation constant parameters.
 int num_species_ = -1;
 int num_equations_ = -1;
+
+Vector ion_charges_;
+Vector ion_masses_;
+
 const double specific_heat_ratio_ = 1.4;
 const double gas_constant_ = 1.0;
 
 // Scalar coefficient for diffusion of momentum
-static double diffusion_constant_ = 0.1;
-static double dg_sigma_ = -1.0;
-static double dg_kappa_ = -1.0;
+//static double diffusion_constant_ = 0.1;
+//static double dg_sigma_ = -1.0;
+//static double dg_kappa_ = -1.0;
 
 static double B_max_ = 1.0;
 static double v_max_ = 0.0;
@@ -71,9 +75,9 @@ static double max_char_speed_;
 static int prob_ = 4;
 static int gamma_ = 10;
 static double alpha_ = NAN;
-static double chi_max_ratio_ = 1.0;
-static double chi_min_ratio_ = 1.0;
-
+//static double chi_max_ratio_ = 1.0;
+//static double chi_min_ratio_ = 1.0;
+/*
 void ChiFunc(const Vector &x, DenseMatrix &M)
 {
    M.SetSize(2);
@@ -129,7 +133,7 @@ void ChiFunc(const Vector &x, DenseMatrix &M)
       break;
    }
 }
-
+*/
 double TFunc(const Vector &x, double t)
 {
    switch (prob_)
@@ -290,9 +294,13 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int vis_steps = 50;
 
-   Array<int> ion_charges;
-   Vector ion_masses;
+   DGParams dg;
+   dg.sigma = -1.0;
+   dg.kappa = -1.0;
 
+   double ion_charge = 0.0;
+   double ion_mass = 0.0;
+   
    int precision = 8;
    cout.precision(precision);
 
@@ -333,27 +341,27 @@ int main(int argc, char *argv[])
                   "exceeds dttol.");
    args.AddOption(&cfl, "-c", "--cfl-number",
                   "CFL number for timestep calculation.");
-   args.AddOption(&ion_charges, "-qi", "--ion-charges",
-                  "Charges of the various species "
-                  "(in units of electron charge)");
-   args.AddOption(&ion_masses, "-mi", "--ion-masses",
-                  "Masses of the various species (in amu)");
-   args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
-                  "Diffusion constant used in momentum equation.");
-   args.AddOption(&dg_sigma_, "-dgs", "--sigma",
+   args.AddOption(&dg.sigma, "-dgs", "--dg-sigma",
                   "One of the two DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
-   args.AddOption(&dg_kappa_, "-dgk", "--kappa",
+   args.AddOption(&dg.kappa, "-dgk", "--dg-kappa",
                   "One of the two DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
+   args.AddOption(&ion_charge, "-qi", "--ion-charge",
+                  "Charge of the ion species "
+                  "(in units of electron charge)");
+   args.AddOption(&ion_mass, "-mi", "--ion-mass",
+                  "Mass of the ion species (in amu)");
+   // args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
+   //               "Diffusion constant used in momentum equation.");
    args.AddOption(&B_max_, "-B", "--B-magnitude",
                   "");
    args.AddOption(&v_max_, "-v", "--velocity",
                   "");
-   args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
-                  "Ratio of chi_max_parallel/chi_perp.");
-   args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
-                  "Ratio of chi_min_parallel/chi_perp.");
+   // args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
+   //               "Ratio of chi_max_parallel/chi_perp.");
+   // args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
+   //               "Ratio of chi_min_parallel/chi_perp.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -374,20 +382,17 @@ int main(int argc, char *argv[])
    {
       ode_imp_solver_type = ode_split_solver_type;
    }
-   if (ion_charges.Size() == 0)
+   
+   if (dg.kappa < 0.0)
    {
-      ion_charges.SetSize(1);
-      ion_charges[0] =  1.0;
+     dg.kappa = (double)(order+1)*(order+1);
    }
-   if (ion_masses.Size() == 0)
-   {
-      ion_masses.SetSize(1);
-      ion_masses[0] = 2.01410178;
-   }
-   if (dg_kappa_ < 0)
-   {
-      dg_kappa_ = (order+1)*(order+1);
-   }
+   
+   ion_charges_.SetSize(1);
+   ion_masses_.SetSize(1);
+   ion_charges_[0] = (ion_charge != 0.0) ? ion_charge : 1.0;
+   ion_masses_[0] = (ion_mass != 0.0) ? ion_mass : 1.0;
+
    if (t_final < 0.0)
    {
       if (strcmp(mesh_file, "../data/periodic-hexagon.mesh") == 0)
@@ -412,7 +417,7 @@ int main(int argc, char *argv[])
 
    MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
 
-   num_species_   = ion_charges.Size();
+   num_species_   = 1;
    num_equations_ = (num_species_ + 1) * (dim + 2);
 
    // 4. Define the ODE solver used for time integration. Several explicit
@@ -614,25 +619,25 @@ int main(int argc, char *argv[])
          ParGridFunction eta_para(&sfes);
          if (i==0)
          {
-            ChiParaCoefficient chiParaCoef(n_block, ion_charges);
+            ChiParaCoefficient chiParaCoef(n_block, ion_charges_);
             chiParaCoef.SetT(temperature);
             chi_para.ProjectCoefficient(chiParaCoef);
 
-            EtaParaCoefficient etaParaCoef(n_block, ion_charges);
+            EtaParaCoefficient etaParaCoef(n_block, ion_charges_);
             etaParaCoef.SetT(temperature);
             eta_para.ProjectCoefficient(etaParaCoef);
          }
          else
          {
             ChiParaCoefficient chiParaCoef(n_block, i - 1,
-                                           ion_charges,
-                                           ion_masses);
+                                           ion_charges_,
+                                           ion_masses_);
             chiParaCoef.SetT(temperature);
             chi_para.ProjectCoefficient(chiParaCoef);
 
             EtaParaCoefficient etaParaCoef(n_block, i - 1,
-                                           ion_charges,
-                                           ion_masses);
+                                           ion_charges_,
+                                           ion_masses_);
             etaParaCoef.SetT(temperature);
             eta_para.ProjectCoefficient(etaParaCoef);
          }
@@ -943,7 +948,7 @@ void InitialCondition(const Vector &x, Vector &y)
    y(0) = 0.0;
    for (int i=1; i<=num_species_; i++)
    {
-      y(0) += y(i);
+      y(0) += ion_charges_[i-1] * y(i);
    }
    y(num_species_ + 1) = V(0);
    y(num_species_ + 2) = V(1);
