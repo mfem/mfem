@@ -97,7 +97,7 @@ private:
    const FiniteElementSpace *trialFes, *testFes;
    Array<BilinearPAFormIntegrator*> integrators;
    mutable Vector localX, localY;
-   ElemRestriction e2l;
+   ElemRestriction *elem_restrict;
 
 public:
    PABilinearFormExtension(BilinearForm*);
@@ -116,6 +116,7 @@ public:
 
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   void Update(FiniteElementSpace *fes);
 
    ~PABilinearFormExtension();
 };
