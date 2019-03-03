@@ -45,9 +45,11 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 }
 
 // *****************************************************************************
-// * PADiffusionIntegrator
+// * PA DiffusionIntegrator Extension
 // *****************************************************************************
-void PADiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
+
+// *****************************************************************************
+void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 {
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
@@ -73,7 +75,7 @@ void PADiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 }
 
 // *****************************************************************************
-void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
+void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    kernels::fem::DiffusionMultAssembled(dim, dofs1D, quad1D, ne,
                                         maps->B,
@@ -85,9 +87,9 @@ void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 
 
 // *****************************************************************************
-// * PAMassIntegrator
+// * PA Mass Integrator Extension
 // *****************************************************************************
-void PAMassIntegrator::Assemble(const FiniteElementSpace &fes)
+void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 {
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
@@ -194,7 +196,7 @@ void PAMassIntegrator::Assemble(const FiniteElementSpace &fes)
 }
 
 // *****************************************************************************
-void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
+void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    kernels::fem::MassMultAssembled(dim, dofs1D, quad1D, ne,
                                    maps->B, maps->Bt,
