@@ -26,8 +26,8 @@ namespace mfem
 
 class BilinearForm;
 
-/// Element <=> Local vector operator
-class E2LOperator: public Operator
+/// Element restriction operator
+class ElemRestriction: public Operator
 {
 public:
    const FiniteElementSpace &fes;
@@ -40,7 +40,7 @@ public:
    Array<int> offsets;
    Array<int> indices;
 public:
-   E2LOperator(const FiniteElementSpace&);
+   ElemRestriction(const FiniteElementSpace&);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 };
@@ -97,7 +97,7 @@ private:
    const FiniteElementSpace *trialFes, *testFes;
    Array<BilinearPAFormIntegrator*> integrators;
    mutable Vector localX, localY;
-   E2LOperator e2l;
+   ElemRestriction e2l;
 
 public:
    PABilinearFormExtension(BilinearForm*);
