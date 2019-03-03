@@ -107,8 +107,10 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
 
+   PADiffusionIntegrator *pa_integ = new PADiffusionIntegrator(one);
    DiffusionIntegrator *integ = new DiffusionIntegrator(one);
-   a.AddDomainIntegrator(integ);
+   if (pa) { a.AddDomainIntegrator(pa_integ); }
+   else    { a.AddDomainIntegrator(integ); }
 
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
 
@@ -203,7 +205,7 @@ int main(int argc, char *argv[])
       // 19. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
-      config::SwitchToCpu();
+       config::SwitchToCpu();
       a.RecoverFEMSolution(X, b, x);
 
       // 20. Send solution by socket to the GLVis server.

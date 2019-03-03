@@ -34,7 +34,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
    trialFes(a->fes), testFes(a->fes),
    localX(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
    localY(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   e2l(*a->fes) { }
+   elem_restrict(new ElemRestriction(*a->fes)) { }
 
 PABilinearFormExtension::~PABilinearFormExtension()
 {
@@ -59,6 +59,19 @@ void PABilinearFormExtension::Assemble()
    {
       integrators[i]->Assemble(*a->fes);
    }
+}
+
+void PABilinearFormExtension::Update(FiniteElementSpace *fes)
+{
+   height = width = fes->GetVSize();
+   trialFes = fes;
+   testFes = fes;
+   localX.SetSize(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() *
+                  trialFes->GetVDim());
+   localY.SetSize(a->fes->GetNE() * testFes->GetFE(0)->GetDof() *
+                  testFes->GetVDim());
+   delete elem_restrict;
+   elem_restrict = new ElemRestriction(*fes);
 }
 
 void PABilinearFormExtension::FormSystemOperator(const Array<int>
@@ -128,7 +141,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   e2l.Mult(x, localX);
+   elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
    assert(iSz==1);
@@ -136,12 +149,12 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    {
       integrators[i]->MultAdd(localX, localY);
    }
-   e2l.MultTranspose(localY, y);
+   elem_restrict->MultTranspose(localY, y);
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
-   e2l.Mult(x, localX);
+   elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
    assert(iSz==1);
@@ -149,7 +162,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    {
       integrators[i]->MultTransposeAdd(localX, localY);
    }
-   e2l.MultTranspose(localY, y);
+   elem_restrict->MultTranspose(localY, y);
 }
 
 void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
