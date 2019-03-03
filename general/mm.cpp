@@ -117,7 +117,7 @@ static void DumpMode(void)
    cfg>>=1;
    if (cfg==mode) { return; }
    mode=cfg;
-   printf("\033[1K\r[0x%x] %sMM %sHasBeenEnabled %sEnabled %sDisabled \
+   printf("\033[1K\r[0x%lx] %sMM %sHasBeenEnabled %sEnabled %sDisabled \
 %sCPU %sGPU %sPA %sCUDA %sOCCA", mode.to_ulong(),
        config::usingMM()?"\033[32m":"\033[31m",
        config::gpuHasBeenEnabled()?"\033[32m":"\033[31m",

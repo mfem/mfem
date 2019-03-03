@@ -173,7 +173,7 @@ MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
    : Operator(form->Size()), a(form) { }
 
 // *****************************************************************************
-E2LOperator::E2LOperator(const FiniteElementSpace &f)
+ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
    :fes(f),
     ne(fes.GetNE()),
     vdim(fes.GetVDim()),
@@ -230,7 +230,7 @@ E2LOperator::E2LOperator(const FiniteElementSpace &f)
 }
 
 // ***************************************************************************
-void E2LOperator::Mult(const Vector& x, Vector& y) const
+void ElemRestriction::Mult(const Vector& x, Vector& y) const
 {
    const int vd = vdim;
    const bool t = byvdim;
@@ -255,7 +255,7 @@ void E2LOperator::Mult(const Vector& x, Vector& y) const
 }
 
 // ***************************************************************************
-void E2LOperator::MultTranspose(const Vector& x, Vector& y) const
+void ElemRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
    const int vd = vdim;
    const bool t = byvdim;
