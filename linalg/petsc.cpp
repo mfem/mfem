@@ -18,6 +18,8 @@
 
 #include "linalg.hpp"
 #include "../fem/fem.hpp"
+
+#include "petsc.h"
 #if defined(PETSC_HAVE_HYPRE)
 #include "petscmathypre.h"
 #endif
@@ -57,9 +59,14 @@ static PetscErrorCode __mfem_ts_ifunction(TS,PetscReal,Vec,Vec,Vec,void*);
 static PetscErrorCode __mfem_ts_ijacobian(TS,PetscReal,Vec,Vec,
                                           PetscReal,Mat,
                                           Mat,void*);
+static PetscErrorCode __mfem_ts_computesplits(TS,PetscReal,Vec,Vec,
+                                              Mat,Mat,Mat,Mat);
 static PetscErrorCode __mfem_snes_monitor(SNES,PetscInt,PetscReal,void*);
 static PetscErrorCode __mfem_snes_jacobian(SNES,Vec,Mat,Mat,void*);
 static PetscErrorCode __mfem_snes_function(SNES,Vec,Vec,void*);
+static PetscErrorCode __mfem_snes_objective(SNES,Vec,PetscReal*,void*);
+static PetscErrorCode __mfem_snes_postcheck(SNESLineSearch,Vec,Vec,Vec,
+                                            PetscBool*,PetscBool*,void*);
 static PetscErrorCode __mfem_ksp_monitor(KSP,PetscInt,PetscReal,void*);
 static PetscErrorCode __mfem_pc_shell_apply(PC,Vec,Vec);
 static PetscErrorCode __mfem_pc_shell_apply_transpose(PC,Vec,Vec);
@@ -71,6 +78,7 @@ static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat,Vec,Vec);
 static PetscErrorCode __mfem_mat_shell_destroy(Mat);
 static PetscErrorCode __mfem_array_container_destroy(void*);
 static PetscErrorCode __mfem_matarray_container_destroy(void*);
+static PetscErrorCode __mfem_monitor_ctx_destroy(void**);
 
 // auxiliary functions
 static PetscErrorCode Convert_Array_IS(MPI_Comm,bool,const mfem::Array<int>*,
@@ -105,10 +113,15 @@ typedef struct
 
 typedef struct
 {
-   mfem::Operator        *op;          // The nonlinear operator
-   mfem::PetscBCHandler  *bchandler;   // Handling of essential bc
-   mfem::Vector          *work;        // Work vector
-   mfem::Operator::Type  jacType;      // OperatorType for the Jacobian
+   mfem::Operator        *op;        // The nonlinear operator
+   mfem::PetscBCHandler  *bchandler; // Handling of essential bc
+   mfem::Vector          *work;      // Work vector
+   mfem::Operator::Type  jacType;    // OperatorType for the Jacobian
+   // Objective for line search
+   void (*objective)(mfem::Operator *op, const mfem::Vector&, double*);
+   // PostCheck function (to be called after successfull line search)
+   void (*postcheck)(mfem::Operator *op, const mfem::Vector&, mfem::Vector&,
+                     mfem::Vector&, bool&, bool&);
 } __mfem_snes_ctx;
 
 typedef struct
@@ -121,7 +134,15 @@ typedef struct
    PetscReal                       cached_shift;
    PetscObjectState                cached_ijacstate;
    PetscObjectState                cached_rhsjacstate;
+   PetscObjectState                cached_splits_xstate;
+   PetscObjectState                cached_splits_xdotstate;
 } __mfem_ts_ctx;
+
+typedef struct
+{
+   mfem::PetscSolver        *solver;  // The solver object
+   mfem::PetscSolverMonitor *monitor; // The user-defined monitor class
+} __mfem_monitor_ctx;
 
 // use global scope ierr to check PETSc errors inside mfem calls
 static PetscErrorCode ierr;
@@ -130,6 +151,19 @@ using namespace std;
 
 namespace mfem
 {
+
+void MFEMInitializePetsc(int *argc,char ***argv,const char rc_file[],
+                         const char help[])
+{
+   ierr = PetscInitialize(argc,argv,rc_file,help);
+   MFEM_VERIFY(!ierr,"Unable to initialize PETSc");
+}
+
+void MFEMFinalizePetsc()
+{
+   ierr = PetscFinalize();
+   MFEM_VERIFY(!ierr,"Unable to finalize PETSc");
+}
 
 // PetscParVector methods
 
@@ -151,12 +185,21 @@ PetscInt PetscParVector::GlobalSize() const
    return N;
 }
 
-PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x) : Vector()
+PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x,
+                               bool copy) : Vector()
 {
    ierr = VecCreate(comm,&x); CCHKERRQ(comm,ierr);
    ierr = VecSetSizes(x,_x.Size(),PETSC_DECIDE); PCHKERRQ(x,ierr);
    ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
    _SetDataAndSize_();
+   if (copy)
+   {
+      PetscScalar *array;
+
+      ierr = VecGetArray(x,&array); PCHKERRQ(x,ierr);
+      for (int i = 0; i < _x.Size(); i++) { array[i] = _x[i]; }
+      ierr = VecRestoreArray(x,&array); PCHKERRQ(x,ierr);
+   }
 }
 
 PetscParVector::PetscParVector(MPI_Comm comm, PetscInt glob_size,
@@ -270,6 +313,11 @@ PetscParVector::PetscParVector(ParFiniteElementSpace *pfes) : Vector()
    _SetDataAndSize_();
 }
 
+MPI_Comm PetscParVector::GetComm() const
+{
+   return x ? PetscObjectComm((PetscObject)x) : MPI_COMM_NULL;
+}
+
 Vector * PetscParVector::GlobalVector() const
 {
    VecScatter   scctx;
@@ -301,9 +349,53 @@ PetscParVector& PetscParVector::operator=(PetscScalar d)
    return *this;
 }
 
+PetscParVector& PetscParVector::SetValues(const Array<PetscInt>& idx,
+                                          const Array<PetscScalar>& vals)
+{
+   MFEM_VERIFY(idx.Size() == vals.Size(),
+               "Size mismatch between indices and values");
+   PetscInt n = idx.Size();
+   ierr = VecSetValues(x,n,idx.GetData(),vals.GetData(),INSERT_VALUES);
+   PCHKERRQ(x,ierr);
+   ierr = VecAssemblyBegin(x); PCHKERRQ(x,ierr);
+   ierr = VecAssemblyEnd(x); PCHKERRQ(x,ierr);
+   return *this;
+}
+
+PetscParVector& PetscParVector::AddValues(const Array<PetscInt>& idx,
+                                          const Array<PetscScalar>& vals)
+{
+   MFEM_VERIFY(idx.Size() == vals.Size(),
+               "Size mismatch between indices and values");
+   PetscInt n = idx.Size();
+   ierr = VecSetValues(x,n,idx.GetData(),vals.GetData(),ADD_VALUES);
+   PCHKERRQ(x,ierr);
+   ierr = VecAssemblyBegin(x); PCHKERRQ(x,ierr);
+   ierr = VecAssemblyEnd(x); PCHKERRQ(x,ierr);
+   return *this;
+}
+
 PetscParVector& PetscParVector::operator=(const PetscParVector &y)
 {
    ierr = VecCopy(y.x,x); PCHKERRQ(x,ierr);
+   return *this;
+}
+
+PetscParVector& PetscParVector::operator+=(const PetscParVector &y)
+{
+   ierr = VecAXPY(x,1.0,y.x); PCHKERRQ(x,ierr);
+   return *this;
+}
+
+PetscParVector& PetscParVector::operator-=(const PetscParVector &y)
+{
+   ierr = VecAXPY(x,-1.0,y.x); PCHKERRQ(x,ierr);
+   return *this;
+}
+
+PetscParVector& PetscParVector::operator*=(PetscScalar s)
+{
+   ierr = VecScale(x,s); PCHKERRQ(x,ierr);
    return *this;
 }
 
@@ -319,12 +411,15 @@ void PetscParVector::ResetArray()
 
 void PetscParVector::Randomize(PetscInt seed)
 {
-   PetscRandom rctx;
+   PetscRandom rctx = NULL;
 
-   ierr = PetscRandomCreate(PetscObjectComm((PetscObject)x),&rctx);
-   PCHKERRQ(x,ierr);
-   ierr = PetscRandomSetSeed(rctx,(unsigned long)seed); PCHKERRQ(x,ierr);
-   ierr = PetscRandomSeed(rctx); PCHKERRQ(x,ierr);
+   if (seed)
+   {
+      ierr = PetscRandomCreate(PetscObjectComm((PetscObject)x),&rctx);
+      PCHKERRQ(x,ierr);
+      ierr = PetscRandomSetSeed(rctx,(unsigned long)seed); PCHKERRQ(x,ierr);
+      ierr = PetscRandomSeed(rctx); PCHKERRQ(x,ierr);
+   }
    ierr = VecSetRandom(x,rctx); PCHKERRQ(x,ierr);
    ierr = PetscRandomDestroy(&rctx); PCHKERRQ(x,ierr);
 }
@@ -355,6 +450,20 @@ void PetscParVector::Print(const char *fname, bool binary) const
 }
 
 // PetscParMatrix methods
+
+PetscInt PetscParMatrix::GetRowStart() const
+{
+   PetscInt N;
+   ierr = MatGetOwnershipRange(A,&N,NULL); PCHKERRQ(A,ierr);
+   return N;
+}
+
+PetscInt PetscParMatrix::GetColStart() const
+{
+   PetscInt N;
+   ierr = MatGetOwnershipRangeColumn(A,&N,NULL); PCHKERRQ(A,ierr);
+   return N;
+}
 
 PetscInt PetscParMatrix::GetNumRows() const
 {
@@ -403,12 +512,48 @@ PetscParMatrix::PetscParMatrix()
    Init();
 }
 
+PetscParMatrix::PetscParMatrix(const PetscParMatrix& pB,
+                               const mfem::Array<PetscInt>& rows, const mfem::Array<PetscInt>& cols)
+{
+   Init();
+
+   Mat B = const_cast<PetscParMatrix&>(pB);
+
+   IS isr,isc;
+   ierr = ISCreateGeneral(PetscObjectComm((PetscObject)B),rows.Size(),
+                          rows.GetData(),PETSC_USE_POINTER,&isr); PCHKERRQ(B,ierr);
+   ierr = ISCreateGeneral(PetscObjectComm((PetscObject)B),cols.Size(),
+                          cols.GetData(),PETSC_USE_POINTER,&isc); PCHKERRQ(B,ierr);
+   ierr = MatCreateSubMatrix(B,isr,isc,MAT_INITIAL_MATRIX,&A); PCHKERRQ(B,ierr);
+   ierr = ISDestroy(&isr); PCHKERRQ(B,ierr);
+   ierr = ISDestroy(&isc); PCHKERRQ(B,ierr);
+
+   height = GetNumRows();
+   width  = GetNumCols();
+}
+
+PetscParMatrix::PetscParMatrix(const PetscParMatrix *pa, Operator::Type tid)
+{
+   Init();
+   height = pa->Height();
+   width  = pa->Width();
+   ConvertOperator(pa->GetComm(),*pa,&A,tid);
+}
+
 PetscParMatrix::PetscParMatrix(const HypreParMatrix *ha, Operator::Type tid)
 {
    Init();
    height = ha->Height();
    width  = ha->Width();
    ConvertOperator(ha->GetComm(),*ha,&A,tid);
+}
+
+PetscParMatrix::PetscParMatrix(const SparseMatrix *sa, Operator::Type tid)
+{
+   Init();
+   height = sa->Height();
+   width  = sa->Width();
+   ConvertOperator(PETSC_COMM_SELF,*sa,&A,tid);
 }
 
 PetscParMatrix::PetscParMatrix(MPI_Comm comm, const Operator *op,
@@ -496,6 +641,22 @@ PetscParMatrix& PetscParMatrix::operator+=(const PetscParMatrix& B)
    return *this;
 }
 
+PetscParMatrix& PetscParMatrix::operator-=(const PetscParMatrix& B)
+{
+   if (!A)
+   {
+      ierr = MatDuplicate(B,MAT_COPY_VALUES,&A); CCHKERRQ(B.GetComm(),ierr);
+      ierr = MatScale(A,-1.0); PCHKERRQ(A,ierr);
+   }
+   else
+   {
+      MFEM_VERIFY(height == B.Height(),"Invalid number of local rows");
+      MFEM_VERIFY(width  == B.Width(), "Invalid number of local columns");
+      ierr = MatAXPY(A,-1.0,B,DIFFERENT_NONZERO_PATTERN); CCHKERRQ(B.GetComm(),ierr);
+   }
+   return *this;
+}
+
 void PetscParMatrix::
 BlockDiagonalConstructor(MPI_Comm comm,
                          PetscInt *row_starts, PetscInt *col_starts,
@@ -547,15 +708,21 @@ BlockDiagonalConstructor(MPI_Comm comm,
       // Copy SparseMatrix into PETSc SeqAIJ format
       Mat lA;
       ierr = MatISGetLocalMat(A,&lA); PCHKERRQ(A,ierr);
-      if (sizeof(PetscInt) == sizeof(int))
-      {
-         ierr = MatSeqAIJSetPreallocationCSR(lA,diag->GetI(),diag->GetJ(),
-                                             diag->GetData()); PCHKERRQ(lA,ierr);
-      }
-      else
-      {
-         MFEM_ABORT("64bit indices not yet supported");
-      }
+      int *II = diag->GetI();
+      int *JJ = diag->GetJ();
+#if defined(PETSC_USE_64BIT_INDICES)
+      PetscInt *pII,*pJJ;
+      int m = diag->Height()+1, nnz = II[diag->Height()];
+      ierr = PetscMalloc2(m,&pII,nnz,&pJJ); PCHKERRQ(lA,ierr);
+      for (int i = 0; i < m; i++) { pII[i] = II[i]; }
+      for (int i = 0; i < nnz; i++) { pJJ[i] = JJ[i]; }
+      ierr = MatSeqAIJSetPreallocationCSR(lA,pII,pJJ,
+                                          diag->GetData()); PCHKERRQ(lA,ierr);
+      ierr = PetscFree2(pII,pJJ); PCHKERRQ(lA,ierr);
+#else
+      ierr = MatSeqAIJSetPreallocationCSR(lA,II,JJ,
+                                          diag->GetData()); PCHKERRQ(lA,ierr);
+#endif
    }
    else
    {
@@ -575,13 +742,16 @@ BlockDiagonalConstructor(MPI_Comm comm,
          CCHKERRQ(PETSC_COMM_SELF,ierr);
          ierr = PetscMemcpy(djj,diag->GetJ(),nnz*sizeof(PetscInt));
          CCHKERRQ(PETSC_COMM_SELF,ierr);
-         ierr = PetscMemcpy(da,diag->GetData(),nnz*sizeof(PetscScalar));
-         CCHKERRQ(PETSC_COMM_SELF,ierr);
       }
       else
       {
-         MFEM_ABORT("64bit indices not yet supported");
+         int *iii = diag->GetI();
+         int *jjj = diag->GetJ();
+         for (int i = 0; i < m; i++) { dii[i] = iii[i]; }
+         for (int i = 0; i < nnz; i++) { djj[i] = jjj[i]; }
       }
+      ierr = PetscMemcpy(da,diag->GetData(),nnz*sizeof(PetscScalar));
+      CCHKERRQ(PETSC_COMM_SELF,ierr);
       ierr = PetscCalloc1(m,&oii);
       CCHKERRQ(PETSC_COMM_SELF,ierr);
       if (commsize > 1)
@@ -624,6 +794,11 @@ BlockDiagonalConstructor(MPI_Comm comm,
    *Ad = A;
 }
 
+MPI_Comm PetscParMatrix::GetComm() const
+{
+   return A ? PetscObjectComm((PetscObject)A) : MPI_COMM_NULL;
+}
+
 // TODO ADD THIS CONSTRUCTOR
 //PetscParMatrix::PetscParMatrix(MPI_Comm comm, int nrows, PetscInt glob_nrows,
 //                  PetscInt glob_ncols, int *I, PetscInt *J,
@@ -664,11 +839,23 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
                           (dynamic_cast<const BlockOperator *>(&op));
    IdentityOperator *pI = const_cast<IdentityOperator *>
                           (dynamic_cast<const IdentityOperator *>(&op));
+   SparseMatrix     *pS = const_cast<SparseMatrix *>
+                          (dynamic_cast<const SparseMatrix *>(&op));
 
-   if (pA)
+   PetscBool avoidmatconvert = PETSC_FALSE;
+   if (pA) // we test for these types since MatConvert will fail
+   {
+      ierr = PetscObjectTypeCompareAny((PetscObject)(pA->A),&avoidmatconvert,MATMFFD,
+                                       MATSHELL,"");
+      CCHKERRQ(comm,ierr);
+   }
+   if (pA && !avoidmatconvert)
    {
       Mat       At = NULL;
-      PetscBool ismatis,istrans;
+      PetscBool istrans;
+#if PETSC_VERSION_LT(3,10,0)
+      PetscBool ismatis;
+#endif
 
       ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATTRANSPOSEMAT,&istrans);
       CCHKERRQ(pA->GetComm(),ierr);
@@ -681,19 +868,24 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
             *A = pA->A;
             return;
          }
+#if PETSC_VERSION_LT(3,10,0)
          ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATIS,&ismatis);
          CCHKERRQ(pA->GetComm(),ierr);
+#endif
       }
       else
       {
          ierr = MatTransposeGetMat(pA->A,&At); CCHKERRQ(pA->GetComm(),ierr);
+#if PETSC_VERSION_LT(3,10,0)
          ierr = PetscObjectTypeCompare((PetscObject)(At),MATIS,&ismatis);
+#endif
          CCHKERRQ(pA->GetComm(),ierr);
       }
 
       // Try to convert
       if (tid == PETSC_MATAIJ)
       {
+#if PETSC_VERSION_LT(3,10,0)
          if (ismatis)
          {
             if (istrans)
@@ -711,6 +903,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
             }
          }
          else
+#endif
          {
             PetscMPIInt size;
             ierr = MPI_Comm_size(comm,&size); CCHKERRQ(comm,ierr);
@@ -745,9 +938,9 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
             ierr = MatConvert(pA->A,MATIS,MAT_INITIAL_MATRIX,A); PCHKERRQ(pA->A,ierr);
          }
       }
-#if defined(PETSC_HAVE_HYPRE)
       else if (tid == PETSC_MATHYPRE)
       {
+#if defined(PETSC_HAVE_HYPRE)
          if (istrans)
          {
             Mat B;
@@ -759,8 +952,10 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          {
             ierr = MatConvert(pA->A,MATHYPRE,MAT_INITIAL_MATRIX,A); PCHKERRQ(pA->A,ierr);
          }
-      }
+#else
+         MFEM_ABORT("Reconfigure PETSc with --download-hypre or --with-hypre")
 #endif
+      }
       else if (tid == PETSC_MATSHELL)
       {
          MakeWrapper(comm,&op,A);
@@ -792,14 +987,16 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
 #endif
          CCHKERRQ(pH->GetComm(),ierr);
       }
-#if defined(PETSC_HAVE_HYPRE)
       else if (tid == PETSC_MATHYPRE)
       {
+#if defined(PETSC_HAVE_HYPRE)
          ierr = MatCreateFromParCSR(const_cast<HypreParMatrix&>(*pH),MATHYPRE,
                                     PETSC_USE_POINTER,A);
          CCHKERRQ(pH->GetComm(),ierr);
-      }
+#else
+         MFEM_ABORT("Reconfigure PETSc with --download-hypre or --with-hypre")
 #endif
+      }
       else if (tid == PETSC_MATSHELL)
       {
          MakeWrapper(comm,&op,A);
@@ -863,7 +1060,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          ierr = MatConvert(*A,MATIS,MAT_INPLACE_MATRIX,A); CCHKERRQ(comm,ierr);
 
          mfem::Array<Mat> *vmatsl2l = new mfem::Array<Mat>(nr);
-         for (PetscInt i=0; i<nr; i++) { (*vmatsl2l)[i] = matsl2l[i]; }
+         for (int i=0; i<(int)nr; i++) { (*vmatsl2l)[i] = matsl2l[i]; }
          ierr = PetscFree(matsl2l); CCHKERRQ(PETSC_COMM_SELF,ierr);
 
          PetscContainer c;
@@ -878,9 +1075,8 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       for (i=0; i<nr*nc; i++) { ierr = MatDestroy(&mats[i]); CCHKERRQ(comm,ierr); }
       ierr = PetscFree(mats); CCHKERRQ(PETSC_COMM_SELF,ierr);
    }
-   else if (pI)
+   else if (pI && tid == PETSC_MATAIJ)
    {
-      MFEM_VERIFY(tid == PETSC_MATAIJ,"Unsupported operation");
       PetscInt rst;
 
       ierr = MatCreate(comm,A); CCHKERRQ(comm,ierr);
@@ -898,9 +1094,108 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       ierr = MatAssemblyBegin(*A,MAT_FINAL_ASSEMBLY); PCHKERRQ(*A,ierr);
       ierr = MatAssemblyEnd(*A,MAT_FINAL_ASSEMBLY); PCHKERRQ(*A,ierr);
    }
+   else if (pS)
+   {
+      if (tid == PETSC_MATSHELL)
+      {
+         MakeWrapper(comm,&op,A);
+      }
+      else
+      {
+         Mat B;
+         PetscScalar *pdata;
+         PetscInt *pii,*pjj;
+
+         int m = pS->Height();
+         int n = pS->Width();
+         int *ii = pS->GetI();
+         int *jj = pS->GetJ();
+         double *data = pS->GetData();
+         bool issorted = pS->areColumnsSorted();
+
+         ierr = PetscMalloc1(m+1,&pii); CCHKERRQ(comm,ierr);
+         ierr = PetscMalloc1(ii[m],&pjj); CCHKERRQ(comm,ierr);
+         ierr = PetscMalloc1(ii[m],&pdata); CCHKERRQ(comm,ierr);
+         pii[0] = ii[0];
+         for (int i = 0; i < m; i++)
+         {
+            pii[i+1] = ii[i+1];
+            for (int j = ii[i]; j < ii[i+1]; j++)
+            {
+               pjj[j] = jj[j];
+               pdata[j] = data[j];
+            }
+            if (!issorted)
+            {
+               ierr = PetscSortIntWithScalarArray(pii[i+1]-pii[i],pjj,pdata);
+               CCHKERRQ(comm,ierr);
+            }
+         }
+
+         ierr = MatCreateSeqAIJWithArrays(PETSC_COMM_SELF,m,n,pii,pjj,pdata,&B);
+         CCHKERRQ(comm,ierr);
+
+         void *ptrs[3] = {pii,pjj,pdata};
+         const char *names[3] = {"_mfem_csr_pii",
+                                 "_mfem_csr_pjj",
+                                 "_mfem_csr_pdata",
+                                };
+         for (int i=0; i<3; i++)
+         {
+            PetscContainer c;
+
+            ierr = PetscContainerCreate(PETSC_COMM_SELF,&c); PCHKERRQ(B,ierr);
+            ierr = PetscContainerSetPointer(c,ptrs[i]); PCHKERRQ(B,ierr);
+            ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
+            PCHKERRQ(B,ierr);
+            ierr = PetscObjectCompose((PetscObject)(B),names[i],(PetscObject)c);
+            PCHKERRQ(B,ierr);
+            ierr = PetscContainerDestroy(&c); PCHKERRQ(B,ierr);
+         }
+         if (tid == PETSC_MATAIJ)
+         {
+            *A = B;
+         }
+         else if (tid == PETSC_MATHYPRE)
+         {
+            ierr = MatConvert(B,MATHYPRE,MAT_INITIAL_MATRIX,A); PCHKERRQ(B,ierr);
+            ierr = MatDestroy(&B); PCHKERRQ(*A,ierr);
+         }
+         else if (tid == PETSC_MATIS)
+         {
+            ierr = MatConvert(B,MATIS,MAT_INITIAL_MATRIX,A); PCHKERRQ(B,ierr);
+            ierr = MatDestroy(&B); PCHKERRQ(*A,ierr);
+         }
+         else
+         {
+            MFEM_ABORT("Unsupported operator type conversion " << tid)
+         }
+      }
+   }
    else // fallback to general operator
    {
+      MFEM_VERIFY(tid == PETSC_MATSHELL ||
+                  tid == PETSC_MATAIJ,"Supported types are PETSC_MATSHELL or PETSC_MATAIJ");
       MakeWrapper(comm,&op,A);
+      if (tid == PETSC_MATAIJ)
+      {
+         Mat B;
+         PetscBool isaij;
+
+         ierr = MatComputeExplicitOperator(*A,&B); CCHKERRQ(comm,ierr);
+         ierr = PetscObjectTypeCompare((PetscObject)B,MATMPIAIJ,&isaij);
+         CCHKERRQ(comm,ierr);
+         ierr = MatDestroy(A); CCHKERRQ(comm,ierr);
+         if (!isaij)
+         {
+            ierr = MatConvert(B,MATAIJ,MAT_INITIAL_MATRIX,A); CCHKERRQ(comm,ierr);
+            ierr = MatDestroy(&B); CCHKERRQ(comm,ierr);
+         }
+         else
+         {
+            *A = B;
+         }
+      }
    }
 }
 
@@ -925,6 +1220,16 @@ PetscParMatrix::PetscParMatrix(Mat a, bool ref)
    }
    Init();
    A = a;
+   height = GetNumRows();
+   width = GetNumCols();
+}
+
+void PetscParMatrix::SetMat(Mat _A)
+{
+   if (_A == A) { return; }
+   Destroy();
+   ierr = PetscObjectReference((PetscObject)_A); PCHKERRQ(_A,ierr);
+   A = _A;
    height = GetNumRows();
    width = GetNumCols();
 }
@@ -1094,6 +1399,46 @@ void PetscParMatrix::Print(const char *fname, bool binary) const
    }
 }
 
+void PetscParMatrix::ScaleRows(const Vector & s)
+{
+   MFEM_ASSERT(s.Size() == Height(), "invalid s.Size() = " << s.Size()
+               << ", expected size = " << Height());
+
+   PetscParVector *YY = GetY();
+   YY->PlaceArray(s.GetData());
+   ierr = MatDiagonalScale(A,*YY,NULL); PCHKERRQ(A,ierr);
+   YY->ResetArray();
+}
+
+void PetscParMatrix::ScaleCols(const Vector & s)
+{
+   MFEM_ASSERT(s.Size() == Width(), "invalid s.Size() = " << s.Size()
+               << ", expected size = " << Width());
+
+   PetscParVector *XX = GetX();
+   XX->PlaceArray(s.GetData());
+   ierr = MatDiagonalScale(A,NULL,*XX); PCHKERRQ(A,ierr);
+   XX->ResetArray();
+}
+
+void PetscParMatrix::Shift(double s)
+{
+   ierr = MatShift(A,(PetscScalar)s); PCHKERRQ(A,ierr);
+}
+
+void PetscParMatrix::Shift(const Vector & s)
+{
+   // for matrices with square diagonal blocks only
+   MFEM_ASSERT(s.Size() == Height(), "invalid s.Size() = " << s.Size()
+               << ", expected size = " << Height());
+   MFEM_ASSERT(s.Size() == Width(), "invalid s.Size() = " << s.Size()
+               << ", expected size = " << Width());
+
+   PetscParVector *XX = GetX();
+   XX->PlaceArray(s.GetData());
+   ierr = MatDiagonalSet(A,*XX,ADD_VALUES); PCHKERRQ(A,ierr);
+   XX->ResetArray();
+}
 
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P)
 {
@@ -1198,6 +1543,29 @@ PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P)
    return out;
 }
 
+PetscParMatrix * RAP(HypreParMatrix *hA, PetscParMatrix *P)
+{
+   PetscParMatrix *out,*A;
+#if defined(PETSC_HAVE_HYPRE)
+   A = new PetscParMatrix(hA,Operator::PETSC_MATHYPRE);
+#else
+   A = new PetscParMatrix(hA);
+#endif
+   out = RAP(P,A,P);
+   delete A;
+   return out;
+}
+
+
+PetscParMatrix * ParMult(const PetscParMatrix *A, const PetscParMatrix *B)
+{
+   Mat AB;
+
+   ierr = MatMatMult(*A,*B,MAT_INITIAL_MATRIX,PETSC_DEFAULT,&AB);
+   CCHKERRQ(A->GetComm(),ierr);
+   return new PetscParMatrix(AB);
+}
+
 PetscParMatrix* PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
 {
    Mat Ae;
@@ -1211,14 +1579,16 @@ PetscParMatrix* PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
 
 void PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
                                        const HypreParVector &X,
-                                       HypreParVector &B)
+                                       HypreParVector &B,
+                                       double diag)
 {
-   MFEM_ABORT("PetscParMatrix::EliminateRowsCols(). To be implemented");
+   MFEM_ABORT("Missing PetscParMatrix::EliminateRowsCols() with HypreParVectors");
 }
 
 void PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
                                        const PetscParVector &X,
-                                       PetscParVector &B)
+                                       PetscParVector &B,
+                                       double diag)
 {
    PetscInt M,N;
    ierr = MatGetSize(A,&M,&N); PCHKERRQ(A,ierr);
@@ -1235,12 +1605,26 @@ void PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
    ierr = Convert_Array_IS(GetComm(),true,&rows_cols,rst,&dir); PCHKERRQ(A,ierr);
    if (!X.GlobalSize() && !B.GlobalSize())
    {
-      ierr = MatZeroRowsColumnsIS(A,dir,1.,NULL,NULL); PCHKERRQ(A,ierr);
+      ierr = MatZeroRowsColumnsIS(A,dir,diag,NULL,NULL); PCHKERRQ(A,ierr);
    }
    else
    {
-      ierr = MatZeroRowsColumnsIS(A,dir,1.,X,B); PCHKERRQ(A,ierr);
+      ierr = MatZeroRowsColumnsIS(A,dir,diag,X,B); PCHKERRQ(A,ierr);
    }
+   ierr = ISDestroy(&dir); PCHKERRQ(A,ierr);
+}
+
+void PetscParMatrix::EliminateRows(const Array<int> &rows)
+{
+   ierr = MatSetOption(A,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_TRUE); PCHKERRQ(A,ierr);
+
+   // rows need to be in global numbering
+   PetscInt rst;
+   ierr = MatGetOwnershipRange(A,&rst,NULL); PCHKERRQ(A,ierr);
+
+   IS dir;
+   ierr = Convert_Array_IS(GetComm(),true,&rows,rst,&dir); PCHKERRQ(A,ierr);
+   ierr = MatZeroRowsIS(A,dir,0.0,NULL,NULL); PCHKERRQ(A,ierr);
    ierr = ISDestroy(&dir); PCHKERRQ(A,ierr);
 }
 
@@ -1476,21 +1860,33 @@ void PetscSolver::SetPrintLevel(int plev)
    }
 }
 
+MPI_Comm PetscSolver::GetComm() const
+{
+   return obj ? PetscObjectComm(obj) : MPI_COMM_NULL;
+}
+
 void PetscSolver::SetMonitor(PetscSolverMonitor *ctx)
 {
+   __mfem_monitor_ctx *monctx;
+   ierr = PetscNew(&monctx); CCHKERRQ(PETSC_COMM_SELF,ierr);
+   monctx->solver = this;
+   monctx->monitor = ctx;
    if (cid == KSP_CLASSID)
    {
-      ierr = KSPMonitorSet((KSP)obj,__mfem_ksp_monitor,ctx,NULL);
+      ierr = KSPMonitorSet((KSP)obj,__mfem_ksp_monitor,monctx,
+                           __mfem_monitor_ctx_destroy);
       PCHKERRQ(obj,ierr);
    }
    else if (cid == SNES_CLASSID)
    {
-      ierr = SNESMonitorSet((SNES)obj,__mfem_snes_monitor,ctx,NULL);
+      ierr = SNESMonitorSet((SNES)obj,__mfem_snes_monitor,monctx,
+                            __mfem_monitor_ctx_destroy);
       PCHKERRQ(obj,ierr);
    }
    else if (cid == TS_CLASSID)
    {
-      ierr = TSMonitorSet((TS)obj,__mfem_ts_monitor,ctx,NULL);
+      ierr = TSMonitorSet((TS)obj,__mfem_ts_monitor,monctx,
+                          __mfem_monitor_ctx_destroy);
       PCHKERRQ(obj,ierr);
    }
    else
@@ -1699,6 +2095,8 @@ void PetscSolver::CreatePrivateContext()
       ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
       ts_ctx->cached_ijacstate = -1;
       ts_ctx->cached_rhsjacstate = -1;
+      ts_ctx->cached_splits_xstate = -1;
+      ts_ctx->cached_splits_xdotstate = -1;
       ts_ctx->type = PetscODESolver::ODE_SOLVER_GENERAL;
       ts_ctx->jacType = Operator::PETSC_MATAIJ;
       private_ctx = (void*) ts_ctx;
@@ -1757,11 +2155,11 @@ void PetscBCHandler::SetUp(PetscInt n)
 
 void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
 {
-   if (!setup) { MFEM_ABORT("PetscBCHandler not yet setup"); }
+   (*this).SetUp(x.Size());
    y = x;
    if (bctype == ZERO)
    {
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = 0.0;
       }
@@ -1773,26 +2171,50 @@ void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
          Eval(eval_t,eval_g);
          eval_t_cached = eval_t;
       }
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = eval_g[ess_tdof_list[i]];
       }
    }
 }
 
-void PetscBCHandler::FixResidualBC(const Vector& x, Vector& y)
+void PetscBCHandler::ApplyBC(Vector &x)
 {
-   if (!setup) { MFEM_ABORT("PetscBCHandler not yet setup"); }
+   (*this).SetUp(x.Size());
    if (bctype == ZERO)
    {
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
+      {
+         x[ess_tdof_list[i]] = 0.0;
+      }
+   }
+   else
+   {
+      if (bctype != CONSTANT && eval_t != eval_t_cached)
+      {
+         Eval(eval_t,eval_g);
+         eval_t_cached = eval_t;
+      }
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
+      {
+         x[ess_tdof_list[i]] = eval_g[ess_tdof_list[i]];
+      }
+   }
+}
+
+void PetscBCHandler::FixResidualBC(const Vector& x, Vector& y)
+{
+   (*this).SetUp(x.Size());
+   if (bctype == ZERO)
+   {
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = x[ess_tdof_list[i]];
       }
    }
    else
    {
-      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      for (int i = 0; i < ess_tdof_list.Size(); ++i)
       {
          y[ess_tdof_list[i]] = x[ess_tdof_list[i]] - eval_g[ess_tdof_list[i]];
       }
@@ -2641,6 +3063,14 @@ void PetscNonlinearSolver::SetOperator(const Operator &op)
          X = B = NULL;
       }
    }
+   else
+   {
+      /* PETSc sets the linesearch type to basic (i.e. no linesearch) if not
+         yet set. We default to backtracking */
+      SNESLineSearch ls;
+      ierr = SNESGetLineSearch(snes, &ls); PCHKERRQ(snes,ierr);
+      ierr = SNESLineSearchSetType(ls, SNESLINESEARCHBT); PCHKERRQ(snes,ierr);
+   }
 
    __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
    snes_ctx->op = (mfem::Operator*)&op;
@@ -2664,6 +3094,31 @@ void PetscNonlinearSolver::SetJacobianType(Operator::Type jacType)
    snes_ctx->jacType = jacType;
 }
 
+void PetscNonlinearSolver::SetObjective(void (*objfn)(Operator *,const Vector&,
+                                                      double*))
+{
+   __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
+   snes_ctx->objective = objfn;
+
+   SNES snes = (SNES)obj;
+   ierr = SNESSetObjective(snes, __mfem_snes_objective, (void *)snes_ctx);
+   PCHKERRQ(snes, ierr);
+}
+
+void PetscNonlinearSolver::SetPostCheck(void (*post)(Operator *,const Vector&,
+                                                     Vector&, Vector&,
+                                                     bool&, bool&))
+{
+   __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
+   snes_ctx->postcheck = post;
+
+   SNES snes = (SNES)obj;
+   SNESLineSearch ls;
+   ierr = SNESGetLineSearch(snes, &ls); PCHKERRQ(snes,ierr);
+   ierr = SNESLineSearchSetPostCheck(ls, __mfem_snes_postcheck, (void *)snes_ctx);
+   PCHKERRQ(ls, ierr);
+}
+
 void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
 {
    SNES snes = (SNES)obj;
@@ -2678,8 +3133,6 @@ void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
    Customize();
 
    if (!iterative_mode) { *X = 0.; }
-
-   if (bchandler) { bchandler->SetUp(X->Size()); }
 
    // Solve the system.
    ierr = SNESSolve(snes, B->x, X->x); PCHKERRQ(snes, ierr);
@@ -2730,48 +3183,14 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
    if (operatorset)
    {
-      PetscBool ls,gs;
-      void *fctx = NULL,*jctx = NULL,*rfctx = NULL,*rjctx = NULL;
-
-      if (f->isImplicit())
-      {
-         ierr = TSGetIFunction(ts, NULL, NULL, &fctx);
-         PCHKERRQ(ts, ierr);
-         ierr = TSGetIJacobian(ts, NULL, NULL, NULL, &jctx);
-         PCHKERRQ(ts, ierr);
-      }
-      if (!f->isHomogeneous())
-      {
-         ierr = TSGetRHSFunction(ts, NULL, NULL, &rfctx);
-         PCHKERRQ(ts, ierr);
-         ierr = TSGetRHSJacobian(ts, NULL, NULL, NULL, &rjctx);
-         PCHKERRQ(ts, ierr);
-      }
-      ls = (PetscBool)(f->Height() == f_.Height() &&
-                       f->Width() == f_.Width() &&
-                       f->isExplicit() == f_.isExplicit() &&
-                       f->isImplicit() == f_.isImplicit() &&
-                       f->isHomogeneous() == f_.isHomogeneous());
-      if (ls && f_.isImplicit())
-      {
-         ls = (PetscBool)(ls && (void*)&f_ == fctx && (void*)&f_ == jctx);
-      }
-      if (ls && !f_.isHomogeneous())
-      {
-         ls = (PetscBool)(ls && (void*)&f_ == rfctx && (void*)&f_ == rjctx);
-      }
-      ierr = MPI_Allreduce(&ls,&gs,1,MPIU_BOOL,MPI_LAND,
-                           PetscObjectComm((PetscObject)ts));
-      PCHKERRQ(ts,ierr);
-      if (!gs)
-      {
-         ierr = TSReset(ts); PCHKERRQ(ts,ierr);
-         delete X;
-         X = NULL;
-         ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
-         ts_ctx->cached_ijacstate = -1;
-         ts_ctx->cached_rhsjacstate = -1;
-      }
+      ierr = TSReset(ts); PCHKERRQ(ts,ierr);
+      delete X;
+      X = NULL;
+      ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
+      ts_ctx->cached_ijacstate = -1;
+      ts_ctx->cached_rhsjacstate = -1;
+      ts_ctx->cached_splits_xstate = -1;
+      ts_ctx->cached_splits_xdotstate = -1;
    }
    f = &f_;
 
@@ -2800,6 +3219,46 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    }
    operatorset = true;
 
+   SetType(type);
+
+   // Set solution vector
+   PetscParVector X(PetscObjectComm(obj),*f,false,true);
+   ierr = TSSetSolution(ts,X); PCHKERRQ(ts,ierr);
+
+   // Compose special purpose function for PDE-constrained optimization
+   PetscBool use = PETSC_TRUE;
+   ierr = PetscOptionsGetBool(NULL,NULL,"-mfem_use_splitjac",&use,NULL);
+   if (use && f_.isImplicit())
+   {
+      ierr = PetscObjectComposeFunction((PetscObject)ts,"TSComputeSplitJacobians_C",
+                                        __mfem_ts_computesplits);
+      PCHKERRQ(ts,ierr);
+   }
+   else
+   {
+      ierr = PetscObjectComposeFunction((PetscObject)ts,"TSComputeSplitJacobians_C",
+                                        NULL);
+      PCHKERRQ(ts,ierr);
+   }
+}
+
+void PetscODESolver::SetJacobianType(Operator::Type jacType)
+{
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
+   ts_ctx->jacType = jacType;
+}
+
+PetscODESolver::Type PetscODESolver::GetType() const
+{
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
+   return ts_ctx->type;
+}
+
+void PetscODESolver::SetType(PetscODESolver::Type type)
+{
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
+
+   TS ts = (TS)obj;
    ts_ctx->type = type;
    if (type == ODE_SOLVER_LINEAR)
    {
@@ -2813,12 +3272,6 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    }
 }
 
-void PetscODESolver::SetJacobianType(Operator::Type jacType)
-{
-   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
-   ts_ctx->jacType = jacType;
-}
-
 void PetscODESolver::Step(Vector &x, double &t, double &dt)
 {
    // Pass the parameters to PETSc.
@@ -2830,8 +3283,6 @@ void PetscODESolver::Step(Vector &x, double &t, double &dt)
    X->PlaceArray(x.GetData());
 
    Customize();
-
-   if (bchandler) { bchandler->SetUp(x.Size()); }
 
    // Take the step.
    ierr = TSSetSolution(ts, *X); PCHKERRQ(ts, ierr);
@@ -2861,7 +3312,16 @@ void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
 
    Customize();
 
-   if (bchandler) { bchandler->SetUp(x.Size()); }
+   // Reset Jacobian caching since the user may have changed
+   // the parameters of the solver
+   // We don't do this in the Step method because two consecutive
+   // Step() calls are done with the same operator
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
+   ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
+   ts_ctx->cached_ijacstate = -1;
+   ts_ctx->cached_rhsjacstate = -1;
+   ts_ctx->cached_splits_xstate = -1;
+   ts_ctx->cached_splits_xdotstate = -1;
 
    // Take the steps.
    ierr = TSSolve(ts, X->x); PCHKERRQ(ts, ierr);
@@ -2883,50 +3343,23 @@ void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
 static PetscErrorCode __mfem_ts_monitor(TS ts, PetscInt it, PetscReal t, Vec x,
                                         void* ctx)
 {
-   mfem::PetscSolverMonitor *monitor_ctx = (mfem::PetscSolverMonitor *)ctx;
+   __mfem_monitor_ctx *monctx = (__mfem_monitor_ctx*)ctx;
 
    PetscFunctionBeginUser;
-   if (!ctx)
+   if (!monctx)
    {
-      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER, "No monitor context provided");
+      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"Missing monitor context");
    }
-   if (monitor_ctx->mon_sol)
-   {
-      mfem::PetscParVector V(x,true);
-      monitor_ctx->MonitorSolution(it,t,V);
-   }
-   if (monitor_ctx->mon_res)
-   {
-      SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_SUP,
-              "Cannot monitor the residual with TS");
-   }
-   PetscFunctionReturn(0);
-}
+   mfem::PetscSolver *solver = (mfem::PetscSolver*)(monctx->solver);
+   mfem::PetscSolverMonitor *user_monitor = (mfem::PetscSolverMonitor *)(
+                                               monctx->monitor);
 
-static PetscErrorCode __mfem_ksp_monitor(KSP ksp, PetscInt it, PetscReal res,
-                                         void* ctx)
-{
-   mfem::PetscSolverMonitor *monitor_ctx = (mfem::PetscSolverMonitor *)ctx;
-   Vec x;
-   PetscErrorCode ierr;
-
-   PetscFunctionBeginUser;
-   if (!ctx)
+   if (user_monitor->mon_sol)
    {
-      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"No monitor context provided");
-   }
-   if (monitor_ctx->mon_sol)
-   {
-      ierr = KSPBuildSolution(ksp,NULL,&x); CHKERRQ(ierr);
       mfem::PetscParVector V(x,true);
-      monitor_ctx->MonitorSolution(it,res,V);
+      user_monitor->MonitorSolution(it,t,V);
    }
-   if (monitor_ctx->mon_res)
-   {
-      ierr = KSPBuildResidual(ksp,NULL,NULL,&x); CHKERRQ(ierr);
-      mfem::PetscParVector V(x,true);
-      monitor_ctx->MonitorResidual(it,res,V);
-   }
+   user_monitor->MonitorSolver(solver);
    PetscFunctionReturn(0);
 }
 
@@ -3001,10 +3434,6 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    PetscErrorCode   ierr;
 
    PetscFunctionBeginUser;
-   // update time
-   mfem::TimeDependentOperator *op = ts_ctx->op;
-   op->SetTime(t);
-
    // prevent to recompute a Jacobian if we already did so
    // the relative tolerance comparison should be fine given the fact
    // that two consecutive shifts should have similar magnitude
@@ -3012,6 +3441,10 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
        std::abs(ts_ctx->cached_shift/shift - 1.0) < eps &&
        state == ts_ctx->cached_ijacstate) { PetscFunctionReturn(0); }
+
+   // update time
+   mfem::TimeDependentOperator *op = ts_ctx->op;
+   op->SetTime(t);
 
    // wrap Vecs with Vectors
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
@@ -3071,6 +3504,166 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    PetscFunctionReturn(0);
 }
 
+static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
+                                              Mat Jx,Mat precJx,
+                                              Mat Jxp,Mat precJxp)
+{
+   __mfem_ts_ctx*   ts_ctx;
+   mfem::Vector     *xx;
+   PetscScalar      *array;
+   PetscInt         n;
+   PetscObjectState state;
+   PetscBool        rx = PETSC_TRUE, rxp = PETSC_TRUE;
+   PetscBool        assembled;
+   PetscErrorCode   ierr;
+
+   PetscFunctionBeginUser;
+   ierr = TSGetIJacobian(ts,NULL,NULL,NULL,(void**)&ts_ctx); CHKERRQ(ierr);
+
+   // prevent to recompute the Jacobians if we already did so
+   ierr = PetscObjectStateGet((PetscObject)Jx,&state); CHKERRQ(ierr);
+   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
+       state == ts_ctx->cached_splits_xstate) { rx = PETSC_FALSE; }
+   ierr = PetscObjectStateGet((PetscObject)Jxp,&state); CHKERRQ(ierr);
+   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
+       state == ts_ctx->cached_splits_xdotstate) { rxp = PETSC_FALSE; }
+
+   if (!rx && !rxp) { PetscFunctionReturn(0); }
+
+   // update time
+   mfem::TimeDependentOperator *op = ts_ctx->op;
+   op->SetTime(t);
+
+   // wrap Vecs with Vectors
+   ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
+   ierr = VecGetArrayRead(xp,(const PetscScalar**)&array); CHKERRQ(ierr);
+   mfem::Vector yy(array,n);
+   ierr = VecRestoreArrayRead(xp,(const PetscScalar**)&array); CHKERRQ(ierr);
+   ierr = VecGetArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
+   if (!ts_ctx->bchandler)
+   {
+      xx = new mfem::Vector(array,n);
+   }
+   else
+   {
+      // make sure we compute a Jacobian with the correct boundary values
+      if (!ts_ctx->work) { ts_ctx->work = new mfem::Vector(n); }
+      mfem::Vector txx(array,n);
+      mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
+      xx = ts_ctx->work;
+      bchandler->SetTime(t);
+      bchandler->ApplyBC(txx,*xx);
+   }
+   ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
+
+   // We don't have a specialized interface, so we just compute the split jacobians
+   // evaluating twice the implicit gradient method with the correct shifts
+
+   // first we do the state jacobian
+   mfem::Operator& oJx = op->GetImplicitGradient(*xx,yy,0.0);
+
+   // Convert to the operator type requested if needed
+   bool delete_mat = false;
+   mfem::PetscParMatrix *pJx = const_cast<mfem::PetscParMatrix *>
+                               (dynamic_cast<const mfem::PetscParMatrix *>(&oJx));
+   if (!pJx || pJx->GetType() != ts_ctx->jacType)
+   {
+      if (pJx)
+      {
+         Mat B = *pJx;
+         ierr = PetscObjectReference((PetscObject)B); CHKERRQ(ierr);
+      }
+      pJx = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&oJx,
+                                     ts_ctx->jacType);
+      delete_mat = true;
+   }
+   if (rx)
+   {
+      ierr = MatAssembled(Jx,&assembled); CHKERRQ(ierr);
+      if (assembled)
+      {
+         ierr = MatCopy(*pJx,Jx,SAME_NONZERO_PATTERN); CHKERRQ(ierr);
+      }
+      else
+      {
+         Mat B;
+         ierr = MatDuplicate(*pJx,MAT_COPY_VALUES,&B); CHKERRQ(ierr);
+         ierr = MatHeaderReplace(Jx,&B); CHKERRQ(ierr);
+      }
+   }
+   if (delete_mat) { delete pJx; }
+   pJx = new mfem::PetscParMatrix(Jx,true);
+
+   // Eliminate essential dofs
+   if (ts_ctx->bchandler)
+   {
+      mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
+      mfem::PetscParVector dummy(PetscObjectComm((PetscObject)ts),0);
+      pJx->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
+   }
+
+   // Then we do the jacobian wrt the time derivative of the state
+   // Note that this is usually the mass matrix
+   mfem::PetscParMatrix *pJxp = NULL;
+   if (rxp)
+   {
+      delete_mat = false;
+      mfem::Operator& oJxp = op->GetImplicitGradient(*xx,yy,1.0);
+      pJxp = const_cast<mfem::PetscParMatrix *>
+             (dynamic_cast<const mfem::PetscParMatrix *>(&oJxp));
+      if (!pJxp || pJxp->GetType() != ts_ctx->jacType)
+      {
+         if (pJxp)
+         {
+            Mat B = *pJxp;
+            ierr = PetscObjectReference((PetscObject)B); CHKERRQ(ierr);
+         }
+         pJxp = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),
+                                         &oJxp,ts_ctx->jacType);
+         delete_mat = true;
+      }
+
+      ierr = MatAssembled(Jxp,&assembled); CHKERRQ(ierr);
+      if (assembled)
+      {
+         ierr = MatCopy(*pJxp,Jxp,SAME_NONZERO_PATTERN); CHKERRQ(ierr);
+      }
+      else
+      {
+         Mat B;
+         ierr = MatDuplicate(*pJxp,MAT_COPY_VALUES,&B); CHKERRQ(ierr);
+         ierr = MatHeaderReplace(Jxp,&B); CHKERRQ(ierr);
+      }
+      if (delete_mat) { delete pJxp; }
+      pJxp = new mfem::PetscParMatrix(Jxp,true);
+
+      // Eliminate essential dofs
+      if (ts_ctx->bchandler)
+      {
+         mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
+         mfem::PetscParVector dummy(PetscObjectComm((PetscObject)ts),0);
+         pJxp->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy,2.0);
+      }
+
+      // Obtain the time dependent part of the  jacobian by subtracting
+      // the state jacobian
+      // We don't do it with the class operator "-=" since we know that
+      // the sparsity pattern of the two matrices is the same
+      ierr = MatAXPY(*pJxp,-1.0,*pJx,SAME_NONZERO_PATTERN); PCHKERRQ(ts,ierr);
+   }
+
+   // Jacobian reusage
+   ierr = PetscObjectStateGet((PetscObject)Jx,&ts_ctx->cached_splits_xstate);
+   CHKERRQ(ierr);
+   ierr = PetscObjectStateGet((PetscObject)Jxp,&ts_ctx->cached_splits_xdotstate);
+   CHKERRQ(ierr);
+
+   delete pJx;
+   delete pJxp;
+   if (!ts_ctx->bchandler) { delete xx; }
+   PetscFunctionReturn(0);
+}
+
 static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
                                             Mat A, Mat P, void *ctx)
 {
@@ -3082,14 +3675,14 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    PetscErrorCode   ierr;
 
    PetscFunctionBeginUser;
-   // update time
-   mfem::TimeDependentOperator *op = ts_ctx->op;
-   op->SetTime(t);
-
    // prevent to recompute a Jacobian if we already did so
    ierr = PetscObjectStateGet((PetscObject)A,&state); CHKERRQ(ierr);
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
        state == ts_ctx->cached_rhsjacstate) { PetscFunctionReturn(0); }
+
+   // update time
+   mfem::TimeDependentOperator *op = ts_ctx->op;
+   op->SetTime(t);
 
    // wrap Vec with Vector
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
@@ -3152,27 +3745,36 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
 static PetscErrorCode __mfem_snes_monitor(SNES snes, PetscInt it, PetscReal res,
                                           void* ctx)
 {
-   mfem::PetscSolverMonitor *monitor_ctx = (mfem::PetscSolverMonitor *)ctx;
-   Vec x;
-   PetscErrorCode ierr;
+   __mfem_monitor_ctx *monctx = (__mfem_monitor_ctx*)ctx;
 
    PetscFunctionBeginUser;
-   if (!ctx)
+   if (!monctx)
    {
-      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"No monitor context provided");
+      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"Missing monitor context");
    }
-   if (monitor_ctx->mon_sol)
+
+   mfem::PetscSolver *solver = (mfem::PetscSolver*)(monctx->solver);
+   mfem::PetscSolverMonitor *user_monitor = (mfem::PetscSolverMonitor *)(
+                                               monctx->monitor);
+   if (user_monitor->mon_sol)
    {
+      Vec x;
+      PetscErrorCode ierr;
+
       ierr = SNESGetSolution(snes,&x); CHKERRQ(ierr);
       mfem::PetscParVector V(x,true);
-      monitor_ctx->MonitorSolution(it,res,V);
+      user_monitor->MonitorSolution(it,res,V);
    }
-   if (monitor_ctx->mon_res)
+   if (user_monitor->mon_res)
    {
+      Vec x;
+      PetscErrorCode ierr;
+
       ierr = SNESGetFunction(snes,&x,NULL,NULL); CHKERRQ(ierr);
       mfem::PetscParVector V(x,true);
-      monitor_ctx->MonitorResidual(it,res,V);
+      user_monitor->MonitorResidual(it,res,V);
    }
+   user_monitor->MonitorSolver(solver);
    PetscFunctionReturn(0);
 }
 
@@ -3258,6 +3860,75 @@ static PetscErrorCode __mfem_snes_function(SNES snes, Vec x, Vec f, void *ctx)
    }
    // need to tell PETSc the Vec has been updated
    ierr = PetscObjectStateIncrease((PetscObject)f); CHKERRQ(ierr);
+   PetscFunctionReturn(0);
+}
+
+static PetscErrorCode __mfem_snes_objective(SNES snes, Vec x, PetscReal *f,
+                                            void *ctx)
+{
+   __mfem_snes_ctx* snes_ctx = (__mfem_snes_ctx*)ctx;
+
+   PetscFunctionBeginUser;
+   if (!snes_ctx->objective)
+   {
+      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"Missing objective function");
+   }
+   mfem::PetscParVector xx(x,true);
+   double lf;
+   (*snes_ctx->objective)(snes_ctx->op,xx,&lf);
+   *f = (PetscReal)lf;
+   PetscFunctionReturn(0);
+}
+
+static PetscErrorCode __mfem_snes_postcheck(SNESLineSearch ls,Vec X,Vec Y,Vec W,
+                                            PetscBool *cy,PetscBool *cw, void* ctx)
+{
+   __mfem_snes_ctx* snes_ctx = (__mfem_snes_ctx*)ctx;
+   bool lcy = false,lcw = false;
+
+   PetscFunctionBeginUser;
+   mfem::PetscParVector x(X,true);
+   mfem::PetscParVector y(Y,true);
+   mfem::PetscParVector w(W,true);
+   snes_ctx->postcheck(snes_ctx->op,x,y,w,lcy,lcw);
+   if (lcy) { *cy = PETSC_TRUE; }
+   if (lcw) { *cw = PETSC_TRUE; }
+   PetscFunctionReturn(0);
+}
+
+static PetscErrorCode __mfem_ksp_monitor(KSP ksp, PetscInt it, PetscReal res,
+                                         void* ctx)
+{
+   __mfem_monitor_ctx *monctx = (__mfem_monitor_ctx*)ctx;
+
+   PetscFunctionBeginUser;
+   if (!monctx)
+   {
+      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"Missing monitor context");
+   }
+
+   mfem::PetscSolver *solver = (mfem::PetscSolver*)(monctx->solver);
+   mfem::PetscSolverMonitor *user_monitor = (mfem::PetscSolverMonitor *)(
+                                               monctx->monitor);
+   if (user_monitor->mon_sol)
+   {
+      Vec x;
+      PetscErrorCode ierr;
+
+      ierr = KSPBuildSolution(ksp,NULL,&x); CHKERRQ(ierr);
+      mfem::PetscParVector V(x,true);
+      user_monitor->MonitorSolution(it,res,V);
+   }
+   if (user_monitor->mon_res)
+   {
+      Vec x;
+      PetscErrorCode ierr;
+
+      ierr = KSPBuildResidual(ksp,NULL,NULL,&x); CHKERRQ(ierr);
+      mfem::PetscParVector V(x,true);
+      user_monitor->MonitorResidual(it,res,V);
+   }
+   user_monitor->MonitorSolver(solver);
    PetscFunctionReturn(0);
 }
 
@@ -3452,6 +4123,15 @@ static PetscErrorCode __mfem_matarray_container_destroy(void *ptr)
    PetscFunctionReturn(0);
 }
 
+static PetscErrorCode __mfem_monitor_ctx_destroy(void **ctx)
+{
+   PetscErrorCode  ierr;
+
+   PetscFunctionBeginUser;
+   ierr = PetscFree(*ctx); CHKERRQ(ierr);
+   PetscFunctionReturn(0);
+}
+
 // Sets the type of PC to PCSHELL and wraps the solver action
 // if ownsop is true, ownership of precond is transferred to the PETSc object
 PetscErrorCode MakeShellPC(PC pc, mfem::Solver &precond, bool ownsop)
@@ -3551,7 +4231,21 @@ static PetscErrorCode Convert_Vmarks_IS(MPI_Comm comm,
                          (const PetscInt**)&jj,&done); CHKERRQ(ierr);
       MFEM_VERIFY(done,"Unable to perform MatGetRowIJ on " << i << " l2l matrix");
       ierr = MatGetSize(pl2l[i],NULL,&n); CHKERRQ(ierr);
+#if defined(PETSC_USE_64BIT_INDICES)
+      int  nnz = (int)ii[m];
+      int *mii = new int[m+1];
+      int *mjj = new int[nnz];
+      for (int j = 0; j < m+1; j++) { mii[j] = (int)ii[j]; }
+      for (int j = 0; j < nnz; j++) { mjj[j] = (int)jj[j]; }
+      l2l[i] = new mfem::SparseMatrix(mii,mjj,NULL,m,n,true,true,true);
+#else
       l2l[i] = new mfem::SparseMatrix(ii,jj,NULL,m,n,false,true,true);
+#endif
+      ierr = MatRestoreRowIJ(pl2l[i],0,PETSC_FALSE,PETSC_FALSE,&m,
+                             (const PetscInt**)&ii,
+                             (const PetscInt**)&jj,&done); CHKERRQ(ierr);
+      MFEM_VERIFY(done,"Unable to perform MatRestoreRowIJ on "
+                  << i << " l2l matrix");
    }
    nl = 0;
    for (int i = 0; i < l2l.Size(); i++) { nl += l2l[i]->Width(); }
@@ -3571,14 +4265,6 @@ static PetscErrorCode Convert_Vmarks_IS(MPI_Comm comm,
    ierr = Convert_Array_IS(comm,false,&sub_dof_marker,st,is); CCHKERRQ(comm,ierr);
    for (int i = 0; i < pl2l.Size(); i++)
    {
-      PetscInt  m = l2l[i]->Height();
-      PetscInt  *ii = l2l[i]->GetI(),*jj = l2l[i]->GetJ();
-      PetscBool done;
-      ierr = MatRestoreRowIJ(pl2l[i],0,PETSC_FALSE,PETSC_FALSE,&m,
-                             (const PetscInt**)&ii,
-                             (const PetscInt**)&jj,&done); CHKERRQ(ierr);
-      MFEM_VERIFY(done,"Unable to perform MatRestoreRowIJ on "
-                  << i << " l2l matrix");
       delete l2l[i];
    }
    PetscFunctionReturn(0);

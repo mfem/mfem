@@ -33,6 +33,7 @@
 
 // METIS 4 prototypes
 #if defined(MFEM_USE_METIS) && !defined(MFEM_USE_METIS_5)
+typedef int idx_t;
 typedef int idxtype;
 extern "C" {
    void METIS_PartGraphRecursive(int*, idxtype*, idxtype*, idxtype*, idxtype*,
@@ -1463,7 +1464,11 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    // Build the nodes from the saved locations if they were around before
    if (Nodes)
    {
-      nodes_fes->Update();
+      // To force FE space update, we need to increase 'sequence':
+      sequence++;
+      last_operation = Mesh::NONE;
+      nodes_fes->Update(false); // want_transform = false
+      Nodes->Update(); // just needed to update Nodes->sequence
       Array<int> new_dofs;
       for (int old_elid = 0; old_elid < GetNE(); ++old_elid)
       {
@@ -1503,7 +1508,7 @@ void Mesh::MarkTriMeshForRefinement()
       if (elements[i]->GetType() == Element::TRIANGLE)
       {
          GetPointMatrix(i, pmat);
-         elements[i]->MarkEdge(pmat);
+         static_cast<Triangle*>(elements[i])->MarkEdge(pmat);
       }
    }
 }
@@ -4886,23 +4891,51 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          partitioning[i] = 0;
       }
    }
+   else if (NumOfElements <= nparts)
+   {
+      for (i = 0; i < NumOfElements; i++)
+      {
+         partitioning[i] = i;
+      }
+   }
    else
    {
-      int *I, *J, n;
+      idx_t *I, *J, n;
 #ifndef MFEM_USE_METIS_5
-      int wgtflag = 0;
-      int numflag = 0;
-      int options[5];
+      idx_t wgtflag = 0;
+      idx_t numflag = 0;
+      idx_t options[5];
 #else
-      int ncon = 1;
-      int err;
-      int options[40];
+      idx_t ncon = 1;
+      idx_t err;
+      idx_t options[40];
 #endif
-      int edgecut;
+      idx_t edgecut;
+
+      // In case METIS have been compiled with 64bit indices
+      bool freedata = false;
+      idx_t mparts = (idx_t) nparts;
+      idx_t *mpartitioning;
 
       n = NumOfElements;
-      I = el_to_el->GetI();
-      J = el_to_el->GetJ();
+      if (sizeof(idx_t) == sizeof(int))
+      {
+         I = (idx_t*) el_to_el->GetI();
+         J = (idx_t*) el_to_el->GetJ();
+         mpartitioning = (idx_t*) partitioning;
+      }
+      else
+      {
+         int *iI = el_to_el->GetI();
+         int *iJ = el_to_el->GetJ();
+         int m = iI[n];
+         I = new idx_t[n+1];
+         J = new idx_t[m];
+         for (int k = 0; k < n+1; k++) { I[k] = iI[k]; }
+         for (int k = 0; k < m; k++) { J[k] = iJ[k]; }
+         mpartitioning = new idx_t[n];
+         freedata = true;
+      }
 #ifndef MFEM_USE_METIS_5
       options[0] = 0;
 #else
@@ -4919,7 +4952,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
             // std::sort(J+I[i], J+I[i+1]);
 
             // Sort in decreasing order, as in previous versions of MFEM.
-            std::sort(J+I[i], J+I[i+1], std::greater<int>());
+            std::sort(J+I[i], J+I[i+1], std::greater<idx_t>());
          }
       }
 
@@ -4929,30 +4962,30 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       {
 #ifndef MFEM_USE_METIS_5
          METIS_PartGraphRecursive(&n,
-                                  (idxtype *) I,
-                                  (idxtype *) J,
-                                  (idxtype *) NULL,
-                                  (idxtype *) NULL,
+                                  I,
+                                  J,
+                                  NULL,
+                                  NULL,
                                   &wgtflag,
                                   &numflag,
-                                  &nparts,
+                                  &mparts,
                                   options,
                                   &edgecut,
-                                  (idxtype *) partitioning);
+                                  mpartitioning);
 #else
          err = METIS_PartGraphRecursive(&n,
                                         &ncon,
                                         I,
                                         J,
-                                        (idx_t *) NULL,
-                                        (idx_t *) NULL,
-                                        (idx_t *) NULL,
-                                        &nparts,
-                                        (real_t *) NULL,
-                                        (real_t *) NULL,
+                                        NULL,
+                                        NULL,
+                                        NULL,
+                                        &mparts,
+                                        NULL,
+                                        NULL,
                                         options,
                                         &edgecut,
-                                        partitioning);
+                                        mpartitioning);
          if (err != 1)
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphRecursive!");
@@ -4965,30 +4998,30 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       {
 #ifndef MFEM_USE_METIS_5
          METIS_PartGraphKway(&n,
-                             (idxtype *) I,
-                             (idxtype *) J,
-                             (idxtype *) NULL,
-                             (idxtype *) NULL,
+                             I,
+                             J,
+                             NULL,
+                             NULL,
                              &wgtflag,
                              &numflag,
-                             &nparts,
+                             &mparts,
                              options,
                              &edgecut,
-                             (idxtype *) partitioning);
+                             mpartitioning);
 #else
          err = METIS_PartGraphKway(&n,
                                    &ncon,
                                    I,
                                    J,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   &nparts,
-                                   (real_t *) NULL,
-                                   (real_t *) NULL,
+                                   NULL,
+                                   NULL,
+                                   NULL,
+                                   &mparts,
+                                   NULL,
+                                   NULL,
                                    options,
                                    &edgecut,
-                                   partitioning);
+                                   mpartitioning);
          if (err != 1)
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
@@ -5001,31 +5034,31 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       {
 #ifndef MFEM_USE_METIS_5
          METIS_PartGraphVKway(&n,
-                              (idxtype *) I,
-                              (idxtype *) J,
-                              (idxtype *) NULL,
-                              (idxtype *) NULL,
+                              I,
+                              J,
+                              NULL,
+                              NULL,
                               &wgtflag,
                               &numflag,
-                              &nparts,
+                              &mparts,
                               options,
                               &edgecut,
-                              (idxtype *) partitioning);
+                              mpartitioning);
 #else
          options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_VOL;
          err = METIS_PartGraphKway(&n,
                                    &ncon,
                                    I,
                                    J,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   &nparts,
-                                   (real_t *) NULL,
-                                   (real_t *) NULL,
+                                   NULL,
+                                   NULL,
+                                   NULL,
+                                   &mparts,
+                                   NULL,
+                                   NULL,
                                    options,
                                    &edgecut,
-                                   partitioning);
+                                   mpartitioning);
          if (err != 1)
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
@@ -5036,6 +5069,17 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       mfem::out << "Mesh::GeneratePartitioning(...): edgecut = "
                 << edgecut << endl;
 #endif
+      nparts = (int) mparts;
+      if (mpartitioning != (idx_t*)partitioning)
+      {
+         for (int k = 0; k<NumOfElements; k++) { partitioning[k] = mpartitioning[k]; }
+      }
+      if (freedata)
+      {
+         delete[] I;
+         delete[] J;
+         delete[] mpartitioning;
+      }
    }
 
    if (el_to_el)
