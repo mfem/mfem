@@ -102,27 +102,27 @@ void DiffCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
-ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, Vector & z)
+ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, double zi)
    : nBV_(nBV),
-     ion_(-1),
-     z_(z),
-     m_(NULL),
-     n_(z.Size())
+     ion_(false),
+     zi_(zi),
+     m_(me_u_),
+     ni_(-1.0)
 {}
 
-ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, int ion_species,
-                                       Vector & z, Vector & m)
+ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV,
+                                       double zi, double m)
    : nBV_(nBV),
-     ion_(ion_species),
-     z_(z),
-     m_(&m),
-     n_(z.Size())
+     ion_(true),
+     zi_(zi),
+     m_(m),
+     ni_(-1.0)
 {}
 
 void ChiParaCoefficient::SetT(ParGridFunction & T)
 {
    TCoef_.SetGridFunction(&T);
-   nGF_.MakeRef(T.ParFESpace(), nBV_.GetBlock(0));
+   nGF_.MakeRef(T.ParFESpace(), nBV_.GetBlock(1));
 }
 
 double
@@ -130,42 +130,69 @@ ChiParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
 {
    double temp = TCoef_.Eval(T, ip);
 
-   for (int i=0; i<z_.Size(); i++)
-   {
-      nGF_.SetData(nBV_.GetBlock(i));
-      nCoef_.SetGridFunction(&nGF_);
-      n_[i] = nCoef_.Eval(T, ip);
-   }
+   ni_ = nCoef_.Eval(T, ip);
 
-   if (ion_ < 0)
+   if (ion_)
    {
-      return chi_e_para(temp, z_.Size(), n_, z_);
+      return chi_i_para(m_, zi_, ni_, temp);
    }
    else
    {
-      return chi_i_para((*m_)[ion_], temp, ion_, z_.Size(), n_, z_);
+      return chi_e_para(temp, zi_, ni_);
    }
 }
 
-ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV, Vector & z)
-   : ion_(-1)
+ChiPerpCoefficient::ChiPerpCoefficient(ParGridFunction & B,
+                                       BlockVector & nBV, double zi)
+   : nBV_(nBV),
+     sfes_(NULL),
+     BCoef_(&B),
+     ion_(false),
+     mi_(-1.0),
+     zi_(zi),
+     ne_(-1.0),
+     ni_(-1.0)
 {}
 
-ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV, int ion_species,
-                                       Vector & z, Vector & m)
-   : ion_(ion_species)
+ChiPerpCoefficient::ChiPerpCoefficient(ParGridFunction & B,
+                                       BlockVector & nBV,
+                                       double zi, double mi)
+   : nBV_(nBV),
+     sfes_(NULL),
+     BCoef_(&B),
+     ion_(true),
+     mi_(mi),
+     zi_(zi),
+     ne_(-1.0),
+     ni_(-1.0)
 {}
+
+void ChiPerpCoefficient::SetT(ParGridFunction & T)
+{
+   sfes_ = T.ParFESpace();
+   TCoef_.SetGridFunction(&T);
+   nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+}
 
 double
 ChiPerpCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
 {
-   if (ion_ < 0)
+   BCoef_.Eval(B_, T, ip);
+   double Bmag = B_.Norml2();
+   double temp = TCoef_.Eval(T, ip);
+
+   ni_ = nCoef_.Eval(T, ip);
+
+   if (ion_)
    {
-      return chi_e_perp();
+      return chi_i_perp(Bmag, mi_, zi_, ni_, temp);
    }
    else
    {
-      return chi_i_perp();
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(0));
+      ne_ = nCoef_.Eval(T, ip);
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+      return chi_e_perp(Bmag, ne_, temp, zi_, ni_);
    }
 }
 

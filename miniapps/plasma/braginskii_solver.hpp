@@ -539,15 +539,14 @@ private:
    GridFunctionCoefficient nCoef_;
    GridFunctionCoefficient TCoef_;
 
-   int ion_;
-   Vector & z_;
-   Vector * m_;
-   Vector   n_;
+   bool   ion_;
+   double zi_;
+   double m_;
+   double ni_;
 
 public:
-   ChiParaCoefficient(BlockVector & nBV, Vector & charges);
-   ChiParaCoefficient(BlockVector & nBV, int ion_species,
-                      Vector & charges, Vector & masses);
+   ChiParaCoefficient(BlockVector & nBV, double zi);
+   ChiParaCoefficient(BlockVector & nBV, double zi, double mass);
    void SetT(ParGridFunction & T);
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
@@ -556,12 +555,26 @@ public:
 class ChiPerpCoefficient : public Coefficient
 {
 private:
-   int ion_;
+   BlockVector & nBV_;
+   ParFiniteElementSpace * sfes_;
+   ParGridFunction nGF_;
+   GridFunctionCoefficient nCoef_;
+   GridFunctionCoefficient TCoef_;
+   VectorGridFunctionCoefficient BCoef_;
+
+   bool ion_;
+   double mi_;
+   double zi_;
+   double ne_;
+   double ni_;
+
+   mutable Vector B_;
 
 public:
-   ChiPerpCoefficient(BlockVector & nBV, Vector & charges);
-   ChiPerpCoefficient(BlockVector & nBV, int ion_species,
-                      Vector & charges, Vector & masses);
+   ChiPerpCoefficient(ParGridFunction & B, BlockVector & nBV, double zi);
+   ChiPerpCoefficient(ParGridFunction & B, BlockVector & nBV,
+                      double zi, double mass);
+   void SetT(ParGridFunction & T);
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
