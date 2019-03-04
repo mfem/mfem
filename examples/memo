@@ -1,3 +1,54 @@
+11/1
+mesh descripition:
+https://github.com/mfem/mfem/issues/205
+
+10/29
+CalcDShape in fem/fe.cpp
+
+10/27
+>>>>>>
+ex19
+block offset is a collection of last index in the large vector for each block
+
+check out:
+IncompressibleNeoHookeanIntegrator
+
+>>>>>>
+ex10: solve a time-dependent nonlinear elasticity
+it builds the Jacobian matrix
+it uses Newtion
+
+check nonlinear form:
+HyperelasticNLFIntegrator
+
+basic structure:
+ode_solver->HyperelasticOperator->newton_solver(reduced_oper)->j_solver(Jacobian)
+
+===MODEL===
+see http://mfem.github.io/doxygen/html/classmfem_1_1NeoHookeanModel.html
+
+===SOLVER===
+there is a sundial example 10 (using kinsol)/
+it does not hurt to see....
+it is not using JFNK through.
+
+where the Jacobian is used?? 
+By default, it is used in newton solver (linalg/solver.cpp). That is why jsolver only needs preconditioner.
+
+
+>>>>>>
+ex1: solve -\Delta u=1
+apply boundary condition, which could be a mass for us:
+   if (mesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+check bilinear form:
+a->AddDomainIntegrator(new DiffusionIntegrator(one));
+
 10/24
 this is useful (basic classes):
 http://mfem.org/code-overview/#mesh
