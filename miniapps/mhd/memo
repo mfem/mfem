@@ -1,0 +1,8 @@
+11/1
+some useful info for developer:
+https://github.com/mfem/mfem/blob/master/CONTRIBUTING.md#code-overview
+
+10/30/2018
+I believe I could use FE solver by providing the right hand side in two updates
+
+Then I could built right side separatedly
