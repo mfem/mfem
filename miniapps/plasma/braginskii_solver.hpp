@@ -171,14 +171,15 @@ inline double diff_i_cross()
 /**
   Thermal diffusion coefficient along B field for electrons
   Return value is in m^2/s.
+   ne is the density of electrons in particles per meter^3
    Te is the electron temperature in eV
-   ni is the density of ions (assuming ni=ne) in particles per meter^3
+   ni is the density of ions in particles per meter^3
    zi is the charge number of the ion species
 */
-inline double chi_e_para(double Te, double zi, double ni)
+inline double chi_e_para(double ne, double Te, double zi, double ni)
 {
    // The factor of q_ is included to convert Te from eV to Joules
-   return t2_c0(zi) * (q_ * Te / me_kg_) * tau_e(Te, zi, ni, 17.0);
+   return t2_c0(zi) * ne * (q_ * Te / me_kg_) * tau_e(Te, zi, ni, 17.0);
 }
 
 /**
@@ -527,6 +528,7 @@ class ChiParaCoefficient : public Coefficient
 {
 private:
    BlockVector & nBV_;
+   ParFiniteElementSpace * sfes_;
    ParGridFunction nGF_;
    GridFunctionCoefficient nCoef_;
    GridFunctionCoefficient TCoef_;
@@ -534,6 +536,7 @@ private:
    bool   ion_;
    double zi_;
    double m_;
+   double ne_;
    double ni_;
 
 public:

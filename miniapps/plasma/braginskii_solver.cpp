@@ -99,6 +99,7 @@ void DiffCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, double zi)
    : nBV_(nBV),
      nCoef_(&nGF_),
+     sfes_(NULL),
      ion_(false),
      zi_(zi),
      m_(me_u_),
@@ -109,16 +110,19 @@ ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV,
                                        double zi, double m)
    : nBV_(nBV),
      nCoef_(&nGF_),
+     sfes_(NULL),
      ion_(true),
      zi_(zi),
      m_(m),
+     ne_(-1.0),
      ni_(-1.0)
 {}
 
 void ChiParaCoefficient::SetT(ParGridFunction & T)
 {
+   sfes_ = T.ParFESpace();
    TCoef_.SetGridFunction(&T);
-   nGF_.MakeRef(T.ParFESpace(), nBV_.GetBlock(1));
+   nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
 }
 
 double
@@ -134,7 +138,10 @@ ChiParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
    else
    {
-      return chi_e_para(temp, zi_, ni_);
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(0));
+      ne_ = nCoef_.Eval(T, ip);
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+      return chi_e_para(ne_, temp, zi_, ni_);
    }
 }
 
@@ -309,7 +316,7 @@ void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
    double chi_para = (ion_) ?
                      chi_i_para(mi_, zi_, ni_, temp) :
-                     chi_e_para(temp, zi_, ni_);
+                     chi_e_para(ne_, temp, zi_, ni_);
 
    double chi_perp = (ion_) ?
                      chi_i_perp(bMag, mi_, zi_, ni_, temp) :
