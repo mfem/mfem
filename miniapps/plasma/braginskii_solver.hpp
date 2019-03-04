@@ -22,6 +22,12 @@ namespace mfem
 
 namespace plasma
 {
+/**
+   The coefficients and much of the notation used here are taken from
+   "Transport Processes in a Plasma" by S.I. Braginskii 1965.  The main
+   difference being that Braginskii uses the CGS-Gaussian system of units
+   whereas we use the SI unit system.
+*/
 
 /**
    Returns the mean Electron-Ion mean collision time in seconds (see
@@ -53,6 +59,89 @@ inline double tau_i(double mi, double Ti, double ni, int zi, double lnLambda)
    return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
           sqrt(mi * amu_ * pow(q_ * Ti, 3) / M_PI) /
           (lnLambda * pow(q_ * zi, 4) * ni);
+}
+
+/**
+   Many of the coefficients depend upon the charge of the ion species.  These
+   dependencies are tabulated in Table 2 (pg. 251) of Braginskii.  The
+   functions given here interpolate the values in this table.
+
+   For brevity the function names use latin letters in place of greek
+   e.g. 'a' rather than 'alpha'.
+
+   * Note that the tabulated values for alpha_0 are inconsistent with the
+   declared values of 1-(alpha_0'/delta_0).  In this case we return the values
+   from 1-(alpha_0'/delta_0) rather than the tabulated values because the curve
+   fit of the tabulated values was inconsistent with the expected value
+   as z->infinity.
+*/
+inline double t2_a0(double z)
+{
+   return 0.2945 + 0.1613 * exp(-0.1795 * z) + 0.2936 * exp(-1.258 * z);
+}
+inline double t2_b0(double z)
+{
+   return 1.521 - 0.5202 * exp(-0.9325 * z) - 0.6845 * exp(-0.1230 * z);
+}
+inline double t2_c0(double z)
+{
+   return 12.47 - 4.114 * exp(-0.6409 * z) - 7.922 * exp(-0.1036 * z);
+}
+inline double t2_d0(double z)
+{
+   return 0.0961 + 25.63 * exp(-2.250 * z) + 1.424 * exp(-0.3801 * z);
+}
+inline double t2_d1(double z)
+{
+   return 7.482 + 21.49 * exp(-1.690 * z) + 4.321 * exp(-0.2566 * z);
+}
+inline double t2_a1p(double z)
+{
+   return 4.630 + 4.248 * exp(-1.565 * z) + 1.140 * exp(-0.2387 * z);
+}
+inline double t2_a0p(double z)
+{
+   return 0.0678 + 10.10 * exp(-2.103 * z) + 0.7635 * exp(-0.3523 * z);
+}
+inline double t2_a1pp(double z)
+{
+   return 1.704;
+}
+inline double t2_a0pp(double z)
+{
+   return 0.0940 + 2.920 * exp(-1.909 * z) + 0.3441 * exp(-0.3082 * z);
+}
+inline double t2_b1p(double z)
+{
+   return 3.798 + 3.090 * exp(-1.564 * z) + 0.8344 * exp(-0.2395 * z);
+}
+inline double t2_b0p(double z)
+{
+   return 0.1461 + 13.51 * exp(-2.060 * z) + 1.134 * exp(-0.3341 * z);
+}
+inline double t2_b1pp(double z)
+{
+   return 1.5;
+}
+inline double t2_b0pp(double z)
+{
+   return 0.877 + 7.590 * exp(-1.802 * z) + 1.220 * exp(-0.2773 * z);
+}
+inline double t2_c1p(double z)
+{
+   return 3.25 + 3.322 * exp(-1.533 * z) + 0.8789 * exp(-0.2325 * z);
+}
+inline double t2_c0p(double z)
+{
+   return 1.20 + 46.83 * exp(-1.937 * z) + 5.351 * exp(-0.2986 * z);
+}
+inline double t2_c1pp(double z)
+{
+   return 2.5;
+}
+inline double t2_c0pp(double z)
+{
+   return 10.23 + 34.75 * exp(-1.727 * z) + 6.844 * exp(-0.2635 * z);
 }
 
 /**
