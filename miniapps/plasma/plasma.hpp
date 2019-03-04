@@ -38,11 +38,11 @@ static const double me_u_  = 5.4857990907e-4; // Mass of electron in a.m.u
 
 /**
    Returns the cyclotron frequency in radians/second
+   m is the mass in a.m.u
    q is the charge in units of elementary electric charge
    B is the magnetic field magnitude in tesla
-   m is the mass in a.m.u
  */
-inline double cyclotronFrequency(double q, double B, double m)
+inline double cyclotronFrequency(double B, double m, double q)
 {
    return fabs(q * q_ * B / (m * amu_));
 }

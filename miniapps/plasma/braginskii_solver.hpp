@@ -37,7 +37,7 @@ namespace plasma
    zi is the charge number of the ion species
    lnLambda is the Coulomb Logarithm
 */
-inline double tau_e(double Te, double ni, int zi, double lnLambda)
+inline double tau_e(double Te, double zi, double ni, double lnLambda)
 {
    // The factor of q_^{3/2} is included to convert Te from eV to Joules
    return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
@@ -48,12 +48,13 @@ inline double tau_e(double Te, double ni, int zi, double lnLambda)
 /**
    Returns the mean Ion-Ion mean collision time in seconds (see equation 2.5i)
    mi is the ion mass in a.m.u.
-   Ti is the ion temperature in eV
-   ni is the density of ions in particles per meter^3
    zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+   Ti is the ion temperature in eV
    lnLambda is the Coulomb Logarithm
 */
-inline double tau_i(double mi, double Ti, double ni, int zi, double lnLambda)
+inline double tau_i(double mi, double zi, double ni, double Ti,
+                    double lnLambda)
 {
    // The factor of q_^{3/2} is included to convert Ti from eV to Joules
    return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
@@ -171,80 +172,113 @@ inline double diff_i_cross()
   Thermal diffusion coefficient along B field for electrons
   Return value is in m^2/s.
    Te is the electron temperature in eV
-   ns is the number of ion species
    ni is the density of ions (assuming ni=ne) in particles per meter^3
    zi is the charge number of the ion species
 */
-inline double chi_e_para(double Te, int ns, double * ni, double * zi)
+inline double chi_e_para(double Te, double zi, double ni)
 {
    // The factor of q_ is included to convert Te from eV to Joules
-   return 3.16 * (q_ * Te / me_kg_) * tau_e(Te, ns, ni, zi, 17.0);
+   return t2_c0(zi) * (q_ * Te / me_kg_) * tau_e(Te, zi, ni, 17.0);
 }
 
 /**
   Thermal diffusion coefficient perpendicular to B field for electrons
   Return value is in m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   ne is the density of electrons in particles per meter^3
+   Te is the electron temperature in eV
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
 */
-inline double chi_e_perp()
+inline double chi_e_perp(double Bmag, double ne, double Te,
+                         double zi, double ni)
 {
    // The factor of q_ is included to convert Te from eV to Joules
-   return 1.0;
+   double tau = tau_e(Te, zi, ni, 17.0);
+   double x = cyclotronFrequency(Bmag, me_u_, 1.0) * tau;
+   double delta = x * x * (x * x + t2_d1(zi)) + t2_d0(zi);
+   return ne * (q_ * Te / me_kg_) * tau *
+          (t2_c1p(zi) * x * x + t2_c0p(zi)) / delta;
 }
 
 /**
   Thermal diffusion coefficient perpendicular to both B field and
   thermal gradient for electrons.
   Return value is in m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   ne is the density of electrons in particles per meter^3
    Te is the electron temperature in eV
    ni is the density of ions (assuming ni=ne) in particles per meter^3
-   z is the charge number of the ion species
+   zi is the charge number of the ion species
 */
-inline double chi_e_cross()
+inline double chi_e_cross(double Bmag, double ne, double Te,
+                          double ni, double zi)
 {
    // The factor of q_ is included to convert Te from eV to Joules
-   return 0.0;
+   double tau = tau_e(Te, zi, ni, 17.0);
+   double x = cyclotronFrequency(Bmag, me_u_, 1.0) * tau;
+   double delta = x * x * (x * x + t2_d1(zi)) + t2_d0(zi);
+   return ne * (q_ * Te / me_kg_) * tau *
+          x * (t2_c1pp(zi) * x * x + t2_c0pp(zi)) / delta;
 }
 
 /**
   Thermal diffusion coefficient along B field for ions
   Return value is in m^2/s.
-   ma is the ion mass in a.m.u.
-   Ta is the ion temperature in eV
-   ion is the ion species index for the desired coefficient
-   ns is the number of ion species
-   nb is the density of ions in particles per meter^3
-   zb is the charge number of the ion species
+   mi is the ion mass in a.m.u.
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+   Ti is the ion temperature in eV
 */
-inline double chi_i_para(double ma, double Ta,
-                         int ion, int ns, double * nb, double * zb)
+inline double chi_i_para(double mi, double zi, double ni, double Ti)
 {
    // The factor of q_ is included to convert Ta from eV to Joules
    // The factor of u_ is included to convert ma from a.m.u to kg
-   return 3.9 * (q_ * Ta / (ma * amu_ ) ) *
-          tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
+   return 3.906 * ni * (q_ * Ti / (mi * amu_ ) ) *
+          tau_i(mi, zi, ni, Ti, 17.0);
 }
 
 /**
   Thermal diffusion coefficient perpendicular to B field for ions
   Return value is in m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   mi is the ion mass in a.m.u.
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+   Ti is the ion temperature in eV
 */
-inline double chi_i_perp()
+inline double chi_i_perp(double Bmag, double mi, double zi,
+                         double ni, double Ti)
 {
    // The factor of q_ is included to convert Ti from eV to Joules
-   // The factor of u_ is included to convert mi from a.m.u to kg
-   return 1.0;
+   // The factor of amu_ is included to convert mi from a.m.u to kg
+   double tau = tau_i(mi, zi, ni, Ti, 17.0);
+   double x = cyclotronFrequency(Bmag, mi, zi) * tau;
+   double delta = x * x * (x * x + 2.70) + 0.677;
+   return ni * (q_ * Ti / (mi * amu_)) * tau *
+          (2.0 * x * x + 2.645) / delta;
 }
 
 /**
   Thermal diffusion coefficient perpendicular to both B field and
   thermal gradient for ions
   Return value is in m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   mi is the ion mass in a.m.u.
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+   Ti is the ion temperature in eV
 */
-inline double chi_i_cross()
+inline double chi_i_cross(double Bmag, double mi, double zi,
+                          double ni, double Ti)
 {
    // The factor of q_ is included to convert Ti from eV to Joules
-   // The factor of u_ is included to convert mi from a.m.u to kg
-   return 0.0;
+   // The factor of amu_ is included to convert mi from a.m.u to kg
+   double tau = tau_i(mi, zi, ni, Ti, 17.0);
+   double x = cyclotronFrequency(Bmag, mi, zi) * tau;
+   double delta = x * x * (x * x + 2.70) + 0.677;
+   return ni * (q_ * Ti * tau/ (mi * amu_)) *
+          (2.5 * x * x + 4.65) / delta;
 }
 
 /**
@@ -252,34 +286,151 @@ inline double chi_i_cross()
   Return value is in (a.m.u)*m^2/s.
    ne is the density of electrons in particles per meter^3
    Te is the electron temperature in eV
-   ns is the number of ion species
-   ni is the density of ions (assuming ni=ne) in particles per meter^3
    zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
 */
-inline double eta_e_para(double ne, double Te, int ns, double * ni, double * zi)
+inline double eta0_e(double ne, double Te, double zi, double ni)
 {
    // The factor of q_ is included to convert Te from eV to Joules
-   // The factor of u_ is included to convert from kg to a.m.u
-   return 0.73 * ne * (q_ * Te / amu_) * tau_e(Te, ns, ni, zi, 17.0);
+   // The factor of amu_ is included to convert from kg to a.m.u
+   return 0.73 * ne * (q_ * Te / amu_) * tau_e(Te, zi, ni, 17.0);
+}
+
+/**
+  First viscosity coefficient perpendicular to B field for electrons
+  Return value is in (a.m.u)*m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   ne is the density of electrons in particles per meter^3
+   Te is the electron temperature in eV
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+*/
+inline double eta1_e(double Bmag, double ne, double Te, double zi, double ni)
+{
+   // The factor of q_ is included to convert Te from eV to Joules
+   // The factor of amu_ is included to convert from kg to a.m.u
+   double omega = cyclotronFrequency(Bmag, me_u_, 1.0);
+   return 0.51 * ne * (q_ * Te / amu_) /
+          (omega * omega * tau_e(Te, zi, ni, 17.0));
+}
+
+/**
+  Second viscosity coefficient perpendicular to B field for electrons
+  Return value is in (a.m.u)*m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   ne is the density of electrons in particles per meter^3
+   Te is the electron temperature in eV
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+*/
+inline double eta2_e(double Bmag, double ne, double Te, double zi, double ni)
+{
+   return 4.0 * eta1_e(Bmag, ne, Te, zi, ni);
+}
+
+/**
+  Third viscosity coefficient perpendicular to B field for electrons
+  Return value is in (a.m.u)*m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   ne is the density of electrons in particles per meter^3
+   Te is the electron temperature in eV
+*/
+inline double eta3_e(double Bmag, double ne, double Te)
+{
+   // The factor of q_ is included to convert Te from eV to Joules
+   // The factor of amu_ is included to convert from kg to a.m.u
+   double omega = cyclotronFrequency(Bmag, me_u_, 1.0);
+   return -0.5 * ne * (q_ * Te / amu_) / omega;
+}
+
+/**
+  Fourth viscosity coefficient perpendicular to B field for electrons
+  Return value is in (a.m.u)*m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   ne is the density of electrons in particles per meter^3
+   Te is the electron temperature in eV
+*/
+inline double eta4_e(double Bmag, double ne, double Te)
+{
+   return 2.0 * eta3_e(Bmag, ne, Te);
 }
 
 /**
   Viscosity coefficient along B field for ions
   Return value is in (a.m.u)*m^2/s.
-   ma is the ion mass in a.m.u.
-   Ta is the ion temperature in eV
-   ion is the ion species index for the desired coefficient
-   ns is the number of ion species
-   nb is the density of ions in particles per meter^3
-   zb is the charge number of the ion species
+   mi is the ion mass in a.m.u.
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+   Ti is the ion temperature in eV
 */
-inline double eta_i_para(double ma, double Ta,
-                         int ion, int ns, double * nb, double * zb)
+inline double eta0_i(double mi, double zi, double ni, double Ti)
 {
    // The factor of q_ is included to convert Ti from eV to Joules
    // The factor of u_ is included to convert from kg to a.m.u
-   return 0.96 * nb[ion] * (q_ * Ta / amu_) *
-          tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
+   return 0.96 * ni * (q_ * Ti / amu_) * tau_i(mi, zi, ni, Ti, 17.0);
+}
+
+/**
+  First viscosity coefficient perpendicular to B field for ions
+  Return value is in (a.m.u)*m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   mi is the ion mass in a.m.u.
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+   Ti is the ion temperature in eV
+*/
+inline double eta1_i(double Bmag, double mi, double zi, double ni, double Ti)
+{
+   // The factor of q_ is included to convert Te from eV to Joules
+   // The factor of amu_ is included to convert from kg to a.m.u
+   double omega = cyclotronFrequency(Bmag, mi, zi);
+   return 0.3 * ni * (q_ * Ti / amu_) /
+          (omega * omega * tau_i(mi, zi, ni, Ti, 17.0));
+}
+
+/**
+  Second viscosity coefficient perpendicular to B field for ions
+  Return value is in (a.m.u)*m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   mi is the ion mass in a.m.u.
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+   Ti is the ion temperature in eV
+*/
+inline double eta2_i(double Bmag, double mi, double zi, double ni, double Ti)
+{
+   return 4.0 * eta1_i(Bmag, mi, zi, ni, Ti);
+}
+
+/**
+  Third viscosity coefficient perpendicular to B field for ions
+  Return value is in (a.m.u)*m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   mi is the ion mass in a.m.u.
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+   Ti is the ion temperature in eV
+*/
+inline double eta3_i(double Bmag, double mi, double zi, double ni, double Ti)
+{
+   // The factor of q_ is included to convert Te from eV to Joules
+   // The factor of amu_ is included to convert from kg to a.m.u
+   double omega = cyclotronFrequency(Bmag, mi, zi);
+   return 0.5 * ni * (q_ * Ti / amu_) / omega;
+}
+
+/**
+  Fourth viscosity coefficient perpendicular to B field for ions
+  Return value is in (a.m.u)*m^2/s.
+   Bmag is the magnitude of the magnetic field in tesla
+   mi is the ion mass in a.m.u.
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+   Ti is the ion temperature in eV
+*/
+inline double eta4_i(double Bmag, double mi, double zi, double ni, double Ti)
+{
+   return 2.0 * eta3_i(Bmag, mi, zi, ni, Ti);
 }
 
 struct DGParams

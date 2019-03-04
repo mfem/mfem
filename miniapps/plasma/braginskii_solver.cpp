@@ -21,27 +21,6 @@ using namespace miniapps;
 namespace plasma
 {
 
-double tau_e(double Te, int ns, double * ni, double * zi, double lnLambda)
-{
-   double tau = 0.0;
-   for (int i=0; i<ns; i++)
-   {
-      tau += meanElectronIonCollisionTime(Te, ni[i], zi[i], lnLambda);
-   }
-   return tau;
-}
-
-double tau_i(double ma, double Ta, int ion, int ns, double * ni, double * zi,
-             double lnLambda)
-{
-   double tau = 0.0;
-   for (int i=0; i<ns; i++)
-   {
-      tau += meanIonIonCollisionTime(ma, Ta, ni[i], zi[ion], zi[i], lnLambda);
-   }
-   return tau;
-}
-
 DiffPerpCoefficient::DiffPerpCoefficient(BlockVector & nBV, int ion_species,
                                          Vector & z, Vector & m)
    : ion_(ion_species)
