@@ -460,27 +460,27 @@ private:
 
    ParGridFunction & B_;
 
-   double ion_charge_;
    double ion_mass_;
+   double ion_charge_;
 
    TwoFluidDiffusion * tfDiff_;
 
    void initDiffusion();
 
 public:
-   ReducedTransportSolver(ODESolver * implicitSolver,
-                          ODESolver * explicitSolver,
-                          DGParams & dg,
-                          ParFiniteElementSpace & sfes,
-                          ParFiniteElementSpace & vfes,
-                          ParFiniteElementSpace & ffes,
-                          BlockVector & nBV,
-                          BlockVector & uBV,
-                          BlockVector & TBV,
-                          ParGridFunction & B,
-                          Vector & charges,
-                          Vector & masses);
-   ~ReducedTransportSolver();
+   TwoFluidTransportSolver(ODESolver * implicitSolver,
+                           ODESolver * explicitSolver,
+                           DGParams & dg,
+                           ParFiniteElementSpace & sfes,
+                           ParFiniteElementSpace & vfes,
+                           ParFiniteElementSpace & ffes,
+                           BlockVector & nBV,
+                           BlockVector & uBV,
+                           BlockVector & TBV,
+                           ParGridFunction & B,
+                           double ion_mass,
+                           double ion_charge);
+   ~TwoFluidTransportSolver();
 
    void Update();
 
@@ -489,24 +489,16 @@ public:
 
 class DiffPerpCoefficient : public Coefficient
 {
-private:
-   int ion_;
-
 public:
-   DiffPerpCoefficient(BlockVector & nBV, int ion_species,
-                       Vector & charges, Vector & masses);
+   DiffPerpCoefficient();
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
 class DiffCrossCoefficient : public Coefficient
 {
-private:
-   int ion_;
-
 public:
-   DiffCrossCoefficient(BlockVector & nBV, int ion_species,
-                        Vector & charges, Vector & masses);
+   DiffCrossCoefficient();
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -514,23 +506,23 @@ public:
 class DiffCoefficient : public MatrixCoefficient
 {
 private:
-   DiffPerpCoefficient  diffPerpCoef_;
-   DiffCrossCoefficient diffCrossCoef_;
    VectorGridFunctionCoefficient BCoef_;
 
-   Vector bHat_;
+   // double ion_mass_;
+   // double ion_charge_;
+
+   mutable Vector bHat_;
 
 public:
-   DiffCoefficient(int dim, BlockVector & nBV, int ion_species,
-                   Vector & charges, Vector & masses);
+   DiffCoefficient(int dim, ParGridFunction & B);
 
-   void SetT(ParGridFunction & T);
+   // void SetT(ParGridFunction & T);
    void SetB(ParGridFunction & B);
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip);
 };
-/*
+
 class ChiParaCoefficient : public Coefficient
 {
 private:
@@ -575,7 +567,7 @@ public:
    ChiPerpCoefficient(BlockVector & nBV, double mi, double zi);
    void SetT(ParGridFunction & T);
    void SetB(ParGridFunction & B);
-  
+
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
@@ -603,10 +595,10 @@ public:
    ChiCrossCoefficient(BlockVector & nBV, double mi, double zi);
    void SetT(ParGridFunction & T);
    void SetB(ParGridFunction & B);
-  
+
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
-*/
+
 class ChiCoefficient : public MatrixCoefficient
 {
 private:
@@ -615,9 +607,6 @@ private:
    ParGridFunction nGF_;
    GridFunctionCoefficient nCoef_;
    GridFunctionCoefficient TCoef_;
-   // ChiParaCoefficient  chiParaCoef_;
-   // ChiPerpCoefficient  chiPerpCoef_;
-   // ChiCrossCoefficient chiCrossCoef_;
    VectorGridFunctionCoefficient BCoef_;
 
    bool   ion_;
@@ -629,8 +618,8 @@ private:
    mutable Vector bHat_;
 
 public:
-   ChiCoefficient(int dim, BlockVector & nBV, double zi);
-   ChiCoefficient(int dim, BlockVector & nBV,
+   ChiCoefficient(int dim, BlockVector & nBV, ParGridFunction & B, double zi);
+   ChiCoefficient(int dim, BlockVector & nBV, ParGridFunction & B,
                   double mi, double zi);
 
    void SetT(ParGridFunction & T);
@@ -638,6 +627,38 @@ public:
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip);
+};
+
+class Eta0Coefficient : public Coefficient
+{
+private:
+   BlockVector & nBV_;
+   ParFiniteElementSpace * sfes_;
+   ParGridFunction nGF_;
+   GridFunctionCoefficient nCoef_;
+   GridFunctionCoefficient TCoef_;
+   VectorGridFunctionCoefficient BCoef_;
+
+   int bi_;
+   int bj_;
+
+   bool ion_;
+   double zi_;
+   double mi_;
+   double ne_;
+   double ni_;
+
+   mutable Vector bHat_;
+
+public:
+   Eta0Coefficient(BlockVector & nBV, double zi);
+   Eta0Coefficient(BlockVector & nBV,
+                   double mi, double zi);
+
+   void SetT(ParGridFunction & T);
+   void SetB(ParGridFunction & B);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
 class EtaCoefficient : public MatrixCoefficient
@@ -652,7 +673,7 @@ private:
 
    int bi_;
    int bj_;
-  
+
    bool ion_;
    double zi_;
    double mi_;
@@ -660,17 +681,19 @@ private:
    double ni_;
 
    mutable Vector bHat_;
-  
+
 public:
-   EtaCoefficient(int dim, int bi, int bj, BlockVector & nBV, double zi);
-   EtaCoefficient(int dim, int bi, int bj, BlockVector & nBV,
-		  double mi, double zi);
+   EtaCoefficient(int dim, int bi, int bj,
+                  BlockVector & nBV, ParGridFunction & B, double zi);
+   EtaCoefficient(int dim, int bi, int bj,
+                  BlockVector & nBV, ParGridFunction & B,
+                  double mi, double zi);
 
    void SetT(ParGridFunction & T);
    void SetB(ParGridFunction & B);
-  
+
    void Eval(DenseMatrix & K, ElementTransformation &T,
-	     const IntegrationPoint &ip);
+             const IntegrationPoint &ip);
 };
 
 class dpdnCoefficient : public Coefficient
@@ -746,8 +769,10 @@ private:
    BlockVector & uBV_;
    BlockVector & TBV_;
 
-   double ion_charge_;
+   ParGridFunction & B_;
+
    double ion_mass_;
+   double ion_charge_;
 
    std::vector<ParGridFunction> nGF_;
    std::vector<ParGridFunction> uGF_;
@@ -767,16 +792,14 @@ private:
    std::vector<DiffCoefficient *> diffCoef_;
    std::vector<ChiCoefficient *>  chiCoef_;
 
-   std::vector<ScalarMatrixProductCoefficient *> nChiCoef_;
-
-   std::vector<ScalarMatrixProductCoefficient *> dtnChiCoef_;
+   std::vector<ScalarMatrixProductCoefficient *> dtChiCoef_;
    std::vector<ScalarMatrixProductCoefficient *> dtDiffCoef_;
 
    // Bilinear Forms for energy equation
    std::vector<ParBilinearForm *> a_dEdn_;
    std::vector<ParBilinearForm *> a_dEdu_;
    std::vector<ParBilinearForm *> a_dEdT_;
-   std::vector<ParBilinearForm *> stiff_nChi_;
+   std::vector<ParBilinearForm *> stiff_chi_;
 
    void initCoefficients();
    void initBilinearForms();
@@ -786,13 +809,14 @@ private:
 
 public:
    TwoFluidDiffusion(DGParams & dg,
-		     ParFiniteElementSpace & sfes,
-		     ParFiniteElementSpace & vfes,
-		     BlockVector & nBV,
-		     BlockVector & uBV,
-		     BlockVector & TBV,
-		     double mass,
-		     double charge);
+                     ParFiniteElementSpace & sfes,
+                     ParFiniteElementSpace & vfes,
+                     BlockVector & nBV,
+                     BlockVector & uBV,
+                     BlockVector & TBV,
+                     ParGridFunction & B,
+                     double ion_mass,
+                     double ion_charge);
 
    ~TwoFluidDiffusion();
 

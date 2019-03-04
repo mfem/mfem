@@ -54,8 +54,10 @@ int problem_;
 int num_species_ = -1;
 int num_equations_ = -1;
 
-Vector ion_charges_;
-Vector ion_masses_;
+//Vector ion_charges_;
+//Vector ion_masses_;
+double ion_mass_   = 0.0;
+double ion_charge_ = 0.0;
 
 const double specific_heat_ratio_ = 1.4;
 const double gas_constant_ = 1.0;
@@ -298,8 +300,8 @@ int main(int argc, char *argv[])
    dg.sigma = -1.0;
    dg.kappa = -1.0;
 
-   double ion_charge = 0.0;
-   double ion_mass = 0.0;
+   // double ion_charge = 0.0;
+   // double ion_mass = 0.0;
 
    int precision = 8;
    cout.precision(precision);
@@ -347,10 +349,10 @@ int main(int argc, char *argv[])
    args.AddOption(&dg.kappa, "-dgk", "--dg-kappa",
                   "One of the two DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
-   args.AddOption(&ion_charge, "-qi", "--ion-charge",
+   args.AddOption(&ion_charge_, "-qi", "--ion-charge",
                   "Charge of the ion species "
                   "(in units of electron charge)");
-   args.AddOption(&ion_mass, "-mi", "--ion-mass",
+   args.AddOption(&ion_mass_, "-mi", "--ion-mass",
                   "Mass of the ion species (in amu)");
    // args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
    //               "Diffusion constant used in momentum equation.");
@@ -387,11 +389,14 @@ int main(int argc, char *argv[])
    {
       dg.kappa = (double)(order+1)*(order+1);
    }
-
+   /*
    ion_charges_.SetSize(1);
    ion_masses_.SetSize(1);
    ion_charges_[0] = (ion_charge != 0.0) ? ion_charge : 1.0;
    ion_masses_[0] = (ion_mass != 0.0) ? ion_mass : 1.0;
+   */
+   if (ion_charge_ == 0.0) { ion_charge_ = 1.0; }
+   if (ion_mass_   == 0.0) { ion_mass_   = 1.0; }
 
    if (t_final < 0.0)
    {
@@ -604,10 +609,10 @@ int main(int argc, char *argv[])
                     specific_heat_ratio_);
    DiffusionTDO diff(fes, dfes, vfes, nuCoef, dg_sigma_, dg_kappa_);
    */
-   ReducedTransportSolver transp(ode_imp_solver, ode_exp_solver,
-                                 dg, sfes, vfes, ffes,
-                                 n_block, u_block, T_block,
-                                 B, ion_charges_, ion_masses_);
+   TwoFluidTransportSolver transp(ode_imp_solver, ode_exp_solver,
+                                  dg, sfes, vfes, ffes,
+                                  n_block, u_block, T_block,
+                                  B, ion_mass_, ion_charge_);
 
    // Visualize the density, momentum, and energy
    vector<socketstream> dout(num_species_+1), vout(num_species_+1),
@@ -641,30 +646,30 @@ int main(int argc, char *argv[])
          ParGridFunction temperature(&sfes, T_block.GetBlock(i));
 
          ParGridFunction chi_para(&sfes);
-         ParGridFunction eta_para(&sfes);
+         ParGridFunction eta_0(&sfes);
          if (i==0)
          {
-            ChiParaCoefficient chiParaCoef(n_block, ion_charges_);
+            ChiParaCoefficient chiParaCoef(n_block, ion_charge_);
             chiParaCoef.SetT(temperature);
             chi_para.ProjectCoefficient(chiParaCoef);
 
-            EtaParaCoefficient etaParaCoef(n_block, ion_charges_);
-            etaParaCoef.SetT(temperature);
-            eta_para.ProjectCoefficient(etaParaCoef);
+            Eta0Coefficient eta0Coef(n_block, ion_charge_);
+            eta0Coef.SetT(temperature);
+            eta_0.ProjectCoefficient(eta0Coef);
          }
          else
          {
-            ChiParaCoefficient chiParaCoef(n_block, i - 1,
-                                           ion_charges_,
-                                           ion_masses_);
+            ChiParaCoefficient chiParaCoef(n_block,
+                                           ion_mass_,
+                                           ion_charge_);
             chiParaCoef.SetT(temperature);
             chi_para.ProjectCoefficient(chiParaCoef);
 
-            EtaParaCoefficient etaParaCoef(n_block, i - 1,
-                                           ion_charges_,
-                                           ion_masses_);
-            etaParaCoef.SetT(temperature);
-            eta_para.ProjectCoefficient(etaParaCoef);
+            Eta0Coefficient eta0Coef(n_block,
+                                     ion_mass_,
+                                     ion_charge_);
+            eta0Coef.SetT(temperature);
+            eta_0.ProjectCoefficient(eta0Coef);
          }
 
          ostringstream head;
@@ -674,7 +679,7 @@ int main(int argc, char *argv[])
          }
          else
          {
-            head << "Species " << i;
+            head << "Ion";
          }
 
          ostringstream doss;
@@ -704,9 +709,9 @@ int main(int argc, char *argv[])
 
          Wx += offx;
 
-         ostringstream eoss; eoss << head.str() << " Eta Parallel";
+         ostringstream eoss; eoss << head.str() << " Eta 0";
          VisualizeField(eout[i], vishost, visport,
-                        eta_para, eoss.str().c_str(),
+                        eta_0, eoss.str().c_str(),
                         Wx, Wy, Ww, Wh);
 
          Wx -= 4 * offx;
@@ -970,11 +975,7 @@ void InitialCondition(const Vector &x, Vector &y)
    }
 
    // Impose neutrality
-   y(0) = 0.0;
-   for (int i=1; i<=num_species_; i++)
-   {
-      y(0) += ion_charges_[i-1] * y(i);
-   }
+   y(0) = ion_charge_ * y(1);
    y(num_species_ + 1) = V(0);
    y(num_species_ + 2) = V(1);
    y((num_species_ + 1) * (dim + 1)) = 5.0 * TFunc(x, 0.0);

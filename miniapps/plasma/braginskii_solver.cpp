@@ -21,9 +21,7 @@ using namespace miniapps;
 namespace plasma
 {
 
-DiffPerpCoefficient::DiffPerpCoefficient(BlockVector & nBV, int ion_species,
-                                         Vector & z, Vector & m)
-   : ion_(ion_species)
+DiffPerpCoefficient::DiffPerpCoefficient()
 {}
 
 double
@@ -32,9 +30,7 @@ DiffPerpCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    return diff_i_perp();
 }
 
-DiffCrossCoefficient::DiffCrossCoefficient(BlockVector & nBV, int ion_species,
-                                           Vector & z, Vector & m)
-   : ion_(ion_species)
+DiffCrossCoefficient::DiffCrossCoefficient()
 {}
 
 double
@@ -43,18 +39,16 @@ DiffCrossCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    return diff_i_cross();
 }
 
-DiffCoefficient::DiffCoefficient(int dim, BlockVector & nBV, int ion_species,
-                                 Vector & charges, Vector & masses)
+DiffCoefficient::DiffCoefficient(int dim, ParGridFunction & B)
    : MatrixCoefficient(dim),
-     diffPerpCoef_(nBV, ion_species, charges, masses),
-     diffCrossCoef_(nBV, ion_species, charges, masses),
+     BCoef_(&B),
      bHat_(dim)
 {}
-
+/*
 void DiffCoefficient::SetT(ParGridFunction & T)
 {
 }
-
+*/
 void DiffCoefficient::SetB(ParGridFunction & B)
 {
    BCoef_.SetGridFunction(&B);
@@ -63,8 +57,8 @@ void DiffCoefficient::SetB(ParGridFunction & B)
 void DiffCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                            const IntegrationPoint &ip)
 {
-   double diff_perp  = diffPerpCoef_.Eval(T, ip);
-   double diff_cross = (width > 2) ? diffCrossCoef_.Eval(T, ip) : 0.0;
+   double diff_perp  = diff_i_perp();
+   double diff_cross = diff_i_cross();
 
    BCoef_.Eval(bHat_, T, ip);
    bHat_ /= bHat_.Norml2();
@@ -101,9 +95,10 @@ void DiffCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
       }
    }
 }
-/*
+
 ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, double zi)
    : nBV_(nBV),
+     nCoef_(&nGF_),
      ion_(false),
      zi_(zi),
      m_(me_u_),
@@ -113,6 +108,7 @@ ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, double zi)
 ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV,
                                        double zi, double m)
    : nBV_(nBV),
+     nCoef_(&nGF_),
      ion_(true),
      zi_(zi),
      m_(m),
@@ -144,6 +140,7 @@ ChiParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
 
 ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV, double zi)
    : nBV_(nBV),
+     nCoef_(&nGF_),
      sfes_(NULL),
      ion_(false),
      mi_(-1.0),
@@ -155,6 +152,7 @@ ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV, double zi)
 ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV,
                                        double mi, double zi)
    : nBV_(nBV),
+     nCoef_(&nGF_),
      sfes_(NULL),
      ion_(true),
      mi_(mi),
@@ -199,6 +197,7 @@ ChiPerpCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
 
 ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, double zi)
    : nBV_(nBV),
+     nCoef_(&nGF_),
      sfes_(NULL),
      ion_(false),
      mi_(-1.0),
@@ -210,6 +209,7 @@ ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, double zi)
 ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV,
                                          double mi, double zi)
    : nBV_(nBV),
+     nCoef_(&nGF_),
      sfes_(NULL),
      ion_(true),
      mi_(mi),
@@ -251,11 +251,14 @@ ChiCrossCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
       return chi_e_cross(Bmag, ne_, temp, ni_, zi_);
    }
 }
-*/
-ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, double zi)
+
+ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, ParGridFunction & B,
+                               double zi)
    : MatrixCoefficient(dim),
      nBV_(nBV),
+     nCoef_(&nGF_),
      sfes_(NULL),
+     BCoef_(&B),
      ion_(false),
      zi_(zi),
      mi_(-1.0),
@@ -264,11 +267,13 @@ ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, double zi)
      bHat_(dim)
 {}
 
-ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV,
+ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, ParGridFunction & B,
                                double mi, double zi)
    : MatrixCoefficient(dim),
      nBV_(nBV),
+     nCoef_(&nGF_),
      sfes_(NULL),
+     BCoef_(&B),
      bHat_(dim)
 {}
 
@@ -287,12 +292,6 @@ void ChiCoefficient::SetB(ParGridFunction & B)
 void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                           const IntegrationPoint &ip)
 {
-   /*
-   double chi_para  = chiParaCoef_.Eval(T, ip);
-   double chi_perp  = chiPerpCoef_.Eval(T, ip);
-   double chi_cross = (width > 2) ? chiCrossCoef_.Eval(T, ip) : 0.0;
-   */
-  
    BCoef_.Eval(bHat_, T, ip);
    double bMag = bHat_.Norml2();;
    bHat_ /= bMag;
@@ -309,17 +308,17 @@ void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 
    double chi_para = (ion_) ?
-     chi_i_para(mi_, zi_, ni_, temp) :
-     chi_e_para(temp, zi_, ni_);
-   
+                     chi_i_para(mi_, zi_, ni_, temp) :
+                     chi_e_para(temp, zi_, ni_);
+
    double chi_perp = (ion_) ?
-     chi_i_perp(bMag, mi_, zi_, ni_, temp) :
-     chi_e_perp(bMag, ne_, temp, zi_, ni_);
-   
+                     chi_i_perp(bMag, mi_, zi_, ni_, temp) :
+                     chi_e_perp(bMag, ne_, temp, zi_, ni_);
+
    double chi_cross = (ion_) ?
-     chi_i_cross(bMag, mi_, zi_, ni_, temp) :
-     chi_e_cross(bMag, ne_, temp, zi_, ni_);
-   
+                      chi_i_cross(bMag, mi_, zi_, ni_, temp) :
+                      chi_e_cross(bMag, ne_, temp, zi_, ni_);
+
    K.SetSize(bHat_.Size());
 
    if (width == 2)
@@ -353,13 +352,65 @@ void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
+Eta0Coefficient::Eta0Coefficient(BlockVector & nBV, double zi)
+   : nBV_(nBV),
+     nCoef_(&nGF_),
+     ion_(false),
+     zi_(zi),
+     mi_(-1.0),
+     ne_(-1.0),
+     ni_(-1.0)
+{}
+
+Eta0Coefficient::Eta0Coefficient(BlockVector & nBV, double mi, double zi)
+   : nBV_(nBV),
+     nCoef_(&nGF_),
+     ion_(true),
+     zi_(zi),
+     mi_(mi),
+     ne_(-1.0),
+     ni_(-1.0)
+{}
+
+void Eta0Coefficient::SetT(ParGridFunction & T)
+{
+   sfes_ = T.ParFESpace();
+   TCoef_.SetGridFunction(&T);
+   nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+}
+
+double
+Eta0Coefficient::Eval(ElementTransformation &T,
+                      const IntegrationPoint &ip)
+{
+   double temp = TCoef_.Eval(T, ip);
+
+   ni_ = nCoef_.Eval(T, ip);
+
+   if (!ion_)
+   {
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(0));
+      ne_ = nCoef_.Eval(T, ip);
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+   }
+
+   double eta0 = (ion_) ?
+                 eta0_i(mi_, zi_, ni_, temp) :
+                 eta0_e(ne_, temp, zi_, ni_);
+
+   return eta0;
+}
+
 EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
-			       BlockVector & nBV, double zi)
+                               BlockVector & nBV, ParGridFunction & B,
+                               double zi)
    : MatrixCoefficient(dim),
      nBV_(nBV),
+     nCoef_(&nGF_),
+     BCoef_(&B),
      bi_(bi),
      bj_(bj),
-     ion_(-1),
+     ion_(false),
      zi_(zi),
      mi_(-1.0),
      ne_(-1.0),
@@ -368,12 +419,15 @@ EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
 {}
 
 EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
-			       BlockVector & nBV, double mi, double zi)
+                               BlockVector & nBV, ParGridFunction & B,
+                               double mi, double zi)
    : MatrixCoefficient(dim),
      nBV_(nBV),
+     nCoef_(&nGF_),
+     BCoef_(&B),
      bi_(bi),
      bj_(bj),
-     ion_(-1),
+     ion_(true),
      zi_(zi),
      mi_(mi),
      ne_(-1.0),
@@ -395,7 +449,7 @@ void EtaCoefficient::SetB(ParGridFunction & B)
 
 void
 EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
-		     const IntegrationPoint &ip)
+                     const IntegrationPoint &ip)
 {
    BCoef_.Eval(bHat_, T, ip);
    double bMag = bHat_.Norml2();;
@@ -413,24 +467,24 @@ EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
    }
 
    double eta0 = (ion_) ?
-     eta0_i(mi_, zi_, ni_, temp) :
-     eta0_e(ne_, temp, zi_, ni_);
+                 eta0_i(mi_, zi_, ni_, temp) :
+                 eta0_e(ne_, temp, zi_, ni_);
 
    double eta1 = (ion_) ?
-     eta1_i(bMag, mi_, zi_, ni_, temp) :
-     eta1_e(bMag, ne_, temp, zi_, ni_);
+                 eta1_i(bMag, mi_, zi_, ni_, temp) :
+                 eta1_e(bMag, ne_, temp, zi_, ni_);
 
    double eta2 = (ion_) ?
-     eta2_i(bMag, mi_, zi_, ni_, temp) :
-     eta2_e(bMag, ne_, temp, zi_, ni_);
+                 eta2_i(bMag, mi_, zi_, ni_, temp) :
+                 eta2_e(bMag, ne_, temp, zi_, ni_);
 
    double eta3 = (ion_) ?
-     eta3_i(bMag, mi_, zi_, ni_, temp) :
-     eta3_e(bMag, ne_, temp);
+                 eta3_i(bMag, mi_, zi_, ni_, temp) :
+                 eta3_e(bMag, ne_, temp);
 
    double eta4 = (ion_) ?
-     eta4_i(bMag, mi_, zi_, ni_, temp) :
-     eta4_e(bMag, ne_, temp);
+                 eta4_i(bMag, mi_, zi_, ni_, temp) :
+                 eta4_e(bMag, ne_, temp);
 
 }
 
@@ -506,17 +560,17 @@ double dEduCoefficient::Eval(ElementTransformation &T,
 }
 
 TwoFluidTransportSolver::TwoFluidTransportSolver(ODESolver * implicitSolver,
-						 ODESolver * explicitSolver,
-						 DGParams & dg,
-						 ParFiniteElementSpace & sfes,
-						 ParFiniteElementSpace & vfes,
-						 ParFiniteElementSpace & ffes,
-						 BlockVector & nBV,
-						 BlockVector & uBV,
-						 BlockVector & TBV,
-						 ParGridFunction & B,
-						 double ion_mass,
-						 double ion_charge)
+                                                 ODESolver * explicitSolver,
+                                                 DGParams & dg,
+                                                 ParFiniteElementSpace & sfes,
+                                                 ParFiniteElementSpace & vfes,
+                                                 ParFiniteElementSpace & ffes,
+                                                 BlockVector & nBV,
+                                                 BlockVector & uBV,
+                                                 BlockVector & TBV,
+                                                 ParGridFunction & B,
+                                                 double ion_mass,
+                                                 double ion_charge)
    : impSolver_(implicitSolver),
      expSolver_(explicitSolver),
      dg_(dg),
@@ -527,43 +581,44 @@ TwoFluidTransportSolver::TwoFluidTransportSolver(ODESolver * implicitSolver,
      uBV_(uBV),
      TBV_(TBV),
      B_(B),
-     ion_charge_(ion_charge),
      ion_mass_(ion_mass),
+     ion_charge_(ion_charge),
      tfDiff_(NULL)
 {
    this->initDiffusion();
 }
 
-ReducedTransportSolver::~ReducedTransportSolver()
+TwoFluidTransportSolver::~TwoFluidTransportSolver()
 {
-   delete msDiff_;
+   delete tfDiff_;
 }
 
-void ReducedTransportSolver::initDiffusion()
+void TwoFluidTransportSolver::initDiffusion()
 {
-   msDiff_ = new MultiSpeciesDiffusion(dg_, sfes_, vfes_, nBV_, uBV_, TBV_,
-                                       charges_, masses_);
+   tfDiff_ = new TwoFluidDiffusion(dg_, sfes_, vfes_, nBV_, uBV_, TBV_,
+                                   B_, ion_mass_, ion_charge_);
 }
 
-void ReducedTransportSolver::Update()
+void TwoFluidTransportSolver::Update()
 {
-   msDiff_->Update();
+   tfDiff_->Update();
 }
 
-void ReducedTransportSolver::Step(Vector &x, double &t, double &dt)
+void TwoFluidTransportSolver::Step(Vector &x, double &t, double &dt)
 {
-   msDiff_->Assemble();
+   tfDiff_->Assemble();
    impSolver_->Step(x, t, dt);
 }
 
 TwoFluidDiffusion::TwoFluidDiffusion(DGParams & dg,
-                                             ParFiniteElementSpace & sfes,
-                                             ParFiniteElementSpace & vfes,
-                                             BlockVector & nBV,
-                                             BlockVector & uBV,
-                                             BlockVector & TBV,
-                                             double ion_mass,
-                                             double ion_charge)
+                                     ParFiniteElementSpace & sfes,
+                                     ParFiniteElementSpace & vfes,
+                                     BlockVector & nBV,
+                                     BlockVector & uBV,
+                                     BlockVector & TBV,
+                                     ParGridFunction & B,
+                                     double ion_mass,
+                                     double ion_charge)
    : dim_(sfes.GetParMesh()->SpaceDimension()),
      dg_(dg),
      sfes_(sfes),
@@ -571,6 +626,7 @@ TwoFluidDiffusion::TwoFluidDiffusion(DGParams & dg,
      nBV_(nBV),
      uBV_(uBV),
      TBV_(TBV),
+     B_(B),
      ion_charge_(ion_charge),
      ion_mass_(ion_mass)
 {}
@@ -595,9 +651,9 @@ void TwoFluidDiffusion::deleteBilinearForms()
    {
       delete a_dEdT_[i];
    }
-   for (unsigned int i=0; i<stiff_nChi_.size(); i++)
+   for (unsigned int i=0; i<stiff_chi_.size(); i++)
    {
-      delete stiff_nChi_[i];
+      delete stiff_chi_[i];
    }
 }
 
@@ -629,13 +685,9 @@ void TwoFluidDiffusion::deleteCoefficients()
    {
       delete dtDiffCoef_[i];
    }
-   for (unsigned int i=0; i<dtnChiCoef_.size(); i++)
+   for (unsigned int i=0; i<dtChiCoef_.size(); i++)
    {
-      delete dtnChiCoef_[i];
-   }
-   for (unsigned int i=0; i<nChiCoef_.size(); i++)
-   {
-      delete nChiCoef_[i];
+      delete dtChiCoef_[i];
    }
 
    for (unsigned int i=0; i<diffCoef_.size(); i++)
@@ -650,7 +702,7 @@ void TwoFluidDiffusion::deleteCoefficients()
 
 void TwoFluidDiffusion::initCoefficients()
 {
-   int ns = charges_.Size();
+   int ns = 1;
 
    nGF_.resize(ns+1);
    nCoef_.resize(ns+1);
@@ -677,28 +729,17 @@ void TwoFluidDiffusion::initCoefficients()
    }
 
    dpdnCoef_.resize(dim_ * ns);
-   for (int i=0; i<ns; i++)
+   for (int d=0; d<dim_; d++)
    {
-      for (int d=0; d<dim_; d++)
-      {
-         dpdnCoef_[dim_ * i + d] = new dpdnCoefficient(d, masses_[i],
-                                                       uCoef_[i + 1]);
-      }
+      dpdnCoef_[d] = new dpdnCoefficient(d, ion_mass_, uCoef_[1]);
    }
 
    dpduCoef_.resize(ns);
-   for (int i=0; i<ns; i++)
-   {
-      dpduCoef_[i] = new dpduCoefficient(masses_[i], nCoef_[i + 1]);
-   }
+   dpduCoef_[0] = new dpduCoefficient(ion_mass_, nCoef_[1]);
 
    dEdnCoef_.resize(ns + 1);
-   for (int i=0; i<=ns; i++)
-   {
-      dEdnCoef_[i] = new dEdnCoefficient(TCoef_[i],
-                                         (i==0)? me_u_ : masses_[i - 1],
-                                         uCoef_[i]);
-   }
+   dEdnCoef_[0] = new dEdnCoefficient(TCoef_[0], me_u_, uCoef_[0]);
+   dEdnCoef_[1] = new dEdnCoefficient(TCoef_[1], ion_mass_, uCoef_[1]);
 
    dEduCoef_.resize(dim_ * (ns + 1));
    for (int d=0; d<dim_; d++)
@@ -706,14 +747,10 @@ void TwoFluidDiffusion::initCoefficients()
       dEduCoef_[d] = new dEduCoefficient(d, me_u_,
                                          nCoef_[0], uCoef_[0]);
    }
-   for (int i=0; i<ns; i++)
+   for (int d=0; d<dim_; d++)
    {
-      for (int d=0; d<dim_; d++)
-      {
-         dEduCoef_[dim_ * (i + 1) + d] = new dEduCoefficient(d, masses_[i],
-                                                             nCoef_[i + 1],
-                                                             uCoef_[i + 1]);
-      }
+      dEduCoef_[dim_ + d] = new dEduCoefficient(d, ion_mass_,
+                                                nCoef_[1], uCoef_[1]);
    }
 
    dEdTCoef_.resize(ns + 1);
@@ -724,25 +761,15 @@ void TwoFluidDiffusion::initCoefficients()
 
    diffCoef_.resize(ns);
    dtDiffCoef_.resize(ns);
-   for (int i=0; i<ns; i++)
-   {
-      diffCoef_[i] = new DiffCoefficient(dim_, nBV_, i, charges_, masses_);
-      dtDiffCoef_[i] = new ScalarMatrixProductCoefficient(0.0, *diffCoef_[i]);
-   }
+   diffCoef_[0] = new DiffCoefficient(dim_, B_);
+   dtDiffCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *diffCoef_[0]);
 
    chiCoef_.resize(ns+1);
-   nChiCoef_.resize(ns+1);
-   dtnChiCoef_.resize(ns+1);
-   chiCoef_[0] = new ChiCoefficient(dim_, nBV_, charges_);
-   nChiCoef_[0] = new ScalarMatrixProductCoefficient(nCoef_[0], *chiCoef_[0]);
-   dtnChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *nChiCoef_[0]);
-   for (int i=0; i<ns; i++)
-   {
-      chiCoef_[i+1] = new ChiCoefficient(dim_, nBV_, i, charges_, masses_);
-      nChiCoef_[i+1] = new ScalarMatrixProductCoefficient(nCoef_[i+1],
-                                                          *chiCoef_[i+1]);
-      dtnChiCoef_[i+1] = new ScalarMatrixProductCoefficient(0.0, *nChiCoef_[i+1]);
-   }
+   dtChiCoef_.resize(ns+1);
+   chiCoef_[0] = new ChiCoefficient(dim_, nBV_, B_, ion_charge_);
+   dtChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[0]);
+   chiCoef_[1] = new ChiCoefficient(dim_, nBV_, B_, ion_mass_, ion_charge_);
+   dtChiCoef_[1] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[1]);
 }
 
 void TwoFluidDiffusion::initBilinearForms()
@@ -766,22 +793,22 @@ void TwoFluidDiffusion::initBilinearForms()
    {
       a_dEdT_[i] = new ParBilinearForm(&sfes_);
       a_dEdT_[i]->AddDomainIntegrator(new MassIntegrator(*dEdTCoef_[i]));
-      a_dEdT_[i]->AddDomainIntegrator(new DiffusionIntegrator(*dtnChiCoef_[i]));
+      a_dEdT_[i]->AddDomainIntegrator(new DiffusionIntegrator(*dtChiCoef_[i]));
       a_dEdT_[i]->AddInteriorFaceIntegrator(
-         new DGDiffusionIntegrator(*dtnChiCoef_[i], dg_.sigma, dg_.kappa));
+         new DGDiffusionIntegrator(*dtChiCoef_[i], dg_.sigma, dg_.kappa));
       a_dEdT_[i]->AddBdrFaceIntegrator(
-         new DGDiffusionIntegrator(*dtnChiCoef_[i], dg_.sigma, dg_.kappa));
+         new DGDiffusionIntegrator(*dtChiCoef_[i], dg_.sigma, dg_.kappa));
    }
 
-   stiff_nChi_.resize(nChiCoef_.size());
-   for (unsigned int i=0; i<nChiCoef_.size(); i++)
+   stiff_chi_.resize(chiCoef_.size());
+   for (unsigned int i=0; i<chiCoef_.size(); i++)
    {
-      stiff_nChi_[i] = new ParBilinearForm(&sfes_);
-      stiff_nChi_[i]->AddDomainIntegrator(new DiffusionIntegrator(*nChiCoef_[i]));
-      stiff_nChi_[i]->AddInteriorFaceIntegrator(
-         new DGDiffusionIntegrator(*nChiCoef_[i], dg_.sigma, dg_.kappa));
-      stiff_nChi_[i]->AddBdrFaceIntegrator(
-         new DGDiffusionIntegrator(*nChiCoef_[i], dg_.sigma, dg_.kappa));
+      stiff_chi_[i] = new ParBilinearForm(&sfes_);
+      stiff_chi_[i]->AddDomainIntegrator(new DiffusionIntegrator(*chiCoef_[i]));
+      stiff_chi_[i]->AddInteriorFaceIntegrator(
+         new DGDiffusionIntegrator(*chiCoef_[i], dg_.sigma, dg_.kappa));
+      stiff_chi_[i]->AddBdrFaceIntegrator(
+         new DGDiffusionIntegrator(*chiCoef_[i], dg_.sigma, dg_.kappa));
    }
 }
 
@@ -792,7 +819,7 @@ void TwoFluidDiffusion::Update()
 {}
 
 void TwoFluidDiffusion::ImplicitSolve(const double dt,
-				      const Vector &x, Vector &y)
+                                      const Vector &x, Vector &y)
 {}
 
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
