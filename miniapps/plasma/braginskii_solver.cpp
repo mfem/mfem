@@ -101,7 +101,7 @@ void DiffCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
       }
    }
 }
-
+/*
 ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, double zi)
    : nBV_(nBV),
      ion_(false),
@@ -142,11 +142,9 @@ ChiParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 
-ChiPerpCoefficient::ChiPerpCoefficient(ParGridFunction & B,
-                                       BlockVector & nBV, double zi)
+ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV, double zi)
    : nBV_(nBV),
      sfes_(NULL),
-     BCoef_(&B),
      ion_(false),
      mi_(-1.0),
      zi_(zi),
@@ -154,12 +152,10 @@ ChiPerpCoefficient::ChiPerpCoefficient(ParGridFunction & B,
      ni_(-1.0)
 {}
 
-ChiPerpCoefficient::ChiPerpCoefficient(ParGridFunction & B,
-                                       BlockVector & nBV,
-                                       double zi, double mi)
+ChiPerpCoefficient::ChiPerpCoefficient(BlockVector & nBV,
+                                       double mi, double zi)
    : nBV_(nBV),
      sfes_(NULL),
-     BCoef_(&B),
      ion_(true),
      mi_(mi),
      zi_(zi),
@@ -172,6 +168,11 @@ void ChiPerpCoefficient::SetT(ParGridFunction & T)
    sfes_ = T.ParFESpace();
    TCoef_.SetGridFunction(&T);
    nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+}
+
+void ChiPerpCoefficient::SetB(ParGridFunction & B)
+{
+   BCoef_.SetGridFunction(&B);
 }
 
 double
@@ -196,48 +197,86 @@ ChiPerpCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 
-ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, Vector & z)
-   : ion_(-1)
+ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, double zi)
+   : nBV_(nBV),
+     sfes_(NULL),
+     ion_(false),
+     mi_(-1.0),
+     zi_(zi),
+     ne_(-1.0),
+     ni_(-1.0)
 {}
 
-ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV, int ion_species,
-                                         Vector & z, Vector & m)
-   : ion_(ion_species)
+ChiCrossCoefficient::ChiCrossCoefficient(BlockVector & nBV,
+                                         double mi, double zi)
+   : nBV_(nBV),
+     sfes_(NULL),
+     ion_(true),
+     mi_(mi),
+     zi_(zi),
+     ne_(-1.0),
+     ni_(-1.0)
 {}
+
+void ChiCrossCoefficient::SetT(ParGridFunction & T)
+{
+   sfes_ = T.ParFESpace();
+   TCoef_.SetGridFunction(&T);
+   nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+}
+
+void ChiCrossCoefficient::SetB(ParGridFunction & B)
+{
+   BCoef_.SetGridFunction(&B);
+}
 
 double
 ChiCrossCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
 {
-   if (ion_ < 0)
+   BCoef_.Eval(B_, T, ip);
+   double Bmag = B_.Norml2();
+   double temp = TCoef_.Eval(T, ip);
+
+   ni_ = nCoef_.Eval(T, ip);
+
+   if (ion_)
    {
-      return chi_e_cross();
+      return chi_i_cross(Bmag, mi_, zi_, ni_, temp);
    }
    else
    {
-      return chi_i_cross();
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(0));
+      ne_ = nCoef_.Eval(T, ip);
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+      return chi_e_cross(Bmag, ne_, temp, ni_, zi_);
    }
 }
-
-ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, Vector & charges)
+*/
+ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, double zi)
    : MatrixCoefficient(dim),
-     chiParaCoef_(nBV, charges),
-     chiPerpCoef_(nBV, charges),
-     chiCrossCoef_(nBV, charges),
+     nBV_(nBV),
+     sfes_(NULL),
+     ion_(false),
+     zi_(zi),
+     mi_(-1.0),
+     ne_(-1.0),
+     ni_(-1.0),
      bHat_(dim)
 {}
 
-ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, int ion_species,
-                               Vector & charges, Vector & masses)
+ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV,
+                               double mi, double zi)
    : MatrixCoefficient(dim),
-     chiParaCoef_(nBV, ion_species, charges, masses),
-     chiPerpCoef_(nBV, ion_species, charges, masses),
-     chiCrossCoef_(nBV, ion_species, charges, masses),
+     nBV_(nBV),
+     sfes_(NULL),
      bHat_(dim)
 {}
 
 void ChiCoefficient::SetT(ParGridFunction & T)
 {
-   chiParaCoef_.SetT(T);
+   sfes_ = T.ParFESpace();
+   TCoef_.SetGridFunction(&T);
+   nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
 }
 
 void ChiCoefficient::SetB(ParGridFunction & B)
@@ -248,13 +287,39 @@ void ChiCoefficient::SetB(ParGridFunction & B)
 void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                           const IntegrationPoint &ip)
 {
+   /*
    double chi_para  = chiParaCoef_.Eval(T, ip);
    double chi_perp  = chiPerpCoef_.Eval(T, ip);
    double chi_cross = (width > 2) ? chiCrossCoef_.Eval(T, ip) : 0.0;
-
+   */
+  
    BCoef_.Eval(bHat_, T, ip);
-   bHat_ /= bHat_.Norml2();
+   double bMag = bHat_.Norml2();;
+   bHat_ /= bMag;
 
+   double temp = TCoef_.Eval(T, ip);
+
+   ni_ = nCoef_.Eval(T, ip);
+
+   if (!ion_)
+   {
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(0));
+      ne_ = nCoef_.Eval(T, ip);
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+   }
+
+   double chi_para = (ion_) ?
+     chi_i_para(mi_, zi_, ni_, temp) :
+     chi_e_para(temp, zi_, ni_);
+   
+   double chi_perp = (ion_) ?
+     chi_i_perp(bMag, mi_, zi_, ni_, temp) :
+     chi_e_perp(bMag, ne_, temp, zi_, ni_);
+   
+   double chi_cross = (ion_) ?
+     chi_i_cross(bMag, mi_, zi_, ni_, temp) :
+     chi_e_cross(bMag, ne_, temp, zi_, ni_);
+   
    K.SetSize(bHat_.Size());
 
    if (width == 2)
@@ -288,49 +353,85 @@ void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
-EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, Vector & z)
-   : nBV_(nBV),
+EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
+			       BlockVector & nBV, double zi)
+   : MatrixCoefficient(dim),
+     nBV_(nBV),
+     bi_(bi),
+     bj_(bj),
      ion_(-1),
-     z_(z),
-     m_(NULL),
-     n_(z.Size())
+     zi_(zi),
+     mi_(-1.0),
+     ne_(-1.0),
+     ni_(-1.0),
+     bHat_(dim)
 {}
 
-EtaParaCoefficient::EtaParaCoefficient(BlockVector & nBV, int ion_species,
-                                       Vector & z, Vector & m)
-   : nBV_(nBV),
-     ion_(ion_species),
-     z_(z),
-     m_(&m),
-     n_(z.Size())
+EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
+			       BlockVector & nBV, double mi, double zi)
+   : MatrixCoefficient(dim),
+     nBV_(nBV),
+     bi_(bi),
+     bj_(bj),
+     ion_(-1),
+     zi_(zi),
+     mi_(mi),
+     ne_(-1.0),
+     ni_(-1.0),
+     bHat_(dim)
 {}
 
-void EtaParaCoefficient::SetT(ParGridFunction & T)
+void EtaCoefficient::SetT(ParGridFunction & T)
 {
+   sfes_ = T.ParFESpace();
    TCoef_.SetGridFunction(&T);
-   nGF_.MakeRef(T.ParFESpace(), nBV_.GetBlock(0));
+   nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
 }
 
-double
-EtaParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
+void EtaCoefficient::SetB(ParGridFunction & B)
 {
+   BCoef_.SetGridFunction(&B);
+}
+
+void
+EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
+		     const IntegrationPoint &ip)
+{
+   BCoef_.Eval(bHat_, T, ip);
+   double bMag = bHat_.Norml2();;
+   bHat_ /= bMag;
+
    double temp = TCoef_.Eval(T, ip);
 
-   for (int i=0; i<z_.Size(); i++)
+   ni_ = nCoef_.Eval(T, ip);
+
+   if (!ion_)
    {
-      nGF_.SetData(nBV_.GetBlock(i));
-      nCoef_.SetGridFunction(&nGF_);
-      n_[i] = nCoef_.Eval(T, ip);
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(0));
+      ne_ = nCoef_.Eval(T, ip);
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
    }
 
-   if (ion_ < 0)
-   {
-      return eta_e_para(temp, z_.Size(), z_.Size(), n_, z_);
-   }
-   else
-   {
-      return eta_i_para((*m_)[ion_], temp, ion_, z_.Size(), n_, z_);
-   }
+   double eta0 = (ion_) ?
+     eta0_i(mi_, zi_, ni_, temp) :
+     eta0_e(ne_, temp, zi_, ni_);
+
+   double eta1 = (ion_) ?
+     eta1_i(bMag, mi_, zi_, ni_, temp) :
+     eta1_e(bMag, ne_, temp, zi_, ni_);
+
+   double eta2 = (ion_) ?
+     eta2_i(bMag, mi_, zi_, ni_, temp) :
+     eta2_e(bMag, ne_, temp, zi_, ni_);
+
+   double eta3 = (ion_) ?
+     eta3_i(bMag, mi_, zi_, ni_, temp) :
+     eta3_e(bMag, ne_, temp);
+
+   double eta4 = (ion_) ?
+     eta4_i(bMag, mi_, zi_, ni_, temp) :
+     eta4_e(bMag, ne_, temp);
+
 }
 
 dpdnCoefficient::dpdnCoefficient(int c,
@@ -404,18 +505,18 @@ double dEduCoefficient::Eval(ElementTransformation &T,
    return m_ * n * u_[c_];
 }
 
-ReducedTransportSolver::ReducedTransportSolver(ODESolver * implicitSolver,
-                                               ODESolver * explicitSolver,
-                                               DGParams & dg,
-                                               ParFiniteElementSpace & sfes,
-                                               ParFiniteElementSpace & vfes,
-                                               ParFiniteElementSpace & ffes,
-                                               BlockVector & nBV,
-                                               BlockVector & uBV,
-                                               BlockVector & TBV,
-                                               ParGridFunction & B,
-                                               Vector & charges,
-                                               Vector & masses)
+TwoFluidTransportSolver::TwoFluidTransportSolver(ODESolver * implicitSolver,
+						 ODESolver * explicitSolver,
+						 DGParams & dg,
+						 ParFiniteElementSpace & sfes,
+						 ParFiniteElementSpace & vfes,
+						 ParFiniteElementSpace & ffes,
+						 BlockVector & nBV,
+						 BlockVector & uBV,
+						 BlockVector & TBV,
+						 ParGridFunction & B,
+						 double ion_mass,
+						 double ion_charge)
    : impSolver_(implicitSolver),
      expSolver_(explicitSolver),
      dg_(dg),
@@ -426,9 +527,9 @@ ReducedTransportSolver::ReducedTransportSolver(ODESolver * implicitSolver,
      uBV_(uBV),
      TBV_(TBV),
      B_(B),
-     charges_(charges),
-     masses_(masses),
-     msDiff_(NULL)
+     ion_charge_(ion_charge),
+     ion_mass_(ion_mass),
+     tfDiff_(NULL)
 {
    this->initDiffusion();
 }
@@ -455,14 +556,14 @@ void ReducedTransportSolver::Step(Vector &x, double &t, double &dt)
    impSolver_->Step(x, t, dt);
 }
 
-MultiSpeciesDiffusion::MultiSpeciesDiffusion(DGParams & dg,
+TwoFluidDiffusion::TwoFluidDiffusion(DGParams & dg,
                                              ParFiniteElementSpace & sfes,
                                              ParFiniteElementSpace & vfes,
                                              BlockVector & nBV,
                                              BlockVector & uBV,
                                              BlockVector & TBV,
-                                             Vector & charges,
-                                             Vector & masses)
+                                             double ion_mass,
+                                             double ion_charge)
    : dim_(sfes.GetParMesh()->SpaceDimension()),
      dg_(dg),
      sfes_(sfes),
@@ -470,17 +571,17 @@ MultiSpeciesDiffusion::MultiSpeciesDiffusion(DGParams & dg,
      nBV_(nBV),
      uBV_(uBV),
      TBV_(TBV),
-     charges_(charges),
-     masses_(masses)
+     ion_charge_(ion_charge),
+     ion_mass_(ion_mass)
 {}
 
-MultiSpeciesDiffusion::~MultiSpeciesDiffusion()
+TwoFluidDiffusion::~TwoFluidDiffusion()
 {
    this->deleteBilinearForms();
    this->deleteCoefficients();
 }
 
-void MultiSpeciesDiffusion::deleteBilinearForms()
+void TwoFluidDiffusion::deleteBilinearForms()
 {
    for (unsigned int i=0; i<a_dEdn_.size(); i++)
    {
@@ -500,7 +601,7 @@ void MultiSpeciesDiffusion::deleteBilinearForms()
    }
 }
 
-void MultiSpeciesDiffusion::deleteCoefficients()
+void TwoFluidDiffusion::deleteCoefficients()
 {
    for (unsigned int i=0; i<dpdnCoef_.size(); i++)
    {
@@ -547,7 +648,7 @@ void MultiSpeciesDiffusion::deleteCoefficients()
    }
 }
 
-void MultiSpeciesDiffusion::initCoefficients()
+void TwoFluidDiffusion::initCoefficients()
 {
    int ns = charges_.Size();
 
@@ -644,7 +745,7 @@ void MultiSpeciesDiffusion::initCoefficients()
    }
 }
 
-void MultiSpeciesDiffusion::initBilinearForms()
+void TwoFluidDiffusion::initBilinearForms()
 {
    a_dEdn_.resize(dEdnCoef_.size());
    for (unsigned int i=0; i<dEdnCoef_.size(); i++)
@@ -684,14 +785,14 @@ void MultiSpeciesDiffusion::initBilinearForms()
    }
 }
 
-void MultiSpeciesDiffusion::Assemble()
+void TwoFluidDiffusion::Assemble()
 {}
 
-void MultiSpeciesDiffusion::Update()
+void TwoFluidDiffusion::Update()
 {}
 
-void MultiSpeciesDiffusion::ImplicitSolve(const double dt,
-                                          const Vector &x, Vector &y)
+void TwoFluidDiffusion::ImplicitSolve(const double dt,
+				      const Vector &x, Vector &y)
 {}
 
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
