@@ -23,26 +23,37 @@ namespace mfem
 namespace plasma
 {
 
-/** Multispecies Electron-Ion Collision Time in seconds
+/**
+   Returns the mean Electron-Ion mean collision time in seconds (see
+   equation 2.5e)
    Te is the electron temperature in eV
-   ns is the number of ion species
    ni is the density of ions (assuming ni=ne) in particles per meter^3
    zi is the charge number of the ion species
    lnLambda is the Coulomb Logarithm
 */
-double tau_e(double Te, int ns, double * ni, double * zi, double lnLambda);
+inline double tau_e(double Te, double ni, int zi, double lnLambda)
+{
+   // The factor of q_^{3/2} is included to convert Te from eV to Joules
+   return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
+          sqrt(0.5 * me_kg_ * pow(q_ * Te, 3) / M_PI) /
+          (lnLambda * pow(q_, 4) * zi * zi * ni);
+}
 
-/** Multispecies Ion-Ion Collision Time in seconds
-   ma is the ion mass in a.m.u
-   Ta is the ion temperature in eV
-   ion is the ion species index for the desired collision time
-   ns is the number of ion species
-   ni is the density of ions (assuming ni=ne) in particles per meter^3
+/**
+   Returns the mean Ion-Ion mean collision time in seconds (see equation 2.5i)
+   mi is the ion mass in a.m.u.
+   Ti is the ion temperature in eV
+   ni is the density of ions in particles per meter^3
    zi is the charge number of the ion species
    lnLambda is the Coulomb Logarithm
 */
-double tau_i(double ma, double Ta, int ion, int ns, double * ni, double * zi,
-             double lnLambda);
+inline double tau_i(double mi, double Ti, double ni, int zi, double lnLambda)
+{
+   // The factor of q_^{3/2} is included to convert Ti from eV to Joules
+   return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
+          sqrt(mi * amu_ * pow(q_ * Ti, 3) / M_PI) /
+          (lnLambda * pow(q_ * zi, 4) * ni);
+}
 
 /**
   Particle diffusion coefficient perpendicular to B field for ions
