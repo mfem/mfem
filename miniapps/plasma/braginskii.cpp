@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
 
    double ion_charge = 0.0;
    double ion_mass = 0.0;
-   
+
    int precision = 8;
    cout.precision(precision);
 
@@ -382,12 +382,12 @@ int main(int argc, char *argv[])
    {
       ode_imp_solver_type = ode_split_solver_type;
    }
-   
+
    if (dg.kappa < 0.0)
    {
-     dg.kappa = (double)(order+1)*(order+1);
+      dg.kappa = (double)(order+1)*(order+1);
    }
-   
+
    ion_charges_.SetSize(1);
    ion_masses_.SetSize(1);
    ion_charges_[0] = (ion_charge != 0.0) ? ion_charge : 1.0;
@@ -530,20 +530,20 @@ int main(int argc, char *argv[])
    for (int k = 0; k <= num_species_ + 1; k++)
    {
       u_offsets[k] = offsets[k * dim + num_species_ + 1] -
-	offsets[num_species_ + 1];
+                     offsets[num_species_ + 1];
    }
    BlockVector u_block(&x_block[offsets[num_species_+1]], u_offsets);
 
    Array<int> T_offsets(num_species_ + 2);
    for (int k = 0; k <= num_species_ + 1; k++)
    {
-     T_offsets[k] = offsets[k + (dim + 1) * (num_species_ + 1)] -
-       offsets[(dim + 1) * (num_species_ + 1)];
+      T_offsets[k] = offsets[k + (dim + 1) * (num_species_ + 1)] -
+                     offsets[(dim + 1) * (num_species_ + 1)];
    }
    BlockVector T_block(&x_block[offsets[(dim + 1) * (num_species_ + 1)]],
-		       T_offsets);
+                       T_offsets);
 
-   
+
    // Momentum and Energy grid functions on for visualization.
    /*
    ParGridFunction density(&fes, u_block.GetData());
@@ -607,7 +607,7 @@ int main(int argc, char *argv[])
    ReducedTransportSolver transp(ode_imp_solver, ode_exp_solver,
                                  dg, sfes, vfes, ffes,
                                  n_block, u_block, T_block,
-				 B, ion_charges_, ion_masses_);
+                                 B, ion_charges_, ion_masses_);
 
    // Visualize the density, momentum, and energy
    vector<socketstream> dout(num_species_+1), vout(num_species_+1),
@@ -626,20 +626,20 @@ int main(int argc, char *argv[])
 
       for (int i=0; i<=num_species_; i++)
       {
-	/*
-         int doff = offsets[i];
-         int voff = offsets[i * dim + num_species_ + 1];
-         int toff = offsets[i + (num_species_ + 1) * (dim + 1)];
-         double * x_data = x_block.GetData();
-         ParGridFunction density(&sfes, x_data + doff);
-         ParGridFunction velocity(&vfes, x_data + voff);
-         ParGridFunction temperature(&sfes, x_data + toff);
-	*/
-	
-	 ParGridFunction density(&sfes, n_block.GetBlock(i));
+         /*
+               int doff = offsets[i];
+               int voff = offsets[i * dim + num_species_ + 1];
+               int toff = offsets[i + (num_species_ + 1) * (dim + 1)];
+               double * x_data = x_block.GetData();
+               ParGridFunction density(&sfes, x_data + doff);
+               ParGridFunction velocity(&vfes, x_data + voff);
+               ParGridFunction temperature(&sfes, x_data + toff);
+         */
+
+         ParGridFunction density(&sfes, n_block.GetBlock(i));
          ParGridFunction velocity(&vfes, u_block.GetBlock(i));
          ParGridFunction temperature(&sfes, T_block.GetBlock(i));
-	
+
          ParGridFunction chi_para(&sfes);
          ParGridFunction eta_para(&sfes);
          if (i==0)

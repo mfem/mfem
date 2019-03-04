@@ -221,7 +221,7 @@ inline double chi_i_para(double ma, double Ta,
    // The factor of q_ is included to convert Ta from eV to Joules
    // The factor of u_ is included to convert ma from a.m.u to kg
    return 3.9 * (q_ * Ta / (ma * amu_ ) ) *
-     tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
+          tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 
 /**
@@ -284,8 +284,8 @@ inline double eta_i_para(double ma, double Ta,
 
 struct DGParams
 {
-  double sigma;
-  double kappa;
+   double sigma;
+   double kappa;
 };
 
 class MultiSpeciesDiffusion;
@@ -298,7 +298,7 @@ private:
    ODESolver * expSolver_;
 
    DGParams & dg_;
-  
+
    ParFiniteElementSpace & sfes_; // Scalar fields
    ParFiniteElementSpace & vfes_; // Vector fields
    ParFiniteElementSpace & ffes_; // Full system
@@ -319,7 +319,7 @@ private:
 public:
    ReducedTransportSolver(ODESolver * implicitSolver,
                           ODESolver * explicitSolver,
-			  DGParams & dg,
+                          DGParams & dg,
                           ParFiniteElementSpace & sfes,
                           ParFiniteElementSpace & vfes,
                           ParFiniteElementSpace & ffes,
@@ -343,7 +343,7 @@ private:
 
 public:
    DiffPerpCoefficient(BlockVector & nBV, int ion_species,
-		    Vector & charges, Vector & masses);
+                       Vector & charges, Vector & masses);
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -355,7 +355,7 @@ private:
 
 public:
    DiffCrossCoefficient(BlockVector & nBV, int ion_species,
-		     Vector & charges, Vector & masses);
+                        Vector & charges, Vector & masses);
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -371,7 +371,7 @@ private:
 
 public:
    DiffCoefficient(int dim, BlockVector & nBV, int ion_species,
-		   Vector & charges, Vector & masses);
+                   Vector & charges, Vector & masses);
 
    void SetT(ParGridFunction & T);
    void SetB(ParGridFunction & B);
@@ -472,64 +472,64 @@ public:
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
-  
+
 class dpdnCoefficient : public Coefficient
 {
 private:
-  int c_;
-  double m_;
-  VectorCoefficient & uCoef_;
-  mutable Vector u_;
-  
-public:
-  dpdnCoefficient(int c, double m, VectorCoefficient & uCoef);
+   int c_;
+   double m_;
+   VectorCoefficient & uCoef_;
+   mutable Vector u_;
 
-  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+public:
+   dpdnCoefficient(int c, double m, VectorCoefficient & uCoef);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
-  
+
 class dpduCoefficient : public Coefficient
 {
 private:
-  double m_;
-  Coefficient & nCoef_;
-  
-public:
-  dpduCoefficient(double m, Coefficient & nCoef);
+   double m_;
+   Coefficient & nCoef_;
 
-  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+public:
+   dpduCoefficient(double m, Coefficient & nCoef);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
-  
+
 class dEdnCoefficient : public Coefficient
 {
 private:
-  Coefficient & TCoef_;
-  VectorCoefficient & uCoef_;
-  double m_;
+   Coefficient & TCoef_;
+   VectorCoefficient & uCoef_;
+   double m_;
 
-  mutable Vector u_;
-  
+   mutable Vector u_;
+
 public:
-  dEdnCoefficient(Coefficient & TCoef, double m, VectorCoefficient & uCoef);
+   dEdnCoefficient(Coefficient & TCoef, double m, VectorCoefficient & uCoef);
 
-  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
 class dEduCoefficient : public Coefficient
 {
 private:
-  int c_;
-  double m_;
-  Coefficient & nCoef_;
-  VectorCoefficient & uCoef_;
-  mutable Vector u_;
-  
-public:
-  dEduCoefficient(int c, double m, Coefficient & nCoef,
-		  VectorCoefficient & uCoef);
+   int c_;
+   double m_;
+   Coefficient & nCoef_;
+   VectorCoefficient & uCoef_;
+   mutable Vector u_;
 
-  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+public:
+   dEduCoefficient(int c, double m, Coefficient & nCoef,
+                   VectorCoefficient & uCoef);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
-  
+
 typedef ProductCoefficient dEdTCoefficient;
 
 class MultiSpeciesDiffusion : public TimeDependentOperator
@@ -538,7 +538,7 @@ private:
    int dim_;
 
    DGParams & dg_;
-  
+
    ParFiniteElementSpace &sfes_;
    ParFiniteElementSpace &vfes_;
 
@@ -552,23 +552,23 @@ private:
    std::vector<ParGridFunction> nGF_;
    std::vector<ParGridFunction> uGF_;
    std::vector<ParGridFunction> TGF_;
-  
+
    std::vector<GridFunctionCoefficient>       nCoef_;
    std::vector<VectorGridFunctionCoefficient> uCoef_;
    std::vector<GridFunctionCoefficient>       TCoef_;
 
    std::vector<dpdnCoefficient *> dpdnCoef_;
    std::vector<dpduCoefficient *> dpduCoef_;
-  
+
    std::vector<dEdnCoefficient *> dEdnCoef_;
    std::vector<dEduCoefficient *> dEduCoef_;
    std::vector<dEdTCoefficient *> dEdTCoef_;
-  
+
    std::vector<DiffCoefficient *> diffCoef_;
    std::vector<ChiCoefficient *>  chiCoef_;
 
    std::vector<ScalarMatrixProductCoefficient *> nChiCoef_;
-  
+
    std::vector<ScalarMatrixProductCoefficient *> dtnChiCoef_;
    std::vector<ScalarMatrixProductCoefficient *> dtDiffCoef_;
 
@@ -577,7 +577,7 @@ private:
    std::vector<ParBilinearForm *> a_dEdu_;
    std::vector<ParBilinearForm *> a_dEdT_;
    std::vector<ParBilinearForm *> stiff_nChi_;
-  
+
    void initCoefficients();
    void initBilinearForms();
 
@@ -586,7 +586,7 @@ private:
 
 public:
    MultiSpeciesDiffusion(DGParams & dg,
-			 ParFiniteElementSpace & sfes,
+                         ParFiniteElementSpace & sfes,
                          ParFiniteElementSpace & vfes,
                          BlockVector & nBV,
                          BlockVector & uBV,
