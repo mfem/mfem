@@ -640,10 +640,32 @@ private:
    ParGridFunction nGF_;
    GridFunctionCoefficient nCoef_;
    GridFunctionCoefficient TCoef_;
-   VectorGridFunctionCoefficient BCoef_;
 
-   int bi_;
-   int bj_;
+   bool ion_;
+   double zi_;
+   double mi_;
+   double ne_;
+   double ni_;
+
+public:
+   Eta0Coefficient(BlockVector & nBV, double zi);
+   Eta0Coefficient(BlockVector & nBV,
+                   double mi, double zi);
+
+   void SetT(ParGridFunction & T);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+class Eta1Coefficient : public Coefficient
+{
+private:
+   BlockVector & nBV_;
+   ParFiniteElementSpace * sfes_;
+   ParGridFunction nGF_;
+   GridFunctionCoefficient nCoef_;
+   GridFunctionCoefficient TCoef_;
+   VectorGridFunctionCoefficient BCoef_;
 
    bool ion_;
    double zi_;
@@ -654,8 +676,37 @@ private:
    mutable Vector bHat_;
 
 public:
-   Eta0Coefficient(BlockVector & nBV, double zi);
-   Eta0Coefficient(BlockVector & nBV,
+   Eta1Coefficient(BlockVector & nBV, double zi);
+   Eta1Coefficient(BlockVector & nBV,
+                   double mi, double zi);
+
+   void SetT(ParGridFunction & T);
+   void SetB(ParGridFunction & B);
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+class Eta3Coefficient : public Coefficient
+{
+private:
+   BlockVector & nBV_;
+   ParFiniteElementSpace * sfes_;
+   ParGridFunction nGF_;
+   GridFunctionCoefficient nCoef_;
+   GridFunctionCoefficient TCoef_;
+   VectorGridFunctionCoefficient BCoef_;
+
+   bool ion_;
+   double zi_;
+   double mi_;
+   double ne_;
+   double ni_;
+
+   mutable Vector bHat_;
+
+public:
+   Eta3Coefficient(BlockVector & nBV, double zi);
+   Eta3Coefficient(BlockVector & nBV,
                    double mi, double zi);
 
    void SetT(ParGridFunction & T);

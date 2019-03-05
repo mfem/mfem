@@ -275,6 +275,8 @@ void bbTFunc(const Vector &x, DenseMatrix &M)
 // Initial condition
 void InitialCondition(const Vector &x, Vector &y);
 
+void truncateField(ParGridFunction & f);
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -617,7 +619,7 @@ int main(int argc, char *argv[])
    // Visualize the density, momentum, and energy
    vector<socketstream> dout(num_species_+1), vout(num_species_+1),
           tout(num_species_+1), x0out(num_species_+1), x1out(num_species_+1),
-     e0out(num_species_+1);
+          e0out(num_species_+1), e1out(num_species_+1), e3out(num_species_+1);
 
    if (visualization)
    {
@@ -649,6 +651,8 @@ int main(int argc, char *argv[])
          ParGridFunction chi_para(&sfes);
          ParGridFunction chi_perp(&sfes);
          ParGridFunction eta_0(&sfes);
+         ParGridFunction eta_1(&sfes);
+         ParGridFunction eta_3(&sfes);
          if (i==0)
          {
             ChiParaCoefficient chiParaCoef(n_block, ion_charge_);
@@ -663,6 +667,16 @@ int main(int argc, char *argv[])
             Eta0Coefficient eta0Coef(n_block, ion_charge_);
             eta0Coef.SetT(temperature);
             eta_0.ProjectCoefficient(eta0Coef);
+
+            Eta1Coefficient eta1Coef(n_block, ion_charge_);
+            eta1Coef.SetT(temperature);
+            eta1Coef.SetB(B);
+            eta_1.ProjectCoefficient(eta1Coef);
+
+            Eta3Coefficient eta3Coef(n_block, ion_charge_);
+            eta3Coef.SetT(temperature);
+            eta3Coef.SetB(B);
+            eta_3.ProjectCoefficient(eta3Coef);
          }
          else
          {
@@ -682,6 +696,33 @@ int main(int argc, char *argv[])
                                      ion_charge_);
             eta0Coef.SetT(temperature);
             eta_0.ProjectCoefficient(eta0Coef);
+
+            Eta1Coefficient eta1Coef(n_block,
+                                     ion_mass_,
+                                     ion_charge_);
+            eta1Coef.SetT(temperature);
+            eta1Coef.SetB(B);
+            eta_1.ProjectCoefficient(eta1Coef);
+
+            Eta3Coefficient eta3Coef(n_block,
+                                     ion_mass_,
+                                     ion_charge_);
+            eta3Coef.SetT(temperature);
+            eta3Coef.SetB(B);
+            eta_3.ProjectCoefficient(eta3Coef);
+         }
+
+         truncateField(chi_perp);
+         truncateField(eta_1);
+         if (i==0)
+         {
+            eta_3 *= -1.0;
+            truncateField(eta_3);
+            eta_3 *= -1.0;
+         }
+         else
+         {
+            truncateField(eta_3);
          }
 
          ostringstream head;
@@ -721,19 +762,34 @@ int main(int argc, char *argv[])
 
          Wx += offx;
 
-         ostringstream x1oss; x1oss << head.str() << " Chi Perpendicular";
+         ostringstream x1oss;
+         x1oss << head.str() << " Chi Perpendicular (truncated)";
          VisualizeField(x1out[i], vishost, visport,
                         chi_perp, x1oss.str().c_str(),
                         Wx, Wy, Ww, Wh);
 
-         Wx += offx;
+         Wx -= 4 * offx;
 
          ostringstream e0oss; e0oss << head.str() << " Eta 0";
          VisualizeField(e0out[i], vishost, visport,
                         eta_0, e0oss.str().c_str(),
                         Wx, Wy, Ww, Wh);
 
-         Wx -= 5 * offx;
+         Wx += offx;
+
+         ostringstream e1oss; e1oss << head.str() << " Eta 1 (truncated)";
+         VisualizeField(e1out[i], vishost, visport,
+                        eta_1, e1oss.str().c_str(),
+                        Wx, Wy, Ww, Wh);
+
+         Wx += offx;
+
+         ostringstream e3oss; e3oss << head.str() << " Eta 3 (truncated)";
+         VisualizeField(e3out[i], vishost, visport,
+                        eta_3, e3oss.str().c_str(),
+                        Wx, Wy, Ww, Wh);
+
+         Wx -= 2 * offx;
          Wy += offy;
       }
    }
@@ -909,6 +965,45 @@ int main(int argc, char *argv[])
    delete ode_imp_solver;
 
    return 0;
+}
+
+void truncateField(ParGridFunction & f)
+{
+   ParFiniteElementSpace * fespace = f.ParFESpace();
+   ParMesh * pmesh = fespace->GetParMesh();
+
+   Array<int> vdofs;
+   Vector dofs;
+
+   for (int i=0; i<pmesh->GetNE(); i++)
+   {
+      fespace->GetElementVDofs(i, vdofs);
+      f.GetSubVector(vdofs, dofs);
+
+      int j1 = 0, j2 = 0;
+      double v1 = dofs[0], v2 = dofs[0];
+
+      for (int j=1; j<dofs.Size(); j++)
+      {
+         if (dofs[j] > v1)
+         {
+            j1 = j;
+            v1 = dofs[j];
+         }
+         if (dofs[j] < v2)
+         {
+            j2 = j;
+            v2 = dofs[j];
+         }
+      }
+      if (v1 > 8.0 * v2)
+      {
+         for (int j=0; j<dofs.Size(); j++)
+         {
+            f[vdofs[j]] = v2;
+         }
+      }
+   }
 }
 
 // Initial condition

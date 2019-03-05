@@ -408,6 +408,118 @@ Eta0Coefficient::Eval(ElementTransformation &T,
    return eta0;
 }
 
+Eta1Coefficient::Eta1Coefficient(BlockVector & nBV, double zi)
+   : nBV_(nBV),
+     nCoef_(&nGF_),
+     ion_(false),
+     zi_(zi),
+     mi_(-1.0),
+     ne_(-1.0),
+     ni_(-1.0)
+{}
+
+Eta1Coefficient::Eta1Coefficient(BlockVector & nBV, double mi, double zi)
+   : nBV_(nBV),
+     nCoef_(&nGF_),
+     ion_(true),
+     zi_(zi),
+     mi_(mi),
+     ne_(-1.0),
+     ni_(-1.0)
+{}
+
+void Eta1Coefficient::SetT(ParGridFunction & T)
+{
+   sfes_ = T.ParFESpace();
+   TCoef_.SetGridFunction(&T);
+   nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+}
+
+void Eta1Coefficient::SetB(ParGridFunction & B)
+{
+   BCoef_.SetGridFunction(&B);
+}
+
+double
+Eta1Coefficient::Eval(ElementTransformation &T,
+                      const IntegrationPoint &ip)
+{
+   BCoef_.Eval(bHat_, T, ip);
+   double bMag = bHat_.Norml2();;
+   double temp = TCoef_.Eval(T, ip);
+
+   ni_ = nCoef_.Eval(T, ip);
+
+   if (!ion_)
+   {
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(0));
+      ne_ = nCoef_.Eval(T, ip);
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+   }
+
+   double eta1 = (ion_) ?
+                 eta1_i(bMag, mi_, zi_, ni_, temp) :
+                 eta1_e(bMag, ne_, temp, zi_, ni_);
+
+   return eta1;
+}
+
+Eta3Coefficient::Eta3Coefficient(BlockVector & nBV, double zi)
+   : nBV_(nBV),
+     nCoef_(&nGF_),
+     ion_(false),
+     zi_(zi),
+     mi_(-1.0),
+     ne_(-1.0),
+     ni_(-1.0)
+{}
+
+Eta3Coefficient::Eta3Coefficient(BlockVector & nBV, double mi, double zi)
+   : nBV_(nBV),
+     nCoef_(&nGF_),
+     ion_(true),
+     zi_(zi),
+     mi_(mi),
+     ne_(-1.0),
+     ni_(-1.0)
+{}
+
+void Eta3Coefficient::SetT(ParGridFunction & T)
+{
+   sfes_ = T.ParFESpace();
+   TCoef_.SetGridFunction(&T);
+   nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+}
+
+void Eta3Coefficient::SetB(ParGridFunction & B)
+{
+   BCoef_.SetGridFunction(&B);
+}
+
+double
+Eta3Coefficient::Eval(ElementTransformation &T,
+                      const IntegrationPoint &ip)
+{
+   BCoef_.Eval(bHat_, T, ip);
+   double bMag = bHat_.Norml2();;
+   double temp = TCoef_.Eval(T, ip);
+
+   ni_ = nCoef_.Eval(T, ip);
+
+   if (!ion_)
+   {
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(0));
+      ne_ = nCoef_.Eval(T, ip);
+      nGF_.MakeRef(sfes_, nBV_.GetBlock(1));
+   }
+
+   double eta3 = (ion_) ?
+                 eta3_i(bMag, mi_, zi_, ni_, temp) :
+                 eta3_e(bMag, ne_, temp);
+
+   return eta3;
+}
+
 EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
                                BlockVector & nBV, ParGridFunction & B,
                                double zi)
