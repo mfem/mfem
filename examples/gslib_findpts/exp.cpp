@@ -1,40 +1,37 @@
-﻿//mpirun -np 2 exp -m RT2D.mesh -qo 8 -o 3
+﻿// mpirun -np 2 exp -m RT2D.mesh -qo 8 -o 3
 #include "mfem.hpp"
 #include <fstream>
 #include <ctime>
 
-extern "C" {
+extern "C"
+{
 # include "gslib/src/cpp/findpts_h.h"
 }
 
-
 using namespace mfem;
 using namespace std;
-  
 
 #include "fpt_wrapper.hpp"
-
 
 IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
 int main (int argc, char *argv[])
 {
-   // 0. Initialize MPI.
+   // Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   // 0. Set the method's default parameters.
+   // Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
    int rp_levels         = 0;
    int quad_type         = 1;
    int quad_order        = 8;
-   bool visualization    = true;
 
-   // 1. Parse command-line options.
+   // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -46,18 +43,15 @@ int main (int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
       args.PrintUsage(cout);
       return 1;
    }
-   if (myid == 0) {args.PrintOptions(cout);}
+   if (myid == 0) { args.PrintOptions(cout); }
 
-   // 3. Initialize and refine the starting mesh.
+   // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
@@ -90,17 +84,14 @@ int main (int argc, char *argv[])
    //    transformation of the reference element.
    pmesh->SetNodalFESpace(pfespace);
 
-   // 6. Set up an empty right-hand side vector b, which is equivalent to b=0.
-   Vector b(0);
-
    // 7. Get the mesh nodes (vertices and other degrees of freedom in the finite
    //    element space) as a finite element grid function in fespace. Note that
    //    changing x automatically changes the shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
 
-   x.SetTrueVector();
-   x.SetFromTrueVector();
+   //x.SetTrueVector();
+   //x.SetFromTrueVector();
 
    // 8. Store the starting (prior to the optimization) positions.
    ParGridFunction x0(pfespace);
@@ -109,10 +100,10 @@ int main (int argc, char *argv[])
    // 9. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
    const int geom_type = pfespace->GetFE(0)->GetGeomType();
-   if (quad_order > 4) 
+   if (quad_order > 4)
    {
-    if (quad_order % 2 == 0) {quad_order = 2*quad_order - 4;}
-    else {quad_order = 2*quad_order - 3;}
+      if (quad_order % 2 == 0) {quad_order = 2*quad_order - 4;}
+      else {quad_order = 2*quad_order - 3;}
    }
    switch (quad_type)
    {
@@ -120,8 +111,7 @@ int main (int argc, char *argv[])
    }
    if (myid==0) {cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;}
 
-   const int NE = pfespace->GetMesh()->GetNE(),
-   dof = pfespace->GetFE(0)->GetDof(), nsp = ir->GetNPoints();
+   const int NE = pfespace->GetMesh()->GetNE(), nsp = ir->GetNPoints();
    
    ParGridFunction nodes(pfespace);
    pmesh->GetNodes(nodes);
@@ -141,107 +131,116 @@ int main (int argc, char *argv[])
       for (int j = 0; j < nsp; j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-        fx[np] = nodes.GetValue(i, ip, 1); 
-        fx[tnp+np] =nodes.GetValue(i, ip, 2);
-        dumfield[np] = pow(fx[np],2)+pow(fx[tnp+np],2);
-        if (dim==3) {fx[2*tnp+np] =nodes.GetValue(i, ip, 3);
-                    dumfield[np] += pow(fx[2*tnp+np],2);}
-        np = np+1;
+         fx[np] = nodes.GetValue(i, ip, 1);
+         fx[tnp+np] = nodes.GetValue(i, ip, 2);
+         dumfield[np] = pow(fx[np],2)+pow(fx[tnp+np],2);
+         if (dim==3)
+         {
+            fx[2*tnp+np] =nodes.GetValue(i, ip, 3);
+            dumfield[np] += pow(fx[2*tnp+np],2);
+         }
+         np = np+1;
       }
    }
 
-   findpts_gslib *gsfl=NULL;
+   findpts_gslib *gsfl = NULL;
    gsfl = new findpts_gslib(MPI_COMM_WORLD);
    MPI_Barrier(MPI_COMM_WORLD);
-   int start_s=clock();
+   int start_s = clock();
    gsfl->gslib_findpts_setup(pfespace,pmesh,quad_order);
    MPI_Barrier(MPI_COMM_WORLD);
    int stop_s=clock();
-   if (myid==0) {cout << "findpts order: " << NR << " \n";}
-   if (myid==0) {cout << "findpts setup time (sec): " << (stop_s-start_s)/1000000. << endl;
-}
+   if (myid == 0)
+   {
+      cout << "findpts order: " << NR << " \n";
+      cout << "findpts setup time (sec): " << (stop_s-start_s)/1000000. << endl;
+   }
 
-// generate random points by r,s,t
+   // generate random points by r,s,t
    int llim = 10;
    int nlim = NE*llim;
-   double xmn = 0,xmx=1,ymn=0,ymx=1,zmn=0,zmx=1; //Domain extent
-   double mnv,mxv,dlv;
    Vector rrxa(nlim),rrya(nlim),rrza(nlim);
    Vector vxyz(nlim*dim);
 
    np = 0;
    IntegrationPoint ipt;
    for (int i = 0; i < NE; i++)
-   {  
+   {
       for (int j = 0; j < llim; j++)
-      {  
-        Geometries.GetRandomPoint(pfespace->GetFE(i)->GetGeomType(),ipt);
-        rrxa[np] = ipt.x;
-        rrya[np] = ipt.y;
-        if (dim==3) {rrza[np] = ipt.z;}
-        vxyz[np] = nodes.GetValue(i, ipt, 1);
-        vxyz[np+nlim] = nodes.GetValue(i, ipt, 2);
-        if (dim==3) {vxyz[np+2*nlim] = nodes.GetValue(i, ipt, 3);}
-        np = np+1;
+      {
+         Geometries.GetRandomPoint(pfespace->GetFE(i)->GetGeomType(), ipt);
+
+         rrxa[np] = ipt.x;
+         rrya[np] = ipt.y;
+         if (dim == 3) { rrza[np] = ipt.z; }
+
+         vxyz[np] = nodes.GetValue(i, ipt, 1);
+         vxyz[np+nlim] = nodes.GetValue(i, ipt, 2);
+         if ( dim==3 ) { vxyz[np+2*nlim] = nodes.GetValue(i, ipt, 3); }
+
+         np++;
       }
    }
 
-
    int nxyz = nlim;
 
-   if (myid==0) {cout << "Num procs: " << num_procs << " \n";}
-   if (myid==0) {cout << "Points per proc: " << nxyz << " \n";}
-   if (myid==0) {cout << "Points per elem: " << llim << " \n";}
-   if (myid==0) {cout << "Total Points to be found: " << nxyz*num_procs << " \n";}
+   if (myid == 0)
+   {
+      cout << "Num procs: " << num_procs << " \n";
+      cout << "Points per proc: " << nxyz << " \n";
+      cout << "Points per elem: " << llim << " \n";
+      cout << "Total Points to be found: " << nxyz*num_procs << " \n";
+   }
 
-   Array<uint> pel(nxyz);
-   Array<uint> pcode(nxyz);
-   Array<uint> pproc(nxyz);
-   Vector pr(nxyz*dim);
-   Vector pd(nxyz);
+   Array<uint> pel(nxyz), pcode(nxyz), pproc(nxyz);
+   Vector pr(nxyz*dim), pd(nxyz);
    MPI_Barrier(MPI_COMM_WORLD);
-   start_s=clock();
-   gsfl->gslib_findpts(&pcode,&pproc,&pel,&pr,&pd,&vxyz,nxyz);
+
+   start_s = clock();
+   gsfl->gslib_findpts(&pcode, &pproc ,&pel, &pr, &pd, &vxyz, nxyz);
+
    MPI_Barrier(MPI_COMM_WORLD);
-   stop_s=clock();
-   if (myid==0) {cout << "findpts time (sec): " << (stop_s-start_s)/1000000. << endl;}
- 
-// FINDPTS_EVAL
+   stop_s = clock();
+
+   if (myid == 0)
+   {
+      cout << "findpts time (sec): " << (stop_s-start_s)/1000000. << endl;
+   }
+
+   // FINDPTS_EVAL
    Vector fout(nxyz);
    MPI_Barrier(MPI_COMM_WORLD);
    start_s=clock();
-   gsfl->gslib_findpts_eval(&fout,&pcode,&pproc,&pel,&pr,&dumfield,nxyz);
+   gsfl->gslib_findpts_eval(&fout, &pcode, &pproc, &pel, &pr, &dumfield, nxyz);
    stop_s=clock();
-   if (myid==0) {cout << "findpts_eval time (sec): " << (stop_s-start_s)/1000000. << endl;}
+   if (myid == 0)
+   {
+      cout << "findpts_eval time (sec): " << (stop_s-start_s)/1000000. << endl;
+   }
    gsfl->gslib_findpts_free();
 
-   int nbp = 0;
-   int nnpt = 0;
-   int nerrh = 0;
-   double maxv = -100.;
-   double maxvr = -100.;
-   int it;
-   for (it = 0; it < nxyz; it++)
+   int nbp = 0, nnpt = 0, nerrh = 0;
+   double maxv = -100.0 ,maxvr = -100.0;
+   for (int it = 0; it < nxyz; it++)
    {
-    if (pcode[it] < 2) {
-    double val = pow(vxyz[it],2)+pow(vxyz[it+nlim],2);
-    if (dim==3) val += pow(vxyz[it+2*nlim],2);
-    double delv = abs(val-fout[it]);
-    double rxe = abs(rrxa[it] - 0.5*pr[it*dim+0]-0.5);
-    double rye = abs(rrya[it] - 0.5*pr[it*dim+1]-0.5);
-    double rze = abs(rrza[it] - 0.5*pr[it*dim+2]-0.5);
-    double delvr =  ( rxe < rye ) ? rye : rxe;
-    if (dim==3) {delvr = ( ( delvr < rze ) ? rze : delvr );}
-    if (delv > maxv) {maxv = delv;}
-    if (delvr > maxvr) {maxvr = delvr;}
-    if (pcode[it] == 1) {nbp += 1;}
-    if (delvr > 1.e-10) {nerrh += 1;}
+      if (pcode[it] < 2)
+      {
+         double val = pow(vxyz[it],2)+pow(vxyz[it+nlim],2);
+         if (dim==3) { val += pow(vxyz[it+2*nlim],2); }
+         double delv = abs(val-fout[it]);
+         double rxe = abs(rrxa[it] - 0.5*pr[it*dim+0]-0.5);
+         double rye = abs(rrya[it] - 0.5*pr[it*dim+1]-0.5);
+         double rze = abs(rrza[it] - 0.5*pr[it*dim+2]-0.5);
+         double delvr =  ( rxe < rye ) ? rye : rxe;
+         if (dim==3) { delvr = ( ( delvr < rze ) ? rze : delvr ); }
+         if (delv > maxv) {maxv = delv;}
+         if (delvr > maxvr) {maxvr = delvr;}
+         if (pcode[it] == 1) {nbp += 1;}
+         if (delvr > 1.e-10) {nerrh += 1;}
+      }
+      else { nnpt++; }
    }
-   else
-   {
-    nnpt += 1;
-   }
-   }
+
    MPI_Barrier(MPI_COMM_WORLD);
    double glob_maxerr;
    MPI_Allreduce(&maxv, &glob_maxerr, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
@@ -253,13 +252,16 @@ int main (int argc, char *argv[])
    MPI_Allreduce(&nbp, &glob_nbp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    int glob_nerrh;
    MPI_Allreduce(&nerrh, &glob_nerrh, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   cout << setprecision(16);
-   if (myid==0) {cout << "maximum error: " << glob_maxerr << " \n";}
-   if (myid==0) {cout << "maximum rst error: " << glob_maxrerr << " \n";}
-   if (myid==0) {cout << "points not found: " << glob_nnpt << " \n";}
-   if (myid==0) {cout << "points on element border: " << glob_nbp << " \n";}
-   if (myid==0) {cout << "points with error > 1.e-10: " << glob_nerrh << " \n";}
- 
+   if (myid == 0)
+   {
+      cout << setprecision(16);
+      cout << "maximum error: " << glob_maxerr << " \n";
+      cout << "maximum rst error: " << glob_maxrerr << " \n";
+      cout << "points not found: " << glob_nnpt << " \n";
+      cout << "points on element border: " << glob_nbp << " \n";
+      cout << "points with error > 1.e-10: " << glob_nerrh << " \n";
+   }
+
    delete pfespace;
    delete fec;
    delete pmesh;
