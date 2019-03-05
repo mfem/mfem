@@ -181,6 +181,7 @@ void Geom(const int dim,
    static std::unordered_map<unsigned int, fIniGeom> call =
    {
       {0x222,&Geom2D<2,2>},
+      {0x224,&Geom2D<2,4>},
       {0x234,&Geom2D<3,4>},
       {0x323,&Geom3D<2,3>},
       {0x334,&Geom3D<3,4>},

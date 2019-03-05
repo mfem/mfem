@@ -16,22 +16,19 @@ namespace mfem
 {
 
 // *****************************************************************************
-#ifdef __NVCC__
-#define CU_STUB(dst,...) cuCheck(__VA_ARGS__); return dst;
-
-#else
-#define CU_STUB(...) {                                                  \
-      MFEM_ABORT("CUDA requested for MFEM but CUDA is not enabled!");   \
-      return (void*)NULL;                                               \
-   }
-#endif
-
-// *****************************************************************************
 // * Allocates device memory
 // *****************************************************************************
 void* cuMemAlloc(void** dptr, size_t bytes)
 {
-   CU_STUB(*dptr,::cuMemAlloc((CUdeviceptr*)dptr, bytes));
+#ifdef __NVCC__
+   if (bytes==0) return *dptr;
+   if (CUDA_SUCCESS != ::cuMemAlloc((CUdeviceptr*)dptr, bytes))
+   {
+      dbg("bytes: %d",bytes);
+      mfem_error("Error in cuMemAlloc");
+   }
+#endif
+   return *dptr;
 }
 
 // *****************************************************************************
@@ -39,7 +36,14 @@ void* cuMemAlloc(void** dptr, size_t bytes)
 // *****************************************************************************
 void* cuMemFree(void *dptr)
 {
-   CU_STUB(dptr,::cuMemFree((CUdeviceptr)dptr));
+#ifdef __NVCC__
+   if (CUDA_SUCCESS != ::cuMemFree((CUdeviceptr)dptr))
+   {
+      dbg("dptr: %p",dptr);
+      mfem_error("Error in cuMemFree");
+   }
+#endif
+   return dptr;
 }
 
 // *****************************************************************************
@@ -47,7 +51,14 @@ void* cuMemFree(void *dptr)
 // *****************************************************************************
 void* cuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
-   CU_STUB(dst,::cuMemcpyHtoD((CUdeviceptr)dst, src, bytes));
+#ifdef __NVCC__
+   if (CUDA_SUCCESS != ::cuMemcpyHtoD((CUdeviceptr)dst, src, bytes))
+   {
+      dbg("%p, %p, %ld",dst,src,bytes);
+      mfem_error("Error in cuMemcpyHtoD");
+   }
+#endif
+   return dst;
 }
 
 // *****************************************************************************
@@ -55,7 +66,15 @@ void* cuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 // *****************************************************************************
 void* cuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 {
-   CU_STUB(dst,::cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s));
+#ifdef __NVCC__
+   if (CUDA_SUCCESS !=
+       ::cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s))
+   {
+      dbg("%p, %p, %ld",dst,src,bytes);
+      mfem_error("Error in cuMemcpyHtoDAsync");
+   }
+#endif
+   return dst;
 }
 
 // *****************************************************************************
@@ -63,7 +82,15 @@ void* cuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 // *****************************************************************************
 void* cuMemcpyDtoD(void* dst, void* src, size_t bytes)
 {
-   CU_STUB(dst,::cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes));
+#ifdef __NVCC__
+   if (CUDA_SUCCESS !=
+       ::cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes))
+   {
+      dbg("%p, %p, %ld",dst,src,bytes);
+      mfem_error("Error in cuMemcpyDtoD");
+   }
+#endif
+   return dst;
 }
 
 // *****************************************************************************
@@ -71,10 +98,18 @@ void* cuMemcpyDtoD(void* dst, void* src, size_t bytes)
 // *****************************************************************************
 void* cuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 {
-   CU_STUB(dst,::cuMemcpyDtoDAsync((CUdeviceptr)dst,
-                                   (CUdeviceptr)src,
-                                   bytes,
-                                   (CUstream)s));
+#ifdef __NVCC__
+   if (CUDA_SUCCESS !=
+       ::cuMemcpyDtoDAsync((CUdeviceptr)dst,
+                           (CUdeviceptr)src,
+                           bytes,
+                           (CUstream)s))
+   {
+      dbg("%p, %p, %ld",dst,src,bytes);
+      mfem_error("Error in cuMemcpyDtoDAsync");
+   }
+#endif
+   return dst;
 }
 
 // *****************************************************************************
@@ -82,7 +117,14 @@ void* cuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 // *****************************************************************************
 void* cuMemcpyDtoH(void* dst, const void* src, size_t bytes)
 {
-   CU_STUB(dst,::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
+#ifdef __NVCC__
+   if (CUDA_SUCCESS != ::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes))
+   {
+      dbg("dst: %p, src:%p, bytes:%ld",dst,src,bytes);
+      mfem_error("Error in cuMemcpyDtoH");
+   }
+#endif
+   return dst;
 }
 
 // *****************************************************************************
@@ -90,7 +132,15 @@ void* cuMemcpyDtoH(void* dst, const void* src, size_t bytes)
 // *****************************************************************************
 void* cuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
 {
-   CU_STUB(dst,::cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s));
+#ifdef __NVCC__
+   if (CUDA_SUCCESS !=
+       ::cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s))
+   {
+      dbg("%p, %p, %ld",dst,src,bytes);
+      mfem_error("Error in cuMemcpyDtoHAsync");
+   }
+#endif
+   return dst;
 }
 
 // *****************************************************************************

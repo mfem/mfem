@@ -66,9 +66,9 @@ void seqWrap(const int N, HBODY &&h_body)
 template <int BLOCKS, typename DBODY, typename HBODY>
 void wrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {
-   const bool omp  = mfem::config::usingOmp();
-   const bool gpu  = mfem::config::usingGpu();
-   const bool raja = mfem::config::usingRaja();
+   const bool omp  = mfem::config::UsingOmp();
+   const bool gpu  = mfem::config::UsingDevice();
+   const bool raja = mfem::config::UsingRaja();
    if (gpu && raja) { return rajaCudaWrap<BLOCKS>(N, d_body); }
    if (gpu)         { return cuWrap<BLOCKS>(N, d_body); }
    if (omp && raja) { return rajaOmpWrap(N, h_body); }
@@ -103,7 +103,19 @@ uint32_t LOG2(uint32_t);
 
 // *****************************************************************************
 #define FILE_LINE __FILE__ && __LINE__
-#define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE && false);}
-#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::usingGpu());}
+#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::UsingDevice());}
+
+// *****************************************************************************
+const char *strrnchr(const char*, const unsigned char, const int);
+void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
+
+// *****************************************************************************
+#define _XA_(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
+#define _NA_(...) _XA_(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
+#define __FILENAME__ ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
+#define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
+
+// *****************************************************************************
+#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
 
 #endif // MFEM_OKINA_HPP

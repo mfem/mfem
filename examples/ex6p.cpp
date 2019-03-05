@@ -112,12 +112,11 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace(&pmesh, &fec);
 
    // 5. Set MFEM config parameters from the command line options
-   config::usePA(pa);
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    int elem_batch = (pa) ? pmesh.GetNE() : 1;
    if (pa) { pmesh.EnsureNodes(); }
-   if (cuda) { config::useCuda(); }
-   config::enableGpu(0);
+   if (cuda) { config::UseCuda(); }
+   config::EnableDevice(0);
 
    // 7. As in Example 1p, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
@@ -127,8 +126,11 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient one(1.0);
 
+   PADiffusionIntegrator *pa_integ = new PADiffusionIntegrator(one);
    BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
-   a.AddDomainIntegrator(integ);
+   if (pa) { a.AddDomainIntegrator(pa_integ); }
+   else    { a.AddDomainIntegrator(integ); }
+
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
 
    // 8. The solution vector x and the associated finite element grid function
@@ -190,20 +192,24 @@ int main(int argc, char *argv[])
          cout << "\nAMR iteration " << it << endl;
          cout << "Number of unknowns: " << global_dofs << endl;
       }
-
-      // 13. Assemble the stiffness matrix and the right-hand side. Note that
+      
+      // 13. Assemble the right-hand side.
+      b.Assemble();
+      
+      // 14. Eliminate boundary conditions, constrain hanging nodes and
+      //     nodes across processor boundaries.
+      Array<int> ess_tdof_list;
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      
+      // 15. Assemble the stiffness matrix. Note that
       //     MFEM doesn't care at this point that the mesh is nonconforming
       //     and parallel. The FE space is considered 'cut' along hanging
       //     edges/faces, and also across processor boundaries.
+      config::SwitchToDevice();
       a.Assemble();
-      b.Assemble();
 
-      // 14. Create the parallel linear system: eliminate boundary conditions,
-      //     constrain hanging nodes and nodes across processor boundaries.
+      // 16. Create the parallel linear system: eliminate boundary conditions.
       //     The system will be solved for true (unconstrained/unique) DOFs only.
-      Array<int> ess_tdof_list;
-      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
       Operator *A;
       if (!pa) { A = new HypreParMatrix(); }
       Vector B, X;
@@ -212,26 +218,32 @@ int main(int argc, char *argv[])
 
       // 15. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
       //     preconditioner from hypre.
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(3);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      /*
-      HypreBoomerAMG amg;
-      amg.SetPrintLevel(0);
-      CGSolver pcg(A.GetComm());
-      pcg.SetPreconditioner(amg);
-      pcg.SetOperator(A);
-      pcg.SetRelTol(1e-6);
-      pcg.SetMaxIter(200);
-      pcg.SetPrintLevel(3); // print the first and the last iterations only
-      pcg.Mult(B, X);
-      */
+      if (pa)
+      {
+         CGSolver cg(MPI_COMM_WORLD);
+         cg.SetRelTol(1e-12);
+         cg.SetMaxIter(2000);
+         cg.SetPrintLevel(3);
+         cg.SetOperator(*A);
+         cg.Mult(B, X);
+      }
+      else
+      {
+         HypreParMatrix &H = *static_cast<HypreParMatrix*>(A);
+         HypreBoomerAMG amg;
+         amg.SetPrintLevel(0);
+         CGSolver pcg(H.GetComm());
+         pcg.SetPreconditioner(amg);
+         pcg.SetOperator(H);
+         pcg.SetRelTol(1e-6);
+         pcg.SetMaxIter(200);
+         pcg.SetPrintLevel(3); // print the first and the last iterations only
+         pcg.Mult(B, X);
+      }
 
       // 16. Extract the parallel grid function corresponding to the finite element
       //     approximation X. This is the local solution on each processor.
+      config::SwitchToHost();
       a.RecoverFEMSolution(X, b, x);
 
       // 17. Send the solution by socket to a GLVis server.
