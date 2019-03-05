@@ -2766,7 +2766,7 @@ void SparseMatrixFunction (SparseMatrix & S, double (*f)(double))
 
 SparseMatrix *Transpose (const SparseMatrix &A)
 {
-   //MFEM_GPU_CANNOT_PASS;
+   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(
       A.Finalized(),
       "Finalize must be called before Transpose. Use TransposeRowMatrix instead");
@@ -3456,7 +3456,6 @@ SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B)
 
 void SparseMatrix::Swap(SparseMatrix &other)
 {
-   //MFEM_GPU_CANNOT_PASS;
    mfem::Swap(width, other.width);
    mfem::Swap(height, other.height);
    mfem::Swap(I, other.I);
