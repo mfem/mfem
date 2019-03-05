@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
    if (omp)  { config::UseOmp();  }
    if (raja) { config::UseRaja(); }
    if (occa) { config::UseOcca(); }
-   config::EnableDevice(0/*,occa,cuda*/);
+   config::EnableDevice();
    config::SwitchToDevice();
 
    // 8. Define the solution vector x as a finite element grid function

@@ -61,6 +61,8 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = false;
    bool cuda = false;
+   bool omp  = false;
+   bool raja = false;
    bool occa = false;
    bool visualization = true;
 
@@ -75,6 +77,8 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
+   args.AddOption(&omp, "-om", "--omp", "-no-om", "--no-omp", "Enable OpenMP.");
+   args.AddOption(&raja, "-ra", "--raja", "-no-ra", "--no-raja", "Enable RAJA.");
    args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -176,7 +180,7 @@ int main(int argc, char *argv[])
    if (pa) { pmesh->EnsureNodes(); }
    if (cuda) { config::UseCuda(); }
    if (occa) { config::UseOcca(); }
-   config::EnableDevice(0/*,occa,cuda*/);
+   config::EnableDevice();
    config::SwitchToDevice();
 
    // 9. Define the solution vector x as a parallel finite element grid function
@@ -244,7 +248,7 @@ int main(int argc, char *argv[])
 
    // 14. Switch back to host
    config::SwitchToHost();
-   
+
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {

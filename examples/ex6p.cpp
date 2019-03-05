@@ -51,6 +51,9 @@ int main(int argc, char *argv[])
    int order = 1;
    bool pa = false;
    bool cuda = false;
+   bool omp  = false;
+   bool raja = false;
+   bool occa = false;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -61,6 +64,9 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
+   args.AddOption(&omp, "-om", "--omp", "-no-om", "--no-omp", "Enable OpenMP.");
+   args.AddOption(&raja, "-ra", "--raja", "-no-ra", "--no-raja", "Enable RAJA.");
+   args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -192,15 +198,15 @@ int main(int argc, char *argv[])
          cout << "\nAMR iteration " << it << endl;
          cout << "Number of unknowns: " << global_dofs << endl;
       }
-      
+
       // 13. Assemble the right-hand side.
       b.Assemble();
-      
+
       // 14. Eliminate boundary conditions, constrain hanging nodes and
       //     nodes across processor boundaries.
       Array<int> ess_tdof_list;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      
+
       // 15. Assemble the stiffness matrix. Note that
       //     MFEM doesn't care at this point that the mesh is nonconforming
       //     and parallel. The FE space is considered 'cut' along hanging

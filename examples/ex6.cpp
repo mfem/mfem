@@ -45,6 +45,9 @@ int main(int argc, char *argv[])
    int order = 1;
    bool pa = false;
    bool cuda = false;
+   bool omp  = false;
+   bool raja = false;
+   bool occa = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -55,6 +58,9 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
+   args.AddOption(&omp, "-om", "--omp", "-no-om", "--no-omp", "Enable OpenMP.");
+   args.AddOption(&raja, "-ra", "--raja", "-no-ra", "--no-raja", "Enable RAJA.");
+   args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
