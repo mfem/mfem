@@ -99,7 +99,9 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    cf_i[0] = 0;
    for (int i = 0; i < coarse_ne; i++)
    {
-      std::sort(&cf_j[cf_i[i]], &cf_j[cf_i[i+1]]);
+      Pair<int,int> *end =
+         (cf_i[i+1] == cf_j.Size()) ? cf_j.end() :  &cf_j[cf_i[i+1]];
+      std::sort(&cf_j[cf_i[i]], end);
    }
    for (int i = 0; i < fine_ne; i++)
    {
