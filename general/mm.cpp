@@ -108,7 +108,7 @@ static void DumpMode(void)
    cfg.set(config::UsingMM()?8:0);
    cfg.set(config::DeviceHasBeenEnabled()?7:0);
    cfg.set(config::DeviceEnabled()?6:0);
-   cfg.set(config::DeviceDisabled()?6:0);
+   cfg.set(config::DeviceDisabled()?5:0);
    cfg.set(config::UsingHost()?4:0);
    cfg.set(config::UsingDevice()?3:0);
    cfg.set(config::UsingCuda()?2:0);
@@ -116,16 +116,16 @@ static void DumpMode(void)
    cfg>>=1;
    if (cfg==mode) { return; }
    mode=cfg;
-   dbg("\033[1K\r[0x%lx] %sMM %sHasBeenEnabled %sEnabled %sDisabled \
-%sHOST %sDEVICE %sCUDA %sOCCA", mode.to_ulong(),
-       config::UsingMM()?"\033[32m":"\033[31m",
-       config::DeviceHasBeenEnabled()?"\033[32m":"\033[31m",
-       config::DeviceEnabled()?"\033[32m":"\033[31m",
-       config::DeviceDisabled()?"\033[32m":"\033[31m",
-       config::UsingHost()?"\033[32m":"\033[31m",
-       config::UsingDevice()?"\033[32m":"\033[31m",
-       config::UsingCuda()?"\033[32m":"\033[31m",
-       config::UsingOcca()?"\033[32m":"\033[31m");
+   printf("\033[1K\r[0x%lx] %sMM %sHasBeenEnabled %sEnabled %sDisabled "
+          "%sHOST %sDEVICE %sCUDA %sOCCA", mode.to_ulong(),
+          config::UsingMM()?"\033[32m":"\033[31m",
+          config::DeviceHasBeenEnabled()?"\033[32m":"\033[31m",
+          config::DeviceEnabled()?"\033[32m":"\033[31m",
+          config::DeviceDisabled()?"\033[32m":"\033[31m",
+          config::UsingHost()?"\033[32m":"\033[31m",
+          config::UsingDevice()?"\033[32m":"\033[31m",
+          config::UsingCuda()?"\033[32m":"\033[31m",
+          config::UsingOcca()?"\033[32m":"\033[31m");
 }
 
 // *****************************************************************************
