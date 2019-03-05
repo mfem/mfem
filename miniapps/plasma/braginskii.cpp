@@ -616,7 +616,8 @@ int main(int argc, char *argv[])
 
    // Visualize the density, momentum, and energy
    vector<socketstream> dout(num_species_+1), vout(num_species_+1),
-          tout(num_species_+1), xout(num_species_+1), eout(num_species_+1);
+          tout(num_species_+1), x0out(num_species_+1), x1out(num_species_+1),
+     e0out(num_species_+1);
 
    if (visualization)
    {
@@ -646,12 +647,18 @@ int main(int argc, char *argv[])
          ParGridFunction temperature(&sfes, T_block.GetBlock(i));
 
          ParGridFunction chi_para(&sfes);
+         ParGridFunction chi_perp(&sfes);
          ParGridFunction eta_0(&sfes);
          if (i==0)
          {
             ChiParaCoefficient chiParaCoef(n_block, ion_charge_);
             chiParaCoef.SetT(temperature);
             chi_para.ProjectCoefficient(chiParaCoef);
+
+            ChiPerpCoefficient chiPerpCoef(n_block, ion_charge_);
+            chiPerpCoef.SetT(temperature);
+            chiPerpCoef.SetB(B);
+            chi_perp.ProjectCoefficient(chiPerpCoef);
 
             Eta0Coefficient eta0Coef(n_block, ion_charge_);
             eta0Coef.SetT(temperature);
@@ -664,6 +671,11 @@ int main(int argc, char *argv[])
                                            ion_charge_);
             chiParaCoef.SetT(temperature);
             chi_para.ProjectCoefficient(chiParaCoef);
+
+            ChiPerpCoefficient chiPerpCoef(n_block, ion_mass_, ion_charge_);
+            chiPerpCoef.SetT(temperature);
+            chiPerpCoef.SetB(B);
+            chi_perp.ProjectCoefficient(chiPerpCoef);
 
             Eta0Coefficient eta0Coef(n_block,
                                      ion_mass_,
@@ -702,19 +714,26 @@ int main(int argc, char *argv[])
 
          Wx += offx;
 
-         ostringstream xoss; xoss << head.str() << " Chi Parallel";
-         VisualizeField(xout[i], vishost, visport,
-                        chi_para, xoss.str().c_str(),
+         ostringstream x0oss; x0oss << head.str() << " Chi Parallel";
+         VisualizeField(x0out[i], vishost, visport,
+                        chi_para, x0oss.str().c_str(),
                         Wx, Wy, Ww, Wh);
 
          Wx += offx;
 
-         ostringstream eoss; eoss << head.str() << " Eta 0";
-         VisualizeField(eout[i], vishost, visport,
-                        eta_0, eoss.str().c_str(),
+         ostringstream x1oss; x1oss << head.str() << " Chi Perpendicular";
+         VisualizeField(x1out[i], vishost, visport,
+                        chi_perp, x1oss.str().c_str(),
                         Wx, Wy, Ww, Wh);
 
-         Wx -= 4 * offx;
+         Wx += offx;
+
+         ostringstream e0oss; e0oss << head.str() << " Eta 0";
+         VisualizeField(e0out[i], vishost, visport,
+                        eta_0, e0oss.str().c_str(),
+                        Wx, Wy, Ww, Wh);
+
+         Wx -= 5 * offx;
          Wy += offy;
       }
    }
