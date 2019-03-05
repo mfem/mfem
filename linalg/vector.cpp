@@ -261,11 +261,8 @@ void Vector::SetVector(const Vector &v, int offset)
 
 void Vector::Neg()
 {
-   MFEM_GPU_CANNOT_PASS;
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = -data[i];
-   }
+   DeviceVector d(data, size);
+   MFEM_FORALL(i, size, d[i] = -d[i];);
 }
 
 void add(const Vector &v1, const Vector &v2, Vector &v)

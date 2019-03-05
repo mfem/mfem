@@ -33,7 +33,7 @@ void Geom2D(const int NE,
 {
    const int ND = ND1d*ND1d;
    const int NQ = NQ1d*NQ1d;
-   const DeviceTensor<3> G(_G, 2,NQ,NE);
+   const DeviceTensor<3> G(_G, 2,NQ,ND);
    const DeviceTensor<3> X(_X, 2,ND,NE);
    DeviceTensor<3> Xq(_Xq, 2,NQ,NE);
    DeviceTensor<4> J(_J, 2,2,NQ,NE);
