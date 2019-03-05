@@ -1482,7 +1482,7 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    FiniteElementSpace* fes;
-   SparseMatrix &M, &K;
+   SparseMatrix &M, &K, &kbdr;
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
@@ -1495,7 +1495,7 @@ private:
 
 public:
    FE_Evolution(FiniteElementSpace* fes, SparseMatrix &_M, SparseMatrix &_K,
-                const Vector &_b, FluxCorrectedTransport &_fct);
+                const Vector &_b, FluxCorrectedTransport &_fct, SparseMatrix &_kbdr);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -1745,6 +1745,12 @@ int main(int argc, char *argv[])
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
    k.AddBdrFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+ 
+   BilinearForm kbdr(&fes);
+   kbdr.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGPositiveTraceIntegrator(velocity, 1.0, -0.5)));
+   kbdr.Assemble();
+   kbdr.Finalize();
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -1833,7 +1839,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m.SpMat(), k.SpMat(), b, fct);
+   FE_Evolution adv(&fes, m.SpMat(), k.SpMat(), b, fct, kbdr.SpMat());
 
    double t = 0.0;
    adv.SetTime(t);
@@ -2269,6 +2275,8 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          y -= z;
       }
       zz = y;
+      
+      kbdr.AddMult(x, y);
 
       // Monotonicity terms
       for (k = 0; k < ne; k++)
@@ -2314,8 +2322,8 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ////////////////////////////
          // Boundary contributions //
          ////////////////////////////
-         if (dim > 1)// Nothing needs to be done for 1D boundaries (due to Bernstein basis)
-            LinearFluxLumping(k, nd, x, y, alpha);
+         //if (dim > 1)// Nothing needs to be done for 1D boundaries (due to Bernstein basis)
+         //   LinearFluxLumping(k, nd, x, y, alpha);
          
          sumWeightsP = nd*xMax - xSum + eps;
          sumWeightsN = nd*xMin - xSum - eps;
@@ -2640,9 +2648,9 @@ void FE_Evolution::ApplyTimeDerivativeLimiter3(const Vector &x, const Vector &yH
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M,
                            SparseMatrix &_K,
-                           const Vector &_b, FluxCorrectedTransport &_fct)
+                           const Vector &_b, FluxCorrectedTransport &_fct, SparseMatrix &_kbdr)
    : TimeDependentOperator(_M.Size()), fes(_fes), M(_M), K(_K), b(_b),
-     z(_M.Size()), fct(_fct), zz(_M.Size()) // TODO if useless rm zz
+     z(_M.Size()), fct(_fct), kbdr(_kbdr), zz(_M.Size()) // TODO if useless rm zz
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
