@@ -1890,8 +1890,8 @@ int main(int argc, char *argv[])
    tmp -= u;
    if (problem == 4) // solid body rotation
    {
-      cout << "L1-error: " << ComputeIntegralNorm(&fes, tmp, 1.) << ", L-Inf-error: "
-           << ComputeIntegralNorm(&fes, tmp, numeric_limits<double>::infinity()) << "." << endl;
+      cout << "L1-error: " << u.ComputeLpError(1., u0) << ", L-Inf-error: "
+           << u.ComputeLpError(numeric_limits<double>::infinity(), u0) << "." << endl;
    }
 
 //    // write output
