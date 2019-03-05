@@ -197,6 +197,15 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
     offsets(ndofs+1),
     indices(ne*dof)
 {
+#ifdef MFEM_DEBUG
+   for (int e = 0; e < ne; ++e)
+   {
+      const FiniteElement *fe = fes.GetFE(e);
+      const TensorBasisElement* el =
+         dynamic_cast<const TensorBasisElement*>(fe);
+      MFEM_ASSERT(el, "Finite element not supported with partial assembly");
+   }
+#endif // MFEM_DEBUG
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_ASSERT(el, "Finite element not supported with partial assembly");

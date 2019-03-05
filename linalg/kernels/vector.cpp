@@ -65,6 +65,7 @@ static double cuVectorMin(const int N, const double *x)
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
    if (!gdsr) { ::cuMemAlloc(&gdsr,bytes); }
    cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, x);
+   cuCheck(cudaGetLastError());
    ::cuMemcpy((CUdeviceptr)h_min,(CUdeviceptr)gdsr,bytes);
    double min = std::numeric_limits<double>::infinity();
    for (int i=0; i<min_sz; i+=1) { min = fmin(min, h_min[i]); }
@@ -124,6 +125,7 @@ static double cuVectorDot(const int N, const double *x, const double *y)
       dot_block_sz = dot_sz;
    }
    cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
+   cuCheck(cudaGetLastError());
    cuCheck(::cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
    double dot = 0.0;
    for (int i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
@@ -134,32 +136,35 @@ static double cuVectorDot(const int N, const double *x, const double *y)
 // *****************************************************************************
 double Min(const int N, const double *x)
 {
-   const DeviceVector d_x(x,N);
-   if (config::usingGpu())
+   if (config::UsingDevice())
    {
 #ifdef __NVCC__
+      const DeviceVector d_x(x,N);
       return cuVectorMin(N, d_x);
+#else
+      mfem_error("Using Min on device w/o support");
 #endif // __NVCC__
    }
    double min = std::numeric_limits<double>::infinity();
-   for (int i=0; i<N; i+=1) { min = fmin(min, d_x[i]); }
+   for (int i=0; i<N; i+=1) { min = fmin(min, x[i]); }
    return min;
 }
 
 // *****************************************************************************
 double Dot(const int N, const double *x, const double *y)
 {
-   const DeviceVector d_x(x,N);
-   const DeviceVector d_y(y,N);
-   if (config::usingGpu())
+   if (config::UsingDevice())
    {
 #ifdef __NVCC__
+      const DeviceVector d_x(x,N);
+      const DeviceVector d_y(y,N);
       return cuVectorDot(N, d_x, d_y);
+#else
+      mfem_error("Using Dot on device w/o support");
 #endif // __NVCC__
    }
-
    double dot = 0.0;
-   for (int i=0; i<N; i+=1) { dot += d_x[i] * d_y[i]; }
+   for (int i=0; i<N; i+=1) { dot += x[i] * y[i]; }
    return dot;
 }
 

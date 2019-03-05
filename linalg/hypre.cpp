@@ -328,6 +328,7 @@ char HypreParMatrix::CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr)
 
 char HypreParMatrix::CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr)
 {
+   MFEM_GPU_CANNOT_PASS;
    int nnz = bool_csr->Size_of_connections();
    double *data = new double[nnz];
    for (int i = 0; i < nnz; i++)

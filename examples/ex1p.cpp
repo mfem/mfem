@@ -173,12 +173,11 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   config::usePA(pa);
    if (pa) { pmesh->EnsureNodes(); }
-   if (cuda) { config::useCuda(); }
-   if (occa) { config::useOcca(); }
-   config::enableGpu(0/*,occa,cuda*/);
-   config::SwitchToGpu();
+   if (cuda) { config::UseCuda(); }
+   if (occa) { config::UseOcca(); }
+   config::EnableDevice(0/*,occa,cuda*/);
+   config::SwitchToDevice();
 
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -218,26 +217,35 @@ int main(int argc, char *argv[])
 
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(3);
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
-
-   // HypreSolver *amg = new HypreBoomerAMG(A);
-   // HyprePCG *pcg = new HyprePCG(A);
-   // pcg->SetTol(1e-12);
-   // pcg->SetMaxIter(200);
-   // pcg->SetPrintLevel(2);
-   // pcg->SetPreconditioner(*amg);
-   // pcg->Mult(B, X);
+   if (pa)
+   {
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(3);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+   }
+   else
+   {
+      HypreParMatrix &H = *static_cast<HypreParMatrix*>(A);
+      HypreSolver *amg = new HypreBoomerAMG(H);
+      HyprePCG *pcg = new HyprePCG(H);
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(200);
+      pcg->SetPrintLevel(2);
+      pcg->SetPreconditioner(*amg);
+      pcg->Mult(B, X);
+   }
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 14. Save the refined mesh and the solution in parallel. This output can
+   // 14. Switch back to host
+   config::SwitchToHost();
+   
+   // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -253,7 +261,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 15. Send the solution by socket to a GLVis server.
+   // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -264,7 +272,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 16. Free the used memory.
+   // 17. Free the used memory.
    // delete pcg;
    // delete amg;
    delete A;

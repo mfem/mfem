@@ -658,7 +658,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    const DeviceVector d_A(A);
    const DeviceVector d_x(x,Height);
    DeviceVector d_y(y,Height);
-   const bool usingGpu = config::usingGpu();
+   const bool device = config::UsingDevice();
    MFEM_FORALL(i, Height,
    {
       const double xi = a * d_x[i];
@@ -666,7 +666,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       for (int j = d_I[i]; j < end; j++)
       {
          const int Jj = d_J[j];
-         if (usingGpu)
+         if (device)
          {
             AtomicAdd(&d_y[Jj], d_A[j] * xi);
          }

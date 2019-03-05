@@ -17,7 +17,7 @@
 #include <cuda.h>
 inline void cuCheck(const unsigned int c)
 {
-   MFEM_ASSERT(!c, cudaGetErrorString(cudaGetLastError()));
+   MFEM_ASSERT(c == cudaSuccess, cudaGetErrorString(cudaGetLastError()));
 }
 template <typename BODY> __global__ static
 void cuKernel(const size_t N, BODY body)
@@ -31,6 +31,8 @@ void cuWrap(const size_t N, DBODY &&d_body)
 {
    const size_t GRID = (N+BLOCKS-1)/BLOCKS;
    cuKernel<<<GRID,BLOCKS>>>(N,d_body);
+   const cudaError_t last = cudaGetLastError();
+   MFEM_ASSERT(last == cudaSuccess, cudaGetErrorString(last));
 }
 template<typename T>
 __host__ __device__ inline T AtomicAdd(T* address, T val)

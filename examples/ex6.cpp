@@ -91,12 +91,11 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fec);
 
    // 5. Set MFEM config parameters from the command line options
-   config::usePA(pa);
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    int elem_batch = (pa) ? mesh.GetNE() : 1;
    if (pa) { mesh.EnsureNodes(); }
-   if (cuda) { config::useCuda(); }
-   config::enableGpu(0);
+   if (cuda) { config::UseCuda(); }
+   config::EnableDevice(0);
 
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
@@ -168,8 +167,8 @@ int main(int argc, char *argv[])
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      // 15. Assemble the stiffness matrix and the right-hand side.
-      config::SwitchToGpu();
+      // 15. Assemble the stiffness matrix.
+      config::SwitchToDevice();
       a.Assemble();
 
       // 16. Create the linear system: eliminate boundary conditions, constrain
@@ -205,7 +204,7 @@ int main(int argc, char *argv[])
       // 19. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
-      config::SwitchToCpu();
+      config::SwitchToHost();
       a.RecoverFEMSolution(X, b, x);
 
       // 20. Send solution by socket to the GLVis server.
