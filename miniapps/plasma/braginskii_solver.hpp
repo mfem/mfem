@@ -847,17 +847,21 @@ private:
    std::vector<dEduCoefficient *> dEduCoef_;
    std::vector<dEdTCoefficient *> dEdTCoef_;
 
-   std::vector<DiffCoefficient *> diffCoef_;
+   // std::vector<DiffCoefficient *> diffCoef_;
    std::vector<ChiCoefficient *>  chiCoef_;
+   std::vector<EtaCoefficient *>  etaCoef_;
 
+   // std::vector<ScalarMatrixProductCoefficient *> dtDiffCoef_;
    std::vector<ScalarMatrixProductCoefficient *> dtChiCoef_;
-   std::vector<ScalarMatrixProductCoefficient *> dtDiffCoef_;
+   std::vector<ScalarMatrixProductCoefficient *> dtEtaCoef_;
 
    // Bilinear Forms for energy equation
    std::vector<ParBilinearForm *> a_dEdn_;
    std::vector<ParBilinearForm *> a_dEdu_;
    std::vector<ParBilinearForm *> a_dEdT_;
+   // std::vector<ParBilinearForm *> stiff_D_;
    std::vector<ParBilinearForm *> stiff_chi_;
+   std::vector<ParBilinearForm *> stiff_eta_;
 
    void initCoefficients();
    void initBilinearForms();

@@ -871,9 +871,19 @@ void TwoFluidDiffusion::deleteBilinearForms()
    {
       delete a_dEdT_[i];
    }
+   /*
+   for (unsigned int i=0; i<stiff_D_.size(); i++)
+   {
+      delete stiff_D_[i];
+   }
+   */
    for (unsigned int i=0; i<stiff_chi_.size(); i++)
    {
       delete stiff_chi_[i];
+   }
+   for (unsigned int i=0; i<stiff_eta_.size(); i++)
+   {
+      delete stiff_eta_[i];
    }
 }
 
@@ -901,22 +911,34 @@ void TwoFluidDiffusion::deleteCoefficients()
       delete dEdTCoef_[i];
    }
 
+   /*
    for (unsigned int i=0; i<dtDiffCoef_.size(); i++)
    {
       delete dtDiffCoef_[i];
    }
+   */
    for (unsigned int i=0; i<dtChiCoef_.size(); i++)
    {
       delete dtChiCoef_[i];
    }
+   for (unsigned int i=0; i<dtEtaCoef_.size(); i++)
+   {
+      delete dtEtaCoef_[i];
+   }
 
+   /*
    for (unsigned int i=0; i<diffCoef_.size(); i++)
    {
       delete diffCoef_[i];
    }
+   */
    for (unsigned int i=0; i<chiCoef_.size(); i++)
    {
       delete chiCoef_[i];
+   }
+   for (unsigned int i=0; i<etaCoef_.size(); i++)
+   {
+      delete etaCoef_[i];
    }
 }
 
@@ -924,38 +946,43 @@ void TwoFluidDiffusion::initCoefficients()
 {
    int ns = 1;
 
-   nGF_.resize(ns+1);
-   nCoef_.resize(ns+1);
+   nGF_.resize(ns + 1);
+   nCoef_.resize(ns + 1);
    for (int i=0; i<=ns; i++)
    {
       nGF_[i].MakeRef(&sfes_, nBV_.GetBlock(i));
       nCoef_[i].SetGridFunction(&nGF_[i]);
    }
 
-   uGF_.resize(ns+1);
-   uCoef_.resize(ns+1);
+   uGF_.resize(ns + 1);
+   uCoef_.resize(ns + 1);
    for (int i=0; i<=ns; i++)
    {
       uGF_[i].MakeRef(&vfes_, uBV_.GetBlock(i));
       uCoef_[i].SetGridFunction(&uGF_[i]);
    }
 
-   TGF_.resize(ns+1);
-   TCoef_.resize(ns+1);
+   TGF_.resize(ns + 1);
+   TCoef_.resize(ns + 1);
    for (int i=0; i<=ns; i++)
    {
       TGF_[i].MakeRef(&sfes_, TBV_.GetBlock(i));
       TCoef_[i].SetGridFunction(&TGF_[i]);
    }
 
-   dpdnCoef_.resize(dim_ * ns);
+   dpdnCoef_.resize(dim_ * (ns + 1));
    for (int d=0; d<dim_; d++)
    {
-      dpdnCoef_[d] = new dpdnCoefficient(d, ion_mass_, uCoef_[1]);
+      dpdnCoef_[d] = new dpdnCoefficient(d, me_u_, uCoef_[0]);
+   }
+   for (int d=0; d<dim_; d++)
+   {
+      dpdnCoef_[dim_ + d] = new dpdnCoefficient(d, ion_mass_, uCoef_[1]);
    }
 
-   dpduCoef_.resize(ns);
-   dpduCoef_[0] = new dpduCoefficient(ion_mass_, nCoef_[1]);
+   dpduCoef_.resize(ns + 1);
+   dpduCoef_[0] = new dpduCoefficient(me_u_, nCoef_[0]);
+   dpduCoef_[1] = new dpduCoefficient(ion_mass_, nCoef_[1]);
 
    dEdnCoef_.resize(ns + 1);
    dEdnCoef_[0] = new dEdnCoefficient(TCoef_[0], me_u_, uCoef_[0]);
@@ -978,18 +1005,40 @@ void TwoFluidDiffusion::initCoefficients()
    {
       dEdTCoef_[i] = new dEdTCoefficient(1.5, nCoef_[i]);
    }
-
+   /*
    diffCoef_.resize(ns);
    dtDiffCoef_.resize(ns);
    diffCoef_[0] = new DiffCoefficient(dim_, B_);
    dtDiffCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *diffCoef_[0]);
-
-   chiCoef_.resize(ns+1);
-   dtChiCoef_.resize(ns+1);
+   */
+   chiCoef_.resize(ns + 1);
+   dtChiCoef_.resize(ns + 1);
    chiCoef_[0] = new ChiCoefficient(dim_, nBV_, B_, ion_charge_);
    dtChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[0]);
    chiCoef_[1] = new ChiCoefficient(dim_, nBV_, B_, ion_mass_, ion_charge_);
    dtChiCoef_[1] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[1]);
+
+   etaCoef_.resize(dim_ * dim_ * (ns + 1));
+   dtEtaCoef_.resize(dim_ * dim_ * (ns + 1));
+   for (int i=0; i<dim_; i++)
+   {
+      for (int j=0; j<dim_; j++)
+      {
+         int k = dim_ * i + j;
+         etaCoef_[k] = new EtaCoefficient(dim_, i, j, nBV_, B_, ion_charge_);
+         dtEtaCoef_[k] = new ScalarMatrixProductCoefficient(0.0, *etaCoef_[k]);
+      }
+   }
+   for (int i=0; i<dim_; i++)
+   {
+      for (int j=0; j<dim_; j++)
+      {
+         int k = dim_ * (dim_ + i) + j;
+         etaCoef_[k] = new EtaCoefficient(dim_, i, j, nBV_, B_,
+                                          ion_mass_, ion_charge_);
+         dtEtaCoef_[k] = new ScalarMatrixProductCoefficient(0.0, *etaCoef_[k]);
+      }
+   }
 }
 
 void TwoFluidDiffusion::initBilinearForms()
@@ -1019,7 +1068,18 @@ void TwoFluidDiffusion::initBilinearForms()
       a_dEdT_[i]->AddBdrFaceIntegrator(
          new DGDiffusionIntegrator(*dtChiCoef_[i], dg_.sigma, dg_.kappa));
    }
-
+   /*
+   stiff_D_.resize(diffCoef_.size());
+   for (unsigned int i=0; i<diffCoef_.size(); i++)
+   {
+      stiff_D_[i] = new ParBilinearForm(&sfes_);
+      stiff_D_[i]->AddDomainIntegrator(new DiffusionIntegrator(*diffCoef_[i]));
+      stiff_D_[i]->AddInteriorFaceIntegrator(
+         new DGDiffusionIntegrator(*diffCoef_[i], dg_.sigma, dg_.kappa));
+      stiff_D_[i]->AddBdrFaceIntegrator(
+         new DGDiffusionIntegrator(*diffCoef_[i], dg_.sigma, dg_.kappa));
+   }
+   */
    stiff_chi_.resize(chiCoef_.size());
    for (unsigned int i=0; i<chiCoef_.size(); i++)
    {
@@ -1029,6 +1089,17 @@ void TwoFluidDiffusion::initBilinearForms()
          new DGDiffusionIntegrator(*chiCoef_[i], dg_.sigma, dg_.kappa));
       stiff_chi_[i]->AddBdrFaceIntegrator(
          new DGDiffusionIntegrator(*chiCoef_[i], dg_.sigma, dg_.kappa));
+   }
+
+   stiff_eta_.resize(etaCoef_.size());
+   for (unsigned int i=0; i<etaCoef_.size(); i++)
+   {
+      stiff_eta_[i] = new ParBilinearForm(&sfes_);
+      stiff_eta_[i]->AddDomainIntegrator(new DiffusionIntegrator(*etaCoef_[i]));
+      stiff_eta_[i]->AddInteriorFaceIntegrator(
+         new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
+      stiff_eta_[i]->AddBdrFaceIntegrator(
+         new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
    }
 }
 
