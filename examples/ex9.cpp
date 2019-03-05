@@ -675,13 +675,12 @@ private:
 
 public:
    // Constructor builds structures required for low order scheme
-   FluxCorrectedTransport(const MONOTYPE _monoType, bool &_schemeOpt,
-                          FiniteElementSpace* _fes,
+   FluxCorrectedTransport(FiniteElementSpace* _fes, const MONOTYPE _monoType, bool &_schemeOpt,
                           const SparseMatrix &K, VectorFunctionCoefficient &coef, SolutionBounds &_bnds) :
-      fes(_fes), monoType(_monoType), schemeOpt(_schemeOpt), bnds(_bnds) // TODO schemeOpt
+      fes(_fes), monoType(_monoType), schemeOpt(_schemeOpt), bnds(_bnds)
    {
       // NOTE: D is initialized later, due to the need to have identical sparisty with corresponding 
-      //         advection operator K or preconditioned volume terms, depending on the scheme.
+      //       advection operator K or preconditioned volume terms, depending on the scheme.
       
       // Compute the lumped mass matrix algebraicly
       BilinearForm m(fes);
@@ -690,8 +689,8 @@ public:
       m.Finalize();
       m.SpMat().GetDiag(lumpedM);
       
-      // TODO: rename Rho to VolumeTerms
-      //         
+      const FiniteElement &dummy = *fes->GetFE(0);
+      int p = dummy.GetOrder();
       
       if (monoType == None) { return; }
       
@@ -703,7 +702,6 @@ public:
             // Boundary contributions //
             ////////////////////////////
             Mesh *mesh = fes->GetMesh();
-            const FiniteElement &dummy = *fes->GetFE(0);
             int dim = mesh->Dimension(), ne = mesh->GetNE(), nd = dummy.GetDof();
             
             // fill the dofs array to access the correct dofs for boundaries later
@@ -767,21 +765,24 @@ public:
       }
       else if ((monoType == Rusanov) || (monoType == Rusanov_FCT))
       {
-         schemeOpt = _schemeOpt; // TODO check and code consistently
-         if (!_schemeOpt)
+         if ((p==1) && schemeOpt)
+         {
+            mfem_warning("Subcell option does not make sense for order 1. Using cell-based scheme.");
+            schemeOpt = false;
+         }
+
+         if (!schemeOpt)
          {
             ComputeDiffusionCoefficient(fes, coef);
          }
          else
          {
             Mesh *mesh = fes->GetMesh();
-            int i, j, k, m, p, nd, dofInd, numBdrs, numDofs, ne = mesh->GetNE(), dim = mesh->Dimension();
+            int i, j, k, m, nd, dofInd, numBdrs, numDofs, ne = mesh->GetNE(), dim = mesh->Dimension();
             const int btype = BasisType::Positive;
-            const FiniteElement &dummy = *fes->GetFE(0);
             DenseMatrix elmat;
             ElementTransformation *tr;
-            
-            p = dummy.GetOrder();
+
             nd = dummy.GetDof();
             // fill the dofs array to access the correct dofs for boundaries
             dummy.ExtractBdrDofs(dofs); // TODO repating and put in routine
@@ -862,8 +863,12 @@ public:
       else if ( (monoType == ResDist) || (monoType == ResDist_FCT) 
                || (monoType == ResDist_Lim) || (monoType == ResDist_LimMass) )
       {
-         ComputeResidualWeights(fes, coef, _schemeOpt);
-         schemeOpt = _schemeOpt; // if ComputeResidualWeights found that order==1, element-version is used instead of subcells
+         if ((p==1) && schemeOpt)
+         {
+            mfem_warning("Subcell option does not make sense for order 1. Using cell-based scheme.");
+            schemeOpt = false;
+         }
+         ComputeResidualWeights(fes, coef);
       }
    }
 
@@ -1036,8 +1041,7 @@ public:
       }
    }
 
-   void ComputeResidualWeights(FiniteElementSpace* fes,
-                               VectorFunctionCoefficient &coef, bool &schemeOpt)
+   void ComputeResidualWeights(FiniteElementSpace* fes, VectorFunctionCoefficient &coef)
    {
       Mesh *mesh = fes->GetMesh();
       int i, j, k, m, p, nd, dofInd, qOrdF, numBdrs, numDofs,
@@ -1050,12 +1054,6 @@ public:
       const FiniteElement &dummy = *fes->GetFE(0);
       nd = dummy.GetDof();
       p = dummy.GetOrder();
-
-      if ((p==1) && schemeOpt)
-      {
-         mfem_warning("Subcell option does not make sense for order 1. Using cell-based scheme."); // TODO also for Rusanov
-         schemeOpt = false;
-      }
 
       if (dim==1)
       {
@@ -1071,7 +1069,7 @@ public:
       {
          numSubcells = p*p*p;
          numDofsSubcell = 8;
-      } // TODO if schemeOpt
+      }
 
       // fill the dofs array to access the correct dofs for boundaries later; dofs is not needed here
       dummy.ExtractBdrDofs(dofs);
@@ -1713,10 +1711,9 @@ int main(int argc, char *argv[])
          delete ode_solver;
          return 5;
       }
-      if ((btype != 2) && (monoType > 2))
+      if (btype != 2)
       {
-         cout << "Matrix-free monotonicity treatment requires use of Bernstein basis." <<
-              endl;
+         cout << "Monotonicity treatment requires use of Bernstein basis." << endl;
          delete mesh;
          delete ode_solver;
          return 5;
@@ -1764,7 +1761,7 @@ int main(int argc, char *argv[])
    SolutionBounds bnds(&fes, k, stencil);
 
    // Precompute data required for high and low order schemes
-   FluxCorrectedTransport fct(monoType, schemeOpt, &fes, k.SpMat(), velocity, bnds);
+   FluxCorrectedTransport fct(&fes, monoType, schemeOpt, k.SpMat(), velocity, bnds);
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
