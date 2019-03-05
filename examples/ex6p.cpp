@@ -91,7 +91,8 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
-
+   if (pa) { mesh->EnsureNodes(); }
+   
    // 4. Refine the serial mesh on all processors to increase the resolution.
    //    Also project a NURBS mesh to a piecewise-quadratic curved mesh. Make
    //    sure that the mesh is non-conforming.
@@ -102,6 +103,7 @@ int main(int argc, char *argv[])
    }
    mesh->EnsureNCMesh();
 
+   
    // 5. Define a parallel mesh by partitioning the serial mesh.
    //    Once the parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
@@ -120,7 +122,6 @@ int main(int argc, char *argv[])
    // 5. Set MFEM config parameters from the command line options
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    int elem_batch = (pa) ? pmesh.GetNE() : 1;
-   if (pa) { pmesh.EnsureNodes(); }
    if (cuda) { config::UseCuda(); }
    config::EnableDevice(0);
 
@@ -207,10 +208,10 @@ int main(int argc, char *argv[])
       Array<int> ess_tdof_list;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      // 15. Assemble the stiffness matrix. Note that
-      //     MFEM doesn't care at this point that the mesh is nonconforming
-      //     and parallel. The FE space is considered 'cut' along hanging
-      //     edges/faces, and also across processor boundaries.
+      // 15. Assemble the stiffness matrix. Note that MFEM doesn't care
+      //     at this point that the mesh is nonconforming and parallel.
+      //     The FE space is considered 'cut' along hanging edges/faces,
+      //     and also across processor boundaries.
       config::SwitchToDevice();
       a.Assemble();
 
@@ -222,7 +223,7 @@ int main(int argc, char *argv[])
       const int copy_interior = 1;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
 
-      // 15. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+      // 17. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
       //     preconditioner from hypre.
       if (pa)
       {
@@ -246,13 +247,13 @@ int main(int argc, char *argv[])
          pcg.SetPrintLevel(3); // print the first and the last iterations only
          pcg.Mult(B, X);
       }
-
-      // 16. Extract the parallel grid function corresponding to the finite element
+      
+      // 18. Extract the parallel grid function corresponding to the finite element
       //     approximation X. This is the local solution on each processor.
       config::SwitchToHost();
       a.RecoverFEMSolution(X, b, x);
 
-      // 17. Send the solution by socket to a GLVis server.
+      // 19. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          sout << "parallel " << num_procs << " " << myid << "\n";
@@ -268,7 +269,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 18. Call the refiner to modify the mesh. The refiner calls the error
+      // 20. Call the refiner to modify the mesh. The refiner calls the error
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
@@ -282,7 +283,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 19. Update the finite element space (recalculate the number of DOFs,
+      // 21. Update the finite element space (recalculate the number of DOFs,
       //     etc.) and create a grid function update matrix. Apply the matrix
       //     to any GridFunctions over the space. In this case, the update
       //     matrix is an interpolation matrix so the updated GridFunction will
@@ -290,7 +291,7 @@ int main(int argc, char *argv[])
       fespace.Update();
       x.Update();
 
-      // 20. Load balance the mesh, and update the space and solution. Currently
+      // 22. Load balance the mesh, and update the space and solution. Currently
       //     available only for nonconforming meshes.
       if (pmesh.Nonconforming())
       {
@@ -302,7 +303,7 @@ int main(int argc, char *argv[])
          x.Update();
       }
 
-      // 21. Inform also the bilinear and linear forms that the space has
+      // 23. Inform also the bilinear and linear forms that the space has
       //     changed.
       a.Update();
       b.Update();
