@@ -21,10 +21,9 @@ namespace mfem
 void* cuMemAlloc(void** dptr, size_t bytes)
 {
 #ifdef __NVCC__
-   if (bytes==0) return *dptr;
+   if (bytes==0) { return *dptr; }
    if (CUDA_SUCCESS != ::cuMemAlloc((CUdeviceptr*)dptr, bytes))
    {
-      dbg("bytes: %d",bytes);
       mfem_error("Error in cuMemAlloc");
    }
 #endif
@@ -39,7 +38,6 @@ void* cuMemFree(void *dptr)
 #ifdef __NVCC__
    if (CUDA_SUCCESS != ::cuMemFree((CUdeviceptr)dptr))
    {
-      dbg("dptr: %p",dptr);
       mfem_error("Error in cuMemFree");
    }
 #endif
@@ -54,7 +52,6 @@ void* cuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 #ifdef __NVCC__
    if (CUDA_SUCCESS != ::cuMemcpyHtoD((CUdeviceptr)dst, src, bytes))
    {
-      dbg("%p, %p, %ld",dst,src,bytes);
       mfem_error("Error in cuMemcpyHtoD");
    }
 #endif
@@ -70,7 +67,6 @@ void* cuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
    if (CUDA_SUCCESS !=
        ::cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s))
    {
-      dbg("%p, %p, %ld",dst,src,bytes);
       mfem_error("Error in cuMemcpyHtoDAsync");
    }
 #endif
@@ -86,7 +82,6 @@ void* cuMemcpyDtoD(void* dst, void* src, size_t bytes)
    if (CUDA_SUCCESS !=
        ::cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes))
    {
-      dbg("%p, %p, %ld",dst,src,bytes);
       mfem_error("Error in cuMemcpyDtoD");
    }
 #endif
@@ -100,12 +95,9 @@ void* cuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 {
 #ifdef __NVCC__
    if (CUDA_SUCCESS !=
-       ::cuMemcpyDtoDAsync((CUdeviceptr)dst,
-                           (CUdeviceptr)src,
-                           bytes,
-                           (CUstream)s))
+       ::cuMemcpyDtoDAsync((CUdeviceptr)dst, (CUdeviceptr)src,
+                           bytes, (CUstream)s))
    {
-      dbg("%p, %p, %ld",dst,src,bytes);
       mfem_error("Error in cuMemcpyDtoDAsync");
    }
 #endif
@@ -120,7 +112,6 @@ void* cuMemcpyDtoH(void* dst, const void* src, size_t bytes)
 #ifdef __NVCC__
    if (CUDA_SUCCESS != ::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes))
    {
-      dbg("dst: %p, src:%p, bytes:%ld",dst,src,bytes);
       mfem_error("Error in cuMemcpyDtoH");
    }
 #endif
