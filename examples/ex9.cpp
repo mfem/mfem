@@ -216,6 +216,8 @@ private:
    // NOTE: Here it is assumed that all elements have the same geometry, due to numBdrs.
    int FindCommonAdjacentElement(int el, int el1, int el2, int dim, int numBdrs)
    {
+      if (min(el1, el2) < 0) { return -1; }
+      
       int i, j, commonNeighbor;
       bool found = false;
       Array<int> bdrs1, bdrs2, orientation, neighborElements1, neighborElements2;
@@ -226,7 +228,8 @@ private:
       // add neighbor elements sharing a vertex/edge/face according to grid dimension
       if (dim==1)
       {
-         numBdrs = 0; //TODO probably getElementVertices, does GetFaceElementTransformations even work? If not workaround
+         mesh->GetElementVertices(el1, bdrs1);
+         mesh->GetElementVertices(el2, bdrs2);
       }
       else if (dim==2)
       {
@@ -359,29 +362,56 @@ private:
             // add the neighbors for each edge
             for (j = 0; j <= p; j++)
             {
-               map_for_bounds[k*nd+j].push_back(neighborElem[0]);
-               map_for_bounds[k*nd+(j+1)*(p+1)-1].push_back(neighborElem[1]);
-               map_for_bounds[k*nd+p*(p+1)+j].push_back(neighborElem[2]);
-               map_for_bounds[k*nd+j*(p+1)].push_back(neighborElem[3]);
-               map_for_bounds[k*nd+(p+1)*(p+1)*p+j].push_back(neighborElem[4]);
-               map_for_bounds[k*nd+(p+1)*(p+1)*p+(j+1)*(p+1)-1].push_back(neighborElem[5]);
-               map_for_bounds[k*nd+(p+1)*(p+1)*p+p*(p+1)+j].push_back(neighborElem[6]);
-               map_for_bounds[k*nd+(p+1)*(p+1)*p+j*(p+1)].push_back(neighborElem[7]);
-               map_for_bounds[k*nd+j*(p+1)*(p+1)].push_back(neighborElem[8]);
-               map_for_bounds[k*nd+p+j*(p+1)*(p+1)].push_back(neighborElem[9]);
-               map_for_bounds[k*nd+(j+1)*(p+1)*(p+1)-1].push_back(neighborElem[10]);
-               map_for_bounds[k*nd+p*(p+1)+j*(p+1)*(p+1)].push_back(neighborElem[11]);
+               if (neighborElem[0] >= 0)
+                  map_for_bounds[k*nd+j].push_back(neighborElem[0]);
+               if (neighborElem[1] >= 0)
+                  map_for_bounds[k*nd+(j+1)*(p+1)-1].push_back(neighborElem[1]);
+               if (neighborElem[2] >= 0)
+                  map_for_bounds[k*nd+p*(p+1)+j].push_back(neighborElem[2]);
+               if (neighborElem[3] >= 0)
+                  map_for_bounds[k*nd+j*(p+1)].push_back(neighborElem[3]);
+               if (neighborElem[4] >= 0)
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j].push_back(neighborElem[4]);
+               if (neighborElem[5] >= 0)
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+(j+1)*(p+1)-1].push_back(neighborElem[5]);
+               if (neighborElem[6] >= 0)
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+p*(p+1)+j].push_back(neighborElem[6]);
+               if (neighborElem[7] >= 0)
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j*(p+1)].push_back(neighborElem[7]);
+               if (neighborElem[8] >= 0)
+                  map_for_bounds[k*nd+j*(p+1)*(p+1)].push_back(neighborElem[8]);
+               if (neighborElem[9] >= 0)
+                  map_for_bounds[k*nd+p+j*(p+1)*(p+1)].push_back(neighborElem[9]);
+               if (neighborElem[10] >= 0)
+                  map_for_bounds[k*nd+(j+1)*(p+1)*(p+1)-1].push_back(neighborElem[10]);
+               if (neighborElem[11] >= 0)
+                  map_for_bounds[k*nd+p*(p+1)+j*(p+1)*(p+1)].push_back(neighborElem[11]);
             }
             
             // cube vertices
-            map_for_bounds[k*nd].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[0], neighborElem[3], dim, numBdrs));
-            map_for_bounds[k*nd+p].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[0], neighborElem[1], dim, numBdrs));
-            map_for_bounds[k*nd+p*(p+1)].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[2], neighborElem[3], dim, numBdrs));
-            map_for_bounds[k*nd+(p+1)*(p+1)-1].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[1], neighborElem[2], dim, numBdrs));
-            map_for_bounds[k*nd+(p+1)*(p+1)*p].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[4], neighborElem[7], dim, numBdrs));
-            map_for_bounds[k*nd+(p+1)*(p+1)*p+p].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[4], neighborElem[5], dim, numBdrs));
-            map_for_bounds[k*nd+(p+1)*(p+1)*p+(p+1)*p].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[6], neighborElem[7], dim, numBdrs));
-            map_for_bounds[k*nd+(p+1)*(p+1)*(p+1)-1].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[5], neighborElem[6], dim, numBdrs));
+            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[0], neighborElem[3], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[0], neighborElem[1], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+p].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[2], neighborElem[3], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+p*(p+1)].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[1], neighborElem[2], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)-1].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[4], neighborElem[7], dim, numBdrs); 
+            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*p].push_back(nbr_id);}
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[4], neighborElem[5], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*p+p].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[6], neighborElem[7], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*p+(p+1)*p].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[5], neighborElem[6], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*(p+1)-1].push_back(nbr_id); }
          }
       }
    }
