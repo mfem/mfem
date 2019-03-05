@@ -619,14 +619,17 @@ EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
                  eta4_i(bMag, mi_, zi_, ni_, temp) :
                  eta4_e(bMag, ne_, temp);
 
-   bx_ = 0.0;
-   for (int k=0; k<3; k++)
+   if (width == 3)
    {
-      for (int l=0; l<3; l++)
+      bx_ = 0.0;
+      for (int k=0; k<3; k++)
       {
-         for (int m=0; m<3; m++)
+         for (int l=0; l<3; l++)
          {
-            bx_(k, l) += eps_(k, l, m) * bHat_[m];
+            for (int m=0; m<3; m++)
+            {
+               bx_(k, l) += eps_(k, l, m) * bHat_[m];
+            }
          }
       }
    }
@@ -637,7 +640,31 @@ EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
 
    if (width == 2)
    {
+      for (int k=0; k<2; k++)
+      {
+         for (int l=0; l<2; l++)
+         {
+            K(k, l) += 2.0 * eta0 *
+                       (0.5 * del_(bi_, bj_) - bHat_[bi_] * bHat_[bj_]) *
+                       (0.5 * del_(k, l) - bHat_[k] * bHat_[l]);
 
+            K(k, l) += eta1 * ((del_(bi_, k) - bHat_[bi_] * bHat_[k]) *
+                               (del_(bj_, l) - bHat_[bj_] * bHat_[l]) +
+                               (del_(bi_, l) - bHat_[bi_] * bHat_[l]) *
+                               (del_(bj_, k) - bHat_[bj_] * bHat_[k]) -
+                               (del_(bi_, bj_) - bHat_[bi_] * bHat_[bj_]) *
+                               (del_(k, l) - bHat_[k] * bHat_[l]));
+
+            K(k, l) += eta2 * ((del_(bi_, k) - bHat_[bi_] * bHat_[k]) *
+                               bHat_[bj_] * bHat_[l] +
+                               (del_(bi_, l) - bHat_[bi_] * bHat_[l]) *
+                               bHat_[bj_] * bHat_[k] +
+                               (del_(bj_, k) - bHat_[bj_] * bHat_[k]) *
+                               bHat_[bi_] * bHat_[l] +
+                               (del_(bj_, l) - bHat_[bj_] * bHat_[l]) *
+                               bHat_[bi_] * bHat_[k]);
+         }
+      }
    }
    else
    {
