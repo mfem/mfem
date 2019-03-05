@@ -179,15 +179,15 @@ void MapDof(const int N, double *y, const double *x, const int *dofs)
 // *****************************************************************************
 void MapDof(double *y, const double *x, const int dof, const int j)
 {
-   const DeviceVector d_x(x);
-   DeviceVector d_y(y);
-   MFEM_FORALL(i, 1, d_y(dof) = d_x[j];);
+   const double *d_x = (double*) mm::ptr(x);
+   double *d_y = (double*) mm::ptr(y);
+   MFEM_FORALL(i, 1, d_y[dof] = d_x[j];);
 }
 
 // *****************************************************************************
 void SetDof(double *y, const double alpha, const int dof)
 {
-   DeviceVector d_y(y);
+   double *d_y = (double*) mm::ptr(y);
    MFEM_FORALL(i, 1, d_y[dof] = alpha;);
 }
 
