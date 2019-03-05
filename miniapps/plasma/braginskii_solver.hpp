@@ -725,6 +725,9 @@ private:
    GridFunctionCoefficient TCoef_;
    VectorGridFunctionCoefficient BCoef_;
 
+   DenseMatrix del_;
+   DenseTensor eps_;
+
    int bi_;
    int bj_;
 
@@ -735,6 +738,7 @@ private:
    double ni_;
 
    mutable Vector bHat_;
+   mutable DenseMatrix bx_;
 
 public:
    EtaCoefficient(int dim, int bi, int bj,

@@ -980,21 +980,12 @@ void truncateField(ParGridFunction & f)
       fespace->GetElementVDofs(i, vdofs);
       f.GetSubVector(vdofs, dofs);
 
-      int j1 = 0, j2 = 0;
       double v1 = dofs[0], v2 = dofs[0];
 
       for (int j=1; j<dofs.Size(); j++)
       {
-         if (dofs[j] > v1)
-         {
-            j1 = j;
-            v1 = dofs[j];
-         }
-         if (dofs[j] < v2)
-         {
-            j2 = j;
-            v2 = dofs[j];
-         }
+         v1 = max(v1, dofs[j]);
+         v2 = min(v2, dofs[j]);
       }
       if (v1 > 8.0 * v2)
       {
