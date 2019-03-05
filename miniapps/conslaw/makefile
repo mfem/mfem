@@ -1,7 +1,9 @@
-# External dependencies
-MFEM_DIR?=../../
-HYPRE_DIR=${MFEM_DIR}/../hypre-2.10.0b/src/hypre
-METIS_DIR=${MFEM_DIR}/../metis-4.0
+MFEM_DIR ?= ../..
+MFEM_BUILD_DIR ?= ../..
+CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+
+MFEM_LIB_FILE = mfem_is_not_built
+-include $(CONFIG_MK)
 
 # Directory structure
 LIB_DIR=lib
@@ -23,33 +25,26 @@ APP_OBJECTS=$(APP_SOURCES:$(APP_DIR)/%.cpp=$(BUILD_DIR)/$(APP_DIR)/%.o)
 APPS=$(APP_SOURCES:%.cpp=%)
 
 # Compiler configuration
-MPICXX=mpicxx
-CXXFLAGS=-O3 -std=c++11 -Wall
-DEBUGFLAGS=-g -O0 -DDEBUG
-LFLGAS=-L${MFEM_DIR} -L${HYPRE_DIR}/lib -L${METIS_DIR} \
-    -lHYPRE -lmfem -lmetis -lumfpack -lklu
-INCFLAGS=-I$(SOURCE_DIR) -I${INC_DIR} -I${MFEM_DIR} -I${METIS_DIR}/Lib \
-    -I${HYPRE_DIR}/include
-
-# For now turn on debug by default
-CXXFLAGS+=$(DEBUGFLAGS)
+CXXFLAGS= -std=c++11 ${MFEM_CXXFLAGS}
+LFLGAS=${MFEM_LIBS} ${MFEM_EXT_LIBS}
+INCFLAGS=-I$(SOURCE_DIR) -I${INC_DIR} ${MFEM_INCFLAGS}
 
 .PHONY: all clean style
 all: $(LIB) $(APPS)
 
 # Build all the apps (the library is a dependency)
 $(APPS): $(APP_DIR)/%: $(BUILD_DIR)/$(APP_DIR)/%.o $(LIB)
-	$(MPICXX) $(LFLGAS) -L$(LIB_DIR) -l$(LIB_NAME) -o $@ $<
+	$(MFEM_CXX) $(LFLGAS) -L$(LIB_DIR) -l$(LIB_NAME) -o $@ $<
 
 $(BUILD_DIR)/$(APP_DIR)/%.o: makefile | $(BUILD_DIR)
-	$(MPICXX) -c $(CXXFLAGS) $(INCFLAGS) -o $@ $(APP_DIR)/$*.cpp
+	$(MFEM_CXX) -c $(CXXFLAGS) $(INCFLAGS) -o $@ $(APP_DIR)/$*.cpp
 
 # Build the library
 $(LIB): $(LIB_OBJECTS)
-	$(MPICXX) $(LFLGAS) -shared -o $@ $^
+	$(MFEM_CXX) $(LFLGAS) -shared -o $@ $^
 
 $(BUILD_DIR)/$(LIB_DIR)/%.o: makefile | $(BUILD_DIR)
-	$(MPICXX) -c $(CXXFLAGS) $(INCFLAGS) -o $@ $(SOURCE_DIR)/$*.cpp
+	$(MFEM_CXX) -c $(CXXFLAGS) $(INCFLAGS) -o $@ $(SOURCE_DIR)/$*.cpp
 
 # Use the compiler to determine dependencies on header files
 # Some awk magic in the next target
@@ -60,9 +55,6 @@ $(DEPENDS): $(APP_SOURCES) $(LIB_SOURCES) | $(BUILD_DIR)
 		| awk '/^.*\.o:/{ print "$(BUILD_DIR)/$(LIB_DIR)/" $$0; next } 1'  >$@
 	$(CXX) $(INCFLAGS) -MM $(APP_SOURCES) \
 		| awk '/^.*\.o:/{ print "$(BUILD_DIR)/$(APP_DIR)/" $$0; next } 1'  >>$@
-
-# Add this line to the previous target if we want to generate a ctags file
-# ctags -R --exclude='*.js' . ${MFEM_DIR}
 
 # Rebuild dependencies unless doing "make clean" or "make style"
 ifneq ($(MAKECMDGOALS),clean)
