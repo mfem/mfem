@@ -117,7 +117,7 @@ static void DumpMode(void)
    if (cfg==mode) { return; }
    mode=cfg;
    printf("\033[1K\r[0x%lx] %sMM %sHasBeenEnabled %sEnabled %sDisabled "
-          "%sHOST %sDEVICE %sCUDA %sOCCA", mode.to_ulong(),
+          "%sHOST %sDEVICE %sCUDA %sOCCA\033[m", mode.to_ulong(),
           config::UsingMM()?"\033[32m":"\033[31m",
           config::DeviceHasBeenEnabled()?"\033[32m":"\033[31m",
           config::DeviceEnabled()?"\033[32m":"\033[31m",
