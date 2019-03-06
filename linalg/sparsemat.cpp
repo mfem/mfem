@@ -652,14 +652,14 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       return;
    }
    // Prepare the lambda capture and get our pointers from the memory manager
-   const int Height = height;
+   const int d_height = height;
    const DeviceArray d_I(I);
    const DeviceArray d_J(J);
    const DeviceVector d_A(A);
-   const DeviceVector d_x(x,Height);
-   DeviceVector d_y(y,Height);
+   const DeviceVector d_x(x,d_height);
+   DeviceVector d_y(y,d_height);
    const bool device = config::UsingDevice();
-   MFEM_FORALL(i, Height,
+   MFEM_FORALL(i, d_height,
    {
       const double xi = a * d_x[i];
       const int end = d_I[i+1];

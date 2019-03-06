@@ -31,6 +31,7 @@ void cuKernel(const size_t N, BODY body)
 template <size_t BLOCKS, typename DBODY>
 void cuWrap(const size_t N, DBODY &&d_body)
 {
+   if (N==0) { return; }
    const size_t GRID = (N+BLOCKS-1)/BLOCKS;
    cuKernel<<<GRID,BLOCKS>>>(N,d_body);
    const cudaError_t last = cudaGetLastError();
