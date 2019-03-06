@@ -536,7 +536,8 @@ EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
      mi_(-1.0),
      ne_(-1.0),
      ni_(-1.0),
-     bHat_(dim)
+     bHat_(dim),
+     bx_(dim)
 {
    this->initSymbols();
 }
@@ -625,16 +626,20 @@ EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
                  eta2_i(bMag, mi_, zi_, ni_, temp) :
                  eta2_e(bMag, ne_, temp, zi_, ni_);
 
-   double eta3 = (ion_) ?
-                 eta3_i(bMag, mi_, zi_, ni_, temp) :
-                 eta3_e(bMag, ne_, temp);
+   double eta3 = 0.0;
 
-   double eta4 = (ion_) ?
-                 eta4_i(bMag, mi_, zi_, ni_, temp) :
-                 eta4_e(bMag, ne_, temp);
+   double eta4 = 0.0;
 
    if (width == 3)
    {
+      eta3 = (ion_) ?
+             eta3_i(bMag, mi_, zi_, ni_, temp) :
+             eta3_e(bMag, ne_, temp);
+
+      eta4 = (ion_) ?
+             eta4_i(bMag, mi_, zi_, ni_, temp) :
+             eta4_e(bMag, ne_, temp);
+
       bx_ = 0.0;
       for (int k=0; k<3; k++)
       {
@@ -834,6 +839,7 @@ void TwoFluidTransportSolver::initDiffusion()
    tfDiff_ = new TwoFluidDiffusion(dg_, sfes_, vfes_,
                                    offsets_, nBV_, uBV_, TBV_,
                                    B_, ion_mass_, ion_charge_);
+   impSolver_->Init(*tfDiff_);
 }
 
 void TwoFluidTransportSolver::Update()
@@ -1063,8 +1069,10 @@ void TwoFluidDiffusion::initCoefficients()
    chiCoef_.resize(ns + 1);
    dtChiCoef_.resize(ns + 1);
    chiCoef_[0] = new ChiCoefficient(dim_, nBV_, B_, ion_charge_);
+   chiCoef_[0]->SetT(TGF_[0]);
    dtChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[0]);
    chiCoef_[1] = new ChiCoefficient(dim_, nBV_, B_, ion_mass_, ion_charge_);
+   chiCoef_[1]->SetT(TGF_[1]);
    dtChiCoef_[1] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[1]);
 
    etaCoef_.resize(dim_ * dim_ * (ns + 1));
@@ -1075,6 +1083,7 @@ void TwoFluidDiffusion::initCoefficients()
       {
          int k = dim_ * i + j;
          etaCoef_[k] = new EtaCoefficient(dim_, i, j, nBV_, B_, ion_charge_);
+         etaCoef_[k]->SetT(TGF_[0]);
          dtEtaCoef_[k] = new ScalarMatrixProductCoefficient(0.0, *etaCoef_[k]);
       }
    }
@@ -1085,6 +1094,7 @@ void TwoFluidDiffusion::initCoefficients()
          int k = dim_ * (dim_ + i) + j;
          etaCoef_[k] = new EtaCoefficient(dim_, i, j, nBV_, B_,
                                           ion_mass_, ion_charge_);
+         etaCoef_[k]->SetT(TGF_[1]);
          dtEtaCoef_[k] = new ScalarMatrixProductCoefficient(0.0, *etaCoef_[k]);
       }
    }
@@ -1207,42 +1217,51 @@ void TwoFluidDiffusion::Assemble()
    for (unsigned int i=0; i<a_dndn_.size(); i++)
    {
       a_dndn_[i]->Assemble();
+      a_dndn_[i]->Finalize();
    }
 
    for (unsigned int i=0; i<a_dpdn_.size(); i++)
    {
       a_dpdn_[i]->Assemble();
+      a_dpdn_[i]->Finalize();
    }
    for (unsigned int i=0; i<a_dpdu_.size(); i++)
    {
       a_dpdu_[i]->Assemble();
+      a_dpdu_[i]->Finalize();
    }
 
    for (unsigned int i=0; i<a_dEdn_.size(); i++)
    {
       a_dEdn_[i]->Assemble();
+      a_dEdn_[i]->Finalize();
    }
    for (unsigned int i=0; i<a_dEdu_.size(); i++)
    {
       a_dEdu_[i]->Assemble();
+      a_dEdu_[i]->Finalize();
    }
    for (unsigned int i=0; i<a_dEdT_.size(); i++)
    {
       a_dEdT_[i]->Assemble();
+      a_dEdT_[i]->Finalize();
    }
    /*
    for (unsigned int i=0; i<stiff_D_.size(); i++)
    {
       delete stiff_D_[i]->Assemble();
+      delete stiff_D_[i]->Finalize();
    }
    */
    for (unsigned int i=0; i<stiff_chi_.size(); i++)
    {
       stiff_chi_[i]->Assemble();
+      stiff_chi_[i]->Finalize();
    }
    for (unsigned int i=0; i<stiff_eta_.size(); i++)
    {
       stiff_eta_[i]->Assemble();
+      stiff_eta_[i]->Finalize();
    }
 }
 
@@ -1301,7 +1320,7 @@ void TwoFluidDiffusion::initSolver()
    gmres_.SetKDim(10);
    gmres_.SetPrintLevel(1);
    gmres_.SetOperator(block_A_);
-   gmres_.SetPreconditioner(block_amg_);
+   // gmres_.SetPreconditioner(block_amg_);
 }
 
 void TwoFluidDiffusion::Update()
@@ -1312,6 +1331,7 @@ void TwoFluidDiffusion::ImplicitSolve(const double dt,
 {
    this->setTimeStep(dt);
    this->Assemble();
+   this->initSolver();
 
    block_rhs_ = 0.0;
 
