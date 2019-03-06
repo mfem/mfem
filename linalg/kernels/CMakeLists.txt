@@ -10,12 +10,10 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(SRCS
-  densemat.cpp
   vector.cpp
 )
  
 set(HDRS	
-  densemat.hpp
   vector.hpp
 )
 
