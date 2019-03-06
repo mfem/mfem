@@ -55,7 +55,7 @@
 
 // Deprecated features:
 
-#define DEPRECATION_WARNING "This is a deprecated feature planned for removal. Please let the MFEM team know if you rely on this feature."
+#define DEPRECATION_WARNING "This feature is planned for removal. Please let the MFEM team know if you rely on it."
 
 #ifdef MFEM_USE_OPENMP
 #pragma message DEPRECATION_WARNING
