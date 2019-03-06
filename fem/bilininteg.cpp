@@ -2886,7 +2886,7 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
          el2.CalcShape(eip2, shape2);
       }
 
-      double w = eta*ip.weight;
+      double w = factor*eta*ip.weight;
       if (ndof2)
       {
          w /= 2;
