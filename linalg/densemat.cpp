@@ -14,9 +14,9 @@
 
 
 #include "vector.hpp"
+#include "device.hpp"
 #include "matrix.hpp"
 #include "densemat.hpp"
-#include "kernels/densemat.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 
@@ -88,6 +88,12 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    }
 }
 
+static void Set(const double d, const int size, double *data)
+{
+   DeviceVector d_data(data);
+   MFEM_FORALL(i, size, d_data[i] = d;);
+}
+
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
@@ -95,7 +101,7 @@ DenseMatrix::DenseMatrix(int s) : Matrix(s)
    if (capacity > 0)
    {
       data = mm::malloc<double>(capacity);
-      kernels::densemat::Set(0.0,capacity,data);
+      mfem::Set(0.0, capacity, data);
    }
    else
    {
@@ -111,12 +117,26 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    if (capacity > 0)
    {
       data = mm::malloc<double>(capacity);
-      kernels::densemat::Set(0.0,capacity,data);
+      mfem::Set(0.0, capacity, data);
    }
    else
    {
       data = NULL;
    }
+}
+
+static void Transpose(const int height, const int width,
+                      double *data, const double *mdata)
+{
+   DeviceVector d_data(data);
+   const DeviceVector d_mdata(mdata);
+   MFEM_FORALL(i, height,
+   {
+      for (int j=0; j<width; j+=1)
+      {
+         d_data[i+j*height] = d_mdata[j+i*height];
+      }
+   });
 }
 
 DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
@@ -126,7 +146,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    if (capacity > 0)
    {
       data = mm::malloc<double>(capacity);
-      kernels::densemat::Transpose(height,width,data,mat.Data());
+      mfem::Transpose(height, width, data, mat.Data());
    }
    else
    {
@@ -160,7 +180,7 @@ void DenseMatrix::SetSize(int h, int w)
       }
       capacity = hw;
       data = mm::malloc<double>(capacity);
-      kernels::densemat::Set(0.0, capacity, data);
+      mfem::Set(0.0, capacity, data);
    }
 }
 
@@ -174,14 +194,31 @@ const double &DenseMatrix::Elem(int i, int j) const
    return (*this)(i,j);
 }
 
+static void Mult(const int height, const int width,
+                 const double *data, const double *x, double *y)
+{
+   const DeviceVector d_data(data);
+   const DeviceVector d_x(x);
+   DeviceVector d_y(y);
+   MFEM_FORALL(i, height,
+   {
+      double sum = 0.0;
+      for (int j=0; j<width; j+=1)
+      {
+         sum += d_x[j]*d_data[i+j*height];
+      }
+      d_y[i] = sum;
+   });
+}
+
 void DenseMatrix::Mult(const double *x, double *y) const
 {
    if (width == 0)
    {
-      kernels::densemat::MultWidth0(height, y);
+      mfem::Set(0.0, height, y);
       return;
    }
-   kernels::densemat::Mult(height, width, data, x, y);
+   mfem::Mult(height, width, data, x, y);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -392,7 +429,7 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
       mfem_error("DenseMatrix::SymmetricScaling");
    }
 
-   double * ss = mm::malloc<double>(width);
+   double * ss = new double[width];
    double * it_s = s.GetData();
    double * it_ss = ss;
    for ( double * end_s = it_s + width; it_s != end_s; ++it_s)
@@ -407,7 +444,7 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
          *(it_data++) *= ss[i]*ss[j];
       }
 
-   mm::free<double>(ss);
+   delete[] ss;
 }
 
 // InvSymmetricScaling this = diag(sqrt(1./s)) * this * diag(sqrt(1./s))
@@ -476,11 +513,16 @@ double DenseMatrix::Det() const
       case 1:
          return data[0];
 
-      case 2: return kernels::densemat::Det2(data);
+      case 2:
+         return data[0] * data[3] - data[1] * data[2];
 
       case 3:
       {
-         return kernels::densemat::Det3(data);
+         const double *d = data;
+         return
+            d[0] * (d[4] * d[8] - d[5] * d[7]) +
+            d[3] * (d[2] * d[7] - d[1] * d[8]) +
+            d[6] * (d[1] * d[5] - d[2] * d[4]);
       }
       case 4:
       {
@@ -565,8 +607,8 @@ void DenseMatrix::Add(const double c, const DenseMatrix &A)
 
 DenseMatrix &DenseMatrix::operator=(double c)
 {
-   int s = Height()*Width();
-   kernels::densemat::Set(c,s,data);
+   const int s = Height()*Width();
+   mfem::Set(c, s, data);
    return *this;
 }
 
@@ -587,7 +629,9 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    SetSize(m.height, m.width);
 
    const int hw = height * width;
-   kernels::densemat::OpEQ(hw,m.GetData(),data);
+   const DeviceVector d_m(m.GetData());
+   DeviceVector d_data(data);
+   MFEM_FORALL(i, hw, d_data[i] = d_m[i];);
    return *this;
 }
 
@@ -835,14 +879,31 @@ double DenseMatrix::MaxMaxNorm() const
 void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
 {
    MFEM_GPU_CANNOT_PASS;
-   int hw = Height() * Width();
-   const double max_norm = kernels::densemat::FNormMax(hw,data);
+   int i, hw = Height() * Width();
+   double max_norm = 0.0, entry, fnorm2;
+
+   for (i = 0; i < hw; i++)
+   {
+      entry = fabs(data[i]);
+      if (entry > max_norm)
+      {
+         max_norm = entry;
+      }
+   }
+
    if (max_norm == 0.0)
    {
       scale_factor = scaled_fnorm2 = 0.0;
       return;
    }
-   const double fnorm2 = kernels::densemat::FNorm2(hw,max_norm,data);
+
+   fnorm2 = 0.0;
+   for (i = 0; i < hw; i++)
+   {
+      entry = data[i] / max_norm;
+      fnorm2 += entry * entry;
+   }
+
    scale_factor = max_norm;
    scaled_fnorm2 = fnorm2;
 }
@@ -2452,7 +2513,10 @@ void DenseMatrix::Diag(double c, int n)
 {
    SetSize(n);
    const int N = n*n;
-   kernels::densemat::Diag(n, N, c, data);
+   DeviceVector d_data(data);
+   MFEM_FORALL(i, N, d_data[i] = 0.0;);
+   MFEM_FORALL(i, n, d_data[i*(n+1)] = c;);
+
 }
 
 void DenseMatrix::Diag(double *diag, int n)
@@ -2610,9 +2674,11 @@ void DenseMatrix::GradToDiv(Vector &div)
 
    // div(dof*j+i) <-- (*this)(i,j)
 
-   int n = height * width;
+   const int n = height * width;
    double *ddata = div.GetData();
-   kernels::densemat::GradToDiv(n, GetData(), ddata);
+   const DeviceVector d_data(data);
+   DeviceVector d_ddata(ddata);
+   MFEM_FORALL(i, n, d_ddata[i] = d_data[i];);
 }
 
 void DenseMatrix::CopyRows(const DenseMatrix &A, int row1, int row2)
@@ -3080,13 +3146,26 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
           c.Data(), &k, &beta, a.Data(), &m);
 #else
-   const size_t ah = a.Height();
-   const size_t aw = a.Width();
-   const size_t bw = b.Width();
+   const int ah = a.Height();
+   const int aw = a.Width();
+   const int bw = b.Width();
    double *ad = a.Data();
    const double *bd = b.Data();
    const double *cd = c.Data();
-   kernels::densemat::Mult(ah, aw, bw, bd, cd, ad);
+   const DeviceVector d_bd(bd);
+   const DeviceVector d_cd(cd);
+   DeviceVector d_ad(ad);
+   MFEM_FORALL(i, ah*aw, d_ad[i] = 0.0;);
+   MFEM_FORALL(j, aw,
+   {
+      for (int k = 0; k < bw; k++)
+      {
+         for (int i = 0; i < ah; i++)
+         {
+            d_ad[i+j*ah] += d_bd[i+k*ah] * d_cd[k+j*bw];
+         }
+      }
+   });
 #endif
 }
 
@@ -3296,10 +3375,23 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
          inva(0,0) = t;
          break;
       case 2:
-         kernels::densemat::CalcInverse2D(t,a.GetData(),inva.GetData());
+         inva(0,0) = a(1,1) * t ;
+         inva(0,1) = -a(0,1) * t ;
+         inva(1,0) = -a(1,0) * t ;
+         inva(1,1) = a(0,0) * t ;
          break;
       case 3:
-         kernels::densemat::CalcInverse3D(t,a.GetData(),inva.GetData());
+         inva(0,0) = (a(1,1)*a(2,2)-a(1,2)*a(2,1))*t;
+         inva(0,1) = (a(0,2)*a(2,1)-a(0,1)*a(2,2))*t;
+         inva(0,2) = (a(0,1)*a(1,2)-a(0,2)*a(1,1))*t;
+
+         inva(1,0) = (a(1,2)*a(2,0)-a(1,0)*a(2,2))*t;
+         inva(1,1) = (a(0,0)*a(2,2)-a(0,2)*a(2,0))*t;
+         inva(1,2) = (a(0,2)*a(1,0)-a(0,0)*a(1,2))*t;
+
+         inva(2,0) = (a(1,0)*a(2,1)-a(1,1)*a(2,0))*t;
+         inva(2,1) = (a(0,1)*a(2,0)-a(0,0)*a(2,1))*t;
+         inva(2,2) = (a(0,0)*a(1,1)-a(0,1)*a(1,0))*t;
          break;
    }
 }
@@ -3373,7 +3465,23 @@ void CalcOrtho(const DenseMatrix &J, Vector &n)
 
 void MultAAt(const DenseMatrix &a, DenseMatrix &aat)
 {
-   kernels::densemat::MultAAt(a.Height(),a.Width(),a.GetData(),aat.GetData());
+   //kernels::densemat::MultAAt(a.Height(),a.Width(),a.GetData(),aat.GetData());
+   const int height = a.Height();
+   const int width = a.Width();
+   const DeviceVector d_a(a.GetData());
+   DeviceVector d_aat(aat.GetData());
+   MFEM_FORALL(i, height,
+   {
+      for (int j=0; j<=i; j++)
+      {
+         double temp = 0.0;
+         for (int k=0; k<width; k++)
+         {
+            temp += d_a[i+k*height] * d_a[j+k*height];
+         }
+         d_aat[j+i*height] = d_aat[i+j*height] = temp;
+      }
+   });
 }
 
 void AddMultADAt(const DenseMatrix &A, const Vector &D, DenseMatrix &ADAt)
@@ -3913,8 +4021,21 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
       mfem_error("AddMult_a_VVt(...)");
    }
 #endif
-   kernels::densemat::AddMult_a_VVt(n, a, v.GetData(),
-                                    VVt.Height(), VVt.GetData());
+   //kernels::densemat::AddMult_a_VVt(n, a, v.GetData(), VVt.Height(), VVt.GetData());
+   const int height = VVt.Height();
+   const DeviceVector d_v(v.GetData());
+   DeviceVector d_VVt(VVt.GetData());
+   MFEM_FORALL(i, n,
+   {
+      double avi = a * d_v[i];
+      for (int j = 0; j < i; j++)
+      {
+         double avivj = avi * d_v[j];
+         d_VVt[i+j*height] += avivj;
+         d_VVt[j+i*height] += avivj;
+      }
+      d_VVt[i+i*height] += avi * d_v[i];
+   });
 }
 
 
@@ -3926,7 +4047,51 @@ void LUFactors::Factor(int m)
    MFEM_VERIFY(!info, "LAPACK: error in DGETRF");
 #else
    // compiling without LAPACK
-   kernels::densemat::Factor(m, ipiv, this->data);
+   DeviceArray d_ipiv(ipiv);
+   DeviceVector d_data(data);
+   MFEM_FORALL(i, m,
+   {
+      // pivoting
+      {
+         int piv = i;
+         double a = fabs(d_data[piv+i*m]);
+         for (int j = i+1; j < m; j++)
+         {
+            const double b = fabs(d_data[j+i*m]);
+            if (b > a)
+            {
+               a = b;
+               piv = j;
+            }
+         }
+         d_ipiv[i] = piv;
+         if (piv != i)
+         {
+            // swap rows i and piv in both L and U parts
+            for (int j = 0; j < m; j++)
+            {
+               const double tmp = d_data[i+j*m];
+               d_data[i+j*m] = d_data[piv+j*m];
+               d_data[piv+j*m] = tmp;
+            }
+         }
+      }
+      const double diim = d_data[i+i*m];
+      assert(diim != 0.0);
+      const double a_ii_inv = 1.0/d_data[i+i*m];
+      for (int j = i+1; j < m; j++)
+      {
+         d_data[j+i*m] *= a_ii_inv;
+      }
+      for (int k = i+1; k < m; k++)
+      {
+         const double a_ik = d_data[i+k*m];
+         for (int j = i+1; j < m; j++)
+         {
+            d_data[j+k*m] -= a_ik * d_data[j+i*m];
+         }
+      }
+   });
 #endif
 }
 
@@ -3990,7 +4155,29 @@ void LUFactors::LSolve(int m, int n, double *X) const
    const double *data = this->data;
    const int *ipiv = this->ipiv;
    double *x = X;
-   kernels::densemat::LSolve(m, n, data, ipiv, x);
+   const DeviceVector d_data(data);
+   const DeviceArray d_ipiv(ipiv);
+   DeviceVector d_x(x);
+   MFEM_FORALL(k, n,
+   {
+      double *d_mx = &d_x[k*m];
+      // X <- P X
+      for (int i = 0; i < m; i++)
+      {
+         const double tmp = d_mx[i];
+         d_mx[i] = d_mx[d_ipiv[i]];
+         d_mx[d_ipiv[i]] = tmp;
+      }
+      // X <- L^{-1} X
+      for (int j = 0; j < m; j++)
+      {
+         const double d_mx_j = d_mx[j];
+         for (int i = j+1; i < m; i++)
+         {
+            d_mx[i] -= d_data[i+j*m] * d_mx_j;
+         }
+      }
+   });
 }
 
 void LUFactors::USolve(int m, int n, double *X) const
@@ -3998,7 +4185,20 @@ void LUFactors::USolve(int m, int n, double *X) const
    const double *data = this->data;
    double *x = X;
    // X <- U^{-1} X
-   kernels::densemat::USolve(m, n, data, x);
+   const DeviceVector d_data(data);
+   DeviceVector d_x(x);
+   MFEM_FORALL(k, n,
+   {
+      double *d_mx = &d_x[k*m];
+      for (int j = m-1; j >= 0; j--)
+      {
+         const double x_j = ( d_mx[j] /= d_data[j+j*m] );
+         for (int i = 0; i < j; i++)
+         {
+            d_mx[i] -= d_data[i+j*m] * x_j;
+         }
+      }
+   });
 }
 
 void LUFactors::Solve(int m, int n, double *X) const
@@ -4018,12 +4218,68 @@ void LUFactors::Solve(int m, int n, double *X) const
 
 void LUFactors::GetInverseMatrix(int m, double *X) const
 {
+   MFEM_GPU_CANNOT_PASS;
    // A^{-1} = U^{-1} L^{-1} P
    const double *data = this->data;
    const int *ipiv = this->ipiv;
    // X <- U^{-1} (set only the upper triangular part of X)
    double *x = X;
-   kernels::densemat::GetInverseMatrix(m, ipiv, data, x);
+   for (int k = 0; k < m; k++)
+   {
+      const double minus_x_k = -( x[k] = 1.0/data[k+k*m] );
+      for (int i = 0; i < k; i++)
+      {
+         x[i] = data[i+k*m] * minus_x_k;
+      }
+      for (int j = k-1; j >= 0; j--)
+      {
+         const double x_j = ( x[j] /= data[j+j*m] );
+         for (int i = 0; i < j; i++)
+         {
+            x[i] -= data[i+j*m] * x_j;
+         }
+      }
+      x += m;
+   }
+   // X <- X L^{-1} (use input only from the upper triangular part of X)
+   {
+      int k = m-1;
+      for (int j = 0; j < k; j++)
+      {
+         const double minus_L_kj = -data[k+j*m];
+         for (int i = 0; i <= j; i++)
+         {
+            X[i+j*m] += X[i+k*m] * minus_L_kj;
+         }
+         for (int i = j+1; i < m; i++)
+         {
+            X[i+j*m] = X[i+k*m] * minus_L_kj;
+         }
+      }
+   }
+   for (int k = m-2; k >= 0; k--)
+   {
+      for (int j = 0; j < k; j++)
+      {
+         const double L_kj = data[k+j*m];
+         for (int i = 0; i < m; i++)
+         {
+            X[i+j*m] -= X[i+k*m] * L_kj;
+         }
+      }
+   }
+   // X <- X P
+   for (int k = m-1; k >= 0; k--)
+   {
+      const int piv_k = ipiv[k]-ipiv_base;
+      if (k != piv_k)
+      {
+         for (int i = 0; i < m; i++)
+         {
+            Swap<double>(X[i+k*m], X[i+piv_k*m]);
+         }
+      }
+   }
 }
 
 void LUFactors::SubMult(int m, int n, int r, const double *A21,
@@ -4119,7 +4375,13 @@ void DenseMatrixInverse::Factor()
    MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(a, "DenseMatrix is not given");
    const double *adata = a->data;
-   kernels::densemat::FactorSet(width*width, adata, lu.data);
+   const int N = width*width;
+   const DeviceVector d_data(adata);
+   DeviceVector d_ludata(lu.data);
+   MFEM_FORALL(i, N,
+   {
+      d_ludata[i] = d_data[i];
+   });
    lu.Factor(width);
 }
 
