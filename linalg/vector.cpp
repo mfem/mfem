@@ -59,28 +59,8 @@ Vector::Vector(const Vector &v)
    }
 }
 
-Vector::Vector(double *_data, int _size)
-{
-   data = _data;
-   size = _size;
-   allocsize = -size;
-}
-
-void Vector::SetData(double *d)
-{
-   data = d;
-}
-
-void Vector::SetDataAndSize(double *d, int s)
-{
-   data = d;
-   size = s;
-   allocsize = -s;
-}
-
 void Vector::Load(std::istream **in, int np, int *dim)
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, j, s;
 
    s = 0;
@@ -101,7 +81,6 @@ void Vector::Load(std::istream **in, int np, int *dim)
 
 void Vector::Load(std::istream &in, int Size)
 {
-   MFEM_GPU_CANNOT_PASS;
    SetSize(Size);
 
    for (int i = 0; i < size; i++)
@@ -122,8 +101,7 @@ const double &Vector::Elem(int i) const
 
 double Vector::operator*(const double *v) const
 {
-   const int N = size;
-   double prod = kernels::vector::Dot(N, data, v);
+   double prod = kernels::vector::Dot(size, data, v);
    return prod;
 }
 
@@ -144,7 +122,7 @@ Vector &Vector::operator=(const double *v)
    if (data != v)
    {
       MFEM_ASSERT(data + size <= v || v + size <= data, "Vectors overlap!");
-      kernels::vector::Assign(size, v, data);
+      mm::memcpy(data, v, sizeof(double)*size);
    }
    return *this;
 }
@@ -196,7 +174,7 @@ Vector &Vector::operator-=(const Vector &v)
       mfem_error("Vector::operator-=(const Vector &)");
    }
 #endif
-   kernels::vector::OpSubtractEQ(size,v,data);
+   kernels::vector::OpSubtractEQ(size, v, data);
    return *this;
 }
 
@@ -208,7 +186,7 @@ Vector &Vector::operator+=(const Vector &v)
       mfem_error("Vector::operator+=(const Vector &)");
    }
 #endif
-   kernels::vector::OpPlusEQ(size,v.GetData(),data);
+   kernels::vector::OpPlusEQ(size, v, data);
    return *this;
 }
 
@@ -312,10 +290,14 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
       double *vp = v.data;
       int s = v.size;
 #ifdef MFEM_USE_OPENMP
-#warning MFEM_USE_OPENMP with KERNELS
-      //#pragma omp parallel for
+   MFEM_GPU_CANNOT_PASS;
+   #pragma omp parallel for
+      for (int i = 0; i < s; i++)
+      {
+         vp[i] = v1p[i] + alpha*v2p[i];
+      }
 #endif
-      kernels::vector::AlphaAdd(vp,v1p,alpha,v2p,s);
+      kernels::vector::AlphaAdd(vp, v1p, alpha, v2p, s);
    }
 }
 
@@ -412,7 +394,12 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    int            s = x.size;
 
 #ifdef MFEM_USE_OPENMP
-   //#pragma omp parallel for
+   MFEM_GPU_CANNOT_PASS;
+   #pragma omp parallel for
+   for (int i = 0; i < s; i++)
+   {
+      zp[i] = xp[i] - yp[i];
+   }
 #endif
    kernels::vector::Subtract(zp,xp,yp,s);
 }
@@ -506,8 +493,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 
 void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 {
-   const int n = dofs.Size();
-   kernels::vector::AddElement(n,dofs,elem_data,data);
+   kernels::vector::AddElement(dofs.Size(), dofs, elem_data, data);
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const double a,
@@ -527,7 +513,7 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 void Vector::Print(std::ostream &out, int width) const
 {
    if (!size) { return; }
-   this->Pull();
+   Pull();
    for (int i = 0; 1; )
    {
       out << data[i];
