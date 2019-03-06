@@ -523,7 +523,7 @@ inline void SparseMatrix::SetColPtr(const int row) const
    {
       if (ColPtrNode == NULL)
       {
-         ColPtrNode = mm::malloc<RowNode*>(width);
+         ColPtrNode = new RowNode *[width];
          for (int i = 0; i < width; i++)
          {
             ColPtrNode[i] = NULL;
@@ -538,7 +538,7 @@ inline void SparseMatrix::SetColPtr(const int row) const
    {
       if (ColPtrJ == NULL)
       {
-         ColPtrJ = mm::malloc<int>(width);
+         ColPtrJ = new int[width];
          for (int i = 0; i < width; i++)
          {
             ColPtrJ[i] = -1;
@@ -577,7 +577,7 @@ inline double &SparseMatrix::SearchRow(const int col)
 #ifdef MFEM_USE_MEMALLOC
          node_p = NodesMem->Alloc();
 #else
-         node_p = mm::malloc<RowNode>(1);
+         node_p = new RowNode;
 #endif
          node_p->Prev = Rows[current_row];
          node_p->Column = col;
@@ -621,7 +621,7 @@ inline double &SparseMatrix::SearchRow(const int row, const int col)
 #ifdef MFEM_USE_MEMALLOC
             node_p = NodesMem->Alloc();
 #else
-            node_p = mm::malloc<RowNode>(1);
+            node_p = new RowNode;
 #endif
             node_p->Prev = Rows[row];
             node_p->Column = col;
