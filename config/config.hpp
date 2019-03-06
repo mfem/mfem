@@ -52,3 +52,11 @@
 #error Building with PUMI (MFEM_USE_PUMI=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
 #endif // MFEM_USE_MPI not defined
+
+// Deprecated features:
+
+#define DEPRECATION_WARNING "This is a deprecated feature planned for removal. Please let the MFEM team know if you rely on this feature."
+
+#ifdef MFEM_USE_OPENMP
+#pragma message DEPRECATION_WARNING
+#endif
