@@ -179,7 +179,10 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       }
    }
 
-   InitRootState(mesh->GetNE());
+   if (!vertex_parents) // not loading mesh
+   {
+      InitRootState(mesh->GetNE());
+   }
 
    Update();
 }
@@ -1129,6 +1132,52 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
 //// Derefinement //////////////////////////////////////////////////////////////
 
+static int quad_deref_table[3][4 + 4] =
+{
+   { 0, 1, 1, 0, /**/ 1, 1, 0, 0 }, // 1 - X
+   { 0, 0, 1, 1, /**/ 0, 0, 1, 1 }, // 2 - Y
+   { 0, 1, 2, 3, /**/ 1, 1, 3, 3 }  // 3 - iso
+};
+static int hex_deref_table[7][8 + 6] =
+{
+   { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
+   { 0, 0, 1, 1, 0, 0, 1, 1, /**/ 0, 0, 0, 1, 1, 1 }, // 2 - Y
+   { 0, 1, 2, 3, 0, 1, 2, 3, /**/ 1, 1, 1, 3, 3, 3 }, // 3 - XY
+   { 0, 0, 0, 0, 1, 1, 1, 1, /**/ 0, 0, 0, 1, 1, 1 }, // 4 - Z
+   { 0, 1, 1, 0, 3, 2, 2, 3, /**/ 1, 1, 1, 3, 3, 3 }, // 5 - XZ
+   { 0, 0, 1, 1, 2, 2, 3, 3, /**/ 0, 0, 0, 3, 3, 3 }, // 6 - YZ
+   { 0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 1, 1, 7, 7, 7 }  // 7 - iso
+};
+
+
+int NCMesh::RetrieveNode(const Element &el, int index)
+{
+   if (!el.ref_type) { return el.node[index]; }
+
+   // need to retrieve node from a child element (there is always a child
+   // that inherited the parent's corner under the same index)
+   int ch;
+   switch (el.geom)
+   {
+      case Geometry::CUBE:
+         ch = el.child[hex_deref_table[el.ref_type - 1][index]];
+         break;
+
+      case Geometry::SQUARE:
+         ch = el.child[quad_deref_table[el.ref_type - 1][index]];
+         break;
+
+      case Geometry::TRIANGLE:
+         ch = el.child[index];
+         break;
+
+      default:
+         MFEM_ABORT("Unsupported element geometry.");
+   }
+   return RetrieveNode(elements[ch], index);
+}
+
+
 void NCMesh::DerefineElement(int elem)
 {
    Element &el = elements[elem];
@@ -1150,23 +1199,14 @@ void NCMesh::DerefineElement(int elem)
    int fa[6];
    if (el.geom == Geometry::CUBE)
    {
-      const int table[7][8 + 6] =
-      {
-         { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
-         { 0, 0, 1, 1, 0, 0, 1, 1, /**/ 0, 0, 0, 1, 1, 1 }, // 2 - Y
-         { 0, 1, 2, 3, 0, 1, 2, 3, /**/ 1, 1, 1, 3, 3, 3 }, // 3 - XY
-         { 0, 0, 0, 0, 1, 1, 1, 1, /**/ 0, 0, 0, 1, 1, 1 }, // 4 - Z
-         { 0, 1, 1, 0, 3, 2, 2, 3, /**/ 1, 1, 1, 3, 3, 3 }, // 5 - XZ
-         { 0, 0, 1, 1, 2, 2, 3, 3, /**/ 0, 0, 0, 3, 3, 3 }, // 6 - YZ
-         { 0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 1, 1, 7, 7, 7 }  // 7 - iso
-      };
       for (int i = 0; i < 8; i++)
       {
-         el.node[i] = elements[child[table[el.ref_type - 1][i]]].node[i];
+         Element &ch = elements[child[hex_deref_table[el.ref_type - 1][i]]];
+         el.node[i] = ch.node[i];
       }
       for (int i = 0; i < 6; i++)
       {
-         Element &ch = elements[child[table[el.ref_type - 1][i + 8]]];
+         Element &ch = elements[child[hex_deref_table[el.ref_type - 1][i + 8]]];
          const int* fv = gi_hex.faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
@@ -1174,19 +1214,14 @@ void NCMesh::DerefineElement(int elem)
    }
    else if (el.geom == Geometry::SQUARE)
    {
-      const int table[3][4 + 4] =
-      {
-         { 0, 1, 1, 0, /**/ 1, 1, 0, 0 }, // 1 - X
-         { 0, 0, 1, 1, /**/ 0, 0, 1, 1 }, // 2 - Y
-         { 0, 1, 2, 3, /**/ 1, 1, 3, 3 }  // 3 - iso
-      };
       for (int i = 0; i < 4; i++)
       {
-         el.node[i] = elements[child[table[el.ref_type - 1][i]]].node[i];
+         Element &ch = elements[child[quad_deref_table[el.ref_type - 1][i]]];
+         el.node[i] = ch.node[i];
       }
       for (int i = 0; i < 4; i++)
       {
-         Element &ch = elements[child[table[el.ref_type - 1][i + 4]]];
+         Element &ch = elements[child[quad_deref_table[el.ref_type - 1][i + 4]]];
          const int* fv = gi_quad.faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
@@ -1523,7 +1558,7 @@ void NCMesh::InitRootState(int root_count)
          break;
 
       default:
-         return; // do nothing, all states zero
+         return; // do nothing, all states stay zero
    }
 
    int entry_node = -2;
@@ -1532,10 +1567,8 @@ void NCMesh::InitRootState(int root_count)
    for (int i = 0; i < root_count; i++)
    {
       Element &el = elements[i];
-      if (el.ref_type) { continue; }
-      // TODO: what to do with already refined meshes? (see LoadCoarseElements)
 
-      int v_in = find_node(el, entry_node, false);
+      int v_in = FindNodeExt(el, entry_node, false);
       if (v_in < 0) { v_in = 0; }
 
       // determine which nodes are shared with the next element
@@ -1545,7 +1578,7 @@ void NCMesh::InitRootState(int root_count)
          Element &next = elements[i+1];
          for (int j = 0; j < nch; j++)
          {
-            int node = find_node(el, next.node[j], false);
+            int node = FindNodeExt(el, RetrieveNode(next, j), false);
             if (node >= 0) { shared[node] = true; }
          }
       }
@@ -1563,7 +1596,7 @@ void NCMesh::InitRootState(int root_count)
 
       root_state[i] = state;
 
-      entry_node = el.node[(int) node_order[nch*state + nch-1]];
+      entry_node = RetrieveNode(el, node_order[nch*state + nch-1]);
    }
 }
 
@@ -1759,11 +1792,21 @@ int NCMesh::FaceSplitType(int v1, int v2, int v3, int v4,
    else { return 2; }  // face split "horizontally"
 }
 
-int NCMesh::find_node(const Element &el, int node, bool abort)
+int NCMesh::find_node(const Element &el, int node)
 {
    for (int i = 0; i < 8; i++)
    {
       if (el.node[i] == node) { return i; }
+   }
+   MFEM_ABORT("Node not found.");
+   return -1;
+}
+
+int NCMesh::FindNodeExt(const Element &el, int node, bool abort)
+{
+   for (int i = 0; i < GI[(int) el.geom].nv; i++)
+   {
+      if (RetrieveNode(el, i) == node) { return i; }
    }
    if (abort) { MFEM_ABORT("Node not found."); }
    return -1;

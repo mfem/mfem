@@ -554,10 +554,16 @@ protected: // implementation
 
    void CollectDerefinements(int elem, Array<Connection> &list);
 
+   /// Return el.node[index] correctly, even if the element is refined.
+   int RetrieveNode(const Element &el, int index);
+
+   /// Extended version of find_node: works if 'el' is refined; optional abort.
+   int FindNodeExt(const Element &el, int node, bool abort = false);
+
 
    // face/edge lists
 
-   static int find_node(const Element &el, int node, bool abort = false);
+   static int find_node(const Element &el, int node);
    static int find_element_edge(const Element &el, int vn0, int vn1);
    static int find_hex_face(int a, int b, int c);
 
