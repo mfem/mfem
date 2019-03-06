@@ -608,6 +608,47 @@ public:
    void Save(std::ostream &out) const;
 };
 
+/** Class representing projection operator between a high-order L2 finite
+  * element space on a coarse mesh, and a low-order L2 finite element space on a
+  * refined mesh (LOR). This class assumes that the low-order space @a fes_lor
+  * lives on a mesh obtained by refining the mesh of the high-order space
+  * @a fes_ho. */
+class L2Projection : public Operator
+{
+   const FiniteElementSpace &fes_ho;
+   const FiniteElementSpace &fes_lor;
+
+   int ndof_lor, ndof_ho, nel_lor, nel_ho, nref;
+
+   Array<int> lor2ho;
+   Table ho2lor;
+
+   DenseTensor R, P;
+public:
+   L2Projection(const FiniteElementSpace &fes_ho_,
+                const FiniteElementSpace &fes_lor_);
+   /// Perform the L2 projection onto the LOR space
+   virtual void Mult(const Vector &x, Vector &y) const;
+   /// Perform the mass conservative left-inverse prolongation operation.
+   /// This functionality is also provided as an Operator by L2Prolongation.
+   void Prolongate(const Vector &x, Vector &y) const;
+   virtual ~L2Projection() { }
+};
+
+/** Mass-conservative prolongation operator going in the opposite direction
+  * as L2Projection. This operator is a left inverse to the L2Projection. */
+class L2Prolongation : public Operator
+{
+   const L2Projection &l2proj;
+public:
+   L2Prolongation(const L2Projection &l2proj_) : l2proj(l2proj_) { }
+   void Mult(const Vector &x, Vector &y) const
+   {
+      l2proj.Prolongate(x, y);
+   }
+   virtual ~L2Prolongation() { }
+};
+
 }
 
 #endif
