@@ -57,7 +57,8 @@ static const void* InsertAlias(mm::ledger &maps,
                                const void *ptr)
 {
    mm::memory &mem = maps.memories.at(base);
-   const long offset = static_cast<const char*>(ptr) - static_cast<const char*>(base);
+   const long offset = static_cast<const char*>(ptr) - static_cast<const char*>
+                       (base);
    const mm::alias *alias = new mm::alias{&mem, offset};
    maps.aliases.emplace(ptr, alias);
 #ifdef MFEM_DEBUG_MM
@@ -258,8 +259,9 @@ void *mm::Ptr(void *ptr)
 }
 
 // *****************************************************************************
-const void *mm::Ptr(const void *ptr) {
-    return static_cast<const void*>(Ptr(const_cast<void*>(ptr)));
+const void *mm::Ptr(const void *ptr)
+{
+   return static_cast<const void*>(Ptr(const_cast<void*>(ptr)));
 }
 
 // *****************************************************************************
