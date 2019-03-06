@@ -186,7 +186,7 @@ void Factor(const int m, int *ipiv, double *data)
             }
          }
          d_ipiv[i] = piv;
-         if (piv != (int) i)
+         if (piv != i)
          {
             // swap rows i and piv in both L and U parts
             for (int j = 0; j < m; j++)

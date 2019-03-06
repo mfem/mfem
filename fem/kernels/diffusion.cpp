@@ -532,10 +532,10 @@ void DiffusionMultAssembled(const int dim,
       return;
    }
 #endif // __OCCA__
-   assert(LOG2(ND1d)<=4);
-   assert(LOG2(NQ1d)<=4);
-   const unsigned int id = (dim<<8)|(ND1d<<4)|(NQ1d);
-   static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
+   assert(LOG2(static_cast<uint32_t>(ND1d))<=4);
+   assert(LOG2(static_cast<uint32_t>(NQ1d))<=4);
+   const int id = (dim<<8)|(ND1d<<4)|(NQ1d);
+   static std::unordered_map<int, fDiffusionMultAdd> call =
    {
       {0x222,&DiffusionMultAssembled2D<2,2>},
       {0x244,&DiffusionMultAssembled2D<4,4>},

@@ -23,11 +23,11 @@ namespace mfem
 
 // *****************************************************************************
 static long sequence = -1;
-static GeometryExtension *geom = NULL;
+static GeometryExtension *geom = nullptr;
 
 // *****************************************************************************
 static void GeomFill(const int vdim,
-                     const size_t NE, const size_t ND, const size_t NX,
+                     const int NE, const int ND, const int NX,
                      const int* elementMap, int* eMap,
                      const double *_X, double *meshNodes)
 {
@@ -37,7 +37,7 @@ static void GeomFill(const int vdim,
    DeviceVector d_meshNodes(meshNodes, vdim*ND*NE);
    MFEM_FORALL(e, NE,
    {
-      for (size_t d = 0; d < ND; ++d)
+      for (int d = 0; d < ND; ++d)
       {
          const int lid = d+ND*e;
          const int gid = d_elementMap[lid];
@@ -162,7 +162,7 @@ void GeometryExtension::ReorderByVDim(const GridFunction *nodes)
    const int vdim = fes->GetVDim();
    const int ndofs = fes->GetNDofs();
    double *data = nodes->GetData();
-   double *temp = new double[size];
+   double *temp = new double[static_cast<unsigned>(size)];
    int k=0;
    for (int d = 0; d < ndofs; d++)
       for (int v = 0; v < vdim; v++)
@@ -184,7 +184,7 @@ void GeometryExtension::ReorderByNodes(const GridFunction *nodes)
    const int vdim = fes->GetVDim();
    const int ndofs = fes->GetNDofs();
    double *data = nodes->GetData();
-   double *temp = new double[size];
+   double *temp = new double[static_cast<unsigned>(size)];
    int k = 0;
    for (int j = 0; j < ndofs; j++)
       for (int i = 0; i < vdim; i++)
