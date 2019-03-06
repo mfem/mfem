@@ -172,13 +172,13 @@ void Geom(const int dim,
           double* __restrict invJ,
           double* __restrict detJ)
 {
-   const unsigned int ND1d = IROOT(dim,ND);
-   const unsigned int NQ1d = IROOT(dim,NQ);
-   const unsigned int id = (dim<<8)|(ND1d)<<4|(NQ1d);
+   const int ND1d = IROOT(dim,ND);
+   const int NQ1d = IROOT(dim,NQ);
+   const int id = (dim<<8)|(ND1d)<<4|(NQ1d);
    assert(LOG2(dim)<=4);
    assert(LOG2(ND1d)<=4);
    assert(LOG2(NQ1d)<=4);
-   static std::unordered_map<unsigned int, fIniGeom> call =
+   static std::unordered_map<int, fIniGeom> call =
    {
       {0x222,&Geom2D<2,2>},
       {0x224,&Geom2D<2,4>},

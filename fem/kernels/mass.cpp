@@ -256,19 +256,19 @@ void MassMultAssembled(const int dim,
                        double* __restrict y)
 {
    assert(LOG2(dim)<=4);
-   assert(LOG2(ND1d)<=8);
-   assert(LOG2(NQ1d)<=8);
-   const unsigned int id = (dim<<16)|((ND1d)<<8)|(NQ1d);
-   static std::unordered_map<unsigned int, fMassMultAdd> call =
+   assert(LOG2(ND1d)<=4);
+   assert(LOG2(NQ1d)<=4);
+   const int id = (dim<<8)|((ND1d)<<4)|(NQ1d);
+   static std::unordered_map<int, fMassMultAdd> call =
    {
       // 2D
-      {0x20202,&MassMultAdd2D<2,2>},
-      {0x20204,&MassMultAdd2D<2,4>},
-      {0x20304,&MassMultAdd2D<3,4>},
+      {0x222,&MassMultAdd2D<2,2>},
+      {0x224,&MassMultAdd2D<2,4>},
+      {0x234,&MassMultAdd2D<3,4>},
       // 3D
-      {0x30203,&MassMultAdd3D<2,3>},
-      {0x30204,&MassMultAdd3D<2,4>},
-      {0x30304,&MassMultAdd3D<3,4>},
+      {0x323,&MassMultAdd3D<2,3>},
+      {0x324,&MassMultAdd3D<2,4>},
+      {0x334,&MassMultAdd3D<3,4>},
    };
    if (!call[id])
    {

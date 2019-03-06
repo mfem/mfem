@@ -107,7 +107,7 @@ void* cuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-void* cuMemcpyDtoH(void* dst, const void* src, size_t bytes)
+void* cuMemcpyDtoH(void *dst, void *src, size_t bytes)
 {
 #ifdef __NVCC__
    if (CUDA_SUCCESS != ::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes))

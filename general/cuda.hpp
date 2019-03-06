@@ -12,6 +12,8 @@
 #ifndef MFEM_CUDA_HPP
 #define MFEM_CUDA_HPP
 
+#include <cstddef>
+
 // *****************************************************************************
 #ifdef __NVCC__
 #include <cuda.h>
@@ -92,7 +94,7 @@ void* cuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes, void *stream);
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-void* cuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
+void* cuMemcpyDtoH(void *h_dst, void *d_src, size_t bytes);
 
 // *****************************************************************************
 // * Copies memory from Device to Host

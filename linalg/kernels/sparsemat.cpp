@@ -28,7 +28,7 @@ void SparseMatrix(const int nrows, RowNode** Rows)
 }
 
 // *****************************************************************************
-void AddMult(const size_t height,
+void AddMult(const int height,
              const int *I, const int *J, const double *A,
              const double *x, double *y)
 {
@@ -40,8 +40,8 @@ void AddMult(const size_t height,
    MFEM_FORALL(i, height,
    {
       double d = 0.0;
-      const size_t end = d_I[i+1];
-      for (size_t j=d_I[i]; j < end; j+=1)
+      const int end = d_I[i+1];
+      for (int j=d_I[i]; j < end; j+=1)
       {
          d += d_A[j] * d_x[d_J[j]];
       }
@@ -50,7 +50,7 @@ void AddMult(const size_t height,
 }
 
 // *****************************************************************************
-void Gauss_Seidel_forw_A_NULL(const size_t s,
+void Gauss_Seidel_forw_A_NULL(const int s,
                               RowNode **R,
                               const double *xp,
                               double *yp)
@@ -60,7 +60,7 @@ void Gauss_Seidel_forw_A_NULL(const size_t s,
    DeviceVector d_yp(yp);
    MFEM_FORALL_SEQ(
    {
-      for (size_t i=0; i<s; i+=1)
+      for (int i=0; i<s; i+=1)
       {
          int c;
          double sum = 0.0;
@@ -68,7 +68,7 @@ void Gauss_Seidel_forw_A_NULL(const size_t s,
          RowNode *n_p;
          for (n_p = d_R[i]; n_p != NULL; n_p = n_p->Prev)
          {
-            if ((c = n_p->Column) == (int)i)
+            if ((c = n_p->Column) == i)
             {
                diag_p = n_p;
             }
@@ -94,7 +94,7 @@ void Gauss_Seidel_forw_A_NULL(const size_t s,
 }
 
 // *****************************************************************************
-void Gauss_Seidel_forw(const size_t height,
+void Gauss_Seidel_forw(const int height,
                        const int *Ip, const int *Jp, const double *Ap,
                        const double *xp,
                        double *yp)
@@ -106,14 +106,14 @@ void Gauss_Seidel_forw(const size_t height,
    DeviceVector d_yp(yp,height);
    MFEM_FORALL_SEQ(
    {
-      for (size_t i=0; i<height; i+=1)
+      for (int i=0; i<height; i+=1)
       {
          int d = -1;
          const int end = d_Ip[i+1];
          double sum = 0.0;
          for (int j = d_Ip[i]; j < end; j+=1)
          {
-            const size_t c = d_Jp[j];
+            const int c = d_Jp[j];
             const bool c_eq_i = c == i;
             d = c_eq_i ? j : d;
             const double Ay = d_Ap[j] * d_yp[c];
@@ -131,7 +131,7 @@ void Gauss_Seidel_forw(const size_t height,
 }
 
 // *****************************************************************************
-void Gauss_Seidel_back(const size_t height,
+void Gauss_Seidel_back(const int height,
                        const int *Ip, const int *Jp, const double *Ap,
                        const double *xp,
                        double *yp)

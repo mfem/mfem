@@ -184,15 +184,15 @@ void MapDof(const int N, double *y, const double *x, const int *dofs)
 // *****************************************************************************
 void MapDof(double *y, const double *x, const int dof, const int j)
 {
-   const double *d_x = (double*) mm::ptr(x);
-   double *d_y = (double*) mm::ptr(y);
+   const double *d_x = static_cast<const double*>(mm::ptr(x));
+   double *d_y = static_cast<double*>(mm::ptr(y));
    MFEM_FORALL(i, 1, d_y[dof] = d_x[j];);
 }
 
 // *****************************************************************************
 void SetDof(double *y, const double alpha, const int dof)
 {
-   double *d_y = (double*) mm::ptr(y);
+   double *d_y = static_cast<double*>(mm::ptr(y));
    MFEM_FORALL(i, 1, d_y[dof] = alpha;);
 }
 

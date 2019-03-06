@@ -21,21 +21,21 @@ namespace sparsemat
 
 void SparseMatrix(const int nrows, RowNode** Rows);
 
-void AddMult(const size_t height,
+void AddMult(const int height,
              const int *I, const int *J, const double *A,
              const double *x, double *y);
 
-void Gauss_Seidel_forw_A_NULL(const size_t s,
+void Gauss_Seidel_forw_A_NULL(const int s,
                               RowNode **R,
                               const double *xp,
                               double *yp);
 
-void Gauss_Seidel_forw(const size_t s,
+void Gauss_Seidel_forw(const int s,
                        const int *I, const int *J, const double *A,
                        const double *xp,
                        double *yp);
 
-void Gauss_Seidel_back(const size_t s,
+void Gauss_Seidel_back(const int s,
                        const int *I, const int *J, const double *A,
                        const double *xp,
                        double *yp);
