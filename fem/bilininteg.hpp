@@ -201,8 +201,6 @@ public:
    virtual ~BilinearFormIntegrator() { }
 };
 
-// *****************************************************************************
-// *****************************************************************************
 class TransposeIntegrator : public BilinearFormIntegrator
 {
 private:

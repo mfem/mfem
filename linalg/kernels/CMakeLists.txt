@@ -11,13 +11,11 @@
 
 set(SRCS
   densemat.cpp
-  sparsemat.cpp
   vector.cpp
 )
  
 set(HDRS	
   densemat.hpp
-  sparsemat.hpp
   vector.hpp
 )
 
