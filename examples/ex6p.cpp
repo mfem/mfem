@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
    if (pa) { mesh->EnsureNodes(); }
-   
+
    // 4. Refine the serial mesh on all processors to increase the resolution.
    //    Also project a NURBS mesh to a piecewise-quadratic curved mesh. Make
    //    sure that the mesh is non-conforming.
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
    }
    mesh->EnsureNCMesh();
 
-   
+
    // 5. Define a parallel mesh by partitioning the serial mesh.
    //    Once the parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
          pcg.SetPrintLevel(3); // print the first and the last iterations only
          pcg.Mult(B, X);
       }
-      
+
       // 18. Extract the parallel grid function corresponding to the finite element
       //     approximation X. This is the local solution on each processor.
       config::SwitchToHost();

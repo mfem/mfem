@@ -43,7 +43,7 @@ public:
       bool host;
       bool padding[7];
       memory(void* const h, const size_t b):
-          bytes(b), h_ptr(h), d_ptr(nullptr), aliases(), host(true) {}
+         bytes(b), h_ptr(h), d_ptr(nullptr), aliases(), host(true) {}
    };
 
    struct alias

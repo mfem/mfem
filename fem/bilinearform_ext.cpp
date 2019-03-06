@@ -202,7 +202,7 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
       const FiniteElement *fe = fes.GetFE(e);
       const TensorBasisElement* el =
          dynamic_cast<const TensorBasisElement*>(fe);
-      if (el) continue;
+      if (el) { continue; }
       mfem_error("Finite element not supported with partial assembly");
    }
    const FiniteElement *fe = fes.GetFE(0);
