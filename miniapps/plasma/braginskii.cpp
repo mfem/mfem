@@ -613,7 +613,7 @@ int main(int argc, char *argv[])
    */
    TwoFluidTransportSolver transp(ode_imp_solver, ode_exp_solver,
                                   dg, sfes, vfes, ffes,
-                                  n_block, u_block, T_block,
+                                  offsets, n_block, u_block, T_block,
                                   B, ion_mass_, ion_charge_);
 
    // Visualize the density, momentum, and energy
@@ -793,8 +793,7 @@ int main(int argc, char *argv[])
          Wy += offy;
       }
    }
-   exit(0);
-
+   /*
    // Determine the minimum element size.
    double hmin;
    if (cfl > 0)
@@ -807,11 +806,15 @@ int main(int argc, char *argv[])
       // Reduce to find the global minimum element size
       MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
    }
+   */
+   double t = 0.0;
 
+   transp.Step(x_block, t, dt);
+   /*
    // Start the timer.
    tic_toc.Clear();
    tic_toc.Start();
-   /*
+
    double t = 0.0;
    adv.SetTime(t);
    ode_exp_solver->Init(adv);
@@ -843,7 +846,8 @@ int main(int argc, char *argv[])
          cout << "Initial Time Step:   " << dt << '\n';
       }
    }
-
+   */
+   /*
    // Integrate in time.
    bool done = false;
    for (int ti = 0; !done; )
@@ -928,10 +932,11 @@ int main(int argc, char *argv[])
     }
       }
    }
-   */
+
    tic_toc.Stop();
    if (mpi.Root()) { cout << " done, " << tic_toc.RealTime() << "s." << endl; }
-
+   */
+   /*
    // 11. Save the final solution. This output can be viewed later using GLVis:
    //     "glvis -np 4 -m transport-mesh -g species-0-field-0-final".
    {
@@ -959,7 +964,7 @@ int main(int argc, char *argv[])
       const double error = sol.ComputeLpError(2, x0);
       if (mpi.Root()) { cout << "Solution error: " << error << endl; }
    }
-
+   */
    // Free the used memory.
    delete ode_exp_solver;
    delete ode_imp_solver;

@@ -785,6 +785,7 @@ TwoFluidTransportSolver::TwoFluidTransportSolver(ODESolver * implicitSolver,
                                                  ParFiniteElementSpace & sfes,
                                                  ParFiniteElementSpace & vfes,
                                                  ParFiniteElementSpace & ffes,
+                                                 Array<int> & offsets,
                                                  BlockVector & nBV,
                                                  BlockVector & uBV,
                                                  BlockVector & TBV,
@@ -797,6 +798,7 @@ TwoFluidTransportSolver::TwoFluidTransportSolver(ODESolver * implicitSolver,
      sfes_(sfes),
      vfes_(vfes),
      ffes_(ffes),
+     offsets_(offsets),
      nBV_(nBV),
      uBV_(uBV),
      TBV_(TBV),
@@ -815,7 +817,8 @@ TwoFluidTransportSolver::~TwoFluidTransportSolver()
 
 void TwoFluidTransportSolver::initDiffusion()
 {
-   tfDiff_ = new TwoFluidDiffusion(dg_, sfes_, vfes_, nBV_, uBV_, TBV_,
+   tfDiff_ = new TwoFluidDiffusion(dg_, sfes_, vfes_,
+                                   offsets_, nBV_, uBV_, TBV_,
                                    B_, ion_mass_, ion_charge_);
 }
 
@@ -833,6 +836,7 @@ void TwoFluidTransportSolver::Step(Vector &x, double &t, double &dt)
 TwoFluidDiffusion::TwoFluidDiffusion(DGParams & dg,
                                      ParFiniteElementSpace & sfes,
                                      ParFiniteElementSpace & vfes,
+                                     Array<int> & offsets,
                                      BlockVector & nBV,
                                      BlockVector & uBV,
                                      BlockVector & TBV,
@@ -843,13 +847,21 @@ TwoFluidDiffusion::TwoFluidDiffusion(DGParams & dg,
      dg_(dg),
      sfes_(sfes),
      vfes_(vfes),
+     offsets_(offsets),
      nBV_(nBV),
      uBV_(uBV),
      TBV_(TBV),
      B_(B),
      ion_mass_(ion_mass),
-     ion_charge_(ion_charge)
-{}
+     ion_charge_(ion_charge),
+     block_A_(offsets_),
+     block_rhs_(offsets_),
+     block_amg_(offsets_),
+     gmres_(sfes.GetComm())
+{
+   this->initCoefficients();
+   this->initBilinearForms();
+}
 
 TwoFluidDiffusion::~TwoFluidDiffusion()
 {
@@ -859,6 +871,30 @@ TwoFluidDiffusion::~TwoFluidDiffusion()
 
 void TwoFluidDiffusion::deleteBilinearForms()
 {
+   for (unsigned int i=0; i<a_dndn_.size(); i++)
+   {
+      delete a_dndn_[i];
+   }
+   /*
+   for (unsigned int i=0; i<stiff_D_.size(); i++)
+   {
+      delete stiff_D_[i];
+   }
+   */
+
+   for (unsigned int i=0; i<a_dpdn_.size(); i++)
+   {
+      delete a_dpdn_[i];
+   }
+   for (unsigned int i=0; i<a_dpdu_.size(); i++)
+   {
+      delete a_dpdu_[i];
+   }
+   for (unsigned int i=0; i<stiff_eta_.size(); i++)
+   {
+      delete stiff_eta_[i];
+   }
+
    for (unsigned int i=0; i<a_dEdn_.size(); i++)
    {
       delete a_dEdn_[i];
@@ -871,24 +907,19 @@ void TwoFluidDiffusion::deleteBilinearForms()
    {
       delete a_dEdT_[i];
    }
-   /*
-   for (unsigned int i=0; i<stiff_D_.size(); i++)
-   {
-      delete stiff_D_[i];
-   }
-   */
    for (unsigned int i=0; i<stiff_chi_.size(); i++)
    {
       delete stiff_chi_[i];
-   }
-   for (unsigned int i=0; i<stiff_eta_.size(); i++)
-   {
-      delete stiff_eta_[i];
    }
 }
 
 void TwoFluidDiffusion::deleteCoefficients()
 {
+   for (unsigned int i=0; i<dndnCoef_.size(); i++)
+   {
+      delete dndnCoef_[i];
+   }
+
    for (unsigned int i=0; i<dpdnCoef_.size(); i++)
    {
       delete dpdnCoef_[i];
@@ -970,19 +1001,23 @@ void TwoFluidDiffusion::initCoefficients()
       TCoef_[i].SetGridFunction(&TGF_[i]);
    }
 
+   dndnCoef_.resize(ns + 1);
+   dndnCoef_[0] = new ConstantCoefficient(1.0);
+   dndnCoef_[1] = new ConstantCoefficient(1.0);
+
    dpdnCoef_.resize(dim_ * (ns + 1));
    for (int d=0; d<dim_; d++)
    {
       dpdnCoef_[d] = new dpdnCoefficient(d, me_u_, uCoef_[0]);
-   }
-   for (int d=0; d<dim_; d++)
-   {
       dpdnCoef_[dim_ + d] = new dpdnCoefficient(d, ion_mass_, uCoef_[1]);
    }
 
-   dpduCoef_.resize(ns + 1);
-   dpduCoef_[0] = new dpduCoefficient(me_u_, nCoef_[0]);
-   dpduCoef_[1] = new dpduCoefficient(ion_mass_, nCoef_[1]);
+   dpduCoef_.resize(dim_ * (ns + 1));
+   for (int d=0; d<dim_; d++)
+   {
+      dpduCoef_[d] = new dpduCoefficient(me_u_, nCoef_[0]);
+      dpduCoef_[dim_ + d] = new dpduCoefficient(ion_mass_, nCoef_[1]);
+   }
 
    dEdnCoef_.resize(ns + 1);
    dEdnCoef_[0] = new dEdnCoefficient(TCoef_[0], me_u_, uCoef_[0]);
@@ -1043,6 +1078,60 @@ void TwoFluidDiffusion::initCoefficients()
 
 void TwoFluidDiffusion::initBilinearForms()
 {
+   a_dndn_.resize(dndnCoef_.size());
+   for (unsigned int i=0; i<dndnCoef_.size(); i++)
+   {
+      a_dndn_[i] = new ParBilinearForm(&sfes_);
+      a_dndn_[i]->AddDomainIntegrator(new MassIntegrator(*dndnCoef_[i]));
+   }
+   /*
+   stiff_D_.resize(diffCoef_.size());
+   for (unsigned int i=0; i<diffCoef_.size(); i++)
+   {
+      stiff_D_[i] = new ParBilinearForm(&sfes_);
+      stiff_D_[i]->AddDomainIntegrator(new DiffusionIntegrator(*diffCoef_[i]));
+      stiff_D_[i]->AddInteriorFaceIntegrator(
+         new DGDiffusionIntegrator(*diffCoef_[i], dg_.sigma, dg_.kappa));
+      stiff_D_[i]->AddBdrFaceIntegrator(
+         new DGDiffusionIntegrator(*diffCoef_[i], dg_.sigma, dg_.kappa));
+   }
+   */
+
+   a_dpdn_.resize(dpdnCoef_.size());
+   for (unsigned int i=0; i<dpdnCoef_.size(); i++)
+   {
+      a_dpdn_[i] = new ParBilinearForm(&sfes_);
+      a_dpdn_[i]->AddDomainIntegrator(new MassIntegrator(*dpdnCoef_[i]));
+   }
+
+   a_dpdu_.resize(etaCoef_.size());
+   for (unsigned int i=0; i<etaCoef_.size(); i++)
+   {
+      a_dpdu_[i] = new ParBilinearForm(&sfes_);
+      if ((i % (dim_ * dim_)) % (dim_ + 1) == 0)
+      {
+         int spec = i / (dim_ * dim_);
+         int row = dim_ * spec + (i %  (dim_ * dim_)) / dim_;
+         a_dpdu_[i]->AddDomainIntegrator(new MassIntegrator(*dpduCoef_[row]));
+      }
+      a_dpdu_[i]->AddDomainIntegrator(new DiffusionIntegrator(*dtEtaCoef_[i]));
+      a_dpdu_[i]->AddInteriorFaceIntegrator(
+         new DGDiffusionIntegrator(*dtEtaCoef_[i], dg_.sigma, dg_.kappa));
+      a_dpdu_[i]->AddBdrFaceIntegrator(
+         new DGDiffusionIntegrator(*dtEtaCoef_[i], dg_.sigma, dg_.kappa));
+   }
+
+   stiff_eta_.resize(etaCoef_.size());
+   for (unsigned int i=0; i<etaCoef_.size(); i++)
+   {
+      stiff_eta_[i] = new ParBilinearForm(&sfes_);
+      stiff_eta_[i]->AddDomainIntegrator(new DiffusionIntegrator(*etaCoef_[i]));
+      stiff_eta_[i]->AddInteriorFaceIntegrator(
+         new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
+      stiff_eta_[i]->AddBdrFaceIntegrator(
+         new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
+   }
+
    a_dEdn_.resize(dEdnCoef_.size());
    for (unsigned int i=0; i<dEdnCoef_.size(); i++)
    {
@@ -1068,18 +1157,6 @@ void TwoFluidDiffusion::initBilinearForms()
       a_dEdT_[i]->AddBdrFaceIntegrator(
          new DGDiffusionIntegrator(*dtChiCoef_[i], dg_.sigma, dg_.kappa));
    }
-   /*
-   stiff_D_.resize(diffCoef_.size());
-   for (unsigned int i=0; i<diffCoef_.size(); i++)
-   {
-      stiff_D_[i] = new ParBilinearForm(&sfes_);
-      stiff_D_[i]->AddDomainIntegrator(new DiffusionIntegrator(*diffCoef_[i]));
-      stiff_D_[i]->AddInteriorFaceIntegrator(
-         new DGDiffusionIntegrator(*diffCoef_[i], dg_.sigma, dg_.kappa));
-      stiff_D_[i]->AddBdrFaceIntegrator(
-         new DGDiffusionIntegrator(*diffCoef_[i], dg_.sigma, dg_.kappa));
-   }
-   */
    stiff_chi_.resize(chiCoef_.size());
    for (unsigned int i=0; i<chiCoef_.size(); i++)
    {
@@ -1090,28 +1167,142 @@ void TwoFluidDiffusion::initBilinearForms()
       stiff_chi_[i]->AddBdrFaceIntegrator(
          new DGDiffusionIntegrator(*chiCoef_[i], dg_.sigma, dg_.kappa));
    }
+}
 
-   stiff_eta_.resize(etaCoef_.size());
-   for (unsigned int i=0; i<etaCoef_.size(); i++)
+void TwoFluidDiffusion::setTimeStep(double dt)
+{
+   /*
+   for (unsigned int i=0; i<dtDiffCoef_.size(); i++)
    {
-      stiff_eta_[i] = new ParBilinearForm(&sfes_);
-      stiff_eta_[i]->AddDomainIntegrator(new DiffusionIntegrator(*etaCoef_[i]));
-      stiff_eta_[i]->AddInteriorFaceIntegrator(
-         new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
-      stiff_eta_[i]->AddBdrFaceIntegrator(
-         new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
+     dtDiffCoef_[i]->SetAConst(dt);
    }
+   */
+   for (unsigned int i=0; i<dtChiCoef_.size(); i++)
+   {
+      dtChiCoef_[i]->SetAConst(dt);
+   }
+   for (unsigned int i=0; i<dtEtaCoef_.size(); i++)
+   {
+      dtEtaCoef_[i]->SetAConst(dt);
+   }
+
 }
 
 void TwoFluidDiffusion::Assemble()
-{}
+{
+   for (unsigned int i=0; i<a_dndn_.size(); i++)
+   {
+      a_dndn_[i]->Assemble();
+   }
+
+   for (unsigned int i=0; i<a_dpdn_.size(); i++)
+   {
+      a_dpdn_[i]->Assemble();
+   }
+   for (unsigned int i=0; i<a_dpdu_.size(); i++)
+   {
+      a_dpdu_[i]->Assemble();
+   }
+
+   for (unsigned int i=0; i<a_dEdn_.size(); i++)
+   {
+      a_dEdn_[i]->Assemble();
+   }
+   for (unsigned int i=0; i<a_dEdu_.size(); i++)
+   {
+      a_dEdu_[i]->Assemble();
+   }
+   for (unsigned int i=0; i<a_dEdT_.size(); i++)
+   {
+      a_dEdT_[i]->Assemble();
+   }
+   /*
+   for (unsigned int i=0; i<stiff_D_.size(); i++)
+   {
+      delete stiff_D_[i]->Assemble();
+   }
+   */
+   for (unsigned int i=0; i<stiff_chi_.size(); i++)
+   {
+      stiff_chi_[i]->Assemble();
+   }
+   for (unsigned int i=0; i<stiff_eta_.size(); i++)
+   {
+      stiff_eta_[i]->Assemble();
+   }
+}
+
+void TwoFluidDiffusion::initSolver()
+{
+   block_A_.SetBlock(0, 0, a_dndn_[0]->ParallelAssemble());
+   block_A_.SetBlock(1, 1, a_dndn_[1]->ParallelAssemble());
+
+   for (int d=0; d<dim_; d++)
+   {
+      block_A_.SetBlock(d + 2, 0, a_dpdn_[d]->ParallelAssemble());
+   }
+   for (int d=0; d<dim_; d++)
+   {
+      block_A_.SetBlock(dim_ + d + 2, 1, a_dpdn_[dim_ + d]->ParallelAssemble());
+   }
+
+   for (int di=0; di<dim_; di++)
+   {
+      for (int dj=0; dj<dim_; dj++)
+      {
+         block_A_.SetBlock(di + 2, dj + 2,
+                           a_dpdu_[di * dim_ + dj]->ParallelAssemble());
+      }
+   }
+   for (int di=0; di<dim_; di++)
+   {
+      for (int dj=0; dj<dim_; dj++)
+      {
+         block_A_.SetBlock(dim_ + di + 2, dim_ + dj + 2,
+                           a_dpdu_[dim_ * (dim_ + di) + dj]->ParallelAssemble());
+      }
+   }
+
+   block_A_.SetBlock(2 * (dim_ + 1), 0, a_dEdn_[0]->ParallelAssemble());
+   block_A_.SetBlock(2 * (dim_ + 1) + 1, 1, a_dEdn_[1]->ParallelAssemble());
+
+   for (int d=0; d<dim_; d++)
+   {
+      block_A_.SetBlock(2 * (dim_ + 1), d + 2, a_dEdu_[d]->ParallelAssemble());
+   }
+   for (int d=0; d<dim_; d++)
+   {
+      block_A_.SetBlock(2 * (dim_ + 1) + 1, d + dim_ + 2,
+                        a_dEdu_[dim_ + d]->ParallelAssemble());
+   }
+
+   block_A_.SetDiagonalBlock(2 * (dim_ + 1), a_dEdT_[0]->ParallelAssemble());
+   block_A_.SetDiagonalBlock(2 * (dim_ + 1) + 1, a_dEdT_[1]->ParallelAssemble());
+
+   block_A_.owns_blocks = 1;
+
+   gmres_.SetAbsTol(0.0);
+   gmres_.SetRelTol(1e-12);
+   gmres_.SetMaxIter(200);
+   gmres_.SetKDim(10);
+   gmres_.SetPrintLevel(1);
+   gmres_.SetOperator(block_A_);
+   gmres_.SetPreconditioner(block_amg_);
+}
 
 void TwoFluidDiffusion::Update()
 {}
 
 void TwoFluidDiffusion::ImplicitSolve(const double dt,
                                       const Vector &x, Vector &y)
-{}
+{
+   this->setTimeStep(dt);
+   this->Assemble();
+
+   block_rhs_ = 0.0;
+
+   gmres_.Mult(block_rhs_, y);
+}
 
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
                            ParFiniteElementSpace &dfes,

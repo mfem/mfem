@@ -455,6 +455,7 @@ private:
    ParFiniteElementSpace & vfes_; // Vector fields
    ParFiniteElementSpace & ffes_; // Full system
 
+   Array<int>  & offsets_;
    BlockVector & nBV_;
    BlockVector & uBV_;
    BlockVector & TBV_;
@@ -475,6 +476,7 @@ public:
                            ParFiniteElementSpace & sfes,
                            ParFiniteElementSpace & vfes,
                            ParFiniteElementSpace & ffes,
+                           Array<int> & offsets,
                            BlockVector & nBV,
                            BlockVector & uBV,
                            BlockVector & TBV,
@@ -823,6 +825,7 @@ private:
    ParFiniteElementSpace &sfes_;
    ParFiniteElementSpace &vfes_;
 
+   Array<int>  & offsets_;
    BlockVector & nBV_;
    BlockVector & uBV_;
    BlockVector & TBV_;
@@ -840,6 +843,8 @@ private:
    std::vector<VectorGridFunctionCoefficient> uCoef_;
    std::vector<GridFunctionCoefficient>       TCoef_;
 
+   std::vector<Coefficient *> dndnCoef_;
+
    std::vector<dpdnCoefficient *> dpdnCoef_;
    std::vector<dpduCoefficient *> dpduCoef_;
 
@@ -855,24 +860,42 @@ private:
    std::vector<ScalarMatrixProductCoefficient *> dtChiCoef_;
    std::vector<ScalarMatrixProductCoefficient *> dtEtaCoef_;
 
+   // Bilinear Forms for particle equation
+   std::vector<ParBilinearForm *> a_dndn_;
+   // std::vector<ParBilinearForm *> stiff_D_;
+
+   // Bilinear Forms for momentum equation
+   std::vector<ParBilinearForm *> a_dpdn_;
+   std::vector<ParBilinearForm *> a_dpdu_;
+   std::vector<ParBilinearForm *> stiff_eta_;
+
    // Bilinear Forms for energy equation
    std::vector<ParBilinearForm *> a_dEdn_;
    std::vector<ParBilinearForm *> a_dEdu_;
    std::vector<ParBilinearForm *> a_dEdT_;
-   // std::vector<ParBilinearForm *> stiff_D_;
    std::vector<ParBilinearForm *> stiff_chi_;
-   std::vector<ParBilinearForm *> stiff_eta_;
+
+   BlockOperator block_A_;
+   BlockVector block_rhs_;
+   BlockDiagonalPreconditioner block_amg_;
+   std::vector<HypreSolver *> amg_;
+
+   GMRESSolver gmres_;
 
    void initCoefficients();
    void initBilinearForms();
+   void initSolver();
 
    void deleteCoefficients();
    void deleteBilinearForms();
+
+   void setTimeStep(double dt);
 
 public:
    TwoFluidDiffusion(DGParams & dg,
                      ParFiniteElementSpace & sfes,
                      ParFiniteElementSpace & vfes,
+                     Array<int> & offsets,
                      BlockVector & nBV,
                      BlockVector & uBV,
                      BlockVector & TBV,
