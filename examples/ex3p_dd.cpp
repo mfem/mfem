@@ -54,7 +54,7 @@ int dim;
 #define SIGMAVAL -250.0
 
 
-void VisitTestPlotParMesh(const std::string filename, ParMesh *pmesh)
+void VisitTestPlotParMesh(const std::string filename, ParMesh *pmesh, const int ifId, const int myid)
 {
   if (pmesh == NULL)
     return;
@@ -81,6 +81,9 @@ void VisitTestPlotParMesh(const std::string filename, ParMesh *pmesh)
   H1_FECollection h1_coll(1, pmesh->Dimension());
   ParFiniteElementSpace fespace(pmesh, &h1_coll);
 
+  if (ifId >= 0)
+    cout << myid << ": interface " << ifId << " VISIT TEST: true V size " << fespace.GetTrueVSize() << ", V size " << fespace.GetVSize() << endl;
+  
   ParGridFunction x(&fespace);
   FunctionCoefficient radius(radiusFunction);
   x.ProjectCoefficient(radius);
@@ -245,6 +248,11 @@ int main(int argc, char *argv[])
 	   pmeshInterfaces[i] = sdMeshGen.CreateParallelInterfaceMesh(emptyInterface);
 	 }
      }
+
+   // Note that subdomains do not overlap element-wise, and the parallel mesh of an individual subdomain has no element overlap on different processes.
+   // However, the parallel mesh of an individual interface may have element (face) overlap on different processes, for the purpose of communication.
+   // It is even possible (if an interface lies on a process boundary) for an entire interface to be duplicated on two processes, with zero true DOF's
+   // on one process. 
    
    const bool testSubdomains = true;
    if (testSubdomains)
@@ -253,14 +261,14 @@ int main(int argc, char *argv[])
 	 {
 	   ostringstream filename;
 	   filename << "sd" << setfill('0') << setw(3) << i;
-	   VisitTestPlotParMesh(filename.str(), pmeshSD[i]);
+	   VisitTestPlotParMesh(filename.str(), pmeshSD[i], -1, myid);
 	 }
        
        for (int i=0; i<numInterfaces; ++i)
 	 {
 	   ostringstream filename;
 	   filename << "sdif" << setfill('0') << setw(3) << i;
-	   VisitTestPlotParMesh(filename.str(), pmeshInterfaces[i]);
+	   VisitTestPlotParMesh(filename.str(), pmeshInterfaces[i], i, myid);
 	 }
        
        const bool printInterfaceVertices = false;
@@ -288,9 +296,10 @@ int main(int argc, char *argv[])
    }
 
    // 6.1. Create interface operator.
-   DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
+
+   DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmesh, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
 			    &interfaces, &interfaceGlobalToLocalMap);  // PengLee2012 uses order 2 
-     
+
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential

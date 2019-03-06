@@ -26,7 +26,6 @@ private:
   int globalIndex;
 
 protected:
-  std::set<int> vertices, faces;  // local pmesh vertex and face indices
   
 public:
   SubdomainInterface(const int sd0_, const int sd1_) : sd0(sd0_), sd1(sd1_)
@@ -34,6 +33,8 @@ public:
     MFEM_VERIFY(sd0 < sd1, "");
     globalIndex = -1;
   }
+  
+  std::set<int> vertices, faces;  // local pmesh vertex and face indices
   
   void InsertVertexIndex(const int v)
   {
@@ -316,6 +317,7 @@ private:
   vector<int> sdProcId;
   vector<int> element_vgid;
   vector<double> element_coords;
+  vector<int> element_pmeshId;
   
   H1_FECollection *h1_coll;
   ParFiniteElementSpace *H1_space;
@@ -371,8 +373,11 @@ private:
     vector<int> my_element_vgid(std::max(numElVert*numLocalElements, 1));  // vertex global indices, for each element
     vector<double> my_element_coords(std::max(d*numElVert*numLocalElements, 1));
 
+    vector<int> my_element_pmeshId(std::max(numLocalElements, 1));
+    
     int conn_idx = 0;
     int coords_idx = 0;
+    int locElemCount = 0;
 
     if (mode == SubdomainMesh)
       {
@@ -387,7 +392,10 @@ private:
 		Array<int> dofs;
 		H1_space->GetElementDofs(elId, dofs);
 		MFEM_VERIFY(numElVert == dofs.Size(), "");  // Assuming a bijection between vertices and H1 dummy space DOF's.
-    
+
+		my_element_pmeshId[locElemCount] = elId;
+		locElemCount++;
+		
 		for (int i = 0; i < numElVert; ++i)
 		  {
 		    my_element_vgid[conn_idx++] = H1_space->GetGlobalTDofNumber(dofs[i]);
@@ -397,13 +405,19 @@ private:
 		  }
 	      }
 	  }
+
+	MFEM_VERIFY(locElemCount == numLocalElements, "");
       }
     else
       {
+	int prev = -1;
 	for (std::set<int>::const_iterator it = interface->faces.begin(); it != interface->faces.end(); ++it)
 	  {
 	    pmesh->GetFaceVertices(*it, elVert);
 
+	    MFEM_VERIFY(prev < *it, "Verify faces are in ascending order");
+	    prev = *it;
+	    
 	    MFEM_VERIFY(numElVert == elVert.Size(), "");  // Assuming a uniform element type in the mesh.
 	    // NOTE: to be very careful, it should be verified that this is the same across all processes.
 
@@ -431,10 +445,11 @@ private:
       cts[i] = numElVert*procNumElems[i];
       offsets[i] = offsets[i-1] + cts[i-1];
     }
-
+    
     // TODO: resize only if a larger size is needed
     element_vgid.resize(numElVert*subdomainNumElements);
     element_coords.resize(d*numElVert*subdomainNumElements);
+    element_pmeshId.resize(subdomainNumElements);
 
     int sendSize = numElVert*numLocalElements;
     
@@ -453,6 +468,21 @@ private:
     
     MPI_Allgatherv(&(my_element_coords[0]), sendSize, MPI_DOUBLE,
 		   &(element_coords[0]), cts, offsets, MPI_DOUBLE, MPI_COMM_WORLD);
+
+    if (mode == SubdomainMesh)
+      {
+	sendSize = numLocalElements;
+
+	cts[0] = procNumElems[0];
+
+	for (int i = 1; i < num_procs; ++i) {
+	  cts[i] = procNumElems[i];
+	  offsets[i] = offsets[i-1] + cts[i-1];
+	}
+
+	MPI_Allgatherv(&(my_element_pmeshId[0]), sendSize, MPI_INT,
+		       &(element_pmeshId[0]), cts, offsets, MPI_INT, MPI_COMM_WORLD);
+      }
   }
 
   // This is a serial function, which should be called only processes touching the subdomain.
@@ -527,8 +557,11 @@ private:
 	for (int i=0; i<procNumElems[p]; ++i, ++ielem)
 	  {
 	    Element* sel = smesh->NewElement(elGeom);
-	    sel->SetAttribute(attribute);
-	  
+	    if (mode == SubdomainMesh)
+	      sel->SetAttribute(element_pmeshId[ielem] + 1);  // Add 1 to ensure positive attribute, then subtract 1 later.
+	    else
+	      sel->SetAttribute(attribute);
+	    
 	    Array<int> sv(numElVert);
 	    for (int vert = 0; vert < numElVert; ++vert) {
 	      sv[vert] = unique_gdofs_2_vertex[element_vgid[idx++]];
