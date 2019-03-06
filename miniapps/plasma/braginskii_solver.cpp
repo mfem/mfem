@@ -527,6 +527,8 @@ EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
      nBV_(nBV),
      nCoef_(&nGF_),
      BCoef_(&B),
+     del_(dim),
+     eps_(dim, dim, dim),
      bi_(bi),
      bj_(bj),
      ion_(false),
@@ -535,7 +537,9 @@ EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
      ne_(-1.0),
      ni_(-1.0),
      bHat_(dim)
-{}
+{
+   this->initSymbols();
+}
 
 EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
                                BlockVector & nBV, ParGridFunction & B,
@@ -556,16 +560,26 @@ EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
      bHat_(dim),
      bx_(dim)
 {
+   this->initSymbols();
+}
+
+void EtaCoefficient::initSymbols()
+{
+   int dim = del_.Size();
+
    del_ = 0.0;
    for (int i=0; i<dim; i++) { del_(i,i) = 1.0; }
 
    eps_ = 0.0;
-   eps_(0,1,2) = 1.0;
-   eps_(1,2,0) = 1.0;
-   eps_(2,0,1) = 1.0;
-   eps_(2,1,0) = -1.0;
-   eps_(1,0,2) = -1.0;
-   eps_(0,2,1) = -1.0;
+   if (dim == 3)
+   {
+      eps_(0,1,2) = 1.0;
+      eps_(1,2,0) = 1.0;
+      eps_(2,0,1) = 1.0;
+      eps_(2,1,0) = -1.0;
+      eps_(1,0,2) = -1.0;
+      eps_(0,2,1) = -1.0;
+   }
 }
 
 void EtaCoefficient::SetT(ParGridFunction & T)

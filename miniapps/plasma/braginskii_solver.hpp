@@ -742,6 +742,8 @@ private:
    mutable Vector bHat_;
    mutable DenseMatrix bx_;
 
+   void initSymbols();
+
 public:
    EtaCoefficient(int dim, int bi, int bj,
                   BlockVector & nBV, ParGridFunction & B, double zi);
