@@ -2181,5 +2181,164 @@ void QuadratureSpace::Save(std::ostream &out) const
        << "Order: " << order << '\n';
 }
 
+L2Projection::L2Projection(const FiniteElementSpace &fes_ho_,
+                           const FiniteElementSpace &fes_lor_)
+   : fes_ho(fes_ho_), fes_lor(fes_lor_)
+{
+   ndof_lor = fes_lor.GetFE(0)->GetDof();
+   ndof_ho = fes_ho.GetFE(0)->GetDof();
+
+   nel_lor = fes_lor.GetNE();
+   nel_ho = fes_ho.GetNE();
+
+   nref = nel_lor/nel_ho;
+
+   // Construct the mapping from HO to LOR and reverse
+   // lor2ho[ilor] will give the unique HO coarse element cotaining the ilor
+   // ho2lor.GetRow(iho) will give all the LOR elements contained in iho
+   lor2ho.SetSize(nel_lor);
+   ho2lor.SetSize(nel_ho, nref);
+   const CoarseFineTransformations &cf_tr
+      = fes_lor.GetMesh()->GetRefinementTransforms();
+   for (int ilor=0; ilor<nel_lor; ++ilor)
+   {
+      int iho = cf_tr.embeddings[ilor].parent;
+      lor2ho[ilor] = iho;
+      ho2lor.AddConnection(iho, ilor);
+   }
+   ho2lor.ShiftUpI();
+   ho2lor.Finalize();
+
+   // R will contain the restriction (L^2 projection operator) defined on
+   // each coarse HO element (and corresponding patch of LOR elements)
+   R.SetSize(ndof_lor*nref, ndof_ho, nel_ho);
+   // P will contain the corresponding prolongation operator
+   P.SetSize(ndof_ho, ndof_lor*nref, nel_ho);
+
+   DenseMatrix Minv_lor(ndof_lor*nref, ndof_lor*nref);
+   DenseMatrix M_mixed(ndof_lor*nref, ndof_ho);
+
+   MassIntegrator mi;
+   DenseMatrix M_lor_el(ndof_lor, ndof_lor);
+   DenseMatrixInverse Minv_lor_el(&M_lor_el);
+   DenseMatrix M_lor(ndof_lor*nref, ndof_lor*nref);
+   DenseMatrix M_mixed_el(ndof_lor, ndof_ho);
+
+   Minv_lor = 0.0;
+   M_lor = 0.0;
+
+   DenseMatrix RtMlor(ndof_ho, ndof_lor*nref);
+   DenseMatrix RtMlorR(ndof_ho, ndof_ho);
+   DenseMatrixInverse RtMlorR_inv(&RtMlorR);
+
+   IsoparametricTransformation emb_tr;
+
+   Vector shape_ho(ndof_ho);
+   Vector shape_lor(ndof_lor);
+
+   for (int iho=0; iho<nel_ho; ++iho)
+   {
+      const Geometry::Type geom = fes_ho.GetFE(iho)->GetGeomType();
+      const DenseTensor &pmats = cf_tr.GetPointMatrices(geom);
+      const FiniteElement *fe_lor = fes_lor.FEColl()->FiniteElementForGeometry(geom);
+      const FiniteElement *fe_ho = fes_ho.FEColl()->FiniteElementForGeometry(geom);
+      emb_tr.SetIdentityTransformation(geom);
+      for (int iref=0; iref<nref; ++iref)
+      {
+         // Assemble the low-order refined mass matrix and invert locally
+         int ilor = ho2lor.GetRow(iho)[iref];
+         mi.AssembleElementMatrix(*fe_lor,
+                                  *fes_lor.GetElementTransformation(ilor),
+                                  M_lor_el);
+         M_lor.CopyMN(M_lor_el, iref*ndof_lor, iref*ndof_lor);
+         Minv_lor_el.Factor();
+         Minv_lor_el.GetInverseMatrix(M_lor_el);
+         // Insert into the diagonal of the patch LOR mass matrix
+         Minv_lor.CopyMN(M_lor_el, iref*ndof_lor, iref*ndof_lor);
+
+         // Now assemble the block-row of the mixed mass matrix associated
+         // with integrating HO functions against LOR functions on the LOR
+         // sub-element.
+
+         // Create the transformation that embeds the fine low-order element
+         // within the coarse high-order element in reference space
+         emb_tr.GetPointMat() = pmats(iref);
+         emb_tr.FinalizeTransformation();
+         IntegrationPointTransformation ip_tr;
+         ip_tr.Transf = emb_tr;
+
+         ElementTransformation *el_tr = fes_lor.GetElementTransformation(ilor);
+         int order = fe_lor->GetOrder() + fe_ho->GetOrder() + el_tr->OrderW();
+         const IntegrationRule *ir = &IntRules.Get(geom, order);
+         M_mixed_el = 0.0;
+         for (int i = 0; i < ir->GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip_lor = ir->IntPoint(i);
+            IntegrationPoint ip_ho;
+            ip_tr.Transform(ip_lor, ip_ho);
+            fe_lor->CalcShape(ip_lor, shape_lor);
+            fe_ho->CalcShape(ip_ho, shape_ho);
+            el_tr->SetIntPoint(&ip_lor);
+            // For now we use the geometry information from the LOR space
+            // which means we won't be mass conservative if the mesh is curved
+            double w = el_tr->Weight()*ip_lor.weight;
+            shape_lor *= w;
+            AddMultVWt(shape_lor, shape_ho, M_mixed_el);
+         }
+         M_mixed.CopyMN(M_mixed_el, iref*ndof_lor, 0);
+      }
+      mfem::Mult(Minv_lor, M_mixed, R(iho));
+
+      mfem::MultAtB(R(iho), M_lor, RtMlor);
+      mfem::Mult(RtMlor, R(iho), RtMlorR);
+      RtMlorR_inv.Factor();
+      RtMlorR_inv.Mult(RtMlor, P(iho));
+   }
+}
+
+void L2Projection::Mult(const Vector &x, Vector &y) const
+{
+   Array<int> vdofs;
+   Vector xel(ndof_ho);
+   Vector yel(ndof_lor*nref);
+   for (int iho=0; iho<fes_ho.GetNE(); ++iho)
+   {
+      fes_ho.GetElementVDofs(iho, vdofs);
+      x.GetSubVector(vdofs, xel.GetData());
+      R(iho).Mult(xel, yel);
+      // Place result correctly into low-order vector
+      for (int iref=0; iref<nref; ++iref)
+      {
+         int ilor = ho2lor.GetRow(iho)[iref];
+         fes_lor.GetElementVDofs(ilor, vdofs);
+         y.SetSubVector(vdofs, yel.GetData() + iref*ndof_lor);
+      }
+   }
+}
+
+void L2Projection::Prolongate(const Vector &x, Vector &y) const
+{
+   Array<int> vdofs;
+   Vector xel(ndof_lor*nref);
+   Vector yel(ndof_ho);
+   for (int iho=0; iho<fes_ho.GetNE(); ++iho)
+   {
+      // Extract the LOR DOFs
+      for (int iref=0; iref<nref; ++iref)
+      {
+         int ilor = ho2lor.GetRow(iho)[iref];
+         fes_lor.GetElementVDofs(ilor, vdofs);
+         x.GetSubVector(vdofs, &xel[iref*ndof_lor]);
+      }
+      // Locally prolongate
+      P(iho).Mult(xel, yel);
+      // Place the result in the HO vector
+      fes_ho.GetElementVDofs(iho, vdofs);
+      y.SetSubVector(vdofs, yel);
+   }
+}
+
+
+
 
 } // namespace mfem
