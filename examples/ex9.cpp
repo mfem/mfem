@@ -328,19 +328,19 @@ private:
          {
             nbr_id = FindCommonAdjacentElement(k, neighborElements[3],
                                                   neighborElements[0], 2, numBdrs);
-            if (nbr_id > 0) { map_for_bounds[k*nd].push_back(nbr_id); }
+            if (nbr_id >= 0) { map_for_bounds[k*nd].push_back(nbr_id); }
 
             nbr_id = FindCommonAdjacentElement(k, neighborElements[0],
                                                   neighborElements[1], 2, numBdrs);
-            if (nbr_id > 0) { map_for_bounds[k*nd+p].push_back(nbr_id); }
+            if (nbr_id >= 0) { map_for_bounds[k*nd+p].push_back(nbr_id); }
 
             nbr_id = FindCommonAdjacentElement(k, neighborElements[1],
                                                   neighborElements[2], 2, numBdrs);
-            if (nbr_id > 0) { map_for_bounds[(k+1)*nd-1].push_back(nbr_id); }
+            if (nbr_id >= 0) { map_for_bounds[(k+1)*nd-1].push_back(nbr_id); }
 
             nbr_id = FindCommonAdjacentElement(k, neighborElements[2],
                                                   neighborElements[3], 2, numBdrs);
-            if (nbr_id > 0) { map_for_bounds[k*p*(p+1)].push_back(nbr_id); }
+            if (nbr_id >= 0) { map_for_bounds[k*p*(p+1)].push_back(nbr_id); }
          }
          else if (dim==3)
          {
