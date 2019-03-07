@@ -1384,6 +1384,7 @@ public:
       }
       else // dim == 3
       {
+         // NOTE: This will only work for meshes of uniformly ordered cube nodes.
          for (j = 0; j < numDofs; j++)
          {
             Trans = mesh->GetFaceElementTransformations(bdrs[0]);
