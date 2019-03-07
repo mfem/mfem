@@ -1376,14 +1376,18 @@ void TwoFluidDiffusion::initSolver()
    */
    for (int i=0; i<block_A_.NumRowBlocks(); i++)
    {
-      block_amg_.SetDiagonalBlock(i, &block_A_.GetBlock(i,i));
+      HypreParMatrix * hyp =
+         dynamic_cast<HypreParMatrix*>(&block_A_.GetBlock(i,i));
+      HypreBoomerAMG * amg = new HypreBoomerAMG(*hyp);
+      amg->SetPrintLevel(0);
+      block_amg_.SetDiagonalBlock(i, amg);
    }
-   block_amg_.owns_blocks = 0;
+   block_amg_.owns_blocks = 1;
 
    gmres_.SetAbsTol(0.0);
    gmres_.SetRelTol(1e-12);
    gmres_.SetMaxIter(200);
-   gmres_.SetKDim(10);
+   gmres_.SetKDim(50);
    gmres_.SetPrintLevel(1);
    gmres_.SetOperator(block_A_);
    gmres_.SetPreconditioner(block_amg_);
