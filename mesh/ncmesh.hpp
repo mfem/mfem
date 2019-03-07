@@ -139,7 +139,7 @@ public:
    /// Identifies a vertex/edge/face in both Mesh and NCMesh.
    struct MeshId
    {
-      int index;   ///< Mesh number
+      int index;   ///< Mesh index of the vertex/edge/face
       int element; ///< NCMesh::Element containing this vertex/edge/face
       int local;   ///< local number within 'element'
 
@@ -281,8 +281,13 @@ public:
 
    Geometry::Type GetFaceGeometry() const { return Geometry::SQUARE; }
 
-   /// Return the distance of leaf 'i' from the root.
+   /** Return the refinement depth of Mesh element 'i', i.e., the distance of
+       leaf 'i' from the refinement tree root. */
    int GetElementDepth(int i) const;
+
+   /** Convert internal NC element index to Mesh element index. May return -1
+       if the NC element does not exist in the Mesh (e.g., non-leaf, ghost). */
+   int GetElementFromNCIndex(int elem) const { return elements[elem].index; }
 
    /// I/O: Print the "vertex_parents" section of the mesh file (ver. >= 1.1).
    void PrintVertexParents(std::ostream &out) const;

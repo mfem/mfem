@@ -162,10 +162,10 @@ int RecoverFluxatConformingFaces( BilinearForm &a,
    Array<int> fdofs;
    Vector fvals;
 
-   for ( int i = 0; i< list.conforming.size(); i++)
+   for (unsigned i = 0; i< list.conforming.size(); i++)
    {
       const NCMesh::MeshId &cface = list.conforming[i];
-      int findex = cface.index; //is it the face_index?
+      int findex = cface.index;
       fes->GetFaceDofs(findex,fdofs);
 
       fvals.SetSize(fdofs.Size());
@@ -256,14 +256,14 @@ int RecoverFluxatMasterFaces(BilinearForm &a,
       P[Ri[i]] = i;
    }
 
-   for (int mi = 0; mi< list.masters.size(); mi++)
+   for (unsigned mi = 0; mi< list.masters.size(); mi++)
    {
       const NCMesh::Master &master = list.masters[mi];
       fes->GetFaceDofs(master.index, master_dofs);
       if (!master_dofs.Size()) { continue; }
 
       //get local index of the face dofs
-      int mindex = master.element;
+      int mindex = mesh->ncmesh->GetElementFromNCIndex(master.element);
       fes->GetElementDofs(mindex, master_edofs);
 
       int nfdof = master_dofs.Size();
@@ -286,7 +286,7 @@ int RecoverFluxatMasterFaces(BilinearForm &a,
       }
 
       //set up local face stiffness matrix
-      a.ComputeElementMatrix(mindex,mmaster);
+      a.ComputeElementMatrix(mindex, mmaster);
       S.SetSize(nfdof);
 
       for (int i=0; i< nfdof; i++)

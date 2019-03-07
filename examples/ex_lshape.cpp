@@ -238,7 +238,7 @@ int RecoverFluxatConformingFaces( BilinearForm &a,
    Array<int> fdofs;
    Vector fvals;
 
-   for ( int i = 0; i< list.conforming.size(); i++)
+   for (unsigned i = 0; i< list.conforming.size(); i++)
    {
       const NCMesh::MeshId &cface = list.conforming[i];
       int findex = cface.index;
@@ -332,14 +332,14 @@ int RecoverFluxatMasterFaces(BilinearForm &a,
       P[Ri[i]] = i;
    }
 
-   for (int mi = 0; mi< list.masters.size(); mi++)
+   for (unsigned mi = 0; mi< list.masters.size(); mi++)
    {
       const NCMesh::Master &master = list.masters[mi];
       fes->GetFaceDofs(master.index, master_dofs);
       if (!master_dofs.Size()) { continue; }
 
       //get local index of the face dofs
-      int mindex = master.element;
+      int mindex = mesh->ncmesh->GetElementFromNCIndex(master.element);
       fes->GetElementDofs(mindex, master_edofs);
 
       int nfdof = master_dofs.Size();
@@ -578,8 +578,6 @@ double ComputeEnergynormError(BilinearForm &a,
 }
 
 
-
-
 double ImprovedZZErrorEstimation(GridFunction &flux,
                                  VectorCoefficient &flux_coeff,
                                  Vector &eta_Ks)
@@ -620,6 +618,8 @@ double ImprovedZZErrorEstimation(GridFunction &flux,
 
    return eta;
 }
+
+
 
 int main(int argc, char *argv[])
 {
@@ -812,7 +812,7 @@ int main(int argc, char *argv[])
       FiniteElementSpace smooth_flux_fes(&mesh, &smooth_flux_fec);
       GridFunction flux(&smooth_flux_fes);
       GradientGridFunctionCoeffiecent flux_coeff(x, one);
-      double eta = ImprovedZZErrorEstimation(flux,flux_coeff, errors);
+      double eta = ImprovedZZErrorEstimation(flux, flux_coeff, errors);
       cout << it << " "<< cdofs << " " << eta << endl;
 
       int intorder = triangles ? 22 : 30;
