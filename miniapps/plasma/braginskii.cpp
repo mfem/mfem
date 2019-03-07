@@ -1081,14 +1081,14 @@ void InitialCondition(const Vector &x, Vector &y)
       y(i) = den;
       y(i * dim + num_species_ + 1) = V(0);
       y(i * dim + num_species_ + 2) = V(1);
-      y(i + (num_species_ + 1) * (dim + 1)) = 10.0 * TFunc(x, 0.0);
+      y(i + (num_species_ + 1) * (dim + 1)) = 9.0 + TFunc(x, 0.0);
    }
 
    // Impose neutrality
    y(0) = ion_charge_ * y(1);
    y(num_species_ + 1) = V(0);
    y(num_species_ + 2) = V(1);
-   y((num_species_ + 1) * (dim + 1)) = 5.0 * TFunc(x, 0.0);
+   y((num_species_ + 1) * (dim + 1)) = 4.0 + TFunc(x, 0.0);
 
    // y.Print(cout, dim+2); cout << endl;
 }
