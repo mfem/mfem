@@ -45,10 +45,10 @@ static const void* IsAlias(const mm::ledger &maps, const void *ptr)
    {
       const void *b_ptr = mem->first;
       if (b_ptr > ptr) { continue; }
-      const void *end = (char*)b_ptr + mem->second.bytes;
+      const void *end = static_cast<const char*>(b_ptr) + mem->second.bytes;
       if (ptr < end) { return b_ptr; }
    }
-   return NULL;
+   return nullptr;
 }
 
 // *****************************************************************************
@@ -57,7 +57,8 @@ static const void* InsertAlias(mm::ledger &maps,
                                const void *ptr)
 {
    mm::memory &mem = maps.memories.at(base);
-   const size_t offset = (char *)ptr - (char *)base;
+   const long offset = static_cast<const char*>(ptr) - static_cast<const char*>
+                       (base);
    const mm::alias *alias = new mm::alias{&mem, offset};
    maps.aliases.emplace(ptr, alias);
 #ifdef MFEM_DEBUG_MM
@@ -188,7 +189,7 @@ void *mm::Erase(void *ptr)
 // * Turn a known address to the right host or device one
 // * Alloc, Push or Pull it if required
 // *****************************************************************************
-static void* PtrKnown(mm::ledger &maps, void *ptr)
+static void *PtrKnown(mm::ledger &maps, void *ptr)
 {
    mm::memory &base = maps.memories.at(ptr);
    const bool host = base.host;
@@ -216,7 +217,7 @@ static void* PtrKnown(mm::ledger &maps, void *ptr)
 // * Turn an alias to the right host or device one
 // * Alloc, Push or Pull it if required
 // *****************************************************************************
-static void* PtrAlias(mm::ledger &maps, void *ptr)
+static void *PtrAlias(mm::ledger &maps, void *ptr)
 {
    const bool gpu = config::UsingDevice();
    const mm::alias *alias = maps.aliases.at(ptr);
@@ -227,7 +228,7 @@ static void* PtrAlias(mm::ledger &maps, void *ptr)
    if (host && !gpu) { return ptr; }
    if (!base->d_ptr) { cuMemAlloc(&(alias->mem->d_ptr), bytes); }
    assert(base->d_ptr);
-   void *a_ptr = (char*)base->d_ptr + alias->offset;
+   void *a_ptr = static_cast<char*>(base->d_ptr) + alias->offset;
    if (device && gpu) { return a_ptr; }
    if (device && !gpu) // Pull
    {
@@ -245,7 +246,7 @@ static void* PtrAlias(mm::ledger &maps, void *ptr)
 // *****************************************************************************
 // * Turn an address to the right host or device one
 // *****************************************************************************
-void* mm::Ptr(void *ptr)
+void *mm::Ptr(void *ptr)
 {
    if (MmDeviceIniFilter()) { return ptr; }
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
@@ -258,7 +259,10 @@ void* mm::Ptr(void *ptr)
 }
 
 // *****************************************************************************
-const void* mm::Ptr(const void *ptr) { return (const void *) Ptr((void *)ptr); }
+const void *mm::Ptr(const void *ptr)
+{
+   return static_cast<const void*>(Ptr(const_cast<void*>(ptr)));
+}
 
 // *****************************************************************************
 static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
@@ -266,7 +270,7 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
    OccaDevice occaDevice = config::GetOccaDevice();
    if (!config::UsingMM())
    {
-      OccaMemory o_ptr = occaWrapMemory(occaDevice, (void *)ptr, 0);
+      OccaMemory o_ptr = occaWrapMemory(occaDevice, const_cast<void*>(ptr), 0);
       return o_ptr;
    }
    const bool known = mm::known(ptr);
@@ -315,7 +319,7 @@ static void PushAlias(const mm::ledger &maps, const void *ptr,
                       const size_t bytes)
 {
    const mm::alias *alias = maps.aliases.at(ptr);
-   cuMemcpyHtoD((char*)alias->mem->d_ptr + alias->offset, ptr, bytes);
+   cuMemcpyHtoD(static_cast<char*>(alias->mem->d_ptr) + alias->offset, ptr, bytes);
 }
 
 // *****************************************************************************
@@ -347,7 +351,8 @@ static void PullAlias(const mm::ledger &maps, const void *ptr,
    const mm::alias *alias = maps.aliases.at(ptr);
    const bool host = alias->mem->host;
    if (host) { return; }
-   cuMemcpyDtoH((void *)ptr, (char*)alias->mem->d_ptr + alias->offset, bytes);
+   cuMemcpyDtoH(const_cast<void*>(ptr),
+                static_cast<char*>(alias->mem->d_ptr) + alias->offset, bytes);
 }
 
 // *****************************************************************************
@@ -372,8 +377,9 @@ static void* d2d(void *dst, const void *src, const size_t bytes,
    if (host) { return std::memcpy(dst, src, bytes); }
    const void *d_src = mm::ptr(src);
    void *d_dst = mm::ptr(dst);
-   if (!async) { return cuMemcpyDtoD(d_dst, (void *)d_src, bytes); }
-   return cuMemcpyDtoDAsync(d_dst, (void *)d_src, bytes, config::Stream());
+   if (!async) { return cuMemcpyDtoD(d_dst, const_cast<void*>(d_src), bytes); }
+   return cuMemcpyDtoDAsync(d_dst, const_cast<void*>(d_src),
+                            bytes, config::Stream());
 }
 
 // *****************************************************************************
