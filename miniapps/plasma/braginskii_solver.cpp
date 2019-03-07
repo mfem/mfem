@@ -281,6 +281,11 @@ ChiCoefficient::ChiCoefficient(int dim, BlockVector & nBV, ParGridFunction & B,
      sfes_(NULL),
      nCoef_(&nGF_),
      BCoef_(&B),
+     ion_(true),
+     zi_(zi),
+     mi_(mi),
+     ne_(-1.0),
+     ni_(-1.0),
      bHat_(dim)
 {}
 
@@ -322,9 +327,7 @@ void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                      chi_i_perp(bMag, mi_, zi_, ni_, temp) :
                      chi_e_perp(bMag, ne_, temp, zi_, ni_);
 
-   double chi_cross = (ion_) ?
-                      chi_i_cross(bMag, mi_, zi_, ni_, temp) :
-                      chi_e_cross(bMag, ne_, temp, zi_, ni_);
+   double chi_cross = 0.0;
 
    K.SetSize(bHat_.Size());
 
@@ -337,6 +340,10 @@ void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
    else
    {
+      chi_cross = (ion_) ?
+                  chi_i_cross(bMag, mi_, zi_, ni_, temp) :
+                  chi_e_cross(bMag, ne_, temp, zi_, ni_);
+
       K(0,0) = bHat_[0] * bHat_[0] * (chi_para - chi_perp) + chi_perp;
       K(0,1) = bHat_[0] * bHat_[1] * (chi_para - chi_perp);
       K(0,2) = bHat_[0] * bHat_[2] * (chi_para - chi_perp);
@@ -849,7 +856,6 @@ void TwoFluidTransportSolver::Update()
 
 void TwoFluidTransportSolver::Step(Vector &x, double &t, double &dt)
 {
-   tfDiff_->Assemble();
    impSolver_->Step(x, t, dt);
 }
 
@@ -863,7 +869,8 @@ TwoFluidDiffusion::TwoFluidDiffusion(DGParams & dg,
                                      ParGridFunction & B,
                                      double ion_mass,
                                      double ion_charge)
-   : dim_(sfes.GetParMesh()->SpaceDimension()),
+   : TimeDependentOperator(offsets.Last(), 0.0, IMPLICIT),
+     dim_(sfes.GetParMesh()->SpaceDimension()),
      dg_(dg),
      sfes_(sfes),
      vfes_(vfes),
@@ -1068,11 +1075,14 @@ void TwoFluidDiffusion::initCoefficients()
    */
    chiCoef_.resize(ns + 1);
    dtChiCoef_.resize(ns + 1);
+
    chiCoef_[0] = new ChiCoefficient(dim_, nBV_, B_, ion_charge_);
-   chiCoef_[0]->SetT(TGF_[0]);
-   dtChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[0]);
    chiCoef_[1] = new ChiCoefficient(dim_, nBV_, B_, ion_mass_, ion_charge_);
+
+   chiCoef_[0]->SetT(TGF_[0]);
    chiCoef_[1]->SetT(TGF_[1]);
+
+   dtChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[0]);
    dtChiCoef_[1] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[1]);
 
    etaCoef_.resize(dim_ * dim_ * (ns + 1));
@@ -1181,6 +1191,7 @@ void TwoFluidDiffusion::initBilinearForms()
       a_dEdT_[i]->AddBdrFaceIntegrator(
          new DGDiffusionIntegrator(*dtChiCoef_[i], dg_.sigma, dg_.kappa));
    }
+
    stiff_chi_.resize(chiCoef_.size());
    for (unsigned int i=0; i<chiCoef_.size(); i++)
    {
@@ -1314,6 +1325,25 @@ void TwoFluidDiffusion::initSolver()
 
    block_A_.owns_blocks = 1;
 
+   {
+      HypreParMatrix * hyp = NULL;
+      for (int i=0; i<block_A_.NumRowBlocks(); i++)
+      {
+         for (int j=0; j<block_A_.NumRowBlocks(); j++)
+         {
+            if (!block_A_.IsZeroBlock(i,j))
+            {
+               hyp = dynamic_cast<HypreParMatrix*>(&block_A_.GetBlock(i,j));
+               if (hyp != NULL)
+               {
+                  ostringstream oss; oss << "A_" << i << "_" << j << ".mat";
+                  hyp->Print(oss.str().c_str());
+               }
+            }
+         }
+      }
+   }
+
    gmres_.SetAbsTol(0.0);
    gmres_.SetRelTol(1e-12);
    gmres_.SetMaxIter(200);
@@ -1334,6 +1364,7 @@ void TwoFluidDiffusion::ImplicitSolve(const double dt,
    this->initSolver();
 
    block_rhs_ = 0.0;
+   y = 0.0;
 
    gmres_.Mult(block_rhs_, y);
 }
