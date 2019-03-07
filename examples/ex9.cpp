@@ -1826,11 +1826,11 @@ int main(int argc, char *argv[])
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
    BilinearForm k(&fes);
-   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
    k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
    k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -1933,19 +1933,11 @@ int main(int argc, char *argv[])
       adv.SetDt(dt_real);
 
       // Move the mesh (and the solution).
-      //add(x0, dt_real, v_gf, *x);
-      //adv.SetRemapStartPos(*x);
-      std::cout << "---" << std::endl;
-      std::cout << "Moved with dt +" << dt_real << std::endl;
-
-      Vector test(x0);
-      test -= *x;
-      std::cout << test.Norml2() << std::endl;
-
-      adv.SetInitialTimeStepTime(t + dt_real);
+      add(x0, dt_real, v_gf, *x);
+      adv.SetRemapStartPos(*x);
+      adv.SetInitialTimeStepTime(t);
 
       ode_solver->Step(u, t, dt_real);
-      t += dt_real;
       ti++;
 
       done = (t >= t_final - 1.e-8*dt);
@@ -2762,8 +2754,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // Move towards x0 with current t.
    const double t = GetTime();
-   //add(start_pos, - (start_t - t), vel_pos, mesh_pos);
-   std::cout << "Moved with dt -" << start_t-t << std::endl;
+   const double sub_time_step = t - start_t;
+   add(start_pos, -sub_time_step, vel_pos, mesh_pos);
 
    // Reassemble on the new mesh (given by mesh_pos).
    Mbf.BilinearForm::operator=(0.0);
