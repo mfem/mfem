@@ -15,8 +15,8 @@ GPU support
 -----------
 - Several MFEM examples can now take advantage of GPU acceleration...
 
-- The GPU support is based on simple memory manager and (CUDA) kernel definition
-  + execution policy, see memmng.?pp and kernels.hpp in the general/ directory.
+- The GPU support is based on a simple memory manager and kernel definition
+  + execution policy, see mm.?pp and okina.hpp in the general/ directory.
 
 - OCCA kernels are supported
 
