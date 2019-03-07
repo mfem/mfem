@@ -12,6 +12,8 @@
 #ifndef MFEM_OCCA_HPP
 #define MFEM_OCCA_HPP
 
+#include "cuda.hpp"
+
 // *****************************************************************************
 #ifdef MFEM_USE_OCCA
 

@@ -12,14 +12,13 @@
 #ifndef MFEM_MM
 #define MFEM_MM
 
-#include <cstddef> // for size_t
-using std::size_t;
-
 #include <list>
+#include <cstddef> // for size_t
 #include <unordered_map>
 
-#include "occa.hpp" // for OccaMemory
+using std::size_t;
 
+#include "occa.hpp" // for OccaMemory
 
 namespace mfem
 {
@@ -36,23 +35,21 @@ public:
    // TODO: Change this to ptr
    struct memory
    {
-      bool host;
       const size_t bytes;
-
       void *const h_ptr;
       void *d_ptr;
       OccaMemory o_ptr;
-
       std::list<const alias *> aliases;
-
+      bool host;
+      bool padding[7];
       memory(void* const h, const size_t b):
-         host(true), bytes(b), h_ptr(h), d_ptr(NULL), aliases() {}
+         bytes(b), h_ptr(h), d_ptr(nullptr), aliases(), host(true) {}
    };
 
    struct alias
    {
       memory *const mem;
-      const size_t offset;
+      const long offset;
    };
 
    // **************************************************************************
@@ -71,7 +68,7 @@ public:
    // **************************************************************************
    template<class T>
    static inline T* malloc(const size_t n, const size_t size = sizeof(T))
-   { return (T*) MM().Insert(::new T[n], n*size); }
+   { return static_cast<T*>(MM().Insert(::new T[n], n*size)); }
 
    // **************************************************************************
    // * Frees the memory space pointed to by ptr, which must have been
@@ -81,14 +78,15 @@ public:
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-      mm::MM().Erase((::delete[] static_cast<T*>(ptr),ptr));
+      ::delete[] static_cast<T*>(ptr);
+      mm::MM().Erase(ptr);
    }
 
    // **************************************************************************
    // * Translates ptr to host or device address,
    // * depending on config::Cuda() and the ptr' state
    // **************************************************************************
-   static inline void* ptr(void *a) { return MM().Ptr(a); }
+   static inline void *ptr(void *a) { return MM().Ptr(a); }
    static inline const void* ptr(const void *a) { return MM().Ptr(a); }
    static inline OccaMemory occaPtr(const void *a) { return MM().Memory(a); }
 
@@ -124,10 +122,10 @@ private:
    // **************************************************************************
    void *Insert(void *ptr, const size_t bytes);
    void *Erase(void *ptr);
-   void* Ptr(void *ptr);
+   void *Ptr(void *ptr);
+   const void *Ptr(const void *ptr);
    bool Known(const void *ptr);
    bool Alias(const void *ptr);
-   const void* Ptr(const void *ptr);
    OccaMemory Memory(const void *ptr);
 
    // **************************************************************************

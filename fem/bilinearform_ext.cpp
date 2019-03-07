@@ -14,8 +14,6 @@
 
 #include "fem.hpp"
 #include "bilininteg.hpp"
-#include "bilinearform_ext.hpp"
-#include "../linalg/kernels/vector.hpp"
 
 namespace mfem
 {
@@ -113,18 +111,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    if (!copy_interior && ess_tdof_list.Size()>0)
    {
-      const int csz = ess_tdof_list.Size();
-      Vector subvec(csz);
-      subvec = 0.0;
-      kernels::vector::GetSubvector(csz,
-                                    subvec.GetData(),
-                                    X.GetData(),
-                                    ess_tdof_list.GetData());
-      X = 0.0;
-      kernels::vector::SetSubvector(csz,
-                                    X.GetData(),
-                                    subvec.GetData(),
-                                    ess_tdof_list.GetData());
+      X.SetSubVectorComplement(ess_tdof_list, 0.0);
    }
 
    ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(A);
@@ -202,7 +189,7 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
       const FiniteElement *fe = fes.GetFE(e);
       const TensorBasisElement* el =
          dynamic_cast<const TensorBasisElement*>(fe);
-      if (el) continue;
+      if (el) { continue; }
       mfem_error("Finite element not supported with partial assembly");
    }
    const FiniteElement *fe = fes.GetFE(0);

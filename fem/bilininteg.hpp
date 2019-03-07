@@ -15,7 +15,7 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
-#include "doftoquad.hpp"
+#include "bilininteg_ext.hpp"
 
 namespace mfem
 {
@@ -51,24 +51,6 @@ public:
 };
 
 // *****************************************************************************
-// * PA Mass Integrator
-// *****************************************************************************
-class PAMassIntegrator: public BilinearPAFormIntegrator
-{
-private:
-   Coefficient *Q;
-   Vector vec;
-   DofToQuad *maps;
-   int dim, ne, nq, dofs1D, quad1D;
-public:
-   PAMassIntegrator (Coefficient &q, const IntegrationRule *ir = NULL) :
-      BilinearPAFormIntegrator(ir), Q(&q), vec(), maps(NULL) { }
-   ~PAMassIntegrator() { delete maps; }
-   void Assemble(const FiniteElementSpace&);
-   void MultAdd(Vector&, Vector&);
-};
-
-// *****************************************************************************
 // * PA Diffusion Integrator
 // *****************************************************************************
 class PADiffusionIntegrator: public BilinearPAFormIntegrator
@@ -82,6 +64,24 @@ public:
    PADiffusionIntegrator (Coefficient &q, const IntegrationRule *ir = NULL) :
       BilinearPAFormIntegrator(ir), Q(&q), vec(), maps(NULL) { }
    ~PADiffusionIntegrator() { delete maps; }
+   void Assemble(const FiniteElementSpace&);
+   void MultAdd(Vector&, Vector&);
+};
+
+// *****************************************************************************
+// * PA Mass Integrator
+// *****************************************************************************
+class PAMassIntegrator: public BilinearPAFormIntegrator
+{
+private:
+   Coefficient *Q;
+   Vector vec;
+   DofToQuad *maps;
+   int dim, ne, nq, dofs1D, quad1D;
+public:
+   PAMassIntegrator (Coefficient &q, const IntegrationRule *ir = NULL) :
+      BilinearPAFormIntegrator(ir), Q(&q), vec(), maps(NULL) { }
+   ~PAMassIntegrator() { delete maps; }
    void Assemble(const FiniteElementSpace&);
    void MultAdd(Vector&, Vector&);
 };
@@ -201,8 +201,6 @@ public:
    virtual ~BilinearFormIntegrator() { }
 };
 
-// *****************************************************************************
-// *****************************************************************************
 class TransposeIntegrator : public BilinearFormIntegrator
 {
 private:
