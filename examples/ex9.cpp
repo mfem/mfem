@@ -6,7 +6,9 @@
 //    ex9 -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
 //    ex9 -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
 //    ex9 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
+
 //    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
+
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
 //    ex9 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
@@ -1535,24 +1537,33 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    FiniteElementSpace* fes;
+   BilinearForm &Mbf, &Kbf;
    SparseMatrix &M, &K;
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
 
+   Vector start_pos;
+   GridFunction &mesh_pos, &vel_pos;
+
    mutable Vector z;
    mutable Vector zz; // TODO if necessary, otherwise remove, or implement limiter more practicable
 
-   double dt;
+   double dt, start_t;
    const FluxCorrectedTransport &fct;
 
 public:
-   FE_Evolution(FiniteElementSpace* fes, SparseMatrix &_M, SparseMatrix &_K,
-                const Vector &_b, FluxCorrectedTransport &_fct);
+   FE_Evolution(FiniteElementSpace* fes,
+                BilinearForm &Mbf_, BilinearForm &Kbf_,
+                SparseMatrix &_M, SparseMatrix &_K,
+                const Vector &_b, FluxCorrectedTransport &_fct,
+                GridFunction &mpos, GridFunction &vpos);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual void SetDt(double _dt) { dt = _dt; }
+   void SetInitialTimeStepTime(double st) { start_t = st; }
+   void SetRemapStartPos(Vector &spos) { start_pos = spos; }
    
    virtual void ComputeMonolithicCorrectionFactors(int k, int nd, double beta, double xMax, double xMin, 
                                                    const Vector &x, const Vector &v, Vector &alpha) const;
@@ -1749,6 +1760,13 @@ int main(int argc, char *argv[])
    }
    mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
 
+   // Current mesh positions.
+   GridFunction *x = mesh->GetNodes();
+
+   // Store initial positions.
+   Vector x0(x->Size());
+   x0 = *x;
+
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    const int btype = BasisType::Positive;
@@ -1789,6 +1807,21 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
+
+   // Mesh velocity.
+   GridFunction v_gf(x->FESpace());
+   v_gf.ProjectCoefficient(velocity);
+   if (mesh->bdr_attributes.Size() > 0)
+   {
+      // Zero it out on boundaries (not moving boundaries).
+      Array<int> ess_bdr(mesh->bdr_attributes.Max()), ess_vdofs;
+      ess_bdr = 1;
+      x->FESpace()->GetEssentialVDofs(ess_bdr, ess_vdofs);
+      for (int i = 0; i < v_gf.Size(); i++)
+      {
+         if (ess_vdofs[i] == -1) { v_gf(i) = 0.0; }
+      }
+   }
 
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
@@ -1886,7 +1919,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m.SpMat(), k.SpMat(), b, fct);
+   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, fct, *x, v_gf);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -1895,10 +1928,24 @@ int main(int argc, char *argv[])
    bool done = false;
    for (int ti = 0; !done; )
    {
-      adv.SetDt(dt);
-
       double dt_real = min(dt, t_final - t);
+
+      adv.SetDt(dt_real);
+
+      // Move the mesh (and the solution).
+      //add(x0, dt_real, v_gf, *x);
+      //adv.SetRemapStartPos(*x);
+      std::cout << "---" << std::endl;
+      std::cout << "Moved with dt +" << dt_real << std::endl;
+
+      Vector test(x0);
+      test -= *x;
+      std::cout << test.Norml2() << std::endl;
+
+      adv.SetInitialTimeStepTime(t + dt_real);
+
       ode_solver->Step(u, t, dt_real);
+      t += dt_real;
       ti++;
 
       done = (t >= t_final - 1.e-8*dt);
@@ -2691,11 +2738,15 @@ void FE_Evolution::ApplyTimeDerivativeLimiter3(const Vector &x, const Vector &yH
 }
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M,
-                           SparseMatrix &_K,
-                           const Vector &_b, FluxCorrectedTransport &_fct)
-   : TimeDependentOperator(_M.Size()), fes(_fes), M(_M), K(_K), b(_b),
-     z(_M.Size()), fct(_fct), zz(_M.Size()) // TODO if useless rm zz
+FE_Evolution::FE_Evolution(FiniteElementSpace* _fes,
+                           BilinearForm &Mbf_, BilinearForm &Kbf_,
+                           SparseMatrix &_M, SparseMatrix &_K,
+                           const Vector &_b, FluxCorrectedTransport &_fct,
+                           GridFunction &mpos, GridFunction &vpos)
+   : TimeDependentOperator(_M.Size()), fes(_fes),
+     Mbf(Mbf_), Kbf(Kbf_), M(_M), K(_K), b(_b),
+     z(_M.Size()), fct(_fct), zz(_M.Size()), // TODO if useless rm zz
+     start_pos(mpos.Size()), mesh_pos(mpos), vel_pos(vpos)
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
@@ -2709,6 +2760,18 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M,
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
+   // Move towards x0 with current t.
+   const double t = GetTime();
+   //add(start_pos, - (start_t - t), vel_pos, mesh_pos);
+   std::cout << "Moved with dt -" << start_t-t << std::endl;
+
+   // Reassemble on the new mesh (given by mesh_pos).
+   Mbf.BilinearForm::operator=(0.0);
+   Mbf.Assemble();
+   Kbf.BilinearForm::operator=(0.0);
+   const int skip_zeros = 0;
+   Kbf.Assemble(skip_zeros);
+
    if (fct.monoType == 0)
    {
       ComputeHighOrderSolution(x, y);
@@ -2742,6 +2805,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       ComputeLowOrderSolution(x, yL);
       ApplyTimeDerivativeLimiter3(x, yH, yL, y);
    }
+
+
 }
 
 
@@ -2766,7 +2831,8 @@ void velocity_function(const Vector &x, Vector &v)
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            //case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            case 2: v(0) = 0.0; v(1) = 1.0; break;
             case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
                break;
          }
