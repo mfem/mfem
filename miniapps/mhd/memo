@@ -1,3 +1,15 @@
+2019/3/6
+the stucture of explicit scheme seems clear
+the linear parts seem ok
+the nonlinear term, I do not know...
+
+2019/3/3
+move back to MFEM
+
+>>>plot solutions at each time step (see ex16)
+first open a glvis as a server in another terminal
+then run the program; it should plot results auto
+
 11/1
 some useful info for developer:
 https://github.com/mfem/mfem/blob/master/CONTRIBUTING.md#code-overview

@@ -5,10 +5,11 @@
 // Sample runs:
 //    implicitMHD -m ../../data/beam-quad.mesh -s 3 -r 2 -o 2 -dt 3
 //
-// Description:  it solves a time dependent reduced resistive MHD problem 
+// Description:  it solves a time dependent resistive MHD problem 
 //  10/30/2018 -QT
 
 #include "mfem.hpp"
+#include "PDSolver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -20,7 +21,7 @@ using namespace mfem;
 double alpha; //a global value of magnetude for the pertubation
 double Lx;  //size of x domain
 
-/** After spatial discretization, the reduced MHD model can be written as a
+/** After spatial discretization, the resistive MHD model can be written as a
  *  system of ODEs:
  *     dPsi/dt = M^{-1}*F1,
  *     dw  /dt = M^{-1}*F2,
@@ -35,10 +36,9 @@ class ImplicitMHDOperator : public TimeDependentOperator
 protected:
    FiniteElementSpace &fespace;
 
-   BilinearForm M, K;
+   BilinearForm M, K, DSl, DRe; //mass, stiffness, diffusion with SL and Re
    NonlinearForm Nv, Nb;
    double viscosity, resistivity;
-   ImplicitMHDModel *model;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
@@ -46,36 +46,53 @@ protected:
    CGSolver K_solver; // Krylov solver for inverting the stiffness matrix K
    DSmoother K_prec;  // Preconditioner for the stiffness matrix K
 
-   //mutable Vector z; // auxiliary vector  not needed -QT
+   mutable Vector z; // auxiliary vector 
 
 public:
-   ReducedMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr,
-                        double visc, double resi, double K);
+   ImplicitMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, double visc, double resi);
 
    // Compute the right-hand side of the ODE system.
    void Mult(const Vector &vx, Vector &dvx_dt) const;
 
+   void UpdateJ(const Vector &vx) const;
+   void UpdatePhi(const Vector &vx) const;
+
+   // Compute the right-hand side of the ODE system in the predictor step.
+   //void MultPre(const Vector &vx, Vector &dvx_dt) const;
+
    virtual ~ImplicitMHDOperator();
 };
 
+//initial condition
+void InitialPhi(const Vector &x, double &phi)
+{
+    phi=0.0;
+}
 
-void InitialDeformation(const Vector &x, Vector &y);
+void InitialW(const Vector &x, double &w)
+{
+    w=0.0;
+}
 
-void InitialCurrent(const Vector &x, Vector &v);
+void InitialJ(const Vector &x, double &j)
+{
+   j =-M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
+}
 
-void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
-               GridFunction *field, const char *field_name = NULL,
-               bool init_vis = false);
+void InitialPsi(const Vector &x, double &psi)
+{
+   psi =-x(1)+alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
+}
 
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/inline-quad.mesh";  //a square mesh
+   const char *mesh_file = "./xperiodic-square.mesh";
    int ref_levels = 2;
    int order = 2;
-   int ode_solver_type = 1;
-   double t_final = 1.0;
+   int ode_solver_type = 2;
+   double t_final = 5.0;
    double dt = 0.0001;
    double visc = 0.0;
    double resi = 0.0;
@@ -92,7 +109,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "ODE solver: 2 - Brailovskaya,\n\t"
                   " only FE supported 13 - RK3 SSP, 14 - RK4.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
@@ -115,8 +132,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
+   // 2. Read the mesh from the given mesh file.    
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
@@ -126,18 +142,17 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver;
    switch (ode_solver_type)
    {
-     // Explicit methods
+     // Explicit methods FIXME: FE is not working 
      case 1: ode_solver = new ForwardEulerSolver; break;
-     //case 2: ode_solver = new PD1Solver; break; //first order predictor-corrector
+     case 2: ode_solver = new PDSolver; break; //first order predictor-corrector
+     case 3: ode_solver = new RK3SSPSolver; break;
      default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;
          return 3;
    }
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement, where 'ref_levels' is a
-   //    command-line parameter.
+   // 4. Refine the mesh to increase the resolution.    
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh->UniformRefinement();
@@ -161,63 +176,59 @@ int main(int argc, char *argv[])
 
    BlockVector bv(fe_offset);
    GridFunction psi, phi, w, j;
-   psi.MakeTRef(&fespace, bv.GetBlock(0), 0);
-   phi.MakeTRef(&fespace, bv.GetBlock(1), 0);
+   phi.MakeTRef(&fespace, bv.GetBlock(0), 0);
+   psi.MakeTRef(&fespace, bv.GetBlock(1), 0);
      w.MakeTRef(&fespace, bv.GetBlock(2), 0);
      j.MakeTRef(&fespace, bv.GetBlock(3), 0);
 
    // 6. Set the initial conditions, and the boundary conditions
-   phi=0.0;
-
-//   FunctionCoefficient phiInit(InitialPhi);
-//   phi.ProjectCoefficient(phiInit);
-//   phi.SetTrueVector();
+   FunctionCoefficient phiInit(InitialPhi);
+   phi.ProjectCoefficient(phiInit);
+   phi.SetTrueVector();
 
    FunctionCoefficient psiInit(InitialPsi);
    psi.ProjectCoefficient(psiInit);
    psi.SetTrueVector();
 
-   w=0.0;
-
-//   FunctionCoefficient   wInit(InitialW);
-//   w.ProjectCoefficient(wInit);
-//   w.SetTrueVector();
+   FunctionCoefficient wInit(InitialW);
+   w.ProjectCoefficient(wInit);
+   w.SetTrueVector();
 
    FunctionCoefficient jInit(InitialJ);
    j.ProjectCoefficient(jInit);
    j.SetTrueVector();
 
+   //this is a periodic boundary condition, so no ess_bdr
+   //but may need other things here if not periodic
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
-   ess_bdr[0] = 1; // boundary attribute 1 (index 0) is fixed
 
-   // 7. Initialize the hyperelastic operator, the GLVis visualization and print
-   //    the initial energies.
-   ReducedMHDOperator oper(fespace, ess_bdr, visc, mu, K);
+   // 7. Initialize the MHD operator, the GLVis visualization    
+   ImplicitMHDOperator oper(fespace, ess_bdr, visc, resi);
 
-   socketstream vis_v, vis_w;
+   socketstream vis_phi;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      vis_v.open(vishost, visport);
-      vis_v.precision(8);
-      v.SetFromTrueVector(); x.SetFromTrueVector();
-      visualize(vis_v, mesh, &x, &v, "Velocity", true);
-      vis_w.open(vishost, visport);
-      if (vis_w)
+      vis_phi.open(vishost, visport);
+      if (!vis_phi)
       {
-         oper.GetElasticEnergyDensity(x, w);
-         vis_w.precision(8);
-         visualize(vis_w, mesh, &x, &w, "Elastic energy density", true);
+         cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+         visualization = false;
+         cout << "GLVis visualization disabled.\n";
       }
-   }
-
-   double ee0 = oper.ElasticEnergy(x.GetTrueVector());
-   double ke0 = oper.KineticEnergy(v.GetTrueVector());
-   cout << "initial elastic energy (EE) = " << ee0 << endl;
-   cout << "initial kinetic energy (KE) = " << ke0 << endl;
-   cout << "initial   total energy (TE) = " << (ee0 + ke0) << endl;
+      else
+      {
+         vis_phi.precision(8);
+         vis_phi << "phi\n" << *mesh << phi;
+         vis_phi << "pause\n";
+         vis_phi << flush;
+         vis_phi << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
+      }
+    }
 
    double t = 0.0;
    oper.SetTime(t);
@@ -236,42 +247,40 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
+        /*
          double ee = oper.ElasticEnergy(x.GetTrueVector());
          double ke = oper.KineticEnergy(v.GetTrueVector());
 
          cout << "step " << ti << ", t = " << t << ", EE = " << ee << ", KE = "
               << ke << ", ΔTE = " << (ee+ke)-(ee0+ke0) << endl;
+        */
+
+        cout << "step " << ti << ", t = " << t <<endl;
 
          if (visualization)
          {
-            v.SetFromTrueVector(); x.SetFromTrueVector();
-            visualize(vis_v, mesh, &x, &v);
-            if (vis_w)
-            {
-               oper.GetElasticEnergyDensity(x, w);
-               visualize(vis_w, mesh, &x, &w);
-            }
+            sout << "phi\n" << *mesh << phi << flush;
          }
       }
    }
 
-   // 9. Save the displaced mesh, the velocity and elastic energy.
+   // 9. Save the solutions.
    {
-      v.SetFromTrueVector(); x.SetFromTrueVector();
-      GridFunction *nodes = &x;
-      int owns_nodes = 0;
-      mesh->SwapNodes(nodes, owns_nodes);
-      ofstream mesh_ofs("deformed.mesh");
-      mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
-      mesh->SwapNodes(nodes, owns_nodes);
-      ofstream velo_ofs("velocity.sol");
-      velo_ofs.precision(8);
-      v.Save(velo_ofs);
-      ofstream ee_ofs("elastic_energy.sol");
-      ee_ofs.precision(8);
-      oper.GetElasticEnergyDensity(x, w);
-      w.Save(ee_ofs);
+      ofstream osol("phi.gf");
+      osol.precision(8);
+      phi.Save(osol);
+
+      ofstream osol2("current.sol");
+      osol2.precision(8);
+      j.Save(osol2);
+
+      ofstream osol3("psi.sol");
+      osol3.precision(8);
+      psi.Save(osol3);
+
+      ofstream osol4("omega.sol");
+      osol4.precision(8);
+      w.Save(osol4);
    }
 
    // 10. Free the used memory.
@@ -282,96 +291,23 @@ int main(int argc, char *argv[])
 }
 
 
-void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
-               GridFunction *field, const char *field_name, bool init_vis)
-{
-   if (!out)
-   {
-      return;
-   }
-
-   GridFunction *nodes = deformed_nodes;
-   int owns_nodes = 0;
-
-   mesh->SwapNodes(nodes, owns_nodes);
-
-   out << "solution\n" << *mesh << *field;
-
-   mesh->SwapNodes(nodes, owns_nodes);
-
-   if (init_vis)
-   {
-      out << "window_size 800 800\n";
-      out << "window_title '" << field_name << "'\n";
-      if (mesh->SpaceDimension() == 2)
-      {
-         out << "view 0 0\n"; // view from top
-         out << "keys jl\n";  // turn off perspective and light
-      }
-      out << "keys cm\n";         // show colorbar and mesh
-      out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
-      out << "pause\n";
-   }
-   out << flush;
-}
-
-
-ReducedSystemOperator::ReducedSystemOperator(
-   BilinearForm *M_, BilinearForm *S_, NonlinearForm *H_)
-   : Operator(M_->Height()), M(M_), S(S_), H(H_), Jacobian(NULL),
-     dt(0.0), v(NULL), x(NULL), w(height), z(height)
-{ }
-
-void ReducedSystemOperator::SetParameters(double dt_, const Vector *v_,
-                                          const Vector *x_)
-{
-   dt = dt_;  v = v_;  x = x_;
-}
-
-void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
-{
-   // compute: y = H(x + dt*(v + dt*k)) + M*k + S*(v + dt*k)
-   add(*v, dt, k, w);
-   add(*x, dt, w, z);
-   H->Mult(z, y);
-   M->AddMult(k, y);
-   S->AddMult(w, y);
-}
-
-Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
-{
-   delete Jacobian;
-   Jacobian = Add(1.0, M->SpMat(), dt, S->SpMat());
-   add(*v, dt, k, w);
-   add(*x, dt, w, z);
-   SparseMatrix *grad_H = dynamic_cast<SparseMatrix *>(&H->GetGradient(z));
-   Jacobian->Add(dt*dt, *grad_H);
-   return *Jacobian;
-}
-
-ReducedSystemOperator::~ReducedSystemOperator()
-{
-   delete Jacobian;
-}
-
-
-ReducedMHDOperator::ReducedMHDOperator(FiniteElementSpace &f,
-                                           Array<int> &ess_bdr, double visc,
-                                           double mu, double K)
-   : TimeDependentOperator(2*f.GetTrueVSize(), 0.0), fespace(f),
-     M(&fespace), S(&fespace), H(&fespace),
-     viscosity(visc), z(height/2)
+//initialization
+ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f, double visc,double resi)
+   : TimeDependentOperator(4*f.GetTrueVSize(), 0.0), fespace(f),
+     M(&fespace), K(&fespace), Nv(&fespace), Nb(&fespace),
+     viscosity(visc),  resistivity(resi), z(height/4)
 {
    const double rel_tol = 1e-8;
    const int skip_zero_entries = 0;
-
-   const double ref_density = 1.0; // density in the reference configuration
-   ConstantCoefficient rho0(ref_density);
-   M.AddDomainIntegrator(new VectorMassIntegrator(rho0));
-   M.Assemble(skip_zero_entries);
+   ConstantCoefficient one(1.0);
    Array<int> ess_tdof_list;
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   SparseMatrix tmp;
+   SparseMatrix tmp;    //tmp is not used
+   //direct solver for M and K for now
+
+   //mass matrix
+   M.AddDomainIntegrator(new MassIntegrator);
+   M.Assemble(skip_zero_entries);
    M.FormSystemMatrix(ess_tdof_list, tmp);
 
    M_solver.iterative_mode = false;
@@ -382,104 +318,109 @@ ReducedMHDOperator::ReducedMHDOperator(FiniteElementSpace &f,
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M.SpMat());
 
-   model = new NeoHookeanModel(mu, K);
+   //stiffness matrix
+   K.AddDomainIntegrator(new DiffusionIntegrator);
+   K.Assemble(skip_zero_entries);
+   K.FormSystemMatrix(ess_tdof_list, tmp);
+
+   K_solver.iterative_mode = false;
+   K_solver.SetRelTol(rel_tol);
+   K_solver.SetAbsTol(0.0);
+   K_solver.SetMaxIter(30);
+   K_solver.SetPrintLevel(0);
+   K_solver.SetPreconditioner(K_prec);
+   K_solver.SetOperator(K.SpMat()); //this is a real matrix
+
+
+   //TODO add nonlinear form here???
    H.AddDomainIntegrator(new HyperelasticNLFIntegrator(model));
    H.SetEssentialTrueDofs(ess_tdof_list);
 
-   ConstantCoefficient visc_coeff(nu);
-   S.AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
-   S.Assemble(skip_zero_entries);
-   S.FormSystemMatrix(ess_tdof_list, tmp);
 
-   reduced_oper = new ReducedSystemOperator(&M, &S, &H);
+   ConstantCoefficient visc_coeff(viscosity);
+   DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
+   DRe.Assemble(skip_zero_entries);
+   DRe.FormSystemMatrix(ess_tdof_list, tmp);
 
-#ifndef MFEM_USE_SUITESPARSE
-   J_prec = new DSmoother(1);
-   MINRESSolver *J_minres = new MINRESSolver;
-   J_minres->SetRelTol(rel_tol);
-   J_minres->SetAbsTol(0.0);
-   J_minres->SetMaxIter(300);
-   J_minres->SetPrintLevel(-1);
-   J_minres->SetPreconditioner(*J_prec);
-   J_solver = J_minres;
-#else
-   J_solver = new UMFPackSolver;
-   J_prec = NULL;
-#endif
+   ConstantCoefficient resi_coeff(resistivity);
+   DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
+   DSl.Assemble(skip_zero_entries);
+   DSl.FormSystemMatrix(ess_tdof_list, tmp);
 
-   newton_solver.iterative_mode = false;
-   newton_solver.SetSolver(*J_solver);
-   newton_solver.SetOperator(*reduced_oper);
-   newton_solver.SetPrintLevel(1); // print Newton iterations
-   newton_solver.SetRelTol(rel_tol);
-   newton_solver.SetAbsTol(0.0);
-   newton_solver.SetMaxIter(10);
 }
 
-void ReducedMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
+void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 {
-   // Create views to the sub-vectors v, x of vx, and dv_dt, dx_dt of dvx_dt
-   int sc = height/2;
-   Vector v(vx.GetData() +  0, sc);
-   Vector x(vx.GetData() + sc, sc);
-   Vector dv_dt(dvx_dt.GetData() +  0, sc);
-   Vector dx_dt(dvx_dt.GetData() + sc, sc);
+   // Create views to the sub-vectors of vx, and dvx_dt
+   int sc = height/4;
+   Vector phi(vx.GetData() +   0, sc);
+   Vector psi(vx.GetData() +  sc, sc);
+   Vector   w(vx.GetData() +2*sc, sc);
+   Vector   j(vx.GetData() +3*sc, sc);
 
-   H.Mult(x, z);
-   if (nu != 0.0)
+   Vector dphi_dt(dvx_dt.GetData() +   0, sc);
+   Vector dpsi_dt(dvx_dt.GetData() +  sc, sc);
+   Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
+   Vector   dj_dt(dvx_dt.GetData() +3*sc, sc);
+
+   dphi_dt=0.0;
+   dj_dt=0.0;
+
+   Nv.Mult(psi, z);
+   if (resistivity != 0.0)
    {
-      S.AddMult(v, z);
+      DSl.AddMult(psi, z);
    }
    z.Neg(); // z = -z
-   M_solver.Mult(z, dv_dt);
+   M_solver.Mult(z, dpsi_dt);
 
-   dx_dt = v;
+   Nv.Mult(w, z);
+   if (viscosity != 0.0)
+   {
+      DRe.AddMult(w, z);
+   }
+   z.Neg(); // z = -z
+   Nb.AddMult(j, z);
+   M_solver.Mult(z, dw_dt);
+
 }
 
-void ReducedMHDOperator::ImplicitSolve(const double dt,
-                                         const Vector &vx, Vector &dvx_dt)
+void ImplicitMHDOperator::UpdateJ(const Vector &vx) const
 {
-   int sc = height/2;
-   Vector v(vx.GetData() +  0, sc);
-   Vector x(vx.GetData() + sc, sc);
-   Vector dv_dt(dvx_dt.GetData() +  0, sc);
-   Vector dx_dt(dvx_dt.GetData() + sc, sc);
+   //the current is J=M^{-1}*K*Psi
+   // Create views to the sub-vectors of vx, and dvx_dt
+   int sc = height/4;
+   Vector phi(vx.GetData() +   0, sc);
+   Vector psi(vx.GetData() +  sc, sc);
+   Vector   w(vx.GetData() +2*sc, sc);
+   Vector   j(vx.GetData() +3*sc, sc);
 
-   // By eliminating kx from the coupled system:
-   //    kv = -M^{-1}*[H(x + dt*kx) + S*(v + dt*kv)]
-   //    kx = v + dt*kv
-   // we reduce it to a nonlinear equation for kv, represented by the
-   // reduced_oper. This equation is solved with the newton_solver
-   // object (using J_solver and J_prec internally).
-   reduced_oper->SetParameters(dt, &v, &x);
-   Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
-   newton_solver.Mult(zero, dv_dt);
-   MFEM_VERIFY(newton_solver.GetConverged(), "Newton solver did not converge.");
-   add(v, dt, dv_dt, dx_dt);
+   K.Mult(psi, z);
+   z.Neg(); // z = -z
+   M_solver.Mult(z, j);
+
 }
 
-void ReducedMHDOperator::GetElasticEnergyDensity(
-   const GridFunction &x, GridFunction &w) const
+void ImplicitMHDOperator::UpdatePhi(const Vector &vx) const
 {
-   ElasticEnergyCoefficient w_coeff(*model, x);
-   w.ProjectCoefficient(w_coeff);
+    //Phi=K^{-1}*M*w
+   // Create views to the sub-vectors of vx, and dvx_dt
+   int sc = height/4;
+   Vector phi(vx.GetData() +   0, sc);
+   Vector psi(vx.GetData() +  sc, sc);
+   Vector   w(vx.GetData() +2*sc, sc);
+   Vector   j(vx.GetData() +3*sc, sc);
+
+   M.Mult(w, z);
+   z.Neg(); // z = -z
+   K_solver.Mult(z, phi);
 }
 
-ReducedMHDOperator::~ReducedMHDOperator()
+
+ImplicitMHDOperator::~ImplicitMHDOperator()
 {
-   delete J_solver;
-   delete J_prec;
-   delete reduced_oper;
-   delete model;
+/* delete pointers */
+    //TODO
 }
 
 
-void InitialJ(const Vector &x, double &j)
-{
-   j =-M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
-
-void InitialPsi(const Vector &x, double &psi)
-{
-   psi = alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
