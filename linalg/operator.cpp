@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "vector.hpp"
-#include "kernels/vector.hpp"
+#include "device.hpp"
 #include "operator.hpp"
 
 #include <iostream>
@@ -165,26 +165,38 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
    w = 0.0;
    const int csz = constraint_list.Size();
-   kernels::vector::MapDof(csz, w, x, constraint_list);
+   const DeviceArray idx(constraint_list, csz);
+   const DeviceVector d_x(x, x.Size());
+   DeviceVector d_w(w, w.Size());
+   MFEM_FORALL(i, csz, d_w[idx[i]] = d_x[idx[i]];);
+
    A->Mult(w, z);
 
    b -= z;
-   kernels::vector::MapDof(csz, b, x, constraint_list);
+   DeviceVector d_b(b, b.Size());
+   MFEM_FORALL(i, csz, d_b[idx[i]] = d_x[idx[i]];);
 }
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
-   if (constraint_list.Size() == 0)
+   const int csz = constraint_list.Size();
+   if (csz == 0)
    {
       A->Mult(x, y);
       return;
    }
 
    z = x;
-   const int csz = constraint_list.Size();
-   kernels::vector::SetDof(csz, z, 0.0, constraint_list);
+
+   const DeviceArray idx(constraint_list, csz);
+   DeviceVector d_z(z, z.Size());
+   MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
+   
    A->Mult(z, y);
-   kernels::vector::MapDof(csz, y, x, constraint_list);
+   
+   const DeviceVector d_x(x, x.Size());
+   DeviceVector d_y(y, y.Size());
+   MFEM_FORALL(i, csz, d_y[idx[i]] = d_x[idx[i]];);
 }
 
 }
