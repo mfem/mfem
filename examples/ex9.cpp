@@ -276,8 +276,9 @@ private:
       else { return -1; }
    }
    
-   // NOTE: Here it is assumed that all elements have the same geometry, due to numBdrs.
    // NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.
+   // NOTE: Here it is assumed that all elements have the same geometry, due to numBdrs.
+   // NOTE: This approach will not work for meshes with hanging nodes.
    void GetVertexBoundsMap()
    {
       const FiniteElement &dummy = *fes->GetFE(0);
@@ -1303,8 +1304,9 @@ public:
    void FillNeighborDofs(Mesh *mesh, int numDofs, int k, int nd, int p, int dim,
                          Array <int> bdrs)
    {
-      int j, neighborElem;
+      int i, j, neighborElem, numBdrs = dofs.Width();
       FaceElementTransformations *Trans;
+      Array<int> neighborBdrs, orientation;
 
       if (dim == 1) { return; } // no need to take care of boundary terms
       else if (dim == 2)
@@ -1320,8 +1322,13 @@ public:
             {
                neighborElem = Trans->Elem1No;
             }
+            
+            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
+            for (i = 0; i < numBdrs; i++)
+               if (neighborBdrs[i] == bdrs[0])
+                  break;
 
-            neighborDof(k*numDofs+j, 0) = neighborElem*nd + (p+1)*p+j;
+            neighborDof(k*numDofs+j, 0) = neighborElem*nd + dofs(numDofs-1-j,i);
 
             Trans = mesh->GetFaceElementTransformations(bdrs[1]);
             if (Trans->Elem1No == k)
@@ -1333,7 +1340,12 @@ public:
                neighborElem = Trans->Elem1No;
             }
 
-            neighborDof(k*numDofs+j, 1) = neighborElem*nd + (p+1)*j;
+            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
+            for (i = 0; i < numBdrs; i++)
+               if (neighborBdrs[i] == bdrs[1])
+                  break;
+
+            neighborDof(k*numDofs+j, 1) = neighborElem*nd + dofs(numDofs-1-j,i);
 
             Trans = mesh->GetFaceElementTransformations(bdrs[2]);
             if (Trans->Elem1No == k)
@@ -1345,7 +1357,12 @@ public:
                neighborElem = Trans->Elem1No;
             }
 
-            neighborDof(k*numDofs+j, 2) = neighborElem*nd + j;
+            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
+            for (i = 0; i < numBdrs; i++)
+               if (neighborBdrs[i] == bdrs[2])
+                  break;
+
+            neighborDof(k*numDofs+j, 2) = neighborElem*nd + dofs(numDofs-1-j,i);
 
             Trans = mesh->GetFaceElementTransformations(bdrs[3]);
             if (Trans->Elem1No == k)
@@ -1357,7 +1374,12 @@ public:
                neighborElem = Trans->Elem1No;
             }
 
-            neighborDof(k*numDofs+j, 3) = neighborElem*nd + (p+1)*j+p;
+            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
+            for (i = 0; i < numBdrs; i++)
+               if (neighborBdrs[i] == bdrs[3])
+                  break;
+
+            neighborDof(k*numDofs+j, 3) = neighborElem*nd + dofs(numDofs-1-j,i);
          }
       }
       else // dim == 3
@@ -1512,7 +1534,7 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    FiniteElementSpace* fes;
-   SparseMatrix &M, &K, &kbdr;
+   SparseMatrix &M, &K;
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
@@ -1525,7 +1547,7 @@ private:
 
 public:
    FE_Evolution(FiniteElementSpace* fes, SparseMatrix &_M, SparseMatrix &_K,
-                const Vector &_b, FluxCorrectedTransport &_fct, SparseMatrix &_kbdr);
+                const Vector &_b, FluxCorrectedTransport &_fct);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -1775,12 +1797,6 @@ int main(int argc, char *argv[])
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
    k.AddBdrFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
- 
-   BilinearForm kbdr(&fes);
-   kbdr.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGPositiveTraceIntegrator(velocity, 1.0, -0.5)));
-   kbdr.Assemble();
-   kbdr.Finalize();
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -1869,7 +1885,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m.SpMat(), k.SpMat(), b, fct, kbdr.SpMat());
+   FE_Evolution adv(&fes, m.SpMat(), k.SpMat(), b, fct);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -2305,8 +2321,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          y -= z;
       }
       zz = y;
-      
-      kbdr.AddMult(x, y);
 
       // Monotonicity terms
       for (k = 0; k < ne; k++)
@@ -2339,7 +2353,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          {
             dofInd = k*nd+j;
             y(dofInd) += alpha(j) * z(dofInd);
-            zz(dofInd) += alpha(j) * z(dofInd); // TODO
+            zz(dofInd) += alpha(j) * z(dofInd);
             z(dofInd) *= (1. - alpha(j));
 
             if (fct.schemeOpt)
@@ -2352,8 +2366,8 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ////////////////////////////
          // Boundary contributions //
          ////////////////////////////
-         //if (dim > 1)// Nothing needs to be done for 1D boundaries (due to Bernstein basis)
-         //   LinearFluxLumping(k, nd, x, y, alpha);
+         if (dim > 1)// Nothing needs to be done for 1D boundaries (due to Bernstein basis)
+           LinearFluxLumping(k, nd, x, y, alpha);
          
          sumWeightsP = nd*xMax - xSum + eps;
          sumWeightsN = nd*xMin - xSum - eps;
@@ -2678,9 +2692,9 @@ void FE_Evolution::ApplyTimeDerivativeLimiter3(const Vector &x, const Vector &yH
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M,
                            SparseMatrix &_K,
-                           const Vector &_b, FluxCorrectedTransport &_fct, SparseMatrix &_kbdr)
+                           const Vector &_b, FluxCorrectedTransport &_fct)
    : TimeDependentOperator(_M.Size()), fes(_fes), M(_M), K(_K), b(_b),
-     z(_M.Size()), fct(_fct), kbdr(_kbdr), zz(_M.Size()) // TODO if useless rm zz
+     z(_M.Size()), fct(_fct), zz(_M.Size()) // TODO if useless rm zz
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
