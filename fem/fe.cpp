@@ -1708,8 +1708,8 @@ void BiQuadPos2DFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
    dofs.SetSize(3,4);
    dofs(0,0) = 0;  dofs(1,0) = 4;  dofs(2,0) = 1;
    dofs(0,1) = 1;  dofs(1,1) = 5;  dofs(2,1) = 2;
-   dofs(0,2) = 3;  dofs(1,2) = 6;  dofs(2,2) = 2;
-   dofs(0,3) = 0;  dofs(1,3) = 7;  dofs(2,3) = 3;
+   dofs(0,2) = 2;  dofs(1,2) = 6;  dofs(2,2) = 3;
+   dofs(0,3) = 3;  dofs(1,3) = 7;  dofs(2,3) = 0;
 }
 
 
@@ -7363,7 +7363,7 @@ void H1Pos_SegmentElement::ExtractBdrDofs(DenseMatrix &dofs) const
 {
    dofs.SetSize(1,2);
    dofs(0,0) = 0;
-   dofs(0,1) = Order;
+   dofs(0,1) = 1;
 }
 
 
@@ -7442,8 +7442,8 @@ void H1Pos_QuadrilateralElement::ExtractBdrDofs(DenseMatrix &dofs) const
    {
       dofs(i,0) = i;
       dofs(i,1) = i*(p+1) + p;
-      dofs(i,2) = p*(p+1) + i;
-      dofs(i,3) = i*(p+1);
+      dofs(i,2) = (p+1)*(p+1) - 1 - i;
+      dofs(i,3) = (p-i)*(p+1);
    }
 }
 
@@ -8626,8 +8626,8 @@ void L2Pos_QuadrilateralElement::ExtractBdrDofs(DenseMatrix &dofs) const
    {
       dofs(i,0) = i;
       dofs(i,1) = i*(p+1) + p;
-      dofs(i,2) = p*(p+1) + i;
-      dofs(i,3) = i*(p+1);
+      dofs(i,2) = (p+1)*(p+1) - 1 - i;
+      dofs(i,3) = (p-i)*(p+1);
    }
 }
 
