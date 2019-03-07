@@ -2088,6 +2088,32 @@ public:
                                    DenseMatrix &elmat);
 };
 
+/** TODO */
+class DGPositiveTraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   Coefficient *rho;
+   VectorCoefficient *u;
+   double alpha, beta;
+
+   Vector shape1, shape2;
+
+public:
+   /// Construct integrator with rho = 1.
+   DGPositiveTraceIntegrator(VectorCoefficient &_u, double a, double b)
+   { rho = NULL; u = &_u; alpha = a; beta = b; }
+
+   DGPositiveTraceIntegrator(Coefficient &_rho, VectorCoefficient &_u,
+                             double a, double b)
+   { rho = &_rho; u = &_u; alpha = a; beta = b; }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
 /** Integrator for the DG form:
 
     - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >

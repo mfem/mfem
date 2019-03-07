@@ -55,8 +55,8 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-enum MONOTYPE { None, DiscUpw, DiscUpw_FS, Rusanov, Rusanov_FS, ResDist, ResDist_FS, ResDist_Lim, ResDist_LimMass };
-enum STENCIL  { Nodal, Full, Local, LocalAndDiag };
+enum MONOTYPE { None, DiscUpw, DiscUpw_FCT, Rusanov, Rusanov_FCT, ResDist, ResDist_FCT, ResDist_Lim, ResDist_LimMass };
+enum STENCIL  { VertexBased, FromSparsity, Local, LocalAndDiag };
 
 
 class SolutionBounds
@@ -76,7 +76,8 @@ class SolutionBounds
 public:
 
    // Map to compute localized bounds on unstructured grids.
-   // For each dof index we have a vector of neighbor dof indices.
+   // NOTE: If stencil==VertexBased, then for each dof the elements containing that vertex are stored.
+   // Otherwise, for each dof index we have a vector of neighbor dof indices.
    mutable std::map<int, std::vector<int> > map_for_bounds;
 
    Vector x_min;
@@ -89,7 +90,7 @@ public:
       mesh = fes->GetMesh();
       stencil = _stencil;
 
-      if (stencil == 0) { GetNodalBoundsMap(); }
+      if (stencil == VertexBased) { GetVertexBoundsMap(); }
       else if (stencil > 1) { GetBoundsMap(fes, K); }
    }
 
@@ -102,7 +103,7 @@ public:
       {
          case 0:
          {
-            ComputeNodalBounds(x);
+            ComputeVertexBounds(x);
             break;
          }
          case 1:
@@ -110,8 +111,8 @@ public:
             ComputeFromSparsity(K, x);
             break;
          }
+         case 2:
          case 3:
-         case 4:
             ComputeLocalBounds(x);
             break;
          default:
@@ -119,7 +120,8 @@ public:
       }
    }
 
-   void ComputeNodalBounds(const Vector& x)
+   // NOTE: Optimizations possible, combine this with low and high order methods.
+   void ComputeVertexBounds(const Vector& x)
    {
       int i, j, k, nd, dofInd, ne = mesh->GetNE();
       Vector xMax, xMin;
@@ -210,9 +212,12 @@ public:
 
 private:
    
-   // Find a zone id that shares a face with both el1 and el2, but isn't el.
+   // Finds a zone id that shares a face with both el1 and el2, but isn't el.
+   // NOTE: Here it is assumed that all elements have the same geometry, due to numBdrs.
    int FindCommonAdjacentElement(int el, int el1, int el2, int dim, int numBdrs)
    {
+      if (min(el1, el2) < 0) { return -1; }
+      
       int i, j, commonNeighbor;
       bool found = false;
       Array<int> bdrs1, bdrs2, orientation, neighborElements1, neighborElements2;
@@ -223,7 +228,8 @@ private:
       // add neighbor elements sharing a vertex/edge/face according to grid dimension
       if (dim==1)
       {
-         numBdrs = 0; //TODO probably getElementVertices, does GetFaceElementTransformations even work? If not workaround
+         mesh->GetElementVertices(el1, bdrs1);
+         mesh->GetElementVertices(el2, bdrs2);
       }
       else if (dim==2)
       {
@@ -270,16 +276,18 @@ private:
       else { return -1; }
    }
    
-   void GetNodalBoundsMap()
+   // NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.
+   // NOTE: Here it is assumed that all elements have the same geometry, due to numBdrs.
+   // NOTE: This approach will not work for meshes with hanging nodes.
+   void GetVertexBoundsMap()
    {
       const FiniteElement &dummy = *fes->GetFE(0);
-      int i, j, k, dofInd, numBdrs, numDofs, maxElPerNode, dim = mesh->Dimension(), 
+      int i, j, k, dofInd, numBdrs, numDofs, nbr_id, dim = mesh->Dimension(), 
          ne = mesh->GetNE(), nd = dummy.GetDof(), p = dummy.GetOrder();
       Array<int> bdrs, orientation, neighborElements;
       DenseMatrix dofs;
       FaceElementTransformations *Trans;
 
-      maxElPerNode = (int)pow(2., dim);
       dummy.ExtractBdrDofs(dofs);
       numBdrs = dofs.Width();
       numDofs = dofs.Height();
@@ -297,7 +305,7 @@ private:
          
          // add neighbor elements sharing a vertex/edge/face according to grid dimension
          if (dim==1)
-            numBdrs = 0; //TODO probably getElementVertices, does GetFaceElementTransformations even work? If not workaround
+            mesh->GetElementVertices(k, bdrs);
          else if (dim==2)
             mesh->GetElementEdges(k, bdrs, orientation);
          else if (dim==3)
@@ -307,14 +315,7 @@ private:
          {
             Trans = mesh->GetFaceElementTransformations(bdrs[i]);
             
-            if (Trans->Elem1No != k)
-            {
-               neighborElements[i] = Trans->Elem1No;
-            }
-            else
-            {
-               neighborElements[i] = Trans->Elem2No;
-            }
+            neighborElements[i] = Trans->Elem1No != k ? Trans->Elem1No : Trans->Elem2No;
             
             for (j = 0; j < numDofs; j++)
             {
@@ -326,27 +327,26 @@ private:
          // Diagonal neighbors.
          if (dim==2)
          {
-            int nbr_id;
-
             nbr_id = FindCommonAdjacentElement(k, neighborElements[3],
                                                   neighborElements[0], 2, numBdrs);
-            if (nbr_id > 0) { map_for_bounds[k*nd].push_back(nbr_id); }
+            if (nbr_id >= 0) { map_for_bounds[k*nd].push_back(nbr_id); }
 
             nbr_id = FindCommonAdjacentElement(k, neighborElements[0],
                                                   neighborElements[1], 2, numBdrs);
-            if (nbr_id > 0) { map_for_bounds[k*nd+p].push_back(nbr_id); }
+            if (nbr_id >= 0) { map_for_bounds[k*nd+p].push_back(nbr_id); }
 
             nbr_id = FindCommonAdjacentElement(k, neighborElements[1],
                                                   neighborElements[2], 2, numBdrs);
-            if (nbr_id > 0) { map_for_bounds[(k+1)*nd-1].push_back(nbr_id); }
+            if (nbr_id >= 0) { map_for_bounds[(k+1)*nd-1].push_back(nbr_id); }
 
             nbr_id = FindCommonAdjacentElement(k, neighborElements[2],
                                                   neighborElements[3], 2, numBdrs);
-            if (nbr_id > 0) { map_for_bounds[k*p*(p+1)].push_back(nbr_id); }
+            if (nbr_id >= 0) { map_for_bounds[k*p*(p+1)].push_back(nbr_id); }
          }
          else if (dim==3)
          {
             Array<int> neighborElem; neighborElem.SetSize(12); // for each edge
+            
             neighborElem[0]  = FindCommonAdjacentElement(k, neighborElements[0], neighborElements[1], dim, numBdrs);
             neighborElem[1]  = FindCommonAdjacentElement(k, neighborElements[0], neighborElements[2], dim, numBdrs);
             neighborElem[2]  = FindCommonAdjacentElement(k, neighborElements[0], neighborElements[3], dim, numBdrs);
@@ -360,31 +360,59 @@ private:
             neighborElem[10] = FindCommonAdjacentElement(k, neighborElements[2], neighborElements[3], dim, numBdrs);
             neighborElem[11] = FindCommonAdjacentElement(k, neighborElements[3], neighborElements[4], dim, numBdrs);
             
+            // add the neighbors for each edge
             for (j = 0; j <= p; j++)
             {
-               map_for_bounds[k*nd+j].push_back(neighborElem[0]);
-               map_for_bounds[k*nd+(j+1)*(p+1)-1].push_back(neighborElem[1]);
-               map_for_bounds[k*nd+p*(p+1)+j].push_back(neighborElem[2]);
-               map_for_bounds[k*nd+j*(p+1)].push_back(neighborElem[3]);
-               map_for_bounds[k*nd+(p+1)*(p+1)*p+j].push_back(neighborElem[4]);
-               map_for_bounds[k*nd+(p+1)*(p+1)*p+(j+1)*(p+1)-1].push_back(neighborElem[5]);
-               map_for_bounds[k*nd+(p+1)*(p+1)*p+p*(p+1)+j].push_back(neighborElem[6]);
-               map_for_bounds[k*nd+(p+1)*(p+1)*p+j*(p+1)].push_back(neighborElem[7]);
-               map_for_bounds[k*nd+j*(p+1)*(p+1)].push_back(neighborElem[8]);
-               map_for_bounds[k*nd+p+j*(p+1)*(p+1)].push_back(neighborElem[9]);
-               map_for_bounds[k*nd+(j+1)*(p+1)*(p+1)-1].push_back(neighborElem[10]);
-               map_for_bounds[k*nd+p*(p+1)+j*(p+1)*(p+1)].push_back(neighborElem[11]);
+               if (neighborElem[0] >= 0)
+                  map_for_bounds[k*nd+j].push_back(neighborElem[0]);
+               if (neighborElem[1] >= 0)
+                  map_for_bounds[k*nd+(j+1)*(p+1)-1].push_back(neighborElem[1]);
+               if (neighborElem[2] >= 0)
+                  map_for_bounds[k*nd+p*(p+1)+j].push_back(neighborElem[2]);
+               if (neighborElem[3] >= 0)
+                  map_for_bounds[k*nd+j*(p+1)].push_back(neighborElem[3]);
+               if (neighborElem[4] >= 0)
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j].push_back(neighborElem[4]);
+               if (neighborElem[5] >= 0)
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+(j+1)*(p+1)-1].push_back(neighborElem[5]);
+               if (neighborElem[6] >= 0)
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+p*(p+1)+j].push_back(neighborElem[6]);
+               if (neighborElem[7] >= 0)
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j*(p+1)].push_back(neighborElem[7]);
+               if (neighborElem[8] >= 0)
+                  map_for_bounds[k*nd+j*(p+1)*(p+1)].push_back(neighborElem[8]);
+               if (neighborElem[9] >= 0)
+                  map_for_bounds[k*nd+p+j*(p+1)*(p+1)].push_back(neighborElem[9]);
+               if (neighborElem[10] >= 0)
+                  map_for_bounds[k*nd+(j+1)*(p+1)*(p+1)-1].push_back(neighborElem[10]);
+               if (neighborElem[11] >= 0)
+                  map_for_bounds[k*nd+p*(p+1)+j*(p+1)*(p+1)].push_back(neighborElem[11]);
             }
             
             // cube vertices
-            map_for_bounds[k*nd].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[0], neighborElem[3], dim, numBdrs));
-            map_for_bounds[k*nd+p].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[0], neighborElem[1], dim, numBdrs));
-            map_for_bounds[k*nd+p*(p+1)].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[2], neighborElem[3], dim, numBdrs));
-            map_for_bounds[k*nd+(p+1)*(p+1)-1].push_back(FindCommonAdjacentElement(neighborElements[0], neighborElem[1], neighborElem[2], dim, numBdrs));
-            map_for_bounds[k*nd+(p+1)*(p+1)*p].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[4], neighborElem[7], dim, numBdrs));
-            map_for_bounds[k*nd+(p+1)*(p+1)*p+p].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[4], neighborElem[5], dim, numBdrs));
-            map_for_bounds[k*nd+(p+1)*(p+1)*p+(p+1)*p].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[6], neighborElem[7], dim, numBdrs));
-            map_for_bounds[k*nd+(p+1)*(p+1)*(p+1)-1].push_back(FindCommonAdjacentElement(neighborElements[5], neighborElem[5], neighborElem[6], dim, numBdrs));
+            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[0], neighborElem[3], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[0], neighborElem[1], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+p].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[2], neighborElem[3], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+p*(p+1)].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[1], neighborElem[2], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)-1].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[4], neighborElem[7], dim, numBdrs); 
+            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*p].push_back(nbr_id);}
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[4], neighborElem[5], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*p+p].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[6], neighborElem[7], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*p+(p+1)*p].push_back(nbr_id); }
+            
+            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[5], neighborElem[6], dim, numBdrs);
+            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*(p+1)-1].push_back(nbr_id); }
          }
       }
    }
@@ -488,11 +516,11 @@ private:
       // use the first mesh element as indicator
       switch (stencil)
       {
-         case 1:
+         case 2:
             // hk at ref element with some tolerance
             dist_level = 1.0 / fes->GetOrder(0) + tol;
             break;
-         case 2:
+         case 3:
             // Include the diagonal neighbors, use the first mesh element as indicator
             // modified by Hennes, this should be larger than sqrt(3) to support 3D
             dist_level = 1.8 / fes->GetOrder(0) + tol;
@@ -678,13 +706,12 @@ private:
 
 public:
    // Constructor builds structures required for low order scheme
-   FluxCorrectedTransport(const MONOTYPE _monoType, bool &_schemeOpt,
-                          FiniteElementSpace* _fes,
+   FluxCorrectedTransport(FiniteElementSpace* _fes, const MONOTYPE _monoType, bool &_schemeOpt,
                           const SparseMatrix &K, VectorFunctionCoefficient &coef, SolutionBounds &_bnds) :
-      fes(_fes), monoType(_monoType), schemeOpt(_schemeOpt), bnds(_bnds) // TODO schemeOpt
+      fes(_fes), monoType(_monoType), schemeOpt(_schemeOpt), bnds(_bnds)
    {
       // NOTE: D is initialized later, due to the need to have identical sparisty with corresponding 
-      //         advection operator K or preconditioned volume terms, depending on the scheme.
+      //       advection operator K or preconditioned volume terms, depending on the scheme.
       
       // Compute the lumped mass matrix algebraicly
       BilinearForm m(fes);
@@ -693,20 +720,19 @@ public:
       m.Finalize();
       m.SpMat().GetDiag(lumpedM);
       
-      // TODO: rename Rho to VolumeTerms
-      //         
+      const FiniteElement &dummy = *fes->GetFE(0);
+      int p = dummy.GetOrder();
       
-      if (_monoType == None) { return; }
+      if (monoType == None) { return; }
       
-      if ((_monoType == DiscUpw) || (_monoType == DiscUpw_FS))
+      else if ((monoType == DiscUpw) || (monoType == DiscUpw_FCT))
       {
-         if (_schemeOpt)
+         if (schemeOpt)
          {
             ////////////////////////////
             // Boundary contributions //
             ////////////////////////////
             Mesh *mesh = fes->GetMesh();
-            const FiniteElement &dummy = *fes->GetFE(0);
             int dim = mesh->Dimension(), ne = mesh->GetNE(), nd = dummy.GetDof();
             
             // fill the dofs array to access the correct dofs for boundaries later
@@ -768,23 +794,26 @@ public:
             ComputeDiscreteUpwindingMatrix(K, D);
          }
       }
-      else if ((_monoType == Rusanov) || (_monoType == Rusanov_FS))
+      else if ((monoType == Rusanov) || (monoType == Rusanov_FCT))
       {
-         schemeOpt = _schemeOpt; // TODO check and code consistently
-         if (!_schemeOpt)
+         if ((p==1) && schemeOpt)
+         {
+            mfem_warning("Subcell option does not make sense for order 1. Using cell-based scheme.");
+            schemeOpt = false;
+         }
+
+         if (!schemeOpt)
          {
             ComputeDiffusionCoefficient(fes, coef);
          }
          else
          {
             Mesh *mesh = fes->GetMesh();
-            int i, j, k, m, p, nd, dofInd, numBdrs, numDofs, ne = mesh->GetNE(), dim = mesh->Dimension();
+            int i, j, k, m, nd, dofInd, numBdrs, numDofs, ne = mesh->GetNE(), dim = mesh->Dimension();
             const int btype = BasisType::Positive;
-            const FiniteElement &dummy = *fes->GetFE(0);
             DenseMatrix elmat;
             ElementTransformation *tr;
-            
-            p = dummy.GetOrder();
+
             nd = dummy.GetDof();
             // fill the dofs array to access the correct dofs for boundaries
             dummy.ExtractBdrDofs(dofs); // TODO repating and put in routine
@@ -815,11 +844,11 @@ public:
             
             FillSubcell2CellDof(p, dim);
             
-            BilinearForm Rho(fes);
-            Rho.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
-            Rho.Assemble();
-            Rho.Finalize();
-            fluctMatrix = Rho.SpMat();
+            BilinearForm VolumeTerms(fes);
+            VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
+            VolumeTerms.Assemble();
+            VolumeTerms.Finalize();
+            fluctMatrix = VolumeTerms.SpMat();
             
             BilinearFormIntegrator *fluct;
             fluct = new ConvectionIntegrator(coef, -1.0);
@@ -832,7 +861,8 @@ public:
             bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
             neighborDof.SetSize(ne*numDofs, numBdrs);
             
-            for (k = 0; k < ne; k++) // NOTE: not optimal: two loops over all elements
+            // NOTE: not optimal: two loops over all elements
+            for (k = 0; k < ne; k++)
             {
                ////////////////////////////
                // Boundary contributions //
@@ -861,11 +891,15 @@ public:
             delete fluct;
          }
       }
-      else if ( (_monoType == ResDist) || (_monoType == ResDist_FS) 
-               || (_monoType == ResDist_Lim) || (_monoType == ResDist_LimMass) )
+      else if ( (monoType == ResDist) || (monoType == ResDist_FCT) 
+               || (monoType == ResDist_Lim) || (monoType == ResDist_LimMass) )
       {
-         ComputeResidualWeights(fes, coef, _schemeOpt);
-         schemeOpt = _schemeOpt; // if ComputeResidualWeights found that order==1, element-version is used instead of subcells
+         if ((p==1) && schemeOpt)
+         {
+            mfem_warning("Subcell option does not make sense for order 1. Using cell-based scheme.");
+            schemeOpt = false;
+         }
+         ComputeResidualWeights(fes, coef);
       }
    }
 
@@ -1038,8 +1072,7 @@ public:
       }
    }
 
-   void ComputeResidualWeights(FiniteElementSpace* fes,
-                               VectorFunctionCoefficient &coef, bool &schemeOpt)
+   void ComputeResidualWeights(FiniteElementSpace* fes, VectorFunctionCoefficient &coef)
    {
       Mesh *mesh = fes->GetMesh();
       int i, j, k, m, p, nd, dofInd, qOrdF, numBdrs, numDofs,
@@ -1052,12 +1085,6 @@ public:
       const FiniteElement &dummy = *fes->GetFE(0);
       nd = dummy.GetDof();
       p = dummy.GetOrder();
-
-      if ((p==1) && schemeOpt)
-      {
-         mfem_warning("Subcell option does not make sense for order 1. Using cell-based scheme."); // TODO also for Rusanov
-         schemeOpt = false;
-      }
 
       if (dim==1)
       {
@@ -1073,7 +1100,7 @@ public:
       {
          numSubcells = p*p*p;
          numDofsSubcell = 8;
-      } // TODO if schemeOpt
+      }
 
       // fill the dofs array to access the correct dofs for boundaries later; dofs is not needed here
       dummy.ExtractBdrDofs(dofs);
@@ -1085,11 +1112,11 @@ public:
       BilinearFormIntegrator *fluct;
       fluct = new MixedConvectionIntegrator(coef, -1.0);
 
-      BilinearForm Rho(fes);
-      Rho.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
-      Rho.Assemble();
-      Rho.Finalize();
-      fluctMatrix = Rho.SpMat(); // TODO repeating
+      BilinearForm VolumeTerms(fes);
+      VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
+      VolumeTerms.Assemble();
+      VolumeTerms.Finalize();
+      fluctMatrix = VolumeTerms.SpMat(); // TODO repeating
       
       Mesh *ref_mesh = GetSubcellMesh(mesh, p);
 
@@ -1233,7 +1260,8 @@ public:
    }
 
    // Computes the element-global indices from the indices of the subcell and the indices
-   // of dofs on the subcell. No support for triangles and tetrahedrons.
+   // of dofs on the subcell.
+   // NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.
    void FillSubcell2CellDof(int p,int dim)
    {
       subcell2CellDof.SetSize(numSubcells, numDofsSubcell);
@@ -1243,7 +1271,7 @@ public:
          {
             if (dim == 1)
             {
-               subcell2CellDof(m,j) = m + j; // not really necessary
+               subcell2CellDof(m,j) = m + j;
             }
             else if (dim == 2)
             {
@@ -1261,18 +1289,12 @@ public:
                {
                   case 0: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)); break;
                   case 1: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + 1; break;
-                  case 2: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + p + 1;
-                     break;
-                  case 3: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + p + 2;
-                     break;
-                  case 4: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1);
-                     break;
-                  case 5: subcell2CellDof(m,
-                                             j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1) + 1; break;
-                  case 6: subcell2CellDof(m,
-                                             j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1) + p + 1; break;
-                  case 7: subcell2CellDof(m,
-                                             j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1) + p + 2; break;
+                  case 2: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + p + 1; break;
+                  case 3: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + p + 2; break;
+                  case 4: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1); break;
+                  case 5: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1) + 1; break;
+                  case 6: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1) + p + 1; break;
+                  case 7: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1) + p + 2; break;
                }
             }
          }
@@ -1282,8 +1304,9 @@ public:
    void FillNeighborDofs(Mesh *mesh, int numDofs, int k, int nd, int p, int dim,
                          Array <int> bdrs)
    {
-      int j, neighborElem;
+      int i, j, neighborElem, numBdrs = dofs.Width();
       FaceElementTransformations *Trans;
+      Array<int> neighborBdrs, orientation;
 
       if (dim == 1) { return; } // no need to take care of boundary terms
       else if (dim == 2)
@@ -1299,8 +1322,13 @@ public:
             {
                neighborElem = Trans->Elem1No;
             }
+            
+            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
+            for (i = 0; i < numBdrs; i++)
+               if (neighborBdrs[i] == bdrs[0])
+                  break;
 
-            neighborDof(k*numDofs+j, 0) = neighborElem*nd + (p+1)*p+j;
+            neighborDof(k*numDofs+j, 0) = neighborElem*nd + dofs(numDofs-1-j,i);
 
             Trans = mesh->GetFaceElementTransformations(bdrs[1]);
             if (Trans->Elem1No == k)
@@ -1312,7 +1340,12 @@ public:
                neighborElem = Trans->Elem1No;
             }
 
-            neighborDof(k*numDofs+j, 1) = neighborElem*nd + (p+1)*j;
+            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
+            for (i = 0; i < numBdrs; i++)
+               if (neighborBdrs[i] == bdrs[1])
+                  break;
+
+            neighborDof(k*numDofs+j, 1) = neighborElem*nd + dofs(numDofs-1-j,i);
 
             Trans = mesh->GetFaceElementTransformations(bdrs[2]);
             if (Trans->Elem1No == k)
@@ -1324,7 +1357,12 @@ public:
                neighborElem = Trans->Elem1No;
             }
 
-            neighborDof(k*numDofs+j, 2) = neighborElem*nd + j;
+            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
+            for (i = 0; i < numBdrs; i++)
+               if (neighborBdrs[i] == bdrs[2])
+                  break;
+
+            neighborDof(k*numDofs+j, 2) = neighborElem*nd + dofs(numDofs-1-j,i);
 
             Trans = mesh->GetFaceElementTransformations(bdrs[3]);
             if (Trans->Elem1No == k)
@@ -1336,7 +1374,12 @@ public:
                neighborElem = Trans->Elem1No;
             }
 
-            neighborDof(k*numDofs+j, 3) = neighborElem*nd + (p+1)*j+p;
+            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
+            for (i = 0; i < numBdrs; i++)
+               if (neighborBdrs[i] == bdrs[3])
+                  break;
+
+            neighborDof(k*numDofs+j, 3) = neighborElem*nd + dofs(numDofs-1-j,i);
          }
       }
       else // dim == 3
@@ -1604,9 +1647,9 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 3;
-   MONOTYPE monoType = ResDist_LimMass;
+   MONOTYPE monoType = ResDist_FCT;
    bool schemeOpt = true;
-   STENCIL stencil = Nodal;
+   STENCIL stencil = VertexBased;
    double t_final = 4.0;
    double dt = 0.005;
    bool visualization = true;
@@ -1640,12 +1683,13 @@ int main(int argc, char *argv[])
                   "                                7 - residual distribution scheme (matrix-free) - with tailored limiter,\n\t"
                   "                                8 - residual distribution scheme (matrix-free) - with tailored limiter and mass matrix limiting.");
    args.AddOption((int*)(&schemeOpt), "-opt", "--schemeOpt",
-                  "Optimized scheme: preconditioned discrete upwinding or subcell version: 0 - basic scheme,\n\t"
-                  "                                                                        1 - optimized scheme.");
+                  "Optimized scheme: preconditioned discrete upwinding or subcell version: 0 - basic schemes,\n\t"
+                  "                                                                        1 - optimized schemes.");
    args.AddOption((int*)(&stencil), "-st", "--stencil",
-                  "Type of stencil for high order scheme: 0 - all neighbors,\n\t"
-                  "                                       1 - closest neighbors,\n\t"
-                  "                                       2 - closest plus diagonal neighbors.");// TODO update
+                  "Type of stencil for high order scheme: 0 - vertex-based neighbors,\n\t"
+                  "                                       1 - neighbors based on sparsity,\n\t"
+                  "                                       2 - closest neighbors,\n\t"
+                  "                                       3 - closest plus diagonal neighbors.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -1719,10 +1763,9 @@ int main(int argc, char *argv[])
          delete ode_solver;
          return 5;
       }
-      if ((btype != 2) && (monoType > 2))
+      if (btype != 2)
       {
-         cout << "Matrix-free monotonicity treatment requires use of Bernstein basis." <<
-              endl;
+         cout << "Monotonicity treatment requires use of Bernstein basis." << endl;
          delete mesh;
          delete ode_solver;
          return 5;
@@ -1731,8 +1774,8 @@ int main(int argc, char *argv[])
       {
          delete mesh;
          delete ode_solver;
-         return 5;
          cout << "No need to use monotonicity treatment for polynomial order 0." << endl;
+         return 5;
       }
    }
 
@@ -1770,7 +1813,7 @@ int main(int argc, char *argv[])
    SolutionBounds bnds(&fes, k, stencil);
 
    // Precompute data required for high and low order schemes
-   FluxCorrectedTransport fct(monoType, schemeOpt, &fes, k.SpMat(), velocity, bnds);
+   FluxCorrectedTransport fct(&fes, monoType, schemeOpt, k.SpMat(), velocity, bnds);
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -1893,8 +1936,8 @@ int main(int argc, char *argv[])
    tmp -= u;
    if (problem == 4) // solid body rotation
    {
-      cout << "L1-error: " << ComputeIntegralNorm(&fes, tmp, 1.) << ", L-Inf-error: "
-           << ComputeIntegralNorm(&fes, tmp, numeric_limits<double>::infinity()) << "." << endl;
+      cout << "L1-error: " << u.ComputeLpError(1., u0) << ", L-Inf-error: "
+           << u.ComputeLpError(numeric_limits<double>::infinity(), u0) << "." << endl;
    }
 
 //    // write output
@@ -2063,7 +2106,7 @@ void FE_Evolution::LinearFluxLumping(int k, int nd, const Vector &x, Vector &y, 
 
 void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 {
-   if ((fct.monoType == DiscUpw) || (fct.monoType == DiscUpw_FS))
+   if ((fct.monoType == DiscUpw) || (fct.monoType == DiscUpw_FCT))
    {
       int k, j, dofInd, nd, ctr1 = 0, ctr2 = 0;
       double xMax, xMin, vMax, vMin, beta = 10.;
@@ -2102,7 +2145,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       {
          const FiniteElement &el = *fes->GetFE(k);
          nd = el.GetDof();
-         alpha.SetSize(nd); alpha = 0.; // TODO Limiter
+         alpha.SetSize(nd); alpha = 0.;
          
          if (MonoLim)
          {
@@ -2137,7 +2180,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          }
       }
    }
-   else if ((fct.monoType == Rusanov) || (fct.monoType == Rusanov_FS))
+   else if ((fct.monoType == Rusanov) || (fct.monoType == Rusanov_FCT))
    {
       Mesh *mesh = fes->GetMesh();
       int i, j, k, m, nd, dofInd, dim(mesh->Dimension());
@@ -2310,7 +2353,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          {
             dofInd = k*nd+j;
             y(dofInd) += alpha(j) * z(dofInd);
-            zz(dofInd) += alpha(j) * z(dofInd); // TODO
+            zz(dofInd) += alpha(j) * z(dofInd);
             z(dofInd) *= (1. - alpha(j));
 
             if (fct.schemeOpt)
@@ -2324,7 +2367,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          // Boundary contributions //
          ////////////////////////////
          if (dim > 1)// Nothing needs to be done for 1D boundaries (due to Bernstein basis)
-            LinearFluxLumping(k, nd, x, y, alpha);
+           LinearFluxLumping(k, nd, x, y, alpha);
          
          sumWeightsP = nd*xMax - xSum + eps;
          sumWeightsN = nd*xMin - xSum - eps;
