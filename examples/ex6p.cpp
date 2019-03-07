@@ -123,6 +123,9 @@ int main(int argc, char *argv[])
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    int elem_batch = (pa) ? pmesh.GetNE() : 1;
    if (cuda) { config::UseCuda(); }
+   if (omp)  { config::UseOmp();  }
+   if (raja) { config::UseRaja(); }
+   if (occa) { config::UseOcca(); }
    config::EnableDevice(0);
 
    // 7. As in Example 1p, we set up bilinear and linear forms corresponding to

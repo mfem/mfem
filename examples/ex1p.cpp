@@ -179,6 +179,8 @@ int main(int argc, char *argv[])
 
    if (pa) { pmesh->EnsureNodes(); }
    if (cuda) { config::UseCuda(); }
+   if (omp)  { config::UseOmp();  }
+   if (raja) { config::UseRaja(); }
    if (occa) { config::UseOcca(); }
    config::EnableDevice();
    config::SwitchToDevice();

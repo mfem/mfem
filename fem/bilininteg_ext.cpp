@@ -594,15 +594,18 @@ static void PADiffusionMultAssembled(const int dim,
    assert(LOG2(static_cast<uint32_t>(NQ1d))<=4);
    const int id = (dim<<8)|(ND1d<<4)|(NQ1d);
    static std::unordered_map<int, fDiffusionMultAdd> call =
-   {
-      {0x222,&PADiffusionMultAssembled2D<2,2>},
-      {0x244,&PADiffusionMultAssembled2D<4,4>},
-      {0x323,&PADiffusionMultAssembled3D<2,3>},
+      {  // 2D
+         {0x222,&PADiffusionMultAssembled2D<2,2>},
+         {0x233,&PADiffusionMultAssembled2D<3,3>},
+         {0x244,&PADiffusionMultAssembled2D<4,4>},
+         // 3D
+         {0x323,&PADiffusionMultAssembled3D<2,3>},
    };
    if (!call[id])
    {
-      printf("dim=%d, ND1d=%d and NQ1d=%d",dim, ND1d, NQ1d);
-      mfem_error("DiffusionMultAssembled kernel not instanciated");
+      printf("\n%s:%d\nUnknown kernel with dim=%d, ND1d=%d and NQ1d=%d",
+             __FILE__, __LINE__, dim, ND1d, NQ1d);
+      mfem_error("PADiffusionMultAssembled kernel not instanciated");
    }
    assert(call[id]);
    call[id](NE, B, G, Bt, Gt, op, x, y);
@@ -974,6 +977,8 @@ static void PAMassMultAssembled(const int dim,
       {0x222,&PAMassMultAdd2D<2,2>},
       {0x224,&PAMassMultAdd2D<2,4>},
       {0x234,&PAMassMultAdd2D<3,4>},
+      {0x236,&PAMassMultAdd2D<3,6>},
+      {0x246,&PAMassMultAdd2D<4,6>},
       // 3D
       {0x323,&PAMassMultAdd3D<2,3>},
       {0x324,&PAMassMultAdd3D<2,4>},
@@ -981,7 +986,8 @@ static void PAMassMultAssembled(const int dim,
    };
    if (!call[id])
    {
-      printf("dim=%d, ND1d=%d and NQ1d=%d",dim, ND1d, NQ1d);
+      printf("\n%s:%d\nUnknown kernel with dim=%d, ND1d=%d and NQ1d=%d",
+             __FILE__, __LINE__,dim, ND1d, NQ1d);
       mfem_error("MassMultAssembled kernel not instanciated");
    }
    call[id](NE, B, Bt, op, x, y);
@@ -1263,7 +1269,7 @@ static GeometryExtension *geom = NULL;
 
 // *****************************************************************************
 static void GeomFill(const int vdim,
-                     const size_t NE, const size_t ND, const size_t NX,
+                     const int NE, const int ND, const int NX,
                      const int* elementMap, int* eMap,
                      const double *_X, double *meshNodes)
 {
@@ -1273,7 +1279,7 @@ static void GeomFill(const int vdim,
    DeviceVector d_meshNodes(meshNodes, vdim*ND*NE);
    MFEM_FORALL(e, NE,
    {
-      for (size_t d = 0; d < ND; ++d)
+      for (int d = 0; d < ND; ++d)
       {
          const int lid = d+ND*e;
          const int gid = d_elementMap[lid];
@@ -1472,19 +1478,23 @@ static void PAGeom(const int dim,
    assert(LOG2(ND1d)<=4);
    assert(LOG2(NQ1d)<=4);
    static std::unordered_map<int, fIniGeom> call =
-   {
-      {0x222,&PAGeom2D<2,2>},
-      {0x224,&PAGeom2D<2,4>},
-      {0x232,&PAGeom2D<3,2>},
-      {0x242,&PAGeom2D<4,2>},
-      {0x234,&PAGeom2D<3,4>},
-      {0x323,&PAGeom3D<2,3>},
-      {0x334,&PAGeom3D<3,4>},
-   };
+      {  // 2D
+         {0x222,&PAGeom2D<2,2>},
+         {0x223,&PAGeom2D<2,3>},
+         {0x224,&PAGeom2D<2,4>},
+         {0x232,&PAGeom2D<3,2>},
+         {0x242,&PAGeom2D<4,2>},
+         {0x246,&PAGeom2D<4,6>},
+         {0x234,&PAGeom2D<3,4>},
+         // 3D
+         {0x323,&PAGeom3D<2,3>},
+         {0x334,&PAGeom3D<3,4>},
+      };
    if (!call[id])
    {
-      printf("dim=%d, ND1d=%d and NQ1d=%d",dim, ND1d, NQ1d);
-      mfem_error("Geom kernel not instanciated");
+      printf("\n%s:%d\nUnknown kernel with dim=%d, ND1d=%d and NQ1d=%d",
+             __FILE__, __LINE__, dim, ND1d, NQ1d);
+      mfem_error("PA Geometry kernel not instanciated");
    }
    call[id](NE, G, X, Xq, J, invJ, detJ);
 }
