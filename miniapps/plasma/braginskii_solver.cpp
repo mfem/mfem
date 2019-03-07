@@ -882,6 +882,7 @@ TwoFluidDiffusion::TwoFluidDiffusion(DGParams & dg,
      ion_mass_(ion_mass),
      ion_charge_(ion_charge),
      block_A_(offsets_),
+     block_B_(offsets_),
      block_rhs_(offsets_),
      block_amg_(offsets_),
      gmres_(sfes.GetComm())
@@ -1296,6 +1297,7 @@ void TwoFluidDiffusion::initSolver()
       {
          block_A_.SetBlock(di + 2, dj + 2,
                            a_dpdu_[di * dim_ + dj]->ParallelAssemble());
+         block_B_.SetBlock(di + 2, dj + 2, stiff_eta_[di * dim_ + dj]);
       }
    }
    for (int di=0; di<dim_; di++)
@@ -1304,6 +1306,8 @@ void TwoFluidDiffusion::initSolver()
       {
          block_A_.SetBlock(dim_ + di + 2, dim_ + dj + 2,
                            a_dpdu_[dim_ * (dim_ + di) + dj]->ParallelAssemble());
+         block_B_.SetBlock(dim_ + di + 2, dim_ + dj + 2,
+                           stiff_eta_[dim_ * (dim_ + di) + dj]);
       }
    }
 
@@ -1321,9 +1325,14 @@ void TwoFluidDiffusion::initSolver()
    }
 
    block_A_.SetDiagonalBlock(2 * (dim_ + 1), a_dEdT_[0]->ParallelAssemble());
-   block_A_.SetDiagonalBlock(2 * (dim_ + 1) + 1, a_dEdT_[1]->ParallelAssemble());
+   block_A_.SetDiagonalBlock(2 * (dim_ + 1) + 1,
+                             a_dEdT_[1]->ParallelAssemble());
+
+   block_B_.SetDiagonalBlock(2 * (dim_ + 1), stiff_chi_[0]);
+   block_B_.SetDiagonalBlock(2 * (dim_ + 1) + 1, stiff_chi_[1]);
 
    block_A_.owns_blocks = 1;
+   block_B_.owns_blocks = 0;
    /*
    {
       HypreParMatrix * hyp = NULL;
@@ -1339,6 +1348,27 @@ void TwoFluidDiffusion::initSolver()
                   ostringstream oss; oss << "A_" << i << "_" << j << ".mat";
                   hyp->Print(oss.str().c_str());
                }
+            }
+         }
+      }
+   }
+   */
+   /*
+   {
+      HypreParMatrix * hyp = NULL;
+      for (int i=0; i<block_B_.NumRowBlocks(); i++)
+      {
+         for (int j=0; j<block_B_.NumRowBlocks(); j++)
+         {
+            if (!block_B_.IsZeroBlock(i,j))
+            {
+               hyp = dynamic_cast<ParBilinearForm&>(block_B_.GetBlock(i,j)).ParallelAssemble();
+               if (hyp != NULL)
+               {
+                  ostringstream oss; oss << "B_" << i << "_" << j << ".mat";
+                  hyp->Print(oss.str().c_str());
+               }
+               delete hyp;
             }
          }
       }
@@ -1369,7 +1399,9 @@ void TwoFluidDiffusion::ImplicitSolve(const double dt,
    this->Assemble();
    this->initSolver();
 
-   block_rhs_ = 0.0;
+   block_B_.Mult(x, block_rhs_);
+   block_rhs_ *= -1.0;
+
    y = 0.0;
 
    gmres_.Mult(block_rhs_, y);

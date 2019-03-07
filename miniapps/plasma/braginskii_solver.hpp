@@ -878,6 +878,7 @@ private:
    std::vector<ParBilinearForm *> stiff_chi_;
 
    BlockOperator block_A_;
+   BlockOperator block_B_;
    BlockVector block_rhs_;
    BlockDiagonalPreconditioner block_amg_;
    std::vector<HypreSolver *> amg_;
