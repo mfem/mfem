@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = cpd1d transport braginskii
+PAR_MINIAPPS = cpd1d braginskii braginskii_dg transport
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -35,7 +35,7 @@ endif
 .PRECIOUS: %.o
 
 COMMON_O=../common/fem_extras.o ../common/pfem_extras.o \
-	../common/mesh_extras.o cold_plasma_dielectric.o
+	../common/mesh_extras.o cold_plasma_dielectric.o braginskii_coefs.o
 
 # Remove built-in rules
 %: %.cpp
@@ -46,6 +46,9 @@ all: $(MINIAPPS)
 # Rules for building the miniapps
 %: $(SRC)%.cpp %_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $@_solver.o $(COMMON_O) $(MFEM_LIBS)
+
+#braginskii: braginskii.cpp braginskii_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+#	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $@_solver.o $(COMMON_O) $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies
 $(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \

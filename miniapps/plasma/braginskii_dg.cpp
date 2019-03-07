@@ -40,7 +40,7 @@
 #include <iostream>
 
 #include "../common/pfem_extras.hpp"
-#include "braginskii_solver.hpp"
+#include "braginskii_dg_solver.hpp"
 
 using namespace std;
 using namespace mfem;
