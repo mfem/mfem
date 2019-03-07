@@ -22,7 +22,6 @@
 #include "kernels/mass.hpp"
 #include "kernels/diffusion.hpp"
 #include "../linalg/device.hpp"
-#include "../linalg/kernels/vector.hpp"
 #include "./kernels/geom.hpp"
 
 using namespace std;
@@ -356,8 +355,8 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
       }
       maps->W = W;
    }
-   kernels::vector::Assign(numQuad1D*numDofs, B1d, maps->B);
-   kernels::vector::Assign(numQuad1D*numDofs, G1d, maps->G);
+   mm::memcpy(maps->B, B1d, numQuad1D*numDofs*sizeof(double));
+   mm::memcpy(maps->G, G1d, numQuad1D*numDofs*sizeof(double));
    return maps;
 }
 
@@ -463,10 +462,10 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    }
    if (transpose)
    {
-      kernels::vector::Assign(numQuad, W, maps->W);
+      mm::memcpy(maps->W, W, numQuad*sizeof(double));
    }
-   kernels::vector::Assign(numQuad*numDofs, B, maps->B);
-   kernels::vector::Assign(dims*numQuad*numDofs, G, maps->G);
+   mm::memcpy(maps->B, B, numQuad*numDofs*sizeof(double));
+   mm::memcpy(maps->G, G, dims*numQuad*numDofs*sizeof(double));
    return maps;
 }
 

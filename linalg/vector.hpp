@@ -14,9 +14,11 @@
 
 // Data type vector
 
+#include "device.hpp"
 #include "../general/okina.hpp"
 #include "../general/array.hpp"
 #include "../general/globals.hpp"
+#include "../general/okina.hpp"
 #ifdef MFEM_USE_SUNDIALS
 #include <nvector/nvector_serial.h>
 #endif
@@ -449,6 +451,12 @@ inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
    return glb_prod;
 }
 #endif
+
+/// Kernel of the min of x and y
+double Min(const int N, const double *x);
+
+/// Kernel of the inner product of x and y
+double Dot(const int N, const double *x, const double *y);
 
 }
 
