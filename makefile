@@ -314,9 +314,7 @@ endif
 
 # Source dirs in logical order
 DIRS = general linalg mesh fem
-KERNEL_DIRS = $(DIRS:=/kernels)
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
-SOURCE_FILES += $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
@@ -547,7 +545,6 @@ status info:
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
 FORMAT_FILES  = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
-FORMAT_FILES += $(foreach dir,linalg mesh fem,"$(dir)/kernels/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 

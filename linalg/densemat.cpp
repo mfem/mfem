@@ -3465,7 +3465,6 @@ void CalcOrtho(const DenseMatrix &J, Vector &n)
 
 void MultAAt(const DenseMatrix &a, DenseMatrix &aat)
 {
-   //kernels::densemat::MultAAt(a.Height(),a.Width(),a.GetData(),aat.GetData());
    const int height = a.Height();
    const int width = a.Width();
    const DeviceVector d_a(a.GetData());
@@ -4021,7 +4020,6 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
       mfem_error("AddMult_a_VVt(...)");
    }
 #endif
-   //kernels::densemat::AddMult_a_VVt(n, a, v.GetData(), VVt.Height(), VVt.GetData());
    const int height = VVt.Height();
    const DeviceVector d_v(v.GetData());
    DeviceVector d_VVt(VVt.GetData());
