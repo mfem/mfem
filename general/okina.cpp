@@ -32,7 +32,7 @@ int LOG2(int v )
 static uint8_t chk8(const char *bfr)
 {
    uint8_t chk = 0;
-   for (size_t len = strlen(bfr); len; len--,bfr++)
+   for (int len = strlen(bfr); len; len--,bfr++)
    {
       chk += *bfr;
    }
@@ -42,7 +42,7 @@ static uint8_t chk8(const char *bfr)
 // *****************************************************************************
 const char *strrnchr(char const *s, const unsigned char c, int n)
 {
-   size_t len = strlen(s);
+   int len = strlen(s);
    char const *p = s+len-1;
    for (; n; n--,p--,len--)
    {

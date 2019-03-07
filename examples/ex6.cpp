@@ -101,6 +101,9 @@ int main(int argc, char *argv[])
    int elem_batch = (pa) ? mesh.GetNE() : 1;
    if (pa) { mesh.EnsureNodes(); }
    if (cuda) { config::UseCuda(); }
+   if (omp)  { config::UseOmp();  }
+   if (raja) { config::UseRaja(); }
+   if (occa) { config::UseOcca(); }
    config::EnableDevice(0);
 
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
