@@ -23,7 +23,6 @@ namespace plasma
 
 TwoFluidTransportSolver::TwoFluidTransportSolver(ODESolver * implicitSolver,
                                                  ODESolver * explicitSolver,
-                                                 DGParams & dg,
                                                  ParFiniteElementSpace & sfes,
                                                  ParFiniteElementSpace & vfes,
                                                  ParFiniteElementSpace & ffes,
@@ -36,7 +35,6 @@ TwoFluidTransportSolver::TwoFluidTransportSolver(ODESolver * implicitSolver,
                                                  double ion_charge)
    : impSolver_(implicitSolver),
      expSolver_(explicitSolver),
-     dg_(dg),
      sfes_(sfes),
      vfes_(vfes),
      ffes_(ffes),
@@ -59,7 +57,7 @@ TwoFluidTransportSolver::~TwoFluidTransportSolver()
 
 void TwoFluidTransportSolver::initDiffusion()
 {
-   tfDiff_ = new TwoFluidDiffusion(dg_, sfes_, vfes_,
+   tfDiff_ = new TwoFluidDiffusion(sfes_, vfes_,
                                    offsets_, nBV_, uBV_, TBV_,
                                    B_, ion_mass_, ion_charge_);
    impSolver_->Init(*tfDiff_);
@@ -75,8 +73,7 @@ void TwoFluidTransportSolver::Step(Vector &x, double &t, double &dt)
    impSolver_->Step(x, t, dt);
 }
 
-TwoFluidDiffusion::TwoFluidDiffusion(DGParams & dg,
-                                     ParFiniteElementSpace & sfes,
+TwoFluidDiffusion::TwoFluidDiffusion(ParFiniteElementSpace & sfes,
                                      ParFiniteElementSpace & vfes,
                                      Array<int> & offsets,
                                      BlockVector & nBV,
@@ -87,7 +84,6 @@ TwoFluidDiffusion::TwoFluidDiffusion(DGParams & dg,
                                      double ion_charge)
    : TimeDependentOperator(offsets.Last(), 0.0, IMPLICIT),
      dim_(sfes.GetParMesh()->SpaceDimension()),
-     dg_(dg),
      sfes_(sfes),
      vfes_(vfes),
      offsets_(offsets),
@@ -366,10 +362,10 @@ void TwoFluidDiffusion::initBilinearForms()
          a_dpdu_[i]->AddDomainIntegrator(new MassIntegrator(*dpduCoef_[row]));
       }
       a_dpdu_[i]->AddDomainIntegrator(new DiffusionIntegrator(*dtEtaCoef_[i]));
-      a_dpdu_[i]->AddInteriorFaceIntegrator(
-         new DGDiffusionIntegrator(*dtEtaCoef_[i], dg_.sigma, dg_.kappa));
-      a_dpdu_[i]->AddBdrFaceIntegrator(
-         new DGDiffusionIntegrator(*dtEtaCoef_[i], dg_.sigma, dg_.kappa));
+      // a_dpdu_[i]->AddInteriorFaceIntegrator(
+      // new DGDiffusionIntegrator(*dtEtaCoef_[i], dg_.sigma, dg_.kappa));
+      // a_dpdu_[i]->AddBdrFaceIntegrator(
+      // new DGDiffusionIntegrator(*dtEtaCoef_[i], dg_.sigma, dg_.kappa));
    }
 
    stiff_eta_.resize(etaCoef_.size());
@@ -377,10 +373,10 @@ void TwoFluidDiffusion::initBilinearForms()
    {
       stiff_eta_[i] = new ParBilinearForm(&sfes_);
       stiff_eta_[i]->AddDomainIntegrator(new DiffusionIntegrator(*etaCoef_[i]));
-      stiff_eta_[i]->AddInteriorFaceIntegrator(
-         new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
-      stiff_eta_[i]->AddBdrFaceIntegrator(
-         new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
+      // stiff_eta_[i]->AddInteriorFaceIntegrator(
+      //   new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
+      // stiff_eta_[i]->AddBdrFaceIntegrator(
+      //   new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
    }
 
    a_dEdn_.resize(dEdnCoef_.size());
@@ -403,10 +399,10 @@ void TwoFluidDiffusion::initBilinearForms()
       a_dEdT_[i] = new ParBilinearForm(&sfes_);
       a_dEdT_[i]->AddDomainIntegrator(new MassIntegrator(*dEdTCoef_[i]));
       a_dEdT_[i]->AddDomainIntegrator(new DiffusionIntegrator(*dtChiCoef_[i]));
-      a_dEdT_[i]->AddInteriorFaceIntegrator(
-         new DGDiffusionIntegrator(*dtChiCoef_[i], dg_.sigma, dg_.kappa));
-      a_dEdT_[i]->AddBdrFaceIntegrator(
-         new DGDiffusionIntegrator(*dtChiCoef_[i], dg_.sigma, dg_.kappa));
+      // a_dEdT_[i]->AddInteriorFaceIntegrator(
+      //    new DGDiffusionIntegrator(*dtChiCoef_[i], dg_.sigma, dg_.kappa));
+      // a_dEdT_[i]->AddBdrFaceIntegrator(
+      //    new DGDiffusionIntegrator(*dtChiCoef_[i], dg_.sigma, dg_.kappa));
    }
 
    stiff_chi_.resize(chiCoef_.size());
@@ -414,10 +410,10 @@ void TwoFluidDiffusion::initBilinearForms()
    {
       stiff_chi_[i] = new ParBilinearForm(&sfes_);
       stiff_chi_[i]->AddDomainIntegrator(new DiffusionIntegrator(*chiCoef_[i]));
-      stiff_chi_[i]->AddInteriorFaceIntegrator(
-         new DGDiffusionIntegrator(*chiCoef_[i], dg_.sigma, dg_.kappa));
-      stiff_chi_[i]->AddBdrFaceIntegrator(
-         new DGDiffusionIntegrator(*chiCoef_[i], dg_.sigma, dg_.kappa));
+      // stiff_chi_[i]->AddInteriorFaceIntegrator(
+      //    new DGDiffusionIntegrator(*chiCoef_[i], dg_.sigma, dg_.kappa));
+      // stiff_chi_[i]->AddBdrFaceIntegrator(
+      //    new DGDiffusionIntegrator(*chiCoef_[i], dg_.sigma, dg_.kappa));
    }
 }
 
@@ -626,18 +622,14 @@ void TwoFluidDiffusion::ImplicitSolve(const double dt,
 
    gmres_.Mult(block_rhs_, y);
 }
-
+  /*
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
                            ParFiniteElementSpace &dfes,
                            ParFiniteElementSpace &vfes,
-                           MatrixCoefficient & nuCoef,
-                           double dg_sigma,
-                           double dg_kappa)
+                           MatrixCoefficient & nuCoef)
    : TimeDependentOperator(vfes.GetTrueVSize()),
      dim_(vfes.GetFE(0)->GetDim()),
      dt_(0.0),
-     dg_sigma_(dg_sigma),
-     dg_kappa_(dg_kappa),
      fes_(fes),
      dfes_(dfes),
      vfes_(vfes),
@@ -741,7 +733,7 @@ void DiffusionTDO::initSolver(double dt)
 
    }
 }
-
+  */
 // Implementation of class FE_Evolution
 AdvectionTDO::AdvectionTDO(ParFiniteElementSpace &vfes,
                            Operator &A, SparseMatrix &Aflux, int num_equation,

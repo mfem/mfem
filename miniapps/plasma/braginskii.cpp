@@ -298,10 +298,6 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int vis_steps = 50;
 
-   DGParams dg;
-   dg.sigma = -1.0;
-   dg.kappa = -1.0;
-
    // double ion_charge = 0.0;
    // double ion_mass = 0.0;
 
@@ -345,12 +341,6 @@ int main(int argc, char *argv[])
                   "exceeds dttol.");
    args.AddOption(&cfl, "-c", "--cfl-number",
                   "CFL number for timestep calculation.");
-   args.AddOption(&dg.sigma, "-dgs", "--dg-sigma",
-                  "One of the two DG penalty parameters, typically +1/-1."
-                  " See the documentation of class DGDiffusionIntegrator.");
-   args.AddOption(&dg.kappa, "-dgk", "--dg-kappa",
-                  "One of the two DG penalty parameters, should be positive."
-                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&ion_charge_, "-qi", "--ion-charge",
                   "Charge of the ion species "
                   "(in units of electron charge)");
@@ -387,10 +377,6 @@ int main(int argc, char *argv[])
       ode_imp_solver_type = ode_split_solver_type;
    }
 
-   if (dg.kappa < 0.0)
-   {
-      dg.kappa = (double)(order+1)*(order+1);
-   }
    /*
    ion_charges_.SetSize(1);
    ion_masses_.SetSize(1);
@@ -483,9 +469,9 @@ int main(int argc, char *argv[])
       pmesh.UniformRefinement();
    }
 
-   // 7. Define the discontinuous DG finite element space of the given
-   //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim);
+   // 7. Define the continuous H1 finite element space of the given
+   //    polynomial order and the refined mesh.
+   H1_FECollection fec(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace sfes(&pmesh, &fec);
    // Finite element space for a mesh-dim vector quantity (momentum)
@@ -612,7 +598,7 @@ int main(int argc, char *argv[])
    DiffusionTDO diff(fes, dfes, vfes, nuCoef, dg_sigma_, dg_kappa_);
    */
    TwoFluidTransportSolver transp(ode_imp_solver, ode_exp_solver,
-                                  dg, sfes, vfes, ffes,
+                                  sfes, vfes, ffes,
                                   offsets, n_block, u_block, T_block,
                                   B, ion_mass_, ion_charge_);
 
@@ -810,8 +796,8 @@ int main(int argc, char *argv[])
    */
    double t = 0.0;
 
-   transp.Step(x_block, t, dt);
-
+   // transp.Step(x_block, t, dt);
+   transp.Run(x_block, t, dt, t_final);
 
    if (visualization)
    {

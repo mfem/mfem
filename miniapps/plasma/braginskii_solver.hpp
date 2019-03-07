@@ -23,12 +23,6 @@ namespace mfem
 namespace plasma
 {
 
-struct DGParams
-{
-   double sigma;
-   double kappa;
-};
-
 class TwoFluidDiffusion;
 class TwoFluidAdvection;
 
@@ -37,8 +31,6 @@ class TwoFluidTransportSolver : public ODESolver
 private:
    ODESolver * impSolver_;
    ODESolver * expSolver_;
-
-   DGParams & dg_;
 
    ParFiniteElementSpace & sfes_; // Scalar fields
    ParFiniteElementSpace & vfes_; // Vector fields
@@ -61,7 +53,6 @@ private:
 public:
    TwoFluidTransportSolver(ODESolver * implicitSolver,
                            ODESolver * explicitSolver,
-                           DGParams & dg,
                            ParFiniteElementSpace & sfes,
                            ParFiniteElementSpace & vfes,
                            ParFiniteElementSpace & ffes,
@@ -83,8 +74,6 @@ class TwoFluidDiffusion : public TimeDependentOperator
 {
 private:
    int dim_;
-
-   DGParams & dg_;
 
    ParFiniteElementSpace &sfes_;
    ParFiniteElementSpace &vfes_;
@@ -157,8 +146,7 @@ private:
    void setTimeStep(double dt);
 
 public:
-   TwoFluidDiffusion(DGParams & dg,
-                     ParFiniteElementSpace & sfes,
+   TwoFluidDiffusion(ParFiniteElementSpace & sfes,
                      ParFiniteElementSpace & vfes,
                      Array<int> & offsets,
                      BlockVector & nBV,
@@ -185,8 +173,6 @@ class DiffusionTDO : public TimeDependentOperator
 private:
    const int dim_;
    double dt_;
-   double dg_sigma_;
-   double dg_kappa_;
 
    ParFiniteElementSpace &fes_;
    ParFiniteElementSpace &dfes_;
@@ -216,9 +202,7 @@ public:
    DiffusionTDO(ParFiniteElementSpace &fes,
                 ParFiniteElementSpace &dfes,
                 ParFiniteElementSpace &_vfes,
-                MatrixCoefficient & nuCoef,
-                double dg_sigma,
-                double dg_kappa);
+                MatrixCoefficient & nuCoef);
 
    // virtual void Mult(const Vector &x, Vector &y) const;
 
