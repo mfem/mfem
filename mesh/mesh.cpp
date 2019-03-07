@@ -33,6 +33,7 @@
 
 // METIS 4 prototypes
 #if defined(MFEM_USE_METIS) && !defined(MFEM_USE_METIS_5)
+typedef int idx_t;
 typedef int idxtype;
 extern "C" {
    void METIS_PartGraphRecursive(int*, idxtype*, idxtype*, idxtype*, idxtype*,
@@ -1284,17 +1285,14 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 
 
 #ifdef MFEM_USE_GECKO
-void Mesh::GetGeckoElementReordering(Array<int> &ordering)
+void Mesh::GetGeckoElementReordering(Array<int> &ordering,
+                                     int iterations, int window,
+                                     int period, int seed)
 {
    Gecko::Graph graph;
 
-   // We will put some accesors in for these later
    Gecko::Functional *functional =
       new Gecko::FunctionalGeometric(); // ordering functional
-   unsigned int iterations = 1;         // number of V cycles
-   unsigned int window = 2;             // initial window size
-   unsigned int period = 1;             // iterations between window increment
-   unsigned int seed = 0;               // random number seed
 
    // Run through all the elements and insert the nodes in the graph for them
    for (int elemid = 0; elemid < GetNE(); ++elemid)
@@ -2115,7 +2113,8 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
 }
 
 void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
-                  int generate_edges, double sx, double sy, double sz)
+                  double sx, double sy, double sz,
+                  bool generate_edges, bool sfc_ordering)
 {
    int x, y, z;
 
@@ -2158,31 +2157,58 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
 #define VTX(XC, YC, ZC) ((XC)+((YC)+(ZC)*(ny+1))*(nx+1))
 
    // Sets elements and the corresponding indices of vertices
-   for (z = 0; z < nz; z++)
+   if (sfc_ordering && type == Element::HEXAHEDRON)
    {
-      for (y = 0; y < ny; y++)
+      Array<int> sfc;
+      NCMesh::GridSfcOrdering3D(nx, ny, nz, sfc);
+      MFEM_VERIFY(sfc.Size() == 3*nx*ny*nz, "");
+
+      for (int k = 0; k < nx*ny*nz; k++)
       {
-         for (x = 0; x < nx; x++)
+         x = sfc[3*k + 0];
+         y = sfc[3*k + 1];
+         z = sfc[3*k + 2];
+
+         ind[0] = VTX(x  , y  , z  );
+         ind[1] = VTX(x+1, y  , z  );
+         ind[2] = VTX(x+1, y+1, z  );
+         ind[3] = VTX(x  , y+1, z  );
+         ind[4] = VTX(x  , y  , z+1);
+         ind[5] = VTX(x+1, y  , z+1);
+         ind[6] = VTX(x+1, y+1, z+1);
+         ind[7] = VTX(x  , y+1, z+1);
+
+         AddHex(ind, 1);
+      }
+   }
+   else
+   {
+      for (z = 0; z < nz; z++)
+      {
+         for (y = 0; y < ny; y++)
          {
-            ind[0] = VTX(x  , y  , z  );
-            ind[1] = VTX(x+1, y  , z  );
-            ind[2] = VTX(x+1, y+1, z  );
-            ind[3] = VTX(x  , y+1, z  );
-            ind[4] = VTX(x  , y  , z+1);
-            ind[5] = VTX(x+1, y  , z+1);
-            ind[6] = VTX(x+1, y+1, z+1);
-            ind[7] = VTX(x  , y+1, z+1);
-            if (type == Element::TETRAHEDRON)
+            for (x = 0; x < nx; x++)
             {
-               AddHexAsTets(ind, 1);
-            }
-            else if (type == Element::WEDGE)
-            {
-               AddHexAsWedges(ind, 1);
-            }
-            else
-            {
-               AddHex(ind, 1);
+               ind[0] = VTX(x  , y  , z  );
+               ind[1] = VTX(x+1, y  , z  );
+               ind[2] = VTX(x+1, y+1, z  );
+               ind[3] = VTX(x  , y+1, z  );
+               ind[4] = VTX(x  , y  , z+1);
+               ind[5] = VTX(x+1, y  , z+1);
+               ind[6] = VTX(x+1, y+1, z+1);
+               ind[7] = VTX(x  , y+1, z+1);
+               if (type == Element::TETRAHEDRON)
+               {
+                  AddHexAsTets(ind, 1);
+               }
+               else if (type == Element::WEDGE)
+               {
+                  AddHexAsWedges(ind, 1);
+               }
+               else
+               {
+                  AddHex(ind, 1);
+               }
             }
          }
       }
@@ -2191,6 +2217,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    // Sets boundary elements and the corresponding indices of vertices
    // bottom, bdr. attribute 1
    for (y = 0; y < ny; y++)
+   {
       for (x = 0; x < nx; x++)
       {
          ind[0] = VTX(x  , y  , 0);
@@ -2210,8 +2237,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 1);
          }
       }
+   }
    // top, bdr. attribute 6
    for (y = 0; y < ny; y++)
+   {
       for (x = 0; x < nx; x++)
       {
          ind[0] = VTX(x  , y  , nz);
@@ -2231,8 +2260,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 6);
          }
       }
+   }
    // left, bdr. attribute 5
    for (z = 0; z < nz; z++)
+   {
       for (y = 0; y < ny; y++)
       {
          ind[0] = VTX(0  , y  , z  );
@@ -2248,8 +2279,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 5);
          }
       }
+   }
    // right, bdr. attribute 3
    for (z = 0; z < nz; z++)
+   {
       for (y = 0; y < ny; y++)
       {
          ind[0] = VTX(nx, y  , z  );
@@ -2265,8 +2298,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 3);
          }
       }
+   }
    // front, bdr. attribute 2
    for (x = 0; x < nx; x++)
+   {
       for (z = 0; z < nz; z++)
       {
          ind[0] = VTX(x  , 0, z  );
@@ -2282,8 +2317,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 2);
          }
       }
+   }
    // back, bdr. attribute 4
    for (x = 0; x < nx; x++)
+   {
       for (z = 0; z < nz; z++)
       {
          ind[0] = VTX(x  , ny, z  );
@@ -2299,6 +2336,9 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 4);
          }
       }
+   }
+
+#undef VTX
 
 #if 0
    ofstream test_stream("debug.mesh");
@@ -2311,8 +2351,9 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    // Finalize(...) can be called after this method, if needed
 }
 
-void Mesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
-                  double sx, double sy)
+void Mesh::Make2D(int nx, int ny, Element::Type type,
+                  double sx, double sy,
+                  bool generate_edges, bool sfc_ordering)
 {
    int i, j, k;
 
@@ -2349,17 +2390,37 @@ void Mesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
       }
 
       // Sets elements and the corresponding indices of vertices
-      k = 0;
-      for (j = 0; j < ny; j++)
+      if (sfc_ordering)
       {
-         for (i = 0; i < nx; i++)
+         Array<int> sfc;
+         NCMesh::GridSfcOrdering2D(nx, ny, sfc);
+         MFEM_VERIFY(sfc.Size() == 2*nx*ny, "");
+
+         for (k = 0; k < nx*ny; k++)
          {
+            i = sfc[2*k + 0];
+            j = sfc[2*k + 1];
             ind[0] = i + j*(nx+1);
             ind[1] = i + 1 +j*(nx+1);
             ind[2] = i + 1 + (j+1)*(nx+1);
             ind[3] = i + (j+1)*(nx+1);
             elements[k] = new Quadrilateral(ind);
-            k++;
+         }
+      }
+      else
+      {
+         k = 0;
+         for (j = 0; j < ny; j++)
+         {
+            for (i = 0; i < nx; i++)
+            {
+               ind[0] = i + j*(nx+1);
+               ind[1] = i + 1 +j*(nx+1);
+               ind[2] = i + 1 + (j+1)*(nx+1);
+               ind[3] = i + (j+1)*(nx+1);
+               elements[k] = new Quadrilateral(ind);
+               k++;
+            }
          }
       }
 
@@ -4899,21 +4960,42 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
    }
    else
    {
-      int *I, *J, n;
+      idx_t *I, *J, n;
 #ifndef MFEM_USE_METIS_5
-      int wgtflag = 0;
-      int numflag = 0;
-      int options[5];
+      idx_t wgtflag = 0;
+      idx_t numflag = 0;
+      idx_t options[5];
 #else
-      int ncon = 1;
-      int err;
-      int options[40];
+      idx_t ncon = 1;
+      idx_t err;
+      idx_t options[40];
 #endif
-      int edgecut;
+      idx_t edgecut;
+
+      // In case METIS have been compiled with 64bit indices
+      bool freedata = false;
+      idx_t mparts = (idx_t) nparts;
+      idx_t *mpartitioning;
 
       n = NumOfElements;
-      I = el_to_el->GetI();
-      J = el_to_el->GetJ();
+      if (sizeof(idx_t) == sizeof(int))
+      {
+         I = (idx_t*) el_to_el->GetI();
+         J = (idx_t*) el_to_el->GetJ();
+         mpartitioning = (idx_t*) partitioning;
+      }
+      else
+      {
+         int *iI = el_to_el->GetI();
+         int *iJ = el_to_el->GetJ();
+         int m = iI[n];
+         I = new idx_t[n+1];
+         J = new idx_t[m];
+         for (int k = 0; k < n+1; k++) { I[k] = iI[k]; }
+         for (int k = 0; k < m; k++) { J[k] = iJ[k]; }
+         mpartitioning = new idx_t[n];
+         freedata = true;
+      }
 #ifndef MFEM_USE_METIS_5
       options[0] = 0;
 #else
@@ -4930,7 +5012,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
             // std::sort(J+I[i], J+I[i+1]);
 
             // Sort in decreasing order, as in previous versions of MFEM.
-            std::sort(J+I[i], J+I[i+1], std::greater<int>());
+            std::sort(J+I[i], J+I[i+1], std::greater<idx_t>());
          }
       }
 
@@ -4940,30 +5022,30 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       {
 #ifndef MFEM_USE_METIS_5
          METIS_PartGraphRecursive(&n,
-                                  (idxtype *) I,
-                                  (idxtype *) J,
-                                  (idxtype *) NULL,
-                                  (idxtype *) NULL,
+                                  I,
+                                  J,
+                                  NULL,
+                                  NULL,
                                   &wgtflag,
                                   &numflag,
-                                  &nparts,
+                                  &mparts,
                                   options,
                                   &edgecut,
-                                  (idxtype *) partitioning);
+                                  mpartitioning);
 #else
          err = METIS_PartGraphRecursive(&n,
                                         &ncon,
                                         I,
                                         J,
-                                        (idx_t *) NULL,
-                                        (idx_t *) NULL,
-                                        (idx_t *) NULL,
-                                        &nparts,
-                                        (real_t *) NULL,
-                                        (real_t *) NULL,
+                                        NULL,
+                                        NULL,
+                                        NULL,
+                                        &mparts,
+                                        NULL,
+                                        NULL,
                                         options,
                                         &edgecut,
-                                        partitioning);
+                                        mpartitioning);
          if (err != 1)
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphRecursive!");
@@ -4976,30 +5058,30 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       {
 #ifndef MFEM_USE_METIS_5
          METIS_PartGraphKway(&n,
-                             (idxtype *) I,
-                             (idxtype *) J,
-                             (idxtype *) NULL,
-                             (idxtype *) NULL,
+                             I,
+                             J,
+                             NULL,
+                             NULL,
                              &wgtflag,
                              &numflag,
-                             &nparts,
+                             &mparts,
                              options,
                              &edgecut,
-                             (idxtype *) partitioning);
+                             mpartitioning);
 #else
          err = METIS_PartGraphKway(&n,
                                    &ncon,
                                    I,
                                    J,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   &nparts,
-                                   (real_t *) NULL,
-                                   (real_t *) NULL,
+                                   NULL,
+                                   NULL,
+                                   NULL,
+                                   &mparts,
+                                   NULL,
+                                   NULL,
                                    options,
                                    &edgecut,
-                                   partitioning);
+                                   mpartitioning);
          if (err != 1)
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
@@ -5012,31 +5094,31 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       {
 #ifndef MFEM_USE_METIS_5
          METIS_PartGraphVKway(&n,
-                              (idxtype *) I,
-                              (idxtype *) J,
-                              (idxtype *) NULL,
-                              (idxtype *) NULL,
+                              I,
+                              J,
+                              NULL,
+                              NULL,
                               &wgtflag,
                               &numflag,
-                              &nparts,
+                              &mparts,
                               options,
                               &edgecut,
-                              (idxtype *) partitioning);
+                              mpartitioning);
 #else
          options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_VOL;
          err = METIS_PartGraphKway(&n,
                                    &ncon,
                                    I,
                                    J,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   (idx_t *) NULL,
-                                   &nparts,
-                                   (real_t *) NULL,
-                                   (real_t *) NULL,
+                                   NULL,
+                                   NULL,
+                                   NULL,
+                                   &mparts,
+                                   NULL,
+                                   NULL,
                                    options,
                                    &edgecut,
-                                   partitioning);
+                                   mpartitioning);
          if (err != 1)
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
@@ -5047,6 +5129,17 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       mfem::out << "Mesh::GeneratePartitioning(...): edgecut = "
                 << edgecut << endl;
 #endif
+      nparts = (int) mparts;
+      if (mpartitioning != (idx_t*)partitioning)
+      {
+         for (int k = 0; k<NumOfElements; k++) { partitioning[k] = mpartitioning[k]; }
+      }
+      if (freedata)
+      {
+         delete[] I;
+         delete[] J;
+         delete[] mpartitioning;
+      }
    }
 
    if (el_to_el)
