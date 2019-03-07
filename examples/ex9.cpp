@@ -757,7 +757,7 @@ public:
             // Element contributions //
             ///////////////////////////
             BilinearForm prec(fes);
-            prec.AddDomainIntegrator(new PrecondConvectionIntegrator(coef, -1.0));
+            prec.AddDomainIntegrator(new PrecondConvectionIntegrator(coef));
             prec.Assemble(0);
             prec.Finalize(0);
             
@@ -770,7 +770,7 @@ public:
                //       They are includef in the global matrix fluctMatrix.
                BilinearForm VolumeTerms(fes);
                // altered sign of alpha in order to be able to add matrices later
-               VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef, 1.0));
+               VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
                VolumeTerms.Assemble(0);
                VolumeTerms.Finalize(0);
             
@@ -847,13 +847,13 @@ public:
             FillSubcell2CellDof(p, dim);
             
             BilinearForm VolumeTerms(fes);
-            VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
+            VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef));
             VolumeTerms.Assemble();
             VolumeTerms.Finalize();
             fluctMatrix = VolumeTerms.SpMat();
             
             BilinearFormIntegrator *fluct;
-            fluct = new ConvectionIntegrator(coef, -1.0);
+            fluct = new ConvectionIntegrator(coef);
             fluctSub.SetSize(ne*numSubcells, numDofsSubcell*numDofsSubcell);
             elmat.SetSize(numDofsSubcell,numDofsSubcell);
             
@@ -1112,10 +1112,10 @@ public:
       const IntegrationRule *irF = GetFaceIntRule(fes);
 
       BilinearFormIntegrator *fluct;
-      fluct = new MixedConvectionIntegrator(coef, -1.0);
+      fluct = new MixedConvectionIntegrator(coef);
 
       BilinearForm VolumeTerms(fes);
-      VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
+      VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef));
       VolumeTerms.Assemble();
       VolumeTerms.Finalize();
       fluctMatrix = VolumeTerms.SpMat(); // TODO repeating
