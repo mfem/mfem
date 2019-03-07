@@ -1324,7 +1324,7 @@ void TwoFluidDiffusion::initSolver()
    block_A_.SetDiagonalBlock(2 * (dim_ + 1) + 1, a_dEdT_[1]->ParallelAssemble());
 
    block_A_.owns_blocks = 1;
-
+   /*
    {
       HypreParMatrix * hyp = NULL;
       for (int i=0; i<block_A_.NumRowBlocks(); i++)
@@ -1343,6 +1343,12 @@ void TwoFluidDiffusion::initSolver()
          }
       }
    }
+   */
+   for (int i=0; i<block_A_.NumRowBlocks(); i++)
+   {
+      block_amg_.SetDiagonalBlock(i, &block_A_.GetBlock(i,i));
+   }
+   block_amg_.owns_blocks = 0;
 
    gmres_.SetAbsTol(0.0);
    gmres_.SetRelTol(1e-12);
@@ -1350,7 +1356,7 @@ void TwoFluidDiffusion::initSolver()
    gmres_.SetKDim(10);
    gmres_.SetPrintLevel(1);
    gmres_.SetOperator(block_A_);
-   // gmres_.SetPreconditioner(block_amg_);
+   gmres_.SetPreconditioner(block_amg_);
 }
 
 void TwoFluidDiffusion::Update()
