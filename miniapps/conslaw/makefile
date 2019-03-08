@@ -34,7 +34,7 @@ all: $(LIB) $(APPS)
 
 # Build all the apps (the library is a dependency)
 $(APPS): $(APP_DIR)/%: $(BUILD_DIR)/$(APP_DIR)/%.o $(LIB)
-	$(MFEM_CXX) $(LFLGAS) -L$(LIB_DIR) -l$(LIB_NAME) -o $@ $<
+	$(MFEM_CXX) $< $(LFLGAS) -L$(LIB_DIR) -l$(LIB_NAME) -o $@
 
 $(BUILD_DIR)/$(APP_DIR)/%.o: makefile | $(BUILD_DIR)
 	$(MFEM_CXX) -c $(CXXFLAGS) $(INCFLAGS) -o $@ $(APP_DIR)/$*.cpp
