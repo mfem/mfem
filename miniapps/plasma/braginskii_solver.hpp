@@ -37,6 +37,7 @@ private:
    ParFiniteElementSpace & ffes_; // Full system
 
    Array<int>  & offsets_;
+   Array<int>  & toffsets_;
    BlockVector & nBV_;
    BlockVector & uBV_;
    BlockVector & TBV_;
@@ -57,6 +58,7 @@ public:
                            ParFiniteElementSpace & vfes,
                            ParFiniteElementSpace & ffes,
                            Array<int> & offsets,
+                           Array<int> & toffsets,
                            BlockVector & nBV,
                            BlockVector & uBV,
                            BlockVector & TBV,
@@ -79,6 +81,7 @@ private:
    ParFiniteElementSpace &vfes_;
 
    Array<int>  & offsets_;
+   Array<int>  & toffsets_;
    BlockVector & nBV_;
    BlockVector & uBV_;
    BlockVector & TBV_;
@@ -131,6 +134,8 @@ private:
    BlockOperator block_A_;
    BlockOperator block_B_;
    BlockVector block_rhs_;
+   BlockVector block_RHS_;
+   BlockVector block_dXdt_;
    BlockDiagonalPreconditioner block_amg_;
    std::vector<HypreSolver *> amg_;
 
@@ -149,6 +154,7 @@ public:
    TwoFluidDiffusion(ParFiniteElementSpace & sfes,
                      ParFiniteElementSpace & vfes,
                      Array<int> & offsets,
+                     Array<int> & toffsets,
                      BlockVector & nBV,
                      BlockVector & uBV,
                      BlockVector & TBV,

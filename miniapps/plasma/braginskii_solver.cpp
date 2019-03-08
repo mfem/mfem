@@ -27,6 +27,7 @@ TwoFluidTransportSolver::TwoFluidTransportSolver(ODESolver * implicitSolver,
                                                  ParFiniteElementSpace & vfes,
                                                  ParFiniteElementSpace & ffes,
                                                  Array<int> & offsets,
+                                                 Array<int> & toffsets,
                                                  BlockVector & nBV,
                                                  BlockVector & uBV,
                                                  BlockVector & TBV,
@@ -39,6 +40,7 @@ TwoFluidTransportSolver::TwoFluidTransportSolver(ODESolver * implicitSolver,
      vfes_(vfes),
      ffes_(ffes),
      offsets_(offsets),
+     toffsets_(toffsets),
      nBV_(nBV),
      uBV_(uBV),
      TBV_(TBV),
@@ -58,7 +60,7 @@ TwoFluidTransportSolver::~TwoFluidTransportSolver()
 void TwoFluidTransportSolver::initDiffusion()
 {
    tfDiff_ = new TwoFluidDiffusion(sfes_, vfes_,
-                                   offsets_, nBV_, uBV_, TBV_,
+                                   offsets_, toffsets_, nBV_, uBV_, TBV_,
                                    B_, ion_mass_, ion_charge_);
    impSolver_->Init(*tfDiff_);
 }
@@ -76,6 +78,7 @@ void TwoFluidTransportSolver::Step(Vector &x, double &t, double &dt)
 TwoFluidDiffusion::TwoFluidDiffusion(ParFiniteElementSpace & sfes,
                                      ParFiniteElementSpace & vfes,
                                      Array<int> & offsets,
+                                     Array<int> & toffsets,
                                      BlockVector & nBV,
                                      BlockVector & uBV,
                                      BlockVector & TBV,
@@ -87,16 +90,19 @@ TwoFluidDiffusion::TwoFluidDiffusion(ParFiniteElementSpace & sfes,
      sfes_(sfes),
      vfes_(vfes),
      offsets_(offsets),
+     toffsets_(toffsets),
      nBV_(nBV),
      uBV_(uBV),
      TBV_(TBV),
      B_(B),
      ion_mass_(ion_mass),
      ion_charge_(ion_charge),
-     block_A_(offsets_),
+     block_A_(toffsets_),
      block_B_(offsets_),
      block_rhs_(offsets_),
-     block_amg_(offsets_),
+     block_RHS_(toffsets_),
+     block_dXdt_(toffsets_),
+     block_amg_(toffsets_),
      gmres_(sfes.GetComm())
 {
    this->initCoefficients();
@@ -609,7 +615,7 @@ void TwoFluidDiffusion::Update()
 {}
 
 void TwoFluidDiffusion::ImplicitSolve(const double dt,
-                                      const Vector &x, Vector &y)
+                                      const Vector &x, Vector &dxdt)
 {
    this->setTimeStep(dt);
    this->Assemble();
@@ -618,9 +624,25 @@ void TwoFluidDiffusion::ImplicitSolve(const double dt,
    block_B_.Mult(x, block_rhs_);
    block_rhs_ *= -1.0;
 
-   y = 0.0;
+   cout << "Time: " << t << endl;
+   for (int i=0; i<block_rhs_.NumBlocks(); i++)
+   {
+      ParLinearForm rhs(&sfes_, block_rhs_.GetBlock(i));
+      rhs.ParallelAssemble(block_RHS_.GetBlock(i));
 
-   gmres_.Mult(block_rhs_, y);
+      double nrm = rhs.Normlinf();
+      cout << i << " rhs " << nrm << endl;
+   }
+   
+   block_dXdt_ = 0.0;
+
+   gmres_.Mult(block_RHS_, block_dXdt_);
+
+   for (int i=0; i<block_dXdt_.NumBlocks(); i++)
+   {
+      ParGridFunction dxidt(&sfes_, &dxdt[offsets_[i]]);
+      dxidt.SetFromTrueDofs(block_dXdt_.GetBlock(i));
+   }   
 }
   /*
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,

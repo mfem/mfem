@@ -506,9 +506,11 @@ int main(int argc, char *argv[])
    // y-velocity, temperature} for each species (species loop is the outermost).
    // These are stored contiguously in the BlockVector u_block.
    Array<int> offsets(num_equations_ + 1);
+   Array<int> toffsets(num_equations_ + 1);
    for (int k = 0; k <= num_equations_; k++)
    {
-      offsets[k] = k * sfes.GetNDofs();
+      offsets[k] = k * sfes.GetVSize();
+      toffsets[k] = k * sfes.GetTrueVSize();
    }
    BlockVector x_block(offsets);
 
@@ -599,7 +601,7 @@ int main(int argc, char *argv[])
    */
    TwoFluidTransportSolver transp(ode_imp_solver, ode_exp_solver,
                                   sfes, vfes, ffes,
-                                  offsets, n_block, u_block, T_block,
+                                  offsets, toffsets, n_block, u_block, T_block,
                                   B, ion_mass_, ion_charge_);
 
    // Visualize the density, momentum, and energy
