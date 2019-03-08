@@ -57,8 +57,7 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-enum MONOTYPE { None, DiscUpw, DiscUpw_FCT, Rusanov, Rusanov_FCT, ResDist, ResDist_FCT, ResDist_Lim, ResDist_LimMass };
-enum STENCIL  { VertexBased, FromSparsity, Local, LocalAndDiag };
+enum MONOTYPE { None, DiscUpw, DiscUpw_FCT, ResDist, ResDist_FCT };
 
 
 // Utility function to build a map to the offset of the symmetric entry in a sparse matrix
@@ -127,58 +126,20 @@ class SolutionBounds
    Mesh* mesh;
    FiniteElementSpace* fes;
 
-   STENCIL stencil;
-
-   // metadata for computing local bounds
-
-   // Info for all dofs, including ones on face-neighbor cells.
-   mutable DenseMatrix DOFs_coord;                   // size #dofs
-
 public:
 
-   // Map to compute localized bounds on unstructured grids.
-   // NOTE: If stencil==VertexBased, then for each dof the elements containing that vertex are stored.
-   // Otherwise, for each dof index we have a vector of neighbor dof indices.
+   // For each dof the elements containing that vertex are stored.
    mutable std::map<int, std::vector<int> > map_for_bounds;
 
    Vector x_min;
    Vector x_max;
 
-   SolutionBounds(FiniteElementSpace* _fes, const BilinearForm& K,
-                  STENCIL _stencil)
+   SolutionBounds(FiniteElementSpace* _fes, const BilinearForm& K)
    {
       fes = _fes;
       mesh = fes->GetMesh();
-      stencil = _stencil;
 
-      if (stencil == VertexBased) { GetVertexBoundsMap(); }
-      else if (stencil > 1) { GetBoundsMap(fes, K); }
-   }
-
-   void Compute(const SparseMatrix &K, const Vector &x)
-   {
-      x_min.SetSize(x.Size());
-      x_max.SetSize(x.Size());
-
-      switch (stencil)
-      {
-         case 0:
-         {
-            ComputeVertexBounds(x);
-            break;
-         }
-         case 1:
-         {
-            ComputeFromSparsity(K, x);
-            break;
-         }
-         case 2:
-         case 3:
-            ComputeLocalBounds(x);
-            break;
-         default:
-            mfem_error("Unsupported stencil.");
-      }
+      GetVertexBoundsMap();
    }
 
    // NOTE: Optimizations possible, combine this with low and high order methods.
@@ -187,6 +148,9 @@ public:
       int i, j, k, nd, dofInd, ne = mesh->GetNE();
       Vector xMax, xMin;
       xMax.SetSize(ne); xMin.SetSize(ne);
+      
+      x_min.SetSize(x.Size());
+      x_max.SetSize(x.Size());
       
       for (k = 0; k < ne; k++)
       {
@@ -218,56 +182,6 @@ public:
                x_min(dofInd) = min(x_min(dofInd), xMin(map_for_bounds[dofInd][i]));
             }
          }
-      }
-   }
-   
-   void ComputeFromSparsity(const SparseMatrix& K, const Vector& x)
-   {
-      const int *I = K.GetI(), *J = K.GetJ(), size = K.Size();
-
-      for (int i = 0, k = 0; i < size; i++)
-      {
-         double x_i_min = numeric_limits<double>::infinity();
-         double x_i_max = -x_i_min;
-         for (int end = I[i+1]; k < end; k++)
-         {
-            double x_j = x(J[k]);
-
-            if (x_j > x_i_max)
-            {
-               x_i_max = x_j;
-            }
-            if (x_j < x_i_min)
-            {
-               x_i_min = x_j;
-            }
-         }
-         x_min(i) = x_i_min;
-         x_max(i) = x_i_max;
-      }
-   }
-
-   // Computation of localized bounds.
-   void ComputeLocalBounds(const Vector &x)
-   {
-      const int size = x.Size();
-      //const Vector &x_nd = x.FaceNbrData(); // for parallel
-
-      for (int i = 0; i < size; i++)
-      {
-         double x_i_min = +numeric_limits<double>::infinity();
-         double x_i_max = -x_i_min;
-         for (int j = 0; j < (int)map_for_bounds[i].size(); j++)
-         {
-            const int dof_id = map_for_bounds[i][j];
-            double x_j = x(map_for_bounds[i][j]);
-            // const double x_j = (dof_id < size) ? x(map_for_bounds[i][j])
-            //                                : x_nd(dof_id - size); // for parallel
-            if (x_j > x_i_max) { x_i_max = x_j; }
-            if (x_j < x_i_min) { x_i_min = x_j; }
-         }
-         x_min(i) = x_i_min;
-         x_max(i) = x_i_max;
       }
    }
 
@@ -477,287 +391,6 @@ private:
          }
       }
    }
-
-   double distance_(const IntegrationPoint &a, const IntegrationPoint &b)
-   {
-      return sqrt((a.x - b.x) * (a.x - b.x) +
-                  (a.y - b.y) * (a.y - b.y) +
-                  (a.z - b.z) * (a.z - b.z));
-   }
-
-   double Distance(const int dof1, const int dof2) const
-   {
-      const int dim = fes->GetMesh()->Dimension();
-
-      if (dim==1)
-      {
-         return abs(DOFs_coord(0, dof1) - DOFs_coord(0, dof2));
-      }
-      else if (dim==2)
-      {
-         const double d1 = DOFs_coord(0, dof1) - DOFs_coord(0, dof2),
-                      d2 = DOFs_coord(1, dof1) - DOFs_coord(1, dof2);
-         return sqrt(d1*d1 + d2*d2);
-      }
-      else
-      {
-         const double d1 = DOFs_coord(0, dof1) - DOFs_coord(0, dof2),
-                      d2 = DOFs_coord(1, dof1) - DOFs_coord(1, dof2),
-                      d3 = DOFs_coord(2, dof1) - DOFs_coord(2, dof2);
-         return sqrt(d1*d1 + d2*d2 + d3*d3);
-      }
-   }
-
-   // Fills DOFs_coord
-   void ComputeCoordinates(FiniteElementSpace *fes)
-   {
-      const int dim = fes->GetMesh()->Dimension();
-      const int num_cells = fes->GetNE();
-      const int NDOFs     = fes->GetVSize();
-      DOFs_coord.SetSize(dim, NDOFs);
-      // DOFs_coord.SetSize(dim, NDOFs + fes->num_face_nbr_dofs); // for parallel
-
-      Array<int> ldofs;
-      DenseMatrix physical_coord;
-
-      // Cells for the current process.
-      for (int i = 0; i < num_cells; i++)
-      {
-         const IntegrationRule &ir = fes->GetFE(i)->GetNodes();
-         ElementTransformation *el_trans = fes->GetElementTransformation(i);
-
-         el_trans->Transform(ir, physical_coord);
-         fes->GetElementDofs(i, ldofs);
-
-         for (int j = 0; j < ldofs.Size(); j++)
-         {
-            for (int d = 0; d < dim; d++)
-            {
-               DOFs_coord(d, ldofs[j]) = physical_coord(d, j);
-            }
-         }
-      }
-
-      // Face-neighbor cells.
-      /* for parallel
-      IsoparametricTransformation el_trans;
-      for (int i = 0; i < fes->GetMesh()->face_nbr_elements.Size(); i++)
-      {
-         const IntegrationRule &ir = fes->GetFaceNbrFE(i)->GetNodes();
-         fes->GetMesh()->GetFaceNbrElementTransformation(i, &el_trans);
-
-         el_trans.Transform(ir, physical_coord);
-         fes->GetFaceNbrElementVDofs(i, ldofs);
-
-         for (int j = 0; j < ldofs.Size(); j++)
-         {
-            ldofs[j] += NDOFs;
-
-            for (int d = 0; d < dim; ++d)
-            {
-               DOFs_coord(d, ldofs[j]) = physical_coord(d, j);
-            }
-         }
-      } */
-   }
-
-   // Fills map_for_bounds
-   void GetBoundsMap(FiniteElementSpace *fes, const BilinearForm &K)
-   {
-      ComputeCoordinates(fes);
-
-      int num_cells = fes->GetMesh()->GetNE();
-      int NDOFs     = fes->GetVSize();
-      double dist_level, dist = 0;
-      const double tol = 1.e-10;
-      Array<int> ldofs;
-      Array<int> ldofs_external;
-      const int *I = K.SpMat().GetI(), *J = K.SpMat().GetJ();
-
-      // use the first mesh element as indicator
-      switch (stencil)
-      {
-         case 2:
-            // hk at ref element with some tolerance
-            dist_level = 1.0 / fes->GetOrder(0) + tol;
-            break;
-         case 3:
-            // Include the diagonal neighbors, use the first mesh element as indicator
-            // modified by Hennes, this should be larger than sqrt(3) to support 3D
-            dist_level = 1.8 / fes->GetOrder(0) + tol;
-            break;
-         default:
-            mfem_error("Unsupported stencil.");
-      }
-
-      // what is the sense of this? I replaced boundsmap with map_for_bounds
-      //std::map< int, std::vector<int> > &boundsmap = F.init_state.map_for_bounds;
-
-      const FiniteElement *fe_external;
-
-      for (int k = 0; k < num_cells; k++)
-      {
-         fes->GetElementDofs(k, ldofs);
-         const FiniteElement &fe = *fes->GetFE(k);
-         int n_dofs = fe.GetDof();
-         const IntegrationRule &ir = fe.GetNodes();
-
-         // Use for debugging.
-#define DOF_ID -1
-
-         // Fill map_for_bounds for each dof within the cell.
-         for (int i = 0; i < n_dofs; i++)
-         {
-            //////////////////////
-            // ADD INTERNAL DOF //
-            //////////////////////
-            // For the cell where ith-DOF lives look for DOFs within dist(1).
-            // This distance has to be on the reference element
-            for (int j = 0; j < n_dofs; j++)
-            {
-               if (distance_(ir.IntPoint(i), ir.IntPoint(j)) <= dist_level)
-               {
-                  map_for_bounds[ldofs[i]].push_back(ldofs[j]);
-               }
-            }
-            if (ldofs[i] == DOF_ID)
-            {
-               for (int j = 0; j < (int)map_for_bounds[DOF_ID].size(); j++)
-               {
-                  cout << map_for_bounds[DOF_ID][j] << endl;
-               }
-            }
-
-            //////////////////////
-            // ADD EXTERNAL DOF //
-            //////////////////////
-            // There are different sources of external DOF.
-            // 1. If one of the already (internal) included DOFs for the
-            //    ith position is at a "face" then I have to include all external
-            //    DOFs at the face location.
-            // 2. If the ith-DOF is at a "face", then I have to include external
-            //    DOFs within distance from the i-th location.
-            // 3. Periodic BC - points that are at the boundary of the domain or a
-            //    DOF next to it have to consider DOFs on the other end of the
-            //    domain (NOT IMPLEMENTED YET!!!).
-
-            //////////////
-            // SOURCE 1 //
-            //////////////
-            // Loop over the already included internal DOFs (except the ith-DOF).
-            // For each, find if its sparsity pattern contains
-            // other DOFs with same physical location, and add them to the map.
-            /*
-            vector<int> vector_of_internal_dofs = map_for_bounds[ldofs[i]];
-            for (int j = 0; j < vector_of_internal_dofs.size(); j++)
-            {
-               const int idof = vector_of_internal_dofs[j];
-               if (idof == ldofs[i]) { continue; }
-
-               // check sparsity pattern
-               for (int j = I[idof]; j < I[idof + 1]; j++)
-               {
-                  if (idof != J[j] && Distance(idof, J[j]) <= tol)
-                  {
-                     map_for_bounds[ldofs[i]].push_back(J[j]);
-                  }
-               }
-            } */
-
-            //////////////
-            // SOURCE 2 //
-            //////////////
-            // Check if the current dof is on a face:
-            // Loop over its sparsity pattern and find DOFs at the same location.
-            vector<int> DOFs_at_ith_location;
-            for (int j = I[ldofs[i]]; j < I[ldofs[i] + 1]; j++)
-            {
-               dist = Distance(ldofs[i], J[j]);
-               if (ldofs[i] == DOF_ID)
-               {
-                  cout << "checking " << J[j] << " " << dist << endl;
-               }
-               if (dist <= tol && ldofs[i] != J[j]) // dont include the ith DOF
-               {
-                  DOFs_at_ith_location.push_back(J[j]);
-
-                  // Now look over the sparcity pattern of J[j] to find more
-                  // dofs at the same location
-                  // (adds diagonal neighbors, if they are on the same mpi task).
-                  const int d = J[j];
-                  bool is_new = true;
-                  for (int jj = I[d]; jj < I[d+1]; jj++)
-                  {
-                     if (J[jj] == ldofs[i]) { continue; }
-                     for (int dd = 0; dd < (int)DOFs_at_ith_location.size(); dd++)
-                     {
-                        if (J[jj] == DOFs_at_ith_location[dd])
-                        { is_new = false; break; }
-                     }
-                     if (is_new && Distance(d, J[jj]) < tol)
-                     { DOFs_at_ith_location.push_back(J[jj]); }
-                  }
-               }
-            }
-            if (ldofs[i] == DOF_ID)
-            {
-               cout << "same location " << DOFs_at_ith_location.size() << endl;
-            }
-            // Loop over the dofs at i-th location; for each, loop over DOFs
-            // local on its cell to find those within dist(1).
-            // Note that distance has to be measured on the reference element.
-            for (int it = 0; it < (int) DOFs_at_ith_location.size(); it++)
-            {
-               int dof = DOFs_at_ith_location[it];
-               if (dof < NDOFs)
-               {
-                  const int cell_id = dof / n_dofs;
-                  fes->GetElementDofs(cell_id, ldofs_external);
-                  fe_external = fes->GetFE(cell_id);
-               }
-               /* else
-               {
-                  const int cell_id = dof / n_dofs - num_cells;
-                  fes->GetFaceNbrElementVDofs(cell_id, ldofs_external);
-                  fe_external = fes->GetFaceNbrFE(cell_id);
-
-                  for (int j = 0; j < ldofs.Size(); j++)
-                  {
-                     ldofs_external[j] += NDOFs;
-                  }
-               }*/ // for parallel
-
-               int n_dofs_external = fe_external->GetDof();
-               const IntegrationRule &ir_ext = fe_external->GetNodes();
-               for (int j = 0; j < n_dofs_external; j++) // here j is local
-               {
-                  bool is_new = true;
-                  for (int dd = 0; dd < (int)map_for_bounds[ldofs[i]].size(); dd++)
-                  {
-                     if (ldofs_external[j] == map_for_bounds[ldofs[i]][dd])
-                     { is_new = false; break; }
-                  }
-
-                  int loc_index = dof % n_dofs;
-                  if (is_new &&
-                      distance_(ir_ext.IntPoint(loc_index),
-                                ir_ext.IntPoint(j)) <= dist_level)
-                  {
-                     map_for_bounds[ldofs[i]].push_back(ldofs_external[j]);
-                  }
-               }
-            }
-            if (ldofs[i] == DOF_ID)
-            {
-               cout << " --- " << endl;
-               for (int j = 0; j < (int)map_for_bounds[DOF_ID].size(); j++)
-               {
-                  cout << map_for_bounds[DOF_ID][j] << endl;
-               }
-            }
-         }
-      }
-   }
 };
 
 class FluxCorrectedTransport
@@ -848,105 +481,7 @@ public:
             ComputeDiscreteUpwindingMatrix(K, D);
          }
       }
-      else if ((monoType == Rusanov) || (monoType == Rusanov_FCT))
-      {
-         if ((p==1) && schemeOpt)
-         {
-            mfem_warning("Subcell option does not make sense for order 1. Using cell-based scheme.");
-            schemeOpt = false;
-         }
-
-         if (!schemeOpt)
-         {
-            ComputeDiffusionCoefficient(fes, coef);
-         }
-         else
-         {
-            Mesh *mesh = fes->GetMesh();
-            int i, j, k, m, nd, dofInd, numBdrs, numDofs, ne = mesh->GetNE(), dim = mesh->Dimension();
-            const int btype = BasisType::Positive;
-            DenseMatrix elmat;
-            ElementTransformation *tr;
-
-            nd = dummy.GetDof();
-            // fill the dofs array to access the correct dofs for boundaries
-            dummy.ExtractBdrDofs(dofs); // TODO repating and put in routine
-            numBdrs = dofs.Width();
-            numDofs = dofs.Height();
-            
-            Mesh *ref_mesh = GetSubcellMesh(mesh, p);
-            DG_FECollection fec1(1, dim, btype);
-            FiniteElementSpace SubFes1(ref_mesh, &fec1);
-            
-            ComputeDiffusionCoefficient(&SubFes1, coef);
-            
-            if (dim==1)
-            {
-               numSubcells = p;
-               numDofsSubcell = 2;
-            }
-            else if (dim==2)
-            {
-               numSubcells = p*p;
-               numDofsSubcell = 4;
-            }
-            else if (dim==3)
-            {
-               numSubcells = p*p*p;
-               numDofsSubcell = 8;
-            }
-            
-            FillSubcell2CellDof(p, dim);
-            
-            BilinearForm VolumeTerms(fes);
-            VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef));
-            VolumeTerms.Assemble();
-            VolumeTerms.Finalize();
-            fluctMatrix = VolumeTerms.SpMat();
-            
-            BilinearFormIntegrator *fluct;
-            fluct = new ConvectionIntegrator(coef);
-            fluctSub.SetSize(ne*numSubcells, numDofsSubcell*numDofsSubcell);
-            elmat.SetSize(numDofsSubcell,numDofsSubcell);
-            
-            const IntegrationRule *irF = GetFaceIntRule(fes);
-            
-            bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
-            bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
-            neighborDof.SetSize(ne*numDofs, numBdrs);
-            
-            // NOTE: not optimal: two loops over all elements
-            for (k = 0; k < ne; k++)
-            {
-               ////////////////////////////
-               // Boundary contributions //
-               ////////////////////////////
-               preprocessFluxLumping(fes, coef, k, irF);
-               
-               ///////////////////////////
-               // Element contributions //
-               ///////////////////////////
-               for (m = 0; m < numSubcells; m++)
-               {
-                  dofInd = k*numSubcells+m;
-                  const FiniteElement *el = SubFes1.GetFE(dofInd);
-                  tr = ref_mesh->GetElementTransformation(dofInd);
-                  fluct->AssembleElementMatrix(*el, *tr, elmat);
-
-                  for (i = 0; i < numDofsSubcell; i++)
-                  {
-                     for (j = 0; j < numDofsSubcell; j++)
-                     {
-                        fluctSub(dofInd, numDofsSubcell*i + j) = elmat(i,j);
-                     }
-                  }
-               }
-            }
-            delete fluct;
-         }
-      }
-      else if ( (monoType == ResDist) || (monoType == ResDist_FCT) 
-               || (monoType == ResDist_Lim) || (monoType == ResDist_LimMass) )
+      else
       {
          if ((p==1) && schemeOpt)
          {
@@ -954,116 +489,6 @@ public:
             schemeOpt = false;
          }
          ComputeResidualWeights(fes, coef);
-      }
-   }
-
-   void ComputeDiffusionCoefficient(FiniteElementSpace* fes,
-                                    VectorFunctionCoefficient &coef)
-   {
-      enum ESTIMATE { Schwarz, Hoelder1Inf, Hoelder1Inf_Exact, HoelderInf1, HoelderInf1_Exact };
-      ESTIMATE est = Schwarz;
-
-      Mesh *mesh = fes->GetMesh();
-      int i, j, k, p, qOrdE, qOrdF, nd, numBdrs, numDofs, dim = mesh->Dimension(),
-                                                          ne = mesh->GetNE();
-      double vn;
-      Array< int > bdrs, orientation;
-
-      // use the first mesh element as indicator for the following bunch
-      const FiniteElement &dummy = *fes->GetFE(0);
-      nd = dummy.GetDof();
-      // fill the dofs array to access the correct dofs for boundaries
-      dummy.ExtractBdrDofs(dofs);
-      numBdrs = dofs.Width();
-      numDofs = dofs.Height();
-
-      Vector vval, nor(dim), vec1(dim), vec2(nd), shape(nd), alpha(nd), beta(nd),
-             shapeBdr(numDofs);
-      DenseMatrix velEval, adjJ(dim,dim), dshape(nd,dim);
-
-      elDiff.SetSize(ne); elDiff = 0.;
-
-      // use the first mesh element as indicator
-      ElementTransformation *tr = mesh->GetElementTransformation(0);
-      // Assuming order(u)==order(mesh)
-      // Depending on ESTIMATE, beta may be impossible to integrate exactly due to transformation dependent denominator
-      // use tr->OrderW() + 2*dummy.GetOrder() + 2*dummy.max(tr->OrderGrad(&dummy), 0) instead
-      // appropriate qOrdE for alpha is tr->OrderW() + 2*dummy.GetOrder(), choose max
-      qOrdE = tr->OrderW() + 2*dummy.GetOrder() + 2*max(tr->OrderGrad(&dummy), 0);
-      const IntegrationRule *irE = &IntRules.Get(dummy.GetGeomType(), qOrdE);
-      const IntegrationRule *irF = GetFaceIntRule(fes);
-      
-      if (!schemeOpt)
-      {
-         bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
-         bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
-         neighborDof.SetSize(ne*numDofs, numBdrs);
-      }
-
-      for (k = 0; k < ne; k++)
-      {
-         ////////////////////////////
-         // Boundary contributions //
-         ////////////////////////////
-         if (!schemeOpt)
-         {
-            preprocessFluxLumping(fes, coef, k, irF);
-         }
-         
-         ///////////////////////////
-         // Element contributions //
-         ///////////////////////////
-         const FiniteElement &el = *fes->GetFE(k);
-         tr = mesh->GetElementTransformation(k);
-
-         alpha = 0.; beta = 0.;
-         coef.Eval(velEval, *tr, *irE);
-
-         for (p = 0; p < irE->GetNPoints(); p++)
-         {
-            const IntegrationPoint &ip = irE->IntPoint(p);
-            tr->SetIntPoint(&ip);
-
-            el.CalcDShape(ip, dshape);
-            CalcAdjugate(tr->Jacobian(), adjJ);
-            el.CalcShape(ip, shape);
-
-            velEval.GetColumnReference(p, vval);
-            adjJ.Mult(vval, vec1);
-            dshape.Mult(vec1, vec2);
-            for (j = 0; j < nd; j++)
-            {
-               switch (est)
-               {
-                  case Schwarz:
-                     // divide due to square in L2-norm
-                     beta(j) += ip.weight / tr->Weight() * pow(vec2(j), 2.);
-                     alpha(j) += ip.weight * tr->Weight() * pow(shape(j), 2.);
-                     break;
-                  case Hoelder1Inf:
-                     // divide because J^-1 = 1 / |J| adj(J)
-                     beta(j) = std::max(beta(j), - vec2(j) / tr->Weight());;
-                     alpha(j) += ip.weight * tr->Weight() * shape(j);
-                     break;
-                  case Hoelder1Inf_Exact:
-                     beta(j) = std::max(beta(j), - vec2(j));;
-                     alpha(j) += ip.weight * shape(j);
-                     break;
-                  case HoelderInf1:
-                     // divide because J^-1 = 1 / |J| adj(J)
-                     beta(j) += ip.weight * std::max(0., -vec2(j) / tr->Weight());
-                     alpha(j) = std::max(alpha(j), tr->Weight() * shape(j));
-                     break;
-                  case HoelderInf1_Exact:
-                     beta(j) += ip.weight * std::max(0., -vec2(j));
-                     alpha(j) = std::max(alpha(j), shape(j));
-                     break;
-                  default:
-                     mfem_error("Unsupported estimate option.");
-               }
-            }
-         }
-         elDiff(k) = std::sqrt(alpha.Max() * beta.Max());
       }
    }
 
@@ -1128,19 +553,6 @@ public:
       bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
       bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
       neighborDof.SetSize(ne*numDofs, numBdrs);
-
-// FOR disc-nurbs.mesh -r 0 -o 1 // TODO
-//       neighborDof(0,0) = 6; neighborDof(0,1) = 10; neighborDof(0,2) = 13; neighborDof(0,3) = 17;
-//       neighborDof(1,0) = 7; neighborDof(1,1) = 11; neighborDof(1,2) = 15; neighborDof(1,3) = 19;
-//       neighborDof(2,0) = -1; neighborDof(2,1) = 8; neighborDof(2,2) = 0; neighborDof(2,3) = 16;
-//       neighborDof(3,0) = -1; neighborDof(3,1) = 10; neighborDof(3,2) = 1; neighborDof(3,3) = 17;
-//       neighborDof(4,0) = -1; neighborDof(4,1) = 14; neighborDof(4,2) = 1; neighborDof(4,3) = 5;
-//       neighborDof(5,0) = -1; neighborDof(5,1) = 15; neighborDof(5,2) = 3; neighborDof(5,3) = 7;
-//       neighborDof(6,0) = 18; neighborDof(6,1) = 2; neighborDof(6,2) = 9; neighborDof(6,3) = -1;
-//       neighborDof(7,0) = 19; neighborDof(7,1) = 3; neighborDof(7,2) = 11; neighborDof(7,3) = -1;
-//       neighborDof(8,0) = 4; neighborDof(8,1) = 0; neighborDof(8,2) = 12; neighborDof(8,3) = -1;
-//       neighborDof(9,0) = 6; neighborDof(9,1) = 2; neighborDof(9,2) = 13; neighborDof(9,3) = -1;
-
 
       for (k = 0; k < ne; k++)
       {
@@ -1513,7 +925,6 @@ public:
 
    bool schemeOpt;
    int numSubcells, numDofsSubcell;
-   Vector lumpedM, elDiff;
    SparseMatrix D, fluctMatrix;
    DenseMatrix dofs, neighborDof, subcell2CellDof, bdrInt,
                bdrIntLumped, fluctSub;
@@ -1533,15 +944,12 @@ private:
    BilinearForm &Mbf, &Kbf, &kbdr, &ml;
    SparseMatrix &M, &K, &KBDR;
    const Vector &b;
-   DSmoother M_prec;
-   CGSolver M_solver;
 
    Vector start_pos;
    Vector &lumpedM;
    GridFunction &mesh_pos, &vel_pos;
 
    mutable Vector z;
-   mutable Vector zz; // TODO if necessary, otherwise remove, or implement limiter more practicable
 
    double dt, start_t;
    const FluxCorrectedTransport &fct;
@@ -1561,91 +969,18 @@ public:
    void SetInitialTimeStepTime(double st) { start_t = st; }
    void SetRemapStartPos(Vector &spos) { start_pos = spos; }
    
-   virtual void ComputeMonolithicCorrectionFactors(int k, int nd, double beta, double xMax, double xMin, 
-                                                   const Vector &x, const Vector &v, Vector &alpha) const;
-
-   virtual void ApplyMonolithicLimiter(int k, int nd, int &ctr, const Vector alpha, const double* Dij, 
-                                       const Vector yH, Vector &y, double coef) const;
-
    virtual void NeumannSolve(const Vector &b, Vector &x) const;
 
-   virtual void NonlinearFluxLumping(int k, int nd, const Vector &x, Vector &y, const Vector alpha) const;
    virtual void LinearFluxLumping(int k, int nd, const Vector &x, Vector &y, const Vector alpha) const;
 
    virtual void ComputeHighOrderSolution(const Vector &x, Vector &y) const;
    virtual void ComputeLowOrderSolution(const Vector &x, Vector &y) const;
    virtual void ComputeFCTSolution(const Vector &x, const Vector &yH,
                                    const Vector &yL, Vector &y) const;
-   virtual void ApplyTimeDerivativeLimiter1(const Vector &x, const Vector &yH,
-                                            const Vector &yL, Vector &y) const;
-   virtual void ApplyTimeDerivativeLimiter2(const Vector &x, const Vector &yH,
-                                            const Vector &yL, Vector &y) const;
-   virtual void ApplyTimeDerivativeLimiter3(const Vector &x, const Vector &yH,
-                                            const Vector &yL, Vector &y) const;
+
    virtual ~FE_Evolution() { }
 };
 
-double ComputeIntegralNorm(FiniteElementSpace* fes, const Vector u, const double q)
-{
-   Mesh* mesh = fes->GetMesh();
-   int i, j, k, nd, qOrdE, dim = mesh->Dimension();
-   double tmp, err = 0.;
-   Vector shape;
-
-   // use the first mesh element as indicator
-   const FiniteElement &dummy = *fes->GetFE(0);
-   nd = dummy.GetDof();
-   shape.SetSize(nd);
-   ElementTransformation *tr = mesh->GetElementTransformation(0);
-   
-   if (q < 1.)
-   {
-      mfem_error("Use q >= 1 for L^q-norm.");
-   }
-   else if (q == numeric_limits<double>::infinity())
-   {
-      qOrdE = tr->OrderW() + dummy.GetOrder();
-   }
-   else
-   {
-      // Assuming order(u)==order(mesh)
-      qOrdE = tr->OrderW() + q*dummy.GetOrder();
-   }
-   const IntegrationRule *ir = &IntRules.Get(dummy.GetGeomType(), qOrdE);
-   
-   for (k = 0; k < fes->GetNE(); k++)
-   {
-      const FiniteElement &el = *fes->GetFE(k);
-      tr = mesh->GetElementTransformation(k);
-
-      for (j = 0; j < ir->GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         tr->SetIntPoint(&ip);
-         el.CalcShape(ip, shape);
-         
-         tmp = 0.;
-         for (i = 0; i < nd; i++)
-         {
-            tmp += u(k*nd+i) * shape(i);
-         }
-         if (q == numeric_limits<double>::infinity())
-         {
-            err = max(err, abs(tmp));
-         }
-         else
-         {
-            err += ip.weight * tr->Weight() * pow(abs(tmp), q);
-         }
-      }
-   }
-   if (q != numeric_limits<double>::infinity())
-   {
-      err = pow(err, 1./q);
-   }
-
-   return err;
-}
 
 int main(int argc, char *argv[])
 {
@@ -1657,7 +992,6 @@ int main(int argc, char *argv[])
    int ode_solver_type = 3;
    MONOTYPE monoType = ResDist_FCT;
    bool schemeOpt = true;
-   STENCIL stencil = VertexBased;
    double t_final = 4.0;
    double dt = 0.005;
    bool visualization = true;
@@ -1684,20 +1018,11 @@ int main(int argc, char *argv[])
                   "Type of monotonicity treatment: 0 - no monotonicity treatment,\n\t"
                   "                                1 - discrete upwinding - low order,\n\t"
                   "                                2 - discrete upwinding - FCT,\n\t"
-                  "                                3 - Rusanov (matrix-free)- low order,\n\t"
-                  "                                4 - Rusanov (matrix-free)- FCT,\n\t"
-                  "                                5 - residual distribution scheme (matrix-free) - low order,\n\t"
-                  "                                6 - residual distribution scheme (matrix-free) - FCT,\n\t"
-                  "                                7 - residual distribution scheme (matrix-free) - with tailored limiter,\n\t"
-                  "                                8 - residual distribution scheme (matrix-free) - with tailored limiter and mass matrix limiting.");
+                  "                                3 - residual distribution scheme (matrix-free) - low order,\n\t"
+                  "                                4 - residual distribution scheme (matrix-free) - FCT.");
    args.AddOption((int*)(&schemeOpt), "-opt", "--schemeOpt",
                   "Optimized scheme: preconditioned discrete upwinding or subcell version: 0 - basic schemes,\n\t"
                   "                                                                        1 - optimized schemes.");
-   args.AddOption((int*)(&stencil), "-st", "--stencil",
-                  "Type of stencil for high order scheme: 0 - vertex-based neighbors,\n\t"
-                  "                                       1 - neighbors based on sparsity,\n\t"
-                  "                                       2 - closest neighbors,\n\t"
-                  "                                       3 - closest plus diagonal neighbors.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -1771,7 +1096,7 @@ int main(int argc, char *argv[])
 
    if (monoType != None)
    {
-      if (((int)monoType != monoType) || (monoType < 0) || (monoType > 8))
+      if (((int)monoType != monoType) || (monoType < 0) || (monoType > 4))
       {
          cout << "Unsupported option for monotonicity treatment." << endl;
          delete mesh;
@@ -1854,7 +1179,7 @@ int main(int argc, char *argv[])
    b.Assemble();
 
    // Compute data required to easily find the min-/max-values for the high order scheme
-   SolutionBounds bnds(&fes, k, stencil);
+   SolutionBounds bnds(&fes, k);
 
    // Precompute data required for high and low order schemes
    FluxCorrectedTransport fct(&fes, monoType, schemeOpt, k.SpMat(), velocity, bnds);
@@ -1990,23 +1315,6 @@ int main(int argc, char *argv[])
            << u.ComputeLpError(numeric_limits<double>::infinity(), u0) << "." << endl;
    }
 
-//    // write output
-//    ofstream file("errors.txt", ios_base::app);
-//    
-//    if (!file)
-//    {
-//       mfem_error(".");
-//       return 0;
-//    }
-//    else
-//    {
-//       ostringstream strs;
-//       strs << ComputeIntegralNorm(&fes, tmp, 1.) << " " << ComputeIntegralNorm(&fes, tmp, numeric_limits<double>::infinity()) << "\n";
-//       string str = strs.str();
-//       file << str;
-//       file.close();
-//    }
-
    // 10. Free the used memory.
    delete mesh;
    delete ode_solver;
@@ -2015,38 +1323,6 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void FE_Evolution::ComputeMonolithicCorrectionFactors(int k, int nd, double beta, double vMax, double vMin,
-                                                      const Vector &x, const Vector &v, Vector &alpha) const
-{
-   double eps = 1.E-15;
-   for (int j = 0; j < nd; j++)
-   {
-      int dofInd = k*nd+j;
-      alpha(j) = min( 1., beta * min(fct.bnds.x_max(dofInd) - x(dofInd), x(dofInd) - fct.bnds.x_min(dofInd)) 
-                     / (max(vMax - v(dofInd), v(dofInd) - vMin) + eps) );
-      if (alpha(j) < -eps)
-      {
-         mfem_error("Negative correction factor.");
-      }
-   }
-}
-
-void FE_Evolution::ApplyMonolithicLimiter(int k, int nd, int &ctr, const Vector alpha, const double* Dij, 
-                                          const Vector yH, Vector &y, double coef = 1.0) const // TODO rename y, yH
-{
-   int i, j, dofInd;
-   for (i = 0; i < nd; i++)
-   {
-      dofInd = k*nd+i;
-      for (j = nd-1; j >= 0; j--) // run backwards through columns
-      {
-         if (i==j) { ctr++; continue; }
-         
-         y(dofInd) += coef * alpha(i) * Dij[ctr] * alpha(j) * (yH(dofInd) - yH(k*nd+j)); // use knowledge of how M looks like
-         ctr++;
-      }
-   }
-}
 
 void FE_Evolution::NeumannSolve(const Vector &f, Vector &x) const
 {   
@@ -2069,53 +1345,6 @@ void FE_Evolution::NeumannSolve(const Vector &f, Vector &x) const
       for (i = 0; i < n; i++)
       {
          x(i) -= y(i) / lumpedM(i);
-      }
-   }
-}
-
-void FE_Evolution::NonlinearFluxLumping(int k, int nd, const Vector &x, Vector &y, const Vector alpha) const
-{
-   int i, j, m, idx, dofInd, numBdrs(fct.dofs.Width()), numDofs(fct.dofs.Height());
-   double xNeighbor, sumLumpedFluxP, sumLumpedFluxN, weightP, weightN, eps = 1.E-15;
-   Vector lumpedFluxP(numDofs), lumpedFluxN(numDofs), totalFlux(numDofs);
-   
-   for (j = 0; j < numBdrs; j++)
-   {
-      sumLumpedFluxP = sumLumpedFluxN = 0.;
-      for (i = 0; i < numDofs; i++)
-      {
-         dofInd = k*nd+fct.dofs(i,j);
-         idx = fct.neighborDof(k*numDofs+i,j);
-         xNeighbor = idx < 0 ? 0. : x(idx);
-         lumpedFluxP(i) = max(0., xNeighbor - x(dofInd)) * fct.bdrIntLumped(dofInd, j);
-         lumpedFluxN(i) = min(0., xNeighbor - x(dofInd)) * fct.bdrIntLumped(dofInd, j);
-         sumLumpedFluxP += lumpedFluxP(i);
-         sumLumpedFluxN += lumpedFluxN(i);
-         totalFlux(i) = 0.;
-         for (m = 0; m < numDofs; m++)
-         {
-            idx = fct.neighborDof(k*numDofs+m,j);
-            xNeighbor = idx < 0 ? 0. : x(idx);
-            totalFlux(i) += fct.bdrInt(dofInd, j*nd+fct.dofs(m,j)) * (xNeighbor - x(k*nd+fct.dofs(m,j)));
-         }
-         y(k*nd+fct.dofs(i,j)) += alpha(fct.dofs(i,j)) * totalFlux(i);
-      }
-               
-      for (i = 0; i < numDofs; i++)
-      {
-         weightP = lumpedFluxP(i) / (sumLumpedFluxP + eps);
-         weightN = lumpedFluxN(i) / (sumLumpedFluxN - eps);
-         for (m = 0; m < numDofs; m++)
-         {
-            if (totalFlux(m) > eps)
-            {
-               y(k*nd+fct.dofs(i,j)) += (1. - alpha(fct.dofs(m,j))) * weightP * totalFlux(m);
-            }
-            else if (totalFlux(m) < -eps)
-            {
-               y(k*nd+fct.dofs(i,j)) += (1. - alpha(fct.dofs(m,j))) * weightN * totalFlux(m);
-            }
-         }
       }
    }
 }
@@ -2199,128 +1428,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          }
       }
    }
-   else if ((fct.monoType == Rusanov) || (fct.monoType == Rusanov_FCT))
-   {
-      Mesh *mesh = fes->GetMesh();
-      int i, j, k, m, nd, dofInd, dim(mesh->Dimension());
-      double xSum, rhoP, rhoN, weightP, weightN, sumFluctSubcellP, sumFluctSubcellN, fluct, eps = 1.E-15;
-      Vector alpha, fluctSubcellP, fluctSubcellN;
-      DenseMatrix fluctP, fluctN;
-
-      // Discretization terms
-      y = b;
-      if (!fct.schemeOpt)
-      {
-         K.Mult(x, z);
-         z += b;
-      }
-      else
-      {
-         fluctSubcellP.SetSize(fct.numSubcells);
-         fluctSubcellN.SetSize(fct.numSubcells);
-         fluctP.SetSize(fct.numSubcells, fct.numDofsSubcell);
-         fluctN.SetSize(fct.numSubcells, fct.numDofsSubcell);
-         
-         fct.fluctMatrix.Mult(x, z);
-         if (dim==1)
-         {
-            K.AddMult(x, y);
-            y -= z;
-         }
-      }
-
-      // Monotonicity terms
-      for (k = 0; k < mesh->GetNE(); k++)
-      {
-         const FiniteElement &el = *fes->GetFE(k);
-         nd = el.GetDof();
-         alpha.SetSize(nd); alpha = 0.;
-
-         ////////////////////////////
-         // Boundary contributions //
-         ////////////////////////////
-         if (dim > 1)// Nothing needs to be done for 1D boundaries (due to Bernstein basis)
-            LinearFluxLumping(k, nd, x, y, alpha);
-         
-         ///////////////////////////
-         // Element contributions //
-         ///////////////////////////
-         if (fct.schemeOpt)
-         {
-            rhoP = rhoN = 0.;
-            fluctSubcellP = 0.; fluctSubcellN = 0.;
-            for (j = 0; j < nd; j++)
-            {
-               dofInd = k*nd+j;
-               rhoP += max(0., z(dofInd));
-               rhoN += min(0., z(dofInd));
-            }
-            
-            sumFluctSubcellP = sumFluctSubcellN = 0.;
-
-            for (m = 0; m < fct.numSubcells; m++)
-            {
-               xSum = 0.;
-               for (i = 0; i < fct.numDofsSubcell; i++)
-               {
-                  xSum += x(k*nd + fct.subcell2CellDof(m, i));
-               }
-               for (i = 0; i < fct.numDofsSubcell; i++)
-               {
-                  fluct = 0.;
-                  for (j = 0; j < fct.numDofsSubcell; j++)
-                  {
-                     fluct += fct.fluctSub(k*fct.numSubcells+m, fct.numDofsSubcell*i + j) * x(k*nd + fct.subcell2CellDof(m, j));
-                  }
-                  fluct += fct.elDiff(k*fct.numSubcells+m) * (xSum - fct.numDofsSubcell * x(k*nd + fct.subcell2CellDof(m, i)));
-                  
-                  fluctP(m,i) = max(0., fluct);
-                  fluctN(m,i) = min(0., fluct);
-                  
-                  fluctSubcellP(m) += fluctP(m,i);
-                  fluctSubcellN(m) += fluctN(m,i);
-               }
-               sumFluctSubcellP += fluctSubcellP(m);
-               sumFluctSubcellN += fluctSubcellN(m);
-            }
-            
-            for (m = 0; m < fct.numSubcells; m++)
-            {
-               fluct = fluctSubcellP(m) * rhoP / (sumFluctSubcellP + eps) + fluctSubcellN(m) * rhoN / (sumFluctSubcellN - eps);
-               weightP = max(0., fluct);
-               weightN = min(0., fluct);
-               for (i = 0; i < fct.numDofsSubcell; i++)
-               {
-                  dofInd = k*nd + fct.subcell2CellDof(m, i);
-                  y(dofInd) += fluctP(m,i) * weightP / (fluctSubcellP(m) + eps)
-                             + fluctN(m,i) * weightN / (fluctSubcellN(m) - eps);
-               }
-            }
-            
-            for (j = 0; j < nd; j++)
-            {
-               // element update and inversion of lumped mass matrix
-               dofInd = k*nd+j;
-               y(dofInd) /= lumpedM(dofInd);
-            }
-         }
-         else
-         {
-            xSum = 0.;
-            for (j = 0; j < nd; j++)
-            {
-               xSum += x(k*nd+j);
-            }
-            
-            for (j = 0; j < nd; j++)
-            {
-               // element update and inversion of lumped mass matrix
-               dofInd = k*nd+j;
-               y(dofInd) = ( z(dofInd) + fct.elDiff(k)*(xSum - nd*x(dofInd)) ) / lumpedM(dofInd);
-            }
-         }
-      }
-   }
    else
    {
       Mesh *mesh = fes->GetMesh();
@@ -2332,14 +1439,13 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
              fluctSubcellP, fluctSubcellN, nodalWeightsP, nodalWeightsN, alpha;
 
       // Discretization terms
-      y = b; // TODO check all for consistency
+      y = b;
       fct.fluctMatrix.Mult(x, z);
       if (dim==1)
       {
          K.AddMult(x, y);
          y -= z;
       }
-      zz = y;
 
       // Monotonicity terms
       for (k = 0; k < ne; k++)
@@ -2363,16 +1469,10 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             xSum += x(dofInd);
          }
          
-         if ( (fct.monoType == ResDist_Lim) || (fct.monoType == ResDist_LimMass) )
-         {
-            ComputeMonolithicCorrectionFactors(k, nd, beta, xMax, xMin, x, x, alpha);
-         }
-         
          for (j = 0; j < nd; j++)
          {
             dofInd = k*nd+j;
             y(dofInd) += alpha(j) * z(dofInd);
-            zz(dofInd) += alpha(j) * z(dofInd);
             z(dofInd) *= (1. - alpha(j));
 
             if (fct.schemeOpt)
@@ -2462,24 +1562,13 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
                if (z(dofInd2) > eps)
                {
                   y(dofInd) += (1. - alpha(j)) * weightP * z(dofInd2);
-                  zz(dofInd) += (1. - alpha(j)) * weightP * z(dofInd2);
                }
                else if (z(dofInd2) < -eps)
                {
                   y(dofInd) += (1. - alpha(j)) * weightN * z(dofInd2);
-                  zz(dofInd) += (1. - alpha(j)) * weightN * z(dofInd2);
                }
             }
-            if (fct.monoType == ResDist_LimMass)
-            {
-               y(dofInd) += alpha(i) * z(dofInd);
-               zz(dofInd) += alpha(i) * z(dofInd);
-            }
-            else
-            {
-               y(dofInd) = (y(dofInd) + alpha(i) * z(dofInd)) / lumpedM(dofInd);
-               zz(dofInd) = (y(dofInd) + alpha(i) * z(dofInd)) / lumpedM(dofInd);
-            }
+            y(dofInd) = (y(dofInd) + alpha(i) * z(dofInd)) / lumpedM(dofInd);
          }
       }
    }
@@ -2505,7 +1594,7 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
    Vector uClipped, fClipped;
    
    // compute solution bounds
-   fct.bnds.Compute(K, x);
+   fct.bnds.ComputeVertexBounds(x);
 
    // Monotonicity terms
    for (k = 0; k < fes->GetMesh()->GetNE(); k++)
@@ -2550,163 +1639,6 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
    }
 }
 
-void FE_Evolution::ApplyTimeDerivativeLimiter1(const Vector &x, const Vector &yH,
-                                               const Vector &yL, Vector &y) const
-{
-   int i, j, k, nd, dofInd, ctr = 0;
-   double xDotMax, xDotMin, betaDot = 0.5, eps = 1.E-15;
-   Vector alphaDot;
-   double* Mij = M.GetData();
-   
-   y = yL;
-
-   for (k = 0; k < fes->GetMesh()->GetNE(); k++)
-   {
-      const FiniteElement &el = *fes->GetFE(k);
-      nd = el.GetDof();
-      alphaDot.SetSize(nd);
-            
-      xDotMin = numeric_limits<double>::infinity();
-      xDotMax = -xDotMin;
-      for (i = 0; i < nd; i++)
-      {
-         dofInd = k*nd+i;
-         xDotMax = max(xDotMax, yH(dofInd));
-         xDotMin = min(xDotMin, yH(dofInd));
-      }
-      for (i = 0; i < nd; i++)
-      {
-         dofInd = k*nd+i;
-         alphaDot(i) = min( 1., ( betaDot / dt * min(fct.bnds.x_max(dofInd) - x(dofInd), 
-                                                     x(dofInd) - fct.bnds.x_min(dofInd)) )
-                                / (max(xDotMax - yH(dofInd), yH(dofInd) - xDotMin) + eps) );
-      }
-      for (i = 0; i < nd; i++)
-      {
-         dofInd = k*nd+i;
-         for (j = nd-1; j >= 0; j--) // run backwards through columns
-         {
-            if (i==j) { ctr++; continue; }
-            
-            y(dofInd) += alphaDot(i) * Mij[ctr] * alphaDot(j) * (yH(dofInd) - yH(k*nd+j)); // use knowledge of how M looks like
-            ctr++;
-         }
-         y(dofInd) /= lumpedM(dofInd);
-      }
-   }
-}
-
-void FE_Evolution::ApplyTimeDerivativeLimiter2(const Vector &x, const Vector &yH,
-                                               const Vector &yL, Vector &y) const
-{
-   int i, k, nd, dofInd;
-   double tmp, uMax, uMin, Lmax, Lmin, sumP, sumN, eps = 1.E-15;
-   Vector eta, u;
-
-   for (k = 0; k < fes->GetMesh()->GetNE(); k++)
-   {
-      const FiniteElement &el = *fes->GetFE(k);
-      nd = el.GetDof();
-      
-      eta.SetSize(nd); u.SetSize(nd);
-      sumP = sumN = 0.; 
-      uMin = numeric_limits<double>::infinity();
-      uMax = -uMin;
-      for (i = 0; i < nd; i++)
-      {
-         dofInd = k*nd+i;
-         eta(i) = lumpedM(dofInd) * yH(dofInd) - yL(dofInd);
-         u(i) = x(dofInd) + dt * yL(dofInd) / lumpedM(dofInd);
-         uMax = max(uMax, u(i));
-         uMin = min(uMin, u(i));
-      }
-      for (i = 0; i < nd; i++)
-      {
-         dofInd = k*nd+i;
-         tmp = lumpedM(dofInd) / dt;
-         Lmin = tmp * (min(fct.bnds.x_min(dofInd), uMin)-u(i));
-         Lmax = tmp * (max(fct.bnds.x_max(dofInd), uMax)-u(i));
-         
-         eta(i) = max(Lmin, min(eta(i), Lmax));
-         sumP += max(0., eta(i));
-         sumN += min(0., eta(i));
-      }
-      for (i = 0; i < nd; i++)
-      {
-         if ((sumP + sumN > eps) && (eta(i) > eps))
-         {
-            eta(i) *= - sumN / sumP;
-         }
-         if ((sumP + sumN < -eps) && (eta(i) < -eps))
-         {
-            eta(i) *= - sumP / sumN;
-         }
-         dofInd = k*nd+i;
-         y(dofInd) = (yL(dofInd) + eta(i)) / lumpedM(dofInd);
-      }
-   }
-}
-
-void FE_Evolution::ApplyTimeDerivativeLimiter3(const Vector &x, const Vector &yH,
-                                               const Vector &yL, Vector &y) const
-{
-   int i, j, k, nd, dofInd, ctr = 0;
-   double tmp1, tmp2, uMax, uMin, Lmax, Lmin, sumP, sumN, eps = 1.E-15;
-   Vector eta, u;
-   double* Mij = M.GetData();
-   
-   fct.fluctMatrix.Mult(x, z);
-
-   for (k = 0; k < fes->GetMesh()->GetNE(); k++)
-   {
-      const FiniteElement &el = *fes->GetFE(k);
-      nd = el.GetDof();
-      eta.SetSize(nd); u.SetSize(nd);
-      sumP = sumN = 0.; 
-      uMin = numeric_limits<double>::infinity();
-      uMax = -uMin;
-      for (i = 0; i < nd; i++)
-      {
-         dofInd = k*nd+i;
-         eta(i) = 0.;
-         for (j = nd-1; j >= 0; j--) // run backwards through columns
-         {
-            if (i==j) { ctr++; continue; }
-            
-            eta(i) += Mij[ctr] * (yH(dofInd) - yH(k*nd+j)); // use knowledge of how M looks like
-            ctr++;
-         }
-         u(i) = x(dofInd) + dt * yL(dofInd) / lumpedM(dofInd);
-         uMax = max(uMax, u(i));
-         uMin = min(uMin, u(i));
-      }
-      for (i = 0; i < nd; i++)
-      {
-         dofInd = k*nd+i;
-         tmp1 = lumpedM(dofInd) / dt;
-         tmp2 = z(dofInd) + eta(i) - zz(dofInd);
-         Lmin = max( tmp1 * (min(fct.bnds.x_min(dofInd), uMin)-u(i)), min(0., tmp2) );
-         Lmax = min( tmp1 * (max(fct.bnds.x_max(dofInd), uMax)-u(i)), max(0., tmp2) );
-         
-         eta(i) = max(Lmin, min(eta(i), Lmax));
-         sumP += max(0., eta(i));
-         sumN += min(0., eta(i));
-      }
-      for (i = 0; i < nd; i++)
-      {
-         if ((sumP + sumN > eps) && (eta(i) > eps))
-         {
-            eta(i) *= - sumN / sumP;
-         }
-         if ((sumP + sumN < -eps) && (eta(i) < -eps))
-         {
-            eta(i) *= - sumP / sumN;
-         }
-         dofInd = k*nd+i;
-         y(dofInd) = (yL(dofInd) + eta(i)) / lumpedM(dofInd);
-      }
-   }
-}
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(FiniteElementSpace* _fes,
@@ -2718,19 +1650,9 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes,
                            BilinearForm &_ml, Vector &_lumpedM)
    : TimeDependentOperator(_M.Size()), fes(_fes),
      Mbf(Mbf_), Kbf(Kbf_), M(_M), K(_K), b(_b),
-     z(_M.Size()), fct(_fct), zz(_M.Size()), kbdr(_kbdr), KBDR(_KBDR), // TODO if useless rm zz
+     z(_M.Size()), fct(_fct), kbdr(_kbdr), KBDR(_KBDR),
      start_pos(mpos.Size()), mesh_pos(mpos), vel_pos(vpos),
-     ml(_ml), lumpedM(_lumpedM)
-{
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M);
-
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-9);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(100);
-   M_solver.SetPrintLevel(0);
-}
+     ml(_ml), lumpedM(_lumpedM) { }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
@@ -2751,7 +1673,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    {
       ComputeHighOrderSolution(x, y);
    }
-   else if (fct.monoType < 7)
+   else 
    {
       if (fct.monoType % 2 == 1)
       {
@@ -2767,21 +1689,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
          ComputeFCTSolution(x, yH, yL, y);
       }
    }
-   else if (fct.monoType == 7)
-   {
-      ComputeLowOrderSolution(x, y);
-   }
-   else if (fct.monoType == 8)
-   {
-      Vector yH, yL;
-      yH.SetSize(x.Size()); yL.SetSize(x.Size());
-      
-      ComputeHighOrderSolution(x, yH);
-      ComputeLowOrderSolution(x, yL);
-      ApplyTimeDerivativeLimiter3(x, yH, yL, y);
-   }
-
-
 }
 
 
