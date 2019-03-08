@@ -53,7 +53,7 @@ void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
       }
    }
 
-   // in 2D we pretend to have faces too, so we can use Face::elem[2]
+   // in 2D we pretend to have faces too, so we can use NCMesh::Face::elem[2]
    if (!nf)
    {
       for (int i = 0; i < ne; i++)
@@ -1348,6 +1348,16 @@ static int hex_deref_table[7][8 + 6] =
    { 0, 0, 1, 1, 2, 2, 3, 3, /**/ 0, 0, 0, 3, 3, 3 }, // 6 - YZ
    { 0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 1, 1, 7, 7, 7 }  // 7 - iso
 };
+static int prism_deref_table[7][6 + 5] =
+{
+   {-1,-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 1
+   {-1,-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 2
+   { 0, 1, 2, 0, 1, 2, /**/  0, 0, 0, 1, 0 }, // 3 - XY
+   { 0, 0, 0, 1, 1, 1, /**/  0, 1, 0, 0, 0 }, // 4 - Z
+   {-1,-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 5
+   {-1,-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 6
+   { 0, 1, 2, 4, 5, 6, /**/  0, 5, 0, 5, 0 }  // 7 - iso
+};
 
 
 int NCMesh::RetrieveNode(const Element &el, int index)
@@ -1357,10 +1367,16 @@ int NCMesh::RetrieveNode(const Element &el, int index)
    // need to retrieve node from a child element (there is always a child
    // that inherited the parent's corner under the same index)
    int ch;
-   switch (el.geom)
+   switch (el.Geom())
    {
       case Geometry::CUBE:
          ch = el.child[hex_deref_table[el.ref_type - 1][index]];
+         break;
+
+      case Geometry::PRISM:
+         ch = prism_deref_table[el.ref_type - 1][index];
+         MFEM_ASSERT(ch != -1, "");
+         ch = el.child[ch];
          break;
 
       case Geometry::SQUARE:
@@ -1395,18 +1411,20 @@ void NCMesh::DerefineElement(int elem)
       }
    }
 
-   // retrieve original corner nodes and face attributes from the children
    int fa[6];
+   int rt1 = el.ref_type - 1;
+
+   // retrieve original corner nodes and face attributes from the children
    if (el.Geom() == Geometry::CUBE)
    {
       for (int i = 0; i < 8; i++)
       {
-         Element &ch = elements[child[hex_deref_table[el.ref_type - 1][i]]];
+         Element &ch = elements[child[hex_deref_table[rt1][i]]];
          el.node[i] = ch.node[i];
       }
       for (int i = 0; i < 6; i++)
       {
-         Element &ch = elements[child[hex_deref_table[el.ref_type - 1][i + 8]]];
+         Element &ch = elements[child[hex_deref_table[rt1][i + 8]]];
          const int* fv = gi_hex.faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
@@ -1414,18 +1432,32 @@ void NCMesh::DerefineElement(int elem)
    }
    else if (el.Geom() == Geometry::PRISM)
    {
-      MFEM_ABORT("TODO");
+      MFEM_ASSERT(prism_deref_table[rt1][0] != -1, "invalid prism refinement");
+      for (int i = 0; i < 6; i++)
+      {
+         Element &ch = elements[child[prism_deref_table[rt1][i]]];
+         el.node[i] = ch.node[i];
+      }
+      el.node[6] = el.node[7] = -1;
+
+      for (int i = 0; i < 5; i++)
+      {
+         Element &ch = elements[child[prism_deref_table[rt1][i + 6]]];
+         const int* fv = gi_wedge.faces[i];
+         fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                            ch.node[fv[2]], ch.node[fv[3]])->attribute;
+      }
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
       for (int i = 0; i < 4; i++)
       {
-         Element &ch = elements[child[quad_deref_table[el.ref_type - 1][i]]];
+         Element &ch = elements[child[quad_deref_table[rt1][i]]];
          el.node[i] = ch.node[i];
       }
       for (int i = 0; i < 4; i++)
       {
-         Element &ch = elements[child[quad_deref_table[el.ref_type - 1][i + 4]]];
+         Element &ch = elements[child[quad_deref_table[rt1][i + 4]]];
          const int* fv = gi_quad.faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
@@ -2030,7 +2062,7 @@ int NCMesh::find_node(const Element &el, int node)
 
 int NCMesh::FindNodeExt(const Element &el, int node, bool abort)
 {
-   for (int i = 0; i < GI[(int) el.geom].nv; i++)
+   for (int i = 0; i < GI[el.Geom()].nv; i++)
    {
       if (RetrieveNode(el, i) == node) { return i; }
    }
@@ -3526,7 +3558,7 @@ void CoarseFineTransformations::Clear()
 
 bool CoarseFineTransformations::IsInitialized() const
 {
-   // return true if point matrices present for any geometry
+   // return true if point matrices are present for any geometry
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
       if (point_matrices[i].SizeK()) { return true; }
