@@ -39,6 +39,9 @@ private:
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker;
 
+   /// Set of Interior Face Integrators to be applied.
+   Array<LinearFormIntegrator*> iflfi;
+
    /// The element ids where the centers of the delta functions lie
    Array<int> dlfi_delta_elem_id;
 
@@ -75,6 +78,8 @@ public:
 
    /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator (LinearFormIntegrator * lfi);
+
+   void AddInteriorFaceIntegrator (LinearFormIntegrator * lfi);
 
    /** @brief Add new Boundary Face Integrator, restricted to the given boundary
        attributes. */
