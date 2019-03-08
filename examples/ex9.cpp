@@ -61,6 +61,65 @@ enum MONOTYPE { None, DiscUpw, DiscUpw_FCT, Rusanov, Rusanov_FCT, ResDist, ResDi
 enum STENCIL  { VertexBased, FromSparsity, Local, LocalAndDiag };
 
 
+// Utility function to build a map to the offset of the symmetric entry in a sparse matrix
+Array<int> SparseMatrix_Build_smap(const SparseMatrix &A)
+{
+   // assuming that A is finalized
+   const int *I = A.GetI(), *J = A.GetJ(), n = A.Size();
+   Array<int> smap;
+   smap.SetSize(I[n]);
+
+   for (int row = 0, j = 0; row < n; row++)
+   {
+      for (int end = I[row+1]; j < end; j++)
+      {
+         int col = J[j];
+         // find the offset, _j, of the (col,row) entry and store it in smap[j]:
+         for (int _j = I[col], _end = I[col+1]; true; _j++)
+         {
+            if (_j == _end)
+            {
+               mfem_error("SparseMatrix_Build_smap");
+            }
+
+            if (J[_j] == row)
+            {
+               smap[j] = _j;
+               break;
+            }
+         }
+      }
+   }
+   return smap;
+}
+
+void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K, SparseMatrix& D)
+{
+   const int s1 = K.Size();
+   int* Ip = K.GetI();
+   int* Jp = K.GetJ();
+   double* Kp = K.GetData();
+   Array<int> smap = SparseMatrix_Build_smap(K); // symmetry map
+
+   double* Dp = D.GetData();
+
+   for (int i = 0, k = 0; i < s1; i++)
+   {
+      double rowsum = 0.;
+      for (int end = Ip[i+1]; k < end; k++)
+      {
+         int j = Jp[k];
+         double kij = Kp[k];
+         double kji = Kp[smap[k]];
+         double dij = fmax(fmax(0.0,-kij),-kji);
+         Dp[k] = dij;
+         Dp[smap[k]] = dij;
+         if (i != j) { rowsum += Dp[k]; }
+      }
+      D(i,i) = -rowsum;
+   }
+}
+   
 class SolutionBounds
 {
 
@@ -905,65 +964,6 @@ public:
       }
    }
 
-   // Utility function to build a map to the offset of the symmetric entry in a sparse matrix
-   Array<int> SparseMatrix_Build_smap(const SparseMatrix &A)
-   {
-      // assuming that A is finalized
-      const int *I = A.GetI(), *J = A.GetJ(), n = A.Size();
-      Array<int> smap;
-      smap.SetSize(I[n]);
-
-      for (int row = 0, j = 0; row < n; row++)
-      {
-         for (int end = I[row+1]; j < end; j++)
-         {
-            int col = J[j];
-            // find the offset, _j, of the (col,row) entry and store it in smap[j]:
-            for (int _j = I[col], _end = I[col+1]; true; _j++)
-            {
-               if (_j == _end)
-               {
-                  mfem_error("SparseMatrix_Build_smap");
-               }
-
-               if (J[_j] == row)
-               {
-                  smap[j] = _j;
-                  break;
-               }
-            }
-         }
-      }
-      return smap;
-   }
-
-   void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K, SparseMatrix& D)
-   {
-      const int s1 = K.Size();
-      int* Ip = K.GetI();
-      int* Jp = K.GetJ();
-      double* Kp = K.GetData();
-      Array<int> smap = SparseMatrix_Build_smap(K); // symmetry map
-
-      double* Dp = D.GetData();
-
-      for (int i = 0, k = 0; i < s1; i++)
-      {
-         double rowsum = 0.;
-         for (int end = Ip[i+1]; k < end; k++)
-         {
-            int j = Jp[k];
-            double kij = Kp[k];
-            double kji = Kp[smap[k]];
-            double dij = fmax(fmax(0.0,-kij),-kji);
-            Dp[k] = dij;
-            Dp[smap[k]] = dij;
-            if (i != j) { rowsum += Dp[k]; }
-         }
-         D(i,i) = -rowsum;
-      }
-   }
-
    void ComputeDiffusionCoefficient(FiniteElementSpace* fes,
                                     VectorFunctionCoefficient &coef)
    {
@@ -1538,7 +1538,7 @@ class FE_Evolution : public TimeDependentOperator
 private:
    FiniteElementSpace* fes;
    BilinearForm &Mbf, &Kbf, &kbdr;
-   SparseMatrix &M, &K;
+   SparseMatrix &M, &K, &KBDR;
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
@@ -1557,7 +1557,7 @@ public:
                 BilinearForm &Mbf_, BilinearForm &Kbf_,
                 SparseMatrix &_M, SparseMatrix &_K,
                 const Vector &_b, FluxCorrectedTransport &_fct,
-                GridFunction &mpos, GridFunction &vpos, BilinearForm &_kbdr);
+                GridFunction &mpos, GridFunction &vpos, BilinearForm &_kbdr, SparseMatrix &_KBDR);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -1925,7 +1925,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, fct, *x, v_gf, kbdr);
+   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, fct, *x, v_gf, kbdr, kbdr.SpMat());
 
    double t = 0.0;
    adv.SetTime(t);
@@ -2157,6 +2157,9 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       int k, j, dofInd, nd;
       double xMax, xMin, vMax, vMin;
       Vector alpha;
+      SparseMatrix D(K);
+      
+      ComputeDiscreteUpwindingMatrix(K, D);
       
       // Discretization terms
       if (!fct.schemeOpt)
@@ -2170,7 +2173,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       y += b;
       
       // Monotonicity terms
-      fct.D.AddMult(x, y);
+      D.AddMult(x, y);
       
       // Division by lumped mass matrix and inclusion of boundary terms in case of PDU
       for (k = 0; k < fes->GetNE(); k++)
@@ -2181,7 +2184,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 
          if (fct.schemeOpt)
          {
-            kbdr.AddMult(x, y);
+            KBDR.AddMult(x, y);
 //             LinearFluxLumping(k, nd, x, y, alpha);
          }
 
@@ -2707,10 +2710,10 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes,
                            SparseMatrix &_M, SparseMatrix &_K,
                            const Vector &_b, FluxCorrectedTransport &_fct,
                            GridFunction &mpos, GridFunction &vpos,
-                           BilinearForm &_kbdr)
+                           BilinearForm &_kbdr, SparseMatrix &_KBDR)
    : TimeDependentOperator(_M.Size()), fes(_fes),
      Mbf(Mbf_), Kbf(Kbf_), M(_M), K(_K), b(_b),
-     z(_M.Size()), fct(_fct), zz(_M.Size()), kbdr(_kbdr), // TODO if useless rm zz
+     z(_M.Size()), fct(_fct), zz(_M.Size()), kbdr(_kbdr), KBDR(_KBDR), // TODO if useless rm zz
      start_pos(mpos.Size()), mesh_pos(mpos), vel_pos(vpos)
 {
    M_solver.SetPreconditioner(M_prec);
@@ -2734,9 +2737,9 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    Mbf.BilinearForm::operator=(0.0);
    Mbf.Assemble();
    Kbf.BilinearForm::operator=(0.0);
-   Kbf.Assemble();
+   Kbf.Assemble(0);
    kbdr.BilinearForm::operator=(0.0);
-   kbdr.Assemble();
+   kbdr.Assemble(0);
 
    if (fct.monoType == 0)
    {
