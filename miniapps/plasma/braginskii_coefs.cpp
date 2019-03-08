@@ -676,7 +676,9 @@ EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
                                (del_(bi_, l) - bHat_[bi_] * bHat_[l]) *
                                (del_(bj_, k) - bHat_[bj_] * bHat_[k]) -
                                (del_(bi_, bj_) - bHat_[bi_] * bHat_[bj_]) *
-                               (del_(k, l) - bHat_[k] * bHat_[l]));
+                               (del_(k, l) - bHat_[k] * bHat_[l]) -
+                               0.5 * (del_(bi_, bj_) - bHat_[bi_] * bHat_[bj_])
+                               * del_(k, l));
 
             K(k, l) += eta2 * ((del_(bi_, k) - bHat_[bi_] * bHat_[k]) *
                                bHat_[bj_] * bHat_[l] +
