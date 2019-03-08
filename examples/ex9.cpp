@@ -118,10 +118,55 @@ void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K, SparseMatrix& D)
       D(i,i) = -rowsum;
    }
 }
+
+Mesh* GetSubcellMesh(Mesh *mesh, int p)
+{
+   Mesh *ref_mesh;
+   if (p==1)
+   {
+      ref_mesh = mesh;
+   }
+   else if (mesh->Dimension() > 1)
+   {
+      int basis_lor = BasisType::ClosedUniform; // to have a uniformly refined mesh
+      ref_mesh = new Mesh(mesh, p, basis_lor);
+      ref_mesh->SetCurvature(1);
+   }
+   else
+   {
+      // TODO generalize to arbitrary 1D segments (different lengths)
+      ref_mesh = new Mesh(mesh->GetNE()*p, 1.);
+      ref_mesh->SetCurvature(1);
+   }
+   return ref_mesh;
+}
+   
+const IntegrationRule *GetFaceIntRule(FiniteElementSpace *fes)
+{
+   int i, qOrdF;
+   Mesh* mesh = fes->GetMesh();
+   FaceElementTransformations *Trans;
+   // use the first mesh boundary with a neighbor as indicator
+   for (i = 0; i < mesh->GetNumFaces(); i++)
+   {
+      Trans = mesh->GetFaceElementTransformations(i);
+      qOrdF = Trans->Elem1->OrderW();
+      if (Trans->Elem2No >= 0)
+      {
+         // qOrdF is chosen such that L2-norm of basis functions is computed accurately.
+         qOrdF = max(qOrdF, Trans->Elem2->OrderW());
+         break;
+      }
+   }
+   // use the first mesh element as indicator
+   const FiniteElement &dummy = *fes->GetFE(0);
+   qOrdF += 2*dummy.GetOrder();
+   
+   return &IntRules.Get(Trans->FaceGeom, qOrdF);
+}
    
 class SolutionBounds
 {
-
    // set of local dofs which are in stencil of given local dof
    Mesh* mesh;
    FiniteElementSpace* fes;
@@ -426,9 +471,7 @@ public:
             //       NOT using the FluxLumping routines. Monotonicity for flux 
             //       terms is ensured via matrix D. The 1D case is not handled
             //       differnetly from the multi-dimensional one (contrary to PDU)
-            
-            D = K; // make sure sparsity is identical
-            ComputeDiscreteUpwindingMatrix(K, D);
+            // Matrix D is assembled in every RK stage.
          }
       }
       else
@@ -438,7 +481,46 @@ public:
             mfem_warning("Subcell option does not make sense for order 1. Using cell-based scheme.");
             schemeOpt = false;
          }
-         ComputeResidualWeights(fes, coef);
+         
+         Mesh* mesh = fes->GetMesh();
+         int k, numDofs, numBdrs, ne = mesh->GetNE(), nd = dummy.GetDof(), dim = mesh->Dimension();
+         if (dim==1)
+         {
+            numSubcells = p;
+            numDofsSubcell = 2;
+         }
+         else if (dim==2)
+         {
+            numSubcells = p*p;
+            numDofsSubcell = 4;
+         }
+         else if (dim==3)
+         {
+            numSubcells = p*p*p;
+            numDofsSubcell = 8;
+         }
+          
+         // fill the dofs array to access the correct dofs for boundaries later
+         dummy.ExtractBdrDofs(dofs);
+         numDofs = dofs.Height();
+         numBdrs = dofs.Width();
+
+         FillSubcell2CellDof(p, dim);s
+         
+         neighborDof.SetSize(ne*numDofs, numBdrs);
+         
+         Array <int> bdrs, orientation;
+         
+         for (k = 0; k < ne; k++)
+         {
+            if (dim==1) { /* Nothing needs to be done for 1D boundaries */ }
+            else if (dim==2)
+               mesh->GetElementEdges(k, bdrs, orientation);
+            else if (dim==3)
+               mesh->GetElementFaces(k, bdrs, orientation);
+
+            FillNeighborDofs(mesh, numDofs, k, nd, p, dim, bdrs);
+         }
       }
    }
 
@@ -455,27 +537,6 @@ public:
       const FiniteElement &dummy = *fes->GetFE(0);
       nd = dummy.GetDof();
       p = dummy.GetOrder();
-
-      if (dim==1)
-      {
-         numSubcells = p;
-         numDofsSubcell = 2;
-      }
-      else if (dim==2)
-      {
-         numSubcells = p*p;
-         numDofsSubcell = 4;
-      }
-      else if (dim==3)
-      {
-         numSubcells = p*p*p;
-         numDofsSubcell = 8;
-      }
-
-      // fill the dofs array to access the correct dofs for boundaries later; dofs is not needed here
-      dummy.ExtractBdrDofs(dofs);
-      numBdrs = dofs.Width();
-      numDofs = dofs.Height();
       
       const IntegrationRule *irF = GetFaceIntRule(fes);
 
@@ -486,7 +547,7 @@ public:
       VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef));
       VolumeTerms.Assemble();
       VolumeTerms.Finalize();
-      fluctMatrix = VolumeTerms.SpMat(); // TODO repeating
+      fluctMatrix = VolumeTerms.SpMat();
       
       Mesh *ref_mesh = GetSubcellMesh(mesh, p);
 
@@ -497,12 +558,9 @@ public:
       FiniteElementSpace SubFes0(ref_mesh, &fec0);
       FiniteElementSpace SubFes1(ref_mesh, &fec1);
 
-      FillSubcell2CellDof(p, dim);
-
       fluctSub.SetSize(ne*numSubcells, numDofsSubcell);
       bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
       bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
-      neighborDof.SetSize(ne*numDofs, numBdrs);
 
       for (k = 0; k < ne; k++)
       {
@@ -557,8 +615,6 @@ public:
          mesh->GetElementEdges(k, bdrs, orientation);
       else if (dim==3)
          mesh->GetElementFaces(k, bdrs, orientation);
-
-      FillNeighborDofs(mesh, numDofs, k, nd, p, dim, bdrs);
 
       for (i = 0; i < numBdrs; i++)
       {
@@ -619,7 +675,7 @@ public:
    // Computes the element-global indices from the indices of the subcell and the indices
    // of dofs on the subcell.
    // NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.
-   void FillSubcell2CellDof(int p,int dim)
+   void FillSubcell2CellDof(int p, int dim)
    {
       subcell2CellDof.SetSize(numSubcells, numDofsSubcell);
       for (int m = 0; m < numSubcells; m++)
@@ -820,52 +876,6 @@ public:
          }
       }
    }
-   
-   Mesh* GetSubcellMesh(Mesh *mesh, int p)
-   {
-      Mesh *ref_mesh;
-      if (p==1)
-      {
-         ref_mesh = mesh;
-      }
-      else if (mesh->Dimension() > 1)
-      {
-         int basis_lor = BasisType::ClosedUniform; // to have a uniformly refined mesh
-         ref_mesh = new Mesh(mesh, p, basis_lor);
-         ref_mesh->SetCurvature(1);
-      }
-      else
-      {
-         // TODO generalize to arbitrary 1D segments (different lengths)
-         ref_mesh = new Mesh(mesh->GetNE()*p, 1.);
-         ref_mesh->SetCurvature(1);
-      }
-      return ref_mesh;
-   }
-   
-   const IntegrationRule *GetFaceIntRule(FiniteElementSpace *fes)
-   {
-      int i, qOrdF;
-      Mesh* mesh = fes->GetMesh();
-      FaceElementTransformations *Trans;
-      // use the first mesh boundary with a neighbor as indicator
-      for (i = 0; i < mesh->GetNumFaces(); i++)
-      {
-         Trans = mesh->GetFaceElementTransformations(i);
-         qOrdF = Trans->Elem1->OrderW();
-         if (Trans->Elem2No >= 0)
-         {
-            // qOrdF is chosen such that L2-norm of basis functions is computed accurately.
-            qOrdF = max(qOrdF, Trans->Elem2->OrderW());
-            break;
-         }
-      }
-      // use the first mesh element as indicator
-      const FiniteElement &dummy = *fes->GetFE(0);
-      qOrdF += 2*dummy.GetOrder();
-      
-      return &IntRules.Get(Trans->FaceGeom, qOrdF);
-   }
 
    // Destructor
    ~FluxCorrectedTransport() { }
@@ -875,7 +885,7 @@ public:
 
    bool schemeOpt;
    int numSubcells, numDofsSubcell;
-   SparseMatrix D, fluctMatrix;
+//    SparseMatrix fluctMatrix;
    DenseMatrix dofs, neighborDof, subcell2CellDof, bdrInt,
                bdrIntLumped, fluctSub;
    SolutionBounds &bnds;
@@ -1371,6 +1381,14 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       Vector xMaxSubcell, xMinSubcell, sumWeightsSubcellP, sumWeightsSubcellN,
              fluctSubcellP, fluctSubcellN, nodalWeightsP, nodalWeightsN, alpha;
 
+      //
+      fct.fluctMatrix.Mult(x, z);
+      KBDR.Mult(x, z);
+      z += b;
+      NeumannSolve(z, y);
+      return;
+      //
+             
       // Discretization terms
       y = b;
       fct.fluctMatrix.Mult(x, z);
