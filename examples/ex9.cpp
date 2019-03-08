@@ -774,13 +774,6 @@ public:
       // NOTE: D is initialized later, due to the need to have identical sparisty with corresponding 
       //       advection operator K or preconditioned volume terms, depending on the scheme.
       
-      // Compute the lumped mass matrix algebraicly
-      BilinearForm m(fes);
-      m.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-      m.Assemble();
-      m.Finalize();
-      m.SpMat().GetDiag(lumpedM);
-      
       const FiniteElement &dummy = *fes->GetFE(0);
       int p = dummy.GetOrder();
       
@@ -1537,13 +1530,14 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    FiniteElementSpace* fes;
-   BilinearForm &Mbf, &Kbf, &kbdr;
+   BilinearForm &Mbf, &Kbf, &kbdr, &ml;
    SparseMatrix &M, &K, &KBDR;
    const Vector &b;
    DSmoother M_prec;
    CGSolver M_solver;
 
    Vector start_pos;
+   Vector &lumpedM;
    GridFunction &mesh_pos, &vel_pos;
 
    mutable Vector z;
@@ -1557,7 +1551,9 @@ public:
                 BilinearForm &Mbf_, BilinearForm &Kbf_,
                 SparseMatrix &_M, SparseMatrix &_K,
                 const Vector &_b, FluxCorrectedTransport &_fct,
-                GridFunction &mpos, GridFunction &vpos, BilinearForm &_kbdr, SparseMatrix &_KBDR);
+                GridFunction &mpos, GridFunction &vpos, 
+                BilinearForm &_kbdr, SparseMatrix &_KBDR,
+                BilinearForm &_ml, Vector &_lumpedM);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -1837,6 +1833,14 @@ int main(int argc, char *argv[])
       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
    kbdr.Assemble(0);
    kbdr.Finalize(0);
+   
+   // Compute the lumped mass matrix algebraicly
+   Vector lumpedM;
+   BilinearForm ml(&fes);
+   ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+   ml.Assemble();
+   ml.Finalize();
+   ml.SpMat().GetDiag(lumpedM);
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -1925,7 +1929,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, fct, *x, v_gf, kbdr, kbdr.SpMat());
+   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, fct, *x, v_gf, kbdr, kbdr.SpMat(), ml, lumpedM);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -2191,7 +2195,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          for (j = 0; j < nd; j++)
          {
             dofInd = k*nd+j;
-            y(dofInd) /= fct.lumpedM(dofInd);
+            y(dofInd) /= lumpedM(dofInd);
          }
       }
    }
@@ -2710,11 +2714,13 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes,
                            SparseMatrix &_M, SparseMatrix &_K,
                            const Vector &_b, FluxCorrectedTransport &_fct,
                            GridFunction &mpos, GridFunction &vpos,
-                           BilinearForm &_kbdr, SparseMatrix &_KBDR)
+                           BilinearForm &_kbdr, SparseMatrix &_KBDR,
+                           BilinearForm &_ml, Vector &_lumpedM)
    : TimeDependentOperator(_M.Size()), fes(_fes),
      Mbf(Mbf_), Kbf(Kbf_), M(_M), K(_K), b(_b),
      z(_M.Size()), fct(_fct), zz(_M.Size()), kbdr(_kbdr), KBDR(_KBDR), // TODO if useless rm zz
-     start_pos(mpos.Size()), mesh_pos(mpos), vel_pos(vpos)
+     start_pos(mpos.Size()), mesh_pos(mpos), vel_pos(vpos),
+     ml(_ml), lumpedM(_lumpedM)
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
