@@ -197,7 +197,9 @@ public:
 		      }
 
 		    if (faceOn)
-		      interfaces[interfaceIndex].InsertFaceIndex(f[k]);
+		      {
+			interfaces[interfaceIndex].InsertFaceIndex(f[k]);
+		      }
 		  }
 	      }
 	  }
