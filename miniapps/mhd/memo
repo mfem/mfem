@@ -1,7 +1,9 @@
 2019/3/6
 the stucture of explicit scheme seems clear
 the linear parts seem ok
-the nonlinear term, I do not know...
+the nonlinear term requires some work:
+1. for explicit scheme, it is okay: I need to update matrix inside time step (with proper assembling, I am still not sure about how to do it). both PDSolver and implicitMHD need some work.
+2. for nonlinear problem, how could link nonlinear term properly??
 
 2019/3/3
 move back to MFEM

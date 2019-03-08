@@ -6,7 +6,7 @@
 //    implicitMHD -m ../../data/beam-quad.mesh -s 3 -r 2 -o 2 -dt 3
 //
 // Description:  it solves a time dependent resistive MHD problem 
-//  10/30/2018 -QT
+// Author: QT
 
 #include "mfem.hpp"
 #include "PDSolver.hpp"
@@ -26,8 +26,9 @@ double Lx;  //size of x domain
  *     dPsi/dt = M^{-1}*F1,
  *     dw  /dt = M^{-1}*F2,
  *  coupled with two linear systems
- *     j   = M^{-1}*K*Psi 
- *     Phi = K^{-1}*M*w
+ *     j   = -M^{-1}*K*Psi 
+ *     Phi = -K^{-1}*M*w
+ *  so far there seems no need to do a BlockNonlinearForm
  *
  *  Class ImplicitMHDOperator represents the right-hand side of the above
  *  system of ODEs. */
@@ -47,6 +48,8 @@ protected:
    DSmoother K_prec;  // Preconditioner for the stiffness matrix K
 
    mutable Vector z; // auxiliary vector 
+
+   VectorGridFunctionCoefficient *velocity,*Bfield;
 
 public:
    ImplicitMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, double visc, double resi);
@@ -142,7 +145,7 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver;
    switch (ode_solver_type)
    {
-     // Explicit methods FIXME: FE is not working 
+     // Explicit methods FIXME: FE is not stable 
      case 1: ode_solver = new ForwardEulerSolver; break;
      case 2: ode_solver = new PDSolver; break; //first order predictor-corrector
      case 3: ode_solver = new RK3SSPSolver; break;
@@ -291,8 +294,8 @@ int main(int argc, char *argv[])
 }
 
 
-//initialization
-ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f, double visc,double resi)
+ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f, 
+                                         Array<int> &ess_bdr, double visc,double resi)
    : TimeDependentOperator(4*f.GetTrueVSize(), 0.0), fespace(f),
      M(&fespace), K(&fespace), Nv(&fespace), Nb(&fespace),
      viscosity(visc),  resistivity(resi), z(height/4)
@@ -331,27 +334,36 @@ ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f, double visc,doub
    K_solver.SetPreconditioner(K_prec);
    K_solver.SetOperator(K.SpMat()); //this is a real matrix
 
+   //this has to be assembled in each time step? but how could I do implicitly?
+   //TODO add nonlinear form here v=[-Phi_y, Phi_x]
+   //VectorGridFunctionCoefficient velocity(dim, velocity_function);
+   velocity->SetGridFunction(stuff??);
+   Nv.AddDomainIntegrator(new ConvectionIntegrator(*velocity));
+   Nv.SetEssentialTrueDofs(ess_tdof_list);
+   Nv.Assemble(skip_zero_entries);
 
-   //TODO add nonlinear form here???
-   H.AddDomainIntegrator(new HyperelasticNLFIntegrator(model));
-   H.SetEssentialTrueDofs(ess_tdof_list);
-
+   //TODO add nonlinear form here B=[-Psi_y, Psi_x]
+   //VectorGridFunctionCoefficient Bfield(dim, B_function);
+   Bfield->SetGridFunction(stuff??);
+   Nb.AddDomainIntegrator(new ConvectionIntegrator(*Bfield));
+   Nb.SetEssentialTrueDofs(ess_tdof_list);
+   Nb.Assemble(skip_zero_entries);
 
    ConstantCoefficient visc_coeff(viscosity);
    DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
    DRe.Assemble(skip_zero_entries);
-   DRe.FormSystemMatrix(ess_tdof_list, tmp);
+   //DRe.FormSystemMatrix(ess_tdof_list, tmp); no need to form matrix
 
    ConstantCoefficient resi_coeff(resistivity);
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble(skip_zero_entries);
-   DSl.FormSystemMatrix(ess_tdof_list, tmp);
+   //DSl.FormSystemMatrix(ess_tdof_list, tmp);
 
 }
 
 void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 {
-   // Create views to the sub-vectors of vx, and dvx_dt
+   // Create views to the sub-vectors and time derivative
    int sc = height/4;
    Vector phi(vx.GetData() +   0, sc);
    Vector psi(vx.GetData() +  sc, sc);
@@ -382,34 +394,27 @@ void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    z.Neg(); // z = -z
    Nb.AddMult(j, z);
    M_solver.Mult(z, dw_dt);
-
 }
 
-void ImplicitMHDOperator::UpdateJ(const Vector &vx) const
+void ImplicitMHDOperator::UpdateJ(Vector &vx) const
 {
-   //the current is J=M^{-1}*K*Psi
-   // Create views to the sub-vectors of vx, and dvx_dt
+   //the current is J=-M^{-1}*K*Psi
    int sc = height/4;
-   Vector phi(vx.GetData() +   0, sc);
    Vector psi(vx.GetData() +  sc, sc);
-   Vector   w(vx.GetData() +2*sc, sc);
-   Vector   j(vx.GetData() +3*sc, sc);
+   Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference, so it should be good
 
    K.Mult(psi, z);
    z.Neg(); // z = -z
    M_solver.Mult(z, j);
-
 }
 
-void ImplicitMHDOperator::UpdatePhi(const Vector &vx) const
+void ImplicitMHDOperator::UpdatePhi(Vector &vx) const
 {
-    //Phi=K^{-1}*M*w
+   //Phi=-K^{-1}*M*w
    // Create views to the sub-vectors of vx, and dvx_dt
    int sc = height/4;
    Vector phi(vx.GetData() +   0, sc);
-   Vector psi(vx.GetData() +  sc, sc);
    Vector   w(vx.GetData() +2*sc, sc);
-   Vector   j(vx.GetData() +3*sc, sc);
 
    M.Mult(w, z);
    z.Neg(); // z = -z
@@ -419,8 +424,9 @@ void ImplicitMHDOperator::UpdatePhi(const Vector &vx) const
 
 ImplicitMHDOperator::~ImplicitMHDOperator()
 {
-/* delete pointers */
-    //TODO
+    //free used memory
+    delete Bfield;
+    delete velocity;
 }
 
 
