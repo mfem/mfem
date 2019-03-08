@@ -1228,8 +1228,10 @@ void InitialCondition(const Vector &x, Vector &y)
    Vector V(2);
    bFunc(x, V);
    V *= (v_max_ / B_max_) * sqrt(pow(x[0]/a,2)+pow(x[1]/b,2));
-
-   double den = 1.0e18;
+   V[1] += 0.5 * v_max_ * exp(-400.0 * (pow(x[0] + 0.5 * a, 2) + x[1] * x[1]));
+   
+   double den = 1.0e18 * (1.0 + 0.25 * exp(-400.0 * (pow(x[0] - 0.5 * a, 2) +
+						     pow(x[1] + 0.5 * b, 2))));
    for (int i=1; i<=num_species_; i++)
    {
       y(i) = den;
