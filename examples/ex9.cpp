@@ -744,10 +744,10 @@ public:
 
 
 void preprocessFluxLumping(const FluxCorrectedTransport &fct, const int k, const IntegrationRule *irF, 
-                           DenseMatrix &bdrIntLumped, DenseMatrix &bdrInt)
+                           DenseMatrix &bdrIntLumped, DenseMatrix &bdrInt, VectorGridFunctionCoefficient &coef)
 {
    FiniteElementSpace *fes = fct.fes;
-   VectorFunctionCoefficient &coef = fct.velocity;
+//    VectorFunctionCoefficient &coef = fct.velocity;
    DenseMatrix dofs = fct.dofs;
    
    const FiniteElement &dummy = *fes->GetFE(k);
@@ -811,11 +811,11 @@ void preprocessFluxLumping(const FluxCorrectedTransport &fct, const int k, const
          }
          
          nor /= nor.Norml2();
-         vn = min(0., vval * nor);
+         vn = max(0., vval * nor);
          
          for(j = 0; j < numDofs; j++)
          {
-            bdrIntLumped(k*nd+dofs(j,i),i) -= ip.weight * 
+            bdrIntLumped(k*nd+dofs(j,i),i) += ip.weight * 
             Trans->Face->Weight() * shape(dofs(j,i)) * vn;
       
             for (m = 0; m < numDofs; m++)
@@ -828,11 +828,11 @@ void preprocessFluxLumping(const FluxCorrectedTransport &fct, const int k, const
    }
 }
 
-void ComputeResidualWeights(const FluxCorrectedTransport &fct, SparseMatrix &fluctMatrix,
-                            DenseMatrix &fluctSub, DenseMatrix &bdrIntLumped, DenseMatrix &bdrInt)
+void ComputeResidualWeights(const FluxCorrectedTransport &fct, SparseMatrix &fluctMatrix, DenseMatrix &fluctSub, 
+                            DenseMatrix &bdrIntLumped, DenseMatrix &bdrInt, VectorGridFunctionCoefficient &coef)
 {
    FiniteElementSpace *fes = fct.fes;
-   VectorFunctionCoefficient &coef = fct.velocity;
+//    VectorFunctionCoefficient &coef = fct.velocity;
    
    Mesh *mesh = fes->GetMesh();
    int i, j, k, m, p, nd, dofInd, qOrdF, numBdrs = fct.dofs.Width(),
@@ -875,22 +875,22 @@ void ComputeResidualWeights(const FluxCorrectedTransport &fct, SparseMatrix &flu
       ////////////////////////////
       // Boundary contributions //
       ////////////////////////////
-      preprocessFluxLumping(fct, k, irF, bdrIntLumped, bdrInt);
+      preprocessFluxLumping(fct, k, irF, bdrIntLumped, bdrInt, coef);
 
-      ///////////////////////////
-      // Element contributions //
-      ///////////////////////////
-      for (m = 0; m < fct.numSubcells; m++)
-      {
-         dofInd = fct.numSubcells*k+m;
-         const FiniteElement *el0 = SubFes0.GetFE(dofInd);
-         const FiniteElement *el1 = SubFes1.GetFE(dofInd);
-         tr = ref_mesh->GetElementTransformation(dofInd);
-         fluct->AssembleElementMatrix2(*el1, *el0, *tr, elmat);
-         
-         for (j = 0; j < fct.numDofsSubcell; j++)
-            fluctSub(dofInd, j) = elmat(0,j);
-      }
+//       ///////////////////////////
+//       // Element contributions //
+//       ///////////////////////////
+//       for (m = 0; m < fct.numSubcells; m++)
+//       {
+//          dofInd = fct.numSubcells*k+m;
+//          const FiniteElement *el0 = SubFes0.GetFE(dofInd);
+//          const FiniteElement *el1 = SubFes1.GetFE(dofInd);
+//          tr = ref_mesh->GetElementTransformation(dofInd);
+//          fluct->AssembleElementMatrix2(*el1, *el0, *tr, elmat);
+//          
+//          for (j = 0; j < fct.numDofsSubcell; j++)
+//             fluctSub(dofInd, j) = elmat(0,j);
+//       }
    }
    if (p!=1)
    {
@@ -916,6 +916,8 @@ private:
    Vector start_pos;
    Vector &lumpedM;
    GridFunction &mesh_pos, &vel_pos;
+   
+   VectorGridFunctionCoefficient &coef;
 
    mutable Vector z;
 
@@ -929,7 +931,7 @@ public:
                 const Vector &_b, FluxCorrectedTransport &_fct,
                 GridFunction &mpos, GridFunction &vpos, 
                 BilinearForm &_kbdr, SparseMatrix &_KBDR,
-                BilinearForm &_ml, Vector &_lumpedM);
+                BilinearForm &_ml, Vector &_lumpedM, VectorGridFunctionCoefficient &v_coef);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -1242,7 +1244,7 @@ else
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, fct, *x, v_gf, kbdr, kbdr.SpMat(), ml, lumpedM);
+   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, fct, *x, v_gf, kbdr, kbdr.SpMat(), ml, lumpedM, v_coeff);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -1428,12 +1430,12 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       //
       SparseMatrix fluctMatrix;
       DenseMatrix fluctSub, bdrIntLumped, bdrInt;
-      ComputeResidualWeights(fct, fluctMatrix, fluctSub, bdrIntLumped, bdrInt);
+      ComputeResidualWeights(fct, fluctMatrix, fluctSub, bdrIntLumped, bdrInt, coef);
          
       // Discretization terms
       y = b;
       
-      KBDR.AddMult(x, y); //for debug
+//       KBDR.AddMult(x, y); //for debug
 //       fluctMatrix.Mult(x, z); //TODO unused
       K.Mult(x, z); // this is just element terms now!
       
@@ -1484,8 +1486,8 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ////////////////////////////
          // Boundary contributions //
          ////////////////////////////
-//          if (dim > 1)// Nothing needs to be done for 1D boundaries (due to Bernstein basis)
-//            LinearFluxLumping(k, nd, x, y, bdrInt, bdrIntLumped);
+         if (dim > 1)// Nothing needs to be done for 1D boundaries (due to Bernstein basis)
+           LinearFluxLumping(k, nd, x, y, bdrInt, bdrIntLumped);
          
          sumWeightsP = nd*xMax - xSum + eps;
          sumWeightsN = nd*xMin - xSum - eps;
@@ -1646,12 +1648,12 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes,
                            const Vector &_b, FluxCorrectedTransport &_fct,
                            GridFunction &mpos, GridFunction &vpos,
                            BilinearForm &_kbdr, SparseMatrix &_KBDR,
-                           BilinearForm &_ml, Vector &_lumpedM)
+                           BilinearForm &_ml, Vector &_lumpedM, VectorGridFunctionCoefficient &v_coef)
    : TimeDependentOperator(_M.Size()), fes(_fes),
      Mbf(Mbf_), Kbf(Kbf_), M(_M), K(_K), b(_b),
      z(_M.Size()), fct(_fct), kbdr(_kbdr), KBDR(_KBDR),
      start_pos(mpos.Size()), mesh_pos(mpos), vel_pos(vpos),
-     ml(_ml), lumpedM(_lumpedM) { }
+     ml(_ml), lumpedM(_lumpedM), coef(v_coef) { }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
