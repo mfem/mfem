@@ -416,57 +416,7 @@ public:
       {
          if (schemeOpt)
          {
-            ////////////////////////////
-            // Boundary contributions //
-            ////////////////////////////
-            Mesh *mesh = fes->GetMesh();
-            int dim = mesh->Dimension(), ne = mesh->GetNE(), nd = dummy.GetDof();
-            
-            // fill the dofs array to access the correct dofs for boundaries later
-            dummy.ExtractBdrDofs(dofs);
-            int numBdrs = dofs.Width();
-            int numDofs = dofs.Height();
-            
-            bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
-            bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
-            neighborDof.SetSize(ne*numDofs, numBdrs);
-            
-            const IntegrationRule *irF = GetFaceIntRule(fes);
-            
-            for (int k = 0; k < ne; k++)
-            {
-               preprocessFluxLumping(fes, coef, k, irF);
-            }
-            
-            ///////////////////////////
-            // Element contributions //
-            ///////////////////////////
-            BilinearForm prec(fes);
-            prec.AddDomainIntegrator(new PrecondConvectionIntegrator(coef));
-            prec.Assemble(0);
-            prec.Finalize(0);
-            
-            D = prec.SpMat();
-            ComputeDiscreteUpwindingMatrix(prec.SpMat(), D);
-            
-            if (dim==1)
-            {
-               // NOTE: Nothing needs to be done in terms of monotonicity for 1D flux terms.
-               //       They are includef in the global matrix fluctMatrix.
-               BilinearForm VolumeTerms(fes);
-               // altered sign of alpha in order to be able to add matrices later
-               VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
-               VolumeTerms.Assemble(0);
-               VolumeTerms.Finalize(0);
-            
-               fluctMatrix = K;
-               fluctMatrix += VolumeTerms.SpMat(); // subtract volume terms
-               fluctMatrix += prec.SpMat(); // add preconditioned volume terms
-            }
-            else
-            {
-               fluctMatrix = prec.SpMat(); // add preconditioned volume terms
-            }
+            mfem_error("PDU not implemented.");
          }
          else
          {
@@ -595,7 +545,7 @@ public:
       Array <int> bdrs, orientation;
       FaceElementTransformations *Trans;
       
-      dummy.ExtractBdrDofs(dofs); // TODO maybe just required here
+      dummy.ExtractBdrDofs(dofs); //TODO rm?
       numBdrs = dofs.Width();
       numDofs = dofs.Height();
       
@@ -1387,21 +1337,12 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
    if ((fct.monoType == DiscUpw) || (fct.monoType == DiscUpw_FCT))
    {
       int k, j, dofInd, nd;
-      double xMax, xMin, vMax, vMin;
-      Vector alpha;
       SparseMatrix D(K);
       
       ComputeDiscreteUpwindingMatrix(K, D);
       
       // Discretization terms
-      if (!fct.schemeOpt)
-      {
-         K.Mult(x, y);
-      }
-      else
-      {
-         fct.fluctMatrix.Mult(x, y);
-      }
+      K.Mult(x, y);
       y += b;
       
       // Monotonicity terms
@@ -1412,13 +1353,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       {
          const FiniteElement &el = *fes->GetFE(k);
          nd = el.GetDof();
-         alpha.SetSize(nd); alpha = 0.;
-
-         if (fct.schemeOpt)
-         {
-            KBDR.AddMult(x, y);
-//             LinearFluxLumping(k, nd, x, y, alpha);
-         }
 
          for (j = 0; j < nd; j++)
          {
