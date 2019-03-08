@@ -1115,7 +1115,6 @@ int main(int argc, char *argv[])
    }
    VectorGridFunctionCoefficient v_coeff(&v_gf);
 
-
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
    BilinearForm k(&fes);
@@ -1125,10 +1124,10 @@ BilinearForm kbdr(&fes);
 if (problem==6)
 {
    k.AddDomainIntegrator(new ConvectionIntegrator(v_coeff));
-   k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
-   k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
+//    k.AddInteriorFaceIntegrator(
+//       new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
+//    k.AddBdrFaceIntegrator(
+//       new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5))); //TODO debug
    
    kbdr.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
@@ -1136,10 +1135,10 @@ if (problem==6)
 else
 {
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
-   k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
-   k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
+//    k.AddInteriorFaceIntegrator(
+//       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
+//    k.AddBdrFaceIntegrator(
+//       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5))); //TODO debug
 
    kbdr.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
@@ -1433,8 +1432,11 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          
       // Discretization terms
       y = b;
+      
       KBDR.AddMult(x, y); //for debug
-      fluctMatrix.Mult(x, z);
+//       fluctMatrix.Mult(x, z); //TODO unused
+      K.Mult(x, z); // this is just element terms now!
+      
       if (dim==1)
       {
          K.AddMult(x, y);
@@ -1442,6 +1444,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       }
 //       z += y;
 //       NeumannSolve(z, y); //for debug
+//       return;
 
       // Monotonicity terms
       for (k = 0; k < ne; k++)
