@@ -1924,7 +1924,7 @@ int main(int argc, char *argv[])
 
    // check for conservation
    Vector tmp(u);
-   double initialMass = fct.lumpedM * u;
+   double initialMass = lumpedM * u;
 
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
@@ -1979,7 +1979,7 @@ int main(int argc, char *argv[])
    }
 
    // check for conservation
-   double finalMass = fct.lumpedM * u;
+   double finalMass = lumpedM * u;
    cout << "Mass loss: " << abs(initialMass - finalMass) << endl;
    
    // Compute errors for problems, where the initial condition is equal to the final solution
@@ -2068,7 +2068,7 @@ void FE_Evolution::NeumannSolve(const Vector &f, Vector &x) const
       }
       for (i = 0; i < n; i++)
       {
-         x(i) -= y(i) / fct.lumpedM(i);
+         x(i) -= y(i) / lumpedM(i);
       }
    }
 }
@@ -2301,7 +2301,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             {
                // element update and inversion of lumped mass matrix
                dofInd = k*nd+j;
-               y(dofInd) /= fct.lumpedM(dofInd);
+               y(dofInd) /= lumpedM(dofInd);
             }
          }
          else
@@ -2316,7 +2316,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             {
                // element update and inversion of lumped mass matrix
                dofInd = k*nd+j;
-               y(dofInd) = ( z(dofInd) + fct.elDiff(k)*(xSum - nd*x(dofInd)) ) / fct.lumpedM(dofInd);
+               y(dofInd) = ( z(dofInd) + fct.elDiff(k)*(xSum - nd*x(dofInd)) ) / lumpedM(dofInd);
             }
          }
       }
@@ -2477,8 +2477,8 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             }
             else
             {
-               y(dofInd) = (y(dofInd) + alpha(i) * z(dofInd)) / fct.lumpedM(dofInd);
-               zz(dofInd) = (y(dofInd) + alpha(i) * z(dofInd)) / fct.lumpedM(dofInd);
+               y(dofInd) = (y(dofInd) + alpha(i) * z(dofInd)) / lumpedM(dofInd);
+               zz(dofInd) = (y(dofInd) + alpha(i) * z(dofInd)) / lumpedM(dofInd);
             }
          }
       }
@@ -2522,7 +2522,7 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
          dofInd = k*nd+j;
          uClipped(j) = min(fct.bnds.x_max(dofInd), max(x(dofInd) + dt * yH(dofInd), fct.bnds.x_min(dofInd)));
          // compute coefficients for the high-order corrections
-         fClipped(j) = fct.lumpedM(dofInd) * (uClipped(j) - ( x(dofInd) + dt * yL(dofInd) ));
+         fClipped(j) = lumpedM(dofInd) * (uClipped(j) - ( x(dofInd) + dt * yL(dofInd) ));
 
          sumPos += max(fClipped(j), 0.);
          sumNeg += min(fClipped(j), 0.);
@@ -2542,7 +2542,7 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
          dofInd = k*nd+j;
          // yH is high order discrete time derivative
          // yL is low order discrete time derivative
-         y(dofInd) = yL(dofInd) + fClipped(j) / (dt * fct.lumpedM(dofInd));
+         y(dofInd) = yL(dofInd) + fClipped(j) / (dt * lumpedM(dofInd));
          // y is now the discrete time derivative featuring the high order anti-diffusive
          // reconstruction that leads to an forward Euler updated admissible solution.
          // The factor dt in the denominator is used for compensation in the ODE solver.
@@ -2591,7 +2591,7 @@ void FE_Evolution::ApplyTimeDerivativeLimiter1(const Vector &x, const Vector &yH
             y(dofInd) += alphaDot(i) * Mij[ctr] * alphaDot(j) * (yH(dofInd) - yH(k*nd+j)); // use knowledge of how M looks like
             ctr++;
          }
-         y(dofInd) /= fct.lumpedM(dofInd);
+         y(dofInd) /= lumpedM(dofInd);
       }
    }
 }
@@ -2615,15 +2615,15 @@ void FE_Evolution::ApplyTimeDerivativeLimiter2(const Vector &x, const Vector &yH
       for (i = 0; i < nd; i++)
       {
          dofInd = k*nd+i;
-         eta(i) = fct.lumpedM(dofInd) * yH(dofInd) - yL(dofInd);
-         u(i) = x(dofInd) + dt * yL(dofInd) / fct.lumpedM(dofInd);
+         eta(i) = lumpedM(dofInd) * yH(dofInd) - yL(dofInd);
+         u(i) = x(dofInd) + dt * yL(dofInd) / lumpedM(dofInd);
          uMax = max(uMax, u(i));
          uMin = min(uMin, u(i));
       }
       for (i = 0; i < nd; i++)
       {
          dofInd = k*nd+i;
-         tmp = fct.lumpedM(dofInd) / dt;
+         tmp = lumpedM(dofInd) / dt;
          Lmin = tmp * (min(fct.bnds.x_min(dofInd), uMin)-u(i));
          Lmax = tmp * (max(fct.bnds.x_max(dofInd), uMax)-u(i));
          
@@ -2642,7 +2642,7 @@ void FE_Evolution::ApplyTimeDerivativeLimiter2(const Vector &x, const Vector &yH
             eta(i) *= - sumP / sumN;
          }
          dofInd = k*nd+i;
-         y(dofInd) = (yL(dofInd) + eta(i)) / fct.lumpedM(dofInd);
+         y(dofInd) = (yL(dofInd) + eta(i)) / lumpedM(dofInd);
       }
    }
 }
@@ -2676,14 +2676,14 @@ void FE_Evolution::ApplyTimeDerivativeLimiter3(const Vector &x, const Vector &yH
             eta(i) += Mij[ctr] * (yH(dofInd) - yH(k*nd+j)); // use knowledge of how M looks like
             ctr++;
          }
-         u(i) = x(dofInd) + dt * yL(dofInd) / fct.lumpedM(dofInd);
+         u(i) = x(dofInd) + dt * yL(dofInd) / lumpedM(dofInd);
          uMax = max(uMax, u(i));
          uMin = min(uMin, u(i));
       }
       for (i = 0; i < nd; i++)
       {
          dofInd = k*nd+i;
-         tmp1 = fct.lumpedM(dofInd) / dt;
+         tmp1 = lumpedM(dofInd) / dt;
          tmp2 = z(dofInd) + eta(i) - zz(dofInd);
          Lmin = max( tmp1 * (min(fct.bnds.x_min(dofInd), uMin)-u(i)), min(0., tmp2) );
          Lmax = min( tmp1 * (max(fct.bnds.x_max(dofInd), uMax)-u(i)), max(0., tmp2) );
@@ -2703,7 +2703,7 @@ void FE_Evolution::ApplyTimeDerivativeLimiter3(const Vector &x, const Vector &yH
             eta(i) *= - sumP / sumN;
          }
          dofInd = k*nd+i;
-         y(dofInd) = (yL(dofInd) + eta(i)) / fct.lumpedM(dofInd);
+         y(dofInd) = (yL(dofInd) + eta(i)) / lumpedM(dofInd);
       }
    }
 }
