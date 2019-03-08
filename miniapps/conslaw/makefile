@@ -6,7 +6,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 # Directory structure
-LIB_DIR=lib
+LIB_DIR=./lib
 SOURCE_DIR=src
 INC_DIR=include
 BUILD_DIR=build
@@ -15,7 +15,7 @@ DEPENDS=$(BUILD_DIR)/.depends
 
 # dgpa shared library
 LIB_NAME=dgpa
-LIB=$(LIB_DIR)/lib$(LIB_NAME).so
+LIB=$(LIB_DIR)/lib$(LIB_NAME).a
 LIB_SOURCES=$(wildcard $(SOURCE_DIR)/*.cpp)
 LIB_OBJECTS=$(LIB_SOURCES:$(SOURCE_DIR)/%.cpp=$(BUILD_DIR)/$(LIB_DIR)/%.o)
 
@@ -41,7 +41,7 @@ $(BUILD_DIR)/$(APP_DIR)/%.o: makefile | $(BUILD_DIR)
 
 # Build the library
 $(LIB): $(LIB_OBJECTS)
-	$(MFEM_CXX) $(LFLGAS) -shared -o $@ $^
+	$(AR) $(ARFLAGS) $(@) $(LIB_OBJECTS)
 
 $(BUILD_DIR)/$(LIB_DIR)/%.o: makefile | $(BUILD_DIR)
 	$(MFEM_CXX) -c $(CXXFLAGS) $(INCFLAGS) -o $@ $(SOURCE_DIR)/$*.cpp
@@ -51,9 +51,9 @@ $(BUILD_DIR)/$(LIB_DIR)/%.o: makefile | $(BUILD_DIR)
 # Prefix all lines matching the regexp /^.*\.o/ with build/ (to match e.g. "file.o:")
 # and leave other lines alone
 $(DEPENDS): $(APP_SOURCES) $(LIB_SOURCES) | $(BUILD_DIR)
-	$(CXX) $(INCFLAGS) -MM $(LIB_SOURCES) \
+	$(CXX) -std=c++11 $(INCFLAGS) -MM $(LIB_SOURCES) \
 		| awk '/^.*\.o:/{ print "$(BUILD_DIR)/$(LIB_DIR)/" $$0; next } 1'  >$@
-	$(CXX) $(INCFLAGS) -MM $(APP_SOURCES) \
+	$(CXX) -std=c++11 $(INCFLAGS) -MM $(APP_SOURCES) \
 		| awk '/^.*\.o:/{ print "$(BUILD_DIR)/$(APP_DIR)/" $$0; next } 1'  >>$@
 
 # Rebuild dependencies unless doing "make clean" or "make style"
