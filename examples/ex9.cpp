@@ -1537,7 +1537,7 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    FiniteElementSpace* fes;
-   BilinearForm &Mbf, &Kbf;
+   BilinearForm &Mbf, &Kbf, &kbdr;
    SparseMatrix &M, &K;
    const Vector &b;
    DSmoother M_prec;
@@ -1557,7 +1557,7 @@ public:
                 BilinearForm &Mbf_, BilinearForm &Kbf_,
                 SparseMatrix &_M, SparseMatrix &_K,
                 const Vector &_b, FluxCorrectedTransport &_fct,
-                GridFunction &mpos, GridFunction &vpos);
+                GridFunction &mpos, GridFunction &vpos, BilinearForm &_kbdr);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -1831,6 +1831,12 @@ int main(int argc, char *argv[])
       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
    k.AddBdrFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
+   
+   BilinearForm kbdr(&fes);
+   kbdr.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
+   kbdr.Assemble(0);
+   kbdr.Finalize(0);
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -1919,7 +1925,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, fct, *x, v_gf);
+   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, fct, *x, v_gf, kbdr);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -2148,23 +2154,9 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 {
    if ((fct.monoType == DiscUpw) || (fct.monoType == DiscUpw_FCT))
    {
-      int k, j, dofInd, nd, ctr1 = 0, ctr2 = 0;
-      double xMax, xMin, vMax, vMin, beta = 10.;
-      const double* Dij = fct.D.GetData();
-      const double* Mij = M.GetData();
+      int k, j, dofInd, nd;
+      double xMax, xMin, vMax, vMin;
       Vector alpha;
-      bool MonoLim = false;
-      
-      // compute solution bounds
-      if (MonoLim)
-      {
-         if (!fct.schemeOpt)
-            mfem_error("Not yet implemented."); // sparsity of D may be problematic (different to that of M)
-         
-         fct.fluctMatrix.Mult(x, z);
-
-         fct.bnds.Compute(K, x); // TODO reorder and combine schemes and avoid repetition of this computation in case of FCT
-      }
       
       // Discretization terms
       if (!fct.schemeOpt)
@@ -2186,31 +2178,11 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          const FiniteElement &el = *fes->GetFE(k);
          nd = el.GetDof();
          alpha.SetSize(nd); alpha = 0.;
-         
-         if (MonoLim)
-         {
-            xMin = vMin = numeric_limits<double>::infinity();
-            xMax = vMax = -xMin;
-            for (j = 0; j < nd; j++)
-            {
-               dofInd = k*nd+j;
-               xMax = max(xMax, x(dofInd));
-               xMin = min(xMin, x(dofInd));
-               
-               z(dofInd) /= fct.lumpedM(dofInd);
-               vMax = max(vMax, z(dofInd));
-               vMin = min(vMin, z(dofInd));
-            }
-            ComputeMonolithicCorrectionFactors(k, nd, beta, vMax, vMin, x, z, alpha);
-            ApplyMonolithicLimiter(k, nd, ctr1, alpha, Mij, z, y, -1.);
-            
-            ComputeMonolithicCorrectionFactors(k, nd, beta, xMax, xMin, x, x, alpha);
-            ApplyMonolithicLimiter(k, nd, ctr2, alpha, Dij, x, y);
-         }
 
          if (fct.schemeOpt)
          {
-            LinearFluxLumping(k, nd, x, y, alpha);
+            kbdr.AddMult(x, y);
+//             LinearFluxLumping(k, nd, x, y, alpha);
          }
 
          for (j = 0; j < nd; j++)
@@ -2734,10 +2706,11 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes,
                            BilinearForm &Mbf_, BilinearForm &Kbf_,
                            SparseMatrix &_M, SparseMatrix &_K,
                            const Vector &_b, FluxCorrectedTransport &_fct,
-                           GridFunction &mpos, GridFunction &vpos)
+                           GridFunction &mpos, GridFunction &vpos,
+                           BilinearForm &_kbdr)
    : TimeDependentOperator(_M.Size()), fes(_fes),
      Mbf(Mbf_), Kbf(Kbf_), M(_M), K(_K), b(_b),
-     z(_M.Size()), fct(_fct), zz(_M.Size()), // TODO if useless rm zz
+     z(_M.Size()), fct(_fct), zz(_M.Size()), kbdr(_kbdr), // TODO if useless rm zz
      start_pos(mpos.Size()), mesh_pos(mpos), vel_pos(vpos)
 {
    M_solver.SetPreconditioner(M_prec);
@@ -2761,8 +2734,9 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    Mbf.BilinearForm::operator=(0.0);
    Mbf.Assemble();
    Kbf.BilinearForm::operator=(0.0);
-   const int skip_zeros = 0;
-   Kbf.Assemble(skip_zeros);
+   Kbf.Assemble();
+   kbdr.BilinearForm::operator=(0.0);
+   kbdr.Assemble();
 
    if (fct.monoType == 0)
    {
