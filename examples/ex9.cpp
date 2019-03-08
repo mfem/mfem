@@ -1123,7 +1123,7 @@ int main(int argc, char *argv[])
    
 BilinearForm kbdr(&fes);
 
-if (problem==6)
+if (problem>=6)
 {
    k.AddDomainIntegrator(new ConvectionIntegrator(v_coeff));
 //    k.AddInteriorFaceIntegrator(
@@ -1257,7 +1257,7 @@ else
 
       adv.SetDt(dt_real);
 
-      if (problem == 6)
+      if (problem >= 6)
       {
          adv.SetRemapStartPos(x0);
       }
@@ -1273,7 +1273,7 @@ else
       ode_solver->Step(u, t, dt_real);
       ti++;
 
-      if (problem == 6)
+      if (problem >= 6)
       {
          add(x0, t, v_gf, *x);
       }
@@ -1308,7 +1308,7 @@ else
 
    // check for conservation
 double finalMass;
-if (problem==6)
+if (problem>=6)
 {
    ml.BilinearForm::operator=(0.0);
    ml.Assemble();
@@ -1661,7 +1661,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    const double t = GetTime();
    const double sub_time_step = t - start_t;
 
-   if (problem == 6)
+   if (problem >= 6)
    {
       add(start_pos, t, vel_pos, mesh_pos);
    }
@@ -1771,6 +1771,7 @@ void velocity_function(const Vector &x, Vector &v)
          break;
       }
       case 6:
+      case 7:
       {
          // Taylor-Green velocity, used for mesh motion in remap tests.
 
@@ -1910,6 +1911,7 @@ double u0_function(const Vector &x)
          return .5*(sin(f*X(0))*sin(f*X(1)) + 1.); // modified by Hennes
       }
       case 4:
+      case 7:
       {
          double scale = 0.0225;
          double slit = (X(0) <= -0.05) || (X(0) >= 0.05) || (X(1) >= 0.7);
