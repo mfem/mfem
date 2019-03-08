@@ -1248,7 +1248,7 @@ int main(int argc, char *argv[])
    }
 
    // check for conservation
-   Vector tmp(u);
+   Vector tmp(lumpedM); //TODO
    double initialMass = lumpedM * u;
 
    // 8. Define the time-dependent evolution operator describing the ODE
@@ -1304,11 +1304,10 @@ int main(int argc, char *argv[])
    }
 
    // check for conservation
-   double finalMass = lumpedM * u;
+   double finalMass = tmp * u;
    cout << "Mass loss: " << abs(initialMass - finalMass) << endl;
    
    // Compute errors for problems, where the initial condition is equal to the final solution
-   tmp -= u;
    if (problem == 4) // solid body rotation
    {
       cout << "L1-error: " << u.ComputeLpError(1., u0) << ", L-Inf-error: "
@@ -1668,6 +1667,9 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    Kbf.Assemble(0);
    kbdr.BilinearForm::operator=(0.0);
    kbdr.Assemble(0);
+   ml.BilinearForm::operator=(0.0);
+   ml.Assemble();
+   ml.SpMat().GetDiag(lumpedM);
 
    if (fct.monoType == 0)
    {
