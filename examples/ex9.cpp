@@ -938,7 +938,8 @@ public:
    
    virtual void NeumannSolve(const Vector &b, Vector &x) const;
 
-   virtual void LinearFluxLumping(int k, int nd, const Vector &x, Vector &y, const Vector alpha) const;
+   virtual void LinearFluxLumping(int k, int nd, const Vector &x, Vector &y,
+                                  const DenseMatrix &bdrInt, const DenseMatrix &bdrIntLumped) const;
 
    virtual void ComputeHighOrderSolution(const Vector &x, Vector &y) const;
    virtual void ComputeLowOrderSolution(const Vector &x, Vector &y) const;
@@ -1315,12 +1316,12 @@ void FE_Evolution::NeumannSolve(const Vector &f, Vector &x) const
    }
 }
 
-void FE_Evolution::LinearFluxLumping(int k, int nd, const Vector &x, Vector &y, const Vector alpha) const
+void FE_Evolution::LinearFluxLumping(int k, int nd, const Vector &x, Vector &y, 
+                                     const DenseMatrix &bdrInt, const DenseMatrix &bdrIntLumped) const
 {
    int i, j, m, idx, dofInd, numBdrs(fct.dofs.Width()), numDofs(fct.dofs.Height());
    double xNeighbor, totalFlux;
    Vector xDiff(numDofs);
-   bool useLimiter = true;
    
    for (j = 0; j < numBdrs; j++)
    {
@@ -1335,15 +1336,7 @@ void FE_Evolution::LinearFluxLumping(int k, int nd, const Vector &x, Vector &y, 
       for (i = 0; i < numDofs; i++)
       {
          dofInd = k*nd+fct.dofs(i,j);
-         totalFlux = fct.bdrIntLumped(dofInd, j) * xDiff(i);
-         if (useLimiter)
-         {
-            for (m = 0; m < numDofs; m++)
-            {
-               if (i == m) { continue; }
-               totalFlux += alpha(fct.dofs(i,j)) * fct.bdrInt(dofInd, j*nd+fct.dofs(m,j)) * alpha(fct.dofs(m,j)) * (xDiff(m) - xDiff(i));
-            }
-         }
+         totalFlux = bdrIntLumped(dofInd, j) * xDiff(i);
          y(dofInd) += totalFlux;
       }
    }
@@ -1392,22 +1385,18 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       SparseMatrix fluctMatrix;
       DenseMatrix fluctSub, bdrIntLumped, bdrInt;
       ComputeResidualWeights(fct, fluctMatrix, fluctSub, bdrIntLumped, bdrInt);
-      
-      fluctMatrix.Mult(x, z);
-      KBDR.Mult(x, z);
-      z += b;
-      NeumannSolve(z, y);
-      return;
-      //
-             
+         
       // Discretization terms
       y = b;
+//       KBDR.AddMult(x, y); //for debug
       fluctMatrix.Mult(x, z);
       if (dim==1)
       {
          K.AddMult(x, y);
          y -= z;
       }
+//       z += y;
+//       NeumannSolve(z, y); //for debug
 
       // Monotonicity terms
       for (k = 0; k < ne; k++)
@@ -1448,7 +1437,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          // Boundary contributions //
          ////////////////////////////
          if (dim > 1)// Nothing needs to be done for 1D boundaries (due to Bernstein basis)
-           LinearFluxLumping(k, nd, x, y, alpha);
+           LinearFluxLumping(k, nd, x, y, bdrInt, bdrIntLumped);
          
          sumWeightsP = nd*xMax - xSum + eps;
          sumWeightsN = nd*xMin - xSum - eps;
@@ -1475,7 +1464,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
                for (i = 0; i < fct.numDofsSubcell; i++)
                {
                   dofInd = k*nd + fct.subcell2CellDof(m, i);
-                  fluct += fct.fluctSub(k*fct.numSubcells+m,i) * x(dofInd);
+                  fluct += fluctSub(k*fct.numSubcells+m,i) * x(dofInd);
                   xMaxSubcell(m) = max(xMaxSubcell(m), x(dofInd));
                   xMinSubcell(m) = min(xMinSubcell(m), x(dofInd));
                   xSum += x(dofInd);
