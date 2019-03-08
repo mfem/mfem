@@ -8,6 +8,7 @@
 //    ex9 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
 
 //    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//    ex9 -m ../data/periodic-square.mesh -p 6 -r 2 -dt 0.005 -tf 0.5
 
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
@@ -505,7 +506,7 @@ public:
          numDofs = dofs.Height();
          numBdrs = dofs.Width();
 
-         FillSubcell2CellDof(p, dim);s
+         FillSubcell2CellDof(p, dim);
          
          neighborDof.SetSize(ne*numDofs, numBdrs);
          
@@ -547,8 +548,8 @@ public:
       VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef));
       VolumeTerms.Assemble();
       VolumeTerms.Finalize();
-      fluctMatrix = VolumeTerms.SpMat();
-      
+      //fluctMatrix = VolumeTerms.SpMat();
+
       Mesh *ref_mesh = GetSubcellMesh(mesh, p);
 
       const int btype = BasisType::Positive;
@@ -927,7 +928,8 @@ public:
 
    virtual void SetDt(double _dt) { dt = _dt; }
    void SetInitialTimeStepTime(double st) { start_t = st; }
-   void SetRemapStartPos(Vector &spos) { start_pos = spos; }
+   void SetRemapStartPos(const Vector &spos) { start_pos = spos; }
+   void GetRemapStartPos(Vector &spos) { spos = start_pos; }
    
    virtual void NeumannSolve(const Vector &b, Vector &x) const;
 
@@ -1103,19 +1105,21 @@ int main(int argc, char *argv[])
          if (ess_vdofs[i] == -1) { v_gf(i) = 0.0; }
       }
    }
+   VectorGridFunctionCoefficient v_coeff(&v_gf);
+
 
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
    BilinearForm k(&fes);
-   k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
+   k.AddDomainIntegrator(new ConvectionIntegrator(v_coeff));
    k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
+      new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
    k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
+      new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
    
    BilinearForm kbdr(&fes);
    kbdr.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
+      new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
    kbdr.Assemble(0);
    kbdr.Finalize(0);
    
@@ -1227,13 +1231,26 @@ int main(int argc, char *argv[])
 
       adv.SetDt(dt_real);
 
-      // Move the mesh (and the solution).
-      add(x0, dt_real, v_gf, *x);
-      adv.SetRemapStartPos(*x);
+      if (problem == 6)
+      {
+         adv.SetRemapStartPos(x0);
+      }
+      else
+      {
+         // Move the mesh (and the solution) from x0 (one step).
+         add(x0, dt_real, v_gf, *x);
+         adv.SetRemapStartPos(*x);
+      }
+
       adv.SetInitialTimeStepTime(t);
 
       ode_solver->Step(u, t, dt_real);
       ti++;
+
+      if (problem == 6)
+      {
+         add(x0, t, v_gf, *x);
+      }
 
       done = (t >= t_final - 1.e-8*dt);
 
@@ -1264,7 +1281,10 @@ int main(int argc, char *argv[])
    }
 
    // check for conservation
-   double finalMass = tmp * u;
+   ml.BilinearForm::operator=(0.0);
+   ml.Assemble();
+   ml.SpMat().GetDiag(lumpedM);
+   double finalMass = lumpedM * u;
    cout << "Mass loss: " << abs(initialMass - finalMass) << endl;
    
    // Compute errors for problems, where the initial condition is equal to the final solution
@@ -1382,7 +1402,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
              fluctSubcellP, fluctSubcellN, nodalWeightsP, nodalWeightsN, alpha;
 
       //
-      fct.fluctMatrix.Mult(x, z);
+      //fct.fluctMatrix.Mult(x, z);
       KBDR.Mult(x, z);
       z += b;
       NeumannSolve(z, y);
@@ -1391,7 +1411,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
              
       // Discretization terms
       y = b;
-      fct.fluctMatrix.Mult(x, z);
+      //fct.fluctMatrix.Mult(x, z);
       if (dim==1)
       {
          K.AddMult(x, y);
@@ -1610,7 +1630,15 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // Move towards x0 with current t.
    const double t = GetTime();
    const double sub_time_step = t - start_t;
-   add(start_pos, -sub_time_step, vel_pos, mesh_pos);
+
+   if (problem == 6)
+   {
+      add(start_pos, t, vel_pos, mesh_pos);
+   }
+   else
+   {
+      add(start_pos, -sub_time_step, vel_pos, mesh_pos);
+   }
 
    // Reassemble on the new mesh (given by mesh_pos).
    Mbf.BilinearForm::operator=(0.0);
@@ -1710,6 +1738,25 @@ void velocity_function(const Vector &x, Vector &v)
             case 2: v(0) = 1.0; v(1) = 1.0; break;
             case 3: v(0) = 1.0; v(1) = 1.0; v(2) = 1.0; break;
          }
+         break;
+      }
+      case 6:
+      {
+         // Taylor-Green velocity, used for mesh motion in remap tests.
+
+         // Map [-1,1] to [0,1].
+         for (int d = 0; d < dim; d++) { X(d) = X(d) * 0.5 + 0.5; }
+
+         if (dim == 1) { MFEM_ABORT("Not implemented."); }
+         v(0) =  sin(M_PI*X(0)) * cos(M_PI*X(1));
+         v(1) = -cos(M_PI*X(0)) * sin(M_PI*X(1));
+         if (dim == 3)
+         {
+            v(0) *= cos(M_PI*X(2));
+            v(1) *= cos(M_PI*X(2));
+            v(2) = 0.0;
+         }
+         break;
       }
    }
 }
@@ -1799,6 +1846,7 @@ double u0_function(const Vector &x)
    {
       case 0:
       case 1:
+      case 6:
       {
          switch (dim)
          {
