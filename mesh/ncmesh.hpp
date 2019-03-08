@@ -754,9 +754,10 @@ protected: // implementation
 
    void FindFaceNodes(int face, int node[4]);
 
-   int  EdgeSplitLevel(int vn1, int vn2) const;
-   void FaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
-                       int& h_level, int& v_level) const;
+   int EdgeSplitLevel(int vn1, int vn2) const;
+   int TriFaceSplitLevel(int vn1, int vn2, int vn3) const;
+   void QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
+                           int& h_level, int& v_level) const;
 
    void CountSplits(int elem, int splits[3]) const;
    void GetLimitRefinements(Array<Refinement> &refinements, int max_level);

@@ -4051,6 +4051,19 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    bdr_edges.Unique();
 }
 
+static int max4(int a, int b, int c, int d)
+{
+   return std::max(std::max(a, b), std::max(c, d));
+}
+static int max6(int a, int b, int c, int d, int e, int f)
+{
+   return std::max(max4(a, b, c, d), std::max(e, f));
+}
+static int max8(int a, int b, int c, int d, int e, int f, int g, int h)
+{
+   return std::max(max4(a, b, c, d), max4(e, f, g, h));
+}
+
 int NCMesh::EdgeSplitLevel(int vn1, int vn2) const
 {
    int mid = nodes.FindId(vn1, vn2);
@@ -4058,7 +4071,26 @@ int NCMesh::EdgeSplitLevel(int vn1, int vn2) const
    return 1 + std::max(EdgeSplitLevel(vn1, mid), EdgeSplitLevel(mid, vn2));
 }
 
-void NCMesh::FaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
+int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
+{
+   int mid[3];
+   if ((mid[0] = nodes.FindId(vn1, vn2)) >= 0 &&
+       (mid[1] = nodes.FindId(vn2, vn3)) >= 0 &&
+       (mid[2] = nodes.FindId(vn3, vn1)) >= 0 &&
+       faces.FindId(vn1, vn2, vn3) < 0)
+   {
+      return 1 + max4(TriFaceSplitLevel(vn1, mid[0], mid[2]),
+                      TriFaceSplitLevel(mid[0], vn2, mid[1]),
+                      TriFaceSplitLevel(mid[2], mid[1], vn3),
+                      TriFaceSplitLevel(mid[0], mid[1], mid[2]));
+   }
+   else // not split
+   {
+      return 0;
+   }
+}
+
+void NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
                             int& h_level, int& v_level) const
 {
    int hl1, hl2, vl1, vl2;
@@ -4071,24 +4103,18 @@ void NCMesh::FaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
          break;
 
       case 1: // vertical
-         FaceSplitLevel(vn1, mid[0], mid[2], vn4, hl1, vl1);
-         FaceSplitLevel(mid[0], vn2, vn3, mid[2], hl2, vl2);
+         QuadFaceSplitLevel(vn1, mid[0], mid[2], vn4, hl1, vl1);
+         QuadFaceSplitLevel(mid[0], vn2, vn3, mid[2], hl2, vl2);
          h_level = std::max(hl1, hl2);
          v_level = std::max(vl1, vl2) + 1;
          break;
 
       default: // horizontal
-         FaceSplitLevel(vn1, vn2, mid[1], mid[3], hl1, vl1);
-         FaceSplitLevel(mid[3], mid[1], vn3, vn4, hl2, vl2);
+         QuadFaceSplitLevel(vn1, vn2, mid[1], mid[3], hl1, vl1);
+         QuadFaceSplitLevel(mid[3], mid[1], vn3, vn4, hl2, vl2);
          h_level = std::max(hl1, hl2) + 1;
          v_level = std::max(vl1, vl2);
    }
-}
-
-static int max8(int a, int b, int c, int d, int e, int f, int g, int h)
-{
-   return std::max(std::max(std::max(a, b), std::max(c, d)),
-                   std::max(std::max(e, f), std::max(g, h)));
 }
 
 void NCMesh::CountSplits(int elem, int splits[3]) const
@@ -4110,8 +4136,18 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
       for (int i = 0; i < gi.nf; i++)
       {
          const int* fv = gi.faces[i];
-         FaceSplitLevel(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]],
-                        flevel[i][1], flevel[i][0]);
+         if (node[fv[3]] >= 0)
+         {
+            QuadFaceSplitLevel(node[fv[0]], node[fv[1]],
+                               node[fv[2]], node[fv[3]],
+                               flevel[i][1], flevel[i][0]);
+         }
+         else
+         {
+            flevel[i][1] = 0;
+            flevel[i][0] =
+               TriFaceSplitLevel(node[fv[0]], node[fv[1]], node[fv[2]]);
+         }
       }
    }
 
@@ -4128,7 +4164,15 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
    }
    else if (el.Geom() == Geometry::PRISM)
    {
-      MFEM_ABORT("TODO");
+      splits[0] = splits[1] =
+         std::max(
+            max6(flevel[0][0], flevel[1][0], 0,
+                 flevel[2][0], flevel[3][0], flevel[4][0]),
+            max6(elevel[0], elevel[1], elevel[2],
+                 elevel[3], elevel[4], elevel[5]));
+
+      splits[2] = max6(flevel[2][1], flevel[3][1], flevel[4][1],
+                       elevel[6], elevel[7], elevel[8]);
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
