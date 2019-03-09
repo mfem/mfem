@@ -172,7 +172,8 @@ double TFunc(const Vector &x, double t)
 
 void bFunc(const Vector &x, Vector &B)
 {
-   B.SetSize(2);
+   B.SetSize(x.Size());
+   B = 0.0;
 
    switch (prob_)
    {
@@ -218,7 +219,8 @@ void bFunc(const Vector &x, Vector &B)
 
 void bbTFunc(const Vector &x, DenseMatrix &M)
 {
-   M.SetSize(2);
+   M.SetSize(x.Size());
+   M = 0.0;
 
    switch (prob_)
    {
@@ -408,7 +410,7 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
 
-   MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
+   // MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
 
    num_species_   = 1;
    num_equations_ = (num_species_ + 1) * (dim + 2);
@@ -1159,7 +1161,7 @@ void truncateField(ParGridFunction & f)
 // Initial condition
 void InitialCondition(const Vector &x, Vector &y)
 {
-   MFEM_ASSERT(x.Size() == 2, "");
+   // MFEM_ASSERT(x.Size() == 2, "");
    /*
    double radius = 0, Minf = 0, beta = 0;
    if (problem_ == 1)
@@ -1221,29 +1223,33 @@ void InitialCondition(const Vector &x, Vector &y)
    // double VMag = 1e2;
    if (y.Size() != num_equations_) { cout << "y is wrong size!" << endl; }
 
-   int dim = 2;
+   int dim = x.Size();
    double a = 0.4;
    double b = 0.8;
 
-   Vector V(2);
+   Vector V(dim);
    bFunc(x, V);
    V *= (v_max_ / B_max_) * sqrt(pow(x[0]/a,2)+pow(x[1]/b,2));
    V[1] += 0.5 * v_max_ * exp(-400.0 * (pow(x[0] + 0.5 * a, 2) + x[1] * x[1]));
-   
+
    double den = 1.0e18 * (1.0 + 0.25 * exp(-400.0 * (pow(x[0] - 0.5 * a, 2) +
-						     pow(x[1] + 0.5 * b, 2))));
+                                                     pow(x[1] + 0.5 * b, 2))));
    for (int i=1; i<=num_species_; i++)
    {
       y(i) = den;
-      y(i * dim + num_species_ + 1) = V(0);
-      y(i * dim + num_species_ + 2) = V(1);
+      for (int d=0; d<dim; d++)
+      {
+         y(i * dim + num_species_ + d + 1) = 0.0 * V(d);
+      }
       y(i + (num_species_ + 1) * (dim + 1)) = 1.0 + 9.0 * TFunc(x, 0.0);
    }
 
    // Impose neutrality
    y(0) = ion_charge_ * y(1);
-   y(num_species_ + 1) = V(0);
-   y(num_species_ + 2) = V(1);
+   for (int d=0; d<dim; d++)
+   {
+      y(num_species_ + d + 1) = V(d);
+   }
    y((num_species_ + 1) * (dim + 1)) = 1.0 + 4.0 * TFunc(x, 0.0);
 
    // y.Print(cout, dim+2); cout << endl;
