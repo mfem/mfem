@@ -8,11 +8,11 @@
 //    ex9 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
 
 //    Mesh return mode:
-//    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 4 -vs 10
+//    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 4 -mt 4 -vs 10
 //    ex9 -m ../data/periodic-square.mesh -p 4 -r 2 -dt 0.005 -tf 4 -mt 4 -vs 10
 //    Remap mode:
-//    ex9 -m ../data/periodic-square.mesh -p 6 -r 2 -dt 0.005 -tf 0.5
-//    ex9 -m ../data/periodic-square.mesh -p 7 -r 2 -dt 0.005 -tf 0.5 -mt 4
+//    ex9 -m ../data/periodic-square.mesh -p 6 -r 2 -dt 0.005 -tf 0.5 -mt 4 -vs 10
+//    ex9 -m ../data/periodic-square.mesh -p 7 -r 2 -dt 0.005 -tf 0.5 -mt 4 -vs 10
 
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
@@ -49,6 +49,9 @@ using namespace mfem;
 // Choice for the problem setup. The fluid velocity, initial condition and
 // inflow boundary condition are chosen based on this parameter.
 int problem;
+// 0 is Lagrangian step / return the mesh.
+// 1 is standard remap.
+int remap_mode;
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
@@ -943,6 +946,7 @@ public:
    void SetRemapStartPos(const Vector &spos) { start_pos = spos; }
    void GetRemapStartPos(Vector &spos) { spos = start_pos; }
    
+   // Mass matrix solve, addressing the bad Bernstein condition number.
    virtual void NeumannSolve(const Vector &b, Vector &x) const;
 
    virtual void LinearFluxLumping(int k, int nd, const Vector &x, Vector &y,
@@ -1020,6 +1024,16 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   if (problem <= 5)
+   {
+      remap_mode = 0;
+   }
+   else if (problem == 6 || problem == 7)
+   {
+      remap_mode = 1;
+   }
+   else { MFEM_ABORT("Unspecified remap mode!"); }
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
@@ -1118,16 +1132,18 @@ int main(int argc, char *argv[])
          if (ess_vdofs[i] == -1) { v_gf(i) = 0.0; }
       }
    }
+   if (remap_mode == 0) { v_gf *= -1.0; }
    VectorGridFunctionCoefficient v_coeff(&v_gf);
 
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
+
    BilinearForm k(&fes);
-   
    BilinearForm kbdr(&fes);
 
-   if (problem>=6)
+   if (remap_mode == 1)
    {
+      // TODO figure out why this setup doesn't conserve mass for mode 0.
       k.AddDomainIntegrator(new ConvectionIntegrator(v_coeff));
       //    k.AddInteriorFaceIntegrator(
       //       new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
@@ -1139,6 +1155,7 @@ int main(int argc, char *argv[])
    }
    else
    {
+      // TODO the velocity must be inverted.
       k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
       //    k.AddInteriorFaceIntegrator(
       //       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
@@ -1162,7 +1179,7 @@ int main(int argc, char *argv[])
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
+      new BoundaryFlowIntegrator(inflow, v_coeff, -1.0, -0.5));
 
    m.Assemble();
    m.Finalize();
@@ -1260,7 +1277,7 @@ int main(int argc, char *argv[])
 
       adv.SetDt(dt_real);
 
-      if (problem >= 6)
+      if (remap_mode == 1)
       {
          adv.SetRemapStartPos(x0);
       }
@@ -1276,9 +1293,13 @@ int main(int argc, char *argv[])
       ode_solver->Step(u, t, dt_real);
       ti++;
 
-      if (problem >= 6)
+      if (remap_mode == 1)
       {
          add(x0, t, v_gf, *x);
+      }
+      else
+      {
+         *x = x0;
       }
 
       done = (t >= t_final - 1.e-8*dt);
@@ -1310,18 +1331,15 @@ int main(int argc, char *argv[])
    }
 
    // check for conservation
-double finalMass;
-if (problem>=6)
-{
-   ml.BilinearForm::operator=(0.0);
-   ml.Assemble();
-   ml.SpMat().GetDiag(lumpedM);
-   finalMass = lumpedM * u;
-}
-else
-{
-   finalMass = tmp * u;
-}
+   double finalMass;
+   if (remap_mode == 1)
+   {
+      ml.BilinearForm::operator=(0.0);
+      ml.Assemble();
+      ml.SpMat().GetDiag(lumpedM);
+      finalMass = lumpedM * u;
+   }
+   else { finalMass = tmp * u; }
    cout << "Mass loss: " << abs(initialMass - finalMass) << endl;
    
    // Compute errors for problems, where the initial condition is equal to the final solution
@@ -1433,7 +1451,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       SparseMatrix fluctMatrix;
       DenseMatrix fluctSub, bdrIntLumped, bdrInt;
       
-      if (problem >= 6)
+      if (remap_mode == 1)
          ComputeResidualWeights(fct, fluctMatrix, fluctSub, bdrIntLumped, bdrInt, coef);
       else
          ComputeResidualWeights(fct, fluctMatrix, fluctSub, bdrIntLumped, bdrInt, fct.velocity);
@@ -1662,7 +1680,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    const double t = GetTime();
    const double sub_time_step = t - start_t;
 
-   if (problem >= 6)
+   if (remap_mode == 1)
    {
       add(start_pos, t, vel_pos, mesh_pos);
    }
