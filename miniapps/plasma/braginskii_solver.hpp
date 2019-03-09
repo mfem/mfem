@@ -48,8 +48,10 @@ private:
    double ion_charge_;
 
    TwoFluidDiffusion * tfDiff_;
+   TwoFluidAdvection * tfAdvc_;
 
    void initDiffusion();
+   void initAdvection();
 
 public:
    TwoFluidTransportSolver(ODESolver * implicitSolver,
@@ -171,6 +173,98 @@ public:
    void ImplicitSolve(const double dt, const Vector &x, Vector &y);
 };
 
+class TwoFluidAdvection : public TimeDependentOperator
+{
+private:
+   int dim_;
+
+   ParFiniteElementSpace &sfes_;
+   ParFiniteElementSpace &vfes_;
+
+   Array<int>  & offsets_;
+   Array<int>  & toffsets_;
+   BlockVector & nBV_;
+   BlockVector & uBV_;
+   BlockVector & TBV_;
+
+   ParGridFunction & B_;
+
+   double ion_mass_;
+   double ion_charge_;
+
+   std::vector<ParGridFunction> nGF_;
+   std::vector<ParGridFunction> uGF_;
+   std::vector<ParGridFunction> TGF_;
+
+   std::vector<GridFunctionCoefficient>       nCoef_;
+   std::vector<VectorGridFunctionCoefficient> uCoef_;
+   std::vector<GridFunctionCoefficient>       TCoef_;
+
+   std::vector<Coefficient *> dndnCoef_;
+
+   std::vector<dpdnCoefficient *> dpdnCoef_;
+   std::vector<dpduCoefficient *> dpduCoef_;
+   std::vector<pAdvectionCoefficient *> pAdvcCoef_;
+
+   std::vector<dEdnCoefficient *> dEdnCoef_;
+   std::vector<dEduCoefficient *> dEduCoef_;
+   std::vector<dEdTCoefficient *> dEdTCoef_;
+   std::vector<TAdvectionCoefficient *> TAdvcCoef_;
+
+   // Bilinear Forms for particle equation
+   std::vector<ParBilinearForm *> a_dndn_;
+   std::vector<ParBilinearForm *> advc_n_;
+
+   // Bilinear Forms for momentum equation
+   std::vector<ParBilinearForm *> a_dpdn_;
+   std::vector<ParBilinearForm *> a_dpdu_;
+   std::vector<ParBilinearForm *> advc_p_;
+
+   // Bilinear Forms for energy equation
+   std::vector<ParBilinearForm *> a_dEdn_;
+   std::vector<ParBilinearForm *> a_dEdu_;
+   std::vector<ParBilinearForm *> a_dEdT_;
+   std::vector<ParBilinearForm *> advc_T_;
+
+   BlockOperator block_A_;
+   BlockOperator block_B_;
+   mutable  BlockVector block_rhs_;
+   mutable BlockVector block_RHS_;
+   mutable BlockVector block_dXdt_;
+   BlockDiagonalPreconditioner block_ds_;
+   // std::vector<HypreSolver *> diag_scale_;
+
+   GMRESSolver gmres_;
+
+   void initCoefficients();
+   void initBilinearForms();
+   void initSolver();
+
+   void deleteCoefficients();
+   void deleteBilinearForms();
+
+   void setTimeStep(double dt);
+
+public:
+   TwoFluidAdvection(ParFiniteElementSpace & sfes,
+                     ParFiniteElementSpace & vfes,
+                     Array<int> & offsets,
+                     Array<int> & toffsets,
+                     BlockVector & nBV,
+                     BlockVector & uBV,
+                     BlockVector & TBV,
+                     ParGridFunction & B,
+                     double ion_mass,
+                     double ion_charge);
+
+   ~TwoFluidAdvection();
+
+   void Assemble();
+
+   void Update();
+
+   void Mult(const Vector &x, Vector &y) const;
+};
 
 // Time-dependent operator for the right-hand side of the ODE representing the
 // DG weak form for the diffusion term. (modified from ex14p)

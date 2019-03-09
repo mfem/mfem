@@ -47,9 +47,11 @@ TwoFluidTransportSolver::TwoFluidTransportSolver(ODESolver * implicitSolver,
      B_(B),
      ion_mass_(ion_mass),
      ion_charge_(ion_charge),
-     tfDiff_(NULL)
+     tfDiff_(NULL),
+     tfAdvc_(NULL)
 {
    this->initDiffusion();
+   this->initAdvection();
 }
 
 TwoFluidTransportSolver::~TwoFluidTransportSolver()
@@ -65,14 +67,26 @@ void TwoFluidTransportSolver::initDiffusion()
    impSolver_->Init(*tfDiff_);
 }
 
+void TwoFluidTransportSolver::initAdvection()
+{
+   tfAdvc_ = new TwoFluidAdvection(sfes_, vfes_,
+                                   offsets_, toffsets_, nBV_, uBV_, TBV_,
+                                   B_, ion_mass_, ion_charge_);
+   expSolver_->Init(*tfAdvc_);
+}
+
 void TwoFluidTransportSolver::Update()
 {
    tfDiff_->Update();
+   tfAdvc_->Update();
 }
 
 void TwoFluidTransportSolver::Step(Vector &x, double &t, double &dt)
 {
    impSolver_->Step(x, t, dt);
+
+   tfAdvc_->Update();
+   expSolver_->Step(x, t, dt);
 }
 
 TwoFluidDiffusion::TwoFluidDiffusion(ParFiniteElementSpace & sfes,
@@ -624,6 +638,537 @@ void TwoFluidDiffusion::ImplicitSolve(const double dt,
       dxidt.SetFromTrueDofs(block_dXdt_.GetBlock(i));
    }
 }
+
+TwoFluidAdvection::TwoFluidAdvection(ParFiniteElementSpace & sfes,
+                                     ParFiniteElementSpace & vfes,
+                                     Array<int> & offsets,
+                                     Array<int> & toffsets,
+                                     BlockVector & nBV,
+                                     BlockVector & uBV,
+                                     BlockVector & TBV,
+                                     ParGridFunction & B,
+                                     double ion_mass,
+                                     double ion_charge)
+   : TimeDependentOperator(offsets.Last(), 0.0, EXPLICIT),
+     dim_(sfes.GetParMesh()->SpaceDimension()),
+     sfes_(sfes),
+     vfes_(vfes),
+     offsets_(offsets),
+     toffsets_(toffsets),
+     nBV_(nBV),
+     uBV_(uBV),
+     TBV_(TBV),
+     B_(B),
+     ion_mass_(ion_mass),
+     ion_charge_(ion_charge),
+     block_A_(toffsets_),
+     block_B_(offsets_),
+     block_rhs_(offsets_),
+     block_RHS_(toffsets_),
+     block_dXdt_(toffsets_),
+     block_ds_(toffsets_),
+     gmres_(sfes.GetComm())
+{
+   this->initCoefficients();
+   this->initBilinearForms();
+}
+
+TwoFluidAdvection::~TwoFluidAdvection()
+{
+   this->deleteBilinearForms();
+   this->deleteCoefficients();
+}
+
+void TwoFluidAdvection::deleteBilinearForms()
+{
+   for (unsigned int i=0; i<a_dndn_.size(); i++)
+   {
+      delete a_dndn_[i];
+   }
+   for (unsigned int i=0; i<advc_n_.size(); i++)
+   {
+      delete advc_n_[i];
+   }
+
+   for (unsigned int i=0; i<a_dpdn_.size(); i++)
+   {
+      delete a_dpdn_[i];
+   }
+   for (unsigned int i=0; i<a_dpdu_.size(); i++)
+   {
+      delete a_dpdu_[i];
+   }
+   for (unsigned int i=0; i<advc_p_.size(); i++)
+   {
+      delete advc_p_[i];
+   }
+
+   for (unsigned int i=0; i<a_dEdn_.size(); i++)
+   {
+      delete a_dEdn_[i];
+   }
+   for (unsigned int i=0; i<a_dEdu_.size(); i++)
+   {
+      delete a_dEdu_[i];
+   }
+   for (unsigned int i=0; i<a_dEdT_.size(); i++)
+   {
+      delete a_dEdT_[i];
+   }
+   for (unsigned int i=0; i<advc_T_.size(); i++)
+   {
+      delete advc_T_[i];
+   }
+}
+
+void TwoFluidAdvection::deleteCoefficients()
+{
+   for (unsigned int i=0; i<dndnCoef_.size(); i++)
+   {
+      delete dndnCoef_[i];
+   }
+
+   for (unsigned int i=0; i<dpdnCoef_.size(); i++)
+   {
+      delete dpdnCoef_[i];
+   }
+   for (unsigned int i=0; i<dpduCoef_.size(); i++)
+   {
+      delete dpduCoef_[i];
+   }
+   for (unsigned int i=0; i<pAdvcCoef_.size(); i++)
+   {
+      delete pAdvcCoef_[i];
+   }
+
+   for (unsigned int i=0; i<dEdnCoef_.size(); i++)
+   {
+      delete dEdnCoef_[i];
+   }
+   for (unsigned int i=0; i<dEduCoef_.size(); i++)
+   {
+      delete dEduCoef_[i];
+   }
+   for (unsigned int i=0; i<dEdTCoef_.size(); i++)
+   {
+      delete dEdTCoef_[i];
+   }
+   for (unsigned int i=0; i<TAdvcCoef_.size(); i++)
+   {
+      delete TAdvcCoef_[i];
+   }
+}
+
+void TwoFluidAdvection::initCoefficients()
+{
+   int ns = 1;
+
+   nGF_.resize(ns + 1);
+   nCoef_.resize(ns + 1);
+   for (int i=0; i<=ns; i++)
+   {
+      nGF_[i].MakeRef(&sfes_, nBV_.GetBlock(i));
+      nCoef_[i].SetGridFunction(&nGF_[i]);
+   }
+
+   uGF_.resize(ns + 1);
+   uCoef_.resize(ns + 1);
+   for (int i=0; i<=ns; i++)
+   {
+      uGF_[i].MakeRef(&vfes_, uBV_.GetBlock(i));
+      uCoef_[i].SetGridFunction(&uGF_[i]);
+   }
+
+   TGF_.resize(ns + 1);
+   TCoef_.resize(ns + 1);
+   for (int i=0; i<=ns; i++)
+   {
+      TGF_[i].MakeRef(&sfes_, TBV_.GetBlock(i));
+      TCoef_[i].SetGridFunction(&TGF_[i]);
+   }
+
+   dndnCoef_.resize(ns + 1);
+   dndnCoef_[0] = new ConstantCoefficient(1.0);
+   dndnCoef_[1] = new ConstantCoefficient(1.0);
+
+   dpdnCoef_.resize(dim_ * (ns + 1));
+   for (int d=0; d<dim_; d++)
+   {
+      dpdnCoef_[d] = new dpdnCoefficient(d, me_u_, uCoef_[0]);
+      dpdnCoef_[dim_ + d] = new dpdnCoefficient(d, ion_mass_, uCoef_[1]);
+   }
+
+   dpduCoef_.resize(dim_ * (ns + 1));
+   for (int d=0; d<dim_; d++)
+   {
+      dpduCoef_[d] = new dpduCoefficient(me_u_, nCoef_[0]);
+      dpduCoef_[dim_ + d] = new dpduCoefficient(ion_mass_, nCoef_[1]);
+   }
+
+   pAdvcCoef_.resize(dim_ * (ns + 1));
+   for (int d=0; d<dim_; d++)
+   {
+      pAdvcCoef_[d] = new pAdvectionCoefficient(me_u_, nCoef_[0], uCoef_[0]);
+      pAdvcCoef_[dim_ + d] =
+         new pAdvectionCoefficient(ion_mass_, nCoef_[1], uCoef_[1]);
+   }
+
+   dEdnCoef_.resize(ns + 1);
+   dEdnCoef_[0] = new dEdnCoefficient(TCoef_[0], me_u_, uCoef_[0]);
+   dEdnCoef_[1] = new dEdnCoefficient(TCoef_[1], ion_mass_, uCoef_[1]);
+
+   dEduCoef_.resize(dim_ * (ns + 1));
+   for (int d=0; d<dim_; d++)
+   {
+      dEduCoef_[d] = new dEduCoefficient(d, me_u_,
+                                         nCoef_[0], uCoef_[0]);
+   }
+   for (int d=0; d<dim_; d++)
+   {
+      dEduCoef_[dim_ + d] = new dEduCoefficient(d, ion_mass_,
+                                                nCoef_[1], uCoef_[1]);
+   }
+
+   dEdTCoef_.resize(ns + 1);
+   for (int i=0; i<=ns; i++)
+   {
+      dEdTCoef_[i] = new dEdTCoefficient(1.5, nCoef_[i]);
+   }
+
+   TAdvcCoef_.resize(ns + 1);
+   TAdvcCoef_[0] = new TAdvectionCoefficient(nCoef_[0], uCoef_[0]);
+   TAdvcCoef_[1] = new TAdvectionCoefficient(nCoef_[1], uCoef_[1]);
+
+   /*
+   diffCoef_.resize(ns);
+   dtDiffCoef_.resize(ns);
+   diffCoef_[0] = new DiffCoefficient(dim_, B_);
+   dtDiffCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *diffCoef_[0]);
+
+   chiCoef_.resize(ns + 1);
+   dtChiCoef_.resize(ns + 1);
+
+   chiCoef_[0] = new ChiCoefficient(dim_, nBV_, B_, ion_charge_);
+   chiCoef_[1] = new ChiCoefficient(dim_, nBV_, B_, ion_mass_, ion_charge_);
+
+   chiCoef_[0]->SetT(TGF_[0]);
+   chiCoef_[1]->SetT(TGF_[1]);
+
+   dtChiCoef_[0] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[0]);
+   dtChiCoef_[1] = new ScalarMatrixProductCoefficient(0.0, *chiCoef_[1]);
+
+   etaCoef_.resize(dim_ * dim_ * (ns + 1));
+   dtEtaCoef_.resize(dim_ * dim_ * (ns + 1));
+   for (int i=0; i<dim_; i++)
+   {
+    for (int j=0; j<dim_; j++)
+    {
+       int k = dim_ * i + j;
+       etaCoef_[k] = new EtaCoefficient(dim_, i, j, nBV_, B_, ion_charge_);
+       etaCoef_[k]->SetT(TGF_[0]);
+       dtEtaCoef_[k] = new ScalarMatrixProductCoefficient(0.0, *etaCoef_[k]);
+    }
+   }
+   for (int i=0; i<dim_; i++)
+   {
+    for (int j=0; j<dim_; j++)
+    {
+       int k = dim_ * (dim_ + i) + j;
+       etaCoef_[k] = new EtaCoefficient(dim_, i, j, nBV_, B_,
+                                        ion_mass_, ion_charge_);
+       etaCoef_[k]->SetT(TGF_[1]);
+       dtEtaCoef_[k] = new ScalarMatrixProductCoefficient(0.0, *etaCoef_[k]);
+    }
+   }
+   */
+}
+
+void TwoFluidAdvection::initBilinearForms()
+{
+   a_dndn_.resize(dndnCoef_.size());
+   for (unsigned int i=0; i<dndnCoef_.size(); i++)
+   {
+      a_dndn_[i] = new ParBilinearForm(&sfes_);
+      a_dndn_[i]->AddDomainIntegrator(new MassIntegrator(*dndnCoef_[i]));
+   }
+   advc_n_.resize(uCoef_.size());
+   for (unsigned int i=0; i<uCoef_.size(); i++)
+   {
+      advc_n_[i] = new ParBilinearForm(&sfes_);
+      advc_n_[i]->AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(
+                                         uCoef_[i]));
+   }
+
+   a_dpdn_.resize(dpdnCoef_.size());
+   for (unsigned int i=0; i<dpdnCoef_.size(); i++)
+   {
+      a_dpdn_[i] = new ParBilinearForm(&sfes_);
+      a_dpdn_[i]->AddDomainIntegrator(new MassIntegrator(*dpdnCoef_[i]));
+   }
+
+   a_dpdu_.resize(dpduCoef_.size());
+   for (unsigned int i=0; i<dpduCoef_.size(); i++)
+   {
+      a_dpdu_[i] = new ParBilinearForm(&sfes_);
+      a_dpdu_[i]->AddDomainIntegrator(new MassIntegrator(*dpduCoef_[i]));
+   }
+   advc_p_.resize(pAdvcCoef_.size());
+   for (unsigned int i=0; i<pAdvcCoef_.size(); i++)
+   {
+      advc_p_[i] = new ParBilinearForm(&sfes_);
+      advc_p_[i]->AddDomainIntegrator(
+         new MixedScalarWeakDivergenceIntegrator(*pAdvcCoef_[i]));
+   }
+
+   a_dEdn_.resize(dEdnCoef_.size());
+   for (unsigned int i=0; i<dEdnCoef_.size(); i++)
+   {
+      a_dEdn_[i] = new ParBilinearForm(&sfes_);
+      a_dEdn_[i]->AddDomainIntegrator(new MassIntegrator(*dEdnCoef_[i]));
+   }
+
+   a_dEdu_.resize(dEduCoef_.size());
+   for (unsigned int i=0; i<dEduCoef_.size(); i++)
+   {
+      a_dEdu_[i] = new ParBilinearForm(&sfes_);
+      a_dEdu_[i]->AddDomainIntegrator(new MassIntegrator(*dEduCoef_[i]));
+   }
+
+   a_dEdT_.resize(dEdTCoef_.size());
+   for (unsigned int i=0; i<dEdTCoef_.size(); i++)
+   {
+      a_dEdT_[i] = new ParBilinearForm(&sfes_);
+      a_dEdT_[i]->AddDomainIntegrator(new MassIntegrator(*dEdTCoef_[i]));
+   }
+   advc_T_.resize(TAdvcCoef_.size());
+   for (unsigned int i=0; i<TAdvcCoef_.size(); i++)
+   {
+      advc_T_[i] = new ParBilinearForm(&sfes_);
+      advc_T_[i]->AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(
+                                         *TAdvcCoef_[i]));
+   }
+}
+
+void TwoFluidAdvection::setTimeStep(double dt)
+{
+   /*
+   for (unsigned int i=0; i<dtDiffCoef_.size(); i++)
+   {
+     dtDiffCoef_[i]->SetAConst(dt);
+   }
+   for (unsigned int i=0; i<dtChiCoef_.size(); i++)
+   {
+      dtChiCoef_[i]->SetAConst(dt);
+   }
+   for (unsigned int i=0; i<dtEtaCoef_.size(); i++)
+   {
+      dtEtaCoef_[i]->SetAConst(dt);
+   }
+   */
+}
+
+void TwoFluidAdvection::Assemble()
+{
+   for (unsigned int i=0; i<a_dndn_.size(); i++)
+   {
+      a_dndn_[i]->Assemble();
+      a_dndn_[i]->Finalize();
+   }
+   for (unsigned int i=0; i<advc_n_.size(); i++)
+   {
+      advc_n_[i]->Assemble();
+      advc_n_[i]->Finalize();
+   }
+
+   for (unsigned int i=0; i<a_dpdn_.size(); i++)
+   {
+      a_dpdn_[i]->Assemble();
+      a_dpdn_[i]->Finalize();
+   }
+   for (unsigned int i=0; i<a_dpdu_.size(); i++)
+   {
+      a_dpdu_[i]->Assemble();
+      a_dpdu_[i]->Finalize();
+   }
+   for (unsigned int i=0; i<advc_p_.size(); i++)
+   {
+      advc_p_[i]->Assemble();
+      advc_p_[i]->Finalize();
+   }
+
+   for (unsigned int i=0; i<a_dEdn_.size(); i++)
+   {
+      a_dEdn_[i]->Assemble();
+      a_dEdn_[i]->Finalize();
+   }
+   for (unsigned int i=0; i<a_dEdu_.size(); i++)
+   {
+      a_dEdu_[i]->Assemble();
+      a_dEdu_[i]->Finalize();
+   }
+   for (unsigned int i=0; i<a_dEdT_.size(); i++)
+   {
+      a_dEdT_[i]->Assemble();
+      a_dEdT_[i]->Finalize();
+   }
+   for (unsigned int i=0; i<advc_T_.size(); i++)
+   {
+      advc_T_[i]->Assemble();
+      advc_T_[i]->Finalize();
+   }
+}
+
+void TwoFluidAdvection::initSolver()
+{
+   cout << "Set Block dndn" << endl;
+   block_A_.SetBlock(0, 0, a_dndn_[0]->ParallelAssemble());
+   block_A_.SetBlock(1, 1, a_dndn_[1]->ParallelAssemble());
+
+   block_B_.SetBlock(0, 0, advc_n_[0]);
+   block_B_.SetBlock(1, 1, advc_n_[1]);
+
+   double pscale = 1e0;
+   cout << "Set Block dpdn" << endl;
+   for (int d=0; d<dim_; d++)
+   {
+      block_A_.SetBlock(d + 2, 0, a_dpdn_[d]->ParallelAssemble(), pscale);
+   }
+   for (int d=0; d<dim_; d++)
+   {
+      block_A_.SetBlock(dim_ + d + 2, 1, a_dpdn_[dim_ + d]->ParallelAssemble(),
+                        pscale);
+   }
+   cout << "Set Block dpdu" << endl;
+   for (int d=0; d<dim_; d++)
+   {
+      block_A_.SetBlock(d + 2, d + 2,
+                        a_dpdu_[d]->ParallelAssemble(), pscale);
+      block_B_.SetBlock(d + 2, d + 2, advc_p_[d], pscale);
+   }
+   for (int d=0; d<dim_; d++)
+   {
+      block_A_.SetBlock(dim_ + d + 2, dim_ + d + 2,
+                        a_dpdu_[dim_ + d]->ParallelAssemble(), pscale);
+      block_B_.SetBlock(dim_ + d + 2, dim_ + d + 2,
+                        advc_p_[dim_ + d], pscale);
+   }
+   cout << "Set Block dEdn" << endl;
+   block_A_.SetBlock(2 * (dim_ + 1), 0, a_dEdn_[0]->ParallelAssemble());
+   block_A_.SetBlock(2 * (dim_ + 1) + 1, 1, a_dEdn_[1]->ParallelAssemble());
+   cout << "Set Block dEdu" << endl;
+   for (int d=0; d<dim_; d++)
+   {
+      block_A_.SetBlock(2 * (dim_ + 1), d + 2, a_dEdu_[d]->ParallelAssemble());
+   }
+   for (int d=0; d<dim_; d++)
+   {
+      block_A_.SetBlock(2 * (dim_ + 1) + 1, d + dim_ + 2,
+                        a_dEdu_[dim_ + d]->ParallelAssemble());
+   }
+   cout << "Set Block dEdT" << endl;
+   block_A_.SetDiagonalBlock(2 * (dim_ + 1), a_dEdT_[0]->ParallelAssemble());
+   block_A_.SetDiagonalBlock(2 * (dim_ + 1) + 1,
+                             a_dEdT_[1]->ParallelAssemble());
+
+   block_B_.SetDiagonalBlock(2 * (dim_ + 1), advc_T_[0]);
+   block_B_.SetDiagonalBlock(2 * (dim_ + 1) + 1, advc_T_[1]);
+
+   block_A_.owns_blocks = 1;
+   block_B_.owns_blocks = 0;
+   /*
+   {
+      HypreParMatrix * hyp = NULL;
+      for (int i=0; i<block_A_.NumRowBlocks(); i++)
+      {
+         for (int j=0; j<block_A_.NumRowBlocks(); j++)
+         {
+            if (!block_A_.IsZeroBlock(i,j))
+            {
+               hyp = dynamic_cast<HypreParMatrix*>(&block_A_.GetBlock(i,j));
+               if (hyp != NULL)
+               {
+                  ostringstream oss; oss << "A_" << i << "_" << j << ".mat";
+                  hyp->Print(oss.str().c_str());
+               }
+            }
+         }
+      }
+   }
+   */
+   /*
+   {
+      HypreParMatrix * hyp = NULL;
+      for (int i=0; i<block_B_.NumRowBlocks(); i++)
+      {
+         for (int j=0; j<block_B_.NumRowBlocks(); j++)
+         {
+            if (!block_B_.IsZeroBlock(i,j))
+            {
+               hyp = dynamic_cast<ParBilinearForm&>(block_B_.GetBlock(i,j)).ParallelAssemble();
+               if (hyp != NULL)
+               {
+                  ostringstream oss; oss << "B_" << i << "_" << j << ".mat";
+                  hyp->Print(oss.str().c_str());
+               }
+               delete hyp;
+            }
+         }
+      }
+   }
+   */
+   for (int i=0; i<block_A_.NumRowBlocks(); i++)
+   {
+      HypreParMatrix * hyp =
+         dynamic_cast<HypreParMatrix*>(&block_A_.GetBlock(i,i));
+      HypreDiagScale * ds = new HypreDiagScale(*hyp);
+      // ds->SetPrintLevel(0);
+      block_ds_.SetDiagonalBlock(i, ds);
+   }
+   block_ds_.owns_blocks = 1;
+
+   gmres_.SetAbsTol(0.0);
+   gmres_.SetRelTol(1e-12);
+   gmres_.SetMaxIter(5000);
+   gmres_.SetKDim(50);
+   gmres_.SetPrintLevel(1);
+   gmres_.SetOperator(block_A_);
+   gmres_.SetPreconditioner(block_ds_);
+}
+
+void TwoFluidAdvection::Update()
+{
+   // this->setTimeStep(dt);
+   this->Assemble();
+   this->initSolver();
+}
+
+void TwoFluidAdvection::Mult(const Vector &x, Vector &dxdt) const
+{
+   block_B_.Mult(x, block_rhs_);
+   block_rhs_ *= -1.0;
+
+   cout << "Time: " << t << endl;
+   for (int i=0; i<block_rhs_.NumBlocks(); i++)
+   {
+      ParLinearForm rhs(&sfes_, block_rhs_.GetBlock(i));
+      rhs.ParallelAssemble(block_RHS_.GetBlock(i));
+
+      double nrm = rhs.Normlinf();
+      cout << i << " rhs " << nrm << endl;
+   }
+
+   block_dXdt_ = 0.0;
+
+   gmres_.Mult(block_RHS_, block_dXdt_);
+
+   for (int i=0; i<block_dXdt_.NumBlocks(); i++)
+   {
+      ParGridFunction dxidt(&sfes_, &dxdt[offsets_[i]]);
+      dxidt.SetFromTrueDofs(block_dXdt_.GetBlock(i));
+      cout << "norm " << i << " " << dxidt.Normlinf() << endl;
+   }
+}
+
 /*
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
                          ParFiniteElementSpace &dfes,
