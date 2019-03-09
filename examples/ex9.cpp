@@ -7,8 +7,12 @@
 //    ex9 -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
 //    ex9 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
 
-//    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//    Mesh return mode:
+//    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 4 -vs 10
+//    ex9 -m ../data/periodic-square.mesh -p 4 -r 2 -dt 0.005 -tf 4 -mt 4 -vs 10
+//    Remap mode:
 //    ex9 -m ../data/periodic-square.mesh -p 6 -r 2 -dt 0.005 -tf 0.5
+//    ex9 -m ../data/periodic-square.mesh -p 7 -r 2 -dt 0.005 -tf 0.5 -mt 4
 
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
@@ -1120,30 +1124,30 @@ int main(int argc, char *argv[])
    m.AddDomainIntegrator(new MassIntegrator);
    BilinearForm k(&fes);
    
-BilinearForm kbdr(&fes);
+   BilinearForm kbdr(&fes);
 
-if (problem>=6)
-{
-   k.AddDomainIntegrator(new ConvectionIntegrator(v_coeff));
-//    k.AddInteriorFaceIntegrator(
-//       new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
-//    k.AddBdrFaceIntegrator(
-//       new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5))); //TODO debug
-   
-   kbdr.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
-}
-else
-{
-   k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
-//    k.AddInteriorFaceIntegrator(
-//       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
-//    k.AddBdrFaceIntegrator(
-//       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5))); //TODO debug
+   if (problem>=6)
+   {
+      k.AddDomainIntegrator(new ConvectionIntegrator(v_coeff));
+      //    k.AddInteriorFaceIntegrator(
+      //       new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
+      //    k.AddBdrFaceIntegrator(
+      //       new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5))); //TODO debug
 
-   kbdr.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
-}
+      kbdr.AddInteriorFaceIntegrator(
+               new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
+   }
+   else
+   {
+      k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
+      //    k.AddInteriorFaceIntegrator(
+      //       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
+      //    k.AddBdrFaceIntegrator(
+      //       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5))); //TODO debug
+
+      kbdr.AddInteriorFaceIntegrator(
+               new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
+   }
    
    kbdr.Assemble(0);
    kbdr.Finalize(0);
