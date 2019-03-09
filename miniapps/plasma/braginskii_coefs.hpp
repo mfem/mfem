@@ -728,6 +728,20 @@ public:
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
+class pAdvectionCoefficient : public VectorCoefficient
+{
+private:
+   double m_;
+   Coefficient & nCoef_;
+   VectorCoefficient & uCoef_;
+
+public:
+   pAdvectionCoefficient(double m, Coefficient & nCoef,
+                         VectorCoefficient & uCoef);
+
+   void Eval(Vector & K, ElementTransformation &T, const IntegrationPoint &ip);
+};
+
 class dEdnCoefficient : public Coefficient
 {
 private:
@@ -760,6 +774,19 @@ public:
 };
 
 typedef ProductCoefficient dEdTCoefficient;
+
+class TAdvectionCoefficient : public VectorCoefficient
+{
+private:
+   Coefficient & nCoef_;
+   VectorCoefficient & uCoef_;
+
+public:
+   TAdvectionCoefficient(Coefficient & nCoef,
+                         VectorCoefficient & uCoef);
+
+   void Eval(Vector & K, ElementTransformation &T, const IntegrationPoint &ip);
+};
 
 } // namespace plasma
 

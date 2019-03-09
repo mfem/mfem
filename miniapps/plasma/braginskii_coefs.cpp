@@ -775,6 +775,24 @@ dpduCoefficient::dpduCoefficient(double m,
 {
 }
 
+pAdvectionCoefficient::pAdvectionCoefficient(double m, Coefficient & nCoef,
+                                             VectorCoefficient & uCoef)
+   : VectorCoefficient(uCoef.GetVDim()),
+     m_(m),
+     nCoef_(nCoef),
+     uCoef_(uCoef)
+{}
+
+void pAdvectionCoefficient::Eval(Vector & K,
+                                 ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   double n = nCoef_.Eval(T, ip);
+   uCoef_.Eval(K, T, ip);
+
+   K *= n * m_;
+}
+
 double dpduCoefficient::Eval(ElementTransformation &T,
                              const IntegrationPoint &ip)
 {
@@ -821,6 +839,23 @@ double dEduCoefficient::Eval(ElementTransformation &T,
 
    // The factor of amu_/q_ converts from amu * m^2/s to eV
    return m_ * n * u_[c_] * amu_ / q_;
+}
+
+TAdvectionCoefficient::TAdvectionCoefficient(Coefficient & nCoef,
+                                             VectorCoefficient & uCoef)
+   : VectorCoefficient(uCoef.GetVDim()),
+     nCoef_(nCoef),
+     uCoef_(uCoef)
+{}
+
+void TAdvectionCoefficient::Eval(Vector & K,
+                                 ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   double n = nCoef_.Eval(T, ip);
+   uCoef_.Eval(K, T, ip);
+
+   K *= 2.5 * n;
 }
 
 } // namespace plasma
