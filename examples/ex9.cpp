@@ -1580,7 +1580,7 @@ void FE_Evolution::ComputeHighOrderSolution(const Vector &x, Vector &y) const
    // No monotonicity treatment, straightforward high-order scheme
    // ydot = M^{-1} (K x + b)
    K.Mult(x, z);
-   KBDR.Mult(x, z);
+   KBDR.AddMult(x, z);
    z += b;
    NeumannSolve(z, y);
 }
