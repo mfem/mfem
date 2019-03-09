@@ -744,10 +744,10 @@ public:
 
 
 void preprocessFluxLumping(const FluxCorrectedTransport &fct, const int k, const IntegrationRule *irF, 
-                           DenseMatrix &bdrIntLumped, DenseMatrix &bdrInt/*, VectorGridFunctionCoefficient &coef*/)
+                           DenseMatrix &bdrIntLumped, DenseMatrix &bdrInt, VectorCoefficient &coef)
 {
    FiniteElementSpace *fes = fct.fes;
-   VectorFunctionCoefficient &coef = fct.velocity;
+   
    DenseMatrix dofs = fct.dofs;
    
    const FiniteElement &dummy = *fes->GetFE(k);
@@ -829,10 +829,9 @@ void preprocessFluxLumping(const FluxCorrectedTransport &fct, const int k, const
 }
 
 void ComputeResidualWeights(const FluxCorrectedTransport &fct, SparseMatrix &fluctMatrix, DenseMatrix &fluctSub, 
-                            DenseMatrix &bdrIntLumped, DenseMatrix &bdrInt, VectorGridFunctionCoefficient &coef)
+                            DenseMatrix &bdrIntLumped, DenseMatrix &bdrInt, VectorCoefficient &coef)
 {
    FiniteElementSpace *fes = fct.fes;
-//    VectorFunctionCoefficient &coef = fct.velocity;
    
    Mesh *mesh = fes->GetMesh();
    int i, j, k, m, p, nd, dofInd, qOrdF, numBdrs = fct.dofs.Width(),
@@ -875,7 +874,7 @@ void ComputeResidualWeights(const FluxCorrectedTransport &fct, SparseMatrix &flu
       ////////////////////////////
       // Boundary contributions //
       ////////////////////////////
-      preprocessFluxLumping(fct, k, irF, bdrIntLumped, bdrInt/*, coef*/);
+      preprocessFluxLumping(fct, k, irF, bdrIntLumped, bdrInt, coef);
 
 //       ///////////////////////////
 //       // Element contributions //
@@ -1426,17 +1425,17 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
              minGammaP, minGammaN, aux, fluct, beta = 10., gamma = 10., eps = 1.E-15;
       Vector xMaxSubcell, xMinSubcell, sumWeightsSubcellP, sumWeightsSubcellN,
              fluctSubcellP, fluctSubcellN, nodalWeightsP, nodalWeightsN, alpha;
-
-      //
+      
       SparseMatrix fluctMatrix;
       DenseMatrix fluctSub, bdrIntLumped, bdrInt;
-      ComputeResidualWeights(fct, fluctMatrix, fluctSub, bdrIntLumped, bdrInt, coef);
+      
+      if (problem >= 6)
+         ComputeResidualWeights(fct, fluctMatrix, fluctSub, bdrIntLumped, bdrInt, coef);
+      else
+         ComputeResidualWeights(fct, fluctMatrix, fluctSub, bdrIntLumped, bdrInt, fct.velocity);
          
       // Discretization terms
       y = b;
-      
-//       KBDR.AddMult(x, y); //for debug
-//       fluctMatrix.Mult(x, z); //TODO unused
       K.Mult(x, z); // this is just element terms now!
       
       if (dim==1)
@@ -1444,9 +1443,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          K.AddMult(x, y);
          y -= z;
       }
-//       z += y;
-//       NeumannSolve(z, y); //for debug
-//       return;
 
       // Monotonicity terms
       for (k = 0; k < ne; k++)
