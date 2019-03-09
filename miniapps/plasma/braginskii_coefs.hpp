@@ -670,7 +670,8 @@ private:
    VectorGridFunctionCoefficient BCoef_;
 
    DenseMatrix del_;
-   DenseTensor eps_;
+   DenseMatrix eps2_;
+   DenseTensor eps3_;
 
    int bi_;
    int bj_;
@@ -681,7 +682,8 @@ private:
    double ne_;
    double ni_;
 
-   mutable Vector bHat_;
+   mutable Vector bPara_;
+   mutable Vector bPerp_;
    mutable DenseMatrix bx_;
 
    void initSymbols();
