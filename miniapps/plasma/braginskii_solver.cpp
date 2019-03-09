@@ -343,10 +343,6 @@ void TwoFluidDiffusion::initBilinearForms()
    {
       stiff_D_[i] = new ParBilinearForm(&sfes_);
       stiff_D_[i]->AddDomainIntegrator(new DiffusionIntegrator(*diffCoef_[i]));
-      stiff_D_[i]->AddInteriorFaceIntegrator(
-         new DGDiffusionIntegrator(*diffCoef_[i], dg_.sigma, dg_.kappa));
-      stiff_D_[i]->AddBdrFaceIntegrator(
-         new DGDiffusionIntegrator(*diffCoef_[i], dg_.sigma, dg_.kappa));
    }
    */
 
@@ -357,8 +353,8 @@ void TwoFluidDiffusion::initBilinearForms()
       a_dpdn_[i]->AddDomainIntegrator(new MassIntegrator(*dpdnCoef_[i]));
    }
 
-   a_dpdu_.resize(etaCoef_.size());
-   for (unsigned int i=0; i<etaCoef_.size(); i++)
+   a_dpdu_.resize(dtEtaCoef_.size());
+   for (unsigned int i=0; i<dtEtaCoef_.size(); i++)
    {
       a_dpdu_[i] = new ParBilinearForm(&sfes_);
       if ((i % (dim_ * dim_)) % (dim_ + 1) == 0)
@@ -368,10 +364,6 @@ void TwoFluidDiffusion::initBilinearForms()
          a_dpdu_[i]->AddDomainIntegrator(new MassIntegrator(*dpduCoef_[row]));
       }
       a_dpdu_[i]->AddDomainIntegrator(new DiffusionIntegrator(*dtEtaCoef_[i]));
-      // a_dpdu_[i]->AddInteriorFaceIntegrator(
-      // new DGDiffusionIntegrator(*dtEtaCoef_[i], dg_.sigma, dg_.kappa));
-      // a_dpdu_[i]->AddBdrFaceIntegrator(
-      // new DGDiffusionIntegrator(*dtEtaCoef_[i], dg_.sigma, dg_.kappa));
    }
 
    stiff_eta_.resize(etaCoef_.size());
@@ -379,10 +371,6 @@ void TwoFluidDiffusion::initBilinearForms()
    {
       stiff_eta_[i] = new ParBilinearForm(&sfes_);
       stiff_eta_[i]->AddDomainIntegrator(new DiffusionIntegrator(*etaCoef_[i]));
-      // stiff_eta_[i]->AddInteriorFaceIntegrator(
-      //   new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
-      // stiff_eta_[i]->AddBdrFaceIntegrator(
-      //   new DGDiffusionIntegrator(*etaCoef_[i], dg_.sigma, dg_.kappa));
    }
 
    a_dEdn_.resize(dEdnCoef_.size());
@@ -405,10 +393,6 @@ void TwoFluidDiffusion::initBilinearForms()
       a_dEdT_[i] = new ParBilinearForm(&sfes_);
       a_dEdT_[i]->AddDomainIntegrator(new MassIntegrator(*dEdTCoef_[i]));
       a_dEdT_[i]->AddDomainIntegrator(new DiffusionIntegrator(*dtChiCoef_[i]));
-      // a_dEdT_[i]->AddInteriorFaceIntegrator(
-      //    new DGDiffusionIntegrator(*dtChiCoef_[i], dg_.sigma, dg_.kappa));
-      // a_dEdT_[i]->AddBdrFaceIntegrator(
-      //    new DGDiffusionIntegrator(*dtChiCoef_[i], dg_.sigma, dg_.kappa));
    }
 
    stiff_chi_.resize(chiCoef_.size());
@@ -416,10 +400,6 @@ void TwoFluidDiffusion::initBilinearForms()
    {
       stiff_chi_[i] = new ParBilinearForm(&sfes_);
       stiff_chi_[i]->AddDomainIntegrator(new DiffusionIntegrator(*chiCoef_[i]));
-      // stiff_chi_[i]->AddInteriorFaceIntegrator(
-      //    new DGDiffusionIntegrator(*chiCoef_[i], dg_.sigma, dg_.kappa));
-      // stiff_chi_[i]->AddBdrFaceIntegrator(
-      //    new DGDiffusionIntegrator(*chiCoef_[i], dg_.sigma, dg_.kappa));
    }
 }
 
