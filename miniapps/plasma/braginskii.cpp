@@ -298,6 +298,7 @@ int main(int argc, char *argv[])
    double dt_rel_tol = 0.1;
    double cfl = 0.3;
    bool visualization = true;
+   bool vis_coefs = false;
    int vis_steps = 50;
 
    // double ion_charge = 0.0;
@@ -361,6 +362,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&vis_coefs, "-vis-coefs", "--coef-visualization",
+                  "-no-vis-coefs",
+                  "--no-coef-visualization",
+                  "Enable or disable GLVis visualization of coefficients.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
 
@@ -625,6 +630,16 @@ int main(int argc, char *argv[])
 
       for (int i=0; i<=num_species_; i++)
       {
+         ostringstream head;
+         if (i==0)
+         {
+            head << "Electron";
+         }
+         else
+         {
+            head << "Ion";
+         }
+
          /*
                int doff = offsets[i];
                int voff = offsets[i * dim + num_species_ + 1];
@@ -638,93 +653,6 @@ int main(int argc, char *argv[])
          ParGridFunction density(&sfes, n_block.GetBlock(i));
          ParGridFunction velocity(&vfes, u_block.GetBlock(i));
          ParGridFunction temperature(&sfes, T_block.GetBlock(i));
-
-         ParGridFunction chi_para(&sfes);
-         ParGridFunction chi_perp(&sfes);
-         ParGridFunction eta_0(&sfes);
-         ParGridFunction eta_1(&sfes);
-         ParGridFunction eta_3(&sfes);
-         if (i==0)
-         {
-            ChiParaCoefficient chiParaCoef(n_block, ion_charge_);
-            chiParaCoef.SetT(temperature);
-            chi_para.ProjectCoefficient(chiParaCoef);
-
-            ChiPerpCoefficient chiPerpCoef(n_block, ion_charge_);
-            chiPerpCoef.SetT(temperature);
-            chiPerpCoef.SetB(B);
-            chi_perp.ProjectCoefficient(chiPerpCoef);
-
-            Eta0Coefficient eta0Coef(n_block, ion_charge_);
-            eta0Coef.SetT(temperature);
-            eta_0.ProjectCoefficient(eta0Coef);
-
-            Eta1Coefficient eta1Coef(n_block, ion_charge_);
-            eta1Coef.SetT(temperature);
-            eta1Coef.SetB(B);
-            eta_1.ProjectCoefficient(eta1Coef);
-
-            Eta3Coefficient eta3Coef(n_block, ion_charge_);
-            eta3Coef.SetT(temperature);
-            eta3Coef.SetB(B);
-            eta_3.ProjectCoefficient(eta3Coef);
-         }
-         else
-         {
-            ChiParaCoefficient chiParaCoef(n_block,
-                                           ion_mass_,
-                                           ion_charge_);
-            chiParaCoef.SetT(temperature);
-            chi_para.ProjectCoefficient(chiParaCoef);
-
-            ChiPerpCoefficient chiPerpCoef(n_block, ion_mass_, ion_charge_);
-            chiPerpCoef.SetT(temperature);
-            chiPerpCoef.SetB(B);
-            chi_perp.ProjectCoefficient(chiPerpCoef);
-
-            Eta0Coefficient eta0Coef(n_block,
-                                     ion_mass_,
-                                     ion_charge_);
-            eta0Coef.SetT(temperature);
-            eta_0.ProjectCoefficient(eta0Coef);
-
-            Eta1Coefficient eta1Coef(n_block,
-                                     ion_mass_,
-                                     ion_charge_);
-            eta1Coef.SetT(temperature);
-            eta1Coef.SetB(B);
-            eta_1.ProjectCoefficient(eta1Coef);
-
-            Eta3Coefficient eta3Coef(n_block,
-                                     ion_mass_,
-                                     ion_charge_);
-            eta3Coef.SetT(temperature);
-            eta3Coef.SetB(B);
-            eta_3.ProjectCoefficient(eta3Coef);
-         }
-
-         truncateField(chi_perp);
-         truncateField(eta_1);
-         if (i==0)
-         {
-            eta_3 *= -1.0;
-            truncateField(eta_3);
-            eta_3 *= -1.0;
-         }
-         else
-         {
-            truncateField(eta_3);
-         }
-
-         ostringstream head;
-         if (i==0)
-         {
-            head << "Electron";
-         }
-         else
-         {
-            head << "Ion";
-         }
 
          ostringstream doss;
          doss << head.str() << " Density";
@@ -744,42 +672,121 @@ int main(int argc, char *argv[])
                         temperature, toss.str().c_str(),
                         Wx, Wy, Ww, Wh);
 
-         Wx += offx;
+         if (vis_coefs)
+         {
+            ParGridFunction chi_para(&sfes);
+            ParGridFunction chi_perp(&sfes);
+            ParGridFunction eta_0(&sfes);
+            ParGridFunction eta_1(&sfes);
+            ParGridFunction eta_3(&sfes);
+            if (i==0)
+            {
+               ChiParaCoefficient chiParaCoef(n_block, ion_charge_);
+               chiParaCoef.SetT(temperature);
+               chi_para.ProjectCoefficient(chiParaCoef);
 
-         ostringstream x0oss; x0oss << head.str() << " Chi Parallel";
-         VisualizeField(x0out[i], vishost, visport,
-                        chi_para, x0oss.str().c_str(),
-                        Wx, Wy, Ww, Wh);
+               ChiPerpCoefficient chiPerpCoef(n_block, ion_charge_);
+               chiPerpCoef.SetT(temperature);
+               chiPerpCoef.SetB(B);
+               chi_perp.ProjectCoefficient(chiPerpCoef);
 
-         Wx += offx;
+               Eta0Coefficient eta0Coef(n_block, ion_charge_);
+               eta0Coef.SetT(temperature);
+               eta_0.ProjectCoefficient(eta0Coef);
 
-         ostringstream x1oss;
-         x1oss << head.str() << " Chi Perpendicular (truncated)";
-         VisualizeField(x1out[i], vishost, visport,
-                        chi_perp, x1oss.str().c_str(),
-                        Wx, Wy, Ww, Wh);
+               Eta1Coefficient eta1Coef(n_block, ion_charge_);
+               eta1Coef.SetT(temperature);
+               eta1Coef.SetB(B);
+               eta_1.ProjectCoefficient(eta1Coef);
 
-         Wx -= 4 * offx;
+               Eta3Coefficient eta3Coef(n_block, ion_charge_);
+               eta3Coef.SetT(temperature);
+               eta3Coef.SetB(B);
+               eta_3.ProjectCoefficient(eta3Coef);
+            }
+            else
+            {
+               ChiParaCoefficient chiParaCoef(n_block,
+                                              ion_mass_,
+                                              ion_charge_);
+               chiParaCoef.SetT(temperature);
+               chi_para.ProjectCoefficient(chiParaCoef);
 
-         ostringstream e0oss; e0oss << head.str() << " Eta 0";
-         VisualizeField(e0out[i], vishost, visport,
-                        eta_0, e0oss.str().c_str(),
-                        Wx, Wy, Ww, Wh);
+               ChiPerpCoefficient chiPerpCoef(n_block, ion_mass_, ion_charge_);
+               chiPerpCoef.SetT(temperature);
+               chiPerpCoef.SetB(B);
+               chi_perp.ProjectCoefficient(chiPerpCoef);
 
-         Wx += offx;
+               Eta0Coefficient eta0Coef(n_block,
+                                        ion_mass_,
+                                        ion_charge_);
+               eta0Coef.SetT(temperature);
+               eta_0.ProjectCoefficient(eta0Coef);
 
-         ostringstream e1oss; e1oss << head.str() << " Eta 1 (truncated)";
-         VisualizeField(e1out[i], vishost, visport,
-                        eta_1, e1oss.str().c_str(),
-                        Wx, Wy, Ww, Wh);
+               Eta1Coefficient eta1Coef(n_block,
+                                        ion_mass_,
+                                        ion_charge_);
+               eta1Coef.SetT(temperature);
+               eta1Coef.SetB(B);
+               eta_1.ProjectCoefficient(eta1Coef);
 
-         Wx += offx;
+               Eta3Coefficient eta3Coef(n_block,
+                                        ion_mass_,
+                                        ion_charge_);
+               eta3Coef.SetT(temperature);
+               eta3Coef.SetB(B);
+               eta_3.ProjectCoefficient(eta3Coef);
+            }
 
-         ostringstream e3oss; e3oss << head.str() << " Eta 3 (truncated)";
-         VisualizeField(e3out[i], vishost, visport,
-                        eta_3, e3oss.str().c_str(),
-                        Wx, Wy, Ww, Wh);
+            truncateField(chi_perp);
+            truncateField(eta_1);
+            if (i==0)
+            {
+               eta_3 *= -1.0;
+               truncateField(eta_3);
+               eta_3 *= -1.0;
+            }
+            else
+            {
+               truncateField(eta_3);
+            }
 
+            Wx += offx;
+
+            ostringstream x0oss; x0oss << head.str() << " Chi Parallel";
+            VisualizeField(x0out[i], vishost, visport,
+                           chi_para, x0oss.str().c_str(),
+                           Wx, Wy, Ww, Wh);
+
+            Wx += offx;
+
+            ostringstream x1oss;
+            x1oss << head.str() << " Chi Perpendicular (truncated)";
+            VisualizeField(x1out[i], vishost, visport,
+                           chi_perp, x1oss.str().c_str(),
+                           Wx, Wy, Ww, Wh);
+
+            Wx -= 4 * offx;
+
+            ostringstream e0oss; e0oss << head.str() << " Eta 0";
+            VisualizeField(e0out[i], vishost, visport,
+                           eta_0, e0oss.str().c_str(),
+                           Wx, Wy, Ww, Wh);
+
+            Wx += offx;
+
+            ostringstream e1oss; e1oss << head.str() << " Eta 1 (truncated)";
+            VisualizeField(e1out[i], vishost, visport,
+                           eta_1, e1oss.str().c_str(),
+                           Wx, Wy, Ww, Wh);
+
+            Wx += offx;
+
+            ostringstream e3oss; e3oss << head.str() << " Eta 3 (truncated)";
+            VisualizeField(e3out[i], vishost, visport,
+                           eta_3, e3oss.str().c_str(),
+                           Wx, Wy, Ww, Wh);
+         }
          Wx -= 2 * offx;
          Wy += offy;
       }
