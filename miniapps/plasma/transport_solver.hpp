@@ -98,7 +98,7 @@ inline double chi_i_para(double ma, double Ta,
    // The factor of q_ is included to convert Ta from eV to Joules
    // The factor of u_ is included to convert ma from a.m.u to kg
    return 3.9 * (q_ * Ta / (ma * amu_ ) ) *
-     tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
+          tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 
 /**
