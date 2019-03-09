@@ -139,7 +139,6 @@ private:
    BlockVector block_RHS_;
    BlockVector block_dXdt_;
    BlockDiagonalPreconditioner block_amg_;
-   std::vector<HypreSolver *> amg_;
 
    GMRESSolver gmres_;
 
