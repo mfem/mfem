@@ -744,10 +744,10 @@ public:
 
 
 void preprocessFluxLumping(const FluxCorrectedTransport &fct, const int k, const IntegrationRule *irF, 
-                           DenseMatrix &bdrIntLumped, DenseMatrix &bdrInt, VectorGridFunctionCoefficient &coef)
+                           DenseMatrix &bdrIntLumped, DenseMatrix &bdrInt/*, VectorGridFunctionCoefficient &coef*/)
 {
    FiniteElementSpace *fes = fct.fes;
-//    VectorFunctionCoefficient &coef = fct.velocity;
+   VectorFunctionCoefficient &coef = fct.velocity;
    DenseMatrix dofs = fct.dofs;
    
    const FiniteElement &dummy = *fes->GetFE(k);
@@ -875,7 +875,7 @@ void ComputeResidualWeights(const FluxCorrectedTransport &fct, SparseMatrix &flu
       ////////////////////////////
       // Boundary contributions //
       ////////////////////////////
-      preprocessFluxLumping(fct, k, irF, bdrIntLumped, bdrInt, coef);
+      preprocessFluxLumping(fct, k, irF, bdrIntLumped, bdrInt/*, coef*/);
 
 //       ///////////////////////////
 //       // Element contributions //
