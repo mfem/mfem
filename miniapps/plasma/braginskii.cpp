@@ -640,16 +640,6 @@ int main(int argc, char *argv[])
             head << "Ion";
          }
 
-         /*
-               int doff = offsets[i];
-               int voff = offsets[i * dim + num_species_ + 1];
-               int toff = offsets[i + (num_species_ + 1) * (dim + 1)];
-               double * x_data = x_block.GetData();
-               ParGridFunction density(&sfes, x_data + doff);
-               ParGridFunction velocity(&vfes, x_data + voff);
-               ParGridFunction temperature(&sfes, x_data + toff);
-         */
-
          ParGridFunction density(&sfes, n_block.GetBlock(i));
          ParGridFunction velocity(&vfes, u_block.GetBlock(i));
          ParGridFunction temperature(&sfes, T_block.GetBlock(i));
