@@ -16,16 +16,10 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS cpd1d_solver.hpp cold_plasma_dielectric.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem_miniapps_common)
 
-  add_mfem_miniapp(transport
-    MAIN transport.cpp
-    EXTRA_SOURCES transport_solver.cpp
-    EXTRA_HEADERS transport_solver.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem_miniapps_common)
-
   add_mfem_miniapp(braginskii
     MAIN braginskii.cpp
-    EXTRA_SOURCES braginskii_solver.cpp
-    EXTRA_HEADERS braginskii_solver.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    EXTRA_SOURCES braginskii_solver.cpp braginskii_coefs.cpp
+    EXTRA_HEADERS braginskii_solver.hpp braginskii_coefs.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem_miniapps_common)
 
 endif()
