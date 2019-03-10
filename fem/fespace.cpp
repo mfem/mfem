@@ -2194,7 +2194,7 @@ L2Projection::L2Projection(const FiniteElementSpace &fes_ho_,
    nref = nel_lor/nel_ho;
 
    // Construct the mapping from HO to LOR and reverse
-   // lor2ho[ilor] will give the unique HO coarse element cotaining the ilor
+   // lor2ho[ilor] will give the unique HO coarse element containing the ilor
    // ho2lor.GetRow(iho) will give all the LOR elements contained in iho
    lor2ho.SetSize(nel_lor);
    ho2lor.SetSize(nel_ho, nref);
