@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_COLD_PLASMA_DIELECTRIC_TENSOR
-#define MFEM_COLD_PLASMA_DIELECTRIC_TENSOR
+#ifndef MFEM_COLD_PLASMA_DIELECTRIC_COEFS
+#define MFEM_COLD_PLASMA_DIELECTRIC_COEFS
 
 #include "../common/pfem_extras.hpp"
 #include "plasma.hpp"
@@ -101,4 +101,4 @@ private:
 
 #endif // MFEM_USE_MPI
 
-#endif // MFEM_COLD_PLASMA_DIELECTRIC_TENSOR
+#endif // MFEM_COLD_PLASMA_DIELECTRIC_COEFS

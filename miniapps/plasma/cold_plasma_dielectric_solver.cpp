@@ -9,7 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "cpd1d_solver.hpp"
+#include "cold_plasma_dielectric_solver.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -25,8 +25,8 @@ namespace plasma
 // Used for combining scalar coefficients
 double prodFunc(double a, double b) { return a * b; }
 
-CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
-                         CPD1DSolver::SolverType sol,
+CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
+                         CPDSolver::SolverType sol,
                          ComplexOperator::Convention conv,
                          MatrixCoefficient & epsReCoef,
                          MatrixCoefficient & epsImCoef,
@@ -304,7 +304,7 @@ CPD1DSolver::CPD1DSolver(ParMesh & pmesh, int order, double omega,
    rhs_->imag().Vector::operator=(0.0);
 }
 
-CPD1DSolver::~CPD1DSolver()
+CPDSolver::~CPDSolver()
 {
    delete negMuInvkxkxCoef_;
    delete negMuInvkCoef_;
@@ -372,13 +372,13 @@ CPD1DSolver::~CPD1DSolver()
 }
 
 HYPRE_Int
-CPD1DSolver::GetProblemSize()
+CPDSolver::GetProblemSize()
 {
    return 2 * HCurlFESpace_->GlobalTrueVSize();
 }
 
 void
-CPD1DSolver::PrintSizes()
+CPDSolver::PrintSizes()
 {
    // HYPRE_Int size_h1 = H1FESpace_->GlobalTrueVSize();
    HYPRE_Int size_nd = HCurlFESpace_->GlobalTrueVSize();
@@ -392,7 +392,7 @@ CPD1DSolver::PrintSizes()
 }
 
 void
-CPD1DSolver::Assemble()
+CPDSolver::Assemble()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Assembling ..." << flush; }
 
@@ -430,7 +430,7 @@ CPD1DSolver::Assemble()
 }
 
 void
-CPD1DSolver::Update()
+CPDSolver::Update()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Updating ..." << endl; }
 
@@ -479,7 +479,7 @@ CPD1DSolver::Update()
 }
 
 void
-CPD1DSolver::Solve()
+CPDSolver::Solve()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
 
@@ -718,7 +718,7 @@ CPD1DSolver::Solve()
 }
 
 double
-CPD1DSolver::GetError()
+CPDSolver::GetError()
 {
    double solErr = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
                                       const_cast<VectorCoefficient&>(eiCoef_));
@@ -727,7 +727,7 @@ CPD1DSolver::GetError()
 }
 
 void
-CPD1DSolver::GetErrorEstimates(Vector & errors)
+CPDSolver::GetErrorEstimates(Vector & errors)
 {
    if ( myid_ == 0 && logging_ > 0 )
    { cout << "Estimating Error ... " << flush; }
@@ -749,7 +749,7 @@ CPD1DSolver::GetErrorEstimates(Vector & errors)
 }
 
 void
-CPD1DSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
+CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
    visit_dc_ = &visit_dc;
 
@@ -772,7 +772,7 @@ CPD1DSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 }
 
 void
-CPD1DSolver::WriteVisItFields(int it)
+CPDSolver::WriteVisItFields(int it)
 {
    if ( visit_dc_ )
    {
@@ -793,7 +793,7 @@ CPD1DSolver::WriteVisItFields(int it)
 }
 
 void
-CPD1DSolver::InitializeGLVis()
+CPDSolver::InitializeGLVis()
 {
    if ( myid_ == 0 ) { cout << "Opening GLVis sockets." << endl; }
 
@@ -835,7 +835,7 @@ CPD1DSolver::InitializeGLVis()
 }
 
 void
-CPD1DSolver::DisplayToGLVis()
+CPDSolver::DisplayToGLVis()
 {
    if (myid_ == 0) { cout << "Sending data to GLVis ..." << flush; }
 
@@ -924,7 +924,7 @@ CPD1DSolver::DisplayToGLVis()
 }
 
 void
-CPD1DSolver::DisplayAnimationToGLVis()
+CPDSolver::DisplayAnimationToGLVis()
 {
    if (myid_ == 0) { cout << "Sending animation data to GLVis ..." << flush; }
 

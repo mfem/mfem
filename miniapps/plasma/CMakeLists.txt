@@ -12,8 +12,14 @@
 if (MFEM_USE_MPI)
   add_mfem_miniapp(cpd1d
     MAIN cpd1d.cpp
-    EXTRA_SOURCES cpd1d_solver.cpp cold_plasma_dielectric.cpp
-    EXTRA_HEADERS cpd1d_solver.hpp cold_plasma_dielectric.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp
+    EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem_miniapps_common)
+
+  add_mfem_miniapp(cpd2d
+    MAIN cpd2d.cpp
+    EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp
+    EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem_miniapps_common)
 
   add_mfem_miniapp(braginskii

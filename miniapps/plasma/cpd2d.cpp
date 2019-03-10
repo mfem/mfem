@@ -55,7 +55,8 @@
 //   By default the sources and fields are all zero
 //     mpirun -np 4 hertz
 //
-// ./cpd1d -md 0.24 -ne 480 -dbcs '3 5' -s 5 -f 80e6 -maxit 1 -B '0 0 5.4' -w J -slab '0 1 0 0.16' -num '2e20 2e20'
+//
+// ./cpd2d -rod '0 0 1 0 0 0.1' -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
 //
 //   Current source in a sphere with absorbing boundary conditions
 //     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
@@ -101,14 +102,14 @@ static Vector pw_eta_(0);      // Piecewise impedance values
 static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
 
 // Current Density Function
-static Vector slab_params_(0); // Amplitude of x, y, z current source
+static Vector rod_params_(0); // Amplitude of x, y, z current source, position in 2D, and radius
 
-void slab_current_source(const Vector &x, Vector &j);
+void rod_current_source(const Vector &x, Vector &j);
 void j_src(const Vector &x, Vector &j)
 {
-   if (slab_params_.Size() > 0)
+   if (rod_params_.Size() > 0)
    {
-      slab_current_source(x, j);
+      rod_current_source(x, j);
    }
 }
 
@@ -160,7 +161,7 @@ private:
 //static double freq_ = 1.0e9;
 
 // Mesh Size
-static Vector mesh_dim_(0); // x, y, z dimensions of mesh
+//static Vector mesh_dim_(0); // x, y, z dimensions of mesh
 
 // Prints the program's logo to the given output stream
 // void display_banner(ostream & os);
@@ -172,17 +173,17 @@ int main(int argc, char *argv[])
    // if ( mpi.Root() ) { display_banner(cout); }
 
    // Parse command-line options.
+   const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
+   int ser_ref_levels = 0;
    int order = 1;
    int maxit = 100;
-   // int serial_ref_levels = 0;
-   // int parallel_ref_levels = 0;
    int sol = 2;
    // int nspecies = 2;
    bool herm_conv = false;
    bool visualization = true;
    bool visit = true;
 
-   double freq = 1.0e9;
+   double freq = 1.0e6;
    const char * wave_type = "R";
 
    Vector BVec(3);
@@ -192,6 +193,8 @@ int main(int argc, char *argv[])
    Vector kVec(3);
    kVec = 0.0;
 
+   double hz = -1.0;
+   
    Vector numbers;
    Vector charges;
    Vector masses;
@@ -201,12 +204,18 @@ int main(int argc, char *argv[])
    int num_elements = 10;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    // args.AddOption(&nspecies, "-ns", "--num-species",
    //               "Number of ion species.");
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency in Hertz (of course...)");
+   args.AddOption(&hz, "-mh", "--mesh-height",
+                  "Thickness of extruded mesh in meters.");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
@@ -230,16 +239,14 @@ int main(int argc, char *argv[])
                   "Solver: 1 - GMRES, 2 - FGMRES w/AMS");
    args.AddOption(&pw_eta_, "-pwz", "--piecewise-eta",
                   "Piecewise values of Impedance (one value per abc surface)");
-   args.AddOption(&slab_params_, "-slab", "--slab_params",
-                  "Amplitude");
+   args.AddOption(&rod_params_, "-rod", "--rod_params",
+                  "3D Vector Amplitude, 2D Position, Radius");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&dbcs, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
-   args.AddOption(&mesh_dim_, "-md", "--mesh_dimensions",
-                  "The x, y, z mesh dimensions");
-   args.AddOption(&num_elements, "-ne", "--num-elements",
-                  "The number of mesh elements in x");
+   // args.AddOption(&num_elements, "-ne", "--num-elements",
+   //             "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
@@ -280,25 +287,9 @@ int main(int argc, char *argv[])
    {
       num_elements = 10;
    }
-   if (mesh_dim_.Size() == 0)
+   if (hz < 0.0)
    {
-      mesh_dim_.SetSize(3);
-      mesh_dim_ = 0.0;
-   }
-   else if (mesh_dim_.Size() < 3)
-   {
-      double d0 = mesh_dim_[0];
-      double d1 = (mesh_dim_.Size() == 2) ? mesh_dim_[1] : 0.1 * d0;
-      mesh_dim_.SetSize(3);
-      mesh_dim_[0] = d0;
-      mesh_dim_[1] = d1;
-      mesh_dim_[2] = d1;
-   }
-   if (mesh_dim_[0] == 0.0)
-   {
-      mesh_dim_[0] = 1.0;
-      mesh_dim_[1] = 0.1;
-      mesh_dim_[2] = 0.1;
+     hz = 0.1;
    }
    double omega = 2.0 * M_PI * freq;
    if (kVec[1] != 0.0 || kVec[2] != 0.0)
@@ -384,14 +375,19 @@ int main(int argc, char *argv[])
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
 
-   Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
-                          mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+   // Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
+   //                      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+   Mesh * mesh2d = new Mesh(mesh_file, 1, 1);
+   for (int lev = 0; lev < ser_ref_levels; lev++)
    {
-      vector<Vector> trans(2);
+      mesh2d->UniformRefinement();
+   }
+   Mesh * mesh = Extrude2D(mesh2d, 3, hz);
+   delete mesh2d;
+   {
+      vector<Vector> trans(1);
       trans[0].SetSize(3);
-      trans[1].SetSize(3);
-      trans[0] = 0.0; trans[0][1] = mesh_dim_[1];
-      trans[1] = 0.0; trans[1][2] = mesh_dim_[2];
+      trans[0] = 0.0; trans[0][2] = hz;
       Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, trans);
       /*
       ofstream ofs("per_mesh.mesh");
@@ -537,6 +533,7 @@ int main(int argc, char *argv[])
    ColdPlasmaPlaneWave EImCoef(wave_type[0], omega, BVec,
                                numbers, charges, masses, false);
 
+   /*
    if (wave_type[0] == 'J' && slab_params_.Size() == 5)
    {
       EReCoef.SetCurrentSlab(slab_params_[1], slab_params_[3], slab_params_[4],
@@ -544,6 +541,7 @@ int main(int argc, char *argv[])
       EImCoef.SetCurrentSlab(slab_params_[1], slab_params_[3], slab_params_[4],
                              mesh_dim_[0]);
    }
+   */
    if (phase_shift)
    {
       EReCoef.SetPhaseShift(kVec);
@@ -587,7 +585,7 @@ int main(int argc, char *argv[])
 		 abcs, dbcs,
 		 // e_bc_r, e_bc_i,
 		 EReCoef, EImCoef,
-		 (slab_params_.Size() > 0) ? j_src : NULL, NULL);
+		 (rod_params_.Size() > 0) ? j_src : NULL, NULL);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -596,7 +594,7 @@ int main(int argc, char *argv[])
    }
 
    // Initialize VisIt visualization
-   VisItDataCollection visit_dc("CPD1D-AMR-Parallel", &pmesh);
+   VisItDataCollection visit_dc("CPD2D-AMR-Parallel", &pmesh);
 
    if ( visit )
    {
@@ -723,7 +721,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-// Print the CPD1D ascii logo to the given ostream
+// Print the CPD2D ascii logo to the given ostream
 /*
 void display_banner(ostream & os)
 {
@@ -769,23 +767,24 @@ SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
    return coef;
 }
 
-void slab_current_source(const Vector &x, Vector &j)
+void rod_current_source(const Vector &x, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
 
    j.SetSize(x.Size());
    j = 0.0;
 
-   double width = slab_params_(4);
-   // double height = 1.0 / width;
-   double half_x_l = slab_params_(3) - 0.5 * width;
-   double half_x_r = slab_params_(3) + 0.5 * width;
+   double x0 = rod_params_(3);
+   double y0 = rod_params_(4);
+   double radius = rod_params_(5);
 
-   if (x(0) <= half_x_r && x(0) >= half_x_l)
+   double r2 = (x(0) - x0) * (x(0) - x0) + (x(1) - y0) * (x(1) - y0);
+   
+   if (r2 <= radius * radius)
    {
-      j(0) = slab_params_(0);
-      j(1) = slab_params_(1);
-      j(2) = slab_params_(2);
+      j(0) = rod_params_(0);
+      j(1) = rod_params_(1);
+      j(2) = rod_params_(2);
    }
    // j *= height;
 }

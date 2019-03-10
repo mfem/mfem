@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_CPD1D_SOLVER
-#define MFEM_CPD1D_SOLVER
+#ifndef MFEM_COLD_PLASMA_DIELECTRIC_SOLVER
+#define MFEM_COLD_PLASMA_DIELECTRIC_SOLVER
 
 #include "../common/pfem_extras.hpp"
 #include "plasma.hpp"
@@ -33,8 +33,8 @@ using miniapps::ParDiscreteCurlOperator;
 namespace plasma
 {
 
-/// Cold Plasma Dielectric Solver for 1D geometries
-class CPD1DSolver
+/// Cold Plasma Dielectric Solver
+class CPDSolver
 {
 public:
 
@@ -48,21 +48,21 @@ public:
       STRUMPACK =  5
    };
 
-   CPD1DSolver(ParMesh & pmesh, int order, double omega,
-               CPD1DSolver::SolverType s,
-               ComplexOperator::Convention conv,
-               MatrixCoefficient & epsReCoef,
-               MatrixCoefficient & espImCoef,
-               Coefficient & muInvCoef,
-               Coefficient * etaInvCoef,
-               VectorCoefficient * kCoef,
-               Array<int> & abcs,
-               Array<int> & dbcs,
-               VectorCoefficient & EReCoef,
-               VectorCoefficient & EImCoef,
-               void (*j_r_src)(const Vector&, Vector&),
-               void (*j_i_src)(const Vector&, Vector&));
-   ~CPD1DSolver();
+   CPDSolver(ParMesh & pmesh, int order, double omega,
+	     CPDSolver::SolverType s,
+	     ComplexOperator::Convention conv,
+	     MatrixCoefficient & epsReCoef,
+	     MatrixCoefficient & espImCoef,
+	     Coefficient & muInvCoef,
+	     Coefficient * etaInvCoef,
+	     VectorCoefficient * kCoef,
+	     Array<int> & abcs,
+	     Array<int> & dbcs,
+	     VectorCoefficient & EReCoef,
+	     VectorCoefficient & EImCoef,
+	     void (*j_r_src)(const Vector&, Vector&),
+	     void (*j_i_src)(const Vector&, Vector&));
+   ~CPDSolver();
 
    HYPRE_Int GetProblemSize();
 
@@ -183,4 +183,4 @@ private:
 
 #endif // MFEM_USE_MPI
 
-#endif // MFEM_CPD1D_SOLVER
+#endif // MFEM_COLD_PLASMA_DIELECTRIC_SOLVER
