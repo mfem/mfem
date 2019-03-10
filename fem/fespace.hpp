@@ -499,7 +499,8 @@ public:
        GridFunction data from @a this FE space, defined on a fine mesh, to @a
        coarse_fes, defined on a coarse mesh. */
    /** This method returns a left inverse of the Operator returned by
-       GetTransferOperator().
+       GetTransferOperator(), which is assumed to be full column rank, i.e. we
+       asssume that @a coarse_fes is of smaller dimension than this FE space.
 
        The @a mass_integ must be compatible with @a this FE space.
 
@@ -609,10 +610,9 @@ public:
 };
 
 /** Class representing projection operator between a high-order L2 finite
-  * element space on a coarse mesh, and a low-order L2 finite element space on a
-  * refined mesh (LOR). This class assumes that the low-order space @a fes_lor
-  * lives on a mesh obtained by refining the mesh of the high-order space
-  * @a fes_ho. */
+    element space on a coarse mesh, and a low-order L2 finite element space on a
+    refined mesh (LOR). We assume that the low-order space, fes_lor, lives on a
+    mesh obtained by refining the mesh of the high-order space, fes_ho. */
 class L2Projection : public Operator
 {
    const FiniteElementSpace &fes_ho;
@@ -635,8 +635,8 @@ public:
    virtual ~L2Projection() { }
 };
 
-/** Mass-conservative prolongation operator going in the opposite direction
-  * as L2Projection. This operator is a left inverse to the L2Projection. */
+/** Mass-conservative prolongation operator going in the opposite direction as
+    L2Projection. This operator is a left inverse to the L2Projection. */
 class L2Prolongation : public Operator
 {
    const L2Projection &l2proj;

@@ -55,9 +55,17 @@ Other meshing improvements
 - The TMOP mesh optimization algorithms were extended to support user-defined
   space-dependent limiting terms. Improved the TMOP objective functions by
   more accurate normalization of the different terms.
-  
+
 Discretization improvements
 ---------------------------
+- Added support for a general "low-order refined"-to-"high-order" transfer of
+  GridFunction and true-dof data from a "low-order refined" (LOR) space defined
+  on a refined mesh to a "high-order" (HO) finite element space defined on a
+  coarse mesh. See the new classes L2Projection and L2Prolongation providing
+  accurate and conservative HO->LOR and LOR->HO maps respectively, the method
+  FiniteElementSpace::GetReverseTransferOperator and the new LOR Transfer
+  miniapp in miniapp/tools.
+
 - Added support for derefinement of vector (RT + ND) spaces.
 
 - Added element flux, and flux energy computation in class ElasticityIntegrator,
@@ -81,6 +89,9 @@ New and updated examples and miniapps
 
 - Added a new meshing miniapp, Extruder, that demonstrates the capability to
   produce 3D meshes by extruding 2D meshes.
+
+- Added a simple miniapp, lor-transfer, for visualizing the actions of the
+  transfer operators between a high-order and a low-order refined spaces.
 
 - Added a new example, Example 20/20p, that solves a system of 1D ODEs derived
   from a Hamiltonian. The example demonstrates the use of the variable order,
