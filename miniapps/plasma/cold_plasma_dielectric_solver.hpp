@@ -49,19 +49,19 @@ public:
    };
 
    CPDSolver(ParMesh & pmesh, int order, double omega,
-	     CPDSolver::SolverType s,
-	     ComplexOperator::Convention conv,
-	     MatrixCoefficient & epsReCoef,
-	     MatrixCoefficient & espImCoef,
-	     Coefficient & muInvCoef,
-	     Coefficient * etaInvCoef,
-	     VectorCoefficient * kCoef,
-	     Array<int> & abcs,
-	     Array<int> & dbcs,
-	     VectorCoefficient & EReCoef,
-	     VectorCoefficient & EImCoef,
-	     void (*j_r_src)(const Vector&, Vector&),
-	     void (*j_i_src)(const Vector&, Vector&));
+             CPDSolver::SolverType s,
+             ComplexOperator::Convention conv,
+             MatrixCoefficient & epsReCoef,
+             MatrixCoefficient & espImCoef,
+             Coefficient & muInvCoef,
+             Coefficient * etaInvCoef,
+             VectorCoefficient * kCoef,
+             Array<int> & abcs,
+             Array<int> & dbcs,
+             VectorCoefficient & EReCoef,
+             VectorCoefficient & EImCoef,
+             void (*j_r_src)(const Vector&, Vector&),
+             void (*j_i_src)(const Vector&, Vector&));
    ~CPDSolver();
 
    HYPRE_Int GetProblemSize();

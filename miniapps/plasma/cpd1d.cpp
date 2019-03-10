@@ -582,12 +582,12 @@ int main(int argc, char *argv[])
 
    // Create the Magnetostatic solver
    CPDSolver CPD(pmesh, order, omega, (CPDSolver::SolverType)sol,
-		 conv, epsilon_real, epsilon_imag, muInvCoef, etaInvCoef,
-		 (phase_shift) ? &kCoef : NULL,
-		 abcs, dbcs,
-		 // e_bc_r, e_bc_i,
-		 EReCoef, EImCoef,
-		 (slab_params_.Size() > 0) ? j_src : NULL, NULL);
+                 conv, epsilon_real, epsilon_imag, muInvCoef, etaInvCoef,
+                 (phase_shift) ? &kCoef : NULL,
+                 abcs, dbcs,
+                 // e_bc_r, e_bc_i,
+                 EReCoef, EImCoef,
+                 (slab_params_.Size() > 0) ? j_src : NULL, NULL);
 
    // Initialize GLVis visualization
    if (visualization)
