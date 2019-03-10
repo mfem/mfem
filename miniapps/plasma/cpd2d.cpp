@@ -102,7 +102,8 @@ static Vector pw_eta_(0);      // Piecewise impedance values
 static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
 
 // Current Density Function
-static Vector rod_params_(0); // Amplitude of x, y, z current source, position in 2D, and radius
+static Vector rod_params_
+(0); // Amplitude of x, y, z current source, position in 2D, and radius
 
 void rod_current_source(const Vector &x, Vector &j);
 void j_src(const Vector &x, Vector &j)
@@ -158,6 +159,17 @@ private:
    double P_;
 };
 
+void Update(ParFiniteElementSpace & HCurlFESpace,
+            ParFiniteElementSpace & HDivFESpace,
+            ParFiniteElementSpace & L2FESpace,
+            ParGridFunction & BField,
+            VectorCoefficient & BCoef,
+            int & size_l2,
+            const Vector & numbers,
+            Array<int> & density_offsets,
+            BlockVector & density,
+            ParGridFunction & density_gf);
+
 //static double freq_ = 1.0e9;
 
 // Mesh Size
@@ -194,7 +206,7 @@ int main(int argc, char *argv[])
    kVec = 0.0;
 
    double hz = -1.0;
-   
+
    Vector numbers;
    Vector charges;
    Vector masses;
@@ -289,7 +301,7 @@ int main(int argc, char *argv[])
    }
    if (hz < 0.0)
    {
-     hz = 0.1;
+      hz = 0.1;
    }
    double omega = 2.0 * M_PI * freq;
    if (kVec[1] != 0.0 || kVec[2] != 0.0)
@@ -580,12 +592,12 @@ int main(int argc, char *argv[])
 
    // Create the Magnetostatic solver
    CPDSolver CPD(pmesh, order, omega, (CPDSolver::SolverType)sol,
-		 conv, epsilon_real, epsilon_imag, muInvCoef, etaInvCoef,
-		 (phase_shift) ? &kCoef : NULL,
-		 abcs, dbcs,
-		 // e_bc_r, e_bc_i,
-		 EReCoef, EImCoef,
-		 (rod_params_.Size() > 0) ? j_src : NULL, NULL);
+                 conv, epsilon_real, epsilon_imag, muInvCoef, etaInvCoef,
+                 (phase_shift) ? &kCoef : NULL,
+                 abcs, dbcs,
+                 // e_bc_r, e_bc_i,
+                 EReCoef, EImCoef,
+                 (rod_params_.Size() > 0) ? j_src : NULL, NULL);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -696,6 +708,8 @@ int main(int argc, char *argv[])
       pmesh.RefineByError(errors, threshold);
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
+      Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
+             size_l2, numbers, density_offsets, density, density_gf);
       CPD.Update();
 
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
@@ -704,6 +718,8 @@ int main(int argc, char *argv[])
          pmesh.Rebalance();
 
          // Update again after rebalancing
+         Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
+                size_l2, numbers, density_offsets, density, density_gf);
          CPD.Update();
       }
    }
@@ -719,6 +735,38 @@ int main(int argc, char *argv[])
    // delete sigmaCoef;
 
    return 0;
+}
+
+void Update(ParFiniteElementSpace & HCurlFESpace,
+            ParFiniteElementSpace & HDivFESpace,
+            ParFiniteElementSpace & L2FESpace,
+            ParGridFunction & BField,
+            VectorCoefficient & BCoef,
+            int & size_l2,
+            const Vector & numbers,
+            Array<int> & density_offsets,
+            BlockVector & density,
+            ParGridFunction & density_gf)
+{
+   HCurlFESpace.Update();
+   HDivFESpace.Update();
+   L2FESpace.Update();
+
+   BField.Update();
+   BField.ProjectCoefficient(BCoef);
+
+   size_l2 = L2FESpace.GetVSize();
+   for (int i=1; i<=numbers.Size(); i++)
+   {
+      density_offsets[i]     = density_offsets[i - 1] + size_l2;
+   }
+   density.Update(density_offsets);
+   for (int i=0; i<numbers.Size(); i++)
+   {
+      ConstantCoefficient rhoCoef(numbers[i]);
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      density_gf.ProjectCoefficient(rhoCoef);
+   }
 }
 
 // Print the CPD2D ascii logo to the given ostream
@@ -779,7 +827,7 @@ void rod_current_source(const Vector &x, Vector &j)
    double radius = rod_params_(5);
 
    double r2 = (x(0) - x0) * (x(0) - x0) + (x(1) - y0) * (x(1) - y0);
-   
+
    if (r2 <= radius * radius)
    {
       j(0) = rod_params_(0);
