@@ -2,7 +2,7 @@
 //
 #include "mfem.hpp"
 extern "C" {
-# include "gslib/src/cpp/findpts_h.h"
+#include "findpts_mfem.h"
 }
 
 #include <fstream>
