@@ -3,17 +3,11 @@
 // Compile with: make ex9
 //
 // Sample runs:
+//
+//    Standard transport mode:
 //    ex9 -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
 //    ex9 -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
 //    ex9 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
-
-//    Mesh return mode:
-//    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 4 -mt 4 -vs 10
-//    ex9 -m ../data/periodic-square.mesh -p 4 -r 2 -dt 0.005 -tf 4 -mt 4 -vs 10
-//    Remap mode:
-//    ex9 -m ../data/periodic-square.mesh -p 6 -r 2 -dt 0.005 -tf 0.5 -mt 4 -vs 10
-//    ex9 -m ../data/periodic-square.mesh -p 7 -r 2 -dt 0.005 -tf 0.5 -mt 4 -vs 10
-
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
 //    ex9 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
@@ -25,6 +19,14 @@
 //    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 1 -dt 0.001 -tf 4 -s 1 -mt 0
 //    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 1 -dt 0.002 -tf 4 -s 2 -mt 1
 //    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 1 -dt 0.0008 -tf 4 -s 3 -mt 2 -st 1
+//
+//    Standard remap mode:
+//    ex9 -m ../data/periodic-square.mesh -p 10 -r 3 -dt 0.005 -tf 0.5 -mt 4 -vs 10
+//    ex9 -m ../data/periodic-square.mesh -p 11 -r 3 -dt 0.005 -tf 0.5 -mt 4 -vs 10
+//
+//    Lagrangian step followed by mesh return mode:
+//    ex9 -m ../data/periodic-square.mesh -p 20 -r 3 -dt 0.005 -tf 4 -mt 4 -vs 10
+//    ex9 -m ../data/periodic-square.mesh -p 21 -r 3 -dt 0.005 -tf 4 -mt 4 -vs 10
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -49,9 +51,11 @@ using namespace mfem;
 // Choice for the problem setup. The fluid velocity, initial condition and
 // inflow boundary condition are chosen based on this parameter.
 int problem;
-// 0 is Lagrangian step / return the mesh.
-// 1 is standard remap.
-int remap_mode;
+
+// 0 is standard transport.
+// 1 is standard remap (mesh moves, solution is fixed).
+// 2 is Lagrangian step followed by mesh return.
+int exec_mode;
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
@@ -818,11 +822,22 @@ void preprocessFluxLumping(const FluxCorrectedTransport &fct, const int k, const
          }
          
          nor /= nor.Norml2();
-         vn = max(0., vval * nor);
+
+         if (exec_mode == 0)
+         {
+            // Transport.
+            vn = min(0., vval * nor);
+         }
+         else
+         {
+            // Remap.
+            vn = max(0., vval * nor);
+            vn *= -1.0;
+         }
          
          for(j = 0; j < numDofs; j++)
          {
-            bdrIntLumped(k*nd+dofs(j,i),i) += ip.weight * 
+            bdrIntLumped(k*nd+dofs(j,i),i) -= ip.weight *
             Trans->Face->Weight() * shape(dofs(j,i)) * vn;
       
             for (m = 0; m < numDofs; m++)
@@ -855,10 +870,20 @@ void ComputeResidualWeights(const FluxCorrectedTransport &fct, SparseMatrix &flu
    const IntegrationRule *irF = GetFaceIntRule(fes);
    
    BilinearFormIntegrator *fluct;
-   fluct = new MixedConvectionIntegrator(coef);
-   
    BilinearForm VolumeTerms(fes);
-   VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef));
+   if (exec_mode == 0)
+   {
+      // Transport.
+      fluct = new MixedConvectionIntegrator(coef, -1.0);
+      VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
+   }
+   else
+   {
+      // Remap.
+      fluct = new MixedConvectionIntegrator(coef);
+      VolumeTerms.AddDomainIntegrator(new ConvectionIntegrator(coef));
+   }
+
    VolumeTerms.Assemble();
    VolumeTerms.Finalize();
    fluctMatrix = VolumeTerms.SpMat();
@@ -1025,15 +1050,10 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   if (problem <= 5)
-   {
-      remap_mode = 0;
-   }
-   else if (problem == 6 || problem == 7)
-   {
-      remap_mode = 1;
-   }
-   else { MFEM_ABORT("Unspecified remap mode!"); }
+   if (problem < 10)      { exec_mode = 0; }
+   else if (problem < 20) { exec_mode = 1; }
+   else if (problem < 30) { exec_mode = 2; }
+   else { MFEM_ABORT("Unspecified execution mode."); }
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
@@ -1132,7 +1152,6 @@ int main(int argc, char *argv[])
          if (ess_vdofs[i] == -1) { v_gf(i) = 0.0; }
       }
    }
-   if (remap_mode == 0) { v_gf *= -1.0; }
    VectorGridFunctionCoefficient v_coeff(&v_gf);
 
    BilinearForm m(&fes);
@@ -1141,7 +1160,18 @@ int main(int argc, char *argv[])
    BilinearForm k(&fes);
    BilinearForm kbdr(&fes);
 
-   if (remap_mode == 1)
+   if (exec_mode == 0)
+   {
+      k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+      //    k.AddInteriorFaceIntegrator(
+      //       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
+      //    k.AddBdrFaceIntegrator(
+      //       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5))); //TODO debug
+
+      kbdr.AddInteriorFaceIntegrator(
+               new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   }
+   else if (exec_mode == 1)
    {
       // TODO figure out why this setup doesn't conserve mass for mode 0.
       k.AddDomainIntegrator(new ConvectionIntegrator(v_coeff));
@@ -1153,7 +1183,7 @@ int main(int argc, char *argv[])
       kbdr.AddInteriorFaceIntegrator(
                new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
    }
-   else
+   else if (exec_mode == 2)
    {
       // TODO the velocity must be inverted.
       k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
@@ -1165,7 +1195,7 @@ int main(int argc, char *argv[])
       kbdr.AddInteriorFaceIntegrator(
                new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
    }
-   
+
    kbdr.Assemble(0);
    kbdr.Finalize(0);
    
@@ -1264,7 +1294,8 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, fct, *x, v_gf, kbdr, kbdr.SpMat(), ml, lumpedM, v_coeff);
+   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, fct, *x, v_gf, kbdr,
+                    kbdr.SpMat(), ml, lumpedM, v_coeff);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -1277,11 +1308,11 @@ int main(int argc, char *argv[])
 
       adv.SetDt(dt_real);
 
-      if (remap_mode == 1)
+      if (exec_mode == 1)
       {
          adv.SetRemapStartPos(x0);
       }
-      else
+      else if (exec_mode == 2)
       {
          // Move the mesh (and the solution) from x0 (one step).
          add(x0, dt_real, v_gf, *x);
@@ -1293,11 +1324,11 @@ int main(int argc, char *argv[])
       ode_solver->Step(u, t, dt_real);
       ti++;
 
-      if (remap_mode == 1)
+      if (exec_mode == 1)
       {
          add(x0, t, v_gf, *x);
       }
-      else
+      else if (exec_mode == 2)
       {
          *x = x0;
       }
@@ -1332,7 +1363,7 @@ int main(int argc, char *argv[])
 
    // check for conservation
    double finalMass;
-   if (remap_mode == 1)
+   if (exec_mode == 1)
    {
       ml.BilinearForm::operator=(0.0);
       ml.Assemble();
@@ -1451,10 +1482,14 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       SparseMatrix fluctMatrix;
       DenseMatrix fluctSub, bdrIntLumped, bdrInt;
       
-      if (remap_mode == 1)
+      if (exec_mode == 1)
+      {
          ComputeResidualWeights(fct, fluctMatrix, fluctSub, bdrIntLumped, bdrInt, coef);
+      }
       else
+      {
          ComputeResidualWeights(fct, fluctMatrix, fluctSub, bdrIntLumped, bdrInt, fct.velocity);
+      }
          
       // Discretization terms
       y = b;
@@ -1680,25 +1715,28 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    const double t = GetTime();
    const double sub_time_step = t - start_t;
 
-   if (remap_mode == 1)
+   if (exec_mode == 1)
    {
       add(start_pos, t, vel_pos, mesh_pos);
    }
-   else
+   else if (exec_mode == 2)
    {
       add(start_pos, -sub_time_step, vel_pos, mesh_pos);
    }
 
    // Reassemble on the new mesh (given by mesh_pos).
-   Mbf.BilinearForm::operator=(0.0);
-   Mbf.Assemble();
-   Kbf.BilinearForm::operator=(0.0);
-   Kbf.Assemble(0);
-   kbdr.BilinearForm::operator=(0.0);
-   kbdr.Assemble(0);
-   ml.BilinearForm::operator=(0.0);
-   ml.Assemble();
-   ml.SpMat().GetDiag(lumpedM);
+   if (exec_mode == 1 || exec_mode == 2)
+   {
+      Mbf.BilinearForm::operator=(0.0);
+      Mbf.Assemble();
+      Kbf.BilinearForm::operator=(0.0);
+      Kbf.Assemble(0);
+      kbdr.BilinearForm::operator=(0.0);
+      kbdr.Assemble(0);
+      ml.BilinearForm::operator=(0.0);
+      ml.Assemble();
+      ml.SpMat().GetDiag(lumpedM);
+   }
 
    if (fct.monoType == 0)
    {
@@ -1739,13 +1777,13 @@ void velocity_function(const Vector &x, Vector &v)
    switch (problem)
    {
       case 0:
+      case 20:
       {
          // Translations in 1D, 2D, and 3D
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
-            //case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-            case 2: v(0) = 0.0; v(1) = 1.0; break;
+            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
             case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
                break;
          }
@@ -1754,6 +1792,7 @@ void velocity_function(const Vector &x, Vector &v)
       case 1:
       case 2:
       case 4:
+      case 21:
       {
          // Clockwise rotation in 2D around the origin
          const double w = M_PI/2;
@@ -1789,8 +1828,8 @@ void velocity_function(const Vector &x, Vector &v)
          }
          break;
       }
-      case 6:
-      case 7:
+      case 10:
+      case 11:
       {
          // Taylor-Green velocity, used for mesh motion in remap tests.
 
@@ -1809,6 +1848,8 @@ void velocity_function(const Vector &x, Vector &v)
          break;
       }
    }
+
+   if (exec_mode == 2) { v *= -1.0; }
 }
 
 double box(std::pair<double,double> p1, std::pair<double,double> p2, double theta, 
@@ -1896,7 +1937,8 @@ double u0_function(const Vector &x)
    {
       case 0:
       case 1:
-      case 6:
+      case 10:
+      case 20:
       {
          switch (dim)
          {
@@ -1930,7 +1972,8 @@ double u0_function(const Vector &x)
          return .5*(sin(f*X(0))*sin(f*X(1)) + 1.); // modified by Hennes
       }
       case 4:
-      case 7:
+      case 11:
+      case 21:
       {
          double scale = 0.0225;
          double slit = (X(0) <= -0.05) || (X(0) >= 0.05) || (X(1) >= 0.7);
