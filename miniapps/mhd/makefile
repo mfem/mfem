@@ -15,34 +15,19 @@ MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/mhd/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../mfem
+# MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = implicitMHD
-PAR_EXAMPLES = implicitMHDp
-
+SEQ_EXAMPLES = mhd
+PAR_EXAMPLES = mhdp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
    EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
-SUBDIRS =
-ifeq ($(MFEM_USE_SUNDIALS),YES)
-   SUBDIRS += sundials
-endif
-ifeq ($(MFEM_USE_PETSC),YES)
-   SUBDIRS += petsc
-endif
-ifeq ($(MFEM_USE_PUMI),YES)
-   SUBDIRS += pumi
-endif
-SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
-SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
-SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))
-SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk

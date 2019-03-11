@@ -49,7 +49,8 @@ protected:
 
    mutable Vector z; // auxiliary vector 
 
-   VectorGridFunctionCoefficient *velocity,*Bfield;
+   //VectorGridFunctionCoefficient *velocity,*Bfield;
+   MyCoefficient velocity, Bfield;
 
 public:
    ImplicitMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, double visc, double resi);
@@ -206,6 +207,10 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
 
+   Array<int> ess_tdof_list;
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   int skip_zero_entries=0;
+
    // 7. Initialize the MHD operator, the GLVis visualization    
    ImplicitMHDOperator oper(fespace, ess_bdr, visc, resi);
 
@@ -243,6 +248,17 @@ int main(int argc, char *argv[])
    for (int ti = 1; !last_step; ti++)
    {
       double dt_real = min(dt, t_final - t);
+
+      //assemble the nonlinear terms
+      velocity(phi);
+      Nv.AddDomainIntegrator(new ConvectionIntegrator(velocity));
+      Nv.SetEssentialTrueDofs(ess_tdof_list);
+      Nv.Assemble(skip_zero_entries);
+
+      Bfield(psi);
+      Nb.AddDomainIntegrator(new ConvectionIntegrator(Bfield));
+      Nb.SetEssentialTrueDofs(ess_tdof_list);
+      Nb.Assemble(skip_zero_entries);
 
       ode_solver->Step(vx, t, dt_real);
 
@@ -334,10 +350,12 @@ ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f,
    K_solver.SetPreconditioner(K_prec);
    K_solver.SetOperator(K.SpMat()); //this is a real matrix
 
+   /*
    //this has to be assembled in each time step? but how could I do implicitly?
    //TODO add nonlinear form here v=[-Phi_y, Phi_x]
    //VectorGridFunctionCoefficient velocity(dim, velocity_function);
-   velocity->SetGridFunction(stuff??);
+   //velocity->SetGridFunction(stuff??);
+   velocity(Phi);
    Nv.AddDomainIntegrator(new ConvectionIntegrator(*velocity));
    Nv.SetEssentialTrueDofs(ess_tdof_list);
    Nv.Assemble(skip_zero_entries);
@@ -348,6 +366,7 @@ ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f,
    Nb.AddDomainIntegrator(new ConvectionIntegrator(*Bfield));
    Nb.SetEssentialTrueDofs(ess_tdof_list);
    Nb.Assemble(skip_zero_entries);
+   */
 
    ConstantCoefficient visc_coeff(viscosity);
    DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
