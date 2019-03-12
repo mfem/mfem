@@ -926,9 +926,9 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec)
    if (adapt_eval == NULL)
    {
       adapt_eval = new AdvectorCG;
-      adapt_eval->SetMetaInfo(*target_spec->FESpace()->GetMesh(),
-                              *target_spec->FESpace()->FEColl(),
-                               target_spec->FESpace()->GetVDim());
+      adapt_eval->SetSerialMetaInfo(*target_spec->FESpace()->GetMesh(),
+                                    *target_spec->FESpace()->FEColl(),
+                                     target_spec->FESpace()->GetVDim());
 
       adapt_eval->SetInitialField
          (*target_spec->FESpace()->GetMesh()->GetNodes(), *target_spec);
@@ -971,9 +971,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-void AdaptivityEvaluator::SetMetaInfo(const Mesh &m,
-                                      const FiniteElementCollection &fec,
-                                      int num_comp)
+void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
+                                            const FiniteElementCollection &fec,
+                                            int num_comp)
 {
    mesh = new Mesh(m, true);
    fes = new FiniteElementSpace(mesh, &fec, num_comp);
