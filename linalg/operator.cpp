@@ -191,9 +191,9 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    const DeviceArray idx(constraint_list, csz);
    DeviceVector d_z(z, z.Size());
    MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
-   
+
    A->Mult(z, y);
-   
+
    const DeviceVector d_x(x, x.Size());
    DeviceVector d_y(y, y.Size());
    MFEM_FORALL(i, csz, d_y[idx[i]] = d_x[idx[i]];);

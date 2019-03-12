@@ -161,12 +161,12 @@ static void PADiffusionAssemble3D(const int NQ1d,
 
 // *****************************************************************************
 static void PADiffusionAssemble(const int dim,
-                              const int NQ1d,
-                              const int NE,
-                              const double* __restrict W,
-                              const double* __restrict J,
-                              const double COEFF,
-                              double* __restrict oper)
+                                const int NQ1d,
+                                const int NE,
+                                const double* __restrict W,
+                                const double* __restrict J,
+                                const double COEFF,
+                                double* __restrict oper)
 {
    if (dim==1) { assert(false); }
    if (dim==2)
@@ -571,16 +571,16 @@ typedef void (*fDiffusionMultAdd)(const int NE,
 
 // *****************************************************************************
 static void PADiffusionMultAssembled(const int dim,
-                                   const int ND1d,
-                                   const int NQ1d,
-                                   const int NE,
-                                   const double* __restrict B,
-                                   const double* __restrict G,
-                                   const double* __restrict Bt,
-                                   const double* __restrict Gt,
-                                   const double* __restrict op,
-                                   const double* __restrict x,
-                                   double* __restrict y)
+                                     const int ND1d,
+                                     const int NQ1d,
+                                     const int NE,
+                                     const double* __restrict B,
+                                     const double* __restrict G,
+                                     const double* __restrict Bt,
+                                     const double* __restrict Gt,
+                                     const double* __restrict op,
+                                     const double* __restrict x,
+                                     double* __restrict y)
 {
 #ifdef __OCCA__
    if (config::usingOcca())
@@ -594,12 +594,13 @@ static void PADiffusionMultAssembled(const int dim,
    assert(LOG2(static_cast<uint32_t>(NQ1d))<=4);
    const int id = (dim<<8)|(ND1d<<4)|(NQ1d);
    static std::unordered_map<int, fDiffusionMultAdd> call =
-      {  // 2D
-         {0x222,&PADiffusionMultAssembled2D<2,2>},
-         {0x233,&PADiffusionMultAssembled2D<3,3>},
-         {0x244,&PADiffusionMultAssembled2D<4,4>},
-         // 3D
-         {0x323,&PADiffusionMultAssembled3D<2,3>},
+   {
+      // 2D
+      {0x222,&PADiffusionMultAssembled2D<2,2>},
+      {0x233,&PADiffusionMultAssembled2D<3,3>},
+      {0x244,&PADiffusionMultAssembled2D<4,4>},
+      // 3D
+      {0x323,&PADiffusionMultAssembled3D<2,3>},
    };
    if (!call[id])
    {
@@ -1478,18 +1479,19 @@ static void PAGeom(const int dim,
    assert(LOG2(ND1d)<=4);
    assert(LOG2(NQ1d)<=4);
    static std::unordered_map<int, fIniGeom> call =
-      {  // 2D
-         {0x222,&PAGeom2D<2,2>},
-         {0x223,&PAGeom2D<2,3>},
-         {0x224,&PAGeom2D<2,4>},
-         {0x232,&PAGeom2D<3,2>},
-         {0x242,&PAGeom2D<4,2>},
-         {0x246,&PAGeom2D<4,6>},
-         {0x234,&PAGeom2D<3,4>},
-         // 3D
-         {0x323,&PAGeom3D<2,3>},
-         {0x334,&PAGeom3D<3,4>},
-      };
+   {
+      // 2D
+      {0x222,&PAGeom2D<2,2>},
+      {0x223,&PAGeom2D<2,3>},
+      {0x224,&PAGeom2D<2,4>},
+      {0x232,&PAGeom2D<3,2>},
+      {0x242,&PAGeom2D<4,2>},
+      {0x246,&PAGeom2D<4,6>},
+      {0x234,&PAGeom2D<3,4>},
+      // 3D
+      {0x323,&PAGeom3D<2,3>},
+      {0x334,&PAGeom3D<3,4>},
+   };
    if (!call[id])
    {
       printf("\n%s:%d\nUnknown kernel with dim=%d, ND1d=%d and NQ1d=%d",

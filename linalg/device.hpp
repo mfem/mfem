@@ -172,10 +172,10 @@ public:
    }
 
    /// Conversion to `double *`.
-   inline operator double *() { return data; }
+   inline operator Scalar *() { return data; }
 
    /// Conversion to `const double *`.
-   inline operator const double *() const { return data; }
+   inline operator const Scalar *() const { return data; }
 
    /**
    *  Returns the size of the i-th dimension #UNSAFE#
