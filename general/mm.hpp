@@ -112,6 +112,24 @@ public:
       return MM().Known(a);
    }
 
+   // **************************************************************************
+   template<class T>
+   static inline void RegisterHostPtr(T * ptr_host, const size_t size)
+   {
+     MM().Insert(ptr_host, size*sizeof(T));
+   }
+
+   // **************************************************************************
+   template<class T>
+   static void RegisterHostAndDevicePtr(T * ptr_host, T * ptr_device, const size_t size)
+   {
+     MM().Insert(ptr_host, size*sizeof(T));
+     MM().maps.memories.at(ptr_host);
+     mm::memory &base = MM().maps.memories.at(ptr_host);
+     base.d_ptr = ptr_device;
+     base.host = false;
+   }
+   
 private:
    ledger maps;
    mm() {}
