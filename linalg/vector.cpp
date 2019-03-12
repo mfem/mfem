@@ -199,7 +199,8 @@ Vector &Vector::Add(const double a, const Vector &Va)
       mfem_error("Vector::Add(const double, const Vector &)");
    }
 #endif
-   if (a != 0.0) {
+   if (a != 0.0)
+   {
       const int N = size;
       DeviceVector y(data, N);
       const DeviceVector x(Va, N);
@@ -478,7 +479,7 @@ void Vector::median(const Vector &lo, const Vector &hi)
 }
 
 static void GetSubvector(const int N,
-         double *y, const double *x, const int* dofs)
+                         double *y, const double *x, const int* dofs)
 {
    DeviceVector d_y(y, N);
    const DeviceVector d_x(x, N);
@@ -489,7 +490,7 @@ static void GetSubvector(const int N,
       d_y[i] = dof_i >= 0 ? d_x[dof_i] : -d_x[-dof_i-1];
    });
 }
- 
+
 void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 {
    const int n = dofs.Size();
@@ -502,7 +503,8 @@ void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
    mfem::GetSubvector(dofs.Size(), elem_data, data,dofs);
 }
 
-static void SetSubvector(const int N, double* y, const double d, const int* dofs)
+static void SetSubvector(const int N, double* y, const double d,
+                         const int* dofs)
 {
    DeviceVector d_y(y,N);
    const DeviceArray d_dofs(dofs,N);
@@ -519,7 +521,8 @@ static void SetSubvector(const int N, double* y, const double d, const int* dofs
    });
 }
 
-static void SetSubvector(const int N, double *y, const double *x, const int* dofs)
+static void SetSubvector(const int N, double *y, const double *x,
+                         const int* dofs)
 {
    DeviceVector d_y(y,N);
    const DeviceVector d_x(x,N);
