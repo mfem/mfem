@@ -8,6 +8,7 @@
 //    ex9 -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
 //    ex9 -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
 //    ex9 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
+//    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
 //    ex9 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
@@ -1185,7 +1186,6 @@ int main(int argc, char *argv[])
    }
    else if (exec_mode == 2)
    {
-      // TODO the velocity must be inverted.
       k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
       //    k.AddInteriorFaceIntegrator(
       //       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
