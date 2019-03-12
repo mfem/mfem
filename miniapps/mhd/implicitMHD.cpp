@@ -218,8 +218,6 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
 
-   int skip_zero_entries=0;
-
    // 7. Initialize the MHD operator, the GLVis visualization    
    ImplicitMHDOperator oper(fespace, ess_bdr, visc, resi);
 
@@ -249,8 +247,10 @@ int main(int argc, char *argv[])
 
    double t = 0.0;
    oper.SetTime(t);
-   ode_predictor->Init(oper);
+   cout << "step debug" <<endl;
+   ode_predictor->Init(oper);   //FIXME
    ode_solver->Init(oper);
+   cout << "step debug" <<endl;
 
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
@@ -260,6 +260,7 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
 
       //---Predictor stage---
+      //assemble the nonlinear terms
       oper.assembleNv(vx);
       oper.assembleNb(vx);
 
@@ -268,7 +269,7 @@ int main(int argc, char *argv[])
 
       //---Corrector stage---
       //assemble the nonlinear terms (only psi is updated)
-      oper.assembleNv(vx);
+      oper.assembleNb(vx);
       ode_solver->Step(vx, t, dt_real);
       oper.UpdateJ(vx); 
       oper.UpdatePhi(vx);
@@ -330,9 +331,8 @@ ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f,
 {
    const double rel_tol = 1e-8;
    const int skip_zero_entries = 0;
-   SparseMatrix tmp;    //tmp is not used
+   SparseMatrix tmp;
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   //ConstantCoefficient one(1.0);
 
    //direct solver for M and K for now
    //mass matrix
@@ -382,13 +382,10 @@ ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f,
    ConstantCoefficient visc_coeff(viscosity);
    DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
    DRe.Assemble(skip_zero_entries);
-   //DRe.FormSystemMatrix(ess_tdof_list, tmp); no need to form matrix
 
    ConstantCoefficient resi_coeff(resistivity);
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble(skip_zero_entries);
-   //DSl.FormSystemMatrix(ess_tdof_list, tmp);
-
 }
 
 void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
@@ -478,7 +475,6 @@ void ImplicitMHDOperator::UpdateJ(Vector &vx)
 void ImplicitMHDOperator::UpdatePhi(Vector &vx)
 {
    //Phi=-K^{-1}*M*w
-   // Create views to the sub-vectors of vx, and dvx_dt
    int sc = height/4;
    Vector phi(vx.GetData() +   0, sc);
    Vector   w(vx.GetData() +2*sc, sc);
