@@ -542,10 +542,13 @@ public:
    }
    virtual ~AdaptivityEvaluator();
 
-   void SetMetaInfo(const Mesh &m,
-                    const FiniteElementCollection &fec, int num_comp);
+   /** Specifies the Mesh and FiniteElementCollection of the solution that will
+       be evaluated. The given mesh will be copied into the internal object. */
+   void SetSerialMetaInfo(const Mesh &m,
+                          const FiniteElementCollection &fec, int num_comp);
 
 #ifdef MFEM_USE_MPI
+   /// Parallel version of SetSerialMetaInfo.
    void SetParMetaInfo(const ParMesh &m,
                        const FiniteElementCollection &fec, int num_comp);
 #endif
@@ -691,13 +694,15 @@ public:
    virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec);
 #endif
 
+   /** Used to update the target specification after the mesh has changed. The
+       new mesh positions are given by new_x. */
    void UpdateTargetSpecification(const Vector &new_x);
 
-   void SetAdaptivityEvaluator(AdaptivityEvaluator &ae)
+   void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
       if (adapt_eval) { delete adapt_eval; }
 
-      adapt_eval = &ae;
+      adapt_eval = ae;
    }
 
    /** @brief Given an element and quadrature rule, computes ref->target

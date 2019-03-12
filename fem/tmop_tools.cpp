@@ -118,27 +118,17 @@ void AdvectorCGOperator::Mult(const Vector &ind, Vector &di_dt) const
    HypreParVector *RHS = rhs.ParallelAssemble();
    HypreParVector *X   = rhs.ParallelAverage();
    HypreParMatrix *Mh  = M.ParallelAssemble();
-/*
-   CGSolver cg(M.ParFESpace()->GetParMesh()->GetComm());
+
+   //CGSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
+   GMRESSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
    HypreSmoother prec;
    prec.SetType(HypreSmoother::Jacobi, 1);
-   cg.SetPreconditioner(prec);
-   cg.SetOperator(*Mh);
-   cg.SetRelTol(1e-12); cg.SetAbsTol(0.0);
-   cg.SetMaxIter(100);
-   cg.SetPrintLevel(0);
-   cg.Mult(*RHS, *X);
-   K.ParFESpace()->Dof_TrueDof_Matrix()->Mult(*X, di_dt);
-*/
-   GMRESSolver gmres(M.ParFESpace()->GetParMesh()->GetComm());
-   HypreSmoother prec;
-   prec.SetType(HypreSmoother::Jacobi, 1);
-   gmres.SetPreconditioner(prec);
-   gmres.SetOperator(*Mh);
-   gmres.SetRelTol(1e-12); gmres.SetAbsTol(0.0);
-   gmres.SetMaxIter(100);
-   gmres.SetPrintLevel(0);
-   gmres.Mult(*RHS, *X);
+   lin_solver.SetPreconditioner(prec);
+   lin_solver.SetOperator(*Mh);
+   lin_solver.SetRelTol(1e-12); lin_solver.SetAbsTol(0.0);
+   lin_solver.SetMaxIter(100);
+   lin_solver.SetPrintLevel(0);
+   lin_solver.Mult(*RHS, *X);
    K.ParFESpace()->Dof_TrueDof_Matrix()->Mult(*X, di_dt);
 
    delete Mh;
