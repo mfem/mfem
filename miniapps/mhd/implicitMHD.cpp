@@ -37,10 +37,11 @@ class ImplicitMHDOperator : public TimeDependentOperator
 {
 protected:
    FiniteElementSpace &fespace;
-   Array<int> ess_tdof_list; // this list remains empty for periodic
+   Array<int> ess_tdof_list;
 
-   BilinearForm M, K, DSl, DRe; //mass, stiffness, diffusion with SL and Re
+   BilinearForm *M, *K, DSl, DRe; //mass, stiffness, diffusion with SL and Re
    BilinearForm *Nv, *Nb;
+   SparseMatrix Mmat, Kmat;
    SparseMatrix NvMat, NbMat;
 
    double viscosity, resistivity;
@@ -66,8 +67,10 @@ public:
    void UpdateJ(Vector &vx);
    void UpdatePhi(Vector &vx);
 
-   void assembleNv(const Vector &vx);
-   void assembleNb(const Vector &vx);
+   //void assembleNv(const Vector &vx);
+   //void assembleNb(const Vector &vx);
+   void assembleNv(GridFunction *gf);
+   void assembleNb(GridFunction *gf);
 
    // Compute the right-hand side of the ODE system in the predictor step.
    //void MultPre(const Vector &vx, Vector &dvx_dt) const;
@@ -93,6 +96,8 @@ double InitialJ(const Vector &x)
 
 double InitialPsi(const Vector &x)
 {
+   //cout <<"("<<x(0)<<" "<<x(1)<<") ";
+   //cout<<M_PI<<" "<<cos(M_PI*x(1))<<" "<<cos(2.0*M_PI/Lx*x(0))<<" ";
    return -x(1)+alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
 }
 
@@ -109,6 +114,7 @@ int main(int argc, char *argv[])
    double visc = 0.0;
    double resi = 0.0;
    alpha = 0.001; 
+   Lx=3.0;
 
    bool visualization = true;
    int vis_steps = 1;
@@ -177,8 +183,14 @@ int main(int argc, char *argv[])
    //  [Psi, Phi, w, j]
    // in block vector bv, with offsets given by the
    //    fe_offset array.
+   // All my fespace is 1D bu the problem is multi-dimensional!!
    H1_FECollection fe_coll(order, dim);
    FiniteElementSpace fespace(mesh, &fe_coll); 
+   if (false)
+   {
+        cout <<"dim="<<dim<<endl;
+        cout <<"fespace dim="<<fespace.GetVDim()<<endl;
+   }
 
    int fe_size = fespace.GetTrueVSize();
    cout << "Number of scalar unknowns: " << fe_size << endl;
@@ -213,10 +225,11 @@ int main(int argc, char *argv[])
    j.ProjectCoefficient(jInit);
    j.SetTrueVector();
 
-   //this is a periodic boundary condition, so no ess_bdr
+   //this is a periodic boundary condition in x, so ess_bdr
    //but may need other things here if not periodic
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
+   ess_bdr[0] = 1;  //set attribute 1 to Direchlet boundary 
 
    // 7. Initialize the MHD operator, the GLVis visualization    
    ImplicitMHDOperator oper(fespace, ess_bdr, visc, resi);
@@ -247,10 +260,9 @@ int main(int argc, char *argv[])
 
    double t = 0.0;
    oper.SetTime(t);
-   cout << "step debug" <<endl;
    ode_predictor->Init(oper);   //FIXME
    ode_solver->Init(oper);
-   cout << "step debug" <<endl;
+
 
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
@@ -261,15 +273,16 @@ int main(int argc, char *argv[])
 
       //---Predictor stage---
       //assemble the nonlinear terms
-      oper.assembleNv(vx);
-      oper.assembleNb(vx);
+      oper.assembleNv(&phi);
+      oper.assembleNb(&psi);
 
       ode_predictor->Step(vx, t, dt_real);
+      
       oper.UpdateJ(vx);
 
       //---Corrector stage---
       //assemble the nonlinear terms (only psi is updated)
-      oper.assembleNb(vx);
+      oper.assembleNb(&psi);
       ode_solver->Step(vx, t, dt_real);
       oper.UpdateJ(vx); 
       oper.UpdatePhi(vx);
@@ -293,11 +306,12 @@ int main(int argc, char *argv[])
             vis_phi << "phi\n" << *mesh << phi << flush;
          }
       }
+
    }
 
    // 9. Save the solutions.
    {
-      ofstream osol("phi.gf");
+      ofstream osol("phi.sol");
       osol.precision(8);
       phi.Save(osol);
 
@@ -326,19 +340,20 @@ int main(int argc, char *argv[])
 ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc,double resi)
    : TimeDependentOperator(4*f.GetTrueVSize(), 0.0), fespace(f),
-     M(&fespace), K(&fespace), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL),
+     M(NULL), K(NULL), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL),
      viscosity(visc),  resistivity(resi), z(height/4)
 {
    const double rel_tol = 1e-8;
    const int skip_zero_entries = 0;
-   SparseMatrix tmp;
+   ConstantCoefficient one(1.0);
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    //direct solver for M and K for now
    //mass matrix
-   M.AddDomainIntegrator(new MassIntegrator);
-   M.Assemble(skip_zero_entries);
-   M.FormSystemMatrix(ess_tdof_list, tmp);
+   M = new BilinearForm(&fespace);
+   M->AddDomainIntegrator(new MassIntegrator);
+   M->Assemble(skip_zero_entries);
+   M->FormSystemMatrix(ess_tdof_list, Mmat);
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(rel_tol);
@@ -346,12 +361,16 @@ ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f,
    M_solver.SetMaxIter(30);
    M_solver.SetPrintLevel(0);
    M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M.SpMat());
+   M_solver.SetOperator(Mmat);
+
+
+   //cout <<tmp(25947,25947);
 
    //stiffness matrix
-   K.AddDomainIntegrator(new DiffusionIntegrator);
-   K.Assemble(skip_zero_entries);
-   K.FormSystemMatrix(ess_tdof_list, tmp);
+   K = new BilinearForm(&fespace);
+   K->AddDomainIntegrator(new DiffusionIntegrator);
+   K->Assemble(skip_zero_entries);
+   K->FormSystemMatrix(ess_tdof_list, Kmat);
 
    K_solver.iterative_mode = false;
    K_solver.SetRelTol(rel_tol);
@@ -359,7 +378,7 @@ ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f,
    K_solver.SetMaxIter(30);
    K_solver.SetPrintLevel(0);
    K_solver.SetPreconditioner(K_prec);
-   K_solver.SetOperator(K.SpMat()); //this is a real matrix
+   K_solver.SetOperator(Kmat); //this is a real matrix
 
    /*
    //this has to be assembled in each time step? but how could I do implicitly?
@@ -412,6 +431,8 @@ void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    }
    z.Neg(); // z = -z
    M_solver.Mult(z, dpsi_dt);
+   //abort();  //debug
+
 
    NvMat.Mult(w, z);
    if (viscosity != 0.0)
@@ -423,41 +444,50 @@ void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    M_solver.Mult(z, dw_dt);
 }
 
-void ImplicitMHDOperator::assembleNv(const Vector &vx) 
+void ImplicitMHDOperator::assembleNv(GridFunction *gf) 
 {
    int sc = height/4;
-   Vector phi(vx.GetData() +   0, sc);
-   GridFunction phiGF; 
-   phiGF.SetFromTrueDofs(phi);
+   //cout << "sc ="<<sc<<" height="<<height<<endl;   //debug
+
+   //M_solver.Mult(*gf, z);
+   //Vector phi(vx.GetData() +   0, sc);
+   //cout <<phi(0)<<endl;   //debug
+   //GridFunction phiGF(&fespace); 
+   //phiGF.SetFromTrueDofs(phi);
+   
    int skip_zero_entries=0;
+
 
    delete Nv;
    Nv = new BilinearForm(&fespace);
-   MyCoefficient velocity(phiGF);   //we update velocity
+   MyCoefficient velocity(gf, 2);   //we update velocity
 
+
+   //cout << "sc ="<<sc<<" height="<<height<<endl;   //debug
    Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
-   Nv->Assemble(skip_zero_entries);
+   Nv->Assemble(skip_zero_entries); 
    Nv->FormSystemMatrix(ess_tdof_list, NvMat);
 
 }
 
-void ImplicitMHDOperator::assembleNb(const Vector &vx) 
+void ImplicitMHDOperator::assembleNb(GridFunction *gf) 
 {
    int sc = height/4;
-   Vector psi(vx.GetData() +  sc, sc);
-   GridFunction psiGF; 
-   psiGF.SetFromTrueDofs(psi);
+   //cout << "sc ="<<sc<<" height="<<height<<endl;   //debug
+
+   //Vector psi(vx.GetData() +  sc, sc);
+   //GridFunction psiGF(&fespace); 
+   //psiGF.SetFromTrueDofs(psi);
 
    int skip_zero_entries=0;
 
    delete Nb;
    Nb = new BilinearForm(&fespace);
-   MyCoefficient Bfield(psiGF);   //we update B
+   MyCoefficient Bfield(gf, 2);   //we update B
 
    Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
    Nb->Assemble(skip_zero_entries);
    Nb->FormSystemMatrix(ess_tdof_list, NbMat);
-
 }
 
 void ImplicitMHDOperator::UpdateJ(Vector &vx)
@@ -467,7 +497,7 @@ void ImplicitMHDOperator::UpdateJ(Vector &vx)
    Vector psi(vx.GetData() +  sc, sc);
    Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference, so it should be good
 
-   K.Mult(psi, z);
+   Kmat.Mult(psi, z);
    z.Neg(); // z = -z
    M_solver.Mult(z, j);
 }
@@ -479,7 +509,7 @@ void ImplicitMHDOperator::UpdatePhi(Vector &vx)
    Vector phi(vx.GetData() +   0, sc);
    Vector   w(vx.GetData() +2*sc, sc);
 
-   M.Mult(w, z);
+   Mmat.Mult(w, z);
    z.Neg(); // z = -z
    K_solver.Mult(z, phi);
 }
