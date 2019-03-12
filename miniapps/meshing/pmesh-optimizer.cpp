@@ -463,7 +463,7 @@ int main (int argc, char *argv[])
          return 3;
    }
    TargetConstructor::TargetType target_t;
-   TargetConstructor *target_c;
+   TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
    H1_FECollection ind_fec(3, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
