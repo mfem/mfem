@@ -55,6 +55,12 @@
 //   By default the sources and fields are all zero
 //     mpirun -np 4 hertz
 //
+// ./cpd1d -md 0.24 -ne 50 -dbcs '3 5' -s 5 -f 80e6 -B '5.4 0 0' -w R -num '2e20 2e20'
+//
+// ./cpd1d -md 0.24 -ne 50 -dbcs '3 5' -s 5 -f 80e6 -B '5.4 0 0' -w L -num '2e20 2e20'
+//
+// ./cpd1d -md 0.007 -ne 50 -dbcs '3 5' -s 5 -f 80e6 -B '0 5.4 0' -w O -num '2e20 2e20'
+//
 // ./cpd1d -md 0.24 -ne 480 -dbcs '3 5' -s 5 -f 80e6 -maxit 1 -B '0 0 5.4' -w J -slab '0 1 0 0.16 0.02' -num '2e20 2e20'
 //
 //   Current source in a sphere with absorbing boundary conditions
@@ -173,7 +179,7 @@ int main(int argc, char *argv[])
 
    // Parse command-line options.
    int order = 1;
-   int maxit = 100;
+   int maxit = 1;
    // int serial_ref_levels = 0;
    // int parallel_ref_levels = 0;
    int sol = 2;
