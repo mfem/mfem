@@ -15,18 +15,18 @@ namespace mfem
          virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 
-         virtual void Eval(ElementTransformation &T, const IntegrationPoint &ip);
+         //virtual void Eval(ElementTransformation &T, const IntegrationPoint &ip);
          virtual ~MyCoefficient() { }
     };
 
     MyCoefficient::MyCoefficient( GridFunction &_u ) : u(_u) { }
 
     void MyCoefficient::Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip)
     {
-        V.SetSize(dim);
+        V.SetSize(vdim);
         Vector grad;
-        u.GetGradient(T.ElementNo, ip, grad);
+        u.GetGradient(T, grad);
 
         V(0)=-grad(1);
         V(1)= grad(0);
@@ -39,7 +39,7 @@ namespace mfem
         DenseMatrix grad;
         u.GetGradients(T, ir, grad);
 
-        for (j=0, j<ir.GetNPoints(), j++)
+        for (int j=0; j<ir.GetNPoints(); j++)
         {
             M(0,j)=-grad(1,j);
             M(1,j)= grad(0,j);

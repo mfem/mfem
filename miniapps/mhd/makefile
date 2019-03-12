@@ -21,8 +21,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = mhd
-PAR_EXAMPLES = mhdp
+SEQ_EXAMPLES = implicitMHD
+PAR_EXAMPLES = implicitMHDp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -32,6 +32,7 @@ endif
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
+.PRECIOUS: %.o
 
 # Remove built-in rule
 %: %.cpp
@@ -40,7 +41,10 @@ endif
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-all: $(EXAMPLES) $(SUBDIRS_ALL)
+implicitMHD: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+
+all: $(EXAMPLES) 
 
 .PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
 $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN):
@@ -48,17 +52,10 @@ $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN):
 $(SUBDIRS_TPRINT):
 	@$(MAKE) -C $(@D) $(@F)
 
-MFEM_TESTS = EXAMPLES
+MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
-test: $(SUBDIRS_TEST)
-test-print: $(SUBDIRS_TPRINT)
 
 # Testing: Parallel vs. serial runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-%-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), Parallel example)
-%-test-seq: %
-	@$(call mfem-test,$<,, Serial example)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -73,10 +70,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh
 	@rm -rf implicitMHD implicitMHDp
-	@rm -f sphere_refined.* sol.* sol_u.* sol_p.*
-	@rm -f deformed.* velocity.* elastic_energy.* mode_*
-	@rm -f vortex-mesh.* vortex.mesh vortex-?-init.* vortex-?-final.*
-	@rm -f deformation.* pressure.*
-	@rm -f ex20.dat ex20p_?????.dat gnuplot_ex20.inp gnuplot_ex20p.inp

@@ -1,4 +1,4 @@
-//                                MFEM modified from Example 10
+//                                MFEM modified from Example 10 and 16
 //
 // Compile with: make implicitMHD
 //
@@ -9,7 +9,8 @@
 // Author: QT
 
 #include "mfem.hpp"
-#include "PDSolver.hpp"
+#include "myCoefficient.hpp"
+//#include "PDSolver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -36,9 +37,12 @@ class ImplicitMHDOperator : public TimeDependentOperator
 {
 protected:
    FiniteElementSpace &fespace;
+   Array<int> ess_tdof_list; // this list remains empty for periodic
 
    BilinearForm M, K, DSl, DRe; //mass, stiffness, diffusion with SL and Re
-   NonlinearForm Nv, Nb;
+   BilinearForm *Nv, *Nb;
+   SparseMatrix NvMat, NbMat;
+
    double viscosity, resistivity;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
@@ -50,16 +54,20 @@ protected:
    mutable Vector z; // auxiliary vector 
 
    //VectorGridFunctionCoefficient *velocity,*Bfield;
-   MyCoefficient velocity, Bfield;
+   //MyCoefficient velocity, Bfield;
 
 public:
-   ImplicitMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, double visc, double resi);
+   ImplicitMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, 
+                       double visc, double resi);
 
    // Compute the right-hand side of the ODE system.
-   void Mult(const Vector &vx, Vector &dvx_dt) const;
+   virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
 
-   void UpdateJ(const Vector &vx) const;
-   void UpdatePhi(const Vector &vx) const;
+   void UpdateJ(Vector &vx);
+   void UpdatePhi(Vector &vx);
+
+   void assembleNv(const Vector &vx);
+   void assembleNb(const Vector &vx);
 
    // Compute the right-hand side of the ODE system in the predictor step.
    //void MultPre(const Vector &vx, Vector &dvx_dt) const;
@@ -68,24 +76,24 @@ public:
 };
 
 //initial condition
-void InitialPhi(const Vector &x, double &phi)
+double InitialPhi(const Vector &x)
 {
-    phi=0.0;
+    return 0.0;
 }
 
-void InitialW(const Vector &x, double &w)
+double InitialW(const Vector &x)
 {
-    w=0.0;
+    return 0.0;
 }
 
-void InitialJ(const Vector &x, double &j)
+double InitialJ(const Vector &x)
 {
-   j =-M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
+   return -M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
 }
 
-void InitialPsi(const Vector &x, double &psi)
+double InitialPsi(const Vector &x)
 {
-   psi =-x(1)+alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
+   return -x(1)+alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
 }
 
 
@@ -143,12 +151,15 @@ int main(int argc, char *argv[])
    // 3. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   ODESolver *ode_solver;
+   ODESolver *ode_solver, *ode_predictor;
    switch (ode_solver_type)
    {
-     // Explicit methods FIXME: FE is not stable 
+     // Explicit methods XXX: waring: FE is not stable 
      case 1: ode_solver = new ForwardEulerSolver; break;
-     case 2: ode_solver = new PDSolver; break; //first order predictor-corrector
+     case 2: 
+             ode_solver = new ForwardEulerSolver; 
+             ode_predictor = new ForwardEulerSolver; 
+             break; //first order predictor-corrector
      case 3: ode_solver = new RK3SSPSolver; break;
      default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -178,12 +189,12 @@ int main(int argc, char *argv[])
    fe_offset[3] = 3*fe_size;
    fe_offset[4] = 4*fe_size;
 
-   BlockVector bv(fe_offset);
+   BlockVector vx(fe_offset);
    GridFunction psi, phi, w, j;
-   phi.MakeTRef(&fespace, bv.GetBlock(0), 0);
-   psi.MakeTRef(&fespace, bv.GetBlock(1), 0);
-     w.MakeTRef(&fespace, bv.GetBlock(2), 0);
-     j.MakeTRef(&fespace, bv.GetBlock(3), 0);
+   phi.MakeTRef(&fespace, vx.GetBlock(0), 0);
+   psi.MakeTRef(&fespace, vx.GetBlock(1), 0);
+     w.MakeTRef(&fespace, vx.GetBlock(2), 0);
+     j.MakeTRef(&fespace, vx.GetBlock(3), 0);
 
    // 6. Set the initial conditions, and the boundary conditions
    FunctionCoefficient phiInit(InitialPhi);
@@ -207,8 +218,6 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
 
-   Array<int> ess_tdof_list;
-   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    int skip_zero_entries=0;
 
    // 7. Initialize the MHD operator, the GLVis visualization    
@@ -240,6 +249,7 @@ int main(int argc, char *argv[])
 
    double t = 0.0;
    oper.SetTime(t);
+   ode_predictor->Init(oper);
    ode_solver->Init(oper);
 
    // 8. Perform time-integration (looping over the time iterations, ti, with a
@@ -249,18 +259,19 @@ int main(int argc, char *argv[])
    {
       double dt_real = min(dt, t_final - t);
 
-      //assemble the nonlinear terms
-      velocity(phi);
-      Nv.AddDomainIntegrator(new ConvectionIntegrator(velocity));
-      Nv.SetEssentialTrueDofs(ess_tdof_list);
-      Nv.Assemble(skip_zero_entries);
+      //---Predictor stage---
+      oper.assembleNv(vx);
+      oper.assembleNb(vx);
 
-      Bfield(psi);
-      Nb.AddDomainIntegrator(new ConvectionIntegrator(Bfield));
-      Nb.SetEssentialTrueDofs(ess_tdof_list);
-      Nb.Assemble(skip_zero_entries);
+      ode_predictor->Step(vx, t, dt_real);
+      oper.UpdateJ(vx);
 
+      //---Corrector stage---
+      //assemble the nonlinear terms (only psi is updated)
+      oper.assembleNv(vx);
       ode_solver->Step(vx, t, dt_real);
+      oper.UpdateJ(vx); 
+      oper.UpdatePhi(vx);
 
       last_step = (t >= t_final - 1e-8*dt);
 
@@ -278,7 +289,7 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            sout << "phi\n" << *mesh << phi << flush;
+            vis_phi << "phi\n" << *mesh << phi << flush;
          }
       }
    }
@@ -304,6 +315,7 @@ int main(int argc, char *argv[])
 
    // 10. Free the used memory.
    delete ode_solver;
+   delete ode_predictor;
    delete mesh;
 
    return 0;
@@ -313,17 +325,16 @@ int main(int argc, char *argv[])
 ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc,double resi)
    : TimeDependentOperator(4*f.GetTrueVSize(), 0.0), fespace(f),
-     M(&fespace), K(&fespace), Nv(&fespace), Nb(&fespace),
+     M(&fespace), K(&fespace), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL),
      viscosity(visc),  resistivity(resi), z(height/4)
 {
    const double rel_tol = 1e-8;
    const int skip_zero_entries = 0;
-   ConstantCoefficient one(1.0);
-   Array<int> ess_tdof_list;
-   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    SparseMatrix tmp;    //tmp is not used
-   //direct solver for M and K for now
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   //ConstantCoefficient one(1.0);
 
+   //direct solver for M and K for now
    //mass matrix
    M.AddDomainIntegrator(new MassIntegrator);
    M.Assemble(skip_zero_entries);
@@ -397,7 +408,7 @@ void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    dphi_dt=0.0;
    dj_dt=0.0;
 
-   Nv.Mult(psi, z);
+   NvMat.Mult(psi, z);
    if (resistivity != 0.0)
    {
       DSl.AddMult(psi, z);
@@ -405,17 +416,54 @@ void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    z.Neg(); // z = -z
    M_solver.Mult(z, dpsi_dt);
 
-   Nv.Mult(w, z);
+   NvMat.Mult(w, z);
    if (viscosity != 0.0)
    {
       DRe.AddMult(w, z);
    }
    z.Neg(); // z = -z
-   Nb.AddMult(j, z);
+   NbMat.AddMult(j, z);
    M_solver.Mult(z, dw_dt);
 }
 
-void ImplicitMHDOperator::UpdateJ(Vector &vx) const
+void ImplicitMHDOperator::assembleNv(const Vector &vx) 
+{
+   int sc = height/4;
+   Vector phi(vx.GetData() +   0, sc);
+   GridFunction phiGF; 
+   phiGF.SetFromTrueDofs(phi);
+   int skip_zero_entries=0;
+
+   delete Nv;
+   Nv = new BilinearForm(&fespace);
+   MyCoefficient velocity(phiGF);   //we update velocity
+
+   Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
+   Nv->Assemble(skip_zero_entries);
+   Nv->FormSystemMatrix(ess_tdof_list, NvMat);
+
+}
+
+void ImplicitMHDOperator::assembleNb(const Vector &vx) 
+{
+   int sc = height/4;
+   Vector psi(vx.GetData() +  sc, sc);
+   GridFunction psiGF; 
+   psiGF.SetFromTrueDofs(psi);
+
+   int skip_zero_entries=0;
+
+   delete Nb;
+   Nb = new BilinearForm(&fespace);
+   MyCoefficient Bfield(psiGF);   //we update B
+
+   Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
+   Nb->Assemble(skip_zero_entries);
+   Nb->FormSystemMatrix(ess_tdof_list, NbMat);
+
+}
+
+void ImplicitMHDOperator::UpdateJ(Vector &vx)
 {
    //the current is J=-M^{-1}*K*Psi
    int sc = height/4;
@@ -427,7 +475,7 @@ void ImplicitMHDOperator::UpdateJ(Vector &vx) const
    M_solver.Mult(z, j);
 }
 
-void ImplicitMHDOperator::UpdatePhi(Vector &vx) const
+void ImplicitMHDOperator::UpdatePhi(Vector &vx)
 {
    //Phi=-K^{-1}*M*w
    // Create views to the sub-vectors of vx, and dvx_dt
@@ -444,8 +492,8 @@ void ImplicitMHDOperator::UpdatePhi(Vector &vx) const
 ImplicitMHDOperator::~ImplicitMHDOperator()
 {
     //free used memory
-    delete Bfield;
-    delete velocity;
+    //delete Bfield;
+    //delete velocity;
 }
 
 
