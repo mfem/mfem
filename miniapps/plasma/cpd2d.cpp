@@ -58,6 +58,8 @@
 //
 // ./cpd2d -rod '0 0 1 0 0 0.1' -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
 //
+// mpirun -np 8 ./cpd2d -rod '0 0 1 0 0 0.1' -dbcs '1' -w Z -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
+//
 //   Current source in a sphere with absorbing boundary conditions
 //     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
 //                        -abcs '-1' -f 3e8
