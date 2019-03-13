@@ -1186,31 +1186,26 @@ void FiniteElementSpace::UpdateNURBS()
 void FiniteElementSpace::Construct()
 {
    // This method should be used only for non-NURBS spaces.
-   MFEM_ASSERT(!NURBSext, "internal error");
+   MFEM_VERIFY(!NURBSext, "internal error");
 
    elem_dof = NULL;
    bdrElem_dof = NULL;
 
-   nvdofs = mesh->GetNV() * fec->DofForGeometry(Geometry::POINT);
-
-   if ( mesh->Dimension() > 1 )
-   {
-      nedofs = mesh->GetNEdges() * fec->DofForGeometry(Geometry::SEGMENT);
-   }
-   else
-   {
-      nedofs = 0;
-   }
-
    ndofs = 0;
-   nfdofs = 0;
-   nbdofs = 0;
+   nedofs = nfdofs = nbdofs = 0;
    bdofs = NULL;
    fdofs = NULL;
    cP = NULL;
    cR = NULL;
    cP_is_set = false;
-   // Th is initialized/destroyed before this method is called.
+   // 'Th' is initialized/destroyed before this method is called.
+
+   nvdofs = mesh->GetNV() * fec->DofForGeometry(Geometry::POINT);
+
+   if (mesh->Dimension() > 1)
+   {
+      nedofs = mesh->GetNEdges() * fec->DofForGeometry(Geometry::SEGMENT);
+   }
 
    if (mesh->GetNFaces() > 0)
    {
@@ -1242,8 +1237,7 @@ void FiniteElementSpace::Construct()
       bdofs[0] = 0;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
-         Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-         nbdofs += fec->DofForGeometry(geom);
+         nbdofs += fec->DofForGeometry(mesh->GetElementBaseGeometry(i));
          bdofs[i+1] = nbdofs;
       }
    }
@@ -1254,7 +1248,7 @@ void FiniteElementSpace::Construct()
    // later.
 }
 
-void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
+void FiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
 {
    if (elem_dof)
    {

@@ -280,10 +280,11 @@ public:
        processor independent. FIXME this seems only partially true */
    int GetEdgeNCOrientation(const MeshId &edge_id) const;
 
-   /// Return Mesh vertex and edge indices of a face identified by 'face_id'.
-   void GetFaceVerticesEdges(const MeshId &face_id,
-                             int vert_index[4], int edge_index[4],
-                             int edge_orientation[4]) const;
+   /** Return Mesh vertex and edge indices of a face identified by 'face_id'.
+       The return value is the number of face vertices. */
+   int GetFaceVerticesEdges(const MeshId &face_id,
+                            int vert_index[4], int edge_index[4],
+                            int edge_orientation[4]) const;
 
    /** Given an edge (by its vertex indices v1 and v2) return the first
        (geometric) parent edge that exists in the Mesh or -1 if there is no such
@@ -299,10 +300,13 @@ public:
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges);
 
-   /// Return the type of elements in the mesh.
-   Geometry::Type GetElementGeometry() const { return Geometry::Type(elements[0].geom); }
+   /// Return element geometry type. @a index is the Mesh element number.
+   Geometry::Type GetElementGeometry(int index) const
+   { return elements[leaf_elements[index]].Geom(); }
 
-   Geometry::Type GetFaceGeometry() const { return Geometry::SQUARE; }
+   /// Return face geometry type. @a index is the Mesh face number.
+   Geometry::Type GetFaceGeometry(int index) const
+   { return Geometry::Type(face_geom[index]); }
 
    /// Return the distance of leaf 'i' from the root.
    int GetElementDepth(int i) const;
@@ -469,6 +473,7 @@ protected: // implementation
    NCList vertex_list; ///< lazy-initialized list of vertices, see GetVertexList
 
    Array<int> boundary_faces; ///< subset of all faces, set by BuildFaceList
+   Array<char> face_geom; ///< face geometry by face index, set by OnMeshUpdated
 
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
 
@@ -775,6 +780,7 @@ protected: // implementation
       int nv, ne, nf;   // number of: vertices, edges, faces
       int edges[12][2]; // edge vertices (up to 12 edges)
       int faces[6][4];  // face vertices (up to 6 faces)
+      int nfv[6];       // number of face vertices
 
       bool initialized;
       GeomInfo() : initialized(false) {}
