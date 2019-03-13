@@ -155,9 +155,9 @@ void* mm::Insert(void *ptr, const size_t bytes)
    const bool known = Known(ptr);
    if (known)
    {
-      mfem_error("Trying to insert a non-MM pointer!");
+      MFEM_ASSERT(!known, "Trying to add an already present address!");
+      mfem_error("Trying to add an already present address!");
    }
-   MFEM_ASSERT(!known, "Trying to add an already present address!");
    DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes));
    return ptr;
