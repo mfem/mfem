@@ -760,6 +760,14 @@ public:
    void SetPostCheck(void (*post)(Operator *op, const Vector &X, Vector &Y,
                                   Vector &W, bool &changed_y, bool &changed_w));
 
+   /// General purpose update function to be called at the beginning of each step
+   /// it is the current nonlinear iteration number
+   /// F is the current function value, X the current solution
+   /// D the previous step taken, and P the previous solution
+   void SetUpdate(void (*update)(Operator *op, int it,
+                                 const mfem::Vector& F, const mfem::Vector& X,
+                                 const mfem::Vector& D, const mfem::Vector& P));
+
    /// Conversion function to PETSc's SNES type.
    operator SNES() const { return (SNES)obj; }
 };
