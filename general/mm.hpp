@@ -128,7 +128,7 @@ public:
      base.d_ptr = ptr_device;
      base.host = false;
    }
-   
+
 private:
    ledger maps;
    mm() {}
@@ -149,7 +149,8 @@ private:
    void Push(const void *ptr, const size_t bytes = 0);
    void Pull(const void *ptr, const size_t bytes = 0);
 };
-
+  //Check if method has been registered
+  void RegisterCheck(void *ptr);
 } // namespace mfem
 
 #endif

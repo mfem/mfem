@@ -245,14 +245,14 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
 
 // *****************************************************************************
 // * Turn an address to the right host or device one
-// * If the pointer is NULL the companion pointer 
+// * If the pointer is NULL the companion pointer
 // * will be too.
 // *****************************************************************************
 void *mm::Ptr(void *ptr)
 {
    if (MmDeviceIniFilter()) { return ptr; }
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
-   if (Alias(ptr)) { return PtrAlias(maps, ptr); }   
+   if (Alias(ptr)) { return PtrAlias(maps, ptr); }
    if (config::UsingDevice() && ptr==NULL)
    {
      return NULL;
@@ -400,6 +400,17 @@ void* mm::memcpy(void *dst, const void *src, const size_t bytes,
    {
       return d2d(dst, src, bytes, async);
    }
+}
+
+void RegisterCheck(void *ptr)
+{
+  if(ptr != NULL){
+    if(!mm::known(ptr))
+      {
+        assert(0 && "Pointer is not registerd!");
+        mfem_error("Trying use an unregistered pointer!");
+      }
+  }
 }
 
 } // namespace mfem
