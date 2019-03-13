@@ -28,8 +28,18 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field)
 {
+   int myid = 0;
+   Mesh *m = mesh;
+
+#ifdef MFEM_USE_MPI
+   if (pfes) { MPI_Comm_rank(pfes->GetComm(), &myid); }
+   if (pmesh) { m = pmesh; }
+#endif
+
+   MFEM_ASSERT(m != NULL, "No mesh has been given to the AdaptivityEvaluator.");
+
    // This will be used to move the positions.
-   GridFunction *mesh_nodes = pmesh->GetNodes();
+   GridFunction *mesh_nodes = m->GetNodes();
    *mesh_nodes = nodes0;
    new_field = field0;
 
@@ -37,15 +47,24 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    GridFunction u(mesh_nodes->FESpace());
    subtract(new_nodes, nodes0, u);
 
+   TimeDependentOperator *oper = NULL;
    // This must be the fes of the ind, associated with the object's mesh.
-   AdvectorCGOperator oper(nodes0, u, *mesh_nodes, *pfes);
-   ode_solver.Init(oper);
+   if (fes)  { oper = new SerialAdvectorCGOper(nodes0, u, *mesh_nodes, *fes); }
+#ifdef MFEM_USE_MPI
+   else if (pfes)
+   {
+      oper = new ParAdvectorCGOper(nodes0, u, *mesh_nodes, *pfes);
+   }
+#endif
+   MFEM_ASSERT(oper != NULL,
+               "No space has been given to the AdaptivityEvaluator.");
+   ode_solver.Init(*oper);
 
    // Compute some time step [mesh_size / speed].
    double min_h = std::numeric_limits<double>::infinity();
-   for (int i = 0; i < pmesh->GetNE(); i++)
+   for (int i = 0; i < m->GetNE(); i++)
    {
-      min_h = std::min(min_h, pmesh->GetElementSize(i));
+      min_h = std::min(min_h, m->GetElementSize(i));
    }
    double v_max = 0.0;
    const int s = u.FESpace()->GetVSize() / 2;
@@ -55,14 +74,16 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
       v_max = std::max(v_max, vel);
    }
    double dt = 0.5 * min_h / v_max;
-   double glob_dt;
-   MPI_Allreduce(&dt, &glob_dt, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+   double glob_dt = dt;
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      MPI_Allreduce(&dt, &glob_dt, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+   }
+#endif
 
-   int myid;
-   MPI_Comm_rank(pfes->GetComm(), &myid);
    double t = 0.0;
    bool last_step = false;
-
    for (int ti = 1; !last_step; ti++)
    {
       if (t + glob_dt >= 1.0)
@@ -80,12 +101,57 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
 
    nodes0 = new_nodes;
    field0 = new_field;
+
+   delete oper;
 }
 
-AdvectorCGOperator::AdvectorCGOperator(const Vector &x_start,
-                                       GridFunction &vel,
-                                       Vector &xn,
-                                       ParFiniteElementSpace &pfes)
+SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
+                                           GridFunction &vel, Vector &xn,
+                                           FiniteElementSpace &fes)
+   : TimeDependentOperator(fes.GetVSize()),
+     x0(x_start), x_now(xn), u(vel), u_coeff(&u), M(&fes), K(&fes)
+{
+   ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
+   K.AddDomainIntegrator(Kinteg);
+   K.Assemble(0);
+   K.Finalize(0);
+
+   MassIntegrator *Minteg = new MassIntegrator;
+   M.AddDomainIntegrator(Minteg);
+   M.Assemble();
+   M.Finalize();
+}
+
+void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
+{
+   // Move the mesh.
+   const double t = GetTime();
+   add(x0, t, u, x_now);
+
+   // Assemble on the new mesh.
+   K.BilinearForm::operator=(0.0);
+   K.Assemble();
+   Vector rhs(K.Size());
+   K.Mult(ind, rhs);
+   M.BilinearForm::operator=(0.0);
+   M.Assemble();
+
+   //CGSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
+   GMRESSolver lin_solver;
+   HypreSmoother prec;
+   prec.SetType(HypreSmoother::Jacobi, 1);
+   lin_solver.SetPreconditioner(prec);
+   lin_solver.SetOperator(M.SpMat());
+   lin_solver.SetRelTol(1e-12); lin_solver.SetAbsTol(0.0);
+   lin_solver.SetMaxIter(100);
+   lin_solver.SetPrintLevel(0);
+   lin_solver.Mult(rhs, di_dt);
+}
+
+#ifdef MFEM_USE_MPI
+ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
+                                     GridFunction &vel, Vector &xn,
+                                     ParFiniteElementSpace &pfes)
    : TimeDependentOperator(pfes.GetVSize()),
      x0(x_start), x_now(xn), u(vel), u_coeff(&u), M(&pfes), K(&pfes)
 {
@@ -100,11 +166,10 @@ AdvectorCGOperator::AdvectorCGOperator(const Vector &x_start,
    M.Finalize();
 }
 
-void AdvectorCGOperator::Mult(const Vector &ind, Vector &di_dt) const
+void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 {
-   const double t = GetTime();
-
    // Move the mesh.
+   const double t = GetTime();
    add(x0, t, u, x_now);
 
    // Assemble on the new mesh.
@@ -135,6 +200,7 @@ void AdvectorCGOperator::Mult(const Vector &ind, Vector &di_dt) const
    delete X;
    delete RHS;
 }
+#endif
 
 double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                                               const Vector &b) const
