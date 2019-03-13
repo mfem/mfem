@@ -10,14 +10,14 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(cpd1d
-    MAIN cpd1d.cpp
+  add_mfem_miniapp(stix1d
+    MAIN stix1d.cpp
     EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp
     EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem_miniapps_common)
 
-  add_mfem_miniapp(cpd2d
-    MAIN cpd2d.cpp
+  add_mfem_miniapp(stix2d
+    MAIN stix2d.cpp
     EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp
     EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem_miniapps_common)

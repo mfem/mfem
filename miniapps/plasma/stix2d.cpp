@@ -56,9 +56,9 @@
 //     mpirun -np 4 hertz
 //
 //
-// ./cpd2d -rod '0 0 1 0 0 0.1' -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
+// ./stix2d -rod '0 0 1 0 0 0.1' -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
 //
-// mpirun -np 8 ./cpd2d -rod '0 0 1 0 0 0.1' -dbcs '1' -w Z -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
+// mpirun -np 8 ./stix2d -rod '0 0 1 0 0 0.1' -dbcs '1' -w Z -o 3 -s 5 -rs 0 -maxit 1 -f 1e6
 //
 //   Current source in a sphere with absorbing boundary conditions
 //     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
@@ -608,7 +608,7 @@ int main(int argc, char *argv[])
    }
 
    // Initialize VisIt visualization
-   VisItDataCollection visit_dc("CPD2D-AMR-Parallel", &pmesh);
+   VisItDataCollection visit_dc("STIX2D-AMR-Parallel", &pmesh);
 
    if ( visit )
    {
@@ -771,7 +771,7 @@ void Update(ParFiniteElementSpace & HCurlFESpace,
    }
 }
 
-// Print the CPD2D ascii logo to the given ostream
+// Print the stix2d ascii logo to the given ostream
 /*
 void display_banner(ostream & os)
 {
