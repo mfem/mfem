@@ -886,6 +886,64 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
    }
 }
 
+int Mesh::nodes_of_gmsh_element[29] =
+   {
+      2, // 2-node line.
+      3, // 3-node triangle.
+      4, // 4-node quadrangle.
+      4, // 4-node tetrahedron.
+      8, // 8-node hexahedron.
+      6, // 6-node prism.
+      5, // 5-node pyramid.
+      3, /* 3-node second order line (2 nodes associated with the vertices
+               and 1 with the edge). */
+      6, /* 6-node second order triangle (3 nodes associated with the
+               vertices and 3 with the edges). */
+      9, /* 9-node second order quadrangle (4 nodes associated with the
+               vertices, 4 with the edges and 1 with the face). */
+      10,/* 10-node second order tetrahedron (4 nodes associated with the
+               vertices and 6 with the edges). */
+      27,/* 27-node second order hexahedron (8 nodes associated with the
+               vertices, 12 with the edges, 6 with the faces and 1 with
+               the volume). */
+      18,/* 18-node second order prism (6 nodes associated with the
+               vertices, 9 with the edges and 3 with the quadrangular
+               faces). */
+      14,/* 14-node second order pyramid (5 nodes associated with the
+               vertices, 8 with the edges and 1 with the quadrangular
+               face). */
+      1, // 1-node point.
+      8, /* 8-node second order quadrangle (4 nodes associated with the
+               vertices and 4 with the edges). */
+      20,/* 20-node second order hexahedron (8 nodes associated with the
+               vertices and 12 with the edges). */
+      15,/* 15-node second order prism (6 nodes associated with the
+               vertices and 9 with the edges). */
+      13,/* 13-node second order pyramid (5 nodes associated with the
+               vertices and 8 with the edges). */
+      9, /* 9-node third order incomplete triangle (3 nodes associated
+               with the vertices, 6 with the edges) */
+      10,/* 10-node third order triangle (3 nodes associated with the
+               vertices, 6 with the edges, 1 with the face) */
+      12,/* 12-node fourth order incomplete triangle (3 nodes associated
+               with the vertices, 9 with the edges) */
+      15,/* 15-node fourth order triangle (3 nodes associated with the
+               vertices, 9 with the edges, 3 with the face) */
+      15,/* 15-node fifth order incomplete triangle (3 nodes associated
+               with the vertices, 12 with the edges) */
+      21,/* 21-node fifth order complete triangle (3 nodes associated with
+               the vertices, 12 with the edges, 6 with the face) */
+      4, /* 4-node third order edge (2 nodes associated with the vertices,
+               2 internal to the edge) */
+      5, /* 5-node fourth order edge (2 nodes associated with the
+               vertices, 3 internal to the edge) */
+      6, /* 6-node fifth order edge (2 nodes associated with the vertices,
+               4 internal to the edge) */
+      20 /* 20-node third order tetrahedron (4 nodes associated with the
+               vertices, 12 with the edges, 4 with the faces) */
+   };
+
+
 
 void Mesh::ReadGmshBoundaryElements(std::vector<Element*> &elements_0D,
                                     std::vector<Element*> &elements_1D,
@@ -906,13 +964,14 @@ void Mesh::ReadGmshBoundaryElements(std::vector<Element*> &elements_0D,
       for (int el = 0; el < NumOfBdrElements; ++el)
       {
          boundary[el] = elements_2D[el];
+         int *vv = elements_2D[el]->GetVertices();
       }
       // discard other elements
-      for (size_t el = 0; el < elements_1D.size(); ++el)
+      for (int el = 0; el < elements_1D.size(); ++el)
       {
          delete elements_1D[el];
       }
-      for (size_t el = 0; el < elements_0D.size(); ++el)
+      for (int el = 0; el < elements_0D.size(); ++el)
       {
          delete elements_0D[el];
       }
@@ -933,7 +992,7 @@ void Mesh::ReadGmshBoundaryElements(std::vector<Element*> &elements_0D,
          boundary[el] = elements_1D[el];
       }
       // discard other elements
-      for (size_t el = 0; el < elements_0D.size(); ++el)
+      for (int el = 0; el < elements_0D.size(); ++el)
       {
          delete elements_0D[el];
       }
@@ -968,7 +1027,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
    // A map between a serial number of the vertex and its number in the file
    // (there may be gaps in the numbering, and also Gmsh enumerates vertices
    // starting from 1, not 0)
-   map<std::size_t, std::size_t> vertices_map;
+   map<int, int> vertices_map;
    // Read the lines of the mesh file. If we face specific keyword, we'll treat
    // the section.
    while (input >> buff)
@@ -1029,7 +1088,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                ver++;
             }
          }
-         if (static_cast<std::size_t>(vertices_map.size()) != NumOfVertices)
+         if (static_cast<int>(vertices_map.size()) != NumOfVertices)
          {
             MFEM_ABORT("Gmsh file : vertices indices are not unique");
          }
@@ -1105,7 +1164,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                   {
                      input >> index;
                   }
-                  map<std::size_t, std::size_t>::const_iterator it = vertices_map.find(index);
+                  map<int, int>::const_iterator it = vertices_map.find(index);
                   if (it == vertices_map.end())
                   {
                      MFEM_ABORT("Gmsh file : vertex index doesn't exist");
@@ -1178,7 +1237,7 @@ void Mesh::ReadGmshV2(std::istream &input, int binary)
    // A map between a serial number of the vertex and its number in the file
    // (there may be gaps in the numbering, and also Gmsh enumerates vertices
    // starting from 1, not 0)
-   map<std::size_t, std::size_t> vertices_map;
+   map<int, int> vertices_map;
    // Read the lines of the mesh file. If we face specific keyword, we'll treat
    // the section.
    while (input >> buff)
@@ -1209,7 +1268,7 @@ void Mesh::ReadGmshV2(std::istream &input, int binary)
             vertices[ver] = Vertex(coord, gmsh_dim);
             vertices_map[serial_number] = ver;
          }
-         if (static_cast<std::size_t>(vertices_map.size()) != NumOfVertices)
+         if (static_cast<int>(vertices_map.size()) != NumOfVertices)
          {
             MFEM_ABORT("Gmsh file : vertices indices are not unique");
          }
@@ -1277,7 +1336,7 @@ void Mesh::ReadGmshV2(std::istream &input, int binary)
                   vector<int> vert_indices(n_elem_nodes);
                   for (int vi = 0; vi < n_elem_nodes; ++vi)
                   {
-                     map<std::size_t, std::size_t>::const_iterator it =
+                     map<int, int>::const_iterator it =
                         vertices_map.find(data[1+n_tags+vi]);
                      if (it == vertices_map.end())
                      {
@@ -1363,7 +1422,7 @@ void Mesh::ReadGmshV2(std::istream &input, int binary)
                for (int vi = 0; vi < n_elem_nodes; ++vi)
                {
                   input >> index;
-                  map<std::size_t, std::size_t>::const_iterator it = vertices_map.find(index);
+                  map<int, int>::const_iterator it = vertices_map.find(index);
                   if (it == vertices_map.end())
                   {
                      MFEM_ABORT("Gmsh file : vertex index doesn't exist");
