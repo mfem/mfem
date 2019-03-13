@@ -149,7 +149,7 @@ private:
    void Push(const void *ptr, const size_t bytes = 0);
    void Pull(const void *ptr, const size_t bytes = 0);
 };
-  //Check if method has been registered
+  //Check if pointer has been registered with the okina memory manager
   void RegisterCheck(void *ptr);
 } // namespace mfem
 
