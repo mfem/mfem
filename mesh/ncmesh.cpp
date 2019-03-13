@@ -45,9 +45,10 @@ void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
    }
    for (int i = 0; i < nf; i++)
    {      
-      faces[i][3] = 7; // invalid node index for 3-node faces
+      nfv[i] = elem->GetNFaceVertices(i);
 
-      for (int j = 0; j < elem->GetNFaceVertices(i); j++)
+      faces[i][3] = 7; // invalid node index for 3-node faces
+      for (int j = 0; j < nfv[i]; j++)
       {
          faces[i][j] = elem->GetFaceVertices(i)[j];
       }
@@ -1776,7 +1777,7 @@ void NCMesh::InitRootState(int root_count)
    char* node_order;
    int nch;
 
-   switch (GetElementGeometry())
+   switch (elements[0].Geom()) // TODO: mixed meshes
    {
       case Geometry::SQUARE:
          nch = 4;
@@ -1963,6 +1964,9 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex> &mvertices,
 
 void NCMesh::OnMeshUpdated(Mesh *mesh)
 {
+   NEdges = mesh->GetNEdges();
+   NFaces = mesh->GetNumFaces();
+
    Table *edge_vertex = mesh->GetEdgeVertexTable();
 
    // get edge enumeration from the Mesh
@@ -1979,7 +1983,8 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    }
 
    // get face enumeration from the Mesh
-   for (int i = 0; i < mesh->GetNumFaces(); i++)
+   face_geom.SetSize(NFaces);
+   for (int i = 0; i < NFaces; i++)
    {
       const int* fv = mesh->GetFace(i)->GetVertices();
       const int nfv = mesh->GetFace(i)->GetNVertices();
@@ -1989,12 +1994,14 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       {
          if (nfv == 4)
          {
+            face_geom[i] = Geometry::SQUARE;
             face = faces.Find(vertex_nodeId[fv[0]], vertex_nodeId[fv[1]],
                               vertex_nodeId[fv[2]], vertex_nodeId[fv[3]]);
          }
          else
          {
             MFEM_ASSERT(nfv == 3, "");
+            face_geom[i] = Geometry::TRIANGLE;
             face = faces.Find(vertex_nodeId[fv[0]], vertex_nodeId[fv[1]],
                               vertex_nodeId[fv[2]]);
          }
@@ -2002,6 +2009,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       else
       {
          MFEM_ASSERT(nfv == 2, "");
+         face_geom[i] = Geometry::SEGMENT;
          int n0 = vertex_nodeId[fv[0]], n1 = vertex_nodeId[fv[1]];
          face = faces.Find(n0, n0, n1, n1); // look up degenerate face
 
@@ -2015,9 +2023,6 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       MFEM_VERIFY(face, "face not found.");
       face->index = i;
    }
-
-   NEdges = mesh->GetNEdges();
-   NFaces = mesh->GetNumFaces();
 }
 
 
@@ -3867,21 +3872,31 @@ int NCMesh::GetEdgeNCOrientation(const NCMesh::MeshId &edge_id) const
    return ((v0 < v1 && ev[0] > ev[1]) || (v0 > v1 && ev[0] < ev[1])) ? -1 : 1;
 }
 
-void NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
-                                  int vert_index[4], int edge_index[4],
-                                  int edge_orientation[4]) const
+int NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
+                                 int vert_index[4], int edge_index[4],
+                                 int edge_orientation[4]) const
 {
-   const Element &el = elements[face_id.element];
-   const int* fv = GI[el.Geom()].faces[(int) face_id.local];
+   MFEM_ASSERT(Dim >= 3, "");
 
-   for (int i = 0; i < 4; i++)
+   const Element &el = elements[face_id.element];
+   const GeomInfo& gi = GI[el.Geom()];
+
+   const int *fv = gi.faces[(int) face_id.local];
+   const int nfv = gi.nfv[(int) face_id.local];
+
+   vert_index[3] = edge_index[3] = -1;
+   edge_orientation[3] = 0;
+
+   for (int i = 0; i < nfv; i++)
    {
       vert_index[i] = nodes[el.node[fv[i]]].vert_index;
    }
 
-   for (int i = 0; i < 4; i++)
+   for (int i = 0; i < nfv; i++)
    {
-      int j = (i+1) & 0x3;
+      int j = i+1;
+      if (j >= nfv) { j = 0; }
+
       int n1 = el.node[fv[i]];
       int n2 = el.node[fv[j]];
 
@@ -3891,6 +3906,8 @@ void NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
       edge_index[i] = en->edge_index;
       edge_orientation[i] = (vert_index[i] < vert_index[j]) ? 1 : -1;
    }
+
+   return nfv;
 }
 
 int NCMesh::GetEdgeMaster(int node) const

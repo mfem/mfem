@@ -156,7 +156,7 @@ void ParNCMesh::UpdateVertices()
       Element &el = elements[leaf_elements[i]];
       if (el.rank == MyRank)
       {
-         for (int j = 0; j < GI[(int) el.geom].nv; j++)
+         for (int j = 0; j < GI[el.Geom()].nv; j++)
          {
             int &vindex = nodes[el.node[j]].vert_index;
             if (vindex < 0) { vindex = NVertices++; }
@@ -226,6 +226,28 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       // in 2D we have fake faces because of DG
       MFEM_ASSERT(NFaces == NEdges, "");
       MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
+   }
+
+   // update face_geom for ghost faces
+   face_geom.SetSize(NFaces + NGhostFaces);
+   for (int i = 0; i < NGhostElements; i++)
+   {
+      Element &el = elements[leaf_elements[NElements + i]]; // ghost element
+      GeomInfo &gi = GI[el.Geom()];
+
+      for (int j = 0; j < gi.nf; j++)
+      {
+         const int *fv = gi.faces[j];
+         Face* face = faces.Find(el.node[fv[0]], el.node[fv[1]],
+                                 el.node[fv[2]], el.node[fv[3]]);
+         MFEM_ASSERT(face, "face not found!");
+
+         static const Geometry::Type types[5] = {
+            Geometry::INVALID, Geometry::INVALID,
+            Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE };
+
+         face_geom[face->index] = types[gi.nfv[j]];
+      }
    }
 }
 
@@ -649,7 +671,9 @@ int ParNCMesh::get_face_orientation(Face &face, Element &e1, Element &e2,
          ids[i][j] = e[i]->node[fv[j]];
       }
    }
-   return Mesh::GetQuadOrientation(ids[0], ids[1]);
+
+   return (ids[0][3] >= 0) ? Mesh::GetQuadOrientation(ids[0], ids[1])
+          /*            */ : Mesh::GetTriOrientation(ids[0], ids[1]);
 }
 
 void ParNCMesh::CalcFaceOrientations()
@@ -2261,7 +2285,7 @@ void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
    Element &el = elements[elem];
    MFEM_ASSERT(el.ref_type == 0, "");
 
-   GeomInfo& gi = GI[(int) el.geom];
+   GeomInfo& gi = GI[el.Geom()];
    for (int i = 0; i < gi.nv; i++)
    {
       if (nodes[el.node[i]].vert_index == id.index)
@@ -2277,14 +2301,14 @@ void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
 void ParNCMesh::ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem)
 {
    Element &old = elements[id.element];
-   const int *ev = GI[(int) old.geom].edges[id.local];
+   const int *ev = GI[old.Geom()].edges[(int) id.local];
    Node* node = nodes.Find(old.node[ev[0]], old.node[ev[1]]);
    MFEM_ASSERT(node != NULL, "Edge not found.");
 
    Element &el = elements[elem];
    MFEM_ASSERT(el.ref_type == 0, "");
 
-   GeomInfo& gi = GI[(int) el.geom];
+   GeomInfo& gi = GI[el.Geom()];
    for (int i = 0; i < gi.ne; i++)
    {
       const int* ev = gi.edges[i];
@@ -2383,17 +2407,17 @@ void ParNCMesh::DecodeMeshIds(std::istream &is, Array<MeshId> ids[])
          id.local = read<char>(is);
 
          // find vertex/edge/face index
-         GeomInfo &gi = GI[(int) el.geom];
+         GeomInfo &gi = GI[el.Geom()];
          switch (type)
          {
             case 0:
             {
-               id.index = nodes[el.node[id.local]].vert_index;
+               id.index = nodes[el.node[(int) id.local]].vert_index;
                break;
             }
             case 1:
             {
-               const int* ev = gi.edges[id.local];
+               const int* ev = gi.edges[(int) id.local];
                Node* node = nodes.Find(el.node[ev[0]], el.node[ev[1]]);
                MFEM_ASSERT(node && node->HasEdge(), "edge not found.");
                id.index = node->edge_index;
@@ -2401,7 +2425,7 @@ void ParNCMesh::DecodeMeshIds(std::istream &is, Array<MeshId> ids[])
             }
             default:
             {
-               const int* fv = gi.faces[id.local];
+               const int* fv = gi.faces[(int) id.local];
                Face* face = faces.Find(el.node[fv[0]], el.node[fv[1]],
                                        el.node[fv[2]], el.node[fv[3]]);
                MFEM_ASSERT(face, "face not found.");
