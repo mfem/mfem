@@ -351,7 +351,7 @@ doc:
 
 -include $(BLD)deps.mk
 
-$(BLD)libmfem.a: $(OBJECT_FILES)
+$(BLD)libmfem.a: deprecation-warnings $(OBJECT_FILES)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
 
@@ -542,6 +542,11 @@ ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
+
+DEPRECATION_WARNING := "This feature is planned for removal in the next release. Please open an issue at github.com/mfem/mfem/issues if you depend on it."
+.PHONY: deprecation-warnings
+deprecation-warnings:
+	@if [ $(MFEM_USE_OPENMP) = YES ]; then echo [MFEM_USE_OPENMP]: $(DEPRECATION_WARNING); fi
 
 style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
