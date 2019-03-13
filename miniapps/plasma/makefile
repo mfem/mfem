@@ -46,6 +46,9 @@ COMMON_O=../common/fem_extras.o ../common/pfem_extras.o \
 all: $(MINIAPPS)
 
 # Rules for building the miniapps
+braginskii: braginskii.cpp braginskii_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ braginskii_solver.o $(COMMON_O) $(MFEM_LIBS)
+
 %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
 
