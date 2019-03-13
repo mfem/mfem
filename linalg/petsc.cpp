@@ -65,6 +65,7 @@ static PetscErrorCode __mfem_snes_monitor(SNES,PetscInt,PetscReal,void*);
 static PetscErrorCode __mfem_snes_jacobian(SNES,Vec,Mat,Mat,void*);
 static PetscErrorCode __mfem_snes_function(SNES,Vec,Vec,void*);
 static PetscErrorCode __mfem_snes_objective(SNES,Vec,PetscReal*,void*);
+static PetscErrorCode __mfem_snes_update(SNES,PetscInt);
 static PetscErrorCode __mfem_snes_postcheck(SNESLineSearch,Vec,Vec,Vec,
                                             PetscBool*,PetscBool*,void*);
 static PetscErrorCode __mfem_ksp_monitor(KSP,PetscInt,PetscReal,void*);
@@ -122,6 +123,11 @@ typedef struct
    // PostCheck function (to be called after successfull line search)
    void (*postcheck)(mfem::Operator *op, const mfem::Vector&, mfem::Vector&,
                      mfem::Vector&, bool&, bool&);
+   // General purpose update function (to be called at the beginning of
+   // each nonlinear step)
+   void (*update)(mfem::Operator *op, int,
+                  const mfem::Vector&, const mfem::Vector&,
+                  const mfem::Vector&, const mfem::Vector&);
 } __mfem_snes_ctx;
 
 typedef struct
@@ -3316,6 +3322,19 @@ void PetscNonlinearSolver::SetPostCheck(void (*post)(Operator *,const Vector&,
    PCHKERRQ(ls, ierr);
 }
 
+void PetscNonlinearSolver::SetUpdate(void (*update)(Operator *,int,
+                                                    const mfem::Vector&,
+                                                    const mfem::Vector&,
+                                                    const mfem::Vector&,
+                                                    const mfem::Vector&))
+{
+   __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
+   snes_ctx->update = update;
+
+   SNES snes = (SNES)obj;
+   ierr = SNESSetUpdate(snes, __mfem_snes_update); PCHKERRQ(snes, ierr);
+}
+
 void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
 {
    SNES snes = (SNES)obj;
@@ -4087,9 +4106,37 @@ static PetscErrorCode __mfem_snes_postcheck(SNESLineSearch ls,Vec X,Vec Y,Vec W,
    mfem::PetscParVector x(X,true);
    mfem::PetscParVector y(Y,true);
    mfem::PetscParVector w(W,true);
-   snes_ctx->postcheck(snes_ctx->op,x,y,w,lcy,lcw);
+   (*snes_ctx->postcheck)(snes_ctx->op,x,y,w,lcy,lcw);
    if (lcy) { *cy = PETSC_TRUE; }
    if (lcw) { *cw = PETSC_TRUE; }
+   PetscFunctionReturn(0);
+}
+
+static PetscErrorCode __mfem_snes_update(SNES snes, PetscInt it)
+{
+   Vec F,X,dX,pX;
+   __mfem_snes_ctx* snes_ctx;
+
+   PetscFunctionBeginUser;
+   /* Update callback does not use the context */
+   ierr = SNESGetFunction(snes,&F,NULL,(void **)&snes_ctx); CHKERRQ(ierr);
+   ierr = SNESGetSolution(snes,&X); CHKERRQ(ierr);
+   if (!it) {
+     ierr = VecDuplicate(X,&pX); CHKERRQ(ierr);
+     ierr = PetscObjectCompose((PetscObject)snes,"_mfem_snes_xp",(PetscObject)pX); CHKERRQ(ierr);
+     ierr = VecDestroy(&pX); CHKERRQ(ierr);
+   }
+   ierr = PetscObjectQuery((PetscObject)snes,"_mfem_snes_xp",(PetscObject*)&pX); CHKERRQ(ierr);
+   if (!pX) SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_USER,
+            "Missing previous solution");
+   ierr = SNESGetSolutionUpdate(snes,&dX); CHKERRQ(ierr);
+   mfem::PetscParVector f(F,true);
+   mfem::PetscParVector x(X,true);
+   mfem::PetscParVector dx(dX,true);
+   mfem::PetscParVector px(pX,true);
+   (*snes_ctx->update)(snes_ctx->op,it,f,x,dx,px);
+   /* Store previous solution */
+   ierr = VecCopy(X,pX); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
