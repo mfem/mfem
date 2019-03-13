@@ -36,25 +36,46 @@ public:
                                      Vector &new_field);
 };
 
-// Performs a single remap advection step.
-class AdvectorCGOperator : public TimeDependentOperator
+/// Performs a single remap advection step in serial.
+class SerialAdvectorCGOper : public TimeDependentOperator
 {
-private:
+protected:
    const Vector &x0;
    Vector &x_now;
    GridFunction &u;
+   VectorGridFunctionCoefficient u_coeff;
+   mutable BilinearForm M, K;
 
+public:
+   /** Here pfes must be the ParFESpace of the function that will be moved, and
+       xn must be the Nodes values of the mesh that will be moved. */
+   SerialAdvectorCGOper(const Vector &x_start, GridFunction &vel,
+                        Vector &xn, FiniteElementSpace &fes);
+
+   virtual void Mult(const Vector &ind, Vector &di_dt) const;
+};
+
+
+#ifdef MFEM_USE_MPI
+/// Performs a single remap advection step in parallel.
+class ParAdvectorCGOper : public TimeDependentOperator
+{
+protected:
+   const Vector &x0;
+   Vector &x_now;
+   GridFunction &u;
    VectorGridFunctionCoefficient u_coeff;
    mutable ParBilinearForm M, K;
 
 public:
-   // Note: pfes must be the ParFESpace of the mesh that will be moved.
-   //       xn must be the Nodes values of the mesh that will be moved.
-   AdvectorCGOperator(const Vector &x_start, GridFunction &vel,
-                      Vector &xn, ParFiniteElementSpace &pfes);
+   /** Here pfes must be the ParFESpace of the function that will be moved, and
+       xn must be the Nodes values of the mesh that will be moved. */
+   ParAdvectorCGOper(const Vector &x_start, GridFunction &vel,
+                     Vector &xn, ParFiniteElementSpace &pfes);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
+#endif
 
 class TMOPNewtonSolver : public NewtonSolver
 {
