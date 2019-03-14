@@ -253,7 +253,7 @@ void *mm::Ptr(void *ptr)
    if (MmDeviceIniFilter()) { return ptr; }
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
-   if (config::UsingDevice() && ptr==NULL)
+   if (ptr==NULL)
    {
      return NULL;
    }
