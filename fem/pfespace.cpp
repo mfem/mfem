@@ -1942,15 +1942,7 @@ int ParFiniteElementSpace
          if (!list.masters.size()) { continue; }
 
          IsoparametricTransformation T;
-         if (entity > 1) { T.SetFE(&QuadrilateralFE); }
-         else { T.SetFE(&SegmentFE); }
-
-         Geometry::Type geom = (entity > 1) ?
-                               Geometry::SQUARE : Geometry::SEGMENT;
-         const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
-         if (!fe) { continue; }
-
-         DenseMatrix I(fe->GetDof());
+         DenseMatrix I;
 
          // process masters that we own or that affect our edges/faces
          for (unsigned mi = 0; mi < list.masters.size(); mi++)
@@ -1963,6 +1955,17 @@ int ParFiniteElementSpace
             : GetEntityDofs(entity, mf.index, master_dofs);
 
             if (!master_dofs.Size()) { continue; }
+
+            const FiniteElement* fe = fec->FiniteElementForGeometry(mf.Geom());
+            if (!fe) { continue; }
+
+            switch (mf.Geom())
+            {
+               case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
+               case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
+               case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
+               default: MFEM_ABORT("unsupported geometry");
+            }
 
             // constrain slaves that exist in our mesh
             for (int si = mf.slaves_begin; si < mf.slaves_end; si++)

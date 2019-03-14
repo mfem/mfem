@@ -595,8 +595,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // collect local edge/face dependencies
    for (int entity = 1; entity <= 2; entity++)
    {
-      const NCMesh::NCList &list = (entity > 1) ? mesh->ncmesh->GetFaceList()
-                                   /*        */ : mesh->ncmesh->GetEdgeList();
+      const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
       if (!list.masters.size()) { continue; }
 
       Array<int> master_dofs, slave_dofs;
