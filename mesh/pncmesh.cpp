@@ -229,7 +229,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    }
 
    // update face_geom for ghost faces
-   face_geom.SetSize(NFaces + NGhostFaces);
+   face_geom.SetSize(NFaces + NGhostFaces, Geometry::SQUARE);
    for (int i = 0; i < NGhostElements; i++)
    {
       Element &el = elements[leaf_elements[NElements + i]]; // ghost element
@@ -624,8 +624,8 @@ void ParNCMesh::CalculatePMatrixGroups()
 
       AddConnections(2, master_face.index, ranks);
 
-      GetFaceVerticesEdges(master_face, v, e, eo);
-      for (int j = 0; j < 4; j++)
+      int nfv = GetFaceVerticesEdges(master_face, v, e, eo);
+      for (int j = 0; j < nfv; j++)
       {
          AddConnections(0, v[j], ranks);
          AddConnections(1, e[j], ranks);
@@ -898,6 +898,8 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
 
 void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
 {
+   // FIXME empty processors
+
    // make sure we have entity_conf_group[x] and the ordering arrays
    for (int ent = 0; ent < Dim; ent++)
    {
@@ -940,7 +942,7 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    MakeSharedTable(ngroups, 1, pmesh.sedge_ledge, pmesh.group_sedge);
    MakeSharedTable(ngroups, 2, pmesh.sface_lface, pmesh.group_squad);
 
-   // create an empty group_stria (we currently don't have triangle faces)
+   // create an empty group_stria (we currently don't have triangle faces) FIXME
    pmesh.group_stria.MakeI(ngroups-1);
    pmesh.group_stria.MakeJ();
    pmesh.group_stria.ShiftUpI();
@@ -2260,8 +2262,8 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
       if (contains_rank[entity_pmat_group[2][face_id.index]])
       {
          int v[4], e[4], eo[4], pos, k;
-         GetFaceVerticesEdges(face_id, v, e, eo);
-         for (int j = 0; j < 4; j++)
+         int nfv = GetFaceVerticesEdges(face_id, v, e, eo);
+         for (int j = 0; j < nfv; j++)
          {
             if ((pos = find_v.FindSorted(Pair<int, int>(v[j], 0))) != -1)
             {
