@@ -55,7 +55,6 @@ public:
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
 
-
 #ifdef MFEM_USE_MPI
 /// Performs a single remap advection step in parallel.
 class ParAdvectorCGOper : public TimeDependentOperator
@@ -80,18 +79,20 @@ public:
 class TMOPNewtonSolver : public NewtonSolver
 {
 private:
+   bool parallel;
+
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
-   ParFiniteElementSpace *pfes;
-   mutable ParGridFunction x_gf;
 
    mutable DiscreteAdaptTC *discr_tc;
 
 public:
-   TMOPNewtonSolver(const IntegrationRule &irule, ParFiniteElementSpace *pf)
-      : NewtonSolver(pf->GetComm()),
-        ir(irule), pfes(pf), x_gf(),
-        discr_tc(NULL) { }
+#ifdef MFEM_USE_MPI
+   TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
+      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL) { }
+#endif
+   TMOPNewtonSolver(const IntegrationRule &irule)
+      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL) { }
 
    void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) { discr_tc = tc; }
 
@@ -104,18 +105,24 @@ public:
 class TMOPDescentNewtonSolver : public NewtonSolver
 {
 private:
+   bool parallel;
+
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
-   ParFiniteElementSpace *pfes;
-   mutable ParGridFunction x_gf;
+
+   mutable DiscreteAdaptTC *discr_tc;
 
 public:
-   TMOPDescentNewtonSolver(const IntegrationRule &irule,
-                           ParFiniteElementSpace *pf)
-      : NewtonSolver(pf->GetComm()),
-        ir(irule), pfes(pf), x_gf() { }
+#ifdef MFEM_USE_MPI
+   TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
+      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL) { }
+#endif
+   TMOPDescentNewtonSolver(const IntegrationRule &irule)
+      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
+
+   virtual void ProcessNewState(const Vector &x) const;
 };
 
 void vis_tmop_metric(int order, TMOP_QualityMetric &qm,

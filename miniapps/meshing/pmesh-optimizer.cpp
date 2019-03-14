@@ -686,7 +686,7 @@ int main (int argc, char *argv[])
    if (tauval > 0.0)
    {
       tauval = 0.0;
-      TMOPNewtonSolver *tns = new TMOPNewtonSolver(*ir, pfespace);
+      TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir);
       if (target_id == 5)
       {
          tns->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
@@ -707,7 +707,7 @@ int main (int argc, char *argv[])
       double h0min = h0.Min(), h0min_all;
       MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
       tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
-      newton = new TMOPDescentNewtonSolver(*ir, pfespace);
+      newton = new TMOPDescentNewtonSolver(pfespace->GetComm(), *ir);
       if (myid == 0)
       { cout << "TMOPDescentNewtonSolver is used (as some det(J) < 0).\n"; }
    }
