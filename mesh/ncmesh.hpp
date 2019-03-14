@@ -628,8 +628,9 @@ protected: // implementation
 
 
    void CollectEdgeVertices(int v0, int v1, Array<int> &indices);
-   void CollectFaceVertices(int v0, int v1, int v2, int v3,
-                            Array<int> &indices);
+   void CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices);
+   void CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
+                                Array<int> &indices);
    void BuildElementToVertexTable();
 
    void UpdateElementToVertexTable()

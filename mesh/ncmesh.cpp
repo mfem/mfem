@@ -1920,7 +1920,7 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex> &mvertices,
       for (int k = 0; k < gi.nf; k++)
       {
          const int* fv = gi.faces[k];
-         const int nfv = (node[fv[3]] < 0) ? 3 : 4;
+         const int nfv = gi.nfv[k];
          const Face* face = faces.Find(node[fv[0]], node[fv[1]],
                                        node[fv[2]], node[fv[3]]);
          if (face->Boundary())
@@ -2092,26 +2092,6 @@ int NCMesh::find_element_edge(const Element &el, int vn0, int vn1)
    MFEM_ABORT("Edge (" << vn0 << ", " << vn1 << ") not found");
    return -1;
 }
-
-/*int NCMesh::find_element_face(const Element &el, int vn0, int vn1, int vn2)
-{
-   MFEM_ASSERT(!el.ref_type, "");
-   internal::sort3(vn0, vn1, vn2);
-
-   GeomInfo &gi = GI[el.Geom()];
-   for (int i = 0; i < gi.nf; i++)
-   {
-      const int* fv = gi.faces[i];
-      int node[4] = {el.node[fv[0]], el.node[fv[1]],
-                     el.node[fv[2]], el.node[fv[3]]};
-
-      internal::sort4_ext(node[0], node[1], node[2], node[3]);
-      if (node[0] == vn0 && node[1] == vn1 && node[2] == vn2) { return i; }
-   }
-
-   MFEM_ABORT("Face (" << vn0 << ", " << vn1 << ", " << vn2 << ") not found");
-   return -1;
-}*/
 
 int NCMesh::find_local_face(int geom, int a, int b, int c)
 {
@@ -2626,8 +2606,27 @@ void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
    }
 }
 
-void NCMesh::CollectFaceVertices(int v0, int v1, int v2, int v3,
-                                 Array<int> &indices)
+void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
+{
+   int mid[3];
+   if (faces.FindId(v0, v1, v2) < 0 &&
+       (mid[0] = nodes.FindId(v0, v1)) >= 0 &&
+       (mid[1] = nodes.FindId(v1, v2)) >= 0 &&
+       (mid[2] = nodes.FindId(v2, v0)) >= 0)
+   {
+      for (int i = 0; i < 3; i++)
+      {
+         indices.Append(mid[i]);
+      }
+      CollectTriFaceVertices(v0, mid[0], mid[2], indices);
+      CollectTriFaceVertices(mid[0], v1, mid[1], indices);
+      CollectTriFaceVertices(mid[2], mid[1], v2, indices);
+      CollectTriFaceVertices(mid[0], mid[1], mid[2], indices);
+   }
+}
+
+void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
+                                     Array<int> &indices)
 {
    int mid[4];
    switch (QuadFaceSplitType(v0, v1, v2, v3, mid))
@@ -2636,16 +2635,16 @@ void NCMesh::CollectFaceVertices(int v0, int v1, int v2, int v3,
          indices.Append(mid[0]);
          indices.Append(mid[2]);
 
-         CollectFaceVertices(v0, mid[0], mid[2], v3, indices);
-         CollectFaceVertices(mid[0], v1, v2, mid[2], indices);
+         CollectQuadFaceVertices(v0, mid[0], mid[2], v3, indices);
+         CollectQuadFaceVertices(mid[0], v1, v2, mid[2], indices);
          break;
 
       case 2:
          indices.Append(mid[1]);
          indices.Append(mid[3]);
 
-         CollectFaceVertices(v0, v1, mid[1], mid[3], indices);
-         CollectFaceVertices(mid[3], mid[1], v2, v3, indices);
+         CollectQuadFaceVertices(v0, v1, mid[1], mid[3], indices);
+         CollectQuadFaceVertices(mid[3], mid[1], v2, v3, indices);
          break;
    }
 }
@@ -2681,8 +2680,16 @@ void NCMesh::BuildElementToVertexTable()
          for (int j = 0; j < gi.nf; j++)
          {
             const int* fv = gi.faces[j];
-            CollectFaceVertices(node[fv[0]], node[fv[1]],
-                                node[fv[2]], node[fv[3]], indices);
+            if (gi.nfv[j] == 4)
+            {
+               CollectQuadFaceVertices(node[fv[0]], node[fv[1]],
+                                       node[fv[2]], node[fv[3]], indices);
+            }
+            else
+            {
+               CollectTriFaceVertices(node[fv[0]], node[fv[1]], node[fv[2]],
+                                      indices);
+            }
          }
       }
 
@@ -4091,10 +4098,10 @@ int NCMesh::EdgeSplitLevel(int vn1, int vn2) const
 int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
 {
    int mid[3];
-   if ((mid[0] = nodes.FindId(vn1, vn2)) >= 0 &&
+   if (faces.FindId(vn1, vn2, vn3) < 0 &&
+       (mid[0] = nodes.FindId(vn1, vn2)) >= 0 &&
        (mid[1] = nodes.FindId(vn2, vn3)) >= 0 &&
-       (mid[2] = nodes.FindId(vn3, vn1)) >= 0 &&
-       faces.FindId(vn1, vn2, vn3) < 0)
+       (mid[2] = nodes.FindId(vn3, vn1)) >= 0)
    {
       return 1 + max4(TriFaceSplitLevel(vn1, mid[0], mid[2]),
                       TriFaceSplitLevel(mid[0], vn2, mid[1]),
@@ -4153,7 +4160,7 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
       for (int i = 0; i < gi.nf; i++)
       {
          const int* fv = gi.faces[i];
-         if (node[fv[3]] >= 0)
+         if (gi.nfv[i] == 4)
          {
             QuadFaceSplitLevel(node[fv[0]], node[fv[1]],
                                node[fv[2]], node[fv[3]],
@@ -4691,8 +4698,9 @@ void NCMesh::DebugDump(std::ostream &out) const
                                find_node(el, face->p1),
                                find_node(el, face->p2),
                                find_node(el, face->p3));
+
       const int* fv = GI[el.Geom()].faces[lf];
-      const int nfv = (el.Geom() == Geometry::PRISM && fv[3] == 7) ? 3 : 4;
+      const int nfv = GI[el.Geom()].nfv[lf];
 
       out << nfv;
       for (int i = 0; i < nfv; i++)
