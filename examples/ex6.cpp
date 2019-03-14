@@ -45,6 +45,9 @@ int main(int argc, char *argv[])
    int order = 1;
    bool pa = false;
    bool cuda = false;
+   bool omp  = false;
+   bool raja = false;
+   bool occa = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -55,6 +58,9 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
+   args.AddOption(&omp, "-om", "--omp", "-no-om", "--no-omp", "Enable OpenMP.");
+   args.AddOption(&raja, "-ra", "--raja", "-no-ra", "--no-raja", "Enable RAJA.");
+   args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -91,12 +97,14 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fec);
 
    // 5. Set MFEM config parameters from the command line options
-   config::usePA(pa);
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    int elem_batch = (pa) ? mesh.GetNE() : 1;
    if (pa) { mesh.EnsureNodes(); }
-   if (cuda) { config::useCuda(); }
-   config::enableGpu(0);
+   if (cuda) { config::UseCuda(); }
+   if (omp)  { config::UseOmp();  }
+   if (raja) { config::UseRaja(); }
+   if (occa) { config::UseOcca(); }
+   config::EnableDevice(0);
 
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
@@ -107,8 +115,10 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
 
+   PADiffusionIntegrator *pa_integ = new PADiffusionIntegrator(one);
    DiffusionIntegrator *integ = new DiffusionIntegrator(one);
-   a.AddDomainIntegrator(integ);
+   if (pa) { a.AddDomainIntegrator(pa_integ); }
+   else    { a.AddDomainIntegrator(integ); }
 
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
 
@@ -166,8 +176,8 @@ int main(int argc, char *argv[])
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      // 15. Assemble the stiffness matrix and the right-hand side.
-      config::SwitchToGpu();
+      // 15. Assemble the stiffness matrix.
+      config::SwitchToDevice();
       a.Assemble();
 
       // 16. Create the linear system: eliminate boundary conditions, constrain
@@ -203,7 +213,7 @@ int main(int argc, char *argv[])
       // 19. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
-      config::SwitchToCpu();
+      config::SwitchToHost();
       a.RecoverFEMSolution(X, b, x);
 
       // 20. Send solution by socket to the GLVis server.

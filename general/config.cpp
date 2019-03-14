@@ -72,15 +72,9 @@ void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
       occaDevice.setup("mode: 'Serial'");
    }
    const std::string mfem_dir = occa::io::dirname(__FILE__) + "../";
-   occa::io::addLibraryPath("fem",     mfem_dir + "fem/kernels");
-   occa::io::addLibraryPath("general", mfem_dir + "general/kernels");
-   occa::io::addLibraryPath("linalg",  mfem_dir + "linalg/kernels");
-   occa::io::addLibraryPath("mesh",    mfem_dir + "mesh/kernels");
+   occa::io::addLibraryPath("fem", mfem_dir + "fem");
    occa::loadKernels();
    occa::loadKernels("fem");
-   occa::loadKernels("general");
-   occa::loadKernels("linalg");
-   occa::loadKernels("mesh");
 #else
    MFEM_ABORT("OCCA requested but no support has been built!");
 #endif
@@ -108,7 +102,7 @@ void config::MfemDeviceSetup(const int dev)
 // *****************************************************************************
 config::~config()
 {
-   if (raja || cuda) { delete[] cuStream; }
+   if (raja || cuda) { delete cuStream; }
 }
 
 } // mfem

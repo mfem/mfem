@@ -66,9 +66,9 @@ void seqWrap(const int N, HBODY &&h_body)
 template <int BLOCKS, typename DBODY, typename HBODY>
 void wrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {
-   const bool omp  = mfem::config::usingOmp();
-   const bool gpu  = mfem::config::usingGpu();
-   const bool raja = mfem::config::usingRaja();
+   const bool omp  = mfem::config::UsingOmp();
+   const bool gpu  = mfem::config::UsingDevice();
+   const bool raja = mfem::config::UsingRaja();
    if (gpu && raja) { return rajaCudaWrap<BLOCKS>(N, d_body); }
    if (gpu)         { return cuWrap<BLOCKS>(N, d_body); }
    if (omp && raja) { return rajaOmpWrap(N, h_body); }
@@ -84,14 +84,14 @@ void wrap(const int N, DBODY &&d_body, HBODY &&h_body)
 #define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
 #define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
    wrap<BLOCKS>(N,                                                      \
-                [=] __device__ (int i)mutable{__VA_ARGS__},             \
+                [=] __device__ (int i) mutable {__VA_ARGS__},           \
                 [&]            (int i){__VA_ARGS__})
 #define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(i,1,1,__VA_ARGS__)
 
 // *****************************************************************************
-uint32_t LOG2(uint32_t);
-#define ISQRT(N) static_cast<unsigned>(sqrt(static_cast<float>(N)))
-#define ICBRT(N) static_cast<unsigned>(cbrt(static_cast<float>(N)))
+int LOG2(int);
+#define ISQRT(N) static_cast<int>(sqrtf(static_cast<float>(N)))
+#define ICBRT(N) static_cast<int>(cbrtf(static_cast<float>(N)))
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
 
 // *****************************************************************************
@@ -103,7 +103,19 @@ uint32_t LOG2(uint32_t);
 
 // *****************************************************************************
 #define FILE_LINE __FILE__ && __LINE__
-#define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE && false);}
-#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::usingGpu());}
+#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::UsingDevice());}
+
+// *****************************************************************************
+const char *strrnchr(const char*, const unsigned char, const int);
+void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
+
+// *****************************************************************************
+#define MFEM_XA(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
+#define MFEM_NA(...) MFEM_XA(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
+#define MFEM_FILENAME ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
+#define MFEM_FLF MFEM_FILENAME,__LINE__,__FUNCTION__
+
+// *****************************************************************************
+#define dbg(...) dbg_F_L_F_N_A(MFEM_FLF, MFEM_NA(__VA_ARGS__),__VA_ARGS__)
 
 #endif // MFEM_OKINA_HPP

@@ -23,8 +23,6 @@
 #include <limits>
 #include <cstring>
 
-#include "kernels/sparsemat.hpp"
-
 namespace mfem
 {
 
@@ -35,7 +33,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      I(NULL),
      J(NULL),
      A(NULL),
-     Rows(mm::malloc<RowNode*>(nrows)),
+     Rows(new RowNode *[nrows]),
      current_row(-1),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
@@ -43,7 +41,10 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      ownData(true),
      isSorted(false)
 {
-   kernels::sparsemat::SparseMatrix(nrows,Rows);
+   for (int i = 0; i < nrows; i++)
+   {
+      Rows[i] = NULL;
+   }
 
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = new RowNodeAlloc;
@@ -87,7 +88,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
    if ( A == NULL )
    {
       ownData = true;
-      const int nnz = I[height];
+      int nnz = I[height];
       A = mm::malloc<double>(nnz);
       for (int i=0; i<nnz; ++i)
       {
@@ -152,7 +153,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
 #ifdef MFEM_USE_MEMALLOC
       NodesMem = new RowNodeAlloc;
 #endif
-      Rows = mm::malloc<RowNode*>(height);
+      Rows = new RowNode *[height];
       for (int i = 0; i < height; i++)
       {
          RowNode **node_pp = &Rows[i];
@@ -161,7 +162,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
 #ifdef MFEM_USE_MEMALLOC
             RowNode *new_node_p = NodesMem->Alloc();
 #else
-            RowNode *new_node_p = mm::malloc<RowNode>(1);
+            RowNode *new_node_p = new RowNode;
 #endif
             new_node_p->Value = node_p->Value;
             new_node_p->Column = node_p->Column;
@@ -238,7 +239,6 @@ void SparseMatrix::MakeRef(const SparseMatrix &master)
 
 void SparseMatrix::SetEmpty()
 {
-   //MFEM_GPU_CANNOT_PASS;
    height = width = 0;
    I = J = NULL;
    A = NULL;
@@ -592,7 +592,21 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    if (a == 1.0)
    {
 #ifndef MFEM_USE_OPENMP
-      kernels::sparsemat::AddMult(height,Ip,Jp,Ap,xp,yp);
+      const DeviceArray d_I(I);
+      const DeviceArray d_J(J);
+      const DeviceVector d_A(A);
+      const DeviceVector d_x(x, x.Size());
+      DeviceVector d_y(y, y.Size());
+      MFEM_FORALL(i, height,
+      {
+         double d = 0.0;
+         const int end = d_I[i+1];
+         for (int j=d_I[i]; j < end; j+=1)
+         {
+            d += d_A[j] * d_x[d_J[j]];
+         }
+         d_y[i] += d;
+      });
 #else
       #pragma omp parallel for private(j,end)
       for (i = 0; i < height; i++)
@@ -652,21 +666,21 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       return;
    }
    // Prepare the lambda capture and get our pointers from the memory manager
-   const int Height = height;
+   const int d_height = height;
    const DeviceArray d_I(I);
    const DeviceArray d_J(J);
    const DeviceVector d_A(A);
-   const DeviceVector d_x(x,Height);
-   DeviceVector d_y(y,Height);
-   const bool usingGpu = config::usingGpu();
-   MFEM_FORALL(i, Height,
+   const DeviceVector d_x(x, x.Size());
+   DeviceVector d_y(y, y.Size());
+   const bool device = config::UsingDevice();
+   MFEM_FORALL(i, d_height,
    {
       const double xi = a * d_x[i];
       const int end = d_I[i+1];
       for (int j = d_I[i]; j < end; j++)
       {
          const int Jj = d_J[j];
-         if (usingGpu)
+         if (device)
          {
             AtomicAdd(&d_y[Jj], d_A[j] * xi);
          }
@@ -718,7 +732,6 @@ void SparseMatrix::PartAddMult(
 
 void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
 {
-   //MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
    MFEM_ASSERT(x.Size() == Width(), "Input vector size (" << x.Size()
                << ") must match matrix width (" << Width() << ")");
@@ -726,18 +739,25 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    y.SetSize(Height());
    y = 0;
 
-   for (int i = 0; i < Height(); i++)
+   const int height = Height();
+   const int *d_I = (const int*) mm::ptr(I);
+   const int *d_J = (const int*) mm::ptr(J);
+   const DeviceArray d_x(x, x.Size());
+   DeviceArray d_y(y, y.Size());
+   MFEM_FORALL(i, height,
    {
-      int end = I[i+1];
-      for (int j = I[i]; j < end; j++)
+      const int end = d_I[i+1];
+      for (int j = d_I[i]; j < end; j++)
       {
-         if (x[J[j]])
+         if (d_x[d_J[j]])
          {
-            y[i] = x[J[j]];
+            d_y[i] = d_x[d_J[j]];
             break;
          }
       }
-   }
+   });
+   // Sync on host for some later verifications in GetEssentialTrueDofs
+   mm::pull(y);
 }
 
 void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
@@ -843,7 +863,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       return;
    }
 
-   mm::free<double>(ColPtrNode);
+   delete [] ColPtrNode;
    ColPtrNode = NULL;
 
    I = mm::malloc<int>(height+1);
@@ -905,12 +925,12 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       {
          aux = node_p;
          node_p = node_p->Prev;
-         mm::free<RowNode>(aux);
+         delete aux;
       }
    }
 #endif
 
-   mm::free<double>(Rows);
+   delete [] Rows;
    Rows = NULL;
 }
 
@@ -1066,7 +1086,6 @@ void SparseMatrix::Symmetrize()
 
 int SparseMatrix::NumNonZeroElems() const
 {
-   //MFEM_GPU_CANNOT_PASS;
    if (A != NULL)  // matrix is finalized
    {
       return I[height];
@@ -1783,18 +1802,76 @@ void SparseMatrix::EliminateZeroRows(const double threshold)
 void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
 {
    MFEM_GPU_CANNOT_PASS;
-   int s = height;
-   double *yp = y.GetData();
+   int c, i, s = height;
+   double sum, *yp = y.GetData();
    const double *xp = x.GetData();
 
    if (A == NULL)
    {
-      RowNode **R = Rows;
-      kernels::sparsemat::Gauss_Seidel_forw_A_NULL(s,R,xp,yp);
+      RowNode *diag_p, *n_p, **R = Rows;
+
+      for (i = 0; i < s; i++)
+      {
+         sum = 0.0;
+         diag_p = NULL;
+         for (n_p = R[i]; n_p != NULL; n_p = n_p->Prev)
+            if ((c = n_p->Column) == i)
+            {
+               diag_p = n_p;
+            }
+            else
+            {
+               sum += n_p->Value * yp[c];
+            }
+
+         if (diag_p != NULL && diag_p->Value != 0.0)
+         {
+            yp[i] = (xp[i] - sum) / diag_p->Value;
+         }
+         else if (xp[i] == sum)
+         {
+            yp[i] = sum;
+         }
+         else
+         {
+            mfem_error("SparseMatrix::Gauss_Seidel_forw()");
+         }
+      }
    }
    else
    {
-      kernels::sparsemat::Gauss_Seidel_forw(s,I,J,A,xp,yp);
+      int j, end, d, *Ip = I, *Jp = J;
+      double *Ap = A;
+
+      j = Ip[0];
+      for (i = 0; i < s; i++)
+      {
+         end = Ip[i+1];
+         sum = 0.0;
+         d = -1;
+         for ( ; j < end; j++)
+            if ((c = Jp[j]) == i)
+            {
+               d = j;
+            }
+            else
+            {
+               sum += Ap[j] * yp[c];
+            }
+
+         if (d >= 0 && Ap[d] != 0.0)
+         {
+            yp[i] = (xp[i] - sum) / Ap[d];
+         }
+         else if (xp[i] == sum)
+         {
+            yp[i] = sum;
+         }
+         else
+         {
+            mfem_error("SparseMatrix::Gauss_Seidel_forw(...) #2");
+         }
+      }
    }
 }
 
@@ -1839,7 +1916,38 @@ void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
    }
    else
    {
-      kernels::sparsemat::Gauss_Seidel_back(height,I,J,A,xp,yp);
+      int j, beg, d, *Ip = I, *Jp = J;
+      double *Ap = A;
+
+      j = Ip[height]-1;
+      for (i = height-1; i >= 0; i--)
+      {
+         beg = Ip[i];
+         sum = 0.;
+         d = -1;
+         for ( ; j >= beg; j--)
+            if ((c = Jp[j]) == i)
+            {
+               d = j;
+            }
+            else
+            {
+               sum += Ap[j] * yp[c];
+            }
+
+         if (d >= 0 && Ap[d] != 0.0)
+         {
+            yp[i] = (xp[i] - sum) / Ap[d];
+         }
+         else if (xp[i] == sum)
+         {
+            yp[i] = sum;
+         }
+         else
+         {
+            mfem_error("SparseMatrix::Gauss_Seidel_back(...) #2");
+         }
+      }
    }
 }
 
@@ -2704,20 +2812,20 @@ void SparseMatrix::Destroy()
          {
             aux = node_p;
             node_p = node_p->Prev;
-            mm::free<RowNode>(aux);
+            delete aux;
          }
       }
 #endif
-      mm::free<RowNode*>(Rows);
+      delete [] Rows;
    }
 
    if (ColPtrJ != NULL)
    {
-      mm::free<int>(ColPtrJ);
+      delete [] ColPtrJ;
    }
    if (ColPtrNode != NULL)
    {
-      mm::free<RowNode*>(ColPtrNode);
+      delete [] ColPtrNode;
    }
 #ifdef MFEM_USE_MEMALLOC
    if (NodesMem != NULL)
@@ -2766,7 +2874,6 @@ void SparseMatrixFunction (SparseMatrix & S, double (*f)(double))
 
 SparseMatrix *Transpose (const SparseMatrix &A)
 {
-   //MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(
       A.Finalized(),
       "Finalize must be called before Transpose. Use TransposeRowMatrix instead");
@@ -2854,7 +2961,7 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
    }
    nnz = A.NumNonZeroElems();
 
-   At_i =mm::malloc<int>(n+1);
+   At_i = mm::malloc<int>(n+1);
    At_j = mm::malloc<int>(nnz);
    At_data = mm::malloc<double>(nnz);
 
@@ -3456,7 +3563,6 @@ SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B)
 
 void SparseMatrix::Swap(SparseMatrix &other)
 {
-   //MFEM_GPU_CANNOT_PASS;
    mfem::Swap(width, other.width);
    mfem::Swap(height, other.height);
    mfem::Swap(I, other.I);

@@ -51,6 +51,9 @@ int main(int argc, char *argv[])
    int order = 1;
    bool pa = false;
    bool cuda = false;
+   bool omp  = false;
+   bool raja = false;
+   bool occa = false;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -61,6 +64,9 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
+   args.AddOption(&omp, "-om", "--omp", "-no-om", "--no-omp", "Enable OpenMP.");
+   args.AddOption(&raja, "-ra", "--raja", "-no-ra", "--no-raja", "Enable RAJA.");
+   args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -85,6 +91,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
+   if (pa) { mesh->EnsureNodes(); }
 
    // 4. Refine the serial mesh on all processors to increase the resolution.
    //    Also project a NURBS mesh to a piecewise-quadratic curved mesh. Make
@@ -95,6 +102,7 @@ int main(int argc, char *argv[])
       mesh->SetCurvature(2);
    }
    mesh->EnsureNCMesh();
+
 
    // 5. Define a parallel mesh by partitioning the serial mesh.
    //    Once the parallel mesh is defined, the serial mesh can be deleted.
@@ -112,12 +120,13 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace(&pmesh, &fec);
 
    // 5. Set MFEM config parameters from the command line options
-   config::usePA(pa);
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    int elem_batch = (pa) ? pmesh.GetNE() : 1;
-   if (pa) { pmesh.EnsureNodes(); }
-   if (cuda) { config::useCuda(); }
-   config::enableGpu(0);
+   if (cuda) { config::UseCuda(); }
+   if (omp)  { config::UseOmp();  }
+   if (raja) { config::UseRaja(); }
+   if (occa) { config::UseOcca(); }
+   config::EnableDevice(0);
 
    // 7. As in Example 1p, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
@@ -127,8 +136,11 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient one(1.0);
 
+   PADiffusionIntegrator *pa_integ = new PADiffusionIntegrator(one);
    BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
-   a.AddDomainIntegrator(integ);
+   if (pa) { a.AddDomainIntegrator(pa_integ); }
+   else    { a.AddDomainIntegrator(integ); }
+
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
 
    // 8. The solution vector x and the associated finite element grid function
@@ -191,50 +203,60 @@ int main(int argc, char *argv[])
          cout << "Number of unknowns: " << global_dofs << endl;
       }
 
-      // 13. Assemble the stiffness matrix and the right-hand side. Note that
-      //     MFEM doesn't care at this point that the mesh is nonconforming
-      //     and parallel. The FE space is considered 'cut' along hanging
-      //     edges/faces, and also across processor boundaries.
-      a.Assemble();
+      // 13. Assemble the right-hand side.
       b.Assemble();
 
-      // 14. Create the parallel linear system: eliminate boundary conditions,
-      //     constrain hanging nodes and nodes across processor boundaries.
-      //     The system will be solved for true (unconstrained/unique) DOFs only.
+      // 14. Eliminate boundary conditions, constrain hanging nodes and
+      //     nodes across processor boundaries.
       Array<int> ess_tdof_list;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
+      // 15. Assemble the stiffness matrix. Note that MFEM doesn't care
+      //     at this point that the mesh is nonconforming and parallel.
+      //     The FE space is considered 'cut' along hanging edges/faces,
+      //     and also across processor boundaries.
+      config::SwitchToDevice();
+      a.Assemble();
+
+      // 16. Create the parallel linear system: eliminate boundary conditions.
+      //     The system will be solved for true (unconstrained/unique) DOFs only.
       Operator *A;
       if (!pa) { A = new HypreParMatrix(); }
       Vector B, X;
       const int copy_interior = 1;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
 
-      // 15. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+      // 17. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
       //     preconditioner from hypre.
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(3);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      /*
-      HypreBoomerAMG amg;
-      amg.SetPrintLevel(0);
-      CGSolver pcg(A.GetComm());
-      pcg.SetPreconditioner(amg);
-      pcg.SetOperator(A);
-      pcg.SetRelTol(1e-6);
-      pcg.SetMaxIter(200);
-      pcg.SetPrintLevel(3); // print the first and the last iterations only
-      pcg.Mult(B, X);
-      */
+      if (pa)
+      {
+         CGSolver cg(MPI_COMM_WORLD);
+         cg.SetRelTol(1e-12);
+         cg.SetMaxIter(2000);
+         cg.SetPrintLevel(3);
+         cg.SetOperator(*A);
+         cg.Mult(B, X);
+      }
+      else
+      {
+         HypreParMatrix &H = *static_cast<HypreParMatrix*>(A);
+         HypreBoomerAMG amg;
+         amg.SetPrintLevel(0);
+         CGSolver pcg(H.GetComm());
+         pcg.SetPreconditioner(amg);
+         pcg.SetOperator(H);
+         pcg.SetRelTol(1e-6);
+         pcg.SetMaxIter(200);
+         pcg.SetPrintLevel(3); // print the first and the last iterations only
+         pcg.Mult(B, X);
+      }
 
-      // 16. Extract the parallel grid function corresponding to the finite element
+      // 18. Extract the parallel grid function corresponding to the finite element
       //     approximation X. This is the local solution on each processor.
+      config::SwitchToHost();
       a.RecoverFEMSolution(X, b, x);
 
-      // 17. Send the solution by socket to a GLVis server.
+      // 19. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          sout << "parallel " << num_procs << " " << myid << "\n";
@@ -250,7 +272,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 18. Call the refiner to modify the mesh. The refiner calls the error
+      // 20. Call the refiner to modify the mesh. The refiner calls the error
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
@@ -264,7 +286,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 19. Update the finite element space (recalculate the number of DOFs,
+      // 21. Update the finite element space (recalculate the number of DOFs,
       //     etc.) and create a grid function update matrix. Apply the matrix
       //     to any GridFunctions over the space. In this case, the update
       //     matrix is an interpolation matrix so the updated GridFunction will
@@ -272,7 +294,7 @@ int main(int argc, char *argv[])
       fespace.Update();
       x.Update();
 
-      // 20. Load balance the mesh, and update the space and solution. Currently
+      // 22. Load balance the mesh, and update the space and solution. Currently
       //     available only for nonconforming meshes.
       if (pmesh.Nonconforming())
       {
@@ -284,7 +306,7 @@ int main(int argc, char *argv[])
          x.Update();
       }
 
-      // 21. Inform also the bilinear and linear forms that the space has
+      // 23. Inform also the bilinear and linear forms that the space has
       //     changed.
       a.Update();
       b.Update();
