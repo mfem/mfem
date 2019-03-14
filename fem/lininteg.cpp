@@ -54,7 +54,7 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
-      double val = Tr.Weight() * Q.Eval(Tr, ip);
+      double val = std::abs(Tr.Weight()) * Q.Eval(Tr, ip);
 
       el.CalcShape(ip, shape);
 
