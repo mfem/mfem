@@ -333,7 +333,8 @@ protected: // implementation
    void UpdateLayers();
 
    void MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
-                        Table &group_shared);
+                        Table &group_shared, Array<char> *entity_geom = NULL,
+                        char geom = 0);
 
    /** Uniquely encodes a set of leaf elements in the refinement hierarchy of
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,

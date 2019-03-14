@@ -852,7 +852,8 @@ struct CompareShared // TODO: use lambda when C++11 available
 };
 
 void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
-                                Table &group_shared)
+                                Table &group_shared, Array<char> *entity_geom,
+                                char geom)
 {
    const Array<GroupId> &conf_group = entity_conf_group[ent];
 
@@ -864,6 +865,8 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
    {
       if (conf_group[i])
       {
+         if (entity_geom && (*entity_geom)[i] != geom) { continue; }
+
          num_shared++;
          group_shared.AddAColumnInRow(conf_group[i]-1);
       }
@@ -877,6 +880,8 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
    {
       if (conf_group[i])
       {
+         if (entity_geom && (*entity_geom)[i] != geom) { continue; }
+
          shared_local[j] = i;
          group_shared.AddConnection(conf_group[i]-1, j);
          j++;
@@ -937,15 +942,16 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    }
 
    // create shared to local index mappings and group tables
-   int ngroups = pmesh.gtopo.NGroups();
-   MakeSharedTable(ngroups, 0, pmesh.svert_lvert, pmesh.group_svert);
-   MakeSharedTable(ngroups, 1, pmesh.sedge_ledge, pmesh.group_sedge);
-   MakeSharedTable(ngroups, 2, pmesh.sface_lface, pmesh.group_squad);
+   int ng = pmesh.gtopo.NGroups();
+   MakeSharedTable(ng, 0, pmesh.svert_lvert, pmesh.group_svert);
+   MakeSharedTable(ng, 1, pmesh.sedge_ledge, pmesh.group_sedge);
 
-   // create an empty group_stria (we currently don't have triangle faces) FIXME
-   pmesh.group_stria.MakeI(ngroups-1);
-   pmesh.group_stria.MakeJ();
-   pmesh.group_stria.ShiftUpI();
+   Array<int> slt, slq;
+   MakeSharedTable(ng, 2, slt, pmesh.group_stria, &face_geom, Geometry::TRIANGLE);
+   MakeSharedTable(ng, 2, slq, pmesh.group_squad, &face_geom, Geometry::SQUARE);
+
+   pmesh.sface_lface = slt;
+   pmesh.sface_lface.Append(slq);
 
    // create shared_edges
    pmesh.shared_edges.SetSize(pmesh.sedge_ledge.Size());
@@ -959,11 +965,23 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
       pmesh.shared_edges[i] = new Segment(v, 1);
    }
 
-   // create shared_faces
-   pmesh.shared_quads.SetSize(pmesh.sface_lface.Size());
-   for (int i = 0; i < pmesh.shared_quads.Size(); i++)
+   // create shared_trias
+   pmesh.shared_trias.SetSize(slt.Size());
+   for (int i = 0; i < slt.Size(); i++)
    {
-      int el_loc = entity_elem_local[2][pmesh.sface_lface[i]];
+      int el_loc = entity_elem_local[2][slt[i]];
+      MeshId face_id(-1, leaf_elements[(el_loc >> 4)], (el_loc & 0xf));
+
+      int v[4], e[4], eo[4];
+      GetFaceVerticesEdges(face_id, v, e, eo);
+      pmesh.shared_trias[i].Set(v);
+   }
+
+   // create shared_quads
+   pmesh.shared_quads.SetSize(slq.Size());
+   for (int i = 0; i < slq.Size(); i++)
+   {
+      int el_loc = entity_elem_local[2][slq[i]];
       MeshId face_id(-1, leaf_elements[(el_loc >> 4)], (el_loc & 0xf));
 
       int e[4], eo[4];
