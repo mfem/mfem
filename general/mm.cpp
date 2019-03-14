@@ -155,9 +155,8 @@ void* mm::Insert(void *ptr, const size_t bytes)
    const bool known = Known(ptr);
    if (known)
    {
-      mfem_error("Trying to insert a non-MM pointer!");
+      mfem_error("Trying to add an already present address!");
    }
-   MFEM_ASSERT(!known, "Trying to add an already present address!");
    DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes));
    return ptr;
@@ -174,7 +173,6 @@ void *mm::Erase(void *ptr)
    {
       mfem_error("Trying to erase an unknown pointer!");
    }
-   MFEM_ASSERT(known, "Trying to erase an unknown pointer!");
    memory &mem = maps.memories.at(ptr);
    for (const alias* const alias : mem.aliases)
    {

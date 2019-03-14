@@ -115,11 +115,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
 
-   PADiffusionIntegrator *pa_integ = new PADiffusionIntegrator(one);
-   DiffusionIntegrator *integ = new DiffusionIntegrator(one);
-   if (pa) { a.AddDomainIntegrator(pa_integ); }
-   else    { a.AddDomainIntegrator(integ); }
-
+   BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
+   a.AddDomainIntegrator(integ);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
 
    // 7. The solution vector x and the associated finite element grid function
@@ -176,7 +173,7 @@ int main(int argc, char *argv[])
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      // 15. Assemble the stiffness matrix.
+      // 15. Switch to device and assemble the stiffness matrix.
       config::SwitchToDevice();
       a.Assemble();
 
