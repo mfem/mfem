@@ -298,7 +298,7 @@ endif
 # RAJA library configuration
 ifeq ($(MFEM_USE_RAJA),YES)
   ifndef RAJA_DIR
-    RAJA_DIR := $(abspath @MFEM_DIR@/../RAJA)
+    RAJA_DIR := @MFEM_DIR@/../RAJA
   endif
   RAJA_OPT := -I$(RAJA_DIR)/include
   RAJA_LIB := -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
