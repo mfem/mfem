@@ -295,6 +295,15 @@ ifeq ($(MFEM_USE_OCCA),YES)
   OCCA_LIB := -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 endif
 
+# RAJA library configuration
+ifeq ($(MFEM_USE_RAJA),YES)
+  ifndef RAJA_DIR
+    RAJA_DIR := @MFEM_DIR@/../RAJA
+  endif
+  RAJA_OPT := -I$(RAJA_DIR)/include
+  RAJA_LIB := -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+endif
+
 # If YES, enable some informational messages
 VERBOSE = NO
 

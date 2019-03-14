@@ -105,7 +105,7 @@ class DeviceTensor
 {
 protected:
    int capacity;
-   Scalar* data;
+   Scalar *data;
    int sizes[Dim];
 public:
    /**
@@ -125,9 +125,9 @@ public:
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       // Initialize sizes, and compute the number of values
-      long int nb = Init<1, Dim, Args...>::result(sizes, args...);
+      const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      data = (Scalar*)mfem::mm::ptr(_data);
+      data = capacity>0?(Scalar*)mfem::mm::ptr(_data):nullptr;
    }
 
    /**
@@ -154,9 +154,9 @@ public:
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       // Initialize sizes, and compute the number of values
-      long int nb = Init<1, Dim, Args...>::result(sizes, args...);
+      const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      data = const_cast<Scalar*>((Scalar*)mfem::mm::ptr(_data));
+      data = (capacity>0)?const_cast<Scalar*>((Scalar*)mfem::mm::ptr(_data)):nullptr;
    }
 
    /**
@@ -172,10 +172,10 @@ public:
    }
 
    /// Conversion to `double *`.
-   inline operator double *() { return data; }
+   inline operator Scalar *() { return data; }
 
    /// Conversion to `const double *`.
-   inline operator const double *() const { return data; }
+   inline operator const Scalar *() const { return data; }
 
    /**
    *  Returns the size of the i-th dimension #UNSAFE#

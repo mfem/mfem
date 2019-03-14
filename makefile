@@ -206,7 +206,7 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI OCCA
+ SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI OCCA RAJA
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -314,9 +314,7 @@ endif
 
 # Source dirs in logical order
 DIRS = general linalg mesh fem
-KERNEL_DIRS = $(DIRS:=/kernels)
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
-SOURCE_FILES += $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
@@ -366,8 +364,7 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
-#	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES)
-	g++ $(BUILD_SOFLAGS) $(OBJECT_FILES) \
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
 serial debug:    M_MPI=NO
@@ -548,7 +545,6 @@ status info:
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
 FORMAT_FILES  = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
-FORMAT_FILES += $(foreach dir,linalg mesh fem,"$(dir)/kernels/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 

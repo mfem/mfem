@@ -22,12 +22,11 @@ namespace mfem
 class config
 {
 private:
-   enum MODES {CPU, GPU};
+   enum MODES {HOST, DEVICE};
 private:
    MODES mode;
    int dev = 0;
    int ngpu = -1;
-   bool pa = false;
    bool cuda = false;
    bool raja = false;
    bool occa = false;
@@ -41,7 +40,7 @@ private:
 
 private:
    // **************************************************************************
-   config(): mode{config::CPU} {}
+   config(): mode{config::HOST} {}
    config(config const&);
    void operator=(config const&);
 
@@ -63,7 +62,7 @@ private:
 
 public:
    // **************************************************************************
-   constexpr static inline bool usingMM()
+   constexpr static inline bool UsingMM()
    {
 #ifdef MFEM_USE_MM
       return true;
@@ -73,32 +72,29 @@ public:
    }
 
    // **************************************************************************
-   static inline void enableGpu(const int dev =0) { Get().MfemDeviceSetup(dev); }
-   static inline bool gpuEnabled() { return Get().ngpu > 0; }
-   static inline bool gpuDisabled() { return Get().ngpu == 0; }
-   static inline bool gpuHasBeenEnabled() { return Get().ngpu >= 0; }
+   static inline void EnableDevice(const int dev =0) { Get().MfemDeviceSetup(dev); }
+   static inline bool DeviceEnabled() { return Get().ngpu > 0; }
+   static inline bool DeviceDisabled() { return Get().ngpu == 0; }
+   static inline bool DeviceHasBeenEnabled() { return Get().ngpu >= 0; }
 
-   static inline bool usingGpu() { return gpuEnabled() && Get().mode == GPU; }
-   static inline bool usingCpu() { return !usingGpu(); }
+   static inline bool UsingDevice() { return DeviceEnabled() && Get().mode == DEVICE; }
+   static inline bool UsingHost() { return !UsingDevice(); }
 
-   static inline void SwitchToGpu() { Get().mode = config::GPU; }
-   static inline void SwitchToCpu() { Get().mode = config::CPU; }
+   static inline void SwitchToDevice() { Get().mode = config::DEVICE; }
+   static inline void SwitchToHost() { Get().mode = config::HOST; }
 
-   static inline bool usingPA() { return Get().pa; }
-   static inline void usePA(const bool mode) { Get().pa = mode; }
-
-   static inline bool usingCuda() { return Get().cuda; }
-   static inline void useCuda() { Get().cuda = true; }
+   static inline bool UsingCuda() { return Get().cuda; }
+   static inline void UseCuda() { Get().cuda = true; }
    static inline CUstream Stream() { return *Get().cuStream; }
 
-   static inline bool usingOmp() { return Get().omp; }
-   static inline void useOmp() { Get().omp = true; }
+   static inline bool UsingOmp() { return Get().omp; }
+   static inline void UseOmp() { Get().omp = true; }
 
-   static inline bool usingRaja() { return Get().raja; }
-   static inline void useRaja() { Get().raja = true; }
+   static inline bool UsingRaja() { return Get().raja; }
+   static inline void UseRaja() { Get().raja = true; }
 
-   static inline bool usingOcca() { return Get().occa; }
-   static inline void useOcca() { Get().occa = true; }
+   static inline bool UsingOcca() { return Get().occa; }
+   static inline void UseOcca() { Get().occa = true; }
    static inline OccaDevice GetOccaDevice() { return Get().occaDevice; }
 
    // **************************************************************************

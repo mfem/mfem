@@ -15,7 +15,7 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
-#include "doftoquad.hpp"
+#include "bilininteg_ext.hpp"
 
 namespace mfem
 {
@@ -23,7 +23,7 @@ namespace mfem
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
-protected:
+public:
    BilinearFormIntegrator(const IntegrationRule *ir = NULL) :
       NonlinearFormIntegrator(ir) { }
 

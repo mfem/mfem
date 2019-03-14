@@ -14,8 +14,6 @@
 
 #include "fem.hpp"
 #include "bilininteg.hpp"
-#include "bilinearform_ext.hpp"
-#include "../linalg/kernels/vector.hpp"
 
 namespace mfem
 {
@@ -34,7 +32,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
    trialFes(a->fes), testFes(a->fes),
    localX(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
    localY(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   e2l(*a->fes) { }
+   elem_restrict(new ElemRestriction(*a->fes)) { }
 
 PABilinearFormExtension::~PABilinearFormExtension()
 {
@@ -58,6 +56,19 @@ void PABilinearFormExtension::Assemble()
    {
       integrators[i]->Assemble(*a->fes);
    }
+}
+
+void PABilinearFormExtension::Update(FiniteElementSpace *fes)
+{
+   height = width = fes->GetVSize();
+   trialFes = fes;
+   testFes = fes;
+   localX.SetSize(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() *
+                  trialFes->GetVDim());
+   localY.SetSize(a->fes->GetNE() * testFes->GetFE(0)->GetDof() *
+                  testFes->GetVDim());
+   delete elem_restrict;
+   elem_restrict = new ElemRestriction(*fes);
 }
 
 void PABilinearFormExtension::FormSystemOperator(const Array<int>
@@ -99,18 +110,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    if (!copy_interior && ess_tdof_list.Size()>0)
    {
-      const int csz = ess_tdof_list.Size();
-      Vector subvec(csz);
-      subvec = 0.0;
-      kernels::vector::GetSubvector(csz,
-                                    subvec.GetData(),
-                                    X.GetData(),
-                                    ess_tdof_list.GetData());
-      X = 0.0;
-      kernels::vector::SetSubvector(csz,
-                                    X.GetData(),
-                                    subvec.GetData(),
-                                    ess_tdof_list.GetData());
+      X.SetSubVectorComplement(ess_tdof_list, 0.0);
    }
 
    ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(A);
@@ -127,7 +127,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   e2l.Mult(x, localX);
+   elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
    assert(iSz==1);
@@ -135,12 +135,12 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    {
       integrators[i]->MultAssembled(localX, localY);
    }
-   e2l.MultTranspose(localY, y);
+   elem_restrict->MultTranspose(localY, y);
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
-   e2l.Mult(x, localX);
+   elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
    assert(iSz==1);
@@ -148,7 +148,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    {
       integrators[i]->MultAssembledTranspose(localX, localY);
    }
-   e2l.MultTranspose(localY, y);
+   elem_restrict->MultTranspose(localY, y);
 }
 
 void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
@@ -183,9 +183,16 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
     offsets(ndofs+1),
     indices(ne*dof)
 {
+   for (int e = 0; e < ne; ++e)
+   {
+      const FiniteElement *fe = fes.GetFE(e);
+      const TensorBasisElement* el =
+         dynamic_cast<const TensorBasisElement*>(fe);
+      if (el) { continue; }
+      mfem_error("Finite element not supported with partial assembly");
+   }
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
-   MFEM_ASSERT(el, "Finite element not supported with partial assembly");
    const Array<int> &dof_map = el->GetDofMap();
    const bool dof_map_is_identity = (dof_map.Size()==0);
    const Table& e2dTable = fes.GetElementToDofTable();
