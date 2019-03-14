@@ -128,7 +128,7 @@ class Curl4dPrec : public Solver
 private:
    HypreParMatrix *A;
    ParFiniteElementSpace *fespace;
-   Coefficient *alpha_, *beta_;
+   Coefficient *alpha_, *beta_, *neg_beta_;
 
    HypreParMatrix *idMat;
    HypreParMatrix *H1VecLaplaceMat;
@@ -166,13 +166,14 @@ public:
    }
 
    Curl4dPrec(HypreParMatrix *AUser, ParFiniteElementSpace *fespaceUser,
-              Coefficient *alpha, Coefficient *beta,
+              Coefficient *alpha, Coefficient *beta, Coefficient *neg_beta,
               const Array<int> &essBnd, int orderKernel=1, bool exactSolvesUser=false)
    {
       A = AUser;
       fespace = fespaceUser;
       alpha_ = alpha;
       beta_ = beta;
+      neg_beta_=neg_beta_;
 
       ParMesh *pmesh = fespace->GetParMesh();
       int dim = pmesh->Dimension();
@@ -249,7 +250,7 @@ public:
       //setup the H1-vec preconditioner
       ParBilinearForm* H1VecVarf = new ParBilinearForm(H1VecFESpace);
       H1VecVarf->AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_));
-      H1VecVarf->AddDomainIntegrator(new VectorMassIntegrator(-1, beta_));
+      H1VecVarf->AddDomainIntegrator(new VectorMassIntegrator(*neg_beta_));
       H1VecVarf->Assemble();
       H1VecVarf->Finalize();
 
@@ -488,6 +489,7 @@ int main(int argc, char *argv[])
       //    if(spe10Coeff) beta = new FunctionCoefficient(InversePermeabilityFunction::Norm2Permeability);
       //    else
       beta = new ConstantCoefficient(weight);
+      Coefficient *neg_beta = new ConstantCoefficient(-weight);
 
       ParBilinearForm *a = new ParBilinearForm(fespace);
       a->AddDomainIntegrator(new CurlCurlIntegrator(*alpha));
@@ -515,7 +517,7 @@ int main(int argc, char *argv[])
          (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
       Solver *prec;
       if (dim<=3) { prec = new HypreAMS(A, prec_fespace); }
-      else if (dim==4) { prec = new Curl4dPrec(&A, fespace, alpha, beta, ess_bdr, order, false); }
+      else if (dim==4) { prec = new Curl4dPrec(&A, fespace, alpha, beta, neg_beta, ess_bdr, order, false); }
       IterativeSolver *pcg = new CGSolver(MPI_COMM_WORLD);
       pcg->SetOperator(A);
       pcg->SetRelTol(tol);
