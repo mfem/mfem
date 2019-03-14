@@ -86,6 +86,15 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   endif()
 endforeach()
 
+# If STRUMPACK is enabled, add a test run that uses it.
+if (MFEM_USE_STRUMPACK)
+  add_test(NAME ex11p_strumpack_np=4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS}
+    $<TARGET_FILE:ex11p> "-no-vis" "--strumpack"
+    ${MPIEXEC_POSTFLAGS})
+endif()
+
 # Include the examples/sundials directory if SUNDIALS is enabled.
 if (MFEM_USE_SUNDIALS)
   add_subdirectory(sundials)
