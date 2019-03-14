@@ -173,7 +173,7 @@ public:
       fespace = fespaceUser;
       alpha_ = alpha;
       beta_ = beta;
-      neg_beta_=neg_beta_;
+      neg_beta_=neg_beta;
 
       ParMesh *pmesh = fespace->GetParMesh();
       int dim = pmesh->Dimension();
