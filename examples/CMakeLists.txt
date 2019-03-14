@@ -49,6 +49,9 @@ if (MFEM_USE_MPI)
     ex17p.cpp
     ex18p.cpp
     ex19p.cpp
+    ex1p_4d.cpp
+    ex3p_4d.cpp
+    ex4D_DivSkew.cpp
     )
 endif()
 
