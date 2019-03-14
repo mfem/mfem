@@ -69,7 +69,7 @@ void UpdateAndRebalance(ParMesh &pmesh, ParFiniteElementSpace &fespace,
                         ParGridFunction &x, ParBilinearForm &a,
                         ParLinearForm &b);
 
-
+extern void mmCheckIni(const char*);
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -131,6 +131,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   mmCheckIni(argv[0]);
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.

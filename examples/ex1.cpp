@@ -47,6 +47,8 @@
 using namespace std;
 using namespace mfem;
 
+extern void mmCheckIni(const char*);
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -85,6 +87,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   mmCheckIni(argv[0]);
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
