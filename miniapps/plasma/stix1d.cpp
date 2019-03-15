@@ -126,6 +126,38 @@ void B_func(const Vector &x, Vector &E);
 void e_bc_r(const Vector &x, Vector &E);
 void e_bc_i(const Vector &x, Vector &E);
 
+class StixLCoefficient : public Coefficient
+{
+private:
+  double   omega_;
+  VectorCoefficient & B_;
+  const Vector & number_;
+  const Vector & charge_;
+  const Vector & mass_;
+  mutable Vector BVec_;
+  
+public:
+  StixLCoefficient(double omega, VectorCoefficient &B,
+		   const Vector & number,
+		   const Vector & charge,
+		   const Vector & mass)
+    : omega_(omega),
+      B_(B),
+      number_(number),
+      charge_(charge),
+      mass_(mass),
+      BVec_(3)    
+  {}
+
+  double Eval(ElementTransformation &T,
+	      const IntegrationPoint &ip)
+  {
+    B_.Eval(BVec_, T, ip);
+    double BMag = BVec_.Norml2();
+    return L_cold_plasma(omega_, BMag, number_, charge_, mass_);
+  }
+};
+
 class ColdPlasmaPlaneWave: public VectorCoefficient
 {
 public:
@@ -479,6 +511,8 @@ int main(int argc, char *argv[])
        BCoef = new VectorConstantCoefficient(BVec);
      }
    VectorConstantCoefficient kCoef(kVec);
+
+   StixLCoefficient LCoef(omega, *BCoef, numbers, charges, masses);
    /*
    double ion_frac = 0.0;
    ConstantCoefficient rhoCoef1(rho1);
@@ -492,10 +526,13 @@ int main(int argc, char *argv[])
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
 
    ParGridFunction BField(&HDivFESpace);
+   ParGridFunction LField(&L2FESpace);
    // ParGridFunction temperature_gf;
    ParGridFunction density_gf;
 
    BField.ProjectCoefficient(*BCoef);
+   LField.ProjectCoefficient(LCoef);
+   
    // int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
 
@@ -578,10 +615,11 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10, offy = Wh+45; // window offsets
 
-      socketstream sock_Er, sock_Ei, sock_B;
+      socketstream sock_Er, sock_Ei, sock_B, sock_L;
       sock_Er.precision(8);
       sock_Ei.precision(8);
       sock_B.precision(8);
+      sock_L.precision(8);
 
       Wx += 2 * offx;
       VisualizeField(sock_Er, vishost, visport,
@@ -595,6 +633,9 @@ int main(int argc, char *argv[])
 
       VisualizeField(sock_B, vishost, visport,
                      BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
+
+      VisualizeField(sock_L, vishost, visport,
+                     LField, "L", Wx, Wy, Ww, Wh);
 
    }
 
@@ -619,6 +660,7 @@ int main(int argc, char *argv[])
    if ( visit )
    {
       CPD.RegisterVisItFields(visit_dc);
+      visit_dc.RegisterField("L", &LField);
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
