@@ -178,13 +178,13 @@ void Update(ParFiniteElementSpace & HCurlFESpace,
 //static Vector mesh_dim_(0); // x, y, z dimensions of mesh
 
 // Prints the program's logo to the given output stream
-// void display_banner(ostream & os);
+void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   // if ( mpi.Root() ) { display_banner(cout); }
+   if ( mpi.Root() ) { display_banner(cout); }
 
    // Parse command-line options.
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
@@ -772,17 +772,26 @@ void Update(ParFiniteElementSpace & HCurlFESpace,
 }
 
 // Print the stix2d ascii logo to the given ostream
-/*
 void display_banner(ostream & os)
 {
-   os << "     ____  ____              __           " << endl
-      << "    /   / /   / ____________/  |_________ " << endl
-      << "   /   /_/   /_/ __ \\_  __ \\   __\\___   / " << endl
-      << "  /   __    / \\  ___/|  | \\/|  |  /   _/  " << endl
-      << " /___/ /_  /   \\___  >__|   |__| /_____ \\ " << endl
-      << "         \\/        \\/                  \\/ " << endl << flush;
+  os << "  _________ __   __       ________      ___" << endl
+     << " /   _____//  |_|__|__  __\\_____  \\  __| _/" << endl
+     << " \\_____  \\\\   __\\  \\  \\/  //  ____/ / __ | " << endl
+     << " /        \\|  | |  |>    </       \\/ /_/ | " << endl
+     << "/_______  /|__| |__/__/\\_ \\_______ \\____ | " << endl
+     << "        \\/               \\/       \\/    \\/ "  << endl
+     << endl
+     << "* Thomas H. Stix was a pioneer in the use of radio frequency"
+     << " waves to heat" << endl
+     << "  terrestrial plasmas to solar temperatures. He made important"
+     << " contributions" << endl
+     << "  to experimental and theoretic plasma physics. In the Stix"
+     << " application, the" << endl
+     << "  plasma dielectric for the wave equation is formulated using"
+     << " the \"Stix\"" << endl
+     << "  notation, \"S, D, P\"." << endl<< endl << flush;
 }
-*/
+
 // The Admittance is an optional coefficient defined on boundary surfaces which
 // can be used in conjunction with absorbing boundary conditions.
 Coefficient *
