@@ -172,7 +172,7 @@ double TFunc(const Vector &x, double t)
 
 void bFunc(const Vector &x, Vector &B)
 {
-   B.SetSize(x.Size());
+   B.SetSize(3);
    B = 0.0;
 
    switch (prob_)
@@ -201,6 +201,8 @@ void bFunc(const Vector &x, Vector &B)
 
          B[0] =  a * x[1] / (b * b);
          B[1] = -x[0] / a;
+	 B[2] = 20.0;
+	 B /= B.Norml2();
          // B *= 1.0 / sqrt(den);
          B *= B_max_;
       }
@@ -294,7 +296,7 @@ int main(int argc, char *argv[])
    int ode_exp_solver_type = -1;
    int ode_imp_solver_type = -1;
    double t_final = -1.0;
-   double dt = -0.01;
+   double dt = 1.0e-9;
    double dt_rel_tol = 0.1;
    double cfl = 0.3;
    bool visualization = true;
@@ -483,25 +485,26 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace sfes(&pmesh, &fec);
    // Finite element space for a mesh-dim vector quantity (momentum)
    ParFiniteElementSpace vfes(&pmesh, &fec, dim, Ordering::byNODES);
+   ParFiniteElementSpace v3fes(&pmesh, &fec, 3, Ordering::byNODES);
    // Finite element space for all variables together (full thermodynamic state)
    ParFiniteElementSpace ffes(&pmesh, &fec, num_equations_, Ordering::byNODES);
 
-   RT_FECollection fec_rt(order, dim);
+   // RT_FECollection fec_rt(order, dim);
    // Finite element space for the magnetic field
-   ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
+   // ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
 
    // This example depends on this ordering of the space.
    MFEM_ASSERT(ffes.GetOrdering() == Ordering::byNODES, "");
 
    HYPRE_Int glob_size_sca = sfes.GlobalTrueVSize();
    HYPRE_Int glob_size_tot = ffes.GlobalTrueVSize();
-   HYPRE_Int glob_size_rt  = fes_rt.GlobalTrueVSize();
+   // HYPRE_Int glob_size_rt  = fes_rt.GlobalTrueVSize();
    if (mpi.Root())
    { cout << "Number of unknowns per field: " << glob_size_sca << endl; }
    if (mpi.Root())
    { cout << "Total number of unknowns:     " << glob_size_tot << endl; }
-   if (mpi.Root())
-   { cout << "Number of magnetic field unknowns: " << glob_size_rt << endl; }
+   // if (mpi.Root())
+   // { cout << "Number of magnetic field unknowns: " << glob_size_rt << endl; }
 
    //ConstantCoefficient nuCoef(diffusion_constant_);
    // MatrixFunctionCoefficient nuCoef(dim, ChiFunc);
@@ -558,8 +561,9 @@ int main(int argc, char *argv[])
    ParGridFunction sol(&ffes, x_block.GetData());
    sol.ProjectCoefficient(x0);
 
-   VectorFunctionCoefficient BCoef(dim, bFunc);
-   ParGridFunction B(&fes_rt);
+   VectorFunctionCoefficient BCoef(3, bFunc);
+   // ParGridFunction B(&fes_rt);
+   ParGridFunction B(&v3fes);
    B.ProjectCoefficient(BCoef);
 
    // Output the initial solution.

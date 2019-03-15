@@ -57,6 +57,7 @@ TwoFluidTransportSolver::TwoFluidTransportSolver(ODESolver * implicitSolver,
 TwoFluidTransportSolver::~TwoFluidTransportSolver()
 {
    delete tfDiff_;
+   delete tfAdvc_;
 }
 
 void TwoFluidTransportSolver::initDiffusion()
@@ -494,13 +495,16 @@ void TwoFluidDiffusion::initSolver()
    block_A_.SetBlock(0, 0, a_dndn_[0]->ParallelAssemble());
    block_A_.SetBlock(1, 1, a_dndn_[1]->ParallelAssemble());
 
+   double pscale = 1e0;
+
    for (int d=0; d<dim_; d++)
    {
-      block_A_.SetBlock(d + 2, 0, a_dpdn_[d]->ParallelAssemble());
+      block_A_.SetBlock(d + 2, 0, a_dpdn_[d]->ParallelAssemble(), pscale);
    }
    for (int d=0; d<dim_; d++)
    {
-      block_A_.SetBlock(dim_ + d + 2, 1, a_dpdn_[dim_ + d]->ParallelAssemble());
+      block_A_.SetBlock(dim_ + d + 2, 1, a_dpdn_[dim_ + d]->ParallelAssemble(),
+                        pscale);
    }
 
    for (int di=0; di<dim_; di++)
@@ -508,8 +512,8 @@ void TwoFluidDiffusion::initSolver()
       for (int dj=0; dj<dim_; dj++)
       {
          block_A_.SetBlock(di + 2, dj + 2,
-                           a_dpdu_[di * dim_ + dj]->ParallelAssemble());
-         block_B_.SetBlock(di + 2, dj + 2, stiff_eta_[di * dim_ + dj]);
+                           a_dpdu_[di * dim_ + dj]->ParallelAssemble(), pscale);
+         block_B_.SetBlock(di + 2, dj + 2, stiff_eta_[di * dim_ + dj], pscale);
       }
    }
    for (int di=0; di<dim_; di++)
@@ -517,9 +521,9 @@ void TwoFluidDiffusion::initSolver()
       for (int dj=0; dj<dim_; dj++)
       {
          block_A_.SetBlock(dim_ + di + 2, dim_ + dj + 2,
-                           a_dpdu_[dim_ * (dim_ + di) + dj]->ParallelAssemble());
+                           a_dpdu_[dim_ * (dim_ + di) + dj]->ParallelAssemble(), pscale);
          block_B_.SetBlock(dim_ + di + 2, dim_ + dj + 2,
-                           stiff_eta_[dim_ * (dim_ + di) + dj]);
+                           stiff_eta_[dim_ * (dim_ + di) + dj], pscale);
       }
    }
 
@@ -598,7 +602,7 @@ void TwoFluidDiffusion::initSolver()
 
    gmres_.SetAbsTol(0.0);
    gmres_.SetRelTol(1e-12);
-   gmres_.SetMaxIter(200);
+   gmres_.SetMaxIter(5000);
    gmres_.SetKDim(50);
    gmres_.SetPrintLevel(1);
    gmres_.SetOperator(block_A_);

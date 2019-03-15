@@ -60,7 +60,7 @@ void DiffCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    BCoef_.Eval(bHat_, T, ip);
    bHat_ /= bHat_.Norml2();
 
-   K.SetSize(bHat_.Size());
+   K.SetSize(width);
 
    if (width == 2)
    {
@@ -326,7 +326,7 @@ void ChiCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
    double chi_cross = 0.0;
 
-   K.SetSize(bHat_.Size());
+   K.SetSize(width);
 
    if (width == 2)
    {
@@ -533,7 +533,7 @@ EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
      BCoef_(&B),
      del_(dim),
      eps2_(dim),
-     eps3_(dim, dim, dim),
+     eps3_(3, 3, 3),
      bi_(bi),
      bj_(bj),
      ion_(false),
@@ -541,9 +541,9 @@ EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
      mi_(-1.0),
      ne_(-1.0),
      ni_(-1.0),
-     bPara_(dim),
-     bPerp_(dim),
-     bx_(dim)
+     bPara_(3),
+     bPerp_(3),
+     bx_(3)
 {
    this->initSymbols();
 }
@@ -557,7 +557,7 @@ EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
      BCoef_(&B),
      del_(dim),
      eps2_(dim),
-     eps3_(dim, dim, dim),
+     eps3_(3, 3, 3),
      bi_(bi),
      bj_(bj),
      ion_(true),
@@ -565,9 +565,9 @@ EtaCoefficient::EtaCoefficient(int dim, int bi, int bj,
      mi_(mi),
      ne_(-1.0),
      ni_(-1.0),
-     bPara_(dim),
-     bPerp_(dim),
-     bx_(dim)
+     bPara_(3),
+     bPerp_(3),
+     bx_(3)
 {
    this->initSymbols();
 }
@@ -578,16 +578,16 @@ void EtaCoefficient::initSymbols()
 
    del_ = 0.0;
    for (int i=0; i<dim; i++) { del_(i,i) = 1.0; }
-
+   /*
    eps2_ = 0.0;
    if (dim == 2)
    {
       eps2_(0,1) = 1.0;
       eps2_(1,0) = -1.0;
    }
-
+   */
    eps3_ = 0.0;
-   if (dim == 3)
+   // if (dim == 3)
    {
       eps3_(0,1,2) = 1.0;
       eps3_(1,2,0) = 1.0;
@@ -618,6 +618,18 @@ EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
    double bMag = bPara_.Norml2();
    bPara_ /= bMag;
 
+   bx_ = 0.0;
+   for (int k=0; k<3; k++)
+   {
+      for (int l=0; l<3; l++)
+      {
+	 for (int m=0; m<3; m++)
+	 {
+	   bx_(k, l) += eps3_(k, l, m) * bPara_[m];
+	 }
+      }
+   }
+
    double temp = TCoef_.Eval(T, ip);
 
    ni_ = nCoef_.Eval(T, ip);
@@ -641,9 +653,13 @@ EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
                  eta2_i(bMag, mi_, zi_, ni_, temp) :
                  eta2_e(bMag, ne_, temp, zi_, ni_);
 
-   double eta3 = 0.0;
+   double eta3 = (ion_) ?
+                 eta3_i(bMag, mi_, zi_, ni_, temp) :
+                 eta3_e(bMag, ne_, temp);
 
-   double eta4 = 0.0;
+   double eta4 = (ion_) ?
+                 eta4_i(bMag, mi_, zi_, ni_, temp) :
+                 eta4_e(bMag, ne_, temp);
 
    K.SetSize(width);
 
@@ -651,23 +667,24 @@ EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
 
    if (width == 2)
    {
-      eps2_.Mult(bPara_, bPerp_);
+     // eps2_.Mult(bPara_, bPerp_);
 
       for (int k=0; k<2; k++)
       {
          for (int l=0; l<2; l++)
          {
-            K(k, l) += 2.0 * eta0 *
+	   /*
+	   K(k, l) += 2.0 * eta0 *
                        (0.5 * del_(bi_, bj_) - bPara_[bi_] * bPara_[bj_]) *
                        (0.5 * del_(k, l) - bPara_[k] * bPara_[l]);
-            /*
-                 K(k, l) += eta1 * ((del_(bi_, k) - bPara_[bi_] * bPara_[k]) *
-                                    (del_(bj_, l) - bPara_[bj_] * bPara_[l]) +
-                                    (del_(bi_, l) - bPara_[bi_] * bPara_[l]) *
-                                    (del_(bj_, k) - bPara_[bj_] * bPara_[k]) -
-                                    2.0 * (del_(k, l) - bPara_[k] * bPara_[l]) *
-                                    (del_(bi_, bj_) - bPara_[bi_] * bPara_[bj_]));
-            */
+
+	    // K(k, l) += eta1 * ((del_(bi_, k) - bPara_[bi_] * bPara_[k]) *
+            //                        (del_(bj_, l) - bPara_[bj_] * bPara_[l]) +
+	    //                       (del_(bi_, l) - bPara_[bi_] * bPara_[l]) *
+	    //                       (del_(bj_, k) - bPara_[bj_] * bPara_[k]) -
+	    //                      2.0 * (del_(k, l) - bPara_[k] * bPara_[l]) *
+            //                    (del_(bi_, bj_) - bPara_[bi_] * bPara_[bj_]));
+
             K(k, l) += 0.5 * eta1 * ((0.5 * del_(bi_, bj_) -
                                       bPara_[bi_]* bPara_[bj_]) *
                                      (bPerp_[k] * bPara_[l] +
@@ -685,31 +702,43 @@ EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
                                bPara_[bi_] * bPara_[l] +
                                (del_(bj_, l) - bPara_[bj_] * bPara_[l]) *
                                bPara_[bi_] * bPara_[k]);
+	   */
+            K(k, l) += 3.0 * eta0 *
+                       (del_(bi_, bj_) / 3.0 - bPara_[bi_] * bPara_[bj_]) *
+                       (del_(k, l) / 3.0 - bPara_[k] * bPara_[l]);
+
+            K(k, l) += eta1 * ((del_(bi_, k) - bPara_[bi_] * bPara_[k]) *
+                               (del_(bj_, l) - bPara_[bj_] * bPara_[l]) +
+                               (del_(bi_, l) - bPara_[bi_] * bPara_[l]) *
+                               (del_(bj_, k) - bPara_[bj_] * bPara_[k]) -
+                               (del_(bi_, bj_) - bPara_[bi_] * bPara_[bj_]) *
+                               (del_(k, l) - bPara_[k] * bPara_[l]));
+
+            K(k, l) += eta2 * ((del_(bi_, k) - bPara_[bi_] * bPara_[k]) *
+                               bPara_[bj_] * bPara_[l] +
+                               (del_(bi_, l) - bPara_[bi_] * bPara_[l]) *
+                               bPara_[bj_] * bPara_[k] +
+                               (del_(bj_, k) - bPara_[bj_] * bPara_[k]) *
+                               bPara_[bi_] * bPara_[l] +
+                               (del_(bj_, l) - bPara_[bj_] * bPara_[l]) *
+                               bPara_[bi_] * bPara_[k]);
+
+            K(k, l) += eta3 * ((del_(bi_, k) - bPara_[bi_] * bPara_[k]) *
+                               bx_(bj_, l) +
+                               (del_(bj_, k) - bPara_[bj_] * bPara_[k]) *
+                               bx_(bi_, l) -
+                               (del_(bi_, bj_) - bPara_[bi_] * bPara_[bj_]) *
+                               bx_(k, l));
+
+            K(k, l) += eta4 * (bx_(bi_, k) * bPara_[bj_] * bPara_[l] +
+                               bx_(bi_, l) * bPara_[bj_] * bPara_[k] +
+                               bx_(bj_, k) * bPara_[bi_] * bPara_[l] +
+                               bx_(bj_, l) * bPara_[bi_] * bPara_[k]);
          }
       }
    }
    else
    {
-      eta3 = (ion_) ?
-             eta3_i(bMag, mi_, zi_, ni_, temp) :
-             eta3_e(bMag, ne_, temp);
-
-      eta4 = (ion_) ?
-             eta4_i(bMag, mi_, zi_, ni_, temp) :
-             eta4_e(bMag, ne_, temp);
-
-      bx_ = 0.0;
-      for (int k=0; k<3; k++)
-      {
-         for (int l=0; l<3; l++)
-         {
-            for (int m=0; m<3; m++)
-            {
-               bx_(k, l) += eps3_(k, l, m) * bPara_[m];
-            }
-         }
-      }
-
       for (int k=0; k<3; k++)
       {
          for (int l=0; l<3; l++)
