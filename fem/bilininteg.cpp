@@ -3304,7 +3304,7 @@ void HeatEquationIntegrator::AssembleElementMatrix
    dshapedxt.SetSize(nd,spaceDim);
    invdfdx.SetSize(dim,spaceDim);
    shape.SetSize(nd);
-   vec.SetSize(nd);
+   dtshape.SetSize(nd);
 #endif
    elmat.SetSize(nd);
 
@@ -3345,11 +3345,10 @@ void HeatEquationIntegrator::AssembleElementMatrix
       CalcInverse(Trans.Jacobian(), invdfdx);
       Mult(dshape, invdfdx, dshapedxt);
 
-      vec = 0.; // d_t u
-      dshapedxt.GetColumnReference(spaceDim - 1, pointflux);
-      vec.Swap(pointflux);
+      dshapedxt.GetColumn(spaceDim - 1, dtshape); // d_t u
+      dshapedxt.SetCol(spaceDim - 1, 0.);
 
-      AddMult_a_VWt(w,vec,shape,elmat);
+      AddMult_a_VWt(w,shape,dtshape,elmat); // d_t u * v
       if (!MQ)
       {
          if (Q)

@@ -2551,7 +2551,7 @@ public:
 class HeatEquationIntegrator: public BilinearFormIntegrator
 {
 private:
-   Vector vec, pointflux, shape;
+   Vector vec, pointflux, shape, dtshape;
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, dshapedxt, invdfdx, mq;
    DenseMatrix te_dshape, te_dshapedxt;
