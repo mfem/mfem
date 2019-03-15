@@ -287,7 +287,7 @@ class ParaCoefficient : public MatrixCoefficient
 {
 public:
    ParaCoefficient(void (*unit_b)(const Vector &, Vector &))
-      : MatrixCoefficient(2), unit_b_(unit_b), B_(2) , x_(2) {}
+      : MatrixCoefficient(2), unit_b_(unit_b), B_(2), x_(2) {}
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip)
@@ -313,7 +313,7 @@ class PerpCoefficient : public MatrixCoefficient
 {
 public:
    PerpCoefficient(void (*unit_b)(const Vector &, Vector &))
-      : MatrixCoefficient(2), unit_b_(unit_b), B_(2) , x_(2) {}
+      : MatrixCoefficient(2), unit_b_(unit_b), B_(2), x_(2) {}
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip)
