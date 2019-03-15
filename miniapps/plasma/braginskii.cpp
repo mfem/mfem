@@ -281,10 +281,15 @@ void InitialCondition(const Vector &x, Vector &y);
 
 void truncateField(ParGridFunction & f);
 
+// Prints the program's logo to the given output stream
+void display_banner(ostream & os);
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
    MPI_Session mpi(argc, argv);
+
+   if ( mpi.Root() ) { display_banner(cout); }
 
    // 2. Parse command-line options.
    problem_ = 1;
@@ -1127,6 +1132,18 @@ int main(int argc, char *argv[])
    delete ode_imp_solver;
 
    return 0;
+}
+
+// Print the STIX1D ascii logo to the given ostream
+void display_banner(ostream & os)
+{
+  os << "__________                        __               __    __ __ " << endl
+     << "\\______   \\____________     ____ |__| ____   _____|  | _|__|__|" << endl
+     << " |    |  _/\\_  __ \\__  \\   / ___\\|  |/    \\ /  ___/  |/ /  |  |" << endl
+     << " |    |   \\ |  | \\// __ \\_/ /_/  >  |   |  \\\\___ \\|    <|  |  |" << endl
+     << " |______  / |__|  (____  /\\___  /|__|___|  /____  >__|_ \\__|__|" << endl
+     << "        \\/             \\//_____/         \\/     \\/     \\/      " << endl
+     << endl<< endl << flush;
 }
 
 void truncateField(ParGridFunction & f)
