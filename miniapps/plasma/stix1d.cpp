@@ -118,6 +118,9 @@ void j_src(const Vector &x, Vector &j)
    }
 }
 
+static Vector B_params_(0);
+void B_func(const Vector &x, Vector &E);
+
 // Electric Field Boundary Condition: The following function returns zero but
 // any function could be used.
 void e_bc_r(const Vector &x, Vector &E);
@@ -219,6 +222,8 @@ int main(int argc, char *argv[])
                   "'O' - Ordinary, 'X' - Extraordinary, "
                   "'J' - Current Slab (in conjunction with -slab), "
                   "'Z' - Zero");
+   args.AddOption(&B_params_, "-b", "--magnetic-flux",
+                  "Background magnetic flux parameters");
    args.AddOption(&BVec, "-B", "--magnetic-flux",
                   "Background magnetic flux vector");
    args.AddOption(&kVec[1], "-ky", "--wave-vector-y",
@@ -464,7 +469,15 @@ int main(int argc, char *argv[])
       return 3;
    }
    */
-   VectorConstantCoefficient BCoef(BVec);
+   VectorCoefficient * BCoef = NULL;
+   if (B_params_.Size()  == 7)
+     {
+       BCoef = new VectorFunctionCoefficient(3, B_func);
+     }
+   else
+     {
+       BCoef = new VectorConstantCoefficient(BVec);
+     }
    VectorConstantCoefficient kCoef(kVec);
    /*
    double ion_frac = 0.0;
@@ -482,8 +495,7 @@ int main(int argc, char *argv[])
    // ParGridFunction temperature_gf;
    ParGridFunction density_gf;
 
-   BField.ProjectCoefficient(BCoef);
-
+   BField.ProjectCoefficient(*BCoef);
    // int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
 
@@ -816,6 +828,17 @@ void e_bc_i(const Vector &x, Vector &E)
 {
    E.SetSize(3);
    E = 0.0;
+}
+
+void B_func(const Vector &x, Vector &B)
+{
+  B.SetSize(3);
+
+  for (int i=0; i<3; i++)
+    {
+      B[i] = B_params_[i] +
+	(B_params_[i+3] - B_params_[i]) * x[0] / B_params_[6];
+    }
 }
 
 ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
