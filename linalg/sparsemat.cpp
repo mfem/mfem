@@ -756,7 +756,8 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
          }
       }
    });
-   // Sync on host for some later verifications in GetEssentialTrueDofs
+   // Sync on host for some verifications in
+   // pfespace GetEssentialTrueDofs and MarkerToList
    mm::pull(y);
 }
 

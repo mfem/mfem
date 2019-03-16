@@ -47,7 +47,7 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 }
 
 // *****************************************************************************
-// * PADiffusionIntegrator
+// * PA Diffusion Integrator
 // *****************************************************************************
 
 // *****************************************************************************
@@ -187,7 +187,7 @@ static void PADiffusionAssemble(const int dim,
 }
 
 // *****************************************************************************
-void PADiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
+void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 {
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
@@ -615,7 +615,7 @@ static void PADiffusionMultAssembled(const int dim,
 // *****************************************************************************
 // * PA Diffusion MultAdd kernel
 // *****************************************************************************
-void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
+void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    PADiffusionMultAssembled(dim, dofs1D, quad1D, ne,
                             maps->B, maps->G, maps->Bt, maps->Gt,
@@ -626,7 +626,7 @@ void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 // *****************************************************************************
 // * PA Mass Assemble kernel
 // *****************************************************************************
-void PAMassIntegrator::Assemble(const FiniteElementSpace &fes)
+void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 {
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
@@ -997,7 +997,7 @@ static void PAMassMultAssembled(const int dim,
 }
 
 // *****************************************************************************
-void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
+void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    PAMassMultAssembled(dim, dofs1D, quad1D, ne,
                        maps->B, maps->Bt,

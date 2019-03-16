@@ -767,7 +767,7 @@ inline void Array<T>::operator=(const T &a)
 template <class T>
 inline void Array<T>::Assign(const T *p)
 {
-   mm::memcpy(data, p, Size()*sizeof(T));
+   memcpy(data, p, Size()*sizeof(T));
 }
 
 

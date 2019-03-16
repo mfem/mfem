@@ -20,81 +20,22 @@
 namespace mfem
 {
 
-// *****************************************************************************
-// * Abstract Bilinear Form Integrator
-// *****************************************************************************
-class AbstractBilinearFormIntegrator : public NonlinearFormIntegrator
-{
-public:
-   AbstractBilinearFormIntegrator(const IntegrationRule *ir = NULL) :
-      NonlinearFormIntegrator(ir) { }
-   virtual ~AbstractBilinearFormIntegrator() { };
-   virtual void Assemble(const FiniteElementSpace&) { }
-   virtual void MultAdd(Vector&, Vector&) { }
-   virtual void MultTransposeAdd(Vector&, Vector&) { }
-   virtual void AssembleElementMatrix(const FiniteElement&,
-                                      ElementTransformation&,
-                                      DenseMatrix&) { }
-};
-
-// *****************************************************************************
-// * Bilinear PA Form Integrator
-// *****************************************************************************
-class BilinearPAFormIntegrator : public AbstractBilinearFormIntegrator
-{
-public:
-   BilinearPAFormIntegrator(const IntegrationRule *ir = NULL) :
-      AbstractBilinearFormIntegrator(ir) { }
-   virtual ~BilinearPAFormIntegrator() { };
-   virtual void Assemble(const FiniteElementSpace&) =0;
-   virtual void MultAdd(Vector&, Vector&) =0;
-};
-
-// *****************************************************************************
-// * PA Diffusion Integrator
-// *****************************************************************************
-class PADiffusionIntegrator: public BilinearPAFormIntegrator
-{
-private:
-   Coefficient *Q;
-   Vector vec;
-   DofToQuad *maps;
-   int dim, ne, nq, dofs1D, quad1D;
-public:
-   PADiffusionIntegrator (Coefficient &q, const IntegrationRule *ir = NULL) :
-      BilinearPAFormIntegrator(ir), Q(&q), vec(), maps(NULL) { }
-   ~PADiffusionIntegrator() { delete maps; }
-   void Assemble(const FiniteElementSpace&);
-   void MultAdd(Vector&, Vector&);
-};
-
-// *****************************************************************************
-// * PA Mass Integrator
-// *****************************************************************************
-class PAMassIntegrator: public BilinearPAFormIntegrator
-{
-private:
-   Coefficient *Q;
-   Vector vec;
-   DofToQuad *maps;
-   int dim, ne, nq, dofs1D, quad1D;
-public:
-   PAMassIntegrator (Coefficient &q, const IntegrationRule *ir = NULL) :
-      BilinearPAFormIntegrator(ir), Q(&q), vec(), maps(NULL) { }
-   ~PAMassIntegrator() { delete maps; }
-   void Assemble(const FiniteElementSpace&);
-   void MultAdd(Vector&, Vector&);
-};
-
-// *****************************************************************************
-/// Bilinear FA Form Integrator
-// *****************************************************************************
-class BilinearFormIntegrator : public AbstractBilinearFormIntegrator
+/// Abstract base class BilinearFormIntegrator
+class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
 public:
    BilinearFormIntegrator(const IntegrationRule *ir = NULL) :
-      AbstractBilinearFormIntegrator(ir) { }
+      NonlinearFormIntegrator(ir) { }
+
 public:
+   /// Method defining partial assembly.
+   virtual void Assemble(const FiniteElementSpace&);
+
+   /// Method for partially assembled action.
+   virtual void MultAssembled(Vector&, Vector&);
+
+   /// Method for partially assembled transposed action.
+   virtual void MultAssembledTranspose(Vector&, Vector&);
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -1704,16 +1645,18 @@ private:
 #endif
    Coefficient *Q;
    MatrixCoefficient *MQ;
-
+   // PA extension
+   DofToQuad *maps;
+   int dim, ne, dofs1D, quad1D;
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator() { Q = NULL; MQ = NULL; }
+   DiffusionIntegrator() { Q = NULL; MQ = NULL; maps=NULL;}
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; }
+   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; maps=NULL;}
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; }
+   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; maps=NULL; }
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
@@ -1740,6 +1683,12 @@ public:
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+
+   /// PA extension
+   virtual void Assemble(const FiniteElementSpace&);
+   virtual void MultAssembled(Vector&, Vector&);
+
+   virtual ~DiffusionIntegrator() { delete maps; }
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -1750,13 +1699,16 @@ protected:
    Vector shape, te_shape;
 #endif
    Coefficient *Q;
-
+   // PA extension
+   Vector vec;
+   DofToQuad *maps;
+   int dim, ne, nq, dofs1D, quad1D;
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir) { Q = NULL; }
+      : BilinearFormIntegrator(ir) { Q = NULL; maps=NULL; }
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q) { }
+      : BilinearFormIntegrator(ir), Q(&q) { maps=NULL; }
 
    /** Given a particular Finite Element
        computes the element mass matrix elmat. */
@@ -1767,6 +1719,11 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+   /// PA extension
+   virtual void Assemble(const FiniteElementSpace&);
+   virtual void MultAssembled(Vector&, Vector&);
+
+   virtual ~MassIntegrator() { delete maps; }
 };
 
 class BoundaryMassIntegrator : public MassIntegrator

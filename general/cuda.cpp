@@ -21,7 +21,6 @@ namespace mfem
 void* cuMemAlloc(void** dptr, size_t bytes)
 {
 #ifdef __NVCC__
-   if (bytes==0) { return *dptr; }
    if (CUDA_SUCCESS != ::cuMemAlloc((CUdeviceptr*)dptr, bytes))
    {
       mfem_error("Error in cuMemAlloc");

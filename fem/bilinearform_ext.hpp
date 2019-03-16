@@ -54,7 +54,7 @@ public:
    FABilinearFormExtension(BilinearForm *form);
 
    /// TODO
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator*) {}
+   void AddDomainIntegrator(BilinearFormIntegrator*) {}
    void Assemble() {}
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A) {}
    void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -76,7 +76,7 @@ public:
    EABilinearFormExtension(BilinearForm *form);
 
    /// TODO
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator*) {}
+   void AddDomainIntegrator(BilinearFormIntegrator*) {}
    void Assemble() {}
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A) {}
    void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -95,16 +95,16 @@ class PABilinearFormExtension : public Operator
 private:
    BilinearForm *a;
    const FiniteElementSpace *trialFes, *testFes;
-   Array<BilinearPAFormIntegrator*> integrators;
+   Array<BilinearFormIntegrator*> integrators;
    mutable Vector localX, localY;
    ElemRestriction *elem_restrict;
 
 public:
    PABilinearFormExtension(BilinearForm*);
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator*);
-   // void AddBoundaryIntegrator(AbstractBilinearFormIntegrator*);
-   // void AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator*);
-   // void AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator*);
+   void AddDomainIntegrator(BilinearFormIntegrator*);
+   // void AddBoundaryIntegrator(BilinearFormIntegrator*);
+   // void AddInteriorFaceIntegrator(BilinearFormIntegrator*);
+   // void AddBoundaryFaceIntegrator(BilinearFormIntegrator*);
 
    void Assemble();
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A);
@@ -130,7 +130,7 @@ public:
    MFBilinearFormExtension(BilinearForm *form);
 
    /// TODO
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator*) {}
+   void AddDomainIntegrator(BilinearFormIntegrator*) {}
    void Assemble() {}
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A) {}
    void FormLinearSystem(const Array<int> &ess_tdof_list,

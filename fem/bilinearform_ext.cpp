@@ -43,10 +43,9 @@ PABilinearFormExtension::~PABilinearFormExtension()
 }
 
 // Adds new Domain Integrator.
-void PABilinearFormExtension::AddDomainIntegrator(
-   AbstractBilinearFormIntegrator *i)
+void PABilinearFormExtension::AddDomainIntegrator(BilinearFormIntegrator *i)
 {
-   integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
+   integrators.Append(i);
 }
 
 void PABilinearFormExtension::Assemble()
@@ -134,7 +133,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    assert(iSz==1);
    for (int i = 0; i < iSz; ++i)
    {
-      integrators[i]->MultAdd(localX, localY);
+      integrators[i]->MultAssembled(localX, localY);
    }
    elem_restrict->MultTranspose(localY, y);
 }
@@ -147,7 +146,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    assert(iSz==1);
    for (int i = 0; i < iSz; ++i)
    {
-      integrators[i]->MultTransposeAdd(localX, localY);
+      integrators[i]->MultAssembledTranspose(localX, localY);
    }
    elem_restrict->MultTranspose(localY, y);
 }
