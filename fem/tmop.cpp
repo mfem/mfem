@@ -876,8 +876,8 @@ void AnalyticAdaptTC::SetAnalyticTargetSpec(Mesh &m, Coefficient *sspec,
 }
 
 void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
-                                              const IntegrationRule &ir,
-                                              DenseTensor &Jtr) const
+                                            const IntegrationRule &ir,
+                                            DenseTensor &Jtr) const
 {
    MFEM_VERIFY(mesh != NULL, "Analytic adaptation requires a Mesh object.");
 
@@ -1125,6 +1125,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       energy += weight * val;
    }
    delete Tpr;
+
    return energy;
 }
 

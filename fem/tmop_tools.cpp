@@ -254,7 +254,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 #endif
 
-
       if (energy_out > 1.2*energy_in || isnan(energy_out) != 0)
       {
          if (print_level >= 0)
@@ -312,7 +311,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 
    if (x_out_ok == false) { scale = 0.0; }
-
    return scale;
 }
 
@@ -454,11 +452,12 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
    }
 }
 
+#ifdef MFEM_USE_MPI
 // Metric values are visualized by creating an L2 finite element functions and
 // computing the metric values at the nodes.
-void vis_tmop_metric(int order, TMOP_QualityMetric &qm,
-                     const TargetConstructor &tc, ParMesh &pmesh,
-                     char *title, int position)
+void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
+                       const TargetConstructor &tc, ParMesh &pmesh,
+                       char *title, int position)
 {
    L2_FECollection fec(order, pmesh.Dimension(), BasisType::GaussLobatto);
    ParFiniteElementSpace fes(&pmesh, &fec, 1);
@@ -479,6 +478,28 @@ void vis_tmop_metric(int order, TMOP_QualityMetric &qm,
            << position << " " << 0 << " " << 600 << " " << 600 << "\n"
            << "keys jRmclA\n";
    }
+}
+#endif
+
+// Metric values are visualized by creating an L2 finite element functions and
+// computing the metric values at the nodes.
+void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
+                       const TargetConstructor &tc, Mesh &mesh,
+                       char *title, int position)
+{
+   L2_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec, 1);
+   GridFunction metric(&fes);
+   InterpolateTMOP_QualityMetric(qm, tc, mesh, metric);
+   osockstream sock(19916, "localhost");
+   sock << "solution\n";
+   mesh.Print(sock);
+   metric.Save(sock);
+   sock.send();
+   sock << "window_title '"<< title << "'\n"
+        << "window_geometry "
+        << position << " " << 0 << " " << 600 << " " << 600 << "\n"
+        << "keys jRmclA\n";
 }
 
 }
