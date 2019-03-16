@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
+   if (pa) { mesh.EnsureNodes(); }
 
    // 3. Since a NURBS mesh can currently only be refined uniformly, we need to
    //    convert it to a piecewise-polynomial curved mesh. First we refine the
@@ -99,7 +100,6 @@ int main(int argc, char *argv[])
    // 5. Set MFEM config parameters from the command line options
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    int elem_batch = (pa) ? mesh.GetNE() : 1;
-   if (pa) { mesh.EnsureNodes(); }
    if (cuda) { config::UseCuda(); }
    if (omp)  { config::UseOmp();  }
    if (raja) { config::UseRaja(); }
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
       config::SwitchToHost();
       a.RecoverFEMSolution(X, b, x);
-
+      
       // 20. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {
