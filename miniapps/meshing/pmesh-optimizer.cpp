@@ -36,7 +36,7 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-
+//
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade limited shape:
@@ -283,7 +283,9 @@ int main (int argc, char *argv[])
                   "Target (ideal element) type:\n\t"
                   "1: Ideal shape, unit size\n\t"
                   "2: Ideal shape, equal size\n\t"
-                  "3: Ideal shape, initial size");
+                  "3: Ideal shape, initial size\n\t"
+                  "4: Given full analytic Jacobian (in physical space)\n\t"
+                  "5: Ideal shape, given size (in physical space)");
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
@@ -503,8 +505,7 @@ int main (int argc, char *argv[])
       target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    }
    target_c->SetNodes(x0);
-   TMOP_Integrator *he_nlf_integ;
-   he_nlf_integ = new TMOP_Integrator(metric, target_c);
+   TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c);
 
    // 13. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -578,7 +579,7 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Initial metric values";
-      vis_tmop_metric(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
+      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
    }
 
    // 17. Fix all boundary nodes, or fix only a given component depending on the
@@ -761,7 +762,7 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Final metric values";
-      vis_tmop_metric(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
+      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
    }
 
    // 23. Visualize the mesh displacement.
