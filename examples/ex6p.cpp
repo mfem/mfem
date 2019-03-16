@@ -103,7 +103,6 @@ int main(int argc, char *argv[])
    }
    mesh->EnsureNCMesh();
 
-
    // 5. Define a parallel mesh by partitioning the serial mesh.
    //    Once the parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
@@ -136,11 +135,8 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient one(1.0);
 
-   PADiffusionIntegrator *pa_integ = new PADiffusionIntegrator(one);
    BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
-   if (pa) { a.AddDomainIntegrator(pa_integ); }
-   else    { a.AddDomainIntegrator(integ); }
-
+   a.AddDomainIntegrator(integ);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
 
    // 8. The solution vector x and the associated finite element grid function
@@ -241,7 +237,9 @@ int main(int argc, char *argv[])
       {
          HypreParMatrix &H = *static_cast<HypreParMatrix*>(A);
          HypreBoomerAMG amg;
+#ifndef __NVCC__
          amg.SetPrintLevel(0);
+#endif
          CGSolver pcg(H.GetComm());
          pcg.SetPreconditioner(amg);
          pcg.SetOperator(H);

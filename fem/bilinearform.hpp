@@ -287,7 +287,7 @@ public:
    }
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator *bfi);
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);

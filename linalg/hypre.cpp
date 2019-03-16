@@ -79,7 +79,7 @@ template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)
 {
-   TargetT *target_array = cplusplus ? new TargetT[size]
+   TargetT *target_array = cplusplus ? mm::malloc<TargetT>(size)
                            /*     */ : mfem_hypre_TAlloc(TargetT, size);
    for (int i = 0; i < size; i++)
    {
@@ -641,13 +641,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
    HYPRE_Int i;
 
-   double *a_diag = new double[diag_nnz];
+   double *a_diag = mm::malloc<double>(diag_nnz);
    for (i = 0; i < diag_nnz; i++)
    {
       a_diag[i] = 1.0;
    }
 
-   double *a_offd = new double[offd_nnz];
+   double *a_offd = mm::malloc<double>(offd_nnz);
    for (i = 0; i < offd_nnz; i++)
    {
       a_offd[i] = 1.0;
@@ -1481,14 +1481,14 @@ void HypreParMatrix::Destroy()
    {
       if (diagOwner & 1)
       {
-         delete [] hypre_CSRMatrixI(A->diag);
-         delete [] hypre_CSRMatrixJ(A->diag);
+         mm::free<int>(hypre_CSRMatrixI(A->diag));
+         mm::free<int>(hypre_CSRMatrixJ(A->diag));
       }
       hypre_CSRMatrixI(A->diag) = NULL;
       hypre_CSRMatrixJ(A->diag) = NULL;
       if (diagOwner & 2)
       {
-         delete [] hypre_CSRMatrixData(A->diag);
+         mm::free<double>(hypre_CSRMatrixData(A->diag));
       }
       hypre_CSRMatrixData(A->diag) = NULL;
    }
@@ -1496,14 +1496,14 @@ void HypreParMatrix::Destroy()
    {
       if (offdOwner & 1)
       {
-         delete [] hypre_CSRMatrixI(A->offd);
-         delete [] hypre_CSRMatrixJ(A->offd);
+         mm::free<int>(hypre_CSRMatrixI(A->offd));
+         mm::free<int>(hypre_CSRMatrixJ(A->offd));
       }
       hypre_CSRMatrixI(A->offd) = NULL;
       hypre_CSRMatrixJ(A->offd) = NULL;
       if (offdOwner & 2)
       {
-         delete [] hypre_CSRMatrixData(A->offd);
+         mm::free<double>(hypre_CSRMatrixData(A->offd));
       }
       hypre_CSRMatrixData(A->offd) = NULL;
    }
@@ -1511,7 +1511,7 @@ void HypreParMatrix::Destroy()
    {
       if (colMapOwner & 1)
       {
-         delete [] hypre_ParCSRMatrixColMapOffd(A);
+         mm::free<int>(hypre_ParCSRMatrixColMapOffd(A));
       }
       hypre_ParCSRMatrixColMapOffd(A) = NULL;
    }
