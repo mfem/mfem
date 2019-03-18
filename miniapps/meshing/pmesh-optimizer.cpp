@@ -480,7 +480,7 @@ int main (int argc, char *argv[])
          target_t = TargetConstructor::GIVEN_FULL;
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
          adapt_coeff = new HessianCoefficient(dim, 1);
-         tc->SetAnalyticTargetSpec(*pmesh, NULL, NULL, adapt_coeff);
+         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
          target_c = tc;
          break;
       }

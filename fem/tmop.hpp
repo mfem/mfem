@@ -637,17 +637,17 @@ public:
    void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
 
    /** @brief Given an element and quadrature rule, computes ref->target
-       transformation Jacobians for each quadrature point in the element. */
+       transformation Jacobians for each quadrature point in the element.
+       The physical positions of the element's nodes are given by @a elfun. */
    virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
                                       const IntegrationRule &ir,
+                                      const Vector &elfun,
                                       DenseTensor &Jtr) const;
 };
 
 class AnalyticAdaptTC : public TargetConstructor
 {
 protected:
-   // Mesh object associated with the latest node positions.
-   Mesh *mesh;
    // Analytic target specification.
    Coefficient *scalar_tspec;
    VectorCoefficient *vector_tspec;
@@ -655,17 +655,19 @@ protected:
 
 public:
    AnalyticAdaptTC(TargetType ttype)
-      : TargetConstructor(ttype), mesh(NULL),
+      : TargetConstructor(ttype),
         scalar_tspec(NULL), vector_tspec(NULL), matrix_tspec(NULL) { }
 
-   virtual void SetAnalyticTargetSpec(Mesh &m, Coefficient *sspec,
+   virtual void SetAnalyticTargetSpec(Coefficient *sspec,
                                       VectorCoefficient *vspec,
                                       MatrixCoefficient *mspec);
 
    /** @brief Given an element and quadrature rule, computes ref->target
-       transformation Jacobians for each quadrature point in the element. */
+       transformation Jacobians for each quadrature point in the element.
+       The physical positions of the element's nodes are given by @a elfun. */
    virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
                                       const IntegrationRule &ir,
+                                      const Vector &elfun,
                                       DenseTensor &Jtr) const;
 };
 
@@ -675,8 +677,11 @@ class DiscreteAdaptTC : public TargetConstructor
 {
 protected:
    // Discrete target specification.
-   GridFunction *target_spec;
-   Vector ts_nodes;
+   // Data is owned, updated by UpdateTargetSpecification.
+   Vector target_spec;
+   // Note: do not use the Nodes of this space as they may not be on the
+   // positions corresponding to the values of tspec.
+   const FiniteElementSpace *tspec_fes;
 
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
@@ -685,7 +690,7 @@ protected:
 public:
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
-        target_spec(NULL), ts_nodes(), adapt_eval(NULL) { }
+        target_spec(), tspec_fes(NULL), adapt_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC() { delete adapt_eval; }
 
@@ -701,14 +706,17 @@ public:
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
       if (adapt_eval) { delete adapt_eval; }
-
       adapt_eval = ae;
    }
 
    /** @brief Given an element and quadrature rule, computes ref->target
-       transformation Jacobians for each quadrature point in the element. */
+       transformation Jacobians for each quadrature point in the element.
+       The physical positions of the element's nodes are given by @a elfun.
+       Note that this function assumes that UpdateTargetSpecification() has
+       been called with the position vector corresponding to @a elfun. */
    virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
                                       const IntegrationRule &ir,
+                                      const Vector &elfun,
                                       DenseTensor &Jtr) const;
 };
 
