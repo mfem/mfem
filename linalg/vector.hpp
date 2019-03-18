@@ -73,6 +73,7 @@ public:
        Pointer is assumed to be a host pointer.  */
    Vector (double *_data, int _size)
    { data = _data; size = _size; allocsize = -size;
+     mm::RegisterHostPtr(data, size);
      RegisterCheck(data); }
 
    /// Copies data from host to device
@@ -112,6 +113,7 @@ public:
        Pointer is assumed to be a host pointer. */
    void SetDataAndSize(double *d, int s)
    { data = d; size = s; allocsize = -s;
+     mm::RegisterHostPtr(data, size);
      RegisterCheck(data); }
 
    /// Set the Vector data and size, deleting the old data, if owned.
@@ -403,6 +405,10 @@ inline Vector::~Vector()
    if (allocsize > 0)
    {
       mm::free<double>(data);
+   }
+   else
+   {
+     mm::UnregisterHostPtr(data);
    }
 }
 
