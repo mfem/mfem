@@ -505,6 +505,8 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
                                            Array<int> &ess_vdofs,
                                            int component) const
 {
+   MFEM_VERIFY(mesh->ent_sets != NULL, "Mesh object contains no "
+               "entity set information");
    GetEssentialVDofs(type, mesh->ent_sets->GetSetIndex(type, set_name),
                      ess_vdofs, component);
 }
@@ -551,6 +553,8 @@ void FiniteElementSpace::GetEssentialTrueDofs(EntitySets::EntityType type,
                                               Array<int> &ess_tdof_list,
                                               int component)
 {
+   MFEM_VERIFY(mesh->ent_sets != NULL, "Mesh object contains no "
+               "entity set information");
    GetEssentialTrueDofs(type, mesh->ent_sets->GetSetIndex(type, set_name),
                         ess_tdof_list, component);
 }
