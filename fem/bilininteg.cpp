@@ -3348,7 +3348,7 @@ void PrecondConvectionIntegrator::AssembleElementMatrix(
       dshape.Mult(vec2, BdFidxT);
 
       AddMultVWt(shape, BdFidxT, conv);
-      
+
       w = Trans.Weight() * ip.weight;
       AddMult_a_VVt(w, shape, mass);
    }

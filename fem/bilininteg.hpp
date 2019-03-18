@@ -2434,7 +2434,7 @@ protected:
    VectorCoefficient &VQ;
 };
 
-   
+
 /** Class for local assembly of M_L M_C^-1 K, where M_L and M_C are
     the lumped and consistent mass matrices and K is the convection
     matrix. The spaces are assumed to be L2 conforming. */
