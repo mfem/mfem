@@ -138,8 +138,7 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 
    //CGSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
    GMRESSolver lin_solver;
-   HypreSmoother prec;
-   prec.SetType(HypreSmoother::Jacobi, 1);
+   DSmoother prec;
    lin_solver.SetPreconditioner(prec);
    lin_solver.SetOperator(M.SpMat());
    lin_solver.SetRelTol(1e-12); lin_solver.SetAbsTol(0.0);
