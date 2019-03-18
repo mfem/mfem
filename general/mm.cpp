@@ -407,7 +407,7 @@ void RegisterCheck(void *ptr)
   if(ptr != NULL){
     if(!mm::known(ptr))
       {
-        assert(0 && "Pointer is not registerd!");
+        assert(0 && "Pointer is not registered!");
         mfem_error("Trying use an unregistered pointer!");
       }
   }

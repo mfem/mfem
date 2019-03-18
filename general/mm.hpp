@@ -83,6 +83,17 @@ public:
    }
 
    // **************************************************************************
+   // * Unregisters the host pointer from the mm
+   // * To be used with memory not allocated by the mm
+   // **************************************************************************
+   template<class T>
+   static inline void UnregisterHostPtr(T *ptr)
+   {
+      if (!ptr) { return; }
+      mm::MM().Erase(ptr);
+   }
+
+   // **************************************************************************
    // * Translates ptr to host or device address,
    // * depending on config::Cuda() and the ptr' state
    // **************************************************************************
@@ -121,12 +132,13 @@ public:
 
    // **************************************************************************
    template<class T>
-   static void RegisterHostAndDevicePtr(T * ptr_host, T * ptr_device, const size_t size)
+   static void RegisterHostAndDevicePtr(T * ptr_host, T * ptr_device, const size_t size, bool host)
    {
      MM().Insert(ptr_host, size*sizeof(T));
      mm::memory &base = MM().maps.memories.at(ptr_host);
      base.d_ptr = ptr_device;
-     base.host = false;
+     //specify if the data is on the host
+     base.host = host;
    }
 
 private:
