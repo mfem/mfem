@@ -47,7 +47,7 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 }
 
 // *****************************************************************************
-// * PADiffusionIntegrator
+// * PA Diffusion Integrator
 // *****************************************************************************
 
 // *****************************************************************************
@@ -187,7 +187,7 @@ static void PADiffusionAssemble(const int dim,
 }
 
 // *****************************************************************************
-void PADiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
+void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 {
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
@@ -615,7 +615,7 @@ static void PADiffusionMultAssembled(const int dim,
 // *****************************************************************************
 // * PA Diffusion MultAdd kernel
 // *****************************************************************************
-void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
+void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    PADiffusionMultAssembled(dim, dofs1D, quad1D, ne,
                             maps->B, maps->G, maps->Bt, maps->Gt,
@@ -626,7 +626,7 @@ void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 // *****************************************************************************
 // * PA Mass Assemble kernel
 // *****************************************************************************
-void PAMassIntegrator::Assemble(const FiniteElementSpace &fes)
+void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 {
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
@@ -980,6 +980,8 @@ static void PAMassMultAssembled(const int dim,
       {0x234,&PAMassMultAdd2D<3,4>},
       {0x236,&PAMassMultAdd2D<3,6>},
       {0x246,&PAMassMultAdd2D<4,6>},
+      {0x248,&PAMassMultAdd2D<4,8>},
+      {0x258,&PAMassMultAdd2D<5,8>},
       // 3D
       {0x323,&PAMassMultAdd3D<2,3>},
       {0x324,&PAMassMultAdd3D<2,4>},
@@ -995,7 +997,7 @@ static void PAMassMultAssembled(const int dim,
 }
 
 // *****************************************************************************
-void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
+void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    PAMassMultAssembled(dim, dofs1D, quad1D, ne,
                        maps->B, maps->Bt,
@@ -1488,6 +1490,7 @@ static void PAGeom(const int dim,
       {0x242,&PAGeom2D<4,2>},
       {0x246,&PAGeom2D<4,6>},
       {0x234,&PAGeom2D<3,4>},
+      {0x258,&PAGeom2D<5,8>},
       // 3D
       {0x323,&PAGeom3D<2,3>},
       {0x334,&PAGeom3D<3,4>},
