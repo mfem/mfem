@@ -38,6 +38,8 @@
 using namespace std;
 using namespace mfem;
 
+static int max_dofs = 100000;
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -50,7 +52,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "./star-set.mesh";
    int order = 1;
    int bt = EntitySets::INVALID;
-   const char *bs = "Origin";
+   const char *bs = "";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -58,6 +60,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&max_dofs, "-md", "--max-dofs",
+                  "Maximum number of degrees of freedom.");
    args.AddOption(&bt, "-bt", "--bc-entity-type",
                   "");
    args.AddOption(&bs, "-bs", "--bc-entity-set-name",
@@ -203,7 +207,7 @@ int main(int argc, char *argv[])
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 100000;
+   // const int max_dofs = 100000;
    for (int it = 0; ; it++)
    {
       HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
