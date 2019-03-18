@@ -687,7 +687,7 @@ double DiffusionIntegrator::ComputeFluxEnergy
       }
 
       Trans.SetIntPoint(&ip);
-      double w = Trans.Weight() * ip.weight;
+      double w = std::abs(Trans.Weight()) * ip.weight;
 
       if (!MQ)
       {
