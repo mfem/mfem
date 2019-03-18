@@ -17,6 +17,7 @@
 #include "../general/error.hpp"
 
 // *****************************************************************************
+#include <cfenv>
 #include <cmath>
 #include <cassert>
 #include <cstring>
@@ -30,6 +31,14 @@
 // *****************************************************************************
 #include "mm.hpp"
 #include "config.hpp"
+
+// *****************************************************************************
+#define MFEM_FE_CLEAR_EXCEPT std::feclearexcept(FE_ALL_EXCEPT);
+#define MFEM_FE_TEST_EXCEPT {                                           \
+      MFEM_VERIFY(!std::fetestexcept(FE_OVERFLOW), "FE_OVERFLOW");      \
+      MFEM_VERIFY(!std::fetestexcept(FE_UNDERFLOW), "FE_UNDERFLOW");    \
+      MFEM_VERIFY(!std::fetestexcept(FE_DIVBYZERO), "FE_DIVBYZERO");    \
+   }
 
 // *****************************************************************************
 // * Standard OpenMP wrapper
