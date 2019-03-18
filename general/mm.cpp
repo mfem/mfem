@@ -389,7 +389,7 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
 // *****************************************************************************
 void RegisterCheck(void *ptr)
 {
-  if(ptr != NULL){
+  if(ptr != NULL && config::UsingMM()){
     if(!mm::known(ptr))
       {
         assert(0 && "Pointer is not registered!");
