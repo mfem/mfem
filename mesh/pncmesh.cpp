@@ -874,13 +874,16 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
 void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
 {
    // make sure we have entity_conf_group[x] and the ordering arrays
-   for (int ent = 0; ent < Dim; ent++)
+   if (leaf_elements.Size())
    {
-      GetSharedList(ent);
-      MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
-      MFEM_VERIFY(entity_elem_local[ent].Size(), "internal error");
+      for (int ent = 0; ent < Dim; ent++)
+      {
+         GetSharedList(ent);
+         MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
+         MFEM_VERIFY(entity_elem_local[ent].Size(), "internal error");
+      }
+      MFEM_VERIFY(leaf_glob_order.Size(), "internal error");
    }
-   MFEM_VERIFY(leaf_glob_order.Size(), "internal error");
 
    // create ParMesh groups, and the map (ncmesh_group -> pmesh_group)
    Array<int> group_map(groups.size());
