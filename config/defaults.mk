@@ -34,14 +34,20 @@ INSTALL = /usr/bin/install
 STATIC = YES
 SHARED = NO
 
+# When cross-compiling, the user can specify XLANGUAGE/XCOMPILER/XARCHIVE
+#   MFEM_XLANGUAGE=-x=cu
+#   MFEM_XARCHIVE=-Xarchive
+#   MFEM_XCOMPILER=-Xcompiler
+LANGUAGE = $(MFEM_XLANGUAGE)
+
 ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
    RANLIB  = ranlib
-   PICFLAG = -fPIC
+   PICFLAG = $(MFEM_XCOMPILER) -fPIC
    SO_EXT  = so
    SO_VER  = so.$(MFEM_VERSION_STRING)
-   BUILD_SOFLAGS = -shared -Wl,-soname,libmfem.$(SO_VER)
+   BUILD_SOFLAGS = -shared $(MFEM_XARCHIVE) -Wl,-soname,libmfem.$(SO_VER)
    BUILD_RPATH = -Wl,-rpath,$(BUILD_REAL_DIR)
    INSTALL_SOFLAGS = $(BUILD_SOFLAGS)
    INSTALL_RPATH = -Wl,-rpath,@MFEM_LIB_DIR@
@@ -293,6 +299,15 @@ ifeq ($(MFEM_USE_OCCA),YES)
   endif
   OCCA_OPT := -I$(OCCA_DIR)/include
   OCCA_LIB := -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
+endif
+
+# RAJA library configuration
+ifeq ($(MFEM_USE_RAJA),YES)
+  ifndef RAJA_DIR
+    RAJA_DIR := @MFEM_DIR@/../raja
+  endif
+  RAJA_OPT := -I$(RAJA_DIR)/include
+  RAJA_LIB := -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 endif
 
 # If YES, enable some informational messages
