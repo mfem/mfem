@@ -104,7 +104,7 @@ void* UmpireMemoryManager::getPtr(void *ptr)
    // Get the states of our config and pointer
    const bool cpu = HasHostBit(d_ptr);
    const bool gpu = !cpu;
-   const bool usingGpu = config::usingGpu();
+   const bool usingGpu = config::UsingDevice();
    const bool usingCpu = !usingGpu;
 
    // CPU mode and pointer, nothing to do

@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
 #include "fespace.hpp"
-#include "fespace_ext.hpp"
 #include "gridfunc.hpp"
 #include "linearform.hpp"
 #include "bilininteg.hpp"
@@ -288,7 +287,7 @@ public:
    }
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator *bfi);
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);

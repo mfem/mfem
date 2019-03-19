@@ -17,6 +17,7 @@
 #include "../general/error.hpp"
 
 // *****************************************************************************
+#include <cfenv>
 #include <cmath>
 #include <cassert>
 #include <cstring>
@@ -33,14 +34,22 @@
 #include "config.hpp"
 
 // *****************************************************************************
+#define MFEM_FE_CLEAR_EXCEPT std::feclearexcept(FE_ALL_EXCEPT);
+#define MFEM_FE_TEST_EXCEPT {                                           \
+      MFEM_VERIFY(!std::fetestexcept(FE_OVERFLOW), "FE_OVERFLOW");      \
+      MFEM_VERIFY(!std::fetestexcept(FE_UNDERFLOW), "FE_UNDERFLOW");    \
+      MFEM_VERIFY(!std::fetestexcept(FE_DIVBYZERO), "FE_DIVBYZERO");    \
+   }
+
+// *****************************************************************************
 // * Standard OpenMP wrapper
 // *****************************************************************************
 template <typename HBODY>
-void ompWrap(const size_t N, HBODY &&h_body)
+void ompWrap(const int N, HBODY &&h_body)
 {
 #if defined(_OPENMP)
    #pragma omp parallel for
-   for (size_t k=0; k<N; k+=1)
+   for (int k=0; k<N; k+=1)
    {
       h_body(k);
    }
@@ -53,9 +62,9 @@ void ompWrap(const size_t N, HBODY &&h_body)
 // * Standard sequential wrapper
 // *****************************************************************************
 template <typename HBODY>
-void seqWrap(const size_t N, HBODY &&h_body)
+void seqWrap(const int N, HBODY &&h_body)
 {
-   for (size_t k=0; k<N; k+=1)
+   for (int k=0; k<N; k+=1)
    {
       h_body(k);
    }
@@ -64,12 +73,12 @@ void seqWrap(const size_t N, HBODY &&h_body)
 // *****************************************************************************
 // * GPU & HOST FOR_LOOP bodies wrapper
 // *****************************************************************************
-template <size_t BLOCKS, typename DBODY, typename HBODY>
-void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
+template <int BLOCKS, typename DBODY, typename HBODY>
+void wrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {
-   const bool omp  = mfem::config::usingOmp();
-   const bool gpu  = mfem::config::usingGpu();
-   const bool raja = mfem::config::usingRaja();
+   const bool omp  = mfem::config::UsingOmp();
+   const bool gpu  = mfem::config::UsingDevice();
+   const bool raja = mfem::config::UsingRaja();
    if (gpu && raja) { return rajaCudaWrap<BLOCKS>(N, d_body); }
    if (gpu)         { return cuWrap<BLOCKS>(N, d_body); }
    if (omp && raja) { return rajaOmpWrap(N, h_body); }
@@ -85,54 +94,38 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
 #define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
    wrap<BLOCKS>(N,                                                      \
-                [=] __device__ (size_t i){__VA_ARGS__},                 \
-                [=]            (size_t i){__VA_ARGS__})
+                [=] __device__ (int i) mutable {__VA_ARGS__},           \
+                [&]            (int i){__VA_ARGS__})
+#define MFEM_FORALL_SEQ(...) MFEM_FORALL_K(i,1,1,__VA_ARGS__)
 
 // *****************************************************************************
-uint32_t LOG2(uint32_t);
-#define ISQRT(N) static_cast<unsigned>(sqrt(static_cast<float>(N)))
-#define ICBRT(N) static_cast<unsigned>(cbrt(static_cast<float>(N)))
+int LOG2(int);
+#define ISQRT(N) static_cast<int>(sqrtf(static_cast<float>(N)))
+#define ICBRT(N) static_cast<int>(cbrtf(static_cast<float>(N)))
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
 
 // *****************************************************************************
-#define GET_GPU const bool gpu = config::usingGpu();
-#define GET_PTR(v) double *d_##v = (double*) mfem::mm::ptr(v)
-#define GET_PTR_T(v,T) T *d_##v = (T*) mfem::mm::ptr(v)
-#define GET_CONST_PTR(v) const double *d_##v = (const double*) mfem::mm::ptr(v)
-#define GET_CONST_PTR_T(v,T) const T *d_##v = (const T*) mfem::mm::ptr(v)
+#ifndef __NVCC__
+#define MFEM_HOST_DEVICE
+#else
+#define MFEM_HOST_DEVICE __host__ __device__
+#endif
 
 // *****************************************************************************
-#define BUILTIN_TRAP __builtin_trap()
 #define FILE_LINE __FILE__ && __LINE__
-#define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE && false);}
-#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::usingGpu());}
-
-// Offsets *********************************************************************
-#define ijN(i,j,N) (i)+N*(j)
-#define ijkN(i,j,k,N) (i)+N*((j)+N*(k))
-#define ijklN(i,j,k,l,N) (i)+N*((j)+N*((k)+N*(l)))
-#define ijNMt(i,j,N,M,t) (t)?((i)+N*(j)):((j)+M*(i))
-#define ijkNM(i,j,k,N,M) (i)+N*((j)+M*(k))
-#define ijklNM(i,j,k,l,N,M) (i)+N*((j)+N*((k)+M*(l)))
-// External offsets
-#define jkliNM(i,j,k,l,N,M) (j)+N*((k)+N*((l)+M*(i)))
-#define jklmiNM(i,j,k,l,m,N,M) (j)+N*((k)+N*((l)+N*((m)+M*(i))))
-#define xyeijDQE(i,j,x,y,e,D,Q,E) (x)+Q*((y)+Q*((e)+E*((i)+D*j)))
-#define xyzeijDQE(i,j,x,y,z,e,D,Q,E) (x)+Q*((y)+Q*((z)+Q*((e)+E*((i)+D*j))))
+#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::UsingDevice());}
 
 // *****************************************************************************
 const char *strrnchr(const char*, const unsigned char, const int);
 void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 
 // *****************************************************************************
-#define _XA_(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
-#define _NA_(...) _XA_(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
-#define __FILENAME__ ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
-#define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
+#define MFEM_XA(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
+#define MFEM_NA(...) MFEM_XA(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
+#define MFEM_FILENAME ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
+#define MFEM_FLF MFEM_FILENAME,__LINE__,__FUNCTION__
 
 // *****************************************************************************
-//#define dbg(...)
-//#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
-#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
+#define dbg(...) dbg_F_L_F_N_A(MFEM_FLF, MFEM_NA(__VA_ARGS__),__VA_ARGS__)
 
 #endif // MFEM_OKINA_HPP

@@ -14,14 +14,14 @@
 
 // Data type vector
 
+#include "device.hpp"
 #include "../general/okina.hpp"
-
 #include "../general/array.hpp"
 #include "../general/globals.hpp"
+#include "../general/okina.hpp"
 #ifdef MFEM_USE_SUNDIALS
 #include <nvector/nvector_serial.h>
 #endif
-#include <cassert>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -70,7 +70,8 @@ public:
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a _data can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector (double *_data, int _size);
+   Vector (double *_data, int _size)
+   { data = _data; size = _size; allocsize = -size; }
 
    /// Copies data from host to device
    void Push() const;
@@ -99,14 +100,15 @@ public:
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
-   void SetData(double *d);
+   void SetData(double *d) { data = d; }
 
    /// Set the Vector data and size.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
-   void SetDataAndSize(double *d, int s);
+   void SetDataAndSize(double *d, int s)
+   { data = d; size = s; allocsize = -s; }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
@@ -449,6 +451,12 @@ inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
    return glb_prod;
 }
 #endif
+
+/// Kernel of the min of x and y
+double Min(const int N, const double *x);
+
+/// Kernel of the inner product of x and y
+double Dot(const int N, const double *x, const double *y);
 
 }
 

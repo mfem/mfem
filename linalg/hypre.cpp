@@ -1010,9 +1010,7 @@ HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
 
 void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
 {
-   //MFEM_GPU_CANNOT_PASS;
    x.Pull();
-   //y.Pull();
    MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Width());
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
@@ -1042,9 +1040,7 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
 void HypreParMatrix::MultTranspose(double a, const Vector &x,
                                    double b, Vector &y) const
 {
-   //MFEM_GPU_CANNOT_PASS;
    x.Pull();
-   //y.Pull();
    MFEM_ASSERT(x.Size() == Height(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Height());
    MFEM_ASSERT(y.Size() == Width(), "invalid y.Size() = " << y.Size()
@@ -3336,7 +3332,7 @@ HypreLOBPCG::SetPreconditioner(Solver & precond)
 void
 HypreLOBPCG::SetOperator(Operator & A)
 {
-   int locSize = A.Width();
+   HYPRE_Int locSize = A.Width();
 
    if (HYPRE_AssumedPartitionCheck())
    {
@@ -3352,7 +3348,7 @@ HypreLOBPCG::SetOperator(Operator & A)
    {
       part = new HYPRE_Int[numProcs+1];
 
-      MPI_Allgather(&locSize, 1, MPI_INT,
+      MPI_Allgather(&locSize, 1, HYPRE_MPI_INT,
                     &part[1], 1, HYPRE_MPI_INT, comm);
 
       part[0] = 0;

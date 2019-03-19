@@ -146,14 +146,13 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    // 7. Set MFEM config parameters from the command line options
-   config::usePA(pa);
    if (pa) { mesh->EnsureNodes(); }
-   if (cuda) { config::useCuda(); }
-   if (omp)  { config::useOmp();  }
-   if (raja) { config::useRaja(); }
-   if (occa) { config::useOcca(); }
-   config::enableGpu(0/*,occa,cuda*/);
-   config::SwitchToGpu();
+   if (cuda) { config::UseCuda(); }
+   if (omp)  { config::UseOmp();  }
+   if (raja) { config::UseRaja(); }
+   if (occa) { config::UseOcca(); }
+   config::EnableDevice();
+   config::SwitchToDevice();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -169,10 +168,7 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace, assembly, elem_batch);
-
-   // These will be unified in methods of DiffusionIntegrator
-   if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
-   else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
+   a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -203,7 +199,10 @@ int main(int argc, char *argv[])
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 13. Save the refined mesh and the solution. This output can be viewed later
+   // 13. Switch back to host
+   config::SwitchToHost();
+
+   // 14. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
@@ -212,7 +211,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -222,7 +221,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 15. Free the used memory.
+   // 16. Free the used memory.
    delete A;
    delete a;
    delete b;

@@ -15,7 +15,6 @@
 #include "fe_coll.hpp"
 #include "../mesh/nurbs.hpp"
 #include "bilininteg.hpp"
-#include "../linalg/kernels/vector.hpp"
 #include <cmath>
 
 namespace mfem
@@ -113,6 +112,12 @@ void FiniteElement::GetLocalInterpolation (ElementTransformation &Trans,
                                            DenseMatrix &I) const
 {
    mfem_error ("GetLocalInterpolation (...) is not overloaded !");
+}
+
+void FiniteElement::GetLocalRestriction(ElementTransformation &,
+                                        DenseMatrix &) const
+{
+   mfem_error("FiniteElement::GetLocalRestriction() is not overloaded !");
 }
 
 void FiniteElement::GetTransferMatrix(const FiniteElement &fe,
@@ -293,6 +298,51 @@ void NodalFiniteElement::ProjectCurl_2D(
    }
 }
 
+void InvertLinearTrans(ElementTransformation &trans,
+                       const IntegrationPoint &pt, Vector &x)
+{
+   // invert a linear transform with one Newton step
+   IntegrationPoint p0;
+   p0.Set3(0, 0, 0);
+   trans.Transform(p0, x);
+
+   double store[3];
+   Vector v(store, x.Size());
+   pt.Get(v, x.Size());
+   v -= x;
+
+   trans.InverseJacobian().Mult(v, x);
+}
+
+void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
+                                             DenseMatrix &R) const
+{
+   IntegrationPoint ipt;
+   Vector pt(&ipt.x, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   Vector c_shape(Dof);
+#endif
+
+   Trans.SetIntPoint(&Nodes[0]);
+
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes[j], pt);
+      if (Geometries.CheckPoint(GeomType, ipt)) // do we need an epsilon here?
+      {
+         CalcShape(ipt, c_shape);
+         R.SetRow(j, c_shape);
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
+}
+
 void NodalFiniteElement::Project (
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
@@ -327,8 +377,7 @@ void NodalFiniteElement::Project (
       }
       for (int j = 0; j < x.Size(); j++)
       {
-         const int dji = Dof*j+i;
-         kernels::vector::MapDof(dofs.GetData(),x.GetData(),dji,j);
+         dofs(Dof*j+i) = x(j);
       }
    }
 }
@@ -951,6 +1000,90 @@ void VectorFiniteElement::LocalInterpolation_ND(
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
+}
+
+void VectorFiniteElement::LocalRestriction_RT(
+   const double *nk, const Array<int> &d2n, ElementTransformation &Trans,
+   DenseMatrix &R) const
+{
+   double pt_data[Geometry::MaxDim];
+   IntegrationPoint ip;
+   Vector pt(pt_data, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(Dof, Dim);
+#endif
+
+   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   const DenseMatrix &J = Trans.Jacobian();
+   const double weight = Trans.Weight();
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
+      ip.Set(pt_data, Dim);
+      if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
+      {
+         CalcVShape(ip, vshape);
+         J.MultTranspose(nk+Dim*d2n[j], pt_data);
+         pt /= weight;
+         for (int k = 0; k < Dof; k++)
+         {
+            double R_jk = 0.0;
+            for (int d = 0; d < Dim; d++)
+            {
+               R_jk += vshape(k,d)*pt_data[d];
+            }
+            R(j,k) = R_jk;
+         }
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
+}
+
+void VectorFiniteElement::LocalRestriction_ND(
+   const double *tk, const Array<int> &d2t, ElementTransformation &Trans,
+   DenseMatrix &R) const
+{
+   double pt_data[Geometry::MaxDim];
+   IntegrationPoint ip;
+   Vector pt(pt_data, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(Dof, Dim);
+#endif
+
+   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   const DenseMatrix &Jinv = Trans.InverseJacobian();
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
+      ip.Set(pt_data, Dim);
+      if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
+      {
+         CalcVShape(ip, vshape);
+         Jinv.Mult(tk+Dim*d2t[j], pt_data);
+         for (int k = 0; k < Dof; k++)
+         {
+            double R_jk = 0.0;
+            for (int d = 0; d < Dim; d++)
+            {
+               R_jk += vshape(k,d)*pt_data[d];
+            }
+            R(j,k) = R_jk;
+         }
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
 }
 
 
@@ -6660,7 +6793,7 @@ const double *Poly_1D::GetPoints(const int p, const int btype)
    }
    if (pts[p] == NULL)
    {
-      pts[p] = mm::malloc<double>(p + 1);
+      pts[p] = new double[p + 1];
       quad_func.GivePolyPoints(p+1, pts[p], qtype);
    }
    return pts[p];
@@ -6696,7 +6829,7 @@ Poly_1D::~Poly_1D()
       Array<double*>& pts = *it->second;
       for ( int i = 0 ; i < pts.Size() ; ++i )
       {
-         mm::free<double>(pts[i]);
+         delete [] pts[i];
       }
       delete it->second;
    }

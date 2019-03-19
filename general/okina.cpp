@@ -9,11 +9,11 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/okina.hpp"
 #include <stdarg.h>
+#include "../general/okina.hpp"
 
 // *****************************************************************************
-uint32_t LOG2(uint32_t v )
+int LOG2(int v )
 {
    static const int MultiplyDeBruijnBitPosition[32] =
    {
@@ -25,34 +25,33 @@ uint32_t LOG2(uint32_t v )
    v |= v >> 4;
    v |= v >> 8;
    v |= v >> 16;
-   return MultiplyDeBruijnBitPosition[(uint32_t)(v*0x07C4ACDDU)>>27];
+   return MultiplyDeBruijnBitPosition[(v*0x07C4ACDD)>>27];
 }
 
 //*****************************************************************************
 static uint8_t chk8(const char *bfr)
 {
-   unsigned int chk = 0;
-   size_t len = strlen(bfr);
-   for (; len; len--,bfr++)
+   uint8_t chk = 0;
+   for (int len = strlen(bfr); len; len--,bfr++)
    {
       chk += *bfr;
    }
-   return (uint8_t) chk;
+   return chk;
 }
 
 // *****************************************************************************
-const char *strrnchr(const char *s, const unsigned char c, int n)
+const char *strrnchr(char const *s, const unsigned char c, int n)
 {
-   size_t len = strlen(s);
-   char *p = (char*)s+len-1;
+   int len = strlen(s);
+   char const *p = s+len-1;
    for (; n; n--,p--,len--)
    {
       for (; len; p--,len--)
          if (*p==c) { break; }
-      if (!len) { return NULL; }
+      if (!len) { return nullptr; }
       if (n==1) { return p; }
    }
-   return NULL;
+   return nullptr;
 }
 
 // *****************************************************************************
@@ -74,11 +73,11 @@ void dbg_F_L_F_N_A(const char *file, const int line, const char *func,
    if (nargs==0) { return; }
    va_list args;
    va_start(args,nargs);
-   const char *format=va_arg(args,const char*);
+   const char *format = va_arg(args,const char*);
    assert(format);
-   vfprintf(stdout,format,args);
+   vfprintf(stdout, format, args);
    va_end(args);
    fprintf(stdout,"\033[m");
    fflush(stdout);
-   fflush(0);
+   fflush(nullptr);
 }

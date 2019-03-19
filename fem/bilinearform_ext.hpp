@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
 #include "fespace.hpp"
-#include "fespace_ext.hpp"
 #include "gridfunc.hpp"
 #include "linearform.hpp"
 #include "bilininteg.hpp"
@@ -27,6 +26,25 @@ namespace mfem
 
 class BilinearForm;
 
+/// Element restriction operator
+class ElemRestriction: public Operator
+{
+public:
+   const FiniteElementSpace &fes;
+   const int ne;
+   const int vdim;
+   const bool byvdim;
+   const int ndofs;
+   const int dof;
+   const int nedofs;
+   Array<int> offsets;
+   Array<int> indices;
+public:
+   ElemRestriction(const FiniteElementSpace&);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+};
+
 /// Data and methods for fully-assembled bilinear forms
 class FABilinearFormExtension : public Operator
 {
@@ -36,7 +54,7 @@ public:
    FABilinearFormExtension(BilinearForm *form);
 
    /// TODO
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator*) {}
+   void AddDomainIntegrator(BilinearFormIntegrator*) {}
    void Assemble() {}
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A) {}
    void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -58,7 +76,7 @@ public:
    EABilinearFormExtension(BilinearForm *form);
 
    /// TODO
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator*) {}
+   void AddDomainIntegrator(BilinearFormIntegrator*) {}
    void Assemble() {}
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A) {}
    void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -77,16 +95,16 @@ class PABilinearFormExtension : public Operator
 private:
    BilinearForm *a;
    const FiniteElementSpace *trialFes, *testFes;
-   Array<BilinearPAFormIntegrator*> integrators;
+   Array<BilinearFormIntegrator*> integrators;
    mutable Vector localX, localY;
-   kFiniteElementSpace *kfes;
+   ElemRestriction *elem_restrict;
 
 public:
    PABilinearFormExtension(BilinearForm*);
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator*);
-   // void AddBoundaryIntegrator(AbstractBilinearFormIntegrator*);
-   // void AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator*);
-   // void AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator*);
+   void AddDomainIntegrator(BilinearFormIntegrator*);
+   // void AddBoundaryIntegrator(BilinearFormIntegrator*);
+   // void AddInteriorFaceIntegrator(BilinearFormIntegrator*);
+   // void AddBoundaryFaceIntegrator(BilinearFormIntegrator*);
 
    void Assemble();
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A);
@@ -98,6 +116,7 @@ public:
 
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   void Update(FiniteElementSpace *fes);
 
    ~PABilinearFormExtension();
 };
@@ -111,7 +130,7 @@ public:
    MFBilinearFormExtension(BilinearForm *form);
 
    /// TODO
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator*) {}
+   void AddDomainIntegrator(BilinearFormIntegrator*) {}
    void Assemble() {}
    void FormSystemOperator(const Array<int> &ess_tdof_list, Operator *&A) {}
    void FormLinearSystem(const Array<int> &ess_tdof_list,

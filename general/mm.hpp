@@ -12,15 +12,15 @@
 #ifndef MFEM_MM
 #define MFEM_MM
 
-#include <new>
 #include <list>
-#include <cstddef>
+#include <cstddef> // for size_t
 #include <unordered_map>
 
-#include "../config/config.hpp"
-#include "occa.hpp"
+using std::size_t;
+
+#include "occa.hpp" // for OccaMemory
+
 #include "config.hpp"
-#include "umpire.hpp"
 
 namespace mfem
 {
@@ -34,19 +34,20 @@ public:
    struct alias;
    struct memory
    {
-      bool host;
-      const std::size_t bytes;
+      const size_t bytes;
       void *const h_ptr;
       void *d_ptr;
       OccaMemory o_ptr;
       std::list<const alias *> aliases;
-      memory(void* const h, const std::size_t b):
-         host(true), bytes(b), h_ptr(h), d_ptr(NULL), aliases() {}
+      bool host;
+      bool padding[7];
+      memory(void* const h, const size_t b):
+         bytes(b), h_ptr(h), d_ptr(nullptr), aliases(), host(true) {}
    };
    struct alias
    {
       memory *const mem;
-      const std::size_t offset;
+      const long offset;
    };
    typedef std::unordered_map<const void*, memory> memory_map;
    typedef std::unordered_map<const void*, const alias*> alias_map;
@@ -94,7 +95,7 @@ public:
 
    // Copies bytes from src to dst, which are both device addresses
    // NOTE These may be offset from the original pointers in the registry
-   void copyData(void *dst, const void *src, std::size_t bytes,
+   void copyData(void *dst, const void *src, const std::size_t bytes,
                  const bool async = false);
 
    // Tells if the host address is known by the memory manager
@@ -135,7 +136,7 @@ template<class T>
 T* malloc(const std::size_t n, const std::size_t size = sizeof(T))
 {
    T* ptr = getInstance().allocate<T>(n);
-   if (config::usingMM())
+   if (config::UsingMM())
    {
       getInstance().insertAddress(ptr, n*size);
    }
@@ -148,7 +149,7 @@ void free(void *ptr)
 {
    if (ptr != nullptr)
    {
-      if (config::usingMM())
+      if (config::UsingMM())
       {
          getInstance().removeAddress(ptr);
       }

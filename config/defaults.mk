@@ -34,14 +34,20 @@ INSTALL = /usr/bin/install
 STATIC = YES
 SHARED = NO
 
+# When cross-compiling, the user can specify XLANGUAGE/XCOMPILER/XARCHIVE
+#   MFEM_XLANGUAGE=-x=cu
+#   MFEM_XARCHIVE=-Xarchive
+#   MFEM_XCOMPILER=-Xcompiler
+LANGUAGE = $(MFEM_XLANGUAGE)
+
 ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
    RANLIB  = ranlib
-   PICFLAG = -fPIC
+   PICFLAG = $(MFEM_XCOMPILER) -fPIC
    SO_EXT  = so
    SO_VER  = so.$(MFEM_VERSION_STRING)
-   BUILD_SOFLAGS = -shared -Wl,-soname,libmfem.$(SO_VER)
+   BUILD_SOFLAGS = -shared $(MFEM_XARCHIVE) -Wl,-soname,libmfem.$(SO_VER)
    BUILD_RPATH = -Wl,-rpath,$(BUILD_REAL_DIR)
    INSTALL_SOFLAGS = $(BUILD_SOFLAGS)
    INSTALL_RPATH = -Wl,-rpath,@MFEM_LIB_DIR@
@@ -141,6 +147,8 @@ ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
 else
    # ParMETIS: currently needed by SuperLU or STRUMPACK. We assume that METIS 5
    # (included with ParMETIS) is installed in the same location.
+   # Starting with STRUMPACK v2.2.0, ParMETIS is an optional dependency while
+   # METIS is still required.
    METIS_DIR = @MFEM_DIR@/../parmetis-4.0.3
    METIS_OPT = -I$(METIS_DIR)/include
    METIS_LIB = -L$(METIS_DIR)/lib -lparmetis -lmetis
@@ -188,7 +196,8 @@ SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
 SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
 SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/SRC -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
 
-# SCOTCH library configuration (required by STRUMPACK)
+# SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
+# STRUMPACK >= v2.2.0)
 SCOTCH_DIR = @MFEM_DIR@/../scotch_6.0.4
 SCOTCH_OPT = -I$(SCOTCH_DIR)/include
 SCOTCH_LIB = -L$(SCOTCH_DIR)/lib -lptscotch -lptscotcherr -lscotch -lscotcherr\
@@ -292,6 +301,15 @@ ifeq ($(MFEM_USE_OCCA),YES)
   endif
   OCCA_OPT := -I$(OCCA_DIR)/include
   OCCA_LIB := -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
+endif
+
+# RAJA library configuration
+ifeq ($(MFEM_USE_RAJA),YES)
+  ifndef RAJA_DIR
+    RAJA_DIR := @MFEM_DIR@/../raja
+  endif
+  RAJA_OPT := -I$(RAJA_DIR)/include
+  RAJA_LIB := -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 endif
 
 # Umpire library configuration

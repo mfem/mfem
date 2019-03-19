@@ -585,7 +585,7 @@ int STable::Push( int i, int j )
 
 DSTable::DSTable(int nrows)
 {
-   Rows = mm::malloc<Node*>(nrows);
+   Rows = new Node*[nrows];
    for (int i = 0; i < nrows; i++)
    {
       Rows[i] = NULL;
@@ -609,7 +609,7 @@ int DSTable::Push_(int r, int c)
 #ifdef MFEM_USE_MEMALLOC
    n = NodesMem.Alloc ();
 #else
-   n = mm::malloc<Node>(1);
+   n = new Node;
 #endif
    n->Column = c;
    n->Index  = NumEntries;
@@ -647,11 +647,11 @@ DSTable::~DSTable()
       {
          na = nb;
          nb = nb->Prev;
-         mm::free<int>(na);
+         delete na;
       }
    }
 #endif
-   mm::free<int>(Rows);
+   delete [] Rows;
 }
 
 }

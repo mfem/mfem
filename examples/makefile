@@ -55,7 +55,7 @@ SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_LANGUAGE) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 all: $(EXAMPLES) $(SUBDIRS_ALL)
 
@@ -96,6 +96,12 @@ ex15-test-seq: ex15
 	@$(call mfem-test,$<,, Serial example,-e 1)
 ex15p-test-par: ex15p
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-e 1)
+# Testing: optional tests
+ifeq ($(MFEM_USE_STRUMPACK),YES)
+ex11p-test-strumpack: ex11p
+	@$(call mfem-test,$<, $(RUN_MPI), STRUMPACK example,--strumpack)
+test-par-YES: ex11p-test-strumpack
+endif
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
