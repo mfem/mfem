@@ -106,7 +106,7 @@ Array<int> SparseMatrix_Build_smap(const SparseMatrix &A)
 }
 
 // Given a matrix K, matrix D (initialized with same sparsity as K) 
-// is computed, such that (K+D)_ij >= 0 for i != j
+// is computed, such that (K+D)_ij >= 0 for i != j.
 void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K, SparseMatrix& D)
 {
    const int s1 = K.Size();
@@ -158,7 +158,9 @@ Mesh* GetSubcellMesh(Mesh *mesh, int p)
    return ref_mesh;
 }
 
-// Appropriate quadrature rule for faces of is obtained
+// Appropriate quadrature rule for faces of is obtained.
+// TODO check if this gives the desired order. I use the same order
+// for all faces. In DGTraceIntegrator it uses the min of OrderW, why?
 const IntegrationRule *GetFaceIntRule(FiniteElementSpace *fes)
 {
    int i, qOrdF;
@@ -237,8 +239,10 @@ public:
 
 private:
 
-   // Finds a zone id that shares a face with both el1 and el2, but isn't el.
-   // NOTE: Here it is assumed that all elements have the same geometry, due to numBdrs.
+   // Returns the element that shares a face with both el1 and el2, but is not el.
+	// NOTE: This routine should also work on non-ordered meshes.
+	// NOTE: This approach will not work for meshes with hanging nodes.
+	// NOTE: Here it is assumed that all elements have the same geometry, due to numBdrs.
    int FindCommonAdjacentElement(int el, int el1, int el2, int dim, int numBdrs)
    {
       if (min(el1, el2) < 0) { return -1; }
@@ -250,7 +254,6 @@ private:
 
       neighborElements1.SetSize(numBdrs); neighborElements2.SetSize(numBdrs);
 
-      // add neighbor elements sharing a vertex/edge/face according to grid dimension
       if (dim==1)
       {
          mesh->GetElementVertices(el1, bdrs1);
@@ -267,6 +270,7 @@ private:
          mesh->GetElementFaces(el2, bdrs2, orientation);
       }
 
+      // get lists of all neighbors of el1 and el2
       for (i = 0; i < numBdrs; i++)
       {
          Trans = mesh->GetFaceElementTransformations(bdrs1[i]);
@@ -280,6 +284,7 @@ private:
       {
          for (j = 0; j < numBdrs; j++)
          {
+				// add neighbor elements that share a face with el1 and el2 but are not el
             if ((neighborElements1[i] == neighborElements2[j]) &&
                 (neighborElements1[i] != el))
             {
@@ -302,6 +307,8 @@ private:
       else { return -1; }
    }
 
+   // This fills the map_for_bounds according to our paper.
+   // NOTE: This routine should also work on non-ordered meshes.
    // NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.
    // NOTE: Here it is assumed that all elements have the same geometry, due to numBdrs.
    // NOTE: This approach will not work for meshes with hanging nodes.
@@ -322,14 +329,13 @@ private:
 
       for (k = 0; k < ne; k++)
       {
-         // add the current element for all dofs of the element
+         // include the current element for all dofs of the element
          for (i = 0; i < nd; i++)
          {
             dofInd = k*nd+i;
             map_for_bounds[dofInd].push_back(k);
          }
 
-         // add neighbor elements sharing a vertex/edge/face according to grid dimension
          if (dim==1)
          {
             mesh->GetElementVertices(k, bdrs);
@@ -343,6 +349,7 @@ private:
             mesh->GetElementFaces(k, bdrs, orientation);
          }
 
+         // include neighbor elements that share a face with element k for dofs on the boundary
          for (i = 0; i < numBdrs; i++)
          {
             Trans = mesh->GetFaceElementTransformations(bdrs[i]);
@@ -356,8 +363,8 @@ private:
             }
          }
 
-         // Diagonal neighbors.
-         if (dim==2)
+         // include neighbor elements that have no face in common with element k
+         if (dim==2) // include neighbor elements for the four vertices of a square
          {
             nbr_id = FindCommonAdjacentElement(k, neighborElements[3],
                                                neighborElements[0], 2, numBdrs);
@@ -404,7 +411,7 @@ private:
             neighborElem[11] = FindCommonAdjacentElement(k, neighborElements[3],
                                                          neighborElements[4], dim, numBdrs);
 
-            // add the neighbors for each edge
+            // include neighbor elements for the twelve edges of a square
             for (j = 0; j <= p; j++)
             {
                if (neighborElem[0] >= 0)
@@ -457,7 +464,7 @@ private:
                }
             }
 
-            // cube vertices
+            // include neighbor elements for the 8 vertices of a square
             nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[0],
                                                neighborElem[3], dim, numBdrs);
             if (nbr_id >= 0) { map_for_bounds[k*nd].push_back(nbr_id); }
