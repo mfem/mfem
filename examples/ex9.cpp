@@ -105,6 +105,8 @@ Array<int> SparseMatrix_Build_smap(const SparseMatrix &A)
    return smap;
 }
 
+// Given a matrix K, matrix D (initialized with same sparsity as K) 
+// is computed, such that (K+D)_ij >= 0 for i != j
 void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K, SparseMatrix& D)
 {
    const int s1 = K.Size();
@@ -132,6 +134,8 @@ void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K, SparseMatrix& D)
    }
 }
 
+// For given mesh and polynomial degree p, the mesh corresponding to Bezier subcells is constructed.
+// NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.   
 Mesh* GetSubcellMesh(Mesh *mesh, int p)
 {
    Mesh *ref_mesh;
@@ -154,6 +158,7 @@ Mesh* GetSubcellMesh(Mesh *mesh, int p)
    return ref_mesh;
 }
 
+// Appropriate quadrature rule for faces of is obtained
 const IntegrationRule *GetFaceIntRule(FiniteElementSpace *fes)
 {
    int i, qOrdF;
@@ -189,8 +194,10 @@ public:
    // For each dof the elements containing that vertex are stored.
    mutable std::map<int, std::vector<int> > map_for_bounds;
 
-   Vector x_min;
-   Vector x_max;
+   Vector xi_min;
+   Vector xi_max;
+	Vector xe_min;
+	Vector xe_max;
 
    SolutionBounds(FiniteElementSpace* _fes, const BilinearForm& K)
    {
@@ -204,25 +211,10 @@ public:
    void ComputeVertexBounds(const Vector& x)
    {
       int i, j, k, nd, dofInd, ne = mesh->GetNE();
-      Vector xMax, xMin;
-      xMax.SetSize(ne); xMin.SetSize(ne);
 
-      x_min.SetSize(x.Size());
-      x_max.SetSize(x.Size());
+      xi_min.SetSize(x.Size());
+      xi_max.SetSize(x.Size());
 
-      for (k = 0; k < ne; k++)
-      {
-         const FiniteElement &el = *fes->GetFE(k);
-         nd = el.GetDof();
-
-         xMin(k) = numeric_limits<double>::infinity();
-         xMax(k) = -xMin(k);
-         for (j = 0; j < nd; j++)
-         {
-            xMax(k) = max(xMax(k), x(k*nd+j));
-            xMin(k) = min(xMin(k), x(k*nd+j));
-         }
-      }
       for (k = 0; k < ne; k++)
       {
          const FiniteElement &el = *fes->GetFE(k);
@@ -231,13 +223,13 @@ public:
          for (j = 0; j < nd; j++)
          {
             dofInd = k*nd+j;
-            x_min(dofInd) = numeric_limits<double>::infinity();
-            x_max(dofInd) = -x_min(dofInd);
+            xi_min(dofInd) = numeric_limits<double>::infinity();
+            xi_max(dofInd) = -xi_min(dofInd);
 
             for (int i = 0; i < (int)map_for_bounds[dofInd].size(); i++)
             {
-               x_max(dofInd) = max(x_max(dofInd), xMax(map_for_bounds[dofInd][i]));
-               x_min(dofInd) = min(x_min(dofInd), xMin(map_for_bounds[dofInd][i]));
+               xi_max(dofInd) = max(xi_max(dofInd), xe_max(map_for_bounds[dofInd][i]));
+               xi_min(dofInd) = min(xi_min(dofInd), xe_min(map_for_bounds[dofInd][i]));
             }
          }
       }
@@ -1555,12 +1547,18 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       Mesh *mesh = fes->GetMesh();
       int i, j, k, m, nd, dofInd, dofInd2, loc, ne(fes->GetNE()),
           dim(mesh->Dimension());
-      double xMax, xMin, xSum, xNeighbor, sumFluctSubcellP, sumFluctSubcellN,
+      double xSum, xNeighbor, sumFluctSubcellP, sumFluctSubcellN,
              sumWeightsP, sumWeightsN, weightP, weightN, rhoP, rhoN, gammaP, gammaN,
              minGammaP, minGammaN, aux, fluct, beta = 10., gamma = 10., eps = 1.E-15;
       Vector xMaxSubcell, xMinSubcell, sumWeightsSubcellP, sumWeightsSubcellN,
              fluctSubcellP, fluctSubcellN, nodalWeightsP, nodalWeightsN, alpha;
 
+		const FiniteElement &dummy = *fes->GetFE(0);
+		nd = dummy.GetDof();
+		
+		fct.bnds.xe_min.SetSize(ne); fct.bnds.xe_min = 0.;
+		fct.bnds.xe_max.SetSize(ne); fct.bnds.xe_max = 0.;
+		
       SparseMatrix fluctMatrix;
       DenseMatrix fluctSub, bdrIntLumped, bdrInt;
 
@@ -1587,22 +1585,19 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       // Monotonicity terms
       for (k = 0; k < ne; k++)
       {
-         const FiniteElement &el = *fes->GetFE(k);
-         nd = el.GetDof();
-
          ///////////////////////////
          // Element contributions //
          ///////////////////////////
-         xMin = numeric_limits<double>::infinity();
-         xMax = -xMin;
+         fct.bnds.xe_min(k) = numeric_limits<double>::infinity();
+         fct.bnds.xe_max(k) = -fct.bnds.xe_min(k);
          rhoP = rhoN = xSum = 0.;
          alpha.SetSize(nd); alpha = 0.;
 
          for (j = 0; j < nd; j++)
          {
             dofInd = k*nd+j;
-            xMax = max(xMax, x(dofInd));
-            xMin = min(xMin, x(dofInd));
+            fct.bnds.xe_max(k) = max(fct.bnds.xe_max(k), x(dofInd));
+            fct.bnds.xe_min(k) = min(fct.bnds.xe_min(k), x(dofInd));
             xSum += x(dofInd);
          }
 
@@ -1627,8 +1622,8 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             LinearFluxLumping(k, nd, x, y, bdrInt, bdrIntLumped);
          }
 
-         sumWeightsP = nd*xMax - xSum + eps;
-         sumWeightsN = nd*xMin - xSum - eps;
+         sumWeightsP = nd*fct.bnds.xe_max(k) - xSum + eps;
+         sumWeightsN = nd*fct.bnds.xe_min(k) - xSum - eps;
 
          if (fct.schemeOpt)
          {
@@ -1683,8 +1678,8 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          for (i = 0; i < nd; i++)
          {
             dofInd = k*nd+i;
-            weightP = (xMax - x(dofInd)) / sumWeightsP;
-            weightN = (xMin - x(dofInd)) / sumWeightsN;
+            weightP = (fct.bnds.xe_max(k) - x(dofInd)) / sumWeightsP;
+            weightN = (fct.bnds.xe_min(k) - x(dofInd)) / sumWeightsN;
 
             if (fct.schemeOpt)
             {
@@ -1751,8 +1746,8 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
       for (j = 0; j < nd; j++)
       {
          dofInd = k*nd+j;
-         uClipped(j) = min(fct.bnds.x_max(dofInd), max(x(dofInd) + dt * yH(dofInd),
-                                                       fct.bnds.x_min(dofInd)));
+         uClipped(j) = min(fct.bnds.xi_max(dofInd), max(x(dofInd) + dt * yH(dofInd),
+                                                       fct.bnds.xi_min(dofInd)));
          // compute coefficients for the high-order corrections
          fClipped(j) = lumpedM(dofInd) * (uClipped(j) - ( x(dofInd) + dt * yL(dofInd) ));
 
