@@ -10,6 +10,8 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "mesh_extras.hpp"
+#include <map>
+#include <set>
 
 using namespace std;
 
