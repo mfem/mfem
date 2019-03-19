@@ -185,9 +185,9 @@ const IntegrationRule *GetFaceIntRule(FiniteElementSpace *fes)
    return &IntRules.Get(Trans->FaceGeom, qOrdF);
 }
 
+// Class storing information needed for the low order methods and FCT.
 class SolutionBounds
 {
-   // set of local dofs which are in stencil of given local dof
    Mesh* mesh;
    FiniteElementSpace* fes;
 
@@ -200,13 +200,77 @@ public:
    Vector xi_max;
 	Vector xe_min;
 	Vector xe_max;
+	
+	const MONOTYPE monoType;
+   bool &schemeOpt;
 
-   SolutionBounds(FiniteElementSpace* _fes, const BilinearForm& K)
+   SolutionBounds(FiniteElementSpace* _fes, const MONOTYPE _monoType,
+                  bool &_schemeOpt) : monoType(_monoType), schemeOpt(_schemeOpt)
    {
       fes = _fes;
       mesh = fes->GetMesh();
 
-      GetVertexBoundsMap();
+      GetVertexBoundsMap(); // Fill map_for_bounds.
+		
+		const FiniteElement &dummy = *fes->GetFE(0);
+      int p = dummy.GetOrder();
+
+      if (monoType == None) { return; }
+      
+      elseif ((monoType == ResDist) || (monoType == ResDist_FCT))
+      {
+         if ((p==1) && schemeOpt)
+         {
+            mfem_warning("Subcell option does not make sense for order 1. Using cell-based scheme.");
+            schemeOpt = false;
+				return; // TODO move stuff thats required to before that if
+         }
+
+         Mesh* mesh = fes->GetMesh();
+         int k, numDofs, numBdrs, ne = mesh->GetNE(), nd = dummy.GetDof(),
+                                  dim = mesh->Dimension();
+         if (dim==1)
+         {
+            numSubcells = p;
+            numDofsSubcell = 2;
+         }
+         else if (dim==2)
+         {
+            numSubcells = p*p;
+            numDofsSubcell = 4;
+         }
+         else if (dim==3)
+         {
+            numSubcells = p*p*p;
+            numDofsSubcell = 8;
+         }
+
+         // fill the dofs array to access the correct dofs for boundaries later
+         dummy.ExtractBdrDofs(dofs);
+         numDofs = dofs.Height();
+         numBdrs = dofs.Width();
+
+         FillSubcell2CellDof(p, dim);
+
+         neighborDof.SetSize(ne*numDofs, numBdrs);
+
+         Array <int> bdrs, orientation;
+
+         for (k = 0; k < ne; k++)
+         {
+            if (dim==1) { /* Nothing needs to be done for 1D boundaries */ }
+            else if (dim==2)
+            {
+               mesh->GetElementEdges(k, bdrs, orientation);
+            }
+            else if (dim==3)
+            {
+               mesh->GetElementFaces(k, bdrs, orientation);
+            }
+
+            FillNeighborDofs(mesh, numDofs, k, bdrs);
+         }
+      }
    }
 
    // NOTE: Optimizations possible, combine this with low and high order methods.
@@ -503,7 +567,7 @@ class FluxCorrectedTransport
 public:
    FluxCorrectedTransport(FiniteElementSpace* _fes, const MONOTYPE _monoType,
                           bool &_schemeOpt,
-                          const SparseMatrix &K, VectorFunctionCoefficient &coef, SolutionBounds &_bnds) :
+                          VectorFunctionCoefficient &coef, SolutionBounds &_bnds) :
       fes(_fes), monoType(_monoType), schemeOpt(_schemeOpt), bnds(_bnds),
       velocity(coef)
    {
@@ -527,59 +591,6 @@ public:
             //       terms is ensured via matrix D. The 1D case is not handled
             //       differnetly from the multi-dimensional one (contrary to PDU)
             // Matrix D is assembled in every RK stage.
-         }
-      }
-      else
-      {
-         if ((p==1) && schemeOpt)
-         {
-            mfem_warning("Subcell option does not make sense for order 1. Using cell-based scheme.");
-            schemeOpt = false;
-         }
-
-         Mesh* mesh = fes->GetMesh();
-         int k, numDofs, numBdrs, ne = mesh->GetNE(), nd = dummy.GetDof(),
-                                  dim = mesh->Dimension();
-         if (dim==1)
-         {
-            numSubcells = p;
-            numDofsSubcell = 2;
-         }
-         else if (dim==2)
-         {
-            numSubcells = p*p;
-            numDofsSubcell = 4;
-         }
-         else if (dim==3)
-         {
-            numSubcells = p*p*p;
-            numDofsSubcell = 8;
-         }
-
-         // fill the dofs array to access the correct dofs for boundaries later
-         dummy.ExtractBdrDofs(dofs);
-         numDofs = dofs.Height();
-         numBdrs = dofs.Width();
-
-         FillSubcell2CellDof(p, dim);
-
-         neighborDof.SetSize(ne*numDofs, numBdrs);
-
-         Array <int> bdrs, orientation;
-
-         for (k = 0; k < ne; k++)
-         {
-            if (dim==1) { /* Nothing needs to be done for 1D boundaries */ }
-            else if (dim==2)
-            {
-               mesh->GetElementEdges(k, bdrs, orientation);
-            }
-            else if (dim==3)
-            {
-               mesh->GetElementFaces(k, bdrs, orientation);
-            }
-
-            FillNeighborDofs(mesh, numDofs, k, nd, p, dim, bdrs);
          }
       }
    }
@@ -639,9 +650,13 @@ public:
    // paper. Right now it works on arbitrary meshes in 2D. TODO use it in 1D
    // NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.
    // NOTE: This approach will not work for meshes with hanging nodes.
-   void FillNeighborDofs(Mesh *mesh, int numDofs, int k, int nd, int p, int dim,
-                         Array <int> bdrs)
-   {// TODO less arguments, dummy
+   void FillNeighborDofs(Mesh *mesh, int numDofs, int k, Array <int> bdrs)
+   {
+		const FiniteElement &el = *fes->GetFE(k);
+		int nd = el.GetDof();
+		int p = el.GetOrder();
+		int dim = mesh->Dimension();
+		
       int i, j, ind, nbr_el, numBdrs = dofs.Width();
       FaceElementTransformations *Trans;
       Array<int> neighborBdrs, orientation;
@@ -1206,11 +1221,10 @@ int main(int argc, char *argv[])
    b.Assemble();
 
    // Compute data required to easily find the min-/max-values for the high order scheme
-   SolutionBounds bnds(&fes, k);
+   SolutionBounds bnds(&fes, monoType, schemeOpt);
 
    // Precompute data required for high and low order schemes
-   FluxCorrectedTransport fct(&fes, monoType, schemeOpt, k.SpMat(), velocity,
-                              bnds);
+   FluxCorrectedTransport fct(&fes, monoType, schemeOpt, velocity, bnds);
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
