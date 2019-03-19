@@ -908,6 +908,7 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
+#ifdef MFEM_USE_MPI
 void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec)
 {
    target_spec.SetSize(tspec.Size());
@@ -926,6 +927,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec)
          (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
    }
 }
+#endif
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec)
 {
@@ -974,11 +976,15 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          tspec_fes->GetElementDofs(e_id, dofs);
          target_spec.GetSubVector(dofs, tspec_vals);
 
+         const double min_size = tspec_vals.Min();
+         MFEM_ASSERT(min_size > 0.0,
+                    "Non-positive size propagated in the target definition.");
+
          for (int i = 0; i < ir.GetNPoints(); i++)
          {
             const IntegrationPoint &ip = ir.IntPoint(i);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-            const double size = std::max(shape * tspec_vals, 0.001);
+            const double size = std::max(shape * tspec_vals, min_size);
             Jtr(i).Set(std::pow(size / Wideal.Det(), 1.0/dim), Wideal);
          }
          break;

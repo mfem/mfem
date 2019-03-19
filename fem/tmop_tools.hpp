@@ -13,6 +13,7 @@
 #define MFEM_TMOP_TOOLS_HPP
 
 #include "../fem/pbilinearform.hpp"
+#include "../fem/bilinearform.hpp"
 #include "../fem/tmop.hpp"
 
 namespace mfem
@@ -47,10 +48,10 @@ protected:
    mutable BilinearForm M, K;
 
 public:
-   /** Here pfes must be the ParFESpace of the function that will be moved, and
-       xn must be the Nodes values of the mesh that will be moved. */
+   /** Here @a fes is the FESpace of the function that will be moved. Note
+       that Mult() moves the nodes of the mesh corresponding to @a fes. */
    SerialAdvectorCGOper(const Vector &x_start, GridFunction &vel,
-                        Vector &xn, FiniteElementSpace &fes);
+                        FiniteElementSpace &fes);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
@@ -67,10 +68,10 @@ protected:
    mutable ParBilinearForm M, K;
 
 public:
-   /** Here pfes must be the ParFESpace of the function that will be moved, and
-       xn must be the Nodes values of the mesh that will be moved. */
+   /** Here @a pfes is the ParFESpace of the function that will be moved. Note
+       that Mult() moves the nodes of the mesh corresponding to @a pfes. */
    ParAdvectorCGOper(const Vector &x_start, GridFunction &vel,
-                     Vector &xn, ParFiniteElementSpace &pfes);
+                     ParFiniteElementSpace &pfes);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
