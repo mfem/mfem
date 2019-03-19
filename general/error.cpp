@@ -145,7 +145,6 @@ void mfem_backtrace(int mode, int depth)
 
 void mfem_error(const char *msg)
 {
-   std::abort();
 
    if (msg)
    {
