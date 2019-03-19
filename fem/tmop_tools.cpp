@@ -11,6 +11,7 @@
 
 #include "tmop_tools.hpp"
 #include "../fem/pnonlinearform.hpp"
+#include "../fem/nonlinearform.hpp"
 #include "../general/osockstream.hpp"
 
 namespace mfem
@@ -49,12 +50,9 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
 
    TimeDependentOperator *oper = NULL;
    // This must be the fes of the ind, associated with the object's mesh.
-   if (fes)  { oper = new SerialAdvectorCGOper(nodes0, u, *mesh_nodes, *fes); }
+   if (fes)  { oper = new SerialAdvectorCGOper(nodes0, u, *fes); }
 #ifdef MFEM_USE_MPI
-   else if (pfes)
-   {
-      oper = new ParAdvectorCGOper(nodes0, u, *mesh_nodes, *pfes);
-   }
+   else if (pfes) { oper = new ParAdvectorCGOper(nodes0, u, *pfes); }
 #endif
    MFEM_ASSERT(oper != NULL,
                "No FE space has been given to the AdaptivityEvaluator.");
@@ -70,9 +68,15 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    const int s = u.FESpace()->GetVSize() / 2;
    for (int i = 0; i < s; i++)
    {
-      const double vel = std::sqrt( u(i) * u(i) + u(i+s) * u(i+s) + 1e-14);
+      const double vel = u(i) * u(i) + u(i+s) * u(i+s);
       v_max = std::max(v_max, vel);
    }
+   if (v_max == 0.0)
+   {
+      // No need to change the field.
+      return;
+   }
+   v_max = std::sqrt(v_max);
    double dt = 0.5 * min_h / v_max;
    double glob_dt = dt;
 #ifdef MFEM_USE_MPI
@@ -88,11 +92,12 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    {
       if (t + glob_dt >= 1.0)
       {
+#ifdef MFEM_DEBUG
          if (myid == 0)
          {
-            mfem::out << "Remap with dt = " << glob_dt
-                      << " took " << ti << " steps." << std::endl;
+            mfem::out << "Remap took " << ti << " steps." << std::endl;
          }
+#endif
          glob_dt = 1.0 - t;
          last_step = true;
       }
@@ -106,10 +111,11 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
 }
 
 SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
-                                           GridFunction &vel, Vector &xn,
+                                           GridFunction &vel,
                                            FiniteElementSpace &fes)
    : TimeDependentOperator(fes.GetVSize()),
-     x0(x_start), x_now(xn), u(vel), u_coeff(&u), M(&fes), K(&fes)
+     x0(x_start), x_now(*fes.GetMesh()->GetNodes()),
+     u(vel), u_coeff(&u), M(&fes), K(&fes)
 {
    ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
    K.AddDomainIntegrator(Kinteg);
@@ -136,8 +142,9 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    M.BilinearForm::operator=(0.0);
    M.Assemble();
 
-   //CGSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
-   GMRESSolver lin_solver;
+   di_dt = 0.0;
+   CGSolver lin_solver;
+   //GMRESSolver lin_solver;
    DSmoother prec;
    lin_solver.SetPreconditioner(prec);
    lin_solver.SetOperator(M.SpMat());
@@ -149,10 +156,11 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 
 #ifdef MFEM_USE_MPI
 ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
-                                     GridFunction &vel, Vector &xn,
+                                     GridFunction &vel,
                                      ParFiniteElementSpace &pfes)
    : TimeDependentOperator(pfes.GetVSize()),
-     x0(x_start), x_now(xn), u(vel), u_coeff(&u), M(&pfes), K(&pfes)
+     x0(x_start), x_now(*pfes.GetMesh()->GetNodes()),
+     u(vel), u_coeff(&u), M(&pfes), K(&pfes)
 {
    ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
    K.AddDomainIntegrator(Kinteg);
@@ -183,8 +191,9 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    HypreParVector *X   = rhs.ParallelAverage();
    HypreParMatrix *Mh  = M.ParallelAssemble();
 
-   //CGSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
-   GMRESSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
+   *X = 0.0;
+   CGSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
+   //GMRESSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
    HypreSmoother prec;
    prec.SetType(HypreSmoother::Jacobi, 1);
    lin_solver.SetPreconditioner(prec);
