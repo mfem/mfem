@@ -58,7 +58,7 @@ static const void* InsertAlias(mm::ledger &maps,
 {
    mm::memory &mem = maps.memories.at(base);
    const long offset = static_cast<const char*>(ptr) -
-      static_cast<const char*> (base);
+                       static_cast<const char*> (base);
    const mm::alias *alias = new mm::alias{&mem, offset};
    maps.aliases.emplace(ptr, alias);
 #ifdef MFEM_DEBUG_MM
@@ -68,7 +68,8 @@ static const void* InsertAlias(mm::ledger &maps,
       {
          if (a->mem == &mem )
          {
-            if (a->offset == offset){
+            if (a->offset == offset)
+            {
                mfem_error("a->offset == offset");
             }
          }
@@ -332,7 +333,7 @@ void* mm::memcpy(void *dst, const void *src, const size_t bytes,
    void *d_dst = mm::ptr(dst);
    const void *d_src = mm::ptr(src);
    const bool host = config::UsingHost();
-   if (bytes == 0) return dst;
+   if (bytes == 0) { return dst; }
    if (host) { return std::memcpy(dst, src, bytes); }
    if (!async)
    {
