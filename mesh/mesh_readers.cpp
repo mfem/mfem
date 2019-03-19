@@ -1048,6 +1048,18 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
 
          getline(input,buff);
 
+         if(binary)
+         {
+            input.read(reinterpret_cast<char*>(&numPoints), sizeof(unsigned long));
+            input.read(reinterpret_cast<char*>(&numCurves), sizeof(unsigned long));
+            input.read(reinterpret_cast<char*>(&numSurfaces), sizeof(unsigned long));
+            input.read(reinterpret_cast<char*>(&numVolumes), sizeof(unsigned long));
+         }
+         else
+         {
+            input >> numPoints >> numCurves >> numSurfaces >> numVolumes;
+         }
+
          for(int i=0; i<numPoints; ++i)
          {
             if(binary)
@@ -1250,7 +1262,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
             } //else ASCII
          } // for numSurfaces
 
-
+         cerr << "entities points, lines, surfaces, volumes: " << numPoints << ":" << numCurves << ":" << numSurfaces << ":" << numVolumes << endl;
          for(int i=0; i<numVolumes; ++i)
          {
             if(binary)
@@ -1407,7 +1419,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
          int numElements;
          int n_tags; // number of different tags describing an element
 
-         // set up some defaults as these tag descriptors are not in v4
+         // set up some defaults 
          int phys_domain=1; // element's attribute
          int elem_domain=0; // another element's attribute (rarely used)
          int n_partitions=0; // number of partitions where an element takes place
@@ -1432,6 +1444,50 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
             {
                input >> entity >> dimEntity >> type_of_element >> numElements;
             }
+
+            // load physical_domain tag depending on dim of entity
+            switch(dimEntity)
+            {
+               case 0:
+               {   
+                  map<int, int>::const_iterator it = pointEntities_map.find(entity);
+                  if(it != pointEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 1:
+               {   
+                  map<int, int>::const_iterator it = curveEntities_map.find(entity);
+                  if(it != curveEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 2:
+               {   
+                  map<int, int>::const_iterator it = surfaceEntities_map.find(entity);
+                  if(it != surfaceEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 3:   
+               {   
+                  map<int, int>::const_iterator it = volumeEntities_map.find(entity);
+                  if(it != curveEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               default:
+                  MFEM_ABORT("Invalid dimension, Dim = " << dimEntity);
+            }
+            cerr << "phys_domain for this entity block: " << phys_domain << " dimEntity: " << dimEntity << endl;
             for (int ele= 0; ele < numElements; ++ele)
             {
                // number of nodes for each type of Gmsh elements, type is the index of
