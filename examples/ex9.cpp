@@ -240,7 +240,6 @@ public:
 private:
 
    // Returns the element that shares a face with both el1 and el2, but is not el.
-	// NOTE: This routine should also work on non-ordered meshes.
 	// NOTE: This approach will not work for meshes with hanging nodes.
 	// NOTE: Here it is assumed that all elements have the same geometry, due to numBdrs.
    int FindCommonAdjacentElement(int el, int el1, int el2, int dim, int numBdrs)
@@ -308,9 +307,7 @@ private:
    }
 
    // This fills the map_for_bounds according to our paper.
-   // NOTE: This routine should also work on non-ordered meshes.
    // NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.
-   // NOTE: Here it is assumed that all elements have the same geometry, due to numBdrs.
    // NOTE: This approach will not work for meshes with hanging nodes.
    void GetVertexBoundsMap()
    {
@@ -504,16 +501,12 @@ private:
 class FluxCorrectedTransport
 {
 public:
-   // Constructor builds structures required for low order scheme
    FluxCorrectedTransport(FiniteElementSpace* _fes, const MONOTYPE _monoType,
                           bool &_schemeOpt,
                           const SparseMatrix &K, VectorFunctionCoefficient &coef, SolutionBounds &_bnds) :
       fes(_fes), monoType(_monoType), schemeOpt(_schemeOpt), bnds(_bnds),
       velocity(coef)
    {
-      // NOTE: D is initialized later, due to the need to have identical sparisty with corresponding
-      //       advection operator K or preconditioned volume terms, depending on the scheme.
-
       const FiniteElement &dummy = *fes->GetFE(0);
       int p = dummy.GetOrder();
 
@@ -591,8 +584,8 @@ public:
       }
    }
 
-   // Computes the element-global indices from the indices of the subcell and the indices
-   // of dofs on the subcell.
+   // A list is filled to later access the correct element-global indices given
+   // the subcell number and subcell index.
    // NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.
    void FillSubcell2CellDof(int p, int dim)
    {
@@ -609,40 +602,47 @@ public:
             {
                switch (j)
                {
-                  case 0: subcell2CellDof(m,j) =  m + (m / p); break;
-                  case 1: subcell2CellDof(m,j) =  m + (m / p) + 1; break;
-                  case 2: subcell2CellDof(m,j) =  m + (m / p) + p + 1; break;
-                  case 3: subcell2CellDof(m,j) =  m + (m / p) + p + 2; break;
+                  case 0: subcell2CellDof(m,j) =  m + (m/p); break;
+                  case 1: subcell2CellDof(m,j) =  m + (m/p) + 1; break;
+                  case 2: subcell2CellDof(m,j) =  m + (m/p) + p+1; break;
+                  case 3: subcell2CellDof(m,j) =  m + (m/p) + p+2; break;
                }
             }
             else if (dim == 3)
             {
                switch (j)
                {
-                  case 0: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)); break;
-                  case 1: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + 1; break;
-                  case 2: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + p + 1;
-                     break;
-                  case 3: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + p + 2;
-                     break;
-                  case 4: subcell2CellDof(m,j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1);
-                     break;
-                  case 5: subcell2CellDof(m,
-                                             j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1) + 1; break;
-                  case 6: subcell2CellDof(m,
-                                             j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1) + p + 1; break;
-                  case 7: subcell2CellDof(m,
-                                             j) =  m + (m / p) + (p+1) * (m / (p*p)) + (p+1)*(p+1) + p + 2; break;
+                  case 0:
+							subcell2CellDof(m,j) = m + (m/p) + (p+1)*(m/(p*p)); break;
+                  case 1:
+							subcell2CellDof(m,j) = m + (m/p) + (p+1)*(m/(p*p)) + 1; break;
+                  case 2:
+							subcell2CellDof(m,j) = m + (m/p) + (p+1)*(m/(p*p)) + p+1; break;
+                  case 3:
+							subcell2CellDof(m,j) = m + (m/p) + (p+1)*(m/(p*p)) + p+2; break;
+                  case 4:
+							subcell2CellDof(m,j) = m + (m/p) + (p+1)*(m/(p*p)) + (p+1)*(p+1); break;
+                  case 5:
+							subcell2CellDof(m,j) = m + (m/p) + (p+1)*(m/(p*p)) + (p+1)*(p+1)+1; break;
+                  case 6:
+							subcell2CellDof(m,j) = m + (m/p) + (p+1)*(m/(p*p)) + (p+1)*(p+1)+p+1; break;
+                  case 7:
+							subcell2CellDof(m,j) = m + (m/p) + (p+1)*(m/(p*p)) + (p+1)*(p+1)+p+2; break;
                }
             }
          }
       }
    }
 
+   // For each DOF on an element boundary, the global index of the DOF on the opposite site is
+   // computed and stored in a list. This is needed for lumping the flux contributions as in the
+   // paper. Right now it works on arbitrary meshes in 2D. TODO 1D TODO 3D.
+   // NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.
+   // NOTE: This approach will not work for meshes with hanging nodes.
    void FillNeighborDofs(Mesh *mesh, int numDofs, int k, int nd, int p, int dim,
                          Array <int> bdrs)
    {
-      int i, j, neighborElem, numBdrs = dofs.Width();
+      int i, j, l, neighborElem, numBdrs = dofs.Width();
       FaceElementTransformations *Trans;
       Array<int> neighborBdrs, orientation;
 
@@ -651,86 +651,30 @@ public:
       {
          for (j = 0; j < numDofs; j++)
          {
-            Trans = mesh->GetFaceElementTransformations(bdrs[0]);
-            if (Trans->Elem1No == k)
-            {
-               neighborElem = Trans->Elem2No;
-            }
-            else
-            {
-               neighborElem = Trans->Elem1No;
-            }
-
-            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
-            for (i = 0; i < numBdrs; i++)
-               if (neighborBdrs[i] == bdrs[0])
-               {
-                  break;
-               }
-
-            neighborDof(k*numDofs+j, 0) = neighborElem*nd + dofs(numDofs-1-j,i);
-
-            Trans = mesh->GetFaceElementTransformations(bdrs[1]);
-            if (Trans->Elem1No == k)
-            {
-               neighborElem = Trans->Elem2No;
-            }
-            else
-            {
-               neighborElem = Trans->Elem1No;
-            }
-
-            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
-            for (i = 0; i < numBdrs; i++)
-               if (neighborBdrs[i] == bdrs[1])
-               {
-                  break;
-               }
-
-            neighborDof(k*numDofs+j, 1) = neighborElem*nd + dofs(numDofs-1-j,i);
-
-            Trans = mesh->GetFaceElementTransformations(bdrs[2]);
-            if (Trans->Elem1No == k)
-            {
-               neighborElem = Trans->Elem2No;
-            }
-            else
-            {
-               neighborElem = Trans->Elem1No;
-            }
-
-            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
-            for (i = 0; i < numBdrs; i++)
-               if (neighborBdrs[i] == bdrs[2])
-               {
-                  break;
-               }
-
-            neighborDof(k*numDofs+j, 2) = neighborElem*nd + dofs(numDofs-1-j,i);
-
-            Trans = mesh->GetFaceElementTransformations(bdrs[3]);
-            if (Trans->Elem1No == k)
-            {
-               neighborElem = Trans->Elem2No;
-            }
-            else
-            {
-               neighborElem = Trans->Elem1No;
-            }
-
-            mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
-            for (i = 0; i < numBdrs; i++)
-               if (neighborBdrs[i] == bdrs[3])
-               {
-                  break;
-               }
-
-            neighborDof(k*numDofs+j, 3) = neighborElem*nd + dofs(numDofs-1-j,i);
+				for (l = 0; l < numBdrs; l++)
+				{
+					Trans = mesh->GetFaceElementTransformations(bdrs[l]);
+					neighborElem = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+					
+					mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
+					// Find the local index i in neighborElem of the common face.
+					for (i = 0; i < numBdrs; i++)
+					{
+						if (neighborBdrs[i] == bdrs[l])
+						{
+							break;
+						}
+					}
+					
+					// Here it is utilized that the orientations of the face
+					// for the two elements are opposite of each other.
+					neighborDof(k*numDofs+j, l) = neighborElem*nd + dofs(numDofs-1-j,i);
+				}
          }
       }
       else // dim == 3
       {
-         // NOTE: This will only work for meshes of uniformly ordered cube nodes.
+         // TODO: Right now this works only for meshes of uniformly ordered cube nodes.
          for (j = 0; j < numDofs; j++)
          {
             Trans = mesh->GetFaceElementTransformations(bdrs[0]);
