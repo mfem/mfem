@@ -621,10 +621,7 @@ int main(int argc, char *argv[])
                                   B, ion_mass_, ion_charge_);
 
    // Visualize the density, momentum, and energy
-   vector<socketstream> dout(num_species_+1), vout(num_species_+1),
-          tout(num_species_+1), dout2(num_species_+1), vout2(num_species_+1),
-          tout2(num_species_+1), x0out(num_species_+1), x1out(num_species_+1),
-          e0out(num_species_+1), e1out(num_species_+1), e3out(num_species_+1);
+   map<string, socketstream> sout;
 
    if (visualization)
    {
@@ -655,19 +652,19 @@ int main(int argc, char *argv[])
 
          ostringstream doss;
          doss << head.str() << " Density";
-         VisualizeField(dout[i], vishost, visport,
+         VisualizeField(sout[doss.str()], vishost, visport,
                         density, doss.str().c_str(),
                         Wx, Wy, Ww, Wh);
          Wx += offx;
 
          ostringstream voss; voss << head.str() << " Velocity";
-         VisualizeField(vout[i], vishost, visport,
+         VisualizeField(sout[voss.str()], vishost, visport,
                         velocity, voss.str().c_str(),
                         Wx, Wy, Ww, Wh, true);
          Wx += offx;
 
          ostringstream toss; toss << head.str() << " Temperature";
-         VisualizeField(tout[i], vishost, visport,
+         VisualizeField(sout[toss.str()], vishost, visport,
                         temperature, toss.str().c_str(),
                         Wx, Wy, Ww, Wh);
 
@@ -753,7 +750,7 @@ int main(int argc, char *argv[])
             Wx += offx;
 
             ostringstream x0oss; x0oss << head.str() << " Chi Parallel";
-            VisualizeField(x0out[i], vishost, visport,
+            VisualizeField(sout[x0oss.str()], vishost, visport,
                            chi_para, x0oss.str().c_str(),
                            Wx, Wy, Ww, Wh);
 
@@ -761,28 +758,28 @@ int main(int argc, char *argv[])
 
             ostringstream x1oss;
             x1oss << head.str() << " Chi Perpendicular (truncated)";
-            VisualizeField(x1out[i], vishost, visport,
+            VisualizeField(sout[x1oss.str()], vishost, visport,
                            chi_perp, x1oss.str().c_str(),
                            Wx, Wy, Ww, Wh);
 
             Wx -= 4 * offx;
 
             ostringstream e0oss; e0oss << head.str() << " Eta 0";
-            VisualizeField(e0out[i], vishost, visport,
+            VisualizeField(sout[e0oss.str()], vishost, visport,
                            eta_0, e0oss.str().c_str(),
                            Wx, Wy, Ww, Wh);
 
             Wx += offx;
 
             ostringstream e1oss; e1oss << head.str() << " Eta 1 (truncated)";
-            VisualizeField(e1out[i], vishost, visport,
+            VisualizeField(sout[e1oss.str()], vishost, visport,
                            eta_1, e1oss.str().c_str(),
                            Wx, Wy, Ww, Wh);
 
             Wx += offx;
 
             ostringstream e3oss; e3oss << head.str() << " Eta 3 (truncated)";
-            VisualizeField(e3out[i], vishost, visport,
+            VisualizeField(sout[e3oss.str()], vishost, visport,
                            eta_3, e3oss.str().c_str(),
                            Wx, Wy, Ww, Wh);
          }
@@ -916,19 +913,19 @@ int main(int argc, char *argv[])
 
          ostringstream doss;
          doss << head.str() << " Updated Density";
-         VisualizeField(dout2[i], vishost, visport,
+         VisualizeField(sout[doss.str()], vishost, visport,
                         density, doss.str().c_str(),
                         Wx, Wy, Ww, Wh);
          Wx += offx;
 
          ostringstream voss; voss << head.str() << " Updated Velocity";
-         VisualizeField(vout2[i], vishost, visport,
+         VisualizeField(sout[voss.str()], vishost, visport,
                         velocity, voss.str().c_str(),
                         Wx, Wy, Ww, Wh, true);
          Wx += offx;
 
          ostringstream toss; toss << head.str() << " Updated Temperature";
-         VisualizeField(tout2[i], vishost, visport,
+         VisualizeField(sout[toss.str()], vishost, visport,
                         temperature, toss.str().c_str(),
                         Wx, Wy, Ww, Wh);
          /*
