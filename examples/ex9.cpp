@@ -1515,11 +1515,16 @@ void FE_Evolution::LinearFluxLumping(int k, int nd, const Vector &x, Vector &y,
 
 void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 {
+	const FiniteElement &dummy = *fes->GetFE(0);
+	
+	int j, k, dofInd, nd = dummy.GetDof(), ne = fes->GetNE();
+	
+	fct.bnds.xe_min.SetSize(ne); fct.bnds.xe_min = 0.;
+	fct.bnds.xe_max.SetSize(ne); fct.bnds.xe_max = 0.;
+	
    if ((fct.monoType == DiscUpw) || (fct.monoType == DiscUpw_FCT))
    {
-      int k, j, dofInd, nd;
       SparseMatrix D(K);
-
       ComputeDiscreteUpwindingMatrix(K, D);
 
       // Discretization terms
@@ -1530,14 +1535,16 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       D.AddMult(x, y);
 
       // Division by lumped mass matrix and inclusion of boundary terms in case of PDU
-      for (k = 0; k < fes->GetNE(); k++)
+      for (k = 0; k < ne; k++)
       {
-         const FiniteElement &el = *fes->GetFE(k);
-         nd = el.GetDof();
-
-         for (j = 0; j < nd; j++)
+			fct.bnds.xe_min(k) = numeric_limits<double>::infinity();
+         fct.bnds.xe_max(k) = -fct.bnds.xe_min(k);
+			
+			for (j = 0; j < nd; j++)
          {
             dofInd = k*nd+j;
+				fct.bnds.xe_max(k) = max(fct.bnds.xe_max(k), x(dofInd));
+            fct.bnds.xe_min(k) = min(fct.bnds.xe_min(k), x(dofInd));
             y(dofInd) /= lumpedM(dofInd);
          }
       }
@@ -1545,20 +1552,14 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
    else
    {
       Mesh *mesh = fes->GetMesh();
-      int i, j, k, m, nd, dofInd, dofInd2, loc, ne(fes->GetNE()),
+      int i, m, dofInd2, loc, ne(fes->GetNE()),
           dim(mesh->Dimension());
       double xSum, xNeighbor, sumFluctSubcellP, sumFluctSubcellN,
              sumWeightsP, sumWeightsN, weightP, weightN, rhoP, rhoN, gammaP, gammaN,
              minGammaP, minGammaN, aux, fluct, beta = 10., gamma = 10., eps = 1.E-15;
       Vector xMaxSubcell, xMinSubcell, sumWeightsSubcellP, sumWeightsSubcellN,
-             fluctSubcellP, fluctSubcellN, nodalWeightsP, nodalWeightsN, alpha;
+             fluctSubcellP, fluctSubcellN, nodalWeightsP, nodalWeightsN;
 
-		const FiniteElement &dummy = *fes->GetFE(0);
-		nd = dummy.GetDof();
-		
-		fct.bnds.xe_min.SetSize(ne); fct.bnds.xe_min = 0.;
-		fct.bnds.xe_max.SetSize(ne); fct.bnds.xe_max = 0.;
-		
       SparseMatrix fluctMatrix;
       DenseMatrix fluctSub, bdrIntLumped, bdrInt;
 
@@ -1591,7 +1592,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          fct.bnds.xe_min(k) = numeric_limits<double>::infinity();
          fct.bnds.xe_max(k) = -fct.bnds.xe_min(k);
          rhoP = rhoN = xSum = 0.;
-         alpha.SetSize(nd); alpha = 0.;
 
          for (j = 0; j < nd; j++)
          {
@@ -1604,9 +1604,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          for (j = 0; j < nd; j++)
          {
             dofInd = k*nd+j;
-            y(dofInd) += alpha(j) * z(dofInd);
-            z(dofInd) *= (1. - alpha(j));
-
             if (fct.schemeOpt)
             {
                rhoP += max(0., z(dofInd));
@@ -1697,14 +1694,14 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
                dofInd2 = k*nd+j;
                if (z(dofInd2) > eps)
                {
-                  y(dofInd) += (1. - alpha(j)) * weightP * z(dofInd2);
+                  y(dofInd) += weightP * z(dofInd2);
                }
                else if (z(dofInd2) < -eps)
                {
-                  y(dofInd) += (1. - alpha(j)) * weightN * z(dofInd2);
+                  y(dofInd) += weightN * z(dofInd2);
                }
             }
-            y(dofInd) = (y(dofInd) + alpha(i) * z(dofInd)) / lumpedM(dofInd);
+            y(dofInd) /= lumpedM(dofInd);
          }
       }
    }
