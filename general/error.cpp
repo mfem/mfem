@@ -145,7 +145,6 @@ void mfem_backtrace(int mode, int depth)
 
 void mfem_error(const char *msg)
 {
-
    if (msg)
    {
       // NOTE: By default, each call of the "operator <<" method of the
