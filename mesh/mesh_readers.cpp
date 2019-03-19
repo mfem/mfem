@@ -263,6 +263,17 @@ void Mesh::ReadNetgen3DMesh(std::istream &input)
    }
 }
 
+
+void Mesh::ReadNetgenSurfaceMesh(std::istream &input)
+{
+   MFEM_ABORT("ReadNetgenSurfaceMesh not yet supported!");
+}
+
+void Mesh::ReadNetgenVol(std::istream &input)
+{
+   MFEM_ABORT("ReadNetgenVol not yet supported!");
+}
+
 void Mesh::ReadTrueGridMesh(std::istream &input)
 {
    int i, j, ints[32], attr;

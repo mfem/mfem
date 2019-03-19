@@ -2878,6 +2878,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadLineMesh(input);
    }
+   // Older netgen formats < 4.9
    else if (mesh_type == "areamesh2" || mesh_type == "curved_areamesh2")
    {
       if (mesh_type == "curved_areamesh2")
@@ -2889,6 +2890,15 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    else if (mesh_type == "NETGEN" || mesh_type == "NETGEN_Neutral_Format")
    {
       ReadNetgen3DMesh(input);
+   }
+   //Newer netgen formats >= 4.9
+   else if (mesh_type == "surfacemesh")
+   {
+      ReadNetgenSurfaceMesh(input);
+   }   
+   else if (mesh_type == "mesh3d")
+   {
+      ReadNetgenVol(input);
    }
    else if (mesh_type == "TrueGrid")
    {
