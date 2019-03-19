@@ -636,39 +636,45 @@ public:
 
    // For each DOF on an element boundary, the global index of the DOF on the opposite site is
    // computed and stored in a list. This is needed for lumping the flux contributions as in the
-   // paper. Right now it works on arbitrary meshes in 2D. TODO 1D TODO 3D.
+   // paper. Right now it works on arbitrary meshes in 2D. TODO use it in 1D
    // NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.
    // NOTE: This approach will not work for meshes with hanging nodes.
    void FillNeighborDofs(Mesh *mesh, int numDofs, int k, int nd, int p, int dim,
                          Array <int> bdrs)
-   {
-      int i, j, l, neighborElem, numBdrs = dofs.Width();
+   {// TODO less arguments, dummy
+      int i, j, ind, nbr_el, numBdrs = dofs.Width();
       FaceElementTransformations *Trans;
       Array<int> neighborBdrs, orientation;
 
-      if (dim == 1) { return; } // no need to take care of boundary terms
+      if (dim == 1)
+		{
+			for (i = 0; i < numBdrs; i++)
+			{
+				Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+				nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+				neighborDof(k,i) = nbr_el*nd + dofs(0,(i+1)%2);
+			}
+		}
       else if (dim == 2)
       {
-         for (j = 0; j < numDofs; j++)
+         for (i = 0; i < numBdrs; i++)
          {
-				for (l = 0; l < numBdrs; l++)
+				Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+				nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+				for (j = 0; j < numDofs; j++)
 				{
-					Trans = mesh->GetFaceElementTransformations(bdrs[l]);
-					neighborElem = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
-					
-					mesh->GetElementEdges(neighborElem, neighborBdrs, orientation);
-					// Find the local index i in neighborElem of the common face.
-					for (i = 0; i < numBdrs; i++)
+					mesh->GetElementEdges(nbr_el, neighborBdrs, orientation);
+					// Find the local index ind in nbr_el of the common face.
+					for (ind = 0; ind < numBdrs; ind++)
 					{
-						if (neighborBdrs[i] == bdrs[l])
+						if (neighborBdrs[ind] == bdrs[i])
 						{
 							break;
 						}
 					}
-					
 					// Here it is utilized that the orientations of the face
 					// for the two elements are opposite of each other.
-					neighborDof(k*numDofs+j, l) = neighborElem*nd + dofs(numDofs-1-j,i);
+					neighborDof(k*numDofs+j,i) = nbr_el*nd + dofs(numDofs-1-j,ind);
 				}
          }
       }
@@ -678,78 +684,36 @@ public:
          for (j = 0; j < numDofs; j++)
          {
             Trans = mesh->GetFaceElementTransformations(bdrs[0]);
-            if (Trans->Elem1No == k)
-            {
-               neighborElem = Trans->Elem2No;
-            }
-            else
-            {
-               neighborElem = Trans->Elem1No;
-            }
+				nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-            neighborDof(k*numDofs+j, 0) = neighborElem*nd + (p+1)*(p+1)*p+j;
+            neighborDof(k*numDofs+j, 0) = nbr_el*nd + (p+1)*(p+1)*p+j;
 
             Trans = mesh->GetFaceElementTransformations(bdrs[1]);
-            if (Trans->Elem1No == k)
-            {
-               neighborElem = Trans->Elem2No;
-            }
-            else
-            {
-               neighborElem = Trans->Elem1No;
-            }
+            nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-            neighborDof(k*numDofs+j,
-                        1) = neighborElem*nd + (j/(p+1))*(p+1)*(p+1) + (p+1)*p+(j%(p+1));
+            neighborDof(k*numDofs+j, 1) = nbr_el*nd + (j/(p+1))*(p+1)*(p+1)
+														+ (p+1)*p+(j%(p+1));
 
             Trans = mesh->GetFaceElementTransformations(bdrs[2]);
-            if (Trans->Elem1No == k)
-            {
-               neighborElem = Trans->Elem2No;
-            }
-            else
-            {
-               neighborElem = Trans->Elem1No;
-            }
+            nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-            neighborDof(k*numDofs+j, 2) = neighborElem*nd + j*(p+1);
+            neighborDof(k*numDofs+j, 2) = nbr_el*nd + j*(p+1);
 
             Trans = mesh->GetFaceElementTransformations(bdrs[3]);
-            if (Trans->Elem1No == k)
-            {
-               neighborElem = Trans->Elem2No;
-            }
-            else
-            {
-               neighborElem = Trans->Elem1No;
-            }
+            nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-            neighborDof(k*numDofs+j,
-                        3) = neighborElem*nd + (j/(p+1))*(p+1)*(p+1) + (j%(p+1));
+            neighborDof(k*numDofs+j, 3) = nbr_el*nd + (j/(p+1))*(p+1)*(p+1)
+														+ (j%(p+1));
 
             Trans = mesh->GetFaceElementTransformations(bdrs[4]);
-            if (Trans->Elem1No == k)
-            {
-               neighborElem = Trans->Elem2No;
-            }
-            else
-            {
-               neighborElem = Trans->Elem1No;
-            }
+            nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-            neighborDof(k*numDofs+j, 4) = neighborElem*nd + (j+1)*(p+1)-1;
+            neighborDof(k*numDofs+j, 4) = nbr_el*nd + (j+1)*(p+1)-1;
 
             Trans = mesh->GetFaceElementTransformations(bdrs[5]);
-            if (Trans->Elem1No == k)
-            {
-               neighborElem = Trans->Elem2No;
-            }
-            else
-            {
-               neighborElem = Trans->Elem1No;
-            }
+            nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-            neighborDof(k*numDofs+j, 5) = neighborElem*nd + j;
+            neighborDof(k*numDofs+j, 5) = nbr_el*nd + j;
          }
       }
    }
