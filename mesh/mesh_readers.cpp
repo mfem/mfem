@@ -1058,7 +1058,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                input.read(reinterpret_cast<char*>(&numPhysicals), sizeof(unsigned long));
                if(numPhysicals == 0)
                {
-                  pointEntities_map[entityTag] = 0;
+                  pointEntities_map[entityTag] = 1;
                }
                else
                {
@@ -1087,7 +1087,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                input >> numPhysicals;
                if(numPhysicals == 0)
                {
-                  pointEntities_map[entityTag] = 0;
+                  pointEntities_map[entityTag] = 1;
                }
                else
                {
@@ -1114,44 +1114,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                input.read(reinterpret_cast<char*>(&numPhysicals), sizeof(unsigned long));
                if(numPhysicals == 0)
                {
-                  curveEntities_map[entityTag] = 0;
-               }
-               else
-               {
-                  for(int phys=0; phys < numPhysicals; ++phys)
-                  {
-                     input.read(reinterpret_cast<char*>(&physicalTag), sizeof(int));
-                     if(phys == 0)
-                     {
-                        // first physical tag gets mapped; elements only have one attr
-                        curveEntities_map[entityTag] = physicalTag;
-                     }
-                  }
-               } // numPhysicals > 0
-
-               input.read(reinterpret_cast<char*>(&numBrep), sizeof(unsigned long));
-               if(numBrep)
-               {
-                  for(int brep = 0; brep < numBrep; ++brep)
-                  {
-                     input.read(reinterpret_cast<char*>(&brepTag), sizeof(int));
-                  }
-               }
-            } // if binary
-            else //ASCII
-            {
-               input >> entityTag;
-         for(int i=0; i<numCurves; ++i)
-         {
-            if(binary)
-            {
-               input.read(reinterpret_cast<char*>(&entityTag), sizeof(int));
-               input.read(reinterpret_cast<char*>(boxMin), boxDim*sizeof(double));
-               input.read(reinterpret_cast<char*>(boxMax), boxDim*sizeof(double));
-               input.read(reinterpret_cast<char*>(&numPhysicals), sizeof(unsigned long));
-               if(numPhysicals == 0)
-               {
-                  curveEntities_map[entityTag] = 0;
+                  curveEntities_map[entityTag] = 1;
                }
                else
                {
@@ -1189,42 +1152,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                input >> numPhysicals;
                if(numPhysicals == 0)
                {
-                  curveEntities_map[entityTag] = 0;
-               }
-               else
-               {
-                  for(int phys=0; phys < numPhysicals; ++phys)
-                  {
-                     input >> physicalTag;
-                     if(phys == 0)
-                     {
-                        // first physical tag gets mapped; elements only have one attr
-                        curveEntities_map[entityTag] = physicalTag;
-                     }
-                  }
-               }
-               input >> numBrep;
-               if(numBrep)
-               {
-                  for(int brep = 0; brep < numBrep; ++brep)
-                  {
-                     input >> brepTag;
-                  }
-               }
-            } //else ASCII
-         } // for numCurves
-               for (int ci = 0; ci < boxDim; ++ci)
-               {
-                  input >> boxMin[ci];
-               }
-               for (int ci = 0; ci < boxDim; ++ci)
-               {
-                  input >> boxMax[ci];
-               }
-               input >> numPhysicals;
-               if(numPhysicals == 0)
-               {
-                  curveEntities_map[entityTag] = 0;
+                  curveEntities_map[entityTag] = 1;
                }
                else
                {
@@ -1259,7 +1187,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                input.read(reinterpret_cast<char*>(&numPhysicals), sizeof(unsigned long));
                if(numPhysicals == 0)
                {
-                  surfaceEntities_map[entityTag] = 0;
+                  surfaceEntities_map[entityTag] = 1;
                }
                else
                {
@@ -1297,7 +1225,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                input >> numPhysicals;
                if(numPhysicals == 0)
                {
-                  surfaceEntities_map[entityTag] = 0;
+                  surfaceEntities_map[entityTag] = 1;
                }
                else
                {
@@ -1333,7 +1261,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                input.read(reinterpret_cast<char*>(&numPhysicals), sizeof(unsigned long));
                if(numPhysicals == 0)
                {
-                  volumeEntities_map[entityTag] = 0;
+                  volumeEntities_map[entityTag] = 1;
                }
                else
                {
@@ -1371,7 +1299,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                input >> numPhysicals;
                if(numPhysicals == 0)
                {
-                  volumeEntities_map[entityTag] = 0;
+                  volumeEntities_map[entityTag] = 1;
                }
                else
                {
