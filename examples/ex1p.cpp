@@ -47,6 +47,9 @@
 using namespace std;
 using namespace mfem;
 
+// Wedge rebalance problem:
+// mpirun -n 2 ex1p -m ../data/inline-wedge.mesh -o 2 -r 2  -s 15
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -58,6 +61,8 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int seed = 1;
+   int ref_levels = 2;
    bool static_cond = false;
    bool visualization = 1;
 
@@ -67,6 +72,10 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&seed, "-s", "--seed",
+                  "Random seed.");
+   args.AddOption(&ref_levels, "-r", "--ref_levels",
+                  "Serial refinement levels.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -98,11 +107,12 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      srand(seed);
+      //int ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         //mesh->UniformRefinement();
+         mesh->RandomRefinement(0.5);
       }
    }
 
@@ -115,7 +125,15 @@ int main(int argc, char *argv[])
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
-         pmesh->UniformRefinement();
+         //pmesh->UniformRefinement();
+         pmesh->RandomRefinement(0.5);
+
+         {char fname[100];
+         sprintf(fname, "ncdump%03d.txt", myid);
+         std::ofstream f(fname);
+         pmesh->pncmesh->DebugDump(f);}
+
+         pmesh->Rebalance();
       }
    }
 
