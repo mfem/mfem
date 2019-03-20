@@ -12,9 +12,9 @@
 #ifndef MFEM_TMOP_TOOLS_HPP
 #define MFEM_TMOP_TOOLS_HPP
 
-#include "../fem/pbilinearform.hpp"
-#include "../fem/bilinearform.hpp"
-#include "../fem/tmop.hpp"
+#include "bilinearform.hpp"
+#include "pbilinearform.hpp"
+#include "tmop.hpp"
 
 namespace mfem
 {
