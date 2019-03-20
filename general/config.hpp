@@ -83,6 +83,10 @@ public:
    static inline void SwitchToDevice() { Get().mode = config::DEVICE; }
    static inline void SwitchToHost() { Get().mode = config::HOST; }
 
+   static inline MODES GetMode() {return Get().mode; };
+   static inline MODES DeviceMode() {return config::DEVICE;};
+   static inline MODES HostMode() {return config::HOST;};
+
    static inline bool UsingCuda() { return Get().cuda; }
    static inline void UseCuda() { Get().cuda = true; }
    static inline CUstream Stream() { return *Get().cuStream; }
