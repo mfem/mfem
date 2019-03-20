@@ -148,25 +148,28 @@ int main(int argc, char *argv[])
    double ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
    if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
 
-   L2Projection R_L2(fespace, fespace_lor);
-   L2Prolongation P_L2(R_L2);
-   OperatorHandle R_transfer, P_transfer;
-   fespace_lor.GetTransferOperator(fespace, R_transfer);
-   fespace_lor.GetReverseTransferOperator(*(new MassIntegrator),
-                                          fespace, P_transfer);
-   Operator *R = use_transfer ? R_transfer.Ptr() : &R_L2;
-   Operator *P = use_transfer ? P_transfer.Ptr() : &P_L2;
+   GridTransfer *gt;
+   if (use_transfer)
+   {
+      gt = new InterpolationGridTransfer(fespace, fespace_lor);
+   }
+   else
+   {
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
+   }
+   const Operator &R = gt->ForwardOperator();
+   const Operator &P = gt->BackwardOperator();
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
-   R->Mult(rho, rho_lor);
+   R.Mult(rho, rho_lor);
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
 
    // LOR->HO prolongation
    direction = "HO -> LOR @ HO";
    GridFunction rho_prev = rho;
-   P->Mult(rho_lor, rho);
+   P.Mult(rho_lor, rho);
    compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
    if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
 
@@ -183,14 +186,14 @@ int main(int argc, char *argv[])
 
    // Prolongate to HO space
    direction = "LOR -> HO @ HO";
-   P->Mult(rho_lor, rho);
+   P.Mult(rho_lor, rho);
    compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
    if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy); Wx += offx; }
 
    // Restrict back to LOR space. This won't give the original function because
    // the rho_lor doesn't necessarily live in the range of R.
    direction = "LOR -> HO @ LOR";
-   R->Mult(rho, rho_lor);
+   R.Mult(rho, rho_lor);
    compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))");
    if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy); }
 
