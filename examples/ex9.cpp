@@ -204,13 +204,15 @@ public:
    bool &OptScheme;
    
    DenseMatrix BdrDofs, NbrDof, Sub2Ind; // TODO should these be Tables?
-   int numBdrs, numDofs, numSubcells, numDofsSubcell;
+   int dim, numBdrs, numDofs, numSubcells, numDofsSubcell;
 
-   NodeInfo(FiniteElementSpace* _fes, const MONOTYPE _monoType, bool &_OptScheme):
+   NodeInfo(FiniteElementSpace* _fes, const MONOTYPE _monoType, 
+				bool &_OptScheme):
             monoType(_monoType), OptScheme(_OptScheme)
    {
       fes = _fes;
       mesh = fes->GetMesh();
+		dim = mesh->Dimension();
       
       int ne = mesh->GetNE();
 
@@ -283,16 +285,16 @@ private:
    // Returns the element that shares a face with both el1 and el2, but is not el.
    // NOTE: This approach will not work for meshes with hanging nodes.
    // NOTE: Here it is assumed that all elements have the same geometry, due to numBdrs.
-   int FindCommonAdjacentElement(int el, int el1, int el2, int dim, int numBdrs)
+   int GetCommonElem(int el, int el1, int el2)
    {
       if (min(el1, el2) < 0) { return -1; }
 
       int i, j, commonNeighbor;
       bool found = false;
-      Array<int> bdrs1, bdrs2, orientation, neighborElements1, neighborElements2;
+      Array<int> bdrs1, bdrs2, orientation, NbrEl1, NbrEl2;
       FaceElementTransformations *Trans;
 
-      neighborElements1.SetSize(numBdrs); neighborElements2.SetSize(numBdrs);
+      NbrEl1.SetSize(numBdrs); NbrEl2.SetSize(numBdrs);
 
       if (dim==1)
       {
@@ -314,10 +316,10 @@ private:
       for (i = 0; i < numBdrs; i++)
       {
          Trans = mesh->GetFaceElementTransformations(bdrs1[i]);
-         neighborElements1[i] = Trans->Elem1No != el1 ? Trans->Elem1No : Trans->Elem2No;
+         NbrEl1[i] = Trans->Elem1No != el1 ? Trans->Elem1No : Trans->Elem2No;
 
          Trans = mesh->GetFaceElementTransformations(bdrs2[i]);
-         neighborElements2[i] = Trans->Elem1No != el2 ? Trans->Elem1No : Trans->Elem2No;
+         NbrEl2[i] = Trans->Elem1No != el2 ? Trans->Elem1No : Trans->Elem2No;
       }
 
       for (i = 0; i < numBdrs; i++)
@@ -325,12 +327,11 @@ private:
          for (j = 0; j < numBdrs; j++)
          {
             // add neighbor elements that share a face with el1 and el2 but are not el
-            if ((neighborElements1[i] == neighborElements2[j]) &&
-                (neighborElements1[i] != el))
+            if ((NbrEl1[i] == NbrEl2[j]) && (NbrEl1[i] != el))
             {
                if (!found)
                {
-                  commonNeighbor = neighborElements1[i];
+                  commonNeighbor = NbrEl1[i];
                   found = true;
                }
                else
@@ -353,12 +354,12 @@ private:
    void GetVertexBoundsMap()
    {
       const FiniteElement &dummy = *fes->GetFE(0);
-      int i, j, k, dofInd, nbr_id, dim = mesh->Dimension();
+      int i, j, k, dofInd, nbr_id;
       int ne = mesh->GetNE(), nd = dummy.GetDof(), p = dummy.GetOrder();
-      Array<int> bdrs, orientation, neighborElements;
+      Array<int> bdrs, orientation, NbrElem;
       FaceElementTransformations *Trans;
 
-      neighborElements.SetSize(numBdrs);
+      NbrElem.SetSize(numBdrs);
 
       for (k = 0; k < ne; k++)
       {
@@ -387,155 +388,156 @@ private:
          {
             Trans = mesh->GetFaceElementTransformations(bdrs[i]);
 
-            neighborElements[i] = Trans->Elem1No != k ? Trans->Elem1No : Trans->Elem2No;
+            NbrElem[i] = Trans->Elem1No != k ? Trans->Elem1No : Trans->Elem2No;
 
             for (j = 0; j < numDofs; j++)
             {
                dofInd = k*nd+BdrDofs(j,i);
-               map_for_bounds[dofInd].push_back(neighborElements[i]);
+               map_for_bounds[dofInd].push_back(NbrElem[i]);
             }
          }
 
          // include neighbor elements that have no face in common with element k
          if (dim==2) // include neighbor elements for the four vertices of a square
          {
-            nbr_id = FindCommonAdjacentElement(k, neighborElements[3],
-                                               neighborElements[0], 2, numBdrs);
+            nbr_id = GetCommonElem(k, NbrElem[3], NbrElem[0]);
             if (nbr_id >= 0) { map_for_bounds[k*nd].push_back(nbr_id); }
 
-            nbr_id = FindCommonAdjacentElement(k, neighborElements[0],
-                                               neighborElements[1], 2, numBdrs);
+            nbr_id = GetCommonElem(k, NbrElem[0], NbrElem[1]);
             if (nbr_id >= 0) { map_for_bounds[k*nd+p].push_back(nbr_id); }
 
-            nbr_id = FindCommonAdjacentElement(k, neighborElements[1],
-                                               neighborElements[2], 2, numBdrs);
+            nbr_id = GetCommonElem(k, NbrElem[1], NbrElem[2]);
             if (nbr_id >= 0) { map_for_bounds[(k+1)*nd-1].push_back(nbr_id); }
 
-            nbr_id = FindCommonAdjacentElement(k, neighborElements[2],
-                                               neighborElements[3], 2, numBdrs);
+            nbr_id = GetCommonElem(k, NbrElem[2], NbrElem[3]);
             if (nbr_id >= 0) { map_for_bounds[k*p*(p+1)].push_back(nbr_id); }
          }
          else if (dim==3)
          {
-            Array<int> neighborElem; neighborElem.SetSize(12); // for each edge
+            Array<int> NbrElem; NbrElem.SetSize(12); // for each edge
 
-            neighborElem[0]  = FindCommonAdjacentElement(k, neighborElements[0],
-                                                         neighborElements[1], dim, numBdrs);
-            neighborElem[1]  = FindCommonAdjacentElement(k, neighborElements[0],
-                                                         neighborElements[2], dim, numBdrs);
-            neighborElem[2]  = FindCommonAdjacentElement(k, neighborElements[0],
-                                                         neighborElements[3], dim, numBdrs);
-            neighborElem[3]  = FindCommonAdjacentElement(k, neighborElements[0],
-                                                         neighborElements[4], dim, numBdrs);
-            neighborElem[4]  = FindCommonAdjacentElement(k, neighborElements[5],
-                                                         neighborElements[1], dim, numBdrs);
-            neighborElem[5]  = FindCommonAdjacentElement(k, neighborElements[5],
-                                                         neighborElements[2], dim, numBdrs);
-            neighborElem[6]  = FindCommonAdjacentElement(k, neighborElements[5],
-                                                         neighborElements[3], dim, numBdrs);
-            neighborElem[7]  = FindCommonAdjacentElement(k, neighborElements[5],
-                                                         neighborElements[4], dim, numBdrs);
-            neighborElem[8]  = FindCommonAdjacentElement(k, neighborElements[4],
-                                                         neighborElements[1], dim, numBdrs);
-            neighborElem[9]  = FindCommonAdjacentElement(k, neighborElements[1],
-                                                         neighborElements[2], dim, numBdrs);
-            neighborElem[10] = FindCommonAdjacentElement(k, neighborElements[2],
-                                                         neighborElements[3], dim, numBdrs);
-            neighborElem[11] = FindCommonAdjacentElement(k, neighborElements[3],
-                                                         neighborElements[4], dim, numBdrs);
+            NbrElem[0]  = GetCommonElem(k, NbrElem[0], NbrElem[1]);
+            NbrElem[1]  = GetCommonElem(k, NbrElem[0], NbrElem[2]);
+            NbrElem[2]  = GetCommonElem(k, NbrElem[0], NbrElem[3]);
+            NbrElem[3]  = GetCommonElem(k, NbrElem[0], NbrElem[4]);
+            NbrElem[4]  = GetCommonElem(k, NbrElem[5], NbrElem[1]);
+            NbrElem[5]  = GetCommonElem(k, NbrElem[5], NbrElem[2]);
+            NbrElem[6]  = GetCommonElem(k, NbrElem[5], NbrElem[3]);
+            NbrElem[7]  = GetCommonElem(k, NbrElem[5], NbrElem[4]);
+            NbrElem[8]  = GetCommonElem(k, NbrElem[4], NbrElem[1]);
+            NbrElem[9]  = GetCommonElem(k, NbrElem[1], NbrElem[2]);
+            NbrElem[10] = GetCommonElem(k, NbrElem[2], NbrElem[3]);
+            NbrElem[11] = GetCommonElem(k, NbrElem[3], NbrElem[4]);
 
             // include neighbor elements for the twelve edges of a square
             for (j = 0; j <= p; j++)
             {
-               if (neighborElem[0] >= 0)
+               if (NbrElem[0] >= 0)
                {
-                  map_for_bounds[k*nd+j].push_back(neighborElem[0]);
+                  map_for_bounds[k*nd+j].push_back(NbrElem[0]);
                }
-               if (neighborElem[1] >= 0)
+               if (NbrElem[1] >= 0)
                {
-                  map_for_bounds[k*nd+(j+1)*(p+1)-1].push_back(neighborElem[1]);
+                  map_for_bounds[k*nd+(j+1)*(p+1)-1].push_back(NbrElem[1]);
                }
-               if (neighborElem[2] >= 0)
+               if (NbrElem[2] >= 0)
                {
-                  map_for_bounds[k*nd+p*(p+1)+j].push_back(neighborElem[2]);
+                  map_for_bounds[k*nd+p*(p+1)+j].push_back(NbrElem[2]);
                }
-               if (neighborElem[3] >= 0)
+               if (NbrElem[3] >= 0)
                {
-                  map_for_bounds[k*nd+j*(p+1)].push_back(neighborElem[3]);
+                  map_for_bounds[k*nd+j*(p+1)].push_back(NbrElem[3]);
                }
-               if (neighborElem[4] >= 0)
+               if (NbrElem[4] >= 0)
                {
-                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j].push_back(neighborElem[4]);
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j].push_back(NbrElem[4]);
                }
-               if (neighborElem[5] >= 0)
+               if (NbrElem[5] >= 0)
                {
-                  map_for_bounds[k*nd+(p+1)*(p+1)*p+(j+1)*(p+1)-1].push_back(neighborElem[5]);
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+(j+1)*(p+1)-1].push_back(NbrElem[5]);
                }
-               if (neighborElem[6] >= 0)
+               if (NbrElem[6] >= 0)
                {
-                  map_for_bounds[k*nd+(p+1)*(p+1)*p+p*(p+1)+j].push_back(neighborElem[6]);
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+p*(p+1)+j].push_back(NbrElem[6]);
                }
-               if (neighborElem[7] >= 0)
+               if (NbrElem[7] >= 0)
                {
-                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j*(p+1)].push_back(neighborElem[7]);
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j*(p+1)].push_back(NbrElem[7]);
                }
-               if (neighborElem[8] >= 0)
+               if (NbrElem[8] >= 0)
                {
-                  map_for_bounds[k*nd+j*(p+1)*(p+1)].push_back(neighborElem[8]);
+                  map_for_bounds[k*nd+j*(p+1)*(p+1)].push_back(NbrElem[8]);
                }
-               if (neighborElem[9] >= 0)
+               if (NbrElem[9] >= 0)
                {
-                  map_for_bounds[k*nd+p+j*(p+1)*(p+1)].push_back(neighborElem[9]);
+                  map_for_bounds[k*nd+p+j*(p+1)*(p+1)].push_back(NbrElem[9]);
                }
-               if (neighborElem[10] >= 0)
+               if (NbrElem[10] >= 0)
                {
-                  map_for_bounds[k*nd+(j+1)*(p+1)*(p+1)-1].push_back(neighborElem[10]);
+                  map_for_bounds[k*nd+(j+1)*(p+1)*(p+1)-1].push_back(NbrElem[10]);
                }
-               if (neighborElem[11] >= 0)
+               if (NbrElem[11] >= 0)
                {
-                  map_for_bounds[k*nd+p*(p+1)+j*(p+1)*(p+1)].push_back(neighborElem[11]);
+                  map_for_bounds[k*nd+p*(p+1)+j*(p+1)*(p+1)].push_back(NbrElem[11]);
                }
             }
 
             // include neighbor elements for the 8 vertices of a square
-            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[0],
-                                               neighborElem[3], dim, numBdrs);
-            if (nbr_id >= 0) { map_for_bounds[k*nd].push_back(nbr_id); }
+            nbr_id = GetCommonElem(NbrElem[0], NbrElem[0], NbrElem[3]);
+            if (nbr_id >= 0)
+				{
+					map_for_bounds[k*nd].push_back(nbr_id);
+				}
 
-            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[0],
-                                               neighborElem[1], dim, numBdrs);
-            if (nbr_id >= 0) { map_for_bounds[k*nd+p].push_back(nbr_id); }
+            nbr_id = GetCommonElem(NbrElem[0], NbrElem[0], NbrElem[1]);
+            if (nbr_id >= 0)
+				{
+					map_for_bounds[k*nd+p].push_back(nbr_id);
+				}
 
-            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[2],
-                                               neighborElem[3], dim, numBdrs);
-            if (nbr_id >= 0) { map_for_bounds[k*nd+p*(p+1)].push_back(nbr_id); }
+            nbr_id = GetCommonElem(NbrElem[0], NbrElem[2], NbrElem[3]);
+            if (nbr_id >= 0)
+				{
+					map_for_bounds[k*nd+p*(p+1)].push_back(nbr_id);
+				}
 
-            nbr_id = FindCommonAdjacentElement(neighborElements[0], neighborElem[1],
-                                               neighborElem[2], dim, numBdrs);
-            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)-1].push_back(nbr_id); }
+            nbr_id = GetCommonElem(NbrElem[0], NbrElem[1], NbrElem[2]);
+            if (nbr_id >= 0)
+				{
+					map_for_bounds[k*nd+(p+1)*(p+1)-1].push_back(nbr_id);
+				}
 
-            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[4],
-                                               neighborElem[7], dim, numBdrs);
-            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*p].push_back(nbr_id);}
+            nbr_id = GetCommonElem(NbrElem[5], NbrElem[4], NbrElem[7]);
+            if (nbr_id >= 0)
+				{
+					map_for_bounds[k*nd+(p+1)*(p+1)*p].push_back(nbr_id);
+				}
 
-            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[4],
-                                               neighborElem[5], dim, numBdrs);
-            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*p+p].push_back(nbr_id); }
+            nbr_id = GetCommonElem(NbrElem[5], NbrElem[4], NbrElem[5]);
+            if (nbr_id >= 0)
+				{
+					map_for_bounds[k*nd+(p+1)*(p+1)*p+p].push_back(nbr_id);
+				}
 
-            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[6],
-                                               neighborElem[7], dim, numBdrs);
-            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*p+(p+1)*p].push_back(nbr_id); }
+            nbr_id = GetCommonElem(NbrElem[5], NbrElem[6], NbrElem[7]);
+            if (nbr_id >= 0)
+				{
+					map_for_bounds[k*nd+(p+1)*(p+1)*p+(p+1)*p].push_back(nbr_id);
+				}
 
-            nbr_id = FindCommonAdjacentElement(neighborElements[5], neighborElem[5],
-                                               neighborElem[6], dim, numBdrs);
-            if (nbr_id >= 0) { map_for_bounds[k*nd+(p+1)*(p+1)*(p+1)-1].push_back(nbr_id); }
+            nbr_id = GetCommonElem(NbrElem[5], NbrElem[5], NbrElem[6]);
+            if (nbr_id >= 0)
+				{
+					map_for_bounds[k*nd+(p+1)*(p+1)*(p+1)-1].push_back(nbr_id);
+				}
          }
       }
    }
    
-   // For each DOF on an element boundary, the global index of the DOF on the opposite site is
-   // computed and stored in a list. This is needed for lumping the flux contributions as in the
-   // paper. Right now it works on arbitrary meshes in 2D. TODO use it in 1D
+   // For each DOF on an element boundary, the global index of the DOF on the
+   // opposite site is computed and stored in a list. This is needed for 
+   // lumping the flux contributions as in the paper. Right now it works on 
+   // all quad meshes in 2D. TODO use it in 1D and add it as comment
    // NOTE: Here it is assumed that the mesh consists of segments, quads or hexes.
    // NOTE: This approach will not work for meshes with hanging nodes.
    void FillNeighborDofs()
@@ -543,8 +545,8 @@ private:
       // Use the first mesh element as indicator.
       const FiniteElement &dummy = *fes->GetFE(0);
       int i, j, k, ind, nbr_el, ne = mesh->GetNE();
-      int nd = dummy.GetDof(), p = dummy.GetOrder(), dim = mesh->Dimension();
-      Array <int> bdrs, neighborBdrs, orientation;
+      int nd = dummy.GetDof(), p = dummy.GetOrder();
+      Array <int> bdrs, NbrBdrs, orientation;
       FaceElementTransformations *Trans;
       
       for (k = 0; k < ne; k++)
@@ -570,11 +572,11 @@ private:
                nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
                for (j = 0; j < numDofs; j++)
                {
-                  mesh->GetElementEdges(nbr_el, neighborBdrs, orientation);
+                  mesh->GetElementEdges(nbr_el, NbrBdrs, orientation);
                   // Find the local index ind in nbr_el of the common face.
                   for (ind = 0; ind < numBdrs; ind++)
                   {
-                     if (neighborBdrs[ind] == bdrs[i])
+                     if (NbrBdrs[ind] == bdrs[i])
                      {
                         break;
                      }
@@ -601,7 +603,7 @@ private:
                nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
                NbrDof(k*numDofs+j, 1) = nbr_el*nd + (j/(p+1))*(p+1)*(p+1)
-                                             + (p+1)*p+(j%(p+1));
+                                        + (p+1)*p+(j%(p+1));
 
                Trans = mesh->GetFaceElementTransformations(bdrs[2]);
                nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
@@ -612,7 +614,7 @@ private:
                nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
                NbrDof(k*numDofs+j, 3) = nbr_el*nd + (j/(p+1))*(p+1)*(p+1)
-                                             + (j%(p+1));
+                                        + (j%(p+1));
 
                Trans = mesh->GetFaceElementTransformations(bdrs[4]);
                nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
@@ -634,9 +636,7 @@ private:
    void FillSubcell2CellDof()
    {
       const FiniteElement &dummy = *fes->GetFE(0);
-      int dim = mesh->Dimension();
-      int p = dummy.GetOrder();
-      int aux;
+      int j, m, aux, p = dummy.GetOrder();
       
       if (dim==1)
       {
@@ -656,9 +656,9 @@ private:
       
       Sub2Ind.SetSize(numSubcells, numDofsSubcell);
       
-      for (int m = 0; m < numSubcells; m++)
+      for (m = 0; m < numSubcells; m++)
       {
-         for (int j = 0; j < numDofsSubcell; j++)
+         for (j = 0; j < numDofsSubcell; j++)
          {
             if (dim == 1)
             {
@@ -666,7 +666,7 @@ private:
             }
             else if (dim == 2)
             {
-               aux = m + (m / p);
+               aux = m + (m/p);
                switch (j)
                {
                   case 0: Sub2Ind(m,j) =  aux; break;
@@ -677,7 +677,7 @@ private:
             }
             else if (dim == 3)
             {
-               aux = m + (m/p) + (p+1)*(m/(p*p));
+               aux = m + (m/p)+(p+1)*(m/(p*p));
                switch (j)
                {
                   case 0:
