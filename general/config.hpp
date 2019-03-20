@@ -33,6 +33,7 @@ private:
    bool omp = false;
    bool sync = false;
    bool nvvp = false;
+   bool isTracking = true;
    CUdevice cuDevice;
    CUstream *cuStream;
    CUcontext cuContext;
@@ -83,9 +84,9 @@ public:
    static inline void SwitchToDevice() { Get().mode = config::DEVICE; }
    static inline void SwitchToHost() { Get().mode = config::HOST; }
 
-   static inline MODES GetMode() {return Get().mode; };
-   static inline MODES DeviceMode() {return config::DEVICE;};
-   static inline MODES HostMode() {return config::HOST;};
+   static inline void DisableTracking() {Get().isTracking = false;};
+   static inline void EnableTracking() {Get().isTracking = true;};
+   static inline bool IsTracking() {return Get().isTracking;};
 
    static inline bool UsingCuda() { return Get().cuda; }
    static inline void UseCuda() { Get().cuda = true; }
