@@ -16,7 +16,7 @@ namespace mfem
 {
 
 // *****************************************************************************
-OccaDevice occaWrapDevice(CUdevice dev, CUcontext ctx)
+OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx)
 {
 #if defined(__OCCA__) && defined(__NVCC__)
    return occa::cuda::wrapDevice(dev, ctx);
@@ -26,7 +26,7 @@ OccaDevice occaWrapDevice(CUdevice dev, CUcontext ctx)
 }
 
 // *****************************************************************************
-OccaMemory occaDeviceMalloc(OccaDevice device, const size_t bytes)
+OccaMemory OccaDeviceMalloc(OccaDevice device, const size_t bytes)
 {
 #ifdef __OCCA__
    return device.malloc(bytes);
@@ -36,7 +36,7 @@ OccaMemory occaDeviceMalloc(OccaDevice device, const size_t bytes)
 }
 
 // *****************************************************************************
-OccaMemory occaWrapMemory(const OccaDevice device,
+OccaMemory OccaWrapMemory(const OccaDevice device,
                           void *d_adrs,
                           const size_t bytes)
 {
@@ -53,7 +53,7 @@ OccaMemory occaWrapMemory(const OccaDevice device,
 }
 
 // *****************************************************************************
-void *occaMemoryPtr(OccaMemory o_adrs)
+void *OccaMemoryPtr(OccaMemory o_adrs)
 {
 #ifdef __OCCA__
    return o_adrs.ptr();
@@ -63,7 +63,7 @@ void *occaMemoryPtr(OccaMemory o_adrs)
 }
 
 // *****************************************************************************
-void occaCopyFrom(OccaMemory o_adrs, const void *h_adrs)
+void OccaCopyFrom(OccaMemory o_adrs, const void *h_adrs)
 {
 #ifdef __OCCA__
    o_adrs.copyFrom(h_adrs);
@@ -71,7 +71,7 @@ void occaCopyFrom(OccaMemory o_adrs, const void *h_adrs)
 }
 
 // *****************************************************************************
-void occaCopyTo(OccaMemory o_adrs, void *h_adrs)
+void OccaCopyTo(OccaMemory o_adrs, void *h_adrs)
 {
 #ifdef __OCCA__
    o_adrs.copyTo(h_adrs);
