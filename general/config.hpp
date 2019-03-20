@@ -12,6 +12,8 @@
 #ifndef MFEM_CONFIG_HPP
 #define MFEM_CONFIG_HPP
 
+#include "ceed.h"
+
 // *****************************************************************************
 namespace mfem
 {
@@ -33,10 +35,12 @@ private:
    bool omp = false;
    bool sync = false;
    bool nvvp = false;
+   bool ceed = false;
    CUdevice cuDevice;
    CUstream *cuStream;
    CUcontext cuContext;
    OccaDevice occaDevice;
+   Ceed ceedObj;
 
 private:
    // **************************************************************************
@@ -55,9 +59,9 @@ private:
 private:
    // **************************************************************************
    void GpuDeviceSetup(const int dev);
-   void MfemDeviceSetup(const int dev =0);
-   void CudaDeviceSetup(const int dev =0);
-   void RajaDeviceSetup(const int dev =0);
+   void MfemDeviceSetup(const int dev = 0);
+   void CudaDeviceSetup(const int dev = 0);
+   void RajaDeviceSetup(const int dev = 0);
    void OccaDeviceSetup(const CUdevice cu_dev, const CUcontext cu_ctx);
 
 public:
@@ -72,7 +76,7 @@ public:
    }
 
    // **************************************************************************
-   static inline void EnableDevice(const int dev =0) { Get().MfemDeviceSetup(dev); }
+   static inline void EnableDevice(const int dev = 0) { Get().MfemDeviceSetup(dev); }
    static inline bool DeviceEnabled() { return Get().ngpu > 0; }
    static inline bool DeviceDisabled() { return Get().ngpu == 0; }
    static inline bool DeviceHasBeenEnabled() { return Get().ngpu >= 0; }
@@ -96,6 +100,15 @@ public:
    static inline bool UsingOcca() { return Get().occa; }
    static inline void UseOcca() { Get().occa = true; }
    static inline OccaDevice GetOccaDevice() { return Get().occaDevice; }
+
+   static inline bool UsingCeed() {return Get().ceed; }
+   static inline void UseCeed(const char *ceed_spec) {
+      Get().ceed = true; 
+      CeedInit(ceed_spec, &Get().ceedObj);
+   }
+   static inline Ceed GetCeed() {
+      return Get().ceedObj;
+   }
 
    // **************************************************************************
    ~config();

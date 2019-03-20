@@ -50,7 +50,7 @@ void PABilinearFormExtension::AddDomainIntegrator(BilinearFormIntegrator *i)
 
 void PABilinearFormExtension::Assemble()
 {
-   assert(integrators.Size()==1);
+   assert(integrators.Size() == 1);
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
@@ -72,22 +72,22 @@ void PABilinearFormExtension::Update(FiniteElementSpace *fes)
 }
 
 void PABilinearFormExtension::FormSystemOperator(const Array<int>
-                                                 &ess_tdof_list,
-                                                 Operator *&A)
+      &ess_tdof_list,
+      Operator *&A)
 {
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
    if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
-   const bool own_A = (rap!=this);
+   const bool own_A = (rap != this);
    assert(rap);
    A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
 }
 
 void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                               Vector &x, Vector &b,
-                                               Operator *&A, Vector &X, Vector &B,
-                                               int copy_interior)
+      Vector &x, Vector &b,
+      Operator *&A, Vector &X, Vector &B,
+      int copy_interior)
 {
    FormSystemOperator(ess_tdof_list, A);
 
@@ -108,7 +108,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
       B.SetSize(b.Size()); B = b;
    }
 
-   if (!copy_interior && ess_tdof_list.Size()>0)
+   if (!copy_interior && ess_tdof_list.Size() > 0)
    {
       X.SetSubVectorComplement(ess_tdof_list, 0.0);
    }
@@ -130,7 +130,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
-   assert(iSz==1);
+   assert(iSz == 1);
    for (int i = 0; i < iSz; ++i)
    {
       integrators[i]->MultAssembled(localX, localY);
@@ -143,7 +143,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
-   assert(iSz==1);
+   assert(iSz == 1);
    for (int i = 0; i < iSz; ++i)
    {
       integrators[i]->MultAssembledTranspose(localX, localY);
@@ -152,8 +152,8 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 }
 
 void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
-                                                 const Vector &b,
-                                                 Vector &x)
+      const Vector &b,
+      Vector &x)
 {
    const Operator *P = a->GetProlongation();
    if (P)
@@ -173,15 +173,15 @@ MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
 
 // *****************************************************************************
 ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
-   :fes(f),
-    ne(fes.GetNE()),
-    vdim(fes.GetVDim()),
-    byvdim(fes.GetOrdering() == Ordering::byVDIM),
-    ndofs(fes.GetNDofs()),
-    dof(fes.GetFE(0)->GetDof()),
-    nedofs(ne*dof),
-    offsets(ndofs+1),
-    indices(ne*dof)
+   : fes(f),
+     ne(fes.GetNE()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes.GetNDofs()),
+     dof(fes.GetFE(0)->GetDof()),
+     nedofs(ne * dof),
+     offsets(ndofs + 1),
+     indices(ne * dof)
 {
    for (int e = 0; e < ne; ++e)
    {
@@ -194,7 +194,7 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
    const Array<int> &dof_map = el->GetDofMap();
-   const bool dof_map_is_identity = (dof_map.Size()==0);
+   const bool dof_map_is_identity = (dof_map.Size() == 0);
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    // We'll be keeping a count of how many local nodes point to its global dof
@@ -206,7 +206,7 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
    {
       for (int d = 0; d < dof; ++d)
       {
-         const int gid = elementMap[dof*e + d];
+         const int gid = elementMap[dof * e + d];
          ++offsets[gid + 1];
       }
    }
@@ -220,9 +220,9 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
    {
       for (int d = 0; d < dof; ++d)
       {
-         const int did = dof_map_is_identity?d:dof_map[d];
-         const int gid = elementMap[dof*e + did];
-         const int lid = dof*e + d;
+         const int did = dof_map_is_identity ? d : dof_map[d];
+         const int gid = elementMap[dof * e + did];
+         const int lid = dof * e + d;
          indices[offsets[gid]++] = lid;
       }
    }
@@ -240,21 +240,21 @@ void ElemRestriction::Mult(const Vector& x, Vector& y) const
 {
    const int vd = vdim;
    const bool t = byvdim;
-   const DeviceArray d_offsets(offsets, ndofs+1);
+   const DeviceArray d_offsets(offsets, ndofs + 1);
    const DeviceArray d_indices(indices, nedofs);
-   const DeviceMatrix d_x(x, t?vd:ndofs, t?ndofs:vd);
-   DeviceMatrix d_y(y, t?vd:nedofs, t?nedofs:vd);
+   const DeviceMatrix d_x(x, t ? vd : ndofs, t ? ndofs : vd);
+   DeviceMatrix d_y(y, t ? vd : nedofs, t ? nedofs : vd);
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i+1];
+      const int nextOffset = d_offsets[i + 1];
       for (int c = 0; c < vd; ++c)
       {
-         const double dofValue = d_x(t?c:i,t?i:c);
+         const double dofValue = d_x(t ? c : i, t ? i : c);
          for (int j = offset; j < nextOffset; ++j)
          {
             const int idx_j = d_indices[j];
-            d_y(t?c:idx_j,t?idx_j:c) = dofValue;
+            d_y(t ? c : idx_j, t ? idx_j : c) = dofValue;
          }
       }
    });
@@ -265,10 +265,10 @@ void ElemRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
    const int vd = vdim;
    const bool t = byvdim;
-   const DeviceArray d_offsets(offsets, ndofs+1);
+   const DeviceArray d_offsets(offsets, ndofs + 1);
    const DeviceArray d_indices(indices, nedofs);
-   const DeviceMatrix d_x(x, t?vd:nedofs, t?nedofs:vd);
-   DeviceMatrix d_y(y, t?vd:ndofs, t?ndofs:vd);
+   const DeviceMatrix d_x(x, t ? vd : nedofs, t ? nedofs : vd);
+   DeviceMatrix d_y(y, t ? vd : ndofs, t ? ndofs : vd);
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
@@ -279,9 +279,9 @@ void ElemRestriction::MultTranspose(const Vector& x, Vector& y) const
          for (int j = offset; j < nextOffset; ++j)
          {
             const int idx_j = d_indices[j];
-            dofValue +=  d_x(t?c:idx_j,t?idx_j:c);
+            dofValue +=  d_x(t ? c : idx_j, t ? idx_j : c);
          }
-         d_y(t?c:i,t?i:c) = dofValue;
+         d_y(t ? c : i, t ? i : c) = dofValue;
       }
    });
 }
