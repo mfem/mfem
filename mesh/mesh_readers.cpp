@@ -1039,10 +1039,315 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
    // (there may be gaps in the numbering, and also Gmsh enumerates vertices
    // starting from 1, not 0)
    map<int, int> vertices_map;
+
+   // For each point, curve, surface, and volume entities map entity tag to physical tag (physical tag is element material attr)
+   map<int,int> pointEntities_map;
+   map<int,int> curveEntities_map;
+   map<int,int> surfaceEntities_map;
+   map<int,int> volumeEntities_map;
    // Read the lines of the mesh file. If we face specific keyword, we'll treat
    // the section.
    while (input >> buff)
    {
+      if (buff == "$Entities")
+      {
+         unsigned long numPoints, numCurves, numSurfaces, numVolumes;
+         unsigned long numPhysicals, numBrep;
+         int entityTag, physicalTag, brepTag;
+         const int boxDim = 3;
+         double boxMin[3], boxMax[3];
+
+         getline(input,buff);
+
+         if(binary)
+         {
+            input.read(reinterpret_cast<char*>(&numPoints), sizeof(unsigned long));
+            input.read(reinterpret_cast<char*>(&numCurves), sizeof(unsigned long));
+            input.read(reinterpret_cast<char*>(&numSurfaces), sizeof(unsigned long));
+            input.read(reinterpret_cast<char*>(&numVolumes), sizeof(unsigned long));
+         }
+         else
+         {
+            input >> numPoints >> numCurves >> numSurfaces >> numVolumes;
+         }
+
+         for(int i=0; i<numPoints; ++i)
+         {
+            if(binary)
+            {
+               input.read(reinterpret_cast<char*>(&entityTag), sizeof(int));
+               input.read(reinterpret_cast<char*>(boxMin), boxDim*sizeof(double));
+               input.read(reinterpret_cast<char*>(boxMax), boxDim*sizeof(double));
+               input.read(reinterpret_cast<char*>(&numPhysicals), sizeof(unsigned long));
+               if(numPhysicals == 0)
+               {
+                  pointEntities_map[entityTag] = 1;
+               }
+               else
+               {
+                  for(int phys=0; phys < numPhysicals; ++phys)
+                  {
+                     input.read(reinterpret_cast<char*>(&physicalTag), sizeof(int));
+                     if(phys == 0)
+                     {
+                        // first physical tag gets mapped; elements only have one attr
+                        pointEntities_map[entityTag] = physicalTag;
+                     }
+                  }
+               } // numPhysicals > 0
+            } // if binary
+            else //ASCII
+            {
+               input >> entityTag;
+               for (int ci = 0; ci < boxDim; ++ci)
+               {
+                  input >> boxMin[ci];
+               }
+               for (int ci = 0; ci < boxDim; ++ci)
+               {
+                  input >> boxMax[ci];
+               }
+               input >> numPhysicals;
+               if(numPhysicals == 0)
+               {
+                  pointEntities_map[entityTag] = 1;
+               }
+               else
+               {
+                  for(int phys=0; phys < numPhysicals; ++phys)
+                  {
+                     input >> physicalTag;
+                     if(phys == 0)
+                     {
+                        // first physical tag gets mapped; elements only have one attr
+                        pointEntities_map[entityTag] = physicalTag;
+                     }
+                  }
+               }
+            } //else ASCII
+         } // for numPoints
+
+         for(int i=0; i<numCurves; ++i)
+         {
+            if(binary)
+            {
+               input.read(reinterpret_cast<char*>(&entityTag), sizeof(int));
+               input.read(reinterpret_cast<char*>(boxMin), boxDim*sizeof(double));
+               input.read(reinterpret_cast<char*>(boxMax), boxDim*sizeof(double));
+               input.read(reinterpret_cast<char*>(&numPhysicals), sizeof(unsigned long));
+               if(numPhysicals == 0)
+               {
+                  curveEntities_map[entityTag] = 1;
+               }
+               else
+               {
+                  for(int phys=0; phys < numPhysicals; ++phys)
+                  {
+                     input.read(reinterpret_cast<char*>(&physicalTag), sizeof(int));
+                     if(phys == 0)
+                     {
+                        // first physical tag gets mapped; elements only have one attr
+                        curveEntities_map[entityTag] = physicalTag;
+                     }
+                  }
+               } // numPhysicals > 0
+
+               input.read(reinterpret_cast<char*>(&numBrep), sizeof(unsigned long));
+               if(numBrep)
+               {
+                  for(int brep = 0; brep < numBrep; ++brep)
+                  {
+                     input.read(reinterpret_cast<char*>(&brepTag), sizeof(int));
+                  }
+               }
+            } // if binary
+            else //ASCII
+            {
+               input >> entityTag;
+               for (int ci = 0; ci < boxDim; ++ci)
+               {
+                  input >> boxMin[ci];
+               }
+               for (int ci = 0; ci < boxDim; ++ci)
+               {
+                  input >> boxMax[ci];
+               }
+               input >> numPhysicals;
+               if(numPhysicals == 0)
+               {
+                  curveEntities_map[entityTag] = 1;
+               }
+               else
+               {
+                  for(int phys=0; phys < numPhysicals; ++phys)
+                  {
+                     input >> physicalTag;
+                     if(phys == 0)
+                     {
+                        // first physical tag gets mapped; elements only have one attr
+                        curveEntities_map[entityTag] = physicalTag;
+                     }
+                  }
+               }
+               input >> numBrep;
+               if(numBrep)
+               {
+                  for(int brep = 0; brep < numBrep; ++brep)
+                  {
+                     input >> brepTag;
+                  }
+               }
+            } //else ASCII
+         } // for numCurves
+
+         for(int i=0; i<numSurfaces; ++i)
+         {
+            if(binary)
+            {
+               input.read(reinterpret_cast<char*>(&entityTag), sizeof(int));
+               input.read(reinterpret_cast<char*>(boxMin), boxDim*sizeof(double));
+               input.read(reinterpret_cast<char*>(boxMax), boxDim*sizeof(double));
+               input.read(reinterpret_cast<char*>(&numPhysicals), sizeof(unsigned long));
+               if(numPhysicals == 0)
+               {
+                  surfaceEntities_map[entityTag] = 1;
+               }
+               else
+               {
+                  for(int phys=0; phys < numPhysicals; ++phys)
+                  {
+                     input.read(reinterpret_cast<char*>(&physicalTag), sizeof(int));
+                     if(phys == 0)
+                     {
+                        // first physical tag gets mapped; elements only have one attr
+                        surfaceEntities_map[entityTag] = physicalTag;
+                     }
+                  }
+               } // numPhysicals > 0
+
+               input.read(reinterpret_cast<char*>(&numBrep), sizeof(unsigned long));
+               if(numBrep)
+               {
+                  for(int brep = 0; brep < numBrep; ++brep)
+                  {
+                     input.read(reinterpret_cast<char*>(&brepTag), sizeof(int));
+                  }
+               }
+            } // if binary
+            else //ASCII
+            {
+               input >> entityTag;
+               for (int ci = 0; ci < boxDim; ++ci)
+               {
+                  input >> boxMin[ci];
+               }
+               for (int ci = 0; ci < boxDim; ++ci)
+               {
+                  input >> boxMax[ci];
+               }
+               input >> numPhysicals;
+               if(numPhysicals == 0)
+               {
+                  surfaceEntities_map[entityTag] = 1;
+               }
+               else
+               {
+                  for(int phys=0; phys < numPhysicals; ++phys)
+                  {
+                     input >> physicalTag;
+                     if(phys == 0)
+                     {
+                        // first physical tag gets mapped; elements only have one attr
+                        surfaceEntities_map[entityTag] = physicalTag;
+                     }
+                  }
+               }
+               input >> numBrep;
+               if(numBrep)
+               {
+                  for(int brep = 0; brep < numBrep; ++brep)
+                  {
+                     input >> brepTag;
+                  }
+               }
+            } //else ASCII
+         } // for numSurfaces
+
+         cerr << "entities points, lines, surfaces, volumes: " << numPoints << ":" << numCurves << ":" << numSurfaces << ":" << numVolumes << endl;
+         for(int i=0; i<numVolumes; ++i)
+         {
+            if(binary)
+            {
+               input.read(reinterpret_cast<char*>(&entityTag), sizeof(int));
+               input.read(reinterpret_cast<char*>(boxMin), boxDim*sizeof(double));
+               input.read(reinterpret_cast<char*>(boxMax), boxDim*sizeof(double));
+               input.read(reinterpret_cast<char*>(&numPhysicals), sizeof(unsigned long));
+               if(numPhysicals == 0)
+               {
+                  volumeEntities_map[entityTag] = 1;
+               }
+               else
+               {
+                  for(int phys=0; phys < numPhysicals; ++phys)
+                  {
+                     input.read(reinterpret_cast<char*>(&physicalTag), sizeof(int));
+                     if(phys == 0)
+                     {
+                        // first physical tag gets mapped; elements only have one attr
+                        volumeEntities_map[entityTag] = physicalTag;
+                     }
+                  }
+               } // numPhysicals > 0
+
+               input.read(reinterpret_cast<char*>(&numBrep), sizeof(unsigned long));
+               if(numBrep)
+               {
+                  for(int brep = 0; brep < numBrep; ++brep)
+                  {
+                     input.read(reinterpret_cast<char*>(&brepTag), sizeof(int));
+                  }
+               }
+            } // if binary
+            else //ASCII
+            {
+               input >> entityTag;
+               for (int ci = 0; ci < boxDim; ++ci)
+               {
+                  input >> boxMin[ci];
+               }
+               for (int ci = 0; ci < boxDim; ++ci)
+               {
+                  input >> boxMax[ci];
+               }
+               input >> numPhysicals;
+               if(numPhysicals == 0)
+               {
+                  volumeEntities_map[entityTag] = 1;
+               }
+               else
+               {
+                  for(int phys=0; phys < numPhysicals; ++phys)
+                  {
+                     input >> physicalTag;
+                     if(phys == 0)
+                     {
+                        // first physical tag gets mapped; elements only have one attr
+                        volumeEntities_map[entityTag] = physicalTag;
+                     }
+                  }
+               }
+               input >> numBrep;
+               if(numBrep)
+               {
+                  for(int brep = 0; brep < numBrep; ++brep)
+                  {
+                     input >> brepTag;
+                  }
+               }
+            } //else ASCII
+         } // for numVolumes
+      }// if Entities
+
       if (buff == "$Nodes") // reading mesh vertices
       {
          unsigned long numEntityBlocks;
@@ -1125,7 +1430,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
          int numElements;
          int n_tags; // number of different tags describing an element
 
-         // set up some defaults as these tag descriptors are not in v4
+         // set up some defaults 
          int phys_domain=1; // element's attribute
          int elem_domain=0; // another element's attribute (rarely used)
          int n_partitions=0; // number of partitions where an element takes place
@@ -1150,6 +1455,50 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
             {
                input >> entity >> dimEntity >> type_of_element >> numElements;
             }
+
+            // load physical_domain tag depending on dim of entity
+            switch(dimEntity)
+            {
+               case 0:
+               {   
+                  map<int, int>::const_iterator it = pointEntities_map.find(entity);
+                  if(it != pointEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 1:
+               {   
+                  map<int, int>::const_iterator it = curveEntities_map.find(entity);
+                  if(it != curveEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 2:
+               {   
+                  map<int, int>::const_iterator it = surfaceEntities_map.find(entity);
+                  if(it != surfaceEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               case 3:   
+               {   
+                  map<int, int>::const_iterator it = volumeEntities_map.find(entity);
+                  if(it != curveEntities_map.end())
+                  {
+                     phys_domain = it->second;
+                  }
+                  break;
+               }   
+               default:
+                  MFEM_ABORT("Invalid dimension, Dim = " << dimEntity);
+            }
+            cerr << "phys_domain for this entity block: " << phys_domain << " dimEntity: " << dimEntity << endl;
             for (int ele= 0; ele < numElements; ++ele)
             {
                // number of nodes for each type of Gmsh elements, type is the index of
