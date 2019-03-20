@@ -2505,20 +2505,25 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
 void L2ProjectionGridTransfer::L2Projection::Mult(
    const Vector &x, Vector &y) const
 {
+   int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
-   Vector xel(ndof_ho);
-   Vector yel(ndof_lor*nref);
+   DenseMatrix xel_mat(ndof_ho, vdim);
+   DenseMatrix yel_mat(ndof_lor*nref, vdim);
    for (int iho=0; iho<fes_ho.GetNE(); ++iho)
    {
       fes_ho.GetElementVDofs(iho, vdofs);
-      x.GetSubVector(vdofs, xel);
-      R(iho).Mult(xel, yel);
+      x.GetSubVector(vdofs, xel_mat.GetData());
+      mfem::Mult(R(iho), xel_mat, yel_mat);
       // Place result correctly into low-order vector
       for (int iref=0; iref<nref; ++iref)
       {
          int ilor = ho2lor.GetRow(iho)[iref];
-         fes_lor.GetElementVDofs(ilor, vdofs);
-         y.SetSubVector(vdofs, yel.GetData() + iref*ndof_lor);
+         for (int vd=0; vd<vdim; ++vd)
+         {
+            fes_lor.GetElementDofs(ilor, vdofs);
+            fes_lor.DofsToVDofs(vd, vdofs);
+            y.SetSubVector(vdofs, &yel_mat(iref*ndof_lor,vd));
+         }
       }
    }
 }
@@ -2526,23 +2531,28 @@ void L2ProjectionGridTransfer::L2Projection::Mult(
 void L2ProjectionGridTransfer::L2Projection::Prolongate(
    const Vector &x, Vector &y) const
 {
+   int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
-   Vector xel(ndof_lor*nref);
-   Vector yel(ndof_ho);
+   DenseMatrix xel_mat(ndof_lor*nref, vdim);
+   DenseMatrix yel_mat(ndof_ho, vdim);
    for (int iho=0; iho<fes_ho.GetNE(); ++iho)
    {
       // Extract the LOR DOFs
       for (int iref=0; iref<nref; ++iref)
       {
          int ilor = ho2lor.GetRow(iho)[iref];
-         fes_lor.GetElementVDofs(ilor, vdofs);
-         x.GetSubVector(vdofs, &xel[iref*ndof_lor]);
+         for (int vd=0; vd<vdim; ++vd)
+         {
+            fes_lor.GetElementDofs(ilor, vdofs);
+            fes_lor.DofsToVDofs(vd, vdofs);
+            x.GetSubVector(vdofs, &xel_mat(iref*ndof_lor, vd));
+         }
       }
       // Locally prolongate
-      P(iho).Mult(xel, yel);
+      mfem::Mult(P(iho), xel_mat, yel_mat);
       // Place the result in the HO vector
       fes_ho.GetElementVDofs(iho, vdofs);
-      y.SetSubVector(vdofs, yel);
+      y.SetSubVector(vdofs, yel_mat.GetData());
    }
 }
 
