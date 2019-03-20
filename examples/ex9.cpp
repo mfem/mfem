@@ -710,7 +710,7 @@ private:
    }
 };
 
-class Assembly // TODO will be used for assembly, should contain velocity and node_info
+class Assembly
 {
 public:
    Assembly(FiniteElementSpace* _fes, MONOTYPE _monoType, bool _OptScheme,
@@ -722,15 +722,53 @@ public:
             velocity(coef), node_info(_node_info), SubFes0(_SubFes0),
             SubFes1(_SubFes1), ref_mesh(_ref_mesh), VolumeTerms(_VolumeTerms),
             irF(_irF)
-      {
-         // Use the first mesh element as indicator.
-         const FiniteElement &dummy = *fes->GetFE(0);
-         int nd = dummy.GetDof(), ne = fes->GetNE();
+   {
+      Mesh *mesh = fes->GetMesh();
+      int k, i, m, nd, dim = mesh->Dimension(), ne = fes->GetNE();
       
-         bdrInt.SetSize(ne*nd, nd*node_info.numBdrs);
-         
-         fluctSub.SetSize(ne*node_info.numSubcells, node_info.numDofsSubcell);
+      // Use the first mesh element as indicator.
+      const FiniteElement &dummy = *fes->GetFE(0);
+      nd = dummy.GetDof();
+      
+      Array <int> bdrs, orientation;
+      FaceElementTransformations *Trans;
+      
+      bdrInt.SetSize(ne*nd, nd*node_info.numBdrs); // TODO just initialize if needed
+      fluctSub.SetSize(ne*node_info.numSubcells, node_info.numDofsSubcell);
+      
+      if (exec_mode == 0) // Initialization for transport mode.
+      {
+         for (k = 0; k < ne; k++)
+         {
+            if (dim > 1)// Nothing needs to be done for 1D boundaries. // TODO
+            {
+               if (dim==1)
+               {
+                  mesh->GetElementVertices(k, bdrs);
+               }
+               else if (dim==2)
+               {
+                  mesh->GetElementEdges(k, bdrs, orientation);
+               }
+               else if (dim==3)
+               {
+                  mesh->GetElementFaces(k, bdrs, orientation);
+               }
+               
+               for (i = 0; i < node_info.numBdrs; i++)
+               {
+                  Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+                  ComputeFluxTerms(k, i, velocity, Trans);
+               }
+            }
+            
+            for (m = 0; m < node_info.numSubcells; m++)
+            {
+               ComputeSubcellWeights(k, m);
+            }
+         }
       }
+   }
 
    // Destructor
    ~Assembly() { }
@@ -752,7 +790,7 @@ public:
    DenseMatrix bdrInt;
    DenseMatrix fluctSub;
    
-   void ComputeFluxTerms(const int k, const int BdrId, VectorCoefficient &coef,
+   void ComputeFluxTerms(const int k, const int BdrID, VectorCoefficient &coef,
                          FaceElementTransformations *Trans)
    {
       bdrInt = 0.;
@@ -816,14 +854,14 @@ public:
          
          for (i = 0; i < node_info.numDofs; i++)
          {
-            row = k*nd+node_info.BdrDofs(i,BdrId);
+            row = k*nd+node_info.BdrDofs(i,BdrID);
             aux = ip.weight * Trans->Face->Weight()
-                  * shape(node_info.BdrDofs(i,BdrId)) * vn;
+                  * shape(node_info.BdrDofs(i,BdrID)) * vn;
 
             for (j = 0; j < node_info.numDofs; j++)
             {
-               bdrInt(row,BdrId*nd+node_info.BdrDofs(j,BdrId)) -= aux
-                                    * shape(node_info.BdrDofs(j,BdrId));
+               bdrInt(row,BdrID*nd+node_info.BdrDofs(j,BdrID)) -= aux
+                                    * shape(node_info.BdrDofs(j,BdrID));
             }
          }
       }
@@ -1377,6 +1415,7 @@ void FE_Evolution::LinearFluxLumping(const int k, const int nd,
          y(dofInd) += asmbl.bdrInt(dofInd, BdrID*nd+asmbl.node_info.BdrDofs(j,BdrID))
           * ( xDiff(i) + (xDiff(j)-xDiff(i)) * alpha(asmbl.node_info.BdrDofs(i,BdrID))
                                          * alpha(asmbl.node_info.BdrDofs(j,BdrID)) );
+// cout << asmbl.bdrInt(dofInd,BdrID*nd+asmbl.node_info.BdrDofs(j,BdrID)) << endl; // TODO
       }
    }
 }
@@ -1449,8 +1488,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ////////////////////////////
          if (dim > 1)// Nothing needs to be done for 1D boundaries.
          {
-            // if (exec_mode > 0) // TODO preprocessing
-            //    {
             if (dim==1)
             {
                mesh->GetElementVertices(k, bdrs);
@@ -1463,25 +1500,19 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             {
                mesh->GetElementFaces(k, bdrs, orientation);
             }
-            // }
             
             for (i = 0; i < asmbl.node_info.numBdrs; i++)
             {
-               
-               // if (exec_mode > 0) // TODO preprocessing
-               //       {
                Trans = mesh->GetFaceElementTransformations(bdrs[i]);
                
                if (exec_mode == 1)
                {
                   asmbl.ComputeFluxTerms(k, i, coef, Trans);
                }
-               else
+               else //if (exec_mode == 2) // TODO bug
                {
                   asmbl.ComputeFluxTerms(k, i, asmbl.velocity, Trans);
                }
-               //       }
-               
                LinearFluxLumping(k, nd, i, x, y, alpha);
             }
          }
@@ -1534,10 +1565,10 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
                xMaxSubcell(m) = -xMinSubcell(m);
                fluct = xSum = 0.;
                
-//                if (exec_mode > 0) // TODO preprocessing
-//                {
+               if (exec_mode > 0)
+               {
                   asmbl.ComputeSubcellWeights(k, m);
-//                }
+               }
                
                for (i = 0; i < asmbl.node_info.numDofsSubcell; i++)
                {
