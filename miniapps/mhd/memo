@@ -1,3 +1,49 @@
+3/20
+fix a ploting issue for order>2
+
+
+3/19
+the boundary seems working by using but I do not know why it works...
+
+   const int dim=2;
+   VectorArrayCoefficient force(dim);
+   for (int i = 0; i < dim-1; i++)
+   {
+      force.Set(i, new ConstantCoefficient(0.0));
+   }
+   {
+      Vector pull_force(fespace.GetMesh()->bdr_attributes.Max());
+      pull_force = -1.0;
+      force.Set(dim-1, new PWConstCoefficient(pull_force));
+   }
+
+   b.AddDomainIntegrator(new VectorBoundaryLFIntegrator(force));
+   b.Assemble();
+
+   K->FormLinearSystem(ess_tdof_list, psi, b, A, X, B);
+
+   so I will subtract B from z.
+
+>>>using this fix in the full code gives me errors associated with memory, I think I did something very crazy.
+
+Tzanio sent me the working code. What is the difference between AddBdrFaceIntegrator and AddBoundaryIntegrator?
+
+
+3/13
+the explicit code is working, however (they are probably all related to the boundary)
+the current is still not right,
+the boundary condition is not right
+
+note the boundary condition for current should be 0, which is wrong now
+If I turned off background B/Phi, then the current solver is right!
+Reason:
+M*J=K*Psi; however J=0 along the boundary; K*Psi=Psi along the boundary which is inconsistent, I need subtract those off
+
+Luis: if we can figure out how to do it matrix-free in the explicit scheme, we should be good for the implicit scheme. The only matrix that needs to assemble is the mass and stiffness matrix (once in the how solve)
+
+Q:
+what solvers for mass and stiffness matrices I am using?
+
 2019/3/6
 the stucture of explicit scheme seems clear
 the linear parts seem ok

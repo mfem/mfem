@@ -1,4 +1,4 @@
-//write my own coefficient class
+//write my own coefficient class: curl^perp in 2D
 //coefficient:=[-Dy u, Dx u]
 #include "mfem.hpp"
 
@@ -27,6 +27,7 @@ namespace mfem
         GridFunc=gf;
     }
 
+    //not sure when this function will be called -QT
     void MyCoefficient::Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip)
     {
