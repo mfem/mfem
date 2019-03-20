@@ -11,13 +11,13 @@
 #include "mfem.hpp"
 #include "myCoefficient.hpp"
 #include "BoundaryGradIntegrator.hpp"
+#include "PDSolver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
 
 using namespace std;
 using namespace mfem;
-
 
 double alpha; //a global value of magnetude for the pertubation
 double Lx;  //size of x domain
@@ -27,7 +27,7 @@ double Lx;  //size of x domain
  *     dPsi/dt = M^{-1}*F1,
  *     dw  /dt = M^{-1}*F2,
  *  coupled with two linear systems
- *     j   = -M^{-1}*K*Psi 
+ *     j   = -M^{-1}*(K-B)*Psi 
  *     Phi = -K^{-1}*M*w
  *  so far there seems no need to do a BlockNonlinearForm
  *
@@ -41,20 +41,17 @@ protected:
 
    BilinearForm *M, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
    BilinearForm *Nv, *Nb;
-   LinearForm b;                  //this is used to remove wrong boundary terms
    SparseMatrix Mmat, Kmat;
 
    double viscosity, resistivity;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
-   DSmoother M_prec;  // Preconditioner for the mass matrix M
+   GSSmoother *M_prec;  // Preconditioner for the mass matrix M
 
    CGSolver K_solver; // Krylov solver for inverting the stiffness matrix K
-   DSmoother K_prec;  // Preconditioner for the stiffness matrix K
+   GSSmoother *K_prec;  // Preconditioner for the stiffness matrix K
 
    mutable Vector z; // auxiliary vector 
-
-   //MyCoefficient velocity, Bfield;
 
 public:
    ImplicitMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, 
@@ -65,9 +62,6 @@ public:
 
    void UpdateJ(Vector &vx);
    void UpdatePhi(Vector &vx);
-
-   //void assembleNv(const Vector &vx);
-   //void assembleNb(const Vector &vx);
    void assembleNv(GridFunction *gf);
    void assembleNb(GridFunction *gf);
 
@@ -95,6 +89,12 @@ double InitialPsi(const Vector &x)
    return -x(1)+alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
    //return alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
    //return -x(1);
+}
+
+double BackPsi(const Vector &x)
+{
+   //this is the background psi (for post-processing only)
+   return -x(1);
 }
 
 
@@ -153,16 +153,17 @@ int main(int argc, char *argv[])
    // 3. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   ODESolver *ode_solver, *ode_predictor;
+   //ODESolver *ode_solver, *ode_predictor;
+   PDSolver *ode_solver;
    switch (ode_solver_type)
    {
      // Explicit methods XXX: waring: FE is not stable 
-     case 1: ode_solver = new ForwardEulerSolver; break;
-     case 2: 
-             ode_solver = new ForwardEulerSolver; 
-             ode_predictor = new ForwardEulerSolver; 
-             break; //first order predictor-corrector
-     case 3: ode_solver = new RK3SSPSolver; break;
+     //case 1: ode_solver = new ForwardEulerSolver; break;
+     //case 2: 
+     //        ode_solver = new ForwardEulerSolver; 
+     //        ode_predictor = new ForwardEulerSolver; 
+     //        break; //first order predictor-corrector
+     case 2: ode_solver = new PDSolver; break;
      default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;
@@ -198,7 +199,7 @@ int main(int argc, char *argv[])
    fe_offset[4] = 4*fe_size;
 
    BlockVector vx(fe_offset);
-   GridFunction psi, phi, w, j;
+   GridFunction psi, phi, w, j, psiBack(&fespace), psiPer(&fespace);
    phi.MakeTRef(&fespace, vx.GetBlock(0), 0);
    psi.MakeTRef(&fespace, vx.GetBlock(1), 0);
      w.MakeTRef(&fespace, vx.GetBlock(2), 0);
@@ -221,12 +222,18 @@ int main(int argc, char *argv[])
    j.ProjectCoefficient(jInit);
    j.SetTrueVector();
 
+   //Set the background psi
+   FunctionCoefficient psi0(BackPsi);
+   psiBack.ProjectCoefficient(psi0);
+   psiBack.SetTrueVector();
+
+
    //this is a periodic boundary condition in x, so ess_bdr
    //but may need other things here if not periodic
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
    ess_bdr[0] = 1;  //set attribute 1 to Direchlet boundary fixed??
-   //cout <<"size is "<<ess_bdr.Size()<<endl;
+   cout <<"ess_bdr size is "<<ess_bdr.Size()<<endl;
 
    // 7. Initialize the MHD operator, the GLVis visualization    
    ImplicitMHDOperator oper(fespace, ess_bdr, visc, resi);
@@ -255,11 +262,9 @@ int main(int argc, char *argv[])
       }
     }
 
-   double t = 0.0, tPre=0.0;
+   double t = 0.0;
    oper.SetTime(t);
-   ode_predictor->Init(oper);
    ode_solver->Init(oper);
-    
 
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
@@ -272,7 +277,7 @@ int main(int argc, char *argv[])
       //assemble the nonlinear terms
       oper.assembleNv(&phi);
       oper.assembleNb(&psi);
-      ode_predictor->Step(vx, tPre, dt_real);
+      ode_solver->StepP(vx, t, dt_real);
       oper.UpdateJ(vx);
 
       //---Corrector stage---
@@ -314,6 +319,11 @@ int main(int argc, char *argv[])
       osol3.precision(8);
       psi.Save(osol3);
 
+      subtract(psi,psiBack,psiPer);
+      ofstream osol5("psiPer.sol");
+      osol5.precision(8);
+      psiPer.Save(osol5);
+
       ofstream osol4("omega.sol");
       osol4.precision(8);
       w.Save(osol4);
@@ -321,7 +331,6 @@ int main(int argc, char *argv[])
 
    // 10. Free the used memory.
    delete ode_solver;
-   delete ode_predictor;
    delete mesh;
 
    return 0;
@@ -331,8 +340,8 @@ int main(int argc, char *argv[])
 ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc, double resi)
    : TimeDependentOperator(4*f.GetTrueVSize(), 0.0), fespace(f),
-     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), b(&fespace), Nv(NULL), Nb(NULL),
-     viscosity(visc),  resistivity(resi), z(height/4)
+     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL),
+     viscosity(visc),  resistivity(resi), M_prec(NULL), K_prec(NULL), z(height/4)
 {
    const double rel_tol = 1e-8;
    const int skip_zero_entries = 0;
@@ -354,12 +363,15 @@ ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f,
    M->Assemble(skip_zero_entries);
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
+   GSSmoother *M_prec_gs = new GSSmoother(Mmat);
+   M_prec=M_prec_gs;
+
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(50);
+   M_solver.SetMaxIter(200);
    M_solver.SetPrintLevel(0);
-   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
 
    //stiffness matrix
@@ -368,12 +380,15 @@ ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f,
    K->Assemble(skip_zero_entries);
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 
+   GSSmoother *K_prec_gs = new GSSmoother(Kmat);
+   K_prec=K_prec_gs;
+
    K_solver.iterative_mode = true;
    K_solver.SetRelTol(rel_tol);
    K_solver.SetAbsTol(0.0);
-   K_solver.SetMaxIter(50);
+   K_solver.SetMaxIter(200);
    K_solver.SetPrintLevel(0);
-   K_solver.SetPreconditioner(K_prec);
+   K_solver.SetPreconditioner(*K_prec);
    K_solver.SetOperator(Kmat);
 
    KB = new BilinearForm(&fespace);
@@ -481,6 +496,7 @@ void ImplicitMHDOperator::UpdateJ(Vector &vx)
    KB->Mult(psi, z);
    z.Neg(); // z = -z
 
+   /*
    //debugging for the boundary terms
    if (false){
        for (int i=0; i<ess_tdof_list.Size(); i++)
@@ -491,6 +507,7 @@ void ImplicitMHDOperator::UpdateJ(Vector &vx)
        ofstream myfile("zv.dat");
        z.Print(myfile, 1000);
    }
+   */
 
    M_solver.Mult(z, j);
 }
@@ -516,6 +533,8 @@ ImplicitMHDOperator::~ImplicitMHDOperator()
     delete KB;
     delete Nv;
     delete Nb;
+    delete M_prec;
+    delete K_prec;
 }
 
 

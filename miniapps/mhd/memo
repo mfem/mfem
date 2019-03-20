@@ -1,5 +1,12 @@
 3/20
-fix a ploting issue for order>2
+o fix a ploting issue for order>2
+o fix the boundary orientation, I believe the normal has to be outward
+o fix the time stepping
+x it has to assemble nv and nb each time step
+
+ploting:
+glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 700
+
 
 
 3/19

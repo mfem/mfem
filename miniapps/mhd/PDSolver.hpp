@@ -9,34 +9,41 @@ namespace mfem
 class PDSolver : public ODESolver
 {
 private:
-   Vector dxdt;
+   Vector dxdt, x1;
 
 public:
    virtual void Init(TimeDependentOperator &_f);
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   virtual void StepP(Vector &x, double &t, double &dt);//Predictor
+   virtual void Step(Vector &x, double &t, double &dt);//Corrector
 };
 
 void PDSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   dxdt.SetSize(f->Width());
+   int n = f->Width();
+   dxdt.SetSize(n);
+   x1.SetSize(n);
 }
+
+void PDSolver::StepP(Vector &x, double &t, double &dt)
+{
+   f->SetTime(t);
+   //cout <<"t="<<f->GetTime()<<endl;
+
+   //predictor: update Psi w-> update j
+   x1=x;
+   f->Mult(x, dxdt);
+   x.Add(dt, dxdt);
+}
+
 
 void PDSolver::Step(Vector &x, double &t, double &dt)
 {
-   f->SetTime(t);
-
-   //predictor: update Psi w-> update j
-   f->Mult(x, dxdt);
-   x.Add(dt, dxdt);
-   f->UpdateJ(x);
-
+   //cout <<"t="<<f->GetTime()<<endl;
    //corrector: update Psi w-> update j and Phi
    f->Mult(x, dxdt);
-   x.Add(dt, dxdt);
-   f->UpdateJ(x); 
-   f->UpdatePhi(x);
+   add(x1, dt, dxdt, x);
 
    t += dt;
 }
