@@ -1774,7 +1774,6 @@ int ParCSRRelax_FIR(hypre_ParCSRMatrix *A, // matrix to relax with
    return 0;
 }
 
-
 HypreSmoother::HypreSmoother() : Solver()
 {
    type = 2;
