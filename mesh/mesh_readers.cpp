@@ -1489,7 +1489,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                case 3:   
                {   
                   map<int, int>::const_iterator it = volumeEntities_map.find(entity);
-                  if(it != curveEntities_map.end())
+                  if(it != volumeEntities_map.end())
                   {
                      phys_domain = it->second;
                   }
