@@ -18,12 +18,12 @@ namespace mfem
 // *****************************************************************************
 // * Allocates device memory
 // *****************************************************************************
-void* cuMemAlloc(void** dptr, size_t bytes)
+void* CuMemAlloc(void** dptr, size_t bytes)
 {
 #ifdef __NVCC__
    if (CUDA_SUCCESS != ::cuMemAlloc((CUdeviceptr*)dptr, bytes))
    {
-      mfem_error("Error in cuMemAlloc");
+      mfem_error("Error in CuMemAlloc");
    }
 #endif
    return *dptr;
@@ -32,12 +32,12 @@ void* cuMemAlloc(void** dptr, size_t bytes)
 // *****************************************************************************
 // * Frees device memory
 // *****************************************************************************
-void* cuMemFree(void *dptr)
+void* CuMemFree(void *dptr)
 {
 #ifdef __NVCC__
    if (CUDA_SUCCESS != ::cuMemFree((CUdeviceptr)dptr))
    {
-      mfem_error("Error in cuMemFree");
+      mfem_error("Error in CuMemFree");
    }
 #endif
    return dptr;
@@ -46,12 +46,12 @@ void* cuMemFree(void *dptr)
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-void* cuMemcpyHtoD(void* dst, const void* src, size_t bytes)
+void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
 #ifdef __NVCC__
    if (CUDA_SUCCESS != ::cuMemcpyHtoD((CUdeviceptr)dst, src, bytes))
    {
-      mfem_error("Error in cuMemcpyHtoD");
+      mfem_error("Error in CuMemcpyHtoD");
    }
 #endif
    return dst;
@@ -60,13 +60,13 @@ void* cuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-void* cuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
+void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 {
 #ifdef __NVCC__
    if (CUDA_SUCCESS !=
        ::cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s))
    {
-      mfem_error("Error in cuMemcpyHtoDAsync");
+      mfem_error("Error in CuMemcpyHtoDAsync");
    }
 #endif
    return dst;
@@ -75,13 +75,13 @@ void* cuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-void* cuMemcpyDtoD(void* dst, void* src, size_t bytes)
+void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
 {
 #ifdef __NVCC__
    if (CUDA_SUCCESS !=
        ::cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes))
    {
-      mfem_error("Error in cuMemcpyDtoD");
+      mfem_error("Error in CuMemcpyDtoD");
    }
 #endif
    return dst;
@@ -90,14 +90,14 @@ void* cuMemcpyDtoD(void* dst, void* src, size_t bytes)
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-void* cuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
+void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 {
 #ifdef __NVCC__
    if (CUDA_SUCCESS !=
        ::cuMemcpyDtoDAsync((CUdeviceptr)dst, (CUdeviceptr)src,
                            bytes, (CUstream)s))
    {
-      mfem_error("Error in cuMemcpyDtoDAsync");
+      mfem_error("Error in CuMemcpyDtoDAsync");
    }
 #endif
    return dst;
@@ -106,12 +106,12 @@ void* cuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-void* cuMemcpyDtoH(void *dst, void *src, size_t bytes)
+void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
 {
 #ifdef __NVCC__
    if (CUDA_SUCCESS != ::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes))
    {
-      mfem_error("Error in cuMemcpyDtoH");
+      mfem_error("Error in CuMemcpyDtoH");
    }
 #endif
    return dst;
@@ -120,13 +120,13 @@ void* cuMemcpyDtoH(void *dst, void *src, size_t bytes)
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-void* cuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
+void* CuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
 {
 #ifdef __NVCC__
    if (CUDA_SUCCESS !=
        ::cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s))
    {
-      mfem_error("Error in cuMemcpyDtoHAsync");
+      mfem_error("Error in CuMemcpyDtoHAsync");
    }
 #endif
    return dst;
