@@ -734,11 +734,18 @@ public:
     defined in physical space and, generally, vary between different mesh
     elements.
 
-    This class currently supports only L2 finite element spaces and fine meshes
-    that are a uniform refinement of the coarse mesh. Generally, the coarse and
-    fine FE spaces can have different orders, however, in order for the backward
-    operator to be well-defined, the number of the fine dofs (in a coarse
-    element) should not be smaller than the number of coarse dofs. */
+    This class currently only fully supports L2 finite element spaces and fine
+    meshes that are a uniform refinement of the coarse mesh. Generally, the
+    coarse and fine FE spaces can have different orders, however, in order for
+    the backward operator to be well-defined, the number of the fine dofs (in a
+    coarse element) should not be smaller than the number of coarse dofs.
+    
+    If used on H1 finite element spaces, the transfer will be performed locally,
+    and the value of shared (interface) degrees of freedom will be determined by
+    the value of the last transfer to be performed (according to the element
+    numbering in the finite element space). As a consequence, the mass
+    conservation properties for this operator from the L2 case do not carry over
+    to H1 spaces. */
 class L2ProjectionGridTransfer : public GridTransfer
 {
 protected:
