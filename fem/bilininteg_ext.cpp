@@ -465,8 +465,9 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 {
   if (config::UsingCeed())
   {
-    ceedDataPtr = new CeedDiffData();
-    CeedPADiffusionAssemble(fes, *static_cast<CeedDiffData*>(ceedDataPtr) );
+    CeedDiffData* ptr = new CeedDiffData();
+    ceedDataPtr = ptr;
+    CeedPADiffusionAssemble(fes, *ptr);
   } else {
     const Mesh *mesh = fes.GetMesh();
     const IntegrationRule *rule = IntRule;
