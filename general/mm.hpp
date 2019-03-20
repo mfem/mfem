@@ -112,6 +112,7 @@ public:
       return MM().Known(a);
    }
 
+
 private:
    ledger maps;
    mm() {}
@@ -131,6 +132,27 @@ private:
    // **************************************************************************
    void Push(const void *ptr, const size_t bytes = 0);
    void Pull(const void *ptr, const size_t bytes = 0);
+
+public:
+  static inline void PrintPtrs(void)
+  {
+    for( const auto& n : MM().maps.memories ) {
+      printf("key %p, host %p, device %p \n", n.first, n.second.h_ptr, n.second.d_ptr);
+    }
+  }
+
+  static inline void PullAll(void){
+    for( const auto& n : MM().maps.memories ) {
+      MM().Pull(n.first,n.second.bytes);
+    }
+  }
+
+  static inline void PushAll(void){
+    for( const auto& n : MM().maps.memories ) {
+      MM().Push(n.first,n.second.bytes);
+    }
+  }
+
 };
 
 } // namespace mfem
