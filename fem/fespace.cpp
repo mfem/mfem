@@ -2359,22 +2359,11 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
       if (map_type == FiniteElement::VALUE ||
           map_type == FiniteElement::INTEGRAL)
       {
-         if (ran_fes.GetVDim() == 1)
-         {
-            mass_integ = new MassIntegrator;
-         }
-         else
-         {
-            VectorMassIntegrator *vmass = new VectorMassIntegrator;
-            vmass->SetVDim(ran_fes.GetVDim());
-            mass_integ = vmass;
-         }
+         mass_integ = new MassIntegrator;
       }
       else if (map_type == FiniteElement::H_DIV ||
                map_type == FiniteElement::H_CURL)
       {
-         MFEM_VERIFY(ran_fes.GetVDim() == 1,
-                     "vdim > 1 is not supported for vector finite elements");
          mass_integ = new VectorFEMassIntegrator;
       }
       else
