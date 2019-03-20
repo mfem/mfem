@@ -36,8 +36,10 @@
 
 #include "mfem.hpp"
 #include <fstream>
-#include <sstream>
 #include <iostream>
+#include <map>
+#include <sstream>
+#include <string>
 
 #include "../common/pfem_extras.hpp"
 #include "braginskii_solver.hpp"
