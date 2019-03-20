@@ -732,6 +732,8 @@ public:
 
    double *Data() { return tdata; }
 
+   const double *Data() const { return tdata; }
+
    /** Matrix-vector product from unassembled element matrices, assuming both
        'x' and 'y' use the same elem_dof table. */
    void AddMult(const Table &elem_dof, const Vector &x, Vector &y) const;
