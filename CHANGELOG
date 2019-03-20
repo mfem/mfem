@@ -59,12 +59,10 @@ Other meshing improvements
 Discretization improvements
 ---------------------------
 - Added support for a general "low-order refined"-to-"high-order" transfer of
-  GridFunction and true-dof data from a "low-order refined" (LOR) space defined
-  on a refined mesh to a "high-order" (HO) finite element space defined on a
-  coarse mesh. See the new classes L2Projection and L2Prolongation providing
-  accurate and conservative HO->LOR and LOR->HO maps respectively, the method
-  FiniteElementSpace::GetReverseTransferOperator and the new LOR Transfer
-  miniapp in miniapp/tools.
+  GridFunction data from a "low-order refined" (LOR) space defined on a refined
+  mesh to a "high-order" (HO) finite element space defined on a coarse mesh. See
+  the new classes InterpolationGridTransfer and L2ProjectionGridTransfer and the
+  new LOR Transfer miniapp: miniapps/tools/lor-transfer.cpp.
 
 - Added support for derefinement of vector (RT + ND) spaces.
 
