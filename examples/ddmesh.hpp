@@ -6,6 +6,62 @@
 using namespace mfem;
 using namespace std;
 
+/*
+void TestSerialMeshLinearSystem(Mesh *mesh)
+{
+  const int order = 1;
+  const int dim = mesh->Dimension();
+
+  FiniteElementCollection *fec = new H1_FECollection(order, dim);
+  FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+
+  Array<int> ess_tdof_list;
+
+  BilinearForm *a = new BilinearForm(fespace);
+  ConstantCoefficient one(1.0);
+  a->AddDomainIntegrator(new DiffusionIntegrator(one));
+
+  a->Assemble();
+
+  SparseMatrix A;
+  a->FormSystemMatrix(ess_tdof_list, A);
+
+  delete a;
+  delete fespace;
+  delete fec;
+}
+
+void TestParallelMeshLinearSystem(ParMesh *pmesh)
+{
+  const int order = 1;
+  const int dim = pmesh->Dimension();
+
+  //FiniteElementCollection *fec = new H1_FECollection(order, dim);
+  FiniteElementCollection *fec = new ND_FECollection(order, dim);
+  ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+
+  Array<int> ess_tdof_list;
+
+  //ParBilinearForm *a = new ParBilinearForm(fespace);
+  ParBilinearForm a(fespace);
+  
+  ConstantCoefficient one(1.0);
+  //a->AddDomainIntegrator(new DiffusionIntegrator(one));
+  a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+  a.AddDomainIntegrator(new CurlCurlIntegrator(one));
+
+  a.Assemble();
+
+  HypreParMatrix *A = new HypreParMatrix();
+  a.FormSystemMatrix(ess_tdof_list, *A);
+  
+  //delete a;
+  delete fespace;
+  delete fec;
+  delete A;
+}
+*/
+
 class AdjacencyInterpolator : public DiscreteInterpolator
 {
 public:
@@ -648,14 +704,17 @@ public:
 	MPI_Comm sd_com;
 	int color = (sdmesh == NULL);
 	const int status = MPI_Comm_split(MPI_COMM_WORLD, color, myid, &sd_com);
-	MFEM_VERIFY(status == MPI_SUCCESS,
-		    "Construction of hyperreduction comm failed");
+	MFEM_VERIFY(status == MPI_SUCCESS, "Construction of comm failed");
 
 	if (sdmesh != NULL)
 	  {
+	    //TestSerialMeshLinearSystem(sdmesh);
+	    
 	    pmeshSD[s] = new ParMesh(sd_com, *sdmesh, sdPartition);
 	    delete sdmesh;
 
+	    //TestParallelMeshLinearSystem(pmeshSD[s]);
+	    
 	    cout << myid << ": Subdomain mesh NBE " << pmeshSD[s]->GetNBE() << endl;
 	  }
 	else
@@ -683,8 +742,7 @@ public:
     MPI_Comm if_com;
     int color = (ifmesh == NULL);
     const int status = MPI_Comm_split(MPI_COMM_WORLD, color, myid, &if_com);
-    MFEM_VERIFY(status == MPI_SUCCESS,
-		"Construction of hyperreduction comm failed");
+    MFEM_VERIFY(status == MPI_SUCCESS, "Construction of comm failed");
 
     if (ifmesh != NULL)
       {
