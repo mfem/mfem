@@ -12,10 +12,8 @@
 #ifndef MFEM_TMOP_HPP
 #define MFEM_TMOP_HPP
 
-#include "../config/config.hpp"
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
-#include "../fem/pgridfunc.hpp"
 
 namespace mfem
 {

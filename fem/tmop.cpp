@@ -855,7 +855,7 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
             if (target_type == IDEAL_SHAPE_GIVEN_SIZE)
             {
                const double det = Jtr(i).Det();
-               MFEM_VERIFY(det > 0.0, "Initial mesh is inverted!");
+               MFEM_VERIFY(det > 0.0, "The given mesh is inverted!");
                Jtr(i).Set(std::pow(det / detW, 1./dim), Wideal);
             }
          }
@@ -950,7 +950,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec)
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
 {
-   MFEM_ASSERT(target_spec.Size() > 0, "Target specification is not set!");
+   MFEM_VERIFY(target_spec.Size() > 0, "Target specification is not set!");
 
    adapt_eval->ComputeAtNewPosition(new_x, target_spec);
 }
@@ -960,7 +960,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                             const Vector &elfun,
                                             DenseTensor &Jtr) const
 {
-   MFEM_ASSERT(tspec_fes, "A call to SetDiscreteTargerSpec() is needed.");
+   MFEM_VERIFY(tspec_fes, "A call to SetDiscreteTargerSpec() is needed.");
 
    switch (target_type)
    {
@@ -1231,6 +1231,8 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
       P *= weight_m;
       AddMultABt(DS, P, PMatO);
 
+      // TODO: derivatives of adaptivity-based targets.
+
       if (coeff0)
       {
          el.CalcShape(ip, shape);
@@ -1318,6 +1320,8 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
       if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
       metric->AssembleH(Jpt, DS, weight_m, elmat);
+
+      // TODO: derivatives of adaptivity-based targets.
 
       if (coeff0)
       {

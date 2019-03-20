@@ -10,8 +10,8 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "tmop_tools.hpp"
-#include "../fem/pnonlinearform.hpp"
-#include "../fem/nonlinearform.hpp"
+#include "nonlinearform.hpp"
+#include "pnonlinearform.hpp"
 #include "../general/osockstream.hpp"
 
 namespace mfem
@@ -37,7 +37,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    if (pmesh) { m = pmesh; }
 #endif
 
-   MFEM_ASSERT(m != NULL, "No mesh has been given to the AdaptivityEvaluator.");
+   MFEM_VERIFY(m != NULL, "No mesh has been given to the AdaptivityEvaluator.");
 
    // This will be used to move the positions.
    GridFunction *mesh_nodes = m->GetNodes();
@@ -54,7 +54,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
 #ifdef MFEM_USE_MPI
    else if (pfes) { oper = new ParAdvectorCGOper(nodes0, u, *pfes); }
 #endif
-   MFEM_ASSERT(oper != NULL,
+   MFEM_VERIFY(oper != NULL,
                "No FE space has been given to the AdaptivityEvaluator.");
    ode_solver.Init(*oper);
 
@@ -217,7 +217,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double energy_in = 0.0;
 #ifdef MFEM_USE_MPI
    const ParNonlinearForm *p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
-   MFEM_ASSERT(!(parallel && p_nlf == NULL), "Invalid Operator subclass.");
+   MFEM_VERIFY(!(parallel && p_nlf == NULL), "Invalid Operator subclass.");
    if (parallel)
    {
       fes = p_nlf->FESpace();
@@ -226,7 +226,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 #endif
    const bool serial = !parallel;
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   MFEM_ASSERT(!(serial && nlf == NULL), "Invalid Operator subclass.");
+   MFEM_VERIFY(!(serial && nlf == NULL), "Invalid Operator subclass.");
    if (serial)
    {
       fes = nlf->FESpace();
@@ -347,7 +347,7 @@ double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    double energy_in = 0.0;
 #ifdef MFEM_USE_MPI
    const ParNonlinearForm *p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
-   MFEM_ASSERT(!(parallel && p_nlf == NULL), "Invalid Operator subclass.");
+   MFEM_VERIFY(!(parallel && p_nlf == NULL), "Invalid Operator subclass.");
    if (parallel)
    {
       fes = p_nlf->FESpace();
@@ -356,7 +356,7 @@ double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
 #endif
    const bool serial = !parallel;
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   MFEM_ASSERT(!(serial && nlf == NULL), "Invalid Operator subclass.");
+   MFEM_VERIFY(!(serial && nlf == NULL), "Invalid Operator subclass.");
    if (serial)
    {
       fes = nlf->FESpace();
