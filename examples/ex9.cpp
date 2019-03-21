@@ -224,7 +224,7 @@ public:
       
       GetVertexBoundsMap();  // Fill map_for_bounds.
       FillNeighborDofs();    // Fill NbrDof.
-		FillSubcell2CellDof(); // Fill Sub2Ind.
+      FillSubcell2CellDof(); // Fill Sub2Ind.
    }
 
    // Computes the admissible intercal of values for each dof from the min and
@@ -336,7 +336,7 @@ private:
    void GetVertexBoundsMap()
    {
       const FiniteElement &dummy = *fes->GetFE(0);
-      int i, j, k, dofInd, nbr_id;
+      int i, j, k, dofInd, nbr;
       int ne = mesh->GetNE(), nd = dummy.GetDof(), p = dummy.GetOrder();
       Array<int> bdrs, orientation, NbrElem;
       FaceElementTransformations *Trans;
@@ -382,135 +382,135 @@ private:
          // Include neighbors that have no face in common with element k.
          if (dim==2) // Include neighbor elements for the four vertices.
          {
-            nbr_id = GetCommonElem(k, NbrElem[3], NbrElem[0]);
-            if (nbr_id >= 0) { map_for_bounds[k*nd].push_back(nbr_id); }
+            nbr = GetCommonElem(k, NbrElem[3], NbrElem[0]);
+            if (nbr >= 0) { map_for_bounds[k*nd].push_back(nbr); }
 
-            nbr_id = GetCommonElem(k, NbrElem[0], NbrElem[1]);
-            if (nbr_id >= 0) { map_for_bounds[k*nd+p].push_back(nbr_id); }
+            nbr = GetCommonElem(k, NbrElem[0], NbrElem[1]);
+            if (nbr >= 0) { map_for_bounds[k*nd+p].push_back(nbr); }
 
-            nbr_id = GetCommonElem(k, NbrElem[1], NbrElem[2]);
-            if (nbr_id >= 0) { map_for_bounds[(k+1)*nd-1].push_back(nbr_id); }
+            nbr = GetCommonElem(k, NbrElem[1], NbrElem[2]);
+            if (nbr >= 0) { map_for_bounds[(k+1)*nd-1].push_back(nbr); }
 
-            nbr_id = GetCommonElem(k, NbrElem[2], NbrElem[3]);
-            if (nbr_id >= 0) { map_for_bounds[k*p*(p+1)].push_back(nbr_id); }
+            nbr = GetCommonElem(k, NbrElem[2], NbrElem[3]);
+            if (nbr >= 0) { map_for_bounds[k*p*(p+1)].push_back(nbr); }
          }
          else if (dim==3)
          {
-            Array<int> NbrElem; NbrElem.SetSize(12); // for each edge
+            Array<int> EdgeNbrs; EdgeNbrs.SetSize(12);
 
-            NbrElem[0]  = GetCommonElem(k, NbrElem[0], NbrElem[1]);
-            NbrElem[1]  = GetCommonElem(k, NbrElem[0], NbrElem[2]);
-            NbrElem[2]  = GetCommonElem(k, NbrElem[0], NbrElem[3]);
-            NbrElem[3]  = GetCommonElem(k, NbrElem[0], NbrElem[4]);
-            NbrElem[4]  = GetCommonElem(k, NbrElem[5], NbrElem[1]);
-            NbrElem[5]  = GetCommonElem(k, NbrElem[5], NbrElem[2]);
-            NbrElem[6]  = GetCommonElem(k, NbrElem[5], NbrElem[3]);
-            NbrElem[7]  = GetCommonElem(k, NbrElem[5], NbrElem[4]);
-            NbrElem[8]  = GetCommonElem(k, NbrElem[4], NbrElem[1]);
-            NbrElem[9]  = GetCommonElem(k, NbrElem[1], NbrElem[2]);
-            NbrElem[10] = GetCommonElem(k, NbrElem[2], NbrElem[3]);
-            NbrElem[11] = GetCommonElem(k, NbrElem[3], NbrElem[4]);
+            EdgeNbrs[0]  = GetCommonElem(k, NbrElem[0], NbrElem[1]);
+            EdgeNbrs[1]  = GetCommonElem(k, NbrElem[0], NbrElem[2]);
+            EdgeNbrs[2]  = GetCommonElem(k, NbrElem[0], NbrElem[3]);
+            EdgeNbrs[3]  = GetCommonElem(k, NbrElem[0], NbrElem[4]);
+            EdgeNbrs[4]  = GetCommonElem(k, NbrElem[5], NbrElem[1]);
+            EdgeNbrs[5]  = GetCommonElem(k, NbrElem[5], NbrElem[2]);
+            EdgeNbrs[6]  = GetCommonElem(k, NbrElem[5], NbrElem[3]);
+            EdgeNbrs[7]  = GetCommonElem(k, NbrElem[5], NbrElem[4]);
+            EdgeNbrs[8]  = GetCommonElem(k, NbrElem[4], NbrElem[1]);
+            EdgeNbrs[9]  = GetCommonElem(k, NbrElem[1], NbrElem[2]);
+            EdgeNbrs[10] = GetCommonElem(k, NbrElem[2], NbrElem[3]);
+            EdgeNbrs[11] = GetCommonElem(k, NbrElem[3], NbrElem[4]);
 
             // include neighbor elements for the twelve edges of a square
             for (j = 0; j <= p; j++)
             {
-               if (NbrElem[0] >= 0)
+               if (EdgeNbrs[0] >= 0)
                {
-                  map_for_bounds[k*nd+j].push_back(NbrElem[0]);
+                  map_for_bounds[k*nd+j].push_back(EdgeNbrs[0]);
                }
-               if (NbrElem[1] >= 0)
+               if (EdgeNbrs[1] >= 0)
                {
-                  map_for_bounds[k*nd+(j+1)*(p+1)-1].push_back(NbrElem[1]);
+                  map_for_bounds[k*nd+(j+1)*(p+1)-1].push_back(EdgeNbrs[1]);
                }
-               if (NbrElem[2] >= 0)
+               if (EdgeNbrs[2] >= 0)
                {
-                  map_for_bounds[k*nd+p*(p+1)+j].push_back(NbrElem[2]);
+                  map_for_bounds[k*nd+p*(p+1)+j].push_back(EdgeNbrs[2]);
                }
-               if (NbrElem[3] >= 0)
+               if (EdgeNbrs[3] >= 0)
                {
-                  map_for_bounds[k*nd+j*(p+1)].push_back(NbrElem[3]);
+                  map_for_bounds[k*nd+j*(p+1)].push_back(EdgeNbrs[3]);
                }
-               if (NbrElem[4] >= 0)
+               if (EdgeNbrs[4] >= 0)
                {
-                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j].push_back(NbrElem[4]);
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j].push_back(EdgeNbrs[4]);
                }
-               if (NbrElem[5] >= 0)
+               if (EdgeNbrs[5] >= 0)
                {
-                  map_for_bounds[k*nd+(p+1)*(p+1)*p+(j+1)*(p+1)-1].push_back(NbrElem[5]);
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+(j+1)*(p+1)-1].push_back(EdgeNbrs[5]);
                }
-               if (NbrElem[6] >= 0)
+               if (EdgeNbrs[6] >= 0)
                {
-                  map_for_bounds[k*nd+(p+1)*(p+1)*p+p*(p+1)+j].push_back(NbrElem[6]);
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+p*(p+1)+j].push_back(EdgeNbrs[6]);
                }
-               if (NbrElem[7] >= 0)
+               if (EdgeNbrs[7] >= 0)
                {
-                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j*(p+1)].push_back(NbrElem[7]);
+                  map_for_bounds[k*nd+(p+1)*(p+1)*p+j*(p+1)].push_back(EdgeNbrs[7]);
                }
-               if (NbrElem[8] >= 0)
+               if (EdgeNbrs[8] >= 0)
                {
-                  map_for_bounds[k*nd+j*(p+1)*(p+1)].push_back(NbrElem[8]);
+                  map_for_bounds[k*nd+j*(p+1)*(p+1)].push_back(EdgeNbrs[8]);
                }
-               if (NbrElem[9] >= 0)
+               if (EdgeNbrs[9] >= 0)
                {
-                  map_for_bounds[k*nd+p+j*(p+1)*(p+1)].push_back(NbrElem[9]);
+                  map_for_bounds[k*nd+p+j*(p+1)*(p+1)].push_back(EdgeNbrs[9]);
                }
-               if (NbrElem[10] >= 0)
+               if (EdgeNbrs[10] >= 0)
                {
-                  map_for_bounds[k*nd+(j+1)*(p+1)*(p+1)-1].push_back(NbrElem[10]);
+                  map_for_bounds[k*nd+(j+1)*(p+1)*(p+1)-1].push_back(EdgeNbrs[10]);
                }
-               if (NbrElem[11] >= 0)
+               if (EdgeNbrs[11] >= 0)
                {
-                  map_for_bounds[k*nd+p*(p+1)+j*(p+1)*(p+1)].push_back(NbrElem[11]);
+                  map_for_bounds[k*nd+p*(p+1)+j*(p+1)*(p+1)].push_back(EdgeNbrs[11]);
                }
             }
 
             // include neighbor elements for the 8 vertices of a square
-            nbr_id = GetCommonElem(NbrElem[0], NbrElem[0], NbrElem[3]);
-            if (nbr_id >= 0)
+            nbr = GetCommonElem(NbrElem[0], EdgeNbrs[0], EdgeNbrs[3]);
+            if (nbr >= 0)
             {
-               map_for_bounds[k*nd].push_back(nbr_id);
+               map_for_bounds[k*nd].push_back(nbr);
             }
 
-            nbr_id = GetCommonElem(NbrElem[0], NbrElem[0], NbrElem[1]);
-            if (nbr_id >= 0)
+            nbr = GetCommonElem(NbrElem[0], EdgeNbrs[0], EdgeNbrs[1]);
+            if (nbr >= 0)
             {
-               map_for_bounds[k*nd+p].push_back(nbr_id);
+               map_for_bounds[k*nd+p].push_back(nbr);
             }
 
-            nbr_id = GetCommonElem(NbrElem[0], NbrElem[2], NbrElem[3]);
-            if (nbr_id >= 0)
+            nbr = GetCommonElem(NbrElem[0], EdgeNbrs[2], EdgeNbrs[3]);
+            if (nbr >= 0)
             {
-               map_for_bounds[k*nd+p*(p+1)].push_back(nbr_id);
+               map_for_bounds[k*nd+p*(p+1)].push_back(nbr);
             }
 
-            nbr_id = GetCommonElem(NbrElem[0], NbrElem[1], NbrElem[2]);
-            if (nbr_id >= 0)
+            nbr = GetCommonElem(NbrElem[0], EdgeNbrs[1], EdgeNbrs[2]);
+            if (nbr >= 0)
             {
-               map_for_bounds[k*nd+(p+1)*(p+1)-1].push_back(nbr_id);
+               map_for_bounds[k*nd+(p+1)*(p+1)-1].push_back(nbr);
             }
 
-            nbr_id = GetCommonElem(NbrElem[5], NbrElem[4], NbrElem[7]);
-            if (nbr_id >= 0)
+            nbr = GetCommonElem(NbrElem[5], EdgeNbrs[4], EdgeNbrs[7]);
+            if (nbr >= 0)
             {
-               map_for_bounds[k*nd+(p+1)*(p+1)*p].push_back(nbr_id);
+               map_for_bounds[k*nd+(p+1)*(p+1)*p].push_back(nbr);
             }
 
-            nbr_id = GetCommonElem(NbrElem[5], NbrElem[4], NbrElem[5]);
-            if (nbr_id >= 0)
+            nbr = GetCommonElem(NbrElem[5], EdgeNbrs[4], EdgeNbrs[5]);
+            if (nbr >= 0)
             {
-               map_for_bounds[k*nd+(p+1)*(p+1)*p+p].push_back(nbr_id);
+               map_for_bounds[k*nd+(p+1)*(p+1)*p+p].push_back(nbr);
             }
 
-            nbr_id = GetCommonElem(NbrElem[5], NbrElem[6], NbrElem[7]);
-            if (nbr_id >= 0)
+            nbr = GetCommonElem(NbrElem[5], EdgeNbrs[6], EdgeNbrs[7]);
+            if (nbr >= 0)
             {
-               map_for_bounds[k*nd+(p+1)*(p+1)*p+(p+1)*p].push_back(nbr_id);
+               map_for_bounds[k*nd+(p+1)*(p+1)*p+(p+1)*p].push_back(nbr);
             }
 
-            nbr_id = GetCommonElem(NbrElem[5], NbrElem[5], NbrElem[6]);
-            if (nbr_id >= 0)
+            nbr = GetCommonElem(NbrElem[5], EdgeNbrs[5], EdgeNbrs[6]);
+            if (nbr >= 0)
             {
-               map_for_bounds[k*nd+(p+1)*(p+1)*(p+1)-1].push_back(nbr_id);
+               map_for_bounds[k*nd+(p+1)*(p+1)*(p+1)-1].push_back(nbr);
             }
          }
       }
@@ -526,7 +526,7 @@ private:
    {
       // Use the first mesh element as indicator.
       const FiniteElement &dummy = *fes->GetFE(0);
-      int i, j, k, ind, nbr_el, ne = mesh->GetNE();
+      int i, j, k, ind, nbr, ne = mesh->GetNE();
       int nd = dummy.GetDof(), p = dummy.GetOrder();
       Array <int> bdrs, NbrBdrs, orientation;
       FaceElementTransformations *Trans;
@@ -542,8 +542,8 @@ private:
             for (i = 0; i < numBdrs; i++)
             {
                Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-               nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
-               NbrDof(k,i) = nbr_el*nd + BdrDofs(0,(i+1)%2);
+               nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+               NbrDof(k,i) = nbr*nd + BdrDofs(0,(i+1)%2);
             }
          }
          else if (dim==2)
@@ -553,21 +553,29 @@ private:
             for (i = 0; i < numBdrs; i++)
             {
                Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-               nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+               nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+               
                for (j = 0; j < numDofs; j++)
                {
-                  mesh->GetElementEdges(nbr_el, NbrBdrs, orientation);
-                  // Find the local index ind in nbr_el of the common face.
-                  for (ind = 0; ind < numBdrs; ind++)
+                  if (nbr >= 0)
                   {
-                     if (NbrBdrs[ind] == bdrs[i])
+                     mesh->GetElementEdges(nbr, NbrBdrs, orientation);
+                     // Find the local index ind in nbr of the common face.
+                     for (ind = 0; ind < numBdrs; ind++)
                      {
-                        break;
+                        if (NbrBdrs[ind] == bdrs[i])
+                        {
+                           break;
+                        }
                      }
+                     // Here it is utilized that the orientations of the face
+                     // for the two elements are opposite of each other.
+                     NbrDof(k*numDofs+j,i) = nbr*nd + BdrDofs(numDofs-1-j,ind);
                   }
-                  // Here it is utilized that the orientations of the face
-                  // for the two elements are opposite of each other.
-                  NbrDof(k*numDofs+j,i) = nbr_el*nd + BdrDofs(numDofs-1-j,ind);
+                  else
+                  {
+                     NbrDof(k*numDofs+j,i) = -1;
+                  }
                }
             }
          }
@@ -579,36 +587,36 @@ private:
             for (j = 0; j < numDofs; j++)
             {
                Trans = mesh->GetFaceElementTransformations(bdrs[0]);
-               nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+               nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 0) = nbr_el*nd + (p+1)*(p+1)*p+j;
+               NbrDof(k*numDofs+j, 0) = nbr*nd + (p+1)*(p+1)*p+j;
 
                Trans = mesh->GetFaceElementTransformations(bdrs[1]);
-               nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+               nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 1) = nbr_el*nd + (j/(p+1))*(p+1)*(p+1)
+               NbrDof(k*numDofs+j, 1) = nbr*nd + (j/(p+1))*(p+1)*(p+1)
                                         + (p+1)*p+(j%(p+1));
 
                Trans = mesh->GetFaceElementTransformations(bdrs[2]);
-               nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+               nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 2) = nbr_el*nd + j*(p+1);
+               NbrDof(k*numDofs+j, 2) = nbr*nd + j*(p+1);
 
                Trans = mesh->GetFaceElementTransformations(bdrs[3]);
-               nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+               nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 3) = nbr_el*nd + (j/(p+1))*(p+1)*(p+1)
+               NbrDof(k*numDofs+j, 3) = nbr*nd + (j/(p+1))*(p+1)*(p+1)
                                         + (j%(p+1));
 
                Trans = mesh->GetFaceElementTransformations(bdrs[4]);
-               nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+               nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 4) = nbr_el*nd + (j+1)*(p+1)-1;
+               NbrDof(k*numDofs+j, 4) = nbr*nd + (j+1)*(p+1)-1;
 
                Trans = mesh->GetFaceElementTransformations(bdrs[5]);
-               nbr_el = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+               nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 5) = nbr_el*nd + j;
+               NbrDof(k*numDofs+j, 5) = nbr*nd + j;
             }
          }
       }
@@ -710,6 +718,7 @@ public:
       Array <int> bdrs, orientation;
       FaceElementTransformations *Trans;
 
+      // TODO There are many zero entries in bdrInt, better indexing possible.
       bdrInt.SetSize(ne*nd, nd*dofs.numBdrs); bdrInt = 0.;
       fluctSub.SetSize(ne*dofs.numSubcells, dofs.numDofsSubcell);
       
@@ -747,7 +756,7 @@ public:
    // Destructor
    ~Assembly() { }
 
-   // Auxiliary member variables that need to be accessed during time-stepping. //TODO check which ones of these are really needed
+   // Auxiliary member variables that need to be accessed during time-stepping.
    FiniteElementSpace* fes;
    MONOTYPE monoType;
    bool OptScheme;
@@ -834,7 +843,7 @@ public:
             for (j = 0; j < dofs.numDofs; j++)
             {
                bdrInt(row,BdrID*nd+dofs.BdrDofs(j,BdrID)) -= aux
-                                    * shape(dofs.BdrDofs(j,BdrID)); // TODO unused entries?, better indexing
+                                    * shape(dofs.BdrDofs(j,BdrID));
             }
          }
       }
@@ -1026,14 +1035,14 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, btype);
    FiniteElementSpace fes(mesh, &fec);
 
-	// Check for meaningful combinations of parameters.
-	bool fail = false;
+   // Check for meaningful combinations of parameters.
+   bool fail = false;
    if (monoType != None)
    {
       if (((int)monoType != monoType) || (monoType < 0) || (monoType > 4))
       {
          cout << "Unsupported option for monotonicity treatment." << endl;
-			fail = true;
+         fail = true;
       }
       if (btype != 2)
       {
@@ -1042,23 +1051,23 @@ int main(int argc, char *argv[])
       }
       if (order == 0)
       {
-			// Disable monotonicity treatment for piecwise constants.
-			mfem_warning("For -o 0, monotonicity treatment has been disabled.");
-			monoType = None;
+         // Disable monotonicity treatment for piecwise constants.
+         mfem_warning("For -o 0, monotonicity treatment is disabled.");
+         monoType = None;
       }
    }
    if ((monoType > 2) && (order==1) && OptScheme)
-	{
-		// Avoid subcell methods for linear elements.
-		mfem_warning("Subcell scheme disabled. Increase order to use subcells.");
-		OptScheme = false;
+   {
+      // Avoid subcell methods for linear elements.
+      mfem_warning("For -o 1, subcell scheme is disabled.");
+      OptScheme = false;
    }
    if (fail)
-	{
-		delete mesh;
+   {
+      delete mesh;
       delete ode_solver;
       return 5;
-	}
+   }
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
@@ -1097,7 +1106,7 @@ int main(int argc, char *argv[])
    }
    else if (exec_mode == 1)
    {
-      // TODO figure out why this setup doesn't conserve mass for mode 0.
+      // TODO figure out why this setup doesn't conserve mass for mode 1.
       k.AddDomainIntegrator(new ConvectionIntegrator(v_coeff));
    }
    else if (exec_mode == 2)
@@ -1214,7 +1223,7 @@ int main(int argc, char *argv[])
    }
 
    // check for conservation
-   Vector tmp(lumpedM); //TODO
+   Vector mass(lumpedM);
    double initialMass = lumpedM * u;
 
    // 8. Define the time-dependent evolution operator describing the ODE
@@ -1296,7 +1305,7 @@ int main(int argc, char *argv[])
       ml.SpMat().GetDiag(lumpedM);
       finalMass = lumpedM * u;
    }
-   else { finalMass = tmp * u; }
+   else { finalMass = mass * u; }
    cout << "Mass loss: " << abs(initialMass - finalMass) << endl;
 
    // Compute errors, if the initial condition is equal to the final solution
@@ -1364,7 +1373,7 @@ void FE_Evolution::LinearFluxLumping(const int k, const int nd,
       for (j = 0; j < asmbl.dofs.numDofs; j++)
       {
          y(dofInd) += asmbl.bdrInt(dofInd, BdrID*nd+asmbl.dofs.BdrDofs(j,BdrID))
-          * ( xDiff(i) + (xDiff(j)-xDiff(i)) * alpha(asmbl.dofs.BdrDofs(i,BdrID))
+          * ( xDiff(i) + (xDiff(j)-xDiff(i))*alpha(asmbl.dofs.BdrDofs(i,BdrID))
                                          * alpha(asmbl.dofs.BdrDofs(j,BdrID)) );
       }
    }
@@ -1973,10 +1982,10 @@ double u0_function(const Vector &x)
          double cone = coef * sqrt(pow(X(0), 2.) + pow(X(1) + 0.5, 2.));
          double hump = coef * sqrt(pow(X(0) + 0.5, 2.) + pow(X(1), 2.));
 
-         return (slit&&((pow(X(0),2.) + pow(X(1)-0.5,2.))<=4.*scale)) ? 1. : 0.
-                + (1.-cone) * (pow(X(0), 2.) + pow(X(1) + 0.5, 2.) <= 4.*scale)
-                + 0.25*(1.+cos(M_PI*hump))
-                      * ((pow(X(0) + 0.5, 2.) + pow(X(1), 2.)) <= 4.*scale);
+         return (slit && ((pow(X(0),2.) + pow(X(1)-.5,2.))<=4.*scale)) ? 1. : 0.
+                + (1. - cone) * (pow(X(0), 2.) + pow(X(1)+.5, 2.) <= 4.*scale)
+                + .25 * (1. + cos(M_PI*hump))
+                       * ((pow(X(0)+.5, 2.) + pow(X(1), 2.)) <= 4.*scale);
       }
       case 5:
       {
