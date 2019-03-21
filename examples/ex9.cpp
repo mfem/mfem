@@ -767,7 +767,7 @@ public:
             {
                ComputeSubcellWeights(k, m);
             }
-         }cout << bdrInt.FNorm() << endl;
+         }
       }
    }
 
@@ -893,8 +893,8 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    FiniteElementSpace* fes;
-   BilinearForm &Mbf, &Kbf, &kbdr, &ml;
-   SparseMatrix &M, &K, &KBDR;
+   BilinearForm &Mbf, &Kbf, &ml;
+   SparseMatrix &M, &K;
    const Vector &b;
 
    Vector start_pos;
@@ -909,12 +909,9 @@ private:
    Assembly &asmbl;
 
 public:
-   FE_Evolution(FiniteElementSpace* fes,
-                BilinearForm &Mbf_, BilinearForm &Kbf_,
-                SparseMatrix &_M, SparseMatrix &_K,
-                const Vector &_b, Assembly &_asmbl,
-                GridFunction &mpos, GridFunction &vpos,
-                BilinearForm &_kbdr, SparseMatrix &_KBDR,
+   FE_Evolution(FiniteElementSpace* fes, BilinearForm &Mbf_, BilinearForm &Kbf_,
+                SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
+					 Assembly &_asmbl, GridFunction &mpos, GridFunction &vpos,
                 BilinearForm &_ml, Vector &_lumpedM,
                 VectorGridFunctionCoefficient &v_coef);
 
@@ -1113,46 +1110,20 @@ int main(int argc, char *argv[])
    m.AddDomainIntegrator(new MassIntegrator);
 
    BilinearForm k(&fes);
-   BilinearForm kbdr(&fes);
 
    if (exec_mode == 0)
    {
       k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-      //    k.AddInteriorFaceIntegrator(
-      //       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
-      //    k.AddBdrFaceIntegrator(
-      //       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5))); //TODO debug
-
-      kbdr.AddInteriorFaceIntegrator(
-         new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
    }
    else if (exec_mode == 1)
    {
-      // TODO linewidth
       // TODO figure out why this setup doesn't conserve mass for mode 0.
       k.AddDomainIntegrator(new ConvectionIntegrator(v_coeff));
-      //    k.AddInteriorFaceIntegrator(
-      //       new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
-      //    k.AddBdrFaceIntegrator(
-      //       new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5))); //TODO debug
-
-      kbdr.AddInteriorFaceIntegrator(
-         new TransposeIntegrator(new DGTraceIntegrator(v_coeff, -1.0, -0.5)));
    }
    else if (exec_mode == 2)
    {
       k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
-      //    k.AddInteriorFaceIntegrator(
-      //       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
-      //    k.AddBdrFaceIntegrator(
-      //       new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5))); //TODO debug
-
-      kbdr.AddInteriorFaceIntegrator(
-         new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
    }
-
-   kbdr.Assemble(0);
-   kbdr.Finalize(0);
 
    // Compute the lumped mass matrix algebraicly
    Vector lumpedM;
@@ -1269,8 +1240,8 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, asmbl, *x, v_gf, kbdr,
-                    kbdr.SpMat(), ml, lumpedM, v_coeff);
+   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, asmbl, *x, v_gf, ml,
+                    lumpedM, v_coeff);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -1415,7 +1386,6 @@ void FE_Evolution::LinearFluxLumping(const int k, const int nd,
          y(dofInd) += asmbl.bdrInt(dofInd, BdrID*nd+asmbl.node_info.BdrDofs(j,BdrID))
           * ( xDiff(i) + (xDiff(j)-xDiff(i)) * alpha(asmbl.node_info.BdrDofs(i,BdrID))
                                          * alpha(asmbl.node_info.BdrDofs(j,BdrID)) );
-//  cout << asmbl.bdrInt(dofInd,BdrID*nd+asmbl.node_info.BdrDofs(j,BdrID)) << endl; // TODO
       }
    }
 }
@@ -1659,16 +1629,14 @@ void FE_Evolution::ComputeHighOrderSolution(const Vector &x, Vector &y) const
    Vector alpha(nd); alpha = 1.;
    
    K.Mult(x, z);
-   KBDR.AddMult(x, z);
-
-//    for (k = 0; k < ne; k++)
-//    {
-//       // The boundary contributions have been computed in the low order scheme.
-//       for (i = 0; i < asmbl.node_info.numBdrs; i++)
-//       {
-//          LinearFluxLumping(k, nd, i, x, z, alpha);
-//       }
-//    }
+   for (k = 0; k < ne; k++)
+   {
+      // The boundary contributions have been computed in the low order scheme.
+      for (i = 0; i < asmbl.node_info.numBdrs; i++)
+      {
+         LinearFluxLumping(k, nd, i, x, z, alpha);
+      }
+   }
    
    z += b;
    NeumannSolve(z, y);
@@ -1736,19 +1704,15 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(FiniteElementSpace* _fes,
-                           BilinearForm &Mbf_, BilinearForm &Kbf_,
-                           SparseMatrix &_M, SparseMatrix &_K,
-                           const Vector &_b, Assembly &_asmbl,
+FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, BilinearForm &Mbf_,
+									BilinearForm &Kbf_, SparseMatrix &_M,
+									SparseMatrix &_K, const Vector &_b, Assembly &_asmbl,
                            GridFunction &mpos, GridFunction &vpos,
-                           BilinearForm &_kbdr, SparseMatrix &_KBDR,
                            BilinearForm &_ml, Vector &_lumpedM, 
-                           VectorGridFunctionCoefficient &v_coef)
-   : TimeDependentOperator(_M.Size()), fes(_fes),
-     Mbf(Mbf_), Kbf(Kbf_), M(_M), K(_K), b(_b),
-     z(_M.Size()), asmbl(_asmbl), kbdr(_kbdr), KBDR(_KBDR),
-     start_pos(mpos.Size()), mesh_pos(mpos), vel_pos(vpos),
-     ml(_ml), lumpedM(_lumpedM), coef(v_coef) { }
+                           VectorGridFunctionCoefficient &v_coef) :
+   TimeDependentOperator(_M.Size()), fes(_fes),Mbf(Mbf_), Kbf(Kbf_), M(_M),
+	K(_K), b(_b), z(_M.Size()), asmbl(_asmbl), start_pos(mpos.Size()),
+	mesh_pos(mpos), vel_pos(vpos), ml(_ml), lumpedM(_lumpedM), coef(v_coef) { }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
@@ -1766,14 +1730,12 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    }
 
    // Reassemble on the new mesh (given by mesh_pos).
-   if (exec_mode == 1 || exec_mode == 2)
+   if (exec_mode > 0)
    {
       Mbf.BilinearForm::operator=(0.0);
       Mbf.Assemble();
       Kbf.BilinearForm::operator=(0.0);
       Kbf.Assemble(0);
-      kbdr.BilinearForm::operator=(0.0);
-      kbdr.Assemble(0);
       ml.BilinearForm::operator=(0.0);
       ml.Assemble();
       ml.SpMat().GetDiag(lumpedM);
