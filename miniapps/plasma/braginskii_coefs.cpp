@@ -623,10 +623,10 @@ EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
    {
       for (int l=0; l<3; l++)
       {
-	 for (int m=0; m<3; m++)
-	 {
-	   bx_(k, l) += eps3_(k, l, m) * bPara_[m];
-	 }
+         for (int m=0; m<3; m++)
+         {
+            bx_(k, l) += eps3_(k, l, m) * bPara_[m];
+         }
       }
    }
 
@@ -667,42 +667,42 @@ EtaCoefficient::Eval(DenseMatrix & K, ElementTransformation &T,
 
    if (width == 2)
    {
-     // eps2_.Mult(bPara_, bPerp_);
+      // eps2_.Mult(bPara_, bPerp_);
 
       for (int k=0; k<2; k++)
       {
          for (int l=0; l<2; l++)
          {
-	   /*
-	   K(k, l) += 2.0 * eta0 *
-                       (0.5 * del_(bi_, bj_) - bPara_[bi_] * bPara_[bj_]) *
-                       (0.5 * del_(k, l) - bPara_[k] * bPara_[l]);
+            /*
+            K(k, l) += 2.0 * eta0 *
+                             (0.5 * del_(bi_, bj_) - bPara_[bi_] * bPara_[bj_]) *
+                             (0.5 * del_(k, l) - bPara_[k] * bPara_[l]);
 
-	    // K(k, l) += eta1 * ((del_(bi_, k) - bPara_[bi_] * bPara_[k]) *
-            //                        (del_(bj_, l) - bPara_[bj_] * bPara_[l]) +
-	    //                       (del_(bi_, l) - bPara_[bi_] * bPara_[l]) *
-	    //                       (del_(bj_, k) - bPara_[bj_] * bPara_[k]) -
-	    //                      2.0 * (del_(k, l) - bPara_[k] * bPara_[l]) *
-            //                    (del_(bi_, bj_) - bPara_[bi_] * bPara_[bj_]));
+             // K(k, l) += eta1 * ((del_(bi_, k) - bPara_[bi_] * bPara_[k]) *
+                  //                        (del_(bj_, l) - bPara_[bj_] * bPara_[l]) +
+             //                       (del_(bi_, l) - bPara_[bi_] * bPara_[l]) *
+             //                       (del_(bj_, k) - bPara_[bj_] * bPara_[k]) -
+             //                      2.0 * (del_(k, l) - bPara_[k] * bPara_[l]) *
+                  //                    (del_(bi_, bj_) - bPara_[bi_] * bPara_[bj_]));
 
-            K(k, l) += 0.5 * eta1 * ((0.5 * del_(bi_, bj_) -
-                                      bPara_[bi_]* bPara_[bj_]) *
-                                     (bPerp_[k] * bPara_[l] +
-                                      bPerp_[l] * bPara_[k]) +
-                                     (0.5 * del_(k, l) -
-                                      bPara_[k] * bPara_[l]) *
-                                     (bPerp_[bi_] * bPara_[bj_] +
-                                      bPerp_[bj_] * bPara_[bi_]));
+                  K(k, l) += 0.5 * eta1 * ((0.5 * del_(bi_, bj_) -
+                                            bPara_[bi_]* bPara_[bj_]) *
+                                           (bPerp_[k] * bPara_[l] +
+                                            bPerp_[l] * bPara_[k]) +
+                                           (0.5 * del_(k, l) -
+                                            bPara_[k] * bPara_[l]) *
+                                           (bPerp_[bi_] * bPara_[bj_] +
+                                            bPerp_[bj_] * bPara_[bi_]));
 
-            K(k, l) += eta2 * ((del_(bi_, k) - bPara_[bi_] * bPara_[k]) *
-                               bPara_[bj_] * bPara_[l] +
-                               (del_(bi_, l) - bPara_[bi_] * bPara_[l]) *
-                               bPara_[bj_] * bPara_[k] +
-                               (del_(bj_, k) - bPara_[bj_] * bPara_[k]) *
-                               bPara_[bi_] * bPara_[l] +
-                               (del_(bj_, l) - bPara_[bj_] * bPara_[l]) *
-                               bPara_[bi_] * bPara_[k]);
-	   */
+                  K(k, l) += eta2 * ((del_(bi_, k) - bPara_[bi_] * bPara_[k]) *
+                                     bPara_[bj_] * bPara_[l] +
+                                     (del_(bi_, l) - bPara_[bi_] * bPara_[l]) *
+                                     bPara_[bj_] * bPara_[k] +
+                                     (del_(bj_, k) - bPara_[bj_] * bPara_[k]) *
+                                     bPara_[bi_] * bPara_[l] +
+                                     (del_(bj_, l) - bPara_[bj_] * bPara_[l]) *
+                                     bPara_[bi_] * bPara_[k]);
+            */
             K(k, l) += 3.0 * eta0 *
                        (del_(bi_, bj_) / 3.0 - bPara_[bi_] * bPara_[bj_]) *
                        (del_(k, l) / 3.0 - bPara_[k] * bPara_[l]);

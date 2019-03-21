@@ -129,33 +129,33 @@ void e_bc_i(const Vector &x, Vector &E);
 class StixLCoefficient : public Coefficient
 {
 private:
-  double   omega_;
-  VectorCoefficient & B_;
-  const Vector & number_;
-  const Vector & charge_;
-  const Vector & mass_;
-  mutable Vector BVec_;
-  
-public:
-  StixLCoefficient(double omega, VectorCoefficient &B,
-		   const Vector & number,
-		   const Vector & charge,
-		   const Vector & mass)
-    : omega_(omega),
-      B_(B),
-      number_(number),
-      charge_(charge),
-      mass_(mass),
-      BVec_(3)    
-  {}
+   double   omega_;
+   VectorCoefficient & B_;
+   const Vector & number_;
+   const Vector & charge_;
+   const Vector & mass_;
+   mutable Vector BVec_;
 
-  double Eval(ElementTransformation &T,
-	      const IntegrationPoint &ip)
-  {
-    B_.Eval(BVec_, T, ip);
-    double BMag = BVec_.Norml2();
-    return L_cold_plasma(omega_, BMag, number_, charge_, mass_);
-  }
+public:
+   StixLCoefficient(double omega, VectorCoefficient &B,
+                    const Vector & number,
+                    const Vector & charge,
+                    const Vector & mass)
+      : omega_(omega),
+        B_(B),
+        number_(number),
+        charge_(charge),
+        mass_(mass),
+        BVec_(3)
+   {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      B_.Eval(BVec_, T, ip);
+      double BMag = BVec_.Norml2();
+      return L_cold_plasma(omega_, BMag, number_, charge_, mass_);
+   }
 };
 
 class ColdPlasmaPlaneWave: public VectorCoefficient
@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
    solOpts.kDim = 50;
    solOpts.printLvl = 1;
    solOpts.relTol = 1e-4;
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
@@ -517,13 +517,13 @@ int main(int argc, char *argv[])
    */
    VectorCoefficient * BCoef = NULL;
    if (B_params_.Size()  == 7)
-     {
-       BCoef = new VectorFunctionCoefficient(3, B_func);
-     }
+   {
+      BCoef = new VectorFunctionCoefficient(3, B_func);
+   }
    else
-     {
-       BCoef = new VectorConstantCoefficient(BVec);
-     }
+   {
+      BCoef = new VectorConstantCoefficient(BVec);
+   }
    VectorConstantCoefficient kCoef(kVec);
 
    StixLCoefficient LCoef(omega, *BCoef, numbers, charges, masses);
@@ -546,7 +546,7 @@ int main(int argc, char *argv[])
 
    BField.ProjectCoefficient(*BCoef);
    LField.ProjectCoefficient(LCoef);
-   
+
    // int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
 
@@ -655,8 +655,8 @@ int main(int argc, char *argv[])
 
    // Create the Magnetostatic solver
    CPDSolver CPD(pmesh, order, omega,
-		 (CPDSolver::SolverType)sol, solOpts,
-		 conv, epsilon_real, epsilon_imag, muInvCoef, etaInvCoef,
+                 (CPDSolver::SolverType)sol, solOpts,
+                 conv, epsilon_real, epsilon_imag, muInvCoef, etaInvCoef,
                  (phase_shift) ? &kCoef : NULL,
                  abcs, dbcs,
                  // e_bc_r, e_bc_i,
@@ -801,22 +801,22 @@ int main(int argc, char *argv[])
 // Print the STIX1D ascii logo to the given ostream
 void display_banner(ostream & os)
 {
-  os << "  _________ __   __        ____     ___" << endl
-     << " /   _____//  |_|__|__  __/_   | __| _/" << endl
-     << " \\_____  \\\\   __\\  \\  \\/  /|   |/ __ | " << endl
-     << " /        \\|  | |  |>    < |   / /_/ | " << endl
-     << "/_______  /|__| |__/__/\\_ \\|___\\____ | " << endl
-     << "        \\/               \\/         \\/ " << endl
-     << endl
-     << "* Thomas H. Stix was a pioneer in the use of radio frequency"
-     << " waves to heat" << endl
-     << "  terrestrial plasmas to solar temperatures. He made important"
-     << " contributions" << endl
-     << "  to experimental and theoretic plasma physics. In the Stix"
-     << " application, the" << endl
-     << "  plasma dielectric for the wave equation is formulated using"
-     << " the \"Stix\"" << endl
-     << "  notation, \"S, D, P\"." << endl<< endl << flush;
+   os << "  _________ __   __        ____     ___" << endl
+      << " /   _____//  |_|__|__  __/_   | __| _/" << endl
+      << " \\_____  \\\\   __\\  \\  \\/  /|   |/ __ | " << endl
+      << " /        \\|  | |  |>    < |   / /_/ | " << endl
+      << "/_______  /|__| |__/__/\\_ \\|___\\____ | " << endl
+      << "        \\/               \\/         \\/ " << endl
+      << endl
+      << "* Thomas H. Stix was a pioneer in the use of radio frequency"
+      << " waves to heat" << endl
+      << "  terrestrial plasmas to solar temperatures. He made important"
+      << " contributions" << endl
+      << "  to experimental and theoretic plasma physics. In the Stix"
+      << " application, the" << endl
+      << "  plasma dielectric for the wave equation is formulated using"
+      << " the \"Stix\"" << endl
+      << "  notation, \"S, D, P\"." << endl<< endl << flush;
 }
 
 // The Admittance is an optional coefficient defined on boundary surfaces which
@@ -889,13 +889,13 @@ void e_bc_i(const Vector &x, Vector &E)
 
 void B_func(const Vector &x, Vector &B)
 {
-  B.SetSize(3);
+   B.SetSize(3);
 
-  for (int i=0; i<3; i++)
-    {
+   for (int i=0; i<3; i++)
+   {
       B[i] = B_params_[i] +
-	(B_params_[i+3] - B_params_[i]) * x[0] / B_params_[6];
-    }
+             (B_params_[i+3] - B_params_[i]) * x[0] / B_params_[6];
+   }
 }
 
 ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,

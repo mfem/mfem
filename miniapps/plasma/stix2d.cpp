@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
    solOpts.kDim = 50;
    solOpts.printLvl = 1;
    solOpts.relTol = 1e-4;
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -788,22 +788,22 @@ void Update(ParFiniteElementSpace & HCurlFESpace,
 // Print the stix2d ascii logo to the given ostream
 void display_banner(ostream & os)
 {
-  os << "  _________ __   __       ________      ___" << endl
-     << " /   _____//  |_|__|__  __\\_____  \\  __| _/" << endl
-     << " \\_____  \\\\   __\\  \\  \\/  //  ____/ / __ | " << endl
-     << " /        \\|  | |  |>    </       \\/ /_/ | " << endl
-     << "/_______  /|__| |__/__/\\_ \\_______ \\____ | " << endl
-     << "        \\/               \\/       \\/    \\/ "  << endl
-     << endl
-     << "* Thomas H. Stix was a pioneer in the use of radio frequency"
-     << " waves to heat" << endl
-     << "  terrestrial plasmas to solar temperatures. He made important"
-     << " contributions" << endl
-     << "  to experimental and theoretic plasma physics. In the Stix"
-     << " application, the" << endl
-     << "  plasma dielectric for the wave equation is formulated using"
-     << " the \"Stix\"" << endl
-     << "  notation, \"S, D, P\"." << endl<< endl << flush;
+   os << "  _________ __   __       ________      ___" << endl
+      << " /   _____//  |_|__|__  __\\_____  \\  __| _/" << endl
+      << " \\_____  \\\\   __\\  \\  \\/  //  ____/ / __ | " << endl
+      << " /        \\|  | |  |>    </       \\/ /_/ | " << endl
+      << "/_______  /|__| |__/__/\\_ \\_______ \\____ | " << endl
+      << "        \\/               \\/       \\/    \\/ "  << endl
+      << endl
+      << "* Thomas H. Stix was a pioneer in the use of radio frequency"
+      << " waves to heat" << endl
+      << "  terrestrial plasmas to solar temperatures. He made important"
+      << " contributions" << endl
+      << "  to experimental and theoretic plasma physics. In the Stix"
+      << " application, the" << endl
+      << "  plasma dielectric for the wave equation is formulated using"
+      << " the \"Stix\"" << endl
+      << "  notation, \"S, D, P\"." << endl<< endl << flush;
 }
 
 // The Admittance is an optional coefficient defined on boundary surfaces which
