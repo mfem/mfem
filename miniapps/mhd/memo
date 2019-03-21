@@ -1,11 +1,20 @@
+run:
+implicitMHD -r 4 -o 2 -tf 3 -vs 100 -dt .0005
+
+plot:
+glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 800
+glvis -m refined.mesh -g psiPer.sol -k "mmc" -ww 800 -wh 800
+
+x it has to assemble nv and nb each time step, not sure how to do it implicitly
+
+3/21
+o add visit
+
 3/20
 o fix a ploting issue for order>2
 o fix the boundary orientation, I believe the normal has to be outward
 o fix the time stepping
-x it has to assemble nv and nb each time step
-
-ploting:
-glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 700
+o add visual
 
 
 

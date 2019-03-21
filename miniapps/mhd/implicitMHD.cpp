@@ -93,7 +93,7 @@ double InitialPsi(const Vector &x)
 
 double BackPsi(const Vector &x)
 {
-   //this is the background psi (for post-processing only)
+   //this is the background psi (for post-processing/plotting only)
    return -x(1);
 }
 
@@ -109,6 +109,8 @@ int main(int argc, char *argv[])
    double dt = 0.0001;
    double visc = 0.0;
    double resi = 0.0;
+   bool visit = false;
+   int precision = 8;
    alpha = 0.001; 
    Lx=3.0;
 
@@ -123,8 +125,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 2 - Brailovskaya,\n\t"
-                  " only FE supported 13 - RK3 SSP, 14 - RK4.");
+                  "ODE solver: 2 - Brailovskaya.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -138,6 +139,9 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -227,23 +231,28 @@ int main(int argc, char *argv[])
    psiBack.ProjectCoefficient(psi0);
    psiBack.SetTrueVector();
 
-
-   //this is a periodic boundary condition in x, so ess_bdr
-   //but may need other things here if not periodic
+   //this is a periodic boundary condition in x and Direchlet in y 
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
-   ess_bdr[0] = 1;  //set attribute 1 to Direchlet boundary fixed??
-   cout <<"ess_bdr size is "<<ess_bdr.Size()<<endl;
+   ess_bdr[0] = 1;  //set attribute 1 to Direchlet boundary fixed
+   if(ess_bdr.Size()!=1)
+   {
+    cout <<"ess_bdr size should be 1 but it is "<<ess_bdr.Size()<<endl;
+    delete ode_solver;
+    delete mesh;
+    return 2;
+   }
 
    // 7. Initialize the MHD operator, the GLVis visualization    
    ImplicitMHDOperator oper(fespace, ess_bdr, visc, resi);
 
+   socketstream vis_phi, vis_j;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream vis_phi;
       vis_phi.open(vishost, visport);
+      vis_j.open(vishost, visport);
       if (!vis_phi)
       {
          cout << "Unable to connect to GLVis server at "
@@ -253,18 +262,44 @@ int main(int argc, char *argv[])
       }
       else
       {
+         subtract(psi,psiBack,psiPer);
          vis_phi.precision(8);
-         vis_phi << "phi\n" << *mesh << j;
+         vis_phi << "solution\n" << *mesh << psiPer;
+         vis_phi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
+         vis_phi << "valuerange -.001 .001\n";
          vis_phi << "pause\n";
          vis_phi << flush;
          vis_phi << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
+
+         vis_j << "solution\n" << *mesh << j;
+         vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
+         vis_j << "pause\n";
+         vis_j << flush;
       }
     }
+
+
+
 
    double t = 0.0;
    oper.SetTime(t);
    ode_solver->Init(oper);
+
+   // Create data collection for solution output: either VisItDataCollection for
+   // ascii data files, or SidreDataCollection for binary data files.
+   DataCollection *dc = NULL;
+   if (visit)
+   {
+
+      dc = new VisItDataCollection("case1", mesh);
+      dc->SetPrecision(precision);
+      dc->RegisterField("psiPer", &psiPer);
+      dc->RegisterField("current", &j);
+      dc->SetCycle(0);
+      dc->SetTime(t);
+      dc->Save();
+   }
 
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
@@ -295,7 +330,18 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            //vis_phi << "phi\n" << *mesh << phi << flush;
+            subtract(psi,psiBack,psiPer);
+            vis_phi << "solution\n" << *mesh << psiPer;
+            vis_phi << "valuerange -.001 .001\n" << flush;
+            vis_j << "solution\n" << *mesh << j;
+            vis_j << "valuerange -.01425 .01426\n" << flush;
+         }
+
+         if (visit)
+         {
+            dc->SetCycle(ti);
+            dc->SetTime(t);
+            dc->Save();
          }
       }
 
