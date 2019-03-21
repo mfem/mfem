@@ -188,24 +188,24 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    M.Assemble();
 
    HypreParVector *RHS = rhs.ParallelAssemble();
-   HypreParVector *X   = rhs.ParallelAverage();
+   HypreParVector X(K.ParFESpace());
+   X = 0.0;
    HypreParMatrix *Mh  = M.ParallelAssemble();
 
-   *X = 0.0;
    CGSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
    //GMRESSolver lin_solver(M.ParFESpace()->GetParMesh()->GetComm());
    HypreSmoother prec;
    prec.SetType(HypreSmoother::Jacobi, 1);
    lin_solver.SetPreconditioner(prec);
    lin_solver.SetOperator(*Mh);
-   lin_solver.SetRelTol(1e-12); lin_solver.SetAbsTol(0.0);
+   lin_solver.SetRelTol(1e-8);
+   lin_solver.SetAbsTol(0.0);
    lin_solver.SetMaxIter(100);
    lin_solver.SetPrintLevel(0);
-   lin_solver.Mult(*RHS, *X);
-   K.ParFESpace()->Dof_TrueDof_Matrix()->Mult(*X, di_dt);
+   lin_solver.Mult(*RHS, X);
+   K.ParFESpace()->GetProlongationMatrix()->Mult(X, di_dt);
 
    delete Mh;
-   delete X;
    delete RHS;
 }
 #endif
