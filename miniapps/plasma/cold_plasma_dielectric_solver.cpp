@@ -26,7 +26,7 @@ namespace plasma
 double prodFunc(double a, double b) { return a * b; }
 
 CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
-                     CPDSolver::SolverType sol,
+                     CPDSolver::SolverType sol, SolverOptions & sOpts,
                      ComplexOperator::Convention conv,
                      MatrixCoefficient & epsReCoef,
                      MatrixCoefficient & epsImCoef,
@@ -46,6 +46,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      order_(order),
      logging_(1),
      sol_(sol),
+     solOpts_(sOpts),
      conv_(conv),
      ownsEtaInv_(etaInvCoef == NULL),
      omega_(omega),
@@ -561,9 +562,10 @@ CPDSolver::Solve()
       {
          GMRESSolver gmres(HCurlFESpace_->GetComm());
          gmres.SetOperator(*A1.Ptr());
-         gmres.SetRelTol(1e-4);
-         gmres.SetMaxIter(20000);
-         gmres.SetPrintLevel(1);
+         gmres.SetRelTol(solOpts_.relTol);
+         gmres.SetMaxIter(solOpts_.maxIter);
+         gmres.SetKDim(solOpts_.kDim);
+         gmres.SetPrintLevel(solOpts_.printLvl);
 
          gmres.Mult(RHS, E);
       }
@@ -586,9 +588,10 @@ CPDSolver::Solve()
          FGMRESSolver fgmres(HCurlFESpace_->GetComm());
          fgmres.SetPreconditioner(BDP);
          fgmres.SetOperator(*A1.Ptr());
-         fgmres.SetRelTol(1e-4);
-         fgmres.SetMaxIter(1000);
-         fgmres.SetPrintLevel(1);
+         fgmres.SetRelTol(solOpts_.relTol);
+         fgmres.SetMaxIter(solOpts_.maxIter);
+         fgmres.SetKDim(solOpts_.kDim);
+         fgmres.SetPrintLevel(solOpts_.printLvl);
 
          fgmres.Mult(RHS, E);
 

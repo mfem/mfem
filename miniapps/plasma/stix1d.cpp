@@ -241,6 +241,12 @@ int main(int argc, char *argv[])
    Array<int> dbcs;
    int num_elements = 10;
 
+   SolverOptions solOpts;
+   solOpts.maxIter = 1000;
+   solOpts.kDim = 50;
+   solOpts.printLvl = 1;
+   solOpts.relTol = 1e-4;
+   
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
@@ -271,6 +277,14 @@ int main(int argc, char *argv[])
                   "Masses of the various species (in amu)");
    args.AddOption(&sol, "-s", "--solver",
                   "Solver: 1 - GMRES, 2 - FGMRES w/AMS");
+   args.AddOption(&solOpts.maxIter, "-sol-it", "--solver-iterations",
+                  "Maximum number of solver iterations.");
+   args.AddOption(&solOpts.kDim, "-sol-k-dim", "--solver-krylov-dimension",
+                  "Krylov space dimension for GMRES and FGMRES.");
+   args.AddOption(&solOpts.relTol, "-sol-tol", "--solver-tolerance",
+                  "Relative tolerance for GMRES or FGMRES.");
+   args.AddOption(&solOpts.printLvl, "-sol-prnt-lvl", "--solver-print-level",
+                  "Logging level for solvers.");
    args.AddOption(&pw_eta_, "-pwz", "--piecewise-eta",
                   "Piecewise values of Impedance (one value per abc surface)");
    args.AddOption(&slab_params_, "-slab", "--slab_params",
@@ -640,8 +654,9 @@ int main(int argc, char *argv[])
    }
 
    // Create the Magnetostatic solver
-   CPDSolver CPD(pmesh, order, omega, (CPDSolver::SolverType)sol,
-                 conv, epsilon_real, epsilon_imag, muInvCoef, etaInvCoef,
+   CPDSolver CPD(pmesh, order, omega,
+		 (CPDSolver::SolverType)sol, solOpts,
+		 conv, epsilon_real, epsilon_imag, muInvCoef, etaInvCoef,
                  (phase_shift) ? &kCoef : NULL,
                  abcs, dbcs,
                  // e_bc_r, e_bc_i,

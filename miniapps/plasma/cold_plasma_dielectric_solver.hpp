@@ -33,6 +33,15 @@ using miniapps::ParDiscreteCurlOperator;
 namespace plasma
 {
 
+// Solver options
+struct SolverOptions
+{
+  int maxIter;
+  int kDim;
+  int printLvl;
+  double relTol;
+};
+
 /// Cold Plasma Dielectric Solver
 class CPDSolver
 {
@@ -49,7 +58,7 @@ public:
    };
 
    CPDSolver(ParMesh & pmesh, int order, double omega,
-             CPDSolver::SolverType s,
+             CPDSolver::SolverType s, SolverOptions & sOpts,
              ComplexOperator::Convention conv,
              MatrixCoefficient & epsReCoef,
              MatrixCoefficient & espImCoef,
@@ -98,7 +107,8 @@ private:
    int logging_;
 
    SolverType sol_;
-
+   SolverOptions & solOpts_;
+  
    ComplexOperator::Convention conv_;
 
    bool ownsEtaInv_;
