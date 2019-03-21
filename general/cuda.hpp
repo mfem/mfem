@@ -43,11 +43,6 @@ void CuWrap(const int N, DBODY &&d_body)
    const cudaError_t last = cudaGetLastError();
    MFEM_ASSERT(last == cudaSuccess, cudaGetErrorString(last));
 }
-template<typename T>
-__host__ __device__ inline T AtomicAdd(T* address, T val)
-{
-   return atomicAdd(address, val);
-}
 #else // ***********************************************************************
 #define __host__
 #define __device__
@@ -57,12 +52,24 @@ typedef int CUcontext;
 typedef void* CUstream;
 template <int BLOCKS, typename DBODY>
 void CuWrap(const int N, DBODY &&d_body) {}
-template<typename T> inline T AtomicAdd(T* address, T val)
-{
-   return *address += val;
-}
 #endif // __NVCC__
 
+#if defined(__CUDA_ARCH__)
+template<typename T>
+__device__ inline T AtomicAdd(T* address, T val)
+{
+  return atomicAdd(address, val);
+}
+#else
+template<typename T> inline T AtomicAdd(T* address, T val)
+{
+#if defined(_OPENMP)
+#pragma omp atomic
+#endif
+  *address += val;
+  return *address;
+}
+#endif //__CUDA_ARCH__
 // *****************************************************************************
 // * Allocates device memory
 // *****************************************************************************
