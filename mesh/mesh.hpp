@@ -216,6 +216,7 @@ protected:
 
    void ReadGmshV2(std::istream &input, int binary);
    void ReadGmshV4(std::istream &input, int binary);
+   void ReadGmshV41(std::istream &input, int binary);
    void ReadGmshMesh(std::istream &input);
    void ReadGmshBoundaryElements(std::vector<Element*> &elements_0D,
                                  std::vector<Element*> &elements_1D,
