@@ -370,8 +370,11 @@ private:
          {
             Trans = mesh->GetFaceElementTransformations(bdrs[i]);
 
-            NbrElem[i] = Trans->Elem1No != k ? Trans->Elem1No : Trans->Elem2No;
-
+            NbrElem[i] = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
+            
+            if (NbrElem[i] < 0)
+               continue;
+            
             for (j = 0; j < numDofs; j++)
             {
                dofInd = k*nd+BdrDofs(j,i);
@@ -718,7 +721,7 @@ public:
       Array <int> bdrs, orientation;
       FaceElementTransformations *Trans;
 
-      // TODO There are many zero entries in bdrInt, better indexing possible.
+      // TODO There are many zero entries in bdrInt, maybe use better indexing.
       bdrInt.SetSize(ne*nd, nd*dofs.numBdrs); bdrInt = 0.;
       fluctSub.SetSize(ne*dofs.numSubcells, dofs.numDofsSubcell);
       
@@ -1363,6 +1366,9 @@ void FE_Evolution::LinearFluxLumping(const int k, const int nd,
    {
       dofInd = k*nd+asmbl.dofs.BdrDofs(i,BdrID);
       idx = asmbl.dofs.NbrDof(k*asmbl.dofs.numDofs+i,BdrID);
+      // If NbrDof is -1 and bdrInt > 0., this is an inflow boundary. If NbrDof
+      // is -1 and bdrInt = 0., this is an outflow, which is handled correctly.
+      // TODO use inflow instead of xNeighbor = 0.
       xNeighbor = idx < 0 ? 0. : x(idx);
       xDiff(i) = xNeighbor - x(dofInd);
    }
