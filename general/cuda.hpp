@@ -65,10 +65,8 @@ template<typename T> inline T AtomicAdd(T* address, T val)
 {
 #if defined(_OPENMP)
 #pragma omp atomic
-  *address += val;
-#else
-  *address += val;
 #endif
+  *address += val;
   return *address;
 }
 #endif //__CUDA_ARCH__
