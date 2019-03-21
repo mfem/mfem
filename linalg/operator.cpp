@@ -23,35 +23,30 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
+   ConstrainedOperator *constrainedA;
+   FormConstrainedSystemOperator(ess_tdof_list, constrainedA);
+
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
-   Operator *rap;
 
    if (P)
    {
-      // Variational restriction with P
       B.SetSize(P->Width());
       P->MultTranspose(b, B);
       X.SetSize(R->Height());
       R->Mult(x, X);
-      rap = new RAPOperator(*P, *this, *P);
    }
    else
    {
-      // rap, X and B point to the same data as this, x and b
+      // X and B point to the same data as x and b
       X.NewDataAndSize(x.GetData(), x.Size());
       B.NewDataAndSize(b.GetData(), b.Size());
-      rap = this;
    }
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
-   // Impose the boundary conditions through a ConstrainedOperator, which owns
-   // the rap operator when P and R are non-trivial
-   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
-                                                    rap != this);
-   A->EliminateRHS(X, B);
-   Aout = A;
+   constrainedA->EliminateRHS(X, B);
+   Aout = constrainedA;
 }
 
 void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
@@ -69,25 +64,45 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
    }
 }
 
+void Operator::FormConstrainedSystemOperator(
+   const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout)
+{
+   const Operator *P = this->GetProlongation();
+   Operator *rap;
+
+   if (P)
+   {
+      // Variational restriction with P
+      rap = new RAPOperator(*P, *this, *P);
+   }
+   else
+   {
+      rap = this;
+   }
+
+   // Impose the boundary conditions through a ConstrainedOperator, which owns
+   // the rap operator when P and R are non-trivial
+   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
+                                                    rap != this);
+   Aout = A;
+}
+
 void Operator::FormSystemOperator(const Array<int> &ess_tdof_list,
                                   Operator* &Aout)
+{
+   ConstrainedOperator *A;
+   FormConstrainedSystemOperator(ess_tdof_list, A);
+   Aout = A;
+}
+
+void Operator::FormDiscreteOperator(Operator* &Aout)
 {
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
    Operator * out =
       new TripleProductOperator(R, this, P,
                                 false, false, false);
-
-   if (ess_tdof_list.Size())
-   {
-      MFEM_ASSERT(height == width,
-                  "Essential dofs do not make sense in rectangular case!");
-      Aout = new ConstrainedOperator(out, ess_tdof_list, true);
-   }
-   else
-   {
-      Aout = out;
-   }
+   Aout = out;
 }
 
 void Operator::PrintMatlab(std::ostream & out, int n, int m) const
