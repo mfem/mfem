@@ -236,7 +236,6 @@ public:
 //       // Obtain boundary dof information.
 //       else
 //       {
-         NbrDof.SetSize(ne*numDofs, numBdrs);
          FillNeighborDofs();
 //       }
       
@@ -544,7 +543,7 @@ private:
    // For each DOF on an element boundary, the global index of the DOF on the
    // opposite site is computed and stored in a list. This is needed for 
    // lumping the flux contributions as in the paper. Right now it works on 
-   // all quad meshes in 2D. TODO use it in 1D and add it as comment
+   // 1D meshes, quad meshes in 2D and 3D meshes of ordered cubes.
    // NOTE: The mesh is assumed to consist of segments, quads or hexes.
    // NOTE: This approach will not work for meshes with hanging nodes.
    void FillNeighborDofs()
@@ -555,6 +554,8 @@ private:
       int nd = dummy.GetDof(), p = dummy.GetOrder();
       Array <int> bdrs, NbrBdrs, orientation;
       FaceElementTransformations *Trans;
+      
+      NbrDof.SetSize(ne*numDofs, numBdrs);
       
       for (k = 0; k < ne; k++)
       {
@@ -733,7 +734,7 @@ public:
       Array <int> bdrs, orientation;
       FaceElementTransformations *Trans;
 
-		// TODO just initialize if needed
+      // TODO just initialize if needed
       bdrInt.SetSize(ne*nd, nd*node_info.numBdrs); bdrInt = 0.;
       fluctSub.SetSize(ne*node_info.numSubcells, node_info.numDofsSubcell);
       
@@ -741,24 +742,24 @@ public:
       {
          for (k = 0; k < ne; k++)
          {
-				if (dim==1)
-				{
-					mesh->GetElementVertices(k, bdrs);
-				}
-				else if (dim==2)
-				{
-					mesh->GetElementEdges(k, bdrs, orientation);
-				}
-				else if (dim==3)
-				{
-					mesh->GetElementFaces(k, bdrs, orientation);
-				}
-				
-				for (i = 0; i < node_info.numBdrs; i++)
-				{
-					Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-					ComputeFluxTerms(k, i, velocity, Trans);
-				}
+            if (dim==1)
+            {
+               mesh->GetElementVertices(k, bdrs);
+            }
+            else if (dim==2)
+            {
+               mesh->GetElementEdges(k, bdrs, orientation);
+            }
+            else if (dim==3)
+            {
+               mesh->GetElementFaces(k, bdrs, orientation);
+            }
+            
+            for (i = 0; i < node_info.numBdrs; i++)
+            {
+               Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+               ComputeFluxTerms(k, i, velocity, Trans);
+            }
             
             for (m = 0; m < node_info.numSubcells; m++)
             {
@@ -791,7 +792,7 @@ public:
    void ComputeFluxTerms(const int k, const int BdrID, VectorCoefficient &coef,
                          FaceElementTransformations *Trans)
    {
-		Mesh *mesh = fes->GetMesh();
+      Mesh *mesh = fes->GetMesh();
       
       int i, j, l, nd, row, dim = mesh->Dimension();
       double aux, vn = 0.;
@@ -809,7 +810,7 @@ public:
          
          if (dim == 1)
          {
-				Trans->Loc1.Transform(ip, eip1);
+            Trans->Loc1.Transform(ip, eip1);
             nor(0) = 2.*eip1.x - 1.0;
          }
          else
@@ -907,7 +908,7 @@ private:
 public:
    FE_Evolution(FiniteElementSpace* fes, BilinearForm &Mbf_, BilinearForm &Kbf_,
                 SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
-					 Assembly &_asmbl, GridFunction &mpos, GridFunction &vpos,
+                Assembly &_asmbl, GridFunction &mpos, GridFunction &vpos,
                 BilinearForm &_ml, Vector &_lumpedM,
                 VectorGridFunctionCoefficient &v_coef);
 
@@ -1433,60 +1434,21 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       Vector xMaxSubcell, xMinSubcell, sumWeightsSubcellP, sumWeightsSubcellN,
              fluctSubcellP, fluctSubcellN, nodalWeightsP, nodalWeightsN,
              alpha(nd); alpha = 0.;
-      Array <int> bdrs, orientation;
-      FaceElementTransformations *Trans;
-		
-		if (exec_mode > 0)
-      {
-			asmbl.bdrInt = 0.;
-		}
             
       // Discretization terms
       y = b;
-      K.Mult(x, z); // this is just element terms now!
-
-//       if (dim==1) TODO rm
-//       {
-//          K.AddMult(x, y);
-//          y -= z;
-//       }
+      K.Mult(x, z); // K contains only the DomainIntegrator terms now.
 
       // Monotonicity terms
       for (k = 0; k < ne; k++)
       {
          ////////////////////////////
          // Boundary contributions //
-         ////////////////////////////
-				if (exec_mode > 0)
-				{
-					if (dim==1)
-					{
-						mesh->GetElementVertices(k, bdrs);
-					}
-					else if (dim==2)
-					{
-						mesh->GetElementEdges(k, bdrs, orientation);
-					}
-					else if (dim==3)
-					{
-						mesh->GetElementFaces(k, bdrs, orientation);
-					}
-				}
-            
-            for (i = 0; i < asmbl.node_info.numBdrs; i++)
-            {
-               if (exec_mode == 1)
-               {
-						Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-                  asmbl.ComputeFluxTerms(k, i, coef, Trans);
-               }
-               else if (exec_mode == 2)
-               {
-						Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-                  asmbl.ComputeFluxTerms(k, i, asmbl.velocity, Trans);
-               }
-               LinearFluxLumping(k, nd, i, x, y, alpha);
-            }
+         ////////////////////////////           
+         for (i = 0; i < asmbl.node_info.numBdrs; i++)
+         {
+            LinearFluxLumping(k, nd, i, x, y, alpha);
+         }
          
          ///////////////////////////
          // Element contributions //
@@ -1621,7 +1583,7 @@ void FE_Evolution::ComputeHighOrderSolution(const Vector &x, Vector &y) const
    Vector alpha(nd); alpha = 1.;
    
    K.Mult(x, z);
-	z += b;
+   z += b;
 
    // The boundary contributions have been computed in the low order scheme.
    for (k = 0; k < ne; k++)
@@ -1698,17 +1660,22 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, BilinearForm &Mbf_,
-									BilinearForm &Kbf_, SparseMatrix &_M,
-									SparseMatrix &_K, const Vector &_b, Assembly &_asmbl,
+                           BilinearForm &Kbf_, SparseMatrix &_M,
+                           SparseMatrix &_K, const Vector &_b, Assembly &_asmbl,
                            GridFunction &mpos, GridFunction &vpos,
                            BilinearForm &_ml, Vector &_lumpedM, 
                            VectorGridFunctionCoefficient &v_coef) :
    TimeDependentOperator(_M.Size()), fes(_fes),Mbf(Mbf_), Kbf(Kbf_), M(_M),
-	K(_K), b(_b), z(_M.Size()), asmbl(_asmbl), start_pos(mpos.Size()),
-	mesh_pos(mpos), vel_pos(vpos), ml(_ml), lumpedM(_lumpedM), coef(v_coef) { }
+   K(_K), b(_b), z(_M.Size()), asmbl(_asmbl), start_pos(mpos.Size()),
+   mesh_pos(mpos), vel_pos(vpos), ml(_ml), lumpedM(_lumpedM), coef(v_coef) { }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
+   Mesh *mesh = fes->GetMesh();
+   int i, k, dim = mesh->Dimension(), ne = fes->GetNE();
+   Array <int> bdrs, orientation;
+   FaceElementTransformations *Trans;
+   
    // Move towards x0 with current t.
    const double t = GetTime();
    const double sub_time_step = t - start_t;
@@ -1732,6 +1699,45 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       ml.BilinearForm::operator=(0.0);
       ml.Assemble();
       ml.SpMat().GetDiag(lumpedM);
+      
+      asmbl.bdrInt = 0.;
+      
+      // Monotonicity terms
+      for (k = 0; k < ne; k++)
+      {
+         ////////////////////////////
+         // Boundary contributions //
+         ////////////////////////////
+         if (exec_mode > 0)
+         {
+            if (dim==1)
+            {
+               mesh->GetElementVertices(k, bdrs);
+            }
+            else if (dim==2)
+            {
+               mesh->GetElementEdges(k, bdrs, orientation);
+            }
+            else if (dim==3)
+            {
+               mesh->GetElementFaces(k, bdrs, orientation);
+            }
+         }
+         
+         for (i = 0; i < asmbl.node_info.numBdrs; i++)
+         {
+            if (exec_mode == 1)
+            {
+               Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+               asmbl.ComputeFluxTerms(k, i, coef, Trans);
+            }
+            else if (exec_mode == 2)
+            {
+               Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+               asmbl.ComputeFluxTerms(k, i, asmbl.velocity, Trans);
+            }
+         }
+      }
    }
 
    if (asmbl.node_info.monoType == 0)
