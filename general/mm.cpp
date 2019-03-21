@@ -248,13 +248,10 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
 void *mm::Ptr(void *ptr)
 {
    if (MmDeviceIniFilter()) { return ptr; }
+   if (ptr==NULL) { return NULL;};
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
-   if (ptr==NULL)
-   {
-     return NULL;
-   }
-   else
+   if (config::UsingDevice())
    {
      mfem_error("Trying to use unknown pointer on the DEVICE!");
    }
