@@ -17,12 +17,18 @@
 namespace mfem
 {
 
+class ConstrainedOperator;
+
 /// Abstract operator
 class Operator
 {
 protected:
    int height; ///< Dimension of the output / number of rows in the matrix.
    int width;  ///< Dimension of the input / number of columns in the matrix.
+
+   /// see FormSystemOperator()
+   void FormConstrainedSystemOperator(
+      const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
 
 public:
    /// Construct a square Operator with given size s (default 0).
@@ -113,21 +119,25 @@ public:
        forms, though currently @a b is not used in the implementation. */
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
-   /** @brief Return in @A a parallel (on truedofs) version of this operator.
+   /** @brief Return in @A a parallel (on truedofs) version of this square
+       operator.
 
-       This has some of the functionality of Operator::FormLinearSystem(), but
-       works additionally on rectangular matrices. For square matrices it uses
-       both R and P, where FormLinearSystem() only uses P. For rectangular
-       matrices ess_tdof_list does not really make sense and should probably
-       be empty.
+       This returns the same operator as FormLinearSystem(), but does not
+       have the vector arguments. */
+   void FormSystemOperator(const Array<int> &ess_tdof_list,
+                           Operator* &A);
 
-       The constraints are specified through the prolongation P from
-       GetProlongation(), and restriction R from GetRestriction() methods, which
+   /** @brief Return in @A a parallel (on truedofs) version of this rectangular
+       operator.
+
+       This is similar to FormSystemOperator(), but works additionally on
+       rectangular matrices. The user should provide GetProlongation() and
+       GetRestriction() specializations in their Operator implementation that
+       are appropriate for the two spaces the Operator maps between. These
        are e.g. available through the (parallel) finite element space of any
        (parallel) bilinear form operator. We have: `A(X)=[R (*this)
        P](X)`. */
-   void FormSystemOperator(const Array<int> &ess_tdof_list,
-                           Operator* &A);
+   void FormDiscreteOperator(Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
