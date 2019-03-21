@@ -198,6 +198,17 @@ private:
    double P_;
 };
 
+void Update(ParFiniteElementSpace & HCurlFESpace,
+            ParFiniteElementSpace & HDivFESpace,
+            ParFiniteElementSpace & L2FESpace,
+            ParGridFunction & BField,
+            VectorCoefficient & BCoef,
+            int & size_l2,
+            const Vector & numbers,
+            Array<int> & density_offsets,
+            BlockVector & density,
+            ParGridFunction & density_gf);
+
 //static double freq_ = 1.0e9;
 
 // Mesh Size
@@ -773,6 +784,8 @@ int main(int argc, char *argv[])
       pmesh.RefineByError(errors, threshold);
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
+      Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, *BCoef,
+             size_l2, numbers, density_offsets, density, density_gf);
       CPD.Update();
 
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
@@ -781,6 +794,8 @@ int main(int argc, char *argv[])
          pmesh.Rebalance();
 
          // Update again after rebalancing
+         Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, *BCoef,
+                size_l2, numbers, density_offsets, density, density_gf);
          CPD.Update();
       }
    }
@@ -796,6 +811,38 @@ int main(int argc, char *argv[])
    // delete sigmaCoef;
 
    return 0;
+}
+
+void Update(ParFiniteElementSpace & HCurlFESpace,
+            ParFiniteElementSpace & HDivFESpace,
+            ParFiniteElementSpace & L2FESpace,
+            ParGridFunction & BField,
+            VectorCoefficient & BCoef,
+            int & size_l2,
+            const Vector & numbers,
+            Array<int> & density_offsets,
+            BlockVector & density,
+            ParGridFunction & density_gf)
+{
+   HCurlFESpace.Update();
+   HDivFESpace.Update();
+   L2FESpace.Update();
+
+   BField.Update();
+   BField.ProjectCoefficient(BCoef);
+
+   size_l2 = L2FESpace.GetVSize();
+   for (int i=1; i<=numbers.Size(); i++)
+   {
+      density_offsets[i]     = density_offsets[i - 1] + size_l2;
+   }
+   density.Update(density_offsets);
+   for (int i=0; i<numbers.Size(); i++)
+   {
+      ConstantCoefficient rhoCoef(numbers[i]);
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      density_gf.ProjectCoefficient(rhoCoef);
+   }
 }
 
 // Print the STIX1D ascii logo to the given ostream
