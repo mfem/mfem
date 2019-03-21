@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
       config::SwitchToHost();
       a.RecoverFEMSolution(X, b, x);
-      
+
       // 20. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {

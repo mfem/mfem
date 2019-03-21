@@ -54,21 +54,21 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 // * OCCA 2D Assemble kernel
 // *****************************************************************************
 #ifdef __OCCA__
-static void OccaPADiffusionAssemble2D(const int NQ1d,
+static void OccaPADiffusionAssemble2D(const int Q1D,
                                       const int NE,
                                       const double* __restrict W,
                                       const double* __restrict J,
                                       const double COEFF,
                                       double* __restrict oper)
 {
-   const int NUM_QUAD_2D = NQ1d*NQ1d;
+   const int NUM_QUAD_2D = Q1D*Q1D;
 
    GET_OCCA_CONST_MEMORY(W);
    GET_OCCA_CONST_MEMORY(J);
    GET_OCCA_MEMORY(oper);
 
    NEW_OCCA_PROPERTY(props);
-   SET_OCCA_PROPERTY(props, NQ1d);
+   SET_OCCA_PROPERTY(props, Q1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
    NEW_OCCA_KERNEL(Assemble2D, fem, diffusion.okl, props);
@@ -79,14 +79,14 @@ static void OccaPADiffusionAssemble2D(const int NQ1d,
 // *****************************************************************************
 // * PA Diffusion Assemble 2D kernel
 // *****************************************************************************
-static void PADiffusionAssemble2D(const int NQ1d,
+static void PADiffusionAssemble2D(const int Q1D,
                                   const int NE,
                                   const double* __restrict w,
                                   const double* __restrict j,
                                   const double COEFF,
                                   double* __restrict op)
 {
-   const int NQ = NQ1d*NQ1d;
+   const int NQ = Q1D*Q1D;
    const DeviceVector W(w, NQ);
    const DeviceTensor<4> J(j, 2, 2, NQ, NE);
    DeviceTensor<3> y(op, 3, NQ, NE);
@@ -109,14 +109,14 @@ static void PADiffusionAssemble2D(const int NQ1d,
 // *****************************************************************************
 // * PA Diffusion Assemble 3D kernel
 // *****************************************************************************
-static void PADiffusionAssemble3D(const int NQ1d,
+static void PADiffusionAssemble3D(const int Q1D,
                                   const int NE,
                                   const double* __restrict w,
                                   const double* __restrict j,
                                   const double COEFF,
                                   double* __restrict op)
 {
-   const int NQ = NQ1d*NQ1d*NQ1d;
+   const int NQ = Q1D*Q1D*Q1D;
    const DeviceVector W(w, NQ);
    const DeviceTensor<4> J(j, 3, 3, NQ, NE);
    DeviceTensor<3> y(op, 6, NQ, NE);
@@ -161,7 +161,7 @@ static void PADiffusionAssemble3D(const int NQ1d,
 
 // *****************************************************************************
 static void PADiffusionAssemble(const int dim,
-                                const int NQ1d,
+                                const int Q1D,
                                 const int NE,
                                 const double* __restrict W,
                                 const double* __restrict J,
@@ -174,15 +174,15 @@ static void PADiffusionAssemble(const int dim,
 #ifdef __OCCA__
       if (config::usingOcca())
       {
-         OccaPADiffusionAssemble2D(NQ1d, NE, W, J, COEFF, oper);
+         OccaPADiffusionAssemble2D(Q1D, NE, W, J, COEFF, oper);
          return;
       }
 #endif // __OCCA__
-      PADiffusionAssemble2D(NQ1d, NE, W, J, COEFF, oper);
+      PADiffusionAssemble2D(Q1D, NE, W, J, COEFF, oper);
    }
    if (dim==3)
    {
-      PADiffusionAssemble3D(NQ1d, NE, W, J, COEFF, oper);
+      PADiffusionAssemble3D(Q1D, NE, W, J, COEFF, oper);
    }
 }
 
@@ -213,7 +213,7 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 // * OCCA PA Diffusion MultAdd 2D kernel
 // *****************************************************************************
 static void OccaPADiffusionMultAdd2D(const int ND1d,
-                                     const int NQ1d,
+                                     const int Q1D,
                                      const int NE,
                                      const double* __restrict B,
                                      const double* __restrict G,
@@ -223,7 +223,7 @@ static void OccaPADiffusionMultAdd2D(const int ND1d,
                                      const double* __restrict solIn,
                                      double* __restrict solOut)
 {
-   const int NUM_QUAD_2D = NQ1d*NQ1d;
+   const int NUM_QUAD_2D = Q1D*Q1D;
 
    GET_OCCA_CONST_MEMORY(B);
    GET_OCCA_CONST_MEMORY(G);
@@ -235,7 +235,7 @@ static void OccaPADiffusionMultAdd2D(const int ND1d,
 
    NEW_OCCA_PROPERTY(props);
    SET_OCCA_PROPERTY(props, ND1d);
-   SET_OCCA_PROPERTY(props, NQ1d);
+   SET_OCCA_PROPERTY(props, Q1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
    if (!config::usingGpu())
@@ -260,14 +260,14 @@ static void OccaPADiffusionMultAdd2D(const int ND1d,
 #endif // __OCCA__
 
 // *****************************************************************************
-#define QUAD_2D_ID(X, Y) (X + ((Y) * NQ1d))
-#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * NQ1d) + ((Z) * NQ1d*NQ1d))
+#define QUAD_2D_ID(X, Y) (X + ((Y) * Q1D))
+#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * Q1D) + ((Z) * Q1D*Q1D))
 
 // *****************************************************************************
 // * PA Diffusion MultAdd 2D kernel
 // *****************************************************************************
 template<const int ND1d,
-         const int NQ1d> static
+         const int Q1D> static
 void PADiffusionMultAssembled2D(const int NE,
                                 const double* __restrict b,
                                 const double* __restrict g,
@@ -277,20 +277,20 @@ void PADiffusionMultAssembled2D(const int NE,
                                 const double* __restrict _x,
                                 double* __restrict _y)
 {
-   const int NQ = NQ1d*NQ1d;
-   const DeviceMatrix B(b,NQ1d,ND1d);
-   const DeviceMatrix G(g,NQ1d,ND1d);
-   const DeviceMatrix Bt(bt,ND1d,NQ1d);
-   const DeviceMatrix Gt(gt,ND1d,NQ1d);
+   const int NQ = Q1D*Q1D;
+   const DeviceMatrix B(b,Q1D,ND1d);
+   const DeviceMatrix G(g,Q1D,ND1d);
+   const DeviceMatrix Bt(bt,ND1d,Q1D);
+   const DeviceMatrix Gt(gt,ND1d,Q1D);
    const DeviceTensor<3> op(_op,3,NQ,NE);
    const DeviceTensor<3> x(_x,ND1d,ND1d,NE);
    DeviceTensor<3> y(_y,ND1d,ND1d,NE);
    MFEM_FORALL(e, NE,
    {
-      double grad[NQ1d][NQ1d][2];
-      for (int qy = 0; qy < NQ1d; ++qy)
+      double grad[Q1D][Q1D][2];
+      for (int qy = 0; qy < Q1D; ++qy)
       {
-         for (int qx = 0; qx < NQ1d; ++qx)
+         for (int qx = 0; qx < Q1D; ++qx)
          {
             grad[qy][qx][0] = 0.0;
             grad[qy][qx][1] = 0.0;
@@ -298,8 +298,8 @@ void PADiffusionMultAssembled2D(const int NE,
       }
       for (int dy = 0; dy < ND1d; ++dy)
       {
-         double gradX[NQ1d][2];
-         for (int qx = 0; qx < NQ1d; ++qx)
+         double gradX[Q1D][2];
+         for (int qx = 0; qx < Q1D; ++qx)
          {
             gradX[qx][0] = 0.0;
             gradX[qx][1] = 0.0;
@@ -307,17 +307,17 @@ void PADiffusionMultAssembled2D(const int NE,
          for (int dx = 0; dx < ND1d; ++dx)
          {
             const double s = x(dx,dy,e);
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] += s * B(qx,dx);
                gradX[qx][1] += s * G(qx,dx);
             }
          }
-         for (int qy = 0; qy < NQ1d; ++qy)
+         for (int qy = 0; qy < Q1D; ++qy)
          {
             const double wy  = B(qy,dy);
             const double wDy = G(qy,dy);
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                grad[qy][qx][0] += gradX[qx][1] * wy;
                grad[qy][qx][1] += gradX[qx][0] * wDy;
@@ -325,9 +325,9 @@ void PADiffusionMultAssembled2D(const int NE,
          }
       }
       // Calculate Dxy, xDy in plane
-      for (int qy = 0; qy < NQ1d; ++qy)
+      for (int qy = 0; qy < Q1D; ++qy)
       {
-         for (int qx = 0; qx < NQ1d; ++qx)
+         for (int qx = 0; qx < Q1D; ++qx)
          {
             const int q = QUAD_2D_ID(qx, qy);
 
@@ -342,7 +342,7 @@ void PADiffusionMultAssembled2D(const int NE,
             grad[qy][qx][1] = (O12 * gradX) + (O22 * gradY);
          }
       }
-      for (int qy = 0; qy < NQ1d; ++qy)
+      for (int qy = 0; qy < Q1D; ++qy)
       {
          double gradX[ND1d][2];
          for (int dx = 0; dx < ND1d; ++dx)
@@ -350,7 +350,7 @@ void PADiffusionMultAssembled2D(const int NE,
             gradX[dx][0] = 0;
             gradX[dx][1] = 0;
          }
-         for (int qx = 0; qx < NQ1d; ++qx)
+         for (int qx = 0; qx < Q1D; ++qx)
          {
             const double gX = grad[qy][qx][0];
             const double gY = grad[qy][qx][1];
@@ -379,7 +379,7 @@ void PADiffusionMultAssembled2D(const int NE,
 // * PA Diffusion MultAdd 3D kernel
 // *****************************************************************************
 template<const int ND1d,
-         const int NQ1d> static
+         const int Q1D> static
 void PADiffusionMultAssembled3D(const int NE,
                                 const double* __restrict b,
                                 const double* __restrict g,
@@ -389,22 +389,22 @@ void PADiffusionMultAssembled3D(const int NE,
                                 const double* __restrict _x,
                                 double* __restrict _y)
 {
-   const int NQ = NQ1d*NQ1d*NQ1d;
-   const DeviceMatrix B(b,NQ1d,ND1d);
-   const DeviceMatrix G(g,NQ1d,ND1d);
-   const DeviceMatrix Bt(bt,ND1d,NQ1d);
-   const DeviceMatrix Gt(gt,ND1d,NQ1d);
+   const int NQ = Q1D*Q1D*Q1D;
+   const DeviceMatrix B(b,Q1D,ND1d);
+   const DeviceMatrix G(g,Q1D,ND1d);
+   const DeviceMatrix Bt(bt,ND1d,Q1D);
+   const DeviceMatrix Gt(gt,ND1d,Q1D);
    const DeviceTensor<3> op(_op,6,NQ,NE);
    const DeviceTensor<4> x(_x,ND1d,ND1d,ND1d,NE);
    DeviceTensor<4> y(_y,ND1d,ND1d,ND1d,NE);
    MFEM_FORALL(e, NE,
    {
-      double grad[NQ1d][NQ1d][NQ1d][4];
-      for (int qz = 0; qz < NQ1d; ++qz)
+      double grad[Q1D][Q1D][Q1D][4];
+      for (int qz = 0; qz < Q1D; ++qz)
       {
-         for (int qy = 0; qy < NQ1d; ++qy)
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                grad[qz][qy][qx][0] = 0.0;
                grad[qz][qy][qx][1] = 0.0;
@@ -414,10 +414,10 @@ void PADiffusionMultAssembled3D(const int NE,
       }
       for (int dz = 0; dz < ND1d; ++dz)
       {
-         double gradXY[NQ1d][NQ1d][4];
-         for (int qy = 0; qy < NQ1d; ++qy)
+         double gradXY[Q1D][Q1D][4];
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                gradXY[qy][qx][0] = 0.0;
                gradXY[qy][qx][1] = 0.0;
@@ -426,8 +426,8 @@ void PADiffusionMultAssembled3D(const int NE,
          }
          for (int dy = 0; dy < ND1d; ++dy)
          {
-            double gradX[NQ1d][2];
-            for (int qx = 0; qx < NQ1d; ++qx)
+            double gradX[Q1D][2];
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] = 0.0;
                gradX[qx][1] = 0.0;
@@ -435,17 +435,17 @@ void PADiffusionMultAssembled3D(const int NE,
             for (int dx = 0; dx < ND1d; ++dx)
             {
                const double s = x(dx,dy,dz,e);
-               for (int qx = 0; qx < NQ1d; ++qx)
+               for (int qx = 0; qx < Q1D; ++qx)
                {
                   gradX[qx][0] += s * B(qx,dx);
                   gradX[qx][1] += s * G(qx,dx);
                }
             }
-            for (int qy = 0; qy < NQ1d; ++qy)
+            for (int qy = 0; qy < Q1D; ++qy)
             {
                const double wy  = B(qy,dy);
                const double wDy = G(qy,dy);
-               for (int qx = 0; qx < NQ1d; ++qx)
+               for (int qx = 0; qx < Q1D; ++qx)
                {
                   const double wx  = gradX[qx][0];
                   const double wDx = gradX[qx][1];
@@ -455,13 +455,13 @@ void PADiffusionMultAssembled3D(const int NE,
                }
             }
          }
-         for (int qz = 0; qz < NQ1d; ++qz)
+         for (int qz = 0; qz < Q1D; ++qz)
          {
             const double wz  = B(qz,dz);
             const double wDz = G(qz,dz);
-            for (int qy = 0; qy < NQ1d; ++qy)
+            for (int qy = 0; qy < Q1D; ++qy)
             {
-               for (int qx = 0; qx < NQ1d; ++qx)
+               for (int qx = 0; qx < Q1D; ++qx)
                {
                   grad[qz][qy][qx][0] += gradXY[qy][qx][0] * wz;
                   grad[qz][qy][qx][1] += gradXY[qy][qx][1] * wz;
@@ -471,11 +471,11 @@ void PADiffusionMultAssembled3D(const int NE,
          }
       }
       // Calculate Dxyz, xDyz, xyDz in plane
-      for (int qz = 0; qz < NQ1d; ++qz)
+      for (int qz = 0; qz < Q1D; ++qz)
       {
-         for (int qy = 0; qy < NQ1d; ++qy)
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                const int q = QUAD_3D_ID(qx, qy, qz);
                const double O11 = op(0,q,e);
@@ -493,7 +493,7 @@ void PADiffusionMultAssembled3D(const int NE,
             }
          }
       }
-      for (int qz = 0; qz < NQ1d; ++qz)
+      for (int qz = 0; qz < Q1D; ++qz)
       {
          double gradXY[ND1d][ND1d][4];
          for (int dy = 0; dy < ND1d; ++dy)
@@ -505,7 +505,7 @@ void PADiffusionMultAssembled3D(const int NE,
                gradXY[dy][dx][2] = 0;
             }
          }
-         for (int qy = 0; qy < NQ1d; ++qy)
+         for (int qy = 0; qy < Q1D; ++qy)
          {
             double gradX[ND1d][4];
             for (int dx = 0; dx < ND1d; ++dx)
@@ -514,7 +514,7 @@ void PADiffusionMultAssembled3D(const int NE,
                gradX[dx][1] = 0;
                gradX[dx][2] = 0;
             }
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                const double gX = grad[qz][qy][qx][0];
                const double gY = grad[qz][qy][qx][1];
@@ -571,8 +571,8 @@ typedef void (*fDiffusionMultAdd)(const int NE,
 
 // *****************************************************************************
 static void PADiffusionMultAssembled(const int dim,
-                                     const int ND1d,
-                                     const int NQ1d,
+                                     const int D1D,
+                                     const int Q1D,
                                      const int NE,
                                      const double* __restrict B,
                                      const double* __restrict G,
@@ -586,13 +586,11 @@ static void PADiffusionMultAssembled(const int dim,
    if (config::usingOcca())
    {
       assert(dim==2);
-      occaDiffusionMultAssembled2D(ND1d, NQ1d, NE, B, G, Bt, Gt, op, x, y);
+      occaDiffusionMultAssembled2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
       return;
    }
 #endif // __OCCA__
-   assert(LOG2(static_cast<uint32_t>(ND1d))<=4);
-   assert(LOG2(static_cast<uint32_t>(NQ1d))<=4);
-   const int id = (dim<<8)|(ND1d<<4)|(NQ1d);
+   const int id = (dim<<8)|(D1D<<4)|(Q1D);
    static std::unordered_map<int, fDiffusionMultAdd> call =
    {
       // 2D
@@ -604,8 +602,8 @@ static void PADiffusionMultAssembled(const int dim,
    };
    if (!call[id])
    {
-      printf("\n%s:%d\nUnknown kernel with dim=%d, ND1d=%d and NQ1d=%d",
-             __FILE__, __LINE__, dim, ND1d, NQ1d);
+      printf("\n%s:%d\nUnknown kernel with dim=%d, D1D=%d and Q1D=%d",
+             __FILE__, __LINE__, dim, D1D, Q1D);
       mfem_error("PADiffusionMultAssembled kernel not instanciated");
    }
    assert(call[id]);
@@ -733,8 +731,8 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 }
 
 // *****************************************************************************
-template<const int ND1d,
-         const int NQ1d> static
+template<const int D1D,
+         const int Q1D> static
 void PAMassMultAdd2D(const int NE,
                      const double* __restrict _B,
                      const double* __restrict _Bt,
@@ -742,71 +740,71 @@ void PAMassMultAdd2D(const int NE,
                      const double* __restrict _x,
                      double* __restrict _y)
 {
-   const DeviceMatrix B(_B, NQ1d,ND1d);
-   const DeviceMatrix Bt(_Bt, ND1d,NQ1d);
-   const DeviceTensor<3> op(_op, NQ1d,NQ1d,NE);
-   const DeviceTensor<3> x(_x, ND1d,ND1d,NE);
-   DeviceTensor<3> y(_y, ND1d,ND1d,NE);
+   const DeviceMatrix B(_B, Q1D,D1D);
+   const DeviceMatrix Bt(_Bt, D1D,Q1D);
+   const DeviceTensor<3> op(_op, Q1D,Q1D,NE);
+   const DeviceTensor<3> x(_x, D1D,D1D,NE);
+   DeviceTensor<3> y(_y, D1D,D1D,NE);
    MFEM_FORALL(e,NE,
    {
-      double sol_xy[NQ1d][NQ1d];
-      for (int qy = 0; qy < NQ1d; ++qy)
+      double sol_xy[Q1D][Q1D];
+      for (int qy = 0; qy < Q1D; ++qy)
       {
-         for (int qx = 0; qx < NQ1d; ++qx)
+         for (int qx = 0; qx < Q1D; ++qx)
          {
             sol_xy[qy][qx] = 0.0;
          }
       }
-      for (int dy = 0; dy < ND1d; ++dy)
+      for (int dy = 0; dy < D1D; ++dy)
       {
-         double sol_x[NQ1d];
-         for (int qy = 0; qy < NQ1d; ++qy)
+         double sol_x[Q1D];
+         for (int qy = 0; qy < Q1D; ++qy)
          {
             sol_x[qy] = 0.0;
          }
-         for (int dx = 0; dx < ND1d; ++dx)
+         for (int dx = 0; dx < D1D; ++dx)
          {
             const double s = x(dx,dy,e);
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_x[qx] += B(qx,dx)* s;
             }
          }
-         for (int qy = 0; qy < NQ1d; ++qy)
+         for (int qy = 0; qy < Q1D; ++qy)
          {
             const double d2q = B(qy,dy);
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_xy[qy][qx] += d2q * sol_x[qx];
             }
          }
       }
-      for (int qy = 0; qy < NQ1d; ++qy)
+      for (int qy = 0; qy < Q1D; ++qy)
       {
-         for (int qx = 0; qx < NQ1d; ++qx)
+         for (int qx = 0; qx < Q1D; ++qx)
          {
             sol_xy[qy][qx] *= op(qx,qy,e);
          }
       }
-      for (int qy = 0; qy < NQ1d; ++qy)
+      for (int qy = 0; qy < Q1D; ++qy)
       {
-         double sol_x[ND1d];
-         for (int dx = 0; dx < ND1d; ++dx)
+         double sol_x[D1D];
+         for (int dx = 0; dx < D1D; ++dx)
          {
             sol_x[dx] = 0.0;
          }
-         for (int qx = 0; qx < NQ1d; ++qx)
+         for (int qx = 0; qx < Q1D; ++qx)
          {
             const double s = sol_xy[qy][qx];
-            for (int dx = 0; dx < ND1d; ++dx)
+            for (int dx = 0; dx < D1D; ++dx)
             {
                sol_x[dx] += Bt(dx,qx) * s;
             }
          }
-         for (int dy = 0; dy < ND1d; ++dy)
+         for (int dy = 0; dy < D1D; ++dy)
          {
             const double q2d = Bt(dy,qy);
-            for (int dx = 0; dx < ND1d; ++dx)
+            for (int dx = 0; dx < D1D; ++dx)
             {
                y(dx,dy,e) += q2d * sol_x[dx];
             }
@@ -816,8 +814,8 @@ void PAMassMultAdd2D(const int NE,
 }
 
 // *****************************************************************************
-template<const int ND1d,
-         const int NQ1d> static
+template<const int D1D,
+         const int Q1D> static
 void PAMassMultAdd3D(const int NE,
                      const double* __restrict _B,
                      const double* __restrict _Bt,
@@ -825,121 +823,121 @@ void PAMassMultAdd3D(const int NE,
                      const double* __restrict _x,
                      double* __restrict _y)
 {
-   const DeviceMatrix B(_B, NQ1d,ND1d);
-   const DeviceMatrix Bt(_Bt, ND1d,NQ1d);
-   const DeviceTensor<4> op(_op, NQ1d,NQ1d,NQ1d,NE);
-   const DeviceTensor<4> x(_x, ND1d,ND1d,ND1d,NE);
-   DeviceTensor<4> y(_y, ND1d,ND1d,ND1d,NE);
+   const DeviceMatrix B(_B, Q1D,D1D);
+   const DeviceMatrix Bt(_Bt, D1D,Q1D);
+   const DeviceTensor<4> op(_op, Q1D,Q1D,Q1D,NE);
+   const DeviceTensor<4> x(_x, D1D,D1D,D1D,NE);
+   DeviceTensor<4> y(_y, D1D,D1D,D1D,NE);
 
    MFEM_FORALL(e,NE,
    {
-      double sol_xyz[NQ1d][NQ1d][NQ1d];
-      for (int qz = 0; qz < NQ1d; ++qz)
+      double sol_xyz[Q1D][Q1D][Q1D];
+      for (int qz = 0; qz < Q1D; ++qz)
       {
-         for (int qy = 0; qy < NQ1d; ++qy)
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_xyz[qz][qy][qx] = 0.0;
             }
          }
       }
-      for (int dz = 0; dz < ND1d; ++dz)
+      for (int dz = 0; dz < D1D; ++dz)
       {
-         double sol_xy[NQ1d][NQ1d];
-         for (int qy = 0; qy < NQ1d; ++qy)
+         double sol_xy[Q1D][Q1D];
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_xy[qy][qx] = 0.0;
             }
          }
-         for (int dy = 0; dy < ND1d; ++dy)
+         for (int dy = 0; dy < D1D; ++dy)
          {
-            double sol_x[NQ1d];
-            for (int qx = 0; qx < NQ1d; ++qx)
+            double sol_x[Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_x[qx] = 0;
             }
-            for (int dx = 0; dx < ND1d; ++dx)
+            for (int dx = 0; dx < D1D; ++dx)
             {
                const double s = x(dx,dy,dz,e);
-               for (int qx = 0; qx < NQ1d; ++qx)
+               for (int qx = 0; qx < Q1D; ++qx)
                {
                   sol_x[qx] += B(qx,dx) * s;
                }
             }
-            for (int qy = 0; qy < NQ1d; ++qy)
+            for (int qy = 0; qy < Q1D; ++qy)
             {
                const double wy = B(qy,dy);
-               for (int qx = 0; qx < NQ1d; ++qx)
+               for (int qx = 0; qx < Q1D; ++qx)
                {
                   sol_xy[qy][qx] += wy * sol_x[qx];
                }
             }
          }
-         for (int qz = 0; qz < NQ1d; ++qz)
+         for (int qz = 0; qz < Q1D; ++qz)
          {
             const double wz = B(qz,dz);
-            for (int qy = 0; qy < NQ1d; ++qy)
+            for (int qy = 0; qy < Q1D; ++qy)
             {
-               for (int qx = 0; qx < NQ1d; ++qx)
+               for (int qx = 0; qx < Q1D; ++qx)
                {
                   sol_xyz[qz][qy][qx] += wz * sol_xy[qy][qx];
                }
             }
          }
       }
-      for (int qz = 0; qz < NQ1d; ++qz)
+      for (int qz = 0; qz < Q1D; ++qz)
       {
-         for (int qy = 0; qy < NQ1d; ++qy)
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_xyz[qz][qy][qx] *= op(qx,qy,qz,e);
             }
          }
       }
-      for (int qz = 0; qz < NQ1d; ++qz)
+      for (int qz = 0; qz < Q1D; ++qz)
       {
-         double sol_xy[ND1d][ND1d];
-         for (int dy = 0; dy < ND1d; ++dy)
+         double sol_xy[D1D][D1D];
+         for (int dy = 0; dy < D1D; ++dy)
          {
-            for (int dx = 0; dx < ND1d; ++dx)
+            for (int dx = 0; dx < D1D; ++dx)
             {
                sol_xy[dy][dx] = 0;
             }
          }
-         for (int qy = 0; qy < NQ1d; ++qy)
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            double sol_x[ND1d];
-            for (int dx = 0; dx < ND1d; ++dx)
+            double sol_x[D1D];
+            for (int dx = 0; dx < D1D; ++dx)
             {
                sol_x[dx] = 0;
             }
-            for (int qx = 0; qx < NQ1d; ++qx)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
                const double s = sol_xyz[qz][qy][qx];
-               for (int dx = 0; dx < ND1d; ++dx)
+               for (int dx = 0; dx < D1D; ++dx)
                {
                   sol_x[dx] += Bt(dx,qx) * s;
                }
             }
-            for (int dy = 0; dy < ND1d; ++dy)
+            for (int dy = 0; dy < D1D; ++dy)
             {
                const double wy = Bt(dy,qy);
-               for (int dx = 0; dx < ND1d; ++dx)
+               for (int dx = 0; dx < D1D; ++dx)
                {
                   sol_xy[dy][dx] += wy * sol_x[dx];
                }
             }
          }
-         for (int dz = 0; dz < ND1d; ++dz)
+         for (int dz = 0; dz < D1D; ++dz)
          {
             const double wz = Bt(dz,qz);
-            for (int dy = 0; dy < ND1d; ++dy)
+            for (int dy = 0; dy < D1D; ++dy)
             {
-               for (int dx = 0; dx < ND1d; ++dx)
+               for (int dx = 0; dx < D1D; ++dx)
                {
                   y(dx,dy,dz,e) += wz * sol_xy[dy][dx];
                }
@@ -959,8 +957,8 @@ typedef void (*fMassMultAdd)(const int NE,
 
 // *****************************************************************************
 static void PAMassMultAssembled(const int dim,
-                                const int ND1d,
-                                const int NQ1d,
+                                const int D1D,
+                                const int Q1D,
                                 const int NE,
                                 const double* __restrict B,
                                 const double* __restrict Bt,
@@ -968,17 +966,17 @@ static void PAMassMultAssembled(const int dim,
                                 const double* __restrict x,
                                 double* __restrict y)
 {
-   assert(LOG2(dim)<=4);
-   assert(LOG2(ND1d)<=4);
-   assert(LOG2(NQ1d)<=4);
-   const int id = (dim<<8)|((ND1d)<<4)|(NQ1d);
+   const int id = (dim<<8)|((D1D)<<4)|(Q1D);
    static std::unordered_map<int, fMassMultAdd> call =
    {
       // 2D
       {0x222,&PAMassMultAdd2D<2,2>},
       {0x224,&PAMassMultAdd2D<2,4>},
       {0x234,&PAMassMultAdd2D<3,4>},
+      {0x235,&PAMassMultAdd2D<3,5>},
       {0x236,&PAMassMultAdd2D<3,6>},
+      {0x244,&PAMassMultAdd2D<4,4>},
+      {0x245,&PAMassMultAdd2D<4,5>},
       {0x246,&PAMassMultAdd2D<4,6>},
       {0x248,&PAMassMultAdd2D<4,8>},
       {0x258,&PAMassMultAdd2D<5,8>},
@@ -989,8 +987,8 @@ static void PAMassMultAssembled(const int dim,
    };
    if (!call[id])
    {
-      printf("\n%s:%d\nUnknown kernel with dim=%d, ND1d=%d and NQ1d=%d",
-             __FILE__, __LINE__,dim, ND1d, NQ1d);
+      printf("\n%s:%d\nUnknown kernel with dim=%d, D1D=%d and Q1D=%d",
+             __FILE__, __LINE__,dim, D1D, Q1D);
       mfem_error("MassMultAssembled kernel not instanciated");
    }
    call[id](NE, B, Bt, op, x, y);
@@ -1323,8 +1321,8 @@ static void NodeCopyByVDim(const int elements,
 }
 
 // *****************************************************************************
-template<const int ND1d,
-         const int NQ1d> static
+template<const int D1D,
+         const int Q1D> static
 void PAGeom2D(const int NE,
               const double* __restrict _G,
               const double* __restrict _X,
@@ -1333,8 +1331,8 @@ void PAGeom2D(const int NE,
               double* __restrict _invJ,
               double* __restrict _detJ)
 {
-   const int ND = ND1d*ND1d;
-   const int NQ = NQ1d*NQ1d;
+   const int ND = D1D*D1D;
+   const int NQ = Q1D*Q1D;
    const DeviceTensor<3> G(_G, 2,NQ,ND);
    const DeviceTensor<3> X(_X, 2,ND,NE);
    DeviceTensor<3> Xq(_Xq, 2,NQ,NE);
@@ -1343,7 +1341,7 @@ void PAGeom2D(const int NE,
    DeviceMatrix detJ(_detJ, NQ,NE);
    MFEM_FORALL(e, NE,
    {
-      double s_X[2*ND1d*ND1d];
+      double s_X[2*D1D*D1D];
       for (int q = 0; q < NQ; ++q)
       {
          for (int d = q; d < ND; d +=NQ)
@@ -1382,8 +1380,8 @@ void PAGeom2D(const int NE,
 }
 
 // *****************************************************************************
-template<const int ND1d,
-         const int NQ1d> static
+template<const int D1D,
+         const int Q1D> static
 void PAGeom3D(const int NE,
               const double* __restrict _G,
               const double* __restrict _X,
@@ -1392,8 +1390,8 @@ void PAGeom3D(const int NE,
               double* __restrict _invJ,
               double* __restrict _detJ)
 {
-   const int ND = ND1d*ND1d*ND1d;
-   const int NQ = NQ1d*NQ1d*NQ1d;
+   const int ND = D1D*D1D*D1D;
+   const int NQ = Q1D*Q1D*Q1D;
    const DeviceTensor<3> G(_G, 3,NQ,NE);
    const DeviceTensor<3> X(_X, 3,ND,NE);
    DeviceTensor<3> Xq(_Xq, 3,NQ,NE);
@@ -1402,7 +1400,7 @@ void PAGeom3D(const int NE,
    DeviceMatrix detJ(_detJ, NQ,NE);
    MFEM_FORALL(e,NE,
    {
-      double s_nodes[3*ND1d*ND1d*ND1d];
+      double s_nodes[3*D1D*D1D*D1D];
       for (int q = 0; q < NQ; ++q)
       {
          for (int d = q; d < ND; d += NQ)
@@ -1464,8 +1462,8 @@ typedef void (*fIniGeom)(const int ne,
 
 // *****************************************************************************
 static void PAGeom(const int dim,
-                   const int ND,
-                   const int NQ,
+                   const int D1D,
+                   const int Q1D,
                    const int NE,
                    const double* __restrict G,
                    const double* __restrict X,
@@ -1474,12 +1472,7 @@ static void PAGeom(const int dim,
                    double* __restrict invJ,
                    double* __restrict detJ)
 {
-   const int ND1d = IROOT(dim,ND);
-   const int NQ1d = IROOT(dim,NQ);
-   const int id = (dim<<8)|(ND1d)<<4|(NQ1d);
-   assert(LOG2(dim)<=4);
-   assert(LOG2(ND1d)<=4);
-   assert(LOG2(NQ1d)<=4);
+   const int id = (dim<<8)|(D1D)<<4|(Q1D);
    static std::unordered_map<int, fIniGeom> call =
    {
       // 2D
@@ -1487,9 +1480,11 @@ static void PAGeom(const int dim,
       {0x223,&PAGeom2D<2,3>},
       {0x224,&PAGeom2D<2,4>},
       {0x232,&PAGeom2D<3,2>},
-      {0x242,&PAGeom2D<4,2>},
-      {0x246,&PAGeom2D<4,6>},
       {0x234,&PAGeom2D<3,4>},
+      {0x242,&PAGeom2D<4,2>},
+      {0x244,&PAGeom2D<4,4>},
+      {0x245,&PAGeom2D<4,5>},
+      {0x246,&PAGeom2D<4,6>},
       {0x258,&PAGeom2D<5,8>},
       // 3D
       {0x323,&PAGeom3D<2,3>},
@@ -1497,8 +1492,8 @@ static void PAGeom(const int dim,
    };
    if (!call[id])
    {
-      printf("\n%s:%d\nUnknown kernel with dim=%d, ND1d=%d and NQ1d=%d",
-             __FILE__, __LINE__, dim, ND1d, NQ1d);
+      printf("\n%s:%d\nUnknown kernel with dim=%d, D1D=%d and Q1D=%d",
+             __FILE__, __LINE__, dim, D1D, Q1D);
       mfem_error("PA Geometry kernel not instanciated");
    }
    call[id](NE, G, X, Xq, J, invJ, detJ);
@@ -1513,14 +1508,17 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
+   const IntegrationRule& ir1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder());
    const int dims     = fe->GetDim();
    const int numDofs  = fe->GetDof();
+   const int D1D      = fe->GetOrder() + 1;
+   const int Q1D      = ir1D.GetNPoints();
    const int numQuad  = ir.GetNPoints();
    const int elements = fespace->GetNE();
    const int ndofs    = fespace->GetNDofs();
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->nodes);
-   PAGeom(dims, numDofs, numQuad, elements,
+   PAGeom(dims, D1D, Q1D, elements,
           maps->G, geom->nodes,
           geom->X, geom->J, geom->invJ, geom->detJ);
    return geom;
@@ -1538,9 +1536,12 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
    const mfem::FiniteElement *fe = fespace->GetFE(0);
+   const IntegrationRule& ir1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder());
    const int dims     = fe->GetDim();
    const int elements = fespace->GetNE();
    const int numDofs  = fe->GetDof();
+   const int D1D      = fe->GetOrder() + 1;
+   const int Q1D      = ir1D.GetNPoints();
    const int numQuad  = ir.GetNPoints();
    const bool orderedByNODES = (fespace->GetOrdering() == Ordering::byNODES);
    if (orderedByNODES) { ReorderByVDim(nodes); }
@@ -1574,7 +1575,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
       geom->detJ.SetSize(numQuad*elements);
    }
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
-   PAGeom(dims, numDofs, numQuad, elements,
+   PAGeom(dims, D1D, Q1D, elements,
           maps->G, geom->nodes,
           geom->X, geom->J, geom->invJ, geom->detJ);
    return geom;
