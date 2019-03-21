@@ -1927,6 +1927,8 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
             input >> numEntityBlocks >> NumOfVertices >> minNodeTag >> maxNodeTag;
          }
 
+         //cerr << "Nodes numEntityBlocks: " << numEntityBlocks << "NumOfVertices: " << NumOfVertices << "minNodeTag: " <<minNodeTag << "maxNodeTag: " << maxNodeTag << endl;
+
          vertices.SetSize(NumOfVertices);
 
          Array<unsigned long> nodeTags;
@@ -1977,8 +1979,10 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
                      input >> coord[ci];
                   }
                }
+               //cerr << "ver: " << ver ;
                vertices[ver] = Vertex(coord, dim3);
                serial_number = nodeTags[node];
+               //cerr << "serial_number: " << serial_number << " vertices: " << coord[0] << "," << coord[1] << "," << coord[2] << endl;
                vertices_map[serial_number] = ver;
                ver++;
             }
@@ -2005,6 +2009,7 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
          {
             input >> numEntityBlocks >> num_of_all_elements >> minElementTag >> maxElementTag;
          }
+         //cerr << "numEntityBlocks:" << numEntityBlocks << " num_of_all_elements:" << num_of_all_elements << " minElementTag:" << minElementTag << " maxElementTag:" << maxElementTag << endl;
          int entity;
          int dimEntity;
          int serial_number; // serial number of an element
@@ -2037,7 +2042,7 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
             {
                input >> dimEntity >> entity >> type_of_element >> numElements;
             }
-
+            //cerr << "element: dimEntity,entity,type_of_element,numElements " << dimEntity << "," << entity << "," << type_of_element << "," << numElements << endl;
             // load physical_domain tag depending on dim of entity
             switch(dimEntity)
             {
@@ -2081,7 +2086,7 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
                   MFEM_ABORT("Invalid dimension, Dim = " << dimEntity);
             }
             phys_domain=abs(phys_domain); // gmsh sometimes sets negative physical values
-            cerr << "phys_domain for this entity block: " << phys_domain << " dimEntity: " << dimEntity << endl;
+            //cerr << "phys_domain for this entity block: " << phys_domain << " dimEntity: " << dimEntity << endl;
             for (int ele= 0; ele < numElements; ++ele)
             {
                // number of nodes for each type of Gmsh elements, type is the index of
@@ -2091,7 +2096,7 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
                unsigned long nodeTag;
                if (binary)
                {
-                  input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
+                  input.read(reinterpret_cast<char*>(&serial_number), sizeof(unsigned long));
                }
                else // ASCII
                {
@@ -2107,6 +2112,7 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
                   {
                      input >> nodeTag;
                   }
+                  //cerr << "searching for vertex: " << nodeTag << endl;
                   map<int, int>::const_iterator it = vertices_map.find(nodeTag);
                   if (it == vertices_map.end())
                   {
