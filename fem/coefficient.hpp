@@ -180,7 +180,8 @@ public:
                        const IntegrationPoint &ip);
 };
 
-/// Coefficient defined by the boundary of a GridFunction. This coefficient is mesh dependent.
+/// Coefficient defined by the boundary of a GridFunction. This coefficient is
+/// mesh dependent.
 class GridFunctionBdrCoefficient : public Coefficient
 {
 private:
@@ -200,10 +201,10 @@ public:
                        const IntegrationPoint &ip);
 };
 
-/// Coefficient defined by the boundary traces of a GridFunction. This coefficient is mesh dependent.
+/// Coefficient defined by the boundary traces of a GridFunction. This
+/// coefficient is mesh dependent.
 /** The coefficient is defined on the boundary elements, but the values are
-    taken from the corresponding boundary faces of the given GridFunction.
-*/
+    taken from the corresponding boundary faces of the given GridFunction. */
 class GridFunctionBdrTraceCoefficient : public Coefficient
 {
 private:
