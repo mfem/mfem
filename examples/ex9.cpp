@@ -733,7 +733,8 @@ public:
       Array <int> bdrs, orientation;
       FaceElementTransformations *Trans;
       
-      bdrInt.SetSize(ne*nd, nd*node_info.numBdrs); // TODO just initialize if needed
+		// TODO just initialize if needed
+      bdrInt.SetSize(ne*nd, nd*node_info.numBdrs); bdrInt = 0.;
       fluctSub.SetSize(ne*node_info.numSubcells, node_info.numDofsSubcell);
       
       if (exec_mode == 0) // Initialization for transport mode.
@@ -766,7 +767,7 @@ public:
             {
                ComputeSubcellWeights(k, m);
             }
-         }
+         }cout << bdrInt.FNorm() << endl;
       }
    }
 
@@ -793,9 +794,7 @@ public:
    void ComputeFluxTerms(const int k, const int BdrID, VectorCoefficient &coef,
                          FaceElementTransformations *Trans)
    {
-      bdrInt = 0.;
-      
-      Mesh *mesh = fes->GetMesh();
+		Mesh *mesh = fes->GetMesh();
       
       int i, j, l, nd, row, dim = mesh->Dimension();
       double aux, vn = 0.;
@@ -865,6 +864,7 @@ public:
             }
          }
       }
+      //cout << bdrInt.FNorm() << endl;TODO
    }
    
    void ComputeSubcellWeights(const int k, const int m)
@@ -1415,7 +1415,7 @@ void FE_Evolution::LinearFluxLumping(const int k, const int nd,
          y(dofInd) += asmbl.bdrInt(dofInd, BdrID*nd+asmbl.node_info.BdrDofs(j,BdrID))
           * ( xDiff(i) + (xDiff(j)-xDiff(i)) * alpha(asmbl.node_info.BdrDofs(i,BdrID))
                                          * alpha(asmbl.node_info.BdrDofs(j,BdrID)) );
-// cout << asmbl.bdrInt(dofInd,BdrID*nd+asmbl.node_info.BdrDofs(j,BdrID)) << endl; // TODO
+//  cout << asmbl.bdrInt(dofInd,BdrID*nd+asmbl.node_info.BdrDofs(j,BdrID)) << endl; // TODO
       }
    }
 }
@@ -1469,6 +1469,11 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
              alpha(nd); alpha = 0.;
       Array <int> bdrs, orientation;
       FaceElementTransformations *Trans;
+		
+		if (exec_mode > 0)
+      {
+			asmbl.bdrInt = 0.;
+		}
             
       // Discretization terms
       y = b;
@@ -1488,29 +1493,32 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ////////////////////////////
          if (dim > 1)// Nothing needs to be done for 1D boundaries.
          {
-            if (dim==1)
-            {
-               mesh->GetElementVertices(k, bdrs);
-            }
-            else if (dim==2)
-            {
-               mesh->GetElementEdges(k, bdrs, orientation);
-            }
-            else if (dim==3)
-            {
-               mesh->GetElementFaces(k, bdrs, orientation);
-            }
+				if (exec_mode > 0)
+				{
+					if (dim==1)
+					{
+						mesh->GetElementVertices(k, bdrs);
+					}
+					else if (dim==2)
+					{
+						mesh->GetElementEdges(k, bdrs, orientation);
+					}
+					else if (dim==3)
+					{
+						mesh->GetElementFaces(k, bdrs, orientation);
+					}
+				}
             
             for (i = 0; i < asmbl.node_info.numBdrs; i++)
             {
-               Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-               
                if (exec_mode == 1)
                {
+						Trans = mesh->GetFaceElementTransformations(bdrs[i]);
                   asmbl.ComputeFluxTerms(k, i, coef, Trans);
                }
-               else //if (exec_mode == 2) // TODO bug
+               else if (exec_mode == 2)
                {
+						Trans = mesh->GetFaceElementTransformations(bdrs[i]);
                   asmbl.ComputeFluxTerms(k, i, asmbl.velocity, Trans);
                }
                LinearFluxLumping(k, nd, i, x, y, alpha);
