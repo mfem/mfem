@@ -27,6 +27,7 @@ double prodFunc(double a, double b) { return a * b; }
 
 CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      CPDSolver::SolverType sol, SolverOptions & sOpts,
+                     CPDSolver::PrecondType prec,
                      ComplexOperator::Convention conv,
                      MatrixCoefficient & epsReCoef,
                      MatrixCoefficient & epsImCoef,
@@ -47,6 +48,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      logging_(1),
      sol_(sol),
      solOpts_(sOpts),
+     prec_(prec),
      conv_(conv),
      ownsEtaInv_(etaInvCoef == NULL),
      omega_(omega),
@@ -556,10 +558,81 @@ CPDSolver::Solve()
    // pcg.SetPreconditioner(ams);
    minres.Mult(RHS, E);
    */
+   Operator * pcr = NULL;
+   Operator * pci = NULL;
+   BlockDiagonalPreconditioner * BDP = NULL;
+
+   if (sol_ == FGMRES || sol_ == MINRES)
+   {
+      switch (prec_)
+      {
+         case INVALID_PC:
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "No Preconditioner Requested" << endl;
+            }
+            break;
+         case DIAG_SCALE:
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "Diagonal Scaling Preconditioner Requested" << endl;
+            }
+            pcr = new HypreDiagScale(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
+            break;
+         case PARASAILS:
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "ParaSails Preconditioner Requested" << endl;
+            }
+            pcr = new HypreParaSails(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
+	    dynamic_cast<HypreParaSails*>(pcr)->SetSymmetry(1);
+            break;
+         case EUCLID:
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "Euclid Preconditioner Requested" << endl;
+            }
+            pcr = new HypreEuclid(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
+            break;
+         case AMS:
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "AMS Preconditioner Requested" << endl;
+            }
+            pcr = new HypreAMS(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
+                               HCurlFESpace_);
+            break;
+         default:
+            MFEM_ABORT("Requested preconditioner is not available.");
+            break;
+      }
+      if (pcr && conv_ != ComplexOperator::HERMITIAN)
+      {
+         pci = new ScaledOperator(pcr, -1.0);
+      }
+      else
+      {
+         pci = pcr;
+      }
+
+      if (pcr)
+      {
+         BDP = new BlockDiagonalPreconditioner(blockTrueOffsets_);
+         BDP->SetDiagonalBlock(0, pcr);
+         BDP->SetDiagonalBlock(1, pci);
+         BDP->owns_blocks = 0;
+      }
+   }
+
+
    switch (sol_)
    {
       case GMRES:
       {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "GMRES Solver Requested" << endl;
+         }
          GMRESSolver gmres(HCurlFESpace_->GetComm());
          gmres.SetOperator(*A1.Ptr());
          gmres.SetRelTol(solOpts_.relTol);
@@ -572,21 +645,23 @@ CPDSolver::Solve()
       break;
       case FGMRES:
       {
-         // HypreParMatrix * B1 = b1_->ParallelAssemble();
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "FGMRES Solver Requested" << endl;
+         }
+         /*
+          HypreAMS amsr(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
+                             HCurlFESpace_);
+               ScaledOperator amsi(&amsr,
+                                   (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0);
 
-         // HypreAMS ams(*B1, HCurlFESpace_);
-         HypreAMS amsr(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
-                       HCurlFESpace_);
-         ScaledOperator amsi(&amsr,
-                             (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0);
-
-         BlockDiagonalPreconditioner BDP(blockTrueOffsets_);
-         BDP.SetDiagonalBlock(0,&amsr);
-         BDP.SetDiagonalBlock(1,&amsi);
-         BDP.owns_blocks = 0;
-
+               BlockDiagonalPreconditioner BDP(blockTrueOffsets_);
+               BDP.SetDiagonalBlock(0,&amsr);
+               BDP.SetDiagonalBlock(1,&amsi);
+               BDP.owns_blocks = 0;
+         */
          FGMRESSolver fgmres(HCurlFESpace_->GetComm());
-         fgmres.SetPreconditioner(BDP);
+         if (BDP) { fgmres.SetPreconditioner(*BDP); }
          fgmres.SetOperator(*A1.Ptr());
          fgmres.SetRelTol(solOpts_.relTol);
          fgmres.SetMaxIter(solOpts_.maxIter);
@@ -600,7 +675,12 @@ CPDSolver::Solve()
       break;
       case MINRES:
       {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "MINRES Solver Requested" << endl;
+         }
          MINRESSolver minres(HCurlFESpace_->GetComm());
+         if (BDP) { minres.SetPreconditioner(*BDP); }
          minres.SetOperator(*A1.Ptr());
          minres.SetRelTol(solOpts_.relTol);
          minres.SetMaxIter(solOpts_.maxIter);
@@ -612,6 +692,10 @@ CPDSolver::Solve()
 #ifdef MFEM_USE_SUPERLU
       case SUPERLU:
       {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "SuperLU Solver Requested" << endl;
+         }
          ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
          HypreParMatrix * A1C = A1Z->GetSystemMatrix();
          SuperLURowLocMatrix A_SuperLU(*A1C);
@@ -626,6 +710,10 @@ CPDSolver::Solve()
 #ifdef MFEM_USE_STRUMPACK
       case STRUMPACK:
       {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "STRUMPACK Solver Requested" << endl;
+         }
          //A1.SetOperatorOwner(false);
          ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
          HypreParMatrix * A1C = A1Z->GetSystemMatrix();
@@ -650,6 +738,10 @@ CPDSolver::Solve()
    };
 
    e_->Distribute(E);
+
+   delete BDP;
+   if (pci != pcr) { delete pci; }
+   delete pcr;
 
    // delete A1;
    // delete A1C;

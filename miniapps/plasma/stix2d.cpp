@@ -192,6 +192,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int maxit = 100;
    int sol = 2;
+   int prec = 1;
    // int nspecies = 2;
    bool herm_conv = false;
    bool visualization = true;
@@ -255,8 +256,18 @@ int main(int argc, char *argv[])
                   "(in units of electron charge)");
    args.AddOption(&masses, "-m", "--masses",
                   "Masses of the various species (in amu)");
+   args.AddOption(&prec, "-pc", "--precond",
+                  "Preconditioner: 1 - Diagonal Scaling, 2 - ParaSails, "
+                  "3 - Euclid, 4 - AMS");
    args.AddOption(&sol, "-s", "--solver",
-                  "Solver: 1 - GMRES, 2 - FGMRES w/AMS");
+                  "Solver: 1 - GMRES, 2 - FGMRES, 3 - MINRES"
+#ifdef MFEM_USE_SUPERLU
+                  ", 4 - SuperLU"
+#endif
+#ifdef MFEM_USE_STRUMPACK
+                  ", 5 - STRUMPACK"
+#endif
+                 );
    args.AddOption(&solOpts.maxIter, "-sol-it", "--solver-iterations",
                   "Maximum number of solver iterations.");
    args.AddOption(&solOpts.kDim, "-sol-k-dim", "--solver-krylov-dimension",
@@ -607,7 +618,9 @@ int main(int argc, char *argv[])
    }
 
    // Create the Magnetostatic solver
-   CPDSolver CPD(pmesh, order, omega, (CPDSolver::SolverType)sol, solOpts,
+   CPDSolver CPD(pmesh, order, omega,
+                 (CPDSolver::SolverType)sol, solOpts,
+                 (CPDSolver::PrecondType)prec,
                  conv, epsilon_real, epsilon_imag, muInvCoef, etaInvCoef,
                  (phase_shift) ? &kCoef : NULL,
                  abcs, dbcs,

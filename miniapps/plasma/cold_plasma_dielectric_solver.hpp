@@ -47,18 +47,28 @@ class CPDSolver
 {
 public:
 
+   enum PrecondType
+   {
+      INVALID_PC  = -1,
+      DIAG_SCALE  =  1,
+      PARASAILS   =  2,
+      EUCLID      =  3,
+      AMS         =  4
+   };
+
    enum SolverType
    {
-      INVALID   = -1,
-      GMRES     =  1,
-      FGMRES    =  2,
-      MINRES    =  3,
-      SUPERLU   =  4,
-      STRUMPACK =  5
+      INVALID_SOL = -1,
+      GMRES       =  1,
+      FGMRES      =  2,
+      MINRES      =  3,
+      SUPERLU     =  4,
+      STRUMPACK   =  5
    };
 
    CPDSolver(ParMesh & pmesh, int order, double omega,
              CPDSolver::SolverType s, SolverOptions & sOpts,
+             CPDSolver::PrecondType p,
              ComplexOperator::Convention conv,
              MatrixCoefficient & epsReCoef,
              MatrixCoefficient & espImCoef,
@@ -108,6 +118,7 @@ private:
 
    SolverType sol_;
    SolverOptions & solOpts_;
+   PrecondType prec_;
 
    ComplexOperator::Convention conv_;
 
