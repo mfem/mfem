@@ -229,27 +229,27 @@ public:
       
       GetVertexBoundsMap(); // Fill map_for_bounds.
 
-      // No dof information is required here.
-      if ( (monoType == None) || ( ((monoType == DiscUpw) || 
-           (monoType == DiscUpw_FCT)) && (!OptScheme) ) ) { return; }
-
-      // Obtain boundary dof information.
-      else
-      {
+//       // No dof information is required here.
+//       if ( (monoType == None) || ( ((monoType == DiscUpw) || 
+//            (monoType == DiscUpw_FCT)) && (!OptScheme) ) ) { return; } TODO rm probably
+// 
+//       // Obtain boundary dof information.
+//       else
+//       {
          NbrDof.SetSize(ne*numDofs, numBdrs);
          FillNeighborDofs();
-      }
+//       }
       
       // Obtain subcell dof information.
-      if (((monoType == ResDist) || (monoType == ResDist_FCT)) && OptScheme)
-      {
-         if ((p==1) && OptScheme)
-         {
-            mfem_error("For this scheme, use -opt 0 for linear elements.");
-         }
+//       if (((monoType == ResDist) || (monoType == ResDist_FCT)) && OptScheme)
+//       {
+//          if ((p==1) && OptScheme) // TODO mv into main
+//          {
+//             mfem_error("For this scheme, use -opt 0 for linear elements.");
+//          }
 
          FillSubcell2CellDof();
-      }
+//       }
    }
 
    // Computes the admissible intercal of values for each dof from the min and
@@ -732,7 +732,7 @@ public:
       
       Array <int> bdrs, orientation;
       FaceElementTransformations *Trans;
-      
+
 		// TODO just initialize if needed
       bdrInt.SetSize(ne*nd, nd*node_info.numBdrs); bdrInt = 0.;
       fluctSub.SetSize(ne*node_info.numSubcells, node_info.numDofsSubcell);
@@ -741,27 +741,24 @@ public:
       {
          for (k = 0; k < ne; k++)
          {
-            if (dim > 1)// Nothing needs to be done for 1D boundaries. // TODO
-            {
-               if (dim==1)
-               {
-                  mesh->GetElementVertices(k, bdrs);
-               }
-               else if (dim==2)
-               {
-                  mesh->GetElementEdges(k, bdrs, orientation);
-               }
-               else if (dim==3)
-               {
-                  mesh->GetElementFaces(k, bdrs, orientation);
-               }
-               
-               for (i = 0; i < node_info.numBdrs; i++)
-               {
-                  Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-                  ComputeFluxTerms(k, i, velocity, Trans);
-               }
-            }
+				if (dim==1)
+				{
+					mesh->GetElementVertices(k, bdrs);
+				}
+				else if (dim==2)
+				{
+					mesh->GetElementEdges(k, bdrs, orientation);
+				}
+				else if (dim==3)
+				{
+					mesh->GetElementFaces(k, bdrs, orientation);
+				}
+				
+				for (i = 0; i < node_info.numBdrs; i++)
+				{
+					Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+					ComputeFluxTerms(k, i, velocity, Trans);
+				}
             
             for (m = 0; m < node_info.numSubcells; m++)
             {
@@ -812,6 +809,7 @@ public:
          
          if (dim == 1)
          {
+				Trans->Loc1.Transform(ip, eip1);
             nor(0) = 2.*eip1.x - 1.0;
          }
          else
@@ -860,18 +858,16 @@ public:
             for (j = 0; j < node_info.numDofs; j++)
             {
                bdrInt(row,BdrID*nd+node_info.BdrDofs(j,BdrID)) -= aux
-                                    * shape(node_info.BdrDofs(j,BdrID));
+                                    * shape(node_info.BdrDofs(j,BdrID)); // TODO unused entries?, better indexing
             }
          }
       }
-      //cout << bdrInt.FNorm() << endl;TODO
    }
    
    void ComputeSubcellWeights(const int k, const int m)
    {
       Vector row;
       DenseMatrix elmat; // These are essentially the same.
-      
       int dofInd = node_info.numSubcells*k+m;
       const FiniteElement *el0 = SubFes0.GetFE(dofInd);
       const FiniteElement *el1 = SubFes1.GetFE(dofInd);
@@ -1449,11 +1445,11 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       y = b;
       K.Mult(x, z); // this is just element terms now!
 
-      if (dim==1)
-      {
-         K.AddMult(x, y);
-         y -= z;
-      }
+//       if (dim==1) TODO rm
+//       {
+//          K.AddMult(x, y);
+//          y -= z;
+//       }
 
       // Monotonicity terms
       for (k = 0; k < ne; k++)
@@ -1461,8 +1457,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ////////////////////////////
          // Boundary contributions //
          ////////////////////////////
-         if (dim > 1)// Nothing needs to be done for 1D boundaries.
-         {
 				if (exec_mode > 0)
 				{
 					if (dim==1)
@@ -1493,7 +1487,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
                }
                LinearFluxLumping(k, nd, i, x, y, alpha);
             }
-         }
          
          ///////////////////////////
          // Element contributions //
@@ -1624,21 +1617,21 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 void FE_Evolution::ComputeHighOrderSolution(const Vector &x, Vector &y) const
 {
    const FiniteElement &dummy = *fes->GetFE(0);
-   
    int i, k, nd = dummy.GetDof(), ne = fes->GetNE();
    Vector alpha(nd); alpha = 1.;
    
    K.Mult(x, z);
+	z += b;
+
+   // The boundary contributions have been computed in the low order scheme.
    for (k = 0; k < ne; k++)
    {
-      // The boundary contributions have been computed in the low order scheme.
       for (i = 0; i < asmbl.node_info.numBdrs; i++)
       {
          LinearFluxLumping(k, nd, i, x, z, alpha);
       }
    }
    
-   z += b;
    NeumannSolve(z, y);
 }
 
