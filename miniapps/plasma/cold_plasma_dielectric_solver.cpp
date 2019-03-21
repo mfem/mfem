@@ -598,6 +598,17 @@ CPDSolver::Solve()
          // delete B1;
       }
       break;
+      case MINRES:
+      {
+         MINRESSolver minres(HCurlFESpace_->GetComm());
+         minres.SetOperator(*A1.Ptr());
+         minres.SetRelTol(solOpts_.relTol);
+         minres.SetMaxIter(solOpts_.maxIter);
+         minres.SetPrintLevel(solOpts_.printLvl);
+
+         minres.Mult(RHS, E);
+      }
+      break;
 #ifdef MFEM_USE_SUPERLU
       case SUPERLU:
       {

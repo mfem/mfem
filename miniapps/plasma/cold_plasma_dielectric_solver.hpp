@@ -36,10 +36,10 @@ namespace plasma
 // Solver options
 struct SolverOptions
 {
-  int maxIter;
-  int kDim;
-  int printLvl;
-  double relTol;
+   int maxIter;
+   int kDim;
+   int printLvl;
+   double relTol;
 };
 
 /// Cold Plasma Dielectric Solver
@@ -108,7 +108,7 @@ private:
 
    SolverType sol_;
    SolverOptions & solOpts_;
-  
+
    ComplexOperator::Convention conv_;
 
    bool ownsEtaInv_;
