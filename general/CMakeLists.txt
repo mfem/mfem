@@ -19,7 +19,6 @@ list(APPEND SRCS
   isockstream.cpp
   mm.cpp
   occa.cpp
-  okina.cpp
   optparser.cpp
   osockstream.cpp
   sets.cpp
@@ -44,6 +43,7 @@ list(APPEND HDRS
   mm.hpp
   occa.hpp
   okina.hpp
+  openmp.hpp
   optparser.hpp
   osockstream.hpp
   raja.hpp

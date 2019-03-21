@@ -58,7 +58,7 @@ static const void* InsertAlias(mm::ledger &maps,
 {
    mm::memory &mem = maps.memories.at(base);
    const long offset = static_cast<const char*>(ptr) -
-      static_cast<const char*> (base);
+                       static_cast<const char*> (base);
    const mm::alias *alias = new mm::alias{&mem, offset};
    maps.aliases.emplace(ptr, alias);
 #ifdef MFEM_DEBUG_MM
@@ -68,7 +68,8 @@ static const void* InsertAlias(mm::ledger &maps,
       {
          if (a->mem == &mem )
          {
-            if (a->offset == offset){
+            if (a->offset == offset)
+            {
                mfem_error("a->offset == offset");
             }
          }
@@ -189,19 +190,19 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    const bool gpu = config::UsingDevice();
    if (host && !gpu) { return ptr; }
    if (bytes==0) { mfem_error("PtrKnown bytes==0"); }
-   if (!base.d_ptr) { cuMemAlloc(&base.d_ptr, bytes); }
+   if (!base.d_ptr) { CuMemAlloc(&base.d_ptr, bytes); }
    if (!base.d_ptr) { mfem_error("PtrKnown !base->d_ptr"); }
    if (device &&  gpu) { return base.d_ptr; }
    if (!ptr) { mfem_error("PtrKnown !ptr"); }
    if (device && !gpu) // Pull
    {
-      mfem::cuMemcpyDtoH(ptr, base.d_ptr, bytes);
+      CuMemcpyDtoH(ptr, base.d_ptr, bytes);
       base.host = true;
       return ptr;
    }
    // Push
    if (!(host && gpu)) { mfem_error("PtrKnown !(host && gpu)"); }
-   cuMemcpyHtoD(base.d_ptr, ptr, bytes);
+   CuMemcpyHtoD(base.d_ptr, ptr, bytes);
    base.host = false;
    return base.d_ptr;
 }
@@ -222,20 +223,20 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
    const size_t bytes = base->bytes;
    if (host && !gpu) { return ptr; }
    if (bytes==0) { mfem_error("PtrAlias bytes==0"); }
-   if (!base->d_ptr) { cuMemAlloc(&(alias->mem->d_ptr), bytes); }
+   if (!base->d_ptr) { CuMemAlloc(&(alias->mem->d_ptr), bytes); }
    if (!base->d_ptr) { mfem_error("PtrAlias !base->d_ptr"); }
    void *a_ptr = static_cast<char*>(base->d_ptr) + alias->offset;
    if (device && gpu) { return a_ptr; }
    if (!base->h_ptr) { mfem_error("PtrAlias !base->h_ptr"); }
    if (device && !gpu) // Pull
    {
-      mfem::cuMemcpyDtoH(base->h_ptr, base->d_ptr, bytes);
+      CuMemcpyDtoH(base->h_ptr, base->d_ptr, bytes);
       alias->mem->host = true;
       return ptr;
    }
    // Push
    if (!(host && gpu)) { mfem_error("PtrAlias !(host && gpu)"); }
-   mfem::cuMemcpyHtoD(base->d_ptr, base->h_ptr, bytes);
+   CuMemcpyHtoD(base->d_ptr, base->h_ptr, bytes);
    alias->mem->host = false;
    return a_ptr;
 }
@@ -265,8 +266,8 @@ const void *mm::Ptr(const void *ptr)
 static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
 {
    mm::memory &base = maps.memories.at(ptr);
-   if (!base.d_ptr) { cuMemAlloc(&base.d_ptr, base.bytes); }
-   mfem::cuMemcpyHtoD(base.d_ptr, ptr, bytes == 0 ? base.bytes : bytes);
+   if (!base.d_ptr) { CuMemAlloc(&base.d_ptr, base.bytes); }
+   CuMemcpyHtoD(base.d_ptr, ptr, bytes == 0 ? base.bytes : bytes);
 }
 
 // *****************************************************************************
@@ -275,7 +276,7 @@ static void PushAlias(const mm::ledger &maps, const void *ptr,
 {
    const mm::alias *alias = maps.aliases.at(ptr);
    void *dst = static_cast<char*>(alias->mem->d_ptr) + alias->offset;
-   mfem::cuMemcpyHtoD(dst, ptr, bytes);
+   CuMemcpyHtoD(dst, ptr, bytes);
 }
 
 // *****************************************************************************
@@ -297,7 +298,7 @@ static void PullKnown(const mm::ledger &maps, const void *ptr,
    if (host) { return; }
    assert(base.h_ptr);
    assert(base.d_ptr);
-   mfem::cuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes == 0 ? base.bytes : bytes);
+   CuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes == 0 ? base.bytes : bytes);
 }
 
 // *****************************************************************************
@@ -309,9 +310,9 @@ static void PullAlias(const mm::ledger &maps, const void *ptr,
    if (host) { return; }
    if (!ptr) { mfem_error("PullAlias !ptr"); }
    if (!alias->mem->d_ptr) { mfem_error("PullAlias !alias->mem->d_ptr"); }
-   mfem::cuMemcpyDtoH(const_cast<void*>(ptr),
-                      static_cast<char*>(alias->mem->d_ptr) + alias->offset,
-                      bytes);
+   CuMemcpyDtoH(const_cast<void*>(ptr),
+                static_cast<char*>(alias->mem->d_ptr) + alias->offset,
+                bytes);
 }
 
 // *****************************************************************************
@@ -332,14 +333,14 @@ void* mm::memcpy(void *dst, const void *src, const size_t bytes,
    void *d_dst = mm::ptr(dst);
    const void *d_src = mm::ptr(src);
    const bool host = config::UsingHost();
-   if (bytes == 0) return dst;
+   if (bytes == 0) { return dst; }
    if (host) { return std::memcpy(dst, src, bytes); }
    if (!async)
    {
-      return mfem::cuMemcpyDtoD(d_dst, const_cast<void*>(d_src), bytes);
+      return CuMemcpyDtoD(d_dst, const_cast<void*>(d_src), bytes);
    }
-   return mfem::cuMemcpyDtoDAsync(d_dst, const_cast<void*>(d_src),
-                                  bytes, config::Stream());
+   return CuMemcpyDtoDAsync(d_dst, const_cast<void*>(d_src),
+                            bytes, config::Stream());
 }
 
 // *****************************************************************************
@@ -348,7 +349,7 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
    OccaDevice occaDevice = config::GetOccaDevice();
    if (!config::UsingMM())
    {
-      OccaMemory o_ptr = occaWrapMemory(occaDevice, const_cast<void*>(ptr), 0);
+      OccaMemory o_ptr = OccaWrapMemory(occaDevice, const_cast<void*>(ptr), 0);
       return o_ptr;
    }
    const bool known = mm::known(ptr);
@@ -362,20 +363,20 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
       base.host = false; // This address is no more on the host
       if (gpu)
       {
-         cuMemAlloc(&base.d_ptr, bytes);
+         CuMemAlloc(&base.d_ptr, bytes);
          void *stream = config::Stream();
-         cuMemcpyHtoDAsync(base.d_ptr, base.h_ptr, bytes, stream);
+         CuMemcpyHtoDAsync(base.d_ptr, base.h_ptr, bytes, stream);
       }
       else
       {
-         base.o_ptr = occaDeviceMalloc(occaDevice, bytes);
-         base.d_ptr = occaMemoryPtr(base.o_ptr);
-         occaCopyFrom(base.o_ptr, base.h_ptr);
+         base.o_ptr = OccaDeviceMalloc(occaDevice, bytes);
+         base.d_ptr = OccaMemoryPtr(base.o_ptr);
+         OccaCopyFrom(base.o_ptr, base.h_ptr);
       }
    }
    if (gpu)
    {
-      return occaWrapMemory(occaDevice, base.d_ptr, bytes);
+      return OccaWrapMemory(occaDevice, base.d_ptr, bytes);
    }
    return base.o_ptr;
 }
