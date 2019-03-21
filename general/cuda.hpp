@@ -51,7 +51,7 @@ typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
 template <int BLOCKS, typename DBODY>
-void cuWrap(const int N, DBODY &&d_body) {}
+void CuWrap(const int N, DBODY &&d_body) {}
 #endif // __NVCC__
 
 #if defined(__CUDA_ARCH__)
