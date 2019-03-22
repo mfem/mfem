@@ -17,7 +17,9 @@
 namespace mfem
 {
 
-// *****************************************************************************
+// Simple vector and tensor classes for dense linear algebra on the device.
+
+/// Simple vector of size 3, appropriate for use on the GPU
 class DeviceVector3
 {
 private:
@@ -25,26 +27,16 @@ private:
 public:
    DeviceVector3() {}
    DeviceVector3(const double *r)
-   {
-      data[0]=r[0];
-      data[1]=r[1];
-      data[2]=r[2];
-   }
+   { data[0] = r[0]; data[1] = r[1]; data[2] = r[2]; }
    DeviceVector3(const double r0, const double r1, const double r2)
-   {
-      data[0]=r0;
-      data[1]=r1;
-      data[2]=r2;
-   }
+   { data[0] = r0; data[1] = r1; data[2] = r2; }
    ~DeviceVector3() {}
    inline operator double* () { return data; }
    inline operator const double* () const { return data; }
    inline double& operator[](const size_t x) { return data[x]; }
 };
 
-/** ****************************************************************************
-* A Class to compute the real indice from the multi-indice of a tensor
-*/
+/// A Class to compute the real index from the multi-indices of a tensor
 template <int N, int Dim, typename T, typename... Args>
 class TensorInd
 {
@@ -58,7 +50,7 @@ public:
                                                                               args...);
    }
 };
-//Terminal case
+// Terminal case
 template <int Dim, typename T, typename... Args>
 class TensorInd<Dim, Dim, T, Args...>
 {
@@ -72,9 +64,7 @@ public:
    }
 };
 
-/** ****************************************************************************
-* A class to initialize the size of a Tensor
-*/
+/// A class to initialize the size of a Tensor
 template <int N, int Dim, typename T, typename... Args>
 class Init
 {
@@ -85,7 +75,7 @@ public:
       return first * Init < N + 1, Dim, Args... >::result(sizes, args...);
    }
 };
-//Terminal case
+// Terminal case
 template <int Dim, typename T, typename... Args>
 class Init<Dim, Dim, T, Args...>
 {
@@ -97,29 +87,22 @@ public:
    }
 };
 
-/** ****************************************************************************
-*  A basic generic Tensor class
-*/
+/// A basic generic Tensor class, appropriate for use on the GPU
 template<int Dim, typename Scalar = double>
 class DeviceTensor
 {
+
 protected:
    int capacity;
    Scalar *data;
    int sizes[Dim];
-public:
-   /**
-   *  A default constructor
-   */
-   explicit DeviceTensor()
-      : capacity(0), data(NULL)
-   {
-      mfem_error("No default constructor.");
-   }
 
-   /**
-   *  A constructor to initialize a tensor from the Scalar array _data
-   */
+public:
+   /// Default constructor
+   explicit DeviceTensor() : capacity(0), data(NULL)
+   { mfem_error("No default constructor."); }
+
+   /// Constructor to initialize a tensor from the Scalar array _data
    template <typename... Args>
    DeviceTensor(Scalar* _data, Args... args)
    {
@@ -130,25 +113,19 @@ public:
       data = capacity>0?(Scalar*)mfem::mm::ptr(_data):nullptr;
    }
 
-   /**
-   *  A constructor to initialize a tensor from the Scalar array _data
-   */
+   /// Constructor to initialize a tensor from the Scalar array _data
    DeviceTensor(const Scalar* _data)
    {
       data = (Scalar*)mfem::mm::ptr(_data);
    }
 
-   /**
-   *  A constructor to initialize a tensor from the Scalar array _data
-   */
+   /// Constructor to initialize a tensor from the Scalar array _data
    DeviceTensor(Scalar* _data)
    {
       data = (Scalar*)mfem::mm::ptr(_data);
    }
 
-   /**
-   *  A constructor to initialize a tensor from the const Scalar array _data
-   */
+   /// Constructor to initialize a tensor from the const Scalar array _data
    template <typename... Args>
    DeviceTensor(const Scalar* _data, Args... args)
    {
@@ -159,9 +136,7 @@ public:
       data = (capacity>0)?const_cast<Scalar*>((Scalar*)mfem::mm::ptr(_data)):nullptr;
    }
 
-   /**
-   *  A copy constructor
-   */
+   /// Copy constructor
    DeviceTensor(const DeviceTensor& t)
    {
       for (int i = 0; i < Dim; ++i)
@@ -177,26 +152,20 @@ public:
    /// Conversion to `const double *`.
    inline operator const Scalar *() const { return data; }
 
-   /**
-   *  Returns the size of the i-th dimension #UNSAFE#
-   */
+   /// Returns the size of the i-th dimension #UNSAFE#
    int size(int i) const
    {
       return sizes[i];
    }
 
-   /**
-   *  A copy assignment operator (do not resize DeviceTensors)
-   */
+   /// Copy assignment operator (do not resize DeviceTensors)
    DeviceTensor& operator=(const DeviceTensor& t)
    {
       mfem_error("No assignment operator.");
       return *this;
    }
 
-   /**
-   *  A const accessor for the data
-   */
+   /// Const accessor for the data
    template <typename... Args> MFEM_HOST_DEVICE
    const Scalar& operator()(Args... args) const
    {
@@ -204,9 +173,7 @@ public:
       return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
    }
 
-   /**
-   *  A reference accessor to the data
-   */
+   /// Reference accessor to the data
    template <typename... Args> MFEM_HOST_DEVICE
    Scalar& operator()(Args... args)
    {
@@ -224,9 +191,8 @@ public:
       return data[i];
    }
 
-   /**
-   *  Returns the length of the DeviceTensor (number of values, may be different from capacity)
-   */
+   /// Returns the length of the DeviceTensor (number of values, may be
+   /// different from capacity).
    int length() const
    {
       int res = 1;
@@ -237,18 +203,14 @@ public:
       return res;
    }
 
-   /**
-   *  Returns the dimension of the tensor.
-   */
+   /// Returns the dimension of the tensor.
    int dimension() const
    {
       return Dim;
    }
 
-   /**
-   *  Returns the Scalar array data (Really unsafe and ugly method)
-   *  Mostly exists to remap DeviceTensors, so could be avoided by using more constructors...
-   */
+   /// Returns the Scalar array data (really unsafe). Mostly exists to remap
+   /// DeviceTensors, so could be avoided by using more constructors...
    Scalar* getData()
    {
       return data;
