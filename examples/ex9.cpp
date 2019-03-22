@@ -41,8 +41,6 @@ double cy = 1.0;
 double omega = 2*M_PI;
 double tfinal = 1.2;
 
-#define OKINA
-#undef OKINA
 
 // Choice for the problem setup. The fluid velocity, initial condition and
 // inflow boundary condition are chosen based on this parameter.
@@ -98,6 +96,7 @@ int main(int argc, char *argv[])
    int order = 2;
    int ode_solver_type = 4;
    double t_final = tfinal;
+   bool cuda = false;
 
    double dt = 0.001;
    int NSteps = std::ceil(t_final/dt);
@@ -138,6 +137,8 @@ int main(int argc, char *argv[])
                   "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -285,17 +286,17 @@ int main(int argc, char *argv[])
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    FE_Evolution adv(m.SpMat(), k.SpMat(), b);
-
    double t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
 
    //8.5 Set up GPU
-#if defined(OKINA)
-   config::useCuda();
-   config::enableGpu(0);
-   config::SwitchToGpu();
-#endif
+   if (cuda)
+   {
+      config::useCuda();
+      config::enableGpu(0);
+      config::SwitchToGpu();
+   }
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -303,7 +304,6 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
       ode_solver->Step(u, t, dt_real);
       ti++;
-
       done = (t >= t_final - 1e-8*dt);
 
       if (done || ti % vis_steps == 0)
@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
          }
       }
    }
-
+   printf("\nu*u: %.15e",u*u); // 1.295863911563154e+03
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
@@ -334,10 +334,11 @@ int main(int argc, char *argv[])
    }
 
    // 9.5 Compute L2 error
-#if defined(OKINA)
-   u.Pull();
-   config::SwitchToCpu(); //do not do cumputations on the gpu...
-#endif
+   if (cuda)
+   {
+      u.Pull();
+      config::SwitchToCpu(); //do not do cumputations on the gpu...
+   }
    cout<<"\nL2 norm of error: " << u.ComputeL2Error(gf) << endl;
    cout<<"\ndx: "<<mesh->GetElementSize(0)<<endl;
 
@@ -368,9 +369,13 @@ FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b)
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
+   printf("\n\tx*x: %.15e",x*x);
    K.Mult(x, z);
    z += b;
+   config::SwitchToCpu(); 
    M_solver.Mult(z, y);
+   config::SwitchToGpu();
+   printf("\n\ty*y: %.15e",y*y);
 }
 
 
