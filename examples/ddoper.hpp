@@ -451,50 +451,6 @@ public:
     globalInterfaceIndex.resize(numLocalInterfaces);
     globalInterfaceIndex.assign(numLocalInterfaces, -1);
     
-    block_trueOffsets.SetSize(numSubdomains + 1); // number of blocks + 1
-    block_trueOffsets = 0;
-
-    int size = 0;
-
-    tdofsBdry.resize(numSubdomains);
-    trueOffsetsSD.SetSize(numSubdomains);
- 
-    // For each subdomain parallel finite element space, determine all the true DOF's on the entire boundary. Also for each interface parallel finite element space, determine the number of true DOF's. Note that a true DOF on the boundary of a subdomain may coincide with an interface DOF that is not necessarily a true DOF on the corresponding interface mesh. The size of DDMInterfaceOperator will be the sum of the numbers of true DOF's on the subdomain mesh boundaries and interfaces. 
-    
-    for (int m=0; m<numSubdomains; ++m)
-      {
-	if (pmeshSD[m] == NULL)
-	  {
-	    fespace[m] = NULL;
-	    Asd[m] = NULL;
-	    invAsd[m] = NULL;
-	    precAsd[m] = NULL;
-	  }
-	else
-	  {
-	    fespace[m] = new ParFiniteElementSpace(pmeshSD[m], &fec);  // Nedelec space for u_m
-	    
-	    FindBoundaryTrueDOFs(fespace[m], tdofsBdry[m]);  // Determine all true DOF's of fespace[m] on the boundary of pmeshSD[m], representing u_m^s.
-	    size += tdofsBdry[m].size();
-	    block_trueOffsets[m+1] += tdofsBdry[m].size();
-
-	    CreateSubdomainMatrices(m);
-	    Asd[m] = CreateSubdomainOperator(m);
-
-	    precAsd[m] = CreateSubdomainPreconditionerStrumpack(m);
-	    GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
-
-	    gmres->SetOperator(*(Asd[m]));
-	    gmres->SetRelTol(1e-12);
-	    gmres->SetMaxIter(1000);
-	    gmres->SetPrintLevel(1);
-
-	    gmres->SetPreconditioner(*(precAsd[m]));
-
-	    invAsd[m] = gmres;
-	  }
-      }
-
     for (int i=0; i<numInterfaces; ++i)
       {
 	if (pmeshIF[i] == NULL)
@@ -530,6 +486,13 @@ public:
 	  }
       }
     
+    // For each subdomain parallel finite element space, determine all the true DOF's on the entire boundary. Also for each interface parallel finite element space, determine the number of true DOF's. Note that a true DOF on the boundary of a subdomain may coincide with an interface DOF that is not necessarily a true DOF on the corresponding interface mesh. The size of DDMInterfaceOperator will be the sum of the numbers of true DOF's on the subdomain mesh boundaries and interfaces.
+    
+    block_trueOffsets.SetSize(numSubdomains + 1); // number of blocks + 1
+    block_trueOffsets = 0;
+
+    int size = 0;
+
     InterfaceToSurfaceInjection.resize(numSubdomains);
     InterfaceToSurfaceInjectionData.resize(numSubdomains);
     
@@ -537,6 +500,15 @@ public:
       {
 	InterfaceToSurfaceInjection[m].resize(subdomainLocalInterfaces[m].size());
 	InterfaceToSurfaceInjectionData[m].resize(subdomainLocalInterfaces[m].size());
+
+	if (pmeshSD[m] == NULL)
+	  {
+	    fespace[m] = NULL;
+	  }
+	else
+	  {
+	    fespace[m] = new ParFiniteElementSpace(pmeshSD[m], &fec);  // Nedelec space for u_m
+	  }
 	
 	for (int i=0; i<subdomainLocalInterfaces[m].size(); ++i)
 	  {
@@ -559,6 +531,49 @@ public:
 	  }
       }
 
+    tdofsBdry.resize(numSubdomains);
+    trueOffsetsSD.resize(numSubdomains);
+
+    tdofsBdryInjection = new SetInjectionOperator*[numSubdomains];
+    tdofsBdryInjectionTranspose = new Operator*[numSubdomains];
+    
+    for (int m=0; m<numSubdomains; ++m)
+      {
+	if (pmeshSD[m] == NULL)
+	  {
+	    Asd[m] = NULL;
+	    invAsd[m] = NULL;
+	    precAsd[m] = NULL;
+	    tdofsBdryInjection[m] = NULL;
+	    tdofsBdryInjectionTranspose[m] = NULL;
+	  }
+	else
+	  {
+	    FindBoundaryTrueDOFs(fespace[m], tdofsBdry[m]);  // Determine all true DOF's of fespace[m] on the boundary of pmeshSD[m], representing u_m^s.
+	    size += tdofsBdry[m].size();
+	    block_trueOffsets[m+1] += tdofsBdry[m].size();
+
+	    tdofsBdryInjection[m] = new SetInjectionOperator(fespace[m]->GetTrueVSize(), &(tdofsBdry[m]));
+	    tdofsBdryInjectionTranspose[m] = new TransposeOperator(tdofsBdryInjection[m]);
+	    
+	    CreateSubdomainMatrices(m);
+	    Asd[m] = CreateSubdomainOperator(m);
+
+	    precAsd[m] = CreateSubdomainPreconditionerStrumpack(m);
+
+	    GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
+
+	    gmres->SetOperator(*(Asd[m]));
+	    gmres->SetRelTol(1e-12);
+	    gmres->SetMaxIter(1000);
+	    gmres->SetPrintLevel(1);
+
+	    gmres->SetPreconditioner(*(precAsd[m]));
+
+	    invAsd[m] = gmres;
+	  }
+      }
+
     height = size;
     width = size;
 
@@ -567,21 +582,21 @@ public:
 
     BlockOperator *globalInterfaceOp = new BlockOperator(block_trueOffsets);
 
-    rowTrueOffsetsIF.SetSize(numLocalInterfaces);
-    colTrueOffsetsIF.SetSize(numLocalInterfaces);
+    rowTrueOffsetsIF.resize(numLocalInterfaces);
+    colTrueOffsetsIF.resize(numLocalInterfaces);
   
-    rowTrueOffsetsIFR.SetSize(numLocalInterfaces);
-    colTrueOffsetsIFR.SetSize(numLocalInterfaces);
+    rowTrueOffsetsIFR.resize(numLocalInterfaces);
+    colTrueOffsetsIFR.resize(numLocalInterfaces);
 
-    rowTrueOffsetsIFL.SetSize(numLocalInterfaces);
-    colTrueOffsetsIFL.SetSize(numLocalInterfaces);
+    rowTrueOffsetsIFL.resize(numLocalInterfaces);
+    colTrueOffsetsIFL.resize(numLocalInterfaces);
     
-    rowTrueOffsetsIFBR.SetSize(numLocalInterfaces);
-    colTrueOffsetsIFBR.SetSize(numLocalInterfaces);
+    rowTrueOffsetsIFBR.resize(numLocalInterfaces);
+    colTrueOffsetsIFBR.resize(numLocalInterfaces);
 
-    rowTrueOffsetsIFBL.SetSize(numLocalInterfaces);
-    colTrueOffsetsIFBL.SetSize(numLocalInterfaces);
-    
+    rowTrueOffsetsIFBL.resize(numLocalInterfaces);
+    colTrueOffsetsIFBL.resize(numLocalInterfaces);
+
     for (int ili=0; ili<numLocalInterfaces; ++ili)
       {
 	const int sd0 = (*localInterfaces)[ili].FirstSubdomain();
@@ -590,7 +605,6 @@ public:
 	MFEM_VERIFY(sd0 < sd1, "");
 
 	// Create operators for interface between subdomains sd0 and sd1, namely C_{sd0,sd1} R_{sd1}^T and the other.
-
 	globalInterfaceOp->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
 	globalInterfaceOp->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
       }
@@ -598,10 +612,8 @@ public:
     // Create block diagonal operator with entries R_{sd0} A_{sd0}^{-1} R_{sd0}^T
     BlockOperator *globalSubdomainOp = new BlockOperator(block_trueOffsets);
 
-    rowTrueOffsetsSD.SetSize(numSubdomains);
-    colTrueOffsetsSD.SetSize(numSubdomains);
-
-    tdofsBdryInjection = new SetInjectionOperator*[numSubdomains];
+    rowTrueOffsetsSD.resize(numSubdomains);
+    colTrueOffsetsSD.resize(numSubdomains);
     
     for (int m=0; m<numSubdomains; ++m)
       {
@@ -635,7 +647,6 @@ public:
 	    colTrueOffsetsSD[m].PartialSum();
     
 	    BlockOperator *inj = new BlockOperator(rowTrueOffsetsSD[m], colTrueOffsetsSD[m]);
-	    tdofsBdryInjection[m] = new SetInjectionOperator(fespace[m]->GetTrueVSize(), &(tdofsBdry[m]));
 	    
 	    inj->SetBlock(0, 0, tdofsBdryInjection[m]);
 	    inj->SetBlock(1, 1, new IdentityOperator(ifsize));
@@ -703,19 +714,20 @@ private:
 
   vector<set<int> > tdofsBdry;
   SetInjectionOperator **tdofsBdryInjection;
+  Operator **tdofsBdryInjectionTranspose;
   
   double alpha, beta, gamma;
   
   std::vector<std::vector<InjectionOperator*> > InterfaceToSurfaceInjection;
   std::vector<std::vector<std::vector<int> > > InterfaceToSurfaceInjectionData;
 
-  Array<Array<int> > rowTrueOffsetsSD, colTrueOffsetsSD;
-  Array<Array<int> > rowTrueOffsetsIF, colTrueOffsetsIF;
-  Array<Array<int> > rowTrueOffsetsIFL, colTrueOffsetsIFL;
-  Array<Array<int> > rowTrueOffsetsIFR, colTrueOffsetsIFR;
-  Array<Array<int> > rowTrueOffsetsIFBL, colTrueOffsetsIFBL;
-  Array<Array<int> > rowTrueOffsetsIFBR, colTrueOffsetsIFBR;
-  Array<Array<int> > trueOffsetsSD;
+  std::vector<Array<int> > rowTrueOffsetsSD, colTrueOffsetsSD;
+  std::vector<Array<int> > rowTrueOffsetsIF, colTrueOffsetsIF;
+  std::vector<Array<int> > rowTrueOffsetsIFL, colTrueOffsetsIFL;
+  std::vector<Array<int> > rowTrueOffsetsIFR, colTrueOffsetsIFR;
+  std::vector<Array<int> > rowTrueOffsetsIFBL, colTrueOffsetsIFBL;
+  std::vector<Array<int> > rowTrueOffsetsIFBR, colTrueOffsetsIFBR;
+  std::vector<Array<int> > trueOffsetsSD;
   
   // TODO: if the number of subdomains gets large, it may be better to define a local block operator only for local subdomains.
 
@@ -936,6 +948,7 @@ private:
     sd1osComp -= ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
 
     Operator *Cij = CreateCij(localInterfaceIndex, orientation);
+
     // Cij is in the local interface space only, mapping from (u^s, f_i, \rho_i) space to (u^s, f_i) space.
 
     // Compose Cij on the left and right with injection operators between the subdomain surfaces and the interface.
@@ -960,7 +973,8 @@ private:
     
     BlockOperator *rightInjection = new BlockOperator(rowTrueOffsetsIFR[localInterfaceIndex], colTrueOffsetsIFR[localInterfaceIndex]);
 
-    rightInjection->SetBlock(0, 0, new TransposeOperator(InterfaceToSurfaceInjection[sd1][sd1if]));
+    rightInjection->SetBlock(0, 0, new ProductOperator(new TransposeOperator(InterfaceToSurfaceInjection[sd1][sd1if]),
+						       tdofsBdryInjection[sd1], false, false));
     rightInjection->SetBlock(1, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize()));
 
     // Create left injection operator for sd0.
@@ -969,20 +983,21 @@ private:
     colTrueOffsetsIFL[localInterfaceIndex].SetSize(numBlocks + 1);  // Number of blocks + 1
 
     rowTrueOffsetsIFL[localInterfaceIndex] = 0;
-    rowTrueOffsetsIFL[localInterfaceIndex][1] = ifespace[interfaceIndex]->GetTrueVSize();
-    rowTrueOffsetsIFL[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
+    rowTrueOffsetsIFL[localInterfaceIndex][1] = tdofsBdry[sd0].size();
+    rowTrueOffsetsIFL[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize(); // + iH1fespace[interfaceIndex]->GetTrueVSize();
+    //rowTrueOffsetsIFL[localInterfaceIndex][3] = iH1fespace[interfaceIndex]->GetTrueVSize();
     
     rowTrueOffsetsIFL[localInterfaceIndex].PartialSum();
     
     colTrueOffsetsIFL[localInterfaceIndex] = 0;
-    colTrueOffsetsIFL[localInterfaceIndex][1] = tdofsBdry[sd0].size();
-    colTrueOffsetsIFL[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
+    colTrueOffsetsIFL[localInterfaceIndex][1] = ifespace[interfaceIndex]->GetTrueVSize();
+    colTrueOffsetsIFL[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize(); // + iH1fespace[interfaceIndex]->GetTrueVSize();
     
     colTrueOffsetsIFL[localInterfaceIndex].PartialSum();
     
     BlockOperator *leftInjection = new BlockOperator(rowTrueOffsetsIFL[localInterfaceIndex], colTrueOffsetsIFL[localInterfaceIndex]);
 
-    leftInjection->SetBlock(0, 0, InterfaceToSurfaceInjection[sd0][sd0if]);
+    leftInjection->SetBlock(0, 0, new ProductOperator(tdofsBdryInjectionTranspose[sd0], InterfaceToSurfaceInjection[sd0][sd0if], false, false));
     leftInjection->SetBlock(1, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()));
 
     TripleProductOperator *CijS = new TripleProductOperator(leftInjection, Cij, rightInjection, false, false, false);
@@ -1152,7 +1167,7 @@ private:
 
 	op->SetDiagonalBlock((2*i) + 2, A_rr_solver);
       }
-    
+
     return op;
   }
   
@@ -1162,6 +1177,8 @@ private:
   {
     const int numBlocks = (2*subdomainLocalInterfaces[subdomain].size()) + 1;  // 1 for the subdomain, 2 for each interface (f_{mn} and \rho_{mn}).
     trueOffsetsSD[subdomain].SetSize(numBlocks + 1);  // Number of blocks + 1
+    //for (int i=0; i<numBlocks + 1; ++i)
+    //trueOffsetsSD[subdomain][i] = 0;
 
     trueOffsetsSD[subdomain] = 0;
     trueOffsetsSD[subdomain][1] = fespace[subdomain]->GetTrueVSize();
@@ -1178,9 +1195,8 @@ private:
       }
     
     trueOffsetsSD[subdomain].PartialSum();
-    
-    BlockOperator *op = new BlockOperator(trueOffsetsSD[subdomain]);
 
+    BlockOperator *op = new BlockOperator(trueOffsetsSD[subdomain]);
     op->SetBlock(0, 0, sdND[subdomain]);
 
     for (int i=0; i<subdomainLocalInterfaces[subdomain].size(); ++i)
