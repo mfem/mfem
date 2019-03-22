@@ -118,18 +118,19 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
 
-   // 5. Set MFEM config parameters from the command line options
-   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   int elem_batch = (pa) ? pmesh.GetNE() : 1;
+   // 7. Set MFEM config parameters from the command line options
    if (cuda) { config::UseCuda(); }
    if (omp)  { config::UseOmp();  }
    if (raja) { config::UseRaja(); }
    if (occa) { config::UseOcca(); }
-   config::EnableDevice(0);
 
-   // 7. As in Example 1p, we set up bilinear and linear forms corresponding to
+   config::EnableDevice();
+
+   // 8. As in Example 1p, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
+   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+   int elem_batch = (pa) ? pmesh.GetNE() : 1;
    ParBilinearForm a(&fespace, assembly, elem_batch);
    ParLinearForm b(&fespace);
 
@@ -139,12 +140,12 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(integ);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
 
-   // 8. The solution vector x and the associated finite element grid function
+   // 9. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
    ParGridFunction x(&fespace);
    x = 0;
 
-   // 9. Connect to GLVis.
+   // 10. Connect to GLVis.
    char vishost[] = "localhost";
    int  visport   = 19916;
 
@@ -166,7 +167,7 @@ int main(int argc, char *argv[])
       sout.precision(8);
    }
 
-   // 10. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
+   // 11. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
    //     with L2 projection in the smoothing step to better handle hanging
    //     nodes and parallel partitioning. We need to supply a space for the
    //     discontinuous flux (L2) and a space for the smoothed flux (H(div) is
@@ -180,14 +181,14 @@ int main(int argc, char *argv[])
    // ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec, dim);
    L2ZienkiewiczZhuEstimator estimator(*integ, x, flux_fes, smooth_flux_fes);
 
-   // 11. A refiner selects and refines elements based on a refinement strategy.
+   // 12. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.7);
 
-   // 12. The main AMR loop. In each iteration we solve the problem on the
+   // 13. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
    const int max_dofs = 100000;
    for (int it = 0; ; it++)
@@ -199,47 +200,35 @@ int main(int argc, char *argv[])
          cout << "Number of unknowns: " << global_dofs << endl;
       }
 
-      // 13. Assemble the right-hand side.
-      b.Assemble();
-
-      // 14. Eliminate boundary conditions, constrain hanging nodes and
-      //     nodes across processor boundaries.
+      // 14. Assemble the right-hand side and determine the list of true
+      //     (i.e. parallel conforming) essential boundary dofs.
       Array<int> ess_tdof_list;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      b.Assemble();
 
-      // 15. Assemble the stiffness matrix. Note that MFEM doesn't care
-      //     at this point that the mesh is nonconforming and parallel.
-      //     The FE space is considered 'cut' along hanging edges/faces,
-      //     and also across processor boundaries.
+      // 15. Switch back to the device and assemble the stiffness matrix. Note
+      //     that MFEM doesn't care at this point that the mesh is nonconforming
+      //     and parallel.  The FE space is considered 'cut' along hanging
+      //     edges/faces, and also across processor boundaries.
       config::SwitchToDevice();
       a.Assemble();
 
       // 16. Create the parallel linear system: eliminate boundary conditions.
       //     The system will be solved for true (unconstrained/unique) DOFs only.
+      Vector B, X;
       Operator *A;
       if (!pa) { A = new HypreParMatrix(); }
-      Vector B, X;
+
       const int copy_interior = 1;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
 
-      // 17. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
-      //     preconditioner from hypre.
-      if (pa)
+      // 17. Solve the linear system A X = B.
+      if (!pa)
       {
-         CGSolver cg(MPI_COMM_WORLD);
-         cg.SetRelTol(1e-12);
-         cg.SetMaxIter(2000);
-         cg.SetPrintLevel(3);
-         cg.SetOperator(*A);
-         cg.Mult(B, X);
-      }
-      else
-      {
+         // Parallel PCG solver with the BoomerAMG preconditioner from hypre.
          HypreParMatrix &H = *static_cast<HypreParMatrix*>(A);
          HypreBoomerAMG amg;
-#ifndef MFEM_USE_CUDA
          amg.SetPrintLevel(0);
-#endif
          CGSolver pcg(H.GetComm());
          pcg.SetPreconditioner(amg);
          pcg.SetOperator(H);
@@ -248,9 +237,20 @@ int main(int argc, char *argv[])
          pcg.SetPrintLevel(3); // print the first and the last iterations only
          pcg.Mult(B, X);
       }
+      else
+      {
+         // No preconditioning for now in partial assembly mode.
+         CGSolver cg(MPI_COMM_WORLD);
+         cg.SetRelTol(1e-12);
+         cg.SetMaxIter(2000);
+         cg.SetPrintLevel(3);
+         cg.SetOperator(*A);
+         cg.Mult(B, X);
+      }
 
-      // 18. Extract the parallel grid function corresponding to the finite element
-      //     approximation X. This is the local solution on each processor.
+      // 18. Switch back to the host and extract the parallel grid function
+      //     corresponding to the finite element approximation X. This is the
+      //     local solution on each processor.
       config::SwitchToHost();
       a.RecoverFEMSolution(X, b, x);
 
