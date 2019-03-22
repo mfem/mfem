@@ -13,18 +13,27 @@ Version 3.4.1 (development)
 
 GPU support
 -----------
+- Added initial support for hardware devices, such as GPUs, and programming
+  models, such as CUDA, OCCA, RAJA and OpenMP.
 
-- Added initial GPU support on MFEM's new okina dynamic kernel interface and a
-  lightweight host/device memory manager (mm).
+- The GPU/device support is based on MFEM's new "okina" kernel device interface
+  that supports various backends with dynamic execution, and MFEM's new
+  lightweight host/device memory manager "mm", designed to work seamlesly with
+  these device kernels. See the mm.hpp and okina.hpp files in the general/
+  directory.
 
-- Several MFEM examples can now take advantage of GPU acceleration...
+- Several of the MFEM example codes (ex1, ex1p, ex6, ex6p) can now take
+  advantage of GPU acceleration with backend selectable at runtime, see the
+  Device::Configure method in general/device.hpp.
 
-- The GPU support is based on a simple memory manager and kernel definition
-  + execution policy, see mm.?pp and okina.hpp in the general/ directory.
+- Many of the linear algebra and finite element operations (e.g. partially
+  assembled bilinear forms) have been extended to take advantage of the device
+  kernels by simply replacing loops with the MFEM_FORALL() macro.
 
-- OCCA kernels are supported
-
-- ...
+- In addition to pure CUDA, we support OCCA, RAJA and OpenMP kernels, which
+  could be mixed and matched in different parts of the same application. Adding
+  support for additional programming models and devices should be easy without
+  modifying the user code.
 
 Support for wedge elements and meshes with mixed element types
 --------------------------------------------------------------
@@ -106,6 +115,8 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
+- MFEM now builds with C++11 enabled.
+
 - Added unit tests based on the Catch++ library.
 
 - Altered the way FGMRES counts its iterations so that it matches GMRES.
