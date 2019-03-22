@@ -127,15 +127,24 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   elem_restrict->Mult(x, localX);
-   localY = 0.0;
-   const int iSz = integrators.Size();
-   assert(iSz == 1);
-   for (int i = 0; i < iSz; ++i)
+   if (config::UsingCeed())
    {
-      integrators[i]->MultAssembled(localX, localY);
+      const int iSz = integrators.Size();
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->MultAssembled(const_cast<Vector&>(x), y);
+      }
+   } else {
+      elem_restrict->Mult(x, localX);
+      localY = 0.0;
+      const int iSz = integrators.Size();
+      assert(iSz == 1);
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->MultAssembled(localX, localY);
+      }
+      elem_restrict->MultTranspose(localY, y);
    }
-   elem_restrict->MultTranspose(localY, y);
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const

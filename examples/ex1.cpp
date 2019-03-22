@@ -52,14 +52,14 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int order = 3;
+   int order = 1;
    bool static_cond = false;
    bool pa = false;
    bool cuda = false;
    bool omp  = false;
    bool raja = false;
    bool occa = false;
-   const char *ceed_spec = NULL;
+   const char *ceed_spec = "disabled";
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
    if (omp)  { config::UseOmp();  }
    if (raja) { config::UseRaja(); }
    if (occa) { config::UseOcca(); }
-   if (ceed_spec) { config::UseCeed(ceed_spec); }
+   if (strcmp(ceed_spec,"disabled")!=0) { config::UseCeed(ceed_spec); }
    config::EnableDevice();
    config::SwitchToDevice();
 
