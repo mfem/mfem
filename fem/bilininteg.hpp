@@ -1648,6 +1648,8 @@ private:
    // PA extension
    DofToQuad *maps;
    int dim, ne, dofs1D, quad1D;
+   // Ceed
+   void* ceedDataPtr;
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator() { Q = NULL; MQ = NULL; maps=NULL;}

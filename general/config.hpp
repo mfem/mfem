@@ -33,10 +33,12 @@ private:
    bool omp = false;
    bool sync = false;
    bool nvvp = false;
+   bool ceed = false;
    CUdevice cuDevice;
    CUstream *cuStream;
    CUcontext cuContext;
    OccaDevice occaDevice;
+   Ceed ceedObj;
 
 private:
    // **************************************************************************
@@ -97,6 +99,14 @@ public:
    static inline void UseOcca() { Get().occa = true; }
    static inline OccaDevice GetOccaDevice() { return Get().occaDevice; }
 
+   static inline bool UsingCeed() {return Get().ceed; }
+   static inline void UseCeed(const char *ceed_spec) {
+      Get().ceed = true; 
+      CeedInit(ceed_spec, &Get().ceedObj);
+   }
+   static inline Ceed GetCeed() {
+      return Get().ceedObj;
+   }
    // **************************************************************************
    ~config();
 
