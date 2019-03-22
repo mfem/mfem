@@ -11,11 +11,9 @@
 
 #include "okina.hpp"
 
-// *****************************************************************************
 namespace mfem
 {
 
-// *****************************************************************************
 OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx)
 {
 #if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
@@ -25,7 +23,6 @@ OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx)
 #endif
 }
 
-// *****************************************************************************
 OccaMemory OccaDeviceMalloc(OccaDevice device, const size_t bytes)
 {
 #ifdef MFEM_USE_OCCA
@@ -35,9 +32,7 @@ OccaMemory OccaDeviceMalloc(OccaDevice device, const size_t bytes)
 #endif
 }
 
-// *****************************************************************************
-OccaMemory OccaWrapMemory(const OccaDevice device,
-                          void *d_adrs,
+OccaMemory OccaWrapMemory(const OccaDevice device, void *d_adrs,
                           const size_t bytes)
 {
    // OCCA + MFEM_USE_CUDA will use CUDA
@@ -52,7 +47,6 @@ OccaMemory OccaWrapMemory(const OccaDevice device,
 #endif
 }
 
-// *****************************************************************************
 void *OccaMemoryPtr(OccaMemory o_adrs)
 {
 #ifdef MFEM_USE_OCCA
@@ -62,7 +56,6 @@ void *OccaMemoryPtr(OccaMemory o_adrs)
 #endif
 }
 
-// *****************************************************************************
 void OccaCopyFrom(OccaMemory o_adrs, const void *h_adrs)
 {
 #ifdef MFEM_USE_OCCA
@@ -70,7 +63,6 @@ void OccaCopyFrom(OccaMemory o_adrs, const void *h_adrs)
 #endif
 }
 
-// *****************************************************************************
 void OccaCopyTo(OccaMemory o_adrs, void *h_adrs)
 {
 #ifdef MFEM_USE_OCCA
@@ -78,5 +70,4 @@ void OccaCopyTo(OccaMemory o_adrs, void *h_adrs)
 #endif
 }
 
-// *****************************************************************************
 } // namespace mfem

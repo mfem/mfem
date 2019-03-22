@@ -13,6 +13,10 @@ Version 3.4.1 (development)
 
 GPU support
 -----------
+
+- Added initial GPU support on MFEM's new okina dynamic kernel interface and a
+  lightweight host/device memory manager (mm).
+
 - Several MFEM examples can now take advantage of GPU acceleration...
 
 - The GPU support is based on a simple memory manager and kernel definition

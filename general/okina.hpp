@@ -12,32 +12,117 @@
 #ifndef MFEM_OKINA_HPP
 #define MFEM_OKINA_HPP
 
-// *****************************************************************************
 #include "../config/config.hpp"
 #include "../general/error.hpp"
 
-// *****************************************************************************
 #include <cmath>
 #include <cassert>
 #include <cstring>
 #include <iostream>
 
-// *****************************************************************************
-#include "./cuda.hpp"
-#include "./occa.hpp"
-#include "./raja.hpp"
-#include "./openmp.hpp"
-
-// *****************************************************************************
-#include "./mm.hpp"
-#include "./config.hpp"
+#include "cuda.hpp"
+#include "occa.hpp"
+#include "mm.hpp"
+#include "config.hpp"
 
 namespace mfem
 {
 
-// *****************************************************************************
-// * Kernel body wrapper
-// *****************************************************************************
+// This file contains the implementation of MFEM's okina kernel interface (open
+// kernel interface for numerical analysis") and some of the available backends.
+
+#ifndef MFEM_USE_CUDA
+#define MFEM_HOST_DEVICE
+#else
+#define MFEM_HOST_DEVICE __host__ __device__
+#endif
+
+#define FILE_LINE __FILE__ && __LINE__
+#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::UsingDevice());}
+
+
+/// The MFEM_FORALL wrapper
+#define MFEM_BLOCKS 256
+#define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
+#define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
+   OkinaWrap<BLOCKS>(N,                                                 \
+                     [=] __device__ (int i) mutable {__VA_ARGS__},      \
+                     [&]            (int i) {__VA_ARGS__})
+
+
+/// OpenMP backend
+template <typename HBODY>
+void OmpWrap(const int N, HBODY &&h_body)
+{
+#if defined(_OPENMP)
+   #pragma omp parallel for
+   for (int k=0; k<N; k+=1)
+   {
+      h_body(k);
+   }
+#else
+   MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
+#endif
+}
+
+/// RAJA Cuda backend
+template <int BLOCKS, typename DBODY>
+void RajaCudaWrap(const int N, DBODY &&d_body)
+{
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
+   RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N),d_body);
+#else
+   MFEM_ABORT("RAJA::Cuda requested but RAJA::Cuda is not enabled!");
+#endif
+}
+
+/// RAJA OpenMP backend
+template <typename HBODY>
+void RajaOmpWrap(const int N, HBODY &&h_body)
+{
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
+   RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(0,N), h_body);
+#else
+   MFEM_ABORT("RAJA::OpenMP requested but RAJA::OpenMP is not enabled!");
+#endif
+}
+
+/// RAJA sequential loop backend
+template <typename HBODY>
+void RajaSeqWrap(const int N, HBODY &&h_body)
+{
+#ifdef MFEM_USE_RAJA
+   RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
+#else
+   MFEM_ABORT("RAJA requested but RAJA is not enabled!");
+#endif
+}
+
+/// CUDA backend
+#ifdef MFEM_USE_CUDA
+template <typename BODY> __global__ static
+void CuKernel(const int N, BODY body)
+{
+   const int k = blockDim.x*blockIdx.x + threadIdx.x;
+   if (k >= N) { return; }
+   body(k);
+}
+template <int BLOCKS, typename DBODY>
+void CuWrap(const int N, DBODY &&d_body)
+{
+   if (N==0) { return; }
+   const int GRID = (N+BLOCKS-1)/BLOCKS;
+   CuKernel<<<GRID,BLOCKS>>>(N,d_body);
+   const cudaError_t last = cudaGetLastError();
+   MFEM_ASSERT(last == cudaSuccess, cudaGetErrorString(last));
+}
+#else
+template <int BLOCKS, typename DBODY>
+void CuWrap(const int N, DBODY &&d_body) {}
+#endif
+
+
+/// The okina kernel body wrapper
 template <int BLOCKS, typename DBODY, typename HBODY>
 void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {
@@ -51,27 +136,6 @@ void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
    if (omp)         { return OmpWrap(N, h_body);  }
    for (int k=0; k<N; k+=1) { h_body(k); }
 }
-
-// *****************************************************************************
-// * MFEM_FORALL wrapper
-// *****************************************************************************
-#define MFEM_BLOCKS 256
-#define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
-#define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
-   OkinaWrap<BLOCKS>(N,                                                 \
-                     [=] __device__ (int i) mutable {__VA_ARGS__},      \
-                     [&]            (int i) {__VA_ARGS__})
-
-// *****************************************************************************
-#ifndef MFEM_USE_CUDA
-#define MFEM_HOST_DEVICE
-#else
-#define MFEM_HOST_DEVICE __host__ __device__
-#endif
-
-// *****************************************************************************
-#define FILE_LINE __FILE__ && __LINE__
-#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::UsingDevice());}
 
 } // namespace mfem
 
