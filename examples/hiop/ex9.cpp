@@ -7,17 +7,24 @@
 //    ex9 -m ../../data/periodic-segment.mesh -r 3 -p 0 -o 2 -dt 0.002 -opt 1
 //    ex9 -m ../../data/periodic-segment.mesh -r 3 -p 0 -o 2 -dt 0.002 -opt 2
 //
-//    ex9 -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
-//    ex9 -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
-//    ex9 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
-//    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
-//    ex9 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    ex9 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
-//    ex9 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
-//    ex9 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
-//    ex9 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
+//    ex9 -m ../../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10 -opt 1
+//
+//    ex9 -m ../../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9 -opt 1
+//
+//    ex9 -m ../../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9 -opt 1
+//    ex9 -m ../../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9 -opt 2
+//
+//    ex9 -m ../../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9 -opt 1
+//    ex9 -m ../../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9 -opt 2
+//
+//    ex9 -m ../../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9 -opt 1
+//    ex9 -m ../../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9 -opt 2
+//
+//    ex9 -m ../../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -opt 1
+//    ex9 -m ../../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -opt 2
+//
+//    ex9 -m ../../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8 -opt 1
+
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -433,6 +440,7 @@ int main(int argc, char *argv[])
    const double vol = M_rowsums * u;
    std::cout << "Vol  error = " << vol - vol0 << endl;
 
+   /*
    // Compute and print symmetry error (re-run with the opposite velocity).
    invert_velocity = true;
    k.BilinearForm::operator=(0.0);
@@ -455,6 +463,7 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient u_inv_coeff(&u_inv);
    const double symm_error = u.ComputeMaxError(u_inv_coeff) / 2.0;
    std::cout << "Symm error = " << symm_error << std::endl;
+   */
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
