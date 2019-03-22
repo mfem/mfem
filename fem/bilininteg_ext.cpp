@@ -51,10 +51,10 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 #ifdef MFEM_USE_OCCA
 static void OccaPADiffusionAssemble2D(const int Q1D,
                                       const int NE,
-                                      const double* __restrict W,
-                                      const double* __restrict J,
+                                      const double* W,
+                                      const double* J,
                                       const double COEFF,
-                                      double* __restrict oper)
+                                      double* oper)
 {
    const int NUM_QUAD_2D = Q1D*Q1D;
 
@@ -74,10 +74,10 @@ static void OccaPADiffusionAssemble2D(const int Q1D,
 // PA Diffusion Assemble 2D kernel
 static void PADiffusionAssemble2D(const int Q1D,
                                   const int NE,
-                                  const double* __restrict w,
-                                  const double* __restrict j,
+                                  const double* w,
+                                  const double* j,
                                   const double COEFF,
-                                  double* __restrict op)
+                                  double* op)
 {
    const int NQ = Q1D*Q1D;
    const DeviceVector W(w, NQ);
@@ -102,10 +102,10 @@ static void PADiffusionAssemble2D(const int Q1D,
 // PA Diffusion Assemble 3D kernel
 static void PADiffusionAssemble3D(const int Q1D,
                                   const int NE,
-                                  const double* __restrict w,
-                                  const double* __restrict j,
+                                  const double* w,
+                                  const double* j,
                                   const double COEFF,
-                                  double* __restrict op)
+                                  double* op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    const DeviceVector W(w, NQ);
@@ -153,10 +153,10 @@ static void PADiffusionAssemble3D(const int Q1D,
 static void PADiffusionAssemble(const int dim,
                                 const int Q1D,
                                 const int NE,
-                                const double* __restrict W,
-                                const double* __restrict J,
+                                const double* W,
+                                const double* J,
                                 const double COEFF,
-                                double* __restrict oper)
+                                double* oper)
 {
    if (dim==1) { assert(false); }
    if (dim==2)
@@ -202,13 +202,13 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 static void OccaPADiffusionMultAdd2D(const int ND1d,
                                      const int Q1D,
                                      const int NE,
-                                     const double* __restrict B,
-                                     const double* __restrict G,
-                                     const double* __restrict Bt,
-                                     const double* __restrict Gt,
-                                     const double* __restrict oper,
-                                     const double* __restrict solIn,
-                                     double* __restrict solOut)
+                                     const double* B,
+                                     const double* G,
+                                     const double* Bt,
+                                     const double* Gt,
+                                     const double* oper,
+                                     const double* solIn,
+                                     double* solOut)
 {
    const int NUM_QUAD_2D = Q1D*Q1D;
 
@@ -254,13 +254,13 @@ static void OccaPADiffusionMultAdd2D(const int ND1d,
 template<const int ND1d,
          const int Q1D> static
 void PADiffusionMultAssembled2D(const int NE,
-                                const double* __restrict b,
-                                const double* __restrict g,
-                                const double* __restrict bt,
-                                const double* __restrict gt,
-                                const double* __restrict _op,
-                                const double* __restrict _x,
-                                double* __restrict _y)
+                                const double* b,
+                                const double* g,
+                                const double* bt,
+                                const double* gt,
+                                const double* _op,
+                                const double* _x,
+                                double* _y)
 {
    const int NQ = Q1D*Q1D;
    const DeviceMatrix B(b,Q1D,ND1d);
@@ -364,13 +364,13 @@ void PADiffusionMultAssembled2D(const int NE,
 template<const int ND1d,
          const int Q1D> static
 void PADiffusionMultAssembled3D(const int NE,
-                                const double* __restrict b,
-                                const double* __restrict g,
-                                const double* __restrict bt,
-                                const double* __restrict gt,
-                                const double* __restrict _op,
-                                const double* __restrict _x,
-                                double* __restrict _y)
+                                const double* b,
+                                const double* g,
+                                const double* bt,
+                                const double* gt,
+                                const double* _op,
+                                const double* _x,
+                                double* _y)
 {
    const int NQ = Q1D*Q1D*Q1D;
    const DeviceMatrix B(b,Q1D,ND1d);
@@ -543,25 +543,25 @@ void PADiffusionMultAssembled3D(const int NE,
 }
 
 typedef void (*fDiffusionMultAdd)(const int NE,
-                                  const double* __restrict B,
-                                  const double* __restrict G,
-                                  const double* __restrict Bt,
-                                  const double* __restrict Gt,
-                                  const double* __restrict oper,
-                                  const double* __restrict solIn,
-                                  double* __restrict solOut);
+                                  const double* B,
+                                  const double* G,
+                                  const double* Bt,
+                                  const double* Gt,
+                                  const double* oper,
+                                  const double* solIn,
+                                  double* solOut);
 
 static void PADiffusionMultAssembled(const int dim,
                                      const int D1D,
                                      const int Q1D,
                                      const int NE,
-                                     const double* __restrict B,
-                                     const double* __restrict G,
-                                     const double* __restrict Bt,
-                                     const double* __restrict Gt,
-                                     const double* __restrict op,
-                                     const double* __restrict x,
-                                     double* __restrict y)
+                                     const double* B,
+                                     const double* G,
+                                     const double* Bt,
+                                     const double* Gt,
+                                     const double* op,
+                                     const double* x,
+                                     double* y)
 {
 #ifdef MFEM_USE_OCCA
    if (Device::usingOcca())
@@ -706,11 +706,11 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 template<const int D1D,
          const int Q1D> static
 void PAMassMultAdd2D(const int NE,
-                     const double* __restrict _B,
-                     const double* __restrict _Bt,
-                     const double* __restrict _op,
-                     const double* __restrict _x,
-                     double* __restrict _y)
+                     const double* _B,
+                     const double* _Bt,
+                     const double* _op,
+                     const double* _x,
+                     double* _y)
 {
    const DeviceMatrix B(_B, Q1D,D1D);
    const DeviceMatrix Bt(_Bt, D1D,Q1D);
@@ -788,11 +788,11 @@ void PAMassMultAdd2D(const int NE,
 template<const int D1D,
          const int Q1D> static
 void PAMassMultAdd3D(const int NE,
-                     const double* __restrict _B,
-                     const double* __restrict _Bt,
-                     const double* __restrict _op,
-                     const double* __restrict _x,
-                     double* __restrict _y)
+                     const double* _B,
+                     const double* _Bt,
+                     const double* _op,
+                     const double* _x,
+                     double* _y)
 {
    const DeviceMatrix B(_B, Q1D,D1D);
    const DeviceMatrix Bt(_Bt, D1D,Q1D);
@@ -919,21 +919,21 @@ void PAMassMultAdd3D(const int NE,
 }
 
 typedef void (*fMassMultAdd)(const int NE,
-                             const double* __restrict B,
-                             const double* __restrict Bt,
-                             const double* __restrict oper,
-                             const double* __restrict solIn,
-                             double* __restrict solOut);
+                             const double* B,
+                             const double* Bt,
+                             const double* oper,
+                             const double* solIn,
+                             double* solOut);
 
 static void PAMassMultAssembled(const int dim,
                                 const int D1D,
                                 const int Q1D,
                                 const int NE,
-                                const double* __restrict B,
-                                const double* __restrict Bt,
-                                const double* __restrict op,
-                                const double* __restrict x,
-                                double* __restrict y)
+                                const double* B,
+                                const double* Bt,
+                                const double* op,
+                                const double* x,
+                                double* y)
 {
    const int id = (dim<<8)|((D1D)<<4)|(Q1D);
    static std::unordered_map<int, fMassMultAdd> call =
@@ -1282,12 +1282,12 @@ static void NodeCopyByVDim(const int elements,
 template<const int D1D,
          const int Q1D> static
 void PAGeom2D(const int NE,
-              const double* __restrict _G,
-              const double* __restrict _X,
-              double* __restrict _Xq,
-              double* __restrict _J,
-              double* __restrict _invJ,
-              double* __restrict _detJ)
+              const double* _G,
+              const double* _X,
+              double* _Xq,
+              double* _J,
+              double* _invJ,
+              double* _detJ)
 {
    const int ND = D1D*D1D;
    const int NQ = Q1D*Q1D;
@@ -1340,12 +1340,12 @@ void PAGeom2D(const int NE,
 template<const int D1D,
          const int Q1D> static
 void PAGeom3D(const int NE,
-              const double* __restrict _G,
-              const double* __restrict _X,
-              double* __restrict _Xq,
-              double* __restrict _J,
-              double* __restrict _invJ,
-              double* __restrict _detJ)
+              const double* _G,
+              const double* _X,
+              double* _Xq,
+              double* _J,
+              double* _invJ,
+              double* _detJ)
 {
    const int ND = D1D*D1D*D1D;
    const int NQ = Q1D*Q1D*Q1D;
@@ -1420,12 +1420,12 @@ static void PAGeom(const int dim,
                    const int D1D,
                    const int Q1D,
                    const int NE,
-                   const double* __restrict G,
-                   const double* __restrict X,
-                   double* __restrict Xq,
-                   double* __restrict J,
-                   double* __restrict invJ,
-                   double* __restrict detJ)
+                   const double* G,
+                   const double* X,
+                   double* Xq,
+                   double* J,
+                   double* invJ,
+                   double* detJ)
 {
    const int id = (dim<<8)|(D1D)<<4|(Q1D);
    static std::unordered_map<int, fIniGeom> call =
