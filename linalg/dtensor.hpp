@@ -9,32 +9,15 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_DEVICE
-#define MFEM_DEVICE
+#ifndef MFEM_DTENSOR
+#define MFEM_DTENSOR
 
 #include "../general/okina.hpp"
 
 namespace mfem
 {
 
-// Simple vector and tensor classes for dense linear algebra on the device.
-
-/// Simple vector of size 3, appropriate for use on the GPU
-class DeviceVector3
-{
-private:
-   double data[3];
-public:
-   DeviceVector3() {}
-   DeviceVector3(const double *r)
-   { data[0] = r[0]; data[1] = r[1]; data[2] = r[2]; }
-   DeviceVector3(const double r0, const double r1, const double r2)
-   { data[0] = r0; data[1] = r1; data[2] = r2; }
-   ~DeviceVector3() {}
-   inline operator double* () { return data; }
-   inline operator const double* () const { return data; }
-   inline double& operator[](const size_t x) { return data[x]; }
-};
+// Simple tensor class for dense linear algebra on the device.
 
 /// A Class to compute the real index from the multi-indices of a tensor
 template <int N, int Dim, typename T, typename... Args>
@@ -143,7 +126,7 @@ public:
       {
          sizes[i] = t.size(i);
       }
-      data = const_cast<Scalar*>(t.getData());
+      data = const_cast<Scalar*>(t.GetData());
    }
 
    /// Conversion to `double *`.
@@ -193,7 +176,7 @@ public:
 
    /// Returns the length of the DeviceTensor (number of values, may be
    /// different from capacity).
-   int length() const
+   int Length() const
    {
       int res = 1;
       for (int i = 0; i < Dim; ++i)
@@ -204,19 +187,19 @@ public:
    }
 
    /// Returns the dimension of the tensor.
-   int dimension() const
+   int Dimension() const
    {
       return Dim;
    }
 
    /// Returns the Scalar array data (really unsafe). Mostly exists to remap
    /// DeviceTensors, so could be avoided by using more constructors...
-   Scalar* getData()
+   Scalar* GetData()
    {
       return data;
    }
 
-   const Scalar* getData() const
+   const Scalar* GetData() const
    {
       return data;
    }
@@ -228,4 +211,4 @@ typedef DeviceTensor<2,double> DeviceMatrix;
 
 } // mfem namespace
 
-#endif // MFEM_DEVICE
+#endif // MFEM_DTENSOR

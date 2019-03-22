@@ -12,7 +12,6 @@
 // Implementation of sparse matrix
 
 #include "linalg.hpp"
-#include "device.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
 

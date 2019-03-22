@@ -15,9 +15,7 @@
 namespace mfem
 {
 
-// ***************************************************************************
-// * GeometryExtension
-// ***************************************************************************
+/// GeometryExtension
 class GeometryExtension
 {
 public:
@@ -36,9 +34,7 @@ public:
    static void ReorderByNodes(const GridFunction*);
 };
 
-// ***************************************************************************
-// * DofToQuad
-// ***************************************************************************
+/// DofToQuad
 class DofToQuad
 {
 private:

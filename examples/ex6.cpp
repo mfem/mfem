@@ -98,17 +98,18 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fec);
 
    // 5. Set MFEM config parameters from the command line options
-   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   int elem_batch = (pa) ? mesh.GetNE() : 1;
    if (cuda) { config::UseCuda(); }
    if (omp)  { config::UseOmp();  }
    if (raja) { config::UseRaja(); }
    if (occa) { config::UseOcca(); }
-   config::EnableDevice(0);
+
+   config::EnableDevice();
 
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
+   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+   int elem_batch = (pa) ? mesh.GetNE() : 1;
    BilinearForm a(&fespace, assembly, elem_batch);
    LinearForm b(&fespace);
 
@@ -173,47 +174,47 @@ int main(int argc, char *argv[])
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      // 15. Switch to device and assemble the stiffness matrix.
+      // 15. Switch back to the device and assemble the stiffness matrix.
       config::SwitchToDevice();
       a.Assemble();
 
       // 16. Create the linear system: eliminate boundary conditions, constrain
       //     hanging nodes and possibly apply other transformations. The system
       //     will be solved for true (unconstrained) DOFs only.
+      Vector B, X;
       Operator *A;
       if (!pa) { A = new SparseMatrix; }
-      Vector B, X;
+
       const int copy_interior = 1;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
 
-#ifndef MFEM_USE_SUITESPARSE
-      // 17. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-      //     solve the linear system with PCG.
+      // 17. Solve the linear system A X = B.
       if (!pa)
       {
-         GSSmoother M(*static_cast<SparseMatrix*>(A));
+#ifndef MFEM_USE_SUITESPARSE
+         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+         GSSmoother M(*(SparseMatrix*)A);
          PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
+#else
+         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+         UMFPackSolver umf_solver;
+         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         umf_solver.SetOperator(*A);
+         umf_solver.Mult(B, X);
+#endif
       }
-      else
+      else // No preconditioning for now in partial assembly mode.
       {
          CG(*A, B, X, 3, 2000, 1e-12, 0.0);
       }
-#else
-      // 18. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
-      //     the linear system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(A);
-      umf_solver.Mult(B, X);
-#endif
 
-      // 19. After solving the linear system, reconstruct the solution as a
+      // 18. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
       config::SwitchToHost();
       a.RecoverFEMSolution(X, b, x);
 
-      // 20. Send solution by socket to the GLVis server.
+      // 19. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {
          sol_sock.precision(8);
@@ -226,7 +227,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 21. Call the refiner to modify the mesh. The refiner calls the error
+      // 20. Call the refiner to modify the mesh. The refiner calls the error
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
@@ -237,7 +238,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 22. Update the space to reflect the new state of the mesh. Also,
+      // 21. Update the space to reflect the new state of the mesh. Also,
       //     interpolate the solution x so that it lies in the new space but
       //     represents the same function. This saves solver iterations later
       //     since we'll have a good initial guess of x in the next step.
@@ -246,12 +247,12 @@ int main(int argc, char *argv[])
       fespace.Update();
       x.Update();
 
-      // 23. Inform also the bilinear and linear forms that the space has
+      // 22. Inform also the bilinear and linear forms that the space has
       //     changed.
       a.Update();
       b.Update();
 
-      // 24. Free the used memory.
+      // 23. Free the used memory.
       delete A;
    }
 

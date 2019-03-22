@@ -11,7 +11,7 @@
 
 #include "../config/config.hpp"
 #include "../general/okina.hpp"
-#include "../linalg/device.hpp"
+#include "../linalg/dtensor.hpp"
 
 #include "fem.hpp"
 #include <map>
@@ -25,7 +25,6 @@ using namespace std;
 namespace mfem
 {
 
-// *****************************************************************************
 static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
                                              const FiniteElement &test_fe)
 {
@@ -46,13 +45,9 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
-// *****************************************************************************
-// * PA Diffusion Integrator
-// *****************************************************************************
+// PA Diffusion Integrator
 
-// *****************************************************************************
-// * OCCA 2D Assemble kernel
-// *****************************************************************************
+// OCCA 2D Assemble kernel
 #ifdef MFEM_USE_OCCA
 static void OccaPADiffusionAssemble2D(const int Q1D,
                                       const int NE,
@@ -76,9 +71,7 @@ static void OccaPADiffusionAssemble2D(const int Q1D,
 }
 #endif // MFEM_USE_OCCA
 
-// *****************************************************************************
-// * PA Diffusion Assemble 2D kernel
-// *****************************************************************************
+// PA Diffusion Assemble 2D kernel
 static void PADiffusionAssemble2D(const int Q1D,
                                   const int NE,
                                   const double* __restrict w,
@@ -106,9 +99,7 @@ static void PADiffusionAssemble2D(const int Q1D,
    });
 }
 
-// *****************************************************************************
-// * PA Diffusion Assemble 3D kernel
-// *****************************************************************************
+// PA Diffusion Assemble 3D kernel
 static void PADiffusionAssemble3D(const int Q1D,
                                   const int NE,
                                   const double* __restrict w,
@@ -159,7 +150,6 @@ static void PADiffusionAssemble3D(const int Q1D,
    });
 }
 
-// *****************************************************************************
 static void PADiffusionAssemble(const int dim,
                                 const int Q1D,
                                 const int NE,
@@ -186,7 +176,6 @@ static void PADiffusionAssemble(const int dim,
    }
 }
 
-// *****************************************************************************
 void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 {
    const Mesh *mesh = fes.GetMesh();
@@ -209,9 +198,7 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 }
 
 #ifdef MFEM_USE_OCCA
-// *****************************************************************************
-// * OCCA PA Diffusion MultAdd 2D kernel
-// *****************************************************************************
+// OCCA PA Diffusion MultAdd 2D kernel
 static void OccaPADiffusionMultAdd2D(const int ND1d,
                                      const int Q1D,
                                      const int NE,
@@ -259,13 +246,11 @@ static void OccaPADiffusionMultAdd2D(const int ND1d,
 }
 #endif // MFEM_USE_OCCA
 
-// *****************************************************************************
+
 #define QUAD_2D_ID(X, Y) (X + ((Y) * Q1D))
 #define QUAD_3D_ID(X, Y, Z) (X + ((Y) * Q1D) + ((Z) * Q1D*Q1D))
 
-// *****************************************************************************
-// * PA Diffusion MultAdd 2D kernel
-// *****************************************************************************
+// PA Diffusion MultAdd 2D kernel
 template<const int ND1d,
          const int Q1D> static
 void PADiffusionMultAssembled2D(const int NE,
@@ -375,9 +360,7 @@ void PADiffusionMultAssembled2D(const int NE,
    });
 }
 
-// *****************************************************************************
-// * PA Diffusion MultAdd 3D kernel
-// *****************************************************************************
+// PA Diffusion MultAdd 3D kernel
 template<const int ND1d,
          const int Q1D> static
 void PADiffusionMultAssembled3D(const int NE,
@@ -559,7 +542,6 @@ void PADiffusionMultAssembled3D(const int NE,
    });
 }
 
-// *****************************************************************************
 typedef void (*fDiffusionMultAdd)(const int NE,
                                   const double* __restrict B,
                                   const double* __restrict G,
@@ -569,7 +551,6 @@ typedef void (*fDiffusionMultAdd)(const int NE,
                                   const double* __restrict solIn,
                                   double* __restrict solOut);
 
-// *****************************************************************************
 static void PADiffusionMultAssembled(const int dim,
                                      const int D1D,
                                      const int Q1D,
@@ -610,9 +591,7 @@ static void PADiffusionMultAssembled(const int dim,
    call[id](NE, B, G, Bt, Gt, op, x, y);
 }
 
-// *****************************************************************************
-// * PA Diffusion MultAdd kernel
-// *****************************************************************************
+// PA Diffusion MultAdd kernel
 void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    PADiffusionMultAssembled(dim, dofs1D, quad1D, ne,
@@ -621,9 +600,7 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 }
 
 
-// *****************************************************************************
-// * PA Mass Assemble kernel
-// *****************************************************************************
+// PA Mass Assemble kernel
 void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 {
    const Mesh *mesh = fes.GetMesh();
@@ -645,7 +622,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    if (dim==2)
    {
       double constant = 0.0;
-      double (*function)(const DeviceVector3&) = NULL;
+      double (*function)(const DeviceVector&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
@@ -677,9 +654,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const int offset = dims*NQ*e+q;
             const double coeff =
             const_coeff ? constant:
-            function_coeff ?
-            function(DeviceVector3(x[offset], x[offset+1], x[offset+2])):
-            0.0;
+            function_coeff ? function(DeviceVector(x.GetData()+offset,3)): 0.0;
             v(q,e) =  w[q] * coeff * detJ;
          }
       });
@@ -687,7 +662,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    if (dim==3)
    {
       double constant = 0.0;
-      double (*function)(const DeviceVector3&) = NULL;
+      double (*function)(const DeviceVector&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
@@ -720,17 +695,14 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const int offset = dims*NQ*e+q;
             const double coeff =
             const_coeff ? constant:
-            function_coeff ?
-            function(DeviceVector3(x[offset], x[offset+1], x[offset+2])):
-            0.0;
+            function_coeff ? function(DeviceVector(x.GetData()+offset,3)): 0.0;
             v(q,e) = W(q) * coeff * detJ;
          }
       });
    }
-   //delete geo;
+   // delete geo;
 }
 
-// *****************************************************************************
 template<const int D1D,
          const int Q1D> static
 void PAMassMultAdd2D(const int NE,
@@ -813,7 +785,6 @@ void PAMassMultAdd2D(const int NE,
    });
 }
 
-// *****************************************************************************
 template<const int D1D,
          const int Q1D> static
 void PAMassMultAdd3D(const int NE,
@@ -947,7 +918,6 @@ void PAMassMultAdd3D(const int NE,
    });
 }
 
-// *****************************************************************************
 typedef void (*fMassMultAdd)(const int NE,
                              const double* __restrict B,
                              const double* __restrict Bt,
@@ -955,7 +925,6 @@ typedef void (*fMassMultAdd)(const int NE,
                              const double* __restrict solIn,
                              double* __restrict solOut);
 
-// *****************************************************************************
 static void PAMassMultAssembled(const int dim,
                                 const int D1D,
                                 const int Q1D,
@@ -994,7 +963,6 @@ static void PAMassMultAssembled(const int dim,
    call[id](NE, B, Bt, op, x, y);
 }
 
-// *****************************************************************************
 void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    PAMassMultAssembled(dim, dofs1D, quad1D, ne,
@@ -1002,12 +970,10 @@ void MassIntegrator::MultAssembled(Vector &x, Vector &y)
                        vec, x, y);
 }
 
-// ***************************************************************************
-// * DofToQuad
-// ***************************************************************************
+
+// DofToQuad
 static std::map<std::string, DofToQuad* > AllDofQuadMaps;
 
-// *****************************************************************************
 DofToQuad* DofToQuad::Get(const FiniteElementSpace& fes,
                           const IntegrationRule& ir,
                           const bool transpose)
@@ -1031,7 +997,6 @@ DofToQuad* DofToQuad::Get(const FiniteElement& trialFE,
    return GetTensorMaps(trialFE, testFE, ir, transpose);
 }
 
-// ***************************************************************************
 DofToQuad* DofToQuad::GetTensorMaps(const FiniteElement& trialFE,
                                     const FiniteElement& testFE,
                                     const IntegrationRule& ir,
@@ -1070,7 +1035,6 @@ DofToQuad* DofToQuad::GetTensorMaps(const FiniteElement& trialFE,
    return maps;
 }
 
-// ***************************************************************************
 DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
                                        const IntegrationRule& ir,
                                        const bool transpose)
@@ -1155,7 +1119,6 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
    return maps;
 }
 
-// ***************************************************************************
 DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& fe,
                                      const IntegrationRule& ir,
                                      const bool transpose)
@@ -1163,7 +1126,6 @@ DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& fe,
    return GetSimplexMaps(fe, fe, ir, transpose);
 }
 
-// *****************************************************************************
 DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& trialFE,
                                      const FiniteElement& testFE,
                                      const IntegrationRule& ir,
@@ -1195,7 +1157,6 @@ DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& trialFE,
    return maps;
 }
 
-// ***************************************************************************
 DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
                                         const IntegrationRule& ir,
                                         const bool transpose)
@@ -1264,11 +1225,10 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    return maps;
 }
 
-// *****************************************************************************
+
 static long sequence = -1;
 static GeometryExtension *geom = NULL;
 
-// *****************************************************************************
 static void GeomFill(const int vdim,
                      const int NE, const int ND, const int NX,
                      const int* elementMap, int* eMap,
@@ -1295,7 +1255,6 @@ static void GeomFill(const int vdim,
    });
 }
 
-// *****************************************************************************
 static void NodeCopyByVDim(const int elements,
                            const int numDofs,
                            const int ndofs,
@@ -1320,7 +1279,6 @@ static void NodeCopyByVDim(const int elements,
    });
 }
 
-// *****************************************************************************
 template<const int D1D,
          const int Q1D> static
 void PAGeom2D(const int NE,
@@ -1379,7 +1337,6 @@ void PAGeom2D(const int NE,
    });
 }
 
-// *****************************************************************************
 template<const int D1D,
          const int Q1D> static
 void PAGeom3D(const int NE,
@@ -1455,12 +1412,10 @@ void PAGeom3D(const int NE,
    });
 }
 
-// *****************************************************************************
 typedef void (*fIniGeom)(const int ne,
                          const double *G, const double *X,
                          double *x, double *J, double *invJ, double *detJ);
 
-// *****************************************************************************
 static void PAGeom(const int dim,
                    const int D1D,
                    const int Q1D,
@@ -1499,7 +1454,6 @@ static void PAGeom(const int dim,
    call[id](NE, G, X, Xq, J, invJ, detJ);
 }
 
-// *****************************************************************************
 GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
                                           const IntegrationRule& ir,
                                           const Vector& Sx)
@@ -1513,7 +1467,6 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const int numDofs  = fe->GetDof();
    const int D1D      = fe->GetOrder() + 1;
    const int Q1D      = ir1D.GetNPoints();
-   const int numQuad  = ir.GetNPoints();
    const int elements = fespace->GetNE();
    const int ndofs    = fespace->GetNDofs();
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
@@ -1524,7 +1477,6 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    return geom;
 }
 
-// *****************************************************************************
 GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
                                           const IntegrationRule& ir)
 {
@@ -1581,7 +1533,6 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    return geom;
 }
 
-// ***************************************************************************
 void GeometryExtension::ReorderByVDim(const GridFunction *nodes)
 {
    const mfem::FiniteElementSpace *fes = nodes->FESpace();
@@ -1603,7 +1554,6 @@ void GeometryExtension::ReorderByVDim(const GridFunction *nodes)
    delete [] temp;
 }
 
-// ***************************************************************************
 void GeometryExtension::ReorderByNodes(const GridFunction *nodes)
 {
    const mfem::FiniteElementSpace *fes = nodes->FESpace();

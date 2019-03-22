@@ -14,9 +14,9 @@
 
 
 #include "vector.hpp"
-#include "device.hpp"
 #include "matrix.hpp"
 #include "densemat.hpp"
+#include "dtensor.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 
