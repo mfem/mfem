@@ -213,11 +213,12 @@ public:
       dim = mesh->Dimension();
       
       int ne = mesh->GetNE();
+      
+      xe_min.SetSize(ne);
+      xe_max.SetSize(ne);
 
       // Use the first mesh element as indicator.
       const FiniteElement &dummy = *fes->GetFE(0);
-      int p = dummy.GetOrder();
-      
       dummy.ExtractBdrDofs(BdrDofs);
       numDofs = BdrDofs.Height();
       numBdrs = BdrDofs.Width();
@@ -1116,6 +1117,32 @@ int main(int argc, char *argv[])
    {
       k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
    }
+   
+   // In case of basic discrete upwinding, add boundary terms.
+   if (((monoType == DiscUpw) || (monoType == DiscUpw_FCT)) && (!OptScheme))
+   {
+      if (exec_mode == 0)
+      {
+         k.AddInteriorFaceIntegrator( new TransposeIntegrator(
+            new DGTraceIntegrator(velocity, 1.0, -0.5)) );
+         k.AddBdrFaceIntegrator( new TransposeIntegrator(
+            new DGTraceIntegrator(velocity, 1.0, -0.5)) );
+      }
+      else if (exec_mode == 1)
+      {
+         k.AddInteriorFaceIntegrator(new TransposeIntegrator(
+            new DGTraceIntegrator(v_coeff, -1.0, -0.5)) );
+         k.AddBdrFaceIntegrator( new TransposeIntegrator(
+            new DGTraceIntegrator(v_coeff, -1.0, -0.5)) );
+      }
+      else if (exec_mode == 2)
+      {
+         k.AddInteriorFaceIntegrator( new TransposeIntegrator(
+            new DGTraceIntegrator(velocity, -1.0, -0.5)) );
+         k.AddBdrFaceIntegrator( new TransposeIntegrator(
+            new DGTraceIntegrator(velocity, -1.0, -0.5)) );
+      }
+   }
 
    // Compute the lumped mass matrix algebraicly
    Vector lumpedM;
@@ -1303,6 +1330,7 @@ int main(int argc, char *argv[])
    double finalMass;
    if (exec_mode == 1)
    {
+      // TODO figure out why this setup doesn't conserve mass for mode 1.
       ml.BilinearForm::operator=(0.0);
       ml.Assemble();
       ml.SpMat().GetDiag(lumpedM);
@@ -1388,11 +1416,8 @@ void FE_Evolution::LinearFluxLumping(const int k, const int nd,
 void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 {
    const FiniteElement &dummy = *fes->GetFE(0);
-   
-   int j, k, dofInd, nd = dummy.GetDof(), ne = fes->GetNE();
-   
-   asmbl.dofs.xe_min.SetSize(ne); asmbl.dofs.xe_min = 0.;
-   asmbl.dofs.xe_max.SetSize(ne); asmbl.dofs.xe_max = 0.;
+   int i, j, k, dofInd, nd = dummy.GetDof(), ne = fes->GetNE();
+   Vector alpha(nd); alpha = 0.;
    
    if ( (asmbl.monoType == DiscUpw) || (asmbl.monoType == DiscUpw_FCT) )
    {
@@ -1406,9 +1431,20 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       // Monotonicity terms.
       D.AddMult(x, y);
 
-      // Compute min/max, lump fluxes (PDU) and invert lumped mass matrix.
+      // Lump fluxes (for PDU), compute min/max, and invert lumped mass matrix.
       for (k = 0; k < ne; k++)
       {
+         ////////////////////////////
+         // Boundary contributions //
+         //////////////////////////// 
+         if (asmbl.OptScheme)
+         {
+            for (i = 0; i < asmbl.dofs.numBdrs; i++)
+            {
+               LinearFluxLumping(k, nd, i, x, y, alpha);
+            }
+         }
+         
          asmbl.dofs.xe_min(k) = numeric_limits<double>::infinity();
          asmbl.dofs.xe_max(k) = -asmbl.dofs.xe_min(k);
          
@@ -1429,12 +1465,11 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
              sumWeightsN, weightP, weightN, rhoP, rhoN, gammaP, gammaN,
              minGammaP, minGammaN, aux, fluct, gamma = 10., eps = 1.E-15;
       Vector xMaxSubcell, xMinSubcell, sumWeightsSubcellP, sumWeightsSubcellN,
-             fluctSubcellP, fluctSubcellN, nodalWeightsP, nodalWeightsN,
-             alpha(nd); alpha = 0.;
+             fluctSubcellP, fluctSubcellN, nodalWeightsP, nodalWeightsN;
             
       // Discretization terms
       y = b;
-      K.Mult(x, z); // K contains only the DomainIntegrator terms now.
+      K.Mult(x, z);
 
       // Monotonicity terms
       for (k = 0; k < ne; k++)
@@ -1582,12 +1617,16 @@ void FE_Evolution::ComputeHighOrderSolution(const Vector &x, Vector &y) const
    K.Mult(x, z);
    z += b;
 
-   // The boundary contributions have been computed in the low order scheme.
-   for (k = 0; k < ne; k++)
+   // Incorporate flux terms only if the low order scheme is PDU, RD, or RDS.
+   if ((asmbl.monoType != DiscUpw_FCT) || (asmbl.OptScheme))
    {
-      for (i = 0; i < asmbl.dofs.numBdrs; i++)
+      // The boundary contributions have been computed in the low order scheme.
+      for (k = 0; k < ne; k++)
       {
-         LinearFluxLumping(k, nd, i, x, z, alpha);
+         for (i = 0; i < asmbl.dofs.numBdrs; i++)
+         {
+            LinearFluxLumping(k, nd, i, x, z, alpha);
+         }
       }
    }
    
