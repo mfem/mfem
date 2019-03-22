@@ -1233,6 +1233,10 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    mfem::Array<double> W(numQuad);
    mfem::Array<double> B(numQuad*numDofs);
    mfem::Array<double> G(dims*numQuad*numDofs);
+   //config::SwitchToHost();
+#warning MmuEnableAccess d2q d2qD
+   MmuEnableAccess(d2q.GetData(), d2q.Size()*sizeof(double));
+   MmuEnableAccess(d2qD.GetData(), d2qD.Size()*sizeof(double));
    for (int q = 0; q < numQuad; ++q)
    {
       const IntegrationPoint& ip = ir.IntPoint(q);
@@ -1255,6 +1259,7 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
          }
       }
    }
+   //config::SwitchToDevice();
    if (transpose)
    {
       mm::memcpy(maps->W, W, numQuad*sizeof(double));
@@ -1513,7 +1518,6 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const int numDofs  = fe->GetDof();
    const int D1D      = fe->GetOrder() + 1;
    const int Q1D      = ir1D.GetNPoints();
-   const int numQuad  = ir.GetNPoints();
    const int elements = fespace->GetNE();
    const int ndofs    = fespace->GetNDofs();
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);

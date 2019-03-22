@@ -18,6 +18,7 @@ list(APPEND SRCS
   gzstream.cpp
   isockstream.cpp
   mm.cpp
+  mmu.cpp
   occa.cpp
   optparser.cpp
   osockstream.cpp
@@ -41,6 +42,7 @@ list(APPEND HDRS
   isockstream.hpp
   mem_alloc.hpp
   mm.hpp
+  mmu.hpp
   occa.hpp
   okina.hpp
   openmp.hpp
