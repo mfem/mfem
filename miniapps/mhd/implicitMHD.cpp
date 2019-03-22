@@ -106,14 +106,14 @@ double BackPsi(const Vector &x)
 
 double InitialJ2(const Vector &x)
 {
-   return lambda/pow(cosh(lambda*(x(1)-.5)),2);
-       //-M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
+   return lambda/pow(cosh(lambda*(x(1)-.5)),2)
+       -M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
 }
 
 double InitialPsi2(const Vector &x)
 {
-   return log(cosh(lambda*(x(1)-.5)))/lambda;
-       //+alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
+   return log(cosh(lambda*(x(1)-.5)))/lambda
+       +alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
 }
 
 double BackPsi2(const Vector &x)
@@ -359,11 +359,23 @@ int main(int argc, char *argv[])
    DataCollection *dc = NULL;
    if (visit)
    {
+      if (icase==1)
+      {
+        dc = new VisItDataCollection("case1", mesh);
+        dc->RegisterField("psiPer", &psiPer);
+        dc->RegisterField("current", &j);
+      }
+      else
+      {
+        dc = new VisItDataCollection("case2", mesh);
+        dc->RegisterField("psiPer", &psiPer);
+        dc->RegisterField("psi", &psi);
+        dc->RegisterField("current", &j);
+        dc->RegisterField("phi", &phi);
+        dc->RegisterField("omega", &w);
+      }
 
-      dc = new VisItDataCollection("case1", mesh);
       dc->SetPrecision(precision);
-      dc->RegisterField("psiPer", &psiPer);
-      dc->RegisterField("current", &j);
       dc->SetCycle(0);
       dc->SetTime(t);
       dc->Save();
@@ -564,6 +576,10 @@ void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    {
       DSl.AddMult(psi, z);
    }
+   if (problem==2)
+   {
+        z += *E0;
+   }
    z.Neg(); // z = -z
 
    for (int i=0; i<ess_tdof_list.Size(); i++)
@@ -587,6 +603,8 @@ void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    //z.Print(myfile2, 1000);
 
    M_solver.Mult(z, dw_dt);
+
+   //abort();
 
 }
 
