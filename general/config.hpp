@@ -12,6 +12,8 @@
 #ifndef MFEM_CONFIG_HPP
 #define MFEM_CONFIG_HPP
 
+#include "ceed.h"
+
 // *****************************************************************************
 namespace mfem
 {
