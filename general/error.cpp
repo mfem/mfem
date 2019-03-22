@@ -153,8 +153,6 @@ void mfem_error(const char *msg)
       mfem::err << "\n\n" << msg << "\n";
    }
 
-   std::abort(); // force crash by calling abort
-
 #ifdef MFEM_USE_LIBUNWIND
    mfem::err << "Backtrace:" << std::endl;
    mfem_backtrace(1, -1);
