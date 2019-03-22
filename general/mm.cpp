@@ -133,6 +133,18 @@ static void DumpMode(void)
 }
 
 // *****************************************************************************
+void *mm::Allocate(const size_t bytes){ return MmuAllocate(bytes); }
+
+// *****************************************************************************
+void mm::Free(void *ptr){
+   const bool known = Known(ptr);
+   if (!known) { mfem_error("Trying to Free an unknown pointer!"); }
+   mm::memory &base = maps.memories.at(ptr);
+   const size_t bytes = base.bytes;
+   MmuDelete(ptr, bytes);
+}
+
+// *****************************************************************************
 // * Adds an address
 // *****************************************************************************
 void* mm::Insert(void *ptr, const size_t bytes)
@@ -196,6 +208,9 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    if (!ptr) { mfem_error("PtrKnown !ptr"); }
    if (device && !gpu) // Pull
    {
+#ifdef MFEM_DEBUG
+      MmuEnableAccess(ptr, bytes);
+#endif
       CuMemcpyDtoH(ptr, base.d_ptr, bytes);
       base.host = true;
       return ptr;
@@ -204,6 +219,9 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    if (!(host && gpu)) { mfem_error("PtrKnown !(host && gpu)"); }
    CuMemcpyHtoD(base.d_ptr, ptr, bytes);
    base.host = false;
+#ifdef MFEM_DEBUG
+   MmuDisableAccess(ptr, bytes);
+#endif
    return base.d_ptr;
 }
 
@@ -230,6 +248,9 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
    if (!base->h_ptr) { mfem_error("PtrAlias !base->h_ptr"); }
    if (device && !gpu) // Pull
    {
+#ifdef MFEM_DEBUG
+      MmuEnableAccess(ptr, bytes);
+#endif
       CuMemcpyDtoH(base->h_ptr, base->d_ptr, bytes);
       alias->mem->host = true;
       return ptr;
@@ -238,6 +259,9 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
    if (!(host && gpu)) { mfem_error("PtrAlias !(host && gpu)"); }
    CuMemcpyHtoD(base->d_ptr, base->h_ptr, bytes);
    alias->mem->host = false;
+#ifdef MFEM_DEBUG
+   MmuDisableAccess(ptr, bytes);
+#endif
    return a_ptr;
 }
 

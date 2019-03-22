@@ -68,7 +68,14 @@ public:
    // **************************************************************************
    template<class T>
    static inline T* malloc(const size_t n, const size_t size = sizeof(T))
-   { return static_cast<T*>(MM().Insert(::new T[n], n*size)); }
+   {
+#ifndef MFEM_DEBUG
+      void *ptr = ::new T[n];
+#else
+      void *ptr = MM().Allocate(n*size);
+#endif // MFEM_DEBUG
+      return static_cast<T*>(MM().Insert(ptr, n*size));
+   }
 
    // **************************************************************************
    // * Frees the memory space pointed to by ptr, which must have been
@@ -78,7 +85,11 @@ public:
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
+#ifndef MFEM_DEBUG
       ::delete[] static_cast<T*>(ptr);
+#else
+      mm::MM().Free(ptr);
+#endif // MFEM_DEBUG
       mm::MM().Erase(ptr);
    }
 
@@ -131,6 +142,10 @@ private:
    // **************************************************************************
    void Push(const void *ptr, const size_t bytes = 0);
    void Pull(const void *ptr, const size_t bytes = 0);
+   
+   // **************************************************************************
+   void *Allocate(const size_t bytes);
+   void Free(void *ptr);
 };
 
 } // namespace mfem
