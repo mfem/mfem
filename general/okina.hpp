@@ -23,7 +23,7 @@
 #include "cuda.hpp"
 #include "occa.hpp"
 #include "mm.hpp"
-#include "config.hpp"
+#include "device.hpp"
 
 namespace mfem
 {
@@ -38,7 +38,7 @@ namespace mfem
 #endif
 
 #define FILE_LINE __FILE__ && __LINE__
-#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::UsingDevice());}
+#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !Device::UsingDevice());}
 
 
 /// The MFEM_FORALL wrapper
@@ -126,9 +126,9 @@ void CuWrap(const int N, DBODY &&d_body) {}
 template <int BLOCKS, typename DBODY, typename HBODY>
 void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {
-   const bool omp  = mfem::config::UsingOmp();
-   const bool gpu  = mfem::config::UsingDevice();
-   const bool raja = mfem::config::UsingRaja();
+   const bool omp  = mfem::Device::UsingOmp();
+   const bool gpu  = mfem::Device::UsingDevice();
+   const bool raja = mfem::Device::UsingRaja();
    if (gpu && raja) { return mfem::RajaCudaWrap<BLOCKS>(N, d_body); }
    if (gpu)         { return CuWrap<BLOCKS>(N, d_body); }
    if (omp && raja) { return RajaOmpWrap(N, h_body); }

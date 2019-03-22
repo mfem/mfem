@@ -99,33 +99,33 @@ static void DumpMode(void)
    if (!env_dbg) { return; }
    static std::bitset<8+1> mode;
    std::bitset<8+1> cfg;
-   cfg.set(config::UsingMM()?8:0);
-   cfg.set(config::DeviceHasBeenEnabled()?7:0);
-   cfg.set(config::DeviceEnabled()?6:0);
-   cfg.set(config::DeviceDisabled()?5:0);
-   cfg.set(config::UsingHost()?4:0);
-   cfg.set(config::UsingDevice()?3:0);
-   cfg.set(config::UsingCuda()?2:0);
-   cfg.set(config::UsingOcca()?1:0);
+   cfg.set(Device::UsingMM()?8:0);
+   cfg.set(Device::DeviceHasBeenEnabled()?7:0);
+   cfg.set(Device::DeviceEnabled()?6:0);
+   cfg.set(Device::DeviceDisabled()?5:0);
+   cfg.set(Device::UsingHost()?4:0);
+   cfg.set(Device::UsingDevice()?3:0);
+   cfg.set(Device::UsingCuda()?2:0);
+   cfg.set(Device::UsingOcca()?1:0);
    cfg>>=1;
    if (cfg==mode) { return; }
    mode=cfg;
    printf("\033[1K\r[0x%lx] %sMM %sHasBeenEnabled %sEnabled %sDisabled "
           "%sHOST %sDEVICE %sCUDA %sOCCA\033[m", mode.to_ulong(),
-          config::UsingMM()?"\033[32m":"\033[31m",
-          config::DeviceHasBeenEnabled()?"\033[32m":"\033[31m",
-          config::DeviceEnabled()?"\033[32m":"\033[31m",
-          config::DeviceDisabled()?"\033[32m":"\033[31m",
-          config::UsingHost()?"\033[32m":"\033[31m",
-          config::UsingDevice()?"\033[32m":"\033[31m",
-          config::UsingCuda()?"\033[32m":"\033[31m",
-          config::UsingOcca()?"\033[32m":"\033[31m");
+          Device::UsingMM()?"\033[32m":"\033[31m",
+          Device::DeviceHasBeenEnabled()?"\033[32m":"\033[31m",
+          Device::DeviceEnabled()?"\033[32m":"\033[31m",
+          Device::DeviceDisabled()?"\033[32m":"\033[31m",
+          Device::UsingHost()?"\033[32m":"\033[31m",
+          Device::UsingDevice()?"\033[32m":"\033[31m",
+          Device::UsingCuda()?"\033[32m":"\033[31m",
+          Device::UsingOcca()?"\033[32m":"\033[31m");
 }
 
 
 void* mm::Insert(void *ptr, const size_t bytes)
 {
-   if (!config::UsingMM()) { return ptr; }
+   if (!Device::UsingMM()) { return ptr; }
    const bool known = Known(ptr);
    if (known)
    {
@@ -139,7 +139,7 @@ void* mm::Insert(void *ptr, const size_t bytes)
 
 void *mm::Erase(void *ptr)
 {
-   if (!config::UsingMM()) { return ptr; }
+   if (!Device::UsingMM()) { return ptr; }
    const bool known = Known(ptr);
    if (!known) { mfem_error("Trying to erase an unknown pointer!"); }
    memory &mem = maps.memories.at(ptr);
@@ -155,10 +155,10 @@ void *mm::Erase(void *ptr)
 
 static inline bool MmDeviceIniFilter(void)
 {
-   if (!config::UsingMM()) { return true; }
-   if (config::DeviceDisabled()) { return true; }
-   if (!config::DeviceHasBeenEnabled()) { return true; }
-   if (config::UsingOcca()) { mfem_error("config::UsingOcca()"); }
+   if (!Device::UsingMM()) { return true; }
+   if (Device::DeviceDisabled()) { return true; }
+   if (!Device::DeviceHasBeenEnabled()) { return true; }
+   if (Device::UsingOcca()) { mfem_error("Device::UsingOcca()"); }
    return false;
 }
 
@@ -171,7 +171,7 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    const bool host = base.host;
    const bool device = !host;
    const size_t bytes = base.bytes;
-   const bool gpu = config::UsingDevice();
+   const bool gpu = Device::UsingDevice();
    if (host && !gpu) { return ptr; }
    if (bytes==0) { mfem_error("PtrKnown bytes==0"); }
    if (!base.d_ptr) { CuMemAlloc(&base.d_ptr, bytes); }
@@ -195,7 +195,7 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
 // required.
 static void *PtrAlias(mm::ledger &maps, void *ptr)
 {
-   const bool gpu = config::UsingDevice();
+   const bool gpu = Device::UsingDevice();
    const mm::alias *alias = maps.aliases.at(ptr);
    assert(alias->offset >0);
    const mm::memory *base = alias->mem;
@@ -228,7 +228,7 @@ void *mm::Ptr(void *ptr)
    if (MmDeviceIniFilter()) { return ptr; }
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
-   if (config::UsingDevice())
+   if (Device::UsingDevice())
    {
       mfem_error("Trying to use unknown pointer on the DEVICE!");
    }
@@ -262,7 +262,7 @@ void mm::Push(const void *ptr, const size_t bytes)
    if (MmDeviceIniFilter()) { return; }
    if (Known(ptr)) { return PushKnown(maps, ptr, bytes); }
    if (Alias(ptr)) { return PushAlias(maps, ptr, bytes); }
-   if (config::UsingDevice()) { mfem_error("Unknown pointer to push to!"); }
+   if (Device::UsingDevice()) { mfem_error("Unknown pointer to push to!"); }
 }
 
 
@@ -295,7 +295,7 @@ void mm::Pull(const void *ptr, const size_t bytes)
    if (MmDeviceIniFilter()) { return; }
    if (Known(ptr)) { return PullKnown(maps, ptr, bytes); }
    if (Alias(ptr)) { return PullAlias(maps, ptr, bytes); }
-   if (config::UsingDevice()) { mfem_error("Unknown pointer to pull from!"); }
+   if (Device::UsingDevice()) { mfem_error("Unknown pointer to pull from!"); }
 }
 
 
@@ -304,7 +304,7 @@ void* mm::memcpy(void *dst, const void *src, const size_t bytes,
 {
    void *d_dst = mm::ptr(dst);
    const void *d_src = mm::ptr(src);
-   const bool host = config::UsingHost();
+   const bool host = Device::UsingHost();
    if (bytes == 0) { return dst; }
    if (host) { return std::memcpy(dst, src, bytes); }
    if (!async)
@@ -312,14 +312,14 @@ void* mm::memcpy(void *dst, const void *src, const size_t bytes,
       return CuMemcpyDtoD(d_dst, const_cast<void*>(d_src), bytes);
    }
    return CuMemcpyDtoDAsync(d_dst, const_cast<void*>(d_src),
-                            bytes, config::Stream());
+                            bytes, Device::Stream());
 }
 
 
 static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
 {
-   OccaDevice occaDevice = config::GetOccaDevice();
-   if (!config::UsingMM())
+   OccaDevice occaDevice = Device::GetOccaDevice();
+   if (!Device::UsingMM())
    {
       OccaMemory o_ptr = OccaWrapMemory(occaDevice, const_cast<void*>(ptr), 0);
       return o_ptr;
@@ -328,15 +328,15 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
    if (!known) { mfem_error("occaMemory: Unknown address!"); }
    mm::memory &base = maps.memories.at(ptr);
    const size_t bytes = base.bytes;
-   const bool gpu = config::UsingDevice();
-   if (!config::UsingOcca()) { mfem_error("Using OCCA without support!"); }
+   const bool gpu = Device::UsingDevice();
+   if (!Device::UsingOcca()) { mfem_error("Using OCCA without support!"); }
    if (!base.d_ptr)
    {
       base.host = false; // This address is no longer on the host
       if (gpu)
       {
          CuMemAlloc(&base.d_ptr, bytes);
-         void *stream = config::Stream();
+         void *stream = Device::Stream();
          CuMemcpyHtoDAsync(base.d_ptr, base.h_ptr, bytes, stream);
       }
       else

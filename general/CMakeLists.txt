@@ -13,7 +13,7 @@ list(APPEND SRCS
   array.cpp
   cuda.cpp
   error.cpp
-  config.cpp
+  device.cpp
   globals.cpp
   gzstream.cpp
   isockstream.cpp
@@ -32,7 +32,7 @@ list(APPEND SRCS
 list(APPEND HDRS
   array.hpp
   binaryio.hpp
-  config.hpp
+  device.hpp
   cuda.hpp
   error.hpp
   globals.hpp
