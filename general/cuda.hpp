@@ -58,16 +58,16 @@ void CuWrap(const int N, DBODY &&d_body) {}
 template<typename T>
 __device__ inline T AtomicAdd(T* address, T val)
 {
-  return atomicAdd(address, val);
+   return atomicAdd(address, val);
 }
 #else
 template<typename T> inline T AtomicAdd(T* address, T val)
 {
 #if defined(_OPENMP)
-#pragma omp atomic
+   #pragma omp atomic
 #endif
-  *address += val;
-  return *address;
+   *address += val;
+   return *address;
 }
 #endif //__CUDA_ARCH__
 // *****************************************************************************
