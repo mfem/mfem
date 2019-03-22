@@ -313,11 +313,13 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
  *  the operators are expected to be defined for tdof vectors. */
 class OptimizationProblem
 {
-public:
-   const int input_size;
+protected:
    /// Not owned, some can remain unused (NULL).
    const Operator *C, *D;
    const Vector *c_e, *d_lo, *d_hi, *x_lo, *x_hi;
+
+public:
+   const int input_size;
 
    /// In parallel, insize is the number of the local true dofs.
    OptimizationProblem(int insize, const Operator *C_, const Operator *D_);
@@ -331,6 +333,14 @@ public:
    void SetEqualityConstraint(const Vector &c);
    void SetInequalityConstraint(const Vector &dl, const Vector &dh);
    void SetSolutionBounds(const Vector &xl, const Vector &xh);
+
+   const Operator *GetC() const { return C; }
+   const Operator *GetD() const { return D; }
+   const Vector *GetEqualityVec() const { return c_e; }
+   const Vector *GetInequalityVec_Lo() const { return d_lo; }
+   const Vector *GetInequalityVec_Hi() const { return d_hi; }
+   const Vector *GetBoundsVec_Lo() const { return x_lo; }
+   const Vector *GetBoundsVec_Hi() const { return x_hi; }
 
    int GetNumConstraints() const;
 };
@@ -379,16 +389,17 @@ protected:
    {
       add(xt, l, w, x);
       if (problem == NULL) { x.median(lo,hi); }
-      else                 { x.median(*problem->x_lo, *problem->x_hi); }
+      else                 { x.median(*problem->GetBoundsVec_Lo(),
+                                      *problem->GetBoundsVec_Hi()); }
       nclip++;
       if (problem == NULL) { return Dot(w, x) - a; }
       else
       {
          Vector c(1);
          // Includes parallel communication.
-         problem->C->Mult(x, c);
+         problem->GetC()->Mult(x, c);
 
-         return c(0) - (*problem->c_e)(0);
+         return c(0) - (*problem->GetEqualityVec())(0);
       }
    }
 
