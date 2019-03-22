@@ -49,8 +49,9 @@ bool HiopOptimizationProblem::get_vars_info(const long long &n,
    MFEM_ASSERT(problem.x_lo && problem.x_hi,
                "Solution bounds are not set!");
 
-   std::memcpy(xlow, problem.x_lo->GetData(), ntdofs_loc * sizeof(double));
-   std::memcpy(xupp, problem.x_hi->GetData(), ntdofs_loc * sizeof(double));
+   const int s = ntdofs_loc * sizeof(double);
+   std::memcpy(xlow, problem.GetBoundsVec_Lo()->GetData(), s);
+   std::memcpy(xupp, problem.GetBoundsVec_Hi()->GetData(), s);
 
    return true;
 }
@@ -62,17 +63,18 @@ bool HiopOptimizationProblem::get_cons_info(const long long &m,
    MFEM_ASSERT(m == m_total, "Global constraint size mismatch.");
 
    int csize = 0;
-   if (problem.C)
+   if (problem.GetC())
    {
-      csize = problem.c_e->Size();
-      std::memcpy(clow, problem.c_e->GetData(), csize * sizeof(double));
-      std::memcpy(cupp, problem.c_e->GetData(), csize * sizeof(double));
+      csize = problem.GetEqualityVec()->Size();
+      const int s = csize * sizeof(double);
+      std::memcpy(clow, problem.GetEqualityVec()->GetData(), s);
+      std::memcpy(cupp, problem.GetEqualityVec()->GetData(), s);
    }
-   if (problem.D)
+   if (problem.GetD())
    {
-      const int dsize = problem.d_lo->Size();
-      std::memcpy(clow + csize, problem.d_lo->GetData(), dsize *sizeof(double));
-      std::memcpy(cupp + csize, problem.d_hi->GetData(), dsize *sizeof(double));
+      const int s = problem.GetInequalityVec_Lo()->Size() * sizeof(double);
+      std::memcpy(clow + csize, problem.GetInequalityVec_Lo()->GetData(), s);
+      std::memcpy(cupp + csize, problem.GetInequalityVec_Hi()->GetData(), s);
    }
 
    return true;
@@ -195,16 +197,16 @@ void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
    // operators' Mult() and GetGradient() methods.
 
    int cheight = 0;
-   if (problem.C)
+   if (problem.GetC())
    {
-      cheight = problem.C->Height();
+      cheight = problem.GetC()->Height();
 
       // Values of C.
       Vector vals_C(constr_vals.GetData(), cheight);
-      problem.C->Mult(x, vals_C);
+      problem.GetC()->Mult(x, vals_C);
 
       // Gradients C.
-      const Operator &oper_C = problem.C->GetGradient(x);
+      const Operator &oper_C = problem.GetC()->GetGradient(x);
       const DenseMatrix *grad_C = dynamic_cast<const DenseMatrix *>(&oper_C);
       MFEM_VERIFY(grad_C, "Hiop expects DenseMatrices as operator gradients.");
       MFEM_ASSERT(grad_C->Height() == cheight && grad_C->Width() == ntdofs_loc,
@@ -218,16 +220,16 @@ void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
       }
    }
 
-   if (problem.D)
+   if (problem.GetD())
    {
-      const int dheight = problem.D->Height();
+      const int dheight = problem.GetD()->Height();
 
       // Values of D.
       Vector vals_D(constr_vals.GetData() + cheight, dheight);
-      problem.D->Mult(x, vals_D);
+      problem.GetD()->Mult(x, vals_D);
 
       // Gradients of D.
-      const Operator &oper_D = problem.D->GetGradient(x);
+      const Operator &oper_D = problem.GetD()->GetGradient(x);
       const DenseMatrix *grad_D = dynamic_cast<const DenseMatrix *>(&oper_D);
       MFEM_VERIFY(grad_D, "Hiop expects DenseMatrices as operator gradients.");
       MFEM_ASSERT(grad_D->Height() == dheight && grad_D->Width() == ntdofs_loc,
