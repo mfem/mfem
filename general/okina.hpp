@@ -28,8 +28,8 @@
 namespace mfem
 {
 
-// This file contains the implementation of MFEM's okina kernel interface (open
-// kernel interface for numerical analysis") and some of the available backends.
+// Implementation of MFEM's okina device kernel interface (open kernel interface
+// for numerical analysis) and its CUDA, OpenMP, RAJA, and sequential backends.
 
 #ifndef MFEM_USE_CUDA
 #define MFEM_HOST_DEVICE
