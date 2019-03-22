@@ -21,6 +21,8 @@ using namespace mfem;
 
 double alpha; //a global value of magnetude for the pertubation
 double Lx;  //size of x domain
+double lambda;
+double resiG;
 
 /** After spatial discretization, the resistive MHD model can be written as a
  *  system of ODEs:
@@ -38,9 +40,11 @@ class ImplicitMHDOperator : public TimeDependentOperator
 protected:
    FiniteElementSpace &fespace;
    Array<int> ess_tdof_list;
+   int problem;
 
    BilinearForm *M, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
    BilinearForm *Nv, *Nb;
+   LinearForm *E0;
    SparseMatrix Mmat, Kmat;
 
    double viscosity, resistivity;
@@ -55,7 +59,9 @@ protected:
 
 public:
    ImplicitMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, 
-                       double visc, double resi);
+                       double visc, double resi);   //this is old
+   ImplicitMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, 
+                       double visc, double resi, int icase);
 
    // Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
@@ -91,10 +97,35 @@ double InitialPsi(const Vector &x)
    //return -x(1);
 }
 
+
 double BackPsi(const Vector &x)
 {
    //this is the background psi (for post-processing/plotting only)
    return -x(1);
+}
+
+double InitialJ2(const Vector &x)
+{
+   return lambda/pow(cosh(lambda*(x(1)-.5)),2);
+       //-M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
+}
+
+double InitialPsi2(const Vector &x)
+{
+   return log(cosh(lambda*(x(1)-.5)))/lambda;
+       //+alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
+}
+
+double BackPsi2(const Vector &x)
+{
+   //this is the background psi (for post-processing/plotting only)
+   return log(cosh(lambda*(x(1)-.5)))/lambda;
+}
+
+double E0rhs(const Vector &x)
+{
+   //for icase 2 only, there is a rhs
+   return resiG*lambda/pow(cosh(lambda*(x(1)-.5)),2);
 }
 
 
@@ -111,8 +142,10 @@ int main(int argc, char *argv[])
    double resi = 0.0;
    bool visit = false;
    int precision = 8;
+   int icase = 1;
    alpha = 0.001; 
    Lx=3.0;
+   lambda=5.0;
 
    bool visualization = true;
    int vis_steps = 10;
@@ -130,6 +163,8 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&icase, "-i", "--icase",
+                  "Icase: 1 - wave propagation; 2 - Tearing mode.");
    args.AddOption(&visc, "-visc", "--viscosity",
                   "Viscosity coefficient.");
    args.AddOption(&resi, "-resi", "--resistivity",
@@ -147,6 +182,17 @@ int main(int argc, char *argv[])
    {
       args.PrintUsage(cout);
       return 1;
+   }
+   if (icase==2)
+   {
+      resi=.001;
+      visc=.001;
+      resiG=resi;
+   }
+   else if (icase!=1)
+   {
+       cout <<"Unknown icase "<<icase<<endl;
+       return 3;
    }
    args.PrintOptions(cout);
 
@@ -214,21 +260,45 @@ int main(int argc, char *argv[])
    phi.ProjectCoefficient(phiInit);
    phi.SetTrueVector();
 
-   FunctionCoefficient psiInit(InitialPsi);
-   psi.ProjectCoefficient(psiInit);
+   if (icase==1)
+   {
+        FunctionCoefficient psiInit(InitialPsi);
+        psi.ProjectCoefficient(psiInit);
+   }
+   else if (icase==2)
+   {
+        FunctionCoefficient psiInit2(InitialPsi2);
+        psi.ProjectCoefficient(psiInit2);
+   }
    psi.SetTrueVector();
 
    FunctionCoefficient wInit(InitialW);
    w.ProjectCoefficient(wInit);
    w.SetTrueVector();
 
-   FunctionCoefficient jInit(InitialJ);
-   j.ProjectCoefficient(jInit);
+   if (icase==1)
+   {
+        FunctionCoefficient jInit(InitialJ);
+        j.ProjectCoefficient(jInit);
+   }
+   else if (icase==2)
+   {
+        FunctionCoefficient jInit2(InitialJ2);
+        j.ProjectCoefficient(jInit2);
+   }
    j.SetTrueVector();
 
    //Set the background psi
-   FunctionCoefficient psi0(BackPsi);
-   psiBack.ProjectCoefficient(psi0);
+   if (icase==1)
+   {
+        FunctionCoefficient psi0(BackPsi);
+        psiBack.ProjectCoefficient(psi0);
+   }
+   else if (icase==2)
+   {
+        FunctionCoefficient psi02(BackPsi2);
+        psiBack.ProjectCoefficient(psi02);
+   }
    psiBack.SetTrueVector();
 
    //this is a periodic boundary condition in x and Direchlet in y 
@@ -244,9 +314,10 @@ int main(int argc, char *argv[])
    }
 
    // 7. Initialize the MHD operator, the GLVis visualization    
-   ImplicitMHDOperator oper(fespace, ess_bdr, visc, resi);
+   ImplicitMHDOperator oper(fespace, ess_bdr, visc, resi, icase);
 
    socketstream vis_phi, vis_j;
+   subtract(psi,psiBack,psiPer);
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -262,7 +333,6 @@ int main(int argc, char *argv[])
       }
       else
       {
-         subtract(psi,psiBack,psiPer);
          vis_phi.precision(8);
          vis_phi << "solution\n" << *mesh << psiPer;
          vis_phi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
@@ -278,8 +348,6 @@ int main(int argc, char *argv[])
          vis_j << flush;
       }
     }
-
-
 
 
    double t = 0.0;
@@ -327,14 +395,17 @@ int main(int argc, char *argv[])
       if (last_step || (ti % vis_steps) == 0)
       {
         cout << "step " << ti << ", t = " << t <<endl;
+        subtract(psi,psiBack,psiPer);
 
          if (visualization)
          {
-            subtract(psi,psiBack,psiPer);
             vis_phi << "solution\n" << *mesh << psiPer;
-            vis_phi << "valuerange -.001 .001\n" << flush;
             vis_j << "solution\n" << *mesh << j;
-            vis_j << "valuerange -.01425 .01426\n" << flush;
+            if (icase==1) 
+            {
+                vis_phi << "valuerange -.001 .001\n" << flush;
+                vis_j << "valuerange -.01425 .01426\n" << flush;
+            }
          }
 
          if (visit)
@@ -384,9 +455,9 @@ int main(int argc, char *argv[])
 
 
 ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f, 
-                                         Array<int> &ess_bdr, double visc, double resi)
-   : TimeDependentOperator(4*f.GetTrueVSize(), 0.0), fespace(f),
-     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL),
+                                         Array<int> &ess_bdr, double visc, double resi, int icase)
+   : TimeDependentOperator(4*f.GetTrueVSize(), 0.0), fespace(f), problem(icase),
+     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL), E0(NULL),
      viscosity(visc),  resistivity(resi), M_prec(NULL), K_prec(NULL), z(height/4)
 {
    const double rel_tol = 1e-8;
@@ -453,6 +524,15 @@ ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f,
         ofstream myfile2 ("Mmat.m");
    }
 
+   if (problem==2)  //add the source term
+   {
+       FunctionCoefficient e0(E0rhs);
+       E0 = new LinearForm(&fespace);
+       E0->AddDomainIntegrator(new DomainLFIntegrator(e0));
+       E0->Assemble();
+   }
+
+
    ConstantCoefficient visc_coeff(viscosity);
    DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
    DRe.Assemble(skip_zero_entries);
@@ -485,6 +565,12 @@ void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
       DSl.AddMult(psi, z);
    }
    z.Neg(); // z = -z
+
+   for (int i=0; i<ess_tdof_list.Size(); i++)
+       z(ess_tdof_list[i])=0.0; //set Dirichlet condition by hand
+   //ofstream myfile("zLHS1.dat");
+   //z.Print(myfile, 1000);
+
    M_solver.Mult(z, dpsi_dt);
 
    Nv->Mult(w, z);
@@ -494,7 +580,14 @@ void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    }
    z.Neg(); // z = -z
    Nb->AddMult(j, z);
+
+   for (int i=0; i<ess_tdof_list.Size(); i++)
+       z(ess_tdof_list[i])=0.0; //set Dirichlet condition by hand
+   //ofstream myfile2("zLHS2.dat");
+   //z.Print(myfile2, 1000);
+
    M_solver.Mult(z, dw_dt);
+
 }
 
 void ImplicitMHDOperator::assembleNv(GridFunction *gf) 

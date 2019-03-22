@@ -2,13 +2,35 @@ run:
 implicitMHD -r 4 -o 2 -tf 3 -vs 100 -dt .0005
 
 plot:
-glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 800
+glvis -m refined.mesh -g current.sol -k "mmc" -ww 800 -wh 800
 glvis -m refined.mesh -g psiPer.sol -k "mmc" -ww 800 -wh 800
+
 
 x it has to assemble nv and nb each time step, not sure how to do it implicitly
 
+3/22 
+After fix the rhs boundary bug, OK for wave case
+
 3/21
 o add visit
+
+for o = 2
+the solutions appear to be first order (from omega and phi); it looks okay
+there is a boundary layer for omega
+
+for o3 r4, the errors from boundary become very large; this is strange
+
+Test:
+implicitMHD -m ../xperiodic-square.mesh -r 2 -o 2 -tf 3 -vs 50 -dt .001 -visit
+implicitMHD -m ../xperiodic-square.mesh -r 3 -o 2 -tf 3 -vs 100 -dt .0005 -visit
+
+find a potential bug in the boundary: how could I impose dirichlet boundary in the right hand side?
+
+redo those examples:
+../implicitMHD -m ../xperiodic-square.mesh -r 2 -o 3 -tf 3 -vs 100 -dt .001 -visit
+../implicitMHD -m ../xperiodic-square.mesh -r 3 -o 3 -tf 3 -vs 200 -dt .0005 -visit
+../implicitMHD -m ../xperiodic-square.mesh -r 4 -o 3 -tf 3 -vs 400 -dt .00025 -visit
+
 
 3/20
 o fix a ploting issue for order>2
