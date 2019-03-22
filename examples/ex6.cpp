@@ -44,11 +44,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool pa = false;
-   bool cuda = false;
-   bool omp  = false;
-   bool raja = false;
-   bool occa = false;
-   bool visualization = 1;
+   const char *device = "";
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -57,10 +54,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
-   args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
-   args.AddOption(&omp, "-om", "--omp", "-no-om", "--no-omp", "Enable OpenMP.");
-   args.AddOption(&raja, "-ra", "--raja", "-no-ra", "--no-raja", "Enable RAJA.");
-   args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
+   args.AddOption(&device, "-d", "--device",
+                  "Device configuration, e.g. 'cuda', 'omp', 'raja', 'occa'.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -97,20 +92,14 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
-   // 5. Set MFEM config parameters from the command line options
-   if (cuda) { config::UseCuda(); }
-   if (omp)  { config::UseOmp();  }
-   if (raja) { config::UseRaja(); }
-   if (occa) { config::UseOcca(); }
-
-   config::EnableDevice();
+   // 5. Set device config parameters from the command line options.
+   Device::Configure(device);
 
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   int elem_batch = (pa) ? mesh.GetNE() : 1;
-   BilinearForm a(&fespace, assembly, elem_batch);
+   BilinearForm a(&fespace, assembly);
    LinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
@@ -174,8 +163,8 @@ int main(int argc, char *argv[])
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      // 15. Switch back to the device and assemble the stiffness matrix.
-      config::SwitchToDevice();
+      // 15. Switch to the device and assemble the stiffness matrix.
+      Device::Enable();
       a.Assemble();
 
       // 16. Create the linear system: eliminate boundary conditions, constrain
@@ -211,7 +200,7 @@ int main(int argc, char *argv[])
       // 18. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
-      config::SwitchToHost();
+      Device::Disable();
       a.RecoverFEMSolution(X, b, x);
 
       // 19. Send solution by socket to the GLVis server.

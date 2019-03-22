@@ -162,7 +162,7 @@ static void PADiffusionAssemble(const int dim,
    if (dim==2)
    {
 #ifdef MFEM_USE_OCCA
-      if (config::usingOcca())
+      if (Device::usingOcca())
       {
          OccaPADiffusionAssemble2D(Q1D, NE, W, J, COEFF, oper);
          return;
@@ -225,7 +225,7 @@ static void OccaPADiffusionMultAdd2D(const int ND1d,
    SET_OCCA_PROPERTY(props, Q1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
-   if (!config::usingGpu())
+   if (!Device::usingGpu())
    {
       NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, bidiffusionMultAdd.okl, props);
       MultAdd2D_CPU(NE,
@@ -564,7 +564,7 @@ static void PADiffusionMultAssembled(const int dim,
                                      double* __restrict y)
 {
 #ifdef MFEM_USE_OCCA
-   if (config::usingOcca())
+   if (Device::usingOcca())
    {
       assert(dim==2);
       occaDiffusionMultAssembled2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);

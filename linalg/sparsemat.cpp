@@ -671,7 +671,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    const DeviceVector d_A(A);
    const DeviceVector d_x(x, x.Size());
    DeviceVector d_y(y, y.Size());
-   const bool device = config::UsingDevice();
+   const bool device = Device::UsingDevice();
    MFEM_FORALL(i, d_height,
    {
       const double xi = a * d_x[i];

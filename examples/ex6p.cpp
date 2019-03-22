@@ -50,10 +50,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool pa = false;
-   bool cuda = false;
-   bool omp  = false;
-   bool raja = false;
-   bool occa = false;
+   const char *device = "";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -63,10 +60,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
-   args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
-   args.AddOption(&omp, "-om", "--omp", "-no-om", "--no-omp", "Enable OpenMP.");
-   args.AddOption(&raja, "-ra", "--raja", "-no-ra", "--no-raja", "Enable RAJA.");
-   args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
+   args.AddOption(&device, "-d", "--device",
+                  "Device configuration, e.g. 'cuda', 'omp', 'raja', 'occa'.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -118,20 +113,14 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
 
-   // 7. Set MFEM config parameters from the command line options
-   if (cuda) { config::UseCuda(); }
-   if (omp)  { config::UseOmp();  }
-   if (raja) { config::UseRaja(); }
-   if (occa) { config::UseOcca(); }
-
-   config::EnableDevice();
+   // 7. Set device config parameters from the command line options.
+   Device::Configure(device);
 
    // 8. As in Example 1p, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   int elem_batch = (pa) ? pmesh.GetNE() : 1;
-   ParBilinearForm a(&fespace, assembly, elem_batch);
+   ParBilinearForm a(&fespace, assembly);
    ParLinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
@@ -206,11 +195,11 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       b.Assemble();
 
-      // 15. Switch back to the device and assemble the stiffness matrix. Note
-      //     that MFEM doesn't care at this point that the mesh is nonconforming
-      //     and parallel.  The FE space is considered 'cut' along hanging
+      // 15. Switch to the device and assemble the stiffness matrix. Note that
+      //     MFEM doesn't care at this point that the mesh is nonconforming and
+      //     parallel.  The FE space is considered 'cut' along hanging
       //     edges/faces, and also across processor boundaries.
-      config::SwitchToDevice();
+      Device::Enable();
       a.Assemble();
 
       // 16. Create the parallel linear system: eliminate boundary conditions.
@@ -251,7 +240,7 @@ int main(int argc, char *argv[])
       // 18. Switch back to the host and extract the parallel grid function
       //     corresponding to the finite element approximation X. This is the
       //     local solution on each processor.
-      config::SwitchToHost();
+      Device::Disable();
       a.RecoverFEMSolution(X, b, x);
 
       // 19. Send the solution by socket to a GLVis server.

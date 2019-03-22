@@ -60,10 +60,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   bool cuda = false;
-   bool omp  = false;
-   bool raja = false;
-   bool occa = false;
+   const char *device = "";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -76,10 +73,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
-   args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
-   args.AddOption(&omp, "-om", "--omp", "-no-om", "--no-omp", "Enable OpenMP.");
-   args.AddOption(&raja, "-ra", "--raja", "-no-ra", "--no-raja", "Enable RAJA.");
-   args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
+   args.AddOption(&device, "-d", "--device",
+                  "Device configuration, e.g. 'cuda', 'omp', 'raja', 'occa'.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -178,14 +173,10 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   // 9. Set MFEM config parameters from the command line options
-   if (cuda) { config::UseCuda(); }
-   if (omp)  { config::UseOmp();  }
-   if (raja) { config::UseRaja(); }
-   if (occa) { config::UseOcca(); }
-
-   config::EnableDevice();
-   config::SwitchToDevice();
+   // 9. Set device config parameters from the command line options and switch
+   //    to working on the device.
+   Device::Configure(device);
+   Device::Enable();
 
    // 10. Define the solution vector x as a parallel finite element grid function
    //     corresponding to fespace. Initialize x with initial guess of zero,
@@ -197,8 +188,7 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   int elem_batch = (cuda || occa) ? pmesh->GetNE() : 1;
-   ParBilinearForm *a = new ParBilinearForm(fespace, assembly, elem_batch);
+   ParBilinearForm *a = new ParBilinearForm(fespace, assembly);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
@@ -250,7 +240,7 @@ int main(int argc, char *argv[])
    a->RecoverFEMSolution(X, *b, x);
 
    // 15. Switch back to the host.
-   config::SwitchToHost();
+   Device::Disable();
 
    // 16. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".

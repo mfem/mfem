@@ -9,17 +9,13 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/okina.hpp"
+#include "okina.hpp"
 
-// *****************************************************************************
 namespace mfem
 {
 
-// *****************************************************************************
-// * CUDA device setup, called when CUDA or RAJA mode with MFEM_USE_CUDA
-// *****************************************************************************
 #ifdef MFEM_USE_CUDA
-void config::GpuDeviceSetup(const int device)
+void Device::GpuDeviceSetup(const int device)
 {
    cudaGetDeviceCount(&ngpu);
    MFEM_ASSERT(ngpu>0, "No CUDA device found!");
@@ -33,10 +29,7 @@ void config::GpuDeviceSetup(const int device)
 }
 #endif
 
-// *****************************************************************************
-// * cudaDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
-// *****************************************************************************
-void config::CudaDeviceSetup(const int device)
+void Device::CudaDeviceSetup(const int device)
 {
 #ifdef MFEM_USE_CUDA
    GpuDeviceSetup(device);
@@ -45,10 +38,7 @@ void config::CudaDeviceSetup(const int device)
 #endif
 }
 
-// *****************************************************************************
-// * RajaDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
-// *****************************************************************************
-void config::RajaDeviceSetup(const int device)
+void Device::RajaDeviceSetup(const int device)
 {
 #if defined(MFEM_USE_CUDA) && defined(MFEM_USE_RAJA)
    GpuDeviceSetup(device);
@@ -57,10 +47,7 @@ void config::RajaDeviceSetup(const int device)
 #endif
 }
 
-// *****************************************************************************
-// * OCCA Settings: device, paths & kernels
-// *****************************************************************************
-void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
+void Device::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 {
 #ifdef MFEM_USE_OCCA
    if (cuda)
@@ -80,27 +67,24 @@ void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 #endif
 }
 
-// *****************************************************************************
-// * We initialize CUDA first so OccaDeviceSetup() can reuse
-// * the same initialized cuDevice and cuContext objects
-// *****************************************************************************
-void config::MfemDeviceSetup(const int dev)
+void Device::MFEMDeviceSetup(const int dev)
 {
-   MFEM_ASSERT(ngpu==-1, "Only one MfemDeviceSetup allowed");
+   MFEM_ASSERT(ngpu==-1, "Only one MFEMDeviceSetup allowed");
    ngpu = 0;
+
+   // We initialize CUDA first so OccaDeviceSetup() can reuse the same
+   // initialized cuDevice and cuContext objects
    if (cuda) { CudaDeviceSetup(dev); }
    if (raja) { RajaDeviceSetup(dev); }
    if (occa) { OccaDeviceSetup(cuDevice, cuContext); }
+
    if (cuda && ngpu==0)
    {
       MFEM_ABORT("CUDA requested but no GPU has been initialized!");
    }
 }
 
-// *****************************************************************************
-// * Destructor
-// *****************************************************************************
-config::~config()
+Device::~Device()
 {
    if (raja || cuda) { delete cuStream; }
 }
