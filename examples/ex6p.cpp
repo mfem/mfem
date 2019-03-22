@@ -15,6 +15,10 @@
 //               mpirun -np 4 ex6p -m ../data/square-disc-surf.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/amr-quad.mesh
 //
+// Device runs:  mpirun -np 4 ex6p -d cuda
+//               mpirun -np 4 ex6p -d occa
+//               mpirun -np 4 ex6p -d 'raja omp'
+//
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
 //               equation -Delta u = 1 with homogeneous Dirichlet boundary

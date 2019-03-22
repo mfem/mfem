@@ -171,7 +171,6 @@ void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
 MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
    : Operator(form->Size()), a(form) { }
 
-// *****************************************************************************
 ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
    :fes(f),
     ne(fes.GetNE()),
@@ -235,7 +234,6 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
    offsets[0] = 0;
 }
 
-// ***************************************************************************
 void ElemRestriction::Mult(const Vector& x, Vector& y) const
 {
    const int vd = vdim;
@@ -260,7 +258,6 @@ void ElemRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
-// ***************************************************************************
 void ElemRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
    const int vd = vdim;

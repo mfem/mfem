@@ -25,6 +25,10 @@
 //               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh
 //               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh -o -1 -sc
 //
+// Device runs:  mpirun -np 4 ex1p -d cuda
+//               mpirun -np 4 ex1p -d occa
+//               mpirun -np 4 ex1p -d 'raja omp'
+//
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
