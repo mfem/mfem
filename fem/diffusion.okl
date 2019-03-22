@@ -9,7 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// *****************************************************************************
 typedef double* DofToQuad_t @dim(NUM_QUAD_1D, NUM_DOFS_1D);
 typedef double* QuadToDof_t @dim(NUM_DOFS_1D, NUM_QUAD_1D);
 typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
@@ -34,7 +33,6 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
 
 #define M2_ELEMENT_BATCH 32
 
-// *****************************************************************************
 @kernel void Assemble2D(const int numElements,
                         @restrict const double * quadWeights,
                         @restrict const Jacobian2D_t J,
@@ -52,7 +50,6 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
   }
 }
 
-// *****************************************************************************
 @kernel void MultAdd2D_CPU(const int numElements,
                            @restrict const DofToQuad_t dofToQuad,
                            @restrict const DofToQuad_t dofToQuadD,
@@ -144,7 +141,6 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
    }
 }
 
-// *****************************************************************************
 @kernel void MultAdd2D_GPU(const int numElements,
                            @restrict const DofToQuad_t dofToQuad,
                            @restrict const DofToQuad_t dofToQuadD,
