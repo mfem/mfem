@@ -34,11 +34,17 @@ INSTALL = /usr/bin/install
 STATIC = YES
 SHARED = NO
 
-# When cross-compiling, the user can specify XLANGUAGE/XCOMPILER/XARCHIVE
-#   MFEM_XLANGUAGE=-x=cu
-#   MFEM_XARCHIVE=-Xarchive
-#   MFEM_XCOMPILER=-Xcompiler
-LANGUAGE = $(MFEM_XLANGUAGE)
+# CUDA configuration options
+MFEM_CUDA_CXX = nvcc
+MFEM_CUDA_FLAGS = -x=cu --expt-extended-lambda
+ifeq ($(MFEM_USE_CUDA),YES)
+   # Pass the following arguments to the host compiler
+   MFEM_XARCHIVE  = -Xarchive
+   MFEM_XCOMPILER = -Xcompiler
+else
+   MFEM_XARCHIVE  =
+   MFEM_XCOMPILER =
+endif
 
 ifneq ($(NOTMAC),)
    AR      = ar
@@ -114,6 +120,7 @@ MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
 MFEM_USE_CONDUIT     = NO
 MFEM_USE_PUMI        = NO
+MFEM_USE_CUDA        = NO
 MFEM_USE_RAJA        = NO
 MFEM_USE_OCCA        = NO
 MFEM_USE_MM          = NO
@@ -294,20 +301,20 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
 
 # OCCA library configuration
 ifeq ($(MFEM_USE_OCCA),YES)
-  ifndef OCCA_DIR
-    OCCA_DIR := @MFEM_DIR@/../occa
-  endif
-  OCCA_OPT := -I$(OCCA_DIR)/include
-  OCCA_LIB := -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
+   ifndef OCCA_DIR
+      OCCA_DIR := @MFEM_DIR@/../occa
+   endif
+   OCCA_OPT := -I$(OCCA_DIR)/include
+   OCCA_LIB := -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 endif
 
 # RAJA library configuration
 ifeq ($(MFEM_USE_RAJA),YES)
-  ifndef RAJA_DIR
-    RAJA_DIR := @MFEM_DIR@/../raja
-  endif
-  RAJA_OPT := -I$(RAJA_DIR)/include
-  RAJA_LIB := -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+   ifndef RAJA_DIR
+      RAJA_DIR := @MFEM_DIR@/../raja
+   endif
+   RAJA_OPT := -I$(RAJA_DIR)/include
+   RAJA_LIB := -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 endif
 
 # If YES, enable some informational messages

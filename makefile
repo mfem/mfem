@@ -24,6 +24,7 @@ MFEM makefile targets:
    make status/info
    make serial
    make parallel
+   make cuda
    make debug
    make pdebug
    make test/check
@@ -51,6 +52,8 @@ make serial
    A shortcut to configure and build the serial optimized version of the library.
 make parallel
    A shortcut to configure and build the parallel optimized version of the library.
+make cuda
+   A shortcut to configure and build the GPU/CUDA optimized version of the library.
 make debug
    A shortcut to configure and build the serial debug version of the library.
 make pdebug
@@ -86,8 +89,7 @@ $(if $(wildcard $(THIS_MK)),,$(error Makefile not found "$(THIS_MK)"))
 MFEM_DIR ?= $(patsubst %/,%,$(dir $(THIS_MK)))
 MFEM_REAL_DIR := $(realpath $(MFEM_DIR))
 $(if $(MFEM_REAL_DIR),,$(error Source directory "$(MFEM_DIR)" is not valid))
-SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,$(MFEM_REAL_DIR)/)
-#SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
+SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
 $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
@@ -116,7 +118,7 @@ MFEM_BUILD_DIR ?= .
 BUILD_DIR := $(MFEM_BUILD_DIR)
 BUILD_REAL_DIR := $(abspath $(BUILD_DIR))
 ifneq ($(BUILD_REAL_DIR),$(MFEM_REAL_DIR))
-   BUILD_SUBDIRS = $(DIRS) $(KERNEL_DIRS) config $(EM_DIRS) doc $(TEST_DIRS)
+   BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc $(TEST_DIRS)
    BUILD_DIR_DEF = -DMFEM_BUILD_DIR="$(BUILD_REAL_DIR)"
    BLD := $(if $(BUILD_REAL_DIR:$(CURDIR)=),$(BUILD_DIR)/,)
    $(if $(word 2,$(BLD)),$(error Spaces in BLD = "$(BLD)" are not supported))
@@ -148,7 +150,7 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- style
+ style cuda
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -183,11 +185,17 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
-   MFEM_CXX ?= $(CXX)
-   PKGS_NEED_MPI = SUPERLU STRUMPACK PETSC PUMI
-   $(foreach mpidep,$(PKGS_NEED_MPI),$(if $(MFEM_USE_$(mpidep):NO=),\
-     $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
-     $(eval override MFEM_USE_$(mpidep)=NO),))
+   ifneq ($(MFEM_USE_CUDA),YES)
+      MFEM_CXX ?= $(CXX)
+      PKGS_NEED_MPI = SUPERLU STRUMPACK PETSC PUMI
+      $(foreach mpidep,$(PKGS_NEED_MPI),$(if $(MFEM_USE_$(mpidep):NO=),\
+        $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
+        $(eval override MFEM_USE_$(mpidep)=NO),))
+   else
+      # CUDA configuration
+      MFEM_CXX ?= $(MFEM_CUDA_CXX)
+      CXXFLAGS += $(MFEM_CUDA_FLAGS)
+   endif
 else
    MFEM_CXX ?= $(MPICXX)
    INCFLAGS += $(HYPRE_OPT)
@@ -254,23 +262,20 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
  MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI\
- MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA
+ MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
- MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_LANGUAGE MFEM_PICFLAG MFEM_BUILD_SOFLAGS\
- MFEM_FLAGS MFEM_LIB_DIR MFEM_EXT_LIBS MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC\
- MFEM_SHARED MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC\
- MFEM_MPIEXEC_NP MFEM_MPI_NP MFEM_TEST_MK
+ MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR MFEM_EXT_LIBS\
+ MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG MFEM_PREFIX\
+ MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP MFEM_TEST_MK
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
 MFEM_CXXFLAGS  ?= $(CXXFLAGS)
 MFEM_TPLFLAGS  ?= $(INCFLAGS)
 MFEM_INCFLAGS  ?= -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
-MFEM_PICFLAG   ?= $(if $(shared), $(PICFLAG))
-MFEM_LANGUAGE  ?= $(LANGUAGE)
-MFEM_BUILD_SOFLAGS ?= $(BUILD_SOFLAGS)
+MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
@@ -340,7 +345,7 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_LANGUAGE) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -367,7 +372,7 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MFEM_BUILD_SOFLAGS) $(OBJECT_FILES) \
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
 serial debug:    M_MPI=NO
@@ -377,6 +382,10 @@ debug pdebug:    M_DBG=YES
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
 	   $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
+
+cuda:
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_CUDA=YES $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 deps:
@@ -419,7 +428,7 @@ $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
-	rm -f $(addprefix $(BLD),*/*.o */*/*.o */*~ *~ libmfem.* deps.mk)
+	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* deps.mk)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
@@ -522,6 +531,7 @@ status info:
 	$(info MFEM_USE_SIDRE       = $(MFEM_USE_SIDRE))
 	$(info MFEM_USE_CONDUIT     = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI        = $(MFEM_USE_PUMI))
+	$(info MFEM_USE_CUDA         = $(MFEM_USE_CUDA))
 	$(info MFEM_USE_RAJA        = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA        = $(MFEM_USE_OCCA))
 	$(info MFEM_USE_MM          = $(MFEM_USE_MM))
