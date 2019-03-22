@@ -16,7 +16,7 @@ namespace mfem
 {
 
 /// The MFEM Device class that abstracts hardware devices, such as GPUs, and
-/// programming models, such as CUDA, OCCA and RAJA.
+/// programming models, such as CUDA, OCCA, RAJA and OpenMP.
 class Device
 {
 private:
