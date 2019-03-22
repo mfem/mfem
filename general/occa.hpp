@@ -12,7 +12,6 @@
 #ifndef MFEM_OCCA_HPP
 #define MFEM_OCCA_HPP
 
-// *****************************************************************************
 #ifdef MFEM_USE_OCCA
 #include <occa.hpp>
 #include "./cuda.hpp"
@@ -24,7 +23,7 @@
 typedef occa::device OccaDevice;
 typedef occa::memory OccaMemory;
 
-// Macros **********************************************************************
+// Macros
 #define GET_OCCA_MEMORY(v) occa::memory o_##v = mm::occaPtr(v)
 #define GET_OCCA_CONST_MEMORY(v) GET_OCCA_MEMORY(v)
 #define NEW_OCCA_PROPERTY(props) occa::properties props;
@@ -38,7 +37,8 @@ typedef occa::memory OccaMemory;
       ker = device.buildKernel(odk, #ker, props);                       \
    }
 
-#else // MFEM_USE_OCCA *********************************************************
+#else // MFEM_USE_OCCA
+
 typedef void* OccaDevice;
 typedef void* OccaMemory;
 
@@ -47,7 +47,6 @@ typedef void* OccaMemory;
 namespace mfem
 {
 
-// *****************************************************************************
 OccaDevice OccaWrapDevice(CUdevice device, CUcontext context);
 OccaMemory OccaDeviceMalloc(OccaDevice device, const size_t bytes);
 OccaMemory OccaWrapMemory(const OccaDevice device, void *d_adrs,

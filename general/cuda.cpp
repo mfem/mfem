@@ -11,13 +11,9 @@
 
 #include "okina.hpp"
 
-// *****************************************************************************
 namespace mfem
 {
 
-// *****************************************************************************
-// * Allocates device memory
-// *****************************************************************************
 void* CuMemAlloc(void** dptr, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
@@ -29,9 +25,6 @@ void* CuMemAlloc(void** dptr, size_t bytes)
    return *dptr;
 }
 
-// *****************************************************************************
-// * Frees device memory
-// *****************************************************************************
 void* CuMemFree(void *dptr)
 {
 #ifdef MFEM_USE_CUDA
@@ -43,9 +36,6 @@ void* CuMemFree(void *dptr)
    return dptr;
 }
 
-// *****************************************************************************
-// * Copies memory from Host to Device
-// *****************************************************************************
 void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
@@ -57,9 +47,6 @@ void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
    return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Host to Device
-// *****************************************************************************
 void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 {
 #ifdef MFEM_USE_CUDA
@@ -72,9 +59,6 @@ void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
    return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Device
-// *****************************************************************************
 void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
@@ -87,9 +71,6 @@ void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
    return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Device
-// *****************************************************************************
 void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 {
 #ifdef MFEM_USE_CUDA
@@ -103,9 +84,6 @@ void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
    return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Host
-// *****************************************************************************
 void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
@@ -117,9 +95,6 @@ void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
    return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Host
-// *****************************************************************************
 void* CuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
 {
 #ifdef MFEM_USE_CUDA
@@ -132,5 +107,4 @@ void* CuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
    return dst;
 }
 
-// *****************************************************************************
 } // namespace mfem
