@@ -16,9 +16,9 @@ namespace mfem
 {
 
 // *****************************************************************************
-// * CUDA device setup, called when CUDA or RAJA mode with NVCC
+// * CUDA device setup, called when CUDA or RAJA mode with MFEM_USE_CUDA
 // *****************************************************************************
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
 void config::GpuDeviceSetup(const int device)
 {
    cudaGetDeviceCount(&ngpu);
@@ -38,7 +38,7 @@ void config::GpuDeviceSetup(const int device)
 // *****************************************************************************
 void config::CudaDeviceSetup(const int device)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    GpuDeviceSetup(device);
 #else
    MFEM_ABORT("CUDA requested but no GPU support has been built!");
@@ -50,7 +50,7 @@ void config::CudaDeviceSetup(const int device)
 // *****************************************************************************
 void config::RajaDeviceSetup(const int device)
 {
-#if defined(__NVCC__) && defined(MFEM_USE_RAJA)
+#if defined(MFEM_USE_CUDA) && defined(MFEM_USE_RAJA)
    GpuDeviceSetup(device);
 #elif !defined(MFEM_USE_RAJA)
    MFEM_ABORT("RAJA requested but no RAJA support has been built!");
@@ -62,7 +62,7 @@ void config::RajaDeviceSetup(const int device)
 // *****************************************************************************
 void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 {
-#ifdef __OCCA__
+#ifdef MFEM_USE_OCCA
    if (cuda)
    {
       occaDevice = occaWrapDevice(cu_dev, cu_ctx);

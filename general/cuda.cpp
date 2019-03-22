@@ -20,7 +20,7 @@ namespace mfem
 // *****************************************************************************
 void* CuMemAlloc(void** dptr, size_t bytes)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS != ::cuMemAlloc((CUdeviceptr*)dptr, bytes))
    {
       mfem_error("Error in CuMemAlloc");
@@ -34,7 +34,7 @@ void* CuMemAlloc(void** dptr, size_t bytes)
 // *****************************************************************************
 void* CuMemFree(void *dptr)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS != ::cuMemFree((CUdeviceptr)dptr))
    {
       mfem_error("Error in CuMemFree");
@@ -48,7 +48,7 @@ void* CuMemFree(void *dptr)
 // *****************************************************************************
 void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS != ::cuMemcpyHtoD((CUdeviceptr)dst, src, bytes))
    {
       mfem_error("Error in CuMemcpyHtoD");
@@ -62,7 +62,7 @@ void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 // *****************************************************************************
 void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS !=
        ::cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s))
    {
@@ -77,7 +77,7 @@ void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 // *****************************************************************************
 void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS !=
        ::cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes))
    {
@@ -92,7 +92,7 @@ void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
 // *****************************************************************************
 void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS !=
        ::cuMemcpyDtoDAsync((CUdeviceptr)dst, (CUdeviceptr)src,
                            bytes, (CUstream)s))
@@ -108,7 +108,7 @@ void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 // *****************************************************************************
 void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS != ::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes))
    {
       mfem_error("Error in CuMemcpyDtoH");
@@ -122,7 +122,7 @@ void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
 // *****************************************************************************
 void* CuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS !=
        ::cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s))
    {

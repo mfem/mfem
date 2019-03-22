@@ -53,7 +53,7 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 // *****************************************************************************
 // * OCCA 2D Assemble kernel
 // *****************************************************************************
-#ifdef __OCCA__
+#ifdef MFEM_USE_OCCA
 static void OccaPADiffusionAssemble2D(const int Q1D,
                                       const int NE,
                                       const double* __restrict W,
@@ -74,7 +74,7 @@ static void OccaPADiffusionAssemble2D(const int Q1D,
    NEW_OCCA_KERNEL(Assemble2D, fem, diffusion.okl, props);
    Assemble2D(NE, o_W, o_J, COEFF, o_oper);
 }
-#endif // __OCCA__
+#endif // MFEM_USE_OCCA
 
 // *****************************************************************************
 // * PA Diffusion Assemble 2D kernel
@@ -171,13 +171,13 @@ static void PADiffusionAssemble(const int dim,
    if (dim==1) { assert(false); }
    if (dim==2)
    {
-#ifdef __OCCA__
+#ifdef MFEM_USE_OCCA
       if (config::usingOcca())
       {
          OccaPADiffusionAssemble2D(Q1D, NE, W, J, COEFF, oper);
          return;
       }
-#endif // __OCCA__
+#endif // MFEM_USE_OCCA
       PADiffusionAssemble2D(Q1D, NE, W, J, COEFF, oper);
    }
    if (dim==3)
@@ -208,7 +208,7 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    delete geo;
 }
 
-#ifdef __OCCA__
+#ifdef MFEM_USE_OCCA
 // *****************************************************************************
 // * OCCA PA Diffusion MultAdd 2D kernel
 // *****************************************************************************
@@ -257,7 +257,7 @@ static void OccaPADiffusionMultAdd2D(const int ND1d,
                     o_solOut);
    }
 }
-#endif // __OCCA__
+#endif // MFEM_USE_OCCA
 
 // *****************************************************************************
 #define QUAD_2D_ID(X, Y) (X + ((Y) * Q1D))
@@ -582,14 +582,14 @@ static void PADiffusionMultAssembled(const int dim,
                                      const double* __restrict x,
                                      double* __restrict y)
 {
-#ifdef __OCCA__
+#ifdef MFEM_USE_OCCA
    if (config::usingOcca())
    {
       assert(dim==2);
       occaDiffusionMultAssembled2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
       return;
    }
-#endif // __OCCA__
+#endif // MFEM_USE_OCCA
    const int id = (dim<<8)|(D1D<<4)|(Q1D);
    static std::unordered_map<int, fDiffusionMultAdd> call =
    {
