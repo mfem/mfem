@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
       {
          HypreParMatrix &H = *static_cast<HypreParMatrix*>(A);
          HypreBoomerAMG amg;
-#ifndef __NVCC__
+#ifndef MFEM_USE_CUDA
          amg.SetPrintLevel(0);
 #endif
          CGSolver pcg(H.GetComm());

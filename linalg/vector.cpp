@@ -826,7 +826,7 @@ double Vector::Sum() const
    return sum;
 }
 
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
 static __global__ void cuKernelMin(const int N, double *gdsr, const double *x)
 {
    __shared__ double s_min[MFEM_BLOCKS];
@@ -931,17 +931,17 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    for (int i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
    return dot;
 }
-#endif // __NVCC__
+#endif // MFEM_USE_CUDA
 
 double Min(const int N, const double *x)
 {
    if (config::UsingDevice())
    {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
       return cuVectorMin(N, x);
 #else
       mfem_error("Using Min on device w/o support");
-#endif // __NVCC__
+#endif // MFEM_USE_CUDA
    }
    double min = std::numeric_limits<double>::infinity();
    for (int i=0; i<N; i+=1) { min = fmin(min, x[i]); }
@@ -952,11 +952,11 @@ double Dot(const int N, const double *x, const double *y)
 {
    if (config::UsingDevice())
    {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
       return cuVectorDot(N, x, y);
 #else
       mfem_error("Using Dot on device w/o support");
-#endif // __NVCC__
+#endif // MFEM_USE_CUDA
    }
    double dot = 0.0;
    for (int i=0; i<N; i+=1) { dot += x[i] * y[i]; }

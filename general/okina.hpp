@@ -63,7 +63,7 @@ void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
                      [&]            (int i) {__VA_ARGS__})
 
 // *****************************************************************************
-#ifndef __NVCC__
+#ifndef MFEM_USE_CUDA
 #define MFEM_HOST_DEVICE
 #else
 #define MFEM_HOST_DEVICE __host__ __device__

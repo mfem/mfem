@@ -14,7 +14,7 @@
 
 #include <cstddef>
 
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
 #include <cuda.h>
 #endif
 
@@ -22,7 +22,7 @@ namespace mfem
 {
 
 // *****************************************************************************
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
 inline void CuCheck(const unsigned int c)
 {
    MFEM_ASSERT(c == cudaSuccess, cudaGetErrorString(cudaGetLastError()));
@@ -52,7 +52,7 @@ typedef int CUcontext;
 typedef void* CUstream;
 template <int BLOCKS, typename DBODY>
 void CuWrap(const int N, DBODY &&d_body) {}
-#endif // __NVCC__
+#endif // MFEM_USE_CUDA
 
 #if defined(__CUDA_ARCH__)
 template<typename T>

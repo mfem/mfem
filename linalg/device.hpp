@@ -51,7 +51,7 @@ class TensorInd
 public:
    MFEM_HOST_DEVICE static int result(const int* sizes, T first, Args... args)
    {
-#ifndef __NVCC__
+#ifndef MFEM_USE_CUDA
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
 #endif
       return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >::result(sizes,
@@ -65,7 +65,7 @@ class TensorInd<Dim, Dim, T, Args...>
 public:
    MFEM_HOST_DEVICE static int result(const int* sizes, T first, Args... args)
    {
-#ifndef __NVCC__
+#ifndef MFEM_USE_CUDA
       MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
 #endif
       return first;

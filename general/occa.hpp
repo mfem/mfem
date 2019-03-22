@@ -14,11 +14,10 @@
 
 // *****************************************************************************
 #ifdef MFEM_USE_OCCA
-#define __OCCA__
 #include <occa.hpp>
 #include "./cuda.hpp"
 
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
 #include <occa/mode/cuda/utils.hpp>
 #endif
 
