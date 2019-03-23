@@ -1,9 +1,11 @@
 //                                MFEM modified from Example 10 and 16
 //
-// Compile with: make implicitMHD
+// Compile with: make exMHD
 //
 // Sample runs:
-//    implicitMHD -m ../../data/beam-quad.mesh -s 3 -r 2 -o 2 -dt 3
+//    exMHD -m xperiodic-square.mesh -r 2 -o 3 -tf 3 -vs 100 -dt .001 -visit
+//    exMHD -r 2 -tf 10 -vs 50 -dt .004 -i 2
+
 //
 // Description:  it solves a time dependent resistive MHD problem 
 // Author: QT
@@ -11,6 +13,7 @@
 #include "mfem.hpp"
 #include "myCoefficient.hpp"
 #include "BoundaryGradIntegrator.hpp"
+#include "ResistiveMHDOperator.hpp"
 #include "PDSolver.hpp"
 #include <memory>
 #include <iostream>
@@ -23,56 +26,6 @@ double alpha; //a global value of magnetude for the pertubation
 double Lx;  //size of x domain
 double lambda;
 double resiG;
-
-/** After spatial discretization, the resistive MHD model can be written as a
- *  system of ODEs:
- *     dPsi/dt = M^{-1}*F1,
- *     dw  /dt = M^{-1}*F2,
- *  coupled with two linear systems
- *     j   = -M^{-1}*(K-B)*Psi 
- *     Phi = -K^{-1}*M*w
- *  so far there seems no need to do a BlockNonlinearForm
- *
- *  Class ImplicitMHDOperator represents the right-hand side of the above
- *  system of ODEs. */
-class ImplicitMHDOperator : public TimeDependentOperator
-{
-protected:
-   FiniteElementSpace &fespace;
-   Array<int> ess_tdof_list;
-   int problem;
-
-   BilinearForm *M, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
-   BilinearForm *Nv, *Nb;
-   LinearForm *E0;
-   SparseMatrix Mmat, Kmat;
-
-   double viscosity, resistivity;
-
-   CGSolver M_solver; // Krylov solver for inverting the mass matrix M
-   GSSmoother *M_prec;  // Preconditioner for the mass matrix M
-
-   CGSolver K_solver; // Krylov solver for inverting the stiffness matrix K
-   GSSmoother *K_prec;  // Preconditioner for the stiffness matrix K
-
-   mutable Vector z; // auxiliary vector 
-
-public:
-   ImplicitMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, 
-                       double visc, double resi);   //this is old
-   ImplicitMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, 
-                       double visc, double resi, int icase);
-
-   // Compute the right-hand side of the ODE system.
-   virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
-
-   void UpdateJ(Vector &vx);
-   void UpdatePhi(Vector &vx);
-   void assembleNv(GridFunction *gf);
-   void assembleNb(GridFunction *gf);
-
-   virtual ~ImplicitMHDOperator();
-};
 
 //initial condition
 double InitialPhi(const Vector &x)
@@ -314,7 +267,12 @@ int main(int argc, char *argv[])
    }
 
    // 7. Initialize the MHD operator, the GLVis visualization    
-   ImplicitMHDOperator oper(fespace, ess_bdr, visc, resi, icase);
+   ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi);
+   if (icase==2)  //add the source term
+   {
+       FunctionCoefficient e0(E0rhs);
+       oper.SetRHSEfield(e0);
+   }
 
    socketstream vis_phi, vis_j;
    subtract(psi,psiBack,psiPer);
@@ -465,233 +423,5 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-
-ImplicitMHDOperator::ImplicitMHDOperator(FiniteElementSpace &f, 
-                                         Array<int> &ess_bdr, double visc, double resi, int icase)
-   : TimeDependentOperator(4*f.GetTrueVSize(), 0.0), fespace(f), problem(icase),
-     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL), E0(NULL),
-     viscosity(visc),  resistivity(resi), M_prec(NULL), K_prec(NULL), z(height/4)
-{
-   const double rel_tol = 1e-8;
-   const int skip_zero_entries = 0;
-   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
-   if (false)
-   {
-        Array<int> ess_vdof;
-        fespace.GetEssentialVDofs(ess_bdr, ess_vdof);
-        ofstream myfile0 ("vdof.dat"), myfile3("tdof.dat");
-        ess_tdof_list.Print(myfile3, 1000);
-        ess_vdof.Print(myfile0, 1000);
-   }
-
-   //no preconditioners for M and K for now
-   //mass matrix
-   M = new BilinearForm(&fespace);
-   M->AddDomainIntegrator(new MassIntegrator);
-   M->Assemble(skip_zero_entries);
-   M->FormSystemMatrix(ess_tdof_list, Mmat);
-
-   GSSmoother *M_prec_gs = new GSSmoother(Mmat);
-   M_prec=M_prec_gs;
-
-   M_solver.iterative_mode = true;
-   M_solver.SetRelTol(rel_tol);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(200);
-   M_solver.SetPrintLevel(0);
-   M_solver.SetPreconditioner(*M_prec);
-   M_solver.SetOperator(Mmat);
-
-   //stiffness matrix
-   K = new BilinearForm(&fespace);
-   K->AddDomainIntegrator(new DiffusionIntegrator);
-   K->Assemble(skip_zero_entries);
-   K->FormSystemMatrix(ess_tdof_list, Kmat);
-
-   GSSmoother *K_prec_gs = new GSSmoother(Kmat);
-   K_prec=K_prec_gs;
-
-   K_solver.iterative_mode = true;
-   K_solver.SetRelTol(rel_tol);
-   K_solver.SetAbsTol(0.0);
-   K_solver.SetMaxIter(200);
-   K_solver.SetPrintLevel(0);
-   K_solver.SetPreconditioner(*K_prec);
-   K_solver.SetOperator(Kmat);
-
-   KB = new BilinearForm(&fespace);
-   KB->AddDomainIntegrator(new DiffusionIntegrator);      //  K matrix
-   KB->AddBdrFaceIntegrator(new BoundaryGradIntegrator);  // -B matrix
-   KB->Assemble(skip_zero_entries);
-
-   if (false)
-   {
-        cout << Kmat.Height()<<" "<<Kmat.Width()<<endl;
-        cout << Mmat.Height()<<" "<<Mmat.Width()<<endl;
-
-        ofstream myfile ("Kmat.m");
-        Kmat.PrintMatlab(myfile);
-
-        ofstream myfile2 ("Mmat.m");
-   }
-
-   if (problem==2)  //add the source term
-   {
-       FunctionCoefficient e0(E0rhs);
-       E0 = new LinearForm(&fespace);
-       E0->AddDomainIntegrator(new DomainLFIntegrator(e0));
-       E0->Assemble();
-   }
-
-
-   ConstantCoefficient visc_coeff(viscosity);
-   DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
-   DRe.Assemble(skip_zero_entries);
-
-   ConstantCoefficient resi_coeff(resistivity);
-   DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
-   DSl.Assemble(skip_zero_entries);
-}
-
-void ImplicitMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
-{
-   // Create views to the sub-vectors and time derivative
-   int sc = height/4;
-   Vector phi(vx.GetData() +   0, sc);
-   Vector psi(vx.GetData() +  sc, sc);
-   Vector   w(vx.GetData() +2*sc, sc);
-   Vector   j(vx.GetData() +3*sc, sc);
-
-   Vector dphi_dt(dvx_dt.GetData() +   0, sc);
-   Vector dpsi_dt(dvx_dt.GetData() +  sc, sc);
-   Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
-   Vector   dj_dt(dvx_dt.GetData() +3*sc, sc);
-
-   dphi_dt=0.0;
-   dj_dt=0.0;
-
-   Nv->Mult(psi, z);
-   if (resistivity != 0.0)
-   {
-      DSl.AddMult(psi, z);
-   }
-   if (problem==2)
-   {
-        z += *E0;
-   }
-   z.Neg(); // z = -z
-
-   for (int i=0; i<ess_tdof_list.Size(); i++)
-       z(ess_tdof_list[i])=0.0; //set Dirichlet condition by hand
-   //ofstream myfile("zLHS1.dat");
-   //z.Print(myfile, 1000);
-
-   M_solver.Mult(z, dpsi_dt);
-
-   Nv->Mult(w, z);
-   if (viscosity != 0.0)
-   {
-      DRe.AddMult(w, z);
-   }
-   z.Neg(); // z = -z
-   Nb->AddMult(j, z);
-
-   for (int i=0; i<ess_tdof_list.Size(); i++)
-       z(ess_tdof_list[i])=0.0; //set Dirichlet condition by hand
-   //ofstream myfile2("zLHS2.dat");
-   //z.Print(myfile2, 1000);
-
-   M_solver.Mult(z, dw_dt);
-
-   //abort();
-
-}
-
-void ImplicitMHDOperator::assembleNv(GridFunction *gf) 
-{
-   //M_solver.Mult(*gf, z);
-   //Vector phi(vx.GetData() +   0, sc);
-   //cout <<phi(0)<<endl;   //debug
-   //GridFunction phiGF(&fespace); 
-   //phiGF.SetFromTrueDofs(phi);
-   
-   int skip_zero_entries=0;
-
-   delete Nv;
-   Nv = new BilinearForm(&fespace);
-   MyCoefficient velocity(gf, 2);   //we update velocity
-
-   Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
-   Nv->Assemble(skip_zero_entries); 
-}
-
-void ImplicitMHDOperator::assembleNb(GridFunction *gf) 
-{
-   //Vector psi(vx.GetData() +  sc, sc);
-   //GridFunction psiGF(&fespace); 
-   //psiGF.SetFromTrueDofs(psi);
-
-   int skip_zero_entries=0;
-
-   delete Nb;
-   Nb = new BilinearForm(&fespace);
-   MyCoefficient Bfield(gf, 2);   //we update B
-
-   Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
-   Nb->Assemble(skip_zero_entries);
-}
-
-void ImplicitMHDOperator::UpdateJ(Vector &vx)
-{
-   //the current is J=-M^{-1}*K*Psi
-   int sc = height/4;
-   //cout << "sc ="<<sc<<" height="<<height<<endl;   //debug
-   Vector psi(vx.GetData() +  sc, sc);
-   Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
-
-   KB->Mult(psi, z);
-   z.Neg(); // z = -z
-
-   /*
-   //debugging for the boundary terms
-   if (false){
-       for (int i=0; i<ess_tdof_list.Size(); i++)
-       { 
-         cout <<ess_tdof_list[i]<<" ";
-         z(ess_tdof_list[i])=0.0;
-       }
-       ofstream myfile("zv.dat");
-       z.Print(myfile, 1000);
-   }
-   */
-
-   M_solver.Mult(z, j);
-}
-
-void ImplicitMHDOperator::UpdatePhi(Vector &vx)
-{
-   //Phi=-K^{-1}*M*w
-   int sc = height/4;
-   Vector phi(vx.GetData() +   0, sc);
-   Vector   w(vx.GetData() +2*sc, sc);
-
-   Mmat.Mult(w, z);
-   z.Neg(); // z = -z
-   K_solver.Mult(z, phi);
-}
-
-
-ImplicitMHDOperator::~ImplicitMHDOperator()
-{
-    //free used memory
-    delete M;
-    delete K;
-    delete KB;
-    delete Nv;
-    delete Nb;
-    delete M_prec;
-    delete K_prec;
-}
 
 
