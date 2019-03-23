@@ -1705,6 +1705,8 @@ protected:
    Vector vec;
    DofToQuad *maps;
    int dim, ne, nq, dofs1D, quad1D;
+   // Ceed
+   void* ceedDataPtr;
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir) { Q = NULL; maps=NULL; }
