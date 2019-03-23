@@ -655,8 +655,8 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double coeff =
             const_coeff ? constant:
             function_coeff ?
-               function(DeviceVector3(x[offset], x[offset+1], x[offset+2])):
-               0.0;
+            function(DeviceVector3(x[offset], x[offset+1], x[offset+2])):
+            0.0;
             v(q,e) =  w[q] * coeff * detJ;
          }
       });
@@ -697,9 +697,9 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const int offset = dims*NQ*e+q;
             const double coeff =
             const_coeff ? constant:
-            function_coeff ? 
-               function(DeviceVector3(x[offset], x[offset+1], x[offset+2])):
-               0.0;
+            function_coeff ?
+            function(DeviceVector3(x[offset], x[offset+1], x[offset+2])):
+            0.0;
             v(q,e) = W(q) * coeff * detJ;
          }
       });
