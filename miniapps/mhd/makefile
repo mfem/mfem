@@ -21,8 +21,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = implicitMHD testJ testJ2bdr
-PAR_EXAMPLES = implicitMHDp
+SEQ_EXAMPLES = exMHD implicitMHDc2
+PAR_EXAMPLES = exMHDp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -41,16 +41,17 @@ endif
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
 
-testJ2bdr: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+all: $(EXAMPLES) 
+
+implicitMHDc2: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
 
 testJ: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
 
-implicitMHD: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+exMHD: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
 
-all: $(EXAMPLES) 
 
 .PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
 $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN):
