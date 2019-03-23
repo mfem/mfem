@@ -98,7 +98,7 @@ namespace mfem
     Vector mfem_fy(fy);
 
     // Compute the linear system
-    return(GetObj(A)->LinSysSetup(t, mfem_y, mfem_fy, jok, jcur, gamma));
+    return(GetObj(A)->ODELinSys(t, mfem_y, mfem_fy, jok, jcur, gamma));
   }
 
   static int arkLinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
@@ -111,7 +111,7 @@ namespace mfem
     Vector mfem_fy(fy);
 
     // Compute the linear system
-    return(GetObj(A)->LinSysSetup(t, mfem_y, mfem_fy, jok, jcur, gamma));
+    return(GetObj(A)->ODELinSys(t, mfem_y, mfem_fy, jok, jcur, gamma));
   }
 
   // ---------------------------------------------------------------------------
