@@ -264,6 +264,7 @@ public:
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
                     ParGridFunction &gf, const char *title,
                     int x = 0, int y = 0, int w = 400, int h = 400,
+                    const char *keys = NULL,
                     bool vec = false);
 
 } // namespace miniapps

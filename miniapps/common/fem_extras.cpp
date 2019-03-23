@@ -118,8 +118,9 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       {
          sock << "window_title '" << title << "'\n"
               << "window_geometry "
-              << x << " " << y << " " << w << " " << h << "\n"
-              << "keys maaAc";
+              << x << " " << y << " " << w << " " << h << "\n";
+         if ( keys ) { sock << "keys " << keys << "\n"; }
+         else { sock << "keys maaAc\n"; }
          if ( vec ) { sock << "vvv"; }
          sock << endl;
       }

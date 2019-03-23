@@ -444,7 +444,7 @@ IrrotationalRTProjector::Update()
 
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
                     ParGridFunction &gf, const char *title,
-                    int x, int y, int w, int h, bool vec)
+                    int x, int y, int w, int h, const char *keys, bool vec)
 {
    ParMesh &pmesh = *gf.ParFESpace()->GetParMesh();
    MPI_Comm comm = pmesh.GetComm();
@@ -476,9 +476,10 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       {
          sock << "window_title '" << title << "'\n"
               << "window_geometry "
-              << x << " " << y << " " << w << " " << h << "\n"
-              << "keys maaAc";
-         if ( vec ) { sock << "vvv"; }
+              << x << " " << y << " " << w << " " << h << "\n";
+         if ( keys ) { sock << "keys " << keys << "\n"; }
+         else { sock << "keys maaAc\n"; }
+         if ( vec ) { sock << "vvv" << "\n"; }
          sock << endl;
       }
 
