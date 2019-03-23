@@ -657,7 +657,7 @@ int main(int argc, char *argv[])
          ostringstream voss; voss << head.str() << " Velocity";
          VisualizeField(vout[i], vishost, visport,
                         velocity, voss.str().c_str(),
-                        Wx, Wy, Ww, Wh, true);
+                        Wx, Wy, Ww, Wh, NULL, true);
          Wx += offx;
 
          ostringstream toss; toss << head.str() << " Temperature";

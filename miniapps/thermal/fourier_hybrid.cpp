@@ -545,7 +545,8 @@ int main(int argc, char *argv[])
 
       Wy += offy;
       miniapps::VisualizeField(vis_b, vishost, visport,
-                               b_gf, "Unit B Field", Wx, Wy, Ww, Wh, true);
+                               b_gf, "Unit B Field",
+                               Wx, Wy, Ww, Wh, NULL, true);
 
       Wx += offx; Wy -= offy;
       miniapps::VisualizeField(vis_T, vishost, visport,
@@ -557,7 +558,8 @@ int main(int argc, char *argv[])
 
       Wx += offx; Wy -= offy;
       miniapps::VisualizeField(vis_q, vishost, visport,
-                               q_gf, "Heat Flux", Wx, Wy, Ww, Wh, true);
+                               q_gf, "Heat Flux",
+                               Wx, Wy, Ww, Wh, NULL, true);
 
       Wy += offy;
       miniapps::VisualizeField(vis_errq, vishost, visport,
