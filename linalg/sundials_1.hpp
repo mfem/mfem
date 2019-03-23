@@ -36,6 +36,7 @@
 #include "solvers.hpp"
 
 #include <cvode/cvode.h>
+#include <arkode/arkode_arkstep.h>
 
 namespace mfem
 {
@@ -103,7 +104,7 @@ namespace mfem
     const double default_abs_tol = 1e-9;
 
     /// Constructors
-    SundialsSolver() : sundials_mem(NULL), flag(0), step_mode(CV_NORMAL),
+    SundialsSolver() : sundials_mem(NULL), flag(0), step_mode(1),
                        y(NULL), A(NULL), LSA(NULL), NLS(NULL) { }
 
     SundialsSolver(void *mem) : sundials_mem(mem) { }
@@ -117,7 +118,7 @@ namespace mfem
   };
 
   // ---------------------------------------------------------------------------
-  // Interface to SUNDIALS' CVODE library -- Multi-step time integration
+  // Interface to the CVODE library -- linear multi-step methods
   // ---------------------------------------------------------------------------
 
   class CVODESolver : public ODESolver, public SundialsODESolver
@@ -127,7 +128,7 @@ namespace mfem
         @param[in] lmm Specifies the linear multistep method, the options are:
                        CV_ADAMS - implicit methods for non-stiff systems
                        CV_BDF   - implicit methods for stiff systems */
-    CVODESolver(int lmm);
+    CVODESolver(int lmm = CV_BDF);
 
 #ifdef MFEM_USE_MPI
     /** Construct a parallel wrapper to SUNDIALS' CVODE integrator
@@ -135,7 +136,7 @@ namespace mfem
         @param[in] lmm  Specifies the linear multistep method, the options are:
                         CV_ADAMS - implicit methods for non-stiff systems
                         CV_BDF   - implicit methods for stiff systems */
-    CVODESolver(MPI_Comm comm, int lmm);
+    CVODESolver(MPI_Comm comm, int lmm = CV_BDF);
 #endif
 
     /// Base class Init -- DO NOT CALL, use the below initialization function
@@ -166,12 +167,77 @@ namespace mfem
                            linear solver */
     void SetLinearSolver(SundialsODELinearSolver &ls_spec);
 
-    /** Select the CVode step mode: CV_NORMAL (default) or CV_ONE_STEP
+    /** Select the CVODE step mode: CV_NORMAL (default) or CV_ONE_STEP
         @param[in] itask  The desired step mode */
     void SetStepMode(int itask);
 
     /// Destroy the associated CVODE memory and SUNDIALS objects
     virtual ~CVODESolver();
+  };
+
+  // ---------------------------------------------------------------------------
+  // Interface to ARKode's ARKStep module -- Additive Runge-Kutta methods
+  // ---------------------------------------------------------------------------
+
+  class ARKStepSolver : public ODESolver, public SundialsODESolver
+  {
+  protected:
+    bool use_implicit;
+    int  irk_table, erk_table;
+
+  public:
+    /// Types of ARKODE solvers.
+    enum Type { EXPLICIT, IMPLICIT };
+
+    /** Construct a serial wrapper to SUNDIALS' ARKode integrator
+        @param[in] type Specifies the RK method type
+                        EXPLICIT - explicit RK method
+                        IMPLICIT - implicit RK method */
+    ARKStepSolver(Type type = EXPLICIT);
+
+#ifdef MFEM_USE_MPI
+    /** Construct a parallel wrapper to SUNDIALS' ARKode integrator
+        @param[in] comm The MPI communicator used to partition the ODE system
+        @param[in] type Specifies the RK method type
+                        EXPLICIT - explicit RK method
+                        IMPLICIT - implicit RK method */
+    ARKStepSolver(MPI_Comm comm, Type type = EXPLICIT);
+#endif
+
+    /// Base class Init -- DO NOT CALL, use the below initialization function
+    /// that takes the initial t and x as inputs.
+    virtual void Init(TimeDependentOperator &f_);
+
+    /** Initialize ARKode: Calls ARKStepInit() and sets some defaults.
+        @param[in] f_ the TimeDependentOperator that defines the ODE system
+        @param[in] t  the initial time
+        @param[in] x  the initial condition
+
+        @note All other methods must be called after Init(). */
+    void Init(TimeDependentOperator &f_, double &t, Vector &x);
+
+    /** Integrate the ODE with ARKode using the specified step mode.
+
+        @param[out]    x  Solution vector at the requested output timem x=x(t).
+        @param[in/out] t  On output, the output time reached.
+        @param[in/out] dt On output, the last time step taken.
+
+        @note On input, the values of t and dt are used to compute desired
+        output time for the integration, tout = t + dt.
+    */
+    virtual void Step(Vector &x, double &t, double &dt);
+
+    /** Attach a custom linear solver solver to ARKode
+        @param[in] ls_spec A SundialsODELinearSolver object defining the custom
+                           linear solver */
+    void SetLinearSolver(SundialsODELinearSolver &ls_spec);
+
+    /** Select the ARKode step mode: ARK_NORMAL (default) or ARK_ONE_STEP
+        @param[in] itask  The desired step mode */
+    void SetStepMode(int itask);
+
+    /// Destroy the associated ARKode memory and SUNDIALS objects
+    virtual ~ARKStepSolver();
   };
 
 }  // namespace mfem
