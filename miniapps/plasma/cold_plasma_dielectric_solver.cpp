@@ -585,7 +585,7 @@ CPDSolver::Solve()
                cout << "ParaSails Preconditioner Requested" << endl;
             }
             pcr = new HypreParaSails(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
-	    dynamic_cast<HypreParaSails*>(pcr)->SetSymmetry(1);
+            dynamic_cast<HypreParaSails*>(pcr)->SetSymmetry(1);
             break;
          case EUCLID:
             if ( myid_ == 0 && logging_ > 0 )

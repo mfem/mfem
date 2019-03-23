@@ -659,11 +659,13 @@ int main(int argc, char *argv[])
 
       Wx += 2 * offx;
       VisualizeField(sock_Er, vishost, visport,
-                     EField.real(), "Exact Electric Field, Re(E)", Wx, Wy, Ww, Wh);
+                     EField.real(), "Exact Electric Field, Re(E)",
+                     Wx, Wy, Ww, Wh);
       Wx += offx;
 
       VisualizeField(sock_Ei, vishost, visport,
-                     EField.imag(), "Exact Electric Field, Im(E)", Wx, Wy, Ww, Wh);
+                     EField.imag(), "Exact Electric Field, Im(E)",
+                     Wx, Wy, Ww, Wh);
       Wx -= offx;
       Wy += offy;
 
