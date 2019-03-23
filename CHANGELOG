@@ -18,7 +18,7 @@ GPU support
 
 - The GPU/device support is based on MFEM's new "okina" kernel device interface
   that supports various backends with dynamic execution, and MFEM's new
-  lightweight host/device memory manager "mm", designed to work seamlesly with
+  lightweight host/device memory manager "mm", designed to work seamlessly with
   these device kernels. See the mm.hpp and okina.hpp files in the general/
   directory.
 

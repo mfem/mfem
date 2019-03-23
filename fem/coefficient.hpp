@@ -157,9 +157,9 @@ public:
                        const IntegrationPoint &ip);
 
    /// Return the coefficient's C-function
-   double (*GetFunction())(const DeviceVector&)
+   double (*GetFunction())(const DeviceVector3&)
    {
-      return reinterpret_cast<double(*)(const DeviceVector&)>(Function);
+      return reinterpret_cast<double(*)(const DeviceVector3&)>(Function);
    }
 };
 

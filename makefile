@@ -25,6 +25,7 @@ MFEM makefile targets:
    make serial
    make parallel
    make cuda
+   make pcuda
    make debug
    make pdebug
    make test/check
@@ -53,7 +54,9 @@ make serial
 make parallel
    A shortcut to configure and build the parallel optimized version of the library.
 make cuda
-   A shortcut to configure and build the GPU/CUDA optimized version of the library.
+   A shortcut to configure and build the serial GPU/CUDA optimized version of the library.
+make pcuda
+   A shortcut to configure and build the parallel GPU/CUDA optimized version of the library.
 make debug
    A shortcut to configure and build the serial debug version of the library.
 make pdebug
@@ -150,7 +153,7 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- style cuda
+ style cuda pcuda
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -197,9 +200,15 @@ ifneq ($(MFEM_USE_MPI),YES)
       CXXFLAGS += $(MFEM_CUDA_FLAGS)
    endif
 else
-   MFEM_CXX ?= $(MPICXX)
-   INCFLAGS += $(HYPRE_OPT)
-   ALL_LIBS += $(HYPRE_LIB)
+   ifneq ($(MFEM_USE_CUDA),YES)
+		MFEM_CXX ?= $(MPICXX)
+   else
+      # CUDA configuration
+		MFEM_CXX ?= $(MFEM_CUDA_CXX)
+      CXXFLAGS += $(MFEM_CUDA_FLAGS)
+	endif
+	INCFLAGS += $(HYPRE_OPT)
+	ALL_LIBS += $(HYPRE_LIB)
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -214,7 +223,7 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI OCCA RAJA
+ SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI MPI CUDA OCCA RAJA
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -375,17 +384,21 @@ $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
-serial debug:    M_MPI=NO
-parallel pdebug: M_MPI=YES
-serial parallel: M_DBG=NO
-debug pdebug:    M_DBG=YES
+serial parallel debug pdebug: M_MM=NO
+serial debug cuda:          M_MPI=NO
+parallel pdebug pcuda:      M_MPI=YES
+serial parallel cuda pcuda: M_DBG=NO
+debug pdebug:               M_DBG=YES
+cuda pcuda:                 M_CUDA=YES
+cuda pcuda:                 M_MM=YES
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
-	   $(MAKEOVERRIDES_SAVE)
+		$(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
-cuda:
-	$(MAKE) -f $(THIS_MK) config MFEM_USE_CUDA=YES $(MAKEOVERRIDES_SAVE)
+cuda pcuda:
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
+	   MFEM_USE_CUDA=$(M_CUDA) MFEM_USE_MM=$(M_MM) $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 deps:
@@ -531,7 +544,7 @@ status info:
 	$(info MFEM_USE_SIDRE       = $(MFEM_USE_SIDRE))
 	$(info MFEM_USE_CONDUIT     = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI        = $(MFEM_USE_PUMI))
-	$(info MFEM_USE_CUDA         = $(MFEM_USE_CUDA))
+	$(info MFEM_USE_CUDA        = $(MFEM_USE_CUDA))
 	$(info MFEM_USE_RAJA        = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA        = $(MFEM_USE_OCCA))
 	$(info MFEM_USE_MM          = $(MFEM_USE_MM))
