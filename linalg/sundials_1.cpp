@@ -223,8 +223,8 @@ namespace mfem
     LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
     MFEM_ASSERT(LSA, "error in SUNLinSol_SPGMR()");
 
-    flag = CVSpilsSetLinearSolver(sundials_mem, LSA);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in CVSpilsSetLinearSolver()");
+    flag = CVodeSetLinearSolver(sundials_mem, LSA);
+    MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetLinearSolver()");
   }
 
   void CVODESolver::SetLinearSolver(SundialsODELinearSolver &ls_spec)
@@ -291,6 +291,168 @@ namespace mfem
     SUNLinSolFree(LSA);
     SUNNonlinSolFree(NLS);
     CVodeFree(&sundials_mem);
+  }
+
+  // ---------------------------------------------------------------------------
+  // ARKStep interface
+  // ---------------------------------------------------------------------------
+
+  ARKStepSolver::ARKStepSolver(Type type)
+    : use_implicit(type == IMPLICIT), irk_table(-1), erk_table(-1)
+  {
+    // Allocate an empty serial N_Vector
+    y = N_VNewEmpty_Serial(0);
+    MFEM_ASSERT(y, "error in N_VNewEmpty_Serial()");
+
+    flag = ARK_SUCCESS;
+  }
+
+#ifdef MFEM_USE_MPI
+  ARKStepSolver::ARKStepSolver(MPI_Comm comm, Type type)
+    : use_implicit(type == IMPLICIT), irk_table(-1), erk_table(-1)
+  {
+    if (comm == MPI_COMM_NULL) {
+
+      // Allocate an empty serial N_Vector
+      y = N_VNewEmpty_Serial(0);
+      MFEM_ASSERT(y, "error in N_VNewEmpty_Serial()");
+
+    } else {
+
+      // Allocate an empty parallel N_Vector
+      y = N_VNewEmpty_Parallel(comm, 0, 0);  // calls MPI_Allreduce()
+      MFEM_ASSERT(y, "error in N_VNewEmpty_Parallel()");
+
+    }
+  }
+#endif
+
+  ARKStepSolver::Init(TimeDependentOperator &f_)
+  {
+    mfem_error("ARKStep Initialization error: use the initialization method"
+      "ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)");
+  }
+
+  ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
+  {
+    // Check intputs for consistency
+    int loc_size = f_.Height();
+    MFEM_VERIFY(loc_size == x.Size(),
+                "error inconsistent operator and vector size");
+
+    MFEM_VERIFY(f_.GetTime() == t,
+                "error inconsistent initial times");
+
+    // Initialize the base class
+    ODESolver::Init(f_);
+
+    // Fill N_Vector wrapper with initial condition data
+    if (!Parallel()) {
+      NV_LENGTH_S(y) = x.Size();
+      NV_DATA_S(y)   = x.GetData();
+    } else {
+#ifdef MFEM_USE_MPI
+      long local_size = loc_size, global_size;
+      MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
+                    NV_COMM_P(y));
+      NV_LOCLENGTH_P(y)  = x.Size();
+      NV_GLOBLENGTH_P(y) = x.GetData();
+#endif
+    }
+
+    // Initialize ARKStep
+    if (use_implicit)
+      sundials_mem = ARKStepCrate(NULL, ODERhs, t, y);
+    else
+      sundials_mem = ARKStepCrate(ODERhs, NULL, t, y);
+    MFEM_ASSERT(sundials_mem, "error in ARKStepCreate()");
+
+    // Attached the TimeDependentOperator pointer, f, as user-defined data
+    flag = ARKStepSetUserData(sundials_mem, f);
+    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetUserData()");
+
+    // Set default tolerances
+    flag = ARKStepSetSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
+    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetSStolerances()");
+
+    // If implicit, set default linear solver
+    if (use_implicit) {
+      LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
+      MFEM_ASSERT(LSA, "error in SUNLinSol_SPGMR()");
+
+      flag = ARKStepSetLinearSolver(sundials_mem, LSA);
+      MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinearSolver()");
+    }
+  }
+
+  void ARKStepSolver::SetLinearSolver(SundialsODELinearSolver &ls_spec)
+  {
+    // Free any existing linear solver
+    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
+
+    // Check for implicit method before attaching
+    MFEM_VERIFY(use_implicit,
+                "The function is applicable only to implicit time integration.");
+
+    // Wrap linear solver as SUNLinearSolver and SUNMatrix
+    LSA = SUNLinSolEmpty();
+    MFEM_ASSERT(sundials_mem, "error in SUNLinSolEmpty()");
+
+    LSA->content         = &ls_spec;
+    LSA->ops->gettype    = SUNLSGetType;
+    LSA->ops->initialize = SUNLSInit;
+    LSA->ops->setup      = SUNLSSetup;
+    LSA->ops->solve      = SUNLSSolve;
+
+    A = SUNMatEmpty();
+    MFEM_ASSERT(sundials_mem, "error in SUNMatEmpty()");
+
+    A->content    = &ls_spec;
+    A->ops->getid = SUNMatGetID;
+
+    // Attach the linear solver and matrix
+    flag = ARKStepSetLinearSolver(sundials_mem, LS, A);
+    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinearSolver()");
+
+    // Set the linear system function
+    flag = ARKStepSetLinSysFn(sundials_mem, arkLinSysSetup);
+    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinSysFn()");
+  }
+
+  void ARKStepSolver::Step(Vector &x, double &t, double &dt)
+  {
+    if (!Parallel()) {
+      NV_DATA_S(y) = x.GetData();
+      MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(), "");
+    } else {
+#ifdef MFEM_USE_MPI
+      NV_DATA_P(y) = x.GetData();
+      MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(), "");
+#endif
+    }
+
+    // Integrate the system
+    double tout = t + dt;
+    flag = ARKStepEvolve(sundials_mem, tout, y, &t, step_mode);
+    MFEM_ASSERT(flag < 0, "error in ARKStepEvolve()");
+
+    // Return the last incremental step size
+    flag = ARKStepGetLastStep(sundials_mem, &dt);
+    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepGetLastStep()");
+  }
+
+  void ARKStepSolver::SetStepMode(int itask)
+  {
+    step_mode = itask;
+  }
+
+  ARKStepSolver::~ARKStepSolver()
+  {
+    N_VDestroy(y);
+    SUNMatDestroy(A);
+    SUNLinSolFree(LSA);
+    SUNNonlinSolFree(NLS);
+    ARKStepFree(&sundials_mem);
   }
 
 } // namespace mfem
