@@ -47,14 +47,18 @@ namespace mfem
   /** Abstract base class for providing custom linear solvers to SUNDIALS ODE
       packages, CVODE and ARKODE. For a given ODE system
 
-      dx/dt = f(x,t) or M dx/dt = f(x,t)
+      dy/dt = f(y,t) or M dy/dt = f(y,t)
 
       the purpose of this class is to facilitate the (approximate) solution of
       linear systems of the form
 
-      (I - gamma J) y = b or (M - gamma J) y = b,   J = J(x,t) = df/dx
+      (I - gamma J) y = b or (M - gamma J) y = b,   J = J(y,t) = df/dy
 
-      for given b, x, t and gamma, where gamma is a scaled time step. */
+      and mass matrix systems of the form
+
+      M y = b,   M = M(t)
+
+      for given b, y, t and gamma, where gamma is a scaled time step. */
   class SundialsODELinearSolver
   {
   private:
@@ -65,18 +69,36 @@ namespace mfem
     virtual ~SundialsODELinearSolver();
 
   public:
-    /** Linear system interface method */
-    ///@{
-    virtual int LinSysSetup(double t, Vector y, Vector fy, int jok, int *jcur,
-                            double gamma) = 0;
-    ///@}
+    /** Setup the ODE linear system A(y,t) = (I - gamma J) or A = (M - gamma J)
+        @param[in]  t     The time at which A(y,t)  should be evaluated
+        @param[in]  y     The state at which A(y,t) should be evaluated
+        @param[in]  fy    The current value of the ODE Rhs function, f(y,t)
+        @param[in]  jok   Flag indicating if the Jacobian should be updated
+        @param[out] jcur  Flag to signal if the Jacobian was updated
+        @param[in]  gamma The scaled time step value */
+    virtual int ODELinSys(double t, Vector y, Vector fy, int jok, int *jcur,
+                          double gamma)
+    {
+      mfem_error("SundialsODELinearSolver::ODELinSys() is not overridden!");
+    }
 
-    /** Linear solver interface methods */
-    ///@{
+    /** Setup the ODE Mass matrix system M
+        @param[in] t The time at which M(t) should be evaluated*/
+    virtual int ODEMassSys(double t)
+    {
+      mfem_error("SundialsODELinearSolver::ODEMassSys() is not overridden!");
+    }
+
+    /** Initialize the linear solver (optional) */
     virtual int LSInit() {return(0)};
+
+    /** Setup the linear solver (optional) */
     virtual int LSSetup() {return(0)};
+
+    /** Solve the linear system A x = b
+        @param[in/out]  x  On input, the initial guess. On output, the solution
+        @param[in]      b  The linear system right-hand side */
     virtual int LSSolve(Vector &x, Vector b) = 0;
-    ///@}
   };
 
   // ---------------------------------------------------------------------------
