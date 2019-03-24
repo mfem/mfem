@@ -68,13 +68,13 @@ public:
       EnableDevice(dev);
    }
 
-   /// Enable the use of the configured device in the code that follow.
+   /// Enable the use of the configured device in the code that follows.
    /** In particular, use the device version of the okina kernels encountered,
        with the device versions of the data registered in the memory manager
        (copying host-to-device if necessary). */
    static inline void Enable() { SwitchToDevice(); }
 
-   /// Disable the use of the configured device in the code that follow
+   /// Disable the use of the configured device in the code that follows.
    /** In particular, use the host version of the okina kernels encountered,
        with the host versions of the data registered in the memory manager
        (copying device-to-host if necessary). */
