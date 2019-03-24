@@ -17,9 +17,9 @@
 namespace mfem
 {
 
-// Simple vector and tensor classes for dense linear algebra on the device.
+// Simple vector and tensor classes for dense linear algebra on the device
 
-/// A simple Vector of size 3 class, appropriate for use on the GPU
+/// Class for a simple Vector of sizes, appropriate for use on the GPU
 class DeviceVector3
 {
 private:
