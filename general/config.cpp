@@ -41,7 +41,11 @@ void config::CudaDeviceSetup(const int device)
 #ifdef __NVCC__
    GpuDeviceSetup(device);
 #else
-   MFEM_ABORT("CUDA requested but no GPU support has been built!");
+#ifdef MFEM_DEBUG
+      ngpu = 1; // do as if we had a device
+#else
+      MFEM_ABORT("CUDA requested but no GPU support has been built!");
+#endif
 #endif
 }
 

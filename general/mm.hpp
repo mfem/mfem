@@ -13,10 +13,8 @@
 #define MFEM_MM
 
 #include <list>
-#include <cstddef> // for size_t
+#include <cstddef>
 #include <unordered_map>
-
-using std::size_t;
 
 #include "occa.hpp" // for OccaMemory
 
