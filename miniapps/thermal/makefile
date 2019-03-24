@@ -54,8 +54,11 @@ fourier_refine: fourier_refine.cpp fourier_solver.o $(COMMON_O) $(MFEM_LIB_FILE)
 fourier_flux_refine: fourier_flux_refine.cpp fourier_flux_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ fourier_flux_solver.o $(COMMON_O) $(MFEM_LIBS)
 
-adv_diff_v1: adv_diff_v1.cpp fourier_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ fourier_solver.o $(COMMON_O) $(MFEM_LIBS)
+adv_diff_v1: adv_diff_v1.cpp adv_diff_v1_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ adv_diff_v1_solver.o $(COMMON_O) $(MFEM_LIBS)
+
+adv_diff_v2: adv_diff_v2.cpp adv_diff_v2_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ adv_diff_v2_solver.o $(COMMON_O) $(MFEM_LIBS)
 
 curve_mesh: curve_mesh.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)

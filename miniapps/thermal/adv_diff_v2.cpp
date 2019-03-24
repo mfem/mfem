@@ -16,7 +16,7 @@
 // This miniapp solves a time dependent heat equation.
 //
 
-#include "adv_diff_v1_solver.hpp"
+#include "adv_diff_v2_solver.hpp"
 #include <cassert>
 #include <memory>
 #include <iostream>
