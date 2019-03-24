@@ -47,7 +47,17 @@ void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
    const bool gpu  = mfem::config::UsingDevice();
    const bool raja = mfem::config::UsingRaja();
    if (gpu && raja) { return mfem::RajaCudaWrap<BLOCKS>(N, d_body); }
+#ifdef __NVCC__
    if (gpu)         { return CuWrap<BLOCKS>(N, d_body); }
+#else
+   if (gpu) {
+#ifdef MFEM_DEBUG 
+      return CuWrap<BLOCKS>(N, h_body);
+#else
+      mfem_error("gpu mode, but no CUDA support!");
+#endif
+   }
+#endif
    if (omp && raja) { return RajaOmpWrap(N, h_body); }
    if (raja)        { return RajaSeqWrap(N, h_body); }
    if (omp)         { return OmpWrap(N, h_body);  }

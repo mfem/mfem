@@ -12,6 +12,9 @@
 #ifndef MFEM_CONFIG_HPP
 #define MFEM_CONFIG_HPP
 
+#include "cuda.hpp"
+#include "occa.hpp"
+
 // *****************************************************************************
 namespace mfem
 {
@@ -32,7 +35,6 @@ private:
    bool occa = false;
    bool omp = false;
    bool sync = false;
-   bool nvvp = false;
    CUdevice cuDevice;
    CUstream *cuStream;
    CUcontext cuContext;

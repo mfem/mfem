@@ -957,7 +957,15 @@ double Dot(const int N, const double *x, const double *y)
 #ifdef __NVCC__
       return cuVectorDot(N, x, y);
 #else
+#ifndef MFEM_DEBUG
       mfem_error("Using Dot on device w/o support");
+#else
+   double dot = 0.0;
+   const DeviceVector d_x(x, N);
+   const DeviceVector d_y(y, N);
+   MFEM_FORALL(i, N, dot += d_x[i] * d_y[i];);
+   return dot;
+#endif
 #endif // __NVCC__
    }
    double dot = 0.0;

@@ -51,7 +51,9 @@ typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
 template <int BLOCKS, typename DBODY>
-void CuWrap(const int N, DBODY &&d_body) {}
+void CuWrap(const int N, DBODY &&d_body) {
+   for(int k=0; k<N; k+=1){ d_body(k); }
+}
 #endif // __NVCC__
 
 #if defined(__CUDA_ARCH__)
@@ -70,6 +72,7 @@ template<typename T> inline T AtomicAdd(T* address, T val)
   return *address;
 }
 #endif //__CUDA_ARCH__
+
 // *****************************************************************************
 // * Allocates device memory
 // *****************************************************************************
