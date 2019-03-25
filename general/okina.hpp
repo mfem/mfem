@@ -25,6 +25,10 @@
 #include "mm.hpp"
 #include "device.hpp"
 
+#ifdef MFEM_USE_RAJA
+#include "RAJA/RAJA.hpp"
+#endif
+
 namespace mfem
 {
 
@@ -46,7 +50,7 @@ namespace mfem
 #define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
 #define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
    OkinaWrap<BLOCKS>(N,                                                 \
-                     [=] __device__ (int i) {__VA_ARGS__},      \
+                     [=] __device__ (int i) {__VA_ARGS__},              \
                      [&]            (int i) {__VA_ARGS__})
 
 
@@ -126,10 +130,10 @@ void CuWrap(const int N, DBODY &&d_body) {}
 template <int BLOCKS, typename DBODY, typename HBODY>
 void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {
-   const bool omp  = mfem::Device::UsingOmp();
-   const bool gpu  = mfem::Device::UsingDevice();
-   const bool raja = mfem::Device::UsingRaja();
-   if (gpu && raja) { return mfem::RajaCudaWrap<BLOCKS>(N, d_body); }
+   const bool omp  = Device::UsingOmp();
+   const bool gpu  = Device::UsingDevice();
+   const bool raja = Device::UsingRaja();
+   if (gpu && raja) { return RajaCudaWrap<BLOCKS>(N, d_body); }
    if (gpu)         { return CuWrap<BLOCKS>(N, d_body); }
    if (omp && raja) { return RajaOmpWrap(N, h_body); }
    if (raja)        { return RajaSeqWrap(N, h_body); }

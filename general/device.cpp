@@ -52,7 +52,7 @@ void Device::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 #ifdef MFEM_USE_OCCA
    if (cuda)
    {
-      occaDevice = occaWrapDevice(cu_dev, cu_ctx);
+      occaDevice = OccaWrapDevice(cu_dev, cu_ctx);
    }
    else
    {

@@ -136,7 +136,7 @@ public:
    }
 
    /// Copy constructor
-   DeviceTensor(const DeviceTensor& t)
+   MFEM_HOST_DEVICE DeviceTensor(const DeviceTensor& t)
    {
       for (int i = 0; i < Dim; ++i)
       {
@@ -147,13 +147,6 @@ public:
 
    /// Conversion to `Scalar *`.
    inline operator Scalar *() const { return data; }
-
-   /*  /// Copy assignment operator (do not resize DeviceTensors)
-   DeviceTensor& operator=(const DeviceTensor& t)
-   {
-      mfem_error("No assignment operator.");
-      return *this;
-      }*/
 
    /// Const accessor for the data
    template <typename... Args> MFEM_HOST_DEVICE
