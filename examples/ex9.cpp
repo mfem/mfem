@@ -111,7 +111,7 @@ Array<int> SparseMatrix_Build_smap(const SparseMatrix &A)
 // is computed, such that (K+D)_ij >= 0 for i != j.
 void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K, SparseMatrix& D)
 {
-   const int s1 = K.Size();
+   const int n = K.Size();
    int* Ip = K.GetI();
    int* Jp = K.GetJ();
    double* Kp = K.GetData();
@@ -119,7 +119,7 @@ void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K, SparseMatrix& D)
 
    double* Dp = D.GetData();
 
-   for (int i = 0, k = 0; i < s1; i++)
+   for (int i = 0, k = 0; i < n; i++)
    {
       double rowsum = 0.;
       for (int end = Ip[i+1]; k < end; k++)
@@ -128,11 +128,11 @@ void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K, SparseMatrix& D)
          double kij = Kp[k];
          double kji = Kp[smap[k]];
          double dij = fmax(fmax(0.0,-kij),-kji);
-         Dp[k] = dij;
-         Dp[smap[k]] = dij;
-         if (i != j) { rowsum += Dp[k]; }
+         Dp[k] = kij + dij;
+         Dp[smap[k]] = kji + dij;
+         if (i != j) { rowsum += dij; }
       }
-      D(i,i) = -rowsum;
+      D(i,i) = K(i,i) -rowsum;
    }
 }
 
@@ -1175,7 +1175,7 @@ int main(int argc, char *argv[])
    const IntegrationRule* irF = GetFaceIntRule(&fes);
    
    Assembly asmbl(&fes, monoType, OptScheme, velocity, dofs,
-                  SubFes0, SubFes1, ref_mesh, VolumeTerms, irF);
+                  SubFes0, SubFes1, ref_mesh, VolumeTerms, irF); // TODO change type of velocity to allow v_coeff
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -1412,12 +1412,9 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       SparseMatrix D(K);
       ComputeDiscreteUpwindingMatrix(K, D);
 
-      // Discretization terms.
-      K.Mult(x, y);
+      // Discretization and monotonicity terms.
+      D.Mult(x, y);
       y += b;
-
-      // Monotonicity terms.
-      D.AddMult(x, y);
 
       // Lump fluxes (for PDU), compute min/max, and invert lumped mass matrix.
       for (k = 0; k < ne; k++)
