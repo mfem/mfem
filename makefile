@@ -28,6 +28,8 @@ MFEM makefile targets:
    make pcuda
    make debug
    make pdebug
+   make cudebug
+   make pcudebug
    make test/check
    make install
    make clean
@@ -61,6 +63,10 @@ make debug
    A shortcut to configure and build the serial debug version of the library.
 make pdebug
    A shortcut to configure and build the parallel debug version of the library.
+make cudebug
+   A shortcut to configure and build the serial GPU/CUDA debug version of the library.
+make pcudebug
+   A shortcut to configure and build the parallel GPU/CUDA debug version of the library.
 make test
    Verify the build by checking the results from running all examples, miniapps,
    and tests.
@@ -152,8 +158,8 @@ $(call mfem-info, SRC       = $(SRC))
 $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
-SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- style cuda pcuda
+SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug \
+	cuda pcuda cudebug pcudebug style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -275,9 +281,10 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
- MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR MFEM_EXT_LIBS\
- MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG MFEM_PREFIX\
- MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP MFEM_TEST_MK
+ MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_SOFLAGS MFEM_FLAGS\
+ MFEM_LIB_DIR MFEM_EXT_LIBS MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC\
+ MFEM_SHARED MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA\
+ MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP MFEM_TEST_MK
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -285,6 +292,7 @@ MFEM_CXXFLAGS  ?= $(CXXFLAGS)
 MFEM_TPLFLAGS  ?= $(INCFLAGS)
 MFEM_INCFLAGS  ?= -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
 MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
+MFEM_SOFLAGS   ?= $(if $(shared),$(BUILD_SOFLAGS))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
@@ -335,8 +343,9 @@ SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
-.PHONY: lib all clean distclean install config status info deps serial parallel\
- debug pdebug style check test unittest
+.PHONY: lib all clean distclean install config status info deps \
+	serial parallel cuda debug pdebug cudebug pcudebug \
+	style check test unittest
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -381,22 +390,24 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
+	$(MFEM_CXX) $(MFEM_SOFLAGS) $(OBJECT_FILES)\
+		$(if $(MFEM_CXX:nvcc=),$(MFEM_BUILD_FLAGS),\
+			$(filter-out -x=cu,$(MFEM_BUILD_FLAGS)))\
 	   $(EXT_LIBS) -o $(@)
 
-serial parallel debug pdebug: M_MM=NO
-serial debug cuda:          M_MPI=NO
-parallel pdebug pcuda:      M_MPI=YES
-serial parallel cuda pcuda: M_DBG=NO
-debug pdebug:               M_DBG=YES
-cuda pcuda:                 M_CUDA=YES
-cuda pcuda:                 M_MM=YES
+serial parallel debug pdebug:   M_MM=NO
+serial debug cuda cudebug:      M_MPI=NO
+parallel pdebug pcuda pcudebug: M_MPI=YES
+serial parallel cuda pcuda:     M_DBG=NO
+debug pdebug cudebug pcudebug:  M_DBG=YES
+cuda pcuda cudebug pcudebug:    M_CUDA=YES
+cuda pcuda cudebug pcudebug:    M_MM=YES
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
 		$(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
-cuda pcuda:
+cuda pcuda cudebug pcudebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
 	   MFEM_USE_CUDA=$(M_CUDA) MFEM_USE_MM=$(M_MM) $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)

@@ -23,7 +23,7 @@ MPICXX = mpicxx
 
 BASE_FLAGS  = -std=c++11
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
-DEBUG_FLAGS = -g -Wall $(BASE_FLAGS)
+DEBUG_FLAGS = -g $(MFEM_XCOMPILER) -Wall $(BASE_FLAGS)
 
 # Destination location of make install
 # PREFIX = $(HOME)/mfem
@@ -54,9 +54,9 @@ ifneq ($(NOTMAC),)
    SO_EXT  = so
    SO_VER  = so.$(MFEM_VERSION_STRING)
    BUILD_SOFLAGS = -shared $(MFEM_XARCHIVE) -Wl,-soname,libmfem.$(SO_VER)
-   BUILD_RPATH = -Wl,-rpath,$(BUILD_REAL_DIR)
+   BUILD_RPATH = $(MFEM_XARCHIVE) -Wl,-rpath,$(BUILD_REAL_DIR)
    INSTALL_SOFLAGS = $(BUILD_SOFLAGS)
-   INSTALL_RPATH = -Wl,-rpath,@MFEM_LIB_DIR@
+   INSTALL_RPATH = $(MFEM_XARCHIVE) -Wl,-rpath,@MFEM_LIB_DIR@
 else
    # Silence "has no symbols" warnings on Mac OS X
    AR      = ar
