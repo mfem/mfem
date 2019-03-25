@@ -72,6 +72,13 @@ Vector bb_min, bb_max;
 
 enum MONOTYPE { None, DiscUpw, DiscUpw_FCT, ResDist, ResDist_FCT };
 
+struct LowOrderMethod
+{
+	FiniteElementSpace* fes;
+	Array <int> smap;
+	SparseMatrix D;
+	BilinearForm* pk = NULL;
+};
 
 // Utility function to build a map to the offset
 // of the symmetric entry in a sparse matrix.
@@ -109,13 +116,13 @@ Array<int> SparseMatrix_Build_smap(const SparseMatrix &A)
 
 // Given a matrix K, matrix D (initialized with same sparsity as K) 
 // is computed, such that (K+D)_ij >= 0 for i != j.
-void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K, SparseMatrix& D)
+void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K,
+												Array<int> smap, SparseMatrix& D)
 {
    const int n = K.Size();
    int* Ip = K.GetI();
    int* Jp = K.GetJ();
    double* Kp = K.GetData();
-   Array<int> smap = SparseMatrix_Build_smap(K); // symmetry map
 
    double* Dp = D.GetData();
 
@@ -687,6 +694,24 @@ private:
    }
 };
 
+class DiscreteUpwinding
+{
+public:
+	FiniteElementSpace* fes;
+	Array<int> smap;
+	SparseMatrix D;
+	
+	DiscreteUpwinding(FiniteElementSpace* _fes, const SparseMatrix K) : fes(_fes)
+	{
+		smap = SparseMatrix_Build_smap(K);
+		
+		if (exec_mode == 0) // Initialization for transport mode.
+      {
+			ComputeDiscreteUpwindingMatrix(K, smap, D);
+		}
+	}
+};
+
 class Assembly
 {
 public:
@@ -880,13 +905,15 @@ private:
 
    double dt, start_t;
    Assembly &asmbl;
+	
+	LowOrderMethod &lom;
 
 public:
    FE_Evolution(FiniteElementSpace* fes, BilinearForm &Mbf_, BilinearForm &Kbf_,
                 SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
                 Assembly &_asmbl, GridFunction &mpos, GridFunction &vpos,
                 BilinearForm &_ml, Vector &_lumpedM,
-                VectorGridFunctionCoefficient &v_coef);
+                VectorGridFunctionCoefficient &v_coef, LowOrderMethod &_lom);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -1177,6 +1204,51 @@ int main(int argc, char *argv[])
    Assembly asmbl(&fes, monoType, OptScheme, velocity, dofs,
                   SubFes0, SubFes1, ref_mesh, VolumeTerms, irF); // TODO change type of velocity to allow v_coeff
 
+	LowOrderMethod lom;
+	lom.fes = &fes;
+	
+	if ((monoType == DiscUpw) || (DiscUpw_FCT))
+	{
+		if (!OptScheme)
+		{
+			lom.smap = SparseMatrix_Build_smap(k.SpMat());
+			lom.D = k.SpMat();
+			
+			if (exec_mode == 0)
+			{
+				ComputeDiscreteUpwindingMatrix(k.SpMat(), lom.smap, lom.D);
+			}
+		}
+		else
+		{
+			lom.pk = new BilinearForm(&fes);
+			if (exec_mode == 0)
+			{
+				lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(velocity, -1.0));
+			}
+			else if (exec_mode == 1)
+			{
+				lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(v_coeff));
+			}
+			else if (exec_mode == 2)
+			{
+				lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(velocity));
+			}
+			lom.pk->Assemble(skip_zeros);
+			lom.pk->Finalize(skip_zeros);
+			
+			lom.smap = SparseMatrix_Build_smap(lom.pk->SpMat());
+			lom.D = lom.pk->SpMat();
+			
+			if (exec_mode == 0)
+			{
+				ComputeDiscreteUpwindingMatrix(lom.pk->SpMat(), lom.smap, lom.D);
+			}
+		}
+	}
+	
+// 	Init(monoType, OptScheme, lom);
+	
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
@@ -1248,7 +1320,7 @@ int main(int argc, char *argv[])
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, asmbl, *x, v_gf, ml,
-                    lumpedM, v_coeff);
+                    lumpedM, v_coeff, lom);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -1409,11 +1481,23 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
    
    if ( (asmbl.monoType == DiscUpw) || (asmbl.monoType == DiscUpw_FCT) )
    {
-      SparseMatrix D(K);
-      ComputeDiscreteUpwindingMatrix(K, D);
+		// Reassemble on the new mesh (given by mesh_pos).
+		if (exec_mode > 0)
+		{
+			if (!asmbl.OptScheme)
+			{
+				ComputeDiscreteUpwindingMatrix(K, lom.smap, lom.D);
+			}
+			else
+			{
+				lom.pk->BilinearForm::operator=(0.0);
+				lom.pk->Assemble();
+				ComputeDiscreteUpwindingMatrix(lom.pk->SpMat(), lom.smap, lom.D);
+			}
+		}
 
       // Discretization and monotonicity terms.
-      D.Mult(x, y);
+      lom.D.Mult(x, y);
       y += b;
 
       // Lump fluxes (for PDU), compute min/max, and invert lumped mass matrix.
@@ -1685,10 +1769,10 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, BilinearForm &Mbf_,
                            SparseMatrix &_K, const Vector &_b, Assembly &_asmbl,
                            GridFunction &mpos, GridFunction &vpos,
                            BilinearForm &_ml, Vector &_lumpedM, 
-                           VectorGridFunctionCoefficient &v_coef) :
+                           VectorGridFunctionCoefficient &v_coef, LowOrderMethod &_lom) :
    TimeDependentOperator(_M.Size()), fes(_fes),Mbf(Mbf_), Kbf(Kbf_), M(_M),
    K(_K), b(_b), z(_M.Size()), asmbl(_asmbl), start_pos(mpos.Size()),
-   mesh_pos(mpos), vel_pos(vpos), ml(_ml), lumpedM(_lumpedM), coef(v_coef) { }
+   mesh_pos(mpos), vel_pos(vpos), ml(_ml), lumpedM(_lumpedM), coef(v_coef), lom(_lom) { }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
