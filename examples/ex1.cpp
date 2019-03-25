@@ -148,6 +148,7 @@ int main(int argc, char *argv[])
    // 7. Set device config parameters from the command line options and switch
    //    to working on the device.
    Device::Configure(device);
+   Device::Print();
    Device::Enable();
 
    // 8. Define the solution vector x as a finite element grid function
