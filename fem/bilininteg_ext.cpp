@@ -49,7 +49,8 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 
 // OCCA 2D Assemble kernel
 #ifdef MFEM_USE_OCCA
-static void OccaPADiffusionAssemble2D(const int Q1D,
+static void OccaPADiffusionAssemble2D(const int D1D,
+                                      const int Q1D,
                                       const int NE,
                                       const double* W,
                                       const double* J,
@@ -63,6 +64,7 @@ static void OccaPADiffusionAssemble2D(const int Q1D,
    GET_OCCA_MEMORY(oper);
 
    NEW_OCCA_PROPERTY(props);
+   SET_OCCA_PROPERTY(props, D1D);
    SET_OCCA_PROPERTY(props, Q1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
@@ -151,6 +153,7 @@ static void PADiffusionAssemble3D(const int Q1D,
 }
 
 static void PADiffusionAssemble(const int dim,
+                                const int D1D,
                                 const int Q1D,
                                 const int NE,
                                 const double* W,
@@ -162,9 +165,9 @@ static void PADiffusionAssemble(const int dim,
    if (dim==2)
    {
 #ifdef MFEM_USE_OCCA
-      if (Device::usingOcca())
+      if (Device::UsingOcca())
       {
-         OccaPADiffusionAssemble2D(Q1D, NE, W, J, COEFF, oper);
+         OccaPADiffusionAssemble2D(D1D, Q1D, NE, W, J, COEFF, oper);
          return;
       }
 #endif // MFEM_USE_OCCA
@@ -193,13 +196,13 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(symmDims * nq * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
-   PADiffusionAssemble(dim, quad1D, ne, maps->W, geo->J, coeff, vec);
+   PADiffusionAssemble(dim, dofs1D, quad1D, ne, maps->W, geo->J, coeff, vec);
    delete geo;
 }
 
 #ifdef MFEM_USE_OCCA
 // OCCA PA Diffusion MultAdd 2D kernel
-static void OccaPADiffusionMultAdd2D(const int ND1d,
+static void OccaPADiffusionMultAdd2D(const int D1D,
                                      const int Q1D,
                                      const int NE,
                                      const double* B,
@@ -221,13 +224,13 @@ static void OccaPADiffusionMultAdd2D(const int ND1d,
    GET_OCCA_MEMORY(solOut);
 
    NEW_OCCA_PROPERTY(props);
-   SET_OCCA_PROPERTY(props, ND1d);
+   SET_OCCA_PROPERTY(props, D1D);
    SET_OCCA_PROPERTY(props, Q1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
    if (!Device::UsingDevice())
    {
-      NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, bidiffusionMultAdd.okl, props);
+      NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, diffusion.okl, props);
       MultAdd2D_CPU(NE,
                     o_B, o_G,
                     o_Bt, o_Gt,
@@ -236,7 +239,7 @@ static void OccaPADiffusionMultAdd2D(const int ND1d,
    }
    else
    {
-      NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, bidiffusionMultAdd.okl, props);
+      NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, diffusion.okl, props);
       MultAdd2D_GPU(NE,
                     o_B, o_G,
                     o_Bt, o_Gt,
@@ -251,7 +254,7 @@ static void OccaPADiffusionMultAdd2D(const int ND1d,
 #define QUAD_3D_ID(X, Y, Z) (X + ((Y) * Q1D) + ((Z) * Q1D*Q1D))
 
 // PA Diffusion MultAdd 2D kernel
-template<const int ND1d,
+template<const int D1D,
          const int Q1D> static
 void PADiffusionMultAssembled2D(const int NE,
                                 const double* b,
@@ -263,13 +266,13 @@ void PADiffusionMultAssembled2D(const int NE,
                                 double* _y)
 {
    const int NQ = Q1D*Q1D;
-   const DeviceMatrix B(b,Q1D,ND1d);
-   const DeviceMatrix G(g,Q1D,ND1d);
-   const DeviceMatrix Bt(bt,ND1d,Q1D);
-   const DeviceMatrix Gt(gt,ND1d,Q1D);
+   const DeviceMatrix B(b,Q1D,D1D);
+   const DeviceMatrix G(g,Q1D,D1D);
+   const DeviceMatrix Bt(bt,D1D,Q1D);
+   const DeviceMatrix Gt(gt,D1D,Q1D);
    const DeviceTensor<3> op(_op,3,NQ,NE);
-   const DeviceTensor<3> x(_x,ND1d,ND1d,NE);
-   DeviceTensor<3> y(_y,ND1d,ND1d,NE);
+   const DeviceTensor<3> x(_x,D1D,D1D,NE);
+   DeviceTensor<3> y(_y,D1D,D1D,NE);
    MFEM_FORALL(e, NE,
    {
       double grad[Q1D][Q1D][2];
@@ -281,7 +284,7 @@ void PADiffusionMultAssembled2D(const int NE,
             grad[qy][qx][1] = 0.0;
          }
       }
-      for (int dy = 0; dy < ND1d; ++dy)
+      for (int dy = 0; dy < D1D; ++dy)
       {
          double gradX[Q1D][2];
          for (int qx = 0; qx < Q1D; ++qx)
@@ -289,7 +292,7 @@ void PADiffusionMultAssembled2D(const int NE,
             gradX[qx][0] = 0.0;
             gradX[qx][1] = 0.0;
          }
-         for (int dx = 0; dx < ND1d; ++dx)
+         for (int dx = 0; dx < D1D; ++dx)
          {
             const double s = x(dx,dy,e);
             for (int qx = 0; qx < Q1D; ++qx)
@@ -329,8 +332,8 @@ void PADiffusionMultAssembled2D(const int NE,
       }
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double gradX[ND1d][2];
-         for (int dx = 0; dx < ND1d; ++dx)
+         double gradX[D1D][2];
+         for (int dx = 0; dx < D1D; ++dx)
          {
             gradX[dx][0] = 0;
             gradX[dx][1] = 0;
@@ -339,7 +342,7 @@ void PADiffusionMultAssembled2D(const int NE,
          {
             const double gX = grad[qy][qx][0];
             const double gY = grad[qy][qx][1];
-            for (int dx = 0; dx < ND1d; ++dx)
+            for (int dx = 0; dx < D1D; ++dx)
             {
                const double wx  = Bt(dx,qx);
                const double wDx = Gt(dx,qx);
@@ -347,11 +350,11 @@ void PADiffusionMultAssembled2D(const int NE,
                gradX[dx][1] += gY * wx;
             }
          }
-         for (int dy = 0; dy < ND1d; ++dy)
+         for (int dy = 0; dy < D1D; ++dy)
          {
             const double wy  = Bt(dy,qy);
             const double wDy = Gt(dy,qy);
-            for (int dx = 0; dx < ND1d; ++dx)
+            for (int dx = 0; dx < D1D; ++dx)
             {
                y(dx,dy,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
             }
@@ -361,7 +364,7 @@ void PADiffusionMultAssembled2D(const int NE,
 }
 
 // PA Diffusion MultAdd 3D kernel
-template<const int ND1d,
+template<const int D1D,
          const int Q1D> static
 void PADiffusionMultAssembled3D(const int NE,
                                 const double* b,
@@ -373,13 +376,13 @@ void PADiffusionMultAssembled3D(const int NE,
                                 double* _y)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   const DeviceMatrix B(b,Q1D,ND1d);
-   const DeviceMatrix G(g,Q1D,ND1d);
-   const DeviceMatrix Bt(bt,ND1d,Q1D);
-   const DeviceMatrix Gt(gt,ND1d,Q1D);
+   const DeviceMatrix B(b,Q1D,D1D);
+   const DeviceMatrix G(g,Q1D,D1D);
+   const DeviceMatrix Bt(bt,D1D,Q1D);
+   const DeviceMatrix Gt(gt,D1D,Q1D);
    const DeviceTensor<3> op(_op,6,NQ,NE);
-   const DeviceTensor<4> x(_x,ND1d,ND1d,ND1d,NE);
-   DeviceTensor<4> y(_y,ND1d,ND1d,ND1d,NE);
+   const DeviceTensor<4> x(_x,D1D,D1D,D1D,NE);
+   DeviceTensor<4> y(_y,D1D,D1D,D1D,NE);
    MFEM_FORALL(e, NE,
    {
       double grad[Q1D][Q1D][Q1D][4];
@@ -395,7 +398,7 @@ void PADiffusionMultAssembled3D(const int NE,
             }
          }
       }
-      for (int dz = 0; dz < ND1d; ++dz)
+      for (int dz = 0; dz < D1D; ++dz)
       {
          double gradXY[Q1D][Q1D][4];
          for (int qy = 0; qy < Q1D; ++qy)
@@ -407,7 +410,7 @@ void PADiffusionMultAssembled3D(const int NE,
                gradXY[qy][qx][2] = 0.0;
             }
          }
-         for (int dy = 0; dy < ND1d; ++dy)
+         for (int dy = 0; dy < D1D; ++dy)
          {
             double gradX[Q1D][2];
             for (int qx = 0; qx < Q1D; ++qx)
@@ -415,7 +418,7 @@ void PADiffusionMultAssembled3D(const int NE,
                gradX[qx][0] = 0.0;
                gradX[qx][1] = 0.0;
             }
-            for (int dx = 0; dx < ND1d; ++dx)
+            for (int dx = 0; dx < D1D; ++dx)
             {
                const double s = x(dx,dy,dz,e);
                for (int qx = 0; qx < Q1D; ++qx)
@@ -478,10 +481,10 @@ void PADiffusionMultAssembled3D(const int NE,
       }
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double gradXY[ND1d][ND1d][4];
-         for (int dy = 0; dy < ND1d; ++dy)
+         double gradXY[D1D][D1D][4];
+         for (int dy = 0; dy < D1D; ++dy)
          {
-            for (int dx = 0; dx < ND1d; ++dx)
+            for (int dx = 0; dx < D1D; ++dx)
             {
                gradXY[dy][dx][0] = 0;
                gradXY[dy][dx][1] = 0;
@@ -490,8 +493,8 @@ void PADiffusionMultAssembled3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double gradX[ND1d][4];
-            for (int dx = 0; dx < ND1d; ++dx)
+            double gradX[D1D][4];
+            for (int dx = 0; dx < D1D; ++dx)
             {
                gradX[dx][0] = 0;
                gradX[dx][1] = 0;
@@ -502,7 +505,7 @@ void PADiffusionMultAssembled3D(const int NE,
                const double gX = grad[qz][qy][qx][0];
                const double gY = grad[qz][qy][qx][1];
                const double gZ = grad[qz][qy][qx][2];
-               for (int dx = 0; dx < ND1d; ++dx)
+               for (int dx = 0; dx < D1D; ++dx)
                {
                   const double wx  = Bt(dx,qx);
                   const double wDx = Gt(dx,qx);
@@ -511,11 +514,11 @@ void PADiffusionMultAssembled3D(const int NE,
                   gradX[dx][2] += gZ * wx;
                }
             }
-            for (int dy = 0; dy < ND1d; ++dy)
+            for (int dy = 0; dy < D1D; ++dy)
             {
                const double wy  = Bt(dy,qy);
                const double wDy = Gt(dy,qy);
-               for (int dx = 0; dx < ND1d; ++dx)
+               for (int dx = 0; dx < D1D; ++dx)
                {
                   gradXY[dy][dx][0] += gradX[dx][0] * wy;
                   gradXY[dy][dx][1] += gradX[dx][1] * wDy;
@@ -523,13 +526,13 @@ void PADiffusionMultAssembled3D(const int NE,
                }
             }
          }
-         for (int dz = 0; dz < ND1d; ++dz)
+         for (int dz = 0; dz < D1D; ++dz)
          {
             const double wz  = Bt(dz,qz);
             const double wDz = Gt(dz,qz);
-            for (int dy = 0; dy < ND1d; ++dy)
+            for (int dy = 0; dy < D1D; ++dy)
             {
-               for (int dx = 0; dx < ND1d; ++dx)
+               for (int dx = 0; dx < D1D; ++dx)
                {
                   y(dx,dy,dz,e) +=
                      ((gradXY[dy][dx][0] * wz) +
@@ -564,10 +567,10 @@ static void PADiffusionMultAssembled(const int dim,
                                      double* y)
 {
 #ifdef MFEM_USE_OCCA
-   if (Device::usingOcca())
+   if (Device::UsingOcca())
    {
       assert(dim==2);
-      occaDiffusionMultAssembled2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
+      OccaPADiffusionMultAdd2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
       return;
    }
 #endif // MFEM_USE_OCCA
