@@ -22,30 +22,24 @@ namespace mfem
 {
 
 #ifdef MFEM_USE_CUDA
-
+#define MFEM_HOST_DEVICE __host__ __device__
 inline void CuCheck(const unsigned int c)
 {
    MFEM_ASSERT(c == cudaSuccess, cudaGetErrorString(cudaGetLastError()));
 }
-
-#else
-
+template<typename T> MFEM_HOST_DEVICE
+inline T AtomicAdd(T* address, T val)
+{
+   return atomicAdd(address, val);
+}
+#else // MFEM_USE_CUDA
 #define __host__
 #define __device__
 #define __constant__
 typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
-
-#endif // MFEM_USE_CUDA
-
-#if defined(__CUDA_ARCH__)
-template<typename T>
-__device__ inline T AtomicAdd(T* address, T val)
-{
-   return atomicAdd(address, val);
-}
-#else
+#define MFEM_HOST_DEVICE
 template<typename T> inline T AtomicAdd(T* address, T val)
 {
 #if defined(_OPENMP)
@@ -54,7 +48,7 @@ template<typename T> inline T AtomicAdd(T* address, T val)
    *address += val;
    return *address;
 }
-#endif //__CUDA_ARCH__
+#endif // MFEM_USE_CUDA
 
 /// Allocates device memory
 void* CuMemAlloc(void **d_ptr, size_t bytes);
