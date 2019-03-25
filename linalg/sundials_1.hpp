@@ -113,8 +113,10 @@ namespace mfem
     int step_mode;      /// SUNDIALS step mode (NORMAL or ONE_STEP)
 
     N_Vector           y;   /// State vector
-    SUNMatrix          A;   /// Linear system (I - gamma J) or (M - gamma J)
+    SUNMatrix          A;   /// Linear system A = (I - gamma J) or (M - gamma J)
+    SUNMatrix          M;   /// Mass matrix M
     SUNLinearSolver    LSA; /// Linear solver for A
+    SUNLinearSolver    LSM; /// Linear solver for M
     SUNNonlinearSolver NLS; /// Nonlinear solver
 
     /// Wrapper to compute the ODE Rhs function
@@ -127,7 +129,8 @@ namespace mfem
 
     /// Constructors
     SundialsSolver() : sundials_mem(NULL), flag(0), step_mode(1),
-                       y(NULL), A(NULL), LSA(NULL), NLS(NULL) { }
+                       y(NULL), A(NULL), M(NULL), LSA(NULL), LSM(NULL),
+                       NLS(NULL) { }
 
     SundialsSolver(void *mem) : sundials_mem(mem) { }
 
@@ -253,6 +256,13 @@ namespace mfem
         @param[in] ls_spec A SundialsODELinearSolver object defining the custom
                            linear solver */
     void SetLinearSolver(SundialsODELinearSolver &ls_spec);
+
+    /** Attach a custom mass matrix linear solver solver to ARKode
+        @param[in] ls_spec A SundialsODELinearSolver object defining the custom
+                           linear solver
+        @param[in] tdep    A integer flag indicating if the mass matrix is time
+                           dependent (1) or time independent (0). */
+    void SetMassLinearSolver(SundialsODELinearSolver &ls_spec, int tdep);
 
     /** Select the ARKode step mode: ARK_NORMAL (default) or ARK_ONE_STEP
         @param[in] itask  The desired step mode */
