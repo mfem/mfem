@@ -54,6 +54,10 @@ void Device::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
    {
       occaDevice = OccaWrapDevice(cu_dev, cu_ctx);
    }
+   else if (omp)
+   {
+      occaDevice.setup("mode: 'OpenMP'");
+   }
    else
    {
       occaDevice.setup("mode: 'Serial'");
