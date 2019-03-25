@@ -180,6 +180,7 @@ int main(int argc, char *argv[])
    // 9. Set device config parameters from the command line options and switch
    //    to working on the device.
    Device::Configure(device);
+   if (myid == 0) { Device::Print(); }
    Device::Enable();
 
    // 10. Define the solution vector x as a parallel finite element grid function

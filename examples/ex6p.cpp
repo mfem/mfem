@@ -119,6 +119,7 @@ int main(int argc, char *argv[])
 
    // 7. Set device config parameters from the command line options.
    Device::Configure(device);
+   if (myid == 0) { Device::Print(); }
 
    // 8. As in Example 1p, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete

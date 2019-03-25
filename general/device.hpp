@@ -12,6 +12,8 @@
 #ifndef MFEM_DEVICE_HPP
 #define MFEM_DEVICE_HPP
 
+#include "../general/globals.hpp"
+
 namespace mfem
 {
 
@@ -66,6 +68,25 @@ public:
       if (device.find("raja") != std::string::npos) { Device::UseRaja(); }
       if (device.find("occa") != std::string::npos) { Device::UseOcca(); }
       EnableDevice(dev);
+   }
+
+   /// Print the configured device + programming models in order of priority
+   static inline void Print(std::ostream &out = mfem::out)
+   {
+      const bool omp  = Device::UsingOmp();
+      const bool cuda = Device::UsingDevice();
+      const bool occa = Device::UsingOcca();
+      const bool raja = Device::UsingRaja();
+      out << "Device configuration: ";
+      if (cuda && occa) { out << "OCCA/CUDA\n"; return; }
+      if (omp  && occa) { out << "OCCA/OpenMP\n"; return; }
+      if (occa)         { out << "OCCA/CPU\n"; return; }
+      if (cuda && raja) { out << "RAJA/CUDA\n"; return; }
+      if (cuda)         { out << "CUDA\n";  return; }
+      if (omp  && raja) { out << "RAJA/OpenMP\n";  return; }
+      if (raja)         { out << "RAJA/CPU\n";  return; }
+      if (omp)          { out << "OpenMP\n";  return; }
+      out << "CPU\n";
    }
 
    /// Enable the use of the configured device in the code that follows.
