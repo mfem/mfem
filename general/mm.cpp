@@ -88,37 +88,6 @@ bool mm::Alias(const void *ptr)
    return mfem::Alias(maps,ptr);
 }
 
-static void DumpMode(void)
-{
-   static bool env_ini = false;
-   static bool env_dbg = false;
-   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
-   if (!env_dbg) { return; }
-   static std::bitset<8+1> mode;
-   std::bitset<8+1> cfg;
-   cfg.set(Device::UsingMM()?8:0);
-   cfg.set(Device::DeviceHasBeenEnabled()?7:0);
-   cfg.set(Device::DeviceEnabled()?6:0);
-   cfg.set(Device::DeviceDisabled()?5:0);
-   cfg.set(Device::UsingHost()?4:0);
-   cfg.set(Device::UsingDevice()?3:0);
-   cfg.set(Device::UsingCuda()?2:0);
-   cfg.set(Device::UsingOcca()?1:0);
-   cfg>>=1;
-   if (cfg==mode) { return; }
-   mode=cfg;
-   printf("\033[1K\r[0x%lx] %sMM %sHasBeenEnabled %sEnabled %sDisabled "
-          "%sHOST %sDEVICE %sCUDA %sOCCA\033[m", mode.to_ulong(),
-          Device::UsingMM()?"\033[32m":"\033[31m",
-          Device::DeviceHasBeenEnabled()?"\033[32m":"\033[31m",
-          Device::DeviceEnabled()?"\033[32m":"\033[31m",
-          Device::DeviceDisabled()?"\033[32m":"\033[31m",
-          Device::UsingHost()?"\033[32m":"\033[31m",
-          Device::UsingDevice()?"\033[32m":"\033[31m",
-          Device::UsingCuda()?"\033[32m":"\033[31m",
-          Device::UsingOcca()?"\033[32m":"\033[31m");
-}
-
 void* mm::Insert(void *ptr, const size_t bytes)
 {
    if (!Device::UsingMM()) { return ptr; }
@@ -127,7 +96,6 @@ void* mm::Insert(void *ptr, const size_t bytes)
    {
       mfem_error("Trying to add an already present address!");
    }
-   DumpMode();
    maps.memories.emplace(ptr, memory(ptr, bytes));
    return ptr;
 }

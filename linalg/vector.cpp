@@ -292,7 +292,7 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
       double *vp = v.data;
       const int s = v.size;
 #ifdef MFEM_USE_OPENMP
-         #pragma omp parallel for
+      #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
          vp[i] = v1p[i] + alpha*v2p[i];

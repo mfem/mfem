@@ -32,9 +32,10 @@
 namespace mfem
 {
 
-// Implementation of MFEM's okina device kernel interface
-// (Okina Kernel Interface for Numerical Analysis) and its
-// CUDA, OpenMP, RAJA, and sequential backends.
+// OKINA = Okina Kernel Interface for Numerical Analysis
+
+// Implementation of MFEM's okina device kernel interface and its CUDA, OpenMP,
+// RAJA, and sequential backends.
 
 /// The MFEM_FORALL wrapper
 #define MFEM_BLOCKS 256
