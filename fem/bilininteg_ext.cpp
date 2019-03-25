@@ -292,8 +292,12 @@ static void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedDiffData&
 
   // Create the operator that builds the quadrature data for the diff operator.
   CeedOperatorCreate(ceed, ceedData.build_qfunc, NULL, NULL, &ceedData.build_oper);
-  //TODO check mesh ordering for transpose or not
-  CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr, CEED_TRANSPOSE,
+  CeedTransposeMode lmode = CEED_NOTRANSPOSE;
+  if (mesh_fes->GetOrdering()==Ordering::byVDIM)
+  {
+    lmode = CEED_TRANSPOSE;
+  }
+  CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr, lmode,
                        ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
   CeedOperatorSetField(ceedData.build_oper, "weights", ceedData.mesh_restr_i, CEED_NOTRANSPOSE,
                        ceedData.mesh_basis, CEED_VECTOR_NONE);
@@ -1027,7 +1031,12 @@ static void CeedPAMassAssemble(const FiniteElementSpace &fes, CeedMassData& ceed
 
   // Create the operator that builds the quadrature data for the mass operator.
   CeedOperatorCreate(ceed, ceedData.build_qfunc, NULL, NULL, &ceedData.build_oper);
-  CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr, CEED_TRANSPOSE,
+  CeedTransposeMode lmode = CEED_NOTRANSPOSE;
+  if (mesh_fes->GetOrdering()==Ordering::byVDIM)
+  {
+    lmode = CEED_TRANSPOSE;
+  }
+  CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr, lmode,
                        ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
   CeedOperatorSetField(ceedData.build_oper, "weights", ceedData.mesh_restr_i, CEED_NOTRANSPOSE,
                        ceedData.mesh_basis, CEED_VECTOR_NONE);
