@@ -1623,10 +1623,12 @@ void FE_Evolution::ComputeHighOrderSolution(const Vector &x, Vector &y) const
 
 // High order reconstruction that yields an updated admissible solution by means
 // of clipping the solution coefficients within certain bounds and scaling the
-// antidiffusive fluxes in a way that leads to local conservation of mass.
+// antidiffusive fluxes in a way that leads to local conservation of mass. yH,
+// yL are the high and low order discrete time derivatives.
 void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
                                       const Vector &yL, Vector &y) const
 {
+	
    int j, k, nd, dofInd;
    double sumPos, sumNeg, eps = 1.E-15;
    Vector uClipped, fClipped;
@@ -1651,9 +1653,9 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
          uClipped(j) = min( asmbl.dofs.xi_max(dofInd),
                             max( x(dofInd) + dt * yH(dofInd),
                                  asmbl.dofs.xi_min(dofInd) ) );
-         // Compute coefficients for the high-order corrections.
-         fClipped(j) = lumpedM(dofInd) * ( uClipped(j) - 
-                                           (x(dofInd) + dt * yL(dofInd)) );
+
+         fClipped(j) = lumpedM(dofInd) / dt
+								* ( uClipped(j) - (x(dofInd) + dt * yL(dofInd)) );
 
          sumPos += max(fClipped(j), 0.);
          sumNeg += min(fClipped(j), 0.);
@@ -1670,14 +1672,11 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
             fClipped(j) *= - sumPos / sumNeg;
          }
 
-         dofInd = k*nd+j;
-         // yH is high order discrete time derivative
-         // yL is low order discrete time derivative
-         y(dofInd) = yL(dofInd) + fClipped(j) / (dt * lumpedM(dofInd));
-         // y is now the discrete time derivative featuring the high order anti-
+         // Set y to the discrete time derivative featuring the high order anti-
          // diffusive reconstruction that leads to an forward Euler updated 
-         // admissible solution. The factor dt in the denominator is used for 
-         // compensation in the ODE solver.
+         // admissible solution. 
+         dofInd = k*nd+j;
+         y(dofInd) = yL(dofInd) + fClipped(j) / lumpedM(dofInd);
       }
    }
 }
