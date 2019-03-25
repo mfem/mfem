@@ -72,13 +72,13 @@ public:
    /** In particular, use the device version of the okina kernels encountered,
        with the device versions of the data registered in the memory manager
        (copying host-to-device if necessary). */
-   static inline void Enable() { SwitchToDevice(); }
+   static inline void Enable() { Get().mode = Device::DEVICE;}
 
    /// Disable the use of the configured device in the code that follow
    /** In particular, use the host version of the okina kernels encountered,
        with the host versions of the data registered in the memory manager
        (copying device-to-host if necessary). */
-   static inline void Disable() { SwitchToHost(); }
+   static inline void Disable() { Get().mode = Device::HOST; }
 
    constexpr static inline bool UsingMM()
    {
@@ -96,9 +96,6 @@ public:
 
    static inline bool UsingDevice() { return DeviceEnabled() && Get().mode == DEVICE; }
    static inline bool UsingHost() { return !UsingDevice(); }
-
-   static inline void SwitchToDevice() { Get().mode = Device::DEVICE; }
-   static inline void SwitchToHost() { Get().mode = Device::HOST; }
 
    static inline bool UsingCuda() { return Get().cuda; }
    static inline void UseCuda() { Get().cuda = true; }
