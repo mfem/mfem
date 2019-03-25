@@ -32,18 +32,9 @@
 namespace mfem
 {
 
-// Implementation of MFEM's okina device kernel interface (open kernel interface
-// for numerical analysis) and its CUDA, OpenMP, RAJA, and sequential backends.
-
-#ifndef MFEM_USE_CUDA
-#define MFEM_HOST_DEVICE
-#else
-#define MFEM_HOST_DEVICE __host__ __device__
-#endif
-
-#define FILE_LINE __FILE__ && __LINE__
-#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !Device::UsingDevice());}
-
+// Implementation of MFEM's okina device kernel interface
+// (Okina Kernel Interface for Numerical Analysis) and its
+// CUDA, OpenMP, RAJA, and sequential backends.
 
 /// The MFEM_FORALL wrapper
 #define MFEM_BLOCKS 256
@@ -52,7 +43,6 @@ namespace mfem
    OkinaWrap<BLOCKS>(N,                                                 \
                      [=] __device__ (int i) {__VA_ARGS__},              \
                      [&]            (int i) {__VA_ARGS__})
-
 
 /// OpenMP backend
 template <typename HBODY>
@@ -124,7 +114,6 @@ void CuWrap(const int N, DBODY &&d_body)
 template <int BLOCKS, typename DBODY>
 void CuWrap(const int N, DBODY &&d_body) {}
 #endif
-
 
 /// The okina kernel body wrapper
 template <int BLOCKS, typename DBODY, typename HBODY>

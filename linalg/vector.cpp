@@ -224,7 +224,6 @@ Vector &Vector::Set(const double a, const Vector &Va)
 
 void Vector::SetVector(const Vector &v, int offset)
 {
-   MFEM_GPU_CANNOT_PASS;
    int vs = v.Size();
    double *vp = v.data, *p = data + offset;
 
@@ -257,7 +256,6 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
 #endif
 
 #ifdef MFEM_USE_OPENMP
-   MFEM_GPU_CANNOT_PASS;
    #pragma omp parallel for
    for (int i = 0; i < v.size; i++)
    {
@@ -294,8 +292,7 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
       double *vp = v.data;
       const int s = v.size;
 #ifdef MFEM_USE_OPENMP
-      MFEM_GPU_CANNOT_PASS;
-      #pragma omp parallel for
+         #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
          vp[i] = v1p[i] + alpha*v2p[i];
@@ -407,7 +404,6 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    const int     s = x.size;
 
 #ifdef MFEM_USE_OPENMP
-   MFEM_GPU_CANNOT_PASS;
    #pragma omp parallel for
    for (int i = 0; i < s; i++)
    {
@@ -655,7 +651,6 @@ void Vector::Print_HYPRE(std::ostream &out) const
 
 void Vector::Randomize(int seed)
 {
-   MFEM_GPU_CANNOT_PASS;
    // static unsigned int seed = time(0);
    const double max = (double)(RAND_MAX) + 1.;
 
@@ -675,7 +670,6 @@ void Vector::Randomize(int seed)
 
 double Vector::Norml2() const
 {
-   MFEM_GPU_CANNOT_PASS;
    // Scale entries of Vector on the fly, using algorithms from
    // std::hypot() and LAPACK's drm2. This scaling ensures that the
    // argument of each call to std::pow is <= 1 to avoid overflow.
@@ -713,7 +707,6 @@ double Vector::Norml2() const
 
 double Vector::Normlinf() const
 {
-   MFEM_GPU_CANNOT_PASS;
    double max = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -724,7 +717,6 @@ double Vector::Normlinf() const
 
 double Vector::Norml1() const
 {
-   MFEM_GPU_CANNOT_PASS;
    double sum = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -735,7 +727,6 @@ double Vector::Norml1() const
 
 double Vector::Normlp(double p) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(p > 0.0, "Vector::Normlp");
    if (p == 1.0)
    {
@@ -785,7 +776,6 @@ double Vector::Normlp(double p) const
 
 double Vector::Max() const
 {
-   MFEM_GPU_CANNOT_PASS;
    double max = data[0];
 
    for (int i = 1; i < size; i++)
@@ -799,7 +789,6 @@ double Vector::Max() const
 
 double Vector::Min() const
 {
-   MFEM_GPU_CANNOT_PASS;
    double min = data[0];
 
    for (int i = 1; i < size; i++)
@@ -813,7 +802,6 @@ double Vector::Min() const
 
 double Vector::Sum() const
 {
-   MFEM_GPU_CANNOT_PASS;
    double sum = 0.0;
 
    for (int i = 0; i < size; i++)

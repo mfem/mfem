@@ -214,7 +214,6 @@ SparseMatrix::SparseMatrix(const Vector &v)
 
 SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 {
-   MFEM_GPU_CANNOT_PASS;
    Clear();
 
    SparseMatrix copy(rhs);
@@ -225,7 +224,6 @@ SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 
 void SparseMatrix::MakeRef(const SparseMatrix &master)
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(master.Finalized(), "'master' must be finalized");
    Clear();
    height = master.Height();
@@ -395,7 +393,6 @@ void SparseMatrix::SortColumnIndices()
 
 void SparseMatrix::MoveDiagonalFirst()
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(Finalized(), "Matrix is not Finalized!");
 
    for (int row = 0, end = 0; row < height; row++)
@@ -430,7 +427,6 @@ const double &SparseMatrix::Elem(int i, int j) const
 
 double &SparseMatrix::operator()(int i, int j)
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(i < height && i >= 0 && j < width && j >= 0,
                "Trying to access element outside of the matrix.  "
                << "height = " << height << ", "
@@ -454,7 +450,6 @@ double &SparseMatrix::operator()(int i, int j)
 
 const double &SparseMatrix::operator()(int i, int j) const
 {
-   MFEM_GPU_CANNOT_PASS;
    static const double zero = 0.0;
 
    MFEM_ASSERT(i < height && i >= 0 && j < width && j >= 0,
@@ -490,7 +485,6 @@ const double &SparseMatrix::operator()(int i, int j) const
 
 void SparseMatrix::GetDiag(Vector & d) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(height == width,
                "Matrix must be square, not height = " << height << ", width = " << width);
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
@@ -520,7 +514,6 @@ void SparseMatrix::GetDiag(Vector & d) const
 /// Produces a DenseMatrix from a SparseMatrix
 DenseMatrix *SparseMatrix::ToDenseMatrix() const
 {
-   MFEM_GPU_CANNOT_PASS;
    int num_rows = this->Height();
    int num_cols = this->Width();
 
@@ -534,7 +527,6 @@ DenseMatrix *SparseMatrix::ToDenseMatrix() const
 /// Produces a DenseMatrix from a SparseMatrix
 void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
 {
-   MFEM_GPU_CANNOT_PASS;
    B.SetSize(height, width);
    B = 0.0;
 
@@ -694,7 +686,6 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
 void SparseMatrix::PartMult(
    const Array<int> &rows, const Vector &x, Vector &y) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < rows.Size(); i++)
@@ -713,7 +704,6 @@ void SparseMatrix::PartMult(
 void SparseMatrix::PartAddMult(
    const Array<int> &rows, const Vector &x, Vector &y, const double a) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < rows.Size(); i++)
@@ -763,7 +753,6 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
 void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
                                         Array<int> &y) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
    MFEM_ASSERT(x.Size() == Height(), "Input vector size (" << x.Size()
                << ") must match matrix height (" << Height() << ")");
@@ -786,7 +775,6 @@ void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
 
 double SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(x.Size() == Width(), "x.Size() = " << x.Size()
                << " must be equal to Width() = " << Width());
    MFEM_ASSERT(y.Size() == Height(), "y.Size() = " << y.Size()
@@ -813,7 +801,6 @@ double SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
 
 void SparseMatrix::GetRowSums(Vector &x) const
 {
-   MFEM_GPU_CANNOT_PASS;
    for (int i = 0; i < height; i++)
    {
       double a = 0.0;
@@ -833,7 +820,6 @@ void SparseMatrix::GetRowSums(Vector &x) const
 
 double SparseMatrix::GetRowNorml1(int irow) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(irow < height,
                "row " << irow << " not in matrix with height " << height);
 
@@ -854,7 +840,6 @@ double SparseMatrix::GetRowNorml1(int irow) const
 
 void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, j, nr, nz;
    RowNode *aux;
 
@@ -936,7 +921,6 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 
 void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int br = blocks.NumRows(), bc = blocks.NumCols();
    int nr = (height + br - 1)/br, nc = (width + bc - 1)/bc;
 
@@ -1027,7 +1011,6 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
 
 double SparseMatrix::IsSymmetric() const
 {
-   MFEM_GPU_CANNOT_PASS;
    if (height != width)
    {
       return infinity();
@@ -1070,7 +1053,6 @@ double SparseMatrix::IsSymmetric() const
 
 void SparseMatrix::Symmetrize()
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    int i, j;
@@ -1108,7 +1090,6 @@ int SparseMatrix::NumNonZeroElems() const
 
 double SparseMatrix::MaxNorm() const
 {
-   MFEM_GPU_CANNOT_PASS;
    double m = 0.0;
 
    if (A)
@@ -1132,7 +1113,6 @@ double SparseMatrix::MaxNorm() const
 
 int SparseMatrix::CountSmallElems(double tol) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int counter = 0;
 
    if (A)
@@ -1161,7 +1141,6 @@ int SparseMatrix::CountSmallElems(double tol) const
 
 int SparseMatrix::CheckFinite() const
 {
-   MFEM_GPU_CANNOT_PASS;
    if (Empty())
    {
       return 0;
@@ -1191,7 +1170,6 @@ MatrixInverse *SparseMatrix::Inverse() const
 
 void SparseMatrix::EliminateRow(int row, const double sol, Vector &rhs)
 {
-   MFEM_GPU_CANNOT_PASS;
    RowNode *aux;
 
    MFEM_ASSERT(row < height && row >= 0,
@@ -1208,7 +1186,6 @@ void SparseMatrix::EliminateRow(int row, const double sol, Vector &rhs)
 
 void SparseMatrix::EliminateRow(int row, DiagonalPolicy dpolicy)
 {
-   MFEM_GPU_CANNOT_PASS;
    RowNode *aux;
 
    MFEM_ASSERT(row < height && row >= 0,
@@ -1241,7 +1218,6 @@ void SparseMatrix::EliminateRow(int row, DiagonalPolicy dpolicy)
 
 void SparseMatrix::EliminateCol(int col, DiagonalPolicy dpolicy)
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(col < width && col >= 0,
                "Col " << col << " not in matrix of width " << width);
    MFEM_ASSERT(dpolicy != DIAG_KEEP, "Diagonal policy must not be DIAG_KEEP");
@@ -1283,7 +1259,6 @@ void SparseMatrix::EliminateCol(int col, DiagonalPolicy dpolicy)
 void SparseMatrix::EliminateCols(const Array<int> &cols, const Vector *x,
                                  Vector *b)
 {
-   MFEM_GPU_CANNOT_PASS;
    if (Rows == NULL)
    {
       for (int i = 0; i < height; i++)
@@ -1315,7 +1290,6 @@ void SparseMatrix::EliminateCols(const Array<int> &cols, const Vector *x,
 void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
                                    DiagonalPolicy dpolicy)
 {
-   MFEM_GPU_CANNOT_PASS;
    int col;
 
    MFEM_ASSERT(rc < height && rc >= 0,
@@ -1413,7 +1387,6 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
                                               DenseMatrix &rhs,
                                               DiagonalPolicy dpolicy)
 {
-   MFEM_GPU_CANNOT_PASS;
    int col;
    int num_rhs = rhs.Width();
 
@@ -1536,7 +1509,6 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
 
 void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 {
-   MFEM_GPU_CANNOT_PASS;
    int col;
 
    MFEM_ASSERT(rc < height && rc >= 0,
@@ -1610,7 +1582,6 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 // the A[j] = value; and aux->Value = value; lines.
 void SparseMatrix::EliminateRowColDiag(int rc, double value)
 {
-   MFEM_GPU_CANNOT_PASS;
    int col;
 
    MFEM_ASSERT(rc < height && rc >= 0,
@@ -1669,7 +1640,6 @@ void SparseMatrix::EliminateRowColDiag(int rc, double value)
 void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
                                    DiagonalPolicy dpolicy)
 {
-   MFEM_GPU_CANNOT_PASS;
    int col;
 
    if (Rows)
@@ -1763,7 +1733,6 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
 
 void SparseMatrix::SetDiagIdentity()
 {
-   MFEM_GPU_CANNOT_PASS;
    for (int i = 0; i < height; i++)
       if (I[i+1] == I[i]+1 && fabs(A[I[i]]) < 1e-16)
       {
@@ -1773,7 +1742,6 @@ void SparseMatrix::SetDiagIdentity()
 
 void SparseMatrix::EliminateZeroRows(const double threshold)
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, j;
    double zero;
 
@@ -1801,7 +1769,6 @@ void SparseMatrix::EliminateZeroRows(const double threshold)
 
 void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int c, i, s = height;
    double sum, *yp = y.GetData();
    const double *xp = x.GetData();
@@ -1877,7 +1844,6 @@ void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
 
 void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, c;
    double sum, *yp = y.GetData();
    const double *xp = x.GetData();
@@ -1953,7 +1919,6 @@ void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
 
 double SparseMatrix::GetJacobiScaling() const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    double sc = 1.0;
@@ -1988,7 +1953,6 @@ double SparseMatrix::GetJacobiScaling() const
 void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
                           double sc) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < height; i++)
@@ -2019,7 +1983,6 @@ void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
 
 void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    bool scale = (sc != 1.0);
@@ -2053,7 +2016,6 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 void SparseMatrix::Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
                            double sc) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < height; i++)
@@ -2078,7 +2040,6 @@ void SparseMatrix::Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
 void SparseMatrix::Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
                            double sc) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < height; i++)
@@ -2103,7 +2064,6 @@ void SparseMatrix::Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
 void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                                 const DenseMatrix &subm, int skip_zeros)
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, j, gi, gj, s, t;
    double a;
 
@@ -2141,7 +2101,6 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
 
 void SparseMatrix::Set(const int i, const int j, const double A)
 {
-   MFEM_GPU_CANNOT_PASS;
    double a = A;
    int gi, gj, s, t;
 
@@ -2161,7 +2120,6 @@ void SparseMatrix::Set(const int i, const int j, const double A)
 
 void SparseMatrix::Add(const int i, const int j, const double A)
 {
-   MFEM_GPU_CANNOT_PASS;
    int gi, gj, s, t;
    double a = A;
 
@@ -2182,7 +2140,6 @@ void SparseMatrix::Add(const int i, const int j, const double A)
 void SparseMatrix::SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                                 const DenseMatrix &subm, int skip_zeros)
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, j, gi, gj, s, t;
    double a;
 
@@ -2218,7 +2175,6 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
                                          const DenseMatrix &subm,
                                          int skip_zeros)
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, j, gi, gj, s, t;
    double a;
 
@@ -2252,7 +2208,6 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
 void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                                 DenseMatrix &subm) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, j, gi, gj, s, t;
    double a;
 
@@ -2280,7 +2235,6 @@ void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
 
 bool SparseMatrix::RowIsEmpty(const int row) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int gi;
 
    if ((gi=row) < 0)
@@ -2302,7 +2256,6 @@ bool SparseMatrix::RowIsEmpty(const int row) const
 
 int SparseMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
 {
-   MFEM_GPU_CANNOT_PASS;
    RowNode *n;
    int j, gi;
 
@@ -2343,7 +2296,6 @@ int SparseMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
 void SparseMatrix::SetRow(const int row, const Array<int> &cols,
                           const Vector &srow)
 {
-   MFEM_GPU_CANNOT_PASS;
    int gi, gj, s, t;
    double a;
 
@@ -2392,7 +2344,6 @@ void SparseMatrix::SetRow(const int row, const Array<int> &cols,
 void SparseMatrix::AddRow(const int row, const Array<int> &cols,
                           const Vector &srow)
 {
-   MFEM_GPU_CANNOT_PASS;
    int j, gi, gj, s, t;
    double a;
 
@@ -2424,7 +2375,6 @@ void SparseMatrix::AddRow(const int row, const Array<int> &cols,
 
 void SparseMatrix::ScaleRow(const int row, const double scale)
 {
-   MFEM_GPU_CANNOT_PASS;
    int i;
 
    if ((i=row) < 0)
@@ -2453,7 +2403,6 @@ void SparseMatrix::ScaleRow(const int row, const double scale)
 
 void SparseMatrix::ScaleRows(const Vector & sl)
 {
-   MFEM_GPU_CANNOT_PASS;
    double scale;
    if (Rows != NULL)
    {
@@ -2485,7 +2434,6 @@ void SparseMatrix::ScaleRows(const Vector & sl)
 
 void SparseMatrix::ScaleColumns(const Vector & sr)
 {
-   MFEM_GPU_CANNOT_PASS;
    if (Rows != NULL)
    {
       RowNode *aux;
@@ -2514,7 +2462,6 @@ void SparseMatrix::ScaleColumns(const Vector & sr)
 
 SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(height == B.height && width == B.width,
                "Mismatch of this matrix size and rhs.  This height = "
                << height << ", width = " << width << ", B.height = "
@@ -2545,7 +2492,6 @@ SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
 
 void SparseMatrix::Add(const double a, const SparseMatrix &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    for (int i = 0; i < height; i++)
    {
       B.SetColPtr(i);
@@ -2569,7 +2515,6 @@ void SparseMatrix::Add(const double a, const SparseMatrix &B)
 
 SparseMatrix &SparseMatrix::operator=(double a)
 {
-   MFEM_GPU_CANNOT_PASS;
    if (Rows == NULL)
       for (int i = 0, nnz = I[height]; i < nnz; i++)
       {
@@ -2588,7 +2533,6 @@ SparseMatrix &SparseMatrix::operator=(double a)
 
 SparseMatrix &SparseMatrix::operator*=(double a)
 {
-   MFEM_GPU_CANNOT_PASS;
    if (Rows == NULL)
       for (int i = 0, nnz = I[height]; i < nnz; i++)
       {
@@ -2929,7 +2873,6 @@ SparseMatrix *Transpose (const SparseMatrix &A)
 SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                              int useActualWidth)
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, j;
    int m, n, nnz, *At_i, *At_j;
    double *At_data;
@@ -3007,7 +2950,6 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
 SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                     SparseMatrix *OAB)
 {
-   MFEM_GPU_CANNOT_PASS;
    int nrowsA, ncolsA, nrowsB, ncolsB;
    int *A_i, *A_j, *B_i, *B_j, *C_i, *C_j, *B_marker;
    double *A_data, *B_data, *C_data;
@@ -3133,7 +3075,6 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
 
 SparseMatrix * TransposeMult(const SparseMatrix &A, const SparseMatrix &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    SparseMatrix *At  = Transpose(A);
    SparseMatrix *AtB = Mult(*At, B);
    delete At;
@@ -3143,7 +3084,6 @@ SparseMatrix * TransposeMult(const SparseMatrix &A, const SparseMatrix &B)
 SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                         const AbstractSparseMatrix &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    int nrowsA, ncolsA, nrowsB, ncolsB;
    int *C_i, *C_j, *B_marker;
    double *C_data;
@@ -3240,7 +3180,6 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
 
 DenseMatrix *Mult (const SparseMatrix &A, DenseMatrix &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    DenseMatrix *C = new DenseMatrix(A.Height(), B.Width());
    Vector columnB, columnC;
    for (int j = 0; j < B.Width(); ++j)
@@ -3254,7 +3193,6 @@ DenseMatrix *Mult (const SparseMatrix &A, DenseMatrix &B)
 
 DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
 {
-   MFEM_GPU_CANNOT_PASS;
    DenseMatrix R (P, 't'); // R = P^T
    DenseMatrix *AP   = Mult (A, P);
    DenseMatrix *_RAP = new DenseMatrix(R.Height(), AP->Width());
@@ -3265,7 +3203,6 @@ DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
 
 DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
 {
-   MFEM_GPU_CANNOT_PASS;
    SparseMatrix *R  = Transpose(P);
    DenseMatrix  *RA = Mult(*R, A);
    DenseMatrix   AtP(*RA, 't');
@@ -3280,7 +3217,6 @@ DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
 SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
                    SparseMatrix *ORAP)
 {
-   MFEM_GPU_CANNOT_PASS;
    SparseMatrix *P  = Transpose (R);
    SparseMatrix *AP = Mult (A, *P);
    delete P;
@@ -3292,7 +3228,6 @@ SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
 SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
                   const SparseMatrix &P)
 {
-   MFEM_GPU_CANNOT_PASS;
    SparseMatrix * R = Transpose(Rt);
    SparseMatrix * RA = Mult(*R,A);
    delete R;
@@ -3304,7 +3239,6 @@ SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
 SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
                          SparseMatrix *OAtDA)
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, At_nnz, *At_j;
    double *At_data;
 
@@ -3324,7 +3258,6 @@ SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
 SparseMatrix * Add(double a, const SparseMatrix & A, double b,
                    const SparseMatrix & B)
 {
-   MFEM_GPU_CANNOT_PASS;
    int nrows = A.Height();
    int ncols = A.Width();
 
@@ -3412,7 +3345,6 @@ SparseMatrix * Add(const SparseMatrix & A, const SparseMatrix & B)
 
 SparseMatrix * Add(Array<SparseMatrix *> & Ai)
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(Ai.Size() > 0, "invalid size Ai.Size() = " << Ai.Size());
 
    SparseMatrix * accumulate = Ai[0];
@@ -3436,7 +3368,6 @@ SparseMatrix * Add(Array<SparseMatrix *> & Ai)
 void Add(const SparseMatrix &A,
          double alpha, DenseMatrix &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    for (int r = 0; r < B.Height(); r++)
    {
       const int    * colA = A.GetRowColumns(r);
@@ -3451,7 +3382,6 @@ void Add(const SparseMatrix &A,
 /// Produces a block matrix with blocks A_{ij}*B
 DenseMatrix *OuterProduct(const DenseMatrix &A, const DenseMatrix &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    int mA = A.Height(), nA = A.Width();
    int mB = B.Height(), nB = B.Width();
 
@@ -3470,7 +3400,6 @@ DenseMatrix *OuterProduct(const DenseMatrix &A, const DenseMatrix &B)
 /// Produces a block matrix with blocks A_{ij}*B
 SparseMatrix *OuterProduct(const DenseMatrix &A, const SparseMatrix &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    int mA = A.Height(), nA = A.Width();
    int mB = B.Height(), nB = B.Width();
 
@@ -3500,7 +3429,6 @@ SparseMatrix *OuterProduct(const DenseMatrix &A, const SparseMatrix &B)
 /// Produces a block matrix with blocks A_{ij}*B
 SparseMatrix *OuterProduct(const SparseMatrix &A, const DenseMatrix &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    int mA = A.Height(), nA = A.Width();
    int mB = B.Height(), nB = B.Width();
 
@@ -3530,7 +3458,6 @@ SparseMatrix *OuterProduct(const SparseMatrix &A, const DenseMatrix &B)
 /// Produces a block matrix with blocks A_{ij}*B
 SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B)
 {
-   MFEM_GPU_CANNOT_PASS;
    int mA = A.Height(), nA = A.Width();
    int mB = B.Height(), nB = B.Width();
 
