@@ -48,8 +48,6 @@ public:
 /// Data and methods for fully-assembled bilinear forms
 class FABilinearFormExtension : public Operator
 {
-private:
-   BilinearForm *a;
 public:
    FABilinearFormExtension(BilinearForm *form);
 
@@ -70,8 +68,6 @@ public:
 /// Data and methods for element-assembled bilinear forms
 class EABilinearFormExtension : public Operator
 {
-private:
-   BilinearForm *a;
 public:
    EABilinearFormExtension(BilinearForm *form);
 
@@ -124,8 +120,6 @@ public:
 /// Data and methods for matrix-free bilinear forms
 class MFBilinearFormExtension : public Operator
 {
-private:
-   BilinearForm *a;
 public:
    MFBilinearFormExtension(BilinearForm *form);
 

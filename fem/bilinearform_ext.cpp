@@ -20,11 +20,11 @@ namespace mfem
 
 // Data and methods for fully-assembled bilinear forms
 FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form) :
-   Operator(form->Size()), a(form) { }
+   Operator(form->Size()) { }
 
 // Data and methods for element-assembled bilinear forms
 EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
-   : Operator(form->Size()), a(form) { }
+   : Operator(form->Size()) { }
 
 // Data and methods for partially-assembled bilinear forms
 PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
@@ -169,7 +169,7 @@ void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
 
 // Data and methods for matrix-free bilinear forms
 MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
-   : Operator(form->Size()), a(form) { }
+   : Operator(form->Size()) { }
 
 // *****************************************************************************
 ElemRestriction::ElemRestriction(const FiniteElementSpace &f)

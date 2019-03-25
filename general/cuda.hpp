@@ -34,8 +34,8 @@ void CuKernel(const int N, BODY body)
    if (k >= N) { return; }
    body(k);
 }
-template <int BLOCKS, typename DBODY>
-void CuWrap(const int N, DBODY &&d_body)
+template <int BLOCKS, typename DBODY, typename HBODY>
+void CuWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {
    if (N==0) { return; }
    const int GRID = (N+BLOCKS-1)/BLOCKS;
@@ -50,9 +50,9 @@ void CuWrap(const int N, DBODY &&d_body)
 typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
-template <int BLOCKS, typename DBODY>
-void CuWrap(const int N, DBODY &&d_body) {
-   for(int k=0; k<N; k+=1){ d_body(k); }
+template <int BLOCKS, typename DBODY, typename HBODY>
+void CuWrap(const int N, DBODY &&d_body, HBODY &&h_body) {
+   for(int k=0; k<N; k+=1){ h_body(k); }
 }
 #endif // __NVCC__
 

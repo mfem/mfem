@@ -27,7 +27,6 @@ void* CuMemAlloc(void** dptr, size_t bytes)
    }
 #else
    *dptr = ::malloc(bytes);
-   assert(*dptr);
 #endif
    return *dptr;
 }
@@ -76,7 +75,6 @@ void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
       mfem_error("Error in CuMemcpyHtoDAsync");
    }
 #else
-   assert(false);
    std::memcpy(dst, src, bytes);
 #endif
    return dst;
@@ -94,7 +92,6 @@ void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
       mfem_error("Error in CuMemcpyDtoD");
    }
 #else
-   //assert(false);
    std::memcpy(dst, src, bytes);
 #endif
    return dst;
@@ -113,7 +110,6 @@ void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
       mfem_error("Error in CuMemcpyDtoDAsync");
    }
 #else
-   assert(false);
    std::memcpy(dst, src, bytes);
 #endif
    return dst;
@@ -130,7 +126,6 @@ void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
       mfem_error("Error in CuMemcpyDtoH");
    }
 #else
-   //assert(false);
    std::memcpy(dst, src, bytes);
 #endif
    return dst;
@@ -148,7 +143,6 @@ void* CuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
       mfem_error("Error in CuMemcpyDtoHAsync");
    }
 #else
-   assert(false);
    std::memcpy(dst, src, bytes);
 #endif
    return dst;
