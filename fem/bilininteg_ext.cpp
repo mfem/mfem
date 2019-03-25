@@ -1233,10 +1233,8 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    mfem::Array<double> W(numQuad);
    mfem::Array<double> B(numQuad*numDofs);
    mfem::Array<double> G(dims*numQuad*numDofs);
-   //config::SwitchToHost();
-#warning MmuEnableAccess d2q d2qD
-   MmuEnableAccess(d2q.GetData(), d2q.Size()*sizeof(double));
-   MmuEnableAccess(d2qD.GetData(), d2qD.Size()*sizeof(double));
+   mm::MemoryEnable(d2q.GetData(), d2q.Size()*sizeof(double));
+   mm::MemoryEnable(d2qD.GetData(), d2qD.Size()*sizeof(double));
    for (int q = 0; q < numQuad; ++q)
    {
       const IntegrationPoint& ip = ir.IntPoint(q);

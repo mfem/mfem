@@ -41,11 +41,7 @@ void config::CudaDeviceSetup(const int device)
 #ifdef __NVCC__
    GpuDeviceSetup(device);
 #else
-#ifdef MFEM_DEBUG
-      ngpu = 1; // do as if we had a device
-#else
       MFEM_ABORT("CUDA requested but no GPU support has been built!");
-#endif
 #endif
 }
 
@@ -92,7 +88,11 @@ void config::MfemDeviceSetup(const int dev)
 {
    MFEM_ASSERT(ngpu==-1, "Only one MfemDeviceSetup allowed");
    ngpu = 0;
+#if defined(MFEM_DEBUG) && defined(MFEM_USE_MM) && !defined(__NVCC__)
+   if (cuda) ngpu = 1; // do as if we had a device
+#else  
    if (cuda) { CudaDeviceSetup(dev); }
+#endif
    if (raja) { RajaDeviceSetup(dev); }
    if (occa) { OccaDeviceSetup(cuDevice, cuContext); }
    if (cuda && ngpu==0)

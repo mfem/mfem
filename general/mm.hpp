@@ -67,7 +67,7 @@ public:
    template<class T>
    static inline T* malloc(const size_t n, const size_t size = sizeof(T))
    {
-#ifndef MFEM_DEBUG
+#if !(defined(MFEM_DEBUG) && defined(MFEM_USE_MM) && !defined(__NVCC__))
       void *ptr = ::new T[n];
 #else
       void *ptr = MM().Allocate(n*size);
@@ -83,7 +83,7 @@ public:
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-#ifndef MFEM_DEBUG
+#if !(defined(MFEM_DEBUG) && defined(MFEM_USE_MM) && !defined(__NVCC__))
       ::delete[] static_cast<T*>(ptr);
 #else
       mm::MM().Free(ptr);
@@ -120,6 +120,12 @@ public:
    {
       return MM().Known(a);
    }
+
+   // **************************************************************************
+   static void *MemoryMap(const size_t bytes);
+   static void MemoryUnmap(void *ptr, const size_t bytes);
+   static void MemoryEnable(void *ptr, const size_t bytes);
+   static void MemoryDisable(void *ptr, const size_t bytes);
 
 private:
    ledger maps;

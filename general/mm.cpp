@@ -14,6 +14,9 @@
 #include <bitset>
 #include <cassert>
 
+#include <signal.h>
+#include <sys/mman.h>
+
 namespace mfem
 {
 
@@ -133,7 +136,7 @@ static void DumpMode(void)
 }
 
 // *****************************************************************************
-void *mm::Allocate(const size_t bytes){ return MmuAllocate(bytes); }
+void *mm::Allocate(const size_t bytes){ return MemoryMap(bytes); }
 
 // *****************************************************************************
 void mm::Free(void *ptr){
@@ -141,7 +144,7 @@ void mm::Free(void *ptr){
    if (!known) { mfem_error("Trying to Free an unknown pointer!"); }
    mm::memory &base = maps.memories.at(ptr);
    const size_t bytes = base.bytes;
-   MmuDelete(ptr, bytes);
+   MemoryUnmap(ptr, bytes);
 }
 
 // *****************************************************************************
@@ -209,7 +212,7 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    if (device && !gpu) // Pull
    {
 #ifdef MFEM_DEBUG
-      MmuEnableAccess(ptr, bytes);
+      mm::MemoryEnable(ptr, bytes);
 #endif
       CuMemcpyDtoH(ptr, base.d_ptr, bytes);
       base.host = true;
@@ -220,7 +223,7 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    CuMemcpyHtoD(base.d_ptr, ptr, bytes);
    base.host = false;
 #ifdef MFEM_DEBUG
-   MmuDisableAccess(ptr, bytes);
+   mm::MemoryDisable(ptr, bytes);
 #endif
    return base.d_ptr;
 }
@@ -249,7 +252,7 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
    if (device && !gpu) // Pull
    {
 #ifdef MFEM_DEBUG
-      MmuEnableAccess(ptr, bytes);
+      mm::MemoryEnable(ptr, bytes);
 #endif
       CuMemcpyDtoH(base->h_ptr, base->d_ptr, bytes);
       alias->mem->host = true;
@@ -260,7 +263,7 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
    CuMemcpyHtoD(base->d_ptr, base->h_ptr, bytes);
    alias->mem->host = false;
 #ifdef MFEM_DEBUG
-   MmuDisableAccess(ptr, bytes);
+   mm::MemoryEnable(ptr, bytes);
 #endif
    return a_ptr;
 }
@@ -322,6 +325,7 @@ static void PullKnown(const mm::ledger &maps, const void *ptr,
    if (host) { return; }
    assert(base.h_ptr);
    assert(base.d_ptr);
+   //mm::MemoryEnable(base.h_ptr, bytes);
    CuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes == 0 ? base.bytes : bytes);
 }
 
@@ -365,6 +369,52 @@ void* mm::memcpy(void *dst, const void *src, const size_t bytes,
    }
    return CuMemcpyDtoDAsync(d_dst, const_cast<void*>(d_src),
                             bytes, config::Stream());
+}
+
+// *****************************************************************************
+static void MemoryError(int sig, siginfo_t *si, void *unused)
+{
+   char msg[64];
+   const char *format = "Address %p was used, but is still on the device!";
+   snprintf(msg, 64, format, si->si_addr);
+   mfem_error(msg);
+}
+
+// *****************************************************************************
+void mm::MemoryDisable(void *ptr, const size_t bytes){
+   if (MmDeviceIniFilter()) { return; }
+   mprotect(ptr, bytes, PROT_NONE);
+}
+
+// *****************************************************************************
+void mm::MemoryEnable(void *ptr, const size_t bytes){
+   if (MmDeviceIniFilter()) { return; }
+   mprotect(ptr, bytes, PROT_READ | PROT_WRITE);
+}
+
+// *****************************************************************************
+void *mm::MemoryMap(const size_t bytes){
+   static bool mmu = false;
+   if (!mmu) {
+      mmu = true;
+      struct sigaction sa;
+      sa.sa_flags = SA_SIGINFO;
+      sigemptyset(&sa.sa_mask);
+      sa.sa_sigaction = MemoryError;
+      if (sigaction(SIGSEGV, &sa, NULL) == -1) mfem_error("sigaction");
+      if (sigaction(SIGBUS, &sa, NULL) == -1) mfem_error("sigaction");
+   }
+   MFEM_ASSERT(bytes>0, "!(bytes>0)");
+   const int flags = MAP_ANONYMOUS | MAP_PRIVATE;
+   void *ptr = mmap(NULL, bytes, PROT_READ | PROT_WRITE, flags, -1, 0);
+   if (ptr == MAP_FAILED) mfem_error("mmap");
+   return ptr;
+}
+
+// *****************************************************************************
+void mm::MemoryUnmap(void *ptr, const size_t bytes){
+   MFEM_ASSERT(bytes>0, "!(bytes>0)");
+   if (munmap(ptr, bytes) == -1) mfem_error("munmap");
 }
 
 // *****************************************************************************

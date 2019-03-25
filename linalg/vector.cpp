@@ -37,8 +37,6 @@ void Vector::Push() const
 
 void Vector::Pull() const
 {
-#warning MmuEnableAccess data
-   MmuEnableAccess(data, size*sizeof(double));
    mm::pull(data, size*sizeof(double));
 }
 
