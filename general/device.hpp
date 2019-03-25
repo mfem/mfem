@@ -74,7 +74,7 @@ public:
    static inline void Print(std::ostream &out = mfem::out)
    {
       const bool omp  = Device::UsingOmp();
-      const bool cuda = Device::UsingDevice();
+      const bool cuda = Device::UsingCuda();
       const bool occa = Device::UsingOcca();
       const bool raja = Device::UsingRaja();
       out << "Device configuration: ";

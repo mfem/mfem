@@ -11,6 +11,9 @@
 
 #include "okina.hpp"
 
+#include <string.h>
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
 namespace mfem
 {
 
@@ -62,7 +65,7 @@ void Device::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
    {
       occaDevice.setup("mode: 'Serial'");
    }
-   const std::string mfem_dir = occa::io::dirname(__FILE__) + "../";
+   const std::string mfem_dir = occa::io::dirname("../_config.hpp");
    occa::io::addLibraryPath("fem", mfem_dir + "fem");
    occa::loadKernels();
    occa::loadKernels("fem");
