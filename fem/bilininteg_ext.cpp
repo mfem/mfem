@@ -161,13 +161,6 @@ static void PADiffusionAssemble(const int dim,
    if (dim==1) { assert(false); }
    if (dim==2)
    {
-#ifdef MFEM_USE_OCCA
-      if (Device::usingOcca())
-      {
-         OccaPADiffusionAssemble2D(Q1D, NE, W, J, COEFF, oper);
-         return;
-      }
-#endif // MFEM_USE_OCCA
       PADiffusionAssemble2D(Q1D, NE, W, J, COEFF, oper);
    }
    if (dim==3)
@@ -225,7 +218,7 @@ static void OccaPADiffusionMultAdd2D(const int ND1d,
    SET_OCCA_PROPERTY(props, Q1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
-   if (!Device::usingGpu())
+   if (!Device::UsingDevice())
    {
       NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, bidiffusionMultAdd.okl, props);
       MultAdd2D_CPU(NE,
@@ -563,14 +556,6 @@ static void PADiffusionMultAssembled(const int dim,
                                      const double* x,
                                      double* y)
 {
-#ifdef MFEM_USE_OCCA
-   if (Device::usingOcca())
-   {
-      assert(dim==2);
-      occaDiffusionMultAssembled2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
-      return;
-   }
-#endif // MFEM_USE_OCCA
    const int id = (dim<<8)|(D1D<<4)|(Q1D);
    static std::unordered_map<int, fDiffusionMultAdd> call =
    {
