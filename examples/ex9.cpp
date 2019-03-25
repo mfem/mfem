@@ -212,8 +212,11 @@ public:
       mesh = fes->GetMesh();
       dim = mesh->Dimension();
       
+		int n = fes->GetVSize();
       int ne = mesh->GetNE();
       
+		xi_min.SetSize(n);
+		xi_max.SetSize(n);
       xe_min.SetSize(ne);
       xe_max.SetSize(ne);
 
@@ -228,34 +231,19 @@ public:
       FillSubcell2CellDof(); // Fill Sub2Ind.
    }
 
-   // Computes the admissible intercal of values for each dof from the min and
+   // Computes the admissible interval of values for one dof from the min and
    // max values of all elements that feature a dof at this physical location.
-   void ComputeVertexBounds(const Vector& x)
+   // It is assumed that a low order method has computed the min/max values for
+   // each element.
+   void ComputeVertexBounds(const Vector& x, const int dofInd)
    {
-      int i, j, k, nd, dofInd, ne = mesh->GetNE();
+      xi_min(dofInd) = numeric_limits<double>::infinity();
+      xi_max(dofInd) = -xi_min(dofInd);
 
-      xi_min.SetSize(x.Size());
-      xi_max.SetSize(x.Size());
-
-      for (k = 0; k < ne; k++)
+      for (int i = 0; i < (int)map_for_bounds[dofInd].size(); i++)
       {
-         const FiniteElement &el = *fes->GetFE(k);
-         nd = el.GetDof();
-
-         for (j = 0; j < nd; j++)
-         {
-            dofInd = k*nd+j;
-            xi_min(dofInd) = numeric_limits<double>::infinity();
-            xi_max(dofInd) = -xi_min(dofInd);
-
-            for (int i = 0; i < (int)map_for_bounds[dofInd].size(); i++)
-            {
-               xi_max(dofInd) = max(xi_max(dofInd),
-                                    xe_max(map_for_bounds[dofInd][i]));
-               xi_min(dofInd) = min(xi_min(dofInd),
-                                    xe_min(map_for_bounds[dofInd][i]));
-            }
-         }
+         xi_max(dofInd) = max(xi_max(dofInd),xe_max(map_for_bounds[dofInd][i]));
+         xi_min(dofInd) = min(xi_min(dofInd),xe_min(map_for_bounds[dofInd][i]));
       }
    }
    
@@ -1643,9 +1631,6 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
    double sumPos, sumNeg, eps = 1.E-15;
    Vector uClipped, fClipped;
 
-   // compute solution bounds
-   asmbl.dofs.ComputeVertexBounds(x);
-
    // Monotonicity terms
    for (k = 0; k < fes->GetMesh()->GetNE(); k++)
    {
@@ -1659,10 +1644,14 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
       for (j = 0; j < nd; j++)
       {
          dofInd = k*nd+j;
+			
+			// Compute the bounds for each dof inside the loop.
+			asmbl.dofs.ComputeVertexBounds(x, dofInd);
+			
          uClipped(j) = min( asmbl.dofs.xi_max(dofInd),
                             max( x(dofInd) + dt * yH(dofInd),
                                  asmbl.dofs.xi_min(dofInd) ) );
-         // compute coefficients for the high-order corrections
+         // Compute coefficients for the high-order corrections.
          fClipped(j) = lumpedM(dofInd) * ( uClipped(j) - 
                                            (x(dofInd) + dt * yL(dofInd)) );
 
