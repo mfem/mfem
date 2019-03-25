@@ -207,14 +207,14 @@ ifneq ($(MFEM_USE_MPI),YES)
    endif
 else
    ifneq ($(MFEM_USE_CUDA),YES)
-		MFEM_CXX ?= $(MPICXX)
+      MFEM_CXX ?= $(MPICXX)
    else
       # CUDA configuration
-		MFEM_CXX ?= $(MFEM_CUDA_CXX)
+      MFEM_CXX ?= $(MFEM_CUDA_CXX)
       CXXFLAGS += $(MFEM_CUDA_FLAGS)
-	endif
-	INCFLAGS += $(HYPRE_OPT)
-	ALL_LIBS += $(HYPRE_LIB)
+   endif
+   INCFLAGS += $(HYPRE_OPT)
+   ALL_LIBS += $(HYPRE_LIB)
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -395,6 +395,7 @@ $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 			$(filter-out -x=cu,$(MFEM_BUILD_FLAGS)))\
 	   $(EXT_LIBS) -o $(@)
 
+# Shortcut target options
 serial parallel debug pdebug:   M_MM=NO
 serial debug cuda cudebug:      M_MPI=NO
 parallel pdebug pcuda pcudebug: M_MPI=YES
@@ -404,7 +405,7 @@ cuda pcuda cudebug pcudebug:    M_CUDA=YES
 cuda pcuda cudebug pcudebug:    M_MM=YES
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
-		$(MAKEOVERRIDES_SAVE)
+	   $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 cuda pcuda cudebug pcudebug:

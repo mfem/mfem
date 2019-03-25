@@ -17,7 +17,6 @@
 namespace mfem
 {
 
-
 static bool Known(const mm::ledger &maps, const void *ptr)
 {
    const mm::memory_map::const_iterator found = maps.memories.find(ptr);
@@ -30,7 +29,6 @@ bool mm::Known(const void *ptr)
 {
    return mfem::Known(maps,ptr);
 }
-
 
 // Looks if ptr is an alias of one memory
 static const void* IsAlias(const mm::ledger &maps, const void *ptr)
@@ -90,7 +88,6 @@ bool mm::Alias(const void *ptr)
    return mfem::Alias(maps,ptr);
 }
 
-
 static void DumpMode(void)
 {
    static bool env_ini = false;
@@ -122,7 +119,6 @@ static void DumpMode(void)
           Device::UsingOcca()?"\033[32m":"\033[31m");
 }
 
-
 void* mm::Insert(void *ptr, const size_t bytes)
 {
    if (!Device::UsingMM()) { return ptr; }
@@ -135,7 +131,6 @@ void* mm::Insert(void *ptr, const size_t bytes)
    maps.memories.emplace(ptr, memory(ptr, bytes));
    return ptr;
 }
-
 
 void *mm::Erase(void *ptr)
 {
@@ -152,7 +147,6 @@ void *mm::Erase(void *ptr)
    return ptr;
 }
 
-
 static inline bool MmDeviceIniFilter(void)
 {
    if (!Device::UsingMM()) { return true; }
@@ -161,7 +155,6 @@ static inline bool MmDeviceIniFilter(void)
    if (Device::UsingOcca()) { mfem_error("Device::UsingOcca()"); }
    return false;
 }
-
 
 // Turn a known address to the right host or device one. Alloc, Push, or Pull it
 // if required.
@@ -240,7 +233,6 @@ const void *mm::Ptr(const void *ptr)
    return static_cast<const void*>(Ptr(const_cast<void*>(ptr)));
 }
 
-
 static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
 {
    mm::memory &base = maps.memories.at(ptr);
@@ -264,7 +256,6 @@ void mm::Push(const void *ptr, const size_t bytes)
    if (Alias(ptr)) { return PushAlias(maps, ptr, bytes); }
    if (Device::UsingDevice()) { mfem_error("Unknown pointer to push to!"); }
 }
-
 
 static void PullKnown(const mm::ledger &maps, const void *ptr,
                       const size_t bytes)
@@ -298,7 +289,6 @@ void mm::Pull(const void *ptr, const size_t bytes)
    if (Device::UsingDevice()) { mfem_error("Unknown pointer to pull from!"); }
 }
 
-
 void* mm::memcpy(void *dst, const void *src, const size_t bytes,
                  const bool async)
 {
@@ -314,7 +304,6 @@ void* mm::memcpy(void *dst, const void *src, const size_t bytes,
    return CuMemcpyDtoDAsync(d_dst, const_cast<void*>(d_src),
                             bytes, Device::Stream());
 }
-
 
 static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
 {
