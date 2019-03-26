@@ -80,6 +80,7 @@ namespace mfem
                           double gamma)
     {
       mfem_error("SundialsODELinearSolver::ODELinSys() is not overridden!");
+      return(1);
     }
 
     /** Setup the ODE Mass matrix system M
@@ -87,13 +88,14 @@ namespace mfem
     virtual int ODEMassSys(double t)
     {
       mfem_error("SundialsODELinearSolver::ODEMassSys() is not overridden!");
+      return(1);
     }
 
     /** Initialize the linear solver (optional) */
-    virtual int LSInit() {return(0)};
+    virtual int LSInit() { return(0); };
 
     /** Setup the linear solver (optional) */
-    virtual int LSSetup() {return(0)};
+    virtual int LSSetup() { return(0); };
 
     /** Solve the linear system A x = b
         @param[in/out]  x  On input, the initial guess. On output, the solution
@@ -119,20 +121,27 @@ namespace mfem
     SUNLinearSolver    LSM; /// Linear solver for M
     SUNNonlinearSolver NLS; /// Nonlinear solver
 
+#ifdef MFEM_USE_MPI
+    bool Parallel() const
+    { return (N_VGetVectorID(y) != SUNDIALS_NVEC_SERIAL); }
+#else
+    bool Parallel() const { return false; }
+#endif
+
     /// Wrapper to compute the ODE Rhs function
     static int ODERhs(realtype t, const N_Vector y, N_Vector ydot,
                       void *user_data);
 
     /// Default scalar tolerances
-    const double default_rel_tol = 1e-4;
-    const double default_abs_tol = 1e-9;
+    static const double default_rel_tol = 1e-4;
+    static const double default_abs_tol = 1e-9;
 
     /// Constructors
-    SundialsSolver() : sundials_mem(NULL), flag(0), step_mode(1),
-                       y(NULL), A(NULL), M(NULL), LSA(NULL), LSM(NULL),
-                       NLS(NULL) { }
+    SundialsODESolver() : sundials_mem(NULL), flag(0), step_mode(1),
+                          y(NULL), A(NULL), M(NULL), LSA(NULL), LSM(NULL),
+                          NLS(NULL) { }
 
-    SundialsSolver(void *mem) : sundials_mem(mem) { }
+    SundialsODESolver(void *mem) : sundials_mem(mem) { }
 
   public:
     /// Access the SUNDIALS memory structure
