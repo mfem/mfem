@@ -19,6 +19,8 @@
 #endif
 
 #include <sundials/sundials_config.h>
+#include <sundials/sundials_matrix.h>
+#include <sundials/sundials_linearsolver.h>
 #include <nvector/nvector_serial.h>
 #ifdef MFEM_USE_MPI
 #include <nvector/nvector_parallel.h>
@@ -45,6 +47,40 @@ namespace mfem
   SUNMatrix_ID SUNMatGetID(SUNMatrix A)
   {
     return(SUNMATRIX_CUSTOM);
+  }
+
+  // Create an empty SUNMatrix <<<<<<< NEED TO ADD
+  static SUNMatrix SUNMatEmpty()
+  {
+    SUNMatrix     A;
+    SUNMatrix_Ops ops;
+
+    /* create linear solver */
+    A = NULL;
+    A = (SUNMatrix) malloc(sizeof *A);
+    if (A == NULL) return(NULL);
+
+    /* create ops structure */
+    ops = NULL;
+    ops = (SUNMatrix_Ops) malloc(sizeof *ops);
+    if (ops == NULL) return(NULL);
+
+    /* initialize operations to NULL */
+    ops->getid     = NULL;
+    ops->clone     = NULL;
+    ops->destroy   = NULL;
+    ops->zero      = NULL;
+    ops->copy      = NULL;
+    ops->scaleadd  = NULL;
+    ops->scaleaddi = NULL;
+    ops->matvec    = NULL;
+    ops->space     = NULL;
+
+    /* attach ops and initialize content to NULL */
+    A->ops     = ops;
+    A->content = NULL;
+
+    return(A);
   }
 
   // ---------------------------------------------------------------------------
@@ -82,6 +118,44 @@ namespace mfem
     Vector mfem_x(x);
     const Vector mfem_b(b);
     return(GetObj(LS)->LSSolve(mfem_x, mfem_b));
+  }
+
+  // Create and empty SUNLinearSolver <<<<<<< NEED TO ADD
+  static SUNLinearSolver SUNLinSolEmpty()
+  {
+    SUNLinearSolver     LS;
+    SUNLinearSolver_Ops ops;
+
+    /* create linear solver */
+    LS = NULL;
+    LS = (SUNLinearSolver) malloc(sizeof *LS);
+    if (LS == NULL) return(NULL);
+
+    /* create ops structure */
+    ops = NULL;
+    ops = (SUNLinearSolver_Ops) malloc(sizeof *ops);
+    if (ops == NULL) return(NULL);
+
+    /* initialize operations to NULL */
+    ops->gettype           = NULL;
+    ops->setatimes         = NULL;
+    ops->setpreconditioner = NULL;
+    ops->setscalingvectors = NULL;
+    ops->initialize        = NULL;
+    ops->setup             = NULL;
+    ops->solve             = NULL;
+    ops->numiters          = NULL;
+    ops->resnorm           = NULL;
+    ops->resid             = NULL;
+    ops->lastflag          = NULL;
+    ops->space             = NULL;
+    ops->free              = NULL;
+
+    /* attach ops and initialize content to NULL */
+    LS->ops     = ops;
+    LS->content = NULL;
+
+    return(LS);
   }
 
   // ---------------------------------------------------------------------------
@@ -125,8 +199,8 @@ namespace mfem
   // Wrapper for evaluating the ODE right-hand side
   // ---------------------------------------------------------------------------
 
-  int SundialsSolver::ODERhs(realtype t, const N_Vector y, N_Vector ydot,
-                             void *user_data)
+  int SundialsODESolver::ODERhs(realtype t, const N_Vector y, N_Vector ydot,
+                                void *user_data)
   {
     // Get data from N_Vectors
     const Vector mfem_y(y);
@@ -181,13 +255,13 @@ namespace mfem
   }
 #endif
 
-  CVODESolver::Init(TimeDependentOperator &f_)
+  void CVODESolver::Init(TimeDependentOperator &f_)
   {
     mfem_error("CVODE Initialization error: use the initialization method"
       "CVODESolver::Init(TimeDependentOperator &f_, double &t, Vector &x)");
   }
 
-  CVODESolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
+  void CVODESolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
   {
     // Check intputs for consistency
     int loc_size = f_.Height();
@@ -210,7 +284,8 @@ namespace mfem
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
       NV_LOCLENGTH_P(y)  = x.Size();
-      NV_GLOBLENGTH_P(y) = x.GetData();
+      NV_GLOBLENGTH_P(y) = global_size;
+      NV_DATA_P(y)       = x.GetData();
 #endif
     }
 
@@ -223,14 +298,14 @@ namespace mfem
     MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetUserData()");
 
     // Set default tolerances
-    flag = CVodeSetSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
+    flag = CVodeSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetSStolerances()");
 
     // Set default linear solver (Newton is the default Nonlinear Solver)
     LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
     MFEM_ASSERT(LSA, "error in SUNLinSol_SPGMR()");
 
-    flag = CVodeSetLinearSolver(sundials_mem, LSA);
+    flag = CVodeSetLinearSolver(sundials_mem, LSA, NULL);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetLinearSolver()");
   }
 
@@ -256,11 +331,11 @@ namespace mfem
     A->ops->getid = SUNMatGetID;
 
     // Attach the linear solver and matrix
-    flag = CVodeSetLinearSolver(sundials_mem, LS, A);
+    flag = CVodeSetLinearSolver(sundials_mem, LSA, A);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetLinearSolver()");
 
-    // Set the linear system function
-    flag = CVodeSetLinSysFn(sundials_mem, cvLinSysSetup);
+    // Set the linear system function <<<<<<< NEED TO ADD
+    //flag = CVodeSetLinSysFn(sundials_mem, cvLinSysSetup);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetLinSysFn()");
   }
 
@@ -334,13 +409,13 @@ namespace mfem
   }
 #endif
 
-  ARKStepSolver::Init(TimeDependentOperator &f_)
+  void ARKStepSolver::Init(TimeDependentOperator &f_)
   {
     mfem_error("ARKStep Initialization error: use the initialization method"
       "ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)");
   }
 
-  ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
+  void ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
   {
     // Check intputs for consistency
     int loc_size = f_.Height();
@@ -363,7 +438,8 @@ namespace mfem
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
       NV_LOCLENGTH_P(y)  = x.Size();
-      NV_GLOBLENGTH_P(y) = x.GetData();
+      NV_GLOBLENGTH_P(y) = global_size;
+      NV_DATA_P(y)       = x.GetData();
 #endif
     }
 
@@ -379,7 +455,7 @@ namespace mfem
     MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetUserData()");
 
     // Set default tolerances
-    flag = ARKStepSetSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
+    flag = ARKStepSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetSStolerances()");
 
     // If implicit, set default linear solver
@@ -387,7 +463,7 @@ namespace mfem
       LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
       MFEM_ASSERT(LSA, "error in SUNLinSol_SPGMR()");
 
-      flag = ARKStepSetLinearSolver(sundials_mem, LSA);
+      flag = ARKStepSetLinearSolver(sundials_mem, LSA, NULL);
       MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinearSolver()");
     }
   }
@@ -422,8 +498,8 @@ namespace mfem
     flag = ARKStepSetLinearSolver(sundials_mem, LSA, A);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinearSolver()");
 
-    // Set the linear system function
-    flag = ARKStepSetLinSysFn(sundials_mem, arkLinSysSetup);
+    // Set the linear system function <<<<<<< NEED TO ADD
+    // flag = ARKStepSetLinSysFn(sundials_mem, arkLinSysSetup);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinSysFn()");
   }
 
@@ -458,8 +534,8 @@ namespace mfem
     flag = ARKStepSetMassLinearSolver(sundials_mem, LSM, M, tdep);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinearSolver()");
 
-    // Set the linear system function
-    flag = ARKStepSetMassLinSysFn(sundials_mem, arkMassSysSetup);
+    // Set the linear system function <<<<<<< NEED TO ADD
+    //flag = ARKStepSetMassLinSysFn(sundials_mem, arkMassSysSetup);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinSysFn()");
   }
 
