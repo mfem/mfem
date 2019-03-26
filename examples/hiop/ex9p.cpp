@@ -8,8 +8,10 @@
 //    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002 -opt 2
 //
 //    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 0 -rs 2 -dt 0.01 -tf 10 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 0 -rs 2 -dt 0.01 -tf 10 -opt 2
 //
 //    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 1 -rs 2 -dt 0.005 -tf 9 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 1 -rs 2 -dt 0.005 -tf 9 -opt 2
 //
 //    mpirun -np 4 ex9p -m ../../data/amr-quad.mesh -p 1 -rs 2 -dt 0.002 -tf 9 -opt 1
 //    mpirun -np 4 ex9p -m ../../data/amr-quad.mesh -p 1 -rs 2 -dt 0.002 -tf 9 -opt 2
@@ -20,10 +22,11 @@
 //    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 2 -rs 3 -dt 0.005 -tf 9 -opt 1
 //    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh -p 2 -rs 3 -dt 0.005 -tf 9 -opt 2
 //
-//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 3 -rs 4 -dt 0.0025 -tf 9 -opt 1
-//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 3 -rs 4 -dt 0.0025 -tf 9 -opt 2
+//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 3 -rs 3 -dt 0.0025 -tf 9 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh -p 3 -rs 3 -dt 0.0025 -tf 9 -opt 2
 //
 //    mpirun -np 4 ex9p -m ../../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.02 -tf 8 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.02 -tf 8 -opt 2
 
 //
 // Description:  This example code solves the time-dependent advection equation
@@ -99,32 +102,33 @@ public:
    }
 };
 
-/// Computes D(x) = e^sum(x_i).
-class ExpSumOperator : public Operator
+/// Nonlinear monotone bounded operator to test nonlinear ineq constraints.
+/// Computes D(x) = tanh(sum(x_i)).
+class TanhSumOperator : public Operator
 {
 private:
    // Gradient for the tdofs.
    mutable DenseMatrix grad;
 
 public:
-   ExpSumOperator(ParFiniteElementSpace &space)
+   TanhSumOperator(ParFiniteElementSpace &space)
       : Operator(1, space.TrueVSize()), grad(1, width) { }
 
    virtual void Mult(const Vector &x, Vector &y) const
    {
       double sum_loc = x.Sum();
       MPI_Allreduce(&sum_loc, &y(0), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      y(0) = std::exp(y(0));
+      y(0) = std::tanh(y(0));
    }
 
    virtual Operator &GetGradient(const Vector &x) const
    {
       double sum_loc = x.Sum();
-      double expsum;
-      MPI_Allreduce(&sum_loc, &expsum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      expsum = std::exp(expsum);
+      double dtanh;
+      MPI_Allreduce(&sum_loc, &dtanh, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      dtanh = 1.0 - pow(std::tanh(dtanh), 2);
 
-      for (int i = 0; i < width; i++) { grad(0, i) = expsum; }
+      for (int i = 0; i < width; i++) { grad(0, i) = dtanh; }
       return grad;
    }
 };
@@ -133,8 +137,8 @@ public:
 /** Monotone and conservative a-posteriori correction for transport solutions:
  *  Find x that minimizes 0.5 || x - x_HO ||^2, subject to
  *  sum w_i x_i = mass,
- *  e^sum(x_i_min) <= e^sum(x_i) <= e^sum(x_i_max),
- *  x_min <= x <= x_max,
+ *  tanh(sum(x_i_min)) <= tanh(sum(x_i)) <= tanh(sum(x_i_max)),
+ *  x_i_min <= x_i <= x_i_max,
  */
 class OptimizedTransportProblem : public OptimizationProblem
 {
@@ -142,7 +146,7 @@ private:
    const Vector &x_HO;
    Vector massvec, d_lo, d_hi;
    const LinearScaleOperator LSoper;
-   const ExpSumOperator ESoper;
+   const TanhSumOperator TSoper;
 
 public:
    OptimizedTransportProblem(ParFiniteElementSpace &space,
@@ -150,22 +154,20 @@ public:
                              const Vector &xmin, const Vector &xmax)
       : OptimizationProblem(xho.Size(), NULL, NULL),
         x_HO(xho), massvec(1), d_lo(1), d_hi(1),
-        LSoper(space, w), ESoper(space)
+        LSoper(space, w), TSoper(space)
    {
       C = &LSoper;
       massvec(0) = mass;
       SetEqualityConstraint(massvec);
 
-      D = &ESoper;
+      D = &TSoper;
       double lsums[2], gsums[2];
       lsums[0] = xmin.Sum();
       lsums[1] = xmax.Sum();
       MPI_Allreduce(lsums, gsums, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      gsums[0] = std::exp(gsums[0]);
-      gsums[1] = std::exp(gsums[1]);
-      d_lo(0) = gsums[0];
-      d_hi(0) = gsums[1];
-      MFEM_VERIFY(d_lo(0) < d_hi(0),
+      d_lo(0) = std::tanh(gsums[0]);
+      d_hi(0) = std::tanh(gsums[1]);
+      MFEM_ASSERT(d_lo(0) < d_hi(0),
                   "The bounds produce an infeasible optimization problem");
       SetInequalityConstraint(d_lo, d_hi);
 

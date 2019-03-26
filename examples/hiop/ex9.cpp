@@ -8,8 +8,10 @@
 //    ex9 -m ../../data/periodic-segment.mesh -r 3 -p 0 -o 2 -dt 0.002 -opt 2
 //
 //    ex9 -m ../../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10 -opt 1
+//    ex9 -m ../../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10 -opt 2
 //
 //    ex9 -m ../../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9 -opt 1
+//    ex9 -m ../../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9 -opt 2
 //
 //    ex9 -m ../../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9 -opt 1
 //    ex9 -m ../../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9 -opt 2
@@ -20,10 +22,11 @@
 //    ex9 -m ../../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9 -opt 1
 //    ex9 -m ../../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9 -opt 2
 //
-//    ex9 -m ../../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -opt 1
-//    ex9 -m ../../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -opt 2
+//    ex9 -m ../../data/periodic-square.mesh -p 3 -r 3 -dt 0.0025 -tf 9 -opt 1
+//    ex9 -m ../../data/periodic-square.mesh -p 3 -r 3 -dt 0.0025 -tf 9 -opt 2
 //
 //    ex9 -m ../../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8 -opt 1
+//    ex9 -m ../../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8 -opt 2
 
 //
 // Description:  This example code solves the time-dependent advection equation
@@ -90,24 +93,26 @@ public:
    }
 };
 
-/// Computes D(x) = e^sum(x_i).
-class ExpSumOperator : public Operator
+/// Nonlinear monotone bounded operator to test nonlinear ineq constraints.
+/// Computes D(x) = tanh(sum(x_i)).
+class TanhSumOperator : public Operator
 {
 private:
    mutable DenseMatrix grad;
 
 public:
-   ExpSumOperator(int size) : Operator(1, size), grad(1, width) { }
+   TanhSumOperator(int size) : Operator(1, size), grad(1, width) { }
 
    virtual void Mult(const Vector &x, Vector &y) const
    {
-      y(0) = std::exp(x.Sum());
+      y(0) = std::tanh(x.Sum());
    }
 
    virtual Operator &GetGradient(const Vector &x) const
    {
-      const double expsum = std::exp(x.Sum());
-      for (int i = 0; i < width; i++) { grad(0, i) = expsum; }
+      const double ts = std::tanh(x.Sum());
+      const double dtanh = 1.0 - ts * ts;
+      for (int i = 0; i < width; i++) { grad(0, i) = dtanh; }
       return grad;
    }
 };
@@ -115,8 +120,8 @@ public:
 /** Monotone and conservative a-posteriori correction for transport solutions:
  *  Find x that minimizes 0.5 || x - x_HO ||^2, subject to
  *  sum w_i x_i = mass,
- *  e^sum(x_i_min) <= e^sum(x_i) <= e^sum(x_i_max),
- *  x_min <= x <= x_max,
+ *  tanh(sum(x_i_min)) <= tanh(sum(x_i)) <= tanh(sum(x_i_max)),
+ *  x_i_min <= x_i <= x_i_max,
  */
 class OptimizedTransportProblem : public OptimizationProblem
 {
@@ -124,23 +129,23 @@ private:
    const Vector &x_HO;
    Vector massvec, d_lo, d_hi;
    const LinearScaleOperator LSoper;
-   const ExpSumOperator ESoper;
+   const TanhSumOperator TSoper;
 
 public:
    OptimizedTransportProblem(const Vector &xho, const Vector &w, double mass,
                              const Vector &xmin, const Vector &xmax)
       : OptimizationProblem(xho.Size(), NULL, NULL),
         x_HO(xho), massvec(1), d_lo(1), d_hi(1),
-        LSoper(w), ESoper(w.Size())
+        LSoper(w), TSoper(w.Size())
    {
       C = &LSoper;
       massvec(0) = mass;
       SetEqualityConstraint(massvec);
 
-      D = &ESoper;
-      d_lo(0) = std::exp(xmin.Sum());
-      d_hi(0) = std::exp(xmax.Sum());
-      MFEM_VERIFY(d_lo(0) < d_hi(0),
+      D = &TSoper;
+      d_lo(0) = std::tanh(xmin.Sum());
+      d_hi(0) = std::tanh(xmax.Sum());
+      MFEM_ASSERT(d_lo(0) < d_hi(0),
                   "The bounds produce an infeasible optimization problem");
       SetInequalityConstraint(d_lo, d_hi);
 
