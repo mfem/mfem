@@ -270,21 +270,21 @@ ifeq ($(MFEM_USE_GZSTREAM),YES)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
-MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
- MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
- MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
- MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
- MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
- MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
- MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI\
- MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA
+MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI	\
+ MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS			\
+ MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE		\
+ MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS		\
+ MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU		\
+ MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC		\
+ MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_CUDA	\
+ MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA
 
 # List of makefile variables that will be written to config.mk:
-MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
- MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_SOFLAGS MFEM_FLAGS\
- MFEM_LIB_DIR MFEM_EXT_LIBS MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC\
- MFEM_SHARED MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA\
- MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP MFEM_TEST_MK
+MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR		\
+ MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_SOFLAGS MFEM_FLAGS MFEM_LIB_DIR	\
+ MFEM_EXT_LIBS MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG	\
+ MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP		\
+ MFEM_TEST_MK
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -295,7 +295,7 @@ MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
 MFEM_SOFLAGS   ?= $(if $(shared),$(BUILD_SOFLAGS))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
-MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
+MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem \
    @MFEM_EXT_LIBS@
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
@@ -305,6 +305,9 @@ MFEM_LIB_DIR   ?= $(if $(BUILD_DIR_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
+
+# The NVCC compiler cannot link with -x=cu
+MFEM_LINK_FLAGS := $(filter-out -x=cu,$(MFEM_FLAGS))
 
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
@@ -343,9 +346,8 @@ SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
-.PHONY: lib all clean distclean install config status info deps \
-	serial parallel cuda debug pdebug cudebug pcudebug \
-	style check test unittest
+.PHONY: lib all clean distclean install config status info deps serial parallel	\
+	cuda debug pdebug cudebug pcudebug style check test unittest
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -390,12 +392,10 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
-	$(MFEM_CXX) $(MFEM_SOFLAGS) $(OBJECT_FILES)\
-		$(if $(MFEM_CXX:nvcc=),$(MFEM_BUILD_FLAGS),\
-			$(filter-out -x=cu,$(MFEM_BUILD_FLAGS)))\
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(MFEM_SOFLAGS) $(OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
-# Shortcut target options
+# Shortcut targets options
 serial parallel debug pdebug:   M_MM=NO
 serial debug cuda cudebug:      M_MPI=NO
 parallel pdebug pcuda pcudebug: M_MPI=YES
@@ -403,6 +403,7 @@ serial parallel cuda pcuda:     M_DBG=NO
 debug pdebug cudebug pcudebug:  M_DBG=YES
 cuda pcuda cudebug pcudebug:    M_CUDA=YES
 cuda pcuda cudebug pcudebug:    M_MM=YES
+
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
 	   $(MAKEOVERRIDES_SAVE)
@@ -416,7 +417,7 @@ cuda pcuda cudebug pcudebug:
 deps:
 	rm -f $(BLD)deps.mk
 	for i in $(RELSRC_FILES:.cpp=); do \
-	   $(DEP_CXX) $(MFEM_BUILD_FLAGS) -MM -MT $(BLD)$${i}.o $(SRC)$${i}.cpp\
+	   $(DEP_CXX) $(MFEM_BUILD_FLAGS) -MM -MT $(BLD)$${i}.o $(SRC)$${i}.cpp \
 	      >> $(BLD)deps.mk; done
 
 check: lib
@@ -458,7 +459,7 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
 
-INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
+INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS) \
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
@@ -587,8 +588,8 @@ FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 
 style:
-	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
-	   echo "No source files were changed.";\
+	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then \
+	   echo "No source files were changed."; \
 	fi
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.

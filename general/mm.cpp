@@ -12,7 +12,6 @@
 #include "../general/okina.hpp"
 
 #include <bitset>
-#include <cassert>
 
 namespace mfem
 {
@@ -158,9 +157,7 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
 {
    const bool gpu = Device::UsingDevice();
    const mm::alias *alias = maps.aliases.at(ptr);
-   assert(alias->offset >0);
    const mm::memory *base = alias->mem;
-   assert(base);
    const bool host = base->host;
    const bool device = !base->host;
    const size_t bytes = base->bytes;
@@ -231,8 +228,6 @@ static void PullKnown(const mm::ledger &maps, const void *ptr,
    const mm::memory &base = maps.memories.at(ptr);
    const bool host = base.host;
    if (host) { return; }
-   assert(base.h_ptr);
-   assert(base.d_ptr);
    CuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes == 0 ? base.bytes : bytes);
 }
 

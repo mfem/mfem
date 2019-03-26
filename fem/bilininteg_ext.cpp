@@ -161,8 +161,8 @@ static void PADiffusionAssemble(const int dim,
                                 const double COEFF,
                                 double* oper)
 {
-   if (dim==1) { assert(false); }
-   if (dim==2)
+   if (dim == 1) { mfem_error("dim==1 not supported in PADiffusionAssemble"); }
+   if (dim == 2)
    {
 #ifdef MFEM_USE_OCCA
       if (Device::UsingOcca())
@@ -173,7 +173,7 @@ static void PADiffusionAssemble(const int dim,
 #endif // MFEM_USE_OCCA
       PADiffusionAssemble2D(Q1D, NE, W, J, COEFF, oper);
    }
-   if (dim==3)
+   if (dim == 3)
    {
       PADiffusionAssemble3D(Q1D, NE, W, J, COEFF, oper);
    }
@@ -569,7 +569,7 @@ static void PADiffusionMultAssembled(const int dim,
 #ifdef MFEM_USE_OCCA
    if (Device::UsingOcca())
    {
-      assert(dim==2);
+      MFEM_ASSERT(dim == 2, "");
       OccaPADiffusionMultAdd2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
       return;
    }
@@ -590,7 +590,6 @@ static void PADiffusionMultAssembled(const int dim,
              __FILE__, __LINE__, dim, D1D, Q1D);
       mfem_error("PADiffusionMultAssembled kernel not instanciated");
    }
-   assert(call[id]);
    call[id](NE, B, G, Bt, Gt, op, x, y);
 }
 
@@ -1058,7 +1057,6 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
       (dims == 1) ? numQuad1D :
       (dims == 2) ? numQuad2D :
       (dims == 3) ? numQuad3D : 0;
-   assert(numQuad > 0);
    std::stringstream ss;
    ss << "D2QTensorMap:"
       << " dims:" << dims
@@ -1329,7 +1327,6 @@ void PAGeom2D(const int NE,
             J21 += (wy * x); J22 += (wy * y);
          }
          const double r_detJ = (J11 * J22)-(J12 * J21);
-         assert(r_detJ!=0.0);
          J(0,0,q,e) = J11;
          J(1,0,q,e) = J12;
          J(0,1,q,e) = J21;
@@ -1394,7 +1391,6 @@ void PAGeom3D(const int NE,
          const double r_detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) +
                                 (J13 * J21 * J32) - (J13 * J22 * J31) -
                                 (J12 * J21 * J33) - (J11 * J23 * J32));
-         assert(r_detJ!=0.0);
          J(0,0,q,e) = J11;
          J(1,0,q,e) = J12;
          J(2,0,q,e) = J13;

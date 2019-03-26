@@ -3975,8 +3975,6 @@ void LUFactors::Factor(int m)
             }
          }
       }
-      const double diim = d_data[i+i*m];
-      assert(diim != 0.0);
       const double a_ii_inv = 1.0/d_data[i+i*m];
       for (int j = i+1; j < m; j++)
       {
