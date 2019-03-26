@@ -145,6 +145,8 @@ void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K,
 
 // The mesh corresponding to Bezier subcells of order p is constructed.
 // NOTE: The mesh is assumed to consist of segments, quads or hexes.
+// TODO It seems that for an original mesh with periodic boundaries, this 
+// routine produces a mesh that cannot be used for its intended purpose.
 Mesh* GetSubcellMesh(Mesh *mesh, int p)
 {
    Mesh *ref_mesh;
@@ -871,14 +873,14 @@ public:
    {
       Vector row;
       DenseMatrix elmat; // These are essentially the same.
-      int dofInd = dofs.numSubcells*k+m;
+      int dofInd = k*dofs.numSubcells+m;
       const FiniteElement *el0 = SubFes0.GetFE(dofInd);
       const FiniteElement *el1 = SubFes1.GetFE(dofInd);
       ElementTransformation *tr = ref_mesh->GetElementTransformation(dofInd);
       VolumeTerms->AssembleElementMatrix2(*el1, *el0, *tr, elmat);
       
       elmat.GetRow(0, row); // Using the fact that elmat has just one row.
-      SubcellWeights.SetRow(k*dofs.numSubcells+m, row);
+      SubcellWeights.SetRow(dofInd, row);
    }
 };
 
@@ -1199,7 +1201,7 @@ int main(int argc, char *argv[])
    DG_FECollection fec0(0, dim, btype);
    DG_FECollection fec1(1, dim, btype);
    
-   Mesh* ref_mesh = GetSubcellMesh(mesh, order);
+   Mesh* ref_mesh = GetSubcellMesh(mesh, order); // TODO if put somewhere else (conditional to OptScheme) remove p==1 in this routine
    FiniteElementSpace SubFes0(ref_mesh, &fec0);
    FiniteElementSpace SubFes1(ref_mesh, &fec1);
    
@@ -1549,6 +1551,8 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 			asmbl.ref_mesh = GetSubcellMesh(mesh, dummy.GetOrder());
 		}
 
+		asmbl.SubcellWeights.Print();
+		
       // Monotonicity terms
       for (k = 0; k < ne; k++)
       {
@@ -1573,12 +1577,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             asmbl.dofs.xe_max(k) = max(asmbl.dofs.xe_max(k), x(dofInd));
             asmbl.dofs.xe_min(k) = min(asmbl.dofs.xe_min(k), x(dofInd));
             xSum += x(dofInd);
-         }
-
-         for (j = 0; j < nd; j++)
-         {
-            dofInd = k*nd+j;
-            if (asmbl.OptScheme)
+				if (asmbl.OptScheme)
             {
                rhoP += max(0., z(dofInd));
                rhoN += min(0., z(dofInd));
