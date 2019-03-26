@@ -75,6 +75,7 @@ void PABilinearFormExtension::FormSystemOperator(const Array<int>
                                                  &ess_tdof_list,
                                                  Operator *&A)
 {
+   dbg(">");
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
@@ -82,6 +83,7 @@ void PABilinearFormExtension::FormSystemOperator(const Array<int>
    const bool own_A = (rap!=this);
    assert(rap);
    A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
+   dbg("<");
 }
 
 void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -89,20 +91,27 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                Operator *&A, Vector &X, Vector &B,
                                                int copy_interior)
 {
+   dbg(">");
    FormSystemOperator(ess_tdof_list, A);
 
    const Operator* P = trialFes->GetProlongationMatrix();
    const Operator* R = trialFes->GetRestrictionMatrix();
    if (P)
    {
+      dbg("P");
       // Variational restriction with P
+      dbg("B.SetSize");
       B.SetSize(P->Width());
+      dbg("MultTranspose");
       P->MultTranspose(b, B);
+      dbg("X.SetSize");
       X.SetSize(R->Height());
+      dbg("R->Mult");
       R->Mult(x, X);
    }
    else
    {
+      dbg("X=x, B=b");
       // rap, X and B point to the same data as this, x and b
       X.SetSize(x.Size()); X = x;
       B.SetSize(b.Size()); B = b;
@@ -110,6 +119,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    if (!copy_interior && ess_tdof_list.Size()>0)
    {
+      dbg("X.SetSubVectorComplement");
       X.SetSubVectorComplement(ess_tdof_list, 0.0);
    }
 
@@ -117,17 +127,21 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
    assert(cA);
    if (cA)
    {
+      dbg("cA->EliminateRHS");
       cA->EliminateRHS(X, B);
    }
    else
    {
       mfem_error("BilinearForm::InitRHS expects an ConstrainedOperator");
    }
+   dbg("<");
 }
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+   dbg("PABilinearFormExtension>");
    elem_restrict->Mult(x, localX);
+   dbg("localY = 0.0;");
    localY = 0.0;
    const int iSz = integrators.Size();
    assert(iSz==1);
@@ -136,10 +150,12 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       integrators[i]->MultAssembled(localX, localY);
    }
    elem_restrict->MultTranspose(localY, y);
+   dbg("PABilinearFormExtension<");
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
+   dbg("PABilinearFormExtension::MultTranspose>");
    elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
@@ -149,12 +165,14 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       integrators[i]->MultAssembledTranspose(localX, localY);
    }
    elem_restrict->MultTranspose(localY, y);
+   dbg("PABilinearFormExtension::MultTranspose<");
 }
 
 void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
                                                  const Vector &b,
                                                  Vector &x)
 {
+   dbg("RecoverFEMSolution>");
    const Operator *P = a->GetProlongation();
    if (P)
    {
@@ -165,6 +183,7 @@ void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
    }
    // Otherwise X and x point to the same data
    x = X;
+   dbg("RecoverFEMSolution<");
 }
 
 // Data and methods for matrix-free bilinear forms
@@ -183,6 +202,7 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
     offsets(ndofs+1),
     indices(ne*dof)
 {
+   dbg("");
    for (int e = 0; e < ne; ++e)
    {
       const FiniteElement *fe = fes.GetFE(e);
@@ -233,11 +253,13 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
       offsets[i] = offsets[i - 1];
    }
    offsets[0] = 0;
+   dbg("done");
 }
 
 // ***************************************************************************
 void ElemRestriction::Mult(const Vector& x, Vector& y) const
 {
+   dbg("ElemRestriction::Mult>");
    const int vd = vdim;
    const bool t = byvdim;
    const DeviceArray d_offsets(offsets, ndofs+1);
@@ -257,12 +279,14 @@ void ElemRestriction::Mult(const Vector& x, Vector& y) const
             d_y(t?c:idx_j,t?idx_j:c) = dofValue;
          }
       }
-   });
+      });
+   dbg("ElemRestriction::Mult<");
 }
 
 // ***************************************************************************
 void ElemRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
+   dbg("ElemRestriction::MultTranspose>");
    const int vd = vdim;
    const bool t = byvdim;
    const DeviceArray d_offsets(offsets, ndofs+1);
@@ -284,6 +308,7 @@ void ElemRestriction::MultTranspose(const Vector& x, Vector& y) const
          d_y(t?c:i,t?i:c) = dofValue;
       }
    });
+   dbg("ElemRestriction::MultTranspose<");
 }
 
 } // namespace mfem

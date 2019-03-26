@@ -758,7 +758,8 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    });
    // Sync on host for some verifications in
    // pfespace GetEssentialTrueDofs and MarkerToList
-   mm::pull(y);
+#warning no mm::pull(y);
+   //mm::pull(y);
 }
 
 void SparseMatrix::BooleanMultTranspose(const Array<int> &x,

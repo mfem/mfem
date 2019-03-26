@@ -210,8 +210,11 @@ int main(int argc, char *argv[])
       // 19. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
+      dbg("SwitchToHost");
       config::SwitchToHost();
       a.RecoverFEMSolution(X, b, x);
+      x.Pull();
+      dbg("RecoveredFEMSolution");
 
       // 20. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
@@ -230,6 +233,7 @@ int main(int argc, char *argv[])
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
+      dbg("refiner");
       refiner.Apply(mesh);
       if (refiner.Stop())
       {
@@ -243,7 +247,9 @@ int main(int argc, char *argv[])
       //     since we'll have a good initial guess of x in the next step.
       //     Internally, FiniteElementSpace::Update() calculates an
       //     interpolation matrix which is then used by GridFunction::Update().
+      dbg("fespace.Update();");
       fespace.Update();
+      dbg("x.Update()");
       x.Update();
 
       // 23. Inform also the bilinear and linear forms that the space has

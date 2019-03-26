@@ -122,14 +122,15 @@ public:
    }
 
    // **************************************************************************
+   void MemoryInit();
    static void *MemoryMap(const size_t bytes);
-   static void MemoryUnmap(void *ptr, const size_t bytes);
-   static void MemoryEnable(void *ptr, const size_t bytes);
-   static void MemoryDisable(void *ptr, const size_t bytes);
+   static void MemoryUnmap(const void *ptr, const size_t bytes);
+   static void MemoryEnable(const void *ptr, const size_t bytes);
+   static void MemoryDisable(const void *ptr, const size_t bytes);
 
 private:
    ledger maps;
-   mm() {}
+   mm() { MemoryInit(); }
    mm(mm const&) = delete;
    void operator=(mm const&) = delete;
    static inline mm& MM() { static mm *singleton = new mm(); return *singleton; }
