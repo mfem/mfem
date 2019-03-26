@@ -16,21 +16,18 @@
 #include <cstddef>
 #include <unordered_map>
 
-#include "occa.hpp" // for OccaMemory
-
 namespace mfem
 {
 
-// *****************************************************************************
-// * Memory Manager Singleton
-// *****************************************************************************
+// Implementation of MFEM's lightweight host/device memory manager (mm)
+// designed to work seamlessly with the okina device kernel interface.
+
+/// The memory manager singleton
 class mm
 {
 public:
-   // **************************************************************************
    struct alias;
 
-   // TODO: Change this to ptr
    struct memory
    {
       const size_t bytes;
@@ -50,7 +47,6 @@ public:
       const long offset;
    };
 
-   // **************************************************************************
    typedef std::unordered_map<const void*, memory> memory_map;
    typedef std::unordered_map<const void*, const alias*> alias_map;
 
@@ -60,97 +56,91 @@ public:
       alias_map aliases;
    };
 
-   // **************************************************************************
-   // * Main malloc template function
-   // * Allocates n*size bytes and returns a pointer to the allocated memory
-   // **************************************************************************
+   /// Main malloc template function. Allocates n*size bytes and returns a
+   /// pointer to the allocated memory.
    template<class T>
    static inline T* malloc(const size_t n, const size_t size = sizeof(T))
    {
-#if !(defined(MFEM_DEBUG) && defined(MFEM_USE_MM) && !defined(__NVCC__))
+#ifndef MFEM_USE_MMU
       void *ptr = ::new T[n];
 #else
-      void *ptr = MM().Allocate(n*size);
+      void *ptr = MM().MmuAllocate(n*size);
 #endif // MFEM_DEBUG
       return static_cast<T*>(MM().Insert(ptr, n*size));
    }
 
-   // **************************************************************************
-   // * Frees the memory space pointed to by ptr, which must have been
-   // * returned by a previous call to mm::malloc
-   // **************************************************************************
+   /// Frees the memory space pointed to by ptr, which must have been returned
+   /// by a previous call to mm::malloc.
    template<class T>
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-#if !(defined(MFEM_DEBUG) && defined(MFEM_USE_MM) && !defined(__NVCC__))
+#ifndef MFEM_USE_MMU
       ::delete[] static_cast<T*>(ptr);
 #else
-      mm::MM().Free(ptr);
+      mm::MM().MmuFree(ptr);
 #endif // MFEM_DEBUG
       mm::MM().Erase(ptr);
    }
 
-   // **************************************************************************
-   // * Translates ptr to host or device address,
-   // * depending on config::Cuda() and the ptr' state
-   // **************************************************************************
+   /// Translates ptr to host or device address, depending on config::Cuda() and
+   /// the ptr state.
    static inline void *ptr(void *a) { return MM().Ptr(a); }
    static inline const void* ptr(const void *a) { return MM().Ptr(a); }
    static inline OccaMemory occaPtr(const void *a) { return MM().Memory(a); }
 
-   // **************************************************************************
    static inline void push(const void *ptr, const size_t bytes = 0)
    {
       return MM().Push(ptr, bytes);
    }
 
-   // **************************************************************************
    static inline void pull(const void *ptr, const size_t bytes = 0)
    {
       return MM().Pull(ptr, bytes);
    }
 
-   // **************************************************************************
+   /// Data will be pushed/pulled before the copy happens on the H or the D
    static void* memcpy(void *dst, const void *src,
                        size_t bytes, const bool async = false);
 
-   // **************************************************************************
    static inline bool known(const void *a)
    {
       return MM().Known(a);
    }
 
-   // **************************************************************************
-   void MemoryInit();
-   static void *MemoryMap(const size_t bytes);
-   static void MemoryUnmap(const void *ptr, const size_t bytes);
-   static void MemoryEnable(const void *ptr, const size_t bytes);
-   static void MemoryDisable(const void *ptr, const size_t bytes);
-
+   static void MmuMEnable(const void *ptr, const size_t bytes);
+   static void MmuMDisable(const void *ptr, const size_t bytes);
 private:
    ledger maps;
-   mm() { MemoryInit(); }
+   mm() { MmuInit(); }
    mm(mm const&) = delete;
    void operator=(mm const&) = delete;
    static inline mm& MM() { static mm *singleton = new mm(); return *singleton; }
 
-   // **************************************************************************
+   /// Adds an address
    void *Insert(void *ptr, const size_t bytes);
+
+   /// Remove the address from the map, as well as all the address' aliases
    void *Erase(void *ptr);
+
+   /// Turn an address to the right host or device one
    void *Ptr(void *ptr);
    const void *Ptr(const void *ptr);
+
+   /// Tests if ptr is a known address
    bool Known(const void *ptr);
+
+   /// Tests if ptr is an alias address
    bool Alias(const void *ptr);
+
    OccaMemory Memory(const void *ptr);
 
-   // **************************************************************************
    void Push(const void *ptr, const size_t bytes = 0);
    void Pull(const void *ptr, const size_t bytes = 0);
-   
-   // **************************************************************************
-   void *Allocate(const size_t bytes);
-   void Free(void *ptr);
+
+   void MmuInit();
+   void *MmuAllocate(const size_t bytes);
+   void MmuFree(void *ptr);
 };
 
 } // namespace mfem

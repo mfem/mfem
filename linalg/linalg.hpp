@@ -24,6 +24,7 @@
 #include "blockoperator.hpp"
 #include "sparsesmoothers.hpp"
 #include "densemat.hpp"
+#include "dtensor.hpp"
 #include "ode.hpp"
 #include "solvers.hpp"
 #include "handle.hpp"

@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "vector.hpp"
-#include "device.hpp"
+#include "dtensor.hpp"
 #include "operator.hpp"
 
 #include <iostream>
@@ -163,7 +163,6 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
-   dbg(">");
    w = 0.0;
    const int csz = constraint_list.Size();
    const DeviceArray idx(constraint_list, csz);
@@ -177,12 +176,10 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 
    DeviceVector d_b(b, b.Size());
    MFEM_FORALL(i, csz, d_b[idx[i]] = d_x[idx[i]];);
-   dbg("<");
 }
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
-   dbg(">");
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
@@ -201,7 +198,6 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    const DeviceVector d_x(x, x.Size());
    DeviceVector d_y(y, y.Size());
    MFEM_FORALL(i, csz, d_y[idx[i]] = d_x[idx[i]];);
-   dbg("<");
 }
 
 }

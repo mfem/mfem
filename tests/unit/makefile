@@ -18,11 +18,11 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 CC = $(MFEM_CXX)
-CCOPTS = -g
+CCOPTS = $(MFEM_FLAGS)
 CCC = $(CC) $(CCOPTS)
 
 # -I$(MFEM_DIR) is needed by some tests, e.g. to #include "general/text.hpp"
-INCLUDES = $(MFEM_FLAGS) -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
+INCLUDES = $(MFEM_LINK_FLAGS) -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
 SOURCE_FILES = $(SRC)unit_test_main.cpp $(sort $(wildcard $(SRC)*/*.cpp))
 HEADER_FILES = $(SRC)catch.hpp
@@ -44,7 +44,7 @@ all: $(UNIT_TESTS)
 .PHONY: all clean
 
 unit_tests: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LIBS) -o $(@)
+	$(CC) $(MFEM_LINK_FLAGS) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LIBS) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
