@@ -381,6 +381,7 @@ private:
          // Include neighbors that have no face in common with element k.
          if (dim==2) // Include neighbor elements for the four vertices.
          {
+
             nbr = GetCommonElem(k, NbrElem[3], NbrElem[0]);
             if (nbr >= 0) { map_for_bounds[k*nd].push_back(nbr); }
 
@@ -391,7 +392,7 @@ private:
             if (nbr >= 0) { map_for_bounds[(k+1)*nd-1].push_back(nbr); }
 
             nbr = GetCommonElem(k, NbrElem[2], NbrElem[3]);
-            if (nbr >= 0) { map_for_bounds[k*p*(p+1)].push_back(nbr); }
+            if (nbr >= 0) { map_for_bounds[k*nd+p*(p+1)].push_back(nbr); }
          }
          else if (dim==3)
          {
@@ -1125,7 +1126,6 @@ int main(int argc, char *argv[])
    }
    else if (exec_mode == 1)
    {
-      // TODO figure out why this setup doesn't conserve mass for mode 1.
       k.AddDomainIntegrator(new ConvectionIntegrator(v_coeff));
    }
    else if (exec_mode == 2)
