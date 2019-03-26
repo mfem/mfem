@@ -13,9 +13,11 @@
 
 #include <bitset>
 #include <cassert>
-
 #include <signal.h>
+
+#ifndef _WIN32
 #include <sys/mman.h>
+#endif
 
 namespace mfem
 {
@@ -64,21 +66,6 @@ static const void* InsertAlias(mm::ledger &maps,
                        static_cast<const char*> (base);
    const mm::alias *alias = new mm::alias{&mem, offset};
    maps.aliases.emplace(ptr, alias);
-#ifdef MFEM_DEBUG_MM
-   {
-      mem.aliases.sort();
-      for (const mm::alias *a : mem.aliases)
-      {
-         if (a->mem == &mem )
-         {
-            if (a->offset == offset)
-            {
-               mfem_error("a->offset == offset");
-            }
-         }
-      }
-   }
-#endif
    mem.aliases.push_back(alias);
    return ptr;
 }
@@ -106,6 +93,7 @@ bool mm::Alias(const void *ptr)
 // *****************************************************************************
 static void DumpMode(void)
 {
+   fflush(0);
    static bool env_ini = false;
    static bool env_dbg = false;
    if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
@@ -123,14 +111,14 @@ static void DumpMode(void)
    cfg>>=1;
    if (cfg==mode) { return; }
    mode=cfg;
-   printf("\033[1K\r[0x%lx] %sMM %sHasBeenEnabled %sEnabled %sDisabled "
-          "%sHOST %sDEVICE %sCUDA %sOCCA\033[m", mode.to_ulong(),
+   printf("\n\033[1K[0x%lx] %sMM %sHasBeenEnabled %sEnabled %sDisabled "
+          "%sHOST\033[m %sDEVICE\033[m %sCUDA %sOCCA\033[m", mode.to_ulong(),
           config::UsingMM()?"\033[32m":"\033[31m",
           config::DeviceHasBeenEnabled()?"\033[32m":"\033[31m",
           config::DeviceEnabled()?"\033[32m":"\033[31m",
           config::DeviceDisabled()?"\033[32m":"\033[31m",
-          config::UsingHost()?"\033[32m":"\033[31m",
-          config::UsingDevice()?"\033[32m":"\033[31m",
+          config::UsingHost()?"\033[33;7m":"\033[31m",
+          config::UsingDevice()?"\033[32;7m":"\033[31m",
           config::UsingCuda()?"\033[32m":"\033[31m",
           config::UsingOcca()?"\033[32m":"\033[31m");
 }
@@ -252,7 +240,7 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
    if (device && !gpu) // Pull
    {
 #ifdef MFEM_DEBUG
-      mm::MemoryEnable(ptr, bytes);
+      mm::MemoryEnable(base->h_ptr, bytes);
 #endif
       CuMemcpyDtoH(base->h_ptr, base->d_ptr, bytes);
       alias->mem->host = true;
@@ -263,7 +251,7 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
    CuMemcpyHtoD(base->d_ptr, base->h_ptr, bytes);
    alias->mem->host = false;
 #ifdef MFEM_DEBUG
-   mm::MemoryEnable(ptr, bytes);
+   mm::MemoryDisable(base->h_ptr, bytes);
 #endif
    return a_ptr;
 }
@@ -292,23 +280,32 @@ const void *mm::Ptr(const void *ptr)
 // *****************************************************************************
 static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
 {
+   dbg("");
    mm::memory &base = maps.memories.at(ptr);
    if (!base.d_ptr) { CuMemAlloc(&base.d_ptr, base.bytes); }
    CuMemcpyHtoD(base.d_ptr, ptr, bytes == 0 ? base.bytes : bytes);
+#ifdef MFEM_DEBUG
+   mm::MemoryDisable(ptr, bytes == 0 ? base.bytes : bytes);
+#endif
+   base.host = false;
 }
 
 // *****************************************************************************
-static void PushAlias(const mm::ledger &maps, const void *ptr,
-                      const size_t bytes)
+static void PushAlias(mm::ledger &maps, const void *ptr, const size_t bytes)
 {
+   dbg("");
    const mm::alias *alias = maps.aliases.at(ptr);
    void *dst = static_cast<char*>(alias->mem->d_ptr) + alias->offset;
    CuMemcpyHtoD(dst, ptr, bytes);
+#ifdef MFEM_DEBUG
+   mm::MemoryDisable(ptr, bytes);
+#endif
 }
 
 // *****************************************************************************
 void mm::Push(const void *ptr, const size_t bytes)
 {
+   dbg("");
    if (bytes==0) { mfem_error("Push bytes==0"); }
    if (MmDeviceIniFilter()) { return; }
    if (Known(ptr)) { return PushKnown(maps, ptr, bytes); }
@@ -317,27 +314,35 @@ void mm::Push(const void *ptr, const size_t bytes)
 }
 
 // *****************************************************************************
-static void PullKnown(const mm::ledger &maps, const void *ptr,
+static void PullKnown(mm::ledger &maps, const void *ptr,
                       const size_t bytes)
 {
-   const mm::memory &base = maps.memories.at(ptr);
+   dbg("");
+   mm::memory &base = maps.memories.at(ptr);
    const bool host = base.host;
    if (host) { return; }
    assert(base.h_ptr);
    assert(base.d_ptr);
-   //mm::MemoryEnable(base.h_ptr, bytes);
+#ifdef MFEM_DEBUG
+   mm::MemoryEnable(base.h_ptr, bytes == 0 ? base.bytes : bytes);
+#endif
    CuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes == 0 ? base.bytes : bytes);
+   base.host = true;
 }
 
 // *****************************************************************************
 static void PullAlias(const mm::ledger &maps, const void *ptr,
                       const size_t bytes)
 {
+   dbg("");
    const mm::alias *alias = maps.aliases.at(ptr);
    const bool host = alias->mem->host;
    if (host) { return; }
    if (!ptr) { mfem_error("PullAlias !ptr"); }
    if (!alias->mem->d_ptr) { mfem_error("PullAlias !alias->mem->d_ptr"); }
+#ifdef MFEM_DEBUG
+   mm::MemoryEnable(alias->mem->h_ptr, bytes);
+#endif
    CuMemcpyDtoH(const_cast<void*>(ptr),
                 static_cast<char*>(alias->mem->d_ptr) + alias->offset,
                 bytes);
@@ -346,6 +351,7 @@ static void PullAlias(const mm::ledger &maps, const void *ptr,
 // *****************************************************************************
 void mm::Pull(const void *ptr, const size_t bytes)
 {
+   dbg("");
    if (MmDeviceIniFilter()) { return; }
    if (Known(ptr)) { return PullKnown(maps, ptr, bytes); }
    if (Alias(ptr)) { return PullAlias(maps, ptr, bytes); }
@@ -358,6 +364,7 @@ void mm::Pull(const void *ptr, const size_t bytes)
 void* mm::memcpy(void *dst, const void *src, const size_t bytes,
                  const bool async)
 {
+   dbg("");
    void *d_dst = mm::ptr(dst);
    const void *d_src = mm::ptr(src);
    const bool host = config::UsingHost();
@@ -374,47 +381,74 @@ void* mm::memcpy(void *dst, const void *src, const size_t bytes,
 // *****************************************************************************
 static void MemoryError(int sig, siginfo_t *si, void *unused)
 {
+   fflush(0);
+   void *ptr = si->si_addr;
    char msg[64];
-   const char *format = "Address %p was used, but is still on the device!";
-   snprintf(msg, 64, format, si->si_addr);
+   const char *format = "\n\n\nAddress %p was used, but is still on the device!";
+   snprintf(msg, 64, format, ptr);
    mfem_error(msg);
 }
 
 // *****************************************************************************
-void mm::MemoryDisable(void *ptr, const size_t bytes){
-   if (MmDeviceIniFilter()) { return; }
-   mprotect(ptr, bytes, PROT_NONE);
+void mm::MemoryInit(){
+#ifdef MFEM_DEBUG
+   struct sigaction sa;
+   sa.sa_flags = SA_SIGINFO;
+   sigemptyset(&sa.sa_mask);
+   sa.sa_sigaction = MemoryError;
+   if (sigaction(SIGSEGV, &sa, NULL) == -1) mfem_error("sigaction");
+   if (sigaction(SIGBUS, &sa, NULL) == -1) mfem_error("sigaction");
+#endif
 }
 
 // *****************************************************************************
-void mm::MemoryEnable(void *ptr, const size_t bytes){
+void mm::MemoryDisable(const void *ptr, const size_t bytes){
    if (MmDeviceIniFilter()) { return; }
-   mprotect(ptr, bytes, PROT_READ | PROT_WRITE);
+   dbg("");
+   mprotect(const_cast<void*>(ptr), bytes, PROT_NONE);
 }
 
 // *****************************************************************************
-void *mm::MemoryMap(const size_t bytes){
-   static bool mmu = false;
-   if (!mmu) {
-      mmu = true;
-      struct sigaction sa;
-      sa.sa_flags = SA_SIGINFO;
-      sigemptyset(&sa.sa_mask);
-      sa.sa_sigaction = MemoryError;
-      if (sigaction(SIGSEGV, &sa, NULL) == -1) mfem_error("sigaction");
-      if (sigaction(SIGBUS, &sa, NULL) == -1) mfem_error("sigaction");
-   }
-   MFEM_ASSERT(bytes>0, "!(bytes>0)");
+void mm::MemoryEnable(const void *ptr, const size_t bytes){
+   if (MmDeviceIniFilter()) { return; }
+   dbg("");
+   mprotect(const_cast<void*>(ptr), bytes, PROT_READ | PROT_WRITE);
+}
+
+// *****************************************************************************
+static inline void *Mmap(const size_t bytes){
+#ifdef _WIN32
+   void *ptr = ::malloc(bytes);
+   if (ptr == NULL) mfem_error("Mmap");
+#else
+   //MFEM_ASSERT(bytes>0, "bytes>0");
+   const int prot = PROT_READ | PROT_WRITE;
    const int flags = MAP_ANONYMOUS | MAP_PRIVATE;
-   void *ptr = mmap(NULL, bytes, PROT_READ | PROT_WRITE, flags, -1, 0);
-   if (ptr == MAP_FAILED) mfem_error("mmap");
+   void *ptr = ::mmap(NULL, bytes==0?8:bytes, prot, flags, -1, 0);
+   if (ptr == MAP_FAILED) mfem_error("Mmap");
+#endif
    return ptr;
 }
 
 // *****************************************************************************
-void mm::MemoryUnmap(void *ptr, const size_t bytes){
-   MFEM_ASSERT(bytes>0, "!(bytes>0)");
-   if (munmap(ptr, bytes) == -1) mfem_error("munmap");
+void *mm::MemoryMap(const size_t bytes){
+   return Mmap(bytes);
+}
+
+// *****************************************************************************
+static inline int MemoryUnMap(const void *addr, size_t bytes){
+#ifdef _WIN32
+   ::free(addr);
+#else
+   //MFEM_ASSERT(bytes>0, "bytes>0");
+   if (::munmap(const_cast<void*>(addr), bytes==0?8:bytes) == -1) mfem_error("munmap");
+#endif
+   return 0;
+}
+
+// *****************************************************************************
+void mm::MemoryUnmap(const void *ptr, const size_t bytes){
+   MemoryUnMap(ptr, bytes);
 }
 
 // *****************************************************************************

@@ -198,6 +198,7 @@ int main(int argc, char *argv[])
    // 10. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
+   dbg("ParBilinearForm");
    ParBilinearForm *a = new ParBilinearForm(fespace, assembly, elem_batch);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
@@ -206,6 +207,7 @@ int main(int argc, char *argv[])
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
+   dbg("a->Assemble()");
    a->Assemble();
 
    Vector B, X;
@@ -213,6 +215,7 @@ int main(int argc, char *argv[])
 
    if (!pa) { A = new HypreParMatrix(); }
 
+   dbg("FormLinearSystem");
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    if (myid == 0)
@@ -224,11 +227,14 @@ int main(int argc, char *argv[])
    //     preconditioner from hypre.
    if (pa)
    {
+      dbg("CGSolver");
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(3);
+      dbg("SetOperator");
       cg.SetOperator(*A);
+      dbg("Mult");
       cg.Mult(B, X);
    }
    else
@@ -245,9 +251,11 @@ int main(int argc, char *argv[])
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
+   dbg("RecoverFEMSolution");
    a->RecoverFEMSolution(X, *b, x);
 
    // 14. Switch back to host
+   dbg("SwitchToHost");
    config::SwitchToHost();
 
    // 15. Save the refined mesh and the solution in parallel. This output can
@@ -259,10 +267,12 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
+      dbg("pmesh->Print");
       pmesh->Print(mesh_ofs);
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
+      dbg("x.Save");
       x.Save(sol_ofs);
    }
 

@@ -189,6 +189,7 @@ static void PADiffusionAssemble(const int dim,
 // *****************************************************************************
 void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 {
+   dbg(">");
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
    const FiniteElement &el = *fes.GetFE(0);
@@ -205,7 +206,15 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    vec.SetSize(symmDims * nq * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
    PADiffusionAssemble(dim, quad1D, ne, maps->W, geo->J, coeff, vec);
+#ifdef MFEM_DEBUG
+   // vec might be used elsewhere, allow others to use it
+   dbg("vec MemoryEnable");
+   mm::MemoryEnable(vec,vec.Size()*sizeof(double));
+   //dbg("vec.Pull();");
+   //vec.Pull();
+#endif
    delete geo;
+   dbg("<");
 }
 
 #ifdef __OCCA__
@@ -1111,6 +1120,8 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
    {
       maps->W.SetSize(numQuad);
    }
+   dbg("GetD2QTensorMaps Switchs");
+   config::SwitchToHost();
    mfem::Vector d2q(numDofs);
    mfem::Vector d2qD(numDofs);
    mfem::Array<double> W1d(numQuad1D);
@@ -1150,6 +1161,7 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
       }
       maps->W = W;
    }
+   config::SwitchToDevice();
    mm::memcpy(maps->B, B1d, numQuad1D*numDofs*sizeof(double));
    mm::memcpy(maps->G, G1d, numQuad1D*numDofs*sizeof(double));
    return maps;
@@ -1228,13 +1240,13 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    {
       maps->W.SetSize(numQuad);
    }
+   dbg("GetD2QSimplexMaps Switchs");
+   config::SwitchToHost();   
    mfem::Vector d2q(numDofs);
    mfem::DenseMatrix d2qD(numDofs, dims);
    mfem::Array<double> W(numQuad);
    mfem::Array<double> B(numQuad*numDofs);
-   mfem::Array<double> G(dims*numQuad*numDofs);
-   mm::MemoryEnable(d2q.GetData(), d2q.Size()*sizeof(double));
-   mm::MemoryEnable(d2qD.GetData(), d2qD.Size()*sizeof(double));
+   mfem::Array<double> G(dims*numQuad*numDofs);   
    for (int q = 0; q < numQuad; ++q)
    {
       const IntegrationPoint& ip = ir.IntPoint(q);
@@ -1257,7 +1269,7 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
          }
       }
    }
-   //config::SwitchToDevice();
+   config::SwitchToDevice();
    if (transpose)
    {
       mm::memcpy(maps->W, W, numQuad*sizeof(double));
@@ -1277,6 +1289,7 @@ static void GeomFill(const int vdim,
                      const int* elementMap, int* eMap,
                      const double *_X, double *meshNodes)
 {
+   dbg("");
    const DeviceArray d_elementMap(elementMap, ND*NE);
    DeviceArray d_eMap(eMap, ND*NE);
    const DeviceVector X(_X, NX);
@@ -1299,7 +1312,7 @@ static void GeomFill(const int vdim,
 }
 
 // *****************************************************************************
-static void NodeCopyByVDim(const int elements,
+static void NodeCopyByVDim(const int NE,
                            const int numDofs,
                            const int ndofs,
                            const int dims,
@@ -1307,7 +1320,10 @@ static void NodeCopyByVDim(const int elements,
                            const double* Sx,
                            double* nodes)
 {
-   MFEM_FORALL(e,elements,
+#warning should DeviceVector, DeviceArray
+   assert(false);
+   //DeviceVector d_nodes(nodes, vdim*ND*NE);
+   MFEM_FORALL(e, NE,
    {
       for (int dof = 0; dof < numDofs; ++dof)
       {
@@ -1552,6 +1568,8 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const Table& e2dTable = fespace->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    mfem::Array<int> eMap(numDofs*elements);
+   dbg("GeometryExtension::Get SwitchToHost");
+   config::SwitchToHost();
    GeomFill(dims,
             elements,
             numDofs,
@@ -1560,6 +1578,8 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
             eMap,
             nodes->GetData(),
             meshNodes);
+   dbg("GeometryExtension::Get SwitchToDevice");
+   config::SwitchToDevice();
    if (geom_to_allocate)
    {
       geom->nodes.SetSize(dims*numDofs*elements);
