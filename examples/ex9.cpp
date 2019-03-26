@@ -738,7 +738,7 @@ public:
 
       // TODO There are many zero entries in bdrInt, maybe use better indexing.
       bdrInt.SetSize(ne*nd, nd*dofs.numBdrs); bdrInt = 0.;
-      fluctSub.SetSize(ne*dofs.numSubcells, dofs.numDofsSubcell);
+      SubcellWeights.SetSize(ne*dofs.numSubcells, dofs.numDofsSubcell);
       
       if (exec_mode == 0) // Initialization for transport mode.
       {
@@ -789,7 +789,7 @@ public:
    // Data structures storing Galerkin contributions. These are updated for 
    // remap but remain constant for transport.
    DenseMatrix bdrInt;
-   DenseMatrix fluctSub;
+   DenseMatrix SubcellWeights;
    
    void ComputeFluxTerms(const int k, const int BdrID, VectorCoefficient &coef,
                          FaceElementTransformations *Trans)
@@ -878,7 +878,7 @@ public:
       VolumeTerms->AssembleElementMatrix2(*el1, *el0, *tr, elmat);
       
       elmat.GetRow(0, row); // Using the fact that elmat has just one row.
-      fluctSub.SetRow(k*dofs.numSubcells+m, row);
+      SubcellWeights.SetRow(k*dofs.numSubcells+m, row);
    }
 };
 
@@ -1113,7 +1113,7 @@ int main(int argc, char *argv[])
          if (ess_vdofs[i] == -1) { v_gf(i) = 0.0; }
       }
    }
-   VectorGridFunctionCoefficient v_coeff(&v_gf);
+   VectorGridFunctionCoefficient v_coef(&v_gf);
 
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
@@ -1126,7 +1126,7 @@ int main(int argc, char *argv[])
    }
    else if (exec_mode == 1)
    {
-      k.AddDomainIntegrator(new ConvectionIntegrator(v_coeff));
+      k.AddDomainIntegrator(new ConvectionIntegrator(v_coef));
    }
    else if (exec_mode == 2)
    {
@@ -1146,9 +1146,9 @@ int main(int argc, char *argv[])
       else if (exec_mode == 1)
       {
          k.AddInteriorFaceIntegrator(new TransposeIntegrator(
-            new DGTraceIntegrator(v_coeff, -1.0, -0.5)) );
+            new DGTraceIntegrator(v_coef, -1.0, -0.5)) );
          k.AddBdrFaceIntegrator( new TransposeIntegrator(
-            new DGTraceIntegrator(v_coeff, -1.0, -0.5)) );
+            new DGTraceIntegrator(v_coef, -1.0, -0.5)) );
       }
       else if (exec_mode == 2)
       {
@@ -1169,7 +1169,7 @@ int main(int argc, char *argv[])
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, v_coeff, -1.0, -0.5));
+      new BoundaryFlowIntegrator(inflow, v_coef, -1.0, -0.5));
 
    m.Assemble();
    m.Finalize();
@@ -1183,11 +1183,15 @@ int main(int argc, char *argv[])
 
    // Precompute data required for high and low order schemes.
    BilinearFormIntegrator* VolumeTerms;
-   if (exec_mode == 0) // Transport.
+   if (exec_mode == 0)
    {
       VolumeTerms = new MixedConvectionIntegrator(velocity, -1.0);
    }
-   else // Remap.
+   else if (exec_mode == 1)
+   {
+      VolumeTerms = new MixedConvectionIntegrator(v_coef);
+   }
+   else if (exec_mode == 2)
    {
       VolumeTerms = new MixedConvectionIntegrator(velocity);
    }
@@ -1202,7 +1206,7 @@ int main(int argc, char *argv[])
    const IntegrationRule* irF = GetFaceIntRule(&fes);
    
    Assembly asmbl(&fes, monoType, OptScheme, velocity, dofs,
-                  SubFes0, SubFes1, ref_mesh, VolumeTerms, irF); // TODO change type of velocity to allow v_coeff
+                  SubFes0, SubFes1, ref_mesh, VolumeTerms, irF); // TODO change type of velocity to allow v_coef
 
 	LowOrderMethod lom;
 	lom.fes = &fes;
@@ -1228,7 +1232,7 @@ int main(int argc, char *argv[])
 			}
 			else if (exec_mode == 1)
 			{
-				lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(v_coeff));
+				lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(v_coef));
 			}
 			else if (exec_mode == 2)
 			{
@@ -1320,7 +1324,7 @@ int main(int argc, char *argv[])
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, asmbl, *x, v_gf, ml,
-                    lumpedM, v_coeff, lom);
+                    lumpedM, v_coef, lom);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -1539,6 +1543,11 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       // Discretization terms
       y = b;
       K.Mult(x, z);
+		
+		if ((exec_mode > 0) && (asmbl.OptScheme))
+      {
+			asmbl.ref_mesh = GetSubcellMesh(mesh, dummy.GetOrder());
+		}
 
       // Monotonicity terms
       for (k = 0; k < ne; k++)
@@ -1607,7 +1616,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
                for (i = 0; i < asmbl.dofs.numDofsSubcell; i++)
                {
                   dofInd = k*nd + asmbl.dofs.Sub2Ind(m, i);
-                  fluct += asmbl.fluctSub(k*asmbl.dofs.numSubcells+m,i)
+                  fluct += asmbl.SubcellWeights(k*asmbl.dofs.numSubcells+m,i)
                            * x(dofInd);
                   xMaxSubcell(m) = max(xMaxSubcell(m), x(dofInd));
                   xMinSubcell(m) = min(xMinSubcell(m), x(dofInd));
