@@ -445,31 +445,6 @@ int main(int argc, char *argv[])
    const double vol = M_rowsums * u;
    std::cout << "Vol  error = " << vol - vol0 << endl;
 
-   /*
-   // Compute and print symmetry error (re-run with the opposite velocity).
-   invert_velocity = true;
-   k.BilinearForm::operator=(0.0);
-   k.Assemble(skip_zeros);
-   k.Finalize();
-   GridFunction u_inv(&fes);
-   u_inv.ProjectCoefficient(u0);
-   done = false;
-   t = 0.0;
-   adv.SetTime(t);
-   for (int ti = 0; !done; )
-   {
-      double dt_real = min(dt, t_final - t);
-      adv.SetTimeStep(dt_real);
-      ode_solver->Step(u_inv, t, dt_real);
-      ti++;
-
-      done = (t >= t_final - 1e-8*dt);
-   }
-   GridFunctionCoefficient u_inv_coeff(&u_inv);
-   const double symm_error = u.ComputeMaxError(u_inv_coeff) / 2.0;
-   std::cout << "Symm error = " << symm_error << std::endl;
-   */
-
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
    {
