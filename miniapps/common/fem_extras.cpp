@@ -94,7 +94,7 @@ DiscreteDivOperator::DiscreteDivOperator(FiniteElementSpace *dfes,
 
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
                     GridFunction &gf, const char *title,
-                    int x, int y, int w, int h, bool vec)
+                    int x, int y, int w, int h, const char *keys, bool vec)
 {
    Mesh &mesh = *gf.FESpace()->GetMesh();
 
