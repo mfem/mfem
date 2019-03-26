@@ -877,7 +877,7 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
                   << "   sx = " << sx << "\n"
                   << "   sy = " << sy << "\n"
                   << "   sz = " << sz << "\n");
-      Make3D(nx, ny, nz, type, sx, sy, sz, generate_edges, true);
+      Make3D(nx, ny, nz, type, sx, sy, sz, true);
       // TODO: maybe have an option in the file to control ordering?
    }
    else

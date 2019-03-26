@@ -1172,6 +1172,7 @@ int NCMesh::RetrieveNode(const Element &el, int index)
          break;
 
       default:
+         ch = 0; // suppress compiler warning
          MFEM_ABORT("Unsupported element geometry.");
    }
    return RetrieveNode(elements[ch], index);
