@@ -114,7 +114,6 @@ const SparseMatrix & BlockMatrix::GetBlock(int i, int j) const
 
 int BlockMatrix::NumNonZeroElems() const
 {
-   MFEM_GPU_CANNOT_PASS;
    int nnz_elem = 0;
    for (int jcol = 0; jcol != nColBlocks; ++jcol)
       for (int irow = 0; irow != nRowBlocks; ++irow)
@@ -130,7 +129,6 @@ int BlockMatrix::NumNonZeroElems() const
 
 double& BlockMatrix::Elem (int i, int j)
 {
-   MFEM_GPU_CANNOT_PASS;
    int iloc, iblock;
    int jloc, jblock;
 
@@ -147,7 +145,6 @@ double& BlockMatrix::Elem (int i, int j)
 
 const double& BlockMatrix::Elem (int i, int j) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int iloc, iblock;
    int jloc, jblock;
 
@@ -164,7 +161,6 @@ const double& BlockMatrix::Elem (int i, int j) const
 
 int BlockMatrix::RowSize(const int i) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int rowsize = 0;
 
    int iblock, iloc;
@@ -181,7 +177,6 @@ int BlockMatrix::RowSize(const int i) const
 
 int BlockMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
 {
-   MFEM_GPU_CANNOT_PASS;
    int iblock, iloc, rowsize;
    findGlobalRow(row, iblock, iloc);
    rowsize = RowSize(row);
@@ -210,7 +205,6 @@ int BlockMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
 
 void BlockMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 {
-   MFEM_GPU_CANNOT_PASS;
    // Find the block to which the dof belongs and its local number
    int idx, iiblock;
    for (iiblock = 0; iiblock < nRowBlocks; ++iiblock)
@@ -249,7 +243,6 @@ void BlockMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
                                   Vector & rhs)
 {
-   MFEM_GPU_CANNOT_PASS;
    if (nRowBlocks != nColBlocks)
    {
       mfem_error("BlockMatrix::EliminateRowCol: nRowBlocks != nColBlocks");
@@ -313,7 +306,6 @@ void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
 
 void BlockMatrix::EliminateZeroRows(const double threshold)
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_VERIFY(nRowBlocks == nColBlocks, "not a square matrix");
 
    for (int iblock = 0; iblock < nRowBlocks; ++iblock)
@@ -363,7 +355,6 @@ void BlockMatrix::EliminateZeroRows(const double threshold)
 
 void BlockMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 {
-   MFEM_GPU_CANNOT_PASS;
    for (int iblock = 0; iblock < nRowBlocks; ++iblock)
    {
       for (int jblock = 0; jblock < nColBlocks; ++jblock)
@@ -379,7 +370,6 @@ void BlockMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 
 void BlockMatrix::Mult(const Vector & x, Vector & y) const
 {
-   MFEM_GPU_CANNOT_PASS;
    if (x.GetData() == y.GetData())
    {
       mfem_error("Error: x and y can't point to the same datas \n");
@@ -395,7 +385,6 @@ void BlockMatrix::Mult(const Vector & x, Vector & y) const
 
 void BlockMatrix::AddMult(const Vector & x, Vector & y, const double val) const
 {
-   MFEM_GPU_CANNOT_PASS;
    if (x.GetData() == y.GetData())
    {
       mfem_error("Error: x and y can't point to the same datas \n");
@@ -424,7 +413,6 @@ void BlockMatrix::AddMult(const Vector & x, Vector & y, const double val) const
 
 void BlockMatrix::MultTranspose(const Vector & x, Vector & y) const
 {
-   MFEM_GPU_CANNOT_PASS;
    if (x.GetData() == y.GetData())
    {
       mfem_error("Error: x and y can't point to the same datas \n");
@@ -437,7 +425,6 @@ void BlockMatrix::MultTranspose(const Vector & x, Vector & y) const
 void BlockMatrix::AddMultTranspose(const Vector & x, Vector & y,
                                    const double val) const
 {
-   MFEM_GPU_CANNOT_PASS;
    if (x.GetData() == y.GetData())
    {
       mfem_error("Error: x and y can't point to the same datas \n");
@@ -466,7 +453,6 @@ void BlockMatrix::AddMultTranspose(const Vector & x, Vector & y,
 
 SparseMatrix * BlockMatrix::CreateMonolithic() const
 {
-   MFEM_GPU_CANNOT_PASS;
    int nnz = NumNonZeroElems();
 
    int * i_amono = mm::malloc<int>(row_offsets[nRowBlocks]+2);
@@ -572,7 +558,6 @@ void BlockMatrix::PrintMatlab(std::ostream & os) const
 
 BlockMatrix * Transpose(const BlockMatrix & A)
 {
-   MFEM_GPU_CANNOT_PASS;
    BlockMatrix * At = new BlockMatrix(A.ColOffsets(), A.RowOffsets());
    At->owns_blocks = 1;
 
@@ -587,7 +572,6 @@ BlockMatrix * Transpose(const BlockMatrix & A)
 
 BlockMatrix * Mult(const BlockMatrix & A, const BlockMatrix & B)
 {
-   MFEM_GPU_CANNOT_PASS;
    BlockMatrix * C= new BlockMatrix(A.RowOffsets(), B.ColOffsets());
    C->owns_blocks = 1;
    Array<SparseMatrix *> CijPieces(A.NumColBlocks());

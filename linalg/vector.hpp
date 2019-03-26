@@ -14,7 +14,7 @@
 
 // Data type vector
 
-#include "device.hpp"
+#include "dtensor.hpp"
 #include "../general/okina.hpp"
 #include "../general/array.hpp"
 #include "../general/globals.hpp"

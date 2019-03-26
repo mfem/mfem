@@ -11,9 +11,8 @@
 
 list(APPEND SRCS
   array.cpp
-  cuda.cpp
   error.cpp
-  config.cpp
+  device.cpp
   globals.cpp
   gzstream.cpp
   isockstream.cpp
@@ -32,8 +31,7 @@ list(APPEND SRCS
 list(APPEND HDRS
   array.hpp
   binaryio.hpp
-  config.hpp
-  cuda.hpp
+  device.hpp
   error.hpp
   globals.hpp
   gzstream.hpp
@@ -43,10 +41,8 @@ list(APPEND HDRS
   mm.hpp
   occa.hpp
   okina.hpp
-  openmp.hpp
   optparser.hpp
   osockstream.hpp
-  raja.hpp
   sets.hpp
   socketstream.hpp
   sort_pairs.hpp
