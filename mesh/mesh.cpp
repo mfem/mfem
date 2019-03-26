@@ -2113,8 +2113,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
 }
 
 void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
-                  double sx, double sy, double sz,
-                  bool generate_edges, bool sfc_ordering)
+                  double sx, double sy, double sz, bool sfc_ordering)
 {
    int x, y, z;
 
