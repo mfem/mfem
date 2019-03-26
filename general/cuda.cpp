@@ -11,16 +11,12 @@
 
 #include "okina.hpp"
 
-// *****************************************************************************
 namespace mfem
 {
 
-// *****************************************************************************
-// * Allocates device memory
-// *****************************************************************************
 void* CuMemAlloc(void** dptr, size_t bytes)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS != ::cuMemAlloc((CUdeviceptr*)dptr, bytes))
    {
       mfem_error("Error in CuMemAlloc");
@@ -29,12 +25,9 @@ void* CuMemAlloc(void** dptr, size_t bytes)
    return *dptr;
 }
 
-// *****************************************************************************
-// * Frees device memory
-// *****************************************************************************
 void* CuMemFree(void *dptr)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS != ::cuMemFree((CUdeviceptr)dptr))
    {
       mfem_error("Error in CuMemFree");
@@ -43,12 +36,9 @@ void* CuMemFree(void *dptr)
    return dptr;
 }
 
-// *****************************************************************************
-// * Copies memory from Host to Device
-// *****************************************************************************
 void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS != ::cuMemcpyHtoD((CUdeviceptr)dst, src, bytes))
    {
       mfem_error("Error in CuMemcpyHtoD");
@@ -57,12 +47,9 @@ void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
    return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Host to Device
-// *****************************************************************************
 void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS !=
        ::cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s))
    {
@@ -72,12 +59,9 @@ void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
    return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Device
-// *****************************************************************************
 void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS !=
        ::cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes))
    {
@@ -87,12 +71,9 @@ void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
    return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Device
-// *****************************************************************************
 void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS !=
        ::cuMemcpyDtoDAsync((CUdeviceptr)dst, (CUdeviceptr)src,
                            bytes, (CUstream)s))
@@ -103,12 +84,9 @@ void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
    return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Host
-// *****************************************************************************
 void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS != ::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes))
    {
       mfem_error("Error in CuMemcpyDtoH");
@@ -117,12 +95,9 @@ void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
    return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Host
-// *****************************************************************************
 void* CuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
 {
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
    if (CUDA_SUCCESS !=
        ::cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s))
    {
@@ -132,5 +107,4 @@ void* CuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
    return dst;
 }
 
-// *****************************************************************************
 } // namespace mfem

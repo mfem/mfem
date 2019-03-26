@@ -14,7 +14,6 @@
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
-#include "../linalg/device.hpp"
 #include "intrules.hpp"
 #include "eltrans.hpp"
 
