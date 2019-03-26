@@ -765,6 +765,9 @@ int main(int argc, char *argv[])
    //     the time integrators.
    ode_imp_solver->Init(imp_oper);
    ode_exp_solver->Init(exp_oper);
+
+   ofstream ofs_err("adv_diff_v1.err");
+   
    double t = 0.0;
 
    bool last_step = false;
@@ -877,8 +880,10 @@ int main(int argc, char *argv[])
             double qerr1 = q.ComputeL2Error(qCoef);
             if (myid == 0)
             {
-               cout << "L2 Relative Error of Solution: " << err1 / nrm1
+	      cout << t << " L2 Relative Error of Solution: " << err1 / nrm1
 		    << "\t" << qerr1 / qnrm1 << endl;
+	      ofs_err << t << "\t" << err1 / nrm1 << "\t"
+		      << qerr1 / qnrm1 << endl;
             }
             T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
             q.GridFunction::ComputeElementL2Errors(qCoef, errorq);
@@ -935,6 +940,8 @@ int main(int argc, char *argv[])
          }
       }
    }
+   ofs_err.close();
+   
    if (visualization)
    {
       vis_q.close();

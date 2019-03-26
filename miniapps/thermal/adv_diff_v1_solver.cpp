@@ -333,18 +333,20 @@ DiffusionTDO::ImplicitSolve(const double dt,
 {
    dT_dt = 0.0;
    // cout << "sK size: " << sK_->Width() << ", T size: " << T.Size() << ", rhs_ size: " << rhs_->Size() << endl;
+   /*
    ostringstream ossT; ossT << "T_" << solveCount_ << ".vec";
    ofstream ofsT(ossT.str().c_str());
    T.Print(ofsT);
    ofsT.close();
+   */
    sK_->Mult(T, *rhs_);
-
+   /*
    ofstream ofsrhs("rhs.vec");
    rhs_->Print(ofsrhs);
 
    ofstream ofsQ("Q.vec");
    Qs_->Print(ofsQ);
-
+   */
    *rhs_ -= *Qs_;
    *rhs_ *= -1.0;
 
@@ -353,9 +355,11 @@ DiffusionTDO::ImplicitSolve(const double dt,
    this->initA(dt);
 
    a_->FormLinearSystem(ess_bdr_tdofs_, *dTdt_gf_, *rhs_, A_, dTdt_, RHS_);
+   /*
    A_.Print("A.mat");
    ofstream ofsB("b.vec");
    RHS_.Print(ofsB);
+   */
    this->initImplicitSolve();
 
    AInv_->Mult(RHS_, dTdt_);
