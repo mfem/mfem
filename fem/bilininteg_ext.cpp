@@ -163,8 +163,8 @@ static int f_build_diff_const(void *ctx, CeedInt Q,
 static int f_build_diff_grid(void *ctx, CeedInt Q,
                              const CeedScalar *const *in, CeedScalar *const *out) {
   BuildContext *bc = (BuildContext *)ctx;
-  // in[0] is Jacobians with shape [dim, nc=dim, Q]
-  // in[1] is quadrature weights, size (Q)
+  // in[1] is Jacobians with shape [dim, nc=dim, Q]
+  // in[2] is quadrature weights, size (Q)
   //
   // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T and store
   // the symmetric part of the result.
@@ -376,12 +376,12 @@ static void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& cee
   switch(ceedData.coeff_type){
     case Const:
       CeedQFunctionCreateInterior(ceed, 1, f_build_diff_const,
-                                  __FILE__":f_build_diff", &ceedData.build_qfunc);
+                                  __FILE__":f_build_diff_const", &ceedData.build_qfunc);
       ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
       break;
     case Grid:
       CeedQFunctionCreateInterior(ceed, 1, f_build_diff_grid,
-                                  __FILE__":f_build_diff", &ceedData.build_qfunc);
+                                  __FILE__":f_build_diff_grid", &ceedData.build_qfunc);
       CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
       break;
     default:
