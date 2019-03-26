@@ -1474,8 +1474,8 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
 OptimizationProblem::OptimizationProblem(const int insize,
                                          const Operator *C_,
                                          const Operator *D_)
-   : input_size(insize), C(C_), D(D_),
-     c_e(NULL), d_lo(NULL), d_hi(NULL), x_lo(NULL), x_hi(NULL)
+   : C(C_), D(D_), c_e(NULL), d_lo(NULL), d_hi(NULL), x_lo(NULL), x_hi(NULL),
+     input_size(insize)
 {
    if (C) { MFEM_ASSERT(C->Width() == input_size, "Wrong width of C."); }
    if (D) { MFEM_ASSERT(D->Width() == input_size, "Wrong width of D."); }
@@ -1522,8 +1522,8 @@ void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
       MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
                    "the l2 norm of (x - x_target).");
    }
-   MFEM_ASSERT(prob.C, "Linear constraint is not set.");
-   MFEM_ASSERT(prob.C->Height() == 1, "Solver expects scalar constraint.");
+   MFEM_ASSERT(prob.GetC(), "Linear constraint is not set.");
+   MFEM_ASSERT(prob.GetC()->Height() == 1, "Solver expects scalar constraint.");
 
    problem = &prob;
 }
