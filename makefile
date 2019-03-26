@@ -570,6 +570,7 @@ status info:
 	$(info MFEM_TPLFLAGS        = $(value MFEM_TPLFLAGS))
 	$(info MFEM_INCFLAGS        = $(value MFEM_INCFLAGS))
 	$(info MFEM_FLAGS           = $(value MFEM_FLAGS))
+	$(info MFEM_LINK_FLAGS      = $(value MFEM_LINK_FLAGS))
 	$(info MFEM_EXT_LIBS        = $(value MFEM_EXT_LIBS))
 	$(info MFEM_LIBS            = $(value MFEM_LIBS))
 	$(info MFEM_LIB_FILE        = $(value MFEM_LIB_FILE))
