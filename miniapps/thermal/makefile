@@ -23,8 +23,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS =
 PAR_MINIAPPS = fourier fourier_nl fourier_vanEs fourier_hybrid \
-	fourier_flux fourier_nl_flux \
-	fourier_refine fourier_flux_refine ex1p_nl adv_diff_v1 adv_diff_v2
+	fourier_flux ex1p_nl adv_diff_v1 adv_diff_v2
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
