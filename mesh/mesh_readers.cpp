@@ -1037,6 +1037,7 @@ void Mesh::ReadGmshEntityMap(std::istream &input, std::map<int,int> &entityMap, 
    int entityTag, physicalTag, brepTag;
    double boxMin[3], boxMax[3], point[3];
    unsigned long numPhysicals, numBrep;
+   static bool alreadyWarned=false;
 
    for(int i=0; i<numEntities; ++i)
    {
@@ -1059,6 +1060,14 @@ void Mesh::ReadGmshEntityMap(std::istream &input, std::map<int,int> &entityMap, 
          }
          else
          {
+            if(numPhysicals > 1)
+            {
+               if(!alreadyWarned)
+               {
+                  MFEM_WARNING("Multi-physical domains per element is not supported; first value in physical domain list is used instead");
+               }
+               alreadyWarned = true;
+            }
             for(int phys=0; phys < numPhysicals; ++phys)
             {
                input.read(reinterpret_cast<char*>(&physicalTag), sizeof(int));
@@ -1110,6 +1119,14 @@ void Mesh::ReadGmshEntityMap(std::istream &input, std::map<int,int> &entityMap, 
          }
          else
          {
+            if(numPhysicals > 1)
+            {
+               if(!alreadyWarned)
+               {
+                  MFEM_WARNING("Multi-physical domains per element is not supported; first value in physical domain list is used instead");
+               }
+               alreadyWarned = true;
+            }
             for(int phys=0; phys < numPhysicals; ++phys)
             {
                input >> physicalTag;
@@ -1340,7 +1357,6 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                const int n_elem_nodes = NodesOfGmshElement(type_of_element-1);
                vector<int> vert_indices(n_elem_nodes);
                int index;
-               //cerr << "element:" << ele << " of " << numElements << endl;
                if (binary)
                {
                   input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
@@ -1550,10 +1566,8 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
                      input >> coord[ci];
                   }
                }
-               //cerr << "ver: " << ver ;
                vertices[ver] = Vertex(coord, dim3);
                serial_number = nodeTags[node];
-               //cerr << "serial_number: " << serial_number << " vertices: " << coord[0] << "," << coord[1] << "," << coord[2] << endl;
                vertices_map[serial_number] = ver;
                ver++;
             }
@@ -1611,7 +1625,6 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
             {
                input >> dimEntity >> entity >> type_of_element >> numElements;
             }
-            //cerr << "element: dimEntity,entity,type_of_element,numElements " << dimEntity << "," << entity << "," << type_of_element << "," << numElements << endl;
             // load physical_domain tag depending on dim of entity
             switch(dimEntity)
             {
@@ -1655,7 +1668,6 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
                   MFEM_ABORT("Invalid dimension, Dim = " << dimEntity);
             }
             phys_domain=abs(phys_domain); // gmsh sometimes sets negative physical values
-            //cerr << "phys_domain for this entity block: " << phys_domain << " dimEntity: " << dimEntity << endl;
             for (int ele= 0; ele < numElements; ++ele)
             {
                // number of nodes for each type of Gmsh elements, type is the index of
@@ -1681,7 +1693,6 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
                   {
                      input >> nodeTag;
                   }
-                  //cerr << "searching for vertex: " << nodeTag << endl;
                   map<int, int>::const_iterator it = vertices_map.find(nodeTag);
                   if (it == vertices_map.end())
                   {
