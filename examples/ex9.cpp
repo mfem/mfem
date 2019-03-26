@@ -145,7 +145,7 @@ void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K,
 
 // The mesh corresponding to Bezier subcells of order p is constructed.
 // NOTE: The mesh is assumed to consist of segments, quads or hexes.
-// TODO It seems that for an original mesh with periodic boundaries, this 
+// TODO It seems that for an original mesh with periodic boundaries, this
 // routine produces a mesh that cannot be used for its intended purpose.
 Mesh* GetSubcellMesh(Mesh *mesh, int p)
 {
