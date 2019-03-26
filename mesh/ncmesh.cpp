@@ -2257,7 +2257,7 @@ void NCMesh::BuildElementToVertexTable()
    {
       int cnt = I[i+1] - I[i];
       mm::memcpy(J+nnz, JJ[i], cnt * sizeof(int));
-      mm::free<int>(JJ[i]);//delete [] JJ[i];
+      mm::free<int>(JJ[i]);
       nnz += cnt;
    }
 

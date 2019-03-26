@@ -14,101 +14,65 @@
 
 #include <cstddef>
 
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
 #include <cuda.h>
 #endif
 
 namespace mfem
 {
 
-// *****************************************************************************
-#ifdef __NVCC__
+#ifdef MFEM_USE_CUDA
+#define MFEM_HOST_DEVICE __host__ __device__
 inline void CuCheck(const unsigned int c)
 {
    MFEM_ASSERT(c == cudaSuccess, cudaGetErrorString(cudaGetLastError()));
 }
-template <typename BODY> __global__ static
-void CuKernel(const int N, BODY body)
+template<typename T> MFEM_HOST_DEVICE
+inline T AtomicAdd(T* address, T val)
 {
-   const int k = blockDim.x*blockIdx.x + threadIdx.x;
-   if (k >= N) { return; }
-   body(k);
+   return atomicAdd(address, val);
 }
-template <int BLOCKS, typename DBODY>
-void CuWrap(const int N, DBODY &&d_body)
-{
-   if (N==0) { return; }
-   const int GRID = (N+BLOCKS-1)/BLOCKS;
-   CuKernel<<<GRID,BLOCKS>>>(N,d_body);
-   const cudaError_t last = cudaGetLastError();
-   MFEM_ASSERT(last == cudaSuccess, cudaGetErrorString(last));
-}
-#else // ***********************************************************************
+#else // MFEM_USE_CUDA
 #define __host__
 #define __device__
 #define __constant__
 typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
-template <int BLOCKS, typename DBODY>
-void CuWrap(const int N, DBODY &&d_body) {}
-#endif // __NVCC__
-
-#if defined(__CUDA_ARCH__)
-template<typename T>
-__device__ inline T AtomicAdd(T* address, T val)
-{
-  return atomicAdd(address, val);
-}
-#else
+#define MFEM_HOST_DEVICE
 template<typename T> inline T AtomicAdd(T* address, T val)
 {
 #if defined(_OPENMP)
-#pragma omp atomic
+   #pragma omp atomic
 #endif
-  *address += val;
-  return *address;
+   *address += val;
+   return *address;
 }
-#endif //__CUDA_ARCH__
-// *****************************************************************************
-// * Allocates device memory
-// *****************************************************************************
+#endif // MFEM_USE_CUDA
+
+/// Allocates device memory
 void* CuMemAlloc(void **d_ptr, size_t bytes);
 
-// *****************************************************************************
-// * Frees device memory
-// *****************************************************************************
+/// Frees device memory
 void* CuMemFree(void *d_ptr);
 
-// *****************************************************************************
-// * Copies memory from Host to Device
-// *****************************************************************************
+/// Copies memory from Host to Device
 void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
 
-// *****************************************************************************
-// * Copies memory from Host to Device
-// *****************************************************************************
+/// Copies memory from Host to Device
 void* CuMemcpyHtoDAsync(void *d_dst, const void *h_src,
                         size_t bytes, void *stream);
 
-// *****************************************************************************
-// * Copies memory from Device to Device
-// *****************************************************************************
+/// Copies memory from Device to Device
 void* CuMemcpyDtoD(void *d_dst, void *d_src, size_t bytes);
 
-// *****************************************************************************
-// * Copies memory from Device to Device
-// *****************************************************************************
+/// Copies memory from Device to Device
 void* CuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes, void *stream);
 
-// *****************************************************************************
-// * Copies memory from Device to Host
-// *****************************************************************************
+/// Copies memory from Device to Host
 void* CuMemcpyDtoH(void *h_dst, void *d_src, size_t bytes);
 
-// *****************************************************************************
-// * Copies memory from Device to Host
-// *****************************************************************************
+/// Copies memory from Device to Host
 void* CuMemcpyDtoHAsync(void *h_dst, void *d_src, size_t bytes, void *stream);
 
 } // namespace mfem
