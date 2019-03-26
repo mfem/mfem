@@ -26,6 +26,38 @@ namespace mfem
 namespace thermal
 {
 
+class AdvectionTDO : public TimeDependentOperator
+{
+public:
+  AdvectionTDO(ParFiniteElementSpace &H1_FES, VectorCoefficient &velCoef);
+  ~AdvectionTDO();
+  
+   /** @brief Perform the action of the operator: @a q = f(@a y, t), where
+       q solves the algebraic equation F(@a y, q, t) = G(@a y, t) and t is the
+       current time. */
+   virtual void Mult(const Vector &y, Vector &q) const;
+
+private:
+
+  void initMult() const;
+  
+  ParFiniteElementSpace & H1_FESpace_;
+  VectorCoefficient & velCoef_;
+
+  Array<int> ess_bdr_tdofs_;
+  
+  mutable ParBilinearForm m1_;
+  ParBilinearForm adv1_;
+
+   mutable HypreParMatrix   M1_;
+   mutable HyprePCG       * M1Inv_;
+   mutable HypreDiagScale * M1Diag_;
+   mutable ParGridFunction dydt_gf_;
+   mutable Vector SOL_;
+   mutable Vector RHS_;
+   mutable Vector rhs_;
+};
+
 /**
    The thermal diffusion equation can be written:
 
@@ -54,21 +86,25 @@ namespace thermal
 
      (M_0(c)+dt S_0(sigma))k = -S_0(sigma)T + M_0 Q_s
 */
-class DiffusionTDO : public TimeDependentOperator
+class AdvectionDiffusionTDO : public TimeDependentOperator
 {
 public:
-   DiffusionTDO(ParFiniteElementSpace &H1_FES,
+   AdvectionDiffusionTDO(ODESolver & exp_solver, double dt_exp,
+ParFiniteElementSpace &H1_FES,
                             Coefficient & dTdtBdr,
                             Array<int> & bdr_attr,
                             Coefficient & c, bool td_c,
                             Coefficient & k, bool td_k,
-                            Coefficient & Q, bool td_Q);
-   DiffusionTDO(ParFiniteElementSpace &H1_FES,
+                            Coefficient & Q, bool td_Q,
+   VectorCoefficient & v, bool td_v);
+   AdvectionDiffusionTDO(ODESolver & exp_solver, double dt_exp,
+ParFiniteElementSpace &H1_FES,
                             Coefficient & dTdtBdr,
                             Array<int> & bdr_attr,
                             Coefficient & c, bool td_c,
                             MatrixCoefficient & K, bool td_k,
-                            Coefficient & Q, bool td_Q);
+                            Coefficient & Q, bool td_Q,
+   VectorCoefficient & v, bool td_v);
 
    void SetTime(const double time);
    /*
@@ -106,7 +142,7 @@ public:
        If not re-implemented, this method simply generates an error. */
    virtual void ImplicitSolve(const double dt, const Vector &y, Vector &q);
 
-   virtual ~DiffusionTDO();
+   virtual ~AdvectionDiffusionTDO();
 
 private:
 
@@ -116,6 +152,7 @@ private:
    void initA(double dt);
    void initImplicitSolve();
 
+   int myid_;
    bool init_;
    // bool initA_;
    // bool initAInv_;
@@ -124,6 +161,14 @@ private:
    mutable int multCount_;
    int solveCount_;
 
+   ODESolver & exp_solver_;
+   AdvectionTDO  exp_oper_;
+   mutable Vector T_exp_;
+   mutable Vector dTdt_exp_;
+   double t0_exp_;
+   double t1_exp_;
+   double dt_exp_;
+  
    ParFiniteElementSpace * H1_FESpace_;
 
    ParBilinearForm * mC_;
@@ -168,38 +213,6 @@ private:
    // MatrixCoefficient * KInvCoef_;
    Coefficient       * dtkCoef_;
    MatrixCoefficient * dtKCoef_;
-};
-
-class AdvectionTDO : public TimeDependentOperator
-{
-public:
-  AdvectionTDO(ParFiniteElementSpace &H1_FES, VectorCoefficient &velCoef);
-  ~AdvectionTDO();
-  
-   /** @brief Perform the action of the operator: @a q = f(@a y, t), where
-       q solves the algebraic equation F(@a y, q, t) = G(@a y, t) and t is the
-       current time. */
-   virtual void Mult(const Vector &y, Vector &q) const;
-
-private:
-
-  void initMult() const;
-  
-  ParFiniteElementSpace & H1_FESpace_;
-  VectorCoefficient & velCoef_;
-
-  Array<int> ess_bdr_tdofs_;
-  
-  mutable ParBilinearForm m1_;
-  ParBilinearForm adv1_;
-
-   mutable HypreParMatrix   M1_;
-   mutable HyprePCG       * M1Inv_;
-   mutable HypreDiagScale * M1Diag_;
-   mutable ParGridFunction dydt_gf_;
-   mutable Vector SOL_;
-   mutable Vector RHS_;
-   mutable Vector rhs_;
 };
 
 } // namespace thermal

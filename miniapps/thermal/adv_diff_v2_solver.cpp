@@ -23,16 +23,25 @@ using namespace miniapps;
 namespace thermal
 {
 
-DiffusionTDO::DiffusionTDO(
+AdvectionDiffusionTDO::AdvectionDiffusionTDO(
+   ODESolver & exp_solver, double dt_exp,
    ParFiniteElementSpace &H1_FES,
    Coefficient & dTdtBdr,
    Array<int> & bdr_attr,
    Coefficient & c, bool td_c,
    Coefficient & k, bool td_k,
-   Coefficient & Q, bool td_Q)
+   Coefficient & Q, bool td_Q,
+   VectorCoefficient & v, bool td_v)
    : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
+     myid_(H1_FES.GetMyRank()),
      init_(false), //initA_(false), initAInv_(false),
      multCount_(0), solveCount_(0),
+     exp_solver_(exp_solver),
+     exp_oper_(H1_FES, v),
+     T_exp_(H1_FES.GetVSize()),
+     dTdt_exp_(H1_FES.GetVSize()),
+     t0_exp_(0.0),
+     dt_exp_(dt_exp),
      H1_FESpace_(&H1_FES),
      mC_(NULL), sK_(NULL), a_(NULL), dTdt_gf_(NULL), Qs_(NULL),
      MCInv_(NULL), MCDiag_(NULL),
@@ -47,16 +56,24 @@ DiffusionTDO::DiffusionTDO(
    this->init();
 }
 
-DiffusionTDO::DiffusionTDO(
+AdvectionDiffusionTDO::AdvectionDiffusionTDO(
+   ODESolver & exp_solver, double dt_exp,
    ParFiniteElementSpace &H1_FES,
    Coefficient & dTdtBdr,
    Array<int> & bdr_attr,
    Coefficient & c, bool td_c,
    MatrixCoefficient & K, bool td_k,
-   Coefficient & Q, bool td_Q)
+   Coefficient & Q, bool td_Q,
+   VectorCoefficient & v, bool td_v)
    : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
      init_(false),
      multCount_(0), solveCount_(0),
+     exp_solver_(exp_solver),
+     exp_oper_(H1_FES, v),
+     T_exp_(H1_FES.GetVSize()),
+     dTdt_exp_(H1_FES.GetVSize()),
+     t0_exp_(0.0),
+     dt_exp_(dt_exp),
      H1_FESpace_(&H1_FES),
      mC_(NULL), sK_(NULL), a_(NULL), dTdt_gf_(NULL), Qs_(NULL),
      MCInv_(NULL), MCDiag_(NULL),
@@ -71,7 +88,7 @@ DiffusionTDO::DiffusionTDO(
    this->init();
 }
 
-DiffusionTDO::~DiffusionTDO()
+AdvectionDiffusionTDO::~AdvectionDiffusionTDO()
 {
    delete a_;
    delete mC_;
@@ -85,10 +102,12 @@ DiffusionTDO::~DiffusionTDO()
 }
 
 void
-DiffusionTDO::init()
+AdvectionDiffusionTDO::init()
 {
    if ( init_ ) { return; }
 
+   exp_solver_.Init(exp_oper_);
+   
    if ( mC_ == NULL )
    {
       mC_ = new ParBilinearForm(H1_FESpace_);
@@ -131,10 +150,13 @@ DiffusionTDO::init()
 }
 
 void
-DiffusionTDO::SetTime(const double time)
+AdvectionDiffusionTDO::SetTime(const double time)
 {
    this->TimeDependentOperator::SetTime(time);
 
+   t0_exp_ = t1_exp_;
+   t1_exp_ = time;
+   
    dTdtBdrCoef_->SetTime(t);
 
    if ( tdQ_ )
@@ -220,7 +242,7 @@ CCoef_ = &c;
 }
 */
 void
-DiffusionTDO::initMult() const
+AdvectionDiffusionTDO::initMult() const
 {
    if ( tdC_ || MCInv_ == NULL || MCDiag_ == NULL )
    {
@@ -248,7 +270,7 @@ DiffusionTDO::initMult() const
 }
 
 void
-DiffusionTDO::Mult(const Vector &T, Vector &dT_dt) const
+AdvectionDiffusionTDO::Mult(const Vector &T, Vector &dT_dt) const
 {
    dT_dt = 0.0;
 
@@ -271,7 +293,7 @@ DiffusionTDO::Mult(const Vector &T, Vector &dT_dt) const
 }
 
 void
-DiffusionTDO::initA(double dt)
+AdvectionDiffusionTDO::initA(double dt)
 {
    if ( kCoef_ != NULL )
    {
@@ -299,7 +321,7 @@ DiffusionTDO::initA(double dt)
 }
 
 void
-DiffusionTDO::initImplicitSolve()
+AdvectionDiffusionTDO::initImplicitSolve()
 {
    if ( tdC_ || tdK_ || AInv_ == NULL || APrecond_ == NULL )
    {
@@ -328,23 +350,46 @@ DiffusionTDO::initImplicitSolve()
 }
 
 void
-DiffusionTDO::ImplicitSolve(const double dt,
-			    const Vector &T, Vector &dT_dt)
+AdvectionDiffusionTDO::ImplicitSolve(const double dt,
+				     const Vector &T, Vector &dT_dt)
 {
    dT_dt = 0.0;
    // cout << "sK size: " << sK_->Width() << ", T size: " << T.Size() << ", rhs_ size: " << rhs_->Size() << endl;
+
+   {
+     double t_exp = t0_exp_;
+     double dt01 = t1_exp_ - t0_exp_;
+     int n = (int)ceil(dt01 / dt_exp_);
+     double dt_exp = dt01 / n;
+     if (myid_ == 0)
+     {
+       cout << "dt01 " << dt01 << " dt_exp " << dt_exp_ << " n " << n << " " << dt_exp << endl;
+     }
+     
+     // double tf = t_exp + dt;
+     T_exp_ = T;
+     // exp_solver_.Run(T_exp_, t_exp, dt_exp, tf);
+     for (int i=0; i<n; i++)
+       {
+	 exp_solver_.Step(T_exp_, t_exp, dt_exp);
+       }
+     add(1.0 / dt01, T_exp_, -1.0 / dt01, T, dTdt_exp_);
+     t0_exp_ = t;
+   }
+   /*
    ostringstream ossT; ossT << "T_" << solveCount_ << ".vec";
    ofstream ofsT(ossT.str().c_str());
    T.Print(ofsT);
    ofsT.close();
-   sK_->Mult(T, *rhs_);
-
+   */
+   sK_->Mult(T_exp_, *rhs_);
+   /*
    ofstream ofsrhs("rhs.vec");
    rhs_->Print(ofsrhs);
 
    ofstream ofsQ("Q.vec");
    Qs_->Print(ofsQ);
-
+   */
    *rhs_ -= *Qs_;
    *rhs_ *= -1.0;
 
@@ -353,15 +398,18 @@ DiffusionTDO::ImplicitSolve(const double dt,
    this->initA(dt);
 
    a_->FormLinearSystem(ess_bdr_tdofs_, *dTdt_gf_, *rhs_, A_, dTdt_, RHS_);
+   /*
    A_.Print("A.mat");
    ofstream ofsB("b.vec");
    RHS_.Print(ofsB);
+   */
    this->initImplicitSolve();
 
    AInv_->Mult(RHS_, dTdt_);
 
    a_->RecoverFEMSolution(dTdt_, *rhs_, dT_dt);
 
+   dT_dt.Add(1.0, dTdt_exp_);
    solveCount_++;
 }
 

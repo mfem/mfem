@@ -317,10 +317,11 @@ int main(int argc, char *argv[])
    int ode_exp_solver_type = -1;
    int ode_imp_solver_type = -1;
    int vis_steps = 1;
-   double dt = 0.5;
+   double dt_imp = 0.5;
+   double dt_exp = 0.05;
    double t_final = 5.0;
    double tol = 1e-4;
-   const char *basename = "Adv_Diff_v1";
+   const char *basename = "Adv_Diff_v2";
    const char *mesh_file = "../../data/periodic-square.mesh";
    bool zero_start = false;
    bool static_cond = false;
@@ -360,8 +361,10 @@ int main(int argc, char *argv[])
                   "Width of T(0) parallel to B.");
    args.AddOption(&TWPerp_, "-T-w-perp", "--T-width-perpendicular",
                   "Width of T(0) perpendicular to B.");
-   args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
+   args.AddOption(&dt_imp, "-ddt", "--diff-time-step",
+                  "Diffusion time step.");
+   args.AddOption(&dt_exp, "-adt", "--advc-time-step",
+                  "Advection time step.");
    args.AddOption(&t_final, "-tf", "--final-time",
                   "Final Time.");
    args.AddOption(&tol, "-tol", "--tolerance",
@@ -663,14 +666,13 @@ int main(int argc, char *argv[])
 
    // 14. Initialize the Diffusion operator, the GLVis visualization and print
    //     the initial energies.
-   DiffusionTDO imp_oper(HGradFESpace,
-			 zeroCoef, ess_bdr,
-			 SpecificHeatCoef, false,
-			 ConductionCoef, false,
-			 HeatSourceCoef, false);
-
-   AdvectionTDO exp_oper(HGradFESpace,
-			 velCoef);
+   AdvectionDiffusionTDO imp_oper(*ode_exp_solver, dt_exp,
+				  HGradFESpace,
+				  zeroCoef, ess_bdr,
+				  SpecificHeatCoef, false,
+				  ConductionCoef, false,
+				  HeatSourceCoef, false,
+				  velCoef, false);
 
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
@@ -764,13 +766,16 @@ int main(int argc, char *argv[])
    //     has a Mult() method and an ImplicitSolve() method which are used by
    //     the time integrators.
    ode_imp_solver->Init(imp_oper);
-   ode_exp_solver->Init(exp_oper);
+   // ode_exp_solver->Init(exp_oper);
+
+   ofstream ofs_err("adv_diff_v2.err");
+   
    double t = 0.0;
 
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
-      if (t + dt >= t_final - dt/2)
+      if (t + dt_imp >= t_final - dt_imp/2)
       {
          if (myid == 0)
          {
@@ -782,8 +787,8 @@ int main(int argc, char *argv[])
       // F is the vector of dofs, t is the current time, and dt is the time step
       // to advance.
       T0 = T1;
-      // ode_imp_solver->Step(T1, t, dt);
-      // t -= dt;
+      ode_imp_solver->Step(T1, t, dt_imp);
+      /*
       ode_exp_solver->Step(T1, t, dt);
       if (ti % 10 == 0)
       {
@@ -791,7 +796,7 @@ int main(int argc, char *argv[])
 	double dt_imp = 10.0 * dt;
 	ode_imp_solver->Step(T1, t_imp, dt_imp);
       }
-      
+      */
       add(1.0, T1, -1.0, T0, dT);
 
       double maxT    = T1.ComputeMaxError(zeroCoef);
@@ -877,8 +882,10 @@ int main(int argc, char *argv[])
             double qerr1 = q.ComputeL2Error(qCoef);
             if (myid == 0)
             {
-               cout << "L2 Relative Error of Solution: " << err1 / nrm1
+	      cout << t << " L2 Relative Error of Solution: " << err1 / nrm1
 		    << "\t" << qerr1 / qnrm1 << endl;
+	      ofs_err << t << "\t" << err1 / nrm1 << "\t"
+		      << qerr1 / qnrm1 << endl;
             }
             T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
             q.GridFunction::ComputeElementL2Errors(qCoef, errorq);
@@ -935,6 +942,8 @@ int main(int argc, char *argv[])
          }
       }
    }
+   ofs_err.close();
+   
    if (visualization)
    {
       vis_q.close();
