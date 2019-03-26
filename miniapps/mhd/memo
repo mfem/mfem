@@ -2,14 +2,26 @@ run:
 exMHD -r 4 -o 2 -tf 3 -vs 100 -dt .0005
 
 plot:
-glvis -m refined.mesh -g current.sol -k "mmc" -ww 800 -wh 800
+glvis -m refined.mesh -g current.sol -k "mmcRjl" -ww 800 -wh 800
 glvis -m refined.mesh -g psiPer.sol -k "mmc" -ww 800 -wh 800
 
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+3/25
+fix a bug from boundary condition when compute J=nable Psi (it did not consider boundary condition)
+
 3/23
 clean up the explicit code; move on to test AMR (explicit)
+
+Should I remove nodes in the mesh (nodes only for ALE type methods??)?
+
+AMR with explicit time stepping is not very clear
+How to do subcyling?
+
+
+good example on amr:
+ ./ex6 -m ../data/fichera.mesh -o 2
 
 3/22 
 After fix the rhs boundary bug, OK for wave case

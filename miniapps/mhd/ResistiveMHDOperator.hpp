@@ -89,7 +89,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(200);
+   M_solver.SetMaxIter(500);
    M_solver.SetPrintLevel(0);
    M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
@@ -106,7 +106,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
    K_solver.iterative_mode = true;
    K_solver.SetRelTol(rel_tol);
    K_solver.SetAbsTol(0.0);
-   K_solver.SetMaxIter(200);
+   K_solver.SetMaxIter(500);
    K_solver.SetPrintLevel(0);
    K_solver.SetPreconditioner(*K_prec);
    K_solver.SetOperator(Kmat);
@@ -173,7 +173,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    if (true)
    {
       for (int i=0; i<ess_tdof_list.Size(); i++)
-          z(ess_tdof_list[i])=0.0; //set Dirichlet condition by hand
+          z(ess_tdof_list[i])=0.0; //set homogeneous Dirichlet condition by hand
       M_solver.Mult(z, dpsi_dt);
    }
    else
@@ -245,15 +245,19 @@ void ResistiveMHDOperator::UpdateJ(Vector &vx)
 {
    //the current is J=-M^{-1}*K*Psi
    int sc = height/4;
-   //cout << "sc ="<<sc<<" height="<<height<<endl;   //debug
    Vector psi(vx.GetData() +  sc, sc);
    Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
+   SparseMatrix tmp;
+   Vector Y, Z;
+
 
    KB->Mult(psi, z);
    z.Neg(); // z = -z
+   M->FormLinearSystem(ess_tdof_list, j, z, tmp, Y, Z); //apply Dirichelt boundary (j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)
+   M_solver.Mult(Z, Y);
+   M->RecoverFEMSolution(Y, z, j);
 
-   /*
-   //debugging for the boundary terms
+   /* debugging for the boundary terms
    if (false){
        for (int i=0; i<ess_tdof_list.Size(); i++)
        { 
@@ -263,9 +267,9 @@ void ResistiveMHDOperator::UpdateJ(Vector &vx)
        ofstream myfile("zv.dat");
        z.Print(myfile, 1000);
    }
+   M_solver.Mult(z, j);
    */
 
-   M_solver.Mult(z, j);
 }
 
 void ResistiveMHDOperator::UpdatePhi(Vector &vx)

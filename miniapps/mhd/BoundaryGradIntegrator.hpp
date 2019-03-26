@@ -58,11 +58,17 @@ void BoundaryGradIntegrator::AssembleFaceMatrix(
 
       //get normal vector
       Trans.Face->SetIntPoint(&ip);
-      const DenseMatrix &J = Trans.Face->Jacobian(); //is this J^{-1} or J^{T}?
       if (dim == 1)
       {
          nor(0) = 2*eip1.x - 1.0;
       }
+      else
+      {
+         CalcOrtho(Trans.Face->Jacobian(), nor);
+      }
+
+      /* this is probably the old way
+      const DenseMatrix &J = Trans.Face->Jacobian(); //is this J^{-1} or J^{T}?
       else if (dim == 2)
       {
          nor(0) =  J(1,0);
@@ -74,6 +80,7 @@ void BoundaryGradIntegrator::AssembleFaceMatrix(
          nor(1) = J(2,0)*J(0,1) - J(0,0)*J(2,1);
          nor(2) = J(0,0)*J(1,1) - J(1,0)*J(0,1);
       }
+      */
 
       // multiply weight into normal, make answer negative
       // (boundary integral is subtracted)
