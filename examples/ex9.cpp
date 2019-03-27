@@ -74,10 +74,10 @@ enum MONOTYPE { None, DiscUpw, DiscUpw_FCT, ResDist, ResDist_FCT };
 
 struct LowOrderMethod
 {
-	FiniteElementSpace* fes;
-	Array <int> smap;
-	SparseMatrix D;
-	BilinearForm* pk = NULL;
+   FiniteElementSpace* fes;
+   Array <int> smap;
+   SparseMatrix D;
+   BilinearForm* pk = NULL;
 };
 
 // Utility function to build a map to the offset
@@ -117,7 +117,7 @@ Array<int> SparseMatrix_Build_smap(const SparseMatrix &A)
 // Given a matrix K, matrix D (initialized with same sparsity as K) 
 // is computed, such that (K+D)_ij >= 0 for i != j.
 void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K,
-												Array<int> smap, SparseMatrix& D)
+                                    Array<int> smap, SparseMatrix& D)
 {
    const int n = K.Size();
    int* Ip = K.GetI();
@@ -221,11 +221,11 @@ public:
       mesh = fes->GetMesh();
       dim = mesh->Dimension();
       
-		int n = fes->GetVSize();
+      int n = fes->GetVSize();
       int ne = mesh->GetNE();
       
-		xi_min.SetSize(n);
-		xi_max.SetSize(n);
+      xi_min.SetSize(n);
+      xi_max.SetSize(n);
       xe_min.SetSize(ne);
       xe_max.SetSize(ne);
 
@@ -303,11 +303,11 @@ private:
 
       for (i = 0; i < numBdrs; i++)
       {
-			if (NbrEl1[i] < 0) { continue; }
+         if (NbrEl1[i] < 0) { continue; }
          for (j = 0; j < numBdrs; j++)
          {
-				if (NbrEl2[j] < 0) { continue; }
-				
+            if (NbrEl2[j] < 0) { continue; }
+            
             // add neighbor elements that share a face
             // with el1 and el2 but are not el
             if ((NbrEl1[i] == NbrEl2[j]) && (NbrEl1[i] != el))
@@ -703,19 +703,19 @@ private:
 class DiscreteUpwinding
 {
 public:
-	FiniteElementSpace* fes;
-	Array<int> smap;
-	SparseMatrix D;
-	
-	DiscreteUpwinding(FiniteElementSpace* _fes, const SparseMatrix K) : fes(_fes)
-	{
-		smap = SparseMatrix_Build_smap(K);
-		
-		if (exec_mode == 0) // Initialization for transport mode.
+   FiniteElementSpace* fes;
+   Array<int> smap;
+   SparseMatrix D;
+   
+   DiscreteUpwinding(FiniteElementSpace* _fes, const SparseMatrix K) : fes(_fes)
+   {
+      smap = SparseMatrix_Build_smap(K);
+      
+      if (exec_mode == 0) // Initialization for transport mode.
       {
-			ComputeDiscreteUpwindingMatrix(K, smap, D);
-		}
-	}
+         ComputeDiscreteUpwindingMatrix(K, smap, D);
+      }
+   }
 };
 
 class Assembly
@@ -881,7 +881,7 @@ public:
       const FiniteElement *el1 = SubFes1.GetFE(dofInd);
       ElementTransformation *tr = ref_mesh->GetElementTransformation(dofInd);
       VolumeTerms->AssembleElementMatrix2(*el1, *el0, *tr, elmat);
-      
+         
       elmat.GetRow(0, row); // Using the fact that elmat has just one row.
       SubcellWeights.SetRow(dofInd, row);
    }
@@ -911,8 +911,8 @@ private:
 
    double dt, start_t;
    Assembly &asmbl;
-	
-	LowOrderMethod &lom;
+   
+   LowOrderMethod &lom;
 
 public:
    FE_Evolution(FiniteElementSpace* fes, BilinearForm &Mbf_, BilinearForm &Kbf_,
@@ -1188,7 +1188,7 @@ int main(int argc, char *argv[])
 
    // Precompute data required for high and low order schemes.
    BilinearFormIntegrator* VolumeTerms;
-	
+   
 
    if (exec_mode == 0)
    {
@@ -1196,7 +1196,8 @@ int main(int argc, char *argv[])
    }
 //    else if (exec_mode == 1)
 //    {
-//       VolumeTerms = new MixedConvectionIntegrator(v_coef); // TODO: Figure out why this gives a seg-fault!
+         // TODO Figure out why this gives a seg-fault.
+//       VolumeTerms = new MixedConvectionIntegrator(v_coef);
 //    }
    else /*if (exec_mode == 2)*/
    {
@@ -1215,51 +1216,51 @@ int main(int argc, char *argv[])
    Assembly asmbl(&fes, monoType, OptScheme, velocity, dofs,
                   SubFes0, SubFes1, ref_mesh, VolumeTerms, irF); // TODO change type of velocity to allow v_coef
 
-	LowOrderMethod lom;
-	lom.fes = &fes;
-	
-	if ((monoType == DiscUpw) || (DiscUpw_FCT))
-	{
-		if (!OptScheme)
-		{
-			lom.smap = SparseMatrix_Build_smap(k.SpMat());
-			lom.D = k.SpMat();
-			
-			if (exec_mode == 0)
-			{
-				ComputeDiscreteUpwindingMatrix(k.SpMat(), lom.smap, lom.D);
-			}
-		}
-		else
-		{
-			lom.pk = new BilinearForm(&fes);
-			if (exec_mode == 0)
-			{
-				lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(velocity, -1.0));
-			}
-			else if (exec_mode == 1)
-			{
-				lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(v_coef));
-			}
-			else if (exec_mode == 2)
-			{
-				lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(velocity));
-			}
-			lom.pk->Assemble(skip_zeros);
-			lom.pk->Finalize(skip_zeros);
-			
-			lom.smap = SparseMatrix_Build_smap(lom.pk->SpMat());
-			lom.D = lom.pk->SpMat();
-			
-			if (exec_mode == 0)
-			{
-				ComputeDiscreteUpwindingMatrix(lom.pk->SpMat(), lom.smap, lom.D);
-			}
-		}
-	}
-	
-// 	Init(monoType, OptScheme, lom);
-	
+   LowOrderMethod lom;
+   lom.fes = &fes;
+   
+   if ((monoType == DiscUpw) || (DiscUpw_FCT))
+   {
+      if (!OptScheme)
+      {
+         lom.smap = SparseMatrix_Build_smap(k.SpMat());
+         lom.D = k.SpMat();
+         
+         if (exec_mode == 0)
+         {
+            ComputeDiscreteUpwindingMatrix(k.SpMat(), lom.smap, lom.D);
+         }
+      }
+      else
+      {
+         lom.pk = new BilinearForm(&fes);
+         if (exec_mode == 0)
+         {
+            lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(velocity, -1.0));
+         }
+         else if (exec_mode == 1)
+         {
+            lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(v_coef));
+         }
+         else if (exec_mode == 2)
+         {
+            lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(velocity));
+         }
+         lom.pk->Assemble(skip_zeros);
+         lom.pk->Finalize(skip_zeros);
+         
+         lom.smap = SparseMatrix_Build_smap(lom.pk->SpMat());
+         lom.D = lom.pk->SpMat();
+         
+         if (exec_mode == 0)
+         {
+            ComputeDiscreteUpwindingMatrix(lom.pk->SpMat(), lom.smap, lom.D);
+         }
+      }
+   }
+   
+//    Init(monoType, OptScheme, lom);
+   
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
@@ -1492,20 +1493,20 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
    
    if ( (asmbl.monoType == DiscUpw) || (asmbl.monoType == DiscUpw_FCT) )
    {
-		// Reassemble on the new mesh (given by mesh_pos).
-		if (exec_mode > 0)
-		{
-			if (!asmbl.OptScheme)
-			{
-				ComputeDiscreteUpwindingMatrix(K, lom.smap, lom.D);
-			}
-			else
-			{
-				lom.pk->BilinearForm::operator=(0.0);
-				lom.pk->Assemble();
-				ComputeDiscreteUpwindingMatrix(lom.pk->SpMat(), lom.smap, lom.D);
-			}
-		}
+      // Reassemble on the new mesh (given by mesh_pos).
+      if (exec_mode > 0)
+      {
+         if (!asmbl.OptScheme)
+         {
+            ComputeDiscreteUpwindingMatrix(K, lom.smap, lom.D);
+         }
+         else
+         {
+            lom.pk->BilinearForm::operator=(0.0);
+            lom.pk->Assemble();
+            ComputeDiscreteUpwindingMatrix(lom.pk->SpMat(), lom.smap, lom.D);
+         }
+      }
 
       // Discretization and monotonicity terms.
       lom.D.Mult(x, y);
@@ -1550,11 +1551,11 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       // Discretization terms
       y = b;
       K.Mult(x, z);
-		
-		if ((exec_mode > 0) && (asmbl.OptScheme))
+      
+      if ((exec_mode > 0) && (asmbl.OptScheme))
       {
-			asmbl.ref_mesh = GetSubcellMesh(mesh, dummy.GetOrder());
-		}
+         asmbl.ref_mesh = GetSubcellMesh(mesh, dummy.GetOrder());
+      }
 
       // Monotonicity terms
       for (k = 0; k < ne; k++)
@@ -1580,7 +1581,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             asmbl.dofs.xe_max(k) = max(asmbl.dofs.xe_max(k), x(dofInd));
             asmbl.dofs.xe_min(k) = min(asmbl.dofs.xe_min(k), x(dofInd));
             xSum += x(dofInd);
-				if (asmbl.OptScheme)
+            if (asmbl.OptScheme)
             {
                rhoP += max(0., z(dofInd));
                rhoN += min(0., z(dofInd));
@@ -1602,7 +1603,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             nodalWeightsN.SetSize(nd);
             sumFluctSubcellP = sumFluctSubcellN = 0.;
             nodalWeightsP = 0.; nodalWeightsN = 0.;
-
+   
             // compute min-/max-values and the fluctuation for subcells
             for (m = 0; m < asmbl.dofs.numSubcells; m++)
             {
@@ -1720,7 +1721,6 @@ void FE_Evolution::ComputeHighOrderSolution(const Vector &x, Vector &y) const
 void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
                                       const Vector &yL, Vector &y) const
 {
-	
    int j, k, nd, dofInd;
    double sumPos, sumNeg, eps = 1.E-15;
    Vector uClipped, fClipped;
@@ -1738,16 +1738,16 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
       for (j = 0; j < nd; j++)
       {
          dofInd = k*nd+j;
-			
-			// Compute the bounds for each dof inside the loop.
-			asmbl.dofs.ComputeVertexBounds(x, dofInd);
-			
+         
+         // Compute the bounds for each dof inside the loop.
+         asmbl.dofs.ComputeVertexBounds(x, dofInd);
+         
          uClipped(j) = min( asmbl.dofs.xi_max(dofInd),
                             max( x(dofInd) + dt * yH(dofInd),
                                  asmbl.dofs.xi_min(dofInd) ) );
 
          fClipped(j) = lumpedM(dofInd) / dt
-								* ( uClipped(j) - (x(dofInd) + dt * yL(dofInd)) );
+                        * ( uClipped(j) - (x(dofInd) + dt * yL(dofInd)) );
 
          sumPos += max(fClipped(j), 0.);
          sumNeg += min(fClipped(j), 0.);
