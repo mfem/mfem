@@ -81,7 +81,6 @@ struct CeedData {
   CeedElemRestriction restr, mesh_restr, restr_i, mesh_restr_i;
   CeedQFunction apply_qfunc, build_qfunc;
   CeedVector node_coords, rho;
-  // Coeff coeff;
   CeedCoeff coeff_type;
   void* coeff;
   BuildContext build_ctx;
@@ -405,7 +404,7 @@ static void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& cee
     FESpace2Ceed(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis, &ceedCoeff->restr);
     CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(), &ceedCoeff->coeffVector);
     CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
-                       ceedCoeff->coeff->GetTrueVector().GetData());
+                       ceedCoeff->coeff->GetData());
     CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr, lmode,
                          ceedCoeff->basis, ceedCoeff->coeffVector);
   }
