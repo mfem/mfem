@@ -291,7 +291,7 @@ private:
          mesh->GetElementFaces(el2, bdrs2, orientation);
       }
 
-      // get lists of all neighbors of el1 and el2
+      // Get lists of all neighbors of el1 and el2.
       for (i = 0; i < numBdrs; i++)
       {
          Trans = mesh->GetFaceElementTransformations(bdrs1[i]);
@@ -303,8 +303,11 @@ private:
 
       for (i = 0; i < numBdrs; i++)
       {
+			if (NbrEl1[i] < 0) { continue; }
          for (j = 0; j < numBdrs; j++)
          {
+				if (NbrEl2[j] < 0) { continue; }
+				
             // add neighbor elements that share a face
             // with el1 and el2 but are not el
             if ((NbrEl1[i] == NbrEl2[j]) && (NbrEl1[i] != el))
@@ -1185,15 +1188,17 @@ int main(int argc, char *argv[])
 
    // Precompute data required for high and low order schemes.
    BilinearFormIntegrator* VolumeTerms;
+	
+
    if (exec_mode == 0)
    {
       VolumeTerms = new MixedConvectionIntegrator(velocity, -1.0);
    }
-   else if (exec_mode == 1)
-   {
-      VolumeTerms = new MixedConvectionIntegrator(v_coef);
-   }
-   else if (exec_mode == 2)
+//    else if (exec_mode == 1)
+//    {
+//       VolumeTerms = new MixedConvectionIntegrator(v_coef); // TODO: Figure out why this gives a seg-fault!
+//    }
+   else /*if (exec_mode == 2)*/
    {
       VolumeTerms = new MixedConvectionIntegrator(velocity);
    }
@@ -1551,8 +1556,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 			asmbl.ref_mesh = GetSubcellMesh(mesh, dummy.GetOrder());
 		}
 
-		asmbl.SubcellWeights.Print();
-		
       // Monotonicity terms
       for (k = 0; k < ne; k++)
       {
