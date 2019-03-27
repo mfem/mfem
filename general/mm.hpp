@@ -83,18 +83,18 @@ public:
       mm::MM().Erase(ptr);
    }
 
-   /// Translates ptr to host or device address, depending on config::Cuda() and
-   /// the ptr state.
+   /// Translates ptr to host or device address, depending on current
+   /// mode and the ptr state.
    static inline void *ptr(void *a) { return MM().Ptr(a); }
    static inline const void* ptr(const void *a) { return MM().Ptr(a); }
    static inline OccaMemory occaPtr(const void *a) { return MM().Memory(a); }
 
-   static inline void push(const void *ptr, const size_t bytes = 0)
+   static inline void push(const void *ptr, const size_t bytes)
    {
       return MM().Push(ptr, bytes);
    }
 
-   static inline void pull(const void *ptr, const size_t bytes = 0)
+   static inline void pull(const void *ptr, const size_t bytes)
    {
       return MM().Pull(ptr, bytes);
    }
@@ -135,8 +135,8 @@ private:
 
    OccaMemory Memory(const void *ptr);
 
-   void Push(const void *ptr, const size_t bytes = 0);
-   void Pull(const void *ptr, const size_t bytes = 0);
+   void Push(const void *ptr, const size_t bytes);
+   void Pull(const void *ptr, const size_t bytes);
 
    void MmuInit();
    void *MmuAllocate(const size_t bytes);

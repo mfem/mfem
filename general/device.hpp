@@ -95,21 +95,25 @@ public:
    /** In particular, use the device version of the okina kernels encountered,
        with the device versions of the data registered in the memory manager
        (copying host-to-device if necessary). */
-   static inline void Enable() { Get().mode = Device::DEVICE;}
-   static inline void Pop() {
-      const MODES prev = Get().modes.top();
-      Get().modes.pop();
-      if (prev == Device::DEVICE) {Enable();} else {Disable();}
-   }
+   static inline void Enable() { Get().mode = Device::DEVICE; }
 
    /// Disable the use of the configured device in the code that follows.
    /** In particular, use the host version of the okina kernels encountered,
        with the host versions of the data registered in the memory manager
        (copying device-to-host if necessary). */
    static inline void Disable() { Get().mode = Device::HOST; }
+
+   /// Push the current mode on a stack and disable the use of the
+   /// configured device in the code that follows.
    static inline void PushDisable() {
       Get().modes.push(Get().mode);
-      Get().mode = Device::HOST;
+      Disable();
+   }
+   
+   /// Pop back the mode in the code that follows.
+   static inline void Pop() {
+      Get().mode = Get().modes.top();
+      Get().modes.pop();
    }
 
    constexpr static inline bool UsingMM()
