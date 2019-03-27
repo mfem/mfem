@@ -193,11 +193,12 @@ extern "C" __global__ void f_apply_diff(void *ctx, CeedInt Q,
 }
 
 /// libCEED Q-function for building quadrature data for a mass operator
-extern "C" __global__ void f_build_mass(void *ctx, CeedInt Q,
+extern "C" __global__ void f_build_mass_const(void *ctx, CeedInt Q,
                         Fields_Cuda fields) {
   // in[0] is Jacobians with shape [dim, nc=dim, Q]
   // in[1] is quadrature weights, size (Q)
   struct BuildContext *bc = (struct BuildContext*)ctx;
+  const CeedScalar coeff = bc->coeff;
   const CeedScalar *J = (const CeedScalar *)fields.inputs[0];
   const CeedScalar *qw = (const CeedScalar *)fields.inputs[1];
   CeedScalar *qd = fields.outputs[0];
@@ -206,7 +207,7 @@ extern "C" __global__ void f_build_mass(void *ctx, CeedInt Q,
     for (int i = blockIdx.x * blockDim.x + threadIdx.x;
          i < Q;
          i += blockDim.x * gridDim.x) {
-      qd[i] = J[i] * qw[i];
+      qd[i] = coeff * J[i] * qw[i];
     }
     break;
   case 22:
@@ -215,7 +216,7 @@ extern "C" __global__ void f_build_mass(void *ctx, CeedInt Q,
          i += blockDim.x * gridDim.x) {
       // 0 2
       // 1 3
-      qd[i] = (J[i+Q*0]*J[i+Q*3] - J[i+Q*1]*J[i+Q*2]) * qw[i];
+      qd[i] = coeff * (J[i+Q*0]*J[i+Q*3] - J[i+Q*1]*J[i+Q*2]) * qw[i];
     }
     break;
   case 33:
@@ -227,7 +228,48 @@ extern "C" __global__ void f_build_mass(void *ctx, CeedInt Q,
       // 2 5 8
       qd[i] = (J[i+Q*0]*(J[i+Q*4]*J[i+Q*8] - J[i+Q*5]*J[i+Q*7]) -
                J[i+Q*1]*(J[i+Q*3]*J[i+Q*8] - J[i+Q*5]*J[i+Q*6]) +
-               J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * qw[i];
+               J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * coeff * qw[i];
+    }
+    break;
+  }
+}
+
+extern "C" __global__ void f_build_mass_grid(void *ctx, CeedInt Q,
+                        Fields_Cuda fields) {
+  // in[0] is Jacobians with shape [dim, nc=dim, Q]
+  // in[1] is quadrature weights, size (Q)
+  struct BuildContext *bc = (struct BuildContext*)ctx;
+  const CeedScalar *c = (const CeedScalar *)fields.inputs[0];
+  const CeedScalar *J = (const CeedScalar *)fields.inputs[1];
+  const CeedScalar *qw = (const CeedScalar *)fields.inputs[2];
+  CeedScalar *qd = fields.outputs[0];
+  switch (bc->dim + 10*bc->space_dim) {
+  case 11:
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+         i < Q;
+         i += blockDim.x * gridDim.x) {
+      qd[i] = c[i] * J[i] * qw[i];
+    }
+    break;
+  case 22:
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+         i < Q;
+         i += blockDim.x * gridDim.x) {
+      // 0 2
+      // 1 3
+      qd[i] = c[i] * (J[i+Q*0]*J[i+Q*3] - J[i+Q*1]*J[i+Q*2]) * qw[i];
+    }
+    break;
+  case 33:
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+         i < Q;
+         i += blockDim.x * gridDim.x) {
+      // 0 3 6
+      // 1 4 7
+      // 2 5 8
+      qd[i] = (J[i+Q*0]*(J[i+Q*4]*J[i+Q*8] - J[i+Q*5]*J[i+Q*7]) -
+               J[i+Q*1]*(J[i+Q*3]*J[i+Q*8] - J[i+Q*5]*J[i+Q*6]) +
+               J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * c[i] * qw[i];
     }
     break;
   }

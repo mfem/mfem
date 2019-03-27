@@ -88,6 +88,22 @@ struct CeedData {
   CeedVector u, v;
 };
 
+static void initCeedCoeff(Coefficient* Q, CeedData* ptr){
+    if (ConstantCoefficient* coeff = dynamic_cast<ConstantCoefficient*>(Q))
+    {
+      CeedConstCoeff* ceedCoeff = new CeedConstCoeff{coeff->constant};
+      ptr->coeff_type = Const;
+      ptr->coeff = (void*)ceedCoeff;
+    } else if (GridFunctionCoefficient* coeff = dynamic_cast<GridFunctionCoefficient*>(Q)) {
+      CeedGridCoeff* ceedCoeff = new CeedGridCoeff;
+      ceedCoeff->coeff = coeff->GetGridFunction();
+      ptr->coeff_type = Grid;
+      ptr->coeff = (void*)ceedCoeff;
+    } else {
+      MFEM_ABORT("This type of Coefficient is not supported.");
+    }  
+}
+
 /// libCEED Q-function for building quadrature data for a diffusion operator
 static int f_build_diff_const(void *ctx, CeedInt Q,
                               const CeedScalar *const *in, CeedScalar *const *out) {
@@ -583,19 +599,7 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
   {
     CeedData* ptr = new CeedData();
     ceedDataPtr = ptr;
-    if (ConstantCoefficient* coeff = dynamic_cast<ConstantCoefficient*>(Q))
-    {
-      CeedConstCoeff* ceedCoeff = new CeedConstCoeff{coeff->constant};
-      ptr->coeff_type = Const;
-      ptr->coeff = (void*)ceedCoeff;
-    } else if (GridFunctionCoefficient* coeff = dynamic_cast<GridFunctionCoefficient*>(Q)) {
-      CeedGridCoeff* ceedCoeff = new CeedGridCoeff;
-      ceedCoeff->coeff = coeff->GetGridFunction();
-      ptr->coeff_type = Grid;
-      ptr->coeff = (void*)ceedCoeff;
-    } else {
-      MFEM_ABORT("This type of Coefficient is not supported.");
-    }
+    initCeedCoeff(Q, ptr);
     CeedPADiffusionAssemble(fes, *ptr);
   } else {
     const Mesh *mesh = fes.GetMesh();
@@ -1051,24 +1055,25 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 // * PA Mass Assemble kernel
 // *****************************************************************************
 /// libCEED Q-function for building quadrature data for a mass operator
-static int f_build_mass(void *ctx, CeedInt Q,
+static int f_build_mass_const(void *ctx, CeedInt Q,
                         const CeedScalar *const *in, CeedScalar *const *out) {
   // in[0] is Jacobians with shape [dim, nc=dim, Q]
   // in[1] is quadrature weights, size (Q)
   BuildContext *bc = (BuildContext *)ctx;
+  const CeedScalar coeff = bc->coeff;
   const CeedScalar *J = in[0], *qw = in[1];
   CeedScalar *rho = out[0];
   switch (bc->dim + 10*bc->space_dim) {
   case 11:
     for (CeedInt i=0; i<Q; i++) {
-      rho[i] = J[i] * qw[i];
+      rho[i] = coeff * J[i] * qw[i];
     }
     break;
   case 22:
     for (CeedInt i=0; i<Q; i++) {
       // 0 2
       // 1 3
-      rho[i] = (J[i+Q*0]*J[i+Q*3] - J[i+Q*1]*J[i+Q*2]) * qw[i];
+      rho[i] = coeff * (J[i+Q*0]*J[i+Q*3] - J[i+Q*1]*J[i+Q*2]) * qw[i];
     }
     break;
   case 33:
@@ -1078,7 +1083,44 @@ static int f_build_mass(void *ctx, CeedInt Q,
       // 2 5 8
       rho[i] = (J[i+Q*0]*(J[i+Q*4]*J[i+Q*8] - J[i+Q*5]*J[i+Q*7]) -
                 J[i+Q*1]*(J[i+Q*3]*J[i+Q*8] - J[i+Q*5]*J[i+Q*6]) +
-                J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * qw[i];
+                J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * coeff * qw[i];
+    }
+    break;
+  default:
+    return CeedError(NULL, 1, "dim=%d, space_dim=%d is not supported",
+                     bc->dim, bc->space_dim);
+  }
+  return 0;
+}
+
+static int f_build_mass_grid(void *ctx, CeedInt Q,
+                        const CeedScalar *const *in, CeedScalar *const *out) {
+  // in[0] is Jacobians with shape [dim, nc=dim, Q]
+  // in[1] is quadrature weights, size (Q)
+  BuildContext *bc = (BuildContext *)ctx;
+  const CeedScalar *c = in[0], *J = in[1], *qw = in[2];
+  CeedScalar *rho = out[0];
+  switch (bc->dim + 10*bc->space_dim) {
+  case 11:
+    for (CeedInt i=0; i<Q; i++) {
+      rho[i] = c[i] * J[i] * qw[i];
+    }
+    break;
+  case 22:
+    for (CeedInt i=0; i<Q; i++) {
+      // 0 2
+      // 1 3
+      rho[i] = c[i] * (J[i+Q*0]*J[i+Q*3] - J[i+Q*1]*J[i+Q*2]) * qw[i];
+    }
+    break;
+  case 33:
+    for (CeedInt i=0; i<Q; i++) {
+      // 0 3 6
+      // 1 4 7
+      // 2 5 8
+      rho[i] = (J[i+Q*0]*(J[i+Q*4]*J[i+Q*8] - J[i+Q*5]*J[i+Q*7]) -
+                J[i+Q*1]*(J[i+Q*3]*J[i+Q*8] - J[i+Q*5]*J[i+Q*6]) +
+                J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * c[i] * qw[i];
     }
     break;
   default:
@@ -1133,8 +1175,20 @@ static void CeedPAMassAssemble(const FiniteElementSpace &fes, CeedData& ceedData
 
   // Create the Q-function that builds the mass operator (i.e. computes its
   // quadrature data) and set its context data.
-  CeedQFunctionCreateInterior(ceed, 1, f_build_mass,
-                              __FILE__":f_build_mass", &ceedData.build_qfunc);
+  switch(ceedData.coeff_type){
+    case Const:
+      CeedQFunctionCreateInterior(ceed, 1, f_build_mass_const,
+                                  __FILE__":f_build_mass_const", &ceedData.build_qfunc);
+      ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
+      break;
+    case Grid:
+      CeedQFunctionCreateInterior(ceed, 1, f_build_mass_grid,
+                                  __FILE__":f_build_mass_grid", &ceedData.build_qfunc);
+      CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
+      break;
+    default:
+      MFEM_ABORT("This coeff_type is not handled");
+  }
   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", mesh->SpaceDimension(),
                         CEED_EVAL_GRAD);
   CeedQFunctionAddInput(ceedData.build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
@@ -1147,6 +1201,16 @@ static void CeedPAMassAssemble(const FiniteElementSpace &fes, CeedData& ceedData
   if (mesh_fes->GetOrdering()==Ordering::byVDIM)
   {
     lmode = CEED_TRANSPOSE;
+  }
+  if (ceedData.coeff_type==Grid)
+  {
+    CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
+    FESpace2Ceed(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis, &ceedCoeff->restr);
+    CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(), &ceedCoeff->coeffVector);
+    CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
+                       ceedCoeff->coeff->GetData());
+    CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr, lmode,
+                         ceedCoeff->basis, ceedCoeff->coeffVector);
   }
   CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr, lmode,
                        ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
@@ -1185,6 +1249,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
   {
     CeedData* ptr = new CeedData();
     ceedDataPtr = ptr;
+    initCeedCoeff(Q, ptr);
     CeedPAMassAssemble(fes, *ptr);
   } else {
     const Mesh *mesh = fes.GetMesh();
