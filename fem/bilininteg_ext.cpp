@@ -1515,11 +1515,11 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const bool orderedByNODES = (fespace->GetOrdering() == Ordering::byNODES);
    if (orderedByNODES) { ReorderByVDim(nodes); }
    const int asize = dims*ND*NE;
+   Device::Disable();
    mfem::Array<double> meshNodes(asize);
    const Table& e2dTable = fespace->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    mfem::Array<int> eMap(ND*NE);
-   Device::Disable();
    GeomFill(dims, NE, ND, nodes->Size(),
             elementMap, eMap,
             nodes->GetData(), meshNodes);

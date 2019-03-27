@@ -1036,14 +1036,11 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    }
 
    hypre_ParCSRMatrixMatvec(a, A, *X, b, *Y);
-   //y.Push();
-   dbg("<");
 }
 
 void HypreParMatrix::MultTranspose(double a, const Vector &x,
                                    double b, Vector &y) const
 {
-   dbg(">");
    x.Pull();
    y.Pull();
    MFEM_ASSERT(x.Size() == Height(), "invalid x.Size() = " << x.Size()
@@ -1071,8 +1068,6 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
    }
 
    hypre_ParCSRMatrixMatvecT(a, A, *Y, b, *X);
-   //y.Push();
-   dbg("<");
 }
 
 HYPRE_Int HypreParMatrix::Mult(HYPRE_ParVector x, HYPRE_ParVector y,

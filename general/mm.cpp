@@ -200,7 +200,7 @@ void *mm::Erase(void *ptr)
    if (!known) { mfem_error("Trying to erase an unknown pointer!"); }
    memory &mem = maps.memories.at(ptr);
 #warning MmMemFree
-   //if (mem.d_ptr){ MmMemFree(mem.d_ptr); }
+   if (mem.d_ptr){ MmMemFree(mem.d_ptr); }
    for (const alias* const a : mem.aliases) { maps.aliases.erase(a); }
    mem.aliases.clear();
    maps.memories.erase(ptr);
