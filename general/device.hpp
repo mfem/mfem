@@ -13,6 +13,7 @@
 #define MFEM_DEVICE_HPP
 
 #include "../general/globals.hpp"
+#include <stack>
 
 namespace mfem
 {
@@ -37,8 +38,9 @@ private:
    CUstream *cuStream;
    CUcontext cuContext;
    OccaDevice occaDevice;
+   std::stack<MODES> modes;
 
-   Device(): mode{Device::HOST} {}
+   Device(): mode{Device::HOST} { modes.empty(); }
    Device(Device const&);
    void operator=(Device const&);
    static Device& Get() { static Device singleton; return singleton; }
@@ -94,12 +96,21 @@ public:
        with the device versions of the data registered in the memory manager
        (copying host-to-device if necessary). */
    static inline void Enable() { Get().mode = Device::DEVICE;}
+   static inline void Pop() {
+      const MODES prev = Get().modes.top();
+      Get().modes.pop();
+      if (prev == Device::DEVICE) {Enable();} else {Disable();}
+   }
 
    /// Disable the use of the configured device in the code that follows.
    /** In particular, use the host version of the okina kernels encountered,
        with the host versions of the data registered in the memory manager
        (copying device-to-host if necessary). */
    static inline void Disable() { Get().mode = Device::HOST; }
+   static inline void PushDisable() {
+      Get().modes.push(Get().mode);
+      Get().mode = Device::HOST;
+   }
 
    constexpr static inline bool UsingMM()
    {

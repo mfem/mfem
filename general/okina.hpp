@@ -106,6 +106,7 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 
 /// CUDA backend
 #ifdef MFEM_USE_CUDA
+#define MFEM_HOST __host__
 #define MFEM_DEVICE __device__
 #define MFEM_HOST_DEVICE __host__ __device__
 inline void CuCheck(const unsigned int c)
@@ -134,6 +135,7 @@ void CuWrap(const int N, DBODY &&d_body, HBODY &&h_body)
    MFEM_ASSERT(last == cudaSuccess, cudaGetErrorString(last));
 }
 #else
+#define MFEM_HOST
 #define MFEM_DEVICE
 #define MFEM_HOST_DEVICE
 template<typename T> inline T AtomicAdd(T* address, T val)
