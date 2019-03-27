@@ -1084,8 +1084,6 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
    {
       maps->W.SetSize(numQuad);
    }
-   dbg("GetD2QTensorMaps Switchs");
-   Device::Disable();
    mfem::Vector d2q(numDofs);
    mfem::Vector d2qD(numDofs);
    mfem::Array<double> W1d(numQuad1D);
@@ -1125,7 +1123,6 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
       }
       maps->W = W;
    }
-   Device::Enable();
    mm::memcpy(maps->B, B1d, numQuad1D*numDofs*sizeof(double));
    mm::memcpy(maps->G, G1d, numQuad1D*numDofs*sizeof(double));
    return maps;
@@ -1201,8 +1198,9 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    {
       maps->W.SetSize(numQuad);
    }
-   dbg("GetD2QSimplexMaps Switchs");
-   Device::Disable();
+#ifdef MFEM_USE_MMU
+   Device::PushDisable();
+#endif
    mfem::Vector d2q(numDofs);
    mfem::DenseMatrix d2qD(numDofs, dims);
    mfem::Array<double> W(numQuad);
@@ -1230,7 +1228,9 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
          }
       }
    }
-   Device::Enable();
+#ifdef MFEM_USE_MMU
+   Device::Pop();
+#endif
    if (transpose)
    {
       mm::memcpy(maps->W, W, numQuad*sizeof(double));
@@ -1515,7 +1515,9 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const bool orderedByNODES = (fespace->GetOrdering() == Ordering::byNODES);
    if (orderedByNODES) { ReorderByVDim(nodes); }
    const int asize = dims*ND*NE;
-   Device::Disable();
+#ifdef MFEM_USE_MMU
+   Device::PushDisable();
+#endif
    mfem::Array<double> meshNodes(asize);
    const Table& e2dTable = fespace->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
@@ -1523,7 +1525,9 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    GeomFill(dims, NE, ND, nodes->Size(),
             elementMap, eMap,
             nodes->GetData(), meshNodes);
-   Device::Enable();
+#ifdef MFEM_USE_MMU
+   Device::Pop();
+#endif
    if (geom_to_allocate)
    {
       geom->nodes.SetSize(dims*ND*NE);

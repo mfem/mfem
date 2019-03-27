@@ -194,6 +194,12 @@ public:
       mm::memcpy(copy.GetData(), data, Size()*sizeof(T));
    }
 
+   /// Copies data from host to device
+   void Push() const { mm::push(data, Size()*sizeof(T));}
+
+   /// Copies data from device to host
+   void Pull() const { mm::pull(data, Size()*sizeof(T));}
+
    /// Make this Array a reference to a pointer
    inline void MakeRef(T *, int);
 

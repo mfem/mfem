@@ -1010,7 +1010,6 @@ HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
 
 void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
 {
-   dbg(">");
    x.Pull();
    y.Pull();
    MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()

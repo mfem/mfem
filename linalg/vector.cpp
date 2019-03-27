@@ -926,7 +926,13 @@ double Min(const int N, const double *x)
 #ifdef MFEM_USE_CUDA
       return cuVectorMin(N, x);
 #else
-      mfem_error("Using Min on device w/o support");
+      Vector min(1);
+      min = std::numeric_limits<double>::infinity();
+      DeviceVector d_min(min, 1);
+      DeviceVector d_x(x, N);
+      MFEM_FORALL(i, N, d_min[0] = fmin(d_min[0], d_x[i]););
+      min.Pull();
+      return min[0];
 #endif // MFEM_USE_CUDA
    }
    double min = std::numeric_limits<double>::infinity();
@@ -941,8 +947,14 @@ double Dot(const int N, const double *x, const double *y)
 #ifdef MFEM_USE_CUDA
       return cuVectorDot(N, x, y);
 #else
-      mm::pull(x);
-      mm::pull(y);
+      Vector dot(1);
+      dot = 0.0;
+      DeviceVector d_dot(dot, 1);
+      DeviceVector d_x(x, N);
+      DeviceVector d_y(y, N);
+      MFEM_FORALL(i, N, d_dot[0] += d_x[i] * d_y[i];);
+      dot.Pull();
+      return dot[0];
 #endif // MFEM_USE_CUDA
    }
    double dot = 0.0;

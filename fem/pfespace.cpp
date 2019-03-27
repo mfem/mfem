@@ -740,9 +740,10 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
                                                  int component)
 {
    Array<int> ess_dofs, true_ess_dofs;
-
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+   ess_dofs.Pull();
+   true_ess_dofs.Pull();
 #ifdef MFEM_DEBUG
    // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
    Array<int> true_ess_dofs2(true_ess_dofs.Size());
@@ -2859,7 +2860,7 @@ ConformingProlongationOperator::ConformingProlongationOperator(
 }
 
 void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
-{;
+{
    MFEM_ASSERT(x.Size() == Width(), "");
    MFEM_ASSERT(y.Size() == Height(), "");
 
@@ -2868,6 +2869,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    x.Pull();
    y.Pull();
 #ifdef MFEM_USE_MMU
+   // Communications use arrays that need to stay on the host
    Device::PushDisable();
 #endif
    const int m = external_ldofs.Size();
@@ -2889,6 +2891,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_MMU
    Device::Pop();
 #endif
+   y.Push();
 }
 
 void ConformingProlongationOperator::MultTranspose(
@@ -2922,6 +2925,7 @@ void ConformingProlongationOperator::MultTranspose(
 #ifdef MFEM_USE_MMU
    Device::Pop();
 #endif
+   y.Push();
 }
 
 } // namespace mfem

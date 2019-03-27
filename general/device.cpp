@@ -79,7 +79,6 @@ void Device::MFEMDeviceSetup(const int dev)
    {
       MFEM_ABORT("CUDA requested but no GPU has been initialized!");
    }
-   dbg("ngpu=%d",ngpu);
 }
 
 Device::~Device()
