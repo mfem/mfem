@@ -122,10 +122,6 @@ HYPRE_DIR = @MFEM_DIR@/../hypre-2.10.0b/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
-# FINDPTS library
-GSLIB_FPT_DIR = @MFEM_DIR@/gslib/lib
-GSLIB_FPT_LIB = -L$(GSLIB_FPT_DIR) -lgs
-
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
    ifeq ($(MFEM_USE_METIS_5),NO)
@@ -145,6 +141,10 @@ else
    METIS_LIB = -L$(METIS_DIR)/lib -lparmetis -lmetis
    MFEM_USE_METIS_5 = YES
 endif
+
+# FINDPTS library
+GSLIB_FPT_DIR = @MFEM_DIR@/gslib-1.0.3/build/lib
+GSLIB_FPT_LIB = -L$(GSLIB_FPT_DIR) -lgs
 
 # LAPACK library configuration
 LAPACK_OPT =

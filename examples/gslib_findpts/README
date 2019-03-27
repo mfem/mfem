@@ -3,9 +3,9 @@ wget https://github.com/gslib/gslib/archive/v1.0.3.tar.gz
 tar -zxvf v1.0.3.tar.gz
 now gslib should be located inside the MFEM folder
 2. Build gslib in serial or parallel based on MFEM build:
-make clean;make CC=mpicc
+make clean;make CC=mpicc MPI=1
 OR
-make clean;make CC=gcc
+make clean;make CC=gcc MPI=0
 3. Build the gslib findpts example
 make exp
 OR 
