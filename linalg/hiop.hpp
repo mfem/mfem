@@ -28,7 +28,7 @@
 namespace mfem
 {
 
-/// Adapts the OptimizationProblem class to HiOp's interface.
+/// Internal class - adapts the OptimizationProblem class to HiOp's interface.
 class HiopOptimizationProblem : public hiop::hiopInterfaceDenseConstraints
 {
 private:
