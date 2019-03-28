@@ -37,7 +37,7 @@ void Device::CudaDeviceSetup(const int device)
 #ifdef MFEM_USE_MMU
    ngpu = 1;
 #else
-   MFEM_ABORT("CUDA requested but no GPU support has been built!");
+   MFEM_ABORT("CUDA requested but MFEM was not build with MFEM_USE_CUDA=YES");
 #endif
 #endif
 }
@@ -47,7 +47,7 @@ void Device::RajaDeviceSetup(const int device)
 #if defined(MFEM_USE_CUDA) && defined(MFEM_USE_RAJA)
    GpuDeviceSetup(device);
 #elif !defined(MFEM_USE_RAJA)
-   MFEM_ABORT("RAJA requested but no RAJA support has been built!");
+   MFEM_ABORT("RAJA requested but MFEM was not build with MFEM_USE_RAJA=YES");
 #endif
 }
 
@@ -62,7 +62,7 @@ void Device::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
    occa::loadKernels();
    occa::loadKernels("fem");
 #else
-   MFEM_ABORT("OCCA requested but no support has been built!");
+   MFEM_ABORT("OCCA requested but MFEM was not build with MFEM_USE_OCCA=YES");
 #endif
 }
 
@@ -77,7 +77,7 @@ void Device::MFEMDeviceSetup(const int dev)
    if (occa) { OccaDeviceSetup(cuDevice, cuContext); }
    if (cuda && ngpu==0)
    {
-      MFEM_ABORT("CUDA requested but no GPU has been initialized!");
+      MFEM_ABORT("CUDA requested but MFEM was not build with MFEM_USE_CUDA=YES");
    }
 }
 
