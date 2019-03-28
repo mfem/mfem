@@ -948,14 +948,14 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 4;
-   const char *mesh_file = "../data/periodic-square.mesh";
+   const char *mesh_file = "../data/unit-square.mesh";
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 3;
    MONOTYPE monoType = ResDist_FCT;
    bool OptScheme = true;
-   double t_final = 4.0;
-   double dt = 0.005;
+   double t_final = 2.0;
+   double dt = 0.0025;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
@@ -1889,11 +1889,12 @@ void velocity_function(const Vector &x, Vector &v)
       double center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
+   
+   int ProbExec = problem % 20;
 
-   switch (problem)
+   switch (ProbExec)
    {
       case 0:
-      case 20:
       {
          // Translations in 1D, 2D, and 3D
          switch (dim)
@@ -1908,7 +1909,6 @@ void velocity_function(const Vector &x, Vector &v)
       case 1:
       case 2:
       case 4:
-      case 21:
       {
          // Clockwise rotation in 2D around the origin
          const double w = M_PI/2;
@@ -1946,8 +1946,13 @@ void velocity_function(const Vector &x, Vector &v)
       }
       case 10:
       case 11:
+		case 12:
+		case 13:
+		case 14:
+		case 15:
       {
-         // Taylor-Green velocity, used for mesh motion in remap tests.
+         // Taylor-Green velocity, used for mesh motion in remap tests used for
+			// all possible initial conditions.
 
          // Map [-1,1] to [0,1].
          for (int d = 0; d < dim; d++) { X(d) = X(d) * 0.5 + 0.5; }
@@ -2058,13 +2063,13 @@ double u0_function(const Vector &x)
       double center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
+   
+   int ProbExec = problem % 10;
 
-   switch (problem)
+   switch (ProbExec)
    {
       case 0:
       case 1:
-      case 10:
-      case 20:
       {
          switch (dim)
          {
@@ -2098,8 +2103,6 @@ double u0_function(const Vector &x)
          return .5*(sin(f*X(0))*sin(f*X(1)) + 1.); // modified by Hennes
       }
       case 4:
-      case 11:
-      case 21:
       {
          double scale = 0.0225;
          double coef = (0.5/sqrt(scale));
