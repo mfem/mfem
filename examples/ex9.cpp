@@ -74,10 +74,16 @@ enum MONOTYPE { None, DiscUpw, DiscUpw_FCT, ResDist, ResDist_FCT };
 
 struct LowOrderMethod
 {
-   FiniteElementSpace* fes;
+   MONOTYPE MonoType;
+   bool OptScheme;
+   FiniteElementSpace *fes, *SubFes0, *SubFes1;
    Array <int> smap;
    SparseMatrix D;
-   BilinearForm* pk = NULL;
+   BilinearForm* pk;
+   VectorCoefficient* coef;
+   const IntegrationRule* irF;
+   BilinearFormIntegrator* VolumeTerms;
+   Mesh* subcell_mesh;
 };
 
 // Utility function to build a map to the offset
@@ -149,24 +155,24 @@ void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K,
 // routine produces a mesh that cannot be used for its intended purpose.
 Mesh* GetSubcellMesh(Mesh *mesh, int p)
 {
-   Mesh *ref_mesh;
-   if (p==1)
+   Mesh *subcell_mesh;
+   if (p == 1) // This case should never be called
    {
-      ref_mesh = mesh;
+      subcell_mesh = mesh;
    }
    else if (mesh->Dimension() > 1)
    {
       int basis_lor = BasisType::ClosedUniform; // Get a uniformly refined mesh.
-      ref_mesh = new Mesh(mesh, p, basis_lor);
-      ref_mesh->SetCurvature(1);
+      subcell_mesh = new Mesh(mesh, p, basis_lor);
+      subcell_mesh->SetCurvature(1);
    }
    else
    {
-      // TODO generalize to arbitrary 1D segments (different lengths)
-      ref_mesh = new Mesh(mesh->GetNE()*p, 1.);
-      ref_mesh->SetCurvature(1);
+      // TODO generalize to arbitrary 1D segments (different length than 1)
+      subcell_mesh = new Mesh(mesh->GetNE()*p, 1.);
+      subcell_mesh->SetCurvature(1);
    }
-   return ref_mesh;
+   return subcell_mesh;
 }
 
 // Appropriate quadrature rule for faces of is obtained.
@@ -373,8 +379,7 @@ private:
 
             NbrElem[i] = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
             
-            if (NbrElem[i] < 0)
-               continue;
+            if (NbrElem[i] < 0) { continue; }
             
             for (j = 0; j < numDofs; j++)
             {
@@ -523,7 +528,7 @@ private:
    
    // For each DOF on an element boundary, the global index of the DOF on the
    // opposite site is computed and stored in a list. This is needed for 
-   // lumping the flux contributions as in the paper. Right now it works on 
+   // lumping the flux contributions as in the paper. Right now it works on
    // 1D meshes, quad meshes in 2D and 3D meshes of ordered cubes.
    // NOTE: The mesh is assumed to consist of segments, quads or hexes.
    // NOTE: This approach will not work for meshes with hanging nodes.
@@ -568,10 +573,7 @@ private:
                      // Find the local index ind in nbr of the common face.
                      for (ind = 0; ind < numBdrs; ind++)
                      {
-                        if (NbrBdrs[ind] == bdrs[i])
-                        {
-                           break;
-                        }
+                        if (NbrBdrs[ind] == bdrs[i]) { break; }
                      }
                      // Here it is utilized that the orientations of the face
                      // for the two elements are opposite of each other.
@@ -588,7 +590,8 @@ private:
          {
             mesh->GetElementFaces(k, bdrs, orientation);
             
-            // TODO: This works only for meshes of uniformly ordered cube nodes.
+            // TODO: This works only for meshes of cubes with uniformly ordered
+            // nodes.
             for (j = 0; j < numDofs; j++)
             {
                Trans = mesh->GetFaceElementTransformations(bdrs[0]);
@@ -700,36 +703,12 @@ private:
    }
 };
 
-class DiscreteUpwinding
-{
-public:
-   FiniteElementSpace* fes;
-   Array<int> smap;
-   SparseMatrix D;
-   
-   DiscreteUpwinding(FiniteElementSpace* _fes, const SparseMatrix K) : fes(_fes)
-   {
-      smap = SparseMatrix_Build_smap(K);
-      
-      if (exec_mode == 0) // Initialization for transport mode.
-      {
-         ComputeDiscreteUpwindingMatrix(K, smap, D);
-      }
-   }
-};
 
 class Assembly
 {
 public:
-   Assembly(FiniteElementSpace* _fes, MONOTYPE _monoType, bool _OptScheme,
-            VectorFunctionCoefficient &coef, DofInfo &_dofs,
-            FiniteElementSpace _SubFes0, FiniteElementSpace _SubFes1,
-            Mesh* _ref_mesh, BilinearFormIntegrator* _VolumeTerms,
-            const IntegrationRule* _irF) :
-            fes(_fes), monoType(_monoType), OptScheme(_OptScheme),
-            velocity(coef), dofs(_dofs), SubFes0(_SubFes0),
-            SubFes1(_SubFes1), ref_mesh(_ref_mesh), VolumeTerms(_VolumeTerms),
-            irF(_irF)
+   Assembly(DofInfo &_dofs, LowOrderMethod &lom) :
+            fes(lom.fes), dofs(_dofs)
    {
       Mesh *mesh = fes->GetMesh();
       int k, i, m, nd, dim = mesh->Dimension(), ne = fes->GetNE();
@@ -741,36 +720,58 @@ public:
       Array <int> bdrs, orientation;
       FaceElementTransformations *Trans;
 
-      // TODO There are many zero entries in bdrInt, maybe use better indexing.
-      bdrInt.SetSize(ne*nd, nd*dofs.numBdrs); bdrInt = 0.;
-      SubcellWeights.SetSize(ne*dofs.numSubcells, dofs.numDofsSubcell);
+      bool NeedBdr = lom.OptScheme || ( (lom.MonoType != DiscUpw)
+                                 && (lom.MonoType != DiscUpw_FCT) );
+
+      bool NeedSubcells = lom.OptScheme && (( lom.MonoType == ResDist)
+                                      || (lom.MonoType == ResDist_FCT) );
       
-      if (exec_mode == 0) // Initialization for transport mode.
+      if (NeedBdr)
+      {
+         bdrInt.SetSize(ne, dofs.numBdrs, dofs.numDofs*dofs.numDofs);
+         bdrInt = 0.;
+      }
+      if (NeedSubcells)
+      {
+         SubFes0 = lom.SubFes0;
+         SubFes1 = lom.SubFes1;
+         subcell_mesh = lom.subcell_mesh;
+         VolumeTerms = lom.VolumeTerms;
+         SubcellWeights.SetSize(ne*dofs.numSubcells, dofs.numDofsSubcell);
+      }
+      
+      // Initialization for transport mode.
+      if ((exec_mode == 0) && (NeedBdr || NeedSubcells))
       {
          for (k = 0; k < ne; k++)
          {
-            if (dim==1)
+            if (NeedBdr)
             {
-               mesh->GetElementVertices(k, bdrs);
+               if (dim==1)
+               {
+                  mesh->GetElementVertices(k, bdrs);
+               }
+               else if (dim==2)
+               {
+                  mesh->GetElementEdges(k, bdrs, orientation);
+               }
+               else if (dim==3)
+               {
+                  mesh->GetElementFaces(k, bdrs, orientation);
+               }
+               
+               for (i = 0; i < dofs.numBdrs; i++)
+               {
+                  Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+                  ComputeFluxTerms(k, i, Trans, lom);
+               }
             }
-            else if (dim==2)
+            if (NeedSubcells)
             {
-               mesh->GetElementEdges(k, bdrs, orientation);
-            }
-            else if (dim==3)
-            {
-               mesh->GetElementFaces(k, bdrs, orientation);
-            }
-            
-            for (i = 0; i < dofs.numBdrs; i++)
-            {
-               Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-               ComputeFluxTerms(k, i, velocity, Trans);
-            }
-            
-            for (m = 0; m < dofs.numSubcells; m++)
-            {
-               ComputeSubcellWeights(k, m);
+               for (m = 0; m < dofs.numSubcells; m++)
+               {
+                  ComputeSubcellWeights(k, m);
+               }
             }
          }
       }
@@ -780,38 +781,32 @@ public:
    ~Assembly() { }
 
    // Auxiliary member variables that need to be accessed during time-stepping.
-   FiniteElementSpace* fes;
-   MONOTYPE monoType;
-   bool OptScheme;
-   VectorFunctionCoefficient &velocity;
+   FiniteElementSpace *fes, *SubFes0, *SubFes1;
    DofInfo &dofs;
-   FiniteElementSpace SubFes0;
-   FiniteElementSpace SubFes1;
-   Mesh *ref_mesh;
+   Mesh *subcell_mesh;
    BilinearFormIntegrator *VolumeTerms;
-   const IntegrationRule* irF;
    
    // Data structures storing Galerkin contributions. These are updated for 
    // remap but remain constant for transport.
-   DenseMatrix bdrInt;
+   DenseTensor bdrInt;
    DenseMatrix SubcellWeights;
    
-   void ComputeFluxTerms(const int k, const int BdrID, VectorCoefficient &coef,
-                         FaceElementTransformations *Trans)
+   void ComputeFluxTerms(const int k, const int BdrID,
+                         FaceElementTransformations *Trans, LowOrderMethod &lom)
    {
       Mesh *mesh = fes->GetMesh();
       
-      int i, j, l, nd, row, dim = mesh->Dimension();
-      double aux, vn = 0.;
+      int i, j, l, nd, dim = mesh->Dimension();
+      double aux, vn;
       
       const FiniteElement &el = *fes->GetFE(k);
       nd = el.GetDof();
       
       Vector vval, nor(dim), shape(nd);
       
-      for (l = 0; l < irF->GetNPoints(); l++)
+      for (l = 0; l < lom.irF->GetNPoints(); l++)
       {
-         const IntegrationPoint &ip = irF->IntPoint(l);
+         const IntegrationPoint &ip = lom.irF->IntPoint(l);
          IntegrationPoint eip1;
          Trans->Face->SetIntPoint(&ip);
          
@@ -830,7 +825,7 @@ public:
             Trans->Loc2.Transform(ip, eip1);
             el.CalcShape(eip1, shape);
             Trans->Elem2->SetIntPoint(&eip1);
-            coef.Eval(vval, *Trans->Elem2, eip1);
+            lom.coef->Eval(vval, *Trans->Elem2, eip1);
             nor *= -1.;
             Trans->Loc1.Transform(ip, eip1);
          }
@@ -839,7 +834,7 @@ public:
             Trans->Loc1.Transform(ip, eip1);
             el.CalcShape(eip1, shape);
             Trans->Elem1->SetIntPoint(&eip1);
-            coef.Eval(vval, *Trans->Elem1, eip1);
+            lom.coef->Eval(vval, *Trans->Elem1, eip1);
             Trans->Loc2.Transform(ip, eip1);
          }
          
@@ -859,13 +854,12 @@ public:
          
          for (i = 0; i < dofs.numDofs; i++)
          {
-            row = k*nd+dofs.BdrDofs(i,BdrID);
             aux = ip.weight * Trans->Face->Weight()
                   * shape(dofs.BdrDofs(i,BdrID)) * vn;
 
             for (j = 0; j < dofs.numDofs; j++)
             {
-               bdrInt(row,BdrID*nd+dofs.BdrDofs(j,BdrID)) -= aux
+               bdrInt(k, BdrID, i*dofs.numDofs+j) -= aux
                                     * shape(dofs.BdrDofs(j,BdrID));
             }
          }
@@ -877,9 +871,9 @@ public:
       Vector row;
       DenseMatrix elmat; // These are essentially the same.
       int dofInd = k*dofs.numSubcells+m;
-      const FiniteElement *el0 = SubFes0.GetFE(dofInd);
-      const FiniteElement *el1 = SubFes1.GetFE(dofInd);
-      ElementTransformation *tr = ref_mesh->GetElementTransformation(dofInd);
+      const FiniteElement *el0 = SubFes0->GetFE(dofInd);
+      const FiniteElement *el1 = SubFes1->GetFE(dofInd);
+      ElementTransformation *tr = subcell_mesh->GetElementTransformation(dofInd);
       VolumeTerms->AssembleElementMatrix2(*el1, *el0, *tr, elmat);
          
       elmat.GetRow(0, row); // Using the fact that elmat has just one row.
@@ -896,16 +890,13 @@ public:
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   FiniteElementSpace* fes;
    BilinearForm &Mbf, &Kbf, &ml;
    SparseMatrix &M, &K;
+   Vector &lumpedM;
    const Vector &b;
 
    Vector start_pos;
-   Vector &lumpedM;
    GridFunction &mesh_pos, &vel_pos;
-
-   VectorGridFunctionCoefficient &coef;
 
    mutable Vector z;
 
@@ -913,13 +904,13 @@ private:
    Assembly &asmbl;
    
    LowOrderMethod &lom;
+   DofInfo &dofs;
 
 public:
-   FE_Evolution(FiniteElementSpace* fes, BilinearForm &Mbf_, BilinearForm &Kbf_,
-                SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
-                Assembly &_asmbl, GridFunction &mpos, GridFunction &vpos,
-                BilinearForm &_ml, Vector &_lumpedM,
-                VectorGridFunctionCoefficient &v_coef, LowOrderMethod &_lom);
+   FE_Evolution(BilinearForm &Mbf_, SparseMatrix &_M, BilinearForm &_ml,
+                Vector &_lumpedM, BilinearForm &Kbf_, SparseMatrix &_K,
+                const Vector &_b, GridFunction &mpos, GridFunction &vpos,
+                Assembly &_asmbl, LowOrderMethod &_lom, DofInfo &_dofs);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -952,7 +943,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 3;
-   MONOTYPE monoType = ResDist_FCT;
+   MONOTYPE MonoType = ResDist_FCT;
    bool OptScheme = true;
    double t_final = 2.0;
    double dt = 0.0025;
@@ -976,14 +967,14 @@ int main(int argc, char *argv[])
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
-   args.AddOption((int*)(&monoType), "-mt", "--monoType",
+   args.AddOption((int*)(&MonoType), "-mt", "--MonoType",
                   "Monotonicity scheme: 0 - no monotonicity treatment,\n\t"
                   "                     1 - discrete upwinding - LO,\n\t"
                   "                     2 - discrete upwinding - FCT,\n\t"
                   "                     3 - residual distribution - LO,\n\t"
                   "                     4 - residual distribution - FCT.");
-   args.AddOption(&OptScheme, "-sc", "--subcell", "-el", "--element-based",
-                  "Optimized scheme: PDU or subcell version.");
+   args.AddOption(&OptScheme, "-sc", "--subcell", "-el", "--element (basic)",
+                  "Optimized scheme: PDU / subcell (optimized).");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -1062,9 +1053,9 @@ int main(int argc, char *argv[])
 
    // Check for meaningful combinations of parameters.
    bool fail = false;
-   if (monoType != None)
+   if (MonoType != None)
    {
-      if (((int)monoType != monoType) || (monoType < 0) || (monoType > 4))
+      if (((int)MonoType != MonoType) || (MonoType < 0) || (MonoType > 4))
       {
          cout << "Unsupported option for monotonicity treatment." << endl;
          fail = true;
@@ -1078,10 +1069,13 @@ int main(int argc, char *argv[])
       {
          // Disable monotonicity treatment for piecwise constants.
          mfem_warning("For -o 0, monotonicity treatment is disabled.");
-         monoType = None;
+         MonoType = None;
+         OptScheme = false;
       }
    }
-   if ((monoType > 2) && (order==1) && OptScheme)
+   else { OptScheme = false; }
+   
+   if ((MonoType > 2) && (order==1) && OptScheme)
    {
       // Avoid subcell methods for linear elements.
       mfem_warning("For -o 1, subcell scheme is disabled.");
@@ -1139,7 +1133,7 @@ int main(int argc, char *argv[])
    }
    
    // In case of basic discrete upwinding, add boundary terms.
-   if (((monoType == DiscUpw) || (monoType == DiscUpw_FCT)) && (!OptScheme))
+   if (((MonoType == DiscUpw) || (MonoType == DiscUpw_FCT)) && (!OptScheme))
    {
       if (exec_mode == 0)
       {
@@ -1186,42 +1180,17 @@ int main(int argc, char *argv[])
    // Store topological dof data.
    DofInfo dofs(&fes);
 
-   // Precompute data required for high and low order schemes.
-   BilinearFormIntegrator* VolumeTerms;
-   
-
-   if (exec_mode == 0)
-   {
-      VolumeTerms = new MixedConvectionIntegrator(velocity, -1.0);
-   }
-//    else if (exec_mode == 1)
-//    {
-         // TODO Figure out why this gives a seg-fault.
-//       VolumeTerms = new MixedConvectionIntegrator(v_coef);
-//    }
-   else /*if (exec_mode == 2)*/
-   {
-      VolumeTerms = new MixedConvectionIntegrator(velocity);
-   }
-   
-   DG_FECollection fec0(0, dim, btype);
-   DG_FECollection fec1(1, dim, btype);
-   
-   Mesh* ref_mesh = GetSubcellMesh(mesh, order); // TODO if put somewhere else (conditional to OptScheme) remove p==1 in this routine
-   FiniteElementSpace SubFes0(ref_mesh, &fec0);
-   FiniteElementSpace SubFes1(ref_mesh, &fec1);
-   
-   const IntegrationRule* irF = GetFaceIntRule(&fes);
-   
-   Assembly asmbl(&fes, monoType, OptScheme, velocity, dofs,
-                  SubFes0, SubFes1, ref_mesh, VolumeTerms, irF); // TODO change type of velocity to allow v_coef
-
+   // Precompute data required for high and low order schemes. This could be put
+   // into a seperate routine. I am using a struct now because the various
+   // schemes require quite different information.
    LowOrderMethod lom;
+   lom.MonoType = MonoType;
+   lom.OptScheme = OptScheme;
    lom.fes = &fes;
-   
-   if ((monoType == DiscUpw) || (DiscUpw_FCT))
+
+   if ((lom.MonoType == DiscUpw) || (lom.MonoType == DiscUpw_FCT))
    {
-      if (!OptScheme)
+      if (!lom.OptScheme)
       {
          lom.smap = SparseMatrix_Build_smap(k.SpMat());
          lom.D = k.SpMat();
@@ -1236,15 +1205,18 @@ int main(int argc, char *argv[])
          lom.pk = new BilinearForm(&fes);
          if (exec_mode == 0)
          {
-            lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(velocity, -1.0));
+            lom.pk->AddDomainIntegrator(
+               new PrecondConvectionIntegrator(velocity, -1.0) );
          }
          else if (exec_mode == 1)
          {
-            lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(v_coef));
+            lom.pk->AddDomainIntegrator(
+               new PrecondConvectionIntegrator(v_coef) );
          }
          else if (exec_mode == 2)
          {
-            lom.pk->AddDomainIntegrator(new PrecondConvectionIntegrator(velocity));
+            lom.pk->AddDomainIntegrator(
+               new PrecondConvectionIntegrator(velocity) );
          }
          lom.pk->Assemble(skip_zeros);
          lom.pk->Finalize(skip_zeros);
@@ -1258,9 +1230,45 @@ int main(int argc, char *argv[])
          }
       }
    }
+   if (exec_mode == 1) { lom.coef = &v_coef; }
+   else { lom.coef = &velocity; }
    
-//    Init(monoType, OptScheme, lom);
+   lom.irF = GetFaceIntRule(&fes);
    
+   FiniteElementSpace *SubFes0, *SubFes1;
+   DG_FECollection fec0(0, dim, btype);
+   DG_FECollection fec1(1, dim, btype);
+   
+   // For linear elements, Opt scheme has already been disabled.
+   bool NeedSubcells = lom.OptScheme && (( lom.MonoType == ResDist)
+                                      || (lom.MonoType == ResDist_FCT) );
+
+   if (NeedSubcells)
+   {
+      if (exec_mode == 0)
+      {
+         lom.VolumeTerms = new MixedConvectionIntegrator(velocity, -1.0);
+      }
+      //    else if (exec_mode == 1)
+      //    {
+      // TODO Figure out why this gives a seg-fault, it should be v_coef.
+      //       lom.VolumeTerms = new MixedConvectionIntegrator(v_coef);
+      //    }
+      else /*if (exec_mode == 2)*/
+      {
+         lom.VolumeTerms = new MixedConvectionIntegrator(velocity);
+      }
+      
+      lom.subcell_mesh = GetSubcellMesh(mesh, order);
+      
+      SubFes0 = new FiniteElementSpace(lom.subcell_mesh, &fec0);
+      SubFes1 = new FiniteElementSpace(lom.subcell_mesh, &fec1);
+      lom.SubFes0 = SubFes0;
+      lom.SubFes1 = SubFes1;
+   }
+
+   Assembly asmbl(dofs, lom);
+
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
@@ -1331,8 +1339,8 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m, k, m.SpMat(), k.SpMat(), b, asmbl, *x, v_gf, ml,
-                    lumpedM, v_coef, lom);
+   FE_Evolution adv(m, m.SpMat(), ml, lumpedM, k, k.SpMat(), b, *x, v_gf, asmbl,
+                    lom, dofs);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -1402,7 +1410,8 @@ int main(int argc, char *argv[])
    double finalMass;
    if (exec_mode == 1)
    {
-      // TODO figure out why this setup doesn't conserve mass for mode 1.
+      // TODO figure out why this setup doesn't conserve mass for mode 1. Use
+      // peridoic-square instead of default to avoid mass loss through outflow.
       ml.BilinearForm::operator=(0.0);
       ml.Assemble();
       ml.SpMat().GetDiag(lumpedM);
@@ -1422,8 +1431,19 @@ int main(int argc, char *argv[])
    // 10. Free the used memory.
    delete mesh;
    delete ode_solver;
-   delete VolumeTerms;
    delete dc;
+   if ( lom.OptScheme && ( (lom.MonoType == DiscUpw)
+                        || (lom.MonoType = DiscUpw_FCT) ) )
+   {
+      delete lom.pk;
+   }
+   if (NeedSubcells)
+   {
+      delete SubFes0;
+      delete SubFes1;
+      delete lom.VolumeTerms;
+      delete lom.subcell_mesh;
+   }
 
    return 0;
 }
@@ -1460,12 +1480,12 @@ void FE_Evolution::LinearFluxLumping(const int k, const int nd,
 {
    int i, j, idx, dofInd;
    double xNeighbor;
-   Vector xDiff(asmbl.dofs.numDofs);
+   Vector xDiff(dofs.numDofs);
 
-   for (i = 0; i < asmbl.dofs.numDofs; i++)
+   for (i = 0; i < dofs.numDofs; i++)
    {
-      dofInd = k*nd+asmbl.dofs.BdrDofs(i,BdrID);
-      idx = asmbl.dofs.NbrDof(k*asmbl.dofs.numDofs+i,BdrID);
+      dofInd = k*nd+dofs.BdrDofs(i,BdrID);
+      idx = dofs.NbrDof(k*dofs.numDofs+i,BdrID);
       // If NbrDof is -1 and bdrInt > 0., this is an inflow boundary. If NbrDof
       // is -1 and bdrInt = 0., this is an outflow, which is handled correctly.
       // TODO use inflow instead of xNeighbor = 0.
@@ -1473,30 +1493,32 @@ void FE_Evolution::LinearFluxLumping(const int k, const int nd,
       xDiff(i) = xNeighbor - x(dofInd);
    }
 
-   for (i = 0; i < asmbl.dofs.numDofs; i++)
+   for (i = 0; i < dofs.numDofs; i++)
    {
-      dofInd = k*nd+asmbl.dofs.BdrDofs(i,BdrID);
-      for (j = 0; j < asmbl.dofs.numDofs; j++)
+      dofInd = k*nd+dofs.BdrDofs(i,BdrID);
+      for (j = 0; j < dofs.numDofs; j++)
       {
-         y(dofInd) += asmbl.bdrInt(dofInd, BdrID*nd+asmbl.dofs.BdrDofs(j,BdrID))
-          * ( xDiff(i) + (xDiff(j)-xDiff(i))*alpha(asmbl.dofs.BdrDofs(i,BdrID))
-                                         * alpha(asmbl.dofs.BdrDofs(j,BdrID)) );
+         // alpha=0 is the low order solution, alpha=1, the Galerkin solution.
+         // 0 < alpha < 1 can be used for limiting within the low order method.
+         y(dofInd) += asmbl.bdrInt(k, BdrID, i*dofs.numDofs + j)
+          * ( xDiff(i) + (xDiff(j)-xDiff(i)) * alpha(dofs.BdrDofs(i,BdrID))
+                                             * alpha(dofs.BdrDofs(j,BdrID)) );
       }
    }
 }
 
 void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 {
-   const FiniteElement &dummy = *fes->GetFE(0);
-   int i, j, k, dofInd, nd = dummy.GetDof(), ne = fes->GetNE();
+   const FiniteElement* dummy = lom.fes->GetFE(0);
+   int i, j, k, dofInd, nd = dummy->GetDof(), ne = lom.fes->GetNE();
    Vector alpha(nd); alpha = 0.;
    
-   if ( (asmbl.monoType == DiscUpw) || (asmbl.monoType == DiscUpw_FCT) )
+   if ( (lom.MonoType == DiscUpw) || (lom.MonoType == DiscUpw_FCT) )
    {
       // Reassemble on the new mesh (given by mesh_pos).
       if (exec_mode > 0)
       {
-         if (!asmbl.OptScheme)
+         if (!lom.OptScheme)
          {
             ComputeDiscreteUpwindingMatrix(K, lom.smap, lom.D);
          }
@@ -1518,30 +1540,30 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ////////////////////////////
          // Boundary contributions //
          //////////////////////////// 
-         if (asmbl.OptScheme)
+         if (lom.OptScheme)
          {
-            for (i = 0; i < asmbl.dofs.numBdrs; i++)
+            for (i = 0; i < dofs.numBdrs; i++)
             {
                LinearFluxLumping(k, nd, i, x, y, alpha);
             }
          }
          
-         asmbl.dofs.xe_min(k) = numeric_limits<double>::infinity();
-         asmbl.dofs.xe_max(k) = -asmbl.dofs.xe_min(k);
+         dofs.xe_min(k) = numeric_limits<double>::infinity();
+         dofs.xe_max(k) = -dofs.xe_min(k);
          
          for (j = 0; j < nd; j++)
          {
             dofInd = k*nd+j;
-            asmbl.dofs.xe_max(k) = max(asmbl.dofs.xe_max(k), x(dofInd));
-            asmbl.dofs.xe_min(k) = min(asmbl.dofs.xe_min(k), x(dofInd));
+            dofs.xe_max(k) = max(dofs.xe_max(k), x(dofInd));
+            dofs.xe_min(k) = min(dofs.xe_min(k), x(dofInd));
             y(dofInd) /= lumpedM(dofInd);
          }
       }
    }
    else // RD(S)
    {
-      Mesh *mesh = fes->GetMesh();
-      int i, m, dofInd2, loc, ne(fes->GetNE()), dim(mesh->Dimension());
+      Mesh *mesh = lom.fes->GetMesh();
+      int m, dofInd2, loc, dim(mesh->Dimension());
       double xSum, xNeighbor, sumFluctSubcellP, sumFluctSubcellN, sumWeightsP,
              sumWeightsN, weightP, weightN, rhoP, rhoN, gammaP, gammaN,
              minGammaP, minGammaN, aux, fluct, gamma = 10., eps = 1.E-15;
@@ -1552,9 +1574,9 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       y = b;
       K.Mult(x, z);
       
-      if ((exec_mode > 0) && (asmbl.OptScheme))
+      if ((exec_mode > 0) && (lom.OptScheme))
       {
-         asmbl.ref_mesh = GetSubcellMesh(mesh, dummy.GetOrder());
+         asmbl.subcell_mesh = GetSubcellMesh(mesh, dummy->GetOrder());
       }
 
       // Monotonicity terms
@@ -1563,7 +1585,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ////////////////////////////
          // Boundary contributions //
          ////////////////////////////           
-         for (i = 0; i < asmbl.dofs.numBdrs; i++)
+         for (i = 0; i < dofs.numBdrs; i++)
          {
             LinearFluxLumping(k, nd, i, x, y, alpha);
          }
@@ -1571,41 +1593,41 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ///////////////////////////
          // Element contributions //
          ///////////////////////////
-         asmbl.dofs.xe_min(k) = numeric_limits<double>::infinity();
-         asmbl.dofs.xe_max(k) = -asmbl.dofs.xe_min(k);
+         dofs.xe_min(k) = numeric_limits<double>::infinity();
+         dofs.xe_max(k) = -dofs.xe_min(k);
          rhoP = rhoN = xSum = 0.;
 
          for (j = 0; j < nd; j++)
          {
             dofInd = k*nd+j;
-            asmbl.dofs.xe_max(k) = max(asmbl.dofs.xe_max(k), x(dofInd));
-            asmbl.dofs.xe_min(k) = min(asmbl.dofs.xe_min(k), x(dofInd));
+            dofs.xe_max(k) = max(dofs.xe_max(k), x(dofInd));
+            dofs.xe_min(k) = min(dofs.xe_min(k), x(dofInd));
             xSum += x(dofInd);
-            if (asmbl.OptScheme)
+            if (lom.OptScheme)
             {
                rhoP += max(0., z(dofInd));
                rhoN += min(0., z(dofInd));
             }
          }
 
-         sumWeightsP = nd*asmbl.dofs.xe_max(k) - xSum + eps;
-         sumWeightsN = nd*asmbl.dofs.xe_min(k) - xSum - eps;
+         sumWeightsP = nd*dofs.xe_max(k) - xSum + eps;
+         sumWeightsN = nd*dofs.xe_min(k) - xSum - eps;
 
-         if (asmbl.OptScheme)
+         if (lom.OptScheme)
          {
-            fluctSubcellP.SetSize(asmbl.dofs.numSubcells);
-            fluctSubcellN.SetSize(asmbl.dofs.numSubcells);
-            xMaxSubcell.SetSize(asmbl.dofs.numSubcells);
-            xMinSubcell.SetSize(asmbl.dofs.numSubcells);
-            sumWeightsSubcellP.SetSize(asmbl.dofs.numSubcells);
-            sumWeightsSubcellN.SetSize(asmbl.dofs.numSubcells);
+            fluctSubcellP.SetSize(dofs.numSubcells);
+            fluctSubcellN.SetSize(dofs.numSubcells);
+            xMaxSubcell.SetSize(dofs.numSubcells);
+            xMinSubcell.SetSize(dofs.numSubcells);
+            sumWeightsSubcellP.SetSize(dofs.numSubcells);
+            sumWeightsSubcellN.SetSize(dofs.numSubcells);
             nodalWeightsP.SetSize(nd);
             nodalWeightsN.SetSize(nd);
             sumFluctSubcellP = sumFluctSubcellN = 0.;
             nodalWeightsP = 0.; nodalWeightsN = 0.;
    
             // compute min-/max-values and the fluctuation for subcells
-            for (m = 0; m < asmbl.dofs.numSubcells; m++)
+            for (m = 0; m < dofs.numSubcells; m++)
             {
                xMinSubcell(m) = numeric_limits<double>::infinity();
                xMaxSubcell(m) = -xMinSubcell(m);
@@ -1616,18 +1638,18 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
                   asmbl.ComputeSubcellWeights(k, m);
                }
                
-               for (i = 0; i < asmbl.dofs.numDofsSubcell; i++)
+               for (i = 0; i < dofs.numDofsSubcell; i++)
                {
-                  dofInd = k*nd + asmbl.dofs.Sub2Ind(m, i);
-                  fluct += asmbl.SubcellWeights(k*asmbl.dofs.numSubcells+m,i)
+                  dofInd = k*nd + dofs.Sub2Ind(m, i);
+                  fluct += asmbl.SubcellWeights(k*dofs.numSubcells+m,i)
                            * x(dofInd);
                   xMaxSubcell(m) = max(xMaxSubcell(m), x(dofInd));
                   xMinSubcell(m) = min(xMinSubcell(m), x(dofInd));
                   xSum += x(dofInd);
                }
-               sumWeightsSubcellP(m) = asmbl.dofs.numDofsSubcell
+               sumWeightsSubcellP(m) = dofs.numDofsSubcell
                                        * xMaxSubcell(m) - xSum + eps;
-               sumWeightsSubcellN(m) = asmbl.dofs.numDofsSubcell
+               sumWeightsSubcellN(m) = dofs.numDofsSubcell
                                        * xMinSubcell(m) - xSum - eps;
 
                fluctSubcellP(m) = max(0., fluct);
@@ -1636,11 +1658,11 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
                sumFluctSubcellN += fluctSubcellN(m);
             }
 
-            for (m = 0; m < asmbl.dofs.numSubcells; m++)
+            for (m = 0; m < dofs.numSubcells; m++)
             {
-               for (i = 0; i < asmbl.dofs.numDofsSubcell; i++)
+               for (i = 0; i < dofs.numDofsSubcell; i++)
                {
-                  loc = asmbl.dofs.Sub2Ind(m, i);
+                  loc = dofs.Sub2Ind(m, i);
                   dofInd = k*nd + loc;
                   nodalWeightsP(loc) += fluctSubcellP(m)
                                         * ((xMaxSubcell(m) - x(dofInd))
@@ -1655,10 +1677,10 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          for (i = 0; i < nd; i++)
          {
             dofInd = k*nd+i;
-            weightP = (asmbl.dofs.xe_max(k) - x(dofInd)) / sumWeightsP;
-            weightN = (asmbl.dofs.xe_min(k) - x(dofInd)) / sumWeightsN;
+            weightP = (dofs.xe_max(k) - x(dofInd)) / sumWeightsP;
+            weightN = (dofs.xe_min(k) - x(dofInd)) / sumWeightsN;
 
-            if (asmbl.OptScheme)
+            if (lom.OptScheme)
             {
                aux = gamma / (rhoP + eps);
                weightP *= 1. - min(aux * sumFluctSubcellP, 1.);
@@ -1691,20 +1713,20 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 // ydot = M^{-1} (K x + b).
 void FE_Evolution::ComputeHighOrderSolution(const Vector &x, Vector &y) const
 {
-   const FiniteElement &dummy = *fes->GetFE(0);
-   int i, k, nd = dummy.GetDof(), ne = fes->GetNE();
+   const FiniteElement* dummy = lom.fes->GetFE(0);
+   int i, k, nd = dummy->GetDof(), ne = lom.fes->GetNE();
    Vector alpha(nd); alpha = 1.;
    
    K.Mult(x, z);
    z += b;
 
    // Incorporate flux terms only if the low order scheme is PDU, RD, or RDS.
-   if ((asmbl.monoType != DiscUpw_FCT) || (asmbl.OptScheme))
+   if ((lom.MonoType != DiscUpw_FCT) || (lom.OptScheme))
    {
       // The boundary contributions have been computed in the low order scheme.
       for (k = 0; k < ne; k++)
       {
-         for (i = 0; i < asmbl.dofs.numBdrs; i++)
+         for (i = 0; i < dofs.numBdrs; i++)
          {
             LinearFluxLumping(k, nd, i, x, z, alpha);
          }
@@ -1726,10 +1748,10 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
    Vector uClipped, fClipped;
 
    // Monotonicity terms
-   for (k = 0; k < fes->GetMesh()->GetNE(); k++)
+   for (k = 0; k < lom.fes->GetMesh()->GetNE(); k++)
    {
-      const FiniteElement &el = *fes->GetFE(k);
-      nd = el.GetDof();
+      const FiniteElement* el = lom.fes->GetFE(k);
+      nd = el->GetDof();
 
       uClipped.SetSize(nd); uClipped = 0.;
       fClipped.SetSize(nd); fClipped = 0.;
@@ -1740,11 +1762,10 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
          dofInd = k*nd+j;
          
          // Compute the bounds for each dof inside the loop.
-         asmbl.dofs.ComputeVertexBounds(x, dofInd);
+         dofs.ComputeVertexBounds(x, dofInd);
          
-         uClipped(j) = min( asmbl.dofs.xi_max(dofInd),
-                            max( x(dofInd) + dt * yH(dofInd),
-                                 asmbl.dofs.xi_min(dofInd) ) );
+         uClipped(j) = min( dofs.xi_max(dofInd), max( x(dofInd) + dt*yH(dofInd),
+                                 dofs.xi_min(dofInd) ) );
 
          fClipped(j) = lumpedM(dofInd) / dt
                         * ( uClipped(j) - (x(dofInd) + dt * yL(dofInd)) );
@@ -1775,20 +1796,20 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, BilinearForm &Mbf_,
-                           BilinearForm &Kbf_, SparseMatrix &_M,
-                           SparseMatrix &_K, const Vector &_b, Assembly &_asmbl,
-                           GridFunction &mpos, GridFunction &vpos,
-                           BilinearForm &_ml, Vector &_lumpedM, 
-                           VectorGridFunctionCoefficient &v_coef, LowOrderMethod &_lom) :
-   TimeDependentOperator(_M.Size()), fes(_fes),Mbf(Mbf_), Kbf(Kbf_), M(_M),
-   K(_K), b(_b), z(_M.Size()), asmbl(_asmbl), start_pos(mpos.Size()),
-   mesh_pos(mpos), vel_pos(vpos), ml(_ml), lumpedM(_lumpedM), coef(v_coef), lom(_lom) { }
+FE_Evolution::FE_Evolution(BilinearForm &Mbf_, SparseMatrix &_M,
+                           BilinearForm &_ml, Vector &_lumpedM,
+                           BilinearForm &Kbf_, SparseMatrix &_K,
+                           const Vector &_b, GridFunction &mpos,
+                           GridFunction &vpos, Assembly &_asmbl,
+                           LowOrderMethod &_lom, DofInfo &_dofs) :
+   TimeDependentOperator(_M.Size()), z(_M.Size()), Mbf(Mbf_), M(_M), ml(_ml),
+   lumpedM(_lumpedM), Kbf(Kbf_), K(_K), b(_b), start_pos(mpos.Size()),
+   mesh_pos(mpos), vel_pos(vpos), asmbl(_asmbl), lom(_lom), dofs(_dofs) { }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   Mesh *mesh = fes->GetMesh();
-   int i, k, dim = mesh->Dimension(), ne = fes->GetNE();
+   Mesh *mesh = lom.fes->GetMesh();
+   int i, k, dim = mesh->Dimension(), ne = lom.fes->GetNE();
    Array <int> bdrs, orientation;
    FaceElementTransformations *Trans;
    
@@ -1822,49 +1843,55 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       ////////////////////////////
       // Boundary contributions //
       ////////////////////////////
-      asmbl.bdrInt = 0.;
-      for (k = 0; k < ne; k++)
+      bool NeedBdr = lom.OptScheme || ( (lom.MonoType != DiscUpw)
+      && (lom.MonoType != DiscUpw_FCT) );
+      
+      if (NeedBdr)
       {
-         if (dim==1)
+         asmbl.bdrInt = 0.;
+         for (k = 0; k < ne; k++)
          {
-            mesh->GetElementVertices(k, bdrs);
-         }
-         else if (dim==2)
-         {
-            mesh->GetElementEdges(k, bdrs, orientation);
-         }
-         else if (dim==3)
-         {
-            mesh->GetElementFaces(k, bdrs, orientation);
-         }
-         
-         for (i = 0; i < asmbl.dofs.numBdrs; i++)
-         {
-            if (exec_mode == 1)
+            if (dim==1)
             {
-               Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-               asmbl.ComputeFluxTerms(k, i, coef, Trans);
+               mesh->GetElementVertices(k, bdrs);
             }
-            else if (exec_mode == 2)
+            else if (dim==2)
             {
-               Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-               asmbl.ComputeFluxTerms(k, i, asmbl.velocity, Trans);
+               mesh->GetElementEdges(k, bdrs, orientation);
+            }
+            else if (dim==3)
+            {
+               mesh->GetElementFaces(k, bdrs, orientation);
+            }
+            
+            for (i = 0; i < dofs.numBdrs; i++)
+            {
+               if (exec_mode == 1)
+               {
+                  Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+                  asmbl.ComputeFluxTerms(k, i, Trans, lom);
+               }
+               else if (exec_mode == 2)
+               {
+                  Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+                  asmbl.ComputeFluxTerms(k, i, Trans, lom);
+               }
             }
          }
       }
    }
 
-   if (asmbl.monoType == 0)
+   if (lom.MonoType == 0)
    {
       ComputeHighOrderSolution(x, y);
    }
    else
    {
-      if (asmbl.monoType % 2 == 1)
+      if (lom.MonoType % 2 == 1)
       {
          ComputeLowOrderSolution(x, y);
       }
-      else if (asmbl.monoType % 2 == 0)
+      else if (lom.MonoType % 2 == 0)
       {
          Vector yH, yL;
          yH.SetSize(x.Size()); yL.SetSize(x.Size());
@@ -1946,13 +1973,13 @@ void velocity_function(const Vector &x, Vector &v)
       }
       case 10:
       case 11:
-		case 12:
-		case 13:
-		case 14:
-		case 15:
+      case 12:
+      case 13:
+      case 14:
+      case 15:
       {
          // Taylor-Green velocity, used for mesh motion in remap tests used for
-			// all possible initial conditions.
+         // all possible initial conditions.
 
          // Map [-1,1] to [0,1].
          for (int d = 0; d < dim; d++) { X(d) = X(d) * 0.5 + 0.5; }
