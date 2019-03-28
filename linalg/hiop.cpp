@@ -46,7 +46,7 @@ bool HiopOptimizationProblem::get_vars_info(const long long &n,
                                             NonlinearityType *type)
 {
    MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
-   MFEM_ASSERT(problem.x_lo && problem.x_hi,
+   MFEM_ASSERT(problem.GetBoundsVec_Lo() && problem.GetBoundsVec_Hi(),
                "Solution bounds are not set!");
 
    const int s = ntdofs_loc * sizeof(double);
