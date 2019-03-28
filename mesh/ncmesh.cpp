@@ -2223,20 +2223,37 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
       eface[1] = eface[3] = NULL;
    }
 
-   // check for a prism edge
+   // check for a prism edge constrained by the master face
    if (HavePrisms() && mid[4] >= 0)
    {
       Node& enode = nodes[mid[4]];
       if (enode.HasEdge())
       {
-         // is the edge unreachable from faces within (vn0, vn1, vn2, vn3)?
+         // process the edge only if it's not shared by slave faces
+         // within this master face (i.e. the edge is "hidden")
          const int fi[3][2] = {{0, 0}, {1, 3}, {2, 0}};
          if (!ef[0][fi[split][0]] && !ef[1][fi[split][1]])
          {
-            {std::ofstream f("ncdump.txt");
-            DebugDump(f);}
+            MFEM_ASSERT(enode.edge_refc == 1, "");
 
-            MFEM_WARNING("Found edge " << enode.edge_index);
+            const MeshId& eid = edge_list.LookUp(enode.edge_index);
+            MFEM_ASSERT(elements[eid.element].Geom() == Geometry::PRISM, "");
+
+            // create a degenerate slave face record
+            face_list.slaves.push_back(
+               Slave(-1 - eid.index, eid.element, eid.local, eid.geom));
+
+            Slave &slave = face_list.slaves.back();
+            if (split == 1)
+            {
+               Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
+               PointMatrix(mid0, mid0, mid2, mid2).GetMatrix(slave.point_matrix);
+            }
+            else if (split == 2)
+            {
+               Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
+               PointMatrix(mid1, mid1, mid3, mid3).GetMatrix(slave.point_matrix);
+            }
          }
       }
    }
@@ -2294,6 +2311,9 @@ void NCMesh::BuildFaceList()
    boundary_faces.SetSize(0);
 
    if (Dim < 3) { return; }
+
+   // in prismatic meshes we need to be able to search edges
+   if (HavePrisms()) { GetEdgeList(); }
 
    Array<char> processed_faces(faces.NumIds());
    processed_faces = 0;

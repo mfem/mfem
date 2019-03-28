@@ -118,8 +118,9 @@ protected:
    static inline int DecodeDof(int dof, double& sign)
    { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
-   /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
+   /// Helpers to get vertex, edge or face DOFs (entity=0,1,2 resp.).
    void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
+   void GetDegenerateFaceDofs(int index, Array<int> &dofs) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
