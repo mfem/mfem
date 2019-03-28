@@ -321,7 +321,9 @@ MaxwellSolver::~MaxwellSolver()
 
    delete M1Losses_;
    delete M2MuInv_;
-
+   delete NegCurl_;
+   delete WeakCurlMuInv_;
+   
    delete hDivMassMuInv_;
    delete hCurlLosses_;
    delete weakCurlMuInv_;
