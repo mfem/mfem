@@ -105,13 +105,15 @@ public:
 
    /// Push the current mode on a stack and disable the use of the
    /// configured device in the code that follows.
-   static inline void PushDisable() {
+   static inline void PushDisable()
+   {
       Get().modes.push(Get().mode);
       Disable();
    }
-   
+
    /// Pop back the mode in the code that follows.
-   static inline void Pop() {
+   static inline void Pop()
+   {
       Get().mode = Get().modes.top();
       Get().modes.pop();
    }
