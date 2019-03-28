@@ -36,7 +36,8 @@ SHARED = NO
 
 # CUDA configuration options
 MFEM_CUDA_CXX = nvcc
-MFEM_CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=sm_60
+MFEM_CUDA_ARCH = sm_60
+MFEM_CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(MFEM_CUDA_ARCH)
 ifeq ($(MFEM_USE_CUDA),YES)
    # Pass the following arguments to the host compiler
    MFEM_XARCHIVE  = -Xarchive
