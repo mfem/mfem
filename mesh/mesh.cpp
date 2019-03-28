@@ -4681,7 +4681,13 @@ void Mesh::GenerateNCFaceInfo()
    for (unsigned i = 0; i < list.slaves.size(); i++)
    {
       const NCMesh::Slave &slave = list.slaves[i];
-      if (slave.index >= nfaces || slave.master >= nfaces) { continue; }
+
+      if (slave.index < 0 || // degenerate slave face
+          slave.index >= nfaces || // ghost slave
+          slave.master >= nfaces) // has ghost master
+      {
+         continue;
+      }
 
       FaceInfo &slave_fi = faces_info[slave.index];
       FaceInfo &master_fi = faces_info[slave.master];

@@ -565,6 +565,21 @@ bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
    return true;
 }
 
+void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs) const
+{
+   GetEdgeDofs(-1 - index, dofs);
+   int n = dofs.Size();
+
+   dofs.SetSize(n*n);
+   for (int i = n-1; i >= 0; i--)
+   {
+      for (int j = 0; j < n; j++)
+      {
+         dofs[i*n + j] = dofs[i];
+      }
+   }
+}
+
 void
 FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
 {
@@ -572,7 +587,8 @@ FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
    {
       case 0: GetVertexDofs(index, dofs); break;
       case 1: GetEdgeDofs(index, dofs); break;
-      case 2: GetFaceDofs(index, dofs); break;
+      case 2: (index >= 0) ? GetFaceDofs(index, dofs)
+              /*        */ : GetDegenerateFaceDofs(index, dofs);
    }
 }
 
