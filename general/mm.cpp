@@ -199,7 +199,7 @@ void *mm::Erase(void *ptr)
    const bool known = Known(ptr);
    if (!known) { mfem_error("Trying to erase an unknown pointer!"); }
    memory &mem = maps.memories.at(ptr);
-   if (mem.d_ptr){ MmMemFree(mem.d_ptr); }
+   if (mem.d_ptr) { MmMemFree(mem.d_ptr); }
    for (const alias* const a : mem.aliases) { maps.aliases.erase(a); }
    mem.aliases.clear();
    maps.memories.erase(ptr);
@@ -337,7 +337,7 @@ static void PullKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
    //MFEM_VERIFY(bytes==base.bytes,"bytes!=base.bytes");
    mm::MmuMEnable(base.h_ptr, bytes);
    MmMemcpyDtoH(base.h_ptr, base.d_ptr, bytes);
-   if (bytes==base.bytes) base.host = true;
+   if (bytes==base.bytes) { base.host = true; }
 }
 
 static void PullAlias(mm::ledger &maps, const void *ptr, const size_t bytes)
@@ -383,8 +383,8 @@ static void MmuError(int sig, siginfo_t *si, void *unused)
    void *ptr = si->si_addr;
    const bool known = mm::known(ptr);
    const char *format = known ?
-      "[MMU] %p was used, but is still on the device!":
-      "[MMU] Error while accessing %p!";
+                        "[MMU] %p was used, but is still on the device!":
+                        "[MMU] Error while accessing %p!";
    sprintf(str, format, ptr);
    mfem_error(str);
 }
