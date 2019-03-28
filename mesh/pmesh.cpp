@@ -3617,6 +3617,8 @@ void ParMesh::UniformRefinement3D()
    UniformRefineGroups3D(old_nv, old_nedges, v_to_v, *faces_tbl,
                          f2qf.Size() ? &f2qf : NULL);
 
+   delete faces_tbl;
+
    UpdateNodes();
 }
 
