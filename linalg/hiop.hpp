@@ -55,8 +55,8 @@ private:
 public:
    HiopOptimizationProblem(const OptimizationProblem &prob)
       : problem(prob),
-        ntdofs_loc(prob.input_size), ntdofs_glob(ntdofs_loc),
-        m_total(prob.GetNumConstraints()),
+        ntdofs_loc(prob.input_size), m_total(prob.GetNumConstraints()),
+        ntdofs_glob(ntdofs_loc),
         x_start(NULL),
         constr_vals(m_total), constr_grads(m_total, ntdofs_loc),
         constr_info_is_current(false)
@@ -72,8 +72,8 @@ public:
                            const OptimizationProblem &prob)
       : comm_(_comm),
         problem(prob),
-        ntdofs_loc(prob.input_size), ntdofs_glob(0),
-        m_total(prob.GetNumConstraints()),
+        ntdofs_loc(prob.input_size), m_total(prob.GetNumConstraints()),
+        ntdofs_glob(0),
         x_start(NULL),
         constr_vals(m_total), constr_grads(m_total, ntdofs_loc),
         constr_info_is_current(false)
