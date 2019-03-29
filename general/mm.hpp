@@ -97,9 +97,30 @@ public:
    static void* memcpy(void *dst, const void *src,
                        size_t bytes, const bool async = false);
 
-   static inline bool known(const void *a)
+   /// Tests if the pointer has been registered
+   static inline bool known(const void *ptr)
    {
-      return MM().Known(a);
+      return MM().Known(ptr);
+   }
+
+   /// Prints all pointers known by the memory manager
+   static inline void PrintPtrs(void)
+   {
+      for ( const auto& n : MM().maps.memories )
+      {
+         printf("key %p, host %p, device %p \n", n.first, n.second.h_ptr,
+                n.second.d_ptr);
+      }
+   }
+
+   /// Copies all memory on current memory space
+   static inline void GetAll(void)
+   {
+      for ( const auto& n : MM().maps.memories )
+      {
+         const void *ptr = n.first;
+         mm::ptr(ptr);
+      }
    }
 
 private:

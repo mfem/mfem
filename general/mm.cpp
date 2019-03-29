@@ -118,6 +118,7 @@ static inline bool MmDeviceIniFilter(void)
 {
    if (!Device::UsingMM()) { return true; }
    if (Device::DeviceDisabled()) { return true; }
+   if (Device::IsTracking() == false) { return true; }
    if (!Device::DeviceHasBeenEnabled()) { return true; }
    if (Device::UsingOcca()) { mfem_error("Device::UsingOcca()"); }
    return false;
