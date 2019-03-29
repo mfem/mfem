@@ -189,7 +189,7 @@ void *mm::Ptr(void *ptr)
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
    if (Device::UsingDevice())
    {
-     mfem_error("Trying to use unknown pointer on the DEVICE!");
+      mfem_error("Trying to use unknown pointer on the DEVICE!");
    }
    return ptr;
 }
@@ -310,12 +310,13 @@ OccaMemory mm::Memory(const void *ptr) { return occaMemory(maps, ptr); }
 
 void mm::RegisterCheck(void *ptr)
 {
-  if(ptr != NULL && Device::UsingMM()){
-    if(!mm::known(ptr))
+   if (ptr != NULL && Device::UsingMM())
+   {
+      if (!mm::known(ptr))
       {
-        mfem_error("Pointer is not registered!");
+         mfem_error("Pointer is not registered!");
       }
-  }
+   }
 }
 
 } // namespace mfem

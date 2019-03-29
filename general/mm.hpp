@@ -110,7 +110,7 @@ public:
    {
       MM().Insert(ptr_host, size*sizeof(T));
 #ifdef MFEM_DEBUG
-     RegisterCheck(ptr_host);
+      RegisterCheck(ptr_host);
 #endif
    }
 

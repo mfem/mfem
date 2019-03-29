@@ -69,12 +69,9 @@ public:
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a _data can be NULL. The data array can be replaced later
-       with SetData(). Registers pointer with Okina memory manager.
-       Pointer is assumed to be a host pointer.  */
+       with SetData(). */
    Vector (double *_data, int _size)
-   { data = _data; size = _size; allocsize = -size;
-     mm::RegisterHostPtr(data, size);
-   }
+   { data = _data; size = _size; allocsize = -size; }
 
    /// Copies data from host to device
    void Push() const;
@@ -109,12 +106,9 @@ public:
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
-       @sa NewDataAndSize(). Registers pointer with Okina memory manager.
-       Pointer is assumed to be a host pointer. */
+       @sa NewDataAndSize(). */
    void SetDataAndSize(double *d, int s)
-   { data = d; size = s; allocsize = -s;
-     mm::RegisterHostPtr(data, size);
-   }
+   { data = d; size = s; allocsize = -s; }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
@@ -405,10 +399,6 @@ inline Vector::~Vector()
    if (allocsize > 0)
    {
       mm::free<double>(data);
-   }
-   else
-   {
-     mm::UnregisterHostPtr(data);
    }
 }
 
