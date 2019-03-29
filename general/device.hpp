@@ -33,6 +33,7 @@ private:
    bool omp = false;
    bool sync = false;
    bool nvvp = false;
+   bool isTracking = true;
    CUdevice cuDevice;
    CUstream *cuStream;
    CUcontext cuContext;
@@ -93,7 +94,7 @@ public:
    /** In particular, use the device version of the okina kernels encountered,
        with the device versions of the data registered in the memory manager
        (copying host-to-device if necessary). */
-   static inline void Enable() { Get().mode = Device::DEVICE;}
+   static inline void Enable() { Get().mode = Device::DEVICE; }
 
    /// Disable the use of the configured device in the code that follows.
    /** In particular, use the host version of the okina kernels encountered,
@@ -117,6 +118,10 @@ public:
 
    static inline bool UsingDevice() { return DeviceEnabled() && Get().mode == DEVICE; }
    static inline bool UsingHost() { return !UsingDevice(); }
+
+   static inline void DisableTracking() { Get().isTracking = false; };
+   static inline void EnableTracking() { Get().isTracking = true; };
+   static inline bool IsTracking() { return Get().isTracking; };
 
    static inline bool UsingCuda() { return Get().cuda; }
    static inline void UseCuda() { Get().cuda = true; }
