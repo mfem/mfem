@@ -237,7 +237,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    cout << "Energy decrease: " << (energy_in - energy_out) / energy_in * 100.0
         << "% with " << scale << " scaling." << endl;
 
-   if (x_out_ok == false) { return 0.0;}
+   if (x_out_ok == false) { return 0.0; }
 
    return scale;
 }

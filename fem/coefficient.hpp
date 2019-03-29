@@ -96,7 +96,7 @@ public:
    { constants.SetSize(c.Size()); constants=c; }
 
    /// Update constants
-   void UpdateConstants(Vector &c) {constants.SetSize(c.Size()); constants=c;}
+   void UpdateConstants(Vector &c) { constants.SetSize(c.Size()); constants=c; }
 
    /// Member function to access or modify the value of the i-th constant
    double &operator()(int i) { return constants(i-1); }
