@@ -2239,20 +2239,26 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
             const MeshId& eid = edge_list.LookUp(enode.edge_index);
             MFEM_ASSERT(elements[eid.element].Geom() == Geometry::PRISM, "");
 
-            // create a degenerate slave face record
+            // create a slave face record with a degenerate point matrix
             face_list.slaves.push_back(
                Slave(-1 - eid.index, eid.element, eid.local, eid.geom));
 
-            Slave &slave = face_list.slaves.back();
+            DenseMatrix &mat = face_list.slaves.back().point_matrix;
             if (split == 1)
             {
                Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
-               PointMatrix(mid0, mid0, mid2, mid2).GetMatrix(slave.point_matrix);
+               int v1 = nodes[mid[0]].vert_index;
+               int v2 = nodes[mid[2]].vert_index;
+               ((v1 < v2) ? PointMatrix(mid0, mid2, mid2, mid0) :
+                            PointMatrix(mid2, mid0, mid0, mid2)).GetMatrix(mat);
             }
-            else if (split == 2)
+            else
             {
                Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
-               PointMatrix(mid1, mid1, mid3, mid3).GetMatrix(slave.point_matrix);
+               int v1 = nodes[mid[1]].vert_index;
+               int v2 = nodes[mid[3]].vert_index;
+               ((v1 < v2) ? PointMatrix(mid1, mid3, mid3, mid1) :
+                            PointMatrix(mid3, mid1, mid1, mid3)).GetMatrix(mat);
             }
          }
       }
