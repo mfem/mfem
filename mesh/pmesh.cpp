@@ -2988,6 +2988,8 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                  "serial Mesh)");
    }
 
+   DeleteFaceNbrData();
+
    // NOTE: no check of !refinements.Size(), in parallel we would have to reduce
 
    // do the refinements

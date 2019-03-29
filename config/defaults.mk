@@ -136,6 +136,8 @@ ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
 else
    # ParMETIS: currently needed by SuperLU or STRUMPACK. We assume that METIS 5
    # (included with ParMETIS) is installed in the same location.
+   # Starting with STRUMPACK v2.2.0, ParMETIS is an optional dependency while
+   # METIS is still required.
    METIS_DIR = @MFEM_DIR@/../parmetis-4.0.3
    METIS_OPT = -I$(METIS_DIR)/include
    METIS_LIB = -L$(METIS_DIR)/lib -lparmetis -lmetis
@@ -183,7 +185,8 @@ SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
 SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
 SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/SRC -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
 
-# SCOTCH library configuration (required by STRUMPACK)
+# SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
+# STRUMPACK >= v2.2.0)
 SCOTCH_DIR = @MFEM_DIR@/../scotch_6.0.4
 SCOTCH_OPT = -I$(SCOTCH_DIR)/include
 SCOTCH_LIB = -L$(SCOTCH_DIR)/lib -lptscotch -lptscotcherr -lscotch -lscotcherr\

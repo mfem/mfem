@@ -1668,12 +1668,14 @@ void NURBSExtension::ConnectBoundaries()
 
 void NURBSExtension::ConnectBoundaries2D(int bnd0, int bnd1)
 {
-   int idx0, idx1;
+   int idx0 = -1, idx1 = -1;
    for (int b = 0; b < GetNBP(); b++)
    {
       if (bnd0 == patchTopo->GetBdrAttribute(b)) { idx0 = b; }
       if (bnd1 == patchTopo->GetBdrAttribute(b)) { idx1 = b; }
    }
+   MFEM_VERIFY(idx0 != -1,"Bdr 0 not found");
+   MFEM_VERIFY(idx1 != -1,"Bdr 1 not found");
 
    NURBSPatchMap p2g0(this);
    NURBSPatchMap p2g1(this);
@@ -1742,12 +1744,14 @@ void NURBSExtension::ConnectBoundaries2D(int bnd0, int bnd1)
 
 void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
 {
-   int idx0, idx1;
+   int idx0 = -1, idx1 = -1;
    for (int b = 0; b < GetNBP(); b++)
    {
       if (bnd0 == patchTopo->GetBdrAttribute(b)) { idx0 = b; }
       if (bnd1 == patchTopo->GetBdrAttribute(b)) { idx1 = b; }
    }
+   MFEM_VERIFY(idx0 != -1,"Bdr 0 not found");
+   MFEM_VERIFY(idx1 != -1,"Bdr 1 not found");
 
    NURBSPatchMap p2g0(this);
    NURBSPatchMap p2g1(this);
