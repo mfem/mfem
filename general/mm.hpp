@@ -77,6 +77,7 @@ public:
       mm::MM().Erase(ptr);
    }
 
+
    /// Translates ptr to host or device address, depending on config::Cuda() and
    /// the ptr state.
    static inline void *ptr(void *a) { return MM().Ptr(a); }
@@ -122,6 +123,40 @@ public:
          mm::ptr(ptr);
       }
    }
+
+   /// Registers external host pointer in the mm, which will manage
+   /// the device pointer.
+   template<class T>
+   static inline void RegisterHostPtr(T *ptr_host, const size_t size)
+   {
+      MM().Insert(ptr_host, size*sizeof(T));
+#ifdef MFEM_DEBUG
+      RegisterCheck(ptr_host);
+#endif
+   }
+
+   /// Registers external host and device pointers in the mm.
+   template<class T>
+   static void RegisterHostAndDevicePtr(T *ptr_host, T *ptr_device,
+                                        const size_t size, bool host)
+   {
+      RegisterHostPtr(ptr_host, size);
+      mm::memory &base = MM().maps.memories.at(ptr_host);
+      base.d_ptr = ptr_device;
+      base.host = host;
+   }
+
+   /// Unregisters the host pointer from the mm. To be used with
+   /// memory not allocated by the mm
+   template<class T>
+   static inline void UnregisterHostPtr(T *ptr)
+   {
+      if (!ptr) { return; }
+      mm::MM().Erase(ptr);
+   }
+
+   /// Check if pointer has been registered in the mm
+   static void RegisterCheck(void *ptr);
 
 private:
    ledger maps;
