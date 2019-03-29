@@ -867,7 +867,7 @@ public:
 	gmres->SetOperator(*(Asd[m]));
 	gmres->SetRelTol(1e-12);
 	gmres->SetMaxIter(1000);
-	gmres->SetPrintLevel(1);
+	gmres->SetPrintLevel(0);
 
 	gmres->SetPreconditioner(*(precAsd[m]));
 
@@ -1139,11 +1139,11 @@ private:
   std::vector<std::vector<std::vector<int> > > InterfaceToSurfaceInjectionData;
 
   std::vector<Array<int> > rowTrueOffsetsSD, colTrueOffsetsSD;
-  std::vector<Array<int> > rowTrueOffsetsIF, colTrueOffsetsIF;
-  std::vector<Array<int> > rowTrueOffsetsIFL, colTrueOffsetsIFL;
-  std::vector<Array<int> > rowTrueOffsetsIFR, colTrueOffsetsIFR;
-  std::vector<Array<int> > rowTrueOffsetsIFBL, colTrueOffsetsIFBL;
-  std::vector<Array<int> > rowTrueOffsetsIFBR, colTrueOffsetsIFBR;
+  std::vector<std::vector<Array<int> > > rowTrueOffsetsIF, colTrueOffsetsIF;
+  std::vector<std::vector<Array<int> > > rowTrueOffsetsIFL, colTrueOffsetsIFL;
+  std::vector<std::vector<Array<int> > > rowTrueOffsetsIFR, colTrueOffsetsIFR;
+  std::vector<std::vector<Array<int> > > rowTrueOffsetsIFBL, colTrueOffsetsIFBL;
+  std::vector<std::vector<Array<int> > > rowTrueOffsetsIFBR, colTrueOffsetsIFBR;
   std::vector<Array<int> > trueOffsetsSD;
   Array<int> rowSROffsetsSD, colSROffsetsSD;
 
@@ -1255,11 +1255,17 @@ private:
     a->FormSystemMatrix(ess_tdof_list, A);
     */
     
-    rowTrueOffsetsIF[localInterfaceIndex].SetSize(3);  // Number of blocks + 1
-    colTrueOffsetsIF[localInterfaceIndex].SetSize(4);  // Number of blocks + 1
+    if (orientation == 0)
+      {
+	rowTrueOffsetsIF[localInterfaceIndex].resize(2);
+	colTrueOffsetsIF[localInterfaceIndex].resize(2);
+      }
     
-    rowTrueOffsetsIF[localInterfaceIndex][0] = 0;
-    colTrueOffsetsIF[localInterfaceIndex][0] = 0;
+    rowTrueOffsetsIF[localInterfaceIndex][orientation].SetSize(3);  // Number of blocks + 1
+    colTrueOffsetsIF[localInterfaceIndex][orientation].SetSize(4);  // Number of blocks + 1
+    
+    rowTrueOffsetsIF[localInterfaceIndex][orientation][0] = 0;
+    colTrueOffsetsIF[localInterfaceIndex][orientation][0] = 0;
 
     /*
     // This is larger than it needs to be for this interface, because the solution space has DOF's on the entire subdomain boundaries.
@@ -1267,19 +1273,19 @@ private:
     colTrueOffsetsIF[localInterfaceIndex][1] = tdofsBdry[sd1].size();
     */
     
-    rowTrueOffsetsIF[localInterfaceIndex][1] = ifespace[interfaceIndex]->GetTrueVSize();
-    colTrueOffsetsIF[localInterfaceIndex][1] = ifespace[interfaceIndex]->GetTrueVSize();
+    rowTrueOffsetsIF[localInterfaceIndex][orientation][1] = ifespace[interfaceIndex]->GetTrueVSize();
+    colTrueOffsetsIF[localInterfaceIndex][orientation][1] = ifespace[interfaceIndex]->GetTrueVSize();
 
-    rowTrueOffsetsIF[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize();
-    colTrueOffsetsIF[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize();
+    rowTrueOffsetsIF[localInterfaceIndex][orientation][2] = ifespace[interfaceIndex]->GetTrueVSize();
+    colTrueOffsetsIF[localInterfaceIndex][orientation][2] = ifespace[interfaceIndex]->GetTrueVSize();
 
     //rowTrueOffsetsIF[localInterfaceIndex][3] = iH1fespace[interfaceIndex]->GetTrueVSize();
-    colTrueOffsetsIF[localInterfaceIndex][3] = iH1fespace[interfaceIndex]->GetTrueVSize();
+    colTrueOffsetsIF[localInterfaceIndex][orientation][3] = iH1fespace[interfaceIndex]->GetTrueVSize();
     
-    rowTrueOffsetsIF[localInterfaceIndex].PartialSum();
-    colTrueOffsetsIF[localInterfaceIndex].PartialSum();
+    rowTrueOffsetsIF[localInterfaceIndex][orientation].PartialSum();
+    colTrueOffsetsIF[localInterfaceIndex][orientation].PartialSum();
     
-    BlockOperator *op = new BlockOperator(rowTrueOffsetsIF[localInterfaceIndex], colTrueOffsetsIF[localInterfaceIndex]);
+    BlockOperator *op = new BlockOperator(rowTrueOffsetsIF[localInterfaceIndex][orientation], colTrueOffsetsIF[localInterfaceIndex][orientation]);
 
     // In PengLee2012 notation, (sd0,sd1) = (m,n).
     
@@ -1402,23 +1408,36 @@ private:
 
     // Create right injection operator for sd1.
 
-    const int numBlocks = 2;  // 1 for the subdomain surface, 1 for the interface (f_{mn} and \rho_{mn}).
-    rowTrueOffsetsIFR[localInterfaceIndex].SetSize(numBlocks + 1);  // Number of blocks + 1
-    colTrueOffsetsIFR[localInterfaceIndex].SetSize(numBlocks + 1);  // Number of blocks + 1
+    if (orientation == 0)
+      {
+	rowTrueOffsetsIFR[localInterfaceIndex].resize(2);
+	colTrueOffsetsIFR[localInterfaceIndex].resize(2);
+	rowTrueOffsetsIFL[localInterfaceIndex].resize(2);
+	colTrueOffsetsIFL[localInterfaceIndex].resize(2);
 
-    rowTrueOffsetsIFR[localInterfaceIndex] = 0;
-    rowTrueOffsetsIFR[localInterfaceIndex][1] = ifespace[interfaceIndex]->GetTrueVSize();
-    rowTrueOffsetsIFR[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
+	rowTrueOffsetsIFBR[localInterfaceIndex].resize(2);
+	colTrueOffsetsIFBR[localInterfaceIndex].resize(2);
+	rowTrueOffsetsIFBL[localInterfaceIndex].resize(2);
+	colTrueOffsetsIFBL[localInterfaceIndex].resize(2);
+      }
     
-    rowTrueOffsetsIFR[localInterfaceIndex].PartialSum();
+    const int numBlocks = 2;  // 1 for the subdomain surface, 1 for the interface (f_{mn} and \rho_{mn}).
+    rowTrueOffsetsIFR[localInterfaceIndex][orientation].SetSize(numBlocks + 1);  // Number of blocks + 1
+    colTrueOffsetsIFR[localInterfaceIndex][orientation].SetSize(numBlocks + 1);  // Number of blocks + 1
+
+    rowTrueOffsetsIFR[localInterfaceIndex][orientation] = 0;
+    rowTrueOffsetsIFR[localInterfaceIndex][orientation][1] = ifespace[interfaceIndex]->GetTrueVSize();
+    rowTrueOffsetsIFR[localInterfaceIndex][orientation][2] = ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
     
-    colTrueOffsetsIFR[localInterfaceIndex] = 0;
-    colTrueOffsetsIFR[localInterfaceIndex][1] = tdofsBdry[sd1].size();
-    colTrueOffsetsIFR[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
+    rowTrueOffsetsIFR[localInterfaceIndex][orientation].PartialSum();
     
-    colTrueOffsetsIFR[localInterfaceIndex].PartialSum();
+    colTrueOffsetsIFR[localInterfaceIndex][orientation] = 0;
+    colTrueOffsetsIFR[localInterfaceIndex][orientation][1] = tdofsBdry[sd1].size();
+    colTrueOffsetsIFR[localInterfaceIndex][orientation][2] = ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
     
-    BlockOperator *rightInjection = new BlockOperator(rowTrueOffsetsIFR[localInterfaceIndex], colTrueOffsetsIFR[localInterfaceIndex]);
+    colTrueOffsetsIFR[localInterfaceIndex][orientation].PartialSum();
+    
+    BlockOperator *rightInjection = new BlockOperator(rowTrueOffsetsIFR[localInterfaceIndex][orientation], colTrueOffsetsIFR[localInterfaceIndex][orientation]);
 
     rightInjection->SetBlock(0, 0, new ProductOperator(new TransposeOperator(InterfaceToSurfaceInjection[sd1][sd1if]),
 						       tdofsBdryInjection[sd1], false, false));
@@ -1426,23 +1445,23 @@ private:
 
     // Create left injection operator for sd0.
 
-    rowTrueOffsetsIFL[localInterfaceIndex].SetSize(numBlocks + 1);  // Number of blocks + 1
-    colTrueOffsetsIFL[localInterfaceIndex].SetSize(numBlocks + 1);  // Number of blocks + 1
+    rowTrueOffsetsIFL[localInterfaceIndex][orientation].SetSize(numBlocks + 1);  // Number of blocks + 1
+    colTrueOffsetsIFL[localInterfaceIndex][orientation].SetSize(numBlocks + 1);  // Number of blocks + 1
 
-    rowTrueOffsetsIFL[localInterfaceIndex] = 0;
-    rowTrueOffsetsIFL[localInterfaceIndex][1] = tdofsBdry[sd0].size();
-    rowTrueOffsetsIFL[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize(); // + iH1fespace[interfaceIndex]->GetTrueVSize();
-    //rowTrueOffsetsIFL[localInterfaceIndex][3] = iH1fespace[interfaceIndex]->GetTrueVSize();
+    rowTrueOffsetsIFL[localInterfaceIndex][orientation] = 0;
+    rowTrueOffsetsIFL[localInterfaceIndex][orientation][1] = tdofsBdry[sd0].size();
+    rowTrueOffsetsIFL[localInterfaceIndex][orientation][2] = ifespace[interfaceIndex]->GetTrueVSize(); // + iH1fespace[interfaceIndex]->GetTrueVSize();
+    //rowTrueOffsetsIFL[localInterfaceIndex][orientation][3] = iH1fespace[interfaceIndex]->GetTrueVSize();
     
-    rowTrueOffsetsIFL[localInterfaceIndex].PartialSum();
+    rowTrueOffsetsIFL[localInterfaceIndex][orientation].PartialSum();
     
-    colTrueOffsetsIFL[localInterfaceIndex] = 0;
-    colTrueOffsetsIFL[localInterfaceIndex][1] = ifespace[interfaceIndex]->GetTrueVSize();
-    colTrueOffsetsIFL[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize(); // + iH1fespace[interfaceIndex]->GetTrueVSize();
+    colTrueOffsetsIFL[localInterfaceIndex][orientation] = 0;
+    colTrueOffsetsIFL[localInterfaceIndex][orientation][1] = ifespace[interfaceIndex]->GetTrueVSize();
+    colTrueOffsetsIFL[localInterfaceIndex][orientation][2] = ifespace[interfaceIndex]->GetTrueVSize(); // + iH1fespace[interfaceIndex]->GetTrueVSize();
     
-    colTrueOffsetsIFL[localInterfaceIndex].PartialSum();
+    colTrueOffsetsIFL[localInterfaceIndex][orientation].PartialSum();
     
-    BlockOperator *leftInjection = new BlockOperator(rowTrueOffsetsIFL[localInterfaceIndex], colTrueOffsetsIFL[localInterfaceIndex]);
+    BlockOperator *leftInjection = new BlockOperator(rowTrueOffsetsIFL[localInterfaceIndex][orientation], colTrueOffsetsIFL[localInterfaceIndex][orientation]);
 
     leftInjection->SetBlock(0, 0, new ProductOperator(tdofsBdryInjectionTranspose[sd0], InterfaceToSurfaceInjection[sd0][sd0if], false, false));
     leftInjection->SetBlock(1, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()));
@@ -1453,24 +1472,24 @@ private:
 
     // Create block injection operator from (u^s, f_i) to (u^s, f_i, \rho_i) on sd0, where the range is over all sd0 interfaces.
     
-    rowTrueOffsetsIFBL[localInterfaceIndex].SetSize(4 + 1);  // Number of blocks + 1
-    colTrueOffsetsIFBL[localInterfaceIndex].SetSize(2 + 1);  // Number of blocks + 1
+    rowTrueOffsetsIFBL[localInterfaceIndex][orientation].SetSize(4 + 1);  // Number of blocks + 1
+    colTrueOffsetsIFBL[localInterfaceIndex][orientation].SetSize(2 + 1);  // Number of blocks + 1
 
-    rowTrueOffsetsIFBL[localInterfaceIndex] = 0;
-    rowTrueOffsetsIFBL[localInterfaceIndex][1] = tdofsBdry[sd0].size();
-    rowTrueOffsetsIFBL[localInterfaceIndex][2] = sd0os;
-    rowTrueOffsetsIFBL[localInterfaceIndex][3] = ifespace[interfaceIndex]->GetTrueVSize();
-    rowTrueOffsetsIFBL[localInterfaceIndex][4] = sd0osComp;
+    rowTrueOffsetsIFBL[localInterfaceIndex][orientation] = 0;
+    rowTrueOffsetsIFBL[localInterfaceIndex][orientation][1] = tdofsBdry[sd0].size();
+    rowTrueOffsetsIFBL[localInterfaceIndex][orientation][2] = sd0os;
+    rowTrueOffsetsIFBL[localInterfaceIndex][orientation][3] = ifespace[interfaceIndex]->GetTrueVSize();
+    rowTrueOffsetsIFBL[localInterfaceIndex][orientation][4] = sd0osComp;
     
-    rowTrueOffsetsIFBL[localInterfaceIndex].PartialSum();
+    rowTrueOffsetsIFBL[localInterfaceIndex][orientation].PartialSum();
     
-    colTrueOffsetsIFBL[localInterfaceIndex] = 0;
-    colTrueOffsetsIFBL[localInterfaceIndex][1] = tdofsBdry[sd0].size();
-    colTrueOffsetsIFBL[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize();
+    colTrueOffsetsIFBL[localInterfaceIndex][orientation] = 0;
+    colTrueOffsetsIFBL[localInterfaceIndex][orientation][1] = tdofsBdry[sd0].size();
+    colTrueOffsetsIFBL[localInterfaceIndex][orientation][2] = ifespace[interfaceIndex]->GetTrueVSize();
     
-    colTrueOffsetsIFBL[localInterfaceIndex].PartialSum();
+    colTrueOffsetsIFBL[localInterfaceIndex][orientation].PartialSum();
     
-    BlockOperator *blockInjectionLeft = new BlockOperator(rowTrueOffsetsIFBL[localInterfaceIndex], colTrueOffsetsIFBL[localInterfaceIndex]);
+    BlockOperator *blockInjectionLeft = new BlockOperator(rowTrueOffsetsIFBL[localInterfaceIndex][orientation], colTrueOffsetsIFBL[localInterfaceIndex][orientation]);
 
     blockInjectionLeft->SetBlock(0, 0, new IdentityOperator(tdofsBdry[sd0].size()));
     blockInjectionLeft->SetBlock(2, 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()));
@@ -1478,24 +1497,24 @@ private:
     // Create block injection operator from (u^s, f_i, \rho_i) to (u^s, f_i, \rho_i) on sd1, where the domain is over all sd1 interfaces
     // and the range is only this one interface.
 
-    rowTrueOffsetsIFBR[localInterfaceIndex].SetSize(2 + 1);  // Number of blocks + 1
-    colTrueOffsetsIFBR[localInterfaceIndex].SetSize(4 + 1);  // Number of blocks + 1
+    rowTrueOffsetsIFBR[localInterfaceIndex][orientation].SetSize(2 + 1);  // Number of blocks + 1
+    colTrueOffsetsIFBR[localInterfaceIndex][orientation].SetSize(4 + 1);  // Number of blocks + 1
 
-    rowTrueOffsetsIFBR[localInterfaceIndex] = 0;
-    rowTrueOffsetsIFBR[localInterfaceIndex][1] = tdofsBdry[sd1].size();
-    rowTrueOffsetsIFBR[localInterfaceIndex][2] = ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
+    rowTrueOffsetsIFBR[localInterfaceIndex][orientation] = 0;
+    rowTrueOffsetsIFBR[localInterfaceIndex][orientation][1] = tdofsBdry[sd1].size();
+    rowTrueOffsetsIFBR[localInterfaceIndex][orientation][2] = ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
     
-    rowTrueOffsetsIFBR[localInterfaceIndex].PartialSum();
+    rowTrueOffsetsIFBR[localInterfaceIndex][orientation].PartialSum();
     
-    colTrueOffsetsIFBR[localInterfaceIndex] = 0;
-    colTrueOffsetsIFBR[localInterfaceIndex][1] = tdofsBdry[sd1].size();
-    colTrueOffsetsIFBR[localInterfaceIndex][2] = sd1os;
-    colTrueOffsetsIFBR[localInterfaceIndex][3] = ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
-    colTrueOffsetsIFBR[localInterfaceIndex][4] = sd1osComp;
+    colTrueOffsetsIFBR[localInterfaceIndex][orientation] = 0;
+    colTrueOffsetsIFBR[localInterfaceIndex][orientation][1] = tdofsBdry[sd1].size();
+    colTrueOffsetsIFBR[localInterfaceIndex][orientation][2] = sd1os;
+    colTrueOffsetsIFBR[localInterfaceIndex][orientation][3] = ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize();
+    colTrueOffsetsIFBR[localInterfaceIndex][orientation][4] = sd1osComp;
     
-    colTrueOffsetsIFBR[localInterfaceIndex].PartialSum();
+    colTrueOffsetsIFBR[localInterfaceIndex][orientation].PartialSum();
     
-    BlockOperator *blockInjectionRight = new BlockOperator(rowTrueOffsetsIFBR[localInterfaceIndex], colTrueOffsetsIFBR[localInterfaceIndex]);
+    BlockOperator *blockInjectionRight = new BlockOperator(rowTrueOffsetsIFBR[localInterfaceIndex][orientation], colTrueOffsetsIFBR[localInterfaceIndex][orientation]);
 
     blockInjectionRight->SetBlock(0, 0, new IdentityOperator(tdofsBdry[sd1].size()));
     blockInjectionRight->SetBlock(1, 2, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize() + iH1fespace[interfaceIndex]->GetTrueVSize()));
@@ -1697,7 +1716,7 @@ private:
 	// <\nabla_\tau \psi_m, \mu_{rm}^{-1} f_{mn}>_{S_{mn}}
 	// The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
 	//op->SetBlock((2*i) + 2, (2*i) + 1, new TransposeOperator(ifNDH1grad[interfaceIndex]));  // TODO: Without this block, the block diagonal preconditioner works very well!
-	op->SetBlock((2*i) + 2, (2*i) + 1, ifNDH1gradT[interfaceIndex]);  // TODO: Without this block, the block diagonal preconditioner works very well!
+	op->SetBlock((2*i) + 2, (2*i) + 1, ifNDH1gradT[interfaceIndex]);
 	
 	// Diagonal blocks
 
