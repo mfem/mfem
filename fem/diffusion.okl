@@ -9,32 +9,30 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// *****************************************************************************
-typedef double* DofToQuad_t @dim(NUM_QUAD_1D, NUM_DOFS_1D);
-typedef double* QuadToDof_t @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+typedef double* DofToQuad_t @dim(Q1D, D1D);
+typedef double* QuadToDof_t @dim(D1D, Q1D);
 typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
-typedef double* DLocal2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef double* DLocal2D_t @dim(D1D, D1D, numElements);
 typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
 
-#if NUM_QUAD_1D < NUM_DOFS_1D
-#  define NUM_MAX_1D NUM_DOFS_1D
+#if Q1D < D1D
+#  define NUM_MAX_1D D1D
 #else
-#  define NUM_MAX_1D NUM_QUAD_1D
+#  define NUM_MAX_1D Q1D
 #endif
 
 #define NUM_MAX_2D (NUM_MAX_1D * NUM_MAX_1D)
 
-#define NUM_QUAD_DOFS_1D (NUM_QUAD_1D * NUM_DOFS_1D)
+#define NUM_QUAD_DOFS_1D (Q1D * D1D)
 
-#define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
-#define DOFS_2D_ID(X, Y) (X + ((Y) * NUM_DOFS_1D))
+#define QUAD_2D_ID(X, Y) (X + ((Y) * Q1D))
+#define DOFS_2D_ID(X, Y) (X + ((Y) * D1D))
 
-#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * NUM_QUAD_1D) + ((Z) * NUM_QUAD_2D))
-#define DOFS_3D_ID(X, Y, Z) (X + ((Y) * NUM_DOFS_1D) + ((Z) * NUM_DOFS_2D))
+#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * Q1D) + ((Z) * NUM_QUAD_2D))
+#define DOFS_3D_ID(X, Y, Z) (X + ((Y) * D1D) + ((Z) * NUM_DOFS_2D))
 
 #define M2_ELEMENT_BATCH 32
 
-// *****************************************************************************
 @kernel void Assemble2D(const int numElements,
                         @restrict const double * quadWeights,
                         @restrict const Jacobian2D_t J,
@@ -52,7 +50,6 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
   }
 }
 
-// *****************************************************************************
 @kernel void MultAdd2D_CPU(const int numElements,
                            @restrict const DofToQuad_t dofToQuad,
                            @restrict const DofToQuad_t dofToQuadD,
@@ -64,33 +61,33 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
    // Iterate over elements
    for (int e = 0; e < numElements; ++e; @outer) {
       for (int dummy = 0; dummy < 1; ++dummy; @inner) {
-         double grad[NUM_QUAD_1D][NUM_QUAD_1D][2];
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+         double grad[Q1D][Q1D][2];
+         for (int qy = 0; qy < Q1D; ++qy) {
+            for (int qx = 0; qx < Q1D; ++qx) {
                grad[qy][qx][0] = 0;
                grad[qy][qx][1] = 0;
             }
          }
 
-         for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
-            double gradX[NUM_QUAD_1D][2];
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+         for (int dy = 0; dy < D1D; ++dy) {
+            double gradX[Q1D][2];
+            for (int qx = 0; qx < Q1D; ++qx) {
                gradX[qx][0] = 0;
                gradX[qx][1] = 0;
             }
 
-            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            for (int dx = 0; dx < D1D; ++dx) {
                const double s = solIn(dx, dy, e);
-               for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+               for (int qx = 0; qx < Q1D; ++qx) {
                   gradX[qx][0] += s * dofToQuad(qx, dx);
                   gradX[qx][1] += s * dofToQuadD(qx, dx);
                }
             }
 
-            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+            for (int qy = 0; qy < Q1D; ++qy) {
                const double wy  = dofToQuad(qy, dy);
                const double wDy = dofToQuadD(qy, dy);
-               for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+               for (int qx = 0; qx < Q1D; ++qx) {
                   grad[qy][qx][0] += gradX[qx][1] * wy;
                   grad[qy][qx][1] += gradX[qx][0] * wDy;
                }
@@ -98,8 +95,8 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
          }
 
          // Calculate Dxy, xDy in plane
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+         for (int qy = 0; qy < Q1D; ++qy) {
+            for (int qx = 0; qx < Q1D; ++qx) {
                const int q = QUAD_2D_ID(qx, qy);
                const double O11 = oper(0, q, e);
                const double O12 = oper(1, q, e);
@@ -113,17 +110,17 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
             }
          }
 
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-            double gradX[NUM_DOFS_1D][2];
-            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+         for (int qy = 0; qy < Q1D; ++qy) {
+            double gradX[D1D][2];
+            for (int dx = 0; dx < D1D; ++dx) {
                gradX[dx][0] = 0;
                gradX[dx][1] = 0;
             }
 
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            for (int qx = 0; qx < Q1D; ++qx) {
                const double gX = grad[qy][qx][0];
                const double gY = grad[qy][qx][1];
-               for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+               for (int dx = 0; dx < D1D; ++dx) {
                   const double wx  = quadToDof(dx, qx);
                   const double wDx = quadToDofD(dx, qx);
                   gradX[dx][0] += gX * wDx;
@@ -131,10 +128,10 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
                }
             }
 
-            for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+            for (int dy = 0; dy < D1D; ++dy) {
                const double wy  = quadToDof(dy, qy);
                const double wDy = quadToDofD(dy, qy);
-               for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+               for (int dx = 0; dx < D1D; ++dx) {
                   solOut(dx, dy, e) += ((gradX[dx][0] * wy) +
                                         (gradX[dx][1] * wDy));
                }
@@ -144,7 +141,6 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
    }
 }
 
-// *****************************************************************************
 @kernel void MultAdd2D_GPU(const int numElements,
                            @restrict const DofToQuad_t dofToQuad,
                            @restrict const DofToQuad_t dofToQuadD,
@@ -156,18 +152,18 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
    // Iterate over elements
    for (int eOff = 0; eOff < numElements; eOff += M2_ELEMENT_BATCH; @outer) {
       // Store dof <--> quad mappings
-      @shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
-      @shared double s_dofToQuadD[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
-      @shared double s_quadToDof[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
-      @shared double s_quadToDofD[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+      @shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(Q1D, D1D);
+      @shared double s_dofToQuadD[NUM_QUAD_DOFS_1D] @dim(Q1D, D1D);
+      @shared double s_quadToDof[NUM_QUAD_DOFS_1D] @dim(D1D, Q1D);
+      @shared double s_quadToDofD[NUM_QUAD_DOFS_1D] @dim(D1D, Q1D);
 
       // Store xy planes in @shared memory
-      @shared double s_xy[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
-      @shared double s_xDy[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
-      @shared double s_grad[2 * NUM_QUAD_2D] @dim(2, NUM_QUAD_1D, NUM_QUAD_1D);
+      @shared double s_xy[NUM_QUAD_DOFS_1D] @dim(D1D, Q1D);
+      @shared double s_xDy[NUM_QUAD_DOFS_1D] @dim(D1D, Q1D);
+      @shared double s_grad[2 * NUM_QUAD_2D] @dim(2, Q1D, Q1D);
 
       @exclusive double r_x[NUM_MAX_1D];
-      @exclusive double r_y[NUM_QUAD_1D];
+      @exclusive double r_y[Q1D];
 
       for (int x = 0; x < NUM_MAX_1D; ++x; @inner) {
          for (int id = x; id < NUM_QUAD_DOFS_1D; id += NUM_MAX_1D) {
@@ -180,19 +176,19 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
 
       for (int e = eOff; e < (eOff + M2_ELEMENT_BATCH); ++e) {
          if (e < numElements) {
-            for (int dx = 0; dx < NUM_DOFS_1D; ++dx; @inner) {
-               if (dx < NUM_DOFS_1D) {
-                  for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+            for (int dx = 0; dx < D1D; ++dx; @inner) {
+               if (dx < D1D) {
+                  for (int qy = 0; qy < Q1D; ++qy) {
                      s_xy(dx, qy) = 0;
                      s_xDy(dx, qy) = 0;
                   }
-                  for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+                  for (int dy = 0; dy < D1D; ++dy) {
                      r_x[dy] = solIn(dx, dy, e);
                   }
-                  for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+                  for (int qy = 0; qy < Q1D; ++qy) {
                      double xy = 0;
                      double xDy = 0;
-                     for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+                     for (int dy = 0; dy < D1D; ++dy) {
                         xy  += r_x[dy] * s_dofToQuad(qy, dy);
                         xDy += r_x[dy] * s_dofToQuadD(qy, dy);
                      }
@@ -202,10 +198,10 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
                }
             }
             for (int qy = 0; qy < NUM_MAX_1D; ++qy; @inner) {
-               if (qy < NUM_QUAD_1D) {
-                  for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+               if (qy < Q1D) {
+                  for (int qx = 0; qx < Q1D; ++qx) {
                      double gradX = 0, gradY = 0;
-                     for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+                     for (int dx = 0; dx < D1D; ++dx) {
                         gradX += s_xy(dx, qy)  * s_dofToQuadD(qx, dx);
                         gradY += s_xDy(dx, qy) * s_dofToQuad(qx, dx);
                      }
@@ -221,20 +217,20 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
                }
             }
 
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx; @inner) {
-               if (qx < NUM_QUAD_1D) {
-                  for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+            for (int qx = 0; qx < Q1D; ++qx; @inner) {
+               if (qx < Q1D) {
+                  for (int dy = 0; dy < D1D; ++dy) {
                      s_xy(dy, qx) = 0;
                      s_xDy(dy, qx) = 0;
                   }
-                  for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+                  for (int qy = 0; qy < Q1D; ++qy) {
                      r_x[qy] = s_grad(0, qx, qy);
                      r_y[qy] = s_grad(1, qx, qy);
                   }
-                  for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+                  for (int dy = 0; dy < D1D; ++dy) {
                      double xy  = 0;
                      double xDy = 0;
-                     for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+                     for (int qy = 0; qy < Q1D; ++qy) {
                         xy  += r_x[qy] * s_quadToDof(dy, qy);
                         xDy += r_y[qy] * s_quadToDofD(dy, qy);
                      }
@@ -243,11 +239,11 @@ typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
                   }
                }
             }
-            for (int dx = 0; dx < NUM_DOFS_1D; ++dx; @inner) {
-               if (dx < NUM_DOFS_1D) {
-                  for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+            for (int dx = 0; dx < D1D; ++dx; @inner) {
+               if (dx < D1D) {
+                  for (int dy = 0; dy < D1D; ++dy) {
                      double s = 0;
-                     for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+                     for (int qx = 0; qx < Q1D; ++qx) {
                         s += ((s_xy(dy, qx) * s_quadToDofD(dx, qx)) +
                               (s_xDy(dy, qx) * s_quadToDof(dx, qx)));
                      }

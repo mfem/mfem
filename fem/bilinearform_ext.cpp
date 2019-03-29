@@ -50,7 +50,6 @@ void PABilinearFormExtension::AddDomainIntegrator(BilinearFormIntegrator *i)
 
 void PABilinearFormExtension::Assemble()
 {
-   assert(integrators.Size()==1);
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
@@ -80,7 +79,6 @@ void PABilinearFormExtension::FormSystemOperator(const Array<int>
    Operator *rap = this;
    if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
    const bool own_A = (rap!=this);
-   assert(rap);
    A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
 }
 
@@ -114,7 +112,6 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
    }
 
    ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(A);
-   assert(cA);
    if (cA)
    {
       cA->EliminateRHS(X, B);
@@ -130,7 +127,6 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
-   assert(iSz==1);
    for (int i = 0; i < iSz; ++i)
    {
       integrators[i]->MultAssembled(localX, localY);
@@ -143,7 +139,6 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
-   assert(iSz==1);
    for (int i = 0; i < iSz; ++i)
    {
       integrators[i]->MultAssembledTranspose(localX, localY);
@@ -171,7 +166,6 @@ void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
 MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
    : Operator(form->Size()), a(form) { }
 
-// *****************************************************************************
 ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
    :fes(f),
     ne(fes.GetNE()),
@@ -235,7 +229,6 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
    offsets[0] = 0;
 }
 
-// ***************************************************************************
 void ElemRestriction::Mult(const Vector& x, Vector& y) const
 {
    const int vd = vdim;
@@ -260,7 +253,6 @@ void ElemRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
-// ***************************************************************************
 void ElemRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
    const int vd = vdim;

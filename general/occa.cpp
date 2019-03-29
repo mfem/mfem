@@ -11,40 +11,35 @@
 
 #include "okina.hpp"
 
-// *****************************************************************************
 namespace mfem
 {
 
-// *****************************************************************************
-OccaDevice occaWrapDevice(CUdevice dev, CUcontext ctx)
+OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx)
 {
-#if defined(__OCCA__) && defined(__NVCC__)
+#if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
    return occa::cuda::wrapDevice(dev, ctx);
 #else
    return 0;
 #endif
 }
 
-// *****************************************************************************
-OccaMemory occaDeviceMalloc(OccaDevice device, const size_t bytes)
+OccaMemory OccaDeviceMalloc(OccaDevice device, const size_t bytes)
 {
-#ifdef __OCCA__
+#ifdef MFEM_USE_OCCA
    return device.malloc(bytes);
 #else
    return (void*)NULL;
 #endif
 }
 
-// *****************************************************************************
-OccaMemory occaWrapMemory(const OccaDevice device,
-                          void *d_adrs,
+OccaMemory OccaWrapMemory(const OccaDevice device, void *d_adrs,
                           const size_t bytes)
 {
-   // OCCA + NVCC will use CUDA
-#if defined(__OCCA__) && defined(__NVCC__)
+   // OCCA + MFEM_USE_CUDA will use CUDA
+#if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
    return occa::cuda::wrapMemory(device, d_adrs, bytes);
 #else // Just OCCA uses CPU
-#if defined(__OCCA__)
+#if defined(MFEM_USE_OCCA)
    return occa::cpu::wrapMemory(device, d_adrs, bytes);
 #else
    return (void*)NULL;
@@ -52,31 +47,27 @@ OccaMemory occaWrapMemory(const OccaDevice device,
 #endif
 }
 
-// *****************************************************************************
-void *occaMemoryPtr(OccaMemory o_adrs)
+void *OccaMemoryPtr(OccaMemory o_adrs)
 {
-#ifdef __OCCA__
+#ifdef MFEM_USE_OCCA
    return o_adrs.ptr();
 #else
    return (void*)NULL;
 #endif
 }
 
-// *****************************************************************************
-void occaCopyFrom(OccaMemory o_adrs, const void *h_adrs)
+void OccaCopyFrom(OccaMemory o_adrs, const void *h_adrs)
 {
-#ifdef __OCCA__
+#ifdef MFEM_USE_OCCA
    o_adrs.copyFrom(h_adrs);
 #endif
 }
 
-// *****************************************************************************
-void occaCopyTo(OccaMemory o_adrs, void *h_adrs)
+void OccaCopyTo(OccaMemory o_adrs, void *h_adrs)
 {
-#ifdef __OCCA__
+#ifdef MFEM_USE_OCCA
    o_adrs.copyTo(h_adrs);
 #endif
 }
 
-// *****************************************************************************
 } // namespace mfem
