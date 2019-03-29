@@ -124,8 +124,8 @@ static inline bool MmDeviceIniFilter(void)
    return false;
 }
 
-// Turn a known address to the right host or device one. Alloc, Push, or Pull it
-// if required.
+// Turn a known address into the right host or device address. Alloc, Push, or
+// Pull it if necessary.
 static void *PtrKnown(mm::ledger &maps, void *ptr)
 {
    mm::memory &base = maps.memories.at(ptr);
@@ -152,8 +152,8 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    return base.d_ptr;
 }
 
-// Turn an alias to the right host or device one. Alloc, Push, or Pull it if
-// required.
+// Turn an alias into the right host or device address. Alloc, Push, or Pull it
+// if necessary.
 static void *PtrAlias(mm::ledger &maps, void *ptr)
 {
    const bool gpu = Device::UsingDevice();
@@ -185,7 +185,7 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
 void *mm::Ptr(void *ptr)
 {
    if (MmDeviceIniFilter()) { return ptr; }
-   if (ptr==NULL) { return NULL;};
+   if (ptr==NULL) { return NULL; };
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
    if (Device::UsingDevice())

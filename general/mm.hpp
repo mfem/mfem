@@ -77,7 +77,6 @@ public:
       mm::MM().Erase(ptr);
    }
 
-
    /// Translates ptr to host or device address, depending on config::Cuda() and
    /// the ptr state.
    static inline void *ptr(void *a) { return MM().Ptr(a); }
@@ -107,25 +106,25 @@ public:
    /// Prints all pointers known by the memory manager
    static inline void PrintPtrs(void)
    {
-      for ( const auto& n : MM().maps.memories )
+      for (const auto& n : MM().maps.memories)
       {
          printf("key %p, host %p, device %p \n", n.first, n.second.h_ptr,
                 n.second.d_ptr);
       }
    }
 
-   /// Copies all memory on current memory space
+   /// Copies all memory to the current memory space
    static inline void GetAll(void)
    {
-      for ( const auto& n : MM().maps.memories )
+      for (const auto& n : MM().maps.memories)
       {
          const void *ptr = n.first;
          mm::ptr(ptr);
       }
    }
 
-   /// Registers external host pointer in the mm, which will manage
-   /// the device pointer.
+   /// Registers external host pointer in the mm. The mm will manage the
+   /// corresponding device pointer (but not the provided host pointer).
    template<class T>
    static inline void RegisterHostPtr(T *ptr_host, const size_t size)
    {
@@ -146,8 +145,8 @@ public:
       base.host = host;
    }
 
-   /// Unregisters the host pointer from the mm. To be used with
-   /// memory not allocated by the mm
+   /// Unregisters the host pointer from the mm. To be used with memory not
+   /// allocated by the mm.
    template<class T>
    static inline void UnregisterHostPtr(T *ptr)
    {
