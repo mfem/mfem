@@ -44,7 +44,8 @@ all: $(MINIAPPS)
 
 # Rules for building the miniapps
 %: $(SRC)%.cpp %_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $@_solver.o $(COMMON_O) $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solver.o $(COMMON_O) $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies
 $(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
