@@ -41,8 +41,8 @@ namespace mfem
 #define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
 #define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
    OkinaWrap<BLOCKS>(N,                                                 \
-                     [=] __device__ (int i) {__VA_ARGS__},              \
-                     [&]            (int i) {__VA_ARGS__})
+                     [=] MFEM_DEVICE (int i) {__VA_ARGS__},             \
+                     [&]             (int i) {__VA_ARGS__})
 
 /// OpenMP backend
 template <typename HBODY>

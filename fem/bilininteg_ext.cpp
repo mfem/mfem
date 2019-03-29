@@ -631,7 +631,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       }
       else if (function_coeff)
       {
-         function = function_coeff->GetFunction();
+         function = function_coeff->GetDeviceFunction();
       }
       else
       {
@@ -639,9 +639,8 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       }
       const int NE = ne;
       const int NQ = nq;
-      const int dims = el.GetDim();
       const DeviceVector w(maps->W.GetData(), NQ);
-      const DeviceTensor<3> x(geo->X.GetData(), 3,NQ,NE);
+      const DeviceTensor<3> x(geo->X.GetData(), 2,NQ,NE);
       const DeviceTensor<4> J(geo->J.GetData(), 2,2,NQ,NE);
       DeviceMatrix v(vec.GetData(), NQ, NE);
       MFEM_FORALL(e, NE,
@@ -653,12 +652,11 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double J21 = J(0,1,q,e);
             const double J22 = J(1,1,q,e);
             const double detJ = (J11*J22)-(J21*J12);
-            const int offset = dims*NQ*e+q;
+            const DeviceVector3 Xq(x(0,q,e), x(1,q,e));
             const double coeff =
-            const_coeff ? constant:
-            function_coeff ?
-            function(DeviceVector3(x[offset], x[offset+1], x[offset+2])):
-            0.0;
+               const_coeff ? constant
+               : function_coeff ? function(Xq)
+               : 0.0;
             v(q,e) =  w[q] * coeff * detJ;
          }
       });
@@ -673,7 +671,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       }
       else if (function_coeff)
       {
-         function = function_coeff->GetFunction();
+         function = function_coeff->GetDeviceFunction();
       }
       else
       {
@@ -696,12 +694,11 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double detJ =
             ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
             (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
-            const int offset = dims*NQ*e+q;
+            const DeviceVector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
             const double coeff =
-            const_coeff ? constant:
-            function_coeff ?
-            function(DeviceVector3(x[offset], x[offset+1], x[offset+2])):
-            0.0;
+               const_coeff ? constant
+               : function_coeff ? function(Xq)
+               : 0.0;
             v(q,e) = W(q) * coeff * detJ;
          }
       });
@@ -1287,6 +1284,7 @@ static void NodeCopyByVDim(const int elements,
 template<const int D1D,
          const int Q1D> static
 void PAGeom2D(const int NE,
+              const double* _B,
               const double* _G,
               const double* _X,
               double* _Xq,
@@ -1296,6 +1294,7 @@ void PAGeom2D(const int NE,
 {
    const int ND = D1D*D1D;
    const int NQ = Q1D*Q1D;
+   const DeviceTensor<2> B(_B, NQ,ND);
    const DeviceTensor<3> G(_G, 2,NQ,ND);
    const DeviceTensor<3> X(_X, 2,ND,NE);
    DeviceTensor<3> Xq(_Xq, 2,NQ,NE);
@@ -1315,17 +1314,21 @@ void PAGeom2D(const int NE,
       }
       for (int q = 0; q < NQ; ++q)
       {
+         double X0  = 0; double X1  = 0;
          double J11 = 0; double J12 = 0;
          double J21 = 0; double J22 = 0;
          for (int d = 0; d < ND; ++d)
          {
+            const double b = B(q,d);
             const double wx = G(0,q,d);
             const double wy = G(1,q,d);
             const double x = s_X[0+d*2];
             const double y = s_X[1+d*2];
             J11 += (wx * x); J12 += (wx * y);
             J21 += (wy * x); J22 += (wy * y);
+            X0 += b*x; X1 += b*y;
          }
+         Xq(0,q,e) = X0; Xq(1,q,e) = X1;
          const double r_detJ = (J11 * J22)-(J12 * J21);
          J(0,0,q,e) = J11;
          J(1,0,q,e) = J12;
@@ -1344,6 +1347,7 @@ void PAGeom2D(const int NE,
 template<const int D1D,
          const int Q1D> static
 void PAGeom3D(const int NE,
+              const double* _B,
               const double* _G,
               const double* _X,
               double* _Xq,
@@ -1353,6 +1357,7 @@ void PAGeom3D(const int NE,
 {
    const int ND = D1D*D1D*D1D;
    const int NQ = Q1D*Q1D*Q1D;
+   const DeviceTensor<2> B(_B, NQ,NE);
    const DeviceTensor<3> G(_G, 3,NQ,NE);
    const DeviceTensor<3> X(_X, 3,ND,NE);
    DeviceTensor<3> Xq(_Xq, 3,NQ,NE);
@@ -1378,6 +1383,7 @@ void PAGeom3D(const int NE,
          double J31 = 0; double J32 = 0; double J33 = 0;
          for (int d = 0; d < ND; ++d)
          {
+            const double b = B(q,d);
             const double wx = G(0,q,d);
             const double wy = G(1,q,d);
             const double wz = G(2,q,d);
@@ -1387,6 +1393,7 @@ void PAGeom3D(const int NE,
             J11 += (wx * x); J12 += (wx * y); J13 += (wx * z);
             J21 += (wy * x); J22 += (wy * y); J23 += (wy * z);
             J31 += (wz * x); J32 += (wz * y); J33 += (wz * z);
+            Xq(0,q,e) = b*x; Xq(1,q,e) = b*y; Xq(2,q,e) = b*z;
          }
          const double r_detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) +
                                 (J13 * J21 * J32) - (J13 * J22 * J31) -
@@ -1416,13 +1423,14 @@ void PAGeom3D(const int NE,
 }
 
 typedef void (*fIniGeom)(const int ne,
-                         const double *G, const double *X,
+                         const double *B, const double *G, const double *X,
                          double *x, double *J, double *invJ, double *detJ);
 
 static void PAGeom(const int dim,
                    const int D1D,
                    const int Q1D,
                    const int NE,
+                   const double* B,
                    const double* G,
                    const double* X,
                    double* Xq,
@@ -1454,7 +1462,7 @@ static void PAGeom(const int dim,
              __FILE__, __LINE__, dim, D1D, Q1D);
       mfem_error("PA Geometry kernel not instanciated");
    }
-   call[id](NE, G, X, Xq, J, invJ, detJ);
+   call[id](NE, B, G, X, Xq, J, invJ, detJ);
 }
 
 GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
@@ -1475,7 +1483,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->nodes);
    PAGeom(dims, D1D, Q1D, elements,
-          maps->G, geom->nodes,
+          maps->B, maps->G, geom->nodes,
           geom->X, geom->J, geom->invJ, geom->detJ);
    return geom;
 }
@@ -1531,7 +1539,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    }
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    PAGeom(dims, D1D, Q1D, elements,
-          maps->G, geom->nodes,
+          maps->B, maps->G, geom->nodes,
           geom->X, geom->J, geom->invJ, geom->detJ);
    return geom;
 }

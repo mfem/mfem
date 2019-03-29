@@ -22,6 +22,7 @@ namespace mfem
 {
 
 #ifdef MFEM_USE_CUDA
+#define MFEM_DEVICE __device__
 #define MFEM_HOST_DEVICE __host__ __device__
 inline void CuCheck(const unsigned int c)
 {
@@ -52,13 +53,11 @@ inline T AtomicAdd(T* address, T val)
    return atomicAdd(address, val);
 }
 #else // MFEM_USE_CUDA
-#define __host__
-#define __device__
-#define __constant__
+#define MFEM_DEVICE
+#define MFEM_HOST_DEVICE
 typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
-#define MFEM_HOST_DEVICE
 template<typename T> inline T AtomicAdd(T* address, T val)
 {
 #if defined(_OPENMP)
