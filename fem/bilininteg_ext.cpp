@@ -654,9 +654,9 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double detJ = (J11*J22)-(J21*J12);
             const DeviceVector3 Xq(x(0,q,e), x(1,q,e));
             const double coeff =
-               const_coeff ? constant
-               : function_coeff ? function(Xq)
-               : 0.0;
+            const_coeff ? constant
+            : function_coeff ? function(Xq)
+            : 0.0;
             v(q,e) =  w[q] * coeff * detJ;
          }
       });
@@ -696,9 +696,9 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
             const DeviceVector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
             const double coeff =
-               const_coeff ? constant
-               : function_coeff ? function(Xq)
-               : 0.0;
+            const_coeff ? constant
+            : function_coeff ? function(Xq)
+            : 0.0;
             v(q,e) = W(q) * coeff * detJ;
          }
       });
