@@ -76,6 +76,7 @@ struct LowOrderMethod
 {
    MONOTYPE MonoType;
    bool OptScheme;
+	DG_FECollection *fec0, *fec1;
    FiniteElementSpace *fes, *SubFes0, *SubFes1;
    Array <int> smap;
    SparseMatrix D;
@@ -169,7 +170,7 @@ Mesh* GetSubcellMesh(Mesh *mesh, int p)
    }
    else
    {
-      // TODO generalize to arbitrary 1D segments (different length than 1)
+      // TODO generalize to arbitrary 1D segments (different length than 1).
       subcell_mesh = new Mesh(mesh->GetNE()*p, 1.);
       subcell_mesh->SetCurvature(1);
    }
@@ -735,11 +736,15 @@ public:
       }
       if (NeedSubcells)
       {
-         SubFes0 = lom.SubFes0;
-         SubFes1 = lom.SubFes1;
-         subcell_mesh = lom.subcell_mesh;
-         VolumeTerms = lom.VolumeTerms;
-         SubcellWeights.SetSize(ne, dofs.numSubcells, dofs.numDofsSubcell);
+			VolumeTerms = lom.VolumeTerms;
+			SubcellWeights.SetSize(ne, dofs.numSubcells, dofs.numDofsSubcell);
+			
+			if (exec_mode == 0)
+			{
+				SubFes0 = lom.SubFes0;
+				SubFes1 = lom.SubFes1;
+				subcell_mesh = lom.subcell_mesh;
+			}
       }
       
       // Initialization for transport mode.
@@ -871,7 +876,6 @@ public:
    {
       DenseMatrix elmat; // These are essentially the same.
       int dofInd = k*dofs.numSubcells+m;
-      // TODO: If the mesh is moving, these submesh spaces should be updated.
       const FiniteElement *el0 = SubFes0->GetFE(dofInd);
       const FiniteElement *el1 = SubFes1->GetFE(dofInd);
       ElementTransformation *tr = subcell_mesh->GetElementTransformation(dofInd);
@@ -1240,7 +1244,6 @@ int main(int argc, char *argv[])
    
    lom.irF = GetFaceIntRule(&fes);
    
-   FiniteElementSpace *SubFes0, *SubFes1;
    DG_FECollection fec0(0, dim, btype);
    DG_FECollection fec1(1, dim, btype);
    
@@ -1258,19 +1261,22 @@ int main(int argc, char *argv[])
       //    {
       // TODO Figure out why this gives a seg-fault, it should be v_coef, by the
       //      same logic as it is v_coef for the high order bilinearform k.
-      //       lom.VolumeTerms = new MixedConvectionIntegrator(v_coef);
+      //      lom.VolumeTerms = new MixedConvectionIntegrator(v_coef);
       //    }
       else /*if (exec_mode == 2)*/
       {
          lom.VolumeTerms = new MixedConvectionIntegrator(velocity);
       }
       
-      lom.subcell_mesh = GetSubcellMesh(mesh, order);
-      
-      SubFes0 = new FiniteElementSpace(lom.subcell_mesh, &fec0);
-      SubFes1 = new FiniteElementSpace(lom.subcell_mesh, &fec1);
-      lom.SubFes0 = SubFes0;
-      lom.SubFes1 = SubFes1;
+		lom.fec0 = &fec0;
+		lom.fec1 = &fec1;
+
+		if (exec_mode == 0)
+		{
+			lom.subcell_mesh = GetSubcellMesh(mesh, order);
+			lom.SubFes0 = new FiniteElementSpace(lom.subcell_mesh, lom.fec0);
+			lom.SubFes1 = new FiniteElementSpace(lom.subcell_mesh, lom.fec1);
+		}
    }
 
    Assembly asmbl(dofs, lom);
@@ -1416,8 +1422,6 @@ int main(int argc, char *argv[])
    double finalMass;
    if (exec_mode == 1)
    {
-      // TODO figure out why this setup doesn't conserve mass for mode 1. Use
-      // peridoic-square instead of default to avoid mass loss through outflow.
       ml.BilinearForm::operator=(0.0);
       ml.Assemble();
       ml.SpMat().GetDiag(lumpedM);
@@ -1447,10 +1451,10 @@ int main(int argc, char *argv[])
    
    if (NeedSubcells)
    {
-      delete SubFes0;
-      delete SubFes1;
-      delete lom.VolumeTerms;
-      delete lom.subcell_mesh;
+      delete asmbl.SubFes0;
+      delete asmbl.SubFes1;
+      delete asmbl.VolumeTerms;
+      delete asmbl.subcell_mesh;
    }
 
    return 0;
@@ -1584,7 +1588,14 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       
       if ((exec_mode > 0) && (lom.OptScheme))
       {
+			// TODO efficiency.
+			delete asmbl.subcell_mesh;
+			delete asmbl.SubFes0;
+			delete asmbl.SubFes1;
+			
          asmbl.subcell_mesh = GetSubcellMesh(mesh, dummy->GetOrder());
+			asmbl.SubFes0 =  new FiniteElementSpace(asmbl.subcell_mesh, lom.fec0);
+			asmbl.SubFes1 =  new FiniteElementSpace(asmbl.subcell_mesh, lom.fec1);
       }
 
       // Monotonicity terms
