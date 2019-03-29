@@ -97,10 +97,65 @@ public:
    static void* memcpy(void *dst, const void *src,
                        size_t bytes, const bool async = false);
 
-   static inline bool known(const void *a)
+   /// Tests if the pointer has been registered
+   static inline bool known(const void *ptr)
    {
-      return MM().Known(a);
+      return MM().Known(ptr);
    }
+
+   /// Prints all pointers known by the memory manager
+   static inline void PrintPtrs(void)
+   {
+      for (const auto& n : MM().maps.memories)
+      {
+         printf("key %p, host %p, device %p \n", n.first, n.second.h_ptr,
+                n.second.d_ptr);
+      }
+   }
+
+   /// Copies all memory to the current memory space
+   static inline void GetAll(void)
+   {
+      for (const auto& n : MM().maps.memories)
+      {
+         const void *ptr = n.first;
+         mm::ptr(ptr);
+      }
+   }
+
+   /// Registers external host pointer in the mm. The mm will manage the
+   /// corresponding device pointer (but not the provided host pointer).
+   template<class T>
+   static inline void RegisterHostPtr(T *ptr_host, const size_t size)
+   {
+      MM().Insert(ptr_host, size*sizeof(T));
+#ifdef MFEM_DEBUG
+      RegisterCheck(ptr_host);
+#endif
+   }
+
+   /// Registers external host and device pointers in the mm.
+   template<class T>
+   static void RegisterHostAndDevicePtr(T *ptr_host, T *ptr_device,
+                                        const size_t size, bool host)
+   {
+      RegisterHostPtr(ptr_host, size);
+      mm::memory &base = MM().maps.memories.at(ptr_host);
+      base.d_ptr = ptr_device;
+      base.host = host;
+   }
+
+   /// Unregisters the host pointer from the mm. To be used with memory not
+   /// allocated by the mm.
+   template<class T>
+   static inline void UnregisterHostPtr(T *ptr)
+   {
+      if (!ptr) { return; }
+      mm::MM().Erase(ptr);
+   }
+
+   /// Check if pointer has been registered in the mm
+   static void RegisterCheck(void *ptr);
 
 private:
    ledger maps;

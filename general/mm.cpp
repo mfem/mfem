@@ -118,13 +118,14 @@ static inline bool MmDeviceIniFilter(void)
 {
    if (!Device::UsingMM()) { return true; }
    if (Device::DeviceDisabled()) { return true; }
+   if (Device::IsTracking() == false) { return true; }
    if (!Device::DeviceHasBeenEnabled()) { return true; }
    if (Device::UsingOcca()) { mfem_error("Device::UsingOcca()"); }
    return false;
 }
 
-// Turn a known address to the right host or device one. Alloc, Push, or Pull it
-// if required.
+// Turn a known address into the right host or device address. Alloc, Push, or
+// Pull it if necessary.
 static void *PtrKnown(mm::ledger &maps, void *ptr)
 {
    mm::memory &base = maps.memories.at(ptr);
@@ -151,8 +152,8 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    return base.d_ptr;
 }
 
-// Turn an alias to the right host or device one. Alloc, Push, or Pull it if
-// required.
+// Turn an alias into the right host or device address. Alloc, Push, or Pull it
+// if necessary.
 static void *PtrAlias(mm::ledger &maps, void *ptr)
 {
    const bool gpu = Device::UsingDevice();
@@ -184,6 +185,7 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
 void *mm::Ptr(void *ptr)
 {
    if (MmDeviceIniFilter()) { return ptr; }
+   if (ptr==NULL) { return NULL; };
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
    if (Device::UsingDevice())
@@ -306,5 +308,16 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
 }
 
 OccaMemory mm::Memory(const void *ptr) { return occaMemory(maps, ptr); }
+
+void mm::RegisterCheck(void *ptr)
+{
+   if (ptr != NULL && Device::UsingMM())
+   {
+      if (!mm::known(ptr))
+      {
+         mfem_error("Pointer is not registered!");
+      }
+   }
+}
 
 } // namespace mfem
