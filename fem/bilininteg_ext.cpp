@@ -601,7 +601,6 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
                             vec, x, y);
 }
 
-
 // PA Mass Assemble kernel
 void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 {
