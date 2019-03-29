@@ -185,6 +185,7 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
 void *mm::Ptr(void *ptr)
 {
    if (MmDeviceIniFilter()) { return ptr; }
+   if (ptr==NULL) { return NULL;};
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
    if (Device::UsingDevice())
@@ -307,5 +308,16 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
 }
 
 OccaMemory mm::Memory(const void *ptr) { return occaMemory(maps, ptr); }
+
+void mm::RegisterCheck(void *ptr)
+{
+   if (ptr != NULL && Device::UsingMM())
+   {
+      if (!mm::known(ptr))
+      {
+         mfem_error("Pointer is not registered!");
+      }
+   }
+}
 
 } // namespace mfem
