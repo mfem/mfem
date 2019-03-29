@@ -1,12 +1,8 @@
 ﻿// mpirun -np 2 ./exp -m RT2D.mesh -qo 8 -o 3
+
 #include "mfem.hpp"
 #include <fstream>
 #include <ctime>
-
-extern "C"
-{
-#include "findpts_mfem.h"
-}
 
 using namespace mfem;
 using namespace std;
