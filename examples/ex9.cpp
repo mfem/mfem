@@ -164,6 +164,7 @@ Mesh* GetSubcellMesh(Mesh *mesh, int p)
    {
       int basis_lor = BasisType::ClosedUniform; // Get a uniformly refined mesh.
       subcell_mesh = new Mesh(mesh, p, basis_lor);
+      // NOTE: Curvature is not considered for subcell weights.
       subcell_mesh->SetCurvature(1);
    }
    else
@@ -218,7 +219,10 @@ public:
    Vector xi_min, xi_max; // min/max values for each dof
    Vector xe_min, xe_max; // min/max values for each element
    
-   DenseMatrix BdrDofs, NbrDof, Sub2Ind; // TODO should these be Tables?
+   // TODO should these three be Tables?
+   DenseMatrix BdrDofs, Sub2Ind;
+   DenseTensor NbrDof;
+   
    int dim, numBdrs, numDofs, numSubcells, numDofsSubcell;
 
    DofInfo(FiniteElementSpace* _fes)
@@ -274,7 +278,7 @@ private:
    {
       if (min(el1, el2) < 0) { return -1; }
 
-      int i, j, commonNeighbor;
+      int i, j, CmnNbr;
       bool found = false;
       Array<int> bdrs1, bdrs2, orientation, NbrEl1, NbrEl2;
       FaceElementTransformations *Trans;
@@ -320,7 +324,7 @@ private:
             {
                if (!found)
                {
-                  commonNeighbor = NbrEl1[i];
+                  CmnNbr = NbrEl1[i];
                   found = true;
                }
                else
@@ -332,7 +336,7 @@ private:
       }
       if (found)
       {
-         return commonNeighbor;
+         return CmnNbr;
       }
       else { return -1; }
    }
@@ -541,7 +545,7 @@ private:
       Array <int> bdrs, NbrBdrs, orientation;
       FaceElementTransformations *Trans;
       
-      NbrDof.SetSize(ne*numDofs, numBdrs);
+      NbrDof.SetSize(ne, numBdrs, numDofs);
       
       for (k = 0; k < ne; k++)
       {
@@ -553,7 +557,7 @@ private:
             {
                Trans = mesh->GetFaceElementTransformations(bdrs[i]);
                nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
-               NbrDof(k,i) = nbr*nd + BdrDofs(0,(i+1)%2);
+               NbrDof(k,i,0) = nbr*nd + BdrDofs(0,(i+1)%2);
             }
          }
          else if (dim==2)
@@ -577,11 +581,11 @@ private:
                      }
                      // Here it is utilized that the orientations of the face
                      // for the two elements are opposite of each other.
-                     NbrDof(k*numDofs+j,i) = nbr*nd + BdrDofs(numDofs-1-j,ind);
+                     NbrDof(k,i,j) = nbr*nd + BdrDofs(numDofs-1-j,ind);
                   }
                   else
                   {
-                     NbrDof(k*numDofs+j,i) = -1;
+                     NbrDof(k,i,j) = -1;
                   }
                }
             }
@@ -597,34 +601,32 @@ private:
                Trans = mesh->GetFaceElementTransformations(bdrs[0]);
                nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 0) = nbr*nd + (p+1)*(p+1)*p+j;
+               NbrDof(k,0,j) = nbr*nd + (p+1)*(p+1)*p+j;
 
                Trans = mesh->GetFaceElementTransformations(bdrs[1]);
                nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 1) = nbr*nd + (j/(p+1))*(p+1)*(p+1)
-                                        + (p+1)*p+(j%(p+1));
+               NbrDof(k,1,j) = nbr*nd + (j/(p+1))*(p+1)*(p+1)+(p+1)*p+(j%(p+1));
 
                Trans = mesh->GetFaceElementTransformations(bdrs[2]);
                nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 2) = nbr*nd + j*(p+1);
+               NbrDof(k,2,j) = nbr*nd + j*(p+1);
 
                Trans = mesh->GetFaceElementTransformations(bdrs[3]);
                nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 3) = nbr*nd + (j/(p+1))*(p+1)*(p+1)
-                                        + (j%(p+1));
+               NbrDof(k,3,j) = nbr*nd + (j/(p+1))*(p+1)*(p+1)+(j%(p+1));
 
                Trans = mesh->GetFaceElementTransformations(bdrs[4]);
                nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 4) = nbr*nd + (j+1)*(p+1)-1;
+               NbrDof(k,4,j) = nbr*nd + (j+1)*(p+1)-1;
 
                Trans = mesh->GetFaceElementTransformations(bdrs[5]);
                nbr = Trans->Elem1No == k ? Trans->Elem2No : Trans->Elem1No;
 
-               NbrDof(k*numDofs+j, 5) = nbr*nd + j;
+               NbrDof(k,5,j) = nbr*nd + j;
             }
          }
       }
@@ -720,11 +722,11 @@ public:
       Array <int> bdrs, orientation;
       FaceElementTransformations *Trans;
 
-      bool NeedBdr = lom.OptScheme || ( (lom.MonoType != DiscUpw)
-                                 && (lom.MonoType != DiscUpw_FCT) );
+      const bool NeedBdr = lom.OptScheme || ( (lom.MonoType != DiscUpw)
+                                       && (lom.MonoType != DiscUpw_FCT) );
 
-      bool NeedSubcells = lom.OptScheme && (( lom.MonoType == ResDist)
-                                      || (lom.MonoType == ResDist_FCT) );
+      const bool NeedSubcells = lom.OptScheme && (( lom.MonoType == ResDist)
+                                            || (lom.MonoType == ResDist_FCT) );
       
       if (NeedBdr)
       {
@@ -737,7 +739,7 @@ public:
          SubFes1 = lom.SubFes1;
          subcell_mesh = lom.subcell_mesh;
          VolumeTerms = lom.VolumeTerms;
-         SubcellWeights.SetSize(ne*dofs.numSubcells, dofs.numDofsSubcell);
+         SubcellWeights.SetSize(ne, dofs.numSubcells, dofs.numDofsSubcell);
       }
       
       // Initialization for transport mode.
@@ -788,8 +790,7 @@ public:
    
    // Data structures storing Galerkin contributions. These are updated for 
    // remap but remain constant for transport.
-   DenseTensor bdrInt;
-   DenseMatrix SubcellWeights;
+   DenseTensor bdrInt, SubcellWeights;
    
    void ComputeFluxTerms(const int k, const int BdrID,
                          FaceElementTransformations *Trans, LowOrderMethod &lom)
@@ -868,16 +869,19 @@ public:
    
    void ComputeSubcellWeights(const int k, const int m)
    {
-      Vector row;
       DenseMatrix elmat; // These are essentially the same.
       int dofInd = k*dofs.numSubcells+m;
+      // TODO: If the mesh is moving, these submesh spaces should be updated.
       const FiniteElement *el0 = SubFes0->GetFE(dofInd);
       const FiniteElement *el1 = SubFes1->GetFE(dofInd);
       ElementTransformation *tr = subcell_mesh->GetElementTransformation(dofInd);
       VolumeTerms->AssembleElementMatrix2(*el1, *el0, *tr, elmat);
-         
-      elmat.GetRow(0, row); // Using the fact that elmat has just one row.
-      SubcellWeights.SetRow(dofInd, row);
+      
+      for (int j = 0; j < elmat.Width(); j++)
+      {
+         // Using the fact that elmat has just one row.
+         SubcellWeights(k,m,j) = elmat(0,j);
+      }
    }
 };
 
@@ -1006,7 +1010,8 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
+
+   const int dim = mesh->Dimension();
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -1240,8 +1245,8 @@ int main(int argc, char *argv[])
    DG_FECollection fec1(1, dim, btype);
    
    // For linear elements, Opt scheme has already been disabled.
-   bool NeedSubcells = lom.OptScheme && (( lom.MonoType == ResDist)
-                                      || (lom.MonoType == ResDist_FCT) );
+   const bool NeedSubcells = lom.OptScheme && (( lom.MonoType == ResDist)
+                                         || (lom.MonoType == ResDist_FCT) );
 
    if (NeedSubcells)
    {
@@ -1251,7 +1256,8 @@ int main(int argc, char *argv[])
       }
       //    else if (exec_mode == 1)
       //    {
-      // TODO Figure out why this gives a seg-fault, it should be v_coef.
+      // TODO Figure out why this gives a seg-fault, it should be v_coef, by the
+      //      same logic as it is v_coef for the high order bilinearform k.
       //       lom.VolumeTerms = new MixedConvectionIntegrator(v_coef);
       //    }
       else /*if (exec_mode == 2)*/
@@ -1432,11 +1438,13 @@ int main(int argc, char *argv[])
    delete mesh;
    delete ode_solver;
    delete dc;
+   
    if ( lom.OptScheme && ( (lom.MonoType == DiscUpw)
                         || (lom.MonoType = DiscUpw_FCT) ) )
    {
       delete lom.pk;
    }
+   
    if (NeedSubcells)
    {
       delete SubFes0;
@@ -1482,15 +1490,15 @@ void FE_Evolution::LinearFluxLumping(const int k, const int nd,
    double xNeighbor;
    Vector xDiff(dofs.numDofs);
 
-   for (i = 0; i < dofs.numDofs; i++)
+   for (j = 0; j < dofs.numDofs; j++)
    {
-      dofInd = k*nd+dofs.BdrDofs(i,BdrID);
-      idx = dofs.NbrDof(k*dofs.numDofs+i,BdrID);
+      dofInd = k*nd+dofs.BdrDofs(j,BdrID);
+      idx = dofs.NbrDof(k, BdrID, j);
       // If NbrDof is -1 and bdrInt > 0., this is an inflow boundary. If NbrDof
       // is -1 and bdrInt = 0., this is an outflow, which is handled correctly.
       // TODO use inflow instead of xNeighbor = 0.
       xNeighbor = idx < 0 ? 0. : x(idx);
-      xDiff(i) = xNeighbor - x(dofInd);
+      xDiff(j) = xNeighbor - x(dofInd);
    }
 
    for (i = 0; i < dofs.numDofs; i++)
@@ -1641,8 +1649,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
                for (i = 0; i < dofs.numDofsSubcell; i++)
                {
                   dofInd = k*nd + dofs.Sub2Ind(m, i);
-                  fluct += asmbl.SubcellWeights(k*dofs.numSubcells+m,i)
-                           * x(dofInd);
+                  fluct += asmbl.SubcellWeights(k,m,i) * x(dofInd);
                   xMaxSubcell(m) = max(xMaxSubcell(m), x(dofInd));
                   xMinSubcell(m) = min(xMinSubcell(m), x(dofInd));
                   xSum += x(dofInd);
@@ -1843,8 +1850,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       ////////////////////////////
       // Boundary contributions //
       ////////////////////////////
-      bool NeedBdr = lom.OptScheme || ( (lom.MonoType != DiscUpw)
-      && (lom.MonoType != DiscUpw_FCT) );
+      const bool NeedBdr = lom.OptScheme || ( (lom.MonoType != DiscUpw)
+                                       && (lom.MonoType != DiscUpw_FCT) );
       
       if (NeedBdr)
       {

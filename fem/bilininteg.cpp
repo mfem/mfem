@@ -906,7 +906,7 @@ void MixedConvectionIntegrator::AssembleElementMatrix2(
 {
    int tr_nd = tr_el.GetDof();
    int te_nd = te_el.GetDof();
-   int dim = te_el.GetDim(); // using test geometry
+   int dim = te_el.GetDim(); // Using test geometry.
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix dshape, adjJ, Q_ir;
@@ -921,15 +921,8 @@ void MixedConvectionIntegrator::AssembleElementMatrix2(
 
    Vector vec1;
 
-   const IntegrationRule *ir = &IntRules.Get(te_el.GetGeomType(),
-                                             1); // using midpoint rule and test geometry
-   /*if (ir == NULL)
-   {
-      // OrderGrad does not work for RefinedLinearFECollection elements
-      //int order = Trans.OrderGrad(&tr_el) + Trans.Order() + te_el.GetOrder();
-      int order = 1;
-      ir = &IntRules.Get(te_el.GetGeomType(), order); // using test geometry
-   }*/
+   // Using midpoint rule and test geometry.
+   const IntegrationRule *ir = &IntRules.Get(te_el.GetGeomType(), 1);
 
    Q.Eval(Q_ir, Trans, *ir);
 
