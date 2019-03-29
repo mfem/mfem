@@ -25,6 +25,10 @@
 //               ex1 -m ../data/mobius-strip.mesh
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
 //
+// Device runs:  ex1 -d cuda
+//               ex1 -d occa
+//               ex1 -d 'raja omp'
+//
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
@@ -54,11 +58,8 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   bool cuda = false;
-   bool omp  = false;
-   bool raja = false;
-   bool occa = false;
-   bool visualization = 1;
+   const char *device = "";
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -70,10 +71,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
-   args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
-   args.AddOption(&omp, "-om", "--omp", "-no-om", "--no-omp", "Enable OpenMP.");
-   args.AddOption(&raja, "-ra", "--raja", "-no-ra", "--no-raja", "Enable RAJA.");
-   args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
+   args.AddOption(&device, "-d", "--device",
+                  "Device configuration, e.g. 'cuda', 'omp', 'raja', 'occa'.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -90,6 +89,7 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+   if (pa) { mesh->EnsureNodes(); }
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -145,14 +145,11 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   // 7. Set MFEM config parameters from the command line options
-   if (pa) { mesh->EnsureNodes(); }
-   if (cuda) { config::UseCuda(); }
-   if (omp)  { config::UseOmp();  }
-   if (raja) { config::UseRaja(); }
-   if (occa) { config::UseOcca(); }
-   config::EnableDevice();
-   config::SwitchToDevice();
+   // 7. Set device config parameters from the command line options and switch
+   //    to working on the device.
+   Device::Configure(device);
+   Device::Print();
+   Device::Enable();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -160,14 +157,11 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    x = 0.0;
 
-   // Sample values
-   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   int elem_batch = (cuda || raja || occa) ? mesh->GetNE() : 1;
-
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace, assembly, elem_batch);
+   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+   BilinearForm *a = new BilinearForm(fespace, assembly);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
@@ -179,28 +173,37 @@ int main(int argc, char *argv[])
 
    Vector B, X;
    Operator *A;
-
    if (!pa) { A = new SparseMatrix; }
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A->Height() << endl;
 
+   // 11. Solve the linear system A X = B.
+   if (!pa)
+   {
 #ifndef MFEM_USE_SUITESPARSE
-   CG(*A, B, X, 3, 2000, 1e-12, 0.0);
+      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+      GSSmoother M(*(SparseMatrix*)A);
+      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
 #else
-   // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(A);
-   umf_solver.Mult(B, X);
+      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver.SetOperator(*A);
+      umf_solver.Mult(B, X);
 #endif
+   }
+   else // No preconditioning for now in partial assembly mode.
+   {
+      CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+   }
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 13. Switch back to host
-   config::SwitchToHost();
+   // 13. Switch back to the host.
+   Device::Disable();
 
    // 14. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".

@@ -325,6 +325,9 @@ private:
       return Order | 1; // valid for all quad_type's
    }
 
+   /// The following methods allocate new IntegrationRule objects without
+   /// checking if they already exist.  To avoid memory leaks use
+   /// IntegrationRules::Get(int GeomType, int Order) instead.
    IntegrationRule *GenerateIntegrationRule(int GeomType, int Order);
    IntegrationRule *PointIntegrationRule(int Order);
    IntegrationRule *SegmentIntegrationRule(int Order);
