@@ -118,6 +118,7 @@ class FunctionCoefficient : public Coefficient
 protected:
    double (*Function)(const Vector &);
    double (*TDFunction)(const Vector &, double);
+   double (*DeviceFunction)(const DeviceVector3&);
 
 public:
    /// Define a time-independent coefficient from a C-function
@@ -125,6 +126,7 @@ public:
    {
       Function = f;
       TDFunction = NULL;
+      DeviceFunction = NULL;
    }
 
    /// Define a time-dependent coefficient from a C-function
@@ -132,6 +134,15 @@ public:
    {
       Function = NULL;
       TDFunction = tdf;
+      DeviceFunction = NULL;
+   }
+
+   /// Define a time-independent coefficient from a device-function
+   FunctionCoefficient(double (*df)(const DeviceVector3 &))
+   {
+      Function = NULL;
+      TDFunction = NULL;
+      DeviceFunction = df;
    }
 
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
@@ -141,6 +152,7 @@ public:
    {
       Function = reinterpret_cast<double(*)(const Vector&)>(f);
       TDFunction = NULL;
+      DeviceFunction = NULL;
    }
 
    /// (DEPRECATED) Define a time-dependent coefficient from a C-function
@@ -150,17 +162,15 @@ public:
    {
       Function = NULL;
       TDFunction = reinterpret_cast<double(*)(const Vector&,double)>(tdf);
+      DeviceFunction = NULL;
    }
 
    /// Evaluate coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
-   /// Return the coefficient's C-function
-   double (*GetFunction())(const DeviceVector3&)
-   {
-      return reinterpret_cast<double(*)(const DeviceVector3&)>(Function);
-   }
+   /// Return the coefficient's device-function
+   double (*GetDeviceFunction())(const DeviceVector3&);
 };
 
 class GridFunction;
