@@ -59,16 +59,16 @@ static void OccaPADiffusionAssemble2D(const int D1D,
 {
    const int NUM_QUAD_2D = Q1D*Q1D;
 
-   GET_OCCA_CONST_MEMORY(W);
-   GET_OCCA_CONST_MEMORY(J);
-   GET_OCCA_MEMORY(oper);
+   MFEM_GET_OCCA_CONST_MEMORY(W);
+   MFEM_GET_OCCA_CONST_MEMORY(J);
+   MFEM_GET_OCCA_MEMORY(oper);
 
-   NEW_OCCA_PROPERTY(props);
-   SET_OCCA_PROPERTY(props, D1D);
-   SET_OCCA_PROPERTY(props, Q1D);
-   SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
+   MFEM_NEW_OCCA_PROPERTY(props);
+   MFEM_SET_OCCA_PROPERTY(props, D1D);
+   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
-   NEW_OCCA_KERNEL(Assemble2D, fem, diffusion.okl, props);
+   MFEM_NEW_OCCA_KERNEL(Assemble2D, fem, diffusion.okl, props);
    Assemble2D(NE, o_W, o_J, COEFF, o_oper);
 }
 #endif // MFEM_USE_OCCA
@@ -215,22 +215,22 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
 {
    const int NUM_QUAD_2D = Q1D*Q1D;
 
-   GET_OCCA_CONST_MEMORY(B);
-   GET_OCCA_CONST_MEMORY(G);
-   GET_OCCA_CONST_MEMORY(Bt);
-   GET_OCCA_CONST_MEMORY(Gt);
-   GET_OCCA_CONST_MEMORY(oper);
-   GET_OCCA_CONST_MEMORY(solIn);
-   GET_OCCA_MEMORY(solOut);
+   MFEM_GET_OCCA_CONST_MEMORY(B);
+   MFEM_GET_OCCA_CONST_MEMORY(G);
+   MFEM_GET_OCCA_CONST_MEMORY(Bt);
+   MFEM_GET_OCCA_CONST_MEMORY(Gt);
+   MFEM_GET_OCCA_CONST_MEMORY(oper);
+   MFEM_GET_OCCA_CONST_MEMORY(solIn);
+   MFEM_GET_OCCA_MEMORY(solOut);
 
-   NEW_OCCA_PROPERTY(props);
-   SET_OCCA_PROPERTY(props, D1D);
-   SET_OCCA_PROPERTY(props, Q1D);
-   SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
+   MFEM_NEW_OCCA_PROPERTY(props);
+   MFEM_SET_OCCA_PROPERTY(props, D1D);
+   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
    if (!Device::UsingDevice())
    {
-      NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, diffusion.okl, props);
+      MFEM_NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, diffusion.okl, props);
       MultAdd2D_CPU(NE,
                     o_B, o_G,
                     o_Bt, o_Gt,
@@ -239,7 +239,7 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
    }
    else
    {
-      NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, diffusion.okl, props);
+      MFEM_NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, diffusion.okl, props);
       MultAdd2D_GPU(NE,
                     o_B, o_G,
                     o_Bt, o_Gt,
