@@ -60,6 +60,13 @@ struct CoarseFineTransformations
    Array<Embedding> embeddings;
 
    const DenseTensor &GetPointMatrices(Geometry::Type geom) const;
+
+   void GetCoarseToFineMap(const Mesh &fine_mesh,
+                           Table &coarse_to_fine,
+                           Array<int> &coarse_to_ref_type,
+                           Table &ref_type_to_matrix,
+                           Array<Geometry::Type> &ref_type_to_geom) const;
+
    void Clear() { point_matrices.clear(); embeddings.DeleteAll(); }
    long MemoryUsage() const;
 };
