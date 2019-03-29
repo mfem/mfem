@@ -101,6 +101,7 @@ void Table::MakeJ()
       j = I[i], I[i] = k, k += j;
    }
 
+   if (J) { mm::free<int>(J); }
    J = mm::malloc<int>(I[size]=k);
 }
 

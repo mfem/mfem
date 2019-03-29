@@ -579,6 +579,9 @@ public:
    /// Multiply the inverse matrix by another matrix: X = A^{-1} B.
    void Mult(const DenseMatrix &B, DenseMatrix &X) const;
 
+   /// Multiply the inverse matrix by another matrix: X <- A^{-1} X.
+   void Mult(DenseMatrix &X) const { lu.Solve(width, X.Width(), X.Data()); }
+
    /// Compute and return the inverse matrix in Ainv.
    void GetInverseMatrix(DenseMatrix &Ainv) const;
 
