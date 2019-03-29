@@ -140,6 +140,13 @@ void ParFiniteElementSpace::Construct()
    }
    else // Nonconforming()
    {
+      // Initialize 'gcomm' for the cut (aka "partially conforming") space.
+      // In the process, the array 'ldof_ltdof' is also initialized (for the cut
+      // space) and used; however, it will be overwritten below with the real
+      // true dofs. Also, 'ldof_sign' and 'ldof_group' are constructed for the
+      // cut space.
+      ConstructTrueDofs();
+
       // calculate number of ghost DOFs
       ngvdofs = pncmesh->GetNGhostVertices()
                 * fec->DofForGeometry(Geometry::POINT);
@@ -174,6 +181,45 @@ void ParFiniteElementSpace::Construct()
       // TODO future: split BuildParallelConformingInterpolation into two parts
       // to overlap its communication with processing between this constructor
       // and the point where the P matrix is actually needed.
+   }
+}
+
+void ParFiniteElementSpace::PrintPartitionStats()
+{
+   long ltdofs = ltdof_size;
+   long min_ltdofs, max_ltdofs, sum_ltdofs;
+
+   MPI_Reduce(&ltdofs, &min_ltdofs, 1, MPI_LONG, MPI_MIN, 0, MyComm);
+   MPI_Reduce(&ltdofs, &max_ltdofs, 1, MPI_LONG, MPI_MAX, 0, MyComm);
+   MPI_Reduce(&ltdofs, &sum_ltdofs, 1, MPI_LONG, MPI_SUM, 0, MyComm);
+
+   if (MyRank == 0)
+   {
+      double avg = double(sum_ltdofs) / NRanks;
+      mfem::out << "True DOF partitioning: min " << min_ltdofs
+                << ", avg " << std::fixed << std::setprecision(1) << avg
+                << ", max " << max_ltdofs
+                << ", (max-avg)/avg " << 100.0*(max_ltdofs - avg)/avg
+                << "%" << std::endl;
+   }
+
+   if (NRanks <= 32)
+   {
+      if (MyRank == 0)
+      {
+         mfem::out << "True DOFs by rank: " << ltdofs;
+         for (int i = 1; i < NRanks; i++)
+         {
+            MPI_Status status;
+            MPI_Recv(&ltdofs, 1, MPI_LONG, i, 123, MyComm, &status);
+            mfem::out << " " << ltdofs;
+         }
+         mfem::out << "\n";
+      }
+      else
+      {
+         MPI_Send(&ltdofs, 1, MPI_LONG, 0, 123, MyComm);
+      }
    }
 }
 
@@ -710,30 +756,26 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 
 void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 {
-   if (Nonconforming())
-   {
-      MFEM_ABORT("Not implemented for NC mesh.");
-   }
-
    GroupTopology &gt = GetGroupTopo();
-
    for (int i = 0; i < ldof_group.Size(); i++)
    {
       if (gt.IAmMaster(ldof_group[i])) // we are the master
       {
-         vec[ldof_ltdof[i]] /= gt.GetGroupSize(ldof_group[i]);
+         if (ldof_ltdof[i] >= 0) // see note below
+         {
+            vec[ldof_ltdof[i]] /= gt.GetGroupSize(ldof_group[i]);
+         }
+         // NOTE: in NC meshes, ldof_ltdof generated for the gtopo
+         // groups by ConstructTrueDofs gets overwritten by
+         // BuildParallelConformingInterpolation. Some DOFs that are
+         // seen as true by the conforming code are actually slaves and
+         // end up with a -1 in ldof_ltdof.
       }
    }
 }
 
 GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 {
-   if (Nonconforming())
-   {
-      // MFEM_WARNING("Not implemented for NC mesh.");
-      return NULL;
-   }
-
    GroupCommunicator *gc = new GroupCommunicator(GetGroupTopo());
    if (NURBSext)
    {
@@ -748,15 +790,10 @@ GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 
 void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 {
-   if (Nonconforming())
-   {
-      MFEM_ABORT("Not implemented for NC mesh.");
-   }
+   // For non-conforming mesh, synchronization is performed on the cut (aka
+   // "partially conforming") space.
 
-   if (ldof_marker.Size() != GetVSize())
-   {
-      mfem_error("ParFiniteElementSpace::Synchronize");
-   }
+   MFEM_VERIFY(ldof_marker.Size() == GetVSize(), "invalid in/out array");
 
    // implement allreduce(|) as reduce(|) + broadcast
    gcomm->Reduce<int>(ldof_marker, GroupCommunicator::BitOR);
@@ -1963,6 +2000,9 @@ ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
          msg.AddRow(ent, idx, edof, group_id, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
+#ifdef MFEM_PMATRIX_STATS
+         n_rows_sent++;
+#endif
       }
    }
 }
@@ -1985,7 +2025,9 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
          msg.AddRow(ent, idx, edof, invalid, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
-
+#ifdef MFEM_PMATRIX_STATS
+         n_rows_fwd++;
+#endif
 #ifdef MFEM_DEBUG_PMATRIX
          mfem::out << "Rank " << pncmesh->GetMyRank() << " forwarding to "
                    << rank << ": ent " << ent << ", index" << idx
@@ -2067,6 +2109,11 @@ int ParFiniteElementSpace
 {
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0 && npdofs == 0);
    int max_entity = (pmesh->Dimension() ==4) ? 3 : 2;
+
+#ifdef MFEM_PMATRIX_STATS
+   n_msgs_sent = n_msgs_recv = 0;
+   n_rows_sent = n_rows_recv = n_rows_fwd = 0;
+#endif
 
    // *** STEP 1: build master-slave dependency lists ***
 
@@ -2287,6 +2334,9 @@ int ParFiniteElementSpace
 
    // send identity rows
    NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
+#ifdef MFEM_PMATRIX_STATS
+   n_msgs_sent += send_msg.back().size();
+#endif
 
    if (R) { (*R)->Finalize(); }
 
@@ -2314,6 +2364,10 @@ int ParFiniteElementSpace
       while (NeighborRowMessage::IProbe(rank, size, MyComm))
       {
          recv_msg.Recv(rank, size, MyComm);
+#ifdef MFEM_PMATRIX_STATS
+         n_msgs_recv++;
+         n_rows_recv += recv_msg.GetRows().size();
+#endif
 
          const NeighborRowMessage::RowInfo::List &rows = recv_msg.GetRows();
          for (unsigned i = 0; i < rows.size(); i++)
@@ -2388,6 +2442,9 @@ int ParFiniteElementSpace
 
       // send current batch of messages
       NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
+#ifdef MFEM_PMATRIX_STATS
+      n_msgs_sent += send_msg.back().size();
+#endif
    }
 
    if (P)
@@ -2410,6 +2467,31 @@ int ParFiniteElementSpace
    {
       NeighborRowMessage::WaitAllSent(*it);
    }
+
+#ifdef MFEM_PMATRIX_STATS
+   int n_rounds = send_msg.size();
+   int glob_rounds, glob_msgs_sent, glob_msgs_recv;
+   int glob_rows_sent, glob_rows_recv, glob_rows_fwd;
+
+   MPI_Reduce(&n_rounds,    &glob_rounds,    1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_msgs_sent, &glob_msgs_sent, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_msgs_recv, &glob_msgs_recv, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_rows_sent, &glob_rows_sent, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_rows_recv, &glob_rows_recv, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_rows_fwd,  &glob_rows_fwd,  1, MPI_INT, MPI_SUM, 0, MyComm);
+
+   if (MyRank == 0)
+   {
+      mfem::out << "P matrix stats (avg per rank): "
+                << double(glob_rounds)/NRanks << " rounds, "
+                << double(glob_msgs_sent)/NRanks << " msgs sent, "
+                << double(glob_msgs_recv)/NRanks << " msgs recv, "
+                << double(glob_rows_sent)/NRanks << " rows sent, "
+                << double(glob_rows_recv)/NRanks << " rows recv, "
+                << double(glob_rows_fwd)/NRanks << " rows forwarded."
+                << std::endl;
+   }
+#endif
 
    return num_true_dofs*vdim;
 }

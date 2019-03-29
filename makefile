@@ -56,9 +56,12 @@ make debug
 make pdebug
    A shortcut to configure and build the parallel debug version of the library.
 make test
-   Verify the build by checking the results from running all examples and miniapps.
+   Verify the build by checking the results from running all examples, miniapps,
+   and tests.
 make check
    Quick-check the build by compiling and running Example 1/1p.
+make unittest
+   Verify the build against the unit tests.
 make install PREFIX=<dir>
    Install the library and headers in <dir>/lib and <dir>/include.
 make clean
@@ -99,8 +102,12 @@ MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
-EM_TEST_DIRS = $(filter-out\
-   $(SKIP_TEST_DIRS),$(EXAMPLE_TEST_DIRS) $(MINIAPP_TEST_DIRS))
+
+TEST_SUBDIRS = unit
+TEST_DIRS := $(addprefix tests/,$(TEST_SUBDIRS))
+
+ALL_TEST_DIRS = $(filter-out\
+   $(SKIP_TEST_DIRS),$(TEST_DIRS) $(EXAMPLE_TEST_DIRS) $(MINIAPP_TEST_DIRS))
 
 # Use BUILD_DIR on the command line; set MFEM_BUILD_DIR before including this
 # makefile or config/config.mk from a separate $(BUILD_DIR).
@@ -108,7 +115,7 @@ MFEM_BUILD_DIR ?= .
 BUILD_DIR := $(MFEM_BUILD_DIR)
 BUILD_REAL_DIR := $(abspath $(BUILD_DIR))
 ifneq ($(BUILD_REAL_DIR),$(MFEM_REAL_DIR))
-   BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc
+   BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc $(TEST_DIRS)
    BUILD_DIR_DEF = -DMFEM_BUILD_DIR="$(BUILD_REAL_DIR)"
    BLD := $(if $(BUILD_REAL_DIR:$(CURDIR)=),$(BUILD_DIR)/,)
    $(if $(word 2,$(BLD)),$(error Spaces in BLD = "$(BLD)" are not supported))
@@ -263,7 +270,7 @@ MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
    @MFEM_EXT_LIBS@
-MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_EXT),a)
+MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
 MFEM_INC_DIR   ?= $(if $(BUILD_DIR_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
@@ -293,7 +300,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    MFEM_FLAGS    = @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
    MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
       @MFEM_EXT_LIBS@
-   MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_EXT),a)
+   MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
    MFEM_PREFIX := $(abspath $(PREFIX))
    MFEM_INC_DIR = $(abspath $(PREFIX_INC))
    MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))
@@ -310,7 +317,7 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
- debug pdebug style check test
+ debug pdebug style check test unittest
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -330,12 +337,12 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-all: examples miniapps
+all: examples miniapps $(TEST_DIRS)
 
-.PHONY: miniapps $(EM_DIRS)
+.PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
 miniapps: $(MINIAPP_DIRS)
 $(MINIAPP_USE_COMMON): miniapps/common
-$(EM_DIRS): lib
+$(EM_DIRS) $(TEST_DIRS): lib
 	$(MAKE) -C $(BLD)$(@)
 
 .PHONY: doc
@@ -381,29 +388,32 @@ check: lib
 
 test:
 	@echo "Testing the MFEM library. This may take a while..."
-	@echo "Building all examples and miniapps..."
+	@echo "Building all examples, miniapps, and tests..."
 	@$(MAKE) $(MAKEOVERRIDES_SAVE) all
-	@echo "Running tests in: [ $(EM_TEST_DIRS) ] ..."
-	@ERR=0; for dir in $(EM_TEST_DIRS); do \
+	@echo "Running tests in: [ $(ALL_TEST_DIRS) ] ..."
+	@ERR=0; for dir in $(ALL_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
 	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
 	   ERR=1; fi; done; \
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
 
+unittest: lib
+	$(MAKE) -C $(BLD)tests/unit test
+
 .PHONY: test-print
 test-print:
-	@echo "Printing tests in: [ $(EM_TEST_DIRS) ] ..."
-	@for dir in $(EM_TEST_DIRS); do \
+	@echo "Printing tests in: [ $(ALL_TEST_DIRS) ] ..."
+	@for dir in $(ALL_TEST_DIRS); do \
 	   $(MAKE) -j1 -C $(BLD)$${dir} test-print; done
 
-ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc)
+ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc $(TEST_DIRS))
 .PHONY: $(ALL_CLEAN_SUBDIRS) miniapps/clean
 miniapps/clean: $(addsuffix /clean,$(MINIAPP_DIRS))
 $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
-clean: $(addsuffix /clean,$(EM_DIRS))
+clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* deps.mk)
 
 distclean: clean config/clean doc/clean
@@ -462,7 +472,7 @@ local-config:
 .PHONY: build-config
 build-config:
 	for d in $(BUILD_SUBDIRS); do mkdir -p $(BLD)$${d}; done
-	for dir in "" $(addsuffix /,config $(EM_DIRS) doc); do \
+	for dir in "" $(addsuffix /,config $(EM_DIRS) doc $(TEST_DIRS)); do \
 	   printf "# Auto-generated file.\n%s\n%s\n" \
 	      "MFEM_DIR = $(MFEM_REAL_DIR)" \
 	      "include \$$(MFEM_DIR)/$${dir}makefile" \
@@ -530,6 +540,8 @@ status info:
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
+FORMAT_FILES += "tests/unit/*.cpp"
+FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 
 style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\

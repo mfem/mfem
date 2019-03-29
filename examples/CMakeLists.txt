@@ -26,6 +26,8 @@ list(APPEND ALL_EXE_SRCS
   ex17.cpp
   ex18.cpp
   ex19.cpp
+  ex20.cpp
+  ex22.cpp
   ex23.cpp
   ex24.cpp
   )
@@ -51,6 +53,8 @@ if (MFEM_USE_MPI)
     ex17p.cpp
     ex18p.cpp
     ex19p.cpp
+    ex20p.cpp
+    ex22p.cpp
     ex1p_4d.cpp
     ex3p_4d.cpp
     ex4D_DivSkew.cpp
@@ -80,12 +84,21 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
       COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
   else()
     add_test(NAME ${TEST_NAME}_np=4
-      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
       ${MPIEXEC_POSTFLAGS})
   endif()
 endforeach()
+
+# If STRUMPACK is enabled, add a test run that uses it.
+if (MFEM_USE_STRUMPACK)
+  add_test(NAME ex11p_strumpack_np=4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS}
+    $<TARGET_FILE:ex11p> "-no-vis" "--strumpack"
+    ${MPIEXEC_POSTFLAGS})
+endif()
 
 # Include the examples/sundials directory if SUNDIALS is enabled.
 if (MFEM_USE_SUNDIALS)

@@ -147,12 +147,14 @@ HypreParVector *ParGridFunction::GetTrueDofs() const
 
 void ParGridFunction::ParallelAverage(Vector &tv) const
 {
+   MFEM_VERIFY(pfes->Conforming(), "not implemented for NC meshes");
    pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
    pfes->DivideByGroupSize(tv);
 }
 
 void ParGridFunction::ParallelAverage(HypreParVector &tv) const
 {
+   MFEM_VERIFY(pfes->Conforming(), "not implemented for NC meshes");
    pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
    pfes->DivideByGroupSize(tv);
 }
@@ -396,10 +398,10 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
 }
 
 void ParGridFunction::ProjectBdrCoefficient(
-   Coefficient *coeff[], Array<int> &attr)
+   Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr)
 {
    Array<int> values_counter;
-   AccumulateAndCountBdrValues(coeff, attr, values_counter);
+   AccumulateAndCountBdrValues(coeff, vcoeff, attr, values_counter);
    if (pfes->Conforming())
    {
       Vector values(Size());
@@ -677,23 +679,12 @@ void ParGridFunction::ComputeFlux(
    Array<int> count(flux.Size());
    SumFluxAndCount(blfi, flux, count, wcoef, subdomain);
 
-   if (ffes->Conforming())
-   {
-      // Accumulate flux and counts in parallel
+   // Accumulate flux and counts in parallel
+   ffes->GroupComm().Reduce<double>(flux, GroupCommunicator::Sum);
+   ffes->GroupComm().Bcast<double>(flux);
 
-      ffes->GroupComm().Reduce<double>(flux, GroupCommunicator::Sum);
-      ffes->GroupComm().Bcast<double>(flux);
-
-      ffes->GroupComm().Reduce<int>(count, GroupCommunicator::Sum);
-      ffes->GroupComm().Bcast<int>(count);
-   }
-   else
-   {
-      // FIXME: nonconforming mesh case
-      MFEM_ABORT("Averaging on processor boundaries not implemented for "
-                 "NC meshes yet.\n"
-                 "Use L2ZZErrorEstimator() instead of ZZErrorEstimator().");
-   }
+   ffes->GroupComm().Reduce<int>(count, GroupCommunicator::Sum);
+   ffes->GroupComm().Bcast<int>(count);
 
    // complete averaging
    for (int i = 0; i < count.Size(); i++)
@@ -747,15 +738,20 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    ParLinearForm *b = new ParLinearForm(&smooth_flux_fes);
    VectorGridFunctionCoefficient f(&flux);
 
-   if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
+   if (xfes->GetNE())
    {
-      a->AddDomainIntegrator(new VectorMassIntegrator);
-      b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
-   }
-   else
-   {
-      a->AddDomainIntegrator(new VectorFEMassIntegrator);
-      b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+      if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
+      {
+         VectorMassIntegrator *vmass = new VectorMassIntegrator;
+         vmass->SetVDim(smooth_flux_fes.GetVDim());
+         a->AddDomainIntegrator(vmass);
+         b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
+      }
+      else
+      {
+         a->AddDomainIntegrator(new VectorFEMassIntegrator);
+         b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+      }
    }
 
    b->Assemble();

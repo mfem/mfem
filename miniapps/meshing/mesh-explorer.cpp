@@ -221,8 +221,11 @@ int main (int argc, char *argv[])
            "x) Print sub-element stats\n"
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
-           "S) Save\n"
+           "S) Save in MFEM format\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
+#ifdef MFEM_USE_GZSTREAM
+           "Z) Save in MFEM format with compression\n"
+#endif
            "--> " << flush;
       char mk;
       cin >> mk;
@@ -591,7 +594,8 @@ int main (int argc, char *argv[])
             cout << "What type of partitioning?\n"
                  "c) Cartesian\n"
                  "0) METIS_PartGraphRecursive (sorted neighbor lists)\n"
-                 "1) METIS_PartGraphKway      (sorted neighbor lists)\n"
+                 "1) METIS_PartGraphKway      (sorted neighbor lists)"
+                 " (default)\n"
                  "2) METIS_PartGraphVKway     (sorted neighbor lists)\n"
                  "3) METIS_PartGraphRecursive\n"
                  "4) METIS_PartGraphKway\n"
@@ -769,8 +773,6 @@ int main (int argc, char *argv[])
       {
          const char mesh_file[] = "mesh-explorer.mesh";
          ofstream omesh(mesh_file);
-         // Save gzip-ed mesh, requires MFEM_USE_GZSTREAM = YES
-         // ofgzstream omesh(mesh_file, "zwb9");
          omesh.precision(14);
          mesh->Print(omesh);
          cout << "New mesh file: " << mesh_file << endl;
@@ -784,6 +786,18 @@ int main (int argc, char *argv[])
          mesh->PrintVTK(omesh);
          cout << "New VTK mesh file: " << mesh_file << endl;
       }
+
+#ifdef MFEM_USE_GZSTREAM
+      if (mk == 'Z')
+      {
+         const char mesh_file[] = "mesh-explorer.mesh.gz";
+         ofgzstream omesh(mesh_file, "zwb9");
+         omesh.precision(14);
+         mesh->Print(omesh);
+         cout << "New mesh file: " << mesh_file << endl;
+      }
+#endif
+
    }
 
    delete attr_fec;

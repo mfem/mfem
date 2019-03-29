@@ -60,6 +60,13 @@ struct CoarseFineTransformations
    Array<Embedding> embeddings;
 
    const DenseTensor &GetPointMatrices(Geometry::Type geom) const;
+
+   void GetCoarseToFineMap(const Mesh &fine_mesh,
+                           Table &coarse_to_fine,
+                           Array<int> &coarse_to_ref_type,
+                           Table &ref_type_to_matrix,
+                           Array<Geometry::Type> &ref_type_to_geom) const;
+
    void Clear() { point_matrices.clear(); embeddings.DeleteAll(); }
    long MemoryUsage() const;
 };
@@ -258,12 +265,13 @@ public:
    // utility
 
    /// Return Mesh vertex indices of an edge identified by 'edge_id'.
-   void GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const;
+   void GetEdgeVertices(const MeshId &edge_id, int vert_index[2],
+                        bool oriented = true) const;
 
-   /** Return "NC" orientation of an edge. As opposed standard Mesh edge
+   /** Return "NC" orientation of an edge. As opposed to standard Mesh edge
        orientation based on vertex IDs, "NC" edge orientation follows the local
        edge orientation within the element 'edge_id.element' and is thus
-       processor independent. */
+       processor independent. FIXME this seems only partially true */
    int GetEdgeNCOrientation(const MeshId &edge_id) const;
 
    /// Return Mesh vertex and edge indices of a face identified by 'face_id'.
@@ -639,10 +647,10 @@ protected: // implementation
    virtual void BuildEdgeList();
    virtual void BuildVertexList();
 
-   virtual void ElementSharesFace(int elem, int face) {} // ParNCMesh
-   virtual void ElementSharesPlanar(int elem, int planar) {}
-   virtual void ElementSharesEdge(int elem, int enode) {} // ParNCMesh
-   virtual void ElementSharesVertex(int elem, int vnode) {} // ParNCMesh
+   virtual void ElementSharesFace(int elem, int local, int face) {} // ParNCMesh
+   virtual void ElementSharesPlanar(int elem, int local, int planar) {}
+   virtual void ElementSharesEdge(int elem, int local, int enode) {} // ParNCMesh
+   virtual void ElementSharesVertex(int elem, int local, int vnode) {} // ParNCMesh
 
 
    // neighbors / element_vertex table

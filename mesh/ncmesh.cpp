@@ -11,10 +11,12 @@
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
+#include "../general/sort_pairs.hpp"
 
 #include <string>
 #include <cmath>
 #include <climits> // INT_MAX
+#include <map>
 
 namespace mfem
 {
@@ -29,6 +31,118 @@ const DenseTensor &CoarseFineTransformations::GetPointMatrices(
                "cannot find point matrices for geometry type \"" << geom
                << "\"");
    return pm_it->second;
+}
+
+namespace internal
+{
+
+// Used in CoarseFineTransformations::GetCoarseToFineMap() below.
+struct RefType
+{
+   Geometry::Type geom;
+   int num_children;
+   const Pair<int,int> *children;
+
+   RefType(Geometry::Type g, int n, const Pair<int,int> *c)
+      : geom(g), num_children(n), children(c) { }
+
+   bool operator<(const RefType &other) const
+   {
+      if (geom < other.geom) { return true; }
+      if (geom > other.geom) { return false; }
+      if (num_children < other.num_children) { return true; }
+      if (num_children > other.num_children) { return false; }
+      for (int i = 0; i < num_children; i++)
+      {
+         if (children[i].one < other.children[i].one) { return true; }
+         if (children[i].one > other.children[i].one) { return false; }
+      }
+      return false; // everything is equal
+   }
+};
+
+}
+
+void CoarseFineTransformations::GetCoarseToFineMap(
+   const mfem::Mesh &fine_mesh, Table &coarse_to_fine,
+   Array<int> &coarse_to_ref_type, Table &ref_type_to_matrix,
+   Array<mfem::Geometry::Type> &ref_type_to_geom) const
+{
+   const int fine_ne = embeddings.Size();
+   int coarse_ne = -1;
+   for (int i = 0; i < fine_ne; i++)
+   {
+      coarse_ne = std::max(coarse_ne, embeddings[i].parent);
+   }
+   coarse_ne++;
+
+   coarse_to_ref_type.SetSize(coarse_ne);
+   coarse_to_fine.SetDims(coarse_ne, fine_ne);
+
+   Array<int> cf_i(coarse_to_fine.GetI(), coarse_ne+1);
+   Array<Pair<int,int> > cf_j(fine_ne);
+   cf_i = 0;
+   for (int i = 0; i < fine_ne; i++)
+   {
+      cf_i[embeddings[i].parent+1]++;
+   }
+   cf_i.PartialSum();
+   MFEM_ASSERT(cf_i.Last() == cf_j.Size(), "internal error");
+   for (int i = 0; i < fine_ne; i++)
+   {
+      const Embedding &e = embeddings[i];
+      cf_j[cf_i[e.parent]].one = e.matrix; // used as sort key below
+      cf_j[cf_i[e.parent]].two = i;
+      cf_i[e.parent]++;
+   }
+   std::copy_backward(cf_i.begin(), cf_i.end()-1, cf_i.end());
+   cf_i[0] = 0;
+   for (int i = 0; i < coarse_ne; i++)
+   {
+      std::sort(&cf_j[cf_i[i]], cf_j.GetData() + cf_i[i+1]);
+   }
+   for (int i = 0; i < fine_ne; i++)
+   {
+      coarse_to_fine.GetJ()[i] = cf_j[i].two;
+   }
+
+   using internal::RefType;
+   using std::map;
+   using std::pair;
+
+   map<RefType,int> ref_type_map;
+   for (int i = 0; i < coarse_ne; i++)
+   {
+      const int num_children = cf_i[i+1]-cf_i[i];
+      MFEM_ASSERT(num_children > 0, "");
+      const int fine_el = cf_j[cf_i[i]].two;
+      // Assuming the coarse and the fine elements have the same geometry:
+      const Geometry::Type geom = fine_mesh.GetElementBaseGeometry(fine_el);
+      const RefType ref_type(geom, num_children, &cf_j[cf_i[i]]);
+      pair<map<RefType,int>::iterator,bool> res =
+         ref_type_map.insert(
+            pair<const RefType,int>(ref_type, (int)ref_type_map.size()));
+      coarse_to_ref_type[i] = res.first->second;
+   }
+   ref_type_to_matrix.MakeI((int)ref_type_map.size());
+   ref_type_to_geom.SetSize((int)ref_type_map.size());
+   for (map<RefType,int>::iterator it = ref_type_map.begin();
+        it != ref_type_map.end(); ++it)
+   {
+      ref_type_to_matrix.AddColumnsInRow(it->second, it->first.num_children);
+      ref_type_to_geom[it->second] = it->first.geom;
+   }
+   ref_type_to_matrix.MakeJ();
+   for (map<RefType,int>::iterator it = ref_type_map.begin();
+        it != ref_type_map.end(); ++it)
+   {
+      const RefType &rt = it->first;
+      for (int j = 0; j < rt.num_children; j++)
+      {
+         ref_type_to_matrix.AddConnection(it->second, rt.children[j].one);
+      }
+   }
+   ref_type_to_matrix.ShiftUpI();
 }
 
 NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
@@ -590,7 +704,7 @@ NCMesh::Planar* NCMesh::GetPlanar(Element &elem, int planar_no)
 int NCMesh::FindAltParents(int node1, int node2)
 {
    int mid = nodes.FindId(node1, node2);
-   if (mid < 0 && Dim == 3 && !Iso)
+   if (mid < 0 && Dim >= 3 && !Iso)
    {
       // In rare cases, a mid-face node exists under alternate parents a1, a2
       // (see picture) instead of the requested parents n1, n2. This is an
@@ -2540,8 +2654,8 @@ void NCMesh::BuildFaceList()
             int face = faces.FindId(node[0], node[1], node[2], node[3]);
             MFEM_ASSERT(face >= 0, "face not found!");
 
-            // tell ParNCMesh about the face
-            ElementSharesFace(elem, face);
+         // tell ParNCMesh about the face
+         ElementSharesFace(elem, j, face);
 
             // have we already processed this face? skip if yes
             if (processed_faces[face]) { continue; }
@@ -2818,7 +2932,7 @@ void NCMesh::BuildEdgeList()
          MFEM_ASSERT(nd.HasEdge(), "edge not found!");
 
          // tell ParNCMesh about the edge
-         ElementSharesEdge(elem, enode);
+         ElementSharesEdge(elem, j, enode);
 
          // (2D only, store boundary faces)
          if (Dim <= 2)
@@ -2906,7 +3020,7 @@ void NCMesh::BuildVertexList()
          int index = nd.vert_index;
          if (index >= 0)
          {
-            ElementSharesVertex(elem, node);
+            ElementSharesVertex(elem, j, node);
 
             if (processed_vertices[index]) { continue; }
             processed_vertices[index] = 1;
@@ -3889,7 +4003,8 @@ void NCMesh::ClearTransforms()
 
 //// Utility ///////////////////////////////////////////////////////////////////
 
-void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const
+void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2],
+                             bool oriented) const
 {
    const Element &el = elements[edge_id.element];
    const GeomInfo& gi = GI[(int) el.geom];
@@ -3901,7 +4016,7 @@ void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const
    vert_index[0] = nodes[n0].vert_index;
    vert_index[1] = nodes[n1].vert_index;
 
-   if (vert_index[0] > vert_index[1])
+   if (oriented && vert_index[0] > vert_index[1])
    {
       std::swap(vert_index[0], vert_index[1]);
    }
