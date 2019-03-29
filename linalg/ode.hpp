@@ -97,6 +97,79 @@ public:
 };
 
 
+/// The ODEController and related classes are based on the algorithms described
+/// in "A _PI_ Stepsize Control For The Numerical Solution of Ordinary
+/// Differential Equations" by K. Gustafsson, M. Lundh, and G. Soderlind, BIT
+/// Numerical Mathematics, Vol. 28, Issue 2, pages 270-287 (1988).
+
+class ODEErrorMeasure;
+class ODEStepSizeSelector;
+class ODEStepSizeLimiter;
+
+class ODEController
+{
+protected:
+   ODEErrorMeasure * msr;
+   ODEStepSizeSelector * acc;
+   ODEStepSizeSelector * rej;
+   ODEStepSizeLimiter * lim;
+   ODESolver * sol;
+   double tol;
+   double rho;
+
+   mutable Vector next_x;
+   mutable double dt;
+
+public:
+   ODEController() : msr(NULL), acc(NULL), rej(NULL), lim(NULL), sol(NULL),
+      tol(-1.0), rho(1.2) {}
+
+   void Init(ODEErrorMeasure &msr, ODEStepSizeSelector &acc,
+             ODEStepSizeSelector &rej, ODEStepSizeLimiter &lim,
+             ODESolver &sol)
+   {
+      this->msr = &msr; this->acc = &acc; this->rej = &rej;
+      this->lim = &lim; this->sol = &sol;
+   }
+
+   void SetTolerance(double tol) { this->tol = tol; }
+
+   void SetRejectionLimit(double rho) { this->rho = rho; }
+
+   virtual void Run(Vector &x, double &t, double tf);
+};
+
+class ODEErrorMeasure
+{
+protected:
+   ODEErrorMeasure();
+
+public:
+   virtual double Eval(Vector &u0, Vector &u1) = 0;
+};
+
+class ODEStepSizeSelector
+{
+protected:
+   ODEStepSizeSelector() : tol(-1.0) {}
+
+   double tol;
+
+public:
+   void SetTolerance(double tol) { this->tol = tol; }
+
+   virtual double operator()(double err, double dt) const = 0;
+};
+
+class ODEStepSizeLimiter
+{
+protected:
+   ODEStepSizeLimiter() {}
+
+public:
+   virtual double operator()(double theta) const = 0;
+};
+
 /// The classical forward Euler method
 class ForwardEulerSolver : public ODESolver
 {
@@ -372,6 +445,121 @@ private:
 
    Array<double> a_;
    Array<double> b_;
+};
+
+class AbsRelMeasurelinf : public ODEErrorMeasure
+{
+private:
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+#ifndef MFEM_USE_MPI
+   AbsRelMeasurelinf(double eta);
+   AbsRelMeasurelinf(Vector &eta);
+#else
+   AbsRelMeasurelinf(MPI_Comm comm, double eta);
+   AbsRelMeasurelinf(MPI_Comm comm, Vector &eta);
+#endif
+
+   double Eval(Vector &u0, Vector &u1);
+};
+
+class AbsRelMeasurel2 : public ODEErrorMeasure
+{
+private:
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+#ifndef MFEM_USE_MPI
+   AbsRelMeasurel2(double eta);
+   AbsRelMeasurel2(Vector &eta);
+#else
+   AbsRelMeasurel2(MPI_Comm comm, double eta);
+   AbsRelMeasurel2(MPI_Comm comm, Vector &eta);
+#endif
+
+   double Eval(Vector &u0, Vector &u1);
+};
+
+class StdSelector : public ODEStepSizeSelector
+{
+private:
+   double gamma;
+   double kI;
+
+public:
+   StdSelector(double gamma, double kI) : gamma(gamma), kI(kI) {}
+
+   double operator()(double err, double dt) const
+   { return gamma * pow(tol / err, kI); }
+};
+
+class PISelector : public ODEStepSizeSelector
+{
+private:
+   double kI;
+   double kP;
+   mutable double prev_dt;
+   mutable double prev_err;
+
+   PISelector(double kI, double kP)
+      : kI(kI), kP(kP), prev_dt(-1.0), prev_err(-1.0) {}
+
+   double operator()(double err, double dt) const;
+};
+
+class PIDSelector : public ODEStepSizeSelector
+{
+private:
+   double kI;
+   double kP;
+   double kD;
+   mutable double prev_dt1;
+   mutable double prev_dt2;
+   mutable double prev_err1;
+   mutable double prev_err2;
+
+public:
+   PIDSelector(double kI, double kP, double kD)
+      : kI(kI), kP(kP), kD(kD),
+        prev_dt1(-1.0), prev_dt2(-1.0), prev_err1(-1.0), prev_err2(-1.0) {}
+
+   double operator()(double err, double dt) const;
+};
+
+class DeadZoneLimiter : public ODEStepSizeLimiter
+{
+private:
+   double lo;
+   double hi;
+   double mx;
+
+public:
+   DeadZoneLimiter(double lo, double hi, double mx)
+      : lo(lo), hi(hi), mx(mx) {}
+
+   double operator()(double theta) const
+   { return std::min(mx, ((lo <= theta && theta <= hi) ? 1.0 : theta)); }
+};
+
+class MaxLimiter : public ODEStepSizeLimiter
+{
+private:
+   double mx;
+
+public:
+   MaxLimiter(double mx) : mx(mx) {}
+
+   double operator()(double theta) const
+   { return std::min(mx, theta); }
 };
 
 }

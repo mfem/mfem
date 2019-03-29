@@ -666,4 +666,160 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
    }
 }
 
+void ODEController::Run(Vector &x, double &t, double tf)
+{
+   bool accept = false;
+   while (!accept)
+   {
+      double next_t = t;
+      next_x = x;
+
+      sol->Step(next_x, next_t, dt);
+
+      double e = msr->Eval(x, next_x);
+
+      if (e <= rho * tol)
+      {
+         accept = true;
+
+         x = next_x;
+         t = next_t;
+         dt *= (*lim)((*acc)(e, dt));
+      }
+      else
+      {
+         dt *= (*lim)((*rej)(e, dt));
+      }
+   }
+}
+
+#ifndef MFEM_USE_MPI
+AbsRelMeasurelinf::AbsRelMeasurelinf(double eta) : etaVec(NULL), etaConst(eta)
+#else
+AbsRelMeasurelinf::AbsRelMeasurelinf(MPI_Comm comm, double eta)
+   : comm(comm), etaVec(NULL), etaConst(eta)
+#endif
+{}
+
+#ifndef MFEM_USE_MPI
+AbsRelMeasurelinf::AbsRelMeasurelinf(Vector &eta) : etaVec(&eta), etaConst(-1.0)
+#else
+AbsRelMeasurelinf::AbsRelMeasurelinf(MPI_Comm comm, Vector &eta)
+   : comm(comm), etaVec(&eta), etaConst(-1.0)
+#endif
+{}
+
+double AbsRelMeasurelinf::Eval(Vector &u0, Vector &u1)
+{
+   MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
+               << u0.Size() << " and " << u1.Size());
+   if (etaVec)
+   {
+      MFEM_ASSERT(u0.Size() == etaVec->Size(), "Incorrect scaling vector size: "
+                  << etaVec->Size() << " should match " << u0.Size());
+   }
+
+   double max = 0.0;
+
+   for (int i = 0; i < u0.Size(); i++)
+   {
+      double eta = (etaVec) ? (*etaVec)(i) : etaConst;
+
+      max = std::max(std::abs((u0(i)-u1(i)) / (eta + u1(i))), max);
+   }
+
+#ifndef MFEM_USE_MPI
+   return max;
+#else
+   double glb_max = 0.0;
+   MPI_Allreduce(&max, &glb_max, 1, MPI_DOUBLE, MPI_MAX, comm);
+   return glb_max;
+#endif
+}
+
+#ifndef MFEM_USE_MPI
+AbsRelMeasurel2::AbsRelMeasurel2(double eta) : etaVec(NULL), etaConst(eta)
+#else
+AbsRelMeasurel2::AbsRelMeasurel2(MPI_Comm comm, double eta)
+   : comm(comm), etaVec(NULL), etaConst(eta)
+#endif
+{}
+
+#ifndef MFEM_USE_MPI
+AbsRelMeasurel2::AbsRelMeasurel2(Vector &eta) : etaVec(&eta), etaConst(-1.0)
+#else
+AbsRelMeasurel2::AbsRelMeasurel2(MPI_Comm comm, Vector &eta)
+   : comm(comm), etaVec(&eta), etaConst(-1.0)
+#endif
+{}
+
+double AbsRelMeasurel2::Eval(Vector &u0, Vector &u1)
+{
+   MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
+               << u0.Size() << " and " << u1.Size());
+   if (etaVec)
+   {
+      MFEM_ASSERT(u0.Size() == etaVec->Size(), "Incorrect scaling vector size: "
+                  << etaVec->Size() << " should match " << u0.Size());
+   }
+
+   double scale = 0.0;
+   double sum = 0.0;
+
+   for (int i = 0; i < u0.Size(); i++)
+   {
+      double eta = (etaVec) ? (*etaVec)(i) : etaConst;
+
+      if (u0(i) != u1(i))
+      {
+         const double absdata = std::abs((u0(i)-u1(i)) / (eta + u1(i)));
+         if (scale <= absdata)
+         {
+            const double sqr_arg = scale / absdata;
+            sum = 1.0 + sum * (sqr_arg * sqr_arg);
+            scale = absdata;
+            continue;
+         } // end if scale <= absdata
+         const double sqr_arg = absdata / scale;
+         sum += (sqr_arg * sqr_arg); // else scale > absdata
+      } // end if u0(i) != u1(i)
+   }
+
+#ifndef MFEM_USE_MPI
+   return scale * std::sqrt(sum);
+#else
+   double loc_sum = scale * scale * sum;
+   double glb_sum = 0.0;
+   MPI_Allreduce(&loc_sum, &glb_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
+   return glb_sum;
+#endif
+}
+
+double PISelector::operator()(double err, double dt) const
+{
+   double theta = pow(tol / err, kI) *
+                  ((prev_dt > 0.0 && prev_err > 0.0) ?
+                   pow(dt * prev_err / (err * prev_dt), kP) : 1.0);
+   prev_err = err;
+   prev_dt  = dt;
+
+   return theta;
+}
+
+double PIDSelector::operator()(double err, double dt) const
+{
+   double theta = pow(tol / err, kI) *
+                  ((prev_dt1 > 0.0 && prev_err1 > 0.0) ?
+                   pow(dt * prev_err1 / (err * prev_dt1), kP) : 1.0) *
+                  ((prev_dt2 > 0.0 && prev_err2 > 0.0) ?
+                   pow(prev_err1 * prev_err1 / (err * prev_err2), kD) : 1.0);
+
+   prev_err2 = prev_err1;
+   prev_err1 = err;
+   prev_dt2  = prev_dt1;
+   prev_dt1  = dt;
+
+   return theta;
+}
+
 }
