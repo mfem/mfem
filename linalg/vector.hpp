@@ -74,7 +74,7 @@ public:
    Vector (double *_data, int _size)
    { data = _data; size = _size; allocsize = -size;
      mm::RegisterHostPtr(data, size);
-     RegisterCheck(data); }
+   }
 
    /// Copies data from host to device
    void Push() const;
@@ -114,7 +114,7 @@ public:
    void SetDataAndSize(double *d, int s)
    { data = d; size = s; allocsize = -s;
      mm::RegisterHostPtr(data, size);
-     RegisterCheck(data); }
+   }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is

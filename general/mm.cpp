@@ -310,11 +310,10 @@ OccaMemory mm::Memory(const void *ptr) { return occaMemory(maps, ptr); }
 
 void mm::RegisterCheck(void *ptr)
 {
-  if(ptr != NULL && config::UsingMM()){
+  if(ptr != NULL && Device::UsingMM()){
     if(!mm::known(ptr))
       {
-        MFEM_VERIFY(0 && "Pointer is not registered!");
-        mfem_error("Trying use an unregistered pointer!");
+        mfem_error("Pointer is not registered!");
       }
   }
 }
