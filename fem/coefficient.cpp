@@ -28,6 +28,11 @@ double PWConstCoefficient::Eval(ElementTransformation & T,
    return (constants(att-1));
 }
 
+double (*FunctionCoefficient::GetDeviceFunction())(const DeviceVector3&)
+{
+   return DeviceFunction;
+}
+
 double FunctionCoefficient::Eval(ElementTransformation & T,
                                  const IntegrationPoint & ip)
 {

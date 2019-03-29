@@ -129,19 +129,20 @@ public:
       DeviceFunction = NULL;
    }
 
-   FunctionCoefficient(double (*f)(const DeviceVector3 &))
-   {
-      Function = NULL;
-      TDFunction = NULL;
-      DeviceFunction = f;
-   }
-
    /// Define a time-dependent coefficient from a C-function
    FunctionCoefficient(double (*tdf)(const Vector &, double))
    {
       Function = NULL;
       TDFunction = tdf;
       DeviceFunction = NULL;
+   }
+
+   /// Define a time-independent coefficient from a device-function
+   FunctionCoefficient(double (*df)(const DeviceVector3 &))
+   {
+      Function = NULL;
+      TDFunction = NULL;
+      DeviceFunction = df;
    }
 
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
@@ -169,7 +170,7 @@ public:
                        const IntegrationPoint &ip);
 
    /// Return the coefficient's device-function
-   double (*GetDeviceFunction())(const DeviceVector3&) { return DeviceFunction; }
+   double (*GetDeviceFunction())(const DeviceVector3&);
 };
 
 class GridFunction;
