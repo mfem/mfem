@@ -29,10 +29,11 @@ public:
    DeviceVector3(const double *r) { data[0]=r[0]; data[1]=r[1]; data[2]=r[2]; }
    DeviceVector3(const double r0, const double r1, const double r2)
    { data[0]=r0; data[1]=r1; data[2]=r2; }
-   ~DeviceVector3() {}
    inline operator double* () { return data; }
    inline operator const double* () const { return data; }
-   inline double& operator[](const size_t x) { return data[x]; }
+   inline double& operator[](const size_t i) { return data[i]; }
+   inline double& operator()(const int i) { return data[i]; }
+   inline const double& operator()(const int i) const { return data[i]; }
 };
 
 /// A Class to compute the real index from the multi-indices of a tensor

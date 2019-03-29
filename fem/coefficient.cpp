@@ -40,6 +40,10 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    {
       return ((*Function)(transip));
    }
+   else if (DeviceFunction)
+   {
+      return ((*DeviceFunction)(DeviceVector3(x)));
+   }
    else
    {
       return (*TDFunction)(transip, GetTime());
