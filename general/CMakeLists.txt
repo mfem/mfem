@@ -13,13 +13,12 @@ list(APPEND SRCS
   array.cpp
   cuda.cpp
   error.cpp
-  config.cpp
+  device.cpp
   globals.cpp
   gzstream.cpp
   isockstream.cpp
   mm.cpp
   occa.cpp
-  okina.cpp
   optparser.cpp
   osockstream.cpp
   sets.cpp
@@ -33,7 +32,7 @@ list(APPEND SRCS
 list(APPEND HDRS
   array.hpp
   binaryio.hpp
-  config.hpp
+  device.hpp
   cuda.hpp
   error.hpp
   globals.hpp
@@ -46,7 +45,6 @@ list(APPEND HDRS
   okina.hpp
   optparser.hpp
   osockstream.hpp
-  raja.hpp
   sets.hpp
   socketstream.hpp
   sort_pairs.hpp
