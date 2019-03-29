@@ -1,4 +1,10 @@
-﻿IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+﻿extern "C"
+{
+#include "gslib-1.0.3/build/include/gslib.h"
+}
+
+
+IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
 class findpts_gslib
 {
 private:

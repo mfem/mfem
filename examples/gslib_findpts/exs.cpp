@@ -1,10 +1,6 @@
 ﻿// ./exs -m RT2D.mesh -qo 8 -o 3
-//
-#include "mfem.hpp"
-extern "C" {
-#include "findpts_mfem.h"
-}
 
+#include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include <ctime>
