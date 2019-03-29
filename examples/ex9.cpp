@@ -76,7 +76,7 @@ struct LowOrderMethod
 {
    MONOTYPE MonoType;
    bool OptScheme;
-	DG_FECollection *fec0, *fec1;
+   DG_FECollection *fec0, *fec1;
    FiniteElementSpace *fes, *SubFes0, *SubFes1;
    Array <int> smap;
    SparseMatrix D;
@@ -736,15 +736,15 @@ public:
       }
       if (NeedSubcells)
       {
-			VolumeTerms = lom.VolumeTerms;
-			SubcellWeights.SetSize(ne, dofs.numSubcells, dofs.numDofsSubcell);
-			
-			if (exec_mode == 0)
-			{
-				SubFes0 = lom.SubFes0;
-				SubFes1 = lom.SubFes1;
-				subcell_mesh = lom.subcell_mesh;
-			}
+         VolumeTerms = lom.VolumeTerms;
+         SubcellWeights.SetSize(ne, dofs.numSubcells, dofs.numDofsSubcell);
+         
+         if (exec_mode == 0)
+         {
+            SubFes0 = lom.SubFes0;
+            SubFes1 = lom.SubFes1;
+            subcell_mesh = lom.subcell_mesh;
+         }
       }
       
       // Initialization for transport mode.
@@ -1268,15 +1268,15 @@ int main(int argc, char *argv[])
          lom.VolumeTerms = new MixedConvectionIntegrator(velocity);
       }
       
-		lom.fec0 = &fec0;
-		lom.fec1 = &fec1;
+      lom.fec0 = &fec0;
+      lom.fec1 = &fec1;
 
-		if (exec_mode == 0)
-		{
-			lom.subcell_mesh = GetSubcellMesh(mesh, order);
-			lom.SubFes0 = new FiniteElementSpace(lom.subcell_mesh, lom.fec0);
-			lom.SubFes1 = new FiniteElementSpace(lom.subcell_mesh, lom.fec1);
-		}
+      if (exec_mode == 0)
+      {
+         lom.subcell_mesh = GetSubcellMesh(mesh, order);
+         lom.SubFes0 = new FiniteElementSpace(lom.subcell_mesh, lom.fec0);
+         lom.SubFes1 = new FiniteElementSpace(lom.subcell_mesh, lom.fec1);
+      }
    }
 
    Assembly asmbl(dofs, lom);
@@ -1588,14 +1588,14 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       
       if ((exec_mode > 0) && (lom.OptScheme))
       {
-			// TODO efficiency.
-			delete asmbl.subcell_mesh;
-			delete asmbl.SubFes0;
-			delete asmbl.SubFes1;
-			
+         // TODO efficiency.
+         delete asmbl.subcell_mesh;
+         delete asmbl.SubFes0;
+         delete asmbl.SubFes1;
+         
          asmbl.subcell_mesh = GetSubcellMesh(mesh, dummy->GetOrder());
-			asmbl.SubFes0 =  new FiniteElementSpace(asmbl.subcell_mesh, lom.fec0);
-			asmbl.SubFes1 =  new FiniteElementSpace(asmbl.subcell_mesh, lom.fec1);
+         asmbl.SubFes0 =  new FiniteElementSpace(asmbl.subcell_mesh, lom.fec0);
+         asmbl.SubFes1 =  new FiniteElementSpace(asmbl.subcell_mesh, lom.fec1);
       }
 
       // Monotonicity terms
