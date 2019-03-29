@@ -41,6 +41,8 @@
 #include "ddmesh.hpp"
 #include "ddoper.hpp"
 
+#include "testStrumpack.hpp"
+
 using namespace std;
 using namespace mfem;
 
@@ -58,7 +60,7 @@ void VisitTestPlotParMesh(const std::string filename, ParMesh *pmesh, const int 
 {
   if (pmesh == NULL)
     return;
-    
+
   DataCollection *dc = NULL;
   bool binary = false;
   if (binary)
@@ -215,6 +217,16 @@ int main(int argc, char *argv[])
    SubdomainInterfaceGenerator sdInterfaceGen(numSubdomains, pmesh);
    vector<SubdomainInterface> interfaces;  // Local interfaces
    sdInterfaceGen.CreateInterfaces(interfaces);
+
+   /*
+   { // Debugging
+     for (std::set<int>::const_iterator it = interfaces[0].faces.begin(); it != interfaces[0].faces.end(); ++it)
+       {
+	 cout << myid << ": iface " << *it << endl;
+       }
+   }
+   */
+   
    std::vector<int> interfaceGlobalToLocalMap, interfaceGI;
    const int numInterfaces = sdInterfaceGen.GlobalToLocalInterfaceMap(interfaces, interfaceGlobalToLocalMap, interfaceGI);
    
@@ -254,7 +266,7 @@ int main(int argc, char *argv[])
    // It is even possible (if an interface lies on a process boundary) for an entire interface to be duplicated on two processes, with zero true DOF's
    // on one process. 
    
-   const bool testSubdomains = true;
+   const bool testSubdomains = false;
    if (testSubdomains)
      {
        for (int i=0; i<numSubdomains; ++i)
@@ -296,7 +308,6 @@ int main(int argc, char *argv[])
    }
 
    // 6.1. Create interface operator.
-
    DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmesh, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
 			    &interfaces, &interfaceGlobalToLocalMap);  // PengLee2012 uses order 2 
 
@@ -341,7 +352,7 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
 
    //cout << myid << ": NBE " << pmesh->GetNBE() << endl;
-   
+
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
@@ -362,6 +373,33 @@ int main(int argc, char *argv[])
    chrono.Clear();
    chrono.Start();
 
+   //TestStrumpackConstructor();
+   
+   const bool solveDD = true;
+   if (solveDD)
+     {
+       //cout << "B size " << B.Size() << endl;
+       //cout << "fespace true V size " << fespace->GetTrueVSize() << endl;
+
+       Vector Bdd(ddi.Width());
+       Vector xdd(ddi.Width());
+       ddi.GetReducedSource(fespace, B, Bdd);
+
+       /*
+       GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
+	   
+       gmres->SetOperator(ddi);
+       gmres->SetRelTol(1e-16);
+       gmres->SetMaxIter(1000);
+       gmres->SetPrintLevel(1);
+
+       //gmres->SetPreconditioner(*ams);
+       gmres->Mult(Bdd, xdd);
+
+       delete gmres;
+       */
+     }
+
 #ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
      {
@@ -369,6 +407,8 @@ int main(int argc, char *argv[])
 
        if (fullDirect)
 	 {
+	   /*
+	   cout << "FULL DIRECT SOLVER" << endl;
 	   Operator * Arow = new STRUMPACKRowLocMatrix(A);
 
 	   STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
@@ -386,6 +426,7 @@ int main(int argc, char *argv[])
        
 	   delete strumpack;
 	   delete Arow;
+	   */
 	 }
        else
 	 {
