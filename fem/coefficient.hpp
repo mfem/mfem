@@ -137,7 +137,8 @@ public:
       DeviceFunction = NULL;
    }
 
-   /// Define a time-independent coefficient from a device-function
+   /// Define a time-independent coefficient from a C-function using
+   /// DeviceVector3 instead of a Vector.
    FunctionCoefficient(double (*df)(const DeviceVector3 &))
    {
       Function = NULL;
@@ -169,7 +170,9 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
-   /// Return the coefficient's device-function
+   /// Return the coefficient's C-function that uses DeviceVector3.
+   /// Warning: for now, the returned function can only be used on the
+   /// host inside a MFEM_FORALL.
    double (*GetDeviceFunction())(const DeviceVector3&);
 };
 
