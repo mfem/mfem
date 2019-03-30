@@ -145,11 +145,6 @@ else
    MFEM_USE_METIS_5 = YES
 endif
 
-# GSLIB library
-GSLIB_DIR = @MFEM_DIR@/../gslib-1.0.3/build
-GSLIB_OPT = -I$(GSLIB_DIR)/include
-GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
-
 # LAPACK library configuration
 LAPACK_OPT =
 LAPACK_LIB = $(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
@@ -280,6 +275,18 @@ SIDRE_LIB = \
    -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
    -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
+
+# PUMI
+# Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
+PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
+PUMI_OPT = -I$(PUMI_DIR)/include
+PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
+   -llion -lmth -lapf_zoltan -lspr
+
+# GSLIB library
+GSLIB_DIR = @MFEM_DIR@/../gslib-1.0.3/build
+GSLIB_OPT = -I$(GSLIB_DIR)/include
+GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # If YES, enable some informational messages
 VERBOSE = NO
