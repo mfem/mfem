@@ -106,14 +106,18 @@ class ODEErrorMeasure;
 class ODEStepSizeSelector;
 class ODEStepSizeLimiter;
 
+/** The ODEController class is designed to adaptively adjust the step size
+    used with the ODESolver classes. The goal is to maintain some measure of
+    the solution error at a user specified level.
+ */
 class ODEController
 {
 protected:
-   ODEErrorMeasure * msr;
+   ODESolver           * sol;
+   ODEErrorMeasure     * msr;
    ODEStepSizeSelector * acc;
    ODEStepSizeSelector * rej;
-   ODEStepSizeLimiter * lim;
-   ODESolver * sol;
+   ODEStepSizeLimiter  * lim;
    double tol;
    double rho;
 
@@ -121,21 +125,37 @@ protected:
    mutable double dt;
 
 public:
-   ODEController() : msr(NULL), acc(NULL), rej(NULL), lim(NULL), sol(NULL),
-      tol(-1.0), rho(1.2) {}
+   ODEController()
+      : sol(NULL), msr(NULL), acc(NULL), rej(NULL), lim(NULL),
+        tol(-1.0), rho(1.2), dt(1.0) {}
 
-   void Init(ODEErrorMeasure &msr, ODEStepSizeSelector &acc,
-             ODEStepSizeSelector &rej, ODEStepSizeLimiter &lim,
-             ODESolver &sol)
+   /// Define the particulars of the ODE step-size control process
+   /** The various pieces are:
+   sol - Computes a possible update of the field at the next time step
+        msr - Produces an error estimate using fields from two sucessive steps
+   acc - Computes a new step size when the previous step was accepted
+   rej - Computes a new step size when the previous step was rejected
+   lim - Imposes a limiter on the next time step
+   */
+   void Init(ODESolver &sol, ODEErrorMeasure &msr,
+             ODEStepSizeSelector &acc, ODEStepSizeSelector &rej,
+             ODEStepSizeLimiter &lim)
    {
-      this->msr = &msr; this->acc = &acc; this->rej = &rej;
-      this->lim = &lim; this->sol = &sol;
+      this->sol = &sol; this->msr = &msr;
+      this->acc = &acc; this->rej = &rej;
+      this->lim = &lim;
    }
 
+   /// Sets the initial time step
+   void SetTimeStep(double dt) { this->dt = dt; }
+
+   /// Sets the error target for the control process
    void SetTolerance(double tol) { this->tol = tol; }
 
+   /// Sets the threshold for rejection of a time step to be rho * tol
    void SetRejectionLimit(double rho) { this->rho = rho; }
 
+   /// Advances the solution vector x from time t to tf
    virtual void Run(Vector &x, double &t, double tf);
 };
 
