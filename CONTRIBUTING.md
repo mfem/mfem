@@ -90,13 +90,18 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   ├── general
   ├── linalg
   ├── mesh
-  └── miniapps
-      ├── common
-      ├── electromagnetics
-      ├── meshing
-      ├── nurbs
-      ├── performance
-      └── tools
+  ├── miniapps
+  │   ├── common
+  │   ├── electromagnetics
+  │   ├── meshing
+  │   ├── nurbs
+  │   ├── performance
+  │   └── tools
+  └── tests
+      ├── unit
+      │   ├── ...
+      └── ...
+
   ```
 
 - The main directories are `fem/`, `mesh/` and `linalg/` containing the C++
@@ -150,6 +155,9 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 - The `data/` directory contains a collection of small mesh files, that are used
   in the simple example codes and more fully-featured mini applications in the
   `examples/` and `miniapps/` directories.
+
+- The `tests/` directory contains a unit test suite and will later contain more
+  tests that run example codes.
 
 - See also the [code overview](http://mfem.org/code-overview/) section on the
   MFEM website.
@@ -358,10 +366,10 @@ Before a PR can be merged, it should satisfy the following:
    - [ ] If this is a major new feature, consider mentioning in the short summary inside `README` *(rare)*.
    - [ ] List major new classes in `doc/CodeDocumentation.dox` *(rare)*.
 - [ ] Update this checklist, if the new pull request affects it.
+- [ ] Run the unit tests and make sure they all pass `make unittest`.
 - [ ] (LLNL only) Clone the `tests` repository and run the following tests, see `mfem/tests/README.md`:
    - [ ] `compilers`
    - [ ] `memcheck`
-   - [ ] `unit-test`
    - [ ] `documentation`
 - [ ] (LLNL only) After merging:
    - [ ] Regenerate `README.html` files from companion documentation pull requests.
@@ -471,7 +479,6 @@ MFEM uses a `master`/`next`-branch workflow as described below:
      it to build your code between releases.
   - `mfem:gh-next` -- Bleeding-edge development version, may be broken, use at
      your own risk.
-
 
 ## Automated Testing
 
