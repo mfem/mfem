@@ -84,16 +84,20 @@ BilinearForm::BilinearForm (FiniteElementSpace * f,
    switch (assembly)
    {
       case AssemblyLevel::FULL:
+         if (Device::UsingDevice())
+         {
+            mfem_error("Full assembly not supported yet in device mode!");
+         }
          // Use the original BilinearForm implementation for now
          break;
       case AssemblyLevel::ELEMENT:
-         mfem_error("Not supported yet... stay tuned!");
+         mfem_error("Element assembly not supported yet... stay tuned!");
          break;
       case AssemblyLevel::PARTIAL:
          pa = new PABilinearFormExtension(this);
          break;
       case AssemblyLevel::NONE:
-         mfem_error("Not supported yet... stay tuned!");
+         mfem_error("Matrix-free action not supported yet... stay tuned!");
          break;
       default:
          mfem_error("Unknown assembly level");
