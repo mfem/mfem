@@ -1,6 +1,8 @@
 ﻿// ./exs -m RT2D.mesh -qo 8 -o 3
 
 #include "mfem.hpp"
+#include "fem/gslib.hpp" // TODO move to mfem.hpp (double declaration bug ??)
+
 #include <fstream>
 #include <iostream>
 #include <ctime>
@@ -10,7 +12,7 @@
 using namespace mfem;
 using namespace std;
 
-#include "fpt_wrapper.hpp"
+IntegrationRules IntRulesGLo(0, Quadrature1D::GaussLobatto);
 
 int main (int argc, char *argv[])
 {
@@ -97,7 +99,6 @@ int main (int argc, char *argv[])
    GridFunction x0(fespace);
    x0 = *x;
 
-   // 9. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
    const int geom_type = fespace->GetFE(0)->GetGeomType();
    int quad_eval = quad_order;
@@ -110,7 +111,7 @@ int main (int argc, char *argv[])
    }
    switch (quad_type)
    {
-      case 1: ir = &IntRulesGLL.Get(geom_type, quad_order);
+      case 1: ir = &IntRulesGLo.Get(geom_type, quad_order);
    }
    if (myid==0) {cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;}
 

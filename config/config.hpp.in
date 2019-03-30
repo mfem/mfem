@@ -112,6 +112,9 @@
 // Enable MFEM functionality based on the PUMI library
 // #define MFEM_USE_PUMI
 
+// Enable MFEM functionality based on the GSLIB library
+// #define MFEM_USE_GSLIB
+
 // Version of HYPRE used for building MFEM.
 // #define MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@
 

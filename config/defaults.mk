@@ -107,6 +107,7 @@ MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
 MFEM_USE_CONDUIT     = NO
 MFEM_USE_PUMI        = NO
+MFEM_USE_GSLIB       = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -142,9 +143,10 @@ else
    MFEM_USE_METIS_5 = YES
 endif
 
-# FINDPTS library
-GSLIB_FPT_DIR = @MFEM_DIR@/gslib-1.0.3/build/lib
-GSLIB_FPT_LIB = -L$(GSLIB_FPT_DIR) -lgs
+# GSLIB library
+GSLIB_DIR = @MFEM_DIR@/../gslib-1.0.3/build
+GSLIB_OPT = -I$(GSLIB_DIR)/include
+GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # LAPACK library configuration
 LAPACK_OPT =
