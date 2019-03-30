@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/gslib_findpts/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/gslib/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
@@ -41,6 +41,11 @@ endif
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 all: $(EXAMPLES)
+
+ifeq ($(MFEM_USE_GSLIB),NO)
+$(EXAMPLES):
+	$(error MFEM is not configured with GSLIB)
+endif
 
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)

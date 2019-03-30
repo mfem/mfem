@@ -1,13 +1,13 @@
 ﻿// mpirun -np 2 ./exp -m RT2D.mesh -qo 8 -o 3
 
 #include "mfem.hpp"
+#include "fem/gslib.hpp" // TODO move to mfem.hpp (double declaration bug ??)
+
 #include <fstream>
 #include <ctime>
 
 using namespace mfem;
 using namespace std;
-
-#include "fpt_wrapper.hpp"
 
 IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
