@@ -24,11 +24,11 @@ typedef occa::device OccaDevice;
 typedef occa::memory OccaMemory;
 
 // Macros
-#define GET_OCCA_MEMORY(v) occa::memory o_##v = mm::occaPtr(v)
-#define GET_OCCA_CONST_MEMORY(v) GET_OCCA_MEMORY(v)
-#define NEW_OCCA_PROPERTY(props) occa::properties props;
-#define SET_OCCA_PROPERTY(props,name) props["defines/" #name] = name;
-#define NEW_OCCA_KERNEL(ker,library,filename,props)                     \
+#define MFEM_GET_OCCA_MEMORY(v) occa::memory o_##v = mm::occaPtr(v)
+#define MFEM_GET_OCCA_CONST_MEMORY(v) MFEM_GET_OCCA_MEMORY(v)
+#define MFEM_NEW_OCCA_PROPERTY(props) occa::properties props;
+#define MFEM_SET_OCCA_PROPERTY(props,name) props["defines/" #name] = name;
+#define MFEM_NEW_OCCA_KERNEL(ker,library,filename,props)                \
    static occa::kernel ker = NULL;                                      \
    if (ker==NULL) {                                                     \
       OccaDevice device = Device::GetOccaDevice();                      \
