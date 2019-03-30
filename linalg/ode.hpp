@@ -103,8 +103,8 @@ public:
 /// Numerical Mathematics, Vol. 28, Issue 2, pages 270-287 (1988).
 
 class ODEErrorMeasure;
-class ODEStepSizeSelector;
-class ODEStepSizeLimiter;
+class ODEStepAdjustmentFactor;
+class ODEStepAdjustmentLimiter;
 
 /** The ODEController class is designed to adaptively adjust the step size
     used with the ODESolver classes. The goal is to maintain some measure of
@@ -113,11 +113,11 @@ class ODEStepSizeLimiter;
 class ODEController
 {
 protected:
-   ODESolver           * sol;
-   ODEErrorMeasure     * msr;
-   ODEStepSizeSelector * acc;
-   ODEStepSizeSelector * rej;
-   ODEStepSizeLimiter  * lim;
+   ODESolver                * sol;
+   ODEErrorMeasure          * msr;
+   ODEStepAdjustmentFactor  * acc;
+   ODEStepAdjustmentFactor  * rej;
+   ODEStepAdjustmentLimiter * lim;
    double tol;
    double rho;
 
@@ -131,26 +131,26 @@ public:
 
    /// Define the particulars of the ODE step-size control process
    /** The various pieces are:
-   sol - Computes a possible update of the field at the next time step
+        sol - Computes a possible update of the field at the next time step
         msr - Produces an error estimate using fields from two sucessive steps
-   acc - Computes a new step size when the previous step was accepted
-   rej - Computes a new step size when the previous step was rejected
-   lim - Imposes a limiter on the next time step
+        acc - Computes a new step size when the previous step was accepted
+        rej - Computes a new step size when the previous step was rejected
+        lim - Imposes limits on the next time step
    */
    void Init(ODESolver &sol, ODEErrorMeasure &msr,
-             ODEStepSizeSelector &acc, ODEStepSizeSelector &rej,
-             ODEStepSizeLimiter &lim)
+             ODEStepAdjustmentFactor &acc, ODEStepAdjustmentFactor &rej,
+             ODEStepAdjustmentLimiter &lim)
    {
       this->sol = &sol; this->msr = &msr;
       this->acc = &acc; this->rej = &rej;
       this->lim = &lim;
    }
 
-   /// Sets the initial time step
+   /// Sets (or resets) the initial time step
    void SetTimeStep(double dt) { this->dt = dt; }
 
    /// Sets the error target for the control process
-   void SetTolerance(double tol) { this->tol = tol; }
+   void SetTolerance(double tol);
 
    /// Sets the threshold for rejection of a time step to be rho * tol
    void SetRejectionLimit(double rho) { this->rho = rho; }
@@ -159,34 +159,41 @@ public:
    virtual void Run(Vector &x, double &t, double tf);
 };
 
+/// Computes an error measure from two successive field values
 class ODEErrorMeasure
 {
 protected:
-   ODEErrorMeasure();
+   ODEErrorMeasure() {}
 
 public:
+   virtual ~ODEErrorMeasure() {}
+
    virtual double Eval(Vector &u0, Vector &u1) = 0;
 };
 
-class ODEStepSizeSelector
+class ODEStepAdjustmentFactor
 {
 protected:
-   ODEStepSizeSelector() : tol(-1.0) {}
-
    double tol;
 
+   ODEStepAdjustmentFactor() : tol(-1.0) {}
+
 public:
+   virtual ~ODEStepAdjustmentFactor() {}
+
    void SetTolerance(double tol) { this->tol = tol; }
 
    virtual double operator()(double err, double dt) const = 0;
 };
 
-class ODEStepSizeLimiter
+class ODEStepAdjustmentLimiter
 {
 protected:
-   ODEStepSizeLimiter() {}
+   ODEStepAdjustmentLimiter() {}
 
 public:
+   virtual ~ODEStepAdjustmentLimiter() {}
+
    virtual double operator()(double theta) const = 0;
 };
 
@@ -509,20 +516,20 @@ public:
    double Eval(Vector &u0, Vector &u1);
 };
 
-class StdSelector : public ODEStepSizeSelector
+class StdAdjFactor : public ODEStepAdjustmentFactor
 {
 private:
    double gamma;
    double kI;
 
 public:
-   StdSelector(double gamma, double kI) : gamma(gamma), kI(kI) {}
+   StdAdjFactor(double gamma, double kI) : gamma(gamma), kI(kI) {}
 
    double operator()(double err, double dt) const
    { return gamma * pow(tol / err, kI); }
 };
 
-class PISelector : public ODEStepSizeSelector
+class PIAdjFactor : public ODEStepAdjustmentFactor
 {
 private:
    double kI;
@@ -530,13 +537,13 @@ private:
    mutable double prev_dt;
    mutable double prev_err;
 
-   PISelector(double kI, double kP)
+   PIAdjFactor(double kI, double kP)
       : kI(kI), kP(kP), prev_dt(-1.0), prev_err(-1.0) {}
 
    double operator()(double err, double dt) const;
 };
 
-class PIDSelector : public ODEStepSizeSelector
+class PIDAdjFactor : public ODEStepAdjustmentFactor
 {
 private:
    double kI;
@@ -548,14 +555,14 @@ private:
    mutable double prev_err2;
 
 public:
-   PIDSelector(double kI, double kP, double kD)
+   PIDAdjFactor(double kI, double kP, double kD)
       : kI(kI), kP(kP), kD(kD),
         prev_dt1(-1.0), prev_dt2(-1.0), prev_err1(-1.0), prev_err2(-1.0) {}
 
    double operator()(double err, double dt) const;
 };
 
-class DeadZoneLimiter : public ODEStepSizeLimiter
+class DeadZoneLimiter : public ODEStepAdjustmentLimiter
 {
 private:
    double lo;
@@ -570,7 +577,7 @@ public:
    { return std::min(mx, ((lo <= theta && theta <= hi) ? 1.0 : theta)); }
 };
 
-class MaxLimiter : public ODEStepSizeLimiter
+class MaxLimiter : public ODEStepAdjustmentLimiter
 {
 private:
    double mx;

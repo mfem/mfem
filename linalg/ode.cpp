@@ -666,6 +666,14 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
    }
 }
 
+void ODEController::SetTolerance(double tol)
+{
+   this->tol = tol;
+
+   if (this->acc) { this->acc->SetTolerance(tol); }
+   if (this->rej) { this->rej->SetTolerance(tol); }
+}
+
 void ODEController::Run(Vector &x, double &t, double tf)
 {
    bool accept = false;
@@ -795,7 +803,7 @@ double AbsRelMeasurel2::Eval(Vector &u0, Vector &u1)
 #endif
 }
 
-double PISelector::operator()(double err, double dt) const
+double PIAdjFactor::operator()(double err, double dt) const
 {
    double theta = pow(tol / err, kI) *
                   ((prev_dt > 0.0 && prev_err > 0.0) ?
@@ -806,7 +814,7 @@ double PISelector::operator()(double err, double dt) const
    return theta;
 }
 
-double PIDSelector::operator()(double err, double dt) const
+double PIDAdjFactor::operator()(double err, double dt) const
 {
    double theta = pow(tol / err, kI) *
                   ((prev_dt1 > 0.0 && prev_err1 > 0.0) ?
