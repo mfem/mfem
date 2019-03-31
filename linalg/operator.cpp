@@ -97,12 +97,9 @@ void Operator::FormSystemOperator(const Array<int> &ess_tdof_list,
 
 void Operator::FormDiscreteOperator(Operator* &Aout)
 {
-   const Operator *P = this->GetProlongation();
-   const Operator *R = this->GetRestriction();
-   Operator * out =
-      new TripleProductOperator(R, this, P,
-                                false, false, false);
-   Aout = out;
+   const Operator *Pin  = this->GetProlongation();
+   const Operator *Rout = this->GetOutputRestriction();
+   Aout = new TripleProductOperator(Rout, this, Pin,false, false, false);
 }
 
 void Operator::PrintMatlab(std::ostream & out, int n, int m) const
