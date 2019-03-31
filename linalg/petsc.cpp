@@ -2683,7 +2683,7 @@ PetscPreconditioner::~PetscPreconditioner()
 // Coordinates sampling function
 static void func_coords(const Vector &x, Vector &y)
 {
-   for (int i = 0; i < x.Size(); i++) y(i) = x(i);
+   for (int i = 0; i < x.Size(); i++) { y(i) = x(i); }
 }
 
 void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
@@ -2713,7 +2713,8 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
       MatNullSpace nnsp;
       Mat lA;
       ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(comm,ierr);
-      ierr = MatNullSpaceCreate(PetscObjectComm((PetscObject)lA),PETSC_TRUE,0,NULL,&nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+      ierr = MatNullSpaceCreate(PetscObjectComm((PetscObject)lA),PETSC_TRUE,0,NULL,
+                                &nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
       ierr = MatSetNearNullSpace(lA,nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
       ierr = MatNullSpaceDestroy(&nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
    }
@@ -2747,25 +2748,25 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
       // fields
       if (vdim > 1)
       {
-        PetscInt st = rst, bs, inc, nlf;
-        nf = vdim;
-        nlf = nl/nf;
-        ierr = PetscMalloc1(nf,&fields); CCHKERRQ(PETSC_COMM_SELF,ierr);
-        if (fespace->GetOrdering() == Ordering::byVDIM)
-        {
-           inc = 1;
-           bs = vdim;
-        }
-        else
-        {
-           inc = nlf;
-           bs = 1;
-        }
-        for (PetscInt i = 0; i < nf; i++)
-        {
-           ierr = ISCreateStride(comm,nlf,st,bs,&fields[i]); CCHKERRQ(comm,ierr);
-           st += inc;
-        }
+         PetscInt st = rst, bs, inc, nlf;
+         nf = vdim;
+         nlf = nl/nf;
+         ierr = PetscMalloc1(nf,&fields); CCHKERRQ(PETSC_COMM_SELF,ierr);
+         if (fespace->GetOrdering() == Ordering::byVDIM)
+         {
+            inc = 1;
+            bs = vdim;
+         }
+         else
+         {
+            inc = nlf;
+            bs = 1;
+         }
+         for (PetscInt i = 0; i < nf; i++)
+         {
+            ierr = ISCreateStride(comm,nlf,st,bs,&fields[i]); CCHKERRQ(comm,ierr);
+            st += inc;
+         }
       }
 
       // coordinates
@@ -2778,7 +2779,8 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
          sdim = fespace->GetParMesh()->SpaceDimension();
          if (vdim != sdim || fespace->GetOrdering() != Ordering::byVDIM)
          {
-            fespace_coords = new ParFiniteElementSpace(fespace->GetParMesh(),fec,sdim,Ordering::byVDIM);
+            fespace_coords = new ParFiniteElementSpace(fespace->GetParMesh(),fec,sdim,
+                                                       Ordering::byVDIM);
          }
          VectorFunctionCoefficient coeff_coords(sdim, func_coords);
          ParGridFunction gf_coords(fespace_coords);
@@ -2797,7 +2799,9 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
             const PetscInt *gidxs;
             PetscInt nleaves;
 
-            ierr = VecCreateMPIWithArray(comm,sdim,hvec_coords->Size(),hvec_coords->GlobalSize(),hvec_coords->GetData(),&pvec_coords); CCHKERRQ(comm,ierr);
+            ierr = VecCreateMPIWithArray(comm,sdim,hvec_coords->Size(),
+                                         hvec_coords->GlobalSize(),hvec_coords->GetData(),&pvec_coords);
+            CCHKERRQ(comm,ierr);
             ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(PETSC_COMM_SELF,ierr);
             ierr = MatCreateVecs(lA,&lvec_coords,NULL); CCHKERRQ(PETSC_COMM_SELF,ierr);
             ierr = VecSetBlockSize(lvec_coords,sdim); CCHKERRQ(PETSC_COMM_SELF,ierr);
@@ -2806,7 +2810,8 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
             ierr = PetscSFCreate(comm,&sf); CCHKERRQ(comm,ierr);
             ierr = ISLocalToGlobalMappingGetIndices(l2g,&gidxs); CCHKERRQ(comm,ierr);
             ierr = ISLocalToGlobalMappingGetSize(l2g,&nleaves); CCHKERRQ(comm,ierr);
-            ierr = PetscSFSetGraphLayout(sf,rmap,nleaves,NULL,PETSC_OWN_POINTER,gidxs); CCHKERRQ(comm,ierr);
+            ierr = PetscSFSetGraphLayout(sf,rmap,nleaves,NULL,PETSC_OWN_POINTER,gidxs);
+            CCHKERRQ(comm,ierr);
             ierr = ISLocalToGlobalMappingRestoreIndices(l2g,&gidxs); CCHKERRQ(comm,ierr);
             {
                const PetscScalar *garray;
@@ -2820,7 +2825,8 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
                ierr = VecRestoreArray(lvec_coords,&larray); CCHKERRQ(PETSC_COMM_SELF,ierr);
             }
             ierr = VecDestroy(&pvec_coords); CCHKERRQ(comm,ierr);
-            ierr = MatNullSpaceCreateRigidBody(lvec_coords,&nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatNullSpaceCreateRigidBody(lvec_coords,&nnsp);
+            CCHKERRQ(PETSC_COMM_SELF,ierr);
             ierr = VecDestroy(&lvec_coords); CCHKERRQ(PETSC_COMM_SELF,ierr);
             ierr = MatSetNearNullSpace(lA,nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
             ierr = MatNullSpaceDestroy(&nnsp); CCHKERRQ(PETSC_COMM_SELF,ierr);
@@ -2853,7 +2859,8 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
          }
          else
          {
-            ierr = PetscMemcpy(coords,hvec_coords->GetData(),nl*sdim*sizeof(PetscReal)); CCHKERRQ(comm,ierr);
+            ierr = PetscMemcpy(coords,hvec_coords->GetData(),nl*sdim*sizeof(PetscReal));
+            CCHKERRQ(comm,ierr);
          }
          if (fespace_coords != fespace)
          {
@@ -3057,7 +3064,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
       }
       else if (h1space) // H(grad), only for the vector case
       {
-         if (vdim != dim) needint = false;
+         if (vdim != dim) { needint = false; }
       }
 
       PetscParMatrix *B = NULL;
@@ -3693,7 +3700,8 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA || (ts_ctx->jacType != mfem::Operator::ANY_TYPE && pA->GetType() != ts_ctx->jacType))
+   if (!pA || (ts_ctx->jacType != mfem::Operator::ANY_TYPE &&
+               pA->GetType() != ts_ctx->jacType))
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
                                     ts_ctx->jacType);
@@ -3782,7 +3790,8 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
    bool delete_mat = false;
    mfem::PetscParMatrix *pJx = const_cast<mfem::PetscParMatrix *>
                                (dynamic_cast<const mfem::PetscParMatrix *>(&oJx));
-   if (!pJx || (ts_ctx->jacType != mfem::Operator::ANY_TYPE && pJx->GetType() != ts_ctx->jacType))
+   if (!pJx || (ts_ctx->jacType != mfem::Operator::ANY_TYPE &&
+                pJx->GetType() != ts_ctx->jacType))
    {
       if (pJx)
       {
@@ -3827,7 +3836,8 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
       mfem::Operator& oJxp = op->GetImplicitGradient(*xx,yy,1.0);
       pJxp = const_cast<mfem::PetscParMatrix *>
              (dynamic_cast<const mfem::PetscParMatrix *>(&oJxp));
-      if (!pJxp || (ts_ctx->jacType != mfem::Operator::ANY_TYPE && pJxp->GetType() != ts_ctx->jacType))
+      if (!pJxp || (ts_ctx->jacType != mfem::Operator::ANY_TYPE &&
+                    pJxp->GetType() != ts_ctx->jacType))
       {
          if (pJxp)
          {
@@ -3927,7 +3937,8 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA || (ts_ctx->jacType != mfem::Operator::ANY_TYPE && pA->GetType() != ts_ctx->jacType))
+   if (!pA || (ts_ctx->jacType != mfem::Operator::ANY_TYPE &&
+               pA->GetType() != ts_ctx->jacType))
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&J,
                                     ts_ctx->jacType);
@@ -4029,7 +4040,8 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
    bool delete_pA = false;
    mfem::PetscParMatrix *pA = const_cast<mfem::PetscParMatrix *>
                               (dynamic_cast<const mfem::PetscParMatrix *>(&J));
-   if (!pA || (snes_ctx->jacType != mfem::Operator::ANY_TYPE && pA->GetType() != snes_ctx->jacType))
+   if (!pA || (snes_ctx->jacType != mfem::Operator::ANY_TYPE &&
+               pA->GetType() != snes_ctx->jacType))
    {
       pA = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)snes),&J,
                                     snes_ctx->jacType);
@@ -4121,14 +4133,17 @@ static PetscErrorCode __mfem_snes_update(SNES snes, PetscInt it)
    /* Update callback does not use the context */
    ierr = SNESGetFunction(snes,&F,NULL,(void **)&snes_ctx); CHKERRQ(ierr);
    ierr = SNESGetSolution(snes,&X); CHKERRQ(ierr);
-   if (!it) {
-     ierr = VecDuplicate(X,&pX); CHKERRQ(ierr);
-     ierr = PetscObjectCompose((PetscObject)snes,"_mfem_snes_xp",(PetscObject)pX); CHKERRQ(ierr);
-     ierr = VecDestroy(&pX); CHKERRQ(ierr);
+   if (!it)
+   {
+      ierr = VecDuplicate(X,&pX); CHKERRQ(ierr);
+      ierr = PetscObjectCompose((PetscObject)snes,"_mfem_snes_xp",(PetscObject)pX);
+      CHKERRQ(ierr);
+      ierr = VecDestroy(&pX); CHKERRQ(ierr);
    }
-   ierr = PetscObjectQuery((PetscObject)snes,"_mfem_snes_xp",(PetscObject*)&pX); CHKERRQ(ierr);
+   ierr = PetscObjectQuery((PetscObject)snes,"_mfem_snes_xp",(PetscObject*)&pX);
+   CHKERRQ(ierr);
    if (!pX) SETERRQ(PetscObjectComm((PetscObject)snes),PETSC_ERR_USER,
-            "Missing previous solution");
+                       "Missing previous solution");
    ierr = SNESGetSolutionUpdate(snes,&dX); CHKERRQ(ierr);
    mfem::PetscParVector f(F,true);
    mfem::PetscParVector x(X,true);
