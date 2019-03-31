@@ -95,7 +95,7 @@ Miscellaneous
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
-- Allow abstract parallel rectangular operator on truedofs via
+- Construct abstract parallel rectangular truedof-to-truedof operators via
   Operator::FormDiscreteOperator().
 
 API changes

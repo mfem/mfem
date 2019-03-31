@@ -72,6 +72,9 @@ public:
    /** @brief Restriction operator from input vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetRestriction() const  { return NULL; }
+   /** @brief Restriction operator from output vectors for the operator to linear
+       algebra (linear system) vectors. `NULL` means identity. */
+   virtual const Operator *GetOutputRestriction() const  { return NULL; }
 
    /** @brief Form a constrained linear system using a matrix-free approach.
 
@@ -84,11 +87,11 @@ public:
        ParBilinearForm::FormLinearSystem()).
 
        The constraints are specified through the prolongation P from
-       GetProlongation(), and we assume the restriction is its transpose.
-       P is e.g. available through the (parallel) finite element space of any
+       GetProlongation(), and restriction R from GetRestriction() methods, which
+       are e.g. available through the (parallel) finite element space of any
        (parallel) bilinear form operator. We assume that the operator is square,
        using the same input and output space, so we have: `A(X)=[P^t (*this)
-       P](X)`, `B=P^t(b)`, and `x=P(X)`.
+       P](X)`, `B=P^t(b)`, and `X=R(x)`.
 
        The vector @a x must contain the essential boundary condition values.
        These are eliminated through the ConstrainedOperator class and the vector
@@ -122,21 +125,22 @@ public:
    /** @brief Return in @A a parallel (on truedofs) version of this square
        operator.
 
-       This returns the same operator as FormLinearSystem(), but does not
-       have the vector arguments. */
+       This returns the same operator as FormLinearSystem(), but does without
+       the transformations of the right-hand side and initial guess. */
    void FormSystemOperator(const Array<int> &ess_tdof_list,
                            Operator* &A);
 
    /** @brief Return in @A a parallel (on truedofs) version of this rectangular
        operator.
 
-       This is similar to FormSystemOperator(), but works additionally on
-       rectangular matrices. The user should provide GetProlongation() and
-       GetRestriction() specializations in their Operator implementation that
-       are appropriate for the two spaces the Operator maps between. These
-       are e.g. available through the (parallel) finite element space of any
-       (parallel) bilinear form operator. We have: `A(X)=[R (*this)
-       P](X)`. */
+       This is similar to FormSystemOperator(), but for dof-to-dof mappings
+       (discrete linear operators), which can also correspond to rectangular
+       matrices. The user should provide specializations of GetProlongation()
+       for the input dofs and GetOutputRestriction() for the output dofs in
+       their Operator implementation that are appropriate for the two spaces the
+       Operator maps between. These are e.g. available through the (parallel)
+       finite element space of any (parallel) bilinear form operator. We have:
+       `A(X)=[Rout (*this) Pin](X)`. */
    void FormDiscreteOperator(Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
