@@ -9395,7 +9395,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
             for (int e = 0; e < neigh.Size(); e++)
             {
                int nn = neigh[e];
-               if (ncmesh->IsGhost(ncmesh->elements[nn])) continue;
+               if (ncmesh->IsGhost(ncmesh->elements[nn])) { continue; }
                int el = ncmesh->elements[nn].index;
                inv_tr->SetTransformation(*GetElementTransformation(el));
                int res = inv_tr->Transform(pt, ips[k]);
