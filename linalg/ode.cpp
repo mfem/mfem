@@ -674,13 +674,14 @@ void ODEController::SetTolerance(double tol)
    if (this->rej) { this->rej->SetTolerance(tol); }
 }
 
-void ODEController::Run(Vector &x, double &t, double tf)
+void ODEController::Step(Vector &x, double &t, double delta_t)
 {
    bool accept = false;
+   dt = delta_t;
    while (!accept)
    {
-      double next_t = t;
       next_x = x;
+      double next_t = t;
 
       sol->Step(next_x, next_t, dt);
 
@@ -701,20 +702,28 @@ void ODEController::Run(Vector &x, double &t, double tf)
    }
 }
 
-#ifndef MFEM_USE_MPI
+void ODEController::Run(Vector &x, double &t, double tf)
+{
+   while (t < tf)
+   {
+      this->Step(x, t, std::min(dt, std::abs(tf - t)));
+
+      if (out)
+      {
+         *out << t << "\t" << dt;
+         for (int i=0; i<x.Size(); i++)
+         {
+            *out << "\t" << x(i);
+         }
+         *out << std::endl;
+      }
+   }
+}
+
 AbsRelMeasurelinf::AbsRelMeasurelinf(double eta) : etaVec(NULL), etaConst(eta)
-#else
-AbsRelMeasurelinf::AbsRelMeasurelinf(MPI_Comm comm, double eta)
-   : comm(comm), etaVec(NULL), etaConst(eta)
-#endif
 {}
 
-#ifndef MFEM_USE_MPI
 AbsRelMeasurelinf::AbsRelMeasurelinf(Vector &eta) : etaVec(&eta), etaConst(-1.0)
-#else
-AbsRelMeasurelinf::AbsRelMeasurelinf(MPI_Comm comm, Vector &eta)
-   : comm(comm), etaVec(&eta), etaConst(-1.0)
-#endif
 {}
 
 double AbsRelMeasurelinf::Eval(Vector &u0, Vector &u1)
@@ -736,29 +745,13 @@ double AbsRelMeasurelinf::Eval(Vector &u0, Vector &u1)
       max = std::max(std::abs((u0(i)-u1(i)) / (eta + u1(i))), max);
    }
 
-#ifndef MFEM_USE_MPI
    return max;
-#else
-   double glb_max = 0.0;
-   MPI_Allreduce(&max, &glb_max, 1, MPI_DOUBLE, MPI_MAX, comm);
-   return glb_max;
-#endif
 }
 
-#ifndef MFEM_USE_MPI
 AbsRelMeasurel2::AbsRelMeasurel2(double eta) : etaVec(NULL), etaConst(eta)
-#else
-AbsRelMeasurel2::AbsRelMeasurel2(MPI_Comm comm, double eta)
-   : comm(comm), etaVec(NULL), etaConst(eta)
-#endif
 {}
 
-#ifndef MFEM_USE_MPI
 AbsRelMeasurel2::AbsRelMeasurel2(Vector &eta) : etaVec(&eta), etaConst(-1.0)
-#else
-AbsRelMeasurel2::AbsRelMeasurel2(MPI_Comm comm, Vector &eta)
-   : comm(comm), etaVec(&eta), etaConst(-1.0)
-#endif
 {}
 
 double AbsRelMeasurel2::Eval(Vector &u0, Vector &u1)
@@ -793,15 +786,88 @@ double AbsRelMeasurel2::Eval(Vector &u0, Vector &u1)
       } // end if u0(i) != u1(i)
    }
 
-#ifndef MFEM_USE_MPI
    return scale * std::sqrt(sum);
-#else
+}
+
+#ifdef MFEM_USE_MPI
+ParAbsRelMeasurelinf::ParAbsRelMeasurelinf(MPI_Comm comm, double eta)
+   : comm(comm), etaVec(NULL), etaConst(eta)
+{}
+
+ParAbsRelMeasurelinf::ParAbsRelMeasurelinf(MPI_Comm comm, Vector &eta)
+   : comm(comm), etaVec(&eta), etaConst(-1.0)
+{}
+
+double ParAbsRelMeasurelinf::Eval(Vector &u0, Vector &u1)
+{
+   MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
+               << u0.Size() << " and " << u1.Size());
+   if (etaVec)
+   {
+      MFEM_ASSERT(u0.Size() == etaVec->Size(), "Incorrect scaling vector size: "
+                  << etaVec->Size() << " should match " << u0.Size());
+   }
+
+   double max = 0.0;
+
+   for (int i = 0; i < u0.Size(); i++)
+   {
+      double eta = (etaVec) ? (*etaVec)(i) : etaConst;
+
+      max = std::max(std::abs((u0(i)-u1(i)) / (eta + u1(i))), max);
+   }
+
+   double glb_max = 0.0;
+   MPI_Allreduce(&max, &glb_max, 1, MPI_DOUBLE, MPI_MAX, comm);
+   return glb_max;
+}
+
+ParAbsRelMeasurel2::ParAbsRelMeasurel2(MPI_Comm comm, double eta)
+   : comm(comm), etaVec(NULL), etaConst(eta)
+{}
+
+ParAbsRelMeasurel2::ParAbsRelMeasurel2(MPI_Comm comm, Vector &eta)
+   : comm(comm), etaVec(&eta), etaConst(-1.0)
+{}
+
+double ParAbsRelMeasurel2::Eval(Vector &u0, Vector &u1)
+{
+   MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
+               << u0.Size() << " and " << u1.Size());
+   if (etaVec)
+   {
+      MFEM_ASSERT(u0.Size() == etaVec->Size(), "Incorrect scaling vector size: "
+                  << etaVec->Size() << " should match " << u0.Size());
+   }
+
+   double scale = 0.0;
+   double sum = 0.0;
+
+   for (int i = 0; i < u0.Size(); i++)
+   {
+      double eta = (etaVec) ? (*etaVec)(i) : etaConst;
+
+      if (u0(i) != u1(i))
+      {
+         const double absdata = std::abs((u0(i)-u1(i)) / (eta + u1(i)));
+         if (scale <= absdata)
+         {
+            const double sqr_arg = scale / absdata;
+            sum = 1.0 + sum * (sqr_arg * sqr_arg);
+            scale = absdata;
+            continue;
+         } // end if scale <= absdata
+         const double sqr_arg = absdata / scale;
+         sum += (sqr_arg * sqr_arg); // else scale > absdata
+      } // end if u0(i) != u1(i)
+   }
+
    double loc_sum = scale * scale * sum;
    double glb_sum = 0.0;
    MPI_Allreduce(&loc_sum, &glb_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
    return glb_sum;
-#endif
 }
+#endif
 
 double PIAdjFactor::operator()(double err, double dt) const
 {

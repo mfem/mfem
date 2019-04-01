@@ -124,10 +124,12 @@ protected:
    mutable Vector next_x;
    mutable double dt;
 
+   std::ostream * out;
+
 public:
    ODEController()
       : sol(NULL), msr(NULL), acc(NULL), rej(NULL), lim(NULL),
-        tol(-1.0), rho(1.2), dt(1.0) {}
+        tol(-1.0), rho(1.2), dt(1.0), out(NULL) {}
 
    /// Define the particulars of the ODE step-size control process
    /** The various pieces are:
@@ -154,6 +156,10 @@ public:
 
    /// Sets the threshold for rejection of a time step to be rho * tol
    void SetRejectionLimit(double rho) { this->rho = rho; }
+
+   void SetOutput(std::ostream & os) { this->out = &os; }
+
+   virtual void Step(Vector &x, double &t, double delta_t);
 
    /// Advances the solution vector x from time t to tf
    virtual void Run(Vector &x, double &t, double tf);
@@ -477,20 +483,12 @@ private:
 class AbsRelMeasurelinf : public ODEErrorMeasure
 {
 private:
-#ifdef MFEM_USE_MPI
-   MPI_Comm comm;
-#endif
    Vector * etaVec;
    double   etaConst;
 
 public:
-#ifndef MFEM_USE_MPI
    AbsRelMeasurelinf(double eta);
    AbsRelMeasurelinf(Vector &eta);
-#else
-   AbsRelMeasurelinf(MPI_Comm comm, double eta);
-   AbsRelMeasurelinf(MPI_Comm comm, Vector &eta);
-#endif
 
    double Eval(Vector &u0, Vector &u1);
 };
@@ -498,23 +496,45 @@ public:
 class AbsRelMeasurel2 : public ODEErrorMeasure
 {
 private:
-#ifdef MFEM_USE_MPI
-   MPI_Comm comm;
-#endif
    Vector * etaVec;
    double   etaConst;
 
 public:
-#ifndef MFEM_USE_MPI
    AbsRelMeasurel2(double eta);
    AbsRelMeasurel2(Vector &eta);
-#else
-   AbsRelMeasurel2(MPI_Comm comm, double eta);
-   AbsRelMeasurel2(MPI_Comm comm, Vector &eta);
-#endif
 
    double Eval(Vector &u0, Vector &u1);
 };
+
+#ifdef MFEM_USE_MPI
+class ParAbsRelMeasurelinf : public ODEErrorMeasure
+{
+private:
+   MPI_Comm comm;
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+   ParAbsRelMeasurelinf(MPI_Comm comm, double eta);
+   ParAbsRelMeasurelinf(MPI_Comm comm, Vector &eta);
+
+   double Eval(Vector &u0, Vector &u1);
+};
+
+class ParAbsRelMeasurel2 : public ODEErrorMeasure
+{
+private:
+   MPI_Comm comm;
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+   ParAbsRelMeasurel2(MPI_Comm comm, double eta);
+   ParAbsRelMeasurel2(MPI_Comm comm, Vector &eta);
+
+   double Eval(Vector &u0, Vector &u1);
+};
+#endif
 
 class StdAdjFactor : public ODEStepAdjustmentFactor
 {
@@ -537,6 +557,7 @@ private:
    mutable double prev_dt;
    mutable double prev_err;
 
+public:
    PIAdjFactor(double kI, double kP)
       : kI(kI), kP(kP), prev_dt(-1.0), prev_err(-1.0) {}
 
