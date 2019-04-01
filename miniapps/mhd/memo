@@ -10,6 +10,9 @@ glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 800
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+4/1
+there is a strange bug that I need to store coefficients for diffusion operator
+
 3/30
 working on amr: 
 o define a new estimator: error=erro1+ratio*error2

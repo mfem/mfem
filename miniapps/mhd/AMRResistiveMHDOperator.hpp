@@ -26,7 +26,7 @@ protected:
    BilinearForm *Nv, *Nb;
    LinearForm *E0, *Sw; //two source terms
    SparseMatrix Mmat, Kmat;
-
+   ConstantCoefficient visc_coeff, resi_coeff;
    double viscosity, resistivity;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
@@ -63,6 +63,7 @@ AMRResistiveMHDOperator::AMRResistiveMHDOperator(FiniteElementSpace &f,
                                          Array<int> &ess_bdr, double visc, double resi)
    : TimeDependentOperator(4*f.GetTrueVSize(), 0.0), fespace(f), 
      M(NULL), K(NULL), KB(NULL), DSl(NULL), DRe(NULL), Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
+     visc_coeff(visc), resi_coeff(resi),
      viscosity(visc),  resistivity(resi), 
      M_prec(NULL), K_prec(NULL), z(height/4)
 {
@@ -78,11 +79,10 @@ AMRResistiveMHDOperator::AMRResistiveMHDOperator(FiniteElementSpace &f,
    KB->AddDomainIntegrator(new DiffusionIntegrator);      //  K matrix
    KB->AddBdrFaceIntegrator(new BoundaryGradIntegrator);  // -B matrix
 
-   ConstantCoefficient visc_coeff(viscosity);
+   //resi_coeff and visc_coeff have to be stored for assembling for some strange reason
    DRe = new BilinearForm(&fespace);
    DRe->AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
 
-   ConstantCoefficient resi_coeff(resistivity);
    DSl = new BilinearForm(&fespace);
    DSl->AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
 }
@@ -129,14 +129,16 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    //assemble KB
    KB->Assemble();
 
-   cout<<"hello!"<<endl;
-   //update DRe and DSl (assemble the case when coeff=0.0 is probably wrong)
-   if (resistivity != 0.0)
-      DRe->Assemble();
-
-   cout<<"hello!"<<endl;
+   //update DRe and DSl 
    if (viscosity != 0.0)
+   {   
+      DRe->Assemble();
+   }
+
+   if (resistivity != 0.0)
+   {
       DSl->Assemble();
+   }
 
    if (E0!=NULL)
       E0->Assemble();

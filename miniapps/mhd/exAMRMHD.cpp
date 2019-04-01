@@ -275,8 +275,6 @@ int main(int argc, char *argv[])
        FunctionCoefficient e0(E0rhs);
        oper.SetRHSEfield(e0);
    }
-   //---assemble problem and update boundary condition---
-   oper.assembleProblem(ess_bdr); 
 
    socketstream vis_phi, vis_j;
    subtract(psi,psiBack,psiPer);
@@ -360,6 +358,8 @@ int main(int argc, char *argv[])
 
 
 
+   //---assemble problem and update boundary condition---
+   oper.assembleProblem(ess_bdr); 
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
