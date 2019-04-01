@@ -58,17 +58,17 @@ class DiffusionTDO : public TimeDependentOperator
 {
 public:
    DiffusionTDO(ParFiniteElementSpace &H1_FES,
-		Coefficient & dTdtBdr,
-		Array<int> & bdr_attr,
-		Coefficient & c, bool td_c,
-		Coefficient & k, bool td_k,
-		Coefficient & Q, bool td_Q);
+                Coefficient & dTdtBdr,
+                Array<int> & bdr_attr,
+                Coefficient & c, bool td_c,
+                Coefficient & k, bool td_k,
+                Coefficient & Q, bool td_Q);
    DiffusionTDO(ParFiniteElementSpace &H1_FES,
-		Coefficient & dTdtBdr,
-		Array<int> & bdr_attr,
-		Coefficient & c, bool td_c,
-		MatrixCoefficient & K, bool td_k,
-		Coefficient & Q, bool td_Q);
+                Coefficient & dTdtBdr,
+                Array<int> & bdr_attr,
+                Coefficient & c, bool td_c,
+                MatrixCoefficient & K, bool td_k,
+                Coefficient & Q, bool td_Q);
 
    void SetTime(const double time);
    /*

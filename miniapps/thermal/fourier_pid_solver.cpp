@@ -24,11 +24,11 @@ namespace thermal
 {
 
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &H1_FES,
-			   Coefficient & dTdtBdr,
-			   Array<int> & bdr_attr,
-			   Coefficient & c, bool td_c,
-			   Coefficient & k, bool td_k,
-			   Coefficient & Q, bool td_Q)
+                           Coefficient & dTdtBdr,
+                           Array<int> & bdr_attr,
+                           Coefficient & c, bool td_c,
+                           Coefficient & k, bool td_k,
+                           Coefficient & Q, bool td_Q)
    : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
      myid_(H1_FES.GetMyRank()),
      init_(false), //initA_(false), initAInv_(false),
@@ -48,11 +48,11 @@ DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &H1_FES,
 }
 
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &H1_FES,
-			   Coefficient & dTdtBdr,
-			   Array<int> & bdr_attr,
-			   Coefficient & c, bool td_c,
-			   MatrixCoefficient & K, bool td_k,
-			   Coefficient & Q, bool td_Q)
+                           Coefficient & dTdtBdr,
+                           Array<int> & bdr_attr,
+                           Coefficient & c, bool td_c,
+                           MatrixCoefficient & K, bool td_k,
+                           Coefficient & Q, bool td_Q)
    : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
      init_(false),
      multCount_(0), solveCount_(0),
@@ -86,7 +86,7 @@ void
 DiffusionTDO::init()
 {
    if ( init_ ) { return; }
-   
+
    if ( mC_ == NULL )
    {
       mC_ = new ParBilinearForm(H1_FESpace_);
@@ -327,7 +327,7 @@ DiffusionTDO::initImplicitSolve()
 
 void
 DiffusionTDO::ImplicitSolve(const double dt,
-			    const Vector &T, Vector &dT_dt)
+                            const Vector &T, Vector &dT_dt)
 {
    dT_dt = 0.0;
    // cout << "sK size: " << sK_->Width() << ", T size: " << T.Size() << ", rhs_ size: " << rhs_->Size() << endl;
