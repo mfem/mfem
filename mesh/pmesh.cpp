@@ -221,15 +221,17 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       // fill out group_sface, group_sedge, group_svert
       int ngroups = groups.Size()-1, nstris, nsquads, nstets, nshexs;
-      if (Dim <= 3)
+      if (Dim > 3)
       {
-         BuildFaceGroup(ngroups, mesh, face_group, nstris, nsquads);
+         BuildPlanarGroup(ngroups, mesh, *plan_element, nstris, nsquads);
       }
       else
       {
-         BuildFaceGroup4D(ngroups, mesh, face_group, nstets, nshexs);
-         BuildPlanarGroup(ngroups, *plan_element, nstris, nsquads);
+         BuildFaceGroup(ngroups, mesh, face_group, nstris, nsquads);
       }
+      BuildFaceGroup4D(ngroups, mesh, face_group, nstets, nshexs);
+
+
       BuildEdgeGroup(ngroups, *edge_element);
       BuildVertexGroup(ngroups, *vert_element);
 
@@ -766,11 +768,13 @@ void ParMesh::BuildFaceGroup4D(int ngroups, const Mesh &mesh,
    group_stetr.ShiftUpI();
 }
 
-void ParMesh::BuildPlanarGroup(int ngroups, const Table& plan_element,
+void ParMesh::BuildPlanarGroup(int ngroups, const Mesh &mesh,
+      const Table& plan_element,
                       int &nstria, int &nsquad)
 {
    // build group_stria and group_squad
    group_stria.MakeI(ngroups);
+   group_squad.MakeI(ngroups);
 
    for (int i = 0; i < plan_element.Size(); i++)
    {
@@ -784,6 +788,7 @@ void ParMesh::BuildPlanarGroup(int ngroups, const Table& plan_element,
    }
 
    group_stria.MakeJ();
+   group_squad.MakeJ();
 
    nstria = nsquad = 0;
    for (int i = 0; i < plan_element.Size(); i++)
@@ -799,6 +804,7 @@ void ParMesh::BuildPlanarGroup(int ngroups, const Table& plan_element,
    }
 
    group_stria.ShiftUpI();
+   group_squad.ShiftUpI();
 }
 
 void ParMesh::BuildEdgeGroup(int ngroups, const Table &edge_element)
@@ -986,6 +992,7 @@ void ParMesh::BuildSharedPlanarElems(int ntri_planars, int nquad_planars,
                                      const Mesh &mesh, const Array<int>& vert_global_local,
                                      const STable3D *planar_tbl, const Table* plan_element)
 {
+   shared_trias.SetSize(ntri_planars);
    splan_lplan.SetSize(ntri_planars);
 
    Array<int> vert;

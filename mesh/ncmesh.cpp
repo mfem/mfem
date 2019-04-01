@@ -2706,7 +2706,7 @@ void NCMesh::BuildFaceList()
             MFEM_ASSERT(face >= 0, "face not found!");
 
             // tell ParNCMesh about the face
-            ElementSharesFace(elem, face);
+            ElementSharesFace(elem, j, face);
 
             // have we already processed this face? skip if yes
             if (processed_faces[face]) { continue; }
@@ -2820,7 +2820,7 @@ void NCMesh::BuildPlanarList() // TODO
        MFEM_ASSERT(planar >= 0, "planar not found!");
 
        // tell ParNCMesh about the face
-       ElementSharesPlanar(elem, planar);
+       ElementSharesPlanar(elem, j, planar);
 
        // have we already processed this face? skip if yes
        if (processed_planars[planar]) { continue; }

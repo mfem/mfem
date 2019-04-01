@@ -171,7 +171,7 @@ protected:
                         Array<int>& face_group,
                         ListOfIntegerSets& groups);
 
-   void FindSharedPlanars(const Mesh &mesh, const int* partition,
+   int FindSharedPlanars(const Mesh &mesh, const int* partition,
                           Table* &plan_element, ListOfIntegerSets &groups);
 
    int FindSharedEdges(const Mesh &mesh, const int* partition,
@@ -188,7 +188,7 @@ protected:
                          const Array<int>& face_group,
                          int &nstetr, int &nshexa);
 
-   void BuildPlanarGroup(int ngroups, const Table& plan_element,
+   void BuildPlanarGroup(int ngroups, const Mesh &mesh,const Table& plan_element,
                          int &nstria, int &nsquad);
 
    void BuildEdgeGroup(int ngroups, const Table& edge_element);
