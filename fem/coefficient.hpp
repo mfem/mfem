@@ -313,9 +313,10 @@ public:
    /// Return the Scale() multiplied by the weight Coefficient, if any.
 #ifdef MFEM_DEPRECATED
    virtual double EvalDelta(ElementTransformation &T,
-			    const IntegrationPoint &ip);
+			    const IntegrationPoint &ip)
+   { return Eval(T); }
 #else
-   virtual double EvalDelta(ElementTransformation &T) const;
+   virtual double EvalDelta(const ElementTransformation &T) const;
 #endif
   /** @brief A DeltaFunction cannot be evaluated. Calling this method will
        cause an MFEM error, terminating the application. */
@@ -629,9 +630,10 @@ public:
        DeltaCoefficient. */
 #ifdef MFEM_DEPRECATED
    virtual void EvalDelta(Vector &V, ElementTransformation &T,
-                          const IntegrationPoint &ip);
+                          const IntegrationPoint &ip)
+   { Eval(V, T); }
 #else
-   virtual void EvalDelta(Vector &V, ElementTransformation &T) const;
+   virtual void EvalDelta(Vector &V, const ElementTransformation &T) const;
 #endif
    using VectorCoefficient::Eval;
    /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
