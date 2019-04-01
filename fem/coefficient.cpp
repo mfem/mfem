@@ -85,7 +85,6 @@ double DeltaCoefficient::EvalDelta(const ElementTransformation &T) const
    return weight ? weight->Eval(T, GetTime())*w : w;
 }
 
-
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                              const IntegrationRule &ir) const
 {

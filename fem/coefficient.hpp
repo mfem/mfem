@@ -214,6 +214,7 @@ private:
    int Component;
 
 public:
+   GridFunctionCoefficient() : GridF(NULL), Component(1) { }
    /** Construct GridFunctionCoefficient from a given GridFunction, and
        optionally specify a component to use if it is a vector GridFunction. */
    GridFunctionCoefficient (GridFunction *gf, int comp = 1)
@@ -310,8 +311,13 @@ public:
    Coefficient *Weight() { return weight; }
    void GetDeltaCenter(Vector& center) const;
    /// Return the Scale() multiplied by the weight Coefficient, if any.
-   double EvalDelta(const ElementTransformation &T) const;
-   /** @brief A DeltaFunction cannot be evaluated. Calling this method will
+#ifdef MFEM_DEPRECATED
+   virtual double EvalDelta(ElementTransformation &T,
+			    const IntegrationPoint &ip);
+#else
+   virtual double EvalDelta(ElementTransformation &T) const;
+#endif
+  /** @brief A DeltaFunction cannot be evaluated. Calling this method will
        cause an MFEM error, terminating the application. */
 #ifdef MFEM_DEPRECATED
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
@@ -510,6 +516,7 @@ protected:
    GridFunction *GridFunc;
 
 public:
+   VectorGridFunctionCoefficient() : VectorCoefficient(0), GridFunc(NULL) { }
    VectorGridFunctionCoefficient(GridFunction *gf);
 
    void SetGridFunction(GridFunction *gf);
@@ -620,7 +627,12 @@ public:
    /** @brief Return the specified direction vector multiplied by the value
        returned by DeltaCoefficient::EvalDelta() of the associated scalar
        DeltaCoefficient. */
-   void EvalDelta(Vector &V, const ElementTransformation &T) const;
+#ifdef MFEM_DEPRECATED
+   virtual void EvalDelta(Vector &V, ElementTransformation &T,
+                          const IntegrationPoint &ip);
+#else
+   virtual void EvalDelta(Vector &V, ElementTransformation &T) const;
+#endif
    using VectorCoefficient::Eval;
    /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
        will cause an MFEM error, terminating the application. */
