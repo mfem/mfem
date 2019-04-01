@@ -849,7 +849,7 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
          VisualizeField(*sock[i], vishost, visport, *x[i], oss.str().c_str(),
                         (i % vwl.nx) * offx, ((i / vwl.nx) % vwl.ny) * offy,
                         vwl.w, vwl.h,
-                        vec);
+                        "aaAc", vec);
       }
    }
 
