@@ -303,7 +303,6 @@ int main(int argc, char *argv[])
    fe_coll = new  H1_FECollection(toml_opt.order, dim);
    ParFiniteElementSpace fe_space(pmesh, fe_coll, dim);
 
-   int order_v = 1;
    int order_0 = 0;
    
    //Here we're setting up a discontinuous so that we'll use later to interpolate
@@ -311,6 +310,7 @@ int main(int argc, char *argv[])
    L2_FECollection l2_fec(order_0, dim);
    ParFiniteElementSpace l2_fes(pmesh, &l2_fec);
    ParGridFunction vonMises(&l2_fes);
+   ParGridFunction hydroStress(&l2_fes);
    
    HYPRE_Int glob_size = fe_space.GlobalTrueVSize();
 
@@ -572,11 +572,12 @@ int main(int argc, char *argv[])
    if (toml_opt.visit)
    {
      visit_dc.RegisterField("Displacement",  &x_diff);
-     visit_dc.RegisterQField("Stress", &sigma0);
+//     visit_dc.RegisterQField("Stress", &sigma0);
      visit_dc.RegisterField("Velocity", &v_cur);
      //visit_dc.RegisterQField("State Variables", &matVars0);
      //visit_dc.RegisterQField("DefGrad", &kinVars0);
-     visit_dc.RegisterField("VonMises", &vonMises);
+     visit_dc.RegisterField("Von Mises Stress", &vonMises);
+     visit_dc.RegisterField("Hydrostatic Stress", &hydroStress);
       
      visit_dc.SetCycle(0);
      visit_dc.SetTime(0.0);
@@ -677,6 +678,7 @@ int main(int argc, char *argv[])
           // mesh and stress output. Consider moving this to a separate routine
          //We might not want to update the vonMises stuff
          oper.ProjectVonMisesStress(vonMises);
+         oper.ProjectHydroStress(hydroStress);
          if (toml_opt.visit)
          {
             visit_dc.SetCycle(ti);
@@ -861,8 +863,7 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
                      ParMesh *pmesh, int grainSize, int grainIntoStateVarOffset, 
                      int stateVarSize, QuadratureFunction* qf)
 {
-   // put element grain orientation data on the quadrature points. 
-   const FiniteElement *fe;
+   // put element grain orientation data on the quadrature points.
    const IntegrationRule *ir;
    double* qf_data = qf->GetData();
    int qf_offset = qf->GetVDim(); // offset = grainSize + stateVarSize
@@ -913,9 +914,7 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
    // loop over elements
    for (int i = 0; i < fes->GetNE(); ++i)
    {
-      fe = fes->GetFE(i);
       ir = &(qspace->GetElementIntRule(i));
-//      ir = &(IntRules.Get(fe->GetGeomType(), 2*fe->GetOrder() + 3));
 
       // full history variable offset including grain data
       int elem_offset = qf_offset * ir->GetNPoints();
@@ -960,36 +959,22 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
    } // end loop over elements
 
    //Set the pointers to null after using them to hopefully stop any weirdness from happening
-   fe = NULL;
-   qf_data = NULL;
-   ir = NULL;
-   qspace = NULL;
-   grain_data = NULL;
-   sVars_data = NULL;
    
 }
 
 void initQuadFunc(QuadratureFunction *qf, double val, ParFiniteElementSpace *fes)
 {
-//   const FiniteElement *fe;
-   const IntegrationRule *ir;
    double* qf_data = qf->GetData();
-   int vdim = qf->GetVDim();
-   int counter = 0;
-   //QuadratureSpace* qspace = qf->GetSpace();
    
    //The below should be exactly the same as what
    //the other for loop is trying to accomplish
    for (int i = 0; i < qf->Size(); ++i){
      qf_data[i] = val;
    }
-
-   qf_data = NULL;
 }
 
 void initQuadFuncTensorIdentity(QuadratureFunction *qf, ParFiniteElementSpace *fes){
    
-   const FiniteElement *fe;
    const IntegrationRule *ir;
    double* qf_data = qf->GetData();
    int qf_offset = qf->GetVDim(); // offset at each integration point
@@ -997,9 +982,6 @@ void initQuadFuncTensorIdentity(QuadratureFunction *qf, ParFiniteElementSpace *f
    
    // loop over elements
    for (int i = 0; i < fes->GetNE(); ++i){
-      // get element transformation for the ith element
-      ElementTransformation* Ttr = fes->GetElementTransformation(i);
-      fe = fes->GetFE(i);
       ir = &(qspace->GetElementIntRule(i));
       int elem_offset = qf_offset * ir->GetNPoints();
       //Hard coded this for now for a 3x3 matrix
@@ -1016,8 +998,6 @@ void initQuadFuncTensorIdentity(QuadratureFunction *qf, ParFiniteElementSpace *f
          qf_data[i * elem_offset + j * qf_offset + 8] = 1.0;
       }
    }
-   
-   qf_data = NULL;
 }
 
 //Routine to test the deformation gradient to make sure we're getting out the right values.
@@ -1026,11 +1006,8 @@ void initQuadFuncTensorIdentity(QuadratureFunction *qf, ParFiniteElementSpace *f
 void test_deformation_field_set(ParGridFunction *gf, Vector *vec, ParFiniteElementSpace *fes)
 {
    
-   const IntegrationRule *ir;
-   //HypreParVector* temp = gf->GetTrueDofs();
-   //Vector* temp2 = temp->GlobalVector();
    double* temp_vals = gf->GetData();
-   double* vals = vec->GetData();
+//   double* vals = vec->GetData();
 
    int dim = gf->Size()/3;
    int dim2 = vec->Size()/3;
@@ -1042,7 +1019,6 @@ void test_deformation_field_set(ParGridFunction *gf, Vector *vec, ParFiniteEleme
    
    for (int i = 0; i < dim; ++i)
    {
-      int i1 = i * 3;
       double x1 = temp_vals[i];
       double x2 = temp_vals[i + dim];
       double x3 = temp_vals[i + 2 * dim];

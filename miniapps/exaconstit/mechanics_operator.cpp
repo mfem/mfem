@@ -64,26 +64,28 @@ newton_solver(fes.GetComm())
       HYPRE_Solver h_amg = (HYPRE_Solver) *prec_amg;
       HYPRE_Real st_val = 0.90;
       HYPRE_Real rt_val = -10.0;
-      HYPRE_Real om_val = 1.0;
+//      HYPRE_Real om_val = 1.0;
       
       //
       int ml = HYPRE_BoomerAMGSetMaxLevels(h_amg, 30);
-      int ct = HYPRE_BoomerAMGSetCoarsenType(h_amg, 0);
-      int mt = HYPRE_BoomerAMGSetMeasureType(h_amg, 0);
-      int st = HYPRE_BoomerAMGSetStrongThreshold(h_amg, st_val);
-      int ns = HYPRE_BoomerAMGSetNumSweeps(h_amg, 3);
-      int rt = HYPRE_BoomerAMGSetRelaxType(h_amg, 8);
+      ml = HYPRE_BoomerAMGSetCoarsenType(h_amg, 0);
+      ml = HYPRE_BoomerAMGSetMeasureType(h_amg, 0);
+      ml = HYPRE_BoomerAMGSetStrongThreshold(h_amg, st_val);
+      ml = HYPRE_BoomerAMGSetNumSweeps(h_amg, 3);
+      ml = HYPRE_BoomerAMGSetRelaxType(h_amg, 8);
       //int rwt = HYPRE_BoomerAMGSetRelaxWt(h_amg, rt_val);
       //int ro = HYPRE_BoomerAMGSetOuterWt(h_amg, om_val);
       //Dimensionality of our problem
-      int ss = HYPRE_BoomerAMGSetNumFunctions(h_amg, 3);
-      int smt = HYPRE_BoomerAMGSetSmoothType(h_amg, 3);
-      int snl = HYPRE_BoomerAMGSetSmoothNumLevels(h_amg, 3);
-      int sns = HYPRE_BoomerAMGSetSmoothNumSweeps(h_amg, 3);
-      int sv = HYPRE_BoomerAMGSetVariant(h_amg, 0);
-      int so = HYPRE_BoomerAMGSetOverlap(h_amg, 0);
-      int sdt = HYPRE_BoomerAMGSetDomainType(h_amg, 1);
-      int srw = HYPRE_BoomerAMGSetSchwarzRlxWeight(h_amg, rt_val);
+      ml = HYPRE_BoomerAMGSetNumFunctions(h_amg, 3);
+      ml = HYPRE_BoomerAMGSetSmoothType(h_amg, 3);
+      ml = HYPRE_BoomerAMGSetSmoothNumLevels(h_amg, 3);
+      ml = HYPRE_BoomerAMGSetSmoothNumSweeps(h_amg, 3);
+      ml = HYPRE_BoomerAMGSetVariant(h_amg, 0);
+      ml = HYPRE_BoomerAMGSetOverlap(h_amg, 0);
+      ml = HYPRE_BoomerAMGSetDomainType(h_amg, 1);
+      ml = HYPRE_BoomerAMGSetSchwarzRlxWeight(h_amg, rt_val);
+      //Just to quite the compiler warnings...
+      ml++;
       
       prec_amg->SetPrintLevel(0);
       
@@ -108,25 +110,27 @@ newton_solver(fes.GetComm())
       HYPRE_Solver h_amg = (HYPRE_Solver) *prec_amg;
       HYPRE_Real st_val = 0.90;
       HYPRE_Real rt_val = -10.0;
-      HYPRE_Real om_val = 1.0;
+//      HYPRE_Real om_val = 1.0;
       //
       int ml = HYPRE_BoomerAMGSetMaxLevels(h_amg, 30);
-      int ct = HYPRE_BoomerAMGSetCoarsenType(h_amg, 0);
-      int mt = HYPRE_BoomerAMGSetMeasureType(h_amg, 0);
-      int st = HYPRE_BoomerAMGSetStrongThreshold(h_amg, st_val);
-      int ns = HYPRE_BoomerAMGSetNumSweeps(h_amg, 3);
-      int rt = HYPRE_BoomerAMGSetRelaxType(h_amg, 8);
+      ml = HYPRE_BoomerAMGSetCoarsenType(h_amg, 0);
+      ml = HYPRE_BoomerAMGSetMeasureType(h_amg, 0);
+      ml = HYPRE_BoomerAMGSetStrongThreshold(h_amg, st_val);
+      ml = HYPRE_BoomerAMGSetNumSweeps(h_amg, 3);
+      ml = HYPRE_BoomerAMGSetRelaxType(h_amg, 8);
       //int rwt = HYPRE_BoomerAMGSetRelaxWt(h_amg, rt_val);
       //int ro = HYPRE_BoomerAMGSetOuterWt(h_amg, om_val);
       //Dimensionality of our problem
-      int ss = HYPRE_BoomerAMGSetNumFunctions(h_amg, 3);
-      int smt = HYPRE_BoomerAMGSetSmoothType(h_amg, 3);
-      int snl = HYPRE_BoomerAMGSetSmoothNumLevels(h_amg, 3);
-      int sns = HYPRE_BoomerAMGSetSmoothNumSweeps(h_amg, 3);
-      int sv = HYPRE_BoomerAMGSetVariant(h_amg, 0);
-      int so = HYPRE_BoomerAMGSetOverlap(h_amg, 0);
-      int sdt = HYPRE_BoomerAMGSetDomainType(h_amg, 1);
-      int srw = HYPRE_BoomerAMGSetSchwarzRlxWeight(h_amg, rt_val);
+      ml = HYPRE_BoomerAMGSetNumFunctions(h_amg, 3);
+      ml = HYPRE_BoomerAMGSetSmoothType(h_amg, 3);
+      ml = HYPRE_BoomerAMGSetSmoothNumLevels(h_amg, 3);
+      ml = HYPRE_BoomerAMGSetSmoothNumSweeps(h_amg, 3);
+      ml = HYPRE_BoomerAMGSetVariant(h_amg, 0);
+      ml = HYPRE_BoomerAMGSetOverlap(h_amg, 0);
+      ml = HYPRE_BoomerAMGSetDomainType(h_amg, 1);
+      ml = HYPRE_BoomerAMGSetSchwarzRlxWeight(h_amg, rt_val);
+      //Just to quite the compiler warnings...
+      ml++;
       
       prec_amg->SetPrintLevel(0);
       J_prec = prec_amg;
@@ -396,7 +400,6 @@ void NonlinearMechOperator::ComputeVolAvgTensor(const ParFiniteElementSpace* fes
                                                 const QuadratureFunction* qf,
                                                 Vector& tensor, int size){
    
-   const FiniteElement *fe;
    const IntegrationRule *ir;
    double* qf_data = qf->GetData();
    int qf_offset = qf->GetVDim(); // offset at each integration point
@@ -414,7 +417,6 @@ void NonlinearMechOperator::ComputeVolAvgTensor(const ParFiniteElementSpace* fes
    {
       // get element transformation for the ith element
       ElementTransformation* Ttr = fes->GetElementTransformation(i);
-      fe = fes->GetFE(i);
       ir = &(qspace->GetElementIntRule(i));
       int elem_offset = qf_offset * ir->GetNPoints();
       // loop over element quadrature points
@@ -571,13 +573,6 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
       defgrad.Print(file, 9);
    }
    
-   qf1 = NULL;
-   qdefgrad = NULL;
-   
-   fes = NULL;
-   fe = NULL;
-   ir = NULL;
-   
 }
 
 //This is probably wrong and we need to make this more in line with what
@@ -600,6 +595,39 @@ void NonlinearMechOperator::ProjectVonMisesStress(ParGridFunction &vm)
    vm.ProjectDiscCoefficient(*vonMisesStress, mfem::GridFunction::ARITHMETIC);
    
    vonMisesStress = NULL;
+   
+   return;
+}
+
+void NonlinearMechOperator::ProjectHydroStress(ParGridFunction &hss)
+{
+   QuadratureVectorFunctionCoefficient *stress;
+   stress = model->GetStress0();
+   const QuadratureFunction* qf = stress->GetQuadFunction();
+   const double* qf_data = qf->GetData();
+   
+   const int vdim = qf->GetVDim();
+   const int pts = qf->Size() / vdim;
+   const double one_third = 1.0/3.0;
+   
+   //One option if we want to save on memory would be to just use the
+   //vonMises quadrature function and overwrite the data there. It's currently
+   //not being used for anything other then visualization purposes.
+//   QuadratureFunction q_hyrdro(qf->GetSpace, 1);
+//   QuadratureFunctionCoefficient* hyrdroStress(&q_hyrdro);
+   //Here we're just reusing the vonMises quadrature function already created.
+   QuadratureFunctionCoefficient *hydroStress;
+   hydroStress = model->GetVonMises();
+   
+   QuadratureFunction* hydro = hydroStress->GetQuadFunction();
+   double* q_hydro = hydro->GetData();
+   
+   for(int i = 0; i < pts; i++) {
+      const int ii = i * vdim; 
+      q_hydro[i] =  one_third * (qf_data[ii] + qf_data[ii + 1] + qf_data[ii + 2]);
+   }
+   
+   hss.ProjectDiscCoefficient(*hydroStress, mfem::GridFunction::ARITHMETIC);
    
    return;
 }

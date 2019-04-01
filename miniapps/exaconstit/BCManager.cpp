@@ -29,12 +29,13 @@ static void mark_dofs(const Array<int> &dofs, Array<int> &mark_array)
 
 // set partial dof component list for all essential BCs based on my 
 // custom BC manager and input, srw.
+// We probably should move these over to their appropriate location in mfem
+// library at some point...
 void NonlinearForm::SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess,
                                           Vector *rhs)
 {
    Array2D<int> component;
    Array<int> cmp_row;
-   int id = -1;
    //The size here is set explicitly
    component.SetSize(bdr_attr_is_ess.Size(), 3);
    cmp_row.SetSize(3);
@@ -67,6 +68,8 @@ void NonlinearForm::SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess,
 
 }
 
+// We probably should move these over to their appropriate location in mfem
+// library at some point...
 void GridFunction::ProjectBdrCoefficient(VectorFunctionRestrictedCoefficient &vfcoeff)
                                          
 {

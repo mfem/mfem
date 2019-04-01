@@ -134,18 +134,18 @@ public:
 	     ParGridFunction* _beg_coords, ParGridFunction* _end_coords, ParMesh* _pmesh,  
 	    Vector *props, int nProps, int nStateVars, bool _cauchy, bool _endcrdm) : 
                numProps(nProps), numStateVars(nStateVars),
-               cauchy(_cauchy), Ttr(NULL), 
+               cauchy(_cauchy), Ttr(NULL),
+               EndCoordsMesh(_endcrdm),
+               beg_coords(_beg_coords),
+               end_coords(_end_coords),
+               pmesh(_pmesh),
                stress0(q_stress0),
                stress1(q_stress1), 
                matGrad(q_matGrad), 
                matVars0(q_matVars0), 
                matVars1(q_matVars1), 
                defGrad0(q_defGrad0),
-	       beg_coords(_beg_coords),
-	       end_coords(_end_coords),
-	       pmesh(_pmesh),
-               matProps(props),
-	       EndCoordsMesh(_endcrdm) {}
+               matProps(props){}
 
    virtual ~ExaModel() { }
 
@@ -181,6 +181,10 @@ public:
    virtual void calc_incr_end_def_grad(ParFiniteElementSpace *fes,
                                        const Vector &x0) = 0;
    
+   //This function is needed in the UMAT child class to drive parts of the
+   //solution in the mechanics_operator file.
+   //It should just be set as a no-op
+   //in other children class if they aren't using it.
    //For when the ParFinitieElementSpace is stored on the class...
    virtual void calc_incr_end_def_grad(const Vector &x0) = 0;
 

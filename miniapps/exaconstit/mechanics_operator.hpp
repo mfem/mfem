@@ -106,6 +106,7 @@ public:
    
    void ProjectModelStress(ParGridFunction &s);
    void ProjectVonMisesStress(ParGridFunction &vm);
+   void ProjectHydroStress(ParGridFunction &hss);
    
    void SetTime(const double t);
    void SetDt(const double dt);

@@ -37,8 +37,6 @@ void computeDefGrad(const QuadratureFunction *qf, ParFiniteElementSpace *fes,
 
    const int NE = fes->GetNE();
 
-   int dim = x0.Size() / 3;
-
    x_gf.MakeTRef(fes, vals);
    x_gf.SetFromTrueVector();
 
@@ -152,16 +150,12 @@ void computeDefGradTest(const QuadratureFunction *qf, ParFiniteElementSpace *fes
 {
    const FiniteElement *fe;
    const IntegrationRule *ir;
-   double* qf_data = qf->GetData();
-   int qf_offset = qf->GetVDim(); // offset at each integration point
    QuadratureSpace* qspace = qf->GetSpace();
    ParGridFunction x_gf;
    
    double* vals = x0.GetData();
 
    const int NE = fes->GetNE();
-
-   int dim = x0.Size() / 3;
 
    x_gf.MakeTRef(fes, vals);
    x_gf.SetFromTrueVector();
@@ -196,7 +190,6 @@ void computeDefGradTest(const QuadratureFunction *qf, ParFiniteElementSpace *fes
       //PMatI.UseExternalData(el_x.GetData(), dof, dim);
       
       ir = &(qspace->GetElementIntRule(i));
-      int elem_offset = 0;
       
       // loop over integration points where the quadrature function is
       // stored
@@ -244,7 +237,6 @@ void computeDefGradTest(const QuadratureFunction *qf, ParFiniteElementSpace *fes
 void fixVectOrder(const Vector& v1, Vector &v2){
 
   int s1 = v1.Size()/3;
-  int s2 = v2.Size()/3;
   //As noted in the original documentation this goes from a
   //[x0..xn, y0..yn] type ordering to [x0,y0, ..., xn,yn] type ordering
   for(int i = 0; i < s1; i++){
@@ -258,7 +250,6 @@ void fixVectOrder(const Vector& v1, Vector &v2){
 
 void reorderVectOrder(const Vector &v1, Vector &v2){
   int s1 = v1.Size()/3;
-  int s2 = v2.Size()/3;
   //As noted in the original documentation this goes from a
   //[x0,y0, ..., xn,yn] type ordering to [x0..xn, y0..yn] type ordering
   for(int i = 0; i < s1; i++){
@@ -1442,7 +1433,6 @@ void AbaqusUmatModel::calc_incr_end_def_grad(const Vector &x0)
          Mult(f_end, f_beg_invr, f_incr);
       }
    }
-   
 }
 
 void AbaqusUmatModel::CalcLogStrainIncrement(DenseMatrix& dE, const DenseMatrix &Jpt)
@@ -1995,7 +1985,7 @@ void AbaqusUmatModel::CalcElemLength()
 //been written in, so we rewrite over everything in the below.
 void ExaModel::GenerateGradMatrix(const DenseMatrix& DS, DenseMatrix& B){
 
-   int dof = DS.Height(), dim = DS.Width();
+   int dof = DS.Height();
    
 
    //The B matrix generally has the following structure that is
@@ -2015,7 +2005,6 @@ void ExaModel::GenerateGradMatrix(const DenseMatrix& DS, DenseMatrix& B){
    //We should also put an assert if B doesn't have dimensions of
    //(dim*dof, 6)
    //fix_me
-   int i1;
    //We've rolled out the above B matrix in the comments
    //This is definitely not the most efficient way of doing this memory wise.
    //However, it might be fine for our needs.
@@ -2058,7 +2047,7 @@ void ExaModel::GenerateGradMatrix(const DenseMatrix& DS, DenseMatrix& B){
 
 void ExaModel::GenerateGradGeomMatrix(const DenseMatrix& DS, DenseMatrix& Bgeom){
 
-  int dof = DS.Height(), dim = DS.Width();
+  int dof = DS.Height();
   //For a 3D mesh Bgeom has the following shape:
   //[DS(i, 0), 0, 0]
   //[DS(i, 0), 0, 0]
@@ -2148,7 +2137,6 @@ void ExaNLFIntegrator::AssembleElementVector(
    DenseMatrix DSh, DS;
    DenseMatrix Jrt, Jpr, Jpt; 
    DenseMatrix PMatI, PMatO;
-   DenseMatrix *PMat;
 
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
@@ -2214,7 +2202,6 @@ void ExaNLFIntegrator::AssembleElementVector(
 
    }
 
-   PMat = NULL;
    return;
 }
 
@@ -2234,15 +2221,12 @@ void ExaNLFIntegrator::AssembleElementVector(
    const Vector &elvel)
 {
 
-   int dof = el.GetDof(), dim = el.GetDim(); 
-
-   int elnum = Ttr_beg.ElementNo;
+   int dof = el.GetDof(), dim = el.GetDim();
    
    // these were previously stored on the hyperelastic NLF integrator;
    DenseMatrix DSh, DS, DS_diff;
    DenseMatrix Jrt, Jpr, Jpt; 
    DenseMatrix PMatI, PMatO;
-   DenseMatrix *PMat;
    
    Vector elv(dim*dof);
    
@@ -2330,7 +2314,6 @@ void ExaNLFIntegrator::AssembleElementVector(
       Ttr_end.SetIntPoint(NULL);
    }
 
-   PMat = NULL;
    return;
 }
 
