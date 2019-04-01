@@ -185,9 +185,6 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
-   tic_toc.Clear();
-   tic_toc.Start();
-
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
@@ -197,14 +194,18 @@ int main(int argc, char *argv[])
 
    //Creating a partial assembly Kernel
    //Maybe not the right place to initialize tensor size.
-   int ir_order = 2*order;
+   int ir_order = 2*order+1;
+
+   tic_toc.Clear();
+   tic_toc.Start();
 
    //Initialization of the Mass operator
    // BilinearFormOperator m(&fes);
    // m.AddDomainIntegrator(new PAMassIntegrator(&fes,ir_order));
    // m.AddDomainIntegrator(new EigenPAMassIntegrator<2>(&fes,ir_order));
    // m.AddDomainIntegrator(new EigenPAMassIntegrator<2,EigenDomainPAK>(&fes,ir_order));
-   // BilinearForm m(&fes);
+   //BilinearForm m(&fes);
+   //m.AddIntegrator(new PADomainInt<MassEquation>(&fes,ir_order,MassEquation::ArgsEmpty{}));
    // m.AddDomainIntegrator(new MassIntegrator());
    // m.AddIntegrator(new PADomainInt<MassEquation,CGSolverDG>(&fes,ir_order,MassEquation::ArgsEmpty{}));
    // m.AddIntegrator(new PADomainInt<MassEquation>(&fes,ir_order));
@@ -217,7 +218,6 @@ int main(int argc, char *argv[])
    PrecCGSolverDG<PADomainInt<MassEquation>,DiagSolverDG> m(fes,ir_order,mass,prec);
    Operator* mo = &m;
 
-
    Array<int> ess_tdof_list;
    // SparseMatrix msp;
    // BilinearFormOperator mbf;
@@ -225,6 +225,12 @@ int main(int argc, char *argv[])
    // m.AssembleForm(msp);
    // m.AssembleForm(mbf);
    // m.FormSystemOperator(ess_tdof_list, mo);
+
+   tic_toc.Stop();
+   double mass_init_time = tic_toc.RealTime(); 
+   cout << " Mass initialization time: " << mass_init_time << "s." << endl;
+   tic_toc.Clear();
+   tic_toc.Start();
 
    //Initialization of the Stiffness operator
    BilinearForm k(&fes);
@@ -245,6 +251,12 @@ int main(int argc, char *argv[])
    k.AssembleForm(kbf);
    k.FormSystemOperator(ess_tdof_list, ko);
 
+   tic_toc.Stop();
+   double adv_init_time = tic_toc.RealTime(); 
+   cout << " Advection initialization time: " << adv_init_time << "s." << endl;
+   tic_toc.Clear();
+   tic_toc.Start();
+
    //No need to do PA
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -253,7 +265,8 @@ int main(int argc, char *argv[])
    b.Assemble();
 
    tic_toc.Stop();
-   cout << " Initialization time: " << tic_toc.RealTime() << "s." << endl;
+   double total_init_time = mass_init_time + adv_init_time + tic_toc.RealTime(); 
+   cout << " Initialization time: " << total_init_time << "s." << endl;
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -361,7 +374,7 @@ int main(int argc, char *argv[])
    }
 
    tic_toc.Stop();
-   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+   cout << " Computation time: " << tic_toc.RealTime() << "s." << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".

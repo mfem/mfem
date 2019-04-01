@@ -172,9 +172,6 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
-   tic_toc.Clear();
-   tic_toc.Start();
-
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
@@ -182,24 +179,41 @@ int main(int argc, char *argv[])
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
+   tic_toc.Clear();
+   tic_toc.Start();
+
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
+   m.Assemble();
+   m.Finalize();
+
+   tic_toc.Stop();
+   double mass_init_time = tic_toc.RealTime(); 
+   cout << " Mass initialization time: " << mass_init_time << "s." << endl;
+   tic_toc.Clear();
+   tic_toc.Start();
+
    BilinearForm k(&fes);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   //k.AddBdrFaceIntegrator(
-   //   new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   k.AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+
+
+   int skip_zeros = 0;
+   k.Assemble(skip_zeros);
+   k.Finalize(skip_zeros);
+
+   tic_toc.Stop();
+   double adv_init_time = tic_toc.RealTime(); 
+   cout << " Advection initialization time: " << adv_init_time << "s." << endl;
+   tic_toc.Clear();
+   tic_toc.Start();
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
-
-   m.Assemble();
-   m.Finalize();
-   int skip_zeros = 0;
-   k.Assemble(skip_zeros);
-   k.Finalize(skip_zeros);
    b.Assemble();
 
    // 7. Define the initial conditions, save the corresponding grid function to
@@ -218,7 +232,8 @@ int main(int argc, char *argv[])
    }
 
    tic_toc.Stop();
-   cout << " Initialization time: " << tic_toc.RealTime() << "s." << endl;
+   double total_init_time = mass_init_time + adv_init_time + tic_toc.RealTime(); 
+   cout << " Initialization time: " << total_init_time << "s." << endl;
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
@@ -308,7 +323,7 @@ int main(int argc, char *argv[])
    }
 
    tic_toc.Stop();
-   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+   cout << " Computation time: " << tic_toc.RealTime() << "s." << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".

@@ -63,7 +63,7 @@ struct ElementInfo
 template < typename Equation,
             template<typename,PAOp> class IMPL = DomainMult>
 class PADomainInt
-: public LinearFESpaceIntegrator, public IMPL<Equation,Equation::OpName>
+: public LinearFESpaceIntegrator, public IMPL<Equation,Equation::OpName>, public Operator
 {
 private:
    typedef IMPL<Equation,Equation::OpName> Op;
@@ -76,7 +76,8 @@ public:
    template <typename Args>
    PADomainInt(FiniteElementSpace *fes, const int order, const Args& args)
    : LinearFESpaceIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-     Op(fes,order,args)
+     Op(fes,order,args),
+     Operator()
    {
       const int nb_elts = fes->GetNE();
       const int quads  = IntRule->GetNPoints();
@@ -119,6 +120,16 @@ public:
       }
    }
 
+   virtual void Mult(const Vector &fun, Vector &vect) const{
+      int dim = this->fes->GetFE(0)->GetDim();
+      switch(dim)
+      {
+      case 1:this->Mult1d(fun,vect); break;
+      case 2:this->Mult2d(fun,vect); break;
+      case 3:this->Mult3d(fun,vect); break;
+      default: mfem_error("More than # dimension not yet supported"); break;
+      }
+   }
 };
 
   ///////////////////////////
