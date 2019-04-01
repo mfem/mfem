@@ -136,10 +136,11 @@ int main(int argc, char *argv[])
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.7);
    refiner.PreferNonconformingRefinement();
+   refiner.SetNCLimit(1);
 
    // 11. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 50000;
+   const int max_dofs = 5000;
    for (int it = 0; ; it++)
    {
       int cdofs = fespace.GetTrueVSize();

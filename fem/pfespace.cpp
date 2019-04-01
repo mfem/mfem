@@ -270,7 +270,8 @@ void ParFiniteElementSpace::GetGroupComm(
       group_ldof_counter += ned * pmesh->GroupNEdges(gr);
       group_ldof_counter += ntd * pmesh->GroupNTriangles(gr);
       group_ldof_counter += nqd * pmesh->GroupNQuadrilaterals(gr);
-      group_ldof_counter += nted * pmesh->GroupNTetrahedra(gr);
+      if (dim > 3)
+         group_ldof_counter += nted * pmesh->GroupNTetrahedra(gr);  // FIXME: ensure that tet-group is always build
    }
    if (ldof_type)
    {
@@ -291,7 +292,7 @@ void ParFiniteElementSpace::GetGroupComm(
       ne = pmesh->GroupNEdges(gr);
       nt = pmesh->GroupNTriangles(gr);
       nq = pmesh->GroupNQuadrilaterals(gr);
-      nte = pmesh->GroupNTetrahedra(gr);
+      nte = (dim>3) ? pmesh->GroupNTetrahedra(gr) : 0;   // FIXME
 
       // vertices
       if (nvd > 0)
