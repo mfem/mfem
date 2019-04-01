@@ -38,6 +38,10 @@ SHARED = NO
 MFEM_CUDA_CXX = nvcc
 MFEM_CUDA_ARCH = sm_60
 MFEM_CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(MFEM_CUDA_ARCH)
+ifeq ($(MFEM_USE_OPENMP),YES)
+MFEM_CUDA_FLAGS += -Xcompiler -fopenmp
+endif
+
 ifeq ($(MFEM_USE_CUDA),YES)
    # Pass the following arguments to the host compiler
    MFEM_XARCHIVE  = -Xarchive
@@ -167,7 +171,11 @@ LAPACK_OPT =
 LAPACK_LIB = $(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
 
 # OpenMP configuration
+ifeq ($(MFEM_USE_CUDA),YES)
+OPENMP_OPT = -lgomp
+else
 OPENMP_OPT = -fopenmp
+endif
 OPENMP_LIB =
 
 # Used when MFEM_TIMER_TYPE = 2
