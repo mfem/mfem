@@ -1285,17 +1285,14 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 
 
 #ifdef MFEM_USE_GECKO
-void Mesh::GetGeckoElementReordering(Array<int> &ordering)
+void Mesh::GetGeckoElementReordering(Array<int> &ordering,
+                                     int iterations, int window,
+                                     int period, int seed)
 {
    Gecko::Graph graph;
 
-   // We will put some accesors in for these later
    Gecko::Functional *functional =
       new Gecko::FunctionalGeometric(); // ordering functional
-   unsigned int iterations = 1;         // number of V cycles
-   unsigned int window = 2;             // initial window size
-   unsigned int period = 1;             // iterations between window increment
-   unsigned int seed = 0;               // random number seed
 
    // Run through all the elements and insert the nodes in the graph for them
    for (int elemid = 0; elemid < GetNE(); ++elemid)
@@ -2116,7 +2113,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
 }
 
 void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
-                  int generate_edges, double sx, double sy, double sz)
+                  double sx, double sy, double sz, bool sfc_ordering)
 {
    int x, y, z;
 
@@ -2159,31 +2156,58 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
 #define VTX(XC, YC, ZC) ((XC)+((YC)+(ZC)*(ny+1))*(nx+1))
 
    // Sets elements and the corresponding indices of vertices
-   for (z = 0; z < nz; z++)
+   if (sfc_ordering && type == Element::HEXAHEDRON)
    {
-      for (y = 0; y < ny; y++)
+      Array<int> sfc;
+      NCMesh::GridSfcOrdering3D(nx, ny, nz, sfc);
+      MFEM_VERIFY(sfc.Size() == 3*nx*ny*nz, "");
+
+      for (int k = 0; k < nx*ny*nz; k++)
       {
-         for (x = 0; x < nx; x++)
+         x = sfc[3*k + 0];
+         y = sfc[3*k + 1];
+         z = sfc[3*k + 2];
+
+         ind[0] = VTX(x  , y  , z  );
+         ind[1] = VTX(x+1, y  , z  );
+         ind[2] = VTX(x+1, y+1, z  );
+         ind[3] = VTX(x  , y+1, z  );
+         ind[4] = VTX(x  , y  , z+1);
+         ind[5] = VTX(x+1, y  , z+1);
+         ind[6] = VTX(x+1, y+1, z+1);
+         ind[7] = VTX(x  , y+1, z+1);
+
+         AddHex(ind, 1);
+      }
+   }
+   else
+   {
+      for (z = 0; z < nz; z++)
+      {
+         for (y = 0; y < ny; y++)
          {
-            ind[0] = VTX(x  , y  , z  );
-            ind[1] = VTX(x+1, y  , z  );
-            ind[2] = VTX(x+1, y+1, z  );
-            ind[3] = VTX(x  , y+1, z  );
-            ind[4] = VTX(x  , y  , z+1);
-            ind[5] = VTX(x+1, y  , z+1);
-            ind[6] = VTX(x+1, y+1, z+1);
-            ind[7] = VTX(x  , y+1, z+1);
-            if (type == Element::TETRAHEDRON)
+            for (x = 0; x < nx; x++)
             {
-               AddHexAsTets(ind, 1);
-            }
-            else if (type == Element::WEDGE)
-            {
-               AddHexAsWedges(ind, 1);
-            }
-            else
-            {
-               AddHex(ind, 1);
+               ind[0] = VTX(x  , y  , z  );
+               ind[1] = VTX(x+1, y  , z  );
+               ind[2] = VTX(x+1, y+1, z  );
+               ind[3] = VTX(x  , y+1, z  );
+               ind[4] = VTX(x  , y  , z+1);
+               ind[5] = VTX(x+1, y  , z+1);
+               ind[6] = VTX(x+1, y+1, z+1);
+               ind[7] = VTX(x  , y+1, z+1);
+               if (type == Element::TETRAHEDRON)
+               {
+                  AddHexAsTets(ind, 1);
+               }
+               else if (type == Element::WEDGE)
+               {
+                  AddHexAsWedges(ind, 1);
+               }
+               else
+               {
+                  AddHex(ind, 1);
+               }
             }
          }
       }
@@ -2192,6 +2216,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    // Sets boundary elements and the corresponding indices of vertices
    // bottom, bdr. attribute 1
    for (y = 0; y < ny; y++)
+   {
       for (x = 0; x < nx; x++)
       {
          ind[0] = VTX(x  , y  , 0);
@@ -2211,8 +2236,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 1);
          }
       }
+   }
    // top, bdr. attribute 6
    for (y = 0; y < ny; y++)
+   {
       for (x = 0; x < nx; x++)
       {
          ind[0] = VTX(x  , y  , nz);
@@ -2232,8 +2259,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 6);
          }
       }
+   }
    // left, bdr. attribute 5
    for (z = 0; z < nz; z++)
+   {
       for (y = 0; y < ny; y++)
       {
          ind[0] = VTX(0  , y  , z  );
@@ -2249,8 +2278,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 5);
          }
       }
+   }
    // right, bdr. attribute 3
    for (z = 0; z < nz; z++)
+   {
       for (y = 0; y < ny; y++)
       {
          ind[0] = VTX(nx, y  , z  );
@@ -2266,8 +2297,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 3);
          }
       }
+   }
    // front, bdr. attribute 2
    for (x = 0; x < nx; x++)
+   {
       for (z = 0; z < nz; z++)
       {
          ind[0] = VTX(x  , 0, z  );
@@ -2283,8 +2316,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 2);
          }
       }
+   }
    // back, bdr. attribute 4
    for (x = 0; x < nx; x++)
+   {
       for (z = 0; z < nz; z++)
       {
          ind[0] = VTX(x  , ny, z  );
@@ -2300,6 +2335,9 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             AddBdrQuad(ind, 4);
          }
       }
+   }
+
+#undef VTX
 
 #if 0
    ofstream test_stream("debug.mesh");
@@ -2312,8 +2350,9 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    // Finalize(...) can be called after this method, if needed
 }
 
-void Mesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
-                  double sx, double sy)
+void Mesh::Make2D(int nx, int ny, Element::Type type,
+                  double sx, double sy,
+                  bool generate_edges, bool sfc_ordering)
 {
    int i, j, k;
 
@@ -2350,17 +2389,37 @@ void Mesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
       }
 
       // Sets elements and the corresponding indices of vertices
-      k = 0;
-      for (j = 0; j < ny; j++)
+      if (sfc_ordering)
       {
-         for (i = 0; i < nx; i++)
+         Array<int> sfc;
+         NCMesh::GridSfcOrdering2D(nx, ny, sfc);
+         MFEM_VERIFY(sfc.Size() == 2*nx*ny, "");
+
+         for (k = 0; k < nx*ny; k++)
          {
+            i = sfc[2*k + 0];
+            j = sfc[2*k + 1];
             ind[0] = i + j*(nx+1);
             ind[1] = i + 1 +j*(nx+1);
             ind[2] = i + 1 + (j+1)*(nx+1);
             ind[3] = i + (j+1)*(nx+1);
             elements[k] = new Quadrilateral(ind);
-            k++;
+         }
+      }
+      else
+      {
+         k = 0;
+         for (j = 0; j < ny; j++)
+         {
+            for (i = 0; i < nx; i++)
+            {
+               ind[0] = i + j*(nx+1);
+               ind[1] = i + 1 +j*(nx+1);
+               ind[2] = i + 1 + (j+1)*(nx+1);
+               ind[3] = i + (j+1)*(nx+1);
+               elements[k] = new Quadrilateral(ind);
+               k++;
+            }
          }
       }
 

@@ -39,12 +39,17 @@ Other meshing improvements
   follows precisely the paper:
 
      D. Arnold, A. Mukherjee, and L. Pouly, "Locally Adapted Tetrahedral Meshes
-     Using Bisection", SIAM J. Sci. Comput., 22(2), 431–448.
+     Using Bisection", SIAM J. Sci. Comput. 22 (2000), 431–448.
 
   This guarantees that the shape regularity of the elements will be preserved
   under refinement.
 
 - Added support for parallel communication groups on non-conforming meshes.
+
+- Improved parallel partitioning of non-conforming meshes. If the coarse mesh
+  elements are ordered as a sequence of face-neighbors, the parallel partitions
+  are now guaranteed to be continuous. To that end, inline quadrilateral and
+  hexahedral meshes are now by default ordered along a space-filling curve.
 
 - A boundary in a NURBS mesh can now be connected with another boundary. Such a
   periodic NURBS mesh is a simple way to impose periodic boundary conditions.
