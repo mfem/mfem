@@ -13,7 +13,7 @@
 #include "mfem.hpp"
 #include "myCoefficient.hpp"
 #include "BoundaryGradIntegrator.hpp"
-#include "ResistiveMHDOperator.hpp"
+#include "AMRResistiveMHDOperator.hpp"
 #include "BlockZZEstimator.hpp"
 #include "PDSolver.hpp"
 #include <memory>
@@ -97,6 +97,7 @@ int main(int argc, char *argv[])
    bool visit = false;
    int precision = 8;
    int icase = 1;
+   int nc_limit = 3;         // maximum level of hanging nodes
    alpha = 0.001; 
    Lx=3.0;
    lambda=5.0;
@@ -268,12 +269,14 @@ int main(int argc, char *argv[])
    }
 
    // 7. Initialize the MHD operator, the GLVis visualization    
-   ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi);
+   AMRResistiveMHDOperator oper(fespace, ess_bdr, visc, resi);
    if (icase==2)  //add the source term
    {
        FunctionCoefficient e0(E0rhs);
        oper.SetRHSEfield(e0);
    }
+   //---assemble problem and update boundary condition---
+   oper.assembleProblem(ess_bdr); 
 
    socketstream vis_phi, vis_j;
    subtract(psi,psiBack,psiPer);
@@ -306,13 +309,23 @@ int main(int argc, char *argv[])
          vis_j << "pause\n";
          vis_j << flush;
       }
-    }
+   }
 
+   /*
+   //for AMR
    int sdim = mesh.SpaceDimension();
-   FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
-   ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
-   estimator.SetAnisotropic();
+   ConstantCoefficient one(1.0);
+   BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
+   FiniteElementSpace flux_fespace1(&mesh, &fe_coll, sdim), flux_fespace2(&mesh, &fe_coll, sdim);
+   DoubleZZEstimator estimator(*integ, psi, *integ, w, flux_fespace1, flux_fespace2);
 
+   //refiner for psi and w
+   ThresholdRefiner refiner(estimator);
+   refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
+   refiner.SetTotalErrorGoal(1e-3);    // local error goal (stop criterion)
+   refiner.PreferNonconformingRefinement();
+   refiner.SetNCLimit(nc_limit);
+   */
 
    double t = 0.0;
    oper.SetTime(t);
@@ -345,6 +358,8 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
+
+
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
@@ -352,19 +367,30 @@ int main(int argc, char *argv[])
    {
       double dt_real = min(dt, t_final - t);
 
-      //---Predictor stage---
-      //assemble the nonlinear terms
-      oper.assembleNv(&phi);
-      oper.assembleNb(&psi);
-      ode_solver->StepP(vx, t, dt_real);
-      oper.UpdateJ(vx);
+      //refiner.Reset();
 
-      //---Corrector stage---
-      //assemble the nonlinear terms (only psi is updated)
-      oper.assembleNb(&psi);
-      ode_solver->Step(vx, t, dt_real);
-      oper.UpdateJ(vx); 
-      oper.UpdatePhi(vx);
+      // 13. The inner refinement loop. At the end we want to have the current
+      //     time step resolved to the prescribed tolerance in each element.
+      //for (int ref_it = 1; ; ref_it++)
+      {
+      //  cout << "Iteration: " << ref_it << ", number of unknowns: "
+      //       << fespace.GetVSize() << endl;
+
+
+        //---Predictor stage---
+        //assemble the nonlinear terms
+        oper.assembleNv(&phi);
+        oper.assembleNb(&psi);
+        ode_solver->StepP(vx, t, dt_real);
+        oper.UpdateJ(vx);
+
+        //---Corrector stage---
+        //assemble the nonlinear terms (only psi is updated)
+        oper.assembleNb(&psi);
+        ode_solver->Step(vx, t, dt_real);
+        oper.UpdateJ(vx); 
+        oper.UpdatePhi(vx);
+      }
 
       last_step = (t >= t_final - 1e-8*dt);
 
