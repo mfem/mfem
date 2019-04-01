@@ -100,6 +100,7 @@ void Table::MakeJ()
       j = I[i], I[i] = k, k += j;
    }
 
+   if (J) { delete [] J; }
    J = new int[I[size]=k];
 }
 
