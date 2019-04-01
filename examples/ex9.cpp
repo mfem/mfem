@@ -132,8 +132,8 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -147,7 +147,6 @@ int main(int argc, char *argv[])
       case 6: ode_solver = new RK6Solver; break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
          return 3;
    }
 
@@ -157,18 +156,18 @@ int main(int argc, char *argv[])
    //    a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
-   if (mesh->NURBSext)
+   if (mesh.NURBSext)
    {
-      mesh->SetCurvature(max(order, 1));
+      mesh.SetCurvature(max(order, 1));
    }
-   mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
+   mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim);
-   FiniteElementSpace fes(mesh, &fec);
+   FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
@@ -208,7 +207,7 @@ int main(int argc, char *argv[])
    {
       ofstream omesh("ex9.mesh");
       omesh.precision(precision);
-      mesh->Print(omesh);
+      mesh.Print(omesh);
       ofstream osol("ex9-init.gf");
       osol.precision(precision);
       u.Save(osol);
@@ -222,14 +221,14 @@ int main(int argc, char *argv[])
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example9", mesh);
+         dc = new SidreDataCollection("Example9", &mesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc = new VisItDataCollection("Example9", mesh);
+         dc = new VisItDataCollection("Example9", &mesh);
          dc->SetPrecision(precision);
       }
       dc->RegisterField("solution", &u);
@@ -254,7 +253,7 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << *mesh << u;
+         sout << "solution\n" << mesh << u;
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
@@ -286,7 +285,7 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            sout << "solution\n" << *mesh << u << flush;
+            sout << "solution\n" << mesh << u << flush;
          }
 
          if (visit)
