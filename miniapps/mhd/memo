@@ -10,6 +10,16 @@ glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 800
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+3/30
+working on amr: 
+o define a new estimator: error=erro1+ratio*error2
+  Note that since the errors are computed to the total error, it is fine as long as ratio>0.
+  By default, ratio = 1.
+
+Ideally, I should define a new ThresholdRefiner that refine the union of two refining region
+of two solution. This is not hard. But I am not sure how to do similarly for Derefiner.
+
+
 3/25
 fix a bug from boundary condition when compute J=nable Psi (it did not consider boundary condition)
 

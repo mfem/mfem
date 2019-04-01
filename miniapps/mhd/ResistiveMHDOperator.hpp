@@ -64,7 +64,6 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
      viscosity(visc),  resistivity(resi), M_prec(NULL), K_prec(NULL), z(height/4)
 {
    const double rel_tol = 1e-8;
-   const int skip_zero_entries = 0;
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    if (false)
@@ -80,7 +79,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
    //mass matrix
    M = new BilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator);
-   M->Assemble(skip_zero_entries);
+   M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
    GSSmoother *M_prec_gs = new GSSmoother(Mmat);
@@ -97,7 +96,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
    //stiffness matrix
    K = new BilinearForm(&fespace);
    K->AddDomainIntegrator(new DiffusionIntegrator);
-   K->Assemble(skip_zero_entries);
+   K->Assemble();
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 
    GSSmoother *K_prec_gs = new GSSmoother(Kmat);
@@ -114,7 +113,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
    KB = new BilinearForm(&fespace);
    KB->AddDomainIntegrator(new DiffusionIntegrator);      //  K matrix
    KB->AddBdrFaceIntegrator(new BoundaryGradIntegrator);  // -B matrix
-   KB->Assemble(skip_zero_entries);
+   KB->Assemble();
 
    if (false)
    {
@@ -129,11 +128,11 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
 
    ConstantCoefficient visc_coeff(viscosity);
    DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
-   DRe.Assemble(skip_zero_entries);
+   DRe.Assemble();
 
    ConstantCoefficient resi_coeff(resistivity);
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
-   DSl.Assemble(skip_zero_entries);
+   DSl.Assemble();
 }
 
 void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield) 
@@ -215,14 +214,13 @@ void ResistiveMHDOperator::assembleNv(GridFunction *gf)
    //GridFunction phiGF(&fespace); 
    //phiGF.SetFromTrueDofs(phi);
    
-   int skip_zero_entries=0;
 
    delete Nv;
    Nv = new BilinearForm(&fespace);
    MyCoefficient velocity(gf, 2);   //we update velocity
 
    Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
-   Nv->Assemble(skip_zero_entries); 
+   Nv->Assemble(); 
 }
 
 void ResistiveMHDOperator::assembleNb(GridFunction *gf) 
@@ -231,14 +229,13 @@ void ResistiveMHDOperator::assembleNb(GridFunction *gf)
    //GridFunction psiGF(&fespace); 
    //psiGF.SetFromTrueDofs(psi);
 
-   int skip_zero_entries=0;
 
    delete Nb;
    Nb = new BilinearForm(&fespace);
    MyCoefficient Bfield(gf, 2);   //we update B
 
    Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
-   Nb->Assemble(skip_zero_entries);
+   Nb->Assemble();
 }
 
 void ResistiveMHDOperator::UpdateJ(Vector &vx)
