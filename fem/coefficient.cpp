@@ -87,7 +87,6 @@ double DeltaCoefficient::EvalDelta(ElementTransformation &T,
    return weight ? weight->Eval(T, ip, GetTime())*w : w;
 }
 
-
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                              const IntegrationRule &ir)
 {
@@ -193,18 +192,13 @@ void GradientGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
 void GradientGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                            const IntegrationPoint &ip)
 {
-   // Perhaps we should avoid altering T so cache its IntegrationPoint
-   const IntegrationPoint & ipT = T.GetIntPoint();
-   T.SetIntPoint(&ip);
    GridFunc->GetGradient(T, V);
-   // Reset T's IntegrationPoint
-   T.SetIntPoint(&ipT);
 }
 
 void GradientGridFunctionCoefficient::Eval(
    DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
 {
-   GridFunc->GetGradients(T.ElementNo, ir, M);
+   GridFunc->GetGradients(T, ir, M);
 }
 
 CurlGridFunctionCoefficient::CurlGridFunctionCoefficient (
@@ -224,12 +218,7 @@ void CurlGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
 void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                        const IntegrationPoint &ip)
 {
-   // Perhaps we should avoid altering T so cache its IntegrationPoint
-   const IntegrationPoint & ipT = T.GetIntPoint();
-   T.SetIntPoint(&ip);
    GridFunc->GetCurl(T, V);
-   // Reset T's IntegrationPoint
-   T.SetIntPoint(&ipT);
 }
 
 DivergenceGridFunctionCoefficient::DivergenceGridFunctionCoefficient (
@@ -241,13 +230,7 @@ DivergenceGridFunctionCoefficient::DivergenceGridFunctionCoefficient (
 double DivergenceGridFunctionCoefficient::Eval(ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
-   // Perhaps we should avoid altering T so cache its IntegrationPoint
-   const IntegrationPoint & ipT = T.GetIntPoint();
-   T.SetIntPoint(&ip);
-   double v = GridFunc->GetDivergence(T);
-   // Reset T's IntegrationPoint
-   T.SetIntPoint(&ipT);
-   return v;
+   return GridFunc->GetDivergence(T);
 }
 
 void VectorDeltaCoefficient::SetDirection(const Vector &_d)

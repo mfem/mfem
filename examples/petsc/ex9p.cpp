@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
    {
       // When using PETSc, we just create the ODE solver. We use command line
       // customization to select a specific solver.
-      PetscInitialize(NULL, NULL, petscrc_file, NULL);
+      MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
       ode_solver = pode_solver = new PetscODESolver(MPI_COMM_WORLD);
    }
 
@@ -481,7 +481,7 @@ int main(int argc, char *argv[])
    delete pmon;
 
    // We finalize PETSc
-   if (use_petsc) { PetscFinalize(); }
+   if (use_petsc) { MFEMFinalizePetsc(); }
 
    MPI_Finalize();
    return 0;

@@ -39,9 +39,19 @@ public:
    void SetTime(double t) { time = t; }
    double GetTime() { return time; }
 
+   /** @brief Evaluate the coefficient in the element described by @a T at the
+       point @a ip. */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) = 0;
 
+   /** @brief Evaluate the coefficient in the element described by @a T at the
+       point @a ip at time @a t. */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip, double t)
    {
@@ -157,6 +167,7 @@ private:
    int Component;
 
 public:
+   GridFunctionCoefficient() : GridF(NULL), Component(1) { }
    /** Construct GridFunctionCoefficient from a given GridFunction, and
        optionally specify a component to use if it is a vector GridFunction. */
    GridFunctionCoefficient (GridFunction *gf, int comp = 1)
@@ -242,7 +253,7 @@ public:
    Coefficient *Weight() { return weight; }
    void GetDeltaCenter(Vector& center);
    /// Return the Scale() multiplied by the weight Coefficient, if any.
-   double EvalDelta(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double EvalDelta(ElementTransformation &T, const IntegrationPoint &ip);
    /** @brief A DeltaFunction cannot be evaluated. Calling this method will
        cause an MFEM error, terminating the application. */
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
@@ -280,11 +291,26 @@ public:
    /// Returns dimension of the vector.
    int GetVDim() { return vdim; }
 
+   /** @brief Evaluate the vector coefficient in the element described by @a T
+       at the point @a ip, storing the result in @a V. */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
-   // General implementation using the Eval method for one IntegrationPoint.
-   // Can be overloaded for more efficient implementation.
+   /** @brief Evaluate the vector coefficient in the element described by @a T
+       at all points of @a ir, storing the result in @a M. */
+   /** The dimensions of @a M are GetVDim() by ir.GetNPoints() and they must be
+       set by the implementation of this method.
+
+       The general implementation provided by the base class (using the Eval
+       method for one IntegrationPoint at a time) can be overloaded for more
+       efficient implementation.
+
+       @note The IntegrationPoint associated with @a T is not used, and this
+       method will generally modify this IntegrationPoint associated with @a T.
+   */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 
@@ -374,6 +400,7 @@ protected:
    GridFunction *GridFunc;
 
 public:
+   VectorGridFunctionCoefficient() : VectorCoefficient(0), GridFunc(NULL) { }
    VectorGridFunctionCoefficient(GridFunction *gf);
 
    void SetGridFunction(GridFunction *gf);
@@ -477,8 +504,8 @@ public:
    /** @brief Return the specified direction vector multiplied by the value
        returned by DeltaCoefficient::EvalDelta() of the associated scalar
        DeltaCoefficient. */
-   void EvalDelta(Vector &V, ElementTransformation &T,
-                  const IntegrationPoint &ip);
+   virtual void EvalDelta(Vector &V, ElementTransformation &T,
+                          const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
    /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
        will cause an MFEM error, terminating the application. */
@@ -527,6 +554,11 @@ public:
    // For backward compatibility
    int GetVDim() const { return width; }
 
+   /** @brief Evaluate the matrix coefficient in the element described by @a T
+       at the point @a ip, storing the result in @a K. */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
