@@ -3,8 +3,8 @@
 // Compile with: make ex2x
 //
 // Sample runs:  ex2x
-//
-// Dexcription:
+//               ex2x -gp -p 6 -tf 4 -tol 1e-2
+// Description:
 //
 
 #include "mfem.hpp"
@@ -56,12 +56,48 @@ int main(int argc, char *argv[])
    double tol = 1e-2;
    double rho = 1.2;
 
+   double err_eta = 1.0;
+
+   double gamma_acc = 0.9;
+   double kI_acc = 1.0 / 15.0;
+   double kP_acc = 0.13;
+   double kD_acc = 0.2;
+
+   double gamma_rej = 0.9;
+   double kI_rej = 0.2;
+   double kP_rej = 0.0;
+   double kD_rej = 0.2;
+
+   double lim_lo  = 1.0;
+   double lim_hi  = 1.2;
+   double lim_max = 2.0;
+
+   bool gnuplot = false;
+
    OptionsParser args(argc, argv);
    args.AddOption(&prob, "-p", "--problem-type",
                   "Problem Type From Gustafsson 1988:  1 - 7");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
                   "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4.");
+   args.AddOption(&ode_msr_type, "-err", "-error-measure",
+                  "Error measure:\n"
+                  "\t   1 - Absolute/Relative Error with Infinity-Norm\n"
+                  "\t   2 - Absolute/Relative Error with 2-Norm\n");
+   args.AddOption(&ode_acc_type, "-acc", "-accept-factor",
+                  "Adjustment factor after accepted steps:\n"
+                  "\t   1 - Integrated error\n"
+                  "\t   2 - Proportional and Integrated errors\n"
+                  "\t   3 - Proportional, Integrated, and Derivative errors\n");
+   args.AddOption(&ode_rej_type, "-rej", "-reject-factor",
+                  "Adjustment factor after rejected steps:\n"
+                  "\t   1 - Integrated error\n"
+                  "\t   2 - Proportional and Integrated errors\n"
+                  "\t   3 - Proportional, Integrated, and Derivative errors\n");
+   args.AddOption(&ode_lim_type, "-lim", "-limiter",
+                  "Adjustment limiter:\n"
+                  "\t   1 - Dead zone limiter\n"
+                  "\t   2 - Maximum limiter");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -70,6 +106,8 @@ int main(int argc, char *argv[])
                   "Tolerance.");
    args.AddOption(&rho, "-rho", "--rejection",
                   "Rejection tolerance.");
+   args.AddOption(&gnuplot, "-gp", "--gnuplot", "-no-gp", "--no-gnuplot",
+                  "Enable or disable GnuPlot visualization.");
 
    args.Parse();
    if (!args.Good())
@@ -78,6 +116,15 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   if (dt <= 0.0) { dt = 0.1 * (t_final - t_init); }
+
+   // 4. Prepare GnuPlot output file if needed
+   ofstream ofs;
+   if (gnuplot)
+   {
+      ofs.open("ex2x.dat");
+   }
 
    ODEController ode_controller;
 
@@ -107,6 +154,60 @@ int main(int argc, char *argv[])
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
    }
+   switch (ode_msr_type)
+   {
+      case 1:
+         ode_err_msr = new AbsRelMeasurelinf(err_eta);
+         break;
+      case 2:
+         ode_err_msr = new AbsRelMeasurel2(err_eta);
+         break;
+      default:
+         cout << "Unknown error measure type: " << ode_msr_type << '\n';
+         return 3;
+   }
+   switch (ode_acc_type)
+   {
+      case 1:
+         ode_step_acc = new StdAdjFactor(gamma_acc, kI_acc);
+         break;
+      case 2:
+         ode_step_acc = new PIAdjFactor(kI_acc, kP_acc);
+         break;
+      case 3:
+         ode_step_acc = new PIDAdjFactor(kI_acc, kP_acc, kD_acc);
+         break;
+      default:
+         cout << "Unknown adjustment factor type: " << ode_acc_type << '\n';
+         return 3;
+   }
+   switch (ode_rej_type)
+   {
+      case 1:
+         ode_step_rej = new StdAdjFactor(gamma_rej, kI_rej);
+         break;
+      case 2:
+         ode_step_rej = new PIAdjFactor(kI_rej, kP_rej);
+         break;
+      case 3:
+         ode_step_rej = new PIDAdjFactor(kI_rej, kP_rej, kD_rej);
+         break;
+      default:
+         cout << "Unknown adjustment factor type: " << ode_rej_type << '\n';
+         return 3;
+   }
+   switch (ode_lim_type)
+   {
+      case 1:
+         ode_step_lim = new DeadZoneLimiter(lim_lo, lim_hi, lim_max);
+         break;
+      case 2:
+         ode_step_lim = new MaxLimiter(lim_max);
+         break;
+      default:
+         cout << "Unknown adjustment limiter type: " << ode_lim_type << '\n';
+         return 3;
+   }
 
    ExampleTDO tdo(prob);
    ode_solver->Init(tdo);
@@ -117,11 +218,41 @@ int main(int argc, char *argv[])
    ode_controller.SetTimeStep(dt);
    ode_controller.SetTolerance(tol);
    ode_controller.SetRejectionLimit(rho);
+   if (gnuplot) { ode_controller.SetOutput(ofs); }
 
    Vector y;
    InitialCondition(prob, y);
 
+   if (gnuplot)
+   {
+      ofs << t_init << "\t" << dt;
+      for (int i=0; i<y.Size(); i++)
+      {
+         ofs << "\t" << y(i);
+      }
+      ofs << endl;
+
+      ofstream ofs_inp("gnuplot_ex2x.inp");
+      ofs_inp << "plot 'ex2x.dat' using 1:2 w l t 'dt';\npause -1;\n";
+      ofs_inp << "plot ";
+      for (int i=0; i<y.Size(); i++)
+      {
+         ofs_inp << "'ex2x.dat' using 1:" << i + 3
+                 << " w l t 'y" << i + 1 << "'";
+         if (i < y.Size() - 1)
+         {
+            ofs_inp << ", ";
+         }
+      }
+      ofs_inp << ";" << endl;
+      ofs_inp.close();
+   }
+
+   ode_controller.SetOutput(ofs);
+
    ode_controller.Run(y, t_init, t_final);
+
+   ofs.close();
 
    delete ode_solver;
    delete ode_err_msr;
