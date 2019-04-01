@@ -4,7 +4,7 @@
 //
 // Sample runs:
 //
-//    Standard transport mode:
+//    Transport mode:
 //    ex9 -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
 //    ex9 -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
 //    ex9 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
@@ -19,15 +19,11 @@
 //    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -dt 0.001 -o 2 -mt 3
 //    ex9 -m ../data/periodic-square.mesh -p 3 -r 2 -dt 0.0025 -o 15 -tf 9 -mt 4
 //    ex9 -m ../data/periodic-cube.mesh -p 5 -r 5 -dt 0.0001 -o 1 -tf 0.8 -mt 4
-
 //
-//    Standard remap mode:
+//    Remap mode:
 //    ex9 -m ../data/periodic-square.mesh -p 10 -r 3 -dt 0.005 -tf 0.5 -mt 4 -vs 10
 //    ex9 -m ../data/periodic-square.mesh -p 11 -r 3 -dt 0.005 -tf 0.5 -mt 4 -vs 10
 //
-//    Lagrangian step followed by mesh return mode:
-//    ex9 -m ../data/periodic-square.mesh -p 20 -r 3 -dt 0.005 -tf 4 -mt 4 -vs 10
-//    ex9 -m ../data/periodic-square.mesh -p 21 -r 3 -dt 0.005 -tf 4 -mt 4 -vs 10
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -55,7 +51,6 @@ int problem;
 
 // 0 is standard transport.
 // 1 is standard remap (mesh moves, solution is fixed).
-// 2 is Lagrangian step followed by mesh return.
 int exec_mode;
 
 // Velocity coefficient
@@ -908,7 +903,7 @@ private:
 
    mutable Vector z;
 
-   double dt, start_t;
+   double dt;
    Assembly &asmbl;
    
    LowOrderMethod &lom;
@@ -923,7 +918,6 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual void SetDt(double _dt) { dt = _dt; }
-   void SetInitialTimeStepTime(double st) { start_t = st; }
    void SetRemapStartPos(const Vector &spos) { start_pos = spos; }
    void GetRemapStartPos(Vector &spos) { spos = start_pos; }
 
@@ -1008,7 +1002,6 @@ int main(int argc, char *argv[])
 
    if (problem < 10)      { exec_mode = 0; }
    else if (problem < 20) { exec_mode = 1; }
-   else if (problem < 30) { exec_mode = 2; }
    else { MFEM_ABORT("Unspecified execution mode."); }
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
@@ -1136,10 +1129,6 @@ int main(int argc, char *argv[])
    {
       k.AddDomainIntegrator(new ConvectionIntegrator(v_coef));
    }
-   else if (exec_mode == 2)
-   {
-      k.AddDomainIntegrator(new ConvectionIntegrator(velocity));
-   }
    
    // In case of basic discrete upwinding, add boundary terms.
    if (((MonoType == DiscUpw) || (MonoType == DiscUpw_FCT)) && (!OptScheme))
@@ -1157,13 +1146,6 @@ int main(int argc, char *argv[])
             new DGTraceIntegrator(v_coef, -1.0, -0.5)) );
          k.AddBdrFaceIntegrator( new TransposeIntegrator(
             new DGTraceIntegrator(v_coef, -1.0, -0.5)) );
-      }
-      else if (exec_mode == 2)
-      {
-         k.AddInteriorFaceIntegrator( new TransposeIntegrator(
-            new DGTraceIntegrator(velocity, -1.0, -0.5)) );
-         k.AddBdrFaceIntegrator( new TransposeIntegrator(
-            new DGTraceIntegrator(velocity, -1.0, -0.5)) );
       }
    }
 
@@ -1222,11 +1204,6 @@ int main(int argc, char *argv[])
             lom.pk->AddDomainIntegrator(
                new PrecondConvectionIntegrator(v_coef) );
          }
-         else if (exec_mode == 2)
-         {
-            lom.pk->AddDomainIntegrator(
-               new PrecondConvectionIntegrator(velocity) );
-         }
          lom.pk->Assemble(skip_zeros);
          lom.pk->Finalize(skip_zeros);
          
@@ -1248,8 +1225,8 @@ int main(int argc, char *argv[])
    DG_FECollection fec1(1, dim, btype);
    
    // For linear elements, Opt scheme has already been disabled.
-   const bool NeedSubcells = lom.OptScheme && (( lom.MonoType == ResDist)
-                                         || (lom.MonoType == ResDist_FCT) );
+   const bool NeedSubcells = lom.OptScheme && (lom.MonoType == ResDist ||
+                                               lom.MonoType == ResDist_FCT);
 
    if (NeedSubcells)
    {
@@ -1257,14 +1234,11 @@ int main(int argc, char *argv[])
       {
          lom.VolumeTerms = new MixedConvectionIntegrator(velocity, -1.0);
       }
-      //    else if (exec_mode == 1)
-      //    {
-      // TODO Figure out why this gives a seg-fault, it should be v_coef, by the
-      //      same logic as it is v_coef for the high order bilinearform k.
-      //      lom.VolumeTerms = new MixedConvectionIntegrator(v_coef);
-      //    }
-      else /*if (exec_mode == 2)*/
+      else if (exec_mode == 1)
       {
+         // TODO Figure out why this gives a seg-fault, it should be v_coef, as
+         //      it is v_coef for the high order bilinearform k.
+         // lom.VolumeTerms = new MixedConvectionIntegrator(v_coef);
          lom.VolumeTerms = new MixedConvectionIntegrator(velocity);
       }
       
@@ -1369,14 +1343,6 @@ int main(int argc, char *argv[])
       {
          adv.SetRemapStartPos(x0);
       }
-      else if (exec_mode == 2)
-      {
-         // Move the mesh (and the solution) from x0 (one step).
-         add(x0, dt_real, v_gf, *x);
-         adv.SetRemapStartPos(*x);
-      }
-
-      adv.SetInitialTimeStepTime(t);
 
       ode_solver->Step(u, t, dt_real);
       ti++;
@@ -1384,10 +1350,6 @@ int main(int argc, char *argv[])
       if (exec_mode == 1)
       {
          add(x0, t, v_gf, *x);
-      }
-      else if (exec_mode == 2)
-      {
-         *x = x0;
       }
 
       done = (t >= t_final - 1.e-8*dt);
@@ -1528,7 +1490,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
    if ( (lom.MonoType == DiscUpw) || (lom.MonoType == DiscUpw_FCT) )
    {
       // Reassemble on the new mesh (given by mesh_pos).
-      if (exec_mode > 0)
+      if (exec_mode == 1)
       {
          if (!lom.OptScheme)
          {
@@ -1586,7 +1548,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       y = b;
       K.Mult(x, z);
       
-      if ((exec_mode > 0) && (lom.OptScheme))
+      if ((exec_mode == 1) && (lom.OptScheme))
       {
          // TODO efficiency.
          delete asmbl.subcell_mesh;
@@ -1652,7 +1614,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
                xMaxSubcell(m) = -xMinSubcell(m);
                fluct = xSum = 0.;
                
-               if (exec_mode > 0)
+               if (exec_mode == 1)
                {
                   asmbl.ComputeSubcellWeights(k, m);
                }
@@ -1833,19 +1795,14 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    
    // Move towards x0 with current t.
    const double t = GetTime();
-   const double sub_time_step = t - start_t;
 
    if (exec_mode == 1)
    {
       add(start_pos, t, vel_pos, mesh_pos);
    }
-   else if (exec_mode == 2)
-   {
-      add(start_pos, -sub_time_step, vel_pos, mesh_pos);
-   }
 
    // Reassemble on the new mesh (given by mesh_pos).
-   if (exec_mode > 0)
+   if (exec_mode == 1)
    {
       ///////////////////////////
       // Element contributions //
@@ -1884,16 +1841,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
             
             for (i = 0; i < dofs.numBdrs; i++)
             {
-               if (exec_mode == 1)
-               {
-                  Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-                  asmbl.ComputeFluxTerms(k, i, Trans, lom);
-               }
-               else if (exec_mode == 2)
-               {
-                  Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-                  asmbl.ComputeFluxTerms(k, i, Trans, lom);
-               }
+               Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+               asmbl.ComputeFluxTerms(k, i, Trans, lom);
             }
          }
       }
@@ -2014,8 +1963,6 @@ void velocity_function(const Vector &x, Vector &v)
          break;
       }
    }
-
-   if (exec_mode == 2) { v *= -1.0; }
 }
 
 double box(std::pair<double,double> p1, std::pair<double,double> p2,
