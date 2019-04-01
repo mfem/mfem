@@ -49,7 +49,7 @@ if (MFEM_USE_MPI)
 
   # Add parallel tests.
   add_test(NAME pmesh-optimizer_np=4
-    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pmesh-optimizer> -no-vis
     -m ${CMAKE_CURRENT_SOURCE_DIR}/icf.mesh
     ${MPIEXEC_POSTFLAGS})

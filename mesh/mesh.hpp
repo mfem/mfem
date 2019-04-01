@@ -210,7 +210,7 @@ protected:
    void ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                     bool &finalize_topo);
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
-   void ReadInlineMesh(std::istream &input, int generate_edges = 0);
+   void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input);
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
@@ -306,9 +306,9 @@ protected:
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
                                           int op = 1);
-
-   /// Derefine elements once a list of derefinements is known.
-   void DerefineMesh(const Array<int> &derefinements);
+   /// Derefinement helper.
+   double AggregateError(const Array<double> &elem_error,
+                         const int *fine, int nfine, int op);
 
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
@@ -408,17 +408,20 @@ protected:
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
-       type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
-       generated, if 1 edges are generated. */
-   void Make3D(int nx, int ny, int nz, Element::Type type, int generate_edges,
-               double sx, double sy, double sz);
+       type=TETRAHEDRON. The parameter @a sfc_ordering controls how the elements
+       (when type=HEXAHEDRON) are ordered: true - use space-filling curve
+       ordering, or false - use lexicographic ordering. */
+   void Make3D(int nx, int ny, int nz, Element::Type type,
+               double sx, double sy, double sz, bool sfc_ordering);
 
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
        type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
-       if 1 edges are generated. */
-   void Make2D(int nx, int ny, Element::Type type, int generate_edges,
-               double sx, double sy);
+       if 1 edges are generated. The parameter @a sfc_ordering controls how the
+       elements (when type=QUADRILATERAL) are ordered: true - use space-filling
+       curve ordering, or false - use lexicographic ordering. */
+   void Make2D(int nx, int ny, Element::Type type, double sx, double sy,
+               bool generate_edges, bool sfc_ordering);
 
    /// Creates a 1D mesh for the interval [0,sx] divided into n equal intervals.
    void Make1D(int n, double sx = 1.0);
@@ -431,7 +434,7 @@ protected:
 
    /// Swaps internal data with another mesh. By default, non-geometry members
    /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
-   void Swap(Mesh& other, bool non_geometry = false);
+   void Swap(Mesh& other, bool non_geometry);
 
    // used in GetElementData() and GetBdrElementData()
    void GetElementData(const Array<Element*> &elem_array, int geom,
@@ -555,34 +558,46 @@ public:
    /** This is our integration with the Gecko library.  This will call the
        Gecko library to find an element ordering that will increase memory
        coherency by putting elements that are in physical proximity closer in
-       memory. */
-   void GetGeckoElementReordering(Array<int> &ordering);
+       memory. It can also be used to get a space-filling curve ordering for
+       ParNCMesh partitioning.
+       @param[out] ordering Output element ordering.
+       @param[in] iterations Number of V cycles (default 1).
+       @param[in] window Initial window size (default 2).
+       @param[in] period Iterations between window increment (default 1).
+       @param[in] seed Random number seed (default 0). */
+   void GetGeckoElementReordering(Array<int> &ordering,
+                                  int iterations = 1, int window = 2,
+                                  int period = 1, int seed = 0);
 #endif
 
    /** Rebuilds the mesh with a different order of elements.  The ordering
        vector maps the old element number to the new element number.  This also
-       reorders the vertices and nodes edges and faces along with the elements.  */
+       reorders the vertices and nodes edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
-       type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
-       generated, if 1 edges are generated. */
-   Mesh(int nx, int ny, int nz, Element::Type type, int generate_edges = 0,
-        double sx = 1.0, double sy = 1.0, double sz = 1.0)
+       type=TETRAHEDRON. If sfc_ordering = true (default), elements are ordered
+       along a space-filling curve, instead of row by row and layer by layer.
+       The parameter @a generate_edges is ignored (for now, it is kept for
+       backward compatibility). */
+   Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
+        double sx = 1.0, double sy = 1.0, double sz = 1.0,
+        bool sfc_ordering = true)
    {
-      Make3D(nx, ny, nz, type, generate_edges, sx, sy, sz);
+      Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
       Finalize(true); // refine = true
    }
 
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
        type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
-       if 1 edges are generated. */
-   Mesh(int nx, int ny, Element::Type type, int generate_edges = 0,
-        double sx = 1.0, double sy = 1.0)
+       if 1 edges are generated. If scf_ordering = true (default), elements are
+       ordered along a space-filling curve, instead of row by row. */
+   Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
+        double sx = 1.0, double sy = 1.0, bool sfc_ordering = true)
    {
-      Make2D(nx, ny, type, generate_edges, sx, sy);
+      Make2D(nx, ny, type, sx, sy, generate_edges, sfc_ordering);
       Finalize(true); // refine = true
    }
 
@@ -923,8 +938,8 @@ public:
    {
       return (faces_info[FaceNo].Elem2No >= 0);
    }
-   void GetFaceElements (int Face, int *Elem1, int *Elem2);
-   void GetFaceInfos (int Face, int *Inf1, int *Inf2);
+   void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
+   void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
 
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;
@@ -1028,15 +1043,16 @@ public:
                      int ordering = 1);
 
    /// Refine all mesh elements.
-   /** @param[in] ref_algo Refinement algorithm. Currently used only for pure
+   /** @param[in] ref_algo %Refinement algorithm. Currently used only for pure
        tetrahedral meshes. If set to zero (default), a tet mesh will be refined
        using algorithm A, that produces elements with better quality compared to
-       algorithm B used when the parameter is non-zero.  For tetrahedral meshes,
-       after using algorithm A, the mesh cannot be refined locally using methods
-       like GeneralRefinement() unless it is re-finalized using Finalize() with
-       the parameter @a refine set to true.  Note that calling Finalize() in
-       this way will generally invalidate any FiniteElementSpace%s and
-       GridFuncion%s defined on the mesh. */
+       algorithm B used when the parameter is non-zero.
+
+       For tetrahedral meshes, after using algorithm A, the mesh cannot be
+       refined locally using methods like GeneralRefinement() unless it is
+       re-finalized using Finalize() with the parameter @a refine set to true.
+       Note that calling Finalize() in this way will generally invalidate any
+       FiniteElementSpace%s and GridFunction%s defined on the mesh. */
    void UniformRefinement(int ref_algo = 0);
 
    /** Refine selected mesh elements. Refinement type can be specified for each

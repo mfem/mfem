@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
    // 2b. We initialize PETSc
-   if (use_petsc) { PetscInitialize(NULL,NULL,petscrc_file,NULL); }
+   if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -544,7 +544,7 @@ int main(int argc, char *argv[])
    delete pmesh;
 
    // We finalize PETSc
-   if (use_petsc) { PetscFinalize(); }
+   if (use_petsc) { MFEMFinalizePetsc(); }
 
    MPI_Finalize();
 
