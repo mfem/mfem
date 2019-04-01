@@ -419,27 +419,51 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
 {
    ElTr->Attribute = GetBdrAttribute(i);
    ElTr->ElementNo = i; // boundary element number
+   DenseMatrix &pm = ElTr->GetPointMat();
    if (Nodes == NULL)
    {
-      GetBdrPointMatrix(i, ElTr->GetPointMat());
-      ElTr->SetFE(
-         GetTransformationFEforElementType(GetBdrElementType(i)));
+      GetBdrPointMatrix(i, pm);
+      ElTr->SetFE(GetTransformationFEforElementType(GetBdrElementType(i)));
    }
    else
    {
-      DenseMatrix &pm = ElTr->GetPointMat();
-      Array<int> vdofs;
-      Nodes->FESpace()->GetBdrElementVDofs(i, vdofs);
-      int n = vdofs.Size()/spaceDim;
-      pm.SetSize(spaceDim, n);
-      for (int k = 0; k < spaceDim; k++)
+      const FiniteElement *bdr_el = Nodes->FESpace()->GetBE(i);
+      if (bdr_el)
       {
-         for (int j = 0; j < n; j++)
+         Array<int> vdofs;
+         Nodes->FESpace()->GetBdrElementVDofs(i, vdofs);
+         int n = vdofs.Size()/spaceDim;
+         pm.SetSize(spaceDim, n);
+         for (int k = 0; k < spaceDim; k++)
          {
-            pm(k,j) = (*Nodes)(vdofs[n*k+j]);
+            for (int j = 0; j < n; j++)
+            {
+               pm(k,j) = (*Nodes)(vdofs[n*k+j]);
+            }
          }
+         ElTr->SetFE(bdr_el);
       }
-      ElTr->SetFE(Nodes->FESpace()->GetBE(i));
+      else // L2 Nodes (e.g., periodic mesh)
+      {
+         int elem_id, face_info;
+         GetBdrElementAdjacentElement(i, elem_id, face_info);
+
+         GetLocalFaceTransformation(GetBdrElementType(i),
+                                    GetElementType(elem_id),
+                                    FaceElemTr.Loc1.Transf, face_info);
+         // NOTE: FaceElemTr.Loc1 is overwritten here -- used as a temporary
+
+         const FiniteElement *face_el =
+            Nodes->FESpace()->GetTraceElement(elem_id,
+                                              GetBdrElementBaseGeometry(i));
+
+         IntegrationRule eir(face_el->GetDof());
+         FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
+         // 'Transformation' is not used
+         Nodes->GetVectorValues(Transformation, eir, pm);
+
+         ElTr->SetFE(face_el);
+      }
    }
    ElTr->FinalizeTransformation();
 }
