@@ -37,7 +37,7 @@ void Device::CudaDeviceSetup(const int device)
 #ifdef MFEM_USE_CUDA
    GpuDeviceSetup(device);
 #else
-   MFEM_ABORT("CUDA requested but MFEM was not build with MFEM_USE_CUDA=YES");
+   MFEM_ABORT("CUDA requested but MFEM was not built with MFEM_USE_CUDA=YES");
 #endif
 }
 
