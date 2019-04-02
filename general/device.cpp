@@ -46,7 +46,7 @@ void Device::RajaDeviceSetup(const int device)
 #if defined(MFEM_USE_CUDA) && defined(MFEM_USE_RAJA)
    GpuDeviceSetup(device);
 #elif !defined(MFEM_USE_RAJA)
-   MFEM_ABORT("RAJA requested but MFEM was not build with MFEM_USE_RAJA=YES");
+   MFEM_ABORT("RAJA requested but MFEM was not built with MFEM_USE_RAJA=YES");
 #endif
 }
 
