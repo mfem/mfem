@@ -2890,6 +2890,15 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadNetgen3DMesh(input);
    }
+   //Newer netgen formats >= 4.9
+   else if (mesh_type == "surfacemesh")
+   {
+      ReadNetgenSurfaceMesh(input);
+   }   
+   else if (mesh_type == "mesh3d")
+   {
+      ReadNetgenVol(input);
+   }
    else if (mesh_type == "TrueGrid")
    {
       ReadTrueGridMesh(input);
