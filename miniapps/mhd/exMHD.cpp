@@ -81,6 +81,19 @@ double E0rhs(const Vector &x)
    return resiG*lambda/pow(cosh(lambda*(x(1)-.5)),2);
 }
 
+double InitialJ3(const Vector &x)
+{
+   double ep=.2;
+   return (ep*ep-1.)/lambda/
+       pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
+}
+
+double InitialPsi3(const Vector &x)
+{
+   double ep=.2;
+   return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) );
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -138,6 +151,13 @@ int main(int argc, char *argv[])
    }
    if (icase==2)
    {
+      resi=.001;
+      visc=.001;
+      resiG=resi;
+   }
+   else if (icase==3)
+   {
+      lambda=.5/M_PI;
       resi=.001;
       visc=.001;
       resiG=resi;
@@ -223,6 +243,11 @@ int main(int argc, char *argv[])
         FunctionCoefficient psiInit2(InitialPsi2);
         psi.ProjectCoefficient(psiInit2);
    }
+   else if (icase==3)
+   {
+        FunctionCoefficient psiInit3(InitialPsi3);
+        psi.ProjectCoefficient(psiInit3);
+   }
    psi.SetTrueVector();
 
    FunctionCoefficient wInit(InitialW);
@@ -238,6 +263,11 @@ int main(int argc, char *argv[])
    {
         FunctionCoefficient jInit2(InitialJ2);
         j.ProjectCoefficient(jInit2);
+   }
+   else if (icase==3)
+   {
+        FunctionCoefficient jInit3(InitialJ3);
+        j.ProjectCoefficient(jInit3);
    }
    j.SetTrueVector();
 
@@ -292,9 +322,15 @@ int main(int argc, char *argv[])
       else
       {
          vis_phi.precision(8);
-         vis_phi << "solution\n" << *mesh << psiPer;
+         if (icase != 3)
+            vis_phi << "solution\n" << *mesh << psiPer;
+         else
+            vis_phi << "solution\n" << *mesh << psi;
          vis_phi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
-         vis_phi << "valuerange -.001 .001\n";
+
+         if (icase==2)
+            vis_phi << "valuerange -.001 .001\n";
+
          vis_phi << "pause\n";
          vis_phi << flush;
          vis_phi << "GLVis visualization paused."
@@ -326,7 +362,8 @@ int main(int argc, char *argv[])
       else
       {
         dc = new VisItDataCollection("case2", mesh);
-        dc->RegisterField("psiPer", &psiPer);
+        if (icase!=3)
+            dc->RegisterField("psiPer", &psiPer);
         dc->RegisterField("psi", &psi);
         dc->RegisterField("current", &j);
         dc->RegisterField("phi", &phi);
@@ -365,11 +402,15 @@ int main(int argc, char *argv[])
       if (last_step || (ti % vis_steps) == 0)
       {
         cout << "step " << ti << ", t = " << t <<endl;
-        subtract(psi,psiBack,psiPer);
+        if (icase!=3) subtract(psi,psiBack,psiPer);
 
          if (visualization)
          {
-            vis_phi << "solution\n" << *mesh << psiPer;
+            if(icase!=3)
+                vis_phi << "solution\n" << *mesh << psiPer;
+            else
+                vis_phi << "solution\n" << *mesh << psi;
+
             vis_j << "solution\n" << *mesh << j;
             if (icase==1) 
             {
@@ -406,10 +447,13 @@ int main(int argc, char *argv[])
       osol3.precision(8);
       psi.Save(osol3);
 
-      subtract(psi,psiBack,psiPer);
-      ofstream osol5("psiPer.sol");
-      osol5.precision(8);
-      psiPer.Save(osol5);
+      if (icase!=3)
+      {
+        subtract(psi,psiBack,psiPer);
+        ofstream osol5("psiPer.sol");
+        osol5.precision(8);
+        psiPer.Save(osol5);
+      }
 
       ofstream osol4("omega.sol");
       osol4.precision(8);

@@ -259,7 +259,7 @@ int main(int argc, char *argv[])
         psi.ProjectCoefficient(psiInit2);
    }
    else if (icase==3)
-    {
+   {
         FunctionCoefficient psiInit3(InitialPsi3);
         psi.ProjectCoefficient(psiInit3);
    }
