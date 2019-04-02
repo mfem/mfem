@@ -452,10 +452,10 @@ inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
 }
 #endif
 
-/// Kernel of the min of x and y
+/// Kernel returning the minimum value in the array x of size N
 double Min(const int N, const double *x);
 
-/// Kernel of the inner product of x and y
+/// Kernel of the inner product of arrays x and y of size N
 double Dot(const int N, const double *x, const double *y);
 
 }

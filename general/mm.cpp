@@ -18,10 +18,7 @@ namespace mfem
 
 static bool Known(const mm::ledger &maps, const void *ptr)
 {
-   const mm::memory_map::const_iterator found = maps.memories.find(ptr);
-   const bool known = found != maps.memories.end();
-   if (known) { return true; }
-   return false;
+   return maps.memories.find(ptr) != maps.memories.end();
 }
 
 bool mm::Known(const void *ptr)
