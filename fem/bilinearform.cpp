@@ -84,7 +84,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f,
    switch (assembly)
    {
       case AssemblyLevel::FULL:
-         if (Device::UsingDevice())
+         if (Device::UsingDevice() || Device::UsingOmp())
          {
             mfem_error("Full assembly not supported yet in device mode!");
          }
