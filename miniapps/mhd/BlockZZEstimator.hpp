@@ -15,7 +15,7 @@ using namespace mfem;
     The required BilinearFormIntegrator must implement the methods
     ComputeElementFlux() and ComputeFluxEnergy().
  */
-class BlockZZEstimator : public AnisotropicErrorEstimator
+class BlockZZEstimator : public ErrorEstimator
 {
 protected:
    long current_sequence;
@@ -147,6 +147,7 @@ void BlockZZEstimator::ComputeEstimates()
                                   NULL,
                                   flux_averaging);
 
+   //cout <<"size1="<<error_estimates.Size()<<" size2="<<estimates_tmp.Size()<<endl;
    error_estimates.Add(ratio, estimates_tmp);
    total_error+=(ratio*err_tmp);
 

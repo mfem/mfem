@@ -82,6 +82,13 @@ double E0rhs(const Vector &x)
    return resiG*lambda/pow(cosh(lambda*(x(1)-.5)),2);
 }
 
+void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
+               Array<int> &true_offset,
+               GridFunction &phi,
+               GridFunction &psi,
+               GridFunction &w,
+               GridFunction &j);
+
 
 int main(int argc, char *argv[])
 {
@@ -204,7 +211,7 @@ int main(int argc, char *argv[])
    fe_offset[4] = 4*fe_size;
 
    BlockVector vx(fe_offset);
-   GridFunction psi, phi, w, j, psiBack(&fespace), psiPer(&fespace);
+   GridFunction psi, phi, w, j, psiBack(&fespace);
    phi.MakeTRef(&fespace, vx.GetBlock(0), 0);
    psi.MakeTRef(&fespace, vx.GetBlock(1), 0);
      w.MakeTRef(&fespace, vx.GetBlock(2), 0);
@@ -276,14 +283,16 @@ int main(int argc, char *argv[])
        oper.SetRHSEfield(e0);
    }
 
-   socketstream vis_phi, vis_j;
-   subtract(psi,psiBack,psiPer);
+   socketstream vis_phi, vis_j, vis_psi, vis_w;
+   //subtract(psi,psiBack,psiPer);
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
+      vis_psi.open(vishost, visport);
       vis_phi.open(vishost, visport);
       vis_j.open(vishost, visport);
+      vis_w.open(vishost, visport);
       if (!vis_phi)
       {
          cout << "Unable to connect to GLVis server at "
@@ -294,40 +303,52 @@ int main(int argc, char *argv[])
       else
       {
          vis_phi.precision(8);
-         vis_phi << "solution\n" << *mesh << psiPer;
-         vis_phi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
-         vis_phi << "valuerange -.001 .001\n";
+         vis_phi << "solution\n" << *mesh << phi;
+         vis_phi << "window_size 800 800\n"<< "window_title '" << "phi'" << "keys cm\n";
          vis_phi << "pause\n";
          vis_phi << flush;
          vis_phi << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
 
+         vis_j.precision(8);
          vis_j << "solution\n" << *mesh << j;
          vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
          vis_j << "pause\n";
          vis_j << flush;
+
+         vis_psi.precision(8);
+         vis_psi << "solution\n" << *mesh << psi;
+         vis_psi << "window_size 800 800\n"<< "window_title '" << "psi'" << "keys cm\n";
+         vis_psi << "pause\n";
+         vis_psi << flush;
+
+         vis_w.precision(8);
+         vis_w << "solution\n" << *mesh << w;
+         vis_w << "window_size 800 800\n"<< "window_title '" << "omega'" << "keys cm\n";
+         vis_w << "pause\n";
+         vis_w << flush;
       }
    }
 
-   /*
    //for AMR
-   int sdim = mesh.SpaceDimension();
-   ConstantCoefficient one(1.0);
-   BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
-   FiniteElementSpace flux_fespace1(&mesh, &fe_coll, sdim), flux_fespace2(&mesh, &fe_coll, sdim);
-   DoubleZZEstimator estimator(*integ, psi, *integ, w, flux_fespace1, flux_fespace2);
+   int sdim = mesh->SpaceDimension();
+   BilinearFormIntegrator *integ = new DiffusionIntegrator;
+   FiniteElementSpace flux_fespace1(mesh, &fe_coll, sdim), flux_fespace2(mesh, &fe_coll, sdim);
+   //BlockZZEstimator estimator(*integ, psi, *integ, w, flux_fespace1, flux_fespace2);
+   ZienkiewiczZhuEstimator estimator(*integ, psi, flux_fespace1);
 
    //refiner for psi and w
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
-   refiner.SetTotalErrorGoal(1e-3);    // local error goal (stop criterion)
+   refiner.SetTotalErrorGoal(5e-5);    // local error goal (stop criterion)
    refiner.PreferNonconformingRefinement();
    refiner.SetNCLimit(nc_limit);
-   */
 
    double t = 0.0;
    oper.SetTime(t);
    ode_solver->Init(oper);
+   BlockVector vx_old(vx);
+   bool last_step = false;
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
@@ -337,13 +358,13 @@ int main(int argc, char *argv[])
       if (icase==1)
       {
         dc = new VisItDataCollection("case1", mesh);
-        dc->RegisterField("psiPer", &psiPer);
+        dc->RegisterField("psi", &psi);
         dc->RegisterField("current", &j);
       }
       else
       {
         dc = new VisItDataCollection("case2", mesh);
-        dc->RegisterField("psiPer", &psiPer);
+        //dc->RegisterField("psiPer", &psiPer);
         dc->RegisterField("psi", &psi);
         dc->RegisterField("current", &j);
         dc->RegisterField("phi", &phi);
@@ -356,31 +377,29 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
-
-
    //---assemble problem and update boundary condition---
    oper.assembleProblem(ess_bdr); 
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
-   bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
       double dt_real = min(dt, t_final - t);
 
-      //refiner.Reset();
+      refiner.Reset();
 
       // 13. The inner refinement loop. At the end we want to have the current
       //     time step resolved to the prescribed tolerance in each element.
       //for (int ref_it = 1; ; ref_it++)
+      int ref_it=1;
       {
-      //  cout << "Iteration: " << ref_it << ", number of unknowns: "
-      //       << fespace.GetVSize() << endl;
-
+        cout << "Iteration: " << ref_it << ", number of unknowns: "
+             << fespace.GetVSize() << endl;
 
         //---Predictor stage---
         //assemble the nonlinear terms
         oper.assembleNv(&phi);
         oper.assembleNb(&psi);
+
         ode_solver->StepP(vx, t, dt_real);
         oper.UpdateJ(vx);
 
@@ -390,25 +409,77 @@ int main(int argc, char *argv[])
         ode_solver->Step(vx, t, dt_real);
         oper.UpdateJ(vx); 
         oper.UpdatePhi(vx);
+
+        bool mesh_changed = true;
+        refiner.Apply(*mesh);
+        if (refiner.Stop())
+        {
+           //cout<<"refine Finished..."<<endl;
+           //break;
+           mesh_changed = false;
+        }
+
+        /*
+        fe_size = fespace.GetTrueVSize();
+        ofstream myfile0("vxBefore.dat");
+        vx.Print(myfile0, 1000);
+        vx.Update(fe_offset);
+        ofstream myfile1("vxAfter.dat");
+        vx.Print(myfile1, 1000);
+        */
+
+        if (mesh_changed)
+        {
+            //---Update problem---
+            AMRUpdate(vx, vx_old, fe_offset, phi, psi, w, j);
+            oper.UpdateProblem();
+            ode_solver->Init(oper);
+
+            //---assemble problem and update boundary condition---
+            oper.assembleProblem(ess_bdr); 
+            oper.UpdateJ(vx);
+        }
+
+        cout << "step " << ti << ", t = " << t <<endl;
+        if (visualization)
+        {
+           vis_phi << "solution\n" << *mesh << phi;
+           vis_psi << "solution\n" << *mesh << psi;
+           vis_j << "solution\n" << *mesh << j;
+           vis_w << "solution\n" << *mesh << w;
+
+           if (icase==1) 
+           {
+               vis_phi << "valuerange -.001 .001\n" << flush;
+               vis_j << "valuerange -.01425 .01426\n" << flush;
+           }
+        }
+        
+
       }
+
+      /*
+      if (visualization)
+      {
+         cout << "step " << ti << ", t = " << t <<endl;
+         vis_phi << "solution\n" << *mesh << phi;
+         vis_psi << "solution\n" << *mesh << psi;
+         vis_j << "solution\n" << *mesh << j;
+         vis_w << "solution\n" << *mesh << w;
+
+         if (icase==1) 
+         {
+             vis_phi << "valuerange -.001 .001\n" << flush;
+             vis_j << "valuerange -.01425 .01426\n" << flush;
+         }
+      }
+      */
 
       last_step = (t >= t_final - 1e-8*dt);
 
       if (last_step || (ti % vis_steps) == 0)
       {
-        cout << "step " << ti << ", t = " << t <<endl;
-        subtract(psi,psiBack,psiPer);
-
-         if (visualization)
-         {
-            vis_phi << "solution\n" << *mesh << psiPer;
-            vis_j << "solution\n" << *mesh << j;
-            if (icase==1) 
-            {
-                vis_phi << "valuerange -.001 .001\n" << flush;
-                vis_j << "valuerange -.01425 .01426\n" << flush;
-            }
-         }
+        //subtract(psi,psiBack,psiPer);
 
          if (visit)
          {
@@ -438,10 +509,10 @@ int main(int argc, char *argv[])
       osol3.precision(8);
       psi.Save(osol3);
 
-      subtract(psi,psiBack,psiPer);
-      ofstream osol5("psiPer.sol");
-      osol5.precision(8);
-      psiPer.Save(osol5);
+      //subtract(psi,psiBack,psiPer);
+      //ofstream osol5("psiPer.sol");
+      //osol5.precision(8);
+      //psiPer.Save(osol5);
 
       ofstream osol4("omega.sol");
       osol4.precision(8);
@@ -455,5 +526,44 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+//this is an function modified based on amr/laghos.cpp
+void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
+               Array<int> &true_offset,
+               GridFunction &phi,
+               GridFunction &psi,
+               GridFunction &w,
+               GridFunction &j)
+{
+   FiniteElementSpace* H1FESpace = phi.FESpace();
 
+   //update fem space
+   H1FESpace->Update();
+
+   int fe_size = H1FESpace->GetVSize();
+
+   //update offset vector
+   true_offset[0] = 0;
+   true_offset[1] = fe_size;
+   true_offset[2] = 2*fe_size;
+   true_offset[3] = 3*fe_size;
+   true_offset[4] = 4*fe_size;
+
+   S_tmp = S;
+   S.Update(true_offset);
+
+   const Operator* H1Update = H1FESpace->GetUpdateOperator();
+
+   H1Update->Mult(S_tmp.GetBlock(0), S.GetBlock(0));
+   H1Update->Mult(S_tmp.GetBlock(1), S.GetBlock(1));
+   H1Update->Mult(S_tmp.GetBlock(2), S.GetBlock(2));
+   H1Update->Mult(S_tmp.GetBlock(3), S.GetBlock(3));
+
+   phi.MakeTRef(H1FESpace, S.GetBlock(0), 0);
+   psi.MakeTRef(H1FESpace, S.GetBlock(1), 0);
+     w.MakeTRef(H1FESpace, S.GetBlock(2), 0);
+     j.MakeTRef(H1FESpace, S.GetBlock(3), 0);
+
+   S_tmp.Update(true_offset);
+   H1FESpace->UpdatesFinished();
+}
 

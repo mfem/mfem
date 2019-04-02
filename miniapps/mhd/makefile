@@ -31,7 +31,7 @@ endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all clean clean-build clean-exec
+.PHONY: exAMRMHD all clean clean-build clean-exec
 .PRECIOUS: %.o
 
 # Remove built-in rule

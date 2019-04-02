@@ -247,7 +247,6 @@ void ResistiveMHDOperator::UpdateJ(Vector &vx)
    SparseMatrix tmp;
    Vector Y, Z;
 
-
    KB->Mult(psi, z);
    z.Neg(); // z = -z
    M->FormLinearSystem(ess_tdof_list, j, z, tmp, Y, Z); //apply Dirichelt boundary (j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)

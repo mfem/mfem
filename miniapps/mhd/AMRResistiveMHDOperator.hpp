@@ -65,7 +65,7 @@ AMRResistiveMHDOperator::AMRResistiveMHDOperator(FiniteElementSpace &f,
      M(NULL), K(NULL), KB(NULL), DSl(NULL), DRe(NULL), Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
      visc_coeff(visc), resi_coeff(resi),
      viscosity(visc),  resistivity(resi), 
-     M_prec(NULL), K_prec(NULL), z(height/4)
+     M_prec(NULL), K_prec(NULL)
 {
    //mass matrix
    M = new BilinearForm(&fespace);
@@ -144,7 +144,32 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
       E0->Assemble();
 }
 
+void AMRResistiveMHDOperator::UpdateProblem()
+{
+   M->Update();
+   K->Update();
+   KB->Update();
 
+   // tell DRe and DSl that space is change
+   if (viscosity != 0.0)
+   {   
+      DRe->Update();
+   }
+
+   if (resistivity != 0.0)
+   {
+      DSl->Update();
+   }   
+
+   if (E0!=NULL)
+   {
+      E0->Update();
+   }
+
+   cout<<"problem size ="<<fespace.GetTrueVSize()<<endl;
+   width = height = fespace.GetTrueVSize()*4;
+}          
+           
 void AMRResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield) 
 {
    delete E0;
@@ -166,6 +191,30 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
    Vector   dj_dt(dvx_dt.GetData() +3*sc, sc);
 
+   z.SetSize(sc);
+
+   /*
+   ofstream myfile0("psi.dat");
+   psi.Print(myfile0, 1000);
+   ofstream myfile1("phi.dat");
+   phi.Print(myfile1, 1000);
+   ofstream myfile2("w.dat");
+   w.Print(myfile2, 1000);
+   ofstream myfile3("j.dat");
+   j.Print(myfile3, 1000);
+   ofstream myfile4("vx.dat");
+   */
+   //ofstream myfile4("vx.dat");
+   //vx.Print(myfile4, 1000);
+
+   /*
+   cout << "vs size ="<<vx.Size()<<" sc ="<<sc<<" h ="<<height<<endl;
+   cout << "Number of scalar unknowns in psi: " <<psi.Size()<< endl;
+   cout << "Number of scalar unknowns in phi: " <<phi.Size()<< endl;
+   cout << "Number of scalar unknowns in   w: " <<  w.Size()<< endl;
+   cout << "Number of scalar unknowns in   j: " <<  j.Size()<< endl;
+   */
+
    dphi_dt=0.0;
    dj_dt=0.0;
 
@@ -177,6 +226,11 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    if (E0!=NULL)
      z += *E0;
    z.Neg(); // z = -z
+
+   /*
+   ofstream myfile("zLHS1.dat");
+   z.Print(myfile, 1000);
+   */
 
    if (true)
    {
@@ -197,6 +251,13 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 
 
    Nv->Mult(w, z);
+   /*
+   cout << "Number of scalar unknowns in   z!!!: " <<  z.Size()<< endl;
+   ofstream myfile2("zLHS2.dat");
+   z.Print(myfile2, 1000);
+   ofstream myfile3("w2.dat");
+   w.Print(myfile2, 1000);
+   */
    if (viscosity != 0.0)
    {
       DRe->AddMult(w, z);
@@ -207,7 +268,9 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    for (int i=0; i<ess_tdof_list.Size(); i++)
        z(ess_tdof_list[i])=0.0; //set Dirichlet condition by hand
 
+
    M_solver.Mult(z, dw_dt);
+   //cout << "Number of scalar unknowns in   z: " <<  z.Size()<< endl;
 
 }
 
@@ -239,7 +302,15 @@ void AMRResistiveMHDOperator::UpdateJ(Vector &vx)
    Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
    SparseMatrix tmp;
    Vector Y, Z;
+   
+   z.SetSize(sc);
 
+   /*
+   cout << "Number of scalar unknowns in psi: " <<  psi.Size()<< endl;
+   cout << "Number of scalar unknowns in   j: " <<  j.Size()<< endl;
+   cout << "Number of scalar unknowns in   z: " <<  z.Size()<< endl;
+   cout << "Number of scalar unknowns in  sc: " <<  sc<< endl;
+   */
 
    KB->Mult(psi, z);
    z.Neg(); // z = -z
