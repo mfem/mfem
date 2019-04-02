@@ -212,7 +212,7 @@ protected:
    void ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                     bool &finalize_topo);
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
-   void ReadInlineMesh(std::istream &input, int generate_edges = false);
+   void ReadInlineMesh(std::istream &input, bool generate_edges = false);
 
    void ReadGmshV2(std::istream &input, int binary);
    void ReadGmshV4(std::istream &input, int binary);
