@@ -12,6 +12,8 @@
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
 #include "../general/text.hpp"
+#include "../general/binaryio.hpp"
+
 
 #include <iostream>
 #include <cstdio>
@@ -897,7 +899,7 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
    }
 }
 
-int Mesh::nodes_of_gmsh_element[29] =
+const int Mesh::nodes_of_gmsh_element[29] =
    {
       2, // 2-node line.
       3, // 3-node triangle.
@@ -1043,17 +1045,26 @@ void Mesh::ReadGmshEntityMap(std::istream &input, std::map<int,int> &entityMap, 
    {
       if(binary)
       {
-         input.read(reinterpret_cast<char*>(&entityTag), sizeof(int));
+         entityTag = bin_io::read<int>(input);
          if(v41 && needBrep==false)
          {
-            input.read(reinterpret_cast<char*>(point), dim3*sizeof(double));
+            for(int i=0; i< dim3; ++i) 
+            {
+               boxMin[i] = bin_io::read<double>(input);
+            }   
          }
          else
          {
-            input.read(reinterpret_cast<char*>(boxMin), dim3*sizeof(double));
-            input.read(reinterpret_cast<char*>(boxMax), dim3*sizeof(double));
+            for(int i=0; i< dim3; ++i) 
+            {
+               boxMin[i] = bin_io::read<double>(input);
+            }
+            for(int i=0; i< dim3; ++i) 
+            {
+               boxMax[i] = bin_io::read<double>(input);
+            }
          }
-         input.read(reinterpret_cast<char*>(&numPhysicals), sizeof(unsigned long));
+         numPhysicals = bin_io::read<unsigned long>(input);
          if(numPhysicals == 0)
          {
             entityMap[entityTag] = 1;
@@ -1070,7 +1081,7 @@ void Mesh::ReadGmshEntityMap(std::istream &input, std::map<int,int> &entityMap, 
             }
             for(int phys=0; phys < numPhysicals; ++phys)
             {
-               input.read(reinterpret_cast<char*>(&physicalTag), sizeof(int));
+               physicalTag = bin_io::read<int>(input);
                if(phys == 0)
                {
                   // first physical tag gets mapped; elements only have one attr
@@ -1081,12 +1092,12 @@ void Mesh::ReadGmshEntityMap(std::istream &input, std::map<int,int> &entityMap, 
 
          if(needBrep)
          {
-            input.read(reinterpret_cast<char*>(&numBrep), sizeof(unsigned long));
+            numBrep = bin_io::read<unsigned long>(input);
             if(numBrep)
             {
                for(int brep = 0; brep < numBrep; ++brep)
                {
-                  input.read(reinterpret_cast<char*>(&brepTag), sizeof(int));
+                  brepTag = bin_io::read<int>(input);
                }
             }
          }
@@ -1181,10 +1192,10 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
 
          if(binary)
          {
-            input.read(reinterpret_cast<char*>(&numPoints), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&numCurves), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&numSurfaces), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&numVolumes), sizeof(unsigned long));
+            numPoints = bin_io::read<unsigned long>(input);
+            numCurves = bin_io::read<unsigned long>(input);
+            numSurfaces = bin_io::read<unsigned long>(input);
+            numVolumes = bin_io::read<unsigned long>(input);
          }
          else
          {
@@ -1211,8 +1222,8 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
 
          if (binary)
          {
-            input.read(reinterpret_cast<char*>(&numEntityBlocks), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&NumOfVertices), sizeof(unsigned long));
+            numEntityBlocks = bin_io::read<unsigned long>(input);
+            NumOfVertices = bin_io::read<unsigned long>(input);
          }
          else //ASCII
          {
@@ -1226,11 +1237,10 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
             unsigned long numNodes;
             if (binary)
             {
-               input.read(reinterpret_cast<char*>(&tagEntity), sizeof(int));
-               input.read(reinterpret_cast<char*>(&dimEntity), sizeof(int));
-               input.read(reinterpret_cast<char*>(&parametric), sizeof(int));
-               input.read(reinterpret_cast<char*>(&numNodes), sizeof(unsigned long));
-
+               tagEntity = bin_io::read<int>(input);
+               dimEntity = bin_io::read<int>(input);
+               parametric = bin_io::read<int>(input);
+               numNodes = bin_io::read<unsigned long>(input);
             }
             else //ASCII
             {
@@ -1238,15 +1248,18 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
             }
             for (int node=0; node < numNodes; ++node)
             {
-               if (binary)
+               if(binary)
                {
-                  input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
-                  input.read(reinterpret_cast<char*>(coord), dim3*sizeof(double));
+                  serial_number = bin_io::read<int>(input);
+                  for(int ci=0; ci<dim3; ++ci) 
+                  {
+                     coord[ci] = bin_io::read<double>(input);
+                  }
                }
-               else //ASCII
+               else
                {
                   input >> serial_number;
-                  for (int ci = 0; ci < dim3; ++ci)
+                  for(int ci=0; ci<dim3; ++ci) 
                   {
                      input >> coord[ci];
                   }
@@ -1267,9 +1280,8 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
          getline(input, buff);
          if (binary)
          {
-            input.read(reinterpret_cast<char*>(&numEntityBlocks), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&num_of_all_elements),
-                       sizeof(unsigned long));
+            numEntityBlocks = bin_io::read<unsigned long>(input);
+            num_of_all_elements = bin_io::read<unsigned long>(input);
          }
          else // ASCII
          {
@@ -1297,10 +1309,10 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
          {
             if (binary)
             {
-               input.read(reinterpret_cast<char*>(&entity), sizeof(int));
-               input.read(reinterpret_cast<char*>(&dimEntity), sizeof(int));
-               input.read(reinterpret_cast<char*>(&type_of_element), sizeof(int));
-               input.read(reinterpret_cast<char*>(&numElements), sizeof(unsigned long));
+               entity = bin_io::read<int>(input);
+               dimEntity = bin_io::read<int>(input);
+               type_of_element = bin_io::read<int>(input);
+               numElements = bin_io::read<unsigned long>(input);
             }
             else //ASCII
             {
@@ -1359,7 +1371,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                int index;
                if (binary)
                {
-                  input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
+                  serial_number = bin_io::read<int>(input);
                }
                else // ASCII
                {
@@ -1369,7 +1381,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
                {
                   if (binary)
                   {
-                     input.read(reinterpret_cast<char*>(&index), sizeof(int));
+                     index = bin_io::read<int>(input);
                   }
                   else //ASCII
                   {
@@ -1477,10 +1489,10 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
 
          if(binary)
          {
-            input.read(reinterpret_cast<char*>(&numPoints), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&numCurves), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&numSurfaces), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&numVolumes), sizeof(unsigned long));
+            numPoints = bin_io::read<unsigned long>(input);
+            numCurves = bin_io::read<unsigned long>(input);
+            numSurfaces = bin_io::read<unsigned long>(input);
+            numVolumes = bin_io::read<unsigned long>(input);
          }
          else
          {
@@ -1506,10 +1518,10 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
 
          if (binary)
          {
-            input.read(reinterpret_cast<char*>(&numEntityBlocks), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&NumOfVertices), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&minNodeTag), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&maxNodeTag), sizeof(unsigned long));
+            numEntityBlocks = bin_io::read<unsigned long>(input);
+            NumOfVertices = bin_io::read<unsigned long>(input);
+            minNodeTag = bin_io::read<unsigned long>(input);
+            maxNodeTag = bin_io::read<unsigned long>(input);
          }
          else //ASCII
          {
@@ -1527,11 +1539,10 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
             
             if (binary)
             {
-               input.read(reinterpret_cast<char*>(&dimEntity), sizeof(int));
-               input.read(reinterpret_cast<char*>(&tagEntity), sizeof(int));
-               input.read(reinterpret_cast<char*>(&parametric), sizeof(int));
-               input.read(reinterpret_cast<char*>(&numNodes), sizeof(unsigned long));
-
+               dimEntity = bin_io::read<int>(input);
+               tagEntity = bin_io::read<int>(input);
+               parametric = bin_io::read<int>(input);
+               numNodes = bin_io::read<unsigned long>(input);
             }
             else //ASCII
             {
@@ -1544,7 +1555,7 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
             {
                if(binary)
                {
-                  input.read(reinterpret_cast<char*>(&nodeTag), sizeof(unsigned long));
+                  nodeTag = bin_io::read<unsigned long>(input);
                }
                else
                {
@@ -1555,13 +1566,16 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
 
             for (int node=0; node < numNodes; ++node)
             {
-               if (binary)
+               if(binary)
                {
-                  input.read(reinterpret_cast<char*>(coord), dim3*sizeof(double));
+                  for(int ci=0; ci<dim3; ++ci) 
+                  {
+                     coord[ci] = bin_io::read<double>(input);
+                  }
                }
-               else //ASCII
+               else
                {
-                  for (int ci = 0; ci < dim3; ++ci)
+                  for(int ci=0; ci<dim3; ++ci) 
                   {
                      input >> coord[ci];
                   }
@@ -1584,11 +1598,10 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
          getline(input, buff);
          if (binary)
          {
-            input.read(reinterpret_cast<char*>(&numEntityBlocks), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&num_of_all_elements),
-                       sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&minElementTag), sizeof(unsigned long));
-            input.read(reinterpret_cast<char*>(&maxElementTag), sizeof(unsigned long));
+            numEntityBlocks = bin_io::read<unsigned long>(input);
+            num_of_all_elements = bin_io::read<unsigned long>(input);
+            minElementTag = bin_io::read<unsigned long>(input);
+            maxElementTag = bin_io::read<unsigned long>(input);
          }
          else // ASCII
          {
@@ -1616,10 +1629,10 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
          {
             if (binary)
             {
-               input.read(reinterpret_cast<char*>(&dimEntity), sizeof(int));
-               input.read(reinterpret_cast<char*>(&entity), sizeof(int));
-               input.read(reinterpret_cast<char*>(&type_of_element), sizeof(int));
-               input.read(reinterpret_cast<char*>(&numElements), sizeof(unsigned long));
+               dimEntity = bin_io::read<int>(input);
+               entity = bin_io::read<int>(input);
+               type_of_element = bin_io::read<int>(input);
+               numElements = bin_io::read<unsigned long>(input);
             }
             else //ASCII
             {
@@ -1677,7 +1690,7 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
                unsigned long nodeTag;
                if (binary)
                {
-                  input.read(reinterpret_cast<char*>(&serial_number), sizeof(unsigned long));
+                  serial_number = bin_io::read<unsigned long>(input);
                }
                else // ASCII
                {
@@ -1687,7 +1700,7 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
                {
                   if (binary)
                   {
-                     input.read(reinterpret_cast<char*>(&nodeTag), sizeof(unsigned long));
+                     nodeTag = bin_io::read<unsigned long>(input);
                   }
                   else //ASCII
                   {
@@ -1783,10 +1796,13 @@ void Mesh::ReadGmshV2(std::istream &input, int binary)
          {
             if (binary)
             {
-               input.read(reinterpret_cast<char*>(&serial_number), sizeof(int));
-               input.read(reinterpret_cast<char*>(coord), gmsh_dim*sizeof(double));
+               serial_number = bin_io::read<int>(input);
+               for (int ci = 0; ci < gmsh_dim; ++ci)
+               {
+                  coord[ci] = bin_io::read<double>(input);
+               }
             }
-            else // ASCII
+            else
             {
                input >> serial_number;
                for (int ci = 0; ci < gmsh_dim; ++ci)

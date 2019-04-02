@@ -223,7 +223,7 @@ protected:
                                  std::vector<Element*> &elements_2D,
                                  std::vector<Element*> &elements_3D);
    void ReadGmshEntityMap(std::istream &input, std::map<int,int> &entityMap, unsigned long numEntities, bool needBrep, bool v41, bool binary); 
-   static int nodes_of_gmsh_element[29];
+   static const int nodes_of_gmsh_element[29];
    inline static int NodesOfGmshElement(int eleType);
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
