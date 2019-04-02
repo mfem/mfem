@@ -22,9 +22,6 @@ public:
    Array<int> eMap;
    Array<double> nodes;
    Array<double> X, J, invJ, detJ;
-   static const int Jacobian    = (1 << 0);
-   static const int JacobianInv = (1 << 1);
-   static const int JacobianDet = (1 << 2);
    static GeometryExtension* Get(const FiniteElementSpace&,
                                  const IntegrationRule&);
    static GeometryExtension* Get(const FiniteElementSpace&,
