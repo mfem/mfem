@@ -93,7 +93,7 @@ void Device::MFEMDeviceSetup(const int dev)
 
 Device::~Device()
 {
-   if (raja || cuda) { delete cuStream; }
+   if (cuda) { delete cuStream; }
 }
 
 } // mfem

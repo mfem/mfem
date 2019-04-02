@@ -27,7 +27,7 @@ private:
 public:
    DeviceVector3() {}
    DeviceVector3(const double *r) { data[0]=r[0]; data[1]=r[1]; data[2]=r[2]; }
-   DeviceVector3(const double r0, const double r1, const double r2 = 0.0)
+   DeviceVector3(const double r0, const double r1 = 0.0, const double r2 = 0.0)
    { data[0]=r0; data[1]=r1; data[2]=r2; }
    inline operator double* () { return data; }
    inline operator const double* () const { return data; }

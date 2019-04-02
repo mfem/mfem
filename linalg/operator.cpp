@@ -168,13 +168,21 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    const DeviceArray idx(constraint_list, csz);
    const DeviceVector d_x(x, x.Size());
    DeviceVector d_w(w, w.Size());
-   MFEM_FORALL(i, csz, d_w[idx[i]] = d_x[idx[i]];);
+   MFEM_FORALL(i, csz,
+   {
+      const int id = idx[i];
+      d_w[id] = d_x[id];
+   });
 
    A->Mult(w, z);
 
    b -= z;
    DeviceVector d_b(b, b.Size());
-   MFEM_FORALL(i, csz, d_b[idx[i]] = d_x[idx[i]];);
+   MFEM_FORALL(i, csz,
+   {
+      const int id = idx[i];
+      d_b[id] = d_x[id];
+   });
 }
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
@@ -196,7 +204,11 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 
    const DeviceVector d_x(x, x.Size());
    DeviceVector d_y(y, y.Size());
-   MFEM_FORALL(i, csz, d_y[idx[i]] = d_x[idx[i]];);
+   MFEM_FORALL(i, csz,
+   {
+      const int id = idx[i];
+      d_y[id] = d_x[id];
+   });
 }
 
 }
