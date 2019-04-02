@@ -82,6 +82,21 @@ double E0rhs(const Vector &x)
    return resiG*lambda/pow(cosh(lambda*(x(1)-.5)),2);
 }
 
+double InitialJ3(const Vector &x)
+{
+   double ep=.2;
+   return (ep*ep-1.)/lambda/
+       pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
+}
+
+double InitialPsi3(const Vector &x)
+{
+   double ep=.2;
+   return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) );
+}
+
+
+
 void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
                Array<int> &true_offset,
                GridFunction &phi,
@@ -101,6 +116,7 @@ int main(int argc, char *argv[])
    double dt = 0.0001;
    double visc = 0.0;
    double resi = 0.0;
+   double ltol_amr=1e-5;
    bool visit = false;
    int precision = 8;
    int icase = 1;
@@ -129,6 +145,8 @@ int main(int argc, char *argv[])
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
    args.AddOption(&visc, "-visc", "--viscosity",
                   "Viscosity coefficient.");
+   args.AddOption(&ltol_amr, "-ltol", "--local-tol",
+                  "Local AMR tolerance.");
    args.AddOption(&resi, "-resi", "--resistivity",
                   "Resistivity coefficient.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -145,8 +163,16 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
+
    if (icase==2)
    {
+      resi=.001;
+      visc=.001;
+      resiG=resi;
+   }
+   else if (icase==3)
+   {
+      lambda=.5/M_PI;
       resi=.001;
       visc=.001;
       resiG=resi;
@@ -232,6 +258,11 @@ int main(int argc, char *argv[])
         FunctionCoefficient psiInit2(InitialPsi2);
         psi.ProjectCoefficient(psiInit2);
    }
+   else if (icase==3)
+    {
+        FunctionCoefficient psiInit3(InitialPsi3);
+        psi.ProjectCoefficient(psiInit3);
+   }
    psi.SetTrueVector();
 
    FunctionCoefficient wInit(InitialW);
@@ -247,6 +278,11 @@ int main(int argc, char *argv[])
    {
         FunctionCoefficient jInit2(InitialJ2);
         j.ProjectCoefficient(jInit2);
+   }
+   else if (icase==3)
+   {
+        FunctionCoefficient jInit3(InitialJ3);
+        j.ProjectCoefficient(jInit3);
    }
    j.SetTrueVector();
 
@@ -330,19 +366,21 @@ int main(int argc, char *argv[])
       }
    }
 
-   //for AMR
+   //-----------------------------------AMR---------------------------------
    int sdim = mesh->SpaceDimension();
    BilinearFormIntegrator *integ = new DiffusionIntegrator;
    FiniteElementSpace flux_fespace1(mesh, &fe_coll, sdim), flux_fespace2(mesh, &fe_coll, sdim);
    //BlockZZEstimator estimator(*integ, psi, *integ, w, flux_fespace1, flux_fespace2);
-   ZienkiewiczZhuEstimator estimator(*integ, psi, flux_fespace1);
+   //ZienkiewiczZhuEstimator estimator(*integ, w, flux_fespace1);
+   ZienkiewiczZhuEstimator estimator(*integ, j, flux_fespace1);
 
    //refiner for psi and w
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
-   refiner.SetTotalErrorGoal(5e-5);    // local error goal (stop criterion)
-   refiner.PreferNonconformingRefinement();
+   refiner.SetTotalErrorGoal(ltol_amr);    // local error goal (stop criterion)
+   //refiner.PreferNonconformingRefinement();
    refiner.SetNCLimit(nc_limit);
+   //-----------------------------------AMR---------------------------------
 
    double t = 0.0;
    oper.SetTime(t);
@@ -410,26 +448,35 @@ int main(int argc, char *argv[])
         oper.UpdateJ(vx); 
         oper.UpdatePhi(vx);
 
-        bool mesh_changed = true;
+        last_step = (t >= t_final - 1e-8*dt);
+        //debug: last_step = true;
         refiner.Apply(*mesh);
-        if (refiner.Stop())
+        if (refiner.Refined()==false)
         {
-           //cout<<"refine Finished..."<<endl;
+            cout << "step " << ti << ", t = " << t <<endl;
+            if (visualization)
+            {
+               vis_phi << "solution\n" << *mesh << phi;
+               vis_psi << "solution\n" << *mesh << psi;
+               vis_j << "solution\n" << *mesh << j;
+               vis_w << "solution\n" << *mesh << w;
+
+               if (icase==1) 
+               {
+                   vis_phi << "valuerange -.001 .001\n" << flush;
+                   vis_j << "valuerange -.01425 .01426\n" << flush;
+               }
+            }
            //break;
-           mesh_changed = false;
+           //mesh_changed = false;
+           if (last_step)
+               break;
+           else
+               continue;
         }
-
-        /*
-        fe_size = fespace.GetTrueVSize();
-        ofstream myfile0("vxBefore.dat");
-        vx.Print(myfile0, 1000);
-        vx.Update(fe_offset);
-        ofstream myfile1("vxAfter.dat");
-        vx.Print(myfile1, 1000);
-        */
-
-        if (mesh_changed)
+        else
         {
+            cout<<"Mesh refine..."<<endl;
             //---Update problem---
             AMRUpdate(vx, vx_old, fe_offset, phi, psi, w, j);
             oper.UpdateProblem();
@@ -439,6 +486,14 @@ int main(int argc, char *argv[])
             oper.assembleProblem(ess_bdr); 
             oper.UpdateJ(vx);
         }
+        /*
+        fe_size = fespace.GetTrueVSize();
+        ofstream myfile0("vxBefore.dat");
+        vx.Print(myfile0, 1000);
+        vx.Update(fe_offset);
+        ofstream myfile1("vxAfter.dat");
+        vx.Print(myfile1, 1000);
+        */
 
         cout << "step " << ti << ", t = " << t <<endl;
         if (visualization)
@@ -454,7 +509,6 @@ int main(int argc, char *argv[])
                vis_j << "valuerange -.01425 .01426\n" << flush;
            }
         }
-        
 
       }
 
@@ -475,7 +529,8 @@ int main(int argc, char *argv[])
       }
       */
 
-      last_step = (t >= t_final - 1e-8*dt);
+      //FIXME debug
+      //last_step = true;
 
       if (last_step || (ti % vis_steps) == 0)
       {

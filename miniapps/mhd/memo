@@ -10,8 +10,20 @@ glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 800
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+4/2
+this looks okay, although it does some uniform refinement:
+./exAMRMHD -r 3 -o 3 -tf 10 -vs 50 -dt .002 -i 2 -ltol 1e-6
+
+island test:
+./exAMRMHD -r 3 -o 3 -tf 10 -vs 50 -dt .002 -i 3 -ltol 1e-6
+
+amr test is strange:
+current is oscillatory
+amr can only do uniform refinement
+
 4/1
-there is a strange bug that I need to store coefficients for diffusion operator
+there is a strange bug: I have to store coefficients for diffusion operator (deleting them to quick leads to issue in assembling later)
+not able to get block vector working with update
 
 3/30
 working on amr: 
