@@ -87,7 +87,7 @@ void Device::MFEMDeviceSetup(const int dev)
 
    if (cuda && ngpu==0)
    {
-      MFEM_ABORT("CUDA requested but MFEM was not build with MFEM_USE_CUDA=YES");
+      MFEM_ABORT("CUDA requested but MFEM was not built with MFEM_USE_CUDA=YES");
    }
 }
 
