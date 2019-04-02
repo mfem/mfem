@@ -79,13 +79,13 @@ public:
       const bool occa = Device::UsingOcca();
       const bool raja = Device::UsingRaja();
       out << "Device configuration: ";
-      if (cuda && occa) { out << "OCCA/CUDA\n"; return; }
-      if (omp  && occa) { out << "OCCA/OpenMP\n"; return; }
-      if (occa)         { out << "OCCA/CPU\n"; return; }
-      if (cuda && raja) { out << "RAJA/CUDA\n"; return; }
+      if (cuda && occa) { out << "OCCA:CUDA\n"; return; }
+      if (omp  && occa) { out << "OCCA:OpenMP\n"; return; }
+      if (occa)         { out << "OCCA:CPU\n"; return; }
+      if (cuda && raja) { out << "RAJA:CUDA\n"; return; }
       if (cuda)         { out << "CUDA\n";  return; }
-      if (omp  && raja) { out << "RAJA/OpenMP\n";  return; }
-      if (raja)         { out << "RAJA/CPU\n";  return; }
+      if (omp  && raja) { out << "RAJA:OpenMP\n";  return; }
+      if (raja)         { out << "RAJA:CPU\n";  return; }
       if (omp)          { out << "OpenMP\n";  return; }
       out << "CPU\n";
    }

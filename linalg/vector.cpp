@@ -509,7 +509,8 @@ static void SetSubvector(const int N, double* y, const double d,
       {
          d_y[j] = d;
       }
-      else {
+      else
+      {
          d_y[-1-j] = -d;
       }
    });
@@ -528,7 +529,8 @@ static void SetSubvector(const int N, double *y, const double *x,
       {
          d_y[dof_i] = d_x[i];
       }
-      else {
+      else
+      {
          d_y[-1-dof_i] = -d_x[i];
       }
    });
