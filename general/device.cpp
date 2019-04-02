@@ -70,7 +70,7 @@ void Device::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
    occa::loadKernels();
    occa::loadKernels("fem");
 #else
-   MFEM_ABORT("OCCA requested but MFEM was not build with MFEM_USE_OCCA=YES");
+   MFEM_ABORT("OCCA requested but MFEM was not built with MFEM_USE_OCCA=YES");
 #endif
 }
 
