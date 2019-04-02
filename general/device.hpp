@@ -137,6 +137,10 @@ public:
    static inline void UseOcca() { Get().occa = true; }
    static inline OccaDevice GetOccaDevice() { return Get().occaDevice; }
 
+   static inline bool UsingOkina() {
+      return UsingDevice() || UsingOmp() || UsingRaja() || UsingOcca();
+   }
+
    ~Device();
 };
 
