@@ -121,9 +121,13 @@ protected:
    double tol;
    double rho;
    double curr_err;
+   double min_dt;
 
    int ofreq;
    int nsteps;
+
+   int nrejs;
+   int max_nrejs;
 
    mutable Vector next_x;
    mutable double dt;
@@ -133,8 +137,8 @@ protected:
 public:
    ODEController()
       : sol(NULL), msr(NULL), acc(NULL), rej(NULL), lim(NULL),
-        tol(-1.0), rho(1.2), curr_err(-1.0), ofreq(-1), nsteps(0),
-        dt(1.0), out(NULL) {}
+        tol(-1.0), rho(1.2), curr_err(-1.0), min_dt(-1.0), ofreq(-1), nsteps(0),
+        nrejs(0), max_nrejs(1000), dt(1.0), out(NULL) {}
 
    /// Define the particulars of the ODE step-size control process
    /** The various pieces are:
@@ -156,11 +160,17 @@ public:
    /// Sets (or resets) the initial time step
    void SetTimeStep(double dt) { this->dt = dt; }
 
+   /// Sets the minimum allowable time step
+   void SetMinTimeStep(double min_dt) { this->min_dt = min_dt; }
+
    /// Sets the error target for the control process
    void SetTolerance(double tol);
 
    /// Sets the threshold for rejection of a time step to be rho * tol
    void SetRejectionLimit(double rho) { this->rho = rho; }
+
+   /// Sets the maximum number of successively rejected steps
+   void SetMaxRejectCount(int max_nrejs) { this->max_nrejs = max_nrejs; }
 
    void SetOutputFrequency(int ofreq) { this->ofreq = ofreq; }
 

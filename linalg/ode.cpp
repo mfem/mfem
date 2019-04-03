@@ -678,7 +678,7 @@ void ODEController::Step(Vector &x, double &t, double delta_t)
 {
    bool accept = false;
    dt = delta_t;
-   while (!accept)
+   while (!accept && nrejs < max_nrejs)
    {
       next_x = x;
       double next_t = t;
@@ -690,6 +690,7 @@ void ODEController::Step(Vector &x, double &t, double delta_t)
       if (e <= rho * tol)
       {
          accept = true;
+         nrejs  = 0;
 
          curr_err = e;
          x = next_x;
@@ -698,7 +699,9 @@ void ODEController::Step(Vector &x, double &t, double delta_t)
       }
       else
       {
+         nrejs++;
          dt *= (*lim)((*rej)(e, dt));
+         dt = std::max(min_dt, dt); // Prevent bottomless descent
       }
    }
 }
