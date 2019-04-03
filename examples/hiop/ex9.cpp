@@ -514,7 +514,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 
    // Perform optimization.
    Vector y_out(dofs);
-   const int max_iter = 50;
+   const int max_iter = 500;
    const double rtol = 1.e-7;
    double atol = 1.e-7;
 
