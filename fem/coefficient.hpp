@@ -96,7 +96,7 @@ public:
    { constants.SetSize(c.Size()); constants=c; }
 
    /// Update constants
-   void UpdateConstants(Vector &c) {constants.SetSize(c.Size()); constants=c;}
+   void UpdateConstants(Vector &c) { constants.SetSize(c.Size()); constants=c; }
 
    /// Member function to access or modify the value of the i-th constant
    double &operator()(int i) { return constants(i-1); }
@@ -118,6 +118,7 @@ class FunctionCoefficient : public Coefficient
 protected:
    double (*Function)(const Vector &);
    double (*TDFunction)(const Vector &, double);
+   double (*DeviceFunction)(const DeviceVector3&);
 
 public:
    /// Define a time-independent coefficient from a C-function
@@ -125,6 +126,7 @@ public:
    {
       Function = f;
       TDFunction = NULL;
+      DeviceFunction = NULL;
    }
 
    /// Define a time-dependent coefficient from a C-function
@@ -132,6 +134,16 @@ public:
    {
       Function = NULL;
       TDFunction = tdf;
+      DeviceFunction = NULL;
+   }
+
+   /// Define a time-independent coefficient from a C-function using
+   /// DeviceVector3 instead of a Vector.
+   FunctionCoefficient(double (*df)(const DeviceVector3 &))
+   {
+      Function = NULL;
+      TDFunction = NULL;
+      DeviceFunction = df;
    }
 
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
@@ -141,6 +153,7 @@ public:
    {
       Function = reinterpret_cast<double(*)(const Vector&)>(f);
       TDFunction = NULL;
+      DeviceFunction = NULL;
    }
 
    /// (DEPRECATED) Define a time-dependent coefficient from a C-function
@@ -150,11 +163,17 @@ public:
    {
       Function = NULL;
       TDFunction = reinterpret_cast<double(*)(const Vector&,double)>(tdf);
+      DeviceFunction = NULL;
    }
 
    /// Evaluate coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   /// Return the coefficient's C-function that uses DeviceVector3.
+   /// Warning: for now, the returned function can only be used on the
+   /// host inside a MFEM_FORALL.
+   double (*GetDeviceFunction())(const DeviceVector3&);
 };
 
 class GridFunction;

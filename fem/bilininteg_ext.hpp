@@ -9,19 +9,30 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_BILIN_DQM_HPP
-#define MFEM_BILIN_DQM_HPP
-
-#include "../config/config.hpp"
-#include "../general/array_ext.hpp"
+#ifndef MFEM_BILININTEG_EXT
+#define MFEM_BILININTEG_EXT
 
 namespace mfem
 {
 
-// ***************************************************************************
-// * kDofQuadMaps
-// ***************************************************************************
-class kDofQuadMaps
+/// GeometryExtension
+class GeometryExtension
+{
+public:
+   Array<int> eMap;
+   Array<double> nodes;
+   Array<double> X, J, invJ, detJ;
+   static GeometryExtension* Get(const FiniteElementSpace&,
+                                 const IntegrationRule&);
+   static GeometryExtension* Get(const FiniteElementSpace&,
+                                 const IntegrationRule&,
+                                 const Vector&);
+   static void ReorderByVDim(const GridFunction*);
+   static void ReorderByNodes(const GridFunction*);
+};
+
+/// DofToQuad
+class DofToQuad
 {
 private:
    std::string hash;
@@ -61,6 +72,6 @@ public:
                                           const bool = false);
 };
 
-} // namespace mfem
+}
 
-#endif // MFEM_BACKENDS_KERNELS_BILIN_DQM_HPP
+#endif

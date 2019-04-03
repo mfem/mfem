@@ -15,7 +15,6 @@
 #include "fe_coll.hpp"
 #include "../mesh/nurbs.hpp"
 #include "bilininteg.hpp"
-#include "../linalg/kernels/vector.hpp"
 #include <cmath>
 
 namespace mfem
@@ -378,8 +377,7 @@ void NodalFiniteElement::Project (
       }
       for (int j = 0; j < x.Size(); j++)
       {
-         const int dji = Dof*j+i;
-         kernels::vector::MapDof(dofs.GetData(),x.GetData(),dji,j);
+         dofs(Dof*j+i) = x(j);
       }
    }
 }
@@ -6800,7 +6798,7 @@ const double *Poly_1D::GetPoints(const int p, const int btype)
    }
    if (pts[p] == NULL)
    {
-      pts[p] = mm::malloc<double>(p + 1);
+      pts[p] = new double[p + 1];
       quad_func.GivePolyPoints(p+1, pts[p], qtype);
    }
    return pts[p];
@@ -6836,7 +6834,7 @@ Poly_1D::~Poly_1D()
       Array<double*>& pts = *it->second;
       for ( int i = 0 ; i < pts.Size() ; ++i )
       {
-         mm::free<double>(pts[i]);
+         delete [] pts[i];
       }
       delete it->second;
    }

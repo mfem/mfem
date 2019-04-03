@@ -154,8 +154,6 @@ protected:
    static const int vtk_quadratic_wedge[18];
    static const int vtk_quadratic_hex[27];
 
-   double *quad_children;
-
 #ifdef MFEM_USE_MEMALLOC
    friend class Tetrahedron;
    MemAlloc <Tetrahedron, 1024> TetMemory;
@@ -1023,7 +1021,7 @@ public:
        defined or NULL if the mesh does not have nodes. */
    const FiniteElementSpace *GetNodalFESpace() const;
    /** Make sure that the mesh has valid nodes, i.e. its geometry is described
-       by a vector finite element grid function (even if it is low-order mesh
+       by a vector finite element grid function (even if it is a low-order mesh
        with straight edges). */
    void EnsureNodes();
 

@@ -11,87 +11,100 @@
 
 #include "okina.hpp"
 
-// *****************************************************************************
 namespace mfem
 {
 
-// *****************************************************************************
-#ifdef __NVCC__
-#define CU_STUB(dst,...) cuCheck(__VA_ARGS__); return dst;
-
-#else
-#define CU_STUB(...) {                                                  \
-      MFEM_ABORT("CUDA requested for MFEM but CUDA is not enabled!");   \
-      return (void*)NULL;                                               \
+void* CuMemAlloc(void** dptr, size_t bytes)
+{
+#ifdef MFEM_USE_CUDA
+   if (CUDA_SUCCESS != ::cuMemAlloc((CUdeviceptr*)dptr, bytes))
+   {
+      mfem_error("Error in CuMemAlloc");
    }
 #endif
-
-// *****************************************************************************
-// * Allocates device memory
-// *****************************************************************************
-void* cuMemAlloc(void** dptr, size_t bytes)
-{
-   CU_STUB(*dptr,::cuMemAlloc((CUdeviceptr*)dptr, bytes));
+   return *dptr;
 }
 
-// *****************************************************************************
-// * Frees device memory
-// *****************************************************************************
-void* cuMemFree(void *dptr)
+void* CuMemFree(void *dptr)
 {
-   CU_STUB(dptr,::cuMemFree((CUdeviceptr)dptr));
+#ifdef MFEM_USE_CUDA
+   if (CUDA_SUCCESS != ::cuMemFree((CUdeviceptr)dptr))
+   {
+      mfem_error("Error in CuMemFree");
+   }
+#endif
+   return dptr;
 }
 
-// *****************************************************************************
-// * Copies memory from Host to Device
-// *****************************************************************************
-void* cuMemcpyHtoD(void* dst, const void* src, size_t bytes)
+void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
-   CU_STUB(dst,::cuMemcpyHtoD((CUdeviceptr)dst, src, bytes));
+#ifdef MFEM_USE_CUDA
+   if (CUDA_SUCCESS != ::cuMemcpyHtoD((CUdeviceptr)dst, src, bytes))
+   {
+      mfem_error("Error in CuMemcpyHtoD");
+   }
+#endif
+   return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Host to Device
-// *****************************************************************************
-void* cuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
+void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 {
-   CU_STUB(dst,::cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s));
+#ifdef MFEM_USE_CUDA
+   if (CUDA_SUCCESS !=
+       ::cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s))
+   {
+      mfem_error("Error in CuMemcpyHtoDAsync");
+   }
+#endif
+   return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Device
-// *****************************************************************************
-void* cuMemcpyDtoD(void* dst, void* src, size_t bytes)
+void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
 {
-   CU_STUB(dst,::cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes));
+#ifdef MFEM_USE_CUDA
+   if (CUDA_SUCCESS !=
+       ::cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes))
+   {
+      mfem_error("Error in CuMemcpyDtoD");
+   }
+#endif
+   return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Device
-// *****************************************************************************
-void* cuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
+void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 {
-   CU_STUB(dst,::cuMemcpyDtoDAsync((CUdeviceptr)dst,
-                                   (CUdeviceptr)src,
-                                   bytes,
-                                   (CUstream)s));
+#ifdef MFEM_USE_CUDA
+   if (CUDA_SUCCESS !=
+       ::cuMemcpyDtoDAsync((CUdeviceptr)dst, (CUdeviceptr)src,
+                           bytes, (CUstream)s))
+   {
+      mfem_error("Error in CuMemcpyDtoDAsync");
+   }
+#endif
+   return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Host
-// *****************************************************************************
-void* cuMemcpyDtoH(void* dst, const void* src, size_t bytes)
+void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
 {
-   CU_STUB(dst,::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
+#ifdef MFEM_USE_CUDA
+   if (CUDA_SUCCESS != ::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes))
+   {
+      mfem_error("Error in CuMemcpyDtoH");
+   }
+#endif
+   return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Host
-// *****************************************************************************
-void* cuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
+void* CuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
 {
-   CU_STUB(dst,::cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s));
+#ifdef MFEM_USE_CUDA
+   if (CUDA_SUCCESS !=
+       ::cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s))
+   {
+      mfem_error("Error in CuMemcpyDtoHAsync");
+   }
+#endif
+   return dst;
 }
 
-// *****************************************************************************
 } // namespace mfem

@@ -15,13 +15,11 @@ set(SRCS
   bilininteg.cpp
   coefficient.cpp
   datacollection.cpp
-  doftoquad.cpp
   eltrans.cpp
   estimators.cpp
   fe.cpp
   fe_coll.cpp
   fespace.cpp
-  fespace_ext.cpp
   geom.cpp
   gridfunc.cpp
   hybridization.cpp
@@ -38,16 +36,15 @@ set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
+  bilininteg_ext.hpp
   coefficient.hpp
   datacollection.hpp
-  doftoquad.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
   fe_coll.hpp
   fem.hpp
   fespace.hpp
-  fespace_ext.hpp
   geom.hpp
   gridfunc.hpp
   hybridization.hpp

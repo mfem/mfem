@@ -12,7 +12,6 @@
 // Implementation of data type mesh
 
 #include "mesh_headers.hpp"
-#include "kernels/mesh.hpp"
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
@@ -918,7 +917,6 @@ void Mesh::Init()
    sequence = 0;
    Nodes = NULL;
    own_nodes = 1;
-   quad_children = mm::malloc<double>(2*4*4);
    NURBSext = NULL;
    ncmesh = NULL;
    last_operation = Mesh::NONE;
@@ -975,8 +973,6 @@ void Mesh::DestroyPointers()
    }
 
    DestroyTables();
-
-   mm::free<double>(quad_children);
 }
 
 void Mesh::Destroy()
@@ -5889,7 +5885,13 @@ void Mesh::UniformRefinement2D()
       B,A, C,A, B,B,
       A,B, B,B, A,C
    };
-   kernels::mesh::QuadChildren(quad_children);
+   static double quad_children[2*4*4] =
+   {
+      A,A, B,A, B,B, A,B, // lower-left
+      B,A, C,A, C,B, B,B, // lower-right
+      B,B, C,B, C,C, B,C, // upper-right
+      A,B, B,B, B,C, A,C  // upper-left
+   };
 
    CoarseFineTr.point_matrices[Geometry::TRIANGLE].
    UseExternalData(tri_children, 2, 3, 4);

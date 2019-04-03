@@ -15,6 +15,10 @@
 //               ex6 -m ../data/square-disc-surf.mesh -o 2
 //               ex6 -m ../data/amr-quad.mesh
 //
+// Device runs:  ex6 -d cuda
+//               ex6 -d occa
+//               ex6 -d 'raja omp'
+//
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
 //               equation -Delta u = 1 with homogeneous Dirichlet boundary
@@ -43,13 +47,19 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
-   bool visualization = 1;
+   bool pa = false;
+   const char *device = "";
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
+                  "Enable Partial Assembly.");
+   args.AddOption(&device, "-d", "--device",
+                  "Device configuration, e.g. 'cuda', 'omp', 'raja', 'occa'.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -67,6 +77,7 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
+   if (pa) { mesh.EnsureNodes(); }
 
    // 3. Since a NURBS mesh can currently only be refined uniformly, we need to
    //    convert it to a piecewise-polynomial curved mesh. First we refine the
@@ -85,10 +96,15 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, dim);
    FiniteElementSpace fespace(&mesh, &fec);
 
-   // 5. As in Example 1, we set up bilinear and linear forms corresponding to
+   // 5. Set device config parameters from the command line options.
+   Device::Configure(device);
+   Device::Print();
+
+   // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
-   BilinearForm a(&fespace);
+   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+   BilinearForm a(&fespace, assembly);
    LinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
@@ -153,34 +169,47 @@ int main(int argc, char *argv[])
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      // 14. Create the linear system: eliminate boundary conditions, constrain
+      // 15. Switch to the device and assemble the stiffness matrix.
+      Device::Enable();
+      a.Assemble();
+
+      // 16. Create the linear system: eliminate boundary conditions, constrain
       //     hanging nodes and possibly apply other transformations. The system
       //     will be solved for true (unconstrained) DOFs only.
-      SparseMatrix A;
       Vector B, X;
+      Operator *A;
+      if (!pa) { A = new SparseMatrix; }
+
       const int copy_interior = 1;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
 
+      // 17. Solve the linear system A X = B.
+      if (!pa)
+      {
 #ifndef MFEM_USE_SUITESPARSE
-      // 15. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-      //     solve the linear system with PCG.
-      GSSmoother M(A);
-      PCG(A, M, B, X, 3, 200, 1e-12, 0.0);
+         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+         GSSmoother M(*(SparseMatrix*)A);
+         PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
 #else
-      // 15. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
-      //     the linear system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(A);
-      umf_solver.Mult(B, X);
+         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+         UMFPackSolver umf_solver;
+         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         umf_solver.SetOperator(*A);
+         umf_solver.Mult(B, X);
 #endif
+      }
+      else // No preconditioning for now in partial assembly mode.
+      {
+         CG(*A, B, X, 3, 2000, 1e-12, 0.0);
+      }
 
-      // 16. After solving the linear system, reconstruct the solution as a
+      // 18. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
+      Device::Disable();
       a.RecoverFEMSolution(X, b, x);
 
-      // 17. Send solution by socket to the GLVis server.
+      // 19. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {
          sol_sock.precision(8);
@@ -193,7 +222,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 18. Call the refiner to modify the mesh. The refiner calls the error
+      // 20. Call the refiner to modify the mesh. The refiner calls the error
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
@@ -204,7 +233,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      // 19. Update the space to reflect the new state of the mesh. Also,
+      // 21. Update the space to reflect the new state of the mesh. Also,
       //     interpolate the solution x so that it lies in the new space but
       //     represents the same function. This saves solver iterations later
       //     since we'll have a good initial guess of x in the next step.
@@ -213,10 +242,13 @@ int main(int argc, char *argv[])
       fespace.Update();
       x.Update();
 
-      // 20. Inform also the bilinear and linear forms that the space has
+      // 22. Inform also the bilinear and linear forms that the space has
       //     changed.
       a.Update();
       b.Update();
+
+      // 23. Free the used memory.
+      delete A;
    }
 
    return 0;

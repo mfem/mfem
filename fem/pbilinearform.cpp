@@ -382,13 +382,13 @@ void ParBilinearForm::FormLinearSystem(
          break;
       }
       case AssemblyLevel::ELEMENT:
-         mfem_error("Not supported yet... stay tuned!");
+         mfem_error("AssemblyLevel::ELEMENT is not supported yet... stay tuned!");
          return;
       case AssemblyLevel::PARTIAL:
          pa->FormLinearSystem(ess_tdof_list, x, b, opA, X, B, copy_interior);
          return;
       case AssemblyLevel::NONE:
-         mfem_error("Not supported yet... stay tuned!");
+         mfem_error("AssemblyLevel::NONE is not supported yet... stay tuned!");
          return;
       default:
          mfem_error("Unknown assembly level");
@@ -410,13 +410,13 @@ void ParBilinearForm::FormSystemOperator(const Array<int> &ess_tdof_list,
          break;
       }
       case AssemblyLevel::ELEMENT:
-         mfem_error("Not supported yet... stay tuned!");
+         mfem_error("AssemblyLevel::ELEMENT is not supported yet... stay tuned!");
          return;
       case AssemblyLevel::PARTIAL:
          pa->FormSystemOperator(ess_tdof_list, opA);
          return;
       case AssemblyLevel::NONE:
-         mfem_error("Not supported yet... stay tuned!");
+         mfem_error("AssemblyLevel::NONE is not supported yet... stay tuned!");
          return;
       default:
          mfem_error("Unknown assembly level");
@@ -432,13 +432,13 @@ void ParBilinearForm::RecoverFEMSolution(
          // Use the original ParBilinearForm implementation for now
          break;
       case AssemblyLevel::ELEMENT:
-         mfem_error("Not supported yet... stay tuned!");
+         mfem_error("AssemblyLevel::ELEMENT is not supported yet... stay tuned!");
          return;
       case AssemblyLevel::PARTIAL:
          pa->RecoverFEMSolution(X, b, x);
          return;
       case AssemblyLevel::NONE:
-         mfem_error("Not supported yet... stay tuned!");
+         mfem_error("AssemblyLevel::NONE is not supported yet... stay tuned!");
          return;
       default:
          mfem_error("Unknown assembly level");
@@ -542,8 +542,8 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
 
 HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
 {
-   MFEM_ASSERT(mat, "matrix is not assembled");
-   MFEM_ASSERT(mat->Finalized(), "matrix is not finalized");
+   MFEM_ASSERT(mat, "Matrix is not assembled");
+   MFEM_ASSERT(mat->Finalized(), "Matrix is not finalized");
    SparseMatrix* RA = mfem::Mult(*range_fes->GetRestrictionMatrix(), *mat);
    HypreParMatrix* P = domain_fes->Dof_TrueDof_Matrix();
    HypreParMatrix* RAP = P->LeftDiagMult(*RA, range_fes->GetTrueDofOffsets());
@@ -554,7 +554,7 @@ HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
 void ParDiscreteLinearOperator::GetParBlocks(Array2D<HypreParMatrix *> &blocks)
 const
 {
-   MFEM_VERIFY(mat->Finalized(), "local matrix needs to be finalized for "
+   MFEM_VERIFY(mat->Finalized(), "Local matrix needs to be finalized for "
                "GetParBlocks");
 
    HypreParMatrix* RLP = ParallelAssemble();

@@ -12,34 +12,45 @@
 #ifndef MFEM_OKINA_HPP
 #define MFEM_OKINA_HPP
 
-// *****************************************************************************
 #include "../config/config.hpp"
 #include "../general/error.hpp"
 
-// *****************************************************************************
 #include <cmath>
-#include <cassert>
 #include <cstring>
 #include <iostream>
 
-// *****************************************************************************
-#include "./cuda.hpp"
-#include "./occa.hpp"
-#include "./raja.hpp"
-
-// *****************************************************************************
+#include "cuda.hpp"
+#include "occa.hpp"
 #include "mm.hpp"
-#include "config.hpp"
+#include "device.hpp"
 
-// *****************************************************************************
-// * Standard OpenMP wrapper
-// *****************************************************************************
+#ifdef MFEM_USE_RAJA
+#include "RAJA/RAJA.hpp"
+#endif
+
+namespace mfem
+{
+
+// OKINA = Okina Kernel Interface for Numerical Analysis
+
+// Implementation of MFEM's okina device kernel interface and its CUDA, OpenMP,
+// RAJA, and sequential backends.
+
+/// The MFEM_FORALL wrapper
+#define MFEM_BLOCKS 256
+#define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
+#define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
+   OkinaWrap<BLOCKS>(N,                                                 \
+                     [=] MFEM_DEVICE (int i) {__VA_ARGS__},             \
+                     [&]             (int i) {__VA_ARGS__})
+
+/// OpenMP backend
 template <typename HBODY>
-void ompWrap(const size_t N, HBODY &&h_body)
+void OmpWrap(const int N, HBODY &&h_body)
 {
 #if defined(_OPENMP)
    #pragma omp parallel for
-   for (size_t k=0; k<N; k+=1)
+   for (int k=0; k<N; k+=1)
    {
       h_body(k);
    }
@@ -48,35 +59,29 @@ void ompWrap(const size_t N, HBODY &&h_body)
 #endif
 }
 
-// *****************************************************************************
-// * Standard sequential wrapper
-// *****************************************************************************
+/// RAJA Cuda backend
+template <int BLOCKS, typename DBODY>
+void RajaCudaWrap(const int N, DBODY &&d_body)
+{
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
+   RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N),d_body);
+#else
+   MFEM_ABORT("RAJA::Cuda requested but RAJA::Cuda is not enabled!");
+#endif
+}
+
+/// RAJA OpenMP backend
 template <typename HBODY>
-void seqWrap(const size_t N, HBODY &&h_body)
+void RajaOmpWrap(const int N, HBODY &&h_body)
 {
-   for (size_t k=0; k<N; k+=1)
-   {
-      h_body(k);
-   }
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
+   RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(0,N), h_body);
+#else
+   MFEM_ABORT("RAJA::OpenMP requested but RAJA::OpenMP is not enabled!");
+#endif
 }
 
-// *****************************************************************************
-// * GPU & HOST FOR_LOOP bodies wrapper
-// *****************************************************************************
-template <size_t BLOCKS, typename DBODY, typename HBODY>
-void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
-{
-   const bool omp  = mfem::config::usingOmp();
-   const bool gpu  = mfem::config::usingGpu();
-   const bool raja = mfem::config::usingRaja();
-   if (gpu && raja) { return rajaCudaWrap<BLOCKS>(N, d_body); }
-   if (gpu)         { return cuWrap<BLOCKS>(N, d_body); }
-   if (omp && raja) { return rajaOmpWrap(N, h_body); }
-   if (raja)        { return rajaSeqWrap(N, h_body); }
-   if (omp)         { return ompWrap(N, h_body);  }
-   seqWrap(N, h_body);
-}
-
+<<<<<<< HEAD
 // *****************************************************************************
 // * MFEM_FORALL splitter
 // *****************************************************************************
@@ -133,5 +138,57 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 #define dbg(...)
 //#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
 //#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
+=======
+/// RAJA sequential loop backend
+template <typename HBODY>
+void RajaSeqWrap(const int N, HBODY &&h_body)
+{
+#ifdef MFEM_USE_RAJA
+   RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
+#else
+   MFEM_ABORT("RAJA requested but RAJA is not enabled!");
+#endif
+}
+
+/// CUDA backend
+#ifdef MFEM_USE_CUDA
+template <typename BODY> __global__ static
+void CuKernel(const int N, BODY body)
+{
+   const int k = blockDim.x*blockIdx.x + threadIdx.x;
+   if (k >= N) { return; }
+   body(k);
+}
+template <int BLOCKS, typename DBODY>
+void CuWrap(const int N, DBODY &&d_body)
+{
+   if (N==0) { return; }
+   const int GRID = (N+BLOCKS-1)/BLOCKS;
+   CuKernel<<<GRID,BLOCKS>>>(N,d_body);
+   const cudaError_t last = cudaGetLastError();
+   MFEM_ASSERT(last == cudaSuccess, cudaGetErrorString(last));
+}
+#else
+template <int BLOCKS, typename DBODY>
+void CuWrap(const int N, DBODY &&d_body) {}
+#endif
+>>>>>>> okina
+
+/// The okina kernel body wrapper
+template <int BLOCKS, typename DBODY, typename HBODY>
+void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
+{
+   const bool omp  = Device::UsingOmp();
+   const bool gpu  = Device::UsingDevice();
+   const bool raja = Device::UsingRaja();
+   if (gpu && raja) { return RajaCudaWrap<BLOCKS>(N, d_body); }
+   if (gpu)         { return CuWrap<BLOCKS>(N, d_body); }
+   if (omp && raja) { return RajaOmpWrap(N, h_body); }
+   if (raja)        { return RajaSeqWrap(N, h_body); }
+   if (omp)         { return OmpWrap(N, h_body);  }
+   for (int k=0; k<N; k+=1) { h_body(k); }
+}
+
+} // namespace mfem
 
 #endif // MFEM_OKINA_HPP
