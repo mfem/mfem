@@ -802,6 +802,82 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    // delete geo;
 }
 
+#ifdef MFEM_USE_OCCA
+// OCCA PA Mass MultAdd 2D kernel
+static void OccaPAMassMultAdd2D(const int D1D,
+                                const int Q1D,
+                                const int NE,
+                                const double* B,
+                                const double* Bt,
+                                const double* oper,
+                                const double* solIn,
+                                double* solOut)
+{
+   const int NUM_QUAD_2D = Q1D*Q1D;
+   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
+
+   MFEM_GET_OCCA_CONST_MEMORY(B);
+   MFEM_GET_OCCA_CONST_MEMORY(Bt);
+   MFEM_GET_OCCA_CONST_MEMORY(oper);
+   MFEM_GET_OCCA_CONST_MEMORY(solIn);
+   MFEM_GET_OCCA_MEMORY(solOut);
+
+   MFEM_NEW_OCCA_PROPERTY(props);
+   MFEM_SET_OCCA_PROPERTY(props, D1D);
+   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
+
+   if (!Device::UsingDevice())
+   {
+      MFEM_NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, mass.okl, props);
+      MultAdd2D_CPU(NE, o_B, o_Bt, o_oper, o_solIn, o_solOut);
+   }
+   else
+   {
+      MFEM_NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, mass.okl, props);
+      MultAdd2D_GPU(NE, o_B, o_Bt, o_oper, o_solIn, o_solOut);
+   }
+}
+
+// OCCA PA Mass MultAdd 3D kernel
+static void OccaPAMassMultAdd3D(const int D1D,
+                                const int Q1D,
+                                const int NE,
+                                const double* B,
+                                const double* Bt,
+                                const double* oper,
+                                const double* solIn,
+                                double* solOut)
+{
+   const int NUM_QUAD_2D = Q1D*Q1D;
+   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
+
+   MFEM_GET_OCCA_CONST_MEMORY(B);
+   MFEM_GET_OCCA_CONST_MEMORY(Bt);
+   MFEM_GET_OCCA_CONST_MEMORY(oper);
+   MFEM_GET_OCCA_CONST_MEMORY(solIn);
+   MFEM_GET_OCCA_MEMORY(solOut);
+
+   MFEM_NEW_OCCA_PROPERTY(props);
+   MFEM_SET_OCCA_PROPERTY(props, D1D);
+   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
+
+   if (!Device::UsingDevice())
+   {
+      MFEM_NEW_OCCA_KERNEL(MultAdd3D_CPU, fem, mass.okl, props);
+      MultAdd3D_CPU(NE, o_B, o_Bt, o_oper, o_solIn, o_solOut);
+   }
+   else
+   {
+      MFEM_NEW_OCCA_KERNEL(MultAdd3D_GPU, fem, mass.okl, props);
+      MultAdd3D_GPU(NE, o_B, o_Bt, o_oper, o_solIn, o_solOut);
+   }
+}
+#endif // MFEM_USE_OCCA
+
 template<const int D1D,
          const int Q1D> static
 void PAMassMultAdd2D(const int NE,
@@ -1034,6 +1110,22 @@ static void PAMassMultAssembled(const int dim,
                                 const double* x,
                                 double* y)
 {
+#ifdef MFEM_USE_OCCA
+   if (Device::UsingOcca())
+   {
+      if (dim == 2)
+      {
+         OccaPAMassMultAdd2D(D1D, Q1D, NE, B, Bt, op, x, y);
+         return;
+      }
+      if (dim == 3)
+      {
+         OccaPAMassMultAdd3D(D1D, Q1D, NE, B, Bt, op, x, y);
+         return;
+      }
+      mfem_error("OCCA PA Mass MultAssembled unknown kernel!");
+   }
+#endif // MFEM_USE_OCCA
    const int id = (dim<<8)|((D1D)<<4)|(Q1D);
    static std::unordered_map<int, fMassMultAdd> call =
    {

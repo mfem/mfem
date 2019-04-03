@@ -13,9 +13,7 @@
 
 @kernel void MultAdd2D_CPU(const int numElements,
                            @restrict const DofToQuad_t dofToQuad,
-                           @restrict const DofToQuad_t dofToQuadD,
                            @restrict const QuadToDof_t quadToDof,
-                           @restrict const QuadToDof_t quadToDofD,
                            @restrict const QLocal2D_t oper,
                            @restrict const DLocal2D_t solIn,
                            @restrict DLocal2D_t solOut) {
@@ -82,9 +80,7 @@
 
 @kernel void MultAdd3D_CPU(const int numElements,
                            @restrict const DofToQuad_t dofToQuad,
-                           @restrict const DofToQuad_t dofToQuadD,
                            @restrict const QuadToDof_t quadToDof,
-                           @restrict const QuadToDof_t quadToDofD,
                            @restrict const QLocal3D_t oper,
                            @restrict const DLocal3D_t solIn,
                            @restrict DLocal3D_t solOut) {
@@ -191,9 +187,7 @@
 
 @kernel void MultAdd2D_GPU(const int numElements,
                            @restrict const DofToQuad_t dofToQuad,
-                           @restrict const DofToQuad_t dofToQuadD,
                            @restrict const QuadToDof_t quadToDof,
-                           @restrict const QuadToDof_t quadToDofD,
                            @restrict const QLocal2D_t oper,
                            @restrict const DLocal2D_t solIn,
                            @restrict DLocal2D_t solOut) {
@@ -282,9 +276,7 @@
 
 @kernel void MultAdd3D_GPU(const int numElements,
                            @restrict const DofToQuad_t dofToQuad,
-                           @restrict const DofToQuad_t dofToQuadD,
                            @restrict const QuadToDof_t quadToDof,
-                           @restrict const QuadToDof_t quadToDofD,
                            @restrict const QLocal3D_t oper,
                            @restrict const DLocal3D_t solIn,
                            @restrict DLocal3D_t solOut) {
