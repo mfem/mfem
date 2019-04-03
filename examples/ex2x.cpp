@@ -86,14 +86,16 @@ int main(int argc, char *argv[])
                   "\t   2 - Absolute/Relative Error with 2-Norm\n");
    args.AddOption(&ode_acc_type, "-acc", "-accept-factor",
                   "Adjustment factor after accepted steps:\n"
-                  "\t   1 - Integrated error\n"
-                  "\t   2 - Proportional and Integrated errors\n"
-                  "\t   3 - Proportional, Integrated, and Derivative errors\n");
+                  "\t   1 - Standard error (integrated and scaled)\n"
+                  "\t   2 - Integrated error\n"
+                  "\t   3 - Proportional and Integrated errors\n"
+                  "\t   4 - Proportional, Integrated, and Derivative errors\n");
    args.AddOption(&ode_rej_type, "-rej", "-reject-factor",
                   "Adjustment factor after rejected steps:\n"
-                  "\t   1 - Integrated error\n"
-                  "\t   2 - Proportional and Integrated errors\n"
-                  "\t   3 - Proportional, Integrated, and Derivative errors\n");
+                  "\t   1 - Standard error (integrated and scaled)\n"
+                  "\t   2 - Integrated error\n"
+                  "\t   3 - Proportional and Integrated errors\n"
+                  "\t   4 - Proportional, Integrated, and Derivative errors\n");
    args.AddOption(&ode_lim_type, "-lim", "-limiter",
                   "Adjustment limiter:\n"
                   "\t   1 - Dead zone limiter\n"
@@ -172,10 +174,13 @@ int main(int argc, char *argv[])
          ode_step_acc = new StdAdjFactor(gamma_acc, kI_acc);
          break;
       case 2:
-         ode_step_acc = new PIAdjFactor(kI_acc, kP_acc);
+         ode_step_acc = new IAdjFactor(kI_acc);
          break;
       case 3:
-         ode_step_acc = new PIDAdjFactor(kI_acc, kP_acc, kD_acc);
+         ode_step_acc = new PIAdjFactor(kP_acc, kI_acc);
+         break;
+      case 4:
+         ode_step_acc = new PIDAdjFactor(kP_acc, kI_acc, kD_acc);
          break;
       default:
          cout << "Unknown adjustment factor type: " << ode_acc_type << '\n';
@@ -187,10 +192,13 @@ int main(int argc, char *argv[])
          ode_step_rej = new StdAdjFactor(gamma_rej, kI_rej);
          break;
       case 2:
-         ode_step_rej = new PIAdjFactor(kI_rej, kP_rej);
+         ode_step_rej = new IAdjFactor(kI_rej);
          break;
       case 3:
-         ode_step_rej = new PIDAdjFactor(kI_rej, kP_rej, kD_rej);
+         ode_step_rej = new PIAdjFactor(kP_rej, kI_rej);
+         break;
+      case 4:
+         ode_step_rej = new PIDAdjFactor(kP_rej, kI_rej, kD_rej);
          break;
       default:
          cout << "Unknown adjustment factor type: " << ode_rej_type << '\n';

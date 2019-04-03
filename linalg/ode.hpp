@@ -556,6 +556,14 @@ public:
    { return gamma * pow(tol / err, kI); }
 };
 
+class IntegralAdjFactor : public StdAdjFactor
+{
+public:
+   IntegralAdjFactor(double kI) : StdAdjFactor(1.0, kI) {}
+};
+
+typedef IntegralAdjFactor IAdjFactor;
+
 class PIAdjFactor : public ODEStepAdjustmentFactor
 {
 private:
@@ -565,7 +573,7 @@ private:
    mutable double prev_err;
 
 public:
-   PIAdjFactor(double kI, double kP)
+   PIAdjFactor(double kP, double kI)
       : kI(kI), kP(kP), prev_dt(-1.0), prev_err(-1.0) {}
 
    double operator()(double err, double dt) const;
@@ -583,7 +591,7 @@ private:
    mutable double prev_err2;
 
 public:
-   PIDAdjFactor(double kI, double kP, double kD)
+   PIDAdjFactor(double kP, double kI, double kD)
       : kI(kI), kP(kP), kD(kD),
         prev_dt1(-1.0), prev_dt2(-1.0), prev_err1(-1.0), prev_err2(-1.0) {}
 
