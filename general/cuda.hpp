@@ -55,13 +55,13 @@ typedef int CUcontext;
 typedef void* CUstream;
 #endif // MFEM_USE_CUDA
 
-#ifdef __NVCC__
+#ifdef __CUDA_ARCH__
 template<typename T> MFEM_DEVICE
 inline T AtomicAdd(T* address, T val)
 {
    return atomicAdd(address, val);
 }
-#else // __NVCC__
+#else // __CUDA_ARCH__
 template<typename T> inline T AtomicAdd(T* address, T val)
 {
 #if defined(_OPENMP)
@@ -70,7 +70,7 @@ template<typename T> inline T AtomicAdd(T* address, T val)
    *address += val;
    return *address;
 }
-#endif // __NVCC__
+#endif // __CUDA_ARCH__
 
 /// Allocates device memory
 void* CuMemAlloc(void **d_ptr, size_t bytes);
