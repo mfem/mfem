@@ -955,6 +955,10 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    pmesh.sface_lface.Append(slq);
 
    // create shared_edges
+   for (int i = 0; i < pmesh.shared_edges.Size(); i++)
+   {
+      delete pmesh.shared_edges[i];
+   }
    pmesh.shared_edges.SetSize(pmesh.sedge_ledge.Size());
    for (int i = 0; i < pmesh.shared_edges.Size(); i++)
    {

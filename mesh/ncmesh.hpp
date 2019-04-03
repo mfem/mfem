@@ -59,6 +59,12 @@ struct CoarseFineTransformations
    /// Fine element positions in their parents.
    Array<Embedding> embeddings;
 
+   void GetCoarseToFineMap(const Mesh &fine_mesh,
+                           Table &coarse_to_fine,
+                           Array<int> &coarse_to_ref_type,
+                           Table &ref_type_to_matrix,
+                           Array<Geometry::Type> &ref_type_to_geom) const;
+
    void Clear();
    bool IsInitialized() const;
    long MemoryUsage() const;

@@ -408,16 +408,18 @@ protected:
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
-       type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
-       generated, if 1 edges are generated. */
+       type=TETRAHEDRON. The parameter @a sfc_ordering controls how the elements
+       (when type=HEXAHEDRON) are ordered: true - use space-filling curve
+       ordering, or false - use lexicographic ordering. */
    void Make3D(int nx, int ny, int nz, Element::Type type,
-               double sx, double sy, double sz,
-               bool generate_edges, bool sfc_ordering);
+               double sx, double sy, double sz, bool sfc_ordering);
 
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
        type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
-       if 1 edges are generated. */
+       if 1 edges are generated. The parameter @a sfc_ordering controls how the
+       elements (when type=QUADRILATERAL) are ordered: true - use space-filling
+       curve ordering, or false - use lexicographic ordering. */
    void Make2D(int nx, int ny, Element::Type type, double sx, double sy,
                bool generate_edges, bool sfc_ordering);
 
@@ -558,6 +560,7 @@ public:
        coherency by putting elements that are in physical proximity closer in
        memory. It can also be used to get a space-filling curve ordering for
        ParNCMesh partitioning.
+       @param[out] ordering Output element ordering.
        @param[in] iterations Number of V cycles (default 1).
        @param[in] window Initial window size (default 2).
        @param[in] period Iterations between window increment (default 1).
@@ -574,15 +577,15 @@ public:
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
-       type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
-       generated, if 1 edges are generated. If sfc_ordering = true (default),
-       elements are ordered along a space-filling curve, instead of row by row
-       and layer by layer. */
+       type=TETRAHEDRON. If sfc_ordering = true (default), elements are ordered
+       along a space-filling curve, instead of row by row and layer by layer.
+       The parameter @a generate_edges is ignored (for now, it is kept for
+       backward compatibility). */
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, double sz = 1.0,
         bool sfc_ordering = true)
    {
-      Make3D(nx, ny, nz, type, sx, sy, sz, generate_edges, sfc_ordering);
+      Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
       Finalize(true); // refine = true
    }
 
