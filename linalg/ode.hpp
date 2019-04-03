@@ -497,6 +497,15 @@ private:
    Array<double> b_;
 };
 
+/// Computes the largest absolute/relative difference in a pair of vectors
+/** Computes the maximum of the following ratio:
+        max_i |u1_i - u0_i| / |u0_i + eta_i|
+    Where eta can either be a single constant or a vector of non-zero values
+    with the same length as u0 and u1.
+
+    Note: this class is designed for use on a single processor.  To take the
+    maximum across multiple processors use the ParMaxAbsRelDiffMeasure class.
+*/
 class MaxAbsRelDiffMeasure : public ODEDifferenceMeasure
 {
 private:
@@ -524,6 +533,16 @@ public:
 };
 
 #ifdef MFEM_USE_MPI
+
+/// Computes the largest absolute/relative difference in a pair of vectors
+/** Computes the maximum of the following ratio:
+        max_i |u1_i - u0_i| / |u0_i + eta_i|
+    Where eta can either be a single constant or a vector of non-zero values
+    with the same length as u0 and u1.
+
+    Note: this class is designed for use on multiple processors.  For a 
+    serial implementation see the MaxAbsRelDiffMeasure class.
+*/
 class ParMaxAbsRelDiffMeasure : public ODEDifferenceMeasure
 {
 private:
