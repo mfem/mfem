@@ -104,8 +104,8 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                                   @restrict const QuadToDof_t Bt,
                                   @restrict const QuadToDof_t Gt,
                                   @restrict const SymmOperator2D_t op,
-                                  @restrict const DLocal2D_t x,
-                                  @restrict DLocal2D_t y) {
+                                  @restrict const DLocal2D_t X,
+                                  @restrict DLocal2D_t Y) {
    // Iterate over elements
    for (int e = 0; e < NE; ++e; @outer) {
       for (int dummy = 0; dummy < 1; ++dummy; @inner) {
@@ -125,7 +125,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
             }
 
             for (int dx = 0; dx < D1D; ++dx) {
-               const double s = x(dx, dy, e);
+               const double s = X(dx, dy, e);
                for (int qx = 0; qx < Q1D; ++qx) {
                   gradX[qx][0] += s * B(qx, dx);
                   gradX[qx][1] += s * G(qx, dx);
@@ -180,7 +180,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                const double wy  = Bt(dy, qy);
                const double wDy = Gt(dy, qy);
                for (int dx = 0; dx < D1D; ++dx) {
-                  y(dx, dy, e) += ((gradX[dx][0] * wy) +
+                  Y(dx, dy, e) += ((gradX[dx][0] * wy) +
                                    (gradX[dx][1] * wDy));
                }
             }
@@ -195,8 +195,8 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                                   @restrict const QuadToDof_t Bt,
                                   @restrict const QuadToDof_t Gt,
                                   @restrict const SymmOperator2D_t op,
-                                  @restrict const DLocal2D_t x,
-                                  @restrict DLocal2D_t y) {
+                                  @restrict const DLocal2D_t X,
+                                  @restrict DLocal2D_t Y) {
    // Iterate over elements
    for (int eOff = 0; eOff < NE; eOff += M2_ELEMENT_BATCH; @outer) {
       // Store dof <--> quad mappings
@@ -213,8 +213,8 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
       @exclusive double r_x[M1D];
       @exclusive double r_y[Q1D];
 
-      for (int m = 0; m < M1D; ++m; @inner) {
-         for (int id = m; id < DQ1D; id += M1D) {
+      for (int x = 0; x < M1D; ++x; @inner) {
+         for (int id = x; id < DQ1D; id += M1D) {
             s_B[id]  = B[id];
             s_G[id] = G[id];
             s_Bt[id]  = Bt[id];
@@ -231,7 +231,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                      s_xDy(dx, qy) = 0;
                   }
                   for (int dy = 0; dy < D1D; ++dy) {
-                     r_x[dy] = x(dx, dy, e);
+                     r_x[dy] = X(dx, dy, e);
                   }
                   for (int qy = 0; qy < Q1D; ++qy) {
                      double xy = 0;
@@ -295,7 +295,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                         s += ((s_xy(dy, qx) * s_Gt(dx, qx)) +
                               (s_xDy(dy, qx) * s_Bt(dx, qx)));
                      }
-                     y(dx, dy, e) += s;
+                     Y(dx, dy, e) += s;
                   }
                }
             }
@@ -310,8 +310,8 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                                   @restrict const QuadToDof_t Bt,
                                   @restrict const QuadToDof_t Gt,
                                   @restrict const SymmOperator3D_t op,
-                                  @restrict const DLocal3D_t x,
-                                  @restrict DLocal3D_t y) {
+                                  @restrict const DLocal3D_t X,
+                                  @restrict DLocal3D_t Y) {
   // Iterate over elements
   for (int e = 0; e < NE; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {
@@ -344,7 +344,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
           }
 
           for (int dx = 0; dx < D1D; ++dx) {
-            const double s = x(dx, dy, dz, e);
+            const double s = X(dx, dy, dz, e);
             for (int qx = 0; qx < Q1D; ++qx) {
               gradX[qx][0] += s * B(qx, dx);
               gradX[qx][1] += s * G(qx, dx);
@@ -447,7 +447,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
           const double wDz = Gt(dz, qz);
           for (int dy = 0; dy < D1D; ++dy) {
             for (int dx = 0; dx < D1D; ++dx) {
-              y(dx, dy, dz, e) += ((gradXY[dy][dx][0] * wz) +
+              Y(dx, dy, dz, e) += ((gradXY[dy][dx][0] * wz) +
                                    (gradXY[dy][dx][1] * wz) +
                                    (gradXY[dy][dx][2] * wDz));
             }
@@ -464,8 +464,8 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                                   @restrict const QuadToDof_t Bt,
                                   @restrict const QuadToDof_t Gt,
                                   @restrict const SymmOperator3D_t op,
-                                  @restrict const DLocal3D_t x,
-                                  @restrict DLocal3D_t y) {
+                                  @restrict const DLocal3D_t X,
+                                  @restrict DLocal3D_t Y) {
   // Iterate over elements
   for (int e = 0; e < NE; ++e; @outer) {
     // Store dof <--> quad mappings
@@ -514,7 +514,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
       for (int dx = 0; dx < M1D; ++dx; @inner) {
         if ((dx < D1D) && (dy < D1D)) {
           for (int dz = 0; dz < D1D; ++dz) {
-            const double s = x(dx, dy, dz, e);
+            const double s = X(dx, dy, dz, e);
             // Calculate D -> Q in the Z axis
             for (int qz = 0; qz < Q1D; ++qz) {
               r_qz[qz]  += s * s_B(qz, dz);
@@ -610,7 +610,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                          (wx  * wy  * xyDz));
               }
             }
-            y(dx, dy, dz, e) += solZ;
+            Y(dx, dy, dz, e) += solZ;
           }
         }
       }
@@ -621,8 +621,8 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                              @restrict const DofToQuad_t B,
                              @restrict const QuadToDof_t Bt,
                              @restrict const QLocal2D_t op,
-                             @restrict const DLocal2D_t x,
-                             @restrict DLocal2D_t y) {
+                             @restrict const DLocal2D_t X,
+                             @restrict DLocal2D_t Y) {
   for (int e = 0; e < NE; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {
       double sol_xy[Q1D][Q1D];
@@ -640,7 +640,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
         }
 
         for (int dx = 0; dx < D1D; ++dx) {
-          const double s = x(dx, dy, e);
+          const double s = X(dx, dy, e);
           for (int qx = 0; qx < Q1D; ++qx) {
             sol_x[qx] += B(qx, dx) * s;
           }
@@ -676,7 +676,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
         for (int dy = 0; dy < D1D; ++dy) {
           const double q2d = Bt(dy, qy);
           for (int dx = 0; dx < D1D; ++dx) {
-            y(dx, dy, e) += q2d * sol_x[dx];
+            Y(dx, dy, e) += q2d * sol_x[dx];
           }
         }
       }
@@ -688,8 +688,8 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                              @restrict const DofToQuad_t B,
                              @restrict const QuadToDof_t Bt,
                              @restrict const QLocal3D_t op,
-                             @restrict const DLocal3D_t x,
-                             @restrict DLocal3D_t y) {
+                             @restrict const DLocal3D_t X,
+                             @restrict DLocal3D_t Y) {
   // Iterate over elements
   for (int e = 0; e < NE; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {
@@ -717,7 +717,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
           }
 
           for (int dx = 0; dx < D1D; ++dx) {
-            const double s = x(dx, dy, dz, e);
+            const double s = X(dx, dy, dz, e);
             for (int qx = 0; qx < Q1D; ++qx) {
               sol_x[qx] += B(qx, dx) * s;
             }
@@ -782,7 +782,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
           const double wz = Bt(dz, qz);
           for (int dy = 0; dy < D1D; ++dy) {
             for (int dx = 0; dx < D1D; ++dx) {
-              y(dx, dy, dz, e) += wz * sol_xy[dy][dx];
+              Y(dx, dy, dz, e) += wz * sol_xy[dy][dx];
             }
           }
         }
@@ -795,8 +795,8 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                              @restrict const DofToQuad_t B,
                              @restrict const QuadToDof_t Bt,
                              @restrict const QLocal2D_t op,
-                             @restrict const DLocal2D_t x,
-                             @restrict DLocal2D_t y) {
+                             @restrict const DLocal2D_t X,
+                             @restrict DLocal2D_t Y) {
   // Iterate over elements
   for (int eOff = 0; eOff < NE; eOff += M2_ELEMENT_BATCH; @outer) {
     // Store dof <--> quad mappings
@@ -824,7 +824,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
               s_xy(dx, qy) = 0;
             }
             for (int dy = 0; dy < D1D; ++dy) {
-              r_x[dy] = x(dx, dy, e);
+              r_x[dy] = X(dx, dy, e);
             }
             for (int qy = 0; qy < Q1D; ++qy) {
               double xy = 0;
@@ -871,7 +871,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
               for (int qx = 0; qx < Q1D; ++qx) {
                 s += (s_xy(dy, qx) * s_Bt(dx, qx));
               }
-              y(dx, dy, e) += s;
+              Y(dx, dy, e) += s;
             }
           }
         }
@@ -884,8 +884,8 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                              @restrict const DofToQuad_t B,
                              @restrict const QuadToDof_t Bt,
                              @restrict const QLocal3D_t op,
-                             @restrict const DLocal3D_t x,
-                             @restrict DLocal3D_t y) {
+                             @restrict const DLocal3D_t X,
+                             @restrict DLocal3D_t Y) {
   // Iterate over elements
   for (int e = 0; e < NE; ++e; @outer) {
     // Store dof <--> quad mappings
@@ -921,7 +921,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
       for (int dx = 0; dx < M1D; ++dx; @inner) {
         if ((dx < D1D) && (dy < D1D)) {
           for (int dz = 0; dz < D1D; ++dz) {
-            const double s = x(dx, dy, dz, e);
+            const double s = X(dx, dy, dz, e);
             // Calculate D -> Q in the Z axis
             for (int qz = 0; qz < Q1D; ++qz) {
               r_z[qz] += s * s_B(qz, dz);
@@ -985,7 +985,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                 solZ += wx * wy * s_xy(qx, qy);
               }
             }
-            y(dx, dy, dz, e) += solZ;
+            Y(dx, dy, dz, e) += solZ;
           }
         }
       }
