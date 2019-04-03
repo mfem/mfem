@@ -52,51 +52,41 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 static void OccaPADiffusionAssemble2D(const int D1D,
                                       const int Q1D,
                                       const int NE,
-                                      const double* W,
-                                      const double* J,
+                                      const double *W,
+                                      const double *J,
                                       const double COEFF,
-                                      double* oper)
+                                      double *op)
 {
-   const int NUM_QUAD_2D = Q1D*Q1D;
-   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
-
    MFEM_GET_OCCA_CONST_MEMORY(W);
    MFEM_GET_OCCA_CONST_MEMORY(J);
-   MFEM_GET_OCCA_MEMORY(oper);
+   MFEM_GET_OCCA_MEMORY(op);
 
    MFEM_NEW_OCCA_PROPERTY(props);
    MFEM_SET_OCCA_PROPERTY(props, D1D);
    MFEM_SET_OCCA_PROPERTY(props, Q1D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
 
-   MFEM_NEW_OCCA_KERNEL(Assemble2D, fem, diffusion.okl, props);
-   Assemble2D(NE, o_W, o_J, COEFF, o_oper);
+   MFEM_NEW_OCCA_KERNEL(DiffusionSetup2D, fem, occa.okl, props);
+   DiffusionSetup2D(NE, o_W, o_J, COEFF, o_op);
 }
 
 static void OccaPADiffusionAssemble3D(const int D1D,
                                       const int Q1D,
                                       const int NE,
-                                      const double* W,
-                                      const double* J,
+                                      const double *W,
+                                      const double *J,
                                       const double COEFF,
-                                      double* oper)
+                                      double *op)
 {
-   const int NUM_QUAD_2D = Q1D*Q1D;
-   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
-
    MFEM_GET_OCCA_CONST_MEMORY(W);
    MFEM_GET_OCCA_CONST_MEMORY(J);
-   MFEM_GET_OCCA_MEMORY(oper);
+   MFEM_GET_OCCA_MEMORY(op);
 
    MFEM_NEW_OCCA_PROPERTY(props);
    MFEM_SET_OCCA_PROPERTY(props, D1D);
    MFEM_SET_OCCA_PROPERTY(props, Q1D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
 
-   MFEM_NEW_OCCA_KERNEL(Assemble3D, fem, diffusion.okl, props);
-   Assemble3D(NE, o_W, o_J, COEFF, o_oper);
+   MFEM_NEW_OCCA_KERNEL(DiffusionSetup3D, fem, occa.okl, props);
+   DiffusionSetup3D(NE, o_W, o_J, COEFF, o_op);
 }
 #endif // MFEM_USE_OCCA
 
@@ -186,7 +176,7 @@ static void PADiffusionAssemble(const int dim,
                                 const double* W,
                                 const double* J,
                                 const double COEFF,
-                                double* oper)
+                                double* op)
 {
    if (dim == 1) { mfem_error("dim==1 not supported in PADiffusionAssemble"); }
    if (dim == 2)
@@ -194,22 +184,22 @@ static void PADiffusionAssemble(const int dim,
 #ifdef MFEM_USE_OCCA
       if (Device::UsingOcca())
       {
-         OccaPADiffusionAssemble2D(D1D, Q1D, NE, W, J, COEFF, oper);
+         OccaPADiffusionAssemble2D(D1D, Q1D, NE, W, J, COEFF, op);
          return;
       }
 #endif // MFEM_USE_OCCA
-      PADiffusionAssemble2D(Q1D, NE, W, J, COEFF, oper);
+      PADiffusionAssemble2D(Q1D, NE, W, J, COEFF, op);
    }
    if (dim == 3)
    {
 #ifdef MFEM_USE_OCCA
       if (Device::UsingOcca())
       {
-         OccaPADiffusionAssemble3D(D1D, Q1D, NE, W, J, COEFF, oper);
+         OccaPADiffusionAssemble3D(D1D, Q1D, NE, W, J, COEFF, op);
          return;
       }
 #endif // MFEM_USE_OCCA
-      PADiffusionAssemble3D(Q1D, NE, W, J, COEFF, oper);
+      PADiffusionAssemble3D(Q1D, NE, W, J, COEFF, op);
    }
 }
 
@@ -243,44 +233,31 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
                                      const double* G,
                                      const double* Bt,
                                      const double* Gt,
-                                     const double* oper,
-                                     const double* solIn,
-                                     double* solOut)
+                                     const double* op,
+                                     const double* x,
+                                     double* y)
 {
-   const int NUM_QUAD_2D = Q1D*Q1D;
-   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
-
    MFEM_GET_OCCA_CONST_MEMORY(B);
    MFEM_GET_OCCA_CONST_MEMORY(G);
    MFEM_GET_OCCA_CONST_MEMORY(Bt);
    MFEM_GET_OCCA_CONST_MEMORY(Gt);
-   MFEM_GET_OCCA_CONST_MEMORY(oper);
-   MFEM_GET_OCCA_CONST_MEMORY(solIn);
-   MFEM_GET_OCCA_MEMORY(solOut);
+   MFEM_GET_OCCA_CONST_MEMORY(op);
+   MFEM_GET_OCCA_CONST_MEMORY(x);
+   MFEM_GET_OCCA_MEMORY(y);
 
    MFEM_NEW_OCCA_PROPERTY(props);
    MFEM_SET_OCCA_PROPERTY(props, D1D);
    MFEM_SET_OCCA_PROPERTY(props, Q1D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
 
    if (!Device::UsingDevice())
    {
-      MFEM_NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, diffusion.okl, props);
-      MultAdd2D_CPU(NE,
-                    o_B, o_G,
-                    o_Bt, o_Gt,
-                    o_oper, o_solIn,
-                    o_solOut);
+      MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_CPU, fem, occa.okl, props);
+      DiffusionApply2D_CPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, diffusion.okl, props);
-      MultAdd2D_GPU(NE,
-                    o_B, o_G,
-                    o_Bt, o_Gt,
-                    o_oper, o_solIn,
-                    o_solOut);
+      MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_GPU, fem, occa.okl, props);
+      DiffusionApply2D_GPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
 }
 
@@ -292,44 +269,31 @@ static void OccaPADiffusionMultAdd3D(const int D1D,
                                      const double* G,
                                      const double* Bt,
                                      const double* Gt,
-                                     const double* oper,
-                                     const double* solIn,
-                                     double* solOut)
+                                     const double* op,
+                                     const double* x,
+                                     double* y)
 {
-   const int NUM_QUAD_2D = Q1D*Q1D;
-   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
-
    MFEM_GET_OCCA_CONST_MEMORY(B);
    MFEM_GET_OCCA_CONST_MEMORY(G);
    MFEM_GET_OCCA_CONST_MEMORY(Bt);
    MFEM_GET_OCCA_CONST_MEMORY(Gt);
-   MFEM_GET_OCCA_CONST_MEMORY(oper);
-   MFEM_GET_OCCA_CONST_MEMORY(solIn);
-   MFEM_GET_OCCA_MEMORY(solOut);
+   MFEM_GET_OCCA_CONST_MEMORY(op);
+   MFEM_GET_OCCA_CONST_MEMORY(x);
+   MFEM_GET_OCCA_MEMORY(y);
 
    MFEM_NEW_OCCA_PROPERTY(props);
    MFEM_SET_OCCA_PROPERTY(props, D1D);
    MFEM_SET_OCCA_PROPERTY(props, Q1D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
 
    if (!Device::UsingDevice())
    {
-      MFEM_NEW_OCCA_KERNEL(MultAdd3D_CPU, fem, diffusion.okl, props);
-      MultAdd3D_CPU(NE,
-                    o_B, o_G,
-                    o_Bt, o_Gt,
-                    o_oper, o_solIn,
-                    o_solOut);
+      MFEM_NEW_OCCA_KERNEL(DiffusionApply3D_CPU, fem, occa.okl, props);
+      DiffusionApply3D_CPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(MultAdd3D_GPU, fem, diffusion.okl, props);
-      MultAdd3D_GPU(NE,
-                    o_B, o_G,
-                    o_Bt, o_Gt,
-                    o_oper, o_solIn,
-                    o_solOut);
+      MFEM_NEW_OCCA_KERNEL(DiffusionApply3D_GPU, fem, occa.okl, props);
+      DiffusionApply3D_GPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
 }
 #endif // MFEM_USE_OCCA
@@ -635,9 +599,9 @@ typedef void (*fDiffusionMultAdd)(const int NE,
                                   const double* G,
                                   const double* Bt,
                                   const double* Gt,
-                                  const double* oper,
-                                  const double* solIn,
-                                  double* solOut);
+                                  const double* op,
+                                  const double* x,
+                                  double* y);
 
 static void PADiffusionMultAssembled(const int dim,
                                      const int D1D,
@@ -809,34 +773,29 @@ static void OccaPAMassMultAdd2D(const int D1D,
                                 const int NE,
                                 const double* B,
                                 const double* Bt,
-                                const double* oper,
-                                const double* solIn,
-                                double* solOut)
+                                const double* op,
+                                const double* x,
+                                double* y)
 {
-   const int NUM_QUAD_2D = Q1D*Q1D;
-   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
-
    MFEM_GET_OCCA_CONST_MEMORY(B);
    MFEM_GET_OCCA_CONST_MEMORY(Bt);
-   MFEM_GET_OCCA_CONST_MEMORY(oper);
-   MFEM_GET_OCCA_CONST_MEMORY(solIn);
-   MFEM_GET_OCCA_MEMORY(solOut);
+   MFEM_GET_OCCA_CONST_MEMORY(op);
+   MFEM_GET_OCCA_CONST_MEMORY(x);
+   MFEM_GET_OCCA_MEMORY(y);
 
    MFEM_NEW_OCCA_PROPERTY(props);
    MFEM_SET_OCCA_PROPERTY(props, D1D);
    MFEM_SET_OCCA_PROPERTY(props, Q1D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
 
    if (!Device::UsingDevice())
    {
-      MFEM_NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, mass.okl, props);
-      MultAdd2D_CPU(NE, o_B, o_Bt, o_oper, o_solIn, o_solOut);
+      MFEM_NEW_OCCA_KERNEL(MassApply2D_CPU, fem, occa.okl, props);
+      MassApply2D_CPU(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, mass.okl, props);
-      MultAdd2D_GPU(NE, o_B, o_Bt, o_oper, o_solIn, o_solOut);
+      MFEM_NEW_OCCA_KERNEL(MassApply2D_GPU, fem, occa.okl, props);
+      MassApply2D_GPU(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
 }
 
@@ -846,34 +805,29 @@ static void OccaPAMassMultAdd3D(const int D1D,
                                 const int NE,
                                 const double* B,
                                 const double* Bt,
-                                const double* oper,
-                                const double* solIn,
-                                double* solOut)
+                                const double* op,
+                                const double* x,
+                                double* y)
 {
-   const int NUM_QUAD_2D = Q1D*Q1D;
-   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
-
    MFEM_GET_OCCA_CONST_MEMORY(B);
    MFEM_GET_OCCA_CONST_MEMORY(Bt);
-   MFEM_GET_OCCA_CONST_MEMORY(oper);
-   MFEM_GET_OCCA_CONST_MEMORY(solIn);
-   MFEM_GET_OCCA_MEMORY(solOut);
+   MFEM_GET_OCCA_CONST_MEMORY(op);
+   MFEM_GET_OCCA_CONST_MEMORY(x);
+   MFEM_GET_OCCA_MEMORY(y);
 
    MFEM_NEW_OCCA_PROPERTY(props);
    MFEM_SET_OCCA_PROPERTY(props, D1D);
    MFEM_SET_OCCA_PROPERTY(props, Q1D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
-   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
 
    if (!Device::UsingDevice())
    {
-      MFEM_NEW_OCCA_KERNEL(MultAdd3D_CPU, fem, mass.okl, props);
-      MultAdd3D_CPU(NE, o_B, o_Bt, o_oper, o_solIn, o_solOut);
+      MFEM_NEW_OCCA_KERNEL(MassApply3D_CPU, fem, occa.okl, props);
+      MassApply3D_CPU(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(MultAdd3D_GPU, fem, mass.okl, props);
-      MultAdd3D_GPU(NE, o_B, o_Bt, o_oper, o_solIn, o_solOut);
+      MFEM_NEW_OCCA_KERNEL(MassApply3D_GPU, fem, occa.okl, props);
+      MassApply3D_GPU(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
 }
 #endif // MFEM_USE_OCCA
@@ -1097,8 +1051,8 @@ typedef void (*fMassMultAdd)(const int NE,
                              const double* B,
                              const double* Bt,
                              const double* oper,
-                             const double* solIn,
-                             double* solOut);
+                             const double* x,
+                             double* y);
 
 static void PAMassMultAssembled(const int dim,
                                 const int D1D,
@@ -1144,6 +1098,8 @@ static void PAMassMultAssembled(const int dim,
       {0x323,&PAMassMultAdd3D<2,3>},
       {0x324,&PAMassMultAdd3D<2,4>},
       {0x334,&PAMassMultAdd3D<3,4>},
+      {0x345,&PAMassMultAdd3D<4,5>},
+      {0x356,&PAMassMultAdd3D<5,6>},
    };
    if (!call[id])
    {
