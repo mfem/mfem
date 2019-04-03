@@ -213,8 +213,8 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
       @exclusive double r_x[M1D];
       @exclusive double r_y[Q1D];
 
-      for (int x = 0; x < M1D; ++x; @inner) {
-         for (int id = x; id < DQ1D; id += M1D) {
+      for (int m = 0; m < M1D; ++m; @inner) {
+         for (int id = m; id < DQ1D; id += M1D) {
             s_B[id]  = B[id];
             s_G[id] = G[id];
             s_Bt[id]  = Bt[id];

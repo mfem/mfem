@@ -281,14 +281,11 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
    if (device) { return OccaWrapMemory(occaDevice, base.d_ptr, bytes); }
    if (!base.d_ptr)
    {
-      printf("\033[33m[occaMemory] CuMemAlloc, bytes=%d\033[m\n",bytes);fflush(0);
       CuMemAlloc(&base.d_ptr, bytes);
-      printf("\033[33m[occaMemory] CuMemcpyHtoD, bytes=%d\033[m\n",bytes);fflush(0);
       CuMemcpyHtoD(base.d_ptr, ptr, bytes);
       CuCheck(cudaDeviceSynchronize());
       base.host = false;
    }
-   printf("\033[33m[occaMemory] OccaWrapMemory\033[m\n");fflush(0);
    return OccaWrapMemory(occaDevice, base.d_ptr, bytes);
 }
 
