@@ -40,7 +40,7 @@ list(APPEND HDRS
   hash.hpp
   isockstream.hpp
   mem_alloc.hpp
-  mm.hpp
+  mem_manager.hpp
   occa.hpp
   okina.hpp
   optparser.hpp
