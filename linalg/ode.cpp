@@ -734,14 +734,6 @@ void ODEController::Run(Vector &x, double &t, double tf)
    }
 }
 
-MaxAbsRelDiffMeasure::MaxAbsRelDiffMeasure(double eta)
-   : etaVec(NULL), etaConst(eta)
-{}
-
-MaxAbsRelDiffMeasure::MaxAbsRelDiffMeasure(Vector &eta)
-   : etaVec(&eta), etaConst(-1.0)
-{}
-
 double MaxAbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
 {
    MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
@@ -758,19 +750,11 @@ double MaxAbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
    {
       double eta = (etaVec) ? (*etaVec)(i) : etaConst;
 
-      max = std::max(std::abs((u0(i)-u1(i)) / (eta + u1(i))), max);
+      max = std::max(std::abs((u0(i) - u1(i)) / (eta + u1(i))), max);
    }
 
    return max;
 }
-
-L2AbsRelDiffMeasure::L2AbsRelDiffMeasure(double eta)
-   : etaVec(NULL), etaConst(eta)
-{}
-
-L2AbsRelDiffMeasure::L2AbsRelDiffMeasure(Vector &eta)
-   : etaVec(&eta), etaConst(-1.0)
-{}
 
 double L2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
 {
@@ -808,13 +792,6 @@ double L2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
 }
 
 #ifdef MFEM_USE_MPI
-ParMaxAbsRelDiffMeasure::ParMaxAbsRelDiffMeasure(MPI_Comm comm, double eta)
-   : comm(comm), etaVec(NULL), etaConst(eta)
-{}
-
-ParMaxAbsRelDiffMeasure::ParMaxAbsRelDiffMeasure(MPI_Comm comm, Vector &eta)
-   : comm(comm), etaVec(&eta), etaConst(-1.0)
-{}
 
 double ParMaxAbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
 {
@@ -839,14 +816,6 @@ double ParMaxAbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
    MPI_Allreduce(&max, &glb_max, 1, MPI_DOUBLE, MPI_MAX, comm);
    return glb_max;
 }
-
-ParL2AbsRelDiffMeasure::ParL2AbsRelDiffMeasure(MPI_Comm comm, double eta)
-   : comm(comm), etaVec(NULL), etaConst(eta)
-{}
-
-ParL2AbsRelDiffMeasure::ParL2AbsRelDiffMeasure(MPI_Comm comm, Vector &eta)
-   : comm(comm), etaVec(&eta), etaConst(-1.0)
-{}
 
 double ParL2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
 {
@@ -886,6 +855,11 @@ double ParL2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
    return glb_sum;
 }
 #endif
+
+double StdAdjFactor::operator()(double err, double dt) const
+{
+   return gamma * pow(tol / err, kI);
+}
 
 double PIAdjFactor::operator()(double err, double dt) const
 {

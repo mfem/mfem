@@ -504,8 +504,8 @@ private:
    double   etaConst;
 
 public:
-   MaxAbsRelDiffMeasure(double eta);
-   MaxAbsRelDiffMeasure(Vector &eta);
+   MaxAbsRelDiffMeasure(double eta) : etaVec(NULL), etaConst(eta) {}
+   MaxAbsRelDiffMeasure(Vector &eta) : etaVec(&eta), etaConst(-1.0) {}
 
    double Eval(Vector &u0, Vector &u1);
 };
@@ -517,8 +517,8 @@ private:
    double   etaConst;
 
 public:
-   L2AbsRelDiffMeasure(double eta);
-   L2AbsRelDiffMeasure(Vector &eta);
+   L2AbsRelDiffMeasure(double eta) : etaVec(NULL), etaConst(eta) {}
+   L2AbsRelDiffMeasure(Vector &eta) : etaVec(&eta), etaConst(-1.0) {}
 
    double Eval(Vector &u0, Vector &u1);
 };
@@ -532,8 +532,11 @@ private:
    double   etaConst;
 
 public:
-   ParMaxAbsRelDiffMeasure(MPI_Comm comm, double eta);
-   ParMaxAbsRelDiffMeasure(MPI_Comm comm, Vector &eta);
+   ParMaxAbsRelDiffMeasure(MPI_Comm comm, double eta)
+      : comm(comm), etaVec(NULL), etaConst(eta) {}
+
+   ParMaxAbsRelDiffMeasure(MPI_Comm comm, Vector &eta)
+      : comm(comm), etaVec(&eta), etaConst(-1.0) {}
 
    double Eval(Vector &u0, Vector &u1);
 };
@@ -546,8 +549,11 @@ private:
    double   etaConst;
 
 public:
-   ParL2AbsRelDiffMeasure(MPI_Comm comm, double eta);
-   ParL2AbsRelDiffMeasure(MPI_Comm comm, Vector &eta);
+   ParL2AbsRelDiffMeasure(MPI_Comm comm, double eta)
+      : comm(comm), etaVec(NULL), etaConst(eta) {}
+
+   ParL2AbsRelDiffMeasure(MPI_Comm comm, Vector &eta)
+      : comm(comm), etaVec(&eta), etaConst(-1.0) {}
 
    double Eval(Vector &u0, Vector &u1);
 };
@@ -562,8 +568,7 @@ private:
 public:
    StdAdjFactor(double gamma, double kI) : gamma(gamma), kI(kI) {}
 
-   double operator()(double err, double dt) const
-   { return gamma * pow(tol / err, kI); }
+   double operator()(double err, double dt) const;
 };
 
 class IntegralAdjFactor : public StdAdjFactor
