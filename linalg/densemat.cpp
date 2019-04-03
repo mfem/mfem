@@ -176,7 +176,7 @@ void DenseMatrix::SetSize(int h, int w)
    {
       if (capacity > 0)
       {
-         mm::free<double>(data);
+         mm::free(data);
       }
       capacity = hw;
       data = mm::malloc<double>(capacity);
@@ -3016,7 +3016,7 @@ DenseMatrix::~DenseMatrix()
 {
    if (capacity > 0)
    {
-      mm::free<double>(data);
+      mm::free(data);
    }
 }
 
@@ -4283,9 +4283,9 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
    if (width != mat.width)
    {
       height = width = mat.width;
-      mm::free<double>(lu.data);
+      mm::free(lu.data);
       lu.data = mm::malloc<double>(width*width);
-      mm::free<double>(lu.ipiv);
+      mm::free(lu.ipiv);
       lu.ipiv = mm::malloc<int>(width);
    }
    a = &mat;
@@ -4324,8 +4324,8 @@ void DenseMatrixInverse::TestInversion()
 
 DenseMatrixInverse::~DenseMatrixInverse()
 {
-   mm::free<double>(lu.data);
-   mm::free<int>(lu.ipiv);
+   mm::free(lu.data);
+   mm::free(lu.ipiv);
 }
 
 

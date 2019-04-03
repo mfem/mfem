@@ -1481,14 +1481,14 @@ void HypreParMatrix::Destroy()
    {
       if (diagOwner & 1)
       {
-         mm::free<int>(hypre_CSRMatrixI(A->diag));
-         mm::free<int>(hypre_CSRMatrixJ(A->diag));
+         mm::free(hypre_CSRMatrixI(A->diag));
+         mm::free(hypre_CSRMatrixJ(A->diag));
       }
       hypre_CSRMatrixI(A->diag) = NULL;
       hypre_CSRMatrixJ(A->diag) = NULL;
       if (diagOwner & 2)
       {
-         mm::free<double>(hypre_CSRMatrixData(A->diag));
+         mm::free(hypre_CSRMatrixData(A->diag));
       }
       hypre_CSRMatrixData(A->diag) = NULL;
    }
@@ -1496,14 +1496,14 @@ void HypreParMatrix::Destroy()
    {
       if (offdOwner & 1)
       {
-         mm::free<int>(hypre_CSRMatrixI(A->offd));
-         mm::free<int>(hypre_CSRMatrixJ(A->offd));
+         mm::free(hypre_CSRMatrixI(A->offd));
+         mm::free(hypre_CSRMatrixJ(A->offd));
       }
       hypre_CSRMatrixI(A->offd) = NULL;
       hypre_CSRMatrixJ(A->offd) = NULL;
       if (offdOwner & 2)
       {
-         mm::free<double>(hypre_CSRMatrixData(A->offd));
+         mm::free(hypre_CSRMatrixData(A->offd));
       }
       hypre_CSRMatrixData(A->offd) = NULL;
    }
@@ -1511,7 +1511,7 @@ void HypreParMatrix::Destroy()
    {
       if (colMapOwner & 1)
       {
-         mm::free<int>(hypre_ParCSRMatrixColMapOffd(A));
+         mm::free(hypre_ParCSRMatrixColMapOffd(A));
       }
       hypre_ParCSRMatrixColMapOffd(A) = NULL;
    }
