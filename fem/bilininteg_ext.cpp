@@ -58,6 +58,7 @@ static void OccaPADiffusionAssemble2D(const int D1D,
                                       double* oper)
 {
    const int NUM_QUAD_2D = Q1D*Q1D;
+   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
 
    MFEM_GET_OCCA_CONST_MEMORY(W);
    MFEM_GET_OCCA_CONST_MEMORY(J);
@@ -67,9 +68,35 @@ static void OccaPADiffusionAssemble2D(const int D1D,
    MFEM_SET_OCCA_PROPERTY(props, D1D);
    MFEM_SET_OCCA_PROPERTY(props, Q1D);
    MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
 
    MFEM_NEW_OCCA_KERNEL(Assemble2D, fem, diffusion.okl, props);
    Assemble2D(NE, o_W, o_J, COEFF, o_oper);
+}
+
+static void OccaPADiffusionAssemble3D(const int D1D,
+                                      const int Q1D,
+                                      const int NE,
+                                      const double* W,
+                                      const double* J,
+                                      const double COEFF,
+                                      double* oper)
+{
+   const int NUM_QUAD_2D = Q1D*Q1D;
+   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
+
+   MFEM_GET_OCCA_CONST_MEMORY(W);
+   MFEM_GET_OCCA_CONST_MEMORY(J);
+   MFEM_GET_OCCA_MEMORY(oper);
+
+   MFEM_NEW_OCCA_PROPERTY(props);
+   MFEM_SET_OCCA_PROPERTY(props, D1D);
+   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
+
+   MFEM_NEW_OCCA_KERNEL(Assemble3D, fem, diffusion.okl, props);
+   Assemble3D(NE, o_W, o_J, COEFF, o_oper);
 }
 #endif // MFEM_USE_OCCA
 
@@ -175,6 +202,13 @@ static void PADiffusionAssemble(const int dim,
    }
    if (dim == 3)
    {
+#ifdef MFEM_USE_OCCA
+      if (Device::UsingOcca())
+      {
+         OccaPADiffusionAssemble3D(D1D, Q1D, NE, W, J, COEFF, oper);
+         return;
+      }
+#endif // MFEM_USE_OCCA
       PADiffusionAssemble3D(Q1D, NE, W, J, COEFF, oper);
    }
 }
@@ -214,6 +248,7 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
                                      double* solOut)
 {
    const int NUM_QUAD_2D = Q1D*Q1D;
+   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
 
    MFEM_GET_OCCA_CONST_MEMORY(B);
    MFEM_GET_OCCA_CONST_MEMORY(G);
@@ -227,6 +262,7 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
    MFEM_SET_OCCA_PROPERTY(props, D1D);
    MFEM_SET_OCCA_PROPERTY(props, Q1D);
    MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
 
    if (!Device::UsingDevice())
    {
@@ -241,6 +277,55 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
    {
       MFEM_NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, diffusion.okl, props);
       MultAdd2D_GPU(NE,
+                    o_B, o_G,
+                    o_Bt, o_Gt,
+                    o_oper, o_solIn,
+                    o_solOut);
+   }
+}
+
+// OCCA PA Diffusion MultAdd 3D kernel
+static void OccaPADiffusionMultAdd3D(const int D1D,
+                                     const int Q1D,
+                                     const int NE,
+                                     const double* B,
+                                     const double* G,
+                                     const double* Bt,
+                                     const double* Gt,
+                                     const double* oper,
+                                     const double* solIn,
+                                     double* solOut)
+{
+   const int NUM_QUAD_2D = Q1D*Q1D;
+   const int NUM_QUAD_3D = Q1D*Q1D*Q1D;
+
+   MFEM_GET_OCCA_CONST_MEMORY(B);
+   MFEM_GET_OCCA_CONST_MEMORY(G);
+   MFEM_GET_OCCA_CONST_MEMORY(Bt);
+   MFEM_GET_OCCA_CONST_MEMORY(Gt);
+   MFEM_GET_OCCA_CONST_MEMORY(oper);
+   MFEM_GET_OCCA_CONST_MEMORY(solIn);
+   MFEM_GET_OCCA_MEMORY(solOut);
+
+   MFEM_NEW_OCCA_PROPERTY(props);
+   MFEM_SET_OCCA_PROPERTY(props, D1D);
+   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
+   MFEM_SET_OCCA_PROPERTY(props, NUM_QUAD_3D);
+
+   if (!Device::UsingDevice())
+   {
+      MFEM_NEW_OCCA_KERNEL(MultAdd3D_CPU, fem, diffusion.okl, props);
+      MultAdd3D_CPU(NE,
+                    o_B, o_G,
+                    o_Bt, o_Gt,
+                    o_oper, o_solIn,
+                    o_solOut);
+   }
+   else
+   {
+      MFEM_NEW_OCCA_KERNEL(MultAdd3D_GPU, fem, diffusion.okl, props);
+      MultAdd3D_GPU(NE,
                     o_B, o_G,
                     o_Bt, o_Gt,
                     o_oper, o_solIn,
@@ -569,9 +654,17 @@ static void PADiffusionMultAssembled(const int dim,
 #ifdef MFEM_USE_OCCA
    if (Device::UsingOcca())
    {
-      MFEM_ASSERT(dim == 2, "");
-      OccaPADiffusionMultAdd2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
-      return;
+      if (dim == 2)
+      {
+         OccaPADiffusionMultAdd2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
+         return;
+      }
+      if (dim == 3)
+      {
+         OccaPADiffusionMultAdd3D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
+         return;
+      }
+      mfem_error("OCCA PADiffusionMultAssembled unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
    const int id = (dim<<8)|(D1D<<4)|(Q1D);
@@ -581,8 +674,12 @@ static void PADiffusionMultAssembled(const int dim,
       {0x222,&PADiffusionMultAssembled2D<2,2>},
       {0x233,&PADiffusionMultAssembled2D<3,3>},
       {0x244,&PADiffusionMultAssembled2D<4,4>},
+      {0x255,&PADiffusionMultAssembled2D<5,5>},
       // 3D
       {0x323,&PADiffusionMultAssembled3D<2,3>},
+      {0x334,&PADiffusionMultAssembled3D<3,4>},
+      {0x345,&PADiffusionMultAssembled3D<4,5>},
+      {0x356,&PADiffusionMultAssembled3D<5,6>},
    };
    if (!call[id])
    {
@@ -1444,6 +1541,7 @@ static void PAGeom(const int dim,
       {0x222,&PAGeom2D<2,2>},
       {0x223,&PAGeom2D<2,3>},
       {0x224,&PAGeom2D<2,4>},
+      {0x225,&PAGeom2D<2,5>},
       {0x232,&PAGeom2D<3,2>},
       {0x234,&PAGeom2D<3,4>},
       {0x242,&PAGeom2D<4,2>},
@@ -1453,6 +1551,9 @@ static void PAGeom(const int dim,
       {0x258,&PAGeom2D<5,8>},
       // 3D
       {0x323,&PAGeom3D<2,3>},
+      {0x324,&PAGeom3D<2,4>},
+      {0x325,&PAGeom3D<2,5>},
+      {0x326,&PAGeom3D<2,6>},
       {0x334,&PAGeom3D<3,4>},
    };
    if (!call[id])
