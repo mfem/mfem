@@ -279,7 +279,7 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
    const size_t bytes = base.bytes;
    const bool gpu = Device::UsingDevice();
    if (host && !gpu) { return OccaWrapMemory(occaDevice, ptr, bytes); }
-   if (!gpu) { mfem_error("occaMemor: !gpu"); }
+   if (!gpu) { mfem_error("occaMemory: !gpu"); }
    if (!base.d_ptr)
    {
       CuMemAlloc(&base.d_ptr, bytes);
@@ -287,7 +287,6 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
       base.host = false;
    }
    return OccaWrapMemory(occaDevice, base.d_ptr, bytes);
-   
 }
 
 OccaMemory mm::Memory(const void *ptr) { return occaMemory(maps, ptr); }
