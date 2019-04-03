@@ -39,11 +39,36 @@ static double chiPerp_ = 1.0;
 //static double vMag_    = 0.0;
 
 static double TInf_    = 1.0;
-static double TMax_    = 5.0;
+static double TMax_    = 10.0;
 static double TWPara_  = 0.125;
 static double TWPerp_  = 0.125;
 
 static vector<Vector> aVec_;
+
+class NormedErrorMeasure : public ODEErrorMeasure
+{
+private:
+   MPI_Comm comm_;
+   const Operator * M_;
+   Vector du_;
+   Vector Mu_;
+
+public:
+   NormedErrorMeasure(MPI_Comm comm) : comm_(comm), M_(NULL) {}
+
+   void SetOperator(const Operator & op)
+   { M_ = &op; du_.SetSize(M_->Width()); Mu_.SetSize(M_->Height()); }
+
+   double Eval(Vector &u0, Vector &u1)
+   {
+      M_->Mult(u0, Mu_);
+      double nrm0 = InnerProduct(comm_, u0, Mu_);
+      add(u1, -1.0, u0, du_);
+      M_->Mult(du_, Mu_);
+      return sqrt(InnerProduct(comm_, du_, Mu_) / nrm0);
+   }
+};
+
 /*
 double QFunc(const Vector &x, double t)
 {
@@ -382,10 +407,14 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int ode_solver_type = 1;
+   int ode_acc_type = 2;
+   int ode_rej_type = 1;
+   int ode_lim_type = 1;
    int vis_steps = 1;
-   double dt = 0.5;
+   double dt = -1.0;
+   double t_init = 0.0;
    double t_final = 5.0;
-   double tol = 1e-4;
+
    const char *basename = "Fourier_PID";
    const char *mesh_file = "../../data/periodic-square.mesh";
    bool zero_start = false;
@@ -393,6 +422,25 @@ int main(int argc, char *argv[])
    bool gfprint = true;
    bool visit = true;
    bool visualization = true;
+
+   double tol = -1.0;
+   double rho = 1.2;
+
+   double gamma_acc = 0.9;
+   double kI_acc = 1.0 / 15.0;
+   double kP_acc = 0.13;
+   double kD_acc = 0.2;
+
+   double gamma_rej = 0.9;
+   double kI_rej = 0.2;
+   double kP_rej = 0.0;
+   double kD_rej = 0.2;
+
+   double lim_lo  = 1.0;
+   double lim_hi  = 1.2;
+   double lim_max = 2.0;
+
+   bool gnuplot = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -437,6 +485,20 @@ int main(int argc, char *argv[])
                   "            A-stable methods (not L-stable)\n\t"
                   "            22 - ImplicitMidPointSolver,\n\t"
                   "            23 - SDIRK23, 34 - SDIRK34.");
+   args.AddOption(&ode_acc_type, "-acc", "--accept-factor",
+                  "Adjustment factor after accepted steps:\n"
+                  "\t   1 - Integrated error\n"
+                  "\t   2 - Proportional and Integrated errors\n"
+                  "\t   3 - Proportional, Integrated, and Derivative errors\n");
+   args.AddOption(&ode_rej_type, "-rej", "--reject-factor",
+                  "Adjustment factor after rejected steps:\n"
+                  "\t   1 - Integrated error\n"
+                  "\t   2 - Proportional and Integrated errors\n"
+                  "\t   3 - Proportional, Integrated, and Derivative errors\n");
+   args.AddOption(&ode_lim_type, "-lim", "--limiter",
+                  "Adjustment limiter:\n"
+                  "\t   1 - Dead zone limiter\n"
+                  "\t   2 - Maximum limiter");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&gfprint, "-print", "--print","-no-print","--no-print",
@@ -450,6 +512,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&gnuplot, "-gp", "--gnuplot", "-no-gp", "--no-gnuplot",
+                  "Enable or disable GnuPlot visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -559,7 +623,15 @@ int main(int argc, char *argv[])
    // 6. Define the ODE solver used for time integration. Several implicit
    //    methods are available, including singly diagonal implicit Runge-Kutta
    //    (SDIRK).
-   ODESolver *ode_solver = NULL;
+   ODEController ode_controller;
+
+   ODESolver                * ode_solver   = NULL;
+   ODEStepAdjustmentFactor  * ode_step_acc = NULL;
+   ODEStepAdjustmentFactor  * ode_step_rej = NULL;
+   ODEStepAdjustmentLimiter * ode_step_lim = NULL;
+
+   NormedErrorMeasure ode_err_msr(MPI_COMM_WORLD);
+
    switch (ode_solver_type)
    {
       // Implicit L-stable methods
@@ -576,6 +648,48 @@ int main(int argc, char *argv[])
             cout << "Unknown Implicit ODE solver type: "
                  << ode_solver_type << '\n';
          }
+         return 3;
+   }
+   switch (ode_acc_type)
+   {
+      case 1:
+         ode_step_acc = new StdAdjFactor(gamma_acc, kI_acc);
+         break;
+      case 2:
+         ode_step_acc = new PIAdjFactor(kI_acc, kP_acc);
+         break;
+      case 3:
+         ode_step_acc = new PIDAdjFactor(kI_acc, kP_acc, kD_acc);
+         break;
+      default:
+         cout << "Unknown adjustment factor type: " << ode_acc_type << '\n';
+         return 3;
+   }
+   switch (ode_rej_type)
+   {
+      case 1:
+         ode_step_rej = new StdAdjFactor(gamma_rej, kI_rej);
+         break;
+      case 2:
+         ode_step_rej = new PIAdjFactor(kI_rej, kP_rej);
+         break;
+      case 3:
+         ode_step_rej = new PIDAdjFactor(kI_rej, kP_rej, kD_rej);
+         break;
+      default:
+         cout << "Unknown adjustment factor type: " << ode_rej_type << '\n';
+         return 3;
+   }
+   switch (ode_lim_type)
+   {
+      case 1:
+         ode_step_lim = new DeadZoneLimiter(lim_lo, lim_hi, lim_max);
+         break;
+      case 2:
+         ode_step_lim = new MaxLimiter(lim_max);
+         break;
+      default:
+         cout << "Unknown adjustment limiter type: " << ode_lim_type << '\n';
          return 3;
    }
 
@@ -722,6 +836,8 @@ int main(int argc, char *argv[])
                      AnisotropicConductionCoef, false,
                      HeatSourceCoef, false);
 
+   ode_err_msr.SetOperator(oper.GetMassMatrix());
+
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
    /*
@@ -815,30 +931,66 @@ int main(int argc, char *argv[])
       visit_dc.Save();
    }
 
+   {
+      double h_min, h_max, kappa_min, kappa_max;
+      pmesh->GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
+
+      double dt_cfl = h_min * h_min / std::min(chiPara_, chiPerp_);
+
+      if (dt < 0.0)
+      {
+         dt = dt_cfl;
+      }
+
+      cout << "dt = " << dt << ", dt_cfl = " << dt_cfl << endl;
+   }
+
    // 15. Perform time-integration (looping over the time iterations, ti, with a
    //     time-step dt). The object oper is the MagneticDiffusionOperator which
    //     has a Mult() method and an ImplicitSolve() method which are used by
    //     the time integrators.
-   ode_solver->Init(oper);
-   // ode_exp_solver->Init(exp_oper);
-
    ofstream ofs_err("fourier_pid.err");
 
    double t = 0.0;
 
-   double nrm0 = T1.ComputeL2Error(oneCoef);
+   double nrm0 = T1.ComputeL2Error(zeroCoef);
    double err0 = T1.ComputeL2Error(TCoef);
+
+   if (tol < 0.0)
+   {
+      tol = err0 / nrm0;
+   }
+
    if (myid == 0)
    {
       cout << t << " L2 Relative Error of Initial Condition: "
            << err0 / nrm0
-           // << "\t" << qerr1 / qnrm1
+           << '\t' << err0 << '\t' << nrm0
            << endl;
       ofs_err << t << "\t" << err0 / nrm0 << "\t"
-              // << qerr1 / qnrm1
               << endl;
    }
 
+   ode_solver->Init(oper);
+   // ode_exp_solver->Init(exp_oper);
+
+   ode_controller.Init(*ode_solver, ode_err_msr,
+                       *ode_step_acc, *ode_step_rej, *ode_step_lim);
+
+   ode_controller.SetOutputFrequency(vis_steps);
+   ode_controller.SetTimeStep(dt);
+   ode_controller.SetTolerance(tol);
+   ode_controller.SetRejectionLimit(rho);
+
+   ofstream ofs_gp;
+
+   if (gnuplot)
+   {
+      ofs_gp.open("fourier_pid.dat");
+      ode_controller.SetOutput(ofs_gp);
+   }
+
+   /*
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
@@ -855,15 +1007,7 @@ int main(int argc, char *argv[])
       // to advance.
       T0 = T1;
       ode_solver->Step(T1, t, dt);
-      /*
-      ode_exp_solver->Step(T1, t, dt);
-      if (ti % 10 == 0)
-      {
-      double t_imp = t - 10.0 * dt;
-      double dt_imp = 10.0 * dt;
-      ode_imp_solver->Step(T1, t_imp, dt_imp);
-           }
-           */
+
       add(1.0, T1, -1.0, T0, dT);
 
       double maxT    = T1.ComputeMaxError(zeroCoef);
@@ -884,36 +1028,9 @@ int main(int argc, char *argv[])
             cout << "Converged to Steady State" << endl;
          }
       }
-      /*
-      if (debug == 1)
-      {
-         oper.Debug(basename,t);
-      }
-      */
-      /*
-      gPara.Mult(T1, qPara);
-      gPerp.Mult(T1, qPerp);
-
-      qPara.ParallelAssemble(RHS1);
-      X1 = 0.0;
-      M1Inv.Mult(RHS1, X1);
-      qPara.Distribute(X1);
-      qPara *= -chiPara_;
-
-      qPerp.ParallelAssemble(RHS1);
-      X1 = 0.0;
-      M1Inv.Mult(RHS1, X1);
-      qPerp.Distribute(X1);
-      qPerp *= -chiPerp_;
-
-      q = qPara;
-      q += qPerp;
-      */
       if (gfprint)
       {
-         ostringstream /*q_name,*/ T_name, mesh_name;
-         // q_name << basename << "_" << setfill('0') << setw(6) << t << "_"
-         //       << "q." << setfill('0') << setw(6) << myid;
+         ostringstream T_name, mesh_name;
          T_name << basename << "_" << setfill('0') << setw(6) << t << "_"
                 << "T." << setfill('0') << setw(6) << myid;
          mesh_name << basename << "_" << setfill('0') << setw(6) << t << "_"
@@ -923,12 +1040,7 @@ int main(int argc, char *argv[])
          mesh_ofs.precision(8);
          pmesh->Print(mesh_ofs);
          mesh_ofs.close();
-         /*
-              ofstream q_ofs(q_name.str().c_str());
-              q_ofs.precision(8);
-              q.Save(q_ofs);
-              q_ofs.close();
-         */
+
          ofstream T_ofs(T_name.str().c_str());
          T_ofs.precision(8);
          T1.Save(T_ofs);
@@ -946,66 +1058,25 @@ int main(int argc, char *argv[])
             TCoef.SetTime(t);
             double nrm1 = T1.ComputeL2Error(oneCoef);
             double err1 = T1.ComputeL2Error(TCoef);
-            /*
-            double qnrm1 = q.ComputeL2Error(zeroVecCoef);
-                 double qerr1 = q.ComputeL2Error(qCoef);
-                 */
+
             if (myid == 0)
             {
                cout << t << " L2 Relative Error of Solution: " << err1 / nrm1
-                    // << "\t" << qerr1 / qnrm1
                     << endl;
                ofs_err << t << "\t" << err1 / nrm1 << "\t"
-                       // << qerr1 / qnrm1
                        << endl;
             }
             T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
-            // q.GridFunction::ComputeElementL2Errors(qCoef, errorq);
-            // qPara.GridFunction::ComputeElementL2Errors(qParaCoef, errorqPara);
-            // qPerp.GridFunction::ComputeElementL2Errors(qPerpCoef, errorqPerp);
          }
          if (visualization)
          {
-            /*
-                 miniapps::VisualizeField(vis_q, vishost, visport,
-                                          q, "Heat Flux", Wx, Wy, Ww, Wh);
-
-                 miniapps::VisualizeField(vis_qPara, vishost, visport,
-                                          qPara, "Parallel Heat Flux",
-                                          Wx, Wy, Ww, Wh);
-
-                 miniapps::VisualizeField(vis_qPerp, vishost, visport,
-                                          qPerp, "Perpendicular Heat Flux",
-                                          Wx, Wy, Ww, Wh);
-            */
-            // Wx += offx;
-            // miniapps::VisualizeField(vis_U, vishost, visport,
-            //                       U1, "Energy", Wx, Wy, Ww, Wh);
-
-            // Wx -= offx;
-            // Wy += offy;
             miniapps::VisualizeField(vis_T, vishost, visport,
                                      T1, "Temperature",
                                      Wx, Wy, Ww, Wh, h1_keys);
 
-            // Wx += offx;
             miniapps::VisualizeField(vis_errT, vishost, visport,
                                      errorT, "Error in T",
                                      Wx, Wy, Ww, Wh, l2_keys);
-            /*
-                 // Wx += offx;
-                 miniapps::VisualizeField(vis_errq, vishost, visport,
-                                          errorq, "Error in q",
-                                          Wx, Wy, Ww, Wh, l2_keys);
-
-                 miniapps::VisualizeField(vis_errqPara, vishost, visport,
-                                          errorqPara, "Error in q para",
-                                          Wx, Wy, Ww, Wh, l2_keys);
-
-                 miniapps::VisualizeField(vis_errqPerp, vishost, visport,
-                                          errorqPerp, "Error in q perp",
-                                          Wx, Wy, Ww, Wh, l2_keys);
-            */
          }
 
          if (visit)
@@ -1016,7 +1087,39 @@ int main(int argc, char *argv[])
          }
       }
    }
+   */
+
+   t = t_init;
+   while (t < t_final)
+   {
+      ode_controller.Run(T1, t, t_final);
+
+      TCoef.SetTime(t);
+      double nrm1 = T1.ComputeL2Error(oneCoef);
+      double err1 = T1.ComputeL2Error(TCoef);
+
+      if (myid == 0)
+      {
+         cout << t << " L2 Relative Error of Solution: " << err1 / nrm1
+              << endl;
+         ofs_err << t << "\t" << err1 / nrm1 << "\t"
+                 << endl;
+      }
+      if (visualization)
+      {
+         T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
+         miniapps::VisualizeField(vis_T, vishost, visport,
+                                  T1, "Temperature",
+                                  Wx, Wy, Ww, Wh, h1_keys);
+
+         miniapps::VisualizeField(vis_errT, vishost, visport,
+                                  errorT, "Error in T",
+                                  Wx, Wy, Ww, Wh, l2_keys);
+      }
+   }
+
    ofs_err.close();
+   ofs_gp.close();
 
    if (visualization)
    {

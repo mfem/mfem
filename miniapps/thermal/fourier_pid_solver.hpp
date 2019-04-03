@@ -83,9 +83,12 @@ public:
     void SetSpecificHeatCoefficient(
              bool time_dep = false);
    */
+
+   const ParBilinearForm & GetMassMatrix() { return *mC_; }
+
    /** @brief Perform the action of the operator: @a q = f(@a y, t), where
-       q solves the algebraic equation F(@a y, q, t) = G(@a y, t) and t is the
-       current time. */
+        q solves the algebraic equation F(@a y, q, t) = G(@a y, t) and t is the
+        current time. */
    virtual void Mult(const Vector &y, Vector &q) const;
 
    /** @brief Solve the equation: @a q = f(@a y + @a dt @a q, t), for the

@@ -691,6 +691,7 @@ void ODEController::Step(Vector &x, double &t, double delta_t)
       {
          accept = true;
 
+         curr_err = e;
          x = next_x;
          t = next_t;
          dt *= (*lim)((*acc)(e, dt));
@@ -708,14 +709,23 @@ void ODEController::Run(Vector &x, double &t, double tf)
    {
       this->Step(x, t, std::min(dt, std::abs(tf - t)));
 
+      nsteps++;
+
       if (out)
       {
-         *out << t << "\t" << dt;
-         for (int i=0; i<x.Size(); i++)
-         {
-            *out << "\t" << x(i);
-         }
+         *out << t << '\t' << dt << '\t' << curr_err;
+         /*
+              for (int i=0; i<x.Size(); i++)
+              {
+                 *out << "\t" << x(i);
+              }
+         */
          *out << std::endl;
+      }
+      if (ofreq > 0 && nsteps % ofreq == 0)
+      {
+         // Return control to calling routine for visulization etc.
+         break;
       }
    }
 }

@@ -120,6 +120,10 @@ protected:
    ODEStepAdjustmentLimiter * lim;
    double tol;
    double rho;
+   double curr_err;
+
+   int ofreq;
+   int nsteps;
 
    mutable Vector next_x;
    mutable double dt;
@@ -129,7 +133,8 @@ protected:
 public:
    ODEController()
       : sol(NULL), msr(NULL), acc(NULL), rej(NULL), lim(NULL),
-        tol(-1.0), rho(1.2), dt(1.0), out(NULL) {}
+        tol(-1.0), rho(1.2), curr_err(-1.0), ofreq(-1), nsteps(0),
+        dt(1.0), out(NULL) {}
 
    /// Define the particulars of the ODE step-size control process
    /** The various pieces are:
@@ -156,6 +161,8 @@ public:
 
    /// Sets the threshold for rejection of a time step to be rho * tol
    void SetRejectionLimit(double rho) { this->rho = rho; }
+
+   void SetOutputFrequency(int ofreq) { this->ofreq = ofreq; }
 
    void SetOutput(std::ostream & os) { this->out = &os; }
 

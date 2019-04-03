@@ -97,7 +97,7 @@ public:
 static double kappa_  = 1.0;
 static double TInf_   = 1.0;
 static double TMax_   = 10.0;
-static double TWidth_ = 0.1;
+static double TWidth_ = 0.125;
 
 static vector<Vector> aVec_;
 
@@ -277,11 +277,12 @@ int main(int argc, char *argv[])
    double nrm0 = u_gf.ComputeL2Error(zeroCoef);
    if (myid == 0)
    {
-      cout << "Relative error in initial condition: " << err0 / nrm0 << endl;
+      cout << "Relative error in initial condition: " << err0 / nrm0
+           << '\t' << err0 << '\t' << nrm0 << endl;
    }
    if (tol < 0.0)
    {
-      tol = err0;
+      tol = err0 /  nrm0;
    }
 
    {
