@@ -146,7 +146,7 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
 
       // increase reference count of all nodes the element is using
       // (NOTE: this will also create and reference all edge nodes and faces)
-      RefElement(root_id);
+      ReferenceElement(root_id);
 
       // make links from faces back to the element
       RegisterFaces(root_id);
@@ -234,7 +234,7 @@ NCMesh::~NCMesh()
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       elemFaces.SetSize(0);
-      UnrefElement(leaf_elements[i], elemFaces);
+      UnreferenceElement(leaf_elements[i], elemFaces);
       DeleteUnusedFaces(elemFaces);
    }
    // NOTE: in release mode, we just throw away all faces and nodes at once
@@ -248,7 +248,7 @@ NCMesh::Node::~Node()
                << (int) edge_refc);
 }
 
-void NCMesh::RefElement(int elem)
+void NCMesh::ReferenceElement(int elem)
 {
    Element &el = elements[elem];
    int* node = el.node;
@@ -279,7 +279,7 @@ void NCMesh::RefElement(int elem)
    }
 }
 
-void NCMesh::UnrefElement(int elem, Array<int> &elemFaces)
+void NCMesh::UnreferenceElement(int elem, Array<int> &elemFaces)
 {
    Element &el = elements[elem];
    int* node = el.node;
@@ -1253,7 +1253,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
    // start using the nodes of the children, create edges & faces
    for (int i = 0; i < 8 && child[i] >= 0; i++)
    {
-      RefElement(child[i]);
+      ReferenceElement(child[i]);
    }
 
    int buf[6];
@@ -1261,7 +1261,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
    parentFaces.SetSize(0);
 
    // sign off of all nodes of the parent, clean up unused nodes, but keep faces
-   UnrefElement(elem, parentFaces);
+   UnreferenceElement(elem, parentFaces);
 
    // register the children in their faces
    for (int i = 0; i < 8 && child[i] >= 0; i++)
@@ -1488,7 +1488,7 @@ void NCMesh::DerefineElement(int elem)
    }
 
    // sign in to all nodes
-   RefElement(elem);
+   ReferenceElement(elem);
 
    int buf[8*6];
    Array<int> childFaces(buf, 8*6);
@@ -1499,7 +1499,7 @@ void NCMesh::DerefineElement(int elem)
    for (int i = 0; i < 8 && child[i] >= 0; i++)
    {
       el.rank = std::min(el.rank, elements[child[i]].rank);
-      UnrefElement(child[i], childFaces);
+      UnreferenceElement(child[i], childFaces);
       FreeElement(child[i]);
    }
 
