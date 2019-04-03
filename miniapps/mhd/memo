@@ -10,12 +10,20 @@ glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 800
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+4/3
+there are a couple of issues for AMR:
+x KB add more degrees freedom for nonconforming AMR
+x When it did uniform refinement, KB is okay but Current is very osscillatory
+x I do not know how to add the AMR levels
+
+o it is not doing uniform refinement any more
+
 4/2
 this looks okay, although it does some uniform refinement:
 ./exAMRMHD -r 3 -o 3 -tf 10 -vs 50 -dt .002 -i 2 -ltol 1e-6
 
 island test:
-./exAMRMHD -r 3 -o 3 -tf 10 -vs 50 -dt .002 -i 3 -ltol 1e-6
+./exAMRMHD -m xperiodic.mehs -r 3 -o 3 -tf 10 -vs 50 -dt .002 -i 3 -ltol 1e-6
 
 amr test is strange:
 current is oscillatory

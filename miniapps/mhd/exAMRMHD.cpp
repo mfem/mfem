@@ -376,7 +376,7 @@ int main(int argc, char *argv[])
 
    //refiner for psi and w
    ThresholdRefiner refiner(estimator);
-   refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
+   //refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
    refiner.SetTotalErrorGoal(ltol_amr);    // local error goal (stop criterion)
    //refiner.PreferNonconformingRefinement();
    refiner.SetNCLimit(nc_limit);
@@ -428,16 +428,14 @@ int main(int argc, char *argv[])
       // 13. The inner refinement loop. At the end we want to have the current
       //     time step resolved to the prescribed tolerance in each element.
       //for (int ref_it = 1; ; ref_it++)
-      int ref_it=1;
+      //int ref_it=1;
       {
-        cout << "Iteration: " << ref_it << ", number of unknowns: "
-             << fespace.GetVSize() << endl;
+        cout << "Number of unknowns: " << fespace.GetVSize() << endl;
 
         //---Predictor stage---
         //assemble the nonlinear terms
         oper.assembleNv(&phi);
         oper.assembleNb(&psi);
-
         ode_solver->StepP(vx, t, dt_real);
         oper.UpdateJ(vx);
 
@@ -449,7 +447,11 @@ int main(int argc, char *argv[])
         oper.UpdatePhi(vx);
 
         last_step = (t >= t_final - 1e-8*dt);
-        //debug: last_step = true;
+        //XXX debug: 
+        last_step = true;
+
+
+        //----------------------------AMR---------------------------------
         refiner.Apply(*mesh);
         if (refiner.Refined()==false)
         {
@@ -479,13 +481,18 @@ int main(int argc, char *argv[])
             cout<<"Mesh refine..."<<endl;
             //---Update problem---
             AMRUpdate(vx, vx_old, fe_offset, phi, psi, w, j);
+
             oper.UpdateProblem();
             ode_solver->Init(oper);
 
             //---assemble problem and update boundary condition---
             oper.assembleProblem(ess_bdr); 
             oper.UpdateJ(vx);
+
         }
+        //----------------------------AMR---------------------------------
+        
+
         /*
         fe_size = fespace.GetTrueVSize();
         ofstream myfile0("vxBefore.dat");
@@ -511,26 +518,6 @@ int main(int argc, char *argv[])
         }
 
       }
-
-      /*
-      if (visualization)
-      {
-         cout << "step " << ti << ", t = " << t <<endl;
-         vis_phi << "solution\n" << *mesh << phi;
-         vis_psi << "solution\n" << *mesh << psi;
-         vis_j << "solution\n" << *mesh << j;
-         vis_w << "solution\n" << *mesh << w;
-
-         if (icase==1) 
-         {
-             vis_phi << "valuerange -.001 .001\n" << flush;
-             vis_j << "valuerange -.01425 .01426\n" << flush;
-         }
-      }
-      */
-
-      //FIXME debug
-      //last_step = true;
 
       if (last_step || (ti % vis_steps) == 0)
       {
@@ -606,6 +593,9 @@ void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
    S_tmp = S;
    S.Update(true_offset);
 
+   //ofstream myfile0("vxBefore.dat");
+   //S_tmp.Print(myfile0, 100);
+    
    const Operator* H1Update = H1FESpace->GetUpdateOperator();
 
    H1Update->Mult(S_tmp.GetBlock(0), S.GetBlock(0));
@@ -613,10 +603,10 @@ void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
    H1Update->Mult(S_tmp.GetBlock(2), S.GetBlock(2));
    H1Update->Mult(S_tmp.GetBlock(3), S.GetBlock(3));
 
-   phi.MakeTRef(H1FESpace, S.GetBlock(0), 0);
-   psi.MakeTRef(H1FESpace, S.GetBlock(1), 0);
-     w.MakeTRef(H1FESpace, S.GetBlock(2), 0);
-     j.MakeTRef(H1FESpace, S.GetBlock(3), 0);
+   phi.MakeRef(H1FESpace, S, true_offset[0]);
+   psi.MakeRef(H1FESpace, S, true_offset[1]);
+     w.MakeRef(H1FESpace, S, true_offset[2]);
+     j.MakeRef(H1FESpace, S, true_offset[3]);
 
    S_tmp.Update(true_offset);
    H1FESpace->UpdatesFinished();

@@ -166,7 +166,7 @@ void AMRResistiveMHDOperator::UpdateProblem()
       E0->Update();
    }
 
-   cout<<"problem size ="<<fespace.GetTrueVSize()<<endl;
+   cout<<"Problem size = "<<fespace.GetTrueVSize()<<endl;
    width = height = fespace.GetTrueVSize()*4;
 }          
            
@@ -270,7 +270,6 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 
 
    M_solver.Mult(z, dw_dt);
-   //cout << "Number of scalar unknowns in   z: " <<  z.Size()<< endl;
 
 }
 
@@ -305,12 +304,14 @@ void AMRResistiveMHDOperator::UpdateJ(Vector &vx)
    
    z.SetSize(sc);
 
-   /*
    cout << "Number of scalar unknowns in psi: " <<  psi.Size()<< endl;
    cout << "Number of scalar unknowns in   j: " <<  j.Size()<< endl;
    cout << "Number of scalar unknowns in   z: " <<  z.Size()<< endl;
    cout << "Number of scalar unknowns in  sc: " <<  sc<< endl;
-   */
+
+   cout << "Number of matrix in KB: " << KB->SpMat().Size()<< endl;
+   cout << "Number of matrix in M: " <<  Mmat.Size()<< endl;
+   cout << "Number of matrix in K: " <<  Kmat.Size()<< endl;
 
    KB->Mult(psi, z);
    z.Neg(); // z = -z
