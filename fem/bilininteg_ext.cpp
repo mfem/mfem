@@ -237,7 +237,6 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
                                      const double* x,
                                      double* y)
 {
-   printf("\033[37m[OccaPADiffusionMultAdd2D]\033[m\n");fflush(0);
    MFEM_GET_OCCA_CONST_MEMORY(B);
    MFEM_GET_OCCA_CONST_MEMORY(G);
    MFEM_GET_OCCA_CONST_MEMORY(Bt);
@@ -252,13 +251,11 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
 
    if (!Device::UsingDevice())
    {
-      printf("\033[37m[OccaPADiffusionMultAdd2D] CPU\033[m\n");fflush(0);
       MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_CPU, fem, occa.okl, props);
       DiffusionApply2D_CPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
    else
    {
-      printf("\033[37m[OccaPADiffusionMultAdd2D] GPU\033[m\n");fflush(0);
       MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_GPU, fem, occa.okl, props);
       DiffusionApply2D_GPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
