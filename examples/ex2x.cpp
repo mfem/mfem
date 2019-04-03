@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
    double tol = 1e-2;
    double rho = 1.2;
 
-   double err_eta = 1.0;
+   double diff_eta = 1.0;
 
    double gamma_acc = 0.9;
    double kI_acc = 1.0 / 15.0;
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
    ODEController ode_controller;
 
    ODESolver                * ode_solver   = NULL;
-   ODEErrorMeasure          * ode_err_msr  = NULL;
+   ODEDifferenceMeasure     * ode_diff_msr = NULL;
    ODEStepAdjustmentFactor  * ode_step_acc = NULL;
    ODEStepAdjustmentFactor  * ode_step_rej = NULL;
    ODEStepAdjustmentLimiter * ode_step_lim = NULL;
@@ -157,13 +157,13 @@ int main(int argc, char *argv[])
    switch (ode_msr_type)
    {
       case 1:
-         ode_err_msr = new AbsRelMeasurelinf(err_eta);
+         ode_diff_msr = new MaxAbsRelDiffMeasure(diff_eta);
          break;
       case 2:
-         ode_err_msr = new AbsRelMeasurel2(err_eta);
+         ode_diff_msr = new L2AbsRelDiffMeasure(diff_eta);
          break;
       default:
-         cout << "Unknown error measure type: " << ode_msr_type << '\n';
+         cout << "Unknown difference measure type: " << ode_msr_type << '\n';
          return 3;
    }
    switch (ode_acc_type)
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
    ExampleTDO tdo(prob);
    ode_solver->Init(tdo);
 
-   ode_controller.Init(*ode_solver, *ode_err_msr,
+   ode_controller.Init(*ode_solver, *ode_diff_msr,
                        *ode_step_acc, *ode_step_rej, *ode_step_lim);
 
    ode_controller.SetTimeStep(dt);
@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
    ofs.close();
 
    delete ode_solver;
-   delete ode_err_msr;
+   delete ode_diff_msr;
    delete ode_step_acc;
    delete ode_step_rej;
    delete ode_step_lim;

@@ -45,7 +45,7 @@ static double TWPerp_  = 0.125;
 
 static vector<Vector> aVec_;
 
-class NormedErrorMeasure : public ODEErrorMeasure
+class NormedDifferenceMeasure : public ODEDifferenceMeasure
 {
 private:
    MPI_Comm comm_;
@@ -54,7 +54,7 @@ private:
    Vector Mu_;
 
 public:
-   NormedErrorMeasure(MPI_Comm comm) : comm_(comm), M_(NULL) {}
+   NormedDifferenceMeasure(MPI_Comm comm) : comm_(comm), M_(NULL) {}
 
    void SetOperator(const Operator & op)
    { M_ = &op; du_.SetSize(M_->Width()); Mu_.SetSize(M_->Height()); }
@@ -630,7 +630,7 @@ int main(int argc, char *argv[])
    ODEStepAdjustmentFactor  * ode_step_rej = NULL;
    ODEStepAdjustmentLimiter * ode_step_lim = NULL;
 
-   NormedErrorMeasure ode_err_msr(MPI_COMM_WORLD);
+   NormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD);
 
    switch (ode_solver_type)
    {
@@ -836,7 +836,7 @@ int main(int argc, char *argv[])
                      AnisotropicConductionCoef, false,
                      HeatSourceCoef, false);
 
-   ode_err_msr.SetOperator(oper.GetMassMatrix());
+   ode_diff_msr.SetOperator(oper.GetMassMatrix());
 
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
@@ -974,7 +974,7 @@ int main(int argc, char *argv[])
    ode_solver->Init(oper);
    // ode_exp_solver->Init(exp_oper);
 
-   ode_controller.Init(*ode_solver, ode_err_msr,
+   ode_controller.Init(*ode_solver, ode_diff_msr,
                        *ode_step_acc, *ode_step_rej, *ode_step_lim);
 
    ode_controller.SetOutputFrequency(vis_steps);

@@ -102,7 +102,7 @@ public:
 /// Differential Equations" by K. Gustafsson, M. Lundh, and G. Soderlind, BIT
 /// Numerical Mathematics, Vol. 28, Issue 2, pages 270-287 (1988).
 
-class ODEErrorMeasure;
+class ODEDifferenceMeasure;
 class ODEStepAdjustmentFactor;
 class ODEStepAdjustmentLimiter;
 
@@ -114,7 +114,7 @@ class ODEController
 {
 protected:
    ODESolver                * sol;
-   ODEErrorMeasure          * msr;
+   ODEDifferenceMeasure     * msr;
    ODEStepAdjustmentFactor  * acc;
    ODEStepAdjustmentFactor  * rej;
    ODEStepAdjustmentLimiter * lim;
@@ -139,12 +139,12 @@ public:
    /// Define the particulars of the ODE step-size control process
    /** The various pieces are:
         sol - Computes a possible update of the field at the next time step
-        msr - Produces an error estimate using fields from two sucessive steps
+        msr - Computes relative change in the field from two sucessive steps
         acc - Computes a new step size when the previous step was accepted
         rej - Computes a new step size when the previous step was rejected
         lim - Imposes limits on the next time step
    */
-   void Init(ODESolver &sol, ODEErrorMeasure &msr,
+   void Init(ODESolver &sol, ODEDifferenceMeasure &msr,
              ODEStepAdjustmentFactor &acc, ODEStepAdjustmentFactor &rej,
              ODEStepAdjustmentLimiter &lim)
    {
@@ -172,14 +172,14 @@ public:
    virtual void Run(Vector &x, double &t, double tf);
 };
 
-/// Computes an error measure from two successive field values
-class ODEErrorMeasure
+/// Computes a measure of the difference between two successive field values
+class ODEDifferenceMeasure
 {
 protected:
-   ODEErrorMeasure() {}
+   ODEDifferenceMeasure() {}
 
 public:
-   virtual ~ODEErrorMeasure() {}
+   virtual ~ODEDifferenceMeasure() {}
 
    virtual double Eval(Vector &u0, Vector &u1) = 0;
 };
@@ -487,34 +487,34 @@ private:
    Array<double> b_;
 };
 
-class AbsRelMeasurelinf : public ODEErrorMeasure
+class MaxAbsRelDiffMeasure : public ODEDifferenceMeasure
 {
 private:
    Vector * etaVec;
    double   etaConst;
 
 public:
-   AbsRelMeasurelinf(double eta);
-   AbsRelMeasurelinf(Vector &eta);
+   MaxAbsRelDiffMeasure(double eta);
+   MaxAbsRelDiffMeasure(Vector &eta);
 
    double Eval(Vector &u0, Vector &u1);
 };
 
-class AbsRelMeasurel2 : public ODEErrorMeasure
+class L2AbsRelDiffMeasure : public ODEDifferenceMeasure
 {
 private:
    Vector * etaVec;
    double   etaConst;
 
 public:
-   AbsRelMeasurel2(double eta);
-   AbsRelMeasurel2(Vector &eta);
+   L2AbsRelDiffMeasure(double eta);
+   L2AbsRelDiffMeasure(Vector &eta);
 
    double Eval(Vector &u0, Vector &u1);
 };
 
 #ifdef MFEM_USE_MPI
-class ParAbsRelMeasurelinf : public ODEErrorMeasure
+class ParMaxAbsRelDiffMeasure : public ODEDifferenceMeasure
 {
 private:
    MPI_Comm comm;
@@ -522,13 +522,13 @@ private:
    double   etaConst;
 
 public:
-   ParAbsRelMeasurelinf(MPI_Comm comm, double eta);
-   ParAbsRelMeasurelinf(MPI_Comm comm, Vector &eta);
+   ParMaxAbsRelDiffMeasure(MPI_Comm comm, double eta);
+   ParMaxAbsRelDiffMeasure(MPI_Comm comm, Vector &eta);
 
    double Eval(Vector &u0, Vector &u1);
 };
 
-class ParAbsRelMeasurel2 : public ODEErrorMeasure
+class ParL2AbsRelDiffMeasure : public ODEDifferenceMeasure
 {
 private:
    MPI_Comm comm;
@@ -536,8 +536,8 @@ private:
    double   etaConst;
 
 public:
-   ParAbsRelMeasurel2(MPI_Comm comm, double eta);
-   ParAbsRelMeasurel2(MPI_Comm comm, Vector &eta);
+   ParL2AbsRelDiffMeasure(MPI_Comm comm, double eta);
+   ParL2AbsRelDiffMeasure(MPI_Comm comm, Vector &eta);
 
    double Eval(Vector &u0, Vector &u1);
 };

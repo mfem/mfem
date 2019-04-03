@@ -730,13 +730,15 @@ void ODEController::Run(Vector &x, double &t, double tf)
    }
 }
 
-AbsRelMeasurelinf::AbsRelMeasurelinf(double eta) : etaVec(NULL), etaConst(eta)
+MaxAbsRelDiffMeasure::MaxAbsRelDiffMeasure(double eta)
+   : etaVec(NULL), etaConst(eta)
 {}
 
-AbsRelMeasurelinf::AbsRelMeasurelinf(Vector &eta) : etaVec(&eta), etaConst(-1.0)
+MaxAbsRelDiffMeasure::MaxAbsRelDiffMeasure(Vector &eta)
+   : etaVec(&eta), etaConst(-1.0)
 {}
 
-double AbsRelMeasurelinf::Eval(Vector &u0, Vector &u1)
+double MaxAbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
 {
    MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
                << u0.Size() << " and " << u1.Size());
@@ -758,13 +760,15 @@ double AbsRelMeasurelinf::Eval(Vector &u0, Vector &u1)
    return max;
 }
 
-AbsRelMeasurel2::AbsRelMeasurel2(double eta) : etaVec(NULL), etaConst(eta)
+L2AbsRelDiffMeasure::L2AbsRelDiffMeasure(double eta)
+   : etaVec(NULL), etaConst(eta)
 {}
 
-AbsRelMeasurel2::AbsRelMeasurel2(Vector &eta) : etaVec(&eta), etaConst(-1.0)
+L2AbsRelDiffMeasure::L2AbsRelDiffMeasure(Vector &eta)
+   : etaVec(&eta), etaConst(-1.0)
 {}
 
-double AbsRelMeasurel2::Eval(Vector &u0, Vector &u1)
+double L2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
 {
    MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
                << u0.Size() << " and " << u1.Size());
@@ -800,15 +804,15 @@ double AbsRelMeasurel2::Eval(Vector &u0, Vector &u1)
 }
 
 #ifdef MFEM_USE_MPI
-ParAbsRelMeasurelinf::ParAbsRelMeasurelinf(MPI_Comm comm, double eta)
+ParMaxAbsRelDiffMeasure::ParMaxAbsRelDiffMeasure(MPI_Comm comm, double eta)
    : comm(comm), etaVec(NULL), etaConst(eta)
 {}
 
-ParAbsRelMeasurelinf::ParAbsRelMeasurelinf(MPI_Comm comm, Vector &eta)
+ParMaxAbsRelDiffMeasure::ParMaxAbsRelDiffMeasure(MPI_Comm comm, Vector &eta)
    : comm(comm), etaVec(&eta), etaConst(-1.0)
 {}
 
-double ParAbsRelMeasurelinf::Eval(Vector &u0, Vector &u1)
+double ParMaxAbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
 {
    MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
                << u0.Size() << " and " << u1.Size());
@@ -832,15 +836,15 @@ double ParAbsRelMeasurelinf::Eval(Vector &u0, Vector &u1)
    return glb_max;
 }
 
-ParAbsRelMeasurel2::ParAbsRelMeasurel2(MPI_Comm comm, double eta)
+ParL2AbsRelDiffMeasure::ParL2AbsRelDiffMeasure(MPI_Comm comm, double eta)
    : comm(comm), etaVec(NULL), etaConst(eta)
 {}
 
-ParAbsRelMeasurel2::ParAbsRelMeasurel2(MPI_Comm comm, Vector &eta)
+ParL2AbsRelDiffMeasure::ParL2AbsRelDiffMeasure(MPI_Comm comm, Vector &eta)
    : comm(comm), etaVec(&eta), etaConst(-1.0)
 {}
 
-double ParAbsRelMeasurel2::Eval(Vector &u0, Vector &u1)
+double ParL2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
 {
    MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
                << u0.Size() << " and " << u1.Size());
