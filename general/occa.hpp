@@ -48,7 +48,7 @@ namespace mfem
 
 OccaDevice OccaWrapDevice(CUdevice device, CUcontext context);
 OccaMemory OccaDeviceMalloc(OccaDevice device, const size_t bytes);
-OccaMemory OccaWrapMemory(const OccaDevice device, void *d_adrs,
+OccaMemory OccaWrapMemory(const OccaDevice device, const void *d_adrs,
                           const size_t bytes);
 void *OccaMemoryPtr(OccaMemory o_mem);
 void OccaCopyFrom(OccaMemory o_mem, const void *h_adrs);

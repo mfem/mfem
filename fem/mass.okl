@@ -1,0 +1,388 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#include "occa://fem/defines.okl"
+
+@kernel void MultAdd2D_CPU(const int numElements,
+                           @restrict const DofToQuad_t dofToQuad,
+                           @restrict const QuadToDof_t quadToDof,
+                           @restrict const QLocal2D_t oper,
+                           @restrict const DLocal2D_t solIn,
+                           @restrict DLocal2D_t solOut) {
+  for (int e = 0; e < numElements; ++e; @outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; @inner) {
+      double sol_xy[Q1D][Q1D];
+
+      for (int qy = 0; qy < Q1D; ++qy) {
+        for (int qx = 0; qx < Q1D; ++qx) {
+          sol_xy[qy][qx] = 0;
+        }
+      }
+
+      for (int dy = 0; dy < D1D; ++dy) {
+        double sol_x[Q1D];
+        for (int qy = 0; qy < Q1D; ++qy) {
+          sol_x[qy] = 0;
+        }
+
+        for (int dx = 0; dx < D1D; ++dx) {
+          const double s = solIn(dx, dy, e);
+          for (int qx = 0; qx < Q1D; ++qx) {
+            sol_x[qx] += dofToQuad(qx, dx) * s;
+          }
+        }
+
+        for (int qy = 0; qy < Q1D; ++qy) {
+          const double d2q = dofToQuad(qy, dy);
+          for (int qx = 0; qx < Q1D; ++qx) {
+            sol_xy[qy][qx] += d2q * sol_x[qx];
+          }
+        }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy) {
+        for (int qx = 0; qx < Q1D; ++qx) {
+          sol_xy[qy][qx] *= oper(qx, qy, e);
+        }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy) {
+        double sol_x[D1D];
+        for (int dx = 0; dx < D1D; ++dx) {
+          sol_x[dx] = 0;
+        }
+
+        for (int qx = 0; qx < Q1D; ++qx) {
+          const double s = sol_xy[qy][qx];
+          for (int dx = 0; dx < D1D; ++dx) {
+            sol_x[dx] += quadToDof(dx, qx) * s;
+          }
+        }
+
+        for (int dy = 0; dy < D1D; ++dy) {
+          const double q2d = quadToDof(dy, qy);
+          for (int dx = 0; dx < D1D; ++dx) {
+            solOut(dx, dy, e) += q2d * sol_x[dx];
+          }
+        }
+      }
+    }
+  }
+}
+
+@kernel void MultAdd3D_CPU(const int numElements,
+                           @restrict const DofToQuad_t dofToQuad,
+                           @restrict const QuadToDof_t quadToDof,
+                           @restrict const QLocal3D_t oper,
+                           @restrict const DLocal3D_t solIn,
+                           @restrict DLocal3D_t solOut) {
+  // Iterate over elements
+  for (int e = 0; e < numElements; ++e; @outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; @inner) {
+      double sol_xyz[Q1D][Q1D][Q1D];
+      for (int qz = 0; qz < Q1D; ++qz) {
+        for (int qy = 0; qy < Q1D; ++qy) {
+          for (int qx = 0; qx < Q1D; ++qx) {
+            sol_xyz[qz][qy][qx] = 0;
+          }
+        }
+      }
+
+      for (int dz = 0; dz < D1D; ++dz) {
+        double sol_xy[Q1D][Q1D];
+        for (int qy = 0; qy < Q1D; ++qy) {
+          for (int qx = 0; qx < Q1D; ++qx) {
+            sol_xy[qy][qx] = 0;
+          }
+        }
+
+        for (int dy = 0; dy < D1D; ++dy) {
+          double sol_x[Q1D];
+          for (int qx = 0; qx < Q1D; ++qx) {
+            sol_x[qx] = 0;
+          }
+
+          for (int dx = 0; dx < D1D; ++dx) {
+            const double s = solIn(dx, dy, dz, e);
+            for (int qx = 0; qx < Q1D; ++qx) {
+              sol_x[qx] += dofToQuad(qx, dx) * s;
+            }
+          }
+
+          for (int qy = 0; qy < Q1D; ++qy) {
+            const double wy = dofToQuad(qy, dy);
+            for (int qx = 0; qx < Q1D; ++qx) {
+              sol_xy[qy][qx] += wy * sol_x[qx];
+            }
+          }
+        }
+
+        for (int qz = 0; qz < Q1D; ++qz) {
+          const double wz = dofToQuad(qz, dz);
+          for (int qy = 0; qy < Q1D; ++qy) {
+            for (int qx = 0; qx < Q1D; ++qx) {
+              sol_xyz[qz][qy][qx] += wz * sol_xy[qy][qx];
+            }
+          }
+        }
+      }
+
+      for (int qz = 0; qz < Q1D; ++qz) {
+        for (int qy = 0; qy < Q1D; ++qy) {
+          for (int qx = 0; qx < Q1D; ++qx) {
+            sol_xyz[qz][qy][qx] *= oper(qx, qy, qz, e);
+          }
+        }
+      }
+
+      for (int qz = 0; qz < Q1D; ++qz) {
+        double sol_xy[D1D][D1D];
+        for (int dy = 0; dy < D1D; ++dy) {
+          for (int dx = 0; dx < D1D; ++dx) {
+            sol_xy[dy][dx] = 0;
+          }
+        }
+
+        for (int qy = 0; qy < Q1D; ++qy) {
+          double sol_x[D1D];
+          for (int dx = 0; dx < D1D; ++dx) {
+            sol_x[dx] = 0;
+          }
+
+          for (int qx = 0; qx < Q1D; ++qx) {
+            const double s = sol_xyz[qz][qy][qx];
+            for (int dx = 0; dx < D1D; ++dx) {
+              sol_x[dx] += quadToDof(dx, qx) * s;
+            }
+          }
+
+          for (int dy = 0; dy < D1D; ++dy) {
+            const double wy = quadToDof(dy, qy);
+            for (int dx = 0; dx < D1D; ++dx) {
+              sol_xy[dy][dx] += wy * sol_x[dx];
+            }
+          }
+        }
+
+        for (int dz = 0; dz < D1D; ++dz) {
+          const double wz = quadToDof(dz, qz);
+          for (int dy = 0; dy < D1D; ++dy) {
+            for (int dx = 0; dx < D1D; ++dx) {
+              solOut(dx, dy, dz, e) += wz * sol_xy[dy][dx];
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+@kernel void MultAdd2D_GPU(const int numElements,
+                           @restrict const DofToQuad_t dofToQuad,
+                           @restrict const QuadToDof_t quadToDof,
+                           @restrict const QLocal2D_t oper,
+                           @restrict const DLocal2D_t solIn,
+                           @restrict DLocal2D_t solOut) {
+  // Iterate over elements
+  for (int eOff = 0; eOff < numElements; eOff += M2_ELEMENT_BATCH; @outer) {
+    // Store dof <--> quad mappings
+    @shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(Q1D, D1D);
+    @shared double s_quadToDof[NUM_QUAD_DOFS_1D] @dim(D1D, Q1D);
+
+    // Store xy planes in @shared memory
+    @shared double s_xy[NUM_QUAD_DOFS_1D] @dim(D1D, Q1D);
+    @shared double s_xy2[NUM_QUAD_2D] @dim(Q1D, Q1D);
+
+    @exclusive double r_x[NUM_MAX_1D];
+
+    for (int x = 0; x < NUM_MAX_1D; ++x; @inner) {
+      for (int id = x; id < NUM_QUAD_DOFS_1D; id += NUM_MAX_1D) {
+        s_dofToQuad[id]  = dofToQuad[id];
+        s_quadToDof[id]  = quadToDof[id];
+      }
+    }
+
+    for (int e = eOff; e < (eOff + M2_ELEMENT_BATCH); ++e) {
+      if (e < numElements) {
+        for (int dx = 0; dx < NUM_MAX_1D; ++dx; @inner) {
+          if (dx < D1D) {
+            for (int qy = 0; qy < Q1D; ++qy) {
+              s_xy(dx, qy) = 0;
+            }
+            for (int dy = 0; dy < D1D; ++dy) {
+              r_x[dy] = solIn(dx, dy, e);
+            }
+            for (int qy = 0; qy < Q1D; ++qy) {
+              double xy = 0;
+              for (int dy = 0; dy < D1D; ++dy) {
+                xy += r_x[dy] * s_dofToQuad(qy, dy);
+              }
+              s_xy(dx, qy) = xy;
+            }
+          }
+        }
+        for (int qy = 0; qy < NUM_MAX_1D; ++qy; @inner) {
+          if (qy < Q1D) {
+            for (int qx = 0; qx < Q1D; ++qx) {
+              double s = 0;
+              for (int dx = 0; dx < D1D; ++dx) {
+                s += s_xy(dx, qy) * s_dofToQuad(qx, dx);
+              }
+              s_xy2(qx, qy) = s * oper(qx, qy, e);
+            }
+          }
+        }
+
+        for (int qx = 0; qx < NUM_MAX_1D; ++qx; @inner) {
+          if (qx < Q1D) {
+            for (int dy = 0; dy < D1D; ++dy) {
+              s_xy(dy, qx) = 0;
+            }
+            for (int qy = 0; qy < Q1D; ++qy) {
+              r_x[qy] = s_xy2(qx, qy);
+            }
+            for (int dy = 0; dy < D1D; ++dy) {
+              double s = 0;
+              for (int qy = 0; qy < Q1D; ++qy) {
+                s += r_x[qy] * s_quadToDof(dy, qy);
+              }
+              s_xy(dy, qx) = s;
+            }
+          }
+        }
+        for (int dx = 0; dx < NUM_MAX_1D; ++dx; @inner) {
+          if (dx < D1D) {
+            for (int dy = 0; dy < D1D; ++dy) {
+              double s = 0;
+              for (int qx = 0; qx < Q1D; ++qx) {
+                s += (s_xy(dy, qx) * s_quadToDof(dx, qx));
+              }
+              solOut(dx, dy, e) += s;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+@kernel void MultAdd3D_GPU(const int numElements,
+                           @restrict const DofToQuad_t dofToQuad,
+                           @restrict const QuadToDof_t quadToDof,
+                           @restrict const QLocal3D_t oper,
+                           @restrict const DLocal3D_t solIn,
+                           @restrict DLocal3D_t solOut) {
+  // Iterate over elements
+  for (int e = 0; e < numElements; ++e; @outer) {
+    // Store dof <--> quad mappings
+    @shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(Q1D, D1D);
+    @shared double s_quadToDof[NUM_QUAD_DOFS_1D] @dim(D1D, Q1D);
+
+    // Store xy planes in @shared memory
+    @shared double s_xy[NUM_MAX_2D] @dim(NUM_MAX_1D, NUM_MAX_1D);
+
+    // Store z axis as registers
+    @exclusive double r_z[Q1D];
+    @exclusive double r_z2[D1D];
+
+    for (int y = 0; y < NUM_MAX_1D; ++y; @inner) {
+      for (int x = 0; x < NUM_MAX_1D; ++x; @inner) {
+        const int id = (y * NUM_MAX_1D) + x;
+        // Fetch Q <--> D maps
+        if (id < NUM_QUAD_DOFS_1D) {
+          s_dofToQuad[id]  = dofToQuad[id];
+          s_quadToDof[id]  = quadToDof[id];
+        }
+        // Initialize our Z axis
+        for (int qz = 0; qz < Q1D; ++qz) {
+          r_z[qz] = 0;
+        }
+        for (int dz = 0; dz < D1D; ++dz) {
+          r_z2[dz] = 0;
+        }
+      }
+    }
+
+    for (int dy = 0; dy < NUM_MAX_1D; ++dy; @inner) {
+      for (int dx = 0; dx < NUM_MAX_1D; ++dx; @inner) {
+        if ((dx < D1D) && (dy < D1D)) {
+          for (int dz = 0; dz < D1D; ++dz) {
+            const double s = solIn(dx, dy, dz, e);
+            // Calculate D -> Q in the Z axis
+            for (int qz = 0; qz < Q1D; ++qz) {
+              r_z[qz] += s * s_dofToQuad(qz, dz);
+            }
+          }
+        }
+      }
+    }
+    // For each xy plane
+    for (int qz = 0; qz < Q1D; ++qz) {
+      // Fill xy plane at given z position
+      for (int dy = 0; dy < NUM_MAX_1D; ++dy; @inner) {
+        for (int dx = 0; dx < NUM_MAX_1D; ++dx; @inner) {
+          if ((dx < D1D) && (dy < D1D)) {
+            s_xy(dx, dy) = r_z[qz];
+          }
+        }
+      }
+      // Calculate Dxyz, xDyz, xyDz in plane
+      for (int qy = 0; qy < NUM_MAX_1D; ++qy; @inner) {
+        for (int qx = 0; qx < NUM_MAX_1D; ++qx; @inner) {
+          if ((qx < Q1D) && (qy < Q1D)) {
+            double s = 0;
+            for (int dy = 0; dy < D1D; ++dy) {
+              const double wy = s_dofToQuad(qy, dy);
+              for (int dx = 0; dx < D1D; ++dx) {
+                const double wx = s_dofToQuad(qx, dx);
+                s += wx * wy * s_xy(dx, dy);
+              }
+            }
+
+            s *= oper(qx, qy, qz, e);
+
+            for (int dz = 0; dz < D1D; ++dz) {
+              const double wz  = s_quadToDof(dz, qz);
+              r_z2[dz] += wz * s;
+            }
+          }
+        }
+      }
+    }
+    // Iterate over xy planes to compute solution
+    for (int dz = 0; dz < D1D; ++dz) {
+      // Place xy plane in @shared memory
+      for (int qy = 0; qy < NUM_MAX_1D; ++qy; @inner) {
+        for (int qx = 0; qx < NUM_MAX_1D; ++qx; @inner) {
+          if ((qx < Q1D) && (qy < Q1D)) {
+            s_xy(qx, qy) = r_z2[dz];
+          }
+        }
+      }
+      // Finalize solution in xy plane
+      for (int dy = 0; dy < NUM_MAX_1D; ++dy; @inner) {
+        for (int dx = 0; dx < NUM_MAX_1D; ++dx; @inner) {
+          if ((dx < D1D) && (dy < D1D)) {
+            double solZ = 0;
+            for (int qy = 0; qy < Q1D; ++qy) {
+              const double wy = s_quadToDof(dy, qy);
+              for (int qx = 0; qx < Q1D; ++qx) {
+                const double wx = s_quadToDof(dx, qx);
+                solZ += wx * wy * s_xy(qx, qy);
+              }
+            }
+            solOut(dx, dy, dz, e) += solZ;
+          }
+        }
+      }
+    }
+  }
+}
