@@ -35,8 +35,8 @@ OccaMemory OccaDeviceMalloc(OccaDevice device, const size_t bytes)
 OccaMemory OccaWrapMemory(const OccaDevice device, const void *d_adrs,
                           const size_t bytes)
 {
-   void *adrs = const_cast<void*>(d_adrs);
 #if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
+   void *adrs = const_cast<void*>(d_adrs);
    // OCCA & UsingCuda => occa::cuda
    if (Device::UsingCuda())
    {
@@ -46,7 +46,7 @@ OccaMemory OccaWrapMemory(const OccaDevice device, const void *d_adrs,
    return occa::cpu::wrapMemory(device, adrs, bytes);
 #else // MFEM_USE_OCCA && MFEM_USE_CUDA
 #if defined(MFEM_USE_OCCA)
-   return occa::cpu::wrapMemory(device, adrs, bytes);
+   return occa::cpu::wrapMemory(device, const_cast<void*>(d_adrs), bytes);
 #else
    return (void*)NULL;
 #endif
