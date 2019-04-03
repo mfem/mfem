@@ -701,6 +701,10 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
          CheckAnisoFace(mid41, mid23, vn3, vn4, midf, mid34, level+1);
          return;
       }
+
+      // TODO: if (mid41, mid23) is an edge of a prism (whose faces need not lie
+      // within the face (vn1, vn2, vn3, vn4)), we need to find and refine the
+      // prism.
    }
 
    // Also, this is the place where forced refinements begin. In the picture
@@ -2032,7 +2036,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 //// Face/edge lists ///////////////////////////////////////////////////////////
 
 int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
-                              int mid[4]) const
+                              int mid[5]) const
 {
    MFEM_ASSERT(Dim >= 3, "");
 
@@ -2053,9 +2057,21 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
    // only one way to access the mid-face node must always exist
    MFEM_ASSERT(!(midf1 >= 0 && midf2 >= 0), "incorrectly split face!");
 
-   if (midf1 < 0 && midf2 < 0) { return 0; }  // face not split
-   else if (midf1 >= 0) { return 1; }  // face split "vertically"
-   else { return 2; }  // face split "horizontally"
+   if (midf1 < 0 && midf2 < 0) // face not split
+   {
+      if (mid) { mid[4] = -1; }
+      return 0;
+   }
+   else if (midf1 >= 0) // face split "vertically"
+   {
+      if (mid) { mid[4] = midf1; }
+      return 1;
+   }
+   else // face split "horizontally"
+   {
+      if (mid) { mid[4] = midf2; }
+      return 2;
+   }
 }
 
 int NCMesh::find_node(const Element &el, int node)
@@ -2148,7 +2164,8 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
 }
 
 void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
-                              const PointMatrix& pm, int level)
+                              const PointMatrix& pm, int level,
+                              Face* eface[4])
 {
    if (level > 0)
    {
@@ -2168,33 +2185,86 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
          int local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, mat);
          face_list.slaves.back().local = local;
 
+         eface[0] = eface[2] = fa;
+         eface[1] = eface[3] = fa;
+
          return;
       }
    }
 
    // we need to recurse deeper
-   int mid[4];
+   int mid[5];
    int split = QuadFaceSplitType(vn0, vn1, vn2, vn3, mid);
 
+   Face *ef[2][4];
    if (split == 1) // "X" split face
    {
       Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
 
       TraverseQuadFace(vn0, mid[0], mid[2], vn3,
-                       PointMatrix(pm(0), mid0, mid2, pm(3)), level+1);
+                       PointMatrix(pm(0), mid0, mid2, pm(3)), level+1, ef[0]);
 
       TraverseQuadFace(mid[0], vn1, vn2, mid[2],
-                       PointMatrix(mid0, pm(1), pm(2), mid2), level+1);
+                       PointMatrix(mid0, pm(1), pm(2), mid2), level+1, ef[1]);
+
+      eface[1] = ef[1][1];
+      eface[3] = ef[0][3];
+      eface[0] = eface[2] = NULL;
    }
    else if (split == 2) // "Y" split face
    {
       Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
 
       TraverseQuadFace(vn0, vn1, mid[1], mid[3],
-                       PointMatrix(pm(0), pm(1), mid1, mid3), level+1);
+                       PointMatrix(pm(0), pm(1), mid1, mid3), level+1, ef[0]);
 
       TraverseQuadFace(mid[3], mid[1], vn2, vn3,
-                       PointMatrix(mid3, mid1, pm(2), pm(3)), level+1);
+                       PointMatrix(mid3, mid1, pm(2), pm(3)), level+1, ef[1]);
+
+      eface[0] = ef[0][0];
+      eface[2] = ef[1][2];
+      eface[1] = eface[3] = NULL;
+   }
+
+   // check for a prism edge constrained by the master face
+   if (HavePrisms() && mid[4] >= 0)
+   {
+      Node& enode = nodes[mid[4]];
+      if (enode.HasEdge())
+      {
+         // process the edge only if it's not shared by slave faces
+         // within this master face (i.e. the edge is "hidden")
+         const int fi[3][2] = {{0, 0}, {1, 3}, {2, 0}};
+         if (!ef[0][fi[split][0]] && !ef[1][fi[split][1]])
+         {
+            MFEM_ASSERT(enode.edge_refc == 1, "");
+
+            const MeshId& eid = edge_list.LookUp(enode.edge_index);
+            MFEM_ASSERT(elements[eid.element].Geom() == Geometry::PRISM, "");
+
+            // create a slave face record with a degenerate point matrix
+            face_list.slaves.push_back(
+               Slave(-1 - eid.index, eid.element, eid.local, eid.geom));
+
+            DenseMatrix &mat = face_list.slaves.back().point_matrix;
+            if (split == 1)
+            {
+               Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
+               int v1 = nodes[mid[0]].vert_index;
+               int v2 = nodes[mid[2]].vert_index;
+               ((v1 < v2) ? PointMatrix(mid0, mid2, mid2, mid0) :
+                            PointMatrix(mid2, mid0, mid0, mid2)).GetMatrix(mat);
+            }
+            else
+            {
+               Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
+               int v1 = nodes[mid[1]].vert_index;
+               int v2 = nodes[mid[3]].vert_index;
+               ((v1 < v2) ? PointMatrix(mid1, mid3, mid3, mid1) :
+                            PointMatrix(mid3, mid1, mid1, mid3)).GetMatrix(mat);
+            }
+         }
+      }
    }
 }
 
@@ -2251,6 +2321,9 @@ void NCMesh::BuildFaceList()
 
    if (Dim < 3) { return; }
 
+   // in prismatic meshes we need to be able to search edges
+   if (HavePrisms()) { GetEdgeList(); }
+
    Array<char> processed_faces(faces.NumIds());
    processed_faces = 0;
 
@@ -2296,8 +2369,9 @@ void NCMesh::BuildFaceList()
             int sb = face_list.slaves.size();
             if (fgeom == Geometry::SQUARE)
             {
+               Face* dummy[4];
                TraverseQuadFace(node[0], node[1], node[2], node[3],
-                                pm_quad_identity, 0);
+                                pm_quad_identity, 0, dummy);
             }
             else
             {
@@ -2349,7 +2423,7 @@ void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
       if (v0index > v1index) { sl.edge_flags |= 2; }
 
       // in 2D, get the element/local info from the degenerate face
-      if (Dim == 2)
+      if (Dim == 2) // FIXME: is this still needed?
       {
          Face* fa = faces.Find(vn0, vn0, vn1, vn1);
          MFEM_ASSERT(fa != NULL, "");
@@ -2631,7 +2705,7 @@ void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
 void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
                                      Array<int> &indices)
 {
-   int mid[4];
+   int mid[5];
    switch (QuadFaceSplitType(v0, v1, v2, v3, mid))
    {
       case 1:
@@ -4233,7 +4307,7 @@ void NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
                             int& h_level, int& v_level) const
 {
    int hl1, hl2, vl1, vl2;
-   int mid[4];
+   int mid[5];
 
    switch (QuadFaceSplitType(vn1, vn2, vn3, vn4, mid))
    {
