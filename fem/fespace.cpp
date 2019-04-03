@@ -565,6 +565,31 @@ bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
    return true;
 }
 
+void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs) const
+{
+   Array<int> edof;
+   GetEdgeDofs(-1 - index, edof);
+
+   int nv = fec->DofForGeometry(Geometry::POINT);
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   int nn = 2*nv + ne;
+
+   dofs.SetSize(nn*nn);
+   dofs = edof[0];
+
+   // copy first two vertex DOFs
+   for (int i = 0; i < nv; i++)
+   {
+      dofs[i] = edof[i];
+      dofs[nv+i] = edof[nv+i];
+   }
+   // copy first edge DOFs
+   for (int i = 0; i < ne; i++)
+   {
+      dofs[4*nv + i] = edof[2*nv + i];
+   }
+}
+
 void
 FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
 {
@@ -572,7 +597,8 @@ FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
    {
       case 0: GetVertexDofs(index, dofs); break;
       case 1: GetEdgeDofs(index, dofs); break;
-      case 2: GetFaceDofs(index, dofs); break;
+      case 2: (index >= 0) ? GetFaceDofs(index, dofs)
+              /*        */ : GetDegenerateFaceDofs(index, dofs);
    }
 }
 
