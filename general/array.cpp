@@ -38,7 +38,7 @@ BaseArray::~BaseArray()
 {
    if (allocsize > 0)
    {
-      mm::free<char>(data);
+      mm::free(data);
    }
 }
 
@@ -55,7 +55,7 @@ void BaseArray::GrowSize(int minsize, int elementsize)
    }
    if (allocsize > 0)
    {
-      mm::free<char>(data);
+      mm::free(data);
    }
    data = p;
    allocsize = nsize;

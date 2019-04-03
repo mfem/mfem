@@ -714,7 +714,7 @@ inline void Array<T>::DeleteAll()
 {
    if (allocsize > 0)
    {
-      mm::free<char>(data);
+      mm::free(data);
    }
    data = NULL;
    size = allocsize = 0;
@@ -725,7 +725,7 @@ inline void Array<T>::MakeRef(T *p, int s)
 {
    if (allocsize > 0)
    {
-      mm::free<char>(data);
+      mm::free(data);
    }
    data = p;
    size = s;
@@ -737,7 +737,7 @@ inline void Array<T>::MakeRef(const Array &master)
 {
    if (allocsize > 0)
    {
-      mm::free<char>(data);
+      mm::free(data);
    }
    data = master.data;
    size = master.size;

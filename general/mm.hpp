@@ -65,15 +65,14 @@ public:
    /// pointer to the allocated memory.
    template<class T>
    static inline T* malloc(const size_t n, const size_t size = sizeof(T))
-   { return static_cast<T*>(MM().Insert(::new T[n], n*size)); }
+   { return static_cast<T*>(MM().Insert(::malloc(n*size), n*size)); }
 
    /// Frees the memory space pointed to by ptr, which must have been returned
    /// by a previous call to mm::malloc.
-   template<class T>
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-      ::delete[] static_cast<T*>(ptr);
+      ::free(ptr);
       mm::MM().Erase(ptr);
    }
 

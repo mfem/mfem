@@ -101,7 +101,7 @@ void Table::MakeJ()
       j = I[i], I[i] = k, k += j;
    }
 
-   if (J) { mm::free<int>(J); }
+   if (J) { mm::free(J); }
    J = mm::malloc<int>(I[size]=k);
 }
 
@@ -149,13 +149,13 @@ void Table::SetDims(int rows, int nnz)
    if (size != rows)
    {
       size = rows;
-      if (I) { mm::free<int>(I); }
+      if (I) { mm::free(I); }
       I = (rows >= 0) ? (mm::malloc<int>(rows+1)) : (NULL);
    }
 
    if (j != nnz)
    {
-      if (J) { mm::free<int>(J); }
+      if (J) { mm::free(J); }
       J = (nnz > 0) ? (mm::malloc<int>(nnz)) : (NULL);
    }
 
@@ -207,8 +207,8 @@ void Table::SortRows()
 
 void Table::SetIJ(int *newI, int *newJ, int newsize)
 {
-   mm::free<int>(I);
-   mm::free<int>(J);
+   mm::free(I);
+   mm::free(J);
    I = newI;
    J = newJ;
    if (newsize >= 0)
@@ -265,7 +265,7 @@ void Table::Finalize()
       }
       I[size] = sum;
 
-      mm::free<int>(J);
+      mm::free(J);
 
       J = NewJ;
 
@@ -355,8 +355,8 @@ void Table::Save(std::ostream &out) const
 
 void Table::Load(std::istream &in)
 {
-   mm::free<int>(I);
-   mm::free<int>(J);
+   mm::free(I);
+   mm::free(J);
 
    in >> size;
    I = mm::malloc<int>(size+1);
@@ -374,8 +374,8 @@ void Table::Load(std::istream &in)
 
 void Table::Clear()
 {
-   mm::free<int>(I);
-   mm::free<int>(J);
+   mm::free(I);
+   mm::free(J);
    size = -1;
    I = J = NULL;
 }
@@ -413,8 +413,8 @@ long Table::MemoryUsage() const
 
 Table::~Table ()
 {
-   if (I) { mm::free<int>(I); }
-   if (J) { mm::free<int>(J); }
+   if (I) { mm::free(I); }
+   if (J) { mm::free(J); }
 }
 
 void Transpose (const Table &A, Table &At, int _ncols_A)

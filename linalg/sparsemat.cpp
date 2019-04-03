@@ -2735,15 +2735,15 @@ void SparseMatrix::Destroy()
 {
    if (I != NULL && ownGraph)
    {
-      mm::free<int>(I);
+      mm::free(I);
    }
    if (J != NULL && ownGraph)
    {
-      mm::free<int>(J);
+      mm::free(J);
    }
    if (A != NULL && ownData)
    {
-      mm::free<double>(A);
+      mm::free(A);
    }
 
    if (Rows != NULL)
