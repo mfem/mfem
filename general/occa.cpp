@@ -39,7 +39,9 @@ OccaMemory OccaWrapMemory(const OccaDevice device, const void *d_adrs,
 #if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
    // OCCA & UsingCuda => occa::cuda
    if (Device::UsingCuda())
+   {
       return occa::cuda::wrapMemory(device, adrs, bytes);
+   }
    // otherwise, fallback to occa::cpu address space
    return occa::cpu::wrapMemory(device, adrs, bytes);
 #else // MFEM_USE_OCCA && MFEM_USE_CUDA
