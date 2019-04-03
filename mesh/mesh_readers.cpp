@@ -964,6 +964,7 @@ void Mesh::ReadGmshBoundaryElements(std::vector<Element*> &elements_0D,
                                     std::vector<Element*> &elements_2D,
                                     std::vector<Element*> &elements_3D)
 {
+   spaceDim = 3;
    if (!elements_3D.empty())
    {
       Dim = 3;
