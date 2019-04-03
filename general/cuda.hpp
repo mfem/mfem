@@ -14,7 +14,7 @@
 
 #include <cstddef>
 
-#if defined(__NVCC__) && defined(MFEM_USE_CUDA)
+#if defined(MFEM_USE_CUDA) && defined(__NVCC__)
 #include <cuda.h>
 #endif
 
