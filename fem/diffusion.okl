@@ -9,33 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-typedef double* DofToQuad_t @dim(Q1D, D1D);
-typedef double* QuadToDof_t @dim(D1D, Q1D);
-typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
-typedef double* SymmOperator3D_t @dim(6, NUM_QUAD_3D, numElements);
-typedef double* DLocal2D_t @dim(D1D, D1D, numElements);
-typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
-typedef double* Jacobian3D_t @dim(3, 3, NUM_QUAD_3D, numElements);
-
-typedef double* DLocal3D_t @dim(D1D, D1D, D1D, numElements);
-
-#if Q1D < D1D
-#  define NUM_MAX_1D D1D
-#else
-#  define NUM_MAX_1D Q1D
-#endif
-
-#define NUM_MAX_2D (NUM_MAX_1D * NUM_MAX_1D)
-
-#define NUM_QUAD_DOFS_1D (Q1D * D1D)
-
-#define QUAD_2D_ID(X, Y) (X + ((Y) * Q1D))
-#define DOFS_2D_ID(X, Y) (X + ((Y) * D1D))
-
-#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * Q1D) + ((Z) * NUM_QUAD_2D))
-#define DOFS_3D_ID(X, Y, Z) (X + ((Y) * D1D) + ((Z) * NUM_DOFS_2D))
-
-#define M2_ELEMENT_BATCH 32
+#include "occa://fem/defines.okl"
 
 @kernel void Assemble2D(const int numElements,
                         @restrict const double * quadWeights,
