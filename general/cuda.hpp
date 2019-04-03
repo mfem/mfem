@@ -47,17 +47,21 @@ static __device__ double atomicAdd(double* address, double val)
    return __longlong_as_double(old);
 }
 #endif // __CUDA_ARCH__ < 600
-template<typename T> MFEM_HOST_DEVICE
-inline T AtomicAdd(T* address, T val)
-{
-   return atomicAdd(address, val);
-}
 #else // MFEM_USE_CUDA
 #define MFEM_DEVICE
 #define MFEM_HOST_DEVICE
 typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
+#endif // MFEM_USE_CUDA
+
+#ifdef __CUDA_ARCH__
+template<typename T> MFEM_DEVICE
+inline T AtomicAdd(T* address, T val)
+{
+   return atomicAdd(address, val);
+}
+#else
 template<typename T> inline T AtomicAdd(T* address, T val)
 {
 #if defined(_OPENMP)
@@ -66,7 +70,7 @@ template<typename T> inline T AtomicAdd(T* address, T val)
    *address += val;
    return *address;
 }
-#endif // MFEM_USE_CUDA
+#endif
 
 /// Allocates device memory
 void* CuMemAlloc(void **d_ptr, size_t bytes);
