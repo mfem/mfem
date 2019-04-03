@@ -1098,6 +1098,8 @@ static void PAMassMultAssembled(const int dim,
       {0x323,&PAMassMultAdd3D<2,3>},
       {0x324,&PAMassMultAdd3D<2,4>},
       {0x334,&PAMassMultAdd3D<3,4>},
+      {0x345,&PAMassMultAdd3D<4,5>},
+      {0x356,&PAMassMultAdd3D<5,6>},
    };
    if (!call[id])
    {
