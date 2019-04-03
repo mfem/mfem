@@ -12,10 +12,9 @@
 #ifndef MFEM_OCCA_HPP
 #define MFEM_OCCA_HPP
 
-#include "./cuda.hpp"
-
 #ifdef MFEM_USE_OCCA
 #include <occa.hpp>
+#include "./cuda.hpp"
 
 #ifdef MFEM_USE_CUDA
 #include <occa/mode/cuda/utils.hpp>
