@@ -419,27 +419,51 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
 {
    ElTr->Attribute = GetBdrAttribute(i);
    ElTr->ElementNo = i; // boundary element number
+   DenseMatrix &pm = ElTr->GetPointMat();
    if (Nodes == NULL)
    {
-      GetBdrPointMatrix(i, ElTr->GetPointMat());
-      ElTr->SetFE(
-         GetTransformationFEforElementType(GetBdrElementType(i)));
+      GetBdrPointMatrix(i, pm);
+      ElTr->SetFE(GetTransformationFEforElementType(GetBdrElementType(i)));
    }
    else
    {
-      DenseMatrix &pm = ElTr->GetPointMat();
-      Array<int> vdofs;
-      Nodes->FESpace()->GetBdrElementVDofs(i, vdofs);
-      int n = vdofs.Size()/spaceDim;
-      pm.SetSize(spaceDim, n);
-      for (int k = 0; k < spaceDim; k++)
+      const FiniteElement *bdr_el = Nodes->FESpace()->GetBE(i);
+      if (bdr_el)
       {
-         for (int j = 0; j < n; j++)
+         Array<int> vdofs;
+         Nodes->FESpace()->GetBdrElementVDofs(i, vdofs);
+         int n = vdofs.Size()/spaceDim;
+         pm.SetSize(spaceDim, n);
+         for (int k = 0; k < spaceDim; k++)
          {
-            pm(k,j) = (*Nodes)(vdofs[n*k+j]);
+            for (int j = 0; j < n; j++)
+            {
+               pm(k,j) = (*Nodes)(vdofs[n*k+j]);
+            }
          }
+         ElTr->SetFE(bdr_el);
       }
-      ElTr->SetFE(Nodes->FESpace()->GetBE(i));
+      else // L2 Nodes (e.g., periodic mesh)
+      {
+         int elem_id, face_info;
+         GetBdrElementAdjacentElement(i, elem_id, face_info);
+
+         GetLocalFaceTransformation(GetBdrElementType(i),
+                                    GetElementType(elem_id),
+                                    FaceElemTr.Loc1.Transf, face_info);
+         // NOTE: FaceElemTr.Loc1 is overwritten here -- used as a temporary
+
+         const FiniteElement *face_el =
+            Nodes->FESpace()->GetTraceElement(elem_id,
+                                              GetBdrElementBaseGeometry(i));
+
+         IntegrationRule eir(face_el->GetDof());
+         FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
+         // 'Transformation' is not used
+         Nodes->GetVectorValues(Transformation, eir, pm);
+
+         ElTr->SetFE(face_el);
+      }
    }
    ElTr->FinalizeTransformation();
 }
@@ -2113,8 +2137,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
 }
 
 void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
-                  double sx, double sy, double sz,
-                  bool generate_edges, bool sfc_ordering)
+                  double sx, double sy, double sz, bool sfc_ordering)
 {
    int x, y, z;
 
@@ -3212,12 +3235,12 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 {
    Dim = orig_mesh->Dimension();
-   MFEM_VERIFY(ref_factor > 1, "the refinement factor must be > 1");
+   MFEM_VERIFY(ref_factor >= 1, "the refinement factor must be >= 1");
    MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
                ref_type == BasisType::GaussLobatto, "invalid refinement type");
-   MFEM_VERIFY(Dim == 2 || Dim == 3,
-               "only implemented for Hexahedron and Quadrilateral elements in "
-               "2D/3D");
+   MFEM_VERIFY(Dim == 1 || Dim == 2 || Dim == 3,
+               "only implemented for Segment, Quadrilateral and Hexahedron "
+               "elements in 1D/2D/3D");
    MFEM_VERIFY(orig_mesh->GetNumGeometries(Dim) <= 1,
                "meshes with mixed elements are not supported");
 
@@ -3226,7 +3249,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    H1_FECollection rfec(ref_factor, Dim, ref_type);
    FiniteElementSpace rfes(orig_mesh, &rfec);
 
-   int r_bndr_factor = ref_factor * (Dim == 2 ? 1 : ref_factor);
+   int r_bndr_factor = pow(ref_factor, Dim - 1);
    int r_elem_factor = ref_factor * r_bndr_factor;
 
    int r_num_vert = rfes.GetNDofs();
@@ -3283,18 +3306,34 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
       rfes.GetBdrElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
-      const int *c2h_map = rfec.GetDofMap(geom);
-      for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+      if (Dim == 1)
       {
-         Element *elem = NewElement(geom);
-         elem->SetAttribute(attrib);
-         int *v = elem->GetVertices();
-         for (int k = 0; k < nvert; k++)
+         // Dim == 1 is a special case because the boundary elements are
+         // zero-dimensional points, and therefore don't have a DofMap
+         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
          {
-            int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
-            v[k] = rdofs[c2h_map[cid]];
+            Element *elem = NewElement(geom);
+            elem->SetAttribute(attrib);
+            int *v = elem->GetVertices();
+            v[0] = rdofs[RG.RefGeoms[nvert*j]];
+            AddBdrElement(elem);
          }
-         AddBdrElement(elem);
+      }
+      else
+      {
+         const int *c2h_map = rfec.GetDofMap(geom);
+         for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+         {
+            Element *elem = NewElement(geom);
+            elem->SetAttribute(attrib);
+            int *v = elem->GetVertices();
+            for (int k = 0; k < nvert; k++)
+            {
+               int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
+               v[k] = rdofs[c2h_map[cid]];
+            }
+            AddBdrElement(elem);
+         }
       }
    }
 
