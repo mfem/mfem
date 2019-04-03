@@ -273,17 +273,14 @@ static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
    if (!known) { mfem_error("occaMemory: Unknown address!"); }
    mm::memory &base = maps.memories.at(ptr);
    const bool host = base.host;
-   const bool device = !base.host;
    const size_t bytes = base.bytes;
    const bool gpu = Device::UsingDevice();
    if (host && !gpu) { return OccaWrapMemory(occaDevice, ptr, bytes); }
    if (!gpu) { mfem_error("occaMemory: !gpu"); }
-   if (device) { return OccaWrapMemory(occaDevice, base.d_ptr, bytes); }
    if (!base.d_ptr)
    {
       CuMemAlloc(&base.d_ptr, bytes);
       CuMemcpyHtoD(base.d_ptr, ptr, bytes);
-      CuCheck(cudaDeviceSynchronize());
       base.host = false;
    }
    return OccaWrapMemory(occaDevice, base.d_ptr, bytes);
