@@ -1004,7 +1004,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
          f_fes->fec->FiniteElementForGeometry(geom);
       const FiniteElement *coarse_fe =
          c_fes->fec->FiniteElementForGeometry(geom);
-      const DenseTensor &pmats = rtrans.GetPointMatrices(geom);
+      const DenseTensor &pmats = rtrans.point_matrices[geom];
 
       lP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), pmats.SizeK());
       lM.SetSize(fine_fe->GetDof(),   fine_fe->GetDof(), pmats.SizeK());
@@ -2447,7 +2447,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
    Vector shape_lor(ndof_lor);
 
    const Geometry::Type geom = fe_ho->GetGeomType();
-   const DenseTensor &pmats = cf_tr.GetPointMatrices(geom);
+   const DenseTensor &pmats = cf_tr.point_matrices[geom];
    emb_tr.SetIdentityTransformation(geom);
 
    for (int iho=0; iho<nel_ho; ++iho)
