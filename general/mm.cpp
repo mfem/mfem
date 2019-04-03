@@ -120,7 +120,6 @@ static inline bool MmDeviceIniFilter(void)
    if (Device::DeviceDisabled()) { return true; }
    if (Device::IsTracking() == false) { return true; }
    if (!Device::DeviceHasBeenEnabled()) { return true; }
-   if (Device::UsingOcca()) { mfem_error("Device::UsingOcca()"); }
    return false;
 }
 
@@ -217,7 +216,6 @@ static void PushAlias(const mm::ledger &maps, const void *ptr,
 
 void mm::Push(const void *ptr, const size_t bytes)
 {
-   if (bytes==0) { mfem_error("Push bytes==0"); }
    if (MmDeviceIniFilter()) { return; }
    if (Known(ptr)) { return PushKnown(maps, ptr, bytes); }
    if (Alias(ptr)) { return PushAlias(maps, ptr, bytes); }
@@ -273,38 +271,23 @@ void* mm::memcpy(void *dst, const void *src, const size_t bytes,
 static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
 {
    OccaDevice occaDevice = Device::GetOccaDevice();
-   if (!Device::UsingMM())
-   {
-      OccaMemory o_ptr = OccaWrapMemory(occaDevice, const_cast<void*>(ptr), 0);
-      return o_ptr;
-   }
+   if (!Device::UsingMM()) { return OccaWrapMemory(occaDevice, ptr, 0); }
    const bool known = mm::known(ptr);
    if (!known) { mfem_error("occaMemory: Unknown address!"); }
    mm::memory &base = maps.memories.at(ptr);
+   const bool host = base.host;
    const size_t bytes = base.bytes;
    const bool gpu = Device::UsingDevice();
-   if (!Device::UsingOcca()) { mfem_error("Using OCCA without support!"); }
+   if (host && !gpu) { return OccaWrapMemory(occaDevice, ptr, bytes); }
+   if (!gpu) { mfem_error("occaMemor: !gpu"); }
    if (!base.d_ptr)
    {
-      base.host = false; // This address is no longer on the host
-      if (gpu)
-      {
-         CuMemAlloc(&base.d_ptr, bytes);
-         void *stream = Device::Stream();
-         CuMemcpyHtoDAsync(base.d_ptr, base.h_ptr, bytes, stream);
-      }
-      else
-      {
-         base.o_ptr = OccaDeviceMalloc(occaDevice, bytes);
-         base.d_ptr = OccaMemoryPtr(base.o_ptr);
-         OccaCopyFrom(base.o_ptr, base.h_ptr);
-      }
+      CuMemAlloc(&base.d_ptr, bytes);
+      CuMemcpyHtoD(base.d_ptr, ptr, bytes);
+      base.host = false;
    }
-   if (gpu)
-   {
-      return OccaWrapMemory(occaDevice, base.d_ptr, bytes);
-   }
-   return base.o_ptr;
+   return OccaWrapMemory(occaDevice, base.d_ptr, bytes);
+   
 }
 
 OccaMemory mm::Memory(const void *ptr) { return occaMemory(maps, ptr); }

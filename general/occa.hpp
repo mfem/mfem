@@ -32,9 +32,8 @@ typedef occa::memory OccaMemory;
    static occa::kernel ker = NULL;                                      \
    if (ker==NULL) {                                                     \
       OccaDevice device = Device::GetOccaDevice();                      \
-      const std::string fdk = "occa://" #library "/" #filename;         \
-      const std::string odk = occa::io::occaFileOpener().expand(fdk);   \
-      ker = device.buildKernel(odk, #ker, props);                       \
+      ker = device.buildKernel("occa://" #library "/" #filename,        \
+                               #ker, props);                            \
    }
 
 #else // MFEM_USE_OCCA
@@ -49,7 +48,7 @@ namespace mfem
 
 OccaDevice OccaWrapDevice(CUdevice device, CUcontext context);
 OccaMemory OccaDeviceMalloc(OccaDevice device, const size_t bytes);
-OccaMemory OccaWrapMemory(const OccaDevice device, void *d_adrs,
+OccaMemory OccaWrapMemory(const OccaDevice device, const void *d_adrs,
                           const size_t bytes);
 void *OccaMemoryPtr(OccaMemory o_mem);
 void OccaCopyFrom(OccaMemory o_mem, const void *h_adrs);
