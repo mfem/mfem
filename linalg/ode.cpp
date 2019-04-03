@@ -685,24 +685,25 @@ void ODEController::Step(Vector &x, double &t, double delta_t)
 
       sol->Step(next_x, next_t, dt);
 
-      double e = msr->Eval(x, next_x);
+      double r = msr->Eval(x, next_x);
+      double a = -1.0;
 
-      if (e <= rho * tol)
+      if (r <= rho * tol)
       {
          accept = true;
          nrejs  = 0;
 
-         curr_err = e;
+         curr_r = r;
          x = next_x;
          t = next_t;
-         dt *= (*lim)((*acc)(e, dt));
+         a = (*acc)(r, dt);
       }
       else
       {
          nrejs++;
-         dt *= (*lim)((*rej)(e, dt));
-         dt = std::max(min_dt, dt); // Prevent bottomless descent
+         a = (*rej)(r, dt);
       }
+      dt = std::max(min_dt, (*lim)(a) * dt); // Prevent bottomless descent
    }
 }
 
@@ -716,7 +717,7 @@ void ODEController::Run(Vector &x, double &t, double tf)
 
       if (out)
       {
-         *out << t << '\t' << dt << '\t' << curr_err;
+         *out << t << '\t' << dt << '\t' << curr_r;
          /*
               for (int i=0; i<x.Size(); i++)
               {

@@ -120,7 +120,7 @@ protected:
    ODEStepAdjustmentLimiter * lim;
    double tol;
    double rho;
-   double curr_err;
+   double curr_r;
    double min_dt;
 
    int ofreq;
@@ -137,7 +137,7 @@ protected:
 public:
    ODEController()
       : sol(NULL), msr(NULL), acc(NULL), rej(NULL), lim(NULL),
-        tol(-1.0), rho(1.2), curr_err(-1.0), min_dt(-1.0), ofreq(-1), nsteps(0),
+        tol(-1.0), rho(1.2), curr_r(-1.0), min_dt(-1.0), ofreq(-1), nsteps(0),
         nrejs(0), max_nrejs(1000), dt(1.0), out(NULL) {}
 
    /// Define the particulars of the ODE step-size control process
