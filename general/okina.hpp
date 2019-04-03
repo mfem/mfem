@@ -21,7 +21,7 @@
 
 #include "cuda.hpp"
 #include "occa.hpp"
-#include "mm.hpp"
+#include "mem_manager.hpp"
 #include "device.hpp"
 
 #ifdef MFEM_USE_RAJA
