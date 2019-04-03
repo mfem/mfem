@@ -114,18 +114,18 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(integ);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
 
-   // 6. The solution vector x and the associated finite element grid function
+   // 7. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
    GridFunction x(&fespace);
    x = 0.0;
 
-   // 7. All boundary attributes will be used for essential (Dirichlet) BC.
+   // 8. All boundary attributes will be used for essential (Dirichlet) BC.
    MFEM_VERIFY(mesh.bdr_attributes.Size() > 0,
                "Boundary attributes required in the mesh.");
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 1;
 
-   // 8. Connect to GLVis.
+   // 9. Connect to GLVis.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock;
@@ -134,23 +134,23 @@ int main(int argc, char *argv[])
       sol_sock.open(vishost, visport);
    }
 
-   // 9. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
-   //    that uses the ComputeElementFlux method of the DiffusionIntegrator to
-   //    recover a smoothed flux (gradient) that is subtracted from the element
-   //    flux to get an error indicator. We need to supply the space for the
-   //    smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
+   // 10. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
+   //     that uses the ComputeElementFlux method of the DiffusionIntegrator to
+   //     recover a smoothed flux (gradient) that is subtracted from the element
+   //     flux to get an error indicator. We need to supply the space for the
+   //     smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
    FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
    ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
    estimator.SetAnisotropic();
 
-   // 10. A refiner selects and refines elements based on a refinement strategy.
+   // 11. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.7);
 
-   // 11. The main AMR loop. In each iteration we solve the problem on the
+   // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
    const int max_dofs = 50000;
    for (int it = 0; ; it++)
@@ -159,11 +159,10 @@ int main(int argc, char *argv[])
       cout << "\nAMR iteration " << it << endl;
       cout << "Number of unknowns: " << cdofs << endl;
 
-      // 12. Assemble the stiffness matrix and the right-hand side.
-      a.Assemble();
+      // 13. Assemble the right-hand side.
       b.Assemble();
 
-      // 13. Set Dirichlet boundary values in the GridFunction x.
+      // 14. Set Dirichlet boundary values in the GridFunction x.
       //     Determine the list of Dirichlet true DOFs in the linear system.
       Array<int> ess_tdof_list;
       x.ProjectBdrCoefficient(zero, ess_bdr);

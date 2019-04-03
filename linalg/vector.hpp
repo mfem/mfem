@@ -457,6 +457,7 @@ double Min(const int N, const double *x);
 
 /// Kernel of the inner product of arrays x and y of size N
 double Dot(const int N, const double *x, const double *y);
+
 }
 
 #endif

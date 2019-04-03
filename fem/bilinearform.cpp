@@ -54,7 +54,7 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   double *data = new double[I[height]];
+   double *data = mm::malloc<double>(I[height]);
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
@@ -220,13 +220,13 @@ void BilinearForm::Finalize (int skip_zeros)
    if (hybridization) { hybridization->Finalize(); }
 }
 
-void BilinearForm::AddDomainIntegrator (AbstractBilinearFormIntegrator * bfi)
+void BilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
 {
    switch (assembly)
    {
       case AssemblyLevel::FULL:
          // Use the original BilinearForm implementation for now
-         dbfi.Append (static_cast<BilinearFormIntegrator*>(bfi));
+         dbfi.Append(bfi);
          break;
       case AssemblyLevel::ELEMENT:
          mfem_error("Not supported yet... stay tuned!");

@@ -928,7 +928,7 @@ BlockArray<T>::~BlockArray()
       {
          block[--j].~T();
       }
-      mfem::mm::free<char>(block);
+      delete [] (char*) block;
       bsize = mask+1;
    }
 }

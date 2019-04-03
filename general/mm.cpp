@@ -105,8 +105,8 @@ void *mm::Erase(void *ptr)
    for (const alias* const alias : mem.aliases)
    {
       maps.aliases.erase(alias);
-      delete alias;
    }
+   mem.aliases.clear();
    maps.memories.erase(ptr);
    return ptr;
 }

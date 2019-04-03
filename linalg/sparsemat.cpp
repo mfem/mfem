@@ -641,13 +641,11 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
                "Output vector size (" << y.Size() << ") must match matrix width (" << width
                << ")");
 
-   int i, j, end;
-   double *yp = y.GetData();
-
    if (A == NULL)
    {
+      double *yp = y.GetData();
       // The matrix is not finalized, but multiplication is still possible
-      for (i = 0; i < height; i++)
+      for (int i = 0; i < height; i++)
       {
          RowNode *row = Rows[i];
          double b = a * x(i);
@@ -668,9 +666,9 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    const bool device = Device::UsingDevice();
    MFEM_FORALL(i, d_height,
    {
-      double xi = a * x(i);
-      end = I[i+1];
-      for (j = I[i]; j < end; j++)
+      const double xi = a * d_x[i];
+      const int end = d_I[i+1];
+      for (int j = d_I[i]; j < end; j++)
       {
          const int Jj = d_J[j];
          if (device)
@@ -682,7 +680,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
             d_y[Jj] += d_A[j] * xi;
          }
       }
-   }
+   });
 }
 
 void SparseMatrix::PartMult(
@@ -2976,7 +2974,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
    B_j    = B.GetJ();
    B_data = B.GetData();
 
-   B_marker = mm::malloc<int>(ncolsB);
+   B_marker = new int[ncolsB];
 
    for (ib = 0; ib < ncolsB; ib++)
    {
@@ -3103,7 +3101,7 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                "number of columns of A (" << ncolsA
                << ") must equal number of rows of B (" << nrowsB << ")");
 
-   B_marker = mm::malloc<int>(ncolsB);
+   B_marker = new int[ncolsB];
 
    for (ib = 0; ib < ncolsB; ib++)
    {
@@ -3275,7 +3273,7 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
    int * B_j = B.GetJ();
    double * B_data = B.GetData();
 
-   int * marker = mm::malloc<int>(ncols);
+   int * marker = new int[ncols];
    std::fill(marker, marker+ncols, -1);
 
    int num_nonzeros = 0, jcol;
