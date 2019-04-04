@@ -56,7 +56,7 @@ public:
       memory_map memories;
       alias_map aliases;
    };
-   
+
    /// Main malloc template function. Allocates n*size bytes and returns a
    /// pointer to the allocated memory.
    template<class T>
