@@ -1830,7 +1830,7 @@ void Mesh::ReadGmshV2(std::istream &input, int binary)
          int serial_number; // serial number of an element
          int type_of_element; // ID describing a type of a mesh element
          int n_tags; // number of different tags describing an element
-         int phys_domain; // element's attribute
+         int phys_domain = 1; // element's attribute
          int elem_domain; // another element's attribute (rarely used)
          int n_partitions; // number of partitions where an element takes place
 
@@ -1872,6 +1872,11 @@ void Mesh::ReadGmshV2(std::istream &input, int binary)
                   // physical domain - the most important value (to distinguish
                   // materials with different properties)
                   phys_domain = (n_tags > 0) ? data[dd++] : 1;
+                  if(phys_domain == 0)
+                  {
+                     phys_domain = 1;
+                  }
+                  phys_domain = abs(phys_domain);
                   // elementary domain - to distinguish different geometrical
                   // domains (typically, it's used rarely)
                   elem_domain = (n_tags > 1) ? data[dd++] : 0;
@@ -1955,6 +1960,11 @@ void Mesh::ReadGmshV2(std::istream &input, int binary)
                // physical domain - the most important value (to distinguish
                // materials with different properties)
                phys_domain = (n_tags > 0) ? data[0] : 1;
+               if(phys_domain == 0)
+               {
+                  phys_domain = 1;
+               }
+               phys_domain = abs(phys_domain);
                // elementary domain - to distinguish different geometrical
                // domains (typically, it's used rarely)
                elem_domain = (n_tags > 1) ? data[1] : 0;
