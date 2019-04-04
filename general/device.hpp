@@ -122,7 +122,7 @@ public:
 
    static inline bool UsingOkina()
    {
-      return UsingCuda() || UsingOmp() || UsingRaja() || UsingOcca();
+      return UsingDevice() || UsingOmp() || UsingRaja() || UsingOcca();
    }
 
    ~Device();
