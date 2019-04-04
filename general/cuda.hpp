@@ -57,12 +57,12 @@ typedef void* CUstream;
 
 #ifdef __CUDA_ARCH__
 template<typename T> MFEM_DEVICE
-inline T AtomicAdd(T* address, T val)
+inline T AtomicAdd(T volatile *address, T val)
 {
-   return atomicAdd(address, val);
+  return atomicAdd((T *)address, val);
 }
 #else // __CUDA_ARCH__
-template<typename T> inline T AtomicAdd(T* address, T val)
+template<typename T> inline T AtomicAdd(T volatile *address, T val)
 {
 #if defined(_OPENMP)
    #pragma omp atomic
