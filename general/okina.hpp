@@ -13,7 +13,7 @@
 #define MFEM_OKINA_HPP
 
 #include "../config/config.hpp"
-#include "../general/error.hpp"
+#include "error.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -21,8 +21,8 @@
 
 #include "cuda.hpp"
 #include "occa.hpp"
-#include "mem_manager.hpp"
 #include "device.hpp"
+#include "mem_manager.hpp"
 
 #ifdef MFEM_USE_RAJA
 #include "RAJA/RAJA.hpp"

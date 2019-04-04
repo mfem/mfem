@@ -12,36 +12,17 @@
 #ifndef MFEM_DTENSOR
 #define MFEM_DTENSOR
 
-#include "../general/okina.hpp"
+#include "../general/cuda.hpp"
 
 namespace mfem
 {
-
-// Simple vector and tensor classes for dense linear algebra on the device
-
-/// Class for a simple Vector of sizes, appropriate for use on the GPU
-class DeviceVector3
-{
-private:
-   double data[3];
-public:
-   DeviceVector3() {}
-   DeviceVector3(const double *r) { data[0]=r[0]; data[1]=r[1]; data[2]=r[2]; }
-   DeviceVector3(const double r0, const double r1 = 0.0, const double r2 = 0.0)
-   { data[0]=r0; data[1]=r1; data[2]=r2; }
-   inline operator double* () { return data; }
-   inline operator const double* () const { return data; }
-   inline double& operator[](const size_t i) { return data[i]; }
-   inline double& operator()(const int i) { return data[i]; }
-   inline const double& operator()(const int i) const { return data[i]; }
-};
 
 /// A Class to compute the real index from the multi-indices of a tensor
 template <int N, int Dim, typename T, typename... Args>
 class TensorInd
 {
 public:
-   MFEM_HOST_DEVICE static int result(const int* sizes, T first, Args... args)
+   MFEM_HOST_DEVICE static inline int result(const int* sizes, T first, Args... args)
    {
 #ifndef MFEM_USE_CUDA
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
@@ -55,7 +36,7 @@ template <int Dim, typename T, typename... Args>
 class TensorInd<Dim, Dim, T, Args...>
 {
 public:
-   MFEM_HOST_DEVICE static int result(const int* sizes, T first, Args... args)
+   MFEM_HOST_DEVICE static inline int result(const int* sizes, T first, Args... args)
    {
 #ifndef MFEM_USE_CUDA
       MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
@@ -69,7 +50,7 @@ template <int N, int Dim, typename T, typename... Args>
 class Init
 {
 public:
-   static int result(int* sizes, T first, Args... args)
+   static inline int result(int* sizes, T first, Args... args)
    {
       sizes[N - 1] = first;
       return first * Init < N + 1, Dim, Args... >::result(sizes, args...);
@@ -80,7 +61,7 @@ template <int Dim, typename T, typename... Args>
 class Init<Dim, Dim, T, Args...>
 {
 public:
-   static int result(int* sizes, T first, Args... args)
+   static inline int result(int* sizes, T first, Args... args)
    {
       sizes[Dim - 1] = first;
       return first;
@@ -137,7 +118,7 @@ public:
    }
 
    /// Copy constructor
-   MFEM_HOST_DEVICE DeviceTensor(const DeviceTensor& t)
+   DeviceTensor(const DeviceTensor& t)
    {
       for (int i = 0; i < Dim; ++i)
       {

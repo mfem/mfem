@@ -10,17 +10,23 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "okina.hpp"
+#include "cuda.hpp"
+#include "occa.hpp"
 
 namespace mfem
 {
 
+CUstream *cuStream;
+static CUdevice cuDevice;
+static CUcontext cuContext;
+OccaDevice occaDevice;
+
 #ifdef MFEM_USE_CUDA
-void Device::GpuDeviceSetup(const int device)
+static void DeviceSetup(const int dev, int &ngpu)
 {
    cudaGetDeviceCount(&ngpu);
    MFEM_ASSERT(ngpu>0, "No CUDA device found!");
    cuInit(0);
-   dev = device;
    cuDeviceGet(&cuDevice,dev);
    cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
    cuStream = new CUstream;
@@ -29,27 +35,29 @@ void Device::GpuDeviceSetup(const int device)
 }
 #endif
 
-void Device::CudaDeviceSetup(const int device)
+static void CudaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
-   GpuDeviceSetup(device);
+   DeviceSetup(dev, ngpu);
 #else
    MFEM_ABORT("CUDA requested but MFEM was not built with MFEM_USE_CUDA=YES");
 #endif
 }
 
-void Device::RajaDeviceSetup(const int device)
+static void RajaDeviceSetup(const int dev, int &ngpu)
 {
 #if defined(MFEM_USE_CUDA) && defined(MFEM_USE_RAJA)
-   GpuDeviceSetup(device);
+   DeviceSetup(dev, ngpu);
 #elif !defined(MFEM_USE_RAJA)
    MFEM_ABORT("RAJA requested but MFEM was not built with MFEM_USE_RAJA=YES");
 #endif
 }
 
-void Device::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
+static void OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 {
 #ifdef MFEM_USE_OCCA
+   const bool omp  = Device::UsingOmp();
+   const bool cuda = Device::UsingCuda();
    if (cuda)
    {
       occaDevice = OccaWrapDevice(cu_dev, cu_ctx);
@@ -71,15 +79,17 @@ void Device::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 #endif
 }
 
-void Device::MFEMDeviceSetup(const int dev)
+void Device::Setup(const int device)
 {
+   dev = device;
+
    MFEM_ASSERT(ngpu==-1, "Only one MFEMDeviceSetup allowed");
    ngpu = 0;
 
    // We initialize CUDA first so OccaDeviceSetup() can reuse the same
    // initialized cuDevice and cuContext objects
-   if (cuda) { CudaDeviceSetup(dev); }
-   if (raja) { RajaDeviceSetup(dev); }
+   if (cuda) { CudaDeviceSetup(dev, ngpu); }
+   if (raja) { RajaDeviceSetup(dev, ngpu); }
    if (occa) { OccaDeviceSetup(cuDevice, cuContext); }
 
    if (cuda && ngpu==0)

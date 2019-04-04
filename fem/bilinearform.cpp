@@ -12,6 +12,7 @@
 // Implementation of class BilinearForm
 
 #include "fem.hpp"
+#include "../general/device.hpp"
 #include <cmath>
 
 namespace mfem

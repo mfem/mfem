@@ -12,13 +12,9 @@
 #ifndef MFEM_VECTOR
 #define MFEM_VECTOR
 
-// Data type vector
-
-#include "dtensor.hpp"
-#include "../general/okina.hpp"
 #include "../general/array.hpp"
 #include "../general/globals.hpp"
-#include "../general/okina.hpp"
+#include "../general/mem_manager.hpp"
 #ifdef MFEM_USE_SUNDIALS
 #include <nvector/nvector_serial.h>
 #endif

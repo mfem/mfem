@@ -12,6 +12,7 @@
 #include "../config/config.hpp"
 #include "../general/okina.hpp"
 #include "../linalg/dtensor.hpp"
+#include "../linalg/dvector3.hpp"
 
 #include "fem.hpp"
 #include <map>
@@ -57,13 +58,13 @@ static void OccaPADiffusionAssemble2D(const int D1D,
                                       const double COEFF,
                                       double *op)
 {
-   MFEM_GET_OCCA_CONST_MEMORY(W);
-   MFEM_GET_OCCA_CONST_MEMORY(J);
-   MFEM_GET_OCCA_MEMORY(op);
+   const occa::memory o_W = mfem::OccaPtr(W);
+   const occa::memory o_J = mfem::OccaPtr(J);
+   occa::memory o_op = mfem::OccaPtr(op);
 
-   MFEM_NEW_OCCA_PROPERTY(props);
-   MFEM_SET_OCCA_PROPERTY(props, D1D);
-   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
 
    MFEM_NEW_OCCA_KERNEL(DiffusionSetup2D, fem, occa.okl, props);
    DiffusionSetup2D(NE, o_W, o_J, COEFF, o_op);
@@ -77,13 +78,13 @@ static void OccaPADiffusionAssemble3D(const int D1D,
                                       const double COEFF,
                                       double *op)
 {
-   MFEM_GET_OCCA_CONST_MEMORY(W);
-   MFEM_GET_OCCA_CONST_MEMORY(J);
-   MFEM_GET_OCCA_MEMORY(op);
+   const occa::memory o_W = mfem::OccaPtr(W);
+   const occa::memory o_J = mfem::OccaPtr(J);
+   occa::memory o_op = mfem::OccaPtr(op);
 
-   MFEM_NEW_OCCA_PROPERTY(props);
-   MFEM_SET_OCCA_PROPERTY(props, D1D);
-   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
 
    MFEM_NEW_OCCA_KERNEL(DiffusionSetup3D, fem, occa.okl, props);
    DiffusionSetup3D(NE, o_W, o_J, COEFF, o_op);
@@ -237,17 +238,17 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
                                      const double* x,
                                      double* y)
 {
-   MFEM_GET_OCCA_CONST_MEMORY(B);
-   MFEM_GET_OCCA_CONST_MEMORY(G);
-   MFEM_GET_OCCA_CONST_MEMORY(Bt);
-   MFEM_GET_OCCA_CONST_MEMORY(Gt);
-   MFEM_GET_OCCA_CONST_MEMORY(op);
-   MFEM_GET_OCCA_CONST_MEMORY(x);
-   MFEM_GET_OCCA_MEMORY(y);
+   const occa::memory o_B = mfem::OccaPtr(B);
+   const occa::memory o_G = mfem::OccaPtr(G);
+   const occa::memory o_Bt = mfem::OccaPtr(Bt);
+   const occa::memory o_Gt = mfem::OccaPtr(Gt);
+   const occa::memory o_op = mfem::OccaPtr(op);
+   const occa::memory o_x = mfem::OccaPtr(x);
+   occa::memory o_y = mfem::OccaPtr(y);
 
-   MFEM_NEW_OCCA_PROPERTY(props);
-   MFEM_SET_OCCA_PROPERTY(props, D1D);
-   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
 
    if (!Device::UsingDevice())
    {
@@ -273,17 +274,17 @@ static void OccaPADiffusionMultAdd3D(const int D1D,
                                      const double* x,
                                      double* y)
 {
-   MFEM_GET_OCCA_CONST_MEMORY(B);
-   MFEM_GET_OCCA_CONST_MEMORY(G);
-   MFEM_GET_OCCA_CONST_MEMORY(Bt);
-   MFEM_GET_OCCA_CONST_MEMORY(Gt);
-   MFEM_GET_OCCA_CONST_MEMORY(op);
-   MFEM_GET_OCCA_CONST_MEMORY(x);
-   MFEM_GET_OCCA_MEMORY(y);
+   const occa::memory o_B = mfem::OccaPtr(B);
+   const occa::memory o_G = mfem::OccaPtr(G);
+   const occa::memory o_Bt = mfem::OccaPtr(Bt);
+   const occa::memory o_Gt = mfem::OccaPtr(Gt);
+   const occa::memory o_op = mfem::OccaPtr(op);
+   const occa::memory o_x = mfem::OccaPtr(x);
+   occa::memory o_y = mfem::OccaPtr(y);
 
-   MFEM_NEW_OCCA_PROPERTY(props);
-   MFEM_SET_OCCA_PROPERTY(props, D1D);
-   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
 
    if (!Device::UsingDevice())
    {
@@ -776,15 +777,15 @@ static void OccaPAMassMultAdd2D(const int D1D,
                                 const double* x,
                                 double* y)
 {
-   MFEM_GET_OCCA_CONST_MEMORY(B);
-   MFEM_GET_OCCA_CONST_MEMORY(Bt);
-   MFEM_GET_OCCA_CONST_MEMORY(op);
-   MFEM_GET_OCCA_CONST_MEMORY(x);
-   MFEM_GET_OCCA_MEMORY(y);
+   const occa::memory o_B = mfem::OccaPtr(B);
+   const occa::memory o_Bt = mfem::OccaPtr(Bt);
+   const occa::memory o_op = mfem::OccaPtr(op);
+   const occa::memory o_x = mfem::OccaPtr(x);
+   occa::memory o_y = mfem::OccaPtr(y);
 
-   MFEM_NEW_OCCA_PROPERTY(props);
-   MFEM_SET_OCCA_PROPERTY(props, D1D);
-   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
 
    if (!Device::UsingDevice())
    {
@@ -808,15 +809,15 @@ static void OccaPAMassMultAdd3D(const int D1D,
                                 const double* x,
                                 double* y)
 {
-   MFEM_GET_OCCA_CONST_MEMORY(B);
-   MFEM_GET_OCCA_CONST_MEMORY(Bt);
-   MFEM_GET_OCCA_CONST_MEMORY(op);
-   MFEM_GET_OCCA_CONST_MEMORY(x);
-   MFEM_GET_OCCA_MEMORY(y);
+   const occa::memory o_B = mfem::OccaPtr(B);
+   const occa::memory o_Bt = mfem::OccaPtr(Bt);
+   const occa::memory o_op = mfem::OccaPtr(op);
+   const occa::memory o_x = mfem::OccaPtr(x);
+   occa::memory o_y = mfem::OccaPtr(y);
 
-   MFEM_NEW_OCCA_PROPERTY(props);
-   MFEM_SET_OCCA_PROPERTY(props, D1D);
-   MFEM_SET_OCCA_PROPERTY(props, Q1D);
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
 
    if (!Device::UsingDevice())
    {

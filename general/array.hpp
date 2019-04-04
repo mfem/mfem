@@ -13,7 +13,7 @@
 #define MFEM_ARRAY
 
 #include "../config/config.hpp"
-#include "../general/okina.hpp"
+#include "../general/mem_manager.hpp"
 #include "error.hpp"
 #include "globals.hpp"
 
