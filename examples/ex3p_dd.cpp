@@ -383,11 +383,19 @@ int main(int argc, char *argv[])
 
        Vector Bdd(ddi.Width());
        Vector xdd(ddi.Width());
-       ddi.GetReducedSource(fespace, B, Bdd);
+
+       Vector B_Im(B.Size());
+       B_Im = 0.0;
+
+       ddi.GetReducedSource(fespace, B, B_Im, Bdd);
 
        /*
+       Bdd = 1.0;
+
+       cout << "Solving DD system" << endl;
+
        GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
-	   
+
        gmres->SetOperator(ddi);
        gmres->SetRelTol(1e-16);
        gmres->SetMaxIter(1000);

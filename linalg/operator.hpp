@@ -299,6 +299,8 @@ public:
 
    /// Operator application
    virtual void Mult(const Vector &x, Vector &y) const { y = x; }
+
+  virtual void MultTranspose(const Vector &x, Vector &y) const { y = x; }
 };
 
 

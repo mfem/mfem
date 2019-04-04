@@ -683,6 +683,8 @@ void SetDomainDofsFromSubdomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteE
     }
 }
 
+#define DDMCOMPLEX
+
 class DDMInterfaceOperator : public Operator
 {
 public:
@@ -692,7 +694,7 @@ public:
     numSubdomains(numSubdomains_), numInterfaces(numInterfaces_), pmeshSD(pmeshSD_), pmeshIF(pmeshIF_), fec(orderND, spaceDim),
     fecbdry(orderND, spaceDim-1), fecbdryH1(orderND, spaceDim-1), localInterfaces(localInterfaces_), interfaceLocalIndex(interfaceLocalIndex_),
     subdomainLocalInterfaces(numSubdomains_), pmeshGlobal(pmesh_),
-    k2(250.0),
+    k2(250.0), realPart(true),
     alpha(1.0), beta(1.0), gamma(1.0)  // TODO: set these to the right values
   {
     int num_procs, rank;
@@ -702,8 +704,30 @@ public:
     MFEM_VERIFY(numSubdomains > 0, "");
     MFEM_VERIFY(interfaceLocalIndex->size() == numInterfaces, "");
 
-    fespace = new ParFiniteElementSpace*[numSubdomains];
+#ifdef DDMCOMPLEX
+    SetParameters();
+
+    AsdRe = new Operator*[numSubdomains];
+    AsdIm = new Operator*[numSubdomains];
+    AsdComplex = new BlockOperator*[numSubdomains];
+    precAsdComplex = new BlockDiagonalPreconditioner*[numSubdomains];
+    invAsdComplex = new Operator*[numSubdomains];
+    injComplexSD = new BlockOperator*[numSubdomains];
+#else
+    alphaIm = 0.0;
+    betaIm = 0.0;
+    gammaIm = 0.0;
+    
+    alphaRe = alpha;
+    betaRe = beta;
+    gammaRe = gamma;
+    
+    SetToRealParameters();
+    
     Asd = new Operator*[numSubdomains];
+#endif
+    
+    fespace = new ParFiniteElementSpace*[numSubdomains];
     ASPsd = new Operator*[numSubdomains];
     invAsd = new Operator*[numSubdomains];
     injSD = new BlockOperator*[numSubdomains];
@@ -856,15 +880,31 @@ public:
 	  }
 	
 	SetOffsetsSD(m);
+
+	GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
+
+#ifdef DDMCOMPLEX
+	// Real part
+	SetToRealParameters();
 	
+	AsdRe[m] = CreateSubdomainOperator(m);
+	
+	// Imaginary part
+	SetToImaginaryParameters();
+	
+	AsdIm[m] = CreateSubdomainOperator(m);
+	
+	gmres->SetOperator(*(AsdRe[m]));
+#else
 	Asd[m] = CreateSubdomainOperator(m);
+
+	gmres->SetOperator(*(Asd[m]));
+#endif
+	
 	//ASPsd[m] = CreateSubdomainOperatorStrumpack(m);
 
 	precAsd[m] = CreateSubdomainPreconditionerStrumpack(m);
 
-	GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
-
-	gmres->SetOperator(*(Asd[m]));
 	gmres->SetRelTol(1e-12);
 	gmres->SetMaxIter(1000);
 	gmres->SetPrintLevel(0);
@@ -873,15 +913,32 @@ public:
 
 	invAsd[m] = gmres;
       }
-
-    height = size;
-    width = size;
-
+    
     block_trueOffsets.PartialSum();
     MFEM_VERIFY(block_trueOffsets.Last() == size, "");
 
-    globalInterfaceOp = new BlockOperator(block_trueOffsets);
+#ifdef DDMCOMPLEX
+    height = 2*size;
+    width = 2*size;
+    
+    globalInterfaceOpRe = new BlockOperator(block_trueOffsets);
+    globalInterfaceOpIm = new BlockOperator(block_trueOffsets);
 
+    block_trueOffsets2.SetSize(numSubdomains + 1);
+    for (int i=0; i<numSubdomains + 1; ++i)
+      block_trueOffsets2[i] = 2*block_trueOffsets[i];
+    
+    globalInterfaceOp = new BlockOperator(block_trueOffsets2);
+
+    rowTrueOffsetsComplexIF.resize(numLocalInterfaces);
+    colTrueOffsetsComplexIF.resize(numLocalInterfaces);
+#else
+    height = size;
+    width = size;
+
+    globalInterfaceOp = new BlockOperator(block_trueOffsets);
+#endif
+    
     rowTrueOffsetsIF.resize(numLocalInterfaces);
     colTrueOffsetsIF.resize(numLocalInterfaces);
   
@@ -905,13 +962,73 @@ public:
 	MFEM_VERIFY(sd0 < sd1, "");
 
 	// Create operators for interface between subdomains sd0 and sd1, namely C_{sd0,sd1} R_{sd1}^T and the other.
+
+#ifdef DDMCOMPLEX
+	// Real part
+	SetToRealParameters();
+	
+	globalInterfaceOpRe->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
+	globalInterfaceOpRe->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
+
+	// Imaginary part
+	SetToImaginaryParameters();
+	
+	globalInterfaceOpIm->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
+	globalInterfaceOpIm->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
+
+	// Set complex blocks
+	rowTrueOffsetsComplexIF[ili].SetSize(3);
+	colTrueOffsetsComplexIF[ili].SetSize(3);
+
+	rowTrueOffsetsComplexIF[ili] = 0;
+	colTrueOffsetsComplexIF[ili] = 0;
+
+	rowTrueOffsetsComplexIF[ili][1] = block_trueOffsets[sd0+1] - block_trueOffsets[sd0];
+	rowTrueOffsetsComplexIF[ili][2] = block_trueOffsets[sd0+1] - block_trueOffsets[sd0];
+	
+	colTrueOffsetsComplexIF[ili][1] = block_trueOffsets[sd1+1] - block_trueOffsets[sd1];
+	colTrueOffsetsComplexIF[ili][2] = block_trueOffsets[sd1+1] - block_trueOffsets[sd1];
+
+	rowTrueOffsetsComplexIF[ili].PartialSum();
+	colTrueOffsetsComplexIF[ili].PartialSum();
+	
+	BlockOperator *complexBlock01 = new BlockOperator(rowTrueOffsetsComplexIF[ili], colTrueOffsetsComplexIF[ili]);
+	complexBlock01->SetBlock(0, 0, &(globalInterfaceOpRe->GetBlock(sd0, sd1)));
+	complexBlock01->SetBlock(0, 1, &(globalInterfaceOpIm->GetBlock(sd0, sd1)), -1.0);
+	complexBlock01->SetBlock(1, 0, &(globalInterfaceOpIm->GetBlock(sd0, sd1)));
+	complexBlock01->SetBlock(1, 1, &(globalInterfaceOpRe->GetBlock(sd0, sd1)));
+
+	BlockOperator *complexBlock10 = new BlockOperator(colTrueOffsetsComplexIF[ili], rowTrueOffsetsComplexIF[ili]);
+	complexBlock10->SetBlock(0, 0, &(globalInterfaceOpRe->GetBlock(sd1, sd0)));
+	complexBlock10->SetBlock(0, 1, &(globalInterfaceOpIm->GetBlock(sd1, sd0)), -1.0);
+	complexBlock10->SetBlock(1, 0, &(globalInterfaceOpIm->GetBlock(sd1, sd0)));
+	complexBlock10->SetBlock(1, 1, &(globalInterfaceOpRe->GetBlock(sd1, sd0)));
+	
+	globalInterfaceOp->SetBlock(sd0, sd1, complexBlock01);
+	globalInterfaceOp->SetBlock(sd1, sd0, complexBlock10);
+#else
 	globalInterfaceOp->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
 	globalInterfaceOp->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
+#endif
       }
+    
+#ifdef DDMCOMPLEX
+    // Create block diagonal operator with entries R_{sd0} A_{sd0}^{-1} R_{sd0}^T
+    
+    BlockOperator *globalSubdomainOpRe = new BlockOperator(block_trueOffsets);
+    BlockOperator *globalSubdomainOpIm = new BlockOperator(block_trueOffsets);
 
+    rowTrueOffsetsComplexSD.resize(numSubdomains);
+    colTrueOffsetsComplexSD.resize(numSubdomains);
+
+    block_ComplexOffsetsSD.resize(numSubdomains);
+
+    BlockOperator *globalSubdomainOp = new BlockOperator(block_trueOffsets2);
+#else
     // Create block diagonal operator with entries R_{sd0} A_{sd0}^{-1} R_{sd0}^T
     BlockOperator *globalSubdomainOp = new BlockOperator(block_trueOffsets);
-
+#endif
+    
     rowTrueOffsetsSD.resize(numSubdomains);
     colTrueOffsetsSD.resize(numSubdomains);
     
@@ -922,7 +1039,7 @@ public:
 
     for (int m=0; m<numSubdomains; ++m)
       {
-	if (Asd[m] != NULL)
+	//if (Asd[m] != NULL)
 	  {
 	    // Create block injection operator R_{sd0}^T from (u^s, f_i, \rho_i) space to (u, f_i, \rho_i) space.
 
@@ -950,13 +1067,64 @@ public:
 
 	    rowTrueOffsetsSD[m].PartialSum();
 	    colTrueOffsetsSD[m].PartialSum();
-    
+
 	    injSD[m] = new BlockOperator(rowTrueOffsetsSD[m], colTrueOffsetsSD[m]);
 	    
 	    injSD[m]->SetBlock(0, 0, tdofsBdryInjection[m]);
 	    injSD[m]->SetBlock(1, 1, new IdentityOperator(ifsize));
 
+#ifdef DDMCOMPLEX
+	    rowTrueOffsetsComplexSD[m].SetSize(2 + 1);  // Number of blocks + 1
+	    colTrueOffsetsComplexSD[m].SetSize(2 + 1);  // Number of blocks + 1
+
+	    rowTrueOffsetsComplexSD[m] = 0;
+	    colTrueOffsetsComplexSD[m] = 0;
+	    
+	    rowTrueOffsetsComplexSD[m][1] = rowTrueOffsetsSD[m][2];
+	    rowTrueOffsetsComplexSD[m][2] = rowTrueOffsetsSD[m][2];
+	    
+	    colTrueOffsetsComplexSD[m][1] = colTrueOffsetsSD[m][2];
+	    colTrueOffsetsComplexSD[m][2] = colTrueOffsetsSD[m][2];
+
+	    rowTrueOffsetsComplexSD[m].PartialSum();
+	    colTrueOffsetsComplexSD[m].PartialSum();
+
+	    injComplexSD[m] = new BlockOperator(rowTrueOffsetsComplexSD[m], colTrueOffsetsComplexSD[m]);
+	    injComplexSD[m]->SetBlock(0, 0, injSD[m]);
+	    injComplexSD[m]->SetBlock(1, 1, injSD[m]);
+	    
+	    block_ComplexOffsetsSD[m].SetSize(3);  // number of blocks plus 1
+	    block_ComplexOffsetsSD[m] = 0;
+	    block_ComplexOffsetsSD[m][1] = rowTrueOffsetsSD[m][2];
+	    block_ComplexOffsetsSD[m][2] = rowTrueOffsetsSD[m][2];
+	    block_ComplexOffsetsSD[m].PartialSum();
+
+	    AsdComplex[m] = new BlockOperator(block_ComplexOffsetsSD[m]);
+	    AsdComplex[m]->SetBlock(0, 0, AsdRe[m]);
+	    AsdComplex[m]->SetBlock(0, 1, AsdIm[m], -1.0);
+	    AsdComplex[m]->SetBlock(1, 0, AsdIm[m]);
+	    AsdComplex[m]->SetBlock(1, 1, AsdRe[m]);
+
+	    precAsdComplex[m] = new BlockDiagonalPreconditioner(block_ComplexOffsetsSD[m]);
+	    precAsdComplex[m]->SetDiagonalBlock(0, invAsd[m]);
+	    precAsdComplex[m]->SetDiagonalBlock(1, invAsd[m]);
+
+	    GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
+
+	    gmres->SetOperator(*(AsdComplex[m]));
+
+	    gmres->SetRelTol(1e-12);
+	    gmres->SetMaxIter(1000);
+	    gmres->SetPrintLevel(1);
+
+	    gmres->SetPreconditioner(*(precAsdComplex[m]));
+	    invAsdComplex[m] = gmres;
+
+	    globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injComplexSD[m]), invAsdComplex[m], injComplexSD[m],
+									false, false, false));
+#else
 	    globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injSD[m]), invAsd[m], injSD[m], false, false, false));
+#endif
 
 	    rowSROffsetsSD[m+1] = fespace[m]->GetTrueVSize();
 	    colSROffsetsSD[m+1] = fespace[m]->GetTrueVSize();
@@ -964,7 +1132,31 @@ public:
       }
 
     // Create operators R_{sd0} A_{sd0}^{-1} C_{sd0,sd1} R_{sd1}^T by multiplying globalInterfaceOp on the left by globalSubdomainOp. Then add identity.
-    globalOp = new SumOperator(new ProductOperator(globalSubdomainOp, globalInterfaceOp, false, false), new IdentityOperator(size), false, false, 1.0, 1.0);
+
+#ifdef DDMCOMPLEX
+    // The complex system Au = y is rewritten in terms of real and imaginary parts as
+    // [ A^{Re} -A^{Im} ] [ u^{Re} ] = [ y^{Re} ]
+    // [ A^{Im}  A^{Re} ] [ u^{Im} ] = [ y^{Im} ]
+    // The inverse of the block matrix here is
+    // [ A^{Re}^{-1} - A^{Re}^{-1} A^{Im} C^{-1} A^{Im} A^{Re}^{-1}   A^{Re}^{-1} A^{Im} C^{-1} ]
+    // [ -C^{-1} A^{Im} A^{Re}^{-1}                                               C^{-1}        ]
+    // where C = A^{Re} + A^{Im} A^{Re}^{-1} A^{Im}
+    // Instead of inverting directly, which has many applications of inverses, we will just use an iterative solver for the complex system
+    // with block diagonal preconditioner that solves the diagonal blocks A^{Re}. 
+
+    // The system [  I  A_1^{-1} C_{12} ] [ u_1 ] = [ y_1 ]   (omitting restriction operators R_{sd} and their transposes for simplicity)
+    //            [  A_2^{-1} C_{21}  I ] [ u_2 ] = [ y_2 ]
+    //
+    // for complex matrices A_m and C_{mn} and complex vectors u_m and y_m is rewritten in terms of real and imaginary parts as
+    //   [  I  A_1^{-1} C_{12} ] [ u_1^{Re} ] = [ y_1^{Re} ]
+    //   [        ...          ] [ u_1^{Im} ] = [ y_1^{Im} ]
+    //   [  A_2^{-1} C_{21}  I ] [ u_2^{Re} ] = [ y_2^{Re} ]
+    //   [        ...          ] [ u_2^{Im} ] = [ y_2^{Im} ]
+    // with A_m and C_{mn} written as 2x2 blocks with real and imaginary parts. That is, the splitting into real and imaginary parts is done
+    // on the subdomain block level. 
+#endif
+    
+    globalOp = new SumOperator(new ProductOperator(globalSubdomainOp, globalInterfaceOp, false, false), new IdentityOperator(height), false, false, 1.0, 1.0);
 
     // Create source reduction operator.
     { // TODO: is this used?
@@ -1012,21 +1204,58 @@ public:
     globalOp->Mult(x, y);
   }  
 
-  void GetReducedSource(ParFiniteElementSpace *fespaceGlobal, Vector & sourceGlobal, Vector & sourceReduced) const
+  void GetReducedSource(ParFiniteElementSpace *fespaceGlobal, Vector & sourceGlobalRe, Vector & sourceGlobalIm, Vector & sourceReduced) const
   {
     Vector sourceSD, wSD, vSD;
 
+#ifdef DDMCOMPLEX
+    MFEM_VERIFY(sourceReduced.Size() == block_trueOffsets2[numSubdomains], "");
+#else
     MFEM_VERIFY(sourceReduced.Size() == block_trueOffsets[numSubdomains], "");
+#endif
     MFEM_VERIFY(sourceReduced.Size() == this->Height(), "");
     
     for (int m=0; m<numSubdomains; ++m)
       {
 	if (pmeshSD[m] != NULL)
 	  {
-	    // Map from the global u to [u_m f_m \rho_m], with blocks corresponding to subdomains, and f_m = 0, \rho_m = 0.
-	    
 	    sourceSD.SetSize(fespace[m]->GetTrueVSize());
-	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobal, sourceSD);
+
+	    // Map from the global u to [u_m f_m \rho_m], with blocks corresponding to subdomains, and f_m = 0, \rho_m = 0.
+#ifdef DDMCOMPLEX
+	    // In the complex case, we map from the global u^{Re} and u^{Im} to [u_m^{Re} f_m^{Re} \rho_m^{Re} u_m^{Im} f_m^{Im} \rho_m^{Im}].
+
+	    MFEM_VERIFY(AsdComplex[m]->Height() == block_ComplexOffsetsSD[m][2], "");
+	    MFEM_VERIFY(AsdComplex[m]->Height() == 2*block_ComplexOffsetsSD[m][1], "");
+	    
+	    ySD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
+	    wSD.SetSize(AsdComplex[m]->Height());
+	    
+	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalRe, sourceSD);
+
+	    (*(ySD[m])) = 0.0;
+	    for (int i=0; i<sourceSD.Size(); ++i)
+	      (*(ySD[m]))[i] = sourceSD[i];  // Set the u_m block of ySD, real part
+	    
+	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalIm, sourceSD);
+
+	    for (int i=0; i<sourceSD.Size(); ++i)
+	      (*(ySD[m]))[block_ComplexOffsetsSD[m][1] + i] = sourceSD[i];  // Set the u_m block of ySD, imaginary part
+
+	    cout << "Applying invAsdComplex[" << m << "]" << endl;
+	    
+	    invAsdComplex[m]->Mult(*(ySD[m]), wSD);
+
+	    cout << "Done applying invAsdComplex[" << m << "]" << endl;
+
+	    // Extract only the [u_m^s, f_m, \rho_m] entries, real and imaginary parts.
+	    vSD.SetSize(block_trueOffsets2[m+1] - block_trueOffsets2[m]);
+	    injComplexSD[m]->MultTranspose(wSD, vSD);
+
+	    for (int i=0; i<vSD.Size(); ++i)
+	      sourceReduced[block_trueOffsets2[m] + i] = vSD[i];
+#else
+	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalRe, sourceSD);
 
 	    ySD[m] = new Vector(Asd[m]->Height());  // Size of [u_m f_m \rho_m]
 	    wSD.SetSize(Asd[m]->Height());  // Size of [u_m f_m \rho_m]
@@ -1047,6 +1276,7 @@ public:
 
 	    for (int i=0; i<vSD.Size(); ++i)
 	      sourceReduced[block_trueOffsets[m] + i] = vSD[i];
+#endif
 	  }
 	else
 	  {
@@ -1067,6 +1297,9 @@ public:
       {
 	if (ySD[m] != NULL)
 	  {
+#ifdef DDMCOMPLEX
+	    MFEM_VERIFY(false, "TODO");
+#else
 	    MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets[m+1] - block_trueOffsets[m], "");
 
 	    v.SetSize(ySD[m]->Size());
@@ -1083,13 +1316,16 @@ public:
 	      uSD[i] = u[i];
 	    
 	    SetDomainDofsFromSubdomainDofs(fespace[m], fespaceGlobal, uSD, solDomain);
+#endif
 	  }
       }
   }
   
 private:
 
-  double k2;
+  const double k2;
+
+  bool realPart;
   
   const int numSubdomains;
   int numInterfaces, numLocalInterfaces;
@@ -1106,7 +1342,13 @@ private:
   HypreParMatrix **sdND;
   ParBilinearForm **bf_sdND;
   Operator **sdNDinv;
+#ifdef DDMCOMPLEX
+  Operator **AsdRe, **AsdIm, **invAsdComplex;
+  BlockOperator **AsdComplex;
+  BlockDiagonalPreconditioner **precAsdComplex;
+#else
   Operator **Asd;
+#endif
   Operator **ASPsd;
   Operator **invAsd;
   Solver **precAsd;
@@ -1122,7 +1364,13 @@ private:
   std::vector<int> globalInterfaceIndex;
   std::vector<std::vector<int> > subdomainLocalInterfaces;
 
+#ifdef DDMCOMPLEX
+  BlockOperator *globalInterfaceOpRe, *globalInterfaceOpIm;
+  std::vector<Array<int> > block_ComplexOffsetsSD;
+  Array<int> block_trueOffsets2;  // Offsets used in globalOp
   BlockOperator *globalInterfaceOp;
+  BlockOperator **injComplexSD;
+#endif
   
   Operator *globalOp;  // Operator for all global subdomains (blocks corresponding to non-local subdomains will be NULL).
   Array<int> block_trueOffsets;  // Offsets used in globalOp
@@ -1134,11 +1382,18 @@ private:
   Operator **tdofsBdryInjectionTranspose;
   
   double alpha, beta, gamma;
+  double alphaInverse, betaOverAlpha, gammaOverAlpha;
+  double alphaRe, betaRe, gammaRe;
+  double alphaIm, betaIm, gammaIm;
   
   std::vector<std::vector<InjectionOperator*> > InterfaceToSurfaceInjection;
   std::vector<std::vector<std::vector<int> > > InterfaceToSurfaceInjectionData;
 
   std::vector<Array<int> > rowTrueOffsetsSD, colTrueOffsetsSD;
+#ifdef DDMCOMPLEX
+  std::vector<Array<int> > rowTrueOffsetsComplexSD, colTrueOffsetsComplexSD;
+  std::vector<Array<int> > rowTrueOffsetsComplexIF, colTrueOffsetsComplexIF;
+#endif
   std::vector<std::vector<Array<int> > > rowTrueOffsetsIF, colTrueOffsetsIF;
   std::vector<std::vector<Array<int> > > rowTrueOffsetsIFL, colTrueOffsetsIFL;
   std::vector<std::vector<Array<int> > > rowTrueOffsetsIFR, colTrueOffsetsIFR;
@@ -1149,6 +1404,71 @@ private:
 
   // TODO: if the number of subdomains gets large, it may be better to define a local block operator only for local subdomains.
 
+  void SetParameters()
+  {
+    const double cTE = 0.5;  // From RawatLee2010
+    const double cTM = 4.0;  // From RawatLee2010
+
+    // Note that PengLee2012 recommends cTE = 1.5 * cTM. 
+
+    // TODO: take these parameters from the mesh and finite element space.
+    const double h = 1.0e-2;
+    const double feOrder = 1.0;
+    
+    const double ktTE = cTE * M_PI * feOrder / h;
+    const double ktTM = cTM * M_PI * feOrder / h;
+    
+    //const double kzTE = sqrt(8.0 * k2);
+    //const double kzTM = sqrt(3.0 * k2);
+
+    const double kzTE = sqrt((ktTE*ktTE) - k2);
+    const double kzTM = sqrt((ktTM*ktTM) - k2);
+    
+    const double k = sqrt(k2);
+    
+    // alpha = ik
+    // beta = i / (k + i kzTE) = i * (k - i kzTE) / (k^2 + kzTE^2) = (kzTE + ik) / (k^2 + kzTE^2)
+    // gamma = 1 / (k^2 + i k * kzTM) = (k^2 - i k * kzTM) / (k^4 + k^2 kzTM^2)
+	
+    // Real part
+    alphaRe = 0.0;
+    betaRe = kzTE / (k2 + (kzTE * kzTE));
+    gammaRe = 1.0 / (k2 + (kzTM * kzTM));
+
+    // Imaginary part
+    alphaIm = k;
+    betaIm = k / (k2 + (kzTE * kzTE));
+    gammaIm = -kzTM / (k * (k2 + (kzTM * kzTM)));
+  }
+
+  void SetToRealParameters()
+  {
+    realPart = true;
+
+    alpha = alphaRe;
+    beta = betaRe;
+    gamma = gammaRe;
+
+    alphaInverse = alphaRe / ((alphaRe * alphaRe) + (alphaIm * alphaIm));
+
+    betaOverAlpha = ((alphaRe * betaRe) + (alphaIm * betaIm)) / ((alphaRe * alphaRe) + (alphaIm * alphaIm));
+    gammaOverAlpha = ((alphaRe * gammaRe) + (alphaIm * gammaIm)) / ((alphaRe * alphaRe) + (alphaIm * alphaIm));
+  }
+  
+  void SetToImaginaryParameters()
+  {
+    realPart = false;
+
+    alpha = alphaIm;
+    beta = betaIm;
+    gamma = gammaIm;
+
+    alphaInverse = -alphaIm / ((alphaRe * alphaRe) + (alphaIm * alphaIm));
+
+    betaOverAlpha = ((alphaRe * betaIm) - (alphaIm * betaRe)) / ((alphaRe * alphaRe) + (alphaIm * alphaIm));
+    gammaOverAlpha = ((alphaRe * gammaIm) - (alphaIm * gammaRe)) / ((alphaRe * alphaRe) + (alphaIm * alphaIm));
+  }	
+  
   void CreateInterfaceMatrices(const int interfaceIndex)
   {
     int num_procs, myid;
@@ -1304,8 +1624,13 @@ private:
     // Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the C_{mn}^{SF} block is the part
     // -<\pi_{mn}(v_m), \mu_{rn}^{-1} f_{nm}>_{S_{mn}}
     // This is an interface mass matrix.
-    
-    op->SetBlock(0, 1, ifNDmass[interfaceIndex], -1.0);
+
+#ifdef DDMCOMPLEX
+    if (realPart)
+#endif
+      {
+	op->SetBlock(0, 1, ifNDmass[interfaceIndex], -1.0);
+      }
 
     // In PengLee2012 C_{mn}^{S\rho} corresponds to
     // -\gamma <\pi_{mn}(v_m), \nabla_\tau <<\rho>>_{mn} >_{S_{mn}}
@@ -1321,15 +1646,26 @@ private:
     // -<w_m, \pi_{nm}(u_n)>_{S_{mn}} - beta/alpha <curl_\tau w_m, curl_\tau \pi_{nm}(u_n)>_{S_{mn}}
     // This is an interface mass plus curl-curl stiffness matrix.
 
+#ifdef DDMCOMPLEX
+    if (realPart)
+      {
+	op->SetBlock(1, 0, new SumOperator(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex], false, false, -1.0, -betaOverAlpha));
+      }
+    else
+      {
+	op->SetBlock(1, 0, ifNDcurlcurl[interfaceIndex], -betaOverAlpha);
+      }
+#else
     op->SetBlock(1, 0, new SumOperator(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex], false, false, -1.0, -beta / alpha));
+#endif
 
     // In PengLee2012 C_{mn}^{FF} corresponds to
     // alpha^{-1} <w_m, -\mu_r^{-1} f + <<\mu_r^{-1} f>> >_{S_{mn}}
     // Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the C_{mn}^{FF} block is the part
     // alpha^{-1} <w_m, \mu_{rn}^{-1} f_{nm}>_{S_{mn}}
     // This is an interface mass matrix.
-    
-    op->SetBlock(1, 1, ifNDmass[interfaceIndex], 1.0 / alpha);
+
+    op->SetBlock(1, 1, ifNDmass[interfaceIndex], alphaInverse);
 
     // In PengLee2012 C_{mn}^{F\rho} corresponds to
     // gamma / alpha <w_m, \nabla_\tau <<\rho>>_{mn} >_{S_{mn}}
@@ -1337,7 +1673,7 @@ private:
     // gamma / alpha <w_m, \nabla_\tau \rho_n >_{S_{mn}}
     // The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
 
-    op->SetBlock(1, 2, ifNDH1grad[interfaceIndex], gamma / alpha);
+    op->SetBlock(1, 2, ifNDH1grad[interfaceIndex], gammaOverAlpha);
 
     // Row 2 is just zeros.
     
@@ -1408,7 +1744,7 @@ private:
 
     // Create right injection operator for sd1.
 
-    if (orientation == 0)
+    if (orientation == 0 && realPart)
       {
 	rowTrueOffsetsIFR[localInterfaceIndex].resize(2);
 	colTrueOffsetsIFR[localInterfaceIndex].resize(2);
@@ -1665,8 +2001,14 @@ private:
   Operator* CreateSubdomainOperator(const int subdomain)
   {
     BlockOperator *op = new BlockOperator(trueOffsetsSD[subdomain]);
-    op->SetBlock(0, 0, sdND[subdomain]);
 
+#ifdef DDMCOMPLEX
+    if (realPart)
+#endif
+      {
+	op->SetBlock(0, 0, sdND[subdomain]);
+      }
+    
     for (int i=0; i<subdomainLocalInterfaces[subdomain].size(); ++i)
       {
 	const int interfaceIndex = subdomainLocalInterfaces[subdomain][i];
@@ -1701,7 +2043,7 @@ private:
 #ifdef SCHURCOMPSD
 	// Modify the A_m^{FF} block by subtracting A_m^{F\rho} A_m^{\rho\rho}^{-1} A_m^{\rho F}; drop the A_m^{F\rho} block
 #else
-	op->SetBlock((2*i) + 1, (2*i) + 2, ifNDH1grad[interfaceIndex], gamma / alpha);
+	op->SetBlock((2*i) + 1, (2*i) + 2, ifNDH1grad[interfaceIndex], gammaOverAlpha);
 #endif
 	
 	// In PengLee2012 A_m^{FS} corresponds to
@@ -1710,13 +2052,29 @@ private:
 	// <w_m, \pi_{mn}(u_m)>_{S_{mn}} + beta/alpha <curl_\tau w_m, curl_\tau \pi_{mn}(u_m)>_{S_{mn}}
 	// This is an interface mass plus curl-curl stiffness matrix.
 
-	op->SetBlock((2*i) + 1, 0, new ProductOperator(new SumOperator(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex], false, false, 1.0, beta / alpha), new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]), false, false));
+#ifdef DDMCOMPLEX
+	if (realPart)
+#endif
+	  {
+	    op->SetBlock((2*i) + 1, 0, new ProductOperator(new SumOperator(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex], false, false, 1.0, betaOverAlpha), new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]), false, false));
+	  }
+#ifdef DDMCOMPLEX
+	else
+	  {
+	    op->SetBlock((2*i) + 1, 0, new ProductOperator(ifNDcurlcurl[interfaceIndex], new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]), false, false),  betaOverAlpha);
+	  }
+#endif
 
 	// In PengLee2012 A_m^{\rho F} corresponds to
 	// <\nabla_\tau \psi_m, \mu_{rm}^{-1} f_{mn}>_{S_{mn}}
 	// The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
 	//op->SetBlock((2*i) + 2, (2*i) + 1, new TransposeOperator(ifNDH1grad[interfaceIndex]));  // TODO: Without this block, the block diagonal preconditioner works very well!
-	op->SetBlock((2*i) + 2, (2*i) + 1, ifNDH1gradT[interfaceIndex]);
+#ifdef DDMCOMPLEX
+	if (realPart)
+#endif
+	  {
+	    op->SetBlock((2*i) + 2, (2*i) + 1, ifNDH1gradT[interfaceIndex]);
+	  }
 	
 	// Diagonal blocks
 
@@ -1734,14 +2092,19 @@ private:
 										     false, false, false),
 							   false, false, 1.0 / alpha, -gamma / alpha));
 #else
-	op->SetBlock((2*i) + 1, (2*i) + 1, ifNDmass[interfaceIndex], 1.0 / alpha);
+	op->SetBlock((2*i) + 1, (2*i) + 1, ifNDmass[interfaceIndex], alphaInverse);
 #endif
 	
 	// In PengLee2012 A_m^{\rho\rho} corresponds to
 	// <\psi_m, \rho_m>_{S_{mn}}
 	// This is an interface H^1 mass matrix.
 
-	op->SetBlock((2*i) + 2, (2*i) + 2, ifH1mass[interfaceIndex]);
+#ifdef DDMCOMPLEX
+	if (realPart)
+#endif
+	  {
+	    op->SetBlock((2*i) + 2, (2*i) + 2, ifH1mass[interfaceIndex]);
+	  }
 	
 	// TODO: should we equate redundant corner DOF's for f and \rho?
       }
