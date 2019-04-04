@@ -70,7 +70,7 @@ public:
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
    void Reset(double *d, int h, int w)
-   { if (OwnsData()) { mm::free(data); } UseExternalData(d, h, w); }
+   { if (OwnsData()) { mm::Delete(data); } UseExternalData(d, h, w); }
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
        should not be used with DenseMatrix that owns its current data array. */
@@ -78,7 +78,7 @@ public:
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
    void Clear()
-   { if (OwnsData()) { mm::free(data); } ClearExternalData(); }
+   { if (OwnsData()) { mm::Delete(data); } ClearExternalData(); }
 
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
@@ -672,7 +672,7 @@ public:
       : Mk(NULL, i, j)
    {
       nk = k;
-      tdata = mm::malloc<double>(i*j*k);
+      tdata = mm::New<double>(i*j*k);
       own_data = true;
    }
 
@@ -683,7 +683,7 @@ public:
       const int size = Mk.Height()*Mk.Width()*nk;
       if (size > 0)
       {
-         tdata = mm::malloc<double>(size);
+         tdata = mm::New<double>(size);
          mm::memcpy(tdata, other.tdata, sizeof(double) * size);
       }
       else
@@ -698,16 +698,16 @@ public:
 
    void SetSize(int i, int j, int k)
    {
-      if (own_data) { mm::free(tdata); }
+      if (own_data) { mm::Delete(tdata); }
       Mk.UseExternalData(NULL, i, j);
       nk = k;
-      tdata = mm::malloc<double>(i*j*k);
+      tdata = mm::New<double>(i*j*k);
       own_data = true;
    }
 
    void UseExternalData(double *ext_data, int i, int j, int k)
    {
-      if (own_data) { mm::free(tdata); }
+      if (own_data) { mm::Delete(tdata); }
       Mk.UseExternalData(NULL, i, j);
       nk = k;
       tdata = ext_data;
@@ -743,7 +743,7 @@ public:
 
    ~DenseTensor()
    {
-      if (own_data) { mm::free(tdata); }
+      if (own_data) { mm::Delete(tdata); }
    }
 };
 
