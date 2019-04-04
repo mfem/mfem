@@ -14,7 +14,6 @@
 
 #ifdef MFEM_USE_OCCA
 #include <occa.hpp>
-#include "./cuda.hpp"
 
 #ifdef MFEM_USE_CUDA
 #include <occa/mode/cuda/utils.hpp>

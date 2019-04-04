@@ -14,14 +14,14 @@
 
 #include <cstddef>
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) && defined(__NVCC__)
 #include <cuda.h>
 #endif
 
 namespace mfem
 {
 
-#ifdef MFEM_USE_CUDA
+#if defined (MFEM_USE_CUDA) && defined (__NVCC__)
 #define MFEM_DEVICE __device__
 #define MFEM_HOST_DEVICE __host__ __device__
 inline void CuCheck(const unsigned int c)
