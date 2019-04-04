@@ -379,6 +379,8 @@ void IsoparametricTransformation::SetIdentityTransformation(
       case Geometry::TETRAHEDRON : FElem = &TetrahedronFE; break;
       case Geometry::CUBE :        FElem = &HexahedronFE; break;
       case Geometry::PRISM :       FElem = &WedgeFE; break;
+      case Geometry::PENTATOPE:    FElem = &PentatopeFE; break;
+      case Geometry::TESSERACT:    FElem = &TesseractFE; break;
       default:
          MFEM_ABORT("unknown Geometry::Type!");
    }

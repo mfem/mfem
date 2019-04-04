@@ -88,8 +88,8 @@ protected:
    /// Number of degrees of freedom. Number of unknowns is #ndofs * #vdim.
    int ndofs;
 
-   int nvdofs, nedofs, nfdofs, nbdofs;
-   int *fdofs, *bdofs;
+   int nvdofs, nedofs, npdofs, nfdofs, nbdofs;
+   int *pdofs, *fdofs, *bdofs;
 
    mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
    Table *bdrElem_dof; // used only with NURBS FE spaces; not owned.
@@ -125,9 +125,12 @@ protected:
 
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
    void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
+   /// Helper to get vertex, edge, planar or face DOFs (entity=0,1,2,3 resp.).
+   void GetEntityDofs4D(int entity, int index, Array<int> &dofs) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
+   void BuildConformingInterpolation4D() const;
 
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                Array<int>& slave_dofs, DenseMatrix& I);
@@ -297,6 +300,7 @@ public:
    int GetNVDofs() const { return nvdofs; }
    /// Number of all scalar edge-interior dofs
    int GetNEDofs() const { return nedofs; }
+   int GetNPDofs() const { return npdofs; }
    /// Number of all scalar face-interior dofs
    int GetNFDofs() const { return nfdofs; }
 
@@ -311,6 +315,9 @@ public:
        mesh dimension, e.g. for a 2D mesh, the faces are the 1D entities, i.e.
        the edges. */
    inline int GetNF() const { return mesh->GetNumFaces(); }
+
+   /// Returns number of planars (i.e. co-dimension 2 entities) in the mesh.
+   inline int GetNP() const { return mesh->GetNPlanars(); }
 
    /// Returns number of boundary elements in the mesh.
    inline int GetNBE() const { return mesh->GetNBE(); }
@@ -354,6 +361,8 @@ public:
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
+   virtual void GetPlanarDofs(int i, Array<int> &dofs) const;
+
    /** Returns the indexes of the degrees of freedom for i'th edge
        including the dofs for the vertices of the edge. */
    void GetEdgeDofs(int i, Array<int> &dofs) const;
@@ -388,6 +397,9 @@ public:
 
    /// Returns indexes of degrees of freedom for i'th face element (2D and 3D).
    void GetFaceVDofs(int i, Array<int> &vdofs) const;
+
+   /// Returns indexes of degrees of freedom for i'th planar element (4D).
+   void GetPlanarVDofs(int i, Array<int> &vdofs) const;
 
    /// Returns indexes of degrees of freedom for i'th edge.
    void GetEdgeVDofs(int i, Array<int> &vdofs) const;
@@ -424,6 +436,8 @@ public:
    const FiniteElement *GetBE(int i) const;
 
    const FiniteElement *GetFaceElement(int i) const;
+
+   const FiniteElement *GetPlanarElement(int i) const;
 
    const FiniteElement *GetEdgeElement(int i) const;
 

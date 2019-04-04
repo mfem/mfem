@@ -22,6 +22,14 @@ void LinearFormIntegrator::AssembleRHSElementVect(
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
+void LinearFormIntegrator::AssembleRHSElementVect(const FiniteElement &el1,
+                                                  const FiniteElement &el2,
+                                                  FaceElementTransformations &Tr,
+                                                  Vector &elvect)
+{
+   mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
+}
+
 
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                 ElementTransformation &Tr,
@@ -46,7 +54,7 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
-      double val = Tr.Weight() * Q.Eval(Tr, ip);
+      double val = std::abs(Tr.Weight()) * Q.Eval(Tr, ip);
 
       el.CalcShape(ip, shape);
 

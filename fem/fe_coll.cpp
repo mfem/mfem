@@ -31,8 +31,23 @@ int FiniteElementCollection::HasFaceDofs(Geometry::Type GeomType) const
       case Geometry::PRISM:
          return max(DofForGeometry (Geometry::TRIANGLE),
                     DofForGeometry (Geometry::SQUARE));
+      case Geometry::PENTATOPE:   return DofForGeometry (Geometry::TETRAHEDRON);
+      case Geometry::TESSERACT:   return DofForGeometry (Geometry::CUBE);
       default:
          mfem_error ("FiniteElementCollection::HasFaceDofs:"
+                     " unknown geometry type.");
+   }
+   return 0;
+}
+
+int FiniteElementCollection::HasPlanarDofs(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::PENTATOPE:   return DofForGeometry (Geometry::TRIANGLE);
+      case Geometry::TESSERACT:   return DofForGeometry (Geometry::SQUARE);
+      default:
+         mfem_error ("FiniteElementCollection::HasPlanarDofs:"
                      " unknown geometry type.");
    }
    return 0;
@@ -544,6 +559,8 @@ LinearFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       case Geometry::PRISM:       return &WedgeFE;
+      case Geometry::PENTATOPE:   return &PentatopeFE;
+      case Geometry::TESSERACT:   return &TesseractFE;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
    }
@@ -561,6 +578,8 @@ int LinearFECollection::DofForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 0;
       case Geometry::PRISM:       return 0;
+      case Geometry::PENTATOPE:   return 0;
+      case Geometry::TESSERACT:   return 0;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
    }
@@ -586,6 +605,7 @@ QuadraticFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       case Geometry::PRISM:       return &WedgeFE;
+      case Geometry::PENTATOPE:   return &PentatopeFE;
       default:
          mfem_error ("QuadraticFECollection: unknown geometry type.");
    }
@@ -603,6 +623,7 @@ int QuadraticFECollection::DofForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 1;
       case Geometry::PRISM:       return 0;
+      case Geometry::PENTATOPE:   return 0;
       default:
          mfem_error ("QuadraticFECollection: unknown geometry type.");
    }
@@ -1399,6 +1420,135 @@ const int *ND1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
    return ind_neg;
 }
 
+const FiniteElement *
+ND1_4DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::PENTATOPE:   return &NedPentatopFE;
+      default:
+         mfem_error ("ND1_4DFECollection: unknown geometry type.");
+   }
+   return &NedPentatopFE; // Make some compilers happy
+}
+
+int ND1_4DFECollection::DofForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT:       return 0;
+      case Geometry::SEGMENT:     return 1;
+      case Geometry::TRIANGLE:    return 0;
+      case Geometry::SQUARE:      return 0;
+      case Geometry::TETRAHEDRON: return 0;
+      case Geometry::CUBE:        return 0;
+      case Geometry::PENTATOPE:   return 0;
+      default:
+         mfem_error ("ND1_4DFECollection: unknown geometry type.");
+   }
+   return 0; // Make some compilers happy
+}
+
+const int * ND1_4DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                       int Or)
+const
+{
+   static int ind_pos[] = { 0 };
+   static int ind_neg[] = { -1 };
+
+   if (Or > 0)
+   {
+      return ind_pos;
+   }
+   return ind_neg;
+}
+
+
+const FiniteElement *
+ND2_4DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::PENTATOPE:   return &NedPentatopFE;
+      default:
+         mfem_error ("ND2_4DFECollection: unknown geometry type.");
+   }
+   return &NedPentatopFE; // Make some compilers happy
+}
+
+int ND2_4DFECollection::DofForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT:       return 0;
+      case Geometry::SEGMENT:     return 2;
+      case Geometry::TRIANGLE:    return 0;
+      case Geometry::SQUARE:      return 0;
+      case Geometry::TETRAHEDRON: return 0;
+      case Geometry::CUBE:        return 0;
+      case Geometry::PENTATOPE:   return 0;
+      default:
+         mfem_error ("ND2_4DFECollection: unknown geometry type.");
+   }
+   return 0; // Make some compilers happy
+}
+
+const int * ND2_4DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                       int Or)
+const
+{
+   static int ind_pos[] = { 0, 1 };
+   static int ind_neg[] = { -2, -1};
+
+   if (Or > 0)
+   {
+      return ind_pos;
+   }
+   return ind_neg;
+}
+
+const FiniteElement *
+DivSkew1_4DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::PENTATOPE:   return &DivSkew0PentatopFE;
+      default:
+         mfem_error ("DivSkew1_4DFECollection: unknown geometry type 1.");
+   }
+   return &DivSkew0PentatopFE; // Make some compilers happy
+}
+
+int DivSkew1_4DFECollection::DofForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT:       return 0;
+      case Geometry::SEGMENT:     return 0;
+      case Geometry::TRIANGLE:    return 1;
+      case Geometry::SQUARE:      return 0;
+      case Geometry::TETRAHEDRON: return 0;
+      case Geometry::CUBE:        return 0;
+      case Geometry::PENTATOPE:   return 0;
+      default:
+         mfem_error ("DivSkew1_4DFECollection: unknown geometry type 2.");
+   }
+   return 0; // Make some compilers happy
+}
+
+const int * DivSkew1_4DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or)
+const
+{
+   static int ind_pos[] = { 0 };
+   static int ind_neg[] = { -1 };
+
+   if (Or %2 == 0)
+   {
+      return ind_pos;
+   }
+   return ind_neg;
+}
 
 const FiniteElement *
 RT0_3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
@@ -1498,13 +1648,57 @@ const int *RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
    }
 }
 
+const FiniteElement *
+RT0_4DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::TETRAHEDRON: return &TetrahedronFE;
+      case Geometry::PENTATOPE: return &PentatopeFE;
+      default:
+         mfem_error ("RT0_4DFECollection: unknown geometry type.");
+   }
+   return &PentatopeFE; // Make some compilers happy
+}
+
+int RT0_4DFECollection::DofForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT:       return 0;
+      case Geometry::SEGMENT:     return 0;
+      case Geometry::TRIANGLE:    return 0;
+      case Geometry::SQUARE:      return 0;
+      case Geometry::TETRAHEDRON: return 1;
+      case Geometry::CUBE:        return 0;
+      case Geometry::PENTATOPE:   return 0;
+      default:
+         mfem_error ("RT0_4DFECollection: unknown geometry type.");
+   }
+   return 0; // Make some compilers happy
+}
+
+const int * RT0_4DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                       int Or)
+const
+{
+   static int ind_pos[] = { 0 };
+   static int ind_neg[] = { -1 };
+
+   if (GeomType == Geometry::TETRAHEDRON)
+   {
+      if (Or % 2 == 0) { return ind_pos; }
+      return ind_neg;
+   }
+   return NULL;
+}
 
 H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 {
    MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
-   MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
+   MFEM_VERIFY(dim >= 0 && dim <= 4, "H1_FECollection requires 0 <= dim <= 4.");
 
-   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
+   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1, pm4 = pm3 - 1;
 
    int pt_type = BasisType::GetQuadrature1D(btype);
    b_type = BasisType::Check(btype);
@@ -1547,6 +1741,10 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
    for (int i = 0; i < 8; i++)
    {
       QuadDofOrd[i] = NULL;
+   }
+   for (int i = 0; i < 24; i++)
+   {
+      TetDofOrd[i] = NULL;
    }
 
    H1_dof[Geometry::POINT] = 1;
@@ -1651,6 +1849,86 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
          }
+         const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
+         const int TriDof2 = pm2*pm3/2;
+         TetDofOrd[0] = new int[24*TetDof];
+         for (int i = 1; i < 24; i++)
+         {
+            TetDofOrd[i] = TetDofOrd[i-1] + TetDof;
+         }
+         for (int k=0; k<pm3; k++)
+         {
+            for (int j=0; j+k<pm3; j++)
+            {
+               for (int i=0; i+j+k<pm3; i++)
+               {
+                  int o = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-j)*
+                          (pm3-j)/2 - k*j + i;
+                  int l = pm4-k-j-i;
+                  TetDofOrd[0][o] = o;
+                  TetDofOrd[1][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-j)*
+                                    (pm3-j)/2 - k*j + l;
+                  TetDofOrd[2][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-i)*
+                                    (pm3-i)/2 - k*i + l;
+                  TetDofOrd[3][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-l)*
+                                    (pm3-l)/2 - k*l + i;
+                  TetDofOrd[4][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-l)*
+                                    (pm3-l)/2 - k*l + j;
+                  TetDofOrd[5][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-i)*
+                                    (pm3-i)/2 - k*i + j;
+                  TetDofOrd[6][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-i)*
+                                    (pm3-i)/2 - j*i + k;
+                  TetDofOrd[7][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-l)*
+                                    (pm3-l)/2 - j*l + k;
+                  TetDofOrd[8][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-l)*
+                                    (pm3-l)/2 - i*l + k;
+                  TetDofOrd[9][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-i)*
+                                    (pm3-i)/2 - l*i + k;
+                  TetDofOrd[10][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-j)*
+                                     (pm3-j)/2 - l*j + k;
+                  TetDofOrd[11][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-j)*
+                                     (pm3-j)/2 - i*j + k;
+                  TetDofOrd[12][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-k)*
+                                     (pm3-k)/2 - i*k + j;
+                  TetDofOrd[13][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-k)*
+                                     (pm3-k)/2 - l*k + j;
+                  TetDofOrd[14][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-k)*
+                                     (pm3-k)/2 - l*k + i;
+                  TetDofOrd[15][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-k)*
+                                     (pm3-k)/2 - i*k + l;
+                  TetDofOrd[16][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-k)*
+                                     (pm3-k)/2 - j*k + l;
+                  TetDofOrd[17][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-k)*
+                                     (pm3-k)/2 - j*k + i;
+                  TetDofOrd[18][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-l)*
+                                     (pm3-l)/2 - j*l + i;
+                  TetDofOrd[19][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-i)*
+                                     (pm3-i)/2 - j*i + l;
+                  TetDofOrd[20][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-j)*
+                                     (pm3-j)/2 - i*j + l;
+                  TetDofOrd[21][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-j)*
+                                     (pm3-j)/2 - l*j + i;
+                  TetDofOrd[22][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-i)*
+                                     (pm3-i)/2 - l*i + j;
+                  TetDofOrd[23][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-l)*
+                                     (pm3-l)/2 - i*l + j;
+               }
+            }
+         }
+
+         if (dim >= 4)
+         {
+            H1_dof[Geometry::PENTATOPE] = (TriDof*pm3*pm4)/12;
+            H1_dof[Geometry::TESSERACT] = QuadDof*pm1*pm1;
+            if (b_type == BasisType::Positive)
+            {
+               mfem_error("H1_FECollection: BasisType::Positive not implemented");
+            }
+            else
+            {
+               H1_Elements[Geometry::PENTATOPE] = new H1_PentatopeElement(p, pt_type);
+            }
+         }
       }
    }
 }
@@ -1669,6 +1947,10 @@ const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    else if (GeomType == Geometry::SQUARE)
    {
       return QuadDofOrd[Or%8];
+   }
+   else if (GeomType == Geometry::TETRAHEDRON)
+   {
+      return TetDofOrd[Or%24];
    }
    return NULL;
 }
@@ -1882,6 +2164,36 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();
       const int PriDof = L2_Elements[Geometry::PRISM]->GetDof();
       const int MaxDof = std::max(TetDof, std::max(PriDof, HexDof));
+      OtherDofOrd = new int[MaxDof];
+      for (int j = 0; j < MaxDof; j++)
+      {
+         OtherDofOrd[j] = j; // for Or == 0
+      }
+   }
+   else if (dim == 4)
+   {
+      if (b_type == BasisType::Positive)
+      {
+         mfem::err <<
+                   "L2_FECollection::L2_FECollection : BasisType::Positive not implemented" <<
+                   endl;
+         mfem_error();
+      }
+      else
+      {
+         L2_Elements[Geometry::PENTATOPE] =
+            new L2_PentatopeElement(p, btype);
+         L2_Elements[Geometry::TESSERACT] = new L2_HexahedronElement(p, btype);
+      }
+      L2_Elements[Geometry::PENTATOPE]->SetMapType(map_type);
+      L2_Elements[Geometry::TESSERACT]->SetMapType(map_type);
+      // All trace element use the default Gauss-Legendre nodal points
+      Tr_Elements[Geometry::TETRAHEDRON] = new L2_TetrahedronElement(p);
+      Tr_Elements[Geometry::CUBE] = new L2_HexahedronElement(p);
+
+      const int PentDof = L2_Elements[Geometry::PENTATOPE]->GetDof();
+      const int TessDof = L2_Elements[Geometry::TESSERACT]->GetDof();
+      const int MaxDof = std::max(PentDof, TessDof);
       OtherDofOrd = new int[MaxDof];
       for (int j = 0; j < MaxDof; j++)
       {

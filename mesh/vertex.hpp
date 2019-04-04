@@ -21,7 +21,7 @@ namespace mfem
 class Vertex
 {
 protected:
-   double coord[3];
+   double coord[4];
 
 public:
    Vertex() { }
@@ -29,9 +29,11 @@ public:
    // Trivial copy constructor and trivial copy assignment operator
 
    Vertex (double *xx, int dim);
-   Vertex( double x, double y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
+   Vertex( double x, double y) { coord[0] = x; coord[1] = y; coord[2] = 0.; coord[3] = 0.;}
    Vertex( double x, double y, double z)
-   { coord[0] = x; coord[1] = y; coord[2] = z; }
+   { coord[0] = x; coord[1] = y; coord[2] = z; coord[3] = 0.;}
+   Vertex( double x, double y, double z, double t)
+   { coord[0] = x; coord[1] = y; coord[2] = z; coord[3] = t; }
 
    /// Returns pointer to the coordinates of the vertex.
    inline double * operator() () const { return (double*)coord; }
@@ -45,7 +47,7 @@ public:
    /// (DEPRECATED) Set the coordinates of the Vertex.
    /** @deprecated This old version of SetCoords is not always memory safe. */
    void SetCoords(const double *p)
-   { coord[0] = p[0]; coord[1] = p[1]; coord[2] = p[2]; }
+   { coord[0] = p[0]; coord[1] = p[1]; coord[2] = p[2]; coord[3] = p[3]; }
 
    /// Sets vertex location based on given point p
    void SetCoords(int dim, const double *p)

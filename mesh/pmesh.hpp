@@ -65,17 +65,23 @@ protected:
    //   * quad id 'i-shared_trias.Size()',  otherwise
    Array<Vert3> shared_trias;
    Array<Vert4> shared_quads;
+   Array<Vert4> shared_tetra;
+   //   Array<Element *> shared_planars;
 
    /// Shared objects in each group.
    Table group_svert;
    Table group_sedge;
    Table group_stria;  // contains shared triangle indices
    Table group_squad;  // contains shared quadrilateral indices
+   Table group_stetr;
+   //   Table group_splan;
 
    /// Shared to local index mapping.
    Array<int> svert_lvert;
    Array<int> sedge_ledge;
+   Array<int> splan_lplan;
    // sface ids: all triangles first, then all quads
+   // in 4D, just all tetrahedra
    Array<int> sface_lface;
 
    /// Create from a nonconforming mesh.
@@ -112,6 +118,8 @@ protected:
 
    /// Update the groups after tetrahedron refinement
    void RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v);
+
+   void RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v);
 
    void UniformRefineGroups2D(int old_nv);
 
@@ -163,6 +171,9 @@ protected:
                         Array<int>& face_group,
                         ListOfIntegerSets& groups);
 
+   int FindSharedPlanars(const Mesh &mesh, const int* partition,
+                         Table* &plan_element, ListOfIntegerSets &groups);
+
    int FindSharedEdges(const Mesh &mesh, const int* partition,
                        Table* &edge_element, ListOfIntegerSets& groups);
 
@@ -173,6 +184,13 @@ protected:
                        const Array<int>& face_group,
                        int &nstria, int &nsquad);
 
+   void BuildFaceGroup4D(int ngroups, const Mesh &mesh,
+                         const Array<int>& face_group,
+                         int &nstetr, int &nshexa);
+
+   void BuildPlanarGroup(int ngroups, const Mesh &mesh,const Table& plan_element,
+                         int &nstria, int &nsquad);
+
    void BuildEdgeGroup(int ngroups, const Table& edge_element);
 
    void BuildVertexGroup(int ngroups, const Table& vert_element);
@@ -182,6 +200,16 @@ protected:
                              const STable3D *faces_tbl,
                              const Array<int> &face_group,
                              const Array<int> &vert_global_local);
+
+   void BuildSharedFaceElems4D(int ntet_faces, int nhex_faces,
+                               const Mesh &mesh, int *partitioning,
+                               const STable4D *faces_tbl_4d,
+                               const Array<int> &face_group,
+                               const Array<int> &vert_global_local);
+
+   void BuildSharedPlanarElems(int ntri_planars, int nquad_planars,
+                               const Mesh &mesh, const Array<int>& vert_global_local,
+                               const STable3D *planar_tbl, const Table* plan_element);
 
    void BuildSharedEdgeElems(int nedges, Mesh &mesh,
                              const Array<int> &vert_global_local,
@@ -246,12 +274,15 @@ public:
    int GroupNEdges(int group)    { return group_sedge.RowSize(group-1); }
    int GroupNTriangles(int group) { return group_stria.RowSize(group-1); }
    int GroupNQuadrilaterals(int group) { return group_squad.RowSize(group-1); }
+   //   int GroupNPlanars(int group)  { return group_splan.RowSize(group-1); }
+   int GroupNTetrahedra(int group)    { return group_stetr.RowSize(group-1); }
 
    int GroupVertex(int group, int i)
    { return svert_lvert[group_svert.GetRow(group-1)[i]]; }
    void GroupEdge(int group, int i, int &edge, int &o);
    void GroupTriangle(int group, int i, int &face, int &o);
    void GroupQuadrilateral(int group, int i, int &face, int &o);
+   void GroupTetrahedron(int group, int i, int &face, int &o);
    ///@}
 
    void GenerateOffsets(int N, HYPRE_Int loc_sizes[],

@@ -54,6 +54,8 @@ public:
 
    int HasFaceDofs(Geometry::Type GeomType) const;
 
+   int HasPlanarDofs(Geometry::Type GeomType) const;
+
    virtual const FiniteElement *TraceFiniteElementForGeometry(
       Geometry::Type GeomType) const
    {
@@ -88,7 +90,7 @@ protected:
    char h1_name[32];
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
-   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
+   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8], *TetDofOrd[24];
 
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
@@ -339,6 +341,8 @@ private:
    const Linear3DFiniteElement TetrahedronFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
    const H1_WedgeElement WedgeFE;
+   const Linear4DFiniteElement PentatopeFE;
+   const QuadLinear4DFiniteElement TesseractFE;
 public:
    LinearFECollection() : WedgeFE(1) { }
 
@@ -364,6 +368,7 @@ private:
    const Quadratic3DFiniteElement TetrahedronFE;
    const LagrangeHexFiniteElement ParallelepipedFE;
    const H1_WedgeElement WedgeFE;
+   const Quadratic4DFiniteElement PentatopeFE;
 
 public:
    QuadraticFECollection() : ParallelepipedFE(2), WedgeFE(2) { }
@@ -815,6 +820,65 @@ public:
    virtual const char * Name() const { return "ND1_3D"; }
 };
 
+class ND1_4DFECollection : public FiniteElementCollection
+{
+private:
+   const Nedelec1PentFiniteElement NedPentatopFE;
+
+public:
+   ND1_4DFECollection() { }
+
+   virtual const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
+
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
+
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType,
+                                              int Or) const;
+
+   virtual const char * Name() const { return "ND1_4D"; }
+};
+
+class ND2_4DFECollection : public FiniteElementCollection
+{
+private:
+   const Nedelec1FullPentFiniteElement NedPentatopFE;
+
+public:
+   ND2_4DFECollection() { }
+
+   virtual const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
+
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
+
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType,
+                                              int Or) const;
+
+   virtual const char * Name() const { return "ND2_4D"; }
+};
+
+
+class DivSkew1_4DFECollection : public FiniteElementCollection
+{
+private:
+   const DivSkew1PentFiniteElement DivSkew0PentatopFE;
+
+public:
+   DivSkew1_4DFECollection() { }
+
+   virtual const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
+
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
+
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType,
+                                              int Or) const;
+
+   virtual const char * Name() const { return "F2K0_4D"; }
+};
+
+
 /** First order Raviart-Thomas finite elements in 3D. This class is kept only
     for backward compatibility, consider using RT_FECollection instead. */
 class RT0_3DFECollection : public FiniteElementCollection
@@ -858,6 +922,26 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "RT1_3D"; }
+};
+
+/** First order Raviart-Thomas finite elements in 4D. */
+class RT0_4DFECollection : public FiniteElementCollection
+{
+private:
+   const P0TetFiniteElement TetrahedronFE;
+   const RT0PentFiniteElement PentatopeFE;
+public:
+   RT0_4DFECollection() { };
+
+   virtual const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
+
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
+
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType,
+                                              int Or) const;
+
+   virtual const char * Name() const { return "RT0_4D"; };
 };
 
 /// Discontinuous collection defined locally by a given finite element.

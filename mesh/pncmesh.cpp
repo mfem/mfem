@@ -31,6 +31,8 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
+   face_entity_index = (Dim <= 3) ? 2 : 3;
+   max_entity =  (Dim <= 3) ? 3 : 4;
 
    // assign leaf elements to the processors by simply splitting the
    // sequence of leaf elements into 'NRanks' parts
@@ -52,6 +54,8 @@ ParNCMesh::ParNCMesh(const ParNCMesh &other)
    , MyComm(other.MyComm)
    , NRanks(other.NRanks)
    , MyRank(other.MyRank)
+   , face_entity_index(other.face_entity_index)
+   , max_entity(other.max_entity)
 {
    Update(); // mark all secondary stuff for recalculation
 }
@@ -73,7 +77,8 @@ void ParNCMesh::Update()
    groups.push_back(self);
    group_id[self] = 0;
 
-   for (int i = 0; i < 3; i++)
+   int max_entity = (Dim <= 3) ? 3 : 4;
+   for (int i = 0; i < max_entity; i++)
    {
       entity_owner[i].DeleteAll();
       entity_pmat_group[i].DeleteAll();
@@ -82,6 +87,7 @@ void ParNCMesh::Update()
 
    shared_vertices.Clear();
    shared_edges.Clear();
+   shared_planars.Clear();
    shared_faces.Clear();
 
    element_type.SetSize(0);
@@ -194,9 +200,19 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    {
       if (node->HasEdge()) { node->edge_index = -1; }
    }
+   for (planar_iterator planar = planars.begin(); planar != planars.end();
+        ++planar)
+   {
+      planar->index = -1;
+   }
    for (face_iterator face = faces.begin(); face != faces.end(); ++face)
    {
       face->index = -1;
+   }
+   for (face4d_iterator face4d = faces4d.begin(); face4d != faces4d.end();
+        ++face4d)
+   {
+      face4d->index = -1;
    }
 
    // go assign existing edge/face indices
@@ -213,12 +229,26 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       }
    }
 
+   // assign ghost planar indices
+   NPlanars = mesh->GetNPlanars();
+   NGhostPlanars = 0;
+   for (planar_iterator planar = planars.begin(); planar != planars.end();
+        ++planar)
+   {
+      if (planar->index < 0) { planar->index = NPlanars + (NGhostPlanars++); }
+   }
+
    // assign ghost face indices
    NFaces = mesh->GetNumFaces();
    NGhostFaces = 0;
    for (face_iterator face = faces.begin(); face != faces.end(); ++face)
    {
       if (face->index < 0) { face->index = NFaces + (NGhostFaces++); }
+   }
+   for (face4d_iterator face4d = faces4d.begin(); face4d != faces4d.end();
+        ++face4d)
+   {
+      if (face4d->index < 0) { face4d->index = NFaces + (NGhostFaces++); }
    }
 
    if (Dim == 2)
@@ -234,7 +264,7 @@ void ParNCMesh::ElementSharesFace(int elem, int local, int face)
    // Analogous to ElementSharesEdge.
 
    Element &el = elements[elem];
-   int f_index = faces[face].index;
+   int f_index = (Dim == 3) ? faces[face].index : faces4d[face].index;
 
    int &owner = tmp_owner[f_index];
    owner = std::min(owner, el.rank);
@@ -242,10 +272,10 @@ void ParNCMesh::ElementSharesFace(int elem, int local, int face)
    char &flag = tmp_shared_flag[f_index];
    flag |= (el.rank == MyRank) ? 0x1 : 0x2;
 
-   entity_index_rank[2].Append(Connection(f_index, el.rank));
+   entity_index_rank[face_entity_index].Append(Connection(f_index, el.rank));
 
    // derive globally consistent face ID from the global element sequence
-   int &el_loc = entity_elem_local[2][f_index];
+   int &el_loc = entity_elem_local[face_entity_index][f_index];
    if (el_loc < 0 || leaf_glob_order[el.index] < leaf_glob_order[(el_loc >> 4)])
    {
       el_loc = (el.index << 4) | local;
@@ -265,22 +295,75 @@ void ParNCMesh::BuildFaceList()
    tmp_shared_flag.SetSize(nfaces);
    tmp_shared_flag = 0;
 
-   entity_index_rank[2].SetSize(6*leaf_elements.Size() * 3/2);
-   entity_index_rank[2].SetSize(0);
+   entity_index_rank[face_entity_index].SetSize(6*leaf_elements.Size() * 3/2);
+   entity_index_rank[face_entity_index].SetSize(0);
 
    entity_elem_local[2].SetSize(nfaces);
    entity_elem_local[2] = -1;
 
    NCMesh::BuildFaceList();
 
-   InitOwners(nfaces, entity_owner[2]);
+   InitOwners(nfaces, entity_owner[face_entity_index]);
    MakeSharedList(face_list, shared_faces);
 
    tmp_owner.DeleteAll();
    tmp_shared_flag.DeleteAll();
 
    // create simple conforming (cut-mesh) groups now
-   CreateGroups(NFaces, entity_index_rank[2], entity_conf_group[2]);
+   CreateGroups(NFaces, entity_index_rank[face_entity_index],
+                entity_conf_group[face_entity_index]);
+   // NOTE: entity_index_rank[2] is not deleted until CalculatePMatrixGroups
+
+   CalcFaceOrientations();
+}
+
+void ParNCMesh::ElementSharesPlanar(int elem, int local, int planar)
+{
+   // Analogous to ElementSharesEdge.
+   if (Dim != 4) { return; }
+
+   Element &el= elements[elem];
+   int p_index = planars[planar].index;
+
+   int &owner = tmp_owner[p_index];
+   owner = std::min(owner, el.rank);
+
+   char &flag = tmp_shared_flag[p_index];
+   flag |= (el.rank == MyRank) ? 0x1 : 0x2;
+
+   entity_index_rank[2].Append(Connection(p_index, el.rank));
+
+   // derive globally consistent edge ID from the global element sequence
+   int &el_loc = entity_elem_local[2][p_index];
+   if (el_loc < 0 || leaf_glob_order[el.index] < leaf_glob_order[(el_loc >> 4)])
+   {
+      el_loc = (el.index << 4) | local;
+   }
+}
+
+void ParNCMesh::BuildPlanarList()
+{
+   // This is an extension of NCMesh::BuildPlanarList() which also determines
+   // planar ownership and prepares planar processor groups.
+
+   int nplanars = NPlanars + NGhostPlanars;
+
+   tmp_owner.SetSize(nplanars);
+   tmp_owner = INT_MAX;
+
+   tmp_shared_flag.SetSize(nplanars);
+   tmp_shared_flag = 0;
+
+   entity_index_rank[2].SetSize(10*leaf_elements.Size() * 3/2);
+   entity_index_rank[2].SetSize(0);
+
+   NCMesh::BuildPlanarList();
+
+   InitOwners(nplanars, entity_owner[2]);
+   MakeSharedList(planar_list, shared_planars);
+
+   tmp_owner.DeleteAll();
+   tmp_shared_flag.DeleteAll();
    // NOTE: entity_index_rank[2] is not deleted until CalculatePMatrixGroups
 
    CalcFaceOrientations();
@@ -379,7 +462,7 @@ void ParNCMesh::BuildVertexList()
    tmp_shared_flag.SetSize(nvertices);
    tmp_shared_flag = 0;
 
-   entity_index_rank[0].SetSize(8*leaf_elements.Size());
+   entity_index_rank[0].SetSize(16*leaf_elements.Size());
    entity_index_rank[0].SetSize(0);
 
    entity_elem_local[0].SetSize(nvertices);
@@ -555,6 +638,7 @@ void ParNCMesh::AddConnections(int entity, int index, const Array<int> &ranks)
 
 void ParNCMesh::CalculatePMatrixGroups()
 {
+   if (Dim == 4) { CalculatePMatrixGroups4D(); return; }
    // make sure all entity_index_rank[i] arrays are filled
    GetSharedVertices();
    GetSharedEdges();
@@ -619,6 +703,107 @@ void ParNCMesh::CalculatePMatrixGroups()
 
    // compress the index-rank arrays into group representation
    for (int i = 0; i < 3; i++)
+   {
+      CreateGroups(nentities[i], entity_index_rank[i], entity_pmat_group[i]);
+      entity_index_rank[i].DeleteAll();
+   }
+}
+
+void ParNCMesh::CalculatePMatrixGroups4D()
+{
+   // make sure all entity_index_rank[i] arrays are filled
+   GetSharedVertices();
+   GetSharedEdges();
+   GetSharedPlanars();
+   GetSharedFaces();
+
+   int v[4], e[6], eo[6], p[4], po[4];
+
+   Array<int> ranks;
+   ranks.Reserve(256);
+
+   // connect slave edges to master edges and their vertices
+   for (unsigned i = 0; i < shared_edges.masters.size(); i++)
+   {
+      const Master &master_edge = shared_edges.masters[i];
+      ranks.SetSize(0);
+      for (int j = master_edge.slaves_begin; j < master_edge.slaves_end; j++)
+      {
+         int owner = entity_owner[1][edge_list.slaves[j].index];
+         ranks.Append(groups[owner][0]);
+      }
+      ranks.Sort();
+      ranks.Unique();
+
+      AddConnections(1, master_edge.index, ranks);
+
+      GetEdgeVertices(master_edge, v);
+      for (int j = 0; j < 2; j++)
+      {
+         AddConnections(0, v[j], ranks);
+      }
+   }
+
+   // connect slave planars to master planars and their edges and vertices
+   for (unsigned i = 0; i < shared_planars.masters.size(); i++)
+   {
+      const Master &master_planar = shared_planars.masters[i];
+      ranks.SetSize(0);
+      for (int j = master_planar.slaves_begin; j < master_planar.slaves_end; j++)
+      {
+         int owner = entity_owner[2][planar_list.slaves[j].index];
+         ranks.Append(groups[owner][0]);
+      }
+      ranks.Sort();
+      ranks.Unique();
+
+      AddConnections(2, master_planar.index, ranks);
+
+      GetPlanarVerticesEdges(master_planar, v, e, eo);
+      for (int j = 0; j < 3; j++)
+      {
+         AddConnections(0, v[j], ranks);
+         AddConnections(1, e[j], ranks);
+      }
+   }
+
+   // connect slave faces to master faces and their planars, edges and vertices
+   for (unsigned i = 0; i < shared_faces.masters.size(); i++)
+   {
+      const Master &master_face = shared_faces.masters[i];
+      ranks.SetSize(0);
+      for (int j = master_face.slaves_begin; j < master_face.slaves_end; j++)
+      {
+         int owner = entity_owner[3][face_list.slaves[j].index];
+         ranks.Append(groups[owner][0]);
+      }
+      ranks.Sort();
+      ranks.Unique();
+
+      AddConnections(3, master_face.index, ranks);
+
+      GetFaceVerticesEdgesPlanars(master_face, v, e, eo, p, po);
+      for (int j = 0; j < 4; j++)
+      {
+         AddConnections(0, v[j], ranks);
+         AddConnections(1, e[j], ranks);
+         AddConnections(2, p[j], ranks);
+      }
+      AddConnections(0, v[4], ranks);
+      AddConnections(1, e[4], ranks);
+      AddConnections(1, e[5], ranks);
+   }
+
+   int nentities[4] =
+   {
+      NVertices + NGhostVertices,
+      NEdges + NGhostEdges,
+      NPlanars + NGhostPlanars,
+      NFaces + NGhostFaces
+   };
+
+   // compress the index-rank arrays into group representation
+   for (int i = 0; i < 4; i++)
    {
       CreateGroups(nentities[i], entity_index_rank[i], entity_pmat_group[i]);
       entity_index_rank[i].DeleteAll();
@@ -1239,11 +1424,11 @@ bool ParNCMesh::PruneTree(int elem)
    Element &el = elements[elem];
    if (el.ref_type)
    {
-      bool remove[8];
+      bool remove[16];
       bool removeAll = true;
 
       // determine which subtrees can be removed (and whether it's all of them)
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < 16; i++)
       {
          remove[i] = false;
          if (el.child[i] >= 0)
@@ -1257,7 +1442,7 @@ bool ParNCMesh::PruneTree(int elem)
       if (removeAll) { return true; }
 
       // not all children can be removed, but remove those that can be
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < 16; i++)
       {
          if (remove[i]) { DerefineElement(el.child[i]); }
       }

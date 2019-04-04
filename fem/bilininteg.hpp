@@ -128,6 +128,8 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
+   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+
    virtual ~BilinearFormIntegrator() { }
 };
 
@@ -2379,6 +2381,16 @@ public:
 };
 
 
+class DivSkewInterpolator : public DiscreteInterpolator
+{
+public:
+   virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
+                                       const FiniteElement &ran_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat)
+   { ran_fe.ProjectDivSkew(dom_fe, Trans, elmat); }
+};
+
 /** Class for constructing the (local) discrete divergence matrix which can
     be used as an integrator in a DiscreteLinearOperator object to assemble
     the global discrete divergence matrix.
@@ -2493,6 +2505,182 @@ public:
 protected:
    VectorCoefficient &VQ;
 };
+
+class DivSkewDivSkewIntegrator: public BilinearFormIntegrator
+{
+private:
+   DenseMatrix DivSkewshape, DivSkew_dFt;
+
+   Coefficient *Q;
+
+public:
+   DivSkewDivSkewIntegrator() { Q = NULL; }
+   /// Construct a bilinear form integrator for Nedelec elements
+   DivSkewDivSkewIntegrator(Coefficient &q) : Q(&q) { }
+
+   /* Given a particular Finite Element, compute the
+      element DivSkew-DivSkew matrix elmat */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   {
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      double w;
+
+      DivSkewshape.SetSize(nd,dim);
+      DivSkew_dFt.SetSize(nd,dim);
+
+      elmat.SetSize(nd);
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order = 2*el.GetOrder()+2;
+
+         ir = &IntRules.Get(el.GetGeomType(), order);
+      }
+
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+
+         Trans.SetIntPoint (&ip);
+
+         el.CalcDivSkewShape(ip, DivSkewshape);
+
+         MultABt(DivSkewshape, Trans.Jacobian(), DivSkew_dFt);
+
+         DivSkew_dFt *= (1.0 / Trans.Weight());
+
+         w = ip.weight * fabs(Trans.Weight());
+
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+
+         AddMult_a_AAt(w, DivSkew_dFt, elmat);
+      }
+   }
+
+};
+
+class VectorFE_DivSkewMassIntegrator: public BilinearFormIntegrator
+{
+private:
+   DenseMatrix shape;
+
+   Coefficient *Q;
+
+public:
+   VectorFE_DivSkewMassIntegrator() { Q = NULL; }
+   /// Construct a bilinear form integrator for Nedelec elements
+   VectorFE_DivSkewMassIntegrator(Coefficient &q) : Q(&q) { }
+
+   /* Given a particular Finite Element, compute the
+      element curl-curl matrix elmat */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   {
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      double w;
+
+
+      shape.SetSize(nd,dim*dim);
+
+      elmat.SetSize(nd);
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order = Trans.OrderW() + 2 * el.GetOrder();
+
+         ir = &IntRules.Get(el.GetGeomType(), order);
+      }
+
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Trans.SetIntPoint (&ip);
+
+         w = ip.weight * fabs(Trans.Weight());
+
+
+         el.CalcVShape(Trans, shape);
+
+
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+
+         AddMult_a_AAt(w, shape, elmat);
+      }
+   }
+
+};
+
+/** Class for integrating the bilinear form a(u,v) := (d_t u, v) + (Q grad_x u, grad_x v) where Q
+    can be a scalar or a matrix coefficient and grad_x is the gradient wrt to the spatial variables.
+    Here we use the space-time f.e. scheme by [Steinbach2015]. */
+class HeatEquationIntegrator: public BilinearFormIntegrator
+{
+private:
+   Vector vec, pointflux, shape, dtshape;
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape, dshapedxt, invdfdx, mq;
+   DenseMatrix te_dshape, te_dshapedxt;
+#endif
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+
+public:
+   /// Construct a diffusion integrator with coefficient Q = 1
+   HeatEquationIntegrator() { Q = NULL; MQ = NULL; }
+
+   /// Construct a diffusion integrator with a scalar coefficient q
+   HeatEquationIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; }
+
+   /// Construct a diffusion integrator with a matrix coefficient q
+   HeatEquationIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; }
+
+   /** Given a particular Finite Element
+       computes the element stiffness matrix elmat. */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+   /** Given a trial and test Finite Element computes the element stiffness
+       matrix elmat. */
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat)
+   { mfem_error("HeatEquationIntegrator::AssembleElementMatrix2: not implemented!"); }
+
+   /// Perform the local action of the BilinearFormIntegrator
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      const Vector &elfun, Vector &elvect)
+   { mfem_error("HeatEquationIntegrator::AssembleElementVector: not implemented!"); }
+
+   virtual void ComputeElementFlux(const FiniteElement &el,
+                                   ElementTransformation &Trans,
+                                   Vector &u, const FiniteElement &fluxelem,
+                                   Vector &flux, int with_coef = 1)
+   { mfem_error("HeatEquationIntegrator::ComputeElementFlux: not implemented!"); }
+
+   virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
+                                    ElementTransformation &Trans,
+                                    Vector &flux, Vector *d_energy = NULL)
+   { mfem_error("HeatEquationIntegrator::ComputeFluxEnergy: not implemented!"); return -1;}
+};
+
+
 
 }
 

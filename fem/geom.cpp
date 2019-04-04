@@ -16,10 +16,10 @@ namespace mfem
 {
 
 const char *Geometry::Name[NumGeom] =
-{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube", "Prism" };
+{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube", "Prism", "Pentatope", "Tesseract" };
 
 const double Geometry::Volume[NumGeom] =
-{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 0.5 };
+{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 0.5, 1./24., 1.0 };
 
 Geometry::Geometry()
 {
@@ -139,6 +139,34 @@ Geometry::Geometry()
    GeomVert[6]->IntPoint(5).y = 1.0;
    GeomVert[6]->IntPoint(5).z = 1.0;
 
+   // Vertices for Geometry::PENTATOPE
+   GeomVert[7] = new IntegrationRule(5);
+   GeomVert[7]->IntPoint(0).x = 0.0;
+   GeomVert[7]->IntPoint(0).y = 0.0;
+   GeomVert[7]->IntPoint(0).z = 0.0;
+   GeomVert[7]->IntPoint(0).t = 0.0;
+
+   GeomVert[7]->IntPoint(1).x = 1.0;
+   GeomVert[7]->IntPoint(1).y = 0.0;
+   GeomVert[7]->IntPoint(1).z = 0.0;
+   GeomVert[7]->IntPoint(1).t = 0.0;
+
+   GeomVert[7]->IntPoint(2).x = 0.0;
+   GeomVert[7]->IntPoint(2).y = 1.0;
+   GeomVert[7]->IntPoint(2).z = 0.0;
+   GeomVert[7]->IntPoint(2).t = 0.0;
+
+   GeomVert[7]->IntPoint(3).x = 0.0;
+   GeomVert[7]->IntPoint(3).y = 0.0;
+   GeomVert[7]->IntPoint(3).z = 1.0;
+   GeomVert[7]->IntPoint(3).t = 0.0;
+
+   GeomVert[7]->IntPoint(4).x = 0.0;
+   GeomVert[7]->IntPoint(4).y = 0.0;
+   GeomVert[7]->IntPoint(4).z = 0.0;
+   GeomVert[7]->IntPoint(4).t = 1.0;
+
+
    GeomCenter[POINT].x = 0.0;
    GeomCenter[POINT].y = 0.0;
    GeomCenter[POINT].z = 0.0;
@@ -167,6 +195,11 @@ Geometry::Geometry()
    GeomCenter[PRISM].y = 1.0 / 3.0;
    GeomCenter[PRISM].z = 0.5;
 
+   GeomCenter[PENTATOPE].x = 0.2;
+   GeomCenter[PENTATOPE].y = 0.2;
+   GeomCenter[PENTATOPE].z = 0.2;
+   GeomCenter[PENTATOPE].t = 0.2;
+
    GeomToPerfGeomJac[POINT]       = NULL;
    GeomToPerfGeomJac[SEGMENT]     = new DenseMatrix(1);
    GeomToPerfGeomJac[TRIANGLE]    = new DenseMatrix(2);
@@ -174,6 +207,7 @@ Geometry::Geometry()
    GeomToPerfGeomJac[TETRAHEDRON] = new DenseMatrix(3);
    GeomToPerfGeomJac[CUBE]        = new DenseMatrix(3);
    GeomToPerfGeomJac[PRISM]       = new DenseMatrix(3);
+   GeomToPerfGeomJac[PENTATOPE]   = new DenseMatrix(4);
 
    PerfGeomToGeomJac[POINT]       = NULL;
    PerfGeomToGeomJac[SEGMENT]     = NULL;
@@ -182,6 +216,7 @@ Geometry::Geometry()
    PerfGeomToGeomJac[TETRAHEDRON] = new DenseMatrix(3);
    PerfGeomToGeomJac[CUBE]        = NULL;
    PerfGeomToGeomJac[PRISM]       = new DenseMatrix(3);
+   PerfGeomToGeomJac[PENTATOPE]   = new DenseMatrix(4);
 
    GeomToPerfGeomJac[SEGMENT]->Diag(1.0, 1);
    {
@@ -213,6 +248,17 @@ Geometry::Geometry()
       *GeomToPerfGeomJac[PRISM] = pri_T.Jacobian();
       CalcInverse(pri_T.Jacobian(), *PerfGeomToGeomJac[PRISM]);
    }
+   {
+      Linear4DFiniteElement PentFE;
+      IsoparametricTransformation pent_T;
+      pent_T.SetFE(&PentFE);
+      GetPerfPointMat (PENTATOPE, pent_T.GetPointMat());
+      pent_T.FinalizeTransformation();
+      pent_T.SetIntPoint(&GeomCenter[PENTATOPE]);
+      *GeomToPerfGeomJac[PENTATOPE] = pent_T.Jacobian();
+      CalcInverse(pent_T.Jacobian(), *PerfGeomToGeomJac[PENTATOPE]);
+   }
+
 }
 
 Geometry::~Geometry()
@@ -236,6 +282,7 @@ const IntegrationRule * Geometry::GetVertices(int GeomType)
       case Geometry::TETRAHEDRON: return GeomVert[4];
       case Geometry::CUBE:        return GeomVert[5];
       case Geometry::PRISM:       return GeomVert[6];
+      case Geometry::PENTATOPE:   return GeomVert[7];
       default:
          mfem_error ("Geometry::GetVertices(...)");
    }
@@ -505,6 +552,39 @@ inline bool ProjectTriangle(double &x, double &y)
    return true;
 }
 
+inline bool ProjectTetrahedron(double &x, double &y, double &z)
+{
+   if (z < 0.0)
+   {
+      z = 0.0;
+      internal::ProjectTriangle(x, y);
+      return false;
+   }
+   if (y < 0.0)
+   {
+      y = 0.0;
+      internal::ProjectTriangle(x, z);
+      return false;
+   }
+   if (x < 0.0)
+   {
+      x = 0.0;
+      internal::ProjectTriangle(y, z);
+      return false;
+   }
+   const double l4 = 1.0-x-y-z;
+   if (l4 < 0.0)
+   {
+      const double l4_3 = l4/3;
+      x += l4_3;
+      y += l4_3;
+      internal::ProjectTriangle(x, y);
+      z = 1.0-x-y;
+      return false;
+   }
+   return true;
+}
+
 }
 
 // static method
@@ -558,6 +638,13 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
          double lbeg[5] = { beg.x, beg.y, beg.z, 1.0-beg.x-beg.y, 1.0-beg.z };
          return internal::IntersectSegment<5,3>(lbeg, lend, end);
       }
+      case Geometry::PENTATOPE:
+      {
+         double lend[5] = { end.x, end.y, end.z, end.t, 1.0-end.x-end.y-end.z-end.t };
+         double lbeg[5] = { beg.x, beg.y, beg.z, beg.t, 1.0-beg.x-beg.y-beg.z-beg.t };
+         return internal::IntersectSegment<5,4>(lbeg,lend,end);
+      }
+
       default:
          MFEM_ABORT("Unknown type of reference element!");
    }
@@ -599,32 +686,43 @@ bool Geometry::ProjectPoint(int GeomType, IntegrationPoint &ip)
 
       case TETRAHEDRON:
       {
+         return internal::ProjectTetrahedron(ip.x, ip.y, ip.z);
+      }
+
+      case PENTATOPE:
+      {
+         if (ip.t < 0.0)
+         {
+            ip.t = 0.0;
+            internal::ProjectTetrahedron(ip.x,ip.y,ip.z);
+         }
          if (ip.z < 0.0)
          {
             ip.z = 0.0;
-            internal::ProjectTriangle(ip.x, ip.y);
+            internal::ProjectTetrahedron(ip.x, ip.y, ip.t);
             return false;
          }
          if (ip.y < 0.0)
          {
             ip.y = 0.0;
-            internal::ProjectTriangle(ip.x, ip.z);
+            internal::ProjectTetrahedron(ip.x, ip.z, ip.t);
             return false;
          }
          if (ip.x < 0.0)
          {
             ip.x = 0.0;
-            internal::ProjectTriangle(ip.y, ip.z);
+            internal::ProjectTetrahedron(ip.y, ip.z, ip.t);
             return false;
          }
-         const double l4 = 1.0-ip.x-ip.y-ip.z;
-         if (l4 < 0.0)
+         const double l5 = 1.0-ip.x-ip.y-ip.z-ip.t;
+         if (l5 < 0.0)
          {
-            const double l4_3 = l4/3;
-            ip.x += l4_3;
-            ip.y += l4_3;
-            internal::ProjectTriangle(ip.x, ip.y);
-            ip.z = 1.0-ip.x-ip.y;
+            const double l5_4 = l5/5;
+            ip.x += l5_4;
+            ip.y += l5_4;
+            ip.z += l5_4;
+            internal::ProjectTetrahedron(ip.x, ip.y, ip.z);
+            ip.t = 1.0-ip.x-ip.y-ip.z;
             return false;
          }
          return true;
@@ -729,6 +827,19 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
       }
       break;
 
+      case Geometry::PENTATOPE:
+      {
+         pm.SetSize(4,5);
+         pm(0,0) = 0.0;  pm(1,0) = 0.0;  pm(2,0) = 0.0; pm(3,0) = 0.0;
+         pm(0,1) = 1.0;  pm(1,1) = 0.0;  pm(2,1) = 0.0; pm(3,1) = 0.0;
+         pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;  pm(2,2) = 0.0; pm(3,2) = 0.0;
+         pm(0,3) = 0.5;  pm(1,3) = 0.28867513459481288225;
+         pm(2,3) = 0.81649658092772603273; pm(3,3) = 0.0;
+         pm(0,4) = 0.5;  pm(1,4) = 0.28867513459481288225;
+         pm(2,4) = 0.20412414523193150819; pm(3,4) = 0.7905694150420948330;
+      }
+      break;
+
       default:
          mfem_error ("Geometry::GetPerfPointMat (...)");
    }
@@ -747,13 +858,13 @@ void Geometry::JacToPerfJac(int GeomType, const DenseMatrix &J,
    }
 }
 
-const int Geometry::NumBdrArray[NumGeom] = { 0, 2, 3, 4, 4, 6, 5 };
-const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3, 3 };
+const int Geometry::NumBdrArray[NumGeom] = { 0, 2, 3, 4, 4, 6, 5, 5, 24 };
+const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3, 3, 4, 4 };
 const int Geometry::DimStart[MaxDim+2] =
-{ POINT, SEGMENT, TRIANGLE, TETRAHEDRON, NUM_GEOMETRIES };
-const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 8, 6 };
-const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 12, 9 };
-const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 6, 5 };
+{ POINT, SEGMENT, TRIANGLE, TETRAHEDRON, PENTATOPE, NUM_GEOMETRIES };
+const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 8, 6, 5, 16 };
+const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 12, 9, 10, 32 };
+const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 6, 5, 5, 24 };
 
 const int Geometry::
 Constants<Geometry::POINT>::Orient[1][1] = {{0}};
@@ -825,6 +936,20 @@ Constants<Geometry::TETRAHEDRON>::VertToVert::J[6][2] =
 };
 
 const int Geometry::
+Constants<Geometry::TETRAHEDRON>::Orient[24][4] =
+{
+   {0,1,2,3},{1,0,2,3},{2,0,1,3},{2,1,0,3},
+   {1,2,0,3},{0,2,1,3},{0,3,1,2},{1,3,0,2},
+   {2,3,0,1},{2,3,1,0},{1,3,2,0},{0,3,2,1},
+   {0,2,3,1},{1,2,3,0},{2,1,3,0},{2,0,3,1},
+   {1,0,3,2},{0,1,3,2},{3,1,0,2},{3,0,1,2},
+   {3,0,2,1},{3,1,2,0},{3,2,1,0},{3,2,0,1}
+};
+const int Geometry::
+Constants<Geometry::TETRAHEDRON>::InvOrient[24] =
+{0, 1, 4, 3, 2, 5, 12, 15, 8, 23, 20, 11, 6, 19, 18, 7, 16, 17, 14, 13, 10, 21, 22, 9};
+
+const int Geometry::
 Constants<Geometry::CUBE>::Edges[12][2] =
 {
    {0, 1}, {1, 2}, {3, 2}, {0, 3}, {4, 5}, {5, 6},
@@ -878,6 +1003,63 @@ Constants<Geometry::PRISM>::VertToVert::J[9][2] =
    {5, 8},                  // 2,5:8
    {4, 3}, {5, -6},         // 3,4:3   3,5:-6
    {5, 4}                   // 4,5:4
+};
+
+const int Geometry::
+Constants<Geometry::PENTATOPE>::Edges[10][2] =
+{{0, 1}, {0, 2}, {0, 3}, {0, 4}, {1, 2}, {1, 3}, {1, 4}, {2, 3}, {2, 4}, {3, 4}};
+const int Geometry::
+Constants<Geometry::PENTATOPE>::FaceTypes[5] =
+{
+   Geometry::TETRAHEDRON, Geometry::TETRAHEDRON,
+   Geometry::TETRAHEDRON, Geometry::TETRAHEDRON,
+   Geometry::TETRAHEDRON
+};
+const int Geometry::
+Constants<Geometry::PENTATOPE>::FaceVert[5][4] =
+{
+   //   {0, 1, 2, 3}, {0, 1, 2, 4},
+   //   {0, 1, 3, 4}, {0, 2, 3, 4},
+   //   {1, 2, 3, 4}
+   {0, 1, 2, 3}, {1, 0, 2, 4},     //<---- sorted such that the normal vectors are outer normal vectors
+   {0, 1, 3, 4}, {2, 0, 3, 4},
+   {1, 2, 3, 4}
+};
+const int Geometry::
+Constants<Geometry::PENTATOPE>::PlanarVert[10][3] =
+{
+   {0, 1, 2}, {0, 1, 3}, {0, 1, 4},
+   {0, 2, 3}, {0, 2, 4}, {0, 3, 4},
+   {1, 2, 3}, {1, 2, 4}, {1, 3, 4},
+   {2, 3, 4}
+};
+
+//const int Geometry::
+//Constants<Geometry::PENTATOPE>::VertToVert::I[4] = {0, 3, 5, 6};
+//const int Geometry::
+//Constants<Geometry::PENTATOPE>::VertToVert::J[6][2] =
+//{{1, 0}, {2, 1}, {3, 2}, {2, 3}, {3, 4}, {3, 5}};
+
+
+const int Geometry::
+Constants<Geometry::TESSERACT>::FaceVert[8][8] =
+{
+   // {8,11,12,15,0,3,4,7},   //x bottom
+   // {1,2,6,5,9,10,14,13},   //x top
+   // {0,1,5,4,8,9,13,12},    //y bottom
+   // {2,3,7,6,10,11,15,14},  //y top
+   // {8,9,10,11,0,1,2,3},    // z bottom
+   // {4,5,6,7,12,13,14,15},  //z top
+   // {0,1,2,3,4,5,6,7},      //t botom
+   // {12,13,14,15,8,9,10,11} //t top
+   {8,11,15,12,0,3,7,4},   //x bottom
+   {1,2,6,5,9,10,14,13},   //x top
+   {0,1,5,4,8,9,13,12},    //y bottom
+   {2,3,7,6,10,11,15,14},  //y top
+   {8,9,10,11,0,1,2,3},    // z bottom
+   {4,5,6,7,12,13,14,15},  //z top
+   {0,1,2,3,4,5,6,7},      //t botom
+   {12,13,14,15,8,9,10,11} //t top
 };
 
 

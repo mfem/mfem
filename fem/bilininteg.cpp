@@ -411,7 +411,7 @@ void DiffusionIntegrator::AssembleElementMatrix
       el.CalcDShape(ip, dshape);
 
       Trans.SetIntPoint(&ip);
-      w = Trans.Weight();
+      w = std::abs(Trans.Weight());
       w = ip.weight / (square ? w : w*w*w);
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
@@ -490,7 +490,7 @@ void DiffusionIntegrator::AssembleElementMatrix2(
 
       Trans.SetIntPoint(&ip);
       CalcAdjugate(Trans.Jacobian(), invdfdx);
-      w = Trans.Weight();
+      w = std::abs(Trans.Weight());
       w = ip.weight / (square ? w : w*w*w);
       Mult(dshape, invdfdx, dshapedxt);
       Mult(te_dshape, invdfdx, te_dshapedxt);
@@ -687,7 +687,7 @@ double DiffusionIntegrator::ComputeFluxEnergy
       }
 
       Trans.SetIntPoint(&ip);
-      double w = Trans.Weight() * ip.weight;
+      double w = std::abs(Trans.Weight()) * ip.weight;
 
       if (!MQ)
       {
@@ -754,7 +754,7 @@ void MassIntegrator::AssembleElementMatrix
       el.CalcShape(ip, shape);
 
       Trans.SetIntPoint (&ip);
-      w = Trans.Weight() * ip.weight;
+      w = std::abs(Trans.Weight()) * ip.weight;
       if (Q)
       {
          w *= Q -> Eval(Trans, ip);
@@ -796,7 +796,7 @@ void MassIntegrator::AssembleElementMatrix2(
       test_fe.CalcShape(ip, te_shape);
 
       Trans.SetIntPoint (&ip);
-      w = Trans.Weight() * ip.weight;
+      w = std::abs(Trans.Weight()) * ip.weight;
       if (Q)
       {
          w *= Q -> Eval(Trans, ip);
@@ -999,7 +999,7 @@ void VectorMassIntegrator::AssembleElementMatrix
       el.CalcShape(ip, shape);
 
       Trans.SetIntPoint (&ip);
-      norm = ip.weight * Trans.Weight();
+      norm = ip.weight * std::abs(Trans.Weight());
 
       MultVVt(shape, partelmat);
 
@@ -1084,7 +1084,7 @@ void VectorMassIntegrator::AssembleElementMatrix2(
       test_fe.CalcShape(ip, te_shape);
 
       Trans.SetIntPoint(&ip);
-      norm = ip.weight * Trans.Weight();
+      norm = ip.weight * std::abs(Trans.Weight());
 
       MultVWt(te_shape, shape, partelmat);
 
@@ -1412,6 +1412,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
    int nd = el.GetDof();
    int dim = el.GetDim();
    int dimc = (dim == 3) ? 3 : 1;
+   if (dim==4) { dimc = 6; }
    double w;
 
 #ifdef MFEM_THREAD_SAFE
@@ -1446,16 +1447,52 @@ void CurlCurlIntegrator::AssembleElementMatrix
 
       Trans.SetIntPoint (&ip);
 
-      w = ip.weight / Trans.Weight();
+      if (dim ==4)
+      {
+         DenseMatrix tSh(4,4);
+         DenseMatrix trShTemp(4,4);
 
-      if ( dim == 3 )
+         DenseMatrix J = Trans.Jacobian();
+         DenseMatrix invJ(4,4); CalcInverse(J, invJ);
+         DenseMatrix invJtr(invJ); invJtr.Transpose();
+
+         el.CalcCurlShape(ip, curlshape);
+         for (int dof=0; dof<nd; dof++)
+         {
+            tSh(0,1) =  curlshape(dof,0); tSh(0,2) =  curlshape(dof,1);
+            tSh(0,3) =  curlshape(dof,2);
+            tSh(1,0) = -curlshape(dof,0);
+            tSh(1,2) =  curlshape(dof,3); tSh(1,3) =  curlshape(dof,4);
+            tSh(2,0) = -curlshape(dof,1); tSh(2,1) = -curlshape(dof,3);
+            tSh(2,3) =  curlshape(dof,5);
+            tSh(3,0) = -curlshape(dof,2); tSh(3,1) = -curlshape(dof,4);
+            tSh(3,2) = -curlshape(dof,5);
+
+            Mult(tSh, invJ, trShTemp);
+            Mult(invJtr, trShTemp, tSh);
+
+            curlshape_dFt(dof,0) = tSh(0,1);
+            curlshape_dFt(dof,1) = tSh(0,2);
+            curlshape_dFt(dof,2) = tSh(0,3);
+            curlshape_dFt(dof,3) = tSh(1,2);
+            curlshape_dFt(dof,4) = tSh(1,3);
+            curlshape_dFt(dof,5) = tSh(2,3);
+         }
+
+         w = ip.weight * std::abs(Trans.Weight());
+      }
+      else if ( dim == 3 )
       {
          el.CalcCurlShape(ip, curlshape);
          MultABt(curlshape, Trans.Jacobian(), curlshape_dFt);
+
+         w = ip.weight / Trans.Weight();
       }
       else
       {
          el.CalcCurlShape(ip, curlshape_dFt);
+
+         w = ip.weight / Trans.Weight();
       }
 
       if (MQ)
@@ -1753,7 +1790,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
 
       el.CalcVShape(Trans, trial_vshape);
 
-      w = ip.weight * Trans.Weight();
+      w = ip.weight * std::abs(Trans.Weight());
       if (MQ)
       {
          MQ->Eval(K, Trans, ip);
@@ -2095,7 +2132,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       el.CalcDShape (ip, dshape);
 
       Trans.SetIntPoint (&ip);
-      norm = ip.weight * Trans.Weight();
+      norm = ip.weight * std::abs(Trans.Weight());
       CalcInverse (Trans.Jacobian(), Jinv);
 
       Mult (dshape, Jinv, gshape);
@@ -2554,6 +2591,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
          }
       }
    }
+   //    elmat.PrintMatlab(std::cout);
 }
 
 void DGDiffusionIntegrator::AssembleFaceMatrix(
@@ -3427,5 +3465,87 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
 
    ran_fe.Project(dom_shape_coeff, Trans, elmat_as_vec);
 }
+
+void HeatEquationIntegrator::AssembleElementMatrix
+( const FiniteElement &el, ElementTransformation &Trans,
+  DenseMatrix &elmat )
+{
+   int nd = el.GetDof();
+   int dim = el.GetDim();
+   int spaceDim = Trans.GetSpaceDim();
+   bool square = (dim == spaceDim);
+   double w;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix dshape(nd,dim), dshapedxt(nd,spaceDim), invdfdx(dim,spaceDim);
+   Vector shape(nd), vec(nd);
+#else
+   dshape.SetSize(nd,dim);
+   dshapedxt.SetSize(nd,spaceDim);
+   invdfdx.SetSize(dim,spaceDim);
+   shape.SetSize(nd);
+   dtshape.SetSize(nd);
+#endif
+   elmat.SetSize(nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      if (el.Space() == FunctionSpace::Pk)
+      {
+         order = 2*el.GetOrder() - 2;
+      }
+      else
+         // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
+      {
+         order = 2*el.GetOrder() + dim - 1;
+      }
+
+      if (el.Space() == FunctionSpace::rQk)
+      {
+         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
+      }
+      else
+      {
+         ir = &IntRules.Get(el.GetGeomType(), order);
+      }
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      el.CalcShape(ip,shape);
+      el.CalcDShape(ip, dshape);
+
+      Trans.SetIntPoint(&ip);
+      w = std::abs(Trans.Weight());
+      w *= ip.weight;
+      CalcInverse(Trans.Jacobian(), invdfdx);
+      Mult(dshape, invdfdx, dshapedxt);
+
+      dshapedxt.GetColumn(spaceDim - 1, dtshape); // d_t u
+      dshapedxt.SetCol(spaceDim - 1, 0.);
+
+      AddMult_a_VWt(w,shape,dtshape,elmat); // d_t u * v
+      if (!MQ)
+      {
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+         AddMult_a_AAt(w, dshapedxt, elmat);
+      }
+      else
+      {
+         MQ->Eval(invdfdx, Trans, ip);
+         invdfdx *= w;
+         Mult(dshapedxt, invdfdx, dshape);
+         AddMultABt(dshape, dshapedxt, elmat);
+      }
+   }
+}
+
 
 }

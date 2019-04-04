@@ -27,6 +27,8 @@ namespace mfem
     Geometry::TETRAHEDRON - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1)
     Geometry::CUBE - the unit cube
     Geometry::PRISM - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1),(1,0,1),(0,1,1)
+    Geometry::PENTATOPE - w/ vert. (0,0,0,0),(1,0,0,0),(0,1,0,0),(0,0,1,0),(0,0,0,1)
+    Geometry::TESSERACT - the 4d unit cube
 */
 class Geometry
 {
@@ -34,12 +36,12 @@ public:
    enum Type
    {
       INVALID = -1,
-      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM,
+      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM, PENTATOPE, TESSERACT,
       NUM_GEOMETRIES
    };
 
    static const int NumGeom = NUM_GEOMETRIES;
-   static const int MaxDim = 3;
+   static const int MaxDim = 4;
    static const int NumBdrArray[NumGeom];
    static const char *Name[NumGeom];
    static const double Volume[NumGeom];
@@ -190,6 +192,15 @@ template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
       static const int I[NumVert];
       static const int J[NumEdges][2]; // {end,edge_idx}
    };
+   // For a given base tuple v={v0,v1,v2,v3}, the orientation of a permutation
+   // u={u0,u1,u2,u3} of v, is an index 'j' such that u[i]=v[Orient[j][i]].
+   // The static method Mesh::GetTetOrientation, computes the index 'j' of the
+   // permutation that maps the second argument 'test' to the first argument
+   // 'base': test[Orient[j][i]]=base[i].
+   static const int NumOrient = 24;
+   static const int Orient[NumOrient][NumVert];
+   // The inverse of orientation 'j' is InvOrient[j].
+   static const int InvOrient[NumOrient];
 };
 
 template <> struct Geometry::Constants<Geometry::CUBE>
@@ -203,6 +214,45 @@ template <> struct Geometry::Constants<Geometry::CUBE>
    static const int MaxFaceVert = 4;
    static const int FaceVert[NumFaces][MaxFaceVert];
    // Upper-triangular part of the local vertex-to-vertex graph.
+   struct VertToVert
+   {
+      static const int I[NumVert];
+      static const int J[NumEdges][2]; // {end,edge_idx}
+   };
+};
+
+template <> struct Geometry::Constants<Geometry::PENTATOPE>
+{
+   static const int Dimension = 4;
+   static const int NumVert = 5;
+   static const int NumEdges = 10;
+   static const int Edges[NumEdges][2];
+   static const int NumFaces = 5;
+   static const int FaceTypes[NumFaces];
+   static const int MaxFaceVert = 4;
+   static const int FaceVert[NumFaces][MaxFaceVert];
+   static const int NumPlanar = 10;
+   static const int MaxPlanarVert = 3;
+   static const int PlanarVert[NumPlanar][MaxPlanarVert];
+   // Lower-triangular part of the local vertex-to-vertex graph.
+   struct VertToVert
+   {
+      static const int I[NumVert];
+      static const int J[NumEdges][2]; // {end,edge_idx}
+   };
+};
+
+template <> struct Geometry::Constants<Geometry::TESSERACT>
+{
+   static const int Dimension = 4;
+   static const int NumVert = 16;
+   static const int NumEdges = 32;
+   static const int Edges[NumEdges][2];
+   static const int NumFaces = 8;
+   static const int FaceTypes[NumFaces];
+   static const int MaxFaceVert = 8;
+   static const int FaceVert[NumFaces][MaxFaceVert];
+   // Lower-triangular part of the local vertex-to-vertex graph.
    struct VertToVert
    {
       static const int I[NumVert];
