@@ -14,6 +14,7 @@
 
 #include "globals.hpp"
 #include "mem_manager.hpp"
+#include "ceed.h"
 
 namespace mfem
 {
@@ -51,7 +52,14 @@ struct Backend
       OCCA_OMP = 1 << 7,
       /** @brief [device] OCCA CUDA backend. Enabled when MFEM_USE_OCCA = YES
           and MFEM_USE_CUDA = YES. */
-      OCCA_CUDA = 1 << 8
+      OCCA_CUDA = 1 << 8,
+      /** @brief [host] CEED backend: GPU backends can still be used, but
+          with expensive memCopies.
+          Enabled when MFEM_USE_CEED = YES. */
+      CEED_CPU  = 1 << 9,
+      /** @brief [device] Ceed backends working in colaboration with the Cuda backend.
+          Enabled when MFEM_USE_CEED = YES and MFEM_USE_CUDA = YES. */
+      CEED_CUDA = 1 << 10
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -59,7 +67,7 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 9,
+      NUM_BACKENDS = 11,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU,
@@ -67,6 +75,8 @@ struct Backend
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
+      /// Bitwise-OR of all CEED backends
+      CEED_MASK = CEED_CPU | CEED_CUDA,
       /// Biwise-OR of all device backends
       DEVICE_MASK = CUDA_MASK,
 
@@ -191,6 +201,29 @@ public:
    /// Return true if an actual device (e.g. GPU) has been configured.
    static inline bool IsAvailable() { return Get().ngpu > 0; }
 
+   /// Enable the use of the configured device in the code that follows.
+   /** After this call MFEM classes will use the backend kernels whenever
+       possible, transferring data automatically to the device, if necessary.
+       If the only configured backend is the default host CPU one, the device
+       will remain disabled. */
+   static inline void Enable()
+   {
+      if (Get().backends & ~Backend::CPU)
+      {
+         Get().mode = Device::ACCELERATED;
+         Get().allowed_backends = Get().backends;
+      }
+   }
+
+   /// Disable the use of the configured device in the code that follows.
+   /** After this call MFEM classes will only use default CPU kernels,
+       transferring data automatically from the device, if necessary. */
+   static inline void Disable()
+   {
+      Get().mode = Device::SEQUENTIAL;
+      Get().allowed_backends = Backend::CPU;
+   }
+
    /// Return true if any backend other than Backend::CPU is enabled.
    static inline bool IsEnabled() { return Get().mode == ACCELERATED; }
 
@@ -212,6 +245,8 @@ public:
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
        by most MFEM device kernels to access Memory objects. */
    static inline MemoryClass GetMemoryClass() { return Get().mem_class; }
+
+   static Ceed GetCeed();
 };
 
 
