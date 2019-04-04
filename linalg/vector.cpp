@@ -48,7 +48,7 @@ Vector::Vector(const Vector &v)
    {
       MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
-      data = mm::malloc<double>(s);
+      data = mm::New<double>(s);
       mm::memcpy(data, v.data, sizeof(double)*s);
    }
    else

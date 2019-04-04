@@ -15,6 +15,7 @@
 #include <list>
 #include <cstddef>
 #include <unordered_map>
+#include <type_traits>
 
 using std::size_t;
 
@@ -60,16 +61,25 @@ public:
    /// Main malloc template function. Allocates n*size bytes and returns a
    /// pointer to the allocated memory.
    template<class T>
-   static inline T *malloc(const size_t n, const size_t size = sizeof(T))
-   { return static_cast<T*>(MM().Insert(::malloc(n*size), n*size)); }
+   static inline T *New(const size_t n)
+   { return static_cast<T*>(MM().Insert(new T[n], n*sizeof(T))); }
 
    /// Frees the memory space pointed to by ptr, which must have been returned
-   /// by a previous call to mm::malloc.
-   static inline void free(void *ptr)
+   /// by a previous call to mm::New.
+   template<class T>
+   static inline void Delete(T *ptr)
    {
+      static_assert(!std::is_void<T>::value, "Cannot Delete a void pointer. "
+         "Explicitly provide the correct type as a template parameter.");
       if (!ptr) { return; }
-      ::free(ptr);
+      delete [] ptr;
       mm::MM().Erase(ptr);
+   }
+
+   template<class T>
+   static inline void Delete(void *ptr)
+   {
+      Delete(static_cast<T*>(ptr));
    }
 
    /// Translates ptr to host or device address, depending on

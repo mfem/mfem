@@ -78,7 +78,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    if (hw > 0)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
-      data = mm::malloc<double>(hw);
+      data = mm::New<double>(hw);
       capacity = hw;
       mm::memcpy(data, m.data, sizeof(double)*hw);
    }
@@ -101,7 +101,7 @@ DenseMatrix::DenseMatrix(int s) : Matrix(s)
    capacity = s*s;
    if (capacity > 0)
    {
-      data = mm::malloc<double>(capacity);
+      data = mm::New<double>(capacity);
       mfem::Set(0.0, capacity, data);
    }
    else
@@ -117,7 +117,7 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    capacity = m*n;
    if (capacity > 0)
    {
-      data = mm::malloc<double>(capacity);
+      data = mm::New<double>(capacity);
       mfem::Set(0.0, capacity, data);
    }
    else
@@ -146,7 +146,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    capacity = height*width;
    if (capacity > 0)
    {
-      data = mm::malloc<double>(capacity);
+      data = mm::New<double>(capacity);
       mfem::Transpose(height, width, data, mat.Data());
    }
    else
@@ -177,10 +177,10 @@ void DenseMatrix::SetSize(int h, int w)
    {
       if (capacity > 0)
       {
-         mm::free(data);
+         mm::Delete(data);
       }
       capacity = hw;
-      data = mm::malloc<double>(capacity);
+      data = mm::New<double>(capacity);
       mfem::Set(0.0, capacity, data);
    }
 }
@@ -3017,7 +3017,7 @@ DenseMatrix::~DenseMatrix()
 {
    if (capacity > 0)
    {
-      mm::free(data);
+      mm::Delete(data);
    }
 }
 
@@ -4244,8 +4244,8 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix &mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = &mat;
-   lu.data = mm::malloc<double>(width*width);
-   lu.ipiv = mm::malloc<int>(width);
+   lu.data = mm::New<double>(width*width);
+   lu.ipiv = mm::New<int>(width);
    Factor();
 }
 
@@ -4254,8 +4254,8 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix *mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = mat;
-   lu.data = mm::malloc<double>(width*width);
-   lu.ipiv = mm::malloc<int>(width);
+   lu.data = mm::New<double>(width*width);
+   lu.ipiv = mm::New<int>(width);
 }
 
 void DenseMatrixInverse::Factor()
@@ -4284,10 +4284,10 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
    if (width != mat.width)
    {
       height = width = mat.width;
-      mm::free(lu.data);
-      lu.data = mm::malloc<double>(width*width);
-      mm::free(lu.ipiv);
-      lu.ipiv = mm::malloc<int>(width);
+      mm::Delete(lu.data);
+      lu.data = mm::New<double>(width*width);
+      mm::Delete(lu.ipiv);
+      lu.ipiv = mm::New<int>(width);
    }
    a = &mat;
    Factor();
@@ -4325,8 +4325,8 @@ void DenseMatrixInverse::TestInversion()
 
 DenseMatrixInverse::~DenseMatrixInverse()
 {
-   mm::free(lu.data);
-   mm::free(lu.ipiv);
+   mm::Delete(lu.data);
+   mm::Delete(lu.ipiv);
 }
 
 
