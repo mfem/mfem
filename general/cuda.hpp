@@ -14,14 +14,14 @@
 
 #include <cstddef>
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) && defined(__NVCC__)
 #include <cuda.h>
 #endif
 
 namespace mfem
 {
 
-#ifdef MFEM_USE_CUDA
+#if defined (MFEM_USE_CUDA) && defined (__NVCC__)
 #define MFEM_DEVICE __device__
 #define MFEM_HOST_DEVICE __host__ __device__
 inline void CuCheck(const unsigned int c)
@@ -47,18 +47,22 @@ static __device__ double atomicAdd(double* address, double val)
    return __longlong_as_double(old);
 }
 #endif // __CUDA_ARCH__ < 600
-template<typename T> MFEM_HOST_DEVICE
-inline T AtomicAdd(T* address, T val)
-{
-   return atomicAdd(address, val);
-}
 #else // MFEM_USE_CUDA
 #define MFEM_DEVICE
 #define MFEM_HOST_DEVICE
 typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
-template<typename T> inline T AtomicAdd(T* address, T val)
+#endif // MFEM_USE_CUDA
+
+#ifdef __CUDA_ARCH__
+template<typename T> MFEM_DEVICE
+inline T AtomicAdd(T volatile *address, T val)
+{
+  return atomicAdd((T *)address, val);
+}
+#else // __CUDA_ARCH__
+template<typename T> inline T AtomicAdd(T volatile *address, T val)
 {
 #if defined(_OPENMP)
    #pragma omp atomic
@@ -66,7 +70,7 @@ template<typename T> inline T AtomicAdd(T* address, T val)
    *address += val;
    return *address;
 }
-#endif // MFEM_USE_CUDA
+#endif // __CUDA_ARCH__
 
 /// Allocates device memory
 void* CuMemAlloc(void **d_ptr, size_t bytes);
