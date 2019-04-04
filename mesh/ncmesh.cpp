@@ -2237,7 +2237,7 @@ void NCMesh::BuildElementToVertexTable()
       int size = indices.Size();
       I[i] = size;
       JJ[i] = mm::malloc<int>(size);
-      mm::memcpy(JJ[i], indices.GetData(), size * sizeof(int));
+      std::memcpy(JJ[i], indices.GetData(), size * sizeof(int));
    }
 
    // finalize the I array of the table
@@ -2256,7 +2256,7 @@ void NCMesh::BuildElementToVertexTable()
    for (int i = 0; i < nrows; i++)
    {
       int cnt = I[i+1] - I[i];
-      mm::memcpy(J+nnz, JJ[i], cnt * sizeof(int));
+      std::memcpy(J+nnz, JJ[i], cnt * sizeof(int));
       mm::free<int>(JJ[i]);
       nnz += cnt;
    }
