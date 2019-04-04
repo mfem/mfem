@@ -22,7 +22,8 @@ template <int N, int Dim, typename T, typename... Args>
 class TensorInd
 {
 public:
-   MFEM_HOST_DEVICE static inline int result(const int* sizes, T first, Args... args)
+   MFEM_HOST_DEVICE static inline int result(const int* sizes, T first,
+                                             Args... args)
    {
 #ifndef MFEM_USE_CUDA
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
@@ -36,7 +37,8 @@ template <int Dim, typename T, typename... Args>
 class TensorInd<Dim, Dim, T, Args...>
 {
 public:
-   MFEM_HOST_DEVICE static inline int result(const int* sizes, T first, Args... args)
+   MFEM_HOST_DEVICE static inline int result(const int* sizes, T first,
+                                             Args... args)
    {
 #ifndef MFEM_USE_CUDA
       MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");

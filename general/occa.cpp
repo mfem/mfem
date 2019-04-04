@@ -37,7 +37,8 @@ static OccaMemory OccaWrapMemory(const OccaDevice dev, const void *d_adrs,
 #endif
 }
 
-OccaMemory OccaPtr(const void *ptr) {
+OccaMemory OccaPtr(const void *ptr)
+{
    OccaDevice dev = occaDevice;
    if (!Device::UsingMM()) { return OccaWrapMemory(dev, ptr, 0); }
    const bool known = mm::known(ptr);
