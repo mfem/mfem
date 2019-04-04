@@ -122,7 +122,8 @@ public:
 
    static inline bool UsingOkina()
    {
-      return UsingDevice() || UsingOmp() || UsingRaja() || UsingOcca();
+      return DeviceEnabled() && Get().mode == DEVICE &&
+         (UsingCuda() || UsingOmp() || UsingRaja() || UsingOcca());
    }
 
    ~Device();
