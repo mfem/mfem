@@ -131,7 +131,8 @@ public:
    /// Make an item hashed under different parent IDs.
    void Reparent(int id, int new_p1, int new_p2);
    void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4);
-   void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4, int new_p5);
+   void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4,
+                 int new_p5);
 
    /// Return total size of allocated memory (tables plus items), in bytes.
    long MemoryUsage() const;

@@ -66,7 +66,7 @@ protected:
    Array<Vert3> shared_trias;
    Array<Vert4> shared_quads;
    Array<Vert4> shared_tetra;
-//   Array<Element *> shared_planars;
+   //   Array<Element *> shared_planars;
 
    /// Shared objects in each group.
    Table group_svert;
@@ -74,7 +74,7 @@ protected:
    Table group_stria;  // contains shared triangle indices
    Table group_squad;  // contains shared quadrilateral indices
    Table group_stetr;
-//   Table group_splan;
+   //   Table group_splan;
 
    /// Shared to local index mapping.
    Array<int> svert_lvert;
@@ -172,7 +172,7 @@ protected:
                         ListOfIntegerSets& groups);
 
    int FindSharedPlanars(const Mesh &mesh, const int* partition,
-                          Table* &plan_element, ListOfIntegerSets &groups);
+                         Table* &plan_element, ListOfIntegerSets &groups);
 
    int FindSharedEdges(const Mesh &mesh, const int* partition,
                        Table* &edge_element, ListOfIntegerSets& groups);
@@ -274,7 +274,7 @@ public:
    int GroupNEdges(int group)    { return group_sedge.RowSize(group-1); }
    int GroupNTriangles(int group) { return group_stria.RowSize(group-1); }
    int GroupNQuadrilaterals(int group) { return group_squad.RowSize(group-1); }
-//   int GroupNPlanars(int group)  { return group_splan.RowSize(group-1); }
+   //   int GroupNPlanars(int group)  { return group_splan.RowSize(group-1); }
    int GroupNTetrahedra(int group)    { return group_stetr.RowSize(group-1); }
 
    int GroupVertex(int group, int i)

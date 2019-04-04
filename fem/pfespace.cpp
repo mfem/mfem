@@ -271,7 +271,10 @@ void ParFiniteElementSpace::GetGroupComm(
       group_ldof_counter += ntd * pmesh->GroupNTriangles(gr);
       group_ldof_counter += nqd * pmesh->GroupNQuadrilaterals(gr);
       if (dim > 3)
-         group_ldof_counter += nted * pmesh->GroupNTetrahedra(gr);  // FIXME: ensure that tet-group is always build
+      {
+         group_ldof_counter += nted * pmesh->GroupNTetrahedra(
+                                  gr);   // FIXME: ensure that tet-group is always build
+      }
    }
    if (ldof_type)
    {
@@ -367,9 +370,13 @@ void ParFiniteElementSpace::GetGroupComm(
 
             dofs.SetSize(ntd);
             if (dim == 4)
+            {
                m = nvdofs+nedofs+pdofs[k];
+            }
             else
+            {
                m = nvdofs+nedofs+fdofs[k];
+            }
             ind = fec->DofOrderForOrientation(Geometry::TRIANGLE, o);
             for (l = 0; l < ntd; l++)
             {
@@ -623,7 +630,8 @@ void ParFiniteElementSpace::GetSharedTetrahedronDofs(
    int group, int fi, Array<int> &dofs) const
 {
    int l_face, ori;
-   MFEM_ASSERT(0 <= fi && fi < pmesh->GroupNTetrahedra(group), "invalid face index");
+   MFEM_ASSERT(0 <= fi &&
+               fi < pmesh->GroupNTetrahedra(group), "invalid face index");
    pmesh->GroupTetrahedron(group, fi, l_face, ori);
    if (ori == 0)
    {
@@ -1455,7 +1463,7 @@ void ParFiniteElementSpace::GetGhostFaceDofs4D(const MeshId &face_id,
       int ghost = pncmesh->GetNPlanars();
       int first = (P[i] < ghost) ? nvdofs + nedofs +  P[i]*np
                   /*          */ : ndofs + ngvdofs + nedofs + ngedofs +  (P[i] - ghost)*np;
-//      const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
+      //      const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
       for (int j = 0; j < np; j++)
       {
          dofs[offset++] = first + j;
@@ -1470,7 +1478,8 @@ void ParFiniteElementSpace::GetGhostFaceDofs4D(const MeshId &face_id,
    }
 }
 
-void ParFiniteElementSpace::GetGhostPlanarDofs(const MeshId &planar_id, Array<int> &dofs) const
+void ParFiniteElementSpace::GetGhostPlanarDofs(const MeshId &planar_id,
+                                               Array<int> &dofs) const
 {
    MFEM_ASSERT(mesh->GetPlanarBaseGeometry(0) == Geometry::TRIANGLE, "");
 
@@ -1485,32 +1494,32 @@ void ParFiniteElementSpace::GetGhostPlanarDofs(const MeshId &planar_id, Array<in
    int offset = 0;
    for (int i = 0; i < 3; i++)
    {
-    int ghost = pncmesh->GetNVertices();
-    int first = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
-    for (int j = 0; j < nv; j++)
-    {
-       dofs[offset++] = first + j;
-    }
+      int ghost = pncmesh->GetNVertices();
+      int first = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
+      for (int j = 0; j < nv; j++)
+      {
+         dofs[offset++] = first + j;
+      }
    }
 
    for (int i = 0; i < 3; i++)
    {
-    int ghost = pncmesh->GetNEdges();
-    int first = (E[i] < ghost) ? nvdofs + E[i]*ne
-                /*          */ : ndofs + ngvdofs + (E[i] - ghost)*ne;
-    const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
-    for (int j = 0; j < ne; j++)
-    {
-       dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
-                        /*         */ : (-1 - (first + (-1 - ind[j])));
-    }
+      int ghost = pncmesh->GetNEdges();
+      int first = (E[i] < ghost) ? nvdofs + E[i]*ne
+                  /*          */ : ndofs + ngvdofs + (E[i] - ghost)*ne;
+      const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
+      for (int j = 0; j < ne; j++)
+      {
+         dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
+                          /*         */ : (-1 - (first + (-1 - ind[j])));
+      }
    }
 
    int first = ndofs + ngvdofs + ngedofs +
-             (planar_id.index - pncmesh->GetNPlanars())*np;
+               (planar_id.index - pncmesh->GetNPlanars())*np;
    for (int j = 0; j < np; j++)
    {
-    dofs[offset++] = first + j;
+      dofs[offset++] = first + j;
    }
 }
 
@@ -1580,7 +1589,7 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
 }
 
 void ParFiniteElementSpace::GetBareDofs4D(int entity, int index,
-                                        Array<int> &dofs) const
+                                          Array<int> &dofs) const
 {
    int ned, ghost, first;
    switch (entity)
@@ -2175,9 +2184,9 @@ int ParFiniteElementSpace
             }
 
             if (!master_dofs.Size()) { continue; }
-//            mfem::out << mf.slaves_end - mf.slaves_begin << "--------------------\n";
-//            master_dofs.Print(mfem::out,master_dofs.Size());
-//            mfem::out << "....................\n";
+            //            mfem::out << mf.slaves_end - mf.slaves_begin << "--------------------\n";
+            //            master_dofs.Print(mfem::out,master_dofs.Size());
+            //            mfem::out << "....................\n";
 
             // constrain slaves that exist in our mesh
             for (int si = mf.slaves_begin; si < mf.slaves_end; si++)
@@ -2199,18 +2208,18 @@ int ParFiniteElementSpace
                sf.OrientedPointMatrix(T.GetPointMat());
                T.FinalizeTransformation();
                fe->GetLocalInterpolation(T, I);
-//
-//               slave_dofs.Print(mfem::out,slave_dofs.Size());
-//               mfem::out << "**************\n";
+               //
+               //               slave_dofs.Print(mfem::out,slave_dofs.Size());
+               //               mfem::out << "**************\n";
                // make each slave DOF dependent on all master DOFs
                AddDependencies(deps, master_dofs, slave_dofs, I);
             }
-//            mfem::out << "--------------------\n";
+            //            mfem::out << "--------------------\n";
          }
       }
 
       deps.Finalize();
-//      deps.PrintMatlab(mfem::out);
+      //      deps.PrintMatlab(mfem::out);
 
    }
 
@@ -2246,9 +2255,13 @@ int ParFiniteElementSpace
                GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
 
                if (pmesh->Dimension() <= 3)
+               {
                   GetBareDofs(entity, id.index, dofs);
+               }
                else
+               {
                   GetBareDofs4D(entity, id.index, dofs);
+               }
 
                for (int j = 0; j < dofs.Size(); j++)
                {

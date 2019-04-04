@@ -334,9 +334,14 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    {
       Array<int> bdr_verts, bdr_edges, bdr_planars;
       if (mesh->Dimension() > 3)
-         mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges, bdr_planars);
+      {
+         mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges,
+                                          bdr_planars);
+      }
       else
+      {
          mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges);
+      }
 
       for (int i = 0; i < bdr_verts.Size(); i++)
       {
@@ -601,7 +606,8 @@ FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
 }
 
 void
-FiniteElementSpace::GetEntityDofs4D(int entity, int index, Array<int> &dofs) const
+FiniteElementSpace::GetEntityDofs4D(int entity, int index,
+                                    Array<int> &dofs) const
 {
    switch (entity)
    {
@@ -791,7 +797,8 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
    for (int entity = 1; entity <= 3; entity++)
    {
       const NCMesh::NCList &list = (entity > 2) ? mesh->ncmesh->GetFaceList()
-                                   /*        */ : ( (entity > 1) ? mesh->ncmesh->GetPlanarList() : mesh->ncmesh->GetEdgeList() );
+                                   /*        */ : ( (entity > 1) ? mesh->ncmesh->GetPlanarList() :
+                                                    mesh->ncmesh->GetEdgeList() );
       if (!list.masters.size()) { continue; }
 
       IsoparametricTransformation T;
@@ -799,7 +806,8 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
       else if (entity > 1) { T.SetFE(&TriangleFE); }
       else { T.SetFE(&SegmentFE); }
 
-      Geometry::Type geom = (entity > 2) ? Geometry::TETRAHEDRON : ( (entity > 1) ? Geometry::TRIANGLE : Geometry::SEGMENT );
+      Geometry::Type geom = (entity > 2) ? Geometry::TETRAHEDRON : ( (
+                                                                        entity > 1) ? Geometry::TRIANGLE : Geometry::SEGMENT );
       const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
       if (!fe) { continue; }
 
@@ -813,8 +821,8 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
          GetEntityDofs4D(entity, master.index, master_dofs);
          if (!master_dofs.Size()) { continue; }
 
-//         mfem::out << "--------------------\n";
-//         master_dofs.Print(mfem::out,master_dofs.Size());
+         //         mfem::out << "--------------------\n";
+         //         master_dofs.Print(mfem::out,master_dofs.Size());
 
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
@@ -826,11 +834,11 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
             T.FinalizeTransformation();
             fe->GetLocalInterpolation(T, I);
 
-//            mfem::out << "********************\n";
-//            slave_dofs.Print(mfem::out,slave_dofs.Size());
-//            mfem::out << "++++++++++++++++++++\n";
-//            I.PrintMatlab(mfem::out);
-//            mfem::out << "++++++++++++++++++++\n";
+            //            mfem::out << "********************\n";
+            //            slave_dofs.Print(mfem::out,slave_dofs.Size());
+            //            mfem::out << "++++++++++++++++++++\n";
+            //            I.PrintMatlab(mfem::out);
+            //            mfem::out << "++++++++++++++++++++\n";
 
             // make each slave DOF dependent on all master DOFs
             AddDependencies(deps, master_dofs, slave_dofs, I);
@@ -839,7 +847,7 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
    }
 
    deps.Finalize();
-//   deps.PrintMatlab(mfem::out);
+   //   deps.PrintMatlab(mfem::out);
 
    // DOFs that stayed independent are true DOFs
    int n_true_dofs = 0;

@@ -245,10 +245,11 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       else
       {
          BuildSharedFaceElems4D(nstets, nshexs, mesh, partitioning, faces4d_tbl,
-                               face_group, vert_global_local);
+                                face_group, vert_global_local);
          delete faces4d_tbl;
 
-         BuildSharedPlanarElems(nstris, nsquads, mesh, vert_global_local, planar_tbl, plan_element);
+         BuildSharedPlanarElems(nstris, nsquads, mesh, vert_global_local, planar_tbl,
+                                plan_element);
          delete planar_tbl;
          delete plan_element;
       }
@@ -769,8 +770,8 @@ void ParMesh::BuildFaceGroup4D(int ngroups, const Mesh &mesh,
 }
 
 void ParMesh::BuildPlanarGroup(int ngroups, const Mesh &mesh,
-      const Table& plan_element,
-                      int &nstria, int &nsquad)
+                               const Table& plan_element,
+                               int &nstria, int &nsquad)
 {
    // build group_stria and group_squad
    group_stria.MakeI(ngroups);
@@ -798,7 +799,7 @@ void ParMesh::BuildPlanarGroup(int ngroups, const Mesh &mesh,
          if (mesh.GetPlanar(i)->GetType() == Element::TRIANGLE)
          {
             group_stria.AddConnection(plan_element.GetRow(i)[0],
-                  nstria++);
+                                      nstria++);
          } // TODO Tesseracts
       }
    }
@@ -937,10 +938,10 @@ void ParMesh::BuildSharedFaceElems(int ntri_faces, int nquad_faces,
 }
 
 void ParMesh::BuildSharedFaceElems4D(int ntet_faces, int nhex_faces,
-                            const Mesh &mesh, int *partitioning,
-                            const STable4D *faces_tbl_4d,
-                            const Array<int> &face_group,
-                            const Array<int> &vert_global_local)
+                                     const Mesh &mesh, int *partitioning,
+                                     const STable4D *faces_tbl_4d,
+                                     const Array<int> &face_group,
+                                     const Array<int> &vert_global_local)
 {
    shared_tetra.SetSize(ntet_faces);
    sface_lface. SetSize(ntet_faces);
@@ -1005,7 +1006,7 @@ void ParMesh::BuildSharedPlanarElems(int ntri_planars, int nquad_planars,
 
          shared_trias[stria_counter].Set(vert.GetData());
          splan_lplan[stria_counter] = (*planar_tbl)(vert_global_local[vert[0]],
-               vert_global_local[vert[1]], vert_global_local[vert[2]]);
+                                                    vert_global_local[vert[1]], vert_global_local[vert[2]]);
          int *v = shared_trias[stria_counter].v;
          for (int j = 0; j < 3; j++)
          {
@@ -3514,7 +3515,8 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
    group_sedge.SetIJ(I_group_sedge, J_group_sedge);
 }
 
-void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v) // TODO write just for 4D
+void ParMesh::RefineGroups4D(int old_nv,
+                             const HashTable<Hashed2> &v_to_v) // TODO write just for 4D
 {
    MFEM_ASSERT(Dim == 4 && meshgen == 1, "internal error");
 
@@ -3646,15 +3648,31 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v) // TO
          int w[4];
          Vert4 tet;
 
-         w[0] = v[0];        w[1] = midEdges[0]; w[2] = midEdges[1]; w[3] = midEdges[2]; if (sw[0]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet); group_faces.Append(sface_lface.Append(-1)-1);
-         w[0] = midEdges[0]; w[1] = v[1];        w[2] = midEdges[3]; w[3] = midEdges[4]; if (sw[1]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet); group_faces.Append(sface_lface.Append(-1)-1);
-         w[0] = midEdges[1]; w[1] = midEdges[3]; w[2] = v[2];        w[3] = midEdges[5]; if (sw[2]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet); group_faces.Append(sface_lface.Append(-1)-1);
-         w[0] = midEdges[2]; w[1] = midEdges[4]; w[2] = midEdges[5]; w[3] = v[3];        if (sw[3]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet); group_faces.Append(sface_lface.Append(-1)-1);
+         w[0] = v[0];        w[1] = midEdges[0]; w[2] = midEdges[1]; w[3] = midEdges[2];
+         if (sw[0]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet);
+         group_faces.Append(sface_lface.Append(-1)-1);
+         w[0] = midEdges[0]; w[1] = v[1];        w[2] = midEdges[3]; w[3] = midEdges[4];
+         if (sw[1]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet);
+         group_faces.Append(sface_lface.Append(-1)-1);
+         w[0] = midEdges[1]; w[1] = midEdges[3]; w[2] = v[2];        w[3] = midEdges[5];
+         if (sw[2]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet);
+         group_faces.Append(sface_lface.Append(-1)-1);
+         w[0] = midEdges[2]; w[1] = midEdges[4]; w[2] = midEdges[5]; w[3] = v[3];
+         if (sw[3]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet);
+         group_faces.Append(sface_lface.Append(-1)-1);
          //
-         w[0] = midEdges[0]; w[1] = midEdges[1]; w[2] = midEdges[3]; w[3] = midEdges[4]; if (sw[4]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet); group_faces.Append(sface_lface.Append(-1)-1);
-         w[0] = midEdges[0]; w[1] = midEdges[1]; w[2] = midEdges[2]; w[3] = midEdges[4]; if (sw[5]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet); group_faces.Append(sface_lface.Append(-1)-1);
-         w[0] = midEdges[1]; w[1] = midEdges[3]; w[2] = midEdges[4]; w[3] = midEdges[5]; if (sw[6]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet); group_faces.Append(sface_lface.Append(-1)-1);
-         w[0] = midEdges[1]; w[1] = midEdges[2]; w[2] = midEdges[4]; w[3] = midEdges[5]; if (sw[7]) { Swap(w); } tet.Set(w); shared_tetra[group_faces[i]].Set(w); //sface_lface[group_faces[i]] =  -1;
+         w[0] = midEdges[0]; w[1] = midEdges[1]; w[2] = midEdges[3]; w[3] = midEdges[4];
+         if (sw[4]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet);
+         group_faces.Append(sface_lface.Append(-1)-1);
+         w[0] = midEdges[0]; w[1] = midEdges[1]; w[2] = midEdges[2]; w[3] = midEdges[4];
+         if (sw[5]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet);
+         group_faces.Append(sface_lface.Append(-1)-1);
+         w[0] = midEdges[1]; w[1] = midEdges[3]; w[2] = midEdges[4]; w[3] = midEdges[5];
+         if (sw[6]) { Swap(w); } tet.Set(w); shared_tetra.Append(tet);
+         group_faces.Append(sface_lface.Append(-1)-1);
+         w[0] = midEdges[1]; w[1] = midEdges[2]; w[2] = midEdges[4]; w[3] = midEdges[5];
+         if (sw[7]) { Swap(w); } tet.Set(w);
+         shared_tetra[group_faces[i]].Set(w); //sface_lface[group_faces[i]] =  -1;
       }
 
       I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
@@ -5364,7 +5382,7 @@ void ParMesh::PrintInfo(std::ostream &out)
    MPI_Reduce(&kappa_max, &gk_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
 
    // TODO: collect and print stats by geometry
-   
+
    long long ldata[6]; // vert, edge, planar, face, elem, neighbors;
    long long mindata[6], maxdata[6], sumdata[6];
 
@@ -5381,10 +5399,16 @@ void ParMesh::PrintInfo(std::ostream &out)
       {
          ldata[0] -= group_svert.RowSize(gr-1);
          ldata[1] -= group_sedge.RowSize(gr-1);
-         if (Dim == 4) { ldata[2] -= group_stria.RowSize(gr-1);
-         ldata[3] -= group_stetr.RowSize(gr-1); } else {
-         ldata[3] -= group_stria.RowSize(gr-1);
-         ldata[3] -= group_squad.RowSize(gr-1);}
+         if (Dim == 4)
+         {
+            ldata[2] -= group_stria.RowSize(gr-1);
+            ldata[3] -= group_stetr.RowSize(gr-1);
+         }
+         else
+         {
+            ldata[3] -= group_stria.RowSize(gr-1);
+            ldata[3] -= group_squad.RowSize(gr-1);
+         }
       }
    }
 

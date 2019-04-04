@@ -68,7 +68,9 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
    if (dim == 4)
+   {
       mesh.EnsureNCMesh(true);
+   }
 
    // 3. Since a NURBS mesh can currently only be refined uniformly, we need to
    //    convert it to a piecewise-polynomial curved mesh. First we refine the

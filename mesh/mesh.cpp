@@ -327,14 +327,14 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
    }
    out << '\n' << std::flush;
 
-/*
-   for (int f = 0; f < NumOfFaces; ++f)
-   {
-      out << "\t" << faces_info[f].Elem1No << "\t" << faces_info[f].Elem2No << "\t" << (be_to_face.Find(f) < 0 ? -1 : GetBdrAttribute(be_to_face.Find(f)) )
-            << "\t:\t" << faces[f]->GetVertices()[0] << "," << faces[f]->GetVertices()[1] << ","
-            << faces[f]->GetVertices()[2] << "," << faces[f]->GetVertices()[3] << "," << std::endl;
-   }
-*/
+   /*
+      for (int f = 0; f < NumOfFaces; ++f)
+      {
+         out << "\t" << faces_info[f].Elem1No << "\t" << faces_info[f].Elem2No << "\t" << (be_to_face.Find(f) < 0 ? -1 : GetBdrAttribute(be_to_face.Find(f)) )
+               << "\t:\t" << faces[f]->GetVertices()[0] << "," << faces[f]->GetVertices()[1] << ","
+               << faces[f]->GetVertices()[2] << "," << faces[f]->GetVertices()[3] << "," << std::endl;
+      }
+   */
 }
 
 FiniteElement *Mesh::GetTransformationFEforElementType(Element::Type ElemType)
@@ -540,7 +540,8 @@ ElementTransformation *Mesh::GetFaceTransformation(int FaceNo)
    return &FaceTransformation;
 }
 
-void Mesh::GetPlanarTransformation(int PlanarNo, IsoparametricTransformation *PlTr)
+void Mesh::GetPlanarTransformation(int PlanarNo,
+                                   IsoparametricTransformation *PlTr)
 {
    if (Dim < 4)
    {
@@ -812,15 +813,15 @@ void Mesh::GetLocalTetToPentTransformation(
    //         w.r.t. the face element
    const int *to = tet_t::Orient[i%64];
    const IntegrationRule *PentVert =
-	  Geometries.GetVertices(Geometry::PENTATOPE);
+      Geometries.GetVertices(Geometry::PENTATOPE);
    locpm.SetSize(4, 4);
    for (int j = 0; j < 4; j++)
    {
-	  const IntegrationPoint &vert = PentVert->IntPoint(tv[to[j]]);
-	  locpm(0, j) = vert.x;
-	  locpm(1, j) = vert.y;
-	  locpm(2, j) = vert.z;
-	  locpm(3, j) = vert.t;
+      const IntegrationPoint &vert = PentVert->IntPoint(tv[to[j]]);
+      locpm(0, j) = vert.x;
+      locpm(1, j) = vert.y;
+      locpm(2, j) = vert.z;
+      locpm(3, j) = vert.t;
    }
    Transf.FinalizeTransformation();
 }
@@ -1030,7 +1031,7 @@ void Mesh::InitTables()
 {
    el_to_edge =
       el_to_face = el_to_el = bel_to_edge = face_edge = edge_vertex = el_to_planar =
-      planar_edge = face_planar =  bel_to_planar = NULL;
+                                                                         planar_edge = face_planar =  bel_to_planar = NULL;
 }
 
 void Mesh::SetEmpty()
@@ -1132,8 +1133,10 @@ void Mesh::DeleteLazyTables()
    delete face_edge;    face_edge = NULL;
    delete edge_vertex;  edge_vertex = NULL;
    if (Dim == 4)
-   { delete planar_edge; planar_edge = NULL;
-     delete face_planar; face_planar = NULL;}
+   {
+      delete planar_edge; planar_edge = NULL;
+      delete face_planar; face_planar = NULL;
+   }
 }
 
 void Mesh::SetAttributes()
@@ -3418,13 +3421,13 @@ void Mesh::Loader(std::istream &input, int generate_edges,
             int *v = elements[j]->GetVertices();
             Sort5(v[0], v[1], v[2], v[3], v[4]);
 
-//            GetElementJacobian(j, J);
-//            if (J.Det() < 0.0)
-//            {
-//               swappedElements[j] = true;
-//               Swap(v);
-//            }
-//            else
+            //            GetElementJacobian(j, J);
+            //            if (J.Det() < 0.0)
+            //            {
+            //               swappedElements[j] = true;
+            //               Swap(v);
+            //            }
+            //            else
             {
                swappedElements[j] = false;
             }
@@ -4664,17 +4667,17 @@ void Mesh::GetFacePlanars(int i, Array<int> &pls, Array<int> &o) const
    for (int j = 0; j < np; j++)
    {
       const int *baseV = planars[pls[j]]->GetVertices();
-      switch(planars[pls[j]]->GetType())
+      switch (planars[pls[j]]->GetType())
       {
-      case Element::TRIANGLE:
-      {
-         const int *p = tet_t::FaceVert[j];
-         int tri[3] ={ v[p[0]], v[p[1]], v[p[2]] }; // TODO check for correctness!
-         o[j] = GetTriOrientation(baseV,tri);
-         break;
-      }
-      default:
-         mfem_error("Mesh::GetFacePlanars(...): Unknown planar type!");
+         case Element::TRIANGLE:
+         {
+            const int *p = tet_t::FaceVert[j];
+            int tri[3] = { v[p[0]], v[p[1]], v[p[2]] }; // TODO check for correctness!
+            o[j] = GetTriOrientation(baseV,tri);
+            break;
+         }
+         default:
+            mfem_error("Mesh::GetFacePlanars(...): Unknown planar type!");
       }
    }
 }
@@ -4717,7 +4720,7 @@ Table *Mesh::GetFacePlanarTable() const
    for (i = 0; i < NumOfFaces; i++)
    {
       v = faces[i]->GetVertices();
-      switch(GetFaceElementType(i))
+      switch (GetFaceElementType(i))
       {
          case Element::TETRAHEDRON:
             for (int j = 0; j < 4 ; j++)
@@ -5359,11 +5362,11 @@ void Mesh::AddTetrahedralFaceElement(int lf, int gf, int el,
       //   int oEl = 0; if(w < 0.0) oEl = 1;
       //   if(oEl==1) cout << "negative weight!" << endl;
 #ifdef MFEM_USE_MEMALLOC
-   int vi[]={v0,v1,v2,v3};
-   Element *tet = NewElement(Geometry::TETRAHEDRON);
-   tet->SetVertices(vi);
-   tet->SetAttribute(1);
-   faces[gf] = tet;
+      int vi[]= {v0,v1,v2,v3};
+      Element *tet = NewElement(Geometry::TETRAHEDRON);
+      tet->SetVertices(vi);
+      tet->SetAttribute(1);
+      faces[gf] = tet;
 #else
       faces[gf] = new Tetrahedron(v0, v1, v2, v3);
 #endif
@@ -5495,90 +5498,90 @@ void Mesh::GenerateFaces()
          ef = el_to_face->GetRow(i);
          switch (GetElementType(i))
          {
-         case Element::PENTATOPE:
-         {
+            case Element::PENTATOPE:
+            {
 #ifdef MFEM_DBG_PENTATOPE_OLD
-            bool swapped = swappedElements[i];
-            int tempv[5];
-            for (int j=0; j<5; j++) { tempv[j] = v[j]; }
-            if (swapped) { Swap(tempv); }
+               bool swapped = swappedElements[i];
+               int tempv[5];
+               for (int j=0; j<5; j++) { tempv[j] = v[j]; }
+               if (swapped) { Swap(tempv); }
 
-            int filter[5] = {0,1,2,3,4};
-            if (swapped)
-            {
-               filter[3] = 4;
-               filter[4] = 3;
-            }
-
-            for (int j = 0; j < 5; j++)
-            {
-               bool swapFace = false;
-               if ((swapped && j % 2 == 0) || (!swapped && j % 2 == 1))
+               int filter[5] = {0,1,2,3,4};
+               if (swapped)
                {
-                  swapFace = true;
+                  filter[3] = 4;
+                  filter[4] = 3;
                }
 
-               if (faces[ef[filter[j]]] == NULL)
+               for (int j = 0; j < 5; j++)
                {
-                  swappedFaces[ef[filter[j]]] = swapFace;
-               }
+                  bool swapFace = false;
+                  if ((swapped && j % 2 == 0) || (!swapped && j % 2 == 1))
+                  {
+                     swapFace = true;
+                  }
 
-               const int *fv = pent_t::FaceVert[j];
-               if (swapFace)
-               {
-                  AddTetrahedralFaceElement(j, ef[filter[j]], i,
-                                            tempv[fv[1]], tempv[fv[0]], tempv[fv[2]], tempv[fv[3]]);
-               }
-               else
-               {
-                  AddTetrahedralFaceElement(j, ef[filter[j]], i,
-                                            tempv[fv[0]], tempv[fv[1]], tempv[fv[2]], tempv[fv[3]]);
-               }
+                  if (faces[ef[filter[j]]] == NULL)
+                  {
+                     swappedFaces[ef[filter[j]]] = swapFace;
+                  }
 
-            }
+                  const int *fv = pent_t::FaceVert[j];
+                  if (swapFace)
+                  {
+                     AddTetrahedralFaceElement(j, ef[filter[j]], i,
+                                               tempv[fv[1]], tempv[fv[0]], tempv[fv[2]], tempv[fv[3]]);
+                  }
+                  else
+                  {
+                     AddTetrahedralFaceElement(j, ef[filter[j]], i,
+                                               tempv[fv[0]], tempv[fv[1]], tempv[fv[2]], tempv[fv[3]]);
+                  }
+
+               }
 #else
-            bool swapped = swappedElements[i];
-            swapped = false;
-            int tempv[5];
-            for (int j=0; j<5; j++) { tempv[j] = v[j]; }
-            if (swapped) { Swap(tempv); }
+               bool swapped = swappedElements[i];
+               swapped = false;
+               int tempv[5];
+               for (int j=0; j<5; j++) { tempv[j] = v[j]; }
+               if (swapped) { Swap(tempv); }
 
-            int filter[5] = {0,1,2,3,4};
-//            if (swapped)
-//            {
-//               filter[3] = 4;
-//               filter[4] = 3;
-//            }
+               int filter[5] = {0,1,2,3,4};
+               //            if (swapped)
+               //            {
+               //               filter[3] = 4;
+               //               filter[4] = 3;
+               //            }
 
-            for (int j = 0; j < 5; j++)
-            {
-               bool swapFace = false;
-               if ((swapped && j % 2 == 0) || (!swapped && j % 2 == 1))
+               for (int j = 0; j < 5; j++)
                {
-                  swapFace = true;
-               }
+                  bool swapFace = false;
+                  if ((swapped && j % 2 == 0) || (!swapped && j % 2 == 1))
+                  {
+                     swapFace = true;
+                  }
 
-               if (faces[ef[filter[j]]] == NULL)
-               {
-                  swappedFaces[ef[filter[j]]] = swapFace;
-               }
+                  if (faces[ef[filter[j]]] == NULL)
+                  {
+                     swappedFaces[ef[filter[j]]] = swapFace;
+                  }
 
-               const int *fv = pent_t::FaceVert[j];
-//               if (swapFace)
-//               {
-//                  AddTetrahedralFaceElement(j, ef[filter[j]], i,
-//                                            tempv[fv[1]], tempv[fv[0]], tempv[fv[2]], tempv[fv[3]]);
-//               }
-//               else
-               {
-                  AddTetrahedralFaceElement(j, ef[filter[j]], i,
-                                            tempv[fv[0]], tempv[fv[1]], tempv[fv[2]], tempv[fv[3]]);
-               }
+                  const int *fv = pent_t::FaceVert[j];
+                  //               if (swapFace)
+                  //               {
+                  //                  AddTetrahedralFaceElement(j, ef[filter[j]], i,
+                  //                                            tempv[fv[1]], tempv[fv[0]], tempv[fv[2]], tempv[fv[3]]);
+                  //               }
+                  //               else
+                  {
+                     AddTetrahedralFaceElement(j, ef[filter[j]], i,
+                                               tempv[fv[0]], tempv[fv[1]], tempv[fv[2]], tempv[fv[3]]);
+                  }
 
-            }
+               }
 #endif
-            break;
-         }
+               break;
+            }
             case Element::TESSERACT:
                for (int j = 0; j < 8; j++)
                {
@@ -5827,7 +5830,7 @@ STable4D * Mesh::GetElementToFaceTable4D(int ret_ftbl)
       bool swapped = swappedElements[i];
       int tempv[5];
       for (int j=0; j<5; j++) { tempv[j] = v[j]; }
-//      if(swapped) Swap(tempv);
+      //      if(swapped) Swap(tempv);
 
       switch (GetElementType(i))
       {
@@ -5880,8 +5883,8 @@ STable3D * Mesh::GetElementToPlanarTable(int ret_trigtbl)
    // TODO this standard choice may lead to on overflow of the underlying ints, even on relatively small meshes, e.g. 4mio dofs
    // TODO as anyway we are using just pentatopes set it to 10 for now
    el_to_planar = new Table(NumOfElements,
- //                           24);  // 24 planars at most for a tesseract (pentatope only 10)
-                              10);  // 10 planars for a pentatope
+                            //                           24);  // 24 planars at most for a tesseract (pentatope only 10)
+                            10);  // 10 planars for a pentatope
    trig_tbl = new STable3D(NumOfVertices);
    for (i = 0; i < NumOfElements; i++)
    {
@@ -8730,76 +8733,94 @@ void Mesh::RedRefinementPentatope(int i, HashTable<Hashed2> & v_to_v)
    int o = 0;
    w[0] = v[0];     w[1] = v_new[0]; w[2] = v_new[1]; w[3] = v_new[2];
    w[4] = v_new[3]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[0]; w[1] = v[1];     w[2] = v_new[4]; w[3] = v_new[5];
    w[4] = v_new[6]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v[2];     w[3] = v_new[7];
    w[4] = v_new[8]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[7]; w[3] = v[3];
    w[4] = v_new[9]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[3]; w[1] = v_new[6]; w[2] = v_new[8]; w[3] = v_new[9]; w[4] = v[4];
    mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
 
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[4]; w[3] = v_new[5];
    w[4] = v_new[6]; /*mySwaped = !swapped;*/ mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[5];
    w[4] = v_new[6]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[3];
    w[4] = v_new[6]; /*mySwaped = !swapped;*/ mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
 
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v_new[7];
    w[4] = v_new[8]; /*mySwaped = !swapped;*/ mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v_new[6];
    w[4] = v_new[8]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[5]; w[3] = v_new[7];
    w[4] = v_new[8]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[5]; w[3] = v_new[6];
    w[4] = v_new[8]; /*mySwaped = !swapped;*/ mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[3]; w[3] = v_new[6];
    w[4] = v_new[8]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
 
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[7]; w[3] = v_new[8];
    w[4] = v_new[9]; /*mySwaped = !swapped;*/ mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[6]; w[3] = v_new[8];
    w[4] = v_new[9]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[2]; w[1] = v_new[3]; w[2] = v_new[6]; w[3] = v_new[8];
    w[4] = v_new[9]; /*mySwaped = !swapped;*/ mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements[i]->SetVertices(w); elements[i]->ResetTransform(o);
+   if (mySwaped) { Swap(w); } elements[i]->SetVertices(w);
+   elements[i]->ResetTransform(o);
    swappedElements[i] = mySwaped;
 
    int coarse = FindCoarseElement(i);
    CoarseFineTr.embeddings[i].parent = coarse;
    for (int j = 0; j < 15; j++)
+   {
       CoarseFineTr.embeddings.Append(Embedding(coarse));
+   }
 
    // DenseMatrix J(4,4);
    // for(int k=0; k<16; k++)
@@ -8842,7 +8863,7 @@ void Mesh::RedRefinementBoundaryTet(int i, HashTable<Hashed2> & v_to_v)
    int *v = boundary[i]->GetVertices();
    if (swapped) { Swap(v); }
 
-//    cout << swapped << endl << " my computed " << endl;
+   //    cout << swapped << endl << " my computed " << endl;
 
    for (int j = 0; j < 6; j++)
    {
@@ -8864,17 +8885,17 @@ void Mesh::RedRefinementBoundaryTet(int i, HashTable<Hashed2> & v_to_v)
    int attr = boundary[i]->GetAttribute();
    Array<bool> sw(8);
    sw = swapped;
-   switch(lf)
+   switch (lf)
    {
-   case 1:
-      sw[5] = sw[6] = !swapped;
-      break;
-   case 2:
-      sw[4] = sw[5] = sw[6] = sw[7] = !swapped;
-      break;
-   case 3:
-      sw[4] = sw[7] = !swapped;
-      break;
+      case 1:
+         sw[5] = sw[6] = !swapped;
+         break;
+      case 2:
+         sw[4] = sw[5] = sw[6] = sw[7] = !swapped;
+         break;
+      case 3:
+         sw[4] = sw[7] = !swapped;
+         break;
    }
 
    bool mySwaped;

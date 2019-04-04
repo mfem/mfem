@@ -200,7 +200,8 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    {
       if (node->HasEdge()) { node->edge_index = -1; }
    }
-   for (planar_iterator planar = planars.begin(); planar != planars.end(); ++planar)
+   for (planar_iterator planar = planars.begin(); planar != planars.end();
+        ++planar)
    {
       planar->index = -1;
    }
@@ -208,7 +209,8 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    {
       face->index = -1;
    }
-   for (face4d_iterator face4d = faces4d.begin(); face4d != faces4d.end(); ++face4d)
+   for (face4d_iterator face4d = faces4d.begin(); face4d != faces4d.end();
+        ++face4d)
    {
       face4d->index = -1;
    }
@@ -230,7 +232,8 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    // assign ghost planar indices
    NPlanars = mesh->GetNPlanars();
    NGhostPlanars = 0;
-   for (planar_iterator planar = planars.begin(); planar != planars.end(); ++planar)
+   for (planar_iterator planar = planars.begin(); planar != planars.end();
+        ++planar)
    {
       if (planar->index < 0) { planar->index = NPlanars + (NGhostPlanars++); }
    }
@@ -242,7 +245,8 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    {
       if (face->index < 0) { face->index = NFaces + (NGhostFaces++); }
    }
-   for (face4d_iterator face4d = faces4d.begin(); face4d != faces4d.end(); ++face4d)
+   for (face4d_iterator face4d = faces4d.begin(); face4d != faces4d.end();
+        ++face4d)
    {
       if (face4d->index < 0) { face4d->index = NFaces + (NGhostFaces++); }
    }
@@ -306,7 +310,8 @@ void ParNCMesh::BuildFaceList()
    tmp_shared_flag.DeleteAll();
 
    // create simple conforming (cut-mesh) groups now
-   CreateGroups(NFaces, entity_index_rank[face_entity_index], entity_conf_group[face_entity_index]);
+   CreateGroups(NFaces, entity_index_rank[face_entity_index],
+                entity_conf_group[face_entity_index]);
    // NOTE: entity_index_rank[2] is not deleted until CalculatePMatrixGroups
 
    CalcFaceOrientations();

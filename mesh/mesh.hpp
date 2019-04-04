@@ -147,7 +147,8 @@ protected:
    mutable Table *edge_vertex;
 
    IsoparametricTransformation Transformation, Transformation2;
-   IsoparametricTransformation FaceTransformation, PlanarTransformation, EdgeTransformation;
+   IsoparametricTransformation FaceTransformation, PlanarTransformation,
+                               EdgeTransformation;
    FaceElementTransformations FaceElemTr;
 
    // refinement embeddings for forward compatibility with NCMesh

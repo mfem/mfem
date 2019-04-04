@@ -207,8 +207,8 @@ void LinearForm::Assemble()
             for (int k = 0; k < iflfi.Size(); k++)
             {
                iflfi[k] -> AssembleRHSElementVect (*fes -> GetFE (tr -> Elem1No),
-                                              *fes -> GetFE (tr -> Elem2No),
-                                              *tr, elemvect);
+                                                   *fes -> GetFE (tr -> Elem2No),
+                                                   *tr, elemvect);
                AddElementVector (vdofs, elemvect);
             }
          }

@@ -28,7 +28,7 @@ namespace mfem
     Geometry::CUBE - the unit cube
     Geometry::PRISM - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1),(1,0,1),(0,1,1)
     Geometry::PENTATOPE - w/ vert. (0,0,0,0),(1,0,0,0),(0,1,0,0),(0,0,1,0),(0,0,0,1)
-    Geometry::TESSERACT - the 4d unit cube                                           
+    Geometry::TESSERACT - the 4d unit cube
 */
 class Geometry
 {

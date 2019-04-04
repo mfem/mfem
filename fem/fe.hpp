@@ -973,7 +973,7 @@ public:
 
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-                           
+
    virtual void CalcHessian(const IntegrationPoint &ip, DenseMatrix &h) const;
 };
 
@@ -1043,9 +1043,9 @@ public:
 
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-                           
-   virtual void CalcHessian(const IntegrationPoint &ip, 
-                           DenseMatrix &h) const;
+
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &h) const;
 };
 
 /// Class for tri-linear FE on cube
@@ -2128,11 +2128,12 @@ private:
 
 public:
    H1_PentatopeElement(const int p,
-                         const int btype = BasisType::GaussLobatto);
+                       const int btype = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   virtual void CalcHessian(const IntegrationPoint &ip, DenseMatrix &ddshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &ddshape) const;
 };
 
 

@@ -833,7 +833,8 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual const int * DofOrderForOrientation(Geometry::Type GeomType, int Or) const;
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType,
+                                              int Or) const;
 
    virtual const char * Name() const { return "ND1_4D"; }
 };
@@ -851,7 +852,8 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual const int * DofOrderForOrientation(Geometry::Type GeomType, int Or) const;
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType,
+                                              int Or) const;
 
    virtual const char * Name() const { return "ND2_4D"; }
 };
@@ -870,7 +872,8 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual const int * DofOrderForOrientation(Geometry::Type GeomType, int Or) const;
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType,
+                                              int Or) const;
 
    virtual const char * Name() const { return "F2K0_4D"; }
 };
@@ -935,7 +938,8 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual const int * DofOrderForOrientation(Geometry::Type GeomType, int Or) const;
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType,
+                                              int Or) const;
 
    virtual const char * Name() const { return "RT0_4D"; };
 };

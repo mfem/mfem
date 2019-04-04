@@ -640,9 +640,9 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
       }
       case Geometry::PENTATOPE:
       {
-          double lend[5] = { end.x, end.y, end.z, end.t, 1.0-end.x-end.y-end.z-end.t };
-          double lbeg[5] = { beg.x, beg.y, beg.z, beg.t, 1.0-beg.x-beg.y-beg.z-beg.t };
-          return internal::IntersectSegment<5,4>(lbeg,lend,end);
+         double lend[5] = { end.x, end.y, end.z, end.t, 1.0-end.x-end.y-end.z-end.t };
+         double lbeg[5] = { beg.x, beg.y, beg.z, beg.t, 1.0-beg.x-beg.y-beg.z-beg.t };
+         return internal::IntersectSegment<5,4>(lbeg,lend,end);
       }
 
       default:
@@ -833,8 +833,10 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
          pm(0,0) = 0.0;  pm(1,0) = 0.0;  pm(2,0) = 0.0; pm(3,0) = 0.0;
          pm(0,1) = 1.0;  pm(1,1) = 0.0;  pm(2,1) = 0.0; pm(3,1) = 0.0;
          pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;  pm(2,2) = 0.0; pm(3,2) = 0.0;
-         pm(0,3) = 0.5;  pm(1,3) = 0.28867513459481288225;  pm(2,3) = 0.81649658092772603273; pm(3,3) = 0.0;
-         pm(0,4) = 0.5;  pm(1,4) = 0.28867513459481288225;  pm(2,4) = 0.20412414523193150819; pm(3,4) = 0.7905694150420948330;
+         pm(0,3) = 0.5;  pm(1,3) = 0.28867513459481288225;
+         pm(2,3) = 0.81649658092772603273; pm(3,3) = 0.0;
+         pm(0,4) = 0.5;  pm(1,4) = 0.28867513459481288225;
+         pm(2,4) = 0.20412414523193150819; pm(3,4) = 0.7905694150420948330;
       }
       break;
 
@@ -944,7 +946,7 @@ Constants<Geometry::TETRAHEDRON>::Orient[24][4] =
    {3,0,2,1},{3,1,2,0},{3,2,1,0},{3,2,0,1}
 };
 const int Geometry::
-Constants<Geometry::TETRAHEDRON>::InvOrient[24] = 
+Constants<Geometry::TETRAHEDRON>::InvOrient[24] =
 {0, 1, 4, 3, 2, 5, 12, 15, 8, 23, 20, 11, 6, 19, 18, 7, 16, 17, 14, 13, 10, 21, 22, 9};
 
 const int Geometry::
@@ -1016,12 +1018,12 @@ Constants<Geometry::PENTATOPE>::FaceTypes[5] =
 const int Geometry::
 Constants<Geometry::PENTATOPE>::FaceVert[5][4] =
 {
-//   {0, 1, 2, 3}, {0, 1, 2, 4},
-//   {0, 1, 3, 4}, {0, 2, 3, 4},
-//   {1, 2, 3, 4}
-    {0, 1, 2, 3}, {1, 0, 2, 4},     //<---- sorted such that the normal vectors are outer normal vectors
-    {0, 1, 3, 4}, {2, 0, 3, 4},
-    {1, 2, 3, 4}
+   //   {0, 1, 2, 3}, {0, 1, 2, 4},
+   //   {0, 1, 3, 4}, {0, 2, 3, 4},
+   //   {1, 2, 3, 4}
+   {0, 1, 2, 3}, {1, 0, 2, 4},     //<---- sorted such that the normal vectors are outer normal vectors
+   {0, 1, 3, 4}, {2, 0, 3, 4},
+   {1, 2, 3, 4}
 };
 const int Geometry::
 Constants<Geometry::PENTATOPE>::PlanarVert[10][3] =

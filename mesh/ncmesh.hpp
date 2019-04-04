@@ -380,7 +380,8 @@ protected: // implementation
        parent element "signs off" its nodes by decrementing the ref counts. */
    struct Node : public Hashed2
    {
-      short vert_refc, edge_refc; // changed from char to short because in 4D, a vertex might be in more than 127 elements
+      short vert_refc,
+            edge_refc; // changed from char to short because in 4D, a vertex might be in more than 127 elements
       int vert_index, edge_index;
 
       Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1) {}

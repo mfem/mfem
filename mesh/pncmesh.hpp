@@ -123,16 +123,16 @@ public:
    }
 
    /// Helper to get shared vertices/edges/faces ('entity' == 0/1/2 resp.).
-      const NCList& GetSharedList4D(int entity)
+   const NCList& GetSharedList4D(int entity)
+   {
+      switch (entity)
       {
-         switch (entity)
-         {
-            case 0: return GetSharedVertices();
-            case 1: return GetSharedEdges();
-            case 2: return GetSharedPlanars();
-            default: return GetSharedFaces();
-         }
+         case 0: return GetSharedVertices();
+         case 1: return GetSharedEdges();
+         case 2: return GetSharedPlanars();
+         default: return GetSharedFaces();
       }
+   }
 
    /// Return (shared) face orientation relative to its owner element.
    int GetFaceOrientation(int index) const
