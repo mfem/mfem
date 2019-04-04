@@ -17,7 +17,7 @@ list(APPEND SRCS
   globals.cpp
   gzstream.cpp
   isockstream.cpp
-  mm.cpp
+  mem_manager.cpp
   occa.cpp
   optparser.cpp
   osockstream.cpp
