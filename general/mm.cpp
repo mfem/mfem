@@ -225,11 +225,11 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    const size_t bytes = base.bytes;
    const bool gpu = Device::UsingDevice();
    if (host && !gpu) { return ptr; }
-   if (bytes==0) { mfem_error("PtrKnown bytes==0"); }
+   if (bytes==0) { mfem_error("PtrKnown: bytes==0"); }
    if (!base.d_ptr) { MmMemAlloc(&base.d_ptr, bytes); }
-   if (!base.d_ptr) { mfem_error("PtrKnown !base->d_ptr"); }
+   if (!base.d_ptr) { mfem_error("PtrKnown: !base->d_ptr"); }
    if (device &&  gpu) { return base.d_ptr; }
-   if (!ptr) { mfem_error("PtrKnown !ptr"); }
+   if (!ptr) { mfem_error("PtrKnown: !ptr"); }
    if (device && !gpu) // Pull
    {
       mm::MmuMEnable(ptr, bytes);
@@ -238,7 +238,7 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
       return ptr;
    }
    // Push
-   if (!(host && gpu)) { mfem_error("PtrKnown !(host && gpu)"); }
+   if (!(host && gpu)) { mfem_error("PtrKnown: !(host && gpu)"); }
    MmMemcpyHtoD(base.d_ptr, ptr, bytes);
    mm::MmuMDisable(ptr, bytes);
    base.host = false;
@@ -255,13 +255,14 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
    const bool host = base->host;
    const bool device = !base->host;
    const size_t bytes = base->bytes;
+   if (bytes==0) { mfem_error("PtrAlias: bytes==0"); }
    if (host && !gpu) { return ptr; }
-   if (bytes==0) { mfem_error("bytes==0"); }
    if (!base->d_ptr) { MmMemAlloc(&(alias->mem->d_ptr), bytes); }
-   if (!base->d_ptr) { mfem_error("!base->d_ptr"); }
+   if (!base->d_ptr) { mfem_error("PtrAlias: !base->d_ptr"); }
    void *a_ptr = static_cast<char*>(base->d_ptr) + alias->offset;
+   if (bytes==0) { return a_ptr; }
    if (device && gpu) { return a_ptr; }
-   if (!base->h_ptr) { mfem_error("!base->h_ptr"); }
+   if (!base->h_ptr) { mfem_error("PtrAlias: !base->h_ptr"); }
    if (device && !gpu) // Pull
    {
       mm::MmuMEnable(base->h_ptr, bytes);
@@ -282,7 +283,7 @@ void *mm::Ptr(void *ptr)
    if (MmDeviceIniFilter()) { return ptr; }
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
-   if (Device::UsingDevice()) { mfem_error("Unknown pointer!"); }
+   if (Device::UsingDevice()) { mfem_error("Ptr: Unknown pointer!"); }
    return ptr;
 }
 
@@ -296,8 +297,8 @@ static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
    mm::memory &base = maps.memories.at(ptr);
    const bool host = base.host;
    if (!host) { return; }
-   MFEM_VERIFY(bytes>0,"bytes==0");
-   MFEM_VERIFY(base.bytes==bytes,"base.bytes!=bytes");
+   MFEM_VERIFY(bytes>0,"PushKnown: bytes==0");
+   MFEM_VERIFY(base.bytes==bytes,"PushKnown: base.bytes!=bytes");
    if (!base.d_ptr) { MmMemAlloc(&base.d_ptr, base.bytes); }
    MmMemcpyHtoD(base.d_ptr, ptr, base.bytes);
    mm::MmuMDisable(ptr, base.bytes);
@@ -308,13 +309,13 @@ static void PushAlias(mm::ledger &maps, const void *ptr, const size_t bytes)
 {
    const mm::alias *alias = maps.aliases.at(ptr);
    mm::memory *base = alias->mem;
-   MFEM_VERIFY(bytes>0,"bytes==0");
-   if (!ptr) { mfem_error("!ptr"); }
-   if (bytes==0) { mfem_error("bytes==0"); }
-   if (!base->d_ptr) { mfem_error("!base->d_ptr"); }
+   MFEM_VERIFY(bytes>0,"PushAlias: bytes==0");
+   if (!ptr) { mfem_error("PushAlias: !ptr"); }
+   if (bytes==0) { mfem_error("PushAlias: bytes==0"); }
+   if (!base->d_ptr) { mfem_error("PushAlias: !base->d_ptr"); }
    void *dst = static_cast<char*>(base->d_ptr) + alias->offset;
    const void *src = static_cast<char*>(base->h_ptr) + alias->offset;
-   MFEM_VERIFY(src==ptr,"src!=ptr");
+   MFEM_VERIFY(src==ptr,"PushAlias: src!=ptr");
    MmMemcpyHtoD(dst, ptr, bytes);
    mm::MmuMDisable(base->h_ptr, base->bytes);
 }
@@ -322,7 +323,7 @@ static void PushAlias(mm::ledger &maps, const void *ptr, const size_t bytes)
 void mm::Push(const void *ptr, const size_t bytes)
 {
    if (MmDeviceIniFilter()) { return; }
-   if (bytes==0) { mfem_error("bytes==0"); }
+   if (bytes==0) { mfem_error("Push: bytes==0"); }
    if (Known(ptr)) { return PushKnown(maps, ptr, bytes); }
    if (Alias(ptr)) { return PushAlias(maps, ptr, bytes); }
    if (Device::UsingDevice()) { mfem_error("Unknown pointer to push to!"); }
@@ -333,8 +334,7 @@ static void PullKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
    mm::memory &base = maps.memories.at(ptr);
    const bool host = base.host;
    if (host) { return; }
-   MFEM_VERIFY(bytes>0,"bytes==0");
-   //MFEM_VERIFY(bytes==base.bytes,"bytes!=base.bytes");
+   MFEM_VERIFY(bytes>0,"PullKnown: bytes==0");
    mm::MmuMEnable(base.h_ptr, bytes);
    MmMemcpyDtoH(base.h_ptr, base.d_ptr, bytes);
    if (bytes==base.bytes) { base.host = true; }
@@ -344,13 +344,13 @@ static void PullAlias(mm::ledger &maps, const void *ptr, const size_t bytes)
 {
    const mm::alias *alias = maps.aliases.at(ptr);
    mm::memory *base = alias->mem;
-   MFEM_VERIFY(bytes>0,"bytes==0");
-   if (!ptr) { mfem_error("!ptr"); }
-   if (bytes==0) { mfem_error("bytes==0"); }
-   if (!base->d_ptr) { mfem_error("!base->d_ptr"); }
+   MFEM_VERIFY(bytes>0,"PullAlias: bytes==0");
+   if (!ptr) { mfem_error("PullAlias: !ptr"); }
+   if (bytes==0) { mfem_error("PullAlias: bytes==0"); }
+   if (!base->d_ptr) { mfem_error("PullAlias: !base->d_ptr"); }
    void *dst = static_cast<char*>(base->h_ptr) + alias->offset;
    const void *src = static_cast<char*>(base->d_ptr) + alias->offset;
-   MFEM_VERIFY(dst==ptr,"dst!=ptr");
+   MFEM_VERIFY(dst==ptr,"PullAlias: dst!=ptr");
    mm::MmuMEnable(base->h_ptr, base->bytes);
    MmMemcpyDtoH(dst, src, bytes);
 }
