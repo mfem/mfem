@@ -665,7 +665,6 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    const DeviceVector d_A(A);
    const DeviceVector d_x(x, x.Size());
    DeviceVector d_y(y, y.Size());
-   const bool device = Device::UsingDevice();
    MFEM_FORALL(i, d_height,
    {
       const double xi = a * d_x[i];
@@ -673,14 +672,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       for (int j = d_I[i]; j < end; j++)
       {
          const int Jj = d_J[j];
-         if (device)
-         {
-            AtomicAdd(&d_y[Jj], d_A[j] * xi);
-         }
-         else
-         {
-            d_y[Jj] += d_A[j] * xi;
-         }
+         AtomicAdd(&d_y[Jj], d_A[j] * xi);
       }
    });
 }
