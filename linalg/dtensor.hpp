@@ -120,7 +120,7 @@ public:
    }
 
    /// Copy constructor
-   DeviceTensor(const DeviceTensor& t)
+   MFEM_HOST_DEVICE DeviceTensor(const DeviceTensor& t)
    {
       for (int i = 0; i < Dim; ++i)
       {
@@ -133,14 +133,14 @@ public:
    inline operator Scalar *() const { return data; }
 
    /// Const accessor for the data
-   template <typename... Args> MFEM_HOST_DEVICE
+   template <typename... Args> MFEM_HOST_DEVICE inline
    Scalar& operator()(Args... args) const
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       return data[ TensorInd<1, Dim, Args...>::result(sizes, args...) ];
    }
 
-   MFEM_HOST_DEVICE Scalar& operator[](int i) const
+   MFEM_HOST_DEVICE inline Scalar& operator[](int i) const
    {
       return data[i];
    }
