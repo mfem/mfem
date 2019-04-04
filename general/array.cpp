@@ -38,7 +38,7 @@ BaseArray::~BaseArray()
 {
    if (allocsize > 0)
    {
-      mm::Delete<char>(data);
+      mm::Delete((char*)data);
    }
 }
 
@@ -55,7 +55,7 @@ void BaseArray::GrowSize(int minsize, int elementsize)
    }
    if (allocsize > 0)
    {
-      mm::Delete<char>(data);
+      mm::Delete((char*)data);
    }
    data = p;
    allocsize = nsize;
