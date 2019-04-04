@@ -12,6 +12,7 @@
 #include "forall.hpp"
 #include "cuda.hpp"
 #include "occa.hpp"
+#include "ceed.h"
 
 #include <string>
 #include <map>
@@ -28,21 +29,26 @@ namespace internal
 // Default occa::device used by MFEM.
 occa::device occaDevice;
 #endif
+CUstream *cuStream = NULL;
+static CUdevice cuDevice;
+static CUcontext cuContext;
+OccaDevice occaDevice;
+Ceed ceed;
 
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
-   Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
+   Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CEED_CUDA, Backend::CUDA,
    Backend::HIP,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
-   Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
+   Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CEED_CPU, Backend::CPU
 };
 
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp", "omp",
-   "occa-cpu", "raja-cpu", "cpu"
+   "occa-cuda", "raja-cuda", "ceed-cuda", "cuda", "hip", "occa-omp", "raja-omp", "omp",
+   "occa-cpu", "raja-cpu", "ceed-cpu", "cpu"
 };
 
 } // namespace mfem::internal
@@ -79,6 +85,10 @@ void Device::Configure(const std::string &device, const int dev)
 
    // OCCA_CUDA needs CUDA or RAJA_CUDA:
    if (Allows(Backend::OCCA_CUDA) && !Allows(Backend::RAJA_CUDA))
+   {
+      Get().MarkBackend(Backend::CUDA);
+   }
+   if (Allows(Backend::CEED_CUDA))
    {
       Get().MarkBackend(Backend::CUDA);
    }
@@ -223,6 +233,16 @@ static void OccaDeviceSetup(const int dev)
 #endif
 }
 
+static void CeedDeviceSetup(const char* ceed_spec)
+{
+   // char* ceed_spec = "/cpu/self/ref/blocked";
+   // char* ceed_spec = "/gpu/cuda/ref";
+   CeedInit(ceed_spec, &internal::ceed);
+}
+
+Ceed Device::GetCeed()
+{ return internal::ceed; }
+
 void Device::Setup(const int device)
 {
    MFEM_VERIFY(ngpu == -1, "the mfem::Device is already configured!");
@@ -251,6 +271,18 @@ void Device::Setup(const int device)
    if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
+
+   // We initialize CUDA and/or RAJA_CUDA first so OccaDeviceSetup() can reuse
+   // the same initialized cuDevice and cuContext objects when OCCA_CUDA is
+   // enabled.
+   if (Allows(Backend::CEED_CPU))
+   {
+      CeedDeviceSetup("/cpu/self/ref/blocked");
+   }
+   if (Allows(Backend::CEED_CUDA))
+   {
+      CeedDeviceSetup("/gpu/cuda/ref");
+   }
 }
 
 } // mfem
