@@ -1,0 +1,245 @@
+// *****************************************************************************
+typedef int CeedInt;
+typedef double CeedScalar;
+
+// *****************************************************************************
+// OCCA parser doesn't like struct here
+//struct BuildContext { CeedInt dim, space_dim; };
+
+// *****************************************************************************
+@kernel void f_build_diff_const(int *ctx, CeedInt Q,
+                                const int *iOf7, const int *oOf7,
+                                const CeedScalar *in, CeedScalar *out) {
+//  const CeedScalar
+//    *J = in + iOf7[0],
+//    *qw = in + iOf7[1];
+//  CeedScalar
+//    *qd = out + oOf7[0];
+  for (int i=0; i<Q; i++; @tile(TILE_SIZE,@outer,@inner)) {
+    const int dim = ctx[0];
+    const int space_dim = ctx[1];
+    const CeedInt dims = dim + 10*space_dim;
+    if (dims == 11) {
+      out[oOf7[0]+i] = in[iOf7[1]+i] / in[iOf7[0]+i];
+    } else if (dims == 22) {
+      // J: 0 2   qd: 0 1   adj(J):  J22 -J12
+      //    1 3       1 2           -J21  J11
+      const CeedScalar J11 = in[iOf7[0]+i+Q*0];
+      const CeedScalar J21 = in[iOf7[0]+i+Q*1];
+      const CeedScalar J12 = in[iOf7[0]+i+Q*2];
+      const CeedScalar J22 = in[iOf7[0]+i+Q*3];
+      const CeedScalar w = in[iOf7[1]+i] / (J11*J22 - J21*J12);
+      out[oOf7[0]+i+Q*0] =   w * (J12*J12 + J22*J22);
+      out[oOf7[0]+i+Q*1] = - w * (J11*J12 + J21*J22);
+      out[oOf7[0]+i+Q*2] =   w * (J11*J11 + J21*J21);
+    } else if (dims == 33) {
+      // J: 0 3 6   qd: 0 1 2
+      //    1 4 7       1 3 4
+      //    2 5 8       2 4 5
+      const CeedScalar J11 = in[iOf7[0]+i+Q*0];
+      const CeedScalar J21 = in[iOf7[0]+i+Q*1];
+      const CeedScalar J31 = in[iOf7[0]+i+Q*2];
+      const CeedScalar J12 = in[iOf7[0]+i+Q*3];
+      const CeedScalar J22 = in[iOf7[0]+i+Q*4];
+      const CeedScalar J32 = in[iOf7[0]+i+Q*5];
+      const CeedScalar J13 = in[iOf7[0]+i+Q*6];
+      const CeedScalar J23 = in[iOf7[0]+i+Q*7];
+      const CeedScalar J33 = in[iOf7[0]+i+Q*8];
+      const CeedScalar A11 = J22*J33 - J23*J32;
+      const CeedScalar A12 = J13*J32 - J12*J33;
+      const CeedScalar A13 = J12*J23 - J13*J22;
+      const CeedScalar A21 = J23*J31 - J21*J33;
+      const CeedScalar A22 = J11*J33 - J13*J31;
+      const CeedScalar A23 = J13*J21 - J11*J23;
+      const CeedScalar A31 = J21*J32 - J22*J31;
+      const CeedScalar A32 = J12*J31 - J11*J32;
+      const CeedScalar A33 = J11*J22 - J12*J21;
+      const CeedScalar w = in[iOf7[1]+i] / (J11*A11 + J21*A12 + J31*A13);
+      out[oOf7[0]+i+Q*0] = w * (A11*A11 + A12*A12 + A13*A13);
+      out[oOf7[0]+i+Q*1] = w * (A11*A21 + A12*A22 + A13*A23);
+      out[oOf7[0]+i+Q*2] = w * (A11*A31 + A12*A32 + A13*A33);
+      out[oOf7[0]+i+Q*3] = w * (A21*A21 + A22*A22 + A23*A23);
+      out[oOf7[0]+i+Q*4] = w * (A21*A31 + A22*A32 + A23*A33);
+      out[oOf7[0]+i+Q*5] = w * (A31*A31 + A32*A32 + A33*A33);
+    }
+  }
+}
+
+@kernel void f_build_diff_grid(int *ctx, CeedInt Q,
+                               const int *iOf7, const int *oOf7,
+                               const CeedScalar *in, CeedScalar *out) {
+//  const CeedScalar
+//    *J = in + iOf7[0],
+//    *qw = in + iOf7[1];
+//  CeedScalar
+//    *qd = out + oOf7[0];
+  for (int i=0; i<Q; i++; @tile(TILE_SIZE,@outer,@inner)) {
+    const int dim = ctx[0];
+    const int space_dim = ctx[1];
+    const CeedInt dims = dim + 10*space_dim;
+    if (dims == 11) {
+      out[oOf7[0]+i] = in[iOf7[1]+i] / in[iOf7[0]+i];
+    } else if (dims == 22) {
+      // J: 0 2   qd: 0 1   adj(J):  J22 -J12
+      //    1 3       1 2           -J21  J11
+      const CeedScalar J11 = in[iOf7[0]+i+Q*0];
+      const CeedScalar J21 = in[iOf7[0]+i+Q*1];
+      const CeedScalar J12 = in[iOf7[0]+i+Q*2];
+      const CeedScalar J22 = in[iOf7[0]+i+Q*3];
+      const CeedScalar w = in[iOf7[1]+i] / (J11*J22 - J21*J12);
+      out[oOf7[0]+i+Q*0] =   w * (J12*J12 + J22*J22);
+      out[oOf7[0]+i+Q*1] = - w * (J11*J12 + J21*J22);
+      out[oOf7[0]+i+Q*2] =   w * (J11*J11 + J21*J21);
+    } else if (dims == 33) {
+      // J: 0 3 6   qd: 0 1 2
+      //    1 4 7       1 3 4
+      //    2 5 8       2 4 5
+      const CeedScalar J11 = in[iOf7[0]+i+Q*0];
+      const CeedScalar J21 = in[iOf7[0]+i+Q*1];
+      const CeedScalar J31 = in[iOf7[0]+i+Q*2];
+      const CeedScalar J12 = in[iOf7[0]+i+Q*3];
+      const CeedScalar J22 = in[iOf7[0]+i+Q*4];
+      const CeedScalar J32 = in[iOf7[0]+i+Q*5];
+      const CeedScalar J13 = in[iOf7[0]+i+Q*6];
+      const CeedScalar J23 = in[iOf7[0]+i+Q*7];
+      const CeedScalar J33 = in[iOf7[0]+i+Q*8];
+      const CeedScalar A11 = J22*J33 - J23*J32;
+      const CeedScalar A12 = J13*J32 - J12*J33;
+      const CeedScalar A13 = J12*J23 - J13*J22;
+      const CeedScalar A21 = J23*J31 - J21*J33;
+      const CeedScalar A22 = J11*J33 - J13*J31;
+      const CeedScalar A23 = J13*J21 - J11*J23;
+      const CeedScalar A31 = J21*J32 - J22*J31;
+      const CeedScalar A32 = J12*J31 - J11*J32;
+      const CeedScalar A33 = J11*J22 - J12*J21;
+      const CeedScalar w = in[iOf7[1]+i] / (J11*A11 + J21*A12 + J31*A13);
+      out[oOf7[0]+i+Q*0] = w * (A11*A11 + A12*A12 + A13*A13);
+      out[oOf7[0]+i+Q*1] = w * (A11*A21 + A12*A22 + A13*A23);
+      out[oOf7[0]+i+Q*2] = w * (A11*A31 + A12*A32 + A13*A33);
+      out[oOf7[0]+i+Q*3] = w * (A21*A21 + A22*A22 + A23*A23);
+      out[oOf7[0]+i+Q*4] = w * (A21*A31 + A22*A32 + A23*A33);
+      out[oOf7[0]+i+Q*5] = w * (A31*A31 + A32*A32 + A33*A33);
+    }
+  }
+}
+
+// *****************************************************************************
+@kernel void f_apply_diff(int *ctx, CeedInt Q,
+                          const int *iOf7, const int *oOf7,
+                          const CeedScalar *in, CeedScalar *out) {
+//  const CeedScalar
+//    *ug = in + iOf7[0],
+//    *qd = in + iOf7[1];
+//  CeedScalar *vg = out + oOf7[0];
+  for (int i=0; i<Q; i++; @tile(TILE_SIZE,@outer,@inner)) {
+    const int dim = ctx[0];
+    if (dim == 1) {
+      out[oOf7[0]+i] = in[iOf7[0]+i] * in[iOf7[1]+i];
+    } else if (dim == 2) {
+      const CeedScalar ug0 = in[iOf7[0]+i+Q*0];
+      const CeedScalar ug1 = in[iOf7[0]+i+Q*1];
+      out[oOf7[0]+i+Q*0] = in[iOf7[1]+i+Q*0]*ug0 + in[iOf7[1]+i+Q*1]*ug1;
+      out[oOf7[0]+i+Q*1] = in[iOf7[1]+i+Q*1]*ug0 + in[iOf7[1]+i+Q*2]*ug1;
+    } else if (dim == 3) {
+      const CeedScalar ug0 = in[iOf7[0]+i+Q*0];
+      const CeedScalar ug1 = in[iOf7[0]+i+Q*1];
+      const CeedScalar ug2 = in[iOf7[0]+i+Q*2];
+      out[oOf7[0]+i+Q*0] = in[iOf7[1]+i+Q*0]*ug0 +
+                             in[iOf7[1]+i+Q*1]*ug1 + in[iOf7[1]+i+Q*2]*ug2;
+      out[oOf7[0]+i+Q*1] = in[iOf7[1]+i+Q*1]*ug0 +
+                             in[iOf7[1]+i+Q*3]*ug1 + in[iOf7[1]+i+Q*4]*ug2;
+      out[oOf7[0]+i+Q*2] = in[iOf7[1]+i+Q*2]*ug0 +
+                             in[iOf7[1]+i+Q*4]*ug1 + in[iOf7[1]+i+Q*5]*ug2;
+    }
+  }
+}
+
+// *****************************************************************************
+@kernel void f_build_mass_const(int *ctx, CeedInt Q,
+                                const int *iOf7, const int *oOf7,
+                                const CeedScalar *in, CeedScalar *out) {
+//  const CeedScalar
+//    *J = in + iOf7[0],
+//    *qw = in + iOf7[1];
+//  CeedScalar
+//    *rho = out + oOf7[0];
+  for (int i=0; i<Q; i++; @tile(TILE_SIZE,@outer,@inner)) {
+    const int dim = ctx[0];
+    const int space_dim = ctx[1];
+    const CeedInt dims = dim + 10*space_dim;
+    if (dims == 11) {
+      out[oOf7[0]+i] = in[iOf7[0]+i] * in[iOf7[1]+i];
+    } else if (dims == 22) {
+      // 0 2
+      // 1 3
+      out[oOf7[0]+i] = (in[iOf7[0]+i+Q*0]*in[iOf7[0]+i+Q*3] -
+                        in[iOf7[0]+i+Q*1]*in[iOf7[0]+i+Q*2]) * in[iOf7[1]+i];
+    } else if (dims == 33) {
+      // 0 3 6
+      // 1 4 7
+      // 2 5 8
+      out[oOf7[0]+i] = (in[iOf7[0]+i+Q*0]*
+                          (in[iOf7[0]+i+Q*4]*in[iOf7[0]+i+Q*8] -
+                           in[iOf7[0]+i+Q*5]*in[iOf7[0]+i+Q*7]) -
+                        in[iOf7[0]+i+Q*1]*
+                          (in[iOf7[0]+i+Q*3]*in[iOf7[0]+i+Q*8] -
+                           in[iOf7[0]+i+Q*5]*in[iOf7[0]+i+Q*6]) +
+                        in[iOf7[0]+i+Q*2]*
+                          (in[iOf7[0]+i+Q*3]*in[iOf7[0]+i+Q*7] -
+                           in[iOf7[0]+i+Q*4]*in[iOf7[0]+i+Q*6])) *
+                        in[iOf7[1]+i];
+    }
+  }
+}
+
+// *****************************************************************************
+@kernel void f_build_mass_grid(int *ctx, CeedInt Q,
+                               const int *iOf7, const int *oOf7,
+                               const CeedScalar *in, CeedScalar *out) {
+//  const CeedScalar
+//    *J = in + iOf7[0],
+//    *qw = in + iOf7[1];
+//  CeedScalar
+//    *rho = out + oOf7[0];
+  for (int i=0; i<Q; i++; @tile(TILE_SIZE,@outer,@inner)) {
+    const int dim = ctx[0];
+    const int space_dim = ctx[1];
+    const CeedInt dims = dim + 10*space_dim;
+    if (dims == 11) {
+      out[oOf7[0]+i] = in[iOf7[0]+i] * in[iOf7[1]+i];
+    } else if (dims == 22) {
+      // 0 2
+      // 1 3
+      out[oOf7[0]+i] = (in[iOf7[0]+i+Q*0]*in[iOf7[0]+i+Q*3] -
+                        in[iOf7[0]+i+Q*1]*in[iOf7[0]+i+Q*2]) * in[iOf7[1]+i];
+    } else if (dims == 33) {
+      // 0 3 6
+      // 1 4 7
+      // 2 5 8
+      out[oOf7[0]+i] = (in[iOf7[0]+i+Q*0]*
+                          (in[iOf7[0]+i+Q*4]*in[iOf7[0]+i+Q*8] -
+                           in[iOf7[0]+i+Q*5]*in[iOf7[0]+i+Q*7]) -
+                        in[iOf7[0]+i+Q*1]*
+                          (in[iOf7[0]+i+Q*3]*in[iOf7[0]+i+Q*8] -
+                           in[iOf7[0]+i+Q*5]*in[iOf7[0]+i+Q*6]) +
+                        in[iOf7[0]+i+Q*2]*
+                          (in[iOf7[0]+i+Q*3]*in[iOf7[0]+i+Q*7] -
+                           in[iOf7[0]+i+Q*4]*in[iOf7[0]+i+Q*6])) *
+                        in[iOf7[1]+i];
+    }
+  }
+}
+
+
+// *****************************************************************************
+@kernel void f_apply_mass(void *ctx, CeedInt Q,
+                          const int *iOf7, const int *oOf7,
+                          const CeedScalar *in, CeedScalar *out) {
+//  const CeedScalar
+//    *u = in + iOf7[0],
+//    *rho = in + iOf7[1];
+//  CeedScalar *v = out + oOf7[0];
+  for (int i=0; i<Q; i++; @tile(TILE_SIZE,@outer,@inner)) {
+    out[oOf7[0]+i] = in[iOf7[0]+i] * in[iOf7[1]+i];
+  }
+}
