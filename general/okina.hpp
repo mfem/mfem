@@ -13,7 +13,7 @@
 #define MFEM_OKINA_HPP
 
 #include "../config/config.hpp"
-#include "../general/error.hpp"
+#include "error.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -21,8 +21,9 @@
 
 #include "cuda.hpp"
 #include "occa.hpp"
-#include "mm.hpp"
 #include "device.hpp"
+#include "mem_manager.hpp"
+#include "../linalg/dtensor.hpp"
 
 #ifdef MFEM_USE_RAJA
 #include "RAJA/RAJA.hpp"
@@ -63,7 +64,7 @@ void OmpWrap(const int N, HBODY &&h_body)
 template <int BLOCKS, typename DBODY>
 void RajaCudaWrap(const int N, DBODY &&d_body)
 {
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA) && defined(__NVCC__)
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
    RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N),d_body);
 #else
    MFEM_ABORT("RAJA::Cuda requested but RAJA::Cuda is not enabled!");
@@ -93,7 +94,7 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 }
 
 /// CUDA backend
-#if defined(MFEM_USE_CUDA) && defined(__NVCC__)
+#if defined(MFEM_USE_CUDA)
 template <typename BODY> __global__ static
 void CuKernel(const int N, BODY body)
 {

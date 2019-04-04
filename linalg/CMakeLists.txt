@@ -32,6 +32,7 @@ list(APPEND HDRS
   complex_operator.hpp
   densemat.hpp
   dtensor.hpp
+  dvector3.hpp
   handle.hpp
   invariants.hpp
   linalg.hpp

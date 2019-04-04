@@ -12,13 +12,9 @@
 #ifndef MFEM_VECTOR
 #define MFEM_VECTOR
 
-// Data type vector
-
-#include "dtensor.hpp"
-#include "../general/okina.hpp"
 #include "../general/array.hpp"
 #include "../general/globals.hpp"
-#include "../general/okina.hpp"
+#include "../general/mem_manager.hpp"
 #ifdef MFEM_USE_SUNDIALS
 #include <nvector/nvector_serial.h>
 #endif
@@ -116,7 +112,7 @@ public:
        @sa SetDataAndSize(). */
    void NewDataAndSize(double *d, int s)
    {
-      if (allocsize > 0) { mm::free<double>(data); }
+      if (allocsize > 0) { mm::Delete(data); }
       SetDataAndSize(d, s);
    }
 
@@ -327,7 +323,7 @@ inline Vector::Vector (int s)
    if (s > 0)
    {
       allocsize = size = s;
-      data = mm::malloc<double>(s);
+      data = mm::New<double>(s);
    }
    else
    {
@@ -349,17 +345,17 @@ inline void Vector::SetSize(int s)
    }
    if (allocsize > 0)
    {
-      mm::free<double>(data);
+      mm::Delete(data);
    }
    allocsize = size = s;
-   data = mm::malloc<double>(s);
+   data = mm::New<double>(s);
 }
 
 inline void Vector::Destroy()
 {
    if (allocsize > 0)
    {
-      mm::free<double>(data);
+      mm::Delete(data);
    }
    allocsize = size = 0;
    data = NULL;
@@ -398,7 +394,7 @@ inline Vector::~Vector()
 {
    if (allocsize > 0)
    {
-      mm::free<double>(data);
+      mm::Delete(data);
    }
 }
 

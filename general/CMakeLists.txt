@@ -17,7 +17,7 @@ list(APPEND SRCS
   globals.cpp
   gzstream.cpp
   isockstream.cpp
-  mm.cpp
+  mem_manager.cpp
   occa.cpp
   optparser.cpp
   osockstream.cpp
@@ -40,7 +40,7 @@ list(APPEND HDRS
   hash.hpp
   isockstream.hpp
   mem_alloc.hpp
-  mm.hpp
+  mem_manager.hpp
   occa.hpp
   okina.hpp
   optparser.hpp

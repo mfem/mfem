@@ -9,16 +9,15 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_MM
-#define MFEM_MM
+#ifndef MFEM_MEM_MANAGER
+#define MFEM_MEM_MANAGER
 
 #include <list>
-#include <cstddef> // for size_t
+#include <cstddef>
 #include <unordered_map>
+#include <type_traits>
 
 using std::size_t;
-
-#include "occa.hpp" // for OccaMemory
 
 namespace mfem
 {
@@ -32,13 +31,11 @@ class mm
 public:
    struct alias;
 
-   // TODO: Change this to ptr
    struct memory
    {
       const size_t bytes;
       void *const h_ptr;
       void *d_ptr;
-      OccaMemory o_ptr;
       std::list<const alias *> aliases;
       bool host;
       bool padding[7];
@@ -64,24 +61,27 @@ public:
    /// Main malloc template function. Allocates n*size bytes and returns a
    /// pointer to the allocated memory.
    template<class T>
-   static inline T* malloc(const size_t n, const size_t size = sizeof(T))
-   { return static_cast<T*>(MM().Insert(::new T[n], n*size)); }
+   static inline T *New(const size_t n)
+   { return static_cast<T*>(MM().Insert(new T[n], n*sizeof(T))); }
 
    /// Frees the memory space pointed to by ptr, which must have been returned
-   /// by a previous call to mm::malloc.
+   /// by a previous call to mm::New.
    template<class T>
-   static inline void free(void *ptr)
+   static inline void Delete(T *ptr)
    {
+      static_assert(!std::is_void<T>::value, "Cannot Delete a void pointer. "
+                    "Explicitly provide the correct type as a template parameter.");
       if (!ptr) { return; }
-      ::delete[] static_cast<T*>(ptr);
+      delete [] ptr;
       mm::MM().Erase(ptr);
    }
 
-   /// Translates ptr to host or device address, depending on config::Cuda() and
-   /// the ptr state.
+   /// Translates ptr to host or device address, depending on
+   /// Device::UsingDevice() and the ptr state.
    static inline void *ptr(void *a) { return MM().Ptr(a); }
    static inline const void* ptr(const void *a) { return MM().Ptr(a); }
-   static inline OccaMemory occaPtr(const void *a) { return MM().Memory(a); }
+
+   static inline memory &mem(const void *a) { return MM().maps.memories.at(a); }
 
    static inline void push(const void *ptr, const size_t bytes = 0)
    {
@@ -180,12 +180,13 @@ private:
    /// Tests if ptr is an alias address
    bool Alias(const void *ptr);
 
-   OccaMemory Memory(const void *ptr);
-
+   /// Push the data to the device
    void Push(const void *ptr, const size_t bytes = 0);
+
+   /// Pull the data from the device
    void Pull(const void *ptr, const size_t bytes = 0);
 };
 
 } // namespace mfem
 
-#endif
+#endif // MFEM_MEM_MANAGER
