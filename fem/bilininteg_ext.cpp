@@ -739,7 +739,6 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       }
       const int NE = ne;
       const int NQ = nq;
-      const int dims = el.GetDim();
       const DeviceVector W(maps->W.GetData(), NQ);
       const DeviceTensor<3> x(geo->X.GetData(), 3,NQ,NE);
       const DeviceTensor<4> J(geo->J.GetData(), 3,3,NQ,NE);
