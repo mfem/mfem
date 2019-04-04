@@ -178,12 +178,11 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       }
       else
       {
-         MFEM_ABORT("only segment and quadrilateral boundary "
-                    "elements are supported by NCMesh.");
+         MFEM_ABORT("Unsupported boundary element geometry.");
       }
    }
 
-   if (!vertex_parents) // not loading mesh
+   if (!vertex_parents) // i.e., not loading mesh from a file
    {
       InitRootState(mesh->GetNE());
    }
@@ -1179,7 +1178,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
-      ref_type &= ~4; // ignore Z bit
+      ref_type &= 0x3; // ignore Z bit
 
       if (ref_type == 1) // X split
       {
@@ -1243,7 +1242,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
       child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
       child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
-      child[3] = NewTriangle(mid01, mid12, mid20, attr, -1, -1, -1);
+      child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
    }
    else
    {
@@ -3052,6 +3051,128 @@ void NCMesh::NeighborExpand(const Array<int> &elems,
 }
 
 
+typedef NCMesh::RefCoord RefCoord;
+
+// reference domain coordinates as fixed point numbers
+const RefCoord T_HALF = (1ll << 60);
+const RefCoord T_ONE = (1ll << 61);
+const RefCoord T_TWO = (1ll << 62);
+
+// scaling factors have a different fixed point
+const RefCoord S_HALF = 1;
+const RefCoord S_ONE = 2;
+const RefCoord S_TWO = 4;
+
+// reference domain transform: 3 scales, 3 translations
+typedef RefCoord RefTr[6];
+typedef RefCoord RefPoint[3];
+
+static RefPoint quad_corners[4] =
+{
+   {0,     0,     0},
+   {T_ONE, 0,     0},
+   {T_ONE, T_ONE, 0},
+   {0,     T_ONE, 0}
+};
+static RefTr quad_to_parent_rt1[2] =
+{
+   {S_HALF, S_ONE, 0,      0, 0, 0},
+   {S_HALF, S_ONE, 0, T_HALF, 0, 0}
+};
+static RefTr quad_to_parent_rt2[2] =
+{
+   {S_ONE, S_HALF, 0, 0,      0, 0},
+   {S_ONE, S_HALF, 0, 0, T_HALF, 0}
+};
+static RefTr quad_to_parent_rt3[4] =
+{
+   {S_HALF, S_HALF, 0,      0,      0, 0},
+   {S_HALF, S_HALF, 0, T_HALF,      0, 0},
+   {S_HALF, S_HALF, 0, T_HALF, T_HALF, 0},
+   {S_HALF, S_HALF, 0,      0, T_HALF, 0}
+};
+static RefTr* quad_to_parent[4] =
+{
+   NULL,
+   quad_to_parent_rt1,
+   quad_to_parent_rt2,
+   quad_to_parent_rt3
+};
+
+static RefPoint* geom_corners[7] =
+{
+   NULL, // point
+   NULL, // segment
+   NULL, // triangle
+   quad_corners,
+   NULL, // tetrahedron
+   NULL, // cube
+   NULL, // prism
+};
+
+static RefTr** geom_to_parent[7] =
+{
+   NULL, // point
+   NULL, // segment
+   NULL, // triangle
+   quad_to_parent,
+   NULL, // tetrahedron
+   NULL, // cube
+   NULL, // prism
+};
+
+
+int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
+{
+   while (1)
+   {
+      const Element &el = elements[elem];
+      if (el.parent < 0) { return elem; }
+
+      const Element &pa = elements[el.parent];
+      MFEM_ASSERT(pa.ref_type, "internal error");
+
+      int ch = 0;
+      while (ch < 8 && pa.child[ch] != elem) { ch++; }
+      MFEM_ASSERT(ch < 8, "internal error");
+
+      RefTr &tr = geom_to_parent[el.Geom()][pa.ref_type][ch];
+      for (int i = 0; i < 3; i++)
+      {
+         coord[i] = (tr[i]*coord[i] >> 1) + tr[i+3];
+      }
+
+      elem = el.parent;
+   }
+}
+
+void NCMesh::CollectIncidentElements(int elem, RefCoord coord[3],
+                                     Array<int> &list) const
+{
+   const Element &el = elements[elem];
+   if (!el.ref_type)
+   {
+      list.Append(elem);
+      return;
+   }
+
+   // TODO
+}
+
+void NCMesh::FindVertexCousins(int elem, int local, Array<int> &cousins) const
+{
+   const Element &el = elements[elem];
+
+   RefCoord coord[3];
+   std::memcpy(coord, geom_corners[el.Geom()][local], sizeof(coord));
+
+   int root = GetVertexRootCoord(elem, coord);
+
+   cousins.SetSize(0);
+   CollectIncidentElements(root, coord, cousins);
+}
+
+
 //// Coarse/fine transformations ///////////////////////////////////////////////
 
 void NCMesh::PointMatrix::GetMatrix(DenseMatrix& point_matrix) const
@@ -3460,7 +3581,7 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
          }
          else if (child == 3)
          {
-            pm = PointMatrix(mid01, mid12, mid20);
+            pm = PointMatrix(mid12, mid20, mid01);
          }
       }
    }

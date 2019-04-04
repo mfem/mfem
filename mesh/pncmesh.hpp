@@ -253,7 +253,7 @@ protected: // implementation
    GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
    GroupMap group_id; // search index over groups
 
-   // owner rank for each vertex, edge and face (encoded as singleton groups)
+   // owner rank for each vertex, edge and face (encoded as singleton group)
    Array<GroupId> entity_owner[3];
    // P matrix comm pattern groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_pmat_group[3];

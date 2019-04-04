@@ -40,7 +40,7 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
-// Missing edge neighbor forced refinement (1x1x1 2-wedge inline mesh):
+// Missing edge neighbor forced refinement (1x1x1 2-wedge inline mesh, random 0.5/true):
 //    ./ex1 -m ../data/inline-wedge.mesh -o 3 -r 2 -s 36
 
 #include "mfem.hpp"
@@ -91,15 +91,33 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+#if 1
    {
       srand(seed);
       //mesh->UniformRefinement();
       for (int l = 0; l < ref_level; l++)
       {
          //mesh->UniformRefinement();
-         mesh->RandomRefinement(0.5, true);
+         mesh->RandomRefinement(0.5, false);
       }
+
    }
+#else
+   Array<Refinement> refs;
+   refs.Append(Refinement(1, 3));
+   mesh->GeneralRefinement(refs);
+
+   refs.SetSize(0);
+   refs.Append(Refinement(1, 4));
+   refs.Append(Refinement(2, 4));
+   mesh->GeneralRefinement(refs);
+
+   {char fname[100];
+   sprintf(fname, "ncdump.txt");
+   std::ofstream f(fname);
+   mesh->ncmesh->DebugDump(f);}
+
+#endif
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -123,6 +141,7 @@ int main(int argc, char *argv[])
         << fespace->GetTrueVSize() << endl;
 
    //fespace->GetConformingProlongation()->Print(mfem::out, 10);
+   exit(EXIT_SUCCESS);
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all

@@ -346,6 +346,8 @@ public:
 
    void PrintStats(std::ostream &out = mfem::out) const;
 
+   typedef int64_t RefCoord;
+
 
 protected: // interface for Mesh to be able to construct itself from NCMesh
 
@@ -564,8 +566,8 @@ protected: // implementation
    void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
                      int en1, int en2, int en3, int en4, int midf);
 
-   void RefElement(int elem);
-   void UnrefElement(int elem, Array<int> &elemFaces);
+   void ReferenceElement(int elem);
+   void UnreferenceElement(int elem, Array<int> &elemFaces);
 
    Face* GetFace(Element &elem, int face_no);
    void RegisterFaces(int elem, int *fattr = NULL);
@@ -647,6 +649,15 @@ protected: // implementation
    {
       if (element_vertex.Size() < 0) { BuildElementToVertexTable(); }
    }
+
+   int GetVertexRootCoord(int elem, RefCoord coord[3]) const;
+   void CollectIncidentElements(int elem, RefCoord coord[3],
+                                Array<int> &list) const;
+
+   /** Return elements neighboring to a local vertex of element 'elem'. Only
+       elements from within the same refinement tree ('cousins') are returned.
+       Complexity is proportional to the depth of elem's refinement tree. */
+   void FindVertexCousins(int elem, int local, Array<int> &cousins) const;
 
 
    // coarse/fine transformations
