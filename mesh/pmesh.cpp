@@ -3138,7 +3138,7 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
 
    // overestimate the size of the J arrays
    J_group_svert = mm::New<int>(group_svert.Size_of_connections()
-                                   + group_sedge.Size_of_connections());
+                                + group_sedge.Size_of_connections());
    J_group_sedge = mm::New<int>(2*group_sedge.Size_of_connections());
 
    for (int group = 0; group < GetNGroups()-1; group++)
@@ -3385,7 +3385,7 @@ void ParMesh::UniformRefineGroups2D(int old_nv)
 
    // compute the size of the J arrays
    J_group_svert = mm::New<int>(group_svert.Size_of_connections()
-                                   + group_sedge.Size_of_connections());
+                                + group_sedge.Size_of_connections());
    J_group_sedge = mm::New<int>(2*group_sedge.Size_of_connections());
 
    for (int group = 0; group < GetNGroups()-1; group++)
@@ -3447,11 +3447,11 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
 
    // compute the size of the J arrays
    J_group_svert = mm::New<int>(group_svert.Size_of_connections()
-                                   + group_sedge.Size_of_connections()
-                                   + group_squad.Size_of_connections());
+                                + group_sedge.Size_of_connections()
+                                + group_squad.Size_of_connections());
    J_group_sedge = mm::New<int>(2*group_sedge.Size_of_connections()
-                                   + 3*group_stria.Size_of_connections()
-                                   + 4*group_squad.Size_of_connections());
+                                + 3*group_stria.Size_of_connections()
+                                + 4*group_squad.Size_of_connections());
    J_group_stria = mm::New<int>(4*group_stria.Size_of_connections());
    J_group_squad = mm::New<int>(4*group_squad.Size_of_connections());
 

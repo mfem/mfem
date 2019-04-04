@@ -70,7 +70,7 @@ public:
    static inline void Delete(T *ptr)
    {
       static_assert(!std::is_void<T>::value, "Cannot Delete a void pointer. "
-         "Explicitly provide the correct type as a template parameter.");
+                    "Explicitly provide the correct type as a template parameter.");
       if (!ptr) { return; }
       delete [] ptr;
       mm::MM().Erase(ptr);
