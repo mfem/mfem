@@ -14,6 +14,8 @@
 
 #include "fem.hpp"
 #include "bilininteg.hpp"
+#include "../general/okina.hpp"
+#include "../linalg/dtensor.hpp"
 
 namespace mfem
 {

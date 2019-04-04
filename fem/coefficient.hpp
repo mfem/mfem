@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
+#include "../linalg/dvector3.hpp"
 #include "intrules.hpp"
 #include "eltrans.hpp"
 

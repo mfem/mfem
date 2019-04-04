@@ -14,65 +14,55 @@
 namespace mfem
 {
 
-OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx)
-{
-#if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
-   return occa::cuda::wrapDevice(dev, ctx);
-#else
-   return 0;
-#endif
-}
+extern OccaDevice occaDevice;
 
-OccaMemory OccaDeviceMalloc(OccaDevice device, const size_t bytes)
-{
-#ifdef MFEM_USE_OCCA
-   return device.malloc(bytes);
-#else
-   return (void*)NULL;
-#endif
-}
-
-OccaMemory OccaWrapMemory(const OccaDevice device, const void *d_adrs,
-                          const size_t bytes)
+static OccaMemory OccaWrapMemory(const OccaDevice dev, const void *d_adrs,
+                                 const size_t bytes)
 {
 #if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
    void *adrs = const_cast<void*>(d_adrs);
    // OCCA & UsingCuda => occa::cuda
    if (Device::UsingCuda())
    {
-      return occa::cuda::wrapMemory(device, adrs, bytes);
+      return occa::cuda::wrapMemory(dev, adrs, bytes);
    }
    // otherwise, fallback to occa::cpu address space
-   return occa::cpu::wrapMemory(device, adrs, bytes);
+   return occa::cpu::wrapMemory(dev, adrs, bytes);
 #else // MFEM_USE_OCCA && MFEM_USE_CUDA
 #if defined(MFEM_USE_OCCA)
-   return occa::cpu::wrapMemory(device, const_cast<void*>(d_adrs), bytes);
+   return occa::cpu::wrapMemory(dev, const_cast<void*>(d_adrs), bytes);
 #else
    return (void*)NULL;
 #endif
 #endif
 }
 
-void *OccaMemoryPtr(OccaMemory o_adrs)
+OccaMemory OccaPtr(const void *ptr) {
+   OccaDevice dev = occaDevice;
+   if (!Device::UsingMM()) { return OccaWrapMemory(dev, ptr, 0); }
+   const bool known = mm::known(ptr);
+   if (!known) { mfem_error("OccaPtr: Unknown address!"); }
+   mm::memory &base = mm::mem(ptr);
+   const bool host = base.host;
+   const size_t bytes = base.bytes;
+   const bool gpu = Device::UsingDevice();
+   if (host && !gpu) { return OccaWrapMemory(dev, ptr, bytes); }
+   if (!gpu) { mfem_error("OccaPtr: !gpu"); }
+   if (!base.d_ptr)
+   {
+      CuMemAlloc(&base.d_ptr, bytes);
+      CuMemcpyHtoD(base.d_ptr, ptr, bytes);
+      base.host = false;
+   }
+   return OccaWrapMemory(dev, base.d_ptr, bytes);
+}
+
+OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx)
 {
-#ifdef MFEM_USE_OCCA
-   return o_adrs.ptr();
+#if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
+   return occa::cuda::wrapDevice(dev, ctx);
 #else
-   return (void*)NULL;
-#endif
-}
-
-void OccaCopyFrom(OccaMemory o_adrs, const void *h_adrs)
-{
-#ifdef MFEM_USE_OCCA
-   o_adrs.copyFrom(h_adrs);
-#endif
-}
-
-void OccaCopyTo(OccaMemory o_adrs, void *h_adrs)
-{
-#ifdef MFEM_USE_OCCA
-   o_adrs.copyTo(h_adrs);
+   return 0;
 #endif
 }
 

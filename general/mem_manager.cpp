@@ -11,8 +11,6 @@
 
 #include "../general/okina.hpp"
 
-#include <bitset>
-
 namespace mfem
 {
 
@@ -249,44 +247,18 @@ void mm::Pull(const void *ptr, const size_t bytes)
    if (Device::UsingDevice()) { mfem_error("Unknown pointer to pull from!"); }
 }
 
+extern CUstream *cuStream;
 void* mm::memcpy(void *dst, const void *src, const size_t bytes,
                  const bool async)
 {
    void *d_dst = mm::ptr(dst);
-   const void *d_src = mm::ptr(src);
+   void *d_src = const_cast<void*>(mm::ptr(src));
    const bool host = Device::UsingHost();
    if (bytes == 0) { return dst; }
    if (host) { return std::memcpy(dst, src, bytes); }
-   if (!async)
-   {
-      return CuMemcpyDtoD(d_dst, const_cast<void*>(d_src), bytes);
-   }
-   return CuMemcpyDtoDAsync(d_dst, const_cast<void*>(d_src),
-                            bytes, Device::Stream());
+   if (!async) { return CuMemcpyDtoD(d_dst, d_src, bytes); }
+   return CuMemcpyDtoDAsync(d_dst, d_src, bytes, cuStream);
 }
-
-static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
-{
-   OccaDevice occaDevice = Device::GetOccaDevice();
-   if (!Device::UsingMM()) { return OccaWrapMemory(occaDevice, ptr, 0); }
-   const bool known = mm::known(ptr);
-   if (!known) { mfem_error("occaMemory: Unknown address!"); }
-   mm::memory &base = maps.memories.at(ptr);
-   const bool host = base.host;
-   const size_t bytes = base.bytes;
-   const bool gpu = Device::UsingDevice();
-   if (host && !gpu) { return OccaWrapMemory(occaDevice, ptr, bytes); }
-   if (!gpu) { mfem_error("occaMemory: !gpu"); }
-   if (!base.d_ptr)
-   {
-      CuMemAlloc(&base.d_ptr, bytes);
-      CuMemcpyHtoD(base.d_ptr, ptr, bytes);
-      base.host = false;
-   }
-   return OccaWrapMemory(occaDevice, base.d_ptr, bytes);
-}
-
-OccaMemory mm::Memory(const void *ptr) { return occaMemory(maps, ptr); }
 
 void mm::RegisterCheck(void *ptr)
 {
