@@ -12,6 +12,8 @@
 // Implementation of data type vector
 
 #include "vector.hpp"
+#include "dtensor.hpp"
+#include "../general/okina.hpp"
 
 #if defined(MFEM_USE_SUNDIALS) && defined(MFEM_USE_MPI)
 #include <nvector/nvector_parallel.h>
@@ -46,7 +48,7 @@ Vector::Vector(const Vector &v)
    {
       MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
-      data = mm::malloc<double>(s);
+      data = mm::New<double>(s);
       mm::memcpy(data, v.data, sizeof(double)*s);
    }
    else

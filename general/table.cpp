@@ -30,8 +30,8 @@ Table::Table(const Table &table)
    if (size >= 0)
    {
       const int nnz = table.I[size];
-      I = mm::malloc<int>(size+1);
-      J = mm::malloc<int>(nnz);
+      I = mm::New<int>(size+1);
+      J = mm::New<int>(nnz);
       memcpy(I, table.I, sizeof(int)*(size+1));
       memcpy(J, table.J, sizeof(int)*nnz);
    }
@@ -56,8 +56,8 @@ Table::Table (int dim, int connections_per_row)
    int i, j, sum = dim * connections_per_row;
 
    size = dim;
-   I = mm::malloc<int>(size+1);
-   J = mm::malloc<int>(sum);
+   I = mm::New<int>(size+1);
+   J = mm::New<int>(sum);
 
    I[0] = 0;
    for (i = 1; i <= size; i++)
@@ -71,8 +71,8 @@ Table::Table (int nrows, int *partitioning)
 {
    size = nrows;
 
-   I = mm::malloc<int>(size+1);
-   J = mm::malloc<int>(size);
+   I = mm::New<int>(size+1);
+   J = mm::New<int>(size);
 
    for (int i = 0; i < size; i++)
    {
@@ -101,8 +101,8 @@ void Table::MakeJ()
       j = I[i], I[i] = k, k += j;
    }
 
-   if (J) { mm::free<int>(J); }
-   J = mm::malloc<int>(I[size]=k);
+   if (J) { mm::Delete(J); }
+   J = mm::New<int>(I[size]=k);
 }
 
 void Table::AddConnections (int r, const int *c, int nc)
@@ -149,14 +149,14 @@ void Table::SetDims(int rows, int nnz)
    if (size != rows)
    {
       size = rows;
-      if (I) { mm::free<int>(I); }
-      I = (rows >= 0) ? (mm::malloc<int>(rows+1)) : (NULL);
+      if (I) { mm::Delete(I); }
+      I = (rows >= 0) ? (mm::New<int>(rows+1)) : (NULL);
    }
 
    if (j != nnz)
    {
-      if (J) { mm::free<int>(J); }
-      J = (nnz > 0) ? (mm::malloc<int>(nnz)) : (NULL);
+      if (J) { mm::Delete(J); }
+      J = (nnz > 0) ? (mm::New<int>(nnz)) : (NULL);
    }
 
    if (size >= 0)
@@ -207,8 +207,8 @@ void Table::SortRows()
 
 void Table::SetIJ(int *newI, int *newJ, int newsize)
 {
-   mm::free<int>(I);
-   mm::free<int>(J);
+   mm::Delete(I);
+   mm::Delete(J);
    I = newI;
    J = newJ;
    if (newsize >= 0)
@@ -250,7 +250,7 @@ void Table::Finalize()
 
    if (sum != I[size])
    {
-      int *NewJ = mm::malloc<int>(sum);
+      int *NewJ = mm::New<int>(sum);
 
       for (i=0; i<size; i++)
       {
@@ -265,7 +265,7 @@ void Table::Finalize()
       }
       I[size] = sum;
 
-      mm::free<int>(J);
+      mm::Delete(J);
 
       J = NewJ;
 
@@ -280,8 +280,8 @@ void Table::MakeFromList(int nrows, const Array<Connection> &list)
    size = nrows;
    int nnz = list.Size();
 
-   I = mm::malloc<int>(size+1);
-   J = mm::malloc<int>(nnz);
+   I = mm::New<int>(size+1);
+   J = mm::New<int>(nnz);
 
    for (int i = 0, k = 0; i <= size; i++)
    {
@@ -355,17 +355,17 @@ void Table::Save(std::ostream &out) const
 
 void Table::Load(std::istream &in)
 {
-   mm::free<int>(I);
-   mm::free<int>(J);
+   mm::Delete(I);
+   mm::Delete(J);
 
    in >> size;
-   I = mm::malloc<int>(size+1);
+   I = mm::New<int>(size+1);
    for (int i = 0; i <= size; i++)
    {
       in >> I[i];
    }
    int nnz = I[size];
-   J =mm::malloc<int>(nnz);
+   J =mm::New<int>(nnz);
    for (int j = 0; j < nnz; j++)
    {
       in >> J[j];
@@ -374,8 +374,8 @@ void Table::Load(std::istream &in)
 
 void Table::Clear()
 {
-   mm::free<int>(I);
-   mm::free<int>(J);
+   mm::Delete(I);
+   mm::Delete(J);
    size = -1;
    I = J = NULL;
 }
@@ -384,8 +384,8 @@ void Table::Copy(Table & copy) const
 {
    if (size >= 0)
    {
-      int * i_copy = mm::malloc<int>(size+1);
-      int * j_copy = mm::malloc<int>(I[size]);
+      int * i_copy = mm::New<int>(size+1);
+      int * j_copy = mm::New<int>(I[size]);
 
       memcpy(i_copy, I, sizeof(int)*(size+1));
       memcpy(j_copy, J, sizeof(int)*I[size]);
@@ -413,8 +413,8 @@ long Table::MemoryUsage() const
 
 Table::~Table ()
 {
-   if (I) { mm::free<int>(I); }
-   if (J) { mm::free<int>(J); }
+   if (I) { mm::Delete(I); }
+   if (J) { mm::Delete(J); }
 }
 
 void Transpose (const Table &A, Table &At, int _ncols_A)
