@@ -76,12 +76,6 @@ public:
       mm::MM().Erase(ptr);
    }
 
-   template<class T>
-   static inline void Delete(void *ptr)
-   {
-      Delete(static_cast<T*>(ptr));
-   }
-
    /// Translates ptr to host or device address, depending on
    /// Device::UsingDevice() and the ptr state.
    static inline void *ptr(void *a) { return MM().Ptr(a); }
