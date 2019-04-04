@@ -13,10 +13,13 @@ of MFEM is a (modern) C++ compiler, such as g++. The parallel version of MFEM
 requires an MPI C++ compiler, as well as the following external libraries:
 
 - hypre (a library of high-performance preconditioners)
-  http://www.llnl.gov/CASC/hypre
+  https://github.com/llnl/hypre
 
 - METIS (a family of multilevel partitioning algorithms)
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
+
+The hypre dependency can be git cloned from the above LLNL repository which
+contains the latest versions of hypre.
 
 The METIS dependency can be disabled but that is not generally recommended, see
 the option MFEM_USE_METIS.
@@ -42,9 +45,9 @@ Serial build:
    make serial -j 4
 
 Parallel build:
-   (download hypre 2.10.0b and METIS 4 from above URLs)
+   (download hypre and METIS 4 from above URLs)
    (build METIS 4 in ../metis-4.0 relative to mfem/)
-   (build hypre 2.10.0b in ../hypre-2.10.0b relative to mfem/)
+   (build hypre in ../hypre relative to mfem/)
    make parallel -j 4
 
 Example codes (serial/parallel, depending on the build):
@@ -66,9 +69,9 @@ Serial build:
    make -j 4   (assuming "UNIX Makefiles" generator)
 
 Parallel build:
-   (download hypre 2.10.0b and METIS 4 from above URLs)
+   (download hypre and METIS 4 from above URLs)
    (build METIS 4 in ../metis-4.0 relative to mfem/)
-   (build hypre 2.10.0b in ../hypre-2.10.0b relative to mfem/)
+   (build hypre in ../hypre relative to mfem/)
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
    cmake <mfem-source-dir> -DMFEM_USE_MPI=YES
    make -j 4
@@ -383,7 +386,7 @@ directory and use the string @MFEM_DIR@, e.g. HYPRE_OPT = -I@MFEM_DIR@/../hypre.
 The specific libraries and their options are:
 
 - HYPRE, required for the parallel build, i.e. when MFEM_USE_MPI = YES.
-  URL: http://www.llnl.gov/CASC/hypre
+  URL: https://github.com/llnl/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
