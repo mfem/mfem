@@ -93,7 +93,7 @@ public:
       // Initialize sizes, and compute the number of values
       const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      data = capacity>0?mm::ptr(_data):nullptr;
+      data = (capacity > 0) ? mm::ptr(_data) : NULL;
    }
 
    /// Constructor to initialize a tensor from the Scalar array _data
@@ -113,7 +113,7 @@ public:
       // Initialize sizes, and compute the number of values
       const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      data = (capacity>0)?((Scalar*) mm::ptr(_data)):nullptr;
+      data = (capacity > 0) ? (Scalar*)mm::ptr(_data) : NULL;
    }
 
    /// Copy constructor
