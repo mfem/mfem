@@ -59,7 +59,7 @@ public:
 
 ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc, double resi)
-   : TimeDependentOperator(4*f.GetTrueVSize(), 0.0), fespace(f), 
+   : TimeDependentOperator(4*f.GetVSize(), 0.0), fespace(f),
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
      viscosity(visc),  resistivity(resi), M_prec(NULL), K_prec(NULL), z(height/4)
 {
@@ -133,6 +133,17 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
    ConstantCoefficient resi_coeff(resistivity);
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
+
+   /*
+   cout << "Number of total scalar unknowns: " << fespace.GetVSize()<< endl;
+   cout << "Number of GetTrueVSize unknowns: " << fespace.GetTrueVSize() << endl;
+   cout << "Number of matrix in M: " <<  Mmat.Size()<< endl;
+   cout << "Number of matrix in K: " <<  Kmat.Size()<< endl;
+   cout << "Number of matrix in KB: " << KB->SpMat().Size()<< endl;
+   cout << "Number of matrix in DSl: " << DSl.SpMat().Size()<< endl;
+   cout << "Number of matrix in DRe: " << DRe.SpMat().Size()<< endl;
+   */
+
 }
 
 void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield) 
@@ -173,6 +184,11 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    {
       for (int i=0; i<ess_tdof_list.Size(); i++)
           z(ess_tdof_list[i])=0.0; //set homogeneous Dirichlet condition by hand
+
+      //ofstream myfile("z0.dat");
+      //z.Print(myfile, 10);
+      //cout<<z.Size()<<endl;
+
       M_solver.Mult(z, dpsi_dt);
    }
    else

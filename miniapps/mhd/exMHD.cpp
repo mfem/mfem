@@ -84,11 +84,18 @@ double E0rhs(const Vector &x)
 double InitialJ3(const Vector &x)
 {
    double ep=.2;
-   return (ep*ep-1.)/lambda/
-       pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
+   return (ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2)
+        -M_PI*M_PI*1.25*alpha*cos(.5*M_PI*x(1))*cos(M_PI*x(0));
 }
 
 double InitialPsi3(const Vector &x)
+{
+   double ep=.2;
+   return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) )
+          +alpha*cos(M_PI*.5*x(1))*cos(M_PI*x(0));
+}
+
+double BackPsi3(const Vector &x)
 {
    double ep=.2;
    return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) );
@@ -176,7 +183,6 @@ int main(int argc, char *argv[])
    // 3. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   //ODESolver *ode_solver, *ode_predictor;
    PDSolver *ode_solver;
    switch (ode_solver_type)
    {
@@ -212,8 +218,8 @@ int main(int argc, char *argv[])
         cout <<"fespace dim="<<fespace.GetVDim()<<endl;
    }
 
-   int fe_size = fespace.GetTrueVSize();
-   cout << "Number of scalar unknowns: " << fe_size << endl;
+   int fe_size = fespace.GetVSize();
+   cout << "Number of total scalar unknowns: " << fe_size << endl;
    Array<int> fe_offset(5);
    fe_offset[0] = 0;
    fe_offset[1] = fe_size;
@@ -223,10 +229,10 @@ int main(int argc, char *argv[])
 
    BlockVector vx(fe_offset);
    GridFunction psi, phi, w, j, psiBack(&fespace), psiPer(&fespace);
-   phi.MakeTRef(&fespace, vx.GetBlock(0), 0);
-   psi.MakeTRef(&fespace, vx.GetBlock(1), 0);
-     w.MakeTRef(&fespace, vx.GetBlock(2), 0);
-     j.MakeTRef(&fespace, vx.GetBlock(3), 0);
+   phi.MakeRef(&fespace, vx.GetBlock(0), 0);
+   psi.MakeRef(&fespace, vx.GetBlock(1), 0);
+     w.MakeRef(&fespace, vx.GetBlock(2), 0);
+     j.MakeRef(&fespace, vx.GetBlock(3), 0);
 
    // 6. Set the initial conditions, and the boundary conditions
    FunctionCoefficient phiInit(InitialPhi);
@@ -282,6 +288,11 @@ int main(int argc, char *argv[])
         FunctionCoefficient psi02(BackPsi2);
         psiBack.ProjectCoefficient(psi02);
    }
+   else if (icase==3)
+   {
+        FunctionCoefficient psi03(BackPsi3);
+        psiBack.ProjectCoefficient(psi03);
+   }
    psiBack.SetTrueVector();
 
    //this is a periodic boundary condition in x and Direchlet in y 
@@ -322,10 +333,7 @@ int main(int argc, char *argv[])
       else
       {
          vis_phi.precision(8);
-         if (icase != 3)
-            vis_phi << "solution\n" << *mesh << psiPer;
-         else
-            vis_phi << "solution\n" << *mesh << psi;
+         vis_phi << "solution\n" << *mesh << psiPer;
          vis_phi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
 
          if (icase==2)
@@ -341,8 +349,7 @@ int main(int argc, char *argv[])
          vis_j << "pause\n";
          vis_j << flush;
       }
-    }
-
+   }
 
    double t = 0.0;
    oper.SetTime(t);
@@ -362,8 +369,7 @@ int main(int argc, char *argv[])
       else
       {
         dc = new VisItDataCollection("case2", mesh);
-        if (icase!=3)
-            dc->RegisterField("psiPer", &psiPer);
+        dc->RegisterField("psiPer", &psiPer);
         dc->RegisterField("psi", &psi);
         dc->RegisterField("current", &j);
         dc->RegisterField("phi", &phi);
@@ -402,7 +408,7 @@ int main(int argc, char *argv[])
       if (last_step || (ti % vis_steps) == 0)
       {
         cout << "step " << ti << ", t = " << t <<endl;
-        if (icase!=3) subtract(psi,psiBack,psiPer);
+        subtract(psi,psiBack,psiPer);
 
          if (visualization)
          {
@@ -447,7 +453,7 @@ int main(int argc, char *argv[])
       osol3.precision(8);
       psi.Save(osol3);
 
-      if (icase!=3)
+      //if (icase!=3)
       {
         subtract(psi,psiBack,psiPer);
         ofstream osol5("psiPer.sol");
