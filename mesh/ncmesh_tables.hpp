@@ -105,10 +105,22 @@ const RefCoord S_TWO = 4;
 
 static RefCoord quad_corners[4][3] =
 {
-   {0,     0,     0},
-   {T_ONE, 0,     0},
+   {    0,     0, 0},
+   {T_ONE,     0, 0},
    {T_ONE, T_ONE, 0},
-   {0,     T_ONE, 0}
+   {    0, T_ONE, 0}
+};
+
+static RefCoord hex_corners[8][3] =
+{
+   {    0,     0,     0},
+   {T_ONE,     0,     0},
+   {T_ONE, T_ONE,     0},
+   {    0, T_ONE,     0},
+   {    0,     0, T_ONE},
+   {T_ONE,     0, T_ONE},
+   {T_ONE, T_ONE, T_ONE},
+   {    0, T_ONE, T_ONE}
 };
 
 typedef RefCoord RefPoint[3];
@@ -119,7 +131,7 @@ static RefPoint* geom_corners[7] =
    NULL, // triangle
    quad_corners,
    NULL, // tetrahedron
-   NULL, // cube
+   hex_corners,
    NULL, // prism
 };
 
@@ -187,6 +199,138 @@ static RefTrf* quad_child[4] =
    quad_child_rt3
 };
 
+static RefTrf hex_parent_rt1[2] =
+{
+   { {S_HALF, S_ONE, S_ONE}, {     0, 0, 0} },
+   { {S_HALF, S_ONE, S_ONE}, {T_HALF, 0, 0} }
+};
+
+static RefTrf hex_child_rt1[2] =
+{
+   { {S_TWO, S_ONE, S_ONE}, {     0, 0, 0} },
+   { {S_TWO, S_ONE, S_ONE}, {-T_ONE, 0, 0} }
+};
+
+static RefTrf hex_parent_rt2[2] =
+{
+   { {S_ONE, S_HALF, S_ONE}, {0,      0, 0} },
+   { {S_ONE, S_HALF, S_ONE}, {0, T_HALF, 0} }
+};
+
+static RefTrf hex_child_rt2[2] =
+{
+   { {S_ONE, S_TWO, S_ONE}, {0,      0, 0} },
+   { {S_ONE, S_TWO, S_ONE}, {0, -T_ONE, 0} }
+};
+
+static RefTrf hex_parent_rt3[4] =
+{
+   { {S_HALF, S_HALF, S_ONE}, {     0,      0, 0} },
+   { {S_HALF, S_HALF, S_ONE}, {T_HALF,      0, 0} },
+   { {S_HALF, S_HALF, S_ONE}, {T_HALF, T_HALF, 0} },
+   { {S_HALF, S_HALF, S_ONE}, {     0, T_HALF, 0} }
+};
+
+static RefTrf hex_child_rt3[4] =
+{
+   { {S_TWO, S_TWO, S_ONE}, {     0,      0, 0} },
+   { {S_TWO, S_TWO, S_ONE}, {-T_ONE,      0, 0} },
+   { {S_TWO, S_TWO, S_ONE}, {-T_ONE, -T_ONE, 0} },
+   { {S_TWO, S_TWO, S_ONE}, {     0, -T_ONE, 0} }
+};
+
+static RefTrf hex_parent_rt4[2] =
+{
+   { {S_ONE, S_ONE, S_HALF}, {0, 0,      0} },
+   { {S_ONE, S_ONE, S_HALF}, {0, 0, T_HALF} }
+};
+
+static RefTrf hex_child_rt4[2] =
+{
+   { {S_ONE, S_ONE, S_TWO}, {0, 0,      0} },
+   { {S_ONE, S_ONE, S_TWO}, {0, 0, -T_ONE} }
+};
+
+static RefTrf hex_parent_rt5[4] =
+{
+   { {S_HALF, S_ONE, S_HALF}, {     0, 0,      0} },
+   { {S_HALF, S_ONE, S_HALF}, {T_HALF, 0,      0} },
+   { {S_HALF, S_ONE, S_HALF}, {T_HALF, 0, T_HALF} },
+   { {S_HALF, S_ONE, S_HALF}, {     0, 0, T_HALF} }
+};
+
+static RefTrf hex_child_rt5[4] =
+{
+   { {S_TWO, S_ONE, S_TWO}, {     0, 0,      0} },
+   { {S_TWO, S_ONE, S_TWO}, {-T_ONE, 0,      0} },
+   { {S_TWO, S_ONE, S_TWO}, {-T_ONE, 0, -T_ONE} },
+   { {S_TWO, S_ONE, S_TWO}, {     0, 0, -T_ONE} }
+};
+
+static RefTrf hex_parent_rt6[4] =
+{
+   { {S_ONE, S_HALF, S_HALF}, {0,      0,      0} },
+   { {S_ONE, S_HALF, S_HALF}, {0, T_HALF,      0} },
+   { {S_ONE, S_HALF, S_HALF}, {0,      0, T_HALF} },
+   { {S_ONE, S_HALF, S_HALF}, {0, T_HALF, T_HALF} }
+};
+
+static RefTrf hex_child_rt6[4] =
+{
+   { {S_ONE, S_TWO, S_TWO}, {0,      0,      0} },
+   { {S_ONE, S_TWO, S_TWO}, {0, -T_ONE,      0} },
+   { {S_ONE, S_TWO, S_TWO}, {0,      0, -T_ONE} },
+   { {S_ONE, S_TWO, S_TWO}, {0, -T_ONE, -T_ONE} }
+};
+
+static RefTrf hex_parent_rt7[8] =
+{
+   { {S_HALF, S_HALF, S_HALF}, {     0,      0,      0} },
+   { {S_HALF, S_HALF, S_HALF}, {T_HALF,      0,      0} },
+   { {S_HALF, S_HALF, S_HALF}, {T_HALF, T_HALF,      0} },
+   { {S_HALF, S_HALF, S_HALF}, {     0, T_HALF,      0} },
+   { {S_HALF, S_HALF, S_HALF}, {     0,      0, T_HALF} },
+   { {S_HALF, S_HALF, S_HALF}, {T_HALF,      0, T_HALF} },
+   { {S_HALF, S_HALF, S_HALF}, {T_HALF, T_HALF, T_HALF} },
+   { {S_HALF, S_HALF, S_HALF}, {     0, T_HALF, T_HALF} }
+};
+
+static RefTrf hex_child_rt7[8] =
+{
+   { {S_TWO, S_TWO, S_TWO}, {     0,      0,      0} },
+   { {S_TWO, S_TWO, S_TWO}, {-T_ONE,      0,      0} },
+   { {S_TWO, S_TWO, S_TWO}, {-T_ONE, -T_ONE,      0} },
+   { {S_TWO, S_TWO, S_TWO}, {     0, -T_ONE,      0} },
+   { {S_TWO, S_TWO, S_TWO}, {     0,      0, -T_ONE} },
+   { {S_TWO, S_TWO, S_TWO}, {-T_ONE,      0, -T_ONE} },
+   { {S_TWO, S_TWO, S_TWO}, {-T_ONE, -T_ONE, -T_ONE} },
+   { {S_TWO, S_TWO, S_TWO}, {     0, -T_ONE, -T_ONE} }
+};
+
+static RefTrf* hex_parent[8] =
+{
+   NULL,
+   hex_parent_rt1,
+   hex_parent_rt2,
+   hex_parent_rt3,
+   hex_parent_rt4,
+   hex_parent_rt5,
+   hex_parent_rt6,
+   hex_parent_rt7
+};
+
+static RefTrf* hex_child[8] =
+{
+   NULL,
+   hex_child_rt1,
+   hex_child_rt2,
+   hex_child_rt3,
+   hex_child_rt4,
+   hex_child_rt5,
+   hex_child_rt6,
+   hex_child_rt7
+};
+
 static RefTrf** geom_parent[7] =
 {
    NULL, // point
@@ -194,7 +338,7 @@ static RefTrf** geom_parent[7] =
    NULL, // triangle
    quad_parent,
    NULL, // tetrahedron
-   NULL, // cube
+   hex_parent,
    NULL, // prism
 };
 
@@ -205,7 +349,7 @@ static RefTrf** geom_child[7] =
    NULL, // triangle
    quad_child,
    NULL, // tetrahedron
-   NULL, // cube
+   hex_child,
    NULL, // prism
 };
 
