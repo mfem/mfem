@@ -221,7 +221,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND
 
 # Macro for adding dependencies
 define mfem_add_dependency
@@ -231,8 +231,19 @@ ifeq ($(MFEM_USE_$(1)),YES)
 endif
 endef
 
+# List of deprecated MFEM dependencies, processed below
+MFEM_LEGACY_DEPENDENCIES = OPENMP
+
+# Macro for adding legacy dependencies
+define mfem_add_legacy_dependency
+ifeq ($(MFEM_USE_LEGACY_$(1)),YES)
+   INCFLAGS += $($(1)_OPT)
+   ALL_LIBS += $($(1)_LIB)
+endif
+endef
+
 # Process dependencies
-$(foreach dep,$(MFEM_DEPENDENCIES),$(eval $(call mfem_add_dependency,$(dep))))
+$(foreach dep,$(MFEM_LEGACY_DEPENDENCIES),$(eval $(call mfem_add_legacy_dependency,$(dep))))
 
 # Timer option
 ifeq ($(MFEM_TIMER_TYPE),2)
