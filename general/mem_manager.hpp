@@ -78,8 +78,10 @@ public:
 
    /// Translates ptr to host or device address, depending on
    /// Device::UsingDevice() and the ptr state.
-   static inline void *ptr(void *a) { return MM().Ptr(a); }
-   static inline const void* ptr(const void *a) { return MM().Ptr(a); }
+   template <class T>
+   static inline T *ptr(T *a) { return static_cast<T*>(MM().Ptr(a)); }
+   template <class T>
+   static inline const T* ptr(const T *a) { return static_cast<const T*>(MM().Ptr(a)); }
 
    static inline memory &mem(const void *a) { return MM().maps.memories.at(a); }
 
