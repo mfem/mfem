@@ -21,7 +21,7 @@
 
 typedef occa::device OccaDevice;
 typedef occa::memory OccaMemory;
-#define MFEM_NEW_OCCA_KERNEL(ker, filepath,prop)                         \
+#define MFEM_NEW_OCCA_KERNEL(ker, filepath, prop)                        \
    static occa::kernel ker = NULL;                                       \
    if (ker==NULL) {                                                      \
       ker = occaDevice.buildKernel("occa://mfem/" filepath, #ker, prop); \
