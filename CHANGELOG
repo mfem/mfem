@@ -133,9 +133,9 @@ Miscellaneous
 - Various other simplifications, extensions, and bugfixes in the code.
 
 - Renamed the option MFEM_USE_OPENMP to MFEM_USE_LEGACY_OPENMP. This legacy
-  option is now deprecated and planned for removal in a future release. In
-  addition, the original name, MFEM_USE_OPENMP, is now used to enable the new
-  OpenMP backend.
+  option is now deprecated and planned for removal in a future release. The
+  original option name, MFEM_USE_OPENMP, is now used to enable the new OpenMP
+  backends in the okina device kernels.
 
 API changes
 -----------
