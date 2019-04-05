@@ -755,6 +755,7 @@ int main(int argc, char *argv[])
    ParGridFunction T1(&HGradFESpace);
    ParGridFunction T0(&HGradFESpace);
    ParGridFunction dT(&HGradFESpace);
+   ParGridFunction ExactT(&HGradFESpace);
    /*
    ParGridFunction errorq(&L2FESpace0);
    ParGridFunction errorqPara(&L2FESpace0);
@@ -803,6 +804,7 @@ int main(int argc, char *argv[])
    }
 
    T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
+   ExactT.ProjectCoefficient(TCoef);
 
    // q.GridFunction::ComputeElementL2Errors(qCoef, errorq);
    // qPara.GridFunction::ComputeElementL2Errors(qParaCoef, errorqPara);
@@ -853,7 +855,7 @@ int main(int argc, char *argv[])
    socketstream vis_qPara, vis_errqPara;
    socketstream vis_qPerp, vis_errqPerp;
    */
-   socketstream vis_T, vis_errT;
+   socketstream vis_T, vis_ExactT, vis_errT;
    char vishost[] = "localhost";
    int  visport   = 19916;
    int Wx = 0, Wy = 0; // window position
@@ -869,6 +871,7 @@ int main(int argc, char *argv[])
       MPI_Barrier(pmesh->GetComm());
 
       vis_T.precision(8);
+      vis_ExactT.precision(8);
       vis_errT.precision(8);
       /*
       vis_q.precision(8);
@@ -880,6 +883,11 @@ int main(int argc, char *argv[])
       */
       miniapps::VisualizeField(vis_T, vishost, visport,
                                T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
+
+      Wx += offx;
+      miniapps::VisualizeField(vis_ExactT, vishost, visport,
+                               ExactT, "Exact Temperature",
+			       Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
       miniapps::VisualizeField(vis_errT, vishost, visport,
@@ -927,7 +935,7 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("qPerp", &qPerp);
       */
       visit_dc.RegisterField("T", &T1);
-
+      visit_dc.RegisterField("Exact T", &ExactT);
       visit_dc.RegisterField("L2 Error T", &errorT);
       /*
       visit_dc.RegisterField("L2 Error q", &errorq);
@@ -1116,8 +1124,14 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
-         miniapps::VisualizeField(vis_T, vishost, visport,
+	 ExactT.ProjectCoefficient(TCoef);
+
+	 miniapps::VisualizeField(vis_T, vishost, visport,
                                   T1, "Temperature",
+                                  Wx, Wy, Ww, Wh, h1_keys);
+
+	 miniapps::VisualizeField(vis_ExactT, vishost, visport,
+                                  ExactT, "Exact Temperature",
                                   Wx, Wy, Ww, Wh, h1_keys);
 
          miniapps::VisualizeField(vis_errT, vishost, visport,
@@ -1133,6 +1147,7 @@ int main(int argc, char *argv[])
    {
       // vis_q.close();
       vis_T.close();
+      vis_ExactT.close();
       vis_errT.close();
       /*
       vis_errq.close();
