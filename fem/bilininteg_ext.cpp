@@ -11,8 +11,7 @@
 
 #include "../config/config.hpp"
 #include "../general/okina.hpp"
-#include "../linalg/dtensor.hpp"
-#include "../linalg/dvector3.hpp"
+#include "../linalg/vector.hpp"
 
 #include "fem.hpp"
 #include <map>
@@ -685,7 +684,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    if (dim==2)
    {
       double constant = 0.0;
-      double (*function)(const DeviceVector3&) = NULL;
+      double (*function)(const Vector3&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
@@ -713,7 +712,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double J21 = J(0,1,q,e);
             const double J22 = J(1,1,q,e);
             const double detJ = (J11*J22)-(J21*J12);
-            const DeviceVector3 Xq(x(0,q,e), x(1,q,e));
+            const Vector3 Xq(x(0,q,e), x(1,q,e));
             const double coeff =
             const_coeff ? constant
             : function_coeff ? function(Xq)
@@ -725,7 +724,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    if (dim==3)
    {
       double constant = 0.0;
-      double (*function)(const DeviceVector3&) = NULL;
+      double (*function)(const Vector3&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
@@ -754,7 +753,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double detJ =
             ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
             (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
-            const DeviceVector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
+            const Vector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
             const double coeff =
             const_coeff ? constant
             : function_coeff ? function(Xq)
