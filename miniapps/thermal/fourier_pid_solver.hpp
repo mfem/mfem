@@ -23,6 +23,9 @@
 namespace mfem
 {
 
+class ScaledCoefficient;
+class ScaledMatrixCoefficient;
+  
 namespace thermal
 {
 
@@ -202,8 +205,8 @@ private:
    // Coefficient       * CInvCoef_;
    // Coefficient       * kInvCoef_;
    // MatrixCoefficient * KInvCoef_;
-   Coefficient       * dtkCoef_;
-   MatrixCoefficient * dtKCoef_;
+   ScaledCoefficient       * dtkCoef_;
+   ScaledMatrixCoefficient * dtKCoef_;
 };
 
 } // namespace thermal
@@ -243,6 +246,8 @@ class ScaledCoefficient : public Coefficient
 public:
    ScaledCoefficient(double a, Coefficient & c) : a_(a), c_(&c) {}
 
+   void SetAConst(double a) { a_ = a; }
+
    void SetTime(double t) { time = t; c_->SetTime(t); }
 
    double Eval(ElementTransformation &T,
@@ -260,6 +265,8 @@ public:
    ScaledMatrixCoefficient(double a, MatrixCoefficient & M)
       : MatrixCoefficient(M.GetWidth()), a_(a), M_(&M) {}
 
+   void SetAConst(double a) { a_ = a; }
+  
    void SetTime(double t) { time = t; M_->SetTime(t); }
 
    void Eval(DenseMatrix &K, ElementTransformation &T,

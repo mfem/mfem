@@ -345,11 +345,19 @@ DiffusionTDO::initA(double dt)
 {
    if ( kCoef_ != NULL )
    {
-      dtkCoef_ = new ScaledCoefficient(dt, *kCoef_);
+      if (dtkCoef_ == NULL)
+      {
+         dtkCoef_ = new ScaledCoefficient(dt, *kCoef_);
+      }
+      dtkCoef_->SetAConst(dt);
    }
    else
    {
-      dtKCoef_ = new ScaledMatrixCoefficient(dt, *KCoef_);
+      if (dtKCoef_ == NULL)
+      {
+         dtKCoef_ = new ScaledMatrixCoefficient(dt, *KCoef_);
+      }
+      dtKCoef_->SetAConst(dt);
    }
    if ( a_ == NULL)
    {
@@ -363,14 +371,25 @@ DiffusionTDO::initA(double dt)
       {
          a_->AddDomainIntegrator(new DiffusionIntegrator(*dtKCoef_));
       }
-
-      a_->Assemble();
    }
+   a_->Update();
+   a_->Assemble();
 }
 
 void
 DiffusionTDO::initImplicitSolve()
 {
+   delete AInv_;
+   AInv_ = new HyprePCG(A_);
+   AInv_->SetTol(1e-12);
+   AInv_->SetMaxIter(200);
+   AInv_->SetPrintLevel(0);
+
+   delete APrecond_;
+   APrecond_ = new HypreBoomerAMG(A_);
+   APrecond_->SetPrintLevel(0);
+   AInv_->SetPreconditioner(*APrecond_);
+/*
    if ( tdC_ || tdK_ || AInv_ == NULL || APrecond_ == NULL )
    {
       if ( AInv_ == NULL )
@@ -395,6 +414,7 @@ DiffusionTDO::initImplicitSolve()
          APrecond_->SetOperator(A_);
       }
    }
+  */
 }
 
 void
