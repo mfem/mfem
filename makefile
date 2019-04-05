@@ -221,7 +221,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
