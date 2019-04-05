@@ -317,7 +317,7 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
- debug pdebug style check test unittest
+ debug pdebug style check test unittest deprecation-warnings
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -351,12 +351,14 @@ doc:
 
 -include $(BLD)deps.mk
 
-$(BLD)libmfem.a: deprecation-warnings $(OBJECT_FILES)
+$(BLD)libmfem.a: $(OBJECT_FILES)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
+	$(MAKE) deprecation-warnings
 
 $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
+	$(MAKE) deprecation-warnings
 
 # If some of the external libraries are build without -fPIC, linking shared MFEM
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
@@ -544,9 +546,11 @@ FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 
 DEPRECATION_WARNING := "This feature is planned for removal in the next release. Please open an issue at github.com/mfem/mfem/issues if you depend on it."
-.PHONY: deprecation-warnings
 deprecation-warnings:
-	@if [ $(MFEM_USE_OPENMP) = YES ]; then echo [MFEM_USE_OPENMP]: $(DEPRECATION_WARNING); fi
+	@ccred="\033[0;31m"; \
+	ccyellow="\033[0;33m"; \
+	ccend="\033[0m"; \
+        if [ $(MFEM_USE_OPENMP) = YES ]; then echo $$ccred[MFEM_USE_OPENMP]$$ccend: $$ccyellow$(DEPRECATION_WARNING)$$ccend; fi
 
 style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
