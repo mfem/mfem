@@ -362,9 +362,9 @@ SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
-.PHONY: lib all clean distclean install config status info deps serial parallel\
-  cuda debug pdebug style check test unittest deprecation-warnings
-
+.PHONY: lib all clean distclean install config status info deps serial parallel	\
+	cuda debug pdebug cudebug pcudebug style check test unittest \
+	deprecation-warnings
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
