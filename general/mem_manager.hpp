@@ -17,6 +17,8 @@
 #include <unordered_map>
 #include <type_traits>
 
+#include "globals.hpp"
+
 using std::size_t;
 
 namespace mfem
@@ -108,8 +110,9 @@ public:
    {
       for (const auto& n : MM().maps.memories)
       {
-         printf("key %p, host %p, device %p \n", n.first, n.second.h_ptr,
-                n.second.d_ptr);
+         mfem::out << "key " << n.first << ", "
+                   << "host " << n.second.h_ptr << ", "
+                   << "device " << n.second.h_ptr << "\n";
       }
    }
 

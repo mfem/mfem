@@ -136,6 +136,18 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_SIDRE
       "MFEM_USE_SIDRE\n"
 #endif
+#ifdef MFEM_USE_PUMI
+      "MFEM_USE_PUMI\n"
+#endif
+#ifdef MFEM_USE_CUDA
+      "MFEM_USE_CUDA\n"
+#endif
+#ifdef MFEM_USE_RAJA
+      "MFEM_USE_RAJA\n"
+#endif
+#ifdef MFEM_USE_OCCA
+      "MFEM_USE_OCCA\n"
+#endif
       "MFEM_TIMER_TYPE = " EXPAND_AND_QUOTE(MFEM_TIMER_TYPE)
       ;
 
