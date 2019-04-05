@@ -169,12 +169,12 @@ if (MFEM_USE_LAPACK)
   find_package(LAPACK REQUIRED)
 endif()
 
-# Legacy OpenMP
-if (MFEM_LEGACY_USE_OPENMP)
+# OpenMP
+if (MFEM_USE_OPENMP)
   if (MFEM_THREAD_SAFE)
     find_package(OpenMP REQUIRED)
   else()
-    message(FATAL_ERROR " *** MFEM_LEGACY_USE_OPENMP requires MFEM_THREAD_SAFE=ON.")
+    message(FATAL_ERROR " *** MFEM_USE_OPENMP requires MFEM_THREAD_SAFE=ON.")
   endif()
 endif()
 

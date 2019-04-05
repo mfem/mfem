@@ -99,37 +99,24 @@ Miscellaneous
 
 API changes
 -----------
-- The MFEM_USE_OPENMP makefile target and #define is now for plain OpenMP
-  support to be used for example in the Okina kernels. The old OpenMP support
-  is deprecated and can still be used via MFEM_LEGACY_USE_OPENMP.
-
 - In multiple places, use Geometry::Type instead of int, where appropriate.
-
 - In multiple places, use Element::Type instead of int, where appropriate.
-
 - The Mesh methods GetElementBaseGeometry and GetBdrElementBaseGeometry no
   longer have a default value for their parameter, they only work with an
   explicitly given index.
-
 - In class Mesh, added methods useful for queries regarding the types of
   elements present in the mesh: HasGeometry, GetNumGeometries, GetGeometries,
   and class Mesh::GeometryList.
-
 - The struct CoarseFineTransformations (returned by the Mesh method
   GetRefinementTransforms) now stores the embedding matrices separately for each
   Geometry::Type.
-
 - In class ParMesh, replaced the method GroupNFaces with two new methods:
   GroupNTriangles and GroupNQuadrilaterals. Also, replaced GroupFace with two
   methods: GroupTriangle and GroupQuadrilateral.
-
 - In class ParMesh, made the two RefineGroups methods protected.
-
 - Removed the virtual method Element::GetRefinementFlag, it is only used by the
   derived class Tetrahedron.
-
 - Added new methods: Array::CopyTo, Tetrahedron::Init.
-
 - In class STRUMPACKSolver, the method SetMC64Job() was replaced by the new
   methods: DisableMatching(), EnableMatching(), and EnableParallelMatching().
 

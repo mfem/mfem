@@ -108,8 +108,6 @@ MFEM_USE_SIDRE       = NO
 MFEM_USE_CONDUIT     = NO
 MFEM_USE_PUMI        = NO
 
-MFEM_LEGACY_USE_OPENMP = NO
-
 # Compile and link options for zlib.
 ZLIB_DIR =
 ZLIB_OPT = $(if $(ZLIB_DIR),-I$(ZLIB_DIR)/include)
