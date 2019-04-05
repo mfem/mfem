@@ -12,7 +12,7 @@
 #ifndef MFEM_DEVICE_HPP
 #define MFEM_DEVICE_HPP
 
-#include "../general/globals.hpp"
+#include "globals.hpp"
 #include <stack>
 
 namespace mfem
@@ -32,30 +32,16 @@ private:
    bool raja = false;
    bool occa = false;
    bool omp = false;
-   bool sync = false;
-   bool nvvp = false;
-   CUdevice cuDevice;
-   CUstream *cuStream;
-   CUcontext cuContext;
-   OccaDevice occaDevice;
    std::stack<MODES> modes;
+   bool isTracking = true;
 
    Device(): mode{Device::HOST} { modes.empty(); }
    Device(Device const&);
    void operator=(Device const&);
    static Device& Get() { static Device singleton; return singleton; }
 
-   /// CUDA device setup, called when CUDA or RAJA mode with MFEM_USE_CUDA
-   void GpuDeviceSetup(const int dev);
-   /// Set: gpu_count, dev, cuDevice, cuContext & cuStream
-   void CudaDeviceSetup(const int dev = 0);
-   /// Set: gpu_count, dev, cuDevice, cuContext & cuStream
-   void RajaDeviceSetup(const int dev = 0);
-   /// OCCA settings: device, paths & kernels
-   void OccaDeviceSetup(const CUdevice cu_dev, const CUcontext cu_ctx);
-
-   /// MFEM's device setup switcher based on configuration settings
-   void MFEMDeviceSetup(const int dev = 0);
+   /// Setup switcher based on configuration settings
+   void Setup(const int dev = 0);
 
 public:
 
@@ -80,13 +66,13 @@ public:
       const bool occa = Device::UsingOcca();
       const bool raja = Device::UsingRaja();
       out << "Device configuration: ";
-      if (cuda && occa) { out << "OCCA/CUDA\n"; return; }
-      if (omp  && occa) { out << "OCCA/OpenMP\n"; return; }
-      if (occa)         { out << "OCCA/CPU\n"; return; }
-      if (cuda && raja) { out << "RAJA/CUDA\n"; return; }
+      if (cuda && occa) { out << "OCCA:CUDA\n"; return; }
+      if (omp  && occa) { out << "OCCA:OpenMP\n"; return; }
+      if (occa)         { out << "OCCA:CPU\n"; return; }
+      if (cuda && raja) { out << "RAJA:CUDA\n"; return; }
       if (cuda)         { out << "CUDA\n";  return; }
-      if (omp  && raja) { out << "RAJA/OpenMP\n";  return; }
-      if (raja)         { out << "RAJA/CPU\n";  return; }
+      if (omp  && raja) { out << "RAJA:OpenMP\n";  return; }
+      if (raja)         { out << "RAJA:CPU\n";  return; }
       if (omp)          { out << "OpenMP\n";  return; }
       out << "CPU\n";
    }
@@ -127,7 +113,7 @@ public:
 #endif
    }
 
-   static inline void EnableDevice(const int dev = 0) { Get().MFEMDeviceSetup(dev); }
+   static inline void EnableDevice(const int dev = 0) { Get().Setup(dev); }
    static inline bool DeviceEnabled() { return Get().ngpu > 0; }
    static inline bool DeviceDisabled() { return Get().ngpu == 0; }
    static inline bool DeviceHasBeenEnabled() { return Get().ngpu >= 0; }
@@ -135,9 +121,12 @@ public:
    static inline bool UsingDevice() { return DeviceEnabled() && Get().mode == DEVICE; }
    static inline bool UsingHost() { return !UsingDevice(); }
 
+   static inline void DisableTracking() { Get().isTracking = false; };
+   static inline void EnableTracking() { Get().isTracking = true; };
+   static inline bool IsTracking() { return Get().isTracking; };
+
    static inline bool UsingCuda() { return Get().cuda; }
    static inline void UseCuda() { Get().cuda = true; }
-   static inline CUstream Stream() { return *Get().cuStream; }
 
    static inline bool UsingOmp() { return Get().omp; }
    static inline void UseOmp() { Get().omp = true; }
@@ -147,7 +136,12 @@ public:
 
    static inline bool UsingOcca() { return Get().occa; }
    static inline void UseOcca() { Get().occa = true; }
-   static inline OccaDevice GetOccaDevice() { return Get().occaDevice; }
+
+   static inline bool UsingOkina()
+   {
+      return DeviceEnabled() && Get().mode == DEVICE &&
+             (UsingCuda() || UsingOmp() || UsingRaja() || UsingOcca());
+   }
 
    ~Device();
 };

@@ -36,7 +36,8 @@ SHARED = NO
 
 # CUDA configuration options
 MFEM_CUDA_CXX = nvcc
-MFEM_CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=sm_60
+MFEM_CUDA_ARCH = sm_60
+MFEM_CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(MFEM_CUDA_ARCH)
 ifeq ($(MFEM_USE_CUDA),YES)
    # Pass the following arguments to the host compiler
    MFEM_XARCHIVE  = -Xarchive
@@ -305,6 +306,7 @@ ifeq ($(MFEM_USE_CUDA),YES)
    ifndef CUDA_DIR
       CUDA_DIR := @MFEM_DIR@/../cuda
    endif
+   CUDA_OPT := -I$(CUDA_DIR)/include
    CUDA_LIB := -L$(CUDA_DIR)/lib64 -lcuda -lcudart
 endif
 
@@ -331,7 +333,11 @@ ifeq ($(MFEM_USE_RAJA),YES)
    ifndef RAJA_DIR
       RAJA_DIR := @MFEM_DIR@/../raja
    endif
-   RAJA_OPT := -I$(RAJA_DIR)/include
+   ifdef CUB_DIR
+      RAJA_OPT := -I$(RAJA_DIR)/include -I$(CUB_DIR)
+   else
+      RAJA_OPT := -I$(RAJA_DIR)/include
+   endif
    RAJA_LIB := $(MFEM_XARCHIVE) -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 endif
 

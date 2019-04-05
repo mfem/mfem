@@ -12,6 +12,7 @@
 // Implementation of class BilinearForm
 
 #include "fem.hpp"
+#include "../general/device.hpp"
 #include <cmath>
 
 namespace mfem
@@ -54,7 +55,7 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   double *data = mm::malloc<double>(I[height]);
+   double *data = mm::New<double>(I[height]);
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
@@ -84,16 +85,20 @@ BilinearForm::BilinearForm (FiniteElementSpace * f,
    switch (assembly)
    {
       case AssemblyLevel::FULL:
+         if (Device::UsingOkina())
+         {
+            mfem_error("Full assembly not supported yet in device mode!");
+         }
          // Use the original BilinearForm implementation for now
          break;
       case AssemblyLevel::ELEMENT:
-         mfem_error("Not supported yet... stay tuned!");
+         mfem_error("Element assembly not supported yet... stay tuned!");
          break;
       case AssemblyLevel::PARTIAL:
          pa = new PABilinearFormExtension(this);
          break;
       case AssemblyLevel::NONE:
-         mfem_error("Not supported yet... stay tuned!");
+         mfem_error("Matrix-free action not supported yet... stay tuned!");
          break;
       default:
          mfem_error("Unknown assembly level");

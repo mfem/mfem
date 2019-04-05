@@ -25,9 +25,12 @@
 //               ex1 -m ../data/mobius-strip.mesh
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
 //
-// Device runs:  ex1 -d cuda
-//               ex1 -d occa
-//               ex1 -d 'raja omp'
+// Device runs:  ex1 -p -d cuda
+//               ex1 -p -d 'cuda raja'
+//               ex1 -p -d 'cuda occa'
+//               ex1 -p -d 'omp raja'
+//               ex1 -p -d 'omp occa'
+//               ex1 -m ../data/beam-hex.mesh -p -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem

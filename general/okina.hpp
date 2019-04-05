@@ -13,43 +13,29 @@
 #define MFEM_OKINA_HPP
 
 #include "../config/config.hpp"
-#include "../general/error.hpp"
+#include "error.hpp"
 
 #include <cmath>
 #include <cstring>
 #include <iostream>
-#include <stdarg.h>
 
-#ifdef MFEM_USE_CUDA
-#include <cuda.h>
-#else
-typedef int CUdevice;
-typedef int CUcontext;
-typedef void* CUstream;
-#endif
+#include "cuda.hpp"
+#include "occa.hpp"
+#include "device.hpp"
+#include "mem_manager.hpp"
+#include "../linalg/dtensor.hpp"
 
 #ifdef MFEM_USE_RAJA
 #include "RAJA/RAJA.hpp"
 #endif
-
-#ifdef MFEM_USE_OCCA
-#include <occa.hpp>
-#else
-typedef void* OccaDevice;
-typedef void* OccaMemory;
-#endif
-
-#include "occa.hpp"
-#include "mm.hpp"
-#include "device.hpp"
 
 namespace mfem
 {
 
 // OKINA = Okina Kernel Interface for Numerical Analysis
 
-// Implementation of MFEM's okina device kernel interface and its
-// CUDA, OpenMP, RAJA, and sequential backends.
+// Implementation of MFEM's okina device kernel interface and its CUDA, OpenMP,
+// RAJA, and sequential backends.
 
 /// The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                                          \
@@ -105,19 +91,7 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 }
 
 /// CUDA backend
-#ifdef MFEM_USE_CUDA
-#define MFEM_HOST __host__
-#define MFEM_DEVICE __device__
-#define MFEM_HOST_DEVICE __host__ __device__
-inline void CuCheck(const unsigned int c)
-{
-   MFEM_ASSERT(c == cudaSuccess, cudaGetErrorString(cudaGetLastError()));
-}
-template<typename T> MFEM_HOST_DEVICE
-inline T AtomicAdd(T* address, T val)
-{
-   return atomicAdd(address, val);
-}
+#if defined(MFEM_USE_CUDA)
 template <typename BODY> __global__ static
 void CuKernel(const int N, BODY body)
 {
@@ -135,17 +109,6 @@ void CuWrap(const int N, DBODY &&d_body, HBODY &&h_body)
    MFEM_ASSERT(last == cudaSuccess, cudaGetErrorString(last));
 }
 #else // MFEM_USE_CUDA
-#define MFEM_HOST
-#define MFEM_DEVICE
-#define MFEM_HOST_DEVICE
-template<typename T> inline T AtomicAdd(T* address, T val)
-{
-#if defined(_OPENMP)
-   #pragma omp atomic
-#endif
-   *address += val;
-   return *address;
-}
 template <int BLOCKS, typename DBODY, typename HBODY>
 void CuWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {

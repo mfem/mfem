@@ -22,9 +22,6 @@ public:
    Array<int> eMap;
    Array<double> nodes;
    Array<double> X, J, invJ, detJ;
-   static const int Jacobian    = (1 << 0);
-   static const int JacobianInv = (1 << 1);
-   static const int JacobianDet = (1 << 2);
    static GeometryExtension* Get(const FiniteElementSpace&,
                                  const IntegrationRule&);
    static GeometryExtension* Get(const FiniteElementSpace&,
@@ -43,33 +40,33 @@ public:
    Array<double> W, B, G, Bt, Gt;
 public:
    static void delDofToQuad();
-   static DofToQuad* Get(const mfem::FiniteElementSpace&,
-                         const mfem::IntegrationRule&,
+   static DofToQuad* Get(const FiniteElementSpace&,
+                         const IntegrationRule&,
                          const bool = false);
-   static DofToQuad* Get(const mfem::FiniteElementSpace&,
-                         const mfem::FiniteElementSpace&,
-                         const mfem::IntegrationRule&,
+   static DofToQuad* Get(const FiniteElementSpace&,
+                         const FiniteElementSpace&,
+                         const IntegrationRule&,
                          const bool = false);
-   static DofToQuad* Get(const mfem::FiniteElement&,
-                         const mfem::FiniteElement&,
-                         const mfem::IntegrationRule&,
+   static DofToQuad* Get(const FiniteElement&,
+                         const FiniteElement&,
+                         const IntegrationRule&,
                          const bool = false);
-   static DofToQuad* GetTensorMaps(const mfem::FiniteElement&,
-                                   const mfem::FiniteElement&,
-                                   const mfem::IntegrationRule&,
+   static DofToQuad* GetTensorMaps(const FiniteElement&,
+                                   const FiniteElement&,
+                                   const IntegrationRule&,
                                    const bool = false);
-   static DofToQuad* GetD2QTensorMaps(const mfem::FiniteElement&,
-                                      const mfem::IntegrationRule&,
+   static DofToQuad* GetD2QTensorMaps(const FiniteElement&,
+                                      const IntegrationRule&,
                                       const bool = false);
-   static DofToQuad* GetSimplexMaps(const mfem::FiniteElement&,
-                                    const mfem::IntegrationRule&,
+   static DofToQuad* GetSimplexMaps(const FiniteElement&,
+                                    const IntegrationRule&,
                                     const bool = false);
-   static DofToQuad* GetSimplexMaps(const mfem::FiniteElement&,
-                                    const mfem::FiniteElement&,
-                                    const mfem::IntegrationRule&,
+   static DofToQuad* GetSimplexMaps(const FiniteElement&,
+                                    const FiniteElement&,
+                                    const IntegrationRule&,
                                     const bool = false);
-   static DofToQuad* GetD2QSimplexMaps(const mfem::FiniteElement&,
-                                       const mfem::IntegrationRule&,
+   static DofToQuad* GetD2QSimplexMaps(const FiniteElement&,
+                                       const IntegrationRule&,
                                        const bool = false);
 };
 

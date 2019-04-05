@@ -11,7 +11,6 @@
 
 #include "../general/okina.hpp"
 
-#include <bitset>
 #include <signal.h>
 
 #ifndef _WIN32
@@ -136,10 +135,7 @@ static void* MmMemcpyDtoH(void *dst, const void *src, const size_t bytes)
 
 static bool Known(const mm::ledger &maps, const void *ptr)
 {
-   const mm::memory_map::const_iterator found = maps.memories.find(ptr);
-   const bool known = found != maps.memories.end();
-   if (known) { return true; }
-   return false;
+   return maps.memories.find(ptr) != maps.memories.end();
 }
 
 // Looks if ptr is an alias of one memory
@@ -165,6 +161,21 @@ static const void* InsertAlias(mm::ledger &maps, const void *base,
                        static_cast<const char*> (base);
    const mm::alias *alias = new mm::alias{&mem, offset};
    maps.aliases.emplace(ptr, alias);
+#ifdef MFEM_DEBUG_MM
+   {
+      mem.aliases.sort();
+      for (const mm::alias *a : mem.aliases)
+      {
+         if (a->mem == &mem )
+         {
+            if (a->offset == offset)
+            {
+               mfem_error("a->offset == offset");
+            }
+         }
+      }
+   }
+#endif
    mem.aliases.push_back(alias);
    return ptr;
 }
@@ -210,13 +221,13 @@ static inline bool MmDeviceIniFilter(void)
 {
    if (!Device::UsingMM()) { return true; }
    if (Device::DeviceDisabled()) { return true; }
+   if (Device::IsTracking() == false) { return true; }
    if (!Device::DeviceHasBeenEnabled()) { return true; }
-   if (Device::UsingOcca()) { mfem_error("Device::UsingOcca()"); }
    return false;
 }
 
-// Turn a known address to the right host or device one. Alloc, Push,
-// or Pull it if required.
+// Turn a known address into the right host or device address. Alloc, Push, or
+// Pull it if necessary.
 static void *PtrKnown(mm::ledger &maps, void *ptr)
 {
    mm::memory &base = maps.memories.at(ptr);
@@ -245,8 +256,8 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    return base.d_ptr;
 }
 
-// Turn an alias to the right host or device one. Alloc, Push, or Pull
-// it if required.
+// Turn an alias into the right host or device address. Alloc, Push, or Pull it
+// if necessary.
 static void *PtrAlias(mm::ledger &maps, void *ptr)
 {
    const bool gpu = Device::UsingDevice();
@@ -281,6 +292,7 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
 void *mm::Ptr(void *ptr)
 {
    if (MmDeviceIniFilter()) { return ptr; }
+   if (ptr==NULL) { return NULL; };
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
    if (Device::UsingDevice()) { mfem_error("Ptr: Unknown pointer!"); }
@@ -363,16 +375,17 @@ void mm::Pull(const void *ptr, const size_t bytes)
    if (Device::UsingDevice()) { mfem_error("Unknown pointer to pull from!"); }
 }
 
+extern CUstream *cuStream;
 void* mm::memcpy(void *dst, const void *src, const size_t bytes,
                  const bool async)
 {
-   void *d_dst = ptr(dst);
-   void *d_src = const_cast<void*>(ptr(src));
-   if (bytes == 0) { return dst; }
+   void *d_dst = mm::ptr(dst);
+   void *d_src = const_cast<void*>(mm::ptr(src));
    const bool host = Device::UsingHost();
+   if (bytes == 0) { return dst; }
    if (host) { return std::memcpy(dst, src, bytes); }
    if (!async) { return MmMemcpyDtoD(d_dst, d_src, bytes); }
-   return MmMemcpyDtoDAsync(d_dst, d_src, bytes, Device::Stream());
+   return MmMemcpyDtoDAsync(d_dst, d_src, bytes, cuStream);
 }
 
 #ifdef MFEM_USE_MMU
@@ -452,43 +465,15 @@ void mm::MmuFree(void *ptr)
 #endif
 }
 
-static OccaMemory occaMemory(mm::ledger &maps, const void *ptr)
+void mm::RegisterCheck(void *ptr)
 {
-   OccaDevice occaDevice = Device::GetOccaDevice();
-   if (!Device::UsingMM())
+   if (ptr != NULL && Device::UsingMM())
    {
-      OccaMemory o_ptr = OccaWrapMemory(occaDevice, const_cast<void*>(ptr), 0);
-      return o_ptr;
-   }
-   const bool known = mm::known(ptr);
-   if (!known) { mfem_error("occaMemory: Unknown address!"); }
-   mm::memory &base = maps.memories.at(ptr);
-   const size_t bytes = base.bytes;
-   const bool gpu = Device::UsingDevice();
-   if (!Device::UsingOcca()) { mfem_error("Using OCCA without support!"); }
-   if (!base.d_ptr)
-   {
-      base.host = false; // This address is no longer on the host
-      if (gpu)
+      if (!mm::known(ptr))
       {
-         MmMemAlloc(&base.d_ptr, bytes);
-         void *stream = Device::Stream();
-         MmMemcpyHtoDAsync(base.d_ptr, base.h_ptr, bytes, stream);
-      }
-      else
-      {
-         base.o_ptr = OccaDeviceMalloc(occaDevice, bytes);
-         base.d_ptr = OccaMemoryPtr(base.o_ptr);
-         OccaCopyFrom(base.o_ptr, base.h_ptr);
+         mfem_error("Pointer is not registered!");
       }
    }
-   if (gpu)
-   {
-      return OccaWrapMemory(occaDevice, base.d_ptr, bytes);
-   }
-   return base.o_ptr;
 }
-
-OccaMemory mm::Memory(const void *ptr) { return occaMemory(maps, ptr); }
 
 } // namespace mfem
