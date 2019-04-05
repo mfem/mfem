@@ -98,7 +98,8 @@ $(if $(wildcard $(THIS_MK)),,$(error Makefile not found "$(THIS_MK)"))
 MFEM_DIR ?= $(patsubst %/,%,$(dir $(THIS_MK)))
 MFEM_REAL_DIR := $(realpath $(MFEM_DIR))
 $(if $(MFEM_REAL_DIR),,$(error Source directory "$(MFEM_DIR)" is not valid))
-SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
+override MFEM_DIR := $(MFEM_REAL_DIR)
+SRC := $(if $(MFEM_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
 $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
@@ -126,7 +127,7 @@ ALL_TEST_DIRS = $(filter-out\
 MFEM_BUILD_DIR ?= .
 BUILD_DIR := $(MFEM_BUILD_DIR)
 BUILD_REAL_DIR := $(abspath $(BUILD_DIR))
-ifneq ($(BUILD_REAL_DIR),$(MFEM_REAL_DIR))
+ifneq ($(BUILD_REAL_DIR),$(MFEM_DIR))
    BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc $(TEST_DIRS)
    BUILD_DIR_DEF = -DMFEM_BUILD_DIR="$(BUILD_REAL_DIR)"
    BLD := $(if $(BUILD_REAL_DIR:$(CURDIR)=),$(BUILD_DIR)/,)
@@ -280,7 +281,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI    
  MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU         \
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC              \
  MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_CUDA      \
- MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA
+ MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR            \
@@ -309,6 +310,9 @@ MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 
+MFEM_SOURCE_DIR  := $(MFEM_DIR)
+MFEM_INSTALL_DIR := $(abspath $(MFEM_PREFIX))
+
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
@@ -325,7 +329,6 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    PREFIX_INC   := $(PREFIX)/include
    PREFIX_LIB   := $(PREFIX)/lib
    PREFIX_SHARE := $(PREFIX)/share/mfem
-   override MFEM_DIR := $(MFEM_REAL_DIR)
    MFEM_INCFLAGS = -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
    MFEM_FLAGS    = @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
    MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
@@ -482,7 +485,8 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 # install remaining includes in each subdirectory
 	for dir in $(DIRS); do \
 	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
-	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; done
+	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
+  done
 # install config.mk in $(PREFIX_SHARE)
 	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
@@ -514,15 +518,15 @@ build-config:
 	for d in $(BUILD_SUBDIRS); do mkdir -p $(BLD)$${d}; done
 	for dir in "" $(addsuffix /,config $(EM_DIRS) doc $(TEST_DIRS)); do \
 	   printf "# Auto-generated file.\n%s\n%s\n" \
-	      "MFEM_DIR = $(MFEM_REAL_DIR)" \
+	      "MFEM_DIR = $(MFEM_DIR)" \
 	      "include \$$(MFEM_DIR)/$${dir}makefile" \
 	      > $(BLD)$${dir}GNUmakefile; done
 	$(MAKE) -C $(BLD)config all
-	cd "$(BUILD_DIR)" && ln -sf "$(MFEM_REAL_DIR)/data" .
+	cd "$(BUILD_DIR)" && ln -sf "$(MFEM_DIR)/data" .
 	for hdr in mfem.hpp mfem-performance.hpp; do \
 	   printf "// Auto-generated file.\n%s\n%s\n" \
 	   "#define MFEM_BUILD_DIR $(BUILD_REAL_DIR)" \
-	   "#include \"$(MFEM_REAL_DIR)/$${hdr}\"" > $(BLD)$${hdr}; done
+	   "#include \"$(MFEM_DIR)/$${hdr}\"" > $(BLD)$${hdr}; done
 	@printf "\nBuild destination: $(BUILD_DIR) [$(BUILD_REAL_DIR)]\n\n"
 
 help:
