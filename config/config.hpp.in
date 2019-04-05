@@ -62,6 +62,9 @@
 // allocation and de-allocation.
 // #define MFEM_THREAD_SAFE
 
+// Enable OpenMP support. Requires MFEM_THREAD_SAFE.
+// #define MFEM_USE_OPENMP
+
 // [Deprecated] Enable OpenMP support. Requires MFEM_THREAD_SAFE.
 // #define MFEM_USE_LEGACY_OPENMP
 
