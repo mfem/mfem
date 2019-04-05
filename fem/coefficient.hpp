@@ -14,7 +14,6 @@
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
-#include "../linalg/dvector3.hpp"
 #include "intrules.hpp"
 #include "eltrans.hpp"
 
@@ -119,7 +118,7 @@ class FunctionCoefficient : public Coefficient
 protected:
    double (*Function)(const Vector &);
    double (*TDFunction)(const Vector &, double);
-   double (*DeviceFunction)(const DeviceVector3&);
+   double (*DeviceFunction)(const Vector3&);
 
 public:
    /// Define a time-independent coefficient from a C-function
@@ -139,8 +138,8 @@ public:
    }
 
    /// Define a time-independent coefficient from a C-function using
-   /// DeviceVector3 instead of a Vector.
-   FunctionCoefficient(double (*df)(const DeviceVector3 &))
+   /// Vector3 instead of a Vector.
+   FunctionCoefficient(double (*df)(const Vector3 &))
    {
       Function = NULL;
       TDFunction = NULL;
@@ -171,10 +170,10 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
-   /// Return the coefficient's C-function that uses DeviceVector3.
+   /// Return the coefficient's C-function that uses Vector3.
    /// Warning: for now, the returned function can only be used on the
    /// host inside a MFEM_FORALL.
-   double (*GetDeviceFunction())(const DeviceVector3&);
+   double (*GetDeviceFunction())(const Vector3&);
 };
 
 class GridFunction;

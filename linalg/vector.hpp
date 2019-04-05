@@ -454,6 +454,22 @@ double Min(const int N, const double *x);
 /// Kernel of the inner product of arrays x and y of size N
 double Dot(const int N, const double *x, const double *y);
 
+/// Class for a simple Vector of size 3
+class Vector3
+{
+private:
+   double data[3];
+public:
+   Vector3() {}
+   Vector3(const double *x) { data[0]=x[0]; data[1]=x[1]; data[2]=x[2]; }
+   Vector3(const double x0, const double x1 = 0.0, const double x2 = 0.0)
+   { data[0]=x0; data[1]=x1; data[2]=x2; }
+   inline operator double* () { return data; }
+   inline operator const double* () const { return data; }
+   inline double& operator()(const int i) { return data[i]; }
+   inline const double& operator()(const int i) const { return data[i]; }
+};
+
 }
 
 #endif
