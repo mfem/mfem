@@ -157,6 +157,9 @@ public:
       this->lim = &lim;
    }
 
+   // Returns the current time step
+   double GetTimeStep() const { return this->dt; }
+
    /// Sets (or resets) the initial time step
    void SetTimeStep(double dt) { this->dt = dt; }
 
