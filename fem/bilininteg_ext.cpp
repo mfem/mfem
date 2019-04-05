@@ -65,7 +65,7 @@ static void OccaPADiffusionAssemble2D(const int D1D,
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
 
-   MFEM_NEW_OCCA_KERNEL(DiffusionSetup2D, fem, occa.okl, props);
+   MFEM_NEW_OCCA_KERNEL(DiffusionSetup2D, "fem/occa.okl", props);
    DiffusionSetup2D(NE, o_W, o_J, COEFF, o_op);
 }
 
@@ -85,7 +85,7 @@ static void OccaPADiffusionAssemble3D(const int D1D,
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
 
-   MFEM_NEW_OCCA_KERNEL(DiffusionSetup3D, fem, occa.okl, props);
+   MFEM_NEW_OCCA_KERNEL(DiffusionSetup3D, "fem/occa.okl", props);
    DiffusionSetup3D(NE, o_W, o_J, COEFF, o_op);
 }
 #endif // MFEM_USE_OCCA
@@ -251,12 +251,12 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
 
    if (!Device::UsingDevice())
    {
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_CPU, fem, occa.okl, props);
+      MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_CPU, "fem/occa.okl", props);
       DiffusionApply2D_CPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_GPU, fem, occa.okl, props);
+      MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_GPU, "fem/occa.okl", props);
       DiffusionApply2D_GPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
 }
@@ -287,12 +287,12 @@ static void OccaPADiffusionMultAdd3D(const int D1D,
 
    if (!Device::UsingDevice())
    {
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply3D_CPU, fem, occa.okl, props);
+      MFEM_NEW_OCCA_KERNEL(DiffusionApply3D_CPU, "fem/occa.okl", props);
       DiffusionApply3D_CPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply3D_GPU, fem, occa.okl, props);
+      MFEM_NEW_OCCA_KERNEL(DiffusionApply3D_GPU, "fem/occa.okl", props);
       DiffusionApply3D_GPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
 }
@@ -788,12 +788,12 @@ static void OccaPAMassMultAdd2D(const int D1D,
 
    if (!Device::UsingDevice())
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply2D_CPU, fem, occa.okl, props);
+      MFEM_NEW_OCCA_KERNEL(MassApply2D_CPU, "fem/occa.okl", props);
       MassApply2D_CPU(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply2D_GPU, fem, occa.okl, props);
+      MFEM_NEW_OCCA_KERNEL(MassApply2D_GPU, "fem/occa.okl", props);
       MassApply2D_GPU(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
 }
@@ -820,12 +820,12 @@ static void OccaPAMassMultAdd3D(const int D1D,
 
    if (!Device::UsingDevice())
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply3D_CPU, fem, occa.okl, props);
+      MFEM_NEW_OCCA_KERNEL(MassApply3D_CPU, "fem/occa.okl", props);
       MassApply3D_CPU(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply3D_GPU, fem, occa.okl, props);
+      MFEM_NEW_OCCA_KERNEL(MassApply3D_GPU, "fem/occa.okl", props);
       MassApply3D_GPU(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
 }
