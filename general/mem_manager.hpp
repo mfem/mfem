@@ -80,8 +80,6 @@ public:
    /// Device::UsingDevice() and the ptr state.
    template <class T>
    static inline T *ptr(T *a) { return static_cast<T*>(MM().Ptr(a)); }
-   template <class T>
-   static inline const T* ptr(const T *a) { return static_cast<const T*>(MM().Ptr(a)); }
 
    static inline memory &mem(const void *a) { return MM().maps.memories.at(a); }
 
