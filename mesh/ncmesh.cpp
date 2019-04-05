@@ -20,6 +20,8 @@
 
 #include <fstream> // debug
 
+#include "ncmesh_tables.hpp"
+
 namespace mfem
 {
 
@@ -1338,34 +1340,6 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
 //// Derefinement //////////////////////////////////////////////////////////////
 
-static int quad_deref_table[3][4 + 4] =
-{
-   { 0, 1, 1, 0, /**/ 1, 1, 0, 0 }, // 1 - X
-   { 0, 0, 1, 1, /**/ 0, 0, 1, 1 }, // 2 - Y
-   { 0, 1, 2, 3, /**/ 1, 1, 3, 3 }  // 3 - iso
-};
-static int hex_deref_table[7][8 + 6] =
-{
-   { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
-   { 0, 0, 1, 1, 0, 0, 1, 1, /**/ 0, 0, 0, 1, 1, 1 }, // 2 - Y
-   { 0, 1, 2, 3, 0, 1, 2, 3, /**/ 1, 1, 1, 3, 3, 3 }, // 3 - XY
-   { 0, 0, 0, 0, 1, 1, 1, 1, /**/ 0, 0, 0, 1, 1, 1 }, // 4 - Z
-   { 0, 1, 1, 0, 3, 2, 2, 3, /**/ 1, 1, 1, 3, 3, 3 }, // 5 - XZ
-   { 0, 0, 1, 1, 2, 2, 3, 3, /**/ 0, 0, 0, 3, 3, 3 }, // 6 - YZ
-   { 0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 1, 1, 7, 7, 7 }  // 7 - iso
-};
-static int prism_deref_table[7][6 + 5] =
-{
-   {-1,-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 1
-   {-1,-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 2
-   { 0, 1, 2, 0, 1, 2, /**/  0, 0, 0, 1, 0 }, // 3 - XY
-   { 0, 0, 0, 1, 1, 1, /**/  0, 1, 0, 0, 0 }, // 4 - Z
-   {-1,-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 5
-   {-1,-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 6
-   { 0, 1, 2, 4, 5, 6, /**/  0, 5, 0, 5, 0 }  // 7 - iso
-};
-
-
 int NCMesh::RetrieveNode(const Element &el, int index)
 {
    if (!el.ref_type) { return el.node[index]; }
@@ -1677,39 +1651,6 @@ void NCMesh::UpdateVertices()
       if (node->HasVertex()) { vertex_nodeId[NVertices++] = node.index(); }
    }
 }
-
-static char quad_hilbert_child_order[8][4] =
-{
-   {0,1,2,3}, {0,3,2,1}, {1,2,3,0}, {1,0,3,2},
-   {2,3,0,1}, {2,1,0,3}, {3,0,1,2}, {3,2,1,0}
-};
-static char quad_hilbert_child_state[8][4] =
-{
-   {1,0,0,5}, {0,1,1,4}, {3,2,2,7}, {2,3,3,6},
-   {5,4,4,1}, {4,5,5,0}, {7,6,6,3}, {6,7,7,2}
-};
-static char hex_hilbert_child_order[24][8] =
-{
-   {0,1,2,3,7,6,5,4}, {0,3,7,4,5,6,2,1}, {0,4,5,1,2,6,7,3},
-   {1,0,3,2,6,7,4,5}, {1,2,6,5,4,7,3,0}, {1,5,4,0,3,7,6,2},
-   {2,1,5,6,7,4,0,3}, {2,3,0,1,5,4,7,6}, {2,6,7,3,0,4,5,1},
-   {3,0,4,7,6,5,1,2}, {3,2,1,0,4,5,6,7}, {3,7,6,2,1,5,4,0},
-   {4,0,1,5,6,2,3,7}, {4,5,6,7,3,2,1,0}, {4,7,3,0,1,2,6,5},
-   {5,1,0,4,7,3,2,6}, {5,4,7,6,2,3,0,1}, {5,6,2,1,0,3,7,4},
-   {6,2,3,7,4,0,1,5}, {6,5,1,2,3,0,4,7}, {6,7,4,5,1,0,3,2},
-   {7,3,2,6,5,1,0,4}, {7,4,0,3,2,1,5,6}, {7,6,5,4,0,1,2,3}
-};
-static char hex_hilbert_child_state[24][8] =
-{
-   {1,2,2,7,7,21,21,17},     {2,0,0,22,22,16,16,8},    {0,1,1,15,15,6,6,23},
-   {4,5,5,10,10,18,18,14},   {5,3,3,19,19,13,13,11},   {3,4,4,12,12,9,9,20},
-   {8,7,7,17,17,23,23,2},    {6,8,8,0,0,15,15,22},     {7,6,6,21,21,1,1,16},
-   {11,10,10,14,14,20,20,5}, {9,11,11,3,3,12,12,19},   {10,9,9,18,18,4,4,13},
-   {13,14,14,5,5,19,19,10},  {14,12,12,20,20,11,11,4}, {12,13,13,9,9,3,3,18},
-   {16,17,17,2,2,22,22,7},   {17,15,15,23,23,8,8,1},   {15,16,16,6,6,0,0,21},
-   {20,19,19,11,11,14,14,3}, {18,20,20,4,4,10,10,12},  {19,18,18,13,13,5,5,9},
-   {23,22,22,8,8,17,17,0},   {21,23,23,1,1,7,7,15},    {22,21,21,16,16,2,2,6}
-};
 
 void NCMesh::CollectLeafElements(int elem, int state)
 {
@@ -3050,77 +2991,13 @@ void NCMesh::NeighborExpand(const Array<int> &elems,
    }
 }
 
-
-typedef NCMesh::RefCoord RefCoord;
-
-// reference domain coordinates as fixed point numbers
-const RefCoord T_HALF = (1ll << 60);
-const RefCoord T_ONE = (1ll << 61);
-const RefCoord T_TWO = (1ll << 62);
-
-// scaling factors have a different fixed point
-const RefCoord S_HALF = 1;
-const RefCoord S_ONE = 2;
-const RefCoord S_TWO = 4;
-
-// reference domain transform: 3 scales, 3 translations
-typedef RefCoord RefTr[6];
-typedef RefCoord RefPoint[3];
-
-static RefPoint quad_corners[4] =
+void RefTrf::Apply(const RefCoord src[3], RefCoord dst[3]) const
 {
-   {0,     0,     0},
-   {T_ONE, 0,     0},
-   {T_ONE, T_ONE, 0},
-   {0,     T_ONE, 0}
-};
-static RefTr quad_to_parent_rt1[2] =
-{
-   {S_HALF, S_ONE, 0,      0, 0, 0},
-   {S_HALF, S_ONE, 0, T_HALF, 0, 0}
-};
-static RefTr quad_to_parent_rt2[2] =
-{
-   {S_ONE, S_HALF, 0, 0,      0, 0},
-   {S_ONE, S_HALF, 0, 0, T_HALF, 0}
-};
-static RefTr quad_to_parent_rt3[4] =
-{
-   {S_HALF, S_HALF, 0,      0,      0, 0},
-   {S_HALF, S_HALF, 0, T_HALF,      0, 0},
-   {S_HALF, S_HALF, 0, T_HALF, T_HALF, 0},
-   {S_HALF, S_HALF, 0,      0, T_HALF, 0}
-};
-static RefTr* quad_to_parent[4] =
-{
-   NULL,
-   quad_to_parent_rt1,
-   quad_to_parent_rt2,
-   quad_to_parent_rt3
-};
-
-static RefPoint* geom_corners[7] =
-{
-   NULL, // point
-   NULL, // segment
-   NULL, // triangle
-   quad_corners,
-   NULL, // tetrahedron
-   NULL, // cube
-   NULL, // prism
-};
-
-static RefTr** geom_to_parent[7] =
-{
-   NULL, // point
-   NULL, // segment
-   NULL, // triangle
-   quad_to_parent,
-   NULL, // tetrahedron
-   NULL, // cube
-   NULL, // prism
-};
-
+   for (int i = 0; i < 3; i++)
+   {
+      dst[i] = (src[i]*s[i] >> 1) + t[i];
+   }
+}
 
 int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
 {
@@ -3136,17 +3013,41 @@ int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
       while (ch < 8 && pa.child[ch] != elem) { ch++; }
       MFEM_ASSERT(ch < 8, "internal error");
 
-      RefTr &tr = geom_to_parent[el.Geom()][pa.ref_type][ch];
-      for (int i = 0; i < 3; i++)
-      {
-         coord[i] = (tr[i]*coord[i] >> 1) + tr[i+3];
-      }
+      MFEM_ASSERT(geom_parent[el.Geom()], "unsupported geometry");
+      const RefTrf &tr = geom_parent[el.Geom()][pa.ref_type][ch];
+      tr.Apply(coord, coord);
 
       elem = el.parent;
    }
 }
 
-void NCMesh::CollectIncidentElements(int elem, RefCoord coord[3],
+static bool RefPointInside(Geometry::Type geom, const RefCoord pt[3])
+{
+   switch (geom)
+   {
+      case Geometry::SQUARE:
+         return (pt[0] >= 0) && (pt[0] <= T_ONE) &&
+                (pt[1] >= 0) && (pt[1] <= T_ONE);
+
+      case Geometry::CUBE:
+         return (pt[0] >= 0) && (pt[0] <= T_ONE) &&
+                (pt[1] >= 0) && (pt[1] <= T_ONE) &&
+                (pt[2] >= 0) && (pt[2] <= T_ONE);
+
+      case Geometry::TRIANGLE:
+         return (pt[0] >= 0) && (pt[1] >= 0) && (pt[0] + pt[1] <= T_ONE);
+
+      case Geometry::PRISM:
+         return (pt[0] >= 0) && (pt[1] >= 0) && (pt[0] + pt[1] <= T_ONE) &&
+                (pt[2] >= 0) && (pt[2] <= T_ONE);
+
+      default:
+         MFEM_ABORT("unsupported geometry");
+         return false;
+   }
+}
+
+void NCMesh::CollectIncidentElements(int elem, const RefCoord coord[3],
                                      Array<int> &list) const
 {
    const Element &el = elements[elem];
@@ -3156,7 +3057,17 @@ void NCMesh::CollectIncidentElements(int elem, RefCoord coord[3],
       return;
    }
 
-   // TODO
+   RefCoord tcoord[3];
+   for (int ch = 0; ch < 8 && el.child[ch] >= 0; ch++)
+   {
+      const RefTrf &tr = geom_child[el.Geom()][el.ref_type][ch];
+      tr.Apply(coord, tcoord);
+
+      if (RefPointInside(el.Geom(), tcoord))
+      {
+         CollectIncidentElements(el.child[ch], tcoord, list);
+      }
+   }
 }
 
 void NCMesh::FindVertexCousins(int elem, int local, Array<int> &cousins) const
@@ -3164,6 +3075,7 @@ void NCMesh::FindVertexCousins(int elem, int local, Array<int> &cousins) const
    const Element &el = elements[elem];
 
    RefCoord coord[3];
+   MFEM_ASSERT(geom_corners[el.Geom()], "unsupported geometry");
    std::memcpy(coord, geom_corners[el.Geom()][local], sizeof(coord));
 
    int root = GetVertexRootCoord(elem, coord);
@@ -3225,6 +3137,8 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
    {
       int ref_type = *ref_path++;
       int child = *ref_path++;
+
+      // TODO: do this with the new child transform tables
 
       if (geom == Geometry::CUBE)
       {
@@ -3842,6 +3756,7 @@ void CoarseFineTransformations::GetCoarseToFineMap(
             pair<const RefType,int>(ref_type, (int)ref_type_map.size()));
       coarse_to_ref_type[i] = res.first->second;
    }
+
    ref_type_to_matrix.MakeI((int)ref_type_map.size());
    ref_type_to_geom.SetSize((int)ref_type_map.size());
    for (map<RefType,int>::iterator it = ref_type_map.begin();
@@ -3850,6 +3765,7 @@ void CoarseFineTransformations::GetCoarseToFineMap(
       ref_type_to_matrix.AddColumnsInRow(it->second, it->first.num_children);
       ref_type_to_geom[it->second] = it->first.geom;
    }
+
    ref_type_to_matrix.MakeJ();
    for (map<RefType,int>::iterator it = ref_type_map.begin();
         it != ref_type_map.end(); ++it)
@@ -4638,8 +4554,6 @@ void NCMesh::SetVertexPositions(const Array<mfem::Vertex> &mvertices)
       std::memcpy(&top_vertex_pos[3*i], mvertices[i](), 3*sizeof(double));
    }
 }
-
-static int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
 
 int NCMesh::PrintElements(std::ostream &out, int elem, int &coarse_id) const
 {
