@@ -582,7 +582,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (a == 1.0)
    {
-#ifndef MFEM_USE_OPENMP
+#ifndef MFEM_USE_LEGACY_OPENMP
       for (i = j = 0; i < height; i++)
       {
          double d = 0.0;

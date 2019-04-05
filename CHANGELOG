@@ -97,6 +97,9 @@ Miscellaneous
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
+- Moved MFEM_USE_OPENMP to MFEM_USE_LEGACY_OPENMP. Note that this option
+  is deprecated and planned for removal.
+
 API changes
 -----------
 - In multiple places, use Geometry::Type instead of int, where appropriate.
