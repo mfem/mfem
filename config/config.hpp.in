@@ -62,11 +62,8 @@
 // allocation and de-allocation.
 // #define MFEM_THREAD_SAFE
 
-// Enable OpenMP support.
+// Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
 // #define MFEM_USE_OPENMP
-
-// [Deprecated] Enable legacy OpenMP support. Requires MFEM_THREAD_SAFE.
-// #define MFEM_LEGACY_USE_OPENMP
 
 // Internal MFEM option: enable group/batch allocation for some small objects.
 // #define MFEM_USE_MEMALLOC
