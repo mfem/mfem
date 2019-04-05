@@ -72,12 +72,17 @@ static void OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
    }
 
    std::string mfemDir;
-   if (occa::io::exists(MFEM_INSTALL_DIR "/include/mfem/")) {
-     mfemDir = MFEM_INSTALL_DIR "/include/mfem/";
-   } else if (occa::io::exists(MFEM_SOURCE_DIR)) {
-     mfemDir = MFEM_SOURCE_DIR;
-   } else {
-     MFEM_ABORT("Cannot find OCCA kernels in MFEM_INSTALL_DIR or MFEM_SOURCE_DIR");
+   if (occa::io::exists(MFEM_INSTALL_DIR "/include/mfem/"))
+   {
+      mfemDir = MFEM_INSTALL_DIR "/include/mfem/";
+   }
+   else if (occa::io::exists(MFEM_SOURCE_DIR))
+   {
+      mfemDir = MFEM_SOURCE_DIR;
+   }
+   else
+   {
+      MFEM_ABORT("Cannot find OCCA kernels in MFEM_INSTALL_DIR or MFEM_SOURCE_DIR");
    }
 
    occa::io::addLibraryPath("mfem", mfemDir);
