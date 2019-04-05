@@ -23,6 +23,78 @@ using namespace miniapps;
 namespace thermal
 {
 
+AdvectionTDO::AdvectionTDO(ParFiniteElementSpace &H1_FES,
+			   VectorCoefficient &velCoef)
+  : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
+    H1_FESpace_(H1_FES),
+    velCoef_(velCoef),
+    ess_bdr_tdofs_(0),
+    m1_(&H1_FES),
+    adv1_(&H1_FES),
+    M1Inv_(NULL),
+    M1Diag_(NULL),
+    SOL_(H1_FES.GetTrueVSize()),
+    RHS_(H1_FES.GetTrueVSize()),
+    rhs_(H1_FES.GetVSize())
+{
+  m1_.AddDomainIntegrator(new MassIntegrator);
+  m1_.Assemble();
+  
+  adv1_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(velCoef_));
+  adv1_.Assemble();
+}
+  
+AdvectionTDO::~AdvectionTDO()
+{
+   delete M1Inv_;
+   delete M1Diag_;
+}
+
+void
+AdvectionTDO::initMult() const
+{
+   if ( M1Inv_ == NULL || M1Diag_ == NULL )
+   {
+      if ( M1Inv_ == NULL )
+      {
+         M1Inv_ = new HyprePCG(M1_);
+         M1Inv_->SetTol(1e-12);
+         M1Inv_->SetMaxIter(200);
+         M1Inv_->SetPrintLevel(0);
+      }
+      else
+      {
+         M1Inv_->SetOperator(M1_);
+      }
+      if ( M1Diag_ == NULL )
+      {
+         M1Diag_ = new HypreDiagScale(M1_);
+         M1Inv_->SetPreconditioner(*M1Diag_);
+      }
+      else
+      {
+         M1Diag_->SetOperator(M1_);
+      }
+   }
+}
+
+void AdvectionTDO::Mult(const Vector &y, Vector &dydt) const
+{
+  dydt_gf_.MakeRef(&H1_FESpace_, dydt);
+  adv1_.Mult(y, rhs_);
+  rhs_ *= -1.0;
+
+  dydt_gf_ = 0.0;
+  m1_.FormLinearSystem(ess_bdr_tdofs_, dydt_gf_, rhs_, M1_, SOL_, RHS_);
+
+   this->initMult();
+
+   M1Inv_->Mult(RHS_, SOL_);
+
+   m1_.RecoverFEMSolution(SOL_, rhs_, dydt_gf_);
+
+}
+
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &H1_FES,
                            Coefficient & dTdtBdr,
                            Array<int> & bdr_attr,

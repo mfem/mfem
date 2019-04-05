@@ -26,6 +26,38 @@ namespace mfem
 namespace thermal
 {
 
+class AdvectionTDO : public TimeDependentOperator
+{
+public:
+  AdvectionTDO(ParFiniteElementSpace &H1_FES, VectorCoefficient &velCoef);
+  ~AdvectionTDO();
+  
+   /** @brief Perform the action of the operator: @a q = f(@a y, t), where
+       q solves the algebraic equation F(@a y, q, t) = G(@a y, t) and t is the
+       current time. */
+   virtual void Mult(const Vector &y, Vector &q) const;
+
+private:
+
+  void initMult() const;
+  
+  ParFiniteElementSpace & H1_FESpace_;
+  VectorCoefficient & velCoef_;
+
+  Array<int> ess_bdr_tdofs_;
+  
+  mutable ParBilinearForm m1_;
+  ParBilinearForm adv1_;
+
+   mutable HypreParMatrix   M1_;
+   mutable HyprePCG       * M1Inv_;
+   mutable HypreDiagScale * M1Diag_;
+   mutable ParGridFunction dydt_gf_;
+   mutable Vector SOL_;
+   mutable Vector RHS_;
+   mutable Vector rhs_;
+};
+
 /**
    The thermal diffusion equation can be written:
 
