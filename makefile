@@ -223,6 +223,9 @@ endif
 # List of MFEM dependencies, processed below
 MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND
 
+# List of deprecated MFEM dependencies, processed below
+MFEM_LEGACY_DEPENDENCIES = OPENMP
+
 # Macro for adding dependencies
 define mfem_add_dependency
 ifeq ($(MFEM_USE_$(1)),YES)
@@ -230,9 +233,6 @@ ifeq ($(MFEM_USE_$(1)),YES)
    ALL_LIBS += $($(1)_LIB)
 endif
 endef
-
-# List of deprecated MFEM dependencies, processed below
-MFEM_LEGACY_DEPENDENCIES = OPENMP
 
 # Macro for adding legacy dependencies
 define mfem_add_legacy_dependency
@@ -243,6 +243,7 @@ endif
 endef
 
 # Process dependencies
+$(foreach dep,$(MFEM_DEPENDENCIES),$(eval $(call mfem_add_dependency,$(dep))))
 $(foreach dep,$(MFEM_LEGACY_DEPENDENCIES),$(eval $(call mfem_add_legacy_dependency,$(dep))))
 
 # Timer option
@@ -260,10 +261,10 @@ endif
 MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
  MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
- MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
- MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
- MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
- MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI
+ MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE\
+ MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO\
+ MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF\
+ MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -514,6 +515,7 @@ status info:
 	$(info MFEM_USE_LIBUNWIND     = $(MFEM_USE_LIBUNWIND))
 	$(info MFEM_USE_LAPACK        = $(MFEM_USE_LAPACK))
 	$(info MFEM_THREAD_SAFE       = $(MFEM_THREAD_SAFE))
+	$(info MFEM_USE_OPENMP        = $(MFEM_USE_OPENMP))
 	$(info MFEM_USE_LEGACY_OPENMP = $(MFEM_USE_LEGACY_OPENMP))
 	$(info MFEM_USE_MEMALLOC      = $(MFEM_USE_MEMALLOC))
 	$(info MFEM_TIMER_TYPE        = $(MFEM_TIMER_TYPE))
@@ -558,11 +560,11 @@ FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 
 DEPRECATION_WARNING := "This feature is planned for removal in the next release. Please open an issue at github.com/mfem/mfem/issues if you depend on it."
 deprecation-warnings:
-	@ccred="\033[0;31m"; \
-	ccyellow="\033[0;33m"; \
-	ccend="\033[0m"; \
-        if [ $(MFEM_USE_LEGACY_OPENMP) = YES ]; then \
-	  echo $$ccred[MFEM_USE_LEGACY_OPENMP]$$ccend: $$ccyellow$(DEPRECATION_WARNING)$$ccend; \
+	@red="\033[0;31m";\
+	yellow="\033[0;33m";\
+	end="\033[0m";\
+        if [ $(MFEM_USE_LEGACY_OPENMP) = YES ]; then\
+	  echo $$red[MFEM_USE_LEGACY_OPENMP]$$end: $$yellow$(DEPRECATION_WARNING)$$end;\
 	fi
 
 style:
