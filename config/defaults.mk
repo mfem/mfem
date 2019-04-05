@@ -303,7 +303,7 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
 # CUDA library configuration
 ifeq ($(MFEM_USE_CUDA),YES)
    ifndef CUDA_DIR
-      CUDA_DIR := @MFEM_DIR@/../cuda
+      CUDA_DIR := /usr/local/cuda
    endif
    CUDA_OPT := -I$(CUDA_DIR)/include
    CUDA_LIB := -L$(CUDA_DIR)/lib64 -lcuda -lcudart
@@ -312,7 +312,7 @@ endif
 # MPI library configuration
 ifeq ($(MFEM_USE_MPI),YES)
    ifndef MPI_DIR
-      MPI_DIR := @MFEM_DIR@/../mpi
+      MPI_DIR := $(HOME)/local/openmpi/3.0.0
    endif
    MPI_OPT := -I$(MPI_DIR)/include
    MPI_LIB := -L$(MPI_DIR)/lib -lmpi
