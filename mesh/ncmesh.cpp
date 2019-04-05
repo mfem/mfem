@@ -3014,7 +3014,7 @@ int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
       MFEM_ASSERT(ch < 8, "internal error");
 
       MFEM_ASSERT(geom_parent[el.Geom()], "unsupported geometry");
-      const RefTrf &tr = geom_parent[el.Geom()][pa.ref_type][ch];
+      const RefTrf &tr = geom_parent[el.Geom()][(int) pa.ref_type][ch];
       tr.Apply(coord, coord);
 
       elem = el.parent;
@@ -3060,7 +3060,7 @@ void NCMesh::CollectIncidentElements(int elem, const RefCoord coord[3],
    RefCoord tcoord[3];
    for (int ch = 0; ch < 8 && el.child[ch] >= 0; ch++)
    {
-      const RefTrf &tr = geom_child[el.Geom()][el.ref_type][ch];
+      const RefTrf &tr = geom_child[el.Geom()][(int) el.ref_type][ch];
       tr.Apply(coord, tcoord);
 
       if (RefPointInside(el.Geom(), tcoord))
