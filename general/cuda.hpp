@@ -28,8 +28,17 @@ inline void CuCheck(const unsigned int c)
 {
    MFEM_ASSERT(c == cudaSuccess, cudaGetErrorString(cudaGetLastError()));
 }
+#else // MFEM_USE_CUDA
+#define MFEM_DEVICE
+#define MFEM_HOST_DEVICE
+typedef int CUdevice;
+typedef int CUcontext;
+typedef void* CUstream;
+#endif // MFEM_USE_CUDA
+
+#ifdef __CUDA_ARCH__
 #if __CUDA_ARCH__ < 600
-static __device__ double atomicAdd(double* address, double val)
+static __device__ inline double atomicAdd(double* address, double val)
 {
    unsigned long long int* address_as_ull = (unsigned long long int*)address;
    unsigned long long int old = *address_as_ull, assumed;
@@ -47,15 +56,6 @@ static __device__ double atomicAdd(double* address, double val)
    return __longlong_as_double(old);
 }
 #endif // __CUDA_ARCH__ < 600
-#else // MFEM_USE_CUDA
-#define MFEM_DEVICE
-#define MFEM_HOST_DEVICE
-typedef int CUdevice;
-typedef int CUcontext;
-typedef void* CUstream;
-#endif // MFEM_USE_CUDA
-
-#ifdef __CUDA_ARCH__
 template<typename T> MFEM_DEVICE
 inline T AtomicAdd(T volatile *address, T val)
 {
