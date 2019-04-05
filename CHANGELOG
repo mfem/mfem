@@ -132,8 +132,10 @@ Miscellaneous
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
-- Switched MFEM_USE_OPENMP to MFEM_USE_LEGACY_OPENMP. Note that this option is
-  now deprecated and planned for removal.
+- Renamed the option MFEM_USE_OPENMP to MFEM_USE_LEGACY_OPENMP. This legacy
+  option is now deprecated and planned for removal in a future release. In
+  addition, the original name, MFEM_USE_OPENMP, is now used to enable the new
+  OpenMP backend.
 
 API changes
 -----------
