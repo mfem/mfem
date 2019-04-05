@@ -271,7 +271,8 @@ endef
 
 # Process dependencies
 $(foreach dep,$(MFEM_DEPENDENCIES),$(eval $(call mfem_add_dependency,$(dep))))
-$(foreach dep,$(MFEM_LEGACY_DEPENDENCIES),$(eval $(call mfem_add_legacy_dependency,$(dep))))
+$(foreach dep,$(MFEM_LEGACY_DEPENDENCIES),$(eval $(call \
+   mfem_add_legacy_dependency,$(dep))))
 
 # Timer option
 ifeq ($(MFEM_TIMER_TYPE),2)
@@ -609,13 +610,18 @@ FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 
-DEPRECATION_WARNING := "This feature is planned for removal in the next release. Please open an issue at github.com/mfem/mfem/issues if you depend on it."
+DEPRECATION_WARNING := \
+"This feature is planned for removal in the next release."\
+"Please open an issue at github.com/mfem/mfem/issues if you depend on it."
 deprecation-warnings:
-	@red="\033[0;31m";\
-	yellow="\033[0;33m";\
-	end="\033[0m";\
-        if [ $(MFEM_USE_LEGACY_OPENMP) = YES ]; then\
-	  echo $$red[MFEM_USE_LEGACY_OPENMP]$$end: $$yellow$(DEPRECATION_WARNING)$$end;\
+	@if [ -t 1 ]; then\
+	  red="\033[0;31m";\
+	  yellow="\033[0;33m";\
+	  end="\033[0m";\
+	fi;\
+	if [ $(MFEM_USE_LEGACY_OPENMP) = YES ]; then\
+	  printf $$red"[MFEM_USE_LEGACY_OPENMP]"$$end": "$$yellow"%s"$$end"\n"\
+	  $(DEPRECATION_WARNING);\
 	fi
 
 style:

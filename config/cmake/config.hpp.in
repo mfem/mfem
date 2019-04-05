@@ -62,10 +62,10 @@
 // allocation and de-allocation.
 #cmakedefine MFEM_THREAD_SAFE
 
-// Enable OpenMP support. Requires MFEM_THREAD_SAFE.
+// Enable the OpenMP backend.
 #cmakedefine MFEM_USE_OPENMP
 
-// Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
+// [Deprecated] Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
 #cmakedefine MFEM_USE_LEGACY_OPENMP
 
 // Enable MFEM functionality based on the Mesquite library.
