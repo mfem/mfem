@@ -21,10 +21,10 @@
 
 typedef occa::device OccaDevice;
 typedef occa::memory OccaMemory;
-#define MFEM_NEW_OCCA_KERNEL(ker,lib,file,prop)                         \
-   static occa::kernel ker = NULL;                                      \
-   if (ker==NULL) {                                                     \
-      ker = occaDevice.buildKernel("occa://" #lib "/" #file, #ker, prop); \
+#define MFEM_NEW_OCCA_KERNEL(ker, filepath, prop)                        \
+   static occa::kernel ker = NULL;                                       \
+   if (ker==NULL) {                                                      \
+      ker = occaDevice.buildKernel("occa://mfem/" filepath, #ker, prop); \
    }
 #else // MFEM_USE_OCCA
 

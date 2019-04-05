@@ -70,10 +70,23 @@ static void OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
    {
       occaDevice.setup("mode: 'Serial'");
    }
-   const std::string mfem_dir = occa::io::dirname("../_config.hpp");
-   occa::io::addLibraryPath("fem", mfem_dir + "fem");
-   occa::loadKernels();
-   occa::loadKernels("fem");
+
+   std::string mfemDir;
+   if (occa::io::exists(MFEM_INSTALL_DIR "/include/mfem/"))
+   {
+      mfemDir = MFEM_INSTALL_DIR "/include/mfem/";
+   }
+   else if (occa::io::exists(MFEM_SOURCE_DIR))
+   {
+      mfemDir = MFEM_SOURCE_DIR;
+   }
+   else
+   {
+      MFEM_ABORT("Cannot find OCCA kernels in MFEM_INSTALL_DIR or MFEM_SOURCE_DIR");
+   }
+
+   occa::io::addLibraryPath("mfem", mfemDir);
+   occa::loadKernels("mfem");
 #else
    MFEM_ABORT("OCCA requested but MFEM was not built with MFEM_USE_OCCA=YES");
 #endif

@@ -280,7 +280,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI    
  MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU         \
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC              \
  MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_CUDA      \
- MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA
+ MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR            \
@@ -298,7 +298,7 @@ MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
 MFEM_SOFLAGS   ?= $(if $(shared),$(BUILD_SOFLAGS))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
-MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem \
+MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
    @MFEM_EXT_LIBS@
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
@@ -308,6 +308,9 @@ MFEM_LIB_DIR   ?= $(if $(BUILD_DIR_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
+
+MFEM_SOURCE_DIR  := $(MFEM_REAL_DIR)
+MFEM_INSTALL_DIR := $(BUILD_REAL_DIR)
 
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
@@ -482,7 +485,8 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 # install remaining includes in each subdirectory
 	for dir in $(DIRS); do \
 	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
-	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; done
+	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
+  done
 # install config.mk in $(PREFIX_SHARE)
 	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
@@ -584,13 +588,13 @@ status info:
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
-FORMAT_FILES  = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
+FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 
 style:
-	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then \
-	   echo "No source files were changed."; \
+	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
+	   echo "No source files were changed.";\
 	fi
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
