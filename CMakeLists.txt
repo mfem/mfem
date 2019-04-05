@@ -169,7 +169,7 @@ if (MFEM_USE_LAPACK)
   find_package(LAPACK REQUIRED)
 endif()
 
-# OpenMP
+# Legacy OpenMP
 if (MFEM_USE_LEGACY_OPENMP)
   if (MFEM_THREAD_SAFE)
     find_package(OpenMP REQUIRED)
