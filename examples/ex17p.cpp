@@ -8,6 +8,7 @@
 //       mpirun -np 4 ex17p -m ../data/beam-quad.mesh
 //       mpirun -np 4 ex17p -m ../data/beam-tet.mesh
 //       mpirun -np 4 ex17p -m ../data/beam-hex.mesh
+//       mpirun -np 4 ex17p -m ../data/beam-wedge.mesh
 //       mpirun -np 4 ex17p -m ../data/beam-quad.mesh -rs 2 -rp 2 -o 3 -elast
 //       mpirun -np 4 ex17p -m ../data/beam-quad.mesh -rs 2 -rp 3 -o 2 -a 1 -k 1
 //       mpirun -np 4 ex17p -m ../data/beam-hex.mesh -rs 2 -rp 1 -o 2

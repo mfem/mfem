@@ -12,6 +12,7 @@
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
 //    ex9 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//    ex9 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
 //    ex9 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
 //    ex9 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
@@ -1006,9 +1007,8 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-
-   const int dim = mesh->Dimension();
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -1022,7 +1022,6 @@ int main(int argc, char *argv[])
       case 6: ode_solver = new RK6Solver; break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
          return 3;
    }
 
@@ -1032,16 +1031,16 @@ int main(int argc, char *argv[])
    //    a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
-   if (mesh->NURBSext)
+   if (mesh.NURBSext)
    {
-      mesh->SetCurvature(max(order, 1));
+      mesh.SetCurvature(max(order, 1));
    }
-   mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
+   mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
    // Current mesh positions.
-   GridFunction *x = mesh->GetNodes();
+   GridFunction *x = mesh.GetNodes();
 
    // Store initial positions.
    Vector x0(x->Size());
@@ -1051,7 +1050,7 @@ int main(int argc, char *argv[])
    //    polynomial order on the refined mesh.
    const int btype = BasisType::Positive;
    DG_FECollection fec(order, dim, btype);
-   FiniteElementSpace fes(mesh, &fec);
+   FiniteElementSpace fes(&mesh, &fec);
 
    // Check for meaningful combinations of parameters.
    bool fail = false;
@@ -1085,7 +1084,6 @@ int main(int argc, char *argv[])
    }
    if (fail)
    {
-      delete mesh;
       delete ode_solver;
       return 5;
    }
@@ -1103,10 +1101,10 @@ int main(int argc, char *argv[])
    // Mesh velocity.
    GridFunction v_gf(x->FESpace());
    v_gf.ProjectCoefficient(velocity);
-   if (mesh->bdr_attributes.Size() > 0)
+   if (mesh.bdr_attributes.Size() > 0)
    {
       // Zero it out on boundaries (not moving boundaries).
-      Array<int> ess_bdr(mesh->bdr_attributes.Max()), ess_vdofs;
+      Array<int> ess_bdr(mesh.bdr_attributes.Max()), ess_vdofs;
       ess_bdr = 1;
       x->FESpace()->GetEssentialVDofs(ess_bdr, ess_vdofs);
       for (int i = 0; i < v_gf.Size(); i++)
@@ -1247,7 +1245,7 @@ int main(int argc, char *argv[])
 
       if (exec_mode == 0)
       {
-         lom.subcell_mesh = GetSubcellMesh(mesh, order);
+         lom.subcell_mesh = GetSubcellMesh(&mesh, order);
          lom.SubFes0 = new FiniteElementSpace(lom.subcell_mesh, lom.fec0);
          lom.SubFes1 = new FiniteElementSpace(lom.subcell_mesh, lom.fec1);
       }
@@ -1264,7 +1262,7 @@ int main(int argc, char *argv[])
    {
       ofstream omesh("ex9.mesh");
       omesh.precision(precision);
-      mesh->Print(omesh);
+      mesh.Print(omesh);
       ofstream osol("ex9-init.gf");
       osol.precision(precision);
       u.Save(osol);
@@ -1278,14 +1276,14 @@ int main(int argc, char *argv[])
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example9", mesh);
+         dc = new SidreDataCollection("Example9", &mesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc = new VisItDataCollection("Example9", mesh);
+         dc = new VisItDataCollection("Example9", &mesh);
          dc->SetPrecision(precision);
       }
       dc->RegisterField("solution", &u);
@@ -1310,7 +1308,7 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << *mesh << u;
+         sout << "solution\n" << mesh << u;
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
@@ -1360,7 +1358,7 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            sout << "solution\n" << *mesh << u << flush;
+            sout << "solution\n" << mesh << u << flush;
          }
 
          if (visit)
@@ -1401,7 +1399,6 @@ int main(int argc, char *argv[])
    }
 
    // 10. Free the used memory.
-   delete mesh;
    delete ode_solver;
    delete dc;
    

@@ -31,9 +31,6 @@ class ParPumiMesh;
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
-#ifdef MFEM_USE_PUMI
-   friend class ParPumiMesh;
-#endif
 protected:
    ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
       have_face_nbr_data(false), pncmesh(NULL) {}
@@ -41,21 +38,54 @@ protected:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
+   struct Vert3
+   {
+      int v[3];
+      Vert3() { }
+      Vert3(int v0, int v1, int v2) { v[0] = v0; v[1] = v1; v[2] = v2; }
+      void Set(int v0, int v1, int v2) { v[0] = v0; v[1] = v1; v[2] = v2; }
+      void Set(const int *w) { v[0] = w[0]; v[1] = w[1]; v[2] = w[2]; }
+   };
+
+   struct Vert4
+   {
+      int v[4];
+      Vert4() { }
+      Vert4(int v0, int v1, int v2, int v3)
+      { v[0] = v0; v[1] = v1; v[2] = v2; v[3] = v3; }
+      void Set(int v0, int v1, int v2, int v3)
+      { v[0] = v0; v[1] = v1; v[2] = v2; v[3] = v3; }
+      void Set(const int *w)
+      { v[0] = w[0]; v[1] = w[1]; v[2] = w[2]; v[3] = w[3]; }
+   };
+
    Array<Element *> shared_edges;
-   Array<Element *> shared_faces;
+   // shared face id 'i' is:
+   //   * triangle id 'i',                  if i < shared_trias.Size()
+   //   * quad id 'i-shared_trias.Size()',  otherwise
+   Array<Vert3> shared_trias;
+   Array<Vert4> shared_quads;
 
    /// Shared objects in each group.
    Table group_svert;
    Table group_sedge;
-   Table group_sface;
+   Table group_stria;  // contains shared triangle indices
+   Table group_squad;  // contains shared quadrilateral indices
 
    /// Shared to local index mapping.
    Array<int> svert_lvert;
    Array<int> sedge_ledge;
+   // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
 
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
+
+   // Convert the local 'meshgen' to a global one.
+   void ReduceMeshGen();
+
+   // Determine sedge_ledge and sface_lface.
+   void FinalizeParTopo();
 
    // Mark all tets to ensure consistency across MPI tasks; also mark the
    // shared and boundary triangle faces using the consistently marked tets.
@@ -63,20 +93,41 @@ protected:
 
    /// Return a number(0-1) identifying how the given edge has been split
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
-   /// Return a number(0-4) identifying how the given face has been split
-   int GetFaceSplittings(Element *face, const DSTable &v_to_v, int *middle);
+   /// Append codes identifying how the given face has been split to @a codes
+   void GetFaceSplittings(const int *fv, const HashTable<Hashed2> &v_to_v,
+                          Array<unsigned> &codes);
+
+   bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
+                             const Array<unsigned> &codes, int &pos);
 
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
 
    ElementTransformation* GetGhostFaceTransformation(
-      FaceElementTransformations* FETr, int face_type, int face_geom);
+      FaceElementTransformations* FETr, Element::Type face_type,
+      Geometry::Type face_geom);
 
-   /// Refine quadrilateral mesh.
-   virtual void QuadUniformRefinement();
+   /// Update the groups after triangle refinement
+   void RefineGroups(const DSTable &v_to_v, int *middle);
 
-   /// Refine a hexahedral mesh.
-   virtual void HexUniformRefinement();
+   /// Update the groups after tetrahedron refinement
+   void RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v);
+
+   void UniformRefineGroups2D(int old_nv);
+
+   // f2qf can be NULL if all faces are quads or there are no quad faces
+   void UniformRefineGroups3D(int old_nv, int old_nedges,
+                              const DSTable &old_v_to_v,
+                              const STable3D &old_faces,
+                              Array<int> *f2qf);
+
+   void ExchangeFaceNbrData(Table *gr_sface, int *s2l_face);
+
+   /// Refine a mixed 2D mesh uniformly.
+   virtual void UniformRefinement2D();
+
+   /// Refine a mixed 3D mesh uniformly.
+   virtual void UniformRefinement3D();
 
    virtual void NURBSUniformRefinement();
 
@@ -93,6 +144,52 @@ protected:
    void DeleteFaceNbrData();
 
    bool WantSkipSharedMaster(const NCMesh::Master &master) const;
+
+   /// Fills out partitioned Mesh::vertices
+   int BuildLocalVertices(const Mesh& global_mesh, const int *partitioning,
+                          Array<int> &vert_global_local);
+
+   /// Fills out partitioned Mesh::elements
+   int BuildLocalElements(const Mesh& global_mesh, const int *partitioning,
+                          const Array<int> &vert_global_local);
+
+   /// Fills out partitioned Mesh::boundary
+   int BuildLocalBoundary(const Mesh& global_mesh, const int *partitioning,
+                          const Array<int> &vert_global_local,
+                          Array<bool>& activeBdrElem,
+                          Table* &edge_element);
+
+   void FindSharedFaces(const Mesh &mesh, const int* partition,
+                        Array<int>& face_group,
+                        ListOfIntegerSets& groups);
+
+   int FindSharedEdges(const Mesh &mesh, const int* partition,
+                       Table* &edge_element, ListOfIntegerSets& groups);
+
+   int FindSharedVertices(const int *partition, Table* vertex_element,
+                          ListOfIntegerSets& groups);
+
+   void BuildFaceGroup(int ngroups, const Mesh &mesh,
+                       const Array<int>& face_group,
+                       int &nstria, int &nsquad);
+
+   void BuildEdgeGroup(int ngroups, const Table& edge_element);
+
+   void BuildVertexGroup(int ngroups, const Table& vert_element);
+
+   void BuildSharedFaceElems(int ntri_faces, int nquad_faces,
+                             const Mesh &mesh, int *partitioning,
+                             const STable3D *faces_tbl,
+                             const Array<int> &face_group,
+                             const Array<int> &vert_global_local);
+
+   void BuildSharedEdgeElems(int nedges, Mesh &mesh,
+                             const Array<int> &vert_global_local,
+                             const Table *edge_element);
+
+   void BuildSharedVertMapping(int nvert, const Table* vert_element,
+                               const Array<int> &vert_global_local);
+
 
 public:
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
@@ -121,6 +218,8 @@ public:
        @note The constructed ParMesh is linear, i.e. it does not have nodes. */
    ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
 
+   virtual void Finalize(bool refine = false, bool fix_orientation = false);
+
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
@@ -145,12 +244,14 @@ public:
    ///@{ @name These methods require group > 0
    int GroupNVertices(int group) { return group_svert.RowSize(group-1); }
    int GroupNEdges(int group)    { return group_sedge.RowSize(group-1); }
-   int GroupNFaces(int group)    { return group_sface.RowSize(group-1); }
+   int GroupNTriangles(int group) { return group_stria.RowSize(group-1); }
+   int GroupNQuadrilaterals(int group) { return group_squad.RowSize(group-1); }
 
    int GroupVertex(int group, int i)
    { return svert_lvert[group_svert.GetRow(group-1)[i]]; }
    void GroupEdge(int group, int i, int &edge, int &o);
-   void GroupFace(int group, int i, int &face, int &o);
+   void GroupTriangle(int group, int i, int &face, int &o);
+   void GroupQuadrilateral(int group, int i, int &face, int &o);
    ///@}
 
    void GenerateOffsets(int N, HYPRE_Int loc_sizes[],
@@ -184,9 +285,6 @@ public:
 
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const;
-
-   /// Update the groups after tet refinement
-   void RefineGroups(const DSTable &v_to_v, int *middle);
 
    /// Load balance the mesh. NC meshes only.
    void Rebalance();
@@ -225,7 +323,15 @@ public:
                           Array<IntegrationPoint>& ips, bool warn = true,
                           InverseElementTransformation *inv_trans = NULL);
 
+   /// Debugging method
+   void PrintSharedEntities(const char *fname_prefix) const;
+
    virtual ~ParMesh();
+
+   friend class ParNCMesh;
+#ifdef MFEM_USE_PUMI
+   friend class ParPumiMesh;
+#endif
 };
 
 }

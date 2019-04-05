@@ -71,6 +71,10 @@ namespace mfem {
  * - <a class="el" href="ex18p_8cpp_source.html">Example 18p</a>: parallel Discontinuous Galerkin (DG) for the Euler equations
  * - <a class="el" href="ex19_8cpp_source.html">Example 19</a>: incompressible nonlinear elasticity
  * - <a class="el" href="ex19p_8cpp_source.html">Example 19p</a>: parallel incompressible nonlinear elasticity
+ * - <a class="el" href="ex20_8cpp_source.html">Example 20</a>: symplectic ODE integration
+ * - <a class="el" href="ex20p_8cpp_source.html">Example 20p</a>: parallel symplectic ODE integration
+ * - <a class="el" href="ex22_8cpp_source.html">Example 22</a>: adaptive mesh refinement for linear elasticity
+ * - <a class="el" href="ex22p_8cpp_source.html">Example 22p</a>: parallel adaptive mesh refinement for linear elasticity
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples
@@ -112,12 +116,15 @@ namespace mfem {
  * - <a class="el" href="joule_8cpp_source.html">Joule</a>: transient magnetics and Joule heating miniapp
  * - <a class="el" href="mobius-strip_8cpp_source.html">Mobius Strip</a>: generate various Mobius strip-like meshes
  * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces
+ * - <a class="el" href="toroid_8cpp_source.html">Toroid</a>: generate simple toroidal meshes
  * - <a class="el" href="shaper_8cpp_source.html">Shaper</a>: resolve material interfaces by mesh refinement
+ * - <a class="el" href="extruder_8cpp_source.html">Extruder</a>: extrude a low-dimensional mesh into a higher dimension
  * - <a class="el" href="mesh-explorer_8cpp_source.html">Mesh Explorer</a>: visualize and manipulate meshes
  * - <a class="el" href="mesh-optimizer_8cpp_source.html">Mesh Optimizer</a>: optimize high-order meshes, <a class="el" href="mesh-optimizer_8cpp_source.html">serial</a> and <a class="el" href="pmesh-optimizer_8cpp_source.html">parallel</a> versions
  * - <a class="el" href="display-basis_8cpp_source.html">Display Basis</a>: visualize finite element basis functions
  * - <a class="el" href="load-dc_8cpp_source.html">Load DC</a>: visualize fields saved via DataCollection classes
  * - <a class="el" href="convert-dc_8cpp_source.html">Convert DC</a>: convert between diffirent DataCollection formats
+ * - <a class="el" href="lor-transfer_8cpp_source.html">LOR Transfer</a>: map functions between high-order and low-order refined spaces
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
  *

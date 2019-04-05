@@ -11,6 +11,129 @@
 Version 3.4.1 (development)
 ===========================
 
+Support for wedge elements and meshes with mixed element types
+--------------------------------------------------------------
+- Added support for wedge shaped mesh elements of arbitrary order (with Geometry
+  type PRISM) which have two triangular faces and three quadrilateral faces.
+  Several examples of such meshes can be found in the data/ directory.
+
+- Added H1 and L2 finite elements of arbitrary order for Wedge elements.
+
+- Added support for mixed meshes containing triangles and quadrilaterals in 2D
+  or tetrahedra, wedges, and hexahedra in 3D. This includes support for uniform
+  refinement of such meshes. Several examples of such meshes can be found in the
+  data/ directory.
+
+- Added support for reading and writing linear and quadratic meshes containing
+  wedge elements in VTK mesh format. Several examples of such meshes can be
+  found in the data/ directory.
+
+Other meshing improvements
+--------------------------
+- Improved the uniform refinement of tetrahedral meshes (also part of the
+  uniform refinement of mixed 3D meshes). The previous refinement algorithm is
+  still available as an option in Mesh::UniformRefinement. Both can be used in
+  the updated Mesh Explorer miniapp.
+
+- The local tetrahedral mesh refinement algorithm in serial and in parallel now
+  follows precisely the paper:
+
+     D. Arnold, A. Mukherjee, and L. Pouly, "Locally Adapted Tetrahedral Meshes
+     Using Bisection", SIAM J. Sci. Comput. 22 (2000), 431–448.
+
+  This guarantees that the shape regularity of the elements will be preserved
+  under refinement.
+
+- Added support for parallel communication groups on non-conforming meshes.
+
+- Improved parallel partitioning of non-conforming meshes. If the coarse mesh
+  elements are ordered as a sequence of face-neighbors, the parallel partitions
+  are now guaranteed to be continuous. To that end, inline quadrilateral and
+  hexahedral meshes are now by default ordered along a space-filling curve.
+
+- A boundary in a NURBS mesh can now be connected with another boundary. Such a
+  periodic NURBS mesh is a simple way to impose periodic boundary conditions.
+
+- Added support for reading linear and quadratic 2D quadrilateral and triangular
+  Cubit meshes.
+
+- The TMOP mesh optimization algorithms were extended to support user-defined
+  space-dependent limiting terms. Improved the TMOP objective functions by
+  more accurate normalization of the different terms.
+
+Discretization improvements
+---------------------------
+- Added support for a general "low-order refined"-to-"high-order" transfer of
+  GridFunction data from a "low-order refined" (LOR) space defined on a refined
+  mesh to a "high-order" (HO) finite element space defined on a coarse mesh. See
+  the new classes InterpolationGridTransfer and L2ProjectionGridTransfer and the
+  new LOR Transfer miniapp: miniapps/tools/lor-transfer.cpp.
+
+- Added support for derefinement of vector (RT + ND) spaces.
+
+- Added element flux, and flux energy computation in class ElasticityIntegrator,
+  allowing for the use of Zienkiewicz-Zhu type error estimators with the
+  integrator. For an illustration of this addition, see the new Example 22.
+
+- Added a variety of coefficients which are sums or products of existing
+  coefficients as well as grid function coefficients which return the
+  divergence, gradient, or curl of their GridFunctions.
+
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added support for parallel ILU preconditioning via hypre's Euclid solver.
+- Added support for STRUMPACK v3 with a small API change in the class
+  STRUMPACKSolver, see "API changes" below.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new meshing miniapp, Toroid, which can produce a variety of torus
+  shaped meshes by twisting a stack of wedges or hexahedra.
+
+- Added a new meshing miniapp, Extruder, that demonstrates the capability to
+  produce 3D meshes by extruding 2D meshes.
+
+- Added a simple miniapp, lor-transfer, for visualizing the actions of the
+  transfer operators between a high-order and a low-order refined spaces.
+
+- Added a new example, Example 20/20p, that solves a system of 1D ODEs derived
+  from a Hamiltonian. The example demonstrates the use of the variable order,
+  symplectic integration algorithm implemented in class SIAVSolver.
+
+- Added a new example, Example 22/22p, that illustrates the use of AMR to solve
+  a linear elasticity problem. This is an extension of Example 2/2p.
+
+Miscellaneous
+-------------
+- Added unit tests based on the Catch++ library.
+
+- Altered the way FGMRES counts its iterations so that it matches GMRES.
+
+- Various other simplifications, extensions, and bugfixes in the code.
+
+API changes
+-----------
+- In multiple places, use Geometry::Type instead of int, where appropriate.
+- In multiple places, use Element::Type instead of int, where appropriate.
+- The Mesh methods GetElementBaseGeometry and GetBdrElementBaseGeometry no
+  longer have a default value for their parameter, they only work with an
+  explicitly given index.
+- In class Mesh, added methods useful for queries regarding the types of
+  elements present in the mesh: HasGeometry, GetNumGeometries, GetGeometries,
+  and class Mesh::GeometryList.
+- The struct CoarseFineTransformations (returned by the Mesh method
+  GetRefinementTransforms) now stores the embedding matrices separately for each
+  Geometry::Type.
+- In class ParMesh, replaced the method GroupNFaces with two new methods:
+  GroupNTriangles and GroupNQuadrilaterals. Also, replaced GroupFace with two
+  methods: GroupTriangle and GroupQuadrilateral.
+- In class ParMesh, made the two RefineGroups methods protected.
+- Removed the virtual method Element::GetRefinementFlag, it is only used by the
+  derived class Tetrahedron.
+- Added new methods: Array::CopyTo, Tetrahedron::Init.
+- In class STRUMPACKSolver, the method SetMC64Job() was replaced by the new
+  methods: DisableMatching(), EnableMatching(), and EnableParallelMatching().
+
 
 Version 3.4, released on May 29, 2018
 =====================================

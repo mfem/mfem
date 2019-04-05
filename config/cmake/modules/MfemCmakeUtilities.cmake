@@ -229,6 +229,15 @@ endfunction(mfem_find_component)
 function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
          Lib IncDoc LibDoc)
 
+  # If we have the TPL_ versions of _INCLUDE_DIRS and _LIBRARIES then set the
+  # standard ${Prefix} versions
+  if (TPL_${Prefix}_INCLUDE_DIRS)
+    set(${Prefix}_INCLUDE_DIRS ${TPL_${Prefix}_INCLUDE_DIRS} CACHE STRING "TPL_${Prefix}_INCLUDE_DIRS was found." FORCE)
+  endif()
+  if (TPL_${Prefix}_LIBRARIES)
+    set(${Prefix}_LIBRARIES ${TPL_${Prefix}_LIBRARIES} CACHE STRING "TPL_${Prefix}_LIBRARIES was found." FORCE)
+  endif()
+
   # Quick return
   if (${Prefix}_FOUND)
     return()
@@ -685,3 +694,162 @@ function(mfem_find_library Name Prefix Lib LibDoc CheckVar CheckSrc)
   endif()
 
 endfunction(mfem_find_library)
+
+
+#
+#   Function that creates 'config.mk' from 'config.mk.in' for the both the
+#   build- and the install-locations and define install rules for 'config.mk'
+#   and 'test.mk'.
+#
+function(mfem_export_mk_files)
+
+  # Define a few auxiliary variables (not written to 'config.mk')
+  string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE)
+  # CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG -> '-Wl,-rpath,'
+  set(shared_link_flag ${CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG})
+  if (NOT shared_link_flag)
+    set(shared_link_flag "-Wl,-rpath,")
+  endif()
+
+  # Convert Boolean vars to YES/NO without writting the values to cache
+  set(CONFIG_MK_BOOL_VARS MFEM_USE_MPI MFEM_USE_METIS MFEM_USE_METIS_5
+      MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND
+      MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP MFEM_USE_MEMALLOC
+      MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_SUPERLU
+      MFEM_USE_STRUMPACK MFEM_USE_GECKO MFEM_USE_GNUTLS MFEM_USE_NETCDF
+      MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT
+      MFEM_USE_PUMI)
+  foreach(var ${CONFIG_MK_BOOL_VARS})
+    if (${var})
+      set(${var} YES)
+    else()
+      set(${var} NO)
+    endif()
+  endforeach()
+  set(MFEM_CXX ${CMAKE_CXX_COMPILER})
+  set(MFEM_CPPFLAGS "")
+  string(STRIP "${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
+         MFEM_CXXFLAGS)
+  set(MFEM_TPLFLAGS "")
+  foreach(dir ${MFEM_TPL_INCLUDE_DIRS})
+    set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
+  endforeach()
+  # TODO: MFEM_TPLFLAGS: add other TPL flags, in addition to the -I flags.
+  set(MFEM_INCFLAGS "-I\$(MFEM_INC_DIR) \$(MFEM_TPLFLAGS)")
+  set(MFEM_PICFLAG "")
+  if (BUILD_SHARED_LIBS)
+    set(MFEM_PICFLAG "${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
+  endif()
+  set(MFEM_FLAGS "\$(MFEM_CPPFLAGS) \$(MFEM_CXXFLAGS) \$(MFEM_INCFLAGS)")
+  # TPL link flags: set below
+  set(MFEM_EXT_LIBS "")
+  if (BUILD_SHARED_LIBS)
+    set(MFEM_LIBS "${shared_link_flag}\$(MFEM_LIB_DIR) -L\$(MFEM_LIB_DIR)")
+    set(MFEM_LIBS "${MFEM_LIBS} -lmfem \$(MFEM_EXT_LIBS)")
+    if (APPLE)
+      set(SO_VER ".${mfem_VERSION}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    else()
+      set(SO_VER "${CMAKE_SHARED_LIBRARY_SUFFIX}.${mfem_VERSION}")
+    endif()
+    set(MFEM_LIB_FILE "\$(MFEM_LIB_DIR)/libmfem${SO_VER}")
+    set(MFEM_SHARED YES)
+    set(MFEM_STATIC NO)
+  else()
+    set(MFEM_LIBS "-L\$(MFEM_LIB_DIR) -lmfem \$(MFEM_EXT_LIBS)")
+    set(MFEM_LIB_FILE "\$(MFEM_LIB_DIR)/libmfem.a")
+    set(MFEM_SHARED NO)
+    set(MFEM_STATIC YES)
+  endif()
+  set(MFEM_BUILD_TAG "${CMAKE_SYSTEM}")
+  set(MFEM_PREFIX "${CMAKE_INSTALL_PREFIX}")
+  # For the next 4 variable, these are the values for the build-tree version of
+  # 'config.mk'
+  set(MFEM_INC_DIR "${PROJECT_BINARY_DIR}")
+  set(MFEM_LIB_DIR "${PROJECT_BINARY_DIR}")
+  set(MFEM_TEST_MK "${PROJECT_SOURCE_DIR}/config/test.mk")
+  set(MFEM_CONFIG_EXTRA "MFEM_BUILD_DIR ?= ${PROJECT_BINARY_DIR}")
+  set(MFEM_MPIEXEC ${MPIEXEC})
+  if (NOT MFEM_MPIEXEC)
+    set(MFEM_MPIEXEC "mpirun")
+  endif()
+  set(MFEM_MPIEXEC_NP ${MPIEXEC_NUMPROC_FLAG})
+  if (NOT MFEM_MPIEXEC_NP)
+    set(MFEM_MPIEXEC_NP "-np")
+  endif()
+  # MFEM_MPI_NP is already set
+  # Define the variable 'MFEM_EXT_LIBS': handle PUMI libs
+  if ("${MFEM_USE_PUMI}" STREQUAL "YES")
+    message(STATUS "simmodsuite_dir = '${SIMMODSUITE_DIR}'")
+    get_target_property(liblist ${PUMI_LIBRARIES} INTERFACE_LINK_LIBRARIES)
+    set(pumi_dep_libs "${liblist}")
+    foreach(pumilib ${liblist})
+      get_target_property(libdeps ${pumilib} INTERFACE_LINK_LIBRARIES)
+      if (NOT "${libdeps}" MATCHES "libdeps-NOTFOUND")
+        list(APPEND pumi_dep_libs ${libdeps})
+      endif()
+    endforeach()
+    list(REMOVE_DUPLICATES pumi_dep_libs)
+    foreach(pumilib ${pumi_dep_libs})
+      unset(lib CACHE)
+      string(REGEX REPLACE "^SCOREC::" "" libname ${pumilib})
+      string(FIND "${pumilib}" ".a" staticlib)
+      string(FIND "${pumilib}" ".so" sharedlib)
+      find_library(lib ${libname} PATHS ${PUMI_DIR}/lib NO_DEFUALT_PATH)
+      if (NOT "${sharedlib}" MATCHES "-1" OR
+          NOT "${staticlib}" MATCHES "-1"   )
+        set(MFEM_EXT_LIBS "${pumilib} ${MFEM_EXT_LIBS}")
+      elseif (NOT "${lib}" MATCHES "lib-NOTFOUND")
+        set(MFEM_EXT_LIBS "${lib} ${MFEM_EXT_LIBS}")
+      elseif ("${lib}" MATCHES "lib-NOTFOUND" AND
+              NOT "${libname}" MATCHES "can" AND
+              NOT "${libname}" MATCHES "pthread")
+        message(FATAL_ERROR "SCOREC lib ${libname} not found")
+      endif()
+    endforeach()
+  endif()
+  # Define the variable 'MFEM_EXT_LIBS': handle other (not PUMI) libs
+  foreach(lib ${TPL_LIBRARIES})
+    get_filename_component(suffix ${lib} EXT)
+    # handle interfaces (e.g., SCOREC::apf)
+    if ("${lib}" MATCHES "SCOREC::.*")
+    elseif (NOT "${lib}" MATCHES "SCOREC::.*" AND "${lib}" MATCHES ".*::.*")
+      message(FATAL_ERROR "***** interface lib found ... exiting *****")
+      # handle static and shared libs
+    elseif ("${suffix}" STREQUAL "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      get_filename_component(dir ${lib} DIRECTORY)
+      get_filename_component(fullLibName ${lib} NAME_WE)
+      string(REGEX REPLACE "^lib" "" libname ${fullLibName})
+      set(MFEM_EXT_LIBS
+          "${MFEM_EXT_LIBS} ${shared_link_flag}${dir} -L${dir} -l${libname}")
+    else()
+      set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}")
+    endif()
+  endforeach()
+
+  # Create the build-tree version of 'config.mk'
+  configure_file(
+    "${PROJECT_SOURCE_DIR}/config/config.mk.in"
+    "${PROJECT_BINARY_DIR}/config/config.mk")
+  # Copy 'test.mk' from the source-tree to the build-tree
+  configure_file(
+    "${PROJECT_SOURCE_DIR}/config/test.mk"
+    "${PROJECT_BINARY_DIR}/config/test.mk" COPYONLY)
+
+  # Update variables for the install-tree version of 'config.mk'
+  set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/include")
+  set(MFEM_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
+  set(MFEM_TEST_MK "${CMAKE_INSTALL_PREFIX}/share/mfem/test.mk")
+  set(MFEM_CONFIG_EXTRA "")
+
+  # Create the install-tree version of 'config.mk'
+  configure_file(
+    "${PROJECT_SOURCE_DIR}/config/config.mk.in"
+    "${PROJECT_BINARY_DIR}/config/config-install.mk")
+
+  # Install rules for 'config.mk' and 'test.mk'
+  install(FILES ${PROJECT_SOURCE_DIR}/config/test.mk
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/)
+  install(FILES ${PROJECT_BINARY_DIR}/config/config-install.mk
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/ RENAME config.mk)
+
+endfunction()

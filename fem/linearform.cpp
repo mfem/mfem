@@ -16,6 +16,23 @@
 namespace mfem
 {
 
+LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
+   : Vector(f->GetVSize())
+{
+   fes = f;
+   extern_lfs = 1;
+
+   // Copy the pointers to the integrators
+   dlfi = lf->dlfi;
+
+   dlfi_delta = lf->dlfi_delta;
+
+   blfi = lf->blfi;
+
+   flfi = lf->flfi;
+   flfi_marker = lf->flfi_marker;
+}
+
 void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
 {
    DeltaLFIntegrator *maybe_delta =
@@ -33,6 +50,14 @@ void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
 void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi)
 {
    blfi.Append (lfi);
+   blfi_marker.Append(NULL); // NULL -> all attributes are active
+}
+
+void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi,
+                                        Array<int> &bdr_attr_marker)
+{
+   blfi.Append (lfi);
+   blfi_marker.Append(&bdr_attr_marker);
 }
 
 void LinearForm::AddBdrFaceIntegrator (LinearFormIntegrator * lfi)
@@ -59,6 +84,7 @@ void LinearForm::Assemble()
    Vector::operator=(0.0);
 
    if (dlfi.Size())
+   {
       for (i = 0; i < fes -> GetNE(); i++)
       {
          fes -> GetElementVDofs (i, vdofs);
@@ -69,12 +95,38 @@ void LinearForm::Assemble()
             AddElementVector (vdofs, elemvect);
          }
       }
-
+   }
    AssembleDelta();
 
    if (blfi.Size())
+   {
+      Mesh *mesh = fes->GetMesh();
+
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < blfi.Size(); k++)
+      {
+         if (blfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *blfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
       for (i = 0; i < fes -> GetNBE(); i++)
       {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
          fes -> GetBdrElementVDofs (i, vdofs);
          eltrans = fes -> GetBdrElementTransformation (i);
          for (int k=0; k < blfi.Size(); k++)
@@ -83,7 +135,7 @@ void LinearForm::Assemble()
             AddElementVector (vdofs, elemvect);
          }
       }
-
+   }
    if (flfi.Size())
    {
       FaceElementTransformations *tr;
@@ -180,13 +232,30 @@ void LinearForm::AssembleDelta()
    }
 }
 
+LinearForm & LinearForm::operator=(double value)
+{
+   Vector::operator=(value);
+   return *this;
+}
+
+LinearForm & LinearForm::operator=(const Vector &v)
+{
+   MFEM_ASSERT(fes && v.Size() == fes->GetVSize(), "");
+   Vector::operator=(v);
+   return *this;
+}
+
 LinearForm::~LinearForm()
 {
-   int k;
-   for (k=0; k < dlfi_delta.Size(); k++) { delete dlfi_delta[k]; }
-   for (k=0; k < dlfi.Size(); k++) { delete dlfi[k]; }
-   for (k=0; k < blfi.Size(); k++) { delete blfi[k]; }
-   for (k=0; k < flfi.Size(); k++) { delete flfi[k]; }
+   if (!extern_lfs)
+   {
+      int k;
+      for (k=0; k < dlfi_delta.Size(); k++) { delete dlfi_delta[k]; }
+      for (k=0; k < dlfi.Size(); k++) { delete dlfi[k]; }
+      for (k=0; k < blfi.Size(); k++) { delete blfi[k]; }
+      for (k=0; k < flfi.Size(); k++) { delete flfi[k]; }
+   }
 }
+
 
 }

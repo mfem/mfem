@@ -45,6 +45,8 @@ examples/ex[1-9]
 examples/ex[1-9]p
 examples/ex1[04-9]
 examples/ex1[0-9]p
+examples/ex2[0-9]
+examples/ex2[0-9]p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -76,6 +78,13 @@ examples/vortex-?-init.*
 examples/vortex-?-final.*
 examples/deformation.*
 examples/pressure.*
+examples/ex20.dat
+examples/ex20p_?????.dat
+examples/gnuplot_ex20.inp
+examples/gnuplot_ex20p.inp
+examples/ex22*.mesh
+examples/ex22*.sol
+examples/ex22p_*.*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
@@ -133,16 +142,20 @@ miniapps/electromagnetics/Joule_*
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
+miniapps/meshing/toroid
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
+miniapps/meshing/extruder
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
 
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
+miniapps/meshing/toroid-*.mesh
 miniapps/meshing/mesh-explorer.mesh
 miniapps/meshing/partitioning.txt
 miniapps/meshing/shaper.mesh
+miniapps/meshing/extruder.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 
@@ -156,6 +169,7 @@ miniapps/performance/sol.*
 miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
+miniapps/tools/lor-transfer
 
 miniapps/nurbs/ex1
 miniapps/nurbs/ex1p
@@ -165,3 +179,7 @@ miniapps/nurbs/mesh.*
 miniapps/nurbs/sol.*
 miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
+
+# Unit test binary and outputs
+tests/unit/output_meshes
+tests/unit/unit_tests

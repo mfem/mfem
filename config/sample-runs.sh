@@ -30,7 +30,7 @@ groups_serial=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1}[0-9].cpp"'
+   "ex{,1,2}[0-9].cpp"'
 #   "ex1.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -44,14 +44,15 @@ groups_serial=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp mesh-optimizer.cpp"'
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
+    mesh-optimizer.cpp"'
 )
 # Parallel groups
 groups_parallel=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1}[0-9]p.cpp"'
+   "ex{,1,2}[0-9]p.cpp"'
 #   "ex1p.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -81,7 +82,7 @@ groups_all=(
 '"examples"
    "Examples:"
    "examples"
-   "ex\"{,1}[0-9]\"{,p}.cpp"'
+   "ex\"{,1,2}[0-9]\"{,p}.cpp"'
 '"sundials"
    "SUNDIALS examples:"
    "examples/sundials"
@@ -97,7 +98,8 @@ groups_all=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp {,p}mesh-optimizer.cpp"'
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
+    {,p}mesh-optimizer.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -170,6 +172,9 @@ function help_message()
       -v          Enable valgrind
       -o <dir>    [${output_dir:-"<empty>: output goes to stdout"}]
                   If not empty, save output to files inside <dir>
+      -d <dir>    [${mfem_build_dir}]
+                  If <dir> is different from <mfem_dir> then use an
+                  out-of-source build in <dir>
       -j <np>     [${make_j}] Specify the number of jobs to use for building
       -c|-color   Always use colors for the status messages: OK, FAILED, etc
       -b|-built   Do NOT rebuild the library and the executables
@@ -196,8 +201,8 @@ function help_message()
          Their values can also set using the respective uppercase environment
          variable
       mfem_build_dir [${mfem_build_dir}]
-         Set this variable to something different from <mfem_dir> to use an
-         out-of-source build
+         Same as '-d': set this variable to something different from <mfem_dir>
+         to use an out-of-source build
 
    For other valid variables, see the script source.
 
@@ -265,6 +270,10 @@ case "$1" in
    -o)
       shift
       output_dir="$1"
+      ;;
+   -d)
+      shift
+      mfem_build_dir="$1"
       ;;
    -j)
       shift

@@ -93,13 +93,13 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
 
 int FiniteElementSpace::GetOrder(int i) const
 {
-   int GeomType = mesh->GetElementBaseGeometry(i);
+   Geometry::Type GeomType = mesh->GetElementBaseGeometry(i);
    return fec->FiniteElementForGeometry(GeomType)->GetOrder();
 }
 
 int FiniteElementSpace::GetFaceOrder(int i) const
 {
-   int GeomType = mesh->GetFaceBaseGeometry(i);
+   Geometry::Type GeomType = mesh->GetFaceBaseGeometry(i);
    return fec->FiniteElementForGeometry(GeomType)->GetOrder();
 }
 
@@ -497,22 +497,26 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
 
    R = new SparseMatrix (lfes -> GetNDofs(), ndofs);
 
-   if (!lfes->GetNE())
-   {
-      R->Finalize();
-      return R;
-   }
-
-   const FiniteElement *h_fe = this -> GetFE (0);
-   const FiniteElement *l_fe = lfes -> GetFE (0);
+   Geometry::Type cached_geom = Geometry::INVALID;
+   const FiniteElement *h_fe = NULL;
+   const FiniteElement *l_fe = NULL;
    IsoparametricTransformation T;
-   T.SetIdentityTransformation(h_fe->GetGeomType());
-   h_fe->Project(*l_fe, T, loc_restr);
 
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       this -> GetElementDofs (i, h_dofs);
       lfes -> GetElementDofs (i, l_dofs);
+
+      // Assuming 'loc_restr' depends only on the Geometry::Type.
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+      if (geom != cached_geom)
+      {
+         h_fe = this -> GetFE (i);
+         l_fe = lfes -> GetFE (i);
+         T.SetIdentityTransformation(h_fe->GetGeomType());
+         h_fe->Project(*l_fe, T, loc_restr);
+         cached_geom = geom;
+      }
 
       R -> SetSubMatrix (l_dofs, h_dofs, loc_restr, 1);
    }
@@ -599,7 +603,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       if (entity > 1) { T.SetFE(&QuadrilateralFE); }
       else { T.SetFE(&SegmentFE); }
 
-      int geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
+      Geometry::Type geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
       const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
       if (!fe) { continue; }
 
@@ -780,17 +784,25 @@ int FiniteElementSpace::GetNConformingDofs() const
 
 SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    const int coarse_ndofs, const Table &coarse_elem_dof,
-   const DenseTensor &localP) const
+   const DenseTensor localP[]) const
 {
    MFEM_VERIFY(mesh->GetLastOperation() == Mesh::REFINE, "");
 
    Array<int> dofs, coarse_dofs, coarse_vdofs;
    Vector row;
 
-   const int coarse_ldof = localP.SizeJ();
-   const int fine_ldof = localP.SizeI();
-   SparseMatrix *P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim,
-                                      coarse_ldof);
+   Mesh::GeometryList elem_geoms(*mesh);
+
+   SparseMatrix *P;
+   if (elem_geoms.Size() == 1)
+   {
+      const int coarse_ldof = localP[elem_geoms[0]].SizeJ();
+      P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim, coarse_ldof);
+   }
+   else
+   {
+      P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim);
+   }
 
    Array<int> mark(P->Height());
    mark = 0;
@@ -800,7 +812,9 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    for (int k = 0; k < mesh->GetNE(); k++)
    {
       const Embedding &emb = rtrans.embeddings[k];
-      const DenseMatrix &lP = localP(emb.matrix);
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
+      const DenseMatrix &lP = localP[geom](emb.matrix);
+      const int fine_ldof = localP[geom].SizeI();
 
       elem_dof->GetRow(k, dofs);
       coarse_elem_dof.GetRow(emb.parent, coarse_dofs);
@@ -826,17 +840,19 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    }
 
    MFEM_ASSERT(mark.Sum() == P->Height(), "Not all rows of P set.");
+   if (elem_geoms.Size() != 1) { P->Finalize(); }
    return P;
 }
 
-void FiniteElementSpace::GetLocalRefinementMatrices(DenseTensor &localP) const
+void FiniteElementSpace::GetLocalRefinementMatrices(
+   Geometry::Type geom, DenseTensor &localP) const
 {
-   int geom = mesh->GetElementBaseGeometry(); // assuming the same geom
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+   const DenseTensor &pmats = rtrans.GetPointMatrices(geom);
 
-   int nmat = rtrans.point_matrices.SizeK();
+   int nmat = pmats.SizeK();
    int ldof = fe->GetDof(); // assuming the same FE everywhere
 
    IsoparametricTransformation isotr;
@@ -846,7 +862,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(DenseTensor &localP) const
    localP.SetSize(ldof, ldof, nmat);
    for (int i = 0; i < nmat; i++)
    {
-      isotr.GetPointMat() = rtrans.point_matrices(i);
+      isotr.GetPointMat() = pmats(i);
       isotr.FinalizeTransformation();
       fe->GetLocalInterpolation(isotr, localP(i));
    }
@@ -857,8 +873,13 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
 {
    MFEM_VERIFY(ndofs >= old_ndofs, "Previous space is not coarser.");
 
-   DenseTensor localP;
-   GetLocalRefinementMatrices(localP);
+   Mesh::GeometryList elem_geoms(*mesh);
+
+   DenseTensor localP[Geometry::NumGeom];
+   for (int i = 0; i < elem_geoms.Size(); i++)
+   {
+      GetLocalRefinementMatrices(elem_geoms[i], localP[elem_geoms[i]]);
+   }
 
    return RefinementMatrix_main(old_ndofs, *old_elem_dof, localP);
 }
@@ -874,7 +895,12 @@ FiniteElementSpace::RefinementOperator::RefinementOperator
    width = old_ndofs * fespace->GetVDim();
    height = fespace->GetVSize();
 
-   fespace->GetLocalRefinementMatrices(localP);
+   Mesh::GeometryList elem_geoms(*fespace->GetMesh());
+
+   for (int i = 0; i < elem_geoms.Size(); i++)
+   {
+      fespace->GetLocalRefinementMatrices(elem_geoms[i], localP[elem_geoms[i]]);
+   }
 }
 
 FiniteElementSpace::RefinementOperator::RefinementOperator(
@@ -882,7 +908,14 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
    : Operator(fespace->GetVSize(), coarse_fes->GetVSize()),
      fespace(fespace), old_elem_dof(NULL)
 {
-   fespace->GetLocalRefinementMatrices(*coarse_fes, localP);
+   Mesh::GeometryList elem_geoms(*fespace->GetMesh());
+
+   for (int i = 0; i < elem_geoms.Size(); i++)
+   {
+      fespace->GetLocalRefinementMatrices(*coarse_fes, elem_geoms[i],
+                                          localP[elem_geoms[i]]);
+   }
+
    // Make a copy of the coarse elem_dof Table.
    old_elem_dof = new Table(coarse_fes->GetElementToDofTable());
 }
@@ -909,7 +942,8 @@ void FiniteElementSpace::RefinementOperator
    for (int k = 0; k < mesh->GetNE(); k++)
    {
       const Embedding &emb = rtrans.embeddings[k];
-      const DenseMatrix &lP = localP(emb.matrix);
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
+      const DenseMatrix &lP = localP[geom](emb.matrix);
 
       fespace->GetElementDofs(k, dofs);
       old_elem_dof->GetRow(emb.parent, old_dofs);
@@ -941,70 +975,162 @@ void FiniteElementSpace::RefinementOperator
    }
 }
 
-void InvertLinearTrans(IsoparametricTransformation &trans,
-                       const DenseMatrix &invdfdx,
-                       const IntegrationPoint &pt, Vector &x)
+FiniteElementSpace::DerefinementOperator::DerefinementOperator(
+   const FiniteElementSpace *f_fes, const FiniteElementSpace *c_fes,
+   BilinearFormIntegrator *mass_integ)
+   : Operator(c_fes->GetVSize(), f_fes->GetVSize()),
+     fine_fes(f_fes)
 {
-   // invert a linear transform with one Newton step
-   IntegrationPoint p0;
-   p0.Set3(0, 0, 0);
-   trans.Transform(p0, x);
+   MFEM_VERIFY(c_fes->GetOrdering() == f_fes->GetOrdering() &&
+               c_fes->GetVDim() == f_fes->GetVDim(),
+               "incompatible coarse and fine FE spaces");
 
-   double store[3];
-   Vector v(store, x.Size());
-   pt.Get(v, x.Size());
-   v -= x;
+   IsoparametricTransformation emb_tr;
+   Mesh *f_mesh = f_fes->GetMesh();
+   const CoarseFineTransformations &rtrans = f_mesh->GetRefinementTransforms();
 
-   invdfdx.Mult(v, x);
+   Mesh::GeometryList elem_geoms(*f_mesh);
+   DenseTensor localP[Geometry::NumGeom], localM[Geometry::NumGeom];
+   for (int gi = 0; gi < elem_geoms.Size(); gi++)
+   {
+      const Geometry::Type geom = elem_geoms[gi];
+      DenseTensor &lP = localP[geom], &lM = localM[geom];
+      const FiniteElement *fine_fe =
+         f_fes->fec->FiniteElementForGeometry(geom);
+      const FiniteElement *coarse_fe =
+         c_fes->fec->FiniteElementForGeometry(geom);
+      const DenseTensor &pmats = rtrans.GetPointMatrices(geom);
+
+      lP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), pmats.SizeK());
+      lM.SetSize(fine_fe->GetDof(),   fine_fe->GetDof(), pmats.SizeK());
+      emb_tr.SetIdentityTransformation(geom);
+      for (int i = 0; i < pmats.SizeK(); i++)
+      {
+         emb_tr.GetPointMat() = pmats(i);
+         emb_tr.FinalizeTransformation();
+         // Get the local interpolation matrix for this refinement type
+         fine_fe->GetTransferMatrix(*coarse_fe, emb_tr, lP(i));
+         // Get the local mass matrix for this refinement type
+         mass_integ->AssembleElementMatrix(*fine_fe, emb_tr, lM(i));
+      }
+   }
+
+   Table ref_type_to_matrix;
+   rtrans.GetCoarseToFineMap(*f_mesh, coarse_to_fine, coarse_to_ref_type,
+                             ref_type_to_matrix, ref_type_to_geom);
+   MFEM_ASSERT(coarse_to_fine.Size() == c_fes->GetNE(), "");
+
+   const int total_ref_types = ref_type_to_geom.Size();
+   int num_ref_types[Geometry::NumGeom], num_fine_elems[Geometry::NumGeom];
+   Array<int> ref_type_to_coarse_elem_offset(total_ref_types);
+   ref_type_to_fine_elem_offset.SetSize(total_ref_types);
+   std::fill(num_ref_types, num_ref_types+Geometry::NumGeom, 0);
+   std::fill(num_fine_elems, num_fine_elems+Geometry::NumGeom, 0);
+   for (int i = 0; i < total_ref_types; i++)
+   {
+      Geometry::Type g = ref_type_to_geom[i];
+      ref_type_to_coarse_elem_offset[i] = num_ref_types[g];
+      ref_type_to_fine_elem_offset[i] = num_fine_elems[g];
+      num_ref_types[g]++;
+      num_fine_elems[g] += ref_type_to_matrix.RowSize(i);
+   }
+   DenseTensor localPtMP[Geometry::NumGeom];
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      if (num_ref_types[g] == 0) { continue; }
+      const int fine_dofs = localP[g].SizeI();
+      const int coarse_dofs = localP[g].SizeJ();
+      localPtMP[g].SetSize(coarse_dofs, coarse_dofs, num_ref_types[g]);
+      localR[g].SetSize(coarse_dofs, fine_dofs, num_fine_elems[g]);
+   }
+   for (int i = 0; i < total_ref_types; i++)
+   {
+      Geometry::Type g = ref_type_to_geom[i];
+      DenseMatrix &lPtMP = localPtMP[g](ref_type_to_coarse_elem_offset[i]);
+      int lR_offset = ref_type_to_fine_elem_offset[i]; // offset in localR[g]
+      const int *mi = ref_type_to_matrix.GetRow(i);
+      const int nm = ref_type_to_matrix.RowSize(i);
+      lPtMP = 0.0;
+      for (int s = 0; s < nm; s++)
+      {
+         DenseMatrix &lP = localP[g](mi[s]);
+         DenseMatrix &lM = localM[g](mi[s]);
+         DenseMatrix &lR = localR[g](lR_offset+s);
+         MultAtB(lP, lM, lR); // lR = lP^T lM
+         AddMult(lR, lP, lPtMP); // lPtMP += lP^T lM lP
+      }
+      DenseMatrixInverse lPtMP_inv(lPtMP);
+      for (int s = 0; s < nm; s++)
+      {
+         DenseMatrix &lR = localR[g](lR_offset+s);
+         lPtMP_inv.Mult(lR); // lR <- (P^T M P)^{-1} P^T M
+      }
+   }
+
+   // Make a copy of the coarse element-to-dof Table.
+   coarse_elem_dof = new Table(c_fes->GetElementToDofTable());
 }
 
-void FiniteElementSpace::GetLocalDerefinementMatrices(DenseTensor &localR) const
+FiniteElementSpace::DerefinementOperator::~DerefinementOperator()
 {
-   int geom = mesh->GetElementBaseGeometry(); // assuming the same geom
+   delete coarse_elem_dof;
+}
+
+void FiniteElementSpace::DerefinementOperator
+::Mult(const Vector &x, Vector &y) const
+{
+   Array<int> c_vdofs, f_vdofs;
+   Vector loc_x, loc_y;
+   DenseMatrix loc_x_mat, loc_y_mat;
+   const int vdim = fine_fes->GetVDim();
+   const int coarse_ndofs = height/vdim;
+   for (int coarse_el = 0; coarse_el < coarse_to_fine.Size(); coarse_el++)
+   {
+      coarse_elem_dof->GetRow(coarse_el, c_vdofs);
+      fine_fes->DofsToVDofs(c_vdofs, coarse_ndofs);
+      loc_y.SetSize(c_vdofs.Size());
+      loc_y = 0.0;
+      loc_y_mat.UseExternalData(loc_y.GetData(), c_vdofs.Size()/vdim, vdim);
+      const int ref_type = coarse_to_ref_type[coarse_el];
+      const Geometry::Type geom = ref_type_to_geom[ref_type];
+      const int *fine_elems = coarse_to_fine.GetRow(coarse_el);
+      const int num_fine_elems = coarse_to_fine.RowSize(coarse_el);
+      const int lR_offset = ref_type_to_fine_elem_offset[ref_type];
+      for (int s = 0; s < num_fine_elems; s++)
+      {
+         const DenseMatrix &lR = localR[geom](lR_offset+s);
+         fine_fes->GetElementVDofs(fine_elems[s], f_vdofs);
+         x.GetSubVector(f_vdofs, loc_x);
+         loc_x_mat.UseExternalData(loc_x.GetData(), f_vdofs.Size()/vdim, vdim);
+         AddMult(lR, loc_x_mat, loc_y_mat);
+      }
+      y.SetSubVector(c_vdofs, loc_y);
+   }
+}
+
+void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
+                                                      DenseTensor &localR) const
+{
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
-   const IntegrationRule &nodes = fe->GetNodes();
 
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
+   const DenseTensor &pmats = dtrans.GetPointMatrices(geom);
 
-   int nmat = dtrans.point_matrices.SizeK();
-   int ldof = fe->GetDof();
-   int dim = mesh->Dimension();
+   const int nmat = pmats.SizeK();
+   const int ldof = fe->GetDof();
 
-   LinearFECollection linfec;
    IsoparametricTransformation isotr;
-   isotr.SetFE(linfec.FiniteElementForGeometry(geom));
-
-   DenseMatrix invdfdx(dim);
-   IntegrationPoint ipt;
-   Vector pt(&ipt.x, dim), shape(ldof);
+   isotr.SetIdentityTransformation(geom);
 
    // calculate local restriction matrices for all refinement types
    localR.SetSize(ldof, ldof, nmat);
    for (int i = 0; i < nmat; i++)
    {
-      DenseMatrix &lR = localR(i);
-      lR = infinity(); // marks invalid rows
-
-      isotr.GetPointMat() = dtrans.point_matrices(i);
+      isotr.GetPointMat() = pmats(i);
       isotr.FinalizeTransformation();
-      isotr.SetIntPoint(&nodes[0]);
-      CalcInverse(isotr.Jacobian(), invdfdx);
 
-      for (int j = 0; j < nodes.Size(); j++)
-      {
-         InvertLinearTrans(isotr, invdfdx, nodes[j], pt);
-         if (Geometries.CheckPoint(geom, ipt)) // do we need an epsilon here?
-         {
-            IntegrationPoint ip;
-            ip.Set(pt, dim);
-            MFEM_ASSERT(dynamic_cast<const NodalFiniteElement*>(fe),
-                        "only nodal FEs are implemented");
-            fe->CalcShape(ip, shape); // TODO: H(curl), etc.?
-            lR.SetRow(j, shape);
-         }
-      }
-      lR.Threshold(1e-12);
+      fe->GetLocalRestriction(isotr, localR(i));
    }
 }
 
@@ -1018,21 +1144,38 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    Array<int> dofs, old_dofs, old_vdofs;
    Vector row;
 
-   DenseTensor localR;
-   GetLocalDerefinementMatrices(localR);
+   Mesh::GeometryList elem_geoms(*mesh);
 
-   SparseMatrix *R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
-                                      localR.SizeI());
+   DenseTensor localR[Geometry::NumGeom];
+   for (int i = 0; i < elem_geoms.Size(); i++)
+   {
+      GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
+   }
+
+   SparseMatrix *R;
+   if (elem_geoms.Size() == 1)
+   {
+      R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
+                           localR[elem_geoms[0]].SizeI());
+   }
+   else
+   {
+      R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
+   }
    Array<int> mark(R->Height());
    mark = 0;
 
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
 
+   MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
+
+   int num_marked = 0;
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
-      DenseMatrix &lR = localR(emb.matrix);
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+      DenseMatrix &lR = localR[geom](emb.matrix);
 
       elem_dof->GetRow(emb.parent, dofs);
       old_elem_dof->GetRow(k, old_dofs);
@@ -1054,36 +1197,41 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
                lR.GetRow(i, row);
                R->SetRow(r, old_vdofs, row);
                mark[m] = 1;
+               num_marked++;
             }
          }
       }
    }
 
-   MFEM_ASSERT(mark.Sum() == R->Height(), "Not all rows of R set.");
+   MFEM_VERIFY(num_marked == R->Height(),
+               "internal error: not all rows of R were set.");
+   if (elem_geoms.Size() != 1) { R->Finalize(); }
    return R;
 }
 
 void FiniteElementSpace::GetLocalRefinementMatrices(
-   const FiniteElementSpace &coarse_fes, DenseTensor &localP) const
+   const FiniteElementSpace &coarse_fes, Geometry::Type geom,
+   DenseTensor &localP) const
 {
    // Assumptions: see the declaration of the method.
 
-   int fine_geom = mesh->GetElementBaseGeometry(0);
-   const FiniteElement *fine_fe = fec->FiniteElementForGeometry(fine_geom);
-   const FiniteElement *coarse_fe = coarse_fes.GetFE(0);
+   const FiniteElement *fine_fe = fec->FiniteElementForGeometry(geom);
+   const FiniteElement *coarse_fe =
+      coarse_fes.fec->FiniteElementForGeometry(geom);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+   const DenseTensor &pmats = rtrans.GetPointMatrices(geom);
 
-   int nmat = rtrans.point_matrices.SizeK();
+   int nmat = pmats.SizeK();
 
    IsoparametricTransformation isotr;
-   isotr.SetIdentityTransformation(fine_geom);
+   isotr.SetIdentityTransformation(geom);
 
    // Calculate the local interpolation matrices for all refinement types
    localP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), nmat);
    for (int i = 0; i < nmat; i++)
    {
-      isotr.GetPointMat() = rtrans.point_matrices(i);
+      isotr.GetPointMat() = pmats(i);
       isotr.FinalizeTransformation();
       fine_fe->GetTransferMatrix(*coarse_fe, isotr, localP(i));
    }
@@ -1191,22 +1339,25 @@ void FiniteElementSpace::Construct()
    cP_is_set = false;
    // Th is initialized/destroyed before this method is called.
 
-   if (mesh->Dimension() == 3 && mesh->GetNE())
+   if (mesh->GetNFaces() > 0)
    {
-      // Here we assume that all faces in the mesh have the same base
-      // geometry -- the base geometry of the 0-th face element.
-      // The class Mesh assumes the same inside GetFaceBaseGeometry(...).
-      // Thus we do not need to generate all the faces in the mesh
-      // if we do not need them.
-      int fdof = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
-      if (fdof > 0)
+      bool have_face_dofs = false;
+      for (int g = Geometry::DimStart[2]; g < Geometry::DimStart[3]; g++)
+      {
+         if (mesh->HasGeometry(Geometry::Type(g)) &&
+             fec->DofForGeometry(Geometry::Type(g)) > 0)
+         {
+            have_face_dofs = true;
+            break;
+         }
+      }
+      if (have_face_dofs)
       {
          fdofs = new int[mesh->GetNFaces()+1];
          fdofs[0] = 0;
          for (int i = 0; i < mesh->GetNFaces(); i++)
          {
-            nfdofs += fdof;
-            // nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
+            nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
             fdofs[i+1] = nfdofs;
          }
       }
@@ -1218,7 +1369,7 @@ void FiniteElementSpace::Construct()
       bdofs[0] = 0;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
-         int geom = mesh->GetElementBaseGeometry(i);
+         Geometry::Type geom = mesh->GetElementBaseGeometry(i);
          nbdofs += fec->DofForGeometry(geom);
          bdofs[i+1] = nbdofs;
       }
@@ -1239,8 +1390,8 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
    else
    {
       Array<int> V, E, Eo, F, Fo;
-      int k, j, nv, ne, nf, nb, nfd, nd;
-      int *ind, dim;
+      int k, j, nv, ne, nf, nb, nfd, nd, dim;
+      const int *ind;
 
       dim = mesh->Dimension();
       nv = fec->DofForGeometry(Geometry::POINT);
@@ -1354,8 +1505,8 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
    else
    {
       Array<int> V, E, Eo;
-      int k, j, nv, ne, nf, nd, iF, oF;
-      int *ind, dim;
+      int k, j, nv, ne, nf, nd, iF, oF, dim;
+      const int *ind;
 
       dim = mesh->Dimension();
       nv = fec->DofForGeometry(Geometry::POINT);
@@ -1411,8 +1562,8 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
          // if (dim == 3)
       {
          ne = nv + ne * E.Size();
-         ind = (fec->DofOrderForOrientation(
-                   mesh->GetBdrElementBaseGeometry(i), oF));
+         ind = fec->DofOrderForOrientation(
+                  mesh->GetBdrElementBaseGeometry(i), oF);
          for (j = 0; j < nf; j++)
          {
             if (ind[j] < 0)
@@ -1623,7 +1774,7 @@ const FiniteElement *FiniteElementSpace::GetEdgeElement(int i) const
 }
 
 const FiniteElement *FiniteElementSpace::GetTraceElement(
-   int i, int geom_type) const
+   int i, Geometry::Type geom_type) const
 {
    return fec->TraceFiniteElementForGeometry(geom_type);
 }
@@ -1663,8 +1814,14 @@ void FiniteElementSpace::GetTransferOperator(
 
    if (T.Type() == Operator::MFEM_SPARSEMAT)
    {
-      DenseTensor localP;
-      GetLocalRefinementMatrices(coarse_fes, localP);
+      Mesh::GeometryList elem_geoms(*mesh);
+
+      DenseTensor localP[Geometry::NumGeom];
+      for (int i = 0; i < elem_geoms.Size(); i++)
+      {
+         GetLocalRefinementMatrices(coarse_fes, elem_geoms[i],
+                                    localP[elem_geoms[i]]);
+      }
       T.Reset(RefinementMatrix_main(coarse_fes.GetNDofs(),
                                     coarse_fes.GetElementToDofTable(),
                                     localP));
@@ -1812,8 +1969,9 @@ void FiniteElementSpace::Save(std::ostream &out) const
       const double eps = 5e-14;
       nurbs_unit_weights = (NURBSext->GetWeights().Min() >= 1.0-eps &&
                             NURBSext->GetWeights().Max() <= 1.0+eps);
-      if (NURBSext->GetOrder() == NURBSFECollection::VariableOrder ||
-          (NURBSext != mesh->NURBSext && !nurbs_unit_weights))
+      if ((NURBSext->GetOrder() == NURBSFECollection::VariableOrder) ||
+          (NURBSext != mesh->NURBSext && !nurbs_unit_weights) ||
+          (NURBSext->GetMaster().Size() != 0 ))
       {
          fes_format = 100; // v1.0 format
       }
@@ -1842,6 +2000,13 @@ void FiniteElementSpace::Save(std::ostream &out) const
             out << "NURBS_orders\n";
             // 1 = do not write the size, just the entries:
             NURBSext->GetOrders().Save(out, 1);
+         }
+         // If periodic BCs are given, write connectivity
+         if (NURBSext->GetMaster().Size() != 0 )
+         {
+            out <<"NURBS_periodic\n";
+            NURBSext->GetMaster().Save(out);
+            NURBSext->GetSlave().Save(out);
          }
          // If the weights are not unit, write them to the output:
          if (!nurbs_unit_weights)
@@ -1919,6 +2084,13 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
                orders.Load(m->NURBSext->GetNKV(), input);
                NURBSext = new NURBSExtension(m->NURBSext, orders);
             }
+         }
+         else if (buff == "NURBS_periodic")
+         {
+            Array<int> master, slave;
+            master.Load(input);
+            slave.Load(input);
+            NURBSext->ConnectBoundaries(master,slave);
          }
          else if (buff == "NURBS_weights")
          {
@@ -2002,5 +2174,402 @@ void QuadratureSpace::Save(std::ostream &out) const
        << "Order: " << order << '\n';
 }
 
+
+GridTransfer::GridTransfer(FiniteElementSpace &dom_fes_,
+                           FiniteElementSpace &ran_fes_)
+   : dom_fes(dom_fes_), ran_fes(ran_fes_),
+     oper_type(Operator::ANY_TYPE),
+     fw_t_oper(), bw_t_oper()
+{
+#ifdef MFEM_USE_MPI
+   const bool par_dom = dynamic_cast<ParFiniteElementSpace*>(&dom_fes);
+   const bool par_ran = dynamic_cast<ParFiniteElementSpace*>(&ran_fes);
+   MFEM_VERIFY(par_dom == par_ran, "the domain and range FE spaces must both"
+               " be either serial or parallel");
+   parallel = par_dom;
+#endif
+}
+
+const Operator &GridTransfer::MakeTrueOperator(
+   FiniteElementSpace &fes_in, FiniteElementSpace &fes_out,
+   const Operator &oper, OperatorHandle &t_oper)
+{
+   if (t_oper.Ptr())
+   {
+      return *t_oper.Ptr();
+   }
+
+   if (!Parallel())
+   {
+      const SparseMatrix *in_cP = fes_in.GetConformingProlongation();
+      const SparseMatrix *out_cR = fes_out.GetConformingRestriction();
+      if (oper_type == Operator::MFEM_SPARSEMAT)
+      {
+         const SparseMatrix *mat = dynamic_cast<const SparseMatrix *>(&oper);
+         MFEM_VERIFY(mat != NULL, "Operator is not a SparseMatrix");
+         if (!out_cR)
+         {
+            t_oper.Reset(const_cast<SparseMatrix*>(mat), false);
+         }
+         else
+         {
+            t_oper.Reset(mfem::Mult(*out_cR, *mat));
+         }
+         if (in_cP)
+         {
+            t_oper.Reset(mfem::Mult(*t_oper.As<SparseMatrix>(), *in_cP));
+         }
+      }
+      else if (oper_type == Operator::ANY_TYPE)
+      {
+         const int RP_case = bool(out_cR) + 2*bool(in_cP);
+         switch (RP_case)
+         {
+            case 0:
+               t_oper.Reset(const_cast<Operator*>(&oper), false);
+               break;
+            case 1:
+               t_oper.Reset(
+                  new ProductOperator(out_cR, &oper, false, false));
+               break;
+            case 2:
+               t_oper.Reset(
+                  new ProductOperator(&oper, in_cP, false, false));
+               break;
+            case 3:
+               t_oper.Reset(
+                  new TripleProductOperator(
+                     out_cR, &oper, in_cP, false, false, false));
+               break;
+         }
+      }
+      else
+      {
+         MFEM_ABORT("Operator::Type is not supported: " << oper_type);
+      }
+   }
+   else // Parallel() == true
+   {
+#ifdef MFEM_USE_MPI
+      const SparseMatrix *out_R = fes_out.GetRestrictionMatrix();
+      if (oper_type == Operator::Hypre_ParCSR)
+      {
+         const ParFiniteElementSpace *pfes_in =
+            dynamic_cast<const ParFiniteElementSpace *>(&fes_in);
+         const ParFiniteElementSpace *pfes_out =
+            dynamic_cast<const ParFiniteElementSpace *>(&fes_out);
+         const SparseMatrix *sp_mat = dynamic_cast<const SparseMatrix *>(&oper);
+         const HypreParMatrix *hy_mat;
+         if (sp_mat)
+         {
+            SparseMatrix *RA = mfem::Mult(*out_R, *sp_mat);
+            t_oper.Reset(pfes_in->Dof_TrueDof_Matrix()->
+                         LeftDiagMult(*RA, pfes_out->GetTrueDofOffsets()));
+            delete RA;
+         }
+         else if ((hy_mat = dynamic_cast<const HypreParMatrix *>(&oper)))
+         {
+            HypreParMatrix *RA =
+               hy_mat->LeftDiagMult(*out_R, pfes_out->GetTrueDofOffsets());
+            t_oper.Reset(mfem::ParMult(RA, pfes_in->Dof_TrueDof_Matrix()));
+            delete RA;
+         }
+         else
+         {
+            MFEM_ABORT("unknown Operator type");
+         }
+      }
+      else if (oper_type == Operator::ANY_TYPE)
+      {
+         t_oper.Reset(new TripleProductOperator(
+                         out_R, &oper, fes_in.GetProlongationMatrix(),
+                         false, false, false));
+      }
+      else
+      {
+         MFEM_ABORT("Operator::Type is not supported: " << oper_type);
+      }
+#endif
+   }
+
+   return *t_oper.Ptr();
+}
+
+
+InterpolationGridTransfer::~InterpolationGridTransfer()
+{
+   if (own_mass_integ) { delete mass_integ; }
+}
+
+void InterpolationGridTransfer::SetMassIntegrator(
+   BilinearFormIntegrator *mass_integ_, bool own_mass_integ_)
+{
+   if (own_mass_integ) { delete mass_integ; }
+
+   mass_integ = mass_integ_;
+   own_mass_integ = own_mass_integ_;
+}
+
+const Operator &InterpolationGridTransfer::ForwardOperator()
+{
+   if (F.Ptr())
+   {
+      return *F.Ptr();
+   }
+
+   // Costruct F
+   if (oper_type == Operator::ANY_TYPE)
+   {
+      F.Reset(new FiniteElementSpace::RefinementOperator(&ran_fes, &dom_fes));
+   }
+   else if (oper_type == Operator::MFEM_SPARSEMAT)
+   {
+      Mesh::GeometryList elem_geoms(*ran_fes.GetMesh());
+
+      DenseTensor localP[Geometry::NumGeom];
+      for (int i = 0; i < elem_geoms.Size(); i++)
+      {
+         ran_fes.GetLocalRefinementMatrices(dom_fes, elem_geoms[i],
+                                            localP[elem_geoms[i]]);
+      }
+      F.Reset(ran_fes.RefinementMatrix_main(
+                 dom_fes.GetNDofs(), dom_fes.GetElementToDofTable(), localP));
+   }
+   else
+   {
+      MFEM_ABORT("Operator::Type is not supported: " << oper_type);
+   }
+
+   return *F.Ptr();
+}
+
+const Operator &InterpolationGridTransfer::BackwardOperator()
+{
+   if (B.Ptr())
+   {
+      return *B.Ptr();
+   }
+
+   // Construct B
+   // If not set, define a suitable mass_integ
+   if (!mass_integ && ran_fes.GetNE() > 0)
+   {
+      const FiniteElement *f_fe_0 = ran_fes.GetFE(0);
+      const int map_type = f_fe_0->GetMapType();
+      if (map_type == FiniteElement::VALUE ||
+          map_type == FiniteElement::INTEGRAL)
+      {
+         mass_integ = new MassIntegrator;
+      }
+      else if (map_type == FiniteElement::H_DIV ||
+               map_type == FiniteElement::H_CURL)
+      {
+         mass_integ = new VectorFEMassIntegrator;
+      }
+      else
+      {
+         MFEM_ABORT("unknown type of FE space");
+      }
+      own_mass_integ = true;
+   }
+   if (oper_type == Operator::ANY_TYPE)
+   {
+      B.Reset(new FiniteElementSpace::DerefinementOperator(
+                 &ran_fes, &dom_fes, mass_integ));
+   }
+   else
+   {
+      MFEM_ABORT("Operator::Type is not supported: " << oper_type);
+   }
+
+   return *B.Ptr();
+}
+
+
+L2ProjectionGridTransfer::L2Projection::L2Projection(
+   const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
+   : fes_ho(fes_ho_), fes_lor(fes_lor_)
+{
+   Mesh *mesh_ho = fes_ho.GetMesh();
+   MFEM_VERIFY(mesh_ho->GetNumGeometries(mesh_ho->Dimension()) <= 1,
+               "mixed meshes are not supported");
+
+   // If the local mesh is empty, skip all computations
+   if (mesh_ho->GetNE() == 0) { return; }
+
+   const FiniteElement *fe_lor = fes_lor.GetFE(0);
+   const FiniteElement *fe_ho = fes_ho.GetFE(0);
+   ndof_lor = fe_lor->GetDof();
+   ndof_ho = fe_ho->GetDof();
+
+   const int nel_lor = fes_lor.GetNE();
+   const int nel_ho = fes_ho.GetNE();
+
+   nref = nel_lor/nel_ho;
+
+   // Construct the mapping from HO to LOR
+   // ho2lor.GetRow(iho) will give all the LOR elements contained in iho
+   ho2lor.SetSize(nel_ho, nref);
+   const CoarseFineTransformations &cf_tr =
+      fes_lor.GetMesh()->GetRefinementTransforms();
+   for (int ilor=0; ilor<nel_lor; ++ilor)
+   {
+      int iho = cf_tr.embeddings[ilor].parent;
+      ho2lor.AddConnection(iho, ilor);
+   }
+   ho2lor.ShiftUpI();
+
+   // R will contain the restriction (L^2 projection operator) defined on
+   // each coarse HO element (and corresponding patch of LOR elements)
+   R.SetSize(ndof_lor*nref, ndof_ho, nel_ho);
+   // P will contain the corresponding prolongation operator
+   P.SetSize(ndof_ho, ndof_lor*nref, nel_ho);
+
+   DenseMatrix Minv_lor(ndof_lor*nref, ndof_lor*nref);
+   DenseMatrix M_mixed(ndof_lor*nref, ndof_ho);
+
+   MassIntegrator mi;
+   DenseMatrix M_lor_el(ndof_lor, ndof_lor);
+   DenseMatrixInverse Minv_lor_el(&M_lor_el);
+   DenseMatrix M_lor(ndof_lor*nref, ndof_lor*nref);
+   DenseMatrix M_mixed_el(ndof_lor, ndof_ho);
+
+   Minv_lor = 0.0;
+   M_lor = 0.0;
+
+   DenseMatrix RtMlor(ndof_ho, ndof_lor*nref);
+   DenseMatrix RtMlorR(ndof_ho, ndof_ho);
+   DenseMatrixInverse RtMlorR_inv(&RtMlorR);
+
+   IntegrationPointTransformation ip_tr;
+   IsoparametricTransformation &emb_tr = ip_tr.Transf;
+
+   Vector shape_ho(ndof_ho);
+   Vector shape_lor(ndof_lor);
+
+   const Geometry::Type geom = fe_ho->GetGeomType();
+   const DenseTensor &pmats = cf_tr.GetPointMatrices(geom);
+   emb_tr.SetIdentityTransformation(geom);
+
+   for (int iho=0; iho<nel_ho; ++iho)
+   {
+      for (int iref=0; iref<nref; ++iref)
+      {
+         // Assemble the low-order refined mass matrix and invert locally
+         int ilor = ho2lor.GetRow(iho)[iref];
+         ElementTransformation *el_tr = fes_lor.GetElementTransformation(ilor);
+         mi.AssembleElementMatrix(*fe_lor, *el_tr, M_lor_el);
+         M_lor.CopyMN(M_lor_el, iref*ndof_lor, iref*ndof_lor);
+         Minv_lor_el.Factor();
+         Minv_lor_el.GetInverseMatrix(M_lor_el);
+         // Insert into the diagonal of the patch LOR mass matrix
+         Minv_lor.CopyMN(M_lor_el, iref*ndof_lor, iref*ndof_lor);
+
+         // Now assemble the block-row of the mixed mass matrix associated
+         // with integrating HO functions against LOR functions on the LOR
+         // sub-element.
+
+         // Create the transformation that embeds the fine low-order element
+         // within the coarse high-order element in reference space
+         emb_tr.GetPointMat() = pmats(iref);
+         emb_tr.FinalizeTransformation();
+
+         int order = fe_lor->GetOrder() + fe_ho->GetOrder() + el_tr->OrderW();
+         const IntegrationRule *ir = &IntRules.Get(geom, order);
+         M_mixed_el = 0.0;
+         for (int i = 0; i < ir->GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip_lor = ir->IntPoint(i);
+            IntegrationPoint ip_ho;
+            ip_tr.Transform(ip_lor, ip_ho);
+            fe_lor->CalcShape(ip_lor, shape_lor);
+            fe_ho->CalcShape(ip_ho, shape_ho);
+            el_tr->SetIntPoint(&ip_lor);
+            // For now we use the geometry information from the LOR space
+            // which means we won't be mass conservative if the mesh is curved
+            double w = el_tr->Weight()*ip_lor.weight;
+            shape_lor *= w;
+            AddMultVWt(shape_lor, shape_ho, M_mixed_el);
+         }
+         M_mixed.CopyMN(M_mixed_el, iref*ndof_lor, 0);
+      }
+      mfem::Mult(Minv_lor, M_mixed, R(iho));
+
+      mfem::MultAtB(R(iho), M_lor, RtMlor);
+      mfem::Mult(RtMlor, R(iho), RtMlorR);
+      RtMlorR_inv.Factor();
+      RtMlorR_inv.Mult(RtMlor, P(iho));
+   }
+}
+
+void L2ProjectionGridTransfer::L2Projection::Mult(
+   const Vector &x, Vector &y) const
+{
+   int vdim = fes_ho.GetVDim();
+   Array<int> vdofs;
+   DenseMatrix xel_mat(ndof_ho, vdim);
+   DenseMatrix yel_mat(ndof_lor*nref, vdim);
+   for (int iho=0; iho<fes_ho.GetNE(); ++iho)
+   {
+      fes_ho.GetElementVDofs(iho, vdofs);
+      x.GetSubVector(vdofs, xel_mat.GetData());
+      mfem::Mult(R(iho), xel_mat, yel_mat);
+      // Place result correctly into low-order vector
+      for (int iref=0; iref<nref; ++iref)
+      {
+         int ilor = ho2lor.GetRow(iho)[iref];
+         for (int vd=0; vd<vdim; ++vd)
+         {
+            fes_lor.GetElementDofs(ilor, vdofs);
+            fes_lor.DofsToVDofs(vd, vdofs);
+            y.SetSubVector(vdofs, &yel_mat(iref*ndof_lor,vd));
+         }
+      }
+   }
+}
+
+void L2ProjectionGridTransfer::L2Projection::Prolongate(
+   const Vector &x, Vector &y) const
+{
+   int vdim = fes_ho.GetVDim();
+   Array<int> vdofs;
+   DenseMatrix xel_mat(ndof_lor*nref, vdim);
+   DenseMatrix yel_mat(ndof_ho, vdim);
+   for (int iho=0; iho<fes_ho.GetNE(); ++iho)
+   {
+      // Extract the LOR DOFs
+      for (int iref=0; iref<nref; ++iref)
+      {
+         int ilor = ho2lor.GetRow(iho)[iref];
+         for (int vd=0; vd<vdim; ++vd)
+         {
+            fes_lor.GetElementDofs(ilor, vdofs);
+            fes_lor.DofsToVDofs(vd, vdofs);
+            x.GetSubVector(vdofs, &xel_mat(iref*ndof_lor, vd));
+         }
+      }
+      // Locally prolongate
+      mfem::Mult(P(iho), xel_mat, yel_mat);
+      // Place the result in the HO vector
+      fes_ho.GetElementVDofs(iho, vdofs);
+      y.SetSubVector(vdofs, yel_mat.GetData());
+   }
+}
+
+const Operator &L2ProjectionGridTransfer::ForwardOperator()
+{
+   if (!F) { F = new L2Projection(dom_fes, ran_fes); }
+   return *F;
+}
+
+const Operator &L2ProjectionGridTransfer::BackwardOperator()
+{
+   if (!B)
+   {
+      if (!F) { F = new L2Projection(dom_fes, ran_fes); }
+      B = new L2Prolongation(*F);
+   }
+   return *B;
+}
 
 } // namespace mfem
