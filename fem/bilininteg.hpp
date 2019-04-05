@@ -1650,10 +1650,10 @@ private:
    int dim, ne, dofs1D, quad1D;
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator() { Q = NULL; MQ = NULL; maps=NULL;}
+   DiffusionIntegrator() { Q = NULL; MQ = NULL; maps=NULL; }
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; maps=NULL;}
+   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; maps=NULL; }
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; maps=NULL; }
