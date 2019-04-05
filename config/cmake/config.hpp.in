@@ -63,7 +63,7 @@
 #cmakedefine MFEM_THREAD_SAFE
 
 // Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
-#cmakedefine MFEM_USE_OPENMP
+#cmakedefine MFEM_USE_LEGACY_OPENMP
 
 // Enable MFEM functionality based on the Mesquite library.
 #cmakedefine MFEM_USE_MESQUITE

@@ -196,10 +196,10 @@ endif
 DEP_CXX ?= $(MFEM_CXX)
 
 # Check OpenMP configuration
-ifeq ($(MFEM_USE_OPENMP),YES)
+ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
    MFEM_THREAD_SAFE ?= YES
    ifneq ($(MFEM_THREAD_SAFE),YES)
-      $(error Incompatible config: MFEM_USE_OPENMP requires MFEM_THREAD_SAFE)
+      $(error Incompatible config: MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE)
    endif
 endif
 
@@ -249,7 +249,7 @@ endif
 MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
  MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
- MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
+ MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
  MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
  MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI
@@ -492,52 +492,52 @@ help:
 	@true
 
 status info:
-	$(info MFEM_VERSION         = $(MFEM_VERSION) [v$(MFEM_VERSION_STRING)])
-	$(info MFEM_GIT_STRING      = $(MFEM_GIT_STRING))
-	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
-	$(info MFEM_USE_METIS       = $(MFEM_USE_METIS))
-	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
-	$(info MFEM_DEBUG           = $(MFEM_DEBUG))
-	$(info MFEM_USE_EXCEPTIONS  = $(MFEM_USE_EXCEPTIONS))
-	$(info MFEM_USE_GZSTREAM    = $(MFEM_USE_GZSTREAM))
-	$(info MFEM_USE_LIBUNWIND   = $(MFEM_USE_LIBUNWIND))
-	$(info MFEM_USE_LAPACK      = $(MFEM_USE_LAPACK))
-	$(info MFEM_THREAD_SAFE     = $(MFEM_THREAD_SAFE))
-	$(info MFEM_USE_OPENMP      = $(MFEM_USE_OPENMP))
-	$(info MFEM_USE_MEMALLOC    = $(MFEM_USE_MEMALLOC))
-	$(info MFEM_TIMER_TYPE      = $(MFEM_TIMER_TYPE))
-	$(info MFEM_USE_SUNDIALS    = $(MFEM_USE_SUNDIALS))
-	$(info MFEM_USE_MESQUITE    = $(MFEM_USE_MESQUITE))
-	$(info MFEM_USE_SUITESPARSE = $(MFEM_USE_SUITESPARSE))
-	$(info MFEM_USE_SUPERLU     = $(MFEM_USE_SUPERLU))
-	$(info MFEM_USE_STRUMPACK   = $(MFEM_USE_STRUMPACK))
-	$(info MFEM_USE_GECKO       = $(MFEM_USE_GECKO))
-	$(info MFEM_USE_GNUTLS      = $(MFEM_USE_GNUTLS))
-	$(info MFEM_USE_NETCDF      = $(MFEM_USE_NETCDF))
-	$(info MFEM_USE_PETSC       = $(MFEM_USE_PETSC))
-	$(info MFEM_USE_MPFR        = $(MFEM_USE_MPFR))
-	$(info MFEM_USE_SIDRE       = $(MFEM_USE_SIDRE))
-	$(info MFEM_USE_CONDUIT     = $(MFEM_USE_CONDUIT))
-	$(info MFEM_USE_PUMI        = $(MFEM_USE_PUMI))
-	$(info MFEM_CXX             = $(value MFEM_CXX))
-	$(info MFEM_CPPFLAGS        = $(value MFEM_CPPFLAGS))
-	$(info MFEM_CXXFLAGS        = $(value MFEM_CXXFLAGS))
-	$(info MFEM_TPLFLAGS        = $(value MFEM_TPLFLAGS))
-	$(info MFEM_INCFLAGS        = $(value MFEM_INCFLAGS))
-	$(info MFEM_FLAGS           = $(value MFEM_FLAGS))
-	$(info MFEM_EXT_LIBS        = $(value MFEM_EXT_LIBS))
-	$(info MFEM_LIBS            = $(value MFEM_LIBS))
-	$(info MFEM_LIB_FILE        = $(value MFEM_LIB_FILE))
-	$(info MFEM_BUILD_TAG       = $(value MFEM_BUILD_TAG))
-	$(info MFEM_PREFIX          = $(value MFEM_PREFIX))
-	$(info MFEM_INC_DIR         = $(value MFEM_INC_DIR))
-	$(info MFEM_LIB_DIR         = $(value MFEM_LIB_DIR))
-	$(info MFEM_STATIC          = $(MFEM_STATIC))
-	$(info MFEM_SHARED          = $(MFEM_SHARED))
-	$(info MFEM_BUILD_DIR       = $(MFEM_BUILD_DIR))
-	$(info MFEM_MPIEXEC         = $(MFEM_MPIEXEC))
-	$(info MFEM_MPIEXEC_NP      = $(MFEM_MPIEXEC_NP))
-	$(info MFEM_MPI_NP          = $(MFEM_MPI_NP))
+	$(info MFEM_VERSION           = $(MFEM_VERSION) [v$(MFEM_VERSION_STRING)])
+	$(info MFEM_GIT_STRING        = $(MFEM_GIT_STRING))
+	$(info MFEM_USE_MPI           = $(MFEM_USE_MPI))
+	$(info MFEM_USE_METIS         = $(MFEM_USE_METIS))
+	$(info MFEM_USE_METIS_5       = $(MFEM_USE_METIS_5))
+	$(info MFEM_DEBUG             = $(MFEM_DEBUG))
+	$(info MFEM_USE_EXCEPTIONS    = $(MFEM_USE_EXCEPTIONS))
+	$(info MFEM_USE_GZSTREAM      = $(MFEM_USE_GZSTREAM))
+	$(info MFEM_USE_LIBUNWIND     = $(MFEM_USE_LIBUNWIND))
+	$(info MFEM_USE_LAPACK        = $(MFEM_USE_LAPACK))
+	$(info MFEM_THREAD_SAFE       = $(MFEM_THREAD_SAFE))
+	$(info MFEM_USE_LEGACY_OPENMP = $(MFEM_USE_LEGACY_OPENMP))
+	$(info MFEM_USE_MEMALLOC      = $(MFEM_USE_MEMALLOC))
+	$(info MFEM_TIMER_TYPE        = $(MFEM_TIMER_TYPE))
+	$(info MFEM_USE_SUNDIALS      = $(MFEM_USE_SUNDIALS))
+	$(info MFEM_USE_MESQUITE      = $(MFEM_USE_MESQUITE))
+	$(info MFEM_USE_SUITESPARSE   = $(MFEM_USE_SUITESPARSE))
+	$(info MFEM_USE_SUPERLU       = $(MFEM_USE_SUPERLU))
+	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
+	$(info MFEM_USE_GECKO         = $(MFEM_USE_GECKO))
+	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
+	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
+	$(info MFEM_USE_PETSC         = $(MFEM_USE_PETSC))
+	$(info MFEM_USE_MPFR          = $(MFEM_USE_MPFR))
+	$(info MFEM_USE_SIDRE         = $(MFEM_USE_SIDRE))
+	$(info MFEM_USE_CONDUIT       = $(MFEM_USE_CONDUIT))
+	$(info MFEM_USE_PUMI          = $(MFEM_USE_PUMI))
+	$(info MFEM_CXX               = $(value MFEM_CXX))
+	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
+	$(info MFEM_CXXFLAGS          = $(value MFEM_CXXFLAGS))
+	$(info MFEM_TPLFLAGS          = $(value MFEM_TPLFLAGS))
+	$(info MFEM_INCFLAGS          = $(value MFEM_INCFLAGS))
+	$(info MFEM_FLAGS             = $(value MFEM_FLAGS))
+	$(info MFEM_EXT_LIBS          = $(value MFEM_EXT_LIBS))
+	$(info MFEM_LIBS              = $(value MFEM_LIBS))
+	$(info MFEM_LIB_FILE          = $(value MFEM_LIB_FILE))
+	$(info MFEM_BUILD_TAG         = $(value MFEM_BUILD_TAG))
+	$(info MFEM_PREFIX            = $(value MFEM_PREFIX))
+	$(info MFEM_INC_DIR           = $(value MFEM_INC_DIR))
+	$(info MFEM_LIB_DIR           = $(value MFEM_LIB_DIR))
+	$(info MFEM_STATIC            = $(MFEM_STATIC))
+	$(info MFEM_SHARED            = $(MFEM_SHARED))
+	$(info MFEM_BUILD_DIR         = $(MFEM_BUILD_DIR))
+	$(info MFEM_MPIEXEC           = $(MFEM_MPIEXEC))
+	$(info MFEM_MPIEXEC_NP        = $(MFEM_MPIEXEC_NP))
+	$(info MFEM_MPI_NP            = $(MFEM_MPI_NP))
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
@@ -550,8 +550,8 @@ deprecation-warnings:
 	@ccred="\033[0;31m"; \
 	ccyellow="\033[0;33m"; \
 	ccend="\033[0m"; \
-        if [ $(MFEM_USE_OPENMP) = YES ]; then \
-	  echo $$ccred[MFEM_USE_OPENMP]$$ccend: $$ccyellow$(DEPRECATION_WARNING)$$ccend; \
+        if [ $(MFEM_USE_LEGACY_OPENMP) = YES ]; then \
+	  echo $$ccred[MFEM_USE_LEGACY_OPENMP]$$ccend: $$ccyellow$(DEPRECATION_WARNING)$$ccend; \
 	fi
 
 style:

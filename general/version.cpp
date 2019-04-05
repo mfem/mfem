@@ -94,8 +94,8 @@ const char *GetConfigStr()
 #ifdef MFEM_THREAD_SAFE
       "MFEM_THREAD_SAFE\n"
 #endif
-#ifdef MFEM_USE_OPENMP
-      "MFEM_USE_OPENMP\n"
+#ifdef MFEM_USE_LEGACY_OPENMP
+      "MFEM_USE_LEGACY_OPENMP\n"
 #endif
 #ifdef MFEM_USE_MEMALLOC
       "MFEM_USE_MEMALLOC\n"
