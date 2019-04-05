@@ -195,11 +195,11 @@ endif
 
 DEP_CXX ?= $(MFEM_CXX)
 
-# Check OpenMP configuration
-ifeq ($(MFEM_USE_OPENMP),YES)
+# Check legacy OpenMP configuration
+ifeq ($(MFEM_LEGACY_USE_OPENMP),YES)
    MFEM_THREAD_SAFE ?= YES
    ifneq ($(MFEM_THREAD_SAFE),YES)
-      $(error Incompatible config: MFEM_USE_OPENMP requires MFEM_THREAD_SAFE)
+      $(error Incompatible config: MFEM_LEGACY_USE_OPENMP requires MFEM_THREAD_SAFE)
    endif
 endif
 
@@ -231,6 +231,12 @@ ifeq ($(MFEM_USE_$(1)),YES)
 endif
 endef
 
+# Legacy options
+ifeq ($(MFEM_LEGACY_USE_OPENMP),YES)
+   INCFLAGS += $(OPENMP_OPT)
+   ALL_LIBS += $(OPENMP_LIB)
+endif
+
 # Process dependencies
 $(foreach dep,$(MFEM_DEPENDENCIES),$(eval $(call mfem_add_dependency,$(dep))))
 
@@ -249,10 +255,10 @@ endif
 MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
  MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
- MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
- MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
- MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
- MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI
+ MFEM_USE_OPENMP MFEM_LEGACY_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE\
+ MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO\
+ MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF\
+ MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -546,7 +552,7 @@ FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 DEPRECATION_WARNING := "This feature is planned for removal in the next release. Please open an issue at github.com/mfem/mfem/issues if you depend on it."
 .PHONY: deprecation-warnings
 deprecation-warnings:
-	@if [ $(MFEM_USE_OPENMP) = YES ]; then echo [MFEM_USE_OPENMP]: $(DEPRECATION_WARNING); fi
+	@if [ $(MFEM_LEGACY_USE_OPENMP) = YES ]; then echo [MFEM_LEGACY_USE_OPENMP]: $(DEPRECATION_WARNING); fi
 
 style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
