@@ -375,7 +375,7 @@ void BilinearForm::Assemble(int skip_zeros)
       AllocMat();
    }
 
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
    int free_element_matrices = 0;
    if (!element_matrices)
    {
@@ -552,7 +552,7 @@ void BilinearForm::Assemble(int skip_zeros)
       }
    }
 
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
    if (free_element_matrices)
    {
       FreeElementMatrices();
@@ -836,7 +836,7 @@ void BilinearForm::ComputeElementMatrices()
    DenseMatrix tmp;
    IsoparametricTransformation eltrans;
 
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for private(tmp,eltrans)
 #endif
    for (int i = 0; i < num_elements; i++)

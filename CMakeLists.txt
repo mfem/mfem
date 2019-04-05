@@ -175,12 +175,11 @@ if (MFEM_USE_LAPACK)
 endif()
 
 # OpenMP
-if (MFEM_USE_OPENMP)
-  if (MFEM_THREAD_SAFE)
-    find_package(OpenMP REQUIRED)
-  else()
-    message(FATAL_ERROR " *** MFEM_USE_OPENMP requires MFEM_THREAD_SAFE=ON.")
+if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
+  if (NOT MFEM_THREAD_SAFE AND MFEM_USE_LEGACY_OPENMP)
+    message(FATAL_ERROR " *** MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE=ON.")
   endif()
+  find_package(OpenMP REQUIRED)
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)

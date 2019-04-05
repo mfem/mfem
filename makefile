@@ -220,10 +220,10 @@ endif
 DEP_CXX ?= $(MFEM_CXX)
 
 # Check OpenMP configuration
-ifeq ($(MFEM_USE_OPENMP),YES)
+ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
    MFEM_THREAD_SAFE ?= YES
    ifneq ($(MFEM_THREAD_SAFE),YES)
-      $(error Incompatible config: MFEM_USE_OPENMP requires MFEM_THREAD_SAFE)
+      $(error Incompatible config: MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE)
    endif
 endif
 
@@ -250,6 +250,9 @@ endif
 # List of MFEM dependencies, processed below
 MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP
 
+# List of deprecated MFEM dependencies, processed below
+MFEM_LEGACY_DEPENDENCIES = OPENMP
+
 # Macro for adding dependencies
 define mfem_add_dependency
 ifeq ($(MFEM_USE_$(1)),YES)
@@ -258,8 +261,18 @@ ifeq ($(MFEM_USE_$(1)),YES)
 endif
 endef
 
+# Macro for adding legacy dependencies
+define mfem_add_legacy_dependency
+ifeq ($(MFEM_USE_LEGACY_$(1)),YES)
+   INCFLAGS += $($(1)_OPT)
+   ALL_LIBS += $($(1)_LIB)
+endif
+endef
+
 # Process dependencies
 $(foreach dep,$(MFEM_DEPENDENCIES),$(eval $(call mfem_add_dependency,$(dep))))
+$(foreach dep,$(MFEM_LEGACY_DEPENDENCIES),$(eval $(call \
+   mfem_add_legacy_dependency,$(dep))))
 
 # Timer option
 ifeq ($(MFEM_TIMER_TYPE),2)
@@ -276,11 +289,12 @@ endif
 MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI    \
  MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS                 \
  MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE          \
- MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS            \
- MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU         \
- MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC              \
- MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_CUDA      \
- MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE       \
+ MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO        \
+ MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF            \
+ MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI     \
+ MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA MFEM_SOURCE_DIR          \
+ MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR            \
@@ -350,7 +364,8 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
-	cuda debug pdebug cudebug pcudebug style check test unittest
+	cuda debug pdebug cudebug pcudebug style check test unittest \
+	deprecation-warnings
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -387,9 +402,11 @@ doc:
 $(BLD)libmfem.a: $(OBJECT_FILES)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
+	@$(MAKE) deprecation-warnings
 
 $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
+	@$(MAKE) deprecation-warnings
 
 # If some of the external libraries are build without -fPIC, linking shared MFEM
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
@@ -534,63 +551,78 @@ help:
 	@true
 
 status info:
-	$(info MFEM_VERSION         = $(MFEM_VERSION) [v$(MFEM_VERSION_STRING)])
-	$(info MFEM_GIT_STRING      = $(MFEM_GIT_STRING))
-	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
-	$(info MFEM_USE_METIS       = $(MFEM_USE_METIS))
-	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
-	$(info MFEM_DEBUG           = $(MFEM_DEBUG))
-	$(info MFEM_USE_EXCEPTIONS  = $(MFEM_USE_EXCEPTIONS))
-	$(info MFEM_USE_GZSTREAM    = $(MFEM_USE_GZSTREAM))
-	$(info MFEM_USE_LIBUNWIND   = $(MFEM_USE_LIBUNWIND))
-	$(info MFEM_USE_LAPACK      = $(MFEM_USE_LAPACK))
-	$(info MFEM_THREAD_SAFE     = $(MFEM_THREAD_SAFE))
-	$(info MFEM_USE_OPENMP      = $(MFEM_USE_OPENMP))
-	$(info MFEM_USE_MEMALLOC    = $(MFEM_USE_MEMALLOC))
-	$(info MFEM_TIMER_TYPE      = $(MFEM_TIMER_TYPE))
-	$(info MFEM_USE_SUNDIALS    = $(MFEM_USE_SUNDIALS))
-	$(info MFEM_USE_MESQUITE    = $(MFEM_USE_MESQUITE))
-	$(info MFEM_USE_SUITESPARSE = $(MFEM_USE_SUITESPARSE))
-	$(info MFEM_USE_SUPERLU     = $(MFEM_USE_SUPERLU))
-	$(info MFEM_USE_STRUMPACK   = $(MFEM_USE_STRUMPACK))
-	$(info MFEM_USE_GECKO       = $(MFEM_USE_GECKO))
-	$(info MFEM_USE_GNUTLS      = $(MFEM_USE_GNUTLS))
-	$(info MFEM_USE_NETCDF      = $(MFEM_USE_NETCDF))
-	$(info MFEM_USE_PETSC       = $(MFEM_USE_PETSC))
-	$(info MFEM_USE_MPFR        = $(MFEM_USE_MPFR))
-	$(info MFEM_USE_SIDRE       = $(MFEM_USE_SIDRE))
-	$(info MFEM_USE_CONDUIT     = $(MFEM_USE_CONDUIT))
-	$(info MFEM_USE_PUMI        = $(MFEM_USE_PUMI))
-	$(info MFEM_USE_CUDA        = $(MFEM_USE_CUDA))
-	$(info MFEM_USE_RAJA        = $(MFEM_USE_RAJA))
-	$(info MFEM_USE_OCCA        = $(MFEM_USE_OCCA))
-	$(info MFEM_USE_MM          = $(MFEM_USE_MM))
-	$(info MFEM_CXX             = $(value MFEM_CXX))
-	$(info MFEM_CPPFLAGS        = $(value MFEM_CPPFLAGS))
-	$(info MFEM_CXXFLAGS        = $(value MFEM_CXXFLAGS))
-	$(info MFEM_TPLFLAGS        = $(value MFEM_TPLFLAGS))
-	$(info MFEM_INCFLAGS        = $(value MFEM_INCFLAGS))
-	$(info MFEM_FLAGS           = $(value MFEM_FLAGS))
-	$(info MFEM_LINK_FLAGS      = $(value MFEM_LINK_FLAGS))
-	$(info MFEM_EXT_LIBS        = $(value MFEM_EXT_LIBS))
-	$(info MFEM_LIBS            = $(value MFEM_LIBS))
-	$(info MFEM_LIB_FILE        = $(value MFEM_LIB_FILE))
-	$(info MFEM_BUILD_TAG       = $(value MFEM_BUILD_TAG))
-	$(info MFEM_PREFIX          = $(value MFEM_PREFIX))
-	$(info MFEM_INC_DIR         = $(value MFEM_INC_DIR))
-	$(info MFEM_LIB_DIR         = $(value MFEM_LIB_DIR))
-	$(info MFEM_STATIC          = $(MFEM_STATIC))
-	$(info MFEM_SHARED          = $(MFEM_SHARED))
-	$(info MFEM_BUILD_DIR       = $(MFEM_BUILD_DIR))
-	$(info MFEM_MPIEXEC         = $(MFEM_MPIEXEC))
-	$(info MFEM_MPIEXEC_NP      = $(MFEM_MPIEXEC_NP))
-	$(info MFEM_MPI_NP          = $(MFEM_MPI_NP))
+	$(info MFEM_VERSION           = $(MFEM_VERSION) [v$(MFEM_VERSION_STRING)])
+	$(info MFEM_GIT_STRING        = $(MFEM_GIT_STRING))
+	$(info MFEM_USE_MPI           = $(MFEM_USE_MPI))
+	$(info MFEM_USE_METIS         = $(MFEM_USE_METIS))
+	$(info MFEM_USE_METIS_5       = $(MFEM_USE_METIS_5))
+	$(info MFEM_DEBUG             = $(MFEM_DEBUG))
+	$(info MFEM_USE_EXCEPTIONS    = $(MFEM_USE_EXCEPTIONS))
+	$(info MFEM_USE_GZSTREAM      = $(MFEM_USE_GZSTREAM))
+	$(info MFEM_USE_LIBUNWIND     = $(MFEM_USE_LIBUNWIND))
+	$(info MFEM_USE_LAPACK        = $(MFEM_USE_LAPACK))
+	$(info MFEM_THREAD_SAFE       = $(MFEM_THREAD_SAFE))
+	$(info MFEM_USE_OPENMP        = $(MFEM_USE_OPENMP))
+	$(info MFEM_USE_LEGACY_OPENMP = $(MFEM_USE_LEGACY_OPENMP))
+	$(info MFEM_USE_MEMALLOC      = $(MFEM_USE_MEMALLOC))
+	$(info MFEM_TIMER_TYPE        = $(MFEM_TIMER_TYPE))
+	$(info MFEM_USE_SUNDIALS      = $(MFEM_USE_SUNDIALS))
+	$(info MFEM_USE_MESQUITE      = $(MFEM_USE_MESQUITE))
+	$(info MFEM_USE_SUITESPARSE   = $(MFEM_USE_SUITESPARSE))
+	$(info MFEM_USE_SUPERLU       = $(MFEM_USE_SUPERLU))
+	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
+	$(info MFEM_USE_GECKO         = $(MFEM_USE_GECKO))
+	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
+	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
+	$(info MFEM_USE_PETSC         = $(MFEM_USE_PETSC))
+	$(info MFEM_USE_MPFR          = $(MFEM_USE_MPFR))
+	$(info MFEM_USE_SIDRE         = $(MFEM_USE_SIDRE))
+	$(info MFEM_USE_CONDUIT       = $(MFEM_USE_CONDUIT))
+	$(info MFEM_USE_PUMI          = $(MFEM_USE_PUMI))
+	$(info MFEM_USE_CUDA          = $(MFEM_USE_CUDA))
+	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
+	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
+	$(info MFEM_USE_MM            = $(MFEM_USE_MM))
+	$(info MFEM_CXX               = $(value MFEM_CXX))
+	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
+	$(info MFEM_CXXFLAGS          = $(value MFEM_CXXFLAGS))
+	$(info MFEM_TPLFLAGS          = $(value MFEM_TPLFLAGS))
+	$(info MFEM_INCFLAGS          = $(value MFEM_INCFLAGS))
+	$(info MFEM_FLAGS             = $(value MFEM_FLAGS))
+	$(info MFEM_LINK_FLAGS        = $(value MFEM_LINK_FLAGS))
+	$(info MFEM_EXT_LIBS          = $(value MFEM_EXT_LIBS))
+	$(info MFEM_LIBS              = $(value MFEM_LIBS))
+	$(info MFEM_LIB_FILE          = $(value MFEM_LIB_FILE))
+	$(info MFEM_BUILD_TAG         = $(value MFEM_BUILD_TAG))
+	$(info MFEM_PREFIX            = $(value MFEM_PREFIX))
+	$(info MFEM_INC_DIR           = $(value MFEM_INC_DIR))
+	$(info MFEM_LIB_DIR           = $(value MFEM_LIB_DIR))
+	$(info MFEM_STATIC            = $(MFEM_STATIC))
+	$(info MFEM_SHARED            = $(MFEM_SHARED))
+	$(info MFEM_BUILD_DIR         = $(MFEM_BUILD_DIR))
+	$(info MFEM_MPIEXEC           = $(MFEM_MPIEXEC))
+	$(info MFEM_MPIEXEC_NP        = $(MFEM_MPIEXEC_NP))
+	$(info MFEM_MPI_NP            = $(MFEM_MPI_NP))
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
+
+DEPRECATION_WARNING := \
+"This feature is planned for removal in the next release."\
+"Please open an issue at github.com/mfem/mfem/issues if you depend on it."
+deprecation-warnings:
+	@if [ -t 1 ]; then\
+	  red="\033[0;31m";\
+	  yellow="\033[0;33m";\
+	  end="\033[0m";\
+	fi;\
+	if [ $(MFEM_USE_LEGACY_OPENMP) = YES ]; then\
+	  printf $$red"[MFEM_USE_LEGACY_OPENMP]"$$end": "$$yellow"%s"$$end"\n"\
+	  $(DEPRECATION_WARNING);\
+	fi
 
 style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\

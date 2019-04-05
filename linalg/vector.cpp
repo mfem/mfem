@@ -100,7 +100,18 @@ const double &Vector::Elem(int i) const
 
 double Vector::operator*(const double *v) const
 {
+#ifdef MFEM_USE_LEGACY_OPENMP
+   int s = size;
+   const double *d = data;
+   double prod = 0.0;
+   #pragma omp parallel for reduction(+:prod)
+   for (int i = 0; i < s; i++)
+   {
+      prod += d[i] * v[i];
+   }
+#else
    double prod = Dot(size, data, v);
+#endif
    return prod;
 }
 
@@ -257,7 +268,7 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
    }
 #endif
 
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for
    for (int i = 0; i < v.size; i++)
    {
@@ -292,8 +303,9 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
    {
       const double *v1p = v1.data, *v2p = v2.data;
       double *vp = v.data;
+
       const int s = v.size;
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
@@ -329,7 +341,7 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
       const double *yp = y.data;
       double       *zp = z.data;
       const int      s = x.size;
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
@@ -378,7 +390,7 @@ void add(const double a, const Vector &x,
       double       *zp = z.data;
       const int      s = x.size;
 
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
@@ -405,7 +417,7 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    double       *zp = z.data;
    const int     s = x.size;
 
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for
    for (int i = 0; i < s; i++)
    {
@@ -441,7 +453,7 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
       double       *zp = z.data;
       const int      s = x.size;
 
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {

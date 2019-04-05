@@ -584,7 +584,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (a == 1.0)
    {
-#ifndef MFEM_USE_OPENMP
+#ifndef MFEM_USE_LEGACY_OPENMP
       const DeviceArray d_I(I);
       const DeviceArray d_J(J);
       const DeviceVector d_A(A);
