@@ -15,6 +15,7 @@
 #include "table.hpp"
 #include "error.hpp"
 
+#include "../general/okina.hpp"
 #include <iostream>
 #include <iomanip>
 
@@ -29,8 +30,8 @@ Table::Table(const Table &table)
    if (size >= 0)
    {
       const int nnz = table.I[size];
-      I = new int[size+1];
-      J = new int[nnz];
+      I = mm::New<int>(size+1);
+      J = mm::New<int>(nnz);
       memcpy(I, table.I, sizeof(int)*(size+1));
       memcpy(J, table.J, sizeof(int)*nnz);
    }
@@ -55,8 +56,8 @@ Table::Table (int dim, int connections_per_row)
    int i, j, sum = dim * connections_per_row;
 
    size = dim;
-   I = new int[size+1];
-   J = new int[sum];
+   I = mm::New<int>(size+1);
+   J = mm::New<int>(sum);
 
    I[0] = 0;
    for (i = 1; i <= size; i++)
@@ -70,8 +71,8 @@ Table::Table (int nrows, int *partitioning)
 {
    size = nrows;
 
-   I = new int[size+1];
-   J = new int[size];
+   I = mm::New<int>(size+1);
+   J = mm::New<int>(size);
 
    for (int i = 0; i < size; i++)
    {
@@ -100,8 +101,8 @@ void Table::MakeJ()
       j = I[i], I[i] = k, k += j;
    }
 
-   if (J) { delete [] J; }
-   J = new int[I[size]=k];
+   if (J) { mm::Delete(J); }
+   J = mm::New<int>(I[size]=k);
 }
 
 void Table::AddConnections (int r, const int *c, int nc)
@@ -148,14 +149,14 @@ void Table::SetDims(int rows, int nnz)
    if (size != rows)
    {
       size = rows;
-      if (I) { delete [] I; }
-      I = (rows >= 0) ? (new int[rows+1]) : (NULL);
+      if (I) { mm::Delete(I); }
+      I = (rows >= 0) ? (mm::New<int>(rows+1)) : (NULL);
    }
 
    if (j != nnz)
    {
-      if (J) { delete [] J; }
-      J = (nnz > 0) ? (new int[nnz]) : (NULL);
+      if (J) { mm::Delete(J); }
+      J = (nnz > 0) ? (mm::New<int>(nnz)) : (NULL);
    }
 
    if (size >= 0)
@@ -206,8 +207,8 @@ void Table::SortRows()
 
 void Table::SetIJ(int *newI, int *newJ, int newsize)
 {
-   delete [] I;
-   delete [] J;
+   mm::Delete(I);
+   mm::Delete(J);
    I = newI;
    J = newJ;
    if (newsize >= 0)
@@ -249,7 +250,7 @@ void Table::Finalize()
 
    if (sum != I[size])
    {
-      int *NewJ = new int[sum];
+      int *NewJ = mm::New<int>(sum);
 
       for (i=0; i<size; i++)
       {
@@ -264,7 +265,7 @@ void Table::Finalize()
       }
       I[size] = sum;
 
-      delete [] J;
+      mm::Delete(J);
 
       J = NewJ;
 
@@ -279,8 +280,8 @@ void Table::MakeFromList(int nrows, const Array<Connection> &list)
    size = nrows;
    int nnz = list.Size();
 
-   I = new int[size+1];
-   J = new int[nnz];
+   I = mm::New<int>(size+1);
+   J = mm::New<int>(nnz);
 
    for (int i = 0, k = 0; i <= size; i++)
    {
@@ -354,17 +355,17 @@ void Table::Save(std::ostream &out) const
 
 void Table::Load(std::istream &in)
 {
-   delete [] I;
-   delete [] J;
+   mm::Delete(I);
+   mm::Delete(J);
 
    in >> size;
-   I = new int[size+1];
+   I = mm::New<int>(size+1);
    for (int i = 0; i <= size; i++)
    {
       in >> I[i];
    }
    int nnz = I[size];
-   J = new int[nnz];
+   J =mm::New<int>(nnz);
    for (int j = 0; j < nnz; j++)
    {
       in >> J[j];
@@ -373,8 +374,8 @@ void Table::Load(std::istream &in)
 
 void Table::Clear()
 {
-   delete [] I;
-   delete [] J;
+   mm::Delete(I);
+   mm::Delete(J);
    size = -1;
    I = J = NULL;
 }
@@ -383,8 +384,8 @@ void Table::Copy(Table & copy) const
 {
    if (size >= 0)
    {
-      int * i_copy = new int[size+1];
-      int * j_copy = new int[I[size]];
+      int * i_copy = mm::New<int>(size+1);
+      int * j_copy = mm::New<int>(I[size]);
 
       memcpy(i_copy, I, sizeof(int)*(size+1));
       memcpy(j_copy, J, sizeof(int)*I[size]);
@@ -412,8 +413,8 @@ long Table::MemoryUsage() const
 
 Table::~Table ()
 {
-   if (I) { delete [] I; }
-   if (J) { delete [] J; }
+   if (I) { mm::Delete(I); }
+   if (J) { mm::Delete(J); }
 }
 
 void Transpose (const Table &A, Table &At, int _ncols_A)

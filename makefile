@@ -24,8 +24,12 @@ MFEM makefile targets:
    make status/info
    make serial
    make parallel
+   make cuda
+   make pcuda
    make debug
    make pdebug
+   make cudebug
+   make pcudebug
    make test/check
    make install
    make clean
@@ -51,10 +55,18 @@ make serial
    A shortcut to configure and build the serial optimized version of the library.
 make parallel
    A shortcut to configure and build the parallel optimized version of the library.
+make cuda
+   A shortcut to configure and build the serial GPU/CUDA optimized version of the library.
+make pcuda
+   A shortcut to configure and build the parallel GPU/CUDA optimized version of the library.
 make debug
    A shortcut to configure and build the serial debug version of the library.
 make pdebug
    A shortcut to configure and build the parallel debug version of the library.
+make cudebug
+   A shortcut to configure and build the serial GPU/CUDA debug version of the library.
+make pcudebug
+   A shortcut to configure and build the parallel GPU/CUDA debug version of the library.
 make test
    Verify the build by checking the results from running all examples, miniapps,
    and tests.
@@ -146,8 +158,8 @@ $(call mfem-info, SRC       = $(SRC))
 $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
-SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- style
+SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug \
+	cuda pcuda cudebug pcudebug style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -182,13 +194,25 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
-   MFEM_CXX ?= $(CXX)
-   PKGS_NEED_MPI = SUPERLU STRUMPACK PETSC PUMI
-   $(foreach mpidep,$(PKGS_NEED_MPI),$(if $(MFEM_USE_$(mpidep):NO=),\
-     $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
-     $(eval override MFEM_USE_$(mpidep)=NO),))
+   ifneq ($(MFEM_USE_CUDA),YES)
+      MFEM_CXX ?= $(CXX)
+      PKGS_NEED_MPI = SUPERLU STRUMPACK PETSC PUMI
+      $(foreach mpidep,$(PKGS_NEED_MPI),$(if $(MFEM_USE_$(mpidep):NO=),\
+        $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
+        $(eval override MFEM_USE_$(mpidep)=NO),))
+   else
+      # CUDA configuration
+      MFEM_CXX ?= $(MFEM_CUDA_CXX)
+      CXXFLAGS += $(MFEM_CUDA_FLAGS)
+   endif
 else
-   MFEM_CXX ?= $(MPICXX)
+   ifneq ($(MFEM_USE_CUDA),YES)
+      MFEM_CXX ?= $(MPICXX)
+   else
+      # CUDA configuration
+      MFEM_CXX ?= $(MFEM_CUDA_CXX)
+      CXXFLAGS += $(MFEM_CUDA_FLAGS)
+   endif
    INCFLAGS += $(HYPRE_OPT)
    ALL_LIBS += $(HYPRE_LIB)
 endif
@@ -205,7 +229,10 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI
+ SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI CUDA OCCA RAJA
+ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_MPI),YESYES)
+   MFEM_REQ_LIB_DEPS += MPI
+endif
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -258,19 +285,21 @@ ifeq ($(MFEM_USE_GZSTREAM),YES)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
-MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
- MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
- MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
- MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE\
- MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO\
- MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF\
- MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI
+MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI    \
+ MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS                 \
+ MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE          \
+ MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE       \
+ MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO        \
+ MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF            \
+ MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI     \
+ MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_MM MFEM_USE_RAJA
 
 # List of makefile variables that will be written to config.mk:
-MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
- MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR MFEM_EXT_LIBS\
- MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG MFEM_PREFIX\
- MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP MFEM_TEST_MK
+MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR            \
+ MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_SOFLAGS MFEM_FLAGS MFEM_LIB_DIR  \
+ MFEM_EXT_LIBS MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG   \
+ MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP         \
+ MFEM_TEST_MK
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -278,9 +307,10 @@ MFEM_CXXFLAGS  ?= $(CXXFLAGS)
 MFEM_TPLFLAGS  ?= $(INCFLAGS)
 MFEM_INCFLAGS  ?= -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
 MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
+MFEM_SOFLAGS   ?= $(if $(shared),$(BUILD_SOFLAGS))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
-MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
+MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem \
    @MFEM_EXT_LIBS@
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
@@ -329,7 +359,8 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
- debug pdebug style check test unittest deprecation-warnings
+  cuda debug pdebug style check test unittest deprecation-warnings
+
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -376,22 +407,32 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(MFEM_SOFLAGS) $(OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
-serial debug:    M_MPI=NO
-parallel pdebug: M_MPI=YES
-serial parallel: M_DBG=NO
-debug pdebug:    M_DBG=YES
+# Shortcut targets options
+serial parallel debug pdebug:   M_MM=NO
+serial debug cuda cudebug:      M_MPI=NO
+parallel pdebug pcuda pcudebug: M_MPI=YES
+serial parallel cuda pcuda:     M_DBG=NO
+debug pdebug cudebug pcudebug:  M_DBG=YES
+cuda pcuda cudebug pcudebug:    M_CUDA=YES
+cuda pcuda cudebug pcudebug:    M_MM=YES
+
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
 	   $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
+cuda pcuda cudebug pcudebug:
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
+	   MFEM_USE_CUDA=$(M_CUDA) MFEM_USE_MM=$(M_MM) $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
+
 deps:
 	rm -f $(BLD)deps.mk
 	for i in $(RELSRC_FILES:.cpp=); do \
-	   $(DEP_CXX) $(MFEM_BUILD_FLAGS) -MM -MT $(BLD)$${i}.o $(SRC)$${i}.cpp\
+	   $(DEP_CXX) $(MFEM_BUILD_FLAGS) -MM -MT $(BLD)$${i}.o $(SRC)$${i}.cpp \
 	      >> $(BLD)deps.mk; done
 
 check: lib
@@ -433,7 +474,7 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
 
-INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
+INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS) \
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
@@ -532,12 +573,17 @@ status info:
 	$(info MFEM_USE_SIDRE         = $(MFEM_USE_SIDRE))
 	$(info MFEM_USE_CONDUIT       = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI          = $(MFEM_USE_PUMI))
+  $(info MFEM_USE_CUDA          = $(MFEM_USE_CUDA))
+	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
+	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
+	$(info MFEM_USE_MM            = $(MFEM_USE_MM))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS          = $(value MFEM_CXXFLAGS))
 	$(info MFEM_TPLFLAGS          = $(value MFEM_TPLFLAGS))
 	$(info MFEM_INCFLAGS          = $(value MFEM_INCFLAGS))
 	$(info MFEM_FLAGS             = $(value MFEM_FLAGS))
+	$(info MFEM_LINK_FLAGS        = $(value MFEM_LINK_FLAGS))
 	$(info MFEM_EXT_LIBS          = $(value MFEM_EXT_LIBS))
 	$(info MFEM_LIBS              = $(value MFEM_LIBS))
 	$(info MFEM_LIB_FILE          = $(value MFEM_LIB_FILE))
@@ -554,7 +600,7 @@ status info:
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
-FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
+FORMAT_FILES  = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 
@@ -568,8 +614,8 @@ deprecation-warnings:
 	fi
 
 style:
-	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
-	   echo "No source files were changed.";\
+	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then \
+	   echo "No source files were changed."; \
 	fi
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.

@@ -12,6 +12,7 @@
 // Implementation of class BilinearForm
 
 #include "fem.hpp"
+#include "../general/device.hpp"
 #include <cmath>
 
 namespace mfem
@@ -54,7 +55,7 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   double *data = new double[I[height]];
+   double *data = mm::New<double>(I[height]);
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
@@ -62,7 +63,8 @@ void BilinearForm::AllocMat()
    dof_dof.LoseData();
 }
 
-BilinearForm::BilinearForm (FiniteElementSpace * f)
+BilinearForm::BilinearForm (FiniteElementSpace * f,
+                            AssemblyLevel assembly_level, int elem_batch)
    : Matrix (f->GetVSize())
 {
    fes = f;
@@ -74,6 +76,33 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    hybridization = NULL;
    precompute_sparsity = 0;
    diag_policy = DIAG_KEEP;
+
+   assembly = assembly_level;
+   batch = elem_batch;
+
+   fa = NULL; ea = NULL; pa = NULL; mf = NULL;
+
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+         if (Device::UsingOkina())
+         {
+            mfem_error("Full assembly not supported yet in device mode!");
+         }
+         // Use the original BilinearForm implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Element assembly not supported yet... stay tuned!");
+         break;
+      case AssemblyLevel::PARTIAL:
+         pa = new PABilinearFormExtension(this);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Matrix-free action not supported yet... stay tuned!");
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
 }
 
 BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
@@ -106,6 +135,12 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 void BilinearForm::EnableStaticCondensation()
 {
    delete static_cond;
+   if (assembly != AssemblyLevel::FULL)
+   {
+      static_cond = NULL;
+      MFEM_WARNING("Static condensation not supported for this assembly level");
+      return;
+   }
    static_cond = new StaticCondensation(fes);
    if (static_cond->ReducesTrueVSize())
    {
@@ -125,6 +160,13 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
                                        const Array<int> &ess_tdof_list)
 {
    delete hybridization;
+   if (assembly != AssemblyLevel::FULL)
+   {
+      delete constr_integ;
+      hybridization = NULL;
+      MFEM_WARNING("Hybridization not supported for this assembly level");
+      return;
+   }
    hybridization = new Hybridization(fes, constr_space);
    hybridization->SetConstraintIntegrator(constr_integ);
    hybridization->Init(ess_tdof_list);
@@ -181,7 +223,24 @@ void BilinearForm::Finalize (int skip_zeros)
 
 void BilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
 {
-   dbfi.Append (bfi);
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+         // Use the original BilinearForm implementation for now
+         dbfi.Append(bfi);
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Not supported yet... stay tuned!");
+         break;
+      case AssemblyLevel::PARTIAL:
+         pa->AddDomainIntegrator(bfi);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Not supported yet... stay tuned!");
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
 }
 
 void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
@@ -287,13 +346,29 @@ void BilinearForm::AssembleBdrElementMatrix(
    }
 }
 
-void BilinearForm::Assemble (int skip_zeros)
+void BilinearForm::Assemble(int skip_zeros)
 {
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+         // Use the original BilinearForm implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Not supported yet... stay tuned!");
+         return;
+      case AssemblyLevel::PARTIAL:
+         pa->Assemble();
+         return;
+      case AssemblyLevel::NONE:
+         mfem_error("Not supported yet... stay tuned!");
+         return;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+
    ElementTransformation *eltrans;
    Mesh *mesh = fes -> GetMesh();
    DenseMatrix elmat, *elmat_p;
-
-   int i;
 
    if (mat == NULL)
    {
@@ -311,7 +386,7 @@ void BilinearForm::Assemble (int skip_zeros)
 
    if (dbfi.Size())
    {
-      for (i = 0; i < fes -> GetNE(); i++)
+      for (int i = 0; i < fes -> GetNE(); i++)
       {
          fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
@@ -368,7 +443,7 @@ void BilinearForm::Assemble (int skip_zeros)
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -406,7 +481,7 @@ void BilinearForm::Assemble (int skip_zeros)
       Array<int> vdofs2;
 
       int nfaces = mesh->GetNumFaces();
-      for (i = 0; i < nfaces; i++)
+      for (int i = 0; i < nfaces; i++)
       {
          tr = mesh -> GetInteriorFaceTransformations (i);
          if (tr != NULL)
@@ -451,7 +526,7 @@ void BilinearForm::Assemble (int skip_zeros)
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -623,9 +698,83 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
 }
 
+void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                    Vector &x, Vector &b,
+                                    Operator *&opA, Vector &X, Vector &B,
+                                    int copy_interior)
+{
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+      {
+         // Use the original BilinearForm implementation for now
+         SparseMatrix *Ap = static_cast<SparseMatrix*>(opA);
+         SparseMatrix &A = *Ap;
+         FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+         break;
+      }
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Not supported yet... stay tuned!");
+         break;
+      case AssemblyLevel::PARTIAL:
+         pa->FormLinearSystem(ess_tdof_list, x, b, opA, X, B, copy_interior);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Not supported yet... stay tuned!");
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+}
+
+void BilinearForm::FormSystemOperator(const Array<int> &ess_tdof_list,
+                                      Operator *&opA)
+{
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+      {
+         // Use the original BilinearForm implementation for now
+         SparseMatrix *Ap = static_cast<SparseMatrix*>(opA);
+         SparseMatrix &A = *Ap;
+         FormSystemMatrix(ess_tdof_list, A);
+         break;
+      }
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Not supported yet... stay tuned!");
+         break;
+      case AssemblyLevel::PARTIAL:
+         pa->FormSystemOperator(ess_tdof_list, opA);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Not supported yet... stay tuned!");
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+}
+
 void BilinearForm::RecoverFEMSolution(const Vector &X,
                                       const Vector &b, Vector &x)
 {
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+         // Use the original BilinearForm implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Not supported yet... stay tuned!");
+         return;
+      case AssemblyLevel::PARTIAL:
+         pa->RecoverFEMSolution(X, b, x);
+         return;
+      case AssemblyLevel::NONE:
+         mfem_error("Not supported yet... stay tuned!");
+         return;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+
    const SparseMatrix *P = fes->GetConformingProlongation();
    if (!P) // conforming space
    {
@@ -714,7 +863,8 @@ void BilinearForm::ComputeElementMatrices()
 }
 
 void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                        const Vector &sol, Vector &rhs, DiagonalPolicy dpolicy)
+                                        const Vector &sol, Vector &rhs,
+                                        DiagonalPolicy dpolicy)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
@@ -888,6 +1038,7 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    }
 
    height = width = fes->GetVSize();
+   if (pa) { pa->Update(fes); }
 }
 
 void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)
@@ -911,6 +1062,11 @@ BilinearForm::~BilinearForm()
       for (k=0; k < fbfi.Size(); k++) { delete fbfi[k]; }
       for (k=0; k < bfbfi.Size(); k++) { delete bfbfi[k]; }
    }
+
+   if (fa) { delete fa; }
+   if (ea) { delete ea; }
+   if (pa) { delete pa; }
+   if (mf) { delete mf; }
 }
 
 

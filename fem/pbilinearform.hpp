@@ -52,8 +52,10 @@ private:
 public:
    /// Creates parallel bilinear form associated with the FE space @a *pf.
    /** The pointer @a pf is not owned by the newly constructed object. */
-   ParBilinearForm(ParFiniteElementSpace *pf)
-      : BilinearForm(pf), pfes(pf),
+   ParBilinearForm(ParFiniteElementSpace *pf,
+                   AssemblyLevel assembly_level = AssemblyLevel::FULL,
+                   int elem_batch = 1)
+      : BilinearForm(pf,  assembly_level, elem_batch), pfes(pf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
@@ -207,6 +209,35 @@ public:
 
    /// Form the linear system matrix @a A, see FormLinearSystem() for details.
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
+
+   /** Form the linear system A X = B, corresponding to the current bilinear
+       form and b(.), by applying any necessary transformations such as:
+       eliminating boundary conditions; applying conforming constraints for
+       non-conforming AMR; parallel assembly; static condensation;
+       hybridization.
+
+       The ParGridFunction-size vector x must contain the essential b.c. The
+       ParBilinearForm and the ParLinearForm-size vector b must be assembled.
+
+       The vector X is initialized with a suitable initial guess: when using
+       hybridization, the vector X is set to zero; otherwise, the essential
+       entries of X are set to the corresponding b.c. and all other entries are
+       set to zero (copy_interior == 0) or copied from x (copy_interior != 0).
+
+       This method can be called multiple times (with the same ess_tdof_list
+       array) to initialize different right-hand sides and boundary condition
+       values.
+
+       After solving the linear system, the finite element solution x can be
+       recovered by calling RecoverFEMSolution (with the same vectors X, b, and
+       x). */
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         Operator *&A, Vector &X, Vector &B,
+                         int copy_interior = 0);
+
+   /// Form the linear system operator @a A, see FormLinearSystem() for details.
+   virtual void FormSystemOperator(const Array<int> &ess_tdof_list,
+                                   Operator *&A);
 
    /** Version of the method FormSystemMatrix() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
