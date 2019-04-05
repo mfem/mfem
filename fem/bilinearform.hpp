@@ -18,16 +18,40 @@
 #include "gridfunc.hpp"
 #include "linearform.hpp"
 #include "bilininteg.hpp"
+#include "bilinearform_ext.hpp"
 #include "staticcond.hpp"
 #include "hybridization.hpp"
 
 namespace mfem
 {
 
+/// Enumeration defining the assembly level for bilinear and nonlinear form
+/// classes derived from Operator.
+enum class AssemblyLevel
+{
+   /// Fully assembled form, i.e. a global sparse matrix in MFEM, Hypre or PETSC
+   /// format.
+   FULL,
+   /// Form assembled at element level, which computes and stores dense element
+   /// matrices.
+   ELEMENT,
+   /// Partially-assembled form, which computes and stores data only at
+   /// quadrature points.
+   PARTIAL,
+   /// "Matrix-free" form that computes all of its action on-the-fly without any
+   /// substantial storage.
+   NONE,
+};
+
 /** Class for bilinear form - "Matrix" with associated FE space and
     BLFIntegrators. */
 class BilinearForm : public Matrix
 {
+   friend class FABilinearFormExtension;
+   friend class EABilinearFormExtension;
+   friend class PABilinearFormExtension;
+   friend class MFBilinearFormExtension;
+
 protected:
    /// Sparse matrix to be associated with the form. Owned.
    SparseMatrix *mat;
@@ -37,6 +61,19 @@ protected:
 
    /// FE space on which the form lives. Not owned.
    FiniteElementSpace *fes;
+
+   /// The form assembly level (full, partial, etc.)
+   AssemblyLevel assembly;
+   /// Element batch size used in the form action (1, 8, num_elems, etc.)
+   int batch;
+   /// Data and methods specific for Full Assembly (FA)
+   FABilinearFormExtension *fa;
+   /// Data and methods specific for Element Assembly (EA)
+   EABilinearFormExtension *ea;
+   /// Data and methods specific for Partial Assembly (PA)
+   PABilinearFormExtension *pa;
+   /// Data and methods specific for Matrix Free assembly (MF)
+   MFBilinearFormExtension *mf;
 
    /// Indicates the Mesh::sequence corresponding to the current state of the
    /// BilinearForm.
@@ -101,7 +138,9 @@ private:
 public:
    /// Creates bilinear form associated with FE space @a *f.
    /** The pointer @a f is not owned by the newly constructed object. */
-   BilinearForm(FiniteElementSpace *f);
+   BilinearForm(FiniteElementSpace *f,
+                AssemblyLevel assembly_level = AssemblyLevel::FULL,
+                int elem_batch = 1);
 
    /** @brief Create a BilinearForm on the FiniteElementSpace @a f, using the
        same integrators as the BilinearForm @a bf.
@@ -323,6 +362,37 @@ public:
    /// Form the linear system matrix A, see FormLinearSystem() for details.
    void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
 
+   /** Form the linear system @a A @a X = @a B, corresponding to the bilinear
+       form and the r.h.s. linear form (vector) @a b, by applying any necessary
+       transformations such as: eliminating boundary conditions; applying
+       conforming constraints for non-conforming AMR; parallel assembly; static
+       condensation; hybridization.
+
+       The GridFunction-size vector @a x must contain the essential b.c. The
+       BilinearForm and the LinearForm-size vector @a b must be assembled.
+
+       The vector @a X is initialized with a suitable initial guess: when using
+       hybridization, the vector @a X is set to zero; otherwise, the essential
+       entries of @a X are set to the corresponding b.c. and all other entries
+       are set to zero (if @a copy_interior == 0) or copied from @a x (if
+       @a copy_interior != 0).
+
+       This method can be called multiple times (with the same @a ess_tdof_list
+       array) to initialize different right-hand sides and boundary condition
+       values.
+
+       After solving the linear system, the finite element solution @a x can be
+       recovered by calling RecoverFEMSolution() (with the same vectors @a X,
+       @a b, and @a x). */
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                 Vector &x, Vector &b,
+                                 Operator *&A, Vector &X, Vector &B,
+                                 int copy_interior = 0);
+
+   /// Form the linear system operator @a A, see FormLinearSystem() for details.
+   virtual void FormSystemOperator(const Array<int> &ess_tdof_list,
+                                   Operator *&A);
+
    /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem() method to recover the solution as a GridFunction-size
@@ -412,6 +482,7 @@ public:
    /// Destroys bilinear form.
    virtual ~BilinearForm();
 };
+
 
 /**
    Class for assembling of bilinear forms `a(u,v)` defined on different

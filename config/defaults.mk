@@ -21,8 +21,9 @@ NOTMAC := $(subst Darwin,,$(shell uname -s))
 CXX = g++
 MPICXX = mpicxx
 
-OPTIM_FLAGS = -O3
-DEBUG_FLAGS = -g -Wall
+BASE_FLAGS  = -std=c++11
+OPTIM_FLAGS = -O3 $(BASE_FLAGS)
+DEBUG_FLAGS = -g $(MFEM_XCOMPILER) -Wall $(BASE_FLAGS)
 
 # Destination location of make install
 # PREFIX = $(HOME)/mfem
@@ -33,17 +34,30 @@ INSTALL = /usr/bin/install
 STATIC = YES
 SHARED = NO
 
+# CUDA configuration options
+MFEM_CUDA_CXX = nvcc
+MFEM_CUDA_ARCH = sm_60
+MFEM_CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(MFEM_CUDA_ARCH)
+ifeq ($(MFEM_USE_CUDA),YES)
+   # Pass the following arguments to the host compiler
+   MFEM_XARCHIVE  = -Xarchive
+   MFEM_XCOMPILER = -Xcompiler
+else
+   MFEM_XARCHIVE  =
+   MFEM_XCOMPILER =
+endif
+
 ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
    RANLIB  = ranlib
-   PICFLAG = -fPIC
+   PICFLAG = $(MFEM_XCOMPILER) -fPIC
    SO_EXT  = so
    SO_VER  = so.$(MFEM_VERSION_STRING)
-   BUILD_SOFLAGS = -shared -Wl,-soname,libmfem.$(SO_VER)
-   BUILD_RPATH = -Wl,-rpath,$(BUILD_REAL_DIR)
+   BUILD_SOFLAGS = -shared $(MFEM_XARCHIVE) -Wl,-soname,libmfem.$(SO_VER)
+   BUILD_RPATH = $(MFEM_XARCHIVE) -Wl,-rpath,$(BUILD_REAL_DIR)
    INSTALL_SOFLAGS = $(BUILD_SOFLAGS)
-   INSTALL_RPATH = -Wl,-rpath,@MFEM_LIB_DIR@
+   INSTALL_RPATH = $(MFEM_XARCHIVE) -Wl,-rpath,@MFEM_LIB_DIR@
 else
    # Silence "has no symbols" warnings on Mac OS X
    AR      = ar
@@ -108,6 +122,10 @@ MFEM_USE_MPFR          = NO
 MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
+MFEM_USE_CUDA          = NO
+MFEM_USE_RAJA          = NO
+MFEM_USE_OCCA          = NO
+MFEM_USE_MM            = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -282,6 +300,46 @@ PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
 PUMI_OPT = -I$(PUMI_DIR)/include
 PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
    -llion -lmth -lapf_zoltan -lspr
+
+# CUDA library configuration
+ifeq ($(MFEM_USE_CUDA),YES)
+   ifndef CUDA_DIR
+      CUDA_DIR := @MFEM_DIR@/../cuda
+   endif
+   CUDA_OPT := -I$(CUDA_DIR)/include
+   CUDA_LIB := -L$(CUDA_DIR)/lib64 -lcuda -lcudart
+endif
+
+# MPI library configuration
+ifeq ($(MFEM_USE_MPI),YES)
+   ifndef MPI_DIR
+      MPI_DIR := @MFEM_DIR@/../mpi
+   endif
+   MPI_OPT := -I$(MPI_DIR)/include
+   MPI_LIB := -L$(MPI_DIR)/lib -lmpi
+endif
+
+# OCCA library configuration
+ifeq ($(MFEM_USE_OCCA),YES)
+   ifndef OCCA_DIR
+      OCCA_DIR := @MFEM_DIR@/../occa
+   endif
+   OCCA_OPT := -I$(OCCA_DIR)/include
+   OCCA_LIB := $(MFEM_XARCHIVE) -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
+endif
+
+# RAJA library configuration
+ifeq ($(MFEM_USE_RAJA),YES)
+   ifndef RAJA_DIR
+      RAJA_DIR := @MFEM_DIR@/../raja
+   endif
+   ifdef CUB_DIR
+      RAJA_OPT := -I$(RAJA_DIR)/include -I$(CUB_DIR)
+   else
+      RAJA_OPT := -I$(RAJA_DIR)/include
+   endif
+   RAJA_LIB := $(MFEM_XARCHIVE) -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+endif
 
 # If YES, enable some informational messages
 VERBOSE = NO
