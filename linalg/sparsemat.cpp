@@ -723,8 +723,8 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    y = 0;
 
    const int height = Height();
-   const int *d_I = (const int*) mm::ptr(I);
-   const int *d_J = (const int*) mm::ptr(J);
+   const int *d_I = mm::ptr(I);
+   const int *d_J = mm::ptr(J);
    const DeviceArray d_x(x, x.Size());
    DeviceArray d_y(y, y.Size());
    MFEM_FORALL(i, height,
