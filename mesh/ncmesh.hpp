@@ -651,7 +651,7 @@ protected: // implementation
    }
 
    int GetVertexRootCoord(int elem, RefCoord coord[3]) const;
-   void CollectIncidentElements(int elem, RefCoord coord[3],
+   void CollectIncidentElements(int elem, const RefCoord coord[3],
                                 Array<int> &list) const;
 
    /** Return elements neighboring to a local vertex of element 'elem'. Only
