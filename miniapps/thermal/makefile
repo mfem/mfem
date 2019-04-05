@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = fourier_pid
+PAR_MINIAPPS = fourier_pid fourier_adv_pid
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -34,7 +34,7 @@ endif
 .PHONY: all clean clean-build clean-exec
 .PRECIOUS: %.o
 
-COMMON_O=../common/pfem_extras.o
+COMMON_O=../common/pfem_extras.o fourier_solver.o
 
 # Remove built-in rules
 %: %.cpp
@@ -46,8 +46,11 @@ all: $(MINIAPPS)
 %: $(SRC)%.cpp %_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $@_solver.o $(COMMON_O) $(MFEM_LIBS)
 
-fourier_pid: fourier_pid.cpp fourier_pid_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ fourier_pid_solver.o $(COMMON_O) $(MFEM_LIBS)
+fourier_pid: fourier_pid.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
+
+fourier_adv_pid: fourier_adv_pid.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies
 $(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \

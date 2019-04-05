@@ -16,7 +16,7 @@
 // This miniapp solves a time dependent heat equation.
 //
 
-#include "fourier_pid_solver.hpp"
+#include "fourier_solver.hpp"
 #include <cassert>
 #include <memory>
 #include <iostream>

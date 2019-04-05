@@ -16,7 +16,7 @@
 // This miniapp solves a time dependent heat equation.
 //
 
-#include "fourier_pid_solver.hpp"
+#include "fourier_solver.hpp"
 #include <cassert>
 #include <memory>
 #include <iostream>
@@ -422,23 +422,25 @@ int main(int argc, char *argv[])
    int irOrder = -1;
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
-
+   /*
    int ode_exp_solver_type = 1;
    int ode_exp_acc_type = 3;
    int ode_exp_rej_type = 2;
    int ode_exp_lim_type = 1;
-
+   */
    int ode_imp_solver_type = 1;
    int ode_imp_acc_type = 3;
    int ode_imp_rej_type = 2;
    int ode_imp_lim_type = 1;
 
    int vis_steps = 1;
-   double exp_dt = -1.0;
+   // double exp_dt = -1.0;
    double imp_dt = -1.0;
    double t_init = 0.0;
    double t_final = 5.0;
 
+   double imp_vel = 1.0;
+   
    const char *basename = "Fourier_Adv_PID";
    const char *mesh_file = "../../data/periodic-square.mesh";
    bool zero_start = false;
@@ -492,6 +494,8 @@ int main(int argc, char *argv[])
                   "Advection direction (in degrees)");
    args.AddOption(&vMag_, "-v", "--velocity",
                   "Advection speed.");
+   args.AddOption(&imp_vel, "-imp-v", "--implicit-velocity",
+                  "Implicut velocity fraction [0,1]");
    args.AddOption(&TInf_, "-T-inf", "--T-at-infinity",
                   "T(0) far from center.");
    args.AddOption(&TMax_, "-T-max", "--T-maximum",
@@ -500,8 +504,8 @@ int main(int argc, char *argv[])
                   "Width of T(0) parallel to B.");
    args.AddOption(&TWPerp_, "-T-w-perp", "--T-width-perpendicular",
                   "Width of T(0) perpendicular to B.");
-   args.AddOption(&exp_dt, "-dt", "--explicit-time-step",
-                  "Explicit time step (for advection).");
+   // args.AddOption(&exp_dt, "-dt", "--explicit-time-step",
+   //               "Explicit time step (for advection).");
    args.AddOption(&imp_dt, "-dt", "--implicit-time-step",
                   "Implicit time step (for diffusion).");
    args.AddOption(&t_final, "-tf", "--final-time",
@@ -531,6 +535,7 @@ int main(int argc, char *argv[])
                   "Adjustment limiter for Implicit Solver:\n"
                   "\t   1 - Dead zone limiter\n"
                   "\t   2 - Maximum limiter");
+   /*
    args.AddOption(&ode_exp_solver_type, "-se", "--ode-exp-solver",
                   "ODE Explicit solver:\n"
                   "            1 - Forward Euler,\n\t"
@@ -551,6 +556,7 @@ int main(int argc, char *argv[])
                   "Adjustment limiter for Explicit Solver:\n"
                   "\t   1 - Dead zone limiter\n"
                   "\t   2 - Maximum limiter");
+   */
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&gfprint, "-print", "--print","-no-print","--no-print",
@@ -684,21 +690,22 @@ int main(int argc, char *argv[])
    // 6. Define the ODE solver used for time integration. Several implicit
    //    methods are available, including singly diagonal implicit Runge-Kutta
    //    (SDIRK).
-   ODEController ode_exp_controller;
-   ODEController ode_imp_controller;
 
+   // ODEController ode_exp_controller;
+   ODEController ode_imp_controller;
+   /*
    ODESolver                * ode_exp_solver   = NULL;
    ODEStepAdjustmentFactor  * ode_exp_step_acc = NULL;
    ODEStepAdjustmentFactor  * ode_exp_step_rej = NULL;
    ODEStepAdjustmentLimiter * ode_exp_step_lim = NULL;
-
+   */
    ODESolver                * ode_imp_solver   = NULL;
    ODEStepAdjustmentFactor  * ode_imp_step_acc = NULL;
    ODEStepAdjustmentFactor  * ode_imp_step_rej = NULL;
    ODEStepAdjustmentLimiter * ode_imp_step_lim = NULL;
 
    NormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD);
-
+   /*
    switch (ode_exp_solver_type)
    {
       case 1: ode_exp_solver = new ForwardEulerSolver; break;
@@ -765,7 +772,7 @@ int main(int argc, char *argv[])
 	      << ode_exp_lim_type << '\n';
          return 3;
    }
-
+   */
    switch (ode_imp_solver_type)
    {
       // Implicit L-stable methods
@@ -975,6 +982,7 @@ int main(int argc, char *argv[])
    */
    // 14. Initialize the Diffusion operator, the GLVis visualization and print
    //     the initial energies.
+   /*
    AdvectionTDO exp_oper(HGradFESpace, velCoef);
 
    DiffusionTDO imp_oper(HGradFESpace,
@@ -982,6 +990,13 @@ int main(int argc, char *argv[])
 			 SpecificHeatCoef, false,
 			 AnisotropicConductionCoef, false,
 			 HeatSourceCoef, false);
+   */
+   AdvectionDiffusionTDO imp_oper(HGradFESpace,
+				  zeroCoef, ess_bdr,
+				  SpecificHeatCoef, false,
+				  AnisotropicConductionCoef, false,
+				  velCoef, false, imp_vel,
+				  HeatSourceCoef, false);
 
    ode_diff_msr.SetOperator(imp_oper.GetMassMatrix());
 
@@ -1091,17 +1106,21 @@ int main(int argc, char *argv[])
       double exp_dt_cfl = h_min / vMag_;
       double imp_dt_cfl = h_min * h_min / std::min(chiPara_, chiPerp_);
 
+      /*
       if (exp_dt < 0.0)
       {
          exp_dt = exp_dt_cfl;
       }
+      */
       if (imp_dt < 0.0)
       {
-         imp_dt = imp_dt_cfl;
+	imp_dt = std::min(imp_dt_cfl, exp_dt_cfl);
       }
 
-      cout << "explicit dt = " << exp_dt << ", cfl = " << exp_dt_cfl << endl;
-      cout << "implicit dt = " << imp_dt << ", cfl = " << imp_dt_cfl << endl;
+      // cout << "explicit dt = " << exp_dt << ", cfl = " << exp_dt_cfl << endl;
+      cout << "dt = "
+	   << imp_dt << ", diffusion cfl = " << imp_dt_cfl
+	   << ", advection cfl = " << exp_dt_cfl << endl;
    }
 
    // 15. Perform time-integration (looping over the time iterations, ti, with a
@@ -1131,6 +1150,7 @@ int main(int argc, char *argv[])
    }
 
    ode_imp_solver->Init(imp_oper);
+   /*
    ode_exp_solver->Init(exp_oper);
 
    ode_exp_controller.Init(*ode_exp_solver, ode_diff_msr,
@@ -1141,24 +1161,24 @@ int main(int argc, char *argv[])
    ode_exp_controller.SetTimeStep(exp_dt);
    ode_exp_controller.SetTolerance(tol);
    ode_exp_controller.SetRejectionLimit(rho);
-
+   */
    ode_imp_controller.Init(*ode_imp_solver, ode_diff_msr,
 			   *ode_imp_step_acc, *ode_imp_step_rej,
 			   *ode_imp_step_lim);
 
-   ode_imp_controller.SetOutputFrequency(-1);
+   ode_imp_controller.SetOutputFrequency(vis_steps);
    ode_imp_controller.SetTimeStep(imp_dt);
    ode_imp_controller.SetTolerance(tol);
    ode_imp_controller.SetRejectionLimit(rho);
 
-   ofstream ofs_exp_gp;
+   // ofstream ofs_exp_gp;
    ofstream ofs_imp_gp;
 
    if (gnuplot)
    {
-      ofs_exp_gp.open("fourier_adv_pid_exp.dat");
+     // ofs_exp_gp.open("fourier_adv_pid_exp.dat");
       ofs_imp_gp.open("fourier_adv_pid_imp.dat");
-      ode_exp_controller.SetOutput(ofs_exp_gp);
+      // ode_exp_controller.SetOutput(ofs_exp_gp);
       ode_imp_controller.SetOutput(ofs_imp_gp);
    }
 
@@ -1264,8 +1284,8 @@ int main(int argc, char *argv[])
    t = t_init;
    while (t < t_final)
    {
-      // ode_controller.Run(T1, t, t_final);
-
+      ode_imp_controller.Run(T1, t, t_final);
+      /*
       if (imp_dt > exp_dt)
       {
  	 double imp_t = t;
@@ -1291,7 +1311,7 @@ int main(int argc, char *argv[])
 	 imp_dt = ode_imp_controller.GetTimeStep();
 	 cout << "Updated time steps: " << imp_dt << '\t' << exp_dt << endl;
       }
-     
+      */
       TCoef.SetTime(t);
       double nrm1 = T1.ComputeL2Error(oneCoef);
       double err1 = T1.ComputeL2Error(TCoef);
@@ -1323,7 +1343,7 @@ int main(int argc, char *argv[])
    }
 
    ofs_err.close();
-   ofs_exp_gp.close();
+   // ofs_exp_gp.close();
    ofs_imp_gp.close();
 
    if (visualization)
@@ -1351,11 +1371,12 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
+   /*
    delete ode_exp_solver;
    delete ode_exp_step_acc;
    delete ode_exp_step_rej;
    delete ode_exp_step_lim;
-      
+   */ 
    delete ode_imp_solver;
    delete ode_imp_step_acc;
    delete ode_imp_step_rej;
