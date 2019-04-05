@@ -16,7 +16,7 @@
 #include <occa.hpp>
 
 #ifdef MFEM_USE_CUDA
-#include <occa/mode/cuda/utils.hpp>
+#include <occa/modes/cuda/utils.hpp>
 #endif
 
 typedef occa::device OccaDevice;
