@@ -94,9 +94,9 @@ static char hex_hilbert_child_state[24][8] =
 typedef NCMesh::RefCoord RefCoord;
 
 // reference domain coordinates as fixed point numbers
-const RefCoord T_HALF = (1ll << 60);
-const RefCoord T_ONE = (1ll << 61);
-const RefCoord T_TWO = (1ll << 62);
+const RefCoord T_HALF = (1ll << 59);
+const RefCoord T_ONE = (1ll << 60);
+const RefCoord T_TWO = (1ll << 61);
 
 // (scaling factors have a different fixed point multiplier)
 const RefCoord S_HALF = 1;
