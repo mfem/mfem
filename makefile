@@ -573,7 +573,7 @@ status info:
 	$(info MFEM_USE_SIDRE         = $(MFEM_USE_SIDRE))
 	$(info MFEM_USE_CONDUIT       = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI          = $(MFEM_USE_PUMI))
-  $(info MFEM_USE_CUDA          = $(MFEM_USE_CUDA))
+	$(info MFEM_USE_CUDA          = $(MFEM_USE_CUDA))
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
 	$(info MFEM_USE_MM            = $(MFEM_USE_MM))
