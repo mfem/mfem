@@ -365,11 +365,11 @@ doc:
 $(BLD)libmfem.a: $(OBJECT_FILES)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
-	$(MAKE) deprecation-warnings
+	@$(MAKE) deprecation-warnings
 
 $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
-	$(MAKE) deprecation-warnings
+	@$(MAKE) deprecation-warnings
 
 # If some of the external libraries are build without -fPIC, linking shared MFEM
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
