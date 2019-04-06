@@ -622,6 +622,9 @@ int main(int argc, char *argv[])
    DielectricTensor epsilon_imag(BField, density,
                                  L2FESpace,
                                  omega, charges, masses, false);
+   SPDDielectricTensor epsilon_abs(BField, density,
+				   L2FESpace,
+				   omega, charges, masses);
 
    ColdPlasmaPlaneWave EReCoef(wave_type[0], omega, BVec,
                                numbers, charges, masses, true);
@@ -681,7 +684,8 @@ int main(int argc, char *argv[])
    CPDSolver CPD(pmesh, order, omega,
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
-                 conv, epsilon_real, epsilon_imag, muInvCoef, etaInvCoef,
+                 conv, epsilon_real, epsilon_imag, epsilon_abs,
+		 muInvCoef, etaInvCoef,
                  (phase_shift) ? &kCoef : NULL,
                  abcs, dbcs,
                  // e_bc_r, e_bc_i,

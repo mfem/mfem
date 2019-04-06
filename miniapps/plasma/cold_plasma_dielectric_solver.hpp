@@ -72,6 +72,7 @@ public:
              ComplexOperator::Convention conv,
              MatrixCoefficient & epsReCoef,
              MatrixCoefficient & espImCoef,
+             MatrixCoefficient & espAbsCoef,
              Coefficient & muInvCoef,
              Coefficient * etaInvCoef,
              VectorCoefficient * kCoef,
@@ -150,6 +151,7 @@ private:
 
    MatrixCoefficient * epsReCoef_;  // Dielectric Material Coefficient
    MatrixCoefficient * epsImCoef_;  // Dielectric Material Coefficient
+   MatrixCoefficient * epsAbsCoef_; // Dielectric Material Coefficient
    Coefficient       * muInvCoef_;  // Dia/Paramagnetic Material Coefficient
    Coefficient       * etaInvCoef_; // Admittance Coefficient
    VectorCoefficient * kCoef_;      // Wave Vector
@@ -166,7 +168,7 @@ private:
 
    MatrixCoefficient * massReCoef_;  // -omega^2 Re(epsilon)
    MatrixCoefficient * massImCoef_;  // omega^2 Im(epsilon)
-   MatrixCoefficient * posMassCoef_; // omega^2 Re(epsilon)
+  // MatrixCoefficient * posMassCoef_; // omega^2 Re(epsilon)
    MatrixCoefficient * negMuInvkxkxCoef_; // -\vec{k}\times\vec{k}\times/mu
 
    VectorCoefficient * negMuInvkCoef_; // -\vec{k}/mu

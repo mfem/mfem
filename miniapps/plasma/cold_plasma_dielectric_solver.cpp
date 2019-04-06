@@ -31,6 +31,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      ComplexOperator::Convention conv,
                      MatrixCoefficient & epsReCoef,
                      MatrixCoefficient & epsImCoef,
+                     MatrixCoefficient & epsAbsCoef,
                      Coefficient & muInvCoef,
                      Coefficient * etaInvCoef,
                      VectorCoefficient * kCoef,
@@ -66,6 +67,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      j_v_(NULL),
      epsReCoef_(&epsReCoef),
      epsImCoef_(&epsImCoef),
+     epsAbsCoef_(&epsAbsCoef),
      muInvCoef_(&muInvCoef),
      etaInvCoef_(etaInvCoef),
      kCoef_(kCoef),
@@ -80,7 +82,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      negMuInvCoef_(NULL),
      massReCoef_(NULL),
      massImCoef_(NULL),
-     posMassCoef_(NULL),
+     // posMassCoef_(NULL),
      negMuInvkxkxCoef_(NULL),
      negMuInvkCoef_(NULL),
      jrCoef_(NULL),
@@ -202,7 +204,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                                                     *epsReCoef_);
    massImCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_,
                                                     *epsImCoef_);
-   posMassCoef_ = new ScalarMatrixProductCoefficient(*omega2Coef_, *epsReCoef_);
+   // posMassCoef_ = new ScalarMatrixProductCoefficient(*omega2Coef_, *epsReCoef_);
 
    // Impedance of free space
    if ( abcs.Size() > 0 )
@@ -288,8 +290,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    b1_ = new ParBilinearForm(HCurlFESpace_);
    b1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
-   b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*posMassCoef_));
-   b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massImCoef_));
+   b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsAbsCoef_));
+   // b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*posMassCoef_));
+   //b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massImCoef_));
 
    // Build grid functions
    e_  = new ParComplexGridFunction(HCurlFESpace_);
@@ -323,7 +326,7 @@ CPDSolver::~CPDSolver()
    // delete eiCoef_;
    delete massReCoef_;
    delete massImCoef_;
-   delete posMassCoef_;
+   // delete posMassCoef_;
    delete abcCoef_;
    if ( ownsEtaInv_ ) { delete etaInvCoef_; }
    delete omegaCoef_;

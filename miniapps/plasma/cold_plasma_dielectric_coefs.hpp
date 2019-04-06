@@ -95,6 +95,35 @@ private:
    const Vector & masses_;
 };
 
+class SPDDielectricTensor: public MatrixCoefficient
+{
+public:
+   SPDDielectricTensor(const ParGridFunction & B,
+		       const BlockVector & density,
+		       const ParFiniteElementSpace & L2FESpace,
+		       double omega,
+		       const Vector & charges,
+		       const Vector & masses);
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~SPDDielectricTensor() {}
+
+private:
+   const ParGridFunction & B_;
+   const BlockVector & density_;
+   const ParFiniteElementSpace & L2FESpace_;
+
+   double omega_;
+
+   ParGridFunction density_gf_;
+
+   Vector density_vals_;
+   const Vector & charges_;
+   const Vector & masses_;
+};
+
 } // namespace plasma
 
 } // namespace mfem

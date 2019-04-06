@@ -298,6 +298,64 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    */
 }
 
+SPDDielectricTensor::SPDDielectricTensor(
+				  const ParGridFunction & B,
+				  const BlockVector & density,
+				  const ParFiniteElementSpace & L2FESpace,
+				  double omega,
+				  const Vector & charges,
+				  const Vector & masses)
+   : MatrixCoefficient(3),
+     B_(B),
+     density_(density),
+     L2FESpace_(L2FESpace),
+     omega_(omega),
+     charges_(charges),
+     masses_(masses)
+{
+   density_vals_.SetSize(charges_.Size());
+}
+
+void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
+			       const IntegrationPoint &ip)
+{
+   // Initialize dielectric tensor to appropriate size
+   epsilon.SetSize(3);
+
+   // Collect density, temperature, and magnetic field values
+   Vector B(3);
+   B_.GetVectorValue(T.ElementNo, ip, B);
+   double Bmag = B.Norml2();
+   double th = atan2(B(2), B(0));
+   double ph = atan2(B(0) * cos(th) + B(2) * sin(th), -B(1));
+
+   for (int i=0; i<density_vals_.Size(); i++)
+   {
+      density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
+                          const_cast<Vector&>(density_.GetBlock(i)));
+      density_vals_[i] = density_gf_.GetValue(T.ElementNo, ip);
+   }
+
+   double S = S_cold_plasma(omega_, Bmag, density_vals_, charges_, masses_);
+   double P = P_cold_plasma(omega_, density_vals_, charges_, masses_);
+   double D = D_cold_plasma(omega_, Bmag, density_vals_, charges_, masses_);
+
+   double aP = fabs(P);
+   double aSD = 0.5 * (fabs(S + D) + fabs(S - D));
+   
+   epsilon(0,0) =  (aP - aSD) * pow(sin(ph), 2) * pow(cos(th), 2) + aSD;
+   epsilon(1,1) =  (aP - aSD) * pow(cos(ph), 2) + aSD;
+   epsilon(2,2) =  (aP - aSD) * pow(sin(ph), 2) * pow(sin(th), 2) + aSD;
+   epsilon(0,1) = -(aP - aSD) * cos(ph) * cos(th) * sin(ph);
+   epsilon(0,2) =  (aP - aSD) * pow(sin(ph), 2) * sin(th) * cos(th);
+   epsilon(1,2) = -(aP - aSD) * sin(th) * cos(ph) * sin(ph);
+   epsilon(1,0) = epsilon(0,1);
+   epsilon(2,1) = epsilon(1,2);
+   epsilon(0,2) = epsilon(2,0);
+   
+   epsilon *= epsilon0_;
+}
+
 } // namespace plasma
 
 } // namespace mfem
