@@ -168,7 +168,7 @@ private:
 
    MatrixCoefficient * massReCoef_;  // -omega^2 Re(epsilon)
    MatrixCoefficient * massImCoef_;  // omega^2 Im(epsilon)
-  // MatrixCoefficient * posMassCoef_; // omega^2 Re(epsilon)
+   MatrixCoefficient * posMassCoef_; // omega^2 Abs(epsilon)
    MatrixCoefficient * negMuInvkxkxCoef_; // -\vec{k}\times\vec{k}\times/mu
 
    VectorCoefficient * negMuInvkCoef_; // -\vec{k}/mu
