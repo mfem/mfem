@@ -18,12 +18,16 @@
 # Some choices below are based on the OS type:
 NOTMAC := $(subst Darwin,,$(shell uname -s))
 
-CXX = g++-7
+CXX = g++
 MPICXX = mpicxx
 
 BASE_FLAGS  = -std=c++11
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
-DEBUG_FLAGS = -g $(MFEM_XCOMPILER) -Wall $(BASE_FLAGS)
+DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
+
+# Prefixes for passing flags to the compiler and linker when using CXX or MPICXX
+CXX_XCOMPILER =
+CXX_XLINKER   = -Wl,
 
 # Destination location of make install
 # PREFIX = $(HOME)/mfem
@@ -35,45 +39,40 @@ STATIC = YES
 SHARED = NO
 
 # CUDA configuration options
-MFEM_CUDA_CXX = nvcc
-MFEM_CUDA_ARCH = sm_60
-MFEM_CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(MFEM_CUDA_ARCH)
-ifeq ($(MFEM_USE_CUDA),YES)
-   # Pass the following arguments to the host compiler
-   MFEM_XARCHIVE  = -Xarchive
-   MFEM_XCOMPILER = -Xcompiler
-else
-   MFEM_XARCHIVE  =
-   MFEM_XCOMPILER =
-endif
+CUDA_CXX = nvcc
+CUDA_ARCH = sm_60
+CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
+# Prefixes for passing flags to the host compiler and linker when using CUDA_CXX
+CUDA_XCOMPILER = -Xcompiler=
+CUDA_XLINKER   = -Xlinker=
 
 ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
    RANLIB  = ranlib
-   PICFLAG = $(MFEM_XCOMPILER) -fPIC
+   PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = so
    SO_VER  = so.$(MFEM_VERSION_STRING)
-   BUILD_SOFLAGS = -shared $(MFEM_XARCHIVE) -Wl,-soname,libmfem.$(SO_VER)
-   BUILD_RPATH = $(MFEM_XARCHIVE) -Wl,-rpath,$(BUILD_REAL_DIR)
+   BUILD_SOFLAGS = -shared $(XLINKER)-soname,libmfem.$(SO_VER)
+   BUILD_RPATH = $(XLINKER)-rpath,$(BUILD_REAL_DIR)
    INSTALL_SOFLAGS = $(BUILD_SOFLAGS)
-   INSTALL_RPATH = $(MFEM_XARCHIVE) -Wl,-rpath,@MFEM_LIB_DIR@
+   INSTALL_RPATH = $(XLINKER)-rpath,@MFEM_LIB_DIR@
 else
    # Silence "has no symbols" warnings on Mac OS X
    AR      = ar
    ARFLAGS = Scruv
    RANLIB  = ranlib -no_warning_for_no_symbols
-   PICFLAG = -fPIC
+   PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = dylib
    SO_VER  = $(MFEM_VERSION_STRING).dylib
-   MAKE_SOFLAGS = -Wl,-dylib,-install_name,$(1)/libmfem.$(SO_VER),\
+   MAKE_SOFLAGS = $(XLINKER)-dylib,-install_name,$(1)/libmfem.$(SO_VER),\
       -compatibility_version,$(MFEM_VERSION_STRING),\
       -current_version,$(MFEM_VERSION_STRING),\
       -undefined,dynamic_lookup
    BUILD_SOFLAGS = $(subst $1 ,,$(call MAKE_SOFLAGS,$(BUILD_REAL_DIR)))
-   BUILD_RPATH = -Wl,-undefined,dynamic_lookup
+   BUILD_RPATH = $(XLINKER)-undefined,dynamic_lookup
    INSTALL_SOFLAGS = $(subst $1 ,,$(call MAKE_SOFLAGS,$(MFEM_LIB_DIR)))
-   INSTALL_RPATH = -Wl,-undefined,dynamic_lookup
+   INSTALL_RPATH = $(XLINKER)-undefined,dynamic_lookup
 endif
 
 # Set CXXFLAGS to overwrite the default selection of DEBUG_FLAGS/OPTIM_FLAGS
@@ -301,45 +300,24 @@ PUMI_OPT = -I$(PUMI_DIR)/include
 PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
    -llion -lmth -lapf_zoltan -lspr
 
-# CUDA library configuration
-ifeq ($(MFEM_USE_CUDA),YES)
-   ifndef CUDA_DIR
-      CUDA_DIR := /usr/local/cuda
-   endif
-   CUDA_OPT := -I$(CUDA_DIR)/include
-   CUDA_LIB := -L$(CUDA_DIR)/lib64 -lcuda -lcudart
-endif
-
-# MPI library configuration
-ifeq ($(MFEM_USE_MPI),YES)
-   ifndef MPI_DIR
-      MPI_DIR := $(HOME)/local/openmpi/3.0.0
-   endif
-   MPI_OPT := -I$(MPI_DIR)/include
-   MPI_LIB := -L$(MPI_DIR)/lib -lmpi
-endif
+# CUDA library configuration. Since we compile and link with nvcc (when CUDA is
+# enabled) we only need to explicitly link with the CUDA driver, libcuda.*,
+# which is usually in a system path.
+CUDA_OPT =
+CUDA_LIB = -lcuda
 
 # OCCA library configuration
-ifeq ($(MFEM_USE_OCCA),YES)
-   ifndef OCCA_DIR
-      OCCA_DIR := @MFEM_DIR@/../occa
-   endif
-   OCCA_OPT := -I$(OCCA_DIR)/include
-   OCCA_LIB := $(MFEM_XARCHIVE) -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
-endif
+OCCA_DIR ?= @MFEM_DIR@/../occa
+OCCA_OPT = -I$(OCCA_DIR)/include
+OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
 # RAJA library configuration
-ifeq ($(MFEM_USE_RAJA),YES)
-   ifndef RAJA_DIR
-      RAJA_DIR := @MFEM_DIR@/../raja
-   endif
-   ifdef CUB_DIR
-      RAJA_OPT := -I$(RAJA_DIR)/include -I$(CUB_DIR)
-   else
-      RAJA_OPT := -I$(RAJA_DIR)/include
-   endif
-   RAJA_LIB := $(MFEM_XARCHIVE) -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+RAJA_DIR ?= @MFEM_DIR@/../raja
+RAJA_OPT = -I$(RAJA_DIR)/include
+ifdef CUB_DIR
+   RAJA_OPT += -I$(CUB_DIR)
 endif
+RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 
 # If YES, enable some informational messages
 VERBOSE = NO
