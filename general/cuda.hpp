@@ -64,7 +64,7 @@ inline T AtomicAdd(T volatile *address, T val)
 #else // __CUDA_ARCH__
 template<typename T> inline T AtomicAdd(T volatile *address, T val)
 {
-#if defined(_OPENMP)
+#ifdef MFEM_USE_OPENMP
    #pragma omp atomic
 #endif
    *address += val;

@@ -18,7 +18,7 @@
 # Some choices below are based on the OS type:
 NOTMAC := $(subst Darwin,,$(shell uname -s))
 
-CXX = g++
+CXX = g++-7
 MPICXX = mpicxx
 
 BASE_FLAGS  = -std=c++11

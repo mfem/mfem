@@ -49,7 +49,7 @@ namespace mfem
 template <typename HBODY>
 void OmpWrap(const int N, HBODY &&h_body)
 {
-#if defined(_OPENMP)
+#ifdef MFEM_USE_OPENMP
    #pragma omp parallel for
    for (int k=0; k<N; k+=1)
    {
