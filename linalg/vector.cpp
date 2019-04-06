@@ -100,19 +100,7 @@ const double &Vector::Elem(int i) const
 
 double Vector::operator*(const double *v) const
 {
-#ifdef MFEM_USE_LEGACY_OPENMP
-   int s = size;
-   const double *d = data;
-   double prod = 0.0;
-   #pragma omp parallel for reduction(+:prod)
-   for (int i = 0; i < s; i++)
-   {
-      prod += d[i] * v[i];
-   }
-#else
-   double prod = Dot(size, data, v);
-#endif
-   return prod;
+   return Dot(size, data, v);
 }
 
 double Vector::operator*(const Vector &v) const
@@ -268,18 +256,18 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
    }
 #endif
 
-#ifdef MFEM_USE_LEGACY_OPENMP
-   #pragma omp parallel for
-   for (int i = 0; i < v.size; i++)
-   {
-      v.data[i] = v1.data[i] + v2.data[i];
-   }
-#else
+#if !defined(MFEM_USE_LEGACY_OPENMP)
    const int N = v.size;
    DeviceVector y(v, N);
    const DeviceVector x1(v1, N);
    const DeviceVector x2(v2, N);
    MFEM_FORALL(i, N, y[i] = x1[i] + x2[i];);
+#else
+   #pragma omp parallel for
+   for (int i = 0; i < v.size; i++)
+   {
+      v.data[i] = v1.data[i] + v2.data[i];
+   }
 #endif
 }
 
@@ -305,18 +293,19 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
       double *vp = v.data;
 
       const int s = v.size;
-#ifdef MFEM_USE_LEGACY_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      const int N = s;
+      DeviceVector d_z(vp, N);
+      const DeviceVector d_x(v1p, N);
+      const DeviceVector d_y(v2p, N);
+      MFEM_FORALL(i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
+#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
          vp[i] = v1p[i] + alpha*v2p[i];
       }
 #endif
-      const int N = s;
-      DeviceVector d_z(vp, N);
-      const DeviceVector d_x(v1p, N);
-      const DeviceVector d_y(v2p, N);
-      MFEM_FORALL(i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
    }
 }
 
@@ -341,17 +330,18 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
       const double *yp = y.data;
       double       *zp = z.data;
       const int      s = x.size;
-#ifdef MFEM_USE_LEGACY_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      DeviceVector z(zp, s);
+      const DeviceVector x(xp, s);
+      const DeviceVector y(yp, s);
+      MFEM_FORALL(i, s, z[i] = a * (x[i] + y[i]););
+#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
          zp[i] = a * (xp[i] + yp[i]);
       }
 #endif
-      DeviceVector z(zp, s);
-      const DeviceVector x(xp, s);
-      const DeviceVector y(yp, s);
-      MFEM_FORALL(i, s, z[i] = a * (x[i] + y[i]););
    }
 }
 
@@ -390,17 +380,18 @@ void add(const double a, const Vector &x,
       double       *zp = z.data;
       const int      s = x.size;
 
-#ifdef MFEM_USE_LEGACY_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      DeviceVector z(zp, s);
+      const DeviceVector x(xp, s);
+      const DeviceVector y(yp, s);
+      MFEM_FORALL(i, s, z[i] = a * x[i] + b * y[i];);
+#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
          zp[i] = a * xp[i] + b * yp[i];
       }
 #endif
-      DeviceVector z(zp, s);
-      const DeviceVector x(xp, s);
-      const DeviceVector y(yp, s);
-      MFEM_FORALL(i, s, z[i] = a * x[i] + b * y[i];);
    }
 }
 
@@ -417,17 +408,18 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    double       *zp = z.data;
    const int     s = x.size;
 
-#ifdef MFEM_USE_LEGACY_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+   DeviceVector zd(zp, s);
+   const DeviceVector xd(xp, s);
+   const DeviceVector yd(yp, s);
+   MFEM_FORALL(i, s, zd[i] = xd[i] - yd[i];);
+#else
    #pragma omp parallel for
    for (int i = 0; i < s; i++)
    {
       zp[i] = xp[i] - yp[i];
    }
 #endif
-   DeviceVector zd(zp, s);
-   const DeviceVector xd(xp, s);
-   const DeviceVector yd(yp, s);
-   MFEM_FORALL(i, s, zd[i] = xd[i] - yd[i];);
 }
 
 void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
@@ -453,17 +445,18 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
       double       *zp = z.data;
       const int      s = x.size;
 
-#ifdef MFEM_USE_LEGACY_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      DeviceVector zd(zp, s);
+      const DeviceVector xd(xp, s);
+      const DeviceVector yd(yp, s);
+      MFEM_FORALL(i, s, zd[i] = a * (xd[i] - yd[i]););
+#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
          zp[i] = a * (xp[i] - yp[i]);
       }
 #endif
-      DeviceVector zd(zp, s);
-      const DeviceVector xd(xp, s);
-      const DeviceVector yd(yp, s);
-      MFEM_FORALL(i, s, zd[i] = a * (xd[i] - yd[i]););
    }
 }
 
@@ -961,6 +954,9 @@ double Dot(const int N, const double *x, const double *y)
 #endif // MFEM_USE_CUDA
    }
    double dot = 0.0;
+#ifdef MFEM_USE_LEGACY_OPENMP
+   #pragma omp parallel for reduction(+:dot)
+#endif
    for (int i=0; i<N; i+=1) { dot += x[i] * y[i]; }
    return dot;
 }
