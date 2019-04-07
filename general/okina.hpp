@@ -94,7 +94,7 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 }
 
 /// CUDA backend
-#if defined(MFEM_USE_CUDA)
+#ifdef MFEM_USE_CUDA
 template <typename BODY> __global__ static
 void CuKernel(const int N, BODY body)
 {
