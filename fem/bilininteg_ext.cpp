@@ -647,10 +647,10 @@ static void PADiffusionMultAssembled(const int dim,
    };
    if (!call[id])
    {
-      cerr << "\nUnknown kernel for PADiffusionMultAssembled with "
-           << "dim = " << dim << ", "
-           << "D1D = " << D1D << ", "
-           << "Q1D = " << Q1D << " (add in fem/bilininteg_ext.cpp).\n";
+      mfem::err << "\nUnknown kernel for PADiffusionMultAssembled with "
+                << "dim = " << dim << ", "
+                << "D1D = " << D1D << ", "
+                << "Q1D = " << Q1D << " (add in fem/bilininteg_ext.cpp).\n";
       mfem_error("PADiffusionMultAssembled kernel not instantiated");
    }
    call[id](NE, B, G, Bt, Gt, op, x, y);
@@ -1106,10 +1106,10 @@ static void PAMassMultAssembled(const int dim,
    };
    if (!call[id])
    {
-      cerr << "\nUnknown kernel for PAMassMultAdd with "
-           << "dim = " << dim << ", "
-           << "D1D = " << D1D << ", "
-           << "Q1D = " << Q1D << " (add in fem/bilininteg_ext.cpp).\n";
+      mfem::err << "\nUnknown kernel for PAMassMultAdd with "
+                << "dim = " << dim << ", "
+                << "D1D = " << D1D << ", "
+                << "Q1D = " << Q1D << " (add in fem/bilininteg_ext.cpp).\n";
       mfem_error("PAMassMultAssembled kernel not instantiated");
    }
    call[id](NE, B, Bt, op, x, y);
@@ -1611,10 +1611,10 @@ static void PAGeom(const int dim,
    };
    if (!call[id])
    {
-      cerr << "\nUnknown kernel for PAGeom with "
-           << "dim = " << dim << ", "
-           << "D1D = " << D1D << ", "
-           << "Q1D = " << Q1D << " (add in fem/bilininteg_ext.cpp).\n";
+      mfem::err << "\nUnknown kernel for PAGeom with "
+                << "dim = " << dim << ", "
+                << "D1D = " << D1D << ", "
+                << "Q1D = " << Q1D << " (add in fem/bilininteg_ext.cpp).\n";
       mfem_error("PAGeom kernel not instantiated");
    }
    call[id](NE, B, G, X, Xq, J, invJ, detJ);
