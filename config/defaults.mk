@@ -167,7 +167,7 @@ LAPACK_OPT =
 LAPACK_LIB = $(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
 
 # OpenMP configuration
-OPENMP_OPT = -fopenmp
+OPENMP_OPT = $(XCOMPILER)-fopenmp
 OPENMP_LIB =
 
 # Used when MFEM_TIMER_TYPE = 2
@@ -304,7 +304,7 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
 # enabled) we only need to explicitly link with the CUDA driver, libcuda.*,
 # which is usually in a system path.
 CUDA_OPT =
-CUDA_LIB = -lcuda
+CUDA_LIB = $(if $(NOTMAC),,-L/usr/local/cuda/lib) -lcuda
 
 # OCCA library configuration
 OCCA_DIR ?= @MFEM_DIR@/../occa
