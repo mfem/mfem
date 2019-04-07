@@ -29,7 +29,7 @@ static OccaMemory OccaWrapMemory(const OccaDevice dev, const void *d_adrs,
    // otherwise, fallback to occa::cpu address space
    return occa::cpu::wrapMemory(dev, adrs, bytes);
 #else // MFEM_USE_OCCA && MFEM_USE_CUDA
-#if defined(MFEM_USE_OCCA)
+#ifdef MFEM_USE_OCCA
    return occa::cpu::wrapMemory(dev, const_cast<void*>(d_adrs), bytes);
 #else
    return (void*)NULL;
