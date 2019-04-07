@@ -15,9 +15,9 @@
 //               ex6 -m ../data/square-disc-surf.mesh -o 2
 //               ex6 -m ../data/amr-quad.mesh
 //
-// Device runs:  ex6 -d cuda
-//               ex6 -d occa
-//               ex6 -d 'raja omp'
+// Device runs:  ex6 -p -d cuda
+//               ex6 -p -d occa
+//               ex6 -p -d 'raja omp'
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
