@@ -66,9 +66,8 @@ Parallel build:
    make parallel -j 4
 
 CUDA build:
-   (make sure your CUDA_DIR variable points to the CUDA toolkit installation,
-    e.g. /usr/local/cuda, see config/defaults.mk)
    make cuda -j 4
+   (build for a specific compute capability: 'make cuda -j 4 CUDA_ARCH=sm_30')
 
 Example codes (serial/parallel, depending on the build):
    cd examples
@@ -152,10 +151,10 @@ are also defined:
 
    make serial   -> Builds serial optimized version of the library
    make parallel -> Builds parallel optimized version of the library
-   make cuda     -> Builds serial cuda optimized version of the library
-   make pcuda    -> Builds parallel cuda optimized version of the library
    make debug    -> Builds serial debug version of the library
    make pdebug   -> Builds parallel debug version of the library
+   make cuda     -> Builds serial cuda optimized version of the library
+   make pcuda    -> Builds parallel cuda optimized version of the library
    make cudebug  -> Builds serial cuda debug version of the library
    make pcudebug -> Builds parallel cuda debug version of the library
 
@@ -219,8 +218,9 @@ Configuration options (GNU make)
 See the configuration file config/defaults.mk for the default settings.
 
 Compilers:
-   CXX    - C++ compiler, serial build
-   MPICXX - MPI C++ compiler, parallel build
+   CXX      - C++ compiler, serial build
+   MPICXX   - MPI C++ compiler, parallel build
+   CUDA_CXX - The CUDA compiler, 'nvcc'
 
 Compiler options:
    OPTIM_FLAGS - Options for optimized build
@@ -398,8 +398,10 @@ MFEM_USE_MM = YES/NO
 MFEM_USE_CUDA = YES/NO
    Enables support for CUDA devices in MFEM. CUDA is a parallel computing
    platform and programming model for general computing on graphical processing
-   units (GPUs). This option requires MFEM_USE_MM. Parallel CUDA builds require
-   that CUDA_DIR and MPI_DIR point to the CUDA and MPI installation directories.
+   units (GPUs). This option requires MFEM_USE_MM. The variable CUDA_ARCH is
+   used to specify the CUDA compute capability used during compilation (by
+   default, CUDA_ARCH=sm_60). When enabled, this option uses the CUDA_* build
+   options, see below.
 
 MFEM_USE_RAJA = YES/NO
    Enable support for the RAJA performance portability layer in MFEM. RAJA
@@ -529,7 +531,7 @@ The specific libraries and their options are:
 
 - CUDA, used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
-  Options: CUDA_DIR, CUDA_OPT, CUDA_LIB.
+  Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
 
 - OCCA, used when MFEM_USE_OCCA = YES.
   URL: https://libocca.org

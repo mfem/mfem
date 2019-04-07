@@ -25,12 +25,12 @@ OccaDevice occaDevice;
 static void DeviceSetup(const int dev, int &ngpu)
 {
    cudaGetDeviceCount(&ngpu);
-   MFEM_ASSERT(ngpu>0, "No CUDA device found!");
+   MFEM_VERIFY(ngpu>0, "No CUDA device found!");
    cuInit(0);
    cuDeviceGet(&cuDevice,dev);
    cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
    cuStream = new CUstream;
-   MFEM_ASSERT(cuStream, "CUDA stream could not be created!");
+   MFEM_VERIFY(cuStream, "CUDA stream could not be created!");
    cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
 }
 #endif
