@@ -169,6 +169,24 @@ static void PADiffusionAssemble3D(const int Q1D,
    });
 }
 
+namespace internal
+{
+
+#ifdef MFEM_USE_OCCA
+// This function is currently used to determine if an OCCA kernel should be
+// used.
+static bool DeviceUseOcca()
+{
+   return Device::Allows(Backend::OCCA_CUDA) ||
+          (Device::Allows(Backend::OCCA_OMP) &&
+           !Device::Allows(Backend::DEVICE_MASK)) ||
+          (Device::Allows(Backend::OCCA_CPU) &&
+           !Device::Allows(Backend::DEVICE_MASK|Backend::OMP_MASK));
+}
+#endif
+
+}
+
 static void PADiffusionAssemble(const int dim,
                                 const int D1D,
                                 const int Q1D,
@@ -182,7 +200,7 @@ static void PADiffusionAssemble(const int dim,
    if (dim == 2)
    {
 #ifdef MFEM_USE_OCCA
-      if (Device::UsingOcca())
+      if (internal::DeviceUseOcca())
       {
          OccaPADiffusionAssemble2D(D1D, Q1D, NE, W, J, COEFF, op);
          return;
@@ -193,7 +211,7 @@ static void PADiffusionAssemble(const int dim,
    if (dim == 3)
    {
 #ifdef MFEM_USE_OCCA
-      if (Device::UsingOcca())
+      if (internal::DeviceUseOcca())
       {
          OccaPADiffusionAssemble3D(D1D, Q1D, NE, W, J, COEFF, op);
          return;
@@ -248,8 +266,11 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
 
-   if (!Device::UsingDevice())
+   if (!Device::Allows(Backend::OCCA_CUDA))
    {
+      // FIXME: one OCCA kernel is build, even if this function is called for
+      //        different orders! This a common problem with all uses of the
+      //        macro MFEM_NEW_OCCA_KERNEL().
       MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_CPU, "fem/occa.okl", props);
       DiffusionApply2D_CPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
@@ -284,7 +305,7 @@ static void OccaPADiffusionMultAdd3D(const int D1D,
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
 
-   if (!Device::UsingDevice())
+   if (!Device::Allows(Backend::OCCA_CUDA))
    {
       MFEM_NEW_OCCA_KERNEL(DiffusionApply3D_CPU, "fem/occa.okl", props);
       DiffusionApply3D_CPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
@@ -615,7 +636,7 @@ static void PADiffusionMultAssembled(const int dim,
                                      double* y)
 {
 #ifdef MFEM_USE_OCCA
-   if (Device::UsingOcca())
+   if (internal::DeviceUseOcca())
    {
       if (dim == 2)
       {
@@ -792,7 +813,7 @@ static void OccaPAMassMultAdd2D(const int D1D,
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
 
-   if (!Device::UsingDevice())
+   if (!Device::Allows(Backend::OCCA_CUDA))
    {
       MFEM_NEW_OCCA_KERNEL(MassApply2D_CPU, "fem/occa.okl", props);
       MassApply2D_CPU(NE, o_B, o_Bt, o_op, o_x, o_y);
@@ -824,7 +845,7 @@ static void OccaPAMassMultAdd3D(const int D1D,
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
 
-   if (!Device::UsingDevice())
+   if (!Device::Allows(Backend::OCCA_CUDA))
    {
       MFEM_NEW_OCCA_KERNEL(MassApply3D_CPU, "fem/occa.okl", props);
       MassApply3D_CPU(NE, o_B, o_Bt, o_op, o_x, o_y);
@@ -1070,7 +1091,7 @@ static void PAMassMultAssembled(const int dim,
                                 double* y)
 {
 #ifdef MFEM_USE_OCCA
-   if (Device::UsingOcca())
+   if (internal::DeviceUseOcca())
    {
       if (dim == 2)
       {

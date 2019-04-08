@@ -84,7 +84,7 @@ bool mm::Alias(const void *ptr)
 
 void* mm::Insert(void *ptr, const size_t bytes)
 {
-   if (!Device::UsingMM()) { return ptr; }
+   if (!UsingMM()) { return ptr; }
    const bool known = Known(ptr);
    if (known)
    {
@@ -96,7 +96,7 @@ void* mm::Insert(void *ptr, const size_t bytes)
 
 void *mm::Erase(void *ptr)
 {
-   if (!Device::UsingMM()) { return ptr; }
+   if (!UsingMM()) { return ptr; }
    const bool known = Known(ptr);
    if (!known) { mfem_error("Trying to erase an unknown pointer!"); }
    memory &mem = maps.memories.at(ptr);
@@ -111,10 +111,10 @@ void *mm::Erase(void *ptr)
 
 static inline bool MmDeviceIniFilter(void)
 {
-   if (!Device::UsingMM()) { return true; }
-   if (Device::DeviceDisabled()) { return true; }
+   if (!mm::UsingMM()) { return true; }
+   if (!Device::IsAvailable()) { return true; }
    if (Device::IsTracking() == false) { return true; }
-   if (!Device::DeviceHasBeenEnabled()) { return true; }
+   if (!Device::IsConfigured()) { return true; }
    return false;
 }
 
@@ -126,7 +126,7 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    const bool host = base.host;
    const bool device = !host;
    const size_t bytes = base.bytes;
-   const bool gpu = Device::UsingDevice();
+   const bool gpu = Device::IsEnabled();
    if (host && !gpu) { return ptr; }
    if (bytes==0) { mfem_error("PtrKnown bytes==0"); }
    if (!base.d_ptr) { CuMemAlloc(&base.d_ptr, bytes); }
@@ -150,7 +150,7 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
 // if necessary.
 static void *PtrAlias(mm::ledger &maps, void *ptr)
 {
-   const bool gpu = Device::UsingDevice();
+   const bool gpu = Device::IsEnabled();
    const mm::alias *alias = maps.aliases.at(ptr);
    const mm::memory *base = alias->mem;
    const bool host = base->host;
@@ -182,7 +182,7 @@ void *mm::Ptr(void *ptr)
    if (ptr==NULL) { return NULL; };
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
-   if (Device::UsingDevice())
+   if (Device::IsEnabled())
    {
       mfem_error("Trying to use unknown pointer on the DEVICE!");
    }
@@ -214,7 +214,7 @@ void mm::Push(const void *ptr, const size_t bytes)
    if (MmDeviceIniFilter()) { return; }
    if (Known(ptr)) { return PushKnown(maps, ptr, bytes); }
    if (Alias(ptr)) { return PushAlias(maps, ptr, bytes); }
-   if (Device::UsingDevice()) { mfem_error("Unknown pointer to push to!"); }
+   if (Device::IsEnabled()) { mfem_error("Unknown pointer to push to!"); }
 }
 
 static void PullKnown(const mm::ledger &maps, const void *ptr,
@@ -244,25 +244,25 @@ void mm::Pull(const void *ptr, const size_t bytes)
    if (MmDeviceIniFilter()) { return; }
    if (Known(ptr)) { return PullKnown(maps, ptr, bytes); }
    if (Alias(ptr)) { return PullAlias(maps, ptr, bytes); }
-   if (Device::UsingDevice()) { mfem_error("Unknown pointer to pull from!"); }
+   if (Device::IsEnabled()) { mfem_error("Unknown pointer to pull from!"); }
 }
 
-extern CUstream *cuStream;
+namespace internal { extern CUstream *cuStream; }
 void* mm::memcpy(void *dst, const void *src, const size_t bytes,
                  const bool async)
 {
    void *d_dst = mm::ptr(dst);
    void *d_src = const_cast<void*>(mm::ptr(src));
-   const bool host = Device::UsingHost();
+   const bool host = Device::IsDisabled();
    if (bytes == 0) { return dst; }
    if (host) { return std::memcpy(dst, src, bytes); }
    if (!async) { return CuMemcpyDtoD(d_dst, d_src, bytes); }
-   return CuMemcpyDtoDAsync(d_dst, d_src, bytes, cuStream);
+   return CuMemcpyDtoDAsync(d_dst, d_src, bytes, internal::cuStream);
 }
 
 void mm::RegisterCheck(void *ptr)
 {
-   if (ptr != NULL && Device::UsingMM())
+   if (ptr != NULL && UsingMM())
    {
       if (!mm::known(ptr))
       {

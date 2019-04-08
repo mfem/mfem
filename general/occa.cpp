@@ -14,15 +14,17 @@
 namespace mfem
 {
 
-extern OccaDevice occaDevice;
+// This variable is defined in device.cpp:
+namespace internal { extern OccaDevice occaDevice; }
 
 static OccaMemory OccaWrapMemory(const OccaDevice dev, const void *d_adrs,
                                  const size_t bytes)
 {
+   // This function is called when an OCCA kernel is going to be used.
 #if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
    void *adrs = const_cast<void*>(d_adrs);
    // OCCA & UsingCuda => occa::cuda
-   if (Device::UsingCuda())
+   if (Device::Allows(Backend::OCCA_CUDA))
    {
       return occa::cuda::wrapMemory(dev, adrs, bytes);
    }
@@ -39,16 +41,19 @@ static OccaMemory OccaWrapMemory(const OccaDevice dev, const void *d_adrs,
 
 OccaMemory OccaPtr(const void *ptr)
 {
-   OccaDevice dev = occaDevice;
-   if (!Device::UsingMM()) { return OccaWrapMemory(dev, ptr, 0); }
+   // This function is called when 'ptr' needs to be passed to and OCCA kernel.
+   OccaDevice dev = internal::occaDevice;
+   if (!mm::UsingMM()) { return OccaWrapMemory(dev, ptr, 0); }
    const bool known = mm::known(ptr);
    if (!known) { mfem_error("OccaPtr: Unknown address!"); }
    mm::memory &base = mm::mem(ptr);
-   const bool host = base.host;
+   const bool ptr_on_host = base.host;
    const size_t bytes = base.bytes;
-   const bool gpu = Device::UsingDevice();
-   if (host && !gpu) { return OccaWrapMemory(dev, ptr, bytes); }
-   if (!gpu) { mfem_error("OccaPtr: !gpu"); }
+   const bool run_on_host = Device::IsDisabled();
+   // If the priority of a host OCCA backend is higher than all device OCCA
+   // backends, then we will need to run-on-host even if Device::IsEnabled().
+   if (ptr_on_host && run_on_host) { return OccaWrapMemory(dev, ptr, bytes); }
+   if (run_on_host) { mfem_error("OccaPtr: !ptr_on_host && run_on_host"); }
    if (!base.d_ptr)
    {
       CuMemAlloc(&base.d_ptr, bytes);

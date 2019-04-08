@@ -24,7 +24,8 @@ typedef occa::memory OccaMemory;
 #define MFEM_NEW_OCCA_KERNEL(ker, filepath, prop)                        \
    static occa::kernel ker = NULL;                                       \
    if (ker==NULL) {                                                      \
-      ker = occaDevice.buildKernel("occa://mfem/" filepath, #ker, prop); \
+      ker = internal::occaDevice.buildKernel(                            \
+         "occa://mfem/" filepath, #ker, prop);                           \
    }
 #else // MFEM_USE_OCCA
 
@@ -36,7 +37,8 @@ typedef void* OccaMemory;
 namespace mfem
 {
 
-extern OccaDevice occaDevice;
+namespace internal { extern OccaDevice occaDevice; }
+// Function called the pointer 'a' needs to be passed to and OCCA kernel.
 OccaMemory OccaPtr(const void *a);
 OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx);
 
