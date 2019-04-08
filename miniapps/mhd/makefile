@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = exMHD exAMRMHD
+SEQ_EXAMPLES = exMHD exAMRMHD 
 PAR_EXAMPLES = exMHDp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
@@ -31,7 +31,7 @@ endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: exAMRMHD all clean clean-build clean-exec
+.PHONY: exMHD exMHDnew exAMRMHD all clean clean-build clean-exec
 .PRECIOUS: %.o
 
 # Remove built-in rule
@@ -51,6 +51,10 @@ exAMRMHD: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 
 exMHD: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
+
+exMHDnew: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
+
 
 
 .PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)

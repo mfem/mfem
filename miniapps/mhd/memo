@@ -10,20 +10,38 @@ glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 800
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+4/6
+this is sort of working
+ ./exAMRMHD -m xperiodic.mesh -r 3 -o 4 -tf 10 -vs 50 -dt .0001 -i 3 -ltol 1e-3
+
+4/5
+AMR starts to work after I switch vector size total dofs
+
 4/3
-there are a couple of issues for AMR:
-x KB add more degrees freedom for nonconforming AMR
-x When it did uniform refinement, KB is okay but Current is very osscillatory
-x I do not know how to add the AMR levels
+there are some issues for AMR:
+o KB add more degrees freedom for nonconforming AMR (see by trun off refiner.SetTotalErrorFraction(0.0))
+  I can probably fix it with Mark's suggestion.
+x When it did uniform refinement, KB is okay but Current is very osscillatory (P4 is better but I am surprised by the results)
+  see (by turn on refiner.SetTotalErrorFraction(0.0)):
+  ./exAMRMHD -m xperiodic.mesh -r 3 -o 3 -tf 10 -vs 50 -dt .002 -i 3 -ltol 1e-6
+x I do not know how to add the AMR levels (probably control through nc_limit)
+x Derefine is not tested yet
+
+there are one issue for nonlinear:
+x I have to assemble matrix whenever the nonlinear operator called
 
 o it is not doing uniform refinement any more
+
+We may need to have two requests:
+o fix KB for nonconforming AMR
+o install the nonlinear operator
 
 4/2
 this looks okay, although it does some uniform refinement:
 ./exAMRMHD -r 3 -o 3 -tf 10 -vs 50 -dt .002 -i 2 -ltol 1e-6
 
 island test:
-./exAMRMHD -m xperiodic.mehs -r 3 -o 3 -tf 10 -vs 50 -dt .002 -i 3 -ltol 1e-6
+./exAMRMHD -m xperiodic.mesh -r 3 -o 3 -tf 10 -vs 50 -dt .002 -i 3 -ltol 1e-6
 
 amr test is strange:
 current is oscillatory

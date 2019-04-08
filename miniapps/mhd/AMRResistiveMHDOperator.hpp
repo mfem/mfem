@@ -22,9 +22,9 @@ protected:
    FiniteElementSpace &fespace;
    Array<int> ess_tdof_list;
 
-   BilinearForm *M, *K, *KB, *DSl, *DRe; //mass, stiffness, diffusion with SL and Re
+   BilinearForm *M, *Mrhs, *K, *KB, *DSl, *DRe; //mass, stiffness, diffusion with SL and Re
    BilinearForm *Nv, *Nb;
-   LinearForm *E0, *Sw; //two source terms
+   LinearForm *E0; //source terms
    SparseMatrix Mmat, Kmat;
    ConstantCoefficient visc_coeff, resi_coeff;
    double viscosity, resistivity;
@@ -39,7 +39,7 @@ protected:
 
 public:
    AMRResistiveMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, 
-                       double visc, double resi);   //this is old
+                       double visc, double resi);
    AMRResistiveMHDOperator(FiniteElementSpace &f, Array<int> &ess_bdr, 
                        double visc, double resi, int icase);
 
@@ -61,8 +61,8 @@ public:
 
 AMRResistiveMHDOperator::AMRResistiveMHDOperator(FiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc, double resi)
-   : TimeDependentOperator(4*f.GetTrueVSize(), 0.0), fespace(f), 
-     M(NULL), K(NULL), KB(NULL), DSl(NULL), DRe(NULL), Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
+   : TimeDependentOperator(4*f.GetVSize(), 0.0), fespace(f), 
+     M(NULL), Mrhs(NULL), K(NULL), KB(NULL), DSl(NULL), DRe(NULL), Nv(NULL), Nb(NULL), E0(NULL),
      visc_coeff(visc), resi_coeff(resi),
      viscosity(visc),  resistivity(resi), 
      M_prec(NULL), K_prec(NULL)
@@ -70,6 +70,9 @@ AMRResistiveMHDOperator::AMRResistiveMHDOperator(FiniteElementSpace &f,
    //mass matrix
    M = new BilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator);
+
+   Mrhs = new BilinearForm(&fespace);
+   Mrhs->AddDomainIntegrator(new MassIntegrator);
 
    //stiffness matrix
    K = new BilinearForm(&fespace);
@@ -89,19 +92,23 @@ AMRResistiveMHDOperator::AMRResistiveMHDOperator(FiniteElementSpace &f,
 
 void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
 {
-   const double rel_tol = 1e-8;
+   //const double rel_tol = 1e-8;
 
    //update ess_tdof_list
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    //update mass matrix
    M->Assemble();
-   M->FormSystemMatrix(ess_tdof_list, Mmat);
+   Mrhs->Assemble();
 
+   //update stiffness matrix
+   K->Assemble();
+
+   /*
+   M->FormSystemMatrix(ess_tdof_list, Mmat);
    delete M_prec;
    GSSmoother *M_prec_gs = new GSSmoother(Mmat);
    M_prec=M_prec_gs;
-
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
@@ -110,8 +117,6 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
 
-   //update stiffness matrix
-   K->Assemble();
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 
    delete K_prec;
@@ -125,6 +130,7 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    K_solver.SetPrintLevel(0);
    K_solver.SetPreconditioner(*K_prec);
    K_solver.SetOperator(Kmat);
+   */
 
    //assemble KB
    KB->Assemble();
@@ -142,11 +148,19 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
 
    if (E0!=NULL)
       E0->Assemble();
+
+   cout << "Number of matrix in M: " <<  M->SpMat().Size()<< endl;
+   cout << "Number of matrix in K: " <<  K->SpMat().Size()<< endl;
+   cout << "Number of matrix in KB: " << KB->SpMat().Size()<< endl;
+   cout << "Number of matrix in DSl: " << DSl->SpMat().Size()<< endl;
+   cout << "Number of matrix in DRe: " << DRe->SpMat().Size()<< endl;
+
 }
 
 void AMRResistiveMHDOperator::UpdateProblem()
 {
    M->Update();
+   Mrhs->Update();
    K->Update();
    KB->Update();
 
@@ -166,8 +180,9 @@ void AMRResistiveMHDOperator::UpdateProblem()
       E0->Update();
    }
 
-   cout<<"Problem size = "<<fespace.GetTrueVSize()<<endl;
-   width = height = fespace.GetTrueVSize()*4;
+   cout<<"True V size = "<<fespace.GetTrueVSize()<<endl;
+   cout<<"Problem size = "<<fespace.GetVSize()<<endl;
+   width = height = fespace.GetVSize()*4;
 }          
            
 void AMRResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield) 
@@ -203,11 +218,9 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    ofstream myfile3("j.dat");
    j.Print(myfile3, 1000);
    ofstream myfile4("vx.dat");
-   */
    //ofstream myfile4("vx.dat");
    //vx.Print(myfile4, 1000);
 
-   /*
    cout << "vs size ="<<vx.Size()<<" sc ="<<sc<<" h ="<<height<<endl;
    cout << "Number of scalar unknowns in psi: " <<psi.Size()<< endl;
    cout << "Number of scalar unknowns in phi: " <<phi.Size()<< endl;
@@ -232,23 +245,16 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    z.Print(myfile, 1000);
    */
 
-   if (true)
-   {
-      for (int i=0; i<ess_tdof_list.Size(); i++)
-          z(ess_tdof_list[i])=0.0; //set homogeneous Dirichlet condition by hand
-      M_solver.Mult(z, dpsi_dt);
-   }
-   else
-   {
-       //another way; but it is slower
-       SparseMatrix A;
-       Vector B, X;
-       M->FormLinearSystem(ess_tdof_list, dpsi_dt, z, A, X, B); // Alters matrix and rhs to enforce bc
-       PCG(Mmat, *M_prec, B, X, 0, 200, 1e-12, 0.0); 
-       //CG(A, B, X);
-       M->RecoverFEMSolution(X, z, dpsi_dt);
-   }
+   //another way; but it is slower
+   SparseMatrix A;
+   Vector B, X;
+   M->FormLinearSystem(ess_tdof_list, dpsi_dt, z, A, X, B); // Alters matrix and rhs to enforce bc
+   GSSmoother Mpre(A);
+   PCG(A, Mpre, B, X, 0, 200, 1e-12, 0.0); 
+   M->RecoverFEMSolution(X, z, dpsi_dt);
 
+   //ofstream myfile("A1.dat");
+   //A.PrintCSR(myfile);
 
    Nv->Mult(w, z);
    /*
@@ -265,11 +271,11 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    z.Neg(); // z = -z
    Nb->AddMult(j, z);
 
-   for (int i=0; i<ess_tdof_list.Size(); i++)
-       z(ess_tdof_list[i])=0.0; //set Dirichlet condition by hand
+   M->FormLinearSystem(ess_tdof_list, dw_dt, z, A, X, B); // Alters matrix and rhs to enforce bc
+   PCG(A, Mpre, B, X, 0, 200, 1e-12, 0.0); 
+   M->RecoverFEMSolution(X, z, dw_dt);
 
 
-   M_solver.Mult(z, dw_dt);
 
 }
 
@@ -299,24 +305,27 @@ void AMRResistiveMHDOperator::UpdateJ(Vector &vx)
    int sc = height/4;
    Vector psi(vx.GetData() +  sc, sc);
    Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
-   SparseMatrix tmp;
-   Vector Y, Z;
    
    z.SetSize(sc);
 
-   cout << "Number of scalar unknowns in psi: " <<  psi.Size()<< endl;
-   cout << "Number of scalar unknowns in   j: " <<  j.Size()<< endl;
-   cout << "Number of scalar unknowns in   z: " <<  z.Size()<< endl;
-   cout << "Number of scalar unknowns in  sc: " <<  sc<< endl;
-
-   cout << "Number of matrix in KB: " << KB->SpMat().Size()<< endl;
-   cout << "Number of matrix in M: " <<  Mmat.Size()<< endl;
-   cout << "Number of matrix in K: " <<  Kmat.Size()<< endl;
+   /*
+   cout << "Number of scalar unknowns in psi: (UpdateJ) " <<  psi.Size()<< endl;
+   cout << "Number of scalar unknowns in   j: (UpdateJ) " <<  j.Size()<< endl;
+   cout << "Number of scalar unknowns in   z: (UpdateJ) " <<  z.Size()<< endl;
+   cout << "Number of scalar unknowns in  sc: (UpdateJ) " <<  sc<< endl;
+   */
 
    KB->Mult(psi, z);
    z.Neg(); // z = -z
-   M->FormLinearSystem(ess_tdof_list, j, z, tmp, Y, Z); //apply Dirichelt boundary (j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)
-   M_solver.Mult(Z, Y);
+
+   SparseMatrix A;
+   Vector Y, Z;
+
+   //apply Dirichelt boundary 
+   //(j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)
+   M->FormLinearSystem(ess_tdof_list, j, z, A, Y, Z);
+   GSSmoother Mpre(A);
+   PCG(A, Mpre, Z, Y, 0, 200, 1e-12, 0.0); 
    M->RecoverFEMSolution(Y, z, j);
 
 }
@@ -328,9 +337,23 @@ void AMRResistiveMHDOperator::UpdatePhi(Vector &vx)
    Vector phi(vx.GetData() +   0, sc);
    Vector   w(vx.GetData() +2*sc, sc);
 
-   Mmat.Mult(w, z);
+   /*
+   cout << "Number of scalar unknowns in z: (UpdatePhi) " <<  z.Size()<< endl;
+   cout << "Number of operator size in M: (UpdatePhi) " <<  M->SpMat().Size()<< endl;
+   */
+
+   Mrhs->Mult(w, z);
    z.Neg(); // z = -z
-   K_solver.Mult(z, phi);
+
+   SparseMatrix A;
+   Vector B, X;
+   K->FormLinearSystem(ess_tdof_list, phi, z, A, X, B); // Alters matrix and rhs to enforce bc
+   GSSmoother Mpre(A);
+   PCG(A, Mpre, B, X, 0, 200, 1e-12, 0.0); 
+   K->RecoverFEMSolution(X, z, phi);
+
+ 
+   //K_solver.Mult(z, phi);
 }
 
 
@@ -338,6 +361,7 @@ AMRResistiveMHDOperator::~AMRResistiveMHDOperator()
 {
     //free used memory
     delete M;
+    delete Mrhs;
     delete K;
     delete KB;
     delete Nv;

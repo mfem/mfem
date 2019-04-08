@@ -95,6 +95,13 @@ double InitialPsi3(const Vector &x)
    return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) );
 }
 
+void AMRUpdate(BlockVector &S,
+               Array<int> &true_offset,
+               GridFunction &phi,
+               GridFunction &psi,
+               GridFunction &w,
+               GridFunction &j);
+
 
 
 void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
@@ -209,6 +216,7 @@ int main(int argc, char *argv[])
    }
 
    // 4. Refine the mesh to increase the resolution.    
+   mesh->EnsureNCMesh();
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh->UniformRefinement();
@@ -227,7 +235,7 @@ int main(int argc, char *argv[])
         cout <<"fespace dim="<<fespace.GetVDim()<<endl;
    }
 
-   int fe_size = fespace.GetTrueVSize();
+   int fe_size = fespace.GetVSize();
    cout << "Number of scalar unknowns: " << fe_size << endl;
    Array<int> fe_offset(5);
    fe_offset[0] = 0;
@@ -238,10 +246,10 @@ int main(int argc, char *argv[])
 
    BlockVector vx(fe_offset);
    GridFunction psi, phi, w, j, psiBack(&fespace);
-   phi.MakeTRef(&fespace, vx.GetBlock(0), 0);
-   psi.MakeTRef(&fespace, vx.GetBlock(1), 0);
-     w.MakeTRef(&fespace, vx.GetBlock(2), 0);
-     j.MakeTRef(&fespace, vx.GetBlock(3), 0);
+   phi.MakeRef(&fespace, vx.GetBlock(0), 0);
+   psi.MakeRef(&fespace, vx.GetBlock(1), 0);
+     w.MakeRef(&fespace, vx.GetBlock(2), 0);
+     j.MakeRef(&fespace, vx.GetBlock(3), 0);
 
    // 6. Set the initial conditions, and the boundary conditions
    FunctionCoefficient phiInit(InitialPhi);
@@ -370,16 +378,23 @@ int main(int argc, char *argv[])
    int sdim = mesh->SpaceDimension();
    BilinearFormIntegrator *integ = new DiffusionIntegrator;
    FiniteElementSpace flux_fespace1(mesh, &fe_coll, sdim), flux_fespace2(mesh, &fe_coll, sdim);
-   //BlockZZEstimator estimator(*integ, psi, *integ, w, flux_fespace1, flux_fespace2);
+   BlockZZEstimator estimator(*integ, j, *integ, w, flux_fespace1, flux_fespace2);
    //ZienkiewiczZhuEstimator estimator(*integ, w, flux_fespace1);
-   ZienkiewiczZhuEstimator estimator(*integ, j, flux_fespace1);
+   //ZienkiewiczZhuEstimator estimator(*integ, j, flux_fespace1);
 
-   //refiner for psi and w
    ThresholdRefiner refiner(estimator);
    //refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
-   refiner.SetTotalErrorGoal(ltol_amr);    // local error goal (stop criterion)
+   refiner.SetTotalErrorGoal(ltol_amr);    // total error goal (stop criterion)
+   refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
+   refiner.SetMaxElements(1000);
    //refiner.PreferNonconformingRefinement();
    refiner.SetNCLimit(nc_limit);
+
+   /*
+   ThresholdDerefiner derefiner(estimator);
+   derefiner.SetThreshold(.15*ltol_amr);
+   derefiner.SetNCLimit(nc_limit);
+   */
    //-----------------------------------AMR---------------------------------
 
    double t = 0.0;
@@ -424,6 +439,7 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
 
       refiner.Reset();
+      //derefiner.Reset();
 
       // 13. The inner refinement loop. At the end we want to have the current
       //     time step resolved to the prescribed tolerance in each element.
@@ -431,6 +447,7 @@ int main(int argc, char *argv[])
       //int ref_it=1;
       {
         cout << "Number of unknowns: " << fespace.GetVSize() << endl;
+        cout << "Number of elements in mesh: " << mesh->GetNE() << endl;
 
         //---Predictor stage---
         //assemble the nonlinear terms
@@ -447,8 +464,9 @@ int main(int argc, char *argv[])
         oper.UpdatePhi(vx);
 
         last_step = (t >= t_final - 1e-8*dt);
+
         //XXX debug: 
-        last_step = true;
+        //last_step = true;
 
 
         //----------------------------AMR---------------------------------
@@ -481,13 +499,14 @@ int main(int argc, char *argv[])
             cout<<"Mesh refine..."<<endl;
             //---Update problem---
             AMRUpdate(vx, vx_old, fe_offset, phi, psi, w, j);
-
             oper.UpdateProblem();
-            ode_solver->Init(oper);
 
             //---assemble problem and update boundary condition---
             oper.assembleProblem(ess_bdr); 
-            oper.UpdateJ(vx);
+            ode_solver->Init(oper);
+
+            //XXX
+            //oper.UpdateJ(vx);
 
         }
         //----------------------------AMR---------------------------------
@@ -533,6 +552,13 @@ int main(int argc, char *argv[])
 
    }
 
+   /*
+  for (int el = 0; el < mesh->GetNE(); el++)
+  {
+      cout <<"("<<el<<","<<mesh->ncmesh->GetElementDepth(el)<<")";
+  }
+  */
+
    // 9. Save the solutions.
    {
       ofstream omesh("refined.mesh");
@@ -566,6 +592,51 @@ int main(int argc, char *argv[])
    delete mesh;
 
    return 0;
+}
+
+
+void AMRUpdate(BlockVector &S, 
+               Array<int> &true_offset,
+               GridFunction &phi,
+               GridFunction &psi,
+               GridFunction &w,
+               GridFunction &j)
+{
+   phi.SetFromTrueDofs(S.GetBlock(0));
+   psi.SetFromTrueDofs(S.GetBlock(1));
+   w.SetFromTrueDofs(S.GetBlock(2));
+   j.SetFromTrueDofs(S.GetBlock(3));
+
+   FiniteElementSpace* H1FESpace = phi.FESpace();
+
+   //update fem space
+   H1FESpace->Update();
+
+   // Compute new dofs on the new mesh
+   phi.Update();
+   psi.Update();
+   w.Update();
+   j.Update();
+
+   int fe_size = H1FESpace->GetTrueVSize();
+
+   //update offset vector
+   true_offset[0] = 0;
+   true_offset[1] = fe_size;
+   true_offset[2] = 2*fe_size;
+   true_offset[3] = 3*fe_size;
+   true_offset[4] = 4*fe_size;
+
+   // Resize S
+   S.Update(true_offset);
+
+   // Compute "true" dofs and store them in S
+   phi.GetTrueDofs(S.GetBlock(0));
+   psi.GetTrueDofs(S.GetBlock(1));
+     w.GetTrueDofs(S.GetBlock(2));
+     j.GetTrueDofs(S.GetBlock(3));
+
+   H1FESpace->UpdatesFinished();
 }
 
 //this is an function modified based on amr/laghos.cpp
