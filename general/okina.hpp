@@ -107,7 +107,7 @@ void CuWrap(const int N, DBODY &&d_body)
    const int GRID = (N+BLOCKS-1)/BLOCKS;
    CuKernel<<<GRID,BLOCKS>>>(N,d_body);
    const cudaError_t last = cudaGetLastError();
-   MFEM_ASSERT(last == cudaSuccess, cudaGetErrorString(last));
+   MFEM_VERIFY(last == cudaSuccess, cudaGetErrorString(last));
 }
 #else
 template <int BLOCKS, typename DBODY>
