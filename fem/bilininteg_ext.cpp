@@ -216,12 +216,11 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    ne = fes.GetNE();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   const GeometryExtension *geo = GeometryExtension::Get(fes,*ir);
+   geom = GeometryExtension::Get(fes,*ir);
    maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(symmDims * nq * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
-   PADiffusionAssemble(dim, dofs1D, quad1D, ne, maps->W, geo->J, coeff, vec);
-   delete geo;
+   PADiffusionAssemble(dim, dofs1D, quad1D, ne, maps->W, geom->J, coeff, vec);
 }
 
 #ifdef MFEM_USE_OCCA
@@ -664,6 +663,12 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
                             vec, x, y);
 }
 
+DiffusionIntegrator::~DiffusionIntegrator()
+{
+   delete geom;
+   delete maps;
+}
+
 // PA Mass Assemble kernel
 void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 {
@@ -676,7 +681,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    nq = ir->GetNPoints();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   const GeometryExtension *geo = GeometryExtension::Get(fes,*ir);
+   geom = GeometryExtension::Get(fes,*ir);
    maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(ne*nq);
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
@@ -702,8 +707,8 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       const int NE = ne;
       const int NQ = nq;
       const DeviceVector w(maps->W.GetData(), NQ);
-      const DeviceTensor<3> x(geo->X.GetData(), 2,NQ,NE);
-      const DeviceTensor<4> J(geo->J.GetData(), 2,2,NQ,NE);
+      const DeviceTensor<3> x(geom->X.GetData(), 2,NQ,NE);
+      const DeviceTensor<4> J(geom->J.GetData(), 2,2,NQ,NE);
       DeviceMatrix v(vec.GetData(), NQ, NE);
       MFEM_FORALL(e, NE,
       {
@@ -742,8 +747,8 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       const int NE = ne;
       const int NQ = nq;
       const DeviceVector W(maps->W.GetData(), NQ);
-      const DeviceTensor<3> x(geo->X.GetData(), 3,NQ,NE);
-      const DeviceTensor<4> J(geo->J.GetData(), 3,3,NQ,NE);
+      const DeviceTensor<3> x(geom->X.GetData(), 3,NQ,NE);
+      const DeviceTensor<4> J(geom->J.GetData(), 3,3,NQ,NE);
       DeviceMatrix v(vec.GetData(), NQ,NE);
       MFEM_FORALL(e, NE,
       {
@@ -764,7 +769,6 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
          }
       });
    }
-   // delete geo;
 }
 
 #ifdef MFEM_USE_OCCA
@@ -1122,9 +1126,20 @@ void MassIntegrator::MultAssembled(Vector &x, Vector &y)
                        vec, x, y);
 }
 
+MassIntegrator::~MassIntegrator()
+{
+   delete geom;
+   delete maps;
+}
 
 // DofToQuad
 static std::map<std::string, DofToQuad* > AllDofQuadMaps;
+
+DofToQuad::~DofToQuad()
+{
+   MFEM_ASSERT(AllDofQuadMaps.at(hash),"");
+   AllDofQuadMaps.erase(hash);
+}
 
 DofToQuad* DofToQuad::Get(const FiniteElementSpace& fes,
                           const IntegrationRule& ir,
@@ -1649,7 +1664,11 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    Mesh *mesh = fes.GetMesh();
    const bool geom_to_allocate = sequence < fes.GetSequence();
    sequence = fes.GetSequence();
-   if (geom_to_allocate) { geom = new GeometryExtension(); }
+   if (geom_to_allocate)
+   {
+      if (geom) delete geom;
+      geom = new GeometryExtension();
+   }
    mesh->EnsureNodes();
    const GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
@@ -1696,6 +1715,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    PAGeom(dims, D1D, Q1D, elements,
           maps->B, maps->G, geom->nodes,
           geom->X, geom->J, geom->invJ, geom->detJ);
+   delete maps;
    return geom;
 }
 

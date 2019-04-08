@@ -37,9 +37,12 @@ class DofToQuad
 private:
    std::string hash;
 public:
+   ~DofToQuad();
+   void operator=(DofToQuad&);
+   void operator=(DofToQuad const&);
+public:
    Array<double> W, B, G, Bt, Gt;
 public:
-   static void delDofToQuad();
    static DofToQuad* Get(const FiniteElementSpace&,
                          const IntegrationRule&,
                          const bool = false);
