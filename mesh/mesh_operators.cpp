@@ -60,6 +60,7 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
    total_fraction = 0.5;
    local_err_goal = 0.0;
    max_elements = std::numeric_limits<long>::max();
+   amr_levels=max_elements;
 
    threshold = 0.0;
    num_marked_elements = 0L;
@@ -104,7 +105,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
 
    for (int el = 0; el < NE; el++)
    {
-      if (local_err(el) > threshold)
+      if (local_err(el) > threshold && mesh.ncmesh->GetElementDepth(el) < amr_levels)
       {
          marked_elements.Append(Refinement(el));
       }

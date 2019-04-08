@@ -119,6 +119,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 2;
    int ode_solver_type = 2;
+   int amr_levels=0;
    double t_final = 5.0;
    double dt = 0.0001;
    double visc = 0.0;
@@ -140,6 +141,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
+   args.AddOption(&amr_levels, "-amrl", "--amr-levels",
+                  "AMR refine level.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -221,6 +224,7 @@ int main(int argc, char *argv[])
    {
       mesh->UniformRefinement();
    }
+   amr_levels+=ref_levels;
 
    // 5. Define the vector finite element spaces representing 
    //  [Psi, Phi, w, j]
@@ -386,7 +390,8 @@ int main(int argc, char *argv[])
    //refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
    refiner.SetTotalErrorGoal(ltol_amr);    // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
-   refiner.SetMaxElements(1000);
+   refiner.SetMaxElements(1500);
+   refiner.SetMaximumRefinementLevel(amr_levels);
    //refiner.PreferNonconformingRefinement();
    refiner.SetNCLimit(nc_limit);
 

@@ -149,11 +149,13 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    if (E0!=NULL)
       E0->Assemble();
 
+   /*
    cout << "Number of matrix in M: " <<  M->SpMat().Size()<< endl;
    cout << "Number of matrix in K: " <<  K->SpMat().Size()<< endl;
    cout << "Number of matrix in KB: " << KB->SpMat().Size()<< endl;
    cout << "Number of matrix in DSl: " << DSl->SpMat().Size()<< endl;
    cout << "Number of matrix in DRe: " << DRe->SpMat().Size()<< endl;
+   */
 
 }
 
