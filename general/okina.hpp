@@ -37,13 +37,11 @@ namespace mfem
 // Implementation of MFEM's okina device kernel interface and its CUDA, OpenMP,
 // RAJA, and sequential backends.
 
-/// The MFEM_FORALL wrapper
-#define MFEM_BLOCKS 256
-#define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
-#define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
-   OkinaWrap<BLOCKS>(N,                                                 \
-                     [=] MFEM_DEVICE (int i) {__VA_ARGS__},             \
-                     [&]             (int i) {__VA_ARGS__})
+// The MFEM_FORALL wrapper
+#define MFEM_FORALL(i,N,...)                                    \
+   OkinaWrap(N,                                                 \
+             [=] MFEM_DEVICE (int i) {__VA_ARGS__},             \
+             [&]             (int i) {__VA_ARGS__})
 
 /// OpenMP backend
 template <typename HBODY>
@@ -116,15 +114,17 @@ template <int BLOCKS, typename DBODY>
 void CuWrap(const int N, DBODY &&d_body) {}
 #endif
 
+#define MFEM_CUDA_BLOCKS 256
+
 /// The okina kernel body wrapper
-template <int BLOCKS, typename DBODY, typename HBODY>
+template <typename DBODY, typename HBODY>
 void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {
    const bool omp  = Device::UsingOmp();
    const bool gpu  = Device::UsingDevice();
    const bool raja = Device::UsingRaja();
-   if (gpu && raja) { return RajaCudaWrap<BLOCKS>(N, d_body); }
-   if (gpu)         { return CuWrap<BLOCKS>(N, d_body); }
+   if (gpu && raja) { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+   if (gpu)         { return CuWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
    if (omp && raja) { return RajaOmpWrap(N, h_body); }
    if (raja)        { return RajaSeqWrap(N, h_body); }
    if (omp)         { return OmpWrap(N, h_body);  }

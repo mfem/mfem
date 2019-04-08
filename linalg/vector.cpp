@@ -824,7 +824,7 @@ double Vector::Sum() const
 #ifdef MFEM_USE_CUDA
 static __global__ void cuKernelMin(const int N, double *gdsr, const double *x)
 {
-   __shared__ double s_min[MFEM_BLOCKS];
+   __shared__ double s_min[MFEM_CUDA_BLOCKS];
    const int n = blockDim.x*blockIdx.x + threadIdx.x;
    if (n>=N) { return; }
    const int bid = blockIdx.x;
@@ -850,8 +850,8 @@ static __global__ void cuKernelMin(const int N, double *gdsr, const double *x)
 static double cuVectorMin(const int N, const double *X)
 {
    const DeviceVector x(X, N);
-   const int tpb = MFEM_BLOCKS;
-   const int blockSize = MFEM_BLOCKS;
+   const int tpb = MFEM_CUDA_BLOCKS;
+   const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    const int bytes = min_sz*sizeof(double);
@@ -870,7 +870,7 @@ static double cuVectorMin(const int N, const double *X)
 static __global__ void cuKernelDot(const int N, double *gdsr,
                                    const double *x, const double *y)
 {
-   __shared__ double s_dot[MFEM_BLOCKS];
+   __shared__ double s_dot[MFEM_CUDA_BLOCKS];
    const int n = blockDim.x*blockIdx.x + threadIdx.x;
    if (n>=N) { return; }
    const int bid = blockIdx.x;
@@ -898,8 +898,8 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    const DeviceVector x(X, N);
    const DeviceVector y(Y, N);
    static int dot_block_sz = 0;
-   const int tpb = MFEM_BLOCKS;
-   const int blockSize = MFEM_BLOCKS;
+   const int tpb = MFEM_CUDA_BLOCKS;
+   const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    const int bytes = dot_sz*sizeof(double);
