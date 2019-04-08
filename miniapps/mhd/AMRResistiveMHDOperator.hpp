@@ -252,7 +252,7 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector B, X;
    M->FormLinearSystem(ess_tdof_list, dpsi_dt, z, A, X, B); // Alters matrix and rhs to enforce bc
    GSSmoother Mpre(A);
-   PCG(A, Mpre, B, X, 0, 200, 1e-12, 0.0); 
+   PCG(A, Mpre, B, X, 0, 500, 1e-12, 0.0); 
    M->RecoverFEMSolution(X, z, dpsi_dt);
 
    //ofstream myfile("A1.dat");
@@ -274,7 +274,7 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Nb->AddMult(j, z);
 
    M->FormLinearSystem(ess_tdof_list, dw_dt, z, A, X, B); // Alters matrix and rhs to enforce bc
-   PCG(A, Mpre, B, X, 0, 200, 1e-12, 0.0); 
+   PCG(A, Mpre, B, X, 0, 500, 1e-12, 0.0); 
    M->RecoverFEMSolution(X, z, dw_dt);
 
 
@@ -327,7 +327,7 @@ void AMRResistiveMHDOperator::UpdateJ(Vector &vx)
    //(j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)
    M->FormLinearSystem(ess_tdof_list, j, z, A, Y, Z);
    GSSmoother Mpre(A);
-   PCG(A, Mpre, Z, Y, 0, 200, 1e-12, 0.0); 
+   PCG(A, Mpre, Z, Y, 0, 500, 1e-12, 0.0); 
    M->RecoverFEMSolution(Y, z, j);
 
 }
@@ -351,7 +351,7 @@ void AMRResistiveMHDOperator::UpdatePhi(Vector &vx)
    Vector B, X;
    K->FormLinearSystem(ess_tdof_list, phi, z, A, X, B); // Alters matrix and rhs to enforce bc
    GSSmoother Mpre(A);
-   PCG(A, Mpre, B, X, 0, 200, 1e-12, 0.0); 
+   PCG(A, Mpre, B, X, 0, 500, 1e-12, 0.0); 
    K->RecoverFEMSolution(X, z, phi);
 
  
