@@ -12,6 +12,7 @@
 #ifndef MFEM_CUDA_HPP
 #define MFEM_CUDA_HPP
 
+#include "../config/config.hpp"
 #include <cstddef>
 
 #ifdef MFEM_USE_CUDA
@@ -22,15 +23,15 @@ namespace mfem
 {
 
 #ifdef MFEM_USE_CUDA
-#define MFEM_DEVICE __device__
-#define MFEM_HOST_DEVICE __host__ __device__
+#define MFEM_ATTR_DEVICE __device__
+#define MFEM_ATTR_HOST_DEVICE __host__ __device__
 inline void CuCheck(const unsigned int c)
 {
    MFEM_ASSERT(c == cudaSuccess, cudaGetErrorString(cudaGetLastError()));
 }
 #else // MFEM_USE_CUDA
-#define MFEM_DEVICE
-#define MFEM_HOST_DEVICE
+#define MFEM_ATTR_DEVICE
+#define MFEM_ATTR_HOST_DEVICE
 typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
@@ -56,7 +57,7 @@ static __device__ inline double atomicAdd(double* address, double val)
    return __longlong_as_double(old);
 }
 #endif // __CUDA_ARCH__ < 600
-template<typename T> MFEM_DEVICE
+template<typename T> MFEM_ATTR_DEVICE
 inline T AtomicAdd(T volatile *address, T val)
 {
    return atomicAdd((T *)address, val);

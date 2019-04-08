@@ -19,7 +19,7 @@
 
 #include "globals.hpp"
 
-using std::size_t;
+using std::size_t; // FIXME: this should not be here
 
 namespace mfem
 {
@@ -60,6 +60,15 @@ public:
       alias_map aliases;
    };
 
+   static inline bool UsingMM()
+   {
+#ifdef MFEM_USE_MM
+      return true;
+#else
+      return false;
+#endif
+   }
+
    /// Main malloc template function. Allocates n*size bytes and returns a
    /// pointer to the allocated memory.
    template<class T>
@@ -78,8 +87,8 @@ public:
       mm::MM().Erase(ptr);
    }
 
-   /// Translates ptr to host or device address, depending on
-   /// Device::UsingDevice() and the ptr state.
+   /** @brief Translates ptr to host or device address, depending on
+       Device::IsEnabled() and the ptr state. */
    template <class T>
    static inline T *ptr(T *a) { return static_cast<T*>(MM().Ptr(a)); }
 

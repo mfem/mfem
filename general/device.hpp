@@ -17,23 +17,94 @@
 namespace mfem
 {
 
-/// The MFEM Device class that abstracts hardware devices, such as GPUs, and
-/// programming models, such as CUDA, OCCA, RAJA and OpenMP.
+/// MFEM backends.
+/** Individual backends will generally implement only a subset of the kernels
+    implemented by the default CPU backend. */
+struct Backend
+{
+   /** @brief In the documentation below, we use square brackets to indicate the
+       type of the backend: host or device. */
+   enum Id
+   {
+      /// [host] Default CPU backend: sequential execution on each MPI rank.
+      CPU = 1 << 0,
+      /// [host] OpenMP backend. Enabled when MFEM_USE_OPENMP = YES.
+      OMP = 1 << 1,
+      /// [device] CUDA backend. Enabled when MFEM_USE_CUDA = YES.
+      CUDA = 1 << 2,
+      /** @brief [host] RAJA CPU backend: sequential execution on each MPI rank.
+          Enabled when MFEM_USE_RAJA = YES. */
+      RAJA_CPU = 1 << 3,
+      /** @brief [host] RAJA OpenMP backend. Enabled when MFEM_USE_RAJA = YES
+          and MFEM_USE_OPENMP = YES. */
+      RAJA_OMP = 1 << 4,
+      /** @brief [device] RAJA CUDA backend. Enabled when MFEM_USE_RAJA = YES
+          and MFEM_USE_CUDA = YES. */
+      RAJA_CUDA = 1 << 5,
+      /** @brief [host] OCCA CPU backend: sequential execution on each MPI rank.
+          Enabled when MFEM_USE_OCCA = YES. */
+      OCCA_CPU = 1 << 6,
+      /// [host] OCCA OpenMP backend. Enabled when MFEM_USE_OCCA = YES.
+      OCCA_OMP = 1 << 7,
+      /** @brief [device] OCCA CUDA backend. Enabled when MFEM_USE_OCCA = YES
+          and MFEM_USE_CUDA = YES. */
+      OCCA_CUDA = 1 << 8
+   };
+
+   /** @brief Additional useful constants. For example, the *_MASK constants can
+       be used with Device::Allows(). */
+   enum
+   {
+      /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
+      NUM_BACKENDS = 9,
+      /// Biwise-OR of all CUDA backends
+      CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
+      /// Biwise-OR of all RAJA backends
+      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
+      /// Biwise-OR of all OCCA backends
+      OCCA_MASK = OCCA_CPU | OCCA_OMP | OCCA_CUDA,
+      /// Biwise-OR of all OpenMP backends
+      OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
+      /// Biwise-OR of all device backends
+      DEVICE_MASK = CUDA_MASK
+   };
+};
+
+
+/** @brief The MFEM Device class that abstracts hardware devices, such as GPUs,
+    and programming models, such as CUDA, OCCA, RAJA and OpenMP. */
+/** This class represents a "virtual device" with the following properties:
+    - There a single object of this class which is controlled by its static
+      methods.
+    - Once configured, the object cannot be re-configured during the program
+      lifetime.
+    - MFEM classes use this object to determine where (host or device) to
+      perform an operation and which backend implementation to use.
+    - Multiple backends can be configured at the same time; currently, a fixed
+      priority order is used to select a specific backend from the list of
+      configured backends. See the Backend class and the Configure() method in
+      this class for details.
+    - The device can be disabled to restrict the backend selection to only host
+      backends, see the methods Enable() and Disable(). */
 class Device
 {
 private:
    enum MODES {HOST, DEVICE};
 
    MODES mode;
-   int dev = 0;
-   int ngpu = -1;
-   bool cuda = false;
-   bool raja = false;
-   bool occa = false;
-   bool omp = false;
+   int dev = 0; ///< Device ID of the configured device.
+   int ngpu = -1; ///< Number of detected devices; -1: not initialized.
+   unsigned long backends; ///< Bitwise-OR of all configured backends.
+   /** Bitwise-OR mask of all allowed backends. Active backends are all backends
+       minus any device backends when the Device is disabled. */
+   unsigned long allowed_backends;
+
    bool isTracking = true;
 
-   Device(): mode{Device::HOST} {}
+   Device()
+      : mode(Device::HOST),
+        backends(Backend::CPU),
+        allowed_backends(backends) { }
    Device(Device const&);
    void operator=(Device const&);
    static Device& Get() { static Device singleton; return singleton; }
@@ -41,90 +112,79 @@ private:
    /// Setup switcher based on configuration settings
    void Setup(const int dev = 0);
 
+   void MarkBackend(Backend::Id b) { backends |= b; }
+
 public:
+   /// Configure and enable the device backends.
+   /** The string parameter @a device must be a comma-separated list of backend
+       string names (see below). The @a dev argument specifies the ID of the
+       actual devices (e.g. GPU) to use.
+       * The available backends are described by the Backend class.
+       * The string name of a backend is the lowercase version of the
+         Backend::Id enumeration constant with '_' replaced by '-', e.g. the
+         string name of 'RAJA_CPU' is 'raja-cpu'.
+       * The 'cpu' backend is always enabled with lowest priority.
+       * The current backend priority from highest to lowest is: 'occa-cuda',
+         'raja-cuda', 'cuda', 'occa-omp', 'raja-omp', 'omp', 'occa-cpu',
+         'raja-cpu', 'cpu'.
+       * Multiple backends can be configured at the same time.
+       * Only one 'occa-*' backend can be configured at a time.
+       * The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'
+         is already enabled.
+       * After this call, the Device will be disabled. */
+   static void Configure(const std::string &device, const int dev = 0);
 
-   /// Configure and enable the device.
-   /** The string parameter will enable a backend (cuda, omp, raja, occa) if the
-       corresponding substring is present (for now, the order is ignored). The
-       dev argument specifies which of the devices (e.g. GPUs) to enable.  */
-   static inline void Configure(std::string device, const int dev = 0)
-   {
-      if (device.find("cuda") != std::string::npos) { Device::UseCuda(); }
-      if (device.find("omp")  != std::string::npos) { Device::UseOmp();  }
-      if (device.find("raja") != std::string::npos) { Device::UseRaja(); }
-      if (device.find("occa") != std::string::npos) { Device::UseOcca(); }
-      EnableDevice(dev);
-   }
+   /// Print the configuration of the MFEM virtual device object.
+   static void Print(std::ostream &out = mfem::out);
 
-   /// Print the configured device + programming models in order of priority
-   static inline void Print(std::ostream &out = mfem::out)
-   {
-      const bool omp  = Device::UsingOmp();
-      const bool cuda = Device::UsingCuda();
-      const bool occa = Device::UsingOcca();
-      const bool raja = Device::UsingRaja();
-      out << "Device configuration: ";
-      if (cuda && occa) { out << "OCCA:CUDA\n"; return; }
-      if (omp  && occa) { out << "OCCA:OpenMP\n"; return; }
-      if (occa)         { out << "OCCA:CPU\n"; return; }
-      if (cuda && raja) { out << "RAJA:CUDA\n"; return; }
-      if (cuda)         { out << "CUDA\n";  return; }
-      if (omp  && raja) { out << "RAJA:OpenMP\n";  return; }
-      if (raja)         { out << "RAJA:CPU\n";  return; }
-      if (omp)          { out << "OpenMP\n";  return; }
-      out << "CPU\n";
-   }
+   /// Return true if Configure() has been called previously.
+   static inline bool IsConfigured() { return Get().ngpu >= 0; }
+
+   /// Return true if an actual device (e.g. GPU) has been configured.
+   static inline bool IsAvailable() { return Get().ngpu > 0; }
 
    /// Enable the use of the configured device in the code that follows.
-   /** In particular, use the device version of the okina kernels encountered,
-       with the device versions of the data registered in the memory manager
-       (copying host-to-device if necessary). */
-   static inline void Enable() { Get().mode = Device::DEVICE; }
+   /** After this call MFEM classes will use device kernels whenever possible,
+       transferring data automatically to the device, if necessary.
 
-   /// Disable the use of the configured device in the code that follows.
-   /** In particular, use the host version of the okina kernels encountered,
-       with the host versions of the data registered in the memory manager
-       (copying device-to-host if necessary). */
-   static inline void Disable() { Get().mode = Device::HOST; }
-
-   constexpr static inline bool UsingMM()
+       If an actual device (e.g. GPU) is not configured, this is a no-op, and
+       the Device will remain disabled. */
+   static inline void Enable()
    {
-#ifdef MFEM_USE_MM
-      return true;
-#else
-      return false;
-#endif
+      if (IsAvailable())
+      {
+         Get().mode = Device::DEVICE;
+         Get().allowed_backends = Get().backends;
+      }
    }
 
-   static inline void EnableDevice(const int dev = 0) { Get().Setup(dev); }
-   static inline bool DeviceEnabled() { return Get().ngpu > 0; }
-   static inline bool DeviceDisabled() { return Get().ngpu == 0; }
-   static inline bool DeviceHasBeenEnabled() { return Get().ngpu >= 0; }
+   /// Disable the use of the configured device in the code that follows.
+   /** After this call MFEM classes will only use host kernels, transferring
+       data automatically from the device, if necessary. */
+   static inline void Disable()
+   {
+      Get().mode = Device::HOST;
+      Get().allowed_backends = Get().backends & ~Backend::DEVICE_MASK;
+   }
 
-   static inline bool UsingDevice() { return DeviceEnabled() && Get().mode == DEVICE; }
-   static inline bool UsingHost() { return !UsingDevice(); }
+   /// Return true if the Device is enabled.
+   static inline bool IsEnabled() { return Get().mode == DEVICE; }
 
+   /// The opposite of IsEnabled().
+   static inline bool IsDisabled() { return !IsEnabled(); }
+
+   // FIXME: what is "tracking"?
    static inline void DisableTracking() { Get().isTracking = false; };
    static inline void EnableTracking() { Get().isTracking = true; };
    static inline bool IsTracking() { return Get().isTracking; };
 
-   static inline bool UsingCuda() { return Get().cuda; }
-   static inline void UseCuda() { Get().cuda = true; }
-
-   static inline bool UsingOmp() { return Get().omp; }
-   static inline void UseOmp() { Get().omp = true; }
-
-   static inline bool UsingRaja() { return Get().raja; }
-   static inline void UseRaja() { Get().raja = true; }
-
-   static inline bool UsingOcca() { return Get().occa; }
-   static inline void UseOcca() { Get().occa = true; }
-
-   static inline bool UsingOkina()
-   {
-      return DeviceEnabled() && Get().mode == DEVICE &&
-             (UsingCuda() || UsingOmp() || UsingRaja() || UsingOcca());
-   }
+   /** @brief Return true if any of the backends in the backend mask, @a b_mask,
+       are allowed. The allowed backends are all configured backends minus the
+       device backends when the Device is disabled. */
+   /** This method can be used with any of the Backend::Id constants, the
+       Backend::*_MASK, or combinations of those. */
+   static inline bool Allows(unsigned long b_mask)
+   { return Get().allowed_backends & b_mask; }
 
    ~Device();
 };
