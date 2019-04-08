@@ -28,7 +28,7 @@ double PWConstCoefficient::Eval(ElementTransformation & T,
    return (constants(att-1));
 }
 
-double (*FunctionCoefficient::GetDeviceFunction())(const Vector3&)
+DeviceFunctionCoefficientPtr FunctionCoefficient::GetDeviceFunction()
 {
    return DeviceFunction;
 }

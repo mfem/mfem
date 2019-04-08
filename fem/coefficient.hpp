@@ -112,6 +112,8 @@ public:
                        const IntegrationPoint &ip);
 };
 
+typedef double (*DeviceFunctionCoefficientPtr)(const Vector3&);
+
 /// class for C-function coefficient
 class FunctionCoefficient : public Coefficient
 {
@@ -173,7 +175,7 @@ public:
    /// Return the coefficient's C-function that uses Vector3.
    /// Warning: for now, the returned function can only be used on the
    /// host inside a MFEM_FORALL.
-   double (*GetDeviceFunction())(const Vector3&);
+   DeviceFunctionCoefficientPtr GetDeviceFunction();
 };
 
 class GridFunction;
