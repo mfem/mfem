@@ -126,6 +126,7 @@ int main(int argc, char *argv[])
    double resi = 0.0;
    double ltol_amr=1e-5;
    bool visit = false;
+   bool derefine = false;
    int precision = 8;
    int icase = 1;
    int nc_limit = 3;         // maximum level of hanging nodes
@@ -167,6 +168,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
+                  "--no-derefine-mesh",
+                  "Derefine the mesh in AMR.");
    args.Parse();
    if (!args.Good())
    {
@@ -382,7 +386,7 @@ int main(int argc, char *argv[])
    int sdim = mesh->SpaceDimension();
    BilinearFormIntegrator *integ = new DiffusionIntegrator;
    FiniteElementSpace flux_fespace1(mesh, &fe_coll, sdim), flux_fespace2(mesh, &fe_coll, sdim);
-   BlockZZEstimator estimator(*integ, j, *integ, w, flux_fespace1, flux_fespace2);
+   BlockZZEstimator estimator(*integ, j, *integ, psi, flux_fespace1, flux_fespace2);
    //ZienkiewiczZhuEstimator estimator(*integ, w, flux_fespace1);
    //ZienkiewiczZhuEstimator estimator(*integ, j, flux_fespace1);
 
@@ -390,16 +394,14 @@ int main(int argc, char *argv[])
    //refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
    refiner.SetTotalErrorGoal(ltol_amr);    // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
-   refiner.SetMaxElements(1500);
+   refiner.SetMaxElements(50000);
    refiner.SetMaximumRefinementLevel(amr_levels);
    //refiner.PreferNonconformingRefinement();
    refiner.SetNCLimit(nc_limit);
 
-   /*
    ThresholdDerefiner derefiner(estimator);
    derefiner.SetThreshold(.15*ltol_amr);
    derefiner.SetNCLimit(nc_limit);
-   */
    //-----------------------------------AMR---------------------------------
 
    double t = 0.0;
@@ -444,7 +446,7 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
 
       refiner.Reset();
-      //derefiner.Reset();
+      if (derefine) derefiner.Reset();
 
       // 13. The inner refinement loop. At the end we want to have the current
       //     time step resolved to the prescribed tolerance in each element.
@@ -469,35 +471,55 @@ int main(int argc, char *argv[])
         oper.UpdatePhi(vx);
 
         last_step = (t >= t_final - 1e-8*dt);
+        cout << "step " << ti << ", t = " << t <<endl;
 
-        //XXX debug: 
-        //last_step = true;
 
 
         //----------------------------AMR---------------------------------
         refiner.Apply(*mesh);
         if (refiner.Refined()==false)
         {
-            cout << "step " << ti << ", t = " << t <<endl;
-            if (visualization)
-            {
-               vis_phi << "solution\n" << *mesh << phi;
-               vis_psi << "solution\n" << *mesh << psi;
-               vis_j << "solution\n" << *mesh << j;
-               vis_w << "solution\n" << *mesh << w;
+           if (derefine && derefiner.Apply(*mesh))
+           {
+              cout << "Derefined mesh..." << endl;
 
-               if (icase==1) 
-               {
-                   vis_phi << "valuerange -.001 .001\n" << flush;
-                   vis_j << "valuerange -.01425 .01426\n" << flush;
-               }
-            }
-           //break;
-           //mesh_changed = false;
-           if (last_step)
-               break;
-           else
-               continue;
+              //---Update problem---
+              AMRUpdate(vx, vx_old, fe_offset, phi, psi, w, j);
+              oper.UpdateProblem();
+
+              //---assemble problem and update boundary condition---
+              oper.assembleProblem(ess_bdr); 
+              ode_solver->Init(oper);
+           }
+           else //mesh is not refined or derefined
+           {
+
+                if ( (last_step || (ti % vis_steps) == 0) && visualization)
+                {
+                   vis_phi << "solution\n" << *mesh << phi;
+                   vis_psi << "solution\n" << *mesh << psi;
+                   vis_j << "solution\n" << *mesh << j;
+                   vis_w << "solution\n" << *mesh << w;
+
+                   if (icase==1) 
+                   {
+                       vis_phi << "valuerange -.001 .001\n" << flush;
+                       vis_j << "valuerange -.01425 .01426\n" << flush;
+                   }
+
+                   if (visit)
+                   {
+                      dc->SetCycle(ti);
+                      dc->SetTime(t);
+                      dc->Save();
+                   }
+                }
+           }
+
+                if (last_step)
+                    break;
+                else
+                    continue;
         }
         else
         {
@@ -526,7 +548,6 @@ int main(int argc, char *argv[])
         vx.Print(myfile1, 1000);
         */
 
-        cout << "step " << ti << ", t = " << t <<endl;
         if (visualization)
         {
            vis_phi << "solution\n" << *mesh << phi;

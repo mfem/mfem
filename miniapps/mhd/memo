@@ -14,6 +14,9 @@ x it has to assemble nv and nb each time step, not sure how to do it implicitly 
 this is sort of working
  ./exAMRMHD -m xperiodic.mesh -r 3 -o 4 -tf 10 -vs 50 -dt .0001 -i 3 -ltol 1e-3
 
+after adding refinement level, this works better
+./exAMRMHD -m xperiodic.mesh -r 3 -o 4 -tf .02 -vs 50 -dt .0001 -i 3 -amrl 3 -ltol 1e-3
+
 4/5
 AMR starts to work after I switch vector size total dofs
 
