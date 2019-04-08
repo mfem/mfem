@@ -261,6 +261,7 @@ int main(int argc, char *argv[])
          {
             cout << "Reached the maximum number of dofs. Stop." << endl;
          }
+         delete A;
          break;
       }
 
@@ -275,6 +276,7 @@ int main(int argc, char *argv[])
          {
             cout << "Stopping criterion satisfied. Stop." << endl;
          }
+         delete A;
          break;
       }
 

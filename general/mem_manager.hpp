@@ -165,7 +165,7 @@ private:
    mm() {}
    mm(mm const&) = delete;
    void operator=(mm const&) = delete;
-   static inline mm& MM() { static mm *singleton = new mm(); return *singleton; }
+   static inline mm& MM() { static mm singleton; return singleton; }
 
    /// Adds an address
    void *Insert(void *ptr, const size_t bytes);

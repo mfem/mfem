@@ -42,6 +42,7 @@ PABilinearFormExtension::~PABilinearFormExtension()
    {
       delete integrators[i];
    }
+   delete elem_restrict;
 }
 
 // Adds new Domain Integrator.
