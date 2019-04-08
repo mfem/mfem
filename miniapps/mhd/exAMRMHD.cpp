@@ -85,11 +85,18 @@ double E0rhs(const Vector &x)
 double InitialJ3(const Vector &x)
 {
    double ep=.2;
-   return (ep*ep-1.)/lambda/
-       pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
+   return (ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2)
+        -M_PI*M_PI*1.25*alpha*cos(.5*M_PI*x(1))*cos(M_PI*x(0));
 }
 
 double InitialPsi3(const Vector &x)
+{
+   double ep=.2;
+   return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) )
+          +alpha*cos(M_PI*.5*x(1))*cos(M_PI*x(0));
+}
+
+double BackPsi3(const Vector &x)
 {
    double ep=.2;
    return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) );
@@ -101,8 +108,6 @@ void AMRUpdate(BlockVector &S,
                GridFunction &psi,
                GridFunction &w,
                GridFunction &j);
-
-
 
 void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
                Array<int> &true_offset,
@@ -396,6 +401,7 @@ int main(int argc, char *argv[])
    refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
    refiner.SetMaxElements(50000);
    refiner.SetMaximumRefinementLevel(amr_levels);
+   //refiner.SetYRange(-.75, .75);
    //refiner.PreferNonconformingRefinement();
    refiner.SetNCLimit(nc_limit);
 
@@ -423,8 +429,11 @@ int main(int argc, char *argv[])
       }
       else
       {
-        dc = new VisItDataCollection("case2", mesh);
-        //dc->RegisterField("psiPer", &psiPer);
+        if (icase==2)
+            dc = new VisItDataCollection("case2", mesh);
+        else
+            dc = new VisItDataCollection("case3", mesh);
+
         dc->RegisterField("psi", &psi);
         dc->RegisterField("current", &j);
         dc->RegisterField("phi", &phi);
@@ -494,17 +503,21 @@ int main(int argc, char *argv[])
            else //mesh is not refined or derefined
            {
 
-                if ( (last_step || (ti % vis_steps) == 0) && visualization)
+                if ( (last_step || (ti % vis_steps) == 0) )
                 {
-                   vis_phi << "solution\n" << *mesh << phi;
-                   vis_psi << "solution\n" << *mesh << psi;
-                   vis_j << "solution\n" << *mesh << j;
-                   vis_w << "solution\n" << *mesh << w;
 
-                   if (icase==1) 
+                   if (visualization)
                    {
-                       vis_phi << "valuerange -.001 .001\n" << flush;
-                       vis_j << "valuerange -.01425 .01426\n" << flush;
+                        vis_phi << "solution\n" << *mesh << phi;
+                        vis_psi << "solution\n" << *mesh << psi;
+                        vis_j << "solution\n" << *mesh << j;
+                        vis_w << "solution\n" << *mesh << w;
+
+                        if (icase==1) 
+                        {
+                            vis_phi << "valuerange -.001 .001\n" << flush;
+                            vis_j << "valuerange -.01425 .01426\n" << flush;
+                        }
                    }
 
                    if (visit)
@@ -514,12 +527,12 @@ int main(int argc, char *argv[])
                       dc->Save();
                    }
                 }
-           }
 
                 if (last_step)
                     break;
                 else
                     continue;
+           }
         }
         else
         {
@@ -531,9 +544,6 @@ int main(int argc, char *argv[])
             //---assemble problem and update boundary condition---
             oper.assembleProblem(ess_bdr); 
             ode_solver->Init(oper);
-
-            //XXX
-            //oper.UpdateJ(vx);
 
         }
         //----------------------------AMR---------------------------------
@@ -564,16 +574,11 @@ int main(int argc, char *argv[])
 
       }
 
-      if (last_step || (ti % vis_steps) == 0)
+      if (visit)
       {
-        //subtract(psi,psiBack,psiPer);
-
-         if (visit)
-         {
-            dc->SetCycle(ti);
-            dc->SetTime(t);
-            dc->Save();
-         }
+         dc->SetCycle(ti);
+         dc->SetTime(t);
+         dc->Save();
       }
 
    }
