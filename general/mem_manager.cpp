@@ -47,21 +47,6 @@ static const void* InsertAlias(mm::ledger &maps, const void *base,
                        static_cast<const char*> (base);
    const mm::alias *alias = new mm::alias{&mem, offset};
    maps.aliases.emplace(ptr, alias);
-#ifdef MFEM_DEBUG_MM
-   {
-      mem.aliases.sort();
-      for (const mm::alias *a : mem.aliases)
-      {
-         if (a->mem == &mem )
-         {
-            if (a->offset == offset)
-            {
-               mfem_error("a->offset == offset");
-            }
-         }
-      }
-   }
-#endif
    mem.aliases.push_back(alias);
    return ptr;
 }
