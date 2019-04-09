@@ -57,7 +57,7 @@
 //
 //   Current source in a metal sphere
 //     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
-//                        -dbcs '-1' -f 3e8 -herm -s 3 -pc 4
+//                        -dbcs '-1' -f 3e8 -herm
 //                        -do '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
 //
 //   Current source in a sphere with absorbing boundary conditions
@@ -152,8 +152,8 @@ int main(int argc, char *argv[])
    int maxit = 100;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
-   int sol = 2;
-   int prec = 1;
+   int sol = 3;
+   int prec = 4;
    bool herm_conv = false;
    bool visualization = true;
    bool visit = true;
