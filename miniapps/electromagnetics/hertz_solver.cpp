@@ -154,6 +154,27 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
          }
       }
       HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
+
+      if (e_r_bc_)
+      {
+         erCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
+                                                 e_r_bc_);
+         if (e_i_bc_ == NULL)
+         {
+            Vector e(3); e = 0.0;
+            eiCoef_ = new VectorConstantCoefficient(e);
+         }
+      }
+      if (e_i_bc_)
+      {
+         eiCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
+                                                 e_i_bc_);
+         if (e_r_bc_ == NULL)
+         {
+            Vector e(3); e = 0.0;
+            erCoef_ = new VectorConstantCoefficient(e);
+         }
+      }
    }
    // Setup various coefficients
    /*
@@ -287,7 +308,14 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
 
    // Build grid functions
    e_  = new ParComplexGridFunction(HCurlFESpace_);
-   *e_ = 0.0;
+   if (erCoef_ && eiCoef_)
+   {
+      e_->ProjectCoefficient(*erCoef_, *eiCoef_);
+   }
+   else
+   {
+      *e_ = 0.0;
+   }
    // e_r_  = new ParGridFunction(HCurlFESpace_);
    // e_i_  = new ParGridFunction(HCurlFESpace_);
    // b_  = new ParGridFunction(HDivFESpace_);
@@ -492,6 +520,10 @@ HertzSolver::Update()
 
    // Inform the grid functions that the space has changed.
    e_->Update();
+   if (erCoef_ && eiCoef_)
+   {
+      e_->ProjectCoefficient(*erCoef_, *eiCoef_);
+   }
    // e_r_->Update();
    // e_i_->Update();
    // h_->Update();
