@@ -1687,7 +1687,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    sequence = fes.GetSequence();
    if (geom_to_allocate)
    {
-      if (geom) delete geom;
+      if (geom) { delete geom; }
       geom = new GeometryExtension();
    }
    mesh->EnsureNodes();
