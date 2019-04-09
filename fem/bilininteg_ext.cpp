@@ -25,6 +25,11 @@ using namespace std;
 namespace mfem
 {
 
+#ifdef MFEM_USE_OCCA
+typedef std::pair<int,int> id_t;
+typedef std::map<id_t, occa::kernel> occa_kernel_t;
+#endif // MFEM_USE_OCCA
+
 static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
                                              const FiniteElement &test_fe)
 {
@@ -57,16 +62,22 @@ static void OccaPADiffusionAssemble2D(const int D1D,
                                       const double COEFF,
                                       double *op)
 {
-   const occa::memory o_W = mfem::OccaPtr(W);
-   const occa::memory o_J = mfem::OccaPtr(J);
-   occa::memory o_op = mfem::OccaPtr(op);
-
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
-
-   MFEM_NEW_OCCA_KERNEL(DiffusionSetup2D, "fem/occa.okl", props);
-   DiffusionSetup2D(NE, o_W, o_J, COEFF, o_op);
+   const occa::memory o_W = mfem::OccaPtr(W);
+   const occa::memory o_J = mfem::OccaPtr(J);
+   occa::memory o_op = mfem::OccaPtr(op);
+   const id_t id = std::make_pair(D1D,Q1D);
+   static occa_kernel_t OccaDiffSetup2D_ker;
+   if (OccaDiffSetup2D_ker.find(id) == OccaDiffSetup2D_ker.end())
+   {
+      const occa::kernel DiffusionSetup2D =
+         mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                     "DiffusionSetup2D", props);
+      OccaDiffSetup2D_ker.emplace(id, DiffusionSetup2D);
+   }
+   OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, COEFF, o_op);
 }
 
 static void OccaPADiffusionAssemble3D(const int D1D,
@@ -77,16 +88,22 @@ static void OccaPADiffusionAssemble3D(const int D1D,
                                       const double COEFF,
                                       double *op)
 {
-   const occa::memory o_W = mfem::OccaPtr(W);
-   const occa::memory o_J = mfem::OccaPtr(J);
-   occa::memory o_op = mfem::OccaPtr(op);
-
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
-
-   MFEM_NEW_OCCA_KERNEL(DiffusionSetup3D, "fem/occa.okl", props);
-   DiffusionSetup3D(NE, o_W, o_J, COEFF, o_op);
+   const occa::memory o_W = mfem::OccaPtr(W);
+   const occa::memory o_J = mfem::OccaPtr(J);
+   occa::memory o_op = mfem::OccaPtr(op);
+   const id_t id = std::make_pair(D1D,Q1D);
+   static occa_kernel_t OccaDiffSetup3D_ker;
+   if (OccaDiffSetup3D_ker.find(id) == OccaDiffSetup3D_ker.end())
+   {
+      const occa::kernel DiffusionSetup3D =
+         mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                     "DiffusionSetup3D", props);
+      OccaDiffSetup3D_ker.emplace(id, DiffusionSetup3D);
+   }
+   OccaDiffSetup3D_ker.at(id)(NE, o_W, o_J, COEFF, o_op);
 }
 #endif // MFEM_USE_OCCA
 
@@ -254,6 +271,9 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
                                      const double* x,
                                      double* y)
 {
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
    const occa::memory o_B = mfem::OccaPtr(B);
    const occa::memory o_G = mfem::OccaPtr(G);
    const occa::memory o_Bt = mfem::OccaPtr(Bt);
@@ -261,23 +281,30 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
    const occa::memory o_op = mfem::OccaPtr(op);
    const occa::memory o_x = mfem::OccaPtr(x);
    occa::memory o_y = mfem::OccaPtr(y);
-
-   occa::properties props;
-   props["defines/D1D"] = D1D;
-   props["defines/Q1D"] = Q1D;
-
+   const id_t id = std::make_pair(D1D,Q1D);
    if (!Device::Allows(Backend::OCCA_CUDA))
    {
-      // FIXME: one OCCA kernel is build, even if this function is called for
-      //        different orders! This a common problem with all uses of the
-      //        macro MFEM_NEW_OCCA_KERNEL().
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_CPU, "fem/occa.okl", props);
-      DiffusionApply2D_CPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
+      static occa_kernel_t OccaDiffApply2D_cpu;
+      if (OccaDiffApply2D_cpu.find(id) == OccaDiffApply2D_cpu.end())
+      {
+         const occa::kernel DiffusionApply2D_CPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "DiffusionApply2D_CPU", props);
+         OccaDiffApply2D_cpu.emplace(id, DiffusionApply2D_CPU);
+      }
+      OccaDiffApply2D_cpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_GPU, "fem/occa.okl", props);
-      DiffusionApply2D_GPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
+      static occa_kernel_t OccaDiffApply2D_gpu;
+      if (OccaDiffApply2D_gpu.find(id) == OccaDiffApply2D_gpu.end())
+      {
+         const occa::kernel DiffusionApply2D_GPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "DiffusionApply2D_GPU", props);
+         OccaDiffApply2D_gpu.emplace(id, DiffusionApply2D_GPU);
+      }
+      OccaDiffApply2D_gpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
 }
 
@@ -293,6 +320,9 @@ static void OccaPADiffusionMultAdd3D(const int D1D,
                                      const double* x,
                                      double* y)
 {
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
    const occa::memory o_B = mfem::OccaPtr(B);
    const occa::memory o_G = mfem::OccaPtr(G);
    const occa::memory o_Bt = mfem::OccaPtr(Bt);
@@ -300,20 +330,30 @@ static void OccaPADiffusionMultAdd3D(const int D1D,
    const occa::memory o_op = mfem::OccaPtr(op);
    const occa::memory o_x = mfem::OccaPtr(x);
    occa::memory o_y = mfem::OccaPtr(y);
-
-   occa::properties props;
-   props["defines/D1D"] = D1D;
-   props["defines/Q1D"] = Q1D;
-
+   const id_t id = std::make_pair(D1D,Q1D);
    if (!Device::Allows(Backend::OCCA_CUDA))
    {
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply3D_CPU, "fem/occa.okl", props);
-      DiffusionApply3D_CPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
+      static occa_kernel_t OccaDiffApply3D_cpu;
+      if (OccaDiffApply3D_cpu.find(id) == OccaDiffApply3D_cpu.end())
+      {
+         const occa::kernel DiffusionApply3D_CPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "DiffusionApply3D_CPU", props);
+         OccaDiffApply3D_cpu.emplace(id, DiffusionApply3D_CPU);
+      }
+      OccaDiffApply3D_cpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply3D_GPU, "fem/occa.okl", props);
-      DiffusionApply3D_GPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
+      static occa_kernel_t OccaDiffApply3D_gpu;
+      if (OccaDiffApply3D_gpu.find(id) == OccaDiffApply3D_gpu.end())
+      {
+         const occa::kernel DiffusionApply3D_GPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "DiffusionApply3D_GPU", props);
+         OccaDiffApply3D_gpu.emplace(id, DiffusionApply3D_GPU);
+      }
+      OccaDiffApply3D_gpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
 }
 #endif // MFEM_USE_OCCA
@@ -803,25 +843,38 @@ static void OccaPAMassMultAdd2D(const int D1D,
                                 const double* x,
                                 double* y)
 {
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
    const occa::memory o_B = mfem::OccaPtr(B);
    const occa::memory o_Bt = mfem::OccaPtr(Bt);
    const occa::memory o_op = mfem::OccaPtr(op);
    const occa::memory o_x = mfem::OccaPtr(x);
    occa::memory o_y = mfem::OccaPtr(y);
-
-   occa::properties props;
-   props["defines/D1D"] = D1D;
-   props["defines/Q1D"] = Q1D;
-
+   const id_t id = std::make_pair(D1D,Q1D);
    if (!Device::Allows(Backend::OCCA_CUDA))
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply2D_CPU, "fem/occa.okl", props);
-      MassApply2D_CPU(NE, o_B, o_Bt, o_op, o_x, o_y);
+      static occa_kernel_t OccaMassApply2D_cpu;
+      if (OccaMassApply2D_cpu.find(id) == OccaMassApply2D_cpu.end())
+      {
+         const occa::kernel MassApply2D_CPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply2D_CPU", props);
+         OccaMassApply2D_cpu.emplace(id, MassApply2D_CPU);
+      }
+      OccaMassApply2D_cpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply2D_GPU, "fem/occa.okl", props);
-      MassApply2D_GPU(NE, o_B, o_Bt, o_op, o_x, o_y);
+      static occa_kernel_t OccaMassApply2D_gpu;
+      if (OccaMassApply2D_gpu.find(id) == OccaMassApply2D_gpu.end())
+      {
+         const occa::kernel MassApply2D_GPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply2D_GPU", props);
+         OccaMassApply2D_gpu.emplace(id, MassApply2D_GPU);
+      }
+      OccaMassApply2D_gpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
 }
 
@@ -835,25 +888,38 @@ static void OccaPAMassMultAdd3D(const int D1D,
                                 const double* x,
                                 double* y)
 {
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
    const occa::memory o_B = mfem::OccaPtr(B);
    const occa::memory o_Bt = mfem::OccaPtr(Bt);
    const occa::memory o_op = mfem::OccaPtr(op);
    const occa::memory o_x = mfem::OccaPtr(x);
    occa::memory o_y = mfem::OccaPtr(y);
-
-   occa::properties props;
-   props["defines/D1D"] = D1D;
-   props["defines/Q1D"] = Q1D;
-
+   const id_t id = std::make_pair(D1D,Q1D);
    if (!Device::Allows(Backend::OCCA_CUDA))
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply3D_CPU, "fem/occa.okl", props);
-      MassApply3D_CPU(NE, o_B, o_Bt, o_op, o_x, o_y);
+      static occa_kernel_t OccaMassApply3D_cpu;
+      if (OccaMassApply3D_cpu.find(id) == OccaMassApply3D_cpu.end())
+      {
+         const occa::kernel MassApply3D_CPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply3D_CPU", props);
+         OccaMassApply3D_cpu.emplace(id, MassApply3D_CPU);
+      }
+      OccaMassApply3D_cpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply3D_GPU, "fem/occa.okl", props);
-      MassApply3D_GPU(NE, o_B, o_Bt, o_op, o_x, o_y);
+      static occa_kernel_t OccaMassApply3D_gpu;
+      if (OccaMassApply3D_gpu.find(id) == OccaMassApply3D_gpu.end())
+      {
+         const occa::kernel MassApply3D_GPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply3D_GPU", props);
+         OccaMassApply3D_gpu.emplace(id, MassApply3D_GPU);
+      }
+      OccaMassApply3D_gpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
 }
 #endif // MFEM_USE_OCCA
