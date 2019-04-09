@@ -100,7 +100,10 @@ void *mm::Erase(void *ptr)
 {
    if (!UsingMM()) { return ptr; }
    const bool known = Known(ptr);
-   if (!known) { mfem_error("Trying to erase an unknown pointer!"); }
+   if (!known)
+   {
+      mfem_error("Trying to erase an unknown pointer!");
+   }
    memory &mem = maps.memories.at(ptr);
    for (const alias* const alias : mem.aliases)
    {
@@ -114,8 +117,8 @@ void *mm::Erase(void *ptr)
 static inline bool MmDeviceIniFilter(void)
 {
    if (!mm::UsingMM()) { return true; }
+   if (!mm::IsEnabled()) { return true; }
    if (!Device::IsAvailable()) { return true; }
-   if (Device::IsTracking() == false) { return true; }
    if (!Device::IsConfigured()) { return true; }
    return false;
 }
