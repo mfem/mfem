@@ -210,12 +210,6 @@ int main(int argc, char *argv[])
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   if (myid == 0)
-   {
-      // FIXME: this prints the local size of the Operator
-      cout << "Size of linear system: " << A->Height() << endl;
-   }
-
    // 13. Solve the linear system A X = B.
    if (!pa)
    {
