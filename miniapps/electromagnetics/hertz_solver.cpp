@@ -673,6 +673,10 @@ HertzSolver::Solve()
    {
       case GMRES:
       {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "GMRES Solver Requested" << endl;
+         }
          GMRESSolver gmres(HCurlFESpace_->GetComm());
          gmres.SetOperator(*A1.Ptr());
          gmres.SetRelTol(solOpts_.relTol);
@@ -685,6 +689,10 @@ HertzSolver::Solve()
       break;
       case FGMRES:
       {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "FGMRES Solver Requested" << endl;
+         }
          // HypreParMatrix * B1 = b1_->ParallelAssemble();
 
          // HypreAMS ams(*B1, HCurlFESpace_);
@@ -731,6 +739,10 @@ HertzSolver::Solve()
 #ifdef MFEM_USE_SUPERLU
       case SUPERLU:
       {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "SuperLU Solver Requested" << endl;
+         }
          ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
          HypreParMatrix * A1C = A1Z->GetSystemMatrix();
          SuperLURowLocMatrix A_SuperLU(*A1C);
@@ -745,6 +757,10 @@ HertzSolver::Solve()
 #ifdef MFEM_USE_STRUMPACK
       case STRUMPACK:
       {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "STRUMPACK Solver Requested" << endl;
+         }
          //A1.SetOperatorOwner(false);
          ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
          HypreParMatrix * A1C = A1Z->GetSystemMatrix();
