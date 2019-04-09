@@ -55,6 +55,11 @@
 //   By default the sources and fields are all zero
 //     mpirun -np 4 hertz
 //
+//   Current source in a metal sphere
+//     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
+//                        -dbcs '-1' -f 3e8 -herm -s 3 -pc 4
+//                        -do '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5'
+//
 //   Current source in a sphere with absorbing boundary conditions
 //     mpirun -np 4 hertz -m ../../data/ball-nurbs.mesh -rs 2
 //                        -abcs '-1' -f 3e8
