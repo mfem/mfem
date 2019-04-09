@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../config/config.hpp"
-#include "../general/okina.hpp"
+#include "../general/forall.hpp"
 #include "../linalg/vector.hpp"
 
 #include "fem.hpp"

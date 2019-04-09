@@ -42,7 +42,7 @@ list(APPEND HDRS
   mem_alloc.hpp
   mem_manager.hpp
   occa.hpp
-  okina.hpp
+  forall.hpp
   optparser.hpp
   osockstream.hpp
   sets.hpp
