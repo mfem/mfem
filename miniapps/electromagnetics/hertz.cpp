@@ -468,6 +468,7 @@ int main(int argc, char *argv[])
    delete epsCoef;
    delete muInvCoef;
    delete sigmaCoef;
+   delete etaInvCoef;
 
    return 0;
 }
