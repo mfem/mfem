@@ -40,6 +40,9 @@ struct SolverOptions
    int kDim;
    int printLvl;
    double relTol;
+
+   // Euclid Options
+   int euLvl;
 };
 
 /// Cold Plasma Dielectric Solver

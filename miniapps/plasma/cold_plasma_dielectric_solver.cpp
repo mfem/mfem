@@ -597,6 +597,11 @@ CPDSolver::Solve()
                cout << "Euclid Preconditioner Requested" << endl;
             }
             pcr = new HypreEuclid(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
+            if (solOpts_.euLvl != 1)
+            {
+               HypreSolver * pc = dynamic_cast<HypreSolver*>(pcr);
+               HYPRE_EuclidSetLevel(*pc, solOpts_.euLvl);
+            }
             break;
          case AMS:
             if ( myid_ == 0 && logging_ > 0 )

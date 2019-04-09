@@ -223,6 +223,7 @@ int main(int argc, char *argv[])
    solOpts.kDim = 50;
    solOpts.printLvl = 1;
    solOpts.relTol = 1e-4;
+   solOpts.euLvl = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -276,6 +277,8 @@ int main(int argc, char *argv[])
                   "Relative tolerance for GMRES or FGMRES.");
    args.AddOption(&solOpts.printLvl, "-sol-prnt-lvl", "--solver-print-level",
                   "Logging level for solvers.");
+   args.AddOption(&solOpts.euLvl, "-eu-lvl", "--euclid-level",
+                  "Euclid factorization level for ILU(k).");
    args.AddOption(&pw_eta_, "-pwz", "--piecewise-eta",
                   "Piecewise values of Impedance (one value per abc surface)");
    args.AddOption(&rod_params_, "-rod", "--rod_params",
