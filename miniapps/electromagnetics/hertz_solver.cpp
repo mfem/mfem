@@ -510,6 +510,7 @@ HertzSolver::Update()
    // a0_->Update();
    a1_->Update();
    b1_->Update();
+
    // curlMuInvCurl_->Update();
    // hCurlMass_->Update();
    // hDivHCurlMuInv_->Update();
@@ -527,84 +528,14 @@ HertzSolver::Solve()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
 
-   // *e_ = 0.0;
-
-   /// For testing
-   // e_->ProjectCoefficient(*jrCoef_, *jiCoef_);
-   /*
-   ComplexHypreParMatrix * A1 =
-      a1_->ParallelAssemble();
-
-   if ( A1->hasRealPart() ) { A1->real().Print("A1_real.mat"); }
-   if ( A1->hasImagPart() ) { A1->imag().Print("A1_imag.mat"); }
-
-   HypreParMatrix * A1C = A1->GetSystemMatrix();
-   A1C->Print("A1_combined.mat");
-
-   HypreParVector ra(*A1C); ra.Randomize(123);
-   HypreParVector A1ra(*A1C);
-   HypreParVector Ara(*A1C);
-   HypreParVector diff(*A1C);
-
-   A1->Mult(ra, A1ra);
-   A1C->Mult(ra, Ara);
-
-   subtract(A1ra, Ara, diff);
-
-   ra.Print("r.vec");
-   A1ra.Print("A1r.vec");
-   Ara.Print("Ar.vec");
-   diff.Print("diff.vec");
-
-   double nrm = Ara.Norml2();
-   double nrm1 = A1ra.Norml2();
-   double nrmdiff = diff.Norml2();
-
-   if ( myid_ == 0 )
-   {
-      cout << "norms " << nrm << " " << nrm1 << " " << nrmdiff << endl;
-   }
-   */
-   /*
-   HYPRE_Int size = HCurlFESpace_->GetTrueVSize();
-   Vector E(2*size), RHS(2*size);
-   jd_->ParallelAssemble(RHS);
-   e_->ParallelProject(E);
-   */
    OperatorHandle A1;
    Vector E, RHS;
-   cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
-   a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *jd_, A1, E, RHS);
 
-   cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
-   cout << "Norm of RHS: " << RHS.Norml2() << endl;
+   a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *jd_, A1, E, RHS);
 
    OperatorHandle PCOp;
    b1_->FormSystemMatrix(ess_bdr_tdofs_, PCOp);
 
-   /*
-   #ifdef MFEM_USE_SUPERLU
-   SuperLURowLocMatrix A_SuperLU(*A1C);
-   SuperLUSolver solver(MPI_COMM_WORLD);
-   solver.SetOperator(A_SuperLU);
-   solver.Mult(RHS, E);
-   #endif
-   #ifdef MFEM_USE_STRUMPACK
-   STRUMPACKRowLocMatrix A_STRUMPACK(*A1C);
-   STRUMPACKSolver solver(0, NULL, MPI_COMM_WORLD);
-   solver.SetOperator(A_STRUMPACK);
-   solver.Mult(RHS, E);
-   #endif
-   */
-   /*
-   MINRESSolver minres(HCurlFESpace_->GetComm());
-   minres.SetOperator(*A1);
-   minres.SetRelTol(1e-6);
-   minres.SetMaxIter(5000);
-   minres.SetPrintLevel(1);
-   // pcg.SetPreconditioner(ams);
-   minres.Mult(RHS, E);
-   */
    Operator * pcr = NULL;
    Operator * pci = NULL;
    BlockDiagonalPreconditioner * BDP = NULL;
@@ -693,20 +624,6 @@ HertzSolver::Solve()
          {
             cout << "FGMRES Solver Requested" << endl;
          }
-         // HypreParMatrix * B1 = b1_->ParallelAssemble();
-
-         // HypreAMS ams(*B1, HCurlFESpace_);
-	/*
-	 HypreAMS amsr(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
-                       HCurlFESpace_);
-         ScaledOperator amsi(&amsr,
-                             (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0);
-
-         BlockDiagonalPreconditioner BDP(blockTrueOffsets_);
-         BDP.SetDiagonalBlock(0,&amsr);
-         BDP.SetDiagonalBlock(1,&amsi);
-         BDP.owns_blocks = 0;
-	*/
          FGMRESSolver fgmres(HCurlFESpace_->GetComm());
          if (BDP) { fgmres.SetPreconditioner(*BDP); }
          fgmres.SetOperator(*A1.Ptr());
@@ -716,8 +633,6 @@ HertzSolver::Solve()
          fgmres.SetPrintLevel(solOpts_.printLvl);
 
          fgmres.Mult(RHS, E);
-
-         // delete B1;
       }
       break;
       case MINRES:
