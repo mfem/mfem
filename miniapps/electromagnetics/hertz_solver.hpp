@@ -76,7 +76,7 @@ public:
 
    HertzSolver(ParMesh & pmesh, int order, double freq,
                HertzSolver::SolverType s, SolverOptions & sOpts,
-	       HertzSolver::PrecondType p,
+               HertzSolver::PrecondType p,
                ComplexOperator::Convention conv,
                Coefficient & epsCoef,
                Coefficient & muInvCoef,

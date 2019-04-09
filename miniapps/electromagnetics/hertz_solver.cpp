@@ -26,7 +26,7 @@ double prodFunc(double a, double b) { return a * b; }
 
 HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
                          HertzSolver::SolverType sol, SolverOptions & sOpts,
-			 HertzSolver::PrecondType prec,
+                         HertzSolver::PrecondType prec,
                          ComplexOperator::Convention conv,
                          Coefficient & epsCoef,
                          Coefficient & muInvCoef,
@@ -229,7 +229,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
       abcCoef_ = new TransformedCoefficient(negOmegaCoef_, etaInvCoef_,
                                             prodFunc);
       posAbcCoef_ = new TransformedCoefficient(omegaCoef_, etaInvCoef_,
-					       prodFunc);
+                                               prodFunc);
    }
 
    // Volume Current Density

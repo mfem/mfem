@@ -304,8 +304,8 @@ int main(int argc, char *argv[])
 
    // Create the Magnetostatic solver
    HertzSolver Hertz(pmesh, order, freq_,
-		     (HertzSolver::SolverType)sol, solOpts,
-		     (HertzSolver::PrecondType)prec,
+                     (HertzSolver::SolverType)sol, solOpts,
+                     (HertzSolver::PrecondType)prec,
                      conv, *epsCoef, *muInvCoef, sigmaCoef, etaInvCoef,
                      abcs, dbcs,
                      e_bc_r, e_bc_i,
@@ -657,7 +657,6 @@ void e_bc_r(const Vector &x, Vector &E)
 {
    E.SetSize(3);
    E = 0.0;
-
 }
 
 void e_bc_i(const Vector &x, Vector &E)
