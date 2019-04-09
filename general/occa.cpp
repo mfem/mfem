@@ -63,6 +63,8 @@ OccaMemory OccaPtr(const void *ptr)
    return OccaWrapMemory(dev, base.d_ptr, bytes);
 }
 
+OccaDevice OccaDev() { return internal::occaDevice; }
+
 OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx)
 {
 #if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
