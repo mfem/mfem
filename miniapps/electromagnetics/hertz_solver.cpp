@@ -529,10 +529,14 @@ HertzSolver::Update()
    // h_->Update();
    // b_->Update();
    // bd_->Update();
-   jd_->Update();
+
    // jd_i_->Update();
    // if ( jr_ ) { jr_->Update(); }
-   if ( j_  ) {  j_->Update(); }
+   j_->Update();
+   j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
+
+   jd_->Update();
+
    // if ( j_r_  ) {  j_r_->Update(); }
    // if ( j_i_  ) {  j_i_->Update(); }
    // if ( k_  ) {  k_->Update(); }
