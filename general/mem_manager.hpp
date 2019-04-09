@@ -24,7 +24,7 @@ using std::size_t; // FIXME: this should not be here
 namespace mfem
 {
 
-// Implementation of MFEM's lightweight host/device memory manager (mm) designed
+// Implementation of MFEM's lightweight device/host memory manager (mm) designed
 // to work seamlessly with the OCCA, RAJA, and other kernels supported by MFEM.
 
 /// The memory manager singleton

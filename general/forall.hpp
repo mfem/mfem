@@ -32,8 +32,8 @@
 namespace mfem
 {
 
-// Implementation of MFEM's for (forall) device kernel interfaces supporting
-// RAJA, CUDA, OpenMP, and sequential backends.
+// Implementation of MFEM's for (forall) device/host kernel interfaces
+// supporting RAJA, CUDA, OpenMP, and sequential backends.
 
 // CUDA block size used by MFEM.
 #define MFEM_CUDA_BLOCKS 256
