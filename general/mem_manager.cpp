@@ -11,6 +11,8 @@
 
 #include "../general/okina.hpp"
 
+#include <cstring> // std::memcpy
+
 namespace mfem
 {
 

@@ -21,27 +21,25 @@ static OccaMemory OccaWrapMemory(const OccaDevice dev, const void *d_adrs,
                                  const size_t bytes)
 {
    // This function is called when an OCCA kernel is going to be used.
-#if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
+#ifdef MFEM_USE_OCCA
    void *adrs = const_cast<void*>(d_adrs);
-   // OCCA & UsingCuda => occa::cuda
+#if defined(MFEM_USE_CUDA) && OCCA_CUDA_ENABLED
+   // If OCCA_CUDA is allowed, it will be used since it has the highest priority
    if (Device::Allows(Backend::OCCA_CUDA))
    {
       return occa::cuda::wrapMemory(dev, adrs, bytes);
    }
+#endif // MFEM_USE_CUDA && OCCA_CUDA_ENABLED
    // otherwise, fallback to occa::cpu address space
    return occa::cpu::wrapMemory(dev, adrs, bytes);
-#else // MFEM_USE_OCCA && MFEM_USE_CUDA
-#ifdef MFEM_USE_OCCA
-   return occa::cpu::wrapMemory(dev, const_cast<void*>(d_adrs), bytes);
-#else
+#else // MFEM_USE_OCCA
    return (void*)NULL;
-#endif
 #endif
 }
 
 OccaMemory OccaPtr(const void *ptr)
 {
-   // This function is called when 'ptr' needs to be passed to and OCCA kernel.
+   // This function is called when 'ptr' needs to be passed to an OCCA kernel.
    OccaDevice dev = internal::occaDevice;
    if (!mm::UsingMM()) { return OccaWrapMemory(dev, ptr, 0); }
    const bool known = mm::known(ptr);
@@ -64,14 +62,5 @@ OccaMemory OccaPtr(const void *ptr)
 }
 
 OccaDevice OccaDev() { return internal::occaDevice; }
-
-OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx)
-{
-#if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
-   return occa::cuda::wrapDevice(dev, ctx);
-#else
-   return 0;
-#endif
-}
 
 } // namespace mfem

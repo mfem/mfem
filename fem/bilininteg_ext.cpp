@@ -9,16 +9,13 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../config/config.hpp"
 #include "../general/okina.hpp"
-#include "../linalg/vector.hpp"
+#include "bilininteg.hpp"
+#include "gridfunc.hpp"
 
-#include "fem.hpp"
 #include <map>
 #include <cmath>
 #include <algorithm>
-#include "bilininteg.hpp"
-#include "bilininteg_ext.hpp"
 
 using namespace std;
 

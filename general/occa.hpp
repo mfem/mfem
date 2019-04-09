@@ -12,10 +12,13 @@
 #ifndef MFEM_OCCA_HPP
 #define MFEM_OCCA_HPP
 
+#include "../config/config.hpp"
+#include "cuda.hpp" // for CUdevice, CUcontext
+
 #ifdef MFEM_USE_OCCA
 #include <occa.hpp>
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) && OCCA_CUDA_ENABLED
 #include <occa/modes/cuda/utils.hpp>
 #endif
 
@@ -32,13 +35,10 @@ typedef void* OccaMemory;
 namespace mfem
 {
 
-namespace internal { extern OccaDevice occaDevice; }
-
-// Function called the pointer 'a' needs to be passed to and OCCA kernel.
+// Function called when the pointer 'a' needs to be passed to an OCCA kernel.
 OccaMemory OccaPtr(const void *a);
-OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx);
 OccaDevice OccaDev();
 
-} // mfem
+} // namespace mfem
 
 #endif // MFEM_OCCA_HPP
