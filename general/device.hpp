@@ -115,7 +115,7 @@ private:
    void MarkBackend(Backend::Id b) { backends |= b; }
 
 public:
-   /// Configure and enable the device backends.
+   /// Configure the Device backends.
    /** The string parameter @a device must be a comma-separated list of backend
        string names (see below). The @a dev argument specifies the ID of the
        actual devices (e.g. GPU) to use.
