@@ -90,6 +90,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      lossCoef_(NULL),
      // gainCoef_(NULL),
      abcCoef_(NULL),
+     posAbcCoef_(NULL),
      jrCoef_(NULL),
      jiCoef_(NULL),
      erCoef_(NULL),
@@ -206,6 +207,8 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
       }
       abcCoef_ = new TransformedCoefficient(negOmegaCoef_, etaInvCoef_,
                                             prodFunc);
+      posAbcCoef_ = new TransformedCoefficient(omegaCoef_, etaInvCoef_,
+					       prodFunc);
    }
 
    // Volume Current Density
@@ -257,6 +260,11 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    if ( lossCoef_ )
    {
       b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*lossCoef_));
+   }
+   if ( abcCoef_ )
+   {
+      b1_->AddBoundaryIntegrator(new VectorFEMassIntegrator(*posAbcCoef_),
+                                 abc_marker_);
    }
    /*
    curlMuInvCurl_  = new ParBilinearForm(HCurlFESpace_);
@@ -351,6 +359,7 @@ HertzSolver::~HertzSolver()
    delete lossCoef_;
    // delete gainCoef_;
    delete abcCoef_;
+   delete posAbcCoef_;
    if ( ownsEtaInv_ ) { delete etaInvCoef_; }
    delete omegaCoef_;
    delete negOmegaCoef_;

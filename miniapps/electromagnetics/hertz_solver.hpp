@@ -186,6 +186,7 @@ private:
    Coefficient * lossCoef_;      // -omega sigma
    // Coefficient * gainCoef_;    // omega sigma
    Coefficient * abcCoef_;       // -omega eta^{-1}
+   Coefficient * posAbcCoef_;    // omega eta^{-1}
 
    // VectorCoefficient * aBCCoef_;   // Vector Potential BC Function
    VectorCoefficient * jrCoef_;     // Volume Current Density Function
