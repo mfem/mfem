@@ -16,19 +16,19 @@ GPU support
 - Added initial support for hardware devices, such as GPUs, and programming
   models, such as CUDA, OCCA, RAJA and OpenMP.
 
-- The GPU/device support is based on MFEM's new device kernels and lightweight
-  host/device memory manager, designed to work seamlessly together. The kernels
-  can be implemented either in OCCA, or as a simple wrapper around for loops
-  which can then be dispatched to RAJA and native backends. See the forall.hpp
-  and mem_manager.hpp files in the general/ directory.
+- The GPU/device support is based on MFEM's new device/host kernels plus a new
+  lightweight device/host memory manager. The kernels can be implemented either
+  in OCCA, or as a simple wrapper around for loops, which can then be dispatched
+  to RAJA and native backends. See the forall.hpp and mem_manager.hpp files in
+  the general/ directory.
 
 - Several of the MFEM example codes (ex1, ex1p, ex6, ex6p) can now take
   advantage of GPU acceleration with backend selectable at runtime, see the
   Device::Configure method in general/device.hpp.
 
 - Many of the linear algebra and finite element operations (e.g. partially
-  assembled bilinear forms) have been extended to take advantage of device
-  kernels by simply replacing loops with the MFEM_FORALL() macro.
+  assembled bilinear forms) have been extended to take advantage of kernel
+  acceleration by simply replacing loops with the MFEM_FORALL() macro.
 
 - In addition to pure CUDA, we support OCCA, RAJA and OpenMP kernels, which
   could be mixed and matched in different parts of the same application. Adding
@@ -143,7 +143,7 @@ Miscellaneous
 - Renamed the option MFEM_USE_OPENMP to MFEM_USE_LEGACY_OPENMP. This legacy
   option is deprecated and planned for removal in a future release. The original
   option name, MFEM_USE_OPENMP, is now used to enable the new OpenMP backends in
-  the okina device kernels.
+  the new kernels.
 
 API changes
 -----------
