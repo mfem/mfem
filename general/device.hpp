@@ -146,18 +146,16 @@ public:
 
    /// Enable the use of the configured device in the code that follows.
    /** After this call MFEM classes will use the backend kernels whenever
-       possible, transferring data automatically to the device, if necessary. */
+       possible, transferring data automatically to the device, if necessary.
+
+       If the only configured backend is the default host CPU one, the device
+       will remain disabled. */
    static inline void Enable()
    {
-      if (IsAvailable())
+      if (Get().backends & ~Backend::CPU)
       {
          Get().mode = Device::ACCELERATED;
          Get().allowed_backends = Get().backends;
-      }
-      else
-      {
-         Get().mode = Device::SEQUENTIAL;
-         Get().allowed_backends = Backend::CPU;
       }
    }
 
