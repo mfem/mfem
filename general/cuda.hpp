@@ -13,22 +13,53 @@
 #define MFEM_CUDA_HPP
 
 #include "../config/config.hpp"
-#include <cstddef>
+#include "error.hpp"
 
 #ifdef MFEM_USE_CUDA
+#include <cuda_runtime.h>
 #include <cuda.h>
 #endif
 
-namespace mfem
-{
+// CUDA block size used by MFEM.
+#define MFEM_CUDA_BLOCKS 256
 
 #ifdef MFEM_USE_CUDA
 #define MFEM_ATTR_DEVICE __device__
 #define MFEM_ATTR_HOST_DEVICE __host__ __device__
-inline void CuCheck(const unsigned int c)
-{
-   MFEM_ASSERT(c == cudaSuccess, cudaGetErrorString(cudaGetLastError()));
-}
+// Define the CUDA debug macros:
+// - MFEM_CUDA_CHECK_DRV(x) where 'x' returns/is type 'CUresult'
+// - MFEM_CUDA_CHECK_RT(x)  where 'x' returns/is type 'cudaError_t'
+#ifdef MFEM_DEBUG
+#define MFEM_CUDA_CHECK_DRV(x) \
+   do \
+   { \
+      CUresult err = (x); \
+      if (err != CUDA_SUCCESS) \
+      { \
+         const char *error_string; \
+         cuGetErrorString(err, &error_string); \
+         _MFEM_MESSAGE("CUDA error: (" << #x \
+                       << ") failed with error:\n --> " \
+                       << error_string, 0); \
+      } \
+   } \
+   while (0)
+#define MFEM_CUDA_CHECK_RT(x) \
+   do \
+   { \
+      cudaError_t err = (x); \
+      if (err != cudaSuccess) \
+      { \
+         _MFEM_MESSAGE("CUDA error: (" << #x \
+                       << ") failed with error:\n --> " \
+                       << cudaGetErrorString(err), 0); \
+      } \
+   } \
+   while (0)
+#else
+#define MFEM_CUDA_CHECK_DRV(x) x
+#define MFEM_CUDA_CHECK_RT(x) x
+#endif
 #else // MFEM_USE_CUDA
 #define MFEM_ATTR_DEVICE
 #define MFEM_ATTR_HOST_DEVICE
@@ -37,6 +68,11 @@ typedef int CUcontext;
 typedef void* CUstream;
 #endif // MFEM_USE_CUDA
 
+
+namespace mfem
+{
+
+// Define 'atomicAdd' function.
 #ifdef __CUDA_ARCH__
 #if __CUDA_ARCH__ < 600
 static __device__ inline double atomicAdd(double* address, double val)
@@ -72,6 +108,7 @@ template<typename T> inline T AtomicAdd(T volatile *address, T val)
    return *address;
 }
 #endif // __CUDA_ARCH__
+
 
 /// Allocates device memory
 void* CuMemAlloc(void **d_ptr, size_t bytes);

@@ -9,17 +9,13 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_MEM_MANAGER
-#define MFEM_MEM_MANAGER
-
-#include <list>
-#include <cstddef>
-#include <unordered_map>
-#include <type_traits>
+#ifndef MFEM_MEM_MANAGER_HPP
+#define MFEM_MEM_MANAGER_HPP
 
 #include "globals.hpp"
 
-using std::size_t; // FIXME: this should not be here
+#include <list>
+#include <unordered_map>
 
 namespace mfem
 {
@@ -201,4 +197,4 @@ private:
 
 } // namespace mfem
 
-#endif // MFEM_MEM_MANAGER
+#endif // MFEM_MEM_MANAGER_HPP

@@ -14,11 +14,6 @@
 
 #include "../config/config.hpp"
 #include "error.hpp"
-
-#include <cmath>
-#include <cstring>
-#include <iostream>
-
 #include "cuda.hpp"
 #include "occa.hpp"
 #include "device.hpp"
@@ -36,9 +31,6 @@ namespace mfem
 
 // Implementation of MFEM's okina device kernel interface and its CUDA, OpenMP,
 // RAJA, and sequential backends.
-
-// CUDA block size used by MFEM.
-#define MFEM_CUDA_BLOCKS 256
 
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                                    \
