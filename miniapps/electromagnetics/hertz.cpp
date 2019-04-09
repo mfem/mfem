@@ -222,23 +222,6 @@ int main(int argc, char *argv[])
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&dbcs, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
-   /*
-   args.AddOption(&dbcv, "-dbcv", "--dirichlet-bc-vals",
-                  "Dirichlet Boundary Condition Values");
-   args.AddOption(&dbcg, "-dbcg", "--dirichlet-bc-gradient",
-                  "-no-dbcg", "--no-dirichlet-bc-gradient",
-                  "Dirichlet Boundary Condition Gradient (phi = -z)");
-   args.AddOption(&nbcs, "-nbcs", "--neumann-bc-surf",
-                  "Neumann Boundary Condition Surfaces");
-   args.AddOption(&nbcv, "-nbcv", "--neumann-bc-vals",
-                  "Neumann Boundary Condition Values");
-   args.AddOption(&kbcs, "-kbcs", "--surface-current-bc",
-                  "Surfaces for the Surface Current (K) Boundary Condition");
-   args.AddOption(&vbcs, "-vbcs", "--voltage-bc-surf",
-                  "Voltage Boundary Condition Surfaces (to drive K)");
-   args.AddOption(&vbcv, "-vbcv", "--voltage-bc-vals",
-                  "Voltage Boundary Condition Values (to drive K)");
-   */
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
@@ -307,23 +290,6 @@ int main(int argc, char *argv[])
       pmesh.UniformRefinement();
    }
 
-   // If values for Voltage BCs were not set issue a warning and exit
-   /*
-   if ( ( vbcs.Size() > 0 && kbcs.Size() == 0 ) ||
-        ( kbcs.Size() > 0 && vbcs.Size() == 0 ) ||
-        ( vbcv.Size() < vbcs.Size() ) )
-   {
-      if ( mpi.Root() )
-      {
-         cout << "The surface current (K) boundary condition requires "
-              << "surface current boundary condition surfaces (with -kbcs), "
-              << "voltage boundary condition surface (with -vbcs), "
-              << "and voltage boundary condition values (with -vbcv)."
-              << endl;
-      }
-      return 3;
-   }
-   */
    // Create a coefficient describing the dielectric permittivity
    Coefficient * epsCoef = SetupPermittivityCoefficient();
 
@@ -345,11 +311,6 @@ int main(int argc, char *argv[])
                      e_bc_r, e_bc_i,
                      (do_params_.Size() > 0 ) ? j_src : NULL, NULL
                     );
-
-   //(b_uniform_.Size() > 0 ) ? a_bc_uniform  : NULL,
-   //(cr_params_.Size() > 0 ) ? current_ring  : NULL,
-   //(bm_params_.Size() > 0 ) ? bar_magnet    :
-   //(ha_params_.Size() > 0 ) ? halbach_array : NULL);
 
    // Initialize GLVis visualization
    if (visualization)
