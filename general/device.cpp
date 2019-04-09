@@ -215,10 +215,4 @@ Device::~Device()
    delete internal::cuStream;
 }
 
-void Device::EnableMemoryManager() { mm::Enable(); };
-
-void Device::DisableMemoryManager() { mm::Disable(); };
-
-bool Device::IsMemoryManagerEnabled() { return mm::IsEnabled(); };
-
 } // mfem

@@ -182,15 +182,6 @@ public:
    static inline bool Allows(unsigned long b_mask)
    { return Get().allowed_backends & b_mask; }
 
-   /// Enable the memory manager
-   static void EnableMemoryManager();
-
-   /// Disable the memory manager
-   static void DisableMemoryManager();
-
-   /// Return true if the memory manager is enabled
-   static bool IsMemoryManagerEnabled();
-
    ~Device();
 };
 
