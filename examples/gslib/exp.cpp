@@ -58,6 +58,21 @@ int main (int argc, char *argv[])
       else { cout << "(NONE)"; }
       cout << endl;
    }
+
+   // Mesh bounding box.
+   Vector pos_min, pos_max;
+   mesh->GetBoundingBox(pos_min, pos_max, max(mesh_poly_deg, 1));
+   if (myid == 0)
+   {
+      std::cout << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n";
+      std::cout << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
+      if (dim == 3)
+      {
+         std::cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]\n";
+      }
+   }
+
+   // Distribute the mesh.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
@@ -66,13 +81,8 @@ int main (int argc, char *argv[])
    //    elements which are tensor products of quadratic finite elements. The
    //    number of components in the vector finite element space is specified by
    //    the last parameter of the FiniteElementSpace constructor.
-   FiniteElementCollection *fec;
-   if (mesh_poly_deg <= 0)
-   {
-      fec = new QuadraticPosFECollection;
-      mesh_poly_deg = 2;
-   }
-   else { fec = new H1_FECollection(mesh_poly_deg, dim); }
+   MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be a positive.");
+   FiniteElementCollection *fec = new H1_FECollection(mesh_poly_deg, dim);
    ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
 
    // 5. Make the mesh curved based on the above finite element space. This
@@ -85,13 +95,6 @@ int main (int argc, char *argv[])
    //    changing x automatically changes the shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
-
-   //x.SetTrueVector();
-   //x.SetFromTrueVector();
-
-   // 8. Store the starting (prior to the optimization) positions.
-   ParGridFunction x0(pfespace);
-   x0 = x;
 
    // 9. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -118,24 +121,23 @@ int main (int argc, char *argv[])
    int sz1 = pow(NR,dim);
    Vector fx(dim*NE*sz1);
    Vector dumfield(NE*sz1);
-   int np;
 
-   np = 0;
+   int pt_id = 0;
    int tnp = NE*nsp;
    for (int i = 0; i < NE; i++)
    {
       for (int j = 0; j < nsp; j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-         fx[np] = nodes.GetValue(i, ip, 1);
-         fx[tnp+np] = nodes.GetValue(i, ip, 2);
-         dumfield[np] = pow(fx[np],2)+pow(fx[tnp+np],2);
+         fx[pt_id] = nodes.GetValue(i, ip, 1);
+         fx[tnp+pt_id] = nodes.GetValue(i, ip, 2);
+         dumfield[pt_id] = pow(fx[pt_id],2)+pow(fx[tnp+pt_id],2);
          if (dim==3)
          {
-            fx[2*tnp+np] =nodes.GetValue(i, ip, 3);
-            dumfield[np] += pow(fx[2*tnp+np],2);
+            fx[2*tnp+pt_id] =nodes.GetValue(i, ip, 3);
+            dumfield[pt_id] += pow(fx[2*tnp+pt_id],2);
          }
-         np = np+1;
+         pt_id++;
       }
    }
 
@@ -152,48 +154,43 @@ int main (int argc, char *argv[])
       cout << "findpts setup time (sec): " << (stop_s-start_s)/1000000. << endl;
    }
 
-   // generate random points by r,s,t
-   int llim = 10;
-   int nlim = NE*llim;
-   Vector rrxa(nlim),rrya(nlim),rrza(nlim);
-   Vector vxyz(nlim*dim);
+   // Generate random points in reference coordinates.
+   const int pts_per_el = 10;
+   const int pts_cnt    = NE * pts_per_el;
+   Vector rrxa(pts_cnt), rrya(pts_cnt), rrza(pts_cnt);
+   Vector vxyz(pts_cnt * dim);
 
-   np = 0;
+   pt_id = 0;
    IntegrationPoint ipt;
+   Vector pos;
    for (int i = 0; i < NE; i++)
    {
-      for (int j = 0; j < llim; j++)
+      for (int j = 0; j < pts_per_el; j++)
       {
          Geometries.GetRandomPoint(pfespace->GetFE(i)->GetGeomType(), ipt);
 
-         rrxa[np] = ipt.x;
-         rrya[np] = ipt.y;
-         if (dim == 3) { rrza[np] = ipt.z; }
+         rrxa[pt_id] = ipt.x;
+         rrya[pt_id] = ipt.y;
+         if (dim == 3) { rrza[pt_id] = ipt.z; }
 
-         vxyz[np] = nodes.GetValue(i, ipt, 1);
-         vxyz[np+nlim] = nodes.GetValue(i, ipt, 2);
-         if ( dim==3 ) { vxyz[np+2*nlim] = nodes.GetValue(i, ipt, 3); }
-
-         np++;
+         nodes.GetVectorValue(i, ipt, pos);
+         for (int d = 0; d < dim; d++) { vxyz(pts_cnt*d + pt_id) = pos(d); }
+         pt_id++;
       }
    }
 
-   int nxyz = nlim;
+   cout << "Task id: " << myid << " \n"
+        << "-- Points to find: " << pts_cnt << " \n"
+        << "-- Number of elem: " << NE << endl;
 
-   if (myid == 0)
-   {
-      cout << "Num procs: " << num_procs << " \n";
-      cout << "Points per proc: " << nxyz << " \n";
-      cout << "Points per elem: " << llim << " \n";
-      cout << "Total Points to be found: " << nxyz*num_procs << " \n";
-   }
-
-   Array<uint> pel(nxyz), pcode(nxyz), pproc(nxyz);
-   Vector pr(nxyz*dim), pd(nxyz);
+   Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
+   Vector pos_r_out(pts_cnt * dim), dist_p_out(pts_cnt);
    MPI_Barrier(MPI_COMM_WORLD);
 
    start_s = clock();
-   gsfl->gslib_findpts(&pcode, &pproc ,&pel, &pr, &pd, &vxyz, nxyz);
+   // Finds points stored in vxyz.
+   gsfl->gslib_findpts(&code_out, &task_id_out ,&el_id_out, &pos_r_out,
+                       &dist_p_out, &vxyz, pts_cnt);
 
    MPI_Barrier(MPI_COMM_WORLD);
    stop_s = clock();
@@ -204,10 +201,12 @@ int main (int argc, char *argv[])
    }
 
    // FINDPTS_EVAL
-   Vector fout(nxyz);
+   Vector fout(pts_cnt);
    MPI_Barrier(MPI_COMM_WORLD);
    start_s=clock();
-   gsfl->gslib_findpts_eval(&fout, &pcode, &pproc, &pel, &pr, &dumfield, nxyz);
+   // Corresponds to the same points as above (vxyz) -- uses that output.
+   // Returns function values in fout.
+   gsfl->gslib_findpts_eval(&fout, &code_out, &task_id_out, &el_id_out, &pos_r_out, &dumfield, pts_cnt);
    stop_s=clock();
    if (myid == 0)
    {
@@ -217,27 +216,27 @@ int main (int argc, char *argv[])
 
    int nbp = 0, nnpt = 0, nerrh = 0;
    double maxv = -100.0 ,maxvr = -100.0;
-   for (int it = 0; it < nxyz; it++)
+   for (int it = 0; it < pts_cnt; it++)
    {
-      if (pcode[it] < 2)
+      if (code_out[it] < 2)
       {
-         double val = pow(vxyz[it],2)+pow(vxyz[it+nlim],2);
-         if (dim==3) { val += pow(vxyz[it+2*nlim],2); }
+         // TODO evaluate the FE function at vxyz.
+         double val = pow(vxyz[it],2)+pow(vxyz[it+pts_cnt],2);
+         if (dim==3) { val += pow(vxyz[it+2*pts_cnt],2); }
          double delv = abs(val-fout[it]);
-         double rxe = abs(rrxa[it] - 0.5*pr[it*dim+0]-0.5);
-         double rye = abs(rrya[it] - 0.5*pr[it*dim+1]-0.5);
-         double rze = abs(rrza[it] - 0.5*pr[it*dim+2]-0.5);
+         double rxe = abs(rrxa[it] - 0.5*pos_r_out[it*dim+0]-0.5);
+         double rye = abs(rrya[it] - 0.5*pos_r_out[it*dim+1]-0.5);
+         double rze = abs(rrza[it] - 0.5*pos_r_out[it*dim+2]-0.5);
          double delvr =  ( rxe < rye ) ? rye : rxe;
          if (dim==3) { delvr = ( ( delvr < rze ) ? rze : delvr ); }
          if (delv > maxv) {maxv = delv;}
          if (delvr > maxvr) {maxvr = delvr;}
-         if (pcode[it] == 1) {nbp += 1;}
+         if (code_out[it] == 1) {nbp += 1;}
          if (delvr > 1.e-10) {nerrh += 1;}
       }
       else { nnpt++; }
    }
 
-   MPI_Barrier(MPI_COMM_WORLD);
    double glob_maxerr;
    MPI_Allreduce(&maxv, &glob_maxerr, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
    double glob_maxrerr;
