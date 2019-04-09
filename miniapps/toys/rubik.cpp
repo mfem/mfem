@@ -130,7 +130,7 @@ struct Move
    int incr;
 };
 
-void init_tet_mesh(Mesh & mesh);
+void interactive_help();
 
 void init_hex_mesh(Mesh & mesh);
 
@@ -201,58 +201,17 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       args.PrintUsage(cout);
-
-      cout << "\nInteractive Commands\n"
-           << "   [xyz][1,2,3][0-3]\n"
-           << "\tRotate the specified tier (first integer) of the cube\n"
-           << "\tabout the given axis (initial character) in the clockwise\n"
-           << "\tdirection (looking from the tip of the axis vector towards\n"
-           << "\tthe origin) by so many increments (final integer).\n"
-           << "   r[0-9]+\n"
-           << "\tInitiate a random sequence of moves.  The integer\n"
-           << "\tfollowing 'r' is the number of desired moves.\n"
-           << "   p\n"
-           << "\tPrint the current state of the cube.\n"
-           << "   c\n"
-           << "\tSwap the corners in the 0th and 1st positions.\n"
-           << "   t[0,1]\n"
-           << "\tTwist the corners of the bottom tier in the clockwise '1'\n"
-           << "\tor counter-clockwise '0' direction leaving the 3rd corner\n"
-           << "\tunchanged.\n"
-           << "   e[0,1]\n"
-           << "\tPermute the edges of the bottom tier in the clockwise '1'\n"
-           << "\tor counter-clockwise '0' direction leaving the 3rd edge\n"
-           << "\tunchanged.\n"
-           << "   f[2,4]\n"
-           << "\tFlip the edges of the bottom tier while keeping them in\n"
-           << "\tplace. The integer '2' indicates flipping the 0th and 2nd\n"
-           << "\tedges while '4' indicates flipping all four edges.\n"
-           << "   R\n"
-           << "\tResets (or Repaints) the cube to its original configuration.\n"
-           << "   T\n"
-           << "\tSolve the top tier only.\n"
-           << "   M\n"
-           << "\tSolve the middle tier only (assumes the top tier has already\n"
-           << "\tbeen solved.)\n"
-           << "   B\n"
-           << "\tSolve the bottom tier only (assumes the top two tiers have\n"
-           << "\talready been solved.)\n"
-           << "   s or S\n"
-           << "\tSolve the cube starting from the top tier and working down.\n"
-           << "   q or Q\n"
-           << "\tQuit\n";
-
       return 1;
    }
    args.PrintOptions(cout);
+
+   interactive_help();
 
    if (!visualization) { anim = false; }
 
    init_state();
 
    // Define an empty mesh
-   // Mesh mesh(3, 9 * 27, 27 * 12); // Tetrahedral mesh
-   // Mesh mesh(3, 9 * 27, 27 * 6);  // Pyramidal mesh
    Mesh mesh(3, 16 * 27, 27 * 6); // Hexagonal mesh
 
    init_hex_mesh(mesh);
@@ -374,6 +333,10 @@ int main(int argc, char *argv[])
          {
             solve(mesh, color, sock);
          }
+         else if ( axis == 'h' || axis == 'H')
+         {
+            interactive_help();
+         }
          else if ( axis == 'q' || axis == 'Q')
          {
             break;
@@ -393,115 +356,50 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-/// Much of the following can be reused for pyramids so don't remove it.
 void
-init_tet_mesh(Mesh & mesh)
+interactive_help()
 {
-   // Add vertices and tetrahedra for 27 cubes
-   double c[3];
-   int v[9];
-   int vt[4];
-   int l = 0;
-   for (int k=0; k<3; k++)
-   {
-      for (int j=0; j<3; j++)
-      {
-         for (int i=0; i<3; i++)
-         {
-            c[0] = -1.5 + i;
-            c[1] = -1.5 + j;
-            c[2] = -1.5 + k;
-            mesh.AddVertex(c);
-            v[0] = l; l++;
-
-            c[0] = -1.5 + i + 1;
-            c[1] = -1.5 + j;
-            c[2] = -1.5 + k;
-            mesh.AddVertex(c);
-            v[1] = l; l++;
-
-            c[0] = -1.5 + i + 1;
-            c[1] = -1.5 + j + 1;
-            c[2] = -1.5 + k;
-            mesh.AddVertex(c);
-            v[2] = l; l++;
-
-            c[0] = -1.5 + i;
-            c[1] = -1.5 + j + 1;
-            c[2] = -1.5 + k;
-            mesh.AddVertex(c);
-            v[3] = l; l++;
-
-            c[0] = -1.5 + i;
-            c[1] = -1.5 + j;
-            c[2] = -1.5 + k + 1;
-            mesh.AddVertex(c);
-            v[4] = l; l++;
-
-            c[0] = -1.5 + i + 1;
-            c[1] = -1.5 + j;
-            c[2] = -1.5 + k + 1;
-            mesh.AddVertex(c);
-            v[5] = l; l++;
-
-            c[0] = -1.5 + i + 1;
-            c[1] = -1.5 + j + 1;
-            c[2] = -1.5 + k + 1;
-            mesh.AddVertex(c);
-            v[6] = l; l++;
-
-            c[0] = -1.5 + i;
-            c[1] = -1.5 + j + 1;
-            c[2] = -1.5 + k + 1;
-            mesh.AddVertex(c);
-            v[7] = l; l++;
-
-            c[0] = -1.5 + i + 0.5;
-            c[1] = -1.5 + j + 0.5;
-            c[2] = -1.5 + k + 0.5;
-            mesh.AddVertex(c);
-            v[8] = l; l++;
-
-            // Bottom
-            vt[0] = v[0]; vt[1] = v[1]; vt[2] = v[3]; vt[3] = v[8];
-            mesh.AddTet(vt, k==0 ? 6 : 1);
-            vt[0] = v[1]; vt[1] = v[2]; vt[2] = v[3]; vt[3] = v[8];
-            mesh.AddTet(vt, k==0 ? 6 : 1);
-
-            // Top
-            vt[0] = v[4]; vt[1] = v[7]; vt[2] = v[5]; vt[3] = v[8];
-            mesh.AddTet(vt, k==2 ? 7 : 1);
-            vt[0] = v[5]; vt[1] = v[7]; vt[2] = v[6]; vt[3] = v[8];
-            mesh.AddTet(vt, k==2 ? 7 : 1);
-
-            // Front
-            vt[0] = v[0]; vt[1] = v[4]; vt[2] = v[1]; vt[3] = v[8];
-            mesh.AddTet(vt, j==0 ? 4 : 1);
-            vt[0] = v[1]; vt[1] = v[4]; vt[2] = v[5]; vt[3] = v[8];
-            mesh.AddTet(vt, j==0 ? 4 : 1);
-
-            // Back
-            vt[0] = v[3]; vt[1] = v[2]; vt[2] = v[7]; vt[3] = v[8];
-            mesh.AddTet(vt, j==2 ? 5 : 1);
-            vt[0] = v[2]; vt[1] = v[6]; vt[2] = v[7]; vt[3] = v[8];
-            mesh.AddTet(vt, j==2 ? 5 : 1);
-
-            // Left
-            vt[0] = v[3]; vt[1] = v[7]; vt[2] = v[0]; vt[3] = v[8];
-            mesh.AddTet(vt, i==0 ? 3 : 1);
-            vt[0] = v[0]; vt[1] = v[7]; vt[2] = v[4]; vt[3] = v[8];
-            mesh.AddTet(vt, i==0 ? 3 : 1);
-
-            // Right
-            vt[0] = v[1]; vt[1] = v[5]; vt[2] = v[6]; vt[3] = v[8];
-            mesh.AddTet(vt, i==2 ? 2 : 1);
-            vt[0] = v[1]; vt[1] = v[6]; vt[2] = v[2]; vt[3] = v[8];
-            mesh.AddTet(vt, i==2 ? 2 : 1);
-         }
-      }
-   }
-
-   mesh.FinalizeTopology();
+   cout << "\nInteractive Commands\n"
+        << "   [xyz][1,2,3][0-3]\n"
+        << "\tRotate the specified tier (first integer) of the cube\n"
+        << "\tabout the given axis (initial character) in the clockwise\n"
+        << "\tdirection (looking from the tip of the axis vector towards\n"
+        << "\tthe origin) by so many increments (final integer).\n"
+        << "   r[0-9]+\n"
+        << "\tInitiate a random sequence of moves.  The integer\n"
+        << "\tfollowing 'r' is the number of desired moves.\n"
+        << "   p\n"
+        << "\tPrint the current state of the cube.\n"
+        << "   c\n"
+        << "\tSwap the corners in the 0th and 1st positions.\n"
+        << "   t[0,1]\n"
+        << "\tTwist the corners of the bottom tier in the clockwise '1'\n"
+        << "\tor counter-clockwise '0' direction leaving the 3rd corner\n"
+        << "\tunchanged.\n"
+        << "   e[0,1]\n"
+        << "\tPermute the edges of the bottom tier in the clockwise '1'\n"
+        << "\tor counter-clockwise '0' direction leaving the 3rd edge\n"
+        << "\tunchanged.\n"
+        << "   f[2,4]\n"
+        << "\tFlip the edges of the bottom tier while keeping them in\n"
+        << "\tplace. The integer '2' indicates flipping the 0th and 2nd\n"
+        << "\tedges while '4' indicates flipping all four edges.\n"
+        << "   R\n"
+        << "\tResets (or Repaints) the cube to its original configuration.\n"
+        << "   T\n"
+        << "\tSolve the top tier only.\n"
+        << "   M\n"
+        << "\tSolve the middle tier only (assumes the top tier has already\n"
+        << "\tbeen solved.)\n"
+        << "   B\n"
+        << "\tSolve the bottom tier only (assumes the top two tiers have\n"
+        << "\talready been solved.)\n"
+        << "   s or S\n"
+        << "\tSolve the cube starting from the top tier and working down.\n"
+        << "   h or H\n"
+        << "\tPrint this message.\n"
+        << "   q or Q\n"
+        << "\tQuit\n\n";
 }
 
 void
