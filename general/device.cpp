@@ -77,8 +77,8 @@ void Device::Configure(const std::string &device, const int dev)
    Get().allowed_backends = Get().backends;
    Get().Setup(dev);
 
-   // Disable any device backends
-   Get().allowed_backends = Get().backends & ~Backend::DEVICE_MASK;
+   // Enable only the default host CPU backend.
+   Get().allowed_backends = Backend::CPU;
 }
 
 void Device::Print(std::ostream &out)
