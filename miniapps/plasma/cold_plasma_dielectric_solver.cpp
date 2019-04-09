@@ -205,7 +205,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    massImCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_,
                                                     *epsImCoef_);
    posMassCoef_ = new ScalarMatrixProductCoefficient(*omega2Coef_,
-						     *epsAbsCoef_);
+                                                     *epsAbsCoef_);
 
    // Impedance of free space
    if ( abcs.Size() > 0 )

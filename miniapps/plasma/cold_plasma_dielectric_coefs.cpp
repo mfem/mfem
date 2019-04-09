@@ -299,12 +299,12 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 }
 
 SPDDielectricTensor::SPDDielectricTensor(
-				  const ParGridFunction & B,
-				  const BlockVector & density,
-				  const ParFiniteElementSpace & L2FESpace,
-				  double omega,
-				  const Vector & charges,
-				  const Vector & masses)
+   const ParGridFunction & B,
+   const BlockVector & density,
+   const ParFiniteElementSpace & L2FESpace,
+   double omega,
+   const Vector & charges,
+   const Vector & masses)
    : MatrixCoefficient(3),
      B_(B),
      density_(density),
@@ -317,7 +317,7 @@ SPDDielectricTensor::SPDDielectricTensor(
 }
 
 void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
-			       const IntegrationPoint &ip)
+                               const IntegrationPoint &ip)
 {
    // Initialize dielectric tensor to appropriate size
    epsilon.SetSize(3);
@@ -342,7 +342,7 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 
    double aP = fabs(P);
    double aSD = 0.5 * (fabs(S + D) + fabs(S - D));
-   
+
    epsilon(0,0) =  (aP - aSD) * pow(sin(ph), 2) * pow(cos(th), 2) + aSD;
    epsilon(1,1) =  (aP - aSD) * pow(cos(ph), 2) + aSD;
    epsilon(2,2) =  (aP - aSD) * pow(sin(ph), 2) * pow(sin(th), 2) + aSD;
@@ -352,7 +352,7 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    epsilon(1,0) = epsilon(0,1);
    epsilon(2,1) = epsilon(1,2);
    epsilon(0,2) = epsilon(2,0);
-   
+
    epsilon *= epsilon0_;
 }
 

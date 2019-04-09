@@ -626,8 +626,8 @@ int main(int argc, char *argv[])
                                  L2FESpace,
                                  omega, charges, masses, false);
    SPDDielectricTensor epsilon_abs(BField, density,
-				   L2FESpace,
-				   omega, charges, masses);
+                                   L2FESpace,
+                                   omega, charges, masses);
 
    ColdPlasmaPlaneWave EReCoef(wave_type[0], omega, BVec,
                                numbers, charges, masses, true);
@@ -664,25 +664,28 @@ int main(int argc, char *argv[])
       sock_L.precision(8);
 
       Wx += 2 * offx;
-      if (visualization) {
-      VisualizeField(sock_Er, vishost, visport,
-                     EField.real(), "Exact Electric Field, Re(E)",
-                     Wx, Wy, Ww, Wh);
+      if (visualization)
+      {
+         VisualizeField(sock_Er, vishost, visport,
+                        EField.real(), "Exact Electric Field, Re(E)",
+                        Wx, Wy, Ww, Wh);
       }
       Wx += offx;
-      if (visualization) {
-      VisualizeField(sock_Ei, vishost, visport,
-                     EField.imag(), "Exact Electric Field, Im(E)",
-                     Wx, Wy, Ww, Wh);
+      if (visualization)
+      {
+         VisualizeField(sock_Ei, vishost, visport,
+                        EField.imag(), "Exact Electric Field, Im(E)",
+                        Wx, Wy, Ww, Wh);
       }
       Wx -= offx;
       Wy += offy;
-      if (visualization) {
-      VisualizeField(sock_B, vishost, visport,
-                     BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
+      if (visualization)
+      {
+         VisualizeField(sock_B, vishost, visport,
+                        BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
 
-      VisualizeField(sock_L, vishost, visport,
-                     LField, "L", Wx, Wy, Ww, Wh);
+         VisualizeField(sock_L, vishost, visport,
+                        LField, "L", Wx, Wy, Ww, Wh);
       }
 
    }
@@ -692,7 +695,7 @@ int main(int argc, char *argv[])
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
                  conv, epsilon_real, epsilon_imag, epsilon_abs,
-		 muInvCoef, etaInvCoef,
+                 muInvCoef, etaInvCoef,
                  (phase_shift) ? &kCoef : NULL,
                  abcs, dbcs,
                  // e_bc_r, e_bc_i,

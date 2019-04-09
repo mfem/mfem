@@ -99,11 +99,11 @@ class SPDDielectricTensor: public MatrixCoefficient
 {
 public:
    SPDDielectricTensor(const ParGridFunction & B,
-		       const BlockVector & density,
-		       const ParFiniteElementSpace & L2FESpace,
-		       double omega,
-		       const Vector & charges,
-		       const Vector & masses);
+                       const BlockVector & density,
+                       const ParFiniteElementSpace & L2FESpace,
+                       double omega,
+                       const Vector & charges,
+                       const Vector & masses);
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
