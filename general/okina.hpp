@@ -45,7 +45,7 @@ void OmpWrap(const int N, HBODY &&h_body)
 {
 #ifdef MFEM_USE_OPENMP
    #pragma omp parallel for
-   for (int k=0; k<N; k++)
+   for (int k = 0; k < N; k++)
    {
       h_body(k);
    }
@@ -136,7 +136,7 @@ void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 
    if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
 
-   for (int k=0; k<N; k++) { h_body(k); }
+   for (int k = 0; k < N; k++) { h_body(k); }
 }
 
 } // namespace mfem

@@ -863,7 +863,7 @@ static double cuVectorMin(const int N, const double *X)
    MFEM_CUDA_CHECK_RT(cudaGetLastError());
    ::cuMemcpy((CUdeviceptr)h_min,(CUdeviceptr)gdsr,bytes);
    double min = std::numeric_limits<double>::infinity();
-   for (int i=0; i<min_sz; i++) { min = fmin(min, h_min[i]); }
+   for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
    return min;
 }
 
@@ -923,7 +923,7 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    MFEM_CUDA_CHECK_RT(cudaGetLastError());
    MFEM_CUDA_CHECK_DRV(::cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
    double dot = 0.0;
-   for (int i=0; i<dot_sz; i++) { dot += h_dot[i]; }
+   for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
    return dot;
 }
 #endif // MFEM_USE_CUDA
@@ -939,7 +939,7 @@ double Min(const int N, const double *x)
 #endif // MFEM_USE_CUDA
    }
    double min = std::numeric_limits<double>::infinity();
-   for (int i=0; i<N; i++) { min = fmin(min, x[i]); }
+   for (int i = 0; i < N; i++) { min = fmin(min, x[i]); }
    return min;
 }
 
@@ -957,7 +957,7 @@ double Dot(const int N, const double *x, const double *y)
 #ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for reduction(+:dot)
 #endif
-   for (int i=0; i<N; i++) { dot += x[i] * y[i]; }
+   for (int i = 0; i < N; i++) { dot += x[i] * y[i]; }
    return dot;
 }
 
