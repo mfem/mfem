@@ -148,12 +148,20 @@ int main(int argc, char *argv[])
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
    int sol = 2;
+   int prec = 1;
    bool herm_conv = false;
    bool visualization = true;
    bool visit = true;
 
    Array<int> abcs;
    Array<int> dbcs;
+
+   SolverOptions solOpts;
+   solOpts.maxIter = 1000;
+   solOpts.kDim = 50;
+   solOpts.printLvl = 1;
+   solOpts.relTol = 1e-4;
+   solOpts.euLvl = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -166,8 +174,28 @@ int main(int argc, char *argv[])
                   "Number of parallel refinement levels.");
    args.AddOption(&freq_, "-f", "--frequency",
                   "Frequency in Hertz (of course...)");
+   args.AddOption(&prec, "-pc", "--precond",
+                  "Preconditioner: 1 - Diagonal Scaling, 2 - ParaSails, "
+                  "3 - Euclid, 4 - AMS");
    args.AddOption(&sol, "-s", "--solver",
-                  "Solver: 1 - GMRES, 2 - FGMRES w/AMS");
+                  "Solver: 1 - GMRES, 2 - FGMRES, 3 - MINRES"
+#ifdef MFEM_USE_SUPERLU
+                  ", 4 - SuperLU"
+#endif
+#ifdef MFEM_USE_STRUMPACK
+                  ", 5 - STRUMPACK"
+#endif
+                 );
+   args.AddOption(&solOpts.maxIter, "-sol-it", "--solver-iterations",
+                  "Maximum number of solver iterations.");
+   args.AddOption(&solOpts.kDim, "-sol-k-dim", "--solver-krylov-dimension",
+                  "Krylov space dimension for GMRES and FGMRES.");
+   args.AddOption(&solOpts.relTol, "-sol-tol", "--solver-tolerance",
+                  "Relative tolerance for GMRES or FGMRES.");
+   args.AddOption(&solOpts.printLvl, "-sol-prnt-lvl", "--solver-print-level",
+                  "Logging level for solvers.");
+   args.AddOption(&solOpts.euLvl, "-eu-lvl", "--euclid-level",
+                  "Euclid factorization level for ILU(k).");
    args.AddOption(&pw_eps_, "-pwe", "--piecewise-eps",
                   "Piecewise values of Permittivity");
    args.AddOption(&ds_params_, "-ds", "--dielectric-sphere-params",
@@ -304,7 +332,9 @@ int main(int argc, char *argv[])
    Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
 
    // Create the Magnetostatic solver
-   HertzSolver Hertz(pmesh, order, freq_, (HertzSolver::SolverType)sol,
+   HertzSolver Hertz(pmesh, order, freq_,
+		     (HertzSolver::SolverType)sol, solOpts,
+		     (HertzSolver::PrecondType)prec,
                      conv, *epsCoef, *muInvCoef, sigmaCoef, etaInvCoef,
                      abcs, dbcs,
                      e_bc_r, e_bc_i,

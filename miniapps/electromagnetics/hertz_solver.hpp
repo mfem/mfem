@@ -38,10 +38,31 @@ static const double epsilon0_ = 8.8541878176e-12;
 // Permeability of Free Space (units H/m)
 static const double mu0_ = 4.0e-7*M_PI;
 
+// Solver options
+struct SolverOptions
+{
+   int maxIter;
+   int kDim;
+   int printLvl;
+   double relTol;
+
+   // Euclid Options
+   int euLvl;
+};
+
 //class SurfaceCurrent;
 class HertzSolver
 {
 public:
+
+   enum PrecondType
+   {
+      INVALID_PC  = -1,
+      DIAG_SCALE  =  1,
+      PARASAILS   =  2,
+      EUCLID      =  3,
+      AMS         =  4
+   };
 
    enum SolverType
    {
@@ -54,7 +75,8 @@ public:
    };
 
    HertzSolver(ParMesh & pmesh, int order, double freq,
-               HertzSolver::SolverType s,
+               HertzSolver::SolverType s, SolverOptions & sOpts,
+	       HertzSolver::PrecondType p,
                ComplexOperator::Convention conv,
                Coefficient & epsCoef,
                Coefficient & muInvCoef,
@@ -98,6 +120,8 @@ private:
    int logging_;
 
    SolverType sol_;
+   SolverOptions & solOpts_;
+   PrecondType prec_;
 
    ComplexOperator::Convention conv_;
 
