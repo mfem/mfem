@@ -453,6 +453,11 @@ CPDSolver::Update()
       HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
    }
 
+   blockTrueOffsets_[0] = 0;
+   blockTrueOffsets_[1] = HCurlFESpace_->TrueVSize();
+   blockTrueOffsets_[2] = HCurlFESpace_->TrueVSize();
+   blockTrueOffsets_.PartialSum();
+
    // Inform the grid functions that the space has changed.
    e_->Update();
    // e_r_->Update();
