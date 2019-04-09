@@ -138,9 +138,9 @@ static void OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
    if (cuda)
    {
 #if OCCA_CUDA_ENABLED
-   internal::occaDevice = occa::cuda::wrapDevice(cu_dev, cu_ctx);
+      internal::occaDevice = occa::cuda::wrapDevice(cu_dev, cu_ctx);
 #else
-   MFEM_ABORT("the OCCA CUDA backend requires OCCA built with CUDA!");
+      MFEM_ABORT("the OCCA CUDA backend requires OCCA built with CUDA!");
 #endif
    }
    else if (omp)
