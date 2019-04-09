@@ -85,6 +85,6 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f snake-init.mesh snake-joined.mesh snake-c*.mesh
+	@rm -f snake-init.mesh snake-user.mesh snake-joined.mesh snake-c*.mesh
 	@rm -f automata.gf automata.mesh rubik-init.mesh mandel.mesh
 	@rm -f life.gf life.mesh

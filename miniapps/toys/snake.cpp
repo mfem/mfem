@@ -16,6 +16,12 @@
 // This miniapp provides a light-hearted example of mesh manipulation and
 // GLVis integration.
 //
+// The Rubik's Snake a.k.a Twist is a simple tool for experimenting with
+// geometric shapes in 3D.  It consists of 24 triangular prisms attached in a
+// row so that neighboring wedges can rotate against each other but cannot be
+// separated.  An astonishing variety of different configurations can be
+// reached.  Enjoy!
+//
 // Compile with: make snake
 //
 // Sample runs: snake
@@ -38,74 +44,82 @@ static int nstep_ = 6;
 static double cosa_ = cos(0.5 * M_PI / nstep_);
 static double sina_ = sin(0.5 * M_PI / nstep_);
 
+/** Pre-programmed configurations (feel free to add your own).  Each
+    configuration must be 23 integers long corresponding to the 23 joints making
+    up the Snake_TM puzzle.  The values can be 0-3 indicating how far to rotate
+    the joint in the clockwise direction when looking along the snake from the
+    starting (lower) end.  The values 0, 1, 2, and 3 correspond to angles of
+    0, 90, 180, and 270 degrees respectively.
+*/
 static int conf[][23] =
 {
-   /* Ball       */ {
+   /* 0 - Ball       */ {
       3,1,3,3,1,3,1,1,
       3,1,3,3,1,3,1,1,
       3,1,3,3,1,3,1
    },
-   /* Triangle   */ {
+   /* 1 - Triangle   */ {
       1,0,0,0,0,0,0,3,
       1,0,0,0,0,0,0,3,
       1,0,0,0,0,0,0
    },
-   /* Hexagon    */ {
+   /* 2 - Hexagon    */ {
       0,0,1,0,0,0,0,3,
       0,0,1,0,0,0,0,3,
       0,0,1,0,0,0,0
    },
-   /* Snow Flake */ {
+   /* 3 - Snow Flake */ {
       1,1,1,1,3,3,3,3,
       1,1,1,1,3,3,3,3,
       1,1,1,1,3,3,3
    },
-   /* Spiral     */ {
+   /* 4 - Spiral     */ {
       2,1,2,1,2,1,2,1,
       2,1,2,1,2,1,2,1,
       2,1,2,1,2,1,2
    },
-   /* Zig-zag    */ {
+   /* 5 - Zig-zag    */ {
       3,3,3,1,1,1,3,3,
       3,1,1,1,3,3,3,1,
       1,1,3,3,3,1,1
    },
-   /* Cobra      */ {
+   /* 6 - Cobra      */ {
       2,0,0,2,1,3,0,2,
       0,2,3,0,1,3,2,1,
       1,2,3,1,0,3,0
    },
-   /* Serenity  */ {
+   /* 7 - Serenity  */ {
       3,2,3,2,1,2,0,2,
       0,2,3,2,1,2,1,2,
       0,2,3,2,1,2,0
    },
-   /* Pinwheel  */ {
+   /* 8 - Pinwheel  */ {
       3,2,1,0,2,3,3,2,
       1,0,2,3,3,2,1,0,
       2,3,3,2,1,0,2
    },
-   /* Crane     */ {
+   /* 9 - Crane     */ {
       0,0,3,2,0,2,2,0,
       0,2,0,0,0,2,2,0,
       0,0,3,0,0,0,2
    },
-   /* Snake     */ {
+   /* 10 - Snake     */ {
       0,1,0,1,0,1,0,1,
       0,1,3,1,0,1,0,1,
       0,1,0,1,0,1,2
    },
-   /* Sculpture */ {
+   /* 11 - Sculpture */ {
       0,2,0,2,2,0,3,0,
       2,2,0,1,0,2,2,0,
       3,0,2,2,0,2,0
    },
-   /* Angles    */ {
+   /* 12 - Angles    */ {
       0,2,0,2,2,0,3,0,
       2,2,0,0,0,2,2,0,
       3,0,2,2,0,2,0
    },
 };
+static int NUM_CONFIGURATIONS = 13;
 
 void trans(const int * conf, Mesh & mesh);
 
@@ -113,12 +127,19 @@ bool anim_step(const int * conf, Mesh & mesh);
 
 int main(int argc, char *argv[])
 {
-   int cfg = 0;
+   int cfg = -1;
    bool anim = true;
+   bool user = false;
    bool visualization = true;
 
+   Array<int> myConf(0);
+
    OptionsParser args(argc, argv);
-   args.AddOption(&cfg, "-c", "--configuration","");
+   args.AddOption(&cfg, "-c", "--configuration",
+                  "Select one of 13 pre-programmed configurations: 0-12");
+   args.AddOption(&myConf, "-u", "--user-cfg",
+                  "User defined configuration consisting of "
+                  "23 joint positions defined by the integers 0, 1, 2, or 3.");
    args.AddOption(&anim, "-anim", "--animation", "-no-anim",
                   "--no-animation",
                   "Enable or disable GLVis animation.");
@@ -132,6 +153,35 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   // Test for a user supplied configuration
+   if (myConf.Size() > 0)
+   {
+      user = true;
+
+      if (myConf.Size() != 23)
+      {
+         MFEM_ABORT("Invalid user-defined configuration of length "
+                    << myConf.Size());
+      }
+   }
+
+   // Test for a pre-programmed configuration
+   if (!user && cfg >=0 && cfg < NUM_CONFIGURATIONS)
+   {
+      myConf.SetSize(23);
+      myConf.Assign(conf[cfg]);
+   }
+
+   // Validate the configuration if it has been set
+   for (int i=0; i<myConf.Size(); i++)
+   {
+      if (myConf[i] < 0 || myConf[i] > 3)
+      {
+         MFEM_ABORT("Invalid entry \"" << myConf[i]
+                    << "\"in configuration at position " << i);
+      }
+   }
 
    if (!visualization) { anim = false; }
 
@@ -181,6 +231,7 @@ int main(int argc, char *argv[])
 
    mesh.FinalizeTopology();
 
+   // Paint elements with alternating colors
    FiniteElementCollection *fec = new L2_FECollection(0, 3, 1);
    FiniteElementSpace fespace(&mesh, fec);
    GridFunction color(&fespace);
@@ -197,7 +248,8 @@ int main(int argc, char *argv[])
       ofs.close();
    }
 
-   if ( cfg >= 0 && !anim) { trans(conf[cfg], mesh); }
+   // Jump to final configuration if no animation is needed
+   if (myConf.Size() > 0 && !anim) { trans(myConf.GetData(), mesh); }
 
    // Output the resulting mesh to GLVis
    if (visualization)
@@ -210,13 +262,14 @@ int main(int argc, char *argv[])
                << "palette 22\n" << "valuerange -1.5 1\n"
                << "autoscale off\n" << flush;
 
-      if (cfg >= 0 && anim)
+      // Animate the twists of the selected configuration
+      if (myConf.Size() > 0 && anim)
       {
          sol_sock << "pause\n" << flush;
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
 
-         while (anim_step(conf[cfg], mesh))
+         while (anim_step(myConf.GetData(), mesh))
          {
             static int turn = 0;
             sol_sock << "solution\n" << mesh << color;
@@ -236,7 +289,11 @@ int main(int argc, char *argv[])
    // Output the resulting mesh to a file
    {
       ostringstream oss;
-      if (cfg >= 0)
+      if (user)
+      {
+         oss << "snake-user.mesh";
+      }
+      else if (cfg >= 0)
       {
          oss << "snake-c" << cfg << ".mesh";
       }
