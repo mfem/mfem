@@ -94,13 +94,13 @@ ParDiscreteDivOperator::ParDiscreteDivOperator(ParFiniteElementSpace *dfes,
    this->AddDomainInterpolator(new DivergenceInterpolator);
 }
 
-IrrotationalNDProjector
-::IrrotationalNDProjector(ParFiniteElementSpace   & H1FESpace,
-                          ParFiniteElementSpace   & HCurlFESpace,
-                          const int               & irOrder,
-                          ParBilinearForm         * s0,
-                          ParMixedBilinearForm    * weakDiv,
-                          ParDiscreteGradOperator * grad)
+IrrotationalProjector
+::IrrotationalProjector(ParFiniteElementSpace   & H1FESpace,
+                        ParFiniteElementSpace   & HCurlFESpace,
+                        const int               & irOrder,
+                        ParBilinearForm         * s0,
+                        ParMixedBilinearForm    * weakDiv,
+                        ParDiscreteGradOperator * grad)
    : H1FESpace_(&H1FESpace),
      HCurlFESpace_(&HCurlFESpace),
      s0_(s0),
@@ -152,7 +152,7 @@ IrrotationalNDProjector
    xDiv_ = new ParGridFunction(H1FESpace_);
 }
 
-IrrotationalNDProjector::~IrrotationalNDProjector()
+IrrotationalProjector::~IrrotationalProjector()
 {
    delete psi_;
    delete xDiv_;
@@ -167,7 +167,7 @@ IrrotationalNDProjector::~IrrotationalNDProjector()
 }
 
 void
-IrrotationalNDProjector::InitSolver() const
+IrrotationalProjector::InitSolver() const
 {
    delete pcg_;
    delete amg_;
@@ -182,7 +182,7 @@ IrrotationalNDProjector::InitSolver() const
 }
 
 void
-IrrotationalNDProjector::Mult(const Vector &x, Vector &y) const
+IrrotationalProjector::Mult(const Vector &x, Vector &y) const
 {
    // Compute the divergence of x
    weakDiv_->Mult(x,*xDiv_); *xDiv_ *= -1.0;
@@ -203,7 +203,7 @@ IrrotationalNDProjector::Mult(const Vector &x, Vector &y) const
 }
 
 void
-IrrotationalNDProjector::Update()
+IrrotationalProjector::Update()
 {
    delete pcg_; pcg_ = NULL;
    delete amg_; amg_ = NULL;
@@ -234,212 +234,79 @@ IrrotationalNDProjector::Update()
    H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
 }
 
-DivergenceFreeNDProjector
-::DivergenceFreeNDProjector(ParFiniteElementSpace   & H1FESpace,
-                            ParFiniteElementSpace   & HCurlFESpace,
-                            const int               & irOrder,
-                            ParBilinearForm         * s0,
-                            ParMixedBilinearForm    * weakDiv,
-                            ParDiscreteGradOperator * grad)
-   : IrrotationalNDProjector(H1FESpace,HCurlFESpace, irOrder, s0, weakDiv, grad)
-{}
-
-DivergenceFreeNDProjector::~DivergenceFreeNDProjector()
-{}
-
-void
-DivergenceFreeNDProjector::Mult(const Vector &x, Vector &y) const
-{
-   this->IrrotationalNDProjector::Mult(x, y);
-   y  -= x;
-   y *= -1.0;
-}
-
-void
-DivergenceFreeNDProjector::Update()
-{
-   this->IrrotationalNDProjector::Update();
-}
-
-DivergenceFreeRTProjector
-::DivergenceFreeRTProjector(ParFiniteElementSpace   & HCurlFESpace,
-                            ParFiniteElementSpace   & HDivFESpace,
-                            const int               & irOrder,
-                            ParBilinearForm         * s1,
-                            ParMixedBilinearForm    * weakCurl,
-                            ParDiscreteCurlOperator * curl)
-   : HCurlFESpace_(&HCurlFESpace),
-     HDivFESpace_(&HDivFESpace),
-     s1_(s1),
-     weakCurl_(weakCurl),
-     curl_(curl),
-     psi_(NULL),
-     xCurl_(NULL),
-     S1_(NULL),
-     pc_(NULL),
-     pcg_(NULL),
-     dim_(HCurlFESpace_->GetFE(0)->GetDim()),
-     ownsS1_(s1 == NULL),
-     ownsWeakCurl_(weakCurl == NULL),
-     ownsCurl_(curl == NULL)
-{
-   ess_bdr_.SetSize(HCurlFESpace_->GetParMesh()->bdr_attributes.Max());
-   ess_bdr_ = 1;
-   HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
-
-   int geom = HCurlFESpace_->GetFE(0)->GetGeomType();
-   const IntegrationRule * ir = &IntRules.Get(geom, irOrder);
-
-   if ( s1 == NULL )
-   {
-      s1_ = new ParBilinearForm(HCurlFESpace_);
-      BilinearFormIntegrator * ccInteg = (dim_==2) ?
-                                         dynamic_cast<BilinearFormIntegrator*>(new DiffusionIntegrator) :
-                                         dynamic_cast<BilinearFormIntegrator*>(new CurlCurlIntegrator);
-      ccInteg->SetIntRule(ir);
-      s1_->AddDomainIntegrator(ccInteg);
-      s1_->Assemble();
-      s1_->Finalize();
-      S1_ = new HypreParMatrix;
-   }
-   if ( weakCurl_ == NULL )
-   {
-      weakCurl_ = new ParMixedBilinearForm(HDivFESpace_, HCurlFESpace_);
-      BilinearFormIntegrator * wcurlInteg = new MixedVectorWeakCurlIntegrator;
-      wcurlInteg->SetIntRule(ir);
-      weakCurl_->AddDomainIntegrator(wcurlInteg);
-      weakCurl_->Assemble();
-      weakCurl_->Finalize();
-   }
-   if ( curl_ == NULL )
-   {
-      curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
-      curl_->Assemble();
-      curl_->Finalize();
-   }
-
-   psi_   = new ParGridFunction(HCurlFESpace_);
-   xCurl_ = new ParGridFunction(HCurlFESpace_);
-}
-
-DivergenceFreeRTProjector::~DivergenceFreeRTProjector()
-{
-   delete psi_;
-   delete xCurl_;
-
-   delete pc_;
-   delete pcg_;
-
-   delete S1_;
-
-   delete s1_;
-   delete weakCurl_;
-}
-
-void
-DivergenceFreeRTProjector::InitSolver() const
-{
-   delete pcg_;
-   delete pc_;
-
-   if (dim_ == 2)
-   {
-      HypreBoomerAMG * amg = new HypreBoomerAMG(*S1_);
-      amg->SetPrintLevel(0);
-      pc_ = amg;
-   }
-   else
-   {
-      HypreAMS * ams = new HypreAMS(*S1_, HCurlFESpace_);
-      ams->SetPrintLevel(0);
-      pc_ = ams;
-   }
-   pcg_ = new HyprePCG(*S1_);
-   pcg_->SetTol(1e-14);
-   pcg_->SetMaxIter(200);
-   pcg_->SetPrintLevel(0);
-   pcg_->SetPreconditioner(*pc_);
-}
-
-void
-DivergenceFreeRTProjector::Mult(const Vector &x, Vector &y) const
-{
-   // Compute the curl of x
-   weakCurl_->Mult(x,*xCurl_);
-
-   // Apply essential BC and form linear system
-   *psi_ = 0.0;
-   s1_->FormLinearSystem(ess_bdr_tdofs_, *psi_, *xCurl_, *S1_, Psi_, RHS_);
-
-   // Solve the linear system for Psi
-   if ( pcg_ == NULL ) { this->InitSolver(); }
-   pcg_->Mult(RHS_, Psi_);
-
-   // Compute the parallel grid function correspoinding to Psi
-   s1_->RecoverFEMSolution(Psi_, *xCurl_, *psi_);
-
-   // Compute the divergence free portion of x
-   curl_->Mult(*psi_, y);
-}
-
-void
-DivergenceFreeRTProjector::Update()
-{
-   delete pcg_; pcg_ = NULL;
-   delete pc_;  pc_  = NULL;
-   delete S1_;  S1_  = new HypreParMatrix;
-
-   psi_->Update();
-   xCurl_->Update();
-
-   if ( ownsS1_ )
-   {
-      s1_->Update();
-      s1_->Assemble();
-      s1_->Finalize();
-   }
-   if ( ownsWeakCurl_ )
-   {
-      weakCurl_->Update();
-      weakCurl_->Assemble();
-      weakCurl_->Finalize();
-   }
-   if ( ownsCurl_ )
-   {
-      curl_->Update();
-      curl_->Assemble();
-      curl_->Finalize();
-   }
-
-   HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
-}
-
-IrrotationalRTProjector
-::IrrotationalRTProjector(ParFiniteElementSpace   & HCurlFESpace,
-                          ParFiniteElementSpace   & HDivFESpace,
+DivergenceFreeProjector
+::DivergenceFreeProjector(ParFiniteElementSpace   & H1FESpace,
+                          ParFiniteElementSpace   & HCurlFESpace,
                           const int               & irOrder,
-                          ParBilinearForm         * s1,
-                          ParMixedBilinearForm    * weakCurl,
-                          ParDiscreteCurlOperator * curl)
-   : DivergenceFreeRTProjector(HCurlFESpace, HDivFESpace, irOrder,
-                               s1, weakCurl, curl)
+                          ParBilinearForm         * s0,
+                          ParMixedBilinearForm    * weakDiv,
+                          ParDiscreteGradOperator * grad)
+   : IrrotationalProjector(H1FESpace,HCurlFESpace, irOrder, s0, weakDiv, grad)
 {}
 
-IrrotationalRTProjector::~IrrotationalRTProjector()
+DivergenceFreeProjector::~DivergenceFreeProjector()
 {}
 
 void
-IrrotationalRTProjector::Mult(const Vector &x, Vector &y) const
+DivergenceFreeProjector::Mult(const Vector &x, Vector &y) const
 {
-   this->DivergenceFreeRTProjector::Mult(x, y);
+   this->IrrotationalProjector::Mult(x, y);
    y  -= x;
    y *= -1.0;
 }
 
 void
-IrrotationalRTProjector::Update()
+DivergenceFreeProjector::Update()
 {
-   this->DivergenceFreeRTProjector::Update();
+   this->IrrotationalProjector::Update();
+}
+
+void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
+                   ParMesh &pmesh, const char *title,
+                   int x, int y, int w, int h, const char *keys, bool vec)
+{
+   MPI_Comm comm = pmesh.GetComm();
+
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+
+   bool newly_opened = false;
+   int connection_failed;
+
+   do
+   {
+      if (myid == 0)
+      {
+         if (!sock.is_open() || !sock)
+         {
+            sock.open(vishost, visport);
+            sock.precision(8);
+            newly_opened = true;
+         }
+         sock << "solution\n";
+      }
+
+      pmesh.PrintAsOne(sock);
+
+      if (myid == 0 && newly_opened)
+      {
+         sock << "window_title '" << title << "'\n"
+              << "window_geometry "
+              << x << " " << y << " " << w << " " << h << "\n";
+         if ( keys ) { sock << "keys " << keys << "\n"; }
+         else { sock << "keys maaAc"; }
+         if ( vec ) { sock << "vvv"; }
+         sock << endl;
+      }
+
+      if (myid == 0)
+      {
+         connection_failed = !sock && !newly_opened;
+      }
+      MPI_Bcast(&connection_failed, 1, MPI_INT, 0, comm);
+   }
+   while (connection_failed);
 }
 
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
@@ -478,8 +345,8 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
               << "window_geometry "
               << x << " " << y << " " << w << " " << h << "\n";
          if ( keys ) { sock << "keys " << keys << "\n"; }
-         else { sock << "keys maaAc\n"; }
-         if ( vec ) { sock << "vvv" << "\n"; }
+         else { sock << "keys maaAc"; }
+         if ( vec ) { sock << "vvv"; }
          sock << endl;
       }
 
