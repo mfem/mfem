@@ -277,6 +277,29 @@ int main(int argc, char *argv[])
       setElementGrainIDs(mesh, g_map, 1, 0);
    }
 
+   //We need to check to see if our provided mesh has a different order than
+   //the order provided. If we see a difference we either increase our order seen
+   //in the options file or we increase the mesh ordering. I'm pretty sure this
+   //was causing a problem earlier with our auto-generated mesh and if we wanted
+   //to use a higher order FE space.
+   //So we can't really do the GetNodalFESpace it appears if we're given
+   //an initial mesh. It looks like NodalFESpace is initially set to
+   //NULL and only if we swap the mesh nodes does this actually
+   //get set...
+   //So, we're just going to set the mesh order to at least be 1. Although,
+   //I would like to see this change sometime in the future.
+   int mesh_order =  1;//mesh->GetNodalFESpace()->GetOrder(0);
+   if (mesh_order > toml_opt.order)
+   {
+      toml_opt.order = mesh_order;
+   }
+   if (mesh_order < toml_opt.order)
+   {
+      if(myid == 0) printf("Increasing the order of the mesh to %d\n", toml_opt.order);
+      mesh_order = toml_opt.order;
+      mesh->SetCurvature(mesh_order);
+   }
+   
    // declare pointer to parallel mesh object
    ParMesh *pmesh = NULL;
    
@@ -302,7 +325,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fe_coll = NULL;
    fe_coll = new  H1_FECollection(toml_opt.order, dim);
    ParFiniteElementSpace fe_space(pmesh, fe_coll, dim);
-
+   //We want our scalar field to have an order of 0.
    int order_0 = 0;
    
    //Here we're setting up a discontinuous so that we'll use later to interpolate
