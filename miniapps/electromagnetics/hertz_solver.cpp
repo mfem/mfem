@@ -658,14 +658,7 @@ HertzSolver::Solve()
             MFEM_ABORT("Requested preconditioner is not available.");
             break;
       }
-      if (pcr && conv_ != ComplexOperator::HERMITIAN)
-      {
-         pci = new ScaledOperator(pcr, -1.0);
-      }
-      else
-      {
-         pci = pcr;
-      }
+      pci = pcr;
 
       if (pcr)
       {
