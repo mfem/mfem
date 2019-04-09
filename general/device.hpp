@@ -19,7 +19,9 @@ namespace mfem
 
 /// MFEM backends.
 /** Individual backends will generally implement only a subset of the kernels
-    implemented by the default CPU backend. */
+    implemented by the default CPU backend. The goal of the backends is to
+    accelerate data-parallel portions of the code and they can use a device
+    memory space (e.g. GPUs) or share the memory space of the host (OpenMP). */
 struct Backend
 {
    /** @brief In the documentation below, we use square brackets to indicate the
@@ -71,8 +73,8 @@ struct Backend
 };
 
 
-/** @brief The MFEM Device class that abstracts hardware devices, such as GPUs,
-    and programming models, such as CUDA, OCCA, RAJA and OpenMP. */
+/** @brief The MFEM Device class abstracts hardware devices, such as GPUs, as
+    well as programming models, such as CUDA, OCCA, RAJA and OpenMP. */
 /** This class represents a "virtual device" with the following properties:
     - There a single object of this class which is controlled by its static
       methods.
@@ -84,23 +86,24 @@ struct Backend
       priority order is used to select a specific backend from the list of
       configured backends. See the Backend class and the Configure() method in
       this class for details.
-    - The device can be disabled to restrict the backend selection to only host
-      backends, see the methods Enable() and Disable(). */
+    - The device can be disabled to restrict the backend selection to only the
+      default host CPU backend, see the methods Enable() and Disable(). */
 class Device
 {
 private:
-   enum MODES {HOST, DEVICE};
+   enum MODES {SEQUENTIAL, ACCELERATED};
 
    MODES mode;
    int dev = 0; ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
    unsigned long backends; ///< Bitwise-OR of all configured backends.
-   /** Bitwise-OR mask of all allowed backends. Active backends are all backends
-       minus any device backends when the Device is disabled. */
+   /** Bitwise-OR mask of all allowed backends. All backends are active when the
+       Device is enabled. When the Device is disabled, only the host CPU backend
+       is allowed. */
    unsigned long allowed_backends;
 
    Device()
-      : mode(Device::HOST),
+      : mode(Device::SEQUENTIAL),
         backends(Backend::CPU),
         allowed_backends(backends) { }
    Device(Device const&);
@@ -142,31 +145,33 @@ public:
    static inline bool IsAvailable() { return Get().ngpu > 0; }
 
    /// Enable the use of the configured device in the code that follows.
-   /** After this call MFEM classes will use device kernels whenever possible,
-       transferring data automatically to the device, if necessary.
-
-       If an actual device (e.g. GPU) is not configured, this is a no-op, and
-       the Device will remain disabled. */
+   /** After this call MFEM classes will use the backend kernels whenever
+       possible, transferring data automatically to the device, if necessary. */
    static inline void Enable()
    {
       if (IsAvailable())
       {
-         Get().mode = Device::DEVICE;
+         Get().mode = Device::ACCELERATED;
          Get().allowed_backends = Get().backends;
+      }
+      else
+      {
+         Get().mode = Device::SEQUENTIAL;
+         Get().allowed_backends = Backend::CPU;
       }
    }
 
    /// Disable the use of the configured device in the code that follows.
-   /** After this call MFEM classes will only use host kernels, transferring
-       data automatically from the device, if necessary. */
+   /** After this call MFEM classes will only use default CPU kernels,
+       transferring data automatically from the device, if necessary. */
    static inline void Disable()
    {
-      Get().mode = Device::HOST;
-      Get().allowed_backends = Get().backends & ~Backend::DEVICE_MASK;
+      Get().mode = Device::SEQUENTIAL;
+      Get().allowed_backends = Backend::CPU;
    }
 
    /// Return true if the Device is enabled.
-   static inline bool IsEnabled() { return Get().mode == DEVICE; }
+   static inline bool IsEnabled() { return Get().mode == ACCELERATED; }
 
    /// The opposite of IsEnabled().
    static inline bool IsDisabled() { return !IsEnabled(); }
