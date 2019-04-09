@@ -99,8 +99,6 @@ private:
        minus any device backends when the Device is disabled. */
    unsigned long allowed_backends;
 
-   bool isTracking = true;
-
    Device()
       : mode(Device::HOST),
         backends(Backend::CPU),
@@ -173,11 +171,6 @@ public:
    /// The opposite of IsEnabled().
    static inline bool IsDisabled() { return !IsEnabled(); }
 
-   // FIXME: what is "tracking"?
-   static inline void DisableTracking() { Get().isTracking = false; };
-   static inline void EnableTracking() { Get().isTracking = true; };
-   static inline bool IsTracking() { return Get().isTracking; };
-
    /** @brief Return true if any of the backends in the backend mask, @a b_mask,
        are allowed. The allowed backends are all configured backends minus the
        device backends when the Device is disabled. */
@@ -185,6 +178,15 @@ public:
        Backend::*_MASK, or combinations of those. */
    static inline bool Allows(unsigned long b_mask)
    { return Get().allowed_backends & b_mask; }
+
+   /// Enable the memory manager
+   static void EnableMemoryManager();
+
+   /// Disable the memory manager
+   static void DisableMemoryManager();
+
+   /// Return true if the memory manager is enabled
+   static bool IsMemoryManagerEnabled();
 
    ~Device();
 };

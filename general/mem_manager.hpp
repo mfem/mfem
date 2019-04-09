@@ -56,6 +56,8 @@ public:
       alias_map aliases;
    };
 
+   /// Return true if the memory manager is used: pointers seen by mm::New and
+   /// mm::Delete will be inserted in the ledger and erased from it
    static inline bool UsingMM()
    {
 #ifdef MFEM_USE_MM
@@ -64,6 +66,18 @@ public:
       return false;
 #endif
    }
+
+   /// Disable the memory manager: mm::ptr, mm::push and mm::pull will be no-op
+   static inline void Disable() { MM().enabled = false; }
+
+   /// Enable the memory manager: mm::ptr, mm::push and mm::pull wont be no-op
+   static inline void Enable() { MM().enabled = true; }
+
+   /// Return true if the memory manager is used and enabled
+   static inline bool IsEnabled() { return UsingMM() && MM().enabled; }
+
+   /// The opposite of IsEnabled().
+   static inline bool IsDisabled() { return !mm::IsEnabled(); }
 
    /// Main malloc template function. Allocates n*size bytes and returns a
    /// pointer to the allocated memory.
@@ -167,7 +181,8 @@ public:
 
 private:
    ledger maps;
-   mm() {}
+   bool enabled;
+   mm(): enabled(true) { }
    mm(mm const&) = delete;
    void operator=(mm const&) = delete;
    static inline mm& MM() { static mm singleton; return singleton; }
