@@ -13,7 +13,7 @@
 
 #include "linalg.hpp"
 #include "dtensor.hpp"
-#include "../general/okina.hpp"
+#include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
 

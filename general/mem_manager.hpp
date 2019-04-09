@@ -25,7 +25,7 @@ namespace mfem
 {
 
 // Implementation of MFEM's lightweight host/device memory manager (mm) designed
-// to work seamlessly with the okina device kernel interface.
+// to work seamlessly with the OCCA, RAJA, and other kernels supported by MFEM.
 
 /// The memory manager singleton
 class mm
