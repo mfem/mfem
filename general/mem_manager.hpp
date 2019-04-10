@@ -22,11 +22,11 @@ namespace mfem
 // to work seamlessly with the okina device kernel interface.
 
 /// The memory manager class
-class MemManager
+class MemoryManager
 {
 public:
-   MemManager();
-   ~MemManager();
+   MemoryManager();
+   ~MemoryManager();
 
    /// Adds an address in the map
    void *Insert(void *ptr, const std::size_t bytes);
@@ -103,49 +103,45 @@ public:
    void GetAll(void);
 };
 
-extern bool MMReady;
-extern MemManager MM;
+extern bool mm_destroyed;
+extern MemoryManager mm;
 
-class mm
+/// Main malloc template function. Allocates n*size bytes and returns a
+/// pointer to the allocated memory.
+template<class T>
+inline T *New(const std::size_t n)
+{ return static_cast<T*>(mm.Insert(new T[n], n*sizeof(T))); }
+
+/// Frees the memory space pointed to by ptr, which must have been returned
+/// by a previous call to mm::New.
+template<class T>
+inline void Delete(T *ptr)
 {
-public:
+   static_assert(!std::is_void<T>::value, "Cannot Delete a void pointer. "
+                 "Explicitly provide the correct type as a template parameter.");
+   if (!ptr) { return; }
+   delete [] ptr;
+   if (mm_destroyed) { return; }
+   mm.Erase(ptr);
+}
 
-   /// Main malloc template function. Allocates n*size bytes and returns a
-   /// pointer to the allocated memory.
-   template<class T>
-   static inline T *New(const std::size_t n)
-   { return static_cast<T*>(MM.Insert(new T[n], n*sizeof(T))); }
+/// Return a host or device address coresponding to current memory space
+template <class T>
+inline T *Ptr(T *a) { return static_cast<T*>(mm.Ptr(a)); }
 
-   /// Frees the memory space pointed to by ptr, which must have been returned
-   /// by a previous call to mm::New.
-   template<class T>
-   static inline void Delete(T *ptr)
-   {
-      static_assert(!std::is_void<T>::value, "Cannot Delete a void pointer. "
-                    "Explicitly provide the correct type as a template parameter.");
-      if (!ptr) { return; }
-      delete [] ptr;
-      if (!MMReady) { return; }
-      MM.Erase(ptr);
-   }
+/// Data will be pushed/pulled before the copy happens on the H or the D
+inline void* Memcpy(void *dst, const void *src,
+                    std::size_t bytes, const bool async = false)
+{ return mm.Memcpy(dst, src, bytes, async); }
 
-   /// Return a host or device address coresponding to current memory space
-   template <class T>
-   static inline T *Ptr(T *a) { return static_cast<T*>(MM.Ptr(a)); }
+/// Push the data to the device
+inline void Push(const void *ptr, const std::size_t bytes =0)
+{ return mm.Push(ptr, bytes); }
 
-   /// Data will be pushed/pulled before the copy happens on the H or the D
-   static void* Memcpy(void *dst, const void *src,
-                       std::size_t bytes, const bool async = false)
-   { return MM.Memcpy(dst, src, bytes, async); }
+/// Pull the data from the device
+inline void Pull(const void *ptr, const std::size_t bytes =0)
+{ return mm.Pull(ptr, bytes); }
 
-   /// Push the data to the device
-   static void Push(const void *ptr, const std::size_t bytes =0)
-   { return MM.Push(ptr, bytes); }
-
-   /// Pull the data from the device
-   static void Pull(const void *ptr, const std::size_t bytes =0)
-   { return MM.Pull(ptr, bytes); }
-};
 
 } // namespace mfem
 
