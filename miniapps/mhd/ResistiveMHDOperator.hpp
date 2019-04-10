@@ -269,6 +269,8 @@ void ResistiveMHDOperator::UpdateJ(Vector &vx)
    M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, j);
 
+   cout <<"======Update J======"<<endl;
+
    /* debugging for the boundary terms
    if (false){
        for (int i=0; i<ess_tdof_list.Size(); i++)
@@ -283,6 +285,8 @@ void ResistiveMHDOperator::UpdateJ(Vector &vx)
    */
 
 }
+
+
 
 void ResistiveMHDOperator::UpdatePhi(Vector &vx)
 {

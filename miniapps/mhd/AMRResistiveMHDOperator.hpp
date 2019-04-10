@@ -51,6 +51,7 @@ public:
 
    void UpdateJ(Vector &vx);
    void UpdatePhi(Vector &vx);
+   void BackSolvePsi(Vector &vx);
    void assembleNv(GridFunction *gf);
    void assembleNb(GridFunction *gf);
    void assembleProblem(Array<int> &ess_bdr);
@@ -309,6 +310,7 @@ void AMRResistiveMHDOperator::UpdateJ(Vector &vx)
    Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
    
    z.SetSize(sc);
+   cout <<"======Update J======"<<endl;
 
    /*
    cout << "Number of scalar unknowns in psi: (UpdateJ) " <<  psi.Size()<< endl;
@@ -330,6 +332,26 @@ void AMRResistiveMHDOperator::UpdateJ(Vector &vx)
    PCG(A, Mpre, Z, Y, 0, 500, 1e-12, 0.0); 
    M->RecoverFEMSolution(Y, z, j);
 
+}
+
+void AMRResistiveMHDOperator::BackSolvePsi(Vector &vx)
+{
+   int sc = height/4;
+   Vector psi(vx.GetData() +  sc, sc);
+   Vector   j(vx.GetData() +3*sc, sc);
+
+   cout <<"===Back Solve Psi==="<<endl;
+   z.SetSize(sc);
+
+   M->Mult(j, z);
+   z.Neg(); // z = -z
+
+   SparseMatrix A;
+   Vector B, X;
+   K->FormLinearSystem(ess_tdof_list, psi, z, A, X, B); // Alters matrix and rhs to enforce bc
+   GSSmoother Mpre(A);
+   PCG(A, Mpre, B, X, 0, 1000, 1e-12, 0.0); 
+   K->RecoverFEMSolution(X, z, psi);
 }
 
 void AMRResistiveMHDOperator::UpdatePhi(Vector &vx)

@@ -109,19 +109,19 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
 
    for (int el = 0; el < NE; el++)
    {
-      if (yRange)
+      if (yRange && mesh.Nonconforming())
       {
-        //something is wrong here
-        Element *ellocal=mesh.GetElement(el);
-        const int nv = ellocal->GetNVertices();
-        const int *v = ellocal->GetVertices();
+        FiniteElementSpace * fes = mesh.GetNodes()->FESpace();
+        Array<int> dofs;
+        fes->GetElementDofs(el, dofs);
+        int ndof=dofs.Size();
         yMean=0.0;
-        for (int j = 0; j < nv; j++)
+        for (int j = 0; j < ndof; j++)
         {
-           mesh.GetNode(v[j], vert);
+           mesh.GetNode(dofs[j], vert);
            yMean+=vert[1];
         }
-        yMean=yMean/nv;
+        yMean=yMean/ndof;
         //std::cout <<"el yMean="<<el<<' '<<yMean << '\n';
         
         if (local_err(el) > threshold && 
@@ -133,10 +133,17 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
         }
 
       }
-      else 
+      else if (mesh.Nonconforming())
       {
         if (local_err(el) > threshold && 
             mesh.ncmesh->GetElementDepth(el) < amr_levels)
+        {
+           marked_elements.Append(Refinement(el));
+        }
+      }
+      else
+      {
+        if (local_err(el) > threshold )
         {
            marked_elements.Append(Refinement(el));
         }

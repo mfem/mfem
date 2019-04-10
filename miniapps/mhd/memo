@@ -7,8 +7,38 @@ glvis -m refined.mesh -g psiPer.sol -k "mmc" -ww 800 -wh 800
 glvis -m refined.mesh -g phi.sol -k "mmc" -ww 800 -wh 800
 glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 800
 
+
+glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
+
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
+
+4/9
+grid space 5e-3 at x point for island
+try back solve Psi through J! not working!
+Evolve current? maybe not there yet
+
+do some iterations first and obtain a better initial grid!!
+
+>>>Do AMR grid generation first
+./generateAMR -m xperiodicR3.mesh -r 0 -o 4 -i 3 -amrl 3 -ltol 1e-10
+
+4/8
+>>>derefiner is a major source to introduce osscillations
+Demo: 129->130 (see the oscillations in omega!):
+Number of unknowns: 52336
+Number of elements in mesh: 3024
+step 130, t = 0.013
+Derefined mesh...
+True V size = 46496
+Problem size = 51952
+Number of unknowns: 51952
+Number of elements in mesh: 3000
+
+>>>K operator plus an interpolation (and grad J) is the secondary issue
+
+try
+./exAMRMHD -m xperiodicR3.mesh -r 0 -o 4 -tf 8 -vs 1000 -dt .0001 -i 3 -amrl 3 -ltol 5e-3 -visit
 
 4/6
 this is sort of working
@@ -16,6 +46,7 @@ this is sort of working
 
 after adding refinement level, this works better
 ./exAMRMHD -m xperiodic.mesh -r 3 -o 4 -tf .02 -vs 50 -dt .0001 -i 3 -amrl 3 -ltol 1e-3
+
 
 4/5
 AMR starts to work after I switch vector size total dofs
