@@ -166,8 +166,7 @@ int main(int argc, char *argv[])
    //    domain integrator.
    AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
    BilinearForm *a = new BilinearForm(fespace, assembly);
-   //a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   a->AddDomainIntegrator(new MassIntegrator(one));
+   a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
