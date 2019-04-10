@@ -270,7 +270,188 @@ void Mesh::ReadNetgenSurfaceMesh(std::istream &input)
 
 void Mesh::ReadNetgenVol(std::istream &input)
 {
-   MFEM_ABORT("ReadNetgenVol not yet supported!");
+   string buff;
+   int geomtype;
+
+   int numEdges, numSurfaces, numVolumes;
+   const int edgeEleNodes = 2;
+   const int surfEleNodes = 3;
+   const int volEleNodes = 4;
+   
+   vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
+
+   // Next line should be "dimension"
+   getline(input,buff);
+   input >> Dim;
+   cerr << "Dim: " << Dim << endl;
+   // Next line should be "geomtype"
+   getline(input,buff); 
+   getline(input,buff);
+   input >> geomtype;
+   cerr << "geomtype: " << geomtype << endl;
+   while(input >> buff)
+   {
+      // careful the following is dependent on geomtype
+      std::size_t found = buff.find("surfaceelements");
+      if(found!=std::string::npos)
+      {
+         vector<int> vert_indices(surfEleNodes);
+         // Following the field layout for surfaceelements
+         int surfnr, bcnr, domin, domout, np, p1, p2, p3;
+         getline(input,buff);
+         input >> numSurfaces;
+         cerr << "Num Surfaces: " << numSurfaces << endl;
+         elements_2D.reserve(numSurfaces);
+         for(int i=0; i < numSurfaces; ++i)
+         {
+            getline(input,buff);
+            input >> surfnr >> bcnr >> domin >> domout >> np >> p1 >> p2 >> p3;
+            MFEM_ASSERT(np == 3, "incorrect number of points for surface element");
+            vert_indices[0] = p1-1;
+            vert_indices[1] = p2-1;
+            vert_indices[2] = p3-1;
+            elements_2D.push_back(
+                  new Triangle(&vert_indices[0], bcnr));
+         }
+      }
+
+      if(buff == "volumeelements")
+      {
+         vector<int> vert_indices(volEleNodes);
+         // Following the field layout for volumeelements
+         int matnr, np, p1, p2, p3, p4;
+         getline(input,buff);
+         input >> numVolumes;
+         cerr << "Num Volumes: " << numVolumes << endl;
+         elements_3D.reserve(numVolumes);
+         for(int i=0; i < numVolumes; ++i)
+         {
+            getline(input,buff);
+            input >> matnr >> np >> p1 >> p2 >> p3 >> p4;
+            MFEM_ASSERT(np == 4,"incorrect number of points for volume element");
+            // Permute for correct orientation
+            vert_indices[0] = p1-1;
+            vert_indices[1] = p4-1;
+            vert_indices[2] = p3-1;
+            vert_indices[3] = p2-1;
+            elements_3D.push_back(
+                  new Tetrahedron(&vert_indices[0], matnr));
+         }
+         
+      }
+
+      if(buff == "edgesegmentsgi2")
+      {
+         vector<int> vert_indices(edgeEleNodes);
+         // Following the field layout for edgeelements
+         int surfid, zero, p1, p2, trignum1, trignum2, domin, domout, ednr1, dist1, ednr2, dist2;
+         getline(input,buff);
+         input >> numEdges;
+         cerr << "Num Edges: " << numEdges << endl;
+         elements_1D.reserve(numEdges);
+         for(int i=0; i < numEdges; ++i)
+         {
+            getline(input,buff);
+            input >> surfid >> zero >> p1 >> p2 >> trignum1 >> trignum2 >> domin >> domout, ednr1 >> dist1 >> ednr2 >> dist2;
+            vert_indices[0] = p1-1;
+            vert_indices[1] = p2-1;
+            elements_1D.push_back(
+                  new Segment(&vert_indices[0], surfid));
+         }
+         
+      }
+
+      if(buff == "points")
+      {
+         const int netgen_dim = 3;
+         double coord[netgen_dim];
+         getline(input,buff);
+         input >> NumOfVertices;
+         cerr << "Num Vertices: " << NumOfVertices << endl;
+         vertices.SetSize(NumOfVertices);
+         for(int i = 0; i < NumOfVertices; ++i)
+         {
+            getline(input,buff);
+            for(int ci = 0; ci < netgen_dim; ++ci)
+            {
+               input >> coord[ci];
+            }
+            vertices[i] = Vertex(coord, netgen_dim);
+         }
+      }
+
+   }
+
+   spaceDim = 3;
+
+   if (!elements_3D.empty())
+   {
+      Dim = 3;
+      NumOfElements = elements_3D.size();
+      elements.SetSize(NumOfElements);
+      for (int el = 0; el < NumOfElements; ++el)
+      {
+         elements[el] = elements_3D[el];
+      }
+      NumOfBdrElements = elements_2D.size();
+      boundary.SetSize(NumOfBdrElements);
+      for (int el = 0; el < NumOfBdrElements; ++el)
+      {
+         boundary[el] = elements_2D[el];
+      }
+      // discard other elements
+      for (size_t el = 0; el < elements_1D.size(); ++el)
+      {
+         delete elements_1D[el];
+      }
+      for (size_t el = 0; el < elements_0D.size(); ++el)
+      {
+         delete elements_0D[el];
+      }
+   }
+   else if (!elements_2D.empty())
+   {
+      Dim = 2;
+      NumOfElements = elements_2D.size();
+      elements.SetSize(NumOfElements);
+      for (int el = 0; el < NumOfElements; ++el)
+      {
+         elements[el] = elements_2D[el];
+      }
+      NumOfBdrElements = elements_1D.size();
+      boundary.SetSize(NumOfBdrElements);
+      for (int el = 0; el < NumOfBdrElements; ++el)
+      {
+         boundary[el] = elements_1D[el];
+      }
+      // discard other elements
+      for (size_t el = 0; el < elements_0D.size(); ++el)
+      {
+         delete elements_0D[el];
+      }
+   }
+   else if (!elements_1D.empty())
+   {
+      Dim = 1;
+      NumOfElements = elements_1D.size();
+      elements.SetSize(NumOfElements);
+      for (int el = 0; el < NumOfElements; ++el)
+      {
+         elements[el] = elements_1D[el];
+      }
+      NumOfBdrElements = elements_0D.size();
+      boundary.SetSize(NumOfBdrElements);
+      for (int el = 0; el < NumOfBdrElements; ++el)
+      {
+         boundary[el] = elements_0D[el];
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Netgen .vol file : no elements found");
+      return;
+   }
+
 }
 
 void Mesh::ReadTrueGridMesh(std::istream &input)
