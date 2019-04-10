@@ -261,6 +261,188 @@ DivergenceFreeNDProjector::Update()
    this->IrrotationalNDProjector::Update();
 }
 
+DivergenceFreeRTProjector
+::DivergenceFreeRTProjector(ParFiniteElementSpace   & HCurlFESpace,
+                            ParFiniteElementSpace   & HDivFESpace,
+                            const int               & irOrder,
+                            ParBilinearForm         * s1,
+                            ParMixedBilinearForm    * weakCurl,
+                            ParDiscreteCurlOperator * curl)
+   : HCurlFESpace_(&HCurlFESpace),
+     HDivFESpace_(&HDivFESpace),
+     s1_(s1),
+     weakCurl_(weakCurl),
+     curl_(curl),
+     psi_(NULL),
+     xCurl_(NULL),
+     S1_(NULL),
+     pc_(NULL),
+     pcg_(NULL),
+     dim_(HCurlFESpace_->GetFE(0)->GetDim()),
+     ownsS1_(s1 == NULL),
+     ownsWeakCurl_(weakCurl == NULL),
+     ownsCurl_(curl == NULL)
+{
+   ess_bdr_.SetSize(HCurlFESpace_->GetParMesh()->bdr_attributes.Max());
+   ess_bdr_ = 1;
+   HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
+
+   int geom = HCurlFESpace_->GetFE(0)->GetGeomType();
+   const IntegrationRule * ir = &IntRules.Get(geom, irOrder);
+
+   if ( s1 == NULL )
+   {
+      s1_ = new ParBilinearForm(HCurlFESpace_);
+      BilinearFormIntegrator * ccInteg =
+         (dim_==2) ?
+         dynamic_cast<BilinearFormIntegrator*>(new DiffusionIntegrator) :
+         dynamic_cast<BilinearFormIntegrator*>(new CurlCurlIntegrator);
+      ccInteg->SetIntRule(ir);
+      s1_->AddDomainIntegrator(ccInteg);
+      s1_->Assemble();
+      s1_->Finalize();
+      S1_ = new HypreParMatrix;
+   }
+   if ( weakCurl_ == NULL )
+   {
+      weakCurl_ = new ParMixedBilinearForm(HDivFESpace_, HCurlFESpace_);
+      BilinearFormIntegrator * wcurlInteg = new MixedVectorWeakCurlIntegrator;
+      wcurlInteg->SetIntRule(ir);
+      weakCurl_->AddDomainIntegrator(wcurlInteg);
+      weakCurl_->Assemble();
+      weakCurl_->Finalize();
+   }
+   if ( curl_ == NULL )
+   {
+      curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
+      curl_->Assemble();
+      curl_->Finalize();
+   }
+
+   psi_   = new ParGridFunction(HCurlFESpace_);
+   xCurl_ = new ParGridFunction(HCurlFESpace_);
+}
+
+DivergenceFreeRTProjector::~DivergenceFreeRTProjector()
+{
+   delete psi_;
+   delete xCurl_;
+
+   delete pc_;
+   delete pcg_;
+
+   delete S1_;
+
+   delete s1_;
+   delete weakCurl_;
+}
+
+void
+DivergenceFreeRTProjector::InitSolver() const
+{
+   delete pcg_;
+   delete pc_;
+
+   if (dim_ == 2)
+   {
+      HypreBoomerAMG * amg = new HypreBoomerAMG(*S1_);
+      amg->SetPrintLevel(0);
+      pc_ = amg;
+   }
+   else
+   {
+      HypreAMS * ams = new HypreAMS(*S1_, HCurlFESpace_);
+      ams->SetPrintLevel(0);
+      pc_ = ams;
+   }
+   pcg_ = new HyprePCG(*S1_);
+   pcg_->SetTol(1e-14);
+   pcg_->SetMaxIter(200);
+   pcg_->SetPrintLevel(0);
+   pcg_->SetPreconditioner(*pc_);
+}
+
+void
+DivergenceFreeRTProjector::Mult(const Vector &x, Vector &y) const
+{
+   // Compute the curl of x
+   weakCurl_->Mult(x,*xCurl_);
+
+   // Apply essential BC and form linear system
+   *psi_ = 0.0;
+   s1_->FormLinearSystem(ess_bdr_tdofs_, *psi_, *xCurl_, *S1_, Psi_, RHS_);
+
+   // Solve the linear system for Psi
+   if ( pcg_ == NULL ) { this->InitSolver(); }
+   pcg_->Mult(RHS_, Psi_);
+
+   // Compute the parallel grid function correspoinding to Psi
+   s1_->RecoverFEMSolution(Psi_, *xCurl_, *psi_);
+
+   // Compute the divergence free portion of x
+   curl_->Mult(*psi_, y);
+}
+
+void
+DivergenceFreeRTProjector::Update()
+{
+   delete pcg_; pcg_ = NULL;
+   delete pc_;  pc_  = NULL;
+   delete S1_;  S1_  = new HypreParMatrix;
+
+   psi_->Update();
+   xCurl_->Update();
+
+   if ( ownsS1_ )
+   {
+      s1_->Update();
+      s1_->Assemble();
+      s1_->Finalize();
+   }
+   if ( ownsWeakCurl_ )
+   {
+      weakCurl_->Update();
+      weakCurl_->Assemble();
+      weakCurl_->Finalize();
+   }
+   if ( ownsCurl_ )
+   {
+      curl_->Update();
+      curl_->Assemble();
+      curl_->Finalize();
+   }
+
+   HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
+}
+
+IrrotationalRTProjector
+::IrrotationalRTProjector(ParFiniteElementSpace   & HCurlFESpace,
+                          ParFiniteElementSpace   & HDivFESpace,
+                          const int               & irOrder,
+                          ParBilinearForm         * s1,
+                          ParMixedBilinearForm    * weakCurl,
+                          ParDiscreteCurlOperator * curl)
+   : DivergenceFreeRTProjector(HCurlFESpace, HDivFESpace, irOrder,
+                               s1, weakCurl, curl)
+{}
+
+IrrotationalRTProjector::~IrrotationalRTProjector()
+{}
+
+void
+IrrotationalRTProjector::Mult(const Vector &x, Vector &y) const
+{
+   this->DivergenceFreeRTProjector::Mult(x, y);
+   y  -= x;
+   y *= -1.0;
+}
+
+void
+IrrotationalRTProjector::Update()
+{
+   this->DivergenceFreeRTProjector::Update();
+}
+
 void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
                    ParMesh &pmesh, const char *title,
                    int x, int y, int w, int h, const char *keys, bool vec)
