@@ -25,12 +25,13 @@
 //               ex1 -m ../data/mobius-strip.mesh
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
 //
-// Device runs:  ex1 -p -d cuda
-//               ex1 -p -d 'cuda raja'
-//               ex1 -p -d 'cuda occa'
-//               ex1 -p -d 'omp raja'
-//               ex1 -p -d 'omp occa'
-//               ex1 -m ../data/beam-hex.mesh -p -d cuda
+// Device sample runs:
+//             > ex1 -p -d cuda
+//             > ex1 -p -d raja-cuda
+//             > ex1 -p -d occa-cuda
+//             > ex1 -p -d raja-omp
+//             > ex1 -p -d occa-omp
+//             > ex1 -m ../data/beam-hex.mesh -p -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -61,7 +62,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   const char *device = "";
+   const char *device = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -75,7 +76,7 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&device, "-d", "--device",
-                  "Device configuration, e.g. 'cuda', 'omp', 'raja', 'occa'.");
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");

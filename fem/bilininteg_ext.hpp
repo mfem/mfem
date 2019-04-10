@@ -12,6 +12,8 @@
 #ifndef MFEM_BILININTEG_EXT
 #define MFEM_BILININTEG_EXT
 
+#include "fespace.hpp"
+
 namespace mfem
 {
 

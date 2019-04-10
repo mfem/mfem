@@ -17,7 +17,7 @@
 #include "matrix.hpp"
 #include "densemat.hpp"
 #include "dtensor.hpp"
-#include "../general/okina.hpp"
+#include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 
@@ -133,7 +133,7 @@ static void Transpose(const int height, const int width,
    const DeviceVector d_mdata(mdata);
    MFEM_FORALL(i, height,
    {
-      for (int j=0; j<width; j+=1)
+      for (int j = 0; j < width; j++)
       {
          d_data[i+j*height] = d_mdata[j+i*height];
       }
@@ -204,7 +204,7 @@ static void Mult(const int height, const int width,
    MFEM_FORALL(i, height,
    {
       double sum = 0.0;
-      for (int j=0; j<width; j+=1)
+      for (int j = 0; j < width; j++)
       {
          sum += d_x[j]*d_data[i+j*height];
       }

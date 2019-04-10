@@ -13,7 +13,7 @@
 
 #include "linalg.hpp"
 #include "dtensor.hpp"
-#include "../general/okina.hpp"
+#include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
 
@@ -594,7 +594,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       {
          double d = 0.0;
          const int end = d_I[i+1];
-         for (int j=d_I[i]; j < end; j+=1)
+         for (int j=d_I[i]; j < end; j++)
          {
             d += d_A[j] * d_x[d_J[j]];
          }

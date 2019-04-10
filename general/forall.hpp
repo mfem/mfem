@@ -9,16 +9,11 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_OKINA_HPP
-#define MFEM_OKINA_HPP
+#ifndef MFEM_FORALL_HPP
+#define MFEM_FORALL_HPP
 
 #include "../config/config.hpp"
 #include "error.hpp"
-
-#include <cmath>
-#include <cstring>
-#include <iostream>
-
 #include "cuda.hpp"
 #include "occa.hpp"
 #include "device.hpp"
@@ -32,16 +27,15 @@
 namespace mfem
 {
 
-// OKINA = Okina Kernel Interface for Numerical Analysis
-
-// Implementation of MFEM's okina device kernel interface and its CUDA, OpenMP,
-// RAJA, and sequential backends.
+// Implementation of MFEM's "parallel for" (forall) device/host kernel
+// interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
 
 // The MFEM_FORALL wrapper
-#define MFEM_FORALL(i,N,...)                                    \
-   OkinaWrap(N,                                                 \
-             [=] MFEM_DEVICE (int i) {__VA_ARGS__},             \
-             [&]             (int i) {__VA_ARGS__})
+#define MFEM_FORALL(i,N,...)                                     \
+   ForallWrap(N,                                                 \
+              [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},        \
+              [&]                  (int i) {__VA_ARGS__})
+
 
 /// OpenMP backend
 template <typename HBODY>
@@ -49,7 +43,7 @@ void OmpWrap(const int N, HBODY &&h_body)
 {
 #ifdef MFEM_USE_OPENMP
    #pragma omp parallel for
-   for (int k=0; k<N; k+=1)
+   for (int k = 0; k < N; k++)
    {
       h_body(k);
    }
@@ -57,6 +51,7 @@ void OmpWrap(const int N, HBODY &&h_body)
    MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
 #endif
 }
+
 
 /// RAJA Cuda backend
 template <int BLOCKS, typename DBODY>
@@ -69,6 +64,7 @@ void RajaCudaWrap(const int N, DBODY &&d_body)
 #endif
 }
 
+
 /// RAJA OpenMP backend
 template <typename HBODY>
 void RajaOmpWrap(const int N, HBODY &&h_body)
@@ -79,6 +75,7 @@ void RajaOmpWrap(const int N, HBODY &&h_body)
    MFEM_ABORT("RAJA::OpenMP requested but RAJA::OpenMP is not enabled!");
 #endif
 }
+
 
 /// RAJA sequential loop backend
 template <typename HBODY>
@@ -91,8 +88,10 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 #endif
 }
 
+
 /// CUDA backend
 #ifdef MFEM_USE_CUDA
+
 template <typename BODY> __global__ static
 void CuKernel(const int N, BODY body)
 {
@@ -100,6 +99,7 @@ void CuKernel(const int N, BODY body)
    if (k >= N) { return; }
    body(k);
 }
+
 template <int BLOCKS, typename DBODY>
 void CuWrap(const int N, DBODY &&d_body)
 {
@@ -109,28 +109,34 @@ void CuWrap(const int N, DBODY &&d_body)
    const cudaError_t last = cudaGetLastError();
    MFEM_VERIFY(last == cudaSuccess, cudaGetErrorString(last));
 }
-#else
+
+#else  // MFEM_USE_CUDA
+
 template <int BLOCKS, typename DBODY>
 void CuWrap(const int N, DBODY &&d_body) {}
+
 #endif
 
-#define MFEM_CUDA_BLOCKS 256
 
-/// The okina kernel body wrapper
+/// The forall kernel body wrapper
 template <typename DBODY, typename HBODY>
-void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
+void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {
-   const bool omp  = Device::UsingOmp();
-   const bool gpu  = Device::UsingDevice();
-   const bool raja = Device::UsingRaja();
-   if (gpu && raja) { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
-   if (gpu)         { return CuWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
-   if (omp && raja) { return RajaOmpWrap(N, h_body); }
-   if (raja)        { return RajaSeqWrap(N, h_body); }
-   if (omp)         { return OmpWrap(N, h_body);  }
-   for (int k=0; k<N; k+=1) { h_body(k); }
+   if (Device::Allows(Backend::RAJA_CUDA))
+   { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+
+   if (Device::Allows(Backend::CUDA))
+   { return CuWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+
+   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
+
+   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, h_body); }
+
+   if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
+
+   for (int k = 0; k < N; k++) { h_body(k); }
 }
 
 } // namespace mfem
 
-#endif // MFEM_OKINA_HPP
+#endif // MFEM_FORALL_HPP

@@ -9,7 +9,9 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/okina.hpp"
+#include "../general/forall.hpp"
+
+#include <cstring> // std::memcpy
 
 #include <list>
 #include <unordered_map>
@@ -74,7 +76,7 @@ MemoryManager::~MemoryManager()
 
 void* MemoryManager::Insert(void *ptr, const std::size_t bytes)
 {
-   if (!Device::UsingMM()) { return ptr; }
+   if (!UsingMM()) { return ptr; }
    const bool known = IsKnown(ptr);
    if (known)
    {
@@ -86,7 +88,7 @@ void* MemoryManager::Insert(void *ptr, const std::size_t bytes)
 
 void *MemoryManager::Erase(void *ptr)
 {
-   if (!Device::UsingMM()) { return ptr; }
+   if (!UsingMM()) { return ptr; }
    if (!ptr) { return ptr; }
    const bool known = IsKnown(ptr);
    if (!known)
@@ -169,10 +171,10 @@ bool MemoryManager::IsAlias(const void *ptr)
 
 static inline bool MmDeviceIniFilter(void)
 {
-   if (!Device::UsingMM()) { return true; }
-   if (Device::DeviceDisabled()) { return true; }
-   if (Device::IsTracking() == false) { return true; }
-   if (!Device::DeviceHasBeenEnabled()) { return true; }
+   if (!mm.UsingMM()) { return true; }
+   if (!mm.IsEnabled()) { return true; }
+   if (!Device::IsAvailable()) { return true; }
+   if (!Device::IsConfigured()) { return true; }
    return false;
 }
 
@@ -184,7 +186,7 @@ static void *PtrKnown(internal::Ledger *maps, void *ptr)
    const bool host = base.host;
    const bool device = !host;
    const std::size_t bytes = base.bytes;
-   const bool gpu = Device::UsingDevice();
+   const bool gpu = Device::Allows(Backend::DEVICE_MASK);
    if (host && !gpu) { return ptr; }
    if (bytes==0) { mfem_error("PtrKnown bytes==0"); }
    if (!base.d_ptr) { CuMemAlloc(&base.d_ptr, bytes); }
@@ -208,7 +210,7 @@ static void *PtrKnown(internal::Ledger *maps, void *ptr)
 // if necessary.
 static void *PtrAlias(internal::Ledger *maps, void *ptr)
 {
-   const bool gpu = Device::UsingDevice();
+   const bool gpu = Device::Allows(Backend::DEVICE_MASK);
    const internal::Alias *alias = maps->aliases.at(ptr);
    const internal::Memory *base = alias->mem;
    const bool host = base->host;
@@ -240,7 +242,7 @@ void *MemoryManager::Ptr(void *ptr)
    if (ptr==NULL) { return NULL; };
    if (IsKnown(ptr)) { return PtrKnown(maps, ptr); }
    if (IsAlias(ptr)) { return PtrAlias(maps, ptr); }
-   if (Device::UsingDevice())
+   if (Device::Allows(Backend::DEVICE_MASK))
    {
       mfem_error("Trying to use unknown pointer on the DEVICE!");
    }
@@ -273,7 +275,8 @@ void MemoryManager::Push(const void *ptr, const std::size_t bytes)
    if (MmDeviceIniFilter()) { return; }
    if (IsKnown(ptr)) { return PushKnown(maps, ptr, bytes); }
    if (IsAlias(ptr)) { return PushAlias(maps, ptr, bytes); }
-   if (Device::UsingDevice()) { mfem_error("Unknown pointer to push to!"); }
+   if (Device::Allows(Backend::DEVICE_MASK))
+   { mfem_error("Unknown pointer to push to!"); }
 }
 
 static void PullKnown(const internal::Ledger *maps,
@@ -303,25 +306,26 @@ void MemoryManager::Pull(const void *ptr, const std::size_t bytes)
    if (MmDeviceIniFilter()) { return; }
    if (IsKnown(ptr)) { return PullKnown(maps, ptr, bytes); }
    if (IsAlias(ptr)) { return PullAlias(maps, ptr, bytes); }
-   if (Device::UsingDevice()) { mfem_error("Unknown pointer to pull from!"); }
+   if (Device::Allows(Backend::DEVICE_MASK))
+   { mfem_error("Unknown pointer to pull from!"); }
 }
 
-extern CUstream *cuStream;
+namespace internal { extern CUstream *cuStream; }
 void* MemoryManager::Memcpy(void *dst, const void *src,
                             const std::size_t bytes, const bool async)
 {
    void *d_dst = Ptr(dst);
    void *d_src = const_cast<void*>(Ptr(src));
-   const bool host = Device::UsingHost();
    if (bytes == 0) { return dst; }
+   const bool host = !Device::Allows(Backend::DEVICE_MASK);
    if (host) { return std::memcpy(dst, src, bytes); }
    if (!async) { return CuMemcpyDtoD(d_dst, d_src, bytes); }
-   return CuMemcpyDtoDAsync(d_dst, d_src, bytes, cuStream);
+   return CuMemcpyDtoDAsync(d_dst, d_src, bytes, internal::cuStream);
 }
 
 void MemoryManager::RegisterCheck(void *ptr)
 {
-   if (ptr != NULL && Device::UsingMM())
+   if (ptr != NULL && UsingMM())
    {
       if (!IsKnown(ptr))
       {

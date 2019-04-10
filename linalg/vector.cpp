@@ -13,7 +13,7 @@
 
 #include "vector.hpp"
 #include "dtensor.hpp"
-#include "../general/okina.hpp"
+#include "../general/forall.hpp"
 
 #if defined(MFEM_USE_SUNDIALS) && defined(MFEM_USE_MPI)
 #include <nvector/nvector_parallel.h>
@@ -860,10 +860,10 @@ static double cuVectorMin(const int N, const double *X)
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
    if (!gdsr) { ::cuMemAlloc(&gdsr,bytes); }
    cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, x);
-   CuCheck(cudaGetLastError());
+   MFEM_CUDA_CHECK_RT(cudaGetLastError());
    ::cuMemcpy((CUdeviceptr)h_min,(CUdeviceptr)gdsr,bytes);
    double min = std::numeric_limits<double>::infinity();
-   for (int i=0; i<min_sz; i+=1) { min = fmin(min, h_min[i]); }
+   for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
    return min;
 }
 
@@ -912,25 +912,25 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
    if (!gdsr or dot_block_sz!=dot_sz)
    {
-      if (gdsr) { CuCheck(::cuMemFree(gdsr)); }
-      CuCheck(::cuMemAlloc(&gdsr,bytes));
+      if (gdsr) { MFEM_CUDA_CHECK_DRV(::cuMemFree(gdsr)); }
+      MFEM_CUDA_CHECK_DRV(::cuMemAlloc(&gdsr,bytes));
    }
    if (dot_block_sz!=dot_sz)
    {
       dot_block_sz = dot_sz;
    }
    cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
-   CuCheck(cudaGetLastError());
-   CuCheck(::cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
+   MFEM_CUDA_CHECK_RT(cudaGetLastError());
+   MFEM_CUDA_CHECK_DRV(::cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
    double dot = 0.0;
-   for (int i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
+   for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
    return dot;
 }
 #endif // MFEM_USE_CUDA
 
 double Min(const int N, const double *x)
 {
-   if (Device::UsingDevice())
+   if (Device::Allows(Backend::CUDA_MASK))
    {
 #ifdef MFEM_USE_CUDA
       return cuVectorMin(N, x);
@@ -939,13 +939,13 @@ double Min(const int N, const double *x)
 #endif // MFEM_USE_CUDA
    }
    double min = std::numeric_limits<double>::infinity();
-   for (int i=0; i<N; i+=1) { min = fmin(min, x[i]); }
+   for (int i = 0; i < N; i++) { min = fmin(min, x[i]); }
    return min;
 }
 
 double Dot(const int N, const double *x, const double *y)
 {
-   if (Device::UsingDevice())
+   if (Device::Allows(Backend::CUDA_MASK))
    {
 #ifdef MFEM_USE_CUDA
       return cuVectorDot(N, x, y);
@@ -957,7 +957,7 @@ double Dot(const int N, const double *x, const double *y)
 #ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for reduction(+:dot)
 #endif
-   for (int i=0; i<N; i+=1) { dot += x[i] * y[i]; }
+   for (int i = 0; i < N; i++) { dot += x[i] * y[i]; }
    return dot;
 }
 

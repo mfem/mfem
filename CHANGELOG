@@ -16,24 +16,27 @@ GPU support
 - Added initial support for hardware devices, such as GPUs, and programming
   models, such as CUDA, OCCA, RAJA and OpenMP.
 
-- The GPU/device support is based on MFEM's new "okina" kernel device interface
-  that supports various backends with dynamic execution, and MFEM's new
-  lightweight host/device memory manager "mm", designed to work seamlessly with
-  these device kernels. See the mem_manager.hpp and okina.hpp files in the
-  general/ directory.
+- The GPU/device support is based on MFEM's new backends and kernels plus a new
+  lightweight device/host memory manager. The kernels can be implemented either
+  in OCCA, or as a simple wrapper around for loops, which can then be dispatched
+  to RAJA and native backends. See the forall.hpp and mem_manager.hpp files in
+  the general/ directory.
 
-- Several of the MFEM example codes (ex1, ex1p, ex6, ex6p) can now take
-  advantage of GPU acceleration with backend selectable at runtime, see the
+- Several of the MFEM example codes (ex1, ex1p, ex6, and ex6p) can now take
+  advantage of GPU acceleration with the backend selectable at runtime, see the
   Device::Configure method in general/device.hpp.
 
 - Many of the linear algebra and finite element operations (e.g. partially
-  assembled bilinear forms) have been extended to take advantage of the device
-  kernels by simply replacing loops with the MFEM_FORALL() macro.
+  assembled bilinear forms) have been extended to take advantage of kernel
+  acceleration by simply replacing loops with the MFEM_FORALL() macro.
 
 - In addition to pure CUDA, we support OCCA, RAJA and OpenMP kernels, which
   could be mixed and matched in different parts of the same application. Adding
-  support for additional programming models and devices should be easy without
-  modifying the user code.
+  support for additional programming models and devices in the future will not
+  require significant modifications to the user code.
+
+- The full list of currently supported backends is: "occa-cuda", "raja-cuda",
+  "cuda", "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
 
 Support for wedge elements and meshes with mixed element types
 --------------------------------------------------------------
@@ -138,9 +141,9 @@ Miscellaneous
 - Various other simplifications, extensions, and bugfixes in the code.
 
 - Renamed the option MFEM_USE_OPENMP to MFEM_USE_LEGACY_OPENMP. This legacy
-  option is now deprecated and planned for removal in a future release. The
-  original option name, MFEM_USE_OPENMP, is now used to enable the new OpenMP
-  backends in the okina device kernels.
+  option is deprecated and planned for removal in a future release. The original
+  option name, MFEM_USE_OPENMP, is now used to enable the new OpenMP backends in
+  the new kernels.
 
 API changes
 -----------
