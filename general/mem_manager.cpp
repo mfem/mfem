@@ -131,7 +131,7 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
    const bool host = base.host;
    const bool device = !host;
    const size_t bytes = base.bytes;
-   const bool gpu = Device::IsEnabled();
+   const bool gpu = Device::Allows(Backend::DEVICE_MASK);
    if (host && !gpu) { return ptr; }
    if (bytes==0) { mfem_error("PtrKnown bytes==0"); }
    if (!base.d_ptr) { CuMemAlloc(&base.d_ptr, bytes); }
@@ -155,7 +155,7 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
 // if necessary.
 static void *PtrAlias(mm::ledger &maps, void *ptr)
 {
-   const bool gpu = Device::IsEnabled();
+   const bool gpu = Device::Allows(Backend::DEVICE_MASK);
    const mm::alias *alias = maps.aliases.at(ptr);
    const mm::memory *base = alias->mem;
    const bool host = base->host;
@@ -187,7 +187,7 @@ void *mm::Ptr(void *ptr)
    if (ptr==NULL) { return NULL; };
    if (Known(ptr)) { return PtrKnown(maps, ptr); }
    if (Alias(ptr)) { return PtrAlias(maps, ptr); }
-   if (Device::IsEnabled())
+   if (Device::Allows(Backend::DEVICE_MASK))
    {
       mfem_error("Trying to use unknown pointer on the DEVICE!");
    }
@@ -219,7 +219,8 @@ void mm::Push(const void *ptr, const size_t bytes)
    if (MmDeviceIniFilter()) { return; }
    if (Known(ptr)) { return PushKnown(maps, ptr, bytes); }
    if (Alias(ptr)) { return PushAlias(maps, ptr, bytes); }
-   if (Device::IsEnabled()) { mfem_error("Unknown pointer to push to!"); }
+   if (Device::Allows(Backend::DEVICE_MASK))
+   { mfem_error("Unknown pointer to push to!"); }
 }
 
 static void PullKnown(const mm::ledger &maps, const void *ptr,
@@ -249,7 +250,8 @@ void mm::Pull(const void *ptr, const size_t bytes)
    if (MmDeviceIniFilter()) { return; }
    if (Known(ptr)) { return PullKnown(maps, ptr, bytes); }
    if (Alias(ptr)) { return PullAlias(maps, ptr, bytes); }
-   if (Device::IsEnabled()) { mfem_error("Unknown pointer to pull from!"); }
+   if (Device::Allows(Backend::DEVICE_MASK))
+   { mfem_error("Unknown pointer to pull from!"); }
 }
 
 namespace internal { extern CUstream *cuStream; }
@@ -258,7 +260,7 @@ void* mm::memcpy(void *dst, const void *src, const size_t bytes,
 {
    void *d_dst = mm::ptr(dst);
    void *d_src = const_cast<void*>(mm::ptr(src));
-   const bool host = Device::IsDisabled();
+   const bool host = !Device::Allows(Backend::DEVICE_MASK);
    if (bytes == 0) { return dst; }
    if (host) { return std::memcpy(dst, src, bytes); }
    if (!async) { return CuMemcpyDtoD(d_dst, d_src, bytes); }

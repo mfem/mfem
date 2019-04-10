@@ -47,9 +47,10 @@ OccaMemory OccaPtr(const void *ptr)
    mm::memory &base = mm::mem(ptr);
    const bool ptr_on_host = base.host;
    const size_t bytes = base.bytes;
-   const bool run_on_host = Device::IsDisabled();
+   const bool run_on_host = !Device::Allows(Backend::DEVICE_MASK);
    // If the priority of a host OCCA backend is higher than all device OCCA
-   // backends, then we will need to run-on-host even if Device::IsEnabled().
+   // backends, then we will need to run-on-host even if the Device allows a
+   // device backend.
    if (ptr_on_host && run_on_host) { return OccaWrapMemory(dev, ptr, bytes); }
    if (run_on_host) { mfem_error("OccaPtr: !ptr_on_host && run_on_host"); }
    if (!base.d_ptr)

@@ -97,8 +97,9 @@ public:
       mm::MM().Erase(ptr);
    }
 
-   /** @brief Translates ptr to host or device address, depending on
-       Device::IsEnabled() and the ptr state. */
+   /** @brief Translates ptr to host or device address, depending on what
+       backends are currently allowed by the Device class and on the ptr state.
+   */
    template <class T>
    static inline T *ptr(T *a) { return static_cast<T*>(MM().Ptr(a)); }
 
