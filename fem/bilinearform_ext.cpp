@@ -12,10 +12,8 @@
 // Implementations of classes FABilinearFormExtension, EABilinearFormExtension,
 // PABilinearFormExtension and MFBilinearFormExtension.
 
-#include "fem.hpp"
-#include "bilininteg.hpp"
 #include "../general/okina.hpp"
-#include "../linalg/dtensor.hpp"
+#include "bilinearform.hpp"
 
 namespace mfem
 {
