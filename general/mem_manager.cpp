@@ -59,20 +59,19 @@ struct Ledger
 
 } // namespace mfem::internal
 
-bool mm_destroyed;
 static internal::Ledger *maps;
 
 MemoryManager::MemoryManager()
 {
    enabled = true;
+   destroyed = false;
    maps = new internal::Ledger();
-   mm_destroyed = false;
 }
 
 MemoryManager::~MemoryManager()
 {
    delete maps;
-   mm_destroyed = true;
+   destroyed = true;
 }
 
 void* MemoryManager::Insert(void *ptr, const std::size_t bytes)
@@ -354,5 +353,6 @@ void MemoryManager::GetAll(void)
 }
 
 MemoryManager mm;
+bool MemoryManager::destroyed;
 
 } // namespace mfem
