@@ -83,7 +83,7 @@ public:
    /// Copy constructor: deep copy
    Array(const Array<T> &src)
       : BaseArray(src.size, 0, sizeof(T))
-   { mm::memcpy(data, src.data, size*sizeof(T)); }
+   { mm::Memcpy(data, src.data, size*sizeof(T)); }
 
    /// Copy constructor (deep copy) from an Array of convertable type
    template <typename CT>
@@ -191,7 +191,7 @@ public:
    inline void Copy(Array &copy) const
    {
       copy.SetSize(Size());
-      mm::memcpy(copy.GetData(), data, Size()*sizeof(T));
+      mm::Memcpy(copy.GetData(), data, Size()*sizeof(T));
    }
 
    /// Make this Array a reference to a pointer

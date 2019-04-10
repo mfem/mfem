@@ -32,12 +32,12 @@ namespace mfem
 
 void Vector::Push() const
 {
-   mm::push(data, size*sizeof(double));
+   mm::Push(data, size*sizeof(double));
 }
 
 void Vector::Pull() const
 {
-   mm::pull(data, size*sizeof(double));
+   mm::Pull(data, size*sizeof(double));
 }
 
 Vector::Vector(const Vector &v)
@@ -49,7 +49,7 @@ Vector::Vector(const Vector &v)
       MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
       data = mm::New<double>(s);
-      mm::memcpy(data, v.data, sizeof(double)*s);
+      mm::Memcpy(data, v.data, sizeof(double)*s);
    }
    else
    {
@@ -120,7 +120,7 @@ Vector &Vector::operator=(const double *v)
    if (data != v)
    {
       MFEM_ASSERT(data + size <= v || v + size <= data, "Vectors overlap!");
-      mm::memcpy(data, v, sizeof(double)*size);
+      mm::Memcpy(data, v, sizeof(double)*size);
    }
    return *this;
 }

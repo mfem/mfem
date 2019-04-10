@@ -51,7 +51,7 @@ void BaseArray::GrowSize(int minsize, int elementsize)
    p = mm::New<char>(nsize * elementsize);
    if (size > 0)
    {
-      mm::memcpy(p, data, size * elementsize);
+      mm::Memcpy(p, data, size * elementsize);
    }
    if (allocsize > 0)
    {

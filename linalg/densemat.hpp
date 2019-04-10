@@ -684,7 +684,7 @@ public:
       if (size > 0)
       {
          tdata = mm::New<double>(size);
-         mm::memcpy(tdata, other.tdata, sizeof(double) * size);
+         mm::Memcpy(tdata, other.tdata, sizeof(double) * size);
       }
       else
       {
