@@ -64,6 +64,7 @@ static internal::Ledger *maps;
 
 MemoryManager::MemoryManager()
 {
+   enabled = true;
    maps = new internal::Ledger();
    mm_destroyed = false;
 }
@@ -183,24 +184,23 @@ static inline bool MmDeviceIniFilter(void)
 static void *PtrKnown(internal::Ledger *maps, void *ptr)
 {
    internal::Memory &base = maps->memories.at(ptr);
-   const bool host = base.host;
-   const bool device = !host;
+   const bool ptr_on_host = base.host;
    const std::size_t bytes = base.bytes;
-   const bool gpu = Device::Allows(Backend::DEVICE_MASK);
-   if (host && !gpu) { return ptr; }
+   const bool run_on_device = Device::Allows(Backend::DEVICE_MASK);
+   if (ptr_on_host && !run_on_device) { return ptr; }
    if (bytes==0) { mfem_error("PtrKnown bytes==0"); }
    if (!base.d_ptr) { CuMemAlloc(&base.d_ptr, bytes); }
    if (!base.d_ptr) { mfem_error("PtrKnown !base->d_ptr"); }
-   if (device &&  gpu) { return base.d_ptr; }
+   if (!ptr_on_host && run_on_device) { return base.d_ptr; }
    if (!ptr) { mfem_error("PtrKnown !ptr"); }
-   if (device && !gpu) // Pull
+   if (!ptr_on_host && !run_on_device) // Pull
    {
       CuMemcpyDtoH(ptr, base.d_ptr, bytes);
       base.host = true;
       return ptr;
    }
    // Push
-   if (!(host && gpu)) { mfem_error("PtrKnown !(host && gpu)"); }
+   if (!(ptr_on_host && run_on_device)) { mfem_error("PtrKnown !(host && gpu)"); }
    CuMemcpyHtoD(base.d_ptr, ptr, bytes);
    base.host = false;
    return base.d_ptr;
@@ -317,8 +317,8 @@ void* MemoryManager::Memcpy(void *dst, const void *src,
    void *d_dst = Ptr(dst);
    void *d_src = const_cast<void*>(Ptr(src));
    if (bytes == 0) { return dst; }
-   const bool host = !Device::Allows(Backend::DEVICE_MASK);
-   if (host) { return std::memcpy(dst, src, bytes); }
+   const bool run_on_host = !Device::Allows(Backend::DEVICE_MASK);
+   if (run_on_host) { return std::memcpy(dst, src, bytes); }
    if (!async) { return CuMemcpyDtoD(d_dst, d_src, bytes); }
    return CuMemcpyDtoDAsync(d_dst, d_src, bytes, internal::cuStream);
 }
