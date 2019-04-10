@@ -16,14 +16,14 @@ GPU support
 - Added initial support for hardware devices, such as GPUs, and programming
   models, such as CUDA, OCCA, RAJA and OpenMP.
 
-- The GPU/device support is based on MFEM's new device/host kernels plus a new
+- The GPU/device support is based on MFEM's new backends and kernels plus a new
   lightweight device/host memory manager. The kernels can be implemented either
   in OCCA, or as a simple wrapper around for loops, which can then be dispatched
   to RAJA and native backends. See the forall.hpp and mem_manager.hpp files in
   the general/ directory.
 
-- Several of the MFEM example codes (ex1, ex1p, ex6, ex6p) can now take
-  advantage of GPU acceleration with backend selectable at runtime, see the
+- Several of the MFEM example codes (ex1, ex1p, ex6, and ex6p) can now take
+  advantage of GPU acceleration with the backend selectable at runtime, see the
   Device::Configure method in general/device.hpp.
 
 - Many of the linear algebra and finite element operations (e.g. partially

@@ -27,8 +27,8 @@
 namespace mfem
 {
 
-// Implementation of MFEM's for (forall) device/host kernel interfaces
-// supporting RAJA, CUDA, OpenMP, and sequential backends.
+// Implementation of MFEM's "parallel for" (forall) device/host kernel
+// interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
 
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                                     \
