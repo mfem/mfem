@@ -366,6 +366,9 @@ HertzSolver::Solve()
    OperatorHandle PCOp;
    b1_->FormSystemMatrix(ess_bdr_tdofs_, PCOp);
 
+   tic_toc.Clear();
+   tic_toc.Start();
+
    Operator * pcr = NULL;
    Operator * pci = NULL;
    BlockDiagonalPreconditioner * BDP = NULL;
@@ -525,13 +528,18 @@ HertzSolver::Solve()
          break;
    };
 
+   tic_toc.Stop();
+
    e_->Distribute(E);
 
    delete BDP;
    if (pci != pcr) { delete pci; }
    delete pcr;
 
-   if ( myid_ == 0 && logging_ > 0 ) { cout << " Solver done. " << endl; }
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+      cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
 }
 
 void
