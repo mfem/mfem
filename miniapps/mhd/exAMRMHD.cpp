@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
    alpha = 0.001; 
    Lx=3.0;
    lambda=5.0;
+   int ref_steps=1000;
 
    bool visualization = true;
    int vis_steps = 10;
@@ -257,17 +258,113 @@ int main(int argc, char *argv[])
    fe_offset[3] = 3*fe_size;
    fe_offset[4] = 4*fe_size;
 
+   BlockVector vxTmp(fe_offset);
+   GridFunction psi, phi, w, j;
+   phi.MakeRef(&fespace, vxTmp.GetBlock(0), 0);
+   psi.MakeRef(&fespace, vxTmp.GetBlock(1), 0);
+     w.MakeRef(&fespace, vxTmp.GetBlock(2), 0);
+     j.MakeRef(&fespace, vxTmp.GetBlock(3), 0);
+   phi=0.0;
+   psi=0.0;
+   w=0.0;
+   j=0.0;
+
+   //this is a periodic boundary condition in x and Direchlet in y 
+   Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
+   ess_bdr = 0;
+   ess_bdr[0] = 1;  //set attribute 1 to Direchlet boundary fixed
+   if(ess_bdr.Size()!=1)
+   {
+    cout <<"ess_bdr size should be 1 but it is "<<ess_bdr.Size()<<endl;
+    delete ode_solver;
+    delete mesh;
+    return 2;
+   }
+
+   //-----------------------------------AMR---------------------------------
+   int sdim = mesh->SpaceDimension();
+   BilinearFormIntegrator *integ = new DiffusionIntegrator;
+   FiniteElementSpace flux_fespace1(mesh, &fe_coll, sdim), flux_fespace2(mesh, &fe_coll, sdim);
+   BlockZZEstimator estimator(*integ, j, *integ, psi, flux_fespace1, flux_fespace2);
+   //ZienkiewiczZhuEstimator estimator(*integ, w, flux_fespace1);
+   //ZienkiewiczZhuEstimator estimator(*integ, j, flux_fespace1);
+
+   ThresholdRefiner refiner(estimator);
+   //refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
+   refiner.SetTotalErrorGoal(1e-10);    // total error goal (stop criterion)
+   refiner.SetLocalErrorGoal(1e-10);    // local error goal (stop criterion)
+   refiner.SetMaxElements(50000);
+   refiner.SetMaximumRefinementLevel(amr_levels);
+   //refiner.SetYRange(-.75, .75);
+   //refiner.PreferNonconformingRefinement();
+   refiner.SetNCLimit(nc_limit);
+
+   ThresholdDerefiner derefiner(estimator);
+   derefiner.SetThreshold(.15*ltol_amr);
+   derefiner.SetNCLimit(nc_limit);
+   //-----------------------------------AMR---------------------------------
+
+   //-----------------------------------Generate grid---------------------------------
+   AMRResistiveMHDOperator operTmp(fespace, ess_bdr, visc, resi);
+   BlockVector vx_old(vxTmp);
+   operTmp.assembleProblem(ess_bdr); 
+
+   //psi is needed to get solution started
+   if (icase==1)
+   {
+        FunctionCoefficient psiInit(InitialPsi);
+        psi.ProjectCoefficient(psiInit);
+   }
+   else if (icase==2)
+   {
+        FunctionCoefficient psiInit2(InitialPsi2);
+        psi.ProjectCoefficient(psiInit2);
+   }
+   else if (icase==3)
+   {
+        FunctionCoefficient psiInit3(InitialPsi3);
+        psi.ProjectCoefficient(psiInit3);
+   }
+   psi.SetTrueVector();
+
+   for (int ref_it = 1; ; ref_it++)
+   {
+     operTmp.UpdateJ(vxTmp);
+     refiner.Apply(*mesh);
+     if (refiner.Refined()==false)
+     {
+         break;
+     }
+     else
+     {
+         cout<<"Initial mesh refine..."<<endl;
+         //---Update problem---
+         AMRUpdate(vxTmp, vx_old, fe_offset, phi, psi, w, j);
+         operTmp.UpdateProblem();
+         operTmp.assembleProblem(ess_bdr); 
+     }
+   }
+   cout<<"Finish initial mesh refine..."<<endl;
+   //-----------------------------------Generate grid---------------------------------
+
+
+   //-----------------------------------Initial solution on AMR grid---------------------------------
    BlockVector vx(fe_offset);
-   GridFunction psi, phi, w, j, psiBack(&fespace);
    phi.MakeRef(&fespace, vx.GetBlock(0), 0);
    psi.MakeRef(&fespace, vx.GetBlock(1), 0);
      w.MakeRef(&fespace, vx.GetBlock(2), 0);
      j.MakeRef(&fespace, vx.GetBlock(3), 0);
-
-   // 6. Set the initial conditions, and the boundary conditions
+ 
    FunctionCoefficient phiInit(InitialPhi);
    phi.ProjectCoefficient(phiInit);
    phi.SetTrueVector();
+
+   AMRResistiveMHDOperator oper(fespace, ess_bdr, visc, resi);
+   if (icase==2)  //add the source term
+   {
+       FunctionCoefficient e0(E0rhs);
+       oper.SetRHSEfield(e0);
+   }
 
    if (icase==1)
    {
@@ -308,6 +405,7 @@ int main(int argc, char *argv[])
    j.SetTrueVector();
 
    //Set the background psi
+   GridFunction psiBack(&fespace);
    if (icase==1)
    {
         FunctionCoefficient psi0(BackPsi);
@@ -319,26 +417,6 @@ int main(int argc, char *argv[])
         psiBack.ProjectCoefficient(psi02);
    }
    psiBack.SetTrueVector();
-
-   //this is a periodic boundary condition in x and Direchlet in y 
-   Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
-   ess_bdr = 0;
-   ess_bdr[0] = 1;  //set attribute 1 to Direchlet boundary fixed
-   if(ess_bdr.Size()!=1)
-   {
-    cout <<"ess_bdr size should be 1 but it is "<<ess_bdr.Size()<<endl;
-    delete ode_solver;
-    delete mesh;
-    return 2;
-   }
-
-   // 7. Initialize the MHD operator, the GLVis visualization    
-   AMRResistiveMHDOperator oper(fespace, ess_bdr, visc, resi);
-   if (icase==2)  //add the source term
-   {
-       FunctionCoefficient e0(E0rhs);
-       oper.SetRHSEfield(e0);
-   }
 
    socketstream vis_phi, vis_j, vis_psi, vis_w;
    //subtract(psi,psiBack,psiPer);
@@ -387,34 +465,14 @@ int main(int argc, char *argv[])
       }
    }
 
-   //-----------------------------------AMR---------------------------------
-   int sdim = mesh->SpaceDimension();
-   BilinearFormIntegrator *integ = new DiffusionIntegrator;
-   FiniteElementSpace flux_fespace1(mesh, &fe_coll, sdim), flux_fespace2(mesh, &fe_coll, sdim);
-   BlockZZEstimator estimator(*integ, j, *integ, psi, flux_fespace1, flux_fespace2);
-   //ZienkiewiczZhuEstimator estimator(*integ, w, flux_fespace1);
-   //ZienkiewiczZhuEstimator estimator(*integ, j, flux_fespace1);
-
-   ThresholdRefiner refiner(estimator);
-   //refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
-   refiner.SetTotalErrorGoal(ltol_amr);    // total error goal (stop criterion)
-   refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
-   refiner.SetMaxElements(50000);
-   refiner.SetMaximumRefinementLevel(amr_levels);
-   //refiner.SetYRange(-.75, .75);
-   //refiner.PreferNonconformingRefinement();
-   refiner.SetNCLimit(nc_limit);
-
-   ThresholdDerefiner derefiner(estimator);
-   derefiner.SetThreshold(.15*ltol_amr);
-   derefiner.SetNCLimit(nc_limit);
-   //-----------------------------------AMR---------------------------------
-
    double t = 0.0;
    oper.SetTime(t);
    ode_solver->Init(oper);
-   BlockVector vx_old(vx);
    bool last_step = false;
+
+   //reset ltol_amr for real simulation
+   refiner.SetTotalErrorGoal(ltol_amr);    // total error goal (stop criterion)
+   refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
@@ -446,15 +504,20 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
+   bool refineMesh;
+   cout<<"Start time stepping..."<<endl;
    //---assemble problem and update boundary condition---
    oper.assembleProblem(ess_bdr); 
-   // 8. Perform time-integration (looping over the time iterations, ti, with a
-   //    time-step dt).
    for (int ti = 1; !last_step; ti++)
    {
       double dt_real = min(dt, t_final - t);
 
-      refiner.Reset();
+      if ((ti % ref_steps) == 0)
+          refineMesh=true;
+      else
+          refineMesh=false;
+
+      if (refineMesh) refiner.Reset();
       if (derefine) derefiner.Reset();
 
       // 13. The inner refinement loop. At the end we want to have the current
@@ -482,11 +545,9 @@ int main(int argc, char *argv[])
         last_step = (t >= t_final - 1e-8*dt);
         cout << "step " << ti << ", t = " << t <<endl;
 
-
-
         //----------------------------AMR---------------------------------
-        refiner.Apply(*mesh);
-        if (refiner.Refined()==false)
+        if (refineMesh)  refiner.Apply(*mesh);
+        if (refiner.Refined()==false || (!refineMesh))
         {
            if (derefine && derefiner.Apply(*mesh))
            {
@@ -582,13 +643,6 @@ int main(int argc, char *argv[])
       }
 
    }
-
-   /*
-  for (int el = 0; el < mesh->GetNE(); el++)
-  {
-      cout <<"("<<el<<","<<mesh->ncmesh->GetElementDepth(el)<<")";
-  }
-  */
 
    // 9. Save the solutions.
    {

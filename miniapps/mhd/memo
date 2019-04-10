@@ -13,6 +13,14 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+4/10
+try:
+Start with an AMR mesh
+Refine every 1000 time steps
+./exAMRMHD -m xperiodicR3.mesh -r 0 -o 4 -tf 8 -vs 10 -dt .0001 -i 3 -amrl 3 -ltol 1e-3
+
+in the inner loop of refinement, I could potential do an iteration!
+
 4/9
 grid space 5e-3 at x point for island
 try back solve Psi through J! not working!

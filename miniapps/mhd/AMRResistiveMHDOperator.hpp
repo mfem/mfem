@@ -343,7 +343,7 @@ void AMRResistiveMHDOperator::BackSolvePsi(Vector &vx)
    cout <<"===Back Solve Psi==="<<endl;
    z.SetSize(sc);
 
-   M->Mult(j, z);
+   Mrhs->Mult(j, z);
    z.Neg(); // z = -z
 
    SparseMatrix A;
