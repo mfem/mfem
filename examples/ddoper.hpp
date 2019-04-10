@@ -709,6 +709,7 @@ public:
 
     AsdRe = new Operator*[numSubdomains];
     AsdIm = new Operator*[numSubdomains];
+    AsdP = new Operator*[numSubdomains];
     AsdComplex = new BlockOperator*[numSubdomains];
     precAsdComplex = new BlockDiagonalPreconditioner*[numSubdomains];
     invAsdComplex = new Operator*[numSubdomains];
@@ -893,8 +894,12 @@ public:
 	SetToImaginaryParameters();
 	
 	AsdIm[m] = CreateSubdomainOperator(m);
+
+	// Set real-valued subdomain operator for preconditioning purposes only.
+	SetToPreconditionerParameters();
+	AsdP[m] = CreateSubdomainOperator(m);
 	
-	gmres->SetOperator(*(AsdRe[m]));
+	gmres->SetOperator(*(AsdP[m]));  // TODO: maybe try an SPD version of Asd with a CG solver instead of GMRES.
 #else
 	Asd[m] = CreateSubdomainOperator(m);
 
@@ -1108,14 +1113,14 @@ public:
 	    precAsdComplex[m] = new BlockDiagonalPreconditioner(block_ComplexOffsetsSD[m]);
 	    precAsdComplex[m]->SetDiagonalBlock(0, invAsd[m]);
 	    precAsdComplex[m]->SetDiagonalBlock(1, invAsd[m]);
-
+	    
 	    GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
 
 	    gmres->SetOperator(*(AsdComplex[m]));
 
 	    gmres->SetRelTol(1e-12);
 	    gmres->SetMaxIter(1000);
-	    gmres->SetPrintLevel(1);
+	    gmres->SetPrintLevel(0);
 
 	    gmres->SetPreconditioner(*(precAsdComplex[m]));
 	    invAsdComplex[m] = gmres;
@@ -1208,6 +1213,10 @@ public:
   {
     Vector sourceSD, wSD, vSD;
 
+    int nprocs, rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+
 #ifdef DDMCOMPLEX
     MFEM_VERIFY(sourceReduced.Size() == block_trueOffsets2[numSubdomains], "");
 #else
@@ -1230,6 +1239,7 @@ public:
 	    
 	    ySD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
 	    wSD.SetSize(AsdComplex[m]->Height());
+	    wSD = 0.0;
 	    
 	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalRe, sourceSD);
 
@@ -1242,11 +1252,13 @@ public:
 	    for (int i=0; i<sourceSD.Size(); ++i)
 	      (*(ySD[m]))[block_ComplexOffsetsSD[m][1] + i] = sourceSD[i];  // Set the u_m block of ySD, imaginary part
 
-	    cout << "Applying invAsdComplex[" << m << "]" << endl;
+	    cout << rank << ": ySD norm: " << ySD[m]->Norml2() << ", wSD norm " << wSD.Norml2() << endl;
+	    
+	    cout << rank << ": Applying invAsdComplex[" << m << "]" << endl;
 	    
 	    invAsdComplex[m]->Mult(*(ySD[m]), wSD);
 
-	    cout << "Done applying invAsdComplex[" << m << "]" << endl;
+	    cout << rank << ": Done applying invAsdComplex[" << m << "]" << endl;
 
 	    // Extract only the [u_m^s, f_m, \rho_m] entries, real and imaginary parts.
 	    vSD.SetSize(block_trueOffsets2[m+1] - block_trueOffsets2[m]);
@@ -1343,7 +1355,7 @@ private:
   ParBilinearForm **bf_sdND;
   Operator **sdNDinv;
 #ifdef DDMCOMPLEX
-  Operator **AsdRe, **AsdIm, **invAsdComplex;
+  Operator **AsdRe, **AsdIm, **AsdP, **invAsdComplex;
   BlockOperator **AsdComplex;
   BlockDiagonalPreconditioner **precAsdComplex;
 #else
@@ -1469,6 +1481,26 @@ private:
     gammaOverAlpha = ((alphaRe * gammaIm) - (alphaIm * gammaRe)) / ((alphaRe * alphaRe) + (alphaIm * alphaIm));
   }	
   
+  void SetToPreconditionerParameters()
+  {
+    realPart = true;
+
+    /*
+    alpha = 1.0;
+    beta = 1.0;
+    gamma = 1.0;
+    */
+    
+    alpha = sqrt((alphaRe * alphaRe) + (alphaIm * alphaIm));
+    beta = sqrt((betaRe * betaRe) + (betaIm * betaIm));
+    gamma = sqrt((gammaRe * gammaRe) + (gammaIm * gammaIm));
+
+    alphaInverse = 1.0 / alpha;
+
+    betaOverAlpha = beta / alpha;
+    gammaOverAlpha = gamma / alpha;
+  }
+
   void CreateInterfaceMatrices(const int interfaceIndex)
   {
     int num_procs, myid;
