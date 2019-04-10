@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_OKINA_HPP
-#define MFEM_OKINA_HPP
+#ifndef MFEM_FORALL_HPP
+#define MFEM_FORALL_HPP
 
 #include "../config/config.hpp"
 #include "error.hpp"
@@ -27,16 +27,14 @@
 namespace mfem
 {
 
-// OKINA = Okina Kernel Interface for Numerical Analysis
-
-// Implementation of MFEM's okina device kernel interface and its CUDA, OpenMP,
-// RAJA, and sequential backends.
+// Implementation of MFEM's "parallel for" (forall) device/host kernel
+// interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
 
 // The MFEM_FORALL wrapper
-#define MFEM_FORALL(i,N,...)                                    \
-   OkinaWrap(N,                                                 \
-             [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},        \
-             [&]                  (int i) {__VA_ARGS__})
+#define MFEM_FORALL(i,N,...)                                     \
+   ForallWrap(N,                                                 \
+              [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},        \
+              [&]                  (int i) {__VA_ARGS__})
 
 
 /// OpenMP backend
@@ -120,9 +118,9 @@ void CuWrap(const int N, DBODY &&d_body) {}
 #endif
 
 
-/// The okina kernel body wrapper
+/// The forall kernel body wrapper
 template <typename DBODY, typename HBODY>
-void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
+void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 {
    if (Device::Allows(Backend::RAJA_CUDA))
    { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
@@ -141,4 +139,4 @@ void OkinaWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 
 } // namespace mfem
 
-#endif // MFEM_OKINA_HPP
+#endif // MFEM_FORALL_HPP
