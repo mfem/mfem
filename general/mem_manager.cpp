@@ -57,22 +57,22 @@ struct Ledger
 
 } // namespace mfem::internal
 
-bool MMReady;
+bool mm_destroyed;
 static internal::Ledger *maps;
 
-MemManager::MemManager()
+MemoryManager::MemoryManager()
 {
    maps = new internal::Ledger();
-   MMReady = true;
+   mm_destroyed = false;
 }
 
-MemManager::~MemManager()
+MemoryManager::~MemoryManager()
 {
    delete maps;
-   MMReady = false;
+   mm_destroyed = true;
 }
 
-void* MemManager::Insert(void *ptr, const std::size_t bytes)
+void* MemoryManager::Insert(void *ptr, const std::size_t bytes)
 {
    if (!Device::UsingMM()) { return ptr; }
    const bool known = IsKnown(ptr);
@@ -84,7 +84,7 @@ void* MemManager::Insert(void *ptr, const std::size_t bytes)
    return ptr;
 }
 
-void *MemManager::Erase(void *ptr)
+void *MemoryManager::Erase(void *ptr)
 {
    if (!Device::UsingMM()) { return ptr; }
    if (!ptr) { return ptr; }
@@ -101,29 +101,29 @@ void *MemManager::Erase(void *ptr)
    return ptr;
 }
 
-void MemManager::SetHostDevicePtr(void *h_ptr, void *d_ptr, const bool host)
+void MemoryManager::SetHostDevicePtr(void *h_ptr, void *d_ptr, const bool host)
 {
    internal::Memory &base = maps->memories.at(h_ptr);
    base.d_ptr = d_ptr;
    base.host = host;
 }
 
-bool MemManager::IsKnown(const void *ptr)
+bool MemoryManager::IsKnown(const void *ptr)
 {
    return maps->memories.find(ptr) != maps->memories.end();
 }
 
-bool MemManager::IsOnHost(const void *ptr)
+bool MemoryManager::IsOnHost(const void *ptr)
 {
    return maps->memories.at(ptr).host;
 }
 
-std::size_t MemManager::Bytes(const void *ptr)
+std::size_t MemoryManager::Bytes(const void *ptr)
 {
    return maps->memories.at(ptr).bytes;
 }
 
-void *MemManager::GetDevicePtr(const void *ptr)
+void *MemoryManager::GetDevicePtr(const void *ptr)
 {
    internal::Memory &base = maps->memories.at(ptr);
    const size_t bytes = base.bytes;
@@ -151,7 +151,7 @@ static const void* AliasBaseMemory(const internal::Ledger *maps,
    return nullptr;
 }
 
-bool MemManager::IsAlias(const void *ptr)
+bool MemoryManager::IsAlias(const void *ptr)
 {
    const internal::AliasMap::const_iterator found = maps->aliases.find(ptr);
    if (found != maps->aliases.end()) { return true; }
@@ -234,7 +234,7 @@ static void *PtrAlias(internal::Ledger *maps, void *ptr)
    return a_ptr;
 }
 
-void *MemManager::Ptr(void *ptr)
+void *MemoryManager::Ptr(void *ptr)
 {
    if (MmDeviceIniFilter()) { return ptr; }
    if (ptr==NULL) { return NULL; };
@@ -247,7 +247,7 @@ void *MemManager::Ptr(void *ptr)
    return ptr;
 }
 
-const void *MemManager::Ptr(const void *ptr)
+const void *MemoryManager::Ptr(const void *ptr)
 {
    return static_cast<const void*>(Ptr(const_cast<void*>(ptr)));
 }
@@ -268,7 +268,7 @@ static void PushAlias(const internal::Ledger *maps,
    CuMemcpyHtoD(dst, ptr, bytes);
 }
 
-void MemManager::Push(const void *ptr, const std::size_t bytes)
+void MemoryManager::Push(const void *ptr, const std::size_t bytes)
 {
    if (MmDeviceIniFilter()) { return; }
    if (IsKnown(ptr)) { return PushKnown(maps, ptr, bytes); }
@@ -298,7 +298,7 @@ static void PullAlias(const internal::Ledger *maps,
                 bytes);
 }
 
-void MemManager::Pull(const void *ptr, const std::size_t bytes)
+void MemoryManager::Pull(const void *ptr, const std::size_t bytes)
 {
    if (MmDeviceIniFilter()) { return; }
    if (IsKnown(ptr)) { return PullKnown(maps, ptr, bytes); }
@@ -307,8 +307,8 @@ void MemManager::Pull(const void *ptr, const std::size_t bytes)
 }
 
 extern CUstream *cuStream;
-void* MemManager::Memcpy(void *dst, const void *src,
-                         const std::size_t bytes, const bool async)
+void* MemoryManager::Memcpy(void *dst, const void *src,
+                            const std::size_t bytes, const bool async)
 {
    void *d_dst = Ptr(dst);
    void *d_src = const_cast<void*>(Ptr(src));
@@ -319,7 +319,7 @@ void* MemManager::Memcpy(void *dst, const void *src,
    return CuMemcpyDtoDAsync(d_dst, d_src, bytes, cuStream);
 }
 
-void MemManager::RegisterCheck(void *ptr)
+void MemoryManager::RegisterCheck(void *ptr)
 {
    if (ptr != NULL && Device::UsingMM())
    {
@@ -330,7 +330,7 @@ void MemManager::RegisterCheck(void *ptr)
    }
 }
 
-void MemManager::PrintPtrs(void)
+void MemoryManager::PrintPtrs(void)
 {
    for (const auto& n : maps->memories)
    {
@@ -340,7 +340,7 @@ void MemManager::PrintPtrs(void)
    }
 }
 
-void MemManager::GetAll(void)
+void MemoryManager::GetAll(void)
 {
    for (const auto& n : maps->memories)
    {
@@ -349,6 +349,6 @@ void MemManager::GetAll(void)
    }
 }
 
-MemManager MM;
+MemoryManager mm;
 
 } // namespace mfem
