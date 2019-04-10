@@ -15,7 +15,7 @@
 #include "table.hpp"
 #include "error.hpp"
 
-#include "../general/okina.hpp"
+#include "../general/forall.hpp"
 #include <iostream>
 #include <iomanip>
 

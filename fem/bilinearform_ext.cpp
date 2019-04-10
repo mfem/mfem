@@ -12,7 +12,7 @@
 // Implementations of classes FABilinearFormExtension, EABilinearFormExtension,
 // PABilinearFormExtension and MFBilinearFormExtension.
 
-#include "../general/okina.hpp"
+#include "../general/forall.hpp"
 #include "bilinearform.hpp"
 
 namespace mfem

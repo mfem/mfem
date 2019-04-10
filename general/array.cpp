@@ -13,7 +13,7 @@
 // Abstract array data type
 
 #include "array.hpp"
-#include "../general/okina.hpp"
+#include "../general/forall.hpp"
 #include <fstream>
 
 namespace mfem
