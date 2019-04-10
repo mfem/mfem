@@ -24,7 +24,12 @@ namespace mfem
 class MemoryManager
 {
 private:
+   /// Allow to enable/disable the Ptr, Pull and Push functionalities
+   /// New and Delete will still continue to register the pointers
    bool enabled;
+
+   /// Allow to detect if the memory manager has been destroyed
+   static bool destroyed;
 
 public:
    MemoryManager();
@@ -58,6 +63,9 @@ public:
 
    /// The opposite of IsEnabled().
    bool IsDisabled() { return !IsEnabled(); }
+
+   /// Return true if the memory manager has been destroyed
+   static bool IsDestroyed() { return destroyed; }
 
    /** @brief Translates ptr to host or device address, depending on what
        backends are currently allowed by the Device class and on the ptr
@@ -133,9 +141,6 @@ public:
 /// The (single) global memory manager object
 extern MemoryManager mm;
 
-/// Is global memory management still available?
-extern bool mm_destroyed;
-
 /// Main memory allocation template function. Allocates n*size bytes and returns
 /// a pointer to the allocated memory.
 template<class T>
@@ -151,7 +156,7 @@ inline void Delete(T *ptr)
                  "Explicitly provide the correct type as a template parameter.");
    if (!ptr) { return; }
    delete [] ptr;
-   if (mm_destroyed) { return; }
+   if (MemoryManager::IsDestroyed()) { return; }
    mm.Erase(ptr);
 }
 
@@ -171,7 +176,6 @@ inline void Push(const void *ptr, const std::size_t bytes = 0)
 /// Pull the data from the device
 inline void Pull(const void *ptr, const std::size_t bytes = 0)
 { return mm.Pull(ptr, bytes); }
-
 
 } // namespace mfem
 
