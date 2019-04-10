@@ -94,13 +94,13 @@ ParDiscreteDivOperator::ParDiscreteDivOperator(ParFiniteElementSpace *dfes,
    this->AddDomainInterpolator(new DivergenceInterpolator);
 }
 
-IrrotationalProjector
-::IrrotationalProjector(ParFiniteElementSpace   & H1FESpace,
-                        ParFiniteElementSpace   & HCurlFESpace,
-                        const int               & irOrder,
-                        ParBilinearForm         * s0,
-                        ParMixedBilinearForm    * weakDiv,
-                        ParDiscreteGradOperator * grad)
+IrrotationalNDProjector
+::IrrotationalNDProjector(ParFiniteElementSpace   & H1FESpace,
+                          ParFiniteElementSpace   & HCurlFESpace,
+                          const int               & irOrder,
+                          ParBilinearForm         * s0,
+                          ParMixedBilinearForm    * weakDiv,
+                          ParDiscreteGradOperator * grad)
    : H1FESpace_(&H1FESpace),
      HCurlFESpace_(&HCurlFESpace),
      s0_(s0),
@@ -152,7 +152,7 @@ IrrotationalProjector
    xDiv_ = new ParGridFunction(H1FESpace_);
 }
 
-IrrotationalProjector::~IrrotationalProjector()
+IrrotationalNDProjector::~IrrotationalNDProjector()
 {
    delete psi_;
    delete xDiv_;
@@ -167,7 +167,7 @@ IrrotationalProjector::~IrrotationalProjector()
 }
 
 void
-IrrotationalProjector::InitSolver() const
+IrrotationalNDProjector::InitSolver() const
 {
    delete pcg_;
    delete amg_;
@@ -182,7 +182,7 @@ IrrotationalProjector::InitSolver() const
 }
 
 void
-IrrotationalProjector::Mult(const Vector &x, Vector &y) const
+IrrotationalNDProjector::Mult(const Vector &x, Vector &y) const
 {
    // Compute the divergence of x
    weakDiv_->Mult(x,*xDiv_); *xDiv_ *= -1.0;
@@ -203,7 +203,7 @@ IrrotationalProjector::Mult(const Vector &x, Vector &y) const
 }
 
 void
-IrrotationalProjector::Update()
+IrrotationalNDProjector::Update()
 {
    delete pcg_; pcg_ = NULL;
    delete amg_; amg_ = NULL;
@@ -234,31 +234,31 @@ IrrotationalProjector::Update()
    H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
 }
 
-DivergenceFreeProjector
-::DivergenceFreeProjector(ParFiniteElementSpace   & H1FESpace,
-                          ParFiniteElementSpace   & HCurlFESpace,
-                          const int               & irOrder,
-                          ParBilinearForm         * s0,
-                          ParMixedBilinearForm    * weakDiv,
-                          ParDiscreteGradOperator * grad)
-   : IrrotationalProjector(H1FESpace,HCurlFESpace, irOrder, s0, weakDiv, grad)
+DivergenceFreeNDProjector
+::DivergenceFreeNDProjector(ParFiniteElementSpace   & H1FESpace,
+                            ParFiniteElementSpace   & HCurlFESpace,
+                            const int               & irOrder,
+                            ParBilinearForm         * s0,
+                            ParMixedBilinearForm    * weakDiv,
+                            ParDiscreteGradOperator * grad)
+   : IrrotationalNDProjector(H1FESpace,HCurlFESpace, irOrder, s0, weakDiv, grad)
 {}
 
-DivergenceFreeProjector::~DivergenceFreeProjector()
+DivergenceFreeNDProjector::~DivergenceFreeNDProjector()
 {}
 
 void
-DivergenceFreeProjector::Mult(const Vector &x, Vector &y) const
+DivergenceFreeNDProjector::Mult(const Vector &x, Vector &y) const
 {
-   this->IrrotationalProjector::Mult(x, y);
+   this->IrrotationalNDProjector::Mult(x, y);
    y  -= x;
    y *= -1.0;
 }
 
 void
-DivergenceFreeProjector::Update()
+DivergenceFreeNDProjector::Update()
 {
-   this->IrrotationalProjector::Update();
+   this->IrrotationalNDProjector::Update();
 }
 
 void VisualizeMesh(socketstream &sock, const char *vishost, int visport,

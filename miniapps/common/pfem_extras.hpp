@@ -115,16 +115,16 @@ public:
 /// This class computes the irrotational portion of a vector field.
 /// This vector field must be discretized using Nedelec basis
 /// functions.
-class IrrotationalProjector : public Operator
+class IrrotationalNDProjector : public Operator
 {
 public:
-   IrrotationalProjector(ParFiniteElementSpace   & H1FESpace,
-                         ParFiniteElementSpace   & HCurlFESpace,
-                         const int               & irOrder,
-                         ParBilinearForm         * s0 = NULL,
-                         ParMixedBilinearForm    * weakDiv = NULL,
-                         ParDiscreteGradOperator * grad = NULL);
-   virtual ~IrrotationalProjector();
+   IrrotationalNDProjector(ParFiniteElementSpace   & H1FESpace,
+                           ParFiniteElementSpace   & HCurlFESpace,
+                           const int               & irOrder,
+                           ParBilinearForm         * s0 = NULL,
+                           ParMixedBilinearForm    * weakDiv = NULL,
+                           ParDiscreteGradOperator * grad = NULL);
+   virtual ~IrrotationalNDProjector();
 
    // Given a GridFunction 'x' of Nedelec DoFs for an arbitrary vector field,
    // compute the Nedelec DoFs of the irrotational portion, 'y', of
@@ -164,16 +164,16 @@ private:
 /// This class computes the divergence free portion of a vector field.
 /// This vector field must be discretized using Nedelec basis
 /// functions.
-class DivergenceFreeProjector : public IrrotationalProjector
+class DivergenceFreeNDProjector : public IrrotationalNDProjector
 {
 public:
-   DivergenceFreeProjector(ParFiniteElementSpace   & H1FESpace,
-                           ParFiniteElementSpace   & HCurlFESpace,
-                           const int               & irOrder,
-                           ParBilinearForm         * s0 = NULL,
-                           ParMixedBilinearForm    * weakDiv = NULL,
-                           ParDiscreteGradOperator * grad = NULL);
-   virtual ~DivergenceFreeProjector();
+   DivergenceFreeNDProjector(ParFiniteElementSpace   & H1FESpace,
+                             ParFiniteElementSpace   & HCurlFESpace,
+                             const int               & irOrder,
+                             ParBilinearForm         * s0 = NULL,
+                             ParMixedBilinearForm    * weakDiv = NULL,
+                             ParDiscreteGradOperator * grad = NULL);
+   virtual ~DivergenceFreeNDProjector();
 
    // Given a vector 'x' of Nedelec DoFs for an arbitrary vector field,
    // compute the Nedelec DoFs of the divergence free portion, 'y', of
