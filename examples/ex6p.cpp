@@ -15,9 +15,10 @@
 //               mpirun -np 4 ex6p -m ../data/square-disc-surf.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/amr-quad.mesh
 //
-// Device runs:  mpirun -np 4 ex6p -p -d cuda
-//               mpirun -np 4 ex6p -p -d occa
-//               mpirun -np 4 ex6p -p -d 'raja omp'
+// Device sample runs:
+//             > mpirun -np 4 ex6p -p -d cuda
+//             > mpirun -np 4 ex6p -p -d occa
+//             > mpirun -np 4 ex6p -p -d raja-omp
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
@@ -54,7 +55,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool pa = false;
-   const char *device = "";
+   const char *device = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -65,7 +66,7 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&device, "-d", "--device",
-                  "Device configuration, e.g. 'cuda', 'omp', 'raja', 'occa'.");
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");

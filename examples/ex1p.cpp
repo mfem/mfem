@@ -25,9 +25,10 @@
 //               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh
 //               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh -o -1 -sc
 //
-// Device runs:  mpirun -np 4 ex1p -p -d cuda
-//               mpirun -np 4 ex1p -p -d occa
-//               mpirun -np 4 ex1p -p -d 'raja omp'
+// Device sample runs:
+//             > mpirun -np 4 ex1p -p -d cuda
+//             > mpirun -np 4 ex1p -p -d occa
+//             > mpirun -np 4 ex1p -p -d raja-omp
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -64,7 +65,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   const char *device = "";
+   const char *device = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -78,7 +79,7 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&device, "-d", "--device",
-                  "Device configuration, e.g. 'cuda', 'omp', 'raja', 'occa'.");
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -208,11 +209,6 @@ int main(int argc, char *argv[])
    if (!pa) { A = new HypreParMatrix(); }
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
-   if (myid == 0)
-   {
-      cout << "Size of linear system: " << A->Height() << endl;
-   }
 
    // 13. Solve the linear system A X = B.
    if (!pa)
