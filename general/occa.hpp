@@ -12,20 +12,19 @@
 #ifndef MFEM_OCCA_HPP
 #define MFEM_OCCA_HPP
 
+#include "../config/config.hpp"
+#include "cuda.hpp" // for CUdevice, CUcontext
+
 #ifdef MFEM_USE_OCCA
 #include <occa.hpp>
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) && OCCA_CUDA_ENABLED
 #include <occa/modes/cuda/utils.hpp>
 #endif
 
 typedef occa::device OccaDevice;
 typedef occa::memory OccaMemory;
-#define MFEM_NEW_OCCA_KERNEL(ker, filepath, prop)                        \
-   static occa::kernel ker = NULL;                                       \
-   if (ker==NULL) {                                                      \
-      ker = occaDevice.buildKernel("occa://mfem/" filepath, #ker, prop); \
-   }
+
 #else // MFEM_USE_OCCA
 
 typedef void* OccaDevice;
@@ -36,10 +35,10 @@ typedef void* OccaMemory;
 namespace mfem
 {
 
-extern OccaDevice occaDevice;
+// Function called when the pointer 'a' needs to be passed to an OCCA kernel.
 OccaMemory OccaPtr(const void *a);
-OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx);
+OccaDevice OccaDev();
 
-} // mfem
+} // namespace mfem
 
 #endif // MFEM_OCCA_HPP

@@ -9,21 +9,23 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_MEM_MANAGER
-#define MFEM_MEM_MANAGER
+#ifndef MFEM_MEM_MANAGER_HPP
+#define MFEM_MEM_MANAGER_HPP
 
 #include "globals.hpp"
-
 
 namespace mfem
 {
 
-// Implementation of MFEM's lightweight host/device memory manager designed
-// to work seamlessly with the okina device kernel interface.
+// Implementation of MFEM's lightweight device/host memory manager designed to
+// work seamlessly with the OCCA, RAJA, and other kernels supported by MFEM.
 
 /// The memory manager class
 class MemoryManager
 {
+private:
+   bool enabled;
+
 public:
    MemoryManager();
    ~MemoryManager();
@@ -34,7 +36,32 @@ public:
    /// Remove the address from the map, as well as all the address' aliases
    void *Erase(void *ptr);
 
-   /// Return a host or device address, corresponding to the Device::mode
+   /// Return true if the memory manager is used: pointers seen by mm::New and
+   /// mm::Delete will be inserted in the ledger and erased from it
+   static inline bool UsingMM()
+   {
+#ifdef MFEM_USE_MM
+      return true;
+#else
+      return false;
+#endif
+   }
+
+   /// Disable the memory manager: mm::ptr, mm::push and mm::pull will be no-op
+   void Disable() { enabled = false; }
+
+   /// Enable the memory manager: mm::ptr, mm::push and mm::pull wont be no-op
+   void Enable() { enabled = true; }
+
+   /// Return true if the memory manager is used and enabled
+   bool IsEnabled() { return UsingMM() && enabled; }
+
+   /// The opposite of IsEnabled().
+   bool IsDisabled() { return !IsEnabled(); }
+
+   /** @brief Translates ptr to host or device address, depending on what
+       backends are currently allowed by the Device class and on the ptr
+       state. */
    void *Ptr(void *ptr);
    const void *Ptr(const void *ptr);
 
@@ -148,4 +175,4 @@ inline void Pull(const void *ptr, const std::size_t bytes = 0)
 
 } // namespace mfem
 
-#endif // MFEM_MEM_MANAGER
+#endif // MFEM_MEM_MANAGER_HPP
