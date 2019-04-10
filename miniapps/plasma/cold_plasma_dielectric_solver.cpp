@@ -567,6 +567,9 @@ CPDSolver::Solve()
    // pcg.SetPreconditioner(ams);
    minres.Mult(RHS, E);
    */
+   tic_toc.Clear();
+   tic_toc.Start();
+   
    Operator * pcr = NULL;
    Operator * pci = NULL;
    BlockDiagonalPreconditioner * BDP = NULL;
@@ -751,6 +754,8 @@ CPDSolver::Solve()
          break;
    };
 
+   tic_toc.Stop();
+   
    e_->Distribute(E);
 
    delete BDP;
@@ -832,9 +837,10 @@ CPDSolver::Solve()
    pcgM.Mult(BD, H);
    hCurlMass_->RecoverFEMSolution(H, *bd_, *h_);
    */
-   if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << flush; }
-
-   if ( myid_ == 0 && logging_ > 0 ) { cout << " Solver done. " << endl; }
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+     cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
 }
 
 double
