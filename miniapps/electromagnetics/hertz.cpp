@@ -426,6 +426,12 @@ int main(int argc, char *argv[])
       }
    }
 
+   // Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      Hertz.DisplayAnimationToGLVis();
+   }
+
    delete epsCoef;
    delete muInvCoef;
    delete sigmaCoef;

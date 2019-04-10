@@ -53,6 +53,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      a1_(NULL),
      b1_(NULL),
      e_(NULL),
+     e_t_(NULL),
      j_(NULL),
      jd_(NULL),
      epsCoef_(&epsCoef),
@@ -228,7 +229,8 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
 
    // Build grid functions
    // The solution vector is the Electric field
-   e_  = new ParComplexGridFunction(HCurlFESpace_);
+   e_   = new ParComplexGridFunction(HCurlFESpace_);
+   e_t_ = new ParGridFunction(HCurlFESpace_);
    if (erCoef_ && eiCoef_)
    {
       e_->ProjectCoefficient(*erCoef_, *eiCoef_);
@@ -268,6 +270,7 @@ HertzSolver::~HertzSolver()
    delete negOmega2Coef_;
 
    delete e_;
+   delete e_t_;
    delete j_;
    delete jd_;
 
@@ -647,6 +650,50 @@ HertzSolver::DisplayToGLVis()
    Wx = 0; Wy += offy; // next line
 
    if (myid_ == 0) { cout << " done." << endl; }
+}
+
+void
+HertzSolver::DisplayAnimationToGLVis()
+{
+   if (myid_ == 0) { cout << "Sending animation data to GLVis ..." << flush; }
+
+   Vector zeroVec(3); zeroVec = 0.0;
+   VectorConstantCoefficient zeroCoef(zeroVec);
+
+   double norm_r = e_->real().ComputeMaxError(zeroCoef);
+   double norm_i = e_->imag().ComputeMaxError(zeroCoef);
+
+   *e_t_ = e_->real();
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sol_sock(vishost, visport);
+   sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
+   sol_sock.precision(8);
+   sol_sock << "solution\n" << *pmesh_ << *e_t_
+            << "window_title 'Harmonic Solution (t = 0.0 T)'"
+            << "valuerange 0.0 " << max(norm_r, norm_i) << "\n"
+            << "autoscale off\n"
+            << "keys cvvv\n"
+            << "pause\n" << flush;
+   if (myid_ == 0)
+      cout << "GLVis visualization paused."
+           << " Press space (in the GLVis window) to resume it.\n";
+   int num_frames = 24;
+   int i = 0;
+   while (sol_sock)
+   {
+      double t = (double)(i % num_frames) / num_frames;
+      ostringstream oss;
+      oss << "Harmonic Solution (t = " << t << " T)";
+
+      add( cos( 2.0 * M_PI * t), e_->real(),
+           sin( 2.0 * M_PI * t), e_->imag(), *e_t_);
+      sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
+      sol_sock << "solution\n" << *pmesh_ << *e_t_
+               << "window_title '" << oss.str() << "'" << flush;
+      i++;
+   }
 }
 
 } // namespace electromagnetics

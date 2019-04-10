@@ -110,6 +110,8 @@ public:
 
    void DisplayToGLVis();
 
+   void DisplayAnimationToGLVis();
+
 private:
 
    int myid_;
@@ -136,8 +138,9 @@ private:
    ParSesquilinearForm * a1_;
    ParBilinearForm * b1_;
 
-   ParComplexGridFunction * e_;  // Complex electric field (HCurl)
-   ParComplexGridFunction * j_;  // Complex current density (HCurl)
+   ParComplexGridFunction * e_;   // Complex electric field (HCurl)
+   ParGridFunction        * e_t_; // Real electric field (HCurl)
+   ParComplexGridFunction * j_;   // Complex current density (HCurl)
 
    ParComplexLinearForm   * jd_; // Dual of complex current density (HCurl)
 
