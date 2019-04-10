@@ -77,8 +77,8 @@ void Device::Configure(const std::string &device, const int dev)
    Get().allowed_backends = Get().backends;
    Get().Setup(dev);
 
-   // Disable any device backends
-   Get().allowed_backends = Get().backends & ~Backend::DEVICE_MASK;
+   // Enable only the default host CPU backend.
+   Get().allowed_backends = Backend::CPU;
 }
 
 void Device::Print(std::ostream &out)
@@ -137,11 +137,19 @@ static void OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
    }
    if (cuda)
    {
-      internal::occaDevice = OccaWrapDevice(cu_dev, cu_ctx);
+#if OCCA_CUDA_ENABLED
+      internal::occaDevice = occa::cuda::wrapDevice(cu_dev, cu_ctx);
+#else
+      MFEM_ABORT("the OCCA CUDA backend requires OCCA built with CUDA!");
+#endif
    }
    else if (omp)
    {
+#if OCCA_OPENMP_ENABLED
       internal::occaDevice.setup("mode: 'OpenMP'");
+#else
+      MFEM_ABORT("the OCCA OpenMP backend requires OCCA built with OpenMP!");
+#endif
    }
    else
    {

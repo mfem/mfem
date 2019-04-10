@@ -9,17 +9,13 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_MEM_MANAGER
-#define MFEM_MEM_MANAGER
-
-#include <list>
-#include <cstddef>
-#include <unordered_map>
-#include <type_traits>
+#ifndef MFEM_MEM_MANAGER_HPP
+#define MFEM_MEM_MANAGER_HPP
 
 #include "globals.hpp"
 
-using std::size_t; // FIXME: this should not be here
+#include <list>
+#include <unordered_map>
 
 namespace mfem
 {
@@ -60,6 +56,8 @@ public:
       alias_map aliases;
    };
 
+   /// Return true if the memory manager is used: pointers seen by mm::New and
+   /// mm::Delete will be inserted in the ledger and erased from it
    static inline bool UsingMM()
    {
 #ifdef MFEM_USE_MM
@@ -68,6 +66,18 @@ public:
       return false;
 #endif
    }
+
+   /// Disable the memory manager: mm::ptr, mm::push and mm::pull will be no-op
+   static inline void Disable() { MM().enabled = false; }
+
+   /// Enable the memory manager: mm::ptr, mm::push and mm::pull wont be no-op
+   static inline void Enable() { MM().enabled = true; }
+
+   /// Return true if the memory manager is used and enabled
+   static inline bool IsEnabled() { return UsingMM() && MM().enabled; }
+
+   /// The opposite of IsEnabled().
+   static inline bool IsDisabled() { return !mm::IsEnabled(); }
 
    /// Main malloc template function. Allocates n*size bytes and returns a
    /// pointer to the allocated memory.
@@ -87,8 +97,9 @@ public:
       mm::MM().Erase(ptr);
    }
 
-   /** @brief Translates ptr to host or device address, depending on
-       Device::IsEnabled() and the ptr state. */
+   /** @brief Translates ptr to host or device address, depending on what
+       backends are currently allowed by the Device class and on the ptr state.
+   */
    template <class T>
    static inline T *ptr(T *a) { return static_cast<T*>(MM().Ptr(a)); }
 
@@ -171,7 +182,8 @@ public:
 
 private:
    ledger maps;
-   mm() {}
+   bool enabled;
+   mm(): enabled(true) { }
    mm(mm const&) = delete;
    void operator=(mm const&) = delete;
    static inline mm& MM() { static mm singleton; return singleton; }
@@ -201,4 +213,4 @@ private:
 
 } // namespace mfem
 
-#endif // MFEM_MEM_MANAGER
+#endif // MFEM_MEM_MANAGER_HPP

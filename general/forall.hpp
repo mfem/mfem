@@ -14,11 +14,6 @@
 
 #include "../config/config.hpp"
 #include "error.hpp"
-
-#include <cmath>
-#include <cstring>
-#include <iostream>
-
 #include "cuda.hpp"
 #include "occa.hpp"
 #include "device.hpp"
@@ -35,9 +30,6 @@ namespace mfem
 // Implementation of MFEM's for (forall) device/host kernel interfaces
 // supporting RAJA, CUDA, OpenMP, and sequential backends.
 
-// CUDA block size used by MFEM.
-#define MFEM_CUDA_BLOCKS 256
-
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                                     \
    ForallWrap(N,                                                 \
@@ -51,7 +43,7 @@ void OmpWrap(const int N, HBODY &&h_body)
 {
 #ifdef MFEM_USE_OPENMP
    #pragma omp parallel for
-   for (int k=0; k<N; k+=1)
+   for (int k = 0; k < N; k++)
    {
       h_body(k);
    }
@@ -142,7 +134,7 @@ void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 
    if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
 
-   for (int k=0; k<N; k+=1) { h_body(k); }
+   for (int k = 0; k < N; k++) { h_body(k); }
 }
 
 } // namespace mfem
