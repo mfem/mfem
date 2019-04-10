@@ -64,7 +64,7 @@ public:
    /// data if needed (used in OccaPtr)
    void *GetDevicePtr(const void *ptr);
 
-   /// Registers external host pointer in the memory manager. The mm will manage
+   /// Registers external host pointer in the memory manager which will manage
    /// the corresponding device pointer (but not the provided host pointer).
    template<class T>
    void RegisterHostPtr(T *ptr_host, const std::size_t size)
@@ -113,7 +113,7 @@ inline T *New(const std::size_t n)
 { return static_cast<T*>(mm.Insert(new T[n], n*sizeof(T))); }
 
 /// Frees the memory space pointed to by ptr, which must have been returned
-/// by a previous call to mm::New.
+/// by a previous call to mfem::New.
 template<class T>
 inline void Delete(T *ptr)
 {
