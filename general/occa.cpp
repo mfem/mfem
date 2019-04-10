@@ -41,21 +41,15 @@ OccaMemory OccaPtr(const void *ptr)
 {
    OccaDevice dev = occaDevice;
    if (!Device::UsingMM()) { return OccaWrapMemory(dev, ptr, 0); }
-   const bool known = mm::known(ptr);
+   const bool known = MM.IsKnown(ptr);
    if (!known) { mfem_error("OccaPtr: Unknown address!"); }
-   mm::memory &base = mm::mem(ptr);
-   const bool host = base.host;
-   const size_t bytes = base.bytes;
+   const bool host = MM.IsOnHost(ptr);
+   const size_t bytes = MM.Bytes(ptr);
    const bool gpu = Device::UsingDevice();
    if (host && !gpu) { return OccaWrapMemory(dev, ptr, bytes); }
    if (!gpu) { mfem_error("OccaPtr: !gpu"); }
-   if (!base.d_ptr)
-   {
-      CuMemAlloc(&base.d_ptr, bytes);
-      CuMemcpyHtoD(base.d_ptr, ptr, bytes);
-      base.host = false;
-   }
-   return OccaWrapMemory(dev, base.d_ptr, bytes);
+   void *d_ptr = MM.GetDevicePtr(ptr);
+   return OccaWrapMemory(dev, d_ptr, bytes);
 }
 
 OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx)

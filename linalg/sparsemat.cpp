@@ -723,8 +723,8 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    y = 0;
 
    const int height = Height();
-   const int *d_I = mm::ptr(I);
-   const int *d_J = mm::ptr(J);
+   const int *d_I = mm::Ptr(I);
+   const int *d_J = mm::Ptr(J);
    const DeviceArray d_x(x, x.Size());
    DeviceArray d_y(y, y.Size());
    MFEM_FORALL(i, height,
@@ -741,7 +741,7 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    });
    // Sync on host for some verifications in
    // pfespace GetEssentialTrueDofs and MarkerToList
-   mm::pull(y);
+   mm::Pull(y);
 }
 
 void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
