@@ -34,7 +34,7 @@ public:
    /// Remove the address from the map, as well as all the address' aliases
    void *Erase(void *ptr);
 
-   /// Return a host or device address, coresponding to the Device::mode
+   /// Return a host or device address, corresponding to the Device::mode
    void *Ptr(void *ptr);
    const void *Ptr(const void *ptr);
 
@@ -60,12 +60,13 @@ public:
    /// Pull the data from the device
    void Pull(const void *ptr, const std::size_t bytes =0);
 
-   /// Return the coresponding device pointer of ptr, allocating and moving the
+   /// Return the corresponding device pointer of ptr, allocating and moving the
    /// data if needed (used in OccaPtr)
    void *GetDevicePtr(const void *ptr);
 
-   /// Registers external host pointer in the memory manager. The mm will manage
-   /// the corresponding device pointer (but not the provided host pointer).
+   /// Registers external host pointer in the memory manager. The memory manager
+   /// will manage the corresponding device pointer, but not the provided host
+   /// pointer.
    template<class T>
    void RegisterHostPtr(T *ptr_host, const std::size_t size)
    {
@@ -103,17 +104,20 @@ public:
    void GetAll(void);
 };
 
-extern bool mm_destroyed;
+/// The (single) global memory manager object
 extern MemoryManager mm;
 
-/// Main malloc template function. Allocates n*size bytes and returns a
-/// pointer to the allocated memory.
+/// Is global memory management still available?
+extern bool mm_destroyed;
+
+/// Main memory allocation template function. Allocates n*size bytes and returns
+/// a pointer to the allocated memory.
 template<class T>
 inline T *New(const std::size_t n)
 { return static_cast<T*>(mm.Insert(new T[n], n*sizeof(T))); }
 
-/// Frees the memory space pointed to by ptr, which must have been returned
-/// by a previous call to mm::New.
+/// Frees the memory space pointed to by ptr, which must have been returned by a
+/// previous call to New.
 template<class T>
 inline void Delete(T *ptr)
 {
@@ -129,17 +133,17 @@ inline void Delete(T *ptr)
 template <class T>
 inline T *Ptr(T *a) { return static_cast<T*>(mm.Ptr(a)); }
 
-/// Data will be pushed/pulled before the copy happens on the H or the D
+/// Data will be pushed/pulled before the copy happens on the host or the device
 inline void* Memcpy(void *dst, const void *src,
                     std::size_t bytes, const bool async = false)
 { return mm.Memcpy(dst, src, bytes, async); }
 
 /// Push the data to the device
-inline void Push(const void *ptr, const std::size_t bytes =0)
+inline void Push(const void *ptr, const std::size_t bytes = 0)
 { return mm.Push(ptr, bytes); }
 
 /// Pull the data from the device
-inline void Pull(const void *ptr, const std::size_t bytes =0)
+inline void Pull(const void *ptr, const std::size_t bytes = 0)
 { return mm.Pull(ptr, bytes); }
 
 

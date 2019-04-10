@@ -27,7 +27,7 @@ struct Alias;
 ///   - a boolean telling which memory space is being used
 ///   - the size in bytes of this memory region,
 ///   - the host and the device pointer,
-///   - a list of all aliases seen using this region (used only to free them),
+///   - a list of all aliases seen using this region (used only to free them).
 struct Memory
 {
    bool host;
