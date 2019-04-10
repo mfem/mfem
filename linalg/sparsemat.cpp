@@ -811,7 +811,7 @@ double SparseMatrix::GetRowNorml1(int irow) const
    return a;
 }
 
-void SparseMatrix::Chop(double tol, bool fix_empty_rows)
+void SparseMatrix::Threshold(double tol, bool fix_empty_rows)
 {
    MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
    double atol;
