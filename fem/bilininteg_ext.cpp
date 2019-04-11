@@ -1781,7 +1781,12 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
       if (geom) { delete geom; }
       geom = new GeometryExtension();
    }
+
+   const bool dev_enabled = Device::IsEnabled();
+   if (dev_enabled) { Device::Disable(); }
    mesh->EnsureNodes();
+   if (dev_enabled) { Device::Enable(); }
+
    const GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
    const mfem::FiniteElement *fe = fespace->GetFE(0);
