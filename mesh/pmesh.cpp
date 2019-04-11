@@ -3111,7 +3111,7 @@ void ParMesh::Rebalance()
    sequence++;
 
    // Make sure the Nodes use a ParFiniteElementSpace
-   if (dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
+   if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
    {
       ParFiniteElementSpace *pfes =
          new ParFiniteElementSpace(*Nodes->FESpace(), *this);
