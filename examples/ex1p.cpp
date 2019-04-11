@@ -26,9 +26,9 @@
 //               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh -o -1 -sc
 //
 // Device sample runs:
-//             > mpirun -np 4 ex1p -p -d cuda
-//             > mpirun -np 4 ex1p -p -d occa
-//             > mpirun -np 4 ex1p -p -d raja-omp
+//             > mpirun -np 4 ex1p -pa -d cuda
+//             > mpirun -np 4 ex1p -pa -d occa-cuda
+//             > mpirun -np 4 ex1p -pa -d raja-omp
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -76,8 +76,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
-                  "Enable Partial Assembly.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -103,7 +103,6 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   if (pa) { mesh->EnsureNodes(); }
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
@@ -193,8 +192,8 @@ int main(int argc, char *argv[])
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
-   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   ParBilinearForm *a = new ParBilinearForm(fespace, assembly);
+   ParBilinearForm *a = new ParBilinearForm(fespace);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
@@ -205,36 +204,22 @@ int main(int argc, char *argv[])
    a->Assemble();
 
    Vector B, X;
-   Operator *A;
-   if (!pa) { A = new HypreParMatrix(); }
-
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   OperatorHandle Ah;
+   a->FormLinearSystem(ess_tdof_list, x, *b, Ah, X, B);
 
    // 13. Solve the linear system A X = B.
-   if (!pa)
-   {
-      // Parallel PCG solver with the BoomerAMG preconditioner from hypre.
-      HypreParMatrix &H = *static_cast<HypreParMatrix*>(A);
-      HypreSolver *amg = new HypreBoomerAMG(H);
-      HyprePCG *pcg = new HyprePCG(H);
-      pcg->SetTol(1e-12);
-      pcg->SetMaxIter(200);
-      pcg->SetPrintLevel(2);
-      pcg->SetPreconditioner(*amg);
-      pcg->Mult(B, X);
-      delete pcg;
-      delete amg;
-   }
-   else
-   {
-      // No preconditioning for now in partial assembly mode.
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(1);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-   }
+   //     * With full assembly, use the BoomerAMG preconditioner from hypre.
+   //     * With partial assembly, use no preconditioner, for now.
+   Solver *prec = NULL;
+   if (!pa) { prec = new HypreBoomerAMG; }
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(1);
+   if (prec) { cg.SetPreconditioner(*prec); }
+   cg.SetOperator(*Ah.Ptr());
+   cg.Mult(B, X);
+   delete prec;
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -271,7 +256,6 @@ int main(int argc, char *argv[])
    }
 
    // 18. Free the used memory.
-   delete A;
    delete a;
    delete b;
    delete fespace;
