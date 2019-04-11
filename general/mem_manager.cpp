@@ -63,15 +63,15 @@ static internal::Ledger *maps;
 
 MemoryManager::MemoryManager()
 {
+   exists = true;
    enabled = true;
-   destroyed = false;
    maps = new internal::Ledger();
 }
 
 MemoryManager::~MemoryManager()
 {
    delete maps;
-   destroyed = true;
+   exists = false;
 }
 
 void* MemoryManager::Insert(void *ptr, const std::size_t bytes)
@@ -237,8 +237,8 @@ static void *PtrAlias(internal::Ledger *maps, void *ptr)
 
 void *MemoryManager::Ptr(void *ptr)
 {
-   if (MmDeviceIniFilter()) { return ptr; }
    if (ptr==NULL) { return NULL; };
+   if (MmDeviceIniFilter()) { return ptr; }
    if (IsKnown(ptr)) { return PtrKnown(maps, ptr); }
    if (IsAlias(ptr)) { return PtrAlias(maps, ptr); }
    if (Device::Allows(Backend::DEVICE_MASK))
@@ -353,6 +353,6 @@ void MemoryManager::GetAll(void)
 }
 
 MemoryManager mm;
-bool MemoryManager::destroyed;
+bool MemoryManager::exists = false;
 
 } // namespace mfem
