@@ -23,7 +23,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 
 SEQ_MINIAPPS = display-basis load-dc convert-dc lor-transfer
-PAR_MINIAPPS =
+PAR_MINIAPPS = hodge-decomp
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -35,7 +35,7 @@ endif
 .PHONY: all clean clean-build clean-exec
 .PRECIOUS: %.o
 
-COMMON_O=../common/fem_extras.o ../common/mesh_extras.o
+COMMON_O=../common/fem_extras.o ../common/pfem_extras.o ../common/mesh_extras.o
 
 all: $(MINIAPPS)
 
@@ -49,6 +49,9 @@ all: $(MINIAPPS)
 
 # Tools that depend on $(COMMON_O)
 display-basis: %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
+
+hodge-decomp: %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
 
 # Rules for compiling dependencies
