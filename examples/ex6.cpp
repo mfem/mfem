@@ -175,31 +175,30 @@ int main(int argc, char *argv[])
       // 16. Create the linear system: eliminate boundary conditions, constrain
       //     hanging nodes and possibly apply other transformations. The system
       //     will be solved for true (unconstrained) DOFs only.
+      OperatorPtr A;
       Vector B, X;
-      OperatorHandle Ah;
 
       const int copy_interior = 1;
-      a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
-      Operator &A = *Ah.Ptr();
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
 
       // 17. Solve the linear system A X = B.
       if (!pa)
       {
 #ifndef MFEM_USE_SUITESPARSE
          // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-         GSSmoother M((SparseMatrix&)A);
-         PCG(A, M, B, X, 3, 200, 1e-12, 0.0);
+         GSSmoother M((SparseMatrix&)(*A));
+         PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
 #else
          // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
          UMFPackSolver umf_solver;
          umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-         umf_solver.SetOperator(A);
+         umf_solver.SetOperator(*A);
          umf_solver.Mult(B, X);
 #endif
       }
       else // No preconditioning for now in partial assembly mode.
       {
-         CG(A, B, X, 3, 2000, 1e-12, 0.0);
+         CG(*A, B, X, 3, 2000, 1e-12, 0.0);
       }
 
       // 18. After solving the linear system, reconstruct the solution as a

@@ -209,11 +209,11 @@ int main(int argc, char *argv[])
 
       // 16. Create the parallel linear system: eliminate boundary conditions.
       //     The system will be solved for true (unconstrained/unique) DOFs only.
+      OperatorPtr A;
       Vector B, X;
-      OperatorHandle Ah;
 
       const int copy_interior = 1;
-      a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
 
       // 17. Solve the linear system A X = B.
       //     * With full assembly, use the BoomerAMG preconditioner from hypre.
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(3); // print the first and the last iterations only
       if (amg) { cg.SetPreconditioner(*amg); }
-      cg.SetOperator(*Ah.Ptr());
+      cg.SetOperator(*A);
       cg.Mult(B, X);
       delete amg;
 

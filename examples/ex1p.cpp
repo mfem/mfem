@@ -203,9 +203,9 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
+   OperatorPtr A;
    Vector B, X;
-   OperatorHandle Ah;
-   a->FormLinearSystem(ess_tdof_list, x, *b, Ah, X, B);
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
    if (prec) { cg.SetPreconditioner(*prec); }
-   cg.SetOperator(*Ah.Ptr());
+   cg.SetOperator(*A);
    cg.Mult(B, X);
    delete prec;
 
