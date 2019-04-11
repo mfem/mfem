@@ -94,6 +94,10 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    precompute_sparsity = ps;
    diag_policy = DIAG_KEEP;
 
+   assembly = AssemblyLevel::FULL;
+   batch = 1;
+   ext = NULL;
+
    // Copy the pointers to the integrators
    dbfi = bf->dbfi;
 
