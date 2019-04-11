@@ -28,7 +28,7 @@ private:
    /// New and Delete will still continue to register the pointers
    bool enabled;
 
-   /// Allow to detect if the memory manager exists
+   /// Allow to detect if a global memory manager instance exists
    static bool exists;
 
 public:
@@ -38,7 +38,7 @@ public:
    /// Adds an address in the map
    void *Insert(void *ptr, const std::size_t bytes);
 
-   /// Remove the address from the map, as well as all the address' aliases
+   /// Remove the address from the map, as well as all its aliases
    void *Erase(void *ptr);
 
    /// Return true if the memory manager is used: pointers seen by mfem::New and
@@ -64,7 +64,7 @@ public:
    /// The opposite of IsEnabled().
    bool IsDisabled() { return !IsEnabled(); }
 
-   /// Return true if the memory manager exists
+   /// Return true if a global memory manager instance exists
    static bool Exists() { return exists; }
 
    /** @brief Translates ptr to host or device address, depending on what
@@ -164,7 +164,7 @@ inline void Delete(T *ptr)
    mm.Erase(ptr);
 }
 
-/// Return a host or device address coresponding to current memory space
+/// Return a host or device address corresponding to current memory space
 template <class T>
 inline T *Ptr(T *a) { return static_cast<T*>(mm.Ptr(a)); }
 
