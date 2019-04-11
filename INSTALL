@@ -36,7 +36,7 @@ as CUDA, OCCA, OpenMP and RAJA.
   https://www.openmp.org
 
 - RAJA support requires installation of the RAJA performance portability layer
-  with (optionaly) support for CUDA and OpenMP
+  with (optionally) support for CUDA and OpenMP
   https://github.com/LLNL/RAJA
 
 The library supports two build systems: one based on GNU make, and a second one
@@ -256,7 +256,7 @@ MFEM_DEBUG = YES/NO
    and consistency checks that may simplify bug-hunting.
 
 MFEM_USE_EXCEPTIONS = YES/NO
-   Enable the use of exceptions. In particular, modifies the default bahavior
+   Enable the use of exceptions. In particular, modifies the default behavior
    when errors are encountered: throw an exception, instead of aborting.
 
 MFEM_USE_LIBUNWIND = YES/NO
