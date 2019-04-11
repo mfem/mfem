@@ -13,25 +13,137 @@
 
 #include <cstring> // std::memcpy
 
+#include <list>
+#include <unordered_map>
+
 namespace mfem
 {
 
-static bool Known(const mm::ledger &maps, const void *ptr)
+namespace internal
 {
-   return maps.memories.find(ptr) != maps.memories.end();
+
+/// Forward declaration of the Alias structure
+struct Alias;
+
+/// Memory class that holds:
+///   - a boolean telling which memory space is being used
+///   - the size in bytes of this memory region,
+///   - the host and the device pointer,
+///   - a list of all aliases seen using this region (used only to free them).
+struct Memory
+{
+   bool host;
+   const std::size_t bytes;
+   void *const h_ptr;
+   void *d_ptr;
+   std::list<const Alias*> aliases;
+   Memory(void* const h, const std::size_t size):
+      host(true), bytes(size), h_ptr(h), d_ptr(nullptr), aliases() {}
+};
+
+/// Alias class that holds the base memory region and the offset
+struct Alias
+{
+   Memory *const mem;
+   const long offset;
+};
+
+typedef std::unordered_map<const void*, Memory> MemoryMap;
+typedef std::unordered_map<const void*, const Alias*> AliasMap;
+
+struct Ledger
+{
+   MemoryMap memories;
+   AliasMap aliases;
+};
+
+} // namespace mfem::internal
+
+static internal::Ledger *maps;
+
+MemoryManager::MemoryManager()
+{
+   exists = true;
+   enabled = true;
+   maps = new internal::Ledger();
 }
 
-bool mm::Known(const void *ptr)
+MemoryManager::~MemoryManager()
 {
-   return mfem::Known(maps,ptr);
+   delete maps;
+   exists = false;
+}
+
+void* MemoryManager::Insert(void *ptr, const std::size_t bytes)
+{
+   if (!UsingMM()) { return ptr; }
+   const bool known = IsKnown(ptr);
+   if (known)
+   {
+      mfem_error("Trying to add an already present address!");
+   }
+   maps->memories.emplace(ptr, internal::Memory(ptr, bytes));
+   return ptr;
+}
+
+void *MemoryManager::Erase(void *ptr)
+{
+   if (!UsingMM()) { return ptr; }
+   if (!ptr) { return ptr; }
+   const bool known = IsKnown(ptr);
+   if (!known)
+   {
+      mfem_error("Trying to erase an unknown pointer!");
+   }
+   internal::Memory &mem = maps->memories.at(ptr);
+   if (mem.d_ptr) { CuMemFree(mem.d_ptr); }
+   for (const internal::Alias *alias : mem.aliases) { maps->aliases.erase(alias); }
+   mem.aliases.clear();
+   maps->memories.erase(ptr);
+   return ptr;
+}
+
+void MemoryManager::SetHostDevicePtr(void *h_ptr, void *d_ptr, const bool host)
+{
+   internal::Memory &base = maps->memories.at(h_ptr);
+   base.d_ptr = d_ptr;
+   base.host = host;
+}
+
+bool MemoryManager::IsKnown(const void *ptr)
+{
+   return maps->memories.find(ptr) != maps->memories.end();
+}
+
+bool MemoryManager::IsOnHost(const void *ptr)
+{
+   return maps->memories.at(ptr).host;
+}
+
+std::size_t MemoryManager::Bytes(const void *ptr)
+{
+   return maps->memories.at(ptr).bytes;
+}
+
+void *MemoryManager::GetDevicePtr(const void *ptr)
+{
+   internal::Memory &base = maps->memories.at(ptr);
+   const size_t bytes = base.bytes;
+   if (!base.d_ptr)
+   {
+      CuMemAlloc(&base.d_ptr, bytes);
+      CuMemcpyHtoD(base.d_ptr, ptr, bytes);
+      base.host = false;
+   }
+   return base.d_ptr;
 }
 
 // Looks if ptr is an alias of one memory
-static const void* IsAlias(const mm::ledger &maps, const void *ptr)
+static const void* AliasBaseMemory(const internal::Ledger *maps,
+                                   const void *ptr)
 {
-   MFEM_ASSERT(!Known(maps, ptr), "Ptr is an already known address!");
-   for (mm::memory_map::const_iterator mem = maps.memories.begin();
-        mem != maps.memories.end(); mem++)
+   for (internal::MemoryMap::const_iterator mem = maps->memories.begin();
+        mem != maps->memories.end(); mem++)
    {
       const void *b_ptr = mem->first;
       if (b_ptr > ptr) { continue; }
@@ -41,68 +153,26 @@ static const void* IsAlias(const mm::ledger &maps, const void *ptr)
    return nullptr;
 }
 
-static const void* InsertAlias(mm::ledger &maps, const void *base,
-                               const void *ptr)
+bool MemoryManager::IsAlias(const void *ptr)
 {
-   mm::memory &mem = maps.memories.at(base);
+   const internal::AliasMap::const_iterator found = maps->aliases.find(ptr);
+   if (found != maps->aliases.end()) { return true; }
+   MFEM_ASSERT(!IsKnown(ptr), "Ptr is an already known address!");
+   const void *base = AliasBaseMemory(maps, ptr);
+   if (!base) { return false; }
+   internal::Memory &mem = maps->memories.at(base);
    const long offset = static_cast<const char*>(ptr) -
                        static_cast<const char*> (base);
-   const mm::alias *alias = new mm::alias{&mem, offset};
-   maps.aliases.emplace(ptr, alias);
+   const internal::Alias *alias = new internal::Alias{&mem, offset};
+   maps->aliases.emplace(ptr, alias);
    mem.aliases.push_back(alias);
-   return ptr;
-}
-
-static bool Alias(mm::ledger &maps, const void *ptr)
-{
-   const mm::alias_map::const_iterator found = maps.aliases.find(ptr);
-   const bool alias = found != maps.aliases.end();
-   if (alias) { return true; }
-   const void *base = IsAlias(maps, ptr);
-   if (!base) { return false; }
-   InsertAlias(maps, base, ptr);
    return true;
-}
-
-bool mm::Alias(const void *ptr)
-{
-   return mfem::Alias(maps,ptr);
-}
-
-void* mm::Insert(void *ptr, const size_t bytes)
-{
-   if (!UsingMM()) { return ptr; }
-   const bool known = Known(ptr);
-   if (known)
-   {
-      mfem_error("Trying to add an already present address!");
-   }
-   maps.memories.emplace(ptr, memory(ptr, bytes));
-   return ptr;
-}
-
-void *mm::Erase(void *ptr)
-{
-   if (!UsingMM()) { return ptr; }
-   const bool known = Known(ptr);
-   if (!known)
-   {
-      mfem_error("Trying to erase an unknown pointer!");
-   }
-   memory &mem = maps.memories.at(ptr);
-   for (const alias* const alias : mem.aliases)
-   {
-      maps.aliases.erase(alias);
-   }
-   mem.aliases.clear();
-   maps.memories.erase(ptr);
-   return ptr;
 }
 
 static inline bool MmDeviceIniFilter(void)
 {
-   if (!mm::UsingMM()) { return true; }
-   if (!mm::IsEnabled()) { return true; }
+   if (!mm.UsingMM()) { return true; }
+   if (!mm.IsEnabled()) { return true; }
    if (!Device::IsAvailable()) { return true; }
    if (!Device::IsConfigured()) { return true; }
    return false;
@@ -110,27 +180,26 @@ static inline bool MmDeviceIniFilter(void)
 
 // Turn a known address into the right host or device address. Alloc, Push, or
 // Pull it if necessary.
-static void *PtrKnown(mm::ledger &maps, void *ptr)
+static void *PtrKnown(internal::Ledger *maps, void *ptr)
 {
-   mm::memory &base = maps.memories.at(ptr);
-   const bool host = base.host;
-   const bool device = !host;
-   const size_t bytes = base.bytes;
-   const bool gpu = Device::Allows(Backend::DEVICE_MASK);
-   if (host && !gpu) { return ptr; }
+   internal::Memory &base = maps->memories.at(ptr);
+   const bool ptr_on_host = base.host;
+   const std::size_t bytes = base.bytes;
+   const bool run_on_device = Device::Allows(Backend::DEVICE_MASK);
+   if (ptr_on_host && !run_on_device) { return ptr; }
    if (bytes==0) { mfem_error("PtrKnown bytes==0"); }
    if (!base.d_ptr) { CuMemAlloc(&base.d_ptr, bytes); }
    if (!base.d_ptr) { mfem_error("PtrKnown !base->d_ptr"); }
-   if (device &&  gpu) { return base.d_ptr; }
+   if (!ptr_on_host && run_on_device) { return base.d_ptr; }
    if (!ptr) { mfem_error("PtrKnown !ptr"); }
-   if (device && !gpu) // Pull
+   if (!ptr_on_host && !run_on_device) // Pull
    {
       CuMemcpyDtoH(ptr, base.d_ptr, bytes);
       base.host = true;
       return ptr;
    }
    // Push
-   if (!(host && gpu)) { mfem_error("PtrKnown !(host && gpu)"); }
+   if (!(ptr_on_host && run_on_device)) { mfem_error("PtrKnown !(host && gpu)"); }
    CuMemcpyHtoD(base.d_ptr, ptr, bytes);
    base.host = false;
    return base.d_ptr;
@@ -138,14 +207,14 @@ static void *PtrKnown(mm::ledger &maps, void *ptr)
 
 // Turn an alias into the right host or device address. Alloc, Push, or Pull it
 // if necessary.
-static void *PtrAlias(mm::ledger &maps, void *ptr)
+static void *PtrAlias(internal::Ledger *maps, void *ptr)
 {
    const bool gpu = Device::Allows(Backend::DEVICE_MASK);
-   const mm::alias *alias = maps.aliases.at(ptr);
-   const mm::memory *base = alias->mem;
+   const internal::Alias *alias = maps->aliases.at(ptr);
+   const internal::Memory *base = alias->mem;
    const bool host = base->host;
    const bool device = !base->host;
-   const size_t bytes = base->bytes;
+   const std::size_t bytes = base->bytes;
    if (host && !gpu) { return ptr; }
    if (bytes==0) { mfem_error("PtrAlias bytes==0"); }
    if (!base->d_ptr) { CuMemAlloc(&(alias->mem->d_ptr), bytes); }
@@ -166,12 +235,12 @@ static void *PtrAlias(mm::ledger &maps, void *ptr)
    return a_ptr;
 }
 
-void *mm::Ptr(void *ptr)
+void *MemoryManager::Ptr(void *ptr)
 {
-   if (MmDeviceIniFilter()) { return ptr; }
    if (ptr==NULL) { return NULL; };
-   if (Known(ptr)) { return PtrKnown(maps, ptr); }
-   if (Alias(ptr)) { return PtrAlias(maps, ptr); }
+   if (MmDeviceIniFilter()) { return ptr; }
+   if (IsKnown(ptr)) { return PtrKnown(maps, ptr); }
+   if (IsAlias(ptr)) { return PtrAlias(maps, ptr); }
    if (Device::Allows(Backend::DEVICE_MASK))
    {
       mfem_error("Trying to use unknown pointer on the DEVICE!");
@@ -179,48 +248,49 @@ void *mm::Ptr(void *ptr)
    return ptr;
 }
 
-const void *mm::Ptr(const void *ptr)
+const void *MemoryManager::Ptr(const void *ptr)
 {
    return static_cast<const void*>(Ptr(const_cast<void*>(ptr)));
 }
 
-static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
+static void PushKnown(internal::Ledger *maps,
+                      const void *ptr, const std::size_t bytes)
 {
-   mm::memory &base = maps.memories.at(ptr);
+   internal::Memory &base = maps->memories.at(ptr);
    if (!base.d_ptr) { CuMemAlloc(&base.d_ptr, base.bytes); }
    CuMemcpyHtoD(base.d_ptr, ptr, bytes == 0 ? base.bytes : bytes);
 }
 
-static void PushAlias(const mm::ledger &maps, const void *ptr,
-                      const size_t bytes)
+static void PushAlias(const internal::Ledger *maps,
+                      const void *ptr, const std::size_t bytes)
 {
-   const mm::alias *alias = maps.aliases.at(ptr);
+   const internal::Alias *alias = maps->aliases.at(ptr);
    void *dst = static_cast<char*>(alias->mem->d_ptr) + alias->offset;
    CuMemcpyHtoD(dst, ptr, bytes);
 }
 
-void mm::Push(const void *ptr, const size_t bytes)
+void MemoryManager::Push(const void *ptr, const std::size_t bytes)
 {
    if (MmDeviceIniFilter()) { return; }
-   if (Known(ptr)) { return PushKnown(maps, ptr, bytes); }
-   if (Alias(ptr)) { return PushAlias(maps, ptr, bytes); }
+   if (IsKnown(ptr)) { return PushKnown(maps, ptr, bytes); }
+   if (IsAlias(ptr)) { return PushAlias(maps, ptr, bytes); }
    if (Device::Allows(Backend::DEVICE_MASK))
    { mfem_error("Unknown pointer to push to!"); }
 }
 
-static void PullKnown(const mm::ledger &maps, const void *ptr,
-                      const size_t bytes)
+static void PullKnown(const internal::Ledger *maps,
+                      const void *ptr, const std::size_t bytes)
 {
-   const mm::memory &base = maps.memories.at(ptr);
+   const internal::Memory &base = maps->memories.at(ptr);
    const bool host = base.host;
    if (host) { return; }
    CuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes == 0 ? base.bytes : bytes);
 }
 
-static void PullAlias(const mm::ledger &maps, const void *ptr,
-                      const size_t bytes)
+static void PullAlias(const internal::Ledger *maps,
+                      const void *ptr, const std::size_t bytes)
 {
-   const mm::alias *alias = maps.aliases.at(ptr);
+   const internal::Alias *alias = maps->aliases.at(ptr);
    const bool host = alias->mem->host;
    if (host) { return; }
    if (!ptr) { mfem_error("PullAlias !ptr"); }
@@ -230,37 +300,59 @@ static void PullAlias(const mm::ledger &maps, const void *ptr,
                 bytes);
 }
 
-void mm::Pull(const void *ptr, const size_t bytes)
+void MemoryManager::Pull(const void *ptr, const std::size_t bytes)
 {
    if (MmDeviceIniFilter()) { return; }
-   if (Known(ptr)) { return PullKnown(maps, ptr, bytes); }
-   if (Alias(ptr)) { return PullAlias(maps, ptr, bytes); }
+   if (IsKnown(ptr)) { return PullKnown(maps, ptr, bytes); }
+   if (IsAlias(ptr)) { return PullAlias(maps, ptr, bytes); }
    if (Device::Allows(Backend::DEVICE_MASK))
    { mfem_error("Unknown pointer to pull from!"); }
 }
 
 namespace internal { extern CUstream *cuStream; }
-void* mm::memcpy(void *dst, const void *src, const size_t bytes,
-                 const bool async)
+void* MemoryManager::Memcpy(void *dst, const void *src,
+                            const std::size_t bytes, const bool async)
 {
-   void *d_dst = mm::ptr(dst);
-   void *d_src = const_cast<void*>(mm::ptr(src));
-   const bool host = !Device::Allows(Backend::DEVICE_MASK);
+   void *d_dst = Ptr(dst);
+   void *d_src = const_cast<void*>(Ptr(src));
    if (bytes == 0) { return dst; }
-   if (host) { return std::memcpy(dst, src, bytes); }
+   const bool run_on_host = !Device::Allows(Backend::DEVICE_MASK);
+   if (run_on_host) { return std::memcpy(dst, src, bytes); }
    if (!async) { return CuMemcpyDtoD(d_dst, d_src, bytes); }
    return CuMemcpyDtoDAsync(d_dst, d_src, bytes, internal::cuStream);
 }
 
-void mm::RegisterCheck(void *ptr)
+void MemoryManager::RegisterCheck(void *ptr)
 {
    if (ptr != NULL && UsingMM())
    {
-      if (!mm::known(ptr))
+      if (!IsKnown(ptr))
       {
          mfem_error("Pointer is not registered!");
       }
    }
 }
+
+void MemoryManager::PrintPtrs(void)
+{
+   for (const auto& n : maps->memories)
+   {
+      mfem::out << "key " << n.first << ", "
+                << "host " << n.second.h_ptr << ", "
+                << "device " << n.second.h_ptr << "\n";
+   }
+}
+
+void MemoryManager::GetAll(void)
+{
+   for (const auto& n : maps->memories)
+   {
+      const void *ptr = n.first;
+      Ptr(ptr);
+   }
+}
+
+MemoryManager mm;
+bool MemoryManager::exists = false;
 
 } // namespace mfem

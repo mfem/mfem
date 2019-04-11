@@ -41,25 +41,19 @@ OccaMemory OccaPtr(const void *ptr)
 {
    // This function is called when 'ptr' needs to be passed to an OCCA kernel.
    OccaDevice dev = internal::occaDevice;
-   if (!mm::UsingMM()) { return OccaWrapMemory(dev, ptr, 0); }
-   const bool known = mm::known(ptr);
+   if (!mm.UsingMM()) { return OccaWrapMemory(dev, ptr, 0); }
+   const bool known = mm.IsKnown(ptr);
    if (!known) { mfem_error("OccaPtr: Unknown address!"); }
-   mm::memory &base = mm::mem(ptr);
-   const bool ptr_on_host = base.host;
-   const size_t bytes = base.bytes;
+   const bool ptr_on_host = mm.IsOnHost(ptr);
+   const size_t bytes = mm.Bytes(ptr);
    const bool run_on_host = !Device::Allows(Backend::DEVICE_MASK);
    // If the priority of a host OCCA backend is higher than all device OCCA
    // backends, then we will need to run-on-host even if the Device allows a
    // device backend.
    if (ptr_on_host && run_on_host) { return OccaWrapMemory(dev, ptr, bytes); }
    if (run_on_host) { mfem_error("OccaPtr: !ptr_on_host && run_on_host"); }
-   if (!base.d_ptr)
-   {
-      CuMemAlloc(&base.d_ptr, bytes);
-      CuMemcpyHtoD(base.d_ptr, ptr, bytes);
-      base.host = false;
-   }
-   return OccaWrapMemory(dev, base.d_ptr, bytes);
+   void *d_ptr = mm.GetDevicePtr(ptr);
+   return OccaWrapMemory(dev, d_ptr, bytes);
 }
 
 OccaDevice OccaDev() { return internal::occaDevice; }

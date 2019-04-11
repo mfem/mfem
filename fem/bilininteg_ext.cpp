@@ -16,6 +16,7 @@
 #include <map>
 #include <cmath>
 #include <algorithm>
+#include <unordered_map>
 
 using namespace std;
 
@@ -1379,8 +1380,8 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
       }
       maps->W = W;
    }
-   mm::memcpy(maps->B, B1d, numQuad1D*numDofs*sizeof(double));
-   mm::memcpy(maps->G, G1d, numQuad1D*numDofs*sizeof(double));
+   mfem::Memcpy(maps->B, B1d, numQuad1D*numDofs*sizeof(double));
+   mfem::Memcpy(maps->G, G1d, numQuad1D*numDofs*sizeof(double));
    return maps;
 }
 
@@ -1483,10 +1484,10 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    }
    if (transpose)
    {
-      mm::memcpy(maps->W, W, numQuad*sizeof(double));
+      mfem::Memcpy(maps->W, W, numQuad*sizeof(double));
    }
-   mm::memcpy(maps->B, B, numQuad*numDofs*sizeof(double));
-   mm::memcpy(maps->G, G, dims*numQuad*numDofs*sizeof(double));
+   mfem::Memcpy(maps->B, B, numQuad*numDofs*sizeof(double));
+   mfem::Memcpy(maps->G, G, dims*numQuad*numDofs*sizeof(double));
    return maps;
 }
 

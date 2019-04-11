@@ -83,7 +83,7 @@ public:
    /// Copy constructor: deep copy
    Array(const Array<T> &src)
       : BaseArray(src.size, 0, sizeof(T))
-   { mm::memcpy(data, src.data, size*sizeof(T)); }
+   { mfem::Memcpy(data, src.data, size*sizeof(T)); }
 
    /// Copy constructor (deep copy) from an Array of convertable type
    template <typename CT>
@@ -191,7 +191,7 @@ public:
    inline void Copy(Array &copy) const
    {
       copy.SetSize(Size());
-      mm::memcpy(copy.GetData(), data, Size()*sizeof(T));
+      mfem::Memcpy(copy.GetData(), data, Size()*sizeof(T));
    }
 
    /// Make this Array a reference to a pointer
@@ -714,7 +714,7 @@ inline void Array<T>::DeleteAll()
 {
    if (allocsize > 0)
    {
-      mm::Delete((char*)data);
+      mfem::Delete((char*)data);
    }
    data = NULL;
    size = allocsize = 0;
@@ -725,7 +725,7 @@ inline void Array<T>::MakeRef(T *p, int s)
 {
    if (allocsize > 0)
    {
-      mm::Delete((char*)data);
+      mfem::Delete((char*)data);
    }
    data = p;
    size = s;
@@ -737,7 +737,7 @@ inline void Array<T>::MakeRef(const Array &master)
 {
    if (allocsize > 0)
    {
-      mm::Delete((char*)data);
+      mfem::Delete((char*)data);
    }
    data = master.data;
    size = master.size;

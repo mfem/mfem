@@ -78,9 +78,9 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    if (hw > 0)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
-      data = mm::New<double>(hw);
+      data = mfem::New<double>(hw);
       capacity = hw;
-      mm::memcpy(data, m.data, sizeof(double)*hw);
+      mfem::Memcpy(data, m.data, sizeof(double)*hw);
    }
    else
    {
@@ -101,7 +101,7 @@ DenseMatrix::DenseMatrix(int s) : Matrix(s)
    capacity = s*s;
    if (capacity > 0)
    {
-      data = mm::New<double>(capacity);
+      data = mfem::New<double>(capacity);
       mfem::Set(0.0, capacity, data);
    }
    else
@@ -117,7 +117,7 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    capacity = m*n;
    if (capacity > 0)
    {
-      data = mm::New<double>(capacity);
+      data = mfem::New<double>(capacity);
       mfem::Set(0.0, capacity, data);
    }
    else
@@ -146,7 +146,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    capacity = height*width;
    if (capacity > 0)
    {
-      data = mm::New<double>(capacity);
+      data = mfem::New<double>(capacity);
       mfem::Transpose(height, width, data, mat.Data());
    }
    else
@@ -177,10 +177,10 @@ void DenseMatrix::SetSize(int h, int w)
    {
       if (capacity > 0)
       {
-         mm::Delete(data);
+         mfem::Delete(data);
       }
       capacity = hw;
-      data = mm::New<double>(capacity);
+      data = mfem::New<double>(capacity);
       mfem::Set(0.0, capacity, data);
    }
 }
@@ -3017,7 +3017,7 @@ DenseMatrix::~DenseMatrix()
 {
    if (capacity > 0)
    {
-      mm::Delete(data);
+      mfem::Delete(data);
    }
 }
 
@@ -4244,8 +4244,8 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix &mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = &mat;
-   lu.data = mm::New<double>(width*width);
-   lu.ipiv = mm::New<int>(width);
+   lu.data = mfem::New<double>(width*width);
+   lu.ipiv = mfem::New<int>(width);
    Factor();
 }
 
@@ -4254,8 +4254,8 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix *mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = mat;
-   lu.data = mm::New<double>(width*width);
-   lu.ipiv = mm::New<int>(width);
+   lu.data = mfem::New<double>(width*width);
+   lu.ipiv = mfem::New<int>(width);
 }
 
 void DenseMatrixInverse::Factor()
@@ -4284,10 +4284,10 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
    if (width != mat.width)
    {
       height = width = mat.width;
-      mm::Delete(lu.data);
-      lu.data = mm::New<double>(width*width);
-      mm::Delete(lu.ipiv);
-      lu.ipiv = mm::New<int>(width);
+      mfem::Delete(lu.data);
+      lu.data = mfem::New<double>(width*width);
+      mfem::Delete(lu.ipiv);
+      lu.ipiv = mfem::New<int>(width);
    }
    a = &mat;
    Factor();
@@ -4325,8 +4325,8 @@ void DenseMatrixInverse::TestInversion()
 
 DenseMatrixInverse::~DenseMatrixInverse()
 {
-   mm::Delete(lu.data);
-   mm::Delete(lu.ipiv);
+   mfem::Delete(lu.data);
+   mfem::Delete(lu.ipiv);
 }
 
 
