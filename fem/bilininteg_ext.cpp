@@ -363,12 +363,6 @@ static void OccaPADiffusionApply3D(const int D1D,
 const int MAX_Q1D = 10;
 const int MAX_D1D = 10;
 
-template<int N>
-class Dummy
-{
-   int array[N];
-};
-
 // PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADiffusionApply2D(const int NE,
@@ -386,34 +380,20 @@ void PADiffusionApply2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   const int NQ = Q1D*Q1D;
 
-   const DeviceMatrix B(b,Q1D,D1D);
-   const DeviceMatrix G(g,Q1D,D1D);
-   const DeviceMatrix Bt(bt,D1D,Q1D);
-   const DeviceMatrix Gt(gt,D1D,Q1D);
-   const DeviceTensor<3> op(_op,3,NQ,NE);
-   const DeviceTensor<3> x(_x,D1D,D1D,NE);
-   DeviceTensor<3> y(_y,D1D,D1D,NE);
-
-   const int CONST = 2; // from here, CONST seems to be captured as run-time variable :-(
-   //constexpr int CONST = 2; // also this!
+   const DeviceMatrix B(b, Q1D, D1D);
+   const DeviceMatrix G(g, Q1D, D1D);
+   const DeviceMatrix Bt(bt, D1D, Q1D);
+   const DeviceMatrix Gt(gt, D1D, Q1D);
+   const DeviceTensor<3> op(_op, 3, Q1D*Q1D, NE);
+   const DeviceTensor<3> x(_x, D1D, D1D, NE);
+   DeviceTensor<3> y(_y, D1D, D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
-      //const int CONST = 2; // here, it is treated as compile-time constant and the loop is unrolled
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      for (int i = 0; i < CONST; i++)
-      {
-         _y[D1D*e + i] = 12345;
-      }
-
-      Dummy<CONST> dummy; // BUT: this apparently works as compile-time constant in both cases
-   });
-
-/*
-   MFEM_FORALL(e, NE,
-   {
       double grad[MAX_Q1D][MAX_Q1D][2];
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -499,7 +479,7 @@ void PADiffusionApply2D(const int NE,
             }
          }
       }
-   });*/
+   });
 }
 
 // PA Diffusion Apply 3D kernel
@@ -518,18 +498,20 @@ void PADiffusionApply3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   const int NQ = Q1D*Q1D*Q1D;
 
-   const DeviceMatrix B(b,Q1D,D1D);
-   const DeviceMatrix G(g,Q1D,D1D);
-   const DeviceMatrix Bt(bt,D1D,Q1D);
-   const DeviceMatrix Gt(gt,D1D,Q1D);
-   const DeviceTensor<3> op(_op,6,NQ,NE);
-   const DeviceTensor<4> x(_x,D1D,D1D,D1D,NE);
-   DeviceTensor<4> y(_y,D1D,D1D,D1D,NE);
+   const DeviceMatrix B(b, Q1D, D1D);
+   const DeviceMatrix G(g, Q1D, D1D);
+   const DeviceMatrix Bt(bt, D1D, Q1D);
+   const DeviceMatrix Gt(gt, D1D, Q1D);
+   const DeviceTensor<3> op(_op, 6, Q1D*Q1D*Q1D, NE);
+   const DeviceTensor<4> x(_x, D1D, D1D, D1D, NE);
+   DeviceTensor<4> y(_y, D1D, D1D, D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
       double grad[MAX_Q1D][MAX_Q1D][MAX_Q1D][4];
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -724,9 +706,9 @@ static void PADiffusionApply(const int dim,
       switch ((D1D << 4) | Q1D)
       {
          case 0x22: PADiffusionApply2D<2,2>(NE, B, G, Bt, Gt, op, x, y); break;
-         /*case 0x33: PADiffusionApply2D<3,3>(NE, B, G, Bt, Gt, op, x, y); break;
+         case 0x33: PADiffusionApply2D<3,3>(NE, B, G, Bt, Gt, op, x, y); break;
          case 0x44: PADiffusionApply2D<4,4>(NE, B, G, Bt, Gt, op, x, y); break;
-         case 0x55: PADiffusionApply2D<5,5>(NE, B, G, Bt, Gt, op, x, y); break;*/
+         case 0x55: PADiffusionApply2D<5,5>(NE, B, G, Bt, Gt, op, x, y); break;
          default: PADiffusionApply2D(NE, B, G, Bt, Gt, op, x, y, D1D, Q1D);
       }
       return;
@@ -969,13 +951,17 @@ void PAMassApply2D(const int NE,
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
 
-   const DeviceMatrix B(_B, Q1D,D1D);
-   const DeviceMatrix Bt(_Bt, D1D,Q1D);
-   const DeviceTensor<3> op(_op, Q1D,Q1D,NE);
-   const DeviceTensor<3> x(_x, D1D,D1D,NE);
-   DeviceTensor<3> y(_y, D1D,D1D,NE);
+   const DeviceMatrix B(_B, Q1D, D1D);
+   const DeviceMatrix Bt(_Bt, D1D, Q1D);
+   const DeviceTensor<3> op(_op, Q1D, Q1D, NE);
+   const DeviceTensor<3> x(_x, D1D, D1D, NE);
+   DeviceTensor<3> y(_y, D1D, D1D, NE);
+
    MFEM_FORALL(e, NE,
    {
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
       double sol_xy[MAX_Q1D][MAX_Q1D];
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -1057,14 +1043,17 @@ void PAMassApply3D(const int NE,
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
 
-   const DeviceMatrix B(_B, Q1D,D1D);
-   const DeviceMatrix Bt(_Bt, D1D,Q1D);
-   const DeviceTensor<4> op(_op, Q1D,Q1D,Q1D,NE);
-   const DeviceTensor<4> x(_x, D1D,D1D,D1D,NE);
-   DeviceTensor<4> y(_y, D1D,D1D,D1D,NE);
+   const DeviceMatrix B(_B, Q1D, D1D);
+   const DeviceMatrix Bt(_Bt, D1D, Q1D);
+   const DeviceTensor<4> op(_op, Q1D, Q1D, Q1D,NE);
+   const DeviceTensor<4> x(_x, D1D, D1D, D1D, NE);
+   DeviceTensor<4> y(_y, D1D, D1D, D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
       double sol_xyz[MAX_Q1D][MAX_Q1D][MAX_Q1D];
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -1587,16 +1576,21 @@ void PAGeom2D(const int NE,
    const int ND = D1D*D1D;
    const int NQ = Q1D*Q1D;
 
-   const DeviceTensor<2> B(_B, NQ,ND);
-   const DeviceTensor<3> G(_G, 2,NQ,ND);
-   const DeviceTensor<3> X(_X, 2,ND,NE);
-   DeviceTensor<3> Xq(_Xq, 2,NQ,NE);
-   DeviceTensor<4> J(_J, 2,2,NQ,NE);
-   DeviceTensor<4> invJ(_invJ, 2,2,NQ,NE);
-   DeviceMatrix detJ(_detJ, NQ,NE);
+   const DeviceTensor<2> B(_B, NQ, ND);
+   const DeviceTensor<3> G(_G, 2,NQ, ND);
+   const DeviceTensor<3> X(_X, 2,ND, NE);
+   DeviceTensor<3> Xq(_Xq, 2, NQ, NE);
+   DeviceTensor<4> J(_J, 2, 2, NQ, NE);
+   DeviceTensor<4> invJ(_invJ, 2, 2, NQ, NE);
+   DeviceMatrix detJ(_detJ, NQ, NE);
 
    MFEM_FORALL(e, NE,
    {
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int ND = D1D*D1D;
+      const int NQ = Q1D*Q1D;
+
       double s_X[2*MAX_D1D*MAX_D1D];
       for (int q = 0; q < NQ; ++q)
       {
@@ -1657,16 +1651,21 @@ void PAGeom3D(const int NE,
    const int ND = D1D*D1D*D1D;
    const int NQ = Q1D*Q1D*Q1D;
 
-   const DeviceTensor<2> B(_B, NQ,NE);
-   const DeviceTensor<3> G(_G, 3,NQ,NE);
-   const DeviceTensor<3> X(_X, 3,ND,NE);
-   DeviceTensor<3> Xq(_Xq, 3,NQ,NE);
-   DeviceTensor<4> J(_J, 3,3,NQ,NE);
-   DeviceTensor<4> invJ(_invJ, 3,3,NQ,NE);
-   DeviceMatrix detJ(_detJ, NQ,NE);
+   const DeviceTensor<2> B(_B, NQ, NE);
+   const DeviceTensor<3> G(_G, 3, NQ, NE);
+   const DeviceTensor<3> X(_X, 3, ND, NE);
+   DeviceTensor<3> Xq(_Xq, 3, NQ, NE);
+   DeviceTensor<4> J(_J, 3, 3, NQ, NE);
+   DeviceTensor<4> invJ(_invJ, 3, 3, NQ, NE);
+   DeviceMatrix detJ(_detJ, NQ, NE);
 
    MFEM_FORALL(e,NE,
    {
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int ND = D1D*D1D*D1D;
+      const int NQ = Q1D*Q1D*Q1D;
+
       double s_nodes[3*MAX_D1D*MAX_D1D*MAX_D1D];
       for (int q = 0; q < NQ; ++q)
       {
