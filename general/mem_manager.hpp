@@ -28,8 +28,8 @@ private:
    /// New and Delete will still continue to register the pointers
    bool enabled;
 
-   /// Allow to detect if the memory manager has been destroyed
-   static bool destroyed;
+   /// Allow to detect if the memory manager exists
+   static bool exists;
 
 public:
    MemoryManager();
@@ -41,8 +41,8 @@ public:
    /// Remove the address from the map, as well as all the address' aliases
    void *Erase(void *ptr);
 
-   /// Return true if the memory manager is used: pointers seen by mm::New and
-   /// mm::Delete will be inserted in the ledger and erased from it
+   /// Return true if the memory manager is used: pointers seen by mfem::New and
+   /// mfem::Delete will be inserted in the ledger and erased from it
    static inline bool UsingMM()
    {
 #ifdef MFEM_USE_MM
@@ -52,10 +52,10 @@ public:
 #endif
    }
 
-   /// Disable the memory manager: mm::ptr, mm::push and mm::pull will be no-op
+   /// Disable the memory manager: Ptr, Push and Pull will be no-op
    void Disable() { enabled = false; }
 
-   /// Enable the memory manager: mm::ptr, mm::push and mm::pull wont be no-op
+   /// Enable the memory manager: Ptr, Push and Pull wont be no-op
    void Enable() { enabled = true; }
 
    /// Return true if the memory manager is used and enabled
@@ -64,8 +64,8 @@ public:
    /// The opposite of IsEnabled().
    bool IsDisabled() { return !IsEnabled(); }
 
-   /// Return true if the memory manager has been destroyed
-   static bool IsDestroyed() { return destroyed; }
+   /// Return true if the memory manager exists
+   static bool Exists() { return exists; }
 
    /** @brief Translates ptr to host or device address, depending on what
        backends are currently allowed by the Device class and on the ptr
@@ -145,7 +145,11 @@ extern MemoryManager mm;
 /// a pointer to the allocated memory.
 template<class T>
 inline T *New(const std::size_t n)
-{ return static_cast<T*>(mm.Insert(new T[n], n*sizeof(T))); }
+{
+   T *ptr = new T[n];
+   if (!MemoryManager::Exists()) { return ptr; }
+   return static_cast<T*>(mm.Insert(ptr, n*sizeof(T)));
+}
 
 /// Frees the memory space pointed to by ptr, which must have been returned by a
 /// previous call to mfem::New.
@@ -156,7 +160,7 @@ inline void Delete(T *ptr)
                  "Explicitly provide the correct type as a template parameter.");
    if (!ptr) { return; }
    delete [] ptr;
-   if (MemoryManager::IsDestroyed()) { return; }
+   if (!MemoryManager::Exists()) { return; }
    mm.Erase(ptr);
 }
 
