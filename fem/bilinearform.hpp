@@ -117,6 +117,9 @@ protected:
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
       diag_policy = DIAG_KEEP;
+      assembly = AssemblyLevel::FULL;
+      batch = 1;
+      ext = NULL;
    }
 
 private:
