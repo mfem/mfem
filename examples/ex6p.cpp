@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
       cg.SetMaxIter(2000);
-      cg.SetPrintLevel(3);
+      cg.SetPrintLevel(3); // print the first and the last iterations only
       if (amg) { cg.SetPreconditioner(*amg); }
       cg.SetOperator(*Ah.Ptr());
       cg.Mult(B, X);
