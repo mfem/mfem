@@ -14,50 +14,35 @@
 
 #include "globals.hpp"
 
-#include <list>
-#include <unordered_map>
-
 namespace mfem
 {
 
-// Implementation of MFEM's lightweight device/host memory manager (mm) designed
-// to work seamlessly with the OCCA, RAJA, and other kernels supported by MFEM.
+// Implementation of MFEM's lightweight device/host memory manager designed to
+// work seamlessly with the OCCA, RAJA, and other kernels supported by MFEM.
 
-/// The memory manager singleton
-class mm
+/// The memory manager class
+class MemoryManager
 {
+private:
+   /// Allow to enable/disable the Ptr, Pull and Push functionalities
+   /// New and Delete will still continue to register the pointers
+   bool enabled;
+
+   /// Allow to detect if a global memory manager instance exists
+   static bool exists;
+
 public:
-   struct alias;
+   MemoryManager();
+   ~MemoryManager();
 
-   struct memory
-   {
-      const size_t bytes;
-      void *const h_ptr;
-      void *d_ptr;
-      std::list<const alias *> aliases;
-      bool host;
-      bool padding[7];
-      memory(void* const h, const size_t b):
-         bytes(b), h_ptr(h), d_ptr(nullptr), aliases(), host(true) {}
-   };
+   /// Adds an address in the map
+   void *Insert(void *ptr, const std::size_t bytes);
 
-   struct alias
-   {
-      memory *const mem;
-      const long offset;
-   };
+   /// Remove the address from the map, as well as all its aliases
+   void *Erase(void *ptr);
 
-   typedef std::unordered_map<const void*, memory> memory_map;
-   typedef std::unordered_map<const void*, const alias*> alias_map;
-
-   struct ledger
-   {
-      memory_map memories;
-      alias_map aliases;
-   };
-
-   /// Return true if the memory manager is used: pointers seen by mm::New and
-   /// mm::Delete will be inserted in the ledger and erased from it
+   /// Return true if the memory manager is used: pointers seen by mfem::New and
+   /// mfem::Delete will be inserted in the ledger and erased from it
    static inline bool UsingMM()
    {
 #ifdef MFEM_USE_MM
@@ -67,149 +52,134 @@ public:
 #endif
    }
 
-   /// Disable the memory manager: mm::ptr, mm::push and mm::pull will be no-op
-   static inline void Disable() { MM().enabled = false; }
+   /// Disable the memory manager: Ptr, Push and Pull will be no-op
+   void Disable() { enabled = false; }
 
-   /// Enable the memory manager: mm::ptr, mm::push and mm::pull wont be no-op
-   static inline void Enable() { MM().enabled = true; }
+   /// Enable the memory manager: Ptr, Push and Pull wont be no-op
+   void Enable() { enabled = true; }
 
    /// Return true if the memory manager is used and enabled
-   static inline bool IsEnabled() { return UsingMM() && MM().enabled; }
+   bool IsEnabled() { return UsingMM() && enabled; }
 
    /// The opposite of IsEnabled().
-   static inline bool IsDisabled() { return !mm::IsEnabled(); }
+   bool IsDisabled() { return !IsEnabled(); }
 
-   /// Main malloc template function. Allocates n*size bytes and returns a
-   /// pointer to the allocated memory.
-   template<class T>
-   static inline T *New(const size_t n)
-   { return static_cast<T*>(MM().Insert(new T[n], n*sizeof(T))); }
-
-   /// Frees the memory space pointed to by ptr, which must have been returned
-   /// by a previous call to mm::New.
-   template<class T>
-   static inline void Delete(T *ptr)
-   {
-      static_assert(!std::is_void<T>::value, "Cannot Delete a void pointer. "
-                    "Explicitly provide the correct type as a template parameter.");
-      if (!ptr) { return; }
-      delete [] ptr;
-      mm::MM().Erase(ptr);
-   }
+   /// Return true if a global memory manager instance exists
+   static bool Exists() { return exists; }
 
    /** @brief Translates ptr to host or device address, depending on what
-       backends are currently allowed by the Device class and on the ptr state.
-   */
-   template <class T>
-   static inline T *ptr(T *a) { return static_cast<T*>(MM().Ptr(a)); }
-
-   static inline memory &mem(const void *a) { return MM().maps.memories.at(a); }
-
-   static inline void push(const void *ptr, const size_t bytes = 0)
-   {
-      return MM().Push(ptr, bytes);
-   }
-
-   static inline void pull(const void *ptr, const size_t bytes = 0)
-   {
-      return MM().Pull(ptr, bytes);
-   }
+       backends are currently allowed by the Device class and on the ptr
+       state. */
+   void *Ptr(void *ptr);
+   const void *Ptr(const void *ptr);
 
    /// Data will be pushed/pulled before the copy happens on the H or the D
-   static void* memcpy(void *dst, const void *src,
-                       size_t bytes, const bool async = false);
+   void* Memcpy(void *dst, const void *src,
+                std::size_t bytes, const bool async = false);
 
-   /// Tests if the pointer has been registered
-   static inline bool known(const void *ptr)
-   {
-      return MM().Known(ptr);
-   }
+   /// Return the bytes of the memory region which base address is ptr
+   std::size_t Bytes(const void *ptr);
 
-   /// Prints all pointers known by the memory manager
-   static inline void PrintPtrs(void)
-   {
-      for (const auto& n : MM().maps.memories)
-      {
-         mfem::out << "key " << n.first << ", "
-                   << "host " << n.second.h_ptr << ", "
-                   << "device " << n.second.h_ptr << "\n";
-      }
-   }
+   /// Return true if the registered pointer is on the host side
+   bool IsOnHost(const void *ptr);
 
-   /// Copies all memory to the current memory space
-   static inline void GetAll(void)
-   {
-      for (const auto& n : MM().maps.memories)
-      {
-         const void *ptr = n.first;
-         mm::ptr(ptr);
-      }
-   }
+   /// Return true if the pointer has been registered
+   bool IsKnown(const void *ptr);
 
-   /// Registers external host pointer in the mm. The mm will manage the
-   /// corresponding device pointer (but not the provided host pointer).
+   /// Return true if the pointer is an alias inside a registered memory region
+   bool IsAlias(const void *ptr);
+
+   /// Push the data to the device
+   void Push(const void *ptr, const std::size_t bytes =0);
+
+   /// Pull the data from the device
+   void Pull(const void *ptr, const std::size_t bytes =0);
+
+   /// Return the corresponding device pointer of ptr, allocating and moving the
+   /// data if needed (used in OccaPtr)
+   void *GetDevicePtr(const void *ptr);
+
+   /// Registers external host pointer in the memory manager which will manage
+   /// the corresponding device pointer, but not the provided host pointer.
    template<class T>
-   static inline void RegisterHostPtr(T *ptr_host, const size_t size)
+   void RegisterHostPtr(T *ptr_host, const std::size_t size)
    {
-      MM().Insert(ptr_host, size*sizeof(T));
+      Insert(ptr_host, size*sizeof(T));
 #ifdef MFEM_DEBUG
       RegisterCheck(ptr_host);
 #endif
    }
 
-   /// Registers external host and device pointers in the mm.
+   /// Registers external host and device pointers in the memory manager.
    template<class T>
-   static void RegisterHostAndDevicePtr(T *ptr_host, T *ptr_device,
-                                        const size_t size, bool host)
+   void RegisterHostAndDevicePtr(T *ptr_host, T *ptr_device,
+                                 const std::size_t size, const bool host)
    {
       RegisterHostPtr(ptr_host, size);
-      mm::memory &base = MM().maps.memories.at(ptr_host);
-      base.d_ptr = ptr_device;
-      base.host = host;
+      SetHostDevicePtr(ptr_host, ptr_device, host);
    }
 
-   /// Unregisters the host pointer from the mm. To be used with memory not
-   /// allocated by the mm.
+   /// Set the host h_ptr, device d_ptr and mode host of the memory region just
+   /// been registered with h_ptr (see RegisterHostAndDevicePtr)
+   void SetHostDevicePtr(void *h_ptr, void *d_ptr, const bool host);
+
+   /// Unregisters the host pointer from the memory manager. To be used with
+   /// memory not allocated by the memory manager.
    template<class T>
-   static inline void UnregisterHostPtr(T *ptr)
-   {
-      if (!ptr) { return; }
-      mm::MM().Erase(ptr);
-   }
+   void UnregisterHostPtr(T *ptr) { Erase(ptr); }
 
-   /// Check if pointer has been registered in the mm
-   static void RegisterCheck(void *ptr);
+   /// Check if pointer has been registered in the memory manager
+   void RegisterCheck(void *ptr);
 
-private:
-   ledger maps;
-   bool enabled;
-   mm(): enabled(true) { }
-   mm(mm const&) = delete;
-   void operator=(mm const&) = delete;
-   static inline mm& MM() { static mm singleton; return singleton; }
+   /// Prints all pointers known by the memory manager
+   void PrintPtrs(void);
 
-   /// Adds an address
-   void *Insert(void *ptr, const size_t bytes);
-
-   /// Remove the address from the map, as well as all the address' aliases
-   void *Erase(void *ptr);
-
-   /// Turn an address to the right host or device one
-   void *Ptr(void *ptr);
-   const void *Ptr(const void *ptr);
-
-   /// Tests if ptr is a known address
-   bool Known(const void *ptr);
-
-   /// Tests if ptr is an alias address
-   bool Alias(const void *ptr);
-
-   /// Push the data to the device
-   void Push(const void *ptr, const size_t bytes = 0);
-
-   /// Pull the data from the device
-   void Pull(const void *ptr, const size_t bytes = 0);
+   /// Copies all memory to the current memory space
+   void GetAll(void);
 };
+
+/// The (single) global memory manager object
+extern MemoryManager mm;
+
+/// Main memory allocation template function. Allocates n*size bytes and returns
+/// a pointer to the allocated memory.
+template<class T>
+inline T *New(const std::size_t n)
+{
+   T *ptr = new T[n];
+   if (!MemoryManager::Exists()) { return ptr; }
+   return static_cast<T*>(mm.Insert(ptr, n*sizeof(T)));
+}
+
+/// Frees the memory space pointed to by ptr, which must have been returned by a
+/// previous call to mfem::New.
+template<class T>
+inline void Delete(T *ptr)
+{
+   static_assert(!std::is_void<T>::value, "Cannot Delete a void pointer. "
+                 "Explicitly provide the correct type as a template parameter.");
+   if (!ptr) { return; }
+   delete [] ptr;
+   if (!MemoryManager::Exists()) { return; }
+   mm.Erase(ptr);
+}
+
+/// Return a host or device address corresponding to current memory space
+template <class T>
+inline T *Ptr(T *a) { return static_cast<T*>(mm.Ptr(a)); }
+
+/// Data will be pushed/pulled before the copy happens on the host or the device
+inline void* Memcpy(void *dst, const void *src,
+                    std::size_t bytes, const bool async = false)
+{ return mm.Memcpy(dst, src, bytes, async); }
+
+/// Push the data to the device
+inline void Push(const void *ptr, const std::size_t bytes = 0)
+{ return mm.Push(ptr, bytes); }
+
+/// Pull the data from the device
+inline void Pull(const void *ptr, const std::size_t bytes = 0)
+{ return mm.Pull(ptr, bytes); }
 
 } // namespace mfem
 

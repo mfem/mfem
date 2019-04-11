@@ -96,17 +96,17 @@ public:
       // Initialize sizes, and compute the number of values
       const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      data = (capacity > 0) ? mm::ptr(_data) : NULL;
+      data = (capacity > 0) ? mfem::Ptr(_data) : NULL;
    }
 
    /// Constructor to initialize a tensor from the Scalar array _data
    DeviceTensor(const Scalar* _data)
    {
-      data = (Scalar*) mm::ptr(_data);
+      data = (Scalar*) mfem::Ptr(_data);
    }
 
    /// Constructor to initialize a tensor from the Scalar array _data
-   DeviceTensor(Scalar* _data) { data = mm::ptr(_data); }
+   DeviceTensor(Scalar* _data) { data = mfem::Ptr(_data); }
 
    /// Constructor to initialize a tensor from the const Scalar array _data
    template <typename... Args>
@@ -116,7 +116,7 @@ public:
       // Initialize sizes, and compute the number of values
       const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      data = (capacity > 0) ? (Scalar*)mm::ptr(_data) : NULL;
+      data = (capacity > 0) ? (Scalar*)mfem::Ptr(_data) : NULL;
    }
 
    /// Copy constructor
