@@ -344,6 +344,11 @@ void BilinearForm::AssembleBdrElementMatrix(
 
 void BilinearForm::Assemble(int skip_zeros)
 {
+   if (Device::IsEnabled() && (assembly != AssemblyLevel::PARTIAL))
+   {
+      mfem_error("Chosen assembly level not supported yet in device mode!");
+   }
+
    if (ext)
    {
       ext->Assemble();
