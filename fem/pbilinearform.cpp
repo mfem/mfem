@@ -284,6 +284,12 @@ void ParBilinearForm::FormLinearSystem(
    const Array<int> &ess_tdof_list, Vector &x, Vector &b,
    OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
 {
+   if (ext)
+   {
+      ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+      return;
+   }
+
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
    FormSystemMatrix(ess_tdof_list, A);
@@ -327,6 +333,12 @@ void ParBilinearForm::FormLinearSystem(
 void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                        OperatorHandle &A)
 {
+   if (ext)
+   {
+      ext->FormSystemMatrix(ess_tdof_list, A);
+      return;
+   }
+
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
    if (static_cond)
@@ -369,6 +381,12 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 void ParBilinearForm::RecoverFEMSolution(
    const Vector &X, const Vector &b, Vector &x)
 {
+   if (ext)
+   {
+      ext->RecoverFEMSolution(X, b, x);
+      return;
+   }
+
    const Operator &P = *pfes->GetProlongationMatrix();
 
    if (static_cond)
@@ -467,8 +485,8 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
 
 HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
 {
-   MFEM_ASSERT(mat, "matrix is not assembled");
-   MFEM_ASSERT(mat->Finalized(), "matrix is not finalized");
+   MFEM_ASSERT(mat, "Matrix is not assembled");
+   MFEM_ASSERT(mat->Finalized(), "Matrix is not finalized");
    SparseMatrix* RA = mfem::Mult(*range_fes->GetRestrictionMatrix(), *mat);
    HypreParMatrix* P = domain_fes->Dof_TrueDof_Matrix();
    HypreParMatrix* RAP = P->LeftDiagMult(*RA, range_fes->GetTrueDofOffsets());
@@ -479,7 +497,7 @@ HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
 void ParDiscreteLinearOperator::GetParBlocks(Array2D<HypreParMatrix *> &blocks)
 const
 {
-   MFEM_VERIFY(mat->Finalized(), "local matrix needs to be finalized for "
+   MFEM_VERIFY(mat->Finalized(), "Local matrix needs to be finalized for "
                "GetParBlocks");
 
    HypreParMatrix* RLP = ParallelAssemble();

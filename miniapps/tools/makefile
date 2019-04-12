@@ -49,7 +49,8 @@ all: $(MINIAPPS)
 
 # Tools that depend on $(COMMON_O)
 display-basis: %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_O) $(MFEM_LIBS)
 
 hodge-decomp: %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
