@@ -829,28 +829,6 @@ void ParNCMesh::NeighborProcessors(Array<int> &neighbors)
 
 //// ParMesh compatibility /////////////////////////////////////////////////////
 
-struct CompareShared // TODO: use lambda when C++11 available
-{
-   const Array<int> &elem_local, &leaf_glob_order, &shared_local;
-
-   CompareShared
-   (const Array<int> &el, const Array<int> &lgo, const Array<int> &sl)
-      : elem_local(el), leaf_glob_order(lgo), shared_local(sl) {}
-
-   inline bool operator()(const int a, const int b)
-   {
-      int el_loc_a = elem_local[shared_local[a]];
-      int el_loc_b = elem_local[shared_local[b]];
-
-      int lgo_a = leaf_glob_order[el_loc_a >> 4];
-      int lgo_b = leaf_glob_order[el_loc_b >> 4];
-
-      if (lgo_a != lgo_b) { return lgo_a < lgo_b; }
-
-      return (el_loc_a & 0xf) < (el_loc_b & 0xf);
-   }
-};
-
 void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
                                 Table &group_shared, Array<char> *entity_geom,
                                 char geom)
@@ -896,8 +874,18 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
       int *row = group_shared.GetRow(i);
 
       Array<int> ref_row(row, size);
-      ref_row.Sort(
-         CompareShared(entity_elem_local[ent], leaf_glob_order, shared_local));
+      ref_row.Sort([&](const int a, const int b)
+      {
+         int el_loc_a = entity_elem_local[ent][shared_local[a]];
+         int el_loc_b = entity_elem_local[ent][shared_local[b]];
+
+         int lgo_a = leaf_glob_order[el_loc_a >> 4];
+         int lgo_b = leaf_glob_order[el_loc_b >> 4];
+
+         if (lgo_a != lgo_b) { return lgo_a < lgo_b; }
+
+         return (el_loc_a & 0xf) < (el_loc_b & 0xf);
+      });
    }
 }
 
@@ -1002,12 +990,6 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    leaf_glob_order.DeleteAll();
 }
 
-bool ParNCMesh::compare_ranks_indices(const Element* a, const Element* b)
-{
-   return (a->rank != b->rank) ? a->rank < b->rank
-          /*                */ : a->index < b->index;
-}
-
 void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 {
    ClearAuxPM();
@@ -1067,7 +1049,11 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    // same on different processors, this is important for ExchangeFaceNbrData)
    fnbr.Sort();
    fnbr.Unique();
-   fnbr.Sort(compare_ranks_indices);
+   fnbr.Sort([](const Element* a, const Element* b)
+   {
+      return (a->rank != b->rank) ? a->rank < b->rank
+             /*                */ : a->index < b->index;
+   });
 
    // put the ranks into 'face_nbr_group'
    for (int i = 0; i < fnbr.Size(); i++)
@@ -1797,18 +1783,6 @@ void ParNCMesh::Rebalance()
    Prune();
 }
 
-struct CompareRanks // TODO: use lambda when C++11 available
-{
-   typedef BlockArray<NCMesh::Element> ElemArray;
-   const ElemArray &elements;
-   CompareRanks(const ElemArray &elements) : elements(elements) {}
-
-   inline bool operator()(const int a, const int b)
-   {
-      return elements[a].rank < elements[b].rank;
-   }
-};
-
 void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
                                      bool record_comm)
 {
@@ -1818,7 +1792,11 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
    NeighborElementRankMessage::Map send_ghost_ranks, recv_ghost_ranks;
 
-   ghost_layer.Sort(CompareRanks(elements));
+   ghost_layer.Sort([&](const int a, const int b)
+   {
+      return elements[a].rank < elements[b].rank;
+   });
+
    {
       Array<int> rank_neighbors;
 
@@ -1901,7 +1879,10 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
       // sort elements we own by the new rank
       Array<int> owned_elements;
       owned_elements.MakeRef(leaf_elements.GetData(), NElements);
-      owned_elements.Sort(CompareRanks(elements));
+      owned_elements.Sort([&](const int a, const int b)
+      {
+         return elements[a].rank < elements[b].rank;
+      });
 
       Array<int> batch;
       batch.Reserve(1024);
