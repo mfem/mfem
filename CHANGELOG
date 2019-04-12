@@ -21,7 +21,8 @@ Requirements and Limitations
 - GPU-related limitations:
   * NVCC is not supported in the CMake build system yet.
   * Element batching is currently ignored.
-  * Full-assembly and matrix-free bilinear forms are not supported yet.
+  * Full-assembly (on device), element assembly, and matrix-free bilinear forms
+    are not supported yet.
   * FunctionCoefficients do not currently work on GPUs.
   * Partial assembly kernels are not implemented yet for simplices.
 
@@ -32,7 +33,7 @@ GPU support
 
 - The GPU/device support is based on MFEM's new backends and kernels working
   seamlessly with a new lightweight device/host memory manager. The kernels can
-  be implemented either in OCCA, or as a simple wrapper around for loops, which
+  be implemented either in OCCA, or as a simple wrapper around for-loops, which
   can then be dispatched to RAJA and native backends. See the files forall.hpp
   and mem_manager.hpp in the general/ directory.
 
@@ -144,8 +145,6 @@ New and improved solvers and preconditioners
 
 Miscellaneous
 -------------
-- MFEM now builds with C++11 enabled.
-
 - Added unit tests based on the Catch++ library.
 
 - Renamed the option MFEM_USE_OPENMP to MFEM_USE_LEGACY_OPENMP. This legacy
