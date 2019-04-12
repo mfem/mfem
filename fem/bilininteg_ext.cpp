@@ -9,22 +9,24 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../config/config.hpp"
-#include "../general/okina.hpp"
-#include "../linalg/dtensor.hpp"
-#include "../linalg/dvector3.hpp"
+#include "../general/forall.hpp"
+#include "bilininteg.hpp"
+#include "gridfunc.hpp"
 
-#include "fem.hpp"
 #include <map>
 #include <cmath>
 #include <algorithm>
-#include "bilininteg.hpp"
-#include "bilininteg_ext.hpp"
+#include <unordered_map>
 
 using namespace std;
 
 namespace mfem
 {
+
+#ifdef MFEM_USE_OCCA
+typedef std::pair<int,int> id_t;
+typedef std::map<id_t, occa::kernel> occa_kernel_t;
+#endif // MFEM_USE_OCCA
 
 static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
                                              const FiniteElement &test_fe)
@@ -50,54 +52,66 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 
 // OCCA 2D Assemble kernel
 #ifdef MFEM_USE_OCCA
-static void OccaPADiffusionAssemble2D(const int D1D,
-                                      const int Q1D,
-                                      const int NE,
-                                      const double *W,
-                                      const double *J,
-                                      const double COEFF,
-                                      double *op)
+static void OccaPADiffusionSetup2D(const int D1D,
+                                   const int Q1D,
+                                   const int NE,
+                                   const double *W,
+                                   const double *J,
+                                   const double COEFF,
+                                   double *op)
 {
-   const occa::memory o_W = mfem::OccaPtr(W);
-   const occa::memory o_J = mfem::OccaPtr(J);
-   occa::memory o_op = mfem::OccaPtr(op);
-
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
-
-   MFEM_NEW_OCCA_KERNEL(DiffusionSetup2D, fem, occa.okl, props);
-   DiffusionSetup2D(NE, o_W, o_J, COEFF, o_op);
+   const occa::memory o_W = mfem::OccaPtr(W);
+   const occa::memory o_J = mfem::OccaPtr(J);
+   occa::memory o_op = mfem::OccaPtr(op);
+   const id_t id = std::make_pair(D1D,Q1D);
+   static occa_kernel_t OccaDiffSetup2D_ker;
+   if (OccaDiffSetup2D_ker.find(id) == OccaDiffSetup2D_ker.end())
+   {
+      const occa::kernel DiffusionSetup2D =
+         mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                     "DiffusionSetup2D", props);
+      OccaDiffSetup2D_ker.emplace(id, DiffusionSetup2D);
+   }
+   OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, COEFF, o_op);
 }
 
-static void OccaPADiffusionAssemble3D(const int D1D,
-                                      const int Q1D,
-                                      const int NE,
-                                      const double *W,
-                                      const double *J,
-                                      const double COEFF,
-                                      double *op)
+static void OccaPADiffusionSetup3D(const int D1D,
+                                   const int Q1D,
+                                   const int NE,
+                                   const double *W,
+                                   const double *J,
+                                   const double COEFF,
+                                   double *op)
 {
-   const occa::memory o_W = mfem::OccaPtr(W);
-   const occa::memory o_J = mfem::OccaPtr(J);
-   occa::memory o_op = mfem::OccaPtr(op);
-
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
-
-   MFEM_NEW_OCCA_KERNEL(DiffusionSetup3D, fem, occa.okl, props);
-   DiffusionSetup3D(NE, o_W, o_J, COEFF, o_op);
+   const occa::memory o_W = mfem::OccaPtr(W);
+   const occa::memory o_J = mfem::OccaPtr(J);
+   occa::memory o_op = mfem::OccaPtr(op);
+   const id_t id = std::make_pair(D1D,Q1D);
+   static occa_kernel_t OccaDiffSetup3D_ker;
+   if (OccaDiffSetup3D_ker.find(id) == OccaDiffSetup3D_ker.end())
+   {
+      const occa::kernel DiffusionSetup3D =
+         mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                     "DiffusionSetup3D", props);
+      OccaDiffSetup3D_ker.emplace(id, DiffusionSetup3D);
+   }
+   OccaDiffSetup3D_ker.at(id)(NE, o_W, o_J, COEFF, o_op);
 }
 #endif // MFEM_USE_OCCA
 
 // PA Diffusion Assemble 2D kernel
-static void PADiffusionAssemble2D(const int Q1D,
-                                  const int NE,
-                                  const double* w,
-                                  const double* j,
-                                  const double COEFF,
-                                  double* op)
+static void PADiffusionSetup2D(const int Q1D,
+                               const int NE,
+                               const double* w,
+                               const double* j,
+                               const double COEFF,
+                               double* op)
 {
    const int NQ = Q1D*Q1D;
    const DeviceVector W(w, NQ);
@@ -120,12 +134,12 @@ static void PADiffusionAssemble2D(const int Q1D,
 }
 
 // PA Diffusion Assemble 3D kernel
-static void PADiffusionAssemble3D(const int Q1D,
-                                  const int NE,
-                                  const double* w,
-                                  const double* j,
-                                  const double COEFF,
-                                  double* op)
+static void PADiffusionSetup3D(const int Q1D,
+                               const int NE,
+                               const double* w,
+                               const double* j,
+                               const double COEFF,
+                               double* op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    const DeviceVector W(w, NQ);
@@ -170,37 +184,55 @@ static void PADiffusionAssemble3D(const int Q1D,
    });
 }
 
-static void PADiffusionAssemble(const int dim,
-                                const int D1D,
-                                const int Q1D,
-                                const int NE,
-                                const double* W,
-                                const double* J,
-                                const double COEFF,
-                                double* op)
+namespace internal
 {
-   if (dim == 1) { mfem_error("dim==1 not supported in PADiffusionAssemble"); }
+
+#ifdef MFEM_USE_OCCA
+// This function is currently used to determine if an OCCA kernel should be
+// used.
+static bool DeviceUseOcca()
+{
+   return Device::Allows(Backend::OCCA_CUDA) ||
+          (Device::Allows(Backend::OCCA_OMP) &&
+           !Device::Allows(Backend::DEVICE_MASK)) ||
+          (Device::Allows(Backend::OCCA_CPU) &&
+           !Device::Allows(Backend::DEVICE_MASK|Backend::OMP_MASK));
+}
+#endif
+
+}
+
+static void PADiffusionSetup(const int dim,
+                             const int D1D,
+                             const int Q1D,
+                             const int NE,
+                             const double* W,
+                             const double* J,
+                             const double COEFF,
+                             double* op)
+{
+   if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADiffusionSetup"); }
    if (dim == 2)
    {
 #ifdef MFEM_USE_OCCA
-      if (Device::UsingOcca())
+      if (internal::DeviceUseOcca())
       {
-         OccaPADiffusionAssemble2D(D1D, Q1D, NE, W, J, COEFF, op);
+         OccaPADiffusionSetup2D(D1D, Q1D, NE, W, J, COEFF, op);
          return;
       }
 #endif // MFEM_USE_OCCA
-      PADiffusionAssemble2D(Q1D, NE, W, J, COEFF, op);
+      PADiffusionSetup2D(Q1D, NE, W, J, COEFF, op);
    }
    if (dim == 3)
    {
 #ifdef MFEM_USE_OCCA
-      if (Device::UsingOcca())
+      if (internal::DeviceUseOcca())
       {
-         OccaPADiffusionAssemble3D(D1D, Q1D, NE, W, J, COEFF, op);
+         OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, COEFF, op);
          return;
       }
 #endif // MFEM_USE_OCCA
-      PADiffusionAssemble3D(Q1D, NE, W, J, COEFF, op);
+      PADiffusionSetup3D(Q1D, NE, W, J, COEFF, op);
    }
 }
 
@@ -217,31 +249,33 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    ne = fes.GetNE();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   const GeometryExtension *geo = GeometryExtension::Get(fes,*ir);
+   geom = GeometryExtension::Get(fes,*ir);
    maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(symmDims * nq * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
-   PADiffusionAssemble(dim, dofs1D, quad1D, ne, maps->W, geo->J, coeff, vec);
+   PADiffusionSetup(dim, dofs1D, quad1D, ne, maps->W, geom->J, coeff, vec);
 #ifdef MFEM_USE_MMU
    // vec might be used elsewhere, allow others to use it (ex6)
    mm::MmuMEnable(vec,vec.Size()*sizeof(double));
 #endif
-   delete geo;
 }
 
 #ifdef MFEM_USE_OCCA
-// OCCA PA Diffusion MultAdd 2D kernel
-static void OccaPADiffusionMultAdd2D(const int D1D,
-                                     const int Q1D,
-                                     const int NE,
-                                     const double* B,
-                                     const double* G,
-                                     const double* Bt,
-                                     const double* Gt,
-                                     const double* op,
-                                     const double* x,
-                                     double* y)
+// OCCA PA Diffusion Apply 2D kernel
+static void OccaPADiffusionApply2D(const int D1D,
+                                   const int Q1D,
+                                   const int NE,
+                                   const double* B,
+                                   const double* G,
+                                   const double* Bt,
+                                   const double* Gt,
+                                   const double* op,
+                                   const double* x,
+                                   double* y)
 {
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
    const occa::memory o_B = mfem::OccaPtr(B);
    const occa::memory o_G = mfem::OccaPtr(G);
    const occa::memory o_Bt = mfem::OccaPtr(Bt);
@@ -249,35 +283,48 @@ static void OccaPADiffusionMultAdd2D(const int D1D,
    const occa::memory o_op = mfem::OccaPtr(op);
    const occa::memory o_x = mfem::OccaPtr(x);
    occa::memory o_y = mfem::OccaPtr(y);
-
-   occa::properties props;
-   props["defines/D1D"] = D1D;
-   props["defines/Q1D"] = Q1D;
-
-   if (!Device::UsingDevice())
+   const id_t id = std::make_pair(D1D,Q1D);
+   if (!Device::Allows(Backend::OCCA_CUDA))
    {
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_CPU, fem, occa.okl, props);
-      DiffusionApply2D_CPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
+      static occa_kernel_t OccaDiffApply2D_cpu;
+      if (OccaDiffApply2D_cpu.find(id) == OccaDiffApply2D_cpu.end())
+      {
+         const occa::kernel DiffusionApply2D_CPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "DiffusionApply2D_CPU", props);
+         OccaDiffApply2D_cpu.emplace(id, DiffusionApply2D_CPU);
+      }
+      OccaDiffApply2D_cpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply2D_GPU, fem, occa.okl, props);
-      DiffusionApply2D_GPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
+      static occa_kernel_t OccaDiffApply2D_gpu;
+      if (OccaDiffApply2D_gpu.find(id) == OccaDiffApply2D_gpu.end())
+      {
+         const occa::kernel DiffusionApply2D_GPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "DiffusionApply2D_GPU", props);
+         OccaDiffApply2D_gpu.emplace(id, DiffusionApply2D_GPU);
+      }
+      OccaDiffApply2D_gpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
 }
 
-// OCCA PA Diffusion MultAdd 3D kernel
-static void OccaPADiffusionMultAdd3D(const int D1D,
-                                     const int Q1D,
-                                     const int NE,
-                                     const double* B,
-                                     const double* G,
-                                     const double* Bt,
-                                     const double* Gt,
-                                     const double* op,
-                                     const double* x,
-                                     double* y)
+// OCCA PA Diffusion Apply 3D kernel
+static void OccaPADiffusionApply3D(const int D1D,
+                                   const int Q1D,
+                                   const int NE,
+                                   const double* B,
+                                   const double* G,
+                                   const double* Bt,
+                                   const double* Gt,
+                                   const double* op,
+                                   const double* x,
+                                   double* y)
 {
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
    const occa::memory o_B = mfem::OccaPtr(B);
    const occa::memory o_G = mfem::OccaPtr(G);
    const occa::memory o_Bt = mfem::OccaPtr(Bt);
@@ -285,20 +332,30 @@ static void OccaPADiffusionMultAdd3D(const int D1D,
    const occa::memory o_op = mfem::OccaPtr(op);
    const occa::memory o_x = mfem::OccaPtr(x);
    occa::memory o_y = mfem::OccaPtr(y);
-
-   occa::properties props;
-   props["defines/D1D"] = D1D;
-   props["defines/Q1D"] = Q1D;
-
-   if (!Device::UsingDevice())
+   const id_t id = std::make_pair(D1D,Q1D);
+   if (!Device::Allows(Backend::OCCA_CUDA))
    {
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply3D_CPU, fem, occa.okl, props);
-      DiffusionApply3D_CPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
+      static occa_kernel_t OccaDiffApply3D_cpu;
+      if (OccaDiffApply3D_cpu.find(id) == OccaDiffApply3D_cpu.end())
+      {
+         const occa::kernel DiffusionApply3D_CPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "DiffusionApply3D_CPU", props);
+         OccaDiffApply3D_cpu.emplace(id, DiffusionApply3D_CPU);
+      }
+      OccaDiffApply3D_cpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(DiffusionApply3D_GPU, fem, occa.okl, props);
-      DiffusionApply3D_GPU(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
+      static occa_kernel_t OccaDiffApply3D_gpu;
+      if (OccaDiffApply3D_gpu.find(id) == OccaDiffApply3D_gpu.end())
+      {
+         const occa::kernel DiffusionApply3D_GPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "DiffusionApply3D_GPU", props);
+         OccaDiffApply3D_gpu.emplace(id, DiffusionApply3D_GPU);
+      }
+      OccaDiffApply3D_gpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
    }
 }
 #endif // MFEM_USE_OCCA
@@ -307,29 +364,41 @@ static void OccaPADiffusionMultAdd3D(const int D1D,
 #define QUAD_2D_ID(X, Y) (X + ((Y) * Q1D))
 #define QUAD_3D_ID(X, Y, Z) (X + ((Y) * Q1D) + ((Z) * Q1D*Q1D))
 
-// PA Diffusion MultAdd 2D kernel
-template<const int D1D,
-         const int Q1D> static
-void PADiffusionMultAssembled2D(const int NE,
-                                const double* b,
-                                const double* g,
-                                const double* bt,
-                                const double* gt,
-                                const double* _op,
-                                const double* _x,
-                                double* _y)
+const int MAX_Q1D = 10;
+const int MAX_D1D = 10;
+
+// PA Diffusion Apply 2D kernel
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PADiffusionApply2D(const int NE,
+                        const double* b,
+                        const double* g,
+                        const double* bt,
+                        const double* gt,
+                        const double* _op,
+                        const double* _x,
+                        double* _y,
+                        const int d1d = 0,
+                        const int q1d = 0)
 {
-   const int NQ = Q1D*Q1D;
-   const DeviceMatrix B(b,Q1D,D1D);
-   const DeviceMatrix G(g,Q1D,D1D);
-   const DeviceMatrix Bt(bt,D1D,Q1D);
-   const DeviceMatrix Gt(gt,D1D,Q1D);
-   const DeviceTensor<3> op(_op,3,NQ,NE);
-   const DeviceTensor<3> x(_x,D1D,D1D,NE);
-   DeviceTensor<3> y(_y,D1D,D1D,NE);
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+
+   const DeviceMatrix B(b, Q1D, D1D);
+   const DeviceMatrix G(g, Q1D, D1D);
+   const DeviceMatrix Bt(bt, D1D, Q1D);
+   const DeviceMatrix Gt(gt, D1D, Q1D);
+   const DeviceTensor<3> op(_op, 3, Q1D*Q1D, NE);
+   const DeviceTensor<3> x(_x, D1D, D1D, NE);
+   DeviceTensor<3> y(_y, D1D, D1D, NE);
+
    MFEM_FORALL(e, NE,
    {
-      double grad[Q1D][Q1D][2];
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      double grad[MAX_Q1D][MAX_Q1D][2];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -340,7 +409,7 @@ void PADiffusionMultAssembled2D(const int NE,
       }
       for (int dy = 0; dy < D1D; ++dy)
       {
-         double gradX[Q1D][2];
+         double gradX[MAX_Q1D][2];
          for (int qx = 0; qx < Q1D; ++qx)
          {
             gradX[qx][0] = 0.0;
@@ -386,7 +455,7 @@ void PADiffusionMultAssembled2D(const int NE,
       }
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double gradX[D1D][2];
+         double gradX[MAX_D1D][2];
          for (int dx = 0; dx < D1D; ++dx)
          {
             gradX[dx][0] = 0;
@@ -417,29 +486,37 @@ void PADiffusionMultAssembled2D(const int NE,
    });
 }
 
-// PA Diffusion MultAdd 3D kernel
-template<const int D1D,
-         const int Q1D> static
-void PADiffusionMultAssembled3D(const int NE,
-                                const double* b,
-                                const double* g,
-                                const double* bt,
-                                const double* gt,
-                                const double* _op,
-                                const double* _x,
-                                double* _y)
+// PA Diffusion Apply 3D kernel
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PADiffusionApply3D(const int NE,
+                        const double* b,
+                        const double* g,
+                        const double* bt,
+                        const double* gt,
+                        const double* _op,
+                        const double* _x,
+                        double* _y,
+                        int d1d = 0, int q1d = 0)
 {
-   const int NQ = Q1D*Q1D*Q1D;
-   const DeviceMatrix B(b,Q1D,D1D);
-   const DeviceMatrix G(g,Q1D,D1D);
-   const DeviceMatrix Bt(bt,D1D,Q1D);
-   const DeviceMatrix Gt(gt,D1D,Q1D);
-   const DeviceTensor<3> op(_op,6,NQ,NE);
-   const DeviceTensor<4> x(_x,D1D,D1D,D1D,NE);
-   DeviceTensor<4> y(_y,D1D,D1D,D1D,NE);
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+
+   const DeviceMatrix B(b, Q1D, D1D);
+   const DeviceMatrix G(g, Q1D, D1D);
+   const DeviceMatrix Bt(bt, D1D, Q1D);
+   const DeviceMatrix Gt(gt, D1D, Q1D);
+   const DeviceTensor<3> op(_op, 6, Q1D*Q1D*Q1D, NE);
+   const DeviceTensor<4> x(_x, D1D, D1D, D1D, NE);
+   DeviceTensor<4> y(_y, D1D, D1D, D1D, NE);
+
    MFEM_FORALL(e, NE,
    {
-      double grad[Q1D][Q1D][Q1D][4];
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      double grad[MAX_Q1D][MAX_Q1D][MAX_Q1D][4];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -454,7 +531,7 @@ void PADiffusionMultAssembled3D(const int NE,
       }
       for (int dz = 0; dz < D1D; ++dz)
       {
-         double gradXY[Q1D][Q1D][4];
+         double gradXY[MAX_Q1D][MAX_Q1D][4];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -466,7 +543,7 @@ void PADiffusionMultAssembled3D(const int NE,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double gradX[Q1D][2];
+            double gradX[MAX_Q1D][2];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] = 0.0;
@@ -535,7 +612,7 @@ void PADiffusionMultAssembled3D(const int NE,
       }
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double gradXY[D1D][D1D][4];
+         double gradXY[MAX_D1D][MAX_D1D][4];
          for (int dy = 0; dy < D1D; ++dy)
          {
             for (int dx = 0; dx < D1D; ++dx)
@@ -547,7 +624,7 @@ void PADiffusionMultAssembled3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double gradX[D1D][4];
+            double gradX[MAX_D1D][4];
             for (int dx = 0; dx < D1D; ++dx)
             {
                gradX[dx][0] = 0;
@@ -599,72 +676,74 @@ void PADiffusionMultAssembled3D(const int NE,
    });
 }
 
-typedef void (*fDiffusionMultAdd)(const int NE,
-                                  const double* B,
-                                  const double* G,
-                                  const double* Bt,
-                                  const double* Gt,
-                                  const double* op,
-                                  const double* x,
-                                  double* y);
-
-static void PADiffusionMultAssembled(const int dim,
-                                     const int D1D,
-                                     const int Q1D,
-                                     const int NE,
-                                     const double* B,
-                                     const double* G,
-                                     const double* Bt,
-                                     const double* Gt,
-                                     const double* op,
-                                     const double* x,
-                                     double* y)
+static void PADiffusionApply(const int dim,
+                             const int D1D,
+                             const int Q1D,
+                             const int NE,
+                             const double* B,
+                             const double* G,
+                             const double* Bt,
+                             const double* Gt,
+                             const double* op,
+                             const double* x,
+                             double* y)
 {
 #ifdef MFEM_USE_OCCA
-   if (Device::UsingOcca())
+   if (internal::DeviceUseOcca())
    {
       if (dim == 2)
       {
-         OccaPADiffusionMultAdd2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
+         OccaPADiffusionApply2D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
          return;
       }
       if (dim == 3)
       {
-         OccaPADiffusionMultAdd3D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
+         OccaPADiffusionApply3D(D1D, Q1D, NE, B, G, Bt, Gt, op, x, y);
          return;
       }
-      mfem_error("OCCA PADiffusionMultAssembled unknown kernel!");
+      MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-   const int id = (dim<<8)|(D1D<<4)|(Q1D);
-   static std::unordered_map<int, fDiffusionMultAdd> call =
+
+   if (dim == 2)
    {
-      // 2D
-      {0x222,&PADiffusionMultAssembled2D<2,2>},
-      {0x233,&PADiffusionMultAssembled2D<3,3>},
-      {0x244,&PADiffusionMultAssembled2D<4,4>},
-      {0x255,&PADiffusionMultAssembled2D<5,5>},
-      // 3D
-      {0x323,&PADiffusionMultAssembled3D<2,3>},
-      {0x334,&PADiffusionMultAssembled3D<3,4>},
-      {0x345,&PADiffusionMultAssembled3D<4,5>},
-      {0x356,&PADiffusionMultAssembled3D<5,6>},
-   };
-   if (!call[id])
-   {
-      printf("\n%s:%d\nUnknown kernel with dim=%d, D1D=%d and Q1D=%d",
-             __FILE__, __LINE__, dim, D1D, Q1D);
-      mfem_error("PADiffusionMultAssembled kernel not instanciated");
+      switch ((D1D << 4) | Q1D)
+      {
+         case 0x22: PADiffusionApply2D<2,2>(NE, B, G, Bt, Gt, op, x, y); break;
+         case 0x33: PADiffusionApply2D<3,3>(NE, B, G, Bt, Gt, op, x, y); break;
+         case 0x44: PADiffusionApply2D<4,4>(NE, B, G, Bt, Gt, op, x, y); break;
+         case 0x55: PADiffusionApply2D<5,5>(NE, B, G, Bt, Gt, op, x, y); break;
+         default: PADiffusionApply2D(NE, B, G, Bt, Gt, op, x, y, D1D, Q1D);
+      }
+      return;
    }
-   call[id](NE, B, G, Bt, Gt, op, x, y);
+   if (dim == 3)
+   {
+      switch ((D1D << 4) | Q1D)
+      {
+         case 0x23: PADiffusionApply3D<2,3>(NE, B, G, Bt, Gt, op, x, y); break;
+         case 0x34: PADiffusionApply3D<3,4>(NE, B, G, Bt, Gt, op, x, y); break;
+         case 0x45: PADiffusionApply3D<4,5>(NE, B, G, Bt, Gt, op, x, y); break;
+         case 0x56: PADiffusionApply3D<5,6>(NE, B, G, Bt, Gt, op, x, y); break;
+         default: PADiffusionApply3D(NE, B, G, Bt, Gt, op, x, y, D1D, Q1D);
+      }
+      return;
+   }
+   MFEM_ABORT("Unknown kernel.");
 }
 
-// PA Diffusion MultAdd kernel
+// PA Diffusion Apply kernel
 void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 {
-   PADiffusionMultAssembled(dim, dofs1D, quad1D, ne,
-                            maps->B, maps->G, maps->Bt, maps->Gt,
-                            vec, x, y);
+   PADiffusionApply(dim, dofs1D, quad1D, ne,
+                    maps->B, maps->G, maps->Bt, maps->Gt,
+                    vec, x, y);
+}
+
+DiffusionIntegrator::~DiffusionIntegrator()
+{
+   delete geom;
+   delete maps;
 }
 
 // PA Mass Assemble kernel
@@ -679,17 +758,17 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    nq = ir->GetNPoints();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   const GeometryExtension *geo = GeometryExtension::Get(fes,*ir);
+   geom = GeometryExtension::Get(fes,*ir);
    maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(ne*nq);
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
    FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
    // TODO: other types of coefficients ...
-   if (dim==1) { mfem_error("Not supported yet... stay tuned!"); }
+   if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)
    {
       double constant = 0.0;
-      double (*function)(const DeviceVector3&) = NULL;
+      double (*function)(const Vector3&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
@@ -705,8 +784,8 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       const int NE = ne;
       const int NQ = nq;
       const DeviceVector w(maps->W.GetData(), NQ);
-      const DeviceTensor<3> x(geo->X.GetData(), 2,NQ,NE);
-      const DeviceTensor<4> J(geo->J.GetData(), 2,2,NQ,NE);
+      const DeviceTensor<3> x(geom->X.GetData(), 2,NQ,NE);
+      const DeviceTensor<4> J(geom->J.GetData(), 2,2,NQ,NE);
       DeviceMatrix v(vec.GetData(), NQ, NE);
       MFEM_FORALL(e, NE,
       {
@@ -717,7 +796,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double J21 = J(0,1,q,e);
             const double J22 = J(1,1,q,e);
             const double detJ = (J11*J22)-(J21*J12);
-            const DeviceVector3 Xq(x(0,q,e), x(1,q,e));
+            const Vector3 Xq(x(0,q,e), x(1,q,e));
             const double coeff =
             const_coeff ? constant
             : function_coeff ? function(Xq)
@@ -729,7 +808,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    if (dim==3)
    {
       double constant = 0.0;
-      double (*function)(const DeviceVector3&) = NULL;
+      double (*function)(const Vector3&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
@@ -745,8 +824,8 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       const int NE = ne;
       const int NQ = nq;
       const DeviceVector W(maps->W.GetData(), NQ);
-      const DeviceTensor<3> x(geo->X.GetData(), 3,NQ,NE);
-      const DeviceTensor<4> J(geo->J.GetData(), 3,3,NQ,NE);
+      const DeviceTensor<3> x(geom->X.GetData(), 3,NQ,NE);
+      const DeviceTensor<4> J(geom->J.GetData(), 3,3,NQ,NE);
       DeviceMatrix v(vec.GetData(), NQ,NE);
       MFEM_FORALL(e, NE,
       {
@@ -758,7 +837,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double detJ =
             ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
             (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
-            const DeviceVector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
+            const Vector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
             const double coeff =
             const_coeff ? constant
             : function_coeff ? function(Xq)
@@ -767,92 +846,127 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
          }
       });
    }
-   // delete geo;
 }
 
 #ifdef MFEM_USE_OCCA
-// OCCA PA Mass MultAdd 2D kernel
-static void OccaPAMassMultAdd2D(const int D1D,
-                                const int Q1D,
-                                const int NE,
-                                const double* B,
-                                const double* Bt,
-                                const double* op,
-                                const double* x,
-                                double* y)
+// OCCA PA Mass Apply 2D kernel
+static void OccaPAMassApply2D(const int D1D,
+                              const int Q1D,
+                              const int NE,
+                              const double* B,
+                              const double* Bt,
+                              const double* op,
+                              const double* x,
+                              double* y)
 {
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
    const occa::memory o_B = mfem::OccaPtr(B);
    const occa::memory o_Bt = mfem::OccaPtr(Bt);
    const occa::memory o_op = mfem::OccaPtr(op);
    const occa::memory o_x = mfem::OccaPtr(x);
    occa::memory o_y = mfem::OccaPtr(y);
-
-   occa::properties props;
-   props["defines/D1D"] = D1D;
-   props["defines/Q1D"] = Q1D;
-
-   if (!Device::UsingDevice())
+   const id_t id = std::make_pair(D1D,Q1D);
+   if (!Device::Allows(Backend::OCCA_CUDA))
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply2D_CPU, fem, occa.okl, props);
-      MassApply2D_CPU(NE, o_B, o_Bt, o_op, o_x, o_y);
+      static occa_kernel_t OccaMassApply2D_cpu;
+      if (OccaMassApply2D_cpu.find(id) == OccaMassApply2D_cpu.end())
+      {
+         const occa::kernel MassApply2D_CPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply2D_CPU", props);
+         OccaMassApply2D_cpu.emplace(id, MassApply2D_CPU);
+      }
+      OccaMassApply2D_cpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply2D_GPU, fem, occa.okl, props);
-      MassApply2D_GPU(NE, o_B, o_Bt, o_op, o_x, o_y);
+      static occa_kernel_t OccaMassApply2D_gpu;
+      if (OccaMassApply2D_gpu.find(id) == OccaMassApply2D_gpu.end())
+      {
+         const occa::kernel MassApply2D_GPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply2D_GPU", props);
+         OccaMassApply2D_gpu.emplace(id, MassApply2D_GPU);
+      }
+      OccaMassApply2D_gpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
 }
 
-// OCCA PA Mass MultAdd 3D kernel
-static void OccaPAMassMultAdd3D(const int D1D,
-                                const int Q1D,
-                                const int NE,
-                                const double* B,
-                                const double* Bt,
-                                const double* op,
-                                const double* x,
-                                double* y)
+// OCCA PA Mass Apply 3D kernel
+static void OccaPAMassApply3D(const int D1D,
+                              const int Q1D,
+                              const int NE,
+                              const double* B,
+                              const double* Bt,
+                              const double* op,
+                              const double* x,
+                              double* y)
 {
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
    const occa::memory o_B = mfem::OccaPtr(B);
    const occa::memory o_Bt = mfem::OccaPtr(Bt);
    const occa::memory o_op = mfem::OccaPtr(op);
    const occa::memory o_x = mfem::OccaPtr(x);
    occa::memory o_y = mfem::OccaPtr(y);
-
-   occa::properties props;
-   props["defines/D1D"] = D1D;
-   props["defines/Q1D"] = Q1D;
-
-   if (!Device::UsingDevice())
+   const id_t id = std::make_pair(D1D,Q1D);
+   if (!Device::Allows(Backend::OCCA_CUDA))
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply3D_CPU, fem, occa.okl, props);
-      MassApply3D_CPU(NE, o_B, o_Bt, o_op, o_x, o_y);
+      static occa_kernel_t OccaMassApply3D_cpu;
+      if (OccaMassApply3D_cpu.find(id) == OccaMassApply3D_cpu.end())
+      {
+         const occa::kernel MassApply3D_CPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply3D_CPU", props);
+         OccaMassApply3D_cpu.emplace(id, MassApply3D_CPU);
+      }
+      OccaMassApply3D_cpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
    else
    {
-      MFEM_NEW_OCCA_KERNEL(MassApply3D_GPU, fem, occa.okl, props);
-      MassApply3D_GPU(NE, o_B, o_Bt, o_op, o_x, o_y);
+      static occa_kernel_t OccaMassApply3D_gpu;
+      if (OccaMassApply3D_gpu.find(id) == OccaMassApply3D_gpu.end())
+      {
+         const occa::kernel MassApply3D_GPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply3D_GPU", props);
+         OccaMassApply3D_gpu.emplace(id, MassApply3D_GPU);
+      }
+      OccaMassApply3D_gpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
    }
 }
 #endif // MFEM_USE_OCCA
 
-template<const int D1D,
-         const int Q1D> static
-void PAMassMultAdd2D(const int NE,
-                     const double* _B,
-                     const double* _Bt,
-                     const double* _op,
-                     const double* _x,
-                     double* _y)
+template<const int T_D1D = 0, const int T_Q1D = 0> static
+void PAMassApply2D(const int NE,
+                   const double* _B,
+                   const double* _Bt,
+                   const double* _op,
+                   const double* _x,
+                   double* _y,
+                   const int d1d = 0,
+                   const int q1d = 0)
 {
-   const DeviceMatrix B(_B, Q1D,D1D);
-   const DeviceMatrix Bt(_Bt, D1D,Q1D);
-   const DeviceTensor<3> op(_op, Q1D,Q1D,NE);
-   const DeviceTensor<3> x(_x, D1D,D1D,NE);
-   DeviceTensor<3> y(_y, D1D,D1D,NE);
-   MFEM_FORALL(e,NE,
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+
+   const DeviceMatrix B(_B, Q1D, D1D);
+   const DeviceMatrix Bt(_Bt, D1D, Q1D);
+   const DeviceTensor<3> op(_op, Q1D, Q1D, NE);
+   const DeviceTensor<3> x(_x, D1D, D1D, NE);
+   DeviceTensor<3> y(_y, D1D, D1D, NE);
+
+   MFEM_FORALL(e, NE,
    {
-      double sol_xy[Q1D][Q1D];
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      double sol_xy[MAX_Q1D][MAX_Q1D];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -862,7 +976,7 @@ void PAMassMultAdd2D(const int NE,
       }
       for (int dy = 0; dy < D1D; ++dy)
       {
-         double sol_x[Q1D];
+         double sol_x[MAX_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             sol_x[qy] = 0.0;
@@ -893,7 +1007,7 @@ void PAMassMultAdd2D(const int NE,
       }
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double sol_x[D1D];
+         double sol_x[MAX_D1D];
          for (int dx = 0; dx < D1D; ++dx)
          {
             sol_x[dx] = 0.0;
@@ -918,24 +1032,33 @@ void PAMassMultAdd2D(const int NE,
    });
 }
 
-template<const int D1D,
-         const int Q1D> static
-void PAMassMultAdd3D(const int NE,
-                     const double* _B,
-                     const double* _Bt,
-                     const double* _op,
-                     const double* _x,
-                     double* _y)
+template<const int T_D1D = 0, const int T_Q1D = 0> static
+void PAMassApply3D(const int NE,
+                   const double* _B,
+                   const double* _Bt,
+                   const double* _op,
+                   const double* _x,
+                   double* _y,
+                   const int d1d = 0,
+                   const int q1d = 0)
 {
-   const DeviceMatrix B(_B, Q1D,D1D);
-   const DeviceMatrix Bt(_Bt, D1D,Q1D);
-   const DeviceTensor<4> op(_op, Q1D,Q1D,Q1D,NE);
-   const DeviceTensor<4> x(_x, D1D,D1D,D1D,NE);
-   DeviceTensor<4> y(_y, D1D,D1D,D1D,NE);
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
 
-   MFEM_FORALL(e,NE,
+   const DeviceMatrix B(_B, Q1D, D1D);
+   const DeviceMatrix Bt(_Bt, D1D, Q1D);
+   const DeviceTensor<4> op(_op, Q1D, Q1D, Q1D,NE);
+   const DeviceTensor<4> x(_x, D1D, D1D, D1D, NE);
+   DeviceTensor<4> y(_y, D1D, D1D, D1D, NE);
+
+   MFEM_FORALL(e, NE,
    {
-      double sol_xyz[Q1D][Q1D][Q1D];
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      double sol_xyz[MAX_Q1D][MAX_Q1D][MAX_Q1D];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -948,7 +1071,7 @@ void PAMassMultAdd3D(const int NE,
       }
       for (int dz = 0; dz < D1D; ++dz)
       {
-         double sol_xy[Q1D][Q1D];
+         double sol_xy[MAX_Q1D][MAX_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -958,7 +1081,7 @@ void PAMassMultAdd3D(const int NE,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double sol_x[Q1D];
+            double sol_x[MAX_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_x[qx] = 0;
@@ -1004,7 +1127,7 @@ void PAMassMultAdd3D(const int NE,
       }
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double sol_xy[D1D][D1D];
+         double sol_xy[MAX_D1D][MAX_D1D];
          for (int dy = 0; dy < D1D; ++dy)
          {
             for (int dx = 0; dx < D1D; ++dx)
@@ -1014,7 +1137,7 @@ void PAMassMultAdd3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double sol_x[D1D];
+            double sol_x[MAX_D1D];
             for (int dx = 0; dx < D1D; ++dx)
             {
                sol_x[dx] = 0;
@@ -1051,79 +1174,88 @@ void PAMassMultAdd3D(const int NE,
    });
 }
 
-typedef void (*fMassMultAdd)(const int NE,
-                             const double* B,
-                             const double* Bt,
-                             const double* oper,
-                             const double* x,
-                             double* y);
-
-static void PAMassMultAssembled(const int dim,
-                                const int D1D,
-                                const int Q1D,
-                                const int NE,
-                                const double* B,
-                                const double* Bt,
-                                const double* op,
-                                const double* x,
-                                double* y)
+static void PAMassApply(const int dim,
+                        const int D1D,
+                        const int Q1D,
+                        const int NE,
+                        const double* B,
+                        const double* Bt,
+                        const double* op,
+                        const double* x,
+                        double* y)
 {
 #ifdef MFEM_USE_OCCA
-   if (Device::UsingOcca())
+   if (internal::DeviceUseOcca())
    {
       if (dim == 2)
       {
-         OccaPAMassMultAdd2D(D1D, Q1D, NE, B, Bt, op, x, y);
+         OccaPAMassApply2D(D1D, Q1D, NE, B, Bt, op, x, y);
          return;
       }
       if (dim == 3)
       {
-         OccaPAMassMultAdd3D(D1D, Q1D, NE, B, Bt, op, x, y);
+         OccaPAMassApply3D(D1D, Q1D, NE, B, Bt, op, x, y);
          return;
       }
-      mfem_error("OCCA PA Mass MultAssembled unknown kernel!");
+      MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-   const int id = (dim<<8)|((D1D)<<4)|(Q1D);
-   static std::unordered_map<int, fMassMultAdd> call =
+   if (dim == 2)
    {
-      // 2D
-      {0x222,&PAMassMultAdd2D<2,2>},
-      {0x224,&PAMassMultAdd2D<2,4>},
-      {0x234,&PAMassMultAdd2D<3,4>},
-      {0x235,&PAMassMultAdd2D<3,5>},
-      {0x236,&PAMassMultAdd2D<3,6>},
-      {0x244,&PAMassMultAdd2D<4,4>},
-      {0x245,&PAMassMultAdd2D<4,5>},
-      {0x246,&PAMassMultAdd2D<4,6>},
-      {0x248,&PAMassMultAdd2D<4,8>},
-      {0x258,&PAMassMultAdd2D<5,8>},
-      // 3D
-      {0x323,&PAMassMultAdd3D<2,3>},
-      {0x324,&PAMassMultAdd3D<2,4>},
-      {0x334,&PAMassMultAdd3D<3,4>},
-      {0x345,&PAMassMultAdd3D<4,5>},
-      {0x356,&PAMassMultAdd3D<5,6>},
-   };
-   if (!call[id])
-   {
-      printf("\n%s:%d\nUnknown kernel with dim=%d, D1D=%d and Q1D=%d",
-             __FILE__, __LINE__,dim, D1D, Q1D);
-      mfem_error("MassMultAssembled kernel not instanciated");
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x22: PAMassApply2D<2,2>(NE, B, Bt, op, x, y); break;
+         case 0x24: PAMassApply2D<2,4>(NE, B, Bt, op, x, y); break;
+         case 0x33: PAMassApply2D<3,3>(NE, B, Bt, op, x, y); break;
+         case 0x34: PAMassApply2D<3,4>(NE, B, Bt, op, x, y); break;
+         case 0x35: PAMassApply2D<3,5>(NE, B, Bt, op, x, y); break;
+         case 0x36: PAMassApply2D<3,6>(NE, B, Bt, op, x, y); break;
+         case 0x44: PAMassApply2D<4,4>(NE, B, Bt, op, x, y); break;
+         case 0x45: PAMassApply2D<4,5>(NE, B, Bt, op, x, y); break;
+         case 0x46: PAMassApply2D<4,6>(NE, B, Bt, op, x, y); break;
+         case 0x48: PAMassApply2D<4,8>(NE, B, Bt, op, x, y); break;
+         case 0x55: PAMassApply2D<5,5>(NE, B, Bt, op, x, y); break;
+         case 0x58: PAMassApply2D<5,8>(NE, B, Bt, op, x, y); break;
+         default: PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
+      }
+      return;
    }
-   call[id](NE, B, Bt, op, x, y);
+   if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x22: PAMassApply2D<2,2>(NE, B, Bt, op, x, y); break;
+         case 0x23: PAMassApply3D<2,3>(NE, B, Bt, op, x, y); break;
+         case 0x24: PAMassApply3D<2,4>(NE, B, Bt, op, x, y); break;
+         case 0x34: PAMassApply3D<3,4>(NE, B, Bt, op, x, y); break;
+         case 0x45: PAMassApply3D<4,5>(NE, B, Bt, op, x, y); break;
+         case 0x56: PAMassApply3D<5,6>(NE, B, Bt, op, x, y); break;
+         default: PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
+      }
+      return;
+   }
+   MFEM_ABORT("Unknown kernel.");
 }
 
 void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 {
-   PAMassMultAssembled(dim, dofs1D, quad1D, ne,
-                       maps->B, maps->Bt,
-                       vec, x, y);
+   PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, vec, x, y);
 }
 
+MassIntegrator::~MassIntegrator()
+{
+   delete geom;
+   delete maps;
+}
 
 // DofToQuad
 static std::map<std::string, DofToQuad* > AllDofQuadMaps;
+
+DofToQuad::~DofToQuad()
+{
+   MFEM_ASSERT(AllDofQuadMaps.at(hash),"");
+   AllDofQuadMaps.erase(hash);
+}
 
 DofToQuad* DofToQuad::Get(const FiniteElementSpace& fes,
                           const IntegrationRule& ir,
@@ -1264,8 +1396,8 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
       }
       maps->W = W;
    }
-   mm::memcpy(maps->B, B1d, numQuad1D*numDofs*sizeof(double));
-   mm::memcpy(maps->G, G1d, numQuad1D*numDofs*sizeof(double));
+   mfem::Memcpy(maps->B, B1d, numQuad1D*numDofs*sizeof(double));
+   mfem::Memcpy(maps->G, G1d, numQuad1D*numDofs*sizeof(double));
    return maps;
 }
 
@@ -1374,10 +1506,10 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
 #endif
    if (transpose)
    {
-      mm::memcpy(maps->W, W, numQuad*sizeof(double));
+      mfem::Memcpy(maps->W, W, numQuad*sizeof(double));
    }
-   mm::memcpy(maps->B, B, numQuad*numDofs*sizeof(double));
-   mm::memcpy(maps->G, G, dims*numQuad*numDofs*sizeof(double));
+   mfem::Memcpy(maps->B, B, numQuad*numDofs*sizeof(double));
+   mfem::Memcpy(maps->G, G, dims*numQuad*numDofs*sizeof(double));
    return maps;
 }
 
@@ -1439,8 +1571,7 @@ static void NodeCopyByVDim(const int NE,
    });
 }
 
-template<const int D1D,
-         const int Q1D> static
+template<int T_D1D = 0, int T_Q1D = 0> static
 void PAGeom2D(const int NE,
               const double* _B,
               const double* _G,
@@ -1448,20 +1579,33 @@ void PAGeom2D(const int NE,
               double* _Xq,
               double* _J,
               double* _invJ,
-              double* _detJ)
+              double* _detJ,
+              const int d1d = 0,
+              const int q1d = 0)
 {
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    const int ND = D1D*D1D;
    const int NQ = Q1D*Q1D;
-   const DeviceTensor<2> B(_B, NQ,ND);
-   const DeviceTensor<3> G(_G, 2,NQ,ND);
-   const DeviceTensor<3> X(_X, 2,ND,NE);
-   DeviceTensor<3> Xq(_Xq, 2,NQ,NE);
-   DeviceTensor<4> J(_J, 2,2,NQ,NE);
-   DeviceTensor<4> invJ(_invJ, 2,2,NQ,NE);
-   DeviceMatrix detJ(_detJ, NQ,NE);
+
+   const DeviceTensor<2> B(_B, NQ, ND);
+   const DeviceTensor<3> G(_G, 2,NQ, ND);
+   const DeviceTensor<3> X(_X, 2,ND, NE);
+   DeviceTensor<3> Xq(_Xq, 2, NQ, NE);
+   DeviceTensor<4> J(_J, 2, 2, NQ, NE);
+   DeviceTensor<4> invJ(_invJ, 2, 2, NQ, NE);
+   DeviceMatrix detJ(_detJ, NQ, NE);
+
    MFEM_FORALL(e, NE,
    {
-      double s_X[2*D1D*D1D];
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int ND = D1D*D1D;
+      const int NQ = Q1D*Q1D;
+
+      double s_X[2*MAX_D1D*MAX_D1D];
       for (int q = 0; q < NQ; ++q)
       {
          for (int d = q; d < ND; d +=NQ)
@@ -1502,8 +1646,7 @@ void PAGeom2D(const int NE,
    });
 }
 
-template<const int D1D,
-         const int Q1D> static
+template<int T_D1D = 0, int T_Q1D = 0> static
 void PAGeom3D(const int NE,
               const double* _B,
               const double* _G,
@@ -1511,20 +1654,33 @@ void PAGeom3D(const int NE,
               double* _Xq,
               double* _J,
               double* _invJ,
-              double* _detJ)
+              double* _detJ,
+              const int d1d = 0,
+              const int q1d = 0)
 {
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    const int ND = D1D*D1D*D1D;
    const int NQ = Q1D*Q1D*Q1D;
-   const DeviceTensor<2> B(_B, NQ,NE);
-   const DeviceTensor<3> G(_G, 3,NQ,NE);
-   const DeviceTensor<3> X(_X, 3,ND,NE);
-   DeviceTensor<3> Xq(_Xq, 3,NQ,NE);
-   DeviceTensor<4> J(_J, 3,3,NQ,NE);
-   DeviceTensor<4> invJ(_invJ, 3,3,NQ,NE);
-   DeviceMatrix detJ(_detJ, NQ,NE);
+
+   const DeviceTensor<2> B(_B, NQ, NE);
+   const DeviceTensor<3> G(_G, 3, NQ, NE);
+   const DeviceTensor<3> X(_X, 3, ND, NE);
+   DeviceTensor<3> Xq(_Xq, 3, NQ, NE);
+   DeviceTensor<4> J(_J, 3, 3, NQ, NE);
+   DeviceTensor<4> invJ(_invJ, 3, 3, NQ, NE);
+   DeviceMatrix detJ(_detJ, NQ, NE);
+
    MFEM_FORALL(e,NE,
    {
-      double s_nodes[3*D1D*D1D*D1D];
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int ND = D1D*D1D*D1D;
+      const int NQ = Q1D*Q1D*Q1D;
+
+      double s_nodes[3*MAX_D1D*MAX_D1D*MAX_D1D];
       for (int q = 0; q < NQ; ++q)
       {
          for (int d = q; d < ND; d += NQ)
@@ -1580,10 +1736,6 @@ void PAGeom3D(const int NE,
    });
 }
 
-typedef void (*fIniGeom)(const int ne,
-                         const double *B, const double *G, const double *X,
-                         double *x, double *J, double *invJ, double *detJ);
-
 static void PAGeom(const int dim,
                    const int D1D,
                    const int Q1D,
@@ -1596,35 +1748,39 @@ static void PAGeom(const int dim,
                    double* invJ,
                    double* detJ)
 {
-   const int id = (dim<<8)|(D1D)<<4|(Q1D);
-   static std::unordered_map<int, fIniGeom> call =
+   if (dim == 2)
    {
-      // 2D
-      {0x222,&PAGeom2D<2,2>},
-      {0x223,&PAGeom2D<2,3>},
-      {0x224,&PAGeom2D<2,4>},
-      {0x225,&PAGeom2D<2,5>},
-      {0x232,&PAGeom2D<3,2>},
-      {0x234,&PAGeom2D<3,4>},
-      {0x242,&PAGeom2D<4,2>},
-      {0x244,&PAGeom2D<4,4>},
-      {0x245,&PAGeom2D<4,5>},
-      {0x246,&PAGeom2D<4,6>},
-      {0x258,&PAGeom2D<5,8>},
-      // 3D
-      {0x323,&PAGeom3D<2,3>},
-      {0x324,&PAGeom3D<2,4>},
-      {0x325,&PAGeom3D<2,5>},
-      {0x326,&PAGeom3D<2,6>},
-      {0x334,&PAGeom3D<3,4>},
-   };
-   if (!call[id])
-   {
-      printf("\n%s:%d\nUnknown kernel with dim=%d, D1D=%d and Q1D=%d",
-             __FILE__, __LINE__, dim, D1D, Q1D);
-      mfem_error("PA Geometry kernel not instanciated");
+      switch ((D1D << 4) | Q1D)
+      {
+         case 0x22: PAGeom2D<2,2>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x23: PAGeom2D<2,3>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x24: PAGeom2D<2,4>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x25: PAGeom2D<2,5>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x32: PAGeom2D<3,2>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x34: PAGeom2D<3,4>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x42: PAGeom2D<4,2>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x44: PAGeom2D<4,4>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x45: PAGeom2D<4,5>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x46: PAGeom2D<4,6>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x58: PAGeom2D<5,8>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         default: PAGeom2D(NE, B, G, X, Xq, J, invJ, detJ, D1D, Q1D); break;
+      }
+      return;
    }
-   call[id](NE, B, G, X, Xq, J, invJ, detJ);
+   if (dim == 3)
+   {
+      switch ((D1D << 4) | Q1D)
+      {
+         case 0x23: PAGeom3D<2,3>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x24: PAGeom3D<2,4>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x25: PAGeom3D<2,5>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x26: PAGeom3D<2,6>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         case 0x34: PAGeom3D<3,4>(NE, B, G, X, Xq, J, invJ, detJ); break;
+         default: PAGeom3D(NE, B, G, X, Xq, J, invJ, detJ, D1D, Q1D); break;
+      }
+      return;
+   }
+   MFEM_ABORT("Unknown kernel.");
 }
 
 GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
@@ -1656,8 +1812,17 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    Mesh *mesh = fes.GetMesh();
    const bool geom_to_allocate = sequence < fes.GetSequence();
    sequence = fes.GetSequence();
-   if (geom_to_allocate) { geom = new GeometryExtension(); }
+   if (geom_to_allocate)
+   {
+      if (geom) { delete geom; }
+      geom = new GeometryExtension();
+   }
+
+   const bool dev_enabled = Device::IsEnabled();
+   if (dev_enabled) { Device::Disable(); }
    mesh->EnsureNodes();
+   if (dev_enabled) { Device::Enable(); }
+
    const GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
    const mfem::FiniteElement *fe = fespace->GetFE(0);
@@ -1704,6 +1869,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    PAGeom(dims, D1D, Q1D, NE,
           maps->B, maps->G, geom->nodes,
           geom->X, geom->J, geom->invJ, geom->detJ);
+   delete maps;
    return geom;
 }
 

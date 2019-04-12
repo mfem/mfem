@@ -12,6 +12,8 @@
 #ifndef MFEM_BILININTEG_EXT
 #define MFEM_BILININTEG_EXT
 
+#include "fespace.hpp"
+
 namespace mfem
 {
 
@@ -37,9 +39,12 @@ class DofToQuad
 private:
    std::string hash;
 public:
+   ~DofToQuad();
+   void operator=(DofToQuad&);
+   void operator=(DofToQuad const&);
+public:
    Array<double> W, B, G, Bt, Gt;
 public:
-   static void delDofToQuad();
    static DofToQuad* Get(const FiniteElementSpace&,
                          const IntegrationRule&,
                          const bool = false);

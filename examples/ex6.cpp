@@ -15,9 +15,10 @@
 //               ex6 -m ../data/square-disc-surf.mesh -o 2
 //               ex6 -m ../data/amr-quad.mesh
 //
-// Device runs:  ex6 -d cuda
-//               ex6 -d occa
-//               ex6 -d 'raja omp'
+// Device sample runs:
+//             > ex6 -pa -d cuda
+//             > ex6 -pa -d occa-cuda
+//             > ex6 -pa -d raja-omp
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
@@ -48,7 +49,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool pa = false;
-   const char *device = "";
+   const char *device = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -56,10 +57,10 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
-                  "Enable Partial Assembly.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device, "-d", "--device",
-                  "Device configuration, e.g. 'cuda', 'omp', 'raja', 'occa'.");
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -77,7 +78,6 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
-   if (pa) { mesh.EnsureNodes(); }
 
    // 3. Since a NURBS mesh can currently only be refined uniformly, we need to
    //    convert it to a piecewise-polynomial curved mesh. First we refine the
@@ -103,8 +103,8 @@ int main(int argc, char *argv[])
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
-   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   BilinearForm a(&fespace, assembly);
+   BilinearForm a(&fespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    LinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
@@ -175,9 +175,8 @@ int main(int argc, char *argv[])
       // 16. Create the linear system: eliminate boundary conditions, constrain
       //     hanging nodes and possibly apply other transformations. The system
       //     will be solved for true (unconstrained) DOFs only.
+      OperatorPtr A;
       Vector B, X;
-      Operator *A;
-      if (!pa) { A = new SparseMatrix; }
 
       const int copy_interior = 1;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
@@ -187,7 +186,7 @@ int main(int argc, char *argv[])
       {
 #ifndef MFEM_USE_SUITESPARSE
          // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-         GSSmoother M(*(SparseMatrix*)A);
+         GSSmoother M((SparseMatrix&)(*A));
          PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
 #else
          // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
@@ -245,9 +244,6 @@ int main(int argc, char *argv[])
       //     changed.
       a.Update();
       b.Update();
-
-      // 23. Free the used memory.
-      delete A;
    }
 
    return 0;

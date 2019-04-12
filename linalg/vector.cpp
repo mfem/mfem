@@ -13,7 +13,7 @@
 
 #include "vector.hpp"
 #include "dtensor.hpp"
-#include "../general/okina.hpp"
+#include "../general/forall.hpp"
 
 #if defined(MFEM_USE_SUNDIALS) && defined(MFEM_USE_MPI)
 #include <nvector/nvector_parallel.h>
@@ -32,12 +32,12 @@ namespace mfem
 
 void Vector::Push() const
 {
-   mm::push(data, size*sizeof(double));
+   mfem::Push(data, size*sizeof(double));
 }
 
 void Vector::Pull() const
 {
-   mm::pull(data, size*sizeof(double));
+   mfem::Pull(data, size*sizeof(double));
 }
 
 Vector::Vector(const Vector &v)
@@ -48,8 +48,8 @@ Vector::Vector(const Vector &v)
    {
       MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
-      data = mm::New<double>(s);
-      mm::memcpy(data, v.data, sizeof(double)*s);
+      data = mfem::New<double>(s);
+      mfem::Memcpy(data, v.data, sizeof(double)*s);
    }
    else
    {
@@ -100,8 +100,7 @@ const double &Vector::Elem(int i) const
 
 double Vector::operator*(const double *v) const
 {
-   double prod = Dot(size, data, v);
-   return prod;
+   return Dot(size, data, v);
 }
 
 double Vector::operator*(const Vector &v) const
@@ -121,7 +120,7 @@ Vector &Vector::operator=(const double *v)
    if (data != v)
    {
       MFEM_ASSERT(data + size <= v || v + size <= data, "Vectors overlap!");
-      mm::memcpy(data, v, sizeof(double)*size);
+      mfem::Memcpy(data, v, sizeof(double)*size);
    }
    return *this;
 }
@@ -257,18 +256,18 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
    }
 #endif
 
-#ifdef MFEM_USE_OPENMP
-   #pragma omp parallel for
-   for (int i = 0; i < v.size; i++)
-   {
-      v.data[i] = v1.data[i] + v2.data[i];
-   }
-#else
+#if !defined(MFEM_USE_LEGACY_OPENMP)
    const int N = v.size;
    DeviceVector y(v, N);
    const DeviceVector x1(v1, N);
    const DeviceVector x2(v2, N);
    MFEM_FORALL(i, N, y[i] = x1[i] + x2[i];);
+#else
+   #pragma omp parallel for
+   for (int i = 0; i < v.size; i++)
+   {
+      v.data[i] = v1.data[i] + v2.data[i];
+   }
 #endif
 }
 
@@ -292,19 +291,21 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
    {
       const double *v1p = v1.data, *v2p = v2.data;
       double *vp = v.data;
+
       const int s = v.size;
-#ifdef MFEM_USE_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      const int N = s;
+      DeviceVector d_z(vp, N);
+      const DeviceVector d_x(v1p, N);
+      const DeviceVector d_y(v2p, N);
+      MFEM_FORALL(i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
+#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
          vp[i] = v1p[i] + alpha*v2p[i];
       }
 #endif
-      const int N = s;
-      DeviceVector d_z(vp, N);
-      const DeviceVector d_x(v1p, N);
-      const DeviceVector d_y(v2p, N);
-      MFEM_FORALL(i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
    }
 }
 
@@ -329,17 +330,18 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
       const double *yp = y.data;
       double       *zp = z.data;
       const int      s = x.size;
-#ifdef MFEM_USE_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      DeviceVector z(zp, s);
+      const DeviceVector x(xp, s);
+      const DeviceVector y(yp, s);
+      MFEM_FORALL(i, s, z[i] = a * (x[i] + y[i]););
+#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
          zp[i] = a * (xp[i] + yp[i]);
       }
 #endif
-      DeviceVector z(zp, s);
-      const DeviceVector x(xp, s);
-      const DeviceVector y(yp, s);
-      MFEM_FORALL(i, s, z[i] = a * (x[i] + y[i]););
    }
 }
 
@@ -378,17 +380,18 @@ void add(const double a, const Vector &x,
       double       *zp = z.data;
       const int      s = x.size;
 
-#ifdef MFEM_USE_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      DeviceVector z(zp, s);
+      const DeviceVector x(xp, s);
+      const DeviceVector y(yp, s);
+      MFEM_FORALL(i, s, z[i] = a * x[i] + b * y[i];);
+#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
          zp[i] = a * xp[i] + b * yp[i];
       }
 #endif
-      DeviceVector z(zp, s);
-      const DeviceVector x(xp, s);
-      const DeviceVector y(yp, s);
-      MFEM_FORALL(i, s, z[i] = a * x[i] + b * y[i];);
    }
 }
 
@@ -405,17 +408,18 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    double       *zp = z.data;
    const int     s = x.size;
 
-#ifdef MFEM_USE_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+   DeviceVector zd(zp, s);
+   const DeviceVector xd(xp, s);
+   const DeviceVector yd(yp, s);
+   MFEM_FORALL(i, s, zd[i] = xd[i] - yd[i];);
+#else
    #pragma omp parallel for
    for (int i = 0; i < s; i++)
    {
       zp[i] = xp[i] - yp[i];
    }
 #endif
-   DeviceVector zd(zp, s);
-   const DeviceVector xd(xp, s);
-   const DeviceVector yd(yp, s);
-   MFEM_FORALL(i, s, zd[i] = xd[i] - yd[i];);
 }
 
 void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
@@ -441,17 +445,18 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
       double       *zp = z.data;
       const int      s = x.size;
 
-#ifdef MFEM_USE_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      DeviceVector zd(zp, s);
+      const DeviceVector xd(xp, s);
+      const DeviceVector yd(yp, s);
+      MFEM_FORALL(i, s, zd[i] = a * (xd[i] - yd[i]););
+#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
          zp[i] = a * (xp[i] - yp[i]);
       }
 #endif
-      DeviceVector zd(zp, s);
-      const DeviceVector xd(xp, s);
-      const DeviceVector yd(yp, s);
-      MFEM_FORALL(i, s, zd[i] = a * (xd[i] - yd[i]););
    }
 }
 
@@ -819,7 +824,7 @@ double Vector::Sum() const
 #ifdef MFEM_USE_CUDA
 static __global__ void cuKernelMin(const int N, double *gdsr, const double *x)
 {
-   __shared__ double s_min[MFEM_BLOCKS];
+   __shared__ double s_min[MFEM_CUDA_BLOCKS];
    const int n = blockDim.x*blockIdx.x + threadIdx.x;
    if (n>=N) { return; }
    const int bid = blockIdx.x;
@@ -845,8 +850,8 @@ static __global__ void cuKernelMin(const int N, double *gdsr, const double *x)
 static double cuVectorMin(const int N, const double *X)
 {
    const DeviceVector x(X, N);
-   const int tpb = MFEM_BLOCKS;
-   const int blockSize = MFEM_BLOCKS;
+   const int tpb = MFEM_CUDA_BLOCKS;
+   const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    const int bytes = min_sz*sizeof(double);
@@ -855,17 +860,17 @@ static double cuVectorMin(const int N, const double *X)
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
    if (!gdsr) { ::cuMemAlloc(&gdsr,bytes); }
    cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, x);
-   CuCheck(cudaGetLastError());
+   MFEM_CUDA_CHECK_RT(cudaGetLastError());
    ::cuMemcpy((CUdeviceptr)h_min,(CUdeviceptr)gdsr,bytes);
    double min = std::numeric_limits<double>::infinity();
-   for (int i=0; i<min_sz; i+=1) { min = fmin(min, h_min[i]); }
+   for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
    return min;
 }
 
 static __global__ void cuKernelDot(const int N, double *gdsr,
                                    const double *x, const double *y)
 {
-   __shared__ double s_dot[MFEM_BLOCKS];
+   __shared__ double s_dot[MFEM_CUDA_BLOCKS];
    const int n = blockDim.x*blockIdx.x + threadIdx.x;
    if (n>=N) { return; }
    const int bid = blockIdx.x;
@@ -893,8 +898,8 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    const DeviceVector x(X, N);
    const DeviceVector y(Y, N);
    static int dot_block_sz = 0;
-   const int tpb = MFEM_BLOCKS;
-   const int blockSize = MFEM_BLOCKS;
+   const int tpb = MFEM_CUDA_BLOCKS;
+   const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    const int bytes = dot_sz*sizeof(double);
@@ -907,25 +912,25 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
    if (!gdsr or dot_block_sz!=dot_sz)
    {
-      if (gdsr) { CuCheck(::cuMemFree(gdsr)); }
-      CuCheck(::cuMemAlloc(&gdsr,bytes));
+      if (gdsr) { MFEM_CUDA_CHECK_DRV(::cuMemFree(gdsr)); }
+      MFEM_CUDA_CHECK_DRV(::cuMemAlloc(&gdsr,bytes));
    }
    if (dot_block_sz!=dot_sz)
    {
       dot_block_sz = dot_sz;
    }
    cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
-   CuCheck(cudaGetLastError());
-   CuCheck(::cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
+   MFEM_CUDA_CHECK_RT(cudaGetLastError());
+   MFEM_CUDA_CHECK_DRV(::cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
    double dot = 0.0;
-   for (int i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
+   for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
    return dot;
 }
 #endif // MFEM_USE_CUDA
 
 double Min(const int N, const double *x)
 {
-   if (Device::UsingDevice())
+   if (Device::Allows(Backend::CUDA_MASK))
    {
 #ifdef MFEM_USE_CUDA
       return cuVectorMin(N, x);
@@ -940,13 +945,13 @@ double Min(const int N, const double *x)
 #endif // MFEM_USE_CUDA
    }
    double min = std::numeric_limits<double>::infinity();
-   for (int i=0; i<N; i+=1) { min = fmin(min, x[i]); }
+   for (int i = 0; i < N; i++) { min = fmin(min, x[i]); }
    return min;
 }
 
 double Dot(const int N, const double *x, const double *y)
 {
-   if (Device::UsingDevice())
+   if (Device::Allows(Backend::CUDA_MASK))
    {
 #ifdef MFEM_USE_CUDA
       return cuVectorDot(N, x, y);
@@ -962,7 +967,10 @@ double Dot(const int N, const double *x, const double *y)
 #endif // MFEM_USE_CUDA
    }
    double dot = 0.0;
-   for (int i=0; i<N; i+=1) { dot += x[i] * y[i]; }
+#ifdef MFEM_USE_LEGACY_OPENMP
+   #pragma omp parallel for reduction(+:dot)
+#endif
+   for (int i = 0; i < N; i++) { dot += x[i] * y[i]; }
    return dot;
 }
 

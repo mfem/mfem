@@ -652,9 +652,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // create the conforming restriction matrix cR
    int *cR_J;
    {
-      int *cR_I = mm::New<int>(n_true_dofs+1);
-      double *cR_A = mm::New<double>(n_true_dofs);
-      cR_J = mm::New<int>(n_true_dofs);
+      int *cR_I = mfem::New<int>(n_true_dofs+1);
+      double *cR_A = mfem::New<double>(n_true_dofs);
+      cR_J = mfem::New<int>(n_true_dofs);
       for (int i = 0; i < n_true_dofs; i++)
       {
          cR_I[i] = i;
