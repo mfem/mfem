@@ -882,7 +882,8 @@ public:
 	
 	SetOffsetsSD(m);
 
-	GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
+	//GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
+	GMRESSolver *gmres = new GMRESSolver(MPI_COMM_WORLD);  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
 
 #ifdef DDMCOMPLEX
 	// Real part
@@ -911,11 +912,13 @@ public:
 	precAsd[m] = CreateSubdomainPreconditionerStrumpack(m);
 
 	gmres->SetRelTol(1e-12);
-	gmres->SetMaxIter(1000);
-	gmres->SetPrintLevel(0);
+	gmres->SetMaxIter(500);
+	gmres->SetPrintLevel(-1);
 
 	gmres->SetPreconditioner(*(precAsd[m]));
-
+	gmres->SetName("invAsd" + std::to_string(m));
+	gmres->iterative_mode = false;
+	
 	invAsd[m] = gmres;
       }
     
@@ -1019,10 +1022,12 @@ public:
     
 #ifdef DDMCOMPLEX
     // Create block diagonal operator with entries R_{sd0} A_{sd0}^{-1} R_{sd0}^T
-    
+
+    /*
     BlockOperator *globalSubdomainOpRe = new BlockOperator(block_trueOffsets);
     BlockOperator *globalSubdomainOpIm = new BlockOperator(block_trueOffsets);
-
+    */
+    
     rowTrueOffsetsComplexSD.resize(numSubdomains);
     colTrueOffsetsComplexSD.resize(numSubdomains);
 
@@ -1052,7 +1057,7 @@ public:
 	    colTrueOffsetsSD[m].SetSize(2 + 1);  // Number of blocks + 1
 
 	    rowTrueOffsetsSD[m] = 0;
-	    rowTrueOffsetsSD[m][1] = fespace[m]->GetTrueVSize();
+	    rowTrueOffsetsSD[m][1] = (fespace[m] != NULL) ? fespace[m]->GetTrueVSize() : 0;
 
 	    int ifsize = 0;
 	    for (int i=0; i<subdomainLocalInterfaces[m].size(); ++i)
@@ -1066,6 +1071,8 @@ public:
 	      }
 
 	    rowTrueOffsetsSD[m][2] = ifsize;
+
+	    cout << rank << ": SD " << m << " ifsize " << ifsize << endl;
 	    
 	    colTrueOffsetsSD[m] = rowTrueOffsetsSD[m];
 	    colTrueOffsetsSD[m][1] = tdofsBdry[m].size();
@@ -1074,8 +1081,12 @@ public:
 	    colTrueOffsetsSD[m].PartialSum();
 
 	    injSD[m] = new BlockOperator(rowTrueOffsetsSD[m], colTrueOffsetsSD[m]);
+
+	    if (tdofsBdryInjection[m] != NULL)
+	      {
+		injSD[m]->SetBlock(0, 0, tdofsBdryInjection[m]);
+	      }
 	    
-	    injSD[m]->SetBlock(0, 0, tdofsBdryInjection[m]);
 	    injSD[m]->SetBlock(1, 1, new IdentityOperator(ifsize));
 
 #ifdef DDMCOMPLEX
@@ -1111,10 +1122,14 @@ public:
 	    AsdComplex[m]->SetBlock(1, 1, AsdRe[m]);
 
 	    precAsdComplex[m] = new BlockDiagonalPreconditioner(block_ComplexOffsetsSD[m]);
+
 	    precAsdComplex[m]->SetDiagonalBlock(0, invAsd[m]);
 	    precAsdComplex[m]->SetDiagonalBlock(1, invAsd[m]);
+
+	    MPI_Barrier(MPI_COMM_WORLD);
 	    
-	    GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
+	    //GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
+	    GMRESSolver *gmres = new GMRESSolver(MPI_COMM_WORLD);  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
 
 	    gmres->SetOperator(*(AsdComplex[m]));
 
@@ -1123,16 +1138,23 @@ public:
 	    gmres->SetPrintLevel(0);
 
 	    gmres->SetPreconditioner(*(precAsdComplex[m]));
+	    gmres->SetName("invAsdComplex" + std::to_string(m));
+	    gmres->iterative_mode = false;
+	    
 	    invAsdComplex[m] = gmres;
 
 	    globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injComplexSD[m]), invAsdComplex[m], injComplexSD[m],
 									false, false, false));
+
 #else
 	    globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injSD[m]), invAsd[m], injSD[m], false, false, false));
 #endif
 
-	    rowSROffsetsSD[m+1] = fespace[m]->GetTrueVSize();
-	    colSROffsetsSD[m+1] = fespace[m]->GetTrueVSize();
+	    if (fespace[m] != NULL)
+	      {
+		rowSROffsetsSD[m+1] = fespace[m]->GetTrueVSize();
+		colSROffsetsSD[m+1] = fespace[m]->GetTrueVSize();
+	      }
 	  }
       }
 
@@ -1167,6 +1189,7 @@ public:
     { // TODO: is this used?
       rowSROffsetsSD.PartialSum();
       colSROffsetsSD.PartialSum();
+      /*
       NDinv = new BlockOperator(rowSROffsetsSD, colSROffsetsSD);
 
       for (int m=0; m<numSubdomains; ++m)
@@ -1176,18 +1199,12 @@ public:
 	      NDinv->SetBlock(m, m, sdNDinv[m]);
 	    }
 	}
+      */
     }
+    
+    testing = false;
 
-    /*
-    { // Test
-      Vector x0(Asd[0]->Height());
-      Vector y0(Asd[0]->Height());
-      for (int i=0; i<10; ++i)
-	x0[i] = 1.0;
-      
-      invAsd[0]->Mult(x0, y0);
-    }
-    */
+    m_rank = rank;
   }
 
   virtual void Mult(const Vector & x, Vector & y) const
@@ -1205,7 +1222,7 @@ public:
     // The surface bilinear forms and their matrices are defined on subdomain interfaces, not the entire subdomain boundary.
     // The surface DOF's for a subdomain are indexed according to the entire subdomain mesh boundary, and we must use maps between
     // those surface DOF's and DOF's on the individual interfaces.
-
+    
     globalOp->Mult(x, y);
   }  
 
@@ -1226,6 +1243,10 @@ public:
     
     for (int m=0; m<numSubdomains; ++m)
       {
+	ySD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
+	wSD.SetSize(AsdComplex[m]->Height());
+	wSD = 0.0;
+
 	if (pmeshSD[m] != NULL)
 	  {
 	    sourceSD.SetSize(fespace[m]->GetTrueVSize());
@@ -1236,10 +1257,8 @@ public:
 
 	    MFEM_VERIFY(AsdComplex[m]->Height() == block_ComplexOffsetsSD[m][2], "");
 	    MFEM_VERIFY(AsdComplex[m]->Height() == 2*block_ComplexOffsetsSD[m][1], "");
-	    
-	    ySD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
-	    wSD.SetSize(AsdComplex[m]->Height());
-	    wSD = 0.0;
+
+	    cout << rank << ": Setting real subdomain DOFs, sd " << m << endl;
 	    
 	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalRe, sourceSD);
 
@@ -1247,16 +1266,24 @@ public:
 	    for (int i=0; i<sourceSD.Size(); ++i)
 	      (*(ySD[m]))[i] = sourceSD[i];  // Set the u_m block of ySD, real part
 	    
+	    cout << rank << ": Setting imaginary subdomain DOFs, sd " << m << endl;
 	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalIm, sourceSD);
+
+	    cout << rank << ": Done setting imaginary subdomain DOFs, sd " << m << endl;
 
 	    for (int i=0; i<sourceSD.Size(); ++i)
 	      (*(ySD[m]))[block_ComplexOffsetsSD[m][1] + i] = sourceSD[i];  // Set the u_m block of ySD, imaginary part
+	  }
 
+	MPI_Barrier(MPI_COMM_WORLD);
+	
+	{
 	    cout << rank << ": ySD norm: " << ySD[m]->Norml2() << ", wSD norm " << wSD.Norml2() << endl;
 	    
 	    cout << rank << ": Applying invAsdComplex[" << m << "]" << endl;
 	    
 	    invAsdComplex[m]->Mult(*(ySD[m]), wSD);
+	    //AsdComplex[m]->Mult(*(ySD[m]), wSD);
 
 	    cout << rank << ": Done applying invAsdComplex[" << m << "]" << endl;
 
@@ -1290,10 +1317,14 @@ public:
 	      sourceReduced[block_trueOffsets[m] + i] = vSD[i];
 #endif
 	  }
+	/*
 	else
 	  {
 	    ySD[m] = NULL;
 	  }
+	*/
+
+	MPI_Barrier(MPI_COMM_WORLD);
       }
   }
 
@@ -1335,6 +1366,10 @@ public:
   
 private:
 
+  int m_rank;
+
+  mutable bool testing;
+  
   const double k2;
 
   bool realPart;
@@ -1385,6 +1420,7 @@ private:
 #endif
   
   Operator *globalOp;  // Operator for all global subdomains (blocks corresponding to non-local subdomains will be NULL).
+  
   Array<int> block_trueOffsets;  // Offsets used in globalOp
 
   BlockOperator *NDinv;
@@ -1960,8 +1996,11 @@ private:
     
     BlockDiagonalPreconditioner *op = new BlockDiagonalPreconditioner(trueOffsetsSD[subdomain]);
 
-    op->SetDiagonalBlock(0, sdNDinv[subdomain]);
-
+    if (!sdNull)
+      {
+	op->SetDiagonalBlock(0, sdNDinv[subdomain]);
+      }
+    
     for (int i=0; i<subdomainLocalInterfaces[subdomain].size(); ++i)
       {
 	const int interfaceIndex = subdomainLocalInterfaces[subdomain][i];
@@ -2038,7 +2077,8 @@ private:
     if (realPart)
 #endif
       {
-	op->SetBlock(0, 0, sdND[subdomain]);
+	if (sdND[subdomain] != NULL)
+	  op->SetBlock(0, 0, sdND[subdomain]);
       }
     
     for (int i=0; i<subdomainLocalInterfaces[subdomain].size(); ++i)

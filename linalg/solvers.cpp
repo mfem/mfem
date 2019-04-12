@@ -531,7 +531,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    Vector r(n), w(n);
    Array<Vector *> v;
 
-   double resid;
+   double resid, l2resid;
    int i, j, k;
 
    if (iterative_mode)
@@ -548,10 +548,12 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       if (iterative_mode)
       {
          subtract(b, r, w);
+	 l2resid = Norm(w);
          prec->Mult(w, r);    // r = M (b - A x)
       }
       else
       {
+	 l2resid = Norm(b);
          prec->Mult(b, r);
       }
    }
@@ -565,8 +567,11 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       {
          r = b;
       }
+      l2resid = Norm(r);
    }
+
    double beta = Norm(r);  // beta = ||r||
+   const bool betaFinite = IsFinite(beta);
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
@@ -584,6 +589,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "   Pass : " << setw(2) << 1
                 << "   Iteration : " << setw(3) << 0
                 << "  ||B r|| = " << beta << (print_level == 3 ? " ...\n" : "\n");
+      mfem::out << "   ||r|| = " << l2resid << '\n';
    }
 
    v.SetSize(m+1, NULL);
@@ -643,6 +649,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
             mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                       << "   Iteration : " << setw(3) << j
                       << "  ||B r|| = " << resid << '\n';
+
+	    cout << "Pass " << (j-1)/m+1 << ", iteration " << j << ", ||B r|| = " << resid << endl;
          }
       }
 
@@ -657,12 +665,17 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       if (prec)
       {
          subtract(b, r, w);
+	 l2resid = Norm(w);
          prec->Mult(w, r);    // r = M (b - A x)
       }
       else
       {
          subtract(b, r, r);
+	 l2resid = Norm(r);
       }
+
+      if (print_level == 1) mfem::out << "   ||r|| = " << l2resid << '\n';
+      
       beta = Norm(r);         // beta = ||r||
       MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
       if (beta <= final_norm)
@@ -691,7 +704,7 @@ finish:
    }
    if (print_level >= 0 && !converged)
    {
-      mfem::out << "GMRES: No convergence!\n";
+     mfem::out << "GMRES: " << name << ": No convergence!\n";
    }
    for (i = 0; i < v.Size(); i++)
    {

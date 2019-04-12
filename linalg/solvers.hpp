@@ -144,7 +144,8 @@ class GMRESSolver : public IterativeSolver
 {
 protected:
    int m; // see SetKDim()
-
+  std::string name;
+  
 public:
    GMRESSolver() { m = 50; }
 
@@ -156,6 +157,11 @@ public:
    void SetKDim(int dim) { m = dim; }
 
    virtual void Mult(const Vector &b, Vector &x) const;
+
+  void SetName(const std::string &s)
+  {
+    name = s;
+  }
 };
 
 /// FGMRES method
