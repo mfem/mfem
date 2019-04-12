@@ -12,6 +12,7 @@
 // Implementation of class BilinearForm
 
 #include "fem.hpp"
+#include "../general/device.hpp"
 #include <cmath>
 
 namespace mfem
@@ -54,7 +55,7 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   double *data = new double[I[height]];
+   double *data = mfem::New<double>(I[height]);
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
@@ -62,7 +63,7 @@ void BilinearForm::AllocMat()
    dof_dof.LoseData();
 }
 
-BilinearForm::BilinearForm (FiniteElementSpace * f)
+BilinearForm::BilinearForm(FiniteElementSpace * f)
    : Matrix (f->GetVSize())
 {
    fes = f;
@@ -74,6 +75,10 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    hybridization = NULL;
    precompute_sparsity = 0;
    diag_policy = DIAG_KEEP;
+
+   assembly = AssemblyLevel::FULL;
+   batch = 1;
+   ext = NULL;
 }
 
 BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
@@ -89,6 +94,10 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    precompute_sparsity = ps;
    diag_policy = DIAG_KEEP;
 
+   assembly = AssemblyLevel::FULL;
+   batch = 1;
+   ext = NULL;
+
    // Copy the pointers to the integrators
    dbfi = bf->dbfi;
 
@@ -103,9 +112,48 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    AllocMat();
 }
 
+void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+         if (Device::IsEnabled())
+         {
+            mfem_error("Full assembly not supported yet in device mode!");
+            // ext = new FABilinearFormExtension(this);
+         }
+         // Use the original BilinearForm implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Element assembly not supported yet... stay tuned!");
+         // ext = new EABilinearFormExtension(this);
+         break;
+      case AssemblyLevel::PARTIAL:
+         ext = new PABilinearFormExtension(this);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Matrix-free action not supported yet... stay tuned!");
+         // ext = new MFBilinearFormExtension(this);
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+}
+
 void BilinearForm::EnableStaticCondensation()
 {
    delete static_cond;
+   if (assembly != AssemblyLevel::FULL)
+   {
+      static_cond = NULL;
+      MFEM_WARNING("Static condensation not supported for this assembly level");
+      return;
+   }
    static_cond = new StaticCondensation(fes);
    if (static_cond->ReducesTrueVSize())
    {
@@ -125,6 +173,13 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
                                        const Array<int> &ess_tdof_list)
 {
    delete hybridization;
+   if (assembly != AssemblyLevel::FULL)
+   {
+      delete constr_integ;
+      hybridization = NULL;
+      MFEM_WARNING("Hybridization not supported for this assembly level");
+      return;
+   }
    hybridization = new Hybridization(fes, constr_space);
    hybridization->SetConstraintIntegrator(constr_integ);
    hybridization->Init(ess_tdof_list);
@@ -179,9 +234,9 @@ void BilinearForm::Finalize (int skip_zeros)
    if (hybridization) { hybridization->Finalize(); }
 }
 
-void BilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
+void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
 {
-   dbfi.Append (bfi);
+   dbfi.Append(bfi);
 }
 
 void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
@@ -287,21 +342,30 @@ void BilinearForm::AssembleBdrElementMatrix(
    }
 }
 
-void BilinearForm::Assemble (int skip_zeros)
+void BilinearForm::Assemble(int skip_zeros)
 {
+   if (Device::IsEnabled() && (assembly != AssemblyLevel::PARTIAL))
+   {
+      mfem_error("Chosen assembly level not supported yet in device mode!");
+   }
+
+   if (ext)
+   {
+      ext->Assemble();
+      return;
+   }
+
    ElementTransformation *eltrans;
    DofTransformation * doftrans;
    Mesh *mesh = fes -> GetMesh();
    DenseMatrix elmat, elmat_t, *elmat_p;
-
-   int i;
 
    if (mat == NULL)
    {
       AllocMat();
    }
 
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
    int free_element_matrices = 0;
    if (!element_matrices)
    {
@@ -312,7 +376,7 @@ void BilinearForm::Assemble (int skip_zeros)
 
    if (dbfi.Size())
    {
-      for (i = 0; i < fes -> GetNE(); i++)
+      for (int i = 0; i < fes -> GetNE(); i++)
       {
          doftrans = fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
@@ -377,7 +441,7 @@ void BilinearForm::Assemble (int skip_zeros)
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -415,7 +479,7 @@ void BilinearForm::Assemble (int skip_zeros)
       Array<int> vdofs2;
 
       int nfaces = mesh->GetNumFaces();
-      for (i = 0; i < nfaces; i++)
+      for (int i = 0; i < nfaces; i++)
       {
          tr = mesh -> GetInteriorFaceTransformations (i);
          if (tr != NULL)
@@ -460,7 +524,7 @@ void BilinearForm::Assemble (int skip_zeros)
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -486,7 +550,7 @@ void BilinearForm::Assemble (int skip_zeros)
       }
    }
 
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
    if (free_element_matrices)
    {
       FreeElementMatrices();
@@ -529,11 +593,16 @@ void BilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
-void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                    Vector &x, Vector &b,
-                                    SparseMatrix &A, Vector &X, Vector &B,
-                                    int copy_interior)
+void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                                    Vector &b, OperatorHandle &A, Vector &X,
+                                    Vector &B, int copy_interior)
 {
+   if (ext)
+   {
+      ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+      return;
+   }
+
    const SparseMatrix *P = fes->GetConformingProlongation();
 
    FormSystemMatrix(ess_tdof_list, A);
@@ -596,8 +665,14 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 }
 
 void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                    SparseMatrix &A)
+                                    OperatorHandle &A)
 {
+   if (ext)
+   {
+      ext->FormSystemMatrix(ess_tdof_list, A);
+      return;
+   }
+
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
    if (static_cond)
@@ -609,7 +684,7 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
          static_cond->EliminateReducedTrueDofs(diag_policy);
          static_cond->Finalize(); // finalize eliminated part
       }
-      A.MakeRef(static_cond->GetMatrix());
+      A.Reset(&static_cond->GetMatrix(), false);
    }
    else
    {
@@ -623,11 +698,11 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       }
       if (hybridization)
       {
-         A.MakeRef(hybridization->GetMatrix());
+         A.Reset(&hybridization->GetMatrix(), false);
       }
       else
       {
-         A.MakeRef(*mat);
+         A.Reset(mat, false);
       }
    }
 }
@@ -635,6 +710,12 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 void BilinearForm::RecoverFEMSolution(const Vector &X,
                                       const Vector &b, Vector &x)
 {
+   if (ext)
+   {
+      ext->RecoverFEMSolution(X, b, x);
+      return;
+   }
+
    const SparseMatrix *P = fes->GetConformingProlongation();
    if (!P) // conforming space
    {
@@ -696,7 +777,7 @@ void BilinearForm::ComputeElementMatrices()
    DenseMatrix tmp;
    IsoparametricTransformation eltrans;
 
-#ifdef MFEM_USE_OPENMP
+#ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for private(tmp,eltrans)
 #endif
    for (int i = 0; i < num_elements; i++)
@@ -723,7 +804,8 @@ void BilinearForm::ComputeElementMatrices()
 }
 
 void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                        const Vector &sol, Vector &rhs, DiagonalPolicy dpolicy)
+                                        const Vector &sol, Vector &rhs,
+                                        DiagonalPolicy dpolicy)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
@@ -897,6 +979,8 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    }
 
    height = width = fes->GetVSize();
+
+   if (ext) { ext->Update(); }
 }
 
 void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)
@@ -920,6 +1004,8 @@ BilinearForm::~BilinearForm()
       for (k=0; k < fbfi.Size(); k++) { delete fbfi[k]; }
       for (k=0; k < bfbfi.Size(); k++) { delete bfbfi[k]; }
    }
+
+   delete ext;
 }
 
 
