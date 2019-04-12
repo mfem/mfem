@@ -43,15 +43,11 @@ enum class AssemblyLevel
    NONE,
 };
 
+
 /** Class for bilinear form - "Matrix" with associated FE space and
     BLFIntegrators. */
 class BilinearForm : public Matrix
 {
-   friend class FABilinearFormExtension;
-   friend class EABilinearFormExtension;
-   friend class PABilinearFormExtension;
-   friend class MFBilinearFormExtension;
-
 protected:
    /// Sparse matrix to be associated with the form. Owned.
    SparseMatrix *mat;
@@ -66,14 +62,9 @@ protected:
    AssemblyLevel assembly;
    /// Element batch size used in the form action (1, 8, num_elems, etc.)
    int batch;
-   /// Data and methods specific for Full Assembly (FA)
-   FABilinearFormExtension *fa;
-   /// Data and methods specific for Element Assembly (EA)
-   EABilinearFormExtension *ea;
-   /// Data and methods specific for Partial Assembly (PA)
-   PABilinearFormExtension *pa;
-   /// Data and methods specific for Matrix Free assembly (MF)
-   MFBilinearFormExtension *mf;
+   /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
+       Partial Assembly (PA), or Matrix Free assembly (MF). */
+   BilinearFormExtension *ext;
 
    /// Indicates the Mesh::sequence corresponding to the current state of the
    /// BilinearForm.
@@ -126,6 +117,9 @@ protected:
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
       diag_policy = DIAG_KEEP;
+      assembly = AssemblyLevel::FULL;
+      batch = 1;
+      ext = NULL;
    }
 
 private:
@@ -138,9 +132,7 @@ private:
 public:
    /// Creates bilinear form associated with FE space @a *f.
    /** The pointer @a f is not owned by the newly constructed object. */
-   BilinearForm(FiniteElementSpace *f,
-                AssemblyLevel assembly_level = AssemblyLevel::FULL,
-                int elem_batch = 1);
+   BilinearForm(FiniteElementSpace *f);
 
    /** @brief Create a BilinearForm on the FiniteElementSpace @a f, using the
        same integrators as the BilinearForm @a bf.
@@ -156,6 +148,10 @@ public:
 
    /// Get the size of the BilinearForm as a square matrix.
    int Size() const { return height; }
+
+   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
 
    /** Enable the use of static condensation. For details see the description
        for class StaticCondensation in fem/staticcond.hpp This method should be
@@ -330,11 +326,12 @@ public:
    virtual const Operator *GetRestriction() const
    { return fes->GetConformingRestriction(); }
 
-   /// Form a linear system, A X = B.
-   /** Form the linear system A X = B, corresponding to the current bilinear
-       form and b(.), by applying any necessary transformations such as:
-       eliminating boundary conditions; applying conforming constraints for
-       non-conforming AMR; static condensation; hybridization.
+   /** @brief Form the linear system A X = B, corresponding to this bilinear
+       form and the linear form @a b(.). */
+   /** This method applies any necessary transformations to the linear system
+       such as: eliminating boundary conditions; applying conforming constraints
+       for non-conforming AMR; parallel assembly; static condensation;
+       hybridization.
 
        The GridFunction-size vector @a x must contain the essential b.c. The
        BilinearForm and the LinearForm-size vector @a b must be assembled.
@@ -355,43 +352,52 @@ public:
 
        NOTE: If there are no transformations, @a X simply reuses the data of
              @a x. */
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                                 Vector &b, OperatorHandle &A, Vector &X,
+                                 Vector &B, int copy_interior = 0);
+
+   /** @brief Form the linear system A X = B, corresponding to this bilinear
+       form and the linear form @a b(.). */
+   /** Version of the method FormLinearSystem() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called.
+
+       Currently, this method can be used only with AssemblyLevel::FULL. */
+   template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         SparseMatrix &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
+                         OpType &A, Vector &X, Vector &B,
+                         int copy_interior = 0)
+   {
+      OperatorHandle Ah;
+      FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
+
+   /// Form the linear system matrix @a A, see FormLinearSystem() for details.
+   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                 OperatorHandle &A);
 
    /// Form the linear system matrix A, see FormLinearSystem() for details.
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
+   /** Version of the method FormSystemMatrix() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called.
 
-   /** Form the linear system @a A @a X = @a B, corresponding to the bilinear
-       form and the r.h.s. linear form (vector) @a b, by applying any necessary
-       transformations such as: eliminating boundary conditions; applying
-       conforming constraints for non-conforming AMR; parallel assembly; static
-       condensation; hybridization.
-
-       The GridFunction-size vector @a x must contain the essential b.c. The
-       BilinearForm and the LinearForm-size vector @a b must be assembled.
-
-       The vector @a X is initialized with a suitable initial guess: when using
-       hybridization, the vector @a X is set to zero; otherwise, the essential
-       entries of @a X are set to the corresponding b.c. and all other entries
-       are set to zero (if @a copy_interior == 0) or copied from @a x (if
-       @a copy_interior != 0).
-
-       This method can be called multiple times (with the same @a ess_tdof_list
-       array) to initialize different right-hand sides and boundary condition
-       values.
-
-       After solving the linear system, the finite element solution @a x can be
-       recovered by calling RecoverFEMSolution() (with the same vectors @a X,
-       @a b, and @a x). */
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
-                                 Vector &x, Vector &b,
-                                 Operator *&A, Vector &X, Vector &B,
-                                 int copy_interior = 0);
-
-   /// Form the linear system operator @a A, see FormLinearSystem() for details.
-   virtual void FormSystemOperator(const Array<int> &ess_tdof_list,
-                                   Operator *&A);
+       Currently, this method can be used only with AssemblyLevel::FULL. */
+   template <typename OpType>
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A)
+   {
+      OperatorHandle Ah;
+      FormSystemMatrix(ess_tdof_list, Ah);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
 
    /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the

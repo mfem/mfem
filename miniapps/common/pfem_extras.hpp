@@ -185,13 +185,21 @@ public:
 };
 
 
+/// Visualize the given parallel mesh object, using a GLVis server on the
+/// specified host and port. Set the visualization window title, and optionally,
+/// its geometry.
+void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
+                   ParMesh &pmesh, const char *title,
+                   int x = 0, int y = 0, int w = 400, int h = 400,
+                   const char *keys = NULL);
+
 /// Visualize the given parallel grid function, using a GLVis server on the
 /// specified host and port. Set the visualization window title, and optionally,
 /// its geometry.
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
                     ParGridFunction &gf, const char *title,
                     int x = 0, int y = 0, int w = 400, int h = 400,
-                    bool vec = false);
+                    const char *keys = NULL, bool vec = false);
 
 } // namespace miniapps
 

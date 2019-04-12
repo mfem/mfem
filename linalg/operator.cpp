@@ -12,7 +12,7 @@
 #include "vector.hpp"
 #include "dtensor.hpp"
 #include "operator.hpp"
-#include "../general/okina.hpp"
+#include "../general/forall.hpp"
 
 #include <iostream>
 #include <iomanip>

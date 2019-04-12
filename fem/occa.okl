@@ -578,6 +578,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
           }
         }
       }
+      @barrier("s_z_s_Dz_sync_1");
     }
     // Iterate over xy planes to compute solution
     for (int dz = 0; dz < D1D; ++dz) {
@@ -614,9 +615,11 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
           }
         }
       }
+      @barrier("s_z_s_Dz_s_xyDz_sync_1");
     }
   }
 }
+
 @kernel void MassApply2D_CPU(const int NE,
                              @restrict const DofToQuad_t B,
                              @restrict const QuadToDof_t Bt,
@@ -962,6 +965,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
           }
         }
       }
+      @barrier("s_xy_sync_1");
     }
     // Iterate over xy planes to compute solution
     for (int dz = 0; dz < D1D; ++dz) {
@@ -989,6 +993,7 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
           }
         }
       }
+      @barrier("s_xy_sync_2");
     }
   }
 }

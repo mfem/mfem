@@ -284,6 +284,12 @@ void ParBilinearForm::FormLinearSystem(
    const Array<int> &ess_tdof_list, Vector &x, Vector &b,
    OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
 {
+   if (ext)
+   {
+      ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+      return;
+   }
+
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
    FormSystemMatrix(ess_tdof_list, A);
@@ -327,6 +333,12 @@ void ParBilinearForm::FormLinearSystem(
 void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                        OperatorHandle &A)
 {
+   if (ext)
+   {
+      ext->FormSystemMatrix(ess_tdof_list, A);
+      return;
+   }
+
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
    if (static_cond)
@@ -366,82 +378,13 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
 }
 
-void ParBilinearForm::FormLinearSystem(
-   const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-   Operator *&opA, Vector &X, Vector &B, int copy_interior)
-{
-   switch (assembly)
-   {
-      case AssemblyLevel::FULL:
-      {
-         // Use the original ParBilinearForm implementation for now hardcoded
-         // for a Hypre matrix
-         HypreParMatrix *Ap = static_cast<HypreParMatrix*>(opA);
-         HypreParMatrix &A = *Ap;
-         FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
-         break;
-      }
-      case AssemblyLevel::ELEMENT:
-         mfem_error("AssemblyLevel::ELEMENT is not supported yet... stay tuned!");
-         return;
-      case AssemblyLevel::PARTIAL:
-         pa->FormLinearSystem(ess_tdof_list, x, b, opA, X, B, copy_interior);
-         return;
-      case AssemblyLevel::NONE:
-         mfem_error("AssemblyLevel::NONE is not supported yet... stay tuned!");
-         return;
-      default:
-         mfem_error("Unknown assembly level");
-   }
-}
-
-void ParBilinearForm::FormSystemOperator(const Array<int> &ess_tdof_list,
-                                         Operator *&opA)
-{
-   switch (assembly)
-   {
-      case AssemblyLevel::FULL:
-      {
-         // Use the original ParBilinearForm implementation for now hardcoded
-         // for a Hypre matrix
-         HypreParMatrix *Ap = static_cast<HypreParMatrix*>(opA);
-         HypreParMatrix &A = *Ap;
-         FormSystemMatrix(ess_tdof_list, A);
-         break;
-      }
-      case AssemblyLevel::ELEMENT:
-         mfem_error("AssemblyLevel::ELEMENT is not supported yet... stay tuned!");
-         return;
-      case AssemblyLevel::PARTIAL:
-         pa->FormSystemOperator(ess_tdof_list, opA);
-         return;
-      case AssemblyLevel::NONE:
-         mfem_error("AssemblyLevel::NONE is not supported yet... stay tuned!");
-         return;
-      default:
-         mfem_error("Unknown assembly level");
-   }
-}
-
 void ParBilinearForm::RecoverFEMSolution(
    const Vector &X, const Vector &b, Vector &x)
 {
-   switch (assembly)
+   if (ext)
    {
-      case AssemblyLevel::FULL:
-         // Use the original ParBilinearForm implementation for now
-         break;
-      case AssemblyLevel::ELEMENT:
-         mfem_error("AssemblyLevel::ELEMENT is not supported yet... stay tuned!");
-         return;
-      case AssemblyLevel::PARTIAL:
-         pa->RecoverFEMSolution(X, b, x);
-         return;
-      case AssemblyLevel::NONE:
-         mfem_error("AssemblyLevel::NONE is not supported yet... stay tuned!");
-         return;
-      default:
-         mfem_error("Unknown assembly level");
+      ext->RecoverFEMSolution(X, b, x);
+      return;
    }
 
    const Operator &P = *pfes->GetProlongationMatrix();

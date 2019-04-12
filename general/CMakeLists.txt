@@ -12,8 +12,8 @@
 list(APPEND SRCS
   array.cpp
   cuda.cpp
-  error.cpp
   device.cpp
+  error.cpp
   globals.cpp
   gzstream.cpp
   isockstream.cpp
@@ -32,8 +32,8 @@ list(APPEND SRCS
 list(APPEND HDRS
   array.hpp
   binaryio.hpp
-  device.hpp
   cuda.hpp
+  device.hpp
   error.hpp
   globals.hpp
   gzstream.hpp
@@ -42,7 +42,7 @@ list(APPEND HDRS
   mem_alloc.hpp
   mem_manager.hpp
   occa.hpp
-  okina.hpp
+  forall.hpp
   optparser.hpp
   osockstream.hpp
   sets.hpp

@@ -1296,7 +1296,7 @@ void ParNCMesh::Prune()
    }
 
    // derefine subtrees whose leaves are all unneeded
-   for (int i = 0; i < root_count; i++)
+   for (int i = 0; i < root_state.Size(); i++)
    {
       if (PruneTree(i)) { DerefineElement(i); }
    }
@@ -2106,7 +2106,7 @@ void ParNCMesh::ElementSet::Encode(const Array<int> &elements)
    // Each refinement tree that contains at least one element from the set
    // is encoded as HEADER + TREE, where HEADER is the root element number and
    // TREE is the output of EncodeTree().
-   for (int i = 0; i < ncmesh->root_count; i++)
+   for (int i = 0; i < ncmesh->root_state.Size(); i++)
    {
       if (ncmesh->elements[i].flag)
       {
