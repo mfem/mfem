@@ -2390,7 +2390,7 @@ void NCMesh::BuildEdgeList()
    processed_edges = 0;
 
    Array<int> edge_element(nodes.NumIds());
-   Array<char> edge_local(nodes.NumIds());
+   Array<signed char> edge_local(nodes.NumIds());
    edge_local = -1;
 
    // visit edges of leaf elements
