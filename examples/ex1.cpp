@@ -26,12 +26,12 @@
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
 //
 // Device sample runs:
-//             > ex1 -p -d cuda
-//             > ex1 -p -d raja-cuda
-//             > ex1 -p -d occa-cuda
-//             > ex1 -p -d raja-omp
-//             > ex1 -p -d occa-omp
-//             > ex1 -m ../data/beam-hex.mesh -p -d cuda
+//             > ex1 -pa -d cuda
+//             > ex1 -pa -d raja-cuda
+//             > ex1 -pa -d occa-cuda
+//             > ex1 -pa -d raja-omp
+//             > ex1 -pa -d occa-omp
+//             > ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -73,8 +73,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
-                  "Enable Partial Assembly.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -93,7 +93,6 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   if (pa) { mesh->EnsureNodes(); }
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -164,8 +163,8 @@ int main(int argc, char *argv[])
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   BilinearForm *a = new BilinearForm(fespace, assembly);
+   BilinearForm *a = new BilinearForm(fespace);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
@@ -175,10 +174,8 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
+   OperatorPtr A;
    Vector B, X;
-   Operator *A;
-   if (!pa) { A = new SparseMatrix; }
-
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A->Height() << endl;
@@ -188,7 +185,7 @@ int main(int argc, char *argv[])
    {
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M(*(SparseMatrix*)A);
+      GSSmoother M((SparseMatrix&)(*A));
       PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
@@ -229,7 +226,6 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
-   delete A;
    delete a;
    delete b;
    delete fespace;

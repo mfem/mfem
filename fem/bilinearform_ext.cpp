@@ -18,113 +18,85 @@
 namespace mfem
 {
 
-// Data and methods for fully-assembled bilinear forms
-FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form) :
-   Operator(form->Size()), a(form) { }
+BilinearFormExtension::BilinearFormExtension(BilinearForm *form)
+   : Operator(form->Size()), a(form)
+{
+   // empty
+}
 
-// Data and methods for element-assembled bilinear forms
-EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
-   : Operator(form->Size()), a(form) { }
+const Operator *BilinearFormExtension::GetProlongation() const
+{
+   return a->GetProlongation();
+}
+
+const Operator *BilinearFormExtension::GetRestriction() const
+{
+   return a->GetRestriction();
+}
+
 
 // Data and methods for partially-assembled bilinear forms
 PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
-   Operator(form->Size()), a(form),
-   trialFes(a->fes), testFes(a->fes),
-   localX(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
-   localY(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   elem_restrict(new ElemRestriction(*a->fes)) { }
+   BilinearFormExtension(form),
+   trialFes(a->FESpace()), testFes(a->FESpace()),
+   localX(trialFes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
+   localY( testFes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
+   elem_restrict(new ElemRestriction(*a->FESpace())) { }
 
 PABilinearFormExtension::~PABilinearFormExtension()
 {
-   for (int i = 0; i < integrators.Size(); ++i)
-   {
-      delete integrators[i];
-   }
    delete elem_restrict;
-}
-
-// Adds new Domain Integrator.
-void PABilinearFormExtension::AddDomainIntegrator(BilinearFormIntegrator *i)
-{
-   integrators.Append(i);
 }
 
 void PABilinearFormExtension::Assemble()
 {
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->Assemble(*a->fes);
+      integrators[i]->Assemble(*a->FESpace());
    }
 }
 
-void PABilinearFormExtension::Update(FiniteElementSpace *fes)
+void PABilinearFormExtension::Update()
 {
+   FiniteElementSpace *fes = a->FESpace();
    height = width = fes->GetVSize();
    trialFes = fes;
    testFes = fes;
-   localX.SetSize(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() *
+   localX.SetSize(trialFes->GetNE() * trialFes->GetFE(0)->GetDof() *
                   trialFes->GetVDim());
-   localY.SetSize(a->fes->GetNE() * testFes->GetFE(0)->GetDof() *
+   localY.SetSize(testFes->GetNE() * testFes->GetFE(0)->GetDof() *
                   testFes->GetVDim());
    delete elem_restrict;
    elem_restrict = new ElemRestriction(*fes);
 }
 
-void PABilinearFormExtension::FormSystemOperator(const Array<int>
-                                                 &ess_tdof_list,
-                                                 Operator *&A)
+void PABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                               OperatorHandle &A)
 {
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
    if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
    const bool own_A = (rap!=this);
-   A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
+   A.Reset(new ConstrainedOperator(rap, ess_tdof_list, own_A));
 }
 
 void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                Vector &x, Vector &b,
-                                               Operator *&A, Vector &X, Vector &B,
+                                               OperatorHandle &A,
+                                               Vector &X, Vector &B,
                                                int copy_interior)
 {
-   FormSystemOperator(ess_tdof_list, A);
-
-   const Operator* P = trialFes->GetProlongationMatrix();
-   const Operator* R = trialFes->GetRestrictionMatrix();
-   if (P)
-   {
-      // Variational restriction with P
-      B.SetSize(P->Width());
-      P->MultTranspose(b, B);
-      X.SetSize(R->Height());
-      R->Mult(x, X);
-   }
-   else
-   {
-      // rap, X and B point to the same data as this, x and b
-      X.SetSize(x.Size()); X = x;
-      B.SetSize(b.Size()); B = b;
-   }
-
-   if (!copy_interior && ess_tdof_list.Size()>0)
-   {
-      X.SetSubVectorComplement(ess_tdof_list, 0.0);
-   }
-
-   ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(A);
-   if (cA)
-   {
-      cA->EliminateRHS(X, B);
-   }
-   else
-   {
-      mfem_error("BilinearForm::InitRHS expects an ConstrainedOperator");
-   }
+   Operator *oper;
+   Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
+   A.Reset(oper); // A will own oper
 }
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
@@ -137,6 +109,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
@@ -147,36 +120,17 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    elem_restrict->MultTranspose(localY, y);
 }
 
-void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
-                                                 const Vector &b,
-                                                 Vector &x)
-{
-   const Operator *P = a->GetProlongation();
-   if (P)
-   {
-      // Apply conforming prolongation
-      x.SetSize(P->Height());
-      P->Mult(X, x);
-      return;
-   }
-   // Otherwise X and x point to the same data
-   x = X;
-}
-
-// Data and methods for matrix-free bilinear forms
-MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
-   : Operator(form->Size()), a(form) { }
 
 ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
-   :fes(f),
-    ne(fes.GetNE()),
-    vdim(fes.GetVDim()),
-    byvdim(fes.GetOrdering() == Ordering::byVDIM),
-    ndofs(fes.GetNDofs()),
-    dof(fes.GetFE(0)->GetDof()),
-    nedofs(ne*dof),
-    offsets(ndofs+1),
-    indices(ne*dof)
+   : fes(f),
+     ne(fes.GetNE()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes.GetNDofs()),
+     dof(fes.GetFE(0)->GetDof()),
+     nedofs(ne*dof),
+     offsets(ndofs+1),
+     indices(ne*dof)
 {
    for (int e = 0; e < ne; ++e)
    {
