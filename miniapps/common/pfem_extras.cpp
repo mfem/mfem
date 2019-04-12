@@ -115,10 +115,14 @@ IrrotationalNDProjector
      ownsWeakDiv_(weakDiv == NULL),
      ownsGrad_(grad == NULL)
 {
+   /*
    ess_bdr_.SetSize(H1FESpace_->GetParMesh()->bdr_attributes.Max());
    ess_bdr_ = 1;
    H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
-
+   */
+   ess_bdr_tdofs_.SetSize(1);
+   ess_bdr_tdofs_ = 0;
+   
    int geom = H1FESpace_->GetFE(0)->GetGeomType();
    const IntegrationRule * ir = &IntRules.Get(geom, irOrder);
 
