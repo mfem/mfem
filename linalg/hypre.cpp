@@ -79,7 +79,7 @@ template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)
 {
-   TargetT *target_array = cplusplus ? new TargetT[size]
+   TargetT *target_array = cplusplus ? mfem::New<TargetT>(size)
                            /*     */ : mfem_hypre_TAlloc(TargetT, size);
    for (int i = 0; i < size; i++)
    {
@@ -641,13 +641,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
    HYPRE_Int i;
 
-   double *a_diag = new double[diag_nnz];
+   double *a_diag = mfem::New<double>(diag_nnz);
    for (i = 0; i < diag_nnz; i++)
    {
       a_diag[i] = 1.0;
    }
 
-   double *a_offd = new double[offd_nnz];
+   double *a_offd = mfem::New<double>(offd_nnz);
    for (i = 0; i < offd_nnz; i++)
    {
       a_offd[i] = 1.0;
@@ -1010,6 +1010,7 @@ HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
 
 void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
 {
+   x.Pull();
    MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Width());
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
@@ -1033,11 +1034,13 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    }
 
    hypre_ParCSRMatrixMatvec(a, A, *X, b, *Y);
+   y.Push();
 }
 
 void HypreParMatrix::MultTranspose(double a, const Vector &x,
                                    double b, Vector &y) const
 {
+   x.Pull();
    MFEM_ASSERT(x.Size() == Height(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Height());
    MFEM_ASSERT(y.Size() == Width(), "invalid y.Size() = " << y.Size()
@@ -1063,6 +1066,7 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
    }
 
    hypre_ParCSRMatrixMatvecT(a, A, *Y, b, *X);
+   y.Push();
 }
 
 HYPRE_Int HypreParMatrix::Mult(HYPRE_ParVector x, HYPRE_ParVector y,
@@ -1477,14 +1481,14 @@ void HypreParMatrix::Destroy()
    {
       if (diagOwner & 1)
       {
-         delete [] hypre_CSRMatrixI(A->diag);
-         delete [] hypre_CSRMatrixJ(A->diag);
+         mfem::Delete(hypre_CSRMatrixI(A->diag));
+         mfem::Delete(hypre_CSRMatrixJ(A->diag));
       }
       hypre_CSRMatrixI(A->diag) = NULL;
       hypre_CSRMatrixJ(A->diag) = NULL;
       if (diagOwner & 2)
       {
-         delete [] hypre_CSRMatrixData(A->diag);
+         mfem::Delete(hypre_CSRMatrixData(A->diag));
       }
       hypre_CSRMatrixData(A->diag) = NULL;
    }
@@ -1492,14 +1496,14 @@ void HypreParMatrix::Destroy()
    {
       if (offdOwner & 1)
       {
-         delete [] hypre_CSRMatrixI(A->offd);
-         delete [] hypre_CSRMatrixJ(A->offd);
+         mfem::Delete(hypre_CSRMatrixI(A->offd));
+         mfem::Delete(hypre_CSRMatrixJ(A->offd));
       }
       hypre_CSRMatrixI(A->offd) = NULL;
       hypre_CSRMatrixJ(A->offd) = NULL;
       if (offdOwner & 2)
       {
-         delete [] hypre_CSRMatrixData(A->offd);
+         mfem::Delete(hypre_CSRMatrixData(A->offd));
       }
       hypre_CSRMatrixData(A->offd) = NULL;
    }
@@ -1507,7 +1511,7 @@ void HypreParMatrix::Destroy()
    {
       if (colMapOwner & 1)
       {
-         delete [] hypre_ParCSRMatrixColMapOffd(A);
+         mfem::Delete(hypre_ParCSRMatrixColMapOffd(A));
       }
       hypre_ParCSRMatrixColMapOffd(A) = NULL;
    }

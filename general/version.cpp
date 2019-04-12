@@ -94,8 +94,8 @@ const char *GetConfigStr()
 #ifdef MFEM_THREAD_SAFE
       "MFEM_THREAD_SAFE\n"
 #endif
-#ifdef MFEM_USE_OPENMP
-      "MFEM_USE_OPENMP\n"
+#ifdef MFEM_USE_LEGACY_OPENMP
+      "MFEM_USE_LEGACY_OPENMP\n"
 #endif
 #ifdef MFEM_USE_MEMALLOC
       "MFEM_USE_MEMALLOC\n"
@@ -135,6 +135,18 @@ const char *GetConfigStr()
 #endif
 #ifdef MFEM_USE_SIDRE
       "MFEM_USE_SIDRE\n"
+#endif
+#ifdef MFEM_USE_PUMI
+      "MFEM_USE_PUMI\n"
+#endif
+#ifdef MFEM_USE_CUDA
+      "MFEM_USE_CUDA\n"
+#endif
+#ifdef MFEM_USE_RAJA
+      "MFEM_USE_RAJA\n"
+#endif
+#ifdef MFEM_USE_OCCA
+      "MFEM_USE_OCCA\n"
 #endif
       "MFEM_TIMER_TYPE = " EXPAND_AND_QUOTE(MFEM_TIMER_TYPE)
       ;
