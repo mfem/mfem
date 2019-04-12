@@ -96,7 +96,7 @@ public:
    { constants.SetSize(c.Size()); constants=c; }
 
    /// Update constants
-   void UpdateConstants(Vector &c) {constants.SetSize(c.Size()); constants=c;}
+   void UpdateConstants(Vector &c) { constants.SetSize(c.Size()); constants=c; }
 
    /// Member function to access or modify the value of the i-th constant
    double &operator()(int i) { return constants(i-1); }
@@ -112,12 +112,15 @@ public:
                        const IntegrationPoint &ip);
 };
 
+typedef double (*DeviceFunctionCoefficientPtr)(const Vector3&);
+
 /// class for C-function coefficient
 class FunctionCoefficient : public Coefficient
 {
 protected:
    double (*Function)(const Vector &);
    double (*TDFunction)(const Vector &, double);
+   double (*DeviceFunction)(const Vector3&);
 
 public:
    /// Define a time-independent coefficient from a C-function
@@ -125,6 +128,7 @@ public:
    {
       Function = f;
       TDFunction = NULL;
+      DeviceFunction = NULL;
    }
 
    /// Define a time-dependent coefficient from a C-function
@@ -132,6 +136,16 @@ public:
    {
       Function = NULL;
       TDFunction = tdf;
+      DeviceFunction = NULL;
+   }
+
+   /// Define a time-independent coefficient from a C-function using
+   /// Vector3 instead of a Vector.
+   FunctionCoefficient(double (*df)(const Vector3 &))
+   {
+      Function = NULL;
+      TDFunction = NULL;
+      DeviceFunction = df;
    }
 
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
@@ -141,6 +155,7 @@ public:
    {
       Function = reinterpret_cast<double(*)(const Vector&)>(f);
       TDFunction = NULL;
+      DeviceFunction = NULL;
    }
 
    /// (DEPRECATED) Define a time-dependent coefficient from a C-function
@@ -150,11 +165,17 @@ public:
    {
       Function = NULL;
       TDFunction = reinterpret_cast<double(*)(const Vector&,double)>(tdf);
+      DeviceFunction = NULL;
    }
 
    /// Evaluate coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   /// Return the coefficient's C-function that uses Vector3.
+   /// Warning: for now, the returned function can only be used on the
+   /// host inside a MFEM_FORALL.
+   DeviceFunctionCoefficientPtr GetDeviceFunction();
 };
 
 class GridFunction;
@@ -448,6 +469,7 @@ public:
    void SetGridFunction(GridFunction *gf);
    GridFunction * GetGridFunction() const { return GridFunc; }
 
+   using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
@@ -790,6 +812,7 @@ public:
    /// Evaluate the coefficient
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a product of a scalar and a vector
@@ -804,6 +827,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a cross product of two vectors
@@ -821,6 +845,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a matrix vector product
@@ -838,6 +863,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Matrix coefficient defined as the identity of dimension d
