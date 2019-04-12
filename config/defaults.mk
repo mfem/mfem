@@ -21,8 +21,13 @@ NOTMAC := $(subst Darwin,,$(shell uname -s))
 CXX = g++
 MPICXX = mpicxx
 
-OPTIM_FLAGS = -O3
-DEBUG_FLAGS = -g -Wall
+BASE_FLAGS  = -std=c++11
+OPTIM_FLAGS = -O3 $(BASE_FLAGS)
+DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
+
+# Prefixes for passing flags to the compiler and linker when using CXX or MPICXX
+CXX_XCOMPILER =
+CXX_XLINKER   = -Wl,
 
 # Destination location of make install
 # PREFIX = $(HOME)/mfem
@@ -33,33 +38,41 @@ INSTALL = /usr/bin/install
 STATIC = YES
 SHARED = NO
 
+# CUDA configuration options
+CUDA_CXX = nvcc
+CUDA_ARCH = sm_60
+CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
+# Prefixes for passing flags to the host compiler and linker when using CUDA_CXX
+CUDA_XCOMPILER = -Xcompiler=
+CUDA_XLINKER   = -Xlinker=
+
 ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
    RANLIB  = ranlib
-   PICFLAG = -fPIC
+   PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = so
    SO_VER  = so.$(MFEM_VERSION_STRING)
-   BUILD_SOFLAGS = -shared -Wl,-soname,libmfem.$(SO_VER)
-   BUILD_RPATH = -Wl,-rpath,$(BUILD_REAL_DIR)
+   BUILD_SOFLAGS = -shared $(XLINKER)-soname,libmfem.$(SO_VER)
+   BUILD_RPATH = $(XLINKER)-rpath,$(BUILD_REAL_DIR)
    INSTALL_SOFLAGS = $(BUILD_SOFLAGS)
-   INSTALL_RPATH = -Wl,-rpath,@MFEM_LIB_DIR@
+   INSTALL_RPATH = $(XLINKER)-rpath,@MFEM_LIB_DIR@
 else
    # Silence "has no symbols" warnings on Mac OS X
    AR      = ar
    ARFLAGS = Scruv
    RANLIB  = ranlib -no_warning_for_no_symbols
-   PICFLAG = -fPIC
+   PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = dylib
    SO_VER  = $(MFEM_VERSION_STRING).dylib
-   MAKE_SOFLAGS = -Wl,-dylib,-install_name,$(1)/libmfem.$(SO_VER),\
+   MAKE_SOFLAGS = $(XLINKER)-dylib,-install_name,$(1)/libmfem.$(SO_VER),\
       -compatibility_version,$(MFEM_VERSION_STRING),\
       -current_version,$(MFEM_VERSION_STRING),\
       -undefined,dynamic_lookup
    BUILD_SOFLAGS = $(subst $1 ,,$(call MAKE_SOFLAGS,$(BUILD_REAL_DIR)))
-   BUILD_RPATH = -Wl,-undefined,dynamic_lookup
+   BUILD_RPATH = $(XLINKER)-undefined,dynamic_lookup
    INSTALL_SOFLAGS = $(subst $1 ,,$(call MAKE_SOFLAGS,$(MFEM_LIB_DIR)))
-   INSTALL_RPATH = -Wl,-undefined,dynamic_lookup
+   INSTALL_RPATH = $(XLINKER)-undefined,dynamic_lookup
 endif
 
 # Set CXXFLAGS to overwrite the default selection of DEBUG_FLAGS/OPTIM_FLAGS
@@ -82,32 +95,37 @@ MFEM_MPI_NP = 4
 # config.hpp. The values below are the defaults for generating the actual values
 # in config.mk and config.hpp.
 
-MFEM_USE_MPI         = NO
-MFEM_USE_METIS       = $(MFEM_USE_MPI)
-MFEM_USE_METIS_5     = NO
-MFEM_DEBUG           = NO
-MFEM_USE_EXCEPTIONS  = NO
-MFEM_USE_GZSTREAM    = NO
-MFEM_USE_LIBUNWIND   = NO
-MFEM_USE_LAPACK      = NO
-MFEM_THREAD_SAFE     = NO
-MFEM_USE_OPENMP      = NO
-MFEM_USE_MEMALLOC    = YES
-MFEM_TIMER_TYPE      = $(if $(NOTMAC),2,4)
-MFEM_USE_SUNDIALS    = NO
-MFEM_USE_MESQUITE    = NO
-MFEM_USE_SUITESPARSE = NO
-MFEM_USE_SUPERLU     = NO
-MFEM_USE_STRUMPACK   = NO
-MFEM_USE_GECKO       = NO
-MFEM_USE_GNUTLS      = NO
-MFEM_USE_NETCDF      = NO
-MFEM_USE_PETSC       = NO
-MFEM_USE_MPFR        = NO
-MFEM_USE_SIDRE       = NO
-MFEM_USE_X86INTRIN   = NO
-MFEM_USE_CONDUIT     = NO
-MFEM_USE_PUMI        = NO
+MFEM_USE_MPI           = NO
+MFEM_USE_METIS         = $(MFEM_USE_MPI)
+MFEM_USE_METIS_5       = NO
+MFEM_DEBUG             = NO
+MFEM_USE_EXCEPTIONS    = NO
+MFEM_USE_GZSTREAM      = NO
+MFEM_USE_LIBUNWIND     = NO
+MFEM_USE_LAPACK        = NO
+MFEM_THREAD_SAFE       = NO
+MFEM_USE_OPENMP        = NO
+MFEM_USE_LEGACY_OPENMP = NO
+MFEM_USE_MEMALLOC      = YES
+MFEM_TIMER_TYPE        = $(if $(NOTMAC),2,4)
+MFEM_USE_SUNDIALS      = NO
+MFEM_USE_MESQUITE      = NO
+MFEM_USE_SUITESPARSE   = NO
+MFEM_USE_SUPERLU       = NO
+MFEM_USE_STRUMPACK     = NO
+MFEM_USE_GECKO         = NO
+MFEM_USE_GNUTLS        = NO
+MFEM_USE_NETCDF        = NO
+MFEM_USE_PETSC         = NO
+MFEM_USE_MPFR          = NO
+MFEM_USE_SIDRE         = NO
+MFEM_USE_CONDUIT       = NO
+MFEM_USE_PUMI          = NO
+MFEM_USE_CUDA          = NO
+MFEM_USE_RAJA          = NO
+MFEM_USE_OCCA          = NO
+MFEM_USE_MM            = NO
+MFEM_USE_X86INTRIN     = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -150,7 +168,7 @@ LAPACK_OPT =
 LAPACK_LIB = $(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
 
 # OpenMP configuration
-OPENMP_OPT = -fopenmp
+OPENMP_OPT = $(XCOMPILER)-fopenmp
 OPENMP_LIB =
 
 # Used when MFEM_TIMER_TYPE = 2
@@ -282,6 +300,25 @@ PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
 PUMI_OPT = -I$(PUMI_DIR)/include
 PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
    -llion -lmth -lapf_zoltan -lspr
+
+# CUDA library configuration. Since we compile and link with nvcc (when CUDA is
+# enabled) we only need to explicitly link with the CUDA driver, libcuda.*,
+# which is usually in a system path.
+CUDA_OPT =
+CUDA_LIB = $(if $(NOTMAC),,-L/usr/local/cuda/lib) -lcuda
+
+# OCCA library configuration
+OCCA_DIR ?= @MFEM_DIR@/../occa
+OCCA_OPT = -I$(OCCA_DIR)/include
+OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
+
+# RAJA library configuration
+RAJA_DIR ?= @MFEM_DIR@/../raja
+RAJA_OPT = -I$(RAJA_DIR)/include
+ifdef CUB_DIR
+   RAJA_OPT += -I$(CUB_DIR)
+endif
+RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 
 # If YES, enable some informational messages
 VERBOSE = NO

@@ -13,6 +13,11 @@ cmake_minimum_required(VERSION 2.8.11)
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
+# Require C++11 and disable compiler-specific extensions
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 # Load user settings before the defaults - this way the defaults will not
 # overwrite the user set options. If the user has not set all options, we still
 # have the defaults.
@@ -170,12 +175,11 @@ if (MFEM_USE_LAPACK)
 endif()
 
 # OpenMP
-if (MFEM_USE_OPENMP)
-  if (MFEM_THREAD_SAFE)
-    find_package(OpenMP REQUIRED)
-  else()
-    message(FATAL_ERROR " *** MFEM_USE_OPENMP requires MFEM_THREAD_SAFE=ON.")
+if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
+  if (NOT MFEM_THREAD_SAFE AND MFEM_USE_LEGACY_OPENMP)
+    message(FATAL_ERROR " *** MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE=ON.")
   endif()
+  find_package(OpenMP REQUIRED)
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
