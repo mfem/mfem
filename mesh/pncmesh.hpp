@@ -524,8 +524,6 @@ protected: // implementation
 
    long GroupsMemoryUsage() const;
 
-   static bool compare_ranks_indices(const Element* a, const Element* b);
-
    friend class NeighborRowMessage;
 };
 
