@@ -36,7 +36,7 @@ struct Memory
    const std::size_t bytes;
    void *const h_ptr;
    void *d_ptr;
-   std::list<const Alias*> aliases;
+   std::list<const void*> aliases;
    Memory(void* const h, const std::size_t size):
       host(true), bytes(size), h_ptr(h), d_ptr(nullptr), aliases() {}
 };
@@ -97,9 +97,12 @@ void *MemoryManager::Erase(void *ptr)
    }
    internal::Memory &mem = maps->memories.at(ptr);
    if (mem.d_ptr) { CuMemFree(mem.d_ptr); }
-   for (const internal::Alias *alias : mem.aliases) { maps->aliases.erase(alias); }
+   for (const void *alias : mem.aliases)
+   {
+      maps->aliases.erase(maps->aliases.find(alias));
+   }
    mem.aliases.clear();
-   maps->memories.erase(ptr);
+   maps->memories.erase(maps->memories.find(ptr));
    return ptr;
 }
 
@@ -165,7 +168,7 @@ bool MemoryManager::IsAlias(const void *ptr)
                        static_cast<const char*> (base);
    const internal::Alias *alias = new internal::Alias{&mem, offset};
    maps->aliases.emplace(ptr, alias);
-   mem.aliases.push_back(alias);
+   mem.aliases.push_back(ptr);
    return true;
 }
 
@@ -337,9 +340,12 @@ void MemoryManager::PrintPtrs(void)
 {
    for (const auto& n : maps->memories)
    {
-      mfem::out << "key " << n.first << ", "
-                << "host " << n.second.h_ptr << ", "
-                << "device " << n.second.h_ptr << "\n";
+      const internal::Memory &mem = n.second;
+      mfem::out << std::endl
+                << "key " << n.first << ", "
+                << "host " << mem.host << ", "
+                << "h_ptr " << mem.h_ptr << ", "
+                << "d_ptr " << mem.d_ptr;
    }
 }
 
