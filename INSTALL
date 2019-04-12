@@ -24,7 +24,7 @@ the option MFEM_USE_METIS.
 MFEM also includes support for devices such as GPUs, and programming models such
 as CUDA, OCCA, OpenMP and RAJA.
 
-- The device support requires a C++11 compiler
+- Starting with version 4.0, MFEM requires a C++11 compiler
 
 - CUDA support requires an NVIDIA GPU and an installation of the CUDA Toolkit
   https://developer.nvidia.com/cuda-toolkit
@@ -675,6 +675,9 @@ MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_GZSTREAM
 MFEM_USE_PUMI
+
+The following GNU make options are not supported with CMake yet:
+
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_RAJA
