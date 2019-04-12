@@ -11,7 +11,9 @@
 
 set(SRCS
   bilinearform.cpp
+  bilinearform_ext.cpp
   bilininteg.cpp
+  bilininteg_ext.cpp
   coefficient.cpp
   complex_fem.cpp
   datacollection.cpp
@@ -34,7 +36,9 @@ set(SRCS
 
 set(HDRS
   bilinearform.hpp
+  bilinearform_ext.hpp
   bilininteg.hpp
+  bilininteg_ext.hpp
   coefficient.hpp
   complex_fem.hpp
   datacollection.hpp
