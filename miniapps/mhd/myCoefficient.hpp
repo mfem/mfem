@@ -54,14 +54,11 @@ namespace mfem
             cout << "ir.GetNPoints()="<<ir.GetNPoints()<<endl;
         }
         
-        //cout << "grad =";
         for (int j=0; j<ir.GetNPoints(); j++)
         {
-            //cout<<"("<<grad(0,j)<<" "<<grad(1,j)<<") ";   //debug
             M(0,j)=-grad(1,j);
             M(1,j)= grad(0,j);
         }
-        //cout <<endl;
 
     }
     

@@ -13,6 +13,17 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+4/12
+parallel version:
+mesh -> ParMesh
+FiniteElementSpace -> ParFiniteElementSpace
+GridFunction -> ParGridFunction
+save solution needs to be changed and visual as well
+
+myCoefficient.hpp? probably could stay sound
+Change some preconditioner in ResistiveMHDOperator.hpp
+
+
 4/10
 try:
 Start with an AMR mesh

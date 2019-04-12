@@ -13,7 +13,7 @@
 #include "mfem.hpp"
 #include "myCoefficient.hpp"
 #include "BoundaryGradIntegrator.hpp"
-#include "ResistiveMHDOperator.hpp"
+#include "ResistiveMHDOperatorp.hpp"
 #include "PDSolver.hpp"
 #include <memory>
 #include <iostream>
@@ -117,7 +117,6 @@ int main(int argc, char *argv[])
    double visc = 0.0;
    double resi = 0.0;
    bool visit = false;
-   int precision = 8;
    int icase = 1;
    alpha = 0.001; 
    Lx=3.0;
@@ -346,6 +345,7 @@ int main(int argc, char *argv[])
       }
       else
       {
+         vis_phi << "parallel " << num_procs << " " << myid << "\n";
          vis_phi.precision(8);
          vis_phi << "solution\n" << *pmesh << psiPer;
          vis_phi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
@@ -358,6 +358,7 @@ int main(int argc, char *argv[])
          vis_phi << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
 
+         vis_j << "parallel " << num_procs << " " << myid << "\n";
          vis_j << "solution\n" << *pmesh << j;
          vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
          vis_j << "pause\n";
@@ -382,7 +383,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-        dc = new VisItDataCollection("case2", mesh);
+        dc = new VisItDataCollection("case2", pmesh);
         dc->RegisterField("psiPer", &psiPer);
         dc->RegisterField("psi", &psi);
         dc->RegisterField("current", &j);
@@ -390,7 +391,11 @@ int main(int argc, char *argv[])
         dc->RegisterField("omega", &w);
       }
 
-      dc->SetPrecision(precision);
+      bool par_format = false;
+      dc->SetFormat(!par_format ?
+                      DataCollection::SERIAL_FORMAT :
+                      DataCollection::PARALLEL_FORMAT);
+      dc->SetPrecision(8);
       dc->SetCycle(0);
       dc->SetTime(t);
       dc->Save();
@@ -427,11 +432,11 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             if(icase!=3)
-                vis_phi << "solution\n" << *mesh << psiPer;
+                vis_phi << "solution\n" << *pmesh << psiPer;
             else
-                vis_phi << "solution\n" << *mesh << psi;
+                vis_phi << "solution\n" << *pmesh << psi;
 
-            vis_j << "solution\n" << *mesh << j;
+            vis_j << "solution\n" << *pmesh << j;
             if (icase==1) 
             {
                 vis_phi << "valuerange -.001 .001\n" << flush;
@@ -451,31 +456,29 @@ int main(int argc, char *argv[])
 
    // 9. Save the solutions.
    {
-      ofstream omesh("refined.mesh");
-      omesh.precision(8);
-      mesh->Print(omesh);
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
+      psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
+      j_name << "sol_current." << setfill('0') << setw(6) << myid;
+      w_name << "sol_omega." << setfill('0') << setw(6) << myid;
 
-      ofstream osol("phi.sol");
+      ofstream omesh(mesh_name.str().c_str());
+      omesh.precision(8);
+      pmesh->Print(omesh);
+
+      ofstream osol(phi_name.str().c_str());
       osol.precision(8);
       phi.Save(osol);
 
-      ofstream osol2("current.sol");
+      ofstream osol2(j_name.str().c_str());
       osol2.precision(8);
       j.Save(osol2);
 
-      ofstream osol3("psi.sol");
+      ofstream osol3(psi_name.str().c_str());
       osol3.precision(8);
       psi.Save(osol3);
 
-      //if (icase!=3)
-      {
-        subtract(psi,psiBack,psiPer);
-        ofstream osol5("psiPer.sol");
-        osol5.precision(8);
-        psiPer.Save(osol5);
-      }
-
-      ofstream osol4("omega.sol");
+      ofstream osol4(omega_name.str().c_str());
       osol4.precision(8);
       w.Save(osol4);
    }
