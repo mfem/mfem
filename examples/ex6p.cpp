@@ -16,9 +16,9 @@
 //               mpirun -np 4 ex6p -m ../data/amr-quad.mesh
 //
 // Device sample runs:
-//             > mpirun -np 4 ex6p -p -d cuda
-//             > mpirun -np 4 ex6p -p -d occa
-//             > mpirun -np 4 ex6p -p -d raja-omp
+//             > mpirun -np 4 ex6p -pa -d cuda
+//             > mpirun -np 4 ex6p -pa -d occa-cuda
+//             > mpirun -np 4 ex6p -pa -d raja-omp
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
@@ -63,8 +63,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
-                  "Enable Partial Assembly.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -91,7 +91,6 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
-   if (pa) { mesh->EnsureNodes(); }
 
    // 4. Refine the serial mesh on all processors to increase the resolution.
    //    Also project a NURBS mesh to a piecewise-quadratic curved mesh. Make
@@ -125,8 +124,8 @@ int main(int argc, char *argv[])
    // 8. As in Example 1p, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
-   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
-   ParBilinearForm a(&fespace, assembly);
+   ParBilinearForm a(&fespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ParLinearForm b(&fespace);
 
    ConstantCoefficient one(1.0);
@@ -210,38 +209,25 @@ int main(int argc, char *argv[])
 
       // 16. Create the parallel linear system: eliminate boundary conditions.
       //     The system will be solved for true (unconstrained/unique) DOFs only.
+      OperatorPtr A;
       Vector B, X;
-      Operator *A;
-      if (!pa) { A = new HypreParMatrix(); }
 
       const int copy_interior = 1;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
 
       // 17. Solve the linear system A X = B.
-      if (!pa)
-      {
-         // Parallel PCG solver with the BoomerAMG preconditioner from hypre.
-         HypreParMatrix &H = *static_cast<HypreParMatrix*>(A);
-         HypreBoomerAMG amg;
-         amg.SetPrintLevel(0);
-         CGSolver pcg(H.GetComm());
-         pcg.SetPreconditioner(amg);
-         pcg.SetOperator(H);
-         pcg.SetRelTol(1e-6);
-         pcg.SetMaxIter(200);
-         pcg.SetPrintLevel(3); // print the first and the last iterations only
-         pcg.Mult(B, X);
-      }
-      else
-      {
-         // No preconditioning for now in partial assembly mode.
-         CGSolver cg(MPI_COMM_WORLD);
-         cg.SetRelTol(1e-12);
-         cg.SetMaxIter(2000);
-         cg.SetPrintLevel(3);
-         cg.SetOperator(*A);
-         cg.Mult(B, X);
-      }
+      //     * With full assembly, use the BoomerAMG preconditioner from hypre.
+      //     * With partial assembly, use no preconditioner, for now.
+      HypreBoomerAMG *amg = NULL;
+      if (!pa) { amg = new HypreBoomerAMG; amg->SetPrintLevel(0); }
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-6);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(3); // print the first and the last iterations only
+      if (amg) { cg.SetPreconditioner(*amg); }
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete amg;
 
       // 18. Switch back to the host and extract the parallel grid function
       //     corresponding to the finite element approximation X. This is the
@@ -262,7 +248,6 @@ int main(int argc, char *argv[])
          {
             cout << "Reached the maximum number of dofs. Stop." << endl;
          }
-         delete A;
          break;
       }
 
@@ -277,7 +262,6 @@ int main(int argc, char *argv[])
          {
             cout << "Stopping criterion satisfied. Stop." << endl;
          }
-         delete A;
          break;
       }
 
@@ -305,7 +289,6 @@ int main(int argc, char *argv[])
       //     changed.
       a.Update();
       b.Update();
-      delete A;
    }
 
    MPI_Finalize();
