@@ -10,7 +10,9 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "vector.hpp"
+#include "dtensor.hpp"
 #include "operator.hpp"
+#include "../general/forall.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -163,25 +165,31 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
    w = 0.0;
-
-   for (int i = 0; i < constraint_list.Size(); i++)
+   const int csz = constraint_list.Size();
+   const DeviceArray idx(constraint_list, csz);
+   const DeviceVector d_x(x, x.Size());
+   DeviceVector d_w(w, w.Size());
+   MFEM_FORALL(i, csz,
    {
-      w(constraint_list[i]) = x(constraint_list[i]);
-   }
+      const int id = idx[i];
+      d_w[id] = d_x[id];
+   });
 
    A->Mult(w, z);
 
    b -= z;
-
-   for (int i = 0; i < constraint_list.Size(); i++)
+   DeviceVector d_b(b, b.Size());
+   MFEM_FORALL(i, csz,
    {
-      b(constraint_list[i]) = x(constraint_list[i]);
-   }
+      const int id = idx[i];
+      d_b[id] = d_x[id];
+   });
 }
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
-   if (constraint_list.Size() == 0)
+   const int csz = constraint_list.Size();
+   if (csz == 0)
    {
       A->Mult(x, y);
       return;
@@ -189,17 +197,19 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 
    z = x;
 
-   for (int i = 0; i < constraint_list.Size(); i++)
-   {
-      z(constraint_list[i]) = 0.0;
-   }
+   const DeviceArray idx(constraint_list, csz);
+   DeviceVector d_z(z, z.Size());
+   MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
 
    A->Mult(z, y);
 
-   for (int i = 0; i < constraint_list.Size(); i++)
+   const DeviceVector d_x(x, x.Size());
+   DeviceVector d_y(y, y.Size());
+   MFEM_FORALL(i, csz,
    {
-      y(constraint_list[i]) = x(constraint_list[i]);
-   }
+      const int id = idx[i];
+      d_y[id] = d_x[id];
+   });
 }
 
 }
