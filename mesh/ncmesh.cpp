@@ -2544,7 +2544,7 @@ void NCMesh::CollectElementEdges(int elem_id, Array<int> &indices)
 void NCMesh::BuildElementToVertexTable()
 {
    int nrows = leaf_elements.Size();
-   int* I = new int[nrows + 1];
+   int* I = mfem::New<int>(nrows + 1);
    int** JJ = new int*[nrows];
 
    Array<int> indices;
@@ -2582,8 +2582,8 @@ void NCMesh::BuildElementToVertexTable()
       indices.Unique();
       int size = indices.Size();
       I[i] = size;
-      JJ[i] = new int[size];
-      memcpy(JJ[i], indices.GetData(), size * sizeof(int));
+      JJ[i] = mfem::New<int>(size);
+      std::memcpy(JJ[i], indices.GetData(), size * sizeof(int));
    }
 
    // finalize the I array of the table
@@ -2597,13 +2597,13 @@ void NCMesh::BuildElementToVertexTable()
    I[nrows] = nnz;
 
    // copy the temporarily stored rows into one J array
-   int *J = new int[nnz];
+   int *J = mfem::New<int>(nnz);
    nnz = 0;
    for (int i = 0; i < nrows; i++)
    {
       int cnt = I[i+1] - I[i];
-      memcpy(J+nnz, JJ[i], cnt * sizeof(int));
-      delete [] JJ[i];
+      std::memcpy(J+nnz, JJ[i], cnt * sizeof(int));
+      mfem::Delete(JJ[i]);
       nnz += cnt;
    }
 

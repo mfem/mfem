@@ -56,8 +56,7 @@ public:
    /** Construct a DenseMatrix using existing data array. The DenseMatrix does
        not assume ownership of the data array, i.e. it will not delete the
        array. */
-   DenseMatrix(double *d, int h, int w) : Matrix(h, w)
-   { data = d; capacity = -h*w; }
+   DenseMatrix(double *d, int h, int w);
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
@@ -71,7 +70,7 @@ public:
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
    void Reset(double *d, int h, int w)
-   { if (OwnsData()) { delete [] data; } UseExternalData(d, h, w); }
+   { if (OwnsData()) { mfem::Delete(data); } UseExternalData(d, h, w); }
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
        should not be used with DenseMatrix that owns its current data array. */
@@ -79,7 +78,7 @@ public:
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
    void Clear()
-   { if (OwnsData()) { delete [] data; } ClearExternalData(); }
+   { if (OwnsData()) { mfem::Delete(data); } ClearExternalData(); }
 
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
@@ -584,11 +583,7 @@ public:
    void Mult(DenseMatrix &X) const { lu.Solve(width, X.Width(), X.Data()); }
 
    /// Compute and return the inverse matrix in Ainv.
-   void GetInverseMatrix(DenseMatrix &Ainv) const
-   {
-      Ainv.SetSize(width);
-      lu.GetInverseMatrix(width, Ainv.Data());
-   }
+   void GetInverseMatrix(DenseMatrix &Ainv) const;
 
    /// Compute the determinant of the original DenseMatrix using the LU factors.
    double Det() const { return lu.Det(width); }
@@ -677,7 +672,7 @@ public:
       : Mk(NULL, i, j)
    {
       nk = k;
-      tdata = new double[i*j*k];
+      tdata = mfem::New<double>(i*j*k);
       own_data = true;
    }
 
@@ -688,8 +683,8 @@ public:
       const int size = Mk.Height()*Mk.Width()*nk;
       if (size > 0)
       {
-         tdata = new double[size];
-         std::memcpy(tdata, other.tdata, sizeof(double) * size);
+         tdata = mfem::New<double>(size);
+         mfem::Memcpy(tdata, other.tdata, sizeof(double) * size);
       }
       else
       {
@@ -703,16 +698,16 @@ public:
 
    void SetSize(int i, int j, int k)
    {
-      if (own_data) { delete [] tdata; }
+      if (own_data) { mfem::Delete(tdata); }
       Mk.UseExternalData(NULL, i, j);
       nk = k;
-      tdata = new double[i*j*k];
+      tdata = mfem::New<double>(i*j*k);
       own_data = true;
    }
 
    void UseExternalData(double *ext_data, int i, int j, int k)
    {
-      if (own_data) { delete [] tdata; }
+      if (own_data) { mfem::Delete(tdata); }
       Mk.UseExternalData(NULL, i, j);
       nk = k;
       tdata = ext_data;
@@ -748,7 +743,7 @@ public:
 
    ~DenseTensor()
    {
-      if (own_data) { delete [] tdata; }
+      if (own_data) { mfem::Delete(tdata); }
    }
 };
 
