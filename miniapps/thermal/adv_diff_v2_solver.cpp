@@ -107,7 +107,7 @@ AdvectionDiffusionTDO::init()
    if ( init_ ) { return; }
 
    exp_solver_.Init(exp_oper_);
-   
+
    if ( mC_ == NULL )
    {
       mC_ = new ParBilinearForm(H1_FESpace_);
@@ -156,7 +156,7 @@ AdvectionDiffusionTDO::SetTime(const double time)
 
    t0_exp_ = t1_exp_;
    t1_exp_ = time;
-   
+
    dTdtBdrCoef_->SetTime(t);
 
    if ( tdQ_ )
@@ -351,30 +351,31 @@ AdvectionDiffusionTDO::initImplicitSolve()
 
 void
 AdvectionDiffusionTDO::ImplicitSolve(const double dt,
-				     const Vector &T, Vector &dT_dt)
+                                     const Vector &T, Vector &dT_dt)
 {
    dT_dt = 0.0;
    // cout << "sK size: " << sK_->Width() << ", T size: " << T.Size() << ", rhs_ size: " << rhs_->Size() << endl;
 
    {
-     double t_exp = t0_exp_;
-     double dt01 = t1_exp_ - t0_exp_;
-     int n = (int)ceil(dt01 / dt_exp_);
-     double dt_exp = dt01 / n;
-     if (myid_ == 0)
-     {
-       cout << "dt01 " << dt01 << " dt_exp " << dt_exp_ << " n " << n << " " << dt_exp << endl;
-     }
-     
-     // double tf = t_exp + dt;
-     T_exp_ = T;
-     // exp_solver_.Run(T_exp_, t_exp, dt_exp, tf);
-     for (int i=0; i<n; i++)
-       {
-	 exp_solver_.Step(T_exp_, t_exp, dt_exp);
-       }
-     add(1.0 / dt01, T_exp_, -1.0 / dt01, T, dTdt_exp_);
-     t0_exp_ = t;
+      double t_exp = t0_exp_;
+      double dt01 = t1_exp_ - t0_exp_;
+      int n = (int)ceil(dt01 / dt_exp_);
+      double dt_exp = dt01 / n;
+      if (myid_ == 0)
+      {
+         cout << "dt01 " << dt01 << " dt_exp " << dt_exp_ << " n " << n << " " << dt_exp
+              << endl;
+      }
+
+      // double tf = t_exp + dt;
+      T_exp_ = T;
+      // exp_solver_.Run(T_exp_, t_exp, dt_exp, tf);
+      for (int i=0; i<n; i++)
+      {
+         exp_solver_.Step(T_exp_, t_exp, dt_exp);
+      }
+      add(1.0 / dt01, T_exp_, -1.0 / dt01, T, dTdt_exp_);
+      t0_exp_ = t;
    }
    /*
    ostringstream ossT; ossT << "T_" << solveCount_ << ".vec";
@@ -414,26 +415,26 @@ AdvectionDiffusionTDO::ImplicitSolve(const double dt,
 }
 
 AdvectionTDO::AdvectionTDO(ParFiniteElementSpace &H1_FES,
-			   VectorCoefficient &velCoef)
-  : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
-    H1_FESpace_(H1_FES),
-    velCoef_(velCoef),
-    ess_bdr_tdofs_(0),
-    m1_(&H1_FES),
-    adv1_(&H1_FES),
-    M1Inv_(NULL),
-    M1Diag_(NULL),
-    SOL_(H1_FES.GetTrueVSize()),
-    RHS_(H1_FES.GetTrueVSize()),
-    rhs_(H1_FES.GetVSize())
+                           VectorCoefficient &velCoef)
+   : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
+     H1_FESpace_(H1_FES),
+     velCoef_(velCoef),
+     ess_bdr_tdofs_(0),
+     m1_(&H1_FES),
+     adv1_(&H1_FES),
+     M1Inv_(NULL),
+     M1Diag_(NULL),
+     SOL_(H1_FES.GetTrueVSize()),
+     RHS_(H1_FES.GetTrueVSize()),
+     rhs_(H1_FES.GetVSize())
 {
-  m1_.AddDomainIntegrator(new MassIntegrator);
-  m1_.Assemble();
-  
-  adv1_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(velCoef_));
-  adv1_.Assemble();
+   m1_.AddDomainIntegrator(new MassIntegrator);
+   m1_.Assemble();
+
+   adv1_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(velCoef_));
+   adv1_.Assemble();
 }
-  
+
 AdvectionTDO::~AdvectionTDO()
 {
    delete M1Inv_;
@@ -470,12 +471,12 @@ AdvectionTDO::initMult() const
 
 void AdvectionTDO::Mult(const Vector &y, Vector &dydt) const
 {
-  dydt_gf_.MakeRef(&H1_FESpace_, dydt);
-  adv1_.Mult(y, rhs_);
-  rhs_ *= -1.0;
+   dydt_gf_.MakeRef(&H1_FESpace_, dydt);
+   adv1_.Mult(y, rhs_);
+   rhs_ *= -1.0;
 
-  dydt_gf_ = 0.0;
-  m1_.FormLinearSystem(ess_bdr_tdofs_, dydt_gf_, rhs_, M1_, SOL_, RHS_);
+   dydt_gf_ = 0.0;
+   m1_.FormLinearSystem(ess_bdr_tdofs_, dydt_gf_, rhs_, M1_, SOL_, RHS_);
 
    this->initMult();
 

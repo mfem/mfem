@@ -329,7 +329,7 @@ DiffusionTDO::initImplicitSolve()
 
 void
 DiffusionTDO::ImplicitSolve(const double dt,
-			    const Vector &T, Vector &dT_dt)
+                            const Vector &T, Vector &dT_dt)
 {
    dT_dt = 0.0;
    // cout << "sK size: " << sK_->Width() << ", T size: " << T.Size() << ", rhs_ size: " << rhs_->Size() << endl;
@@ -370,26 +370,26 @@ DiffusionTDO::ImplicitSolve(const double dt,
 }
 
 AdvectionTDO::AdvectionTDO(ParFiniteElementSpace &H1_FES,
-			   VectorCoefficient &velCoef)
-  : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
-    H1_FESpace_(H1_FES),
-    velCoef_(velCoef),
-    ess_bdr_tdofs_(0),
-    m1_(&H1_FES),
-    adv1_(&H1_FES),
-    M1Inv_(NULL),
-    M1Diag_(NULL),
-    SOL_(H1_FES.GetTrueVSize()),
-    RHS_(H1_FES.GetTrueVSize()),
-    rhs_(H1_FES.GetVSize())
+                           VectorCoefficient &velCoef)
+   : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
+     H1_FESpace_(H1_FES),
+     velCoef_(velCoef),
+     ess_bdr_tdofs_(0),
+     m1_(&H1_FES),
+     adv1_(&H1_FES),
+     M1Inv_(NULL),
+     M1Diag_(NULL),
+     SOL_(H1_FES.GetTrueVSize()),
+     RHS_(H1_FES.GetTrueVSize()),
+     rhs_(H1_FES.GetVSize())
 {
-  m1_.AddDomainIntegrator(new MassIntegrator);
-  m1_.Assemble();
-  
-  adv1_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(velCoef_));
-  adv1_.Assemble();
+   m1_.AddDomainIntegrator(new MassIntegrator);
+   m1_.Assemble();
+
+   adv1_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(velCoef_));
+   adv1_.Assemble();
 }
-  
+
 AdvectionTDO::~AdvectionTDO()
 {
    delete M1Inv_;
@@ -426,12 +426,12 @@ AdvectionTDO::initMult() const
 
 void AdvectionTDO::Mult(const Vector &y, Vector &dydt) const
 {
-  dydt_gf_.MakeRef(&H1_FESpace_, dydt);
-  adv1_.Mult(y, rhs_);
-  rhs_ *= -1.0;
+   dydt_gf_.MakeRef(&H1_FESpace_, dydt);
+   adv1_.Mult(y, rhs_);
+   rhs_ *= -1.0;
 
-  dydt_gf_ = 0.0;
-  m1_.FormLinearSystem(ess_bdr_tdofs_, dydt_gf_, rhs_, M1_, SOL_, RHS_);
+   dydt_gf_ = 0.0;
+   m1_.FormLinearSystem(ess_bdr_tdofs_, dydt_gf_, rhs_, M1_, SOL_, RHS_);
 
    this->initMult();
 

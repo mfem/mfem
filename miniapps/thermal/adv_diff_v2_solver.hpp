@@ -29,9 +29,9 @@ namespace thermal
 class AdvectionTDO : public TimeDependentOperator
 {
 public:
-  AdvectionTDO(ParFiniteElementSpace &H1_FES, VectorCoefficient &velCoef);
-  ~AdvectionTDO();
-  
+   AdvectionTDO(ParFiniteElementSpace &H1_FES, VectorCoefficient &velCoef);
+   ~AdvectionTDO();
+
    /** @brief Perform the action of the operator: @a q = f(@a y, t), where
        q solves the algebraic equation F(@a y, q, t) = G(@a y, t) and t is the
        current time. */
@@ -39,15 +39,15 @@ public:
 
 private:
 
-  void initMult() const;
-  
-  ParFiniteElementSpace & H1_FESpace_;
-  VectorCoefficient & velCoef_;
+   void initMult() const;
 
-  Array<int> ess_bdr_tdofs_;
-  
-  mutable ParBilinearForm m1_;
-  ParBilinearForm adv1_;
+   ParFiniteElementSpace & H1_FESpace_;
+   VectorCoefficient & velCoef_;
+
+   Array<int> ess_bdr_tdofs_;
+
+   mutable ParBilinearForm m1_;
+   ParBilinearForm adv1_;
 
    mutable HypreParMatrix   M1_;
    mutable HyprePCG       * M1Inv_;
@@ -90,21 +90,21 @@ class AdvectionDiffusionTDO : public TimeDependentOperator
 {
 public:
    AdvectionDiffusionTDO(ODESolver & exp_solver, double dt_exp,
-ParFiniteElementSpace &H1_FES,
-                            Coefficient & dTdtBdr,
-                            Array<int> & bdr_attr,
-                            Coefficient & c, bool td_c,
-                            Coefficient & k, bool td_k,
-                            Coefficient & Q, bool td_Q,
-   VectorCoefficient & v, bool td_v);
+                         ParFiniteElementSpace &H1_FES,
+                         Coefficient & dTdtBdr,
+                         Array<int> & bdr_attr,
+                         Coefficient & c, bool td_c,
+                         Coefficient & k, bool td_k,
+                         Coefficient & Q, bool td_Q,
+                         VectorCoefficient & v, bool td_v);
    AdvectionDiffusionTDO(ODESolver & exp_solver, double dt_exp,
-ParFiniteElementSpace &H1_FES,
-                            Coefficient & dTdtBdr,
-                            Array<int> & bdr_attr,
-                            Coefficient & c, bool td_c,
-                            MatrixCoefficient & K, bool td_k,
-                            Coefficient & Q, bool td_Q,
-   VectorCoefficient & v, bool td_v);
+                         ParFiniteElementSpace &H1_FES,
+                         Coefficient & dTdtBdr,
+                         Array<int> & bdr_attr,
+                         Coefficient & c, bool td_c,
+                         MatrixCoefficient & K, bool td_k,
+                         Coefficient & Q, bool td_Q,
+                         VectorCoefficient & v, bool td_v);
 
    void SetTime(const double time);
    /*
@@ -168,7 +168,7 @@ private:
    double t0_exp_;
    double t1_exp_;
    double dt_exp_;
-  
+
    ParFiniteElementSpace * H1_FESpace_;
 
    ParBilinearForm * mC_;

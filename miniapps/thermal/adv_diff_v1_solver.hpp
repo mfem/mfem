@@ -58,17 +58,17 @@ class DiffusionTDO : public TimeDependentOperator
 {
 public:
    DiffusionTDO(ParFiniteElementSpace &H1_FES,
-                            Coefficient & dTdtBdr,
-                            Array<int> & bdr_attr,
-                            Coefficient & c, bool td_c,
-                            Coefficient & k, bool td_k,
-                            Coefficient & Q, bool td_Q);
+                Coefficient & dTdtBdr,
+                Array<int> & bdr_attr,
+                Coefficient & c, bool td_c,
+                Coefficient & k, bool td_k,
+                Coefficient & Q, bool td_Q);
    DiffusionTDO(ParFiniteElementSpace &H1_FES,
-                            Coefficient & dTdtBdr,
-                            Array<int> & bdr_attr,
-                            Coefficient & c, bool td_c,
-                            MatrixCoefficient & K, bool td_k,
-                            Coefficient & Q, bool td_Q);
+                Coefficient & dTdtBdr,
+                Array<int> & bdr_attr,
+                Coefficient & c, bool td_c,
+                MatrixCoefficient & K, bool td_k,
+                Coefficient & Q, bool td_Q);
 
    void SetTime(const double time);
    /*
@@ -173,9 +173,9 @@ private:
 class AdvectionTDO : public TimeDependentOperator
 {
 public:
-  AdvectionTDO(ParFiniteElementSpace &H1_FES, VectorCoefficient &velCoef);
-  ~AdvectionTDO();
-  
+   AdvectionTDO(ParFiniteElementSpace &H1_FES, VectorCoefficient &velCoef);
+   ~AdvectionTDO();
+
    /** @brief Perform the action of the operator: @a q = f(@a y, t), where
        q solves the algebraic equation F(@a y, q, t) = G(@a y, t) and t is the
        current time. */
@@ -183,15 +183,15 @@ public:
 
 private:
 
-  void initMult() const;
-  
-  ParFiniteElementSpace & H1_FESpace_;
-  VectorCoefficient & velCoef_;
+   void initMult() const;
 
-  Array<int> ess_bdr_tdofs_;
-  
-  mutable ParBilinearForm m1_;
-  ParBilinearForm adv1_;
+   ParFiniteElementSpace & H1_FESpace_;
+   VectorCoefficient & velCoef_;
+
+   Array<int> ess_bdr_tdofs_;
+
+   mutable ParBilinearForm m1_;
+   ParBilinearForm adv1_;
 
    mutable HypreParMatrix   M1_;
    mutable HyprePCG       * M1Inv_;

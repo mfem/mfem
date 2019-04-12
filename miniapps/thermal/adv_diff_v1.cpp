@@ -119,35 +119,35 @@ double T0Func(const Vector &x, double t)
 
 double TFunc(const Vector &x, double t)
 {
-  double ct[2];
-  Vector ctVec(ct, 2);
-  ctVec[0] = -vMag_ * cos(nu_) * t;
-  ctVec[1] = -vMag_ * sin(nu_) * t;
+   double ct[2];
+   Vector ctVec(ct, 2);
+   ctVec[0] = -vMag_ * cos(nu_) * t;
+   ctVec[1] = -vMag_ * sin(nu_) * t;
 
-  double tol = 1e-12;
+   double tol = 1e-12;
 
-  double dPara = 4.0 * chiPara_ * t + pow(TWPara_, 2) / M_LN2;
-  double spread = sqrt(fabs(dPara * log(tol)));
+   double dPara = 4.0 * chiPara_ * t + pow(TWPara_, 2) / M_LN2;
+   double spread = sqrt(fabs(dPara * log(tol)));
 
-  double xt[2];
-  Vector xtVec(xt, 2);
+   double xt[2];
+   Vector xtVec(xt, 2);
 
-  double T = TInf_;
-  
-  int si = (int)ceil(0.5 * spread);
-  for (int i=-si; i<=si; i++)
-  {
-    for (int j=-si; j<=si; j++)
-    {
-      xtVec = x;
-      xtVec.Add(1.0, ctVec);
-      xtVec.Add(i, aVec_[0]);
-      xtVec.Add(j, aVec_[1]);
-      T += T0Func(xtVec, t);
-    }
-  }
-     
-  return T;
+   double T = TInf_;
+
+   int si = (int)ceil(0.5 * spread);
+   for (int i=-si; i<=si; i++)
+   {
+      for (int j=-si; j<=si; j++)
+      {
+         xtVec = x;
+         xtVec.Add(1.0, ctVec);
+         xtVec.Add(i, aVec_[0]);
+         xtVec.Add(j, aVec_[1]);
+         T += T0Func(xtVec, t);
+      }
+   }
+
+   return T;
 }
 
 void dTFunc(const Vector &x, double t, Vector &dT)
@@ -160,7 +160,7 @@ void dTFunc(const Vector &x, double t, Vector &dT)
 
    double xt = x[0] - vMag_ * cos(nu_) * t;
    double yt = x[1] - vMag_ * sin(nu_) * t;
-   
+
    double r2Para = pow(ca * xt + sa * yt, 2);
    double r2Perp = pow(ca * yt - sa * xt, 2);
 
@@ -173,9 +173,9 @@ void dTFunc(const Vector &x, double t, Vector &dT)
    double sPerp = sqrt(1.0 + 4.0 * M_LN2 * chiPerp_ * t / pow(TWPerp_, 2));
 
    dT[0] = (ca * (ca * xt + sa * yt) / dPara -
-	    sa * (ca * yt - sa * xt) / dPerp);
+            sa * (ca * yt - sa * xt) / dPerp);
    dT[1] = (sa * (ca * xt + sa * yt) / dPara +
-	    ca * (ca * yt - sa * xt) / dPerp);
+            ca * (ca * yt - sa * xt) / dPerp);
    dT *= -2.0 * (TMax_ - TInf_) * e / (sPara * sPerp);
 }
 
@@ -442,20 +442,20 @@ int main(int argc, char *argv[])
    }
 
    if (strstr(mesh_file, "square") != NULL)
-     {
-       aVec_[0].SetSize(2);
-       aVec_[1].SetSize(2);
-       aVec_[0][0] = 2.0; aVec_[0][1] = 0.0;
-       aVec_[1][0] = 0.0; aVec_[1][1] = 2.0;
-     }
+   {
+      aVec_[0].SetSize(2);
+      aVec_[1].SetSize(2);
+      aVec_[0][0] = 2.0; aVec_[0][1] = 0.0;
+      aVec_[1][0] = 0.0; aVec_[1][1] = 2.0;
+   }
    else if (strstr(mesh_file, "hexagon") != NULL)
-     {
-       aVec_[0].SetSize(2);
-       aVec_[1].SetSize(2);
-       aVec_[0][0] = 1.5; aVec_[0][1] = 0.5 * sqrt(3.0);
-       aVec_[1][0] = 0.0; aVec_[1][1] = sqrt(3.0);
-     }
-   
+   {
+      aVec_[0].SetSize(2);
+      aVec_[1].SetSize(2);
+      aVec_[0][0] = 1.5; aVec_[0][1] = 0.5 * sqrt(3.0);
+      aVec_[1][0] = 0.0; aVec_[1][1] = sqrt(3.0);
+   }
+
    // 3. Construct a (serial) mesh of the given size on all processors.  We
    //    can handle triangular and quadrilateral surface meshes with the
    //    same code.
@@ -603,7 +603,7 @@ int main(int argc, char *argv[])
    Vector velVec(2);
    velVec[0] = vMag_ * cos(nu_); velVec[1] = vMag_ * sin(nu_);
    VectorConstantCoefficient velCoef(velVec);
-   
+
    Vector zeroVec(dim); zeroVec = 0.0;
    ConstantCoefficient zeroCoef(0.0);
    ConstantCoefficient oneCoef(1.0);
@@ -664,13 +664,13 @@ int main(int argc, char *argv[])
    // 14. Initialize the Diffusion operator, the GLVis visualization and print
    //     the initial energies.
    DiffusionTDO imp_oper(HGradFESpace,
-			 zeroCoef, ess_bdr,
-			 SpecificHeatCoef, false,
-			 ConductionCoef, false,
-			 HeatSourceCoef, false);
+                         zeroCoef, ess_bdr,
+                         SpecificHeatCoef, false,
+                         ConductionCoef, false,
+                         HeatSourceCoef, false);
 
    AdvectionTDO exp_oper(HGradFESpace,
-			 velCoef);
+                         velCoef);
 
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
@@ -767,7 +767,7 @@ int main(int argc, char *argv[])
    ode_exp_solver->Init(exp_oper);
 
    ofstream ofs_err("adv_diff_v1.err");
-   
+
    double t = 0.0;
 
    bool last_step = false;
@@ -790,11 +790,11 @@ int main(int argc, char *argv[])
       ode_exp_solver->Step(T1, t, dt);
       if (ti % 10 == 0)
       {
-	double t_imp = t - 10.0 * dt;
-	double dt_imp = 10.0 * dt;
-	ode_imp_solver->Step(T1, t_imp, dt_imp);
+         double t_imp = t - 10.0 * dt;
+         double dt_imp = 10.0 * dt;
+         ode_imp_solver->Step(T1, t_imp, dt_imp);
       }
-      
+
       add(1.0, T1, -1.0, T0, dT);
 
       double maxT    = T1.ComputeMaxError(zeroCoef);
@@ -880,10 +880,10 @@ int main(int argc, char *argv[])
             double qerr1 = q.ComputeL2Error(qCoef);
             if (myid == 0)
             {
-	      cout << t << " L2 Relative Error of Solution: " << err1 / nrm1
-		    << "\t" << qerr1 / qnrm1 << endl;
-	      ofs_err << t << "\t" << err1 / nrm1 << "\t"
-		      << qerr1 / qnrm1 << endl;
+               cout << t << " L2 Relative Error of Solution: " << err1 / nrm1
+                    << "\t" << qerr1 / qnrm1 << endl;
+               ofs_err << t << "\t" << err1 / nrm1 << "\t"
+                       << qerr1 / qnrm1 << endl;
             }
             T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
             q.GridFunction::ComputeElementL2Errors(qCoef, errorq);
@@ -941,7 +941,7 @@ int main(int argc, char *argv[])
       }
    }
    ofs_err.close();
-   
+
    if (visualization)
    {
       vis_q.close();
