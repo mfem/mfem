@@ -21,6 +21,24 @@ requires an MPI C++ compiler, as well as the following external libraries:
 The METIS dependency can be disabled but that is not generally recommended, see
 the option MFEM_USE_METIS.
 
+MFEM also includes support for devices such as GPUs, and programming models such
+as CUDA, OCCA, OpenMP and RAJA.
+
+- Starting with version 4.0, MFEM requires a C++11 compiler
+
+- CUDA support requires an NVIDIA GPU and an installation of the CUDA Toolkit
+  https://developer.nvidia.com/cuda-toolkit
+
+- OCCA support requires the OCCA library
+  https://libocca.org
+
+- OpenMP support requires a compiler implementing the OpenMP API
+  https://www.openmp.org
+
+- RAJA support requires installation of the RAJA performance portability layer
+  with (optionally) support for CUDA and OpenMP
+  https://github.com/LLNL/RAJA
+
 The library supports two build systems: one based on GNU make, and a second one
 based on CMake. Both build systems are described below. Some hints for building
 without GNU make or CMake can be found at the end of this file.
@@ -47,6 +65,10 @@ Parallel build:
    (build hypre 2.10.0b in ../hypre-2.10.0b relative to mfem/)
    make parallel -j 4
 
+CUDA build:
+   make cuda -j 4
+   (build for a specific compute capability: 'make cuda -j 4 CUDA_ARCH=sm_30')
+
 Example codes (serial/parallel, depending on the build):
    cd examples
    make -j 4
@@ -56,7 +78,6 @@ Build everything (library, examples and miniapps) with current configuration:
 
 Quick-check the build by running Example 1/1p (optional):
    make check
-
 
 Quick start with CMake
 ======================
@@ -132,6 +153,10 @@ are also defined:
    make parallel -> Builds parallel optimized version of the library
    make debug    -> Builds serial debug version of the library
    make pdebug   -> Builds parallel debug version of the library
+   make cuda     -> Builds serial cuda optimized version of the library
+   make pcuda    -> Builds parallel cuda optimized version of the library
+   make cudebug  -> Builds serial cuda debug version of the library
+   make pcudebug -> Builds parallel cuda debug version of the library
 
 Note that any of the above shortcuts accept configuration options, either at the
 command line or through a user configuration file.
@@ -193,8 +218,9 @@ Configuration options (GNU make)
 See the configuration file config/defaults.mk for the default settings.
 
 Compilers:
-   CXX    - C++ compiler, serial build
-   MPICXX - MPI C++ compiler, parallel build
+   CXX      - C++ compiler, serial build
+   MPICXX   - MPI C++ compiler, parallel build
+   CUDA_CXX - The CUDA compiler, 'nvcc'
 
 Compiler options:
    OPTIM_FLAGS - Options for optimized build
@@ -230,7 +256,7 @@ MFEM_DEBUG = YES/NO
    and consistency checks that may simplify bug-hunting.
 
 MFEM_USE_EXCEPTIONS = YES/NO
-   Enable the use of exceptions. In particular, modifies the default bahavior
+   Enable the use of exceptions. In particular, modifies the default behavior
    when errors are encountered: throw an exception, instead of aborting.
 
 MFEM_USE_LIBUNWIND = YES/NO
@@ -250,8 +276,11 @@ MFEM_THREAD_SAFE = YES/NO
    Use thread-safe implementation for some classes/methods. This comes at the
    cost of extra memory allocation and de-allocation.
 
-MFEM_USE_OPENMP = YES/NO
+MFEM_USE_LEGACY_OPENMP = YES/NO
    Enable (basic) experimental OpenMP support. Requires MFEM_THREAD_SAFE.
+
+MFEM_USE_OPENMP = YES/NO
+   Enable the OpenMP backend.
 
 MFEM_USE_MEMALLOC = YES/NO
    Internal MFEM option: enable batch allocation for some small objects.
@@ -362,6 +391,29 @@ MFEM_USE_PUMI = YES/NO
    models and effectively supports automated adaptive analysis. PUMI enables
    support for parallel unstructured mesh modifications in MFEM.
 
+MFEM_USE_MM = YES/NO
+   Enables support for the MFEM's memory manager (MM), which is required to
+   support devices with different memory spaces.
+
+MFEM_USE_CUDA = YES/NO
+   Enables support for CUDA devices in MFEM. CUDA is a parallel computing
+   platform and programming model for general computing on graphical processing
+   units (GPUs). This option requires MFEM_USE_MM. The variable CUDA_ARCH is
+   used to specify the CUDA compute capability used during compilation (by
+   default, CUDA_ARCH=sm_60). When enabled, this option uses the CUDA_* build
+   options, see below.
+
+MFEM_USE_RAJA = YES/NO
+   Enable support for the RAJA performance portability layer in MFEM. RAJA
+   provides a portable abstraction for loops, supporting different programming
+   model backends. When using the RAJA CUDA backend, MFEM_USE_MM is required.
+
+MFEM_USE_OCCA = YES/NO
+   Enables support for the OCCA library in MFEM. OCCA is an open-source library
+   which aims to make it easy to program different types of devices (e.g. CPU,
+   GPU, FPGA) by providing an unified API for interacting with JIT-compiled
+   backends. When using the OCCA CUDA backend, MFEM_USE_MM is required.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -397,7 +449,8 @@ The specific libraries and their options are:
        http://math-atlas.sourceforge.net (ATLAS)
   Options: LAPACK_OPT (currently not used/needed), LAPACK_LIB.
 
-- OpenMP (optional), usually part of compiler, used when MFEM_USE_OPENMP = YES.
+- OpenMP (optional), usually part of compiler, used when either MFEM_USE_OPENMP
+  or MFEM_USE_LEGACY_OPENMP is set to YES.
   Options: OPENMP_OPT, OPENMP_LIB.
 
 - High-resolution POSIX clocks: when using MFEM_TIMER_TYPE = 2, it may be
@@ -475,6 +528,18 @@ The specific libraries and their options are:
 - PUMI, used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi
   Options: PUMI_OPT, PUMI_LIB.
+
+- CUDA, used when MFEM_USE_CUDA = YES.
+  URL: https://developer.nvidia.com/cuda-toolkit
+  Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
+
+- OCCA, used when MFEM_USE_OCCA = YES.
+  URL: https://libocca.org
+  Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
+
+- RAJA, used when MFEM_USE_RAJA = YES.
+  URL: https://github.com/LLNL/RAJA
+  Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
@@ -597,6 +662,7 @@ MFEM_USE_METIS - Set to ${MFEM_USE_MPI}, can be overwritten.
 MFEM_USE_LIBUNWIND
 MFEM_USE_LAPACK
 MFEM_THREAD_SAFE
+MFEM_USE_LEGACY_OPENMP
 MFEM_USE_OPENMP
 MFEM_USE_MEMALLOC
 MFEM_TIMER_TYPE - Set automatically, can be overwritten.
@@ -609,6 +675,13 @@ MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_GZSTREAM
 MFEM_USE_PUMI
+
+The following GNU make options are not supported with CMake yet:
+
+MFEM_USE_CUDA
+MFEM_USE_OCCA
+MFEM_USE_RAJA
+MFEM_USE_MM
 
 The following options are CMake specific:
 
