@@ -88,7 +88,7 @@ public:
    //! Get the i-th vector in the block
    void GetBlockView(int i, Vector & blockView);
 
-   int BlockSize(int i) { return blockOffsets[i+1] - blockOffsets[i];}
+   int BlockSize(int i) { return blockOffsets[i+1] - blockOffsets[i]; }
 
    //! Update method
    /**
