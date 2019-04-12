@@ -12,29 +12,18 @@
 #ifndef MFEM_OCCA_HPP
 #define MFEM_OCCA_HPP
 
+#include "../config/config.hpp"
+#include "cuda.hpp" // for CUdevice, CUcontext
+
 #ifdef MFEM_USE_OCCA
 #include <occa.hpp>
-#include "./cuda.hpp"
 
-#ifdef MFEM_USE_CUDA
-#include <occa/mode/cuda/utils.hpp>
+#if defined(MFEM_USE_CUDA) && OCCA_CUDA_ENABLED
+#include <occa/modes/cuda/utils.hpp>
 #endif
 
 typedef occa::device OccaDevice;
 typedef occa::memory OccaMemory;
-
-// Macros
-#define MFEM_GET_OCCA_MEMORY(v) occa::memory o_##v = mm::occaPtr(v)
-#define MFEM_GET_OCCA_CONST_MEMORY(v) MFEM_GET_OCCA_MEMORY(v)
-#define MFEM_NEW_OCCA_PROPERTY(props) occa::properties props;
-#define MFEM_SET_OCCA_PROPERTY(props,name) props["defines/" #name] = name;
-#define MFEM_NEW_OCCA_KERNEL(ker,library,filename,props)                \
-   static occa::kernel ker = NULL;                                      \
-   if (ker==NULL) {                                                     \
-      OccaDevice device = Device::GetOccaDevice();                      \
-      ker = device.buildKernel("occa://" #library "/" #filename,        \
-                               #ker, props);                            \
-   }
 
 #else // MFEM_USE_OCCA
 
@@ -46,14 +35,10 @@ typedef void* OccaMemory;
 namespace mfem
 {
 
-OccaDevice OccaWrapDevice(CUdevice device, CUcontext context);
-OccaMemory OccaDeviceMalloc(OccaDevice device, const size_t bytes);
-OccaMemory OccaWrapMemory(const OccaDevice device, const void *d_adrs,
-                          const size_t bytes);
-void *OccaMemoryPtr(OccaMemory o_mem);
-void OccaCopyFrom(OccaMemory o_mem, const void *h_adrs);
-void OccaCopyTo(OccaMemory o_mem, void *h_adrs);
+// Function called when the pointer 'a' needs to be passed to an OCCA kernel.
+OccaMemory OccaPtr(const void *a);
+OccaDevice OccaDev();
 
-} // mfem
+} // namespace mfem
 
 #endif // MFEM_OCCA_HPP

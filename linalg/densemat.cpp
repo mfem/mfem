@@ -17,6 +17,7 @@
 #include "matrix.hpp"
 #include "densemat.hpp"
 #include "dtensor.hpp"
+#include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 
@@ -77,9 +78,9 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    if (hw > 0)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
-      data = mm::malloc<double>(hw);
+      data = mfem::New<double>(hw);
       capacity = hw;
-      mm::memcpy(data, m.data, sizeof(double)*hw);
+      mfem::Memcpy(data, m.data, sizeof(double)*hw);
    }
    else
    {
@@ -100,7 +101,7 @@ DenseMatrix::DenseMatrix(int s) : Matrix(s)
    capacity = s*s;
    if (capacity > 0)
    {
-      data = mm::malloc<double>(capacity);
+      data = mfem::New<double>(capacity);
       mfem::Set(0.0, capacity, data);
    }
    else
@@ -116,7 +117,7 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    capacity = m*n;
    if (capacity > 0)
    {
-      data = mm::malloc<double>(capacity);
+      data = mfem::New<double>(capacity);
       mfem::Set(0.0, capacity, data);
    }
    else
@@ -132,7 +133,7 @@ static void Transpose(const int height, const int width,
    const DeviceVector d_mdata(mdata);
    MFEM_FORALL(i, height,
    {
-      for (int j=0; j<width; j+=1)
+      for (int j = 0; j < width; j++)
       {
          d_data[i+j*height] = d_mdata[j+i*height];
       }
@@ -145,7 +146,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    capacity = height*width;
    if (capacity > 0)
    {
-      data = mm::malloc<double>(capacity);
+      data = mfem::New<double>(capacity);
       mfem::Transpose(height, width, data, mat.Data());
    }
    else
@@ -176,10 +177,10 @@ void DenseMatrix::SetSize(int h, int w)
    {
       if (capacity > 0)
       {
-         mm::free<double>(data);
+         mfem::Delete(data);
       }
       capacity = hw;
-      data = mm::malloc<double>(capacity);
+      data = mfem::New<double>(capacity);
       mfem::Set(0.0, capacity, data);
    }
 }
@@ -203,7 +204,7 @@ static void Mult(const int height, const int width,
    MFEM_FORALL(i, height,
    {
       double sum = 0.0;
-      for (int j=0; j<width; j+=1)
+      for (int j = 0; j < width; j++)
       {
          sum += d_x[j]*d_data[i+j*height];
       }
@@ -3016,7 +3017,7 @@ DenseMatrix::~DenseMatrix()
 {
    if (capacity > 0)
    {
-      mm::free<double>(data);
+      mfem::Delete(data);
    }
 }
 
@@ -4243,8 +4244,8 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix &mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = &mat;
-   lu.data = mm::malloc<double>(width*width);
-   lu.ipiv = mm::malloc<int>(width);
+   lu.data = mfem::New<double>(width*width);
+   lu.ipiv = mfem::New<int>(width);
    Factor();
 }
 
@@ -4253,8 +4254,8 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix *mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = mat;
-   lu.data = mm::malloc<double>(width*width);
-   lu.ipiv = mm::malloc<int>(width);
+   lu.data = mfem::New<double>(width*width);
+   lu.ipiv = mfem::New<int>(width);
 }
 
 void DenseMatrixInverse::Factor()
@@ -4283,10 +4284,10 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
    if (width != mat.width)
    {
       height = width = mat.width;
-      mm::free<double>(lu.data);
-      lu.data = mm::malloc<double>(width*width);
-      mm::free<double>(lu.ipiv);
-      lu.ipiv = mm::malloc<int>(width);
+      mfem::Delete(lu.data);
+      lu.data = mfem::New<double>(width*width);
+      mfem::Delete(lu.ipiv);
+      lu.ipiv = mfem::New<int>(width);
    }
    a = &mat;
    Factor();
@@ -4324,8 +4325,8 @@ void DenseMatrixInverse::TestInversion()
 
 DenseMatrixInverse::~DenseMatrixInverse()
 {
-   mm::free<double>(lu.data);
-   mm::free<int>(lu.ipiv);
+   mfem::Delete(lu.data);
+   mfem::Delete(lu.ipiv);
 }
 
 

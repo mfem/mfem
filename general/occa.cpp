@@ -9,71 +9,53 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "okina.hpp"
+#include "forall.hpp"
 
 namespace mfem
 {
 
-OccaDevice OccaWrapDevice(CUdevice dev, CUcontext ctx)
-{
-#if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
-   return occa::cuda::wrapDevice(dev, ctx);
-#else
-   return 0;
-#endif
-}
+// This variable is defined in device.cpp:
+namespace internal { extern OccaDevice occaDevice; }
 
-OccaMemory OccaDeviceMalloc(OccaDevice device, const size_t bytes)
+static OccaMemory OccaWrapMemory(const OccaDevice dev, const void *d_adrs,
+                                 const size_t bytes)
 {
+   // This function is called when an OCCA kernel is going to be used.
 #ifdef MFEM_USE_OCCA
-   return device.malloc(bytes);
-#else
-   return (void*)NULL;
-#endif
-}
-
-OccaMemory OccaWrapMemory(const OccaDevice device, const void *d_adrs,
-                          const size_t bytes)
-{
    void *adrs = const_cast<void*>(d_adrs);
-#if defined(MFEM_USE_OCCA) && defined(MFEM_USE_CUDA)
-   // OCCA & UsingCuda => occa::cuda
-   if (Device::UsingCuda())
+#if defined(MFEM_USE_CUDA) && OCCA_CUDA_ENABLED
+   // If OCCA_CUDA is allowed, it will be used since it has the highest priority
+   if (Device::Allows(Backend::OCCA_CUDA))
    {
-      return occa::cuda::wrapMemory(device, adrs, bytes);
+      return occa::cuda::wrapMemory(dev, adrs, bytes);
    }
+#endif // MFEM_USE_CUDA && OCCA_CUDA_ENABLED
    // otherwise, fallback to occa::cpu address space
-   return occa::cpu::wrapMemory(device, adrs, bytes);
-#else // MFEM_USE_OCCA && MFEM_USE_CUDA
-#if defined(MFEM_USE_OCCA)
-   return occa::cpu::wrapMemory(device, adrs, bytes);
-#else
-   return (void*)NULL;
-#endif
-#endif
-}
-
-void *OccaMemoryPtr(OccaMemory o_adrs)
-{
-#ifdef MFEM_USE_OCCA
-   return o_adrs.ptr();
-#else
+   return occa::cpu::wrapMemory(dev, adrs, bytes);
+#else // MFEM_USE_OCCA
    return (void*)NULL;
 #endif
 }
 
-void OccaCopyFrom(OccaMemory o_adrs, const void *h_adrs)
+OccaMemory OccaPtr(const void *ptr)
 {
-#ifdef MFEM_USE_OCCA
-   o_adrs.copyFrom(h_adrs);
-#endif
+   // This function is called when 'ptr' needs to be passed to an OCCA kernel.
+   OccaDevice dev = internal::occaDevice;
+   if (!mm.UsingMM()) { return OccaWrapMemory(dev, ptr, 0); }
+   const bool known = mm.IsKnown(ptr);
+   if (!known) { mfem_error("OccaPtr: Unknown address!"); }
+   const bool ptr_on_host = mm.IsOnHost(ptr);
+   const size_t bytes = mm.Bytes(ptr);
+   const bool run_on_host = !Device::Allows(Backend::DEVICE_MASK);
+   // If the priority of a host OCCA backend is higher than all device OCCA
+   // backends, then we will need to run-on-host even if the Device allows a
+   // device backend.
+   if (ptr_on_host && run_on_host) { return OccaWrapMemory(dev, ptr, bytes); }
+   if (run_on_host) { mfem_error("OccaPtr: !ptr_on_host && run_on_host"); }
+   void *d_ptr = mm.GetDevicePtr(ptr);
+   return OccaWrapMemory(dev, d_ptr, bytes);
 }
 
-void OccaCopyTo(OccaMemory o_adrs, void *h_adrs)
-{
-#ifdef MFEM_USE_OCCA
-   o_adrs.copyTo(h_adrs);
-#endif
-}
+OccaDevice OccaDev() { return internal::occaDevice; }
 
 } // namespace mfem

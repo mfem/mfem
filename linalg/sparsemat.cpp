@@ -12,6 +12,8 @@
 // Implementation of sparse matrix
 
 #include "linalg.hpp"
+#include "dtensor.hpp"
+#include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
 
@@ -88,7 +90,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
    {
       ownData = true;
       int nnz = I[height];
-      A = mm::malloc<double>(nnz);
+      A = mfem::New<double>(nnz);
       for (int i=0; i<nnz; ++i)
       {
          A[i] = 0.0;
@@ -108,9 +110,9 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
-   I = mm::malloc<int>(nrows + 1);
-   J = mm::malloc<int>(nrows * rowsize);
-   A = mm::malloc<double>(nrows * rowsize);
+   I = mfem::New<int>(nrows + 1);
+   J = mfem::New<int>(nrows * rowsize);
+   A = mfem::New<double>(nrows * rowsize);
 
    for (int i = 0; i <= nrows; i++)
    {
@@ -126,8 +128,8 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
       const int nnz = mat.I[height];
       if (copy_graph)
       {
-         I = mm::malloc<int>(height+1);
-         J = mm::malloc<int>(nnz);
+         I = mfem::New<int>(height+1);
+         J = mfem::New<int>(nnz);
          memcpy(I, mat.I, sizeof(int)*(height+1));
          memcpy(J, mat.J, sizeof(int)*nnz);
          ownGraph = true;
@@ -138,7 +140,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
          J = mat.J;
          ownGraph = false;
       }
-      A = mm::malloc<double>(nnz);
+      A = mfem::New<double>(nnz);
       memcpy(A, mat.A, sizeof(double)*nnz);
       ownData = true;
 
@@ -196,9 +198,9 @@ SparseMatrix::SparseMatrix(const Vector &v)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
-   I = mm::malloc<int>(height + 1);
-   J = mm::malloc<int>(height);
-   A = mm::malloc<double>(height);
+   I = mfem::New<int>(height + 1);
+   J = mfem::New<int>(height);
+   A = mfem::New<double>(height);
 
    for (int i = 0; i <= height; i++)
    {
@@ -582,7 +584,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (a == 1.0)
    {
-#ifndef MFEM_USE_OPENMP
+#ifndef MFEM_USE_LEGACY_OPENMP
       const DeviceArray d_I(I);
       const DeviceArray d_J(J);
       const DeviceVector d_A(A);
@@ -592,7 +594,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       {
          double d = 0.0;
          const int end = d_I[i+1];
-         for (int j=d_I[i]; j < end; j+=1)
+         for (int j=d_I[i]; j < end; j++)
          {
             d += d_A[j] * d_x[d_J[j]];
          }
@@ -663,7 +665,6 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    const DeviceVector d_A(A);
    const DeviceVector d_x(x, x.Size());
    DeviceVector d_y(y, y.Size());
-   const bool device = Device::UsingDevice();
    MFEM_FORALL(i, d_height,
    {
       const double xi = a * d_x[i];
@@ -671,14 +672,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       for (int j = d_I[i]; j < end; j++)
       {
          const int Jj = d_J[j];
-         if (device)
-         {
-            AtomicAdd(&d_y[Jj], d_A[j] * xi);
-         }
-         else
-         {
-            d_y[Jj] += d_A[j] * xi;
-         }
+         AtomicAdd(&d_y[Jj], d_A[j] * xi);
       }
    });
 }
@@ -729,8 +723,8 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    y = 0;
 
    const int height = Height();
-   const int *d_I = (const int*) mm::ptr(I);
-   const int *d_J = (const int*) mm::ptr(J);
+   const int *d_I = mfem::Ptr(I);
+   const int *d_J = mfem::Ptr(J);
    const DeviceArray d_x(x, x.Size());
    DeviceArray d_y(y, y.Size());
    MFEM_FORALL(i, height,
@@ -747,7 +741,7 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    });
    // Sync on host for some verifications in
    // pfespace GetEssentialTrueDofs and MarkerToList
-   mm::pull(y);
+   mfem::Pull(y);
 }
 
 void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
@@ -851,7 +845,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    delete [] ColPtrNode;
    ColPtrNode = NULL;
 
-   I = mm::malloc<int>(height+1);
+   I = mfem::New<int>(height+1);
    I[0] = 0;
    for (i = 1; i <= height; i++)
    {
@@ -866,8 +860,8 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    }
 
    nz = I[height];
-   J = mm::malloc<int>(nz);
-   A = mm::malloc<double>(nz);
+   J = mfem::New<int>(nz);
+   A = mfem::New<double>(nz);
    // Assume we're sorted until we find out otherwise
    isSorted = true;
    for (j = i = 0; i < height; i++)
@@ -928,7 +922,7 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
    {
       for (int i = 0; i < br; i++)
       {
-         int *bI = mm::malloc<int>(nr + 1);
+         int *bI = mfem::New<int>(nr + 1);
          for (int k = 0; k <= nr; k++)
          {
             bI[k] = 0;
@@ -972,8 +966,8 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
          {
             rs = b.I[k], b.I[k] = nnz, nnz += rs;
          }
-         b.J = mm::malloc<int>(nnz);
-         b.A = mm::malloc<double>(nnz);
+         b.J = mfem::New<int>(nnz);
+         b.A = mfem::New<double>(nnz);
       }
    }
 
@@ -2735,15 +2729,15 @@ void SparseMatrix::Destroy()
 {
    if (I != NULL && ownGraph)
    {
-      mm::free<int>(I);
+      mfem::Delete(I);
    }
    if (J != NULL && ownGraph)
    {
-      mm::free<int>(J);
+      mfem::Delete(J);
    }
    if (A != NULL && ownData)
    {
-      mm::free<double>(A);
+      mfem::Delete(A);
    }
 
    if (Rows != NULL)
@@ -2833,9 +2827,9 @@ SparseMatrix *Transpose (const SparseMatrix &A)
    A_j    = A.GetJ();
    A_data = A.GetData();
 
-   At_i = mm::malloc<int>(n+1);
-   At_j = mm::malloc<int>(nnz);
-   At_data = mm::malloc<double>(nnz);
+   At_i = mfem::New<int>(n+1);
+   At_j = mfem::New<int>(nnz);
+   At_data = mfem::New<double>(nnz);
 
    for (i = 0; i <= n; i++)
    {
@@ -2904,9 +2898,9 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
    }
    nnz = A.NumNonZeroElems();
 
-   At_i = mm::malloc<int>(n+1);
-   At_j = mm::malloc<int>(nnz);
-   At_data = mm::malloc<double>(nnz);
+   At_i = mfem::New<int>(n+1);
+   At_j = mfem::New<int>(nnz);
+   At_data = mfem::New<double>(nnz);
 
    for (i = 0; i <= n; i++)
    {
@@ -2983,7 +2977,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
 
    if (OAB == NULL)
    {
-      C_i = mm::malloc<int>(nrowsA+1);
+      C_i = mfem::New<int>(nrowsA+1);
 
       C_i[0] = num_nonzeros = 0;
       for (ic = 0; ic < nrowsA; ic++)
@@ -3004,8 +2998,8 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
          C_i[ic+1] = num_nonzeros;
       }
 
-      C_j    = mm::malloc<int>(num_nonzeros);
-      C_data = mm::malloc<double>(num_nonzeros);
+      C_j    = mfem::New<int>(num_nonzeros);
+      C_data = mfem::New<double>(num_nonzeros);
 
       C = new SparseMatrix (C_i, C_j, C_data, nrowsA, ncolsB);
 
@@ -3108,7 +3102,7 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
       B_marker[ib] = -1;
    }
 
-   C_i = mm::malloc<int>(nrowsA+1);
+   C_i = mfem::New<int>(nrowsA+1);
 
    C_i[0] = num_nonzeros = 0;
 
@@ -3134,8 +3128,8 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
       C_i[ic+1] = num_nonzeros;
    }
 
-   C_j    = mm::malloc<int>(num_nonzeros);
-   C_data = mm::malloc<double>(num_nonzeros);
+   C_j    = mfem::New<int>(num_nonzeros);
+   C_data = mfem::New<double>(num_nonzeros);
 
    C = new SparseMatrix(C_i, C_j, C_data, nrowsA, ncolsB);
 
@@ -3261,7 +3255,7 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
    int nrows = A.Height();
    int ncols = A.Width();
 
-   int * C_i =mm::malloc<int>(nrows+1);
+   int * C_i =mfem::New<int>(nrows+1);
    int * C_j;
    double * C_data;
 
@@ -3298,8 +3292,8 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
       C_i[ic+1] = num_nonzeros;
    }
 
-   C_j = mm::malloc<int>(num_nonzeros);
-   C_data = mm::malloc<double>(num_nonzeros);
+   C_j = mfem::New<int>(num_nonzeros);
+   C_data = mfem::New<double>(num_nonzeros);
 
    for (int ia = 0; ia < ncols; ia++)
    {
