@@ -27,6 +27,11 @@ double PWConstCoefficient::Eval(const ElementTransformation & T) const
    return (constants(att-1));
 }
 
+DeviceFunctionCoefficientPtr FunctionCoefficient::GetDeviceFunction()
+{
+   return DeviceFunction;
+}
+
 double FunctionCoefficient::Eval(const ElementTransformation & T) const
 {
    MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
@@ -39,6 +44,10 @@ double FunctionCoefficient::Eval(const ElementTransformation & T) const
    if (Function)
    {
       return ((*Function)(transip));
+   }
+   else if (DeviceFunction)
+   {
+      return ((*DeviceFunction)(Vector3(x)));
    }
    else
    {
