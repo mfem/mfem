@@ -258,8 +258,8 @@ namespace mfem
 
   void CVODESolver::Init(TimeDependentOperator &f_)
   {
-    mfem_error("CVODE Initialization error: use the initialization method"
-      "CVODESolver::Init(TimeDependentOperator &f_, double &t, Vector &x)");
+    mfem_error("CVODE Initialization error: use the initialization method\n"
+      "CVODESolver::Init(TimeDependentOperator &f_, double &t, Vector &x)\n");
   }
 
   void CVODESolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
@@ -458,8 +458,8 @@ namespace mfem
 
   void ARKStepSolver::Init(TimeDependentOperator &f_)
   {
-    mfem_error("ARKStep Initialization error: use the initialization method"
-      "ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)");
+    mfem_error("ARKStep Initialization error: use the initialization method\n"
+      "ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)\n");
   }
 
   void ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
