@@ -38,20 +38,6 @@ public:
    /// Adds an address in the map
    void *Insert(void *ptr, const std::size_t bytes);
 
-/*
-   /// Main malloc template function. Allocates n*size bytes and returns a
-   /// pointer to the allocated memory.
-   template<class T>
-   static inline T *New(const size_t n)
-   {
-#ifndef MFEM_USE_MMU
-      void *ptr = ::new T[n];
-#else
-      void *ptr = MM().MmuAllocate(n*sizeof(T));
-#endif // MFEM_DEBUG
-      return static_cast<T*>(MM().Insert(ptr, n*sizeof(T)));
-   }
-*/
    /// Remove the address from the map, as well as all its aliases
    void *Erase(void *ptr);
 
@@ -88,8 +74,7 @@ public:
    const void *Ptr(const void *ptr);
 
    /// Data will be pushed/pulled before the copy happens on the H or the D
-   void* Memcpy(void *dst, const void *src,
-                std::size_t bytes, const bool async = false);
+   void* Memcpy(void *dst, const void *src, std::size_t bytes);
 
    /// Return the bytes of the memory region which base address is ptr
    std::size_t Bytes(const void *ptr);
@@ -104,17 +89,17 @@ public:
    bool IsAlias(const void *ptr);
 
    /// Push the data to the device
-   void Push(const void *ptr, const std::size_t bytes =0);
+   void Push(const void *ptr, const std::size_t bytes);
 
    /// Pull the data from the device
-   void Pull(const void *ptr, const std::size_t bytes =0);
+   void Pull(const void *ptr, const std::size_t bytes);
+
+   /// Enable read/write access of this memory
+   void MemEnable(const void *ptr, const std::size_t bytes);
 
    /// Return the corresponding device pointer of ptr, allocating and moving the
    /// data if needed (used in OccaPtr)
    void *GetDevicePtr(const void *ptr);
-
-   static void MmuMEnable(const void *ptr, const size_t bytes);
-   static void MmuMDisable(const void *ptr, const size_t bytes);
 
    /// Registers external host pointer in the memory manager which will manage
    /// the corresponding device pointer, but not the provided host pointer.
@@ -153,11 +138,10 @@ public:
 
    /// Copies all memory to the current memory space
    void GetAll(void);
-};
 
-   void MmuInit();
-   void *MmuAllocate(const size_t bytes);
-   void MmuFree(void *ptr);
+   void *New(void **ptr, const std::size_t bytes);
+   void Delete(void *ptr);
+};
 
 /// The (single) global memory manager object
 extern MemoryManager mm;
@@ -167,9 +151,11 @@ extern MemoryManager mm;
 template<class T>
 inline T *New(const std::size_t n)
 {
-   T *ptr = new T[n];
-   if (!MemoryManager::Exists()) { return ptr; }
-   return static_cast<T*>(mm.Insert(ptr, n*sizeof(T)));
+   T *ptr;
+   const std::size_t bytes = n*sizeof(T);
+   if (!MemoryManager::Exists()) { return ::new T[n]; }
+   ptr = (T*) mm.New((void**)&ptr, bytes);
+   return static_cast<T*>(mm.Insert(ptr, bytes));
 }
 
 /// Frees the memory space pointed to by ptr, which must have been returned by a
@@ -180,8 +166,8 @@ inline void Delete(T *ptr)
    static_assert(!std::is_void<T>::value, "Cannot Delete a void pointer. "
                  "Explicitly provide the correct type as a template parameter.");
    if (!ptr) { return; }
-   delete [] ptr;
-   if (!MemoryManager::Exists()) { return; }
+   if (!MemoryManager::Exists()) { delete [] ptr; return; }
+   mm.Delete(ptr);
    mm.Erase(ptr);
 }
 
@@ -190,17 +176,20 @@ template <class T>
 inline T *Ptr(T *a) { return static_cast<T*>(mm.Ptr(a)); }
 
 /// Data will be pushed/pulled before the copy happens on the host or the device
-inline void* Memcpy(void *dst, const void *src,
-                    std::size_t bytes, const bool async = false)
-{ return mm.Memcpy(dst, src, bytes, async); }
+inline void* Memcpy(void *dst, const void *src, std::size_t bytes)
+{ return mm.Memcpy(dst, src, bytes); }
 
 /// Push the data to the device
-inline void Push(const void *ptr, const std::size_t bytes = 0)
+inline void Push(const void *ptr, const std::size_t bytes)
 { return mm.Push(ptr, bytes); }
 
 /// Pull the data from the device
-inline void Pull(const void *ptr, const std::size_t bytes = 0)
+inline void Pull(const void *ptr, const std::size_t bytes)
 { return mm.Pull(ptr, bytes); }
+
+/// Enable read/write access of this memory
+inline void MemEnable(const void *ptr, const std::size_t bytes)
+{ return mm.MemEnable(ptr, bytes); }
 
 } // namespace mfem
 

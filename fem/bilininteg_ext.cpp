@@ -254,9 +254,9 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    vec.SetSize(symmDims * nq * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
    PADiffusionSetup(dim, dofs1D, quad1D, ne, maps->W, geom->J, coeff, vec);
-#ifdef MFEM_USE_MMU
+#ifdef MFEM_DEBUG
    // vec might be used elsewhere, allow others to use it (ex6)
-   mm::MmuMEnable(vec,vec.Size()*sizeof(double));
+   mfem::MemEnable(vec,vec.Size()*sizeof(double));
 #endif
 }
 
@@ -1471,8 +1471,8 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    {
       maps->W.SetSize(numQuad);
    }
-#ifdef MFEM_USE_MMU
-   Device::PushDisable();
+#ifdef MFEM_DEBUG
+   Device::Disable(true);
 #endif
    mfem::Vector d2q(numDofs);
    mfem::DenseMatrix d2qD(numDofs, dims);
@@ -1501,8 +1501,8 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
          }
       }
    }
-#ifdef MFEM_USE_MMU
-   Device::Pop();
+#ifdef MFEM_DEBUG
+   Device::Enable(true);
 #endif
    if (transpose)
    {
@@ -1836,8 +1836,8 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const bool orderedByNODES = (fespace->GetOrdering() == Ordering::byNODES);
    if (orderedByNODES) { ReorderByVDim(nodes); }
    const int asize = dims*ND*NE;
-#ifdef MFEM_USE_MMU
-   Device::PushDisable();
+#ifdef MFEM_DEBUG
+   Device::Disable(true);
 #endif
    mfem::Array<double> meshNodes(asize);
    const Table& e2dTable = fespace->GetElementToDofTable();
@@ -1846,8 +1846,8 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    GeomFill(dims, NE, ND, nodes->Size(),
             elementMap, eMap,
             nodes->GetData(), meshNodes);
-#ifdef MFEM_USE_MMU
-   Device::Pop();
+#ifdef MFEM_DEBUG
+   Device::Enable(true);
 #endif
    if (geom_to_allocate)
    {

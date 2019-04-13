@@ -34,6 +34,7 @@ const Operator *BilinearFormExtension::GetRestriction() const
    return a->GetRestriction();
 }
 
+
 // Data and methods for partially-assembled bilinear forms
 PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
    BilinearFormExtension(form),
@@ -118,6 +119,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
    elem_restrict->MultTranspose(localY, y);
 }
+
 
 ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
    : fes(f),

@@ -134,9 +134,6 @@
 // Enable MFEM's internal Memory Manager (needed e.g. for MFEM_USE_CUDA)
 // #define MFEM_USE_MM
 
-// Enable MFEM's internal Memory Manager debug mode with MMU
-// #define MFEM_USE_MMU
-
 // Version of HYPRE used for building MFEM.
 // #define MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@
 
