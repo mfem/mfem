@@ -133,8 +133,8 @@ namespace mfem
                       void *user_data);
 
     /// Default scalar tolerances
-    static const double default_rel_tol = 1e-4;
-    static const double default_abs_tol = 1e-9;
+    static constexpr double default_rel_tol = 1e-4;
+    static constexpr double default_abs_tol = 1e-9;
 
     /// Constructors
     SundialsODESolver() : sundials_mem(NULL), flag(0), step_mode(1),
@@ -204,6 +204,9 @@ namespace mfem
     /** Select the CVODE step mode: CV_NORMAL (default) or CV_ONE_STEP
         @param[in] itask  The desired step mode */
     void SetStepMode(int itask);
+
+    /** Print various CVODE statistics. */
+    void PrintInfo() const;
 
     /// Destroy the associated CVODE memory and SUNDIALS objects
     virtual ~CVODESolver();
@@ -276,6 +279,9 @@ namespace mfem
     /** Select the ARKode step mode: ARK_NORMAL (default) or ARK_ONE_STEP
         @param[in] itask  The desired step mode */
     void SetStepMode(int itask);
+
+    /** Print various ARKStep statistics. */
+    void PrintInfo() const;
 
     /// Destroy the associated ARKode memory and SUNDIALS objects
     virtual ~ARKStepSolver();

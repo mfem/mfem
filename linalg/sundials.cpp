@@ -66,15 +66,16 @@ namespace mfem
     if (ops == NULL) return(NULL);
 
     /* initialize operations to NULL */
-    ops->getid     = NULL;
-    ops->clone     = NULL;
-    ops->destroy   = NULL;
-    ops->zero      = NULL;
-    ops->copy      = NULL;
-    ops->scaleadd  = NULL;
-    ops->scaleaddi = NULL;
-    ops->matvec    = NULL;
-    ops->space     = NULL;
+    ops->getid       = NULL;
+    ops->clone       = NULL;
+    ops->destroy     = NULL;
+    ops->zero        = NULL;
+    ops->copy        = NULL;
+    ops->scaleadd    = NULL;
+    ops->scaleaddi   = NULL;
+    ops->matvecsetup = NULL;
+    ops->matvec      = NULL;
+    ops->space       = NULL;
 
     /* attach ops and initialize content to NULL */
     A->ops     = ops;
@@ -334,8 +335,8 @@ namespace mfem
     flag = CVodeSetLinearSolver(sundials_mem, LSA, A);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetLinearSolver()");
 
-    // Set the linear system function <<<<<<< NEED TO ADD
-    //flag = CVodeSetLinSysFn(sundials_mem, cvLinSysSetup);
+    // Set the linear system function
+    flag = CVodeSetLinSysFn(sundials_mem, cvLinSysSetup);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetLinSysFn()");
   }
 
@@ -364,6 +365,52 @@ namespace mfem
   void CVODESolver::SetStepMode(int itask)
   {
     step_mode = itask;
+  }
+
+  void CVODESolver::PrintInfo() const
+  {
+    long int nsteps, nfevals, nlinsetups, netfails;
+    int      qlast, qcur;
+    double   hinused, hlast, hcur, tcur;
+    long int nniters, nncfails;
+    int      flag = 0;
+
+    // Get integrator stats
+    flag = CVodeGetIntegratorStats(sundials_mem,
+                                   &nsteps,
+                                   &nfevals,
+                                   &nlinsetups,
+                                   &netfails,
+                                   &qlast,
+                                   &qcur,
+                                   &hinused,
+                                   &hlast,
+                                   &hcur,
+                                   &tcur);
+    MFEM_ASSERT(flag < 0, "error in CVodeGetIntegratorStats()");
+
+    // Get nonlinear solver stats
+    flag = CVodeGetNonlinSolvStats(sundials_mem,
+                                   &nniters,
+                                   &nncfails);
+    MFEM_ASSERT(flag < 0, "error in CVodeGetNonlinSolvStats()");
+
+    mfem::out <<
+      "CVODE:\n  "
+      "num steps:            " << nsteps << "\n"
+      "num rhs evals:        " << nfevals << "\n"
+      "num lin setups:       " << nlinsetups << "\n"
+      "num nonlin sol iters: " << nniters << "\n"
+      "num nonlin conv fail: " << nncfails << "\n"
+      "num error test fails: " << netfails << "\n"
+      "last order:           " << qlast << "\n"
+      "current order:        " << qcur << "\n"
+      "initial dt:           " << hinused << "\n"
+      "last dt:              " << hlast << "\n"
+      "current dt:           " << hcur << "\n"
+      "current t:            " << tcur << endl;
+
+    return;
   }
 
   CVODESolver::~CVODESolver()
@@ -498,8 +545,8 @@ namespace mfem
     flag = ARKStepSetLinearSolver(sundials_mem, LSA, A);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinearSolver()");
 
-    // Set the linear system function <<<<<<< NEED TO ADD
-    // flag = ARKStepSetLinSysFn(sundials_mem, arkLinSysSetup);
+    // Set the linear system function
+    flag = ARKStepSetLinSysFn(sundials_mem, arkLinSysSetup);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinSysFn()");
   }
 
@@ -534,9 +581,9 @@ namespace mfem
     flag = ARKStepSetMassLinearSolver(sundials_mem, LSM, M, tdep);
     MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinearSolver()");
 
-    // Set the linear system function <<<<<<< NEED TO ADD
-    //flag = ARKStepSetMassLinSysFn(sundials_mem, arkMassSysSetup);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinSysFn()");
+    // Set the linear system function
+    flag = ARKStepSetMassFn(sundials_mem, arkMassSysSetup);
+    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetMassFn()");
   }
 
   void ARKStepSolver::Step(Vector &x, double &t, double &dt)
@@ -564,6 +611,60 @@ namespace mfem
   void ARKStepSolver::SetStepMode(int itask)
   {
     step_mode = itask;
+  }
+
+  void ARKStepSolver::PrintInfo() const
+  {
+    long int nsteps, expsteps, accsteps, step_attempts;
+    long int nfe_evals, nfi_evals;
+    long int nlinsetups, netfails;
+    double   hinused, hlast, hcur, tcur;
+    long int nniters, nncfails;
+    int      flag = 0;
+
+    // Get integrator stats
+
+    flag = ARKStepGetTimestepperStats(sundials_mem,
+                                      &expsteps,
+                                      &accsteps,
+                                      &step_attempts,
+                                      &nfe_evals,
+                                      &nfi_evals,
+                                      &nlinsetups,
+                                      &netfails);
+    MFEM_ASSERT(flag < 0, "error in ARKStepGetTimestepperStats()");
+
+    flag = ARKStepGetStepStats(sundials_mem,
+                               &nsteps,
+                               &hinused,
+                               &hlast,
+                               &hcur,
+                               &tcur);
+
+    // Get nonlinear solver stats
+    flag = ARKStepGetNonlinSolvStats(sundials_mem,
+                                     &nniters,
+                                     &nncfails);
+    MFEM_ASSERT(flag < 0, "error in ARKStepGetNonlinSolvStats()");
+
+    mfem::out <<
+      "ARKStep:\n  "
+      "num steps:                 " << nsteps << "\n"
+      "num exp rhs evals:         " << nfe_evals << "\n"
+      "num imp rhs evals:         " << nfi_evals << "\n"
+      "num lin setups:            " << nlinsetups << "\n"
+      "num nonlin sol iters:      " << nniters << "\n"
+      "num nonlin conv fail:      " << nncfails << "\n"
+      "num steps attempted:       " << step_attempts << "\n"
+      "num acc limited steps:     " << accsteps << "\n"
+      "num exp limited stepfails: " << expsteps << "\n"
+      "num error test fails:      " << netfails << "\n"
+      "initial dt:                " << hinused << "\n"
+      "last dt:                   " << hlast << "\n"
+      "current dt:                " << hcur << "\n"
+      "current t:                 " << tcur << endl;
+
+    return;
   }
 
   ARKStepSolver::~ARKStepSolver()
