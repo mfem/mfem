@@ -13,7 +13,6 @@
 #define MFEM_DEVICE_HPP
 
 #include "globals.hpp"
-#include <stack>
 
 namespace mfem
 {
@@ -51,7 +50,10 @@ struct Backend
       OCCA_OMP = 1 << 7,
       /** @brief [device] OCCA CUDA backend. Enabled when MFEM_USE_OCCA = YES
           and MFEM_USE_CUDA = YES. */
-      OCCA_CUDA = 1 << 8
+      OCCA_CUDA = 1 << 8,
+      /** @brief [device] Debug backend. Enabled when MFEM_USE_MM = YES and
+          MFEM_DEBUG = YES. */
+      DEBUG = 1 << 9
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -59,7 +61,7 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 9,
+      NUM_BACKENDS = 10,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
       /// Biwise-OR of all RAJA backends
@@ -69,7 +71,7 @@ struct Backend
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK
+      DEVICE_MASK = CUDA_MASK | DEBUG
    };
 };
 
@@ -94,7 +96,8 @@ class Device
 private:
    enum MODES {SEQUENTIAL, ACCELERATED};
 
-   MODES mode;
+   MODES mode, saved; ///< Current and saved modes
+
    int dev = 0; ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
    unsigned long backends; ///< Bitwise-OR of all configured backends.
@@ -105,6 +108,7 @@ private:
 
    Device()
       : mode(Device::SEQUENTIAL),
+        saved(Device::SEQUENTIAL),
         backends(Backend::CPU),
         allowed_backends(backends) { }
    Device(Device const&);
@@ -151,11 +155,11 @@ public:
 
        If the only configured backend is the default host CPU one, the device
        will remain disabled. */
-   static inline void Enable()
+   static inline void Enable(const bool restore = false)
    {
       if (Get().backends & ~Backend::CPU)
       {
-         Get().mode = Device::ACCELERATED;
+         Get().mode = restore ? Get().saved : Device::ACCELERATED;
          Get().allowed_backends = Get().backends;
       }
    }
@@ -163,8 +167,9 @@ public:
    /// Disable the use of the configured device in the code that follows.
    /** After this call MFEM classes will only use default CPU kernels,
        transferring data automatically from the device, if necessary. */
-   static inline void Disable()
+   static inline void Disable(const bool save = false)
    {
+      if (save) Get().saved = Get().mode;
       Get().mode = Device::SEQUENTIAL;
       Get().allowed_backends = Backend::CPU;
    }

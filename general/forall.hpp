@@ -100,8 +100,8 @@ void CuKernel(const int N, BODY body)
    body(k);
 }
 
-template <int BLOCKS, typename DBODY, typename HBODY>
-void CuWrap(const int N, DBODY &&d_body, HBODY &&h_body)
+template <int BLOCKS, typename DBODY>
+void CuWrap(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
    const int GRID = (N+BLOCKS-1)/BLOCKS;
@@ -112,11 +112,8 @@ void CuWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 
 #else  // MFEM_USE_CUDA
 
-template <int BLOCKS, typename DBODY, typename HBODY>
-void CuWrap(const int N, DBODY &&d_body, HBODY &&h_body)
-{
-   for (int k=0; k<N; k+=1) { h_body(k); }
-}
+template <int BLOCKS, typename DBODY>
+void CuWrap(const int N, DBODY &&d_body) {}
 
 #endif
 

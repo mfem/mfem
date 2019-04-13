@@ -198,7 +198,6 @@ int main(int argc, char *argv[])
       //     (i.e. parallel conforming) essential boundary dofs.
       Array<int> ess_tdof_list;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      if (pa) { pmesh.GetNodes()->Pull(); }
       b.Assemble();
 
       // 15. Switch to the device and assemble the stiffness matrix. Note that

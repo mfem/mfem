@@ -34,14 +34,15 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
    Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
-   Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
+   Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::DEBUG,
+   Backend::CPU
 };
 
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
    "occa-cuda", "raja-cuda", "cuda", "occa-omp", "raja-omp", "omp",
-   "occa-cpu", "raja-cpu", "cpu"
+   "occa-cpu", "raja-cpu", "debug", "cpu"
 };
 
 } // namespace mfem::internal
@@ -115,12 +116,6 @@ static void CudaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
    DeviceSetup(dev, ngpu);
-#else
-#ifdef MFEM_USE_MMU
-   ngpu = 1;
-#else
-   MFEM_ABORT("CUDA requested but MFEM was not built with MFEM_USE_CUDA=YES");
-#endif
 #endif
 }
 
@@ -214,6 +209,9 @@ void Device::Setup(const int device)
    {
       OccaDeviceSetup(internal::cuDevice, internal::cuContext);
    }
+
+   // ngpu is tied to 1 when using the DEBUG device.
+   if (Allows(Backend::DEBUG)) { ngpu = 1; }
 }
 
 Device::~Device()

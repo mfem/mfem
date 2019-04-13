@@ -930,7 +930,8 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
 
 double Min(const int N, const double *x)
 {
-   if (Device::Allows(Backend::CUDA_MASK))
+   if (Device::Allows(Backend::CUDA_MASK) ||
+       Device::Allows(Backend::DEBUG))
    {
 #ifdef MFEM_USE_CUDA
       return cuVectorMin(N, x);
@@ -951,7 +952,8 @@ double Min(const int N, const double *x)
 
 double Dot(const int N, const double *x, const double *y)
 {
-   if (Device::Allows(Backend::CUDA_MASK))
+   if (Device::Allows(Backend::CUDA_MASK) ||
+       Device::Allows(Backend::DEBUG))
    {
 #ifdef MFEM_USE_CUDA
       return cuVectorDot(N, x, y);

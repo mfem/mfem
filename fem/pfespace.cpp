@@ -14,6 +14,7 @@
 #ifdef MFEM_USE_MPI
 
 #include "pfespace.hpp"
+#include "../general/device.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "../general/binaryio.hpp"
@@ -2869,10 +2870,8 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    double *ydata = y.GetData();
    x.Pull();
    y.Pull();
-#ifdef MFEM_USE_MMU
    // Communications use arrays that need to stay on the host
-   Device::PushDisable();
-#endif
+   Device::Disable(true);
    const int m = external_ldofs.Size();
 
    const int in_layout = 2; // 2 - input is ltdofs array
@@ -2889,9 +2888,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
 
    const int out_layout = 0; // 0 - output is ldofs array
    gc.BcastEnd(ydata, out_layout);
-#ifdef MFEM_USE_MMU
-   Device::Pop();
-#endif
+   Device::Enable(true);
    y.Push();
 }
 
@@ -2905,9 +2902,7 @@ void ConformingProlongationOperator::MultTranspose(
    double *ydata = y.GetData();
    x.Pull();
    y.Pull();
-#ifdef MFEM_USE_MMU
-   Device::PushDisable();
-#endif
+   Device::Disable(true);
    const int m = external_ldofs.Size();
 
    gc.ReduceBegin(xdata);
@@ -2923,9 +2918,7 @@ void ConformingProlongationOperator::MultTranspose(
 
    const int out_layout = 2; // 2 - output is an array on all ltdofs
    gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
-#ifdef MFEM_USE_MMU
-   Device::Pop();
-#endif
+   Device::Enable(true);
    y.Push();
 }
 
