@@ -226,11 +226,11 @@ namespace mfem
   {
     // Create the solver memory
     sundials_mem = CVodeCreate(lmm);
-    MFEM_ASSERT(sundials_mem, "error in CVodeCreate()");
+    MFEM_VERIFY(sundials_mem, "error in CVodeCreate()");
 
     // Allocate an empty serial N_Vector
     y = N_VNewEmpty_Serial(0);
-    MFEM_ASSERT(y, "error in N_VNewEmpty_Serial()");
+    MFEM_VERIFY(y, "error in N_VNewEmpty_Serial()");
   }
 
 #ifdef MFEM_USE_MPI
@@ -238,19 +238,19 @@ namespace mfem
   {
     // Create the solver memory
     sundials_mem = CVodeCreate(lmm);
-    MFEM_ASSERT(sundials_mem, "error in CVodeCreate()");
+    MFEM_VERIFY(sundials_mem, "error in CVodeCreate()");
 
     if (comm == MPI_COMM_NULL) {
 
       // Allocate an empty serial N_Vector
       y = N_VNewEmpty_Serial(0);
-      MFEM_ASSERT(y, "error in N_VNewEmpty_Serial()");
+      MFEM_VERIFY(y, "error in N_VNewEmpty_Serial()");
 
     } else {
 
       // Allocate an empty parallel N_Vector
       y = N_VNewEmpty_Parallel(comm, 0, 0);  // calls MPI_Allreduce()
-      MFEM_ASSERT(y, "error in N_VNewEmpty_Parallel()");
+      MFEM_VERIFY(y, "error in N_VNewEmpty_Parallel()");
 
     }
   }
@@ -292,22 +292,22 @@ namespace mfem
 
     // Initialize CVODE
     flag = CVodeInit(sundials_mem, ODERhs, t, y);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeInit()");
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeInit()");
 
     // Attached the TimeDependentOperator pointer, f, as user-defined data
     flag = CVodeSetUserData(sundials_mem, f);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetUserData()");
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetUserData()");
 
     // Set default tolerances
     flag = CVodeSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetSStolerances()");
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetSStolerances()");
 
     // Set default linear solver (Newton is the default Nonlinear Solver)
     LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
-    MFEM_ASSERT(LSA, "error in SUNLinSol_SPGMR()");
+    MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
 
     flag = CVodeSetLinearSolver(sundials_mem, LSA, NULL);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetLinearSolver()");
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolver()");
   }
 
   void CVODESolver::SetLinearSolver(SundialsODELinearSolver &ls_spec)
@@ -317,7 +317,7 @@ namespace mfem
 
     // Wrap linear solver as SUNLinearSolver and SUNMatrix
     LSA = SUNLinSolEmpty();
-    MFEM_ASSERT(sundials_mem, "error in SUNLinSolEmpty()");
+    MFEM_VERIFY(sundials_mem, "error in SUNLinSolEmpty()");
 
     LSA->content         = &ls_spec;
     LSA->ops->gettype    = SUNLSGetType;
@@ -326,18 +326,18 @@ namespace mfem
     LSA->ops->solve      = SUNLSSolve;
 
     A = SUNMatEmpty();
-    MFEM_ASSERT(sundials_mem, "error in SUNMatEmpty()");
+    MFEM_VERIFY(sundials_mem, "error in SUNMatEmpty()");
 
     A->content    = &ls_spec;
     A->ops->getid = SUNMatGetID;
 
     // Attach the linear solver and matrix
     flag = CVodeSetLinearSolver(sundials_mem, LSA, A);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetLinearSolver()");
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolver()");
 
     // Set the linear system function
     flag = CVodeSetLinSysFn(sundials_mem, cvLinSysSetup);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeSetLinSysFn()");
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinSysFn()");
   }
 
   void CVODESolver::Step(Vector &x, double &t, double &dt)
@@ -355,11 +355,11 @@ namespace mfem
     // Integrate the system
     double tout = t + dt;
     flag = CVode(sundials_mem, tout, y, &t, step_mode);
-    MFEM_ASSERT(flag < 0, "error in CVode()");
+    MFEM_VERIFY(flag >= 0, "error in CVode()");
 
     // Return the last incremental step size
     flag = CVodeGetLastStep(sundials_mem, &dt);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in CVodeGetLastStep()");
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeGetLastStep()");
   }
 
   void CVODESolver::SetStepMode(int itask)
@@ -387,16 +387,16 @@ namespace mfem
                                    &hlast,
                                    &hcur,
                                    &tcur);
-    MFEM_ASSERT(flag < 0, "error in CVodeGetIntegratorStats()");
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeGetIntegratorStats()");
 
     // Get nonlinear solver stats
     flag = CVodeGetNonlinSolvStats(sundials_mem,
                                    &nniters,
                                    &nncfails);
-    MFEM_ASSERT(flag < 0, "error in CVodeGetNonlinSolvStats()");
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeGetNonlinSolvStats()");
 
     mfem::out <<
-      "CVODE:\n  "
+      "CVODE:\n"
       "num steps:            " << nsteps << "\n"
       "num rhs evals:        " << nfevals << "\n"
       "num lin setups:       " << nlinsetups << "\n"
@@ -408,7 +408,7 @@ namespace mfem
       "initial dt:           " << hinused << "\n"
       "last dt:              " << hlast << "\n"
       "current dt:           " << hcur << "\n"
-      "current t:            " << tcur << endl;
+      "current t:            " << tcur << "\n" << endl;
 
     return;
   }
@@ -431,7 +431,7 @@ namespace mfem
   {
     // Allocate an empty serial N_Vector
     y = N_VNewEmpty_Serial(0);
-    MFEM_ASSERT(y, "error in N_VNewEmpty_Serial()");
+    MFEM_VERIFY(y, "error in N_VNewEmpty_Serial()");
 
     flag = ARK_SUCCESS;
   }
@@ -444,13 +444,13 @@ namespace mfem
 
       // Allocate an empty serial N_Vector
       y = N_VNewEmpty_Serial(0);
-      MFEM_ASSERT(y, "error in N_VNewEmpty_Serial()");
+      MFEM_VERIFY(y, "error in N_VNewEmpty_Serial()");
 
     } else {
 
       // Allocate an empty parallel N_Vector
       y = N_VNewEmpty_Parallel(comm, 0, 0);  // calls MPI_Allreduce()
-      MFEM_ASSERT(y, "error in N_VNewEmpty_Parallel()");
+      MFEM_VERIFY(y, "error in N_VNewEmpty_Parallel()");
 
     }
   }
@@ -495,23 +495,23 @@ namespace mfem
       sundials_mem = ARKStepCreate(NULL, ODERhs, t, y);
     else
       sundials_mem = ARKStepCreate(ODERhs, NULL, t, y);
-    MFEM_ASSERT(sundials_mem, "error in ARKStepCreate()");
+    MFEM_VERIFY(sundials_mem, "error in ARKStepCreate()");
 
     // Attached the TimeDependentOperator pointer, f, as user-defined data
     flag = ARKStepSetUserData(sundials_mem, f);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetUserData()");
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetUserData()");
 
     // Set default tolerances
     flag = ARKStepSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetSStolerances()");
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetSStolerances()");
 
     // If implicit, set default linear solver
     if (use_implicit) {
       LSA = SUNLinSol_SPGMR(y, PREC_NONE, 0);
-      MFEM_ASSERT(LSA, "error in SUNLinSol_SPGMR()");
+      MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
 
       flag = ARKStepSetLinearSolver(sundials_mem, LSA, NULL);
-      MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinearSolver()");
+      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
     }
   }
 
@@ -527,7 +527,7 @@ namespace mfem
 
     // Wrap linear solver as SUNLinearSolver and SUNMatrix
     LSA = SUNLinSolEmpty();
-    MFEM_ASSERT(sundials_mem, "error in SUNLinSolEmpty()");
+    MFEM_VERIFY(sundials_mem, "error in SUNLinSolEmpty()");
 
     LSA->content         = &ls_spec;
     LSA->ops->gettype    = SUNLSGetType;
@@ -536,18 +536,18 @@ namespace mfem
     LSA->ops->solve      = SUNLSSolve;
 
     A = SUNMatEmpty();
-    MFEM_ASSERT(sundials_mem, "error in SUNMatEmpty()");
+    MFEM_VERIFY(sundials_mem, "error in SUNMatEmpty()");
 
     A->content    = &ls_spec;
     A->ops->getid = SUNMatGetID;
 
     // Attach the linear solver and matrix
     flag = ARKStepSetLinearSolver(sundials_mem, LSA, A);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinearSolver()");
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
 
     // Set the linear system function
     flag = ARKStepSetLinSysFn(sundials_mem, arkLinSysSetup);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinSysFn()");
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinSysFn()");
   }
 
   void ARKStepSolver::SetMassLinearSolver(SundialsODELinearSolver &ls_spec,
@@ -563,7 +563,7 @@ namespace mfem
 
     // Wrap linear solver as SUNLinearSolver and SUNMatrix
     LSM = SUNLinSolEmpty();
-    MFEM_ASSERT(sundials_mem, "error in SUNLinSolEmpty()");
+    MFEM_VERIFY(sundials_mem, "error in SUNLinSolEmpty()");
 
     LSM->content         = &ls_spec;
     LSM->ops->gettype    = SUNLSGetType;
@@ -572,18 +572,18 @@ namespace mfem
     LSM->ops->solve      = SUNLSSolve;
 
     M = SUNMatEmpty();
-    MFEM_ASSERT(sundials_mem, "error in SUNMatEmpty()");
+    MFEM_VERIFY(sundials_mem, "error in SUNMatEmpty()");
 
     M->content    = &ls_spec;
     M->ops->getid = SUNMatGetID;
 
     // Attach the linear solver and matrix
     flag = ARKStepSetMassLinearSolver(sundials_mem, LSM, M, tdep);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetLinearSolver()");
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
 
     // Set the linear system function
     flag = ARKStepSetMassFn(sundials_mem, arkMassSysSetup);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepSetMassFn()");
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
   }
 
   void ARKStepSolver::Step(Vector &x, double &t, double &dt)
@@ -601,11 +601,11 @@ namespace mfem
     // Integrate the system
     double tout = t + dt;
     flag = ARKStepEvolve(sundials_mem, tout, y, &t, step_mode);
-    MFEM_ASSERT(flag < 0, "error in ARKStepEvolve()");
+    MFEM_VERIFY(flag >= 0, "error in ARKStepEvolve()");
 
     // Return the last incremental step size
     flag = ARKStepGetLastStep(sundials_mem, &dt);
-    MFEM_ASSERT(flag != CV_SUCCESS, "error in ARKStepGetLastStep()");
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepGetLastStep()");
   }
 
   void ARKStepSolver::SetStepMode(int itask)
@@ -632,7 +632,7 @@ namespace mfem
                                       &nfi_evals,
                                       &nlinsetups,
                                       &netfails);
-    MFEM_ASSERT(flag < 0, "error in ARKStepGetTimestepperStats()");
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepGetTimestepperStats()");
 
     flag = ARKStepGetStepStats(sundials_mem,
                                &nsteps,
@@ -645,10 +645,10 @@ namespace mfem
     flag = ARKStepGetNonlinSolvStats(sundials_mem,
                                      &nniters,
                                      &nncfails);
-    MFEM_ASSERT(flag < 0, "error in ARKStepGetNonlinSolvStats()");
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepGetNonlinSolvStats()");
 
     mfem::out <<
-      "ARKStep:\n  "
+      "ARKStep:\n"
       "num steps:                 " << nsteps << "\n"
       "num exp rhs evals:         " << nfe_evals << "\n"
       "num imp rhs evals:         " << nfi_evals << "\n"
@@ -662,7 +662,7 @@ namespace mfem
       "initial dt:                " << hinused << "\n"
       "last dt:                   " << hlast << "\n"
       "current dt:                " << hcur << "\n"
-      "current t:                 " << tcur << endl;
+      "current t:                 " << tcur << "\n" << endl;
 
     return;
   }
