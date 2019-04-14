@@ -13,7 +13,7 @@ of MFEM is a (modern) C++ compiler, such as g++. The parallel version of MFEM
 requires an MPI C++ compiler, as well as the following external libraries:
 
 - hypre (a library of high-performance preconditioners)
-  https://github.com/llnl/hypre
+  https://github.com/hypre-space/hypre
 
 - METIS (a family of multilevel partitioning algorithms)
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
@@ -386,7 +386,7 @@ directory and use the string @MFEM_DIR@, e.g. HYPRE_OPT = -I@MFEM_DIR@/../hypre.
 The specific libraries and their options are:
 
 - HYPRE, required for the parallel build, i.e. when MFEM_USE_MPI = YES.
-  URL: https://github.com/llnl/hypre
+  URL: https://github.com/hypre-space/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
