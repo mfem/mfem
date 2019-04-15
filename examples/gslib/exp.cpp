@@ -141,11 +141,12 @@ int main (int argc, char *argv[])
       }
    }
 
-   findpts_gslib *gsfl = NULL;
-   gsfl = new findpts_gslib(MPI_COMM_WORLD);
-   MPI_Barrier(MPI_COMM_WORLD);
+   findpts_gslib *gsfl = new findpts_gslib(MPI_COMM_WORLD);
    int start_s = clock();
-   gsfl->gslib_findpts_setup(pfespace,pmesh,quad_order);
+   const double rel_bbox_el = 0.05;
+   const double newton_tol  = 1.0e-12;
+   const int npts_at_once   = 256;
+   gsfl->gslib_findpts_setup(*pmesh, rel_bbox_el, newton_tol, npts_at_once);
    MPI_Barrier(MPI_COMM_WORLD);
    int stop_s=clock();
    if (myid == 0)
@@ -206,6 +207,7 @@ int main (int argc, char *argv[])
    start_s=clock();
    // Corresponds to the same points as above (vxyz) -- uses that output.
    // Returns function values in fout.
+   // Note that the points where dumfield is defined are the ones given to _setup.
    gsfl->gslib_findpts_eval(&fout, &code_out, &task_id_out, &el_id_out, &pos_r_out, &dumfield, pts_cnt);
    stop_s=clock();
    if (myid == 0)

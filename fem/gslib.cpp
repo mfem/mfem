@@ -16,59 +16,59 @@
 namespace mfem
 {
 
-IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
-
-//  Constructor - sets up the GLL mesh and saves it
-#ifdef MFEM_USE_MPI
-findpts_gslib::findpts_gslib (MPI_Comm _comm)
-#else
-findpts_gslib::findpts_gslib ()
-#endif
+findpts_gslib::findpts_gslib()
+   : ir(), gllmesh(), fda(NULL), fdb(NULL), dim(-1), nel(-1), qo(-1), msz(-1)
 {
-#ifdef MFEM_USE_MPI
-   comm_init(&this->cc,_comm);
-#else
-   comm_init(&this->cc,0);
-#endif
+   comm_init(&cc, 0);
 }
 
 #ifdef MFEM_USE_MPI
-void findpts_gslib::gslib_findpts_setup(ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER,double bb_t, double newt_tol, int npt_max)
-#else
-void findpts_gslib::gslib_findpts_setup(FiniteElementSpace *pfes, Mesh *pmesh, int QORDER,double bb_t, double newt_tol, int npt_max)
-#endif
+findpts_gslib::findpts_gslib(MPI_Comm _comm)
+   : ir(), gllmesh(), fda(NULL), fdb(NULL), dim(-1), nel(-1), qo(-1), msz(-1)
 {
-   const int geom_type = pfes->GetFE(0)->GetGeomType();
-   this->ir = IntRulesGLL.Get(geom_type, QORDER);
-   dim = pmesh->Dimension();
-   nel = pmesh->GetNE();
-   qo = sqrt(ir.GetNPoints());
-   if (dim==3) qo = cbrt(ir.GetNPoints());
-   int nsp = pow(qo,dim);
+   comm_init(&cc, _comm);
+}
+#endif
+
+void findpts_gslib::gslib_findpts_setup(Mesh &mesh, double bb_t,
+                                        double newt_tol, int npt_max)
+{
+   MFEM_VERIFY(mesh.GetNodes() != NULL, "Mesh nodes are required.");
+
+   const GridFunction *nodes = mesh.GetNodes();
+   const FiniteElementSpace *fes = nodes->FESpace();
+
+   ir = fes->GetFE(0)->GetNodes();
+   dim = mesh.Dimension();
+   nel = mesh.GetNE();
+   qo = fes->GetFE(0)->GetOrder() + 1;
+   int nsp = ir.GetNPoints();
    msz = nel*nsp;
-   this->gllmesh.SetSize(dim*msz);
+   gllmesh.SetSize(dim*msz);
 
    int npt = nel*nsp;
-#ifdef MFEM_USE_MPI
-   ParGridFunction nodes(pfes);
-#else
-   GridFunction nodes(pfes);
-#endif
-   pmesh->GetNodes(nodes);
 
-   int np = 0;
-   DenseMatrix gllvals;
-   DenseMatrix tr;
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement *>(fes->GetFE(0));
+   const Array<int> &dof_map = tbe->GetDofMap();
+
+   const int dof = fes->GetFE(0)->GetDof();
+   DenseMatrix pos(dof, dim);
+   Vector posV(pos.Data(), dof * dim);
+   Array<int> xdofs(dof * dim);
+
+   int pt_id = 0;
    for (int i = 0; i < nel; i++)
    {
-      nodes.GetVectorValues(i,this->ir,gllvals,tr);
+      fes->GetElementVDofs(i, xdofs);
+      nodes->GetSubVector(xdofs, posV);
       for (int j = 0; j < nsp; j++)
       {
-         for (int k = 0; k < dim; k++)
+         for (int d = 0; d < dim; d++)
          {
-            gllmesh[k*npt+np] = *(gllvals.GetData()+k+j*dim);
+            gllmesh(npt*d + pt_id) = pos(dof_map[j], d);
          }
-         np = np+1;
+         pt_id++;
       }
    }
 
@@ -78,25 +78,16 @@ void findpts_gslib::gslib_findpts_setup(FiniteElementSpace *pfes, Mesh *pmesh, i
    {
       unsigned nr[2] = {NR,NR};
       unsigned mr[2] = {2*NR,2*NR};
-      double *const elx[2] = {&gllmesh[0],&gllmesh[ntot]};
+      double *const elx[2] = {&gllmesh[0], &gllmesh[ntot]};
       this->fda=findpts_setup_2(&this->cc,elx,nr,NE,mr,bb_t,ntot,ntot,npt_max,newt_tol);
    }
    else
    {
       unsigned nr[3] = {NR,NR,NR};
       unsigned mr[3] = {2*NR,2*NR,2*NR};
-      double *const elx[3] = {&gllmesh[0],&gllmesh[ntot],&gllmesh[2*ntot]};
+      double *const elx[3] = {&gllmesh[0], &gllmesh[ntot], &gllmesh[2*ntot]};
       this->fdb=findpts_setup_3(&this->cc,elx,nr,NE,mr,bb_t,ntot,ntot,npt_max,newt_tol);
    }
-}
-
-#ifdef MFEM_USE_MPI
-void findpts_gslib::gslib_findpts_setup(ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER)
-#else
-void findpts_gslib::gslib_findpts_setup(FiniteElementSpace *pfes, Mesh *pmesh, int QORDER)
-#endif
-{
-   gslib_findpts_setup(pfes,pmesh,QORDER,0.05,1.e-12,256);
 }
 
 // findpts - given x,y,z for "nxyz" points, it returns, e,p,r,s,t info
@@ -238,16 +229,9 @@ void findpts_gslib::gf2vec(GridFunction *fieldin, Vector *fieldout)
    }
 }
 
-void findpts_gslib::gslib_findpts_free ()
+void findpts_gslib::gslib_findpts_free()
 {
-   if (dim==2)
-   {
-      findpts_free_2(this->fda);
-   }
-   else
-   {
-      findpts_free_3(this->fdb);
-   }
+   (dim == 2) ? findpts_free_2(this->fda) : findpts_free_3(this->fdb);
 }
 
 } // namespace mfem
