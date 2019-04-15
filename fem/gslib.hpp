@@ -25,29 +25,32 @@ namespace mfem
 class findpts_gslib
 {
 private:
-        IntegrationRule ir;
-        Vector gllmesh;
-        struct findpts_data_2 *fda;
-        struct findpts_data_3 *fdb;
-        struct comm cc;
-        int dim, nel, qo, msz;
+   IntegrationRule ir;
+   Vector gllmesh;
+   struct findpts_data_2 *fda;
+   struct findpts_data_3 *fdb;
+   int dim, nel, qo, msz;
+
+   struct comm cc;
 
 public:
+   findpts_gslib();
+
 #ifdef MFEM_USE_MPI
-      findpts_gslib (MPI_Comm _comm);
-#else
-      findpts_gslib (); 
+   findpts_gslib(MPI_Comm _comm);
 #endif
 
+   /** Initializes the internal mesh in gslib, by sending the positions of the
+       Gauss-Lobatto nodes of @a mesh.
+       Note: not tested with periodic (DG meshes).
+       Note: the given @a mesh must have Nodes set.
 
-//    sets up findpts
-#ifdef MFEM_USE_MPI
-       void gslib_findpts_setup(ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER,double bb_t, double newt_tol, int npt_max);
-       void gslib_findpts_setup(ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER);
-#else
-       void gslib_findpts_setup(FiniteElementSpace *pfes, Mesh *pmesh, int QORDER,double bb_t, double newt_tol, int npt_max);
-       void gslib_findpts_setup(FiniteElementSpace *pfes, Mesh *pmesh, int QORDER);
-#endif
+       @param[in] bb_t      Relative size of bounding box around each element.
+       @param[in] newt_tol  Newton tolerance for the gslib search methods.
+       @param[in] npt_max   Number of points for simultaneous iteration. This
+                            alters performance and memory footprint. */
+   void gslib_findpts_setup(Mesh &mesh, double bb_t,
+                            double newt_tol, int npt_max);
 
 //    finds r,s,t,e,p for given x,y,z
       void gslib_findpts(Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,
@@ -81,7 +84,7 @@ public:
       inline int GetQorder() const { return qo; }
 
 //    clears up memory
-      void gslib_findpts_free ();
+      void gslib_findpts_free();
 
       ~findpts_gslib();
 };
