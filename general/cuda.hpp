@@ -15,7 +15,7 @@
 #include "../config/config.hpp"
 #include "error.hpp"
 
-#ifdef MFEM_USE_CUDA
+#if defined(__NVCC__) && defined(MFEM_USE_CUDA)
 #include <cuda_runtime.h>
 #include <cuda.h>
 #endif
@@ -23,7 +23,7 @@
 // CUDA block size used by MFEM.
 #define MFEM_CUDA_BLOCKS 256
 
-#ifdef MFEM_USE_CUDA
+#if defined(__NVCC__) && defined(MFEM_USE_CUDA)
 #define MFEM_ATTR_DEVICE __device__
 #define MFEM_ATTR_HOST_DEVICE __host__ __device__
 // Define the CUDA debug macros:
