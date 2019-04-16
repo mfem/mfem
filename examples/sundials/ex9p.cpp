@@ -4,14 +4,14 @@
 // Compile with: make ex9p
 //
 // Sample runs:
-//    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -p 1 -rp 1 -s 11 -dt 0.0025
-//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh  -p 1 -rp 1 -s 12 -dt 0.0025 -tf 9
-//    mpirun -np 4 ex9p -m ../../data/periodic-hexagon.mesh -p 0 -rp 1 -s 11 -dt 0.0009 -vs 25
-//    mpirun -np 4 ex9p -m ../../data/periodic-hexagon.mesh -p 0 -rp 1 -s 13 -dt 0.005 -vs 15
-//    mpirun -np 4 ex9p -m ../../data/amr-quad.mesh         -p 1 -rp 1 -s 13 -dt 0.001 -tf 9
-//    mpirun -np 4 ex9p -m ../../data/star-q3.mesh          -p 1 -rp 1 -s 13 -dt 0.0025 -tf 9
-//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh       -p 1 -rp 2 -s 11 -dt 0.0025 -tf 9
-//    mpirun -np 4 ex9p -m ../../data/periodic-cube.mesh    -p 0 -rp 1 -s 12 -dt 0.01 -tf 8 -o 2
+//    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -p 1 -rp 1 -s 1 -dt 0.0025
+//    mpirun -np 4 ex9p -m ../../data/periodic-square.mesh  -p 1 -rp 1 -s 2 -dt 0.0025 -tf 9
+//    mpirun -np 4 ex9p -m ../../data/periodic-hexagon.mesh -p 0 -rp 1 -s 1 -dt 0.0009 -vs 25
+//    mpirun -np 4 ex9p -m ../../data/periodic-hexagon.mesh -p 0 -rp 1 -s 3 -dt 0.005 -vs 15
+//    mpirun -np 4 ex9p -m ../../data/amr-quad.mesh         -p 1 -rp 1 -s 3 -dt 0.001 -tf 9
+//    mpirun -np 4 ex9p -m ../../data/star-q3.mesh          -p 1 -rp 1 -s 3 -dt 0.0025 -tf 9
+//    mpirun -np 4 ex9p -m ../../data/disc-nurbs.mesh       -p 1 -rp 2 -s 1 -dt 0.0025 -tf 9
+//    mpirun -np 4 ex9p -m ../../data/periodic-cube.mesh    -p 0 -rp 1 -s 2 -dt 0.01 -tf 8 -o 2
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - CVODE (adaptive order) implicit,\n\t"
+                  "ODE solver: 1 - CVODE (adaptive order) implicit Adams,\n\t"
                   "            2 - ARKODE default (4th order) explicit,\n\t"
                   "            3 - ARKODE RK8.");
    args.AddOption(&t_final, "-tf", "--t-final",
@@ -348,7 +348,6 @@ int main(int argc, char *argv[])
            MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSetTableNum()");
          }
          ode_solver = arkode; break;
-         break;
    }
 
    // 10. Perform time-integration (looping over the time iterations, ti,
