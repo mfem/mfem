@@ -18,8 +18,11 @@ requires an MPI C++ compiler, as well as the following external libraries:
 - METIS (a family of multilevel partitioning algorithms)
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
 
-The hypre dependency can be git cloned from the above LLNL repository which
-contains the latest versions of hypre.
+The hypre dependency can be downloaded as a tarball from GitHub or from the
+project webpage https://www.llnl.gov/casc/hypre. For example, the 2.16.0 release
+of hypre is available at
+
+   https://github.com/hypre-space/hypre/archive/v2.16.0.tar.gz
 
 The METIS dependency can be disabled but that is not generally recommended, see
 the option MFEM_USE_METIS.
@@ -386,7 +389,7 @@ directory and use the string @MFEM_DIR@, e.g. HYPRE_OPT = -I@MFEM_DIR@/../hypre.
 The specific libraries and their options are:
 
 - HYPRE, required for the parallel build, i.e. when MFEM_USE_MPI = YES.
-  URL: https://github.com/hypre-space/hypre
+  URL: https://github.com/hypre-space/hypre and https://www.llnl.gov/casc/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
