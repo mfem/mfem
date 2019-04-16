@@ -204,6 +204,10 @@ protected:
    // The implementations of these methods are in mesh_readers.cpp.
    void ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved);
    void ReadLineMesh(std::istream &input);
+   void ProcessBoundaryElements(std::vector<Element*> &elements_0D,
+                                 std::vector<Element*> &elements_1D,
+                                 std::vector<Element*> &elements_2D,
+                                 std::vector<Element*> &elements_3D);
    void ReadNetgen2DMesh(std::istream &input, int &curved);
    void ReadNetgen3DMesh(std::istream &input);
    void ReadNetgenSurfaceMesh(std::istream &input);
@@ -213,15 +217,10 @@ protected:
                     bool &finalize_topo);
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
-
    void ReadGmshV2(std::istream &input, int binary);
    void ReadGmshV4(std::istream &input, int binary);
    void ReadGmshV41(std::istream &input, int binary);
    void ReadGmshMesh(std::istream &input);
-   void ReadGmshBoundaryElements(std::vector<Element*> &elements_0D,
-                                 std::vector<Element*> &elements_1D,
-                                 std::vector<Element*> &elements_2D,
-                                 std::vector<Element*> &elements_3D);
    void ReadGmshEntityMap(std::istream &input, std::map<int,int> &entityMap, unsigned long numEntities, bool needBrep, bool v41, bool binary); 
    static const int nodes_of_gmsh_element[29];
    inline static int NodesOfGmshElement(int eleType);

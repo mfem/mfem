@@ -276,11 +276,13 @@ void Mesh::ReadNetgenVol(std::istream &input)
    int geomtype;
 
    int numEdges, numSurfaces, numVolumes;
-   const int edgeEleNodes = 2;
-   const int surfEleNodes = 3;
-   const int volEleNodes = 4;
+   const int edgeEleNodes = 2; 
+   const int surfEleNodesMax = 4; // Surface elements can be a mix of tri/quads
+   const int volEleNodes = 4; // Volume elements are assumed tets
    
    vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
+
+   cerr << "Processing netgen .vol format" << endl;
 
    // Next line should be "dimension"
    getline(input,buff);
@@ -297,9 +299,9 @@ void Mesh::ReadNetgenVol(std::istream &input)
       std::size_t found = buff.find("surfaceelements");
       if(found!=std::string::npos)
       {
-         vector<int> vert_indices(surfEleNodes);
+         vector<int> vert_indices(surfEleNodesMax);
          // Following the field layout for surfaceelements
-         int surfnr, bcnr, domin, domout, np, p1, p2, p3;
+         int surfnr, bcnr, domin, domout, np;
          getline(input,buff);
          input >> numSurfaces;
          cerr << "Num Surfaces: " << numSurfaces << endl;
@@ -307,15 +309,35 @@ void Mesh::ReadNetgenVol(std::istream &input)
          for(int i=0; i < numSurfaces; ++i)
          {
             getline(input,buff);
-            input >> surfnr >> bcnr >> domin >> domout >> np >> p1 >> p2 >> p3;
-            MFEM_ASSERT(np == 3, "incorrect number of points for surface element");
-            vert_indices[0] = p1-1;
-            vert_indices[1] = p2-1;
-            vert_indices[2] = p3-1;
-            elements_2D.push_back(
-                  new Triangle(&vert_indices[0], bcnr));
-         }
-      }
+            input >> surfnr >> bcnr >> domin >> domout >> np;
+
+            for(int vi=0; vi < np; ++vi)
+            {
+               input >> vert_indices[vi];
+               vert_indices[vi]--;
+            }
+
+            switch(np)
+            {
+               case 3: // 3-node triangle
+               {
+                  elements_2D.push_back(
+                     new Triangle(&vert_indices[0], bcnr));
+                  break;
+               }
+               case 4: // 4-node quadrangle
+               {
+                  elements_2D.push_back(
+                     new Quadrilateral(&vert_indices[0], bcnr));
+                  break;
+               }
+               default: // any other element
+                  MFEM_WARNING("Unsupported netgen surface element type.");
+                  break;
+
+            } // switch number of points np
+         } // for numSurfaces
+      } // if search for surfaceelements
 
       if(buff == "volumeelements")
       {
@@ -338,9 +360,8 @@ void Mesh::ReadNetgenVol(std::istream &input)
             vert_indices[3] = p2-1;
             elements_3D.push_back(
                   new Tetrahedron(&vert_indices[0], matnr));
-         }
-         
-      }
+         } // for numVolumes
+      } //if volumeelements
 
       if(buff == "edgesegmentsgi2")
       {
@@ -359,9 +380,8 @@ void Mesh::ReadNetgenVol(std::istream &input)
             vert_indices[1] = p2-1;
             elements_1D.push_back(
                   new Segment(&vert_indices[0], surfid));
-         }
-         
-      }
+         } // for numEdges
+      } // if edgesegmentsgi2 
 
       if(buff == "points")
       {
@@ -379,80 +399,15 @@ void Mesh::ReadNetgenVol(std::istream &input)
                input >> coord[ci];
             }
             vertices[i] = Vertex(coord, netgen_dim);
-         }
-      }
+         } // for NumOfVertices
+      } // if points
 
-   }
+   } // while input
 
-   spaceDim = 3;
-
-   if (!elements_3D.empty())
-   {
-      Dim = 3;
-      NumOfElements = elements_3D.size();
-      elements.SetSize(NumOfElements);
-      for (int el = 0; el < NumOfElements; ++el)
-      {
-         elements[el] = elements_3D[el];
-      }
-      NumOfBdrElements = elements_2D.size();
-      boundary.SetSize(NumOfBdrElements);
-      for (int el = 0; el < NumOfBdrElements; ++el)
-      {
-         boundary[el] = elements_2D[el];
-      }
-      // discard other elements
-      for (size_t el = 0; el < elements_1D.size(); ++el)
-      {
-         delete elements_1D[el];
-      }
-      for (size_t el = 0; el < elements_0D.size(); ++el)
-      {
-         delete elements_0D[el];
-      }
-   }
-   else if (!elements_2D.empty())
-   {
-      Dim = 2;
-      NumOfElements = elements_2D.size();
-      elements.SetSize(NumOfElements);
-      for (int el = 0; el < NumOfElements; ++el)
-      {
-         elements[el] = elements_2D[el];
-      }
-      NumOfBdrElements = elements_1D.size();
-      boundary.SetSize(NumOfBdrElements);
-      for (int el = 0; el < NumOfBdrElements; ++el)
-      {
-         boundary[el] = elements_1D[el];
-      }
-      // discard other elements
-      for (size_t el = 0; el < elements_0D.size(); ++el)
-      {
-         delete elements_0D[el];
-      }
-   }
-   else if (!elements_1D.empty())
-   {
-      Dim = 1;
-      NumOfElements = elements_1D.size();
-      elements.SetSize(NumOfElements);
-      for (int el = 0; el < NumOfElements; ++el)
-      {
-         elements[el] = elements_1D[el];
-      }
-      NumOfBdrElements = elements_0D.size();
-      boundary.SetSize(NumOfBdrElements);
-      for (int el = 0; el < NumOfBdrElements; ++el)
-      {
-         boundary[el] = elements_0D[el];
-      }
-   }
-   else
-   {
-      MFEM_ABORT("Netgen .vol file : no elements found");
-      return;
-   }
+   ProcessBoundaryElements(elements_0D,
+                           elements_1D,
+                           elements_2D,
+                           elements_3D);
 }
 
 void Mesh::ReadTrueGridMesh(std::istream &input)
@@ -1138,7 +1093,7 @@ const int Mesh::nodes_of_gmsh_element[29] =
 
 
 
-void Mesh::ReadGmshBoundaryElements(std::vector<Element*> &elements_0D,
+void Mesh::ProcessBoundaryElements(std::vector<Element*> &elements_0D,
                                     std::vector<Element*> &elements_1D,
                                     std::vector<Element*> &elements_2D,
                                     std::vector<Element*> &elements_3D)
@@ -1209,7 +1164,7 @@ void Mesh::ReadGmshBoundaryElements(std::vector<Element*> &elements_0D,
    }
    else
    {
-      MFEM_ABORT("Gmsh file : no elements found");
+      MFEM_ABORT("No elements found");
       return;
    }
 }
@@ -1623,7 +1578,7 @@ void Mesh::ReadGmshV4(std::istream &input, int binary)
             } // for numElements
          } // for entityBlock
 
-         ReadGmshBoundaryElements(elements_0D,
+         ProcessBoundaryElements(elements_0D,
                                   elements_1D,
                                   elements_2D,
                                   elements_3D);
@@ -1942,7 +1897,7 @@ void Mesh::ReadGmshV41(std::istream &input, int binary)
             } // for numElements
          } // for entityBlock
 
-         ReadGmshBoundaryElements(elements_0D,
+         ProcessBoundaryElements(elements_0D,
                                   elements_1D,
                                   elements_2D,
                                   elements_3D);
@@ -2219,7 +2174,7 @@ void Mesh::ReadGmshV2(std::istream &input, int binary)
             } // el (all elements)
          } // if ASCII
 
-         ReadGmshBoundaryElements(elements_0D,
+         ProcessBoundaryElements(elements_0D,
                                   elements_1D,
                                   elements_2D,
                                   elements_3D);
