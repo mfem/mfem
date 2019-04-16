@@ -61,13 +61,6 @@ namespace mfem
       for given b, y, t and gamma, where gamma is a scaled time step. */
   class SundialsODELinearSolver
   {
-  private:
-    TimeDependentOperator *oper;
-
-  protected:
-    SundialsODELinearSolver() : oper(NULL) { }
-    virtual ~SundialsODELinearSolver();
-
   public:
     /** Setup the ODE linear system A(y,t) = (I - gamma J) or A = (M - gamma J)
         @param[in]  t     The time at which A(y,t)  should be evaluated
@@ -80,7 +73,7 @@ namespace mfem
                           double gamma)
     {
       mfem_error("SundialsODELinearSolver::ODELinSys() is not overridden!");
-      return(1);
+      return(-1);
     }
 
     /** Setup the ODE Mass matrix system M
@@ -88,7 +81,7 @@ namespace mfem
     virtual int ODEMassSys(double t)
     {
       mfem_error("SundialsODELinearSolver::ODEMassSys() is not overridden!");
-      return(1);
+      return(-1);
     }
 
     /** Initialize the linear solver (optional) */
