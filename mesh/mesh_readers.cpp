@@ -270,19 +270,19 @@ void Mesh::ReadNetgenSurfaceMesh(std::istream &input)
    MFEM_ABORT("ReadNetgenSurfaceMesh not yet supported!");
 }
 
-void Mesh::ReadNetgenVol(std::istream &input)
+void Mesh::ReadNetgenVol(std::istream &input, int &curved)
 {
    string buff;
    int geomtype;
 
    int numEdges, numSurfaces, numVolumes;
    const int edgeEleNodes = 2; 
-   const int surfEleNodesMax = 4; // Surface elements can be a mix of tri/quads
+   const int surfEleNodesMax = 8; // Surface elements can be a mix of tri/quads or 2nd order variants
    const int volEleNodes = 4; // Volume elements are assumed tets
    
    vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
 
-   cerr << "Processing netgen .vol format" << endl;
+   cerr << "Processing Netgen .vol format" << endl;
 
    // Next line should be "dimension"
    getline(input,buff);
@@ -302,6 +302,7 @@ void Mesh::ReadNetgenVol(std::istream &input)
          vector<int> vert_indices(surfEleNodesMax);
          // Following the field layout for surfaceelements
          int surfnr, bcnr, domin, domout, np;
+         bool warn_2nd_order = false;
          getline(input,buff);
          input >> numSurfaces;
          cerr << "Num Surfaces: " << numSurfaces << endl;
@@ -310,6 +311,16 @@ void Mesh::ReadNetgenVol(std::istream &input)
          {
             getline(input,buff);
             input >> surfnr >> bcnr >> domin >> domout >> np;
+            if(np > 4)
+            {
+               if(! warn_2nd_order)
+               {
+                  MFEM_WARNING("2nd order elements detected; only processing first order");
+                  warn_2nd_order = true;
+               }
+               //curved=1; // for curved either need to load into grid function or define vertices and nodes -- currently unsupported
+               curved=0; // force linear elemnets
+            }
 
             for(int vi=0; vi < np; ++vi)
             {
@@ -320,12 +331,14 @@ void Mesh::ReadNetgenVol(std::istream &input)
             switch(np)
             {
                case 3: // 3-node triangle
+               case 6: // Quadratic   
                {
                   elements_2D.push_back(
                      new Triangle(&vert_indices[0], bcnr));
                   break;
                }
                case 4: // 4-node quadrangle
+               case 8: // quadratic
                {
                   elements_2D.push_back(
                      new Quadrilateral(&vert_indices[0], bcnr));

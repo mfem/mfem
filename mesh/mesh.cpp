@@ -2981,7 +2981,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    }   
    else if (mesh_type == "mesh3d")
    {
-      ReadNetgenVol(input);
+      ReadNetgenVol(input,curved);
    }
    else if (mesh_type == "TrueGrid")
    {

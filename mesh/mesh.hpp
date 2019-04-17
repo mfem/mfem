@@ -211,7 +211,7 @@ protected:
    void ReadNetgen2DMesh(std::istream &input, int &curved);
    void ReadNetgen3DMesh(std::istream &input);
    void ReadNetgenSurfaceMesh(std::istream &input);
-   void ReadNetgenVol(std::istream &input);
+   void ReadNetgenVol(std::istream &input, int &curved);
    void ReadTrueGridMesh(std::istream &input);
    void ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                     bool &finalize_topo);
