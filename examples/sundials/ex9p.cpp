@@ -150,19 +150,14 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
    // check for vaild ODE solver option
-   switch (ode_solver_type)
+   if (ode_solver_type < 1 || ode_solver_type > 3)
    {
-      case 1:
-      case 2:
-      case 3:
-        break;
-      default:
-         if (myid == 0)
-         {
-            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         }
-         MPI_Finalize();
-         return 3;
+     if (myid == 0)
+     {
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+     }
+     MPI_Finalize();
+     return 3;
    }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
