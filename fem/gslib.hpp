@@ -52,12 +52,22 @@ public:
    void gslib_findpts_setup(Mesh &mesh, double bb_t,
                             double newt_tol, int npt_max);
 
-//    finds r,s,t,e,p for given x,y,z
-      void gslib_findpts(Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,
-           Vector *pr,Vector *pd,Vector *xp, Vector *yp, Vector *zp, int nxyz);
-//    xyz is a single Vector
-      void gslib_findpts(Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,
-           Vector *pr,Vector *pd,Vector *xyzp, int nxyz);
+   /** Searches positions given in physical space by @a point_pos. All output
+       Arrays and Vectors are expected to have the correct size.
+
+       @param[in]  point_pos  Positions to be found. Must by ordered by nodes
+                              (XXX...,YYY...,ZZZ).
+       @param[out] codes      Return codes for each point: inside element (0),
+                              element boundary (1), not found (2).
+       @param[out] proc_ids   MPI proc ids where the points were found.
+       @param[out] elem_ids   Element ids where the points were found.
+       @param[out] ref_pos    Reference coordinates of the found point. Ordered
+                              by vdim (XYZ,XYZ,XYZ...).
+       @param[out] dist       Distance between the seeked and the found point
+                              in physical space. */
+   void gslib_findpts(Vector &point_pos, Array<uint> &codes,
+                      Array<uint> &proc_ids, Array<uint> &elem_ids,
+                      Vector &ref_pos, Vector &dist);
 
 //    Interpolates fieldin for given r,s,t,e,p and puts it in fieldout
       void gslib_findpts_eval (Vector *fieldout,Array<uint> *pcode,Array<uint> *pproc,
