@@ -262,6 +262,8 @@ int main(int argc, char *argv[])
 
    ParLinearForm *b = new ParLinearForm(fes);
    b->AddBdrFaceIntegrator(
+      new DGDirichletLFIntegrator(u0, diff_coef, sigma, kappa));
+   b->AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
    a->Assemble();
