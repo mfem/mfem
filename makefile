@@ -397,7 +397,7 @@ $(EXTRA_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 all: examples miniapps $(TEST_DIRS)
 
 .PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
-miniapps: $(MINIAPP_DIRS)
+miniapps: lib-extras $(MINIAPP_DIRS)
 $(MINIAPP_USE_COMMON): miniapps/common
 $(EM_DIRS) $(TEST_DIRS): lib
 	$(MAKE) -C $(BLD)$(@)
