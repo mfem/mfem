@@ -90,72 +90,44 @@ void findpts_gslib::gslib_findpts_setup(Mesh &mesh, double bb_t,
    }
 }
 
-// findpts - given x,y,z for "nxyz" points, it returns, e,p,r,s,t info
-void findpts_gslib::gslib_findpts(Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,Vector *pr,Vector *pd,Vector *xp,Vector *yp, Vector *zp, int nxyz)
+void findpts_gslib::gslib_findpts(Vector &point_pos, Array<uint> &codes,
+                                  Array<uint> &proc_ids, Array<uint> &elem_ids,
+                                  Vector &ref_pos, Vector &dist)
 {
-   if (dim==2)
+   const int points_cnt = point_pos.Size() / dim;
+   if (dim == 2)
    {
       const double *xv_base[2];
-      xv_base[0]=xp->GetData(), xv_base[1]=yp->GetData();
+      xv_base[0] = point_pos.GetData();
+      xv_base[1] = point_pos.GetData() + points_cnt;
       unsigned xv_stride[2];
-      xv_stride[0] = sizeof(double),xv_stride[1] = sizeof(double);
-      findpts_2(
-               pcode->GetData(),sizeof(uint),
-               pproc->GetData(),sizeof(uint),
-               pel->GetData(),sizeof(uint),
-               pr->GetData(),sizeof(double)*dim,
-               pd->GetData(),sizeof(double),
-               xv_base,     xv_stride,
-               nxyz,this->fda);
+      xv_stride[0] = sizeof(double);
+      xv_stride[1] = sizeof(double);
+      findpts_2(codes.GetData(),sizeof(uint),
+                proc_ids.GetData(),sizeof(uint),
+                elem_ids.GetData(),sizeof(uint),
+                ref_pos.GetData(),sizeof(double) * dim,
+                dist.GetData(),sizeof(double),
+                xv_base, xv_stride,
+                points_cnt, fda);
    }
    else
    {
       const double *xv_base[3];
-      xv_base[0]=xp->GetData(), xv_base[1]=yp->GetData();xv_base[2]=zp->GetData();
+      xv_base[0] = point_pos.GetData();
+      xv_base[1] = point_pos.GetData() + points_cnt;
+      xv_base[2] = point_pos.GetData() + 2*points_cnt;
       unsigned xv_stride[3];
-      xv_stride[0] = sizeof(double),xv_stride[1] = sizeof(double),xv_stride[2] = sizeof(double);
-      findpts_3(
-               pcode->GetData(),sizeof(uint),
-               pproc->GetData(),sizeof(uint),
-               pel->GetData(),sizeof(uint),
-               pr->GetData(),sizeof(double)*dim,
-               pd->GetData(),sizeof(double),
-               xv_base,     xv_stride,
-               nxyz,this->fdb);
-   }
-}
-
-void findpts_gslib::gslib_findpts(Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,Vector *pr,Vector *pd,Vector *xyzp, int nxyz)
-{
-   if (this->dim==2)
-   {
-      const double *xv_base[2];
-      xv_base[0]=xyzp->GetData(), xv_base[1]=xyzp->GetData()+nxyz;
-      unsigned xv_stride[2];
-      xv_stride[0] = sizeof(double),xv_stride[1] = sizeof(double);
-      findpts_2(
-               pcode->GetData(),sizeof(uint),
-               pproc->GetData(),sizeof(uint),
-               pel->GetData(),sizeof(uint),
-               pr->GetData(),sizeof(double)*dim,
-               pd->GetData(),sizeof(double),
-               xv_base,     xv_stride,
-               nxyz,this->fda);
-   }
-   else
-   {
-      const double *xv_base[3];
-      xv_base[0]=xyzp->GetData(), xv_base[1]=xyzp->GetData()+nxyz;xv_base[2]=xyzp->GetData()+2*nxyz;
-      unsigned xv_stride[3];
-      xv_stride[0] = sizeof(double),xv_stride[1] = sizeof(double),xv_stride[2] = sizeof(double);
-      findpts_3(
-               pcode->GetData(),sizeof(uint),
-               pproc->GetData(),sizeof(uint),
-               pel->GetData(),sizeof(uint),
-               pr->GetData(),sizeof(double)*dim,
-               pd->GetData(),sizeof(double),
-               xv_base,     xv_stride,
-               nxyz,this->fdb);
+      xv_stride[0] = sizeof(double);
+      xv_stride[1] = sizeof(double);
+      xv_stride[2] = sizeof(double);
+      findpts_3(codes.GetData(), sizeof(uint),
+                proc_ids.GetData(), sizeof(uint),
+                elem_ids.GetData(), sizeof(uint),
+                ref_pos.GetData(), sizeof(double) * dim,
+                dist.GetData(), sizeof(double),
+                xv_base, xv_stride,
+                points_cnt, fdb);
    }
 }
 

@@ -61,7 +61,8 @@ int main (int argc, char *argv[])
 
    // Mesh bounding box.
    Vector pos_min, pos_max;
-   mesh->GetBoundingBox(pos_min, pos_max, max(mesh_poly_deg, 1));
+   MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be a positive.");
+   mesh->GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
    if (myid == 0)
    {
       std::cout << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n";
@@ -81,7 +82,6 @@ int main (int argc, char *argv[])
    //    elements which are tensor products of quadratic finite elements. The
    //    number of components in the vector finite element space is specified by
    //    the last parameter of the FiniteElementSpace constructor.
-   MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be a positive.");
    FiniteElementCollection *fec = new H1_FECollection(mesh_poly_deg, dim);
    ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
 
@@ -142,18 +142,10 @@ int main (int argc, char *argv[])
    }
 
    findpts_gslib *gsfl = new findpts_gslib(MPI_COMM_WORLD);
-   int start_s = clock();
    const double rel_bbox_el = 0.05;
    const double newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
    gsfl->gslib_findpts_setup(*pmesh, rel_bbox_el, newton_tol, npts_at_once);
-   MPI_Barrier(MPI_COMM_WORLD);
-   int stop_s=clock();
-   if (myid == 0)
-   {
-      cout << "findpts order: " << NR << " \n";
-      cout << "findpts setup time (sec): " << (stop_s-start_s)/1000000. << endl;
-   }
 
    // Generate random points in reference coordinates.
    const int pts_per_el = 10;
@@ -188,32 +180,17 @@ int main (int argc, char *argv[])
    Vector pos_r_out(pts_cnt * dim), dist_p_out(pts_cnt);
    MPI_Barrier(MPI_COMM_WORLD);
 
-   start_s = clock();
    // Finds points stored in vxyz.
-   gsfl->gslib_findpts(&code_out, &task_id_out ,&el_id_out, &pos_r_out,
-                       &dist_p_out, &vxyz, pts_cnt);
-
-   MPI_Barrier(MPI_COMM_WORLD);
-   stop_s = clock();
-
-   if (myid == 0)
-   {
-      cout << "findpts time (sec): " << (stop_s-start_s)/1000000. << endl;
-   }
+   gsfl->gslib_findpts(vxyz, code_out, task_id_out,
+                       el_id_out, pos_r_out, dist_p_out);
 
    // FINDPTS_EVAL
    Vector fout(pts_cnt);
    MPI_Barrier(MPI_COMM_WORLD);
-   start_s=clock();
    // Corresponds to the same points as above (vxyz) -- uses that output.
    // Returns function values in fout.
    // Note that the points where dumfield is defined are the ones given to _setup.
    gsfl->gslib_findpts_eval(&fout, &code_out, &task_id_out, &el_id_out, &pos_r_out, &dumfield, pts_cnt);
-   stop_s=clock();
-   if (myid == 0)
-   {
-      cout << "findpts_eval time (sec): " << (stop_s-start_s)/1000000. << endl;
-   }
    gsfl->gslib_findpts_free();
 
    int nbp = 0, nnpt = 0, nerrh = 0;
