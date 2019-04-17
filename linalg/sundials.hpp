@@ -61,6 +61,10 @@ namespace mfem
       for given b, y, t and gamma, where gamma is a scaled time step. */
   class SundialsODELinearSolver
   {
+  protected:
+    SundialsODELinearSolver() { }
+    virtual ~SundialsODELinearSolver() { }
+
   public:
     /** Setup the ODE linear system A(y,t) = (I - gamma J) or A = (M - gamma J)
         @param[in]  t     The time at which A(y,t)  should be evaluated
@@ -134,7 +138,9 @@ namespace mfem
                           y(NULL), A(NULL), M(NULL), LSA(NULL), LSM(NULL),
                           NLS(NULL) { }
 
-    SundialsODESolver(void *mem) : sundials_mem(mem) { }
+    SundialsODESolver(void *mem) : sundials_mem(mem), flag(0), step_mode(1),
+                          y(NULL), A(NULL), M(NULL), LSA(NULL), LSM(NULL),
+                          NLS(NULL) { }
 
   public:
     /// Access the SUNDIALS memory structure
