@@ -265,7 +265,22 @@ if (MFEM_USE_PUMI)
     set(PUMI_LIBRARIES SCOREC::core)
   endif()
 endif()
+  
+# CUDA
+if (MFEM_USE_CUDA)
+   find_package(CUDA REQUIRED)
+endif()
 
+# OCCA
+if (MFEM_USE_OCCA)
+   find_package(OCCA REQUIRED)
+endif()
+
+# RAJA
+if (MFEM_USE_RAJA)
+   find_package(RAJA REQUIRED)
+endif()
+   
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -291,7 +306,7 @@ endif()
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
     MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
-    POSIXCLOCKS MFEMBacktrace ZLIB)
+    POSIXCLOCKS MFEMBacktrace ZLIB CUDA OCCA RAJA)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
