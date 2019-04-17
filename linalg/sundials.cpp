@@ -44,9 +44,17 @@ namespace mfem
   }
 
   // Return the matrix ID
-  SUNMatrix_ID SUNMatGetID(SUNMatrix A)
+  static SUNMatrix_ID MatGetID(SUNMatrix A)
   {
     return(SUNMATRIX_CUSTOM);
+  }
+
+  static void MatDestroy(SUNMatrix A)
+  {
+    if (A->content) { A->content = NULL; }
+    if (A->ops) { free(A->ops); A->ops = NULL; }
+    free(A); A = NULL;
+    return;
   }
 
   // Create an empty SUNMatrix <<<<<<< NEED TO ADD
@@ -95,30 +103,38 @@ namespace mfem
   }
 
   // Return the linear solver type
-  static SUNLinearSolver_Type SUNLSGetType(SUNLinearSolver LS)
+  static SUNLinearSolver_Type LSGetType(SUNLinearSolver LS)
   {
     return(SUNLINEARSOLVER_MATRIX_ITERATIVE);
   }
 
   // Initialize the linear solver
-  static int SUNLSInit(SUNLinearSolver LS)
+  static int LSInit(SUNLinearSolver LS)
   {
     return(GetObj(LS)->LSInit());
   }
 
   // Setup the linear solver
-  static int SUNLSSetup(SUNLinearSolver LS, SUNMatrix A)
+  static int LSSetup(SUNLinearSolver LS, SUNMatrix A)
   {
     return(GetObj(LS)->LSSetup());
   }
 
   // Solve the linear system A x = b
-  static int SUNLSSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x, N_Vector b,
-                        realtype tol)
+  static int LSSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x, N_Vector b,
+                     realtype tol)
   {
     Vector mfem_x(x);
     const Vector mfem_b(b);
     return(GetObj(LS)->LSSolve(mfem_x, mfem_b));
+  }
+
+  static int LSFree(SUNLinearSolver LS)
+  {
+    if (LS->content) { LS->content = NULL; }
+    if (LS->ops) { free(LS->ops); LS->ops = NULL; }
+    free(LS); LS = NULL;
+    return(0);
   }
 
   // Create and empty SUNLinearSolver <<<<<<< NEED TO ADD
@@ -320,16 +336,18 @@ namespace mfem
     MFEM_VERIFY(sundials_mem, "error in SUNLinSolEmpty()");
 
     LSA->content         = &ls_spec;
-    LSA->ops->gettype    = SUNLSGetType;
-    LSA->ops->initialize = SUNLSInit;
-    LSA->ops->setup      = SUNLSSetup;
-    LSA->ops->solve      = SUNLSSolve;
+    LSA->ops->gettype    = LSGetType;
+    LSA->ops->initialize = LSInit;
+    LSA->ops->setup      = LSSetup;
+    LSA->ops->solve      = LSSolve;
+    LSA->ops->free       = LSFree;
 
     A = SUNMatEmpty();
     MFEM_VERIFY(sundials_mem, "error in SUNMatEmpty()");
 
-    A->content    = &ls_spec;
-    A->ops->getid = SUNMatGetID;
+    A->content      = &ls_spec;
+    A->ops->getid   = MatGetID;
+    A->ops->destroy = MatDestroy;
 
     // Attach the linear solver and matrix
     flag = CVodeSetLinearSolver(sundials_mem, LSA, A);
@@ -530,16 +548,18 @@ namespace mfem
     MFEM_VERIFY(sundials_mem, "error in SUNLinSolEmpty()");
 
     LSA->content         = &ls_spec;
-    LSA->ops->gettype    = SUNLSGetType;
-    LSA->ops->initialize = SUNLSInit;
-    LSA->ops->setup      = SUNLSSetup;
-    LSA->ops->solve      = SUNLSSolve;
+    LSA->ops->gettype    = LSGetType;
+    LSA->ops->initialize = LSInit;
+    LSA->ops->setup      = LSSetup;
+    LSA->ops->solve      = LSSolve;
+    LSA->ops->free       = LSFree;
 
     A = SUNMatEmpty();
     MFEM_VERIFY(sundials_mem, "error in SUNMatEmpty()");
 
-    A->content    = &ls_spec;
-    A->ops->getid = SUNMatGetID;
+    A->content      = &ls_spec;
+    A->ops->getid   = MatGetID;
+    A->ops->destroy = MatDestroy;
 
     // Attach the linear solver and matrix
     flag = ARKStepSetLinearSolver(sundials_mem, LSA, A);
@@ -566,16 +586,18 @@ namespace mfem
     MFEM_VERIFY(sundials_mem, "error in SUNLinSolEmpty()");
 
     LSM->content         = &ls_spec;
-    LSM->ops->gettype    = SUNLSGetType;
-    LSM->ops->initialize = SUNLSInit;
-    LSM->ops->setup      = SUNLSSetup;
-    LSM->ops->solve      = SUNLSSolve;
+    LSM->ops->gettype    = LSGetType;
+    LSM->ops->initialize = LSInit;
+    LSM->ops->setup      = LSSetup;
+    LSM->ops->solve      = LSSolve;
+    LSA->ops->free       = LSFree;
 
     M = SUNMatEmpty();
     MFEM_VERIFY(sundials_mem, "error in SUNMatEmpty()");
 
-    M->content    = &ls_spec;
-    M->ops->getid = SUNMatGetID;
+    M->content      = &ls_spec;
+    M->ops->getid   = SUNMatGetID;
+    M->ops->destroy = MatDestroy;
 
     // Attach the linear solver and matrix
     flag = ARKStepSetMassLinearSolver(sundials_mem, LSM, M, tdep);
