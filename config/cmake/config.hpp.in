@@ -30,6 +30,12 @@
 #define MFEM_VERSION_MINOR (((MFEM_VERSION)/100)%100)
 #define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
 
+// MFEM source directory.
+#cmakedefine MFEM_SOURCE_DIR "@MFEM_SOURCE_DIR@"
+
+// MFEM install directory.
+#cmakedefine MFEM_INSTALL_DIR "@CMAKE_INSTALL_PREFIX@"
+
 // Description of the git commit used to build MFEM.
 #cmakedefine MFEM_GIT_STRING "@MFEM_GIT_STRING@"
 
@@ -103,6 +109,9 @@
 
 // Enable MFEM functionality based on the PUMI library
 #cmakedefine MFEM_USE_PUMI
+
+// Enable MFEM memory manager
+#cmakedefine MFEM_USE_MM
 
 // Enable MFEM functionality based on the CUDA library
 #cmakedefine MFEM_USE_CUDA
