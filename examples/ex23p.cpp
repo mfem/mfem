@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
    int order = 3;
    int ode_solver_type = 3;
    double t_final = 10.0;
-   double d_coef = 0.1;
+   double d_coef = 0.01;
    double dt = 0.01;
    double sigma = -1.0;
    double kappa = -1.0;
