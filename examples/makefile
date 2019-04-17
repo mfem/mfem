@@ -117,7 +117,7 @@ clean-build:
 
 clean-exec:
 	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh
-	@rm -rf Example5* Example9* Example15* Example16*
+	@rm -rf Example5* Example9* Example15* Example16* Example23*
 	@rm -f sphere_refined.* sol.* sol_u.* sol_p.*
 	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
 	@rm -f deformed.* velocity.* elastic_energy.* mode_*
@@ -126,3 +126,4 @@ clean-exec:
 	@rm -f deformation.* pressure.*
 	@rm -f ex20.dat ex20p_?????.dat gnuplot_ex20.inp gnuplot_ex20p.inp
 	@rm -f ex22*.mesh ex22*.sol ex22p_*.*
+	@rm -f ex23.mesh ex23-mesh.* ex23-init.* ex23-final.*

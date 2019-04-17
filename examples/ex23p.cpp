@@ -279,8 +279,8 @@ int main(int argc, char *argv[])
 
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "ex9-mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "ex9-init." << setfill('0') << setw(6) << myid;
+      mesh_name << "ex23-mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "ex23-init." << setfill('0') << setw(6) << myid;
       ofstream omesh(mesh_name.str().c_str());
       omesh.precision(precision);
       pmesh->Print(omesh);
@@ -297,14 +297,14 @@ int main(int argc, char *argv[])
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example9-Parallel", pmesh);
+         dc = new SidreDataCollection("Example23-Parallel", pmesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc = new VisItDataCollection("Example9-Parallel", pmesh);
+         dc = new VisItDataCollection("Example23-Parallel", pmesh);
          dc->SetPrecision(precision);
          // To save the mesh using MFEM's parallel mesh format:
          // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
@@ -390,11 +390,11 @@ int main(int argc, char *argv[])
    }
 
    // 12. Save the final solution in parallel. This output can be viewed later
-   //     using GLVis: "glvis -np <np> -m ex9-mesh -g ex9-final".
+   //     using GLVis: "glvis -np <np> -m ex23-mesh -g ex23-final".
    {
       *u = *U;
       ostringstream sol_name;
-      sol_name << "ex9-final." << setfill('0') << setw(6) << myid;
+      sol_name << "ex23-final." << setfill('0') << setw(6) << myid;
       ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
       u->Save(osol);
