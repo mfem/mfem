@@ -63,6 +63,7 @@ public:
        @param[out] elem_ids   Element ids where the points were found.
        @param[out] ref_pos    Reference coordinates of the found point. Ordered
                               by vdim (XYZ,XYZ,XYZ...).
+                              Note: the gslib reference frame is [-1,1].
        @param[out] dist       Distance between the seeked and the found point
                               in physical space. */
    void gslib_findpts(Vector &point_pos, Array<uint> &codes,
