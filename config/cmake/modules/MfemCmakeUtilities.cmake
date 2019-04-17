@@ -826,14 +826,7 @@ function(mfem_export_mk_files)
       set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}")
     endif()
   endforeach()
-  # Update variables for CUDA build
-  if ("${MFEM_USE_CUDA}" STREQUAL "YES")
-      set(MFEM_USE_MM "YES")
-      set(MFEM_CXX "nvcc")
-      set(CUDA_ARCH "sm_60")
-      set(CUDA_FLAGS "-x=cu --expt-extended-lambda -arch=${CUDA_ARCH}")
-      set(CMAKE_CXX_FLAGS_RELEASE "-O3 ${CUDA_FLAGS} -ccbin g++" CACHE STRING "CXX compiler flags during RELEASE builds." FORCE)
-  endif()
+
   # Create the build-tree version of 'config.mk'
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"

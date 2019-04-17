@@ -62,11 +62,7 @@ option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
 # autodetected C++ compiler.
 # set(CXX g++)
 # set(MPICXX mpicxx)
-if (MFEM_USE_CUDA)
-   set(CXX nvcc)
-   set(CMAKE_CXX_COMPILER_WORKS 1)
-endif()
-   
+
 set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # The *_DIR paths below will be the first place searched for the corresponding

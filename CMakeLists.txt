@@ -86,6 +86,13 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 
 # Enable languages.
 enable_language(CXX)
+if (MFEM_USE_CUDA)
+   # MFEM_USE_CUDA uses CMake 3.8 version that supports CUDA
+   # as a language that can be enabled enable_language()
+   cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+   enable_language(CUDA)
+endif()
+
 if (XSDK_ENABLE_C)
    enable_language(C)
 endif()
@@ -268,17 +275,29 @@ endif()
   
 # CUDA
 if (MFEM_USE_CUDA)
-   find_package(CUDA REQUIRED)
+   set(CUDA_ARCH "sm_60")
+   set(CMAKE_CUDA_FLAGS
+       "-arch=${CUDA_ARCH} --expt-extended-lambda -ccbin ${CMAKE_CXX_COMPILER}"
+       CACHE STRING "CUDA flags set for MFEM" FORCE)
+   set(MFEM_USE_MM YES CACHE BOOL "Use MFEM memory manager with CUDA")
 endif()
 
 # OCCA
 if (MFEM_USE_OCCA)
-   find_package(OCCA REQUIRED)
+   mfem_find_package(OCCA OCCA OCCA_DIR
+                     "include" occa.hpp
+                     "lib" occa
+                     "Paths to headers required by OCCA."
+                     "Libraries required by OCCA.")
 endif()
 
 # RAJA
 if (MFEM_USE_RAJA)
-   find_package(RAJA REQUIRED)
+   mfem_find_package(RAJA RAJA RAJA_DIR
+                     "include" RAJA/RAJA.hpp
+                     "lib" RAJA
+                     "Paths to headers required by RAJA."
+                     "Libraries required by RAJA.")
 endif()
    
 # MFEM_TIMER_TYPE
@@ -342,6 +361,13 @@ set(MFEM_SOURCE_DIRS general linalg mesh fem)
 foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
   add_subdirectory(${DIR})
 endforeach()
+
+if (MFEM_USE_CUDA)
+   foreach(file IN LISTS SOURCES)
+      set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
+   endforeach()
+endif()
+  
 add_subdirectory(config)
 set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
@@ -351,6 +377,9 @@ set(_lib_path "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
 set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
 set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
+
+set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH "" FORCE)
+set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH "" FORCE)
 
 # Declaring the library
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
