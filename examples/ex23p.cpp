@@ -13,20 +13,26 @@
 //    mpirun -np 4 ex23p -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
+//    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 3 -rp 1 -dt 0.005 -tf 9 -d 0.05
 //    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
 //    mpirun -np 4 ex23p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
 //
-// Description:  This example code solves the time-dependent advection equation
-//               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
+// Description:  This example code solves the time-dependent advection-diffusion
+//               equation
+//               du/dt - div(D grad(u)) + v.grad(u) = 0, where
+//               D is a diffusion coefficient,
+//               v is a given fluid velocity, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of explicit
+//               bilinear forms in MFEM (face integrators), the use of implicit
 //               ODE time integrators, the definition of periodic boundary
 //               conditions through periodic meshes, as well as the use of GLVis
 //               for persistent visualization of a time-evolving solution. The
 //               saving of time-dependent data files for external visualization
 //               with VisIt (visit.llnl.gov) is also illustrated.
+//
+//               This example is a merger of examples 9 and 14.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -53,10 +59,12 @@ Vector bb_min, bb_max;
 
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
-    form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
-    and advection matrices, and b describes the flow on the boundary. This can
-    be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
-    used to evaluate the right-hand side. */
+    form of du/dt = div(D grad(u))-v.grad(u) is
+    (M + dt S) du/dt = - S u + K u + b, where M, S, and K are the mass,
+    stiffness, and advection matrices, and b describes the flow on the boundary.
+    This can be written as a general ODE,
+    du/dt = (M + dt S)^{-1} (-S u + K u + b), and this class is
+    used to perform the implicit solve for du/dt. */
 class FE_Evolution : public TimeDependentOperator
 {
 private:
