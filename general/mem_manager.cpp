@@ -118,6 +118,7 @@ private:
    
    static void MmuError(int sig, siginfo_t *si, void *unused)
    {
+#ifndef _WIN32
       fflush(0);
       char str[64];
       void *ptr = si->si_addr;
@@ -128,15 +129,18 @@ private:
       sprintf(str, format, ptr);
       mfem::out << std::endl << "A illegal memory access was made!";
       MFEM_ABORT(str);
+#endif
    }
 public:
    MMUMemoryController(): MemoryController() {
+#ifndef _WIN32
       struct sigaction mmu_sa;
       mmu_sa.sa_flags = SA_SIGINFO;
       sigemptyset(&mmu_sa.sa_mask);
       mmu_sa.sa_sigaction = MmuError;
       if (sigaction(SIGBUS, &mmu_sa, NULL) == -1) { mfem_error("SIGBUS"); }
       if (sigaction(SIGSEGV, &mmu_sa, NULL) == -1) { mfem_error("SIGSEGV"); }
+#endif
    }
 
    void *MemAlloc(void **dptr, const std::size_t bytes) {
