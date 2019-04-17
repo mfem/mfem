@@ -718,7 +718,8 @@ function(mfem_export_mk_files)
       MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE
       MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GECKO MFEM_USE_GNUTLS
       MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
-      MFEM_USE_CONDUIT MFEM_USE_PUMI)
+      MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_MM MFEM_USE_CUDA
+      MFEM_USE_OCCA MFEM_USE_RAJA)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)
@@ -825,7 +826,14 @@ function(mfem_export_mk_files)
       set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}")
     endif()
   endforeach()
-
+  # Update variables for CUDA build
+  if ("${MFEM_USE_CUDA}" STREQUAL "YES")
+      set(MFEM_USE_MM "YES")
+      set(MFEM_CXX "nvcc")
+      set(CUDA_ARCH "sm_60")
+      set(CUDA_FLAGS "-x=cu --expt-extended-lambda -arch=${CUDA_ARCH}")
+      set(CMAKE_CXX_FLAGS_RELEASE "-O3 ${CUDA_FLAGS} -ccbin g++" CACHE STRING "CXX compiler flags during RELEASE builds." FORCE)
+  endif()
   # Create the build-tree version of 'config.mk'
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"
