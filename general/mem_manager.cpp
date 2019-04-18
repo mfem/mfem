@@ -182,14 +182,12 @@ public:
    { return Memcpy(dst, src, bytes); }
 
    void MemEnable(const void *ptr, const std::size_t bytes) {
-      //if (MmDeviceIniFilter()) { return; }
 #ifndef _WIN32
       mprotect(const_cast<void*>(ptr), bytes, PROT_READ | PROT_WRITE);
 #endif
    }
    
    void MemDisable(const void *ptr, const std::size_t bytes) {
-      //if (MmDeviceIniFilter()) { return; }
 #ifndef _WIN32
       mprotect(const_cast<void*>(ptr), bytes, PROT_NONE);
 #endif
@@ -238,14 +236,11 @@ public:
 #ifdef MFEM_USE_CUDA
 static internal::CUDAMemorySpace ctrl;
 #else
-#if defined(MFEM_USE_MM) && defined(MFEM_DEBUG)
 static internal::DefaultMemorySpace ctrl;
-#else
-static internal::DefaultMemorySpace ctrl;
-#endif
 #endif // MFEM_USE_CUDA
 
 #if defined(MFEM_USE_MM) && defined(MFEM_DEBUG)
+#warning MMU
 static internal::MMUMemorySpace host_ctrl;
 #else
 static internal::DefaultMemorySpace host_ctrl;
@@ -275,14 +270,12 @@ void MemoryManager::MemEnable(const void *ptr, const std::size_t bytes)
 
 void* MemoryManager::Insert(void *ptr, const std::size_t bytes)
 {
-   //printf("\n\033[33m[Insert] >\033[m");fflush(0);
    if (!UsingMM()) { return ptr; }
    const bool known = IsKnown(ptr);
    if (known)
    {
       mfem_error("Trying to add an already present address!");
    }
-   //printf("\n\033[33m[Insert] +%p\033[m",ptr);fflush(0);
    maps->memories.emplace(ptr, internal::Memory(ptr, bytes));
    return ptr;
 }
@@ -296,7 +289,6 @@ void *MemoryManager::Erase(void *ptr)
    {
       mfem_error("Trying to erase an unknown pointer!");
    }
-   //printf("\n\033[33m[Erase] -%p\033[m",ptr);fflush(0);
    internal::Memory &mem = maps->memories.at(ptr);
    if (mem.d_ptr) { ctrl.MemDealloc(mem.d_ptr); }
    for (const void *alias : mem.aliases)

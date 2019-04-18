@@ -118,7 +118,6 @@ int main(int argc, char *argv[])
    //    will be maintained over the AMR iterations. We initialize it to zero.
    GridFunction x(&fespace);
    x = 0.0;
-   x[0] = 0.0;
 
    // 8. All boundary attributes will be used for essential (Dirichlet) BC.
    MFEM_VERIFY(mesh.bdr_attributes.Size() > 0,
