@@ -290,13 +290,13 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
 {
    Ceed ceed(Device::GetCeed());
    const bool dev_enabled = Device::IsEnabled();
-   if (dev_enabled) { Device::Disable(); }
    mfem::Mesh *mesh = fes.GetMesh();
    const int order = fes.GetOrder(0);
    const int ir_order = 2 * (order + 2) - 1; // <-----
    const mfem::IntegrationRule &ir =
    mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
    CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
+   if (dev_enabled) { Device::Disable(); }   
    mesh->EnsureNodes();
    FESpace2Ceed(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
 
@@ -352,7 +352,9 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
    if (ceedData.coeff_type==Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
+      if (dev_enabled) { Device::Disable(); }
       FESpace2Ceed(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis, &ceedCoeff->restr);
+      if (dev_enabled) { Device::Enable(); }
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(), &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
          ceedCoeff->coeff->GetData());
