@@ -102,12 +102,13 @@ static void DeviceSetup(const int dev, int &ngpu)
 {
    cudaGetDeviceCount(&ngpu);
    MFEM_VERIFY(ngpu>0, "No CUDA device found!");
-   cuInit(0);
-   cuDeviceGet(&internal::cuDevice, dev);
-   cuCtxCreate(&internal::cuContext, CU_CTX_SCHED_AUTO, internal::cuDevice);
-   internal::cuStream = new CUstream;
-   MFEM_VERIFY(internal::cuStream, "CUDA stream could not be created!");
-   cuStreamCreate(internal::cuStream, CU_STREAM_DEFAULT);
+   cudaSetDevice(dev);
+   //cuInit(0);
+   //cuDeviceGet(&internal::cuDevice, dev);
+   //cuCtxCreate(&internal::cuContext, CU_CTX_SCHED_AUTO, internal::cuDevice);
+   //internal::cuStream = new CUstream;
+   //MFEM_VERIFY(internal::cuStream, "CUDA stream could not be created!");
+   //cuStreamCreate(internal::cuStream, CU_STREAM_DEFAULT);
 }
 #endif
 
