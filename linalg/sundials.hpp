@@ -125,10 +125,6 @@ namespace mfem
     bool Parallel() const { return false; }
 #endif
 
-    /// Wrapper to compute the ODE Rhs function
-    static int ODERhs(realtype t, const N_Vector y, N_Vector ydot,
-                      void *user_data);
-
     /// Default scalar tolerances
     static constexpr double default_rel_tol = 1e-4;
     static constexpr double default_abs_tol = 1e-9;
@@ -171,6 +167,9 @@ namespace mfem
                         CV_BDF   - implicit methods for stiff systems */
     CVODESolver(MPI_Comm comm, int lmm = CV_BDF);
 #endif
+
+    /// Wrapper to compute the ODE Rhs function
+    static int RHS(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
 
     /// Base class Init -- DO NOT CALL, use the below initialization function
     /// that takes the initial t and x as inputs.
@@ -217,18 +216,24 @@ namespace mfem
 
   class ARKStepSolver : public ODESolver, public SundialsODESolver
   {
-  protected:
-    bool use_implicit;
-    int  irk_table, erk_table;
+  private:
+    /// Utility function for creating ARKStep
+    void Create(double &t, Vector &x);
 
   public:
     /// Types of ARKODE solvers.
-    enum Type { EXPLICIT, IMPLICIT };
+    enum Type { EXPLICIT, IMPLICIT, IMEX };
 
+  protected:
+    bool use_implicit; /* true for implicit or imex integration */
+    Type rk_type;
+
+  public:
     /** Construct a serial wrapper to SUNDIALS' ARKode integrator
         @param[in] type Specifies the RK method type
                         EXPLICIT - explicit RK method
-                        IMPLICIT - implicit RK method */
+                        IMPLICIT - implicit RK method
+                        IMEX     - implicit-explicit ARK method */
     ARKStepSolver(Type type = EXPLICIT);
 
 #ifdef MFEM_USE_MPI
@@ -236,21 +241,39 @@ namespace mfem
         @param[in] comm The MPI communicator used to partition the ODE system
         @param[in] type Specifies the RK method type
                         EXPLICIT - explicit RK method
-                        IMPLICIT - implicit RK method */
+                        IMPLICIT - implicit RK method
+                        IMEX     - implicit-explicit ARK method */
     ARKStepSolver(MPI_Comm comm, Type type = EXPLICIT);
 #endif
+
+    /// Wrappers to compute the ODE Rhs functions. RHS1 is explicit RHS and RHS2
+    /// the implicit RHS for IMEX integration. When purely implicit or explicit
+    /// only RHS1 is used.
+    static int RHS1(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
+    static int RHS2(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
 
     /// Base class Init -- DO NOT CALL, use the below initialization function
     /// that takes the initial t and x as inputs.
     virtual void Init(TimeDependentOperator &f_);
 
-    /** Initialize ARKode: Calls ARKStepInit() and sets some defaults.
+    /** Initialize ARKode: Calls ARKStepInit() for explicit or implicit problems
+        and sets some defaults.
         @param[in] f_ the TimeDependentOperator that defines the ODE system
         @param[in] t  the initial time
         @param[in] x  the initial condition
 
         @note All other methods must be called after Init(). */
     void Init(TimeDependentOperator &f_, double &t, Vector &x);
+
+    /** Initialize ARKode: Calls ARKStepInit() for IMEX problems and sets some
+        defaults.
+        @param[in] f_ the TimeDependentOperator that defines the ODE system
+        @param[in] t  the initial time
+        @param[in] x  the initial condition
+
+        @note All other methods must be called after Init(). */
+    void Init(TimeDependentOperator &f_, TimeDependentOperator &f2_, double &t,
+              Vector &x);
 
     /** Integrate the ODE with ARKode using the specified step mode.
 

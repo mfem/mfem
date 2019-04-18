@@ -24,9 +24,10 @@ class ODESolver
 protected:
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
+   TimeDependentOperator *f2; // f(.,t) : R^n --> R^n
 
 public:
-   ODESolver() : f(NULL) { }
+   ODESolver() : f(NULL), f2(NULL) { }
 
    /// Associate a TimeDependentOperator with the ODE solver.
    /** This method has to be called:
@@ -37,6 +38,12 @@ public:
    virtual void Init(TimeDependentOperator &f)
    {
       this->f = &f;
+   }
+
+  virtual void Init(TimeDependentOperator &f, TimeDependentOperator &f2)
+   {
+      this->f  = &f;
+      this->f2 = &f2;
    }
 
    /** @brief Perform a time step from time @a t [in] to time @a t [out] based

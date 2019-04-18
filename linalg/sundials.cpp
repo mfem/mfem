@@ -213,28 +213,6 @@ namespace mfem
   }
 
   // ---------------------------------------------------------------------------
-  // Wrapper for evaluating the ODE right-hand side
-  // ---------------------------------------------------------------------------
-
-  int SundialsODESolver::ODERhs(realtype t, const N_Vector y, N_Vector ydot,
-                                void *user_data)
-  {
-    // Get data from N_Vectors
-    const Vector mfem_y(y);
-    Vector mfem_ydot(ydot);
-
-    // Get TimeDependentOperator
-    TimeDependentOperator *f = (TimeDependentOperator *)user_data;
-
-    // Compute y' = f1(t, y)
-    f->SetTime(t);
-    f->Mult(mfem_y, mfem_ydot);
-
-    // Return success
-    return(0);
-  }
-
-  // ---------------------------------------------------------------------------
   // CVODE interface
   // ---------------------------------------------------------------------------
 
@@ -307,11 +285,11 @@ namespace mfem
     }
 
     // Initialize CVODE
-    flag = CVodeInit(sundials_mem, ODERhs, t, y);
+    flag = CVodeInit(sundials_mem, CVODESolver::RHS, t, y);
     MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeInit()");
 
-    // Attached the TimeDependentOperator pointer, f, as user-defined data
-    flag = CVodeSetUserData(sundials_mem, f);
+    // Attach the CVODESolver as user-defined data
+    flag = CVodeSetUserData(sundials_mem, this);
     MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetUserData()");
 
     // Set default tolerances
@@ -324,6 +302,22 @@ namespace mfem
 
     flag = CVodeSetLinearSolver(sundials_mem, LSA, NULL);
     MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolver()");
+  }
+
+  int CVODESolver::RHS(realtype t, const N_Vector y, N_Vector ydot,
+                       void *user_data)
+  {
+    // Get data from N_Vectors
+    const Vector mfem_y(y);
+    Vector mfem_ydot(ydot);
+    CVODESolver *self = static_cast<CVODESolver*>(user_data);
+
+    // Compute y' = f(t, y)
+    self->f->SetTime(t);
+    self->f->Mult(mfem_y, mfem_ydot);
+
+    // Return success
+    return(0);
   }
 
   void CVODESolver::SetLinearSolver(SundialsODELinearSolver &ls_spec)
@@ -445,7 +439,7 @@ namespace mfem
   // ---------------------------------------------------------------------------
 
   ARKStepSolver::ARKStepSolver(Type type)
-    : use_implicit(type == IMPLICIT), irk_table(-1), erk_table(-1)
+    : use_implicit(type == IMPLICIT || type == IMEX), rk_type(type)
   {
     // Allocate an empty serial N_Vector
     y = N_VNewEmpty_Serial(0);
@@ -456,7 +450,7 @@ namespace mfem
 
 #ifdef MFEM_USE_MPI
   ARKStepSolver::ARKStepSolver(MPI_Comm comm, Type type)
-    : use_implicit(type == IMPLICIT), irk_table(-1), erk_table(-1)
+    : use_implicit(type == IMPLICIT || type == IMEX), rk_type(type)
   {
     if (comm == MPI_COMM_NULL) {
 
@@ -482,6 +476,10 @@ namespace mfem
 
   void ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
   {
+    // Check type
+    MFEM_VERIFY(rk_type != IMEX,
+                "error incorrect initialization method for IMEX problems\n");
+
     // Check intputs for consistency
     int loc_size = f_.Height();
     MFEM_VERIFY(loc_size == x.Size(),
@@ -493,13 +491,41 @@ namespace mfem
     // Initialize the base class
     ODESolver::Init(f_);
 
+    // Create ARKStep
+    ARKStepSolver::Create(t, x);
+  }
+
+  void ARKStepSolver::Init(TimeDependentOperator &f_, TimeDependentOperator &f2_,
+                           double &t, Vector &x)
+  {
+    // Check type
+    MFEM_VERIFY(rk_type == IMEX,
+                "error incorrect initialization method for non-IMEX problems\n");
+
+    // Check intputs for consistency
+    MFEM_VERIFY(f_.Height() == x.Size(),
+                "error inconsistent operator and vector size");
+
+    MFEM_VERIFY(f_.GetTime() == t,
+                "error inconsistent initial times");
+
+    // Initialize the base class
+    ODESolver::Init(f_, f2_);
+
+    // Create ARKStep
+    ARKStepSolver::Create(t, x);
+  }
+
+  void ARKStepSolver::Create(double &t, Vector &x)
+  {
     // Fill N_Vector wrapper with initial condition data
     if (!Parallel()) {
       NV_LENGTH_S(y) = x.Size();
       NV_DATA_S(y)   = x.GetData();
     } else {
 #ifdef MFEM_USE_MPI
-      long local_size = loc_size, global_size;
+      long local_size = x.Size();
+      long global_size;
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
       NV_LOCLENGTH_P(y)  = x.Size();
@@ -509,14 +535,16 @@ namespace mfem
     }
 
     // Initialize ARKStep
-    if (use_implicit)
-      sundials_mem = ARKStepCreate(NULL, ODERhs, t, y);
+    if (rk_type == IMPLICIT)
+      sundials_mem = ARKStepCreate(NULL, ARKStepSolver::RHS1, t, y);
+    else if (rk_type == EXPLICIT)
+      sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, NULL, t, y);
     else
-      sundials_mem = ARKStepCreate(ODERhs, NULL, t, y);
+      sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, ARKStepSolver::RHS2, t, y);
     MFEM_VERIFY(sundials_mem, "error in ARKStepCreate()");
 
-    // Attached the TimeDependentOperator pointer, f, as user-defined data
-    flag = ARKStepSetUserData(sundials_mem, f);
+    // Attach the ARKStepSolver as user-defined data
+    flag = ARKStepSetUserData(sundials_mem, this);
     MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetUserData()");
 
     // Set default tolerances
@@ -533,6 +561,38 @@ namespace mfem
     }
   }
 
+  int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector ydot,
+                          void *user_data)
+  {
+    // Get data from N_Vectors
+    const Vector mfem_y(y);
+    Vector mfem_ydot(ydot);
+    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
+
+    // Compute f(t, y) in y' = f(t, y) or fe(t, y) in y' = fe(t, y) + fi(t, y)
+    self->f->SetTime(t);
+    self->f->Mult(mfem_y, mfem_ydot);
+
+    // Return success
+    return(0);
+  }
+
+  int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector ydot,
+                          void *user_data)
+  {
+    // Get data from N_Vectors
+    const Vector mfem_y(y);
+    Vector mfem_ydot(ydot);
+    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
+
+    // Compute fi(t, y) in y' = fe(t, y) + fi(t, y)
+    self->f2->SetTime(t);
+    self->f2->Mult(mfem_y, mfem_ydot);
+
+    // Return success
+    return(0);
+  }
+
   void ARKStepSolver::SetLinearSolver(SundialsODELinearSolver &ls_spec)
   {
     // Free any existing matrix and linear solver
@@ -541,7 +601,7 @@ namespace mfem
 
     // Check for implicit method before attaching
     MFEM_VERIFY(use_implicit,
-                "The function is applicable only to implicit time integration.");
+                "The function is applicable only to implicit or imex time integration.");
 
     // Wrap linear solver as SUNLinearSolver and SUNMatrix
     LSA = SUNLinSolEmpty();
@@ -579,7 +639,7 @@ namespace mfem
 
     // Check for implicit method before attaching
     MFEM_VERIFY(use_implicit,
-                "The function is applicable only to implicit time integration.");
+                "The function is applicable only to implicit or imex time integration.");
 
     // Wrap linear solver as SUNLinearSolver and SUNMatrix
     LSM = SUNLinSolEmpty();
