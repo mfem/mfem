@@ -70,11 +70,11 @@ static internal::Ledger *maps;
 namespace internal
 {
 
-/// The memory controller class
-class MemoryController
+/// The memory space class
+class MemorySpace
 {
 public:
-   MemoryController() {}
+   MemorySpace() {}
    virtual void *MemAlloc(void **ptr, const std::size_t bytes) = 0;
    virtual void MemDealloc(void *ptr) = 0;
    virtual void *MemcpyHtoD(void *dst, const void *src, const std::size_t bytes) = 0;
@@ -85,14 +85,14 @@ public:
 };
 
 // *****************************************************************************
-class DefaultMemoryController : public MemoryController
+class DefaultMemorySpace : public MemorySpace
 {
 private:
    void *Memcpy(void *dst, const void *src, const size_t bytes)
    { return std::memcpy(dst, src, bytes); }
 
 public:
-   DefaultMemoryController(): MemoryController() { }
+   DefaultMemorySpace(): MemorySpace() { }
 
    void *MemAlloc(void **dptr, const std::size_t bytes)
    { return *dptr = std::malloc(bytes); }
@@ -110,15 +110,15 @@ public:
 };
 
 // *****************************************************************************
-class MMUMemoryController : public MemoryController
+class MMUMemorySpace : public MemorySpace
 {
 private:
    void *Memcpy(void *dst, const void *src, const size_t bytes)
    { return std::memcpy(dst, src, bytes); }
    
+#ifndef _WIN32
    static void MmuError(int sig, siginfo_t *si, void *unused)
    {
-#ifndef _WIN32
       fflush(0);
       char str[64];
       void *ptr = si->si_addr;
@@ -129,10 +129,11 @@ private:
       sprintf(str, format, ptr);
       mfem::out << std::endl << "A illegal memory access was made!";
       MFEM_ABORT(str);
-#endif
    }
+#endif
+
 public:
-   MMUMemoryController(): MemoryController() {
+   MMUMemorySpace(): MemorySpace() {
 #ifndef _WIN32
       struct sigaction mmu_sa;
       mmu_sa.sa_flags = SA_SIGINFO;
@@ -182,21 +183,25 @@ public:
 
    void MemEnable(const void *ptr, const std::size_t bytes) {
       //if (MmDeviceIniFilter()) { return; }
+#ifndef _WIN32
       mprotect(const_cast<void*>(ptr), bytes, PROT_READ | PROT_WRITE);
+#endif
    }
    
    void MemDisable(const void *ptr, const std::size_t bytes) {
       //if (MmDeviceIniFilter()) { return; }
+#ifndef _WIN32
       mprotect(const_cast<void*>(ptr), bytes, PROT_NONE);
+#endif
    }
 };
 
 // *****************************************************************************
 #ifdef MFEM_USE_CUDA
-class CUDAMemoryController : public MemoryController
+class CUDAMemorySpace : public MemorySpace
 {
 public:
-   CUDAMemoryController(): MemoryController() {}
+   CUDAMemorySpace(): MemorySpace() {}
 
    void* MemAlloc(void **dptr, const std::size_t bytes)
    {
@@ -231,19 +236,19 @@ public:
 } // namespace mfem::internal
 
 #ifdef MFEM_USE_CUDA
-static internal::CUDAMemoryController ctrl;
+static internal::CUDAMemorySpace ctrl;
 #else
 #if defined(MFEM_USE_MM) && defined(MFEM_DEBUG)
-static internal::DefaultMemoryController ctrl;
+static internal::DefaultMemorySpace ctrl;
 #else
-static internal::DefaultMemoryController ctrl;
+static internal::DefaultMemorySpace ctrl;
 #endif
 #endif // MFEM_USE_CUDA
 
 #if defined(MFEM_USE_MM) && defined(MFEM_DEBUG)
-static internal::MMUMemoryController host_ctrl;
+static internal::MMUMemorySpace host_ctrl;
 #else
-static internal::DefaultMemoryController host_ctrl;
+static internal::DefaultMemorySpace host_ctrl;
 #endif
 
 MemoryManager::MemoryManager()
