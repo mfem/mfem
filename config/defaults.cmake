@@ -65,7 +65,7 @@ set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 # headers and library. If these fail, then standard cmake search is performed.
 # Note: if the variables are already in the cache, they are not overwritten.
 
-set(HYPRE_DIR "${MFEM_DIR}/../hypre-2.10.0b/src/hypre" CACHE PATH
+set(HYPRE_DIR "${MFEM_DIR}/../hypre/src/hypre" CACHE PATH
     "Path to the hypre library.")
 # If hypre was compiled to depend on BLAS and LAPACK:
 # set(HYPRE_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
