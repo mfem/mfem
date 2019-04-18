@@ -57,41 +57,6 @@ namespace mfem
     return;
   }
 
-  // Create an empty SUNMatrix <<<<<<< NEED TO ADD
-  static SUNMatrix SUNMatEmpty()
-  {
-    SUNMatrix     A;
-    SUNMatrix_Ops ops;
-
-    /* create linear solver */
-    A = NULL;
-    A = (SUNMatrix) malloc(sizeof *A);
-    if (A == NULL) return(NULL);
-
-    /* create ops structure */
-    ops = NULL;
-    ops = (SUNMatrix_Ops) malloc(sizeof *ops);
-    if (ops == NULL) return(NULL);
-
-    /* initialize operations to NULL */
-    ops->getid       = NULL;
-    ops->clone       = NULL;
-    ops->destroy     = NULL;
-    ops->zero        = NULL;
-    ops->copy        = NULL;
-    ops->scaleadd    = NULL;
-    ops->scaleaddi   = NULL;
-    ops->matvecsetup = NULL;
-    ops->matvec      = NULL;
-    ops->space       = NULL;
-
-    /* attach ops and initialize content to NULL */
-    A->ops     = ops;
-    A->content = NULL;
-
-    return(A);
-  }
-
   // ---------------------------------------------------------------------------
   // SUNLinearSolver interface functions
   // ---------------------------------------------------------------------------
@@ -135,44 +100,6 @@ namespace mfem
     if (LS->ops) { free(LS->ops); LS->ops = NULL; }
     free(LS); LS = NULL;
     return(0);
-  }
-
-  // Create and empty SUNLinearSolver <<<<<<< NEED TO ADD
-  static SUNLinearSolver SUNLinSolEmpty()
-  {
-    SUNLinearSolver     LS;
-    SUNLinearSolver_Ops ops;
-
-    /* create linear solver */
-    LS = NULL;
-    LS = (SUNLinearSolver) malloc(sizeof *LS);
-    if (LS == NULL) return(NULL);
-
-    /* create ops structure */
-    ops = NULL;
-    ops = (SUNLinearSolver_Ops) malloc(sizeof *ops);
-    if (ops == NULL) return(NULL);
-
-    /* initialize operations to NULL */
-    ops->gettype           = NULL;
-    ops->setatimes         = NULL;
-    ops->setpreconditioner = NULL;
-    ops->setscalingvectors = NULL;
-    ops->initialize        = NULL;
-    ops->setup             = NULL;
-    ops->solve             = NULL;
-    ops->numiters          = NULL;
-    ops->resnorm           = NULL;
-    ops->resid             = NULL;
-    ops->lastflag          = NULL;
-    ops->space             = NULL;
-    ops->free              = NULL;
-
-    /* attach ops and initialize content to NULL */
-    LS->ops     = ops;
-    LS->content = NULL;
-
-    return(LS);
   }
 
   // ---------------------------------------------------------------------------
@@ -326,8 +253,8 @@ namespace mfem
     if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
     // Wrap linear solver as SUNLinearSolver and SUNMatrix
-    LSA = SUNLinSolEmpty();
-    MFEM_VERIFY(sundials_mem, "error in SUNLinSolEmpty()");
+    LSA = SUNLinSolNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
 
     LSA->content         = &ls_spec;
     LSA->ops->gettype    = LSGetType;
@@ -336,8 +263,8 @@ namespace mfem
     LSA->ops->solve      = LSSolve;
     LSA->ops->free       = LSFree;
 
-    A = SUNMatEmpty();
-    MFEM_VERIFY(sundials_mem, "error in SUNMatEmpty()");
+    A = SUNMatNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
 
     A->content      = &ls_spec;
     A->ops->getid   = MatGetID;
@@ -603,8 +530,8 @@ namespace mfem
                 "The function is applicable only to implicit or imex time integration.");
 
     // Wrap linear solver as SUNLinearSolver and SUNMatrix
-    LSA = SUNLinSolEmpty();
-    MFEM_VERIFY(sundials_mem, "error in SUNLinSolEmpty()");
+    LSA = SUNLinSolNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
 
     LSA->content         = &ls_spec;
     LSA->ops->gettype    = LSGetType;
@@ -613,8 +540,8 @@ namespace mfem
     LSA->ops->solve      = LSSolve;
     LSA->ops->free       = LSFree;
 
-    A = SUNMatEmpty();
-    MFEM_VERIFY(sundials_mem, "error in SUNMatEmpty()");
+    A = SUNMatNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
 
     A->content      = &ls_spec;
     A->ops->getid   = MatGetID;
@@ -641,8 +568,8 @@ namespace mfem
                 "The function is applicable only to implicit or imex time integration.");
 
     // Wrap linear solver as SUNLinearSolver and SUNMatrix
-    LSM = SUNLinSolEmpty();
-    MFEM_VERIFY(sundials_mem, "error in SUNLinSolEmpty()");
+    LSM = SUNLinSolNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
 
     LSM->content         = &ls_spec;
     LSM->ops->gettype    = LSGetType;
@@ -651,8 +578,8 @@ namespace mfem
     LSM->ops->solve      = LSSolve;
     LSA->ops->free       = LSFree;
 
-    M = SUNMatEmpty();
-    MFEM_VERIFY(sundials_mem, "error in SUNMatEmpty()");
+    M = SUNMatNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
 
     M->content      = &ls_spec;
     M->ops->getid   = SUNMatGetID;
