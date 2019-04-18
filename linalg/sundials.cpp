@@ -481,8 +481,7 @@ namespace mfem
                 "error incorrect initialization method for IMEX problems\n");
 
     // Check intputs for consistency
-    int loc_size = f_.Height();
-    MFEM_VERIFY(loc_size == x.Size(),
+    MFEM_VERIFY(f_.Height(); == x.Size(),
                 "error inconsistent operator and vector size");
 
     MFEM_VERIFY(f_.GetTime() == t,
