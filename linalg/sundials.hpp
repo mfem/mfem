@@ -134,10 +134,6 @@ namespace mfem
                           y(NULL), A(NULL), M(NULL), LSA(NULL), LSM(NULL),
                           NLS(NULL) { }
 
-    SundialsODESolver(void *mem) : sundials_mem(mem), flag(0), step_mode(1),
-                          y(NULL), A(NULL), M(NULL), LSA(NULL), LSM(NULL),
-                          NLS(NULL) { }
-
   public:
     /// Access the SUNDIALS memory structure
     void *GetMem() const { return sundials_mem; }
