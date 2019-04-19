@@ -50,6 +50,9 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = new RowNodeAlloc;
 #endif
+#ifdef MFEM_USE_CUDA
+   tA = NULL;
+#endif
 }
 
 SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
@@ -66,6 +69,9 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
+#endif
+#ifdef MFEM_USE_CUDA
+   tA = NULL;
 #endif
 }
 
@@ -84,6 +90,9 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
+#endif
+#ifdef MFEM_USE_CUDA
+   tA = NULL;
 #endif
 
    if ( A == NULL )
@@ -109,6 +118,9 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
+#endif
+#ifdef MFEM_USE_CUDA
+   tA = NULL;
 #endif
    I = mfem::New<int>(nrows + 1);
    J = mfem::New<int>(nrows * rowsize);
@@ -148,11 +160,17 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
 #ifdef MFEM_USE_MEMALLOC
       NodesMem = NULL;
 #endif
+#ifdef MFEM_USE_CUDA
+      tA = NULL;
+#endif
    }
    else
    {
 #ifdef MFEM_USE_MEMALLOC
       NodesMem = new RowNodeAlloc;
+#endif
+#ifdef MFEM_USE_CUDA
+      tA = NULL;
 #endif
       Rows = new RowNode *[height];
       for (int i = 0; i < height; i++)
@@ -197,6 +215,9 @@ SparseMatrix::SparseMatrix(const Vector &v)
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
+#endif
+#ifdef MFEM_USE_CUDA
+   tA = NULL;
 #endif
    I = mfem::New<int>(height + 1);
    J = mfem::New<int>(height);
@@ -247,6 +268,9 @@ void SparseMatrix::SetEmpty()
    ColPtrNode = NULL;
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
+#endif
+#ifdef MFEM_USE_CUDA
+   tA = NULL;
 #endif
    ownGraph = ownData = isSorted = false;
 }
@@ -565,6 +589,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (Ap == NULL)
    {
+      MFEM_ASSERT(false,"");
       //  The matrix is not finalized, but multiplication is still possible
       for (i = 0; i < height; i++)
       {
@@ -645,6 +670,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
 
    if (A == NULL)
    {
+      MFEM_ASSERT(false,"");
       double *yp = y.GetData();
       // The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
@@ -658,6 +684,11 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       }
       return;
    }
+#ifdef MFEM_USE_CUDA
+   if (!tA) { tA = Transpose(*this); }
+   tA->AddMult(x,y,a);
+#else
+#warning AtomicAdd
    // Prepare the lambda capture and get our pointers from the memory manager
    const int d_height = height;
    const DeviceArray d_I(I);
@@ -674,7 +705,8 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
          const int Jj = d_J[j];
          AtomicAdd(&d_y[Jj], d_A[j] * xi);
       }
-   });
+      });
+#endif
 }
 
 void SparseMatrix::PartMult(
@@ -2771,6 +2803,7 @@ void SparseMatrix::Destroy()
       delete NodesMem;
    }
 #endif
+   delete tA;
 }
 
 int SparseMatrix::ActualWidth()
