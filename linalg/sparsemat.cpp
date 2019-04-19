@@ -667,8 +667,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       return;
    }
 
-   if (Device::Allows(Backend::OMP_MASK))||
-      Device::Allows(Backend::CUDA_MASK))
+   if (Device::IsEnabled())
    {
       if (!tA) { tA = Transpose(*this); }
       tA->AddMult(x, y, a);
