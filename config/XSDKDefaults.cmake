@@ -166,14 +166,14 @@ IF (USE_XSDK_DEFAULTS)
     ENDIF()
     XSDK_HANDLE_LANG_DEFAULTS(Fortran  FC  "FFLAGS;FCFLAGS")
   ENDIF()
-  
+
   # Set XSDK defaults for other CMake variables
-  
+
   IF ("${BUILD_SHARED_LIBS}"  STREQUAL  "")
     MESSAGE("-- " "XSDK: Setting default BUILD_SHARED_LIBS=TRUE")
     SET(BUILD_SHARED_LIBS  TRUE  CACHE  BOOL  "Set by default in XSDK mode")
   ENDIF()
-  
+
   IF ("${CMAKE_BUILD_TYPE}"  STREQUAL  "")
     MESSAGE("-- " "XSDK: Setting default CMAKE_BUILD_TYPE=DEBUG")
     SET(CMAKE_BUILD_TYPE  DEBUG  CACHE  STRING  "Set by default in XSDK mode")
@@ -181,9 +181,12 @@ IF (USE_XSDK_DEFAULTS)
 
 ENDIF()
 
+
+##################################################################################
 #
-# Set TPL MFEM_USE_* Defaults
+#               MFEM-specific additions: set TPL MFEM_USE_* defaults
 #
+##################################################################################
 
 IF (DEFINED TPL_ENABLE_MPI)
   SET(MFEM_USE_MPI ${TPL_ENABLE_MPI} CACHE BOOL "Enable MPI parallel build" FORCE)
