@@ -60,11 +60,12 @@ Vector bb_min, bb_max;
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = div(D grad(u))-v.grad(u) is
-    (M + dt S) du/dt = - S u + K u + b, where M, S, and K are the mass,
-    stiffness, and advection matrices, and b describes the flow on the boundary.
+    [M + dt (S - K)] du/dt = - S u + K u + b, where M, S, and K are the mass,
+    stiffness, and advection matrices, and b describes sources and the flow on
+    the boundary.
     This can be written as a general ODE,
-    du/dt = (M + dt S)^{-1} (-S u + K u + b), and this class is
-    used to perform the implicit solve for du/dt. */
+    du/dt = A^{-1} (-S u + K u + b) with A = [M + dt (S - K)], and this class is
+    used to perform the implicit or explicit solve for du/dt. */
 class FE_Evolution : public TimeDependentOperator
 {
 private:
