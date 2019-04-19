@@ -666,8 +666,26 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       }
       return;
    }
-   if (!tA) { tA = Transpose(*this); }
-   tA->AddMult(x, y, a);
+
+   if (Device::Allows(Backend::OMP_MASK))||
+      Device::Allows(Backend::CUDA_MASK))
+   {
+      if (!tA) { tA = Transpose(*this); }
+      tA->AddMult(x, y, a);
+   }
+   else
+   {
+      for (int i = 0; i < height; i++)
+      {
+         const double xi = a * x[i];
+         const int end = I[i+1];
+         for (int j = I[i]; j < end; j++)
+         {
+            const int Jj = J[j];
+            y[Jj] += A[j] * xi;
+         }
+      }
+   }
 }
 
 void SparseMatrix::PartMult(
