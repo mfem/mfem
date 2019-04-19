@@ -70,15 +70,28 @@ void Device::Configure(const std::string &device, const int dev)
    {
       bmap[internal::backend_name[i]] = internal::backend_list[i];
    }
-   std::string::size_type beg = 0, end;
+   std::string::size_type beg = 0, end, option;
    while (1)
    {
       end = device.find(',', beg);
       end = (end != std::string::npos) ? end : device.size();
       const std::string bname = device.substr(beg, end - beg);
-      std::map<std::string, Backend::Id>::iterator it = bmap.find(bname);
-      MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << bname << '\'');
-      Get().MarkBackend(it->second);
+      option = bname.find(':');
+      if (option==std::string::npos)//No option
+      {
+         const std::string backend = bname;
+         std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
+         MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
+         Get().MarkBackend(it->second);
+      } else {
+         const std::string backend = bname.substr(0, option);
+         const std::string boption = bname.substr(option+1);
+         Get().ceed_option = boption;
+         std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
+         MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
+         Get().MarkBackend(it->second);
+         std::cout <<"libCEED backend: "<< boption << std::endl;
+      }
       if (end == device.size()) { break; }
       beg = end + 1;
    }
@@ -277,11 +290,21 @@ void Device::Setup(const int device)
    // enabled.
    if (Allows(Backend::CEED_CPU))
    {
-      CeedDeviceSetup("/cpu/self/ref/blocked");
+      if (ceed_option.empty())
+      {
+         CeedDeviceSetup("/cpu/self/ref/blocked");
+      } else {
+         CeedDeviceSetup(ceed_option.c_str());
+      }
    }
    if (Allows(Backend::CEED_CUDA))
    {
-      CeedDeviceSetup("/gpu/cuda/ref");
+      if (ceed_option.empty())
+      {
+         CeedDeviceSetup("/gpu/cuda/ref");
+      } else {
+         CeedDeviceSetup(ceed_option.c_str());
+      }
    }
 }
 
