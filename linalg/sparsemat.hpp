@@ -64,14 +64,12 @@ protected:
    mutable int* ColPtrJ;
    mutable RowNode ** ColPtrNode;
 
+   /// Self-transposed sparse matrix
+   mutable SparseMatrix *tA;
+
 #ifdef MFEM_USE_MEMALLOC
    typedef MemAlloc <RowNode, 1024> RowNodeAlloc;
    RowNodeAlloc * NodesMem;
-#endif
-
-#ifdef MFEM_USE_CUDA
-   /// Self transposed matrix
-   mutable SparseMatrix *tA;
 #endif
 
    /// Say whether we own the pointers for I and J (should we free them?).
