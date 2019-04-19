@@ -80,7 +80,6 @@ void Vector::Load(std::istream **in, int np, int *dim)
 
 void Vector::Load(std::istream &in, int Size)
 {
-   MFEM_ASSERT(false,"");
    SetSize(Size);
 
    for (int i = 0; i < size; i++)
@@ -91,13 +90,11 @@ void Vector::Load(std::istream &in, int Size)
 
 double &Vector::Elem(int i)
 {
-   MFEM_ASSERT(false,"");
    return operator()(i);
 }
 
 const double &Vector::Elem(int i) const
 {
-   MFEM_ASSERT(false,"");
    return operator()(i);
 }
 
@@ -120,15 +117,10 @@ double Vector::operator*(const Vector &v) const
 
 Vector &Vector::operator=(const double *v)
 {
-   dbg("");
    if (data != v)
    {
       MFEM_ASSERT(data + size <= v || v + size <= data, "Vectors overlap!");
-      //mfem::Memcpy(data, v, sizeof(double)*size);
-      const int N = size;
-      const DeviceVector x(v, N);
-      DeviceVector y(data, N);
-      MFEM_FORALL(i, N, y[i] = x[i];);
+      mfem::Memcpy(data, v, sizeof(double)*size);
    }
    return *this;
 }
@@ -141,34 +133,30 @@ Vector &Vector::operator=(const Vector &v)
 
 Vector &Vector::operator=(double value)
 {
-   const int N = size;
-   DeviceVector y(data, N);
-   MFEM_FORALL(i, N, y[i] = value;);
+   DeviceVector y(data, size);
+   MFEM_FORALL(i, size, y[i] = value;);
    return *this;
 }
 
 Vector &Vector::operator*=(double c)
 {
-   const int N = size;
-   DeviceVector y(data, N);
-   MFEM_FORALL(i, N, y[i] *= c;);
+   DeviceVector y(data, size);
+   MFEM_FORALL(i, size, y[i] *= c;);
    return *this;
 }
 
 Vector &Vector::operator/=(double c)
 {
-   const int N = size;
    const double m = 1.0/c;
-   DeviceVector y(data, N);
-   MFEM_FORALL(i, N, y[i] *= m;);
+   DeviceVector y(data, size);
+   MFEM_FORALL(i, size, y[i] *= m;);
    return *this;
 }
 
 Vector &Vector::operator-=(double c)
 {
-   const int N = size;
-   DeviceVector y(data, N);
-   MFEM_FORALL(i, N, y[i] -= c;);
+   DeviceVector y(data, size);
+   MFEM_FORALL(i, size, y[i] -= c;);
    return *this;
 }
 
@@ -204,7 +192,6 @@ Vector &Vector::operator+=(const Vector &v)
 
 Vector &Vector::Add(const double a, const Vector &Va)
 {
-   dbg("");
 #ifdef MFEM_DEBUG
    if (size != Va.size)
    {
@@ -223,7 +210,6 @@ Vector &Vector::Add(const double a, const Vector &Va)
 
 Vector &Vector::Set(const double a, const Vector &Va)
 {
-   dbg("");
 #ifdef MFEM_DEBUG
    if (size != Va.size)
    {
@@ -239,8 +225,6 @@ Vector &Vector::Set(const double a, const Vector &Va)
 
 void Vector::SetVector(const Vector &v, int offset)
 {
-   dbg("");
-   MFEM_ASSERT(false,"");
    int vs = v.Size();
    double *vp = v.data, *p = data + offset;
 
@@ -259,14 +243,12 @@ void Vector::SetVector(const Vector &v, int offset)
 
 void Vector::Neg()
 {
-   dbg("");
    DeviceVector y(data, size);
    MFEM_FORALL(i, size, y[i] = -y[i];);
 }
 
 void add(const Vector &v1, const Vector &v2, Vector &v)
 {
-   dbg("1");
 #ifdef MFEM_DEBUG
    if (v.size != v1.size || v.size != v2.size)
    {
@@ -291,9 +273,6 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
 
 void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
 {
-   //dbg("2");
-   const bool dev_enabled = Device::IsEnabled();
-   if (dev_enabled) { Device::Disable(); }
 #ifdef MFEM_DEBUG
    if (v.size != v1.size || v.size != v2.size)
    {
@@ -302,53 +281,36 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
 #endif
    if (alpha == 0.0)
    {
-      dbg("2.1");
       v = v1;
    }
    else if (alpha == 1.0)
    {
-      dbg("2.2");
       add(v1, v2, v);
    }
    else
    {
-      //dbg("2.3");
       const double *v1p = v1.data, *v2p = v2.data;
       double *vp = v.data;
+
       const int s = v.size;
-      
-      for (int i = 0; i < s; i++)
-      {
-         vp[i] = v1p[i] + alpha*v2p[i];
-         }/*
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-//#warning !MFEM_USE_LEGACY_OPENMP
       const int N = s;
       DeviceVector d_z(vp, N);
       const DeviceVector d_x(v1p, N);
       const DeviceVector d_y(v2p, N);
-      //MFEM_FORALL(i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
-      for (int i = 0; i < N; i++){
-         //dbg("%.21e %.21e %.21e", d_x[i], alpha, d_y[i]);
-         const double v = d_x[i];
-         d_z[i] = v + alpha * d_y[i];
-      }
+      MFEM_FORALL(i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
 #else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
          vp[i] = v1p[i] + alpha*v2p[i];
       }
-      #endif
-          */
+#endif
    }
-   if (dev_enabled) { Device::Enable(); }
 }
 
 void add(const double a, const Vector &x, const Vector &y, Vector &z)
 {
-   dbg("3");
-   MFEM_ASSERT(false,"");
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error ("add(const double a, const Vector &x, const Vector &y,"
@@ -386,8 +348,6 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
 void add(const double a, const Vector &x,
          const double b, const Vector &y, Vector &z)
 {
-   dbg("4");
-   MFEM_ASSERT(false,"");
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error("add(const double a, const Vector &x,\n"
@@ -437,8 +397,6 @@ void add(const double a, const Vector &x,
 
 void subtract(const Vector &x, const Vector &y, Vector &z)
 {
-   const bool dev_enabled = Device::IsEnabled();
-   if (dev_enabled) { Device::Disable(); }
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
    {
@@ -462,12 +420,10 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
       zp[i] = xp[i] - yp[i];
    }
 #endif
-   if (dev_enabled) { Device::Enable(); }
 }
 
 void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
 {
-   MFEM_ASSERT(false,"");
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error("subtract(const double a, const Vector &x,"
@@ -506,7 +462,6 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
 
 void Vector::median(const Vector &lo, const Vector &hi)
 {
-   MFEM_ASSERT(false,"");
    const int N = size;
    DeviceVector v(data, N);
    const DeviceVector l(lo, N);
@@ -724,7 +679,6 @@ void Vector::Randomize(int seed)
 
 double Vector::Norml2() const
 {
-   MFEM_ASSERT(false,"");
    // Scale entries of Vector on the fly, using algorithms from
    // std::hypot() and LAPACK's drm2. This scaling ensures that the
    // argument of each call to std::pow is <= 1 to avoid overflow.
@@ -762,7 +716,6 @@ double Vector::Norml2() const
 
 double Vector::Normlinf() const
 {
-   Pull();
    double max = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -773,7 +726,6 @@ double Vector::Normlinf() const
 
 double Vector::Norml1() const
 {
-   MFEM_ASSERT(false,"");
    double sum = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -795,8 +747,7 @@ double Vector::Normlp(double p) const
    }
    if (p < infinity())
    {
-      MFEM_ASSERT(false,"");
-       // Scale entries of Vector on the fly, using algorithms from
+      // Scale entries of Vector on the fly, using algorithms from
       // std::hypot() and LAPACK's drm2. This scaling ensures that the
       // argument of each call to std::pow is <= 1 to avoid overflow.
       if (0 == size)
@@ -834,7 +785,6 @@ double Vector::Normlp(double p) const
 
 double Vector::Max() const
 {
-   MFEM_ASSERT(false,"");
    double max = data[0];
 
    for (int i = 1; i < size; i++)
@@ -848,7 +798,6 @@ double Vector::Max() const
 
 double Vector::Min() const
 {
-   MFEM_ASSERT(false,"");
    double min = data[0];
 
    for (int i = 1; i < size; i++)
@@ -862,7 +811,6 @@ double Vector::Min() const
 
 double Vector::Sum() const
 {
-   MFEM_ASSERT(false,"");
    double sum = 0.0;
 
    for (int i = 0; i < size; i++)
@@ -997,38 +945,20 @@ double Min(const int N, const double *x)
 
 double Dot(const int N, const double *x, const double *y)
 {
-   const bool dev_enabled = Device::IsEnabled();
-   if (dev_enabled) { Device::Disable(); }
-
    if (Device::Allows(Backend::CUDA_MASK))
    {
-      dbg("MFEM_USE_CUDA");
 #ifdef MFEM_USE_CUDA
       return cuVectorDot(N, x, y);
 #else
       mfem_error("Using Dot on device w/o support");
 #endif // MFEM_USE_CUDA
    }
-
-   Vector dot(1);
-   dot = 0.0;
-   DeviceVector d_dot(dot, 1);
-   DeviceVector d_x(x, N);
-   DeviceVector d_y(y, N);
-   MFEM_FORALL(i, N, d_dot[0] += d_x[i] * d_y[i];);
-
-   if (dev_enabled) { Device::Enable(); }
-   dot.Pull();
-   //dbg("%.21e",dot[0]);
-   return dot[0];
-      /*
    double dot = 0.0;
 #ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for reduction(+:dot)
 #endif
-for (int i = 0; i < N; i++) { dot += x[i] * y[i]; }
+   for (int i = 0; i < N; i++) { dot += x[i] * y[i]; }
    return dot;
-   */
 }
 
 #ifdef MFEM_USE_SUNDIALS

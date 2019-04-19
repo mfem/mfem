@@ -38,6 +38,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      current_row(-1),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
+     tA(NULL),
      ownGraph(true),
      ownData(true),
      isSorted(false)
@@ -50,9 +51,6 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = new RowNodeAlloc;
 #endif
-#ifdef MFEM_USE_CUDA
-   tA = NULL;
-#endif
 }
 
 SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
@@ -63,15 +61,13 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
      Rows(NULL),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
+     tA(NULL),
      ownGraph(true),
      ownData(true),
      isSorted(false)
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
-#endif
-#ifdef MFEM_USE_CUDA
-   tA = NULL;
 #endif
 }
 
@@ -84,15 +80,13 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
      Rows(NULL),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
+     tA(NULL),
      ownGraph(ownij),
      ownData(owna),
      isSorted(issorted)
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
-#endif
-#ifdef MFEM_USE_CUDA
-   tA = NULL;
 #endif
 
    if ( A == NULL )
@@ -112,15 +106,13 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    , Rows(NULL)
    , ColPtrJ(NULL)
    , ColPtrNode(NULL)
+   , tA(NULL)
    , ownGraph(true)
    , ownData(true)
    , isSorted(false)
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
-#endif
-#ifdef MFEM_USE_CUDA
-   tA = NULL;
 #endif
    I = mfem::New<int>(nrows + 1);
    J = mfem::New<int>(nrows * rowsize);
@@ -160,17 +152,11 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
 #ifdef MFEM_USE_MEMALLOC
       NodesMem = NULL;
 #endif
-#ifdef MFEM_USE_CUDA
-      tA = NULL;
-#endif
    }
    else
    {
 #ifdef MFEM_USE_MEMALLOC
       NodesMem = new RowNodeAlloc;
-#endif
-#ifdef MFEM_USE_CUDA
-      tA = NULL;
 #endif
       Rows = new RowNode *[height];
       for (int i = 0; i < height; i++)
@@ -201,6 +187,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    current_row = -1;
    ColPtrJ = NULL;
    ColPtrNode = NULL;
+   tA = NULL;
    isSorted = mat.isSorted;
 }
 
@@ -209,15 +196,13 @@ SparseMatrix::SparseMatrix(const Vector &v)
    , Rows(NULL)
    , ColPtrJ(NULL)
    , ColPtrNode(NULL)
+   , tA(NULL)
    , ownGraph(true)
    , ownData(true)
    , isSorted(true)
 {
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
-#endif
-#ifdef MFEM_USE_CUDA
-   tA = NULL;
 #endif
    I = mfem::New<int>(height + 1);
    J = mfem::New<int>(height);
@@ -266,11 +251,9 @@ void SparseMatrix::SetEmpty()
    current_row = -1;
    ColPtrJ = NULL;
    ColPtrNode = NULL;
+   tA = NULL;
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
-#endif
-#ifdef MFEM_USE_CUDA
-   tA = NULL;
 #endif
    ownGraph = ownData = isSorted = false;
 }
@@ -377,6 +360,7 @@ void SparseMatrix::SetWidth(int newWidth)
          ColPtrJ = static_cast<int *>(NULL);
       }
       width = newWidth;
+      delete tA;
    }
    else
    {
@@ -589,7 +573,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (Ap == NULL)
    {
-      MFEM_ASSERT(false,"");
       //  The matrix is not finalized, but multiplication is still possible
       for (i = 0; i < height; i++)
       {
@@ -670,7 +653,6 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
 
    if (A == NULL)
    {
-      MFEM_ASSERT(false,"");
       double *yp = y.GetData();
       // The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
@@ -684,29 +666,8 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       }
       return;
    }
-#ifdef MFEM_USE_CUDA
    if (!tA) { tA = Transpose(*this); }
-   tA->AddMult(x,y,a);
-#else
-#warning AtomicAdd
-   // Prepare the lambda capture and get our pointers from the memory manager
-   const int d_height = height;
-   const DeviceArray d_I(I);
-   const DeviceArray d_J(J);
-   const DeviceVector d_A(A);
-   const DeviceVector d_x(x, x.Size());
-   DeviceVector d_y(y, y.Size());
-   MFEM_FORALL(i, d_height,
-   {
-      const double xi = a * d_x[i];
-      const int end = d_I[i+1];
-      for (int j = d_I[i]; j < end; j++)
-      {
-         const int Jj = d_J[j];
-         AtomicAdd(&d_y[Jj], d_A[j] * xi);
-      }
-      });
-#endif
+   tA->AddMult(x, y, a);
 }
 
 void SparseMatrix::PartMult(
@@ -3526,6 +3487,7 @@ void SparseMatrix::Swap(SparseMatrix &other)
    mfem::Swap(current_row, other.current_row);
    mfem::Swap(ColPtrJ, other.ColPtrJ);
    mfem::Swap(ColPtrNode, other.ColPtrNode);
+   mfem::Swap(tA, other.tA);
 
 #ifdef MFEM_USE_MEMALLOC
    mfem::Swap(NodesMem, other.NodesMem);
