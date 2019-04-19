@@ -442,6 +442,12 @@ MFEM_USE_OCCA = YES/NO
    backends. In order to use the OCCA CUDA backend, CUDA support must be enabled
    in MFEM as well, i.e. MFEM_USE_CUDA=YES must be set.
 
+MFEM_USE_CEED = YES/NO
+   Enables support for the libCEED library in MFEM. libCEED is a high-order
+   API library, that provides a common algebraic low-level operator description,
+   allowing a wide variety of applications to take advantage of the efficient
+   operator evaluation algorithms in the different CEED packages.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -568,6 +574,11 @@ The specific libraries and their options are:
 - OCCA, used when MFEM_USE_OCCA = YES.
   URL: https://libocca.org
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
+
+- CEED, used when MFEM_USE_CEED = YES.
+  URL: https://ceed.exascaleproject.org/libceed/
+       https://github.com/CEED/libCEED/tree/master
+  Options: CEED_DIR, CEED_OPT, CEED_LIB
 
 - RAJA, used when MFEM_USE_RAJA = YES.
   URL: https://github.com/LLNL/RAJA
@@ -711,6 +722,7 @@ MFEM_USE_GZSTREAM
 MFEM_USE_PUMI
 MFEM_USE_CUDA
 MFEM_USE_OCCA
+MFEM_USE_CEED
 MFEM_USE_RAJA
 
 The following options are CMake specific:
