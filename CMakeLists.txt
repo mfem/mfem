@@ -87,7 +87,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 # Enable languages.
 enable_language(CXX)
 if (MFEM_USE_CUDA)
-   # MFEM_USE_CUDA uses CMake 3.8 version that supports CUDA directly
+   # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
    cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
    enable_language(CUDA)
 endif()
