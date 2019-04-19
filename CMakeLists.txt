@@ -87,8 +87,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 # Enable languages.
 enable_language(CXX)
 if (MFEM_USE_CUDA)
-   # MFEM_USE_CUDA uses CMake 3.8 version that supports CUDA
-   # as a language that can be enabled enable_language()
+   # MFEM_USE_CUDA uses CMake 3.8 version that supports CUDA directly
    cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
    enable_language(CUDA)
 endif()
@@ -276,9 +275,15 @@ endif()
 # CUDA
 if (MFEM_USE_CUDA)
    set(CUDA_ARCH "sm_60")
-   set(CMAKE_CUDA_FLAGS
-       "-arch=${CUDA_ARCH} --expt-extended-lambda -ccbin ${CMAKE_CXX_COMPILER}"
-       CACHE STRING "CUDA flags set for MFEM" FORCE)
+   if (MFEM_USE_MPI)
+      set(CMAKE_CUDA_FLAGS
+          "-arch=${CUDA_ARCH} --expt-extended-lambda -ccbin ${MPI_CXX_COMPILER}"
+          CACHE STRING "CUDA flags set for MFEM" FORCE)
+   else()
+       set(CMAKE_CUDA_FLAGS
+           "-arch=${CUDA_ARCH} --expt-extended-lambda -ccbin ${CMAKE_CXX_COMPILER}"
+           CACHE STRING "CUDA flags set for MFEM" FORCE)
+   endif()
    set(MFEM_USE_MM YES CACHE BOOL "Use MFEM memory manager with CUDA")
 endif()
 
