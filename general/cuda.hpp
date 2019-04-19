@@ -26,7 +26,7 @@
 #ifdef MFEM_USE_CUDA
 #define MFEM_ATTR_DEVICE __device__
 #define MFEM_ATTR_HOST_DEVICE __host__ __device__
-// Define the CUDA debug macros
+// Define the CUDA debug macro
 #ifdef MFEM_DEBUG
 #define MFEM_CUDA_CHECK(x) \
    do \
@@ -41,8 +41,7 @@
    } \
    while (0)
 #else
-#define MFEM_CUDA_CHECK_DRV(x) x
-#define MFEM_CUDA_CHECK_RT(x) x
+#define MFEM_CUDA_CHECK(x) x
 #endif
 #else // MFEM_USE_CUDA
 #define MFEM_ATTR_DEVICE
