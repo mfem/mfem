@@ -17,7 +17,6 @@ namespace mfem
 void* CuMemAlloc(void** dptr, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
-   //if (CUDA_SUCCESS != ::cuMemAlloc((CUdeviceptr*)dptr, bytes))
    if (cudaSuccess != ::cudaMalloc(dptr, bytes))
    {
       mfem_error("Error in CuMemAlloc");
@@ -29,7 +28,6 @@ void* CuMemAlloc(void** dptr, size_t bytes)
 void* CuMemFree(void *dptr)
 {
 #ifdef MFEM_USE_CUDA
-   //if (CUDA_SUCCESS != ::cuMemFree((CUdeviceptr)dptr))
    if (cudaSuccess != ::cudaFree(dptr))
    {
       mfem_error("Error in CuMemFree");
@@ -41,7 +39,6 @@ void* CuMemFree(void *dptr)
 void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
-   //if (CUDA_SUCCESS != ::cuMemcpyHtoD((CUdeviceptr)dst, src, bytes))
    if (cudaSuccess != ::cudaMemcpy(dst, src, bytes, cudaMemcpyHostToDevice))
    {
       mfem_error("Error in CuMemcpyHtoD");
@@ -50,11 +47,10 @@ void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
    return dst;
 }
 
-void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
+void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
-   //if (CUDA_SUCCESS != ::cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s))
-   if (cudaSuccess != ::cudaMemcpyAsync(dst, src, bytes, cudaMemcpyHostToDevice, (CUstream)s))
+   if (cudaSuccess != ::cudaMemcpyAsync(dst, src, bytes, cudaMemcpyHostToDevice))
    {
       mfem_error("Error in CuMemcpyHtoDAsync");
    }
@@ -65,7 +61,6 @@ void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
-   //if (CUDA_SUCCESS != ::cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes))
    if (cudaSuccess != ::cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToDevice))
    {
       mfem_error("Error in CuMemcpyDtoD");
@@ -74,11 +69,10 @@ void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
    return dst;
 }
 
-void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
+void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
-   //if (CUDA_SUCCESS != ::cuMemcpyDtoDAsync((CUdeviceptr)dst, (CUdeviceptr)src, bytes, (CUstream)s))
-   if (cudaSuccess != ::cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToDevice, (CUstream)s))
+   if (cudaSuccess != ::cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToDevice))
    {
       mfem_error("Error in CuMemcpyDtoDAsync");
    }
@@ -89,7 +83,6 @@ void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
-   //if (CUDA_SUCCESS != ::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes))
    if (cudaSuccess != ::cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToHost))
    {
       mfem_error("Error in CuMemcpyDtoH");
@@ -101,8 +94,7 @@ void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
 void* CuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
 {
 #ifdef MFEM_USE_CUDA
-   //if (CUDA_SUCCESS != ::cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s))
-   if (cudaSuccess != ::cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToHost, (CUstream)s))
+   if (cudaSuccess != ::cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToHost))
    {
       mfem_error("Error in CuMemcpyDtoHAsync");
    }
