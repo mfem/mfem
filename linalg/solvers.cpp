@@ -296,28 +296,46 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
+   x = r = d = z = 0.0;
+   dbg("\033[32;7mr: %.21e",r*r);
+   dbg("\033[32;7md: %.21e",d*d);
+   dbg("\033[32;7mz: %.21e",z*z);
+   dbg("\033[32;7mb: %.21e",b*b);
+   dbg("\033[32;7mx: %.21e",x*x);
+   b.Pull(); for(int i=0;i<b.Size();i++){dbg("\033[35mb[%d]=%.21e",i,b[i]);} dbg("\033[32mb: %.21e",b*b);
 
    if (iterative_mode)
    {
+      dbg("iterative_mode");
+      x.Pull(); for(int i=0;i<x.Size();i++){dbg("\033[33mx[%d]=%.21e",i,x[i]);}
       oper->Mult(x, r);
+      r.Pull(); for(int i=0;i<r.Size();i++){dbg("\033[35mr[%d]=%.21e",i,r[i]);} dbg("\033[32mr: %.21e",r*r);
+      dbg("r = b - A x");
       subtract(b, r, r); // r = b - A x
+      r.Pull(); for(int i=0;i<r.Size();i++){dbg("\033[35mr[%d]=%.21e",i,r[i]);} dbg("\033[32mr: %.21e",r*r);
    }
    else
    {
+      dbg("else");
       r = b;
       x = 0.0;
    }
 
    if (prec)
    {
+      dbg("prec");
       prec->Mult(r, z); // z = B r
       d = z;
    }
    else
    {
+      dbg("d = r");
+      r.Pull(); for(int i=0;i<r.Size();i++){dbg("\033[35mr[%d]=%.21e",i,r[i]);} dbg("\033[35;1mr: %.21e",r*r);
       d = r;
+      d.Pull(); for(int i=0;i<d.Size();i++){dbg("\033[36md[%d]=%.21e",i,d[i]);} dbg("\033[36;1md: %.21e",d*d);
    }
    nom0 = nom = Dot(d, r);
+   dbg("%.21e",nom);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
 
    if (print_level == 1 || print_level == 3)
@@ -327,15 +345,19 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
 
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+   dbg("%.21e",r0);
    if (nom <= r0)
    {
+      dbg("converged");
       converged = 1;
       final_iter = 0;
       final_norm = sqrt(nom);
       return;
    }
-
+   
+   dbg("d: %.21e",d*d);
    oper->Mult(d, z);  // z = A d
+   dbg("z: %.21e",z*z);
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
 
@@ -346,6 +368,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    if (den == 0.0)
    {
+      dbg("den == 0.0");
+      converged = 1;
       converged = 0;
       final_iter = 0;
       final_norm = sqrt(nom);
@@ -357,12 +381,32 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    final_iter = max_iter;
    for (i = 1; true; )
    {
+      dbg("%d",i);
+      /*if (i==5){
+         for(int i=0;i<r.Size();i++){dbg("\033[33mr[%d]=%.21e",i,r[i]);}
+         for(int i=0;i<d.Size();i++){dbg("\033[35md[%d]=%.21e",i,d[i]);}
+         for(int i=0;i<z.Size();i++){dbg("\033[36mz[%d]=%.21e",i,z[i]);}
+         for(int i=0;i<x.Size();i++){dbg("\033[37mx[%d]=%.21e",i,x[i]);}
+         }*/
+      //dbg("\033[32;1m%.21e %.21e", nom, den);
+      dbg("\033[32;1mr: %.21e",r*r);
+      dbg("\033[32;1md: %.21e",d*d);
+      dbg("\033[32;1mz: %.21e",z*z);
+      dbg("\033[32;1mx: %.21e",x*x);
+      
       alpha = nom/den;
+      dbg("\talpha=%.21e",alpha);
+      dbg("x = x + alpha d");
       add(x,  alpha, d, x);     //  x = x + alpha d
+      dbg("\tx: %.21e",x*x);
+      dbg("r = r - alpha A d");
       add(r, -alpha, z, r);     //  r = r - alpha A d
-
+      dbg("\tr: %.21e",r*r);
+ 
       if (prec)
       {
+         MFEM_ASSERT(false,"");
+         dbg("\tprec");
          prec->Mult(r, z);      //  z = B r
          betanom = Dot(r, z);
       }
@@ -370,6 +414,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          betanom = Dot(r, r);
       }
+      dbg("\033[31;1mbetanom=%.21e",betanom);
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
 
       if (print_level == 1)
@@ -400,6 +445,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
 
       beta = betanom/nom;
+      dbg("\tbeta=%.21e",beta);
       if (prec)
       {
          add(z, beta, d, d);   //  d = z + beta d
@@ -408,8 +454,17 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          add(r, beta, d, d);
       }
+      
+      d.Pull(); for(int i=0;i<d.Size();i++){dbg("\033[37md[%d]=%.21e",i,d[i]);}
+      dbg("\t\033[7md=%.21e",d*d);
+      
       oper->Mult(d, z);       //  z = A d
+      
+      z.Pull(); for(int i=0;i<z.Size();i++){dbg("\033[36mz[%d]=%.21e",i,z[i]);}
+      dbg("\t\033[7mz=%.21e",z*z);
+      
       den = Dot(d, z);
+      dbg("\t\033[37;1mden=%.21e",den);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {

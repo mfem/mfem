@@ -69,6 +69,11 @@ protected:
    RowNodeAlloc * NodesMem;
 #endif
 
+#ifdef MFEM_USE_CUDA
+   /// Self transposed matrix
+   mutable SparseMatrix *tA;
+#endif
+
    /// Say whether we own the pointers for I and J (should we free them?).
    bool ownGraph;
    /// Say whether we own the pointers for A (should we free them?).
