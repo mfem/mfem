@@ -26,25 +26,9 @@
 #ifdef MFEM_USE_CUDA
 #define MFEM_ATTR_DEVICE __device__
 #define MFEM_ATTR_HOST_DEVICE __host__ __device__
-// Define the CUDA debug macros:
-// - MFEM_CUDA_CHECK_DRV(x) where 'x' returns/is type 'CUresult'
-// - MFEM_CUDA_CHECK_RT(x)  where 'x' returns/is type 'cudaError_t'
+// Define the CUDA debug macros
 #ifdef MFEM_DEBUG
-#define MFEM_CUDA_CHECK_DRV(x) \
-   do \
-   { \
-      CUresult err = (x); \
-      if (err != CUDA_SUCCESS) \
-      { \
-         const char *error_string; \
-         cuGetErrorString(err, &error_string); \
-         _MFEM_MESSAGE("CUDA error: (" << #x \
-                       << ") failed with error:\n --> " \
-                       << error_string, 0); \
-      } \
-   } \
-   while (0)
-#define MFEM_CUDA_CHECK_RT(x) \
+#define MFEM_CUDA_CHECK(x) \
    do \
    { \
       cudaError_t err = (x); \
@@ -63,9 +47,6 @@
 #else // MFEM_USE_CUDA
 #define MFEM_ATTR_DEVICE
 #define MFEM_ATTR_HOST_DEVICE
-typedef int CUdevice;
-typedef int CUcontext;
-typedef void* CUstream;
 #endif // MFEM_USE_CUDA
 
 
@@ -120,20 +101,19 @@ void* CuMemFree(void *d_ptr);
 void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
 
 /// Copies memory from Host to Device
-void* CuMemcpyHtoDAsync(void *d_dst, const void *h_src,
-                        size_t bytes, void *stream);
+void* CuMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
 
 /// Copies memory from Device to Device
 void* CuMemcpyDtoD(void *d_dst, void *d_src, size_t bytes);
 
 /// Copies memory from Device to Device
-void* CuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes, void *stream);
+void* CuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
 void* CuMemcpyDtoH(void *h_dst, void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
-void* CuMemcpyDtoHAsync(void *h_dst, void *d_src, size_t bytes, void *stream);
+void* CuMemcpyDtoHAsync(void *h_dst, void *d_src, size_t bytes);
 
 } // namespace mfem
 
