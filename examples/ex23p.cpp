@@ -69,21 +69,30 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   HypreParMatrix &A, &S, &K;
+   HypreParMatrix &M, &S, &K;
+   HypreParMatrix *A;
    const Vector &b;
-   HypreBoomerAMG A_prec;
-   CGSolver A_solver;
+
+   HypreSmoother M_prec;
+   CGSolver M_solver;
+
+   HypreBoomerAMG *A_prec;
+   GMRESSolver *A_solver;
+   double dt;
 
    mutable Vector z;
 
-public:
-   FE_Evolution(HypreParMatrix &_A, HypreParMatrix &_S, HypreParMatrix &_K,
-		const Vector &_b);
+   void initA(double dt);
 
-   // virtual void Mult(const Vector &x, Vector &y) const;
+public:
+   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_S, HypreParMatrix &_K,
+                const Vector &_b);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
-  
-   virtual ~FE_Evolution() { }
+
+   virtual ~FE_Evolution() { delete A_solver; delete A_prec; delete A; }
 };
 
 
@@ -240,20 +249,18 @@ int main(int argc, char *argv[])
    //    parallel hypre matrices) corresponding to the DG discretization. The
    //    DGTraceIntegrator involves integrals over mesh interior faces.
    ConstantCoefficient diff_coef(d_coef);
-   ConstantCoefficient dtdiff_coef(dt * d_coef);
    VectorFunctionCoefficient velocity(dim, velocity_function);
-   FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
-   ParBilinearForm *a = new ParBilinearForm(fes);
-   a->AddDomainIntegrator(new MassIntegrator);
-   a->AddDomainIntegrator(new DiffusionIntegrator(dtdiff_coef));
-   a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtdiff_coef, sigma, kappa));
-   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dtdiff_coef, sigma, kappa));
+   ParBilinearForm *m = new ParBilinearForm(fes);
+   m->AddDomainIntegrator(new MassIntegrator);
+
    ParBilinearForm *s = new ParBilinearForm(fes);
    s->AddDomainIntegrator(new DiffusionIntegrator(diff_coef));
-   s->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coef, sigma, kappa));
+   s->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coef, sigma,
+                                                          kappa));
    s->AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coef, sigma, kappa));
+
    ParBilinearForm *k = new ParBilinearForm(fes);
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k->AddInteriorFaceIntegrator(
@@ -264,19 +271,17 @@ int main(int argc, char *argv[])
    ParLinearForm *b = new ParLinearForm(fes);
    b->AddBdrFaceIntegrator(
       new DGDirichletLFIntegrator(u0, diff_coef, sigma, kappa));
-   b->AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
-   a->Assemble();
-   a->Finalize();
    int skip_zeros = 0;
+   m->Assemble(skip_zeros);
+   m->Finalize(skip_zeros);
    s->Assemble(skip_zeros);
    s->Finalize(skip_zeros);
    k->Assemble(skip_zeros);
    k->Finalize(skip_zeros);
    b->Assemble();
 
-   HypreParMatrix *A = a->ParallelAssemble();
+   HypreParMatrix *M = m->ParallelAssemble();
    HypreParMatrix *S = s->ParallelAssemble();
    HypreParMatrix *K = k->ParallelAssemble();
    HypreParVector *B = b->ParallelAssemble();
@@ -359,7 +364,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*A, *S, *K, *B);
+   FE_Evolution adv(*M, *S, *K, *B);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -420,8 +425,8 @@ int main(int argc, char *argv[])
    delete k;
    delete S;
    delete s;
-   delete A;
-   delete a;
+   delete M;
+   delete m;
    delete fes;
    delete pmesh;
    delete ode_solver;
@@ -433,22 +438,49 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(HypreParMatrix &_A, HypreParMatrix &_S,
-			   HypreParMatrix &_K, const Vector &_b)
-   : TimeDependentOperator(_A.Height()),
-     A(_A), S(_S), K(_K), b(_b),
-     A_prec(A), A_solver(A.GetComm()), z(A.Height())
+FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_S,
+                           HypreParMatrix &_K, const Vector &_b)
+   : TimeDependentOperator(_M.Height()),
+     M(_M), S(_S), K(_K), A(NULL), b(_b),
+     M_prec(M), M_solver(M.GetComm()),
+     A_prec(NULL), A_solver(NULL), dt(-1.0), z(M.Height())
 {
-   A_solver.SetPreconditioner(A_prec);
-   A_solver.SetOperator(A);
+   M_prec.SetType(HypreSmoother::Jacobi);
+   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(M);
 
-   A_solver.iterative_mode = false;
-   A_solver.SetRelTol(1e-9);
-   A_solver.SetAbsTol(0.0);
-   A_solver.SetMaxIter(100);
-   A_solver.SetPrintLevel(0);
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-9);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(100);
+   M_solver.SetPrintLevel(0);
 }
-/*
+
+void FE_Evolution::initA(double _dt)
+{
+   if (fabs(dt - _dt) > 1e-4 * _dt)
+   {
+      delete A_solver;
+      delete A_prec;
+      delete A;
+
+      A = Add(1.0, M, _dt, S);
+      A->Add(-_dt, K);
+      dt = _dt;
+
+      A_prec = new HypreBoomerAMG(*A);
+      A_solver = new GMRESSolver(A->GetComm());
+      A_solver->SetOperator(*A);
+      A_solver->SetPreconditioner(*A_prec);
+
+      A_solver->iterative_mode = false;
+      A_solver->SetRelTol(1e-9);
+      A_solver->SetAbsTol(0.0);
+      A_solver->SetMaxIter(100);
+      A_solver->SetPrintLevel(0);
+   }
+}
+
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (-S x + K x + b)
@@ -457,14 +489,16 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    z += b;
    M_solver.Mult(z, y);
 }
-*/
-void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &y)
+
+void FE_Evolution::ImplicitSolve(const double _dt, const Vector &x, Vector &y)
 {
-   // y = M^{-1} (-S x + K x + b)
+   this->initA(_dt);
+
+   // y = (M + dt S - dt K)^{-1} (-S x + K x + b)
    S.Mult(-1.0, x, 0.0, z);
    K.Mult(1.0, x, 1.0, z);
    z += b;
-   A_solver.Mult(z, y);
+   A_solver->Mult(z, y);
 }
 
 // Velocity coefficient
