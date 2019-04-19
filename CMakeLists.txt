@@ -538,6 +538,13 @@ install(DIRECTORY ${MFEM_SOURCE_DIRS}
   DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
   FILES_MATCHING PATTERN "*.hpp")
 
+# Install the okl files
+if (MFEM_USE_OCCA)
+  install(DIRECTORY ${MFEM_SOURCE_DIRS}
+    DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
+    FILES_MATCHING PATTERN "*.okl")
+endif()
+
 # Install ${HEADERS}
 # ---
 # foreach (HDR ${HEADERS})
