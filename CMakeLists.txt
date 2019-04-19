@@ -89,6 +89,7 @@ enable_language(CXX)
 if (MFEM_USE_CUDA)
    # MFEM_USE_CUDA uses CMake 3.8 version that supports CUDA directly
    cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+   set(CUDA_PROPAGATE_HOST_FLAGS ON)
    enable_language(CUDA)
 endif()
 
@@ -274,16 +275,20 @@ endif()
   
 # CUDA
 if (MFEM_USE_CUDA)
-   set(CUDA_ARCH "sm_60")
-   if (MFEM_USE_MPI)
-      set(CMAKE_CUDA_FLAGS
-          "-arch=${CUDA_ARCH} --expt-extended-lambda -ccbin ${MPI_CXX_COMPILER}"
-          CACHE STRING "CUDA flags set for MFEM" FORCE)
-   else()
-       set(CMAKE_CUDA_FLAGS
-           "-arch=${CUDA_ARCH} --expt-extended-lambda -ccbin ${CMAKE_CXX_COMPILER}"
-           CACHE STRING "CUDA flags set for MFEM" FORCE)
+   set(CMAKE_CUDA_STANDARD 11)
+   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+   set(CMAKE_CUDA_EXTENSIONS OFF)
+   if (NOT DEFINED CUDA_ARCH)
+      set(CUDA_ARCH "sm_60")
    endif()
+   set(CMAKE_CUDA_FLAGS "-arch=${CUDA_ARCH} --expt-extended-lambda"
+       CACHE STRING "CUDA flags set for MFEM" FORCE)
+   if (MFEM_USE_MPI)
+      set(CUDA_CCBIN_COMPILER ${MPI_CXX_COMPILER})
+   else()
+      set(CUDA_CCBIN_COMPILER ${CMAKE_CXX_COMPILER})
+   endif()
+   string(APPEND CMAKE_CUDA_FLAGS " -ccbin ${CUDA_CCBIN_COMPILER}")
    set(MFEM_USE_MM YES CACHE BOOL "Use MFEM memory manager with CUDA")
 endif()
 
