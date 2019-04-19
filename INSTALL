@@ -48,7 +48,7 @@ following package managers:
 
 - Spack, https://github.com/spack/spack
 - OpenHPC, http://openhpc.community
-- Homebrew/Science, https://github.com/Homebrew/homebrew-science
+- Homebrew/Science, https://github.com/Homebrew/homebrew-science (deprecated)
 
 We also recommend downloading and building the MFEM-based GLVis visualization
 tool which can be used to visualize the meshes and solution in MFEM's examples
@@ -92,6 +92,12 @@ Parallel build:
    (build hypre 2.10.0b in ../hypre-2.10.0b relative to mfem/)
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
    cmake <mfem-source-dir> -DMFEM_USE_MPI=YES
+   make -j 4
+
+CUDA build:
+   (this build requires CMake 3.8 or newer)
+   mkdir <mfem-build-dir> ; cd <mfem-build-dir>
+   cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES
    make -j 4
 
 Example codes (serial/parallel, depending on the build):
@@ -645,6 +651,8 @@ Configuration variables (CMake)
 ===============================
 See the configuration file config/defaults.cmake for the default settings.
 
+Note: the option MFEM_USE_CUDA requires CMake version 3.8 or newer!
+
 Non-standard CMake variables for compilers:
    CXX    - If set, overwrite the auto-detected C++ compiler, serial build
    MPICXX - If set, overwrite the auto-detected MPI C++ compiler, parallel build
@@ -675,9 +683,6 @@ MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_GZSTREAM
 MFEM_USE_PUMI
-
-The following GNU make options are not supported with CMake yet:
-
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_RAJA
@@ -728,6 +733,8 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - LIBUNWIND
  - POSIXCLOCKS
  - PUMI
+ - OCCA
+ - RAJA
 
 The following built-in CMake packages are also used:
 
