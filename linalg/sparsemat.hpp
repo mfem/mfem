@@ -64,8 +64,8 @@ protected:
    mutable int* ColPtrJ;
    mutable RowNode ** ColPtrNode;
 
-   /// Self-transposed sparse matrix
-   mutable SparseMatrix *tA;
+   /// Transpose of A
+   mutable SparseMatrix *At;
 
 #ifdef MFEM_USE_MEMALLOC
    typedef MemAlloc <RowNode, 1024> RowNodeAlloc;

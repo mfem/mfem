@@ -38,7 +38,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      current_row(-1),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
-     tA(NULL),
+     At(NULL),
      ownGraph(true),
      ownData(true),
      isSorted(false)
@@ -61,7 +61,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
      Rows(NULL),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
-     tA(NULL),
+     At(NULL),
      ownGraph(true),
      ownData(true),
      isSorted(false)
@@ -80,7 +80,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
      Rows(NULL),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
-     tA(NULL),
+     At(NULL),
      ownGraph(ownij),
      ownData(owna),
      isSorted(issorted)
@@ -106,7 +106,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    , Rows(NULL)
    , ColPtrJ(NULL)
    , ColPtrNode(NULL)
-   , tA(NULL)
+   , At(NULL)
    , ownGraph(true)
    , ownData(true)
    , isSorted(false)
@@ -187,7 +187,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    current_row = -1;
    ColPtrJ = NULL;
    ColPtrNode = NULL;
-   tA = NULL;
+   At = NULL;
    isSorted = mat.isSorted;
 }
 
@@ -196,7 +196,7 @@ SparseMatrix::SparseMatrix(const Vector &v)
    , Rows(NULL)
    , ColPtrJ(NULL)
    , ColPtrNode(NULL)
-   , tA(NULL)
+   , At(NULL)
    , ownGraph(true)
    , ownData(true)
    , isSorted(true)
@@ -251,7 +251,7 @@ void SparseMatrix::SetEmpty()
    current_row = -1;
    ColPtrJ = NULL;
    ColPtrNode = NULL;
-   tA = NULL;
+   At = NULL;
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
@@ -360,7 +360,7 @@ void SparseMatrix::SetWidth(int newWidth)
          ColPtrJ = static_cast<int *>(NULL);
       }
       width = newWidth;
-      delete tA;
+      delete At;
    }
    else
    {
@@ -669,8 +669,8 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
 
    if (Device::IsEnabled())
    {
-      if (!tA) { tA = Transpose(*this); }
-      tA->AddMult(x, y, a);
+      if (!At) { At = Transpose(*this); }
+      At->AddMult(x, y, a);
    }
    else
    {
@@ -2781,7 +2781,7 @@ void SparseMatrix::Destroy()
       delete NodesMem;
    }
 #endif
-   delete tA;
+   delete At;
 }
 
 int SparseMatrix::ActualWidth()
@@ -3504,7 +3504,7 @@ void SparseMatrix::Swap(SparseMatrix &other)
    mfem::Swap(current_row, other.current_row);
    mfem::Swap(ColPtrJ, other.ColPtrJ);
    mfem::Swap(ColPtrNode, other.ColPtrNode);
-   mfem::Swap(tA, other.tA);
+   mfem::Swap(At, other.At);
 
 #ifdef MFEM_USE_MEMALLOC
    mfem::Swap(NodesMem, other.NodesMem);
