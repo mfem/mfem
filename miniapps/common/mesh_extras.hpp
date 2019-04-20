@@ -38,16 +38,16 @@ double ComputeSecondMoment(Mesh &mesh, Coefficient &rho,
                            const Vector &center,
                            int ir_order, DenseMatrix &mom);
 
-void ComputeNormalizedFirstMoment(Mesh &mesh, Coefficient &rho,
-                                  int ir_order, Vector &mom)
+inline void ComputeNormalizedFirstMoment(Mesh &mesh, Coefficient &rho,
+                                         int ir_order, Vector &mom)
 {
    double mom0 = ComputeFirstMoment(mesh, rho, ir_order, mom);
    mom /= mom0;
 }
 
-void ComputeNormalizedSecondMoment(Mesh &mesh, Coefficient &rho,
-                                   const Vector &center,
-                                   int ir_order, DenseMatrix &mom)
+inline void ComputeNormalizedSecondMoment(Mesh &mesh, Coefficient &rho,
+                                          const Vector &center,
+                                          int ir_order, DenseMatrix &mom)
 {
    double mom0 = ComputeSecondMoment(mesh, rho, center, ir_order, mom);
    mom *= 1.0 / mom0;
