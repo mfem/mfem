@@ -53,6 +53,11 @@ void ComputeNormalizedSecondMoment(Mesh &mesh, Coefficient &rho,
    mom *= 1.0 / mom0;
 }
 
+void ComputeElementZerothMoments(Mesh &mesh, Coefficient &rho,
+                                 int ir_order, GridFunction &m);
+
+void ComputeElementCentersOfMass(Mesh &mesh, Coefficient &rho,
+                                 int ir_order, GridFunction &c);
 
 } // namespace miniapps
 

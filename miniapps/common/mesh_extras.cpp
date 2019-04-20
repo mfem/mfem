@@ -187,6 +187,40 @@ double ComputeZerothMoment(Mesh &mesh, Coefficient &rho,
    return mom;
 }
 
+void ComputeElementZerothMoments(Mesh &mesh, Coefficient &rho,
+                                 int ir_order, GridFunction &m)
+{
+   MFEM_ASSERT(m.Size() == mesh.GetNE(), "Invalid GridFunction.  "
+               "Must have a length equal to the number of mesh elements.");
+
+   FiniteElementSpace * fes = m.FESpace();
+
+   Array<int> vdofs;
+
+   for (int i=0; i<mesh.GetNE(); i++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(i);
+      Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
+
+      fes->GetElementVDofs(i, vdofs);
+
+      double mom = 0.0;
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         double w = T->Weight() * ip.weight * rho.Eval(*T, ip);
+
+         mom += w;
+      }
+
+      m[vdofs[0]] = mom;
+   }
+}
+
 double ComputeFirstMoment(Mesh &mesh, Coefficient &rho,
                           int ir_order, Vector &mom)
 {
@@ -275,6 +309,56 @@ double ComputeSecondMoment(Mesh &mesh, Coefficient &rho,
    }
 
    return mom0;
+}
+
+void ComputeElementCentersOfMass(Mesh &mesh, Coefficient &rho,
+                                 int ir_order, GridFunction &c)
+{
+   int sdim = mesh.SpaceDimension();
+
+   MFEM_ASSERT(c.Size() == mesh.GetNE() * sdim,
+               "Invalid GridFunction.  Must have a length equal to the "
+               "number of mesh elements times the spatial dimension.");
+
+   FiniteElementSpace * fes = c.FESpace();
+
+   Array<int> vdofs;
+
+   double x_data[3];
+   Vector x(x_data, sdim);
+
+   c = 0.0;
+
+   for (int i=0; i<mesh.GetNE(); i++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(i);
+      Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
+
+      fes->GetElementVDofs(i, vdofs);
+
+      double mom0 = 0.0;
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         T->Transform(ip, x);
+
+         double w = T->Weight() * ip.weight * rho.Eval(*T, ip);
+
+         mom0 += w;
+
+         for (int k=0; k<sdim; k++)
+         {
+            c[vdofs[k]] += w * x[k];
+         }
+      }
+      for (int k=0; k<sdim; k++)
+      {
+         c[vdofs[k]] /= mom0;
+      }
+   }
 }
 
 } // namespace miniapps
