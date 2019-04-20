@@ -20,8 +20,10 @@ set(MFEM_MINIAPPS_COMMON_HEADERS
 
 if (MFEM_USE_MPI)
   list(APPEND MFEM_MINIAPPS_COMMON_SOURCES
+    pmesh_extras.cpp
     pfem_extras.cpp)
   list(APPEND MFEM_MINIAPPS_COMMON_HEADERS
+    pmesh_extras.hpp
     pfem_extras.hpp)
 endif()
 

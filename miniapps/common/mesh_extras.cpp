@@ -116,6 +116,167 @@ ElementMeshStream::ElementMeshStream(Element::Type e)
 
 }
 
+double ComputeVolume(Mesh &mesh, int ir_order)
+{
+   double vol = 0.0;
+
+   for (int i=0; i<mesh.GetNE(); i++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(i);
+      Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         double w = T->Weight() * ip.weight;
+
+         vol += w;
+      }
+   }
+   return vol;
+}
+
+double ComputeSurfaceArea(Mesh &mesh, int ir_order)
+{
+   double area = 0.0;
+
+   for (int i=0; i<mesh.GetNBE(); i++)
+   {
+      ElementTransformation *T = mesh.GetBdrElementTransformation(i);
+      Geometry::Type geom = mesh.GetBdrElementBaseGeometry(i);
+      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         double w = T->Weight() * ip.weight;
+
+         area += w;
+      }
+   }
+   return area;
+}
+
+double ComputeZerothMoment(Mesh &mesh, Coefficient &rho,
+                           int ir_order)
+{
+   double mom = 0.0;
+
+   for (int i=0; i<mesh.GetNE(); i++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(i);
+      Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         double w = T->Weight() * ip.weight * rho.Eval(*T, ip);
+
+         mom += w;
+      }
+   }
+
+   return mom;
+}
+
+double ComputeFirstMoment(Mesh &mesh, Coefficient &rho,
+                          int ir_order, Vector &mom)
+{
+   double mom0 = 0.0;
+
+   int sdim = mesh.SpaceDimension();
+
+   mom.SetSize(sdim);
+   mom = 0.0;
+
+   double x_data[3];
+   Vector x(x_data, sdim);
+
+   for (int i=0; i<mesh.GetNE(); i++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(i);
+      Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         T->Transform(ip, x);
+
+         double w = T->Weight() * ip.weight * rho.Eval(*T, ip);
+
+         mom0 += w;
+         mom.Add(w, x);
+      }
+   }
+
+   return mom0;
+}
+
+double ComputeSecondMoment(Mesh &mesh, Coefficient &rho,
+                           const Vector &center,
+                           int ir_order, DenseMatrix &mom)
+{
+   double mom0 = 0.0;
+
+   int sdim = mesh.SpaceDimension();
+
+   mom.SetSize(sdim);
+   mom = 0.0;
+
+   double x_data[3];
+   Vector x(x_data, sdim);
+
+   for (int i=0; i<mesh.GetNE(); i++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(i);
+      Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         T->Transform(ip, x);
+         x.Add(-1.0, center);
+
+         double r2 = x * x;
+
+         double w = T->Weight() * ip.weight * rho.Eval(*T, ip);
+
+         mom0 += w;
+
+         for (int k=0; k<sdim; k++)
+         {
+            mom(k,k) += w * r2;
+            for (int l=k; l<sdim; l++)
+            {
+               mom(k,l) -= w * x[k] * x[l];
+            }
+         }
+      }
+   }
+
+   for (int k=0; k<sdim; k++)
+   {
+      for (int l=0; l<k; l++)
+      {
+         mom(k,l) = mom(l,k);
+      }
+   }
+
+   return mom0;
+}
+
 } // namespace miniapps
 
 } // namespace mfem

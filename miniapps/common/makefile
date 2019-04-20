@@ -27,7 +27,7 @@ SEQ_MINIOBJS = mesh_extras.o fem_extras.o
 ifeq ($(MFEM_USE_MPI),NO)
    MINIOBJS = $(SEQ_MINIOBJS)
 else
-   MINIOBJS = $(SEQ_MINIOBJS) pfem_extras.o
+   MINIOBJS = $(SEQ_MINIOBJS) pmesh_extras.o pfem_extras.o
 endif
 
 .SUFFIXES:
