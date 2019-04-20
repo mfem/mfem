@@ -319,8 +319,8 @@ MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 
-MFEM_SOURCE_DIR  := $(MFEM_REAL_DIR)
-MFEM_INSTALL_DIR := $(BUILD_REAL_DIR)
+MFEM_SOURCE_DIR  = $(MFEM_REAL_DIR)
+MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
 
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
@@ -344,6 +344,11 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
       @MFEM_EXT_LIBS@
    MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
+   ifeq ($(MFEM_USE_OCCA),YES)
+      ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX))
+         $(error OCCA is enabled: PREFIX must be set during configuration!)
+      endif
+   endif
    MFEM_PREFIX := $(abspath $(PREFIX))
    MFEM_INC_DIR = $(abspath $(PREFIX_INC))
    MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))

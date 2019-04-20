@@ -89,7 +89,6 @@ enable_language(CXX)
 if (MFEM_USE_CUDA)
    # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
    cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
-   set(CUDA_PROPAGATE_HOST_FLAGS ON)
    enable_language(CUDA)
 endif()
 
@@ -289,27 +288,19 @@ if (MFEM_USE_CUDA)
       set(CUDA_CCBIN_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
    string(APPEND CMAKE_CUDA_FLAGS " -ccbin ${CUDA_CCBIN_COMPILER}")
-   set(MFEM_USE_MM YES CACHE BOOL "Use MFEM memory manager with CUDA")
+   set(MFEM_USE_MM YES CACHE BOOL "Enable MFEM's memory manager" FORCE)
 endif()
 
 # OCCA
 if (MFEM_USE_OCCA)
-   mfem_find_package(OCCA OCCA OCCA_DIR
-                     "include" occa.hpp
-                     "lib" occa
-                     "Paths to headers required by OCCA."
-                     "Libraries required by OCCA.")
+   find_package(OCCA REQUIRED)
 endif()
 
 # RAJA
 if (MFEM_USE_RAJA)
-   mfem_find_package(RAJA RAJA RAJA_DIR
-                     "include" RAJA/RAJA.hpp
-                     "lib" RAJA
-                     "Paths to headers required by RAJA."
-                     "Libraries required by RAJA.")
+   find_package(RAJA REQUIRED)
 endif()
-   
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -335,7 +326,7 @@ endif()
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
     MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
-    POSIXCLOCKS MFEMBacktrace ZLIB CUDA OCCA RAJA)
+    POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -388,11 +379,17 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
 set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
 set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
 
-set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH "" FORCE)
-set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH "" FORCE)
+set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH
+    "The MFEM source directory" FORCE)
+set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
+    "The MFEM install directory" FORCE)
 
 # Declaring the library
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+# FIXME: remove the next statement after the CUDA driver dependency is removed
+if (MFEM_USE_CUDA)
+   list(APPEND TPL_LIBRARIES "-L/usr/local/cuda/lib -lcuda")
+endif()
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
