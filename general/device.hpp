@@ -14,7 +14,6 @@
 
 #include "globals.hpp"
 #include "mem_manager.hpp"
-#include "ceed.h"
 
 namespace mfem
 {
@@ -54,7 +53,7 @@ struct Backend
           and MFEM_USE_CUDA = YES. */
       OCCA_CUDA = 1 << 8,
       /** @brief [host] CEED backend: GPU backends can still be used, but
-          with expensive memCopies.
+          with expensive memory transfers.
           Enabled when MFEM_USE_CEED = YES. */
       CEED_CPU  = 1 << 9,
       /** @brief [device] Ceed backends working in colaboration with the Cuda backend.
@@ -205,6 +204,7 @@ public:
    /// Enable the use of the configured device in the code that follows.
    /** After this call MFEM classes will use the backend kernels whenever
        possible, transferring data automatically to the device, if necessary.
+       
        If the only configured backend is the default host CPU one, the device
        will remain disabled. */
    static inline void Enable()

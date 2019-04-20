@@ -9,13 +9,15 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "ceed.h"
+
 #include "gridfunc.hpp"
 #include "fespace.hpp"
+#include "../general/ceed.hpp"
 
 namespace mfem
 {
 
+#ifdef MFEM_USE_CEED
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
 
@@ -52,5 +54,8 @@ void initCeedCoeff(Coefficient* Q, CeedData* ptr);
 void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& ceedData);
 
 void CeedPAMassAssemble(const FiniteElementSpace &fes, CeedData& ceedData);
+#else
+typedef void* CeedData;
+#endif
 
 }
