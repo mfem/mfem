@@ -63,6 +63,9 @@ option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
 # set(CXX g++)
 # set(MPICXX mpicxx)
 
+# Set the target CUDA architecture
+set(CUDA_ARCH "sm_60" CACHE STRING "Target CUDA architecture.")
+
 set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # The *_DIR paths below will be the first place searched for the corresponding
