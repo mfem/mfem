@@ -22,8 +22,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 
-SEQ_MINIAPPS = display-basis load-dc convert-dc lor-transfer
-PAR_MINIAPPS =
+SEQ_MINIAPPS = display-basis load-dc convert-dc lor-transfer seq-moment
+PAR_MINIAPPS = par-moment
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -35,7 +35,7 @@ endif
 .PHONY: all clean clean-build clean-exec
 .PRECIOUS: %.o
 
-COMMON_O=../common/fem_extras.o ../common/mesh_extras.o
+COMMON_O=../common/fem_extras.o ../common/mesh_extras.o ../common/pmesh_extras.o
 
 all: $(MINIAPPS)
 
@@ -49,6 +49,14 @@ all: $(MINIAPPS)
 
 # Tools that depend on $(COMMON_O)
 display-basis: %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_O) $(MFEM_LIBS)
+
+seq-moment: %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_O) $(MFEM_LIBS)
+
+par-moment: %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_O) $(MFEM_LIBS)
 
