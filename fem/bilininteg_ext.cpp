@@ -241,13 +241,17 @@ static void PADiffusionSetup(const int dim,
 
 void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 {
+#ifdef MFEM_USE_CEED
    if (Device::Allows(Backend::CEED_MASK))
    {
       CeedData* ptr = new CeedData();
       ceedDataPtr = ptr;
       initCeedCoeff(Q, ptr);
       CeedPADiffusionAssemble(fes, *ptr);
-   } else {
+   }
+   else
+#endif
+   {
       const Mesh *mesh = fes.GetMesh();
       const IntegrationRule *rule = IntRule;
       const FiniteElement &el = *fes.GetFE(0);
@@ -743,6 +747,7 @@ static void PADiffusionApply(const int dim,
 namespace internal { extern Ceed ceed; }
 void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 {
+#ifdef MFEM_USE_CEED
    if (Device::Allows(Backend::CEED_MASK))
    {
       CeedScalar *x_ptr, *y_ptr;
@@ -764,7 +769,10 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
       CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v, CEED_REQUEST_IMMEDIATE);
       
       CeedVectorSyncArray(ceedData.v, mem);
-   } else {
+   }
+   else
+#endif
+   {
       PADiffusionApply(dim, dofs1D, quad1D, ne,
                        maps->B, maps->G, maps->Bt, maps->Gt,
                        vec, x, y);
@@ -781,13 +789,17 @@ DiffusionIntegrator::~DiffusionIntegrator()
 // PA Mass Assemble kernel
 void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 {    
+#ifdef MFEM_USE_CEED
    if (Device::Allows(Backend::CEED_MASK))
    {
      CeedData* ptr = new CeedData();
      ceedDataPtr = ptr;
      initCeedCoeff(Q, ptr);
      CeedPAMassAssemble(fes, *ptr);
-  } else {
+  }
+  else
+#endif
+  {
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
    const FiniteElement &el = *fes.GetFE(0);
@@ -1279,6 +1291,7 @@ static void PAMassApply(const int dim,
 
 void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 {
+#ifdef MFEM_USE_CEED
    if (Device::Allows(Backend::CEED_MASK))
    {
       CeedData& ceedData = *static_cast<CeedData*>(ceedDataPtr);
@@ -1288,7 +1301,10 @@ void MassIntegrator::MultAssembled(Vector &x, Vector &y)
       CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v, CEED_REQUEST_IMMEDIATE);
 
       CeedVectorSyncArray(ceedData.v, CEED_MEM_HOST);
-   } else {
+   }
+   else
+#endif
+   {
       PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, vec, x, y);
    }
 }
