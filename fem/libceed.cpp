@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "libceed.hpp"
-#include "ceed.h"
+#include "../general/ceed.hpp"
 #include "../general/device.hpp"
 
 namespace mfem
@@ -20,6 +20,7 @@ namespace mfem
 // LibCEED
 //***********
 
+#ifdef MFEM_USE_CEED
 void initCeedCoeff(Coefficient* Q, CeedData* ptr){
     if (ConstantCoefficient* coeff = dynamic_cast<ConstantCoefficient*>(Q))
     {
@@ -588,4 +589,5 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
 // LibCEED
 //***********
 
+#endif
 } // namespace mfem

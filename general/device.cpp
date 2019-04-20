@@ -12,7 +12,7 @@
 #include "forall.hpp"
 #include "cuda.hpp"
 #include "occa.hpp"
-#include "ceed.h"
+#include "ceed.hpp"
 
 #include <string>
 #include <map>
@@ -248,9 +248,9 @@ static void OccaDeviceSetup(const int dev)
 
 static void CeedDeviceSetup(const char* ceed_spec)
 {
-   // char* ceed_spec = "/cpu/self/ref/blocked";
-   // char* ceed_spec = "/gpu/cuda/ref";
+#ifdef MFEM_USE_CEED
    CeedInit(ceed_spec, &internal::ceed);
+#endif
 }
 
 void Device::Setup(const int device)
@@ -298,7 +298,7 @@ void Device::Setup(const int device)
    {
       if (ceed_option.empty())
       {
-         CeedDeviceSetup("/gpu/cuda/reg");
+         CeedDeviceSetup("/gpu/cuda/ref");
       } else {
          CeedDeviceSetup(ceed_option.c_str());
       }
