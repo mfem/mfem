@@ -7,13 +7,29 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::miniapps;
 
-double rhoFunc(const Vector &x)
+static int prob_ = -1;
+
+double densityFunc(const Vector &x)
 {
-   // Off-center Gaussian
-   double s_data[3];
-   Vector s(s_data, x.Size());
-   s = 0.0; s[0] = -1.0; s += x;
-   return exp(-(s * s));
+  switch(prob_)
+    {
+    case 1:
+      // Linear in the radius
+      return sqrt(x * x);
+    case 2:
+      // Off-center Gaussian
+      {
+	double s_data[3];
+	Vector s(s_data, x.Size());
+	s = 0.0; s[0] = -1.0; s += x;
+	return exp(-(s * s));
+      }
+    case 3:
+      // Hydrostatic equilibrium
+      return pow(1.0 + (x * x), -1.5);
+    }  
+  // Default to homogeneous
+  return 1.0;
 }
 
 int main(int argc, char *argv[])
@@ -31,6 +47,11 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&ir_order, "-o", "--order",
                   "Integration rule order.");
+   args.AddOption(&prob_, "-d", "--density",
+                  "Density profile:\n"
+		  "  1 - linear in the radius,\n"
+		  "  2 - Gaussian centered at x = 1,\n"
+		  "  Default - homogeneous.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -58,8 +79,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   ConstantCoefficient massDensity(1.0);
-   // FunctionCoefficient massDensity(rhoFunc);
+   FunctionCoefficient density(densityFunc);
 
    L2_FECollection fec(0, dim);
    FiniteElementSpace fes(&mesh, &fec);
@@ -120,9 +140,9 @@ int main(int argc, char *argv[])
    Vector cent(sdim); cent = 0.0;
    DenseMatrix mom2(sdim);
 
-   double mass  = ComputeZerothMoment(*mesh, massDensity, ir_order);
-   double mass1 = ComputeFirstMoment(*mesh, massDensity, ir_order, mom1);
-   double mass2 = ComputeSecondMoment(*mesh, massDensity, cent,
+   double mass  = ComputeZerothMoment(mesh, density, ir_order);
+   double mass1 = ComputeFirstMoment(mesh, density, ir_order, mom1);
+   double mass2 = ComputeSecondMoment(mesh, density, cent,
                                       ir_order, mom2);
 
    cout << "Volume:       " << vol << endl;
@@ -137,8 +157,8 @@ int main(int argc, char *argv[])
    cout << "Second Moment (moment of inertia):\n";
    mom2.Print(cout);
 
-   ComputeElementZerothMoments(*mesh, massDensity, ir_order, elemMass);
-   ComputeElementCentersOfMass(*mesh, massDensity, ir_order, elemCent);
+   ComputeElementZerothMoments(mesh, density, ir_order, elemMass);
+   ComputeElementCentersOfMass(mesh, density, ir_order, elemCent);
 
    // 15. Send the solution by socket to a GLVis server.
    if (visualization)
