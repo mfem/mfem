@@ -254,17 +254,13 @@ public:
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
        by most MFEM device kernels to access Memory objects. */
    static inline MemoryClass GetMemoryClass() { return Get().mem_class; }
-
-<<<<<<< HEAD
+   
    static void SetGPUAwareMPI(const bool force = true)
    { Get().mpi_gpu_aware = force; }
 
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
 
    static void Synchronize() { MFEM_DEVICE_SYNC; }
-=======
-   static Ceed GetCeed();
->>>>>>> 3b02371... Initial commit for okina gpu libceed.
 };
 
 
