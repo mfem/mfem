@@ -740,13 +740,14 @@ static void PADiffusionApply(const int dim,
 }
 
 // PA Diffusion Apply kernel
+namespace internal { extern Ceed ceed; }
 void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 {
    if (Device::Allows(Backend::CEED_MASK))
    {
       CeedScalar *x_ptr, *y_ptr;
       CeedMemType mem;
-      CeedGetPreferredMemType(Device::GetCeed(),&mem);
+      CeedGetPreferredMemType(internal::ceed, &mem);
       if ( mm.IsEnabled() && mem==CEED_MEM_DEVICE )
       {
          x_ptr = Ptr(x.GetData());

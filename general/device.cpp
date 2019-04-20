@@ -240,9 +240,6 @@ static void CeedDeviceSetup(const char* ceed_spec)
    CeedInit(ceed_spec, &internal::ceed);
 }
 
-Ceed Device::GetCeed()
-{ return internal::ceed; }
-
 void Device::Setup(const int device)
 {
    MFEM_VERIFY(ngpu == -1, "the mfem::Device is already configured!");
@@ -284,7 +281,7 @@ void Device::Setup(const int device)
    {
       if (ceed_option.empty())
       {
-         CeedDeviceSetup("/gpu/cuda/ref");
+         CeedDeviceSetup("/gpu/cuda/reg");
       } else {
          CeedDeviceSetup(ceed_option.c_str());
       }

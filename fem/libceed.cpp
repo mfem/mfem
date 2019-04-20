@@ -286,9 +286,10 @@ static void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
       tp_el_dof.GetData(), restr);
 }
 
+namespace internal { extern Ceed ceed; }
 void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
 {
-   Ceed ceed(Device::GetCeed());
+   Ceed ceed(internal::ceed);
    const bool dev_enabled = Device::IsEnabled();
    mfem::Mesh *mesh = fes.GetMesh();
    const int order = fes.GetOrder(0);
@@ -483,7 +484,7 @@ static int f_apply_mass(void *ctx, CeedInt Q,
 
 void CeedPAMassAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
 {
-  Ceed ceed(Device::GetCeed());
+  Ceed ceed(internal::ceed);
   mfem::Mesh *mesh = fes.GetMesh();
   const int order = fes.GetOrder(0);
   const int ir_order = 2*(order + 2) - 1; // <-----
