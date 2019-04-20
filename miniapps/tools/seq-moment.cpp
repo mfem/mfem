@@ -45,16 +45,16 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
-   int sdim = mesh->SpaceDimension();
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
+   int sdim = mesh.SpaceDimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement where 'ref_levels' is user defined.
    {
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
 
@@ -62,10 +62,10 @@ int main(int argc, char *argv[])
    // FunctionCoefficient massDensity(rhoFunc);
 
    L2_FECollection fec(0, dim);
-   FiniteElementSpace *fes = new FiniteElementSpace(mesh, &fec);
-   FiniteElementSpace *vfes = new FiniteElementSpace(mesh, &fec, sdim);
-   GridFunction elemMass(fes);
-   GridFunction elemCent(vfes);
+   FiniteElementSpace fes(&mesh, &fec);
+   FiniteElementSpace vfes(&mesh, &fec, sdim);
+   GridFunction elemMass(&fes);
+   GridFunction elemCent(&vfes);
 
    /*
    {
@@ -113,8 +113,8 @@ int main(int argc, char *argv[])
    cout << "Mass:         " << mass << endl;
    }
    */
-   double vol = ComputeVolume(*mesh, ir_order);
-   double area = ComputeSurfaceArea(*mesh, ir_order);
+   double vol = ComputeVolume(mesh, ir_order);
+   double area = ComputeSurfaceArea(mesh, ir_order);
 
    Vector mom1(sdim);
    Vector cent(sdim); cent = 0.0;
@@ -147,20 +147,15 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream m_sock(vishost, visport);
       m_sock.precision(8);
-      m_sock << "solution\n" << *mesh << elemMass
+      m_sock << "solution\n" << mesh << elemMass
              << "window_title 'Element Masses'" << flush;
 
       socketstream c_sock(vishost, visport);
       c_sock.precision(8);
-      c_sock << "solution\n" << *mesh << elemCent
+      c_sock << "solution\n" << mesh << elemCent
              << "window_title 'Element Centers'"
              << "keys vvv" << flush;
    }
-
-   // 16. Free the used memory.
-   delete fes;
-   delete vfes;
-   delete mesh;
 
    return 0;
 }
