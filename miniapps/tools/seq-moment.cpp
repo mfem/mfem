@@ -87,52 +87,6 @@ int main(int argc, char *argv[])
    GridFunction elemMass(&fes);
    GridFunction elemCent(&vfes);
 
-   /*
-   {
-   double vol = 0.0;
-   double surf = 0.0;
-   double mass = 0.0;
-
-   for (int i=0; i<mesh->GetNE(); i++)
-   {
-      ElementTransformation *T = mesh->GetElementTransformation(i);
-      Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
-
-      for (int j = 0; j < ir->GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
-
-         double w = T->Weight() * ip.weight;
-
-         vol += w;
-         mass += w * massDensity.Eval(*T, ip);
-      }
-   }
-
-   for (int i=0; i<mesh->GetNBE(); i++)
-   {
-      ElementTransformation *T = mesh->GetBdrElementTransformation(i);
-      Geometry::Type geom = mesh->GetBdrElementBaseGeometry(i);
-      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
-
-      for (int j = 0; j < ir->GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
-
-         double w = T->Weight() * ip.weight;
-
-         surf += w;
-      }
-   }
-
-   cout << "Volume:       " << vol << endl;
-   cout << "Surface Area: " << surf << endl;
-   cout << "Mass:         " << mass << endl;
-   }
-   */
    double vol = ComputeVolume(mesh, ir_order);
    double area = ComputeSurfaceArea(mesh, ir_order);
 
