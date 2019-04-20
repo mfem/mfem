@@ -8,13 +8,35 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::miniapps;
 
-double rhoFunc(const Vector &x)
+static int prob_ = -1;
+
+double densityFunc(const Vector &x)
 {
-   // Off-center Gaussian
-   double s_data[3];
-   Vector s(s_data, x.Size());
-   s = 0.0; s[0] = -1.0; s += x;
-   return exp(-(s * s));
+  switch(prob_)
+    {
+    case 0:
+      // Linear in the radius
+      return sqrt(x * x);
+    case 1:
+      // Hydrostatic equilibrium (1D)
+      return pow(cosh(sqrt(0.5 * (x * x))), -2.0);
+    case 2:
+      // Hydrostatic equilibrium (2D)
+      return pow(1.0 + 0.125 * (x * x), -2.0);
+    case 3:
+      // Hydrostatic equilibrium (3D), approx.
+      return pow(1.0 + (x * x) / 9.0, -1.5);
+    case 4:
+      // Off-center Gaussian
+      {
+	double s_data[3];
+	Vector s(s_data, x.Size());
+	s = 0.0; s[0] = -1.0; s += x;
+	return exp(-(s * s));
+      }
+    }  
+  // Default to homogeneous
+  return 1.0;
 }
 
 int main(int argc, char *argv[])
@@ -41,6 +63,14 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&ir_order, "-o", "--order",
                   "Integration rule order.");
+   args.AddOption(&prob_, "-d", "--density",
+                  "Density profile:\n"
+		  "  0 - Linear increase with radius,\n"
+		  "  1 - Hydrostatic equilibrium in 1D,\n"
+		  "  2 - Hydrostatic equilibrium in 2D,\n"
+		  "  3 - Hydrostatic equilibrium in 3D (approximately),\n"
+		  "  4 - Gaussian centered at x = 1,\n"
+		  "  Default - homogeneous.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -83,8 +113,7 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   ConstantCoefficient massDensity(1.0);
-   // FunctionCoefficient massDensity(rhoFunc);
+   FunctionCoefficient density(densityFunc);
 
    L2_FECollection fec(0, dim);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
@@ -92,52 +121,6 @@ int main(int argc, char *argv[])
    ParGridFunction elemMass(fes);
    ParGridFunction elemCent(vfes);
 
-   /*
-   {
-   double vol = 0.0;
-   double surf = 0.0;
-   double mass = 0.0;
-
-   for (int i=0; i<mesh->GetNE(); i++)
-   {
-      ElementTransformation *T = mesh->GetElementTransformation(i);
-      Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
-
-      for (int j = 0; j < ir->GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
-
-         double w = T->Weight() * ip.weight;
-
-         vol += w;
-         mass += w * massDensity.Eval(*T, ip);
-      }
-   }
-
-   for (int i=0; i<mesh->GetNBE(); i++)
-   {
-      ElementTransformation *T = mesh->GetBdrElementTransformation(i);
-      Geometry::Type geom = mesh->GetBdrElementBaseGeometry(i);
-      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
-
-      for (int j = 0; j < ir->GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
-
-         double w = T->Weight() * ip.weight;
-
-         surf += w;
-      }
-   }
-
-   cout << "Volume:       " << vol << endl;
-   cout << "Surface Area: " << surf << endl;
-   cout << "Mass:         " << mass << endl;
-   }
-   */
    double vol = ComputeVolume(*pmesh, ir_order);
    double area = ComputeSurfaceArea(*pmesh, ir_order);
 
@@ -145,9 +128,9 @@ int main(int argc, char *argv[])
    Vector cent(sdim); cent = 0.0;
    DenseMatrix mom2(sdim);
 
-   double mass  = ComputeZerothMoment(*pmesh, massDensity, ir_order);
-   double mass1 = ComputeFirstMoment(*pmesh, massDensity, ir_order, mom1);
-   double mass2 = ComputeSecondMoment(*pmesh, massDensity, cent,
+   double mass  = ComputeZerothMoment(*pmesh, density, ir_order);
+   double mass1 = ComputeFirstMoment(*pmesh, density, ir_order, mom1);
+   double mass2 = ComputeSecondMoment(*pmesh, density, cent,
                                       ir_order, mom2);
 
    if (myid == 0)
@@ -165,8 +148,8 @@ int main(int argc, char *argv[])
       mom2.Print(cout);
    }
 
-   ComputeElementZerothMoments(*pmesh, massDensity, ir_order, elemMass);
-   ComputeElementCentersOfMass(*pmesh, massDensity, ir_order, elemCent);
+   ComputeElementZerothMoments(*pmesh, density, ir_order, elemMass);
+   ComputeElementCentersOfMass(*pmesh, density, ir_order, elemCent);
 
    // 15. Send the solution by socket to a GLVis server.
    if (visualization)
