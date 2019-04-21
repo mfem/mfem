@@ -20,7 +20,7 @@
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
-//  TODO Continous galerkin version of ex9 
+//  TODO Continous galerkin version of ex9
 //
 
 
@@ -28,6 +28,7 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <cmath>
 
 using namespace std;
 using namespace mfem;
@@ -41,6 +42,20 @@ void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
 double u0_function(const Vector &x);
+
+// my Initial condition
+double g0_function(const Vector &x);
+
+//final condition
+double gf_function(const Vector &x);
+
+//Tfinal
+double Tf = 1.23;
+
+//Velocity function
+double cx = 1.0;
+double cy = 1.0;
+double cz = 1.0;
 
 // Inflow boundary condition
 double inflow_function(const Vector &x);
@@ -58,14 +73,14 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    SparseMatrix &M, &K;
-   const Vector &b;
+
    DSmoother M_prec;
    CGSolver M_solver;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b);
+   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -77,16 +92,17 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ref_levels = 2;
-   int order = 3;
+   //const char *mesh_file = "../data/periodic-segment.mesh";
+   const char *mesh_file = "../data/periodic-square.mesh";
+   int ref_levels = 0;
+   int order = 2;
    int ode_solver_type = 4;
-   double t_final = 10.0;
-   double dt = 0.1;
+   double t_final = Tf;
+   double dt = 0.001;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
-   int vis_steps = 5;
+   int vis_steps = 2;
 
    int precision = 8;
    cout.precision(precision);
@@ -162,7 +178,9 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim);
+
+   H1_FECollection fec(order, dim);
+   //DG_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -172,20 +190,15 @@ int main(int argc, char *argv[])
    //    interior faces.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
-   FunctionCoefficient u0(u0_function);
+   FunctionCoefficient g0(g0_function);
+   FunctionCoefficient gf(gf_function);
 
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
    BilinearForm k(&fes);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-   k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
 
    LinearForm b(&fes);
-   b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
    m.Assemble();
    m.Finalize();
@@ -198,7 +211,7 @@ int main(int argc, char *argv[])
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    GridFunction u(&fes);
-   u.ProjectCoefficient(u0);
+   u.ProjectCoefficient(g0);
 
    {
       ofstream omesh("ex9.mesh");
@@ -257,10 +270,20 @@ int main(int argc, char *argv[])
       }
    }
 
+   ofstream mass_file;
+   mass_file.open("mass.txt");
+   m.SpMat().PrintMatlab(mass_file);
+   mass_file.close();
+
+   ofstream adv_file;
+   adv_file.open("adv.txt");
+   k.SpMat().PrintMatlab(adv_file);
+   adv_file.close();
+
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m.SpMat(), k.SpMat(), b);
+   FE_Evolution adv(m.SpMat(), k.SpMat());
 
    double t = 0.0;
    adv.SetTime(t);
@@ -277,7 +300,7 @@ int main(int argc, char *argv[])
 
       if (done || ti % vis_steps == 0)
       {
-         cout << "time step: " << ti << ", time: " << t << endl;
+        //cout << "time step: " << ti << ", time: " << t << endl;
 
          if (visualization)
          {
@@ -292,6 +315,11 @@ int main(int argc, char *argv[])
          }
       }
    }
+   printf("t = %f \n", t);
+
+   //8.5 Compute error
+   double h = mesh.GetElementSize(0);
+   std::cout<<"h = "<< h << " error = "<<u.ComputeL2Error(gf)<<std::endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
@@ -310,8 +338,8 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
+FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K)
+  : TimeDependentOperator(_M.Size()), M(_M), K(_K), z(_M.Size())
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
@@ -327,7 +355,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
    K.Mult(x, z);
-   z += b;
    M_solver.Mult(z, y);
 }
 
@@ -353,8 +380,8 @@ void velocity_function(const Vector &x, Vector &v)
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
+            case 2: v(0) = cx; v(1) = cy; break;
+            case 3: v(0) = cx; v(1) = cy; v(2) = cz;
                break;
          }
          break;
@@ -387,6 +414,31 @@ void velocity_function(const Vector &x, Vector &v)
          break;
       }
    }
+}
+
+//Intial condition
+double g0_function(const Vector &x)
+{
+  int dim = x.Size();
+  if(dim==1) {
+    return sin(2*M_PI*(x(0) - 0));
+  }else if(dim==2){
+    return sin(2*M_PI*(x(0) - 0))*sin(2*M_PI*(x(1) - 0));
+  }
+
+  return 0.0;
+}
+
+double gf_function(const Vector &x)
+{
+  int dim = x.Size();
+  if(dim==1) {
+    return sin(2*M_PI*(x(0) - Tf));
+  }else if(dim==2){
+    return sin(2*M_PI*(x(0) - Tf))*sin(2*M_PI*(x(1) - Tf));
+  }
+
+  return 0.0;
 }
 
 // Initial condition
