@@ -20,7 +20,7 @@
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
-//  TODO Continous galerkin version of ex9
+// Uses continous galerkin method. 
 //
 
 
@@ -64,11 +64,7 @@ double inflow_function(const Vector &x);
 Vector bb_min, bb_max;
 
 
-/** A time-dependent operator for the right-hand side of the ODE. The DG weak
-    form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
-    and advection matrices, and b describes the flow on the boundary. This can
-    be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
-    used to evaluate the right-hand side. */
+/** A time-dependent operator for the right-hand side of the ODE. */
 class FE_Evolution : public TimeDependentOperator
 {
 private:
@@ -176,18 +172,15 @@ int main(int argc, char *argv[])
    }
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-   // 5. Define the discontinuous DG finite element space of the given
+   // 5. Define the finite element space of the given
    //    polynomial order on the refined mesh.
 
    H1_FECollection fec(order, dim);
-   //DG_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
-   // 6. Set up and assemble the bilinear and linear forms corresponding to the
-   //    DG discretization. The DGTraceIntegrator involves integrals over mesh
-   //    interior faces.
+   // 6. Set up and assemble the bilinear and linear forms
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient g0(g0_function);
