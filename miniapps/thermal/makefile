@@ -23,7 +23,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS =
 PAR_MINIAPPS = fourier fourier_nl fourier_vanEs fourier_hybrid \
-	fourier_flux ex1p_nl adv_diff_v1 adv_diff_v2
+	fourier_flux ex1p_nl adv_diff_v1 adv_diff_v2 fourier_pid fourier_adv_pid
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -35,7 +35,7 @@ endif
 .PHONY: all clean clean-build clean-exec
 .PRECIOUS: %.o
 
-COMMON_O=../common/pfem_extras.o
+COMMON_O=../common/pfem_extras.o fourier_solver.o
 
 # Remove built-in rules
 %: %.cpp
@@ -66,6 +66,11 @@ ncd2mesh: ncd2mesh.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
 
 ex1p_nl: ex1p_nl.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+
+fourier_pid: fourier_pid.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
+
+fourier_adv_pid: fourier_adv_pid.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies

@@ -97,6 +97,132 @@ public:
 };
 
 
+/// The ODEController and related classes are based on the algorithms described
+/// in "A _PI_ Stepsize Control For The Numerical Solution of Ordinary
+/// Differential Equations" by K. Gustafsson, M. Lundh, and G. Soderlind, BIT
+/// Numerical Mathematics, Vol. 28, Issue 2, pages 270-287 (1988).
+
+class ODEDifferenceMeasure;
+class ODEStepAdjustmentFactor;
+class ODEStepAdjustmentLimiter;
+
+/** The ODEController class is designed to adaptively adjust the step size
+    used with the ODESolver classes. The goal is to maintain some measure of
+    the solution error at a user specified level.
+ */
+class ODEController
+{
+protected:
+   ODESolver                * sol;
+   ODEDifferenceMeasure     * msr;
+   ODEStepAdjustmentFactor  * acc;
+   ODEStepAdjustmentFactor  * rej;
+   ODEStepAdjustmentLimiter * lim;
+   double tol;
+   double rho;
+   double curr_r;
+   double min_dt;
+
+   int ofreq;
+   int nsteps;
+
+   int nrejs;
+   int max_nrejs;
+
+   mutable Vector next_x;
+   mutable double dt;
+
+   std::ostream * out;
+
+public:
+   ODEController()
+      : sol(NULL), msr(NULL), acc(NULL), rej(NULL), lim(NULL),
+        tol(-1.0), rho(1.2), curr_r(-1.0), min_dt(-1.0), ofreq(-1), nsteps(0),
+        nrejs(0), max_nrejs(1000), dt(1.0), out(NULL) {}
+
+   /// Define the particulars of the ODE step-size control process
+   /** The various pieces are:
+        sol - Computes a possible update of the field at the next time step
+        msr - Computes relative change in the field from two sucessive steps
+        acc - Computes a new step size when the previous step was accepted
+        rej - Computes a new step size when the previous step was rejected
+        lim - Imposes limits on the next time step
+   */
+   void Init(ODESolver &sol, ODEDifferenceMeasure &msr,
+             ODEStepAdjustmentFactor &acc, ODEStepAdjustmentFactor &rej,
+             ODEStepAdjustmentLimiter &lim)
+   {
+      this->sol = &sol; this->msr = &msr;
+      this->acc = &acc; this->rej = &rej;
+      this->lim = &lim;
+   }
+
+   // Returns the current time step
+   double GetTimeStep() const { return this->dt; }
+
+   /// Sets (or resets) the initial time step
+   void SetTimeStep(double dt) { this->dt = dt; }
+
+   /// Sets the minimum allowable time step
+   void SetMinTimeStep(double min_dt) { this->min_dt = min_dt; }
+
+   /// Sets the error target for the control process
+   void SetTolerance(double tol);
+
+   /// Sets the threshold for rejection of a time step to be rho * tol
+   void SetRejectionLimit(double rho) { this->rho = rho; }
+
+   /// Sets the maximum number of successively rejected steps
+   void SetMaxRejectCount(int max_nrejs) { this->max_nrejs = max_nrejs; }
+
+   void SetOutputFrequency(int ofreq) { this->ofreq = ofreq; }
+
+   void SetOutput(std::ostream & os) { this->out = &os; }
+
+   virtual void Step(Vector &x, double &t, double delta_t);
+
+   /// Advances the solution vector x from time t to tf
+   virtual void Run(Vector &x, double &t, double tf);
+};
+
+/// Computes a measure of the difference between two successive field values
+class ODEDifferenceMeasure
+{
+protected:
+   ODEDifferenceMeasure() {}
+
+public:
+   virtual ~ODEDifferenceMeasure() {}
+
+   virtual double Eval(Vector &u0, Vector &u1) = 0;
+};
+
+class ODEStepAdjustmentFactor
+{
+protected:
+   double tol;
+
+   ODEStepAdjustmentFactor() : tol(-1.0) {}
+
+public:
+   virtual ~ODEStepAdjustmentFactor() {}
+
+   void SetTolerance(double tol) { this->tol = tol; }
+
+   virtual double operator()(double err, double dt) const = 0;
+};
+
+class ODEStepAdjustmentLimiter
+{
+protected:
+   ODEStepAdjustmentLimiter() {}
+
+public:
+   virtual ~ODEStepAdjustmentLimiter() {}
+
+   virtual double operator()(double theta) const = 0;
+};
+
 /// The classical forward Euler method
 class ForwardEulerSolver : public ODESolver
 {
@@ -372,6 +498,168 @@ private:
 
    Array<double> a_;
    Array<double> b_;
+};
+
+/// Computes the largest absolute/relative difference in a pair of vectors
+/** Computes the maximum of the following ratio:
+        max_i |u1_i - u0_i| / |u0_i + eta_i|
+    Where eta can either be a single constant or a vector of non-zero values
+    with the same length as u0 and u1.
+
+    Note: this class is designed for use on a single processor.  To take the
+    maximum across multiple processors use the ParMaxAbsRelDiffMeasure class.
+*/
+class MaxAbsRelDiffMeasure : public ODEDifferenceMeasure
+{
+private:
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+   MaxAbsRelDiffMeasure(double eta) : etaVec(NULL), etaConst(eta) {}
+   MaxAbsRelDiffMeasure(Vector &eta) : etaVec(&eta), etaConst(-1.0) {}
+
+   double Eval(Vector &u0, Vector &u1);
+};
+
+class L2AbsRelDiffMeasure : public ODEDifferenceMeasure
+{
+private:
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+   L2AbsRelDiffMeasure(double eta) : etaVec(NULL), etaConst(eta) {}
+   L2AbsRelDiffMeasure(Vector &eta) : etaVec(&eta), etaConst(-1.0) {}
+
+   double Eval(Vector &u0, Vector &u1);
+};
+
+#ifdef MFEM_USE_MPI
+
+/// Computes the largest absolute/relative difference in a pair of vectors
+/** Computes the maximum of the following ratio:
+        max_i |u1_i - u0_i| / |u0_i + eta_i|
+    Where eta can either be a single constant or a vector of non-zero values
+    with the same length as u0 and u1.
+
+    Note: this class is designed for use on multiple processors.  For a 
+    serial implementation see the MaxAbsRelDiffMeasure class.
+*/
+class ParMaxAbsRelDiffMeasure : public ODEDifferenceMeasure
+{
+private:
+   MPI_Comm comm;
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+   ParMaxAbsRelDiffMeasure(MPI_Comm comm, double eta)
+      : comm(comm), etaVec(NULL), etaConst(eta) {}
+
+   ParMaxAbsRelDiffMeasure(MPI_Comm comm, Vector &eta)
+      : comm(comm), etaVec(&eta), etaConst(-1.0) {}
+
+   double Eval(Vector &u0, Vector &u1);
+};
+
+class ParL2AbsRelDiffMeasure : public ODEDifferenceMeasure
+{
+private:
+   MPI_Comm comm;
+   Vector * etaVec;
+   double   etaConst;
+
+public:
+   ParL2AbsRelDiffMeasure(MPI_Comm comm, double eta)
+      : comm(comm), etaVec(NULL), etaConst(eta) {}
+
+   ParL2AbsRelDiffMeasure(MPI_Comm comm, Vector &eta)
+      : comm(comm), etaVec(&eta), etaConst(-1.0) {}
+
+   double Eval(Vector &u0, Vector &u1);
+};
+#endif
+
+class StdAdjFactor : public ODEStepAdjustmentFactor
+{
+private:
+   double gamma;
+   double kI;
+
+public:
+   StdAdjFactor(double gamma, double kI) : gamma(gamma), kI(kI) {}
+
+   double operator()(double err, double dt) const;
+};
+
+class IntegralAdjFactor : public StdAdjFactor
+{
+public:
+   IntegralAdjFactor(double kI) : StdAdjFactor(1.0, kI) {}
+};
+
+typedef IntegralAdjFactor IAdjFactor;
+
+class PIAdjFactor : public ODEStepAdjustmentFactor
+{
+private:
+   double kI;
+   double kP;
+   mutable double prev_dt;
+   mutable double prev_err;
+
+public:
+   PIAdjFactor(double kP, double kI)
+      : kI(kI), kP(kP), prev_dt(-1.0), prev_err(-1.0) {}
+
+   double operator()(double err, double dt) const;
+};
+
+class PIDAdjFactor : public ODEStepAdjustmentFactor
+{
+private:
+   double kI;
+   double kP;
+   double kD;
+   mutable double prev_dt1;
+   mutable double prev_dt2;
+   mutable double prev_err1;
+   mutable double prev_err2;
+
+public:
+   PIDAdjFactor(double kP, double kI, double kD)
+      : kI(kI), kP(kP), kD(kD),
+        prev_dt1(-1.0), prev_dt2(-1.0), prev_err1(-1.0), prev_err2(-1.0) {}
+
+   double operator()(double err, double dt) const;
+};
+
+class DeadZoneLimiter : public ODEStepAdjustmentLimiter
+{
+private:
+   double lo;
+   double hi;
+   double mx;
+
+public:
+   DeadZoneLimiter(double lo, double hi, double mx)
+      : lo(lo), hi(hi), mx(mx) {}
+
+   double operator()(double theta) const
+   { return std::min(mx, ((lo <= theta && theta <= hi) ? 1.0 : theta)); }
+};
+
+class MaxLimiter : public ODEStepAdjustmentLimiter
+{
+private:
+   double mx;
+
+public:
+   MaxLimiter(double mx) : mx(mx) {}
+
+   double operator()(double theta) const
+   { return std::min(mx, theta); }
 };
 
 }
