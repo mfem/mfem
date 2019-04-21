@@ -343,6 +343,70 @@ public:
    virtual ~AdvectionTDO() { }
 };
 
+class AdvectionDiffusionTDO : public TimeDependentOperator
+{
+ private:
+  ParFiniteElementSpace &fes_;
+
+  Coefficient       & mCoef_;
+  Coefficient       * dCoef_;
+  MatrixCoefficient * DCoef_;
+  VectorCoefficient * VCoef_;
+  Coefficient       * SCoef_;
+
+  Coefficient       * dudtBCCoef_;
+  VectorCoefficient * dvdtBCCoef_; // where v = Grad(u)
+
+  ProductCoefficient             * dtdCoef_;
+  ScalarMatrixProductCoefficient * dtDCoef_;
+  ScalarVectorProductCoefficient * dtVCoef_;
+
+  Array<int> dudt_bc_bdr_;
+  Array<int> dudt_bc_dofs_;
+  Array<int> dvdt_bc_bdr_;
+  
+  bool td_M_;
+  bool td_D_;
+  bool td_V_;
+  bool td_S_;
+  bool td_dudt_;
+  bool td_dvdt_;
+
+  ParBilinearForm a0_;
+  ParBilinearForm * s0_;
+  ParBilinearForm * c0_;
+
+  ParLinearForm   * s_;
+
+  ParGridFunction dudt_;
+
+  void initBLFs();
+  
+ public:
+  AdvectionDiffusionTDO(ParFiniteElementSpace &fes,
+			Coefficient &mCoef, bool td,
+			Coefficient *dCoef, bool td_D,
+			VectorCoefficient *VCoef, bool td_V);
+  AdvectionDiffusionTDO(ParFiniteElementSpace &fes,
+			Coefficient &mCoef, bool td,
+			MatrixCoefficient *DCoef, bool td_D,
+			VectorCoefficient *VCoef, bool td_V);
+  ~AdvectionDiffusionTDO();
+
+  // In each of the following "Set" methods the "td" argument indicates
+  // that the coefficient is time-dependent.
+  // void SetMassCoef(Coefficient &M, bool td);
+  // void SetDiffusionCoef(Coefficient &D, bool td);
+  // void SetDiffusionCoef(MatrixCoefficient &D, bool td);
+  // void SetAdvectionCoef(VectorCoefficient &V, bool td);
+  void SetSourceCoef(Coefficient &S, bool td);
+  void SetDirichletBC(const Array<int> &bdr_attr, Coefficient &dudt, bool td);
+  void SetNeumannBC(const Array<int> &bdr_attr,
+		    VectorCoefficient &dvdt, bool td);
+  
+  virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
+};
+  
 // Implements a simple Rusanov flux
 class RiemannSolver
 {
