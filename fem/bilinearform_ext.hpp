@@ -67,12 +67,16 @@ public:
 /// Data and methods for fully-assembled bilinear forms
 class FABilinearFormExtension : public BilinearFormExtension
 {
+protected:
+   const FiniteElementSpace *trialFes, *testFes;
+   mutable Vector localX, localY;
+   ElemRestriction *elem_restrict;
+
 public:
-   FABilinearFormExtension(BilinearForm *form)
-      : BilinearFormExtension(form) { }
+   FABilinearFormExtension(BilinearForm *form);
 
    /// TODO
-   void Assemble() {}
+   void Assemble();
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A) {}
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,

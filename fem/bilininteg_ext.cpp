@@ -742,6 +742,39 @@ DiffusionIntegrator::~DiffusionIntegrator()
    delete maps;
 }
 
+void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
+{
+   const Mesh *mesh = fes.GetMesh();
+   const IntegrationRule *rule = IntRule;
+   const FiniteElement &el = *fes.GetFE(0);
+   const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
+   dim = mesh->Dimension();
+   ne = fes.GetMesh()->GetNE();
+   nq = ir->GetNPoints();
+   dofs1D = el.GetOrder() + 1;
+   quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
+   geom = GeometryExtension::Get(fes,*ir);
+   maps = DofToQuad::Get(fes, fes, *ir);
+   vec.SetSize(ne*nq);
+   ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
+   FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
+
+   {
+     if (dim==1)
+     {
+       MFEM_ABORT("TODO 1D FA Mass matrix assembly \n");
+     }else if(dim==2)
+     {
+       MFEM_ABORT("TODO 2D FA Mass matrix assembly \n");
+     }else if(dim==3)
+     {
+       MFEM_ABORT("TODO 3D FA Mass matrix assembly \n");
+     }
+
+   }
+
+}
+
 // PA Mass Assemble kernel
 void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 {
@@ -759,6 +792,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    vec.SetSize(ne*nq);
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
    FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
+
    // TODO: other types of coefficients ...
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)

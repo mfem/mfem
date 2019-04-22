@@ -31,6 +31,9 @@ public:
    /// Method defining partial assembly.
    virtual void Assemble(const FiniteElementSpace&);
 
+    /// Method defining full assembly.
+   virtual void FA_Assemble(const FiniteElementSpace&) {};
+
    /// Method for partially assembled action.
    virtual void MultAssembled(Vector&, Vector&);
 
@@ -1721,6 +1724,10 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   // FA extension ?
+   void FA_Assemble(const FiniteElementSpace&);
+
    /// PA extension
    virtual void Assemble(const FiniteElementSpace&);
    virtual void MultAssembled(Vector&, Vector&);

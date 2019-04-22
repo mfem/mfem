@@ -120,6 +120,30 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    elem_restrict->MultTranspose(localY, y);
 }
 
+// Data and methods for full-assembled bilinear forms
+FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form) :
+   BilinearFormExtension(form),
+   trialFes(a->FESpace()), testFes(a->FESpace()),
+   localX(trialFes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
+   localY( testFes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
+   elem_restrict(new ElemRestriction(*a->FESpace()))
+{
+  printf("Initialized full-assembled bilinear form \n");
+}
+
+void FABilinearFormExtension::Assemble()
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int integratorCount = integrators.Size();
+   printf("Fully assembling %d integrators \n", integrators.Size());
+   if(a->GetAssemblyLevel() == AssemblyLevel::FULL)
+     {printf("full assembly \n");}
+
+   for (int i = 0; i < integratorCount; ++i)
+   {
+      integrators[i]->FA_Assemble(*a->FESpace());
+   }
+}
 
 ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
    : fes(f),
