@@ -206,8 +206,8 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
          if (vdofs2[j] >= 0)
          {
             vdofs2[j] += height;
-         } 
-         else 
+         }
+         else
          {
             vdofs2[j] -= height;
          }
