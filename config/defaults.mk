@@ -307,12 +307,12 @@ CUDA_OPT =
 CUDA_LIB =
 
 # OCCA library configuration
-OCCA_DIR ?= @MFEM_DIR@/../occa
+OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
 # RAJA library configuration
-RAJA_DIR ?= @MFEM_DIR@/../raja
+RAJA_DIR = @MFEM_DIR@/../raja
 RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
