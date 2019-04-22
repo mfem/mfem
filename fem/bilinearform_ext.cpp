@@ -104,7 +104,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (Device::Allows(Backend::CEED_MASK)) {
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->MultAssembled(x, y);
+         integrators[i]->AddMultPA(x, y);
       }
    } else {
       if (elem_restrict_lex)
@@ -119,11 +119,17 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       }
       else
       {
-         y.UseDevice(true); // typically this is a large vector, so store on device
-         y = 0.0;
+         elem_restrict->Mult(x, localX);
+         localY = 0.0;
+         const int iSz = integrators.Size();
          for (int i = 0; i < iSz; ++i)
          {
-            integrators[i]->AddMultPA(x, y);
+            y.UseDevice(true); // typically this is a large vector, so store on device
+            y = 0.0;
+            for (int i = 0; i < iSz; ++i)
+            {
+               integrators[i]->AddMultPA(x, y);
+            }
          }
       }
    }

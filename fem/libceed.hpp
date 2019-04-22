@@ -25,28 +25,31 @@ struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
 
 enum CeedCoeff { Const, Grid };
 
-struct CeedConstCoeff {
-  double val;
+struct CeedConstCoeff
+{
+   double val;
 };
 
-struct CeedGridCoeff {
-  GridFunction* coeff;
-  CeedBasis basis;
-  CeedElemRestriction restr;
-  CeedVector coeffVector;
+struct CeedGridCoeff
+{
+   GridFunction* coeff;
+   CeedBasis basis;
+   CeedElemRestriction restr;
+   CeedVector coeffVector;
 };
 
-struct CeedData {
-  CeedOperator build_oper, oper;
-  CeedBasis basis, mesh_basis;
-  CeedElemRestriction restr, mesh_restr, restr_i, mesh_restr_i;
-  CeedQFunction apply_qfunc, build_qfunc;
-  CeedVector node_coords, rho;
-  CeedCoeff coeff_type;
-  void* coeff;
-  BuildContext build_ctx;
+struct CeedData
+{
+   CeedOperator build_oper, oper;
+   CeedBasis basis, mesh_basis;
+   CeedElemRestriction restr, mesh_restr, restr_i, mesh_restr_i;
+   CeedQFunction apply_qfunc, build_qfunc;
+   CeedVector node_coords, rho;
+   CeedCoeff coeff_type;
+   void* coeff;
+   BuildContext build_ctx;
 
-  CeedVector u, v;
+   CeedVector u, v;
 };
 
 void initCeedCoeff(Coefficient* Q, CeedData* ptr);
