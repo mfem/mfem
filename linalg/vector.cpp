@@ -858,10 +858,10 @@ static double cuVectorMin(const int N, const double *X)
    static double *h_min = NULL;
    if (!h_min) { h_min = (double*)calloc(min_sz,sizeof(double)); }
    static void *gdsr = NULL;
-   if (!gdsr) { ::cudaMalloc(&gdsr, bytes); }
+   if (!gdsr) { MFEM_CUDA_CHECK(cudaMalloc(&gdsr, bytes)); }
    cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, x);
    MFEM_CUDA_CHECK(cudaGetLastError());
-   ::cudaMemcpy(h_min, gdsr, bytes, cudaMemcpyDeviceToHost);
+   MFEM_CUDA_CHECK(cudaMemcpy(h_min, gdsr, bytes, cudaMemcpyDeviceToHost));
    double min = std::numeric_limits<double>::infinity();
    for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
    return min;
@@ -912,8 +912,8 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    static void *gdsr = NULL;
    if (!gdsr or dot_block_sz!=dot_sz)
    {
-      if (gdsr) { MFEM_CUDA_CHECK(::cudaFree(gdsr)); }
-      MFEM_CUDA_CHECK(::cudaMalloc(&gdsr,bytes));
+      if (gdsr) { MFEM_CUDA_CHECK(cudaFree(gdsr)); }
+      MFEM_CUDA_CHECK(cudaMalloc(&gdsr,bytes));
    }
    if (dot_block_sz!=dot_sz)
    {
@@ -921,7 +921,7 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    }
    cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
    MFEM_CUDA_CHECK(cudaGetLastError());
-   MFEM_CUDA_CHECK(::cudaMemcpy(h_dot, gdsr, bytes, cudaMemcpyDeviceToHost));
+   MFEM_CUDA_CHECK(cudaMemcpy(h_dot, gdsr, bytes, cudaMemcpyDeviceToHost));
    double dot = 0.0;
    for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
    return dot;

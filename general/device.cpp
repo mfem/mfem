@@ -97,9 +97,9 @@ void Device::Print(std::ostream &out)
 #ifdef MFEM_USE_CUDA
 static void DeviceSetup(const int dev, int &ngpu)
 {
-   cudaGetDeviceCount(&ngpu);
-   MFEM_VERIFY(ngpu>0, "No CUDA device found!");
-   cudaSetDevice(dev);
+   MFEM_CUDA_CHECK(cudaGetDeviceCount(&ngpu));
+   MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
+   MFEM_CUDA_CHECK(cudaSetDevice(dev));
 }
 #endif
 

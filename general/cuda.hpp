@@ -26,23 +26,19 @@
 #ifdef MFEM_USE_CUDA
 #define MFEM_ATTR_DEVICE __device__
 #define MFEM_ATTR_HOST_DEVICE __host__ __device__
-// Define the CUDA debug macro
-#ifdef MFEM_DEBUG
+// Define a CUDA error check macro, MFEM_CUDA_CHECK(x), where x returns/is of
+// type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
+// result is not cudaSuccess.
 #define MFEM_CUDA_CHECK(x) \
    do \
    { \
       cudaError_t err = (x); \
       if (err != cudaSuccess) \
       { \
-         _MFEM_MESSAGE("CUDA error: (" << #x \
-                       << ") failed with error:\n --> " \
-                       << cudaGetErrorString(err), 0); \
+         mfem_cuda_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
       } \
    } \
    while (0)
-#else
-#define MFEM_CUDA_CHECK(x) x
-#endif
 #else // MFEM_USE_CUDA
 #define MFEM_ATTR_DEVICE
 #define MFEM_ATTR_HOST_DEVICE
@@ -51,6 +47,10 @@
 
 namespace mfem
 {
+
+// Function used by the macro MFEM_CUDA_CHECK.
+void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
+                     const char *file, int line);
 
 // Define 'atomicAdd' function.
 #ifdef __CUDA_ARCH__
