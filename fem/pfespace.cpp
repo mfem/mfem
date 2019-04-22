@@ -901,10 +901,11 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
       for (int i = 0; i < num_my_elems; i++)
       {
          GetElementVDofs(my_elems[i], ldofs);
-         for (int j = 0; j < ldofs.Size(); j++) {
-            
+         for (int j = 0; j < ldofs.Size(); j++)
+         {
+
             int ldof = (ldofs[j] >= 0 ? ldofs[j] : -1-ldofs[j]);
-         
+
             if (ldof_marker[ldof] != fn)
             {
                ldof_marker[ldof] = fn;
@@ -965,7 +966,7 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
          for (int j = 0; j < ldofs.Size(); j++)
          {
             int ldof = (ldofs[j] >= 0 ? ldofs[j] : -1-ldofs[j]);
-            
+
             if (ldof_marker[ldof] != fn)
             {
                ldof_marker[ldof] = fn;
@@ -1031,10 +1032,13 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 
       for ( ; j < j_end; j++)
       {
-         
-         if (recv_J[j] >= 0) {
+
+         if (recv_J[j] >= 0)
+         {
             recv_J[j] += shift;
-         } else {
+         }
+         else
+         {
             recv_J[j] -= shift;
          }
       }
@@ -1084,19 +1088,22 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
    // the face-neighbor dofs
    for (int fn = 0, j = 0; fn < num_face_nbrs; fn++)
    {
-      for (int j_end = face_nbr_ldof.GetI()[fn+1]; j < j_end; j++) {
-         
+      for (int j_end = face_nbr_ldof.GetI()[fn+1]; j < j_end; j++)
+      {
+
          int ldof = face_nbr_ldof.GetJ()[j];
          if (ldof < 0)
+         {
             ldof = -1-ldof;
-         
+         }
+
          face_nbr_glob_dof_map[j] = dof_face_nbr_offsets[fn] + ldof;
       }
    }
 
    MPI_Waitall(num_face_nbrs, send_requests, statuses);
 
-   delete [] statuses;  
+   delete [] statuses;
    delete [] requests;
 }
 
