@@ -83,7 +83,9 @@ void Device::Configure(const std::string &device, const int dev)
          std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
          MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
          Get().MarkBackend(it->second);
-      } else {
+      }
+      else
+      {
          const std::string backend = bname.substr(0, option);
          const std::string boption = bname.substr(option+1);
          Get().ceed_option = boption;
@@ -290,7 +292,9 @@ void Device::Setup(const int device)
       if (ceed_option.empty())
       {
          CeedDeviceSetup("/cpu/self/ref/blocked");
-      } else {
+      }
+      else
+      {
          CeedDeviceSetup(ceed_option.c_str());
       }
    }
@@ -299,7 +303,9 @@ void Device::Setup(const int device)
       if (ceed_option.empty())
       {
          CeedDeviceSetup("/gpu/cuda/ref");
-      } else {
+      }
+      else
+      {
          CeedDeviceSetup(ceed_option.c_str());
       }
    }
