@@ -304,7 +304,7 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
 # enabled) we only need to explicitly link with the CUDA driver, libcuda.*,
 # which is usually in a system path.
 CUDA_OPT =
-CUDA_LIB = $(if $(NOTMAC),,-L/usr/local/cuda/lib) -lcuda
+CUDA_LIB =
 
 # OCCA library configuration
 OCCA_DIR ?= @MFEM_DIR@/../occa
