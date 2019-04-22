@@ -757,17 +757,20 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
       {
          x_ptr = Ptr(x.GetData());
          y_ptr = Ptr(y.GetData());
-      } else {
+      }
+      else
+      {
          x_ptr = x.GetData();
          y_ptr = y.GetData();
-         mem = CEED_MEM_HOST;         
+         mem = CEED_MEM_HOST;
       }
       CeedData& ceedData = *static_cast<CeedData*>(ceedDataPtr);
       CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER, x_ptr);
       CeedVectorSetArray(ceedData.v, mem, CEED_USE_POINTER, y_ptr);
 
-      CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v, CEED_REQUEST_IMMEDIATE);
-      
+      CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v,
+                        CEED_REQUEST_IMMEDIATE);
+
       CeedVectorSyncArray(ceedData.v, mem);
    }
    else
@@ -788,116 +791,116 @@ DiffusionIntegrator::~DiffusionIntegrator()
 
 // PA Mass Assemble kernel
 void MassIntegrator::Assemble(const FiniteElementSpace &fes)
-{    
+{
 #ifdef MFEM_USE_CEED
    if (Device::Allows(Backend::CEED_MASK))
    {
-     CeedData* ptr = new CeedData();
-     ceedDataPtr = ptr;
-     initCeedCoeff(Q, ptr);
-     CeedPAMassAssemble(fes, *ptr);
-  }
-  else
+      CeedData* ptr = new CeedData();
+      ceedDataPtr = ptr;
+      initCeedCoeff(Q, ptr);
+      CeedPAMassAssemble(fes, *ptr);
+   }
+   else
 #endif
-  {
-   const Mesh *mesh = fes.GetMesh();
-   const IntegrationRule *rule = IntRule;
-   const FiniteElement &el = *fes.GetFE(0);
-   const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
-   dim = mesh->Dimension();
-   ne = fes.GetMesh()->GetNE();
-   nq = ir->GetNPoints();
-   dofs1D = el.GetOrder() + 1;
-   quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   geom = GeometryExtension::Get(fes,*ir);
-   maps = DofToQuad::Get(fes, fes, *ir);
-   vec.SetSize(ne*nq);
-   ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
-   FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
-   // TODO: other types of coefficients ...
-   if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
-   if (dim==2)
    {
-      double constant = 0.0;
-      double (*function)(const Vector3&) = NULL;
-      if (const_coeff)
+      const Mesh *mesh = fes.GetMesh();
+      const IntegrationRule *rule = IntRule;
+      const FiniteElement &el = *fes.GetFE(0);
+      const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
+      dim = mesh->Dimension();
+      ne = fes.GetMesh()->GetNE();
+      nq = ir->GetNPoints();
+      dofs1D = el.GetOrder() + 1;
+      quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
+      geom = GeometryExtension::Get(fes,*ir);
+      maps = DofToQuad::Get(fes, fes, *ir);
+      vec.SetSize(ne*nq);
+      ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
+      FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
+      // TODO: other types of coefficients ...
+      if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
+      if (dim==2)
       {
-         constant = const_coeff->constant;
-      }
-      else if (function_coeff)
-      {
-         function = function_coeff->GetDeviceFunction();
-      }
-      else
-      {
-         MFEM_ABORT("Coefficient type not supported");
-      }
-      const int NE = ne;
-      const int NQ = nq;
-      const DeviceVector w(maps->W.GetData(), NQ);
-      const DeviceTensor<3> x(geom->X.GetData(), 2,NQ,NE);
-      const DeviceTensor<4> J(geom->J.GetData(), 2,2,NQ,NE);
-      DeviceMatrix v(vec.GetData(), NQ, NE);
-      MFEM_FORALL(e, NE,
-      {
-         for (int q = 0; q < NQ; ++q)
+         double constant = 0.0;
+         double (*function)(const Vector3&) = NULL;
+         if (const_coeff)
          {
-            const double J11 = J(0,0,q,e);
-            const double J12 = J(1,0,q,e);
-            const double J21 = J(0,1,q,e);
-            const double J22 = J(1,1,q,e);
-            const double detJ = (J11*J22)-(J21*J12);
-            const Vector3 Xq(x(0,q,e), x(1,q,e));
-            const double coeff =
-            const_coeff ? constant
-            : function_coeff ? function(Xq)
-            : 0.0;
-            v(q,e) =  w[q] * coeff * detJ;
+            constant = const_coeff->constant;
          }
-      });
-   }
-   if (dim==3)
-   {
-      double constant = 0.0;
-      double (*function)(const Vector3&) = NULL;
-      if (const_coeff)
-      {
-         constant = const_coeff->constant;
-      }
-      else if (function_coeff)
-      {
-         function = function_coeff->GetDeviceFunction();
-      }
-      else
-      {
-         MFEM_ABORT("Coefficient type not supported");
-      }
-      const int NE = ne;
-      const int NQ = nq;
-      const DeviceVector W(maps->W.GetData(), NQ);
-      const DeviceTensor<3> x(geom->X.GetData(), 3,NQ,NE);
-      const DeviceTensor<4> J(geom->J.GetData(), 3,3,NQ,NE);
-      DeviceMatrix v(vec.GetData(), NQ,NE);
-      MFEM_FORALL(e, NE,
-      {
-         for (int q = 0; q < NQ; ++q)
+         else if (function_coeff)
          {
-            const double J11 = J(0,0,q,e),J12 = J(1,0,q,e),J13 = J(2,0,q,e);
-            const double J21 = J(0,1,q,e),J22 = J(1,1,q,e),J23 = J(2,1,q,e);
-            const double J31 = J(0,2,q,e),J32 = J(1,2,q,e),J33 = J(2,2,q,e);
-            const double detJ =
-            ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
-            (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
-            const Vector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
-            const double coeff =
-            const_coeff ? constant
-            : function_coeff ? function(Xq)
-            : 0.0;
-            v(q,e) = W(q) * coeff * detJ;
+            function = function_coeff->GetDeviceFunction();
          }
-      });
+         else
+         {
+            MFEM_ABORT("Coefficient type not supported");
+         }
+         const int NE = ne;
+         const int NQ = nq;
+         const DeviceVector w(maps->W.GetData(), NQ);
+         const DeviceTensor<3> x(geom->X.GetData(), 2,NQ,NE);
+         const DeviceTensor<4> J(geom->J.GetData(), 2,2,NQ,NE);
+         DeviceMatrix v(vec.GetData(), NQ, NE);
+         MFEM_FORALL(e, NE,
+         {
+            for (int q = 0; q < NQ; ++q)
+            {
+               const double J11 = J(0,0,q,e);
+               const double J12 = J(1,0,q,e);
+               const double J21 = J(0,1,q,e);
+               const double J22 = J(1,1,q,e);
+               const double detJ = (J11*J22)-(J21*J12);
+               const Vector3 Xq(x(0,q,e), x(1,q,e));
+               const double coeff =
+               const_coeff ? constant
+               : function_coeff ? function(Xq)
+               : 0.0;
+               v(q,e) =  w[q] * coeff * detJ;
+            }
+         });
+      }
+      if (dim==3)
+      {
+         double constant = 0.0;
+         double (*function)(const Vector3&) = NULL;
+         if (const_coeff)
+         {
+            constant = const_coeff->constant;
+         }
+         else if (function_coeff)
+         {
+            function = function_coeff->GetDeviceFunction();
+         }
+         else
+         {
+            MFEM_ABORT("Coefficient type not supported");
+         }
+         const int NE = ne;
+         const int NQ = nq;
+         const DeviceVector W(maps->W.GetData(), NQ);
+         const DeviceTensor<3> x(geom->X.GetData(), 3,NQ,NE);
+         const DeviceTensor<4> J(geom->J.GetData(), 3,3,NQ,NE);
+         DeviceMatrix v(vec.GetData(), NQ,NE);
+         MFEM_FORALL(e, NE,
+         {
+            for (int q = 0; q < NQ; ++q)
+            {
+               const double J11 = J(0,0,q,e),J12 = J(1,0,q,e),J13 = J(2,0,q,e);
+               const double J21 = J(0,1,q,e),J22 = J(1,1,q,e),J23 = J(2,1,q,e);
+               const double J31 = J(0,2,q,e),J32 = J(1,2,q,e),J33 = J(2,2,q,e);
+               const double detJ =
+               ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
+               (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
+               const Vector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
+               const double coeff =
+               const_coeff ? constant
+               : function_coeff ? function(Xq)
+               : 0.0;
+               v(q,e) = W(q) * coeff * detJ;
+            }
+         });
+      }
    }
-}
 }
 
 #ifdef MFEM_USE_OCCA
@@ -1298,7 +1301,8 @@ void MassIntegrator::MultAssembled(Vector &x, Vector &y)
       CeedVectorSetArray(ceedData.u, CEED_MEM_HOST, CEED_USE_POINTER, x.GetData());
       CeedVectorSetArray(ceedData.v, CEED_MEM_HOST, CEED_USE_POINTER, y.GetData());
 
-      CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v, CEED_REQUEST_IMMEDIATE);
+      CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v,
+                        CEED_REQUEST_IMMEDIATE);
 
       CeedVectorSyncArray(ceedData.v, CEED_MEM_HOST);
    }
