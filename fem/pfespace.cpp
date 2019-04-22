@@ -903,7 +903,6 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
          GetElementVDofs(my_elems[i], ldofs);
          for (int j = 0; j < ldofs.Size(); j++)
          {
-
             int ldof = (ldofs[j] >= 0 ? ldofs[j] : -1-ldofs[j]);
 
             if (ldof_marker[ldof] != fn)
@@ -1032,7 +1031,6 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 
       for ( ; j < j_end; j++)
       {
-
          if (recv_J[j] >= 0)
          {
             recv_J[j] += shift;
@@ -1090,7 +1088,6 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
    {
       for (int j_end = face_nbr_ldof.GetI()[fn+1]; j < j_end; j++)
       {
-
          int ldof = face_nbr_ldof.GetJ()[j];
          if (ldof < 0)
          {
