@@ -211,6 +211,9 @@ ifneq ($(MFEM_USE_CUDA),YES)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 else
+   ifneq ($(MFEM_USE_MM),YES)
+      $(error MFEM_USE_CUDA=YES requires MFEM_USE_MM=YES)
+   endif
    MFEM_CXX ?= $(CUDA_CXX)
    CXXFLAGS += $(CUDA_FLAGS) -ccbin $(CXX_OR_MPICXX)
    XCOMPILER = $(CUDA_XCOMPILER)
