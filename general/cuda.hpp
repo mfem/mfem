@@ -48,9 +48,11 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_CUDA
 // Function used by the macro MFEM_CUDA_CHECK.
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line);
+#endif
 
 // Define 'atomicAdd' function.
 #ifdef __CUDA_ARCH__

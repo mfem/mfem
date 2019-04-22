@@ -15,6 +15,7 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_CUDA
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line)
 {
@@ -24,6 +25,7 @@ void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
              << "\n ... in file: " << file << ':' << line << '\n';
    mfem_error();
 }
+#endif
 
 void* CuMemAlloc(void** dptr, size_t bytes)
 {
