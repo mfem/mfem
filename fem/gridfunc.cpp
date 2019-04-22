@@ -2360,6 +2360,9 @@ void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
                                           Coefficient *weight,
                                           const IntegrationRule *irs[]) const
 {
+   MFEM_ASSERT(error.Size() == fes->GetNE(),
+	       "Incorrect size for result vector");
+
    error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *T;
@@ -2516,6 +2519,9 @@ void GridFunction::ComputeElementLpErrors(const double p,
                                           VectorCoefficient *v_weight,
                                           const IntegrationRule *irs[]) const
 {
+   MFEM_ASSERT(error.Size() == fes->GetNE(),
+	       "Incorrect size for result vector");
+
    error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *T;
