@@ -80,6 +80,7 @@ public:
                          int copy_interior = 0) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
+   void Update () {};
    ~FABilinearFormExtension() {}
 };
 

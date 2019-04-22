@@ -114,6 +114,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 
 void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 {
+   printf("Setting assembly level \n");
    if (ext)
    {
       MFEM_ABORT("the assembly level has already been set!");
@@ -124,8 +125,9 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
       case AssemblyLevel::FULL:
          if (Device::IsEnabled())
          {
-            mfem_error("Full assembly not supported yet in device mode!");
-            // ext = new FABilinearFormExtension(this);
+           printf("Chosen full assembly... \n");
+           //mfem_error("Full assembly not supported yet in device mode!");
+            ext = new FABilinearFormExtension(this);
          }
          // Use the original BilinearForm implementation for now
          break;
@@ -346,7 +348,8 @@ void BilinearForm::Assemble(int skip_zeros)
 {
    if (Device::IsEnabled() && (assembly != AssemblyLevel::PARTIAL))
    {
-      mfem_error("Chosen assembly level not supported yet in device mode!");
+     if(assembly != AssemblyLevel::FULL)
+       mfem_error("Chosen assembly level not supported yet in device mode!");
    }
 
    if (ext)
