@@ -2356,7 +2356,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
 }
 
 void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
-                                          GridFunction &error,
+                                          Vector &error,
                                           Coefficient *weight,
                                           const IntegrationRule *irs[]) const
 {
@@ -2511,7 +2511,7 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
 
 void GridFunction::ComputeElementLpErrors(const double p,
                                           VectorCoefficient &exsol,
-                                          GridFunction &error,
+                                          Vector &error,
                                           Coefficient *weight,
                                           VectorCoefficient *v_weight,
                                           const IntegrationRule *irs[]) const
