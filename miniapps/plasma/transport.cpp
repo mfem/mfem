@@ -1,38 +1,3 @@
-//                         MFEM Example 18 - Parallel Version
-//
-// Compile with: make ex18
-//
-// Sample runs:
-//
-//        ex18p_split -rs 1 -nu 0.01 -ss 1 -dt 0.001 -c -1
-//
-// Description:  This example code solves the compressible Euler system of
-//               equations, a model nonlinear hyperbolic PDE, with a
-//               discontinuous Galerkin (DG) formulation.
-//
-//               Specifically, it solves for an exact solution of the equations
-//               whereby a vortex is transported by a uniform flow. Since all
-//               boundaries are periodic here, the method's accuracy can be
-//               assessed by measuring the difference between the solution and
-//               the initial condition at a later time when the vortex returns
-//               to its initial location.
-//
-//               Note that as the order of the spatial discretization increases,
-//               the timestep must become smaller. This example currently uses a
-//               simple estimate derived by Cockburn and Shu for the 1D RKDG
-//               method. An additional factor can be tuned by passing the --cfl
-//               (or -c shorter) flag.
-//
-//               The example demonstrates user-defined bilinear and nonlinear
-//               form integrators for systems of equations that are defined with
-//               block vectors, and how these are used with an operator for
-//               explicit time integrators. In this case the system also
-//               involves an external approximate Riemann solver for the DG
-//               interface flux. It also demonstrates how to use GLVis for
-//               in-situ visualization of vector grid functions.
-//
-//               We recommend viewing examples 9, 14 and 17 before viewing this
-//               example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -47,21 +12,24 @@ using namespace mfem;
 using namespace mfem::miniapps;
 using namespace mfem::plasma;
 
-// Choice for the problem setup. See InitialCondition in ex18.hpp.
 int problem_;
 
 // Equation constant parameters.
+/*
 int num_species_ = -1;
 int num_equations_ = -1;
 const double specific_heat_ratio_ = 1.4;
 const double gas_constant_ = 1.0;
-
+*/
 // Scalar coefficient for diffusion of momentum
 static double diffusion_constant_ = 0.1;
 static double dg_sigma_ = -1.0;
 static double dg_kappa_ = -1.0;
 
-static double B_max_ = 1.0;
+static double T_max_ = 10.0;
+static double T_min_ =  1.0;
+
+static double B_max_ = 5.0;
 static double v_max_ = 0.0;
 
 // Maximum characteristic speed (updated by integrators)
@@ -132,82 +100,36 @@ void ChiFunc(const Vector &x, DenseMatrix &M)
 
 double TFunc(const Vector &x, double t)
 {
-   switch (prob_)
-   {
-      case 1:
-      {
-         double e = exp(-2.0 * M_PI * M_PI * t);
-         return sin(M_PI * x[0]) * sin(M_PI * x[1]) * (1.0 - e);
-      }
-      case 2:
-      {
-         double a = 0.4;
-         double b = 0.8;
+   double a = 0.4;
+   double b = 0.8;
 
-         double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-         double e = exp(-0.25 * t * M_PI * M_PI / (a * b) );
+   double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
 
-         return cos(0.5 * M_PI * sqrt(r)) * (1.0 - e);
-      }
-      case 3:
-         return pow(sin(M_PI * x[0]) * sin(M_PI * x[1]), gamma_);
-      case 4:
-      {
-         double a = 0.4;
-         double b = 0.8;
+   return T_min_ + (T_max_ - T_min_) * cos(0.5 * M_PI * sqrt(r));
+}
 
-         double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-         double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
-         return cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
-      }
-   }
-   return 0.0;
+double TeFunc(const Vector &x, double t)
+{
+   double a = 0.4;
+   double b = 0.8;
+
+   double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+   double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
+   return T_min_ +
+     (T_max_ - T_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs));
 }
 
 void bFunc(const Vector &x, Vector &B)
 {
    B.SetSize(2);
 
-   switch (prob_)
-   {
-      case 1:
-      {
-         double cx = cos(M_PI * x[0]);
-         double cy = cos(M_PI * x[1]);
-         double sx = sin(M_PI * x[0]);
-         double sy = sin(M_PI * x[1]);
+   double a = 0.4;
+   double b = 0.8;
 
-         double den = cx * cx * sy * sy + sx * sx * cy * cy;
+   B[0] =  a * x[1] / (b * b);
+   B[1] = -x[0] / a;
 
-         B[0] =  sx * cy;
-         B[1] = -sy * cx;
-         B *= 1.0 / sqrt(den);
-      }
-      break;
-      case 2:
-      case 4:
-      {
-         double a = 0.4;
-         double b = 0.8;
-
-         // double den = pow(b * b * x[0], 2) + pow(a * a * x[1], 2);
-
-         B[0] =  a * x[1] / (b * b);
-         B[1] = -x[0] / a;
-         // B *= 1.0 / sqrt(den);
-         B *= B_max_;
-      }
-      break;
-      case 3:
-      {
-         double ca = cos(alpha_);
-         double sa = sin(alpha_);
-
-         B[0] = ca;
-         B[1] = sa;
-      }
-      break;
-   }
+   B *= B_max_;
 }
 
 void bbTFunc(const Vector &x, DenseMatrix &M)
@@ -266,7 +188,36 @@ void bbTFunc(const Vector &x, DenseMatrix &M)
    }
 }
 
+class NormedDifferenceMeasure : public ODEDifferenceMeasure
+{
+private:
+   MPI_Comm comm_;
+   const Operator * M_;
+   Vector du_;
+   Vector Mu_;
+
+public:
+   NormedDifferenceMeasure(MPI_Comm comm) : comm_(comm), M_(NULL) {}
+
+   void SetOperator(const Operator & op)
+   { M_ = &op; du_.SetSize(M_->Width()); Mu_.SetSize(M_->Height()); }
+
+   double Eval(Vector &u0, Vector &u1)
+   {
+      M_->Mult(u0, Mu_);
+      double nrm0 = InnerProduct(comm_, u0, Mu_);
+      add(u1, -1.0, u0, du_);
+      M_->Mult(du_, Mu_);
+      return sqrt(InnerProduct(comm_, du_, Mu_) / nrm0);
+   }
+};
+
 // Initial condition
+void AdaptInitialMesh(MPI_Session &mpi,
+		      ParMesh &pmesh, ParFiniteElementSpace &fespace,
+		      ParGridFunction & gf, Coefficient &coef,
+		      int p, double tol, bool visualization = false);
+
 void InitialCondition(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[])
@@ -278,11 +229,20 @@ int main(int argc, char *argv[])
    problem_ = 1;
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
    int ser_ref_levels = 0;
-   int par_ref_levels = 1;
+   int par_ref_levels = 0;
    int order = 3;
-   int ode_split_solver_type = 1;
-   int ode_exp_solver_type = -1;
-   int ode_imp_solver_type = -1;
+
+   int ode_solver_type = 1;
+   double tol_ode = 1e-3;
+   double rej_ode = 1.2;
+   double kP_acc = 0.13;
+   double kI_acc = 1.0 / 15.0;
+   double kD_acc = 0.2;
+   double kI_rej = 0.2;
+   double lim_max = 2.0;
+   
+   double tol_init = 1e-5;
+   double t_init = 0.0;
    double t_final = -1.0;
    double dt = -0.01;
    double dt_rel_tol = 0.1;
@@ -309,15 +269,11 @@ int main(int argc, char *argv[])
                   " partitioning.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
-   args.AddOption(&ode_split_solver_type, "-ss", "--ode-split-solver",
-                  "ODE Split solver:\n"
-                  "            1 - First Order Fractional Step,\n"
-                  "            2 - Strang Splitting (2nd Order).");
-   args.AddOption(&ode_exp_solver_type, "-se", "--ode-exp-solver",
-                  "ODE Explicit solver:\n"
-                  "            1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
-   args.AddOption(&ode_imp_solver_type, "-si", "--ode-imp-solver",
+   args.AddOption(&tol_init, "-tol0", "--initial-tolerance",
+                  "Error tolerance for initial condition.");
+   args.AddOption(&tol_ode, "-tol", "--ode-tolerance",
+                  "Difference tolerance for ODE integration.");
+   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE Implicit solver: L-stable methods\n\t"
                   "            1 - Backward Euler,\n\t"
                   "            2 - SDIRK23, 3 - SDIRK33,\n\t"
@@ -366,6 +322,7 @@ int main(int argc, char *argv[])
       if (mpi.Root()) { args.PrintUsage(cout); }
       return 1;
    }
+   /*
    if (ode_exp_solver_type < 0)
    {
       ode_exp_solver_type = ode_split_solver_type;
@@ -374,6 +331,7 @@ int main(int argc, char *argv[])
    {
       ode_imp_solver_type = ode_split_solver_type;
    }
+   */
    if (ion_charges.Size() == 0)
    {
       ion_charges.SetSize(1);
@@ -407,65 +365,38 @@ int main(int argc, char *argv[])
 
    // 3. Read the mesh from the given mesh file. This example requires a 2D
    //    periodic mesh, such as ../data/periodic-square.mesh.
-   Mesh mesh(mesh_file, 1, 1);
-   const int dim = mesh.Dimension();
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   const int dim = mesh->Dimension();
+   const int sdim = mesh->SpaceDimension();
 
    MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
 
-   num_species_   = ion_charges.Size();
-   num_equations_ = (num_species_ + 1) * (dim + 2);
+   // 4. Refine the serial mesh on all processors to increase the resolution.
+   //    Also project a NURBS mesh to a piecewise-quadratic curved mesh. Make
+   //    sure that the mesh is non-conforming.
+   if (mesh->NURBSext)
+   {
+      mesh->UniformRefinement();
+      mesh->SetCurvature(2);
+   }
+   mesh->EnsureNCMesh();
 
-   // 4. Define the ODE solver used for time integration. Several explicit
-   //    Runge-Kutta methods are available.
-   ODESolver *ode_exp_solver = NULL;
-   ODESolver *ode_imp_solver = NULL;
-   switch (ode_exp_solver_type)
-   {
-      case 1: ode_exp_solver = new ForwardEulerSolver; break;
-      case 2: ode_exp_solver = new RK2Solver(1.0); break;
-      case 3: ode_exp_solver = new RK3SSPSolver; break;
-      case 4: ode_exp_solver = new RK4Solver; break;
-      case 6: ode_exp_solver = new RK6Solver; break;
-      default:
-         if (mpi.Root())
-         {
-            cout << "Unknown Explicit ODE solver type: "
-                 << ode_exp_solver_type << '\n';
-         }
-         return 3;
-   }
-   switch (ode_imp_solver_type)
-   {
-      // Implicit L-stable methods
-      case 1:  ode_imp_solver = new BackwardEulerSolver; break;
-      case 2:  ode_imp_solver = new SDIRK23Solver(2); break;
-      case 3:  ode_imp_solver = new SDIRK33Solver; break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_imp_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_imp_solver = new SDIRK23Solver; break;
-      case 34: ode_imp_solver = new SDIRK34Solver; break;
-      default:
-         if (mpi.Root())
-         {
-            cout << "Unknown Implicit ODE solver type: "
-                 << ode_imp_solver_type << '\n';
-         }
-         return 3;
-   }
+   // num_species_   = ion_charges.Size();
+   // num_equations_ = (num_species_ + 1) * (dim + 2);
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
    //    a command-line parameter.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
-      mesh.UniformRefinement();
+      mesh->UniformRefinement();
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
-   mesh.Clear();
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh.UniformRefinement();
@@ -475,7 +406,18 @@ int main(int argc, char *argv[])
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
-   ParFiniteElementSpace sfes(&pmesh, &fec);
+   ParFiniteElementSpace fespace(&pmesh, &fec);
+
+   // Adaptively refine mesh to accurately represent a given coefficient
+   {
+     ParGridFunction coef_gf(&fespace);
+
+     FunctionCoefficient coef(TeFunc);
+
+     AdaptInitialMesh(mpi, pmesh, fespace, coef_gf, coef,
+		      2, tol_init, visualization);
+   }
+   /*   
    // Finite element space for a mesh-dim vector quantity (momentum)
    ParFiniteElementSpace vfes(&pmesh, &fec, dim, Ordering::byNODES);
    // Finite element space for all variables together (full thermodynamic state)
@@ -488,7 +430,7 @@ int main(int argc, char *argv[])
    // This example depends on this ordering of the space.
    MFEM_ASSERT(ffes.GetOrdering() == Ordering::byNODES, "");
 
-   HYPRE_Int glob_size_sca = sfes.GlobalTrueVSize();
+   HYPRE_Int glob_size_sca = fespace.GlobalTrueVSize();
    HYPRE_Int glob_size_tot = ffes.GlobalTrueVSize();
    HYPRE_Int glob_size_rt  = fes_rt.GlobalTrueVSize();
    if (mpi.Root())
@@ -510,7 +452,7 @@ int main(int argc, char *argv[])
    Array<int> offsets(num_equations_ + 1);
    for (int k = 0; k <= num_equations_; k++)
    {
-      offsets[k] = k * sfes.GetNDofs();
+      offsets[k] = k * fespace.GetNDofs();
    }
    BlockVector u_block(offsets);
 
@@ -520,14 +462,14 @@ int main(int argc, char *argv[])
       n_offsets[k] = offsets[k];
    }
    BlockVector n_block(u_block, n_offsets);
-
+   */
    // Momentum and Energy grid functions on for visualization.
    /*
    ParGridFunction density(&fes, u_block.GetData());
    ParGridFunction velocity(&dfes, u_block.GetData() + offsets[1]);
    ParGridFunction temperature(&fes, u_block.GetData() + offsets[dim+1]);
    */
-
+   /*
    // Initialize the state.
    VectorFunctionCoefficient u0(num_equations_, InitialCondition);
    ParGridFunction sol(&ffes, u_block.GetData());
@@ -536,7 +478,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient BCoef(dim, bFunc);
    ParGridFunction B(&fes_rt);
    B.ProjectCoefficient(BCoef);
-
+   */
    // Output the initial solution.
    /*
    {
@@ -581,9 +523,9 @@ int main(int argc, char *argv[])
                     specific_heat_ratio_);
    DiffusionTDO diff(fes, dfes, vfes, nuCoef, dg_sigma_, dg_kappa_);
    */
-   TransportSolver transp(ode_imp_solver, ode_exp_solver, sfes, vfes, ffes,
-                          n_block, B, ion_charges, ion_masses);
-
+   // TransportSolver transp(ode_imp_solver, ode_exp_solver, sfes, vfes, ffes,
+   //                     n_block, B, ion_charges, ion_masses);
+   /*
    // Visualize the density, momentum, and energy
    vector<socketstream> dout(num_species_+1), vout(num_species_+1),
           tout(num_species_+1), xout(num_species_+1), eout(num_species_+1);
@@ -605,11 +547,11 @@ int main(int argc, char *argv[])
          int voff = offsets[i * dim + num_species_ + 1];
          int toff = offsets[i + (num_species_ + 1) * (dim + 1)];
          double * u_data = u_block.GetData();
-         ParGridFunction density(&sfes, u_data + doff);
+         ParGridFunction density(&fespace, u_data + doff);
          ParGridFunction velocity(&vfes, u_data + voff);
-         ParGridFunction temperature(&sfes, u_data + toff);
-
-
+         ParGridFunction temperature(&fespace, u_data + toff);
+   */
+	 /*
          ParGridFunction chi_para(&sfes);
          ParGridFunction eta_para(&sfes);
          if (i==0)
@@ -636,7 +578,8 @@ int main(int argc, char *argv[])
             etaParaCoef.SetT(temperature);
             eta_para.ProjectCoefficient(etaParaCoef);
          }
-
+	 */
+   /*
          ostringstream head;
          if (i==0)
          {
@@ -664,7 +607,8 @@ int main(int argc, char *argv[])
          VisualizeField(tout[i], vishost, visport,
                         temperature, toss.str().c_str(),
                         Wx, Wy, Ww, Wh);
-
+   */
+         /*
          Wx += offx;
 
          ostringstream xoss; xoss << head.str() << " Chi Parallel";
@@ -680,10 +624,13 @@ int main(int argc, char *argv[])
                         Wx, Wy, Ww, Wh);
 
          Wx -= 4 * offx;
+	 */
+   /*
+         Wx -= 2 * offx;
          Wy += offy;
       }
    }
-   exit(0);
+   */
 
    // Determine the minimum element size.
    double hmin;
@@ -698,130 +645,61 @@ int main(int argc, char *argv[])
       MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
    }
 
+   ODEController ode_controller;
+   NormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD);
+   PIDAdjFactor dt_acc(kP_acc, kI_acc, kD_acc);
+   IAdjFactor   dt_rej(kI_rej);
+   MaxLimiter   dt_max(lim_max);
+   
+   ODESolver * ode_solver = NULL;
+   switch (ode_solver_type)
+   {
+      // Implicit L-stable methods
+      case 1:  ode_solver = new BackwardEulerSolver; break;
+      case 2:  ode_solver = new SDIRK23Solver(2); break;
+      case 3:  ode_solver = new SDIRK33Solver; break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_solver = new ImplicitMidpointSolver; break;
+      case 23: ode_solver = new SDIRK23Solver; break;
+      case 34: ode_solver = new SDIRK34Solver; break;
+      default:
+         if (mpi.Root())
+         {
+            cout << "Unknown Implicit ODE solver type: "
+                 << ode_solver_type << '\n';
+         }
+         return 3;
+   }
+
+   ConstantCoefficient one(1.0);
+   
+   DGAdvectionDiffusionTDO oper(fespace, one);
+   
+   ode_solver->Init(oper);
+   
+   ode_controller.Init(*ode_solver, ode_diff_msr,
+                       dt_acc, dt_rej, dt_max);
+
+   ode_controller.SetOutputFrequency(vis_steps);
+   ode_controller.SetTimeStep(dt);
+   ode_controller.SetTolerance(tol_ode);
+   ode_controller.SetRejectionLimit(rej_ode);
+
+   ParGridFunction u(&fespace);
+   
    // Start the timer.
    tic_toc.Clear();
    tic_toc.Start();
-   /*
-   double t = 0.0;
-   adv.SetTime(t);
-   ode_exp_solver->Init(adv);
 
-   diff.SetTime(t);
-   ode_imp_solver->Init(diff);
-
-   if (cfl > 0)
+   double t = t_init;
+   while (t < t_final)
    {
-      // Find a safe dt, using a temporary vector. Calling Mult() computes the
-      // maximum char speed at all quadrature points on all faces.
-      max_char_speed_ = 0.;
-      Vector z(sol.Size());
-      A.Mult(sol, z);
-      // Reduce to find the global maximum wave speed
-      {
-         double all_max_char_speed;
-         MPI_Allreduce(&max_char_speed_, &all_max_char_speed,
-                       1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-         max_char_speed_ = all_max_char_speed;
-      }
-      dt = cfl * hmin / max_char_speed_ / (2*order+1);
-
-      if (mpi.Root())
-      {
-         cout << "Minimum Edge Length: " << hmin << '\n';
-         cout << "Maximum Speed:       " << max_char_speed_ << '\n';
-         cout << "CFL fraction:        " << cfl << '\n';
-         cout << "Initial Time Step:   " << dt << '\n';
-      }
+      ode_controller.Run(u, t, t_final);
    }
-
-   // Integrate in time.
-   bool done = false;
-   for (int ti = 0; !done; )
-   {
-      double dt_real = min(dt, t_final - t);
-
-      if (ode_split_solver_type == 1)
-      {
-         double dt_imp = dt_real;
-         double dt_exp = dt_real;
-         double t_imp = t;
-         ode_imp_solver->Step(sol, t_imp, dt_imp);
-         ode_exp_solver->Step(sol, t, dt_exp);
-      }
-      else
-      {
-         double dt_imp = 0.5 * dt_real;
-         double t_imp = t;
-         double dt_exp = dt_real;
-         ode_imp_solver->Step(sol, t_imp, dt_imp);
-         ode_exp_solver->Step(sol, t, dt_exp);
-         ode_imp_solver->Step(sol, t_imp, dt_imp);
-      }
-
-      if (cfl > 0)
-      {
-         // Reduce to find the global maximum wave speed
-         {
-            double all_max_char_speed;
-            MPI_Allreduce(&max_char_speed_, &all_max_char_speed,
-                          1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-            max_char_speed_ = all_max_char_speed;
-         }
-         double new_dt = cfl * hmin / max_char_speed_ / (2*order+1);
-
-         if (fabs(dt - new_dt) > dt_rel_tol * dt)
-         {
-            dt = new_dt;
-            if (mpi.Root())
-            {
-               cout << "Adjusting Time Step\n";
-               cout << "Minimum Edge Length: " << hmin << '\n';
-               cout << "Maximum Speed:       " << max_char_speed_ << '\n';
-               cout << "CFL fraction:        " << cfl << '\n';
-               cout << "New Time Step:       " << new_dt << '\n';
-            }
-         }
-      }
-      ti++;
-
-      done = (t >= t_final - 1e-8*dt);
-      if (done || ti % vis_steps == 0)
-      {
-         if (mpi.Root())
-         {
-            cout << "time step: " << ti << ", time: " << t << endl;
-         }
-         if (visualization)
-         {
-            MPI_Barrier(pmesh.GetComm());
-            for (int i=0; i<num_species_; i++)
-            {
-       int doff = offsets[i * (dim + 2) + 0];
-       int voff = offsets[i * (dim + 2) + 1];
-       int toff = offsets[i * (dim + 2) + dim + 1];
-          double * u_data = u_block.GetData();
-          ParGridFunction density(&fes, u_data + doff);
-          ParGridFunction velocity(&dfes, u_data + voff);
-          ParGridFunction temperature(&fes, u_data + toff);
-               dout[i] << "parallel " << mpi.WorldSize()
-             << " " << mpi.WorldRank() << "\n";
-          dout[i] << "solution\n" << pmesh << density << flush;
-
-          vout[i] << "parallel " << mpi.WorldSize()
-             << " " << mpi.WorldRank() << "\n";
-          vout[i] << "solution\n" << pmesh << velocity << flush;
-
-          tout[i] << "parallel " << mpi.WorldSize()
-             << " " << mpi.WorldRank() << "\n";
-          tout[i] << "solution\n" << pmesh << temperature << flush;
-       }
-    }
-      }
-   }
-   */
+   
    tic_toc.Stop();
    if (mpi.Root()) { cout << " done, " << tic_toc.RealTime() << "s." << endl; }
-
+   /*
    // 11. Save the final solution. This output can be viewed later using GLVis:
    //     "glvis -np 4 -m transport-mesh -g species-0-field-0-final".
    {
@@ -829,7 +707,7 @@ int main(int argc, char *argv[])
       for (int i = 0; i < num_species_; i++)
          for (int j = 0; j < dim + 2; j++)
          {
-            ParGridFunction uk(&sfes, u_block.GetBlock(k));
+            ParGridFunction uk(&fespace, u_block.GetBlock(k));
             ostringstream sol_name;
             sol_name << "species-" << i << "-field-" << j << "-final."
                      << setfill('0') << setw(6) << mpi.WorldRank();
@@ -849,15 +727,98 @@ int main(int argc, char *argv[])
       const double error = sol.ComputeLpError(2, u0);
       if (mpi.Root()) { cout << "Solution error: " << error << endl; }
    }
-
+   */
    // Free the used memory.
-   delete ode_exp_solver;
-   delete ode_imp_solver;
+   delete ode_solver;
+   // delete ode_imp_solver;
 
    return 0;
 }
 
 // Initial condition
+void AdaptInitialMesh(MPI_Session &mpi,
+		      ParMesh &pmesh, ParFiniteElementSpace &fespace,
+		      ParGridFunction & gf, Coefficient &coef,
+		      int p, double tol, bool visualization)
+{
+   LpErrorEstimator estimator(p, coef, gf);
+
+   ThresholdRefiner refiner(estimator);
+   refiner.SetTotalErrorFraction(0);
+   refiner.SetTotalErrorNormP(p);
+   refiner.SetLocalErrorGoal(tol);
+     
+   socketstream sout;
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   int Wx = 0, Wy = 0; // window position
+   int Ww = 275, Wh = 250; // window size
+
+   const int max_dofs = 100000;
+   for (int it = 0; ; it++)
+   {
+      HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
+      if (mpi.Root())
+      {
+	 cout << "\nAMR iteration " << it << endl;
+	 cout << "Number of unknowns: " << global_dofs << endl;
+      }
+
+      // 19. Send the solution by socket to a GLVis server.
+      gf.ProjectCoefficient(coef);
+
+      if (visualization)
+      {
+	VisualizeField(sout, vishost, visport, gf, "Initial Condition",
+		       Wx, Wy, Ww, Wh);
+      }
+
+      if (global_dofs > max_dofs)
+      {
+	 if (mpi.Root())
+         {
+	   cout << "Reached the maximum number of dofs. Stop." << endl;
+	 }
+	 break;
+      }
+
+      // 20. Call the refiner to modify the mesh. The refiner calls the error
+      //     estimator to obtain element errors, then it selects elements to be
+      //     refined and finally it modifies the mesh. The Stop() method can be
+      //     used to determine if a stopping criterion was met.
+      refiner.Apply(pmesh);
+      if (refiner.Stop())
+      {
+	 if (mpi.Root())
+         {
+	   cout << "Stopping criterion satisfied. Stop." << endl;
+	 }
+	 break;
+      }
+
+      // 21. Update the finite element space (recalculate the number of DOFs,
+      //     etc.) and create a grid function update matrix. Apply the matrix
+      //     to any GridFunctions over the space. In this case, the update
+      //     matrix is an interpolation matrix so the updated GridFunction will
+      //     still represent the same function as before refinement.
+      fespace.Update();
+      gf.Update();
+
+      // 22. Load balance the mesh, and update the space and solution. Currently
+      //     available only for nonconforming meshes.
+      if (pmesh.Nonconforming())
+      {
+	 pmesh.Rebalance();
+
+	 // Update the space and the GridFunction. This time the update matrix
+	 // redistributes the GridFunction among the processors.
+	 fespace.Update();
+	 gf.Update();
+      }	
+   }
+}
+
 void InitialCondition(const Vector &x, Vector &y)
 {
    MFEM_ASSERT(x.Size() == 2, "");
@@ -920,6 +881,7 @@ void InitialCondition(const Vector &x, Vector &y)
    y(3) = den * energy;
    */
    // double VMag = 1e2;
+   /*
    if (y.Size() != num_equations_) { cout << "y is wrong size!" << endl; }
 
    int dim = 2;
@@ -950,4 +912,5 @@ void InitialCondition(const Vector &x, Vector &y)
    y((num_species_ + 1) * (dim + 1)) = 5.0 * TFunc(x, 0.0);
 
    // y.Print(cout, dim+2); cout << endl;
+   */
 }

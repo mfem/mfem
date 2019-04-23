@@ -159,6 +159,45 @@ inline double eta_i_para(double ma, double Ta,
           tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 
+class DGAdvectionDiffusionTDO : public TimeDependentOperator
+{
+private:
+  ParFiniteElementSpace *fes_;
+  Coefficient       *CCoef_; // Scalar coefficient in front of du/dt
+  VectorCoefficient *VCoef_; // Velocity coefficient
+  Coefficient       *dCoef_; // Scalar diffusion coefficient
+  MatrixCoefficient *DCoef_; // Tensor diffusion coefficient
+  Coefficient       *SCoef_; // Source coefficient
+
+  Array<int>   dbcAttr_;
+  Coefficient *dbcCoef_; // Dirichlet BC coefficient
+  
+  Array<int>   nbcAttr_;
+  Coefficient *nbcCoef_; // Neumann BC coefficient
+  
+public:
+  DGAdvectionDiffusionTDO(ParFiniteElementSpace &fes,
+			  Coefficient &CCoef)
+    : TimeDependentOperator(fes.GetVSize()),
+      fes_(&fes),
+      CCoef_(&CCoef)
+  {}
+
+  ~DGAdvectionDiffusionTDO();
+  
+  void SetVelocityCoefficient(VectorCoefficient &VCoef)  { VCoef_ = &VCoef; }
+  void SetDiffusionCoefficient(Coefficient &dCoef)       { dCoef_ = &dCoef; }
+  void SetDiffusionCoefficient(MatrixCoefficient &DCoef) { DCoef_ = &DCoef; }
+  void SetSourceCoefficient(Coefficient &SCoef)          { SCoef_ = &SCoef; }
+
+  void SetDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
+  void SetNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
+
+  virtual void ImplicitSolve(const double dt, const Vector &u, Vector &dudt);
+
+  void Update();
+};
+
 class MultiSpeciesDiffusion;
 class MultiSpeciesAdvection;
 

@@ -244,6 +244,32 @@ EtaParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 
+DGAdvectionDiffusionTDO::~DGAdvectionDiffusionTDO()
+{
+}
+  
+void DGAdvectionDiffusionTDO::SetDirichletBC(Array<int> &dbc_attr,
+					     Coefficient &dbc)
+{
+  dbcAttr_ = dbc_attr;
+  dbcCoef_ = &dbc;
+}
+  
+void DGAdvectionDiffusionTDO::SetNeumannBC(Array<int> &nbc_attr,
+					   Coefficient &nbc)
+{
+  nbcAttr_ = nbc_attr;
+  nbcCoef_ = &nbc;
+}
+
+void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
+					    const Vector &u, Vector &dudt)
+{}
+
+void DGAdvectionDiffusionTDO::Update()
+{}
+
+  
 TransportSolver::TransportSolver(ODESolver * implicitSolver,
                                  ODESolver * explicitSolver,
                                  ParFiniteElementSpace & sfes,
