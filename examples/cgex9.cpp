@@ -89,9 +89,10 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    problem = 0;
    //const char *mesh_file = "../data/periodic-segment.mesh";
-   const char *mesh_file = "../data/periodic-square.mesh";
+   //const char *mesh_file = "../data/periodic-square.mesh";
+   const char *mesh_file = "../data/star.mesh";
    int ref_levels = 0;
-   int order = 2;
+   int order = 1;
    int ode_solver_type = 4;
    double t_final = Tf;
    double dt = 0.001;

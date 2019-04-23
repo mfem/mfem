@@ -9,6 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "tfe.hpp"
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
@@ -742,22 +743,34 @@ DiffusionIntegrator::~DiffusionIntegrator()
    delete maps;
 }
 
+//
+//Hard coded for H1 finite elements
+//  
 void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
 {
+   printf("Entered FA_Assemble ... \n");
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
-   nq = ir->GetNPoints();
+   nq = ir->GetNPoints(); //total number of quad pts
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
    geom = GeometryExtension::Get(fes,*ir);
    maps = DofToQuad::Get(fes, fes, *ir);
-   vec.SetSize(ne*nq);
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
    FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
+   vec.SetSize(ne*nq);
+
+   //Hardcoded for H1 finite elements...
+   H1_FiniteElement<Geometry::SQUARE, 1> H1_space;
+   const Array<int> *dof_map = H1_space.GetDofMap();
+
+   //std::cout<<"Matrix size = "<<mat.Size()<<std::endl;
+   
+   printf("Num of elems %d, dofs %d, qpt %d %d \n", ne, dofs1D, nq, quad1D);
 
    {
      if (dim==1)
@@ -765,6 +778,82 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
        MFEM_ABORT("TODO 1D FA Mass matrix assembly \n");
      }else if(dim==2)
      {
+
+       const int l_quad1D = quad1D;
+       const int l_dofs1D = dofs1D;
+       const int NE = ne;
+       const int NQ = quad1D*quad1D;
+       const int ND = dofs1D*dofs1D;
+
+
+       const DeviceVector w(maps->W.GetData(), NQ);
+       const DeviceArray  dof_map_(dof_map->GetData(), dof_map->Size());
+       const DeviceTensor<3> x(geom->X.GetData(), 2,NQ,NE);
+       const DeviceTensor<4> J(geom->J.GetData(), 2,2,NQ,NE);
+       DeviceMatrix D(vec.GetData(), NQ, NE);
+
+       //Assemble D matrix
+       MFEM_FORALL(e, NE,
+       {
+         for (int q = 0; q < NQ; ++q)
+         {
+           const double J11 = J(0,0,q,e);
+           const double J12 = J(1,0,q,e);
+           const double J21 = J(0,1,q,e);
+           const double J22 = J(1,1,q,e);
+           const double detJ = (J11*J22)-(J21*J12);
+           double coeff = 1.0; //TODO replace
+           D(q,e) =  w[q] * coeff * detJ;
+         }
+       });
+
+       printf("quad1d %d dofs1d %d \n",quad1D, dofs1D);
+       const DeviceMatrix B(maps->B.GetData(), 2, 2);
+              
+       MFEM_FORALL(e, NE,
+       {
+         double B2D[4][4]; //Create B matrix
+         double Me[4][4];
+
+         for(int i2=0; i2<l_dofs1D; ++i2){
+           for(int i1=0; i1<l_dofs1D; ++i1){
+             for(int k2=0; k2<l_quad1D; ++k2){
+               for(int k1=0; k1<l_quad1D; ++k1){
+
+                 int k=k1 + k2*l_quad1D;
+                 int i=i1 + i2*l_dofs1D;
+                 B2D[k][i] = B(k1,i1)*B(k2,i2);
+               }
+             }
+           }
+         }
+
+         //Create element mass matrix
+         for(int j=0; j<ND; ++j) {
+           for(int i=0; i<ND; ++i) {
+
+             double dot = 0.0;
+             for(int k=0; k<NQ; ++k) {
+
+               dot += B2D[k][i]*D(k, e)*B2D[k][j];
+             }
+             Me[i][j] = dot;
+           }
+         }
+
+         //write out
+         for(int j=0; j<ND; ++j) {
+           for(int i=0; i<ND; ++i) {
+             int id = i + ND*(j + ND*e);
+             printf("%.15f ",Me[dof_map_[i]][dof_map_[j]]);
+             //data[id] = Me[dof_map_[i]][dof_map_[j]];
+           }
+           printf("\n");
+         }
+
+       });
+
+       cudaDeviceSynchronize();
        MFEM_ABORT("TODO 2D FA Mass matrix assembly \n");
      }else if(dim==3)
      {
@@ -1609,6 +1698,10 @@ void PAGeom2D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    const int ND = D1D*D1D;
    const int NQ = Q1D*Q1D;
+
+   printf("B matrix is of size %d x %d \n", NQ, ND);
+   printf("G matrix is of size 2 x %d x %d \n", NQ, ND);
+   printf("X matrix is of size 2 x %d x %d \n", ND, NE);
 
    const DeviceTensor<2> B(_B, NQ, ND);
    const DeviceTensor<3> G(_G, 2,NQ, ND);

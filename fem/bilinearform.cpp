@@ -352,6 +352,12 @@ void BilinearForm::Assemble(int skip_zeros)
        mfem_error("Chosen assembly level not supported yet in device mode!");
    }
 
+
+   if (mat == NULL && assembly == AssemblyLevel::FULL)
+   {
+      AllocMat();
+   }
+
    if (ext)
    {
       ext->Assemble();
@@ -362,10 +368,6 @@ void BilinearForm::Assemble(int skip_zeros)
    Mesh *mesh = fes -> GetMesh();
    DenseMatrix elmat, *elmat_p;
 
-   if (mat == NULL)
-   {
-      AllocMat();
-   }
 
 #ifdef MFEM_USE_LEGACY_OPENMP
    int free_element_matrices = 0;

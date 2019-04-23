@@ -68,6 +68,7 @@ public:
 class FABilinearFormExtension : public BilinearFormExtension
 {
 protected:
+
    const FiniteElementSpace *trialFes, *testFes;
    mutable Vector localX, localY;
    ElemRestriction *elem_restrict;

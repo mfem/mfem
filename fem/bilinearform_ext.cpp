@@ -141,7 +141,7 @@ void FABilinearFormExtension::Assemble()
 
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->FA_Assemble(*a->FESpace());
+     integrators[i]->FA_Assemble(*a->FESpace());
    }
 }
 
