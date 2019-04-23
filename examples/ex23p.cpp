@@ -464,8 +464,9 @@ void FE_Evolution::initA(double _dt)
       delete A_prec;
       delete A;
 
-      A = Add(1.0, M, _dt, S);
-      A->Add(-_dt, K);
+      HypreParMatrix * SK = Add(1.0, S, -1.0, K);
+      A = Add(1.0, M, _dt, *SK);
+      delete SK;
       dt = _dt;
 
       A_prec = new HypreBoomerAMG(*A);
