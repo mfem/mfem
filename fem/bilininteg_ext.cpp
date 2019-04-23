@@ -826,6 +826,7 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
          }
 
          //Create element mass matrix
+         //Batch here to reuse B2D?
          for(int j=0; j<ND; ++j) {
            for(int i=0; i<ND; ++i) {
 
@@ -838,14 +839,11 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
            }
          }
 
-         //write out
+         //write out to sparse matrix
          for(int j=0; j<ND; ++j) {
            for(int i=0; i<ND; ++i) {
-             int id = i + ND*(j + ND*e);
-             printf("%.15f ",Me[dof_map_[i]][dof_map_[j]]);
-             //data[id] = Me[dof_map_[i]][dof_map_[j]];
+             //Matrix[idx] = Me[dof_map_[i]][dof_map_[j]];
            }
-           printf("\n");
          }
 
        });
