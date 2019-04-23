@@ -875,7 +875,6 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    vec.SetSize(ne*nq);
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
    FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
-
    // TODO: other types of coefficients ...
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)
@@ -1692,10 +1691,6 @@ void PAGeom2D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    const int ND = D1D*D1D;
    const int NQ = Q1D*Q1D;
-
-   printf("B matrix is of size %d x %d \n", NQ, ND);
-   printf("G matrix is of size 2 x %d x %d \n", NQ, ND);
-   printf("X matrix is of size 2 x %d x %d \n", ND, NE);
 
    const DeviceTensor<2> B(_B, NQ, ND);
    const DeviceTensor<3> G(_G, 2,NQ, ND);
