@@ -7,6 +7,15 @@
 
                                http://mfem.org
 
+libCEED support
+---------------
+- Added initial integration of libCEED for Mass and Diffusion integrators.
+  libCEED GPU backends can be used without activating anything specific in MFEM,
+  however it is highly recommended to use the "cuda" build option to avoid
+  unnecessary memory transfers. Two mode for the libCEED backend are available:
+   * ceed-cpu: use libCEED without memory manager
+   * ceed-cuda: use libCEED in colaboration with the Cuda backend and the memory
+     manager.
 
 Version 4.0.1 (development)
 ===========================
