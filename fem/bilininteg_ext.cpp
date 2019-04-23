@@ -744,8 +744,8 @@ DiffusionIntegrator::~DiffusionIntegrator()
 }
 
 //
-//Hard coded for H1 finite elements
-//  
+//Hard coded for H1 finite elements order 1
+//
 void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
 {
    printf("Entered FA_Assemble ... \n");
@@ -764,12 +764,7 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
    FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
    vec.SetSize(ne*nq);
 
-   //Hardcoded for H1 finite elements...
-   H1_FiniteElement<Geometry::SQUARE, 1> H1_space;
-   const Array<int> *dof_map = H1_space.GetDofMap();
 
-   //std::cout<<"Matrix size = "<<mat.Size()<<std::endl;
-   
    printf("Num of elems %d, dofs %d, qpt %d %d \n", ne, dofs1D, nq, quad1D);
 
    {
@@ -778,6 +773,8 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
        MFEM_ABORT("TODO 1D FA Mass matrix assembly \n");
      }else if(dim==2)
      {
+       H1_FiniteElement<Geometry::SQUARE, 1> H1_space;
+       const Array<int> *dof_map = H1_space.GetDofMap();
 
        const int l_quad1D = quad1D;
        const int l_dofs1D = dofs1D;
@@ -807,9 +804,9 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
          }
        });
 
-       printf("quad1d %d dofs1d %d \n",quad1D, dofs1D);
+
+       //Assemble M_e Matrices = Bt D B
        const DeviceMatrix B(maps->B.GetData(), 2, 2);
-              
        MFEM_FORALL(e, NE,
        {
          double B2D[4][4]; //Create B matrix
@@ -853,7 +850,6 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
 
        });
 
-       cudaDeviceSynchronize();
        MFEM_ABORT("TODO 2D FA Mass matrix assembly \n");
      }else if(dim==3)
      {
