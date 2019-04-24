@@ -211,6 +211,9 @@ ifneq ($(MFEM_USE_CUDA),YES)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 else
+   ifneq ($(MFEM_USE_MM),YES)
+      $(error MFEM_USE_CUDA=YES requires MFEM_USE_MM=YES)
+   endif
    MFEM_CXX ?= $(CUDA_CXX)
    CXXFLAGS += $(CUDA_FLAGS) -ccbin $(CXX_OR_MPICXX)
    XCOMPILER = $(CUDA_XCOMPILER)
@@ -230,7 +233,7 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI CUDA OCCA RAJA
+ SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI OCCA RAJA
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -246,7 +249,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
