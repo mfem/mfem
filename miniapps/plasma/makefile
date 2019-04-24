@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = stix1d stix2d braginskii
+PAR_MINIAPPS = stix1d stix2d braginskii transport
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -48,6 +48,9 @@ all: $(MINIAPPS)
 # Rules for building the miniapps
 braginskii: braginskii.cpp braginskii_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ braginskii_solver.o $(COMMON_O) $(MFEM_LIBS)
+
+transport: transport.cpp transport_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ transport_solver.o $(COMMON_O) $(MFEM_LIBS)
 
 %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)

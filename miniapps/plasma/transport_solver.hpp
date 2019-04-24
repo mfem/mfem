@@ -30,7 +30,7 @@ namespace plasma
    zi is the charge number of the ion species
    lnLambda is the Coulomb Logarithm
 */
-double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda);
+//double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda);
 
 /** Multispecies Ion-Ion Collision Time in seconds
    ma is the ion mass in a.m.u
@@ -41,8 +41,8 @@ double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda);
    zi is the charge number of the ion species
    lnLambda is the Coulomb Logarithm
 */
-double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
-             double lnLambda);
+//double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
+//             double lnLambda);
 
 /**
   Thermal diffusion coefficient along B field for electrons
@@ -52,22 +52,24 @@ double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
    ni is the density of ions (assuming ni=ne) in particles per meter^3
    zi is the charge number of the ion species
 */
+  /*
 inline double chi_e_para(double Te, int ns, double * ni, int * zi)
 {
    // The factor of q_ is included to convert Te from eV to Joules
    return 3.16 * (q_ * Te / me_kg_) * tau_e(Te, ns, ni, zi, 17.0);
 }
-
+  */
 /**
   Thermal diffusion coefficient perpendicular to B field for electrons
   Return value is in m^2/s.
 */
+  /*
 inline double chi_e_perp()
 {
    // The factor of q_ is included to convert Te from eV to Joules
    return 1.0;
 }
-
+  */
 /**
   Thermal diffusion coefficient perpendicular to both B field and
   thermal gradient for electrons.
@@ -76,12 +78,13 @@ inline double chi_e_perp()
    ni is the density of ions (assuming ni=ne) in particles per meter^3
    z is the charge number of the ion species
 */
+  /*
 inline double chi_e_cross()
 {
    // The factor of q_ is included to convert Te from eV to Joules
    return 0.0;
 }
-
+  */
 /**
   Thermal diffusion coefficient along B field for ions
   Return value is in m^2/s.
@@ -92,6 +95,7 @@ inline double chi_e_cross()
    nb is the density of ions in particles per meter^3
    zb is the charge number of the ion species
 */
+  /*
 inline double chi_i_para(double ma, double Ta,
                          int ion, int ns, double * nb, int * zb)
 {
@@ -100,30 +104,32 @@ inline double chi_i_para(double ma, double Ta,
    return 3.9 * (q_ * Ta / (ma * amu_ ) ) *
           tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
-
+  */
 /**
   Thermal diffusion coefficient perpendicular to B field for ions
   Return value is in m^2/s.
 */
+  /*
 inline double chi_i_perp()
 {
    // The factor of q_ is included to convert Ti from eV to Joules
    // The factor of u_ is included to convert mi from a.m.u to kg
    return 1.0;
 }
-
+  */
 /**
   Thermal diffusion coefficient perpendicular to both B field and
   thermal gradient for ions
   Return value is in m^2/s.
 */
+  /*
 inline double chi_i_cross()
 {
    // The factor of q_ is included to convert Ti from eV to Joules
    // The factor of u_ is included to convert mi from a.m.u to kg
    return 0.0;
 }
-
+  */
 /**
   Viscosity coefficient along B field for electrons
   Return value is in (a.m.u)*m^2/s.
@@ -133,13 +139,14 @@ inline double chi_i_cross()
    ni is the density of ions (assuming ni=ne) in particles per meter^3
    zi is the charge number of the ion species
 */
+  /*
 inline double eta_e_para(double ne, double Te, int ns, double * ni, int * zi)
 {
    // The factor of q_ is included to convert Te from eV to Joules
    // The factor of u_ is included to convert from kg to a.m.u
    return 0.73 * ne * (q_ * Te / amu_) * tau_e(Te, ns, ni, zi, 17.0);
 }
-
+  */
 /**
   Viscosity coefficient along B field for ions
   Return value is in (a.m.u)*m^2/s.
@@ -150,6 +157,7 @@ inline double eta_e_para(double ne, double Te, int ns, double * ni, int * zi)
    nb is the density of ions in particles per meter^3
    zb is the charge number of the ion species
 */
+  /*
 inline double eta_i_para(double ma, double Ta,
                          int ion, int ns, double * nb, int * zb)
 {
@@ -158,16 +166,31 @@ inline double eta_i_para(double ma, double Ta,
    return 0.96 * nb[ion] * (q_ * Ta / amu_) *
           tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
+  */
+struct DGParams
+{
+   double sigma;
+   double kappa;
+};
 
 class DGAdvectionDiffusionTDO : public TimeDependentOperator
 {
 private:
+  DGParams & dg_;
+
+  double dt_;
+  
   ParFiniteElementSpace *fes_;
-  Coefficient       *CCoef_; // Scalar coefficient in front of du/dt
-  VectorCoefficient *VCoef_; // Velocity coefficient
-  Coefficient       *dCoef_; // Scalar diffusion coefficient
-  MatrixCoefficient *DCoef_; // Tensor diffusion coefficient
-  Coefficient       *SCoef_; // Source coefficient
+  Coefficient       *CCoef_;    // Scalar coefficient in front of du/dt
+  VectorCoefficient *VCoef_;    // Velocity coefficient
+  Coefficient       *dCoef_;    // Scalar diffusion coefficient
+  MatrixCoefficient *DCoef_;    // Tensor diffusion coefficient
+  Coefficient       *SCoef_;    // Source coefficient
+
+  ScalarVectorProductCoefficient *negVCoef_;   // -1  * VCoef
+  ScalarVectorProductCoefficient *dtNegVCoef_; // -dt * VCpef
+  ProductCoefficient             *dtdCoef_;    //  dt * dCoef
+  ScalarMatrixProductCoefficient *dtDCoef_;    //  dt * DCoef
 
   Array<int>   dbcAttr_;
   Coefficient *dbcCoef_; // Dirichlet BC coefficient
@@ -176,19 +199,34 @@ private:
   Coefficient *nbcCoef_; // Neumann BC coefficient
   
 public:
-  DGAdvectionDiffusionTDO(ParFiniteElementSpace &fes,
+  DGAdvectionDiffusionTDO(DGParams & dg,
+			  ParFiniteElementSpace &fes,
 			  Coefficient &CCoef)
     : TimeDependentOperator(fes.GetVSize()),
+      dg_(dg),
+      dt_(-1.0),
       fes_(&fes),
-      CCoef_(&CCoef)
+      CCoef_(&CCoef),
+      VCoef_(NULL),
+      dCoef_(NULL),
+      DCoef_(NULL),
+      SCoef_(NULL),
+      negVCoef_(NULL),
+      dtNegVCoef_(NULL),
+      dtdCoef_(NULL),
+      dtDCoef_(NULL),
+      dbcAttr_(0),
+      dbcCoef_(NULL),
+      nbcAttr_(0),
+      nbcCoef_(NULL)
   {}
 
   ~DGAdvectionDiffusionTDO();
   
-  void SetVelocityCoefficient(VectorCoefficient &VCoef)  { VCoef_ = &VCoef; }
-  void SetDiffusionCoefficient(Coefficient &dCoef)       { dCoef_ = &dCoef; }
-  void SetDiffusionCoefficient(MatrixCoefficient &DCoef) { DCoef_ = &DCoef; }
-  void SetSourceCoefficient(Coefficient &SCoef)          { SCoef_ = &SCoef; }
+  void SetVelocityCoefficient(VectorCoefficient &VCoef);
+  void SetDiffusionCoefficient(Coefficient &dCoef);
+  void SetDiffusionCoefficient(MatrixCoefficient &DCoef);
+  void SetSourceCoefficient(Coefficient &SCoef);
 
   void SetDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
   void SetNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
@@ -237,7 +275,7 @@ public:
 
    void Step(Vector &x, double &t, double &dt);
 };
-
+  /*
 class ChiParaCoefficient : public Coefficient
 {
 private:
@@ -307,7 +345,8 @@ public:
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip);
 };
-
+  */
+  /*
 class EtaParaCoefficient : public Coefficient
 {
 private:
@@ -330,7 +369,7 @@ public:
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
-
+  */
 class MultiSpeciesDiffusion : public TimeDependentOperator
 {
 private:

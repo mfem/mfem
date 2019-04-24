@@ -232,6 +232,10 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 3;
 
+   DGParams dg;
+   dg.sigma = -1.0;
+   dg.kappa = -1.0;
+
    int ode_solver_type = 1;
    double tol_ode = 1e-3;
    double rej_ode = 1.2;
@@ -269,6 +273,12 @@ int main(int argc, char *argv[])
                   " partitioning.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&dg.sigma, "-dgs", "--dg-sigma",
+                  "One of the two DG penalty parameters, typically +1/-1."
+                  " See the documentation of class DGDiffusionIntegrator.");
+   args.AddOption(&dg.kappa, "-dgk", "--dg-kappa",
+                  "One of the two DG penalty parameters, should be positive."
+                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&tol_init, "-tol0", "--initial-tolerance",
                   "Error tolerance for initial condition.");
    args.AddOption(&tol_ode, "-tol", "--ode-tolerance",
@@ -321,6 +331,10 @@ int main(int argc, char *argv[])
    {
       if (mpi.Root()) { args.PrintUsage(cout); }
       return 1;
+   }
+   if (dg.kappa < 0.0)
+   {
+      dg.kappa = (double)(order+1)*(order+1);
    }
    /*
    if (ode_exp_solver_type < 0)
@@ -643,10 +657,14 @@ int main(int argc, char *argv[])
       }
       // Reduce to find the global minimum element size
       MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
+
+      double dt_diff = hmin * hmin / chi_max_ratio_;
+      double dt_adv  = hmin / max(v_max_, DBL_MIN);
+
+      dt = cfl * min(dt_diff, dt_adv);
    }
 
    ODEController ode_controller;
-   NormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD);
    PIDAdjFactor dt_acc(kP_acc, kI_acc, kD_acc);
    IAdjFactor   dt_rej(kI_rej);
    MaxLimiter   dt_max(lim_max);
@@ -671,9 +689,25 @@ int main(int argc, char *argv[])
          return 3;
    }
 
-   ConstantCoefficient one(1.0);
+   ParBilinearForm m(&fespace);
+   m.AddDomainIntegrator(new MassIntegrator);
+   m.Assemble();
+   m.Finalize();
    
-   DGAdvectionDiffusionTDO oper(fespace, one);
+   NormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD);
+   ode_diff_msr.SetOperator(m);
+   
+   ConstantCoefficient one(1.0);
+   FunctionCoefficient u0Coef(TeFunc);
+   MatrixFunctionCoefficient DCoef(dim, ChiFunc);
+ 
+   DGAdvectionDiffusionTDO oper(dg, fespace, one);
+
+   oper.SetDiffusionCoefficient(DCoef);
+   
+   Array<int> dbcAttr(pmesh.bdr_attributes.Max());
+   dbcAttr = 1;
+   oper.SetDirichletBC(dbcAttr, u0Coef);
    
    ode_solver->Init(oper);
    
@@ -686,15 +720,33 @@ int main(int argc, char *argv[])
    ode_controller.SetRejectionLimit(rej_ode);
 
    ParGridFunction u(&fespace);
+   u.ProjectCoefficient(u0Coef);
    
    // Start the timer.
    tic_toc.Clear();
    tic_toc.Start();
 
+   socketstream sout;
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   int Wx = 278, Wy = 0; // window position
+   int Ww = 275, Wh = 250; // window size
+
    double t = t_init;
    while (t < t_final)
    {
       ode_controller.Run(u, t, t_final);
+
+      if (mpi.Root()) { cout << "run paused at t = " << t << endl; }
+
+      if (visualization)
+      {
+	ostringstream oss;
+	oss << "Field at time " << t;
+	VisualizeField(sout, vishost, visport, u, oss.str().c_str(),
+		       Wx, Wy, Ww, Wh);
+      }
    }
    
    tic_toc.Stop();
