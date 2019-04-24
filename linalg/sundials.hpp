@@ -153,7 +153,7 @@ namespace mfem
         @param[in] lmm Specifies the linear multistep method, the options are:
                        CV_ADAMS - implicit methods for non-stiff systems
                        CV_BDF   - implicit methods for stiff systems */
-    CVODESolver(int lmm = CV_BDF);
+    CVODESolver(int lmm);
 
 #ifdef MFEM_USE_MPI
     /** Construct a parallel wrapper to SUNDIALS' CVODE integrator
@@ -161,7 +161,7 @@ namespace mfem
         @param[in] lmm  Specifies the linear multistep method, the options are:
                         CV_ADAMS - implicit methods for non-stiff systems
                         CV_BDF   - implicit methods for stiff systems */
-    CVODESolver(MPI_Comm comm, int lmm = CV_BDF);
+    CVODESolver(MPI_Comm comm, int lmm);
 #endif
 
     /// Wrapper to compute the ODE Rhs function
