@@ -272,7 +272,7 @@ if (MFEM_USE_PUMI)
     set(PUMI_LIBRARIES SCOREC::core)
   endif()
 endif()
-  
+
 # CUDA
 if (MFEM_USE_CUDA)
    set(CMAKE_CUDA_STANDARD 11)
@@ -366,7 +366,7 @@ if (MFEM_USE_CUDA)
       set_property(SOURCE ${file} PROPERTY LANGUAGE CUDA)
    endforeach()
 endif()
-  
+
 add_subdirectory(config)
 set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
@@ -384,10 +384,6 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 
 # Declaring the library
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
-# FIXME: remove the next statement after the CUDA driver dependency is removed
-if (MFEM_USE_CUDA)
-   list(APPEND TPL_LIBRARIES "-L/usr/local/cuda/lib -lcuda")
-endif()
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
