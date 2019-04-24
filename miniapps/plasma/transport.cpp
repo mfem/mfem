@@ -188,6 +188,12 @@ void bbTFunc(const Vector &x, DenseMatrix &M)
    }
 }
 
+void vFunc(const Vector &x, Vector &V)
+{
+   bFunc(x, V);
+   V *= -v_max_ / B_max_;
+}
+
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
 {
 private:
@@ -700,10 +706,12 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    FunctionCoefficient u0Coef(TeFunc);
    MatrixFunctionCoefficient DCoef(dim, ChiFunc);
- 
+   VectorFunctionCoefficient VCoef(dim, vFunc);
+   
    DGAdvectionDiffusionTDO oper(dg, fespace, one);
 
    oper.SetDiffusionCoefficient(DCoef);
+   oper.SetAdvectionCoefficient(VCoef);
    
    Array<int> dbcAttr(pmesh.bdr_attributes.Max());
    dbcAttr = 1;

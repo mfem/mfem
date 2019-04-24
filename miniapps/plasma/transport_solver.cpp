@@ -250,7 +250,7 @@ DGAdvectionDiffusionTDO::~DGAdvectionDiffusionTDO()
 {
 }
 
-void DGAdvectionDiffusionTDO::SetVelocityCoefficient(VectorCoefficient &VCoef)
+void DGAdvectionDiffusionTDO::SetAdvectionCoefficient(VectorCoefficient &VCoef)
 {
   VCoef_ = &VCoef;
   if (negVCoef_ == NULL)

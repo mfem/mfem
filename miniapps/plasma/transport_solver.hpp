@@ -223,7 +223,7 @@ public:
 
   ~DGAdvectionDiffusionTDO();
   
-  void SetVelocityCoefficient(VectorCoefficient &VCoef);
+  void SetAdvectionCoefficient(VectorCoefficient &VCoef);
   void SetDiffusionCoefficient(Coefficient &dCoef);
   void SetDiffusionCoefficient(MatrixCoefficient &DCoef);
   void SetSourceCoefficient(Coefficient &SCoef);
