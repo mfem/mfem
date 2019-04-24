@@ -207,9 +207,6 @@ void Device::Setup(const int device)
    if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
-   {
-      OccaDeviceSetup(internal::cuDevice, internal::cuContext);
-   }
 
    // ngpu is tied to 1 when using the DEBUG device.
    if (Allows(Backend::DEBUG)) {
