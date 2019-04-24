@@ -20,6 +20,21 @@ namespace mfem
 // Implementation of MFEM's lightweight device/host memory manager designed to
 // work seamlessly with the OCCA, RAJA, and other kernels supported by MFEM.
 
+/// Memory spaces supported by the memory manager
+struct MemorySpaces
+{
+   enum Id
+      {
+       STD_CUDA     = 1 << 0,
+       STD_DEBUG    = 1 << 1,
+       UVM          = 1 << 2,
+       ALIGN_CUDA   = 1 << 3,
+       PROTECT_CUDA = 1 << 4,
+       PROTECT_STD  = 1 << 5,
+       UMPIRE       = 1 << 6
+      };
+};
+   
 /// The memory manager class
 class MemoryManager
 {
@@ -96,6 +111,9 @@ public:
 
    /// Enable read/write access of this memory
    void MemEnable(const void *ptr, const std::size_t bytes);
+
+   /// Change the memory space
+   void SetMemSpace(MemorySpaces::Id id);
 
    /// Return the corresponding device pointer of ptr, allocating and moving the
    /// data if needed (used in OccaPtr)
@@ -181,15 +199,19 @@ inline void *Memcpy(void *dst, const void *src, std::size_t bytes)
 
 /// Push the data to the device
 inline void Push(const void *ptr, const std::size_t bytes)
-{ return mm.Push(ptr, bytes); }
+{ mm.Push(ptr, bytes); }
 
 /// Pull the data from the device
 inline void Pull(const void *ptr, const std::size_t bytes)
-{ return mm.Pull(ptr, bytes); }
+{ mm.Pull(ptr, bytes); }
 
 /// Enable read/write access of this memory
 inline void MemEnable(const void *ptr, const std::size_t bytes)
-{ return mm.MemEnable(ptr, bytes); }
+{ mm.MemEnable(ptr, bytes); }
+
+/// Change the memory space
+inline void SetMemSpace(MemorySpaces::Id id)
+{ mm.SetMemSpace(id); }
 
 } // namespace mfem
 

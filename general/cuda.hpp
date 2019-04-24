@@ -48,7 +48,7 @@
    do \
    { \
       cudaError_t err = (x); \
-      if (err != cudaSuccess) \
+      if (err != cudaSuccess && err != cudaErrorCudartUnloading) \
       { \
          _MFEM_MESSAGE("CUDA error: (" << #x \
                        << ") failed with error:\n --> " \

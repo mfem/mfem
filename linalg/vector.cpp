@@ -930,12 +930,11 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
 
 double Min(const int N, const double *x)
 {
-   if (Device::Allows(Backend::CUDA_MASK) ||
-       Device::Allows(Backend::DEBUG))
-   {
 #ifdef MFEM_USE_CUDA
-      return cuVectorMin(N, x);
-#else
+   if (Device::Allows(Backend::CUDA_MASK)) { return cuVectorMin(N, x); }
+#endif // MFEM_USE_CUDA
+   if (Device::Allows(Backend::DEBUG))
+   {
       Vector min(1);
       min = std::numeric_limits<double>::infinity();
       DeviceVector d_min(min, 1);
@@ -943,7 +942,6 @@ double Min(const int N, const double *x)
       MFEM_FORALL(i, N, d_min[0] = fmin(d_min[0], d_x[i]););
       min.Pull();
       return min[0];
-#endif // MFEM_USE_CUDA
    }
    double min = std::numeric_limits<double>::infinity();
    for (int i = 0; i < N; i++) { min = fmin(min, x[i]); }
@@ -952,12 +950,14 @@ double Min(const int N, const double *x)
 
 double Dot(const int N, const double *x, const double *y)
 {
-   if (Device::Allows(Backend::CUDA_MASK) ||
-       Device::Allows(Backend::DEBUG))
-   {
 #ifdef MFEM_USE_CUDA
+   if (Device::Allows(Backend::CUDA_MASK)) {
+      MFEM_CUDA_CHECK_RT(cudaGetLastError());
       return cuVectorDot(N, x, y);
-#else
+   }
+#endif // MFEM_USE_CUDA
+   if (Device::Allows(Backend::DEBUG))
+   {
       Vector dot(1);
       dot = 0.0;
       DeviceVector d_dot(dot, 1);
@@ -966,7 +966,6 @@ double Dot(const int N, const double *x, const double *y)
       MFEM_FORALL(i, N, d_dot[0] += d_x[i] * d_y[i];);
       dot.Pull();
       return dot[0];
-#endif // MFEM_USE_CUDA
    }
    double dot = 0.0;
 #ifdef MFEM_USE_LEGACY_OPENMP
