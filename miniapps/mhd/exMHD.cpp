@@ -101,6 +101,12 @@ double BackPsi3(const Vector &x)
    return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) );
 }
 
+double E0rhs3(const Vector &x)
+{
+   double ep=.2;
+   return resiG*(ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -314,6 +320,11 @@ int main(int argc, char *argv[])
        FunctionCoefficient e0(E0rhs);
        oper.SetRHSEfield(e0);
    }
+   else if (icase==3)
+   {
+       FunctionCoefficient e0(E0rhs3);
+       oper.SetRHSEfield(e0);
+   }
 
    socketstream vis_phi, vis_j;
    subtract(psi,psiBack,psiPer);
@@ -415,7 +426,7 @@ int main(int argc, char *argv[])
             if(icase!=3)
                 vis_phi << "solution\n" << *mesh << psiPer;
             else
-                vis_phi << "solution\n" << *mesh << psi;
+                vis_phi << "solution\n" << *mesh << w;
 
             vis_j << "solution\n" << *mesh << j;
             if (icase==1) 

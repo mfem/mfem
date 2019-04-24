@@ -63,7 +63,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
      viscosity(visc),  resistivity(resi), M_prec(NULL), K_prec(NULL), z(height/4)
 {
-   const double rel_tol = 1e-8;
+   const double rel_tol = 1e-10;
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    if (false)
@@ -88,7 +88,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(500);
+   M_solver.SetMaxIter(1000);
    M_solver.SetPrintLevel(0);
    M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
@@ -105,7 +105,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
    K_solver.iterative_mode = true;
    K_solver.SetRelTol(rel_tol);
    K_solver.SetAbsTol(0.0);
-   K_solver.SetMaxIter(500);
+   K_solver.SetMaxIter(2000);
    K_solver.SetPrintLevel(0);
    K_solver.SetPreconditioner(*K_prec);
    K_solver.SetOperator(Kmat);
@@ -197,7 +197,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
        SparseMatrix A;
        Vector B, X;
        M->FormLinearSystem(ess_tdof_list, dpsi_dt, z, A, X, B); // Alters matrix and rhs to enforce bc
-       PCG(Mmat, *M_prec, B, X, 0, 200, 1e-12, 0.0); 
+       PCG(Mmat, *M_prec, B, X, 0, 1000, 1e-12, 0.0); 
        //CG(A, B, X);
        M->RecoverFEMSolution(X, z, dpsi_dt);
    }
@@ -269,7 +269,7 @@ void ResistiveMHDOperator::UpdateJ(Vector &vx)
    M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, j);
 
-   cout <<"======Update J======"<<endl;
+   //cout <<"======Update J======"<<endl;
 
    /* debugging for the boundary terms
    if (false){
