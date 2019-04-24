@@ -32,7 +32,7 @@ OccaDevice occaDevice;
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
-   Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
+   Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA, Backend::CUDA_UVM,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
    Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::DEBUG,
    Backend::CPU
@@ -41,7 +41,8 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "occa-cuda", "raja-cuda", "cuda", "occa-omp", "raja-omp", "omp",
+   "occa-cuda", "raja-cuda", "cuda", "cuda-uvm",
+   "occa-omp", "raja-omp", "omp",
    "occa-cpu", "raja-cpu", "debug", "cpu"
 };
 
@@ -203,6 +204,12 @@ void Device::Setup(const int device)
    // We initialize CUDA and/or RAJA_CUDA first so OccaDeviceSetup() can reuse
    // the same initialized cuDevice and cuContext objects when OCCA_CUDA is
    // enabled.
+   if (Allows(Backend::CUDA_MASK)) { 
+      mm.SetMemSpace(MemorySpaces::STD_CUDA);
+   }
+   if (Allows(Backend::CUDA_UVM)) { 
+      mm.SetMemSpace(MemorySpaces::UVM);
+   }
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::OCCA_MASK))
@@ -210,12 +217,11 @@ void Device::Setup(const int device)
       OccaDeviceSetup(internal::cuDevice, internal::cuContext);
    }
 
-#ifdef MFEM_USE_CUDA
-   MFEM_VERIFY(!Allows(Backend::DEBUG),
-               "the DEBUG backend requires MFEM built without MFEM_USE_CUDA=YES");
-#endif
    // ngpu is tied to 1 when using the DEBUG device.
-   if (Allows(Backend::DEBUG)) { ngpu = 1; }
+   if (Allows(Backend::DEBUG)) {
+      mm.SetMemSpace(MemorySpaces::STD_DEBUG);
+      ngpu = 1;
+   }
 }
 
 Device::~Device()
