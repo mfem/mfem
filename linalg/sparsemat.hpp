@@ -100,8 +100,8 @@ public:
 
    /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
        @a data is optionally transferred to the SparseMatrix. */
-   /** If the parameter @a data is NULL, then the internal #data is allocated by
-       this constructor (initializing it with zeros and taking ownership,
+   /** If the parameter @a data is NULL, then the internal #A array is allocated
+       by this constructor (initializing it with zeros and taking ownership,
        regardless of the parameter @a owna). */
    SparseMatrix(int *i, int *j, double *data, int m, int n, bool ownij,
                 bool owna, bool issorted);
