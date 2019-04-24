@@ -24,9 +24,6 @@ namespace mfem
 namespace internal
 {
 
-CUstream *cuStream = NULL;
-static CUdevice cuDevice;
-static CUcontext cuContext;
 OccaDevice occaDevice;
 
 // Backends listed by priority, high to low:
@@ -102,14 +99,9 @@ void Device::Print(std::ostream &out)
 #ifdef MFEM_USE_CUDA
 static void DeviceSetup(const int dev, int &ngpu)
 {
-   cudaGetDeviceCount(&ngpu);
-   MFEM_VERIFY(ngpu>0, "No CUDA device found!");
-   cuInit(0);
-   cuDeviceGet(&internal::cuDevice, dev);
-   cuCtxCreate(&internal::cuContext, CU_CTX_SCHED_AUTO, internal::cuDevice);
-   internal::cuStream = new CUstream;
-   MFEM_VERIFY(internal::cuStream, "CUDA stream could not be created!");
-   cuStreamCreate(internal::cuStream, CU_STREAM_DEFAULT);
+   MFEM_CUDA_CHECK(cudaGetDeviceCount(&ngpu));
+   MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
+   MFEM_CUDA_CHECK(cudaSetDevice(dev));
 }
 #endif
 
@@ -127,7 +119,7 @@ static void RajaDeviceSetup(const int dev, int &ngpu)
 #endif
 }
 
-static void OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
+static void OccaDeviceSetup(const int dev)
 {
 #ifdef MFEM_USE_OCCA
    const int cpu  = Device::Allows(Backend::OCCA_CPU);
@@ -140,7 +132,8 @@ static void OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
    if (cuda)
    {
 #if OCCA_CUDA_ENABLED
-      internal::occaDevice = occa::cuda::wrapDevice(cu_dev, cu_ctx);
+      std::string mode("mode: 'CUDA', device_id : ");
+      internal::occaDevice.setup(mode.append(1,'0'+dev));
 #else
       MFEM_ABORT("the OCCA CUDA backend requires OCCA built with CUDA!");
 #endif
@@ -212,7 +205,8 @@ void Device::Setup(const int device)
    }
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
-   if (Allows(Backend::OCCA_MASK))
+   // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
+   if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
    {
       OccaDeviceSetup(internal::cuDevice, internal::cuContext);
    }
@@ -222,11 +216,6 @@ void Device::Setup(const int device)
       mm.SetMemSpace(MemorySpaces::STD_DEBUG);
       ngpu = 1;
    }
-}
-
-Device::~Device()
-{
-   delete internal::cuStream;
 }
 
 } // mfem
