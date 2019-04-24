@@ -747,7 +747,7 @@ DiffusionIntegrator::~DiffusionIntegrator()
 //Hard coded for H1 finite elements order 1
 //Store element contributions
 //
-void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
+void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
 {
    printf("Entered FA_Assemble ... \n");
    const Mesh *mesh = fes.GetMesh();
@@ -765,9 +765,6 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
    FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
    vec.SetSize(ne*nq);
 
-
-   printf("Num of elems %d, dofs %d, qpt %d %d \n", ne, dofs1D, nq, quad1D);
-
    {
      if (dim==1)
      {
@@ -783,11 +780,11 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
        const int NQ = quad1D*quad1D;
        const int ND = dofs1D*dofs1D;
 
-
        const DeviceVector w(maps->W.GetData(), NQ);
        const DeviceArray  dof_map_(dof_map->GetData(), dof_map->Size());
        const DeviceTensor<3> x(geom->X.GetData(), 2,NQ,NE);
        const DeviceTensor<4> J(geom->J.GetData(), 2,2,NQ,NE);
+              
        DeviceMatrix D(vec.GetData(), NQ, NE);
 
        //Assemble D matrix
@@ -801,6 +798,7 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
            const double J22 = J(1,1,q,e);
            const double detJ = (J11*J22)-(J21*J12);
            double coeff = 1.0; //TODO replace
+
            D(q,e) =  w[q] * coeff * detJ;
          }
        });
@@ -808,6 +806,11 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
 
        //Assemble M_e Matrices = Bt D B
        const DeviceMatrix B(maps->B.GetData(), 2, 2);
+
+       //Vector to hold output
+       Me->SetSize(NE*ND*ND);
+       DeviceVector d_Me(Me->GetData());
+
        MFEM_FORALL(e, NE,
        {
          double B2D[4][4]; //Create B matrix
@@ -840,25 +843,22 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
            }
          }
 
-         //write out to sparse matrix
+         //Write out to array
+         int offset = ND*ND*e;
          for(int j=0; j<ND; ++j) {
            for(int i=0; i<ND; ++i) {
-             //Matrix[idx] = Me[dof_map_[i]][dof_map_[j]];
+             int idx = i + ND*j + offset;
+             d_Me(idx) = Me[dof_map_[i]][dof_map_[j]];
            }
          }
 
        });
-
-       printf("Todo Write out to sparse matrix ... \n");
-       //MFEM_ABORT("TODO 2D FA Mass matrix assembly \n");
      }else if(dim==3)
      {
        MFEM_ABORT("TODO 3D FA Mass matrix assembly \n");
      }
 
    }
-   printf("Completed full assembly \n");
-
 }
 
 // PA Mass Assemble kernel

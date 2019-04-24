@@ -32,7 +32,7 @@ public:
    virtual void Assemble(const FiniteElementSpace&);
 
     /// Method defining full assembly.
-   virtual void FA_Assemble(const FiniteElementSpace&) {};
+   virtual void FA_Assemble(const FiniteElementSpace&, Vector *) {};
 
    /// Method for partially assembled action.
    virtual void MultAssembled(Vector&, Vector&);
@@ -1726,7 +1726,7 @@ public:
                                        DenseMatrix &elmat);
 
    // FA extension ?
-   void FA_Assemble(const FiniteElementSpace&);
+   void FA_Assemble(const FiniteElementSpace&, Vector *);
 
    /// PA extension
    virtual void Assemble(const FiniteElementSpace&);

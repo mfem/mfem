@@ -136,12 +136,9 @@ void FABilinearFormExtension::Assemble()
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    printf("Fully assembling %d integrators \n", integrators.Size());
-   if(a->GetAssemblyLevel() == AssemblyLevel::FULL)
-     {printf("full assembly \n");}
-
    for (int i = 0; i < integratorCount; ++i)
    {
-     integrators[i]->FA_Assemble(*a->FESpace());
+     integrators[i]->FA_Assemble(*a->FESpace(), &Me);
    }
 }
 

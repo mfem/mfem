@@ -47,7 +47,7 @@ protected:
 
 public:
 
-   Vector *Me;
+   mutable Vector Me;
 
    BilinearFormExtension(BilinearForm *form);
 

@@ -355,7 +355,6 @@ void BilinearForm::Assemble(int skip_zeros)
    //Assembly of the full matrix will be done on the CPU
    if (ext)
    {
-     ext->Me = NULL; //set to null..
      ext->Assemble();
      if(assembly != AssemblyLevel::FULL) return;
    }
@@ -364,9 +363,9 @@ void BilinearForm::Assemble(int skip_zeros)
    Device::Disable();
 
    //Move data to appropriate space
-   if(ext && ext->Me) {mm.Ptr(ext->Me->GetData());};
+   if(ext && ext->Me) {mm.Ptr(ext->Me.GetData());};
 
-   //Intialize Matrix
+   //Intialize Matrix - does not set up row/col/data pointers
    if (mat == NULL)
    {
       AllocMat();
@@ -385,7 +384,8 @@ void BilinearForm::Assemble(int skip_zeros)
    }
 #endif
 
-   if (dbfi.Size())
+   //If not using extension use base implementation
+   if (!ext && dbfi.Size()) 
    {
       for (int i = 0; i < fes -> GetNE(); i++)
       {
@@ -420,6 +420,27 @@ void BilinearForm::Assemble(int skip_zeros)
          }
       }
    }
+   //element contributions have been assembled in the device
+   //sparse matrix assembly occurs on the cpu
+   else if(ext)    
+   {
+     for(int e=0; e<fes->GetNE(); ++e) 
+     {
+       fes->GetElementVDofs(e, vdofs);
+       int DOFs = vdofs.Size();
+       DenseMatrix eMat(DOFs);
+       for(int j=0; j<DOFs; ++j) {
+         for(int i=0; i<DOFs; ++i) {
+           int idx = i + DOFs*j + e*DOFs*DOFs;
+           eMat(i,j) = ext->Me[idx];
+         }
+       }
+       
+       mat->AddSubMatrix(vdofs, vdofs, eMat, skip_zeros);
+     }
+
+   }
+
 
    if (bbfi.Size())
    {
