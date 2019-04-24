@@ -588,13 +588,17 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                     Vector &b, OperatorHandle &A, Vector &X,
                                     Vector &B, int copy_interior)
 {
+   const SparseMatrix *P = fes->GetConformingProlongation();
+
    if (ext)
    {
+      if (P != NULL && assembly != AssemblyLevel::FULL && Device::IsEnabled())
+      {
+         P->BuildTranspose();
+      }
       ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
       return;
    }
-
-   const SparseMatrix *P = fes->GetConformingProlongation();
 
    FormSystemMatrix(ess_tdof_list, A);
 
