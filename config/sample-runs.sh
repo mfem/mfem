@@ -176,6 +176,9 @@ function help_message()
       -g <dir> <pattern>
                   Specify explicitly a group (dir + file pattern) to run; This
                   option can be used multiple times to define multiple groups
+      -dev        configure only sample runs using devices.
+                  To test with a parallel build, the paralle (-p|-par) option
+                  should be set first on the command line.
       -v          Enable valgrind
       -o <dir>    [${output_dir:-"<empty>: output goes to stdout"}]
                   If not empty, save output to files inside <dir>
@@ -270,6 +273,11 @@ case "$1" in
       test_group="\"${gname}\" \"${gtitle}\" \"$2\" \"$3\""
       groups=("${groups[@]}" "${test_group}")
       shift 2
+      ;;
+   -dev)
+       device_runs="yes"
+       mfem_config+=" MFEM_USE_CUDA=YES MFEM_USE_MM=YES \
+MFEM_USE_OCCA=YES MFEM_USE_RAJA=YES MFEM_USE_OPENMP=YES"
       ;;
    -v)
       valgrind="yes"
