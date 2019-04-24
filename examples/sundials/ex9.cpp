@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
-   int ode_solver_type = 4;
+   int ode_solver_type = 1;
    double t_final = 10.0;
    double dt = 0.01;
    bool visualization = true;
@@ -109,11 +109,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
-                  "            11 - CVODE (adaptive order) explicit,\n\t"
-                  "            12 - ARKODE default (4th order) explicit,\n\t"
-                  "            13 - ARKODE RK8.");
+                  "ODE solver: 1 - CVODE (adaptive order) implicit Adams,\n\t"
+                  "            2 - ARKODE default (4th order) explicit,\n\t"
+                  "            3 - ARKODE RK8.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -135,6 +133,12 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
+   // check for vaild ODE solver option
+   if (ode_solver_type < 1 || ode_solver_type > 3)
+   {
+      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+      return 3;
+   }
    args.PrintOptions(cout);
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
@@ -142,37 +146,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 3. Define the ODE solver used for time integration. Several explicit
-   //    Runge-Kutta methods are available.
-   ODESolver *ode_solver = NULL;
-   CVODESolver *cvode = NULL;
-   ARKODESolver *arkode = NULL;
-   switch (ode_solver_type)
-   {
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(1.0); break;
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
-      case 6: ode_solver = new RK6Solver; break;
-      case 11:
-         cvode = new CVODESolver(CV_ADAMS, CV_FUNCTIONAL);
-         cvode->SetSStolerances(reltol, abstol);
-         cvode->SetMaxStep(dt);
-         ode_solver = cvode; break;
-      case 12:
-      case 13:
-         arkode = new ARKODESolver(ARKODESolver::EXPLICIT);
-         arkode->SetSStolerances(reltol, abstol);
-         arkode->SetMaxStep(dt);
-         if (ode_solver_type == 13) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
-         ode_solver = arkode; break;
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
-         return 3;
-   }
-
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter. If the mesh is of NURBS type, we convert it to
    //    a (piecewise-polynomial) high-order mesh.
@@ -186,14 +160,14 @@ int main(int argc, char *argv[])
    }
    mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-   // 5. Define the discontinuous DG finite element space of the given
+   // 4. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim);
    FiniteElementSpace fes(mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
-   // 6. Set up and assemble the bilinear and linear forms corresponding to the
+   // 5. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    VectorFunctionCoefficient velocity(dim, velocity_function);
@@ -220,7 +194,7 @@ int main(int argc, char *argv[])
    k.Finalize(skip_zeros);
    b.Assemble();
 
-   // 7. Define the initial conditions, save the corresponding grid function to
+   // 6. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    GridFunction u(&fes);
@@ -283,15 +257,49 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 8. Define the time-dependent evolution operator describing the ODE
-   //    right-hand side, and perform time-integration (looping over the time
-   //    iterations, ti, with a time-step dt).
+   // 7. Define the time-dependent evolution operator describing the ODE
+   //    right-hand side, and define the ODE solver used for time integration.
    FE_Evolution adv(m.SpMat(), k.SpMat(), b);
 
    double t = 0.0;
    adv.SetTime(t);
-   ode_solver->Init(adv);
 
+   // Create the time integrator
+   ODESolver *ode_solver = NULL;
+   CVODESolver *cvode = NULL;
+   ARKStepSolver *arkode = NULL;
+   void *sun_mem = NULL;
+   int retval = 0;
+   switch (ode_solver_type)
+   {
+      case 1:
+         cvode = new CVODESolver(CV_ADAMS);
+         cvode->Init(adv, t, u);
+         sun_mem = cvode->GetMem();
+         retval = CVodeSStolerances(sun_mem, reltol, abstol);
+         MFEM_VERIFY(retval == CV_SUCCESS, "error in CVodeSStolerances()");
+         retval = CVodeSetMaxStep(sun_mem, dt);
+         MFEM_VERIFY(retval == CV_SUCCESS, "error in CVodeSetMaxStep()");
+         ode_solver = cvode; break;
+      case 2:
+      case 3:
+         arkode = new ARKStepSolver(ARKStepSolver::EXPLICIT);
+         arkode->Init(adv, t, u);
+         sun_mem = arkode->GetMem();
+         retval = ARKStepSStolerances(sun_mem, reltol, abstol);
+         MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSStolerances()");
+         retval = ARKStepSetMaxStep(sun_mem, dt);
+         MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSetMaxStep()");
+         if (ode_solver_type == 13)
+         {
+           retval = ARKStepSetTableNum(sun_mem, -1, FEHLBERG_13_7_8);
+           MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSetTableNum()");
+         }
+         ode_solver = arkode; break;
+   }
+
+   // 8. Perform time-integration (looping over the time iterations, ti,
+   //    with a time-step dt).
    bool done = false;
    for (int ti = 0; !done; )
    {
