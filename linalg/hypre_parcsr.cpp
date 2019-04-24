@@ -1520,10 +1520,14 @@ hypre_ParCSRMatrixSum(hypre_ParCSRMatrix *A,
    hypre_CSRMatrix *A_offd = hypre_ParCSRMatrixOffd(A);
    hypre_CSRMatrix *B_diag = hypre_ParCSRMatrixDiag(B);
    hypre_CSRMatrix *B_offd = hypre_ParCSRMatrixOffd(B);
+   HYPRE_Int ncols_B_offd  = hypre_CSRMatrixNumCols(B_offd);
    HYPRE_Int error;
 
    error = hypre_CSRMatrixSum(A_diag, beta, B_diag);
-   error = error ? error : hypre_CSRMatrixSum(A_offd, beta, B_offd);
+   if (ncols_B_offd > 0) /* treat B_offd as zero if it has no columns */
+   {
+      error = error ? error : hypre_CSRMatrixSum(A_offd, beta, B_offd);
+   }
 
    return error;
 }
