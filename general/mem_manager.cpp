@@ -70,54 +70,46 @@ static internal::Ledger *maps;
 namespace internal
 {
 
-/// The memory space class
-class MemorySpace
+// *****************************************************************************
+/// The host memory space abstract class
+class HostMemorySpace
 {
 public:
-   MemorySpace() {}
-   virtual void *MemAlloc(void **ptr, const std::size_t bytes) = 0;
-   virtual void MemDealloc(void *ptr) = 0;
-   virtual void *MemcpyHtoD(void *dst, const void *src, const std::size_t bytes) = 0;
-   virtual void *MemcpyDtoD(void *dst, const void *src, const std::size_t bytes) = 0;
-   virtual void *MemcpyDtoH(void *dst, const void *src, const std::size_t bytes) = 0;
-   virtual void MemEnable(const void *ptr, const std::size_t bytes) {}
-   virtual void MemDisable(const void *ptr, const std::size_t bytes) {}
+   virtual void HostAlloc(void **ptr, const std::size_t bytes) = 0;
+   virtual void HostDealloc(void *ptr) = 0;
+   virtual void MemProtect(const void *ptr, const std::size_t bytes) { }
+   virtual void MemUnprotect(const void *ptr, const std::size_t bytes) { }
 };
 
-// *****************************************************************************
-class DefaultMemorySpace : public MemorySpace
+/// The default host memory space **********************************************
+class DefaultHostMemorySpace : public HostMemorySpace
 {
-private:
-   void *Memcpy(void *dst, const void *src, const size_t bytes)
-   { return std::memcpy(dst, src, bytes); }
-
 public:
-   DefaultMemorySpace(): MemorySpace() { }
-
-   void *MemAlloc(void **dptr, const std::size_t bytes)
-   { return *dptr = std::malloc(bytes); }
-
-   void MemDealloc(void *dptr) { std::free(dptr); }
-    
-   void *MemcpyHtoD(void *dst, const void *src, const size_t bytes)
-   { return Memcpy(dst, src, bytes); }
-
-   void *MemcpyDtoD(void* dst, const void* src, const size_t bytes)
-   { return Memcpy(dst, src, bytes); }
-
-   void *MemcpyDtoH(void *dst, const void *src, const size_t bytes)
-   { return Memcpy(dst, src, bytes); }
+   DefaultHostMemorySpace(): HostMemorySpace() { }
+   void HostAlloc(void **ptr, const std::size_t bytes)
+   { *ptr = std::malloc(bytes); }
+   void HostDealloc(void *ptr) { std::free(ptr); }
 };
 
-// *****************************************************************************
-class MMUMemorySpace : public MemorySpace
+/// The aligned host memory space **********************************************
+class AlignedHostMemorySpace : public HostMemorySpace
 {
-private:
-   void *Memcpy(void *dst, const void *src, const size_t bytes)
-   { return std::memcpy(dst, src, bytes); }
-   
+public:
+   AlignedHostMemorySpace(): HostMemorySpace() { }
+   void HostAlloc(void **ptr, const std::size_t bytes)
+   {
+      const std::size_t alignment = 32;
+      const int returned = posix_memalign(ptr, alignment, bytes);
+      if (returned != 0) throw ::std::bad_alloc();
+   }
+   void HostDealloc(void *ptr) { std::free(ptr); }
+};
+
+// The protected host memory space *********************************************
+class ProtectedHostMemorySpace : public HostMemorySpace
+{
 #ifndef _WIN32
-   static void MmuError(int sig, siginfo_t *si, void *unused)
+   static void ProtectedAccessError(int sig, siginfo_t *si, void *unused)
    {
       fflush(0);
       char str[64];
@@ -131,83 +123,98 @@ private:
       MFEM_ABORT(str);
    }
 #endif
-
 public:
-   MMUMemorySpace(): MemorySpace() {
+   ProtectedHostMemorySpace(): HostMemorySpace() {
 #ifndef _WIN32
-      struct sigaction mmu_sa;
-      mmu_sa.sa_flags = SA_SIGINFO;
-      sigemptyset(&mmu_sa.sa_mask);
-      mmu_sa.sa_sigaction = MmuError;
-      if (sigaction(SIGBUS, &mmu_sa, NULL) == -1) { mfem_error("SIGBUS"); }
-      if (sigaction(SIGSEGV, &mmu_sa, NULL) == -1) { mfem_error("SIGSEGV"); }
+      struct sigaction sa;
+      sa.sa_flags = SA_SIGINFO;
+      sigemptyset(&sa.sa_mask);
+      sa.sa_sigaction = ProtectedAccessError;
+      if (sigaction(SIGBUS, &sa, NULL) == -1) { mfem_error("SIGBUS"); }
+      if (sigaction(SIGSEGV, &sa, NULL) == -1) { mfem_error("SIGSEGV"); }
 #endif
    }
 
-   void *MemAlloc(void **dptr, const std::size_t bytes) {
+   void HostAlloc(void **ptr, const std::size_t bytes) {
 #ifdef _WIN32
-      *dptr = std::malloc(bytes);
-      if (dptr == NULL) { mfem_error("MmuAllocate: malloc"); }
+      mfem_error("Protected HostAlloc is not available on WIN32.");
 #else
-      //MFEM_VERIFY(bytes > 0, "");
-      const size_t length = bytes > 0 ? bytes : 0x1000;
+      MFEM_VERIFY(bytes > 0, "");
       const int prot = PROT_READ | PROT_WRITE;
       const int flags = MAP_ANONYMOUS | MAP_PRIVATE;
-      *dptr = ::mmap(NULL, length, prot, flags, -1, 0);
-      if (*dptr == MAP_FAILED) { mfem_error("MmuAllocate: mmap"); }
+      *ptr = ::mmap(NULL, bytes, prot, flags, -1, 0);
+      if (*ptr == MAP_FAILED) { mfem_error("MmuAllocate: mmap"); }
 #endif
-      return *dptr;
    }
 
-   void MemDealloc(void *dptr) {
-      const bool known = mm.IsKnown(dptr);
+   void HostDealloc(void *ptr) {
+      const bool known = mm.IsKnown(ptr);
       if (!known) { mfem_error("[MMU] Trying to Free an unknown pointer!"); } 
 #ifdef _WIN32
-      std::free(dptr);
+      mfem_error("Protected HostDealloc is not available on WIN32.");
 #else
-      const internal::Memory &base = maps->memories.at(dptr);
+      const internal::Memory &base = maps->memories.at(ptr);
       const size_t bytes = base.bytes;
-      const size_t length = bytes>0?bytes:0x1000;
-      if (::munmap(dptr, length) == -1) { mfem_error("MmuFree: munmap"); }
-#endif
-   }
-    
-   void *MemcpyHtoD(void *dst, const void *src, const size_t bytes)
-   { return Memcpy(dst, src, bytes); }
-
-   void *MemcpyDtoD(void* dst, const void* src, const size_t bytes)
-   { return Memcpy(dst, src, bytes); }
-
-   void *MemcpyDtoH(void *dst, const void *src, const size_t bytes)
-   { return Memcpy(dst, src, bytes); }
-
-   void MemEnable(const void *ptr, const std::size_t bytes) {
-#ifndef _WIN32
-      mprotect(const_cast<void*>(ptr), bytes, PROT_READ | PROT_WRITE);
+      MFEM_VERIFY(bytes > 0, "");
+      if (::munmap(ptr, bytes) == -1) { mfem_error("MmuFree: munmap"); }
 #endif
    }
    
-   void MemDisable(const void *ptr, const std::size_t bytes) {
+   // Memory may not be accessed.
+   void MemProtect(const void *ptr, const std::size_t bytes) {
 #ifndef _WIN32
-      mprotect(const_cast<void*>(ptr), bytes, PROT_NONE);
+      if (::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE))
+      { mfem_error("MemProtect error!"); }
+#endif
+   }
+
+   // Memory may be read and written.
+   void MemUnprotect(const void *ptr, const std::size_t bytes) {
+#ifndef _WIN32
+      const int returned =
+         ::mprotect(const_cast<void*>(ptr), bytes, PROT_READ | PROT_WRITE);
+      if (returned != 0) { mfem_error("MemUnprotect error!"); }
 #endif
    }
 };
 
+
 // *****************************************************************************
-#ifdef MFEM_USE_CUDA
-class CUDAMemorySpace : public MemorySpace
+/// The default device memory space class
+class DeviceMemorySpace
 {
 public:
-   CUDAMemorySpace(): MemorySpace() {}
+   virtual void DeviceAlloc(void **ptr, const std::size_t bytes) = 0;
+   virtual void DeviceDealloc(void *ptr) = 0;
+   virtual void *MemcpyHtoD(void *dst, const void *src, const std::size_t bytes) 
+   { return std::memcpy(dst, src, bytes); }
+   virtual void *MemcpyDtoD(void *dst, const void *src, const std::size_t bytes)
+   { return std::memcpy(dst, src, bytes); }
+   virtual void *MemcpyDtoH(void *dst, const void *src, const std::size_t bytes)
+   { return std::memcpy(dst, src, bytes); }
+};
 
-   void* MemAlloc(void **dptr, const std::size_t bytes)
-   {
-      MFEM_CUDA_CHECK_DRV(::cuMemAlloc((CUdeviceptr*)dptr, bytes));
-      return *dptr;
-   }
+/// The None device memory space
+class NoneDeviceMemorySpace: public DeviceMemorySpace
+{
+public:
+   void DeviceAlloc(void **ptr, const std::size_t bytes)
+   { mfem_error("No Alloc in this memory space"); }
+   void DeviceDealloc(void *ptr) 
+   { mfem_error("No Dealloc in this memory space"); }
+};
 
-   void MemDealloc(void *dptr)
+#ifdef MFEM_USE_CUDA
+/// The CUDA device memory space class
+class CudaDeviceMemorySpace: public DeviceMemorySpace
+{
+public:
+   CudaDeviceMemorySpace(): DeviceMemorySpace() { }
+
+   void DeviceAlloc(void **dptr, const std::size_t bytes)
+   { MFEM_CUDA_CHECK_DRV(::cuMemAlloc((CUdeviceptr*)dptr, bytes)); }
+
+   void DeviceDealloc(void *dptr)
    { MFEM_CUDA_CHECK_DRV(::cuMemFree((CUdeviceptr)dptr)); }
 
    void *MemcpyHtoD(void *dst, const void *src, const size_t bytes)
@@ -231,20 +238,62 @@ public:
 };
 #endif // MFEM_USE_CUDA
 
-} // namespace mfem::internal
+/// The debug device memory space
+class DebugDeviceMemorySpace : public DeviceMemorySpace
+{
+public:
+   DebugDeviceMemorySpace(): DeviceMemorySpace() { }
+   void DeviceAlloc(void **dptr, const std::size_t bytes)
+   { *dptr = std::malloc(bytes); }
+   void DeviceDealloc(void *dptr) { std::free(dptr); }
+};
+
+
+// *****************************************************************************
+/// The memory space abstract class: one pair (host + device) memory space
+
+/// (DEFAULT + NONE) memory space
+class DefaultNoneMemorySpace : public DefaultHostMemorySpace,
+                               public NoneDeviceMemorySpace {};
 
 #ifdef MFEM_USE_CUDA
-static internal::CUDAMemorySpace ctrl;
-#else
-static internal::DefaultMemorySpace ctrl;
+/// (DEFAULT + CUDA) memory space
+class DefaultCudaMemorySpace : public DefaultHostMemorySpace,
+                               public CudaDeviceMemorySpace {};
+
+///  (ALIGNED + CUDA) memory space
+class AlignedCudaMemorySpace : public AlignedHostMemorySpace,
+                               public CudaDeviceMemorySpace {};
+
+///  (PROTECTED + CUDA) memory space
+class ProtectedCudaMemorySpace : public ProtectedHostMemorySpace,
+                                 public CudaDeviceMemorySpace {};
 #endif // MFEM_USE_CUDA
 
-#if defined(MFEM_USE_MM) && defined(MFEM_DEBUG)
-#warning MMU
-static internal::MMUMemorySpace host_ctrl;
+/// (PROTECTED + DEBUG) memory space
+class ProtectedDebugMemorySpace : public ProtectedHostMemorySpace,
+                                  public DebugDeviceMemorySpace {};
+} // namespace mfem::internal
+
+
+// *****************************************************************************
+#ifdef MFEM_USE_CUDA
+#ifndef MFEM_DEBUG
+#warning DefaultCudaMemorySpace
+static internal::DefaultCudaMemorySpace ctrl;
 #else
-static internal::DefaultMemorySpace host_ctrl;
+#warning ProtectedCudaMemorySpace
+static internal::ProtectedCudaMemorySpace ctrl;
 #endif
+#else // MFEM_USE_CUDA
+#ifndef MFEM_USE_MM
+#warning DefaultNoneMemorySpace
+static internal::DefaultNoneMemorySpace ctrl;
+#else
+#warning ProtectedDebugMemorySpace
+static internal::ProtectedDebugMemorySpace ctrl;
+#endif // MFEM_DEBUG
+#endif // MFEM_USE_CUDA
 
 MemoryManager::MemoryManager()
 {
@@ -260,13 +309,13 @@ MemoryManager::~MemoryManager()
 }
 
 void *MemoryManager::New(void **ptr, const std::size_t bytes)
-{ return host_ctrl.MemAlloc(ptr, bytes); }
+{ ctrl.HostAlloc(ptr, bytes); return *ptr; }
 
 void MemoryManager::Delete(void *ptr)
-{ host_ctrl.MemDealloc(ptr); }
+{ ctrl.HostDealloc(ptr); }
 
 void MemoryManager::MemEnable(const void *ptr, const std::size_t bytes)
-{ host_ctrl.MemEnable(ptr, bytes); }
+{ ctrl.MemUnprotect(ptr, bytes); }
 
 void* MemoryManager::Insert(void *ptr, const std::size_t bytes)
 {
@@ -290,7 +339,7 @@ void *MemoryManager::Erase(void *ptr)
       mfem_error("Trying to erase an unknown pointer!");
    }
    internal::Memory &mem = maps->memories.at(ptr);
-   if (mem.d_ptr) { ctrl.MemDealloc(mem.d_ptr); }
+   if (mem.d_ptr) { ctrl.DeviceDealloc(mem.d_ptr); }
    for (const void *alias : mem.aliases)
    {
       maps->aliases.erase(maps->aliases.find(alias));
@@ -328,7 +377,7 @@ void *MemoryManager::GetDevicePtr(const void *ptr)
    const size_t bytes = base.bytes;
    if (!base.d_ptr)
    {
-      ctrl.MemAlloc(&base.d_ptr, bytes);
+      ctrl.DeviceAlloc(&base.d_ptr, bytes);
       ctrl.MemcpyHtoD(base.d_ptr, ptr, bytes);
       base.host = false;
    }
@@ -376,13 +425,13 @@ static void *PtrKnown(internal::Ledger *maps, void *ptr)
    const bool run_on_device = Device::Allows(Backend::DEVICE_MASK);
    if (ptr_on_host && !run_on_device) { return ptr; }
    if (bytes==0) { mfem_error("PtrKnown bytes==0"); }
-   if (!base.d_ptr) { ctrl.MemAlloc(&base.d_ptr, bytes); }
+   if (!base.d_ptr) { ctrl.DeviceAlloc(&base.d_ptr, bytes); }
    if (!base.d_ptr) { mfem_error("PtrKnown !base->d_ptr"); }
    if (!ptr_on_host && run_on_device) { return base.d_ptr; }
    if (!ptr) { mfem_error("PtrKnown !ptr"); }
    if (!ptr_on_host && !run_on_device) // Pull
    {
-      host_ctrl.MemEnable(ptr, bytes);
+      ctrl.MemUnprotect(ptr, bytes);
       ctrl.MemcpyDtoH(ptr, base.d_ptr, bytes);
       base.host = true;
       return ptr;
@@ -390,7 +439,7 @@ static void *PtrKnown(internal::Ledger *maps, void *ptr)
    // Push
    if (!(ptr_on_host && run_on_device)) { mfem_error("PtrKnown !(host && gpu)"); }
    ctrl.MemcpyHtoD(base.d_ptr, ptr, bytes);
-   host_ctrl.MemDisable(ptr, bytes);
+   ctrl.MemProtect(ptr, bytes);
    base.host = false;
    return base.d_ptr;
 }
@@ -406,14 +455,14 @@ static void *PtrAlias(internal::Ledger *maps, void *ptr)
    const bool device = !base->host;
    const std::size_t bytes = base->bytes;
    if (host && !gpu) { return ptr; }
-   if (!base->d_ptr) { ctrl.MemAlloc(&(alias->mem->d_ptr), bytes); }
+   if (!base->d_ptr) { ctrl.DeviceAlloc(&(alias->mem->d_ptr), bytes); }
    if (!base->d_ptr) { mfem_error("PtrAlias !base->d_ptr"); }
    void *a_ptr = static_cast<char*>(base->d_ptr) + alias->offset;
    if (device && gpu) { return a_ptr; }
    if (!base->h_ptr) { mfem_error("PtrAlias !base->h_ptr"); }
    if (device && !gpu) // Pull
    {
-      host_ctrl.MemEnable(base->h_ptr, bytes);
+      ctrl.MemUnprotect(base->h_ptr, bytes);
       ctrl.MemcpyDtoH(base->h_ptr, base->d_ptr, bytes);
       alias->mem->host = true;
       return ptr;
@@ -421,7 +470,7 @@ static void *PtrAlias(internal::Ledger *maps, void *ptr)
    // Push
    if (!(host && gpu)) { mfem_error("PtrAlias !(host && gpu)"); }
    ctrl.MemcpyHtoD(base->d_ptr, base->h_ptr, bytes);
-   host_ctrl.MemDisable(base->h_ptr, bytes);
+   ctrl.MemProtect(base->h_ptr, bytes);
    alias->mem->host = false;
    return a_ptr;
 }
@@ -457,9 +506,9 @@ static void PushKnown(internal::Ledger *maps,
                       const void *ptr, const std::size_t bytes)
 {
    internal::Memory &base = maps->memories.at(ptr);
-   if (!base.d_ptr) { ctrl.MemAlloc(&base.d_ptr, base.bytes); }
+   if (!base.d_ptr) { ctrl.DeviceAlloc(&base.d_ptr, base.bytes); }
    ctrl.MemcpyHtoD(base.d_ptr, ptr, bytes == 0 ? base.bytes : bytes);
-   host_ctrl.MemDisable(ptr, base.bytes);
+   ctrl.MemProtect(ptr, base.bytes);
    base.host = false;
 }
 
@@ -469,7 +518,7 @@ static void PushAlias(const internal::Ledger *maps,
    const internal::Alias *alias = maps->aliases.at(ptr);
    void *dst = static_cast<char*>(alias->mem->d_ptr) + alias->offset;
    ctrl.MemcpyHtoD(dst, ptr, bytes);
-   host_ctrl.MemDisable(alias->mem->h_ptr, alias->mem->bytes);
+   ctrl.MemProtect(alias->mem->h_ptr, alias->mem->bytes);
    // Should have a boolean to tell this section has been moved to the gpu
 }
 
@@ -488,7 +537,7 @@ static void PullKnown(const internal::Ledger *maps,
    const internal::Memory &base = maps->memories.at(ptr);
    const bool host = base.host;
    if (host) { return; }
-   host_ctrl.MemEnable(base.h_ptr, bytes);
+   ctrl.MemUnprotect(base.h_ptr, bytes);
    ctrl.MemcpyDtoH(base.h_ptr, base.d_ptr, bytes);
    //if (bytes==base.bytes) { base.host = true; }
 }
@@ -504,7 +553,7 @@ static void PullAlias(const internal::Ledger *maps,
    if (!base->d_ptr) { mfem_error("PullAlias !base->d_ptr"); }
    void *dst = static_cast<char*>(base->h_ptr) + alias->offset;
    const void *src = static_cast<char*>(base->d_ptr) + alias->offset;
-   host_ctrl.MemEnable(base->h_ptr, base->bytes);
+   ctrl.MemUnprotect(base->h_ptr, base->bytes);
    ctrl.MemcpyDtoH(dst, src, bytes);
 }
 
@@ -563,6 +612,5 @@ void MemoryManager::GetAll(void)
 
 MemoryManager mm;
 bool MemoryManager::exists = false;
-
 
 } // namespace mfem

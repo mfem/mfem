@@ -254,10 +254,8 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    vec.SetSize(symmDims * nq * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
    PADiffusionSetup(dim, dofs1D, quad1D, ne, maps->W, geom->J, coeff, vec);
-#ifdef MFEM_DEBUG
    // vec might be used elsewhere, allow others to use it (ex6)
    mfem::MemEnable(vec,vec.Size()*sizeof(double));
-#endif
 }
 
 #ifdef MFEM_USE_OCCA
@@ -1471,9 +1469,7 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    {
       maps->W.SetSize(numQuad);
    }
-#ifdef MFEM_DEBUG
    Device::Disable(true);
-#endif
    mfem::Vector d2q(numDofs);
    mfem::DenseMatrix d2qD(numDofs, dims);
    mfem::Array<double> W(numQuad);
@@ -1501,9 +1497,7 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
          }
       }
    }
-#ifdef MFEM_DEBUG
    Device::Enable(true);
-#endif
    if (transpose)
    {
       mfem::Memcpy(maps->W, W, numQuad*sizeof(double));
@@ -1836,9 +1830,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const bool orderedByNODES = (fespace->GetOrdering() == Ordering::byNODES);
    if (orderedByNODES) { ReorderByVDim(nodes); }
    const int asize = dims*ND*NE;
-#ifdef MFEM_DEBUG
    Device::Disable(true);
-#endif
    mfem::Array<double> meshNodes(asize);
    const Table& e2dTable = fespace->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
@@ -1846,9 +1838,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    GeomFill(dims, NE, ND, nodes->Size(),
             elementMap, eMap,
             nodes->GetData(), meshNodes);
-#ifdef MFEM_DEBUG
    Device::Enable(true);
-#endif
    if (geom_to_allocate)
    {
       geom->nodes.SetSize(dims*ND*NE);

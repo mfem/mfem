@@ -210,6 +210,10 @@ void Device::Setup(const int device)
       OccaDeviceSetup(internal::cuDevice, internal::cuContext);
    }
 
+#ifdef MFEM_USE_CUDA
+   MFEM_VERIFY(!Allows(Backend::DEBUG),
+               "the DEBUG backend requires MFEM built without MFEM_USE_CUDA=YES");
+#endif
    // ngpu is tied to 1 when using the DEBUG device.
    if (Allows(Backend::DEBUG)) { ngpu = 1; }
 }
