@@ -74,7 +74,7 @@ public:
    const void *Ptr(const void *ptr);
 
    /// Data will be pushed/pulled before the copy happens on the H or the D
-   void* Memcpy(void *dst, const void *src, std::size_t bytes);
+   void *Memcpy(void *dst, const void *src, std::size_t bytes);
 
    /// Return the bytes of the memory region which base address is ptr
    std::size_t Bytes(const void *ptr);
@@ -176,7 +176,7 @@ template <class T>
 inline T *Ptr(T *a) { return static_cast<T*>(mm.Ptr(a)); }
 
 /// Data will be pushed/pulled before the copy happens on the host or the device
-inline void* Memcpy(void *dst, const void *src, std::size_t bytes)
+inline void *Memcpy(void *dst, const void *src, std::size_t bytes)
 { return mm.Memcpy(dst, src, bytes); }
 
 /// Push the data to the device
