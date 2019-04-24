@@ -26,10 +26,11 @@ class findpts_gslib
 {
 private:
    IntegrationRule ir;
+   Mesh *mesh;
    Vector gllmesh;
    struct findpts_data_2 *fda;
    struct findpts_data_3 *fdb;
-   int dim, nel, qo, msz;
+   int dim, nel, msz;
 
    struct comm cc;
 
@@ -51,7 +52,7 @@ public:
        @param[in] newt_tol  Newton tolerance for the gslib search methods.
        @param[in] npt_max   Number of points for simultaneous iteration. This
                             alters performance and memory footprint. */
-   void gslib_findpts_setup(Mesh &mesh, double bb_t,
+   void gslib_findpts_setup(Mesh &m, double bb_t,
                             double newt_tol, int npt_max);
 
    /** Searches positions given in physical space by @a point_pos. All output

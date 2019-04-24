@@ -17,31 +17,31 @@ namespace mfem
 {
 
 findpts_gslib::findpts_gslib()
-   : ir(), gllmesh(), fda(NULL), fdb(NULL), dim(-1), nel(-1), qo(-1), msz(-1)
+   : ir(), mesh(NULL), gllmesh(), fda(NULL), fdb(NULL), dim(-1), nel(-1), msz(-1)
 {
    comm_init(&cc, 0);
 }
 
 #ifdef MFEM_USE_MPI
 findpts_gslib::findpts_gslib(MPI_Comm _comm)
-   : ir(), gllmesh(), fda(NULL), fdb(NULL), dim(-1), nel(-1), qo(-1), msz(-1)
+   : ir(), mesh(NULL), gllmesh(), fda(NULL), fdb(NULL), dim(-1), nel(-1), msz(-1)
 {
    comm_init(&cc, _comm);
 }
 #endif
 
-void findpts_gslib::gslib_findpts_setup(Mesh &mesh, double bb_t,
+void findpts_gslib::gslib_findpts_setup(Mesh &m, double bb_t,
                                         double newt_tol, int npt_max)
 {
-   MFEM_VERIFY(mesh.GetNodes() != NULL, "Mesh nodes are required.");
+   MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
 
-   const GridFunction *nodes = mesh.GetNodes();
+   mesh = &m;
+   const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fes = nodes->FESpace();
 
    ir = fes->GetFE(0)->GetNodes();
-   dim = mesh.Dimension();
-   nel = mesh.GetNE();
-   qo = fes->GetFE(0)->GetOrder() + 1;
+   dim = mesh->Dimension();
+   nel = mesh->GetNE();
    int nsp = ir.GetNPoints();
    msz = nel*nsp;
    gllmesh.SetSize(dim*msz);
@@ -72,7 +72,7 @@ void findpts_gslib::gslib_findpts_setup(Mesh &mesh, double bb_t,
       }
    }
 
-   const int NE = nel, NR = qo;
+   const int NE = nel, NR = fes->GetFE(0)->GetOrder() + 1;
    int ntot = pow(NR,dim)*NE;
    if (dim==2)
    {
@@ -147,7 +147,7 @@ void findpts_gslib::gslib_findpts_eval(Array<uint> &codes, Array<uint> &proc_ids
                      proc_ids.GetData(), sizeof(uint),
                      elem_ids.GetData(), sizeof(uint),
                      ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, field_in.GetData(), fda);
+                     points_cnt, node_vals.GetData(), fda);
    }
    else
    {
@@ -156,27 +156,37 @@ void findpts_gslib::gslib_findpts_eval(Array<uint> &codes, Array<uint> &proc_ids
                      proc_ids.GetData(), sizeof(uint),
                      elem_ids.GetData(), sizeof(uint),
                      ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, field_in.GetData(), fdb);
+                     points_cnt, node_vals.GetData(), fdb);
    }
 }
 
 void findpts_gslib::gslib_findpts_free()
 {
-   (dim == 2) ? findpts_free_2(this->fda) : findpts_free_3(this->fdb);
+   (dim == 2) ? findpts_free_2(fda) : findpts_free_3(fdb);
 }
 
 void findpts_gslib::GetNodeValues(const GridFunction &gf_in, Vector &node_vals)
 {
    MFEM_ASSERT(gf_in.FESpace()->GetVDim() == 1, "Scalar function expected.");
 
+   const GridFunction *nodes = mesh->GetNodes();
+   const FiniteElementSpace *fes = nodes->FESpace();
+
    const int nsp = ir.GetNPoints();
    Vector vals_el;
+
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement *>(fes->GetFE(0));
+   const Array<int> &dof_map = tbe->GetDofMap();
 
    int pt_id = 0;
    for (int i = 0; i < nel; i++)
    {
       gf_in.GetValues(i, ir, vals_el);
-      for (int j = 0; j < nsp; j++) { node_vals(pt_id++) = vals_el(j); }
+      for (int j = 0; j < nsp; j++)
+      {
+         node_vals(pt_id++) = vals_el(dof_map[j]);
+      }
    }
 }
 
