@@ -177,7 +177,7 @@ function help_message()
                   Specify explicitly a group (dir + file pattern) to run; This
                   option can be used multiple times to define multiple groups
       -dev        configure only sample runs using devices.
-                  To test with a parallel build, the paralle (-p|-par) option
+                  To test with a parallel build, the parallel (-p|-par) option
                   should be set first on the command line.
       -v          Enable valgrind
       -o <dir>    [${output_dir:-"<empty>: output goes to stdout"}]
