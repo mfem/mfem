@@ -279,18 +279,14 @@ class ProtectedDebugMemorySpace : public ProtectedHostMemorySpace,
 // *****************************************************************************
 #ifdef MFEM_USE_CUDA
 #ifndef MFEM_DEBUG
-#warning DefaultCudaMemorySpace
 static internal::DefaultCudaMemorySpace ctrl;
 #else
-#warning ProtectedCudaMemorySpace
 static internal::ProtectedCudaMemorySpace ctrl;
 #endif
 #else // MFEM_USE_CUDA
 #ifndef MFEM_USE_MM
-#warning DefaultNoneMemorySpace
 static internal::DefaultNoneMemorySpace ctrl;
 #else
-#warning ProtectedDebugMemorySpace
 static internal::ProtectedDebugMemorySpace ctrl;
 #endif // MFEM_DEBUG
 #endif // MFEM_USE_CUDA
