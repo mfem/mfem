@@ -745,6 +745,7 @@ DiffusionIntegrator::~DiffusionIntegrator()
 
 //
 //Hard coded for H1 finite elements order 1
+//Store element contributions
 //
 void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
 {
@@ -848,13 +849,15 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes)
 
        });
 
-       MFEM_ABORT("TODO 2D FA Mass matrix assembly \n");
+       printf("Todo Write out to sparse matrix ... \n");
+       //MFEM_ABORT("TODO 2D FA Mass matrix assembly \n");
      }else if(dim==3)
      {
        MFEM_ABORT("TODO 3D FA Mass matrix assembly \n");
      }
 
    }
+   printf("Completed full assembly \n");
 
 }
 

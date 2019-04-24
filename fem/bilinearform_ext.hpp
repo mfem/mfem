@@ -46,6 +46,9 @@ protected:
    BilinearForm *a; ///< Not owned
 
 public:
+
+   Vector *Me;
+
    BilinearFormExtension(BilinearForm *form);
 
    /// Get the finite element space prolongation matrix

@@ -344,28 +344,37 @@ void BilinearForm::AssembleBdrElementMatrix(
 
 void BilinearForm::Assemble(int skip_zeros)
 {
+
    if (Device::IsEnabled() && (assembly != AssemblyLevel::PARTIAL))
    {
      if(assembly != AssemblyLevel::FULL)
        mfem_error("Chosen assembly level not supported yet in device mode!");
    }
 
-
-   if (mat == NULL && assembly == AssemblyLevel::FULL)
-   {
-      AllocMat();
-   }
-
+   //Assemble the element contributions on the device
+   //Assembly of the full matrix will be done on the CPU
    if (ext)
    {
-      ext->Assemble();
-      return;
+     ext->Me = NULL; //set to null..
+     ext->Assemble();
+     if(assembly != AssemblyLevel::FULL) return;
+   }
+
+   //Disable Device
+   Device::Disable();
+
+   //Move data to appropriate space
+   if(ext && ext->Me) {mm.Ptr(ext->Me->GetData());};
+
+   //Intialize Matrix
+   if (mat == NULL)
+   {
+      AllocMat();
    }
 
    ElementTransformation *eltrans;
    Mesh *mesh = fes -> GetMesh();
    DenseMatrix elmat, *elmat_p;
-
 
 #ifdef MFEM_USE_LEGACY_OPENMP
    int free_element_matrices = 0;

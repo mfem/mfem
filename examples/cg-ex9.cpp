@@ -202,7 +202,11 @@ int main(int argc, char *argv[])
    LinearForm b(&fes);
 
    m.Assemble();
+   printf("Out of assemble method \n");
+
+   printf("Going into finalize ....\n");
    m.Finalize();
+   printf("Completed finalize ....\n");
    Device::Disable();
 
    int skip_zeros = 0;
