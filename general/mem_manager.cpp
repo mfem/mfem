@@ -123,15 +123,15 @@ class UvmHostMemorySpace : public HostMemorySpace
 {
 public:
    void HostAlloc(void **ptr, const std::size_t bytes)
-   { MFEM_CUDA_CHECK_RT(::cudaMallocManaged(ptr, bytes)); }
+   { MFEM_CUDA_CHECK(::cudaMallocManaged(ptr, bytes)); }
    void HostDealloc(void *ptr)
    {
-      MFEM_CUDA_CHECK_RT(cudaGetLastError());
+      MFEM_CUDA_CHECK(::cudaGetLastError());
       const bool known = mm.IsKnown(ptr);
       if (!known) { mfem_error("[UvmHostMemorySpace] HostDealloc error!"); }
       const internal::Memory &base = maps->memories.at(ptr);
       if (base.managed)
-      { MFEM_CUDA_CHECK_RT(::cudaFree(ptr)); }
+      { MFEM_CUDA_CHECK(::cudaFree(ptr)); }
       else
       { std::free(ptr); }
    }
@@ -258,27 +258,26 @@ public:
    CudaDeviceMemorySpace(): DeviceMemorySpace() { }
 
    void DeviceAlloc(void **dptr, const std::size_t bytes)
-   { MFEM_CUDA_CHECK_DRV(::cuMemAlloc((CUdeviceptr*)dptr, bytes)); }
+   { MFEM_CUDA_CHECK(::cudaMalloc(dptr, bytes)); }
 
    void DeviceDealloc(void *dptr)
-   { MFEM_CUDA_CHECK_DRV(::cuMemFree((CUdeviceptr)dptr)); }
+   { MFEM_CUDA_CHECK(::cudaFree(dptr)); }
 
    void *MemcpyHtoD(void *dst, const void *src, const size_t bytes)
    {
-      MFEM_CUDA_CHECK_DRV(::cuMemcpyHtoD((CUdeviceptr)dst, src, bytes));
+      MFEM_CUDA_CHECK(::cudaMemcpy(dst, src, bytes, cudaMemcpyHostToDevice));
       return dst;
    }
 
    void *MemcpyDtoD(void* dst, const void* src, const size_t bytes)
    {
-      MFEM_CUDA_CHECK_DRV(::cuMemcpyDtoD((CUdeviceptr)dst,
-                                         (CUdeviceptr)src, bytes));
+      MFEM_CUDA_CHECK(::cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToDevice));
       return dst;
    }
 
    void *MemcpyDtoH(void *dst, const void *src, const size_t bytes)
    {
-      MFEM_CUDA_CHECK_DRV(::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
+      MFEM_CUDA_CHECK(::cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToHost));
       return dst;
    }
 };
@@ -291,28 +290,28 @@ public:
    UvmDeviceMemorySpace(): DeviceMemorySpace() { }
    void DeviceAlloc(void **dptr, const std::size_t bytes)
    {
-      MFEM_CUDA_CHECK_RT(::cudaMallocManaged(dptr, bytes));
+      MFEM_CUDA_CHECK(::cudaMallocManaged(dptr, bytes));
       printf("\n\033[33m[UVM] DeviceAlloc %p\033[m", *dptr);fflush(0);
    }
    void DeviceDealloc(void *dptr) {
       printf("\n\033[33m[UVM] DeviceDealloc %p\033[m", dptr);fflush(0);
-      MFEM_CUDA_CHECK_RT(::cudaFree(dptr));
+      MFEM_CUDA_CHECK(::cudaFree(dptr));
    }
    void *MemcpyHtoD(void *dst, const void *src, const size_t bytes)
    {
-      MFEM_CUDA_CHECK_RT(::cudaMemcpy(dst, src, bytes, cudaMemcpyHostToDevice));
+      MFEM_CUDA_CHECK(::cudaMemcpy(dst, src, bytes, cudaMemcpyHostToDevice));
       return dst;
    }
 
    void *MemcpyDtoD(void* dst, const void* src, const size_t bytes)
    {
-      MFEM_CUDA_CHECK_RT(::cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToDevice));
+      MFEM_CUDA_CHECK(::cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToDevice));
       return dst;
    }
 
    void *MemcpyDtoH(void *dst, const void *src, const size_t bytes)
    {
-      MFEM_CUDA_CHECK_RT(::cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToHost));
+      MFEM_CUDA_CHECK(::cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToHost));
       return dst;
    }
 };

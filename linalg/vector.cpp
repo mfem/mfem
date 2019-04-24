@@ -952,7 +952,7 @@ double Dot(const int N, const double *x, const double *y)
 {
 #ifdef MFEM_USE_CUDA
    if (Device::Allows(Backend::CUDA_MASK)) {
-      MFEM_CUDA_CHECK_RT(cudaGetLastError());
+      MFEM_CUDA_CHECK(::cudaGetLastError());
       return cuVectorDot(N, x, y);
    }
 #endif // MFEM_USE_CUDA
