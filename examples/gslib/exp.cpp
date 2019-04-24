@@ -1,4 +1,4 @@
-﻿// mpirun -np 2 ./exp -m RT2D.mesh -qo 8 -o 3
+﻿// mpirun -np 2 ./exp -m RT2D.mesh -o 3
 
 #include "mfem.hpp"
 #include "fem/gslib.hpp" // TODO move to mfem.hpp (double declaration bug ??)
@@ -33,8 +33,6 @@ int main (int argc, char *argv[])
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
    int rp_levels         = 0;
-   int quad_type         = 1;
-   int quad_order        = 8;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -46,8 +44,6 @@ int main (int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&rp_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption(&quad_order, "-qo", "--quad_order",
-                  "Order of the quadrature rule.");
    args.Parse();
    if (!args.Good())
    {
@@ -113,11 +109,22 @@ int main (int argc, char *argv[])
    ParGridFunction nodes(pfespace);
    pmesh->GetNodes(nodes);
 
-   // Define some scalar function on the mesh.
+   // Define a scalar function on the mesh.
    ParFiniteElementSpace sc_fes(pmesh, fec, 1);
    GridFunction field_vals(&sc_fes);
    FunctionCoefficient fc(field_func);
    field_vals.ProjectCoefficient(fc);
+
+   /*
+   socketstream sout;
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   sout.open(vishost, visport);
+   sout.precision(1e-6);
+   sout << "solution\n" << *pmesh << field_vals;
+   sout << "pause\n";
+   sout << flush;
+   */
 
    findpts_gslib *gsfl = new findpts_gslib(MPI_COMM_WORLD);
    const double rel_bbox_el = 0.05;
@@ -133,7 +140,7 @@ int main (int argc, char *argv[])
 
    int pt_id = 0;
    IntegrationPoint ipt;
-   Vector pos;
+   Vector pos(dim);
    for (int i = 0; i < NE; i++)
    {
       for (int j = 0; j < pts_per_el; j++)
@@ -165,9 +172,7 @@ int main (int argc, char *argv[])
    // FINDPTS_EVAL
    Vector fout(pts_cnt);
    MPI_Barrier(MPI_COMM_WORLD);
-   // Corresponds to the same points as above (vxyz) -- uses that output.
    // Returns function values in fout.
-   // Note that the points where dumfield is defined are the ones given to _setup.
    gsfl->gslib_findpts_eval(code_out, task_id_out, el_id_out,
                             pos_r_out, field_vals, fout);
 
@@ -175,22 +180,21 @@ int main (int argc, char *argv[])
 
    int nbp = 0, nnpt = 0, nerrh = 0;
    double maxv = -100.0 ,maxvr = -100.0;
-   for (int it = 0; it < pts_cnt; it++)
+   for (int i = 0; i < pts_cnt; i++)
    {
-      if (code_out[it] < 2)
+      if (code_out[i] < 2)
       {
-         // TODO evaluate the FE function at vxyz.
-         double val = pow(vxyz[it],2)+pow(vxyz[it+pts_cnt],2);
-         if (dim==3) { val += pow(vxyz[it+2*pts_cnt],2); }
-         double delv = abs(val-fout[it]);
-         double rxe = abs(rrxa[it] - 0.5*pos_r_out[it*dim+0]-0.5);
-         double rye = abs(rrya[it] - 0.5*pos_r_out[it*dim+1]-0.5);
-         double rze = abs(rrza[it] - 0.5*pos_r_out[it*dim+2]-0.5);
+         for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
+         double exact_val = field_func(pos);
+         double delv = abs(exact_val-fout(i));
+         double rxe = abs(rrxa[i] - 0.5*pos_r_out[i*dim+0]-0.5);
+         double rye = abs(rrya[i] - 0.5*pos_r_out[i*dim+1]-0.5);
+         double rze = abs(rrza[i] - 0.5*pos_r_out[i*dim+2]-0.5);
          double delvr =  ( rxe < rye ) ? rye : rxe;
          if (dim==3) { delvr = ( ( delvr < rze ) ? rze : delvr ); }
          if (delv > maxv) {maxv = delv;}
          if (delvr > maxvr) {maxvr = delvr;}
-         if (code_out[it] == 1) {nbp += 1;}
+         if (code_out[i] == 1) {nbp += 1;}
          if (delvr > 1.e-10) {nerrh += 1;}
       }
       else { nnpt++; }
