@@ -18,6 +18,8 @@ run_prefix=""
 run_vg="valgrind --leak-check=full --show-reachable=yes --track-origins=yes"
 run_suffix="-no-vis"
 skip_gen_meshes="yes"
+# filter-out device runs ("no") or non-device runs ("yes"):
+device_runs="no"
 cur_dir="${PWD}"
 mfem_dir="$(cd "$(dirname "$0")"/.. && pwd)"
 mfem_build_dir=""
@@ -148,6 +150,11 @@ function extract_sample_runs()
    if [ "$skip_gen_meshes" == "yes" ]; then
       runs=`printf "%s" "$runs" | grep -v ".* -m .*\.gen"`
    fi
+   if [ "$device_runs" == "yes" ]; then
+      runs=`printf "%s" "$runs" | grep ".* -d .*"`
+   else
+      runs=`printf "%s" "$runs" | grep -v ".* -d .*"`
+   fi
    IFS=$'\n'
    runs=(${runs})
    IFS="${old_IFS}"
@@ -253,7 +260,7 @@ case "$1" in
    -h|-help)
       opt_help="yes"
       ;;
-   -p|-parallel)
+   -p|-par)
       mfem_config="MFEM_USE_MPI=YES MFEM_DEBUG=NO"
       ;;
    -g)
@@ -293,6 +300,10 @@ case "$1" in
       ;;
    -n)
       run_prefix="echo"
+      ;;
+   -*)
+      echo "unknown option: '$1'"
+      exit 1
       ;;
    *=*)
       eval $1
