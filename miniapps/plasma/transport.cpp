@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
    double t_init = 0.0;
    double t_final = -1.0;
    double dt = -0.01;
-   double dt_rel_tol = 0.1;
+   // double dt_rel_tol = 0.1;
    double cfl = 0.3;
    bool visualization = true;
    int vis_steps = 50;
@@ -300,9 +300,9 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step. Positive number skips CFL timestep calculation.");
-   args.AddOption(&dt_rel_tol, "-dttol", "--time-step-tolerance",
-                  "Time step will only be adjusted if the relative difference "
-                  "exceeds dttol.");
+   // args.AddOption(&dt_rel_tol, "-dttol", "--time-step-tolerance",
+   //                "Time step will only be adjusted if the relative difference "
+   //                "exceeds dttol.");
    args.AddOption(&cfl, "-c", "--cfl-number",
                   "CFL number for timestep calculation.");
    args.AddOption(&ion_charges, "-qi", "--ion-charges",
