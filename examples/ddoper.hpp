@@ -6,6 +6,96 @@
 using namespace mfem;
 using namespace std;
 
+#define ZERO_RHO_BC
+#define ZERO_IFND_BC
+
+//#define ELIMINATE_REDUNDANT_VARS
+
+void test1_E_exact(const Vector &x, Vector &E)
+{
+  const double kappa = M_PI;
+  E(0) = sin(kappa * x(1));
+  E(1) = sin(kappa * x(2));
+  E(2) = sin(kappa * x(0));
+}
+
+void test1_RHS_exact(const Vector &x, Vector &f)
+{
+  const double kappa = M_PI;
+  const double sigma = -2.0;
+  f(0) = (sigma + kappa * kappa) * sin(kappa * x(1));
+  f(1) = (sigma + kappa * kappa) * sin(kappa * x(2));
+  f(2) = (sigma + kappa * kappa) * sin(kappa * x(0));
+}
+
+void test1_f_exact_0(const Vector &x, Vector &f)
+{
+  const double kappa = M_PI;
+  const double c = -kappa * cos(kappa * x(1));
+  f(0) = c;
+  f(1) = 0.0;
+  f(2) = -c;
+}
+
+void test1_f_exact_1(const Vector &x, Vector &f)
+{
+  const double kappa = M_PI;
+  const double c = kappa * cos(kappa * x(1));
+  f(0) = c;
+  f(1) = 0.0;
+  f(2) = -c;
+}
+
+void test2_E_exact(const Vector &x, Vector &E)
+{
+  const double pi = M_PI;
+  E(0) = sin(pi * x(1)) * sin(pi * x(2));
+  E(1) = sin(pi * x(2)) * sin(pi * x(0));
+  E(2) = sin(pi * x(0)) * sin(pi * x(1));
+}
+
+void test2_RHS_exact(const Vector &x, Vector &f)
+{
+  const double pi = M_PI;
+  const double sigma = -2.0;
+  const double c = (2.0 * pi * pi) + sigma;
+
+  f(0) = c * sin(pi * x(1)) * sin(pi * x(2));
+  f(1) = c * sin(pi * x(2)) * sin(pi * x(0));
+  f(2) = c * sin(pi * x(0)) * sin(pi * x(1));
+}
+
+void test2_f_exact_0(const Vector &x, Vector &f)
+{
+  const double pi = M_PI;
+  f(0) = pi * sin(pi * x(2)) * (cos(pi * x(0)) - cos(pi * x(1)));
+  f(1) = 0.0;
+  f(2) = -pi * sin(pi * x(0)) * (cos(pi * x(1)) - cos(pi * x(2)));
+}
+
+void test2_f_exact_1(const Vector &x, Vector &f)
+{
+  const double pi = M_PI;
+  f(0) = -pi * sin(pi * x(2)) * (cos(pi * x(0)) - cos(pi * x(1)));
+  f(1) = 0.0;
+  f(2) = pi * sin(pi * x(0)) * (cos(pi * x(1)) - cos(pi * x(2)));
+}
+
+// Note that test2_rho is zero on the exterior boundary.
+double test2_rho_exact_0(const Vector &x)
+{
+  const double pi = M_PI;
+
+  return -pi * pi * ((sin(pi * x(2)) * sin(pi * x(0))) + (sin(pi * x(0)) * sin(pi * x(2))));
+}
+
+double test2_rho_exact_1(const Vector &x)
+{
+  const double pi = M_PI;
+
+  return pi * pi * ((sin(pi * x(2)) * sin(pi * x(0))) + (sin(pi * x(0)) * sin(pi * x(2))));
+}
+
 hypre_CSRMatrix* GetHypreParMatrixData(const HypreParMatrix & hypParMat)
 {
   // First cast the parameter to a hypre_ParCSRMatrix
@@ -694,7 +784,7 @@ public:
     numSubdomains(numSubdomains_), numInterfaces(numInterfaces_), pmeshSD(pmeshSD_), pmeshIF(pmeshIF_), fec(orderND, spaceDim),
     fecbdry(orderND, spaceDim-1), fecbdryH1(orderND, spaceDim-1), localInterfaces(localInterfaces_), interfaceLocalIndex(interfaceLocalIndex_),
     subdomainLocalInterfaces(numSubdomains_), pmeshGlobal(pmesh_),
-    k2(250.0), realPart(true),
+    k2(2.0), realPart(true),
     alpha(1.0), beta(1.0), gamma(1.0)  // TODO: set these to the right values
   {
     int num_procs, rank;
@@ -704,9 +794,9 @@ public:
     MFEM_VERIFY(numSubdomains > 0, "");
     MFEM_VERIFY(interfaceLocalIndex->size() == numInterfaces, "");
 
-#ifdef DDMCOMPLEX
     SetParameters();
 
+#ifdef DDMCOMPLEX
     AsdRe = new Operator*[numSubdomains];
     AsdIm = new Operator*[numSubdomains];
     AsdP = new Operator*[numSubdomains];
@@ -773,6 +863,14 @@ public:
 	    ifespace[i] = new ParFiniteElementSpace(pmeshIF[i], &fecbdry);  // Nedelec space for f_{m,j} when interface i is the j-th interface of subdomain m. 
 	    iH1fespace[i] = new ParFiniteElementSpace(pmeshIF[i], &fecbdryH1);  // H^1 space \rho_{m,j} when interface i is the j-th interface of subdomain m.
 
+	    cout << rank << ": Interface " << i << " number of bdry attributes: " << pmeshIF[i]->bdr_attributes.Size()
+		 << ", NE " << pmeshIF[i]->GetNE() << ", NBE " << pmeshIF[i]->GetNBE() << endl;
+
+	    /*
+	    for (int j=0; j<pmeshIF[i]->GetNBE(); ++j)
+	      cout << rank << " Interface " << i << ", be " << j << ", bdrAttribute " << pmeshIF[i]->GetBdrAttribute(j) << endl;
+	    */
+	    
 	    CreateInterfaceMatrices(i);
 	  }
 
@@ -967,6 +1065,8 @@ public:
 	const int sd0 = (*localInterfaces)[ili].FirstSubdomain();
 	const int sd1 = (*localInterfaces)[ili].SecondSubdomain();
 
+	cout << rank << ": Interface " << ili << " sd " << sd0 << ", " << sd1 << endl;
+	
 	MFEM_VERIFY(sd0 < sd1, "");
 
 	// Create operators for interface between subdomains sd0 and sd1, namely C_{sd0,sd1} R_{sd1}^T and the other.
@@ -976,14 +1076,18 @@ public:
 	SetToRealParameters();
 	
 	globalInterfaceOpRe->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
+#ifndef ELIMINATE_REDUNDANT_VARS
 	globalInterfaceOpRe->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
-
+#endif
+	
 	// Imaginary part
 	SetToImaginaryParameters();
 	
 	globalInterfaceOpIm->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
+#ifndef ELIMINATE_REDUNDANT_VARS
 	globalInterfaceOpIm->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
-
+#endif
+	
 	// Set complex blocks
 	rowTrueOffsetsComplexIF[ili].SetSize(3);
 	colTrueOffsetsComplexIF[ili].SetSize(3);
@@ -1006,14 +1110,19 @@ public:
 	complexBlock01->SetBlock(1, 0, &(globalInterfaceOpIm->GetBlock(sd0, sd1)));
 	complexBlock01->SetBlock(1, 1, &(globalInterfaceOpRe->GetBlock(sd0, sd1)));
 
+#ifndef ELIMINATE_REDUNDANT_VARS
 	BlockOperator *complexBlock10 = new BlockOperator(colTrueOffsetsComplexIF[ili], rowTrueOffsetsComplexIF[ili]);
 	complexBlock10->SetBlock(0, 0, &(globalInterfaceOpRe->GetBlock(sd1, sd0)));
 	complexBlock10->SetBlock(0, 1, &(globalInterfaceOpIm->GetBlock(sd1, sd0)), -1.0);
 	complexBlock10->SetBlock(1, 0, &(globalInterfaceOpIm->GetBlock(sd1, sd0)));
 	complexBlock10->SetBlock(1, 1, &(globalInterfaceOpRe->GetBlock(sd1, sd0)));
+#endif
 	
 	globalInterfaceOp->SetBlock(sd0, sd1, complexBlock01);
+#ifndef ELIMINATE_REDUNDANT_VARS
 	globalInterfaceOp->SetBlock(sd1, sd0, complexBlock10);
+#endif
+
 #else
 	globalInterfaceOp->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
 	globalInterfaceOp->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
@@ -1226,6 +1335,341 @@ public:
     globalOp->Mult(x, y);
   }  
 
+#ifndef DDMCOMPLEX
+  void FullSystemAnalyticTest()
+  {
+    Vector uSD, uIF, ubdry, ufullSD, AufullSD, diffIF;
+
+    diffIF.SetSize(ifespace[0]->GetTrueVSize());
+
+    VectorFunctionCoefficient E(3, test2_E_exact);
+    VectorFunctionCoefficient y(3, test2_RHS_exact);
+    VectorFunctionCoefficient f0(3, test2_f_exact_0);
+    VectorFunctionCoefficient f1(3, test2_f_exact_1);
+    FunctionCoefficient rho0(test2_rho_exact_0);
+    FunctionCoefficient rho1(test2_rho_exact_1);
+
+    int fullSize = 0;
+    int ifSize = 0;
+
+    std::vector<int> sdFullSize(numSubdomains);
+    
+    for (int m=0; m<numSubdomains; ++m)
+      {
+	int fullSize_m = 0;
+	
+	if (pmeshSD[m] != NULL)
+	  {
+	    fullSize_m += fespace[m]->GetTrueVSize();
+	    ifSize += tdofsBdry[m].size();
+	  }
+
+	for (int i=0; i<subdomainLocalInterfaces[m].size(); ++i)
+	  {
+	    const int interfaceIndex = subdomainLocalInterfaces[m][i];
+	    
+	    fullSize_m += ifespace[interfaceIndex]->GetTrueVSize();
+	    fullSize_m += iH1fespace[interfaceIndex]->GetTrueVSize();
+
+	    ifSize += ifespace[interfaceIndex]->GetTrueVSize();
+	    ifSize += iH1fespace[interfaceIndex]->GetTrueVSize();
+	  }
+
+	fullSize += fullSize_m;
+	sdFullSize[m] = fullSize_m;
+      }
+
+    Vector xfull(fullSize);
+    xfull = 0.0;
+    Vector Axfull(fullSize);
+    Axfull = 0.0;
+    Vector yfull(fullSize);
+    yfull = 0.0;
+
+    Vector xif(ifSize);
+    Vector Cxif(ifSize);
+    xif = 0.0;
+
+    int osFull = 0;
+
+    for (int m=0; m<numSubdomains; ++m)
+      {
+	ufullSD.SetSize(sdFullSize[m]);
+	AufullSD.SetSize(sdFullSize[m]);
+
+	ufullSD = 0.0;
+
+	int osFullSD = 0;
+	
+	if (pmeshSD[m] != NULL)
+	  {
+	    uSD.SetSize(fespace[m]->GetTrueVSize());
+	    ubdry.SetSize(tdofsBdry[m].size());
+
+	    osFullSD += fespace[m]->GetTrueVSize();
+	    
+	    ParGridFunction x(fespace[m]);
+	    x.ProjectCoefficient(E);
+	    x.GetTrueDofs(uSD);
+	    
+	    tdofsBdryInjectionTranspose[m]->Mult(uSD, ubdry);
+
+	    cout << m_rank << ": ubdry norm on SD " << m << " = " << ubdry.Norml2() << endl;
+
+	    /*
+	    { // Subtest, to check u restricted to the interface from each subdomain.
+	      uIF.SetSize(ifespace[0]->GetTrueVSize());
+	      InterfaceToSurfaceInjection[m][0]->MultTranspose(uSD, uIF);
+
+	      if (m == 0)
+		{
+		  diffIF = uIF;
+
+		  cout << m_rank << ": uIF[0] norm " << diffIF.Norml2() << endl;
+		}
+	      else
+		{
+		  ParGridFunction Eif(ifespace[0]);
+		  Eif.ProjectCoefficient(E);
+		  uIF = 0.0;
+		  Eif.GetTrueDofs(uIF);
+		  
+		  diffIF -= uIF;
+		  cout << m_rank << ": diffIF norm " << diffIF.Norml2() << endl;
+		}
+	    }
+	    */
+	    
+	    for (int i=0; i<tdofsBdry[m].size(); ++i)
+	      {
+		xif[block_trueOffsets[m] + i] = ubdry[i];
+	      }
+
+	    for (int i=0; i<uSD.Size(); ++i)
+	      {
+		ufullSD[i] = uSD[i];
+	      }
+
+	    x.ProjectCoefficient(y);
+	    x.GetTrueDofs(uSD);
+	    
+	    for (int i=0; i<uSD.Size(); ++i)
+	      {
+		yfull[osFull + i] = uSD[i];
+	      }
+	  }
+
+	int osF = 0;
+	
+	int os = tdofsBdry[m].size();
+	for (int i=0; i<subdomainLocalInterfaces[m].size(); ++i)
+	  {
+	    const int interfaceIndex = subdomainLocalInterfaces[m][i];
+
+	    uIF.SetSize(ifespace[interfaceIndex]->GetTrueVSize());
+
+	    ParGridFunction x(ifespace[interfaceIndex]);
+	    if (m == 0)
+	      x.ProjectCoefficient(f0);
+	    else
+	      x.ProjectCoefficient(f1);
+	    
+	    x.GetTrueDofs(uIF);
+
+	    for (int j=0; j<uIF.Size(); ++j)
+	      {
+		xif[block_trueOffsets[m] + os + j] = uIF[j];
+		ufullSD[osFullSD + j] = uIF[j];
+	      }
+	    
+	    os += ifespace[interfaceIndex]->GetTrueVSize();
+
+	    osF = osFullSD;
+	    osFullSD += ifespace[interfaceIndex]->GetTrueVSize();
+
+	    uIF.SetSize(iH1fespace[interfaceIndex]->GetTrueVSize());
+	    
+	    ParGridFunction r(iH1fespace[interfaceIndex]);
+	    if (m == 0)
+	      r.ProjectCoefficient(rho0);
+	    else
+	      r.ProjectCoefficient(rho1);
+	    
+	    r.GetTrueDofs(uIF);
+
+	    for (int j=0; j<uIF.Size(); ++j)
+	      {
+		xif[block_trueOffsets[m] + os + j] = uIF[j];
+		ufullSD[osFullSD + j] = uIF[j];
+	      }
+	    
+	    os += iH1fespace[interfaceIndex]->GetTrueVSize();
+
+	    osFullSD += iH1fespace[interfaceIndex]->GetTrueVSize();
+	  }
+
+	MFEM_VERIFY(sdFullSize[m] == osFullSD, "");
+
+	Asd[m]->Mult(ufullSD, AufullSD);
+
+	double normAuF = 0.0;
+	for (int j=0; j<ifespace[0]->GetTrueVSize(); ++j)
+	  normAuF += AufullSD[osF + j] * AufullSD[osF + j];
+
+	normAuF = sqrt(normAuF);
+
+	cout << m_rank << ": normAuF " << normAuF << " on sd " << m << endl;
+	
+	for (int j=0; j<sdFullSize[m]; ++j)
+	  {
+	    xfull[osFull + j] = ufullSD[j];
+	    Axfull[osFull + j] = AufullSD[j];
+	  }
+	
+	osFull += sdFullSize[m];
+      }
+
+    MFEM_VERIFY(osFull == fullSize, "");
+
+    globalInterfaceOp->Mult(xif, Cxif);
+    //Cxif = 0.0;  // TODO: remove
+    
+    double Cxif_norm = Cxif.Norml2();
+    cout << m_rank << ": Cxif norm " << Cxif_norm << ", Axfull norm " << Axfull.Norml2() << endl;
+    
+    double Cxif_us = 0.0;
+    
+    osFull = 0;
+    
+    for (int m=0; m<numSubdomains; ++m)
+      {
+	int osFullSD = 0;
+
+	if (pmeshSD[m] != NULL)
+	  {
+	    uSD.SetSize(fespace[m]->GetTrueVSize());
+	    ubdry.SetSize(tdofsBdry[m].size());
+    
+	    for (int i=0; i<tdofsBdry[m].size(); ++i)
+	      {
+		ubdry[i] = Cxif[block_trueOffsets[m] + i];
+	      }
+
+	    double Cxif_us_m = ubdry.Norml2();
+	    Cxif_us += Cxif_us_m * Cxif_us_m;
+	    
+	    tdofsBdryInjection[m]->Mult(ubdry, uSD);
+
+	    for (int i=0; i<uSD.Size(); ++i)
+	      {
+		Axfull[osFull + i] += uSD[i];
+	      }
+
+	    osFullSD += fespace[m]->GetTrueVSize();
+	  }
+
+	int os = tdofsBdry[m].size();
+	for (int i=0; i<subdomainLocalInterfaces[m].size(); ++i)
+	  {
+	    const int interfaceIndex = subdomainLocalInterfaces[m][i];
+
+	    for (int j=0; j<ifespace[interfaceIndex]->GetTrueVSize(); ++j)
+	      {
+		Axfull[osFull + osFullSD + j] += Cxif[block_trueOffsets[m] + os + j];
+	      }
+
+	    os += ifespace[interfaceIndex]->GetTrueVSize();
+	    os += iH1fespace[interfaceIndex]->GetTrueVSize();
+
+	    osFullSD += ifespace[interfaceIndex]->GetTrueVSize();
+	    osFullSD += iH1fespace[interfaceIndex]->GetTrueVSize();
+	  }
+
+	MFEM_VERIFY(sdFullSize[m] == osFullSD, "");
+	
+	osFull += sdFullSize[m];
+      }
+
+    Cxif_us = sqrt(Cxif_us);
+    
+    cout << m_rank << ": Cxif u_s component norm " << Cxif_us << ", f and rho component norm " << Cxif_norm - Cxif_us << endl;
+
+    // Now Axfull is (A + C) xfull, which should equal yfull.
+    Vector dfull(fullSize);
+    Vector dfull_u(fullSize);
+    Vector dfull_us(fullSize);
+    Vector dfull_f(fullSize);
+    Vector dfull_rho(fullSize);
+    Vector Axfull_u(fullSize);
+    Vector Axfull_f(fullSize);
+    Vector Axfull_rho(fullSize);
+
+    dfull_u = 0.0;
+    dfull_us = 0.0;
+    dfull_f = 0.0;
+    dfull_rho = 0.0;
+
+    Axfull_u = 0.0;
+    Axfull_f = 0.0;
+    Axfull_rho = 0.0;
+    
+    for (int i=0; i<fullSize; ++i)
+      dfull[i] = Axfull[i] - yfull[i];
+
+    osFull = 0;
+    for (int m=0; m<numSubdomains; ++m)
+      {
+	int osm = 0;
+	
+	if (pmeshSD[m] != NULL)
+	  {
+	    for (int i=0; i<fespace[m]->GetTrueVSize(); ++i)
+	      {
+		dfull_u[osFull + i] = Axfull[osFull + i] - yfull[osFull + i];
+		Axfull_u[osFull + i] = Axfull[osFull + i];
+	      }
+
+	    osm += fespace[m]->GetTrueVSize();
+	    
+	    for (set<int>::const_iterator it = tdofsBdry[m].begin(); it != tdofsBdry[m].end(); ++it)
+	      {
+		dfull_us[osFull + (*it)] = dfull_u[osFull + (*it)];
+	      }
+	  }
+
+	for (int i=0; i<subdomainLocalInterfaces[m].size(); ++i)
+	  {
+	    const int interfaceIndex = subdomainLocalInterfaces[m][i];
+
+	    for (int j=0; j<ifespace[interfaceIndex]->GetTrueVSize(); ++j)
+	      {
+		dfull_f[osFull + osm + i] = Axfull[osFull + osm + i] - yfull[osFull + osm + i];
+		Axfull_f[osFull + osm + i] = Axfull[osFull + osm + i];
+	      }
+
+	    osm += ifespace[interfaceIndex]->GetTrueVSize();
+
+	    for (int j=0; j<iH1fespace[interfaceIndex]->GetTrueVSize(); ++j)
+	      {
+		dfull_rho[osFull + osm + i] = Axfull[osFull + osm + i] - yfull[osFull + osm + i];
+		Axfull_rho[osFull + osm + i] = Axfull[osFull + osm + i];
+	      }
+	    
+	    osm += iH1fespace[interfaceIndex]->GetTrueVSize();
+	  }
+
+	MFEM_VERIFY(osm == sdFullSize[m], "");
+	osFull += sdFullSize[m];
+      }
+    
+    cout << m_rank << ": dfull norm " << dfull.Norml2() << ", y norm " << yfull.Norml2() << ", (A+C)x norm " << Axfull.Norml2() << endl;
+    cout << m_rank << ": dfull_u norm " << dfull_u.Norml2() << ", (A+C)x_u norm " << Axfull_u.Norml2() << endl;
+    cout << m_rank << ": dfull_us norm " << dfull_us.Norml2() << endl;
+    cout << m_rank << ": dfull_f norm " << dfull_f.Norml2() << ", (A+C)x_f norm " << Axfull_f.Norml2() << endl;
+    cout << m_rank << ": dfull_rho norm " << dfull_rho.Norml2() << ", (A+C)x_rho norm " << Axfull_rho.Norml2() << endl;
+  }
+#endif
+  
   void GetReducedSource(ParFiniteElementSpace *fespaceGlobal, Vector & sourceGlobalRe, Vector & sourceGlobalIm, Vector & sourceReduced) const
   {
     Vector sourceSD, wSD, vSD;
@@ -1241,12 +1685,12 @@ public:
 #endif
     MFEM_VERIFY(sourceReduced.Size() == this->Height(), "");
     
+    sourceReduced = 0.0;
+
     for (int m=0; m<numSubdomains; ++m)
       {
-	ySD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
-	wSD.SetSize(AsdComplex[m]->Height());
-	wSD = 0.0;
-
+	ySD[m] = NULL;
+	
 	if (pmeshSD[m] != NULL)
 	  {
 	    sourceSD.SetSize(fespace[m]->GetTrueVSize());
@@ -1259,6 +1703,11 @@ public:
 	    MFEM_VERIFY(AsdComplex[m]->Height() == 2*block_ComplexOffsetsSD[m][1], "");
 
 	    cout << rank << ": Setting real subdomain DOFs, sd " << m << endl;
+	    
+	    ySD[m] = new Vector(AsdComplex[m]->Height());  // Size of [u_m f_m \rho_m], real and imaginary parts
+
+	    wSD.SetSize(AsdComplex[m]->Height());
+	    wSD = 0.0;
 	    
 	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalRe, sourceSD);
 
@@ -1342,6 +1791,11 @@ public:
 	  {
 #ifdef DDMCOMPLEX
 	    MFEM_VERIFY(false, "TODO");
+	    /*
+	    MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets2[m+1] - block_trueOffsets2[m], "");
+
+	    invAsdComplex[m]->Mult(*(ySD[m]), wSD);
+	    */
 #else
 	    MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets[m+1] - block_trueOffsets[m], "");
 
@@ -1415,9 +1869,10 @@ private:
   BlockOperator *globalInterfaceOpRe, *globalInterfaceOpIm;
   std::vector<Array<int> > block_ComplexOffsetsSD;
   Array<int> block_trueOffsets2;  // Offsets used in globalOp
-  BlockOperator *globalInterfaceOp;
   BlockOperator **injComplexSD;
 #endif
+
+  BlockOperator *globalInterfaceOp;
   
   Operator *globalOp;  // Operator for all global subdomains (blocks corresponding to non-local subdomains will be NULL).
   
@@ -1460,7 +1915,7 @@ private:
     // Note that PengLee2012 recommends cTE = 1.5 * cTM. 
 
     // TODO: take these parameters from the mesh and finite element space.
-    const double h = 1.0e-2;
+    const double h = 1.4e-1;
     const double feOrder = 1.0;
     
     const double ktTE = cTE * M_PI * feOrder / h;
@@ -1487,6 +1942,19 @@ private:
     alphaIm = k;
     betaIm = k / (k2 + (kzTE * kzTE));
     gammaIm = -kzTM / (k * (k2 + (kzTM * kzTM)));
+
+    /*
+    {
+      //////////// Testing 
+      alphaRe = 1.0;
+      betaRe = 1.0;
+      gammaRe = 1.0;
+
+      alphaIm = 0.0;
+      betaIm = 0.0;
+      gammaIm = 0.0;
+    }
+    */
   }
 
   void SetToRealParameters()
@@ -1544,14 +2012,27 @@ private:
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
     ConstantCoefficient one(1.0);
-    Array<int> ess_tdof_list;  // empty
-
+    Array<int> H1_ess_tdof_list;
+    Array<int> ND_ess_tdof_list;
+    
+    Array<int> H1_ess_bdr;
+    Array<int> ND_ess_bdr;
+    
     // Nedelec interface operators
 
     ParBilinearForm *NDmass = new ParBilinearForm(ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
     NDmass->AddDomainIntegrator(new VectorFEMassIntegrator(one));
     NDmass->Assemble();
 
+#ifdef ZERO_IFND_BC
+    {
+      ND_ess_bdr.SetSize(pmeshIF[interfaceIndex]->bdr_attributes.Max());
+      ND_ess_bdr = 1;
+
+      ifespace[interfaceIndex]->GetEssentialTrueDofs(ND_ess_bdr, ND_ess_tdof_list);
+    }
+#endif
+    
     ParBilinearForm *NDcurlcurl = new ParBilinearForm(ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
     NDcurlcurl->AddDomainIntegrator(new CurlCurlIntegrator(one));
     NDcurlcurl->Assemble();
@@ -1565,9 +2046,9 @@ private:
     ifNDcurlcurl[interfaceIndex] = new HypreParMatrix();
     ifND_FS[interfaceIndex] = new HypreParMatrix();
 
-    NDmass->FormSystemMatrix(ess_tdof_list, *(ifNDmass[interfaceIndex]));
-    NDcurlcurl->FormSystemMatrix(ess_tdof_list, *(ifNDcurlcurl[interfaceIndex]));
-    ND_FS->FormSystemMatrix(ess_tdof_list, *(ifND_FS[interfaceIndex]));
+    NDmass->FormSystemMatrix(ND_ess_tdof_list, *(ifNDmass[interfaceIndex]));
+    NDcurlcurl->FormSystemMatrix(ND_ess_tdof_list, *(ifNDcurlcurl[interfaceIndex]));
+    ND_FS->FormSystemMatrix(ND_ess_tdof_list, *(ifND_FS[interfaceIndex]));
 
     cout << myid << ": interface " << interfaceIndex << ", ND true size " << ifespace[interfaceIndex]->GetTrueVSize() << ", mass height "
 	 << ifNDmass[interfaceIndex]->Height() << ", width " << ifNDmass[interfaceIndex]->Width() << ", ND V size "
@@ -1583,8 +2064,17 @@ private:
     H1mass->Assemble();
 
     ifH1mass[interfaceIndex] = new HypreParMatrix();
+
+#ifdef ZERO_RHO_BC
+    {
+      H1_ess_bdr.SetSize(pmeshIF[interfaceIndex]->bdr_attributes.Max());
+      H1_ess_bdr = 1;
+
+      iH1fespace[interfaceIndex]->GetEssentialTrueDofs(H1_ess_bdr, H1_ess_tdof_list);
+    }    
+#endif
     
-    H1mass->FormSystemMatrix(ess_tdof_list, *(ifH1mass[interfaceIndex]));
+    H1mass->FormSystemMatrix(H1_ess_tdof_list, *(ifH1mass[interfaceIndex]));
 
     {
       /*
@@ -1599,7 +2089,7 @@ private:
 
       HypreParMatrix *ifH1stiff = new HypreParMatrix();
     
-      H1stiff->FormSystemMatrix(ess_tdof_list, *ifH1stiff);
+      H1stiff->FormSystemMatrix(H1_ess_tdof_list, *ifH1stiff);
       Operator *ifH1massSP = new STRUMPACKRowLocMatrix(*ifH1stiff);
       ifH1massInv[interfaceIndex] = CreateStrumpackSolver(ifH1massSP, iH1fespace[interfaceIndex]->GetComm());
     }
@@ -1608,10 +2098,27 @@ private:
     ParMixedBilinearForm *NDH1grad = new ParMixedBilinearForm(iH1fespace[interfaceIndex], ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
     NDH1grad->AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
     NDH1grad->Assemble();
-    NDH1grad->Finalize();
 
+#ifdef ZERO_RHO_BC
+    {
+      Array<int> ess_bdr(pmeshIF[interfaceIndex]->bdr_attributes.Max());
+      cout << myid << ": ess_bdr size " << pmeshIF[interfaceIndex]->bdr_attributes.Max() << endl;
+      ess_bdr = 1;
+      
+      Vector testDummy(ifespace[interfaceIndex]->GetVSize());  // TODO: is this necessary?
+      Vector trialDummy(iH1fespace[interfaceIndex]->GetVSize());
+
+      testDummy = 0.0;
+      trialDummy = 0.0;
+      
+      NDH1grad->EliminateTrialDofs(ess_bdr, trialDummy, testDummy);
+    }
+#endif
+    
+    NDH1grad->Finalize();
+    
     //ifNDH1grad[interfaceIndex] = new HypreParMatrix();
-    //NDH1grad.FormSystemMatrix(ess_tdof_list, *(ifNDH1grad[interfaceIndex]));
+    //NDH1grad->FormSystemMatrix(ess_tdof_list, *(ifNDH1grad[interfaceIndex]));
     ifNDH1grad[interfaceIndex] = NDH1grad->ParallelAssemble();
     ifNDH1gradT[interfaceIndex] = ifNDH1grad[interfaceIndex]->Transpose();
     
@@ -2115,7 +2622,12 @@ private:
 #ifdef SCHURCOMPSD
 	// Modify the A_m^{FF} block by subtracting A_m^{F\rho} A_m^{\rho\rho}^{-1} A_m^{\rho F}; drop the A_m^{F\rho} block
 #else
-	op->SetBlock((2*i) + 1, (2*i) + 2, ifNDH1grad[interfaceIndex], gammaOverAlpha);
+#ifdef ELIMINATE_REDUNDANT_VARS
+	if (subdomain == 0)
+#endif
+	{
+	  op->SetBlock((2*i) + 1, (2*i) + 2, ifNDH1grad[interfaceIndex], gammaOverAlpha);
+	}
 #endif
 	
 	// In PengLee2012 A_m^{FS} corresponds to
@@ -2124,6 +2636,10 @@ private:
 	// <w_m, \pi_{mn}(u_m)>_{S_{mn}} + beta/alpha <curl_\tau w_m, curl_\tau \pi_{mn}(u_m)>_{S_{mn}}
 	// This is an interface mass plus curl-curl stiffness matrix.
 
+#ifdef ELIMINATE_REDUNDANT_VARS
+	if (subdomain == 0)
+#endif
+	  {
 #ifdef DDMCOMPLEX
 	if (realPart)
 #endif
@@ -2136,18 +2652,24 @@ private:
 	    op->SetBlock((2*i) + 1, 0, new ProductOperator(ifNDcurlcurl[interfaceIndex], new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]), false, false),  betaOverAlpha);
 	  }
 #endif
+	  }
 
 	// In PengLee2012 A_m^{\rho F} corresponds to
 	// <\nabla_\tau \psi_m, \mu_{rm}^{-1} f_{mn}>_{S_{mn}}
 	// The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
 	//op->SetBlock((2*i) + 2, (2*i) + 1, new TransposeOperator(ifNDH1grad[interfaceIndex]));  // TODO: Without this block, the block diagonal preconditioner works very well!
+#ifdef ELIMINATE_REDUNDANT_VARS
+	if (subdomain == 0)
+#endif	  
+	  {
 #ifdef DDMCOMPLEX
 	if (realPart)
 #endif
 	  {
 	    op->SetBlock((2*i) + 2, (2*i) + 1, ifNDH1gradT[interfaceIndex]);
 	  }
-	
+	  }
+
 	// Diagonal blocks
 
 	// In PengLee2012 A_m^{FF} corresponds to
@@ -2164,9 +2686,19 @@ private:
 										     false, false, false),
 							   false, false, 1.0 / alpha, -gamma / alpha));
 #else
-	op->SetBlock((2*i) + 1, (2*i) + 1, ifNDmass[interfaceIndex], alphaInverse);
-#endif
+#ifdef ELIMINATE_REDUNDANT_VARS
+	if (realPart && subdomain == 1)
+	  {
+	    op->SetBlock((2*i) + 1, (2*i) + 1, new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()));
+	  }
 	
+	if (subdomain == 0)
+#endif
+	{
+	  op->SetBlock((2*i) + 1, (2*i) + 1, ifNDmass[interfaceIndex], alphaInverse);
+	}
+#endif
+
 	// In PengLee2012 A_m^{\rho\rho} corresponds to
 	// <\psi_m, \rho_m>_{S_{mn}}
 	// This is an interface H^1 mass matrix.
@@ -2175,9 +2707,18 @@ private:
 	if (realPart)
 #endif
 	  {
-	    op->SetBlock((2*i) + 2, (2*i) + 2, ifH1mass[interfaceIndex]);
+#ifdef ELIMINATE_REDUNDANT_VARS
+	    if (subdomain == 1)
+	      {
+		op->SetBlock((2*i) + 2, (2*i) + 2, new IdentityOperator(iH1fespace[interfaceIndex]->GetTrueVSize()));
+	      }
+	    else
+#endif
+	    {
+	      op->SetBlock((2*i) + 2, (2*i) + 2, ifH1mass[interfaceIndex]);
+	    }
 	  }
-	
+
 	// TODO: should we equate redundant corner DOF's for f and \rho?
       }
     

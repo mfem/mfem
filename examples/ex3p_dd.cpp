@@ -53,7 +53,9 @@ void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
 
-#define SIGMAVAL -250.0
+//#define SIGMAVAL -250.0
+#define SIGMAVAL -2.0
+//#define SIGMAVAL -100.0
 
 
 void VisitTestPlotParMesh(const std::string filename, ParMesh *pmesh, const int ifId, const int myid)
@@ -107,7 +109,8 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/beam-tet.mesh";
+   //const char *mesh_file = "../data/beam-tet.mesh";
+   const char *mesh_file = "../data/inline-tet.mesh";
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
@@ -163,7 +166,7 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -173,7 +176,7 @@ int main(int argc, char *argv[])
 
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {2, 1, 1};
+   int nxyzSubdomains[3] = {1, 2, 1};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -192,7 +195,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -308,6 +311,7 @@ int main(int argc, char *argv[])
    }
 
    // 6.1. Create interface operator.
+
    DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmesh, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
 			    &interfaces, &interfaceGlobalToLocalMap);  // PengLee2012 uses order 2 
 
@@ -316,18 +320,21 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr;
    if (pmesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+     //Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr.SetSize(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   
+
    // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (f,phi_i) where f is given by the function f_exact and phi_i are the
    //    basis functions in the finite element fespace.
-   VectorFunctionCoefficient f(sdim, f_exact);
+   //VectorFunctionCoefficient f(sdim, f_exact);
+   VectorFunctionCoefficient f(sdim, test2_RHS_exact);
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
    b->Assemble();
@@ -338,7 +345,8 @@ int main(int argc, char *argv[])
    //    when eliminating the non-homogeneous boundary condition to modify the
    //    r.h.s. vector b.
    ParGridFunction x(fespace);
-   VectorFunctionCoefficient E(sdim, E_exact);
+   //VectorFunctionCoefficient E(sdim, E_exact);
+   VectorFunctionCoefficient E(sdim, test2_E_exact);
    x.ProjectCoefficient(E);
 
    // 10. Set up the parallel bilinear form corresponding to the EM diffusion
@@ -359,14 +367,121 @@ int main(int argc, char *argv[])
    //     constraints for non-conforming AMR, static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
+   a->Finalize();
 
    HypreParMatrix A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   //a->FormSystemMatrix(ess_tdof_list, A);
 
+   //HypreParMatrix *Apa = a->ParallelAssemble();
+
+   if (false)
+   { // Output ddi as a DenseMatrix
+     const int Ndd = ddi.Height();
+     Vector ej(Ndd);
+     Vector Aej(Ndd);
+     DenseMatrix ddd(Ndd);
+     
+     for (int j=0; j<Ndd; ++j)
+       {
+	 cout << "Computing column " << j << " of " << Ndd << " of ddi" << endl;
+	 
+	 ej = 0.0;
+	 ej[j] = 1.0;
+	 ddi.Mult(ej, Aej);
+
+	 for (int i=0; i<Ndd; ++i)
+	   {
+	     ddd(i,j) = Aej[i];
+	   }
+       }
+
+     ofstream ost("ddimat.mat", std::ofstream::out);
+     ddd.PrintMatlab(ost);
+   }
+   
+   if (false)
+   { // Test projection as solution
+     ParBilinearForm *mbf = new ParBilinearForm(fespace);
+     mbf->AddDomainIntegrator(new VectorFEMassIntegrator(*muinv));
+     mbf->Assemble();
+     mbf->Finalize();
+
+     HypreParMatrix Mtest;
+
+     mbf->FormSystemMatrix(ess_tdof_list, Mtest);
+     //HypreParMatrix *Mpa = mbf->ParallelAssemble();
+     
+     ParGridFunction tgf(fespace);
+
+     Vector uproj(fespace->GetTrueVSize());
+     Vector Auproj(fespace->GetTrueVSize());
+     Vector yproj(fespace->GetTrueVSize());
+     Vector Myproj(fespace->GetTrueVSize());
+     Vector MinvAuproj(fespace->GetTrueVSize());
+
+     VectorFunctionCoefficient utest(3, test2_E_exact);
+     VectorFunctionCoefficient ytest(3, test2_RHS_exact);
+
+     tgf.ProjectCoefficient(utest);
+     tgf.GetTrueDofs(uproj);
+
+     tgf.ProjectCoefficient(ytest);
+     tgf.GetTrueDofs(yproj);
+
+     cout << myid << ": Norm of yproj " << yproj.Norml2() << endl;
+
+     Mtest.Mult(yproj, Myproj);
+     //Mpa->Mult(yproj, Myproj);
+
+     cout << myid << ": Norm of Myproj " << Myproj.Norml2() << endl;
+
+     A.Mult(uproj, Auproj);
+     //Apa->Mult(uproj, Auproj);
+
+     {
+       HypreSolver *amg = new HypreBoomerAMG(Mtest);
+       HyprePCG *pcg = new HyprePCG(Mtest);
+       pcg->SetTol(1e-12);
+       pcg->SetMaxIter(200);
+       pcg->SetPrintLevel(2);
+       pcg->SetPreconditioner(*amg);
+       pcg->Mult(Auproj, MinvAuproj);
+
+       //MinvAuproj -= yproj;
+       
+       tgf.SetFromTrueDofs(MinvAuproj);
+
+       Vector zeroVec(3);
+       zeroVec = 0.0;
+       VectorConstantCoefficient vzero(zeroVec);
+
+       //double L2e = tgf.ComputeL2Error(vzero);
+       double L2e = tgf.ComputeL2Error(ytest);
+
+       cout << myid << ": L2 error of MinvAuproj - yproj: " << L2e << endl;
+     }
+     
+     cout << myid << ": Norm of Auproj " << Auproj.Norml2() << endl;
+
+     Myproj -= Auproj;
+     cout << myid << ": Norm of diff " << Myproj.Norml2() << endl;
+
+     delete mbf;
+   }
+
+   //return;
+   
    if (myid == 0)
    {
       cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+   }
+   
+   {
+     cout << myid << ": A size " << A.Height() << " x " << A.Width() << endl;
+     cout << myid << ": X size " << X.Size() << ", B size " << B.Size() << endl;
+     cout << myid << ": fespace size " << fespace->GetVSize() << ", true size " << fespace->GetTrueVSize() << endl;
    }
 
    StopWatch chrono;
@@ -388,9 +503,9 @@ int main(int argc, char *argv[])
        B_Im = 0.0;
 
        ddi.GetReducedSource(fespace, B, B_Im, Bdd);
+       //ddi.FullSystemAnalyticTest();
 
-       /*
-       Bdd = 1.0;
+       //Bdd = 1.0;
 
        cout << "Solving DD system" << endl;
 
@@ -401,11 +516,13 @@ int main(int argc, char *argv[])
        gmres->SetMaxIter(1000);
        gmres->SetPrintLevel(1);
 
-       //gmres->SetPreconditioner(*ams);
+       gmres->SetName("ddi");
+       
+       xdd = 0.0;
        gmres->Mult(Bdd, xdd);
-
+       //ddi.Mult(Bdd, xdd);
+       
        delete gmres;
-       */
      }
 
 #ifdef MFEM_USE_STRUMPACK
@@ -415,8 +532,9 @@ int main(int argc, char *argv[])
 
        if (fullDirect)
 	 {
-	   /*
+
 	   cout << "FULL DIRECT SOLVER" << endl;
+	   /*
 	   Operator * Arow = new STRUMPACKRowLocMatrix(A);
 
 	   STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
