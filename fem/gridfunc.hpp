@@ -104,7 +104,9 @@ public:
    GridFunction &operator=(const GridFunction &rhs)
    { return operator=((const Vector &)rhs); }
 
-   /// Make the GridFunction the owner of 'fec' and 'fes'
+   /// Make the GridFunction the owner of #fec and #fes.
+   /** If the new FiniteElementCollection, @a _fec, is NULL, ownership of #fec
+       and #fes is taken away. */
    void MakeOwner(FiniteElementCollection *_fec) { fec = _fec; }
 
    FiniteElementCollection *OwnFEC() { return fec; }
