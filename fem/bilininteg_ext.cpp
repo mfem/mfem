@@ -861,6 +861,12 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
    }
 }
 
+// FA Advection Assemble kernel
+void ConvectionIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
+{
+  MFEM_ABORT("TODO Convection FA_Assemble method \n");
+}
+
 // PA Mass Assemble kernel
 void MassIntegrator::Assemble(const FiniteElementSpace &fes)
 {

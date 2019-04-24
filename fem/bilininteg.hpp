@@ -32,7 +32,8 @@ public:
    virtual void Assemble(const FiniteElementSpace&);
 
     /// Method defining full assembly.
-   virtual void FA_Assemble(const FiniteElementSpace&, Vector *) {};
+   virtual void FA_Assemble(const FiniteElementSpace&, Vector *)
+   {MFEM_ABORT("FA_Assemble kernel not implemented")};
 
    /// Method for partially assembled action.
    virtual void MultAssembled(Vector&, Vector&);
@@ -1762,6 +1763,10 @@ private:
 public:
    ConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
       : Q(q) { alpha = a; }
+
+   //FA extension ?
+   void FA_Assemble(const FiniteElementSpace&, Vector *);
+
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);

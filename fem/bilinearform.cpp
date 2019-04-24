@@ -365,6 +365,8 @@ void BilinearForm::Assemble(int skip_zeros)
    //Move data to appropriate space
    if(ext && ext->Me) {mm.Ptr(ext->Me.GetData());};
 
+   Device::Enable();
+
    //Intialize Matrix - does not set up row/col/data pointers
    if (mat == NULL)
    {
