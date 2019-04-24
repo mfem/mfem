@@ -145,6 +145,10 @@ New and improved solvers and preconditioners
 
 Miscellaneous
 -------------
+- In SparseMatrix added the option to perform MultTranspose() by matvec with
+  computed and stored transpose matrix. This is required for deterministic
+  results when using devices such as CUDA and OpenMP.
+
 - Added unit tests based on the Catch++ library.
 
 - Renamed the option MFEM_USE_OPENMP to MFEM_USE_LEGACY_OPENMP. This legacy

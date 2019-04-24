@@ -228,20 +228,21 @@ public:
 
    /** @brief Build and store internally the transpose of this matrix which will
        be used in the methods AddMultTranspose() and MultTranspose(). */
-   /** Any changes in this matrix will invalidate the internal transpose. To
-       rebuild the transpose, call ResetTranspose() followed by a call to this
-       method. If the internal transpose is already built, this method has no
-       effect.
+   /** If this method has been called, the internal transpose matrix will be
+       used to perform the action of the transpose matrix in AddMultTranspose(),
+       and MultTranspose().
+
+       Warning: any changes in this matrix will invalidate the internal
+       transpose. To rebuild the transpose, call ResetTranspose() followed by a
+       call to this method. If the internal transpose is already built, this
+       method has no effect.
 
        When any non-default backend is enabled, i.e. Device::IsEnabled() is
        true, the methods AddMultTranspose(), and MultTranspose(), require the
        internal transpose to be built. If that is not the case (i.e. the
        internal transpose is not built), these methods will raise an error with
-       an appropriate message pointing to this method.
-
-       When using the default backend, calling this method is optional. If this
-       method has been called, the internal transpose matrix will be used to
-       perform the action of the transpose matrix.
+       an appropriate message pointing to this method. When using the default
+       backend, calling this method is optional.
 
        This method can only be used when the sparse matrix is finalized. */
    void BuildTranspose() const;
