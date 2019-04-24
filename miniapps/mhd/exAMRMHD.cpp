@@ -102,6 +102,12 @@ double BackPsi3(const Vector &x)
    return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) );
 }
 
+double E0rhs3(const Vector &x)
+{
+   double ep=.2;
+   return resiG*(ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
+}
+
 void AMRUpdate(BlockVector &S,
                Array<int> &true_offset,
                GridFunction &phi,
@@ -304,7 +310,7 @@ int main(int argc, char *argv[])
    derefiner.SetNCLimit(nc_limit);
    //-----------------------------------AMR---------------------------------
 
-   //-----------------------------------Generate grid---------------------------------
+   //-----------------------------------Generate AMR grid---------------------------------
    AMRResistiveMHDOperator operTmp(fespace, ess_bdr, visc, resi);
    BlockVector vx_old(vxTmp);
    operTmp.assembleProblem(ess_bdr); 
@@ -345,7 +351,7 @@ int main(int argc, char *argv[])
      }
    }
    cout<<"Finish initial mesh refine..."<<endl;
-   //-----------------------------------Generate grid---------------------------------
+   //-----------------------------------Generate AMR grid---------------------------------
 
 
    //-----------------------------------Initial solution on AMR grid---------------------------------
@@ -363,6 +369,11 @@ int main(int argc, char *argv[])
    if (icase==2)  //add the source term
    {
        FunctionCoefficient e0(E0rhs);
+       oper.SetRHSEfield(e0);
+   }
+   else if (icase==3)
+   {
+       FunctionCoefficient e0(E0rhs3);
        oper.SetRHSEfield(e0);
    }
 
@@ -419,7 +430,6 @@ int main(int argc, char *argv[])
    psiBack.SetTrueVector();
 
    socketstream vis_phi, vis_j, vis_psi, vis_w;
-   //subtract(psi,psiBack,psiPer);
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -470,7 +480,7 @@ int main(int argc, char *argv[])
    ode_solver->Init(oper);
    bool last_step = false;
 
-   //reset ltol_amr for real simulation
+   //reset ltol_amr for full simulation
    refiner.SetTotalErrorGoal(ltol_amr);    // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
 
@@ -662,11 +672,6 @@ int main(int argc, char *argv[])
       osol3.precision(8);
       psi.Save(osol3);
 
-      //subtract(psi,psiBack,psiPer);
-      //ofstream osol5("psiPer.sol");
-      //osol5.precision(8);
-      //psiPer.Save(osol5);
-
       ofstream osol4("omega.sol");
       osol4.precision(8);
       w.Save(osol4);
@@ -675,6 +680,7 @@ int main(int argc, char *argv[])
    // 10. Free the used memory.
    delete ode_solver;
    delete mesh;
+   delete integ;
 
    return 0;
 }

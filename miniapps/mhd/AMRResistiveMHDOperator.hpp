@@ -83,7 +83,7 @@ AMRResistiveMHDOperator::AMRResistiveMHDOperator(FiniteElementSpace &f,
    KB->AddDomainIntegrator(new DiffusionIntegrator);      //  K matrix
    KB->AddBdrFaceIntegrator(new BoundaryGradIntegrator);  // -B matrix
 
-   //resi_coeff and visc_coeff have to be stored for assembling for some strange reason
+   //resi_coeff and visc_coeff have to be stored for assembling for some reason
    DRe = new BilinearForm(&fespace);
    DRe->AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
 
@@ -93,8 +93,6 @@ AMRResistiveMHDOperator::AMRResistiveMHDOperator(FiniteElementSpace &f,
 
 void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
 {
-   //const double rel_tol = 1e-8;
-
    //update ess_tdof_list
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -113,7 +111,7 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(500);
+   M_solver.SetMaxIter(1000);
    M_solver.SetPrintLevel(0);
    M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
@@ -127,7 +125,7 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    K_solver.iterative_mode = true;
    K_solver.SetRelTol(rel_tol);
    K_solver.SetAbsTol(0.0);
-   K_solver.SetMaxIter(500);
+   K_solver.SetMaxIter(1000);
    K_solver.SetPrintLevel(0);
    K_solver.SetPreconditioner(*K_prec);
    K_solver.SetOperator(Kmat);
@@ -243,17 +241,12 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
      z += *E0;
    z.Neg(); // z = -z
 
-   /*
-   ofstream myfile("zLHS1.dat");
-   z.Print(myfile, 1000);
-   */
-
    //another way; but it is slower
    SparseMatrix A;
    Vector B, X;
    M->FormLinearSystem(ess_tdof_list, dpsi_dt, z, A, X, B); // Alters matrix and rhs to enforce bc
    GSSmoother Mpre(A);
-   PCG(A, Mpre, B, X, 0, 500, 1e-12, 0.0); 
+   PCG(A, Mpre, B, X, 0, 1000, 1e-14, 0.0); 
    M->RecoverFEMSolution(X, z, dpsi_dt);
 
    //ofstream myfile("A1.dat");
@@ -275,7 +268,7 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Nb->AddMult(j, z);
 
    M->FormLinearSystem(ess_tdof_list, dw_dt, z, A, X, B); // Alters matrix and rhs to enforce bc
-   PCG(A, Mpre, B, X, 0, 500, 1e-12, 0.0); 
+   PCG(A, Mpre, B, X, 0, 1000, 1e-14, 0.0); 
    M->RecoverFEMSolution(X, z, dw_dt);
 
 
@@ -310,7 +303,7 @@ void AMRResistiveMHDOperator::UpdateJ(Vector &vx)
    Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
    
    z.SetSize(sc);
-   cout <<"======Update J======"<<endl;
+   //cout <<"======Update J======"<<endl;
 
    /*
    cout << "Number of scalar unknowns in psi: (UpdateJ) " <<  psi.Size()<< endl;
@@ -329,7 +322,7 @@ void AMRResistiveMHDOperator::UpdateJ(Vector &vx)
    //(j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)
    M->FormLinearSystem(ess_tdof_list, j, z, A, Y, Z);
    GSSmoother Mpre(A);
-   PCG(A, Mpre, Z, Y, 0, 500, 1e-12, 0.0); 
+   PCG(A, Mpre, Z, Y, 0, 1000, 1e-14, 0.0); 
    M->RecoverFEMSolution(Y, z, j);
 
 }
@@ -350,7 +343,7 @@ void AMRResistiveMHDOperator::BackSolvePsi(Vector &vx)
    Vector B, X;
    K->FormLinearSystem(ess_tdof_list, psi, z, A, X, B); // Alters matrix and rhs to enforce bc
    GSSmoother Mpre(A);
-   PCG(A, Mpre, B, X, 0, 1000, 1e-12, 0.0); 
+   PCG(A, Mpre, B, X, 0, 1000, 1e-14, 0.0); 
    K->RecoverFEMSolution(X, z, psi);
 }
 
@@ -373,9 +366,8 @@ void AMRResistiveMHDOperator::UpdatePhi(Vector &vx)
    Vector B, X;
    K->FormLinearSystem(ess_tdof_list, phi, z, A, X, B); // Alters matrix and rhs to enforce bc
    GSSmoother Mpre(A);
-   PCG(A, Mpre, B, X, 0, 500, 1e-12, 0.0); 
+   PCG(A, Mpre, B, X, 0, 1000, 1e-14, 0.0); 
    K->RecoverFEMSolution(X, z, phi);
-
  
    //K_solver.Mult(z, phi);
 }
@@ -392,6 +384,7 @@ AMRResistiveMHDOperator::~AMRResistiveMHDOperator()
     delete Nb;
     delete DRe;
     delete DSl;
+    delete E0;
     delete M_prec;
     delete K_prec;
 }
