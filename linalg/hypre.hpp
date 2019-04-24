@@ -997,6 +997,14 @@ public:
    void SetCycleType(int cycle_type)
    { HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type); }
 
+   void SetNodal(int blocksize)
+   { HYPRE_BoomerAMGSetNumFunctions(amg_precond, blocksize);
+     HYPRE_BoomerAMGSetNodal(amg_precond, 1); }
+
+   void SetAggressiveCoarsening(int num_levels)
+   { HYPRE_BoomerAMGSetAggNumLevels(amg_precond, num_levels); }
+
+
    /// The typecast to HYPRE_Solver returns the internal amg_precond
    virtual operator HYPRE_Solver() const { return amg_precond; }
 
