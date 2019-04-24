@@ -22,6 +22,9 @@
 
 #ifdef MFEM_USE_RAJA
 #include "RAJA/RAJA.hpp"
+#if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
+#error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
+#endif
 #endif
 
 namespace mfem

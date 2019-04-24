@@ -54,7 +54,7 @@ following package managers:
 
 - Spack, https://github.com/spack/spack
 - OpenHPC, http://openhpc.community
-- Homebrew/Science, https://github.com/Homebrew/homebrew-science
+- Homebrew/Science, https://github.com/Homebrew/homebrew-science (deprecated)
 
 We also recommend downloading and building the MFEM-based GLVis visualization
 tool which can be used to visualize the meshes and solution in MFEM's examples
@@ -98,6 +98,12 @@ Parallel build:
    (build hypre in ../hypre relative to mfem/)
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
    cmake <mfem-source-dir> -DMFEM_USE_MPI=YES
+   make -j 4
+
+CUDA build:
+   (this build requires CMake 3.8 or newer)
+   mkdir <mfem-build-dir> ; cd <mfem-build-dir>
+   cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES
    make -j 4
 
 Example codes (serial/parallel, depending on the build):
@@ -399,7 +405,8 @@ MFEM_USE_PUMI = YES/NO
 
 MFEM_USE_MM = YES/NO
    Enables support for the MFEM's memory manager (MM), which is required to
-   support devices with different memory spaces.
+   support devices with different memory spaces. This option is required when
+   CUDA support is enabled, i.e. when MFEM_USE_CUDA=YES.
 
 MFEM_USE_CUDA = YES/NO
    Enables support for CUDA devices in MFEM. CUDA is a parallel computing
@@ -412,13 +419,15 @@ MFEM_USE_CUDA = YES/NO
 MFEM_USE_RAJA = YES/NO
    Enable support for the RAJA performance portability layer in MFEM. RAJA
    provides a portable abstraction for loops, supporting different programming
-   model backends. When using the RAJA CUDA backend, MFEM_USE_MM is required.
+   model backends. When using RAJA built with CUDA support, CUDA support must be
+   also enabled in MFEM, i.e. MFEM_USE_CUDA=YES must be set.
 
 MFEM_USE_OCCA = YES/NO
    Enables support for the OCCA library in MFEM. OCCA is an open-source library
    which aims to make it easy to program different types of devices (e.g. CPU,
    GPU, FPGA) by providing an unified API for interacting with JIT-compiled
-   backends. When using the OCCA CUDA backend, MFEM_USE_MM is required.
+   backends. In order to use the OCCA CUDA backend, CUDA support must be enabled
+   in MFEM as well, i.e. MFEM_USE_CUDA=YES must be set.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
@@ -651,6 +660,8 @@ Configuration variables (CMake)
 ===============================
 See the configuration file config/defaults.cmake for the default settings.
 
+Note: the option MFEM_USE_CUDA requires CMake version 3.8 or newer!
+
 Non-standard CMake variables for compilers:
    CXX    - If set, overwrite the auto-detected C++ compiler, serial build
    MPICXX - If set, overwrite the auto-detected MPI C++ compiler, parallel build
@@ -681,9 +692,6 @@ MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_GZSTREAM
 MFEM_USE_PUMI
-
-The following GNU make options are not supported with CMake yet:
-
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_RAJA
@@ -734,6 +742,8 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - LIBUNWIND
  - POSIXCLOCKS
  - PUMI
+ - OCCA
+ - RAJA
 
 The following built-in CMake packages are also used:
 
