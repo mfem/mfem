@@ -197,18 +197,22 @@ int main(int argc, char *argv[])
    m.SetAssemblyLevel(AssemblyLevel::FULL);
    m.AddDomainIntegrator(new MassIntegrator);
    BilinearForm k(&fes);
+   k.SetAssemblyLevel(AssemblyLevel::FULL);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
 
    LinearForm b(&fes);
 
    m.Assemble();
    m.Finalize();
-   Device::Disable();
 
+   printf("\n Assembled Mass matrix \n \n");
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
    k.Finalize(skip_zeros);
+   printf("\n  Assembled Convection matrix \n \n");
+
    b.Assemble();
+   Device::Disable();
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
