@@ -131,79 +131,53 @@ void findpts_gslib::gslib_findpts(Vector &point_pos, Array<uint> &codes,
    }
 }
 
-void findpts_gslib::gslib_findpts_eval(
-      Vector *fieldout, Array<uint> *pcode, Array<uint>  *pproc, Array<uint>  *pel, Vector *pr,
-      Vector *fieldin, int nxyz)
+void findpts_gslib::gslib_findpts_eval(Array<uint> &codes, Array<uint> &proc_ids,
+                                       Array<uint> &elem_ids, Vector &ref_pos,
+                                       const GridFunction &field_in,
+                                       Vector &field_out)
 {
+   const int points_cnt = ref_pos.Size() / dim;
+   Vector node_vals(nel * ir.GetNPoints());
+   GetNodeValues(field_in, node_vals);
+
    if (dim==2)
    {
-      findpts_eval_2(fieldout->GetData(),sizeof(double),
-                     pcode->GetData(),sizeof(uint),
-                     pproc->GetData(),sizeof(uint),
-                     pel->GetData(),sizeof(uint),
-                     pr->GetData(),sizeof(double)*dim,
-                     nxyz,fieldin->GetData(),this->fda);
+      findpts_eval_2(field_out.GetData(), sizeof(double),
+                     codes.GetData(), sizeof(uint),
+                     proc_ids.GetData(), sizeof(uint),
+                     elem_ids.GetData(), sizeof(uint),
+                     ref_pos.GetData(), sizeof(double) * dim,
+                     points_cnt, field_in.GetData(), fda);
    }
    else
    {
-      findpts_eval_3(fieldout->GetData(),sizeof(double),
-                     pcode->GetData(),sizeof(uint),
-                     pproc->GetData(),sizeof(uint),
-                     pel->GetData(),sizeof(uint),
-                     pr->GetData(),sizeof(double)*dim,
-                     nxyz,fieldin->GetData(),this->fdb);
-   }
-}
-
-#ifdef MFEM_USE_MPI
-void findpts_gslib::gslib_findpts_eval(
-            Vector *fieldout, Array<uint> *pcode, Array<uint>  *pproc, Array<uint>  *pel, Vector *pr,
-            ParGridFunction *fieldin, int nxyz)
-#else
-void findpts_gslib::gslib_findpts_eval(
-            Vector *fieldout, Array<uint> *pcode, Array<uint>  *pproc, Array<uint>  *pel, Vector *pr,
-            GridFunction *fieldin, int nxyz)
-#endif
-{
-// convert gridfunction to double field
-   Vector fin(msz);
-   int nsp = pow(qo,dim);
-   int np = 0;
-   for (int i = 0; i < nel; i++)
-   {
-      for (int j = 0; j < nsp; j++)
-      {
-        const IntegrationPoint &ip = this->ir.IntPoint(j);
-        *(fin.GetData()+np) = fieldin->GetValue(i, ip);
-        np = np+1;
-      }
-   }
-
-   gslib_findpts_eval(fieldout,pcode,pproc,pel,pr,&fin,nxyz);
-}
-
-#ifdef MFEM_USE_MPI
-void findpts_gslib::gf2vec(ParGridFunction *fieldin, Vector *fieldout)
-#else
-void findpts_gslib::gf2vec(GridFunction *fieldin, Vector *fieldout)
-#endif
-{
-   int nsp = pow(qo,dim);
-   int np = 0;
-   for (int i = 0; i < nel; i++)
-   {
-      for (int j = 0; j < nsp; j++)
-      {
-        const IntegrationPoint &ip = this->ir.IntPoint(j);
-        *(fieldout->GetData()+np) = fieldin->GetValue(i, ip);
-        np = np+1;
-      }
+      findpts_eval_3(field_out.GetData(), sizeof(double),
+                     codes.GetData(), sizeof(uint),
+                     proc_ids.GetData(), sizeof(uint),
+                     elem_ids.GetData(), sizeof(uint),
+                     ref_pos.GetData(), sizeof(double) * dim,
+                     points_cnt, field_in.GetData(), fdb);
    }
 }
 
 void findpts_gslib::gslib_findpts_free()
 {
    (dim == 2) ? findpts_free_2(this->fda) : findpts_free_3(this->fdb);
+}
+
+void findpts_gslib::GetNodeValues(const GridFunction &gf_in, Vector &node_vals)
+{
+   MFEM_ASSERT(gf_in.FESpace()->GetVDim() == 1, "Scalar function expected.");
+
+   const int nsp = ir.GetNPoints();
+   Vector vals_el;
+
+   int pt_id = 0;
+   for (int i = 0; i < nel; i++)
+   {
+      gf_in.GetValues(i, ir, vals_el);
+      for (int j = 0; j < nsp; j++) { node_vals(pt_id++) = vals_el(j); }
+   }
 }
 
 } // namespace mfem

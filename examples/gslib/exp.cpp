@@ -11,6 +11,15 @@ using namespace std;
 
 IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 
+// Initial condition
+double field_func(const Vector &x)
+{
+   const int dim = x.Size();
+   double res = 0.0;
+   for (int d = 0; d < dim; d++) { res += x(d) * x(d); }
+   return res;
+}
+
 int main (int argc, char *argv[])
 {
    // Initialize MPI.
@@ -97,49 +106,18 @@ int main (int argc, char *argv[])
    pmesh->SetNodalGridFunction(&x);
 
    // 9. Setup the quadrature rule for the non-linear form integrator.
-   const IntegrationRule *ir = NULL;
-   const int geom_type = pfespace->GetFE(0)->GetGeomType();
-   if (quad_order > 4)
-   {
-      if (quad_order % 2 == 0) {quad_order = 2*quad_order - 4;}
-      else {quad_order = 2*quad_order - 3;}
-   }
-   switch (quad_type)
-   {
-      case 1: ir = &IntRulesLo.Get(geom_type, quad_order);
-   }
-   if (myid==0) {cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;}
-
-   const int NE = pfespace->GetMesh()->GetNE(), nsp = ir->GetNPoints();
+   const IntegrationRule &ir = pfespace->GetFE(0)->GetNodes();
+   const int NE = pfespace->GetMesh()->GetNE(), nsp = ir.GetNPoints();
+   if (myid==0) {cout << "Quadrature points per cell: " << nsp << endl; }
    
    ParGridFunction nodes(pfespace);
    pmesh->GetNodes(nodes);
 
-   int NR = sqrt(nsp);
-   if (dim==3) {NR = cbrt(nsp);}
-
-   int sz1 = pow(NR,dim);
-   Vector fx(dim*NE*sz1);
-   Vector dumfield(NE*sz1);
-
-   int pt_id = 0;
-   int tnp = NE*nsp;
-   for (int i = 0; i < NE; i++)
-   {
-      for (int j = 0; j < nsp; j++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         fx[pt_id] = nodes.GetValue(i, ip, 1);
-         fx[tnp+pt_id] = nodes.GetValue(i, ip, 2);
-         dumfield[pt_id] = pow(fx[pt_id],2)+pow(fx[tnp+pt_id],2);
-         if (dim==3)
-         {
-            fx[2*tnp+pt_id] =nodes.GetValue(i, ip, 3);
-            dumfield[pt_id] += pow(fx[2*tnp+pt_id],2);
-         }
-         pt_id++;
-      }
-   }
+   // Define some scalar function on the mesh.
+   ParFiniteElementSpace sc_fes(pmesh, fec, 1);
+   GridFunction field_vals(&sc_fes);
+   FunctionCoefficient fc(field_func);
+   field_vals.ProjectCoefficient(fc);
 
    findpts_gslib *gsfl = new findpts_gslib(MPI_COMM_WORLD);
    const double rel_bbox_el = 0.05;
@@ -153,7 +131,7 @@ int main (int argc, char *argv[])
    Vector rrxa(pts_cnt), rrya(pts_cnt), rrza(pts_cnt);
    Vector vxyz(pts_cnt * dim);
 
-   pt_id = 0;
+   int pt_id = 0;
    IntegrationPoint ipt;
    Vector pos;
    for (int i = 0; i < NE; i++)
@@ -190,7 +168,9 @@ int main (int argc, char *argv[])
    // Corresponds to the same points as above (vxyz) -- uses that output.
    // Returns function values in fout.
    // Note that the points where dumfield is defined are the ones given to _setup.
-   gsfl->gslib_findpts_eval(&fout, &code_out, &task_id_out, &el_id_out, &pos_r_out, &dumfield, pts_cnt);
+   gsfl->gslib_findpts_eval(code_out, task_id_out, el_id_out,
+                            pos_r_out, field_vals, fout);
+
    gsfl->gslib_findpts_free();
 
    int nbp = 0, nnpt = 0, nerrh = 0;

@@ -33,6 +33,8 @@ private:
 
    struct comm cc;
 
+   void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
+
 public:
    findpts_gslib();
 
@@ -70,29 +72,23 @@ public:
                       Array<uint> &proc_ids, Array<uint> &elem_ids,
                       Vector &ref_pos, Vector &dist);
 
-//    Interpolates fieldin for given r,s,t,e,p and puts it in fieldout
-      void gslib_findpts_eval (Vector *fieldout,Array<uint> *pcode,Array<uint> *pproc,
-           Array<uint> *pel,Vector *pr,Vector *fieldin, int nxyz);
+   /** Interpolation of field values at prescribed reference space positions.
 
-//    Interpolates ParGrudFunction for given r,s,t,e,p and puts it in fieldout
-#ifdef MFEM_USE_MPI
-      void gslib_findpts_eval (Vector *fieldout,Array<uint> *pcode,Array<uint> *pproc,
-           Array<uint> *pel,Vector *pr,ParGridFunction *fieldin, int nxyz);
-#else
-      void gslib_findpts_eval (Vector *fieldout,Array<uint> *pcode,Array<uint> *pproc,
-           Array<uint> *pel,Vector *pr,GridFunction *fieldin, int nxyz);
-#endif
-
-//    Convert gridfunction to double
-#ifdef MFEM_USE_MPI
-      void gf2vec(ParGridFunction *fieldin, Vector *fieldout);
-#else
-      void gf2vec(GridFunction *fieldin, Vector *fieldout);
-#endif
-
-//    Get 
-      inline int GetFptMeshSize() const { return msz; }
-      inline int GetQorder() const { return qo; }
+       @param[in] codes       Return codes for each point: inside element (0),
+                              element boundary (1), not found (2).
+       @param[in] proc_ids    MPI proc ids where the points were found.
+       @param[in] elem_ids    Element ids where the points were found.
+       @param[in] ref_pos     Reference coordinates of the found point. Ordered
+                              by vdim (XYZ,XYZ,XYZ...).
+                              Note: the gslib reference frame is [-1,1].
+       @param[in] field_in    Function values that will be interpolated on the
+                              reference positions. Note: it is assumed that
+                              @a field_in is associated with the mesh given to
+                              gslib_findpts_setup.
+       @param[out] field_out  Interpolated values. */
+   void gslib_findpts_eval(Array<uint> &codes, Array<uint> &proc_ids,
+                           Array<uint> &elem_ids, Vector &ref_pos,
+                           const GridFunction &field_in, Vector &field_out);
 
 //    clears up memory
       void gslib_findpts_free();
