@@ -26,51 +26,33 @@
 #ifdef MFEM_USE_CUDA
 #define MFEM_ATTR_DEVICE __device__
 #define MFEM_ATTR_HOST_DEVICE __host__ __device__
-// Define the CUDA debug macros:
-// - MFEM_CUDA_CHECK_DRV(x) where 'x' returns/is type 'CUresult'
-// - MFEM_CUDA_CHECK_RT(x)  where 'x' returns/is type 'cudaError_t'
-#ifdef MFEM_DEBUG
-#define MFEM_CUDA_CHECK_DRV(x) \
-   do \
-   { \
-      CUresult err = (x); \
-      if (err != CUDA_SUCCESS) \
-      { \
-         const char *error_string; \
-         cuGetErrorString(err, &error_string); \
-         _MFEM_MESSAGE("CUDA error: (" << #x \
-                       << ") failed with error:\n --> " \
-                       << error_string, 0); \
-      } \
-   } \
-   while (0)
-#define MFEM_CUDA_CHECK_RT(x) \
+// Define a CUDA error check macro, MFEM_CUDA_CHECK(x), where x returns/is of
+// type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
+// result is not cudaSuccess.
+#define MFEM_CUDA_CHECK(x) \
    do \
    { \
       cudaError_t err = (x); \
       if (err != cudaSuccess) \
       { \
-         _MFEM_MESSAGE("CUDA error: (" << #x \
-                       << ") failed with error:\n --> " \
-                       << cudaGetErrorString(err), 0); \
+         mfem_cuda_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
       } \
    } \
    while (0)
-#else
-#define MFEM_CUDA_CHECK_DRV(x) x
-#define MFEM_CUDA_CHECK_RT(x) x
-#endif
 #else // MFEM_USE_CUDA
 #define MFEM_ATTR_DEVICE
 #define MFEM_ATTR_HOST_DEVICE
-typedef int CUdevice;
-typedef int CUcontext;
-typedef void* CUstream;
 #endif // MFEM_USE_CUDA
 
 
 namespace mfem
 {
+
+#ifdef MFEM_USE_CUDA
+// Function used by the macro MFEM_CUDA_CHECK.
+void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
+                     const char *file, int line);
+#endif
 
 // Define 'atomicAdd' function.
 #ifdef __CUDA_ARCH__
@@ -120,20 +102,19 @@ void* CuMemFree(void *d_ptr);
 void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
 
 /// Copies memory from Host to Device
-void* CuMemcpyHtoDAsync(void *d_dst, const void *h_src,
-                        size_t bytes, void *stream);
+void* CuMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
 
 /// Copies memory from Device to Device
 void* CuMemcpyDtoD(void *d_dst, void *d_src, size_t bytes);
 
 /// Copies memory from Device to Device
-void* CuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes, void *stream);
+void* CuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
 void* CuMemcpyDtoH(void *h_dst, void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
-void* CuMemcpyDtoHAsync(void *h_dst, void *d_src, size_t bytes, void *stream);
+void* CuMemcpyDtoHAsync(void *h_dst, void *d_src, size_t bytes);
 
 } // namespace mfem
 
