@@ -8,22 +8,21 @@
                                http://mfem.org
 
 
-Version 4.0-RC1, Apr 11, 2019
+Version 4.0-RC2, Apr 24, 2019
 =============================
 
 Requirements and Limitations
 ----------------------------
 - This is a release candidate for mfem-4.0.
-- Use at your own risk -- not everything will work, the API may change.
+- Use at your own risk -- not everything will work and the API may change.
 - We are looking for feedback from friendly users.
 - Unlike previous MFEM releases, this version requires a C++11 compiler.
 
 - GPU-related limitations:
-  * NVCC is not supported in the CMake build system yet.
-  * Element batching is currently ignored.
+  * Hypre preconditioners are not yet available in GPU mode.
+  * Only constant coefficients are currently supported on GPUs.
   * Full-assembly (on device), element assembly, and matrix-free bilinear forms
-    are not supported yet.
-  * FunctionCoefficients do not currently work on GPUs.
+    are not supported yet. Element batching is currently ignored.
   * Partial assembly kernels are not implemented yet for simplices.
 
 GPU support
