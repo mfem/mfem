@@ -350,15 +350,15 @@ class AlignedCudaMemorySpace : public AlignedHostMemorySpace,
 ///  (PROTECTED + CUDA) memory space
 class ProtectedCudaMemorySpace : public ProtectedHostMemorySpace,
                                  public CudaDeviceMemorySpace {};
+
+/// (STD + UVM) memory space
+class UvmMemorySpace : public UvmHostMemorySpace,
+                       public UvmDeviceMemorySpace {};
 #endif // MFEM_USE_CUDA
 
 /// (PROTECTED + DEBUG) memory space
 class ProtectedDebugMemorySpace : public ProtectedHostMemorySpace,
                                   public DebugDeviceMemorySpace {};
-
-/// (STD + UVM) memory space
-class UvmMemorySpace : public UvmHostMemorySpace,
-                       public UvmDeviceMemorySpace {};
 
 } // namespace mfem::internal
 
@@ -395,10 +395,12 @@ void MemoryManager::SetMemSpace(MemorySpaces::Id id)
    delete ctrl;
    switch (id)
    {
+#ifdef MFEM_USE_CUDA
    case MemorySpaces::UVM:
       { ctrl = new internal::UvmMemorySpace(); internal::managed=true; break; }
    case MemorySpaces::STD_CUDA:
       { ctrl = new internal::StdCudaMemorySpace(); break; }
+#endif // MFEM_USE_CUDA
    case MemorySpaces::STD_DEBUG:
       { ctrl = new internal::StdDebugMemorySpace(); break; }
    default: mfem_error("Unknown memory space to switch to!");
