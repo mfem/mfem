@@ -480,6 +480,7 @@ int main(int argc, char *argv[])
    // 10. Free the used memory.
    delete ode_solver;
    delete mesh;
+   delete dc;
 
    return 0;
 }

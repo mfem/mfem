@@ -681,6 +681,7 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete mesh;
    delete integ;
+   delete dc;
 
    return 0;
 }

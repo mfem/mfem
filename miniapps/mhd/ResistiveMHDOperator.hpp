@@ -182,13 +182,14 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 
    if (true)
    {
-      for (int i=0; i<ess_tdof_list.Size(); i++)
-          z(ess_tdof_list[i])=0.0; //set homogeneous Dirichlet condition by hand
+      //for (int i=0; i<ess_tdof_list.Size(); i++)
+      //    z(ess_tdof_list[i])=0.0; //set homogeneous Dirichlet condition by hand
 
       //ofstream myfile("z0.dat");
       //z.Print(myfile, 10);
       //cout<<z.Size()<<endl;
 
+      z.SetSubVector(ess_tdof_list, 0.0);
       M_solver.Mult(z, dpsi_dt);
    }
    else
@@ -213,11 +214,12 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    z.Neg(); // z = -z
    Nb->AddMult(j, z);
 
-   for (int i=0; i<ess_tdof_list.Size(); i++)
-       z(ess_tdof_list[i])=0.0; //set Dirichlet condition by hand
+   //for (int i=0; i<ess_tdof_list.Size(); i++)
+   //    z(ess_tdof_list[i])=0.0; //set Dirichlet condition by hand
    //ofstream myfile2("zLHS2.dat");
    //z.Print(myfile2, 1000);
 
+   z.SetSubVector(ess_tdof_list, 0.0);
    M_solver.Mult(z, dw_dt);
 
 }
@@ -306,6 +308,8 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     //free used memory
     delete M;
     delete K;
+    delete E0;
+    delete Sw;
     delete KB;
     delete Nv;
     delete Nb;
