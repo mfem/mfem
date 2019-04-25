@@ -3,19 +3,22 @@
 // Compile with: make ex23
 //
 // Sample runs:
-//    ex23 -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
-//    ex23 -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01
-//    ex23 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01
-//    ex23 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    ex23 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    ex23 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
-//    ex23 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    ex23 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
-//    ex23 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
-//    ex23 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
-//    ex23 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9 -d 0.05
-//    ex23 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
-//    ex23 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
+//    ex23 -m ../data/periodic-segment.mesh -p 0 -s 2 -dt 0.001 -vs 50
+//    ex23 -m ../data/periodic-segment.mesh -p 0 -s 12 -dt 0.01
+//    ex23 -m ../data/periodic-segment.mesh -p 0 -s 22 -dt 0.01
+//    ex23 -m ../data/periodic-segment.mesh -p 0 -s 32 -dt 0.005 -vs 10
+//    ex23 -m ../data/periodic-square.mesh -p 0 -dt 0.01
+//    ex23 -m ../data/periodic-square.mesh -p 0 -s 32 -dt 0.01
+//    ex23 -m ../data/periodic-hexagon.mesh -p 0 -d 0.001 -s 12 -dt 0.02
+//    ex23 -m ../data/periodic-hexagon.mesh -p 0 -d 0.001 -s 32 -dt 0.009 -vs 10
+//    ex23 -m ../data/periodic-square.mesh -p 1 -dt 0.01 -tf 9
+//    ex23 -m ../data/periodic-hexagon.mesh -p 1 -dt 0.01 -tf 9
+//    ex23 -m ../data/amr-quad.mesh -p 1 -dt 0.01 -tf 9 -vs 2
+//    ex23 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.01 -tf 9
+//    ex23 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.01 -tf 9
+//    ex23 -m ../data/disc-nurbs.mesh -p 3 -r 3 -dt 0.01 -tf 9 -d 0.02
+//    ex23 -m ../data/periodic-square.mesh -p 3 -r 3 -dt 0.025 -tf 9
+//    ex23 -m ../data/periodic-cube.mesh -p 0 -o 2 -dt 0.025 -tf 8
 //
 // Description:  This example code solves the time-dependent advection-diffusion
 //               equation
@@ -25,12 +28,13 @@
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of implicit
-//               ODE time integrators, the definition of periodic boundary
-//               conditions through periodic meshes, as well as the use of GLVis
-//               for persistent visualization of a time-evolving solution. The
-//               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) is also illustrated.
+//               bilinear forms in MFEM (face integrators), the use of explicit,
+//               implicit, and implicit-explicit ODE time integrators, the
+//               definition of periodic boundary conditions through periodic
+//               meshes, as well as the use of GLVis for persistent
+//               visualization of a time-evolving solution. The saving of
+//               time-dependent data files for external visualization with
+//               VisIt (visit.llnl.gov) is also illustrated.
 //
 //               This example is a merger of examples 9 and 14.
 
@@ -42,7 +46,7 @@ using namespace std;
 using namespace mfem;
 
 // Choice for the problem setup. The fluid velocity, initial condition and
-// inflow boundary condition are chosen based on this parameter.
+// boundary condition are chosen based on this parameter.
 int problem;
 
 // Velocity coefficient
@@ -51,22 +55,49 @@ void velocity_function(const Vector &x, Vector &v);
 // Initial condition
 double u0_function(const Vector &x);
 
-// Inflow boundary condition
-double inflow_function(const Vector &x);
-
 // Mesh bounding box
 Vector bb_min, bb_max;
 
 
-/** A time-dependent operator for the right-hand side of the ODE. The DG weak
-    form of du/dt = div(D grad(u))-v.grad(u) is
+/** A time-dependent operator for the right-hand side of the ODE for use with
+    explicit ODE solvers. The DG weak form of du/dt = div(D grad(u))-v.grad(u) is
+    M du/dt = - S u + K u + b, where M, S, and K are the mass,
+    stiffness, and advection matrices, and b describes sources and the flow on
+    the boundary.
+    This can be written as a general ODE,
+    du/dt = M^{-1} (-S u + K u + b), and this class is used to compute the RHS
+    and perform the solve for du/dt. */
+class EX_Evolution : public TimeDependentOperator
+{
+private:
+   SparseMatrix &M, &S, &K;
+   const Vector &b;
+
+   DSmoother M_prec;
+   CGSolver M_solver;
+
+   mutable Vector z;
+
+   void initA(double dt);
+
+public:
+   EX_Evolution(SparseMatrix &_M, SparseMatrix &_S, SparseMatrix &_K,
+                const Vector &_b);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual ~EX_Evolution() {}
+};
+
+/** A time-dependent operator for the right-hand side of the ODE for use with
+    implicit ODE solvers. The DG weak form of du/dt = div(D grad(u))-v.grad(u) is
     [M + dt (S - K)] du/dt = - S u + K u + b, where M, S, and K are the mass,
     stiffness, and advection matrices, and b describes sources and the flow on
     the boundary.
     This can be written as a general ODE,
     du/dt = A^{-1} (-S u + K u + b) with A = [M + dt (S - K)], and this class is
-    used to perform the implicit or explicit solve for du/dt. */
-class FE_Evolution : public TimeDependentOperator
+    used to perform the fully implicit solve for du/dt. */
+class IM_Evolution : public TimeDependentOperator
 {
 private:
    SparseMatrix &M, &S, &K;
@@ -85,14 +116,53 @@ private:
    void initA(double dt);
 
 public:
-   FE_Evolution(SparseMatrix &_M, SparseMatrix &_S, SparseMatrix &_K,
+   IM_Evolution(SparseMatrix &_M, SparseMatrix &_S, SparseMatrix &_K,
                 const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
 
-   virtual ~FE_Evolution() { delete A_solver; delete A_prec; delete A; }
+   virtual ~IM_Evolution() { delete A_solver; delete A_prec; delete A; }
+};
+
+/** A time-dependent operator for the right-hand side of the ODE for use with
+    IMEX (Implicit-Explicit) ODE solvers. The DG weak form of
+    du/dt = div(D grad(u))-v.grad(u) is
+    [M + dt S] du/dt = - S u + K u + b, where M, S, and K are the mass,
+    stiffness, and advection matrices, and b describes sources and the flow on
+    the boundary.
+    This can be written as a general ODE,
+    du/dt = A^{-1} (-S u + K u + b) with A = [M + dt (S - K)], and this class is
+    used to perform the implicit or explicit solve for du/dt. */
+class IMEX_Evolution : public TimeDependentOperator
+{
+private:
+   SparseMatrix &M, &S, &K;
+   SparseMatrix *A;
+   const Vector &b;
+
+   DSmoother M_prec;
+   CGSolver M_solver;
+
+   DSmoother *A_prec;
+   CGSolver *A_solver;
+   double dt;
+
+   mutable Vector z;
+
+   void initA(double dt);
+
+public:
+   IMEX_Evolution(SparseMatrix &_M, SparseMatrix &_S, SparseMatrix &_K,
+                  const Vector &_b);
+
+   virtual void ExplicitMult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
+
+   virtual ~IMEX_Evolution() { delete A_solver; delete A_prec; delete A; }
 };
 
 
@@ -103,7 +173,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
-   int ode_solver_type = 3;
+   int ode_solver_type = 12;
    double t_final = 10.0;
    double d_coef = 0.01;
    double dt = 0.01;
@@ -127,8 +197,11 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4.");
+                  "ODE solver: 1 - Forward Euler, 2 - RK2, 3 - RK3 SSP,"
+                  " 4 - RK4, 5 - Generalized Alpha,\n\t"
+                  "11 - Backward Euler, 12 - SDIRK2, 13 - SDIRK3,\n\t"
+                  "22 - Implicit Midpoint, 23 SDIRK23, 24 - SDIRK34,\n\t"
+                  "31 - IMEX BE/FE, 32 - IMEX RK2.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -164,34 +237,37 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the serial mesh from the given mesh file on all processors. We can
-   //    handle geometrically periodic meshes in this code.
-   Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
-
-   // 3. Define the ODE solver used for time integration. Several explicit
+   // 2. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
-      // Implicit L-stable methods
-      case 1:  ode_solver = new BackwardEulerSolver; break;
-      case 2:  ode_solver = new SDIRK23Solver(2); break;
-      case 3:  ode_solver = new SDIRK33Solver; break;
       // Explicit methods
-      case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
-      case 13: ode_solver = new RK3SSPSolver; break;
-      case 14: ode_solver = new RK4Solver; break;
-      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
+      case 1:  ode_solver = new ForwardEulerSolver; break;
+      case 2:  ode_solver = new RK2Solver(0.5); break; // midpoint method
+      case 3:  ode_solver = new RK3SSPSolver; break;
+      case 4:  ode_solver = new RK4Solver; break;
+      case 5:  ode_solver = new GeneralizedAlphaSolver(0.5); break;
+      // Implicit L-stable methods
+      case 11: ode_solver = new BackwardEulerSolver; break;
+      case 12: ode_solver = new SDIRK23Solver(2); break;
+      case 13: ode_solver = new SDIRK33Solver; break;
       // Implicit A-stable methods (not L-stable)
       case 22: ode_solver = new ImplicitMidpointSolver; break;
       case 23: ode_solver = new SDIRK23Solver; break;
       case 24: ode_solver = new SDIRK34Solver; break;
+      // Implicit-Explicit methods
+      case 31: ode_solver = new IMEX_BE_FE; break;
+      case 32: ode_solver = new IMEXRK2; break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
    }
+
+   // 3. Read the serial mesh from the given mesh file on all processors. We can
+   //    handle geometrically periodic meshes in this code.
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
    // 4. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
@@ -316,22 +392,34 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m.SpMat(), s.SpMat(), k.SpMat(), b);
+
+   TimeDependentOperator *adv = NULL;
+   if (ode_solver_type < 10)
+   {
+      adv = new EX_Evolution(m.SpMat(), s.SpMat(), k.SpMat(), b);
+   }
+   else if (ode_solver_type < 30)
+   {
+      adv = new IM_Evolution(m.SpMat(), s.SpMat(), k.SpMat(), b);
+   }
+   else
+   {
+      adv = new IMEX_Evolution(m.SpMat(), s.SpMat(), k.SpMat(), b);
+   }
 
    double t = 0.0;
-   adv.SetTime(t);
-   ode_solver->Init(adv);
+   adv->SetTime(t);
+   ode_solver->Init(*adv);
 
-   bool done = false;
-   for (int ti = 0; !done; )
+   int n_steps = (int)ceil(t_final / dt);
+   double dt_real = t_final / n_steps;
+
+   for (int ti = 0; ti < n_steps; )
    {
-      double dt_real = min(dt, t_final - t);
       ode_solver->Step(u, t, dt_real);
       ti++;
 
-      done = (t >= t_final - 1e-8*dt);
-
-      if (done || ti % vis_steps == 0)
+      if (ti % vis_steps == 0 || ti == n_steps)
       {
          cout << "time step: " << ti << ", time: " << t << endl;
 
@@ -359,19 +447,18 @@ int main(int argc, char *argv[])
 
    // 10. Free the used memory.
    delete ode_solver;
+   delete adv;
    delete dc;
 
    return 0;
 }
 
 
-// Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_S,
+// Implementation of class EX_Evolution
+EX_Evolution::EX_Evolution(SparseMatrix &_M, SparseMatrix &_S,
                            SparseMatrix &_K, const Vector &_b)
    : TimeDependentOperator(_M.Height()),
-     M(_M), S(_S), K(_K), A(NULL), b(_b),
-     M_prec(M),
-     A_prec(NULL), A_solver(NULL), dt(-1.0), z(M.Height())
+     M(_M), S(_S), K(_K), b(_b), z(_M.Height())
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
@@ -383,7 +470,33 @@ FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_S,
    M_solver.SetPrintLevel(0);
 }
 
-void FE_Evolution::initA(double _dt)
+void EX_Evolution::Mult(const Vector &x, Vector &y) const
+{
+   // y = M^{-1} (-S x + K x + b)
+   K.Mult(x, z);
+   S.AddMult(x, z, -1.0);
+   z += b;
+   M_solver.Mult(z, y);
+}
+
+// Implementation of class IM_Evolution
+IM_Evolution::IM_Evolution(SparseMatrix &_M, SparseMatrix &_S,
+                           SparseMatrix &_K, const Vector &_b)
+   : TimeDependentOperator(_M.Height()),
+     M(_M), S(_S), K(_K), A(NULL), b(_b),
+     A_prec(NULL), A_solver(NULL), dt(-1.0), z(_M.Height())
+{
+   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(M);
+
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-9);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(100);
+   M_solver.SetPrintLevel(0);
+}
+
+void IM_Evolution::initA(double _dt)
 {
    if (fabs(dt - _dt) > 1e-4 * _dt)
    {
@@ -409,7 +522,7 @@ void FE_Evolution::initA(double _dt)
    }
 }
 
-void FE_Evolution::Mult(const Vector &x, Vector &y) const
+void IM_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (-S x + K x + b)
    K.Mult(x, z);
@@ -418,13 +531,81 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    M_solver.Mult(z, y);
 }
 
-void FE_Evolution::ImplicitSolve(const double _dt, const Vector &x, Vector &y)
+void IM_Evolution::ImplicitSolve(const double _dt, const Vector &x, Vector &y)
 {
    this->initA(_dt);
 
    // y = (M + dt S - dt K)^{-1} (-S x + K x + b)
    K.Mult(x, z);
    S.AddMult(x, z, -1.0);
+   z += b;
+   A_solver->Mult(z, y);
+}
+
+// Implementation of class IMEX_Evolution
+IMEX_Evolution::IMEX_Evolution(SparseMatrix &_M, SparseMatrix &_S,
+                               SparseMatrix &_K, const Vector &_b)
+   : TimeDependentOperator(_M.Height()),
+     M(_M), S(_S), K(_K), A(NULL), b(_b),
+     A_prec(NULL), A_solver(NULL), dt(-1.0), z(_M.Height())
+{
+   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(M);
+
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-9);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(100);
+   M_solver.SetPrintLevel(0);
+}
+
+void IMEX_Evolution::initA(double _dt)
+{
+   if (fabs(dt - _dt) > 1e-4 * _dt)
+   {
+      delete A_solver;
+      delete A_prec;
+      delete A;
+
+      A = Add(_dt, S, 1.0, M); // A = M + dt * S
+      dt = _dt;
+
+      A_prec = new DSmoother(*A);
+      A_solver = new CGSolver;
+      A_solver->SetOperator(*A);
+      A_solver->SetPreconditioner(*A_prec);
+
+      A_solver->iterative_mode = false;
+      A_solver->SetRelTol(1e-9);
+      A_solver->SetAbsTol(0.0);
+      A_solver->SetMaxIter(100);
+      A_solver->SetPrintLevel(0);
+   }
+}
+
+void IMEX_Evolution::Mult(const Vector &x, Vector &y) const
+{
+   // y = M^{-1} (-S x + K x + b)
+   K.Mult(x, z);
+   S.AddMult(x, z, -1.0);
+   z += b;
+   M_solver.Mult(z, y);
+}
+
+void IMEX_Evolution::ExplicitMult(const Vector &x, Vector &y) const
+{
+   // y = M^{-1} (K x + b)
+   K.Mult(x, z);
+   z += b;
+   M_solver.Mult(z, y);
+}
+
+void IMEX_Evolution::ImplicitSolve(const double _dt, const Vector &x, Vector &y)
+{
+   this->initA(_dt);
+   // y = (M + dt S)^{-1} (-S x + b)
+   S.Mult(x, z);
+   z *= -1.0;
    z += b;
    A_solver->Mult(z, y);
 }
