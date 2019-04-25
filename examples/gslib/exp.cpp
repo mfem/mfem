@@ -3,9 +3,6 @@
 
 #include "mfem.hpp"
 
-#include <fstream>
-#include <ctime>
-
 using namespace mfem;
 using namespace std;
 
@@ -63,16 +60,16 @@ int main (int argc, char *argv[])
 
    // Mesh bounding box (for the full serial mesh).
    Vector pos_min, pos_max;
-   MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be a positive.");
+   MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be positive.");
    mesh->GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
    if (myid == 0)
    {
-      std::cout << "--- Generating equidistant point for:\n"
-                << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
-                << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
+      cout << "--- Generating equidistant point for:\n"
+           << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
+           << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
       if (dim == 3)
       {
-         std::cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]\n";
+         cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]\n";
       }
    }
 
@@ -130,7 +127,7 @@ int main (int argc, char *argv[])
    // Note that some points might be outside, if the mesh is not a box.
    // Note that all tasks search the same points (not mandatory).
    const int pts_cnt_1D = 5;
-   const int pts_cnt = std::pow(pts_cnt_1D, dim);
+   const int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
    if (dim == 2)
    {
@@ -161,12 +158,12 @@ int main (int argc, char *argv[])
 
    // Finds points stored in vxyz.
    finder.FindPoints(vxyz, code_out, task_id_out,
-                   el_id_out, pos_r_out, dist_p_out);
+                     el_id_out, pos_r_out, dist_p_out);
 
    // Interpolate FE function values on the found points.
    Vector interp_vals(pts_cnt);
    finder.Interpolate(code_out, task_id_out, el_id_out,
-                    pos_r_out, field_vals, interp_vals);
+                      pos_r_out, field_vals, interp_vals);
 
    // Free internal gslib internal data.
    finder.FreeData();
@@ -201,7 +198,7 @@ int main (int argc, char *argv[])
            << "\nMax interp error:     " << max_err
            << "\nMax dist (of found):  " << max_dist
            << "\nPoints not found:     " << not_found
-           << "\nPoints on faces:      " << face_pts << std::endl;
+           << "\nPoints on faces:      " << face_pts << endl;
    }
 
    MPI_Finalize();
