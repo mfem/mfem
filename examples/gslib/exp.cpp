@@ -8,8 +8,6 @@
 using namespace mfem;
 using namespace std;
 
-IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
-
 // Initial condition
 double field_func(const Vector &x)
 {
@@ -163,11 +161,11 @@ int main (int argc, char *argv[])
       else { not_found++; }
    }
 
-   // We print the task 0 result (other tasks should be identical except the
-   // number of points found locally).
+   // We print only the task 0 result (other tasks should be identical except
+   // the number of points found locally).
    if (myid == 0)
    {
-      cout << setprecision(16) << "--- Task 0: "
+      cout << setprecision(16) << "--- Task " << myid << ": "
            << "\nSearched points:      " << pts_cnt
            << "\nFound on local mesh:  " << found_loc
            << "\nFound on other tasks: " << found_away
