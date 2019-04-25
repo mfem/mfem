@@ -743,13 +743,154 @@ DiffusionIntegrator::~DiffusionIntegrator()
    delete maps;
 }
 
+
+void DiffusionIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
+{
+  const Mesh *mesh = fes.GetMesh();
+  dim = mesh->Dimension();
+
+  if(dim==1)
+  {
+
+    MFEM_ABORT("TODO Diffusion operator assembly for dim 1 \n");
+  }else if(dim==2)
+  {
+
+    H1_FiniteElement<Geometry::SQUARE, 1> H1_space;
+    const Array<int> *dof_map = H1_space.GetDofMap();
+
+    const IntegrationRule *rule = IntRule;
+    const FiniteElement &el = *fes.GetFE(0);
+    const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
+    const int dims = el.GetDim();
+    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+    const int nq = ir->GetNPoints();
+    ne = fes.GetNE();
+    dofs1D = el.GetOrder() + 1;
+    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
+    geom = GeometryExtension::Get(fes,*ir);
+    maps = DofToQuad::Get(fes, fes, *ir);
+
+    //Store Full D - not just symmetric portion
+    //vec.SetSize(symmDims * nq * ne);
+    vec.SetSize(dim*dim*nq*nq*ne); //For simplicity store all of D (TODO fix later)
+
+    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
+
+    double * w = maps->W;
+    double * j = geom->J;
+
+    //Create D matrix (only store symmetric part)
+    const int NQ = quad1D*quad1D;
+    const int NE = ne;
+    const double COEFF = coeff;
+
+    const DeviceVector W(w, NQ);
+    const DeviceTensor<4> J(j, 2, 2, NQ, NE);
+    DeviceTensor<3> D(vec.GetData(), 4, NQ, NE);
+    const DeviceArray  dof_map_(dof_map->GetData(), dof_map->Size());
+
+    MFEM_FORALL(e, NE,
+    {
+      for(int q=0; q < NQ; ++q)
+      {
+         const double J11 = J(0,0,q,e);
+         const double J12 = J(1,0,q,e);
+         const double J21 = J(0,1,q,e);
+         const double J22 = J(1,1,q,e);
+         const double c_detJ = W(q) * COEFF / ((J11*J22)-(J21*J12));
+         D(0,q,e) =  c_detJ * (J21*J21 + J22*J22);
+         D(1,q,e) = -c_detJ * (J21*J11 + J22*J12);
+         D(2,q,e) = -c_detJ * (J21*J11 + J22*J12); //symmetric... non-diagonals should be the same
+         D(3,q,e) =  c_detJ * (J11*J11 + J12*J12);
+      }
+
+    });
+
+    //------------------------------------------
+    //Form stiffness matrix at the element level
+    double *b = maps->B;
+    double *bt = maps->Bt;
+    double *g = maps->G;
+    double *gt = maps->Gt;
+
+    const int Q1D = quad1D;
+    const int D1D = dofs1D;
+
+    const DeviceMatrix B(b, Q1D, D1D);
+    const DeviceMatrix G(g, Q1D, D1D);
+    const DeviceMatrix Bt(bt, D1D, Q1D);
+    const DeviceMatrix Gt(gt, D1D, Q1D);
+
+    const int ND = D1D*D1D;
+
+    Me->SetSize(NE*ND*ND);
+    DeviceVector d_Me(Me->GetData());
+
+    MFEM_FORALL(e, NE,
+    {
+
+      double G3D[2][4][4];
+      double S_e[4][4];
+
+      //Form G
+      for(int i2=0; i2<D1D; ++i2){
+        for(int i1=0; i1<D1D; ++i1){
+          for(int k2=0; k2<Q1D; ++k2){
+            for(int k1=0; k1<Q1D; ++k1){
+              int k=k1 + k2*Q1D;
+              int i=i1 + i2*D1D;
+              G3D[0][k][i] = G(k1,i1)*B(k2,i2);
+              G3D[1][k][i] = B(k1,i1)*G(k2,i2);
+            }
+          }
+        }
+      }
+
+      //Compute S_e
+      for(int j=0; j<ND; ++j) {
+        for(int i=0; i<ND; ++i) {
+
+          double dot = 0.0;
+          for(int k=0; k<NQ; ++k) {
+            for(int m=0; m<2; ++m) {
+              for(int n=0; n<2; ++n) {
+                int mn = n + 2*m;
+                dot += G3D[m][k][i]*D(mn, k, e)*G3D[n][k][j];
+              }
+            }
+          }
+
+          S_e[i][j] = dot;
+        }
+      }
+
+      //Write out to array
+      int offset = ND*ND*e;
+      for(int j=0; j<ND; ++j) {
+        for(int i=0; i<ND; ++i) {
+          int idx = i + ND*j + offset;
+          d_Me(idx) = S_e[dof_map_[i]][dof_map_[j]];
+        }
+      }
+    });
+    cudaDeviceSynchronize();
+
+  }else if(dim==3)
+  {
+    MFEM_ABORT("TODO Diffusion operator assembly for dim 3 \n");
+  }
+
+
+
+}
 //
 //Hard coded for H1 finite elements order 1
 //Store element contributions
 //
 void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
 {
-   printf("Entered FA_Assemble ... \n");
+   printf("Entered Mass FA_Assemble ... \n");
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
    const FiniteElement &el = *fes.GetFE(0);
@@ -784,7 +925,7 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
        const DeviceArray  dof_map_(dof_map->GetData(), dof_map->Size());
        const DeviceTensor<3> x(geom->X.GetData(), 2,NQ,NE);
        const DeviceTensor<4> J(geom->J.GetData(), 2,2,NQ,NE);
-              
+
        DeviceMatrix D(vec.GetData(), NQ, NE);
 
        //Assemble D matrix

@@ -1688,6 +1688,8 @@ public:
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+   /// FA extension
+   void FA_Assemble(const FiniteElementSpace&, Vector *);
 
    /// PA extension
    virtual void Assemble(const FiniteElementSpace&);
