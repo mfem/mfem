@@ -570,16 +570,15 @@ int main(int argc, char *argv[])
    adv->SetTime(t);
    ode_solver->Init(*adv);
 
-   bool done = false;
-   for (int ti = 0; !done; )
+   int n_steps = (int)ceil(t_final / dt);
+   double dt_real = t_final / n_steps;
+   
+   for (int ti = 0; ti < n_steps;)
    {
-      double dt_real = min(dt, t_final - t);
       ode_solver->Step(*U, t, dt_real);
       ti++;
-
-      done = (t >= t_final - 1e-8*dt);
-
-      if (done || ti % vis_steps == 0)
+      
+      if (ti % vis_steps == 0 || ti == n_steps)
       {
          if (myid == 0)
          {
