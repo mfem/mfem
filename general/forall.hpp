@@ -57,7 +57,7 @@ void OmpWrap(const int N, HBODY &&h_body)
 
 
 /// RAJA Cuda backend
-template <int BLOCKS, typename DBODY>
+template <const int BLOCKS, typename DBODY>
 void RajaCudaWrap(const int N, DBODY &&d_body)
 {
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
@@ -96,26 +96,26 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 #ifdef MFEM_USE_CUDA
 
 template <typename BODY> __global__ static
-void CuKernel(const int N, BODY body)
+void CudaKernel(const int N, BODY body)
 {
    const int k = blockDim.x*blockIdx.x + threadIdx.x;
    if (k >= N) { return; }
    body(k);
 }
 
-template <int BLOCKS, typename DBODY>
-void CuWrap(const int N, DBODY &&d_body)
+template <const int BLOCKS, typename DBODY>
+void CudaWrap(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
    const int GRID = (N+BLOCKS-1)/BLOCKS;
-   CuKernel<<<GRID,BLOCKS>>>(N,d_body);
+   CudaKernel<<<GRID,BLOCKS>>>(N,d_body);
    MFEM_CUDA_CHECK(cudaGetLastError());
 }
 
 #else  // MFEM_USE_CUDA
 
 template <int BLOCKS, typename DBODY>
-void CuWrap(const int N, DBODY &&d_body) {}
+void CudaWrap(const int N, DBODY &&d_body) {}
 
 #endif
 
@@ -128,7 +128,7 @@ void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body)
    { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
 
    if (Device::Allows(Backend::CUDA))
-   { return CuWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+   { return CudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
 
    if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
 
