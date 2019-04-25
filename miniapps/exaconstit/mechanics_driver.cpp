@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
       }
 
       // use constructor to generate a 3D cuboidal mesh with 8 node hexes
-      // The false at the end is to tell the inline mesh generator to use the lexigraphic ordering of the mesh
+      // The false at the end is to tell the inline mesh generator to use the lexicographic ordering of the mesh
       // The newer space-filling ordering option that was added in the pre-okina tag of MFEM resulted in a noticeable divergence
       // of the material response for a monotonic tension test using symmetric boundary conditions out to 1% strain.
       mesh = new Mesh(toml_opt.nx, toml_opt.nx, toml_opt.nx, Element::HEXAHEDRON, 0, toml_opt.mx, toml_opt.mx, toml_opt.mx, false); 
