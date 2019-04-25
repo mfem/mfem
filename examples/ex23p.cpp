@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
-   int ode_solver_type = 2;
+   int ode_solver_type = 12;
    double t_final = 10.0;
    double d_coef = 0.01;
    double dt = 0.01;
@@ -692,8 +692,8 @@ void IM_Evolution::initA(double _dt)
       delete A_prec;
       delete A;
 
-      HypreParMatrix * SK = Add(1.0, S, -1.0, K);
-      A = Add(1.0, M, _dt, *SK);
+      HypreParMatrix * SK = Add(1.0, S, -1.0, K); // SK = S - K
+      A = Add(_dt, *SK, 1.0, M);                  // A = M + dt * (S - K)
       delete SK;
       dt = _dt;
 
@@ -757,7 +757,7 @@ void IMEX_Evolution::initA(double _dt)
       delete A_prec;
       delete A;
 
-      A = Add(1.0, M, _dt, S);
+      A = Add(_dt, S, 1.0, M); // A = M + dt * S
       dt = _dt;
 
       A_prec = new HypreBoomerAMG(*A);
