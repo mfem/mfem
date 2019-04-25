@@ -16,22 +16,21 @@
 namespace mfem
 {
 
-findpts_gslib::findpts_gslib()
-   : ir(), mesh(NULL), gllmesh(), fda(NULL), fdb(NULL), dim(-1), nel(-1), msz(-1)
+FindPointsGSLib::FindPointsGSLib()
+   : mesh(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
 {
-   comm_init(&cc, 0);
+   comm_init(&gsl_comm, 0);
 }
 
 #ifdef MFEM_USE_MPI
-findpts_gslib::findpts_gslib(MPI_Comm _comm)
-   : ir(), mesh(NULL), gllmesh(), fda(NULL), fdb(NULL), dim(-1), nel(-1), msz(-1)
+FindPointsGSLib::FindPointsGSLib(MPI_Comm _comm)
+   : mesh(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
 {
-   comm_init(&cc, _comm);
+   comm_init(&gsl_comm, _comm);
 }
 #endif
 
-void findpts_gslib::gslib_findpts_setup(Mesh &m, double bb_t,
-                                        double newt_tol, int npt_max)
+void FindPointsGSLib::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
 
@@ -39,60 +38,58 @@ void findpts_gslib::gslib_findpts_setup(Mesh &m, double bb_t,
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fes = nodes->FESpace();
 
-   ir = fes->GetFE(0)->GetNodes();
    dim = mesh->Dimension();
-   nel = mesh->GetNE();
-   int nsp = ir.GetNPoints();
-   msz = nel*nsp;
-   gllmesh.SetSize(dim*msz);
-
-   int npt = nel*nsp;
+   const int NE = mesh->GetNE(),
+             dof_cnt = fes->GetFE(0)->GetDof(),
+             pts_cnt = NE * dof_cnt;
+   gsl_mesh.SetSize(dim * pts_cnt);
 
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement *>(fes->GetFE(0));
    const Array<int> &dof_map = tbe->GetDofMap();
 
-   const int dof = fes->GetFE(0)->GetDof();
-   DenseMatrix pos(dof, dim);
-   Vector posV(pos.Data(), dof * dim);
-   Array<int> xdofs(dof * dim);
+   DenseMatrix pos(dof_cnt, dim);
+   Vector posV(pos.Data(), dof_cnt * dim);
+   Array<int> xdofs(dof_cnt * dim);
 
    int pt_id = 0;
-   for (int i = 0; i < nel; i++)
+   for (int i = 0; i < NE; i++)
    {
       fes->GetElementVDofs(i, xdofs);
       nodes->GetSubVector(xdofs, posV);
-      for (int j = 0; j < nsp; j++)
+      for (int j = 0; j < dof_cnt; j++)
       {
          for (int d = 0; d < dim; d++)
          {
-            gllmesh(npt*d + pt_id) = pos(dof_map[j], d);
+            gsl_mesh(pts_cnt * d + pt_id) = pos(dof_map[j], d);
          }
          pt_id++;
       }
    }
 
-   const int NE = nel, NR = fes->GetFE(0)->GetOrder() + 1;
-   int ntot = pow(NR,dim)*NE;
-   if (dim==2)
+   const int dof1D = fes->GetFE(0)->GetOrder() + 1;
+   if (dim == 2)
    {
-      unsigned nr[2] = {NR,NR};
-      unsigned mr[2] = {2*NR,2*NR};
-      double *const elx[2] = {&gllmesh[0], &gllmesh[ntot]};
-      this->fda=findpts_setup_2(&this->cc,elx,nr,NE,mr,bb_t,ntot,ntot,npt_max,newt_tol);
+      unsigned nr[2] = {dof1D, dof1D};
+      unsigned mr[2] = {2*dof1D, 2*dof1D};
+      double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(pts_cnt) };
+      fdata2D = findpts_setup_2(&gsl_comm, elx, nr, NE, mr, bb_t,
+                                pts_cnt, pts_cnt, npt_max, newt_tol);
    }
    else
    {
-      unsigned nr[3] = {NR,NR,NR};
-      unsigned mr[3] = {2*NR,2*NR,2*NR};
-      double *const elx[3] = {&gllmesh[0], &gllmesh[ntot], &gllmesh[2*ntot]};
-      this->fdb=findpts_setup_3(&this->cc,elx,nr,NE,mr,bb_t,ntot,ntot,npt_max,newt_tol);
+      unsigned nr[3] = {dof1D, dof1D, dof1D};
+      unsigned mr[3] = {2*dof1D, 2*dof1D, 2*dof1D};
+      double * const elx[3] =
+         { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
+      fdata3D = findpts_setup_3(&gsl_comm, elx, nr, NE, mr, bb_t,
+                                pts_cnt, pts_cnt, npt_max, newt_tol);
    }
 }
 
-void findpts_gslib::gslib_findpts(Vector &point_pos, Array<uint> &codes,
-                                  Array<uint> &proc_ids, Array<uint> &elem_ids,
-                                  Vector &ref_pos, Vector &dist)
+void FindPointsGSLib::FindPoints(Vector &point_pos, Array<uint> &codes,
+                                 Array<uint> &proc_ids, Array<uint> &elem_ids,
+                                 Vector &ref_pos, Vector &dist)
 {
    const int points_cnt = point_pos.Size() / dim;
    if (dim == 2)
@@ -103,13 +100,12 @@ void findpts_gslib::gslib_findpts(Vector &point_pos, Array<uint> &codes,
       unsigned xv_stride[2];
       xv_stride[0] = sizeof(double);
       xv_stride[1] = sizeof(double);
-      findpts_2(codes.GetData(),sizeof(uint),
-                proc_ids.GetData(),sizeof(uint),
-                elem_ids.GetData(),sizeof(uint),
-                ref_pos.GetData(),sizeof(double) * dim,
-                dist.GetData(),sizeof(double),
-                xv_base, xv_stride,
-                points_cnt, fda);
+      findpts_2(codes.GetData(), sizeof(uint),
+                proc_ids.GetData(), sizeof(uint),
+                elem_ids.GetData(), sizeof(uint),
+                ref_pos.GetData(), sizeof(double) * dim,
+                dist.GetData(), sizeof(double),
+                xv_base, xv_stride, points_cnt, fdata2D);
    }
    else
    {
@@ -126,20 +122,19 @@ void findpts_gslib::gslib_findpts(Vector &point_pos, Array<uint> &codes,
                 elem_ids.GetData(), sizeof(uint),
                 ref_pos.GetData(), sizeof(double) * dim,
                 dist.GetData(), sizeof(double),
-                xv_base, xv_stride,
-                points_cnt, fdb);
+                xv_base, xv_stride, points_cnt, fdata3D);
    }
 }
 
-void findpts_gslib::gslib_findpts_eval(Array<uint> &codes, Array<uint> &proc_ids,
+void FindPointsGSLib::Interpolate(Array<uint> &codes, Array<uint> &proc_ids,
                                        Array<uint> &elem_ids, Vector &ref_pos,
                                        const GridFunction &field_in,
                                        Vector &field_out)
 {
-   const int points_cnt = ref_pos.Size() / dim;
-   Vector node_vals(nel * ir.GetNPoints());
+   Vector node_vals;
    GetNodeValues(field_in, node_vals);
 
+   const int points_cnt = ref_pos.Size() / dim;
    if (dim==2)
    {
       findpts_eval_2(field_out.GetData(), sizeof(double),
@@ -147,7 +142,7 @@ void findpts_gslib::gslib_findpts_eval(Array<uint> &codes, Array<uint> &proc_ids
                      proc_ids.GetData(), sizeof(uint),
                      elem_ids.GetData(), sizeof(uint),
                      ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, node_vals.GetData(), fda);
+                     points_cnt, node_vals.GetData(), fdata2D);
    }
    else
    {
@@ -156,34 +151,36 @@ void findpts_gslib::gslib_findpts_eval(Array<uint> &codes, Array<uint> &proc_ids
                      proc_ids.GetData(), sizeof(uint),
                      elem_ids.GetData(), sizeof(uint),
                      ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, node_vals.GetData(), fdb);
+                     points_cnt, node_vals.GetData(), fdata3D);
    }
 }
 
-void findpts_gslib::gslib_findpts_free()
+void FindPointsGSLib::FreeData()
 {
-   (dim == 2) ? findpts_free_2(fda) : findpts_free_3(fdb);
+   (dim == 2) ? findpts_free_2(fdata2D) : findpts_free_3(fdata3D);
 }
 
-void findpts_gslib::GetNodeValues(const GridFunction &gf_in, Vector &node_vals)
+void FindPointsGSLib::GetNodeValues(const GridFunction &gf_in, Vector &node_vals)
 {
    MFEM_ASSERT(gf_in.FESpace()->GetVDim() == 1, "Scalar function expected.");
 
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fes = nodes->FESpace();
+   const IntegrationRule &ir = fes->GetFE(0)->GetNodes();
 
-   const int nsp = ir.GetNPoints();
-   Vector vals_el;
+   const int NE = mesh->GetNE(), dof_cnt = ir.GetNPoints();
+   node_vals.SetSize(NE * dof_cnt);
 
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement *>(fes->GetFE(0));
    const Array<int> &dof_map = tbe->GetDofMap();
 
    int pt_id = 0;
-   for (int i = 0; i < nel; i++)
+   Vector vals_el;
+   for (int i = 0; i < NE; i++)
    {
       gf_in.GetValues(i, ir, vals_el);
-      for (int j = 0; j < nsp; j++)
+      for (int j = 0; j < dof_cnt; j++)
       {
          node_vals(pt_id++) = vals_el(dof_map[j]);
       }

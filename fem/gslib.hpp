@@ -22,26 +22,27 @@
 namespace mfem
 {
 
-class findpts_gslib
+class FindPointsGSLib
 {
 private:
-   IntegrationRule ir;
    Mesh *mesh;
-   Vector gllmesh;
-   struct findpts_data_2 *fda;
-   struct findpts_data_3 *fdb;
-   int dim, nel, msz;
+   Vector gsl_mesh;
+   struct findpts_data_2 *fdata2D;
+   struct findpts_data_3 *fdata3D;
+   int dim;
 
-   struct comm cc;
+   struct comm gsl_comm;
 
    void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
 
 public:
-   findpts_gslib();
+   FindPointsGSLib();
 
 #ifdef MFEM_USE_MPI
-   findpts_gslib(MPI_Comm _comm);
+   FindPointsGSLib(MPI_Comm _comm);
 #endif
+
+   ~FindPointsGSLib() { }
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of @a mesh.
@@ -52,8 +53,7 @@ public:
        @param[in] newt_tol  Newton tolerance for the gslib search methods.
        @param[in] npt_max   Number of points for simultaneous iteration. This
                             alters performance and memory footprint. */
-   void gslib_findpts_setup(Mesh &m, double bb_t,
-                            double newt_tol, int npt_max);
+   void Setup(Mesh &m, double bb_t, double newt_tol, int npt_max);
 
    /** Searches positions given in physical space by @a point_pos. All output
        Arrays and Vectors are expected to have the correct size.
@@ -69,9 +69,8 @@ public:
                               Note: the gslib reference frame is [-1,1].
        @param[out] dist       Distance between the seeked and the found point
                               in physical space. */
-   void gslib_findpts(Vector &point_pos, Array<uint> &codes,
-                      Array<uint> &proc_ids, Array<uint> &elem_ids,
-                      Vector &ref_pos, Vector &dist);
+   void FindPoints(Vector &point_pos, Array<uint> &codes, Array<uint> &proc_ids,
+                   Array<uint> &elem_ids, Vector &ref_pos, Vector &dist);
 
    /** Interpolation of field values at prescribed reference space positions.
 
@@ -85,16 +84,16 @@ public:
        @param[in] field_in    Function values that will be interpolated on the
                               reference positions. Note: it is assumed that
                               @a field_in is associated with the mesh given to
-                              gslib_findpts_setup.
+                              Setup().
        @param[out] field_out  Interpolated values. */
-   void gslib_findpts_eval(Array<uint> &codes, Array<uint> &proc_ids,
-                           Array<uint> &elem_ids, Vector &ref_pos,
-                           const GridFunction &field_in, Vector &field_out);
+   void Interpolate(Array<uint> &codes, Array<uint> &proc_ids,
+                    Array<uint> &elem_ids, Vector &ref_pos,
+                    const GridFunction &field_in, Vector &field_out);
 
-//    clears up memory
-      void gslib_findpts_free();
-
-      ~findpts_gslib();
+   /** Cleans up memory allocated internally by gslib.
+       Note that in parallel, this must be called before MPI_Finalize(), as
+       it calls MPI_Comm_free() for internal gslib communicators. */
+   void FreeData();
 };
 
 } // namespace mfem
