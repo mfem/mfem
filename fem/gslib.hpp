@@ -24,7 +24,7 @@ namespace mfem
 
 class FindPointsGSLib
 {
-private:
+protected:
    Mesh *mesh;
    Vector gsl_mesh;
    struct findpts_data_2 *fdata2D;
