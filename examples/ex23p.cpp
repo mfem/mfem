@@ -3,19 +3,22 @@
 // Compile with: make ex23p
 //
 // Sample runs:
-//    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -dt 0.005
+//    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -s 2 -dt 0.001 -v2 25
+//    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -s 12 -dt 0.01
+//    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -s 22 -dt 0.01
+//    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -s 32 -dt 0.005
 //    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 0 -dt 0.01
-//    mpirun -np 4 ex23p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.01
-//    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex23p -m ../data/periodic-hexagon.mesh -p 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex23p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9
-//    mpirun -np 4 ex23p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.004 -tf 9
-//    mpirun -np 4 ex23p -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
-//    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 3 -rp 1 -dt 0.005 -tf 9 -d 0.05
-//    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
-//    mpirun -np 4 ex23p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
+//    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 0 -s 32 -dt 0.01
+//    mpirun -np 4 ex23p -m ../data/periodic-hexagon.mesh -p 0 -d 0.001 -s 12 -dt 0.02
+//    mpirun -np 4 ex23p -m ../data/periodic-hexagon.mesh -p 0 -d 0.001 -s 32 -dt 0.009 -vs 10
+//    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 1 -dt 0.01 -tf 9
+//    mpirun -np 4 ex23p -m ../data/periodic-hexagon.mesh -p 1 -dt 0.01 -tf 9
+//    mpirun -np 4 ex23p -m ../data/amr-quad.mesh -p 1 -dt 0.01 -tf 9 -vs 2
+//    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.01 -tf 9
+//    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.01 -tf 9
+//    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 3 -rp 1 -dt 0.01 -tf 9 -d 0.02
+//    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 3 -rp 1 -dt 0.025 -tf 9
+//    mpirun -np 4 ex23p -m ../data/periodic-cube.mesh -p 0 -o 2 -dt 0.025 -tf 8
 //
 // Description:  This example code solves the time-dependent advection-diffusion
 //               equation
