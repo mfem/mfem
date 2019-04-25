@@ -101,14 +101,6 @@ int main (int argc, char *argv[])
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
 
-   // 9. Setup the quadrature rule for the non-linear form integrator.
-   const IntegrationRule &ir = pfespace->GetFE(0)->GetNodes();
-   const int NE = pfespace->GetMesh()->GetNE(), nsp = ir.GetNPoints();
-   if (myid==0) {cout << "Quadrature points per cell: " << nsp << endl; }
-   
-   ParGridFunction nodes(pfespace);
-   pmesh->GetNodes(nodes);
-
    // Define a scalar function on the mesh.
    ParFiniteElementSpace sc_fes(pmesh, fec, 1);
    GridFunction field_vals(&sc_fes);
@@ -132,34 +124,35 @@ int main (int argc, char *argv[])
    const int npts_at_once   = 256;
    gsfl->gslib_findpts_setup(*pmesh, rel_bbox_el, newton_tol, npts_at_once);
 
-   // Generate random points in reference coordinates.
-   const int pts_per_el = 10;
-   const int pts_cnt    = NE * pts_per_el;
-   Vector rrxa(pts_cnt), rrya(pts_cnt), rrza(pts_cnt);
+   // Generate equidistant points in physical coordinates over the whole mesh.
+   // Note that some points might be outside, if the mesh is not a box.
+   // Note that all tasks search the same points.
+   const int pts_cnt_1D = 5;
+   const int pts_cnt = std::pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
-
-   int pt_id = 0;
-   IntegrationPoint ipt;
-   Vector pos(dim);
-   for (int i = 0; i < NE; i++)
+   if (dim == 2)
    {
-      for (int j = 0; j < pts_per_el; j++)
+      L2_QuadrilateralElement el(pts_cnt_1D - 1, BasisType::ClosedUniform);
+      const IntegrationRule &ir = el.GetNodes();
+      for (int i = 0; i < ir.GetNPoints(); i++)
       {
-         Geometries.GetRandomPoint(pfespace->GetFE(i)->GetGeomType(), ipt);
-
-         rrxa[pt_id] = ipt.x;
-         rrya[pt_id] = ipt.y;
-         if (dim == 3) { rrza[pt_id] = ipt.z; }
-
-         nodes.GetVectorValue(i, ipt, pos);
-         for (int d = 0; d < dim; d++) { vxyz(pts_cnt*d + pt_id) = pos(d); }
-         pt_id++;
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+         vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
       }
    }
-
-   cout << "Task id: " << myid << " \n"
-        << "-- Points to find: " << pts_cnt << " \n"
-        << "-- Number of elem: " << NE << endl;
+   else
+   {
+      L2_HexahedronElement el(pts_cnt_1D - 1, BasisType::ClosedUniform);
+      const IntegrationRule &ir = el.GetNodes();
+      for (int i = 0; i < ir.GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+         vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+      }
+   }
 
    Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
    Vector pos_r_out(pts_cnt * dim), dist_p_out(pts_cnt);
@@ -178,46 +171,43 @@ int main (int argc, char *argv[])
 
    gsfl->gslib_findpts_free();
 
-   int nbp = 0, nnpt = 0, nerrh = 0;
-   double maxv = -100.0 ,maxvr = -100.0;
+   int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
+   double maxv = -100.0;
+   Vector pos(dim);
    for (int i = 0; i < pts_cnt; i++)
    {
+      (task_id_out[i] == myid) ? found_loc++ : found_away++;
+
       if (code_out[i] < 2)
       {
          for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
          double exact_val = field_func(pos);
          double delv = abs(exact_val-fout(i));
-         double rxe = abs(rrxa[i] - 0.5*pos_r_out[i*dim+0]-0.5);
-         double rye = abs(rrya[i] - 0.5*pos_r_out[i*dim+1]-0.5);
-         double rze = abs(rrza[i] - 0.5*pos_r_out[i*dim+2]-0.5);
-         double delvr =  ( rxe < rye ) ? rye : rxe;
-         if (dim==3) { delvr = ( ( delvr < rze ) ? rze : delvr ); }
-         if (delv > maxv) {maxv = delv;}
-         if (delvr > maxvr) {maxvr = delvr;}
-         if (code_out[i] == 1) {nbp += 1;}
-         if (delvr > 1.e-10) {nerrh += 1;}
+         if (delv > maxv) { maxv = delv; }
+         if (code_out[i] == 1) { face_pts++; }
       }
-      else { nnpt++; }
+      else { not_found++; }
    }
+
+   std:cout << "---\n--- Task " << myid
+            << "\nFound on local mesh:  " << found_loc
+            << "\nFound on other tasks: " << found_away << std::endl;
 
    double glob_maxerr;
    MPI_Allreduce(&maxv, &glob_maxerr, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-   double glob_maxrerr;
-   MPI_Allreduce(&maxvr, &glob_maxrerr, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-   int glob_nnpt;
-   MPI_Allreduce(&nnpt, &glob_nnpt, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   double max_dist = dist_p_out.Max(), glob_md;
+   MPI_Allreduce(&max_dist, &glob_md, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+   int glob_nf;
+   MPI_Allreduce(&not_found, &glob_nf, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    int glob_nbp;
-   MPI_Allreduce(&nbp, &glob_nbp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   int glob_nerrh;
-   MPI_Allreduce(&nerrh, &glob_nerrh, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&face_pts, &glob_nbp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    if (myid == 0)
    {
-      cout << setprecision(16);
-      cout << "maximum error: " << glob_maxerr << " \n";
-      cout << "maximum rst error: " << glob_maxrerr << " \n";
-      cout << "points not found: " << glob_nnpt << " \n";
-      cout << "points on element border: " << glob_nbp << " \n";
-      cout << "points with error > 1.e-10: " << glob_nerrh << " \n";
+      cout << setprecision(16) << "---\n--- Total statistics:"
+           << "\nMax interp error: " << glob_maxerr
+           << "\nMax distance:     " << glob_md
+           << "\nPoints not found: " << glob_nf
+           << "\nPoints on faces:  " << glob_nbp << std::endl;
    }
 
    delete pfespace;
