@@ -46,7 +46,7 @@ using namespace std;
 using namespace mfem;
 
 // Choice for the problem setup. The fluid velocity, initial condition and
-// inflow boundary condition are chosen based on this parameter.
+// boundary condition are chosen based on this parameter.
 int problem;
 
 // Velocity coefficient
@@ -54,9 +54,6 @@ void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
 double u0_function(const Vector &x);
-
-// Inflow boundary condition
-double inflow_function(const Vector &x);
 
 // Mesh bounding box
 Vector bb_min, bb_max;
@@ -908,19 +905,6 @@ double u0_function(const Vector &x)
          const double f = M_PI;
          return sin(f*X(0))*sin(f*X(1));
       }
-   }
-   return 0.0;
-}
-
-// Inflow boundary condition (zero for the problems considered in this example)
-double inflow_function(const Vector &x)
-{
-   switch (problem)
-   {
-      case 0:
-      case 1:
-      case 2:
-      case 3: return 0.0;
    }
    return 0.0;
 }
