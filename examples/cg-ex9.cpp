@@ -209,10 +209,11 @@ int main(int argc, char *argv[])
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
    k.Finalize(skip_zeros);
+
    printf("\n  Assembled Convection matrix \n \n");
+   Device::Disable();
 
    b.Assemble();
-   Device::Disable();
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -282,6 +283,7 @@ int main(int argc, char *argv[])
    m.SpMat().PrintMatlab(mass_file);
    mass_file.close();
 
+   printf(" \n \n");
    ofstream adv_file;
    adv_file.open("adv.txt");
    k.SpMat().PrintMatlab(adv_file);

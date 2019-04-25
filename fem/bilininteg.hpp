@@ -1759,12 +1759,15 @@ private:
    DenseMatrix dshape, adjJ, Q_ir;
    Vector shape, vec2, BdFidxT;
 #endif
-   VectorCoefficient &Q;
+   VectorCoefficient &Q; //may have to replace?
    double alpha;
+   DofToQuad *maps;
+   GeometryExtension *geom;
+   int dim, ne, nq, dofs1D, quad1D;
 
 public:
    ConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
-      : Q(q) { alpha = a; }
+     : Q(q) { alpha = a; maps = NULL; geom = NULL;}
 
    //FA extension ?
    void FA_Assemble(const FiniteElementSpace&, Vector *);
