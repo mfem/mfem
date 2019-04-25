@@ -95,34 +95,6 @@ MFEM_MPI_NP = 4
 # config.hpp. The values below are the defaults for generating the actual values
 # in config.mk and config.hpp.
 
-<<<<<<< HEAD
-MFEM_USE_MPI         = NO
-MFEM_USE_METIS       = $(MFEM_USE_MPI)
-MFEM_USE_METIS_5     = NO
-MFEM_DEBUG           = NO
-MFEM_USE_EXCEPTIONS  = NO
-MFEM_USE_GZSTREAM    = NO
-MFEM_USE_LIBUNWIND   = NO
-MFEM_USE_LAPACK      = NO
-MFEM_THREAD_SAFE     = NO
-MFEM_USE_OPENMP      = NO
-MFEM_USE_MEMALLOC    = YES
-MFEM_TIMER_TYPE      = $(if $(NOTMAC),2,4)
-MFEM_USE_SUNDIALS    = NO
-MFEM_USE_MESQUITE    = NO
-MFEM_USE_SUITESPARSE = NO
-MFEM_USE_SUPERLU     = NO
-MFEM_USE_STRUMPACK   = NO
-MFEM_USE_GECKO       = NO
-MFEM_USE_GNUTLS      = NO
-MFEM_USE_NETCDF      = NO
-MFEM_USE_PETSC       = NO
-MFEM_USE_MPFR        = NO
-MFEM_USE_SIDRE       = NO
-MFEM_USE_CONDUIT     = NO
-MFEM_USE_PUMI        = NO
-MFEM_USE_GSLIB       = NO
-=======
 MFEM_USE_MPI           = NO
 MFEM_USE_METIS         = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5       = NO
@@ -149,11 +121,11 @@ MFEM_USE_MPFR          = NO
 MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
+MFEM_USE_GSLIB         = NO
 MFEM_USE_CUDA          = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_MM            = NO
->>>>>>> master
 
 # Compile and link options for zlib.
 ZLIB_DIR =
