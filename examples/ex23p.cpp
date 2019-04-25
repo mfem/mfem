@@ -70,7 +70,6 @@ class EX_Evolution : public TimeDependentOperator
 {
 private:
    HypreParMatrix &M, &S, &K;
-   HypreParMatrix *A;
    const Vector &b;
 
    HypreSmoother M_prec;
@@ -530,7 +529,7 @@ int main(int argc, char *argv[])
 EX_Evolution::EX_Evolution(HypreParMatrix &_M, HypreParMatrix &_S,
                            HypreParMatrix &_K, const Vector &_b)
    : TimeDependentOperator(_M.Height()),
-     M(_M), S(_S), K(_K), A(NULL), b(_b),
+     M(_M), S(_S), K(_K), b(_b),
      M_prec(M), M_solver(M.GetComm()), z(M.Height())
 {
    M_prec.SetType(HypreSmoother::Jacobi);
