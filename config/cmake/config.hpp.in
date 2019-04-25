@@ -30,6 +30,12 @@
 #define MFEM_VERSION_MINOR (((MFEM_VERSION)/100)%100)
 #define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
 
+// MFEM source directory.
+#define MFEM_SOURCE_DIR "@MFEM_SOURCE_DIR@"
+
+// MFEM install directory.
+#define MFEM_INSTALL_DIR "@MFEM_INSTALL_DIR@"
+
 // Description of the git commit used to build MFEM.
 #cmakedefine MFEM_GIT_STRING "@MFEM_GIT_STRING@"
 
@@ -62,8 +68,11 @@
 // allocation and de-allocation.
 #cmakedefine MFEM_THREAD_SAFE
 
-// Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
+// Enable the OpenMP backend.
 #cmakedefine MFEM_USE_OPENMP
+
+// [Deprecated] Enable experimental OpenMP support. Requires MFEM_THREAD_SAFE.
+#cmakedefine MFEM_USE_LEGACY_OPENMP
 
 // Enable MFEM functionality based on the Mesquite library.
 #cmakedefine MFEM_USE_MESQUITE
@@ -100,6 +109,19 @@
 
 // Enable MFEM functionality based on the PUMI library
 #cmakedefine MFEM_USE_PUMI
+
+// Build the GPU/CUDA-enabled version of the MFEM library.
+// Requires a CUDA compiler (nvcc).
+#cmakedefine MFEM_USE_CUDA
+
+// Enable MFEM functionality based on the RAJA library
+#cmakedefine MFEM_USE_RAJA
+
+// Enable MFEM functionality based on the OCCA library
+#cmakedefine MFEM_USE_OCCA
+
+// Enable MFEM's internal Memory Manager (needed e.g. for MFEM_USE_CUDA)
+#cmakedefine MFEM_USE_MM
 
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
