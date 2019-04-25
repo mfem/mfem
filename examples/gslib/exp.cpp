@@ -173,7 +173,7 @@ int main (int argc, char *argv[])
    Vector pos(dim);
    for (int i = 0; i < pts_cnt; i++)
    {
-      (task_id_out[i] == myid) ? found_loc++ : found_away++;
+      (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
 
       if (code_out[i] < 2)
       {

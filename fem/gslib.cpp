@@ -67,7 +67,7 @@ void FindPointsGSLib::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
       }
    }
 
-   const int dof1D = fes->GetFE(0)->GetOrder() + 1;
+   const unsigned dof1D = fes->GetFE(0)->GetOrder() + 1;
    if (dim == 2)
    {
       unsigned nr[2] = {dof1D, dof1D};
