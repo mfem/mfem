@@ -132,7 +132,6 @@ int main (int argc, char *argv[])
 
    Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
    Vector pos_r_out(pts_cnt * dim), dist_p_out(pts_cnt);
-   MPI_Barrier(MPI_COMM_WORLD);
 
    // Finds points stored in vxyz.
    gsfl->gslib_findpts(vxyz, code_out, task_id_out,
@@ -140,7 +139,6 @@ int main (int argc, char *argv[])
 
    // Interpolate FE function values on the found points.
    Vector interp_vals(pts_cnt);
-   MPI_Barrier(MPI_COMM_WORLD);
    gsfl->gslib_findpts_eval(code_out, task_id_out, el_id_out,
                             pos_r_out, field_vals, interp_vals);
 
@@ -165,25 +163,18 @@ int main (int argc, char *argv[])
       else { not_found++; }
    }
 
-   std:cout << "---\n--- Task " << myid
-            << "\nFound on local mesh:  " << found_loc
-            << "\nFound on other tasks: " << found_away << std::endl;
-
-   double glob_me;
-   MPI_Allreduce(&max_err, &glob_me, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-   double glob_md;
-   MPI_Allreduce(&max_dist, &glob_md, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-   int glob_nf;
-   MPI_Allreduce(&not_found, &glob_nf, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   int glob_fp;
-   MPI_Allreduce(&face_pts, &glob_fp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   // We print the task 0 result (other tasks should be identical except the
+   // number of points found locally).
    if (myid == 0)
    {
-      cout << setprecision(16) << "---\n--- Total statistics:"
-           << "\nMax interp error: " << glob_me
-           << "\nMax distance:     " << glob_md
-           << "\nPoints not found: " << glob_nf
-           << "\nPoints on faces:  " << glob_fp << std::endl;
+      cout << setprecision(16) << "--- Task 0: "
+           << "\nSearched points:      " << pts_cnt
+           << "\nFound on local mesh:  " << found_loc
+           << "\nFound on other tasks: " << found_away
+           << "\nMax interp error:     " << max_err
+           << "\nMax dist (of found):  " << max_dist
+           << "\nPoints not found:     " << not_found
+           << "\nPoints on faces:      " << face_pts << std::endl;
    }
 
    MPI_Finalize();
