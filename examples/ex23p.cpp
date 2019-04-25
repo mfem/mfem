@@ -3,10 +3,10 @@
 // Compile with: make ex23p
 //
 // Sample runs:
-//    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -s 2 -dt 0.001 -v2 25
+//    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -s 2 -dt 0.001 -vs 50
 //    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -s 12 -dt 0.01
 //    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -s 22 -dt 0.01
-//    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -s 32 -dt 0.005
+//    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -s 32 -dt 0.005 -vs 10
 //    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 0 -dt 0.01
 //    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 0 -s 32 -dt 0.01
 //    mpirun -np 4 ex23p -m ../data/periodic-hexagon.mesh -p 0 -d 0.001 -s 12 -dt 0.02
