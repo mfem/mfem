@@ -25,70 +25,15 @@ void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
              << "\n ... in file: " << file << ':' << line << '\n';
    mfem_error();
 }
-#endif
+#endif // MFEM_USE_CUDA
 
-void* CuMemAlloc(void** dptr, size_t bytes)
+void CudaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
-   MFEM_CUDA_CHECK(cudaMalloc(dptr, bytes));
-#endif
-   return *dptr;
-}
-
-void* CuMemFree(void *dptr)
-{
-#ifdef MFEM_USE_CUDA
-   MFEM_CUDA_CHECK(cudaFree(dptr));
-#endif
-   return dptr;
-}
-
-void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
-{
-#ifdef MFEM_USE_CUDA
-   MFEM_CUDA_CHECK(cudaMemcpy(dst, src, bytes, cudaMemcpyHostToDevice));
-#endif
-   return dst;
-}
-
-void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes)
-{
-#ifdef MFEM_USE_CUDA
-   MFEM_CUDA_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyHostToDevice));
-#endif
-   return dst;
-}
-
-void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
-{
-#ifdef MFEM_USE_CUDA
-   MFEM_CUDA_CHECK(cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToDevice));
-#endif
-   return dst;
-}
-
-void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes)
-{
-#ifdef MFEM_USE_CUDA
-   MFEM_CUDA_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToDevice));
-#endif
-   return dst;
-}
-
-void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
-{
-#ifdef MFEM_USE_CUDA
-   MFEM_CUDA_CHECK(cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToHost));
-#endif
-   return dst;
-}
-
-void* CuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
-{
-#ifdef MFEM_USE_CUDA
-   MFEM_CUDA_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToHost));
-#endif
-   return dst;
+   MFEM_CUDA_CHECK(cudaGetDeviceCount(&ngpu));
+   MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
+   MFEM_CUDA_CHECK(cudaSetDevice(dev));
+#endif // MFEM_USE_CUDA
 }
 
 } // namespace mfem

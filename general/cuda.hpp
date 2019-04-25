@@ -44,7 +44,6 @@
 #define MFEM_ATTR_HOST_DEVICE
 #endif // MFEM_USE_CUDA
 
-
 namespace mfem
 {
 
@@ -54,29 +53,8 @@ void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line);
 #endif
 
-/// Allocates device memory
-void* CuMemAlloc(void **d_ptr, size_t bytes);
-
-/// Frees device memory
-void* CuMemFree(void *d_ptr);
-
-/// Copies memory from Host to Device
-void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
-
-/// Copies memory from Host to Device
-void* CuMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
-
-/// Copies memory from Device to Device
-void* CuMemcpyDtoD(void *d_dst, void *d_src, size_t bytes);
-
-/// Copies memory from Device to Device
-void* CuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes);
-
-/// Copies memory from Device to Host
-void* CuMemcpyDtoH(void *h_dst, void *d_src, size_t bytes);
-
-/// Copies memory from Device to Host
-void* CuMemcpyDtoHAsync(void *h_dst, void *d_src, size_t bytes);
+// Function to setup the CUDA device and get the number of GPU
+void CudaDeviceSetup(const int dev, int &ngpu);
 
 } // namespace mfem
 

@@ -71,8 +71,8 @@ static void OccaPADiffusionSetup2D(const int D1D,
    if (OccaDiffSetup2D_ker.find(id) == OccaDiffSetup2D_ker.end())
    {
       const occa::kernel DiffusionSetup2D =
-         mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
-                                     "DiffusionSetup2D", props);
+         mfem::OccaBuildKernel("occa://mfem/fem/occa.okl",
+                               "DiffusionSetup2D", props);
       OccaDiffSetup2D_ker.emplace(id, DiffusionSetup2D);
    }
    OccaDiffSetup2D_ker.at(id)(NE, o_W, o_J, COEFF, o_op);
@@ -97,8 +97,8 @@ static void OccaPADiffusionSetup3D(const int D1D,
    if (OccaDiffSetup3D_ker.find(id) == OccaDiffSetup3D_ker.end())
    {
       const occa::kernel DiffusionSetup3D =
-         mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
-                                     "DiffusionSetup3D", props);
+         mfem::OccaBuildKernel("occa://mfem/fem/occa.okl",
+                               "DiffusionSetup3D", props);
       OccaDiffSetup3D_ker.emplace(id, DiffusionSetup3D);
    }
    OccaDiffSetup3D_ker.at(id)(NE, o_W, o_J, COEFF, o_op);
@@ -288,8 +288,8 @@ static void OccaPADiffusionApply2D(const int D1D,
       if (OccaDiffApply2D_cpu.find(id) == OccaDiffApply2D_cpu.end())
       {
          const occa::kernel DiffusionApply2D_CPU =
-            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
-                                        "DiffusionApply2D_CPU", props);
+            mfem::OccaBuildKernel("occa://mfem/fem/occa.okl",
+                                  "DiffusionApply2D_CPU", props);
          OccaDiffApply2D_cpu.emplace(id, DiffusionApply2D_CPU);
       }
       OccaDiffApply2D_cpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
@@ -300,8 +300,8 @@ static void OccaPADiffusionApply2D(const int D1D,
       if (OccaDiffApply2D_gpu.find(id) == OccaDiffApply2D_gpu.end())
       {
          const occa::kernel DiffusionApply2D_GPU =
-            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
-                                        "DiffusionApply2D_GPU", props);
+            mfem::OccaBuildKernel("occa://mfem/fem/occa.okl",
+                                  "DiffusionApply2D_GPU", props);
          OccaDiffApply2D_gpu.emplace(id, DiffusionApply2D_GPU);
       }
       OccaDiffApply2D_gpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
@@ -337,8 +337,8 @@ static void OccaPADiffusionApply3D(const int D1D,
       if (OccaDiffApply3D_cpu.find(id) == OccaDiffApply3D_cpu.end())
       {
          const occa::kernel DiffusionApply3D_CPU =
-            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
-                                        "DiffusionApply3D_CPU", props);
+            mfem::OccaBuildKernel("occa://mfem/fem/occa.okl",
+                                  "DiffusionApply3D_CPU", props);
          OccaDiffApply3D_cpu.emplace(id, DiffusionApply3D_CPU);
       }
       OccaDiffApply3D_cpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
@@ -349,8 +349,8 @@ static void OccaPADiffusionApply3D(const int D1D,
       if (OccaDiffApply3D_gpu.find(id) == OccaDiffApply3D_gpu.end())
       {
          const occa::kernel DiffusionApply3D_GPU =
-            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
-                                        "DiffusionApply3D_GPU", props);
+            mfem::OccaBuildKernel("occa://mfem/fem/occa.okl",
+                                  "DiffusionApply3D_GPU", props);
          OccaDiffApply3D_gpu.emplace(id, DiffusionApply3D_GPU);
       }
       OccaDiffApply3D_gpu.at(id)(NE, o_B, o_G, o_Bt, o_Gt, o_op, o_x, o_y);
@@ -872,8 +872,8 @@ static void OccaPAMassApply2D(const int D1D,
       if (OccaMassApply2D_cpu.find(id) == OccaMassApply2D_cpu.end())
       {
          const occa::kernel MassApply2D_CPU =
-            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
-                                        "MassApply2D_CPU", props);
+            mfem::OccaBuildKernel("occa://mfem/fem/occa.okl",
+                                  "MassApply2D_CPU", props);
          OccaMassApply2D_cpu.emplace(id, MassApply2D_CPU);
       }
       OccaMassApply2D_cpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
@@ -884,8 +884,8 @@ static void OccaPAMassApply2D(const int D1D,
       if (OccaMassApply2D_gpu.find(id) == OccaMassApply2D_gpu.end())
       {
          const occa::kernel MassApply2D_GPU =
-            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
-                                        "MassApply2D_GPU", props);
+            mfem::OccaBuildKernel("occa://mfem/fem/occa.okl",
+                                  "MassApply2D_GPU", props);
          OccaMassApply2D_gpu.emplace(id, MassApply2D_GPU);
       }
       OccaMassApply2D_gpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
@@ -917,8 +917,8 @@ static void OccaPAMassApply3D(const int D1D,
       if (OccaMassApply3D_cpu.find(id) == OccaMassApply3D_cpu.end())
       {
          const occa::kernel MassApply3D_CPU =
-            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
-                                        "MassApply3D_CPU", props);
+            mfem::OccaBuildKernel("occa://mfem/fem/occa.okl",
+                                  "MassApply3D_CPU", props);
          OccaMassApply3D_cpu.emplace(id, MassApply3D_CPU);
       }
       OccaMassApply3D_cpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
@@ -929,8 +929,8 @@ static void OccaPAMassApply3D(const int D1D,
       if (OccaMassApply3D_gpu.find(id) == OccaMassApply3D_gpu.end())
       {
          const occa::kernel MassApply3D_GPU =
-            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
-                                        "MassApply3D_GPU", props);
+            mfem::OccaBuildKernel("occa://mfem/fem/occa.okl",
+                                  "MassApply3D_GPU", props);
          OccaMassApply3D_gpu.emplace(id, MassApply3D_GPU);
       }
       OccaMassApply3D_gpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);

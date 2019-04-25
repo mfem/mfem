@@ -13,6 +13,7 @@
 #define MFEM_OCCA_HPP
 
 #include "../config/config.hpp"
+#include "error.hpp"
 
 #ifdef MFEM_USE_OCCA
 #include <occa.hpp>
@@ -21,13 +22,15 @@
 #include <occa/modes/cuda/utils.hpp>
 #endif
 
-typedef occa::device OccaDevice;
-typedef occa::memory OccaMemory;
-
 #else // MFEM_USE_OCCA
 
-typedef void* OccaDevice;
-typedef void* OccaMemory;
+namespace occa
+{
+struct device{};
+struct memory{};
+struct kernel{};
+struct properties{};
+}
 
 #endif // MFEM_USE_OCCA
 
@@ -35,8 +38,15 @@ namespace mfem
 {
 
 // Function called when the pointer 'a' needs to be passed to an OCCA kernel.
-OccaMemory OccaPtr(const void *a);
-OccaDevice OccaDev();
+occa::memory OccaPtr(const void *a);
+
+// Function called to build a OCCA kernel: 'file' is the name of the OKL file,
+// 'name' is the kernel that will be built and some 'properties'
+occa::kernel OccaBuildKernel(const char *file, const char *name,
+                             const occa::properties properties);
+
+// Function to set the OCCA device
+void OccaDeviceSetup(const int dev);
 
 } // namespace mfem
 
