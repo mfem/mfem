@@ -460,12 +460,12 @@ int main(int argc, char *argv[])
 
    int n_steps = (int)ceil(t_final / dt);
    double dt_real = t_final / n_steps;
-   
-   for (int ti = 0; ti < n_steps;)
+
+   for (int ti = 0; ti < n_steps; )
    {
       ode_solver->Step(*U, t, dt_real);
       ti++;
-      
+
       if (ti % vis_steps == 0 || ti == n_steps)
       {
          if (myid == 0)
@@ -680,7 +680,7 @@ void IMEX_Evolution::ExplicitMult(const Vector &x, Vector &y) const
 void IMEX_Evolution::ImplicitSolve(const double _dt, const Vector &x, Vector &y)
 {
    this->initA(_dt);
-   // y = (M + dt S)^{-1} (-S x + K x + b)
+   // y = (M + dt S)^{-1} (-S x + b)
    S.Mult(-1.0, x, 0.0, z);
    z += b;
    A_solver->Mult(z, y);
