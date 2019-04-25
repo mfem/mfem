@@ -28,12 +28,13 @@
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of implicit
-//               ODE time integrators, the definition of periodic boundary
-//               conditions through periodic meshes, as well as the use of GLVis
-//               for persistent visualization of a time-evolving solution. The
-//               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) is also illustrated.
+//               bilinear forms in MFEM (face integrators), the use of explicit,
+//               implicit, and implicit-explicit ODE time integrators, the
+//               definition of periodic boundary conditions through periodic
+//               meshes, as well as the use of GLVis for persistent
+//               visualization of a time-evolving solution. The saving of
+//               time-dependent data files for external visualization with
+//               VisIt (visit.llnl.gov) is also illustrated.
 //
 //               This example is a merger of examples 9 and 14.
 
