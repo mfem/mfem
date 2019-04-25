@@ -58,6 +58,74 @@ double inflow_function(const Vector &x);
 Vector bb_min, bb_max;
 
 
+/** A time-dependent operator for the right-hand side of the ODE for use with
+    explicit ODE solvers. The DG weak form of du/dt = div(D grad(u))-v.grad(u) is
+    M du/dt = - S u + K u + b, where M, S, and K are the mass,
+    stiffness, and advection matrices, and b describes sources and the flow on
+    the boundary.
+    This can be written as a general ODE,
+    du/dt = M^{-1} (-S u + K u + b), and this class is used to compute the RHS
+    and perform the solve for du/dt. */
+class ExpEvolution : public TimeDependentOperator
+{
+private:
+   HypreParMatrix &M, &S, &K;
+   HypreParMatrix *A;
+   const Vector &b;
+
+   HypreSmoother M_prec;
+   CGSolver M_solver;
+
+   mutable Vector z;
+
+   void initA(double dt);
+
+public:
+   ExpEvolution(HypreParMatrix &_M, HypreParMatrix &_S, HypreParMatrix &_K,
+                const Vector &_b);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual ~ExpEvolution() {}
+};
+
+/** A time-dependent operator for the right-hand side of the ODE for use with
+    implicit ODE solvers. The DG weak form of du/dt = div(D grad(u))-v.grad(u) is
+    [M + dt (S - K)] du/dt = - S u + K u + b, where M, S, and K are the mass,
+    stiffness, and advection matrices, and b describes sources and the flow on
+    the boundary.
+    This can be written as a general ODE,
+    du/dt = A^{-1} (-S u + K u + b) with A = [M + dt (S - K)], and this class is
+    used to perform the fully implicit solve for du/dt. */
+class ImpEvolution : public TimeDependentOperator
+{
+private:
+   HypreParMatrix &M, &S, &K;
+   HypreParMatrix *A;
+   const Vector &b;
+
+   HypreSmoother M_prec;
+   CGSolver M_solver;
+
+   HypreBoomerAMG *A_prec;
+   GMRESSolver *A_solver;
+   double dt;
+
+   mutable Vector z;
+
+   void initA(double dt);
+
+public:
+   ImpEvolution(HypreParMatrix &_M, HypreParMatrix &_S, HypreParMatrix &_K,
+                const Vector &_b);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
+
+   virtual ~ImpEvolution() { delete A_solver; delete A_prec; delete A; }
+};
+
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = div(D grad(u))-v.grad(u) is
     [M + dt (S - K)] du/dt = - S u + K u + b, where M, S, and K are the mass,
@@ -436,6 +504,98 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+
+// Implementation of class FE_Evolution
+ExpEvolution::ExpEvolution(HypreParMatrix &_M, HypreParMatrix &_S,
+                           HypreParMatrix &_K, const Vector &_b)
+   : TimeDependentOperator(_M.Height()),
+     M(_M), S(_S), K(_K), A(NULL), b(_b),
+     M_prec(M), M_solver(M.GetComm()), z(M.Height())
+{
+   M_prec.SetType(HypreSmoother::Jacobi);
+   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(M);
+
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-9);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(100);
+   M_solver.SetPrintLevel(0);
+}
+
+void ExpEvolution::Mult(const Vector &x, Vector &y) const
+{
+   // y = M^{-1} (-S x + K x + b)
+   S.Mult(-1.0, x, 0.0, z);
+   K.Mult(1.0, x, 1.0, z);
+   z += b;
+   M_solver.Mult(z, y);
+}
+
+// Implementation of class FE_Evolution
+ImpEvolution::ImpEvolution(HypreParMatrix &_M, HypreParMatrix &_S,
+                           HypreParMatrix &_K, const Vector &_b)
+   : TimeDependentOperator(_M.Height()),
+     M(_M), S(_S), K(_K), A(NULL), b(_b),
+     M_prec(M), M_solver(M.GetComm()),
+     A_prec(NULL), A_solver(NULL), dt(-1.0), z(M.Height())
+{
+   M_prec.SetType(HypreSmoother::Jacobi);
+   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(M);
+
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-9);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(100);
+   M_solver.SetPrintLevel(0);
+}
+
+void ImpEvolution::initA(double _dt)
+{
+   if (fabs(dt - _dt) > 1e-4 * _dt)
+   {
+      delete A_solver;
+      delete A_prec;
+      delete A;
+
+      HypreParMatrix * SK = Add(1.0, S, -1.0, K);
+      A = Add(1.0, M, _dt, *SK);
+      delete SK;
+      dt = _dt;
+
+      A_prec = new HypreBoomerAMG(*A);
+      A_solver = new GMRESSolver(A->GetComm());
+      A_solver->SetOperator(*A);
+      A_solver->SetPreconditioner(*A_prec);
+
+      A_solver->iterative_mode = false;
+      A_solver->SetRelTol(1e-9);
+      A_solver->SetAbsTol(0.0);
+      A_solver->SetMaxIter(100);
+      A_solver->SetPrintLevel(0);
+   }
+}
+
+void ImpEvolution::Mult(const Vector &x, Vector &y) const
+{
+   // y = M^{-1} (-S x + K x + b)
+   S.Mult(-1.0, x, 0.0, z);
+   K.Mult(1.0, x, 1.0, z);
+   z += b;
+   M_solver.Mult(z, y);
+}
+
+void ImpEvolution::ImplicitSolve(const double _dt, const Vector &x, Vector &y)
+{
+   this->initA(_dt);
+
+   // y = (M + dt S - dt K)^{-1} (-S x + K x + b)
+   S.Mult(-1.0, x, 0.0, z);
+   K.Mult(1.0, x, 1.0, z);
+   z += b;
+   A_solver->Mult(z, y);
+}
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_S,
