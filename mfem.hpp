@@ -37,5 +37,6 @@
 #include "linalg/linalg.hpp"
 #include "mesh/mesh_headers.hpp"
 #include "fem/fem.hpp"
+#include "fem/gslib.hpp"
 
 #endif
