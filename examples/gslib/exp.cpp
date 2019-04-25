@@ -64,7 +64,7 @@ int main (int argc, char *argv[])
       cout << endl;
    }
 
-   // Mesh bounding box.
+   // Mesh bounding box (for the full serial mesh).
    Vector pos_min, pos_max;
    MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be a positive.");
    mesh->GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
@@ -79,54 +79,31 @@ int main (int argc, char *argv[])
    }
 
    // Distribute the mesh.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
+   for (int lev = 0; lev < rp_levels; lev++) { pmesh.UniformRefinement(); }
 
-   // 4. Define a finite element space on the mesh. Here we use vector finite
-   //    elements which are tensor products of quadratic finite elements. The
-   //    number of components in the vector finite element space is specified by
-   //    the last parameter of the FiniteElementSpace constructor.
-   FiniteElementCollection *fec = new H1_FECollection(mesh_poly_deg, dim);
-   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
-
-   // 5. Make the mesh curved based on the above finite element space. This
-   //    means that we define the mesh elements through a fespace-based
-   //    transformation of the reference element.
-   pmesh->SetNodalFESpace(pfespace);
-
-   // 7. Get the mesh nodes (vertices and other degrees of freedom in the finite
-   //    element space) as a finite element grid function in fespace. Note that
-   //    changing x automatically changes the shapes of the mesh elements.
-   ParGridFunction x(pfespace);
-   pmesh->SetNodalGridFunction(&x);
+   // Curve the mesh based on the chosen polynomial degree.
+   H1_FECollection fec(mesh_poly_deg, dim);
+   ParFiniteElementSpace pfespace(&pmesh, &fec, dim);
+   pmesh.SetNodalFESpace(&pfespace);
 
    // Define a scalar function on the mesh.
-   ParFiniteElementSpace sc_fes(pmesh, fec, 1);
+   ParFiniteElementSpace sc_fes(&pmesh, &fec, 1);
    GridFunction field_vals(&sc_fes);
    FunctionCoefficient fc(field_func);
    field_vals.ProjectCoefficient(fc);
 
-   /*
-   socketstream sout;
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   sout.open(vishost, visport);
-   sout.precision(1e-6);
-   sout << "solution\n" << *pmesh << field_vals;
-   sout << "pause\n";
-   sout << flush;
-   */
-
+   // Setup the gslib mesh.
    findpts_gslib *gsfl = new findpts_gslib(MPI_COMM_WORLD);
    const double rel_bbox_el = 0.05;
    const double newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
-   gsfl->gslib_findpts_setup(*pmesh, rel_bbox_el, newton_tol, npts_at_once);
+   gsfl->gslib_findpts_setup(pmesh, rel_bbox_el, newton_tol, npts_at_once);
 
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box.
-   // Note that all tasks search the same points.
+   // Note that all tasks search the same points (not mandatory).
    const int pts_cnt_1D = 5;
    const int pts_cnt = std::pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
@@ -162,17 +139,16 @@ int main (int argc, char *argv[])
    gsfl->gslib_findpts(vxyz, code_out, task_id_out,
                        el_id_out, pos_r_out, dist_p_out);
 
-   // FINDPTS_EVAL
-   Vector fout(pts_cnt);
+   // Interpolate FE function values on the found points.
+   Vector interp_vals(pts_cnt);
    MPI_Barrier(MPI_COMM_WORLD);
-   // Returns function values in fout.
    gsfl->gslib_findpts_eval(code_out, task_id_out, el_id_out,
-                            pos_r_out, field_vals, fout);
+                            pos_r_out, field_vals, interp_vals);
 
    gsfl->gslib_findpts_free();
 
    int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
-   double maxv = -100.0;
+   double max_err = 0.0, max_dist = 0.0;
    Vector pos(dim);
    for (int i = 0; i < pts_cnt; i++)
    {
@@ -181,9 +157,10 @@ int main (int argc, char *argv[])
       if (code_out[i] < 2)
       {
          for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
-         double exact_val = field_func(pos);
-         double delv = abs(exact_val-fout(i));
-         if (delv > maxv) { maxv = delv; }
+         const double exact_val = field_func(pos);
+
+         max_err  = std::max(max_err, fabs(exact_val - interp_vals[i]));
+         max_dist = std::max(max_dist, dist_p_out(i));
          if (code_out[i] == 1) { face_pts++; }
       }
       else { not_found++; }
@@ -193,27 +170,23 @@ int main (int argc, char *argv[])
             << "\nFound on local mesh:  " << found_loc
             << "\nFound on other tasks: " << found_away << std::endl;
 
-   double glob_maxerr;
-   MPI_Allreduce(&maxv, &glob_maxerr, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-   double max_dist = dist_p_out.Max(), glob_md;
+   double glob_me;
+   MPI_Allreduce(&max_err, &glob_me, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+   double glob_md;
    MPI_Allreduce(&max_dist, &glob_md, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
    int glob_nf;
    MPI_Allreduce(&not_found, &glob_nf, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   int glob_nbp;
-   MPI_Allreduce(&face_pts, &glob_nbp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   int glob_fp;
+   MPI_Allreduce(&face_pts, &glob_fp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    if (myid == 0)
    {
       cout << setprecision(16) << "---\n--- Total statistics:"
-           << "\nMax interp error: " << glob_maxerr
+           << "\nMax interp error: " << glob_me
            << "\nMax distance:     " << glob_md
            << "\nPoints not found: " << glob_nf
-           << "\nPoints on faces:  " << glob_nbp << std::endl;
+           << "\nPoints on faces:  " << glob_fp << std::endl;
    }
 
-   delete pfespace;
-   delete fec;
-   delete pmesh;
    MPI_Finalize();
-
    return 0;
 }
