@@ -57,6 +57,7 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+/// IMEX Backward-Forward Euler ODE solver
 class IMEX_BE_FE : public ODESolver
 {
 protected:
@@ -85,6 +86,9 @@ public:
    }
 };
 
+/** Second-order IMEX (2,3,2) method, from "Implicit-explicit Runge-Kutta
+    methods for time-dependent partial differential equations" by Ascher, Ruuth
+    and Spiteri, Applied Numerical Mathematics (1997). */
 class IMEXRK2 : public ODESolver
 {
 protected:
@@ -103,39 +107,63 @@ public:
 
    virtual void Step(Vector &x, double &t, double &dt)
    {
-      double alpha = 1 - sqrt(2)/2;
+      double gamma = 1 - sqrt(2)/2;
       double delta = -2*sqrt(2)/3;
 
+      // The method is given by
+      // k1_exp = f(u)
+      // k1_imp = g(u + gamma*dt*k1_exp + gamma*dt*k1_imp)
+      // k2_exp = f(u + gamma*dt*k1_exp + gamma*dt*k1_imp)
+      // k2_imp = g(u + delta*dt*k1_exp + (1-gamma)*dt*k1_imp
+      //              + (1-delta)*dt*k2_exp + gamma*dt*k2_imp)
+      // k3_exp = f(u + delta*dt*k1_exp + (1-gamma)*dt*k1_imp
+      //              + (1-delta)*dt*k2_exp + gamma*dt*k2_imp)
+      // u_new = u + dt*((1-gamma)*k1_imp + (1-gamma)*k2_exp
+      //                 + gamma*k2_imp + gamma*k3_exp)
+
       // Take first explicit step
+      // k1_exp = f(u)
       f->ExplicitMult(x, k_exp);
       // b corresponding to this stage is zero, so don't add to solution
 
       // Solve first implicit step
-      add(x, alpha*dt, k_exp, y);
-      f->SetTime(t + alpha*dt);
-      f->ImplicitSolve(alpha*dt, y, k_imp);
-      x.Add((1-alpha)*dt, k_imp);
+      // y = u + gamma*dt*k1_exp
+      add(x, gamma*dt, k_exp, y);
+      // Solve x1_imp = g(u + gamma*dt*k1_exp + gamma*dt*k1_imp)
+      f->SetTime(t + gamma*dt);
+      f->ImplicitSolve(gamma*dt, y, k_imp);
+      // x = u + (1-gamma)*dt*k1_imp
+      x.Add((1-gamma)*dt, k_imp);
 
       // Begin setting up rhs for second solve
+      // z = u + (1-gamma)*dt*k_imp + delta*dt*k_exp
       add(x, delta*dt, k_exp, z);
 
       // Take second explicit step
-      y.Add(alpha*dt, k_imp);
+      // y = x + gamma*dt*k1_exp + gamma*dt*k1_imp
+      y.Add(gamma*dt, k_imp);
+      // k2_exp = f(x + gamma*dt*k1_exp + gamma*dt*k1_imp)
       f->ExplicitMult(y, k_exp);
-      x.Add((1-alpha)*dt, k_exp);
+      // x = u + (1-gamma)*dt*k1_imp + (1-gamma)*dt*k2_exp
+      x.Add((1-gamma)*dt, k_exp);
 
-      // Update rhs
+      // Finish formoing rhs
+      // z = x + (1-gamma)*dt*k1_imp + delta*dt*k1_exp + (1-delta)*dt*k2_exp
       z.Add((1-delta)*dt, k_exp);
 
-      // Solve second implicit step
+      // Solve second implicit step for k2_imp
       f->SetTime(t + dt);
-      f->ImplicitSolve(alpha*dt, z, k_imp);
-      x.Add(alpha*dt, k_imp);
+      f->ImplicitSolve(gamma*dt, z, k_imp);
+      // x = u + (1-gamma)*dt*k1_imp + (1-gamma)*dt*k2_exp + gamma*dt*k2_imp
+      x.Add(gamma*dt, k_imp);
 
-      // Take final explicit step
-      z.Add(alpha*dt, k_imp);
+      // Take final explicit step for k3_exp
+      z.Add(gamma*dt, k_imp);
       f->ExplicitMult(z, k_exp);
-      x.Add(alpha*dt, k_exp);
+
+      // x = u + (1-gamma)*dt*k1_imp + (1-gamma)*dt*k2_exp + gamma*dt*k2_imp
+      //       + gamma*dt*k3_exp
+      x.Add(gamma*dt, k_exp);
 
       t += dt;
    }
