@@ -1,4 +1,5 @@
-﻿// mpirun -np 2 ./exp -m RT2D.mesh -o 3
+﻿// mpirun -np 2 exp -m RT2D.mesh -o 3
+// mpirun -np 2 exp -m ../../data/fichera.mesh -o 3
 
 #include "mfem.hpp"
 
@@ -8,7 +9,6 @@
 using namespace mfem;
 using namespace std;
 
-// Initial condition
 double field_func(const Vector &x)
 {
    const int dim = x.Size();
@@ -26,7 +26,7 @@ int main (int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // Set the method's default parameters.
-   const char *mesh_file = "icf.mesh";
+   const char *mesh_file = "RT2D.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
    int rp_levels         = 0;
@@ -35,7 +35,7 @@ int main (int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&mesh_poly_deg, "-o", "--order",
+   args.AddOption(&mesh_poly_deg, "-o", "--mesh-order",
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
@@ -55,7 +55,7 @@ int main (int argc, char *argv[])
    const int dim = mesh->Dimension();
    if (myid == 0)
    {
-      cout << "Mesh curvature: ";
+      cout << "Mesh curvature of the original mesh: ";
       if (mesh->GetNodes()) { cout << mesh->GetNodes()->OwnFEC()->Name(); }
       else { cout << "(NONE)"; }
       cout << endl;
@@ -67,8 +67,9 @@ int main (int argc, char *argv[])
    mesh->GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
    if (myid == 0)
    {
-      std::cout << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n";
-      std::cout << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
+      std::cout << "--- Generating equidistant point for:\n"
+                << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
+                << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
       if (dim == 3)
       {
          std::cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]\n";
@@ -84,6 +85,10 @@ int main (int argc, char *argv[])
    H1_FECollection fec(mesh_poly_deg, dim);
    ParFiniteElementSpace pfespace(&pmesh, &fec, dim);
    pmesh.SetNodalFESpace(&pfespace);
+   if (myid == 0)
+   {
+      cout << "Mesh curvature of the curved mesh: " << fec.Name() << endl;
+   }
 
    // Define a scalar function on the mesh.
    ParFiniteElementSpace sc_fes(&pmesh, &fec, 1);
@@ -91,12 +96,35 @@ int main (int argc, char *argv[])
    FunctionCoefficient fc(field_func);
    field_vals.ProjectCoefficient(fc);
 
+   // Display the mesh and the field through glvis.
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sout;
+   sout.open(vishost, visport);
+   if (!sout)
+   {
+      if (myid == 0)
+      {
+         cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+      }
+   }
+   else
+   {
+      sout << "parallel " << num_procs << " " << myid << "\n";
+      sout.precision(8);
+      sout << "solution\n" << pmesh << field_vals;
+      if (dim == 2) { sout << "keys RmjA*****\n"; }
+      if (dim == 3) { sout << "keys mA\n"; }
+      sout << flush;
+   }
+
    // Setup the gslib mesh.
-   findpts_gslib *gsfl = new findpts_gslib(MPI_COMM_WORLD);
+   FindPointsGSLib finder(MPI_COMM_WORLD);
    const double rel_bbox_el = 0.05;
    const double newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
-   gsfl->gslib_findpts_setup(pmesh, rel_bbox_el, newton_tol, npts_at_once);
+   finder.Setup(pmesh, rel_bbox_el, newton_tol, npts_at_once);
 
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box.
@@ -132,15 +160,16 @@ int main (int argc, char *argv[])
    Vector pos_r_out(pts_cnt * dim), dist_p_out(pts_cnt);
 
    // Finds points stored in vxyz.
-   gsfl->gslib_findpts(vxyz, code_out, task_id_out,
-                       el_id_out, pos_r_out, dist_p_out);
+   finder.FindPoints(vxyz, code_out, task_id_out,
+                   el_id_out, pos_r_out, dist_p_out);
 
    // Interpolate FE function values on the found points.
    Vector interp_vals(pts_cnt);
-   gsfl->gslib_findpts_eval(code_out, task_id_out, el_id_out,
-                            pos_r_out, field_vals, interp_vals);
+   finder.Interpolate(code_out, task_id_out, el_id_out,
+                    pos_r_out, field_vals, interp_vals);
 
-   gsfl->gslib_findpts_free();
+   // Free internal gslib internal data.
+   finder.FreeData();
 
    int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
    double max_err = 0.0, max_dist = 0.0;
