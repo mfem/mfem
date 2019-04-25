@@ -57,6 +57,117 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+/// IMEX Backward-Forward Euler ODE solver
+class IMEX_BE_FE : public ODESolver
+{
+protected:
+   Vector k_exp, k_imp, y;
+
+public:
+   virtual void Init(TimeDependentOperator &_f)
+   {
+      ODESolver::Init(_f);
+      k_imp.SetSize(f->Width());
+      y.SetSize(f->Width());
+      k_exp.SetSize(f->Width());
+   }
+
+   virtual void Step(Vector &x, double &t, double &dt)
+   {
+      f->ExplicitMult(x, k_exp);
+      add(x, dt, k_exp, y);
+
+      f->SetTime(t + dt);
+      f->ImplicitSolve(dt, y, k_imp);
+
+      x.Add(dt, k_exp);
+      x.Add(dt, k_imp);
+      t += dt;
+   }
+};
+
+/** Second-order IMEX (2,3,2) method, from "Implicit-explicit Runge-Kutta
+    methods for time-dependent partial differential equations" by Ascher, Ruuth
+    and Spiteri, Applied Numerical Mathematics (1997). */
+class IMEXRK2 : public ODESolver
+{
+protected:
+   Vector k_exp, k_imp, y, z;
+
+public:
+   virtual void Init(TimeDependentOperator &_f)
+   {
+      ODESolver::Init(_f);
+      f = ODESolver::f;
+      k_imp.SetSize(f->Width());
+      k_exp.SetSize(f->Width());
+      y.SetSize(f->Width());
+      z.SetSize(f->Width());
+   }
+
+   virtual void Step(Vector &x, double &t, double &dt)
+   {
+      double gamma = 1 - sqrt(2)/2;
+      double delta = -2*sqrt(2)/3;
+
+      // The method is given by
+      // k1_exp = f(u)
+      // k1_imp = g(u + gamma*dt*k1_exp + gamma*dt*k1_imp)
+      // k2_exp = f(u + gamma*dt*k1_exp + gamma*dt*k1_imp)
+      // k2_imp = g(u + delta*dt*k1_exp + (1-gamma)*dt*k1_imp
+      //              + (1-delta)*dt*k2_exp + gamma*dt*k2_imp)
+      // k3_exp = f(u + delta*dt*k1_exp + (1-gamma)*dt*k1_imp
+      //              + (1-delta)*dt*k2_exp + gamma*dt*k2_imp)
+      // u_new = u + dt*((1-gamma)*k1_imp + (1-gamma)*k2_exp
+      //                 + gamma*k2_imp + gamma*k3_exp)
+
+      // Take first explicit step
+      // k1_exp = f(u)
+      f->ExplicitMult(x, k_exp);
+      // b corresponding to this stage is zero, so don't add to solution
+
+      // Solve first implicit step
+      // y = u + gamma*dt*k1_exp
+      add(x, gamma*dt, k_exp, y);
+      // Solve x1_imp = g(u + gamma*dt*k1_exp + gamma*dt*k1_imp)
+      f->SetTime(t + gamma*dt);
+      f->ImplicitSolve(gamma*dt, y, k_imp);
+      // x = u + (1-gamma)*dt*k1_imp
+      x.Add((1-gamma)*dt, k_imp);
+
+      // Begin setting up rhs for second solve
+      // z = u + (1-gamma)*dt*k_imp + delta*dt*k_exp
+      add(x, delta*dt, k_exp, z);
+
+      // Take second explicit step
+      // y = x + gamma*dt*k1_exp + gamma*dt*k1_imp
+      y.Add(gamma*dt, k_imp);
+      // k2_exp = f(x + gamma*dt*k1_exp + gamma*dt*k1_imp)
+      f->ExplicitMult(y, k_exp);
+      // x = u + (1-gamma)*dt*k1_imp + (1-gamma)*dt*k2_exp
+      x.Add((1-gamma)*dt, k_exp);
+
+      // Finish formoing rhs
+      // z = x + (1-gamma)*dt*k1_imp + delta*dt*k1_exp + (1-delta)*dt*k2_exp
+      z.Add((1-delta)*dt, k_exp);
+
+      // Solve second implicit step for k2_imp
+      f->SetTime(t + dt);
+      f->ImplicitSolve(gamma*dt, z, k_imp);
+      // x = u + (1-gamma)*dt*k1_imp + (1-gamma)*dt*k2_exp + gamma*dt*k2_imp
+      x.Add(gamma*dt, k_imp);
+
+      // Take final explicit step for k3_exp
+      z.Add(gamma*dt, k_imp);
+      f->ExplicitMult(z, k_exp);
+
+      // x = u + (1-gamma)*dt*k1_imp + (1-gamma)*dt*k2_exp + gamma*dt*k2_imp
+      //       + gamma*dt*k3_exp
+      x.Add(gamma*dt, k_exp);
+
+      t += dt;
+   }
+};
 
 /** A time-dependent operator for the right-hand side of the ODE for use with
     explicit ODE solvers. The DG weak form of du/dt = div(D grad(u))-v.grad(u) is
@@ -145,7 +256,7 @@ private:
    CGSolver M_solver;
 
    HypreBoomerAMG *A_prec;
-   GMRESSolver *A_solver;
+   CGSolver *A_solver;
    double dt;
 
    mutable Vector z;
@@ -156,6 +267,7 @@ public:
    FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_S, HypreParMatrix &_K,
                 const Vector &_b);
 
+   virtual void ExplicitMult(const Vector &x, Vector &y) const;
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
@@ -178,7 +290,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
-   int ode_solver_type = 3;
+   int ode_solver_type = 2;
    double t_final = 10.0;
    double d_coef = 0.01;
    double dt = 0.01;
@@ -256,22 +368,18 @@ int main(int argc, char *argv[])
    // 4. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
    ODESolver *ode_solver = NULL;
+
    switch (ode_solver_type)
    {
       // Implicit L-stable methods
-      case 1:  ode_solver = new BackwardEulerSolver; break;
-      case 2:  ode_solver = new SDIRK23Solver(2); break;
-      case 3:  ode_solver = new SDIRK33Solver; break;
+      case 1:  ode_solver = new IMEX_BE_FE; break;
+      case 2:  ode_solver = new IMEXRK2; break;
       // Explicit methods
       case 11: ode_solver = new ForwardEulerSolver; break;
       case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
       case 13: ode_solver = new RK3SSPSolver; break;
       case 14: ode_solver = new RK4Solver; break;
       case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;
@@ -624,13 +732,11 @@ void FE_Evolution::initA(double _dt)
       delete A_prec;
       delete A;
 
-      HypreParMatrix * SK = Add(1.0, S, -1.0, K);
-      A = Add(1.0, M, _dt, *SK);
-      delete SK;
+      A = Add(1.0, M, _dt, S);
       dt = _dt;
 
       A_prec = new HypreBoomerAMG(*A);
-      A_solver = new GMRESSolver(A->GetComm());
+      A_solver = new CGSolver(A->GetComm());
       A_solver->SetOperator(*A);
       A_solver->SetPreconditioner(*A_prec);
 
@@ -651,13 +757,19 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    M_solver.Mult(z, y);
 }
 
+void FE_Evolution::ExplicitMult(const Vector &x, Vector &y) const
+{
+   // y = M^{-1} (K x + b)
+   K.Mult(1.0, x, 0.0, z);
+   z += b;
+   M_solver.Mult(z, y);
+}
+
 void FE_Evolution::ImplicitSolve(const double _dt, const Vector &x, Vector &y)
 {
    this->initA(_dt);
-
-   // y = (M + dt S - dt K)^{-1} (-S x + K x + b)
+   // y = (M + dt S)^{-1} (-S x + K x + b)
    S.Mult(-1.0, x, 0.0, z);
-   K.Mult(1.0, x, 1.0, z);
    z += b;
    A_solver->Mult(z, y);
 }
