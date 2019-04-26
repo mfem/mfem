@@ -673,6 +673,12 @@ int main(int argc, char *argv[])
       double dt_diff = hmin * hmin / chi_max_ratio_;
       double dt_adv  = hmin / max(v_max_, DBL_MIN);
 
+      if (mpi.Root())
+      {
+         cout << "Maximum advection time step: " << dt_adv << endl;
+         cout << "Maximum diffusion time step: " << dt_diff << endl;
+      }
+      
       dt = cfl * min(dt_diff, dt_adv);
    }
 
