@@ -14,6 +14,10 @@ glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 800
 
 glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 
+parallel plot:
+glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
+
+
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
