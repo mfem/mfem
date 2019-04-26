@@ -342,7 +342,6 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       vis_phi.open(vishost, visport);
-      vis_j.open(vishost, visport);
       if (!vis_phi)
       {
           if (myid==0)
@@ -368,10 +367,11 @@ int main(int argc, char *argv[])
          vis_phi << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
 
+         MPI_Barrier(pmesh->GetComm());
+         vis_j.open(vishost, visport);
          vis_j << "parallel " << num_procs << " " << myid << "\n";
          vis_j << "solution\n" << *pmesh << j;
          vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
-         vis_j << "pause\n";
          vis_j << flush;
       }
    }
@@ -436,8 +436,8 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
-        if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
-        subtract(psi,psiBack,psiPer);
+         if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
+         subtract(psi,psiBack,psiPer);
 
          if (visualization)
          {
@@ -496,6 +496,7 @@ int main(int argc, char *argv[])
    // 10. Free the used memory.
    delete ode_solver;
    delete pmesh;
+   delete dc;
 
    MPI_Finalize();
    return 0;

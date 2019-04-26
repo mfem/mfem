@@ -357,7 +357,6 @@ int main(int argc, char *argv[])
 
          vis_j << "solution\n" << *mesh << j;
          vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
-         vis_j << "pause\n";
          vis_j << flush;
       }
    }

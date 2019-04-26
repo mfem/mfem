@@ -75,7 +75,6 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
         ess_vdof.Print(myfile0, 1000);
    }
 
-   //no preconditioners for M and K for now
    //mass matrix
    M = new BilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator);
@@ -91,7 +90,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f,
    M_solver.SetMaxIter(1000);
    M_solver.SetPrintLevel(0);
    M_solver.SetPreconditioner(*M_prec);
-   M_solver.SetOperator(Mmat);
+   M_solver.SetOperator(Mmat);  //this is probably not owned by M_solver
 
    //stiffness matrix
    K = new BilinearForm(&fespace);
@@ -297,7 +296,7 @@ void ResistiveMHDOperator::UpdatePhi(Vector &vx)
    Vector phi(vx.GetData() +   0, sc);
    Vector   w(vx.GetData() +2*sc, sc);
 
-   Mmat.Mult(w, z);
+   M->Mult(w, z);
    z.Neg(); // z = -z
    K_solver.Mult(z, phi);
 }

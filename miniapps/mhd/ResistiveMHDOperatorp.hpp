@@ -25,14 +25,14 @@ protected:
    ParBilinearForm *M, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
    ParBilinearForm *Nv, *Nb;
    ParLinearForm *E0, *Sw; //two source terms
-
+   HypreParMatrix Kmat, Mmat;
    double viscosity, resistivity;
 
-   HypreSolver *M_solver; // Krylov solver for inverting the mass matrix M
-   GSSmoother *M_prec;  // Preconditioner for the mass matrix M
+   CGSolver M_solver; // Krylov solver for inverting the mass matrix M
+   HypreSmoother M_prec;  // Preconditioner for the mass matrix M
 
-   HypreSolver *K_solver; // Krylov solver for inverting the stiffness matrix K
-   GSSmoother *K_prec;  // Preconditioner for the stiffness matrix K
+   CGSolver K_solver; // Krylov solver for inverting the stiffness matrix K
+   HypreSmoother K_prec;  // Preconditioner for the stiffness matrix K
 
    mutable Vector z; // auxiliary vector 
 
@@ -59,56 +59,56 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    : TimeDependentOperator(4*f.GetVSize(), 0.0), fespace(f),
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
      viscosity(visc),  resistivity(resi), 
-     M_solver(NULL), M_prec(NULL), K_solver(NULL), K_prec(NULL), z(height/4)
+     M_solver(f.GetComm()), K_solver(f.GetComm()), z(height/4)
 {
    const double rel_tol = 1e-8;
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   if (false)
-   {
-        Array<int> ess_vdof;
-        fespace.GetEssentialVDofs(ess_bdr, ess_vdof);
-        ofstream myfile0 ("vdof.dat"), myfile3("tdof.dat");
-        ess_tdof_list.Print(myfile3, 1000);
-        ess_vdof.Print(myfile0, 1000);
-   }
-
-   //no preconditioners for M and K for now
    //mass matrix
-   M = new BilinearForm(&fespace);
+   M = new ParBilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator);
    M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
-   GSSmoother *M_prec_gs = new GSSmoother(Mmat);
-   M_prec=M_prec_gs;
+   /*
+   HyprePCG *M_solver_pcg = new HyprePCG(Mmat);
+   M_solver=M_solver_pcg;
+   HypreSolver *M_prec_amg = new HypreBoomerAMG(Mmat);
+   M_prec=M_prec_amg;
+   */
 
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(500);
    M_solver.SetPrintLevel(0);
-   M_solver.SetPreconditioner(*M_prec);
+   M_prec.SetType(HypreSmoother::Jacobi);
+   M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
 
    //stiffness matrix
-   K = new BilinearForm(&fespace);
+   K = new ParBilinearForm(&fespace);
    K->AddDomainIntegrator(new DiffusionIntegrator);
    K->Assemble();
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 
-   GSSmoother *K_prec_gs = new GSSmoother(Kmat);
-   K_prec=K_prec_gs;
+   /*
+   HyprePCG *K_solver_pcg = new HyprePCG(Kmat);
+   K_solver=K_solver_pcg;
+   HypreSolver *K_prec_amg = new HypreBoomerAMG(Kmat);
+   K_prec=K_prec_amg;
+   */
 
    K_solver.iterative_mode = true;
    K_solver.SetRelTol(rel_tol);
    K_solver.SetAbsTol(0.0);
-   K_solver.SetMaxIter(500);
+   K_solver.SetMaxIter(1000);
    K_solver.SetPrintLevel(0);
-   K_solver.SetPreconditioner(*K_prec);
+   K_prec.SetType(HypreSmoother::Jacobi);
+   K_solver.SetPreconditioner(K_prec);
    K_solver.SetOperator(Kmat);
 
-   KB = new BilinearForm(&fespace);
+   KB = new ParBilinearForm(&fespace);
    KB->AddDomainIntegrator(new DiffusionIntegrator);      //  K matrix
    KB->AddBdrFaceIntegrator(new BoundaryGradIntegrator);  // -B matrix
    KB->Assemble();
@@ -132,22 +132,12 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
 
-   /*
-   cout << "Number of total scalar unknowns: " << fespace.GetVSize()<< endl;
-   cout << "Number of GetTrueVSize unknowns: " << fespace.GetTrueVSize() << endl;
-   cout << "Number of matrix in M: " <<  Mmat.Size()<< endl;
-   cout << "Number of matrix in K: " <<  Kmat.Size()<< endl;
-   cout << "Number of matrix in KB: " << KB->SpMat().Size()<< endl;
-   cout << "Number of matrix in DSl: " << DSl.SpMat().Size()<< endl;
-   cout << "Number of matrix in DRe: " << DRe.SpMat().Size()<< endl;
-   */
-
 }
 
 void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield) 
 {
    delete E0;
-   E0 = new LinearForm(&fespace);
+   E0 = new ParLinearForm(&fespace);
    E0->AddDomainIntegrator(new DomainLFIntegrator(Efield));
    E0->Assemble();
 }
@@ -172,52 +162,25 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Nv->Mult(psi, z);
    if (resistivity != 0.0)
    {
-      DSl.AddMult(psi, z);
+      DSl.TrueAddMult(psi, z);
    }
    if (E0!=NULL)
      z += *E0;
    z.Neg(); // z = -z
+   z.SetSubVector(ess_tdof_list, 0.0);
 
-   if (true)
-   {
-      for (int i=0; i<ess_tdof_list.Size(); i++)
-          z(ess_tdof_list[i])=0.0; //set homogeneous Dirichlet condition by hand
-
-      //ofstream myfile("z0.dat");
-      //z.Print(myfile, 10);
-      //cout<<z.Size()<<endl;
-
-      M_solver.Mult(z, dpsi_dt);
-   }
-   else
-   {
-       //another way; but it is slower
-       SparseMatrix A;
-       Vector B, X;
-       M->FormLinearSystem(ess_tdof_list, dpsi_dt, z, A, X, B); // Alters matrix and rhs to enforce bc
-       PCG(Mmat, *M_prec, B, X, 0, 200, 1e-12, 0.0); 
-       //CG(A, B, X);
-       M->RecoverFEMSolution(X, z, dpsi_dt);
-   }
-   //ofstream myfile("zLHS1.dat");
-   //z.Print(myfile, 1000);
-
+   M_solver.Mult(z, dpsi_dt);
 
    Nv->Mult(w, z);
    if (viscosity != 0.0)
    {
-      DRe.AddMult(w, z);
+      DRe.TrueAddMult(w, z);
    }
    z.Neg(); // z = -z
-   Nb->AddMult(j, z);
-
-   for (int i=0; i<ess_tdof_list.Size(); i++)
-       z(ess_tdof_list[i])=0.0; //set Dirichlet condition by hand
-   //ofstream myfile2("zLHS2.dat");
-   //z.Print(myfile2, 1000);
+   Nb->TureAddMult(j, z);
+   z.SetSubVector(ess_tdof_list, 0.0);
 
    M_solver.Mult(z, dw_dt);
-
 }
 
 void ResistiveMHDOperator::assembleNv(GridFunction *gf) 
@@ -227,10 +190,9 @@ void ResistiveMHDOperator::assembleNv(GridFunction *gf)
    //cout <<phi(0)<<endl;   //debug
    //GridFunction phiGF(&fespace); 
    //phiGF.SetFromTrueDofs(phi);
-   
 
    delete Nv;
-   Nv = new BilinearForm(&fespace);
+   Nv = new ParBilinearForm(&fespace);
    MyCoefficient velocity(gf, 2);   //we update velocity
 
    Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
@@ -243,9 +205,8 @@ void ResistiveMHDOperator::assembleNb(GridFunction *gf)
    //GridFunction psiGF(&fespace); 
    //psiGF.SetFromTrueDofs(psi);
 
-
    delete Nb;
-   Nb = new BilinearForm(&fespace);
+   Nb = new ParBilinearForm(&fespace);
    MyCoefficient Bfield(gf, 2);   //we update B
 
    Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
@@ -258,7 +219,7 @@ void ResistiveMHDOperator::UpdateJ(Vector &vx)
    int sc = height/4;
    Vector psi(vx.GetData() +  sc, sc);
    Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
-   SparseMatrix tmp;
+   HypreParMatrix tmp;
    Vector Y, Z;
 
    KB->Mult(psi, z);
@@ -266,25 +227,8 @@ void ResistiveMHDOperator::UpdateJ(Vector &vx)
    M->FormLinearSystem(ess_tdof_list, j, z, tmp, Y, Z); //apply Dirichelt boundary (j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)
    M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, j);
-
-   cout <<"======Update J======"<<endl;
-
-   /* debugging for the boundary terms
-   if (false){
-       for (int i=0; i<ess_tdof_list.Size(); i++)
-       { 
-         cout <<ess_tdof_list[i]<<" ";
-         z(ess_tdof_list[i])=0.0;
-       }
-       ofstream myfile("zv.dat");
-       z.Print(myfile, 1000);
-   }
-   M_solver.Mult(z, j);
-   */
-
+   
 }
-
-
 
 void ResistiveMHDOperator::UpdatePhi(Vector &vx)
 {
@@ -293,8 +237,9 @@ void ResistiveMHDOperator::UpdatePhi(Vector &vx)
    Vector phi(vx.GetData() +   0, sc);
    Vector   w(vx.GetData() +2*sc, sc);
 
-   Mmat.Mult(w, z);
+   M->Mult(w, z);
    z.Neg(); // z = -z
+   z.SetSubVector(ess_tdof_list, 0.0);
    K_solver.Mult(z, phi);
 }
 
@@ -304,11 +249,15 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     //free used memory
     delete M;
     delete K;
+    delete E0;
+    delete Sw;
     delete KB;
     delete Nv;
     delete Nb;
-    delete M_prec;
-    delete K_prec;
+    //delete M_solver;
+    //delete K_solver;
+    //delete M_prec;
+    //delete K_prec;
 }
 
 
