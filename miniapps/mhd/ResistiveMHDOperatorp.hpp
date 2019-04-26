@@ -167,9 +167,27 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    if (E0!=NULL)
      z += *E0;
    z.Neg(); // z = -z
-   z.SetSubVector(ess_tdof_list, 0.0);
 
-   M_solver.Mult(z, dpsi_dt);
+   //z.SetSubVector(ess_tdof_list, 0.0);
+   //M_solver.Mult(z, dpsi_dt);
+
+   HypreParMatrix A;
+   Vector Y, Z;
+   M->FormLinearSystem(ess_tdof_list, dpsi_dt, z, A, Y, Z); 
+
+   HypreSolver *amg = new HypreBoomerAMG(A);
+   HyprePCG *pcg = new HyprePCG(A);
+   pcg->SetTol(1e-12);
+   pcg->SetMaxIter(200);
+   pcg->SetPrintLevel(2);
+   pcg->SetPreconditioner(*amg);
+   pcg->Mult(Z, Y);
+
+   //M_solver.Mult(Z, Y);
+   M->RecoverFEMSolution(Y, z, dpsi_dt);
+
+   delete amg;
+   delete pcg;
 
    Nv->Mult(w, z);
    if (viscosity != 0.0)
@@ -178,9 +196,13 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    }
    z.Neg(); // z = -z
    Nb->TrueAddMult(j, z);
-   z.SetSubVector(ess_tdof_list, 0.0);
 
-   M_solver.Mult(z, dw_dt);
+   //z.SetSubVector(ess_tdof_list, 0.0);
+   //M_solver.Mult(z, dw_dt);
+   
+   M->FormLinearSystem(ess_tdof_list, dw_dt, z, A, Y, Z); 
+   M_solver.Mult(Z, Y);
+   M->RecoverFEMSolution(Y, z, dw_dt);
 }
 
 void ResistiveMHDOperator::assembleNv(ParGridFunction *gf) 
@@ -219,11 +241,12 @@ void ResistiveMHDOperator::UpdateJ(Vector &vx)
    int sc = height/4;
    Vector psi(vx.GetData() +  sc, sc);
    Vector   j(vx.GetData() +3*sc, sc);  //it creates a reference
-   HypreParMatrix tmp;
-   Vector Y, Z;
 
    KB->Mult(psi, z);
    z.Neg(); // z = -z
+
+   HypreParMatrix tmp;
+   Vector Y, Z;
    M->FormLinearSystem(ess_tdof_list, j, z, tmp, Y, Z); //apply Dirichelt boundary (j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)
    M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, j);
@@ -239,8 +262,15 @@ void ResistiveMHDOperator::UpdatePhi(Vector &vx)
 
    Mmat.Mult(w, z);
    z.Neg(); // z = -z
+
    z.SetSubVector(ess_tdof_list, 0.0);
    K_solver.Mult(z, phi);
+
+   //HypreParMatrix tmp;
+   //Vector Y, Z;
+   //K->FormLinearSystem(ess_tdof_list, phi, z, tmp, Y, Z); 
+   //K_solver.Mult(Z, Y);
+   //K->RecoverFEMSolution(Y, z, phi);
 }
 
 
