@@ -1,5 +1,10 @@
-﻿// ./exs -m RT2D.mesh -o 3
-// ./exs -m ../../data/fichera.mesh -o 3
+﻿//          Serial example of utilizing GSLib's FindPoints methods
+//
+// Compile with: make exs
+//
+// Sample runs:
+//    ./exs -m ../../data/rtaylor2D-q3.mesh -o 3
+//    ./exs -m ../../data/fichera.mesh -o 3
 
 #include "mfem.hpp"
 

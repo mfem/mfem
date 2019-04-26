@@ -1,5 +1,10 @@
-﻿// mpirun -np 2 exp -m RT2D.mesh -o 3
-// mpirun -np 2 exp -m ../../data/fichera.mesh -o 3
+﻿//          Parallel example of utilizing GSLib's FindPoints methods
+//
+// Compile with: make exp
+//
+// Sample runs:
+//    mpirun -np 2 exp -m ../../data/rtaylor2D-q3.mesh -o 3
+//    mpirun -np 2 exp -m ../../data/fichera.mesh -o 3
 
 #include "mfem.hpp"
 
