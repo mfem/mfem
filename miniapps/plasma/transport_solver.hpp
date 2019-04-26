@@ -178,6 +178,8 @@ class DGAdvectionDiffusionTDO : public TimeDependentOperator
 private:
   DGParams & dg_;
 
+  bool imex_;
+
   double dt_;
   
   ParFiniteElementSpace *fes_;
@@ -201,9 +203,10 @@ private:
 public:
   DGAdvectionDiffusionTDO(DGParams & dg,
 			  ParFiniteElementSpace &fes,
-			  Coefficient &CCoef)
+			  Coefficient &CCoef, bool imex = true)
     : TimeDependentOperator(fes.GetVSize()),
       dg_(dg),
+      imex_(imex),
       dt_(-1.0),
       fes_(&fes),
       CCoef_(&CCoef),
@@ -231,6 +234,7 @@ public:
   void SetDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
   void SetNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
 
+  virtual void ExplicitMult(const Vector &x, Vector &y) const;
   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &dudt);
 
   void Update();

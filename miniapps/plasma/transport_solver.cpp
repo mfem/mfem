@@ -312,6 +312,11 @@ void DGAdvectionDiffusionTDO::SetNeumannBC(Array<int> &nbc_attr,
   nbcCoef_ = &nbc;
 }
 
+void DGAdvectionDiffusionTDO::ExplicitMult(const Vector &x, Vector &y) const
+{
+
+}
+
 void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
 					    const Vector &u, Vector &dudt)
 {
@@ -377,7 +382,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
 						     dg_.sigma,
 						     dg_.kappa));
   }
-  if (negVCoef_)
+  if (negVCoef_ || !imex_)
   {
      a.AddDomainIntegrator(new ConvectionIntegrator(*dtNegVCoef_, -1.0));
      a.AddInteriorFaceIntegrator(

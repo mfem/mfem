@@ -30,7 +30,7 @@ static double T_max_ = 10.0;
 static double T_min_ =  1.0;
 
 static double B_max_ = 5.0;
-static double v_max_ = 0.0;
+static double v_max_ = 1e3;
 
 // Maximum characteristic speed (updated by integrators)
 static double max_char_speed_;
@@ -242,7 +242,8 @@ int main(int argc, char *argv[])
    dg.sigma = -1.0;
    dg.kappa = -1.0;
 
-   int ode_solver_type = 1;
+   int ode_solver_type = 2;
+   bool   imex = true;
    double tol_ode = 1e-3;
    double rej_ode = 1.2;
    double kP_acc = 0.13;
@@ -258,7 +259,7 @@ int main(int argc, char *argv[])
    // double dt_rel_tol = 0.1;
    double cfl = 0.3;
    bool visualization = true;
-   int vis_steps = 50;
+   int vis_steps = 10;
 
    Array<int> ion_charges;
    Vector ion_masses;
@@ -290,9 +291,12 @@ int main(int argc, char *argv[])
    args.AddOption(&tol_ode, "-tol", "--ode-tolerance",
                   "Difference tolerance for ODE integration.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE Implicit solver: L-stable methods\n\t"
-                  "            1 - Backward Euler,\n\t"
-                  "            2 - SDIRK23, 3 - SDIRK33,\n\t"
+                  "ODE Implicit solver: "
+		  "            IMEX methods\n\t"
+                  "            1 - IMEX BE/FE, 2 - IMEX RK2,\n\t"
+		  "            L-stable methods\n\t"
+                  "            11 - Backward Euler,\n\t"
+                  "            12 - SDIRK23, 13 - SDIRK33,\n\t"
                   "            A-stable methods (not L-stable)\n\t"
                   "            22 - ImplicitMidPointSolver,\n\t"
                   "            23 - SDIRK23, 34 - SDIRK34.");
@@ -352,6 +356,8 @@ int main(int argc, char *argv[])
       ode_imp_solver_type = ode_split_solver_type;
    }
    */
+   imex = ode_solver_type < 10;
+   
    if (ion_charges.Size() == 0)
    {
       ion_charges.SetSize(1);
@@ -678,10 +684,13 @@ int main(int argc, char *argv[])
    ODESolver * ode_solver = NULL;
    switch (ode_solver_type)
    {
+      // Implicit-Explicit methods
+      case 1:  ode_solver = new IMEX_BE_FE; break;
+      case 2:  ode_solver = new IMEXRK2; break;
       // Implicit L-stable methods
-      case 1:  ode_solver = new BackwardEulerSolver; break;
-      case 2:  ode_solver = new SDIRK23Solver(2); break;
-      case 3:  ode_solver = new SDIRK33Solver; break;
+      case 11: ode_solver = new BackwardEulerSolver; break;
+      case 12: ode_solver = new SDIRK23Solver(2); break;
+      case 13: ode_solver = new SDIRK33Solver; break;
       // Implicit A-stable methods (not L-stable)
       case 22: ode_solver = new ImplicitMidpointSolver; break;
       case 23: ode_solver = new SDIRK23Solver; break;
@@ -708,7 +717,7 @@ int main(int argc, char *argv[])
    MatrixFunctionCoefficient DCoef(dim, ChiFunc);
    VectorFunctionCoefficient VCoef(dim, vFunc);
    
-   DGAdvectionDiffusionTDO oper(dg, fespace, one);
+   DGAdvectionDiffusionTDO oper(dg, fespace, one, imex);
 
    oper.SetDiffusionCoefficient(DCoef);
    oper.SetAdvectionCoefficient(VCoef);
