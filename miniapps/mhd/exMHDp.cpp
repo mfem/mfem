@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll); 
 
-   HYPRE_Int glob_size = fespace.GlobalTrueVSize();
+   HYPRE_Int global_size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of total scalar unknowns: " << global_size << endl;
@@ -466,6 +466,7 @@ int main(int argc, char *argv[])
 
    // 9. Save the solutions.
    {
+      ostringstream mesh_name, phi_name, psi_name, j_name, w_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
       phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
       psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
@@ -488,7 +489,7 @@ int main(int argc, char *argv[])
       osol3.precision(8);
       psi.Save(osol3);
 
-      ofstream osol4(omega_name.str().c_str());
+      ofstream osol4(w_name.str().c_str());
       osol4.precision(8);
       w.Save(osol4);
    }

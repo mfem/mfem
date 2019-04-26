@@ -177,13 +177,13 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
       DRe.TrueAddMult(w, z);
    }
    z.Neg(); // z = -z
-   Nb->TureAddMult(j, z);
+   Nb->TrueAddMult(j, z);
    z.SetSubVector(ess_tdof_list, 0.0);
 
    M_solver.Mult(z, dw_dt);
 }
 
-void ResistiveMHDOperator::assembleNv(GridFunction *gf) 
+void ResistiveMHDOperator::assembleNv(ParGridFunction *gf) 
 {
    //M_solver.Mult(*gf, z);
    //Vector phi(vx.GetData() +   0, sc);
@@ -199,7 +199,7 @@ void ResistiveMHDOperator::assembleNv(GridFunction *gf)
    Nv->Assemble(); 
 }
 
-void ResistiveMHDOperator::assembleNb(GridFunction *gf) 
+void ResistiveMHDOperator::assembleNb(ParGridFunction *gf) 
 {
    //Vector psi(vx.GetData() +  sc, sc);
    //GridFunction psiGF(&fespace); 
