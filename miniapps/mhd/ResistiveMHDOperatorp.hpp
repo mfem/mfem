@@ -237,7 +237,7 @@ void ResistiveMHDOperator::UpdatePhi(Vector &vx)
    Vector phi(vx.GetData() +   0, sc);
    Vector   w(vx.GetData() +2*sc, sc);
 
-   M->Mult(w, z);
+   Mmat.Mult(w, z);
    z.Neg(); // z = -z
    z.SetSubVector(ess_tdof_list, 0.0);
    K_solver.Mult(z, phi);
