@@ -21,6 +21,29 @@ glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+4/26
+the paralle code sometimes work but sometimes give me unstable results
+
+ok:
+mpirun -n 2 exMHDp -rs 2 -tf 10 -vs 50 -dt .004 -i 2
+mpirun -n 4 exMHDp -rs 3 -o 3 -tf 3 -vs 100 -dt .001 -no-vis
+
+there is probably a bug in the saving function (got some numbers of 1e-312)
+
+I cannot make vis working. Maybe there is a bug in the code?
+
+this works:
+mpirun -n 4 exMHDp -rs 2 -rp 2 -tf 10 -vs 50 -dt .0005 -i 2 -visit -no-vis
+
+this fails on mac (there is a bug somewhere) but works on hpcc:
+mpirun -n 4 exMHDp -rs 4 -rp 0 -tf .001 -vs 100 -dt .001 -i 2 -no-vis
+
+this also fails:
+mpirun -n 4 exMHDp -rs 2 -o 2 -tf .002 -vs 100 -dt .002
+
+this sometimes works and sometimes not (works on intel14 but not intel16):
+mpirun -n 4 exMHDp -rs 2 -o 2 -tf 1.5 -vs 100 -dt .002
+
 4/25
 there is a strange bug associate with M->Mult (not consistent in serial and parallel)
 
