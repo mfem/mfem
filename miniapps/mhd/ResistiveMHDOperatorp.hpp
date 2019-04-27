@@ -28,12 +28,16 @@ protected:
    ParLinearForm *E0, *Sw; //two source terms
    HypreParMatrix Kmat, Mmat;
    double viscosity, resistivity;
+   bool useAMG=false;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    HypreSmoother M_prec;  // Preconditioner for the mass matrix M
 
    CGSolver K_solver; // Krylov solver for inverting the stiffness matrix K
    HypreSmoother K_prec;  // Preconditioner for the stiffness matrix K
+
+   HypreSolver *K_amg; //BoomerAMG for stiffness matrix
+   HyprePCG *K_pcg;
 
    mutable Vector z; // auxiliary vector 
 
@@ -52,6 +56,7 @@ public:
    void assembleNv(ParGridFunction *gf);
    void assembleNb(ParGridFunction *gf);
 
+   void DestroyHypre();
    virtual ~ResistiveMHDOperator();
 };
 
@@ -61,7 +66,8 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Mrhs(NULL),
      Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
      viscosity(visc),  resistivity(resi), 
-     M_solver(f.GetComm()), K_solver(f.GetComm()), z(height/4)
+     M_solver(f.GetComm()), K_solver(f.GetComm()), z(height/4),
+     K_pcg(NULL), K_amg(NULL)
 {
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -90,15 +96,29 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    K->Assemble();
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 
-   K_solver.iterative_mode = true;
-   K_solver.SetRelTol(1e-7);
-   K_solver.SetAbsTol(0.0);
-   K_solver.SetMaxIter(2000);
-   K_solver.SetPrintLevel(3);
-   //K_prec.SetType(HypreSmoother::GS);
-   K_prec.SetType(HypreSmoother::Chebyshev);
-   K_solver.SetPreconditioner(K_prec);
-   K_solver.SetOperator(Kmat);
+   useAMG=true;
+   if (useAMG)
+   {
+      K_amg = new HypreBoomerAMG(Kmat);
+      K_pcg = new HyprePCG(Kmat);
+      K_pcg->iterative_mode = false;
+      K_pcg->SetTol(1e-7);
+      K_pcg->SetMaxIter(200);
+      K_pcg->SetPrintLevel(3);
+      K_pcg->SetPreconditioner(*K_amg);
+   }
+   else
+   {
+      K_solver.iterative_mode = true;
+      K_solver.SetRelTol(1e-7);
+      K_solver.SetAbsTol(0.0);
+      K_solver.SetMaxIter(2000);
+      K_solver.SetPrintLevel(3);
+      //K_prec.SetType(HypreSmoother::GS);
+      K_prec.SetType(HypreSmoother::Chebyshev); //this is faster
+      K_solver.SetPreconditioner(K_prec);
+      K_solver.SetOperator(Kmat);
+   }
 
    KB = new ParBilinearForm(&fespace);
    KB->AddDomainIntegrator(new DiffusionIntegrator);      //  K matrix
@@ -188,12 +208,6 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 
 void ResistiveMHDOperator::assembleNv(ParGridFunction *gf) 
 {
-   //M_solver.Mult(*gf, z);
-   //Vector phi(vx.GetData() +   0, sc);
-   //cout <<phi(0)<<endl;   //debug
-   //GridFunction phiGF(&fespace); 
-   //phiGF.SetFromTrueDofs(phi);
-
    delete Nv;
    Nv = new ParBilinearForm(&fespace);
    MyCoefficient velocity(gf, 2);   //we update velocity
@@ -204,10 +218,6 @@ void ResistiveMHDOperator::assembleNv(ParGridFunction *gf)
 
 void ResistiveMHDOperator::assembleNb(ParGridFunction *gf) 
 {
-   //Vector psi(vx.GetData() +  sc, sc);
-   //GridFunction psiGF(&fespace); 
-   //psiGF.SetFromTrueDofs(psi);
-
    delete Nb;
    Nb = new ParBilinearForm(&fespace);
    MyCoefficient Bfield(gf, 2);   //we update B
@@ -250,13 +260,24 @@ void ResistiveMHDOperator::UpdatePhi(Vector &vx)
    HypreParMatrix A;
    Vector Y, Z;
    K->FormLinearSystem(ess_tdof_list, phi, z, A, Y, Z); 
-   K_solver.Mult(Z, Y);
+   if (useAMG)
+      K_pcg->Mult(Z,Y);
+   else 
+      K_solver.Mult(Z, Y);
+
    K->RecoverFEMSolution(Y, z, phi);
+}
+
+void ResistiveMHDOperator::DestroyHypre()
+{
+    //hypre needs to be deleted earilier
+    delete K_amg;
 }
 
 
 ResistiveMHDOperator::~ResistiveMHDOperator()
 {
+    //cout <<"ResistiveMHDOperator::~ResistiveMHDOperator() is called"<<endl;
     //free used memory
     delete M;
     delete K;
@@ -266,6 +287,8 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete Nv;
     delete Nb;
     delete Mrhs;
+    delete K_pcg;
+    //delete K_amg;
     //delete M_solver;
     //delete K_solver;
     //delete M_prec;

@@ -30,6 +30,9 @@ for icase=3
 need to reduce rel_tol to invert the mass matrix
 it is better to use different rel_tol for mass and stiffness matrices
 
+BoomerAMG is also working
+mpirun -n 8 exMHDp -m xperiodic.mesh -rs 3 -rp 2 -o 3 -tf 1 -vs 50 -dt .001 -i 3
+
 4/26
 the paralle code sometimes work but sometimes give me unstable results
 

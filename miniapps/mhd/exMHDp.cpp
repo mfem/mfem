@@ -204,6 +204,7 @@ int main(int argc, char *argv[])
      default:
          if (myid == 0) cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;
+         MPI_Finalize();
          return 3;
    }
 
@@ -314,11 +315,13 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
    ess_bdr[0] = 1;  //set attribute 1 to Direchlet boundary fixed
-   if(ess_bdr.Size()!=1)
+   if(ess_bdr.Size()!=1 || false)
    {
     if (myid==0) cout <<"ess_bdr size should be 1 but it is "<<ess_bdr.Size()<<endl;
     delete ode_solver;
     delete mesh;
+    delete pmesh;
+    MPI_Finalize();
     return 2;
    }
 
@@ -512,6 +515,7 @@ int main(int argc, char *argv[])
    delete pmesh;
    delete dc;
 
+   oper.DestroyHypre();
    MPI_Finalize();
    return 0;
 }
