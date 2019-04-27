@@ -356,8 +356,8 @@ int main(int argc, char *argv[])
       {
          vis_phi << "parallel " << num_procs << " " << myid << "\n";
          vis_phi.precision(8);
-         vis_phi << "solution\n" << *pmesh << psi;
-         //vis_phi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
+         vis_phi << "solution\n" << *pmesh << psiPer;
+         vis_phi << "window_size 800 800\n"<< "window_title '" << "psi per'" << "keys cm\n";
 
          //if (icase==2)
          //   vis_phi << "valuerange -.001 .001\n";
@@ -365,15 +365,15 @@ int main(int argc, char *argv[])
          vis_phi << "pause\n";
          vis_phi << flush;
          if (myid==0)
-            vis_phi << "GLVis visualization paused."
-                << " Press space (in the GLVis window) to resume it.\n";
+            cout << "GLVis visualization paused."
+                 << " Press space (in the GLVis window) to resume it.\n";
 
-         //MPI_Barrier(pmesh->GetComm());
-         //vis_j.open(vishost, visport);
-         //vis_j << "parallel " << num_procs << " " << myid << "\n";
-         //vis_j << "solution\n" << *pmesh << j;
-         //vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
-         //vis_j << flush;
+         MPI_Barrier(pmesh->GetComm());
+         vis_j.open(vishost, visport);
+         vis_j << "parallel " << num_procs << " " << myid << "\n";
+         vis_j << "solution\n" << *pmesh << j;
+         vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
+         vis_j << flush;
       }
    }
 
@@ -443,15 +443,27 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             if(icase!=3)
+            {
+                vis_phi << "parallel " << num_procs << " " << myid << "\n";
                 vis_phi << "solution\n" << *pmesh << psiPer;
+            }
             else
-                vis_phi << "solution\n" << *pmesh << psi;
+            {
+                vis_phi << "parallel " << num_procs << " " << myid << "\n";
+                vis_phi << "solution\n" << *pmesh << phi;
+            }
 
-            //vis_j << "solution\n" << *pmesh << j;
+            vis_j << "parallel " << num_procs << " " << myid << "\n";
+            vis_j << "solution\n" << *pmesh << j;
             if (icase==1) 
             {
                 vis_phi << "valuerange -.001 .001\n" << flush;
-                //vis_j << "valuerange -.01425 .01426\n" << flush;
+                vis_j << "valuerange -.01425 .01426\n" << flush;
+            }
+            else
+            {
+                vis_phi << flush;
+                vis_j << flush;
             }
          }
 

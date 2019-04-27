@@ -63,7 +63,6 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      viscosity(visc),  resistivity(resi), 
      M_solver(f.GetComm()), K_solver(f.GetComm()), z(height/4)
 {
-   const double rel_tol = 1e-8;
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    //mass matrix
@@ -77,9 +76,9 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    Mrhs->Assemble();
 
    M_solver.iterative_mode = true;
-   M_solver.SetRelTol(rel_tol);
+   M_solver.SetRelTol(1e-12);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(1000);
+   M_solver.SetMaxIter(2000);
    M_solver.SetPrintLevel(0);
    M_prec.SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(M_prec);
@@ -92,11 +91,12 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 
    K_solver.iterative_mode = true;
-   K_solver.SetRelTol(rel_tol);
+   K_solver.SetRelTol(1e-7);
    K_solver.SetAbsTol(0.0);
-   K_solver.SetMaxIter(1000);
-   K_solver.SetPrintLevel(0);
-   K_prec.SetType(HypreSmoother::Jacobi);
+   K_solver.SetMaxIter(2000);
+   K_solver.SetPrintLevel(3);
+   //K_prec.SetType(HypreSmoother::GS);
+   K_prec.SetType(HypreSmoother::Chebyshev);
    K_solver.SetPreconditioner(K_prec);
    K_solver.SetOperator(Kmat);
 

@@ -86,3 +86,6 @@ clean-build:
 
 clean-exec:
 	@rm -rf implicitMHD implicitMHDp
+
+clean-data:
+	rm -f *.0000*

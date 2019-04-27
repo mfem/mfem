@@ -3,7 +3,9 @@ exMHD -r 2 -o 2 -tf 3 -vs 100 -dt .002
 exMHD -r 2 -tf 10 -vs 50 -dt .004 -i 2
 
 parallel run:
-exMHDp -rs 2 -o 2 -tf 3 -vs 100 -dt .002
+mpirun -n 4 exMHDp -rs 4 -o 2 -tf 3 -vs 100 -dt .001
+mpirun -n 4 exMHDp -rs 4 -tf 10 -vs 200 -dt .001 -i 2
+mpirun -n 4 exMHDp -m xperiodicR3.mesh -rs 0 -o 4 -tf 8 -vs 100 -dt .001 
 
 plot:
 glvis -m refined.mesh -g current.sol -k "mmcRjl" -ww 800 -wh 800
@@ -20,6 +22,13 @@ glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
+
+4/27
+parallel code appears working
+
+for icase=3
+need to reduce rel_tol to invert the mass matrix
+it is better to use different rel_tol for mass and stiffness matrices
 
 4/26
 the paralle code sometimes work but sometimes give me unstable results
