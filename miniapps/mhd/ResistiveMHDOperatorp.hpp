@@ -23,6 +23,7 @@ protected:
    Array<int> ess_tdof_list;
 
    ParBilinearForm *M, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
+   ParBilinearForm *Mrhs;
    ParBilinearForm *Nv, *Nb;
    ParLinearForm *E0, *Sw; //two source terms
    HypreParMatrix Kmat, Mmat;
@@ -57,7 +58,8 @@ public:
 ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc, double resi)
    : TimeDependentOperator(4*f.GetVSize(), 0.0), fespace(f),
-     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
+     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Mrhs(NULL),
+     Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
      viscosity(visc),  resistivity(resi), 
      M_solver(f.GetComm()), K_solver(f.GetComm()), z(height/4)
 {
@@ -70,17 +72,14 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
-   /*
-   HyprePCG *M_solver_pcg = new HyprePCG(Mmat);
-   M_solver=M_solver_pcg;
-   HypreSolver *M_prec_amg = new HypreBoomerAMG(Mmat);
-   M_prec=M_prec_amg;
-   */
+   Mrhs = new ParBilinearForm(&fespace);
+   Mrhs->AddDomainIntegrator(new MassIntegrator);
+   Mrhs->Assemble();
 
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(500);
+   M_solver.SetMaxIter(1000);
    M_solver.SetPrintLevel(0);
    M_prec.SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(M_prec);
@@ -91,13 +90,6 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    K->AddDomainIntegrator(new DiffusionIntegrator);
    K->Assemble();
    K->FormSystemMatrix(ess_tdof_list, Kmat);
-
-   /*
-   HyprePCG *K_solver_pcg = new HyprePCG(Kmat);
-   K_solver=K_solver_pcg;
-   HypreSolver *K_prec_amg = new HypreBoomerAMG(Kmat);
-   K_prec=K_prec_amg;
-   */
 
    K_solver.iterative_mode = true;
    K_solver.SetRelTol(rel_tol);
@@ -175,16 +167,6 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector Y, Z;
    M->FormLinearSystem(ess_tdof_list, dpsi_dt, z, A, Y, Z); 
 
-   //HypreSolver *amg = new HypreBoomerAMG(A);
-   //HyprePCG *pcg = new HyprePCG(A);
-   //pcg->SetTol(1e-12);
-   //pcg->SetMaxIter(200);
-   //pcg->SetPrintLevel(2);
-   //pcg->SetPreconditioner(*amg);
-   //pcg->Mult(Z, Y);
-   //delete amg;
-   //delete pcg;
-
    M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, dpsi_dt);
 
@@ -259,7 +241,7 @@ void ResistiveMHDOperator::UpdatePhi(Vector &vx)
    Vector phi(vx.GetData() +   0, sc);
    Vector   w(vx.GetData() +2*sc, sc);
 
-   Mmat.Mult(w, z);
+   Mrhs->Mult(w, z);
    z.Neg(); // z = -z
 
    //z.SetSubVector(ess_tdof_list, 0.0);
@@ -283,6 +265,7 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete KB;
     delete Nv;
     delete Nb;
+    delete Mrhs;
     //delete M_solver;
     //delete K_solver;
     //delete M_prec;
