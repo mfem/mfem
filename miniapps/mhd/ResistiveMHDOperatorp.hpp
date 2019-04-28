@@ -28,7 +28,7 @@ protected:
    ParLinearForm *E0, *Sw; //two source terms
    HypreParMatrix Kmat, Mmat;
    double viscosity, resistivity;
-   bool useAMG=false;
+   bool useAMG;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    HypreSmoother M_prec;  // Preconditioner for the mass matrix M
@@ -66,8 +66,8 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Mrhs(NULL),
      Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
      viscosity(visc),  resistivity(resi), 
-     M_solver(f.GetComm()), K_solver(f.GetComm()), z(height/4),
-     K_pcg(NULL), K_amg(NULL)
+     M_solver(f.GetComm()), K_solver(f.GetComm()), 
+     K_amg(NULL), K_pcg(NULL), z(height/4)
 {
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
