@@ -756,13 +756,14 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
 
 void DGAdvectionDiffusionTDO::Update()
 {
-   m_.Update();
-   a_->Update();
-   if (b_) { b_->Update(); }
-   if (s_) { s_->Update(); }
-   if (k_) { k_->Update(); }
-   if (q_exp_) { q_exp_->Update(); }
-   if (q_imp_) { q_imp_->Update(); }
+   height = width = fes_->GetVSize();
+   m_.Update(); m_.Assemble(); m_.Finalize(); 
+   a_->Update(); a_->Assemble(); a_->Finalize(); 
+   if (b_) { b_->Update(); b_->Assemble(); b_->Finalize(); }
+   if (s_) { s_->Update(); s_->Assemble(); s_->Finalize(); }
+   if (k_) { k_->Update(); k_->Assemble(); k_->Finalize(); }
+   if (q_exp_) { q_exp_->Update(); q_exp_->Assemble(); }
+   if (q_imp_) { q_imp_->Update(); q_imp_->Assemble(); }
    rhs_.Update();
    RHS_.SetSize(fes_->GetTrueVSize());
    X_.SetSize(fes_->GetTrueVSize());

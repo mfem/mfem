@@ -747,6 +747,30 @@ int main(int argc, char *argv[])
    ParGridFunction u(&fespace);
    u.ProjectCoefficient(u0Coef);
 
+   // 11. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
+   //     with L2 projection in the smoothing step to better handle hanging
+   //     nodes and parallel partitioning. We need to supply a space for the
+   //     discontinuous flux (L2) and a space for the smoothed flux (H(div) is
+   //     used here).
+   L2_FECollection flux_fec(order, dim);
+   ParFiniteElementSpace flux_fes(&pmesh, &flux_fec, sdim);
+   RT_FECollection smooth_flux_fec(order-1, dim);
+   ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec);
+   // Another possible option for the smoothed flux space:
+   // H1_FECollection smooth_flux_fec(order, dim);
+   // ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec, dim);
+   DiffusionIntegrator integ(DCoef);
+   L2ZienkiewiczZhuEstimator estimator(integ, u, flux_fes, smooth_flux_fes);
+
+   // 12. A refiner selects and refines elements based on a refinement strategy.
+   //     The strategy here is to refine elements with errors larger than a
+   //     fraction of the maximum element error. Other strategies are possible.
+   //     The refiner will call the given error estimator.
+   ThresholdRefiner refiner(estimator);
+   refiner.SetTotalErrorFraction(0.7);
+
+   const int max_dofs = 100000;
+      
    // Start the timer.
    tic_toc.Clear();
    tic_toc.Start();
@@ -758,6 +782,7 @@ int main(int argc, char *argv[])
    int Wx = 278, Wy = 0; // window position
    int Ww = 275, Wh = 250; // window size
 
+   int amr_it = 0;
    double t = t_init;
    while (t < t_final)
    {
@@ -771,6 +796,64 @@ int main(int argc, char *argv[])
          oss << "Field at time " << t;
          VisualizeField(sout, vishost, visport, u, oss.str().c_str(),
                         Wx, Wy, Ww, Wh);
+      }
+
+      if (t_final - t > 1e-8 * (t_final - t_init))
+      {
+	HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
+
+	if (global_dofs > max_dofs)
+	{
+	  continue;
+	}
+
+	// 20. Call the refiner to modify the mesh. The refiner calls the error
+	//     estimator to obtain element errors, then it selects elements to be
+	//     refined and finally it modifies the mesh. The Stop() method can be
+	//     used to determine if a stopping criterion was met.
+	refiner.Apply(pmesh);
+	if (refiner.Stop())
+	{
+	  if (mpi.Root())
+	    {
+	      cout << "Stopping criterion satisfied. Stop." << endl;
+	    }
+	  continue;
+	}
+
+	// 21. Update the finite element space (recalculate the number of DOFs,
+	//     etc.) and create a grid function update matrix. Apply the matrix
+	//     to any GridFunctions over the space. In this case, the update
+	//     matrix is an interpolation matrix so the updated GridFunction will
+	//     still represent the same function as before refinement.
+	fespace.Update();
+	u.Update();
+
+	// 22. Load balance the mesh, and update the space and solution. Currently
+	//     available only for nonconforming meshes.
+	if (pmesh.Nonconforming())
+	  {
+	    pmesh.Rebalance();
+
+	    // Update the space and the GridFunction. This time the update matrix
+	    // redistributes the GridFunction among the processors.
+	    fespace.Update();
+	    u.Update();
+	  }
+	m.Update(); m.Assemble(); m.Finalize();
+	ode_diff_msr.SetOperator(m);
+	oper.Update();
+	ode_solver->Init(oper);
+	
+	amr_it++;
+
+	global_dofs = fespace.GlobalTrueVSize();
+	if (mpi.Root())
+	  {
+	    cout << "\nAMR iteration " << amr_it << endl;
+	    cout << "Number of unknowns: " << global_dofs << endl;
+	  }
+
       }
    }
 
