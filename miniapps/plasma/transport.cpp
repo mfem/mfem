@@ -678,8 +678,9 @@ int main(int argc, char *argv[])
          cout << "Maximum advection time step: " << dt_adv << endl;
          cout << "Maximum diffusion time step: " << dt_diff << endl;
       }
-      
-      dt = cfl * min(dt_diff, dt_adv);
+
+      // dt = cfl * min(dt_diff, dt_adv);
+      dt = cfl * dt_adv;
    }
 
    ODEController ode_controller;
