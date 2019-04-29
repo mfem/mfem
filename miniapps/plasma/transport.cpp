@@ -116,7 +116,7 @@ double TeFunc(const Vector &x, double t)
    double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
    double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
    return T_min_ +
-     (T_max_ - T_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs));
+          (T_max_ - T_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs));
 }
 
 void bFunc(const Vector &x, Vector &B)
@@ -220,9 +220,9 @@ public:
 
 // Initial condition
 void AdaptInitialMesh(MPI_Session &mpi,
-		      ParMesh &pmesh, ParFiniteElementSpace &fespace,
-		      ParGridFunction & gf, Coefficient &coef,
-		      int p, double tol, bool visualization = false);
+                      ParMesh &pmesh, ParFiniteElementSpace &fespace,
+                      ParGridFunction & gf, Coefficient &coef,
+                      int p, double tol, bool visualization = false);
 
 void InitialCondition(const Vector &x, Vector &y);
 
@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
    double kD_acc = 0.2;
    double kI_rej = 0.2;
    double lim_max = 2.0;
-   
+
    double tol_init = 1e-5;
    double t_init = 0.0;
    double t_final = -1.0;
@@ -292,9 +292,9 @@ int main(int argc, char *argv[])
                   "Difference tolerance for ODE integration.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE Implicit solver: "
-		  "            IMEX methods\n\t"
+                  "            IMEX methods\n\t"
                   "            1 - IMEX BE/FE, 2 - IMEX RK2,\n\t"
-		  "            L-stable methods\n\t"
+                  "            L-stable methods\n\t"
                   "            11 - Backward Euler,\n\t"
                   "            12 - SDIRK23, 13 - SDIRK33,\n\t"
                   "            A-stable methods (not L-stable)\n\t"
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
    }
    */
    imex = ode_solver_type < 10;
-   
+
    if (ion_charges.Size() == 0)
    {
       ion_charges.SetSize(1);
@@ -436,14 +436,14 @@ int main(int argc, char *argv[])
 
    // Adaptively refine mesh to accurately represent a given coefficient
    {
-     ParGridFunction coef_gf(&fespace);
+      ParGridFunction coef_gf(&fespace);
 
-     FunctionCoefficient coef(TeFunc);
+      FunctionCoefficient coef(TeFunc);
 
-     AdaptInitialMesh(mpi, pmesh, fespace, coef_gf, coef,
-		      2, tol_init, visualization);
+      AdaptInitialMesh(mpi, pmesh, fespace, coef_gf, coef,
+                       2, tol_init, visualization);
    }
-   /*   
+   /*
    // Finite element space for a mesh-dim vector quantity (momentum)
    ParFiniteElementSpace vfes(&pmesh, &fec, dim, Ordering::byNODES);
    // Finite element space for all variables together (full thermodynamic state)
@@ -577,34 +577,34 @@ int main(int argc, char *argv[])
          ParGridFunction velocity(&vfes, u_data + voff);
          ParGridFunction temperature(&fespace, u_data + toff);
    */
-	 /*
-         ParGridFunction chi_para(&sfes);
-         ParGridFunction eta_para(&sfes);
-         if (i==0)
-         {
-            ChiParaCoefficient chiParaCoef(n_block, ion_charges);
-            chiParaCoef.SetT(temperature);
-            chi_para.ProjectCoefficient(chiParaCoef);
+   /*
+        ParGridFunction chi_para(&sfes);
+        ParGridFunction eta_para(&sfes);
+        if (i==0)
+        {
+           ChiParaCoefficient chiParaCoef(n_block, ion_charges);
+           chiParaCoef.SetT(temperature);
+           chi_para.ProjectCoefficient(chiParaCoef);
 
-            EtaParaCoefficient etaParaCoef(n_block, ion_charges);
-            etaParaCoef.SetT(temperature);
-            eta_para.ProjectCoefficient(etaParaCoef);
-         }
-         else
-         {
-            ChiParaCoefficient chiParaCoef(n_block, i - 1,
-                                           ion_charges,
-                                           ion_masses);
-            chiParaCoef.SetT(temperature);
-            chi_para.ProjectCoefficient(chiParaCoef);
+           EtaParaCoefficient etaParaCoef(n_block, ion_charges);
+           etaParaCoef.SetT(temperature);
+           eta_para.ProjectCoefficient(etaParaCoef);
+        }
+        else
+        {
+           ChiParaCoefficient chiParaCoef(n_block, i - 1,
+                                          ion_charges,
+                                          ion_masses);
+           chiParaCoef.SetT(temperature);
+           chi_para.ProjectCoefficient(chiParaCoef);
 
-            EtaParaCoefficient etaParaCoef(n_block, i - 1,
-                                           ion_charges,
-                                           ion_masses);
-            etaParaCoef.SetT(temperature);
-            eta_para.ProjectCoefficient(etaParaCoef);
-         }
-	 */
+           EtaParaCoefficient etaParaCoef(n_block, i - 1,
+                                          ion_charges,
+                                          ion_masses);
+           etaParaCoef.SetT(temperature);
+           eta_para.ProjectCoefficient(etaParaCoef);
+        }
+   */
    /*
          ostringstream head;
          if (i==0)
@@ -634,23 +634,23 @@ int main(int argc, char *argv[])
                         temperature, toss.str().c_str(),
                         Wx, Wy, Ww, Wh);
    */
-         /*
-         Wx += offx;
+   /*
+   Wx += offx;
 
-         ostringstream xoss; xoss << head.str() << " Chi Parallel";
-         VisualizeField(xout[i], vishost, visport,
-                        chi_para, xoss.str().c_str(),
-                        Wx, Wy, Ww, Wh);
+   ostringstream xoss; xoss << head.str() << " Chi Parallel";
+   VisualizeField(xout[i], vishost, visport,
+                  chi_para, xoss.str().c_str(),
+                  Wx, Wy, Ww, Wh);
 
-         Wx += offx;
+   Wx += offx;
 
-         ostringstream eoss; eoss << head.str() << " Eta Parallel";
-         VisualizeField(eout[i], vishost, visport,
-                        eta_para, eoss.str().c_str(),
-                        Wx, Wy, Ww, Wh);
+   ostringstream eoss; eoss << head.str() << " Eta Parallel";
+   VisualizeField(eout[i], vishost, visport,
+                  eta_para, eoss.str().c_str(),
+                  Wx, Wy, Ww, Wh);
 
-         Wx -= 4 * offx;
-	 */
+   Wx -= 4 * offx;
+   */
    /*
          Wx -= 2 * offx;
          Wy += offy;
@@ -686,7 +686,7 @@ int main(int argc, char *argv[])
    PIDAdjFactor dt_acc(kP_acc, kI_acc, kD_acc);
    IAdjFactor   dt_rej(kI_rej);
    MaxLimiter   dt_max(lim_max);
-   
+
    ODESolver * ode_solver = NULL;
    switch (ode_solver_type)
    {
@@ -714,26 +714,27 @@ int main(int argc, char *argv[])
    m.AddDomainIntegrator(new MassIntegrator);
    m.Assemble();
    m.Finalize();
-   
+
    NormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD);
    ode_diff_msr.SetOperator(m);
-   
+
    ConstantCoefficient one(1.0);
    FunctionCoefficient u0Coef(TeFunc);
    MatrixFunctionCoefficient DCoef(dim, ChiFunc);
    VectorFunctionCoefficient VCoef(dim, vFunc);
-   
+
    DGAdvectionDiffusionTDO oper(dg, fespace, one, imex);
 
    oper.SetDiffusionCoefficient(DCoef);
    oper.SetAdvectionCoefficient(VCoef);
-   
+
    Array<int> dbcAttr(pmesh.bdr_attributes.Max());
    dbcAttr = 1;
    oper.SetDirichletBC(dbcAttr, u0Coef);
-   
+
+   oper.SetTime(0.0);
    ode_solver->Init(oper);
-   
+
    ode_controller.Init(*ode_solver, ode_diff_msr,
                        dt_acc, dt_rej, dt_max);
 
@@ -744,7 +745,7 @@ int main(int argc, char *argv[])
 
    ParGridFunction u(&fespace);
    u.ProjectCoefficient(u0Coef);
-   
+
    // Start the timer.
    tic_toc.Clear();
    tic_toc.Start();
@@ -765,13 +766,13 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-	ostringstream oss;
-	oss << "Field at time " << t;
-	VisualizeField(sout, vishost, visport, u, oss.str().c_str(),
-		       Wx, Wy, Ww, Wh);
+         ostringstream oss;
+         oss << "Field at time " << t;
+         VisualizeField(sout, vishost, visport, u, oss.str().c_str(),
+                        Wx, Wy, Ww, Wh);
       }
    }
-   
+
    tic_toc.Stop();
    if (mpi.Root()) { cout << " done, " << tic_toc.RealTime() << "s." << endl; }
    /*
@@ -812,9 +813,9 @@ int main(int argc, char *argv[])
 
 // Initial condition
 void AdaptInitialMesh(MPI_Session &mpi,
-		      ParMesh &pmesh, ParFiniteElementSpace &fespace,
-		      ParGridFunction & gf, Coefficient &coef,
-		      int p, double tol, bool visualization)
+                      ParMesh &pmesh, ParFiniteElementSpace &fespace,
+                      ParGridFunction & gf, Coefficient &coef,
+                      int p, double tol, bool visualization)
 {
    LpErrorEstimator estimator(p, coef, gf);
 
@@ -822,7 +823,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
    refiner.SetTotalErrorFraction(0);
    refiner.SetTotalErrorNormP(p);
    refiner.SetLocalErrorGoal(tol);
-     
+
    socketstream sout;
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -836,8 +837,8 @@ void AdaptInitialMesh(MPI_Session &mpi,
       HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
       if (mpi.Root())
       {
-	 cout << "\nAMR iteration " << it << endl;
-	 cout << "Number of unknowns: " << global_dofs << endl;
+         cout << "\nAMR iteration " << it << endl;
+         cout << "Number of unknowns: " << global_dofs << endl;
       }
 
       // 19. Send the solution by socket to a GLVis server.
@@ -845,17 +846,17 @@ void AdaptInitialMesh(MPI_Session &mpi,
 
       if (visualization)
       {
-	VisualizeField(sout, vishost, visport, gf, "Initial Condition",
-		       Wx, Wy, Ww, Wh);
+         VisualizeField(sout, vishost, visport, gf, "Initial Condition",
+                        Wx, Wy, Ww, Wh);
       }
 
       if (global_dofs > max_dofs)
       {
-	 if (mpi.Root())
+         if (mpi.Root())
          {
-	   cout << "Reached the maximum number of dofs. Stop." << endl;
-	 }
-	 break;
+            cout << "Reached the maximum number of dofs. Stop." << endl;
+         }
+         break;
       }
 
       // 20. Call the refiner to modify the mesh. The refiner calls the error
@@ -865,11 +866,11 @@ void AdaptInitialMesh(MPI_Session &mpi,
       refiner.Apply(pmesh);
       if (refiner.Stop())
       {
-	 if (mpi.Root())
+         if (mpi.Root())
          {
-	   cout << "Stopping criterion satisfied. Stop." << endl;
-	 }
-	 break;
+            cout << "Stopping criterion satisfied. Stop." << endl;
+         }
+         break;
       }
 
       // 21. Update the finite element space (recalculate the number of DOFs,
@@ -884,13 +885,13 @@ void AdaptInitialMesh(MPI_Session &mpi,
       //     available only for nonconforming meshes.
       if (pmesh.Nonconforming())
       {
-	 pmesh.Rebalance();
+         pmesh.Rebalance();
 
-	 // Update the space and the GridFunction. This time the update matrix
-	 // redistributes the GridFunction among the processors.
-	 fespace.Update();
-	 gf.Update();
-      }	
+         // Update the space and the GridFunction. This time the update matrix
+         // redistributes the GridFunction among the processors.
+         fespace.Update();
+         gf.Update();
+      }
    }
 }
 
