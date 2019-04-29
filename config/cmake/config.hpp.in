@@ -123,6 +123,9 @@
 // Enable MFEM's internal Memory Manager (needed e.g. for MFEM_USE_CUDA)
 #cmakedefine MFEM_USE_MM
 
+// Enable Umpire's library
+#cmakedefine MFEM_USE_UMPIRE
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.
