@@ -80,7 +80,7 @@ void ChiFunc(const Vector &x, DenseMatrix &M)
          M(0,1) = (1.0 - chi_max_ratio_) * pow(a * b, 2) * x[0] * x[1];
          M(1,0) = M(0,1);
 
-         M *= 1.0 / den;
+         M *= 1.0e-2 / den;
       }
       break;
       case 3:
