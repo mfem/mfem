@@ -236,6 +236,9 @@ int main(int argc, char *argv[])
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
+   int nc_limit = 3;         // maximum level of hanging nodes
+   double max_elem_error = 1.0e-4;
+   double hysteresis = 0.25; // derefinement safety coefficient
    int order = 3;
 
    DGParams dg;
@@ -278,6 +281,12 @@ int main(int argc, char *argv[])
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly after parallel"
                   " partitioning.");
+   args.AddOption(&max_elem_error, "-e", "--max-err",
+                  "Maximum element error");
+   args.AddOption(&hysteresis, "-y", "--hysteresis",
+                  "Derefinement safety coefficient.");
+   args.AddOption(&nc_limit, "-l", "--nc-limit",
+                  "Maximum level of hanging nodes.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&dg.sigma, "-dgs", "--dg-sigma",
@@ -747,6 +756,12 @@ int main(int argc, char *argv[])
    ParGridFunction u(&fespace);
    u.ProjectCoefficient(u0Coef);
 
+   L2_FECollection fec_l2_o0(0, dim);
+   // Finite element space for a scalar (thermodynamic quantity)
+   ParFiniteElementSpace fespace_l2_o0(&pmesh, &fec_l2_o0);
+
+   ParGridFunction err(&fespace_l2_o0, (double *)NULL);
+   
    // 11. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
    //     with L2 projection in the smoothing step to better handle hanging
    //     nodes and parallel partitioning. We need to supply a space for the
@@ -767,7 +782,18 @@ int main(int argc, char *argv[])
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
    ThresholdRefiner refiner(estimator);
-   refiner.SetTotalErrorFraction(0.7);
+   // refiner.SetTotalErrorFraction(0.7);
+   refiner.SetTotalErrorFraction(0.0); // use purely local threshold
+   refiner.SetLocalErrorGoal(max_elem_error);
+   refiner.PreferConformingRefinement();
+   refiner.SetNCLimit(nc_limit);
+
+   // 12. A derefiner selects groups of elements that can be coarsened to form
+   //     a larger element. A conservative enough threshold needs to be set to
+   //     prevent derefining elements that would immediately be refined again.
+   ThresholdDerefiner derefiner(estimator);
+   derefiner.SetThreshold(hysteresis * max_elem_error);
+   derefiner.SetNCLimit(nc_limit);
 
    const int max_dofs = 100000;
       
@@ -775,7 +801,7 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   socketstream sout;
+   socketstream sout, eout;
    char vishost[] = "localhost";
    int  visport   = 19916;
 
@@ -807,11 +833,24 @@ int main(int argc, char *argv[])
 	  continue;
 	}
 
+	// Make sure errors will be recomputed in the following.
+	refiner.Reset();
+	derefiner.Reset();
+	
 	// 20. Call the refiner to modify the mesh. The refiner calls the error
 	//     estimator to obtain element errors, then it selects elements to be
 	//     refined and finally it modifies the mesh. The Stop() method can be
 	//     used to determine if a stopping criterion was met.
 	refiner.Apply(pmesh);
+
+	if (visualization)
+      {
+	err.MakeRef(&fespace_l2_o0, const_cast<double*>(&(estimator.GetLocalErrors())[0]));
+         ostringstream oss;
+         oss << "Error estimate at time " << t;
+         VisualizeField(eout, vishost, visport, err, oss.str().c_str(),
+                        2*Wx, Wy, Ww, Wh);
+      }
 	if (refiner.Stop())
 	{
 	  if (mpi.Root())
@@ -827,6 +866,7 @@ int main(int argc, char *argv[])
 	//     matrix is an interpolation matrix so the updated GridFunction will
 	//     still represent the same function as before refinement.
 	fespace.Update();
+	fespace_l2_o0.Update();
 	u.Update();
 
 	// 22. Load balance the mesh, and update the space and solution. Currently
@@ -838,13 +878,31 @@ int main(int argc, char *argv[])
 	    // Update the space and the GridFunction. This time the update matrix
 	    // redistributes the GridFunction among the processors.
 	    fespace.Update();
+	    fespace_l2_o0.Update();
 	    u.Update();
 	  }
 	m.Update(); m.Assemble(); m.Finalize();
 	ode_diff_msr.SetOperator(m);
 	oper.Update();
 	ode_solver->Init(oper);
-	
+
+	if (derefiner.Apply(pmesh))
+	{
+	  if (mpi.Root())
+	    {
+	      cout << "\nDerefined elements." << endl;
+	    }
+
+	  // 24. Update the space and the solution, rebalance the mesh.
+	    fespace.Update();
+	    fespace_l2_o0.Update();
+	    u.Update();
+	    m.Update(); m.Assemble(); m.Finalize();
+	    ode_diff_msr.SetOperator(m);
+	    oper.Update();
+	    ode_solver->Init(oper);
+	}
+      
 	amr_it++;
 
 	global_dofs = fespace.GlobalTrueVSize();
