@@ -163,13 +163,12 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector   w(vx.GetData() +2*sc, sc);
    Vector   j(vx.GetData() +3*sc, sc);
 
+   dvx_dt=0.0;
+
    Vector dphi_dt(dvx_dt.GetData() +   0, sc);
    Vector dpsi_dt(dvx_dt.GetData() +  sc, sc);
    Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
    Vector   dj_dt(dvx_dt.GetData() +3*sc, sc);
-
-   dphi_dt=0.0;
-   dj_dt=0.0;
 
    Nv->Mult(psi, z);
    if (resistivity != 0.0)
@@ -186,7 +185,6 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    HypreParMatrix A;
    Vector Y, Z;
    M->FormLinearSystem(ess_tdof_list, dpsi_dt, z, A, Y, Z); 
-
    M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, dpsi_dt);
 
