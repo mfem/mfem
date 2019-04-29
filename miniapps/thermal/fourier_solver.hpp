@@ -26,16 +26,16 @@ namespace mfem
 class ScaledCoefficient;
 class ScaledVectorCoefficient;
 class ScaledMatrixCoefficient;
-  
+
 namespace thermal
 {
 
 class AdvectionTDO : public TimeDependentOperator
 {
 public:
-  AdvectionTDO(ParFiniteElementSpace &H1_FES, VectorCoefficient &velCoef);
-  ~AdvectionTDO();
-  
+   AdvectionTDO(ParFiniteElementSpace &H1_FES, VectorCoefficient &velCoef);
+   ~AdvectionTDO();
+
    /** @brief Perform the action of the operator: @a q = f(@a y, t), where
        q solves the algebraic equation F(@a y, q, t) = G(@a y, t) and t is the
        current time. */
@@ -43,15 +43,15 @@ public:
 
 private:
 
-  void initMult() const;
-  
-  ParFiniteElementSpace & H1_FESpace_;
-  VectorCoefficient & velCoef_;
+   void initMult() const;
 
-  Array<int> ess_bdr_tdofs_;
-  
-  mutable ParBilinearForm m1_;
-  ParBilinearForm adv1_;
+   ParFiniteElementSpace & H1_FESpace_;
+   VectorCoefficient & velCoef_;
+
+   Array<int> ess_bdr_tdofs_;
+
+   mutable ParBilinearForm m1_;
+   ParBilinearForm adv1_;
 
    mutable HypreParMatrix   M1_;
    mutable HyprePCG       * M1Inv_;
@@ -214,19 +214,19 @@ class AdvectionDiffusionTDO : public TimeDependentOperator
 {
 public:
    AdvectionDiffusionTDO(ParFiniteElementSpace &H1_FES,
-			 Coefficient & dTdtBdr,
-			 Array<int> & bdr_attr,
-			 Coefficient & c, bool td_c,
-			 Coefficient & k, bool td_k,
-			 VectorCoefficient &velCoef, bool td_v, double nu,
-			 Coefficient & Q, bool td_Q);
+                         Coefficient & dTdtBdr,
+                         Array<int> & bdr_attr,
+                         Coefficient & c, bool td_c,
+                         Coefficient & k, bool td_k,
+                         VectorCoefficient &velCoef, bool td_v, double nu,
+                         Coefficient & Q, bool td_Q);
    AdvectionDiffusionTDO(ParFiniteElementSpace &H1_FES,
-			 Coefficient & dTdtBdr,
-			 Array<int> & bdr_attr,
-			 Coefficient & c, bool td_c,
-			 MatrixCoefficient & K, bool td_k,
-			 VectorCoefficient &velCoef, bool td_v, double nu,
-			 Coefficient & Q, bool td_Q);
+                         Coefficient & dTdtBdr,
+                         Array<int> & bdr_attr,
+                         Coefficient & c, bool td_c,
+                         MatrixCoefficient & K, bool td_k,
+                         VectorCoefficient &velCoef, bool td_v, double nu,
+                         Coefficient & Q, bool td_Q);
 
    void SetTime(const double time);
    /*
@@ -395,7 +395,7 @@ public:
       : VectorCoefficient(V.GetVDim()), a_(a), V_(&V) {}
 
    void SetAConst(double a) { a_ = a; }
-  
+
    void SetTime(double t) { time = t; V_->SetTime(t); }
 
    void Eval(Vector &V, ElementTransformation &T,
@@ -413,7 +413,7 @@ public:
       : MatrixCoefficient(M.GetWidth()), a_(a), M_(&M) {}
 
    void SetAConst(double a) { a_ = a; }
-  
+
    void SetTime(double t) { time = t; M_->SetTime(t); }
 
    void Eval(DenseMatrix &K, ElementTransformation &T,

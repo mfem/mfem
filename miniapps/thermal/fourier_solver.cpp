@@ -24,26 +24,26 @@ namespace thermal
 {
 
 AdvectionTDO::AdvectionTDO(ParFiniteElementSpace &H1_FES,
-			   VectorCoefficient &velCoef)
-  : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
-    H1_FESpace_(H1_FES),
-    velCoef_(velCoef),
-    ess_bdr_tdofs_(0),
-    m1_(&H1_FES),
-    adv1_(&H1_FES),
-    M1Inv_(NULL),
-    M1Diag_(NULL),
-    SOL_(H1_FES.GetTrueVSize()),
-    RHS_(H1_FES.GetTrueVSize()),
-    rhs_(H1_FES.GetVSize())
+                           VectorCoefficient &velCoef)
+   : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
+     H1_FESpace_(H1_FES),
+     velCoef_(velCoef),
+     ess_bdr_tdofs_(0),
+     m1_(&H1_FES),
+     adv1_(&H1_FES),
+     M1Inv_(NULL),
+     M1Diag_(NULL),
+     SOL_(H1_FES.GetTrueVSize()),
+     RHS_(H1_FES.GetTrueVSize()),
+     rhs_(H1_FES.GetVSize())
 {
-  m1_.AddDomainIntegrator(new MassIntegrator);
-  m1_.Assemble();
-  
-  adv1_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(velCoef_));
-  adv1_.Assemble();
+   m1_.AddDomainIntegrator(new MassIntegrator);
+   m1_.Assemble();
+
+   adv1_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(velCoef_));
+   adv1_.Assemble();
 }
-  
+
 AdvectionTDO::~AdvectionTDO()
 {
    delete M1Inv_;
@@ -80,12 +80,12 @@ AdvectionTDO::initMult() const
 
 void AdvectionTDO::Mult(const Vector &y, Vector &dydt) const
 {
-  dydt_gf_.MakeRef(&H1_FESpace_, dydt);
-  adv1_.Mult(y, rhs_);
-  rhs_ *= -1.0;
+   dydt_gf_.MakeRef(&H1_FESpace_, dydt);
+   adv1_.Mult(y, rhs_);
+   rhs_ *= -1.0;
 
-  dydt_gf_ = 0.0;
-  m1_.FormLinearSystem(ess_bdr_tdofs_, dydt_gf_, rhs_, M1_, SOL_, RHS_);
+   dydt_gf_ = 0.0;
+   m1_.FormLinearSystem(ess_bdr_tdofs_, dydt_gf_, rhs_, M1_, SOL_, RHS_);
 
    this->initMult();
 
@@ -389,32 +389,32 @@ DiffusionTDO::initImplicitSolve()
    APrecond_ = new HypreBoomerAMG(A_);
    APrecond_->SetPrintLevel(0);
    AInv_->SetPreconditioner(*APrecond_);
-/*
-   if ( tdC_ || tdK_ || AInv_ == NULL || APrecond_ == NULL )
-   {
-      if ( AInv_ == NULL )
+   /*
+      if ( tdC_ || tdK_ || AInv_ == NULL || APrecond_ == NULL )
       {
-         AInv_ = new HyprePCG(A_);
-         AInv_->SetTol(1e-12);
-         AInv_->SetMaxIter(200);
-         AInv_->SetPrintLevel(0);
+         if ( AInv_ == NULL )
+         {
+            AInv_ = new HyprePCG(A_);
+            AInv_->SetTol(1e-12);
+            AInv_->SetMaxIter(200);
+            AInv_->SetPrintLevel(0);
+         }
+         else
+         {
+            AInv_->SetOperator(A_);
+         }
+         if ( APrecond_ == NULL )
+         {
+            APrecond_ = new HypreBoomerAMG(A_);
+            APrecond_->SetPrintLevel(0);
+            AInv_->SetPreconditioner(*APrecond_);
+         }
+         else
+         {
+            APrecond_->SetOperator(A_);
+         }
       }
-      else
-      {
-         AInv_->SetOperator(A_);
-      }
-      if ( APrecond_ == NULL )
-      {
-         APrecond_ = new HypreBoomerAMG(A_);
-         APrecond_->SetPrintLevel(0);
-         AInv_->SetPreconditioner(*APrecond_);
-      }
-      else
-      {
-         APrecond_->SetOperator(A_);
-      }
-   }
-  */
+     */
 }
 
 void
@@ -461,13 +461,13 @@ DiffusionTDO::ImplicitSolve(const double dt,
 }
 
 AdvectionDiffusionTDO::AdvectionDiffusionTDO(ParFiniteElementSpace &H1_FES,
-					     Coefficient & dTdtBdr,
-					     Array<int> & bdr_attr,
-					     Coefficient & c, bool td_c,
-					     Coefficient & k, bool td_k,
-					     VectorCoefficient & V,
-					     bool td_v, double nu,
-					     Coefficient & Q, bool td_Q)
+                                             Coefficient & dTdtBdr,
+                                             Array<int> & bdr_attr,
+                                             Coefficient & c, bool td_c,
+                                             Coefficient & k, bool td_k,
+                                             VectorCoefficient & V,
+                                             bool td_v, double nu,
+                                             Coefficient & Q, bool td_Q)
    : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
      myid_(H1_FES.GetMyRank()),
      init_(false), //initA_(false), initAInv_(false),
@@ -487,13 +487,13 @@ AdvectionDiffusionTDO::AdvectionDiffusionTDO(ParFiniteElementSpace &H1_FES,
 }
 
 AdvectionDiffusionTDO::AdvectionDiffusionTDO(ParFiniteElementSpace &H1_FES,
-					     Coefficient & dTdtBdr,
-					     Array<int> & bdr_attr,
-					     Coefficient & c, bool td_c,
-					     MatrixCoefficient & K, bool td_k,
-					     VectorCoefficient & V,
-					     bool td_v, double nu,
-					     Coefficient & Q, bool td_Q)
+                                             Coefficient & dTdtBdr,
+                                             Array<int> & bdr_attr,
+                                             Coefficient & c, bool td_c,
+                                             MatrixCoefficient & K, bool td_k,
+                                             VectorCoefficient & V,
+                                             bool td_v, double nu,
+                                             Coefficient & Q, bool td_Q)
    : TimeDependentOperator(H1_FES.GetVSize(), 0.0),
      init_(false),
      multCount_(0), solveCount_(0),
@@ -556,7 +556,7 @@ AdvectionDiffusionTDO::init()
    {
       aV_ = new ParBilinearForm(H1_FESpace_);
       aV_->AddDomainIntegrator(
-	  new MixedScalarWeakDivergenceIntegrator(*VCoef_));
+         new MixedScalarWeakDivergenceIntegrator(*VCoef_));
       aV_->Assemble();
    }
    if ( dTdt_gf_ == NULL )
@@ -692,13 +692,13 @@ AdvectionDiffusionTDO::initA(double dt)
    }
    if (nu_ != 0.0)
    {
-     if (dtnuVCoef_ == NULL)
-     {
-       dtnuVCoef_ = new ScaledVectorCoefficient(dt * nu_, *VCoef_);
-     }
-     dtnuVCoef_->SetAConst(dt * nu_);
+      if (dtnuVCoef_ == NULL)
+      {
+         dtnuVCoef_ = new ScaledVectorCoefficient(dt * nu_, *VCoef_);
+      }
+      dtnuVCoef_->SetAConst(dt * nu_);
    }
-   
+
    if ( a_ == NULL)
    {
       a_ = new ParBilinearForm(H1_FESpace_);
@@ -713,8 +713,8 @@ AdvectionDiffusionTDO::initA(double dt)
       }
       if (nu_ != 0.0)
       {
-	a_->AddDomainIntegrator(
-	    new MixedScalarWeakDivergenceIntegrator(*dtnuVCoef_));
+         a_->AddDomainIntegrator(
+            new MixedScalarWeakDivergenceIntegrator(*dtnuVCoef_));
       }
    }
    a_->Update();
@@ -734,37 +734,37 @@ AdvectionDiffusionTDO::initImplicitSolve()
    APrecond_ = new HypreBoomerAMG(A_);
    APrecond_->SetPrintLevel(0);
    AInv_->SetPreconditioner(*APrecond_);
-/*
-   if ( tdC_ || tdK_ || AInv_ == NULL || APrecond_ == NULL )
-   {
-      if ( AInv_ == NULL )
+   /*
+      if ( tdC_ || tdK_ || AInv_ == NULL || APrecond_ == NULL )
       {
-         AInv_ = new HyprePCG(A_);
-         AInv_->SetTol(1e-12);
-         AInv_->SetMaxIter(200);
-         AInv_->SetPrintLevel(0);
+         if ( AInv_ == NULL )
+         {
+            AInv_ = new HyprePCG(A_);
+            AInv_->SetTol(1e-12);
+            AInv_->SetMaxIter(200);
+            AInv_->SetPrintLevel(0);
+         }
+         else
+         {
+            AInv_->SetOperator(A_);
+         }
+         if ( APrecond_ == NULL )
+         {
+            APrecond_ = new HypreBoomerAMG(A_);
+            APrecond_->SetPrintLevel(0);
+            AInv_->SetPreconditioner(*APrecond_);
+         }
+         else
+         {
+            APrecond_->SetOperator(A_);
+         }
       }
-      else
-      {
-         AInv_->SetOperator(A_);
-      }
-      if ( APrecond_ == NULL )
-      {
-         APrecond_ = new HypreBoomerAMG(A_);
-         APrecond_->SetPrintLevel(0);
-         AInv_->SetPreconditioner(*APrecond_);
-      }
-      else
-      {
-         APrecond_->SetOperator(A_);
-      }
-   }
-  */
+     */
 }
 
 void
 AdvectionDiffusionTDO::ImplicitSolve(const double dt,
-                            const Vector &T, Vector &dT_dt)
+                                     const Vector &T, Vector &dT_dt)
 {
    dT_dt = 0.0;
    // cout << "sK size: " << sK_->Width() << ", T size: " << T.Size() << ", rhs_ size: " << rhs_->Size() << endl;

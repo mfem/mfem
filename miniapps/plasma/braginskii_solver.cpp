@@ -1475,85 +1475,85 @@ void AdvectionTDO::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
       if (mcs > max_char_speed_) { max_char_speed_ = mcs; }
    }
 }
-  
+
 AdvectionDiffusionTDO::AdvectionDiffusionTDO(ParFiniteElementSpace &fes,
-					     Coefficient &mCoef, bool td_M,
-					     Coefficient *dCoef, bool td_D,
-					     VectorCoefficient *VCoef,
-					     bool td_V)
-  : fes_(fes),
-    mCoef_(mCoef),
-    dCoef_(dCoef),
-    DCoef_(NULL),
-    VCoef_(VCoef),
-    SCoef_(NULL),
-    dudtBCCoef_(NULL),
-    dvdtBCCoef_(NULL),
-    dtdCoef_(NULL),
-    dtDCoef_(NULL),
-    dtVCoef_(NULL),
-    dudt_bc_bdr_(0),
-    dudt_bc_dofs_(0),
-    dvdt_bc_bdr_(0),
-    td_M_(td_M),
-    td_D_(td_D),
-    td_V_(td_V),
-    td_S_(false),
-    td_dudt_(false),
-    td_dvdt_(false),
-    a0_(&fes),
-    s0_(NULL),
-    c0_(NULL),
-    s_(NULL),
-    dudt_(&fes_, (double*)NULL)
+                                             Coefficient &mCoef, bool td_M,
+                                             Coefficient *dCoef, bool td_D,
+                                             VectorCoefficient *VCoef,
+                                             bool td_V)
+   : fes_(fes),
+     mCoef_(mCoef),
+     dCoef_(dCoef),
+     DCoef_(NULL),
+     VCoef_(VCoef),
+     SCoef_(NULL),
+     dudtBCCoef_(NULL),
+     dvdtBCCoef_(NULL),
+     dtdCoef_(NULL),
+     dtDCoef_(NULL),
+     dtVCoef_(NULL),
+     dudt_bc_bdr_(0),
+     dudt_bc_dofs_(0),
+     dvdt_bc_bdr_(0),
+     td_M_(td_M),
+     td_D_(td_D),
+     td_V_(td_V),
+     td_S_(false),
+     td_dudt_(false),
+     td_dvdt_(false),
+     a0_(&fes),
+     s0_(NULL),
+     c0_(NULL),
+     s_(NULL),
+     dudt_(&fes_, (double*)NULL)
 {
-  this->initBLFs();
+   this->initBLFs();
 }
 
 AdvectionDiffusionTDO::AdvectionDiffusionTDO(ParFiniteElementSpace &fes,
-					     Coefficient &mCoef, bool td_M,
-					     MatrixCoefficient *DCoef,
-					     bool td_D,
-					     VectorCoefficient *VCoef,
-					     bool td_V)
-  : fes_(fes),
-    mCoef_(mCoef),
-    dCoef_(NULL),
-    DCoef_(DCoef),
-    VCoef_(VCoef),
-    SCoef_(NULL),
-    dudtBCCoef_(NULL),
-    dvdtBCCoef_(NULL),
-    dtdCoef_(NULL),
-    dtDCoef_(NULL),
-    dtVCoef_(NULL),
-    dudt_bc_bdr_(0),
-    dudt_bc_dofs_(0),
-    dvdt_bc_bdr_(0),
-    td_M_(td_M),
-    td_D_(td_D),
-    td_V_(td_V),
-    td_S_(false),
-    td_dudt_(false),
-    td_dvdt_(false),
-    a0_(&fes),
-    s0_(NULL),
-    c0_(NULL),
-    s_(NULL),
-    dudt_(&fes_, (double*)NULL)
+                                             Coefficient &mCoef, bool td_M,
+                                             MatrixCoefficient *DCoef,
+                                             bool td_D,
+                                             VectorCoefficient *VCoef,
+                                             bool td_V)
+   : fes_(fes),
+     mCoef_(mCoef),
+     dCoef_(NULL),
+     DCoef_(DCoef),
+     VCoef_(VCoef),
+     SCoef_(NULL),
+     dudtBCCoef_(NULL),
+     dvdtBCCoef_(NULL),
+     dtdCoef_(NULL),
+     dtDCoef_(NULL),
+     dtVCoef_(NULL),
+     dudt_bc_bdr_(0),
+     dudt_bc_dofs_(0),
+     dvdt_bc_bdr_(0),
+     td_M_(td_M),
+     td_D_(td_D),
+     td_V_(td_V),
+     td_S_(false),
+     td_dudt_(false),
+     td_dvdt_(false),
+     a0_(&fes),
+     s0_(NULL),
+     c0_(NULL),
+     s_(NULL),
+     dudt_(&fes_, (double*)NULL)
 {
-  this->initBLFs();
+   this->initBLFs();
 }
 
 AdvectionDiffusionTDO::~AdvectionDiffusionTDO()
 {
-  delete s0_;
-  delete c0_;
-  delete s_;
+   delete s0_;
+   delete c0_;
+   delete s_;
 
-  delete dtdCoef_;
-  delete dtDCoef_;
-  delete dtVCoef_;
+   delete dtdCoef_;
+   delete dtDCoef_;
+   delete dtVCoef_;
 }
 
 void AdvectionDiffusionTDO::initBLFs()
@@ -1566,18 +1566,18 @@ void AdvectionDiffusionTDO::initBLFs()
    {
       c0_ = new ParBilinearForm(&fes_);
    }
-  
+
    if (dCoef_ != NULL)
    {
-     dtdCoef_ = new ProductCoefficient(0.0, *dCoef_);
+      dtdCoef_ = new ProductCoefficient(0.0, *dCoef_);
    }
    else if (DCoef_ != NULL)
    {
-     dtDCoef_ = new ScalarMatrixProductCoefficient(0.0, *DCoef_);
+      dtDCoef_ = new ScalarMatrixProductCoefficient(0.0, *DCoef_);
    }
    if (VCoef_ != NULL)
    {
-     dtVCoef_ = new ScalarVectorProductCoefficient(0.0, *VCoef_);
+      dtVCoef_ = new ScalarVectorProductCoefficient(0.0, *VCoef_);
    }
 
    a0_.AddDomainIntegrator(new MassIntegrator(mCoef_));
@@ -1594,9 +1594,9 @@ void AdvectionDiffusionTDO::initBLFs()
    if (dtVCoef_ != NULL)
    {
       a0_.AddDomainIntegrator(
-	 new MixedDirectionalDerivativeIntegrator(*dtVCoef_));
+         new MixedDirectionalDerivativeIntegrator(*dtVCoef_));
       c0_->AddDomainIntegrator(
-	 new MixedDirectionalDerivativeIntegrator(*VCoef_));
+         new MixedDirectionalDerivativeIntegrator(*VCoef_));
    }
 
    if (!td_D_ && s0_ != NULL)
@@ -1631,7 +1631,7 @@ void AdvectionDiffusionTDO::SetDiffusionCoef(Coefficient &D, bool td)
       s0_->Finalize();
    }
 }
-  
+
 void AdvectionDiffusionTDO::SetDiffusionCoef(MatrixCoefficient &D, bool td)
 {
    DCoef_ = &D;
@@ -1664,97 +1664,97 @@ void AdvectionDiffusionTDO::SetAdvectionCoef(VectorCoefficient &V, bool td)
 */
 void AdvectionDiffusionTDO::SetSourceCoef(Coefficient &S, bool td)
 {
-  if (SCoef_ != NULL)
-  {
-     delete s_;
-  }
-  SCoef_ = &S;
-  td_S_  = td;
+   if (SCoef_ != NULL)
+   {
+      delete s_;
+   }
+   SCoef_ = &S;
+   td_S_  = td;
 
-  s_ = new ParLinearForm(&fes_);
-  s_->AddDomainIntegrator(new DomainLFIntegrator(*SCoef_));
+   s_ = new ParLinearForm(&fes_);
+   s_->AddDomainIntegrator(new DomainLFIntegrator(*SCoef_));
 
-  if (dvdtBCCoef_ != NULL)
-  {
-    s_->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(*dvdtBCCoef_),
-			      dvdt_bc_bdr_);
-  }
-  if (!(td_S_ || td_dvdt_))
-  {
-    s_->Assemble();
-  }
+   if (dvdtBCCoef_ != NULL)
+   {
+      s_->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(*dvdtBCCoef_),
+                                dvdt_bc_bdr_);
+   }
+   if (!(td_S_ || td_dvdt_))
+   {
+      s_->Assemble();
+   }
 }
 
 void AdvectionDiffusionTDO::SetDirichletBC(const Array<int> &bdr_attr,
-					   Coefficient &dudt, bool td)
+                                           Coefficient &dudt, bool td)
 {
-  dudt_bc_bdr_ = bdr_attr;
-  fes_.GetEssentialTrueDofs(dudt_bc_bdr_, dudt_bc_dofs_);
-  dudtBCCoef_ = &dudt;
-  td_dudt_ = td;
+   dudt_bc_bdr_ = bdr_attr;
+   fes_.GetEssentialTrueDofs(dudt_bc_bdr_, dudt_bc_dofs_);
+   dudtBCCoef_ = &dudt;
+   td_dudt_ = td;
 }
 
 void AdvectionDiffusionTDO::SetNeumannBC(const Array<int> &bdr_attr,
-					 VectorCoefficient &dvdt, bool td)
+                                         VectorCoefficient &dvdt, bool td)
 {
-  if (dvdtBCCoef_ != NULL)
-  {
-    delete s_;
-  }
-  dvdt_bc_bdr_ = bdr_attr;
-  dvdtBCCoef_ = &dvdt;
-  td_dvdt_ = td;
+   if (dvdtBCCoef_ != NULL)
+   {
+      delete s_;
+   }
+   dvdt_bc_bdr_ = bdr_attr;
+   dvdtBCCoef_ = &dvdt;
+   td_dvdt_ = td;
 
-  s_ = new ParLinearForm(&fes_);
-  s_->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(*dvdtBCCoef_),
-			    dvdt_bc_bdr_);
+   s_ = new ParLinearForm(&fes_);
+   s_->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(*dvdtBCCoef_),
+                             dvdt_bc_bdr_);
 
-  if (SCoef_ != NULL)
-  {
-    s_->AddDomainIntegrator(new DomainLFIntegrator(*SCoef_));
-  }
-  if (!(td_S_ || td_dvdt_))
-  {
-    s_->Assemble();
-  }
+   if (SCoef_ != NULL)
+   {
+      s_->AddDomainIntegrator(new DomainLFIntegrator(*SCoef_));
+   }
+   if (!(td_S_ || td_dvdt_))
+   {
+      s_->Assemble();
+   }
 }
 
 void AdvectionDiffusionTDO::ImplicitSolve(const double dt,
-					  const Vector &x, Vector &y)
+                                          const Vector &x, Vector &y)
 {
-  dudt_.MakeRef(&fes_, y);
+   dudt_.MakeRef(&fes_, y);
 
-  if (td_S_ || td_dvdt_)
-  {
-    s_->Assemble();
-  }
-  if (td_D_ && s0_ != NULL)
-  {
-    s0_->Assemble();
-    s0_->Finalize();
-  }
-  if (td_V_ && c0_ != NULL)
-  {
-    c0_->Assemble();
-    c0_->Finalize();
-  }
-    
-  if (dtdCoef_ != NULL)
-  {
-    dtdCoef_->SetAConst(dt);
-  }
-  if (dtDCoef_ != NULL)
-  {
-    dtDCoef_->SetAConst(dt);
-  }
-  if (dtVCoef_ != NULL)
-  {
-    dtVCoef_->SetAConst(dt);
-  }
-  a0_.Assemble();
-  a0_.Finalize();
+   if (td_S_ || td_dvdt_)
+   {
+      s_->Assemble();
+   }
+   if (td_D_ && s0_ != NULL)
+   {
+      s0_->Assemble();
+      s0_->Finalize();
+   }
+   if (td_V_ && c0_ != NULL)
+   {
+      c0_->Assemble();
+      c0_->Finalize();
+   }
+
+   if (dtdCoef_ != NULL)
+   {
+      dtdCoef_->SetAConst(dt);
+   }
+   if (dtDCoef_ != NULL)
+   {
+      dtDCoef_->SetAConst(dt);
+   }
+   if (dtVCoef_ != NULL)
+   {
+      dtVCoef_->SetAConst(dt);
+   }
+   a0_.Assemble();
+   a0_.Finalize();
 }
-  
+
 // Implementation of class RiemannSolver
 RiemannSolver::RiemannSolver(int num_equation, double specific_heat_ratio) :
    num_equation_(num_equation),

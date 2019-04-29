@@ -52,24 +52,24 @@ namespace plasma
    ni is the density of ions (assuming ni=ne) in particles per meter^3
    zi is the charge number of the ion species
 */
-  /*
+/*
 inline double chi_e_para(double Te, int ns, double * ni, int * zi)
 {
-   // The factor of q_ is included to convert Te from eV to Joules
-   return 3.16 * (q_ * Te / me_kg_) * tau_e(Te, ns, ni, zi, 17.0);
+ // The factor of q_ is included to convert Te from eV to Joules
+ return 3.16 * (q_ * Te / me_kg_) * tau_e(Te, ns, ni, zi, 17.0);
 }
-  */
+*/
 /**
   Thermal diffusion coefficient perpendicular to B field for electrons
   Return value is in m^2/s.
 */
-  /*
+/*
 inline double chi_e_perp()
 {
-   // The factor of q_ is included to convert Te from eV to Joules
-   return 1.0;
+ // The factor of q_ is included to convert Te from eV to Joules
+ return 1.0;
 }
-  */
+*/
 /**
   Thermal diffusion coefficient perpendicular to both B field and
   thermal gradient for electrons.
@@ -78,13 +78,13 @@ inline double chi_e_perp()
    ni is the density of ions (assuming ni=ne) in particles per meter^3
    z is the charge number of the ion species
 */
-  /*
+/*
 inline double chi_e_cross()
 {
-   // The factor of q_ is included to convert Te from eV to Joules
-   return 0.0;
+ // The factor of q_ is included to convert Te from eV to Joules
+ return 0.0;
 }
-  */
+*/
 /**
   Thermal diffusion coefficient along B field for ions
   Return value is in m^2/s.
@@ -95,41 +95,41 @@ inline double chi_e_cross()
    nb is the density of ions in particles per meter^3
    zb is the charge number of the ion species
 */
-  /*
+/*
 inline double chi_i_para(double ma, double Ta,
-                         int ion, int ns, double * nb, int * zb)
+                       int ion, int ns, double * nb, int * zb)
 {
-   // The factor of q_ is included to convert Ta from eV to Joules
-   // The factor of u_ is included to convert ma from a.m.u to kg
-   return 3.9 * (q_ * Ta / (ma * amu_ ) ) *
-          tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
+ // The factor of q_ is included to convert Ta from eV to Joules
+ // The factor of u_ is included to convert ma from a.m.u to kg
+ return 3.9 * (q_ * Ta / (ma * amu_ ) ) *
+        tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
-  */
+*/
 /**
   Thermal diffusion coefficient perpendicular to B field for ions
   Return value is in m^2/s.
 */
-  /*
+/*
 inline double chi_i_perp()
 {
-   // The factor of q_ is included to convert Ti from eV to Joules
-   // The factor of u_ is included to convert mi from a.m.u to kg
-   return 1.0;
+ // The factor of q_ is included to convert Ti from eV to Joules
+ // The factor of u_ is included to convert mi from a.m.u to kg
+ return 1.0;
 }
-  */
+*/
 /**
   Thermal diffusion coefficient perpendicular to both B field and
   thermal gradient for ions
   Return value is in m^2/s.
 */
-  /*
+/*
 inline double chi_i_cross()
 {
-   // The factor of q_ is included to convert Ti from eV to Joules
-   // The factor of u_ is included to convert mi from a.m.u to kg
-   return 0.0;
+ // The factor of q_ is included to convert Ti from eV to Joules
+ // The factor of u_ is included to convert mi from a.m.u to kg
+ return 0.0;
 }
-  */
+*/
 /**
   Viscosity coefficient along B field for electrons
   Return value is in (a.m.u)*m^2/s.
@@ -139,14 +139,14 @@ inline double chi_i_cross()
    ni is the density of ions (assuming ni=ne) in particles per meter^3
    zi is the charge number of the ion species
 */
-  /*
+/*
 inline double eta_e_para(double ne, double Te, int ns, double * ni, int * zi)
 {
-   // The factor of q_ is included to convert Te from eV to Joules
-   // The factor of u_ is included to convert from kg to a.m.u
-   return 0.73 * ne * (q_ * Te / amu_) * tau_e(Te, ns, ni, zi, 17.0);
+ // The factor of q_ is included to convert Te from eV to Joules
+ // The factor of u_ is included to convert from kg to a.m.u
+ return 0.73 * ne * (q_ * Te / amu_) * tau_e(Te, ns, ni, zi, 17.0);
 }
-  */
+*/
 /**
   Viscosity coefficient along B field for ions
   Return value is in (a.m.u)*m^2/s.
@@ -157,16 +157,16 @@ inline double eta_e_para(double ne, double Te, int ns, double * ni, int * zi)
    nb is the density of ions in particles per meter^3
    zb is the charge number of the ion species
 */
-  /*
+/*
 inline double eta_i_para(double ma, double Ta,
-                         int ion, int ns, double * nb, int * zb)
+                       int ion, int ns, double * nb, int * zb)
 {
-   // The factor of q_ is included to convert Ti from eV to Joules
-   // The factor of u_ is included to convert from kg to a.m.u
-   return 0.96 * nb[ion] * (q_ * Ta / amu_) *
-          tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
+ // The factor of q_ is included to convert Ti from eV to Joules
+ // The factor of u_ is included to convert from kg to a.m.u
+ return 0.96 * nb[ion] * (q_ * Ta / amu_) *
+        tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
-  */
+*/
 struct DGParams
 {
    double sigma;
@@ -279,101 +279,101 @@ public:
 
    void Step(Vector &x, double &t, double &dt);
 };
-  /*
+/*
 class ChiParaCoefficient : public Coefficient
 {
 private:
-   BlockVector & nBV_;
-   ParGridFunction nGF_;
-   GridFunctionCoefficient nCoef_;
-   GridFunctionCoefficient TCoef_;
+ BlockVector & nBV_;
+ ParGridFunction nGF_;
+ GridFunctionCoefficient nCoef_;
+ GridFunctionCoefficient TCoef_;
 
-   int ion_;
-   Array<int> & z_;
-   Vector     * m_;
-   Vector       n_;
+ int ion_;
+ Array<int> & z_;
+ Vector     * m_;
+ Vector       n_;
 
 public:
-   ChiParaCoefficient(BlockVector & nBV, Array<int> & charges);
-   ChiParaCoefficient(BlockVector & nBV, int ion_species,
-                      Array<int> & charges, Vector & masses);
-   void SetT(ParGridFunction & T);
+ ChiParaCoefficient(BlockVector & nBV, Array<int> & charges);
+ ChiParaCoefficient(BlockVector & nBV, int ion_species,
+                    Array<int> & charges, Vector & masses);
+ void SetT(ParGridFunction & T);
 
-   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+ double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
 class ChiPerpCoefficient : public Coefficient
 {
 private:
-   int ion_;
+ int ion_;
 
 public:
-   ChiPerpCoefficient(BlockVector & nBV, Array<int> & charges);
-   ChiPerpCoefficient(BlockVector & nBV, int ion_species,
-                      Array<int> & charges, Vector & masses);
+ ChiPerpCoefficient(BlockVector & nBV, Array<int> & charges);
+ ChiPerpCoefficient(BlockVector & nBV, int ion_species,
+                    Array<int> & charges, Vector & masses);
 
-   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+ double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
 class ChiCrossCoefficient : public Coefficient
 {
 private:
-   int ion_;
+ int ion_;
 
 public:
-   ChiCrossCoefficient(BlockVector & nBV, Array<int> & charges);
-   ChiCrossCoefficient(BlockVector & nBV, int ion_species,
-                       Array<int> & charges, Vector & masses);
+ ChiCrossCoefficient(BlockVector & nBV, Array<int> & charges);
+ ChiCrossCoefficient(BlockVector & nBV, int ion_species,
+                     Array<int> & charges, Vector & masses);
 
-   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+ double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
 class ChiCoefficient : public MatrixCoefficient
 {
 private:
-   ChiParaCoefficient  chiParaCoef_;
-   ChiPerpCoefficient  chiPerpCoef_;
-   ChiCrossCoefficient chiCrossCoef_;
-   VectorGridFunctionCoefficient BCoef_;
+ ChiParaCoefficient  chiParaCoef_;
+ ChiPerpCoefficient  chiPerpCoef_;
+ ChiCrossCoefficient chiCrossCoef_;
+ VectorGridFunctionCoefficient BCoef_;
 
-   Vector bHat_;
+ Vector bHat_;
 
 public:
-   ChiCoefficient(int dim, BlockVector & nBV, Array<int> & charges);
-   ChiCoefficient(int dim, BlockVector & nBV, int ion_species,
-                  Array<int> & charges, Vector & masses);
+ ChiCoefficient(int dim, BlockVector & nBV, Array<int> & charges);
+ ChiCoefficient(int dim, BlockVector & nBV, int ion_species,
+                Array<int> & charges, Vector & masses);
 
-   void SetT(ParGridFunction & T);
-   void SetB(ParGridFunction & B);
+ void SetT(ParGridFunction & T);
+ void SetB(ParGridFunction & B);
 
-   void Eval(DenseMatrix &K, ElementTransformation &T,
-             const IntegrationPoint &ip);
+ void Eval(DenseMatrix &K, ElementTransformation &T,
+           const IntegrationPoint &ip);
 };
-  */
-  /*
+*/
+/*
 class EtaParaCoefficient : public Coefficient
 {
 private:
-   BlockVector & nBV_;
-   ParGridFunction nGF_;
-   GridFunctionCoefficient nCoef_;
-   GridFunctionCoefficient TCoef_;
+ BlockVector & nBV_;
+ ParGridFunction nGF_;
+ GridFunctionCoefficient nCoef_;
+ GridFunctionCoefficient TCoef_;
 
-   int ion_;
-   Array<int> & z_;
-   Vector     * m_;
-   Vector       n_;
+ int ion_;
+ Array<int> & z_;
+ Vector     * m_;
+ Vector       n_;
 
 public:
-   EtaParaCoefficient(BlockVector & nBV, Array<int> & charges);
-   EtaParaCoefficient(BlockVector & nBV, int ion_species,
-                      Array<int> & charges, Vector & masses);
+ EtaParaCoefficient(BlockVector & nBV, Array<int> & charges);
+ EtaParaCoefficient(BlockVector & nBV, int ion_species,
+                    Array<int> & charges, Vector & masses);
 
-   void SetT(ParGridFunction & T);
+ void SetT(ParGridFunction & T);
 
-   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+ double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
-  */
+*/
 class MultiSpeciesDiffusion : public TimeDependentOperator
 {
 private:

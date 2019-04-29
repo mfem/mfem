@@ -887,7 +887,7 @@ int main(int argc, char *argv[])
       Wx += offx;
       miniapps::VisualizeField(vis_ExactT, vishost, visport,
                                ExactT, "Exact Temperature",
-			       Wx, Wy, Ww, Wh, h1_keys);
+                               Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
       miniapps::VisualizeField(vis_errT, vishost, visport,
@@ -1124,13 +1124,13 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
-	 ExactT.ProjectCoefficient(TCoef);
+         ExactT.ProjectCoefficient(TCoef);
 
-	 miniapps::VisualizeField(vis_T, vishost, visport,
+         miniapps::VisualizeField(vis_T, vishost, visport,
                                   T1, "Temperature",
                                   Wx, Wy, Ww, Wh, h1_keys);
 
-	 miniapps::VisualizeField(vis_ExactT, vishost, visport,
+         miniapps::VisualizeField(vis_ExactT, vishost, visport,
                                   ExactT, "Exact Temperature",
                                   Wx, Wy, Ww, Wh, h1_keys);
 

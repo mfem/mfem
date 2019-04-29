@@ -569,7 +569,7 @@ CPDSolver::Solve()
    */
    tic_toc.Clear();
    tic_toc.Start();
-   
+
    Operator * pcr = NULL;
    Operator * pci = NULL;
    BlockDiagonalPreconditioner * BDP = NULL;
@@ -755,7 +755,7 @@ CPDSolver::Solve()
    };
 
    tic_toc.Stop();
-   
+
    e_->Distribute(E);
 
    delete BDP;
@@ -839,7 +839,7 @@ CPDSolver::Solve()
    */
    if ( myid_ == 0 && logging_ > 0 )
    {
-     cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
+      cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
    }
 }
 

@@ -570,7 +570,7 @@ public:
     Where eta can either be a single constant or a vector of non-zero values
     with the same length as u0 and u1.
 
-    Note: this class is designed for use on multiple processors.  For a 
+    Note: this class is designed for use on multiple processors.  For a
     serial implementation see the MaxAbsRelDiffMeasure class.
 */
 class ParMaxAbsRelDiffMeasure : public ODEDifferenceMeasure
