@@ -176,68 +176,73 @@ struct DGParams
 class DGAdvectionDiffusionTDO : public TimeDependentOperator
 {
 private:
-  DGParams & dg_;
+   DGParams & dg_;
 
-  bool imex_;
+   bool imex_;
 
-  double dt_;
+   double dt_;
+
+   ParFiniteElementSpace *fes_;
+   Coefficient       *CCoef_;    // Scalar coefficient in front of du/dt
+   VectorCoefficient *VCoef_;    // Velocity coefficient
+   Coefficient       *dCoef_;    // Scalar diffusion coefficient
+   MatrixCoefficient *DCoef_;    // Tensor diffusion coefficient
+   Coefficient       *SCoef_;    // Source coefficient
+
+   ScalarVectorProductCoefficient *negVCoef_;   // -1  * VCoef
+   ScalarVectorProductCoefficient *dtNegVCoef_; // -dt * VCoef
+   ProductCoefficient             *dtdCoef_;    //  dt * dCoef
+   ScalarMatrixProductCoefficient *dtDCoef_;    //  dt * DCoef
+
+   Array<int>   dbcAttr_;
+   Coefficient *dbcCoef_; // Dirichlet BC coefficient
+
+   Array<int>   nbcAttr_;
+   Coefficient *nbcCoef_; // Neumann BC coefficient
+
+   ParBilinearForm  m_;
+   ParBilinearForm *a_;
+   ParBilinearForm *b_;
+   ParBilinearForm *s_;
+   ParBilinearForm *k_;
+   ParLinearForm   *q_;
+
+   HypreParMatrix * M_;
+   HypreSmoother M_prec_;
+   CGSolver M_solver_;
   
-  ParFiniteElementSpace *fes_;
-  Coefficient       *CCoef_;    // Scalar coefficient in front of du/dt
-  VectorCoefficient *VCoef_;    // Velocity coefficient
-  Coefficient       *dCoef_;    // Scalar diffusion coefficient
-  MatrixCoefficient *DCoef_;    // Tensor diffusion coefficient
-  Coefficient       *SCoef_;    // Source coefficient
-
-  ScalarVectorProductCoefficient *negVCoef_;   // -1  * VCoef
-  ScalarVectorProductCoefficient *dtNegVCoef_; // -dt * VCpef
-  ProductCoefficient             *dtdCoef_;    //  dt * dCoef
-  ScalarMatrixProductCoefficient *dtDCoef_;    //  dt * DCoef
-
-  Array<int>   dbcAttr_;
-  Coefficient *dbcCoef_; // Dirichlet BC coefficient
+   mutable ParLinearForm rhs_;
+   mutable Vector RHS_;
+   mutable Vector X_;
   
-  Array<int>   nbcAttr_;
-  Coefficient *nbcCoef_; // Neumann BC coefficient
-  
+   void initM();
+   void initA();
+   void initB();
+   void initS();
+   void initK();
+   void initQ();
+
 public:
-  DGAdvectionDiffusionTDO(DGParams & dg,
-			  ParFiniteElementSpace &fes,
-			  Coefficient &CCoef, bool imex = true)
-    : TimeDependentOperator(fes.GetVSize()),
-      dg_(dg),
-      imex_(imex),
-      dt_(-1.0),
-      fes_(&fes),
-      CCoef_(&CCoef),
-      VCoef_(NULL),
-      dCoef_(NULL),
-      DCoef_(NULL),
-      SCoef_(NULL),
-      negVCoef_(NULL),
-      dtNegVCoef_(NULL),
-      dtdCoef_(NULL),
-      dtDCoef_(NULL),
-      dbcAttr_(0),
-      dbcCoef_(NULL),
-      nbcAttr_(0),
-      nbcCoef_(NULL)
-  {}
+   DGAdvectionDiffusionTDO(DGParams & dg,
+                           ParFiniteElementSpace &fes,
+                           Coefficient &CCoef, bool imex = true);
 
-  ~DGAdvectionDiffusionTDO();
-  
-  void SetAdvectionCoefficient(VectorCoefficient &VCoef);
-  void SetDiffusionCoefficient(Coefficient &dCoef);
-  void SetDiffusionCoefficient(MatrixCoefficient &DCoef);
-  void SetSourceCoefficient(Coefficient &SCoef);
+   ~DGAdvectionDiffusionTDO();
 
-  void SetDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
-  void SetNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
+   void SetTime(const double _t);
 
-  virtual void ExplicitMult(const Vector &x, Vector &y) const;
-  virtual void ImplicitSolve(const double dt, const Vector &u, Vector &dudt);
+   void SetAdvectionCoefficient(VectorCoefficient &VCoef);
+   void SetDiffusionCoefficient(Coefficient &dCoef);
+   void SetDiffusionCoefficient(MatrixCoefficient &DCoef);
+   void SetSourceCoefficient(Coefficient &SCoef);
 
-  void Update();
+   void SetDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
+   void SetNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
+
+   virtual void ExplicitMult(const Vector &x, Vector &y) const;
+   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &dudt);
+
+   void Update();
 };
 
 class MultiSpeciesDiffusion;

@@ -246,218 +246,477 @@ EtaParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
    }
 }
 */
+DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(DGParams & dg,
+                                                 ParFiniteElementSpace &fes,
+                                                 Coefficient &CCoef,
+                                                 bool imex)
+   : TimeDependentOperator(fes.GetVSize()),
+     dg_(dg),
+     imex_(imex),
+     dt_(-1.0),
+     fes_(&fes),
+     CCoef_(&CCoef),
+     VCoef_(NULL),
+     dCoef_(NULL),
+     DCoef_(NULL),
+     SCoef_(NULL),
+     negVCoef_(NULL),
+     dtNegVCoef_(NULL),
+     dtdCoef_(NULL),
+     dtDCoef_(NULL),
+     dbcAttr_(0),
+     dbcCoef_(NULL),
+     nbcAttr_(0),
+     nbcCoef_(NULL),
+     m_(fes_),
+     a_(NULL),
+     b_(NULL),
+     s_(NULL),
+     k_(NULL),
+     q_(NULL),
+     M_(NULL),
+     rhs_(fes_),
+     RHS_(fes_->GetTrueVSize()),
+     X_(fes_->GetTrueVSize())
+{
+   m_.AddDomainIntegrator(new MassIntegrator(*CCoef_));
+
+   M_prec_.SetType(HypreSmoother::Jacobi);
+   M_solver_.SetPreconditioner(M_prec_);
+
+   M_solver_.iterative_mode = false;
+   M_solver_.SetRelTol(1e-9);
+   M_solver_.SetAbsTol(0.0);
+   M_solver_.SetMaxIter(100);
+   M_solver_.SetPrintLevel(0);
+}
+
 DGAdvectionDiffusionTDO::~DGAdvectionDiffusionTDO()
 {
+   delete M_;
+  
+   delete a_;
+   delete b_;
+   delete s_;
+   delete k_;
+   delete q_;
+
+   delete negVCoef_;
+   delete dtNegVCoef_;
+   delete dtdCoef_;
+   delete dtDCoef_;
+}
+
+void DGAdvectionDiffusionTDO::initM()
+{
+   m_.Assemble();
+   m_.Finalize();
+
+   delete M_;
+   M_ = m_.ParallelAssemble();
+   M_solver_.SetOperator(*M_);
+}
+
+void DGAdvectionDiffusionTDO::initA()
+{
+   if (a_ == NULL)
+   {
+      a_ = new ParBilinearForm(fes_);
+
+      a_->AddDomainIntegrator(new MassIntegrator(*CCoef_));
+      if (dCoef_)
+      {
+         a_->AddDomainIntegrator(new DiffusionIntegrator(*dtdCoef_));
+         a_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dtdCoef_,
+                                                                 dg_.sigma,
+                                                                 dg_.kappa));
+         a_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtdCoef_,
+                                                            dg_.sigma,
+                                                            dg_.kappa));
+      }
+      else if (DCoef_)
+      {
+         a_->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef_));
+         a_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef_,
+                                                                 dg_.sigma,
+                                                                 dg_.kappa));
+         a_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef_,
+                                                            dg_.sigma,
+                                                            dg_.kappa));
+      }
+      if (negVCoef_ || !imex_)
+      {
+         a_->AddDomainIntegrator(new ConvectionIntegrator(*dtNegVCoef_, -1.0));
+         a_->AddInteriorFaceIntegrator(
+            new TransposeIntegrator(new DGTraceIntegrator(*dtNegVCoef_,
+                                                          1.0, -0.5)));
+         a_->AddBdrFaceIntegrator(
+            new TransposeIntegrator(new DGTraceIntegrator(*dtNegVCoef_,
+                                                          1.0, -0.5)));
+      }
+   }
+}
+
+void DGAdvectionDiffusionTDO::initB()
+{
+   if (b_ == NULL && (dCoef_ || DCoef_ || VCoef_))
+   {
+      b_ = new ParBilinearForm(fes_);
+
+      if (dCoef_)
+      {
+         b_->AddDomainIntegrator(new DiffusionIntegrator(*dCoef_));
+         b_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
+                                                                 dg_.sigma,
+                                                                 dg_.kappa));
+         b_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
+                                                            dg_.sigma,
+                                                            dg_.kappa));
+      }
+      else if (DCoef_)
+      {
+         b_->AddDomainIntegrator(new DiffusionIntegrator(*DCoef_));
+         b_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
+                                                                 dg_.sigma,
+                                                                 dg_.kappa));
+         b_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
+                                                            dg_.sigma,
+                                                            dg_.kappa));
+      }
+      if (negVCoef_)
+      {
+ 	 b_->AddDomainIntegrator(new ConvectionIntegrator(*negVCoef_, -1.0));
+         b_->AddInteriorFaceIntegrator(
+            new TransposeIntegrator(new DGTraceIntegrator(*negVCoef_,
+                                                          1.0, -0.5)));
+         b_->AddBdrFaceIntegrator(
+            new TransposeIntegrator(new DGTraceIntegrator(*negVCoef_,
+                                                          1.0, -0.5)));
+      }
+      b_->Assemble();
+      b_->Finalize();
+   }
+}
+
+void DGAdvectionDiffusionTDO::initS()
+{
+   if (s_ == NULL && (dCoef_ || DCoef_))
+   {
+      s_ = new ParBilinearForm(fes_);
+
+      if (dCoef_)
+      {
+         s_->AddDomainIntegrator(new DiffusionIntegrator(*dCoef_));
+         s_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
+                                                                 dg_.sigma,
+                                                                 dg_.kappa));
+         s_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
+                                                            dg_.sigma,
+                                                            dg_.kappa));
+      }
+      else if (DCoef_)
+      {
+         s_->AddDomainIntegrator(new DiffusionIntegrator(*DCoef_));
+         s_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
+                                                                 dg_.sigma,
+                                                                 dg_.kappa));
+         s_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
+                                                            dg_.sigma,
+                                                            dg_.kappa));
+      }
+      s_->Assemble();
+      s_->Finalize();
+   }
+}
+
+void DGAdvectionDiffusionTDO::initK()
+{
+   if (k_ == NULL && VCoef_)
+   {
+      k_ = new ParBilinearForm(fes_);
+
+      if (negVCoef_)
+      {
+ 	 k_->AddDomainIntegrator(new ConvectionIntegrator(*negVCoef_, -1.0));
+         k_->AddInteriorFaceIntegrator(
+            new TransposeIntegrator(new DGTraceIntegrator(*negVCoef_,
+                                                          1.0, -0.5)));
+         k_->AddBdrFaceIntegrator(
+            new TransposeIntegrator(new DGTraceIntegrator(*negVCoef_,
+                                                          1.0, -0.5)));
+      }
+      k_->Assemble();
+      k_->Finalize();
+   }
+}
+
+void DGAdvectionDiffusionTDO::initQ()
+{
+   if (q_ == NULL && (SCoef_ || (dbcCoef_ && (dCoef_ || DCoef_ || VCoef_))))
+   {
+      q_ = new ParLinearForm(fes_);
+
+      if (SCoef_)
+      {
+         q_->AddDomainIntegrator(new DomainLFIntegrator(*SCoef_));
+      }
+      if (dbcCoef_ && dCoef_)
+      {
+         q_->AddBdrFaceIntegrator(
+	    new DGDirichletLFIntegrator(*dbcCoef_, *dCoef_,
+					dg_.sigma, dg_.kappa),
+	    dbcAttr_);
+      }
+      else if (dbcCoef_ && DCoef_)
+      {
+         q_->AddBdrFaceIntegrator(
+	    new DGDirichletLFIntegrator(*dbcCoef_, *DCoef_,
+					dg_.sigma, dg_.kappa),
+	    dbcAttr_);
+      }
+      else if (dbcCoef_ && VCoef_)
+      {
+         q_->AddBdrFaceIntegrator(
+	    new BoundaryFlowIntegrator(*dbcCoef_, *negVCoef_,
+				       -1.0, -0.5),
+	    dbcAttr_);
+      }
+      q_->Assemble();
+   }
+}
+
+void DGAdvectionDiffusionTDO::SetTime(const double _t)
+{
+   this->TimeDependentOperator::SetTime(_t);
+
+   this->initM();
+
+   this->initA();
+
+   if (imex_)
+   {
+     this->initS();
+     this->initK();
+   }
+   else
+   {
+     this->initB();
+   }
+
+   this->initQ();
 }
 
 void DGAdvectionDiffusionTDO::SetAdvectionCoefficient(VectorCoefficient &VCoef)
 {
-  VCoef_ = &VCoef;
-  if (negVCoef_ == NULL)
-    {
+   VCoef_ = &VCoef;
+   if (negVCoef_ == NULL)
+   {
       negVCoef_ = new ScalarVectorProductCoefficient(-1.0, VCoef);
-    }
-  else
-    {
+   }
+   else
+   {
       negVCoef_->SetBCoef(VCoef);
-    }
-  if (dtNegVCoef_ == NULL)
-    {
+   }
+   if (dtNegVCoef_ == NULL)
+   {
       dtNegVCoef_ = new ScalarVectorProductCoefficient(dt_, *negVCoef_);
-    }
+   }
+   if (imex_)
+   {
+      delete k_; k_ = NULL;
+   }
+   else
+   {
+      delete a_; a_ = NULL;
+      delete b_; b_ = NULL;
+   }
 }
-  
+
 void DGAdvectionDiffusionTDO::SetDiffusionCoefficient(Coefficient &dCoef)
 {
-  dCoef_ = &dCoef;
-  if (dtdCoef_ == NULL)
-    {
+   dCoef_ = &dCoef;
+   if (dtdCoef_ == NULL)
+   {
       dtdCoef_ = new ProductCoefficient(dt_, dCoef);
-    }
-  else
-    {
+   }
+   else
+   {
       dtdCoef_->SetBCoef(dCoef);
-    }
+   }
+   if (imex_)
+   {
+      delete a_; a_ = NULL;
+      delete s_; s_ = NULL;
+   }
+   else
+   {
+      delete a_; a_ = NULL;
+      delete b_; b_ = NULL;
+   }
 }
 
 void DGAdvectionDiffusionTDO::SetDiffusionCoefficient(MatrixCoefficient &DCoef)
 {
-  DCoef_ = &DCoef;
-  if (dtDCoef_ == NULL)
-    {
+   DCoef_ = &DCoef;
+   if (dtDCoef_ == NULL)
+   {
       dtDCoef_ = new ScalarMatrixProductCoefficient(dt_, DCoef);
-    }
-  else
-    {
+   }
+   else
+   {
       dtDCoef_->SetBCoef(DCoef);
-    }
+   }
+   if (imex_)
+   {
+      delete a_; a_ = NULL;
+      delete s_; s_ = NULL;
+   }
+   else
+   {
+      delete a_; a_ = NULL;
+      delete b_; b_ = NULL;
+   }
 }
 
 void DGAdvectionDiffusionTDO::SetSourceCoefficient(Coefficient &SCoef)
 {
-  SCoef_ = &SCoef;
+   SCoef_ = &SCoef;
+   delete q_; q_ = NULL;
 }
 
 void DGAdvectionDiffusionTDO::SetDirichletBC(Array<int> &dbc_attr,
-					     Coefficient &dbc)
+                                             Coefficient &dbc)
 {
-  dbcAttr_ = dbc_attr;
-  dbcCoef_ = &dbc;
+   dbcAttr_ = dbc_attr;
+   dbcCoef_ = &dbc;
+   delete q_; q_ = NULL;
 }
-  
+
 void DGAdvectionDiffusionTDO::SetNeumannBC(Array<int> &nbc_attr,
-					   Coefficient &nbc)
+                                           Coefficient &nbc)
 {
-  nbcAttr_ = nbc_attr;
-  nbcCoef_ = &nbc;
+   nbcAttr_ = nbc_attr;
+   nbcCoef_ = &nbc;
+   delete q_; q_ = NULL;
 }
 
-void DGAdvectionDiffusionTDO::ExplicitMult(const Vector &x, Vector &y) const
+void DGAdvectionDiffusionTDO::ExplicitMult(const Vector &x, Vector &fx) const
 {
+   MFEM_VERIFY(imex_, "Unexpected call to ExplicitMult for non-IMEX method!");  
 
+   if (q_)
+   {
+     rhs_ = *q_;
+   }
+   else
+   {
+     rhs_ = 0.0;
+   }
+   if (k_) k_->AddMult(x, rhs_, -1.0);
+
+   rhs_.ParallelAssemble(RHS_);
+   // double nrmR = InnerProduct(M_->GetComm(), RHS_, RHS_);
+   // cout << "Norm^2 RHS: " << nrmR << endl;
+   M_solver_.Mult(RHS_, X_);
+
+   // double nrmX = InnerProduct(M_->GetComm(), X_, X_);
+   // cout << "Norm^2 X: " << nrmX << endl;
+   
+   ParGridFunction fx_gf(fes_, (double*)NULL);
+   fx_gf.MakeRef(fes_, &fx[0]);
+   fx_gf = X_;
 }
 
 void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
-					    const Vector &u, Vector &dudt)
+                                            const Vector &u, Vector &dudt)
 {
-  cout << "ImplicitSolve with dt = " << dt << endl;
-  if (fabs(dt - dt_) > 1e-4 * dt_)
-  {
-    if (dtdCoef_   ) dtdCoef_->SetAConst(dt);
-    if (dtDCoef_   ) dtDCoef_->SetAConst(dt);
-    if (dtNegVCoef_) dtNegVCoef_->SetAConst(dt);
+   cout << "ImplicitSolve with dt = " << dt << endl;
+   if (fabs(dt - dt_) > 1e-4 * dt_)
+   {
+      if (dtdCoef_   ) { dtdCoef_->SetAConst(dt); }
+      if (dtDCoef_   ) { dtDCoef_->SetAConst(dt); }
+      if (dtNegVCoef_) { dtNegVCoef_->SetAConst(dt); }
 
-    dt_ = dt;
-  }
+      dt_ = dt;
+   }
 
-  ParBilinearForm s(fes_);
-  if (dCoef_)
-  {
-    s.AddDomainIntegrator(new DiffusionIntegrator(*dCoef_));
-    s.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
-							  dg_.sigma,
-							  dg_.kappa));
-    s.AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
-						     dg_.sigma,
-						     dg_.kappa));
-  }
-  else if (DCoef_)
-  {
-    s.AddDomainIntegrator(new DiffusionIntegrator(*DCoef_));
-    s.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
-							  dg_.sigma,
-							  dg_.kappa));
-    s.AddBdrFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
-						     dg_.sigma,
-						     dg_.kappa));
-  }
-  if (negVCoef_)
-  {
-     s.AddDomainIntegrator(new ConvectionIntegrator(*negVCoef_, -1.0));
-     s.AddInteriorFaceIntegrator(
-	new TransposeIntegrator(new DGTraceIntegrator(*negVCoef_, 1.0, -0.5)));
-     s.AddBdrFaceIntegrator(
-        new TransposeIntegrator(new DGTraceIntegrator(*negVCoef_, 1.0, -0.5)));
-  }
-  
-  ParBilinearForm a(fes_);
-  a.AddDomainIntegrator(new MassIntegrator(*CCoef_));
-  if (dCoef_)
-  {
-    a.AddDomainIntegrator(new DiffusionIntegrator(*dtdCoef_));
-    a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dtdCoef_,
-							  dg_.sigma,
-							  dg_.kappa));
-    a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtdCoef_,
-						     dg_.sigma,
-						     dg_.kappa));
-  }
-  else if (DCoef_)
-  {
-    a.AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef_));
-    a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef_,
-							  dg_.sigma,
-							  dg_.kappa));
-    a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef_,
-						     dg_.sigma,
-						     dg_.kappa));
-  }
-  if (negVCoef_ || !imex_)
-  {
-     a.AddDomainIntegrator(new ConvectionIntegrator(*dtNegVCoef_, -1.0));
-     a.AddInteriorFaceIntegrator(
-	new TransposeIntegrator(new DGTraceIntegrator(*dtNegVCoef_,
-						      1.0, -0.5)));
-     a.AddBdrFaceIntegrator(
-        new TransposeIntegrator(new DGTraceIntegrator(*dtNegVCoef_,
-						      1.0, -0.5)));
-  }
+   if (q_)
+   {
+     rhs_ = *q_;
+   }
+   else
+   {
+     rhs_ = 0.0;
+   }
+   if (imex_)
+   {
+     if (s_) s_->AddMult(u, rhs_, -1.0);
+   }
+   else
+   {
+     if (b_) b_->AddMult(u, rhs_, -1.0);
+   }
+   rhs_.ParallelAssemble(RHS_);
+   
+   ParGridFunction dudt_gf(fes_, (double*)NULL);
 
-  ParLinearForm b(fes_);
-  if (SCoef_)
-  {
-     b.AddDomainIntegrator(new DomainLFIntegrator(*SCoef_));
-  }
-  if (dbcCoef_ && dCoef_)
-  {
-    b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(*dbcCoef_, *dCoef_,
-						       dg_.sigma, dg_.kappa),
-			   dbcAttr_);
-  }
-  else if (dbcCoef_ && DCoef_)
-  {
-    b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(*dbcCoef_, *DCoef_,
-						       dg_.sigma, dg_.kappa),
-			   dbcAttr_);
-  }
-  else if (dbcCoef_ && VCoef_)
-  {
-    b.AddBdrFaceIntegrator(new BoundaryFlowIntegrator(*dbcCoef_, *negVCoef_,
-						      -1.0, -0.5),
-			   dbcAttr_);
-  }
+   a_->Assemble();
+   a_->Finalize();
+   HypreParMatrix *A = a_->ParallelAssemble();
+ 
+   HypreBoomerAMG *A_prec = new HypreBoomerAMG(*A);
+   A_prec->SetPrintLevel(0);
+   if (imex_)
+   {
+     CGSolver *A_solver = new CGSolver(A->GetComm());
+     A_solver->SetOperator(*A);
+     A_solver->SetPreconditioner(*A_prec);
 
-  s.Assemble();
-  a.Assemble();
-  b.Assemble();
+     A_solver->iterative_mode = false;
+     A_solver->SetRelTol(1e-9);
+     A_solver->SetAbsTol(0.0);
+     A_solver->SetMaxIter(100);
+     A_solver->SetPrintLevel(0);
+     A_solver->Mult(RHS_, X_);
+     delete A_solver;
+   }
+   else
+   {
+     GMRESSolver *A_solver = new GMRESSolver(A->GetComm());
+     A_solver->SetOperator(*A);
+     A_solver->SetPreconditioner(*A_prec);
 
-  s.Finalize();
-  a.Finalize();
+     A_solver->iterative_mode = false;
+     A_solver->SetRelTol(1e-9);
+     A_solver->SetAbsTol(0.0);
+     A_solver->SetMaxIter(100);
+     A_solver->SetPrintLevel(0);
+     A_solver->Mult(RHS_, X_);
+     delete A_solver;
+   }
+   
+   dudt_gf.MakeRef(fes_, &dudt[0]);
+   dudt_gf = X_;
 
-  s.AddMult(u, b, -1.0);
-
-  ParGridFunction dudt_gf(fes_, (double*)NULL);
-  
-  HypreParMatrix *A = a.ParallelAssemble();
-  HypreParVector *B = b.ParallelAssemble();
-  HypreParVector *X = new HypreParVector(*A);
-
-  HypreBoomerAMG *A_prec = new HypreBoomerAMG(*A);
-  GMRESSolver *A_solver = new GMRESSolver(A->GetComm());
-  A_solver->SetOperator(*A);
-  A_solver->SetPreconditioner(*A_prec);
-
-  A_solver->iterative_mode = false;
-  A_solver->SetRelTol(1e-9);
-  A_solver->SetAbsTol(0.0);
-  A_solver->SetMaxIter(100);
-  A_solver->SetPrintLevel(0);
-  A_solver->Mult(*B, *X);
-
-  dudt_gf.MakeRef(fes_, &dudt[0]);
-  dudt_gf = *X;
-
-  delete A_solver;
-  delete A_prec;
-  delete X;
-  delete B;
-  delete A;
+   //delete A_solver;
+   delete A_prec;
+   delete A;
 }
 
 void DGAdvectionDiffusionTDO::Update()
-{}
+{
+  m_.Update();
+  a_->Update();
+  if (b_) b_->Update();
+  if (s_) s_->Update();
+  if (k_) k_->Update();
+  if (q_) q_->Update();
+  rhs_.Update();
+  RHS_.SetSize(fes_->GetTrueVSize());
+  X_.SetSize(fes_->GetTrueVSize());
+}
 
-  
+
 TransportSolver::TransportSolver(ODESolver * implicitSolver,
                                  ODESolver * explicitSolver,
                                  ParFiniteElementSpace & sfes,
