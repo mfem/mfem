@@ -24,6 +24,10 @@
 #define posix_memalign(p,a,s) (((*(p))=_aligned_malloc((s),(a))),*(p)?0:errno)
 #endif
 
+#ifdef MFEM_USE_UMPIRE
+#include "umpire/Umpire.hpp"
+#endif // MFME_USE_UMPIRE
+
 namespace mfem
 {
 
@@ -103,8 +107,8 @@ class HostMemorySpace: public virtual MemorySpace
 public:
    virtual void HostAlloc(void **ptr, const std::size_t bytes) = 0;
    virtual void HostDealloc(void *ptr) = 0;
-   virtual void MemProtect(const void *ptr, const std::size_t bytes) { }
-   virtual void MemUnprotect(const void *ptr, const std::size_t bytes) { }
+   //virtual void MemProtect(const void *ptr, const std::size_t bytes) { }
+   //virtual void MemUnprotect(const void *ptr, const std::size_t bytes) { }
 };
 
 /// The std host memory space **********************************************
@@ -122,6 +126,7 @@ public:
 class UvmHostMemorySpace : public HostMemorySpace
 {
 public:
+   UvmHostMemorySpace(){ internal::managed=true; }
    void HostAlloc(void **ptr, const std::size_t bytes)
    { MFEM_CUDA_CHECK(::cudaMallocManaged(ptr, bytes)); }
    void HostDealloc(void *ptr)
@@ -225,6 +230,24 @@ public:
    }
 };
 
+#ifdef MFEM_USE_UMPIRE // ******************************************************
+class UmpireHostMemorySpace : public HostMemorySpace
+{
+private:
+   umpire::ResourceManager& rm;
+   umpire::Allocator h_allocator;
+public:
+   UmpireHostMemorySpace():
+      HostMemorySpace(),
+      rm(umpire::ResourceManager::getInstance()),
+      h_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
+          ("host_pool", rm.getAllocator("HOST"))) { }
+   void HostAlloc(void **ptr, const std::size_t bytes)
+   { *ptr = h_allocator.allocate(bytes); }
+   void HostDealloc(void *ptr) { h_allocator.deallocate(ptr); }
+};
+#endif // MFEM_USE_UMPIRE
+
 // *****************************************************************************
 /// The std device memory space class
 class DeviceMemorySpace: public virtual MemorySpace
@@ -232,12 +255,6 @@ class DeviceMemorySpace: public virtual MemorySpace
 public:
    virtual void DeviceAlloc(void **ptr, const std::size_t bytes) = 0;
    virtual void DeviceDealloc(void *ptr) = 0;
-   virtual void *MemcpyHtoD(void *dst, const void *src, const std::size_t bytes) 
-   { return std::memcpy(dst, src, bytes); }
-   virtual void *MemcpyDtoD(void *dst, const void *src, const std::size_t bytes)
-   { return std::memcpy(dst, src, bytes); }
-   virtual void *MemcpyDtoH(void *dst, const void *src, const std::size_t bytes)
-   { return std::memcpy(dst, src, bytes); }
 };
 
 /// The None device memory space
@@ -248,6 +265,16 @@ public:
    { mfem_error("No Alloc in this memory space"); }
    void DeviceDealloc(void *ptr) 
    { mfem_error("No Dealloc in this memory space"); }
+};
+
+/// The standard device memory space, used with the 'debug' device
+class StdDeviceMemorySpace : public DeviceMemorySpace
+{
+public:
+   StdDeviceMemorySpace(): DeviceMemorySpace() { }
+   void DeviceAlloc(void **dptr, const std::size_t bytes)
+   { *dptr = std::malloc(bytes); }
+   void DeviceDealloc(void *dptr) { std::free(dptr); }
 };
 
 #ifdef MFEM_USE_CUDA
@@ -291,10 +318,8 @@ public:
    void DeviceAlloc(void **dptr, const std::size_t bytes)
    {
       MFEM_CUDA_CHECK(::cudaMallocManaged(dptr, bytes));
-      printf("\n\033[33m[UVM] DeviceAlloc %p\033[m", *dptr);fflush(0);
    }
    void DeviceDealloc(void *dptr) {
-      printf("\n\033[33m[UVM] DeviceDealloc %p\033[m", dptr);fflush(0);
       MFEM_CUDA_CHECK(::cudaFree(dptr));
    }
    void *MemcpyHtoD(void *dst, const void *src, const size_t bytes)
@@ -315,49 +340,89 @@ public:
       return dst;
    }
 };
-#endif // MFEM_USE_CUDA
 
-/// The debug device memory space
-class DebugDeviceMemorySpace : public DeviceMemorySpace
+#ifdef MFEM_USE_UMPIRE 
+class UmpireDeviceMemorySpace : public DeviceMemorySpace
 {
+private:
+   umpire::ResourceManager& rm;
+   umpire::Allocator d_allocator;
 public:
-   DebugDeviceMemorySpace(): DeviceMemorySpace() { }
+   UmpireDeviceMemorySpace():
+      DeviceMemorySpace(),
+      rm(umpire::ResourceManager::getInstance()),
+      d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
+        ("device_pool",rm.getAllocator("DEVICE"))) { }
    void DeviceAlloc(void **dptr, const std::size_t bytes)
-   { *dptr = std::malloc(bytes); }
-   void DeviceDealloc(void *dptr) { std::free(dptr); }
+   { *dptr = d_allocator.allocate(bytes); }
+   void DeviceDealloc(void *dptr)
+   { d_allocator.deallocate(dptr); }
+   void *MemcpyHtoD(void *dst, const void *src, const size_t bytes)
+   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   void *MemcpyDtoD(void* dst, const void* src, const size_t bytes)
+   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   void *MemcpyDtoH(void *dst, const void *src, const size_t bytes)
+   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
 };
-
+#endif // MFEM_USE_UMPIRE 
+#endif // MFEM_USE_CUDA
 
 // *****************************************************************************
 
 /// (STD + NONE) memory space
 class StdNoneMemorySpace : public StdHostMemorySpace,
+                           public NoneDeviceMemorySpace {};
+
+/// (ALIGN + NONE) memory space
+class AlignedNoneMemorySpace : public AlignedHostMemorySpace,
                                public NoneDeviceMemorySpace {};
-/// (STD + DEBUG) memory space
-class StdDebugMemorySpace : public StdHostMemorySpace,
-                                public DebugDeviceMemorySpace {};
+
+/// (STD + STD) memory space
+class StdStdMemorySpace : public StdHostMemorySpace,
+                          public StdDeviceMemorySpace {};
+
+/// (ALIGN + STD) memory space
+class AlignedStdMemorySpace : public AlignedHostMemorySpace,
+                              public StdDeviceMemorySpace {};
+
+/// (PROTECTED + NONE) memory space
+class ProtectedNoneMemorySpace : public ProtectedHostMemorySpace,
+                                 public NoneDeviceMemorySpace {};
+
+/// (PROTECTED + STD) memory space
+class ProtectedStdMemorySpace : public ProtectedHostMemorySpace,
+                                public StdDeviceMemorySpace {};
+
+#ifdef MFEM_USE_UMPIRE
+/// (UMPIRE + NONE) memory space
+class UmpireNoneMemorySpace : public UmpireHostMemorySpace,
+                              public NoneDeviceMemorySpace {};
+#endif //MFEM_USE_UMPIRE
 
 #ifdef MFEM_USE_CUDA
 /// (STD + CUDA) memory space
 class StdCudaMemorySpace : public StdHostMemorySpace,
-                               public CudaDeviceMemorySpace {};
+                           public CudaDeviceMemorySpace {};
 
 ///  (ALIGNED + CUDA) memory space
 class AlignedCudaMemorySpace : public AlignedHostMemorySpace,
                                public CudaDeviceMemorySpace {};
 
+/// (UVM) memory space
+class UvmCudaMemorySpace : public UvmHostMemorySpace,
+                           public UvmDeviceMemorySpace {};
+
 ///  (PROTECTED + CUDA) memory space
 class ProtectedCudaMemorySpace : public ProtectedHostMemorySpace,
                                  public CudaDeviceMemorySpace {};
 
-/// (STD + UVM) memory space
-class UvmMemorySpace : public UvmHostMemorySpace,
-                       public UvmDeviceMemorySpace {};
+#ifdef MFEM_USE_UMPIRE
+/// (HOST_UMPIRE + DEVICE_UMPIRE) memory space
+class UmpireCudaMemorySpace : public UmpireHostMemorySpace,
+                              public UmpireDeviceMemorySpace {};
+#endif
 #endif // MFEM_USE_CUDA
 
-/// (PROTECTED + DEBUG) memory space
-class ProtectedDebugMemorySpace : public ProtectedHostMemorySpace,
-                                  public DebugDeviceMemorySpace {};
 
 } // namespace mfem::internal
 
@@ -369,7 +434,23 @@ MemoryManager::MemoryManager()
    enabled = true;
    internal::managed = false;
    maps = new internal::Ledger();
+   // UMPIRE has to be set at compile time, because migration from unknown
+   // (std::) allocator does not seem to be allowed
+   // The other issue is that ./src/umpire/resource/CudaConstantMemoryResource.cu
+   // starts using CUDA, where here the MM static class wakes up before.
+#ifndef MFEM_USE_UMPIRE
+#if defined(MFEM_USE_CUDA) && defined(MFEM_DEBUG)
+   ctrl = new internal::ProtectedNoneMemorySpace();
+#else
    ctrl = new internal::StdNoneMemorySpace();
+#endif
+#else
+#ifdef MFEM_USE_CUDA
+   ctrl = new internal::UmpireCudaMemorySpace();
+#else
+   ctrl = new internal::UmpireNoneMemorySpace();
+#endif
+#endif // MFEM_USE_UMPIRE
 }
 
 MemoryManager::~MemoryManager()
@@ -389,21 +470,34 @@ void MemoryManager::Delete(void *ptr)
 void MemoryManager::MemEnable(const void *ptr, const std::size_t bytes)
 { ctrl->MemUnprotect(ptr, bytes); }
 
-void MemoryManager::SetMemSpace(MemorySpaces::Id id)
+// STD, CUDA, UNIFIED, ALIGNED, PROTECTED
+void MemoryManager::SetMemFeature(const MemorySpace::feature feature)
 {
+#ifndef MFEM_USE_UMPIRE
    delete ctrl;
-   switch (id)
-   {
-#ifdef MFEM_USE_CUDA
-   case MemorySpaces::UVM:
-      { ctrl = new internal::UvmMemorySpace(); internal::managed=true; break; }
-   case MemorySpaces::STD_CUDA:
-      { ctrl = new internal::StdCudaMemorySpace(); break; }
+   switch (static_cast<int>(feature))
+   {                              
+#ifndef MFEM_USE_CUDA
+      //case MemorySpace::STD:      { ctrl = new internal::StdNoneMemorySpace(); break; }
+   case MemorySpace::PROTECTED: { ctrl = new internal::StdStdMemorySpace(); break; }
+      //case MemorySpace::ALIGNED:   { ctrl = new internal::AlignedNoneMemorySpace(); break; }
+#else // MFEM_USE_CUDA
+#ifndef MFEM_DEBUG
+   case MemorySpace::CUDA:      { ctrl = new internal::StdCudaMemorySpace(); break; }
+#else
+   case MemorySpace::CUDA:      { ctrl = new internal::ProtectedCudaMemorySpace(); break; }
+#endif
+#ifndef MFEM_DEBUG
+   case MemorySpace::PROTECTED: { ctrl = new internal::StdStdMemorySpace(); break; }
+#else
+   case MemorySpace::PROTECTED: { ctrl = new internal::ProtectedStdMemorySpace(); break; }
+#endif
+      //case MemorySpace::ALIGNED:   { ctrl = new internal::AlignedCudaMemorySpace(); break; }
+      case MemorySpace::UNIFIED:   { ctrl = new internal::UvmCudaMemorySpace(); break; }
 #endif // MFEM_USE_CUDA
-   case MemorySpaces::STD_DEBUG:
-      { ctrl = new internal::StdDebugMemorySpace(); break; }
-   default: mfem_error("Unknown memory space to switch to!");
+   default: mfem_error("Unknown memory feature to use!");
    }
+#endif // MFEM_USE_UMPIRE
 }
 
 void* MemoryManager::Insert(void *ptr, const std::size_t bytes)

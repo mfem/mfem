@@ -122,9 +122,12 @@ void Device::Setup(const int device)
    if (Allows(Backend::DEBUG)) { ngpu = 1; }
 
    // Memory backends setup
-   if (Allows(Backend::CUDA_MASK)) { mm.SetMemSpace(MemorySpaces::STD_CUDA); }
-   if (Allows(Backend::CUDA_UVM)) { mm.SetMemSpace(MemorySpaces::UVM); }
-   if (Allows(Backend::DEBUG)) { mm.SetMemSpace(MemorySpaces::STD_DEBUG); }
+   if (Allows(Backend::CUDA_MASK))
+   {
+      if (Allows(Backend::CUDA_UVM)) { mm.SetMemFeature(MemorySpace::UNIFIED);  }
+      else                           { mm.SetMemFeature(MemorySpace::CUDA); }
+   }
+   if (Allows(Backend::DEBUG)) { mm.SetMemFeature(MemorySpace::PROTECTED); }
 }
 
 } // mfem
