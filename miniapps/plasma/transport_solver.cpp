@@ -273,7 +273,8 @@ DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(DGParams & dg,
      b_(NULL),
      s_(NULL),
      k_(NULL),
-     q_(NULL),
+     q_exp_(NULL),
+     q_imp_(NULL),
      M_(NULL),
      rhs_(fes_),
      RHS_(fes_->GetTrueVSize()),
@@ -294,12 +295,13 @@ DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(DGParams & dg,
 DGAdvectionDiffusionTDO::~DGAdvectionDiffusionTDO()
 {
    delete M_;
-  
+
    delete a_;
    delete b_;
    delete s_;
    delete k_;
-   delete q_;
+   delete q_exp_;
+   delete q_imp_;
 
    delete negVCoef_;
    delete dtNegVCoef_;
@@ -385,7 +387,7 @@ void DGAdvectionDiffusionTDO::initB()
       }
       if (negVCoef_)
       {
- 	 b_->AddDomainIntegrator(new ConvectionIntegrator(*negVCoef_, -1.0));
+         b_->AddDomainIntegrator(new ConvectionIntegrator(*negVCoef_, -1.0));
          b_->AddInteriorFaceIntegrator(
             new TransposeIntegrator(new DGTraceIntegrator(*negVCoef_,
                                                           1.0, -0.5)));
@@ -437,7 +439,7 @@ void DGAdvectionDiffusionTDO::initK()
 
       if (negVCoef_)
       {
- 	 k_->AddDomainIntegrator(new ConvectionIntegrator(*negVCoef_, -1.0));
+         k_->AddDomainIntegrator(new ConvectionIntegrator(*negVCoef_, -1.0));
          k_->AddInteriorFaceIntegrator(
             new TransposeIntegrator(new DGTraceIntegrator(*negVCoef_,
                                                           1.0, -0.5)));
@@ -452,36 +454,82 @@ void DGAdvectionDiffusionTDO::initK()
 
 void DGAdvectionDiffusionTDO::initQ()
 {
-   if (q_ == NULL && (SCoef_ || (dbcCoef_ && (dCoef_ || DCoef_ || VCoef_))))
+   if (imex_)
    {
-      q_ = new ParLinearForm(fes_);
+      if (q_exp_ == NULL &&
+          (SCoef_ || (dbcCoef_ && (dCoef_ || DCoef_ || VCoef_))))
+      {
+         q_exp_ = new ParLinearForm(fes_);
 
-      if (SCoef_)
-      {
-         q_->AddDomainIntegrator(new DomainLFIntegrator(*SCoef_));
+         if (SCoef_)
+         {
+            q_exp_->AddDomainIntegrator(new DomainLFIntegrator(*SCoef_));
+         }
+         if (dbcCoef_ && VCoef_ && !(dCoef_ || DCoef_))
+         {
+            q_exp_->AddBdrFaceIntegrator(
+               new BoundaryFlowIntegrator(*dbcCoef_, *negVCoef_,
+                                          -1.0, -0.5),
+               dbcAttr_);
+         }
+         q_exp_->Assemble();
       }
-      if (dbcCoef_ && dCoef_)
+      if (q_imp_ == NULL &&
+          (SCoef_ || (dbcCoef_ && (dCoef_ || DCoef_ || VCoef_))))
       {
-         q_->AddBdrFaceIntegrator(
-	    new DGDirichletLFIntegrator(*dbcCoef_, *dCoef_,
-					dg_.sigma, dg_.kappa),
-	    dbcAttr_);
+         q_imp_ = new ParLinearForm(fes_);
+
+         if (dbcCoef_ && dCoef_)
+         {
+            q_imp_->AddBdrFaceIntegrator(
+               new DGDirichletLFIntegrator(*dbcCoef_, *dCoef_,
+                                           dg_.sigma, dg_.kappa),
+               dbcAttr_);
+         }
+         else if (dbcCoef_ && DCoef_)
+         {
+            q_imp_->AddBdrFaceIntegrator(
+               new DGDirichletLFIntegrator(*dbcCoef_, *DCoef_,
+                                           dg_.sigma, dg_.kappa),
+               dbcAttr_);
+         }
+         q_imp_->Assemble();
       }
-      else if (dbcCoef_ && DCoef_)
+   }
+   else
+   {
+      if (q_imp_ == NULL &&
+          (SCoef_ || (dbcCoef_ && (dCoef_ || DCoef_ || VCoef_))))
       {
-         q_->AddBdrFaceIntegrator(
-	    new DGDirichletLFIntegrator(*dbcCoef_, *DCoef_,
-					dg_.sigma, dg_.kappa),
-	    dbcAttr_);
+         q_imp_ = new ParLinearForm(fes_);
+
+         if (SCoef_)
+         {
+            q_imp_->AddDomainIntegrator(new DomainLFIntegrator(*SCoef_));
+         }
+         if (dbcCoef_ && dCoef_)
+         {
+            q_imp_->AddBdrFaceIntegrator(
+               new DGDirichletLFIntegrator(*dbcCoef_, *dCoef_,
+                                           dg_.sigma, dg_.kappa),
+               dbcAttr_);
+         }
+         else if (dbcCoef_ && DCoef_)
+         {
+            q_imp_->AddBdrFaceIntegrator(
+               new DGDirichletLFIntegrator(*dbcCoef_, *DCoef_,
+                                           dg_.sigma, dg_.kappa),
+               dbcAttr_);
+         }
+         else if (dbcCoef_ && VCoef_)
+         {
+            q_imp_->AddBdrFaceIntegrator(
+               new BoundaryFlowIntegrator(*dbcCoef_, *negVCoef_,
+                                          -1.0, -0.5),
+               dbcAttr_);
+         }
+         q_imp_->Assemble();
       }
-      else if (dbcCoef_ && VCoef_)
-      {
-         q_->AddBdrFaceIntegrator(
-	    new BoundaryFlowIntegrator(*dbcCoef_, *negVCoef_,
-				       -1.0, -0.5),
-	    dbcAttr_);
-      }
-      q_->Assemble();
    }
 }
 
@@ -495,12 +543,12 @@ void DGAdvectionDiffusionTDO::SetTime(const double _t)
 
    if (imex_)
    {
-     this->initS();
-     this->initK();
+      this->initS();
+      this->initK();
    }
    else
    {
-     this->initB();
+      this->initB();
    }
 
    this->initQ();
@@ -581,7 +629,8 @@ void DGAdvectionDiffusionTDO::SetDiffusionCoefficient(MatrixCoefficient &DCoef)
 void DGAdvectionDiffusionTDO::SetSourceCoefficient(Coefficient &SCoef)
 {
    SCoef_ = &SCoef;
-   delete q_; q_ = NULL;
+   delete q_exp_; q_exp_ = NULL;
+   delete q_imp_; q_imp_ = NULL;
 }
 
 void DGAdvectionDiffusionTDO::SetDirichletBC(Array<int> &dbc_attr,
@@ -589,7 +638,8 @@ void DGAdvectionDiffusionTDO::SetDirichletBC(Array<int> &dbc_attr,
 {
    dbcAttr_ = dbc_attr;
    dbcCoef_ = &dbc;
-   delete q_; q_ = NULL;
+   delete q_exp_; q_exp_ = NULL;
+   delete q_imp_; q_imp_ = NULL;
 }
 
 void DGAdvectionDiffusionTDO::SetNeumannBC(Array<int> &nbc_attr,
@@ -597,22 +647,23 @@ void DGAdvectionDiffusionTDO::SetNeumannBC(Array<int> &nbc_attr,
 {
    nbcAttr_ = nbc_attr;
    nbcCoef_ = &nbc;
-   delete q_; q_ = NULL;
+   delete q_exp_; q_exp_ = NULL;
+   delete q_imp_; q_imp_ = NULL;
 }
 
 void DGAdvectionDiffusionTDO::ExplicitMult(const Vector &x, Vector &fx) const
 {
-   MFEM_VERIFY(imex_, "Unexpected call to ExplicitMult for non-IMEX method!");  
+   MFEM_VERIFY(imex_, "Unexpected call to ExplicitMult for non-IMEX method!");
 
-   if (q_)
+   if (q_exp_)
    {
-     rhs_ = *q_;
+      rhs_ = *q_exp_;
    }
    else
    {
-     rhs_ = 0.0;
+      rhs_ = 0.0;
    }
-   if (k_) k_->AddMult(x, rhs_, -1.0);
+   if (k_) { k_->AddMult(x, rhs_, -1.0); }
 
    rhs_.ParallelAssemble(RHS_);
    // double nrmR = InnerProduct(M_->GetComm(), RHS_, RHS_);
@@ -621,7 +672,7 @@ void DGAdvectionDiffusionTDO::ExplicitMult(const Vector &x, Vector &fx) const
 
    // double nrmX = InnerProduct(M_->GetComm(), X_, X_);
    // cout << "Norm^2 X: " << nrmX << endl;
-   
+
    ParGridFunction fx_gf(fes_, (double*)NULL);
    fx_gf.MakeRef(fes_, &fx[0]);
    fx_gf = X_;
@@ -640,61 +691,61 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
       dt_ = dt;
    }
 
-   if (q_)
+   if (q_imp_)
    {
-     rhs_ = *q_;
+      rhs_ = *q_imp_;
    }
    else
    {
-     rhs_ = 0.0;
+      rhs_ = 0.0;
    }
    if (imex_)
    {
-     if (s_) s_->AddMult(u, rhs_, -1.0);
+      if (s_) { s_->AddMult(u, rhs_, -1.0); }
    }
    else
    {
-     if (b_) b_->AddMult(u, rhs_, -1.0);
+      if (b_) { b_->AddMult(u, rhs_, -1.0); }
    }
    rhs_.ParallelAssemble(RHS_);
-   
+
    ParGridFunction dudt_gf(fes_, (double*)NULL);
 
    a_->Assemble();
    a_->Finalize();
    HypreParMatrix *A = a_->ParallelAssemble();
- 
+
    HypreBoomerAMG *A_prec = new HypreBoomerAMG(*A);
    A_prec->SetPrintLevel(0);
    if (imex_)
    {
-     CGSolver *A_solver = new CGSolver(A->GetComm());
-     A_solver->SetOperator(*A);
-     A_solver->SetPreconditioner(*A_prec);
+      CGSolver *A_solver = new CGSolver(A->GetComm());
+      A_solver->SetOperator(*A);
+      A_solver->SetPreconditioner(*A_prec);
 
-     A_solver->iterative_mode = false;
-     A_solver->SetRelTol(1e-9);
-     A_solver->SetAbsTol(0.0);
-     A_solver->SetMaxIter(100);
-     A_solver->SetPrintLevel(0);
-     A_solver->Mult(RHS_, X_);
-     delete A_solver;
+      A_solver->iterative_mode = false;
+      A_solver->SetRelTol(1e-9);
+      A_solver->SetAbsTol(0.0);
+      A_solver->SetMaxIter(100);
+      A_solver->SetPrintLevel(0);
+      A_solver->Mult(RHS_, X_);
+      delete A_solver;
    }
    else
    {
-     GMRESSolver *A_solver = new GMRESSolver(A->GetComm());
-     A_solver->SetOperator(*A);
-     A_solver->SetPreconditioner(*A_prec);
+      GMRESSolver *A_solver = new GMRESSolver(A->GetComm());
+      A_solver->SetOperator(*A);
+      A_solver->SetPreconditioner(*A_prec);
 
-     A_solver->iterative_mode = false;
-     A_solver->SetRelTol(1e-9);
-     A_solver->SetAbsTol(0.0);
-     A_solver->SetMaxIter(100);
-     A_solver->SetPrintLevel(0);
-     A_solver->Mult(RHS_, X_);
-     delete A_solver;
+      A_solver->iterative_mode = false;
+      A_solver->SetRelTol(1e-9);
+      A_solver->SetAbsTol(0.0);
+      A_solver->SetMaxIter(100);
+      A_solver->SetPrintLevel(0);
+      A_solver->Mult(RHS_, X_);
+      delete A_solver;
    }
-   
+
    dudt_gf.MakeRef(fes_, &dudt[0]);
    dudt_gf = X_;
 
@@ -705,15 +756,16 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
 
 void DGAdvectionDiffusionTDO::Update()
 {
-  m_.Update();
-  a_->Update();
-  if (b_) b_->Update();
-  if (s_) s_->Update();
-  if (k_) k_->Update();
-  if (q_) q_->Update();
-  rhs_.Update();
-  RHS_.SetSize(fes_->GetTrueVSize());
-  X_.SetSize(fes_->GetTrueVSize());
+   m_.Update();
+   a_->Update();
+   if (b_) { b_->Update(); }
+   if (s_) { s_->Update(); }
+   if (k_) { k_->Update(); }
+   if (q_exp_) { q_exp_->Update(); }
+   if (q_imp_) { q_imp_->Update(); }
+   rhs_.Update();
+   RHS_.SetSize(fes_->GetTrueVSize());
+   X_.SetSize(fes_->GetTrueVSize());
 }
 
 

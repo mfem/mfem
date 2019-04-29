@@ -205,16 +205,17 @@ private:
    ParBilinearForm *b_;
    ParBilinearForm *s_;
    ParBilinearForm *k_;
-   ParLinearForm   *q_;
+   ParLinearForm   *q_exp_;
+   ParLinearForm   *q_imp_;
 
    HypreParMatrix * M_;
    HypreSmoother M_prec_;
    CGSolver M_solver_;
-  
+
    mutable ParLinearForm rhs_;
    mutable Vector RHS_;
    mutable Vector X_;
-  
+
    void initM();
    void initA();
    void initB();
