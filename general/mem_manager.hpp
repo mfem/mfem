@@ -23,22 +23,24 @@ namespace mfem
 /// Memory features supported by the memory manager
 struct MemorySpace
 {
-   enum feature
-      {
-       /// [device] No memory on the device
-       STD       = 1 << 0,
-       /// [device] CUDA memory will be used through the runtime library
-       CUDA      = 1 << 1,
-       /// [device] UVM memory will be used
-       UNIFIED   = 1 << 2,
-       /// [host] 32 bytes alignment requirement
-       ALIGNED   = 1 << 3,
-       /// [host] Protection against read and write accesses
-       ///        while the data is on the device
-       PROTECTED = 1 << 4
+   /** @brief In the documentation below, we use square brackets to indicate the
+       type of the feature: host or device. */
+   enum Feature
+   {
+      /// [host, device] Will use std:: function to alloc/free.
+      STD       = 1 << 0,
+      /// [device] CUDA memory API will be used through the runtime library.
+      CUDA      = 1 << 1,
+      /// [device] Unified memory will be used instead of host/device pointers.
+      UNIFIED   = 1 << 2,
+      /// [host] 32 bytes alignment requirement.
+      ALIGNED   = 1 << 3,
+      /// [host] Protection against read and write accesses while the data is
+      /// on the device. This protection is available in MFEM_DEBUG mode.
+      PROTECTED = 1 << 4
    };
 };
-   
+
 /// The memory manager class
 class MemoryManager
 {
@@ -117,7 +119,7 @@ public:
    void MemEnable(const void *ptr, const std::size_t bytes);
 
    /// Change the memory space
-   void SetMemFeature(const MemorySpace::feature mem);
+   void SetMemFeature(const MemorySpace::Feature mem);
 
    /// Return the corresponding device pointer of ptr, allocating and moving the
    /// data if needed (used in OccaPtr)
@@ -176,7 +178,7 @@ inline T *New(const std::size_t n)
    T *ptr;
    const std::size_t bytes = n*sizeof(T);
    if (!MemoryManager::Exists()) { return ::new T[n]; }
-   ptr = (T*) mm.New((void**)&ptr, bytes);
+   ptr = static_cast<T*>(mm.New((void**)&ptr, bytes));
    return static_cast<T*>(mm.Insert(ptr, bytes));
 }
 
@@ -214,7 +216,7 @@ inline void MemEnable(const void *ptr, const std::size_t bytes)
 { mm.MemEnable(ptr, bytes); }
 
 /// Change the memory space features
-inline void SetMemFeature(MemorySpace::feature mem)
+inline void SetMemFeature(MemorySpace::Feature mem)
 { mm.SetMemFeature(mem); }
 
 } // namespace mfem
