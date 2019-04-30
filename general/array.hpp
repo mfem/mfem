@@ -195,10 +195,10 @@ public:
    }
 
    /// Copies data from host to device
-   void Push() const { mfem::Push(data, Size()*sizeof(T));}
+   void Push() const { mfem::Push(data, Size()*sizeof(T)); }
 
    /// Copies data from device to host
-   void Pull() const { mfem::Pull(data, Size()*sizeof(T));}
+   void Pull() const { mfem::Pull(data, Size()*sizeof(T)); }
 
    /// Make this Array a reference to a pointer
    inline void MakeRef(T *, int);

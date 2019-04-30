@@ -88,7 +88,6 @@ namespace internal
 
 static bool managed;
 
-// *****************************************************************************
 /// The memory space abstract class: one pair (host + device) memory space
 class MemorySpace
 {
@@ -110,7 +109,6 @@ public: // Device
    { return std::memcpy(dst, src, bytes); }
 };
 
-// *****************************************************************************
 /// The host memory space abstract class
 class HostMemorySpace: public virtual MemorySpace
 {
@@ -120,7 +118,7 @@ public:
    virtual void HostDealloc(void *ptr) { std::free(ptr); }
 };
 
-/// The std host memory space **********************************************
+/// The std host memory space
 class StdHostMemorySpace : public HostMemorySpace { };
 
 #ifdef MFEM_USE_CUDA
@@ -145,7 +143,7 @@ public:
 };
 #endif // MFEM_USE_CUDA
 
-/// The aligned host memory space **********************************************
+/// The aligned host memory space
 class AlignedHostMemorySpace : public HostMemorySpace
 {
 public:
@@ -158,7 +156,7 @@ public:
    }
 };
 
-// The protected host memory space *********************************************
+/// The protected host memory space
 class ProtectedHostMemorySpace : public HostMemorySpace
 {
 #ifndef _WIN32
@@ -236,7 +234,7 @@ public:
    }
 };
 
-#ifdef MFEM_USE_UMPIRE // ******************************************************
+#ifdef MFEM_USE_UMPIRE
 class UmpireHostMemorySpace : public HostMemorySpace
 {
 private:
@@ -254,7 +252,6 @@ public:
 };
 #endif // MFEM_USE_UMPIRE
 
-// *****************************************************************************
 /// The device memory space class
 class DeviceMemorySpace: public virtual MemorySpace
 {
@@ -309,8 +306,8 @@ public:
    }
 };
 
-/// The UVM device memory space. It is preferable to keep the cudaMemcpy
-/// in order to minimize the GPU page faults
+/// The UVM device memory space. It is preferable to keep the cudaMemcpy in
+/// order to minimize the GPU page faults.
 class UvmDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
@@ -365,10 +362,9 @@ public:
    void *MemcpyDtoH(void *dst, const void *src, const size_t bytes)
    { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
 };
-#endif // MFEM_USE_UMPIRE 
+#endif // MFEM_USE_UMPIRE
 #endif // MFEM_USE_CUDA
 
-// *****************************************************************************
 
 /// (STD + NONE) memory space
 class StdNoneMemorySpace : public StdHostMemorySpace,
@@ -405,7 +401,7 @@ class UmpireNoneMemorySpace : public UmpireHostMemorySpace,
 class StdCudaMemorySpace : public StdHostMemorySpace,
    public CudaDeviceMemorySpace {};
 
-///  (ALIGNED + CUDA) memory space
+/// (ALIGNED + CUDA) memory space
 class AlignedCudaMemorySpace : public AlignedHostMemorySpace,
    public CudaDeviceMemorySpace {};
 
@@ -413,7 +409,7 @@ class AlignedCudaMemorySpace : public AlignedHostMemorySpace,
 class UvmCudaMemorySpace : public UvmHostMemorySpace,
    public UvmDeviceMemorySpace {};
 
-///  (PROTECTED + CUDA) memory space
+/// (PROTECTED + CUDA) memory space
 class ProtectedCudaMemorySpace : public ProtectedHostMemorySpace,
    public CudaDeviceMemorySpace {};
 
@@ -435,10 +431,14 @@ MemoryManager::MemoryManager()
    enabled = true;
    internal::managed = false;
    maps = new internal::Ledger();
-   // UMPIRE has to be set at compile time, because migration from std::
-   // allocator does not seem to be possible yet.
-   // The other issue is that umpire/resource/CudaConstantMemoryResource.cu
-   // starts using CUDA, where here the MM static class comes before.
+   // The use of Umpire has to be set at compile time, because migration from
+   // std:: allocator does not seem to be possible yet.
+   //
+   // The other issue is that the MM static class is initialized before we know
+   // that we will use CUDA or not, but the constructor of UmpireCudaMemorySpace
+   // assumes that CUDA is initialized and calls CUDA kernels inside the Umpire
+   // file umpire/resource/CudaConstantMemoryResource.cu.
+
 #ifndef MFEM_USE_UMPIRE
 #if defined(MFEM_USE_MM) && defined(MFEM_DEBUG)
    // In CUDA + DEBUG mode, we set the host allocations to be protected ready.
@@ -481,9 +481,8 @@ void MemoryManager::SetMemFeature(const MemorySpace::Feature feature)
    switch (static_cast<int>(feature))
    {
 #ifndef MFEM_USE_CUDA
-      //case MemorySpace::STD:       { ctrl = new internal::StdNoneMemorySpace(); break; }
       case MemorySpace::PROTECTED: { ctrl = new internal::ProtectedStdMemorySpace(); break; }
-         //case MemorySpace::ALIGNED:   { ctrl = new internal::AlignedNoneMemorySpace(); break; }
+         // case MemorySpace::ALIGNED:   { ctrl = new internal::AlignedNoneMemorySpace(); break; }
 #else // MFEM_USE_CUDA
 #ifndef MFEM_DEBUG
       case MemorySpace::CUDA:      { ctrl = new internal::StdCudaMemorySpace(); break; }
@@ -495,7 +494,7 @@ void MemoryManager::SetMemFeature(const MemorySpace::Feature feature)
 #else
       case MemorySpace::PROTECTED: { ctrl = new internal::ProtectedStdMemorySpace(); break; }
 #endif
-      //case MemorySpace::ALIGNED:   { ctrl = new internal::AlignedCudaMemorySpace(); break; }
+      // case MemorySpace::ALIGNED:   { ctrl = new internal::AlignedCudaMemorySpace(); break; }
       case MemorySpace::UNIFIED:   { ctrl = new internal::UvmCudaMemorySpace(); break; }
 #endif // MFEM_USE_CUDA
       default: mfem_error("Unknown memory feature to use!");
@@ -707,7 +706,7 @@ static void PushAlias(const internal::Ledger *maps,
    void *dst = static_cast<char*>(alias->mem->d_ptr) + alias->offset;
    ctrl->MemcpyHtoD(dst, ptr, bytes);
    ctrl->MemProtect(alias->mem->h_ptr, alias->mem->bytes);
-   // Should have a boolean to tell this section has been moved to the gpu
+   // Should have a boolean to tell this section has been moved to the GPU
 }
 
 void MemoryManager::Push(const void *ptr, const std::size_t bytes)
@@ -729,7 +728,6 @@ static void PullKnown(const internal::Ledger *maps,
    MFEM_VERIFY(bytes == base.bytes, "[PullKnown] bytes != base.bytes");
    ctrl->MemUnprotect(base.h_ptr, bytes);
    ctrl->MemcpyDtoH(base.h_ptr, base.d_ptr, bytes);
-   //if (bytes==base.bytes) { base.host = true; }
 }
 
 static void PullAlias(const internal::Ledger *maps,

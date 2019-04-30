@@ -409,10 +409,9 @@ MFEM_USE_MM = YES/NO
    support devices with different memory spaces. This option is required when
    CUDA support is enabled, i.e. when MFEM_USE_CUDA=YES.
 
-MFEM_USE_UMPIRE = YES/NO Enables support for Umpire, which is a
-   resource management library that allows the discovery, provision,
-   and management of memory on machines with multiple memory devices
-   like NUMA and GPUs.
+MFEM_USE_UMPIRE = YES/NO Enables support for Umpire, which is a resource
+   management library that allows the discovery, provision, and management of
+   memory on machines with multiple memory devices like NUMA and GPUs.
 
 MFEM_USE_CUDA = YES/NO
    Enables support for CUDA devices in MFEM. CUDA is a parallel computing
