@@ -709,8 +709,6 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
    }
    rhs_.ParallelAssemble(RHS_);
 
-   ParGridFunction dudt_gf(fes_, (double*)NULL);
-
    a_->Assemble();
    a_->Finalize();
    HypreParMatrix *A = a_->ParallelAssemble();
@@ -746,6 +744,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
       delete A_solver;
    }
 
+   ParGridFunction dudt_gf(fes_, (double*)NULL);
    dudt_gf.MakeRef(fes_, &dudt[0]);
    dudt_gf = X_;
 
@@ -757,8 +756,8 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
 void DGAdvectionDiffusionTDO::Update()
 {
    height = width = fes_->GetVSize();
-   m_.Update(); m_.Assemble(); m_.Finalize(); 
-   a_->Update(); a_->Assemble(); a_->Finalize(); 
+   m_.Update(); m_.Assemble(); m_.Finalize();
+   a_->Update(); a_->Assemble(); a_->Finalize();
    if (b_) { b_->Update(); b_->Assemble(); b_->Finalize(); }
    if (s_) { s_->Update(); s_->Assemble(); s_->Finalize(); }
    if (k_) { k_->Update(); k_->Assemble(); k_->Finalize(); }
