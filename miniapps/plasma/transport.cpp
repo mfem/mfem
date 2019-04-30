@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int nc_limit = 3;         // maximum level of hanging nodes
-   double max_elem_error = 1.0e-4;
+   double max_elem_error = -1.0;
    double hysteresis = 0.25; // derefinement safety coefficient
    int order = 3;
 
@@ -761,7 +761,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace_l2_o0(&pmesh, &fec_l2_o0);
 
    ParGridFunction err(&fespace_l2_o0, (double *)NULL);
-   
+
    // 11. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
    //     with L2 projection in the smoothing step to better handle hanging
    //     nodes and parallel partitioning. We need to supply a space for the
@@ -776,6 +776,31 @@ int main(int argc, char *argv[])
    // ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec, dim);
    DiffusionIntegrator integ(DCoef);
    L2ZienkiewiczZhuEstimator estimator(integ, u, flux_fes, smooth_flux_fes);
+
+   if (max_elem_error < 0.0)
+   {
+      const Vector init_errors = estimator.GetLocalErrors();
+
+      double loc_max_error = init_errors.Max();
+      double loc_min_error = init_errors.Min();
+
+      double glb_max_error = -1.0;
+      double glb_min_error = -1.0;
+
+      MPI_Allreduce(&loc_max_error, &glb_max_error, 1,
+                    MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+      MPI_Allreduce(&loc_min_error, &glb_min_error, 1,
+                    MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+      if (mpi.Root())
+      {
+         cout << "Range of error estimates for initial condition: "
+              << glb_min_error << " < elem err < " << glb_max_error << endl;
+      }
+
+      max_elem_error = glb_max_error;
+
+   }
 
    // 12. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
@@ -796,7 +821,7 @@ int main(int argc, char *argv[])
    derefiner.SetNCLimit(nc_limit);
 
    const int max_dofs = 100000;
-      
+
    // Start the timer.
    tic_toc.Clear();
    tic_toc.Start();
@@ -810,11 +835,13 @@ int main(int argc, char *argv[])
 
    int amr_it = 0;
    double t = t_init;
+
+   if (mpi.Root()) { cout << "\nBegin time stepping at t = " << t << endl; }
    while (t < t_final)
    {
       ode_controller.Run(u, t, t_final);
 
-      if (mpi.Root()) { cout << "run paused at t = " << t << endl; }
+      if (mpi.Root()) { cout << "Time stepping paused at t = " << t << endl; }
 
       if (visualization)
       {
@@ -826,97 +853,119 @@ int main(int argc, char *argv[])
 
       if (t_final - t > 1e-8 * (t_final - t_init))
       {
-	HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
+         HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
 
-	if (global_dofs > max_dofs)
-	{
-	  continue;
-	}
+         if (global_dofs > max_dofs)
+         {
+            continue;
+         }
 
-	// Make sure errors will be recomputed in the following.
-	refiner.Reset();
-	derefiner.Reset();
-	
-	// 20. Call the refiner to modify the mesh. The refiner calls the error
-	//     estimator to obtain element errors, then it selects elements to be
-	//     refined and finally it modifies the mesh. The Stop() method can be
-	//     used to determine if a stopping criterion was met.
-	refiner.Apply(pmesh);
+         // Make sure errors will be recomputed in the following.
+	 if (mpi.Root())
+	 {
+	   cout << "\nEstimating errors." << endl;
+	 }
+         refiner.Reset();
+         derefiner.Reset();
 
-	if (visualization)
-      {
-	err.MakeRef(&fespace_l2_o0, const_cast<double*>(&(estimator.GetLocalErrors())[0]));
-         ostringstream oss;
-         oss << "Error estimate at time " << t;
-         VisualizeField(eout, vishost, visport, err, oss.str().c_str(),
-                        2*Wx, Wy, Ww, Wh);
-      }
-	if (refiner.Stop())
-	{
-	  if (mpi.Root())
-	    {
-	      cout << "Stopping criterion satisfied. Stop." << endl;
-	    }
-	  continue;
-	}
+         // 20. Call the refiner to modify the mesh. The refiner calls the error
+         //     estimator to obtain element errors, then it selects elements to be
+         //     refined and finally it modifies the mesh. The Stop() method can be
+         //     used to determine if a stopping criterion was met.
 
-	// 21. Update the finite element space (recalculate the number of DOFs,
-	//     etc.) and create a grid function update matrix. Apply the matrix
-	//     to any GridFunctions over the space. In this case, the update
-	//     matrix is an interpolation matrix so the updated GridFunction will
-	//     still represent the same function as before refinement.
-	fespace.Update();
-	fespace_l2_o0.Update();
-	u.Update();
+         if (visualization)
+         {
+            err.MakeRef(&fespace_l2_o0,
+                        const_cast<double*>(&(estimator.GetLocalErrors())[0]));
+            ostringstream oss;
+            oss << "Error estimate at time " << t;
+            VisualizeField(eout, vishost, visport, err, oss.str().c_str(),
+                           2*Wx, Wy, Ww, Wh);
+         }
 
-	// 22. Load balance the mesh, and update the space and solution. Currently
-	//     available only for nonconforming meshes.
-	if (pmesh.Nonconforming())
-	  {
-	    pmesh.Rebalance();
+         refiner.Apply(pmesh);
 
-	    // Update the space and the GridFunction. This time the update matrix
-	    // redistributes the GridFunction among the processors.
-	    fespace.Update();
-	    fespace_l2_o0.Update();
-	    u.Update();
-	  }
-	m.Update(); m.Assemble(); m.Finalize();
-	ode_diff_msr.SetOperator(m);
-	oper.Update();
-	ode_solver->Init(oper);
+         if (refiner.Stop())
+         {
+            if (mpi.Root())
+            {
+               cout << "No refinements necessary." << endl;
+            }
+            // continue;
+         }
+         else
+         {
+            if (mpi.Root())
+            {
+               cout << "Refining elements." << endl;
+            }
+            // 21. Update the finite element space (recalculate the number of DOFs,
+            //     etc.) and create a grid function update matrix. Apply the matrix
+            //     to any GridFunctions over the space. In this case, the update
+            //     matrix is an interpolation matrix so the updated GridFunction will
+            //     still represent the same function as before refinement.
+            fespace.Update();
+            fespace_l2_o0.Update();
+            u.Update();
 
-	if (derefiner.Apply(pmesh))
-	{
-	  if (mpi.Root())
-	    {
-	      cout << "\nDerefined elements." << endl;
-	    }
+            // 22. Load balance the mesh, and update the space and solution. Currently
+            //     available only for nonconforming meshes.
+            if (pmesh.Nonconforming())
+            {
+               pmesh.Rebalance();
 
-	  // 24. Update the space and the solution, rebalance the mesh.
-	    fespace.Update();
-	    fespace_l2_o0.Update();
-	    u.Update();
-	    m.Update(); m.Assemble(); m.Finalize();
-	    ode_diff_msr.SetOperator(m);
-	    oper.Update();
-	    ode_solver->Init(oper);
-	}
-      
-	amr_it++;
+               // Update the space and the GridFunction. This time the update matrix
+               // redistributes the GridFunction among the processors.
+               fespace.Update();
+               fespace_l2_o0.Update();
+               u.Update();
+            }
+            m.Update(); m.Assemble(); m.Finalize();
+            ode_diff_msr.SetOperator(m);
+            oper.Update();
+            ode_solver->Init(oper);
+         }
+         if (derefiner.Apply(pmesh))
+         {
+            if (mpi.Root())
+            {
+               cout << "Derefining elements." << endl;
+            }
 
-	global_dofs = fespace.GlobalTrueVSize();
-	if (mpi.Root())
-	  {
-	    cout << "\nAMR iteration " << amr_it << endl;
-	    cout << "Number of unknowns: " << global_dofs << endl;
-	  }
+            // 24. Update the space and the solution, rebalance the mesh.
+            fespace.Update();
+            fespace_l2_o0.Update();
+            u.Update();
+            m.Update(); m.Assemble(); m.Finalize();
+            ode_diff_msr.SetOperator(m);
+            oper.Update();
+            ode_solver->Init(oper);
+         }
+	 else
+	 {
+            if (mpi.Root())
+            {
+               cout << "No derefinements needed." << endl;
+            }
+	 }
+	 
+         amr_it++;
+
+         global_dofs = fespace.GlobalTrueVSize();
+         if (mpi.Root())
+         {
+            cout << "\nAMR iteration " << amr_it << endl;
+            cout << "Number of unknowns: " << global_dofs << endl;
+         }
 
       }
    }
 
    tic_toc.Stop();
-   if (mpi.Root()) { cout << " done, " << tic_toc.RealTime() << "s." << endl; }
+   if (mpi.Root())
+   {
+     cout << "\nTime stepping done after " << tic_toc.RealTime() << "s.\n";
+   }
    /*
    // 11. Save the final solution. This output can be viewed later using GLVis:
    //     "glvis -np 4 -m transport-mesh -g species-0-field-0-final".
