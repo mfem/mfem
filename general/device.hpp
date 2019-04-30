@@ -171,7 +171,7 @@ public:
        transferring data automatically from the device, if necessary. */
    static inline void Disable(const bool save = false)
    {
-      if (save) Get().saved = Get().mode;
+      if (save) { Get().saved = Get().mode; }
       Get().mode = Device::SEQUENTIAL;
       Get().allowed_backends = Backend::CPU;
    }
