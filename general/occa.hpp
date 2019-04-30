@@ -26,10 +26,10 @@
 
 namespace occa
 {
-struct device{};
-struct memory{};
-struct kernel{};
-struct properties{};
+struct device {};
+struct memory {};
+struct kernel {};
+struct properties {};
 }
 
 #endif // MFEM_USE_OCCA

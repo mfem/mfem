@@ -57,7 +57,8 @@ occa::memory OccaPtr(const void *ptr)
 
 occa::kernel OccaBuildKernel(const char *file,
                              const char *name,
-                             const occa::properties props){
+                             const occa::properties props)
+{
 #ifdef MFEM_USE_OCCA
    return internal::occaDevice.buildKernel(file, name, props);
 #else // MFEM_USE_OCCA
