@@ -27,16 +27,16 @@ struct MemorySpace
        type of the feature: host or device. */
    enum Feature
    {
-      /// [host, device] Will use std:: function to alloc/free.
+      /// [host, device] Use std:: functions to allocate and free memory.
       STD       = 1 << 0,
-      /// [device] CUDA memory API will be used through the runtime library.
+      /// [device] Use the CUDA memory API through the runtime library.
       CUDA      = 1 << 1,
-      /// [device] Unified memory will be used instead of host/device pointers.
+      /// [device] Use unified memory instead of host/device pointers.
       UNIFIED   = 1 << 2,
-      /// [host] 32 bytes alignment requirement.
+      /// [host] Align memory at 32 bytes.
       ALIGNED   = 1 << 3,
-      /// [host] Protection against read and write accesses while the data is
-      /// on the device. This protection is available in MFEM_DEBUG mode.
+      /// [host] Protect against read and write accesses while the data is on
+      /// the device. This protection is available in MFEM_DEBUG mode.
       PROTECTED = 1 << 4
    };
 };

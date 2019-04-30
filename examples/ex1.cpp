@@ -159,7 +159,6 @@ int main(int argc, char *argv[])
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x = 0.0;
-   //x[0] = 0.0;
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
