@@ -20,24 +20,28 @@ namespace mfem
 // Implementation of MFEM's lightweight device/host memory manager designed to
 // work seamlessly with the OCCA, RAJA, and other kernels supported by MFEM.
 
-/// Memory features supported by the memory manager
-struct MemorySpace
+/// Memory types supported by the memory manager
+struct Memory
 {
    /** @brief In the documentation below, we use square brackets to indicate the
-       type of the feature: host or device. */
-   enum Feature
+       if the type is for host or device memory. */
+   enum Type
    {
+      /// [host, device] No allocations or copies are possible.
+      NONE      = 1 << 0,
       /// [host, device] Use std:: functions to allocate and free memory.
-      STD       = 1 << 0,
+      STD       = 1 << 1,
       /// [device] Use the CUDA memory API through the runtime library.
-      CUDA      = 1 << 1,
+      CUDA      = 1 << 2,
       /// [device] Use unified memory instead of host/device pointers.
-      UNIFIED   = 1 << 2,
+      UNIFIED   = 1 << 3,
       /// [host] Align memory at 32 bytes.
-      ALIGNED   = 1 << 3,
-      /// [host] Protect against read and write accesses while the data is on
-      /// the device. This protection is available in MFEM_DEBUG mode.
-      PROTECTED = 1 << 4
+      ALIGNED   = 1 << 4,
+      /// [host] Protection against read and write accesses while the data is on
+      /// the device. This protection is available when:
+      ///    - MFEM_USE_CUDA and MFEM_DEBUG are set,
+      ///    - MFEM_USE_MM is set in any other build, with the 'debug' device.
+      DEBUG = 1 << 5
    };
 };
 
@@ -118,8 +122,8 @@ public:
    /// Enable read/write access of this memory
    void MemEnable(const void *ptr, const std::size_t bytes);
 
-   /// Change the memory space
-   void SetMemFeature(const MemorySpace::Feature mem);
+   /// Change the types of the memory spaces
+   void SetMemoryTypes(const Memory::Type host, const Memory::Type device);
 
    /// Return the corresponding device pointer of ptr, allocating and moving the
    /// data if needed (used in OccaPtr)
@@ -215,9 +219,13 @@ inline void Pull(const void *ptr, const std::size_t bytes)
 inline void MemEnable(const void *ptr, const std::size_t bytes)
 { mm.MemEnable(ptr, bytes); }
 
-/// Change the memory space features
-inline void SetMemFeature(MemorySpace::Feature mem)
-{ mm.SetMemFeature(mem); }
+/// Change the types of the each memory spaces
+inline void SetMemoryTypes(Memory::Type host, Memory::Type device)
+{ mm.SetMemoryTypes(host, device); }
+
+/// Change the types of the memory spaces with the same given type
+inline void SetMemoryTypes(Memory::Type both)
+{ mm.SetMemoryTypes(both, both); }
 
 } // namespace mfem
 
