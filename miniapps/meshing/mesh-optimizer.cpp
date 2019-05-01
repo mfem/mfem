@@ -49,7 +49,7 @@
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
 //   * mesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 //   2D non-conforming shape and equal size:
-//     mesh-optimizer -m ./amr-quad.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
 
 #include "mfem.hpp"
