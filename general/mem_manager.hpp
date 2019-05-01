@@ -108,10 +108,10 @@ public:
    bool IsOnHost(const void *ptr);
 
    /// Return true if the pointer has been registered
-   bool IsKnown(const void *ptr);
+   bool IsKnown(const void *ptr, const std::size_t bytes = 0);
 
    /// Return true if the pointer is an alias inside a registered memory region
-   bool IsAlias(const void *ptr);
+   bool IsAlias(const void *ptr, const std::size_t bytes = 0);
 
    /// Push the data to the device
    void Push(const void *ptr, const std::size_t bytes);

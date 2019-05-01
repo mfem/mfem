@@ -67,10 +67,7 @@ struct Alias
    Memory *const mem;
    /// Offset of this alias
    const long offset;
-   /// Boolean telling which memory space is being used (not yet used)
-   bool on_host;
-   bool padding[7];
-   Alias(Memory *const m, const long o): mem(m), offset(o), on_host(true) { }
+   Alias(Memory *const m, const long o): mem(m), offset(o) { }
 };
 
 typedef std::unordered_map<const void*, Memory> MemoryMap;
@@ -474,8 +471,18 @@ void MemoryManager::SetHostDevicePtr(void *h_ptr, void *d_ptr, const bool host)
    base.on_host = host;
 }
 
-bool MemoryManager::IsKnown(const void *ptr)
-{ return maps->memories.find(ptr) != maps->memories.end(); }
+bool MemoryManager::IsKnown(const void *ptr, const std::size_t bytes)
+{
+   const internal::MemoryMap::iterator it = maps->memories.find(ptr);
+   const bool known = it != maps->memories.end();
+   if (!known) return false;
+   // If it is known and no bytes has bee provided, just return true
+   if (bytes==0) return true;
+   // If 'bytes' was given, check that they match
+   const internal::Memory &base = maps->memories.at(ptr);
+   if (base.bytes == bytes) return true;
+   return false;
+}
 
 bool MemoryManager::IsOnHost(const void *ptr)
 { return maps->memories.at(ptr).on_host; }
@@ -511,11 +518,11 @@ static const void* AliasBaseMemory(const internal::Ledger *maps,
    return nullptr;
 }
 
-bool MemoryManager::IsAlias(const void *ptr)
+bool MemoryManager::IsAlias(const void *ptr, const std::size_t bytes)
 {
    const internal::AliasMap::const_iterator found = maps->aliases.find(ptr);
    if (found != maps->aliases.end()) { return true; }
-   MFEM_ASSERT(!IsKnown(ptr), "Ptr is an already known address!");
+   MFEM_ASSERT(!IsKnown(ptr, bytes), "Ptr is an already known address!");
    const void *base = AliasBaseMemory(maps, ptr);
    if (!base) { return false; }
    internal::Memory &mem = maps->memories.at(base);
@@ -614,6 +621,8 @@ static void PushKnown(internal::Ledger *maps, const void *ptr,
                       const std::size_t bytes)
 {
    internal::Memory &base = maps->memories.at(ptr);
+   const bool host = base.on_host;
+   if (host) { return; }
    MFEM_VERIFY(bytes == base.bytes, "[PushKnown] bytes != base.bytes");
    if (!base.d_ptr) { ctrl->device->Alloc(&base.d_ptr, base.bytes); }
    ctrl->memcpy->HtoD(base.d_ptr, ptr, bytes);
@@ -625,19 +634,17 @@ static void PushAlias(const internal::Ledger *maps,
                       const void *ptr, const std::size_t bytes)
 {
    const internal::Alias *alias = maps->aliases.at(ptr);
-   MFEM_VERIFY(bytes == alias->mem->bytes, "[PushAlias] bytes != base.bytes");
    void *dst = static_cast<char*>(alias->mem->d_ptr) + alias->offset;
    ctrl->memcpy->HtoD(dst, ptr, bytes);
    ctrl->host->Protect(alias->mem->h_ptr, alias->mem->bytes);
-   // Should have a boolean to tell this section has been moved to the GPU
 }
 
 void MemoryManager::Push(const void *ptr, const std::size_t bytes)
 {
    MFEM_VERIFY(bytes>0, "[Push] bytes should not be zero!")
    if (MmDeviceIniFilter()) { return; }
-   if (IsKnown(ptr)) { return PushKnown(maps, ptr, bytes); }
-   if (IsAlias(ptr)) { return PushAlias(maps, ptr, bytes); }
+   if (IsKnown(ptr, bytes)) { return PushKnown(maps, ptr, bytes); }
+   if (IsAlias(ptr, bytes)) { return PushAlias(maps, ptr, bytes); }
    if (Device::Allows(Backend::DEVICE_MASK))
    { mfem_error("Unknown pointer to push to!"); }
 }
@@ -659,13 +666,10 @@ static void PullAlias(const internal::Ledger *maps,
 {
    const internal::Alias *alias = maps->aliases.at(ptr);
    internal::Memory *base = alias->mem;
-   const bool host = alias->mem->on_host;
-   if (host) { return; }
    if (!ptr) { mfem_error("PullAlias !ptr"); }
    if (!base->d_ptr) { mfem_error("PullAlias !base->d_ptr"); }
    void *dst = static_cast<char*>(base->h_ptr) + alias->offset;
    const void *src = static_cast<char*>(base->d_ptr) + alias->offset;
-   MFEM_VERIFY(bytes == base->bytes, "[PullKnown] bytes != base->bytes");
    ctrl->host->Unprotect(base->h_ptr, base->bytes);
    ctrl->memcpy->DtoH(dst, src, bytes);
 }
@@ -673,8 +677,8 @@ static void PullAlias(const internal::Ledger *maps,
 void MemoryManager::Pull(const void *ptr, const std::size_t bytes)
 {
    if (MmDeviceIniFilter()) { return; }
-   if (IsKnown(ptr)) { return PullKnown(maps, ptr, bytes); }
-   if (IsAlias(ptr)) { return PullAlias(maps, ptr, bytes); }
+   if (IsKnown(ptr, bytes)) { return PullKnown(maps, ptr, bytes); }
+   if (IsAlias(ptr, bytes)) { return PullAlias(maps, ptr, bytes); }
    if (Device::Allows(Backend::DEVICE_MASK))
    { mfem_error("Unknown pointer to pull from!"); }
 }
