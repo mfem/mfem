@@ -306,8 +306,15 @@ public:
 
    Geometry::Type GetFaceGeometry() const { return Geometry::SQUARE; }
 
+   /// Return the number of root elements.
+   int GetNumRootElements() { return root_state.Size(); }
+
    /// Return the distance of leaf 'i' from the root.
    int GetElementDepth(int i) const;
+
+   /** Return the size reduction compared to the root element (ignoring local
+       stretching and curvature). */
+   int GetElementSizeReduction(int i) const;
 
    /// I/O: Print the "vertex_parents" section of the mesh file (ver. >= 1.1).
    void PrintVertexParents(std::ostream &out) const;

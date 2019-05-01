@@ -3590,6 +3590,20 @@ int NCMesh::GetElementDepth(int i) const
    return depth;
 }
 
+int NCMesh::GetElementSizeReduction(int i) const
+{
+   int elem = leaf_elements[i];
+   int reduction = 1, parent;
+   while ((parent = elements[elem].parent) != -1)
+   {
+      if (elements[elem].ref_type & 1) { reduction *= 2; }
+      if (elements[elem].ref_type & 2) { reduction *= 2; }
+      if (elements[elem].ref_type & 4) { reduction *= 2; }
+      elem = parent;
+   }
+   return reduction;
+}
+
 void NCMesh::FindFaceNodes(int face, int node[4])
 {
    // Obtain face nodes from one of its elements (note that face->p1, p2, p3
