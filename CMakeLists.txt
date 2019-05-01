@@ -254,7 +254,7 @@ endif()
 
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
-  find_package(Axom REQUIRED Sidre SLIC axom_core)
+  find_package(Axom REQUIRED Axom)
 endif()
 
 # PUMI
