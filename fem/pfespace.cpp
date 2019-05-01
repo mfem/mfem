@@ -2870,8 +2870,6 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    double *ydata = y.GetData();
    x.Pull();
    y.Pull();
-   // Communications use arrays that need to stay on the host
-   Device::Disable(true);
    const int m = external_ldofs.Size();
 
    const int in_layout = 2; // 2 - input is ltdofs array
@@ -2888,8 +2886,6 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
 
    const int out_layout = 0; // 0 - output is ldofs array
    gc.BcastEnd(ydata, out_layout);
-   Device::Enable(true);
-   y.Push();
 }
 
 void ConformingProlongationOperator::MultTranspose(
@@ -2902,7 +2898,6 @@ void ConformingProlongationOperator::MultTranspose(
    double *ydata = y.GetData();
    x.Pull();
    y.Pull();
-   Device::Disable(true);
    const int m = external_ldofs.Size();
 
    gc.ReduceBegin(xdata);
@@ -2918,8 +2913,6 @@ void ConformingProlongationOperator::MultTranspose(
 
    const int out_layout = 2; // 2 - output is an array on all ltdofs
    gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
-   Device::Enable(true);
-   y.Push();
 }
 
 } // namespace mfem

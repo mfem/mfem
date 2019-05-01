@@ -642,15 +642,16 @@ void MemoryManager::Push(const void *ptr, const std::size_t bytes)
    { mfem_error("Unknown pointer to push to!"); }
 }
 
-static void PullKnown(const internal::Ledger *maps,
+static void PullKnown(internal::Ledger *maps,
                       const void *ptr, const std::size_t bytes)
 {
-   const internal::Memory &base = maps->memories.at(ptr);
+   internal::Memory &base = maps->memories.at(ptr);
    const bool host = base.on_host;
    if (host) { return; }
    MFEM_VERIFY(bytes == base.bytes, "[PullKnown] bytes != base.bytes");
    ctrl->host->Unprotect(base.h_ptr, bytes);
    ctrl->memcpy->DtoH(base.h_ptr, base.d_ptr, bytes);
+   base.on_host = true;
 }
 
 static void PullAlias(const internal::Ledger *maps,
