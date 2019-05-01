@@ -101,33 +101,43 @@ void Device::Setup(const int device)
    ngpu = 0;
    dev = device;
 
+   const bool debug = Allows(Backend::DEBUG);
+   const bool cuda = Allows(Backend::CUDA_MASK);
+   const bool raja = Allows(Backend::RAJA_MASK);
+   const bool occa = Allows(Backend::OCCA_MASK);
+   const bool openmp = Allows(Backend::OMP|Backend::RAJA_OMP);
+   
 #ifndef MFEM_USE_CUDA
-   MFEM_VERIFY(!Allows(Backend::CUDA_MASK),
+   MFEM_VERIFY(!cuda,
                "the CUDA backends require MFEM built with MFEM_USE_CUDA=YES");
 #endif
 #ifndef MFEM_USE_RAJA
-   MFEM_VERIFY(!Allows(Backend::RAJA_MASK),
+   MFEM_VERIFY(!raja,
                "the RAJA backends require MFEM built with MFEM_USE_RAJA=YES");
 #endif
 #ifndef MFEM_USE_OPENMP
-   MFEM_VERIFY(!Allows(Backend::OMP|Backend::RAJA_OMP),
+   MFEM_VERIFY(!openmp,
                "the OpenMP and RAJA OpenMP backends require MFEM built with"
                " MFEM_USE_OPENMP=YES");
 #endif
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
 
    // Device backends setup
-   if (Allows(Backend::CUDA_MASK)) { CudaDeviceSetup(dev, ngpu); }
-   if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
-   if (Allows(Backend::DEBUG)) { ngpu = 1; }
+   if (cuda) { CudaDeviceSetup(dev, ngpu); }
+   if (occa) { OccaDeviceSetup(dev); }
+   if (debug) { ngpu = 1; }
 
    // Memory backends setup
-   if (Allows(Backend::CUDA_MASK))
+   if (cuda)
    {
       if (Allows(Backend::CUDA_UVM)) { SetMemoryTypes(Memory::UNIFIED); }
       else { SetMemoryTypes(Memory::STD, Memory::CUDA); }
    }
-   if (Allows(Backend::DEBUG)) { SetMemoryTypes(Memory::DEBUG); }
+   if (debug)
+   {
+      SetMemoryTypes(Memory::DEBUG); 
+      MFEM_VERIFY((cuda|raja|occa|openmp)^debug, "Device 'debug' is exclusive!");
+   }
 }
 
 } // mfem
