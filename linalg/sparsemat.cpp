@@ -38,6 +38,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      current_row(-1),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
+     At(NULL),
      ownGraph(true),
      ownData(true),
      isSorted(false)
@@ -60,6 +61,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
      Rows(NULL),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
+     At(NULL),
      ownGraph(true),
      ownData(true),
      isSorted(false)
@@ -78,6 +80,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
      Rows(NULL),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
+     At(NULL),
      ownGraph(ownij),
      ownData(owna),
      isSorted(issorted)
@@ -103,6 +106,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    , Rows(NULL)
    , ColPtrJ(NULL)
    , ColPtrNode(NULL)
+   , At(NULL)
    , ownGraph(true)
    , ownData(true)
    , isSorted(false)
@@ -183,6 +187,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    current_row = -1;
    ColPtrJ = NULL;
    ColPtrNode = NULL;
+   At = NULL;
    isSorted = mat.isSorted;
 }
 
@@ -191,6 +196,7 @@ SparseMatrix::SparseMatrix(const Vector &v)
    , Rows(NULL)
    , ColPtrJ(NULL)
    , ColPtrNode(NULL)
+   , At(NULL)
    , ownGraph(true)
    , ownData(true)
    , isSorted(true)
@@ -245,6 +251,7 @@ void SparseMatrix::SetEmpty()
    current_row = -1;
    ColPtrJ = NULL;
    ColPtrNode = NULL;
+   At = NULL;
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
@@ -333,7 +340,7 @@ void SparseMatrix::SetWidth(int newWidth)
       // Nothing to be done here
       return;
    }
-   else if ( newWidth == -1)
+   else if (newWidth == -1)
    {
       // Compute the actual width
       width = ActualWidth();
@@ -552,12 +559,10 @@ void SparseMatrix::Mult(const Vector &x, Vector &y) const
 
 void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 {
-   MFEM_ASSERT(width == x.Size(),
-               "Input vector size (" << x.Size() << ") must match matrix width (" << width
-               << ")");
-   MFEM_ASSERT(height == y.Size(),
-               "Output vector size (" << y.Size() << ") must match matrix height (" << height
-               << ")");
+   MFEM_ASSERT(width == x.Size(), "Input vector size (" << x.Size()
+               << ") must match matrix width (" << width << ")");
+   MFEM_ASSERT(height == y.Size(), "Output vector size (" << y.Size()
+               << ") must match matrix height (" << height << ")");
 
    int i, j, end;
    double *Ap = A, *yp = y.GetData();
@@ -636,12 +641,10 @@ void SparseMatrix::MultTranspose(const Vector &x, Vector &y) const
 void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
                                     const double a) const
 {
-   MFEM_ASSERT(height == x.Size(),
-               "Input vector size (" << x.Size() << ") must match matrix height (" << height
-               << ")");
-   MFEM_ASSERT(width == y.Size(),
-               "Output vector size (" << y.Size() << ") must match matrix width (" << width
-               << ")");
+   MFEM_ASSERT(height == x.Size(), "Input vector size (" << x.Size()
+               << ") must match matrix height (" << height << ")");
+   MFEM_ASSERT(width == y.Size(), "Output vector size (" << y.Size()
+               << ") must match matrix width (" << width << ")");
 
    if (A == NULL)
    {
@@ -658,23 +661,40 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       }
       return;
    }
-   // Prepare the lambda capture and get our pointers from the memory manager
-   const int d_height = height;
-   const DeviceArray d_I(I);
-   const DeviceArray d_J(J);
-   const DeviceVector d_A(A);
-   const DeviceVector d_x(x, x.Size());
-   DeviceVector d_y(y, y.Size());
-   MFEM_FORALL(i, d_height,
+
+   if (At)
    {
-      const double xi = a * d_x[i];
-      const int end = d_I[i+1];
-      for (int j = d_I[i]; j < end; j++)
+      At->AddMult(x, y, a);
+   }
+   else
+   {
+      MFEM_VERIFY(Device::IsDisabled(), "transpose action on device is not "
+                  "enabled; see BuildTranspose() for details.");
+      for (int i = 0; i < height; i++)
       {
-         const int Jj = d_J[j];
-         AtomicAdd(&d_y[Jj], d_A[j] * xi);
+         const double xi = a * x[i];
+         const int end = I[i+1];
+         for (int j = I[i]; j < end; j++)
+         {
+            const int Jj = J[j];
+            y[Jj] += A[j] * xi;
+         }
       }
-   });
+   }
+}
+
+void SparseMatrix::BuildTranspose() const
+{
+   if (At == NULL)
+   {
+      At = Transpose(*this);
+   }
+}
+
+void SparseMatrix::ResetTranspose() const
+{
+   delete At;
+   At = NULL;
 }
 
 void SparseMatrix::PartMult(
@@ -2101,12 +2121,12 @@ void SparseMatrix::Set(const int i, const int j, const double A)
    if ((gi=i) < 0) { gi = -1-gi, s = -1; }
    else { s = 1; }
    MFEM_ASSERT(gi < height,
-               "Trying to insert a row " << gi << " outside the matrix height "
+               "Trying to set a row " << gi << " outside the matrix height "
                << height);
    if ((gj=j) < 0) { gj = -1-gj, t = -s; }
    else { t = s; }
    MFEM_ASSERT(gj < width,
-               "Trying to insert a column " << gj << " outside the matrix width "
+               "Trying to set a column " << gj << " outside the matrix width "
                << width);
    if (t < 0) { a = -a; }
    _Set_(gi, gj, a);
@@ -2142,7 +2162,7 @@ void SparseMatrix::SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
       if ((gi=rows[i]) < 0) { gi = -1-gi, s = -1; }
       else { s = 1; }
       MFEM_ASSERT(gi < height,
-                  "Trying to insert a row " << gi << " outside the matrix height "
+                  "Trying to set a row " << gi << " outside the matrix height "
                   << height);
       SetColPtr(gi);
       for (j = 0; j < cols.Size(); j++)
@@ -2155,7 +2175,7 @@ void SparseMatrix::SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
          if ((gj=cols[j]) < 0) { gj = -1-gj, t = -s; }
          else { t = s; }
          MFEM_ASSERT(gj < width,
-                     "Trying to insert a column " << gj << " outside the matrix width "
+                     "Trying to set a column " << gj << " outside the matrix width "
                      << width);
          if (t < 0) { a = -a; }
          _Set_(gj, a);
@@ -2177,7 +2197,7 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
       if ((gi=rows[i]) < 0) { gi = -1-gi, s = -1; }
       else { s = 1; }
       MFEM_ASSERT(gi < height,
-                  "Trying to insert a row " << gi << " outside the matrix height "
+                  "Trying to set a row " << gi << " outside the matrix height "
                   << height);
       SetColPtr(gi);
       for (j = 0; j < cols.Size(); j++)
@@ -2190,7 +2210,7 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
          if ((gj=cols[j]) < 0) { gj = -1-gj, t = -s; }
          else { t = s; }
          MFEM_ASSERT(gj < width,
-                     "Trying to insert a column " << gj << " outside the matrix width "
+                     "Trying to set a column " << gj << " outside the matrix width "
                      << width);
          if (t < 0) { a = -a; }
          _Set_(gj, a);
@@ -2210,7 +2230,7 @@ void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
       if ((gi=rows[i]) < 0) { gi = -1-gi, s = -1; }
       else { s = 1; }
       MFEM_ASSERT(gi < height,
-                  "Trying to insert a row " << gi << " outside the matrix height "
+                  "Trying to read a row " << gi << " outside the matrix height "
                   << height);
       SetColPtr(gi);
       for (j = 0; j < cols.Size(); j++)
@@ -2218,7 +2238,7 @@ void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
          if ((gj=cols[j]) < 0) { gj = -1-gj, t = -s; }
          else { t = s; }
          MFEM_ASSERT(gj < width,
-                     "Trying to insert a column " << gj << " outside the matrix width "
+                     "Trying to read a column " << gj << " outside the matrix width "
                      << width);
          a = _Get_(gj);
          subm(i, j) = (t < 0) ? (-a) : (a);
@@ -2236,7 +2256,7 @@ bool SparseMatrix::RowIsEmpty(const int row) const
       gi = -1-gi;
    }
    MFEM_ASSERT(gi < height,
-               "Trying to insert a row " << gi << " outside the matrix height "
+               "Trying to query a row " << gi << " outside the matrix height "
                << height);
    if (Rows)
    {
@@ -2255,7 +2275,7 @@ int SparseMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
 
    if ((gi=row) < 0) { gi = -1-gi; }
    MFEM_ASSERT(gi < height,
-               "Trying to insert a row " << gi << " outside the matrix height "
+               "Trying to read a row " << gi << " outside the matrix height "
                << height);
    if (Rows)
    {
@@ -2282,7 +2302,7 @@ int SparseMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
       j = I[gi];
       cols.MakeRef(J + j, I[gi+1]-j);
       srow.NewDataAndSize(A + j, cols.Size());
-      MFEM_ASSERT(row >= 0, "Row not valid: " << row );
+      MFEM_ASSERT(row >= 0, "Row not valid: " << row << ", height: " << height);
       return 1;
    }
 }
@@ -2296,7 +2316,7 @@ void SparseMatrix::SetRow(const int row, const Array<int> &cols,
    if ((gi=row) < 0) { gi = -1-gi, s = -1; }
    else { s = 1; }
    MFEM_ASSERT(gi < height,
-               "Trying to insert a row " << gi << " outside the matrix height "
+               "Trying to set a row " << gi << " outside the matrix height "
                << height);
 
    if (!Finalized())
@@ -2307,7 +2327,7 @@ void SparseMatrix::SetRow(const int row, const Array<int> &cols,
          if ((gj=cols[j]) < 0) { gj = -1-gj, t = -s; }
          else { t = s; }
          MFEM_ASSERT(gj < width,
-                     "Trying to insert a column " << gj << " outside the matrix"
+                     "Trying to set a column " << gj << " outside the matrix"
                      " width " << width);
          a = srow(j);
          if (t < 0) { a = -a; }
@@ -2325,7 +2345,7 @@ void SparseMatrix::SetRow(const int row, const Array<int> &cols,
          if ((gj=cols[j]) < 0) { gj = -1-gj, t = -s; }
          else { t = s; }
          MFEM_ASSERT(gj < width,
-                     "Trying to insert a column " << gj << " outside the matrix"
+                     "Trying to set a column " << gj << " outside the matrix"
                      " width " << width);
 
          J[i] = gj;
@@ -2771,9 +2791,10 @@ void SparseMatrix::Destroy()
       delete NodesMem;
    }
 #endif
+   delete At;
 }
 
-int SparseMatrix::ActualWidth()
+int SparseMatrix::ActualWidth() const
 {
    int awidth = 0;
    if (A)
@@ -2817,8 +2838,10 @@ SparseMatrix *Transpose (const SparseMatrix &A)
       "Finalize must be called before Transpose. Use TransposeRowMatrix instead");
 
    int i, j, end;
-   int m, n, nnz, *A_i, *A_j, *At_i, *At_j;
-   double *A_data, *At_data;
+   const int *A_i, *A_j;
+   int m, n, nnz, *At_i, *At_j;
+   const double *A_data;
+   double *At_data;
 
    m      = A.Height(); // number of rows of A
    n      = A.Width();  // number of columns of A
@@ -2945,8 +2968,10 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                     SparseMatrix *OAB)
 {
    int nrowsA, ncolsA, nrowsB, ncolsB;
-   int *A_i, *A_j, *B_i, *B_j, *C_i, *C_j, *B_marker;
-   double *A_data, *B_data, *C_data;
+   const int *A_i, *A_j, *B_i, *B_j;
+   int *C_i, *C_j, *B_marker;
+   const double *A_data, *B_data;
+   double *C_data;
    int ia, ib, ic, ja, jb, num_nonzeros;
    int row_start, counter;
    double a_entry, b_entry;
@@ -3259,13 +3284,13 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
    int * C_j;
    double * C_data;
 
-   int * A_i = A.GetI();
-   int * A_j = A.GetJ();
-   double * A_data = A.GetData();
+   const int *A_i = A.GetI();
+   const int *A_j = A.GetJ();
+   const double *A_data = A.GetData();
 
-   int * B_i = B.GetI();
-   int * B_j = B.GetJ();
-   double * B_data = B.GetData();
+   const int *B_i = B.GetI();
+   const int *B_j = B.GetJ();
+   const double *B_data = B.GetData();
 
    int * marker = new int[ncols];
    std::fill(marker, marker+ncols, -1);
@@ -3493,6 +3518,7 @@ void SparseMatrix::Swap(SparseMatrix &other)
    mfem::Swap(current_row, other.current_row);
    mfem::Swap(ColPtrJ, other.ColPtrJ);
    mfem::Swap(ColPtrNode, other.ColPtrNode);
+   mfem::Swap(At, other.At);
 
 #ifdef MFEM_USE_MEMALLOC
    mfem::Swap(NodesMem, other.NodesMem);
