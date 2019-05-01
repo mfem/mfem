@@ -106,7 +106,7 @@ void Device::Setup(const int device)
    const bool raja = Allows(Backend::RAJA_MASK);
    const bool occa = Allows(Backend::OCCA_MASK);
    const bool openmp = Allows(Backend::OMP|Backend::RAJA_OMP);
-   
+
 #ifndef MFEM_USE_CUDA
    MFEM_VERIFY(!cuda,
                "the CUDA backends require MFEM built with MFEM_USE_CUDA=YES");
@@ -135,7 +135,7 @@ void Device::Setup(const int device)
    }
    if (debug)
    {
-      SetMemoryTypes(Memory::DEBUG); 
+      SetMemoryTypes(Memory::DEBUG);
       MFEM_VERIFY((cuda|raja|occa|openmp)^debug, "Device 'debug' is exclusive!");
    }
 }
