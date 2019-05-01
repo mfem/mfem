@@ -791,8 +791,8 @@ void TargetConstructor::ComputeAvgVolume() const
    NCMesh *ncmesh = mesh->ncmesh;
    if (Parallel() == false)
    {
-      avg_volume = (ncmesh == NULL) ? volume / NE
-                                    : volume / ncmesh->GetNumRootElements();
+      avg_volume = (ncmesh == NULL) ?
+                   volume / NE : volume / ncmesh->GetNumRootElements();
 
    }
 #ifdef MFEM_USE_MPI
@@ -801,8 +801,8 @@ void TargetConstructor::ComputeAvgVolume() const
       double area_NE[4];
       area_NE[0] = volume; area_NE[1] = NE;
       MPI_Allreduce(area_NE, area_NE + 2, 2, MPI_DOUBLE, MPI_SUM, comm);
-      avg_volume = (ncmesh == NULL) ? area_NE[2] / area_NE[3]
-                                    : area_NE[2] / ncmesh->GetNumRootElements();
+      avg_volume = (ncmesh == NULL) ?
+                   area_NE[2] / area_NE[3] : area_NE[2] / ncmesh->GetNumRootElements();
    }
 #endif
 }
