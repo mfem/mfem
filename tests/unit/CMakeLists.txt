@@ -9,11 +9,11 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-# Include the build directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(BEFORE ${PROJECT_BINARY_DIR})
 # Include the top mfem source directory - needed by some tests, e.g. to
 # #include "general/text.hpp".
 include_directories(BEFORE ${PROJECT_SOURCE_DIR})
+# Include the build directory where mfem.hpp and mfem-performance.hpp are.
+include_directories(BEFORE ${PROJECT_BINARY_DIR})
 # Include the source directory for the unit tests - catch.hpp is there.
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
