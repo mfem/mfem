@@ -104,7 +104,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       K_pcg->iterative_mode = false;
       K_pcg->SetTol(1e-7);
       K_pcg->SetMaxIter(200);
-      K_pcg->SetPrintLevel(3);
+      K_pcg->SetPrintLevel(0);
       K_pcg->SetPreconditioner(*K_amg);
    }
    else

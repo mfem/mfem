@@ -415,6 +415,9 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
+   MPI_Barrier(MPI_COMM_WORLD); 
+   double start = MPI_Wtime();
+
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
@@ -480,6 +483,9 @@ int main(int argc, char *argv[])
 
    }
 
+   MPI_Barrier(MPI_COMM_WORLD); 
+   double end = MPI_Wtime();
+
    // 9. Save the solutions.
    {
       ostringstream mesh_name, phi_name, psi_name, j_name, w_name;
@@ -517,6 +523,11 @@ int main(int argc, char *argv[])
 
    oper.DestroyHypre();
    MPI_Finalize();
+
+   if (myid == 0) 
+   { 
+       cout <<"######Runtime = "<<end-start<<" ######"<<endl;
+   }
    return 0;
 }
 
