@@ -3090,6 +3090,23 @@ void ParMesh::Rebalance()
                  " meshes.");
    }
 
+   // Make sure the Nodes use a ParFiniteElementSpace
+   if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
+   {
+      ParFiniteElementSpace *pfes =
+         new ParFiniteElementSpace(*Nodes->FESpace(), *this);
+      ParGridFunction *new_nodes = new ParGridFunction(pfes);
+      *new_nodes = *Nodes;
+      if (Nodes->OwnFEC())
+      {
+         new_nodes->MakeOwner(Nodes->OwnFEC());
+         Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
+         delete Nodes->FESpace();
+      }
+      delete Nodes;
+      Nodes = new_nodes;
+   }
+
    DeleteFaceNbrData();
 
    pncmesh->Rebalance();
@@ -3110,22 +3127,6 @@ void ParMesh::Rebalance()
    last_operation = Mesh::REBALANCE;
    sequence++;
 
-   // Make sure the Nodes use a ParFiniteElementSpace
-   if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
-   {
-      ParFiniteElementSpace *pfes =
-         new ParFiniteElementSpace(*Nodes->FESpace(), *this);
-      ParGridFunction *new_nodes = new ParGridFunction(pfes);
-      *new_nodes = *Nodes;
-      if (Nodes->OwnFEC())
-      {
-         new_nodes->MakeOwner(Nodes->OwnFEC());
-         Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
-         delete Nodes->FESpace();
-      }
-      delete Nodes;
-      Nodes = new_nodes;
-   }
    UpdateNodes();
 }
 
