@@ -13,7 +13,6 @@
 #define MFEM_OCCA_HPP
 
 #include "../config/config.hpp"
-#include "cuda.hpp" // for CUdevice, CUcontext
 
 #ifdef MFEM_USE_OCCA
 #include <occa.hpp>

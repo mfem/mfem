@@ -16,9 +16,9 @@
 //               mpirun -np 4 ex6p -m ../data/amr-quad.mesh
 //
 // Device sample runs:
-//             > mpirun -np 4 ex6p -pa -d cuda
-//             > mpirun -np 4 ex6p -pa -d occa-cuda
-//             > mpirun -np 4 ex6p -pa -d raja-omp
+//               mpirun -np 4 ex6p -pa -d cuda
+//               mpirun -np 4 ex6p -pa -d occa-cuda
+//               mpirun -np 4 ex6p -pa -d raja-omp
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
