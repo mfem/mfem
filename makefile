@@ -211,6 +211,9 @@ ifneq ($(MFEM_USE_CUDA),YES)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 else
+   ifneq ($(MFEM_USE_MM),YES)
+      $(error MFEM_USE_CUDA=YES requires MFEM_USE_MM=YES)
+   endif
    MFEM_CXX ?= $(CUDA_CXX)
    CXXFLAGS += $(CUDA_FLAGS) -ccbin $(CXX_OR_MPICXX)
    XCOMPILER = $(CUDA_XCOMPILER)
@@ -230,7 +233,7 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI CUDA OCCA RAJA
+ SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI OCCA RAJA
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -246,7 +249,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
@@ -319,8 +322,8 @@ MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 
-MFEM_SOURCE_DIR  := $(MFEM_REAL_DIR)
-MFEM_INSTALL_DIR := $(BUILD_REAL_DIR)
+MFEM_SOURCE_DIR  = $(MFEM_REAL_DIR)
+MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
 
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
@@ -344,6 +347,11 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
       @MFEM_EXT_LIBS@
    MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
+   ifeq ($(MFEM_USE_OCCA),YES)
+      ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX))
+         $(error OCCA is enabled: PREFIX must be set during configuration!)
+      endif
+   endif
    MFEM_PREFIX := $(abspath $(PREFIX))
    MFEM_INC_DIR = $(abspath $(PREFIX_INC))
    MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))
@@ -358,6 +366,7 @@ DIRS = general linalg mesh fem
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
+OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
 	debug pdebug cuda pcuda cudebug pcudebug style check test unittest\
@@ -498,7 +507,12 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 # install remaining includes in each subdirectory
 	for dir in $(DIRS); do \
 	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
-	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
+	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
+	done
+# install *.okl files
+	for dir in $(OKL_DIRS); do \
+	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
+	   $(INSTALL) -m 640 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
 	done
 # install config.mk in $(PREFIX_SHARE)
 	mkdir -p $(PREFIX_SHARE)
