@@ -22,6 +22,9 @@
 
 #ifdef MFEM_USE_RAJA
 #include "RAJA/RAJA.hpp"
+#if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
+#error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
+#endif
 #endif
 
 namespace mfem
@@ -106,8 +109,7 @@ void CuWrap(const int N, DBODY &&d_body)
    if (N==0) { return; }
    const int GRID = (N+BLOCKS-1)/BLOCKS;
    CuKernel<<<GRID,BLOCKS>>>(N,d_body);
-   const cudaError_t last = cudaGetLastError();
-   MFEM_VERIFY(last == cudaSuccess, cudaGetErrorString(last));
+   MFEM_CUDA_CHECK(cudaGetLastError());
 }
 
 #else  // MFEM_USE_CUDA
