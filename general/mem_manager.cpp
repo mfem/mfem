@@ -476,7 +476,7 @@ bool MemoryManager::IsKnown(const void *ptr, const std::size_t bytes)
    const internal::MemoryMap::iterator it = maps->memories.find(ptr);
    const bool known = it != maps->memories.end();
    if (!known) { return false; }
-   // If it is known and no bytes has bee provided, just return true
+   // If it is known and no bytes were not provided, just return true
    if (bytes==0) { return true; }
    // If 'bytes' was given, check that they match
    const internal::Memory &base = maps->memories.at(ptr);
