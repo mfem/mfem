@@ -52,7 +52,7 @@ double g0_function(const Vector &x);
 double gf_function(const Vector &x);
 
 //Tfinal
-double Tf = 1.23;
+double Tf = 3.23;
 
 //Velocity function
 double cx = 1.0;
@@ -92,7 +92,6 @@ int main(int argc, char *argv[])
    problem = 0;
    //const char *mesh_file = "../data/periodic-segment.mesh";
    const char *mesh_file = "../data/periodic-square.mesh";
-
    int ref_levels = 6;
    int order = 1;
    int ode_solver_type = 4;
@@ -102,7 +101,6 @@ int main(int argc, char *argv[])
    bool visit = false;
    bool binary = false;
    int vis_steps = 2;
-   const char *device = "cuda";
 
    int precision = 8;
    cout.precision(precision);
@@ -184,11 +182,6 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
-   //5.5 Setup Device
-   Device::Configure(device);
-   Device::Print();
-   Device::Enable();
-
    // 6. Set up and assemble the bilinear and linear forms
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
@@ -196,10 +189,8 @@ int main(int argc, char *argv[])
    FunctionCoefficient gf(gf_function);
 
    BilinearForm m(&fes);
-   m.SetAssemblyLevel(AssemblyLevel::FULL);
    m.AddDomainIntegrator(new MassIntegrator);
    BilinearForm k(&fes);
-   k.SetAssemblyLevel(AssemblyLevel::FULL);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
 
    LinearForm b(&fes);
@@ -224,9 +215,6 @@ int main(int argc, char *argv[])
    << std::chrono::duration_cast<std::chrono::nanoseconds>
    (adv_timer1 - adv_timer0).count()*1e-9
    << " seconds" << std::endl;
-
-   printf("\n  Assembled Convection matrix \n \n");
-   Device::Disable();
 
    b.Assemble();
 
@@ -298,7 +286,6 @@ int main(int argc, char *argv[])
    m.SpMat().PrintMatlab(mass_file);
    mass_file.close();
 
-   printf(" \n \n");
    ofstream adv_file;
    adv_file.open("adv.txt");
    k.SpMat().PrintMatlab(adv_file);
