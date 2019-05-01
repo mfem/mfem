@@ -35,6 +35,10 @@ namespace mfem {
  * - HypreParMatrix and HypreParVector
  * - HypreSolver and other \link hypre.hpp hypre classes\endlink
  *
+ * <H3>Main GPU classes</H3>
+ * - Device
+ * - MemoryManager
+ *
  * <H3>Example codes</H3>
  * - <a class="el" href="examples_2ex1_8cpp_source.html">Example 1</a>: nodal H1 FEM for the Laplace problem
  * - <a class="el" href="examples_2ex1p_8cpp_source.html">Example 1p</a>: parallel nodal H1 FEM for the Laplace problem

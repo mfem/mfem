@@ -42,6 +42,10 @@ option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
+option(MFEM_USE_MM "Enable MFEM's memory manager" OFF)
+option(MFEM_USE_CUDA "Enable CUDA" OFF)
+option(MFEM_USE_OCCA "Enable OCCA" OFF)
+option(MFEM_USE_RAJA "Enable RAJA" OFF)
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 
@@ -58,6 +62,9 @@ option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
 # autodetected C++ compiler.
 # set(CXX g++)
 # set(MPICXX mpicxx)
+
+# Set the target CUDA architecture
+set(CUDA_ARCH "sm_60" CACHE STRING "Target CUDA architecture.")
 
 set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -153,6 +160,9 @@ set(Axom_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
 
 set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
     "Directory where PUMI is installed")
+
+set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
+set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

@@ -12,7 +12,13 @@
 #include "mfem.hpp"
 #include "catch.hpp"
 #include <stdio.h>
-#include <unistd.h>  // rmdir
+
+#ifndef _WIN32
+#include <unistd.h> // rmdir
+#else
+#include <direct.h> // _rmdir
+#define rmdir(dir) _rmdir(dir)
+#endif
 
 using namespace mfem;
 
