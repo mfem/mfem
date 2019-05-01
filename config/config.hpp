@@ -61,4 +61,19 @@
 #error Building with CUDA (MFEM_USE_CUDA=YES) requires MFEM_USE_MM=YES
 #endif
 
+namespace mfem
+{
+
+/// Return true if MFEM was compiled in DEBUG mode
+static inline bool MfemDebug()
+{
+#ifdef MFEM_DEBUG
+   return true;
+#else
+   return false;
+#endif
+}
+
+} // namespace mfem
+
 #endif // MFEM_CONFIG_HPP

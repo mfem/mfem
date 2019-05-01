@@ -124,10 +124,10 @@ void Device::Setup(const int device)
    // Memory backends setup
    if (Allows(Backend::CUDA_MASK))
    {
-      if (Allows(Backend::CUDA_UVM)) { mm.SetMemFeature(MemorySpace::UNIFIED);  }
-      else                           { mm.SetMemFeature(MemorySpace::CUDA); }
+      if (Allows(Backend::CUDA_UVM)) { SetMemoryTypes(Memory::UNIFIED); }
+      else { SetMemoryTypes(Memory::STD, Memory::CUDA); }
    }
-   if (Allows(Backend::DEBUG)) { mm.SetMemFeature(MemorySpace::PROTECTED); }
+   if (Allows(Backend::DEBUG)) { SetMemoryTypes(Memory::DEBUG); }
 }
 
 } // mfem

@@ -40,6 +40,7 @@
    } \
    while (0)
 #else // MFEM_USE_CUDA
+#define MFEM_CUDA_CHECK(x)
 #define MFEM_ATTR_DEVICE
 #define MFEM_ATTR_HOST_DEVICE
 #endif // MFEM_USE_CUDA
@@ -55,6 +56,16 @@ void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
 
 // Function to setup the CUDA device and get the number of GPU
 void CudaDeviceSetup(const int dev, int &ngpu);
+
+/// Return true if CUDA is used
+static inline bool UsingCUDA()
+{
+#ifdef MFEM_USE_CUDA
+   return true;
+#else
+   return false;
+#endif
+}
 
 } // namespace mfem
 
