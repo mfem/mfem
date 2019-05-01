@@ -43,7 +43,9 @@ before_build:
 build_script:
 - cmake --build build_parallel
 - cmake --build build_serial
+- cmake --build build_serial --target exec
 
 after_build:
 # - cmake --build build_parallel --target check
-- cmake --build build_serial --target check
+- cmake --build build_serial --target RUN_TESTS
+
