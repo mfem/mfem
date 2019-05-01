@@ -312,7 +312,6 @@ void MemoryManager::Pull(const void *ptr, const std::size_t bytes)
    { mfem_error("Unknown pointer to pull from!"); }
 }
 
-namespace internal { extern CUstream *cuStream; }
 void* MemoryManager::Memcpy(void *dst, const void *src,
                             const std::size_t bytes, const bool async)
 {
@@ -322,7 +321,7 @@ void* MemoryManager::Memcpy(void *dst, const void *src,
    const bool run_on_host = !Device::Allows(Backend::DEVICE_MASK);
    if (run_on_host) { return std::memcpy(dst, src, bytes); }
    if (!async) { return CuMemcpyDtoD(d_dst, d_src, bytes); }
-   return CuMemcpyDtoDAsync(d_dst, d_src, bytes, internal::cuStream);
+   return CuMemcpyDtoDAsync(d_dst, d_src, bytes);
 }
 
 void MemoryManager::RegisterCheck(void *ptr)
