@@ -274,6 +274,10 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
          fec = new NURBSFECollection();
       }
    }
+   else if (!strncmp(name, "SBP_", 4))
+   {
+      fec = new C_SBPCollection(atoi(name+8), atoi(name+4));
+   }
    else
    {
       MFEM_ABORT("unknown FiniteElementCollection: " << name);
@@ -2540,6 +2544,161 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
 {
    MFEM_ABORT("NURBS finite elements can not be statically condensed!");
    return NULL;
+}
+
+C_SBPCollection::C_SBPCollection(const int p, const int dim)
+{
+   MFEM_VERIFY(p >= 0 && p <= 4, "C_SBPCollection requires 0 <= order <= 4.");
+   MFEM_VERIFY(dim == 2, "C_SBPCollection requires dim == 2.");
+
+   snprintf(c_SBPname, 32, "SBP_%dD_P%d", dim, p);
+
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      C_SBPdof[g] = 0;
+      C_SBPElements[g] = NULL;
+   }
+   for (int i = 0; i < 2; i++)
+   {
+      SegDofOrd[i] = NULL;
+   }
+
+   C_SBPdof[Geometry::POINT] = 1;
+   C_SBPElements[Geometry::POINT] = new PointFiniteElement;
+
+   if (dim >= 1)
+   {
+      C_SBPdof[Geometry::SEGMENT] = p;
+
+      C_SBPElements[Geometry::SEGMENT] = new C_SBPSegmentElement(p);
+
+      int nodeOrder0[] = {};
+      int nodeOrder1[1] = {0};
+      int nodeOrder2[2] = {0, 1};
+      int nodeOrder3[3] = {0, 1, 2};
+      int nodeOrder4[4] = {0, 1, 2, 3};
+
+      int revNodeOrder0[] = {};
+      int revNodeOrder1[1] = {0};
+      int revNodeOrder2[2] = {1, 0};
+      int revNodeOrder3[3] = {0, 2, 1};
+      int revNodeOrder4[4] = {1, 0, 3, 2};
+
+      switch (p)
+      {
+         case 0:
+            SegDofOrd[0] = new int[p];
+            SegDofOrd[1] = new int[p];
+            for (int i = 0; i < p; i++)
+            {
+               SegDofOrd[0][i] = nodeOrder0[i];
+               SegDofOrd[1][i] = revNodeOrder0[i];
+            }
+            break;
+         case 1:
+            SegDofOrd[0] = new int[p];
+            SegDofOrd[1] = new int[p];
+            for (int i = 0; i < p; i++)
+            {
+               SegDofOrd[0][i] = nodeOrder1[i];
+               SegDofOrd[1][i] = revNodeOrder1[i];
+            }
+            break;
+         case 2:
+            SegDofOrd[0] = new int[p];
+            SegDofOrd[1] = new int[p];
+            for (int i = 0; i < p; i++)
+            {
+               SegDofOrd[0][i] = nodeOrder2[i];
+               SegDofOrd[1][i] = revNodeOrder2[i];
+            }
+            break;
+         case 3:
+            SegDofOrd[0] = new int[p];
+            SegDofOrd[1] = new int[p];
+            for (int i = 0; i < p; i++)
+            {
+               SegDofOrd[0][i] = nodeOrder3[i];
+               SegDofOrd[1][i] = revNodeOrder3[i];
+            }
+            break;
+         case 4:
+            SegDofOrd[0] = new int[p];
+            SegDofOrd[1] = new int[p];
+            for (int i = 0; i < p; i++)
+            {
+               SegDofOrd[0][i] = nodeOrder4[i];
+               SegDofOrd[1][i] = revNodeOrder4[i];
+            }
+            break;
+         default:
+            mfem_error("SBP elements are currently only supported for 0 <= order <= 4");
+            break;
+
+      }
+   }
+
+   if (dim >= 2)
+   {
+      switch (p)
+      {
+         case 0:
+            C_SBPdof[Geometry::TRIANGLE] = 3 - 3 - 3*p;
+            break;
+         case 1:
+            C_SBPdof[Geometry::TRIANGLE] = 7 - 3 - 3*p;
+            break;
+         case 2:
+            C_SBPdof[Geometry::TRIANGLE] = 12 - 3 - 3*p;
+            break;
+         case 3:
+            C_SBPdof[Geometry::TRIANGLE] = 18 - 3 - 3*p;
+            break;
+         case 4:
+            C_SBPdof[Geometry::TRIANGLE] = 27 - 3 - 3*p;
+            break;
+         default:
+            mfem_error("SBP elements are currently only supported for 0 <= order <= 4");
+            break;
+      }
+
+      const int &TriDof = C_SBPdof[Geometry::TRIANGLE] + 3*C_SBPdof[Geometry::POINT] + 3*C_SBPdof[Geometry::SEGMENT];
+
+      C_SBPElements[Geometry::TRIANGLE] = new C_SBPTriangleElement(p, TriDof);
+   }
+}
+
+const FiniteElement *C_SBPCollection::FiniteElementForGeometry(
+      Geometry::Type GeomType) const
+{
+   if (GeomType == Geometry::TRIANGLE || GeomType == Geometry::SEGMENT || GeomType == Geometry::POINT)
+   {
+
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported geometry type " << GeomType);
+   }
+   return C_SBPElements[GeomType]; 
+}
+
+const int *C_SBPCollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                   int Or) const
+{
+   if (GeomType == Geometry::SEGMENT)
+   {
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
+   }
+   return NULL;
+}
+
+C_SBPCollection::~C_SBPCollection()
+{
+   delete [] SegDofOrd[0];
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      delete C_SBPElements[g];
+   }
 }
 
 }

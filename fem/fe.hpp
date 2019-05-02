@@ -154,6 +154,7 @@ protected:
 #endif
 
 public:
+   int OperatorType;
    /// Enumeration for RangeType and DerivRangeType
    enum { SCALAR, VECTOR };
 
@@ -196,6 +197,14 @@ public:
           GRAD, ///< Implements CalcDShape methods
           DIV,  ///< Implements CalcDivShape methods
           CURL  ///< Implements CalcCurlShape methods
+        };
+
+   /** @brief Enumeration for Operator Type: defines which integration rules
+       should be called.
+    
+   */
+   enum { FE = 0, ///< Traditional Finite Element
+          SBP = 1 ///< SBP Ellement with collocated integration rule
         };
 
    /** Construct FiniteElement with given
@@ -2817,6 +2826,42 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+};
+
+class C_SBPSegmentElement : public NodalTensorFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, dshape_x;
+#endif
+
+public:
+   C_SBPSegmentElement(const int p);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   
+   // ProjectDelta is leftover function from H1_SegmentElement
+   // virtual void ProjectDelta(int vertex, Vector &dofs) const;
+};
+
+class C_SBPTriangleElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
+   mutable Vector ddshape_x, ddshape_y, ddshape_l;
+   mutable DenseMatrix du, ddu;
+#endif
+   DenseMatrix *Dx, *Dy;
+   DenseMatrixInverse Ti;
+
+public:
+   C_SBPTriangleElement(const int p, const int Do);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual ~C_SBPTriangleElement();
 };
 
 } // namespace mfem

@@ -2310,7 +2310,8 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       else
       {
          int intorder = 2*fe->GetOrder() + 1; // <----------
-         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+         // ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+         ir = &(IntRules.Get(*fe, intorder));
       }
       GetValues(i, *ir, vals);
       T = fes->GetElementTransformation(i);

@@ -884,6 +884,30 @@ public:
    virtual ~Local_FECollection() { delete Local_Element; }
 };
 
+/// Arbitrary order H1-conforming (continuous) Summation By Parts
+/// opperators.
+class C_SBPCollection : public FiniteElementCollection
+{
+
+protected:
+   char c_SBPname[32];
+   FiniteElement *C_SBPElements[Geometry::NumGeom];
+   int  C_SBPdof[Geometry::NumGeom];
+   int *SegDofOrd[2];
+
+public:
+   explicit C_SBPCollection(const int p, const int dim = 2);
+
+   virtual const FiniteElement *FiniteElementForGeometry(
+      Geometry::Type GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const
+   { return C_SBPdof[GeomType]; }
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
+   virtual const char *Name() const { return c_SBPname; }
+   virtual ~C_SBPCollection();
+};
+
 }
 
 #endif
