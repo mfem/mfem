@@ -662,6 +662,50 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 }
 
 
+NCMesh::MeshId NCMesh::FindEdgePrism(int vn1, int vn2, int vn3, int vn4)
+{
+   // Assuming that (vn1, vn2, vn3, vn4) is a mesh face and that the
+   // edge (vn1, vn3) is an edge of a prism, this function finds the prism
+   // and returns the MeshId of the edge (v1, vn3).
+
+   // follow face refinement towards 'vn1', get an existing face
+   int split, mid[5];
+   while ((split = QuadFaceSplitType(vn1, vn2, vn3, vn4, mid)) > 0)
+   {
+      if (split == 1) // vertical
+      {
+         vn2 = mid[0]; vn3 = mid[1];
+      }
+      else // horizontal
+      {
+         vn3 = mid[1]; vn4 = mid[3];
+      }
+   }
+
+   Face *face = faces.Find(vn1, vn2, vn3, vn4);
+   MFEM_ASSERT(face != NULL, "face not found");
+
+   int elem = face->GetSingleElement();
+   int local = find_node(elements[elem], vn1);
+
+   Array<int> cousins;
+   FindVertexCousins(elem, local, cousins);
+
+   for (int i = 0; i < cousins.Size(); i++)
+   {
+      local = find_element_edge(elements[cousins[i]], vn1, vn3, false);
+      if (local > 0)
+      {
+         return MeshId(-1, cousins[i], local, geom);
+      }
+   }
+
+   MFEM_ABORT("Edge's prism not found (vn1, vn2, vn3, vn3) = ("
+              << vn1 << ", " << vn2 << ", " << vn3 << ", " << vn4 << ").");
+   return MeshId();
+}
+
+
 void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
                             int mid12, int mid34, int level)
 {
@@ -2034,7 +2078,7 @@ int NCMesh::FindNodeExt(const Element &el, int node, bool abort)
    return -1;
 }
 
-int NCMesh::find_element_edge(const Element &el, int vn0, int vn1)
+int NCMesh::find_element_edge(const Element &el, int vn0, int vn1, bool abort)
 {
    MFEM_ASSERT(!el.ref_type, "");
 
@@ -2048,7 +2092,7 @@ int NCMesh::find_element_edge(const Element &el, int vn0, int vn1)
           (n0 == vn1 && n1 == vn0)) { return i; }
    }
 
-   MFEM_ABORT("Edge (" << vn0 << ", " << vn1 << ") not found");
+   if (abort) { MFEM_ABORT("Edge (" << vn0 << ", " << vn1 << ") not found"); }
    return -1;
 }
 

@@ -148,7 +148,7 @@ public:
       int index;   ///< Mesh number
       int element; ///< NCMesh::Element containing this vertex/edge/face
       char local;  ///< local number within 'element'
-      char geom;   ///< Geometry::Type (char storage to save RAM)
+      char geom;   ///< Geometry::Type (faces only) (char storage to save RAM)
 
       MeshId(int index = -1, int element = -1, char local = -1, char geom = -1)
          : index(index), element(element), local(local), geom(geom) {}
@@ -560,6 +560,8 @@ protected: // implementation
 
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
 
+   MeshId FindEdgePrism(int vn1, int vn2, int vn3, int vn4);
+
    void CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
                        int mid12, int mid34, int level = 0);
 
@@ -580,15 +582,15 @@ protected: // implementation
    /// Return el.node[index] correctly, even if the element is refined.
    int RetrieveNode(const Element &el, int index);
 
-   /// Extended version of find_node: works if 'el' is refined; optional abort.
-   int FindNodeExt(const Element &el, int node, bool abort = false);
+   /// Extended version of find_node: works if 'el' is refined.
+   int FindNodeExt(const Element &el, int node, bool abort = true);
 
 
    // face/edge lists
 
    static int find_node(const Element &el, int node);
-   static int find_element_edge(const Element &el, int vn0, int vn1);
-   //static int find_element_face(const Element &el, int vn0, int vn1, int vn2);
+   static int find_element_edge(const Element &el, int vn0, int vn1,
+                                bool abort = true);
    static int find_local_face(int geom, int a, int b, int c);
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
