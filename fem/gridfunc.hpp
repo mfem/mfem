@@ -68,15 +68,15 @@ protected:
 
 public:
 
-   GridFunction() { fes = NULL; fec = NULL; sequence = 0; }
+   GridFunction() { fes = NULL; fec = NULL; sequence = 0; Allow(); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence) { }
+      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence) { Allow(); }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+   { fes = f; fec = NULL; sequence = f->GetSequence(); Allow(); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -85,7 +85,7 @@ public:
        array can be replaced later using the method SetData().
     */
    GridFunction(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+   { fes = f; fec = NULL; sequence = f->GetSequence(); Allow(); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
@@ -102,7 +102,7 @@ public:
        @note Defining this method overwrites the implicitly defined copy
        assignemnt operator. */
    GridFunction &operator=(const GridFunction &rhs)
-   { return operator=((const Vector &)rhs); }
+   { Allow(); return operator=((const Vector &)rhs); }
 
    /// Make the GridFunction the owner of #fec and #fes.
    /** If the new FiniteElementCollection, @a _fec, is NULL, ownership of #fec

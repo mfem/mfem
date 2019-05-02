@@ -25,13 +25,14 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
+   dbg("");
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
    Operator *rap;
 
    if (P)
    {
-      // Variational restriction with P
+      dbg("Variational restriction with P");
       B.SetSize(P->Width());
       P->MultTranspose(b, B);
       X.SetSize(R->Height());
@@ -40,13 +41,16 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
    }
    else
    {
-      // rap, X and B point to the same data as this, x and b
-      X.NewDataAndSize(x.GetData(), x.Size());
-      B.NewDataAndSize(b.GetData(), b.Size());
+      dbg("rap, X and B point to the same data as this, x and b");
+      X.NewDataAndSize(x.GetData(), x.Size()); // will be allowed by x (gf)
+      B.NewDataAndSize(b.GetData(), b.Size()); B.Allow(); // not yet allowed
       rap = this;
    }
 
-   if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+   if (!copy_interior) {
+      dbg("!copy_interior");
+      X.SetSubVectorComplement(ess_tdof_list, 0.0);
+   }
 
    // Impose the boundary conditions through a ConstrainedOperator, which owns
    // the rap operator when P and R are non-trivial
@@ -157,17 +161,22 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
                                          bool _own_A)
    : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
 {
-   constraint_list.MakeRef(list);
-   z.SetSize(height);
-   w.SetSize(height);
+   dbg("");
+   constraint_list.MakeRef(list); constraint_list.Allow();
+   z.SetSize(height); z.Allow();
+   w.SetSize(height); //w.Allow();
 }
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
+   dbg("w = 0.0");
    w = 0.0;
    const int csz = constraint_list.Size();
+   dbg("idx");
    const DeviceArray idx(constraint_list, csz);
+   dbg("x");
    const DeviceVector d_x(x, x.Size());
+   dbg("w");
    DeviceVector d_w(w, w.Size());
    MFEM_FORALL(i, csz,
    {
@@ -175,6 +184,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
       d_w[id] = d_x[id];
    });
 
+   dbg("A->Mult(w, z)");
    A->Mult(w, z);
 
    b -= z;
@@ -188,6 +198,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
+   dbg("");
    const int csz = constraint_list.Size();
    if (csz == 0)
    {

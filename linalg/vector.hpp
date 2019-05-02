@@ -75,6 +75,9 @@ public:
    /// Copies data from device to host
    void Pull() const;
 
+   /// Allow the vector on the devices
+   void Allow() const;
+
    /// Reads a vector from multiple files
    void Load (std::istream ** in, int np, int * dim);
 

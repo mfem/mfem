@@ -40,6 +40,11 @@ void Vector::Pull() const
    mfem::Pull(data, size*sizeof(double));
 }
 
+void Vector::Allow() const
+{
+   mfem::Allow(data);
+}
+
 Vector::Vector(const Vector &v)
 {
    int s = v.Size();
@@ -169,8 +174,8 @@ Vector &Vector::operator-=(const Vector &v)
    }
 #endif
    const int N = size;
-   DeviceVector y(data, N);
    const DeviceVector x(v, N);
+   DeviceVector y(data, N);
    MFEM_FORALL(i, N, y[i] -= x[i];);
    return *this;
 }
@@ -184,8 +189,8 @@ Vector &Vector::operator+=(const Vector &v)
    }
 #endif
    const int N = size;
-   DeviceVector y(data, N);
    const DeviceVector x(v, N);
+   DeviceVector y(data, N);
    MFEM_FORALL(i, N, y[i] += x[i];);
    return *this;
 }
@@ -201,8 +206,8 @@ Vector &Vector::Add(const double a, const Vector &Va)
    if (a != 0.0)
    {
       const int N = size;
-      DeviceVector y(data, N);
       const DeviceVector x(Va, N);
+      DeviceVector y(data, N);
       MFEM_FORALL(i, N, y[i] += a * x[i];);
    }
    return *this;
@@ -217,8 +222,8 @@ Vector &Vector::Set(const double a, const Vector &Va)
    }
 #endif
    const int N = size;
-   DeviceVector y(data, N);
    const DeviceVector x(Va, N);
+   DeviceVector y(data, N);
    MFEM_FORALL(i, N, y[i] = a * x[i];);
    return *this;
 }
@@ -243,8 +248,9 @@ void Vector::SetVector(const Vector &v, int offset)
 
 void Vector::Neg()
 {
+   const DeviceVector yin(data, size);
    DeviceVector y(data, size);
-   MFEM_FORALL(i, size, y[i] = -y[i];);
+   MFEM_FORALL(i, size, y[i] = -yin[i];);
 }
 
 void add(const Vector &v1, const Vector &v2, Vector &v)
@@ -258,9 +264,9 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
    const int N = v.size;
-   DeviceVector y(v, N);
    const DeviceVector x1(v1, N);
    const DeviceVector x2(v2, N);
+   DeviceVector y(v, N);
    MFEM_FORALL(i, N, y[i] = x1[i] + x2[i];);
 #else
    #pragma omp parallel for
@@ -295,9 +301,9 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
       const int s = v.size;
 #if !defined(MFEM_USE_LEGACY_OPENMP)
       const int N = s;
-      DeviceVector d_z(vp, N);
       const DeviceVector d_x(v1p, N);
       const DeviceVector d_y(v2p, N);
+      DeviceVector d_z(vp, N);
       MFEM_FORALL(i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
 #else
       #pragma omp parallel for
@@ -331,9 +337,9 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
       double       *zp = z.data;
       const int      s = x.size;
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-      DeviceVector z(zp, s);
       const DeviceVector x(xp, s);
       const DeviceVector y(yp, s);
+      DeviceVector z(zp, s);
       MFEM_FORALL(i, s, z[i] = a * (x[i] + y[i]););
 #else
       #pragma omp parallel for
@@ -381,9 +387,9 @@ void add(const double a, const Vector &x,
       const int      s = x.size;
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-      DeviceVector z(zp, s);
       const DeviceVector x(xp, s);
       const DeviceVector y(yp, s);
+      DeviceVector z(zp, s);
       MFEM_FORALL(i, s, z[i] = a * x[i] + b * y[i];);
 #else
       #pragma omp parallel for
@@ -409,9 +415,9 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    const int     s = x.size;
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-   DeviceVector zd(zp, s);
    const DeviceVector xd(xp, s);
    const DeviceVector yd(yp, s);
+   DeviceVector zd(zp, s);
    MFEM_FORALL(i, s, zd[i] = xd[i] - yd[i];);
 #else
    #pragma omp parallel for
@@ -446,9 +452,9 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
       const int      s = x.size;
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-      DeviceVector zd(zp, s);
       const DeviceVector xd(xp, s);
       const DeviceVector yd(yp, s);
+      DeviceVector zd(zp, s);
       MFEM_FORALL(i, s, zd[i] = a * (xd[i] - yd[i]););
 #else
       #pragma omp parallel for
@@ -463,9 +469,9 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
 void Vector::median(const Vector &lo, const Vector &hi)
 {
    const int N = size;
-   DeviceVector v(data, N);
    const DeviceVector l(lo, N);
    const DeviceVector h(hi, N);
+   DeviceVector v(data, N);
    MFEM_FORALL(i, N,
    {
       if (v[i] < l[i])
@@ -482,9 +488,12 @@ void Vector::median(const Vector &lo, const Vector &hi)
 static void GetSubvector(const int N,
                          double *y, const double *x, const int* dofs)
 {
-   DeviceVector d_y(y, N);
+   dbg("x");
    const DeviceVector d_x(x, N);
+   dbg("dofs");
    const DeviceArray d_dofs(dofs, N);
+   dbg("y");
+   DeviceVector d_y(y, N);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -494,6 +503,7 @@ static void GetSubvector(const int N,
 
 void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 {
+   dbg("");
    const int n = dofs.Size();
    elemvect.SetSize(n);
    mfem::GetSubvector(n, elemvect, data, dofs);
@@ -501,14 +511,16 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 
 void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 {
+   dbg("");
    mfem::GetSubvector(dofs.Size(), elem_data, data,dofs);
 }
 
 static void SetSubvector(const int N, double* y, const double d,
                          const int* dofs)
 {
-   DeviceVector d_y(y,N);
+   dbg("");
    const DeviceArray d_dofs(dofs,N);
+   DeviceVector d_y(y,N);
    MFEM_FORALL(i, N,
    {
       const int j = d_dofs[i];
@@ -526,9 +538,10 @@ static void SetSubvector(const int N, double* y, const double d,
 static void SetSubvector(const int N, double *y, const double *x,
                          const int* dofs)
 {
-   DeviceVector d_y(y,N);
+   dbg("");
    const DeviceVector d_x(x,N);
    const DeviceArray d_dofs(dofs,N);
+   DeviceVector d_y(y,N);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -560,9 +573,9 @@ void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 
 static void AddElement(const int N, const int *dofs, const double *x, double *y)
 {
-   DeviceVector d_y(y,N);
    const DeviceVector d_x(x,N);
    const DeviceArray d_dofs(dofs,N);
+   DeviceVector d_y(y,N);
    MFEM_FORALL(i, N,
    {
       const int j = d_dofs[i];
@@ -593,9 +606,9 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
 {
    const int N = dofs.Size();
    const double alpha = a;
-   DeviceVector d_y(data, N);
    const DeviceVector d_x(elemvect, N);
    const DeviceArray d_dofs(dofs, N);
+   DeviceVector d_y(data, N);
    MFEM_FORALL(i, N,
    {
       const int j = d_dofs[i];
@@ -610,8 +623,11 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
 
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 {
+   dbg("");
    Vector dofs_vals;
+   dbg("GetSubVector");
    GetSubVector(dofs, dofs_vals);
+   dbg("operator=(%f);",val);
    operator=(val);
    SetSubVector(dofs, dofs_vals);
 }
@@ -937,8 +953,8 @@ double Min(const int N, const double *x)
    {
       Vector min(1);
       min = std::numeric_limits<double>::infinity();
+      const DeviceVector d_x(x, N);
       DeviceVector d_min(min, 1);
-      DeviceVector d_x(x, N);
       MFEM_FORALL(i, N, d_min[0] = fmin(d_min[0], d_x[i]););
       min.Pull();
       return min[0];
@@ -961,9 +977,9 @@ double Dot(const int N, const double *x, const double *y)
    {
       Vector dot(1);
       dot = 0.0;
+      const DeviceVector d_x(x, N);
+      const DeviceVector d_y(y, N);
       DeviceVector d_dot(dot, 1);
-      DeviceVector d_x(x, N);
-      DeviceVector d_y(y, N);
       MFEM_FORALL(i, N, d_dot[0] += d_x[i] * d_y[i];);
       dot.Pull();
       return dot[0];

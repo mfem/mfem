@@ -41,7 +41,11 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
    trialFes(a->FESpace()), testFes(a->FESpace()),
    localX(trialFes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
    localY( testFes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   elem_restrict(new ElemRestriction(*a->FESpace())) { }
+   elem_restrict(new ElemRestriction(*a->FESpace()))
+{
+   localX.Allow();
+   localY.Allow();
+}
 
 PABilinearFormExtension::~PABilinearFormExtension()
 {
@@ -50,6 +54,7 @@ PABilinearFormExtension::~PABilinearFormExtension()
 
 void PABilinearFormExtension::Assemble()
 {
+   dbg("");
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
@@ -97,6 +102,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   dbg("elem_restrict->Mult");
    elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
@@ -132,6 +138,8 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
      offsets(ndofs+1),
      indices(ne*dof)
 {
+   offsets.Allow();
+   indices.Allow();
    for (int e = 0; e < ne; ++e)
    {
       const FiniteElement *fe = fes.GetFE(e);
@@ -186,6 +194,7 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
 
 void ElemRestriction::Mult(const Vector& x, Vector& y) const
 {
+   dbg("");
    const int vd = vdim;
    const bool t = byvdim;
    const DeviceArray d_offsets(offsets, ndofs+1);

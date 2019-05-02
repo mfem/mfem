@@ -27,67 +27,7 @@
 #endif
 #endif
 
-#include <cstring>
-#include <cstdarg>
-//*****************************************************************************
-static inline uint8_t chk8(const char *bfr)
-{
-   unsigned int chk = 0;
-   size_t len = strlen(bfr);
-   for (; len; len--,bfr++)
-   {
-      chk += *bfr;
-   }
-   return (uint8_t) chk;
-}
-// *****************************************************************************
-inline const char *strrnchr(const char *s, const unsigned char c, int n)
-{
-   size_t len = strlen(s);
-   char *p = (char*)s+len-1;
-   for (; n; n--,p--,len--)
-   {
-      for (; len; p--,len--)
-         if (*p==c) { break; }
-      if (!len) { return NULL; }
-      if (n==1) { return p; }
-   }
-   return NULL;
-}
-// *****************************************************************************
-#define MFEM_XA(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
-#define MFEM_NA(...) MFEM_XA(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
-#define MFEM_FILENAME ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
-#define MFEM_FLF MFEM_FILENAME,__LINE__,__FUNCTION__
-// *****************************************************************************
-static inline void mfem_FLF_NA_ARGS(const char *file, const int line,
-                                    const char *func, const int nargs, ...)
-{
-   static bool env_ini = false;
-   static bool env_dbg = false;
-   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
-   if (!env_dbg) { return; }
-   const uint8_t color = 17 + chk8(file)%216;
-   fflush(stdout);
-   fprintf(stdout,"\033[38;5;%dm",color);
-   fprintf(stdout,"\n%30s\b\b\b\b:\033[2m%4d\033[22m: %s: \033[1m",
-           file, line, func);
-   if (nargs==0) { return; }
-   va_list args;
-   va_start(args,nargs);
-   const char *format=va_arg(args,const char*);
-   vfprintf(stdout,format,args);
-   va_end(args);
-   fprintf(stdout,"\033[m");
-   fflush(stdout);
-   fflush(0);
-}
-// *****************************************************************************
-#ifdef _WIN32
-#define dbg(...)
-#else
-#define dbg(...) mfem_FLF_NA_ARGS(MFEM_FLF, MFEM_NA(__VA_ARGS__),__VA_ARGS__)
-#endif
+#include "dbg.hpp"
 
 namespace mfem
 {
@@ -97,6 +37,8 @@ namespace mfem
 
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...) {                                          \
+      dbg("%s:%d",__FILE__,__LINE__);                                   \
+      dbg(#__VA_ARGS__);                                                \
       MFEM_VERIFY(parallel>=0, "parallel status error!");               \
       if (parallel==0) {                                                \
          dbg("!parallel");                                              \
@@ -194,19 +136,23 @@ void CudaWrap(const int N, DBODY &&d_body) {}
 /// The forall kernel body wrapper
 template <typename DBODY, typename HBODY>
 void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body)
-{
+{   
    if (Device::Allows(Backend::RAJA_CUDA))
-   { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+   { dbg("RAJA_CUDA"); return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
 
    if (Device::Allows(Backend::CUDA))
-   { return CudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+   { dbg("CUDA"); return CudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
 
-   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
+   if (Device::Allows(Backend::RAJA_OMP))
+   { dbg("RAJA_OMP"); return RajaOmpWrap(N, h_body); }
 
-   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, h_body); }
+   if (Device::Allows(Backend::OMP))
+   { dbg("OMP"); return OmpWrap(N, h_body); }
 
-   if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
+   if (Device::Allows(Backend::RAJA_CPU))
+   { dbg("RAJA_CPU"); return RajaSeqWrap(N, h_body); }
 
+   dbg("CPU"); 
    for (int k = 0; k < N; k++) { h_body(k); }
 }
 

@@ -96,13 +96,12 @@ public:
    inline ~Array() { }
 
    /// Assignment operator: deep copy
-   Array<T> &operator=(const Array<T> &src) { dbg(""); src.Copy(*this); return *this; }
+   Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
 
    /// Assignment operator (deep copy) from an Array of convertable type
    template <typename CT>
    Array<T> &operator=(const Array<CT> &src)
    {
-      dbg("");
       SetSize(src.Size());
       for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
       return *this;
@@ -192,7 +191,6 @@ public:
    /// Create a copy of the current array
    inline void Copy(Array &copy) const
    {
-      dbg("");
       copy.SetSize(Size());
       mfem::Memcpy(copy.GetData(), data, Size()*sizeof(T));
    }
@@ -202,6 +200,9 @@ public:
 
    /// Copies data from device to host
    void Pull() const { mfem::Pull(data, Size()*sizeof(T)); }
+
+   /// Allows the data on the device
+   void Allow() const { mfem::Allow(data); }
 
    /// Make this Array a reference to a pointer
    inline void MakeRef(T *, int);

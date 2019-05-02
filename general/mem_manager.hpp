@@ -95,6 +95,7 @@ public:
    /** @brief Translates ptr to host or device address, depending on what
        backends are currently allowed by the Device class and on the ptr
        state. */
+   void *Ptr_(void *ptr, const bool read = false);
    void *Ptr(void *ptr);
    const void *Ptr(const void *ptr);
 
@@ -119,8 +120,8 @@ public:
    /// Pull the data from the device
    void Pull(const void *ptr, const std::size_t bytes);
 
-   /// Unlock the pointer to be able to trigger parallel foralls
-   void Unlock(const void *ptr);
+   /// Allow the pointer to be able to trigger parallel foralls
+   void Allow(const void *ptr);
 
    /// Enable read/write access of this memory
    void MemEnable(const void *ptr, const std::size_t bytes);
@@ -233,9 +234,9 @@ inline void SetMemoryTypes(Memory::Type host, Memory::Type device)
 inline void SetMemoryTypes(Memory::Type both)
 { mm.SetMemoryTypes(both, both); }
 
-/// Pull the data from the device
-inline void Unlock(const void *ptr)
-{ mm.Unlock(ptr); }
+/// Allow the pointer to run on devices
+inline void Allow(const void *ptr)
+{ mm.Allow(ptr); }
 
 } // namespace mfem
 

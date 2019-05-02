@@ -238,6 +238,7 @@ static void PADiffusionSetup(const int dim,
 
 void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 {
+   dbg("");
    const Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
    const FiniteElement &el = *fes.GetFE(0);
@@ -249,14 +250,19 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    ne = fes.GetNE();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
+   dbg("geom");
    geom = GeometryExtension::Get(fes,*ir);
+   dbg("maps");
    maps = DofToQuad::Get(fes, fes, *ir);
+   dbg("vec");
    vec.SetSize(symmDims * nq * ne);
+   vec.Allow();
+   dbg("coef");
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
+   dbg("PADiffusionSetup");
    PADiffusionSetup(dim, dofs1D, quad1D, ne, maps->W, geom->J, coeff, vec);
    // vec might be used elsewhere, allow others to use it (ex6)
    mfem::MemEnable(vec,vec.Size()*sizeof(double));
-   Unlock(vec);
 }
 
 #ifdef MFEM_USE_OCCA
@@ -1307,11 +1313,11 @@ DofToQuad* DofToQuad::GetTensorMaps(const FiniteElement& trialFE,
    maps->hash = hash;
    const DofToQuad* trialMaps = GetD2QTensorMaps(trialFE, ir);
    const DofToQuad* testMaps  = GetD2QTensorMaps(testFE, ir, true);
-   maps->B = trialMaps->B; Unlock(maps->B);
-   maps->G = trialMaps->G; Unlock(maps->G);
-   maps->Bt = testMaps->B; Unlock(maps->Bt);
-   maps->Gt = testMaps->G; Unlock(maps->Gt);
-   maps->W = testMaps->W; Unlock(maps->W);
+   maps->B = trialMaps->B;
+   maps->G = trialMaps->G;
+   maps->Bt = testMaps->B;
+   maps->Gt = testMaps->G;
+   maps->W = testMaps->W;
    delete trialMaps;
    delete testMaps;
    return maps;
@@ -1321,6 +1327,7 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
                                        const IntegrationRule& ir,
                                        const bool transpose)
 {
+   dbg("");
    const IntegrationRule& ir1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder());
 
    const int dims = fe.GetDim();
@@ -1348,19 +1355,20 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
    DofToQuad *maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   maps->B.SetSize(numQuad1D*numDofs); Unlock(maps->B);
-   maps->G.SetSize(numQuad1D*numDofs); Unlock(maps->G);
+   maps->B.SetSize(numQuad1D*numDofs);
+   maps->G.SetSize(numQuad1D*numDofs);
    const int dim0 = (!transpose)?1:numDofs;
    const int dim1 = (!transpose)?numQuad1D:1;
    if (transpose) // Initialize quad weights only for transpose
    {
       maps->W.SetSize(numQuad);
    }
+   dbg("init");
    mfem::Vector d2q(numDofs);
    mfem::Vector d2qD(numDofs);
-   mfem::Array<double> W1d(numQuad1D);
-   mfem::Array<double> B1d(numQuad1D*numDofs);
-   mfem::Array<double> G1d(numQuad1D*numDofs);
+   mfem::Array<double> W1d(numQuad1D); W1d.Allow();
+   mfem::Array<double> B1d(numQuad1D*numDofs); B1d.Allow();
+   mfem::Array<double> G1d(numQuad1D*numDofs); G1d.Allow();
    const TensorBasisElement& tbe = dynamic_cast<const TensorBasisElement&>(fe);
    const Poly_1D::Basis& basis = tbe.GetBasis1D();
    for (int q = 0; q < numQuad1D; ++q)
@@ -1382,7 +1390,8 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
    }
    if (transpose)
    {
-      mfem::Array<double> W(numQuad);
+      dbg("transpose");
+      mfem::Array<double> W(numQuad); W.Allow();
       for (int q = 0; q < numQuad; ++q)
       {
          const int qx = q % numQuad1D;
@@ -1393,9 +1402,12 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
          if (dims > 2) { w *= W1d[qz]; }
          W[q] = w;
       }
+      dbg("maps->W = W");
       maps->W = W;
    }
+   dbg("maps->B = B1d");
    mfem::Memcpy(maps->B, B1d, numQuad1D*numDofs*sizeof(double));
+   dbg("maps->G = G1d");
    mfem::Memcpy(maps->G, G1d, numQuad1D*numDofs*sizeof(double));
    return maps;
 }
@@ -1412,6 +1424,7 @@ DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& trialFE,
                                      const IntegrationRule& ir,
                                      const bool transpose)
 {
+   dbg("");
    std::stringstream ss;
    ss << "SimplexMap:"
       << " O1:" << trialFE.GetOrder()
@@ -1430,17 +1443,11 @@ DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& trialFE,
    const DofToQuad* testMaps  = GetD2QSimplexMaps(testFE, ir, true);
 
    dbg("trialMaps->B");
-   Unlock(trialMaps->B);
-   maps->B.SetSize(trialMaps->B.Size()); // for maps->B to be known
-   dbg("maps->B"); Unlock(maps->B); maps->B = trialMaps->B;
-   maps->G.SetSize(trialMaps->G.Size());
-   Unlock(trialMaps->G); Unlock(maps->G); maps->G = trialMaps->G;
-   maps->Bt.SetSize(testMaps->B.Size());
-   Unlock(testMaps->B); Unlock(maps->Bt); maps->Bt = testMaps->B;
-    maps->Gt.SetSize(testMaps->G.Size());
-   Unlock(testMaps->G); Unlock(maps->Gt); maps->Gt = testMaps->G;
-   maps->W.SetSize(testMaps->W.Size());
-   Unlock(testMaps->W); Unlock(maps->W);  maps->W = testMaps->W;
+   maps->B = trialMaps->B;
+   maps->G = trialMaps->G;
+   maps->Bt = testMaps->B;
+   maps->Gt = testMaps->G;
+   maps->W = testMaps->W;
    delete trialMaps;
    delete testMaps;
    return maps;
@@ -1450,6 +1457,7 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
                                         const IntegrationRule& ir,
                                         const bool transpose)
 {
+   dbg("");
    const int dims = fe.GetDim();
    const int numDofs = fe.GetDof();
    const int numQuad = ir.GetNPoints();
@@ -1467,8 +1475,8 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    DofToQuad* maps = new DofToQuad();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   maps->B.SetSize(numQuad*numDofs); Unlock(maps->B);
-   maps->G.SetSize(dims*numQuad*numDofs); Unlock(maps->G);
+   maps->B.SetSize(numQuad*numDofs);
+   maps->G.SetSize(dims*numQuad*numDofs);
    const int dim0 = (!transpose)?1:numDofs;
    const int dim1 = (!transpose)?numQuad:1;
    const int dim0D = (!transpose)?1:numQuad;
@@ -1476,14 +1484,17 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    const int dim2D = dims*numQuad;
    if (transpose) // Initialize quad weights only for transpose
    {
-      maps->W.SetSize(numQuad); Unlock(maps->W);
+      maps->W.SetSize(numQuad);
    }
-   Device::Disable(true);
+   dbg("disable");
+   //Device::Disable(true);
    mfem::Vector d2q(numDofs);
+   dbg("d2qD");
    mfem::DenseMatrix d2qD(numDofs, dims);
-   mfem::Array<double> W(numQuad); Unlock(W);
-   mfem::Array<double> B(numQuad*numDofs); Unlock(B);
-   mfem::Array<double> G(dims*numQuad*numDofs); Unlock(G);
+   mfem::Array<double> W(numQuad); W.Allow();
+   mfem::Array<double> B(numQuad*numDofs); B.Allow();
+   mfem::Array<double> G(dims*numQuad*numDofs); G.Allow();
+   dbg("forloop");
    for (int q = 0; q < numQuad; ++q)
    {
       const IntegrationPoint& ip = ir.IntPoint(q);
@@ -1506,13 +1517,17 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
          }
       }
    }
-   Device::Enable(true);
+   //Device::Enable(true);
    if (transpose)
    {
+      dbg("W");
       mfem::Memcpy(maps->W, W, numQuad*sizeof(double));
    }
+   dbg("B");
    mfem::Memcpy(maps->B, B, numQuad*numDofs*sizeof(double));
+   dbg("G");
    mfem::Memcpy(maps->G, G, dims*numQuad*numDofs*sizeof(double));
+   //mfem_error("");
    return maps;
 }
 
@@ -1533,7 +1548,6 @@ static void GeomFill(const int vdim,
    const DeviceVector X(_X, NX);
    dbg("meshNodes");
    DeviceVector d_meshNodes(meshNodes, vdim*ND*NE);
-   dbg("forall");
    MFEM_FORALL(e, NE,
    {
       for (int d = 0; d < ND; ++d)
@@ -1824,14 +1838,18 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    if (geom_to_allocate)
    {
       if (geom) { delete geom; }
+      dbg("new GeometryExtension");
       geom = new GeometryExtension();
+      dbg("done");
    }
 
-   const bool dev_enabled = Device::IsEnabled();
-   if (dev_enabled) { Device::Disable(); }
+   //const bool dev_enabled = Device::IsEnabled();
+   //if (dev_enabled) { Device::Disable(); }
+   dbg("EnsureNodes");
    mesh->EnsureNodes();
-   if (dev_enabled) { Device::Enable(); }
+   //if (dev_enabled) { Device::Enable(); }
 
+   dbg("init");
    const GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
    const mfem::FiniteElement *fe = fespace->GetFE(0);
@@ -1845,45 +1863,43 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const bool orderedByNODES = (fespace->GetOrdering() == Ordering::byNODES);
    if (orderedByNODES) { ReorderByVDim(nodes); }
    const int asize = dims*ND*NE;
-   Device::Disable(true);
+   //Device::Disable(true);
    mfem::Array<double> meshNodes(asize);
    const Table& e2dTable = fespace->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    mfem::Array<int> eMap(ND*NE);
-   dbg("Unlock elementMap"); Unlock(elementMap);
-   dbg("Unlock eMap"); Unlock(eMap.GetData());
-   dbg("Unlock nodes"); Unlock(nodes->GetData());
-   dbg("Unlock meshNodes"); Unlock(meshNodes.GetData());
+   dbg("Allow elementMap"); mfem::Allow(elementMap);
+   dbg("Allow eMap"); eMap.Allow();
+   dbg("Allow nodes"); nodes->Allow();
    GeomFill(dims, NE, ND, nodes->Size(),
             elementMap, eMap,
             nodes->GetData(), meshNodes);
-   dbg("done");
-   Device::Enable(true);
+   //Device::Enable(true);
    if (geom_to_allocate)
    {
       geom->nodes.SetSize(dims*ND*NE);
       geom->eMap.SetSize(ND*NE);
    }
-   dbg("Unlock geom->nodes"); Unlock(geom->nodes);
+   dbg("geom->nodes = meshNodes");
    geom->nodes = meshNodes;
-   
-   dbg("Unlock geom->eMap"); Unlock(geom->eMap);
+   dbg("geom->eMap = eMap");
    geom->eMap = eMap;
    // Reorder the original gf back
    if (orderedByNODES) { ReorderByNodes(nodes); }
    if (geom_to_allocate)
    {
-      geom->X.SetSize(dims*numQuad*NE); Unlock(geom->X);
-      geom->J.SetSize(dims*dims*numQuad*NE); Unlock(geom->J);
-      geom->invJ.SetSize(dims*dims*numQuad*NE); Unlock(geom->invJ);
-      geom->detJ.SetSize(numQuad*NE); Unlock(geom->detJ);
+      geom->X.SetSize(dims*numQuad*NE);
+      geom->J.SetSize(dims*dims*numQuad*NE);
+      geom->invJ.SetSize(dims*dims*numQuad*NE);
+      geom->detJ.SetSize(numQuad*NE);
    }
+   dbg("maps");
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
+   dbg("PAGeom");
    PAGeom(dims, D1D, Q1D, NE,
           maps->B, maps->G, geom->nodes,
           geom->X, geom->J, geom->invJ, geom->detJ);
    delete maps;
-   mfem_error("");
    return geom;
 }
 
