@@ -58,6 +58,69 @@ int dim;
 //#define SIGMAVAL -100.0
 
 
+void TestHypreIdentity(MPI_Comm comm)
+{
+  int num_loc_rows = 100;
+  HYPRE_Int size = 200;
+  
+  int nsdprocs, sdrank;
+  MPI_Comm_size(comm, &nsdprocs);
+  MPI_Comm_rank(comm, &sdrank);
+
+  int *all_num_loc_rows = new int[nsdprocs];
+		    
+  MPI_Allgather(&num_loc_rows, 1, MPI_INT, all_num_loc_rows, 1, MPI_INT, comm);
+
+  int sumLocalSizes = 0;
+
+  for (int i=0; i<nsdprocs; ++i)
+    sumLocalSizes += all_num_loc_rows[i];
+
+  MFEM_VERIFY(size == sumLocalSizes, "");
+  
+  HYPRE_Int *rowStarts = new HYPRE_Int[nsdprocs+1];
+  HYPRE_Int *rowStarts2 = new HYPRE_Int[2];
+  rowStarts[0] = 0;
+  for (int i=0; i<nsdprocs; ++i)
+    rowStarts[i+1] = rowStarts[i] + all_num_loc_rows[i];
+
+  const int osj = rowStarts[sdrank];
+
+  rowStarts2[0] = rowStarts[sdrank];
+  rowStarts2[1] = rowStarts[sdrank+1];
+  
+  int *I_nnz = new int[num_loc_rows + 1];
+  HYPRE_Int *J_col = new HYPRE_Int[num_loc_rows];
+		    
+  for (int i=0; i<num_loc_rows + 1; ++i)
+    I_nnz[i] = i;
+
+  for (int i=0; i<num_loc_rows; ++i)
+    J_col[i] = osj + i;
+
+  Vector diag(num_loc_rows);
+  diag = 1.0;
+  
+  HypreParMatrix *A = new HypreParMatrix(comm, num_loc_rows, size, size, I_nnz, J_col, diag.GetData(), rowStarts2, rowStarts2);
+
+  Vector x(num_loc_rows);
+  Vector y(num_loc_rows);
+
+  x = 1.0;
+  y = 0.0;
+  
+  A->Mult(x, y);
+
+  cout << sdrank << ": Hypre test y norm " << y.Norml2() << endl;
+  
+  delete I_nnz;
+  delete J_col;
+  delete rowStarts;
+  delete rowStarts2;
+  delete all_num_loc_rows;
+  delete A;
+}
+
 void VisitTestPlotParMesh(const std::string filename, ParMesh *pmesh, const int ifId, const int myid)
 {
   if (pmesh == NULL)
@@ -296,6 +359,8 @@ int main(int argc, char *argv[])
 	     }
 	 }
      }
+
+   //TestHypreIdentity(MPI_COMM_WORLD);
    
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
@@ -517,12 +582,13 @@ int main(int argc, char *argv[])
        gmres->SetPrintLevel(1);
 
        gmres->SetName("ddi");
-       
+
        xdd = 0.0;
        gmres->Mult(Bdd, xdd);
        //ddi.Mult(Bdd, xdd);
        
        delete gmres;
+
      }
 
 #ifdef MFEM_USE_STRUMPACK
