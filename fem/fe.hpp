@@ -204,7 +204,7 @@ public:
     
    */
    enum { FE = 0, ///< Traditional Finite Element
-          SBP = 1 ///< SBP Ellement with collocated integration rule
+          SBP = 1 ///< Summation-by-parts Element with collocated integration rule
         };
 
    /** Construct FiniteElement with given
@@ -2828,7 +2828,8 @@ public:
                            DenseMatrix &dshape) const;
 };
 
-class C_SBPSegmentElement : public NodalTensorFiniteElement
+/// Class for summation-by-parts operator on interval
+class SBP_SegmentElement : public NodalTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -2836,7 +2837,7 @@ private:
 #endif
 
 public:
-   C_SBPSegmentElement(const int p);
+   SBP_SegmentElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2845,7 +2846,8 @@ public:
    // virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
-class C_SBPTriangleElement : public NodalFiniteElement
+/// Class for (diagonal-norm) summation-by-parts operator on triangles
+class SBP_TriangleElement : public NodalFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -2857,11 +2859,11 @@ private:
    DenseMatrixInverse Ti;
 
 public:
-   C_SBPTriangleElement(const int p, const int Do);
+   SBP_TriangleElement(const int p, const int Do);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   virtual ~C_SBPTriangleElement();
+   virtual ~SBP_TriangleElement();
 };
 
 } // namespace mfem

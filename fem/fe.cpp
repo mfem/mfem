@@ -11846,13 +11846,13 @@ void NURBS3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
-/// C_SBPSegmentElement is a segment element with nodes at Gauss Lobatto
-/// points with ordering consistent with C_SBPTriangleElement's edges.
+/// SBP_SegmentElement is a segment element with nodes at Gauss Lobatto
+/// points with ordering consistent with SBP_TriangleElement's edges.
 
 //////////////////////////////////////////////////////////////////////////
 /// Not currently implemented as collocated SBP type element
 //////////////////////////////////////////////////////////////////////////
-C_SBPSegmentElement::C_SBPSegmentElement(const int p)
+SBP_SegmentElement::SBP_SegmentElement(const int p)
    : NodalTensorFiniteElement(1, p+1, BasisType::GaussLobatto, H1_DOF_MAP)
 {
    const double *cp = poly1d.ClosedPoints(p+1, b_type);
@@ -11888,7 +11888,7 @@ C_SBPSegmentElement::C_SBPSegmentElement(const int p)
    }
 }
 
-void C_SBPSegmentElement::CalcShape(const IntegrationPoint &ip,
+void SBP_SegmentElement::CalcShape(const IntegrationPoint &ip,
                                   Vector &shape) const
 {
    const int p = Order;
@@ -11925,7 +11925,7 @@ void C_SBPSegmentElement::CalcShape(const IntegrationPoint &ip,
    }
 }
 
-void C_SBPSegmentElement::CalcDShape(const IntegrationPoint &ip,
+void SBP_SegmentElement::CalcDShape(const IntegrationPoint &ip,
                                    DenseMatrix &dshape) const
 {
    const int p = Order;
@@ -11963,7 +11963,7 @@ void C_SBPSegmentElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 // Leftover function from H1_Segment element
-// void C_SBPSegmentElement::ProjectDelta(int vertex, Vector &dofs) const
+// void SBP_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 // {
 //    const int p = Order;
 //    const double *cp = poly1d.ClosedPoints(p, b_type);
@@ -11990,7 +11990,7 @@ void C_SBPSegmentElement::CalcDShape(const IntegrationPoint &ip,
 //    }
 // }
 
-C_SBPTriangleElement::C_SBPTriangleElement(const int p, const int Do)
+SBP_TriangleElement::SBP_TriangleElement(const int p, const int Do)
    : NodalFiniteElement(2, Geometry::TRIANGLE, Do, p,
                         FunctionSpace::Pk)
 {
@@ -12271,7 +12271,7 @@ C_SBPTriangleElement::C_SBPTriangleElement(const int p, const int Do)
 
 /// CalcShape outputs ndofx1 vector shape based on Kronecker \delta_{i, ip}
 /// where ip is the integration point CalcShape is evaluated at. 
-void C_SBPTriangleElement::CalcShape(const IntegrationPoint &ip,
+void SBP_TriangleElement::CalcShape(const IntegrationPoint &ip,
                                    Vector &shape) const
 {
    shape = 0.0;
@@ -12290,7 +12290,7 @@ void C_SBPTriangleElement::CalcShape(const IntegrationPoint &ip,
 /// is the integration point CalcDShape is evaluated at. Since DenseMatrices 
 /// are stored a column major we should store the transpose so accessing a row
 /// is faster, but this is not done here.
-void C_SBPTriangleElement::CalcDShape(const IntegrationPoint &ip,
+void SBP_TriangleElement::CalcDShape(const IntegrationPoint &ip,
                                     DenseMatrix &dshape) const
 {
    int ipNum;
@@ -12311,7 +12311,7 @@ void C_SBPTriangleElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
-C_SBPTriangleElement::~C_SBPTriangleElement()
+SBP_TriangleElement::~SBP_TriangleElement()
 {
    delete Dx;
    delete Dy;

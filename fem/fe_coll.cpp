@@ -2570,7 +2570,7 @@ C_SBPCollection::C_SBPCollection(const int p, const int dim)
    {
       C_SBPdof[Geometry::SEGMENT] = p;
 
-      C_SBPElements[Geometry::SEGMENT] = new C_SBPSegmentElement(p);
+      C_SBPElements[Geometry::SEGMENT] = new SBP_SegmentElement(p);
 
       int nodeOrder0[] = {};
       int nodeOrder1[1] = {0};
@@ -2664,7 +2664,7 @@ C_SBPCollection::C_SBPCollection(const int p, const int dim)
 
       const int &TriDof = C_SBPdof[Geometry::TRIANGLE] + 3*C_SBPdof[Geometry::POINT] + 3*C_SBPdof[Geometry::SEGMENT];
 
-      C_SBPElements[Geometry::TRIANGLE] = new C_SBPTriangleElement(p, TriDof);
+      C_SBPElements[Geometry::TRIANGLE] = new SBP_TriangleElement(p, TriDof);
    }
 }
 
