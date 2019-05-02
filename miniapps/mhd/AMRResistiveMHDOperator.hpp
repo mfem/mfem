@@ -28,6 +28,7 @@ protected:
    SparseMatrix Mmat, Kmat;
    ConstantCoefficient visc_coeff, resi_coeff;
    double viscosity, resistivity;
+   FunctionCoefficient *E0rhs;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    GSSmoother *M_prec;  // Preconditioner for the mass matrix M
@@ -47,7 +48,7 @@ public:
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
 
    //set rhs E0
-   void SetRHSEfield(FunctionCoefficient Efield);
+   void SetRHSEfield( double(* f)( const Vector&) );
 
    void UpdateJ(Vector &vx);
    void UpdatePhi(Vector &vx);
@@ -66,7 +67,7 @@ AMRResistiveMHDOperator::AMRResistiveMHDOperator(FiniteElementSpace &f,
      M(NULL), Mrhs(NULL), K(NULL), KB(NULL), DSl(NULL), DRe(NULL), Nv(NULL), Nb(NULL), E0(NULL),
      visc_coeff(visc), resi_coeff(resi),
      viscosity(visc),  resistivity(resi), 
-     M_prec(NULL), K_prec(NULL)
+     E0rhs(NULL), M_prec(NULL), K_prec(NULL)
 {
    //mass matrix
    M = new BilinearForm(&fespace);
@@ -185,13 +186,15 @@ void AMRResistiveMHDOperator::UpdateProblem()
    cout<<"Problem size = "<<fespace.GetVSize()<<endl;
    width = height = fespace.GetVSize()*4;
 }          
-           
-void AMRResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield) 
+
+void AMRResistiveMHDOperator::SetRHSEfield( double(* f)( const Vector&) ) 
 {
    delete E0;
+   E0rhs = new FunctionCoefficient(f);
    E0 = new LinearForm(&fespace);
-   E0->AddDomainIntegrator(new DomainLFIntegrator(Efield));
-}
+   E0->AddDomainIntegrator(new DomainLFIntegrator(*E0rhs));
+}          
+
 
 void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 {
@@ -384,6 +387,7 @@ AMRResistiveMHDOperator::~AMRResistiveMHDOperator()
     delete DRe;
     delete DSl;
     delete E0;
+    delete E0rhs;
     delete M_prec;
     delete K_prec;
 }
