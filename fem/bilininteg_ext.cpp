@@ -744,7 +744,7 @@ DiffusionIntegrator::~DiffusionIntegrator()
 }
 
 
-void DiffusionIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
+void DiffusionIntegrator::FA_Assemble(const FiniteElementSpace &fes, DenseTensor *Me)
 {
   const Mesh *mesh = fes.GetMesh();
   dim = mesh->Dimension();
@@ -824,8 +824,8 @@ void DiffusionIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
 
     const int ND = D1D*D1D;
 
-    Me->SetSize(NE*ND*ND);
-    DeviceVector d_Me(Me->GetData());
+    Me->SetSize(ND,ND,NE);
+    DeviceVector d_Me(Me->Data());
 
     MFEM_FORALL(e, NE,
     {
@@ -888,7 +888,7 @@ void DiffusionIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
 //Hard coded for H1 finite elements order 1
 //Store element contributions
 //
-void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
+void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes, DenseTensor *Me)
 {
    printf("Entered Mass FA_Assemble ... \n");
    const Mesh *mesh = fes.GetMesh();
@@ -905,7 +905,6 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
    FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
    vec.SetSize(ne*nq);
-
    {
      if (dim==1)
      {
@@ -949,8 +948,8 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
        const DeviceMatrix B(maps->B.GetData(), 2, 2);
 
        //Vector to hold output
-       Me->SetSize(NE*ND*ND);
-       DeviceVector d_Me(Me->GetData());
+       Me->SetSize(ND,ND,NE);
+       DeviceVector d_Me(Me->Data());
 
        MFEM_FORALL(e, NE,
        {
@@ -1000,10 +999,11 @@ void MassIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
      }
 
    }
+
 }
 
 // FA Advection Assemble kernel
-void ConvectionIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me)
+void ConvectionIntegrator::FA_Assemble(const FiniteElementSpace &fes, DenseTensor *Me)
 {
    printf("Entered Convection FA_Assemble ... \n");
   const Mesh *mesh = fes.GetMesh();
@@ -1083,8 +1083,8 @@ void ConvectionIntegrator::FA_Assemble(const FiniteElementSpace &fes, Vector *Me
 
     const int ND = D1D*D1D;
 
-    Me->SetSize(NE*ND*ND);
-    DeviceVector d_Me(Me->GetData());
+    Me->SetSize(ND,ND,NE);
+    DeviceVector d_Me(Me->Data());
 
     MFEM_FORALL(e, NE,
     {

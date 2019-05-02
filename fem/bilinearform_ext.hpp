@@ -47,7 +47,7 @@ protected:
 
 public:
 
-   mutable Vector Me;
+   mutable DenseTensor Me;
 
    BilinearFormExtension(BilinearForm *form);
 

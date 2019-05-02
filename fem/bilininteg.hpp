@@ -32,7 +32,7 @@ public:
    virtual void Assemble(const FiniteElementSpace&);
 
     /// Method defining full assembly.
-   virtual void FA_Assemble(const FiniteElementSpace&, Vector *)
+   virtual void FA_Assemble(const FiniteElementSpace&, DenseTensor *)
    {MFEM_ABORT("FA_Assemble kernel not implemented")};
 
    /// Method for partially assembled action.
@@ -1689,7 +1689,7 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
    /// FA extension
-   void FA_Assemble(const FiniteElementSpace&, Vector *);
+   void FA_Assemble(const FiniteElementSpace&, DenseTensor *);
 
    /// PA extension
    virtual void Assemble(const FiniteElementSpace&);
@@ -1729,7 +1729,7 @@ public:
                                        DenseMatrix &elmat);
 
    // FA extension ?
-   void FA_Assemble(const FiniteElementSpace&, Vector *);
+   void FA_Assemble(const FiniteElementSpace&, DenseTensor *);
 
    /// PA extension
    virtual void Assemble(const FiniteElementSpace&);
@@ -1770,7 +1770,7 @@ public:
      : Q(q) { alpha = a; maps = NULL; geom = NULL;}
 
    //FA extension ?
-   void FA_Assemble(const FiniteElementSpace&, Vector *);
+   void FA_Assemble(const FiniteElementSpace&, DenseTensor *);
 
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,

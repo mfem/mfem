@@ -14,6 +14,9 @@
 #include "fem.hpp"
 #include "../general/device.hpp"
 #include <cmath>
+#include <chrono>
+
+typedef std::chrono::high_resolution_clock Clock;
 
 namespace mfem
 {
@@ -353,19 +356,37 @@ void BilinearForm::Assemble(int skip_zeros)
 
    //Assemble the element contributions on the device
    //Assembly of the full matrix will be done on the CPU
+   auto mass_kernel0 = Clock::now();
    if (ext)
    {
      ext->Assemble();
      if(assembly != AssemblyLevel::FULL) return;
    }
 
+   auto mass_kernel1 = Clock::now();
+
+   std::cout << "Mass kernel duration t2-t1: "
+   << std::chrono::duration_cast<std::chrono::nanoseconds>
+   (mass_kernel1 - mass_kernel0).count()*1e-9
+   << " seconds" << std::endl;
+
+
+   auto move_data0 = Clock::now();
+
    //Disable Device
    Device::Disable();
 
    //Move data to appropriate space
-   if(ext && ext->Me) {mm.Ptr(ext->Me.GetData());};
+   if(ext && ext->Me.Data()) {mm.Ptr(ext->Me.Data());};
 
    Device::Enable();
+
+   auto move_data1 = Clock::now();
+
+   std::cout << "Move data duration t2-t1: "
+   << std::chrono::duration_cast<std::chrono::nanoseconds>
+   (move_data1 - move_data0).count()*1e-9
+   << " seconds" << std::endl;
 
    //Intialize Matrix - does not set up row/col/data pointers
    if (mat == NULL)
@@ -385,6 +406,8 @@ void BilinearForm::Assemble(int skip_zeros)
       free_element_matrices = 1;
    }
 #endif
+
+   auto assemble_Sp0 = Clock::now();
 
    //If not using extension use base implementation
    if (!ext && dbfi.Size()) 
@@ -426,19 +449,12 @@ void BilinearForm::Assemble(int skip_zeros)
    //sparse matrix assembly occurs on the cpu
    else if(ext)    
    {
-     for(int e=0; e<fes->GetNE(); ++e) 
+
+     fes->GetElementVDofs(0, vdofs);
+     for(int e=0; e<fes->GetNE(); ++e)
      {
        fes->GetElementVDofs(e, vdofs);
-       int DOFs = vdofs.Size();
-       DenseMatrix eMat(DOFs);
-       for(int j=0; j<DOFs; ++j) {
-         for(int i=0; i<DOFs; ++i) {
-           int idx = i + DOFs*j + e*DOFs*DOFs;
-           eMat(i,j) = ext->Me[idx];
-         }
-       }
-       
-       mat->AddSubMatrix(vdofs, vdofs, eMat, skip_zeros);
+       mat->AddSubMatrix(vdofs, vdofs, ext->Me(e), skip_zeros);
      }
 
    }
@@ -575,6 +591,11 @@ void BilinearForm::Assemble(int skip_zeros)
          }
       }
    }
+   auto assemble_Sp1 = Clock::now();
+   std::cout << "Assemble Sparse Mat duration t2-t1: "
+   << std::chrono::duration_cast<std::chrono::nanoseconds>
+   (assemble_Sp1 - assemble_Sp0).count()*1e-9
+   << " seconds" << std::endl;
 
 #ifdef MFEM_USE_LEGACY_OPENMP
    if (free_element_matrices)

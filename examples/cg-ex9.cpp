@@ -52,7 +52,7 @@ double g0_function(const Vector &x);
 double gf_function(const Vector &x);
 
 //Tfinal
-double Tf = 1.23;
+double Tf = 1.2;
 
 //Velocity function
 double cx = 1.0;
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
    //const char *mesh_file = "../data/periodic-segment.mesh";
    const char *mesh_file = "../data/periodic-square.mesh";
 
-   int ref_levels = 6;
+   int ref_levels = 10;
    int order = 1;
    int ode_solver_type = 4;
    double t_final = Tf;
@@ -214,6 +214,7 @@ int main(int argc, char *argv[])
    (mass_timer1 - mass_timer0).count()*1e-9
    << " seconds" << std::endl;
 
+   printf("\n \n");
    int skip_zeros = 0;
    auto adv_timer0 = Clock::now();
    k.Assemble(skip_zeros);
@@ -294,15 +295,16 @@ int main(int argc, char *argv[])
    }
 
    ofstream mass_file;
-   mass_file.open("mass.txt");
+   mass_file.open("gpu_mass.txt");
    m.SpMat().PrintMatlab(mass_file);
    mass_file.close();
 
    printf(" \n \n");
    ofstream adv_file;
-   adv_file.open("adv.txt");
+   adv_file.open("gpu_adv.txt");
    k.SpMat().PrintMatlab(adv_file);
    adv_file.close();
+   printf("Wrote out matrices ... \n");
 
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
