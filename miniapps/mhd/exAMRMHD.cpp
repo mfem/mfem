@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
    alpha = 0.001; 
    Lx=3.0;
    lambda=5.0;
-   int ref_steps=1000;
+   int ref_steps=100;
 
    bool visualization = true;
    int vis_steps = 10;
@@ -368,13 +368,13 @@ int main(int argc, char *argv[])
    AMRResistiveMHDOperator oper(fespace, ess_bdr, visc, resi);
    if (icase==2)  //add the source term
    {
-       FunctionCoefficient e0(E0rhs);
-       oper.SetRHSEfield(e0);
+       //FunctionCoefficient e0(E0rhs);
+       oper.SetRHSEfield(E0rhs);
    }
    else if (icase==3)
    {
-       FunctionCoefficient e0(E0rhs3);
-       oper.SetRHSEfield(e0);
+       //FunctionCoefficient e0(E0rhs3);
+       oper.SetRHSEfield(E0rhs3);
    }
 
    if (icase==1)
