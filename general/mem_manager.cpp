@@ -52,12 +52,13 @@ struct Memory
    bool on_host;
    // Boolean to indicate if unified memory is used
    bool managed;
-   bool padding[6];
+   bool locked;
+   bool padding[5];
    Memory(void* const h, const bool uvm, const std::size_t size):
       bytes(size),
       h_ptr(h), d_ptr(nullptr),
       aliases(),
-      on_host(true), managed(uvm) {}
+      on_host(true), managed(uvm), locked(true) {}
 };
 
 /// Alias class
@@ -556,6 +557,13 @@ bool MemoryManager::IsAlias(const void *ptr, const std::size_t bytes)
    return true;
 }
 
+static void ForallUpdate(const bool locked){
+   if (parallel==-1) { dbg("new parallel: %d", locked?0:1); parallel = locked?0:1; return; }
+   //dbg("parallel test: %d vs %d", parallel, locked?0:1);
+   fflush(0);
+   MFEM_VERIFY(parallel == (locked?0:1), "ForallUpdate error");
+}
+
 // Turn a known address into the right host or device address.
 // Alloc, Push, or Pull it if necessary.
 static void *PtrKnown(internal::Ledger *maps, void *ptr)
@@ -564,6 +572,7 @@ static void *PtrKnown(internal::Ledger *maps, void *ptr)
    const bool ptr_on_host = base.on_host;
    const std::size_t bytes = base.bytes;
    const bool run_on_device = Device::Allows(Backend::DEVICE_MASK);
+   ForallUpdate(base.locked);
    if (ptr_on_host && !run_on_device) { return ptr; }
    if (bytes==0) { mfem_error("PtrKnown bytes==0"); }
    if (!base.d_ptr) { ctrl->device->Alloc(base, bytes); }
@@ -595,6 +604,7 @@ static void *PtrAlias(internal::Ledger *maps, void *ptr)
    const bool host = base.on_host;
    const bool device = !base.on_host;
    const std::size_t bytes = base.bytes;
+   ForallUpdate(base.locked);
    if (host && !gpu) { return ptr; }
    if (!base.d_ptr) { ctrl->device->Alloc(base, bytes); }
    if (!base.d_ptr) { mfem_error("PtrAlias !base->d_ptr"); }
@@ -615,7 +625,7 @@ static void *PtrAlias(internal::Ledger *maps, void *ptr)
    alias->mem->on_host = false;
    return a_ptr;
 }
-
+/*
 static inline bool MmDeviceIniFilter(void)
 {
    if (!mm.UsingMM()) { return true; }
@@ -623,16 +633,20 @@ static inline bool MmDeviceIniFilter(void)
    if (!Device::IsAvailable()) { return true; }
    if (!Device::IsConfigured()) { return true; }
    return false;
-}
+   }*/
 
 void *MemoryManager::Ptr(void *ptr)
 {
-   if (ptr==NULL) { return NULL; };
-   if (MmDeviceIniFilter()) { return ptr; }
+   //dbg("%p", ptr);
+   //ForallUpdate(base.locked);
+   MFEM_VERIFY(ptr, "Ptr NULL!");
+   //if (ptr==NULL) { return NULL; };
+   //if (MmDeviceIniFilter()) { return ptr; }
    if (IsKnown(ptr)) { return PtrKnown(maps, ptr); }
    if (IsAlias(ptr)) { return PtrAlias(maps, ptr); }
    if (Device::Allows(Backend::DEVICE_MASK))
    { mfem_error("Trying to use unknown pointer on the DEVICE!"); }
+   ForallUpdate(true); // locked for external pointers
    return ptr;
 }
 
@@ -664,7 +678,7 @@ static void PushAlias(const internal::Ledger *maps,
 void MemoryManager::Push(const void *ptr, const std::size_t bytes)
 {
    MFEM_VERIFY(bytes>0, "[Push] bytes should not be zero!")
-   if (MmDeviceIniFilter()) { return; }
+      //if (MmDeviceIniFilter()) { return; }
    if (IsKnown(ptr, bytes)) { return PushKnown(maps, ptr, bytes); }
    if (IsAlias(ptr, bytes)) { return PushAlias(maps, ptr, bytes); }
    if (Device::Allows(Backend::DEVICE_MASK))
@@ -698,7 +712,7 @@ static void PullAlias(const internal::Ledger *maps,
 
 void MemoryManager::Pull(const void *ptr, const std::size_t bytes)
 {
-   if (MmDeviceIniFilter()) { return; }
+   //if (MmDeviceIniFilter()) { return; }
    if (IsKnown(ptr, bytes)) { return PullKnown(maps, ptr, bytes); }
    if (IsAlias(ptr, bytes)) { return PullAlias(maps, ptr, bytes); }
    if (Device::Allows(Backend::DEVICE_MASK))
@@ -712,6 +726,8 @@ void* MemoryManager::Memcpy(void *dst, const void *src,
    void *d_src = const_cast<void*>(Ptr(src));
    if (bytes == 0) { return dst; }
    const bool run_on_host = !Device::Allows(Backend::DEVICE_MASK);
+   dbg("\033[31mreset parallel state");
+   parallel = -1; // reset parallel state
    if (run_on_host) { return std::memcpy(dst, src, bytes); }
    return ctrl->memcpy->DtoD(d_dst, d_src, bytes);
 }
@@ -744,7 +760,16 @@ void MemoryManager::GetAll(void)
    }
 }
 
+void MemoryManager::Unlock(const void *ptr)
+{
+   const bool known = IsKnown(ptr);
+   MFEM_VERIFY(known, "Unlock error: !known");
+   internal::Memory &base = maps->memories.at(ptr);
+   base.locked = false;
+}
+
 MemoryManager mm;
+int parallel = -1;
 bool MemoryManager::exists = false;
 
 } // namespace mfem

@@ -2466,7 +2466,8 @@ void DenseMatrix::Diag(double c, int n)
    const int N = n*n;
    DeviceVector d_data(data);
    MFEM_FORALL(i, N, d_data[i] = 0.0;);
-   MFEM_FORALL(i, n, d_data[i*(n+1)] = c;);
+   DeviceVector d_data_bis_to_reset_forall_state(data);
+   MFEM_FORALL(i, n, d_data_bis_to_reset_forall_state[i*(n+1)] = c;);
 
 }
 
@@ -3078,13 +3079,14 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    const DeviceVector d_cd(cd);
    DeviceVector d_ad(ad);
    MFEM_FORALL(i, ah*aw, d_ad[i] = 0.0;);
+   DeviceVector d_ad_bis(ad);
    MFEM_FORALL(j, aw,
    {
       for (int k = 0; k < bw; k++)
       {
          for (int i = 0; i < ah; i++)
          {
-            d_ad[i+j*ah] += d_bd[i+k*ah] * d_cd[k+j*bw];
+            d_ad_bis[i+j*ah] += d_bd[i+k*ah] * d_cd[k+j*bw];
          }
       }
    });

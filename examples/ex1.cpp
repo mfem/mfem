@@ -88,6 +88,12 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   // 7. Set device config parameters from the command line options and switch
+   //    to working on the device.
+   Device::Configure(device);
+   Device::Print();
+   //Device::Enable();
+   
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
@@ -98,13 +104,13 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   {
+   {/*
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
-      }
+         }*/
    }
 
    // 4. Define a finite element space on the mesh. Here we use continuous
@@ -147,12 +153,6 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
-
-   // 7. Set device config parameters from the command line options and switch
-   //    to working on the device.
-   Device::Configure(device);
-   Device::Print();
-   Device::Enable();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
    a->RecoverFEMSolution(X, *b, x);
 
    // 13. Switch back to the host.
-   Device::Disable();
+   //Device::Disable();
 
    // 14. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".

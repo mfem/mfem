@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "mem_manager.hpp"
+#include "forall.hpp"
 #include "error.hpp"
 #include "globals.hpp"
 
@@ -95,12 +96,13 @@ public:
    inline ~Array() { }
 
    /// Assignment operator: deep copy
-   Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
+   Array<T> &operator=(const Array<T> &src) { dbg(""); src.Copy(*this); return *this; }
 
    /// Assignment operator (deep copy) from an Array of convertable type
    template <typename CT>
    Array<T> &operator=(const Array<CT> &src)
    {
+      dbg("");
       SetSize(src.Size());
       for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
       return *this;
@@ -190,6 +192,7 @@ public:
    /// Create a copy of the current array
    inline void Copy(Array &copy) const
    {
+      dbg("");
       copy.SetSize(Size());
       mfem::Memcpy(copy.GetData(), data, Size()*sizeof(T));
    }

@@ -119,6 +119,9 @@ public:
    /// Pull the data from the device
    void Pull(const void *ptr, const std::size_t bytes);
 
+   /// Unlock the pointer to be able to trigger parallel foralls
+   void Unlock(const void *ptr);
+
    /// Enable read/write access of this memory
    void MemEnable(const void *ptr, const std::size_t bytes);
 
@@ -174,6 +177,9 @@ public:
 /// The (single) global memory manager object
 extern MemoryManager mm;
 
+/// The global boolean allowing to run accelerated MFEM_FORALL
+extern int parallel;
+
 /// Main memory allocation template function. Allocates n*size bytes and returns
 /// a pointer to the allocated memory.
 template<class T>
@@ -226,6 +232,10 @@ inline void SetMemoryTypes(Memory::Type host, Memory::Type device)
 /// Change the types of the memory spaces with the same given type
 inline void SetMemoryTypes(Memory::Type both)
 { mm.SetMemoryTypes(both, both); }
+
+/// Pull the data from the device
+inline void Unlock(const void *ptr)
+{ mm.Unlock(ptr); }
 
 } // namespace mfem
 
