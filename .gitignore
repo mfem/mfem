@@ -39,6 +39,9 @@ doc/CodeDocumentation
 *.dSYM
 .DS_Store
 
+# Editor files
+.vscode
+
 # Example and miniapp binaries and outputs
 
 examples/ex[1-9]
@@ -85,6 +88,7 @@ examples/gnuplot_ex20p.inp
 examples/ex22*.mesh
 examples/ex22*.sol
 examples/ex22p_*.*
+examples/exSBP*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
