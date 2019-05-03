@@ -104,33 +104,30 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    //update stiffness matrix
    K->Assemble();
 
-   /*
+   //update solvers
    M->FormSystemMatrix(ess_tdof_list, Mmat);
    delete M_prec;
    GSSmoother *M_prec_gs = new GSSmoother(Mmat);
    M_prec=M_prec_gs;
-   M_solver.iterative_mode = true;
-   M_solver.SetRelTol(rel_tol);
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(1e-8);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(1000);
+   M_solver.SetMaxIter(200);
    M_solver.SetPrintLevel(0);
    M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
 
    K->FormSystemMatrix(ess_tdof_list, Kmat);
-
    delete K_prec;
    GSSmoother *K_prec_gs = new GSSmoother(Kmat);
    K_prec=K_prec_gs;
-
-   K_solver.iterative_mode = true;
-   K_solver.SetRelTol(rel_tol);
+   K_solver.iterative_mode = false;
+   K_solver.SetRelTol(1e-6);
    K_solver.SetAbsTol(0.0);
    K_solver.SetMaxIter(1000);
    K_solver.SetPrintLevel(0);
    K_solver.SetPreconditioner(*K_prec);
    K_solver.SetOperator(Kmat);
-   */
 
    //assemble KB
    KB->Assemble();
@@ -247,8 +244,13 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    SparseMatrix A;
    Vector B, X;
    M->FormLinearSystem(ess_tdof_list, dpsi_dt, z, A, X, B); // Alters matrix and rhs to enforce bc
-   GSSmoother Mpre(A);
-   PCG(A, Mpre, B, X, 0, 1000, 1e-14, 0.0); 
+
+   //the run time of these two options are almost identical
+   //note pcg tolerance will be a sqrt of when setting SetRelTol!!
+   //GSSmoother Mpre(A);
+   //PCG(A, Mpre, B, X, 1, 1000, 1e-14, 0.0); 
+
+   M_solver.Mult(B, X);
    M->RecoverFEMSolution(X, z, dpsi_dt);
 
    //ofstream myfile("A1.dat");
@@ -270,7 +272,8 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Nb->AddMult(j, z);
 
    M->FormLinearSystem(ess_tdof_list, dw_dt, z, A, X, B); // Alters matrix and rhs to enforce bc
-   PCG(A, Mpre, B, X, 0, 1000, 1e-14, 0.0); 
+   //PCG(A, Mpre, B, X, 0, 1000, 1e-14, 0.0); 
+   M_solver.Mult(B, X);
    M->RecoverFEMSolution(X, z, dw_dt);
 
 
@@ -323,8 +326,11 @@ void AMRResistiveMHDOperator::UpdateJ(Vector &vx)
    //apply Dirichelt boundary 
    //(j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)
    M->FormLinearSystem(ess_tdof_list, j, z, A, Y, Z);
+   /*
    GSSmoother Mpre(A);
    PCG(A, Mpre, Z, Y, 0, 1000, 1e-14, 0.0); 
+   */
+   M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, j);
 
 }
@@ -344,8 +350,11 @@ void AMRResistiveMHDOperator::BackSolvePsi(Vector &vx)
    SparseMatrix A;
    Vector B, X;
    K->FormLinearSystem(ess_tdof_list, psi, z, A, X, B); // Alters matrix and rhs to enforce bc
+   /*
    GSSmoother Mpre(A);
    PCG(A, Mpre, B, X, 0, 1000, 1e-14, 0.0); 
+   */
+   M_solver.Mult(B, X);
    K->RecoverFEMSolution(X, z, psi);
 }
 
@@ -367,8 +376,12 @@ void AMRResistiveMHDOperator::UpdatePhi(Vector &vx)
    SparseMatrix A;
    Vector B, X;
    K->FormLinearSystem(ess_tdof_list, phi, z, A, X, B); // Alters matrix and rhs to enforce bc
+   /*
    GSSmoother Mpre(A);
    PCG(A, Mpre, B, X, 0, 1000, 1e-14, 0.0); 
+   */
+   K_solver.Mult(B, X);
+
    K->RecoverFEMSolution(X, z, phi);
  
    //K_solver.Mult(z, phi);

@@ -514,6 +514,7 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
+   clock_t start = clock();
    bool refineMesh;
    cout<<"Start time stepping..."<<endl;
    //---assemble problem and update boundary condition---
@@ -653,6 +654,7 @@ int main(int argc, char *argv[])
       }
 
    }
+   clock_t end = clock();
 
    // 9. Save the solutions.
    {
@@ -682,6 +684,8 @@ int main(int argc, char *argv[])
    delete mesh;
    delete integ;
    delete dc;
+
+   cout <<"######Runtime = "<<((double)end-start)/CLOCKS_PER_SEC<<" ######"<<endl;
 
    return 0;
 }
