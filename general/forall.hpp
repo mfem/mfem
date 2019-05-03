@@ -27,8 +27,6 @@
 #endif
 #endif
 
-#include "dbg.hpp"
-
 namespace mfem
 {
 
@@ -37,18 +35,11 @@ namespace mfem
 
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...) {                                          \
-      dbg("%s:%d",__FILE__,__LINE__);                                   \
-      dbg(#__VA_ARGS__);                                                \
       MFEM_VERIFY(parallel>=0, "parallel status error!");               \
-      if (parallel==0) {                                                \
-         dbg("!parallel");                                              \
-         for (int i = 0; i < N; i++) {__VA_ARGS__}                      \
-      } else {                                                          \
-         dbg("\033[7mparallel!");                                       \
-         ForallWrap(N, [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},      \
-                    [&] (int i) {__VA_ARGS__});                         \
+      if (parallel==0) { for (int i = 0; i < N; i++) {__VA_ARGS__} }    \
+      else { ForallWrap(N, [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},  \
+                        [&] (int i) {__VA_ARGS__});                     \
       }                                                                 \
-      dbg("\033[31mreset parallel state");                              \
       parallel = -1;                                                    \
    }
 
@@ -136,23 +127,19 @@ void CudaWrap(const int N, DBODY &&d_body) {}
 /// The forall kernel body wrapper
 template <typename DBODY, typename HBODY>
 void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body)
-{   
+{
    if (Device::Allows(Backend::RAJA_CUDA))
-   { dbg("RAJA_CUDA"); return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+   { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
 
    if (Device::Allows(Backend::CUDA))
-   { dbg("CUDA"); return CudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+   { return CudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
 
-   if (Device::Allows(Backend::RAJA_OMP))
-   { dbg("RAJA_OMP"); return RajaOmpWrap(N, h_body); }
+   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
 
-   if (Device::Allows(Backend::OMP))
-   { dbg("OMP"); return OmpWrap(N, h_body); }
+   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, h_body); }
 
-   if (Device::Allows(Backend::RAJA_CPU))
-   { dbg("RAJA_CPU"); return RajaSeqWrap(N, h_body); }
+   if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
 
-   dbg("CPU"); 
    for (int k = 0; k < N; k++) { h_body(k); }
 }
 

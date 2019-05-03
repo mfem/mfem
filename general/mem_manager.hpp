@@ -95,9 +95,9 @@ public:
    /** @brief Translates ptr to host or device address, depending on what
        backends are currently allowed by the Device class and on the ptr
        state. */
-   void *Ptr_(void *ptr, const bool read = false);
    void *Ptr(void *ptr);
    const void *Ptr(const void *ptr);
+   void *PtrRW(void *ptr, const bool read = false);
 
    /// Data will be pushed/pulled before the copy happens on the H or the D
    void *Memcpy(void *dst, const void *src, std::size_t bytes);

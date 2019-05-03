@@ -54,7 +54,6 @@ PABilinearFormExtension::~PABilinearFormExtension()
 
 void PABilinearFormExtension::Assemble()
 {
-   dbg("");
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
@@ -95,6 +94,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                int copy_interior)
 {
    Operator *oper;
+   ess_tdof_list.Allow();
    Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
    A.Reset(oper); // A will own oper
 }
@@ -102,7 +102,6 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-   dbg("elem_restrict->Mult");
    elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
@@ -194,7 +193,6 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
 
 void ElemRestriction::Mult(const Vector& x, Vector& y) const
 {
-   dbg("");
    const int vd = vdim;
    const bool t = byvdim;
    const DeviceArray d_offsets(offsets, ndofs+1);

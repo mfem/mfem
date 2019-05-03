@@ -88,16 +88,14 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 7. Set device config parameters from the command line options and switch
+   //    Set device config parameters from the command line options and switch
    //    to working on the device.
    Device::Configure(device);
    Device::Print();
-   Device::Enable();
    
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   dbg("\033[7m[mesh]");
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
@@ -117,7 +115,6 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   dbg("\033[7m[FiniteElementCollection *fec]");
    FiniteElementCollection *fec;
    if (order > 0)
    {
@@ -132,7 +129,6 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order = 1, dim);
    }
-   dbg("\033[7m[FiniteElementSpace]");
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
@@ -141,20 +137,17 @@ int main(int argc, char *argv[])
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
-   dbg("\033[7m[GetEssentialTrueDofs]?");
    Array<int> ess_tdof_list;
    if (mesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
       ess_bdr = 1;
-      dbg("\t\033[7m[GetEssentialTrueDofs]");
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   dbg("\033[7m[LinearForm b]");
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
@@ -163,14 +156,12 @@ int main(int argc, char *argv[])
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
-   dbg("\033[7m[GridFunction x]");
    GridFunction x(fespace);
    x = 0.0;
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   dbg("\033[7m[BilinearForm a]");
    BilinearForm *a = new BilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
@@ -180,13 +171,10 @@ int main(int argc, char *argv[])
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
-   dbg("\033[7m[a->Assemble]");
    a->Assemble();
 
    OperatorPtr A;
-   Vector B, X; // not known yet! X.Allow();
-   dbg("\033[7m[a->FormLinearSystem]");
-   ess_tdof_list.Allow();
+   Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A->Height() << endl;
@@ -208,16 +196,11 @@ int main(int argc, char *argv[])
    }
    else // No preconditioning for now in partial assembly mode.
    {
-      dbg("\033[7m[CG]");
       CG(*A, B, X, 1, 2000, 1e-12, 0.0);
    }
 
    // 12. Recover the solution as a finite element grid function.
-   dbg("\033[7m[a->RecoverFEMSolution]");
    a->RecoverFEMSolution(X, *b, x);
-
-   // 13. Switch back to the host.
-   //Device::Disable();
 
    // 14. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".

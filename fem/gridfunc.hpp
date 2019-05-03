@@ -85,7 +85,7 @@ public:
        array can be replaced later using the method SetData().
     */
    GridFunction(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); Allow(); }
+   { fes = f; fec = NULL; sequence = f->GetSequence(); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method

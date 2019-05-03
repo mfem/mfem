@@ -14,7 +14,6 @@
 
 #include "../config/config.hpp"
 #include "mem_manager.hpp"
-#include "forall.hpp"
 #include "error.hpp"
 #include "globals.hpp"
 

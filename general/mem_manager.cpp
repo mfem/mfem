@@ -558,16 +558,12 @@ bool MemoryManager::IsAlias(const void *ptr, const std::size_t bytes)
 }
 
 static void ForallUpdate(internal::Memory *base, const bool read){
+   if (!Device::IsAvailable()) { parallel=0; return; }
    const bool allowed = (!base)?false:base->allowed;
-   if (parallel==-1) { dbg("new parallel: \033[7m%d", allowed); parallel = allowed; return; }
-   //dbg("parallel test: %d vs %d", parallel, allowed?0:1);
-   fflush(0);
+   if (parallel==-1) { parallel = allowed; return; }
    if (read) { MFEM_VERIFY(parallel == allowed, "ForallUpdate error"); }
-   else if (parallel>0) {
-      base->allowed = true;
-      dbg("%p is now allowed",base->h_ptr);
-   }
-   else {/**nothing*/}
+   else if (parallel>0 && !base->allowed) { base->allowed = true; }
+   else { /*nothing*/ }
 }
 
 // Turn a known address into the right host or device address.
@@ -578,27 +574,21 @@ static void *PtrKnown(internal::Ledger *maps, void *ptr, const bool read = false
    ForallUpdate(&base, read);
    const bool ptr_on_host = base.on_host;
    const std::size_t bytes = base.bytes;
-   const bool run_on_device = (parallel>0);//Device::Allows(Backend::DEVICE_MASK);
-   if (ptr_on_host && !run_on_device) { dbg("ptr_on_host && !run_on_device"); return ptr; }
+   const bool run_on_device = (parallel>0);
+   if (ptr_on_host && !run_on_device) { return ptr; }
    if (bytes==0) { mfem_error("PtrKnown bytes==0"); }
-   if (!base.d_ptr) {
-      dbg("d_ptr alloc");
-      ctrl->device->Alloc(base, bytes);
-      dbg("base.d_ptr = %p",base.d_ptr);
-         }
+   if (!base.d_ptr) { ctrl->device->Alloc(base, bytes); }
    if (!base.d_ptr) { mfem_error("PtrKnown !base->d_ptr"); }
-   if (!ptr_on_host && run_on_device) { dbg("!ptr_on_host && run_on_device"); return base.d_ptr; }
+   if (!ptr_on_host && run_on_device) { return base.d_ptr; }
    if (!ptr) { mfem_error("PtrKnown !ptr"); }
    if (!ptr_on_host && !run_on_device) // Pull
    {
-      dbg("Pull");
       ctrl->host->Unprotect(ptr, bytes);
       ctrl->memcpy->DtoH(ptr, base.d_ptr, bytes);
       base.on_host = true;
       return ptr;
    }
    // Push
-   dbg("Push");
    if (!(ptr_on_host && run_on_device)) { mfem_error("PtrKnown !(host && gpu)"); }
    ctrl->memcpy->HtoD(base.d_ptr, ptr, bytes);
    ctrl->host->Protect(ptr, bytes);
@@ -610,7 +600,7 @@ static void *PtrKnown(internal::Ledger *maps, void *ptr, const bool read = false
 // Alloc, Push, or Pull it if necessary.
 static void *PtrAlias(internal::Ledger *maps, void *ptr, const bool read = false)
 {
-   const bool gpu = (parallel>0);//Device::Allows(Backend::DEVICE_MASK);
+   const bool gpu = (parallel>0);
    const internal::Alias *alias = maps->aliases.at(ptr);
    internal::Memory &base = *alias->mem;
    const bool host = base.on_host;
@@ -638,30 +628,31 @@ static void *PtrAlias(internal::Ledger *maps, void *ptr, const bool read = false
    return a_ptr;
 }
 
-void *MemoryManager::Ptr_(void *ptr, const bool read)
+/*static inline bool MmDeviceIniFilter(void)
+{
+   if (!mm.UsingMM()) { return true; }
+   if (!mm.IsEnabled()) { return true; }
+   if (!Device::IsAvailable()) { return true; }
+   if (!Device::IsConfigured()) { return true; }
+   return false;
+}*/
+
+void *MemoryManager::PtrRW(void *ptr, const bool read)
 {
    MFEM_VERIFY(ptr, "Ptr NULL!");
    if (IsKnown(ptr)) { return PtrKnown(maps, ptr, read); }
    if (IsAlias(ptr)) { return PtrAlias(maps, ptr, read); }
-   if (parallel>0) // Device::Allows(Backend::DEVICE_MASK))
+   if (parallel>0)
    { mfem_error("Trying to use unknown pointer on the DEVICE!"); }
    ForallUpdate(NULL, read); // allowed for external pointers
    return ptr;
 }
 
 void *MemoryManager::Ptr(void *ptr)
-{
-   void *rtn = Ptr_(ptr, false);
-   dbg("W %p", rtn);
-   return rtn;
-}
+{ return PtrRW(ptr, false); }
 
 const void *MemoryManager::Ptr(const void *ptr)
-{
-   void *rtn = Ptr_(const_cast<void*>(ptr), true);
-   dbg("R %p", rtn);
-   return rtn;
-}
+{ return PtrRW(const_cast<void*>(ptr), true); }
 
 static void PushKnown(internal::Ledger *maps, const void *ptr,
                       const std::size_t bytes)
@@ -687,13 +678,10 @@ static void PushAlias(const internal::Ledger *maps,
 
 void MemoryManager::Push(const void *ptr, const std::size_t bytes)
 {
-   //mfem_error("");
    MFEM_VERIFY(bytes>0, "[Push] bytes should not be zero!")
-      //if (MmDeviceIniFilter()) { return; }
    if (IsKnown(ptr, bytes)) { return PushKnown(maps, ptr, bytes); }
    if (IsAlias(ptr, bytes)) { return PushAlias(maps, ptr, bytes); }
-   if (parallel>0) // Device::Allows(Backend::DEVICE_MASK))
-   { mfem_error("Unknown pointer to push to!"); }
+   if (parallel>0) { mfem_error("Unknown pointer to push to!"); }
 }
 
 static void PullKnown(internal::Ledger *maps,
@@ -723,25 +711,20 @@ static void PullAlias(const internal::Ledger *maps,
 
 void MemoryManager::Pull(const void *ptr, const std::size_t bytes)
 {
-   //mfem_error("");
    //if (MmDeviceIniFilter()) { return; }
    if (IsKnown(ptr, bytes)) { return PullKnown(maps, ptr, bytes); }
    if (IsAlias(ptr, bytes)) { return PullAlias(maps, ptr, bytes); }
-   if (parallel>0) // Device::Allows(Backend::DEVICE_MASK))
-   { mfem_error("Unknown pointer to pull from!"); }
+   if (parallel>0) { mfem_error("Unknown pointer to pull from!"); }
 }
 
 void* MemoryManager::Memcpy(void *dst, const void *src,
                             const std::size_t bytes)
 {
-   // get the src first
    void *d_src = const_cast<void*>(Ptr(src));
-   // to allow the dst to be allowed, depending on the src
    void *d_dst = Ptr(dst);
    if (bytes == 0) { return dst; }
-   const bool run_on_host = (parallel==0);//!Device::Allows(Backend::DEVICE_MASK);
-   if (!run_on_host) { dbg("\033[7mparallel (DtoD)!"); }
-   dbg("\033[31mreset parallel state");
+   MFEM_VERIFY(parallel>=0, "[Memcpy] parallel status error!");
+   const bool run_on_host = (parallel==0);
    parallel = -1; // reset parallel state
    if (run_on_host) { return std::memcpy(dst, src, bytes); }
    return ctrl->memcpy->DtoD(d_dst, d_src, bytes);
@@ -778,7 +761,7 @@ void MemoryManager::GetAll(void)
 void MemoryManager::Allow(const void *ptr)
 {
    const bool known = IsKnown(ptr);
-   MFEM_VERIFY(known, "Allow error: !known");
+   if (!known) { return; }
    internal::Memory &base = maps->memories.at(ptr);
    base.allowed = true;
 }

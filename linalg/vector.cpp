@@ -488,11 +488,8 @@ void Vector::median(const Vector &lo, const Vector &hi)
 static void GetSubvector(const int N,
                          double *y, const double *x, const int* dofs)
 {
-   dbg("x");
    const DeviceVector d_x(x, N);
-   dbg("dofs");
    const DeviceArray d_dofs(dofs, N);
-   dbg("y");
    DeviceVector d_y(y, N);
    MFEM_FORALL(i, N,
    {
@@ -503,7 +500,6 @@ static void GetSubvector(const int N,
 
 void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 {
-   dbg("");
    const int n = dofs.Size();
    elemvect.SetSize(n);
    mfem::GetSubvector(n, elemvect, data, dofs);
@@ -511,14 +507,12 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 
 void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 {
-   dbg("");
    mfem::GetSubvector(dofs.Size(), elem_data, data,dofs);
 }
 
 static void SetSubvector(const int N, double* y, const double d,
                          const int* dofs)
 {
-   dbg("");
    const DeviceArray d_dofs(dofs,N);
    DeviceVector d_y(y,N);
    MFEM_FORALL(i, N,
@@ -538,7 +532,6 @@ static void SetSubvector(const int N, double* y, const double d,
 static void SetSubvector(const int N, double *y, const double *x,
                          const int* dofs)
 {
-   dbg("");
    const DeviceVector d_x(x,N);
    const DeviceArray d_dofs(dofs,N);
    DeviceVector d_y(y,N);
@@ -623,11 +616,8 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
 
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 {
-   dbg("");
    Vector dofs_vals;
-   dbg("GetSubVector");
    GetSubVector(dofs, dofs_vals);
-   dbg("operator=(%f);",val);
    operator=(val);
    SetSubVector(dofs, dofs_vals);
 }
