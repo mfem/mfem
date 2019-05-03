@@ -23,6 +23,17 @@ glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+5/3
+1. Try derefine
+2. Prallel AMR
+
+Consider:
+JFNK
+Poisson Bracket
+SMG
+Mixed FEM
+
+
 4/30
 Test it on nersc
 srun -n 32 ../exMHDp -m ../xperiodic.mesh -rs 6 -rp 0 -o 3 -tf 1 -vs 2500 -dt .0002 -i 3 -no-vis -visit
