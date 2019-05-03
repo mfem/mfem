@@ -665,8 +665,10 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 NCMesh::MeshId NCMesh::FindEdgePrism(int vn1, int vn2, int vn3, int vn4)
 {
    // Assuming that (vn1, vn2, vn3, vn4) is a mesh face and that the
-   // edge (vn1, vn3) is an edge of a prism, this function finds the prism
-   // and returns the MeshId of the edge (v1, vn3).
+   // edge (vn1, vn4) is an edge of a prism, this function finds the prism
+   // and returns the MeshId of the edge (vn1, vn4).
+
+   int ev1 = vn1, ev2 = vn4;
 
    // follow face refinement towards 'vn1', get an existing face
    int split, mid[5];
@@ -674,7 +676,7 @@ NCMesh::MeshId NCMesh::FindEdgePrism(int vn1, int vn2, int vn3, int vn4)
    {
       if (split == 1) // vertical
       {
-         vn2 = mid[0]; vn3 = mid[1];
+         vn2 = mid[0]; vn3 = mid[2];
       }
       else // horizontal
       {
@@ -693,15 +695,14 @@ NCMesh::MeshId NCMesh::FindEdgePrism(int vn1, int vn2, int vn3, int vn4)
 
    for (int i = 0; i < cousins.Size(); i++)
    {
-      local = find_element_edge(elements[cousins[i]], vn1, vn3, false);
+      local = find_element_edge(elements[cousins[i]], ev1, ev2, false);
       if (local > 0)
       {
-         return MeshId(-1, cousins[i], local, geom);
+         return MeshId(-1, cousins[i], local, Geometry::SEGMENT);
       }
    }
 
-   MFEM_ABORT("Edge's prism not found (vn1, vn2, vn3, vn3) = ("
-              << vn1 << ", " << vn2 << ", " << vn3 << ", " << vn4 << ").");
+   MFEM_ABORT("Edge's prism not found.");
    return MeshId();
 }
 
@@ -1379,6 +1380,10 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    ref_stack.DeleteAll();
 
    Update();
+
+   ////
+   std::ofstream f("ncdump.txt");
+   DebugDump(f);
 }
 
 
@@ -2223,12 +2228,28 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
          {
             MFEM_ASSERT(enode.edge_refc == 1, "");
 
+            std::cout << "split = " << split << std::endl;
+            if (split == 1)
+               std::cout << mid[0] << ", " << vn1 << ", " << vn2 << ", " << mid[2] << std::endl;
+            else
+               std::cout << mid[3] << ", " << vn0 << ", " << vn1 << ", " << mid[1] << std::endl;
+
+#if 0
             const MeshId& eid = edge_list.LookUp(enode.edge_index);
             MFEM_ASSERT(elements[eid.element].Geom() == Geometry::PRISM, "");
 
             // create a slave face record with a degenerate point matrix
             face_list.slaves.push_back(
                Slave(-1 - eid.index, eid.element, eid.local, eid.geom));
+#else
+
+            MeshId eid((split == 1) ? FindEdgePrism(mid[0], vn1, vn2, mid[2])
+                                    : FindEdgePrism(mid[3], vn0, vn1, mid[1]));
+
+            // create a slave face record with a degenerate point matrix
+            face_list.slaves.push_back(
+               Slave(-1 - enode.edge_index, eid.element, eid.local, eid.geom));
+#endif
 
             DenseMatrix &mat = face_list.slaves.back().point_matrix;
             if (split == 1)
@@ -2247,6 +2268,9 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                ((v1 < v2) ? PointMatrix(mid1, mid3, mid3, mid1) :
                             PointMatrix(mid3, mid1, mid1, mid3)).GetMatrix(mat);
             }
+
+            std::cout << "Degenerate face constraint on: "
+                      << eid.element << "/" << (int) eid.local << std::endl;
          }
       }
    }
