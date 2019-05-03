@@ -12304,11 +12304,15 @@ void SBP_TriangleElement::CalcDShape(const IntegrationPoint &ip,
       }
    }
 
-   for (int i = 0; i < Dof; i++)
-   {
-      dshape(i,0) = Dx->Elem(ipNum, i);
-      dshape(i,1) = Dy->Elem(ipNum, i);
-   }
+   Vector tempVec(Dof);
+
+   // when we switch to storing Dx and Dy transpose so that access to the row we want
+   // is faster Dx->GetRow() will be replaced with Dx->GetColumnReference() or 
+   // Dx->GetColumn(), whichever is faster
+   Dx->GetRow(ipNum, tempVec);
+   dshape.SetCol(0, tempVec);
+   Dy->GetRow(ipNum, tempVec);
+   dshape.SetCol(1, tempVec);
 }
 
 SBP_TriangleElement::~SBP_TriangleElement()
