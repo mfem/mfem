@@ -19,7 +19,7 @@ using namespace mfem;
 class AMRResistiveMHDOperator : public TimeDependentOperator
 {
 protected:
-   FiniteElementSpace &fespace;
+   ParFiniteElementSpace &fespace;
    Array<int> ess_tdof_list;
 
    ParBilinearForm *M, *Mrhs, *K, *KB, *DSl, *DRe; //mass, stiffness, diffusion with SL and Re
@@ -248,7 +248,7 @@ void AMRResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 
 }
 
-void AMRResistiveMHDOperator::assembleNv(GridFunction *gf) 
+void AMRResistiveMHDOperator::assembleNv(ParGridFunction *gf) 
 {
    delete Nv;
    Nv = new ParBilinearForm(&fespace);
@@ -258,7 +258,7 @@ void AMRResistiveMHDOperator::assembleNv(GridFunction *gf)
    Nv->Assemble(); 
 }
 
-void AMRResistiveMHDOperator::assembleNb(GridFunction *gf) 
+void AMRResistiveMHDOperator::assembleNb(ParGridFunction *gf) 
 {
    delete Nb;
    Nb = new ParBilinearForm(&fespace);

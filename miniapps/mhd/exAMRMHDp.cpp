@@ -106,19 +106,12 @@ double E0rhs3(const Vector &x)
    return resiG*(ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
 }
 
-void AMRUpdate(BlockVector &S,
-               Array<int> &true_offset,
-               GridFunction &phi,
-               GridFunction &psi,
-               GridFunction &w,
-               GridFunction &j);
-
 void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
                Array<int> &true_offset,
-               GridFunction &phi,
-               GridFunction &psi,
-               GridFunction &w,
-               GridFunction &j);
+               ParGridFunction &phi,
+               ParGridFunction &psi,
+               ParGridFunction &w,
+               ParGridFunction &j);
 
 
 int main(int argc, char *argv[])
@@ -233,25 +226,29 @@ int main(int argc, char *argv[])
    switch (ode_solver_type)
    {
      // Explicit methods XXX: waring: FE is not stable 
-     //case 1: ode_solver = new ForwardEulerSolver; break;
-     //case 2: 
-     //        ode_solver = new ForwardEulerSolver; 
-     //        ode_predictor = new ForwardEulerSolver; 
-     //        break; //first order predictor-corrector
      case 2: ode_solver = new PDSolver; break;
      default:
          if (myid == 0) cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;
+         MPI_Finalize();
          return 3;
    }
 
    // 4. Refine the mesh to increase the resolution.    
    mesh->EnsureNCMesh();
-   for (int lev = 0; lev < ref_levels; lev++)
+   for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
    }
-   amr_levels+=ref_levels;
+   amr_levels+=ser_ref_levels;
+
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
+   for (int lev = 0; lev < par_ref_levels; lev++)
+   {
+      pmesh->UniformRefinement();
+   }
+   amr_levels+=par_ref_levels;
 
    // 5. Define the vector finite element spaces representing 
    //  [Psi, Phi, w, j]
@@ -259,15 +256,13 @@ int main(int argc, char *argv[])
    //    fe_offset array.
    // All my fespace is 1D bu the problem is multi-dimensional!!
    H1_FECollection fe_coll(order, dim);
-   FiniteElementSpace fespace(mesh, &fe_coll); 
-   if (false && (myid == 0) ) 
-   {
-        cout <<"dim="<<dim<<endl;
-        cout <<"fespace dim="<<fespace.GetVDim()<<endl;
-   }
+   ParFiniteElementSpace fespace(pmesh, &fe_coll); 
+
+   HYPRE_Int global_size = fespace.GlobalTrueVSize();
+   if (myid == 0)
+      cout << "Number of total scalar unknowns: " << global_size << endl;
 
    int fe_size = fespace.GetVSize();
-   cout << "Number of scalar unknowns: " << fe_size << endl;
    Array<int> fe_offset(5);
    fe_offset[0] = 0;
    fe_offset[1] = fe_size;
@@ -276,7 +271,7 @@ int main(int argc, char *argv[])
    fe_offset[4] = 4*fe_size;
 
    BlockVector vxTmp(fe_offset);
-   GridFunction psi, phi, w, j;
+   ParGridFunction psi, phi, w, j;
    phi.MakeRef(&fespace, vxTmp.GetBlock(0), 0);
    psi.MakeRef(&fespace, vxTmp.GetBlock(1), 0);
      w.MakeRef(&fespace, vxTmp.GetBlock(2), 0);
@@ -294,14 +289,15 @@ int main(int argc, char *argv[])
    {
     if (myid == 0) cout <<"ess_bdr size should be 1 but it is "<<ess_bdr.Size()<<endl;
     delete ode_solver;
-    delete mesh;
+    delete pmesh;
+    MPI_Finalize();
     return 2;
    }
 
    //-----------------------------------AMR---------------------------------
-   int sdim = mesh->SpaceDimension();
+   int sdim = pmesh->SpaceDimension();
    BilinearFormIntegrator *integ = new DiffusionIntegrator;
-   FiniteElementSpace flux_fespace1(mesh, &fe_coll, sdim), flux_fespace2(mesh, &fe_coll, sdim);
+   ParFiniteElementSpace flux_fespace1(pmesh, &fe_coll, sdim), flux_fespace2(pmesh, &fe_coll, sdim);
    BlockZZEstimator estimator(*integ, j, *integ, psi, flux_fespace1, flux_fespace2);
    //ZienkiewiczZhuEstimator estimator(*integ, w, flux_fespace1);
    //ZienkiewiczZhuEstimator estimator(*integ, j, flux_fespace1);
@@ -312,8 +308,6 @@ int main(int argc, char *argv[])
    refiner.SetLocalErrorGoal(1e-10);    // local error goal (stop criterion)
    refiner.SetMaxElements(50000);
    refiner.SetMaximumRefinementLevel(amr_levels);
-   //refiner.SetYRange(-.75, .75);
-   //refiner.PreferNonconformingRefinement();
    refiner.SetNCLimit(nc_limit);
 
    ThresholdDerefiner derefiner(estimator);
@@ -347,7 +341,7 @@ int main(int argc, char *argv[])
    for (int ref_it = 1; ; ref_it++)
    {
      operTmp.UpdateJ(vxTmp);
-     refiner.Apply(*mesh);
+     refiner.Apply(*pmesh);
      if (refiner.Refined()==false)
      {
          break;
@@ -355,6 +349,9 @@ int main(int argc, char *argv[])
      else
      {
          if (myid == 0) cout<<"Initial mesh refine..."<<endl;
+
+         pmesh->Rebalance();
+
          //---Update problem---
          AMRUpdate(vxTmp, vx_old, fe_offset, phi, psi, w, j);
          operTmp.UpdateProblem();
@@ -379,13 +376,11 @@ int main(int argc, char *argv[])
    AMRResistiveMHDOperator oper(fespace, ess_bdr, visc, resi);
    if (icase==2)  //add the source term
    {
-       FunctionCoefficient e0(E0rhs);
-       oper.SetRHSEfield(e0);
+       oper.SetRHSEfield(E0rhs);
    }
    else if (icase==3)
    {
-       FunctionCoefficient e0(E0rhs3);
-       oper.SetRHSEfield(e0);
+       oper.SetRHSEfield(E0rhs3);
    }
 
    if (icase==1)
@@ -426,20 +421,6 @@ int main(int argc, char *argv[])
    }
    j.SetTrueVector();
 
-   //Set the background psi
-   GridFunction psiBack(&fespace);
-   if (icase==1)
-   {
-        FunctionCoefficient psi0(BackPsi);
-        psiBack.ProjectCoefficient(psi0);
-   }
-   else if (icase==2)
-   {
-        FunctionCoefficient psi02(BackPsi2);
-        psiBack.ProjectCoefficient(psi02);
-   }
-   psiBack.SetTrueVector();
-
    socketstream vis_phi, vis_j, vis_psi, vis_w;
    if (visualization)
    {
@@ -453,37 +434,38 @@ int main(int argc, char *argv[])
       {
          if (myid == 0) 
             cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
+              << vishost << ':' << visport << endl
+              << "GLVis visualization disabled.\n";
+
          visualization = false;
-         if (myid == 0) 
-            cout << "GLVis visualization disabled.\n";
       }
       else
       {
+         vis_phi << "parallel " << num_procs << " " << myid << "\n";
          vis_phi.precision(8);
-         vis_phi << "solution\n" << *mesh << phi;
+         vis_phi << "solution\n" << *pmesh << phi;
          vis_phi << "window_size 800 800\n"<< "window_title '" << "phi'" << "keys cm\n";
          vis_phi << "pause\n";
          vis_phi << flush;
          vis_phi << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
 
+         vis_j << "parallel " << num_procs << " " << myid << "\n";
          vis_j.precision(8);
-         vis_j << "solution\n" << *mesh << j;
+         vis_j << "solution\n" << *pmesh << j;
          vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
-         vis_j << "pause\n";
          vis_j << flush;
 
+         vis_psi << "parallel " << num_procs << " " << myid << "\n";
          vis_psi.precision(8);
-         vis_psi << "solution\n" << *mesh << psi;
+         vis_psi << "solution\n" << *pmesh << psi;
          vis_psi << "window_size 800 800\n"<< "window_title '" << "psi'" << "keys cm\n";
-         vis_psi << "pause\n";
          vis_psi << flush;
 
+         vis_w << "parallel " << num_procs << " " << myid << "\n";
          vis_w.precision(8);
-         vis_w << "solution\n" << *mesh << w;
+         vis_w << "solution\n" << *pmesh << w;
          vis_w << "window_size 800 800\n"<< "window_title '" << "omega'" << "keys cm\n";
-         vis_w << "pause\n";
          vis_w << flush;
       }
    }
@@ -504,16 +486,16 @@ int main(int argc, char *argv[])
    {
       if (icase==1)
       {
-        dc = new VisItDataCollection("case1", mesh);
+        dc = new VisItDataCollection("case1", pmesh);
         dc->RegisterField("psi", &psi);
         dc->RegisterField("current", &j);
       }
       else
       {
         if (icase==2)
-            dc = new VisItDataCollection("case2", mesh);
+            dc = new VisItDataCollection("case2", pmesh);
         else
-            dc = new VisItDataCollection("case3", mesh);
+            dc = new VisItDataCollection("case3", pmesh);
 
         dc->RegisterField("psi", &psi);
         dc->RegisterField("current", &j);
@@ -526,6 +508,9 @@ int main(int argc, char *argv[])
       dc->SetTime(t);
       dc->Save();
    }
+
+   MPI_Barrier(MPI_COMM_WORLD); 
+   double start = MPI_Wtime();
 
    bool refineMesh;
    if (myid == 0) cout<<"Start time stepping..."<<endl;
@@ -545,13 +530,11 @@ int main(int argc, char *argv[])
 
       // 13. The inner refinement loop. At the end we want to have the current
       //     time step resolved to the prescribed tolerance in each element.
-      //for (int ref_it = 1; ; ref_it++)
-      //int ref_it=1;
       {
-        if (myid == 0) 
+        if (myid == 0)
         {
-            cout << "Number of unknowns: " << fespace.GetVSize() << endl;
-            cout << "Number of elements in mesh: " << mesh->GetNE() << endl;
+            global_size = fespace.GlobalTrueVSize();
+            cout << "Number of total scalar unknowns: " << global_size << endl;
         }
 
         //---Predictor stage---
@@ -569,15 +552,21 @@ int main(int argc, char *argv[])
         oper.UpdatePhi(vx);
 
         last_step = (t >= t_final - 1e-8*dt);
-        cout << "step " << ti << ", t = " << t <<endl;
+
+        if (myid == 0)
+        {
+            cout << "step " << ti << ", t = " << t <<endl;
+        }
 
         //----------------------------AMR---------------------------------
-        if (refineMesh)  refiner.Apply(*mesh);
+        if (refineMesh)  refiner.Apply(*pmesh);
         if (refiner.Refined()==false || (!refineMesh))
         {
-           if (derefine && derefiner.Apply(*mesh))
+           if (derefine && derefiner.Apply(*pmesh))
            {
               if (myid == 0) cout << "Derefined mesh..." << endl;
+
+              pmesh->Rebalance();
 
               //---Update problem---
               AMRUpdate(vx, vx_old, fe_offset, phi, psi, w, j);
@@ -595,16 +584,15 @@ int main(int argc, char *argv[])
 
                    if (visualization)
                    {
-                        vis_phi << "solution\n" << *mesh << phi;
-                        vis_psi << "solution\n" << *mesh << psi;
-                        vis_j << "solution\n" << *mesh << j;
-                        vis_w << "solution\n" << *mesh << w;
+                        vis_phi << "parallel " << num_procs << " " << myid << "\n";
+                        vis_phi << "solution\n" << *pmesh << phi << flush;
+                        vis_psi << "parallel " << num_procs << " " << myid << "\n";
+                        vis_psi << "solution\n" << *pmesh << psi << flush;
+                        vis_j << "parallel " << num_procs << " " << myid << "\n";
+                        vis_j << "solution\n" << *pmesh << j << flush;
+                        vis_w << "parallel " << num_procs << " " << myid << "\n";
+                        vis_w << "solution\n" << *pmesh << w << flush;
 
-                        if (icase==1) 
-                        {
-                            vis_phi << "valuerange -.001 .001\n" << flush;
-                            vis_j << "valuerange -.01425 .01426\n" << flush;
-                        }
                    }
 
                    if (visit)
@@ -624,6 +612,9 @@ int main(int argc, char *argv[])
         else
         {
             if (myid == 0) cout<<"Mesh refine..."<<endl;
+
+            pmesh->Rebalance();
+
             //---Update problem---
             AMRUpdate(vx, vx_old, fe_offset, phi, psi, w, j);
             oper.UpdateProblem();
@@ -638,16 +629,14 @@ int main(int argc, char *argv[])
 
         if (visualization)
         {
-           vis_phi << "solution\n" << *mesh << phi;
-           vis_psi << "solution\n" << *mesh << psi;
-           vis_j << "solution\n" << *mesh << j;
-           vis_w << "solution\n" << *mesh << w;
-
-           if (icase==1) 
-           {
-               vis_phi << "valuerange -.001 .001\n" << flush;
-               vis_j << "valuerange -.01425 .01426\n" << flush;
-           }
+           vis_phi << "parallel " << num_procs << " " << myid << "\n";
+           vis_phi << "solution\n" << *pmesh << phi <<flush;
+           vis_psi << "parallel " << num_procs << " " << myid << "\n";
+           vis_psi << "solution\n" << *pmesh << psi <<flush;
+           vis_j << "parallel " << num_procs << " " << myid << "\n";
+           vis_j << "solution\n" << *pmesh << j <<flush;
+           vis_w << "parallel " << num_procs << " " << myid << "\n";
+           vis_w << "solution\n" << *pmesh << w <<flush;
         }
 
       }
@@ -660,93 +649,64 @@ int main(int argc, char *argv[])
       }
 
    }
+   
+   MPI_Barrier(MPI_COMM_WORLD); 
+   double end = MPI_Wtime();
 
-   // 9. Save the solutions.
    {
-      ofstream omesh("refined.mesh");
-      omesh.precision(8);
-      mesh->Print(omesh);
+      ostringstream mesh_name, phi_name, psi_name, j_name, w_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
+      psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
+      j_name << "sol_current." << setfill('0') << setw(6) << myid;
+      w_name << "sol_omega." << setfill('0') << setw(6) << myid;
 
-      ofstream osol("phi.sol");
+      ofstream omesh(mesh_name.str().c_str());
+      omesh.precision(8);
+      pmesh->Print(omesh);
+
+      ofstream osol(phi_name.str().c_str());
       osol.precision(8);
       phi.Save(osol);
 
-      ofstream osol2("current.sol");
+      ofstream osol2(j_name.str().c_str());
       osol2.precision(8);
       j.Save(osol2);
 
-      ofstream osol3("psi.sol");
+      ofstream osol3(psi_name.str().c_str());
       osol3.precision(8);
       psi.Save(osol3);
 
-      ofstream osol4("omega.sol");
+      ofstream osol4(w_name.str().c_str());
       osol4.precision(8);
       w.Save(osol4);
    }
 
    // 10. Free the used memory.
    delete ode_solver;
-   delete mesh;
+   delete pmesh;
    delete integ;
    delete dc;
+
+   oper.DestroyHypre();
+   MPI_Finalize();
+
+   if (myid == 0) 
+       cout <<"######Runtime = "<<end-start<<" ######"<<endl;
 
    return 0;
 }
 
 
-void AMRUpdate(BlockVector &S, 
-               Array<int> &true_offset,
-               GridFunction &phi,
-               GridFunction &psi,
-               GridFunction &w,
-               GridFunction &j)
-{
-   phi.SetFromTrueDofs(S.GetBlock(0));
-   psi.SetFromTrueDofs(S.GetBlock(1));
-   w.SetFromTrueDofs(S.GetBlock(2));
-   j.SetFromTrueDofs(S.GetBlock(3));
-
-   FiniteElementSpace* H1FESpace = phi.FESpace();
-
-   //update fem space
-   H1FESpace->Update();
-
-   // Compute new dofs on the new mesh
-   phi.Update();
-   psi.Update();
-   w.Update();
-   j.Update();
-
-   int fe_size = H1FESpace->GetTrueVSize();
-
-   //update offset vector
-   true_offset[0] = 0;
-   true_offset[1] = fe_size;
-   true_offset[2] = 2*fe_size;
-   true_offset[3] = 3*fe_size;
-   true_offset[4] = 4*fe_size;
-
-   // Resize S
-   S.Update(true_offset);
-
-   // Compute "true" dofs and store them in S
-   phi.GetTrueDofs(S.GetBlock(0));
-   psi.GetTrueDofs(S.GetBlock(1));
-     w.GetTrueDofs(S.GetBlock(2));
-     j.GetTrueDofs(S.GetBlock(3));
-
-   H1FESpace->UpdatesFinished();
-}
-
 //this is an function modified based on amr/laghos.cpp
 void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
                Array<int> &true_offset,
-               GridFunction &phi,
-               GridFunction &psi,
-               GridFunction &w,
-               GridFunction &j)
+               ParGridFunction &phi,
+               ParGridFunction &psi,
+               ParGridFunction &w,
+               ParGridFunction &j)
 {
-   FiniteElementSpace* H1FESpace = phi.FESpace();
+   ParFiniteElementSpace* H1FESpace = phi.ParFESpace();
 
    //update fem space
    H1FESpace->Update();
@@ -762,9 +722,6 @@ void AMRUpdate(BlockVector &S, BlockVector &S_tmp,
 
    S_tmp = S;
    S.Update(true_offset);
-
-   //ofstream myfile0("vxBefore.dat");
-   //S_tmp.Print(myfile0, 100);
     
    const Operator* H1Update = H1FESpace->GetUpdateOperator();
 

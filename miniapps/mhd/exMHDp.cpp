@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&par_ref_levels, "-rp", "--refine",
+   args.AddOption(&par_ref_levels, "-rp", "--refineP",
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
