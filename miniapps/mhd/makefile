@@ -31,7 +31,7 @@ endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: exMHD exMHDp eexMHDnew exAMRMHD all clean clean-build clean-exec
+.PHONY: exMHD exMHDp exAMRMHDp exAMRMHD all clean clean-build clean-exec
 .PRECIOUS: %.o
 
 # Remove built-in rule
@@ -58,6 +58,8 @@ exMHDnew: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 exMHDp: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
 
+exAMRMHDp: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -g $< -o $@ $(MFEM_LIBS)
 
 
 

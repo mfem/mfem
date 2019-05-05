@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
    alpha = 0.001; 
    Lx=3.0;
    lambda=5.0;
-   int ref_steps=1000;
+   int ref_steps=100;
 
    bool visualization = true;
    int vis_steps = 10;
@@ -349,6 +349,7 @@ int main(int argc, char *argv[])
      else
      {
          if (myid == 0) cout<<"Initial mesh refine..."<<endl;
+         AMRUpdate(vxTmp, vx_old, fe_offset, phi, psi, w, j);
 
          pmesh->Rebalance();
 
@@ -566,6 +567,8 @@ int main(int argc, char *argv[])
            {
               if (myid == 0) cout << "Derefined mesh..." << endl;
 
+              AMRUpdate(vx, vx_old, fe_offset, phi, psi, w, j);
+
               pmesh->Rebalance();
 
               //---Update problem---
@@ -612,6 +615,8 @@ int main(int argc, char *argv[])
         else
         {
             if (myid == 0) cout<<"Mesh refine..."<<endl;
+
+            AMRUpdate(vx, vx_old, fe_offset, phi, psi, w, j);
 
             pmesh->Rebalance();
 

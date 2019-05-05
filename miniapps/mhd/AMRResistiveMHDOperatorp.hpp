@@ -71,7 +71,7 @@ AMRResistiveMHDOperator::AMRResistiveMHDOperator(ParFiniteElementSpace &f,
      visc_coeff(visc), resi_coeff(resi),
      viscosity(visc),  resistivity(resi), useAMG(false),
      M_solver(f.GetComm()), K_solver(f.GetComm()),
-     E0rhs(NULL), M_prec(NULL), K_prec(NULL)
+     E0rhs(NULL), M_prec(NULL), K_prec(NULL), K_amg(NULL), K_pcg(NULL)
 {
    //mass matrix
    M = new ParBilinearForm(&fespace);
@@ -116,6 +116,7 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    M_solver.SetMaxIter(200);
    M_solver.SetPrintLevel(0);
    delete M_prec;
+   M_prec = new HypreSmoother;
    M_prec->SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
@@ -141,6 +142,7 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
       K_solver.SetMaxIter(1000);
       K_solver.SetPrintLevel(0);
       delete K_prec;
+      K_prec = new HypreSmoother;
       K_prec->SetType(HypreSmoother::Chebyshev);
       K_solver.SetPreconditioner(*K_prec);
       K_solver.SetOperator(Kmat);
