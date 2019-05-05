@@ -100,7 +100,7 @@ public:
         (M + γK) y = M b,
 
     for given b, u (not used), and γ = GetTimeStep(). */
-class SundialsJacSolver : public SundialsODELinearSolver
+class SundialsJacSolver : public SundialsLinearSolver
 {
 private:
    ConductionOperator *oper;
@@ -111,7 +111,7 @@ public:
 
   int ODELinSys(double t, Vector y, Vector fy, int jok, int *jcur,
                 double gamma);
-  int LSSolve(Vector &x, Vector b);
+  int Solve(Vector &x, Vector b);
 };
 
 double InitialTemperature(const Vector &x);
@@ -308,65 +308,40 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    CVODESolver *cvode = NULL;
    ARKStepSolver *arkode = NULL;
-   void *sun_mem = NULL;
-   int retval = 0;
    SundialsJacSolver *sun_solver = NULL;
    switch (ode_solver_type)
    {
       case 1:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS);
          cvode->Init(oper, t, u);
-         sun_mem = cvode->GetMem();
-
          sun_solver = new SundialsJacSolver(oper);
          cvode->SetLinearSolver(*sun_solver);
-
-         retval = CVodeSStolerances(sun_mem, reltol, abstol);
-         MFEM_VERIFY(retval == CV_SUCCESS, "error in CVodeSStolerances()");
-         retval = CVodeSetMaxStep(sun_mem, dt);
-         MFEM_VERIFY(retval == CV_SUCCESS, "error in CVodeSetMaxStep()");
-
+         cvode->SetSStolerances(reltol, abstol);
+         cvode->SetMaxStep(dt);
          ode_solver = cvode; break;
       case 2:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_BDF);
          cvode->Init(oper, t, u);
-         sun_mem = cvode->GetMem();
-
          sun_solver = new SundialsJacSolver(oper);
          cvode->SetLinearSolver(*sun_solver);
-
-         retval = CVodeSStolerances(sun_mem, reltol, abstol);
-         MFEM_VERIFY(retval == CV_SUCCESS, "error in CVodeSStolerances()");
-         retval = CVodeSetMaxStep(sun_mem, dt);
-         MFEM_VERIFY(retval == CV_SUCCESS, "error in CVodeSetMaxStep()");
+         cvode->SetSStolerances(reltol, abstol);
+         cvode->SetMaxStep(dt);
          ode_solver = cvode; break;
       case 3:
       case 4:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::EXPLICIT);
          arkode->Init(oper, t, u);
-         sun_mem = arkode->GetMem();
-         retval = ARKStepSStolerances(sun_mem, reltol, abstol);
-         MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSStolerances()");
-         retval = ARKStepSetMaxStep(sun_mem, dt);
-         MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSetMaxStep()");
-         if (ode_solver_type == 3)
-         {
-           retval = ARKStepSetTableNum(sun_mem, -1, FEHLBERG_13_7_8);
-           MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSetTableNum()");
-         }
+         arkode->SetSStolerances(reltol, abstol);
+         arkode->SetMaxStep(dt);
+         if (ode_solver_type == 3) arkode->SetERKTableNum(FEHLBERG_13_7_8);
          ode_solver = arkode; break;
       case 5:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::IMPLICIT);
          arkode->Init(oper, t, u);
-         sun_mem = arkode->GetMem();
-
          sun_solver = new SundialsJacSolver(oper);
          arkode->SetLinearSolver(*sun_solver);
-
-         retval = ARKStepSStolerances(sun_mem, reltol, abstol);
-         MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSStolerances()");
-         retval = ARKStepSetMaxStep(sun_mem, dt);
-         MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSetMaxStep()");
+         arkode->SetSStolerances(reltol, abstol);
+         arkode->SetMaxStep(dt);
          ode_solver = arkode; break;
    }
 
@@ -544,7 +519,7 @@ int SundialsJacSolver::ODELinSys(double t, Vector y, Vector fy, int jok,
   return(oper->SundialsSetup(jcur, gamma));
 }
 
-int SundialsJacSolver::LSSolve(Vector &x, Vector b)
+int SundialsJacSolver::Solve(Vector &x, Vector b)
 {
   return(oper->SundialsSolve(x, b));
 }
