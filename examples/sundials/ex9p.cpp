@@ -315,33 +315,21 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    CVODESolver *cvode = NULL;
    ARKStepSolver *arkode = NULL;
-   void *sun_mem = NULL;
-   int retval = 0;
    switch (ode_solver_type)
    {
       case 1:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS);
          cvode->Init(adv, t, *U);
-         sun_mem = cvode->GetMem();
-         retval = CVodeSStolerances(sun_mem, reltol, abstol);
-         MFEM_VERIFY(retval == CV_SUCCESS, "error in CVodeSStolerances()");
-         retval = CVodeSetMaxStep(sun_mem, dt);
-         MFEM_VERIFY(retval == CV_SUCCESS, "error in CVodeSetMaxStep()");
+         cvode->SetSStolerances(reltol, abstol);
+         cvode->SetMaxStep(dt);
          ode_solver = cvode; break;
       case 2:
       case 3:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::EXPLICIT);
          arkode->Init(adv, t, *U);
-         sun_mem = arkode->GetMem();
-         retval = ARKStepSStolerances(sun_mem, reltol, abstol);
-         MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSStolerances()");
-         retval = ARKStepSetMaxStep(sun_mem, dt);
-         MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSetMaxStep()");
-         if (ode_solver_type == 13)
-         {
-           retval = ARKStepSetTableNum(sun_mem, -1, FEHLBERG_13_7_8);
-           MFEM_VERIFY(retval == ARK_SUCCESS, "error in ARKStepSetTableNum()");
-         }
+         arkode->SetSStolerances(reltol, abstol);
+         arkode->SetMaxStep(dt);
+         if (ode_solver_type == 13) arkode->SetERKTableNum(FEHLBERG_13_7_8);
          ode_solver = arkode; break;
    }
 

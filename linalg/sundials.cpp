@@ -29,6 +29,8 @@
 #include <cvode/cvode.h>
 #include <sunlinsol/sunlinsol_spgmr.h>
 
+#define GET_CONTENT(X) ( X->content )
+
 using namespace std;
 
 namespace mfem
@@ -38,9 +40,9 @@ namespace mfem
   // ---------------------------------------------------------------------------
 
   // Access the wrapped object in the SUNMatrix
-  static inline SundialsODELinearSolver *GetObj(SUNMatrix A)
+  static inline SundialsLinearSolver *GetObj(SUNMatrix A)
   {
-    return (SundialsODELinearSolver *)(A->content);
+    return (SundialsLinearSolver *)(A->content);
   }
 
   // Return the matrix ID
@@ -62,9 +64,9 @@ namespace mfem
   // ---------------------------------------------------------------------------
 
   // Access wrapped object in the SUNLinearSolver
-  static inline SundialsODELinearSolver *GetObj(SUNLinearSolver LS)
+  static inline SundialsLinearSolver *GetObj(SUNLinearSolver LS)
   {
-    return (SundialsODELinearSolver *)(LS->content);
+    return (SundialsLinearSolver *)(LS->content);
   }
 
   // Return the linear solver type
@@ -76,13 +78,13 @@ namespace mfem
   // Initialize the linear solver
   static int LSInit(SUNLinearSolver LS)
   {
-    return(GetObj(LS)->LSInit());
+    return(GetObj(LS)->Init());
   }
 
   // Setup the linear solver
   static int LSSetup(SUNLinearSolver LS, SUNMatrix A)
   {
-    return(GetObj(LS)->LSSetup());
+    return(GetObj(LS)->Setup());
   }
 
   // Solve the linear system A x = b
@@ -91,7 +93,7 @@ namespace mfem
   {
     Vector mfem_x(x);
     const Vector mfem_b(b);
-    return(GetObj(LS)->LSSolve(mfem_x, mfem_b));
+    return(GetObj(LS)->Solve(mfem_x, mfem_b));
   }
 
   static int LSFree(SUNLinearSolver LS)
@@ -103,7 +105,7 @@ namespace mfem
   }
 
   // ---------------------------------------------------------------------------
-  // Wrappers for evaluating the ODE linear system
+  // Wrappers for evaluating ODE linear systems
   // ---------------------------------------------------------------------------
 
   static int cvLinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
@@ -143,6 +145,22 @@ namespace mfem
   // CVODE interface
   // ---------------------------------------------------------------------------
 
+  int CVODESolver::RHS(realtype t, const N_Vector y, N_Vector ydot,
+                       void *user_data)
+  {
+    // Get data from N_Vectors
+    const Vector mfem_y(y);
+    Vector mfem_ydot(ydot);
+    CVODESolver *self = static_cast<CVODESolver*>(user_data);
+
+    // Compute y' = f(t, y)
+    self->f->SetTime(t);
+    self->f->Mult(mfem_y, mfem_ydot);
+
+    // Return success
+    return(0);
+  }
+
   CVODESolver::CVODESolver(int lmm)
   {
     // Create the solver memory
@@ -152,6 +170,12 @@ namespace mfem
     // Allocate an empty serial N_Vector
     y = N_VNewEmpty_Serial(0);
     MFEM_VERIFY(y, "error in N_VNewEmpty_Serial()");
+
+    // Initialize the step mode
+    step_mode = CV_NORMAL;
+
+    // Initialize the return flag to success
+    flag = CV_SUCCESS;
   }
 
 #ifdef MFEM_USE_MPI
@@ -174,6 +198,12 @@ namespace mfem
       MFEM_VERIFY(y, "error in N_VNewEmpty_Parallel()");
 
     }
+
+    // Initialize the step mode
+    step_mode = CV_NORMAL;
+
+    // Initialize the return flag to success
+    flag = CV_SUCCESS;
   }
 #endif
 
@@ -231,23 +261,30 @@ namespace mfem
     MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolver()");
   }
 
-  int CVODESolver::RHS(realtype t, const N_Vector y, N_Vector ydot,
-                       void *user_data)
+  void CVODESolver::Step(Vector &x, double &t, double &dt)
   {
-    // Get data from N_Vectors
-    const Vector mfem_y(y);
-    Vector mfem_ydot(ydot);
-    CVODESolver *self = static_cast<CVODESolver*>(user_data);
+    if (!Parallel()) {
+      NV_DATA_S(y) = x.GetData();
+      MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(), "");
+    } else {
+#ifdef MFEM_USE_MPI
+      NV_DATA_P(y) = x.GetData();
+      MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(), "");
+#endif
+    }
 
-    // Compute y' = f(t, y)
-    self->f->SetTime(t);
-    self->f->Mult(mfem_y, mfem_ydot);
+    // Integrate the system
+    double tout = t + dt;
+    flag = CVode(sundials_mem, tout, y, &t, step_mode);
+    MFEM_VERIFY(flag >= 0, "error in CVode()");
 
-    // Return success
-    return(0);
+    // Return the last incremental step size
+    flag = CVodeGetLastStep(sundials_mem, &dt);
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeGetLastStep()");
   }
 
-  void CVODESolver::SetLinearSolver(SundialsODELinearSolver &ls_spec)
+
+  void CVODESolver::SetLinearSolver(SundialsLinearSolver &ls_spec)
   {
     // Free any existing linear solver
     if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
@@ -274,36 +311,32 @@ namespace mfem
     flag = CVodeSetLinearSolver(sundials_mem, LSA, A);
     MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolver()");
 
-    // Set the linear system function
+    // Set the linear system evaluation function
     flag = CVodeSetLinSysFn(sundials_mem, cvLinSysSetup);
     MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinSysFn()");
-  }
-
-  void CVODESolver::Step(Vector &x, double &t, double &dt)
-  {
-    if (!Parallel()) {
-      NV_DATA_S(y) = x.GetData();
-      MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(), "");
-    } else {
-#ifdef MFEM_USE_MPI
-      NV_DATA_P(y) = x.GetData();
-      MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(), "");
-#endif
-    }
-
-    // Integrate the system
-    double tout = t + dt;
-    flag = CVode(sundials_mem, tout, y, &t, step_mode);
-    MFEM_VERIFY(flag >= 0, "error in CVode()");
-
-    // Return the last incremental step size
-    flag = CVodeGetLastStep(sundials_mem, &dt);
-    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeGetLastStep()");
   }
 
   void CVODESolver::SetStepMode(int itask)
   {
     step_mode = itask;
+  }
+
+  void CVODESolver::SetSStolerances(double reltol, double abstol)
+  {
+    flag = CVodeSStolerances(sundials_mem, reltol, abstol);
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSStolerances()");
+  }
+
+  void CVODESolver::SetMaxStep(double dt_max)
+  {
+    flag = CVodeSetMaxStep(sundials_mem, dt_max);
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetMaxStep()");
+  }
+
+  void CVODESolver::SetMaxOrder(int max_order)
+  {
+    flag = CVodeSetMaxOrd(sundials_mem, max_order);
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetMaxOrd()");
   }
 
   void CVODESolver::PrintInfo() const
@@ -365,6 +398,38 @@ namespace mfem
   // ARKStep interface
   // ---------------------------------------------------------------------------
 
+  int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector ydot,
+                          void *user_data)
+  {
+    // Get data from N_Vectors
+    const Vector mfem_y(y);
+    Vector mfem_ydot(ydot);
+    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
+
+    // Compute f(t, y) in y' = f(t, y) or fe(t, y) in y' = fe(t, y) + fi(t, y)
+    self->f->SetTime(t);
+    self->f->Mult(mfem_y, mfem_ydot);
+
+    // Return success
+    return(0);
+  }
+
+  int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector ydot,
+                          void *user_data)
+  {
+    // Get data from N_Vectors
+    const Vector mfem_y(y);
+    Vector mfem_ydot(ydot);
+    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
+
+    // Compute fi(t, y) in y' = fe(t, y) + fi(t, y)
+    self->f2->SetTime(t);
+    self->f2->Mult(mfem_y, mfem_ydot);
+
+    // Return success
+    return(0);
+  }
+
   ARKStepSolver::ARKStepSolver(Type type)
     : use_implicit(type == IMPLICIT || type == IMEX), rk_type(type)
   {
@@ -372,6 +437,10 @@ namespace mfem
     y = N_VNewEmpty_Serial(0);
     MFEM_VERIFY(y, "error in N_VNewEmpty_Serial()");
 
+    // Initialize the step mode
+    step_mode = ARK_NORMAL;
+
+    // Initialize the return flag to success
     flag = ARK_SUCCESS;
   }
 
@@ -392,6 +461,12 @@ namespace mfem
       MFEM_VERIFY(y, "error in N_VNewEmpty_Parallel()");
 
     }
+
+    // Initialize the step mode
+    step_mode = ARK_NORMAL;
+
+    // Initialize the return flag to success
+    flag = ARK_SUCCESS;
   }
 #endif
 
@@ -487,39 +562,29 @@ namespace mfem
     }
   }
 
-  int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector ydot,
-                          void *user_data)
+  void ARKStepSolver::Step(Vector &x, double &t, double &dt)
   {
-    // Get data from N_Vectors
-    const Vector mfem_y(y);
-    Vector mfem_ydot(ydot);
-    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
+    if (!Parallel()) {
+      NV_DATA_S(y) = x.GetData();
+      MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(), "");
+    } else {
+#ifdef MFEM_USE_MPI
+      NV_DATA_P(y) = x.GetData();
+      MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(), "");
+#endif
+    }
 
-    // Compute f(t, y) in y' = f(t, y) or fe(t, y) in y' = fe(t, y) + fi(t, y)
-    self->f->SetTime(t);
-    self->f->Mult(mfem_y, mfem_ydot);
+    // Integrate the system
+    double tout = t + dt;
+    flag = ARKStepEvolve(sundials_mem, tout, y, &t, step_mode);
+    MFEM_VERIFY(flag >= 0, "error in ARKStepEvolve()");
 
-    // Return success
-    return(0);
+    // Return the last incremental step size
+    flag = ARKStepGetLastStep(sundials_mem, &dt);
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepGetLastStep()");
   }
 
-  int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector ydot,
-                          void *user_data)
-  {
-    // Get data from N_Vectors
-    const Vector mfem_y(y);
-    Vector mfem_ydot(ydot);
-    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
-
-    // Compute fi(t, y) in y' = fe(t, y) + fi(t, y)
-    self->f2->SetTime(t);
-    self->f2->Mult(mfem_y, mfem_ydot);
-
-    // Return success
-    return(0);
-  }
-
-  void ARKStepSolver::SetLinearSolver(SundialsODELinearSolver &ls_spec)
+  void ARKStepSolver::SetLinearSolver(SundialsLinearSolver &ls_spec)
   {
     // Free any existing matrix and linear solver
     if (A != NULL)   { SUNMatDestroy(A); A = NULL; }
@@ -551,12 +616,12 @@ namespace mfem
     flag = ARKStepSetLinearSolver(sundials_mem, LSA, A);
     MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
 
-    // Set the linear system function
+    // Set the linear system evaluation function
     flag = ARKStepSetLinSysFn(sundials_mem, arkLinSysSetup);
     MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinSysFn()");
   }
 
-  void ARKStepSolver::SetMassLinearSolver(SundialsODELinearSolver &ls_spec,
+  void ARKStepSolver::SetMassLinearSolver(SundialsLinearSolver &ls_spec,
                                           int tdep)
   {
     // Free any existing matrix and linear solver
@@ -594,31 +659,51 @@ namespace mfem
     MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
   }
 
-  void ARKStepSolver::Step(Vector &x, double &t, double &dt)
-  {
-    if (!Parallel()) {
-      NV_DATA_S(y) = x.GetData();
-      MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(), "");
-    } else {
-#ifdef MFEM_USE_MPI
-      NV_DATA_P(y) = x.GetData();
-      MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(), "");
-#endif
-    }
-
-    // Integrate the system
-    double tout = t + dt;
-    flag = ARKStepEvolve(sundials_mem, tout, y, &t, step_mode);
-    MFEM_VERIFY(flag >= 0, "error in ARKStepEvolve()");
-
-    // Return the last incremental step size
-    flag = ARKStepGetLastStep(sundials_mem, &dt);
-    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepGetLastStep()");
-  }
-
   void ARKStepSolver::SetStepMode(int itask)
   {
     step_mode = itask;
+  }
+
+  void ARKStepSolver::SetSStolerances(double reltol, double abstol)
+  {
+    flag = ARKStepSStolerances(sundials_mem, reltol, abstol);
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSStolerances()");
+  }
+
+  void ARKStepSolver::SetMaxStep(double dt_max)
+  {
+    flag = ARKStepSetMaxStep(sundials_mem, dt_max);
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMaxStep()");
+  }
+
+  void ARKStepSolver::SetOrder(int order)
+  {
+    flag = ARKStepSetOrder(sundials_mem, order);
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetOrder()");
+  }
+
+  void ARKStepSolver::SetERKTableNum(int table_num)
+  {
+    flag = ARKStepSetTableNum(sundials_mem, -1, table_num);
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetTableNum()");
+  }
+
+  void ARKStepSolver::SetIRKTableNum(int table_num)
+  {
+    flag = ARKStepSetTableNum(sundials_mem, table_num, -1);
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetTableNum()");
+  }
+
+  void ARKStepSolver::SetIMEXTableNum(int etable_num, int itable_num)
+  {
+    flag = ARKStepSetTableNum(sundials_mem, itable_num, itable_num);
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetTableNum()");
+  }
+
+  void ARKStepSolver::SetFixedStep(double dt)
+  {
+    flag = ARKStepSetFixedStep(sundials_mem, dt);
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetFixedStep()");
   }
 
   void ARKStepSolver::PrintInfo() const
@@ -682,6 +767,359 @@ namespace mfem
     SUNLinSolFree(LSA);
     SUNNonlinSolFree(NLS);
     ARKStepFree(&sundials_mem);
+  }
+
+  // ---------------------------------------------------------------------------
+  // KINSOL interface
+  // ---------------------------------------------------------------------------
+
+  // Wrapper for evaluating the nonlinear residual F(u) = 0
+  int KINSolver::Mult(const N_Vector u, N_Vector fu, void *user_data)
+  {
+    const Vector mfem_u(u);
+    Vector mfem_fu(fu);
+    KINSolver *self = static_cast<KINSolver*>(user_data);
+
+    // Compute the non-linear action F(u).
+    self->oper->Mult(mfem_u, mfem_fu);
+
+    // Return success
+    return 0;
+  }
+
+  // Wrapper for computing Jacobian-vector products
+  int KINSolver::GradientMult(N_Vector v, N_Vector Jv, N_Vector u,
+                              booleantype *new_u, void *user_data)
+  {
+    const Vector mfem_v(v);
+    Vector mfem_Jv(Jv);
+    KINSolver *self = static_cast<KINSolver*>(user_data);
+
+    // Update Jacobian information if needed
+    if (*new_u) {
+      const Vector mfem_u(u);
+      self->jacobian = &self->oper->GetGradient(mfem_u);
+      *new_u = SUNFALSE;
+    }
+
+    // Compute the Jacobian-vector product
+    self->jacobian->Mult(mfem_v, mfem_Jv);
+
+    // Return success
+    return 0;
+  }
+
+  // Wrapper for evaluating linear systems J u = b
+  int KINSolver::LinSysSetup(N_Vector u, N_Vector fu, SUNMatrix J,
+                             void *user_data, N_Vector tmp1, N_Vector tmp2)
+  {
+    const Vector mfem_u(u);
+    KINSolver *self = static_cast<KINSolver*>(GET_CONTENT(J));
+
+    // Update the Jacobian
+    self->jacobian = &self->oper->GetGradient(mfem_u);
+
+    // Set the Jacobian solve operator
+    self->prec->SetOperator(*self->jacobian);
+
+    // Return success
+    return(0);
+  }
+
+  // Wrapper for solving linear systems J u = b
+  int KINSolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix J, N_Vector u,
+                             N_Vector b, realtype tol)
+  {
+    Vector mfem_u(u), mfem_b(b);
+    KINSolver *self = static_cast<KINSolver*>(GET_CONTENT(LS));
+
+    // Solve for u = [J(u)]^{-1} b, maybe approximately.
+    self->prec->Mult(mfem_b, mfem_u);
+
+    // Return success
+    return(0);
+  }
+
+  KINSolver::KINSolver(int strategy, bool oper_grad)
+    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
+      f_scale(NULL), jacobian(NULL)
+  {
+    // Allocate empty serial N_Vectors
+    y = N_VNewEmpty_Serial(0);
+    y_scale = N_VNewEmpty_Serial(0);
+    f_scale = N_VNewEmpty_Serial(0);
+    MFEM_VERIFY(y && y_scale && f_scale, "Error in N_VNewEmpty_Serial().");
+
+    // Create the solver memory
+    sundials_mem = KINCreate();
+    MFEM_VERIFY(sundials_mem, "Error in KINCreate().");
+
+    // Default abs_tol and print_level
+    abs_tol     = pow(UNIT_ROUNDOFF, 1.0/3.0);
+    print_level = 0;
+
+    // Initialize flag to success
+    flag = KIN_SUCCESS;
+  }
+
+#ifdef MFEM_USE_MPI
+  KINSolver::KINSolver(MPI_Comm comm, int strategy, bool oper_grad)
+    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
+      f_scale(NULL), jacobian(NULL)
+  {
+    if (comm == MPI_COMM_NULL) {
+
+      // Allocate empty serial N_Vectors
+      y = N_VNewEmpty_Serial(0);
+      y_scale = N_VNewEmpty_Serial(0);
+      f_scale = N_VNewEmpty_Serial(0);
+      MFEM_VERIFY(y && y_scale && f_scale, "error in N_VNewEmpty_Serial()");
+
+    } else {
+
+      // Allocate empty parallel N_Vectors
+      y = N_VNewEmpty_Parallel(comm, 0, 0);
+      y_scale = N_VNewEmpty_Parallel(comm, 0, 0);
+      f_scale = N_VNewEmpty_Parallel(comm, 0, 0);
+      MFEM_VERIFY(y && y_scale && f_scale, "error in N_VNewEmpty_Parallel()");
+
+    }
+
+    // Create the solver memory
+    sundials_mem = KINCreate();
+    MFEM_VERIFY(sundials_mem, "error in KINCreate().");
+
+    // Default abs_tol and print_level
+    abs_tol     = pow(UNIT_ROUNDOFF, 1.0/3.0);
+    print_level = 0;
+
+    // Initialize flag to success
+    flag = KIN_SUCCESS;
+  }
+#endif
+
+
+  void KINSolver::SetOperator(const Operator &op)
+  {
+    // Initialize the base class
+    NewtonSolver::SetOperator(op);
+    jacobian = NULL;
+
+    // Set actual size and data in the N_Vector y.
+    if (!Parallel()) {
+
+      NV_LENGTH_S(y) = height;
+      NV_DATA_S(y)   = new double[height](); // value-initialize
+      NV_LENGTH_S(y_scale) = height;
+      NV_DATA_S(y_scale)   = NULL;
+      NV_LENGTH_S(f_scale) = height;
+      NV_DATA_S(f_scale)   = NULL;
+
+    } else {
+#ifdef MFEM_USE_MPI
+      long local_size = height, global_size;
+      MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
+                    NV_COMM_P(y));
+      NV_LOCLENGTH_P(y)  = local_size;
+      NV_GLOBLENGTH_P(y) = global_size;
+      NV_DATA_P(y)       = new double[local_size](); // value-initialize
+      NV_LOCLENGTH_P(y_scale)  = local_size;
+      NV_GLOBLENGTH_P(y_scale) = global_size;
+      NV_DATA_P(y_scale)       = NULL;
+      NV_LOCLENGTH_P(f_scale)  = local_size;
+      NV_GLOBLENGTH_P(f_scale) = global_size;
+      NV_DATA_P(f_scale)       = NULL;
+#endif
+    }
+
+    // Initialize KINSOL
+    flag = KINInit(sundials_mem, KINSolver::Mult, y);
+    MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINInit()");
+
+    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    // CHECK THIS
+    // Initialization of kin_pp; otherwise, for a custom Jacobian inversion,
+    // the first time we enter the linear solve, we will get uninitialized
+    // initial guess (matters when iterative_mode = true).
+    // N_VConst(ZERO, mem->kin_pp);
+    // CHECK THIS
+    // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    // Attach the KINSolver as user-defined data
+    flag = KINSetUserData(sundials_mem, this);
+    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetUserData()");
+
+    // Set default linear solver if necessary
+    if (!prec) {
+      LSA  = SUNLinSol_SPGMR(y, PREC_NONE, 0);
+      MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
+
+      flag = KINSetLinearSolver(sundials_mem, LSA, NULL);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetLinearSolver()");
+
+      // Set Jacobian-vector product function
+      if (use_oper_grad) {
+        flag = KINSetJacTimesVecFn(sundials_mem, KINSolver::GradientMult);
+        MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetJacTimesVecFn()");
+      }
+    }
+
+    // Delete the allocated data in y.
+    if (!Parallel()) {
+      delete [] NV_DATA_S(y);
+      NV_DATA_S(y) = NULL;
+    } else {
+#ifdef MFEM_USE_MPI
+      delete [] NV_DATA_P(y);
+      NV_DATA_P(y) = NULL;
+#endif
+    }
+  }
+
+  void KINSolver::SetSolver(Solver &solver)
+  {
+    // Store the solver
+    prec = &solver;
+
+    // Free any existing linear solver
+    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
+
+    // Unset Jacobian-vector product function if necessary
+    if (use_oper_grad) {
+      flag = KINSetJacTimesVecFn(sundials_mem, NULL);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetJacTimesVecFn()");
+    }
+
+    // Wrap KINSolver as SUNLinearSolver and SUNMatrix
+    LSA = SUNLinSolNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+
+    LSA->content      = this;
+    LSA->ops->gettype = LSGetType;
+    LSA->ops->solve   = KINSolver::LinSysSolve;
+    LSA->ops->free    = LSFree;
+
+    A = SUNMatNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+
+    A->content      = this;
+    A->ops->getid   = MatGetID;
+    A->ops->destroy = MatDestroy;
+
+    // Attach the linear solver and matrix
+    flag = KINSetLinearSolver(sundials_mem, LSA, A);
+    MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetLinearSolver()");
+
+    // Set the Jacobian evaluation function
+    flag = KINSetJacFn(sundials_mem, KINSolver::LinSysSetup);
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in KINSetJacFn()");
+  }
+
+  void KINSolver::SetScaledStepTol(double sstol)
+  {
+    flag = KINSetScaledStepTol(sundials_mem, sstol);
+    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetScaledStepTol()");
+  }
+
+  void KINSolver::SetMaxSetupCalls(int max_calls)
+  {
+    flag = KINSetMaxSetupCalls(sundials_mem, max_calls);
+    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMaxSetupCalls()");
+  }
+
+  // Compute the scaling vectors and solve nonlinear system
+  void KINSolver::Mult(const Vector &b, Vector &x) const
+  {
+    // Uses c = 1, corresponding to x_scale.
+    c = 1.0;
+
+    if (!iterative_mode) { x = 0.0; }
+
+    // For relative tolerance, r = 1 / |residual(x)|, corresponding to fx_scale.
+    if (rel_tol > 0.0) {
+
+      oper->Mult(x, r);
+
+      // Note that KINSOL uses infinity norms.
+      double norm;
+      if (!Parallel()) {
+        norm = r.Normlinf();
+      } else {
+#ifdef MFEM_USE_MPI
+        double lnorm = r.Normlinf();
+        MPI_Allreduce(&lnorm, &norm, 1, MPI_DOUBLE, MPI_MAX, NV_COMM_P(y));
+#endif
+      }
+      if (abs_tol > rel_tol * norm) {
+        r = 1.0;
+      } else {
+        r =  1.0 / norm;
+      }
+    } else {
+      r = 1.0;
+    }
+
+    // Set the residual norm tolerance
+    flag = KINSetFuncNormTol(sundials_mem, abs_tol);
+    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetFuncNormTol()");
+
+    // Solve the nonlinear system by calling the other Mult method
+    KINSolver::Mult(x, c, r);
+  }
+
+  // Solve the onlinear system using the provided scaling vectors
+  void KINSolver::Mult(Vector &x,
+                       const Vector &x_scale, const Vector &fx_scale) const
+  {
+    flag = KINSetPrintLevel(sundials_mem, print_level);
+    MFEM_VERIFY(flag == KIN_SUCCESS, "KINSetPrintLevel() failed!");
+
+    flag = KINSetNumMaxIters(sundials_mem, max_iter);
+    MFEM_ASSERT(flag == KIN_SUCCESS, "KINSetNumMaxIters() failed!");
+
+    if (!Parallel()) {
+
+      NV_DATA_S(y) = x.GetData();
+      MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(), "");
+      NV_DATA_S(y_scale) = x_scale.GetData();
+      NV_DATA_S(f_scale) = fx_scale.GetData();
+
+    } else {
+
+#ifdef MFEM_USE_MPI
+      NV_DATA_P(y) = x.GetData();
+      MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(), "");
+      NV_DATA_P(y_scale) = x_scale.GetData();
+      NV_DATA_P(f_scale) = fx_scale.GetData();
+#endif
+
+    }
+
+    if (!iterative_mode) { x = 0.0; }
+
+    // Solve the nonlinear system
+    flag = KINSol(sundials_mem, y, global_strategy, y_scale, f_scale);
+    converged = (flag >= 0);
+
+    // Get number of nonlinear iterations
+    long int tmp_nni;
+    flag = KINGetNumNonlinSolvIters(sundials_mem, &tmp_nni);
+    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINGetNumNonlinSolvIters()");
+    final_iter = (int) tmp_nni;
+
+    // Get the residual norm
+    flag = KINGetFuncNorm(sundials_mem, &final_norm);
+    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINGetFuncNorm()");
+  }
+
+  KINSolver::~KINSolver()
+  {
+    N_VDestroy(y);
+    N_VDestroy(y_scale);
+    N_VDestroy(f_scale);
+    SUNMatDestroy(A);
+    SUNLinSolFree(LSA);
+    KINFree(&sundials_mem);
   }
 
 } // namespace mfem
