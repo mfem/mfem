@@ -427,10 +427,7 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      vis_psi.open(vishost, visport);
       vis_phi.open(vishost, visport);
-      vis_j.open(vishost, visport);
-      vis_w.open(vishost, visport);
       if (!vis_phi)
       {
          if (myid == 0) 
@@ -448,21 +445,25 @@ int main(int argc, char *argv[])
          vis_phi << "window_size 800 800\n"<< "window_title '" << "phi'" << "keys cm\n";
          vis_phi << "pause\n";
          vis_phi << flush;
-         vis_phi << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
+         if (myid==0)
+            cout<< "GLVis visualization paused."
+                << " Press space (in the GLVis window) to resume it.\n";
 
+         vis_j.open(vishost, visport);
          vis_j << "parallel " << num_procs << " " << myid << "\n";
          vis_j.precision(8);
          vis_j << "solution\n" << *pmesh << j;
          vis_j << "window_size 800 800\n"<< "window_title '" << "current'" << "keys cm\n";
          vis_j << flush;
 
+         vis_psi.open(vishost, visport);
          vis_psi << "parallel " << num_procs << " " << myid << "\n";
          vis_psi.precision(8);
          vis_psi << "solution\n" << *pmesh << psi;
          vis_psi << "window_size 800 800\n"<< "window_title '" << "psi'" << "keys cm\n";
          vis_psi << flush;
 
+         vis_w.open(vishost, visport);
          vis_w << "parallel " << num_procs << " " << myid << "\n";
          vis_w.precision(8);
          vis_w << "solution\n" << *pmesh << w;
