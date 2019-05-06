@@ -135,13 +135,14 @@ int main(int argc, char *argv[])
    double ltol_amr=1e-5;
    bool visit = false;
    bool derefine = false;
+   bool derefineIt = false;
    int precision = 8;
    int icase = 1;
    int nc_limit = 3;         // maximum level of hanging nodes
    alpha = 0.001; 
    Lx=3.0;
    lambda=5.0;
-   int ref_steps=100;
+   int ref_steps=1000;
 
    bool visualization = true;
    int vis_steps = 10;
@@ -307,7 +308,7 @@ int main(int argc, char *argv[])
    refiner.SetTotalErrorGoal(1e-10);    // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(1e-10);    // local error goal (stop criterion)
    refiner.SetMaxElements(50000);
-   refiner.SetMaximumRefinementLevel(amr_levels);
+   refiner.SetMaximumRefinementLevel(ser_ref_levels+par_ref_levels+1);
    refiner.SetNCLimit(nc_limit);
 
    ThresholdDerefiner derefiner(estimator);
@@ -478,6 +479,7 @@ int main(int argc, char *argv[])
    bool last_step = false;
 
    //reset ltol_amr for full simulation
+   refiner.SetMaximumRefinementLevel(amr_levels);
    refiner.SetTotalErrorGoal(ltol_amr);    // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
 
@@ -523,22 +525,24 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
 
       if ((ti % ref_steps) == 0)
+      {
           refineMesh=true;
+          refiner.Reset();
+      }
       else
           refineMesh=false;
 
-      if (refineMesh) refiner.Reset();
-      if (derefine) derefiner.Reset();
+      if ( derefine && (ti-ref_steps/2)%ref_steps ==0 && ti >  ref_steps ) 
+      {
+          derefineIt=true;
+          derefiner.Reset();
+      }
+      else
+          derefineIt=false;
 
       // 13. The inner refinement loop. At the end we want to have the current
       //     time step resolved to the prescribed tolerance in each element.
       {
-        if (myid == 0)
-        {
-            global_size = fespace.GlobalTrueVSize();
-            cout << "Number of total scalar unknowns: " << global_size << endl;
-        }
-
         //---Predictor stage---
         //assemble the nonlinear terms
         oper.assembleNv(&phi);
@@ -555,8 +559,10 @@ int main(int argc, char *argv[])
 
         last_step = (t >= t_final - 1e-8*dt);
 
-        if (myid == 0)
+        if (myid == 0 && (ti % 200)==0)
         {
+            global_size = fespace.GlobalTrueVSize();
+            cout << "Number of total scalar unknowns: " << global_size << endl;
             cout << "step " << ti << ", t = " << t <<endl;
         }
 
@@ -564,7 +570,7 @@ int main(int argc, char *argv[])
         if (refineMesh)  refiner.Apply(*pmesh);
         if (refiner.Refined()==false || (!refineMesh))
         {
-           if (derefine && derefiner.Apply(*pmesh))
+           if (derefine && derefineIt && derefiner.Apply(*pmesh))
            {
               if (myid == 0) cout << "Derefined mesh..." << endl;
 

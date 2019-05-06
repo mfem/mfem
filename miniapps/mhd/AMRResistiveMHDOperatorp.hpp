@@ -122,6 +122,7 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    M_solver.SetOperator(Mmat);
 
    K->FormSystemMatrix(ess_tdof_list, Kmat);
+   useAMG=true;
    if(useAMG)
    {
       delete K_amg;
@@ -325,7 +326,10 @@ void AMRResistiveMHDOperator::UpdatePhi(Vector &vx)
    HypreParMatrix A;
    Vector B, X;
    K->FormLinearSystem(ess_tdof_list, phi, z, A, X, B); // Alters matrix and rhs to enforce bc
-   K_solver.Mult(B, X);
+   if(useAMG)
+      K_pcg->Mult(B, X);
+   else
+      K_solver.Mult(B, X);
    K->RecoverFEMSolution(X, z, phi);
 }
 
