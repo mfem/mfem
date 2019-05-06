@@ -12267,6 +12267,10 @@ SBP_TriangleElement::SBP_TriangleElement(const int p, const int Do)
          mfem_error("SBP elements are currently only supported for 0 <= order <= 4");
          break;
    }
+   for (int i = 0; i < Dof; i++)
+   {
+      IntPointMap[Nodes.IntPoint(i)] = i;
+   }
 }
 
 /// CalcShape outputs ndofx1 vector shape based on Kronecker \delta_{i, ip}

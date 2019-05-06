@@ -2856,7 +2856,7 @@ private:
    mutable DenseMatrix du, ddu;
 #endif
    DenseMatrix *Dx, *Dy;
-   DenseMatrixInverse Ti;
+   std::unordered_map<IntegrationPoint*, int> IntPointMap;
 
 public:
    SBP_TriangleElement(const int p, const int Do);
