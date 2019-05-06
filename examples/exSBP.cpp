@@ -25,6 +25,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <chrono>
 
 using namespace std;
 using namespace mfem;
@@ -161,7 +162,15 @@ int main(int argc, char *argv[])
       return 3;
 	}
 	
+   // Start timing
+   std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();
+
    b->Assemble();
+
+   // End timing and compute interval
+   std::chrono::time_point<std::chrono::high_resolution_clock> finish = std::chrono::high_resolution_clock::now();
+   std::chrono::duration<double> elapsed = finish - start;
+   std::cout << "\nb->Assemble() elapsed time: " << elapsed.count() << " s\n";
 
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -175,7 +184,16 @@ int main(int argc, char *argv[])
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
+
+   // Start timing
+   start = std::chrono::high_resolution_clock::now();
+
    a->Assemble();
+
+   // End timing and compute interval
+   finish = std::chrono::high_resolution_clock::now();
+   elapsed = finish - start;
+   std::cout << "\na->Assemble() elapsed time: " << elapsed.count() << " s\n";
 
    SparseMatrix A;
    Vector B, X;
