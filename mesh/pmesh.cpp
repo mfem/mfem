@@ -2040,7 +2040,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          break;
       }
 
-      int  nbr_rank   = GetFaceNbrRank(fn);
+      // int  nbr_rank   = GetFaceNbrRank(fn);
       int  elem_off   = face_nbr_elements_offset[fn];
       int  nbr_group  = face_nbr_group[fn];
       int  num_sfaces = gr_sface->RowSize(nbr_group-1);
@@ -2075,7 +2075,8 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                   nbr_v[perm[j]] = sf_v[j];
                }
                // get the orientation of nbr_v w.r.t. the local face
-               // nbr_ori = GetTriOrientation(lf_v, nbr_v);
+               nbr_ori = GetTriOrientation(lf_v, nbr_v);
+               /*
                if (MyRank < nbr_rank)
                {
                   nbr_ori = GetTriOrientation(lf_v, nbr_v);
@@ -2084,6 +2085,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                {
                   nbr_ori = GetTriOrientation(nbr_v, lf_v);
                }
+               */
             }
             else // quad shared face
             {
@@ -2095,7 +2097,8 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                   nbr_v[perm[j]] = sf_v[j];
                }
                // get the orientation of nbr_v w.r.t. the local face
-               // nbr_ori = GetQuadOrientation(lf_v, nbr_v);
+               nbr_ori = GetQuadOrientation(lf_v, nbr_v);
+               /*
                if (MyRank < nbr_rank)
                {
                   nbr_ori = GetQuadOrientation(lf_v, nbr_v);
@@ -2104,9 +2107,11 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                {
                   nbr_ori = GetQuadOrientation(nbr_v, lf_v);
                }
+               */
             }
 
-            // info = 64*(info/64) + nbr_ori;
+            info = 64*(info/64) + nbr_ori;
+            /*
             if (MyRank < nbr_rank)
             {
                info = 64*(info/64) + nbr_ori;
@@ -2115,6 +2120,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
             {
                face_info.Elem1Inf = 64*(face_info.Elem1Inf/64) + nbr_ori;
             }
+            */
          }
          face_info.Elem2Inf = info;
       }
