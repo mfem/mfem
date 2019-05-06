@@ -12,7 +12,7 @@ using namespace std;
 //#define ELIMINATE_REDUNDANT_VARS
 //#define EQUATE_REDUNDANT_VARS
 
-#define PENALTY_U_S 1.0e8
+#define PENALTY_U_S 0.0
 
 void test1_E_exact(const Vector &x, Vector &E)
 {
@@ -309,9 +309,9 @@ void SendSparseMatrix(SparseMatrix *S, const int dest)
 }
 
 // We assume here that the sparsity structure of the interface matrix I is contained in that of the subdomain matrix A.
-// We simply add entries from I to existing entries of A.
+// We simply add entries from I to existing entries of A. The constant cI times the interface identity matrix is added.
 HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(HypreParMatrix *A, HypreParMatrix *I, std::vector<int> & inj,
-						     ParFiniteElementSpace *ifespace)
+						     ParFiniteElementSpace *ifespace, const double cI)
 {
   // inj maps from full local interface DOF's to local true DOF's in the subdomain. 
 
@@ -321,6 +321,14 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(HypreParMatrix *A, HyprePar
   if (ifespace != NULL)
     {
       globalI = GatherHypreParMatrix(I);
+
+      if (globalI != NULL)
+	{
+	  for (int i=0; i<globalI->Size(); ++i)
+	    {
+	      globalI->Add(i, i, cI);
+	    }
+	}
     }
 
   // Find the unique rank in MPI_COMM_WORLD of the ifespace rank 0 process that stores globalI. 
@@ -2411,7 +2419,8 @@ private:
     const double kzTM = sqrt((ktTM*ktTM) - k2);
     
     const double k = sqrt(k2);
-    
+
+    // PengLee2012
     // alpha = ik
     // beta = i / (k + i kzTE) = i * (k - i kzTE) / (k^2 + kzTE^2) = (kzTE + ik) / (k^2 + kzTE^2)
     // gamma = 1 / (k^2 + i k * kzTM) = (k^2 - i k * kzTM) / (k^4 + k^2 kzTM^2)
@@ -2425,6 +2434,26 @@ private:
     alphaIm = k;
     betaIm = k / (k2 + (kzTE * kzTE));
     gammaIm = -kzTM / (k * (k2 + (kzTM * kzTM)));
+
+
+    // RawatLee2010
+    // alpha = -ik
+    // beta = i / (k + kzTE) = i / (k - i sqrt((k_tau^{max,te})^2 - k^2)) = i / (k - i sqrt(ktTE^2 - k^2))
+    //      = i (k + i sqrt(ktTE^2 - k^2)) / [k^2 + ktTE^2 - k^2] = i (k + i sqrt(ktTE^2 - k^2)) / ktTE^2
+    //      = [-sqrt(ktTE^2 - k^2) + ik] / ktTE^2 = [-kzTE + ik] / ktTE^2
+    // gamma = 1 / [k^2 + k kzTM] = 1 / [k^2 - ik sqrt((k_tau^{max,tm})^2 - k^2)] = 1 / [k^2 - ik sqrt(ktTM^2 - k^2)]
+    //       = [k^2 + ik sqrt(ktTM^2 - k^2)] / (k^4 + k^2 ktTM^2 - k^4) = [k^2 + ik sqrt(ktTM^2 - k^2)] / (k^2 ktTM^2)
+    //       = [1 + i (1/k) sqrt(ktTM^2 - k^2)] / ktTM^2 = [1 + i (kzTM / k)] / ktTM^2
+    
+    // Real part
+    alphaRe = 0.0;
+    betaRe = -kzTE / (ktTE * ktTE);
+    gammaRe = 1.0 / (ktTM * ktTM);
+
+    // Imaginary part
+    alphaIm = -k;
+    betaIm = k / (ktTE * ktTE);
+    gammaIm = kzTM / (k * (ktTM * ktTM));
 
     /*
     {
@@ -3155,16 +3184,18 @@ private:
   {
     BlockOperator *op = new BlockOperator(trueOffsetsSD[subdomain]);
 
+    const double sd1pen = (subdomain == 1) ? PENALTY_U_S : 0.0;
+    
 #ifdef DDMCOMPLEX
     if (realPart)
 #endif
       {
 	if (sdND[subdomain] != NULL)
 	  {
-#ifdef EQUATE_REDUNDANT_VARS
+#ifdef EQUATE_REDUNDANT_VARS_notusingthis
 	    // TODO: this is a hack, assuming exactly one interface. In general, the penalties should be summed for all interfaces. 
 	    MFEM_VERIFY(subdomainLocalInterfaces[subdomain].size() == 1, "");
-	    if (subdomain == 1)
+	    if (subdomain == -1)
 	      {
 		const int interfaceIndex = subdomainLocalInterfaces[subdomain][0];
 
@@ -3290,7 +3321,7 @@ private:
 		    (*(ifNDcurlcurl[interfaceIndex])) *= -1.0 / beta;
 
 		    A_SS[subdomain] = AddSubdomainMatrixAndInterfaceMatrix(sdNDcopy[subdomain], sumMassCC, InterfaceToSurfaceInjectionData[subdomain][i],
-									   ifespace[interfaceIndex]);
+									   ifespace[interfaceIndex], PENALTY_U_S);
 		    delete sumMassCC;
 		  }
 		else
@@ -3308,9 +3339,17 @@ private:
 		  {
 		    A_SS_op = new SumOperator(sdND[subdomain],
 					      new TripleProductOperator(InterfaceToSurfaceInjection[subdomain][i],
+#ifdef EQUATE_REDUNDANT_VARS
+									new SumOperator(new IdentityOperator(ifespace[interfaceIndex]->GetTrueVSize()),
+											new SumOperator(ifNDmass[interfaceIndex],
+													ifNDcurlcurl[interfaceIndex],
+													false, false, -alpha, -beta),
+											false, false, sd1pen, 1.0),
+#else
 									new SumOperator(ifNDmass[interfaceIndex],
 											ifNDcurlcurl[interfaceIndex],
 											false, false, -alpha, -beta),
+#endif
 									new TransposeOperator(InterfaceToSurfaceInjection[subdomain][i]),
 									false, false, false),
 					      false, false, 1.0, 1.0);
@@ -3324,7 +3363,7 @@ private:
 		op->SetBlock(0, 0, A_SS_op);
 	      }
 	  }
-	else
+	else  // if not real part
 	  {
 	    // Sum operators abstractly, without adding matrices into a new HypreParMatrix.
 	    if (A_SS_op == NULL)
