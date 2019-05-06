@@ -26,10 +26,12 @@ class FiniteElement; // Forward declaration of class to alow overloaded Get()
 /// Class for integration point with weight
 class IntegrationPoint
 {
+private:
+   int index;
 public:
    double x, y, z, weight;
 
-   void Init() { x = y = z = weight = 0.0; }
+   void Init(int idx) { x = y = z = weight = 0.0; index = idx;}
 
    void Set(const double *p, const int dim)
    {
@@ -81,6 +83,8 @@ public:
    void Set1w(const double x1, const double w) { x = x1; weight = w; }
 
    void Set1w(const double *p) { x = p[0]; weight = p[1]; }
+
+   const int GetIdx() const {return index;}
 };
 
 /// Class for an integration rule - an Array of IntegrationPoint.
@@ -214,7 +218,7 @@ public:
    {
       for (int i = 0; i < this->Size(); i++)
       {
-         (*this)[i].Init();
+         (*this)[i].Init(i);
       }
    }
 

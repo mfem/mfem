@@ -12275,14 +12275,14 @@ void SBP_TriangleElement::CalcShape(const IntegrationPoint &ip,
                                    Vector &shape) const
 {
    shape = 0.0;
-
-   for (int i = 0; i < Dof; i++)
-   {
-      if (ip.x == Nodes.IntPoint(i).x && ip.y == Nodes.IntPoint(i).y)
-      {
-         shape(i) = 1;
-      }
-   }
+   shape[ip.GetIdx()] = 1.0;
+   // for (int i = 0; i < Dof; i++)
+   // {
+   //    if (ip.x == Nodes.IntPoint(i).x && ip.y == Nodes.IntPoint(i).y)
+   //    {
+   //       shape(i) = 1;
+   //    }
+   // }
 }
 
 /// CalcDShape outputs ndof x ndim DenseMatrix dshape, where the first column
@@ -12293,25 +12293,25 @@ void SBP_TriangleElement::CalcShape(const IntegrationPoint &ip,
 void SBP_TriangleElement::CalcDShape(const IntegrationPoint &ip,
                                     DenseMatrix &dshape) const
 {
-   int ipNum;
+   int ipIdx = ip.GetIdx();
    dshape = 0.0;
 
-   for (int i = 0; i < Dof; i++)
-   {
-      if (ip.x == Nodes.IntPoint(i).x && ip.y == Nodes.IntPoint(i).y)
-      {
-         ipNum = i;
-      }
-   }
+   // for (int i = 0; i < Dof; i++)
+   // {
+   //    if (ip.x == Nodes.IntPoint(i).x && ip.y == Nodes.IntPoint(i).y)
+   //    {
+   //       ipNum = i;
+   //    }
+   // }
 
    Vector tempVec(Dof);
 
    // when we switch to storing Dx and Dy transpose so that access to the row we want
    // is faster Dx->GetRow() will be replaced with Dx->GetColumnReference() or 
    // Dx->GetColumn(), whichever is faster
-   Dx->GetRow(ipNum, tempVec);
+   Dx->GetRow(ipIdx, tempVec);
    dshape.SetCol(0, tempVec);
-   Dy->GetRow(ipNum, tempVec);
+   Dy->GetRow(ipIdx, tempVec);
    dshape.SetCol(1, tempVec);
 }
 
