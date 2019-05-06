@@ -106,12 +106,13 @@ public:
 class ND_TetDofTransformation : public DofTransformation
 {
 private:
-   static const double T_data[24];
-   static const double TInv_data[24];
    const DenseTensor T, TInv;
    int order;
 
 public:
+   static const double T_data[24];
+   static const double TInv_data[24];
+
    ND_TetDofTransformation(int order);
 
    void TransformPrimal(const double *, double *) const;
