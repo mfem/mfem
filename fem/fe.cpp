@@ -12269,7 +12269,7 @@ SBP_TriangleElement::SBP_TriangleElement(const int p, const int Do)
    }
    for (int i = 0; i < Dof; i++)
    {
-      IntPointMap[Nodes.IntPoint(i)] = i;
+      ipIdxMap[&(Nodes.IntPoint(i))] = i;
    }
 }
 
@@ -12278,15 +12278,32 @@ SBP_TriangleElement::SBP_TriangleElement(const int p, const int Do)
 void SBP_TriangleElement::CalcShape(const IntegrationPoint &ip,
                                    Vector &shape) const
 {
-   shape = 0.0;
-
-   for (int i = 0; i < Dof; i++)
+   int ipIdx;
+   try
    {
-      if (ip.x == Nodes.IntPoint(i).x && ip.y == Nodes.IntPoint(i).y)
+      ipIdx = ipIdxMap.at(&ip);
+   }
+   catch (const std::out_of_range& oor)
+   // error handling code to handle cases where the pointer to ip is not
+   // in the map. Problems arise in GridFunction::SaveVTK(), it seems like
+   // an integration rule is constructed on its own and does not use Nodes.
+   // I will investigate further, but in the meantime this handles the error
+   // and uses the old (slow) linear search approach.
+   {
+#ifdef MFEM_DEBUG      
+      mfem::out << "Integration Point out of range error in unordered map. "
+                << "Using linear search.\n";
+#endif
+      for (int i = 0; i < Dof; i++)
       {
-         shape(i) = 1;
+         if (ip.x == Nodes.IntPoint(i).x && ip.y == Nodes.IntPoint(i).y)
+         {
+            ipIdx = i;
+         }
       }
    }
+   shape = 0.0;
+   shape(ipIdx) = 1.0;
 }
 
 /// CalcDShape outputs ndof x ndim DenseMatrix dshape, where the first column
@@ -12297,25 +12314,40 @@ void SBP_TriangleElement::CalcShape(const IntegrationPoint &ip,
 void SBP_TriangleElement::CalcDShape(const IntegrationPoint &ip,
                                     DenseMatrix &dshape) const
 {
-   int ipNum;
-   dshape = 0.0;
-
-   for (int i = 0; i < Dof; i++)
+   int ipIdx;
+   try
    {
-      if (ip.x == Nodes.IntPoint(i).x && ip.y == Nodes.IntPoint(i).y)
+      ipIdx = ipIdxMap.at(&ip);
+   }
+   catch (const std::out_of_range& oor)
+   // error handling code to handle cases where the pointer to ip is not
+   // in the map. Problems arise in GridFunction::SaveVTK(), it seems like
+   // an integration rule is constructed on its own and does not use Nodes.
+   // I will investigate further, but in the meantime this handles the error
+   // and uses the old (slow) linear search approach.
+   {
+#ifdef MFEM_DEBUG      
+      mfem::out << "Integration Point out of range error in unordered map. "
+                << "Using linear search.\n";
+#endif
+      for (int i = 0; i < Dof; i++)
       {
-         ipNum = i;
+         if (ip.x == Nodes.IntPoint(i).x && ip.y == Nodes.IntPoint(i).y)
+         {
+            ipIdx = i;
+         }
       }
    }
+   dshape = 0.0;
 
    Vector tempVec(Dof);
 
    // when we switch to storing Dx and Dy transpose so that access to the row we want
    // is faster Dx->GetRow() will be replaced with Dx->GetColumnReference() or 
    // Dx->GetColumn(), whichever is faster
-   Dx->GetRow(ipNum, tempVec);
+   Dx->GetRow(ipIdx, tempVec);
    dshape.SetCol(0, tempVec);
-   Dy->GetRow(ipNum, tempVec);
+   Dy->GetRow(ipIdx, tempVec);
    dshape.SetCol(1, tempVec);
 }
 
