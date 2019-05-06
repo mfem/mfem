@@ -125,7 +125,9 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
    //    meshes need to be reoriented before we can define high-order Nedelec
    //    spaces on them.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   Array<int> part(mesh->GetNE());
+   for (int i=0; i<mesh->GetNE(); i++) { part[i] = i % num_procs; }
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, part);
    delete mesh;
    {
       int par_ref_levels = rp;
@@ -171,9 +173,9 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient fCoef(sdim, f_exact);
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fCoef));
-   cout << "Assembling b" << endl;
+   cout << myid << ": Assembling b" << endl;
    b->Assemble();
-   cout << "Done assembling b" << endl;
+   cout << myid << ": Done assembling b" << endl;
 
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
@@ -182,6 +184,7 @@ int main(int argc, char *argv[])
    //    r.h.s. vector b.
    ParGridFunction x(fespace);
    ParGridFunction d_x(d_fespace);
+   ParGridFunction d_f(d_fespace);
    VectorFunctionCoefficient E(sdim, E_exact);
 
    /*
@@ -238,24 +241,79 @@ int main(int argc, char *argv[])
       ParGridFunction f(fespace);
       f.ProjectCoefficient(tvCoef);
 
+      {
+         double errf = f.ComputeL2Error(tvCoef);
+         if (myid == 0)
+         {
+            cout << endl;
+            cout << "|| f_h - f ||_{L^2} = " << errf << endl;
+         }
+
+         cout << myid << "printing f" << endl;
+         ostringstream ossf; ossf << "f.gf." << myid;
+         ofstream ofsf(ossf.str().c_str());
+         f.Print(ofsf, 1);
+
+         cout << myid << "printing F" << endl;
+         Vector F(fespace->TrueVSize());
+         f.ParallelProject(F);
+
+         ostringstream ossF; ossF << "F.vec." << myid;
+         ofstream ofsF(ossF.str().c_str());
+         F.Print(ofsF, 1);
+
+         ParGridFunction f2(fespace);
+         cout << myid << "printing f again" << endl;
+         f2.Distribute(F);
+
+         ostringstream ossf2; ossf2 << "f2.gf." << myid;
+         ofstream ofsf2(ossf2.str().c_str());
+         f2.Print(ofsf2, 1);
+      }
+
       ParLinearForm f_lf(fespace);
       f_lf.AddDomainIntegrator(new VectorFEDomainLFIntegrator(tvCoef));
       f_lf.Assemble();
 
       ParBilinearForm m(fespace);
       m.AddDomainIntegrator(new VectorFEMassIntegrator);
-      cout << "Assembling m" << endl;
+      cout << myid << ": Assembling m" << endl;
       m.Assemble();
-      cout << "Done assembling m" << endl;
+      cout << myid << ": Done assembling m" << endl;
 
-      cout << "Projecting f onto x" << endl;
+      cout << myid << ": Projecting f onto x" << endl;
       x.ProjectCoefficient(tvCoef);
-      cout << "Done projecting f onto x" << endl;
+      cout << myid << ": Done projecting f onto x" << endl;
+
+      double f2 = f_lf(x);
+      if (myid == 0)
+      {
+         cout << endl << "f(f_h) = " << f2 << endl << endl;
+      }
 
       HypreParMatrix M;
       Vector B, X;
       m.FormLinearSystem(ess_tdof_list, x, f_lf, M, X, B);
 
+      {
+         ostringstream oss; oss << "B.vec." << myid;
+         ofstream ofsB(oss.str().c_str());
+         B.Print(ofsB, 1);
+
+         set<int> bs;
+         for (int i=0; i<B.Size(); i++)
+         {
+            bs.insert((int)fabs(1.0e8 * B[i]));
+         }
+         cout << "bs.size(): " << bs.size() << endl;
+
+         set<int>::iterator sit;
+         ofsB << "\nbs\n";
+         for (sit=bs.begin(); sit !=bs.end(); sit++)
+         {
+            ofsB << ((double)*sit)*1e-8 << endl;
+         }
+      }
       M.Print("M.mat");
 
       HypreParMatrix * Mt = M.Transpose();
@@ -273,16 +331,20 @@ int main(int argc, char *argv[])
       pcg.Mult(B, X);
       m.RecoverFEMSolution(X, f_lf, x);
 
+      f.ProjectVectorFieldOn(d_f);
       x.ProjectVectorFieldOn(d_x);
       {
          double errf = f.ComputeL2Error(tvCoef);
+         double d_errf = d_f.ComputeL2Error(tvCoef);
          double err = x.ComputeL2Error(tvCoef);
          double d_err = d_x.ComputeL2Error(tvCoef);
          if (myid == 0)
          {
-            cout << "\n|| f_h - f ||_{L^2} = " << errf << '\n' << endl;
-            cout << "\n|| sol_h - f ||_{L^2} = " << err << '\n' << endl;
-            cout << "\n|| disc_h - f ||_{L^2} = " << d_err << '\n' << endl;
+            cout << endl;
+            cout << "|| f_h - f        ||_{L^2} = " << errf << endl;
+            cout << "|| disc f_h - f   ||_{L^2} = " << d_errf << endl;
+            cout << "|| sol_h - f      ||_{L^2} = " << err << endl;
+            cout << "|| disc sol_h - f ||_{L^2} = " << d_err << endl;
          }
       }
 
@@ -294,14 +356,14 @@ int main(int argc, char *argv[])
          f_sock << "parallel " << num_procs << " " << myid << "\n";
          f_sock.precision(8);
          f_sock << "solution\n" << *pmesh << f
-                << "window_title 'f'"
+                << "window_title 'f, order = " << order << "'"
                 << "keys vvv"
                 << flush;
          socketstream sol_sock(vishost, visport);
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock.precision(8);
          sol_sock << "solution\n" << *pmesh << x
-                  << "window_title 'f test'"
+                  << "window_title 'f test, order = " << order << "'"
                   << "keys vvv"
                   << flush;
       }
