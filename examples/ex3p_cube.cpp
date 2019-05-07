@@ -249,12 +249,12 @@ int main(int argc, char *argv[])
             cout << "|| f_h - f ||_{L^2} = " << errf << endl;
          }
 
-         cout << myid << "printing f" << endl;
+         cout << myid << ": printing f" << endl;
          ostringstream ossf; ossf << "f.gf." << myid;
          ofstream ofsf(ossf.str().c_str());
          f.Print(ofsf, 1);
 
-         cout << myid << "printing F" << endl;
+         cout << myid << ": printing F" << endl;
          Vector F(fespace->TrueVSize());
          f.ParallelProject(F);
 
@@ -263,7 +263,7 @@ int main(int argc, char *argv[])
          F.Print(ofsF, 1);
 
          ParGridFunction f2(fespace);
-         cout << myid << "printing f again" << endl;
+         cout << myid << ": printing f again" << endl;
          f2.Distribute(F);
 
          ostringstream ossf2; ossf2 << "f2.gf." << myid;
@@ -314,14 +314,20 @@ int main(int argc, char *argv[])
             ofsB << ((double)*sit)*1e-8 << endl;
          }
       }
-      M.Print("M.mat");
+      if (false)
+      {
+	M.Print("M.mat");
 
-      HypreParMatrix * Mt = M.Transpose();
-      Mt->Print("Mt.mat");
+	HypreParMatrix * Mt = M.Transpose();
+	Mt->Print("Mt.mat");
 
-      HypreParMatrix * MA = Add(1.0, M, -1.0, *Mt);
-      MA->Print("MA.mat");
+	HypreParMatrix * MA = Add(1.0, M, -1.0, *Mt);
+	MA->Print("MA.mat");
 
+	delete Mt;
+	delete MA;
+      }
+      
       HypreDiagScale diag(M);
       HyprePCG pcg(M);
       pcg.SetTol(1e-12);
