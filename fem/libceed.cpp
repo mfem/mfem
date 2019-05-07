@@ -20,6 +20,8 @@ namespace mfem
 // LibCEED
 //***********
 
+namespace internal { extern Ceed ceed; }
+
 #ifdef MFEM_USE_CEED
 void initCeedCoeff(Coefficient* Q, CeedData* ptr)
 {
@@ -317,7 +319,6 @@ static void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
                              tp_el_dof.GetData(), restr);
 }
 
-namespace internal { extern Ceed ceed; }
 void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
 {
    Ceed ceed(internal::ceed);
@@ -335,7 +336,7 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
    FESpace2Ceed(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
-   if (dev_enabled) { Device::Enable(); }
+   // if (dev_enabled) { Device::Enable(); }
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts * dim * (dim + 1) / 2,
@@ -388,10 +389,10 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
    if (ceedData.coeff_type==Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
-      if (dev_enabled) { Device::Disable(); }
+      // if (dev_enabled) { Device::Disable(); }
       FESpace2Ceed(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
                    &ceedCoeff->restr);
-      if (dev_enabled) { Device::Enable(); }
+      // if (dev_enabled) { Device::Enable(); }
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
@@ -433,7 +434,7 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
 
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.u);
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
-
+   if (dev_enabled) { Device::Enable(); }
 }
 
 /// libCEED Q-function for building quadrature data for a mass operator
