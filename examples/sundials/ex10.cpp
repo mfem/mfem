@@ -92,12 +92,14 @@ protected:
 
    mutable Vector z; // auxiliary vector
 
+   SparseMatrix *grad_H, *Jacobian;
+
 public:
    /// Solver type to use in the ImplicitSolve() method, used by SDIRK methods.
    enum NonlinearSolverType
    {
       NEWTON = 0, ///< Use MFEM's plain NewtonSolver
-      KINSOL = 1  ///< Use SUNDIALS' KINSOL (through MFEM's class KinSolver)
+      KINSOL = 1  ///< Use SUNDIALS' KINSOL (through MFEM's class KINSolver)
    };
 
    HyperelasticOperator(FiniteElementSpace &f, Array<int> &ess_bdr,
@@ -106,15 +108,18 @@ public:
 
    /// Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
+
    /** Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
-   /** Connect the Jacobian linear system solver (SundialsJacSolver) used by
-       SUNDIALS' CVODE and ARKODE time integrators to the internal objects
-       created by HyperelasticOperator. This method is called by the InitSystem
-       method of SundialsJacSolver. */
-   void InitSundialsJacSolver(SundialsJacSolver &sjsolv);
+   /** Setup the linear system. This method is used by the implicit
+       SUNDIALS solvers. */
+   int SundialsSetup(Vector y, int *jcur, double gamma);
+
+   /** Solve the linear system. This method is used by the implicit
+       SUNDIALS solvers. */
+   int SundialsSolve(double gamma, Vector &x, Vector b);
 
    double ElasticEnergy(const Vector &x) const;
    double KineticEnergy(const Vector &v) const;
@@ -164,24 +169,15 @@ public:
              - γ yv +    yx =   bx
 
     for given bv, bx, x, and γ = GetTimeStep(). */
-class SundialsJacSolver : public SundialsODELinearSolver
+class SundialsJacSolver : public SundialsLinearSolver
 {
 private:
-   BilinearForm *M, *S;
-   NonlinearForm *H;
-   SparseMatrix *grad_H, *Jacobian;
-   Solver *J_solver;
+   HyperelasticOperator *oper;
+   double saved_gamma;
 
 public:
-   SundialsJacSolver()
-      : M(), S(), H(), grad_H(), Jacobian(), J_solver() { }
-
-   /// Connect the solver to the objects created inside HyperelasticOperator.
-   void SetOperators(BilinearForm &M_, BilinearForm &S_,
-                     NonlinearForm &H_, Solver &solver)
-   {
-      M = &M_; S = &S_; H = &H_; J_solver = &solver;
-   }
+   SundialsJacSolver(HyperelasticOperator &oper_) : oper(&oper_) { }
+   ~SundialsJacSolver() { }
 
    /** Linear solve applicable to the SUNDIALS format.
        Solves (Mass - dt J) y = Mass b, where in our case:
@@ -190,13 +186,9 @@ public:
        The result replaces the rhs b.
        We substitute x_hat = b_x + dt v_hat and solve
        (M + dt S + dt^2 grad_H) v_hat = M b_v - dt grad_H b_x. */
-   int InitSystem(void *sundials_mem);
-   int SetupSystem(void *sundials_mem, int conv_fail,
-                   const Vector &y_pred, const Vector &f_pred, int &jac_cur,
-                   Vector &v_temp1, Vector &v_temp2, Vector &v_temp3);
-   int SolveSystem(void *sundials_mem, Vector &b, const Vector &weight,
-                   const Vector &y_cur, const Vector &f_cur);
-   int FreeSystem(void *sundials_mem);
+   int ODELinSys(double t, Vector y, Vector fy, int jok, int *jcur,
+                 double gamma);
+   int Solve(Vector &x, Vector b);
 };
 
 
@@ -292,67 +284,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 3. Define the ODE solver used for time integration. Several implicit
-   //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
-   //    explicit Runge-Kutta methods are available.
-   ODESolver *ode_solver;
-   CVODESolver *cvode = NULL;
-   ARKODESolver *arkode = NULL;
-   SundialsJacSolver *sjsolver = NULL;
-   switch (ode_solver_type)
-   {
-      // Implicit L-stable methods
-      case 1: ode_solver = new BackwardEulerSolver; break;
-      case 2: ode_solver = new SDIRK23Solver(2); break;
-      case 3: ode_solver = new SDIRK33Solver; break;
-      case 4:
-      case 5:
-         cvode = new CVODESolver(CV_BDF, CV_NEWTON);
-         cvode->SetSStolerances(reltol, abstol);
-         cvode->SetMaxStep(dt);
-         if (ode_solver_type == 5)
-         {
-            sjsolver = new SundialsJacSolver;
-            cvode->SetLinearSolver(*sjsolver);
-         }
-         ode_solver = cvode; break;
-      case 6:
-      case 7:
-         arkode = new ARKODESolver(ARKODESolver::IMPLICIT);
-         arkode->SetSStolerances(reltol, abstol);
-         arkode->SetMaxStep(dt);
-         if (ode_solver_type == 7)
-         {
-            // Custom Jacobian inversion.
-            sjsolver = new SundialsJacSolver;
-            arkode->SetLinearSolver(*sjsolver);
-         }
-         ode_solver = arkode; break;
-      // Explicit methods
-      case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
-      case 13: ode_solver = new RK3SSPSolver; break;
-      case 14: ode_solver = new RK4Solver; break;
-      case 15:
-         cvode = new CVODESolver(CV_ADAMS, CV_FUNCTIONAL);
-         cvode->SetSStolerances(reltol, abstol);
-         cvode->SetMaxStep(dt);
-         ode_solver = cvode; break;
-      case 16:
-         arkode = new ARKODESolver(ARKODESolver::IMPLICIT);
-         arkode->SetSStolerances(reltol, abstol);
-         arkode->SetMaxStep(dt);
-         ode_solver = arkode; break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
-         return 3;
-   }
-
+   // 3. Setup the nonlinear solver
    map<string,HyperelasticOperator::NonlinearSolverType> nls_map;
    nls_map["newton"] = HyperelasticOperator::NEWTON;
    nls_map["kinsol"] = HyperelasticOperator::KINSOL;
@@ -438,6 +370,67 @@ int main(int argc, char *argv[])
    cout << "initial elastic energy (EE) = " << ee0 << endl;
    cout << "initial kinetic energy (KE) = " << ke0 << endl;
    cout << "initial   total energy (TE) = " << (ee0 + ke0) << endl;
+
+   // 8. Define the ODE solver used for time integration. Several implicit
+   //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
+   //    explicit Runge-Kutta methods are available.
+   ODESolver *ode_solver = NULL;
+   CVODESolver *cvode = NULL;
+   ARKStepSolver *arkode = NULL;
+   SundialsJacSolver *sjsolver = NULL;
+   switch (ode_solver_type)
+   {
+      // Implicit L-stable methods
+      case 1: ode_solver = new BackwardEulerSolver; break;
+      case 2: ode_solver = new SDIRK23Solver(2); break;
+      case 3: ode_solver = new SDIRK33Solver; break;
+      case 4:
+      case 5:
+         cvode = new CVODESolver(CV_BDF);
+         cvode->SetSStolerances(reltol, abstol);
+         cvode->SetMaxStep(dt);
+         if (ode_solver_type == 5)
+         {
+            sjsolver = new SundialsJacSolver(oper);
+            cvode->SetLinearSolver(*sjsolver);
+         }
+         ode_solver = cvode; break;
+      case 6:
+      case 7:
+         arkode = new ARKStepSolver(ARKStepSolver::IMPLICIT);
+         arkode->SetSStolerances(reltol, abstol);
+         arkode->SetMaxStep(dt);
+         if (ode_solver_type == 7)
+         {
+            // Custom Jacobian inversion.
+            sjsolver = new SundialsJacSolver(oper);
+            arkode->SetLinearSolver(*sjsolver);
+         }
+         ode_solver = arkode; break;
+      // Explicit methodses
+      case 11: ode_solver = new ForwardEulerSolver; break;
+      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
+      case 13: ode_solver = new RK3SSPSolver; break;
+      case 14: ode_solver = new RK4Solver; break;
+      case 15:
+         cvode = new CVODESolver(CV_ADAMS);
+         cvode->SetSStolerances(reltol, abstol);
+         cvode->SetMaxStep(dt);
+         ode_solver = cvode; break;
+      case 16:
+         arkode = new ARKStepSolver(ARKStepSolver::EXPLICIT);
+         arkode->SetSStolerances(reltol, abstol);
+         arkode->SetMaxStep(dt);
+         ode_solver = arkode; break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_solver = new ImplicitMidpointSolver; break;
+      case 23: ode_solver = new SDIRK23Solver; break;
+      case 24: ode_solver = new SDIRK34Solver; break;
+      default:
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         delete mesh;
+         return 3;
+   }
 
    double t = 0.0;
    oper.SetTime(t);
@@ -579,72 +572,6 @@ ReducedSystemOperator::~ReducedSystemOperator()
 }
 
 
-int SundialsJacSolver::InitSystem(void *sundials_mem)
-{
-   TimeDependentOperator *td_oper = GetTimeDependentOperator(sundials_mem);
-   HyperelasticOperator *he_oper;
-
-   // During development, we use dynamic_cast<> to ensure the setup is correct:
-   he_oper = dynamic_cast<HyperelasticOperator*>(td_oper);
-   MFEM_VERIFY(he_oper, "operator is not HyperelasticOperator");
-
-   // When the implementation is finalized, we can switch to static_cast<>:
-   // he_oper = static_cast<HyperelasticOperator*>(td_oper);
-
-   he_oper->InitSundialsJacSolver(*this);
-   return 0;
-}
-
-int SundialsJacSolver::SetupSystem(void *sundials_mem, int conv_fail,
-                                   const Vector &y_pred, const Vector &f_pred,
-                                   int &jac_cur, Vector &v_temp1,
-                                   Vector &v_temp2, Vector &v_temp3)
-{
-   int sc = y_pred.Size() / 2;
-   const Vector x(y_pred.GetData() + sc, sc);
-   double dt = GetTimeStep(sundials_mem);
-
-   // J = M + dt*(S + dt*grad(H))
-   delete Jacobian;
-   Jacobian = Add(1.0, M->SpMat(), dt, S->SpMat());
-   grad_H = dynamic_cast<SparseMatrix *>(&H->GetGradient(x));
-   Jacobian->Add(dt * dt, *grad_H);
-
-   J_solver->SetOperator(*Jacobian);
-
-   jac_cur = 1;
-   return 0;
-}
-
-int SundialsJacSolver::SolveSystem(void *sundials_mem, Vector &b,
-                                   const Vector &weight, const Vector &y_cur,
-                                   const Vector &f_cur)
-{
-   int sc = b.Size() / 2;
-   // Vector x(y_cur.GetData() + sc, sc);
-   Vector b_v(b.GetData() +  0, sc);
-   Vector b_x(b.GetData() + sc, sc);
-   Vector rhs(sc);
-   double dt = GetTimeStep(sundials_mem);
-
-   // rhs = M b_v - dt*grad(H) b_x
-   grad_H->Mult(b_x, rhs);
-   rhs *= -dt;
-   M->AddMult(b_v, rhs);
-
-   J_solver->iterative_mode = false;
-   J_solver->Mult(rhs, b_v);
-
-   b_x.Add(dt, b_v);
-
-   return 0;
-}
-
-int SundialsJacSolver::FreeSystem(void *sundials_mem)
-{
-   delete Jacobian;
-   return 0;
-}
 
 
 HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
@@ -702,23 +629,24 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
 
    if (nls_type == KINSOL)
    {
-      KinSolver *kinsolver = new KinSolver(KIN_NONE, true);
-      kinsolver->SetMaxSetupCalls(4);
+      KINSolver *kinsolver = new KINSolver(KIN_NONE, true);
       newton_solver = kinsolver;
+      newton_solver->SetOperator(*reduced_oper);
       newton_solver->SetMaxIter(200);
       newton_solver->SetRelTol(rel_tol);
       newton_solver->SetPrintLevel(0);
+      kinsolver->SetMaxSetupCalls(4);
    }
    else
    {
       newton_solver = new NewtonSolver();
+      newton_solver->SetOperator(*reduced_oper);
       newton_solver->SetMaxIter(10);
       newton_solver->SetRelTol(rel_tol);
       newton_solver->SetPrintLevel(-1);
    }
    newton_solver->SetSolver(*J_solver);
    newton_solver->iterative_mode = false;
-   newton_solver->SetOperator(*reduced_oper);
 }
 
 void HyperelasticOperator::Mult(const Vector &vx, Vector &dvx_dt) const
@@ -768,9 +696,46 @@ void HyperelasticOperator::ImplicitSolve(const double dt,
    add(v, dt, dv_dt, dx_dt);
 }
 
-void HyperelasticOperator::InitSundialsJacSolver(SundialsJacSolver &sjsolv)
+int HyperelasticOperator::SundialsSetup(Vector y, int *jcur, double gamma)
 {
-   sjsolv.SetOperators(M, S, H, *J_solver);
+   int sc = y.Size() / 2;
+   const Vector x(y.GetData() + sc, sc);
+
+   // J = M + dt*(S + dt*grad(H))
+   delete Jacobian;
+   Jacobian = Add(1.0, M.SpMat(), gamma, S.SpMat());
+   grad_H = dynamic_cast<SparseMatrix *>(&H.GetGradient(x));
+   Jacobian->Add(gamma * gamma, *grad_H);
+
+   // Set Jacobian solve operator
+   J_solver->SetOperator(*Jacobian);
+
+   // Indicate that the Jacobian was updated
+   *jcur = 1;
+
+   // Return success
+   return 0;
+}
+
+int HyperelasticOperator::SundialsSolve(double gamma, Vector &x, Vector b)
+{
+   int sc = b.Size() / 2;
+   // Vector x(y_cur.GetData() + sc, sc);
+   Vector b_v(b.GetData() +  0, sc);
+   Vector b_x(b.GetData() + sc, sc);
+   Vector rhs(sc);
+
+   // rhs = M b_v - dt*grad(H) b_x
+   grad_H->Mult(b_x, rhs);
+   rhs *= -gamma;
+   M.AddMult(b_v, rhs);
+
+   J_solver->iterative_mode = false;
+   J_solver->Mult(rhs, b_v);
+
+   b_x.Add(gamma, b_v);
+
+   return 0;
 }
 
 double HyperelasticOperator::ElasticEnergy(const Vector &x) const
@@ -799,6 +764,18 @@ HyperelasticOperator::~HyperelasticOperator()
    delete model;
 }
 
+int SundialsJacSolver::ODELinSys(double t, Vector y, Vector fy, int jok,
+                                 int *jcur, double gamma)
+{
+  // Save gamma value to use in solve
+  saved_gamma = gamma;
+  return(oper->SundialsSetup(y, jcur, gamma));
+}
+
+int SundialsJacSolver::Solve(Vector &x, Vector b)
+{
+  return(oper->SundialsSolve(saved_gamma, x, b));
+}
 
 double ElasticEnergyCoefficient::Eval(ElementTransformation &T,
                                       const IntegrationPoint &ip)
