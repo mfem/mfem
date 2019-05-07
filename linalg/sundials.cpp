@@ -984,12 +984,6 @@ namespace mfem
     // Free any existing linear solver
     if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
-    // Unset Jacobian-vector product function if necessary
-    if (use_oper_grad) {
-      flag = KINSetJacTimesVecFn(sundials_mem, NULL);
-      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetJacTimesVecFn()");
-    }
-
     // Wrap KINSolver as SUNLinearSolver and SUNMatrix
     LSA = SUNLinSolNewEmpty();
     MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
