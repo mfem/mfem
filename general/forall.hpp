@@ -35,10 +35,15 @@ namespace mfem
 
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                                     \
-   ForallWrap(N,                                                 \
-              [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},        \
-              [&]                  (int i) {__VA_ARGS__})
+   ForallWrap<false>(N,                                          \
+                     [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__}, \
+                     [&]                  (int i) {__VA_ARGS__})
 
+#define MFEM_FORALL_XYZ(i,N,X,Y,Z,...)                           \
+   ForallWrap<true>(N,                                           \
+                    [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},  \
+                    [&]                  (int i) {__VA_ARGS__},  \
+                    X,Y,Z)
 
 /// OpenMP backend
 template <typename HBODY>
@@ -103,7 +108,7 @@ void CuKernel(const int N, BODY body)
    body(k);
 }
 
-template <int BLOCKS, typename DBODY>
+template <int BLOCKS = 256, typename DBODY>
 void CuWrap(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
@@ -112,23 +117,50 @@ void CuWrap(const int N, DBODY &&d_body)
    MFEM_CUDA_CHECK(cudaGetLastError());
 }
 
+template <typename BODY> __global__ static
+void CuKernelXYZ(const int N, BODY body, const int BLOCKZ)
+{
+   const int k = blockIdx.x*BLOCKZ + threadIdx.z;
+   if (k >= N) { return; }
+   body(k);
+}
+
+template <typename DBODY>
+void CuWrapXYZ(const int N, DBODY &&d_body,
+               const int X, const int Y, const int Z)
+{
+   if (N==0) { return; }
+   const int GRID = N/Z;
+   const dim3 BLCK(X,Y,Z);
+   CuKernelXYZ<<<GRID,BLCK>>>(N,d_body,Z);
+   MFEM_CUDA_CHECK(cudaGetLastError());
+}
+
 #else  // MFEM_USE_CUDA
 
-template <int BLOCKS, typename DBODY>
+template <int BLOCKS = 256, typename DBODY>
 void CuWrap(const int N, DBODY &&d_body) {}
+
+template <typename DBODY>
+void CuWrapXYZ(const int N, DBODY &&d_body,
+               const int X, const int Y, const int Z) {}
 
 #endif
 
 
 /// The forall kernel body wrapper
-template <typename DBODY, typename HBODY>
-void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body)
+template <const bool XYZ, typename DBODY, typename HBODY>
+void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body,
+                const int X=0, const int Y=0, const int Z=0)
 {
    if (Device::Allows(Backend::RAJA_CUDA))
    { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
 
-   if (Device::Allows(Backend::CUDA))
+   if (!XYZ && Device::Allows(Backend::CUDA))
    { return CuWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+
+   if (XYZ && Device::Allows(Backend::CUDA))
+   { return CuWrapXYZ(N, d_body, X, Y, Z); }
 
    if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
 

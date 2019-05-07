@@ -11,6 +11,7 @@
 
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
+#include "bilininteg_mass.hpp"
 #include "gridfunc.hpp"
 
 #include <map>
@@ -1196,6 +1197,7 @@ static void PAMassApply(const int dim,
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
+   if (NvidiaPAMassApply(dim, D1D, Q1D, NE, B, Bt, op, x, y)) return;
    if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
