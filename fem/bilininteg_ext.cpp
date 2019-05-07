@@ -753,7 +753,7 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
       CeedScalar *x_ptr, *y_ptr;
       CeedMemType mem;
       CeedGetPreferredMemType(internal::ceed, &mem);
-      if ( mm.IsEnabled() && mem==CEED_MEM_DEVICE )
+      if ( Device::IsEnabled() && mem==CEED_MEM_DEVICE )
       {
          x_ptr = Ptr(x.GetData());
          y_ptr = Ptr(y.GetData());
@@ -1297,14 +1297,28 @@ void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 #ifdef MFEM_USE_CEED
    if (Device::Allows(Backend::CEED_MASK))
    {
+      CeedScalar *x_ptr, *y_ptr;
+      CeedMemType mem;
+      CeedGetPreferredMemType(internal::ceed, &mem);
+      if ( Device::IsEnabled() && mem==CEED_MEM_DEVICE )
+      {
+         x_ptr = Ptr(x.GetData());
+         y_ptr = Ptr(y.GetData());
+      }
+      else
+      {
+         x_ptr = x.GetData();
+         y_ptr = y.GetData();
+         mem = CEED_MEM_HOST;
+      }
       CeedData& ceedData = *static_cast<CeedData*>(ceedDataPtr);
-      CeedVectorSetArray(ceedData.u, CEED_MEM_HOST, CEED_USE_POINTER, x.GetData());
-      CeedVectorSetArray(ceedData.v, CEED_MEM_HOST, CEED_USE_POINTER, y.GetData());
+      CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER, x_ptr);
+      CeedVectorSetArray(ceedData.v, mem, CEED_USE_POINTER, y_ptr);
 
       CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v,
                         CEED_REQUEST_IMMEDIATE);
 
-      CeedVectorSyncArray(ceedData.v, CEED_MEM_HOST);
+      CeedVectorSyncArray(ceedData.v, mem);
    }
    else
 #endif
