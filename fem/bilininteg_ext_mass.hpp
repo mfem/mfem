@@ -15,15 +15,15 @@
 namespace mfem
 {
 
-bool NvidiaPAMassApply(const int dim,
-                       const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const double *B,
-                       const double *Bt,
-                       const double *op,
-                       const double *x,
-                       double *y);
+bool SmemPAMassApply(const int dim,
+                     const int D1D,
+                     const int Q1D,
+                     const int NE,
+                     const double *B,
+                     const double *Bt,
+                     const double *op,
+                     const double *x,
+                     double *y);
 
 } // namespace mfem
 

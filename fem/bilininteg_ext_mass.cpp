@@ -19,37 +19,35 @@ namespace mfem
 {
 
 const int MAX_Q1D = 10;
+const int MAX_NBZ = 10;
 
 template<const int T_D1D = 0, const int T_Q1D = 0, const int T_NBZ = 0> static
-bool NvPAMassApply2D(const int NE,
-                     const double* _B,
-                     const double* _Bt,
-                     const double* _op,
-                     const double* _x,
-                     double* _y,
-                     const int d1d = 0,
-                     const int q1d = 0,
-                     const int nbz = 0)
+bool SmemPAMassApply2D(const int NE,
+                       const double* _B,
+                       const double* _Bt,
+                       const double* _op,
+                       const double* _x,
+                       double* _y,
+                       const int d1d = 0,
+                       const int q1d = 0,
+                       const int nbz = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int NBZ = T_NBZ ? T_NBZ : MAX_NBZ;
    const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   printf("\033[32m[NvPAMassApply2D] %sD1D=%d, Q1D=%d%s\033[m",
-          T_D1D?"<\033[1m":"", D1D, Q1D, T_D1D?"\033[0;32m>":"");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-
+   MFEM_VERIFY(NBZ <= MAX_NBZ, "");
    const DeviceMatrix B(_B, Q1D, D1D);
    const DeviceMatrix Bt(_Bt, D1D, Q1D);
    const DeviceTensor<3> op(_op, Q1D, Q1D, NE);
    const DeviceTensor<3> x(_x, D1D, D1D, NE);
    DeviceTensor<3> y(_y, D1D, D1D, NE);
-
-   const int BZ = 2;
-   MFEM_FORALL_XYZ(e, NE, Q1D, Q1D, BZ, {
+   MFEM_FORALL_XYZ(e, NE, Q1D, Q1D, NBZ, {
          const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
          const int Q1D = T_Q1D ? T_Q1D : q1d;
-         MFEM_SHARED double buf1[BZ][MQ1][MQ1];
-         MFEM_SHARED double buf2[BZ][MQ1][MQ1];
+         MFEM_SHARED double buf1[NBZ][MQ1][MQ1];
+         MFEM_SHARED double buf2[NBZ][MQ1][MQ1];
          MFEM_SHARED double matrix[MQ1][MQ1];
          double (*sol_x)[MQ1] = (double (*)[MQ1])(buf2 + threadIdx(z));
          double (*sol_xy)[MQ1] = (double (*)[MQ1])(buf1 + threadIdx(z));
@@ -144,36 +142,36 @@ bool NvPAMassApply2D(const int NE,
    return true;
 }
 
-bool NvidiaPAMassApply(const int dim,
-                       const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const double *B,
-                       const double *Bt,
-                       const double *op,
-                       const double *x,
-                       double *y)
+bool SmemPAMassApply(const int dim,
+                     const int D1D,
+                     const int Q1D,
+                     const int NE,
+                     const double *B,
+                     const double *Bt,
+                     const double *op,
+                     const double *x,
+                     double *y)
 {
    if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
       {
-      case 0x22: return NvPAMassApply2D<2,2,8>(NE, B, Bt, op, x, y);
-      case 0x33: return NvPAMassApply2D<3,3,8>(NE, B, Bt, op, x, y);
-      case 0x24: return NvPAMassApply2D<2,4,8>(NE, B, Bt, op, x, y);
-      case 0x34: return NvPAMassApply2D<3,4,8>(NE, B, Bt, op, x, y);
-      case 0x35: return NvPAMassApply2D<3,5,6>(NE, B, Bt, op, x, y);
-      case 0x36: return NvPAMassApply2D<3,6,6>(NE, B, Bt, op, x, y);
-      case 0x44: return NvPAMassApply2D<4,4,2>(NE, B, Bt, op, x, y);
-      case 0x45: return NvPAMassApply2D<4,5,2>(NE, B, Bt, op, x, y);
-      case 0x46: return NvPAMassApply2D<4,6,2>(NE, B, Bt, op, x, y);
-      case 0x48: return NvPAMassApply2D<4,8,2>(NE, B, Bt, op, x, y);
-      case 0x55: return NvPAMassApply2D<5,5,2>(NE, B, Bt, op, x, y);
-      case 0x58: return NvPAMassApply2D<5,8,2>(NE, B, Bt, op, x, y);
-         default:   return NvPAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D, 1);
+      case 0x22: return SmemPAMassApply2D<2,2,8>(NE, B, Bt, op, x, y);
+      case 0x33: return SmemPAMassApply2D<3,3,8>(NE, B, Bt, op, x, y);
+      case 0x24: return SmemPAMassApply2D<2,4,8>(NE, B, Bt, op, x, y);
+      case 0x34: return SmemPAMassApply2D<3,4,8>(NE, B, Bt, op, x, y);
+      case 0x35: return SmemPAMassApply2D<3,5,6>(NE, B, Bt, op, x, y);
+      case 0x36: return SmemPAMassApply2D<3,6,6>(NE, B, Bt, op, x, y);
+      case 0x44: return SmemPAMassApply2D<4,4,2>(NE, B, Bt, op, x, y);
+      case 0x45: return SmemPAMassApply2D<4,5,2>(NE, B, Bt, op, x, y);
+      case 0x46: return SmemPAMassApply2D<4,6,2>(NE, B, Bt, op, x, y);
+      case 0x48: return SmemPAMassApply2D<4,8,2>(NE, B, Bt, op, x, y);
+      case 0x55: return SmemPAMassApply2D<5,5,2>(NE, B, Bt, op, x, y);
+      case 0x58: return SmemPAMassApply2D<5,8,2>(NE, B, Bt, op, x, y);
+      default:   return SmemPAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D, 1);
       }
    }
-   printf("\n\033[33m[NvidiaPAMassApply] Skipped D1D=%d, Q1D=%d\033[m", D1D, Q1D);
+   printf("\n\033[33m[SmemPAMassApply] Skipped D1D=%d, Q1D=%d\033[m", D1D, Q1D);
    return false;
 }
 

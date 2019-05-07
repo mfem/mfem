@@ -108,7 +108,7 @@ void CuKernel(const int N, BODY body)
    body(k);
 }
 
-template <int BLOCKS = 256, typename DBODY>
+template <const int BLOCKS = 256, typename DBODY>
 void CuWrap(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
@@ -138,7 +138,7 @@ void CuWrapXYZ(const int N, DBODY &&d_body,
 
 #else  // MFEM_USE_CUDA
 
-template <int BLOCKS = 256, typename DBODY>
+template <const int BLOCKS = 256, typename DBODY>
 void CuWrap(const int N, DBODY &&d_body) {}
 
 template <typename DBODY>
