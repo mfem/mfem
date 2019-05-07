@@ -1198,7 +1198,7 @@ static void PAMassApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    // Shared version of the mass kernels
-   if (SmemPAMassApply(dim, D1D, Q1D, NE, B, Bt, op, x, y)) return;
+   if (SmemPAMassApply(dim, D1D, Q1D, NE, B, Bt, op, x, y)) { return; }
    if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
