@@ -1316,22 +1316,18 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    }
 
    DoFTrans.SetSize(Geometry::NUM_GEOMETRIES);
-   cout << " size of DoFTrans: " << DoFTrans.Size() << endl;
    for (int i=0; i<DoFTrans.Size(); i++)
    {
       DoFTrans[i] = NULL;
    }
    if (dynamic_cast<const ND_FECollection*>(fec))
    {
-      cout << "Setting ND_TetDof..." << endl;
       DoFTrans[Geometry::TETRAHEDRON] =
          new ND_TetDofTransformation(fec->FiniteElementForGeometry(
                                         Geometry::TETRAHEDRON)->GetOrder());
    }
 
-   cout << "Calling   BuildElementToDofTable();" << endl;
    BuildElementToDofTable();
-   cout << "Done Calling   BuildElementToDofTable();" << endl;
 }
 
 NURBSExtension *FiniteElementSpace::StealNURBSext()

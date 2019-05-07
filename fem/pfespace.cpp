@@ -625,7 +625,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    bool strias   = false;
    {
       int ngrps = pmesh->GetNGroups();
-      for (int g = 1; g <= ngrps; g++)
+      for (int g = 1; g < ngrps; g++)
       {
          strias |= pmesh->GroupNTriangles(g);
       }
@@ -679,24 +679,6 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
          j_offd[cmap_j_offd[i].two] = i;
       }
 
-      MPI_Barrier(MyComm);
-      for (int r=0; r<NRanks; r++)
-      {
-         if (r == MyRank)
-         {
-            for (int i = 0; i < ldof; i++)
-            {
-               std::cout << MyRank << ": " << i;
-               for (int j = i_offd[i]; j < i_offd[i+1]; j++)
-               {
-                  std::cout << " " << j_offd[j] << ",1";
-               }
-               std::cout << std::endl;
-            }
-         }
-         MPI_Barrier(MyComm);
-      }
-
       P = new HypreParMatrix(MyComm, MyRank, NRanks, row_starts, col_starts,
                              i_diag, j_diag, i_offd, j_offd,
                              cmap, offd_counter);
@@ -724,7 +706,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
          int ngrps = pmesh->GetNGroups();
          int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
          Array<int> sdofs;
-         for (int g = 1; g <= ngrps; g++)
+         for (int g = 1; g < ngrps; g++)
          {
             for (int fi=0; fi<pmesh->GroupNTriangles(g); fi++)
             {
@@ -927,7 +909,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       int nstria_dofs = 0;
       int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
       Array<int> sdofs;
-      for (int g = 1; g <= ngrps; g++)
+      for (int g = 1; g < ngrps; g++)
       {
       for (int fi = 0; fi < pmesh->GroupNTriangles(g); fi++)
          {
@@ -946,7 +928,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
         int ngrps = pmesh->GetNGroups();
         int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
         Array<int> sdofs;
-        for (int g = 1; g <= ngrps; g++)
+        for (int g = 1; g < ngrps; g++)
         {
           for (int fi=0; fi<pmesh->GroupNTriangles(g); fi++)
                  {
@@ -1232,7 +1214,7 @@ HYPRE_Int ParFiniteElementSpace::GetMyTDofOffset() const
 
 const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
-   if (Conforming() && false)
+   if (Conforming())
    {
       std::cout << "Returning Conforming Prolongation Operator" << std::endl;
       if (!Pconf) { Pconf = new ConformingProlongationOperator(*this); }
