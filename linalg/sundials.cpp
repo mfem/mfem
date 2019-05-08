@@ -936,15 +936,6 @@ namespace mfem
     flag = KINInit(sundials_mem, KINSolver::Mult, y);
     MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINInit()");
 
-    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    // CHECK THIS
-    // Initialization of kin_pp; otherwise, for a custom Jacobian inversion,
-    // the first time we enter the linear solve, we will get uninitialized
-    // initial guess (matters when iterative_mode = true).
-    // N_VConst(ZERO, mem->kin_pp);
-    // CHECK THIS
-    // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
     // Attach the KINSolver as user-defined data
     flag = KINSetUserData(sundials_mem, this);
     MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetUserData()");
