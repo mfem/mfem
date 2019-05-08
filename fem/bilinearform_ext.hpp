@@ -20,7 +20,7 @@ namespace mfem
 
 class BilinearForm;
 
-/// Element restriction operator
+/// Element restriction operator \f$ R \f$
 class ElemRestriction: public Operator
 {
 public:
@@ -35,7 +35,11 @@ public:
    Array<int> indices;
 public:
    ElemRestriction(const FiniteElementSpace&);
+
+   /// Apply the restriction operator \f$ y = R x \f$
    void Mult(const Vector &x, Vector &y) const;
+
+   /// Apply the restriction transpose operator \f$ y = R^T x \f$
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
@@ -54,6 +58,7 @@ public:
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const;
 
+   /// Assemble at the level given for the BilinearFormExtension subclass
    virtual void Assemble() = 0;
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
@@ -64,7 +69,7 @@ public:
    virtual void Update() = 0;
 };
 
-/// Data and methods for fully-assembled bilinear forms
+/// Data and methods for fully-assembled bilinear forms NOT IMPLEMENTED HERE
 class FABilinearFormExtension : public BilinearFormExtension
 {
 public:
@@ -83,7 +88,7 @@ public:
    ~FABilinearFormExtension() {}
 };
 
-/// Data and methods for element-assembled bilinear forms
+/// Data and methods for element-assembled bilinear forms NOT IMPLEMENTED HERE
 class EABilinearFormExtension : public BilinearFormExtension
 {
 public:
@@ -127,7 +132,7 @@ public:
    ~PABilinearFormExtension();
 };
 
-/// Data and methods for matrix-free bilinear forms
+/// Data and methods for matrix-free bilinear forms NOT IMPLEMENTED HERE
 class MFBilinearFormExtension : public BilinearFormExtension
 {
 public:

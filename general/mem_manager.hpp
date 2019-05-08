@@ -20,7 +20,9 @@ namespace mfem
 // Implementation of MFEM's lightweight device/host memory manager designed to
 // work seamlessly with the OCCA, RAJA, and other kernels supported by MFEM.
 
-/// The memory manager class
+/** The memory manager class.  Host side pointers are inserted into this 
+    manager which keeps track of the associated device pointer, and where
+    the data currently resides. */
 class MemoryManager
 {
 private:
@@ -35,7 +37,7 @@ public:
    MemoryManager();
    ~MemoryManager();
 
-   /// Adds an address in the map
+   /// Adds a host side address and size in the map to be managed.
    void *Insert(void *ptr, const std::size_t bytes);
 
    /// Remove the address from the map, as well as all its aliases
@@ -52,19 +54,19 @@ public:
 #endif
    }
 
-   /// Disable the memory manager: Ptr, Push and Pull will be no-op
+   /// Disable the memory manager: Ptr, Push and Pull will be no-op.
    void Disable() { enabled = false; }
 
-   /// Enable the memory manager: Ptr, Push and Pull wont be no-op
+   /// Enable the memory manager: Ptr, Push and Pull wont be no-op.
    void Enable() { enabled = true; }
 
-   /// Return true if the memory manager is used and enabled
+   /// Return true if the memory manager is used and enabled.
    bool IsEnabled() { return UsingMM() && enabled; }
 
    /// The opposite of IsEnabled().
    bool IsDisabled() { return !IsEnabled(); }
 
-   /// Return true if a global memory manager instance exists
+   /// Return true if a global memory manager instance exists.
    static bool Exists() { return exists; }
 
    /** @brief Translates ptr to host or device address, depending on what
@@ -73,26 +75,27 @@ public:
    void *Ptr(void *ptr);
    const void *Ptr(const void *ptr);
 
-   /// Data will be pushed/pulled before the copy happens on the H or the D
+   /** Copy 'bytes' of data from 'src' to 'dst'.  Data will be pushed/pulled 
+       before the copy happens on the H or the D. */
    void* Memcpy(void *dst, const void *src,
                 std::size_t bytes, const bool async = false);
 
-   /// Return the bytes of the memory region which base address is ptr
+   /// Return the number of bytes of the memory region which base address is ptr.
    std::size_t Bytes(const void *ptr);
 
-   /// Return true if the registered pointer is on the host side
+   /// Return true if the registered pointer is on the host side.
    bool IsOnHost(const void *ptr);
 
-   /// Return true if the pointer has been registered
+   /// Return true if the pointer has been registered.
    bool IsKnown(const void *ptr);
 
-   /// Return true if the pointer is an alias inside a registered memory region
+   /// Return true if the pointer is an alias inside a registered memory region.
    bool IsAlias(const void *ptr);
 
-   /// Push the data to the device
+   /// Push the data to the device.
    void Push(const void *ptr, const std::size_t bytes =0);
 
-   /// Pull the data from the device
+   /// Pull the data from the device.
    void Pull(const void *ptr, const std::size_t bytes =0);
 
    /// Return the corresponding device pointer of ptr, allocating and moving the
@@ -131,10 +134,10 @@ public:
    /// Check if pointer has been registered in the memory manager
    void RegisterCheck(void *ptr);
 
-   /// Prints all pointers known by the memory manager
+   /// Prints all pointers known by the memory manager.
    void PrintPtrs(void);
 
-   /// Copies all memory to the current memory space
+   /// Copies all memory to the current memory space.
    void GetAll(void);
 };
 

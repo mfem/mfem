@@ -47,61 +47,78 @@ public:
    bool Root() const { return world_rank == 0; }
 };
 
+
+/** The shared entities (e.g. vertices, faces and edges) are split into
+    groups, each group determined by the set of participating processors.
+    They are numbered locally in lproc. Assumptions:
+    - group 0 is the 'local' group
+    - groupmaster_lproc[0] = 0
+    - lproc_proc[0] = MyRank */
 class GroupTopology
 {
 private:
    MPI_Comm   MyComm;
 
-   /* The shared entities (e.g. vertices, faces and edges) are split into
-      groups, each group determined by the set of participating processors.
-      They are numbered locally in lproc. Assumptions:
-      - group 0 is the 'local' group
-      - groupmaster_lproc[0] = 0
-      - lproc_proc[0] = MyRank */
 
-   // Neighbor ids (lproc) in each group.
+
+   /// Neighbor ids (lproc) in each group.
    Table      group_lproc;
-   // Master neighbor id for each group.
+   /// Master neighbor id for each group.
    Array<int> groupmaster_lproc;
-   // MPI rank of each neighbor.
+   /// MPI rank of each neighbor.
    Array<int> lproc_proc;
-   // Group --> Group number in the master.
+   /// Group --> Group number in the master.
    Array<int> group_mgroup;
 
    void ProcToLProc();
 
 public:
+   /// Constructor with the MPI communicator = 0.
    GroupTopology() : MyComm(0) {}
+
+   /// Constructor given the MPI communicator 'comm'.
    GroupTopology(MPI_Comm comm) { MyComm = comm; }
 
    /// Copy constructor
    GroupTopology(const GroupTopology &gt);
+
+   /// Set the MPI communicator to 'comm'.
    void SetComm(MPI_Comm comm) { MyComm = comm; }
 
+   /// Return the MPI communicator.
    MPI_Comm GetComm() const { return MyComm; }
+
+   /// Return the MPI rank within this object's communicator.
    int MyRank() const { int r; MPI_Comm_rank(MyComm, &r); return r; }
+
+   /// Return the number of MPI ranks within this object's communicator.
    int NRanks() const { int s; MPI_Comm_size(MyComm, &s); return s; }
 
    void Create(ListOfIntegerSets &groups, int mpitag);
 
+   /// Return the number of groups.
    int NGroups() const { return group_lproc.Size(); }
-   // return the number of neighbors including the local processor
+
+   /// Return the number of neighbors including the local processor.
    int GetNumNeighbors() const { return lproc_proc.Size(); }
+
+   /// Return the MPI rank of neighbor 'i'.
    int GetNeighborRank(int i) const { return lproc_proc[i]; }
-   // am I master for group 'g'?
+   /// Return true if I am master for group 'g'.
    bool IAmMaster(int g) const { return (groupmaster_lproc[g] == 0); }
-   // return the neighbor index of the group master for a given group.
-   // neighbor 0 is the local processor
+   /** Return the neighbor index of the group master for a given group.
+    *  Neighbor 0 is the local processor. */
    int GetGroupMaster(int g) const { return groupmaster_lproc[g]; }
-   // return the rank of the group master for a given group
+   /// Return the rank of the group master for group 'g'.
    int GetGroupMasterRank(int g) const
    { return lproc_proc[groupmaster_lproc[g]]; }
-   // for a given group return the group number in the master
+   /// Return the group number in the master for group 'g'.
    int GetGroupMasterGroup(int g) const { return group_mgroup[g]; }
-   // get the number of processors in a group
+   /// Get the number of processors in a group
    int GetGroupSize(int g) const { return group_lproc.RowSize(g); }
-   // return a pointer to a list of neighbors for a given group.
-   // neighbor 0 is the local processor
+
+   /** @brief Return a pointer to a list of neighbors for a given group.
+     * Neighbor 0 is the local processor */
    const int *GetGroup(int g) const { return group_lproc.GetRow(g); }
 
    /// Save the data in a stream.
@@ -109,7 +126,7 @@ public:
    /// Load the data from a stream.
    void Load(std::istream &in);
 
-   /// Copy
+   /// Copy the internal data to the external 'copy'.
    void Copy(GroupTopology & copy) const;
 
    virtual ~GroupTopology() {}
