@@ -68,15 +68,15 @@ protected:
 
 public:
 
-   GridFunction() { fes = NULL; fec = NULL; sequence = 0; Allow(); }
+   GridFunction() { fes = NULL; fec = NULL; sequence = 0; DeviceEnable(); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence) { Allow(); }
+      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence) { DeviceEnable(); }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); Allow(); }
+   { fes = f; fec = NULL; sequence = f->GetSequence(); DeviceEnable(); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -102,7 +102,7 @@ public:
        @note Defining this method overwrites the implicitly defined copy
        assignemnt operator. */
    GridFunction &operator=(const GridFunction &rhs)
-   { Allow(); return operator=((const Vector &)rhs); }
+   { DeviceEnable(); return operator=((const Vector &)rhs); }
 
    /// Make the GridFunction the owner of #fec and #fes.
    /** If the new FiniteElementCollection, @a _fec, is NULL, ownership of #fec

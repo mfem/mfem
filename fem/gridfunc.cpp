@@ -30,7 +30,7 @@ using namespace std;
 GridFunction::GridFunction(Mesh *m, std::istream &input)
    : Vector()
 {
-   Allow();
+   DeviceEnable();
    fes = new FiniteElementSpace;
    fec = fes->Load(m, input);
 
@@ -61,7 +61,7 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
 
 GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
 {
-   Allow();
+   DeviceEnable();
    // all GridFunctions must have the same FE collection, vdim, ordering
    int vdim, ordering;
 
@@ -148,7 +148,7 @@ void GridFunction::Destroy()
 
 void GridFunction::Update()
 {
-   Allow();
+   DeviceEnable();
    if (fes->GetSequence() == sequence)
    {
       return; // space and grid function are in sync, no-op
@@ -184,7 +184,7 @@ void GridFunction::SetSpace(FiniteElementSpace *f)
 
 void GridFunction::MakeRef(FiniteElementSpace *f, double *v)
 {
-   Allow();
+   DeviceEnable();
    if (f != fes) { Destroy(); }
    fes = f;
    NewDataAndSize(v, fes->GetVSize());
@@ -193,7 +193,7 @@ void GridFunction::MakeRef(FiniteElementSpace *f, double *v)
 
 void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 {
-   Allow();
+   DeviceEnable();
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
    if (f != fes) { Destroy(); }
    fes = f;
@@ -203,7 +203,7 @@ void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 
 void GridFunction::MakeTRef(FiniteElementSpace *f, double *tv)
 {
-   Allow();
+   DeviceEnable();
    if (!f->GetProlongationMatrix())
    {
       MakeRef(f, tv);
@@ -218,7 +218,7 @@ void GridFunction::MakeTRef(FiniteElementSpace *f, double *tv)
 
 void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
 {
-   Allow();
+   DeviceEnable();
    if (!f->GetProlongationMatrix())
    {
       MakeRef(f, tv, tv_offset);

@@ -43,7 +43,7 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
    {
       // rap, X and B point to the same data as this, x and b
       X.NewDataAndSize(x.GetData(), x.Size()); // will be allowed by x (gf)
-      B.NewDataAndSize(b.GetData(), b.Size()); B.Allow(); // not yet allowed
+      B.NewDataAndSize(b.GetData(), b.Size()); B.DeviceEnable(); // not yet allowed
       rap = this;
    }
 
@@ -158,9 +158,9 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
                                          bool _own_A)
    : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
 {
-   constraint_list.MakeRef(list); constraint_list.Allow();
-   z.SetSize(height); z.Allow();
-   w.SetSize(height); w.Allow();
+   constraint_list.MakeRef(list); constraint_list.DeviceEnable();
+   z.SetSize(height); z.DeviceEnable();
+   w.SetSize(height); w.DeviceEnable();
 }
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const

@@ -120,11 +120,11 @@ public:
    /// Pull the data from the device
    void Pull(const void *ptr, const std::size_t bytes);
 
-   /// Allow the pointer to be able to trigger parallel foralls
-   void Allow(const void *ptr);
+   /// Enable the pointer to be able to be used on the device
+   void DeviceEnable(const void *ptr);
 
    /// Enable read/write access of this memory
-   void MemEnable(const void *ptr, const std::size_t bytes);
+   void AccessEnable(const void *ptr, const std::size_t bytes);
 
    /// Change the types of the memory spaces
    void SetMemoryTypes(const Memory::Type host, const Memory::Type device);
@@ -223,8 +223,8 @@ inline void Pull(const void *ptr, const std::size_t bytes)
 { mm.Pull(ptr, bytes); }
 
 /// Enable read/write access of this memory
-inline void MemEnable(const void *ptr, const std::size_t bytes)
-{ mm.MemEnable(ptr, bytes); }
+inline void AccessEnable(const void *ptr, const std::size_t bytes)
+{ mm.AccessEnable(ptr, bytes); }
 
 /// Change the types of the each memory spaces
 inline void SetMemoryTypes(Memory::Type host, Memory::Type device)
@@ -235,8 +235,8 @@ inline void SetMemoryTypes(Memory::Type both)
 { mm.SetMemoryTypes(both, both); }
 
 /// Allow the pointer to run on devices
-inline void Allow(const void *ptr)
-{ mm.Allow(ptr); }
+inline void DeviceEnable(const void *ptr)
+{ mm.DeviceEnable(ptr); }
 
 } // namespace mfem
 

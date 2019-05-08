@@ -40,9 +40,9 @@ void Vector::Pull() const
    mfem::Pull(data, size*sizeof(double));
 }
 
-void Vector::Allow() const
+void Vector::DeviceEnable() const
 {
-   mfem::Allow(data);
+   mfem::DeviceEnable(data);
 }
 
 Vector::Vector(const Vector &v)

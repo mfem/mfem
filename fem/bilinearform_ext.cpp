@@ -43,8 +43,8 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
    localY( testFes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
    elem_restrict(new ElemRestriction(*a->FESpace()))
 {
-   localX.Allow();
-   localY.Allow();
+   localX.DeviceEnable();
+   localY.DeviceEnable();
 }
 
 PABilinearFormExtension::~PABilinearFormExtension()
@@ -94,7 +94,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                int copy_interior)
 {
    Operator *oper;
-   ess_tdof_list.Allow();
+   ess_tdof_list.DeviceEnable();
    Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
    A.Reset(oper); // A will own oper
 }
@@ -137,8 +137,8 @@ ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
      offsets(ndofs+1),
      indices(ne*dof)
 {
-   offsets.Allow();
-   indices.Allow();
+   offsets.DeviceEnable();
+   indices.DeviceEnable();
    for (int e = 0; e < ne; ++e)
    {
       const FiniteElement *fe = fes.GetFE(e);

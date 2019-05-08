@@ -201,7 +201,7 @@ public:
    void Pull() const { mfem::Pull(data, Size()*sizeof(T)); }
 
    /// Allows the data on the device
-   void Allow() const { mfem::Allow(data); }
+   void DeviceEnable() const { mfem::DeviceEnable(data); }
 
    /// Make this Array a reference to a pointer
    inline void MakeRef(T *, int);

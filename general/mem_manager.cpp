@@ -448,7 +448,7 @@ void *MemoryManager::New(void **ptr, const std::size_t bytes)
 void MemoryManager::Delete(void *ptr)
 { ctrl->host->Dealloc(ptr); }
 
-void MemoryManager::MemEnable(const void *ptr, const std::size_t bytes)
+void MemoryManager::AccessEnable(const void *ptr, const std::size_t bytes)
 { ctrl->host->Unprotect(ptr, bytes); }
 
 // Function to set the host and device memory types
@@ -758,7 +758,7 @@ void MemoryManager::GetAll(void)
    }
 }
 
-void MemoryManager::Allow(const void *ptr)
+void MemoryManager::DeviceEnable(const void *ptr)
 {
    const bool known = IsKnown(ptr);
    if (!known) { return; }

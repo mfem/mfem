@@ -252,11 +252,11 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    geom = GeometryExtension::Get(fes,*ir);
    maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(symmDims * nq * ne);
-   vec.Allow();
+   vec.DeviceEnable();
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
    PADiffusionSetup(dim, dofs1D, quad1D, ne, maps->W, geom->J, coeff, vec);
    // vec might be used elsewhere, allow others to use it (ex6)
-   mfem::MemEnable(vec,vec.Size()*sizeof(double));
+   mfem::AccessEnable(vec,vec.Size()*sizeof(double));
 }
 
 #ifdef MFEM_USE_OCCA
@@ -1359,11 +1359,11 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
    mfem::Vector d2q(numDofs);
    mfem::Vector d2qD(numDofs);
    mfem::Array<double> W1d(numQuad1D);
-   W1d.Allow();
+   W1d.DeviceEnable();
    mfem::Array<double> B1d(numQuad1D*numDofs);
-   B1d.Allow();
+   B1d.DeviceEnable();
    mfem::Array<double> G1d(numQuad1D*numDofs);
-   G1d.Allow();
+   G1d.DeviceEnable();
    const TensorBasisElement& tbe = dynamic_cast<const TensorBasisElement&>(fe);
    const Poly_1D::Basis& basis = tbe.GetBasis1D();
    for (int q = 0; q < numQuad1D; ++q)
@@ -1386,7 +1386,7 @@ DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
    if (transpose)
    {
       mfem::Array<double> W(numQuad);
-      W.Allow();
+      W.DeviceEnable();
       for (int q = 0; q < numQuad; ++q)
       {
          const int qx = q % numQuad1D;
@@ -1477,11 +1477,11 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
    mfem::Vector d2q(numDofs);
    mfem::DenseMatrix d2qD(numDofs, dims);
    mfem::Array<double> W(numQuad);
-   W.Allow();
+   W.DeviceEnable();
    mfem::Array<double> B(numQuad*numDofs);
-   B.Allow();
+   B.DeviceEnable();
    mfem::Array<double> G(dims*numQuad*numDofs);
-   G.Allow();
+   G.DeviceEnable();
    for (int q = 0; q < numQuad; ++q)
    {
       const IntegrationPoint& ip = ir.IntPoint(q);
@@ -1832,9 +1832,9 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    const Table& e2dTable = fespace->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    mfem::Array<int> eMap(ND*NE);
-   mfem::Allow(elementMap);
-   eMap.Allow();
-   nodes->Allow();
+   mfem::DeviceEnable(elementMap);
+   eMap.DeviceEnable();
+   nodes->DeviceEnable();
    GeomFill(dims, NE, ND, nodes->Size(),
             elementMap, eMap,
             nodes->GetData(), meshNodes);
