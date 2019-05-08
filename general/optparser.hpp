@@ -66,11 +66,16 @@ private:
    static void WriteValue(const Option &opt, std::ostream &out);
 
 public:
+
+   /// Comstruct a command line option parser with '_argc' and '_argv'.
    OptionsParser(int _argc, char *_argv[])
       : argc(_argc), argv(_argv)
    {
       error_type = error_idx = 0;
    }
+
+   /** Add a boolean option and set 'var' to recieve the value.  Enable/disable
+       tags are used to set the bool to true/false respectively. */
    void AddOption(bool *var, const char *enable_short_name,
                   const char *enable_long_name, const char *disable_short_name,
                   const char *disable_long_name, const char *description,
@@ -81,18 +86,24 @@ public:
       options.Append(Option(DISABLE, var, disable_short_name, disable_long_name,
                             description, required));
    }
+
+   /// Add an integer option and set 'var' to recieve the value.
    void AddOption(int *var, const char *short_name, const char *long_name,
                   const char *description, bool required = false)
    {
       options.Append(Option(INT, var, short_name, long_name, description,
                             required));
    }
+
+   /// Add a double option and set 'var' to recieve the value.
    void AddOption(double *var, const char *short_name, const char *long_name,
                   const char *description, bool required = false)
    {
       options.Append(Option(DOUBLE, var, short_name, long_name, description,
                             required));
    }
+
+   /// Add a string (char*) option and set 'var' to recieve the value.
    void AddOption(const char **var, const char *short_name,
                   const char *long_name, const char *description,
                   bool required = false)
@@ -100,6 +111,8 @@ public:
       options.Append(Option(STRING, var, short_name, long_name, description,
                             required));
    }
+
+   /// Add an integer array (seperated by spaces) option and set 'var' to recieve the values.
    void AddOption(Array<int> * var, const char *short_name,
                   const char *long_name, const char *description,
                   bool required = false)
@@ -107,6 +120,8 @@ public:
       options.Append(Option(ARRAY, var, short_name, long_name, description,
                             required));
    }
+
+   /// Add a vector (doubles seperated by spaces) option and set 'var' to recieve the values.
    void AddOption(Vector * var, const char *short_name,
                   const char *long_name, const char *description,
                   bool required = false)
@@ -116,8 +131,12 @@ public:
    }
 
 
+   /// Perse the command line options and pass the values to the registered variables.
    void Parse();
+
+   /// Return true if the command line options were parsed sucessfully.
    bool Good() const { return (error_type == 0); }
+
    bool Help() const { return (error_type == 1); }
    void PrintOptions(std::ostream &out) const;
    void PrintError(std::ostream &out) const;

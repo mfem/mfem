@@ -15,13 +15,25 @@
 namespace mfem
 {
 
+/// Return the version number as a single integer.
 int GetVersion();
+
+/// Return the major version number as an integer.
 int GetVersionMajor();
+
+/// Return the minor version number as an integer.
 int GetVersionMinor();
+
+/// Return the version patch number as an integer.
 int GetVersionPatch();
 
+/// Return the version number as a string.
 const char *GetVersionStr();
+
+/// Return the Git hash as a string.
 const char *GetGitStr();
+
+/// Return the MFEM configuration as a string.
 const char *GetConfigStr();
 
 } // namespace mfem

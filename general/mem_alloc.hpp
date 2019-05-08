@@ -33,11 +33,17 @@ private:
    StackPart <Elem, Num> *TopPart, *TopFreePart;
    int UsedInTop, SSize;
 public:
+   /// Construct an empty stack.
    Stack() { TopPart = TopFreePart = NULL; UsedInTop = Num; SSize = 0; }
+   /// Return the number of elements on the stack.
    int Size() const { return SSize; }
+   /// Push element 'E' on the stack.
    void Push (Elem E);
+   /// Pop an element off the stack and return it.
    Elem Pop();
+   /// Clear the elements off the stack.
    void Clear();
+   /// Return the number of bytes used by the stack.
    size_t MemoryUsage() const;
    ~Stack() { Clear(); }
 };
