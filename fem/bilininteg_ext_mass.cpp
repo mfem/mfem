@@ -19,7 +19,6 @@ namespace mfem
 {
 
 const int MAX_Q1D = 10;
-const int MAX_NBZ = 10;
 
 template<const int T_D1D = 0, const int T_Q1D = 0, const int T_NBZ = 0> static
 bool SmemPAMassApply2D(const int NE,
@@ -29,15 +28,13 @@ bool SmemPAMassApply2D(const int NE,
                        const double* _x,
                        double* _y,
                        const int d1d = 0,
-                       const int q1d = 0,
-                       const int nbz = 0)
+                       const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int NBZ = T_NBZ ? T_NBZ : MAX_NBZ;
+   const int NBZ = T_NBZ ? T_NBZ : 1;
    const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   MFEM_VERIFY(NBZ <= MAX_NBZ, "");
    const DeviceMatrix B(_B, Q1D, D1D);
    const DeviceMatrix Bt(_Bt, D1D, Q1D);
    const DeviceTensor<3> op(_op, Q1D, Q1D, NE);
@@ -91,7 +88,7 @@ bool SmemPAMassApply2D(const int NE,
             double t = 0;
             for (int dy = 0; dy < D1D; ++dy)
             {
-               t += B(qy,dy)*sol_x[dy][qx];
+               t += matrix[dy][qy]*sol_x[dy][qx];
             }
             sol_xy[qy][qx] = t;
          }
@@ -170,7 +167,7 @@ bool SmemPAMassApply(const int dim,
          case 0x48: return SmemPAMassApply2D<4,8,2>(NE, B, Bt, op, x, y);
          case 0x55: return SmemPAMassApply2D<5,5,2>(NE, B, Bt, op, x, y);
          case 0x58: return SmemPAMassApply2D<5,8,2>(NE, B, Bt, op, x, y);
-         default:   return SmemPAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D, 1);
+         default:   return SmemPAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
    }
    printf("\n\033[33m[SmemPAMassApply] Skipped D1D=%d, Q1D=%d\033[m", D1D, Q1D);
