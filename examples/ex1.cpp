@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
       for (int l = 0; l < ref_level; l++)
       {
          //mesh->UniformRefinement();
-         mesh->RandomRefinement(0.5, false);
+         mesh->RandomRefinement(0.5, true);
       }
 
    }
@@ -122,16 +122,15 @@ int main(int argc, char *argv[])
    mesh->GeneralRefinement(refs);
 
    refs.SetSize(0);
-   refs.Append(Refinement(1, 4));
-   refs.Append(Refinement(2, 4));
+   refs.Append(Refinement(0, 4));
+   //refs.Append(Refinement(2, 4));
    mesh->GeneralRefinement(refs);
+#endif
 
-   {char fname[100];
+   /*{char fname[100];
    sprintf(fname, "ncdump.txt");
    std::ofstream f(fname);
-   mesh->ncmesh->DebugDump(f);}
-
-#endif
+   mesh->ncmesh->DebugDump(f);}*/
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
