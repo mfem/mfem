@@ -257,23 +257,24 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1  - Backward Euler,"
-                  "            2  - SDIRK2, L-stable\n\t"
-                  "            3  - SDIRK3, L-stable\n\t"
-                  "            4  - Implicit Midpoint,\n\t"
-                  "            5  - SDIRK2, A-stable,\n\t"
-                  "            6  - SDIRK3, A-stable,\n\t"
-                  "            7  - Forward Euler,\n\t"
-                  "            8  - RK2,\n\t"
-                  "            9  - RK3 SSP,\n\t"
-                  "            10 - RK4,\n\t"
-                  "            11 - CVODE implicit BDF, approximate Jacobian,\n\t"
-                  "            12 - CVODE implicit BDF, specified Jacobian,\n\t"
-                  "            13 - CVODE implicit ADAMS, approximate Jacobian,\n\t"
-                  "            14 - CVODE implicit ADAMS, specified Jacobian,\n\t"
-                  "            15 - ARKODE implicit, approximate Jacobian,\n\t"
-                  "            16 - ARKODE implicit, specified Jacobian,\n\t"
-                  "            17 - ARKODE explicit, 4th order.");
+                  "ODE solver:\n\t"
+                  "1  - Backward Euler,\n\t"
+                  "2  - SDIRK2, L-stable\n\t"
+                  "3  - SDIRK3, L-stable\n\t"
+                  "4  - Implicit Midpoint,\n\t"
+                  "5  - SDIRK2, A-stable,\n\t"
+                  "6  - SDIRK3, A-stable,\n\t"
+                  "7  - Forward Euler,\n\t"
+                  "8  - RK2,\n\t"
+                  "9  - RK3 SSP,\n\t"
+                  "10 - RK4,\n\t"
+                  "11 - CVODE implicit BDF, approximate Jacobian,\n\t"
+                  "12 - CVODE implicit BDF, specified Jacobian,\n\t"
+                  "13 - CVODE implicit ADAMS, approximate Jacobian,\n\t"
+                  "14 - CVODE implicit ADAMS, specified Jacobian,\n\t"
+                  "15 - ARKODE implicit, approximate Jacobian,\n\t"
+                  "16 - ARKODE implicit, specified Jacobian,\n\t"
+                  "17 - ARKODE explicit, 4th order.");
    args.AddOption(&nls, "-nls", "--nonlinear-solver",
                   "Nonlinear systems solver: "
                   "\"newton\" (plain Newton) or \"kinsol\" (KINSOL).");
@@ -514,8 +515,7 @@ int main(int argc, char *argv[])
    }
 
    // Initialize MFEM integrators, SUNDIALS integrators are initialized above
-   if (ode_solver_type < 11)
-     ode_solver->Init(oper);
+   if (ode_solver_type < 11) ode_solver->Init(oper);
 
    // 11. Perform time-integration
    //     (looping over the time iterations, ti, with a time-step dt).
