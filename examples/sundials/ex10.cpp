@@ -4,16 +4,14 @@
 // Compile with: make ex10
 //
 // Sample runs:
-//    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s  5 -dt 0.15 -vs 10
-//    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s  7 -dt 0.3  -vs 5
-//    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s  5 -dt 0.2  -vs 5
+//    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s 12 -dt 0.15 -vs 10
+//    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s 16 -dt 0.3  -vs 5
+//    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s 12 -dt 0.2  -vs 5
 //    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s  2 -dt 3 -nls kinsol
 //    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s  2 -dt 3 -nls kinsol
 //    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s  2 -dt 3 -nls kinsol
-//    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s 15 -dt 5e-3 -vs 60
-//    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s 16 -dt 0.01 -vs 30
-//    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s 15 -dt 0.01 -vs 30
-//    ex10 -m ../../data/beam-quad-amr.mesh -r 2 -o 2 -s 5 -dt 0.15 -vs 10
+//    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s 17 -dt 0.01 -vs 30
+//    ex10 -m ../../data/beam-quad-amr.mesh -r 2 -o 2 -s 12 -dt 0.15 -vs 10
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
@@ -92,7 +90,8 @@ protected:
 
    mutable Vector z; // auxiliary vector
 
-   SparseMatrix *grad_H, *Jacobian;
+   SparseMatrix *grad_H;
+   SparseMatrix *Jacobian;
 
 public:
    /// Solver type to use in the ImplicitSolve() method, used by SDIRK methods.
@@ -244,15 +243,23 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "            4 - CVODE implicit, approximate Jacobian,\n\t"
-                  "            5 - CVODE implicit, specified Jacobian,\n\t"
-                  "            6 - ARKODE implicit, approximate Jacobian,\n\t"
-                  "            7 - ARKODE implicit, specified Jacobian,\n\t"
-                  "            11 - Forward Euler, 12 - RK2,\n\t"
-                  "            13 - RK3 SSP, 14 - RK4,\n\t"
-                  "            15 - CVODE (adaptive order) explicit,\n\t"
-                  "            16 - ARKODE default (4th order) explicit.");
+                  "ODE solver: 1  - Backward Euler,"
+                  "            2  - SDIRK2, L-stable\n\t"
+                  "            3  - SDIRK3, L-stable\n\t"
+                  "            4  - Implicit Midpoint,\n\t"
+                  "            5  - SDIRK2, A-stable,\n\t"
+                  "            6  - SDIRK3, A-stable,\n\t"
+                  "            7  - Forward Euler,\n\t"
+                  "            8  - RK2,\n\t"
+                  "            9  - RK3 SSP,\n\t"
+                  "            10 - RK4,\n\t"
+                  "            11 - CVODE implicit BDF, approximate Jacobian,\n\t"
+                  "            12 - CVODE implicit BDF, specified Jacobian,\n\t"
+                  "            13 - CVODE implicit ADAMS, approximate Jacobian,\n\t"
+                  "            14 - CVODE implicit ADAMS, specified Jacobian,\n\t"
+                  "            15 - ARKODE implicit, approximate Jacobian,\n\t"
+                  "            16 - ARKODE implicit, specified Jacobian,\n\t"
+                  "            17 - ARKODE explicit, 4th order.");
    args.AddOption(&nls, "-nls", "--nonlinear-solver",
                   "Nonlinear systems solver: "
                   "\"newton\" (plain Newton) or \"kinsol\" (KINSOL).");
@@ -278,6 +285,13 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   // check for vaild ODE solver option
+   if (ode_solver_type < 1 || ode_solver_type > 17)
+   {
+     cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+     return 1;
+   }
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
@@ -374,6 +388,9 @@ int main(int argc, char *argv[])
    // 8. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
+   double t = 0.0;
+   oper.SetTime(t);
+
    ODESolver *ode_solver = NULL;
    CVODESolver *cvode = NULL;
    ARKStepSolver *arkode = NULL;
@@ -381,62 +398,74 @@ int main(int argc, char *argv[])
    switch (ode_solver_type)
    {
       // Implicit L-stable methods
-      case 1: ode_solver = new BackwardEulerSolver; break;
-      case 2: ode_solver = new SDIRK23Solver(2); break;
-      case 3: ode_solver = new SDIRK33Solver; break;
-      case 4:
-      case 5:
+      case 1:  ode_solver = new BackwardEulerSolver; break;
+      case 2:  ode_solver = new SDIRK23Solver(2); break;
+      case 3:  ode_solver = new SDIRK33Solver; break;
+      // Implicit A-stable methods (not L-stable)
+      case 4:  ode_solver = new ImplicitMidpointSolver; break;
+      case 5:  ode_solver = new SDIRK23Solver; break;
+      case 6:  ode_solver = new SDIRK34Solver; break;
+      // Explicit methods
+      case 7:  ode_solver = new ForwardEulerSolver; break;
+      case 8:  ode_solver = new RK2Solver(0.5); break; // midpoint method
+      case 9:  ode_solver = new RK3SSPSolver; break;
+      case 10: ode_solver = new RK4Solver; break;
+      // CVODE BDF
+      case 11:
+      case 12:
          cvode = new CVODESolver(CV_BDF);
+         cvode->Init(oper, t, vx);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
-         if (ode_solver_type == 5)
+         if (ode_solver_type == 12)
          {
+            // Custom Jacobian inversion.
             sjsolver = new SundialsJacSolver(oper);
             cvode->SetLinearSolver(*sjsolver);
          }
          ode_solver = cvode; break;
-      case 6:
-      case 7:
+      // CVODE Adams
+      case 13:
+      case 14:
+         cvode = new CVODESolver(CV_ADAMS);
+         cvode->Init(oper, t, vx);
+         cvode->SetSStolerances(reltol, abstol);
+         cvode->SetMaxStep(dt);
+         if (ode_solver_type == 14)
+         {
+            // Custom Jacobian inversion.
+            sjsolver = new SundialsJacSolver(oper);
+            cvode->SetLinearSolver(*sjsolver);
+         }
+         ode_solver = cvode; break;
+      // ARKStep Implicit methods
+      case 15:
+      case 16:
          arkode = new ARKStepSolver(ARKStepSolver::IMPLICIT);
+         arkode->Init(oper, t, vx);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         if (ode_solver_type == 7)
+         if (ode_solver_type == 16)
          {
             // Custom Jacobian inversion.
             sjsolver = new SundialsJacSolver(oper);
             arkode->SetLinearSolver(*sjsolver);
          }
          ode_solver = arkode; break;
-      // Explicit methodses
-      case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
-      case 13: ode_solver = new RK3SSPSolver; break;
-      case 14: ode_solver = new RK4Solver; break;
-      case 15:
-         cvode = new CVODESolver(CV_ADAMS);
-         cvode->SetSStolerances(reltol, abstol);
-         cvode->SetMaxStep(dt);
-         ode_solver = cvode; break;
-      case 16:
+      // ARKStep Explicit methods
+      case 17:
          arkode = new ARKStepSolver(ARKStepSolver::EXPLICIT);
+         arkode->Init(oper, t, vx);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          ode_solver = arkode; break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
-         return 3;
    }
 
-   double t = 0.0;
-   oper.SetTime(t);
-   ode_solver->Init(oper);
+   // Initialize MFEM integrators, SUNDIALS integrators are initialized above
+   if (ode_solver_type < 11)
+     ode_solver->Init(oper);
 
-   // 8. Perform time-integration (looping over the time iterations, ti, with a
+   // 9. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
@@ -471,7 +500,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 9. Save the displaced mesh, the velocity and elastic energy.
+   // 10. Save the displaced mesh, the velocity and elastic energy.
    {
       v.SetFromTrueVector(); x.SetFromTrueVector();
       GridFunction *nodes = &x;
@@ -490,14 +519,13 @@ int main(int argc, char *argv[])
       w.Save(ee_ofs);
    }
 
-   // 10. Free the used memory.
+   // 11. Free the used memory.
    delete ode_solver;
    delete sjsolver;
    delete mesh;
 
    return 0;
 }
-
 
 void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
                GridFunction *field, const char *field_name, bool init_vis)
@@ -580,7 +608,8 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
                                            NonlinearSolverType nls_type)
    : TimeDependentOperator(2*f.GetTrueVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
-     viscosity(visc), z(height/2)
+     viscosity(visc), z(height/2),
+     grad_H(NULL), Jacobian(NULL)
 {
    const double rel_tol = 1e-8;
    const int skip_zero_entries = 0;
@@ -702,7 +731,7 @@ int HyperelasticOperator::SundialsSetup(Vector y, int *jcur, double gamma)
    const Vector x(y.GetData() + sc, sc);
 
    // J = M + dt*(S + dt*grad(H))
-   delete Jacobian;
+   if (Jacobian) delete Jacobian;
    Jacobian = Add(1.0, M.SpMat(), gamma, S.SpMat());
    grad_H = dynamic_cast<SparseMatrix *>(&H.GetGradient(x));
    Jacobian->Add(gamma * gamma, *grad_H);
