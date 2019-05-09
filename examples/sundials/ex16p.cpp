@@ -8,9 +8,9 @@
 //     mpirun -np 4 ex16p -m ../../data/inline-tri.mesh
 //     mpirun -np 4 ex16p -m ../../data/disc-nurbs.mesh -tf 2
 //     mpirun -np 4 ex16p -s 12 -a 0.0 -k 1.0
-//     mpirun -np 4 ex16p -s 1 -a 1.0 -k 0.0 -dt 4e-6 -tf 2e-2 -vs 50
-//     mpirun -np 8 ex16p -s 2 -a 0.5 -k 0.5 -o 4 -dt 8e-6 -tf 2e-2 -vs 50
-//     mpirun -np 4 ex16p -s 3 -dt 2.0e-4 -tf 4.0e-2
+//     mpirun -np 4 ex16p -s 8 -a 1.0 -k 0.0 -dt 4e-6 -tf 2e-2 -vs 50
+//     mpirun -np 8 ex16p -s 9 -a 0.5 -k 0.5 -o 4 -dt 8e-6 -tf 2e-2 -vs 50
+//     mpirun -np 4 ex16p -s 10 -dt 2.0e-4 -tf 4.0e-2
 //     mpirun -np 16 ex16p -m ../../data/fichera-q2.mesh
 //     mpirun -np 16 ex16p -m ../../data/escher-p2.mesh
 //     mpirun -np 8 ex16p -m ../../data/beam-tet.mesh -tf 10 -dt 0.1
@@ -23,8 +23,10 @@
 //
 //               The example demonstrates the use of nonlinear operators (the
 //               class ConductionOperator defining C(u)), as well as their
-//               implicit time integration. By default, this example uses the
-//               SUNDIALS ODE solvers from CVODE and ARKODE.
+//               implicit time integration. Note that implementing the method
+//               ConductionOperator::ImplicitSolve is the only requirement for
+//               high-order implicit (SDIRK) time integration. By default, this
+//               example uses the SUNDIALS ODE solvers from CVODE and ARKODE.
 //
 //               We recommend viewing examples 2, 9 and 10 before viewing this
 //               example.
@@ -75,6 +77,10 @@ public:
                       const Vector &u);
 
    virtual void Mult(const Vector &u, Vector &du_dt) const;
+
+   /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
+       This is the only requirement for high-order SDIRK implicit integration.*/
+   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
 
    /** Setup the system (M + dt K) x = M b. This method is used by the implicit
        SUNDIALS solvers. */
@@ -129,7 +135,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 1;
    int order = 2;
-   int ode_solver_type = 2; // 2 = CVODE implicit BDF
+   int ode_solver_type = 9; // CVODE implicit BDF
    double t_final = 0.5;
    double dt = 1.0e-2;
    double alpha = 1.0e-2;
@@ -154,12 +160,19 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver:\n"
-                  "\t 1 - CVODE (implicit ADAMS),\n"
-                  "\t 2 - CVODE (implicit BDF),\n"
-                  "\t 3 - ARKODE (default explicit),\n"
-                  "\t 4 - ARKODE (explicit Fehlberg-6-4-5)\n"
-                  "\t 5 - ARKODE (default impicit).");
+                  "ODE solver:\n\t"
+                  "1  - Forward Euler,\n\t"
+                  "2  - RK2,\n\t"
+                  "3  - RK3 SSP,\n\t"
+                  "4  - RK4,\n\t"
+                  "5  - Backward Euler,\n\t"
+                  "6  - SDIRK 2,\n\t"
+                  "7  - SDIRK 3,\n\t"
+                  "8  - CVODE (implicit Adams),\n\t"
+                  "9  - CVODE (implicit BDF),\n\t"
+                  "10 - ARKODE (default explicit)\n\t,"
+                  "11 - ARKODE (explicit Fehlberg-6-4-5)\n\t,"
+                  "12 - ARKODE (default impicit).");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -190,14 +203,14 @@ int main(int argc, char *argv[])
    }
 
    // check for vaild ODE solver option
-   if (ode_solver_type < 1 || ode_solver_type > 5)
+   if (ode_solver_type < 1 || ode_solver_type > 12)
    {
      if (myid == 0)
      {
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
      }
      MPI_Finalize();
-     return 3;
+     return 1;
    }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
@@ -311,7 +324,17 @@ int main(int argc, char *argv[])
    SundialsJacSolver *sun_solver = NULL;
    switch (ode_solver_type)
    {
-      case 1:
+      // MFEM explicit methods
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(0.5); break; // midpoint method
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      // MFEM implicit L-stable methods
+      case 5: ode_solver = new BackwardEulerSolver; break;
+      case 6: ode_solver = new SDIRK23Solver(2); break;
+      case 7: ode_solver = new SDIRK33Solver; break;
+      // CVODE
+      case 8:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS);
          cvode->Init(oper, t, u);
          sun_solver = new SundialsJacSolver(oper);
@@ -319,7 +342,7 @@ int main(int argc, char *argv[])
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          ode_solver = cvode; break;
-      case 2:
+      case 9:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_BDF);
          cvode->Init(oper, t, u);
          sun_solver = new SundialsJacSolver(oper);
@@ -327,15 +350,16 @@ int main(int argc, char *argv[])
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          ode_solver = cvode; break;
-      case 3:
-      case 4:
+      // ARKODE
+      case 10:
+      case 11:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::EXPLICIT);
          arkode->Init(oper, t, u);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         if (ode_solver_type == 3) arkode->SetERKTableNum(FEHLBERG_13_7_8);
+         if (ode_solver_type == 11) arkode->SetERKTableNum(FEHLBERG_13_7_8);
          ode_solver = arkode; break;
-      case 5:
+      case 12:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::IMPLICIT);
          arkode->Init(oper, t, u);
          sun_solver = new SundialsJacSolver(oper);
@@ -344,6 +368,9 @@ int main(int argc, char *argv[])
          arkode->SetMaxStep(dt);
          ode_solver = arkode; break;
    }
+
+   // Initialize MFEM integrators, SUNDIALS integrators are initialized above
+   if (ode_solver_type < 8) ode_solver->Init(oper);
 
    // Since we want to update the diffusion coefficient after every time step,
    // we need to use the "one-step" mode of the SUNDIALS solvers.
@@ -427,7 +454,7 @@ int main(int argc, char *argv[])
 ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
                                        double kap, const Vector &u)
    : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
-     T(NULL), current_dt(0.0),
+     T(NULL),
      M_solver(f.GetComm()), T_solver(f.GetComm()), z(height)
 {
    const double rel_tol = 1e-8;
@@ -467,6 +494,20 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
    M_solver.Mult(z, du_dt);
+}
+
+void ConductionOperator::ImplicitSolve(const double dt,
+                                       const Vector &u, Vector &du_dt)
+{
+   // Solve the equation:
+   //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
+   // for du_dt
+   if (T) delete T;
+   T = Add(1.0, Mmat, dt, Kmat);
+   T_solver.SetOperator(*T);
+   Kmat.Mult(u, z);
+   z.Neg();
+   T_solver.Mult(z, du_dt);
 }
 
 void ConductionOperator::SetParameters(const Vector &u)
