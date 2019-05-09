@@ -33,7 +33,6 @@ bool SmemPAMassApply2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int NBZ = T_NBZ ? T_NBZ : 1;
-   const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    const DeviceMatrix B(_B, Q1D, D1D);
    const DeviceMatrix Bt(_Bt, D1D, Q1D);
@@ -44,6 +43,8 @@ bool SmemPAMassApply2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int NBZ = T_NBZ ? T_NBZ : 1;
+      const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       MFEM_SHARED double buf1[NBZ][MQ1][MQ1];
       MFEM_SHARED double buf2[NBZ][MQ1][MQ1];
       MFEM_SHARED double matrix[MQ1][MQ1];

@@ -54,6 +54,8 @@ bool SmemPADiffusionApply2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int NBZ = T_NBZ ? T_NBZ : 1;
+      const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       MFEM_SHARED double B[MQ1][MD1];
       MFEM_SHARED double G[MQ1][MD1];
       MFEM_SHARED double Bt[MD1][MQ1];
