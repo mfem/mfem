@@ -17,22 +17,6 @@
 namespace mfem
 {
 
-/// GeometryExtension
-class GeometryExtension
-{
-public:
-   Array<int> eMap;
-   Array<double> nodes;
-   Array<double> X, J, invJ, detJ;
-   static GeometryExtension* Get(const FiniteElementSpace&,
-                                 const IntegrationRule&);
-   static GeometryExtension* Get(const FiniteElementSpace&,
-                                 const IntegrationRule&,
-                                 const Vector&);
-   static void ReorderByVDim(const GridFunction*);
-   static void ReorderByNodes(const GridFunction*);
-};
-
 /// DofToQuad
 class DofToQuad
 {

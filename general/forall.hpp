@@ -30,6 +30,9 @@
 namespace mfem
 {
 
+const int MAX_Q1D = 10;
+const int MAX_D1D = 10;
+
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
 

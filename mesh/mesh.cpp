@@ -15,6 +15,7 @@
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
+#include "../general/forall.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -749,6 +750,17 @@ void Mesh::GetLocalQuadToWdgTransformation(
       locpm(2, j) = vert.z;
    }
    Transf.FinalizeTransformation();
+}
+
+GeometryExtension* Mesh::GetGeometryExtension(const IntegrationRule& ir,
+                                        const Vector& Sx) {
+   GeometryExtension::Get(this, ir, Sx, geom);
+   return geom;   
+}
+
+GeometryExtension* Mesh::GetGeometryExtension(const IntegrationRule& ir) {
+   GeometryExtension::Get(this, ir, geom);
+   return geom;
 }
 
 void Mesh::GetLocalFaceTransformation(
