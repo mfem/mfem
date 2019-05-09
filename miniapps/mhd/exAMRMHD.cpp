@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
    alpha = 0.001; 
    Lx=3.0;
    lambda=5.0;
-   int ref_steps=100;
+   int ref_steps=1000;
 
    bool visualization = true;
    int vis_steps = 10;
@@ -297,10 +297,10 @@ int main(int argc, char *argv[])
 
    ThresholdRefiner refiner(estimator);
    //refiner.SetTotalErrorFraction(0.0); // use purely local threshold   
-   refiner.SetTotalErrorGoal(1e-10);    // total error goal (stop criterion)
-   refiner.SetLocalErrorGoal(1e-10);    // local error goal (stop criterion)
+   refiner.SetTotalErrorGoal(1e-7);    // total error goal (stop criterion)
+   refiner.SetLocalErrorGoal(1e-7);    // local error goal (stop criterion)
    refiner.SetMaxElements(50000);
-   refiner.SetMaximumRefinementLevel(amr_levels);
+   refiner.SetMaximumRefinementLevel(1);
    //refiner.SetYRange(-.75, .75);
    //refiner.PreferNonconformingRefinement();
    refiner.SetNCLimit(nc_limit);
@@ -483,6 +483,7 @@ int main(int argc, char *argv[])
    //reset ltol_amr for full simulation
    refiner.SetTotalErrorGoal(ltol_amr);    // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(ltol_amr);    // local error goal (stop criterion)
+   refiner.SetMaximumRefinementLevel(amr_levels);
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
@@ -528,6 +529,11 @@ int main(int argc, char *argv[])
       else
           refineMesh=false;
 
+      if ( ((ti-ref_steps/2) % ref_steps)==0 ) 
+          derefine=true;
+      else
+          derefine=false;
+
       if (refineMesh) refiner.Reset();
       if (derefine) derefiner.Reset();
 
@@ -536,8 +542,10 @@ int main(int argc, char *argv[])
       //for (int ref_it = 1; ; ref_it++)
       //int ref_it=1;
       {
+        /*
         cout << "Number of unknowns: " << fespace.GetVSize() << endl;
         cout << "Number of elements in mesh: " << mesh->GetNE() << endl;
+        */
 
         //---Predictor stage---
         //assemble the nonlinear terms
@@ -554,7 +562,8 @@ int main(int argc, char *argv[])
         oper.UpdatePhi(vx);
 
         last_step = (t >= t_final - 1e-8*dt);
-        cout << "step " << ti << ", t = " << t <<endl;
+        if ((ti % 20) == 0)
+            cout << "step " << ti << ", t = " << t <<endl;
 
         //----------------------------AMR---------------------------------
         if (refineMesh)  refiner.Apply(*mesh);
@@ -620,15 +629,6 @@ int main(int argc, char *argv[])
         }
         //----------------------------AMR---------------------------------
         
-
-        /*
-        fe_size = fespace.GetTrueVSize();
-        ofstream myfile0("vxBefore.dat");
-        vx.Print(myfile0, 1000);
-        vx.Update(fe_offset);
-        ofstream myfile1("vxAfter.dat");
-        vx.Print(myfile1, 1000);
-        */
 
         if (visualization)
         {

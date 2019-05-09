@@ -110,7 +110,7 @@ void AMRResistiveMHDOperator::assembleProblem(Array<int> &ess_bdr)
    GSSmoother *M_prec_gs = new GSSmoother(Mmat);
    M_prec=M_prec_gs;
    M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-8);
+   M_solver.SetRelTol(1e-10);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(200);
    M_solver.SetPrintLevel(0);
@@ -181,6 +181,7 @@ void AMRResistiveMHDOperator::UpdateProblem()
 
    cout<<"True V size = "<<fespace.GetTrueVSize()<<endl;
    cout<<"Problem size = "<<fespace.GetVSize()<<endl;
+   cout << "Number of elements in mesh: " << fespace.GetNE() << endl;
    width = height = fespace.GetVSize()*4;
 }          
 
