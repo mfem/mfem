@@ -11,6 +11,7 @@
 
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
+#include "bilininteg_ext_diffusion.hpp"
 #include "bilininteg_ext_mass.hpp"
 #include "gridfunc.hpp"
 
@@ -701,7 +702,8 @@ static void PADiffusionApply(const int dim,
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-
+   // Shared version of the diffusion kernels
+   if (SmemPADiffusionApply(dim, D1D, Q1D, NE, B, G, Bt, Gt, op, x, y)) { return; }
    if (dim == 2)
    {
       switch ((D1D << 4) | Q1D)
