@@ -27,7 +27,7 @@ class ParMesh;
 #endif
 
 
-/// Base class Coefficient that may optionally depend on time.
+/// Base class Coefficients that optionally depend on space and time.
 class Coefficient
 {
 protected:
@@ -36,7 +36,10 @@ protected:
 public:
    Coefficient() { time = 0.; }
 
+   /// Set the time for time dependent coefficients
    void SetTime(double t) { time = t; }
+
+   /// Get the time for time dependent coefficients
    double GetTime() { return time; }
 
    /** @brief Evaluate the coefficient in the element described by @a T at the
@@ -63,7 +66,7 @@ public:
 };
 
 
-/// Subclass constant coefficient.
+/// A coefficient that is constant across space and time
 class ConstantCoefficient : public Coefficient
 {
 public:
@@ -72,13 +75,14 @@ public:
    /// c is value of constant function
    explicit ConstantCoefficient(double c = 1.0) { constant=c; }
 
-   /// Evaluate the coefficient
+   /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return (constant); }
 };
 
-/// class for piecewise constant coefficient
+/** @brief A piecewise constant coefficient with the constants keyed 
+    off the element attribute numbers. */
 class PWConstCoefficient : public Coefficient
 {
 private:
@@ -90,31 +94,33 @@ public:
    explicit PWConstCoefficient(int NumOfSubD = 0) : constants(NumOfSubD)
    { constants = 0.0; }
 
-   /** c should be a vector defined by attributes, so for region with
-       attribute i  c[i] is the coefficient in that region */
+
+   /// Construct the constant coefficient using a vector of constants.
+   /** @a c should be a vector defined by attributes, so for the region 
+       with attribute @a i  @a c[i] is the coefficient in that region.  */
    PWConstCoefficient(Vector &c)
    { constants.SetSize(c.Size()); constants=c; }
 
-   /// Update constants
+   /// Update the constants with vector @a c.
    void UpdateConstants(Vector &c) { constants.SetSize(c.Size()); constants=c; }
 
-   /// Member function to access or modify the value of the i-th constant
+   /// Return a reference to the i-th constant
    double &operator()(int i) { return constants(i-1); }
 
-   /// Set domain constants equal to the same constant c
+   /// Set the constants for all attributes to constant @a c.
    void operator=(double c) { constants = c; }
 
-   /// Returns the number of constants
+   /// Returns the number of constants representing different attributes.
    int GetNConst() { return constants.Size(); }
 
-   /// Evaluate the coefficient function
+   /// Evaluate the coefficient.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };
 
 typedef double (*DeviceFunctionCoefficientPtr)(const Vector3&);
 
-/// class for C-function coefficient
+/// A general C-function coefficient
 class FunctionCoefficient : public Coefficient
 {
 protected:
@@ -123,7 +129,7 @@ protected:
    double (*DeviceFunction)(const Vector3&);
 
 public:
-   /// Define a time-independent coefficient from a C-function
+   /// Define a time-independent coefficient from a pointer to a C-function
    FunctionCoefficient(double (*f)(const Vector &))
    {
       Function = f;
@@ -131,7 +137,7 @@ public:
       DeviceFunction = NULL;
    }
 
-   /// Define a time-dependent coefficient from a C-function
+   /// Define a time-dependent coefficient from a pointer to a C-function
    FunctionCoefficient(double (*tdf)(const Vector &, double))
    {
       Function = NULL;
@@ -168,13 +174,13 @@ public:
       DeviceFunction = NULL;
    }
 
-   /// Evaluate coefficient
+   /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
    /// Return the coefficient's C-function that uses Vector3.
-   /// Warning: for now, the returned function can only be used on the
-   /// host inside a MFEM_FORALL.
+   /** Warning: for now, the returned function can only be used on the
+       host inside a MFEM_FORALL. */
    DeviceFunctionCoefficientPtr GetDeviceFunction();
 };
 
@@ -194,13 +200,24 @@ public:
    GridFunctionCoefficient (GridFunction *gf, int comp = 1)
    { GridF = gf; Component = comp; }
 
+   /// Set the internal GridFunction
    void SetGridFunction(GridFunction *gf) { GridF = gf; }
+
+   /// Get the internal GridFunction
    GridFunction * GetGridFunction() const { return GridF; }
 
+   /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };
 
+
+/** @brief A coefficient that depends on 1 or 2 parent coefficients and a 
+    transformation rule represented by a c-function. 
+
+    \f$ C(x,t) = T(Q1(x,t)) \f$ or \f$ C(x,t) = T(Q1(x,t), Q2(x,t)) \f$ 
+
+    where T is the transformation rule, and Q1/Q2 are the parent coefficients.*/ 
 class TransformedCoefficient : public Coefficient
 {
 private:
@@ -216,10 +233,20 @@ public:
                            double (*F)(double,double))
       : Q1(q1), Q2(q2), Transform2(F) { Transform1 = 0; }
 
+   /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
-/// Delta function coefficient
+/** @brief Delta function coefficient optionally multiplied by a weight 
+    coefficient and a scaled time dependent c-function.
+
+    \f$ F(x,t) = w(x,t) s T(t) d(x - xc) \f$
+
+    where w is the optional weight coefficient, @a s is a scale factor
+    T is an optional time-dependent function and d is a delta function. 
+
+    WARNING this cannot be used as a normal coefficient.  The usual Eval
+    method is disabled. */
 class DeltaCoefficient : public Coefficient
 {
 protected:
@@ -229,21 +256,29 @@ protected:
    double (*tdf)(double);
 
 public:
+
+   /// Construct a unit delta function centered at (0.0,0.0,0.0)
    DeltaCoefficient()
    {
       center[0] = center[1] = center[2] = 0.; scale = 1.; tol = 1e-12;
       weight = NULL; sdim = 0; tdf = NULL;
    }
+
+   /// Construct a delta function scaled by @a s and centered at (x,0.0,0.0)
    DeltaCoefficient(double x, double s)
    {
       center[0] = x; center[1] = 0.; center[2] = 0.; scale = s; tol = 1e-12;
       weight = NULL; sdim = 1; tdf = NULL;
    }
+
+   /// Construct a delta function scaled by @a s and centered at (x,y,0.0)
    DeltaCoefficient(double x, double y, double s)
    {
       center[0] = x; center[1] = y; center[2] = 0.; scale = s; tol = 1e-12;
       weight = NULL; sdim = 2; tdf = NULL;
    }
+
+   /// Construct a delta function scaled by @a s and centered at (x,y,z)
    DeltaCoefficient(double x, double y, double z, double s)
    {
       center[0] = x; center[1] = y; center[2] = z; scale = s; tol = 1e-12;
@@ -251,12 +286,15 @@ public:
    }
    void SetDeltaCenter(const Vector& center);
    void SetScale(double _s) { scale = _s; }
+
    /// Set a time-dependent function that multiplies the Scale().
    void SetFunction(double (*f)(double)) { tdf = f; }
+
    /** @brief Set the tolerance used during projection onto GridFunction to
-       identifying the Mesh vertex where the Center() of the delta function
-       lies. */
+       identify the Mesh vertex where the Center() of the delta function
+       lies. (default 1e-12)*/
    void SetTol(double _tol) { tol = _tol; }
+
    /// Set a weight Coefficient that multiplies the DeltaCoefficient.
    /** The weight Coefficient multiplies the value returned by EvalDelta() but
        not the value returned by Scale().
@@ -264,16 +302,23 @@ public:
        projecting the DeltaCoefficient onto a GridFunction, so that the weighted
        integral of the projection is exactly equal to the Scale(). */
    void SetWeight(Coefficient *w) { weight = w; }
+
+   /// Return a pointer to a c-array representing the center of the delta function.
    const double *Center() { return center; }
-   /** @brief Return the scale set by SetScale() multiplied by the
-       time-dependent function specified by SetFunction(), if set. */
+
+   /** @brief Return the value of the time */
    double Scale() { return tdf ? (*tdf)(GetTime())*scale : scale; }
-   /// See SetTol() for description of the tolerance parameter.
+
+   /// Return the tolerance used to identify the mesh vertex
    double Tol() { return tol; }
+
    /// See SetWeight() for description of the weight Coefficient.
    Coefficient *Weight() { return weight; }
+
+   /// Write the center of the delta function into @a center.
    void GetDeltaCenter(Vector& center);
-   /// Return the Scale() multiplied by the weight Coefficient, if any.
+
+   /// The value of the function assuming we are evaluating at the delta center.
    virtual double EvalDelta(ElementTransformation &T, const IntegrationPoint &ip);
    /** @brief A DeltaFunction cannot be evaluated. Calling this method will
        cause an MFEM error, terminating the application. */
@@ -282,7 +327,8 @@ public:
    virtual ~DeltaCoefficient() { delete weight; }
 };
 
-/// Coefficient defined on a subset of domain or boundary attributes
+/** @brief Derived coefficient that takes the value of the parent coefficient
+    for the active attrs and is zero otherwise. */
 class RestrictedCoefficient : public Coefficient
 {
 private:
@@ -290,13 +336,18 @@ private:
    Array<int> active_attr;
 
 public:
+   /** @brief Construct with a parent coefficient and an array of zeros and
+       ones representing which attributes this coefficient should be active. */ 
    RestrictedCoefficient(Coefficient &_c, Array<int> &attr)
    { c = &_c; attr.Copy(active_attr); }
 
+   /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    { return active_attr[T.Attribute-1] ? c->Eval(T, ip, GetTime()) : 0.0; }
 };
 
+
+/// Base class for Vector Coefficients that optionally depend on time and space.
 class VectorCoefficient
 {
 protected:
@@ -306,7 +357,10 @@ protected:
 public:
    VectorCoefficient(int vd) { vdim = vd; time = 0.; }
 
+   /// Set the time for time dependent coefficients
    void SetTime(double t) { time = t; }
+
+   /// Get the time for time dependent coefficients
    double GetTime() { return time; }
 
    /// Returns dimension of the vector.
@@ -338,18 +392,24 @@ public:
    virtual ~VectorCoefficient() { }
 };
 
+
+/// Vector coefficient that is constant in space and time.
 class VectorConstantCoefficient : public VectorCoefficient
 {
 private:
    Vector vec;
 public:
+   /// Construct the coefficient with constant vector @a v.
    VectorConstantCoefficient(const Vector &v)
       : VectorCoefficient(v.Size()), vec(v) { }
    using VectorCoefficient::Eval;
+
+   ///  Evaluate the vector coefficient at @ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
 };
 
+/// A general C-function vector coefficient
 class VectorFunctionCoefficient : public VectorCoefficient
 {
 private:
@@ -378,35 +438,44 @@ public:
    }
 
    using VectorCoefficient::Eval;
+   /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
    virtual ~VectorFunctionCoefficient() { }
 };
 
-/// Vector coefficient defined by an array of scalar coefficients.
+/** @brief Vector coefficient defined by an array of scalar coefficients.  
+    Coefficients that are not set will evaluate to zero in the vector.
+    This object takes ownership of the array of coefficients inside it and 
+    deletes them at object destruction. */
 class VectorArrayCoefficient : public VectorCoefficient
 {
 private:
    Array<Coefficient*> Coeff;
 
 public:
-   /// Construct vector of dim coefficients.
+   /** @brief Construct vector of dim coefficients.  The actual coefficients 
+       still need to be added with Set(). */
    explicit VectorArrayCoefficient(int dim);
 
    /// Returns i'th coefficient.
    Coefficient* GetCoeff(int i) { return Coeff[i]; }
 
+   /// Returns the entire array of coefficients.
    Coefficient **GetCoeffs() { return Coeff; }
 
-   /// Sets coefficient in the vector.
+   //TODO:  Do we really want to delete
+   /// Sets i'th coefficient in the array.
    void Set(int i, Coefficient *c) { delete Coeff[i]; Coeff[i] = c; }
 
-   /// Evaluates i'th component of the vector.
+   /// Evaluates i'th component of the vector of coefficients.  Returns 
    double Eval(int i, ElementTransformation &T, const IntegrationPoint &ip)
    { return Coeff[i] ? Coeff[i]->Eval(T, ip, GetTime()) : 0.0; }
 
    using VectorCoefficient::Eval;
+   /** @brief Evaluate the coefficient.  Each element of vector V comes from the 
+       associated array of scalar coefficients. */
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
@@ -421,15 +490,24 @@ protected:
    GridFunction *GridFunc;
 
 public:
+   /** @brief Construct an empty coefficient.  Calling Eval() before the grid
+       function is set with cause a segfault. */
    VectorGridFunctionCoefficient() : VectorCoefficient(0), GridFunc(NULL) { }
+
+   /** @brief  Construct the coefficient with grid function @a gf.  The 
+       grid function is not owned by the coefficient. */  
    VectorGridFunctionCoefficient(GridFunction *gf);
 
+   /// Set the grid function
    void SetGridFunction(GridFunction *gf);
    GridFunction * GetGridFunction() const { return GridFunc; }
 
+   /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
+   /** @brief Evaluate the vector coefficient at all of the locations in the 
+       integration rule and write the vectors into matrix @a M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 
@@ -443,14 +521,23 @@ protected:
    GridFunction *GridFunc;
 
 public:
+   /** @brief  Construct the coefficient with a scalar grid function 
+       @a gf.  The grid function is not owned by the coefficient. */  
    GradientGridFunctionCoefficient(GridFunction *gf);
 
+   ///Set the scalar grid function.
    void SetGridFunction(GridFunction *gf);
+
+   ///Get the scalar grid function.
    GridFunction * GetGridFunction() const { return GridFunc; }
 
+   /// Evaluate the gradient vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
+   /** @brief Evaluate the gradient vector coefficient at all of the 
+       locations in the  integration rule and write the vectors into 
+       matrix @a M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 
@@ -464,12 +551,18 @@ protected:
    GridFunction *GridFunc;
 
 public:
+   /** @brief  Construct the coefficient with a vector grid function 
+       @a gf.  The grid function is not owned by the coefficient. */  
    CurlGridFunctionCoefficient(GridFunction *gf);
 
+   /// Set the vector grid function.
    void SetGridFunction(GridFunction *gf);
+
+   /// Get the vector grid function.
    GridFunction * GetGridFunction() const { return GridFunc; }
 
    using VectorCoefficient::Eval;
+   /// Evaluate the vector curl coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
@@ -483,18 +576,28 @@ protected:
    GridFunction *GridFunc;
 
 public:
+   /** @brief  Construct the coefficient with a vector grid function 
+       @a gf.  The grid function is not owned by the coefficient. */    
    DivergenceGridFunctionCoefficient(GridFunction *gf);
 
+   // /Set the vector grid function.
    void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
+
+   /// Get the vector grid function.
    GridFunction * GetGridFunction() const { return GridFunc; }
 
+   /// Evaluate the scalar divergence coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
    virtual ~DivergenceGridFunctionCoefficient() { }
 };
 
-/// VectorDeltaCoefficient: DeltaCoefficient with a direction
+/** @brief Vector coefficient defined by a scalar DeltaCoefficient and a 
+    constant vector direction.
+
+    WARNING this cannot be used as a normal coefficient.  The usual Eval
+    method is disabled. */
 class VectorDeltaCoefficient : public VectorCoefficient
 {
 protected:
@@ -502,32 +605,51 @@ protected:
    DeltaCoefficient d;
 
 public:
+   /// Construct with a vector of dimension @a _vdim.
    VectorDeltaCoefficient(int _vdim)
       : VectorCoefficient(_vdim), dir(_vdim), d() { }
+
+   /** @brief Construct with a Vector object representing the direction and  
+       a unit delta function centered at (0.0,0.0,0.0) */
    VectorDeltaCoefficient(const Vector& _dir)
       : VectorCoefficient(_dir.Size()), dir(_dir), d() { }
+
+   /** @brief Construct with a Vector object representing the direction and  
+       a delta function scaled by @a s and centered at (x,0.0,0.0) */      
    VectorDeltaCoefficient(const Vector& _dir, double x, double s)
       : VectorCoefficient(_dir.Size()), dir(_dir), d(x,s) { }
+
+   /** @brief Construct with a Vector object representing the direction and  
+       a delta function scaled by @a s and centered at (x,y,0.0) */         
    VectorDeltaCoefficient(const Vector& _dir, double x, double y, double s)
       : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,s) { }
+
+   /** @brief Construct with a Vector object representing the direction and  
+       a delta function scaled by @a s and centered at (x,y,z) */         
    VectorDeltaCoefficient(const Vector& _dir, double x, double y, double z,
                           double s)
       : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,z,s) { }
 
-   /// Replace the associated DeltaCoeficient with a new DeltaCoeficient.
+   /// Replace the associated DeltaCoefficient with a new DeltaCoeficient.
    /** The new DeltaCoeficient cannot have a specified weight Coefficient, i.e.
        DeltaCoeficient::Weight() should return NULL. */
    void SetDeltaCoefficient(const DeltaCoefficient& _d) { d = _d; }
+
    /// Return the associated scalar DeltaCoefficient.
    DeltaCoefficient& GetDeltaCoefficient() { return d; }
+
+   /// Set the direction vector to @a _d.
    void SetDirection(const Vector& _d);
 
+   /// Get the center of the underlying delta function.
    void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }
+
    /** @brief Return the specified direction vector multiplied by the value
        returned by DeltaCoefficient::EvalDelta() of the associated scalar
        DeltaCoefficient. */
    virtual void EvalDelta(Vector &V, ElementTransformation &T,
                           const IntegrationPoint &ip);
+
    using VectorCoefficient::Eval;
    /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
        will cause an MFEM error, terminating the application. */
@@ -537,7 +659,8 @@ public:
    virtual ~VectorDeltaCoefficient() { }
 };
 
-/// VectorCoefficient defined on a subset of domain or boundary attributes
+/** @brief Derived vector coefficient that takes the value of the parent vector
+    coefficient for the active attrs and is zero otherwise. */
 class VectorRestrictedCoefficient : public VectorCoefficient
 {
 private:
@@ -545,18 +668,25 @@ private:
    Array<int> active_attr;
 
 public:
+   /** @brief Construct with a parent vector coefficient and an array of zeros and
+       ones representing the attributes for which this coefficient should be active. */ 
    VectorRestrictedCoefficient(VectorCoefficient &vc, Array<int> &attr)
       : VectorCoefficient(vc.GetVDim())
    { c = &vc; attr.Copy(active_attr); }
 
+   /// Evaluate the vector coefficient at @ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
+   /** @brief Evaluate the  vector coefficient at all of the 
+       locations in the integration rule and write the vectors into 
+       matrix @a M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 };
 
 
+/// Base class forMatrix Coefficients that optionally depend on time and space.
 class MatrixCoefficient
 {
 protected:
@@ -564,16 +694,25 @@ protected:
    double time;
 
 public:
+   /// Construct a dim x dim matrix coefficient.
    explicit MatrixCoefficient(int dim) { height = width = dim; time = 0.; }
 
+   /// Construct a h x b matrix coefficient.
    MatrixCoefficient(int h, int w) : height(h), width(w), time(0.) { }
 
+   /// Set the time for time dependent coefficients
    void SetTime(double t) { time = t; }
+
+   /// Get the time for time dependent coefficients
    double GetTime() { return time; }
 
+   /// Get the height of the matrix.
    int GetHeight() const { return height; }
+
+   /// Get the width of the matrix.
    int GetWidth() const { return width; }
-   // For backward compatibility
+
+   // For backward compatibility get the width of the matrix.
    int GetVDim() const { return width; }
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
@@ -587,18 +726,27 @@ public:
    virtual ~MatrixCoefficient() { }
 };
 
+
+/// A matrix coefficient that is constant in space and time.
 class MatrixConstantCoefficient : public MatrixCoefficient
 {
 private:
    DenseMatrix mat;
 public:
+   ///Construct using matrix @a m for the constant.
    MatrixConstantCoefficient(const DenseMatrix &m)
       : MatrixCoefficient(m.Height(), m.Width()), mat(m) { }
    using MatrixCoefficient::Eval;
+   /// Evaluate the matrix coefficient at @ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
 };
 
+
+/** @brief A matrix coefficient with an optional scalar coefficient 
+    multiplier \a q.  The matrix function can either be represented by a
+    C-function or a constant matrix provided when constructiong this 
+    object.  */
 class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
@@ -608,7 +756,7 @@ private:
    DenseMatrix mat;
 
 public:
-   /// Construct a time-independent square matrix coefficient from a C-function
+   /// Construct a square matrix coefficient from a C-function without time dependence.
    MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, DenseMatrix &),
                              Coefficient *q = NULL)
       : MatrixCoefficient(dim), Q(q)
@@ -627,7 +775,7 @@ public:
       mat = m;
    }
 
-   /// Construct a time-dependent square matrix coefficient from a C-function
+   /// Construct a square matrix coefficient from a C-function with time-dependence.
    MatrixFunctionCoefficient(int dim,
                              void (*TDF)(const Vector &, double, DenseMatrix &),
                              Coefficient *q = NULL)
@@ -638,35 +786,51 @@ public:
       mat.SetSize(0);
    }
 
+   /// Evaluate the matrix coefficient at @ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
    virtual ~MatrixFunctionCoefficient() { }
 };
 
+
+
+/** @brief Matrix coefficient defined by an matrix of scalar coefficients.  
+    Coefficients that are not set will evaluate to zero in the vector.  The
+    of coefficient is stored as a flat Array with indexing (i,j) -> i*width+j. 
+    This object takes ownership of the array of coefficients inside it and 
+    deletes them at object destruction.
+    */
 class MatrixArrayCoefficient : public MatrixCoefficient
 {
 private:
    Array<Coefficient *> Coeff;
 
 public:
-
+   /** @brief Construct matrix of dim = height*width coefficients.  
+       The actual coefficients still need to be added with Set(). */
    explicit MatrixArrayCoefficient (int dim);
 
+   /// Get the coefficient located at (i,j) in the matrix.
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
+   /// Set the coefficient located at (i,j) in the matrix.
    void Set(int i, int j, Coefficient * c) { delete Coeff[i*width+j]; Coeff[i*width+j] = c; }
 
+   /// Evaluate coefficient located at (i,j) in the matrix using integration point @a ip.
    double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)
    { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, ip, GetTime()) : 0.0; }
 
+   /// Evaluate the matrix coefficient @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
    virtual ~MatrixArrayCoefficient();
 };
 
-/// MatrixCoefficient defined on a subset of domain or boundary attributes
+
+/** @brief Derived matrix coefficient that takes the value of the parent 
+    matrix coefficient for the active attrs and is zero otherwise. */
 class MatrixRestrictedCoefficient : public MatrixCoefficient
 {
 private:
@@ -674,10 +838,13 @@ private:
    Array<int> active_attr;
 
 public:
+   /** @brief Construct with a parent matrix coefficient and an array of zeros and
+       ones representing the attributes for which this coefficient should be active. */ 
    MatrixRestrictedCoefficient(MatrixCoefficient &mc, Array<int> &attr)
       : MatrixCoefficient(mc.GetHeight(), mc.GetWidth())
    { c = &mc; attr.Copy(active_attr); }
 
+   /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 };
@@ -695,12 +862,12 @@ private:
    double beta;
 
 public:
-   // Result is _alpha * A + _beta * B
+   /// Construct with the two coefficeints.  Result is _alpha * A + _beta * B.
    SumCoefficient(Coefficient &A, Coefficient &B,
                   double _alpha = 1.0, double _beta = 1.0)
       : a(&A), b(&B), alpha(_alpha), beta(_beta) { }
 
-   /// Evaluate the coefficient
+   /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return alpha * a->Eval(T, ip) + beta * b->Eval(T, ip); }
@@ -714,10 +881,11 @@ private:
    Coefficient * b;
 
 public:
+   /// Construct with the two coefficients.  Result is A * B.
    ProductCoefficient(Coefficient &A, Coefficient &B)
       : a(&A), b(&B) { }
 
-   /// Evaluate the coefficient
+   /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return a->Eval(T, ip) * b->Eval(T, ip); }
@@ -732,15 +900,16 @@ private:
    double p;
 
 public:
-   // Result is A^p
+   /// Construct with a coefficient and a constant power @a _p.  Result is A^p.
    PowerCoefficient(Coefficient &A, double _p)
       : a(&A), p(_p) { }
 
-   /// Evaluate the coefficient
+   /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return pow(a->Eval(T, ip), p); }
 };
+
 
 /// Scalar coefficient defined as the inner product of two vector coefficients
 class InnerProductCoefficient : public Coefficient
@@ -752,14 +921,15 @@ private:
    mutable Vector va;
    mutable Vector vb;
 public:
+   /// Construxt with the two vector coefficients.  Result is \f$ A \cdot B \f$.
    InnerProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
-   /// Evaluate the coefficient
+   /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };
 
-/// Scalar coefficient defined as a cross product of two vectors in 2D
+/// Scalar coefficient defined as a cross product of two vectors in the xy-plane.
 class VectorRotProductCoefficient : public Coefficient
 {
 private:
@@ -770,8 +940,10 @@ private:
    mutable Vector vb;
 
 public:
+   /// Construxt with the two vector coefficients.  Result is \f$ A_x B_y - A_y * B_x; \f$.
    VectorRotProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };
@@ -785,9 +957,10 @@ private:
    mutable DenseMatrix ma;
 
 public:
+   /// Construxt with the matrix.
    DeterminantCoefficient(MatrixCoefficient &A);
 
-   /// Evaluate the coefficient
+   /// Evaluate the determinant coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };
@@ -805,17 +978,17 @@ private:
    mutable Vector va;
 
 public:
-   // Result is _alpha * A + _beta * B
+   /// Construct with the two vector coefficients.  Result is _alpha * A + _beta * B.
    VectorSumCoefficient(VectorCoefficient &A, VectorCoefficient &B,
                         double _alpha = 1.0, double _beta = 1.0);
 
-   /// Evaluate the coefficient
+   /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
 };
 
-/// Vector coefficient defined as a product of a scalar and a vector
+/// Vector coefficient defined as a product of scalar and vector coefficients.
 class ScalarVectorProductCoefficient : public VectorCoefficient
 {
 private:
@@ -823,8 +996,10 @@ private:
    VectorCoefficient * b;
 
 public:
+   /// Construct with the two coefficients.  Result is A * B.
    ScalarVectorProductCoefficient(Coefficient &A, VectorCoefficient &B);
 
+   /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
@@ -841,14 +1016,17 @@ private:
    mutable Vector vb;
 
 public:
+   /// Construct with the two coefficients.  Result is A x B.
    VectorCrossProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
 };
 
-/// Vector coefficient defined as a matrix vector product
+/** @brief Vector coefficient defined as a product of a matrix coeffiecient and 
+    a vector coefficient. */
 class MatVecCoefficient : public VectorCoefficient
 {
 private:
@@ -859,28 +1037,32 @@ private:
    mutable Vector vb;
 
 public:
+   /// Construct with the two coefficients.  Result is A*B.
    MatVecCoefficient(MatrixCoefficient &A, VectorCoefficient &B);
 
+   /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
 };
 
-/// Matrix coefficient defined as the identity of dimension d
+/// Constant matrix coefficient defined as the identity of dimension d
 class IdentityMatrixCoefficient : public MatrixCoefficient
 {
 private:
    int dim;
 
 public:
+   /// Construct with the dimension of the square identity matrix.
    IdentityMatrixCoefficient(int d)
       : MatrixCoefficient(d, d), dim(d) { }
 
+   /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
 };
 
-/// Matrix coefficient defined as the sum of two matrix coefficients
+/// Matrix coefficient defined as the sum of two matrix coefficients.
 class MatrixSumCoefficient : public MatrixCoefficient
 {
 private:
@@ -893,16 +1075,17 @@ private:
    mutable DenseMatrix ma;
 
 public:
-   // Result is _alpha * A + _beta * B
+   /// Construct with the two coefficients.  Result is _alpha * A + _beta * B.
    MatrixSumCoefficient(MatrixCoefficient &A, MatrixCoefficient &B,
                         double _alpha = 1.0, double _beta = 1.0);
 
-   /// Evaluate the coefficient
+   /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
 };
 
-/// Matrix coefficient defined as a product of a scalar and a matrix
+/** @brief Matrix coefficient defined as a product of a scalar  
+    coefficient and a matrix coefficient.*/
 class ScalarMatrixProductCoefficient : public MatrixCoefficient
 {
 private:
@@ -910,39 +1093,45 @@ private:
    MatrixCoefficient * b;
 
 public:
+   /// Construct with the two coefficients.  Result is A*B.
    ScalarMatrixProductCoefficient(Coefficient &A, MatrixCoefficient &B);
 
+   /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
 };
 
-/// Matrix coefficient defined as the transpose a matrix
+/// Matrix coefficient defined as the transpose a matrix coefficient
 class TransposeMatrixCoefficient : public MatrixCoefficient
 {
 private:
    MatrixCoefficient * a;
 
 public:
+   /// Construct with the matrix coefficient.  Result is \f$ A^T \f$.
    TransposeMatrixCoefficient(MatrixCoefficient &A);
 
+   /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
 };
 
-/// Matrix coefficient defined as the inverse a matrix
+/// Matrix coefficient defined as the inverse a matrix coefficient.
 class InverseMatrixCoefficient : public MatrixCoefficient
 {
 private:
    MatrixCoefficient * a;
 
 public:
+   /// Construct with the matrix coefficient.  Result is \f$ A^{-1} \f$.
    InverseMatrixCoefficient(MatrixCoefficient &A);
 
+   /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
 };
 
-/// Matrix coefficient defined as the outer product of two vectors
+/// Matrix coefficient defined as the outer product of two vector coefficients.
 class OuterProductCoefficient : public MatrixCoefficient
 {
 private:
@@ -953,29 +1142,31 @@ private:
    mutable Vector vb;
 
 public:
+   /// Construct with two vector coefficients.  Result is \f$ A B^T \f$.
    OuterProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
 };
 
-/** Compute the Lp norm of a function f.
+/** @brief Compute the Lp norm of a function f.
     \f$ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} \f$ */
 double ComputeLpNorm(double p, Coefficient &coeff, Mesh &mesh,
                      const IntegrationRule *irs[]);
 
-/** Compute the Lp norm of a vector function f = {f_i}_i=1...N.
+/** @brief Compute the Lp norm of a vector function f = {f_i}_i=1...N.
     \f$ \| f \|_{Lp} = ( \sum_i \| f_i \|_{Lp}^p )^{1/p} \f$ */
 double ComputeLpNorm(double p, VectorCoefficient &coeff, Mesh &mesh,
                      const IntegrationRule *irs[]);
 
 #ifdef MFEM_USE_MPI
-/** Compute the global Lp norm of a function f.
+/** @brief Compute the global Lp norm of a function f.
     \f$ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} \f$ */
 double ComputeGlobalLpNorm(double p, Coefficient &coeff, ParMesh &pmesh,
                            const IntegrationRule *irs[]);
 
-/** Compute the global Lp norm of a vector function f = {f_i}_i=1...N.
+/** @brief Compute the global Lp norm of a vector function f = {f_i}_i=1...N.
     \f$ \| f \|_{Lp} = ( \sum_i \| f_i \|_{Lp}^p )^{1/p} \f$ */
 double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
                            const IntegrationRule *irs[]);
