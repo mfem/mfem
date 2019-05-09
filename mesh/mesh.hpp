@@ -22,6 +22,7 @@
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
 #include "../general/gzstream.hpp"
+#include "mesh_ext.hpp"
 #include <iostream>
 
 namespace mfem
@@ -33,6 +34,7 @@ class KnotVector;
 class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
+class GeometryExtension;
 struct Refinement;
 
 #ifdef MFEM_USE_MPI
@@ -58,6 +60,7 @@ protected:
 
    int meshgen; // see MeshGenerator()
    int mesh_geoms; // sum of (1 << geom) for all geom of all dimensions
+   GeometryExtension *geom = NULL;
 
    // Counter for Mesh transformations: refinement, derefinement, rebalancing.
    // Used for checking during Update operations on objects depending on the
@@ -687,6 +690,11 @@ public:
 
    /// Return the total (global) number of elements.
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
+   
+   GeometryExtension* GetGeometryExtension(const IntegrationRule& ir,
+                                           const Vector& Sx);
+
+   GeometryExtension* GetGeometryExtension(const IntegrationRule& ir);
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const

@@ -16,6 +16,7 @@
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
 #include "bilininteg_ext.hpp"
+#include "../mesh/mesh_ext.hpp"
 
 namespace mfem
 {
