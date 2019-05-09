@@ -65,7 +65,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    : TimeDependentOperator(4*f.GetVSize(), 0.0), fespace(f),
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Mrhs(NULL),
      Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
-     viscosity(visc),  resistivity(resi), 
+     viscosity(visc),  resistivity(resi), useAMG(false), 
      M_solver(f.GetComm()), K_solver(f.GetComm()), 
      K_amg(NULL), K_pcg(NULL), z(height/4)
 {

@@ -2,10 +2,19 @@ run:
 exMHD -r 2 -o 2 -tf 3 -vs 100 -dt .002
 exMHD -r 2 -tf 10 -vs 50 -dt .004 -i 2
 
+Parallel AMR run:
+mpirun -n 16 exAMRMHDp -m xperiodicR1.mesh -rs 0 -ps 2 -o 4 -tf 8 -vs 200 -dt .0001 -i 3 -amrl 3 -ltol 2e-3
+
 parallel run:
 mpirun -n 4 exMHDp -rs 4 -o 2 -tf 3 -vs 100 -dt .001
 mpirun -n 4 exMHDp -rs 4 -tf 10 -vs 200 -dt .001 -i 2
 mpirun -n 4 exMHDp -m xperiodicR3.mesh -rs 0 -o 4 -tf 8 -vs 100 -dt .001 
+
+serial AMR quick test:
+./exAMRMHD -m xperiodicR3.mesh -r 0 -o 4 -tf .025 -vs 10 -dt .0001 -i 3 -amrl 3 -ltol 1e-3
+
+Parallel AMR quick test:
+./exAMRMHDp -m xperiodicR3.mesh -rs 0 -o 4 -tf .025 -vs 10 -dt .0001 -i 3 -amrl 3 -ltol 1e-3
 
 plot:
 glvis -m refined.mesh -g current.sol -k "mmcRjl" -ww 800 -wh 800
@@ -30,6 +39,14 @@ mpirun -n 4 exAMRMHDp -m xperiodic.mesh -rs 3 -o 4 -tf 8 -vs 10 -dt .0001 -i 3 -
 derefine in parallel amr working:
 mpirun -n 16 exAMRMHDp -m xperiodicR1.mesh -rs 0 -ps 2 -o 4 -tf 8 -vs 200 -dt .0001 -i 3 -amrl 3 -ltol 2e-3
 
+5/4
+on nersc debug mode has issue (fixed)
+make config MFEM_USE_MPI=YES MFEM_DEBUG=YES MPICXX=CC
+standard is ok:
+make config MFEM_USE_MPI=YES MFEM_DEBUG=NO MPICXX=CC
+
+serial config:
+make config MFEM_USE_MPI=NO MFEM_DEBUG=NO CXX=CC
 
 5/3
 1. Try derefine
