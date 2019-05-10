@@ -161,6 +161,31 @@ namespace mfem
     return(0);
   }
 
+  int CVODESolver::LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
+                               booleantype jok, booleantype *jcur,
+                               realtype gamma, void *user_data, N_Vector tmp1,
+                               N_Vector tmp2, N_Vector tmp3)
+  {
+    // Get data from N_Vectors
+    const Vector mfem_y(y);
+    const Vector mfem_fy(fy);
+    CVODESolver *self = static_cast<CVODESolver*>(GET_CONTENT(A));
+
+    // Compute the linear system
+    return(self->f->ImplicitSetup(t, mfem_y, mfem_fy, jok, jcur, gamma));
+  }
+
+  int CVODESolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
+                               N_Vector b, realtype tol)
+  {
+    Vector mfem_x(x);
+    const Vector mfem_b(b);
+    CVODESolver *self = static_cast<CVODESolver*>(GET_CONTENT(LS));
+
+    // Solve the linear system
+    return(self->f->ImplicitSolve(mfem_x, mfem_b, tol));
+  }
+
   CVODESolver::CVODESolver(int lmm)
     : lmm_type(lmm), step_mode(CV_NORMAL)
   {
@@ -328,6 +353,37 @@ namespace mfem
 
     // Set the linear system evaluation function
     flag = CVodeSetLinSysFn(sundials_mem, cvLinSysSetup);
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinSysFn()");
+  }
+
+
+  void CVODESolver::SetLinearSolver()
+  {
+    // Free any existing linear solver
+    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
+
+    // Wrap linear solver as SUNLinearSolver and SUNMatrix
+    LSA = SUNLinSolNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+
+    LSA->content         = this;
+    LSA->ops->gettype    = LSGetType;
+    LSA->ops->solve      = CVODESolver::LinSysSolve;
+    LSA->ops->free       = LSFree;
+
+    A = SUNMatNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+
+    A->content      = this;
+    A->ops->getid   = MatGetID;
+    A->ops->destroy = MatDestroy;
+
+    // Attach the linear solver and matrix
+    flag = CVodeSetLinearSolver(sundials_mem, LSA, A);
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinearSolver()");
+
+    // Set the linear system evaluation function
+    flag = CVodeSetLinSysFn(sundials_mem, CVODESolver::LinSysSetup);
     MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetLinSysFn()");
   }
 
