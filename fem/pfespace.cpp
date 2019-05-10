@@ -967,7 +967,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       */
       P = new HypreParMatrix(MyComm, gdof, gtdof, row_starts, col_starts,
                              i_diag, j_diag, d_diag, i_offd, j_offd, d_offd,
-                             offd_counter, cmap);
+                             offd_col_counter, cmap);
    }
 
    SparseMatrix Pdiag;
