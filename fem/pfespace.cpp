@@ -3131,7 +3131,8 @@ ConformingProlongationOperator::ConformingProlongationOperator(
    const ParFiniteElementSpace &pfes)
    : Operator(pfes.GetVSize(), pfes.GetTrueVSize()),
      external_ldofs(),
-     gc(pfes.GroupComm())
+     gc(pfes.GroupComm()),
+     pfes(pfes)
 {
    MFEM_VERIFY(pfes.Conforming(), "");
    const Table &group_ldof = gc.GroupLDofTable();
@@ -3194,6 +3195,43 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
 
    const int out_layout = 0; // 0 - output is ldofs array
    gc.BcastEnd(ydata, out_layout);
+
+   if (pfes.SharedNDTriangleDofs())
+   {
+      std::cout << "Using new algorithm to modify CPO::Mult!" << std::endl;
+      ParMesh * pmesh = const_cast<ParFiniteElementSpace&>(pfes).GetParMesh();
+      const FiniteElementCollection *fec = pfes.FEColl();
+
+      int ngrps = pmesh->GetNGroups();
+      int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
+      Array<int> sdofs;
+      double zdata[2];
+      Vector z(zdata, 2);
+      Vector ytmp(NULL, 2);
+      for (int g = 1; g < ngrps; g++)
+      {
+         if (pmesh->gtopo.IAmMaster(g))
+         {
+            continue;
+         }
+         for (int fi = 0; fi < pmesh->GroupNTriangles(g); fi++)
+         {
+            int face, ori, info1, info2;
+            pmesh->GroupTriangle(g, fi, face, ori);
+            pmesh->GetFaceInfos(face, &info1, &info2);
+            pfes.GetSharedTriangleDofs(g, fi, sdofs);
+            for (int i = 3*nedofs; i < sdofs.Size(); i += 2)
+            {
+               ytmp.SetData(&ydata[sdofs[i]]);
+               z = ytmp;
+               const DenseMatrix & T =
+                  ND_DofTransformation::GetFaceTransform(info2 % 64);
+               T.Mult(z, ytmp);
+            }
+         }
+      }
+   }
+
    y.Push();
 }
 
@@ -3204,8 +3242,48 @@ void ConformingProlongationOperator::MultTranspose(
    MFEM_ASSERT(y.Size() == Width(), "");
 
    const double *xdata = x.GetData();
-   double *ydata = y.GetData();
    x.Pull();
+
+   if (pfes.SharedNDTriangleDofs())
+   {
+      std::cout << "Using new algorithm to modify CPO::MultTranspose!" << std::endl;
+      ParMesh * pmesh = const_cast<ParFiniteElementSpace&>(pfes).GetParMesh();
+      const FiniteElementCollection *fec = pfes.FEColl();
+
+      xtmp = x;
+
+      int ngrps = pmesh->GetNGroups();
+      int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
+      Array<int> sdofs;
+
+      Vector x2(NULL, 2);
+      Vector xtmp2(NULL, 2);
+      for (int g = 1; g < ngrps; g++)
+      {
+         if (pmesh->gtopo.IAmMaster(g))
+         {
+            continue;
+         }
+         for (int fi = 0; fi < pmesh->GroupNTriangles(g); fi++)
+         {
+            int face, ori, info1, info2;
+            pmesh->GroupTriangle(g, fi, face, ori);
+            pmesh->GetFaceInfos(face, &info1, &info2);
+            pfes.GetSharedTriangleDofs(g, fi, sdofs);
+            for (int i = 3*nedofs; i < sdofs.Size(); i += 2)
+            {
+               x2.SetData(const_cast<double*>(&xdata[sdofs[i]]));
+               xtmp2.SetData(&xtmp[sdofs[i]]);
+               const DenseMatrix & T =
+                  ND_DofTransformation::GetFaceTransform(info2 % 64);
+               T.MultTranspose(x2, xtmp2);
+            }
+         }
+      }
+      xdata = xtmp.GetData();
+   }
+
+   double *ydata = y.GetData();
    const int m = external_ldofs.Size();
 
    gc.ReduceBegin(xdata);
