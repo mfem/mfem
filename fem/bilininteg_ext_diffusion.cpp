@@ -18,8 +18,6 @@ using namespace std;
 namespace mfem
 {
 
-#define QUAD_2D_ID(X, Y) (X + ((Y) * Q1D))
-
 const int MAX_Q1D = 10;
 const int MAX_D1D = 10;
 
@@ -44,8 +42,6 @@ bool SmemPADiffusionApply2D(const int NE,
    MFEM_VERIFY(MQ1 == MD1, "");
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   printf("\033[%dm[SmemPADiffusionApply2D] %s%d:%d:%d:%d:%d%s\033[m",
-          T_D1D?32:31,T_D1D?"<":"", D1D, Q1D, NBZ, MQ1, MD1, T_D1D?">":"");
    const DeviceMatrix b(_b, Q1D, D1D);
    const DeviceMatrix g(_g, Q1D, D1D);
    const DeviceMatrix bt(_bt, D1D, Q1D);
@@ -65,15 +61,13 @@ bool SmemPADiffusionApply2D(const int NE,
       MFEM_SHARED double Bt[MD1][MQ1];
       MFEM_SHARED double Gt[MD1][MQ1];
       MFEM_SHARED double Xz[NBZ][MD1][MD1];
-      MFEM_SHARED double GD0[NBZ][MD1][MQ1];
-      MFEM_SHARED double GD1[NBZ][MD1][MQ1];
-      MFEM_SHARED double GQ0[NBZ][MD1][MQ1];
-      MFEM_SHARED double GQ1[NBZ][MD1][MQ1];
+      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
+      MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
       double (*X)[MD1] = (double (*)[MD1])(Xz + threadIdx(z));
-      double (*DQ0)[MD1] = (double (*)[MD1])(GD0 + threadIdx(z));
-      double (*DQ1)[MD1] = (double (*)[MD1])(GD1 + threadIdx(z));
-      double (*QQ0)[MD1] = (double (*)[MD1])(GQ0 + threadIdx(z));
-      double (*QQ1)[MD1] = (double (*)[MD1])(GQ1 + threadIdx(z));
+      double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + threadIdx(z));
+      double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + threadIdx(z));
+      double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + threadIdx(z));
+      double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + threadIdx(z));
       for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
       {
          for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
@@ -132,7 +126,7 @@ bool SmemPADiffusionApply2D(const int NE,
       {
          for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
          {
-            const int q = QUAD_2D_ID(qx, qy);
+            const int q = (qx + ((qy) * Q1D));
             const double O11 = op(0,q,e);
             const double O12 = op(1,q,e);
             const double O22 = op(2,q,e);
@@ -193,14 +187,16 @@ bool SmemPADiffusionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return SmemPADiffusionApply2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x33: return SmemPADiffusionApply2D<3,3,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,2>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x22: return SmemPADiffusionApply2D<2,2,64>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x33: return SmemPADiffusionApply2D<3,3,64>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x44: return SmemPADiffusionApply2D<4,4,32>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x55: return SmemPADiffusionApply2D<5,5,32>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x66: return SmemPADiffusionApply2D<6,6,16>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x77: return SmemPADiffusionApply2D<7,7,16>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x88: return SmemPADiffusionApply2D<8,8,16>(NE,B,G,Bt,Gt,op,x,y);
          default:   return SmemPADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
       }
    }
-   printf("\n\033[33m[SmemPADiffusionApply] Skipped D1D=%d, Q1D=%d\033[m", D1D, Q1D);
    return false;
 }
 
