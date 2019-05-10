@@ -386,6 +386,8 @@ class ConformingProlongationOperator : public Operator
 protected:
    Array<int> external_ldofs;
    const GroupCommunicator &gc;
+   const ParFiniteElementSpace &pfes;
+   mutable Vector xtmp;
 
 public:
    ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
