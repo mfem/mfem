@@ -577,8 +577,8 @@ int main(int argc, char *argv[])
        GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
 
        gmres->SetOperator(ddi);
-       gmres->SetRelTol(1e-16);
-       gmres->SetMaxIter(1000);
+       gmres->SetRelTol(1e-10);
+       gmres->SetMaxIter(100);
        gmres->SetPrintLevel(1);
 
        gmres->SetName("ddi");
@@ -586,9 +586,27 @@ int main(int argc, char *argv[])
        xdd = 0.0;
        gmres->Mult(Bdd, xdd);
        //ddi.Mult(Bdd, xdd);
+
+       /*
+       {
+	 ifstream ddsolfile("xddEss2");
+	 for (int i=0; i<xdd.Size(); ++i)
+	   ddsolfile >> xdd[i];
+
+	 //xdd.Load(ddsolfile);
+       }
+       */
+
+       cout << myid << ": xdd norm " << xdd.Norml2() << endl;
+
+       {
+	 ofstream ddsolfile("xddtmp");
+	 xdd.Print(ddsolfile);
+       }
+
+       ddi.RecoverDomainSolution(fespace, xdd, X);
        
        delete gmres;
-
      }
 
 #ifdef MFEM_USE_STRUMPACK

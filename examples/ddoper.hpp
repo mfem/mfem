@@ -12,6 +12,8 @@ using namespace std;
 //#define ELIMINATE_REDUNDANT_VARS
 //#define EQUATE_REDUNDANT_VARS
 
+#define SPARSE_ASDCOMPLEX
+
 #define PENALTY_U_S 0.0
 
 void test1_E_exact(const Vector &x, Vector &E)
@@ -97,6 +99,35 @@ double test2_rho_exact_1(const Vector &x)
   const double pi = M_PI;
 
   return pi * pi * ((sin(pi * x(2)) * sin(pi * x(0))) + (sin(pi * x(0)) * sin(pi * x(2))));
+}
+
+SparseMatrix* GetSparseMatrixFromOperator(Operator *op)
+{
+  const int n = op->Height();
+  MFEM_VERIFY(n == op->Width(), "");
+
+  SparseMatrix *S = new SparseMatrix(n);
+  Vector x(n);
+  Vector y(n);
+
+  for (int j=0; j<n; ++j)
+    {
+      x = 0.0;
+      x[j] = 1.0;
+      op->Mult(x, y);
+
+      for (int i=0; i<n; ++i)
+	{
+	  if (y[i] != 0.0)
+	    {
+	      S->Set(i, j, y[i]);
+	    }
+	}
+    }
+      
+  S->Finalize();
+
+  return S;
 }
 
 hypre_CSRMatrix* GetHypreParMatrixData(const HypreParMatrix & hypParMat)
@@ -1250,6 +1281,8 @@ public:
     int num_procs, rank;
     MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    m_rank = rank;
     
     MFEM_VERIFY(numSubdomains > 0, "");
     MFEM_VERIFY(interfaceLocalIndex->size() == numInterfaces, "");
@@ -1266,6 +1299,11 @@ public:
     precAsdComplex = new BlockDiagonalPreconditioner*[numSubdomains];
     invAsdComplex = new Operator*[numSubdomains];
     injComplexSD = new BlockOperator*[numSubdomains];
+#ifdef SPARSE_ASDCOMPLEX
+    SpAsdComplex = new SparseMatrix*[numSubdomains];
+    HypreAsdComplex = new HypreParMatrix*[numSubdomains];
+    SpAsdComplexRowSizes = new HYPRE_Int*[numSubdomains];;
+#endif
 #else
     alphaIm = 0.0;
     betaIm = 0.0;
@@ -1485,8 +1523,8 @@ public:
 	precAsd[m] = CreateSubdomainPreconditionerStrumpack(m);
 
 	gmres->SetRelTol(1e-12);
-	gmres->SetMaxIter(1000);
-	gmres->SetPrintLevel(-1);
+	gmres->SetMaxIter(100);  // 3333
+	gmres->SetPrintLevel(0);
 
 	gmres->SetPreconditioner(*(precAsd[m]));
 	gmres->SetName("invAsd" + std::to_string(m));
@@ -1716,25 +1754,34 @@ public:
 	    precAsdComplex[m]->SetDiagonalBlock(1, invAsd[m]);
 
 	    MPI_Barrier(MPI_COMM_WORLD);
-	    
+
+#ifdef SPARSE_ASDCOMPLEX
+	    SpAsdComplex[m] = GetSparseMatrixFromOperator(AsdComplex[m]);
+	    SpAsdComplexRowSizes[m] = new HYPRE_Int[2];
+	    SpAsdComplexRowSizes[m][0] = 0;
+	    SpAsdComplexRowSizes[m][1] = SpAsdComplex[m]->Size();
+
+	    HypreAsdComplex[m] = new HypreParMatrix(MPI_COMM_WORLD, SpAsdComplex[m]->Size(), SpAsdComplexRowSizes[m], SpAsdComplex[m]);  // constructor with 4 arguments, v1
+	    invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
+#else
 	    //GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
 	    GMRESSolver *gmres = new GMRESSolver(MPI_COMM_WORLD);  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
 
 	    gmres->SetOperator(*(AsdComplex[m]));
 
 	    gmres->SetRelTol(1e-12);
-	    gmres->SetMaxIter(1000);
-	    gmres->SetPrintLevel(-1);
+	    gmres->SetMaxIter(100);  // 3333
+	    gmres->SetPrintLevel(1);
 
 	    gmres->SetPreconditioner(*(precAsdComplex[m]));
 	    gmres->SetName("invAsdComplex" + std::to_string(m));
 	    gmres->iterative_mode = false;
 	    
 	    invAsdComplex[m] = gmres;
+#endif
 
 	    globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injComplexSD[m]), invAsdComplex[m], injComplexSD[m],
 									false, false, false));
-
 #else
 	    globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injSD[m]), invAsd[m], injSD[m], false, false, false));
 #endif
@@ -1792,8 +1839,6 @@ public:
     }
     
     testing = false;
-
-    m_rank = rank;
   }
 
   virtual void Mult(const Vector & x, Vector & y) const
@@ -2191,6 +2236,45 @@ public:
 	    
 	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalRe, sourceSD);
 
+	    const bool explicitRHS = false;
+
+	    if (explicitRHS)
+	      {
+		ParGridFunction x(fespace[m]);
+		VectorFunctionCoefficient f2(3, test2_RHS_exact);
+
+		//x.SetFromTrueDofs(sourceSD);
+		x.ProjectCoefficient(f2);
+
+		x.GetTrueDofs(sourceSD);
+	      }
+
+	    /*
+	    //////////////////////
+	    DataCollection *dc = NULL;
+	    const bool visit = false;
+	    if (visit && m == 0)
+	      {
+		ParGridFunction x(fespace[m]);
+		VectorFunctionCoefficient f2(3, test2_RHS_exact);
+
+		//x.SetFromTrueDofs(sourceSD);
+		x.ProjectCoefficient(f2);
+
+		{
+		  dc = new VisItDataCollection("fsd0Re", pmeshSD[m]);
+		  dc->SetPrecision(8);
+		  // To save the mesh using MFEM's parallel mesh format:
+		  // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
+		}
+		dc->RegisterField("solution", &x);
+		dc->SetCycle(0);
+		dc->SetTime(0.0);
+		dc->Save();
+	      }
+	    /////////////
+	    */
+
 	    (*(ySD[m])) = 0.0;
 	    for (int i=0; i<sourceSD.Size(); ++i)
 	      (*(ySD[m]))[i] = sourceSD[i];  // Set the u_m block of ySD, real part
@@ -2199,6 +2283,9 @@ public:
 	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalIm, sourceSD);
 
 	    cout << rank << ": Done setting imaginary subdomain DOFs, sd " << m << endl;
+
+	    if (explicitRHS)
+	      sourceSD = 0.0;
 
 	    for (int i=0; i<sourceSD.Size(); ++i)
 	      (*(ySD[m]))[block_ComplexOffsetsSD[m][1] + i] = sourceSD[i];  // Set the u_m block of ySD, imaginary part
@@ -2257,25 +2344,113 @@ public:
       }
   }
 
+#ifdef DDMCOMPLEX
+  void PrintSubdomainError(const int sd, Vector & u)
+  {
+    ParGridFunction x(fespace[sd]);
+    VectorFunctionCoefficient E(3, test2_E_exact);
+    //x.ProjectCoefficient(E);
+
+    Vector uSD(fespace[sd]->GetTrueVSize());
+
+    Vector zeroVec(3);
+    zeroVec = 0.0;
+    VectorConstantCoefficient vzero(zeroVec);
+
+    for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
+      uSD[i] = u[i];
+
+    x.SetFromTrueDofs(uSD);
+
+    double errRe = x.ComputeL2Error(E);
+    double normXRe = x.ComputeL2Error(vzero);
+
+    DataCollection *dc = NULL;
+    const bool visit = true;
+    if (visit && sd == 1)
+      {
+	//x.ProjectCoefficient(E);
+
+       bool binary = false;
+       if (binary)
+	 {
+#ifdef MFEM_USE_SIDRE
+	   dc = new SidreDataCollection("ddsol", pmeshSD[sd]);
+#else
+	   MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+#endif
+	 }
+       else
+	 {
+	   dc = new VisItDataCollection("usd1", pmeshSD[sd]);
+	   dc->SetPrecision(8);
+	   // To save the mesh using MFEM's parallel mesh format:
+	   // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
+	 }
+       dc->RegisterField("solution", &x);
+       dc->SetCycle(0);
+       dc->SetTime(0.0);
+       dc->Save();
+     }
+
+    // Overwrite real part with imaginary part, only for the subdomain true DOF's.
+    for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
+      uSD[i] = u[block_ComplexOffsetsSD[sd][1] + i];
+
+    x.SetFromTrueDofs(uSD);
+    double errIm = x.ComputeL2Error(vzero);
+
+    ParGridFunction zerogf(fespace[sd]);
+    zerogf = 0.0;
+    double normE = zerogf.ComputeL2Error(E);
+    //if (m_rank == 0)
+      {
+	cout << m_rank << ": sd " << sd << " || E_h - E ||_{L^2} Re = " << errRe << endl;
+	cout << m_rank << ": sd " << sd << " || E_h - E ||_{L^2} Im = " << errIm << endl;
+	cout << m_rank << ": sd " << sd << " || E_h ||_{L^2} Re = " << normXRe << endl;
+	cout << m_rank << ": sd " << sd << " || E ||_{L^2} Re = " << normE << endl;
+      }
+  }
+#endif
+
   void RecoverDomainSolution(ParFiniteElementSpace *fespaceGlobal, const Vector & solReduced, Vector & solDomain)
   {
     MFEM_VERIFY(solReduced.Size() == this->Height(), "");
     Vector w(this->Height());
-    Vector v, u, uSD;
-    
+    Vector v, u, uSD, wSD;
+
+    MFEM_VERIFY(this->Height() == block_trueOffsets2[numSubdomains], "");
+
+    // Assuming GetReducedSource has been called, ySD stores y_m (with full components [u_m f_m \rho_m]) for each subdomain m.
+
+    // globalInterfaceOp represents the off-diagonal blocks C_{ij} R_j^T
     globalInterfaceOp->Mult(solReduced, w);
-    
+
+    // Now w = \sum_{j\neq i} C_{ij} R_j^T \overbar{u}_j
+
     for (int m=0; m<numSubdomains; ++m)
       {
 	if (ySD[m] != NULL)
 	  {
 #ifdef DDMCOMPLEX
-	    MFEM_VERIFY(false, "TODO");
-	    /*
-	    MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets2[m+1] - block_trueOffsets2[m], "");
+	    //MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets2[m+1] - block_trueOffsets2[m], "");  wrong
+	    MFEM_VERIFY(ySD[m]->Size() > block_trueOffsets2[m+1] - block_trueOffsets2[m], "");
+	    MFEM_VERIFY(ySD[m]->Size() == AsdComplex[m]->Height(), "");
 
-	    invAsdComplex[m]->Mult(*(ySD[m]), wSD);
-	    */
+	    // Put the [u_m^s, f_m, \rho_m] entries of w (real and imaginary parts) into wSD.
+	    wSD.SetSize(block_trueOffsets2[m+1] - block_trueOffsets2[m]);
+	    uSD.SetSize(AsdComplex[m]->Height());
+
+	    for (int i=0; i<block_trueOffsets2[m+1] - block_trueOffsets2[m]; ++i)
+	      wSD[i] = w[block_trueOffsets2[m] + i];
+
+	    injComplexSD[m]->Mult(wSD, uSD);
+
+	    *(ySD[m]) -= uSD;
+	    uSD = 0.0;
+	    invAsdComplex[m]->Mult(*(ySD[m]), uSD);
+
+	    PrintSubdomainError(m, uSD);
 #else
 	    MFEM_VERIFY(ySD[m]->Size() == block_trueOffsets[m+1] - block_trueOffsets[m], "");
 
@@ -2330,6 +2505,11 @@ private:
   Operator **sdNDinv;
 #ifdef DDMCOMPLEX
   Operator **AsdRe, **AsdIm, **AsdP, **invAsdComplex;
+#ifdef SPARSE_ASDCOMPLEX
+  SparseMatrix **SpAsdComplex;
+  HypreParMatrix **HypreAsdComplex;
+  HYPRE_Int **SpAsdComplexRowSizes;
+#endif
   BlockOperator **AsdComplex;
   BlockDiagonalPreconditioner **precAsdComplex;
 #else
@@ -3019,6 +3199,84 @@ private:
     sdNDcopy[subdomain] = new HypreParMatrix();
 
     Array<int> ess_tdof_list;  // empty
+
+    // Eliminate essential BC on exterior boundary.
+    MFEM_VERIFY(m_rank == 0, "");  // TODO: this code will not work in parallel, in general. 
+
+    {
+      Array<int> true_ess_dofs(fespace[subdomain]->GetTrueVSize());
+      for (int i=0; i<fespace[subdomain]->GetTrueVSize(); ++i)
+	true_ess_dofs[i] = 0;
+
+      for (set<int>::const_iterator it = tdofsBdry[subdomain].begin(); it != tdofsBdry[subdomain].end(); ++it)
+	true_ess_dofs[*it] = 1;
+
+      MFEM_VERIFY(InterfaceToSurfaceInjectionData[subdomain].size() == subdomainLocalInterfaces[subdomain].size(), "");
+
+      set<int> interfaceTDofs;  // True DOF's of fespace[subdomain] which lie on an interface.
+
+      for (int i=0; i<subdomainLocalInterfaces[subdomain].size(); ++i)
+	{
+	  const int interfaceIndex = subdomainLocalInterfaces[subdomain][i];
+	  const int ifli = (*interfaceLocalIndex)[interfaceIndex];
+	  MFEM_VERIFY(ifli >= 0, "");
+
+	  for (int j=0; j<InterfaceToSurfaceInjectionData[subdomain][i].size(); ++j)
+	    {
+	      interfaceTDofs.insert(InterfaceToSurfaceInjectionData[subdomain][i][j]);
+	      true_ess_dofs[InterfaceToSurfaceInjectionData[subdomain][i][j]] = 0;
+	    }
+	}
+
+      // At this point, true_ess_dofs[i] == 1 if and only if true DOF i is on the boundary minus the interface.
+
+      const int numBdryFaces = pmeshSD[subdomain]->GetNBE();
+      Array<int> essBdryFace(numBdryFaces);
+
+      for (int i=0; i<numBdryFaces; ++i)
+	{
+	  essBdryFace[i] = 0;
+
+	  Array<int> dofs;
+	  fespace[subdomain]->GetBdrElementDofs(i, dofs);
+
+	  for (int d=0; d<dofs.Size(); ++d)
+	    {
+	      const int dof_d = dofs[d] >= 0 ? dofs[d] : -1 - dofs[d];
+	      const int ldof = fespace[subdomain]->GetLocalTDofNumber(dof_d);  // If the DOF is owned by the current processor, return its local tdof number, otherwise -1.
+	      if (ldof >= 0)
+		{
+		  if (true_ess_dofs[ldof] == 1)
+		    essBdryFace[i] = 1;
+		}
+	    }
+	}
+
+      // Now let true_ess_dofs be 1 for DOF's on the exterior boundary, including the boundary of the interface but not the interior 
+      // of the interface.
+
+      for (int i=0; i<numBdryFaces; ++i)
+	{
+	  if (essBdryFace[i] == 1)
+	    {
+	      Array<int> dofs;
+	      fespace[subdomain]->GetBdrElementDofs(i, dofs);
+
+	      for (int d=0; d<dofs.Size(); ++d)
+		{
+		  const int dof_d = dofs[d] >= 0 ? dofs[d] : -1 - dofs[d];
+		  const int ldof = fespace[subdomain]->GetLocalTDofNumber(dof_d);  // If the DOF is owned by the current processor, return its local tdof number, otherwise -1.
+		  if (ldof >= 0)
+		    {
+		      true_ess_dofs[ldof] = 1;
+		    }
+		}
+	    }
+	}
+
+      fespace[subdomain]->MarkerToList(true_ess_dofs, ess_tdof_list);
+    }
+
     bf_sdND[subdomain]->FormSystemMatrix(ess_tdof_list, *(sdND[subdomain]));
     bf_sdND[subdomain]->FormSystemMatrix(ess_tdof_list, *(sdNDcopy[subdomain]));  // TODO: is there a way to avoid making a copy of this matrix?
 
