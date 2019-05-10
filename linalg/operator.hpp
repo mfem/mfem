@@ -261,6 +261,68 @@ public:
       return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
    }
 
+   /** Setup the ODE linear system A(y,t) = (I - gamma J) or A = (M - gamma J).
+        @param[in]  t     The time at which A(y,t) should be evaluated
+        @param[in]  y     The state at which A(y,t) should be evaluated
+        @param[in]  fy    The current value of the ODE Rhs function, f(y,t)
+        @param[in]  jok   Flag indicating if the Jacobian should be updated
+        @param[out] jcur  Flag to signal if the Jacobian was updated
+        @param[in]  gamma The scaled time step value
+
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by SUNDIALS ODE solvers, for more
+       details, see the SUNDIALS User Guides. */
+   virtual int ImplicitSetup(const double t, const Vector &x, const Vector &fx,
+                             int jok, int *jcur, double gamma)
+   {
+      mfem_error("TimeDependentOperator::ImplicitSetup() is not overridden!");
+      return(-1);
+   }
+
+    /** Solve the ODE linear system A x = b.
+        @param[in/out]  x  On input, the initial guess. On output, the solution
+        @param[in]      b  The linear system right-hand side
+        @param[in]      tol Linear solve tolerance
+
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by SUNDIALS ODE solvers, for more
+       details, see the SUNDIALS User Guides. */
+   virtual int ImplicitSolve(Vector &x, const Vector &b, double tol)
+   {
+      mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
+      return(-1);
+   }
+
+   /** Setup the mass matrix in the ODE system M y' = f(y,t)
+        @param[in]  t     The time at which A(y,t) should be evaluated
+
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by SUNDIALS ARKStep integrator, for more
+       details, see the ARKode User Guide. */
+   virtual int MassSetup(const double t)
+   {
+      mfem_error("TimeDependentOperator::MassSetup() is not overridden!");
+      return(-1);
+   }
+
+   /** Solve the mass matrix linear system M x = b.
+        @param[in/out]  x   On input, the initial guess. On output, the solution
+        @param[in]      b   The linear system right-hand side
+        @param[in]      tol Linear solve tolerance
+
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by SUNDIALS ARKStep integrator, for more
+       details, see the ARKode User Guide. */
+   virtual int MassSolve(Vector &x, const Vector &b, double tol)
+   {
+      mfem_error("TimeDependentOperator::MassSolve() is not overridden!");
+      return(-1);
+   }
+
    virtual ~TimeDependentOperator() { }
 };
 
