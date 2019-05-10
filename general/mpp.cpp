@@ -524,6 +524,34 @@ void jitPostfix(context &pp)
    pp.ker.jit = false;
 }
 
+#define dbg(...) //{printf(__VA_ARGS__);fflush(0);}
+// *****************************************************************************
+inline void get_dims(context &pp)
+{
+   skip_space(pp);
+   if (pp.in.peek() != '[') { return; }
+   dbg("<[get_dims] '%c'",pp.in.peek());
+   while (pp.in.peek() == '[') {
+      while (true){
+         int c = get(pp); // eat [, *, +, ( or )
+         dbg("(eat:'%c')",c);
+         const string id = get_id(pp);
+         dbg("\"%s\"",id.c_str());
+         skip_space(pp);
+         if (pp.in.peek()=='*') { dbg("'*'"); continue; }
+         if (pp.in.peek()=='+') { dbg("'+'"); continue; }
+         if (pp.in.peek()=='(') { dbg("'('"); continue; }
+         if (pp.in.peek()==')') { dbg("')'"); continue; }
+         break;
+      }
+      skip_space(pp);
+      check(pp,pp.in.peek()==']',"No ] while in get_dims");
+      get(pp); // eat ']'
+      skip_space(pp);
+   }
+   dbg(">");
+}
+
 // *****************************************************************************
 bool get_args(context &pp)
 {
@@ -570,6 +598,7 @@ bool get_args(context &pp)
       pp.out << (underscore?"_":"") << id;
       // focus on the name, we should have qual & type
       arg.name = id;
+      get_dims(pp);
       pp.args.push_back(arg);
       arg = argument();
       const int c = pp.in.peek();

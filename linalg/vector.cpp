@@ -583,13 +583,13 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
    mfem::AddElement(dofs.Size(), dofs, elemvect.GetData(), data);
 }
 
-void Vector::AddElementVector(const Array<int> &dofs, double *y)
+void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 {
    mfem::AddElement(dofs.Size(), dofs, elem_data, data);
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const double a,
-                              const Vector &x)
+                              const Vector &elemvect)
 {
    const int N = dofs.Size();
    const double alpha = a;

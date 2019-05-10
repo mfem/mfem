@@ -223,11 +223,6 @@ endif
 
 DEP_CXX ?= $(MFEM_CXX)
 
-# Optional NVCC config file, see config/nvcc.mk
-ifeq ($(MFEM_CXX),nvcc)
-	-include $(BLD)config/nvcc.mk
-endif
-
 # Check OpenMP configuration
 ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
    MFEM_THREAD_SAFE ?= YES
@@ -368,14 +363,11 @@ endif
 
 # Source dirs in logical order
 DIRS = general linalg mesh fem
-SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
+SOURCE_FILES = $(foreach dir,$(DIRS),\
+  $(filter-out $(SRC)$(dir)/mpp.cpp, $(wildcard $(SRC)$(dir)/*.cpp)))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
-
-SOURCE_KERNS = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.cpp))
-RELSRC_KERNS = $(patsubst $(SRC)%,%,$(SOURCE_KERNS))
-OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_KERNS:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
 	debug pdebug cuda pcuda cudebug pcudebug style check test unittest\
@@ -396,8 +388,8 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(BUILD_DIR_DEF)
 
 # Rules for compiling all source files.
-$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) mpp
+	./mpp $(<) | $(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -I$(dir $(<)) -c -o $(@) -x c++ -
 
 # Rule for compiling kernel source file generator.
 KER_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
@@ -408,12 +400,6 @@ MPP_FLAGS  = $(if $(MFEM_USE_MM:YES=),,-DMFEM_USE_MM)
 MPP_FLAGS += $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
 mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp $(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) $(MPP_MFEMS) $(MPP_FLAGS)
-
-# Rule for compiling kernel source files.
-$(SRC)%.cc: $(SRC)%.cpp mpp
-	./mpp $(<) -o $(@)
-$(BLD)%.o: $(SRC)%.cc $(CONFIG_MK)
-	$(MFEM_CXX) $(KER_FLAGS) -I$(MFEM_REAL_DIR) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -429,13 +415,13 @@ doc:
 
 -include $(BLD)deps.mk
 
-$(BLD)libmfem.a: $(OBJECT_FILES) $(OBJECT_KERNS)
+$(BLD)libmfem.a: $(OBJECT_FILES)
 	[ ! -e $(@) ] || rm -f $(@)
-	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES) $(OBJECT_KERNS)
+	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
 	@$(MAKE) deprecation-warnings
 
-$(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER) $(OBJECT_KERNS)
+$(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
 	@$(MAKE) deprecation-warnings
 
@@ -444,7 +430,7 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER) $(OBJECT_KERNS)
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
-	   $(OBJECT_KERNS) $(EXT_LIBS) -o $(@)
+	   $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
 serial parallel debug pdebug:   M_MM=NO
@@ -510,7 +496,7 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
 
-INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
+INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 

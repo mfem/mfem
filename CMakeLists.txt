@@ -433,9 +433,7 @@ foreach(kernel IN LISTS KERNELS)
        COMPILE_FLAGS -I${dirname})
 endforeach()
 
-#-------------------------------------------------------------------------------
-# Declaring the MFEM library
-#-------------------------------------------------------------------------------
+# Declaring the library
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 add_dependencies(mfem MFEM_KERNELS)
 

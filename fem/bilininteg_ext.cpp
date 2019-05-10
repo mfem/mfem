@@ -1507,27 +1507,29 @@ DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
 static long sequence = -1;
 static GeometryExtension *geom = NULL;
 
+__jit __kernel
 static void GeomFill(const int vdim,
                      const int NE, const int ND, const int NX,
-                     const int* elementMap, int* eMap,
-                     const double *_X, double *meshNodes)
+                     const int *elementMap[ND*NE],
+                     int *eMap[ND*NE],
+                     const double *X[NX], double *meshNodes[vdim*ND*NE])
 {
-   const DeviceArray d_elementMap(elementMap, ND*NE);
-   DeviceArray d_eMap(eMap, ND*NE);
-   const DeviceVector X(_X, NX);
-   DeviceVector d_meshNodes(meshNodes, vdim*ND*NE);
+   //const DeviceArray d_elementMap(elementMap, ND*NE);
+   //DeviceArray d_eMap(eMap, ND*NE);
+   //const DeviceVector X(_X, NX);
+   //DeviceVector d_meshNodes(meshNodes, vdim*ND*NE);
    MFEM_FORALL(e, NE,
    {
       for (int d = 0; d < ND; ++d)
       {
          const int lid = d+ND*e;
-         const int gid = d_elementMap[lid];
-         d_eMap[lid] = gid;
+         const int gid = elementMap[lid];
+         eMap[lid] = gid;
          for (int v = 0; v < vdim; ++v)
          {
             const int moffset = v+vdim*lid;
             const int xoffset = v+vdim*gid;
-            d_meshNodes[moffset] = X[xoffset];
+            meshNodes[moffset] = X[xoffset];
          }
       }
    });
