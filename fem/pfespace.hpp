@@ -76,6 +76,12 @@ private:
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
 
+   /// Flag indicating the existence of shared triangles with interior ND dofs
+   bool nd_strias;
+
+   /// Resets nd_strias flag at constuction or after rebalancing
+   void CheckNDSTriaDofs();
+
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
 
@@ -345,6 +351,8 @@ public:
 
    bool Conforming() const { return pmesh->pncmesh == NULL; }
    bool Nonconforming() const { return pmesh->pncmesh != NULL; }
+
+   bool SharedNDTriangleDofs() const { return nd_strias; }
 
    // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
    // to this FE space, defined on a refined mesh. See full documentation in the
