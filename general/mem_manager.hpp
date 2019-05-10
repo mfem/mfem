@@ -194,7 +194,18 @@ inline void Delete(T *ptr)
    static_assert(!std::is_void<T>::value, "Cannot Delete a void pointer. "
                  "Explicitly provide the correct type as a template parameter.");
    if (!ptr) { return; }
-   if (!MemoryManager::Exists()) { delete [] ptr; return; }
+   if (!MemoryManager::Exists()) {
+      const bool debug = MfemDebug();
+#ifdef MFEM_USE_CUDA
+      const bool use_cuda = true;
+#else
+      const bool use_cuda = false;
+#endif // MFEM_USE_CUDA
+      const bool use_mm = MemoryManager::UsingMM();
+      if ((use_cuda && debug) || (!use_cuda && use_mm)){ return; }
+      delete [] ptr;
+      return;
+   }
    mm.Delete(ptr);
    mm.Erase(ptr);
 }
