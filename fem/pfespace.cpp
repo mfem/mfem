@@ -714,7 +714,6 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       // Locate and count non-zeros in off-diagonal portion of P
       int nnz_offd = 0;
       Array<int> ldsize(ldof); ldsize = 0;
-      // Array<int> stori(ldof);  stori = 0; // Shared triangle orientations
       Array<int> ltori(ldof);  ltori = 0; // Local triangle orientations
       {
          int ngrps = pmesh->GetNGroups();
@@ -739,7 +738,6 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
                   if (ldsize[sdofs[i]] == 0) { nnz_offd += 2; }
                   ldsize[sdofs[i]] = 2;
                   ltori[sdofs[i]]  = info2 % 64;
-		  // stori[sdofs[i]]  = ori;
                }
             }
          }
@@ -827,75 +825,11 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
             const double * T = ND_DofTransformation
                                ::GetFaceTransform(ltori[i]).GetData();
             j_offd[i_offd[i] + 1] = j_offd[i_offd[i]] + 1;
-            /*
-            if (i == 72)
-            {
-              std::cout << "i = 72, ltori = " << ltori[i] << ", stori = " << stori[i] << std::endl;
-              d_offd[i_offd[i]] = -1.0; d_offd[i_offd[i] + 1] = 0.0;
-            }
-            else if (i == 80)
-            {
-              std::cout << "i = 80, ltori = " << ltori[i] << ", stori = " << stori[i] << std::endl;
-              d_offd[i_offd[i]] = 1.0; d_offd[i_offd[i] + 1] = -1.0;
-            }
-            else if (i == 88)
-            {
-              std::cout << "i = 88, ltori = " << ltori[i] << ", stori = " << stori[i] << std::endl;
-              d_offd[i_offd[i]] = 1.0; d_offd[i_offd[i] + 1] = -1.0;
-            }
-            else if (i == 98)
-            {
-              std::cout << "i = 98, ltori = " << ltori[i] << ", stori = " << stori[i] << std::endl;
-              d_offd[i_offd[i]] = 0.0; d_offd[i_offd[i] + 1] = 1.0;
-            }
-            else if (i == 106)
-            {
-              std::cout << "i = 106, ltori = " << ltori[i] << ", stori = " << stori[i] << std::endl;
-              d_offd[i_offd[i]] = 0.0; d_offd[i_offd[i] + 1] = 1.0;
-            }
-            else if (i == 114)
-            {
-              std::cout << "i = 114, ltori = " << ltori[i] << ", stori = " << stori[i] << std::endl;
-              d_offd[i_offd[i]] = -1.0; d_offd[i_offd[i] + 1] = 0.0;
-            }
-            else
-            */
-            {
-               d_offd[i_offd[i]] = T[0]; d_offd[i_offd[i] + 1] = T[2];
-            }
+            d_offd[i_offd[i]] = T[0]; d_offd[i_offd[i] + 1] = T[2];
             i++;
             j_offd[i_offd[i] + 1] = j_offd[i_offd[i]];
             j_offd[i_offd[i]] = j_offd[i_offd[i] + 1] - 1;
-            /*
-            if (i == 73)
-            {
-              d_offd[i_offd[i]] = -1.0; d_offd[i_offd[i] + 1] = 1.0;
-            }
-            else if (i == 81)
-            {
-              d_offd[i_offd[i]] = 0.0; d_offd[i_offd[i] + 1] = -1.0;
-            }
-            else if (i == 89)
-            {
-              d_offd[i_offd[i]] = 0.0; d_offd[i_offd[i] + 1] = -1.0;
-            }
-            else if (i == 99)
-            {
-              d_offd[i_offd[i]] = 1.0; d_offd[i_offd[i] + 1] = 0.0;
-            }
-            else if (i == 107)
-            {
-              d_offd[i_offd[i]] = 1.0; d_offd[i_offd[i] + 1] = 0.0;
-            }
-            else if (i == 115)
-            {
-              d_offd[i_offd[i]] = -1.0; d_offd[i_offd[i] + 1] = 1.0;
-            }
-            else
-            */
-            {
-               d_offd[i_offd[i]] = T[1]; d_offd[i_offd[i] + 1] = T[3];
-            }
+            d_offd[i_offd[i]] = T[1]; d_offd[i_offd[i] + 1] = T[3];
          }
       }
       /*
