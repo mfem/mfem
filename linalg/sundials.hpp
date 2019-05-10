@@ -147,7 +147,12 @@ namespace mfem
 
   class CVODESolver : public ODESolver, public SundialsSolver
   {
+  private:
+    /// Utility function for creating CVODE.
+    void Create(double &t, Vector &x);
+
   protected:
+    int lmm_type;  /// linear multistep method type
     int step_mode; /// CVODE step mode (CV_NORMAL or CV_ONE_STEP).
 
     /// Wrapper to compute the ODE Rhs function.
@@ -239,9 +244,9 @@ namespace mfem
     enum Type { EXPLICIT, IMPLICIT, IMEX };
 
   protected:
+    Type rk_type;      /// Runge-Kutta type
     int step_mode;     /// ARKStep step mode (ARK_NORMAL or ARK_ONE_STEP).
     bool use_implicit; /// true for implicit or imex integration
-    Type rk_type;
 
     /// Wrappers to compute the ODE Rhs functions. RHS1 is explicit RHS and RHS2
     /// the implicit RHS for IMEX integration. When purely implicit or explicit
