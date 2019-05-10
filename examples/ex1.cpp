@@ -105,6 +105,7 @@ int main(int argc, char *argv[])
       {
          mesh->UniformRefinement();
       }
+    
    }
 
    // 4. Define a finite element space on the mesh. Here we use continuous
