@@ -11,9 +11,9 @@
 
 // Implementation of data type vector
 
-#include "../general/okina.hpp"
 #include "vector.hpp"
-#include "kernels/vector.hpp"
+#include "dtensor.hpp"
+#include "../general/forall.hpp"
 
 #if defined(MFEM_USE_SUNDIALS) && defined(MFEM_USE_MPI)
 #include <nvector/nvector_parallel.h>
@@ -32,12 +32,12 @@ namespace mfem
 
 void Vector::Push() const
 {
-   mm::push(data, size*sizeof(double));
+   mfem::Push(data, size*sizeof(double));
 }
 
 void Vector::Pull() const
 {
-   mm::pull(data, size*sizeof(double));
+   mfem::Pull(data, size*sizeof(double));
 }
 
 Vector::Vector(const Vector &v)
@@ -48,8 +48,8 @@ Vector::Vector(const Vector &v)
    {
       MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
-      data = mm::malloc<double>(s);
-      mm::memcpy(data, v.data, sizeof(double)*s);
+      data = mfem::New<double>(s);
+      mfem::Memcpy(data, v.data, sizeof(double)*s);
    }
    else
    {
@@ -58,28 +58,8 @@ Vector::Vector(const Vector &v)
    }
 }
 
-Vector::Vector(double *_data, int _size)
-{
-   data = _data;
-   size = _size;
-   allocsize = -size;
-}
-
-void Vector::SetData(double *d)
-{
-   data = d;
-}
-
-void Vector::SetDataAndSize(double *d, int s)
-{
-   data = d;
-   size = s;
-   allocsize = -s;
-}
-
 void Vector::Load(std::istream **in, int np, int *dim)
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, j, s;
 
    s = 0;
@@ -100,7 +80,6 @@ void Vector::Load(std::istream **in, int np, int *dim)
 
 void Vector::Load(std::istream &in, int Size)
 {
-   MFEM_GPU_CANNOT_PASS;
    SetSize(Size);
 
    for (int i = 0; i < size; i++)
@@ -121,9 +100,7 @@ const double &Vector::Elem(int i) const
 
 double Vector::operator*(const double *v) const
 {
-   const int N = size;
-   double prod = kernels::vector::Dot(N, data, v);
-   return prod;
+   return Dot(size, data, v);
 }
 
 double Vector::operator*(const Vector &v) const
@@ -143,7 +120,7 @@ Vector &Vector::operator=(const double *v)
    if (data != v)
    {
       MFEM_ASSERT(data + size <= v || v + size <= data, "Vectors overlap!");
-      kernels::vector::Assign(size, v, data);
+      mfem::Memcpy(data, v, sizeof(double)*size);
    }
    return *this;
 }
@@ -156,34 +133,30 @@ Vector &Vector::operator=(const Vector &v)
 
 Vector &Vector::operator=(double value)
 {
-   kernels::vector::Set(size, value, data);
+   DeviceVector y(data, size);
+   MFEM_FORALL(i, size, y[i] = value;);
    return *this;
 }
 
 Vector &Vector::operator*=(double c)
 {
-   kernels::vector::OpMultEQ(size, c, data);
+   DeviceVector y(data, size);
+   MFEM_FORALL(i, size, y[i] *= c;);
    return *this;
 }
 
 Vector &Vector::operator/=(double c)
 {
-   MFEM_GPU_CANNOT_PASS;
-   double m = 1.0/c;
-   for (int i = 0; i < size; i++)
-   {
-      data[i] *= m;
-   }
+   const double m = 1.0/c;
+   DeviceVector y(data, size);
+   MFEM_FORALL(i, size, y[i] *= m;);
    return *this;
 }
 
 Vector &Vector::operator-=(double c)
 {
-   MFEM_GPU_CANNOT_PASS;
-   for (int i = 0; i < size; i++)
-   {
-      data[i] -= c;
-   }
+   DeviceVector y(data, size);
+   MFEM_FORALL(i, size, y[i] -= c;);
    return *this;
 }
 
@@ -195,7 +168,10 @@ Vector &Vector::operator-=(const Vector &v)
       mfem_error("Vector::operator-=(const Vector &)");
    }
 #endif
-   kernels::vector::OpSubtractEQ(size,v,data);
+   const int N = size;
+   DeviceVector y(data, N);
+   const DeviceVector x(v, N);
+   MFEM_FORALL(i, N, y[i] -= x[i];);
    return *this;
 }
 
@@ -207,7 +183,10 @@ Vector &Vector::operator+=(const Vector &v)
       mfem_error("Vector::operator+=(const Vector &)");
    }
 #endif
-   kernels::vector::OpPlusEQ(size,v.GetData(),data);
+   const int N = size;
+   DeviceVector y(data, N);
+   const DeviceVector x(v, N);
+   MFEM_FORALL(i, N, y[i] += x[i];);
    return *this;
 }
 
@@ -219,29 +198,33 @@ Vector &Vector::Add(const double a, const Vector &Va)
       mfem_error("Vector::Add(const double, const Vector &)");
    }
 #endif
-   if (a != 0.0) { kernels::vector::OpAddEQ(size, a, Va, data); }
+   if (a != 0.0)
+   {
+      const int N = size;
+      DeviceVector y(data, N);
+      const DeviceVector x(Va, N);
+      MFEM_FORALL(i, N, y[i] += a * x[i];);
+   }
    return *this;
 }
 
 Vector &Vector::Set(const double a, const Vector &Va)
 {
-   MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_DEBUG
    if (size != Va.size)
    {
       mfem_error("Vector::Set(const double, const Vector &)");
    }
 #endif
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = a * Va(i);
-   }
+   const int N = size;
+   DeviceVector y(data, N);
+   const DeviceVector x(Va, N);
+   MFEM_FORALL(i, N, y[i] = a * x[i];);
    return *this;
 }
 
 void Vector::SetVector(const Vector &v, int offset)
 {
-   MFEM_GPU_CANNOT_PASS;
    int vs = v.Size();
    double *vp = v.data, *p = data + offset;
 
@@ -260,16 +243,12 @@ void Vector::SetVector(const Vector &v, int offset)
 
 void Vector::Neg()
 {
-   MFEM_GPU_CANNOT_PASS;
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = -data[i];
-   }
+   DeviceVector y(data, size);
+   MFEM_FORALL(i, size, y[i] = -y[i];);
 }
 
 void add(const Vector &v1, const Vector &v2, Vector &v)
 {
-   MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_DEBUG
    if (v.size != v1.size || v.size != v2.size)
    {
@@ -277,13 +256,19 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
    }
 #endif
 
-#ifdef MFEM_USE_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+   const int N = v.size;
+   DeviceVector y(v, N);
+   const DeviceVector x1(v1, N);
+   const DeviceVector x2(v2, N);
+   MFEM_FORALL(i, N, y[i] = x1[i] + x2[i];);
+#else
    #pragma omp parallel for
-#endif
    for (int i = 0; i < v.size; i++)
    {
       v.data[i] = v1.data[i] + v2.data[i];
    }
+#endif
 }
 
 void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
@@ -306,18 +291,26 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
    {
       const double *v1p = v1.data, *v2p = v2.data;
       double *vp = v.data;
-      int s = v.size;
-#ifdef MFEM_USE_OPENMP
-#warning MFEM_USE_OPENMP with KERNELS
-      //#pragma omp parallel for
+
+      const int s = v.size;
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      const int N = s;
+      DeviceVector d_z(vp, N);
+      const DeviceVector d_x(v1p, N);
+      const DeviceVector d_y(v2p, N);
+      MFEM_FORALL(i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
+#else
+      #pragma omp parallel for
+      for (int i = 0; i < s; i++)
+      {
+         vp[i] = v1p[i] + alpha*v2p[i];
+      }
 #endif
-      kernels::vector::AlphaAdd(vp,v1p,alpha,v2p,s);
    }
 }
 
 void add(const double a, const Vector &x, const Vector &y, Vector &z)
 {
-   MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error ("add(const double a, const Vector &x, const Vector &y,"
@@ -336,22 +329,25 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
       const double *xp = x.data;
       const double *yp = y.data;
       double       *zp = z.data;
-      int            s = x.size;
-
-#ifdef MFEM_USE_OPENMP
+      const int      s = x.size;
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      DeviceVector z(zp, s);
+      const DeviceVector x(xp, s);
+      const DeviceVector y(yp, s);
+      MFEM_FORALL(i, s, z[i] = a * (x[i] + y[i]););
+#else
       #pragma omp parallel for
-#endif
       for (int i = 0; i < s; i++)
       {
          zp[i] = a * (xp[i] + yp[i]);
       }
+#endif
    }
 }
 
 void add(const double a, const Vector &x,
          const double b, const Vector &y, Vector &z)
 {
-   MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error("add(const double a, const Vector &x,\n"
@@ -382,15 +378,20 @@ void add(const double a, const Vector &x,
       const double *xp = x.data;
       const double *yp = y.data;
       double       *zp = z.data;
-      int            s = x.size;
+      const int      s = x.size;
 
-#ifdef MFEM_USE_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      DeviceVector z(zp, s);
+      const DeviceVector x(xp, s);
+      const DeviceVector y(yp, s);
+      MFEM_FORALL(i, s, z[i] = a * x[i] + b * y[i];);
+#else
       #pragma omp parallel for
-#endif
       for (int i = 0; i < s; i++)
       {
          zp[i] = a * xp[i] + b * yp[i];
       }
+#endif
    }
 }
 
@@ -405,17 +406,24 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    const double *xp = x.data;
    const double *yp = y.data;
    double       *zp = z.data;
-   int            s = x.size;
+   const int     s = x.size;
 
-#ifdef MFEM_USE_OPENMP
-   //#pragma omp parallel for
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+   DeviceVector zd(zp, s);
+   const DeviceVector xd(xp, s);
+   const DeviceVector yd(yp, s);
+   MFEM_FORALL(i, s, zd[i] = xd[i] - yd[i];);
+#else
+   #pragma omp parallel for
+   for (int i = 0; i < s; i++)
+   {
+      zp[i] = xp[i] - yp[i];
+   }
 #endif
-   kernels::vector::Subtract(zp,xp,yp,s);
 }
 
 void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
 {
-   MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error("subtract(const double a, const Vector &x,"
@@ -435,61 +443,136 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
       const double *xp = x.data;
       const double *yp = y.data;
       double       *zp = z.data;
-      int            s = x.size;
+      const int      s = x.size;
 
-#ifdef MFEM_USE_OPENMP
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      DeviceVector zd(zp, s);
+      const DeviceVector xd(xp, s);
+      const DeviceVector yd(yp, s);
+      MFEM_FORALL(i, s, zd[i] = a * (xd[i] - yd[i]););
+#else
       #pragma omp parallel for
-#endif
       for (int i = 0; i < s; i++)
       {
          zp[i] = a * (xp[i] - yp[i]);
       }
+#endif
    }
 }
 
 void Vector::median(const Vector &lo, const Vector &hi)
 {
-   MFEM_GPU_CANNOT_PASS;
-   double *v = data;
-
-   for (int i = 0; i < size; i++)
+   const int N = size;
+   DeviceVector v(data, N);
+   const DeviceVector l(lo, N);
+   const DeviceVector h(hi, N);
+   MFEM_FORALL(i, N,
    {
-      if (v[i] < lo[i])
+      if (v[i] < l[i])
       {
-         v[i] = lo[i];
+         v[i] = l[i];
       }
-      else if (v[i] > hi[i])
+      else if (v[i] > h[i])
       {
-         v[i] = hi[i];
+         v[i] = h[i];
       }
-   }
+   });
+}
+
+static void GetSubvector(const int N,
+                         double *y, const double *x, const int* dofs)
+{
+   DeviceVector d_y(y, N);
+   const DeviceVector d_x(x, N);
+   const DeviceArray d_dofs(dofs, N);
+   MFEM_FORALL(i, N,
+   {
+      const int dof_i = d_dofs[i];
+      d_y[i] = dof_i >= 0 ? d_x[dof_i] : -d_x[-dof_i-1];
+   });
 }
 
 void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 {
    const int n = dofs.Size();
    elemvect.SetSize(n);
-   kernels::vector::GetSubvector(n, elemvect, data, dofs);
+   mfem::GetSubvector(n, elemvect, data, dofs);
 }
 
 void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 {
-   kernels::vector::GetSubvector(dofs.Size(), elem_data, data,dofs);
+   mfem::GetSubvector(dofs.Size(), elem_data, data,dofs);
+}
+
+static void SetSubvector(const int N, double* y, const double d,
+                         const int* dofs)
+{
+   DeviceVector d_y(y,N);
+   const DeviceArray d_dofs(dofs,N);
+   MFEM_FORALL(i, N,
+   {
+      const int j = d_dofs[i];
+      if (j >= 0)
+      {
+         d_y[j] = d;
+      }
+      else
+      {
+         d_y[-1-j] = -d;
+      }
+   });
+}
+
+static void SetSubvector(const int N, double *y, const double *x,
+                         const int* dofs)
+{
+   DeviceVector d_y(y,N);
+   const DeviceVector d_x(x,N);
+   const DeviceArray d_dofs(dofs,N);
+   MFEM_FORALL(i, N,
+   {
+      const int dof_i = d_dofs[i];
+      if (dof_i >= 0)
+      {
+         d_y[dof_i] = d_x[i];
+      }
+      else
+      {
+         d_y[-1-dof_i] = -d_x[i];
+      }
+   });
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const double value)
 {
-   kernels::vector::SetSubvector(dofs.Size(), data, value, dofs);
+   mfem::SetSubvector(dofs.Size(), data, value, dofs);
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   kernels::vector::SetSubvector(dofs.Size(), data, elemvect, dofs);
+   mfem::SetSubvector(dofs.Size(), data, elemvect, dofs);
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 {
-   kernels::vector::SetSubvector(dofs.Size(), data, elem_data, dofs);
+   mfem::SetSubvector(dofs.Size(), data, elem_data, dofs);
+}
+
+static void AddElement(const int N, const int *dofs, const double *x, double *y)
+{
+   DeviceVector d_y(y,N);
+   const DeviceVector d_x(x,N);
+   const DeviceArray d_dofs(dofs,N);
+   MFEM_FORALL(i, N,
+   {
+      const int j = d_dofs[i];
+      if (j >= 0)
+         d_y[j] += d_x[i];
+      else
+      {
+         d_y[-1-j] -= d_x[i];
+      }
+   });
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
@@ -497,18 +580,32 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
    MFEM_ASSERT(dofs.Size() == elemvect.Size(), "Size mismatch: "
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
-   kernels::vector::AddElement(dofs.Size(), dofs, elemvect, data);
+   mfem::AddElement(dofs.Size(), dofs, elemvect.GetData(), data);
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, double *y)
 {
-   kernels::vector::AddElement(dofs.Size(), dofs, y, data);
+   mfem::AddElement(dofs.Size(), dofs, elem_data, data);
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const double a,
                               const Vector &x)
 {
-   kernels::vector::AddElementAlpha(dofs.Size(), dofs, x, data, a);
+   const int N = dofs.Size();
+   const double alpha = a;
+   DeviceVector d_y(data, N);
+   const DeviceVector d_x(elemvect, N);
+   const DeviceArray d_dofs(dofs, N);
+   MFEM_FORALL(i, N,
+   {
+      const int j = d_dofs[i];
+      if (j >= 0)
+         d_y[j] += alpha * d_x[i];
+      else
+      {
+         d_y[-1-j] -= alpha * d_x[i];
+      }
+   });
 }
 
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
@@ -522,7 +619,7 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 void Vector::Print(std::ostream &out, int width) const
 {
    if (!size) { return; }
-   this->Pull();
+   Pull();
    for (int i = 0; 1; )
    {
       out << data[i];
@@ -563,7 +660,6 @@ void Vector::Print_HYPRE(std::ostream &out) const
 
 void Vector::Randomize(int seed)
 {
-   MFEM_GPU_CANNOT_PASS;
    // static unsigned int seed = time(0);
    const double max = (double)(RAND_MAX) + 1.;
 
@@ -583,7 +679,6 @@ void Vector::Randomize(int seed)
 
 double Vector::Norml2() const
 {
-   MFEM_GPU_CANNOT_PASS;
    // Scale entries of Vector on the fly, using algorithms from
    // std::hypot() and LAPACK's drm2. This scaling ensures that the
    // argument of each call to std::pow is <= 1 to avoid overflow.
@@ -621,7 +716,6 @@ double Vector::Norml2() const
 
 double Vector::Normlinf() const
 {
-   MFEM_GPU_CANNOT_PASS;
    double max = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -632,7 +726,6 @@ double Vector::Normlinf() const
 
 double Vector::Norml1() const
 {
-   MFEM_GPU_CANNOT_PASS;
    double sum = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -643,7 +736,6 @@ double Vector::Norml1() const
 
 double Vector::Normlp(double p) const
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(p > 0.0, "Vector::Normlp");
    if (p == 1.0)
    {
@@ -693,7 +785,6 @@ double Vector::Normlp(double p) const
 
 double Vector::Max() const
 {
-   MFEM_GPU_CANNOT_PASS;
    double max = data[0];
 
    for (int i = 1; i < size; i++)
@@ -707,7 +798,6 @@ double Vector::Max() const
 
 double Vector::Min() const
 {
-   MFEM_GPU_CANNOT_PASS;
    double min = data[0];
 
    for (int i = 1; i < size; i++)
@@ -721,7 +811,6 @@ double Vector::Min() const
 
 double Vector::Sum() const
 {
-   MFEM_GPU_CANNOT_PASS;
    double sum = 0.0;
 
    for (int i = 0; i < size; i++)
@@ -730,6 +819,146 @@ double Vector::Sum() const
    }
 
    return sum;
+}
+
+#ifdef MFEM_USE_CUDA
+static __global__ void cuKernelMin(const int N, double *gdsr, const double *x)
+{
+   __shared__ double s_min[MFEM_CUDA_BLOCKS];
+   const int n = blockDim.x*blockIdx.x + threadIdx.x;
+   if (n>=N) { return; }
+   const int bid = blockIdx.x;
+   const int tid = threadIdx.x;
+   const int bbd = bid*blockDim.x;
+   const int rid = bbd+tid;
+   s_min[tid] = x[n];
+   for (int workers=blockDim.x>>1; workers>0; workers>>=1)
+   {
+      __syncthreads();
+      if (tid >= workers) { continue; }
+      if (rid >= N) { continue; }
+      const int dualTid = tid + workers;
+      if (dualTid >= N) { continue; }
+      const int rdd = bbd+dualTid;
+      if (rdd >= N) { continue; }
+      if (dualTid >= blockDim.x) { continue; }
+      s_min[tid] = fmin(s_min[tid], s_min[dualTid]);
+   }
+   if (tid==0) { gdsr[bid] = s_min[0]; }
+}
+
+static double cuVectorMin(const int N, const double *X)
+{
+   const DeviceVector x(X, N);
+   const int tpb = MFEM_CUDA_BLOCKS;
+   const int blockSize = MFEM_CUDA_BLOCKS;
+   const int gridSize = (N+blockSize-1)/blockSize;
+   const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
+   const int bytes = min_sz*sizeof(double);
+   static double *h_min = NULL;
+   if (!h_min) { h_min = (double*)calloc(min_sz,sizeof(double)); }
+   static void *gdsr = NULL;
+   if (!gdsr) { MFEM_CUDA_CHECK(cudaMalloc(&gdsr, bytes)); }
+   cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, x);
+   MFEM_CUDA_CHECK(cudaGetLastError());
+   MFEM_CUDA_CHECK(cudaMemcpy(h_min, gdsr, bytes, cudaMemcpyDeviceToHost));
+   double min = std::numeric_limits<double>::infinity();
+   for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
+   return min;
+}
+
+static __global__ void cuKernelDot(const int N, double *gdsr,
+                                   const double *x, const double *y)
+{
+   __shared__ double s_dot[MFEM_CUDA_BLOCKS];
+   const int n = blockDim.x*blockIdx.x + threadIdx.x;
+   if (n>=N) { return; }
+   const int bid = blockIdx.x;
+   const int tid = threadIdx.x;
+   const int bbd = bid*blockDim.x;
+   const int rid = bbd+tid;
+   s_dot[tid] = x[n] * y[n];
+   for (int workers=blockDim.x>>1; workers>0; workers>>=1)
+   {
+      __syncthreads();
+      if (tid >= workers) { continue; }
+      if (rid >= N) { continue; }
+      const int dualTid = tid + workers;
+      if (dualTid >= N) { continue; }
+      const int rdd = bbd+dualTid;
+      if (rdd >= N) { continue; }
+      if (dualTid >= blockDim.x) { continue; }
+      s_dot[tid] += s_dot[dualTid];
+   }
+   if (tid==0) { gdsr[bid] = s_dot[0]; }
+}
+
+static double cuVectorDot(const int N, const double *X, const double *Y)
+{
+   const DeviceVector x(X, N);
+   const DeviceVector y(Y, N);
+   static int dot_block_sz = 0;
+   const int tpb = MFEM_CUDA_BLOCKS;
+   const int blockSize = MFEM_CUDA_BLOCKS;
+   const int gridSize = (N+blockSize-1)/blockSize;
+   const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
+   const int bytes = dot_sz*sizeof(double);
+   static double *h_dot = NULL;
+   if (!h_dot or dot_block_sz!=dot_sz)
+   {
+      if (h_dot) { free(h_dot); }
+      h_dot = (double*)calloc(dot_sz,sizeof(double));
+   }
+   static void *gdsr = NULL;
+   if (!gdsr or dot_block_sz!=dot_sz)
+   {
+      if (gdsr) { MFEM_CUDA_CHECK(cudaFree(gdsr)); }
+      MFEM_CUDA_CHECK(cudaMalloc(&gdsr,bytes));
+   }
+   if (dot_block_sz!=dot_sz)
+   {
+      dot_block_sz = dot_sz;
+   }
+   cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
+   MFEM_CUDA_CHECK(cudaGetLastError());
+   MFEM_CUDA_CHECK(cudaMemcpy(h_dot, gdsr, bytes, cudaMemcpyDeviceToHost));
+   double dot = 0.0;
+   for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
+   return dot;
+}
+#endif // MFEM_USE_CUDA
+
+double Min(const int N, const double *x)
+{
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+#ifdef MFEM_USE_CUDA
+      return cuVectorMin(N, x);
+#else
+      mfem_error("Using Min on device w/o support");
+#endif // MFEM_USE_CUDA
+   }
+   double min = std::numeric_limits<double>::infinity();
+   for (int i = 0; i < N; i++) { min = fmin(min, x[i]); }
+   return min;
+}
+
+double Dot(const int N, const double *x, const double *y)
+{
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+#ifdef MFEM_USE_CUDA
+      return cuVectorDot(N, x, y);
+#else
+      mfem_error("Using Dot on device w/o support");
+#endif // MFEM_USE_CUDA
+   }
+   double dot = 0.0;
+#ifdef MFEM_USE_LEGACY_OPENMP
+   #pragma omp parallel for reduction(+:dot)
+#endif
+   for (int i = 0; i < N; i++) { dot += x[i] * y[i]; }
+   return dot;
 }
 
 #ifdef MFEM_USE_SUNDIALS

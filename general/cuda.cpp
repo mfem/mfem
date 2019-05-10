@@ -9,89 +9,86 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "okina.hpp"
+#include "cuda.hpp"
+#include "globals.hpp"
 
-// *****************************************************************************
 namespace mfem
 {
 
-// *****************************************************************************
-#ifdef __NVCC__
-#define CU_STUB(dst,...) cuCheck(__VA_ARGS__); return dst;
-
-#else
-#define CU_STUB(...) {                                                  \
-      MFEM_ABORT("CUDA requested for MFEM but CUDA is not enabled!");   \
-      return (void*)NULL;                                               \
-   }
+#ifdef MFEM_USE_CUDA
+void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
+                     const char *file, int line)
+{
+   mfem::err << "CUDA error: (" << expr << ") failed with error:\n --> "
+             << cudaGetErrorString(err)
+             << "\n ... in function: " << func
+             << "\n ... in file: " << file << ':' << line << '\n';
+   mfem_error();
+}
 #endif
 
-// *****************************************************************************
-// * Allocates device memory
-// *****************************************************************************
-void* cuMemAlloc(void** dptr, size_t bytes)
+void* CuMemAlloc(void** dptr, size_t bytes)
 {
-   CU_STUB(*dptr,::cuMemAlloc((CUdeviceptr*)dptr, bytes));
+#ifdef MFEM_USE_CUDA
+   MFEM_CUDA_CHECK(cudaMalloc(dptr, bytes));
+#endif
+   return *dptr;
 }
 
-// *****************************************************************************
-// * Frees device memory
-// *****************************************************************************
-void* cuMemFree(void *dptr)
+void* CuMemFree(void *dptr)
 {
-   CU_STUB(dptr,::cuMemFree((CUdeviceptr)dptr));
+#ifdef MFEM_USE_CUDA
+   MFEM_CUDA_CHECK(cudaFree(dptr));
+#endif
+   return dptr;
 }
 
-// *****************************************************************************
-// * Copies memory from Host to Device
-// *****************************************************************************
-void* cuMemcpyHtoD(void* dst, const void* src, size_t bytes)
+void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
-   CU_STUB(dst,::cuMemcpyHtoD((CUdeviceptr)dst, src, bytes));
+#ifdef MFEM_USE_CUDA
+   MFEM_CUDA_CHECK(cudaMemcpy(dst, src, bytes, cudaMemcpyHostToDevice));
+#endif
+   return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Host to Device
-// *****************************************************************************
-void* cuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
+void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes)
 {
-   CU_STUB(dst,::cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s));
+#ifdef MFEM_USE_CUDA
+   MFEM_CUDA_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyHostToDevice));
+#endif
+   return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Device
-// *****************************************************************************
-void* cuMemcpyDtoD(void* dst, void* src, size_t bytes)
+void* CuMemcpyDtoD(void* dst, void* src, size_t bytes)
 {
-   CU_STUB(dst,::cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes));
+#ifdef MFEM_USE_CUDA
+   MFEM_CUDA_CHECK(cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToDevice));
+#endif
+   return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Device
-// *****************************************************************************
-void* cuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
+void* CuMemcpyDtoDAsync(void* dst, void* src, size_t bytes)
 {
-   CU_STUB(dst,::cuMemcpyDtoDAsync((CUdeviceptr)dst,
-                                   (CUdeviceptr)src,
-                                   bytes,
-                                   (CUstream)s));
+#ifdef MFEM_USE_CUDA
+   MFEM_CUDA_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToDevice));
+#endif
+   return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Host
-// *****************************************************************************
-void* cuMemcpyDtoH(void* dst, const void* src, size_t bytes)
+void* CuMemcpyDtoH(void *dst, void *src, size_t bytes)
 {
-   CU_STUB(dst,::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
+#ifdef MFEM_USE_CUDA
+   MFEM_CUDA_CHECK(cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToHost));
+#endif
+   return dst;
 }
 
-// *****************************************************************************
-// * Copies memory from Device to Host
-// *****************************************************************************
-void* cuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
+void* CuMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
 {
-   CU_STUB(dst,::cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s));
+#ifdef MFEM_USE_CUDA
+   MFEM_CUDA_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToHost));
+#endif
+   return dst;
 }
 
-// *****************************************************************************
 } // namespace mfem

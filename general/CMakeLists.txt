@@ -12,14 +12,13 @@
 list(APPEND SRCS
   array.cpp
   cuda.cpp
+  device.cpp
   error.cpp
-  config.cpp
   globals.cpp
   gzstream.cpp
   isockstream.cpp
-  mm.cpp
+  mem_manager.cpp
   occa.cpp
-  okina.cpp
   optparser.cpp
   osockstream.cpp
   sets.cpp
@@ -32,22 +31,20 @@ list(APPEND SRCS
 
 list(APPEND HDRS
   array.hpp
-  array_ext.hpp
   binaryio.hpp
-  config.hpp
   cuda.hpp
+  device.hpp
   error.hpp
   globals.hpp
   gzstream.hpp
   hash.hpp
   isockstream.hpp
   mem_alloc.hpp
-  mm.hpp
+  mem_manager.hpp
   occa.hpp
-  okina.hpp
+  forall.hpp
   optparser.hpp
   osockstream.hpp
-  raja.hpp
   sets.hpp
   socketstream.hpp
   sort_pairs.hpp

@@ -9,16 +9,11 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-set(KERS
-  mesh.cpp
-)
+# Defines the following variables:
+#   - OCCA_FOUND
+#   - OCCA_LIBRARIES
+#   - OCCA_INCLUDE_DIRS
 
-set(HDRS
-  mesh.hpp
-)
-
-convert_filenames_to_full_paths(KERS)
-convert_filenames_to_full_paths(HDRS)
-
-set(KERNELS ${KERNELS} ${KERS} PARENT_SCOPE)
-set(HEADERS ${HEADERS} ${HDRS} PARENT_SCOPE)
+include(MfemCmakeUtilities)
+mfem_find_package(OCCA OCCA OCCA_DIR "include" "occa.hpp" "lib" "occa"
+  "Paths to headers required by OCCA." "Libraries required by OCCA.")

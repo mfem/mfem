@@ -12,190 +12,225 @@
 // Implementations of classes FABilinearFormExtension, EABilinearFormExtension,
 // PABilinearFormExtension and MFBilinearFormExtension.
 
-#include "fem.hpp"
-#include "bilininteg.hpp"
-#include "fespace_ext.hpp"
-#include "bilinearform_ext.hpp"
-#include "../linalg/kernels/vector.hpp"
+#include "../general/forall.hpp"
+#include "bilinearform.hpp"
 
 namespace mfem
 {
 
-// Data and methods for fully-assembled bilinear forms
-FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form) :
-   Operator(form->Size()), a(form) { }
+BilinearFormExtension::BilinearFormExtension(BilinearForm *form)
+   : Operator(form->Size()), a(form)
+{
+   // empty
+}
 
-// Data and methods for element-assembled bilinear forms
-EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
-   : Operator(form->Size()), a(form) { }
+const Operator *BilinearFormExtension::GetProlongation() const
+{
+   return a->GetProlongation();
+}
+
+const Operator *BilinearFormExtension::GetRestriction() const
+{
+   return a->GetRestriction();
+}
+
 
 // Data and methods for partially-assembled bilinear forms
 PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
-   Operator(form->Size()), a(form),
-   trialFes(a->fes), testFes(a->fes),
-   localX(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
-   localY(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   kfes(new kFiniteElementSpace(a->fes)) { }
+   BilinearFormExtension(form),
+   trialFes(a->FESpace()), testFes(a->FESpace()),
+   localX(trialFes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
+   localY( testFes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
+   elem_restrict(new ElemRestriction(*a->FESpace())) { }
 
 PABilinearFormExtension::~PABilinearFormExtension()
 {
-   for (int i = 0; i < integrators.Size(); ++i)
-   {
-      delete integrators[i];
-   }
-   delete kfes;
-}
-
-// Adds new Domain Integrator.
-void PABilinearFormExtension::AddDomainIntegrator(
-   AbstractBilinearFormIntegrator *i)
-{
-   integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
-}
-
-static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
-                                             const FiniteElement &test_fe)
-{
-   int order;
-   if (trial_fe.Space() == FunctionSpace::Pk)
-   {
-      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
-   }
-   else
-   {
-      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
-      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
-   }
-   if (trial_fe.Space() == FunctionSpace::rQk)
-   {
-      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
-   }
-   return IntRules.Get(trial_fe.GetGeomType(), order);
+   delete elem_restrict;
 }
 
 void PABilinearFormExtension::Assemble()
 {
-   assert(integrators.Size()==1);
-   const FiniteElement &fe = *a->fes->GetFE(0);
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      const IntegrationRule *rule = integrators[i]->GetIntRule();
-      const IntegrationRule *ir = rule?rule:&DefaultGetRule(fe,fe);
-      integrators[i]->Setup(a->fes,ir);
-      integrators[i]->Assemble();
+      integrators[i]->Assemble(*a->FESpace());
    }
 }
 
-void PABilinearFormExtension::FormSystemOperator(const Array<int>
-                                                 &ess_tdof_list,
-                                                 Operator *&A)
+void PABilinearFormExtension::Update()
+{
+   FiniteElementSpace *fes = a->FESpace();
+   height = width = fes->GetVSize();
+   trialFes = fes;
+   testFes = fes;
+   localX.SetSize(trialFes->GetNE() * trialFes->GetFE(0)->GetDof() *
+                  trialFes->GetVDim());
+   localY.SetSize(testFes->GetNE() * testFes->GetFE(0)->GetDof() *
+                  testFes->GetVDim());
+   delete elem_restrict;
+   elem_restrict = new ElemRestriction(*fes);
+}
+
+void PABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                               OperatorHandle &A)
 {
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
    if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
    const bool own_A = (rap!=this);
-   assert(rap);
-   A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
+   A.Reset(new ConstrainedOperator(rap, ess_tdof_list, own_A));
 }
 
 void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                Vector &x, Vector &b,
-                                               Operator *&A, Vector &X, Vector &B,
+                                               OperatorHandle &A,
+                                               Vector &X, Vector &B,
                                                int copy_interior)
 {
-   FormSystemOperator(ess_tdof_list, A);
-
-   const Operator* P = trialFes->GetProlongationMatrix();
-   const Operator* R = trialFes->GetRestrictionMatrix();
-   if (P)
-   {
-      // Variational restriction with P
-      B.SetSize(P->Width());
-      P->MultTranspose(b, B);
-      X.SetSize(R->Height());
-      R->Mult(x, X);
-   }
-   else
-   {
-      // rap, X and B point to the same data as this, x and b
-      X.SetSize(x.Size()); X = x;
-      B.SetSize(b.Size()); B = b;
-   }
-
-   if (!copy_interior && ess_tdof_list.Size()>0)
-   {
-      const int csz = ess_tdof_list.Size();
-      Vector subvec(csz);
-      subvec = 0.0;
-      kernels::vector::GetSubvector(csz,
-                                    subvec.GetData(),
-                                    X.GetData(),
-                                    ess_tdof_list.GetData());
-      X = 0.0;
-      kernels::vector::SetSubvector(csz,
-                                    X.GetData(),
-                                    subvec.GetData(),
-                                    ess_tdof_list.GetData());
-   }
-
-   ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(A);
-   assert(cA);
-   if (cA)
-   {
-      cA->EliminateRHS(X, B);
-   }
-   else
-   {
-      mfem_error("BilinearForm::InitRHS expects an ConstrainedOperator");
-   }
+   Operator *oper;
+   Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
+   A.Reset(oper); // A will own oper
 }
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   kfes->GlobalToLocal(x, localX);
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
-   assert(iSz==1);
    for (int i = 0; i < iSz; ++i)
    {
-      integrators[i]->MultAdd(localX, localY);
+      integrators[i]->MultAssembled(localX, localY);
    }
-   kfes->LocalToGlobal(localY, y);
+   elem_restrict->MultTranspose(localY, y);
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
-   kfes->GlobalToLocal(x, localX);
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   elem_restrict->Mult(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
-   assert(iSz==1);
    for (int i = 0; i < iSz; ++i)
    {
-      integrators[i]->MultTransposeAdd(localX, localY);
+      integrators[i]->MultAssembledTranspose(localX, localY);
    }
-   kfes->LocalToGlobal(localY, y);
+   elem_restrict->MultTranspose(localY, y);
 }
 
-void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
-                                                 const Vector &b,
-                                                 Vector &x)
+
+ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
+   : fes(f),
+     ne(fes.GetNE()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes.GetNDofs()),
+     dof(fes.GetFE(0)->GetDof()),
+     nedofs(ne*dof),
+     offsets(ndofs+1),
+     indices(ne*dof)
 {
-   const Operator *P = a->GetProlongation();
-   if (P)
+   for (int e = 0; e < ne; ++e)
    {
-      // Apply conforming prolongation
-      x.SetSize(P->Height());
-      P->Mult(X, x);
-      return;
+      const FiniteElement *fe = fes.GetFE(e);
+      const TensorBasisElement* el =
+         dynamic_cast<const TensorBasisElement*>(fe);
+      if (el) { continue; }
+      mfem_error("Finite element not supported with partial assembly");
    }
-   // Otherwise X and x point to the same data
-   x = X;
+   const FiniteElement *fe = fes.GetFE(0);
+   const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
+   const Array<int> &dof_map = el->GetDofMap();
+   const bool dof_map_is_identity = (dof_map.Size()==0);
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elementMap = e2dTable.GetJ();
+   // We'll be keeping a count of how many local nodes point to its global dof
+   for (int i = 0; i <= ndofs; ++i)
+   {
+      offsets[i] = 0;
+   }
+   for (int e = 0; e < ne; ++e)
+   {
+      for (int d = 0; d < dof; ++d)
+      {
+         const int gid = elementMap[dof*e + d];
+         ++offsets[gid + 1];
+      }
+   }
+   // Aggregate to find offsets for each global dof
+   for (int i = 1; i <= ndofs; ++i)
+   {
+      offsets[i] += offsets[i - 1];
+   }
+   // For each global dof, fill in all local nodes that point   to it
+   for (int e = 0; e < ne; ++e)
+   {
+      for (int d = 0; d < dof; ++d)
+      {
+         const int did = dof_map_is_identity?d:dof_map[d];
+         const int gid = elementMap[dof*e + did];
+         const int lid = dof*e + d;
+         indices[offsets[gid]++] = lid;
+      }
+   }
+   // We shifted the offsets vector by 1 by using it as a counter
+   // Now we shift it back.
+   for (int i = ndofs; i > 0; --i)
+   {
+      offsets[i] = offsets[i - 1];
+   }
+   offsets[0] = 0;
 }
 
-// Data and methods for matrix-free bilinear forms
-MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
-   : Operator(form->Size()), a(form) { }
-
+void ElemRestriction::Mult(const Vector& x, Vector& y) const
+{
+   const int vd = vdim;
+   const bool t = byvdim;
+   const DeviceArray d_offsets(offsets, ndofs+1);
+   const DeviceArray d_indices(indices, nedofs);
+   const DeviceMatrix d_x(x, t?vd:ndofs, t?ndofs:vd);
+   DeviceMatrix d_y(y, t?vd:nedofs, t?nedofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i+1];
+      for (int c = 0; c < vd; ++c)
+      {
+         const double dofValue = d_x(t?c:i,t?i:c);
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int idx_j = d_indices[j];
+            d_y(t?c:idx_j,t?idx_j:c) = dofValue;
+         }
+      }
+   });
 }
+
+void ElemRestriction::MultTranspose(const Vector& x, Vector& y) const
+{
+   const int vd = vdim;
+   const bool t = byvdim;
+   const DeviceArray d_offsets(offsets, ndofs+1);
+   const DeviceArray d_indices(indices, nedofs);
+   const DeviceMatrix d_x(x, t?vd:nedofs, t?nedofs:vd);
+   DeviceMatrix d_y(y, t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dofValue = 0;
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int idx_j = d_indices[j];
+            dofValue +=  d_x(t?c:idx_j,t?idx_j:c);
+         }
+         d_y(t?c:i,t?i:c) = dofValue;
+      }
+   });
+}
+
+} // namespace mfem

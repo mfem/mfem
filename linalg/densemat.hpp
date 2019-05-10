@@ -70,7 +70,7 @@ public:
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
    void Reset(double *d, int h, int w)
-   { if (OwnsData()) { mm::free<double>(data); } UseExternalData(d, h, w); }
+   { if (OwnsData()) { mfem::Delete(data); } UseExternalData(d, h, w); }
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
        should not be used with DenseMatrix that owns its current data array. */
@@ -78,7 +78,7 @@ public:
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
    void Clear()
-   { if (OwnsData()) { mm::free<double>(data); } ClearExternalData(); }
+   { if (OwnsData()) { mfem::Delete(data); } ClearExternalData(); }
 
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
@@ -579,6 +579,9 @@ public:
    /// Multiply the inverse matrix by another matrix: X = A^{-1} B.
    void Mult(const DenseMatrix &B, DenseMatrix &X) const;
 
+   /// Multiply the inverse matrix by another matrix: X <- A^{-1} X.
+   void Mult(DenseMatrix &X) const { lu.Solve(width, X.Width(), X.Data()); }
+
    /// Compute and return the inverse matrix in Ainv.
    void GetInverseMatrix(DenseMatrix &Ainv) const;
 
@@ -669,7 +672,7 @@ public:
       : Mk(NULL, i, j)
    {
       nk = k;
-      tdata = mm::malloc<double>(i*j*k);
+      tdata = mfem::New<double>(i*j*k);
       own_data = true;
    }
 
@@ -680,8 +683,8 @@ public:
       const int size = Mk.Height()*Mk.Width()*nk;
       if (size > 0)
       {
-         tdata = mm::malloc<double>(size);
-         mm::memcpy(tdata, other.tdata, sizeof(double) * size);
+         tdata = mfem::New<double>(size);
+         mfem::Memcpy(tdata, other.tdata, sizeof(double) * size);
       }
       else
       {
@@ -695,16 +698,16 @@ public:
 
    void SetSize(int i, int j, int k)
    {
-      if (own_data) { mm::free<double>(tdata); }
+      if (own_data) { mfem::Delete(tdata); }
       Mk.UseExternalData(NULL, i, j);
       nk = k;
-      tdata = mm::malloc<double>(i*j*k);
+      tdata = mfem::New<double>(i*j*k);
       own_data = true;
    }
 
    void UseExternalData(double *ext_data, int i, int j, int k)
    {
-      if (own_data) { mm::free<double>(tdata); }
+      if (own_data) { mfem::Delete(tdata); }
       Mk.UseExternalData(NULL, i, j);
       nk = k;
       tdata = ext_data;
@@ -727,6 +730,8 @@ public:
 
    double *Data() { return tdata; }
 
+   const double *Data() const { return tdata; }
+
    /** Matrix-vector product from unassembled element matrices, assuming both
        'x' and 'y' use the same elem_dof table. */
    void AddMult(const Table &elem_dof, const Vector &x, Vector &y) const;
@@ -738,7 +743,7 @@ public:
 
    ~DenseTensor()
    {
-      if (own_data) { mm::free<double>(tdata); }
+      if (own_data) { mfem::Delete(tdata); }
    }
 };
 
