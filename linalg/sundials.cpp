@@ -162,29 +162,17 @@ namespace mfem
   }
 
   CVODESolver::CVODESolver(int lmm)
+    : lmm_type(lmm), step_mode(CV_NORMAL)
   {
-    // Create the solver memory
-    sundials_mem = CVodeCreate(lmm);
-    MFEM_VERIFY(sundials_mem, "error in CVodeCreate()");
-
     // Allocate an empty serial N_Vector
     y = N_VNewEmpty_Serial(0);
     MFEM_VERIFY(y, "error in N_VNewEmpty_Serial()");
-
-    // Initialize the step mode
-    step_mode = CV_NORMAL;
-
-    // Initialize the return flag to success
-    flag = CV_SUCCESS;
   }
 
 #ifdef MFEM_USE_MPI
   CVODESolver::CVODESolver(MPI_Comm comm, int lmm)
+    : lmm_type(lmm), step_mode(CV_NORMAL)
   {
-    // Create the solver memory
-    sundials_mem = CVodeCreate(lmm);
-    MFEM_VERIFY(sundials_mem, "error in CVodeCreate()");
-
     if (comm == MPI_COMM_NULL) {
 
       // Allocate an empty serial N_Vector
@@ -198,26 +186,19 @@ namespace mfem
       MFEM_VERIFY(y, "error in N_VNewEmpty_Parallel()");
 
     }
-
-    // Initialize the step mode
-    step_mode = CV_NORMAL;
-
-    // Initialize the return flag to success
-    flag = CV_SUCCESS;
   }
 #endif
 
   void CVODESolver::Init(TimeDependentOperator &f_)
   {
     mfem_error("CVODE Initialization error: use the initialization method\n"
-      "CVODESolver::Init(TimeDependentOperator &f_, double &t, Vector &x)\n");
+               "CVODESolver::Init(TimeDependentOperator &f_, double &t, Vector &x)\n");
   }
 
   void CVODESolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
   {
     // Check intputs for consistency
-    int loc_size = f_.Height();
-    MFEM_VERIFY(loc_size == x.Size(),
+    MFEM_VERIFY(f_.Height() == x.Size(),
                 "error inconsistent operator and vector size");
 
     MFEM_VERIFY(f_.GetTime() == t,
@@ -226,13 +207,44 @@ namespace mfem
     // Initialize the base class
     ODESolver::Init(f_);
 
+    // Create or ReInit CVODE
+    if (!sundials_mem) {
+
+      // Create CVODE memory
+      CVODESolver::Create(t, x);
+
+    } else {
+
+      // Check that data is the same size and update array data
+      if (!Parallel()) {
+        MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(),
+                    "error CVODE does not support resizing");
+        NV_DATA_S(y) = x.GetData();
+      } else {
+#ifdef MFEM_USE_MPI
+        MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(),
+                    "error CVODE does not support resizing");
+        NV_DATA_P(y) = x.GetData();
+#endif
+      }
+
+      // Reinitialize CVODE memory
+      flag = CVodeReInit(sundials_mem, t, y);
+      MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeReInit()");
+
+    }
+  }
+
+  void CVODESolver::Create(double &t, Vector &x)
+  {
     // Fill N_Vector wrapper with initial condition data
     if (!Parallel()) {
       NV_LENGTH_S(y) = x.Size();
       NV_DATA_S(y)   = x.GetData();
     } else {
 #ifdef MFEM_USE_MPI
-      long local_size = loc_size, global_size;
+      long local_size = x.Size();
+      long global_size;
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
       NV_LOCLENGTH_P(y)  = x.Size();
@@ -240,6 +252,10 @@ namespace mfem
       NV_DATA_P(y)       = x.GetData();
 #endif
     }
+
+    // Create CVODE
+    sundials_mem = CVodeCreate(lmm_type);
+    MFEM_VERIFY(sundials_mem, "error in CVodeCreate()");
 
     // Initialize CVODE
     flag = CVodeInit(sundials_mem, CVODESolver::RHS, t, y);
@@ -282,7 +298,6 @@ namespace mfem
     flag = CVodeGetLastStep(sundials_mem, &dt);
     MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeGetLastStep()");
   }
-
 
   void CVODESolver::SetLinearSolver(SundialsLinearSolver &ls_spec)
   {
@@ -345,7 +360,6 @@ namespace mfem
     int      qlast, qcur;
     double   hinused, hlast, hcur, tcur;
     long int nniters, nncfails;
-    int      flag = 0;
 
     // Get integrator stats
     flag = CVodeGetIntegratorStats(sundials_mem,
@@ -431,22 +445,18 @@ namespace mfem
   }
 
   ARKStepSolver::ARKStepSolver(Type type)
-    : use_implicit(type == IMPLICIT || type == IMEX), rk_type(type)
+    : rk_type(type), step_mode(ARK_NORMAL),
+      use_implicit(type == IMPLICIT || type == IMEX)
   {
     // Allocate an empty serial N_Vector
     y = N_VNewEmpty_Serial(0);
     MFEM_VERIFY(y, "error in N_VNewEmpty_Serial()");
-
-    // Initialize the step mode
-    step_mode = ARK_NORMAL;
-
-    // Initialize the return flag to success
-    flag = ARK_SUCCESS;
   }
 
 #ifdef MFEM_USE_MPI
   ARKStepSolver::ARKStepSolver(MPI_Comm comm, Type type)
-    : use_implicit(type == IMPLICIT || type == IMEX), rk_type(type)
+    : rk_type(type), step_mode(ARK_NORMAL),
+      use_implicit(type == IMPLICIT || type == IMEX)
   {
     if (comm == MPI_COMM_NULL) {
 
@@ -461,19 +471,13 @@ namespace mfem
       MFEM_VERIFY(y, "error in N_VNewEmpty_Parallel()");
 
     }
-
-    // Initialize the step mode
-    step_mode = ARK_NORMAL;
-
-    // Initialize the return flag to success
-    flag = ARK_SUCCESS;
   }
 #endif
 
   void ARKStepSolver::Init(TimeDependentOperator &f_)
   {
     mfem_error("ARKStep Initialization error: use the initialization method\n"
-      "ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)\n");
+               "ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)\n");
   }
 
   void ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
@@ -492,8 +496,35 @@ namespace mfem
     // Initialize the base class
     ODESolver::Init(f_);
 
-    // Create ARKStep
-    ARKStepSolver::Create(t, x);
+    // Create or ReInit ARKStep
+    if (!sundials_mem) {
+
+      // Create ARKStep memory
+      ARKStepSolver::Create(t, x);
+
+    } else {
+
+      // Check that data is the same size and update array data
+      if (!Parallel()) {
+        MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(),
+                    "error to resize ARKStep use ARKStep::ReSize()");
+        NV_DATA_S(y) = x.GetData();
+      } else {
+#ifdef MFEM_USE_MPI
+        MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(),
+                    "error to resize ARKStep use ARKStep::ReSize()");
+        NV_DATA_P(y) = x.GetData();
+#endif
+      }
+
+      // Reinitialize ARKStep memory
+      if (rk_type == IMPLICIT)
+        flag = ARKStepReInit(sundials_mem, NULL, ARKStepSolver::RHS1, t, y);
+      else
+        flag = ARKStepReInit(sundials_mem, ARKStepSolver::RHS1, NULL, t, y);
+      MFEM_VERIFY(sundials_mem, "error in ARKStepReInit()");
+
+    }
   }
 
   void ARKStepSolver::Init(TimeDependentOperator &f_, TimeDependentOperator &f2_,
@@ -513,8 +544,32 @@ namespace mfem
     // Initialize the base class
     ODESolver::Init(f_, f2_);
 
-    // Create ARKStep
-    ARKStepSolver::Create(t, x);
+    // Create or ReInit ARKStep
+    if (!sundials_mem) {
+
+      // Create ARKStep
+      ARKStepSolver::Create(t, x);
+
+    } else {
+
+      // Check that data is the same size and update array data
+      if (!Parallel()) {
+        MFEM_VERIFY(NV_LENGTH_S(y) == x.Size(),
+                    "error to resize ARKStep use ARKStep::ReSize()");
+        NV_DATA_S(y) = x.GetData();
+      } else {
+#ifdef MFEM_USE_MPI
+        MFEM_VERIFY(NV_LOCLENGTH_P(y) == x.Size(),
+                    "error to resize ARKStep use ARKStep::ReSize()");
+        NV_DATA_P(y) = x.GetData();
+#endif
+      }
+
+      // Reinitialize ARKStep memory
+      flag = ARKStepReInit(sundials_mem, ARKStepSolver::RHS1, ARKStepSolver::RHS2, t, y);
+      MFEM_VERIFY(sundials_mem, "error in ARKStepCreate()");
+
+    }
   }
 
   void ARKStepSolver::Create(double &t, Vector &x)
@@ -713,10 +768,8 @@ namespace mfem
     long int nlinsetups, netfails;
     double   hinused, hlast, hcur, tcur;
     long int nniters, nncfails;
-    int      flag = 0;
 
     // Get integrator stats
-
     flag = ARKStepGetTimestepperStats(sundials_mem,
                                       &expsteps,
                                       &accsteps,
@@ -857,9 +910,6 @@ namespace mfem
     // Default abs_tol and print_level
     abs_tol     = pow(UNIT_ROUNDOFF, 1.0/3.0);
     print_level = 0;
-
-    // Initialize flag to success
-    flag = KIN_SUCCESS;
   }
 
 #ifdef MFEM_USE_MPI
@@ -892,9 +942,6 @@ namespace mfem
     // Default abs_tol and print_level
     abs_tol     = pow(UNIT_ROUNDOFF, 1.0/3.0);
     print_level = 0;
-
-    // Initialize flag to success
-    flag = KIN_SUCCESS;
   }
 #endif
 
@@ -908,8 +955,8 @@ namespace mfem
     // Set actual size and data in the N_Vector y.
     if (!Parallel()) {
 
-      NV_LENGTH_S(y) = height;
-      NV_DATA_S(y)   = new double[height](); // value-initialize
+      NV_LENGTH_S(y)       = height;
+      NV_DATA_S(y)         = new double[height](); // value-initialize
       NV_LENGTH_S(y_scale) = height;
       NV_DATA_S(y_scale)   = NULL;
       NV_LENGTH_S(f_scale) = height;
@@ -920,9 +967,9 @@ namespace mfem
       long local_size = height, global_size;
       MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
                     NV_COMM_P(y));
-      NV_LOCLENGTH_P(y)  = local_size;
-      NV_GLOBLENGTH_P(y) = global_size;
-      NV_DATA_P(y)       = new double[local_size](); // value-initialize
+      NV_LOCLENGTH_P(y)        = local_size;
+      NV_GLOBLENGTH_P(y)       = global_size;
+      NV_DATA_P(y)             = new double[local_size](); // value-initialize
       NV_LOCLENGTH_P(y_scale)  = local_size;
       NV_GLOBLENGTH_P(y_scale) = global_size;
       NV_DATA_P(y_scale)       = NULL;
