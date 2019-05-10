@@ -241,6 +241,9 @@ const double ND_DofTransformation::T_data[24] =
    0.0,  1.0,  1.0,  0.0
 };
 
+const DenseTensor ND_DofTransformation
+::T(const_cast<double*>(ND_DofTransformation::T_data), 2, 2, 6);
+
 const double ND_DofTransformation::TInv_data[24] =
 {
    1.0,  0.0,  0.0,  1.0,
@@ -251,10 +254,11 @@ const double ND_DofTransformation::TInv_data[24] =
    0.0,  1.0,  1.0,  0.0
 };
 
+const DenseTensor ND_DofTransformation
+::TInv(const_cast<double*>(TInv_data), 2, 2, 6);
+
 ND_DofTransformation::ND_DofTransformation(int height, int width, int p)
    : DofTransformation(height, width),
-     T(const_cast<double*>(T_data), 2, 2, 6),
-     TInv(const_cast<double*>(TInv_data), 2, 2, 6),
      order(p)
 {
 }
