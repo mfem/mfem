@@ -3,7 +3,7 @@ exMHD -r 2 -o 2 -tf 3 -vs 100 -dt .002
 exMHD -r 2 -tf 10 -vs 50 -dt .004 -i 2
 
 Parallel AMR run:
-mpirun -n 16 exAMRMHDp -m xperiodicR1.mesh -rs 0 -ps 2 -o 4 -tf 8 -vs 200 -dt .0001 -i 3 -amrl 3 -ltol 2e-3
+mpirun -n 16 exAMRMHDp -m xperiodicR1.mesh -rs 0 -rp 2 -o 4 -tf 8 -vs 200 -dt .0001 -i 3 -amrl 3 -ltol 2e-3 -derefine
 
 parallel run:
 mpirun -n 4 exMHDp -rs 4 -o 2 -tf 3 -vs 100 -dt .001
@@ -37,7 +37,7 @@ mpirun -n 1 exAMRMHDp -m xperiodic.mesh -rs 3 -o 4 -tf 8 -vs 10 -dt .0001 -i 3 -
 mpirun -n 4 exAMRMHDp -m xperiodic.mesh -rs 3 -o 4 -tf 8 -vs 10 -dt .0001 -i 3 -amrl 3 -ltol 1e-3
 
 derefine in parallel amr working:
-mpirun -n 16 exAMRMHDp -m xperiodicR1.mesh -rs 0 -ps 2 -o 4 -tf 8 -vs 200 -dt .0001 -i 3 -amrl 3 -ltol 2e-3
+mpirun -n 16 exAMRMHDp -m xperiodicR1.mesh -rs 0 -rp 2 -o 4 -tf 8 -vs 200 -dt .0001 -i 3 -amrl 3 -ltol 2e-3 -derefine
 
 5/4
 on nersc debug mode has issue (fixed)

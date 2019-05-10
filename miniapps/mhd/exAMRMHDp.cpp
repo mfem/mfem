@@ -532,6 +532,7 @@ int main(int argc, char *argv[])
       else
           refineMesh=false;
 
+      //derefine every ref_steps but is lagged by a step of ref_steps/2
       if ( derefine && (ti-ref_steps/2)%ref_steps ==0 && ti >  ref_steps ) 
       {
           derefineIt=true;
@@ -540,8 +541,6 @@ int main(int argc, char *argv[])
       else
           derefineIt=false;
 
-      // 13. The inner refinement loop. At the end we want to have the current
-      //     time step resolved to the prescribed tolerance in each element.
       {
         //---Predictor stage---
         //assemble the nonlinear terms

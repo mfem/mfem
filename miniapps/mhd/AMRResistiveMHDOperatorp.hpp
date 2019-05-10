@@ -192,8 +192,10 @@ void AMRResistiveMHDOperator::UpdateProblem()
    }
 
    //this probably should be done in main loop
+   /*
    cout<<"True V size = "<<fespace.GetTrueVSize()<<endl;
    cout<<"Problem size = "<<fespace.GetVSize()<<endl;
+   */
    width = height = fespace.GetVSize()*4;
 }          
 
