@@ -295,6 +295,14 @@ namespace mfem
     void Init(TimeDependentOperator &f_, TimeDependentOperator &f2_, double &t,
               Vector &x);
 
+    /** Resize ARKode: Resize ARKode internal memory for the current problem.
+
+        @param[in] x      the newly-sized state vector x(t).
+        @param[in] hscale sacling factor for the next time step.
+        @param[in] t      the current time (must be consistent with x(t).
+    */
+    void Resize(Vector &x, double hscale, double &t);
+
     /** Integrate the ODE with ARKode using the specified step mode.
 
         @param[out]    x  Solution vector at the requested output timem x=x(t).
