@@ -814,8 +814,15 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             // Check if there is a prism with edge (mid23, mid41) that we may
             // have missed in 'CheckAnisoFace', and force-refine it if present.
 
-            CheckAnisoPrism(mid23, vn3, vn4, mid41,
-                            &ref_stack[rs], ref_stack.Size() - rs);
+            if (ref_stack.Size() > rs)
+            {
+               CheckAnisoPrism(mid23, vn3, vn4, mid41,
+                               &ref_stack[rs], ref_stack.Size() - rs);
+            }
+            else
+            {
+               CheckAnisoPrism(mid23, vn3, vn4, mid41, NULL, 0);
+            }
          }
 
          return;
