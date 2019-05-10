@@ -316,18 +316,18 @@ int main(int argc, char *argv[])
       }
       if (false)
       {
-	M.Print("M.mat");
+         M.Print("M.mat");
 
-	HypreParMatrix * Mt = M.Transpose();
-	Mt->Print("Mt.mat");
+         HypreParMatrix * Mt = M.Transpose();
+         Mt->Print("Mt.mat");
 
-	HypreParMatrix * MA = Add(1.0, M, -1.0, *Mt);
-	MA->Print("MA.mat");
+         HypreParMatrix * MA = Add(1.0, M, -1.0, *Mt);
+         MA->Print("MA.mat");
 
-	delete Mt;
-	delete MA;
+         delete Mt;
+         delete MA;
       }
-      
+
       HypreDiagScale diag(M);
       HyprePCG pcg(M);
       pcg.SetTol(1e-12);
