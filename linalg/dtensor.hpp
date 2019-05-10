@@ -12,6 +12,7 @@
 #ifndef MFEM_DTENSOR
 #define MFEM_DTENSOR
 
+#include "../general/forall.hpp"
 #include "../general/cuda.hpp"
 #include "../general/mem_manager.hpp"
 
@@ -96,7 +97,7 @@ public:
       // Initialize sizes, and compute the number of values
       const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      data = (capacity > 0) ? mfem::Ptr(_data) : NULL;
+      data = mfem::Ptr(_data) ;
    }
 
    /// Constructor to initialize a tensor from the Scalar array _data
@@ -116,7 +117,7 @@ public:
       // Initialize sizes, and compute the number of values
       const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      data = (capacity > 0) ? (Scalar*)mfem::Ptr(_data) : NULL;
+      data = (Scalar*) mfem::Ptr(_data);
    }
 
    /// Copy constructor

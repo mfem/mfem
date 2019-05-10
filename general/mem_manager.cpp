@@ -628,18 +628,20 @@ static void *PtrAlias(internal::Ledger *maps, void *ptr, const bool read = false
    return a_ptr;
 }
 
-/*static inline bool MmDeviceIniFilter(void)
+static inline bool MmDeviceIniFilter(void)
 {
    if (!mm.UsingMM()) { return true; }
    if (!mm.IsEnabled()) { return true; }
    if (!Device::IsAvailable()) { return true; }
    if (!Device::IsConfigured()) { return true; }
    return false;
-}*/
+}
 
 void *MemoryManager::PtrRW(void *ptr, const bool read)
 {
-   MFEM_VERIFY(ptr, "Ptr NULL!");
+   if (parallel<0) { parallel=0; }
+   if (MmDeviceIniFilter()) { return ptr; }
+   if (!ptr) { return ptr; }
    if (IsKnown(ptr)) { return PtrKnown(maps, ptr, read); }
    if (IsAlias(ptr)) { return PtrAlias(maps, ptr, read); }
    if (parallel>0)
@@ -678,6 +680,7 @@ static void PushAlias(const internal::Ledger *maps,
 
 void MemoryManager::Push(const void *ptr, const std::size_t bytes)
 {
+   if (MmDeviceIniFilter()) { return; }
    MFEM_VERIFY(bytes>0, "[Push] bytes should not be zero!")
    if (IsKnown(ptr, bytes)) { return PushKnown(maps, ptr, bytes); }
    if (IsAlias(ptr, bytes)) { return PushAlias(maps, ptr, bytes); }
@@ -711,7 +714,7 @@ static void PullAlias(const internal::Ledger *maps,
 
 void MemoryManager::Pull(const void *ptr, const std::size_t bytes)
 {
-   //if (MmDeviceIniFilter()) { return; }
+   if (MmDeviceIniFilter()) { return; }
    if (IsKnown(ptr, bytes)) { return PullKnown(maps, ptr, bytes); }
    if (IsAlias(ptr, bytes)) { return PullAlias(maps, ptr, bytes); }
    if (parallel>0) { mfem_error("Unknown pointer to pull from!"); }
