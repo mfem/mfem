@@ -721,6 +721,10 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
          Array<int> sdofs;
          for (int g = 1; g < ngrps; g++)
          {
+            if (pmesh->gtopo.IAmMaster(g))
+            {
+               continue;
+            }
             for (int fi=0; fi<pmesh->GroupNTriangles(g); fi++)
             {
                int face, ori, info1, info2;
