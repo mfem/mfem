@@ -103,16 +103,25 @@ public:
    void TransformDual(const double *, double *) const;
 };
 
-class ND_TetDofTransformation : public DofTransformation
+class ND_DofTransformation : public DofTransformation
 {
-private:
-   const DenseTensor T, TInv;
-   int order;
-
-public:
+protected:
    static const double T_data[24];
    static const double TInv_data[24];
+   static const DenseTensor T, TInv;
+   int order;
 
+   ND_DofTransformation(int height, int width, int order);
+
+public:
+   static const DenseMatrix & GetFaceTransform(int ori) { return T(ori); }
+   static const DenseMatrix & GetFaceInverseTransform(int ori)
+   { return TInv(ori); }
+};
+
+class ND_TetDofTransformation : public ND_DofTransformation
+{
+public:
    ND_TetDofTransformation(int order);
 
    void TransformPrimal(const double *, double *) const;
@@ -122,14 +131,8 @@ public:
    void TransformDual(const double *, double *) const;
 };
 
-class ND_WedgeDofTransformation : public DofTransformation
+class ND_WedgeDofTransformation : public ND_DofTransformation
 {
-private:
-   static const double T_data[24];
-   static const double TInv_data[24];
-   const DenseTensor T, TInv;
-   int order;
-
 public:
    ND_WedgeDofTransformation(int order);
 

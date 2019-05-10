@@ -231,7 +231,7 @@ void VDofTransformation::TransformDual(const double *v, double *v_trans) const
    }
 }
 
-const double ND_TetDofTransformation::T_data[24] =
+const double ND_DofTransformation::T_data[24] =
 {
    1.0,  0.0,  0.0,  1.0,
    -1.0, -1.0,  0.0,  1.0,
@@ -241,7 +241,7 @@ const double ND_TetDofTransformation::T_data[24] =
    0.0,  1.0,  1.0,  0.0
 };
 
-const double ND_TetDofTransformation::TInv_data[24] =
+const double ND_DofTransformation::TInv_data[24] =
 {
    1.0,  0.0,  0.0,  1.0,
    -1.0, -1.0,  0.0,  1.0,
@@ -251,11 +251,16 @@ const double ND_TetDofTransformation::TInv_data[24] =
    0.0,  1.0,  1.0,  0.0
 };
 
-ND_TetDofTransformation::ND_TetDofTransformation(int p)
-   : DofTransformation(p*(p + 2)*(p + 3)/2, p*(p + 2)*(p + 3)/2),
+ND_DofTransformation::ND_DofTransformation(int height, int width, int p)
+   : DofTransformation(height, width),
      T(const_cast<double*>(T_data), 2, 2, 6),
      TInv(const_cast<double*>(TInv_data), 2, 2, 6),
      order(p)
+{
+}
+
+ND_TetDofTransformation::ND_TetDofTransformation(int p)
+   : ND_DofTransformation(p*(p + 2)*(p + 3)/2, p*(p + 2)*(p + 3)/2, p)
 {
 }
 
