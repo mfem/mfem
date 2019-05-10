@@ -704,7 +704,6 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    else
    {
       // Some shared dofs will be linear combinations of others
-      std::cout << "Using new algorithm to build P!" << std::endl;
       int ldof  = GetVSize();
       int ltdof = TrueVSize();
 
@@ -1040,13 +1039,11 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
    if (Conforming())
    {
-      std::cout << "Returning Conforming Prolongation Operator" << std::endl;
       if (!Pconf) { Pconf = new ConformingProlongationOperator(*this); }
       return Pconf;
    }
    else
    {
-      std::cout << "Returning Dof TrueDof Matrix" << std::endl;
       return Dof_TrueDof_Matrix();
    }
 }
@@ -3074,9 +3071,9 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const int out_layout = 0; // 0 - output is ldofs array
    gc.BcastEnd(ydata, out_layout);
 
+   /// TODO: Check the placement of this code relative to cals to gc.*
    if (pfes.SharedNDTriangleDofs())
    {
-      std::cout << "Using new algorithm to modify CPO::Mult!" << std::endl;
       ParMesh * pmesh = const_cast<ParFiniteElementSpace&>(pfes).GetParMesh();
       const FiniteElementCollection *fec = pfes.FEColl();
 
@@ -3122,9 +3119,9 @@ void ConformingProlongationOperator::MultTranspose(
    const double *xdata = x.GetData();
    x.Pull();
 
+   /// TODO: Check the placement of this code relative to cals to gc.*
    if (pfes.SharedNDTriangleDofs())
    {
-      std::cout << "Using new algorithm to modify CPO::MultTranspose!" << std::endl;
       ParMesh * pmesh = const_cast<ParFiniteElementSpace&>(pfes).GetParMesh();
       const FiniteElementCollection *fec = pfes.FEColl();
 
