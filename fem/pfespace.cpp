@@ -810,10 +810,8 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
          }
          else if (i_offd[i+1] == i_offd[i] + 2)
          {
-            // const double * T = &ND_TetDofTransformation::T_data[4*ldori[i]];
-            const double * T = &ND_TetDofTransformation::T_data[4*ltori[i]];
-            // const double * T = &ND_TetDofTransformation::TInv_data[4*ldori[i]];
-            // const double * T = &ND_TetDofTransformation::TInv_data[0];
+            const double * T = ND_DofTransformation
+                               ::GetFaceTransform(ltori[i]).GetData();
             j_offd[i_offd[i] + 1] = j_offd[i_offd[i]] + 1;
             /*
             if (i == 72)
