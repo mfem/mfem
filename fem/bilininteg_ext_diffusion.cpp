@@ -41,8 +41,11 @@ bool SmemPADiffusionApply2D(const int NE,
    const int NBZ = T_NBZ ? T_NBZ : 1;
    const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    const int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(MQ1 == MD1, "");
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
+   printf("\033[%dm[SmemPADiffusionApply2D] %s%d:%d:%d:%d:%d%s\033[m",
+          T_D1D?32:31,T_D1D?"<":"", D1D, Q1D, NBZ, MQ1, MD1, T_D1D?">":"");
    const DeviceMatrix b(_b, Q1D, D1D);
    const DeviceMatrix g(_g, Q1D, D1D);
    const DeviceMatrix bt(_bt, D1D, Q1D);
@@ -56,16 +59,20 @@ bool SmemPADiffusionApply2D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int NBZ = T_NBZ ? T_NBZ : 1;
       const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      const int MD1 = T_D1D ? T_D1D : MAX_D1D;
       MFEM_SHARED double B[MQ1][MD1];
       MFEM_SHARED double G[MQ1][MD1];
       MFEM_SHARED double Bt[MD1][MQ1];
       MFEM_SHARED double Gt[MD1][MQ1];
-      MFEM_SHARED double bufX[NBZ][MQ1][MQ1];
-      MFEM_SHARED double buf1[NBZ][2][MQ1][MQ1];
-      MFEM_SHARED double buf2[NBZ][2][MQ1][MQ1];
-      double (*X)[MQ1] = (double (*)[MQ1])(bufX + threadIdx(z));
-      double (*grad1)[2][MQ1] = (double (*)[2][MQ1])(buf1 + threadIdx(z));
-      double (*gradX)[2][MQ1] = (double (*)[2][MQ1])(buf2 + threadIdx(z));
+      MFEM_SHARED double Xz[NBZ][MD1][MD1];
+      MFEM_SHARED double GDQ[NBZ][2][MD1][MQ1];
+      MFEM_SHARED double GDQ[NBZ][2][MD1][MQ1];
+      MFEM_SHARED double GQQ[NBZ][2][MQ1][MQ1];
+      MFEM_SHARED double GQD[NBZ][2][MQ1][MD1];
+      double (*X)[MD1] = (double (*)[MD1])(Xz + threadIdx(z));
+      double (*DQ)[2][MD1] = (double (*)[2][MD1])(GDQ + threadIdx(z));
+      double (*QQ)[2][MQ1] = (double (*)[2][MQ1])(GQQ + threadIdx(z));
+      double (*QD)[2][MQ1] = (double (*)[2][MQ1])(GQD + threadIdx(z));
       for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
       {
          for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
@@ -79,10 +86,10 @@ bool SmemPADiffusionApply2D(const int NE,
          {
             for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
             {
-               B[qx][dx] = b(qx,dx);
-               G[qx][dx] = g(qx,dx);
-               Bt[dx][qx] = bt(dx,qx);
-               Gt[dx][qx] = gt(dx,qx);
+               B[dx][qx] = b(qx,dx);
+               G[dx][qx] = g(qx,dx);
+               Bt[qx][dx] = bt(dx,qx);
+               Gt[qx][dx] = gt(dx,qx);
             }
          }
       }
@@ -91,16 +98,16 @@ bool SmemPADiffusionApply2D(const int NE,
       {
          for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
          {
-            double b = 0.0;
-            double g = 0.0;
+            double u = 0.0;
+            double v = 0.0;
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double x = X[dy][dx];
-               b += G[qx][dx] * x;
-               g += B[qx][dx] * x;
+               const double coords = X[dy][dx];
+               u += G[dx][qx] * coords;
+               v += B[dx][qx] * coords;
             }
-            grad1[0][dy][qx] = b;
-            grad1[1][dy][qx] = g;
+            DQ[0][dy][qx] = u;
+            DQ[1][dy][qx] = v;
          }
       }
       MFEM_SYNC_THREAD;
@@ -108,15 +115,15 @@ bool SmemPADiffusionApply2D(const int NE,
       {
          for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
          {
-            double b = 0.0;
-            double g = 0.0;
+            double u = 0.0;
+            double v = 0.0;
             for (int dy = 0; dy < D1D; ++dy)
             {
-               b += grad1[0][dy][qx] * B[qy][dy];
-               g += grad1[1][dy][qx] * G[qy][dy];
+               u += DQ[0][dy][qx] * B[dy][qy];
+               v += DQ[1][dy][qx] * G[dy][qy];
             }
-            gradX[0][qy][qx] = b;
-            gradX[1][qy][qx] = g;
+            QQ[0][qy][qx] = u;
+            QQ[1][qy][qx] = v;
          }
       }
       MFEM_SYNC_THREAD;
@@ -128,10 +135,10 @@ bool SmemPADiffusionApply2D(const int NE,
             const double O11 = op(0,q,e);
             const double O12 = op(1,q,e);
             const double O22 = op(2,q,e);
-            const double gX = gradX[0][qy][qx];
-            const double gY = gradX[1][qy][qx];
-            gradX[0][qy][qx] = (O11 * gX) + (O12 * gY);
-            gradX[1][qy][qx] = (O12 * gX) + (O22 * gY);
+            const double gX = QQ[0][qy][qx];
+            const double gY = QQ[1][qy][qx];
+            QQ[0][qy][qx] = (O11 * gX) + (O12 * gY);
+            QQ[1][qy][qx] = (O12 * gX) + (O22 * gY);
          }
       }
       MFEM_SYNC_THREAD;
@@ -139,15 +146,15 @@ bool SmemPADiffusionApply2D(const int NE,
       {
          for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
          {
-            double b = 0.0;
-            double g = 0.0;
+            double u = 0.0;
+            double v = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               b += Gt[dx][qx] * gradX[0][qy][qx];
-               g += Bt[dx][qx] * gradX[1][qy][qx];
+               u += Gt[qx][dx] * QQ[0][qy][qx];
+               v += Bt[qx][dx] * QQ[1][qy][qx];
             }
-            grad1[0][qy][dx] = b;
-            grad1[1][qy][dx] = g;
+            QD[0][qy][dx] = u;
+            QD[1][qy][dx] = v;
          }
       }
       MFEM_SYNC_THREAD;
@@ -155,14 +162,14 @@ bool SmemPADiffusionApply2D(const int NE,
       {
          for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
          {
-            double b = 0.0;
-            double g = 0.0;
+            double u = 0.0;
+            double v = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               b += grad1[0][qy][dx] * Bt[dy][qy];
-               g += grad1[1][qy][dx] * Gt[dy][qy];
+               u += QD[0][qy][dx] * Bt[qy][dy];
+               v += QD[1][qy][dx] * Gt[qy][dy];
             }
-            y(dx,dy,e) += b + g;
+            y(dx,dy,e) += (u + v);
          }
       }
    });
@@ -185,8 +192,8 @@ bool SmemPADiffusionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return SmemPADiffusionApply2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
-            //case 0x33: return SmemPADiffusionApply2D<3,3,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x22: return SmemPADiffusionApply2D<2,2,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x33: return SmemPADiffusionApply2D<3,3,4>(NE,B,G,Bt,Gt,op,x,y);
             //case 0x44: return SmemPADiffusionApply2D<4,4,2>(NE,B,G,Bt,Gt,op,x,y);
             //case 0x55: return SmemPADiffusionApply2D<5,5,2>(NE,B,G,Bt,Gt,op,x,y);
          default:   return SmemPADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
