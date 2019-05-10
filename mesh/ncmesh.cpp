@@ -75,6 +75,7 @@ void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
 
 
 NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
+   : shadow(1024, 2048)
 {
    Dim = mesh->Dimension();
    spaceDim = mesh->SpaceDimension();
@@ -199,6 +200,7 @@ NCMesh::NCMesh(const NCMesh &other)
    , nodes(other.nodes)
    , faces(other.faces)
    , elements(other.elements)
+   , shadow(1024, 2048)
 {
    other.free_element_ids.Copy(free_element_ids);
    other.root_state.Copy(root_state);
@@ -247,6 +249,53 @@ NCMesh::Node::~Node()
    MFEM_ASSERT(!vert_refc && !edge_refc, "node was not unreffed properly, "
                "vert_refc: " << (int) vert_refc << ", edge_refc: "
                << (int) edge_refc);
+}
+
+void NCMesh::ReparentNode(int node, int new_p1, int new_p2)
+{
+   Node &nd = nodes[node];
+   int old_p1 = nd.p1, old_p2 = nd.p2;
+
+   // assign new parents
+   nodes.Reparent(node, new_p1, new_p2);
+
+   MFEM_ASSERT(shadow.FindId(old_p1, old_p2) < 0,
+               "shadow node already exists");
+
+   // store old parent pair temporarily in 'shadow'
+   int sh = shadow.GetId(old_p1, old_p2);
+   shadow[sh].vert_index = node;
+}
+
+int NCMesh::FindMidEdgeNode(int node1, int node2) const
+{
+   int mid = nodes.FindId(node1, node2);
+   if (mid < 0 && shadow.Size())
+   {
+      // if (anisotropic) refinement is underway, some nodes may temporarily
+      // be available under alternate parents (see ReparentNode)
+      mid = shadow.FindId(node1, node2);
+      if (mid >= 0)
+      {
+         mid = shadow[mid].vert_index; // index of the original node
+      }
+   }
+   return mid;
+}
+
+int NCMesh::GetMidEdgeNode(int node1, int node2)
+{
+   int mid = FindMidEdgeNode(node1, node2);
+   if (mid < 0) { mid = nodes.GetId(node1, node2); } // create if not found
+   return mid;
+}
+
+int NCMesh::GetMidFaceNode(int en1, int en2, int en3, int en4)
+{
+   // mid-face node can be created either from (en1, en3) or from (en2, en4)
+   int midf = FindMidEdgeNode(en1, en3);
+   if (midf >= 0) { return midf; }
+   return nodes.GetId(en2, en4);
 }
 
 void NCMesh::ReferenceElement(int elem)
@@ -304,7 +353,7 @@ void NCMesh::UnreferenceElement(int elem, Array<int> &elemFaces)
    for (int i = 0; i < gi.ne; i++)
    {
       const int* ev = gi.edges[i];
-      int enode = FindAltParents(node[ev[0]], node[ev[1]]);
+      int enode = FindMidEdgeNode(node[ev[0]], node[ev[1]]);
       MFEM_ASSERT(enode >= 0, "edge not found.");
       MFEM_ASSERT(nodes.IdExists(enode), "edge does not exist.");
       if (!nodes[enode].UnrefEdge())
@@ -384,6 +433,7 @@ int NCMesh::Face::GetSingleElement() const
    }
 }
 
+#if 0
 int NCMesh::FindAltParents(int node1, int node2)
 {
    int mid = nodes.FindId(node1, node2);
@@ -437,6 +487,7 @@ int NCMesh::FindAltParents(int node1, int node2)
    }
    return mid;
 }
+#endif
 
 
 //// Refinement ////////////////////////////////////////////////////////////////
@@ -562,23 +613,6 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
    return new_id;
 }
 
-int NCMesh::GetMidEdgeNode(int vn1, int vn2)
-{
-   // in 3D we must be careful about getting the mid-edge node
-   int mid = FindAltParents(vn1, vn2);
-   if (mid < 0) { mid = nodes.GetId(vn1, vn2); } // create if not found
-   return mid;
-}
-
-int NCMesh::GetMidFaceNode(int en1, int en2, int en3, int en4)
-{
-   // mid-face node can be created either from (en1, en3) or from (en2, en4)
-   int midf = nodes.FindId(en1, en3);
-   if (midf >= 0) { return midf; }
-   return nodes.GetId(en2, en4);
-}
-
-
 inline bool CubeFaceLeft(int node, int* n)
 { return node == n[0] || node == n[3] || node == n[4] || node == n[7]; }
 
@@ -687,7 +721,9 @@ void NCMesh::FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
    }
 
    const Face *face = faces.Find(vn1, vn2, vn3, vn4);
-   MFEM_ASSERT(face != NULL, "face not found");
+   MFEM_ASSERT(face != NULL, "Face not found: "
+               << vn1 << ", " << vn2 << ", " << vn3 << ", " << vn4
+               << " (edge " << ev1 << "-" << ev2 << ").");
 
    int elem = face->GetSingleElement();
    int local = find_node(elements[elem], vn1);
@@ -759,13 +795,15 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
    // the middle vertical edge. The function calls itself again for the bottom
    // and upper half of the above picture.
 
-   int mid23 = nodes.FindId(vn2, vn3);
-   int mid41 = nodes.FindId(vn4, vn1);
+   int mid23 = FindMidEdgeNode(vn2, vn3);
+   int mid41 = FindMidEdgeNode(vn4, vn1);
    if (mid23 >= 0 && mid41 >= 0)
    {
       int midf = nodes.FindId(mid23, mid41);
       if (midf >= 0)
       {
+         ReparentNode(midf, mid12, mid34);
+
          int rs = ref_stack.Size();
 
          CheckAnisoFace(vn1, vn2, mid23, mid41, mid12, midf, level+1);
@@ -779,8 +817,6 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             CheckAnisoPrism(mid23, vn3, vn4, mid41,
                             &ref_stack[rs], ref_stack.Size() - rs);
          }
-
-         nodes.Reparent(midf, mid12, mid34);
 
          return;
       }
@@ -844,6 +880,13 @@ void NCMesh::RefineElement(int elem, char ref_type)
       }
       return;
    }
+
+   std::cout << "Refining element " << elem << " ("
+             << el.node[0] << ", " << el.node[1] << ", "
+             << el.node[2] << ", " << el.node[3] << ", "
+             << el.node[4] << ", " << el.node[5] << ", "
+             << el.node[6] << ", " << el.node[7] << "), "
+             << "ref_type " << int(ref_type) << std::endl;
 
    int* no = el.node;
    int attr = el.attribute;
@@ -1413,6 +1456,8 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    ref_stack.DeleteAll();
 
    Update();
+
+   shadow.DeleteAll();
 
    ////
 /*   char fname[100];
@@ -2066,18 +2111,26 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
    MFEM_ASSERT(Dim >= 3, "");
 
    // find edge nodes
-   int e1 = nodes.FindId(v1, v2);
-   int e2 = nodes.FindId(v2, v3);
-   int e3 = (e1 >= 0 && nodes[e1].HasVertex()) ? nodes.FindId(v3, v4) : -1;
-   int e4 = (e2 >= 0 && nodes[e2].HasVertex()) ? nodes.FindId(v4, v1) : -1;
+   int e1 = FindMidEdgeNode(v1, v2);
+   int e2 = FindMidEdgeNode(v2, v3);
+   int e3 = (e1 >= 0 && nodes[e1].HasVertex()) ? FindMidEdgeNode(v3, v4) : -1;
+   int e4 = (e2 >= 0 && nodes[e2].HasVertex()) ? FindMidEdgeNode(v4, v1) : -1;
 
    // optional: return the mid-edge nodes if requested
    if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3, mid[3] = e4; }
 
    // try to get a mid-face node, either by (e1, e3) or by (e2, e4)
    int midf1 = -1, midf2 = -1;
-   if (e1 >= 0 && e3 >= 0) { midf1 = nodes.FindId(e1, e3); }
-   if (e2 >= 0 && e4 >= 0) { midf2 = nodes.FindId(e2, e4); }
+   if (e1 >= 0 && e3 >= 0) { midf1 = FindMidEdgeNode(e1, e3); }
+   if (e2 >= 0 && e4 >= 0) { midf2 = FindMidEdgeNode(e2, e4); }
+
+   //
+   if (midf1 >= 0 && midf1 == midf2)
+   {
+      const Node &nd = nodes[midf1];
+      if (nd.p1 != e1 && nd.p2 != e1) { midf1 = -1; }
+      if (nd.p1 != e2 && nd.p2 != e2) { midf2 = -1; }
+   }
 
    // only one way to access the mid-face node must always exist
    MFEM_ASSERT(!(midf1 >= 0 && midf2 >= 0), "incorrectly split face!");

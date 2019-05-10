@@ -511,6 +511,7 @@ protected: // implementation
    // refinement/derefinement
 
    Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
+   HashTable<Node> shadow; ///< temporary storage for reparented nodes
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
@@ -552,9 +553,6 @@ protected: // implementation
 
    mfem::Element* NewMeshElement(int geom) const;
 
-   int GetMidEdgeNode(int vn1, int vn2);
-   int GetMidFaceNode(int en1, int en2, int en3, int en4);
-
    int QuadFaceSplitType(int v1, int v2, int v3, int v4, int mid[5]
                          = NULL /*optional output of mid-edge nodes*/) const;
 
@@ -572,14 +570,19 @@ protected: // implementation
    void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
                      int en1, int en2, int en3, int en4, int midf);
 
+   void ReparentNode(int node, int new_p1, int new_p2);
+
+   int FindMidEdgeNode(int node1, int node2) const;
+   int GetMidEdgeNode(int node1, int node2);
+
+   int GetMidFaceNode(int en1, int en2, int en3, int en4);
+
    void ReferenceElement(int elem);
    void UnreferenceElement(int elem, Array<int> &elemFaces);
 
    Face* GetFace(Element &elem, int face_no);
    void RegisterFaces(int elem, int *fattr = NULL);
    void DeleteUnusedFaces(const Array<int> &elemFaces);
-
-   int FindAltParents(int node1, int node2);
 
    void CollectDerefinements(int elem, Array<Connection> &list);
 

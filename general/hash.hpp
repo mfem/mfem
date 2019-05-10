@@ -113,6 +113,9 @@ public:
    /** Its id will be reused by newly added items. */
    void Delete(int id);
 
+   /// Remove all items.
+   void DeleteAll();
+
    /// Make an item hashed under different parent IDs.
    void Reparent(int id, int new_p1, int new_p2);
    void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4 = -1);
@@ -469,6 +472,14 @@ void HashTable<T>::Delete(int id)
    Unlink(Hash(item), id);
    item.next = -2;    // mark item as unused
    unused.Append(id); // add its id to the unused ids
+}
+
+template<typename T>
+void HashTable<T>::DeleteAll()
+{
+   Base::DeleteAll();
+   for (int i = 0; i <= mask; i++) { table[i] = -1; }
+   unused.DeleteAll();
 }
 
 template<typename T>
