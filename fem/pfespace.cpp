@@ -705,7 +705,6 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    {
       // Some shared dofs will be linear combinations of others
       std::cout << "Using new algorithm to build P!" << std::endl;
-      // Safe to assume 1-1 correspondence between shared dofs
       int ldof  = GetVSize();
       int ltdof = TrueVSize();
 
@@ -785,7 +784,6 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
             {
                cmap_j_offd[offd_col_counter].one = GetGlobalTDofNumber(i);
                cmap_j_offd[offd_col_counter].two = offd_col_counter;
-               d_offd[offd_counter] = 1.0;
                offd_counter++;
                offd_col_counter++;
             }
@@ -840,135 +838,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
             d_offd[i_offd[i]] = T[1]; d_offd[i_offd[i] + 1] = T[3];
          }
       }
-      /*
-      MPI_Barrier(MyComm);
-      for (int r=0; r<NRanks; r++)
-      {
-      if (r == MyRank)
-      {
-        for (int i = 0; i < ldof; i++)
-          {
-            std::cout << MyRank << ": " << i;
-            for (int j = i_offd[i]; j < i_offd[i+1]; j++)
-        std::cout << " " << j_offd[j] << "," << d_offd[j];
-            std::cout << std::endl;
-          }
-      }
-      MPI_Barrier(MyComm);
-           }
-           */
-      /*
-      // Count the number of shared triangle dofs
-      int ngrps = pmesh->GetNGroups();
-      int nstria_dofs = 0;
-      int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
-      Array<int> sdofs;
-      for (int g = 1; g < ngrps; g++)
-      {
-      for (int fi = 0; fi < pmesh->GroupNTriangles(g); fi++)
-         {
-       this->GetSharedTriangleDofs(g, fi, sdofs);
-       nstria_dofs += sdofs.Size() - 3 * nedofs;
-      }
-      }
-      */
-      /*
-      MPI_Barrier(MyComm);
-      for (int r=0; r<NRanks; r++)
-      {
-      if (r == MyRank)
-      {
-        std::cout << "ldof = " << ldof << ", ltdof = " << ltdof << std::endl;
-        int ngrps = pmesh->GetNGroups();
-        int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
-        Array<int> sdofs;
-        for (int g = 1; g < ngrps; g++)
-        {
-          for (int fi=0; fi<pmesh->GroupNTriangles(g); fi++)
-                 {
-            int face, ori;
-            std::cout << MyRank << "," << g << "," << fi << std::flush;
-            pmesh->GroupTriangle(g, fi, face, ori);
-            std::cout << "," << face << "," << ori << ": edofs";
-            this->GetSharedTriangleDofs(g, fi, sdofs);
-            for (int i=0; i<3*nedofs; i++)
-            {
-        std::cout << " " << sdofs[i];
-            }
-            std::cout << ", fdofs";
-            for (int i=3*nedofs; i<sdofs.Size(); i++)
-            {
-        std::cout << " " << sdofs[i];
-            }
-            std::cout << std::endl;
-          }
-        }
-      }
-      MPI_Barrier(MyComm);
-           }
-           */
-      /*
-      HYPRE_Int *i_offd = mfem::New<HYPRE_Int>(ldof+1);
-      HYPRE_Int *j_offd = mfem::New<HYPRE_Int>(ldof-ltdof+2*nstria_dofs);
-      double    *d_offd = mfem::New<double>(ldof-ltdof+2*nstria_dofs);
-      int offd_counter;
-      */
-      /*
-      SparseMatrix *sp_diag = new SparseMatrix(i_diag, j_diag, d_diag,
-                      ldof, ldof);
-      SparseMatrix *sp_offd = new SparseMatrix(ldof, ldof-ltdof, 2);
 
-      offd_counter = 0;
-      Array<int> cols(1);
-      Vector vals(1);
-      for (int i = 0; i < ldof; i++)
-      {
-         int ltdof = GetLocalTDofNumber(i);
-      if (ltdof < 0)
-      {
-      cols[0] = offd_counter;
-      // cols[1] = -1;
-      vals[0] = 1.0;
-      // vals[1] = 0.0;
-      sp_offd->SetRow(i, cols, vals);
-       offd_counter++;
-      }
-      }
-
-      sp_offd->Finalize(1);
-      */
-      /*
-      i_offd[0] = 0;
-      offd_counter = 0;
-      for (int i = 0; i < ldof; i++)
-      {
-         int ltdof = GetLocalTDofNumber(i);
-      if (ltdof < 0)
-         {
-            cmap_j_offd[offd_counter].one = GetGlobalTDofNumber(i);
-       cmap_j_offd[offd_counter].two = offd_counter;
-       offd_counter++;
-      }
-      i_offd[i+1] = offd_counter;
-      }
-
-      SortPairs<HYPRE_Int, int>(cmap_j_offd, offd_counter);
-
-      for (int i = 0; i < offd_counter; i++)
-      {
-         cmap[i] = cmap_j_offd[i].one;
-      j_offd[cmap_j_offd[i].two] = i;
-      d_offd[cmap_j_offd[i].two] = 1.0;
-      }
-      */
-      /*
-      P = new HypreParMatrix(MyComm, gdof, gtdof, row_starts, col_starts,
-              sp_diag, sp_offd, cmap);
-
-      delete sp_diag;
-      delete sp_offd;
-      delete [] cmap;
-      */
       P = new HypreParMatrix(MyComm, gdof, gtdof, row_starts, col_starts,
                              i_diag, j_diag, d_diag, i_offd, j_offd, d_offd,
                              offd_col_counter, cmap);
