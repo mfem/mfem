@@ -613,15 +613,16 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
    }
 }
 
-void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
+void ParFiniteElementSpace::CheckNDSTriaDofs()
 {
-   MFEM_ASSERT(Conforming(), "wrong code path");
-
-   if (P) { return; }
-
-   // Check for Nedelec basis with order > 1 and shared triangular faces
+   // Check for Nedelec basis
    bool nd_basis = dynamic_cast<const ND_FECollection*>(fec);
+
+   // Check for interior face dofs on triangles (the use of TETRAHEDRON
+   // is not an error)
    bool nd_fdof  = fec->HasFaceDofs(Geometry::TETRAHEDRON);
+
+   // Check for shared triangle faces
    bool strias   = false;
    {
       int ngrps = pmesh->GetNGroups();
@@ -631,7 +632,17 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       }
    }
 
-   if (!(nd_basis && nd_fdof && strias))
+   // Combine results
+   nd_strias = nd_basis && nd_fdof && strias;
+}
+
+void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
+{
+   MFEM_ASSERT(Conforming(), "wrong code path");
+
+   if (P) { return; }
+
+   if (!nd_strias)
    {
       // Safe to assume 1-1 correspondence between shared dofs
       int ldof  = GetVSize();
