@@ -500,6 +500,34 @@ namespace mfem
     return(0);
   }
 
+  int ARKStepSolver::LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
+                                 SUNMatrix M, booleantype jok, booleantype *jcur,
+                                 realtype gamma, void *user_data, N_Vector tmp1,
+                                 N_Vector tmp2, N_Vector tmp3)
+  {
+    // Get data from N_Vectors
+    const Vector mfem_y(y);
+    const Vector mfem_fy(fy);
+    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(A));
+
+    // Compute the linear system
+    return(self->f->ImplicitSetup(t, mfem_y, mfem_fy, jok, jcur, gamma));
+  }
+
+  int ARKStepSolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
+                                 N_Vector b, realtype tol)
+  {
+    Vector mfem_x(x);
+    const Vector mfem_b(b);
+    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(LS));
+
+    // Solve the linear system
+    if (self->rk_type == IMPLICIT)
+      return(self->f->ImplicitSolve(mfem_x, mfem_b, tol));
+    else
+      return(self->f2->ImplicitSolve(mfem_x, mfem_b, tol));
+  }
+
   ARKStepSolver::ARKStepSolver(Type type)
     : rk_type(type), step_mode(ARK_NORMAL),
       use_implicit(type == IMPLICIT || type == IMEX)
@@ -760,6 +788,36 @@ namespace mfem
     // Set the linear system evaluation function
     flag = ARKStepSetLinSysFn(sundials_mem, arkLinSysSetup);
     MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinSysFn()");
+  }
+
+  void ARKStepSolver::SetLinearSolver()
+  {
+    // Free any existing linear solver
+    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
+
+    // Wrap linear solver as SUNLinearSolver and SUNMatrix
+    LSA = SUNLinSolNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+
+    LSA->content         = this;
+    LSA->ops->gettype    = LSGetType;
+    LSA->ops->solve      = ARKStepSolver::LinSysSolve;
+    LSA->ops->free       = LSFree;
+
+    A = SUNMatNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+
+    A->content      = this;
+    A->ops->getid   = MatGetID;
+    A->ops->destroy = MatDestroy;
+
+    // Attach the linear solver and matrix
+    flag = ARKStepSetLinearSolver(sundials_mem, LSA, A);
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in ARKStepSetLinearSolver()");
+
+    // Set the linear system evaluation function
+    flag = ARKStepSetLinSysFn(sundials_mem, ARKStepSolver::LinSysSetup);
+    MFEM_VERIFY(flag == CV_SUCCESS, "error in ARKStepSetLinSysFn()");
   }
 
   void ARKStepSolver::SetMassLinearSolver(SundialsLinearSolver &ls_spec,

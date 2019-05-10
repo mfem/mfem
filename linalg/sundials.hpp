@@ -267,6 +267,16 @@ namespace mfem
     static int RHS1(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
     static int RHS2(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
 
+    /// Setup the linear system A x = b
+    static int LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
+                           SUNMatrix M, booleantype jok, booleantype *jcur,
+                           realtype gamma, void *user_data, N_Vector tmp1,
+                           N_Vector tmp2, N_Vector tmp3);
+
+    /// Solve the linear system A x = b
+    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
+                           N_Vector b, realtype tol);
+
   public:
     /** Construct a serial wrapper to SUNDIALS' ARKode integrator.
         @param[in] type Specifies the RK method type
@@ -331,6 +341,9 @@ namespace mfem
         @param[in] ls_spec A SundialsLinearSolver object defining the custom
                            linear solver */
     void SetLinearSolver(SundialsLinearSolver &ls_spec);
+
+    /** Attach a custom linear solver solver to ARKode.*/
+    void SetLinearSolver();
 
     /** Attach a custom mass matrix linear solver solver to ARKode.
         @param[in] ls_spec A SundialsLinearSolver object defining the custom
