@@ -124,6 +124,9 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    {
       ApplyLDofSigns(*elem_dof);
    }
+
+   // Check for shared trianglular faces with interior Nedelec DoFs
+   CheckNDSTriaDofs();
 }
 
 void ParFiniteElementSpace::Construct()
@@ -3138,6 +3141,8 @@ void ParFiniteElementSpace::Update(bool want_transform)
    Construct();
 
    BuildElementToDofTable();
+
+   CheckNDSTriaDofs();
 
    if (want_transform)
    {
