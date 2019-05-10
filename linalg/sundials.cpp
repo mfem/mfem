@@ -617,6 +617,36 @@ namespace mfem
     }
   }
 
+  void ARKStepSolver::Resize(Vector &x, double hscale, double &t)
+  {
+    MFEM_VERIFY(f->GetTime() == t,
+                "error inconsistent times");
+
+    if (rk_type == IMEX)
+      MFEM_VERIFY(f2->GetTime() == t,
+                  "error inconsistent times");
+
+    // Fill N_Vector wrapper
+    if (!Parallel()) {
+      NV_LENGTH_S(y) = x.Size();
+      NV_DATA_S(y)   = x.GetData();
+    } else {
+#ifdef MFEM_USE_MPI
+      long local_size = x.Size();
+      long global_size;
+      MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM,
+                    NV_COMM_P(y));
+      NV_LOCLENGTH_P(y)  = x.Size();
+      NV_GLOBLENGTH_P(y) = global_size;
+      NV_DATA_P(y)       = x.GetData();
+#endif
+    }
+
+    // Resize ARKode memory
+    ARKStepResize(sundials_mem, y, hscale, t, NULL, NULL);
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepResize()");
+  }
+
   void ARKStepSolver::Step(Vector &x, double &t, double &dt)
   {
     if (!Parallel()) {
