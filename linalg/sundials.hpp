@@ -68,7 +68,7 @@ namespace mfem
 
   public:
     /** Setup the ODE linear system A(y,t) = (I - gamma J) or A = (M - gamma J).
-        @param[in]  t     The time at which A(y,t)  should be evaluated
+        @param[in]  t     The time at which A(y,t) should be evaluated
         @param[in]  y     The state at which A(y,t) should be evaluated
         @param[in]  fy    The current value of the ODE Rhs function, f(y,t)
         @param[in]  jok   Flag indicating if the Jacobian should be updated
@@ -158,6 +158,16 @@ namespace mfem
     /// Wrapper to compute the ODE Rhs function.
     static int RHS(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
 
+    /// Setup the linear system A x = b
+    static int LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
+                           booleantype jok, booleantype *jcur,
+                           realtype gamma, void *user_data, N_Vector tmp1,
+                           N_Vector tmp2, N_Vector tmp3);
+
+    /// Solve the linear system A x = b
+    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
+                           N_Vector b, realtype tol);
+
   public:
     /** Construct a serial wrapper to SUNDIALS' CVODE integrator.
         @param[in] lmm Specifies the linear multistep method, the options are:
@@ -201,6 +211,9 @@ namespace mfem
         @param[in] ls_spec A SundialsLinearSolver object defining the custom
                            linear solver */
     void SetLinearSolver(SundialsLinearSolver &ls_spec);
+
+    /** Attach a custom linear solver solver to CVODE. */
+    void SetLinearSolver();
 
     /** Select the CVODE step mode: CV_NORMAL (default) or CV_ONE_STEP.
         @param[in] itask  The desired step mode */
