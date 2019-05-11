@@ -528,6 +528,29 @@ namespace mfem
       return(self->f2->ImplicitSolve(mfem_x, mfem_b, tol));
   }
 
+  int ARKStepSolver::MassSysSetup(realtype t, SUNMatrix M, void *user_data,
+                                  N_Vector tmp1, N_Vector tmp2, N_Vector tmp3)
+  {
+    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(M));
+
+    // Compute the mass matrix system
+    return(self->f->MassSetup(t));
+  }
+
+  int ARKStepSolver::MassSysSolve(SUNLinearSolver LS, SUNMatrix M, N_Vector x,
+                                  N_Vector b, realtype tol)
+  {
+    Vector mfem_x(x);
+    const Vector mfem_b(b);
+    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(LS));
+
+    // Solve the mass matrix system
+    if (self->rk_type == IMPLICIT)
+      return(self->f->MassSolve(mfem_x, mfem_b, tol));
+    else
+      return(self->f2->MassSolve(mfem_x, mfem_b, tol));
+  }
+
   ARKStepSolver::ARKStepSolver(Type type)
     : rk_type(type), step_mode(ARK_NORMAL),
       use_implicit(type == IMPLICIT || type == IMEX)
@@ -824,12 +847,8 @@ namespace mfem
                                           int tdep)
   {
     // Free any existing matrix and linear solver
-    if (M != NULL)   { SUNMatDestroy(M); A = NULL; }
+    if (M != NULL)   { SUNMatDestroy(M); M = NULL; }
     if (LSM != NULL) { SUNLinSolFree(LSM); LSA = NULL; }
-
-    // Check for implicit method before attaching
-    MFEM_VERIFY(use_implicit,
-                "The function is applicable only to implicit or imex time integration.");
 
     // Wrap linear solver as SUNLinearSolver and SUNMatrix
     LSM = SUNLinSolNewEmpty();
@@ -855,6 +874,37 @@ namespace mfem
 
     // Set the linear system function
     flag = ARKStepSetMassFn(sundials_mem, arkMassSysSetup);
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
+  }
+
+  void ARKStepSolver::SetMassLinearSolver(int tdep)
+  {
+    // Free any existing matrix and linear solver
+    if (M != NULL)   { SUNMatDestroy(M); M = NULL; }
+    if (LSM != NULL) { SUNLinSolFree(LSM); LSA = NULL; }
+
+    // Wrap linear solver as SUNLinearSolver and SUNMatrix
+    LSM = SUNLinSolNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+
+    LSM->content         = this;
+    LSM->ops->gettype    = LSGetType;
+    LSM->ops->solve      = ARKStepSolver::MassSysSolve;
+    LSA->ops->free       = LSFree;
+
+    M = SUNMatNewEmpty();
+    MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+
+    M->content      = this;
+    M->ops->getid   = SUNMatGetID;
+    M->ops->destroy = MatDestroy;
+
+    // Attach the linear solver and matrix
+    flag = ARKStepSetMassLinearSolver(sundials_mem, LSM, M, tdep);
+    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
+
+    // Set the linear system function
+    flag = ARKStepSetMassFn(sundials_mem, ARKStepSolver::MassSysSetup);
     MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
   }
 
