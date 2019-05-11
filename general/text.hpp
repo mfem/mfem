@@ -23,7 +23,7 @@ namespace mfem
 {
 
 // Utilities for text parsing
-
+/// Check to see if the in the stream starts with @a comment_char.  If so skip it.
 inline void skip_comment_lines(std::istream &is, const char comment_char)
 {
    while (1)
@@ -37,7 +37,7 @@ inline void skip_comment_lines(std::istream &is, const char comment_char)
    }
 }
 
-/// Check for, and remove, a trailing '\r' from and std::string.
+/// Check for, and remove, a trailing '\\r' from and std::string.
 inline void filter_dos(std::string &line)
 {
    if (!line.empty() && *line.rbegin() == '\r')
@@ -58,7 +58,7 @@ inline std::string to_string(int i)
    return out_str;
 }
 
-/// Convert an integer to a 0-padded string with the given number of 'digits'
+/// Convert an integer to a 0-padded string with the given number of @a digits
 inline std::string to_padded_string(int i, int digits)
 {
    std::ostringstream oss;

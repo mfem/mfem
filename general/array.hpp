@@ -118,7 +118,7 @@ public:
    /// Returns const pointer to the data.
    inline const T *GetData() const { return (T *)data; }
 
-   /** @breif Return true if this object owns the data in the array 
+   /** @brief Return true if this object owns the data in the array 
        and will handle deallocation. */
    inline bool OwnsData() const { return (allocsize > 0); }
 
