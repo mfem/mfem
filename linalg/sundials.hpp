@@ -277,6 +277,14 @@ namespace mfem
     static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
                            N_Vector b, realtype tol);
 
+    /// Setup the linear system M x = b
+    static int MassSysSetup(realtype t, SUNMatrix M, void *user_data,
+                            N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
+
+    /// Solve the linear system M x = b
+    static int MassSysSolve(SUNLinearSolver LS, SUNMatrix M, N_Vector x,
+                            N_Vector b, realtype tol);
+
   public:
     /** Construct a serial wrapper to SUNDIALS' ARKode integrator.
         @param[in] type Specifies the RK method type
@@ -351,6 +359,11 @@ namespace mfem
         @param[in] tdep    A integer flag indicating if the mass matrix is time
                            dependent (1) or time independent (0). */
     void SetMassLinearSolver(SundialsLinearSolver &ls_spec, int tdep);
+
+    /** Attach a custom mass matrix linear solver solver to ARKode.
+        @param[in] tdep    A integer flag indicating if the mass matrix is time
+                           dependent (1) or time independent (0). */
+    void SetMassLinearSolver(int tdep);
 
     /** Select the ARKode step mode: ARK_NORMAL (default) or ARK_ONE_STEP.
         @param[in] itask  The desired step mode */
