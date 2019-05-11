@@ -125,7 +125,7 @@ TEST_CASE("InverseElementTransformation",
       REQUIRE( mesh_file.good() );
 
       const int npts = 100; // number of random points to test
-      const int min_found_pts = 94;
+      const int min_found_pts = 93;
       const int rand_seed = 189548;
       srand(rand_seed);
 

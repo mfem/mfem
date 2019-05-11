@@ -2040,6 +2040,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          break;
       }
 
+      // int  nbr_rank   = GetFaceNbrRank(fn);
       int  elem_off   = face_nbr_elements_offset[fn];
       int  nbr_group  = face_nbr_group[fn];
       int  num_sfaces = gr_sface->RowSize(nbr_group-1);
@@ -2075,6 +2076,16 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                }
                // get the orientation of nbr_v w.r.t. the local face
                nbr_ori = GetTriOrientation(lf_v, nbr_v);
+               /*
+               if (MyRank < nbr_rank)
+               {
+                  nbr_ori = GetTriOrientation(lf_v, nbr_v);
+               }
+               else
+               {
+                  nbr_ori = GetTriOrientation(nbr_v, lf_v);
+               }
+               */
             }
             else // quad shared face
             {
@@ -2087,9 +2098,29 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                }
                // get the orientation of nbr_v w.r.t. the local face
                nbr_ori = GetQuadOrientation(lf_v, nbr_v);
+               /*
+               if (MyRank < nbr_rank)
+               {
+                  nbr_ori = GetQuadOrientation(lf_v, nbr_v);
+               }
+               else
+               {
+                  nbr_ori = GetQuadOrientation(nbr_v, lf_v);
+               }
+               */
             }
 
             info = 64*(info/64) + nbr_ori;
+            /*
+            if (MyRank < nbr_rank)
+            {
+               info = 64*(info/64) + nbr_ori;
+            }
+            else
+            {
+               face_info.Elem1Inf = 64*(face_info.Elem1Inf/64) + nbr_ori;
+            }
+            */
          }
          face_info.Elem2Inf = info;
       }
@@ -2398,7 +2429,7 @@ int ParMesh::GetSharedFace(int sface) const
              : shared.slaves[sface - csize].index;
    }
 }
-
+/*
 void ParMesh::ReorientTetMesh()
 {
    if (Dim != 3 || !(meshgen & 1))
@@ -2467,7 +2498,7 @@ void ParMesh::ReorientTetMesh()
    // update sedge_ledge and sface_lface.
    FinalizeParTopo();
 }
-
+*/
 void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 {
    if (pncmesh)
@@ -3090,6 +3121,23 @@ void ParMesh::Rebalance()
                  " meshes.");
    }
 
+   // Make sure the Nodes use a ParFiniteElementSpace
+   if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
+   {
+      ParFiniteElementSpace *pfes =
+         new ParFiniteElementSpace(*Nodes->FESpace(), *this);
+      ParGridFunction *new_nodes = new ParGridFunction(pfes);
+      *new_nodes = *Nodes;
+      if (Nodes->OwnFEC())
+      {
+         new_nodes->MakeOwner(Nodes->OwnFEC());
+         Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
+         delete Nodes->FESpace();
+      }
+      delete Nodes;
+      Nodes = new_nodes;
+   }
+
    DeleteFaceNbrData();
 
    pncmesh->Rebalance();
@@ -3110,22 +3158,6 @@ void ParMesh::Rebalance()
    last_operation = Mesh::REBALANCE;
    sequence++;
 
-   // Make sure the Nodes use a ParFiniteElementSpace
-   if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
-   {
-      ParFiniteElementSpace *pfes =
-         new ParFiniteElementSpace(*Nodes->FESpace(), *this);
-      ParGridFunction *new_nodes = new ParGridFunction(pfes);
-      *new_nodes = *Nodes;
-      if (Nodes->OwnFEC())
-      {
-         new_nodes->MakeOwner(Nodes->OwnFEC());
-         Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
-         delete Nodes->FESpace();
-      }
-      delete Nodes;
-      Nodes = new_nodes;
-   }
    UpdateNodes();
 }
 
