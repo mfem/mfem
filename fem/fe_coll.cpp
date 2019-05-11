@@ -2368,6 +2368,10 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
                  // (0,2,1)
                  TriDofOrd[5][k0  ] = k5 + 1;
                  TriDofOrd[5][k0+1] = k5;
+
+            // The other orientations can not be supported with the current
+            // interface. The method Mesh::ReorientTetMesh will ensure that
+            // only orientations 0 and 5 are generated.
             */
             // (0,1,2)
             TriDofOrd[0][k0  ] = k0;
@@ -2387,10 +2391,6 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
             // (0,2,1)
             TriDofOrd[5][k0  ] = k5;
             TriDofOrd[5][k0+1] = k5 + 1;
-
-            // The other orientations can not be supported with the current
-            // interface. The method Mesh::ReorientTetMesh will ensure that
-            // only orientations 0 and 5 are generated.
          }
       }
    }
