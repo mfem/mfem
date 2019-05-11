@@ -1325,6 +1325,9 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       DoFTrans[Geometry::TETRAHEDRON] =
          new ND_TetDofTransformation(fec->FiniteElementForGeometry(
                                         Geometry::TETRAHEDRON)->GetOrder());
+      DoFTrans[Geometry::PRISM] =
+         new ND_WedgeDofTransformation(fec->FiniteElementForGeometry(
+                                        Geometry::PRISM)->GetOrder());
    }
 
    BuildElementToDofTable();

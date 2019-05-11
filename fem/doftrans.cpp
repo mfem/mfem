@@ -359,4 +359,136 @@ ND_TetDofTransformation::TransformDual(const double *v, double *v_trans) const
    }
 }
 
+
+ND_WedgeDofTransformation::ND_WedgeDofTransformation(int p)
+   : ND_DofTransformation(3 * p * ((p + 1) * (p + 2))/2,
+			  3 * p * ((p + 1) * (p + 2))/2, p)
+{
+}
+
+void ND_WedgeDofTransformation::TransformPrimal(const double *v,
+						double *v_trans) const
+{
+   int nedofs = order; // number of DoFs per edge
+   int ntdofs = order*(order-1); // number of DoFs per triangular face
+   int nqdofs = (order-1)*(order-1); // number of DoFs per quadrilateral face
+   int ndofs  = 3 * order * ((order + 1) * (order + 2))/2; // total num of DoFs
+
+   // Copy edge DoFs
+   for (int i=0; i<9*nedofs; i++)
+   {
+      v_trans[i] = v[i];
+   }
+
+   // Transform triangular face DoFs
+   for (int f=0; f<2; f++)
+   {
+      for (int i=0; i<ntdofs/2; i++)
+      {
+         T(Fo[f]).Mult(&v[9*nedofs + f*ntdofs + 2*i],
+                       &v_trans[9*nedofs + f*ntdofs + 2*i]);
+      }
+   }
+
+   // Transform quadrilateral face DoFs
+   for (int f=0; f<3; f++)
+   {
+      for (int i=0; i<nqdofs/2; i++)
+      {
+         T(Fo[f]).Mult(&v[9*nedofs + 2*ntdofs + f*nqdofs + 2*i],
+                       &v_trans[9*nedofs + 2*ntdofs + f*nqdofs + 2*i]);
+      }
+   }
+
+   // Copy interior DoFs
+   for (int i=9*nedofs + 2*ntdofs + 3*nqdofs; i<ndofs; i++)
+   {
+      v_trans[i] = v[i];
+   }
+}
+
+void
+ND_WedgeDofTransformation::InvTransformPrimal(const double *v_trans,
+					      double *v) const
+{
+   int nedofs = order; // number of DoFs per edge
+   int ntdofs = order*(order-1); // number of DoFs per triangular face
+   int nqdofs = (order-1)*(order-1); // number of DoFs per quadrilateral face
+   int ndofs  = 3 * order * ((order + 1) * (order + 2))/2; // total num of DoFs
+
+   // Copy edge DoFs
+   for (int i=0; i<9*nedofs; i++)
+   {
+      v[i] = v_trans[i];
+   }
+
+   // Transform triangular face DoFs
+   for (int f=0; f<2; f++)
+   {
+      for (int i=0; i<ntdofs/2; i++)
+      {
+         TInv(Fo[f]).Mult(&v_trans[9*nedofs + f*ntdofs + 2*i],
+			  &v[9*nedofs + f*ntdofs + 2*i]);
+      }
+   }
+
+   // Transform quadrilateral face DoFs
+   for (int f=0; f<3; f++)
+   {
+      for (int i=0; i<nqdofs/2; i++)
+      {
+         TInv(Fo[f]).Mult(&v_trans[9*nedofs + 2*ntdofs + f*nqdofs + 2*i],
+			  &v[9*nedofs + 2*ntdofs + f*nqdofs + 2*i]);
+      }
+   }
+
+   // Copy interior DoFs
+   for (int i=9*nedofs + 2*ntdofs + 3*nqdofs; i<ndofs; i++)
+   {
+      v[i] = v_trans[i];
+   }
+}
+
+void
+ND_WedgeDofTransformation::TransformDual(const double *v, double *v_trans) const
+{
+   int nedofs = order; // number of DoFs per edge
+   int ntdofs = order*(order-1); // number of DoFs per triangular face
+   int nqdofs = (order-1)*(order-1); // number of DoFs per quadrilateral face
+   int ndofs  = 3 * order * ((order + 1) * (order + 2))/2; // total num of DoFs
+
+   // Copy edge DoFs
+   for (int i=0; i<9*nedofs; i++)
+   {
+      v_trans[i] = v[i];
+   }
+
+   // Transform triangular face DoFs
+   for (int f=0; f<2; f++)
+   {
+      for (int i=0; i<ntdofs/2; i++)
+      {
+         TInv(Fo[f]).MultTranspose(&v[9*nedofs + f*ntdofs + 2*i],
+				   &v_trans[9*nedofs + f*ntdofs + 2*i]);
+      }
+   }
+
+   // Transform quadrilateral face DoFs
+   for (int f=0; f<3; f++)
+   {
+      for (int i=0; i<nqdofs/2; i++)
+      {
+         TInv(Fo[f]).MultTranspose(&v[9*nedofs + 2*ntdofs + f*nqdofs + 2*i],
+				   &v_trans[9*nedofs + 2*ntdofs + f*nqdofs +
+					    2*i]);
+      }
+   }
+
+   // Copy interior DoFs
+   for (int i=9*nedofs + 2*ntdofs + 3*nqdofs; i<ndofs; i++)
+   {
+      v_trans[i] = v[i];
+   }
+}
+
 } // namespace mfem
