@@ -76,6 +76,12 @@ private:
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
 
+   /// Flag indicating the existence of shared triangles with interior ND dofs
+   bool nd_strias;
+
+   /// Resets nd_strias flag at constuction or after rebalancing
+   void CheckNDSTriaDofs();
+
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
 
@@ -255,7 +261,7 @@ public:
    virtual int GetTrueVSize() const { return ltdof_size; }
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   virtual void GetElementDofs(int i, Array<int> &dofs) const;
+   virtual DofTransformation * GetElementDofs(int i, Array<int> &dofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
    virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
@@ -346,6 +352,8 @@ public:
    bool Conforming() const { return pmesh->pncmesh == NULL; }
    bool Nonconforming() const { return pmesh->pncmesh != NULL; }
 
+   bool SharedNDTriangleDofs() const { return nd_strias; }
+
    // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
    // to this FE space, defined on a refined mesh. See full documentation in the
    // base class, FiniteElementSpace::GetTrueTransferOperator.
@@ -378,6 +386,8 @@ class ConformingProlongationOperator : public Operator
 protected:
    Array<int> external_ldofs;
    const GroupCommunicator &gc;
+   const ParFiniteElementSpace &pfes;
+   mutable Vector xtmp;
 
 public:
    ConformingProlongationOperator(const ParFiniteElementSpace &pfes);

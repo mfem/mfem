@@ -676,6 +676,14 @@ public:
       own_data = true;
    }
 
+   DenseTensor(double *d, int i, int j, int k)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata = d;
+      own_data = false;
+   }
+
    /// Copy constructor: deep copy
    DenseTensor(const DenseTensor& other)
       : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk), own_data(true)

@@ -77,7 +77,8 @@ void LinearForm::Assemble()
 {
    Array<int> vdofs;
    ElementTransformation *eltrans;
-   Vector elemvect;
+   DofTransformation *doftrans;
+   Vector elemvect, elemvect_t;
 
    int i;
 
@@ -87,12 +88,21 @@ void LinearForm::Assemble()
    {
       for (i = 0; i < fes -> GetNE(); i++)
       {
-         fes -> GetElementVDofs (i, vdofs);
+         doftrans = fes -> GetElementVDofs (i, vdofs);
          eltrans = fes -> GetElementTransformation (i);
          for (int k=0; k < dlfi.Size(); k++)
          {
             dlfi[k]->AssembleRHSElementVect(*fes->GetFE(i), *eltrans, elemvect);
-            AddElementVector (vdofs, elemvect);
+            if (doftrans)
+            {
+               elemvect_t.SetSize(elemvect.Size());
+               doftrans->TransformDual(elemvect, elemvect_t);
+               AddElementVector (vdofs, elemvect_t);
+            }
+            else
+            {
+               AddElementVector (vdofs, elemvect);
+            }
          }
       }
    }

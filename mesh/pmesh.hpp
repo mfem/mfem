@@ -281,7 +281,7 @@ public:
    int GetSharedFace(int sface) const;
 
    /// See the remarks for the serial version in mesh.hpp
-   virtual void ReorientTetMesh();
+   // virtual void ReorientTetMesh();
 
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const;
