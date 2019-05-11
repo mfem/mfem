@@ -12,15 +12,24 @@
 MFEM_DIR ?= ..
 DOXYGEN_CONF = CodeDocumentation.conf
 
+
 # doxygen uses: graphviz, latex
 html: $(DOXYGEN_CONF)
 	doxygen $(DOXYGEN_CONF)
 	rm -f CodeDocumentation.html
 	ln -s CodeDocumentation/html/index.html CodeDocumentation.html
+	( cat $(DOXYGEN_CONF) ; echo "GENERATE_HTML=NO" ; echo "EXTRACT_ALL=NO" ; echo "WARN_LOGFILE=undoc.log" ) | doxygen -
+	@echo "Warnings excuding undocumented:"
+	@wc -l < warnings.log
+	@echo "All warnings:"
+	@wc -l < undoc.log
+
 
 clean:
 	rm -rf $(DOXYGEN_CONF) CodeDocumentation CodeDocumentation.html *~
+	rm -rf  undoc.log warnings.log
 
 $(DOXYGEN_CONF): $(MFEM_DIR)/doc/$(DOXYGEN_CONF).in
 	sed -e 's%@MFEM_SOURCE_DIR@%$(MFEM_DIR)%g' $(<) \
 	  > $(DOXYGEN_CONF)
+
