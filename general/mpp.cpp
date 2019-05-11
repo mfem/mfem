@@ -5,6 +5,7 @@
 #include <cassert>
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 using namespace std;
 
 // *****************************************************************************
@@ -45,9 +46,13 @@ struct argument
    string type, name;
    bool is_ptr, is_const, is_restrict, is_tpl;
    std::list<int> range;
+   bool operator==(const argument &a) { return name == a.name; }
    argument():
       is_ptr(false), is_const(false), is_restrict(false), is_tpl(false) {}
+   argument(string id):
+      name(id), is_ptr(false), is_const(false), is_restrict(false), is_tpl(false) {}
 };
+typedef std::list<argument>::iterator argument_it;
 
 // *****************************************************************************
 struct tpl_t
@@ -336,6 +341,22 @@ bool is_star(context &pp)
 }
 
 // *****************************************************************************
+bool is_open_parenthesis(context &pp)
+{
+   skip_space(pp);
+   if (pp.in.peek() == '(') { return true; }
+   return false;
+}
+
+// *****************************************************************************
+bool is_close_parenthesis(context &pp)
+{
+   skip_space(pp);
+   if (pp.in.peek() == ')') { return true; }
+   return false;
+}
+
+// *****************************************************************************
 bool is_coma(context &pp)
 {
    skip_space(pp);
@@ -375,8 +396,7 @@ void jitKernelArgs(context &pp)
    pp.ker.d2u.clear();
    pp.ker.u2d.clear();
 
-   for (std::list<argument>::iterator ia = pp.args.begin();
-        ia != pp.args.end() ; ia++)
+   for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
    {
       const argument &arg = *ia;
       const bool is_const = arg.is_const;
@@ -524,25 +544,36 @@ void jitPostfix(context &pp)
    pp.ker.jit = false;
 }
 
-#define dbg(...) //{printf(__VA_ARGS__);fflush(0);}
+#define dbg(...) {printf(__VA_ARGS__);fflush(0);}
 // *****************************************************************************
 inline void get_dims(context &pp)
 {
    skip_space(pp);
    if (pp.in.peek() != '[') { return; }
-   dbg("<[get_dims] '%c'",pp.in.peek());
+   dbg("<");
    while (pp.in.peek() == '[') {
       while (true){
-         int c = get(pp); // eat [, *, +, ( or )
-         dbg("(eat:'%c')",c);
-         const string id = get_id(pp);
-         dbg("\"%s\"",id.c_str());
          skip_space(pp);
-         if (pp.in.peek()=='*') { dbg("'*'"); continue; }
-         if (pp.in.peek()=='+') { dbg("'+'"); continue; }
-         if (pp.in.peek()=='(') { dbg("'('"); continue; }
-         if (pp.in.peek()==')') { dbg("')'"); continue; }
-         break;
+         const int c = get(pp); // eat [, *, +, ( or )
+         dbg("%c",c);
+         int digit;
+         if (is_digit(pp)) { digit = get_digit(pp); dbg("%d",digit);}
+         string id;
+         if (is_id(pp)) {
+            id = get_id(pp);
+            dbg("%s",id.c_str()); 
+            const argument_it begin = pp.args.begin();
+            const argument_it end = pp.args.end();
+            const argument_it it = std::find(begin, end, argument(id));
+            assert(it!=end);
+         }
+         if (pp.in.peek()=='*') { continue; }
+         if (pp.in.peek()=='+') { continue; }
+         if (pp.in.peek()=='(') { continue; }
+         if (pp.in.peek()==')') { continue; }
+         if (pp.in.peek()==']') { dbg("]");break; }
+         dbg("?:%c",pp.in.peek());
+         assert(false);
       }
       skip_space(pp);
       check(pp,pp.in.peek()==']',"No ] while in get_dims");
@@ -579,6 +610,12 @@ bool get_args(context &pp)
          put(pp);
          continue;
       }
+      if (is_open_parenthesis(pp))
+      {
+         p+=1;
+         put(pp);
+         continue;
+      }
       const string &id = peekID(pp);
       drop_name(pp);
       // Qualifiers
@@ -598,13 +635,13 @@ bool get_args(context &pp)
       pp.out << (underscore?"_":"") << id;
       // focus on the name, we should have qual & type
       arg.name = id;
-      get_dims(pp);
+      //get_dims(pp);
       pp.args.push_back(arg);
       arg = argument();
-      const int c = pp.in.peek();
+      int c = pp.in.peek();
       assert(not pp.in.eof());
-      if (c == '(') { p+=1; }
-      if (c == ')') { p-=1; }
+      //if (c == '(') { put(pp); p+=1; }
+      if (c == ')') { p-=1; if (p>=0) { put(pp); get_dims(pp); continue; } }
       if (p<0) { break; }
       skip_space(pp);
       check(pp,pp.in.peek()==',',"No coma while in args");
@@ -619,7 +656,7 @@ bool get_args(context &pp)
 void genPtrOkina(context &pp)
 {
    // Generate the GET_* code
-   for (std::list<argument>::iterator ia = pp.args.begin();
+   for (argument_it ia = pp.args.begin();
         ia != pp.args.end() ; ia++)
    {
       const argument a = *ia;

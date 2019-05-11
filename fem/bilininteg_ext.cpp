@@ -1510,9 +1510,9 @@ static GeometryExtension *geom = NULL;
 __jit __kernel
 static void GeomFill(const int vdim,
                      const int NE, const int ND, const int NX,
-                     const int *elementMap[ND*NE],
-                     int *eMap[ND*NE],
-                     const double *X[NX], double *meshNodes[vdim*ND*NE])
+                     const int (*elementMap)[ND][NE],
+                     int (*eMap)[ND][((NE)+(1))],
+                     const double (*X)[NX], double (*meshNodes)[vdim][ND][NE])
 {
    //const DeviceArray d_elementMap(elementMap, ND*NE);
    //DeviceArray d_eMap(eMap, ND*NE);
