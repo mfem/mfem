@@ -746,6 +746,16 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
                   ltori[sdofs[i]]  = info2 % 64;
                }
             }
+            for (int fi=0; fi<pmesh->GroupNQuadrilaterals(g); fi++)
+            {
+               this->GetSharedQuadrilateralDofs(g, fi, sdofs);
+               for (int i=0; i<sdofs.Size(); i++)
+               {
+                  int ind = (sdofs[i]>=0) ? sdofs[i] : (-sdofs[i]-1);
+                  if (ldsize[ind] == 0) { nnz_offd++; }
+                  ldsize[ind] = 1;
+               }
+            }
          }
       }
 
@@ -928,6 +938,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+   /*
 #ifdef MFEM_DEBUG
    // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
    Array<int> true_ess_dofs2(true_ess_dofs.Size());
@@ -941,6 +952,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    }
    MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter);
 #endif
+   */
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
