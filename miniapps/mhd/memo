@@ -32,6 +32,10 @@ glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+5/11
+-snes_mf_operator is working 
+
+
 5/6
 mpirun -n 1 exAMRMHDp -m xperiodic.mesh -rs 3 -o 4 -tf 8 -vs 10 -dt .0001 -i 3 -amrl 3 -ltol 1e-3
 mpirun -n 4 exAMRMHDp -m xperiodic.mesh -rs 3 -o 4 -tf 8 -vs 10 -dt .0001 -i 3 -amrl 3 -ltol 1e-3
