@@ -362,12 +362,12 @@ ND_TetDofTransformation::TransformDual(const double *v, double *v_trans) const
 
 ND_WedgeDofTransformation::ND_WedgeDofTransformation(int p)
    : ND_DofTransformation(3 * p * ((p + 1) * (p + 2))/2,
-			  3 * p * ((p + 1) * (p + 2))/2, p)
+                          3 * p * ((p + 1) * (p + 2))/2, p)
 {
 }
 
 void ND_WedgeDofTransformation::TransformPrimal(const double *v,
-						double *v_trans) const
+                                                double *v_trans) const
 {
    int nedofs = order; // number of DoFs per edge
    int ntdofs = order*(order-1); // number of DoFs per triangular face
@@ -405,7 +405,7 @@ void ND_WedgeDofTransformation::TransformPrimal(const double *v,
 
 void
 ND_WedgeDofTransformation::InvTransformPrimal(const double *v_trans,
-					      double *v) const
+                                              double *v) const
 {
    int nedofs = order; // number of DoFs per edge
    int ntdofs = order*(order-1); // number of DoFs per triangular face
@@ -424,7 +424,7 @@ ND_WedgeDofTransformation::InvTransformPrimal(const double *v_trans,
       for (int i=0; i<ntdofs/2; i++)
       {
          TInv(Fo[f]).Mult(&v_trans[9*nedofs + f*ntdofs + 2*i],
-			  &v[9*nedofs + f*ntdofs + 2*i]);
+                          &v[9*nedofs + f*ntdofs + 2*i]);
       }
    }
 
@@ -461,7 +461,7 @@ ND_WedgeDofTransformation::TransformDual(const double *v, double *v_trans) const
       for (int i=0; i<ntdofs/2; i++)
       {
          TInv(Fo[f]).MultTranspose(&v[9*nedofs + f*ntdofs + 2*i],
-				   &v_trans[9*nedofs + f*ntdofs + 2*i]);
+                                   &v_trans[9*nedofs + f*ntdofs + 2*i]);
       }
    }
 

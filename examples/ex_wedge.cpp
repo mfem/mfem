@@ -153,14 +153,13 @@ int main(int argc, char *argv[])
 
    Vector v(sdim);
    for (int q=0; q<ir.GetNPoints(); q++)
-     {
-       const IntegrationPoint &ip = ir.IntPoint(q);
-       x.GetVectorValue(0, ip, v);
-       cout << "(" << ip.x << "," << ip.y << "," << ip.z << ") -> ("
-	    << v[0] << "," << v[1] << "," << v[2] << ")" << endl;
-     }
-   
-   
+   {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      x.GetVectorValue(0, ip, v);
+      cout << "(" << ip.x << "," << ip.y << "," << ip.z << ") -> "
+           << "(" << v[0] << "," << v[1] << "," << v[2] << ")" << endl;
+   }
+
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
