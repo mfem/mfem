@@ -11832,51 +11832,74 @@ ND_WedgeElement::ND_WedgeElement(const int p,
 
    const int pm1 = p - 1, pm2 = p - 2;
 
+   const IntegrationRule &t1_n = H1TriangleFE.GetNodes();
+   const IntegrationRule &tn_n = NDTriangleFE.GetNodes();
+   const IntegrationRule &s1_n = H1SegmentFE.GetNodes();
+   const IntegrationRule &sn_n = NDSegmentFE.GetNodes();
+
    // edges
    int o = 0;
    for (int i = 0; i < p; i++)  // (0,1)
    {
       t_dof[o] = i; s_dof[o] = 0; dof2tk[o] = 0;
+      const IntegrationPoint & t_ip = tn_n.IntPoint(t_dof[o]);
+      Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
       o++;
    }
    for (int i = 0; i < p; i++)  // (1,2)
    {
       t_dof[o] = p + i; s_dof[o] = 0; dof2tk[o] = 1;
+      const IntegrationPoint & t_ip = tn_n.IntPoint(t_dof[o]);
+      Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
       o++;
    }
    for (int i = 0; i < p; i++)  // (2,0)
    {
       t_dof[o] = 2 * p + i; s_dof[o] = 0; dof2tk[o] = 2;
+      const IntegrationPoint & t_ip = tn_n.IntPoint(t_dof[o]);
+      Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
       o++;
    }
    for (int i = 0; i < p; i++)  // (3,4)
    {
       t_dof[o] = i; s_dof[o] = 1; dof2tk[o] = 0;
+      const IntegrationPoint & t_ip = tn_n.IntPoint(t_dof[o]);
+      Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
       o++;
    }
    for (int i = 0; i < p; i++)  // (4,5)
    {
       t_dof[o] = p + i; s_dof[o] = 1; dof2tk[o] = 1;
+      const IntegrationPoint & t_ip = tn_n.IntPoint(t_dof[o]);
+      Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
       o++;
    }
    for (int i = 0; i < p; i++)  // (5,3)
    {
       t_dof[o] = 2 * p + i; s_dof[o] = 1; dof2tk[o] = 2;
+      const IntegrationPoint & t_ip = tn_n.IntPoint(t_dof[o]);
+      Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
       o++;
    }
    for (int i = 0; i < p; i++)  // (0,3)
    {
       t_dof[o] = 0; s_dof[o] = i; dof2tk[o] = 3;
+      const IntegrationPoint & t_ip = t1_n.IntPoint(t_dof[o]);
+      Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sn_n.IntPoint(s_dof[o]).x);
       o++;
    }
    for (int i = 0; i < p; i++)  // (1,4)
    {
       t_dof[o] = 1; s_dof[o] = i; dof2tk[o] = 3;
+      const IntegrationPoint & t_ip = t1_n.IntPoint(t_dof[o]);
+      Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sn_n.IntPoint(s_dof[o]).x);
       o++;
    }
    for (int i = 0; i < p; i++)  // (2,5)
    {
       t_dof[o] = 2; s_dof[o] = i; dof2tk[o] = 3;
+      const IntegrationPoint & t_ip = t1_n.IntPoint(t_dof[o]);
+      Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sn_n.IntPoint(s_dof[o]).x);
       o++;
    }
 
@@ -11887,49 +11910,79 @@ ND_WedgeElement::ND_WedgeElement(const int p,
       for (int i = 0; i + j <= pm2; i++)
       {
          l = j + ( 2 * p - 1 - i) * i / 2;
-         t_dof[o] = 3 * p + 2*l+1; s_dof[o] = 0; dof2tk[o] = 4; o++;
-         t_dof[o] = 3 * p + 2*l;   s_dof[o] = 0; dof2tk[o] = 0; o++;
+         t_dof[o] = 3 * p + 2*l+1; s_dof[o] = 0; dof2tk[o] = 4;
+         const IntegrationPoint & t_ip0 = tn_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip0.x, t_ip0.y, s1_n.IntPoint(s_dof[o]).x);
+         o++;
+         t_dof[o] = 3 * p + 2*l;   s_dof[o] = 0; dof2tk[o] = 0;
+         const IntegrationPoint & t_ip1 = tn_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip1.x, t_ip1.y, s1_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    // (3,4,5) -- top
    int m = 0;
    for (int j = 0; j <= pm2; j++)
       for (int i = 0; i + j <= pm2; i++)
       {
-         t_dof[o] = 3 * p + m; s_dof[o] = 1; dof2tk[o] = 0; m++; o++;
-         t_dof[o] = 3 * p + m; s_dof[o] = 1; dof2tk[o] = 4; m++; o++;
+         t_dof[o] = 3 * p + m; s_dof[o] = 1; dof2tk[o] = 0; m++;
+         const IntegrationPoint & t_ip0 = tn_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip0.x, t_ip0.y, s1_n.IntPoint(s_dof[o]).x);
+         o++;
+         t_dof[o] = 3 * p + m; s_dof[o] = 1; dof2tk[o] = 4; m++;
+         const IntegrationPoint & t_ip1 = tn_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip1.x, t_ip1.y, s1_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    // (0, 1, 4, 3) -- xz plane
    for (int j = 2; j <= p; j++)
       for (int i = 0; i < p; i++)
       {
-         t_dof[o] = i; s_dof[o] = j; dof2tk[o] = 0; o++;
+         t_dof[o] = i; s_dof[o] = j; dof2tk[o] = 0;
+         const IntegrationPoint & t_ip = tn_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    for (int j = 0; j < p; j++)
       for (int i = 0; i < pm1; i++)
       {
-         t_dof[o] = 3 + i; s_dof[o] = j; dof2tk[o] = 3; o++;
+         t_dof[o] = 3 + i; s_dof[o] = j; dof2tk[o] = 3;
+         const IntegrationPoint & t_ip = t1_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sn_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    // (1, 2, 5, 4) -- (y-x)z plane
    for (int j = 2; j <= p; j++)
       for (int i = 0; i < p; i++)
       {
-         t_dof[o] = p + i; s_dof[o] = j; dof2tk[o] = 1; o++;
+         t_dof[o] = p + i; s_dof[o] = j; dof2tk[o] = 1;
+         const IntegrationPoint & t_ip = tn_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    for (int j = 0; j < p; j++)
       for (int i = 0; i < pm1; i++)
       {
-         t_dof[o] = p + 2 + i; s_dof[o] = j; dof2tk[o] = 3; o++;
+         t_dof[o] = p + 2 + i; s_dof[o] = j; dof2tk[o] = 3;
+         const IntegrationPoint & t_ip = t1_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sn_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    // (2, 0, 3, 5) -- yz plane
    for (int j = 2; j <= p; j++)
       for (int i = 0; i < p; i++)
       {
-         t_dof[o] = 2 * p + i; s_dof[o] = j; dof2tk[o] = 2; o++;
+         t_dof[o] = 2 * p + i; s_dof[o] = j; dof2tk[o] = 2;
+         const IntegrationPoint & t_ip = tn_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, s1_n.IntPoint(s_dof[o]).x);
+         o++;
       }
    for (int j = 0; j < p; j++)
       for (int i = 0; i < pm1; i++)
       {
-         t_dof[o] = 3 * p - 1 - i; s_dof[o] = j; dof2tk[o] = 3; o++;
+         t_dof[o] = 3 * p - 1 - i; s_dof[o] = j; dof2tk[o] = 3;
+         const IntegrationPoint & t_ip = t1_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sn_n.IntPoint(s_dof[o]).x);
+         o++;
       }
 
    // interior
@@ -11939,8 +11992,14 @@ ND_WedgeElement::ND_WedgeElement(const int p,
       for (int j = 0; j <= pm2; j++)
          for (int i = 0; i + j <= pm2; i++)
          {
-            t_dof[o] = 3 * p + l; s_dof[o] = k; dof2tk[o] = 0; l++; o++;
-            t_dof[o] = 3 * p + l; s_dof[o] = k; dof2tk[o] = 4; l++; o++;
+            t_dof[o] = 3 * p + l; s_dof[o] = k; dof2tk[o] = 0; l++;
+            const IntegrationPoint & t_ip0 = tn_n.IntPoint(t_dof[o]);
+            Nodes.IntPoint(o).Set3(t_ip0.x, t_ip0.y, s1_n.IntPoint(s_dof[o]).x);
+            o++;
+            t_dof[o] = 3 * p + l; s_dof[o] = k; dof2tk[o] = 4; l++;
+            const IntegrationPoint & t_ip1 = tn_n.IntPoint(t_dof[o]);
+            Nodes.IntPoint(o).Set3(t_ip1.x, t_ip1.y, s1_n.IntPoint(s_dof[o]).x);
+            o++;
          }
    }
    for (int k = 0; k < p; k++)
@@ -11949,7 +12008,10 @@ ND_WedgeElement::ND_WedgeElement(const int p,
       for (int j = 0; j < pm2; j++)
          for (int i = 0; i + j < pm2; i++)
          {
-            t_dof[o] = 3 * p + l; s_dof[o] = k; dof2tk[o] = 3; l++; o++;
+            t_dof[o] = 3 * p + l; s_dof[o] = k; dof2tk[o] = 3; l++;
+            const IntegrationPoint & t_ip = t1_n.IntPoint(t_dof[o]);
+            Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sn_n.IntPoint(s_dof[o]).x);
+            o++;
          }
    }
 }
