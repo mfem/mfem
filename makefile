@@ -404,10 +404,18 @@ doc:
 
 -include $(BLD)deps.mk
 
+ifneq ($(MFEM_USE_CUDA),YES)
 $(BLD)libmfem.a: $(OBJECT_FILES)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
 	@$(MAKE) deprecation-warnings
+else
+$(BLD)libmfem.a: $(OBJECT_FILES)
+	nvcc -arch=sm_60 --device-link $(OBJECT_FILES) -o mfemCudaObjs.o
+	nvcc -arch=sm_60 --lib $(OBJECT_FILES) mfemCudaObjs.o -o $(@)
+	$(RANLIB) $(@)
+	@$(MAKE) deprecation-warnings
+endif
 
 $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
