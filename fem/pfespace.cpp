@@ -727,6 +727,16 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
             {
                continue;
             }
+            for (int ei=0; ei<pmesh->GroupNEdges(g); ei++)
+            {
+               this->GetSharedEdgeDofs(g, ei, sdofs);
+               for (int i=0; i<sdofs.Size(); i++)
+               {
+                  int ind = (sdofs[i]>=0) ? sdofs[i] : (-sdofs[i]-1);
+                  if (ldsize[ind] == 0) { nnz_offd++; }
+                  ldsize[ind] = 1;
+               }
+            }
             for (int fi=0; fi<pmesh->GroupNTriangles(g); fi++)
             {
                int face, ori, info1, info2;
@@ -792,7 +802,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
             if (ldsize[i] == 1)
             {
                cmap_j_offd[offd_col_counter].one = GetGlobalTDofNumber(i);
-               cmap_j_offd[offd_col_counter].two = offd_col_counter;
+               cmap_j_offd[offd_col_counter].two = offd_counter;
                offd_counter++;
                offd_col_counter++;
             }
