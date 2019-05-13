@@ -93,7 +93,7 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
 
    SECTION("Check method BlockMatrix::GetRow")
    {
-      int nfails;
+      //int nfails; // declared but never referenced
       double maxerror(-1.), currentError;
       Vector glob(size), globgood(size);
       Vector srow, srowgood;

@@ -115,14 +115,14 @@ using namespace mfem::electromagnetics;
 
 void display_banner(ostream & os);
 
-static double aj_ = 0.0;
+//static double aj_ = 0.0; // set but never used
 static double mj_ = 0.0;
 static double sj_ = 0.0;
 static double wj_ = 0.0;
-static double kj_ = 0.0;
-static double hj_ = 0.0;
-static double dtj_ = 0.0;
-static double rj_ = 0.0;
+//static double kj_ = 0.0; // set but never used
+//static double hj_ = 0.0; // set but never used
+//static double dtj_ = 0.0;// set but never used
+//static double rj_ = 0.0; // set but never used
 
 int main(int argc, char *argv[])
 {
@@ -141,12 +141,12 @@ int main(int argc, char *argv[])
    int ode_solver_type = 1;
    double t_final = 100.0;
    double dt = 0.5;
-   double amp = 2.0;
+   //double amp = 2.0;
    double mu = 1.0;
    double sigma = 2.0*M_PI*10;
    double Tcapacity = 1.0;
    double Tconductivity = 0.01;
-   double alpha = Tconductivity/Tcapacity;
+   //double alpha = Tconductivity/Tcapacity;
    double freq = 1.0/60.0;
    bool visualization = true;
    bool visit = true;
@@ -214,14 +214,14 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   aj_  = amp;
+   //aj_  = amp;
    mj_  = mu;
    sj_  = sigma;
    wj_  = 2.0*M_PI*freq;
-   kj_  = sqrt(0.5*wj_*mj_*sj_);
-   hj_  = alpha;
-   dtj_ = dt;
-   rj_  = 1.0;
+   //kj_  = sqrt(0.5*wj_*mj_*sj_);
+   //hj_  = alpha;
+   //dtj_ = dt;
+   //rj_  = 1.0;
 
    if (mpi.Root())
    {
