@@ -1322,9 +1322,13 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    }
    if (dynamic_cast<const ND_FECollection*>(fec))
    {
-      DoFTrans[Geometry::TETRAHEDRON] =
-         new ND_TetDofTransformation(fec->FiniteElementForGeometry(
-                                        Geometry::TETRAHEDRON)->GetOrder());
+      const FiniteElement * nd_tet =
+         fec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
+      if (nd_tet)
+      {
+         DoFTrans[Geometry::TETRAHEDRON] =
+            new ND_TetDofTransformation(nd_tet->GetOrder());
+      }
    }
 
    BuildElementToDofTable();
