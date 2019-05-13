@@ -130,7 +130,7 @@ void CuWrapXYZ(const int N, DBODY &&d_body,
                const int X, const int Y, const int Z)
 {
    if (N==0) { return; }
-   const int GRID = N/Z;
+   const int GRID = (N+Z-1)/Z;
    const dim3 BLCK(X,Y,Z);
    CuKernelXYZ<<<GRID,BLCK>>>(N,d_body,Z);
    MFEM_CUDA_CHECK(cudaGetLastError());
