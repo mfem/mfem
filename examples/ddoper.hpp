@@ -16,6 +16,10 @@ using namespace std;
 
 #define PENALTY_U_S 0.0
 
+//#define SIGMAVAL -250.0
+#define SIGMAVAL -10.0
+
+
 void test1_E_exact(const Vector &x, Vector &E)
 {
   const double kappa = M_PI;
@@ -27,7 +31,7 @@ void test1_E_exact(const Vector &x, Vector &E)
 void test1_RHS_exact(const Vector &x, Vector &f)
 {
   const double kappa = M_PI;
-  const double sigma = -2.0;
+  const double sigma = SIGMAVAL;
   f(0) = (sigma + kappa * kappa) * sin(kappa * x(1));
   f(1) = (sigma + kappa * kappa) * sin(kappa * x(2));
   f(2) = (sigma + kappa * kappa) * sin(kappa * x(0));
@@ -62,7 +66,7 @@ void test2_E_exact(const Vector &x, Vector &E)
 void test2_RHS_exact(const Vector &x, Vector &f)
 {
   const double pi = M_PI;
-  const double sigma = -2.0;
+  const double sigma = SIGMAVAL;
   const double c = (2.0 * pi * pi) + sigma;
 
   f(0) = c * sin(pi * x(1)) * sin(pi * x(2));
@@ -118,7 +122,8 @@ SparseMatrix* GetSparseMatrixFromOperator(Operator *op)
 
       for (int i=0; i<n; ++i)
 	{
-	  if (y[i] != 0.0)
+	  //if (y[i] != 0.0)
+	  if (fabs(y[i]) > 1.0e-15)
 	    {
 	      S->Set(i, j, y[i]);
 	    }
@@ -1275,7 +1280,7 @@ public:
     numSubdomains(numSubdomains_), numInterfaces(numInterfaces_), pmeshSD(pmeshSD_), pmeshIF(pmeshIF_), fec(orderND, spaceDim),
     fecbdry(orderND, spaceDim-1), fecbdryH1(orderND, spaceDim-1), localInterfaces(localInterfaces_), interfaceLocalIndex(interfaceLocalIndex_),
     subdomainLocalInterfaces(numSubdomains_), pmeshGlobal(pmesh_),
-    k2(2.0), realPart(true),
+    k2(-SIGMAVAL), realPart(true),
     alpha(1.0), beta(1.0), gamma(1.0)  // TODO: set these to the right values
   {
     int num_procs, rank;
@@ -1284,6 +1289,8 @@ public:
 
     m_rank = rank;
     
+    std::cout << "DDM using k2 " << k2 << std::endl;
+
     MFEM_VERIFY(numSubdomains > 0, "");
     MFEM_VERIFY(interfaceLocalIndex->size() == numInterfaces, "");
 
@@ -1760,6 +1767,15 @@ public:
 	    SpAsdComplexRowSizes[m] = new HYPRE_Int[2];
 	    SpAsdComplexRowSizes[m][0] = 0;
 	    SpAsdComplexRowSizes[m][1] = SpAsdComplex[m]->Size();
+
+	    /*
+	    {
+	      //std::string filename = 
+	      ofstream file("SpAsdComplex" + std::to_string(m));
+	      SpAsdComplex[m]->PrintMatlab(file);
+	      file.close();
+	    }
+	    */
 
 	    HypreAsdComplex[m] = new HypreParMatrix(MPI_COMM_WORLD, SpAsdComplex[m]->Size(), SpAsdComplexRowSizes[m], SpAsdComplex[m]);  // constructor with 4 arguments, v1
 	    invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
