@@ -1322,12 +1322,21 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    }
    if (dynamic_cast<const ND_FECollection*>(fec))
    {
-      DoFTrans[Geometry::TETRAHEDRON] =
-         new ND_TetDofTransformation(fec->FiniteElementForGeometry(
-                                        Geometry::TETRAHEDRON)->GetOrder());
-      DoFTrans[Geometry::PRISM] =
-         new ND_WedgeDofTransformation(fec->FiniteElementForGeometry(
-                                          Geometry::PRISM)->GetOrder());
+      const FiniteElement * nd_tet =
+         fec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
+      if (nd_tet)
+      {
+         DoFTrans[Geometry::TETRAHEDRON] =
+            new ND_TetDofTransformation(nd_tet->GetOrder());
+      }
+
+      const FiniteElement * nd_pri =
+         fec->FiniteElementForGeometry(Geometry::PRISM);
+      if (nd_pri)
+      {
+         DoFTrans[Geometry::PRISM] =
+            new ND_WedgeDofTransformation(nd_pri->GetOrder());
+      }
    }
 
    BuildElementToDofTable();
