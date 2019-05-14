@@ -1315,6 +1315,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       Construct();
    }
 
+   VDoFTrans.SetVDim(vdim);
    DoFTrans.SetSize(Geometry::NUM_GEOMETRIES);
    for (int i=0; i<DoFTrans.Size(); i++)
    {
