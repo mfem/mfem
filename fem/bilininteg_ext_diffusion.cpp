@@ -421,12 +421,11 @@ bool SmemPADiffusionApply(const int dim,
                           const double* x,
                           double* y)
 {
-   printf("\n\033[32m[SmemPADiffusionApply] D1D=%d, Q1D=%d\033[m", D1D, Q1D);
    if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return SmemPADiffusionApply2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);/*
+         case 0x22: return SmemPADiffusionApply2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
          case 0x33: return SmemPADiffusionApply2D<3,3,8>(NE,B,G,Bt,Gt,op,x,y);
          case 0x44: return SmemPADiffusionApply2D<4,4,4>(NE,B,G,Bt,Gt,op,x,y);
          case 0x55: return SmemPADiffusionApply2D<5,5,4>(NE,B,G,Bt,Gt,op,x,y);
@@ -434,7 +433,7 @@ bool SmemPADiffusionApply(const int dim,
          case 0x77: return SmemPADiffusionApply2D<7,7,2>(NE,B,G,Bt,Gt,op,x,y);
          case 0x88: return SmemPADiffusionApply2D<8,8,1>(NE,B,G,Bt,Gt,op,x,y);
          case 0x99: return SmemPADiffusionApply2D<9,9,1>(NE,B,G,Bt,Gt,op,x,y);
-         //default:   return SmemPADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);*/
+         //default:   return SmemPADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
       }
    }
    if (dim == 3)
@@ -442,13 +441,13 @@ bool SmemPADiffusionApply(const int dim,
       switch ((D1D << 4 ) | Q1D)
       {
          case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
-            /*        case 0x33: return SmemPADiffusionApply3D<3,3,64>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x44: return SmemPADiffusionApply3D<4,4,32>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x55: return SmemPADiffusionApply3D<5,5,32>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x66: return SmemPADiffusionApply3D<6,6,16>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x77: return SmemPADiffusionApply3D<7,7,16>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x88: return SmemPADiffusionApply3D<8,8,16>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return SmemPADiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);*/
+         case 0x33: return SmemPADiffusionApply3D<3,3>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x44: return SmemPADiffusionApply3D<4,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x55: return SmemPADiffusionApply3D<5,5>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x66: return SmemPADiffusionApply3D<6,6>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x77: return SmemPADiffusionApply3D<7,7>(NE,B,G,Bt,Gt,op,x,y);
+            //case 0x88: return SmemPADiffusionApply3D<8,8>(NE,B,G,Bt,Gt,op,x,y);
+            //default:   return SmemPADiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
       }
    }
    return false;

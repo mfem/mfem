@@ -20,7 +20,7 @@
 #include <cuda.h>
 #endif
 
-// Maximum size of dof/quad in 1D
+// Maximum size of dofs and quads in 1D.
 const int MAX_D1D = 10;
 const int MAX_Q1D = 10;
 
@@ -45,15 +45,19 @@ const int MAX_Q1D = 10;
    while (0)
 
 #ifdef __CUDA_ARCH__
+
 #define blockDim(k) blockDim.k
 #define threadIdx(k) threadIdx.k
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads();
+
 #else // __CUDA_ARCH__
+
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
 #define blockDim(x) 1
 #define threadIdx(x) 0
+
 #endif // __CUDA_ARCH__
 
 #else // MFEM_USE_CUDA
