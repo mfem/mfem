@@ -398,6 +398,7 @@ protected:
    // Additional data needed in the VisIt root file, which describes the mesh
    // and all the fields in the collection
    int spatial_dim, topo_dim;
+   int visit_levels_of_detail;
    int visit_max_levels_of_detail;
    std::map<std::string, VisItFieldInfo> field_info_map;
    typedef std::map<std::string, VisItFieldInfo>::iterator FieldInfoMapIterator;
@@ -406,6 +407,8 @@ protected:
    std::string GetVisItRootString();
    /// Read in a VisIt root file in JSON format
    void ParseVisItRootString(const std::string& json);
+
+   void UpdateMeshInfo();
 
    // Helper functions for Load()
    void LoadVisItRootFile(const std::string& root_name);
@@ -436,6 +439,9 @@ public:
 
    /// Add a grid function to the collection and update the root file
    virtual void RegisterField(const std::string& field_name, GridFunction *gf);
+
+   /// Set VisIt parameter: default levels of detail for the MultiresControl
+   void SetLevelsOfDetail(int levels_of_detail);
 
    /// Set VisIt parameter: maximum levels of detail for the MultiresControl
    void SetMaxLevelsOfDetail(int max_levels_of_detail);

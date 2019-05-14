@@ -248,6 +248,7 @@ public:
       void operator++() { n = n->Prev; }
       int Column() { return (n->Column); }
       int Index() { return (n->Index); }
+      void SetIndex(int new_idx) { n->Index = new_idx; }
    };
 };
 

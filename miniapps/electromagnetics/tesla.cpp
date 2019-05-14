@@ -213,6 +213,8 @@ int main(int argc, char *argv[])
    {
       pmesh.UniformRefinement();
    }
+   // Make sure tet-only meshes are marked for local refinement.
+   pmesh.Finalize(true);
 
    // If values for Voltage BCs were not set issue a warning and exit
    if ( ( vbcs.Size() > 0 && kbcs.Size() == 0 ) ||

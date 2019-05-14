@@ -12,10 +12,9 @@
 #ifndef MFEM_VECTOR
 #define MFEM_VECTOR
 
-// Data type vector
-
 #include "../general/array.hpp"
 #include "../general/globals.hpp"
+#include "../general/mem_manager.hpp"
 #ifdef MFEM_USE_SUNDIALS
 #include <nvector/nvector_serial.h>
 #endif
@@ -70,6 +69,12 @@ public:
    Vector (double *_data, int _size)
    { data = _data; size = _size; allocsize = -size; }
 
+   /// Copies data from host to device
+   void Push() const;
+
+   /// Copies data from device to host
+   void Pull() const;
+
    /// Reads a vector from multiple files
    void Load (std::istream ** in, int np, int * dim);
 
@@ -107,7 +112,7 @@ public:
        @sa SetDataAndSize(). */
    void NewDataAndSize(double *d, int s)
    {
-      if (allocsize > 0) { delete [] data; }
+      if (allocsize > 0) { mfem::Delete(data); }
       SetDataAndSize(d, s);
    }
 
@@ -170,7 +175,9 @@ public:
    /// Copy Size() entries from @a v.
    Vector & operator=(const double *v);
 
-   /// Redefine '=' for vector = vector.
+   /// Copy assignment.
+   /** @note Defining this method overwrites the implicitly defined copy
+       assignemnt operator. */
    Vector & operator=(const Vector &v);
 
    /// Redefine '=' for vector = constant.
@@ -316,7 +323,7 @@ inline Vector::Vector (int s)
    if (s > 0)
    {
       allocsize = size = s;
-      data = new double[s];
+      data = mfem::New<double>(s);
    }
    else
    {
@@ -338,17 +345,17 @@ inline void Vector::SetSize(int s)
    }
    if (allocsize > 0)
    {
-      delete [] data;
+      mfem::Delete(data);
    }
    allocsize = size = s;
-   data = new double[s];
+   data = mfem::New<double>(s);
 }
 
 inline void Vector::Destroy()
 {
    if (allocsize > 0)
    {
-      delete [] data;
+      mfem::Delete(data);
    }
    allocsize = size = 0;
    data = NULL;
@@ -387,7 +394,7 @@ inline Vector::~Vector()
 {
    if (allocsize > 0)
    {
-      delete [] data;
+      mfem::Delete(data);
    }
 }
 
@@ -440,6 +447,28 @@ inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
    return glb_prod;
 }
 #endif
+
+/// Kernel returning the minimum value in the array x of size N
+double Min(const int N, const double *x);
+
+/// Kernel of the inner product of arrays x and y of size N
+double Dot(const int N, const double *x, const double *y);
+
+/// Class for a simple Vector of size 3
+class Vector3
+{
+private:
+   double data[3];
+public:
+   Vector3() {}
+   Vector3(const double *x) { data[0]=x[0]; data[1]=x[1]; data[2]=x[2]; }
+   Vector3(const double x0, const double x1 = 0.0, const double x2 = 0.0)
+   { data[0]=x0; data[1]=x1; data[2]=x2; }
+   inline operator double* () { return data; }
+   inline operator const double* () const { return data; }
+   inline double& operator()(const int i) { return data[i]; }
+   inline const double& operator()(const int i) const { return data[i]; }
+};
 
 }
 

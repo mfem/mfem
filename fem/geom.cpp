@@ -10,15 +10,16 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "fem.hpp"
+#include "../mesh/wedge.hpp"
 
 namespace mfem
 {
 
 const char *Geometry::Name[NumGeom] =
-{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube" };
+{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube", "Prism" };
 
 const double Geometry::Volume[NumGeom] =
-{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0 };
+{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 0.5 };
 
 Geometry::Geometry()
 {
@@ -112,6 +113,32 @@ Geometry::Geometry()
    GeomVert[5]->IntPoint(7).y = 1.0;
    GeomVert[5]->IntPoint(7).z = 1.0;
 
+   // Vertices for Geometry::PRISM
+   GeomVert[6] = new IntegrationRule(6);
+   GeomVert[6]->IntPoint(0).x = 0.0;
+   GeomVert[6]->IntPoint(0).y = 0.0;
+   GeomVert[6]->IntPoint(0).z = 0.0;
+
+   GeomVert[6]->IntPoint(1).x = 1.0;
+   GeomVert[6]->IntPoint(1).y = 0.0;
+   GeomVert[6]->IntPoint(1).z = 0.0;
+
+   GeomVert[6]->IntPoint(2).x = 0.0;
+   GeomVert[6]->IntPoint(2).y = 1.0;
+   GeomVert[6]->IntPoint(2).z = 0.0;
+
+   GeomVert[6]->IntPoint(3).x = 0.0;
+   GeomVert[6]->IntPoint(3).y = 0.0;
+   GeomVert[6]->IntPoint(3).z = 1.0;
+
+   GeomVert[6]->IntPoint(4).x = 1.0;
+   GeomVert[6]->IntPoint(4).y = 0.0;
+   GeomVert[6]->IntPoint(4).z = 1.0;
+
+   GeomVert[6]->IntPoint(5).x = 0.0;
+   GeomVert[6]->IntPoint(5).y = 1.0;
+   GeomVert[6]->IntPoint(5).z = 1.0;
+
    GeomCenter[POINT].x = 0.0;
    GeomCenter[POINT].y = 0.0;
    GeomCenter[POINT].z = 0.0;
@@ -136,12 +163,17 @@ Geometry::Geometry()
    GeomCenter[CUBE].y = 0.5;
    GeomCenter[CUBE].z = 0.5;
 
+   GeomCenter[PRISM].x = 1.0 / 3.0;
+   GeomCenter[PRISM].y = 1.0 / 3.0;
+   GeomCenter[PRISM].z = 0.5;
+
    GeomToPerfGeomJac[POINT]       = NULL;
    GeomToPerfGeomJac[SEGMENT]     = new DenseMatrix(1);
    GeomToPerfGeomJac[TRIANGLE]    = new DenseMatrix(2);
    GeomToPerfGeomJac[SQUARE]      = new DenseMatrix(2);
    GeomToPerfGeomJac[TETRAHEDRON] = new DenseMatrix(3);
    GeomToPerfGeomJac[CUBE]        = new DenseMatrix(3);
+   GeomToPerfGeomJac[PRISM]       = new DenseMatrix(3);
 
    PerfGeomToGeomJac[POINT]       = NULL;
    PerfGeomToGeomJac[SEGMENT]     = NULL;
@@ -149,12 +181,12 @@ Geometry::Geometry()
    PerfGeomToGeomJac[SQUARE]      = NULL;
    PerfGeomToGeomJac[TETRAHEDRON] = new DenseMatrix(3);
    PerfGeomToGeomJac[CUBE]        = NULL;
+   PerfGeomToGeomJac[PRISM]       = new DenseMatrix(3);
 
    GeomToPerfGeomJac[SEGMENT]->Diag(1.0, 1);
    {
-      Linear2DFiniteElement TriFE;
       IsoparametricTransformation tri_T;
-      tri_T.SetFE(&TriFE);
+      tri_T.SetFE(&TriangleFE);
       GetPerfPointMat (TRIANGLE, tri_T.GetPointMat());
       tri_T.FinalizeTransformation();
       tri_T.SetIntPoint(&GeomCenter[TRIANGLE]);
@@ -163,9 +195,8 @@ Geometry::Geometry()
    }
    GeomToPerfGeomJac[SQUARE]->Diag(1.0, 2);
    {
-      Linear3DFiniteElement TetFE;
       IsoparametricTransformation tet_T;
-      tet_T.SetFE(&TetFE);
+      tet_T.SetFE(&TetrahedronFE);
       GetPerfPointMat (TETRAHEDRON, tet_T.GetPointMat());
       tet_T.FinalizeTransformation();
       tet_T.SetIntPoint(&GeomCenter[TETRAHEDRON]);
@@ -173,6 +204,15 @@ Geometry::Geometry()
       CalcInverse(tet_T.Jacobian(), *PerfGeomToGeomJac[TETRAHEDRON]);
    }
    GeomToPerfGeomJac[CUBE]->Diag(1.0, 3);
+   {
+      IsoparametricTransformation pri_T;
+      pri_T.SetFE(&WedgeFE);
+      GetPerfPointMat (PRISM, pri_T.GetPointMat());
+      pri_T.FinalizeTransformation();
+      pri_T.SetIntPoint(&GeomCenter[PRISM]);
+      *GeomToPerfGeomJac[PRISM] = pri_T.Jacobian();
+      CalcInverse(pri_T.Jacobian(), *PerfGeomToGeomJac[PRISM]);
+   }
 }
 
 Geometry::~Geometry()
@@ -195,6 +235,7 @@ const IntegrationRule * Geometry::GetVertices(int GeomType)
       case Geometry::SQUARE:      return GeomVert[3];
       case Geometry::TETRAHEDRON: return GeomVert[4];
       case Geometry::CUBE:        return GeomVert[5];
+      case Geometry::PRISM:       return GeomVert[6];
       default:
          mfem_error ("Geometry::GetVertices(...)");
    }
@@ -262,6 +303,16 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          ip.y = double(rand()) / RAND_MAX;
          ip.z = double(rand()) / RAND_MAX;
          break;
+      case Geometry::PRISM:
+         ip.x = double(rand()) / RAND_MAX;
+         ip.y = double(rand()) / RAND_MAX;
+         ip.z = double(rand()) / RAND_MAX;
+         if (ip.x + ip.y > 1.0)
+         {
+            ip.x = 1.0 - ip.x;
+            ip.y = 1.0 - ip.y;
+         }
+         break;
       default:
          MFEM_ABORT("Unknown type of reference element!");
    }
@@ -319,6 +370,10 @@ bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip)
          if (ip.x < 0.0 || ip.x > 1.0 || ip.y < 0.0 || ip.y > 1.0 ||
              ip.z < 0.0 || ip.z > 1.0) { return false; }
          break;
+      case Geometry::PRISM:
+         if (ip.x < 0.0 || ip.y < 0.0 || ip.x+ip.y > 1.0 ||
+             ip.z < 0.0 || ip.z > 1.0) { return false; }
+         break;
       default:
          MFEM_ABORT("Unknown type of reference element!");
    }
@@ -373,6 +428,16 @@ bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip, double eps)
               || internal::FuzzyGT(ip.x, 1.0, eps)
               || internal::FuzzyLT(ip.y, 0.0, eps)
               || internal::FuzzyGT(ip.y, 1.0, eps)
+              || internal::FuzzyLT(ip.z, 0.0, eps)
+              || internal::FuzzyGT(ip.z, 1.0, eps) )
+         {
+            return false;
+         }
+         break;
+      case Geometry::PRISM:
+         if ( internal::FuzzyLT(ip.x, 0.0, eps)
+              || internal::FuzzyLT(ip.y, 0.0, eps)
+              || internal::FuzzyGT(ip.x+ip.y, 1.0, eps)
               || internal::FuzzyLT(ip.z, 0.0, eps)
               || internal::FuzzyGT(ip.z, 1.0, eps) )
          {
@@ -461,14 +526,14 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
       }
       case Geometry::TRIANGLE:
       {
-         double lend[3] = { end.x, end.y, 1-end.x-end.y };
-         double lbeg[3] = { beg.x, beg.y, 1-beg.x-beg.y };
+         double lend[3] = { end.x, end.y, 1.0-end.x-end.y };
+         double lbeg[3] = { beg.x, beg.y, 1.0-beg.x-beg.y };
          return internal::IntersectSegment<3,2>(lbeg, lend, end);
       }
       case Geometry::SQUARE:
       {
-         double lend[4] = { end.x, end.y, 1-end.x, 1.0-end.y };
-         double lbeg[4] = { beg.x, beg.y, 1-beg.x, 1.0-beg.y };
+         double lend[4] = { end.x, end.y, 1.0-end.x, 1.0-end.y };
+         double lbeg[4] = { beg.x, beg.y, 1.0-beg.x, 1.0-beg.y };
          return internal::IntersectSegment<4,2>(lbeg, lend, end);
       }
       case Geometry::TETRAHEDRON:
@@ -486,6 +551,12 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
                             1.0-beg.x, 1.0-beg.y, 1.0-beg.z
                           };
          return internal::IntersectSegment<6,3>(lbeg, lend, end);
+      }
+      case Geometry::PRISM:
+      {
+         double lend[5] = { end.x, end.y, end.z, 1.0-end.x-end.y, 1.0-end.z };
+         double lbeg[5] = { beg.x, beg.y, beg.z, 1.0-beg.x-beg.y, 1.0-beg.z };
+         return internal::IntersectSegment<5,3>(lbeg, lend, end);
       }
       default:
          MFEM_ABORT("Unknown type of reference element!");
@@ -574,6 +645,16 @@ bool Geometry::ProjectPoint(int GeomType, IntegrationPoint &ip)
          return in_x && in_y && in_z;
       }
 
+      case PRISM:
+      {
+         bool in_tri, in_z;
+         in_tri = internal::ProjectTriangle(ip.x, ip.y);
+         if (ip.z < 0.0)      { in_z = false; ip.z = 0.0; }
+         else if (ip.z > 1.0) { in_z = false; ip.z = 1.0; }
+         else                 { in_z = true; }
+         return in_tri && in_z;
+      }
+
       default:
          MFEM_ABORT("Reference element type is not supported!");
    }
@@ -636,6 +717,18 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
       }
       break;
 
+      case Geometry::PRISM:
+      {
+         pm.SetSize (3, 6);
+         pm(0,0) = 0.0;  pm(1,0) = 0.0;  pm(2,0) = 0.0;
+         pm(0,1) = 1.0;  pm(1,1) = 0.0;  pm(2,1) = 0.0;
+         pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;  pm(2,2) = 0.0;
+         pm(0,3) = 0.0;  pm(1,3) = 0.0;  pm(2,3) = 1.0;
+         pm(0,4) = 1.0;  pm(1,4) = 0.0;  pm(2,4) = 1.0;
+         pm(0,5) = 0.5;  pm(1,5) = 0.86602540378443864676;  pm(2,5) = 1.0;
+      }
+      break;
+
       default:
          mfem_error ("Geometry::GetPerfPointMat (...)");
    }
@@ -654,11 +747,13 @@ void Geometry::JacToPerfJac(int GeomType, const DenseMatrix &J,
    }
 }
 
-const int Geometry::NumBdrArray[NumGeom] = { 0, 2, 3, 4, 4, 6 };
-const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3 };
-const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 8 };
-const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 12 };
-const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 6 };
+const int Geometry::NumBdrArray[NumGeom] = { 0, 2, 3, 4, 4, 6, 5 };
+const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3, 3 };
+const int Geometry::DimStart[MaxDim+2] =
+{ POINT, SEGMENT, TRIANGLE, TETRAHEDRON, NUM_GEOMETRIES };
+const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 8, 6 };
+const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 12, 9 };
+const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 6, 5 };
 
 const int Geometry::
 Constants<Geometry::POINT>::Orient[1][1] = {{0}};
@@ -723,7 +818,11 @@ const int Geometry::
 Constants<Geometry::TETRAHEDRON>::VertToVert::I[4] = {0, 3, 5, 6};
 const int Geometry::
 Constants<Geometry::TETRAHEDRON>::VertToVert::J[6][2] =
-{{1, 0}, {2, 1}, {3, 2}, {2, 3}, {3, 4}, {3, 5}};
+{
+   {1, 0}, {2, 1}, {3, 2}, // 0,1:0   0,2:1   0,3:2
+   {2, 3}, {3, 4},         // 1,2:3   1,3:4
+   {3, 5}                  // 2,3:5
+};
 
 const int Geometry::
 Constants<Geometry::CUBE>::Edges[12][2] =
@@ -757,7 +856,29 @@ Constants<Geometry::CUBE>::VertToVert::J[12][2] =
    {7,-7}                  // 6,7:-7
 };
 
-Geometry Geometries;
+const int Geometry::
+Constants<Geometry::PRISM>::Edges[9][2] =
+{{0, 1}, {1, 2}, {2, 0}, {3, 4}, {4, 5}, {5, 3}, {0, 3}, {1, 4}, {2, 5}};
+const int Geometry::
+Constants<Geometry::PRISM>::FaceTypes[5] =
+{
+   Geometry::TRIANGLE, Geometry::TRIANGLE,
+   Geometry::SQUARE, Geometry::SQUARE, Geometry::SQUARE
+};
+const int Geometry::
+Constants<Geometry::PRISM>::FaceVert[5][4] =
+{{0, 2, 1, -1}, {3, 4, 5, -1}, {0, 1, 4, 3}, {1, 2, 5, 4}, {2, 0, 3, 5}};
+const int Geometry::
+Constants<Geometry::PRISM>::VertToVert::I[6] = {0, 3, 5, 6, 8, 9};
+const int Geometry::
+Constants<Geometry::PRISM>::VertToVert::J[9][2] =
+{
+   {1, 0}, {2, -3}, {3, 6}, // 0,1:0   0,2:-3  0,3:6
+   {2, 1}, {4, 7},          // 1,2:1   1,4:7
+   {5, 8},                  // 2,5:8
+   {4, 3}, {5, -6},         // 3,4:3   3,5:-6
+   {5, 4}                   // 4,5:4
+};
 
 
 GeometryRefiner::GeometryRefiner()
@@ -774,7 +895,8 @@ GeometryRefiner::~GeometryRefiner()
    }
 }
 
-RefinedGeometry *GeometryRefiner::FindInRGeom(int Geom, int Times, int ETimes,
+RefinedGeometry *GeometryRefiner::FindInRGeom(Geometry::Type Geom,
+                                              int Times, int ETimes,
                                               int Type)
 {
    Array<RefinedGeometry *> &RGA = RGeom[Geom];
@@ -789,7 +911,7 @@ RefinedGeometry *GeometryRefiner::FindInRGeom(int Geom, int Times, int ETimes,
    return NULL;
 }
 
-IntegrationRule *GeometryRefiner::FindInIntPts(int Geom, int NPts)
+IntegrationRule *GeometryRefiner::FindInIntPts(Geometry::Type Geom, int NPts)
 {
    Array<IntegrationRule *> &IPA = IntPts[Geom];
    for (int i = 0; i < IPA.Size(); i++)
@@ -800,9 +922,10 @@ IntegrationRule *GeometryRefiner::FindInIntPts(int Geom, int NPts)
    return NULL;
 }
 
-RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
+RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
+                                          int Times, int ETimes)
 {
-   int i, j, k, l;
+   int i, j, k, l, m;
 
    Times = std::max(Times, 1);
    ETimes = std::max(ETimes, 1);
@@ -1024,7 +1147,7 @@ RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
          // enumerate and define the vertices
          Array<int> vi((n+1)*(n+1)*(n+1));
          vi = -1;
-         int m = 0;
+         m = 0;
          for (k = 0; k <= n; k++)
             for (j = 0; j <= k; j++)
                for (i = 0; i <= j; i++)
@@ -1115,13 +1238,83 @@ RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
          return RG;
       }
 
+      case Geometry::PRISM:
+      {
+         const int n = Times;
+         RG = new RefinedGeometry ((n+1)*(n+1)*(n+2)/2, 6*n*n*n, 0);
+         RG->Times = Times;
+         RG->ETimes = ETimes;
+         RG->Type = type;
+         // enumerate and define the vertices
+         m = 0;
+         for (l = k = 0; k <= n; k++)
+            for (j = 0; j <= n; j++)
+               for (i = 0; i <= n-j; i++, l++)
+               {
+                  IntegrationPoint &ip = RG->RefPts.IntPoint(l);
+                  if (type == 0)
+                  {
+                     ip.x = double(i) / n;
+                     ip.y = double(j) / n;
+                     ip.z = double(k) / n;
+                  }
+                  else
+                  {
+                     ip.x = cp[i]/(cp[i] + cp[j] + cp[n-i-j]);
+                     ip.y = cp[j]/(cp[i] + cp[j] + cp[n-i-j]);
+                     ip.z = cp[k];
+                  }
+                  m++;
+               }
+         if (m != (n+1)*(n+1)*(n+2)/2)
+         {
+            mfem_error("GeometryRefiner::Refine() for PRISM #1");
+         }
+         // elements
+         Array<int> &G = RG->RefGeoms;
+         m = 0;
+         for (m = k = 0; k < n; k++)
+            for (l = j = 0; j < n; j++, l++)
+               for (i = 0; i < n-j; i++, l++)
+               {
+                  G[m++] = l + (k+0) * (n+1) * (n+2) / 2;
+                  G[m++] = l + 1 + (k+0) * (n+1) * (n+2) / 2;
+                  G[m++] = l - j + (2 + (k+0) * (n+2)) * (n+1) / 2;
+                  G[m++] = l + (k+1) * (n+1) * (n+2) / 2;
+                  G[m++] = l + 1 + (k+1) * (n+1) * (Times+2) / 2;
+                  G[m++] = l - j + (2 + (k+1) * (n+2)) * (n+1) / 2;
+                  if (i+j+1 < n)
+                  {
+                     G[m++] = l + 1 + (k+0) * (n+1) * (n+2)/2;
+                     G[m++] = l - j + (2 + (k+0) * (n+1)) * (n+2) / 2;
+                     G[m++] = l - j + (2 + (k+0) * (n+2)) * (n+1) / 2;
+                     G[m++] = l + 1 + (k+1) * (n+1) * (n+2) / 2;
+                     G[m++] = l - j + (2 + (k+1) * (n+1)) * (n+2) / 2;
+                     G[m++] = l - j + (2 + (k+1) * (n+2)) * (n+1) / 2;
+                  }
+               }
+         if (m != 6*n*n*n)
+         {
+            mfem_error("GeometryRefiner::Refine() for PRISM #2");
+         }
+         for (i = 0; i < m; i++)
+            if (G[i] < 0)
+            {
+               mfem_error("GeometryRefiner::Refine() for PRISM #3");
+            }
+
+         RGeom[Geometry::PRISM].Append(RG);
+         return RG;
+      }
+
       default:
 
          return NULL;
    }
 }
 
-const IntegrationRule *GeometryRefiner::RefineInterior(int Geom, int Times)
+const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
+                                                       int Times)
 {
    IntegrationRule *ir = NULL;
 

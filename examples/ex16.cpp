@@ -10,6 +10,7 @@
 //               ex16 -s 3 -a 0.5 -k 0.5 -o 4
 //               ex16 -s 14 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               ex16 -m ../data/fichera-q2.mesh
+//               ex16 -m ../data/fichera-mixed.mesh
 //               ex16 -m ../data/escher.mesh
 //               ex16 -m ../data/beam-tet.mesh -tf 10 -dt 0.1
 //               ex16 -m ../data/amr-quad.mesh -o 4 -r 0

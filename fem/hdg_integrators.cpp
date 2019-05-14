@@ -135,7 +135,7 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
 
    elmat1.SetSize(ndof);
    elmat2.SetSize(ndof, ndof_face);
-   elmat3.SetSize(ndof, ndof_face);
+   elmat3.SetSize(ndof_face, ndof);
    elmat4.SetSize(ndof_face);
 
    elmat1 = 0.0;
@@ -225,7 +225,7 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
             if (!onlyB)
             {
                // - < ubar, [(1-zeta) a.n v] >
-               elmat3(i, j) -= w * an * (1.-zeta) * shape(i) * shape_face(j);
+               elmat3(j, i) -= w * an * (1.-zeta) * shape(i) * shape_face(j);
             }
 
             // + < ubar, [zeta a.n v] >
@@ -260,8 +260,6 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
       }
 
    }
-
-   elmat3.Transpose();
 }
 
 //---------------------------------------------------------------------
@@ -428,7 +426,7 @@ void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(
 
       shape *= c;
       // compute the (u, \div v) term
-      AddMultVWt (shape, divshape, elmat2);
+      AddMultVWt (shape, divshape, elmat3);
 
       // assemble -(q, v) from the partial matrices
       partelmat *= norm*(-1.0);
@@ -439,8 +437,7 @@ void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(
 
    }
 
-   elmat3 = elmat2;
-   elmat2.Transpose();
+   elmat2.Transpose(elmat3);
 
    int block_size1 = dim*ndof_q;
    int block_size2 = ndof_u;
@@ -655,11 +652,8 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
       }
    }
 
-   local4 = local1;
-   local5 = local3;
-
-   local4.Transpose();
-   local5.Transpose();
+   local4.Transpose(local1);
+   local5.Transpose(local3);
 
    for (int i = 0; i<sub_block_size2; i++)
    {

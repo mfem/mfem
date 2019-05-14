@@ -225,9 +225,9 @@ int main(int argc, char *argv[])
 
    if (mpi.Root())
    {
-      printf("\n");
-      printf("Skin depth sqrt(2.0/(wj*mj*sj)) = %g\n",sqrt(2.0/(wj_*mj_*sj_)));
-      printf("Skin depth sqrt(2.0*dt/(mj*sj)) = %g\n",sqrt(2.0*dt/(mj_*sj_)));
+      cout << "\nSkin depth sqrt(2.0/(wj*mj*sj)) = " << sqrt(2.0/(wj_*mj_*sj_))
+           << "\nSkin depth sqrt(2.0*dt/(mj*sj)) = " << sqrt(2.0*dt/(mj_*sj_))
+           << endl;
    }
 
    // 3. Here material properties are assigned to mesh attributes.  This code is
@@ -392,6 +392,8 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
+   // Make sure tet-only meshes are marked for local refinement.
+   pmesh->Finalize(true);
 
    // 9. Apply non-uniform non-conforming mesh refinement to the mesh.  The
    //    whole metal region is refined once, before the start of the time loop,
