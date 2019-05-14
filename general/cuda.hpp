@@ -20,6 +20,10 @@
 #include <cuda.h>
 #endif
 
+// Maximum size of dof/quad in 1D
+const int MAX_D1D = 10;
+const int MAX_Q1D = 10;
+
 // CUDA block size used by MFEM.
 #define MFEM_CUDA_BLOCKS 256
 

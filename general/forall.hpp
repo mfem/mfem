@@ -35,12 +35,18 @@ namespace mfem
 
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                                     \
-   ForallWrap<false>(N,                                          \
+   ForallWrap<false,false>(N,                                    \
                      [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__}, \
                      [&]                  (int i) {__VA_ARGS__})
 
-#define MFEM_FORALL_XYZ(i,N,X,Y,Z,...)                           \
-   ForallWrap<true>(N,                                           \
+#define MFEM_FORALL_2D(i,N,X,Y,NZ,...)                           \
+   ForallWrap<true,true>(N,                                      \
+                    [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},  \
+                    [&]                  (int i) {__VA_ARGS__},  \
+                         X,Y,NZ)
+
+#define MFEM_FORALL_3D(i,N,X,Y,Z,...)                            \
+   ForallWrap<true,false>(N,                                     \
                     [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},  \
                     [&]                  (int i) {__VA_ARGS__},  \
                     X,Y,Z)
@@ -101,55 +107,79 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 #ifdef MFEM_USE_CUDA
 
 template <typename BODY> __global__ static
-void CuKernel(const int N, BODY body)
+void CuKernel1D(const int N, BODY body)
 {
    const int k = blockDim.x*blockIdx.x + threadIdx.x;
    if (k >= N) { return; }
    body(k);
 }
 
-template <const int BLOCKS = 256, typename DBODY>
-void CuWrap(const int N, DBODY &&d_body)
-{
-   if (N==0) { return; }
-   const int GRID = (N+BLOCKS-1)/BLOCKS;
-   CuKernel<<<GRID,BLOCKS>>>(N,d_body);
-   MFEM_CUDA_CHECK(cudaGetLastError());
-}
-
 template <typename BODY> __global__ static
-void CuKernelXYZ(const int N, BODY body, const int BLOCKZ)
+void CuKernel2D(const int N, BODY body, const int BZ)
 {
-   const int k = blockIdx.x*BLOCKZ + threadIdx.z;
+   const int k = blockIdx.x*BZ + threadIdx.z;
    if (k >= N) { return; }
    body(k);
 }
 
-template <typename DBODY>
-void CuWrapXYZ(const int N, DBODY &&d_body,
-               const int X, const int Y, const int Z)
+template <typename BODY> __global__ static
+void CuKernel3D(const int N, BODY body)
+{
+   const int k = blockIdx.x;
+   if (k >= N) { return; }
+   body(k);
+}
+
+template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+void CuWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
-   const int GRID = (N+Z-1)/Z;
+   const int GRID = (N+BLCK-1)/BLCK;
+   CuKernel1D<<<GRID,BLCK>>>(N, d_body);
+   MFEM_CUDA_CHECK(cudaGetLastError());
+}
+
+
+template <typename DBODY>
+void CuWrap2D(const int N, DBODY &&d_body,
+              const int X, const int Y, const int BZ)
+{
+   if (N==0) { return; }
+   const int GRID = (N+BZ-1)/BZ;
+   const dim3 BLCK(X,Y,BZ);
+   CuKernel2D<<<GRID,BLCK>>>(N,d_body,BZ);
+   MFEM_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename DBODY>
+void CuWrap3D(const int N, DBODY &&d_body,
+              const int X, const int Y, const int Z)
+{
+   if (N==0) { return; }
+   const int GRID = N;
    const dim3 BLCK(X,Y,Z);
-   CuKernelXYZ<<<GRID,BLCK>>>(N,d_body,Z);
+   CuKernel3D<<<GRID,BLCK>>>(N,d_body);
    MFEM_CUDA_CHECK(cudaGetLastError());
 }
 
 #else  // MFEM_USE_CUDA
 
-template <const int BLOCKS = 256, typename DBODY>
-void CuWrap(const int N, DBODY &&d_body) {}
+template <typename DBODY>
+void CuWrap1D(const int N, DBODY &&d_body) {}
 
 template <typename DBODY>
-void CuWrapXYZ(const int N, DBODY &&d_body,
-               const int X, const int Y, const int Z) {}
+void CuWrap2D(const int N, DBODY &&d_body,
+              const int X, const int Y, const int BZ) {}
+
+template <typename DBODY>
+void CuWrap3D(const int N, DBODY &&d_body,
+              const int X, const int Y, const int Z) {}
 
 #endif
 
 
 /// The forall kernel body wrapper
-template <const bool XYZ, typename DBODY, typename HBODY>
+template <const bool XYZ, const bool NZ, typename DBODY, typename HBODY>
 void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body,
                 const int X=0, const int Y=0, const int Z=0)
 {
@@ -157,10 +187,13 @@ void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body,
    { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
 
    if (!XYZ && Device::Allows(Backend::CUDA))
-   { return CuWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+   { return CuWrap1D(N, d_body); }
 
-   if (XYZ && Device::Allows(Backend::CUDA))
-   { return CuWrapXYZ(N, d_body, X, Y, Z); }
+   if (XYZ && NZ &&Device::Allows(Backend::CUDA))
+   { return CuWrap2D(N, d_body, X, Y, Z); }
+
+   if (XYZ && !NZ &&Device::Allows(Backend::CUDA))
+   { return CuWrap3D(N, d_body, X, Y, Z); }
 
    if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
 
