@@ -11,8 +11,6 @@
 
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
-#include "bilininteg_ext_diffusion.hpp"
-#include "bilininteg_ext_mass.hpp"
 #include "gridfunc.hpp"
 
 #include <map>
@@ -358,6 +356,389 @@ static void OccaPADiffusionApply3D(const int D1D,
 }
 #endif // MFEM_USE_OCCA
 
+// Shared memory PA Diffusion Apply 2D kernel
+template<int T_D1D = 0, int T_Q1D = 0, const int T_NBZ = 0> static
+void PADiffusionApply2D(const int NE,
+                        const double* _b,
+                        const double* _g,
+                        const double* _bt,
+                        const double* _gt,
+                        const double* _op,
+                        const double* _x,
+                        double* _y,
+                        const int d1d = 0,
+                        const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int NBZ = T_NBZ ? T_NBZ : 1;
+   const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   const int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(MQ1 == MD1, "");
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
+   const DeviceMatrix b(_b, Q1D, D1D);
+   const DeviceMatrix g(_g, Q1D, D1D);
+   const DeviceMatrix bt(_bt, D1D, Q1D);
+   const DeviceMatrix gt(_gt, D1D, Q1D);
+   const DeviceTensor<3> op(_op, 3, Q1D*Q1D, NE);
+   const DeviceTensor<3> x(_x, D1D, D1D, NE);
+   DeviceTensor<3> y(_y, D1D, D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int NBZ = T_NBZ ? T_NBZ : 1;
+      const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      const int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      MFEM_SHARED double B[MQ1][MD1];
+      MFEM_SHARED double G[MQ1][MD1];
+      MFEM_SHARED double Bt[MD1][MQ1];
+      MFEM_SHARED double Gt[MD1][MQ1];
+      MFEM_SHARED double Xz[NBZ][MD1][MD1];
+      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
+      MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
+      double (*X)[MD1] = (double (*)[MD1])(Xz + threadIdx(z));
+      double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + threadIdx(z));
+      double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + threadIdx(z));
+      double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + threadIdx(z));
+      double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + threadIdx(z));
+      for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+      {
+         for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+         {
+            X[dy][dx] = x(dx,dy,e);
+         }
+      }
+      if (threadIdx(z) == 0)
+      {
+         for (int dx = threadIdx(y); dx < D1D; dx += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               B[qx][dx] = b(qx,dx);
+               G[qx][dx] = g(qx,dx);
+               Bt[dx][qx] = bt(dx,qx);
+               Gt[dx][qx] = gt(dx,qx);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+      {
+         for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+         {
+            double u = 0.0;
+            double v = 0.0;
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double coords = X[dy][dx];
+               u += B[qx][dx] * coords;
+               v += G[qx][dx] * coords;
+            }
+            DQ0[dy][qx] = u;
+            DQ1[dy][qx] = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+      {
+         for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+         {
+            double u = 0.0;
+            double v = 0.0;
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               u += DQ1[dy][qx] * B[qy][dy];
+               v += DQ0[dy][qx] * G[qy][dy];
+            }
+            QQ0[qy][qx] = u;
+            QQ1[qy][qx] = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+      {
+         for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+         {
+            const int q = (qx + ((qy) * Q1D));
+            const double O11 = op(0,q,e);
+            const double O12 = op(1,q,e);
+            const double O22 = op(2,q,e);
+            const double gX = QQ0[qy][qx];
+            const double gY = QQ1[qy][qx];
+            QQ0[qy][qx] = (O11 * gX) + (O12 * gY);
+            QQ1[qy][qx] = (O12 * gX) + (O22 * gY);
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+      {
+         for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+         {
+            double u = 0.0;
+            double v = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               u += Gt[dx][qx] * QQ0[qy][qx];
+               v += Bt[dx][qx] * QQ1[qy][qx];
+            }
+            DQ0[qy][dx] = u;
+            DQ1[qy][dx] = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+      {
+         for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+         {
+            double u = 0.0;
+            double v = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               u += DQ0[qy][dx] * Bt[dy][qy];
+               v += DQ1[qy][dx] * Gt[dy][qy];
+            }
+            y(dx,dy,e) += (u + v);
+         }
+      }
+   });
+}
+
+// Shared memory PA Diffusion Apply 3D kernel
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PADiffusionApply3D(const int NE,
+                        const double* _b,
+                        const double* _g,
+                        const double* _bt,
+                        const double* _gt,
+                        const double* _op,
+                        const double* _x,
+                        double* _y,
+                        const int d1d = 0,
+                        const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   const int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
+   const DeviceMatrix b(_b, Q1D, D1D);
+   const DeviceMatrix g(_g, Q1D, D1D);
+   const DeviceMatrix bt(_bt, D1D, Q1D);
+   const DeviceMatrix gt(_gt, D1D, Q1D);
+   const DeviceTensor<3> op(_op, 6, Q1D*Q1D*Q1D, NE);
+   const DeviceTensor<4> x(_x, D1D, D1D, D1D, NE);
+   DeviceTensor<4> y(_y, D1D, D1D, D1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      const int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      MFEM_SHARED double B[MQ1][MD1];
+      MFEM_SHARED double G[MQ1][MD1];
+      MFEM_SHARED double Bt[MD1][MQ1];
+      MFEM_SHARED double Gt[MD1][MQ1];
+      MFEM_SHARED double DDD[MD1][MD1][MD1];
+      MFEM_SHARED double DDQ[2][MD1][MD1][MQ1];
+      MFEM_SHARED double DQQ[3][MD1][MQ1][MQ1];
+      MFEM_SHARED double QQQ[3][MQ1][MQ1][MQ1];
+      MFEM_SHARED double QQD[3][MQ1][MQ1][MD1];
+      MFEM_SHARED double QDD[3][MQ1][MD1][MD1];
+      double (*X)[MD1][MD1] = DDD;
+      double (*DDQ0)[MD1][MQ1] = DDQ[0];
+      double (*DDQ1)[MD1][MQ1] = DDQ[1];
+      double (*DQQ0)[MQ1][MQ1] = DQQ[0];
+      double (*DQQ1)[MQ1][MQ1] = DQQ[1];
+      double (*DQQ2)[MQ1][MQ1] = DQQ[2];
+      double (*QQQ0)[MQ1][MQ1] = QQQ[0];
+      double (*QQQ1)[MQ1][MQ1] = QQQ[1];
+      double (*QQQ2)[MQ1][MQ1] = QQQ[2];
+      double (*QQD0)[MQ1][MD1] = QQD[0];
+      double (*QQD1)[MQ1][MD1] = QQD[1];
+      double (*QQD2)[MQ1][MD1] = QQD[2];
+      double (*QDD0)[MD1][MD1] = QDD[0];
+      double (*QDD1)[MD1][MD1] = QDD[1];
+      double (*QDD2)[MD1][MD1] = QDD[2];
+      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      {
+         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         {
+            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            {
+               X[dz][dy][dx] = x(dx,dy,dz,e);
+            }
+         }
+      }
+      if (threadIdx(z) == 0)
+      {
+         for (int dx = threadIdx(y); dx < D1D; dx += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               B[qx][dx] = b(qx,dx);
+               G[qx][dx] = g(qx,dx);
+               Bt[dx][qx] = bt(dx,qx);
+               Gt[dx][qx] = gt(dx,qx);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      {
+         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               double u = 0.0;
+               double v = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double coords = X[dz][dy][dx];
+                  u += coords * B[qx][dx];
+                  v += coords * G[qx][dx];
+               }
+               DDQ0[dz][dy][qx] = u;
+               DDQ1[dz][dy][qx] = v;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      {
+         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               double u = 0.0;
+               double v = 0.0;
+               double w = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  u += DDQ1[dz][dy][qx] * B[qy][dy];
+                  v += DDQ0[dz][dy][qx] * G[qy][dy];
+                  w += DDQ0[dz][dy][qx] * B[qy][dy];
+               }
+               DQQ0[dz][qy][qx] = u;
+               DQQ1[dz][qy][qx] = v;
+               DQQ2[dz][qy][qx] = w;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      {
+         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               double u = 0.0;
+               double v = 0.0;
+               double w = 0.0;
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  u += DQQ0[dz][qy][qx] * B[qz][dz];
+                  v += DQQ1[dz][qy][qx] * B[qz][dz];
+                  w += DQQ2[dz][qy][qx] * G[qz][dz];
+               }
+               QQQ0[qz][qy][qx] = u;
+               QQQ1[qz][qy][qx] = v;
+               QQQ2[qz][qy][qx] = w;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      {
+         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               const int q = qx + ((qy*Q1D) + (qz*Q1D*Q1D));
+               const double O11 = op(0,q,e);
+               const double O12 = op(1,q,e);
+               const double O13 = op(2,q,e);
+               const double O22 = op(3,q,e);
+               const double O23 = op(4,q,e);
+               const double O33 = op(5,q,e);
+               const double gX = QQQ0[qz][qy][qx];
+               const double gY = QQQ1[qz][qy][qx];
+               const double gZ = QQQ2[qz][qy][qx];
+               QQQ0[qz][qy][qx] = (O11*gX) + (O12*gY) + (O13*gZ);
+               QQQ1[qz][qy][qx] = (O12*gX) + (O22*gY) + (O23*gZ);
+               QQQ2[qz][qy][qx] = (O13*gX) + (O23*gY) + (O33*gZ);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      {
+         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         {
+            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            {
+               double u = 0.0;
+               double v = 0.0;
+               double w = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  u += QQQ0[qz][qy][qx] * Gt[dx][qx];
+                  v += QQQ1[qz][qy][qx] * Bt[dx][qx];
+                  w += QQQ2[qz][qy][qx] * Bt[dx][qx];
+               }
+               QQD0[qz][qy][dx] = u;
+               QQD1[qz][qy][dx] = v;
+               QQD2[qz][qy][dx] = w;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      {
+         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         {
+            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            {
+               double u = 0.0;
+               double v = 0.0;
+               double w = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  u += QQD0[qz][qy][dx] * Bt[dy][qy];
+                  v += QQD1[qz][qy][dx] * Gt[dy][qy];
+                  w += QQD2[qz][qy][dx] * Bt[dy][qy];
+               }
+               QDD0[qz][dy][dx] = u;
+               QDD1[qz][dy][dx] = v;
+               QDD2[qz][dy][dx] = w;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      {
+         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         {
+            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            {
+               double u = 0.0;
+               double v = 0.0;
+               double w = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  u += QDD0[qz][dy][dx] * Bt[dz][qz];
+                  v += QDD1[qz][dy][dx] * Bt[dz][qz];
+                  w += QDD2[qz][dy][dx] * Gt[dz][qz];
+               }
+               y(dx,dy,dz,e) += (u + v + w);
+            }
+         }
+      }
+   });
+}
+
 static void PADiffusionApply(const int dim,
                              const int D1D,
                              const int Q1D,
@@ -386,8 +767,36 @@ static void PADiffusionApply(const int dim,
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-   // Shared version of the diffusion kernels
-   if (SmemPADiffusionApply(dim, D1D, Q1D, NE, B, G, Bt, Gt, op, x, y)) { return; }
+   if (dim == 2)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x22: return PADiffusionApply2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x33: return PADiffusionApply2D<3,3,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x44: return PADiffusionApply2D<4,4,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x55: return PADiffusionApply2D<5,5,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x66: return PADiffusionApply2D<6,6,2>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x77: return PADiffusionApply2D<7,7,2>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x88: return PADiffusionApply2D<8,8,1>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x99: return PADiffusionApply2D<9,9,1>(NE,B,G,Bt,Gt,op,x,y);
+         default:   return PADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+      }
+   }
+   if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x23: return PADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x33: return PADiffusionApply3D<3,3>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x44: return PADiffusionApply3D<4,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x55: return PADiffusionApply3D<5,5>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x66: return PADiffusionApply3D<6,6>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x77: return PADiffusionApply3D<7,7>(NE,B,G,Bt,Gt,op,x,y);
+            //case 0x88: return PADiffusionApply3D<8,8>(NE,B,G,Bt,Gt,op,x,y);
+#warning kernels use too much shared data
+            //default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+      }
+   }
    MFEM_ABORT("Unknown kernel.");
 }
 
@@ -599,6 +1008,300 @@ static void OccaPAMassApply3D(const int D1D,
 }
 #endif // MFEM_USE_OCCA
 
+template<const int T_D1D = 0, const int T_Q1D = 0, const int T_NBZ = 0> static
+void PAMassApply2D(const int NE,
+                   const double* _b,
+                   const double* _bt,
+                   const double* _op,
+                   const double* _x,
+                   double* _y,
+                   const int d1d = 0,
+                   const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int NBZ = T_NBZ ? T_NBZ : 1;
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   const DeviceMatrix B(_b, Q1D, D1D);
+   const DeviceMatrix Bt(_bt, D1D, Q1D);
+   const DeviceTensor<3> op(_op, Q1D, Q1D, NE);
+   const DeviceTensor<3> x(_x, D1D, D1D, NE);
+   DeviceTensor<3> y(_y, D1D, D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int NBZ = T_NBZ ? T_NBZ : 1;
+      const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      MFEM_SHARED double buf1[NBZ][MQ1][MQ1];
+      MFEM_SHARED double buf2[NBZ][MQ1][MQ1];
+      MFEM_SHARED double matrix[MQ1][MQ1];
+      double (*sol_x)[MQ1] = (double (*)[MQ1])(buf2 + threadIdx(z));
+      double (*sol_xy)[MQ1] = (double (*)[MQ1])(buf1 + threadIdx(z));
+      double (*input)[MQ1] = (double (*)[MQ1])(buf1 + threadIdx(z));
+      for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+      {
+         for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+         {
+            input[dy][dx] = x(dx,dy,e);
+         }
+      }
+      if (threadIdx(z) == 0)
+      {
+         for (int dx = threadIdx(y); dx < D1D; dx += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               matrix[dx][qx] = B(qx,dx);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+      {
+         for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+         {
+            double t = 0;
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               t += matrix[dx][qx]*input[dy][dx];
+            }
+            sol_x[dy][qx] = t;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+      {
+         for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+         {
+            double t = 0;
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               t += matrix[dy][qy]*sol_x[dy][qx];
+            }
+            sol_xy[qy][qx] = t;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+      {
+         for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+         {
+            sol_xy[qy][qx] *= op(qx,qy,e);
+         }
+      }
+      if (threadIdx(z) == 0)
+      {
+         for (int qx = threadIdx(y); qx < Q1D; qx += blockDim(y))
+         {
+            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            {
+               matrix[qx][dx] = Bt(dx,qx);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+      {
+         for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+         {
+            double t = 0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               t += matrix[qx][dx] * sol_xy[qy][qx];
+            }
+            sol_x[qy][dx] = t;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+      {
+         for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+         {
+            double t = 0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               t += matrix[qy][dy] * sol_x[qy][dx];
+            }
+            y(dx,dy,e) = t;
+         }
+      }
+   });
+}
+
+template<const int T_D1D = 0, const int T_Q1D =0> static
+void PAMassApply3D(const int NE,
+                   const double* _b,
+                   const double* _bt,
+                   const double* _op,
+                   const double* _x,
+                   double *_y,
+                   const int d1d = 0,
+                   const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   const DeviceMatrix B(_b, Q1D, D1D);
+   const DeviceMatrix Bt(_bt, D1D, Q1D);
+   const DeviceTensor<4> op(_op, Q1D, Q1D, Q1D, NE);
+   const DeviceTensor<4> X(_x, D1D, D1D, D1D, NE);
+   DeviceTensor<4> Y(_y, D1D, D1D, D1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      MFEM_SHARED double buf1[MQ1][MQ1][MQ1];
+      MFEM_SHARED double buf2[MQ1][MQ1][MQ1];
+      MFEM_SHARED double matrix[MQ1][MQ1];
+      double (*sol_xyz)[MQ1][MQ1] = buf1;
+      double (*sol_xy)[MQ1][MQ1] = buf2;
+      double (*sol_x)[MQ1][MQ1] = buf1;
+      double (*input)[MQ1][MQ1] = buf2;
+      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      {
+         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         {
+            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            {
+               input[dz][dy][dx] = X(dx,dy,dz,e);
+            }
+         }
+      }
+      if (threadIdx(z) == 0)
+      {
+         for (int dx = threadIdx(y); dx < D1D; dx += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               matrix[dx][qx] = B(qx,dx);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      {
+         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               double t = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  t += matrix[dx][qx] * input[dz][dy][dx];
+               }
+               sol_x[dz][dy][qx] = t;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      {
+         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               double t = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  t += matrix[dy][qy] * sol_x[dz][dy][qx];
+               }
+               sol_xy[dz][qy][qx] = t;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      {
+         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               double t = 0.0;
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  t += matrix[dz][qz] * sol_xy[dz][qy][qx];
+               }
+               sol_xyz[qz][qy][qx] = t;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      {
+         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               sol_xyz[qz][qy][qx] *= op(qx,qy,qz,e);
+            }
+         }
+      }
+      if (threadIdx(z) == 0)
+      {
+         for (int qx = threadIdx(y); qx < Q1D; qx += blockDim(y))
+         {
+            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            {
+               matrix[qx][dx] = Bt(dx,qx);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      sol_x = buf2;
+      sol_xy = buf1;
+      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      {
+         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         {
+            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            {
+               double t = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  t += matrix[qx][dx] * sol_xyz[qz][qy][qx];
+               }
+               sol_x[qz][qy][dx] = t;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      {
+         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         {
+            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            {
+               double t = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  t += matrix[qy][dy] * sol_x[qz][qy][dx];
+               }
+               sol_xy[qz][dy][dx] = t;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      {
+         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         {
+            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            {
+               double t = Y(dx,dy,dz,e);
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  t += matrix[qz][dz] * sol_xy[qz][dy][dx];
+               }
+               Y(dx,dy,dz,e) = t;
+            }
+         }
+      }
+   });
+}
+
 static void PAMassApply(const int dim,
                         const int D1D,
                         const int Q1D,
@@ -625,8 +1328,35 @@ static void PAMassApply(const int dim,
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-   // Shared version of the mass kernels
-   if (SmemPAMassApply(dim, D1D, Q1D, NE, B, Bt, op, x, y)) { return; }
+   if (dim == 2)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x22: return PAMassApply2D<2,2,8>(NE, B, Bt, op, x, y);
+         case 0x33: return PAMassApply2D<3,3,8>(NE, B, Bt, op, x, y);
+         case 0x44: return PAMassApply2D<4,4,2>(NE, B, Bt, op, x, y);
+         case 0x55: return PAMassApply2D<5,5,2>(NE, B, Bt, op, x, y);
+         case 0x66: return PAMassApply2D<6,6,2>(NE, B, Bt, op, x, y);
+         case 0x77: return PAMassApply2D<7,7,2>(NE, B, Bt, op, x, y);
+         case 0x88: return PAMassApply2D<8,8,1>(NE, B, Bt, op, x, y);
+         case 0x99: return PAMassApply2D<9,9,1>(NE, B, Bt, op, x, y);
+         default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
+      }
+   }
+   if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x23: return PAMassApply3D<2,3>(NE, B, Bt, op, x, y);
+         case 0x34: return PAMassApply3D<3,4>(NE, B, Bt, op, x, y);
+         case 0x45: return PAMassApply3D<4,5>(NE, B, Bt, op, x, y);
+         case 0x56: return PAMassApply3D<5,6>(NE, B, Bt, op, x, y);
+         case 0x67: return PAMassApply3D<6,7>(NE, B, Bt, op, x, y);
+         case 0x78: return PAMassApply3D<7,8>(NE, B, Bt, op, x, y);
+         case 0x89: return PAMassApply3D<8,9>(NE, B, Bt, op, x, y);
+         default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
+      }
+   }
    MFEM_ABORT("Unknown kernel.");
 }
 

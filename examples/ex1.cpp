@@ -105,7 +105,6 @@ int main(int argc, char *argv[])
       {
          mesh->UniformRefinement();
       }
-    
    }
 
    // 4. Define a finite element space on the mesh. Here we use continuous
@@ -167,8 +166,6 @@ int main(int argc, char *argv[])
    BilinearForm *a = new BilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-//#warning MassIntegrator
-//   a->AddDomainIntegrator(new MassIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary

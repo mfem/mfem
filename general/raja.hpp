@@ -22,12 +22,12 @@ namespace cuda
 
 __device__ __forceinline__ unsigned int getGlobalIdx_2D()
 {
-  return blockIdx.x * blockDim.z + threadIdx.z;
+   return blockIdx.x * blockDim.z + threadIdx.z;
 }
 
 __device__ __forceinline__ unsigned int getGlobalIdx_3D()
 {
-  return blockIdx.x;
+   return blockIdx.x;
 }
 
 template <bool batched,
@@ -38,33 +38,36 @@ void forall_cuda_kernel_ND(LOOP_BODY loop_body,
                            const Iterator idx,
                            IndexType length)
 {
-  using RAJA::internal::thread_privatize;
-  auto privatizer = thread_privatize(loop_body);
-  auto& body = privatizer.get_priv();
-  auto ii = static_cast<IndexType>(batched?getGlobalIdx_2D():getGlobalIdx_3D());
-  if (ii >= length) { return; }
-  body(idx[ii]);
+   using RAJA::internal::thread_privatize;
+   auto privatizer = thread_privatize(loop_body);
+   auto& body = privatizer.get_priv();
+   auto ii = static_cast<IndexType>(batched?getGlobalIdx_2D():getGlobalIdx_3D());
+   if (ii >= length) { return; }
+   body(idx[ii]);
 }
 
 template <bool batched, typename Iterable, typename LoopBody >
-RAJA_INLINE void forallND(const dim3 gridSize,
-                          const dim3 blockSize,
+RAJA_INLINE void forallND(const dim3 gridSz,
+                          const dim3 blockSz,
                           Iterable&& iter,
                           LoopBody&& loop_body)
 {
-  using LOOP_BODY = camp::decay<LoopBody>;
-  using Iterator  = camp::decay<decltype(std::begin(iter))>;
-  using IndexType = camp::decay<decltype(std::distance(std::begin(iter), std::end(iter)))>;
-  const auto func = forall_cuda_kernel_ND<batched, Iterator, LOOP_BODY, IndexType>;
-  const Iterator begin = std::begin(iter);
-  const Iterator end = std::end(iter);
-  const IndexType length = std::distance(begin, end);
-  if (length == 0) return;
-  const size_t shmem = 0;
-  const cudaStream_t stream = 0;
-  void *args[] = {(void*)&std::forward<LoopBody>(loop_body), (void*)&begin, (void*)&length};
-  cudaErrchk(cudaLaunchKernel((const void*)func, gridSize, blockSize, args, shmem, stream));
-  RAJA::cuda::launch(stream);
+   using LOOP_BODY = camp::decay<LoopBody>;
+   using Iterator  = camp::decay<decltype(std::begin(iter))>;
+   using IndexType =
+      camp::decay<decltype(std::distance(std::begin(iter), std::end(iter)))>;
+   const auto func =
+      forall_cuda_kernel_ND<batched, Iterator, LOOP_BODY, IndexType>;
+   const Iterator begin = std::begin(iter);
+   const Iterator end = std::end(iter);
+   const IndexType length = std::distance(begin, end);
+   if (length == 0) { return; }
+   const size_t shmem = 0;
+   const cudaStream_t stream = 0;
+   void *args[] = {(void*)&std::forward<LoopBody>(loop_body), (void*)&begin, (void*)&length};
+   cudaErrchk(cudaLaunchKernel((const void*)func, gridSz, blockSz, args, shmem,
+                               stream));
+   RAJA::cuda::launch(stream);
 }
 
 }  // namespace cuda
