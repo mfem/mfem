@@ -88,6 +88,16 @@ public:
         vdim_(vdim), ordering_(ordering),
         doftrans_(&doftrans) {}
 
+   inline void SetVDim(int vdim)
+   {
+      vdim_ = vdim;
+      if (doftrans_)
+      {
+         height_ = vdim_ * doftrans_->Height();
+         width_  = vdim_ * doftrans_->Width();
+      }
+   }
+
    inline void SetDofTransformation(DofTransformation & doftrans)
    {
       height_ = vdim_ * doftrans.Height();
