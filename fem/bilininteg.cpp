@@ -19,6 +19,23 @@ using namespace std;
 
 namespace mfem
 {
+void BilinearFormIntegrator::Assemble(const FiniteElementSpace&)
+{
+   mfem_error ("BilinearFormIntegrator::Assemble (...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::MultAssembled(Vector&, Vector&)
+{
+   mfem_error ("BilinearFormIntegrator::MultAssembled (...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::MultAssembledTranspose(Vector&, Vector&)
+{
+   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose (...)\n"
+               "   is not implemented for this class.");
+}
 
 void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,
