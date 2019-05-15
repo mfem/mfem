@@ -1297,7 +1297,7 @@ void PAMassApply3D(const int NE,
          {
             for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
             {
-               double t = Y(dx,dy,dz,e);
+               double t = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   t += matrix[qz][dz] * sol_xy[qz][dy][dx];
