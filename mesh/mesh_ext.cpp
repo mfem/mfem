@@ -287,7 +287,7 @@ GeometryExtension* GeometryExtension::Get(Mesh* mesh,
                                           const Vector& Sx,
                                           GeometryExtension*& geom)
 {
-   if (!geom) geom = new GeometryExtension;
+   if (!geom) { geom = new GeometryExtension; }
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
@@ -310,7 +310,8 @@ GeometryExtension* GeometryExtension::Get(Mesh* mesh,
                                           const IntegrationRule& ir,
                                           GeometryExtension*& geom)
 {
-   const bool geom_to_allocate = geom ? ( geom->GetSequence() < mesh->GetSequence() ) : true;
+   const bool geom_to_allocate = geom ? ( geom->GetSequence() <
+                                          mesh->GetSequence() ) : true;
    if (geom)
    {
       geom->GetSequence() = mesh->GetSequence();
