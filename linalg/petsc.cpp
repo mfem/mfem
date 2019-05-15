@@ -3726,18 +3726,23 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    // Avoid unneeded copy of the matrix by hacking
    Mat B;
    B = pA->ReleaseMat(false);
-   ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
+   ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+   if (A && A != P)
+   {
+      ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
 
    // Jacobian reusage
-   ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_ijacstate);
+   ierr = PetscObjectStateGet((PetscObject)P,&ts_ctx->cached_ijacstate);
    CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
 static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
-                                              Mat Jx,Mat precJx,
-                                              Mat Jxp,Mat precJxp)
+                                              Mat Ax,Mat Jx,
+                                              Mat Axp,Mat Jxp)
 {
    __mfem_ts_ctx*   ts_ctx;
    mfem::Vector     *xx;
@@ -3885,6 +3890,17 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
       ierr = MatAXPY(*pJxp,-1.0,*pJx,SAME_NONZERO_PATTERN); PCHKERRQ(ts,ierr);
    }
 
+   if (Ax && Ax != Jx)
+   {
+      ierr = MatAssemblyBegin(Ax,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(Ax,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
+   if (Axp && Axp != Jxp)
+   {
+      ierr = MatAssemblyBegin(Axp,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(Axp,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
+
    // Jacobian reusage
    ierr = PetscObjectStateGet((PetscObject)Jx,&ts_ctx->cached_splits_xstate);
    CHKERRQ(ierr);
@@ -3963,8 +3979,14 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    // Avoid unneeded copy of the matrix by hacking
    Mat B;
    B = pA->ReleaseMat(false);
-   ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
+   ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+
+   if (A && A != P)
+   {
+      ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
 
    // Jacobian reusage
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR)
@@ -4065,8 +4087,13 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
 
    // Avoid unneeded copy of the matrix by hacking
    Mat B = pA->ReleaseMat(false);
-   ierr = MatHeaderReplace(A,&B); CHKERRQ(ierr);
+   ierr = MatHeaderReplace(P,&B); CHKERRQ(ierr);
    if (delete_pA) { delete pA; }
+   if (A && A != P)
+   {
+      ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
+   }
    PetscFunctionReturn(0);
 }
 
