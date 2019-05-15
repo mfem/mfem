@@ -60,6 +60,13 @@ struct CoarseFineTransformations
    Array<Embedding> embeddings;
 
    const DenseTensor &GetPointMatrices(Geometry::Type geom) const;
+
+   void GetCoarseToFineMap(const Mesh &fine_mesh,
+                           Table &coarse_to_fine,
+                           Array<int> &coarse_to_ref_type,
+                           Table &ref_type_to_matrix,
+                           Array<Geometry::Type> &ref_type_to_geom) const;
+
    void Clear() { point_matrices.clear(); embeddings.DeleteAll(); }
    long MemoryUsage() const;
 };
@@ -245,6 +252,24 @@ public:
    void ClearTransforms();
 
 
+   // grid ordering
+
+   /** Return a space filling curve for a rectangular grid of elements.
+       Implemented is a generalized Hilbert curve for arbitrary grid dimensions.
+       If the width is odd, height should be odd too, otherwise one diagonal
+       (vertex-neighbor) step cannot be avoided in the curve. Even dimensions
+       are recommended. */
+   static void GridSfcOrdering2D(int width, int height,
+                                 Array<int> &coords);
+
+   /** Return a space filling curve for a 3D rectangular grid of elements.
+       The Hilbert-curve-like algorithm works well for even dimensions. For odd
+       width/height/depth it tends to produce some diagonal (edge-neighbor)
+       steps. Even dimensions are recommended. */
+   static void GridSfcOrdering3D(int width, int height, int depth,
+                                 Array<int> &coords);
+
+
    // utility
 
    /// Return Mesh vertex indices of an edge identified by 'edge_id'.
@@ -367,7 +392,7 @@ protected: // implementation
       Face() : attribute(-1), index(-1) { elem[0] = elem[1] = -1; }
 
       bool Boundary() const { return attribute >= 0; }
-      bool Unused() const { return elem[0] < 0 && elem[1] < 0;}
+      bool Unused() const { return elem[0] < 0 && elem[1] < 0; }
 
       // add or remove an element from the 'elem[2]' array
       void RegisterElement(int e);
@@ -406,10 +431,12 @@ protected: // implementation
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 
-   // the first 'root_count' entries of 'elements' is the coarse mesh
-   int root_count;
+   /** Initial traversal state (~ element orientation) for each root element
+       NOTE: M = root_state.Size() is the number of root elements.
+       NOTE: the first M items of 'elements' is the coarse mesh. */
+   Array<int> root_state;
 
-   // coordinates of top-level vertices (organized as triples)
+   /// coordinates of top-level vertices (organized as triples)
    Array<double> top_vertex_pos;
 
    typedef HashTable<Node>::iterator node_iterator;
@@ -449,6 +476,12 @@ protected: // implementation
    void UpdateLeafElements();
 
    virtual void AssignLeafIndices();
+
+   /** Try to find a space-filling curve friendly orientation of the root
+       elements: set 'root_state' based on the ordering of coarse elements.
+       Note that the coarse mesh itself must be ordered as an SFC by e.g.
+       Mesh::GetGeckoElementReordering. */
+   void InitRootState(int root_count);
 
    virtual bool IsGhost(const Element &el) const { return false; }
    virtual int GetNumGhostElements() const { return 0; }
@@ -527,6 +560,12 @@ protected: // implementation
    bool NodeSetZ2(int node, int* n);
 
    void CollectDerefinements(int elem, Array<Connection> &list);
+
+   /// Return el.node[index] correctly, even if the element is refined.
+   int RetrieveNode(const Element &el, int index);
+
+   /// Extended version of find_node: works if 'el' is refined; optional abort.
+   int FindNodeExt(const Element &el, int node, bool abort = false);
 
 
    // face/edge lists
@@ -737,6 +776,7 @@ protected: // implementation
 
 #ifdef MFEM_DEBUG
 public:
+   void DebugLeafOrder(std::ostream &out) const;
    void DebugDump(std::ostream &out) const;
 #endif
 
