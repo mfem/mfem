@@ -1009,7 +1009,7 @@ void FiniteElementSpace::RefinementOperator
    Mesh* mesh = fespace->GetMesh();
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
 
-   Array<int> dofs, old_dofs, old_vdofs, old_Fo;
+   Array<int> dofs, vdofs, old_dofs, old_vdofs, old_Fo;
    Vector local_x, local_x_t, local_y, local_y_t;
 
    Array<char> processed(fespace->GetVSize());
@@ -1058,30 +1058,32 @@ void FiniteElementSpace::RefinementOperator
       }
       else
       {
-         // TODO: The following only works for vdim == 1
          old_elem_fos->GetRow(emb.parent, old_Fo);
          old_DoFTrans[geom]->SetFaceOrientations(old_Fo);
          old_VDoFTrans.SetDofTransformation(*old_DoFTrans[geom]);
 
-         x.GetSubVector(old_dofs, local_x_t);
+         old_dofs.Copy(old_vdofs);
+         fespace->DofsToVDofs(old_vdofs, old_ndofs);
+
+         dofs.Copy(vdofs);
+         fespace->DofsToVDofs(vdofs);
+
+         x.GetSubVector(old_vdofs, local_x_t);
          old_VDoFTrans.InvTransformPrimal(local_x_t, local_x);
 
-         local_y.SetSize(dofs.Size());
-         lP.Mult(local_x, local_y);
+         local_y.SetSize(vdofs.Size());
+
+         int size = dofs.Size();
+         int old_size = old_dofs.Size();
+
+         for (int vd = 0; vd < vdim; vd++)
+         {
+            lP.Mult(&local_x[vd * old_size], &local_y[vd * size]);
+         }
 
          doftrans->TransformPrimal(local_y, local_y_t);
 
-         for (int i = 0; i < dofs.Size(); i++)
-         {
-            double rsign;
-            int r = fespace->DofToVDof(dofs[i], 0);
-            r = DecodeDof(r, rsign);
-
-            if (!processed[r])
-            {
-               y[r] = rsign * local_y_t[i];
-            }
-         }
+         y.SetSubVector(vdofs, local_y_t);
       }
    }
 }
