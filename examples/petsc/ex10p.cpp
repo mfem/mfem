@@ -152,7 +152,8 @@ private:
    const ReducedSystemOperator& op;
 
 public:
-   PreconditionerFactory(const ReducedSystemOperator& op_, const string& name_): PetscPreconditionerFactory(name_), op(op_) {};
+   PreconditionerFactory(const ReducedSystemOperator& op_,
+                         const string& name_): PetscPreconditionerFactory(name_), op(op_) {};
    virtual mfem::Solver* NewPreconditioner(const mfem::OperatorHandle&);
    virtual ~PreconditionerFactory() {};
 };
