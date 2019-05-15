@@ -992,6 +992,14 @@ void FiniteElementSpace::RefinementOperator
          old_DoFTrans[Geometry::TETRAHEDRON] =
             new ND_TetDofTransformation(nd_tet->GetOrder());
       }
+
+      const FiniteElement * nd_pri =
+         fec->FiniteElementForGeometry(Geometry::PRISM);
+      if (nd_pri)
+      {
+         old_DoFTrans[Geometry::PRISM] =
+            new ND_WedgeDofTransformation(nd_pri->GetOrder());
+      }
    }
 }
 
