@@ -1976,7 +1976,14 @@ void PetscSolver::SetPreconditionerFactory(PetscPreconditionerFactory *factory)
    {
       MFEM_ABORT("No support for PetscPreconditionerFactory for this object");
    }
-   ierr = MakeShellPCWithFactory(pc,factory); PCHKERRQ(pc,ierr);
+   if (factory)
+   {
+      ierr = MakeShellPCWithFactory(pc,factory); PCHKERRQ(pc,ierr);
+   }
+   else
+   {
+      ierr = PCSetType(pc, PCNONE); PCHKERRQ(pc,ierr);
+   }
 }
 
 void PetscSolver::Customize(bool customize) const
