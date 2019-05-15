@@ -21,8 +21,8 @@
 #endif
 
 // Maximum size of dofs and quads in 1D.
-const int MAX_D1D = 10;
-const int MAX_Q1D = 10;
+const int MAX_D1D = 9;
+const int MAX_Q1D = 9;
 
 // CUDA block size used by MFEM.
 #define MFEM_CUDA_BLOCKS 256

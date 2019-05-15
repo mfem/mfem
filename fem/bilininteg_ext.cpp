@@ -537,31 +537,29 @@ void PADiffusionApply3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       const int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      MFEM_SHARED double B[MQ1][MD1];
-      MFEM_SHARED double G[MQ1][MD1];
-      MFEM_SHARED double Bt[MD1][MQ1];
-      MFEM_SHARED double Gt[MD1][MQ1];
-      MFEM_SHARED double DDD[MD1][MD1][MD1];
-      MFEM_SHARED double DDQ[2][MD1][MD1][MQ1];
-      MFEM_SHARED double DQQ[3][MD1][MQ1][MQ1];
-      MFEM_SHARED double QQQ[3][MQ1][MQ1][MQ1];
-      MFEM_SHARED double QQD[3][MQ1][MQ1][MD1];
-      MFEM_SHARED double QDD[3][MQ1][MD1][MD1];
-      double (*X)[MD1][MD1] = DDD;
-      double (*DDQ0)[MD1][MQ1] = DDQ[0];
-      double (*DDQ1)[MD1][MQ1] = DDQ[1];
-      double (*DQQ0)[MQ1][MQ1] = DQQ[0];
-      double (*DQQ1)[MQ1][MQ1] = DQQ[1];
-      double (*DQQ2)[MQ1][MQ1] = DQQ[2];
-      double (*QQQ0)[MQ1][MQ1] = QQQ[0];
-      double (*QQQ1)[MQ1][MQ1] = QQQ[1];
-      double (*QQQ2)[MQ1][MQ1] = QQQ[2];
-      double (*QQD0)[MQ1][MD1] = QQD[0];
-      double (*QQD1)[MQ1][MD1] = QQD[1];
-      double (*QQD2)[MQ1][MD1] = QQD[2];
-      double (*QDD0)[MD1][MD1] = QDD[0];
-      double (*QDD1)[MD1][MD1] = QDD[1];
-      double (*QDD2)[MD1][MD1] = QDD[2];
+      const int MDQ = MQ1 > MD1 ? MQ1 : MD1;
+      MFEM_SHARED double sBG[2][MQ1*MD1];
+      double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
+      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
+      double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
+      double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
+      MFEM_SHARED double sm0[3][MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[3][MDQ*MDQ*MDQ];
+      double (*X)[MD1][MD1]    = (double (*)[MD1][MD1]) (sm0+2);
+      double (*DDQ0)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+0);
+      double (*DDQ1)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+1);
+      double (*DQQ0)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+0);
+      double (*DQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+1);
+      double (*DQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+2);
+      double (*QQQ0)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+0);
+      double (*QQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+1);
+      double (*QQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+2);
+      double (*QQD0)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+0);
+      double (*QQD1)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+1);
+      double (*QQD2)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+2);
+      double (*QDD0)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+0);
+      double (*QDD1)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+1);
+      double (*QDD2)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+2);
       for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
       {
          for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
@@ -580,8 +578,6 @@ void PADiffusionApply3D(const int NE,
             {
                B[qx][dx] = b(qx,dx);
                G[qx][dx] = g(qx,dx);
-               Bt[dx][qx] = bt(dx,qx);
-               Gt[dx][qx] = gt(dx,qx);
             }
          }
       }
@@ -669,6 +665,18 @@ void PADiffusionApply3D(const int NE,
                QQQ0[qz][qy][qx] = (O11*gX) + (O12*gY) + (O13*gZ);
                QQQ1[qz][qy][qx] = (O12*gX) + (O22*gY) + (O23*gZ);
                QQQ2[qz][qy][qx] = (O13*gX) + (O23*gY) + (O33*gZ);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      if (threadIdx(z) == 0)
+      {
+         for (int dx = threadIdx(y); dx < D1D; dx += blockDim(y))
+         {
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               Bt[dx][qx] = bt(dx,qx);
+               Gt[dx][qx] = gt(dx,qx);
             }
          }
       }
@@ -787,14 +795,13 @@ static void PADiffusionApply(const int dim,
       switch ((D1D << 4 ) | Q1D)
       {
          case 0x23: return PADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x33: return PADiffusionApply3D<3,3>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x44: return PADiffusionApply3D<4,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x55: return PADiffusionApply3D<5,5>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x66: return PADiffusionApply3D<6,6>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x77: return PADiffusionApply3D<7,7>(NE,B,G,Bt,Gt,op,x,y);
-            //case 0x88: return PADiffusionApply3D<8,8>(NE,B,G,Bt,Gt,op,x,y);
-#warning kernels use too much shared data
-            //default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+         case 0x34: return PADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x45: return PADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x56: return PADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x67: return PADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x78: return PADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x89: return PADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
+         default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
