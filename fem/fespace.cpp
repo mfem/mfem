@@ -819,6 +819,8 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    const int coarse_ndofs, const Table &coarse_elem_dof,
    const Table *coarse_elem_fos, const DenseTensor localP[]) const
 {
+   /// TODO: Implement DofTransformation support
+  
    MFEM_VERIFY(mesh->GetLastOperation() == Mesh::REFINE, "");
 
    Array<int> dofs, coarse_dofs, coarse_vdofs;
@@ -1080,6 +1082,7 @@ void FiniteElementSpace::RefinementOperator
    }
 }
 
+/// TODO: Implement DofTransformation support
 FiniteElementSpace::DerefinementOperator::DerefinementOperator(
    const FiniteElementSpace *f_fes, const FiniteElementSpace *c_fes,
    BilinearFormIntegrator *mass_integ)
@@ -1243,6 +1246,8 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
                                                      const Table* old_elem_dof,
                                                      const Table* old_elem_fos)
 {
+   /// TODO: Implement DofTransformation support
+
    MFEM_VERIFY(Nonconforming(), "Not implemented for conforming meshes.");
    MFEM_VERIFY(old_ndofs, "Missing previous (finer) space.");
    MFEM_VERIFY(ndofs <= old_ndofs, "Previous space is not finer.");
