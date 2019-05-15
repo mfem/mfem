@@ -24,10 +24,17 @@
 #include "petscmathypre.h"
 #endif
 
+// Backward compatibility
+#if PETSC_VERSION_LT(3,12,0)
+#define MatComputeOperator(A,B,C) MatComputeExplicitOperator(A,C)
+#define MatComputeOperatorTranspose(A,B,C) MatComputeExplicitOperatorTranspose(A,C)
+#endif
+
 #include <fstream>
 #include <iomanip>
 #include <cmath>
 #include <cstdlib>
+
 // Note: there are additional #include statements below.
 
 // Error handling
@@ -1206,7 +1213,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          Mat B;
          PetscBool isaij;
 
-         ierr = MatComputeExplicitOperator(*A,&B); CCHKERRQ(comm,ierr);
+         ierr = MatComputeOperator(*A,MATMPIAIJ,&B); CCHKERRQ(comm,ierr);
          ierr = PetscObjectTypeCompare((PetscObject)B,MATMPIAIJ,&isaij);
          CCHKERRQ(comm,ierr);
          ierr = MatDestroy(A); CCHKERRQ(comm,ierr);
