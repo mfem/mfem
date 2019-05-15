@@ -690,7 +690,7 @@ public:
 
    /// Return the total (global) number of elements.
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
-   
+
    GeometryExtension* GetGeometryExtension(const IntegrationRule& ir,
                                            const Vector& Sx);
 

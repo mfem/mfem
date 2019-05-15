@@ -19,12 +19,12 @@ namespace mfem
 class GeometryExtension
 {
 private:
-  long sequence;
+   long sequence;
 public:
    Array<int> eMap;
    Array<double> nodes;
    Array<double> X, J, invJ, detJ;
-   GeometryExtension():sequence(-1){}
+   GeometryExtension():sequence(-1) {}
    long& GetSequence() {return sequence;}
    static GeometryExtension* Get(Mesh*,
                                  const IntegrationRule&,

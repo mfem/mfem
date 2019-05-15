@@ -753,12 +753,14 @@ void Mesh::GetLocalQuadToWdgTransformation(
 }
 
 GeometryExtension* Mesh::GetGeometryExtension(const IntegrationRule& ir,
-                                        const Vector& Sx) {
+                                              const Vector& Sx)
+{
    GeometryExtension::Get(this, ir, Sx, geom);
-   return geom;   
+   return geom;
 }
 
-GeometryExtension* Mesh::GetGeometryExtension(const IntegrationRule& ir) {
+GeometryExtension* Mesh::GetGeometryExtension(const IntegrationRule& ir)
+{
    GeometryExtension::Get(this, ir, geom);
    return geom;
 }
