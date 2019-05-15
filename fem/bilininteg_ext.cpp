@@ -1130,7 +1130,7 @@ void PAMassApply2D(const int NE,
             {
                t += matrix[qy][dy] * sol_x[qy][dx];
             }
-            y(dx,dy,e) = t;
+            y(dx,dy,e) += t;
          }
       }
    });
@@ -1302,7 +1302,7 @@ void PAMassApply3D(const int NE,
                {
                   t += matrix[qz][dz] * sol_xy[qz][dy][dx];
                }
-               Y(dx,dy,dz,e) = t;
+               Y(dx,dy,dz,e) += t;
             }
          }
       }
