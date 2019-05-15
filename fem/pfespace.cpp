@@ -2537,7 +2537,8 @@ static HYPRE_Int* make_j_array(HYPRE_Int* I, int nrows)
 
 HypreParMatrix*
 ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
-                                       const Table* old_elem_dof)
+                                       const Table* old_elem_dof,
+                                       const Table* old_elem_fos)
 {
    MFEM_VERIFY(Nonconforming(), "Only supported for nonconforming meshes.");
    MFEM_VERIFY(old_dof_offsets.Size(), "ParFiniteElementSpace::Update needs to "
@@ -2644,7 +2645,8 @@ struct DerefDofMessage
 
 HypreParMatrix*
 ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
-                                                  const Table* old_elem_dof)
+                                                  const Table* old_elem_dof,
+                                                  const Table* old_elem_fos)
 {
    int nrk = HYPRE_AssumedPartitionCheck() ? 2 : NRanks;
 
@@ -2942,13 +2944,16 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 
    Table* old_elem_dof = NULL;
+   Table* old_elem_fos = NULL;
    int old_ndofs;
 
    // save old DOF table
    if (want_transform)
    {
       old_elem_dof = elem_dof;
+      old_elem_fos = elem_fos;
       elem_dof = NULL;
+      elem_fos = NULL;
       old_ndofs = ndofs;
       Swap(dof_offsets, old_dof_offsets);
    }
@@ -2972,7 +2977,8 @@ void ParFiniteElementSpace::Update(bool want_transform)
          {
             if (Th.Type() != Operator::MFEM_SPARSEMAT)
             {
-               Th.Reset(new RefinementOperator(this, old_elem_dof, old_ndofs));
+               Th.Reset(new RefinementOperator(this, old_elem_dof,
+                                               old_elem_fos, old_ndofs));
                // The RefinementOperator takes ownership of 'old_elem_dofs', so
                // we no longer own it:
                old_elem_dof = NULL;
@@ -2980,14 +2986,16 @@ void ParFiniteElementSpace::Update(bool want_transform)
             else
             {
                // calculate fully assembled matrix
-               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof));
+               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof,
+                                         old_elem_fos));
             }
             break;
          }
 
          case Mesh::DEREFINE:
          {
-            Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof));
+            Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof,
+                                                old_elem_fos));
             if (Nonconforming())
             {
                Th.SetOperatorOwner(false);
@@ -2999,7 +3007,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
          case Mesh::REBALANCE:
          {
-            Th.Reset(RebalanceMatrix(old_ndofs, old_elem_dof));
+            Th.Reset(RebalanceMatrix(old_ndofs, old_elem_dof, old_elem_fos));
             break;
          }
 
