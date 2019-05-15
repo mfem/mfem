@@ -88,6 +88,16 @@ public:
         vdim_(vdim), ordering_(ordering),
         doftrans_(&doftrans) {}
 
+   inline void SetVDim(int vdim)
+   {
+      vdim_ = vdim;
+      if (doftrans_)
+      {
+         height_ = vdim_ * doftrans_->Height();
+         width_  = vdim_ * doftrans_->Width();
+      }
+   }
+
    inline void SetDofTransformation(DofTransformation & doftrans)
    {
       height_ = vdim_ * doftrans.Height();
@@ -97,6 +107,10 @@ public:
 
    inline void SetFaceOrientation(const Array<int> & face_orientation)
    { Fo = face_orientation; doftrans_->SetFaceOrientations(face_orientation);}
+
+   using DofTransformation::TransformPrimal;
+   using DofTransformation::InvTransformPrimal;
+   using DofTransformation::TransformDual;
 
    void TransformPrimal(const double *, double *) const;
    void InvTransformPrimal(const double *, double *) const;
@@ -124,6 +138,10 @@ class ND_TetDofTransformation : public ND_DofTransformation
 public:
    ND_TetDofTransformation(int order);
 
+   using DofTransformation::TransformPrimal;
+   using DofTransformation::InvTransformPrimal;
+   using DofTransformation::TransformDual;
+
    void TransformPrimal(const double *, double *) const;
 
    void InvTransformPrimal(const double *, double *) const;
@@ -135,6 +153,10 @@ class ND_WedgeDofTransformation : public ND_DofTransformation
 {
 public:
    ND_WedgeDofTransformation(int order);
+
+   using DofTransformation::TransformPrimal;
+   using DofTransformation::InvTransformPrimal;
+   using DofTransformation::TransformDual;
 
    void TransformPrimal(const double *, double *) const;
 

@@ -169,14 +169,16 @@ private:
        The result is a parallel permutation matrix that can be used to update
        all grid functions defined on this space. */
    HypreParMatrix* RebalanceMatrix(int old_ndofs,
-                                   const Table* old_elem_dof);
+                                   const Table* old_elem_dof,
+                                   const Table* old_elem_fos);
 
    /** Calculate a GridFunction restriction matrix after mesh derefinement.
        The matrix is constructed so that the new grid function interpolates
        the original function, i.e., the original function is evaluated at the
        nodes of the coarse function. */
    HypreParMatrix* ParallelDerefinementMatrix(int old_ndofs,
-                                              const Table *old_elem_dof);
+                                              const Table *old_elem_dof,
+                                              const Table *old_elem_fos);
 
 public:
    // Face-neighbor data
