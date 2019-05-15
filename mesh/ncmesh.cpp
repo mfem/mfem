@@ -802,7 +802,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
       int midf = nodes.FindId(mid23, mid41);
       if (midf >= 0)
       {
-         ReparentNode(midf, mid12, mid34);
+         reparents.Append(Triple<int, int, int>(midf, mid12, mid34));
 
          int rs = ref_stack.Size();
 
@@ -825,6 +825,16 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             }
          }
 
+         // perform the reparents all at once at the end
+         if (level == 0)
+         {
+            for (int i = 0; i < reparents.Size(); i++)
+            {
+               const Triple<int, int, int> &tr = reparents[i];
+               ReparentNode(tr.one, tr.two, tr.three);
+            }
+            reparents.DeleteAll();
+         }
          return;
       }
    }
@@ -888,12 +898,12 @@ void NCMesh::RefineElement(int elem, char ref_type)
       return;
    }
 
-   std::cout << "Refining element " << elem << " ("
+   /*std::cout << "Refining element " << elem << " ("
              << el.node[0] << ", " << el.node[1] << ", "
              << el.node[2] << ", " << el.node[3] << ", "
              << el.node[4] << ", " << el.node[5] << ", "
              << el.node[6] << ", " << el.node[7] << "), "
-             << "ref_type " << int(ref_type) << std::endl;
+             << "ref_type " << int(ref_type) << std::endl;*/
 
    int* no = el.node;
    int attr = el.attribute;
@@ -1461,17 +1471,9 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
              << " elements" << std::endl;
 #endif
    ref_stack.DeleteAll();
-
-   Update();
-
    shadow.DeleteAll();
 
-   ////
-/*   char fname[100];
-   static int iter = 0;
-   sprintf(fname, "ncdump%d.txt", iter++);
-   std::ofstream f(fname);
-   DebugDump(f);*/
+   Update();
 }
 
 
