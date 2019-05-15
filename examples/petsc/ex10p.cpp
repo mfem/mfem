@@ -31,7 +31,7 @@
 //               customize the Newton-Krylov method.
 //               When option --jfnk is used, PETSc will use a Jacobian-free
 //               Newton-Krylov method, using a user-defined preconditioner
-//               constucted with the PetscPreconditionerFactory class.
+//               constructed with the PetscPreconditionerFactory class.
 //
 //               We recommend viewing examples 2 and 9 before viewing this
 //               example.
@@ -544,7 +544,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
    add(*v, dt, k, w);
    add(*x, dt, w, z);
    localJ->Add(dt*dt, H->GetLocalGradient(z));
-   // if we are using PETSc, the HypreParCSR jacobian will be converted to
+   // if we are using PETSc, the HypreParCSR Jacobian will be converted to
    // PETSc's AIJ on the fly
    Jacobian = M->ParallelAssemble(localJ);
    delete localJ;
@@ -627,7 +627,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    }
    else
    {
-      // if using PETSc, we create the same solver (NEWTON+MINRES+Jacobi)
+      // if using PETSc, we create the same solver (Newton + MINRES + Jacobi)
       // by command line options (see rc_ex10p)
       J_solver = NULL;
       J_prec = NULL;
@@ -638,7 +638,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
       // we can setup a factory to construct a "physics-based" preconditioner
       if (use_petsc_factory)
       {
-         J_factory = new PreconditionerFactory(*reduced_oper,"JFNK preconditioner");
+         J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
          pnewton_solver->SetPreconditionerFactory(J_factory);
       }
       pnewton_solver->SetPrintLevel(1); // print Newton iterations
@@ -733,14 +733,13 @@ HyperelasticOperator::~HyperelasticOperator()
    delete pnewton_solver;
 }
 
-// This method gets called every time we need a preconditioner
-// "oh" contains the PetscParMatrix that wraps the operator
-// constructed in the GetGradient() method (see also
-// PetscSolver::SetJacobianType())
+// This method gets called every time we need a preconditioner "oh"
+// contains the PetscParMatrix that wraps the operator constructed in
+// the GetGradient() method (see also PetscSolver::SetJacobianType()).
 // In this example, we just return a customizable PetscPreconditioner
 // using that matrix. However, the OperatorHandle argument can be
-// ignored, and any "physics-based" solver can be constructed
-// since we have access to the HyperElasticOperator class.
+// ignored, and any "physics-based" solver can be constructed since we
+// have access to the HyperElasticOperator class.
 Solver* PreconditionerFactory::NewPreconditioner(const mfem::OperatorHandle& oh)
 {
    PetscParMatrix *pP;
@@ -760,8 +759,8 @@ double ElasticEnergyCoefficient::Eval(ElementTransformation &T,
 
 void InitialDeformation(const Vector &x, Vector &y)
 {
-   // set the initial configuration to be the same as the reference, stress
-   // free, configuration
+   // set the initial configuration to be the same as the reference,
+   // stress free, configuration
    y = x;
 }
 
