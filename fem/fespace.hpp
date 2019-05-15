@@ -148,12 +148,19 @@ protected:
       const FiniteElementSpace* fespace;
       DenseTensor localP[Geometry::NumGeom];
       Table* old_elem_dof; // Owned.
+      Table* old_elem_fos; // Owned.
+
+      Array<DofTransformation*> old_DoFTrans;
+      mutable VDofTransformation old_VDoFTrans;
+
+      void ConstructDoFTrans();
 
    public:
       /** Construct the operator based on the elem_dof table of the original
           (coarse) space. The class takes ownership of the table. */
       RefinementOperator(const FiniteElementSpace* fespace,
-                         Table *old_elem_dof/*takes ownership*/, int old_ndofs);
+                         Table *old_elem_dof/*takes ownership*/,
+                         Table *old_elem_fos/*takes ownership*/, int old_ndofs);
       RefinementOperator(const FiniteElementSpace *fespace,
                          const FiniteElementSpace *coarse_fes);
       virtual void Mult(const Vector &x, Vector &y) const;
@@ -166,6 +173,7 @@ protected:
       const FiniteElementSpace *fine_fes; // Not owned.
       DenseTensor localR[Geometry::NumGeom];
       Table *coarse_elem_dof; // Owned.
+      Table *coarse_elem_fos; // Owned.
       Table coarse_to_fine;
       Array<int> coarse_to_ref_type;
       Array<Geometry::Type> ref_type_to_geom;
@@ -187,6 +195,7 @@ protected:
    // the same vector dimension, vdim.
    SparseMatrix *RefinementMatrix_main(const int coarse_ndofs,
                                        const Table &coarse_elem_dof,
+                                       const Table *coarse_elem_fos,
                                        const DenseTensor localP[]) const;
 
    void GetLocalRefinementMatrices(Geometry::Type geom,
@@ -197,10 +206,12 @@ protected:
    /** Calculate explicit GridFunction interpolation matrix (after mesh
        refinement). NOTE: consider using the RefinementOperator class instead
        of the fully assembled matrix, which can take a lot of memory. */
-   SparseMatrix* RefinementMatrix(int old_ndofs, const Table* old_elem_dof);
+   SparseMatrix* RefinementMatrix(int old_ndofs, const Table* old_elem_dof,
+                                  const Table* old_elem_fos);
 
    /// Calculate GridFunction restriction matrix after mesh derefinement.
-   SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof);
+   SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof,
+                                    const Table* old_elem_fos);
 
    // This method assumes that this->mesh is a refinement of coarse_fes->mesh
    // and that the CoarseFineTransformations of this->mesh are set accordingly.
@@ -416,6 +427,7 @@ public:
 
    void BuildDofToArrays();
 
+   const Table *GetElementToFaceOrientationTable() const { return elem_fos; }
    const Table &GetElementToDofTable() const { return *elem_dof; }
    const Table &GetBdrElementToDofTable() const { return *bdrElem_dof; }
 
