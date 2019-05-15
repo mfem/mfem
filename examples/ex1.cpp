@@ -48,9 +48,6 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
-// Missing edge neighbor forced refinement (1x1x1 2-wedge inline mesh, random 0.5/true):
-//    ./ex1 -m ../data/inline-wedge.mesh -o 3 -r 2 -s 36
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -153,7 +150,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
-   exit(EXIT_SUCCESS);
+   //exit(EXIT_SUCCESS);
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
