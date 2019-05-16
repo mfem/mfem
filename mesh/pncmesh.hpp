@@ -165,6 +165,11 @@ public:
    /// Return true if the specified vertex/edge/face is a ghost.
    bool IsGhost(int entity, int index) const
    {
+      if (index < 0) // special case prism edge-face constraint
+      {
+         MFEM_ASSERT(entity == 2, "");
+         index = -1 - index;
+      }
       switch (entity)
       {
          case 0: return index >= NVertices;
