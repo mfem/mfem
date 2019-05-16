@@ -46,6 +46,21 @@ void velocity_function(const Vector &x, Vector &v);
 // Initial condition
 double u0_function(const Vector &x);
 
+// my Initial condition
+double g0_function(const Vector &x);
+
+//final condition
+double gf_function(const Vector &x);
+
+//Tfinal
+double dt = 0.001;
+double Tf = 1.2;
+
+//Velocity function
+double cx = 1.0;
+double cy = 5.0;
+double cz = 1.0;
+
 // Inflow boundary condition
 double inflow_function(const Vector &x);
 
@@ -81,12 +96,11 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ref_levels = 2;
-   int order = 3;
+   const char *mesh_file = "../data/periodic-square.mesh";
+   int ref_levels = 0;
+   int order = 1;
    int ode_solver_type = 4;
-   double t_final = 10.0;
-   double dt = 0.01;
+   double t_final = Tf;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
@@ -166,7 +180,7 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim);
+   H1_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -176,16 +190,13 @@ int main(int argc, char *argv[])
    //    interior faces.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
-   FunctionCoefficient u0(u0_function);
+   FunctionCoefficient g0(g0_function);
+   FunctionCoefficient gf(gf_function);
 
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
    BilinearForm k(&fes);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-   k.AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   k.AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
 
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -202,7 +213,7 @@ int main(int argc, char *argv[])
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    GridFunction u(&fes);
-   u.ProjectCoefficient(u0);
+   u.ProjectCoefficient(g0);
 
    {
       ofstream omesh("ex9.mesh");
@@ -281,7 +292,7 @@ int main(int argc, char *argv[])
 
       if (done || ti % vis_steps == 0)
       {
-         cout << "time step: " << ti << ", time: " << t << endl;
+        //cout << "time step: " << ti << ", time: " << t << endl;
 
          if (visualization)
          {
@@ -296,6 +307,10 @@ int main(int argc, char *argv[])
          }
       }
    }
+
+   //8.5 Compute error
+   double h = mesh.GetElementSize(0);
+   std::cout<<"h = "<< h << " error = "<<u.ComputeL2Error(gf)<<std::endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
@@ -329,10 +344,10 @@ FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b)
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // y = M^{-1} (K x + b)
+   // y = M^{-1} K x
    K.Mult(x, z);
-   z += b;
-   M_solver.Mult(z, y);
+   y=0.0;
+   CG(M, z, y, 0, 1000, 1e-12, 0.0);
 }
 
 
@@ -343,12 +358,15 @@ void velocity_function(const Vector &x, Vector &v)
 
    // map to the reference [-1,1] domain
    Vector X(dim);
+#if 0
    for (int i = 0; i < dim; i++)
    {
       double center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
+#endif
 
+   X(0) = x(0); X(1) = x(1);
    switch (problem)
    {
       case 0:
@@ -357,7 +375,7 @@ void velocity_function(const Vector &x, Vector &v)
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            case 2: v(0) = cx; v(1) = cy; break;
             case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
                break;
          }
@@ -391,6 +409,31 @@ void velocity_function(const Vector &x, Vector &v)
          break;
       }
    }
+}
+
+//Intial condition
+double g0_function(const Vector &x)
+{
+  int dim = x.Size();
+  if(dim==1) {
+    return sin(2*M_PI*(x(0) - 0));
+  }else if(dim==2){
+    return sin(2*M_PI*(x(0) - 0))*sin(2*M_PI*(x(1) - 0));
+  }
+
+  return 0.0;
+}
+
+double gf_function(const Vector &x)
+{
+  int dim = x.Size();
+  if(dim==1) {
+    return sin(2*M_PI*(x(0) - Tf));
+  }else if(dim==2){
+    return sin(2*M_PI*(x(0) - cx*Tf))*sin(2*M_PI*(x(1) - cy*Tf));
+  }
+
+  return 0.0;
 }
 
 // Initial condition
