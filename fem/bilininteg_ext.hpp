@@ -17,6 +17,7 @@
 namespace mfem
 {
 
+// FIXME: objects of this class should be owned by the Mesh objects?
 /// GeometryExtension
 class GeometryExtension
 {
@@ -33,18 +34,21 @@ public:
    static void ReorderByNodes(const GridFunction*);
 };
 
+// FIXME: this class should store B and G for one FiniteElement and objects of
+// this class should be owned by the respective FiniteElement objects.
 /// DofToQuad
 class DofToQuad
 {
 private:
    std::string hash;
+
 public:
+   Array<double> W, B, G, Bt, Gt;
+
    ~DofToQuad();
    void operator=(DofToQuad&);
    void operator=(DofToQuad const&);
-public:
-   Array<double> W, B, G, Bt, Gt;
-public:
+
    static DofToQuad* Get(const FiniteElementSpace&,
                          const IntegrationRule&,
                          const bool = false);

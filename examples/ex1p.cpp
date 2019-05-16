@@ -98,6 +98,13 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   // FIXME
+   // 9. Set device config parameters from the command line options and switch
+   //    to working on the device.
+   Device::Configure(device);
+   if (myid == 0) { Device::Print(); }
+   Device::Enable();
+
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
@@ -177,12 +184,6 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   // 9. Set device config parameters from the command line options and switch
-   //    to working on the device.
-   Device::Configure(device);
-   if (myid == 0) { Device::Print(); }
-   Device::Enable();
-
    // 10. Define the solution vector x as a parallel finite element grid function
    //     corresponding to fespace. Initialize x with initial guess of zero,
    //     which satisfies the boundary conditions.
@@ -225,8 +226,9 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
+   // FIXME
    // 15. Switch back to the host.
-   Device::Disable();
+   // Device::Disable();
 
    // 16. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".

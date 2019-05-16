@@ -211,6 +211,7 @@ ifneq ($(MFEM_USE_CUDA),YES)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 else
+   # FIXME: remove the option MFEM_USE_MM?
    ifneq ($(MFEM_USE_MM),YES)
       $(error MFEM_USE_CUDA=YES requires MFEM_USE_MM=YES)
    endif
@@ -223,12 +224,14 @@ endif
 
 DEP_CXX ?= $(MFEM_CXX)
 
-# Check OpenMP configuration
+# Check legacy OpenMP configuration
 ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
    MFEM_THREAD_SAFE ?= YES
    ifneq ($(MFEM_THREAD_SAFE),YES)
       $(error Incompatible config: MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE)
    endif
+   # FIXME: MFEM_USE_LEGACY_OPENMP cannot be combined with any of:
+   # MFEM_USE_OPENMP, MFEM_USE_CUDA, MFEM_USE_RAJA, MFEM_USE_OCCA
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty

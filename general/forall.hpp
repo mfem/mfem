@@ -35,10 +35,15 @@ namespace mfem
 
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                                     \
-   ForallWrap(N,                                                 \
+   ForallWrap(false,N,                                           \
               [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},        \
               [&]                  (int i) {__VA_ARGS__})
 
+// The MFEM_FORALL_IF wrapper
+#define MFEM_FORALL_IF(locked,i,N,...)                      \
+   ForallWrap(locked,N,                                     \
+              [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},   \
+              [&]                  (int i) {__VA_ARGS__})
 
 /// OpenMP backend
 template <typename HBODY>
@@ -112,30 +117,49 @@ void CuWrap(const int N, DBODY &&d_body)
    MFEM_CUDA_CHECK(cudaGetLastError());
 }
 
-#else  // MFEM_USE_CUDA
-
-template <int BLOCKS, typename DBODY>
-void CuWrap(const int N, DBODY &&d_body) {}
-
 #endif
 
 
 /// The forall kernel body wrapper
 template <typename DBODY, typename HBODY>
-void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body)
+inline void ForallWrap(const bool use_cpu, const int N,
+                       DBODY &&d_body, HBODY &&h_body)
 {
-   if (Device::Allows(Backend::RAJA_CUDA))
+   if (use_cpu) { goto backend_cpu; }
+
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
+   // Handle all allowed CUDA backends except Backend::CUDA
+   if (Device::Allows(Backend::CUDA_MASK & ~Backend::CUDA))
    { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+#endif
 
-   if (Device::Allows(Backend::CUDA))
+#ifdef MFEM_USE_CUDA
+   // Handle all allowed CUDA backends
+   if (Device::Allows(Backend::CUDA_MASK))
    { return CuWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+#endif
 
-   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
+   // Handle all allowed OpenMP backends except Backend::OMP
+   if (Device::Allows(Backend::OMP_MASK & ~Backend::OMP))
+   { return RajaOmpWrap(N, h_body); }
+#endif
 
-   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, h_body); }
+#ifdef MFEM_USE_OPENMP
+   // Handle all allowed OpenMP backends
+   if (Device::Allows(Backend::OMP_MASK)) { return OmpWrap(N, h_body); }
+#endif
 
-   if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
+#ifdef MFEM_USE_RAJA
+   // Handle all allowed CPU backends except Backend::CPU
+   if (Device::Allows(Backend::CPU_MASK & ~Backend::CPU))
+   { return RajaSeqWrap(N, h_body); }
+#endif
 
+backend_cpu:
+   // Handle Backend::CPU. This is also a fallback for any allowed backends not
+   // handled above, e.g. OCCA_CPU with configuration 'occa-cpu,cpu', or
+   // OCCA_OMP with configuration 'occa-omp,cpu'.
    for (int k = 0; k < N; k++) { h_body(k); }
 }
 

@@ -19,6 +19,7 @@ using namespace std;
 
 namespace mfem
 {
+
 void BilinearFormIntegrator::Assemble(const FiniteElementSpace&)
 {
    mfem_error ("BilinearFormIntegrator::Assemble (...)\n"
@@ -406,8 +407,8 @@ void DiffusionIntegrator::AssembleElementMatrix
          order = 2*el.GetOrder() - 2;
       }
       else
-         // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
       {
+         // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
          order = 2*el.GetOrder() + dim - 1;
       }
 

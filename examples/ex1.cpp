@@ -88,6 +88,13 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   // FIXME
+   // 7. Set device config parameters from the command line options and switch
+   //    to working on the device.
+   Device::Configure(device);
+   Device::Print();
+   Device::Enable();
+
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
@@ -148,12 +155,6 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   // 7. Set device config parameters from the command line options and switch
-   //    to working on the device.
-   Device::Configure(device);
-   Device::Print();
-   Device::Enable();
-
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -203,8 +204,9 @@ int main(int argc, char *argv[])
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
+   // FIXME
    // 13. Switch back to the host.
-   Device::Disable();
+   // Device::Disable();
 
    // 14. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".

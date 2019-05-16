@@ -13,6 +13,9 @@
 #define MFEM_MEM_MANAGER_HPP
 
 #include "globals.hpp"
+#include "error.hpp"
+#include <cstring> // std::memcpy
+#include <type_traits> // std::is_const
 
 namespace mfem
 {
@@ -20,10 +23,357 @@ namespace mfem
 // Implementation of MFEM's lightweight device/host memory manager designed to
 // work seamlessly with the OCCA, RAJA, and other kernels supported by MFEM.
 
+/// Memory types supported by MFEM.
+enum class MemoryType
+{
+   HOST,      ///< Host memory; using new[] and delete[]
+   HOST_32,   ///< Host memory alligned at 32 bytes
+   HOST_64,   ///< Host memory alligned at 64 bytes
+   CUDA,      ///< cudaMalloc, cudaFree
+   CUDA_UVM   ///< cudaMallocManaged, cudaFree
+};
+
+/// Memory classes identify subsets of memory types.
+/** This type is used by kernels that can work with multiple MemoryType%s to
+    request access to any input/output Memory objects. */
+enum class MemoryClass
+{
+   HOST,    ///< Memory types: { HOST, HOST_32, HOST_64, CUDA_UVM }
+   HOST_32, ///< Memory types: { HOST_32, HOST_64 }
+   HOST_64, ///< Memory types: { HOST_64 }
+   CUDA,    ///< Memory types: { CUDA, CUDA_UVM }
+   CUDA_UVM ///< Memory types: { CUDA_UVM }
+};
+
+/// Return true is the given memory type is in MemoryClass::HOST.
+inline bool IsHostMemory(MemoryType mt) { return mt <= MemoryType::HOST_64; }
+
+/// Return a suitable MemoryType for a given MemoryClass.
+MemoryType GetSuitableMemoryType(MemoryClass mc);
+
+/// Return a suitable MemoryClass from a pair of MemoryClass%es.
+/** Note: this operation is commutative, i.e. a*b = b*a, associative, i.e.
+    (a*b)*c = a*(b*c), and has an identity element: MemoryClass::HOST.
+
+    Currently, the operation is defined as a*b := max(a,b) where the max
+    operation is based on the enumeration ordering:
+
+        HOST < HOST_32 < HOST_64 < CUDA < CUDA_UVM. */
+MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
+
+/// Class used by MFEM to store pointers to host and/or device memory.
+/** The template class paramter, T, must be a plain-old-data (POD) type.
+
+    In many respects this class behaves like a pointer:
+    * When destroyed, a Memory object does NOT automatically delete any
+      allocated memory.
+    * Only the method Delete() will deallocate a Memory object.
+    * Other methods that modify the object (e.g. New(), Wrap(), etc) will simply
+      overwrite the old contents.
+    * One difference with a pointer is that a const Memory object is NOT like a
+      const pointer: it cannot be used to overwrite entries in the memory.
+
+    A Memory object stores up to two different pointers: one host pointer (with
+    MemoryType from MemoryClass::HOST) and one device pointer (currently one of
+    MemoryType::CUDA or MemoryTyep::CUDA_UVM).
+
+    A Memory object can hold (wrap) an externally allocated pointer with any
+    given MemoryType.
+
+    Access to the content of the Memory object can be requested with any given
+    MemoryClass through the methods ReadWriteAccess(), ReadAccess(), and
+    WriteAccess(). Requesting such access may result in additional (internally
+    handled) memory allocation and/or memory copy.
+    * When ReadWriteAccess() is called, the returned pointer becomes the only
+      valid pointer.
+    * When ReadAccess() is called, the returned pointer becomes valid, however
+      the other pointer (host or device) may remain valid as well.
+    * When WriteAccess() is called, the returned pointer becomes the only valid
+      pointer, however, unlike ReadWriteAccess(), no memory copy will be
+      performed.
+
+    The host memory (pointer from MemoryClass::HOST) can be accessed through the
+    inline methods: `operator[]()`, `operator*()`, the implicit conversion
+    functions `operator T*()`, `operator const T*()`, and the explicit
+    conversion template functions `operator U*()`,  `operator const U*()` (with
+    any suitable type U). In certain cases, using these methods may have
+    undefined behavior, e.g. if the host pointer is not currently valid. */
+template <typename T>
+class Memory
+{
+protected:
+   friend class MemoryManager;
+
+   enum FlagMask
+   {
+      REGISTERED    = 1,   ///< #h_ptr is registered with the MemoryManager
+      OWNS_HOST     = 2,   ///< The host pointer will be deleted by Delete()
+      OWNS_DEVICE   = 4,   ///< The device pointer will be deleted by Delete()
+      OWNS_INTERNAL = 8,   ///< Ownership flag for internal Memory data
+      VALID_HOST    = 16,  ///< Host pointer is valid
+      VALID_DEVICE  = 32,  ///< Device pointer is valid
+      ALIAS         = 64,
+      EXEC_FLAG     = 128  ///< Optional execution flag used by MFEM
+   };
+
+   /// Pointer to host memory. Not owned.
+   /** When the pointer is not registered with the MemoryManager, this pointer
+       has type MemoryType::HOST. When the pointer is registered, it can be any
+       type from MemoryClass::HOST. */
+   T *h_ptr;
+   int capacity;
+   mutable unsigned flags;
+   // 'flags' is mutable so that it can be modified in Set{Host,Device}PtrOwner,
+   // Copy{From,To}, {ReadWrite,Read,Write}Access.
+
+public:
+   /// Default constructor: no initialization.
+   Memory() { }
+
+   /// Copy constructor: default.
+   Memory(const Memory &orig) = default;
+
+   /// Move constructor: default.
+   Memory(Memory &&orig) = default;
+
+   /// Copy-assignment operator: default.
+   Memory &operator=(const Memory &orig) = default;
+
+   /// Move-assignment operator: default.
+   Memory &operator=(Memory &&orig) = default;
+
+   /// Allocate host memory for @a size entries.
+   explicit Memory(int size) { New(size); }
+
+   /** @brief Allocate memory for @a size entries with the given MemoryType
+       @a mt. */
+   /** The newly allocated memory is not initialized, however the given
+       MemoryType is still set as valid. */
+   Memory(int size, MemoryType mt) { New(size, mt); }
+
+   /** @brief Wrap an externally allocated host pointer, @a ptr with type
+       MemoryType::HOST. */
+   /** The parameter @a own determines whether @a ptr will be deleted (using
+       operator delete[]) when the method Delete() is called. */
+   explicit Memory(T *ptr, int size, bool own) { Wrap(ptr, size, own); }
+
+   /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
+   /** The new memory object will have the given MemoryType set as valid.
+
+       The given @a ptr must be allocated appropriately for the given
+       MemoryType.
+
+       The parameter @a own determines whether @a ptr will be deleted when the
+       method Delete() is called. */
+   Memory(T *ptr, int size, MemoryType mt, bool own)
+   { Wrap(ptr, size, mt, own); }
+
+   /** @brief Alias constructor. Create a Memory object that points inside the
+       Memory object @a base. */
+   /** The new Memory object uses the same MemoryType(s) as @a base. */
+   Memory(const Memory &base, int offset, int size)
+   { MakeAlias(base, offset, size); }
+
+   /// Destructor: default.
+   /** @note The destructor will NOT delete the current memory. */
+   ~Memory() = default;
+
+   /** @brief Return true if the host pointer is owned. Ownership indicates
+       whether the pointer will be deleted by the method Delete(). */
+   bool OwnsHostPtr() const { return flags & OWNS_HOST; }
+
+   /** @brief Set/clear the ownership flag for the host pointer. Ownership
+       indicates whether the pointer will be deleted by the method Delete(). */
+   void SetHostPtrOwner(bool own) const
+   { flags = own ? (flags | OWNS_HOST) : (flags & ~OWNS_HOST); }
+
+   /** @brief Return true if the device pointer is owned. Ownership indicates
+       whether the pointer will be deleted by the method Delete(). */
+   bool OwnsDevicePtr() const { return flags & OWNS_DEVICE; }
+
+   /** @brief Set/clear the ownership flag for the device pointer. Ownership
+       indicates whether the pointer will be deleted by the method Delete(). */
+   void SetDevicePtrOwner(bool own) const
+   { flags = own ? (flags | OWNS_DEVICE) : (flags & ~OWNS_DEVICE); }
+
+   /** @brief Clear the ownership flags for the host and device pointers, as
+       well as any internal data allocated by the Memory object. */
+   void ClearOwnerFlags() const
+   { flags = flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL); }
+
+   /// Read the optional execution flag.
+   bool GetExecFlag() const { return flags & EXEC_FLAG; }
+
+   /// Set the optional execution flag.
+   void SetExecFlag(bool exec) const
+   { flags = exec ? (flags | EXEC_FLAG) : (flags & ~EXEC_FLAG); }
+
+   /// Return the size of the allocated memory.
+   int Capacity() const { return capacity; }
+
+   /// Reset the memory to be empty, ensuring that Delete() will be a no-op.
+   /** This is the Memory class equivalent to setting a pointer to NULL, see
+       Empty().
+
+       @note The current memory is NOT deleted by this method. */
+   void Reset() { h_ptr = NULL; capacity = 0; flags = 0; }
+
+   /// Return true if the Memory object is empty, see Reset().
+   /** Default-constructed objects are unintialized, so they are not guaranteed
+       to be empty. */
+   bool Empty() const { return h_ptr == NULL; }
+
+   /// Allocate host memory for @a size entries with type MemoryType::HOST.
+   /** @note The current memory is NOT deleted by this method. */
+   void New(int size)
+   { h_ptr = new T[size]; capacity = size; flags = OWNS_HOST | VALID_HOST; }
+
+   /// Allocate memory for @a size entries with the given MemoryType.
+   /** The newly allocated memory is not initialized, however the given
+       MemoryType is still set as valid.
+
+       @note The current memory is NOT deleted by this method. */
+   inline void New(int size, MemoryType mt);
+
+   /** @brief Wrap an externally allocated host pointer, @a ptr with type
+       MemoryType::HOST. */
+   /** The parameter @a own determines whether @a ptr will be deleted (using
+       operator delete[]) when the method Delete() is called.
+
+       @note The current memory is NOT deleted by this method. */
+   inline void Wrap(T *ptr, int size, bool own)
+   { h_ptr = ptr; capacity = size; flags = (own ? OWNS_HOST : 0) | VALID_HOST; }
+
+   /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
+   /** The new memory object will have the given MemoryType set as valid.
+
+       The given @a ptr must be allocated appropriately for the given
+       MemoryType.
+
+       The parameter @a own determines whether @a ptr will be deleted when the
+       method Delete() is called.
+
+       @note The current memory is NOT deleted by this method. */
+   inline void Wrap(T *ptr, int size, MemoryType mt, bool own);
+
+   /// Create a memory object that points inside the memory object @a base.
+   /** The new Memory object uses the same MemoryType(s) as @a base.
+
+       @note The current memory is NOT deleted by this method. */
+   inline void MakeAlias(const Memory &base, int offset, int size);
+
+   /// Delete the owned pointers. The Memory is not reset by this method.
+   inline void Delete();
+
+   /// Array subscript operator for host memory.
+   inline T &operator[](int idx);
+
+   /// Array subscript operator for host memory, const version.
+   inline const T &operator[](int idx) const;
+
+   /// Direct access to the host memory as T* (implicit conversion).
+   /** When the type T is const-qualified, this method can be used only if the
+       host pointer is currently valid (the device pointer may be valid or
+       invalid).
+
+       When the type T is not const-qualified, this method can be used only if
+       the host pointer is the only valid pointer.
+
+       When the Memory is empty, this method can be used and it returns NULL. */
+   inline operator T*();
+
+   /// Direct access to the host memory as const T* (implicit conversion).
+   /** This method can be used only if the host pointer is currently valid (the
+       device pointer may be valid or invalid).
+
+       When the Memory is empty, this method can be used and it returns NULL. */
+   inline operator const T*() const;
+
+   /// Direct access to the host memory via explicit typecast.
+   /** A pointer to type T must be reinterpret_cast-able to a pointer to type U.
+       In particular, this method cannot be used to cast away constness from the
+       base type T.
+
+       When the type U is const-qualified, this method can be used only if the
+       host pointer is currently valid (the device pointer may be valid or
+       invalid).
+
+       When the type U is not const-qualified, this method can be used only if
+       the host pointer is the only valid pointer.
+
+       When the Memory is empty, this method can be used and it returns NULL. */
+   template <typename U>
+   inline explicit operator U*();
+
+   /// Direct access to the host memory via explicit typecast, const version.
+   /** A pointer to type T must be reinterpret_cast-able to a pointer to type
+       const U.
+
+       This method can be used only if the host pointer is currently valid (the
+       device pointer may be valid or invalid).
+
+       When the Memory is empty, this method can be used and it returns NULL. */
+   template <typename U>
+   inline explicit operator const U*() const;
+
+   /// Get read-write access to the memory with the given MemoryClass.
+   /** If only read or only write access is needed, then the methods
+       ReadAccess() or WriteAccess() should be used instead of this method.
+
+       The parameter @a size must not exceed the Capacity(). */
+   inline T *ReadWriteAccess(MemoryClass mc, int size);
+
+   /// Get read-only access to the memory with the given MemoryClass.
+   /** The parameter @a size must not exceed the Capacity(). */
+   inline const T *ReadAccess(MemoryClass mc, int size) const;
+
+   /// Get write-only access to the memory with the given MemoryClass.
+   /** The parameter @a size must not exceed the Capacity().
+
+       The contents of the returned pointer is undefined, unless it was
+       validated by a previous call to ReadAccess() or ReadWriteAccess() with
+       the same MemoryClass. */
+   inline T *WriteAccess(MemoryClass mc, int size);
+
+   /// Copy the validity flags from @a other to @a *this.
+   /** This method synchronizes the validity flags of two Memory objects that
+       use the same host and device pointers. */
+   inline void SyncWith(const Memory &other) const;
+
+   /** @brief Return a MemoryType that is currently valid. If both the host and
+       the device pointers are currently valid, then the device memory type is
+       returned. */
+   inline MemoryType GetMemoryType() const;
+
+   /// Copy @a size entries from @a src to @a *this.
+   /** The given @a size should not exceed the Capacity() of the source @a src
+       and the destination, @a *this. */
+   inline void CopyFrom(const Memory &src, int size);
+
+   /// Copy @a size entries from the host pointer @a src to @a *this.
+   /** The given @a size should not exceed the Capacity() of @a *this. */
+   inline void CopyFromHost(const T *src, int size);
+
+   /// Copy @a size entries from @a *this to @a dest.
+   /** The given @a size should not exceed the Capacity() of @a *this and the
+       destination, @a dest. */
+   inline void CopyTo(Memory &dest, int size) const
+   { dest.CopyFrom(*this, size); }
+
+   /// Copy @a size entries from @a *this to the host pointer @a dest.
+   /** The given @a size should not exceed the Capacity() of @a *this. */
+   inline void CopyToHost(T *dest, int size) const;
+};
+
+
 /// The memory manager class
 class MemoryManager
 {
 private:
+   template <typename T> friend class Memory;
+   // Used by the private static methods called by class Memory:
+   typedef Memory<int> Mem;
+
    /// Allow to enable/disable the Ptr, Pull and Push functionalities
    /// New and Delete will still continue to register the pointers
    bool enabled;
@@ -31,15 +381,76 @@ private:
    /// Allow to detect if a global memory manager instance exists
    static bool exists;
 
-public:
-   MemoryManager();
-   ~MemoryManager();
+   // Methods used by class Memory
+
+   // Allocate and register a new pointer. Return the host pointer.
+   // h_ptr must be already allocated using new T[] if mt is a pure device
+   // memory type, e.g. CUDA (mt will not be HOST).
+   static void *New_(void *h_ptr, std::size_t size, MemoryType mt,
+                     unsigned &flags);
+
+   // Register an external pointer of the given MemoryType. Return the host
+   // pointer.
+   static void *Register_(void *ptr, void *h_ptr, std::size_t capacity,
+                          MemoryType mt, bool own, bool alias, unsigned &flags);
+
+   // Register an alias. Return the host pointer. Note: base_h_ptr may be an
+   // alias.
+   static void Alias_(void *base_h_ptr, std::size_t offset, std::size_t size,
+                      unsigned base_flags, unsigned &flags);
+
+   // Un-register and free memory identified by its host pointer.
+   static void Delete_(void *h_ptr, unsigned flags);
+
+   // Return a pointer to the memory identified by the host pointer h_ptr for
+   // access with the given MemoryClass.
+   static void *ReadWriteAccess_(void *h_ptr, MemoryClass mc, std::size_t size,
+                                 unsigned &flags);
+
+   static const void *ReadAccess_(void *h_ptr, MemoryClass mc, std::size_t size,
+                                  unsigned &flags);
+
+   static void *WriteAccess_(void *h_ptr, MemoryClass mc, std::size_t size,
+                             unsigned &flags);
+
+   // Return the type the of the currently valid memory. If more than one types
+   // are valid, return a device type.
+   static MemoryType GetMemoryType_(void *h_ptr, unsigned flags);
+
+   // Copy entries from valid memory type to valid memory type. Both dest_h_ptr
+   // and src_h_ptr are registered host pointers.
+   static void Copy_(void *dest_h_ptr, const void *src_h_ptr, std::size_t size,
+                     unsigned src_flags, unsigned &dest_flags);
+
+   // Copy entries from valid memory type to host memory, where dest_h_ptr is
+   // not a registered host pointer and src_h_ptr is a registered host pointer.
+   static void CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
+                           std::size_t size, unsigned src_flags);
+
+   // Copy entries from host memory to valid memory type, where dest_h_ptr is a
+   // registered host pointer and src_h_ptr is not a registered host pointer.
+   static void CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
+                             std::size_t size, unsigned &dest_flags);
 
    /// Adds an address in the map
    void *Insert(void *ptr, const std::size_t bytes);
 
    /// Remove the address from the map, as well as all its aliases
-   void *Erase(void *ptr);
+   void *Erase(void *ptr, bool free_dev_ptr = true);
+
+   /// Return the corresponding device pointer of ptr, allocating and moving the
+   /// data if needed (used in OccaPtr)
+   void *GetDevicePtr(const void *ptr, size_t bytes, bool copy_data);
+
+   void InsertAlias(void *base_ptr, void *alias_ptr);
+
+   void EraseAlias(void *alias_ptr);
+
+   void *GetAliasDevicePtr(const void *alias_ptr, size_t bytes, bool copy_data);
+
+public:
+   MemoryManager();
+   ~MemoryManager();
 
    /// Return true if the memory manager is used: pointers seen by mfem::New and
    /// mfem::Delete will be inserted in the ledger and erased from it
@@ -67,119 +478,253 @@ public:
    /// Return true if a global memory manager instance exists
    static bool Exists() { return exists; }
 
-   /** @brief Translates ptr to host or device address, depending on what
-       backends are currently allowed by the Device class and on the ptr
-       state. */
-   void *Ptr(void *ptr);
-   const void *Ptr(const void *ptr);
-
-   /// Data will be pushed/pulled before the copy happens on the H or the D
-   void* Memcpy(void *dst, const void *src,
-                std::size_t bytes, const bool async = false);
-
    /// Return the bytes of the memory region which base address is ptr
    std::size_t Bytes(const void *ptr);
 
-   /// Return true if the registered pointer is on the host side
-   bool IsOnHost(const void *ptr);
-
    /// Return true if the pointer has been registered
    bool IsKnown(const void *ptr);
-
-   /// Return true if the pointer is an alias inside a registered memory region
-   bool IsAlias(const void *ptr);
-
-   /// Push the data to the device
-   void Push(const void *ptr, const std::size_t bytes =0);
-
-   /// Pull the data from the device
-   void Pull(const void *ptr, const std::size_t bytes =0);
-
-   /// Return the corresponding device pointer of ptr, allocating and moving the
-   /// data if needed (used in OccaPtr)
-   void *GetDevicePtr(const void *ptr);
-
-   /// Registers external host pointer in the memory manager which will manage
-   /// the corresponding device pointer, but not the provided host pointer.
-   template<class T>
-   void RegisterHostPtr(T *ptr_host, const std::size_t size)
-   {
-      Insert(ptr_host, size*sizeof(T));
-#ifdef MFEM_DEBUG
-      RegisterCheck(ptr_host);
-#endif
-   }
-
-   /// Registers external host and device pointers in the memory manager.
-   template<class T>
-   void RegisterHostAndDevicePtr(T *ptr_host, T *ptr_device,
-                                 const std::size_t size, const bool host)
-   {
-      RegisterHostPtr(ptr_host, size);
-      SetHostDevicePtr(ptr_host, ptr_device, host);
-   }
-
-   /// Set the host h_ptr, device d_ptr and mode host of the memory region just
-   /// been registered with h_ptr (see RegisterHostAndDevicePtr)
-   void SetHostDevicePtr(void *h_ptr, void *d_ptr, const bool host);
-
-   /// Unregisters the host pointer from the memory manager. To be used with
-   /// memory not allocated by the memory manager.
-   template<class T>
-   void UnregisterHostPtr(T *ptr) { Erase(ptr); }
 
    /// Check if pointer has been registered in the memory manager
    void RegisterCheck(void *ptr);
 
    /// Prints all pointers known by the memory manager
    void PrintPtrs(void);
-
-   /// Copies all memory to the current memory space
-   void GetAll(void);
 };
+
+
+// Inline methods
+
+template <typename T>
+inline void Memory<T>::New(int size, MemoryType mt)
+{
+   if (mt == MemoryType::HOST)
+   {
+      New(size);
+   }
+   else
+   {
+      // Allocate the host pointer with new T[] if 'mt' is a pure device memory
+      // type, e.g. CUDA.
+      T *tmp = (mt == MemoryType::CUDA) ? new T[size] : NULL;
+      h_ptr = (T*)MemoryManager::New_(tmp, size*sizeof(T), mt, flags);
+      capacity = size;
+   }
+}
+
+template <typename T>
+inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
+{
+   if (mt == MemoryType::HOST)
+   {
+      Wrap(ptr, size, own);
+   }
+   else
+   {
+      // Allocate the host pointer with new T[] if 'mt' is a pure device memory
+      // type, e.g. CUDA.
+      T *tmp = (mt == MemoryType::CUDA) ? new T[size] : NULL;
+      h_ptr = (T*)MemoryManager::Register_(ptr, tmp, size*sizeof(T), mt, own,
+                                           false, flags);
+      capacity = size;
+   }
+}
+
+template <typename T>
+inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
+{
+   h_ptr = base.h_ptr + offset;
+   capacity = size;
+   if (!(base.flags & REGISTERED))
+   {
+      flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE);
+   }
+   else
+   {
+      MemoryManager::Alias_(base.h_ptr, offset*sizeof(T), size*sizeof(T),
+                            base.flags, flags);
+   }
+}
+
+template <typename T>
+inline void Memory<T>::Delete()
+{
+   if (!(flags & REGISTERED))
+   {
+      if (flags & OWNS_HOST) { delete [] h_ptr; }
+   }
+   else
+   {
+      if (true) // FIXME: check that the host pointer is type MemoryType::HOST
+      {
+         if (flags & OWNS_HOST) { delete [] h_ptr; }
+      }
+      MemoryManager::Delete_(h_ptr, flags);
+   }
+}
+
+template <typename T>
+inline T &Memory<T>::operator[](int idx)
+{
+   MFEM_ASSERT((flags & VALID_HOST) && !(flags & VALID_DEVICE),
+               "invalid host pointer access");
+   return h_ptr[idx];
+}
+
+template <typename T>
+inline const T &Memory<T>::operator[](int idx) const
+{
+   MFEM_ASSERT((flags & VALID_HOST), "invalid host pointer access");
+   return h_ptr[idx];
+}
+
+template <typename T>
+inline Memory<T>::operator T*()
+{
+   MFEM_ASSERT(Empty() ||
+               ((flags & VALID_HOST) &&
+                (std::is_const<T>::value || !(flags & VALID_DEVICE))),
+               "invalid host pointer access");
+   return h_ptr;
+}
+
+template <typename T>
+inline Memory<T>::operator const T*() const
+{
+   MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
+   return h_ptr;
+}
+
+template <typename T> template <typename U>
+inline Memory<T>::operator U*()
+{
+   MFEM_ASSERT(Empty() ||
+               ((flags & VALID_HOST) &&
+                (std::is_const<U>::value || !(flags & VALID_DEVICE))),
+               "invalid host pointer access");
+   return reinterpret_cast<U*>(h_ptr);
+}
+
+template <typename T> template <typename U>
+inline Memory<T>::operator const U*() const
+{
+   MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
+   return reinterpret_cast<U*>(h_ptr);
+}
+
+template <typename T>
+inline T *Memory<T>::ReadWriteAccess(MemoryClass mc, int size)
+{
+   if (!(flags & REGISTERED))
+   {
+      if (mc == MemoryClass::HOST) { return h_ptr; }
+      MemoryManager::Register_(h_ptr, NULL, capacity*sizeof(T),
+                               MemoryType::HOST, flags & OWNS_HOST,
+                               flags & ALIAS, flags);
+   }
+   return (T*)MemoryManager::ReadWriteAccess_(h_ptr, mc, size*sizeof(T), flags);
+}
+
+template <typename T>
+inline const T *Memory<T>::ReadAccess(MemoryClass mc, int size) const
+{
+   if (!(flags & REGISTERED))
+   {
+      if (mc == MemoryClass::HOST) { return h_ptr; }
+      MemoryManager::Register_((void*)h_ptr, NULL, capacity*sizeof(T),
+                               MemoryType::HOST, flags & OWNS_HOST,
+                               flags & ALIAS, flags);
+   }
+   return (const T *)MemoryManager::ReadAccess_(
+             (void*)h_ptr, mc, size*sizeof(T), flags);
+}
+
+template <typename T>
+inline T *Memory<T>::WriteAccess(MemoryClass mc, int size)
+{
+   if (!(flags & REGISTERED))
+   {
+      if (mc == MemoryClass::HOST) { return h_ptr; }
+      MemoryManager::Register_(h_ptr, NULL, capacity*sizeof(T),
+                               MemoryType::HOST, flags & OWNS_HOST,
+                               flags & ALIAS, flags);
+   }
+   return (T*)MemoryManager::WriteAccess_(h_ptr, mc, size*sizeof(T), flags);
+}
+
+template <typename T>
+inline void Memory<T>::SyncWith(const Memory &other) const
+{
+   MFEM_ASSERT((flags & REGISTERED) == (other.flags & REGISTERED), "");
+   flags = (flags & ~(VALID_HOST | VALID_DEVICE)) |
+           (other.flags & (VALID_HOST | VALID_DEVICE));
+}
+
+template <typename T>
+inline MemoryType Memory<T>::GetMemoryType() const
+{
+   if (!(flags & REGISTERED)) { return MemoryType::HOST; }
+   return MemoryManager::GetMemoryType_(h_ptr, flags);
+}
+
+template <typename T>
+inline void Memory<T>::CopyFrom(const Memory &src, int size)
+{
+   if (!(flags & REGISTERED) && !(src.flags & REGISTERED))
+   {
+      if (h_ptr != src.h_ptr && size != 0)
+      {
+         MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
+                     "data overlaps!");
+         std::memcpy(h_ptr, src, size*sizeof(T));
+      }
+      // *this is not registered, so (flags & VALID_HOST) must be true
+   }
+   else
+   {
+      MemoryManager::Copy_(h_ptr, src.h_ptr, size*sizeof(T), src.flags, flags);
+   }
+}
+
+template <typename T>
+inline void Memory<T>::CopyFromHost(const T *src, int size)
+{
+   if (!(flags & REGISTERED))
+   {
+      if (h_ptr != src && size != 0)
+      {
+         MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
+                     "data overlaps!");
+         std::memcpy(h_ptr, src, size*sizeof(T));
+      }
+      // *this is not registered, so (flags & VALID_HOST) must be true
+   }
+   else
+   {
+      MemoryManager::CopyFromHost_(h_ptr, src, size*sizeof(T), flags);
+   }
+}
+
+template <typename T>
+inline void Memory<T>::CopyToHost(T *dest, int size) const
+{
+   if (!(flags & REGISTERED))
+   {
+      if (h_ptr != dest && size != 0)
+      {
+         MFEM_ASSERT(h_ptr + size <= dest || dest + size <= h_ptr,
+                     "data overlaps!");
+         std::memcpy(dest, h_ptr, size*sizeof(T));
+      }
+   }
+   else
+   {
+      MemoryManager::CopyToHost_(dest, h_ptr, size*sizeof(T), flags);
+   }
+}
+
 
 /// The (single) global memory manager object
 extern MemoryManager mm;
-
-/// Main memory allocation template function. Allocates n*size bytes and returns
-/// a pointer to the allocated memory.
-template<class T>
-inline T *New(const std::size_t n)
-{
-   T *ptr = new T[n];
-   if (!MemoryManager::Exists()) { return ptr; }
-   return static_cast<T*>(mm.Insert(ptr, n*sizeof(T)));
-}
-
-/// Frees the memory space pointed to by ptr, which must have been returned by a
-/// previous call to mfem::New.
-template<class T>
-inline void Delete(T *ptr)
-{
-   static_assert(!std::is_void<T>::value, "Cannot Delete a void pointer. "
-                 "Explicitly provide the correct type as a template parameter.");
-   if (!ptr) { return; }
-   delete [] ptr;
-   if (!MemoryManager::Exists()) { return; }
-   mm.Erase(ptr);
-}
-
-/// Return a host or device address corresponding to current memory space
-template <class T>
-inline T *Ptr(T *a) { return static_cast<T*>(mm.Ptr(a)); }
-
-/// Data will be pushed/pulled before the copy happens on the host or the device
-inline void* Memcpy(void *dst, const void *src,
-                    std::size_t bytes, const bool async = false)
-{ return mm.Memcpy(dst, src, bytes, async); }
-
-/// Push the data to the device
-inline void Push(const void *ptr, const std::size_t bytes = 0)
-{ return mm.Push(ptr, bytes); }
-
-/// Pull the data from the device
-inline void Pull(const void *ptr, const std::size_t bytes = 0)
-{ return mm.Pull(ptr, bytes); }
 
 } // namespace mfem
 

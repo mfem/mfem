@@ -24,9 +24,10 @@ class ODESolver
 protected:
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
+   MemoryType mem_type;
 
 public:
-   ODESolver() : f(NULL) { }
+   ODESolver() : f(NULL) { mem_type = MemoryType::HOST; }
 
    /// Associate a TimeDependentOperator with the ODE solver.
    /** This method has to be called:
@@ -37,6 +38,7 @@ public:
    virtual void Init(TimeDependentOperator &f)
    {
       this->f = &f;
+      mem_type = GetSuitableMemoryType(f.GetMemoryClass());
    }
 
    /** @brief Perform a time step from time @a t [in] to time @a t [out] based
