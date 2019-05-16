@@ -338,6 +338,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // y = M^{-1} (K x + b)
    x.Print(mfem::out, 1); printf("\n");
    K->Mult(x, z);
+   exit(-1);
 
    z.Print(mfem::out, 1);
    printf("\n");

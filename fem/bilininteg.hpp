@@ -1749,15 +1749,30 @@ private:
    DenseMatrix dshape, adjJ, Q_ir;
    Vector shape, vec2, BdFidxT;
 #endif
-   VectorCoefficient &Q;
+   VectorCoefficient &Q; //convert to pointer?
    double alpha;
+
+   // PA extension
+   Vector vec;
+   DofToQuad *maps;
+   GeometryExtension *geom;
+   int dim, ne, nq, dofs1D, quad1D;
 
 public:
    ConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
       : Q(q) { alpha = a; }
+
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
+
+   /// PA extension
+   virtual void Assemble(const FiniteElementSpace&);
+   virtual void MultAssembled(Vector&, Vector&);
+
+  //Destructor?
+  //virtual ~ConvectionIntegrator();
+
 };
 
 /// alpha (q . grad u, v) using the "group" FE discretization
