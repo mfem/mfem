@@ -45,7 +45,6 @@ list(APPEND HDRS
   forall.hpp
   optparser.hpp
   osockstream.hpp
-  raja.hpp
   sets.hpp
   socketstream.hpp
   sort_pairs.hpp

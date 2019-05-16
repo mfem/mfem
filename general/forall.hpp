@@ -68,11 +68,11 @@ void OmpWrap(const int N, HBODY &&h_body)
 
 
 /// RAJA Cuda backend
-template <typename DBODY>
+template <int BLOCKS, typename DBODY>
 void RajaCudaWrap(const int N, DBODY &&d_body)
 {
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
-   RAJA::forall<RAJA::cuda_exec<256>>(RAJA::RangeSegment(0,N),d_body);
+   RAJA::forall<RAJA::cuda_exec<BLOCKS>>(RAJA::RangeSegment(0,N),d_body);
 #else
    MFEM_ABORT("RAJA::Cuda requested but RAJA::Cuda is not enabled!");
 #endif
@@ -105,6 +105,7 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 
 /// CUDA backend
 #ifdef MFEM_USE_CUDA
+
 template <typename BODY> __global__ static
 void CuKernel1D(const int N, BODY body)
 {
@@ -183,7 +184,7 @@ void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body,
                 const int X=0, const int Y=0, const int Z=0)
 {
    if (Device::Allows(Backend::RAJA_CUDA))
-   { return RajaCudaWrap(N, d_body); }
+   { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
 
    if (!XYZ && Device::Allows(Backend::CUDA))
    { return CuWrap1D(N, d_body); }

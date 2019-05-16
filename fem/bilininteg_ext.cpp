@@ -385,7 +385,9 @@ static void PADiffusionApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    if (PADiffusionApplyKernel(dim, D1D, Q1D, NE, B, G, Bt, Gt, op, x, y))
+   {
       return;
+   }
    MFEM_ABORT("Unknown kernel.");
 }
 
@@ -623,7 +625,7 @@ static void PAMassApply(const int dim,
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-   if (PAMassApplyKernel(dim, D1D, Q1D, NE, B, Bt, op, x, y)) return;
+   if (PAMassApplyKernel(dim, D1D, Q1D, NE, B, Bt, op, x, y)) { return; }
    MFEM_ABORT("Unknown kernel.");
 }
 
