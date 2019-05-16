@@ -104,6 +104,14 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
       ode_solver.Step(new_field, t, glob_dt);
    }
 
+   // Trim the overshoots and undershoots.
+   const double minv = field0.Min(), maxv = field0.Max();
+   for (int i = 0; i < new_field.Size(); i++)
+   {
+      if (new_field(i) < minv) { new_field(i) = minv; }
+      if (new_field(i) > maxv) { new_field(i) = maxv; }
+   }
+
    nodes0 = new_nodes;
    field0 = new_field;
 

@@ -916,16 +916,14 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec)
    tspec_fes   = tspec.FESpace();
 
    // Default evaluator is based on CG advection.
-   if (adapt_eval == NULL)
-   {
-      adapt_eval = new AdvectorCG;
-      adapt_eval->SetParMetaInfo(*tspec.ParFESpace()->GetParMesh(),
-                                 *tspec.FESpace()->FEColl(),
-                                  tspec.FESpace()->GetVDim());
+   if (adapt_eval == NULL) { adapt_eval = new AdvectorCG; }
 
-      adapt_eval->SetInitialField
+   adapt_eval->SetParMetaInfo(*tspec.ParFESpace()->GetParMesh(),
+                              *tspec.FESpace()->FEColl(),
+                              tspec.FESpace()->GetVDim());
+
+   adapt_eval->SetInitialField
          (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
-   }
 }
 #endif
 
@@ -936,16 +934,14 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec)
    tspec_fes   = tspec.FESpace();
 
    // Default evaluator is based on CG advection.
-   if (adapt_eval == NULL)
-   {
-      adapt_eval = new AdvectorCG;
-      adapt_eval->SetSerialMetaInfo(*tspec.FESpace()->GetMesh(),
-                                    *tspec.FESpace()->FEColl(),
-                                    tspec.FESpace()->GetVDim());
+   if (adapt_eval == NULL) { adapt_eval = new AdvectorCG; }
 
-      adapt_eval->SetInitialField
+   adapt_eval->SetSerialMetaInfo(*tspec.FESpace()->GetMesh(),
+                                 *tspec.FESpace()->FEColl(),
+                                 tspec.FESpace()->GetVDim());
+
+   adapt_eval->SetInitialField
          (*tspec.FESpace()->GetMesh()->GetNodes(), target_spec);
-   }
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
@@ -998,6 +994,8 @@ void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
                                             const FiniteElementCollection &fec,
                                             int num_comp)
 {
+   delete fes;
+   delete mesh;
    mesh = new Mesh(m, true);
    fes = new FiniteElementSpace(mesh, &fec, num_comp);
 }
@@ -1007,6 +1005,8 @@ void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
                                          const FiniteElementCollection &fec,
                                          int num_comp)
 {
+   delete pfes;
+   delete pmesh;
    pmesh = new ParMesh(m, true);
    pfes  = new ParFiniteElementSpace(pmesh, &fec, num_comp);
 }
