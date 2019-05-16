@@ -1470,6 +1470,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    mfem::out << "Refined " << refinements.Size() << " + " << nforced
              << " elements" << std::endl;
 #endif
+
    ref_stack.DeleteAll();
    shadow.DeleteAll();
 

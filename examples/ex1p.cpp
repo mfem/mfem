@@ -149,6 +149,11 @@ int main(int argc, char *argv[])
       }
    }
 
+   {char fname[100];
+   sprintf(fname, "ncdump%03d.txt", myid);
+   std::ofstream f(fname);
+   pmesh->pncmesh->DebugDump(f);}
+
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
