@@ -1446,14 +1446,14 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       RefineElement(ref.index, ref.ref_type);
       nforced += ref_stack.Size() - size;
 
-#ifdef MFEM_DEBUG
+/*#ifdef MFEM_DEBUG
       static int sequence = 0;
       char fname[200];
       sprintf(fname, "ncmesh.%03d", sequence++);
       std::ofstream f(fname);
       Update();
       DebugDump(f);
-#endif
+#endif*/
    }
 
    /* TODO: the current algorithm of forced refinements is not optimal. As
@@ -2724,6 +2724,7 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
       }
       for (unsigned i = 0; i < slaves.size(); i++)
       {
+         if (slaves[i].index < 0) { continue; }
          max_index = std::max(slaves[i].index, max_index);
       }
 
@@ -2740,6 +2741,7 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
       }
       for (unsigned i = 0; i < slaves.size(); i++)
       {
+         if (slaves[i].index < 0) { continue; }
          inv_index[slaves[i].index] = (i << 2) + 2;
       }
    }

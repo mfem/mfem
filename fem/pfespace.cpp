@@ -2017,6 +2017,8 @@ int ParFiniteElementSpace
                   (l == 1) ? (const MeshId&) list.masters[i]
                   /*    */ : (const MeshId&) list.slaves[i];
 
+               if (id.index < 0) { continue; }
+
                GroupId owner = pncmesh->GetEntityOwnerId(entity, id.index);
                GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
 

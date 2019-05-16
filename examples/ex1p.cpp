@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int seed = 1;
    int ref_levels = 2;
+   int par_ref_levels = 2;
    bool static_cond = false;
    bool pa = false;
    const char *device = "cpu";
@@ -81,8 +82,10 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&seed, "-s", "--seed",
                   "Random seed.");
-   args.AddOption(&ref_levels, "-r", "--ref_levels",
+   args.AddOption(&ref_levels, "-rs", "--ref_levels_serial",
                   "Serial refinement levels.");
+   args.AddOption(&par_ref_levels, "-rp", "--ref_levels_parallel",
+                  "Parallel refinement levels.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -119,7 +122,6 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       srand(seed);
-      //int ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          //mesh->UniformRefinement();
@@ -133,16 +135,15 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          //pmesh->UniformRefinement();
          pmesh->RandomRefinement(0.5);
 
-         {char fname[100];
+         /*{char fname[100];
          sprintf(fname, "ncdump%03d.txt", myid);
          std::ofstream f(fname);
-         pmesh->pncmesh->DebugDump(f);}
+         pmesh->pncmesh->DebugDump(f);}*/
 
          pmesh->Rebalance();
       }
@@ -186,6 +187,8 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+
+   MPI_Finalize(); exit(EXIT_SUCCESS);
 
    // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is

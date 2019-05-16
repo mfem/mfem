@@ -442,7 +442,9 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
 
       for (int j = master.slaves_begin; j < master.slaves_end; j++)
       {
-         char &slave_flag = tmp_shared_flag[list.slaves[j].index];
+         int si = list.slaves[j].index;
+         if (si < 0) { continue; }
+         char &slave_flag = tmp_shared_flag[si];
          tmp_shared_flag[master.index] |= slave_flag;
          slave_flag |= master_old_flag;
       }
@@ -466,7 +468,8 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
    }
    for (unsigned i = 0; i < list.slaves.size(); i++)
    {
-      if (tmp_shared_flag[list.slaves[i].index] == 0x3)
+      int si = list.slaves[i].index;
+      if (si >= 0 && tmp_shared_flag[si] == 0x3)
       {
          shared.slaves.push_back(list.slaves[i]);
       }
@@ -616,7 +619,9 @@ void ParNCMesh::CalculatePMatrixGroups()
       ranks.SetSize(0);
       for (int j = master_face.slaves_begin; j < master_face.slaves_end; j++)
       {
-         int owner = entity_owner[2][face_list.slaves[j].index];
+         int si = face_list.slaves[j].index;
+         int owner = (si >= 0) ? entity_owner[2][si] // standard face dependency
+                     /*     */ : entity_owner[1][-1 - si]; // prism edge-face dep
          ranks.Append(groups[owner][0]);
       }
       ranks.Sort();
@@ -1028,6 +1033,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
       {
          const Slave &sf = full_list.slaves[j];
+         if (sf.index < 0) { continue; }
 
          MFEM_ASSERT(mf.element >= 0 && sf.element >= 0, "");
          Element* e[2] = { &elements[mf.element], &elements[sf.element] };
@@ -1185,6 +1191,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
          {
             const Slave &sf = full_list.slaves[j];
+            if (sf.index < 0) { continue; }
 
             MFEM_ASSERT(sf.element >= 0 && mf.element >= 0, "");
             Element &sfe = elements[sf.element];
