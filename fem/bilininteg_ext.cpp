@@ -374,7 +374,6 @@ void PADiffusionApply2D(const int NE,
    const int NBZ = T_NBZ ? T_NBZ : 1;
    const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    const int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(MQ1 == MD1, "");
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
    const DeviceMatrix b(_b, Q1D, D1D);
@@ -386,15 +385,15 @@ void PADiffusionApply2D(const int NE,
    DeviceTensor<3> y(_y, D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
-      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int NBZ = T_NBZ ? T_NBZ : 1;
       const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       const int MD1 = T_D1D ? T_D1D : MAX_D1D;
       MFEM_SHARED double B[MQ1][MD1];
       MFEM_SHARED double G[MQ1][MD1];
-      MFEM_SHARED double Bt[MD1][MQ1];
-      MFEM_SHARED double Gt[MD1][MQ1];
+      double (*Bt)[MQ1] = (double (*)[MQ1]) B;
+      double (*Gt)[MQ1] = (double (*)[MQ1]) G;
       MFEM_SHARED double Xz[NBZ][MD1][MD1];
       MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
       MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
@@ -418,8 +417,6 @@ void PADiffusionApply2D(const int NE,
             {
                B[qx][dx] = b(qx,dx);
                G[qx][dx] = g(qx,dx);
-               Bt[dx][qx] = bt(dx,qx);
-               Gt[dx][qx] = gt(dx,qx);
             }
          }
       }
@@ -480,8 +477,8 @@ void PADiffusionApply2D(const int NE,
             double v = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               u += Gt[dx][qx] * QQ0[qy][qx];
-               v += Bt[dx][qx] * QQ1[qy][qx];
+               u += Gt[qx][dx] * QQ0[qy][qx];
+               v += Bt[qx][dx] * QQ1[qy][qx];
             }
             DQ0[qy][dx] = u;
             DQ1[qy][dx] = v;
@@ -496,8 +493,8 @@ void PADiffusionApply2D(const int NE,
             double v = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               u += DQ0[qy][dx] * Bt[dy][qy];
-               v += DQ1[qy][dx] * Gt[dy][qy];
+               u += DQ0[qy][dx] * Bt[qy][dy];
+               v += DQ1[qy][dx] * Gt[qy][dy];
             }
             y(dx,dy,e) += (u + v);
          }
@@ -1235,7 +1232,6 @@ void PAMassApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-
       for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
       {
          for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
