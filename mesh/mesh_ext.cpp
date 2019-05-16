@@ -14,6 +14,7 @@
 #include "mesh_ext.hpp"
 #include "../fem/bilininteg.hpp"
 #include "../fem/gridfunc.hpp"
+#include <cassert>
 
 using namespace std;
 
@@ -22,65 +23,83 @@ namespace mfem
 
 static void GeomFill(const int vdim,
                      const int NE, const int ND, const int NX,
-                     const int* elementMap, int* eMap,
-                     const double *_X, double *meshNodes)
+                     const int *h_eMap, int *d_eMap,
+                     const double *h_x, double *d_x)
 {
-   const DeviceArray d_elementMap(elementMap, ND*NE);
-   DeviceArray d_eMap(eMap, ND*NE);
-   const DeviceVector X(_X, NX);
-   DeviceVector d_meshNodes(meshNodes, vdim*ND*NE);
+   const DeviceArray d_h_eMap(h_eMap, ND*NE);
+   DeviceArray d_d_eMap(d_eMap, ND*NE);
+   const DeviceVector h_X(h_x, NX);
+   DeviceVector d_X(d_x, vdim*ND*NE);
    MFEM_FORALL(e, NE,
    {
       for (int d = 0; d < ND; ++d)
       {
          const int lid = d+ND*e;
-         const int gid = d_elementMap[lid];
-         d_eMap[lid] = gid;
+         const int gid = d_h_eMap[lid];
+         d_d_eMap[lid] = gid;
          for (int v = 0; v < vdim; ++v)
          {
             const int moffset = v+vdim*lid;
             const int xoffset = v+vdim*gid;
-            d_meshNodes[moffset] = X[xoffset];
+            d_X[moffset] = h_X[xoffset];
          }
       }
    });
 }
 
-static void NodeCopyByVDim(const int elements,
-                           const int numDofs,
-                           const int ndofs,
-                           const int dims,
-                           const int* eMap,
-                           const double* Sx,
-                           double* nodes)
+static void ReorderByVDim(const GridFunction *nodes)
 {
-   MFEM_FORALL(e,elements,
-   {
-      for (int dof = 0; dof < numDofs; ++dof)
+   const mfem::FiniteElementSpace *fes = nodes->FESpace();
+   const int size = nodes->Size();
+   const int vdim = fes->GetVDim();
+   const int ndofs = fes->GetNDofs();
+   double *data = nodes->GetData();
+   double *temp = new double[size];
+   int k=0;
+   for (int d = 0; d < ndofs; d++)
+      for (int v = 0; v < vdim; v++)
       {
-         const int lid = dof+numDofs*e;
-         const int gid = eMap[lid];
-         for (int v = 0; v < dims; ++v)
-         {
-            const int moffset = v+dims*lid;
-            const int voffset = gid+v*ndofs;
-            nodes[moffset] = Sx[voffset];
-         }
+         temp[k++] = data[d+v*ndofs];
       }
-   });
+   for (int i = 0; i < size; i++)
+   {
+      data[i] = temp[i];
+   }
+   delete [] temp;
 }
 
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PAGeom2D(const int NE,
-              const double* _B,
-              const double* _G,
-              const double* _X,
-              double* _Xq,
-              double* _J,
-              double* _invJ,
-              double* _detJ,
-              const int d1d = 0,
-              const int q1d = 0)
+static void ReorderByNodes(const GridFunction *nodes)
+{
+   const mfem::FiniteElementSpace *fes = nodes->FESpace();
+   const int size = nodes->Size();
+   const int vdim = fes->GetVDim();
+   const int ndofs = fes->GetNDofs();
+   double *data = nodes->GetData();
+   double *temp = new double[size];
+   int k = 0;
+   for (int j = 0; j < ndofs; j++)
+      for (int i = 0; i < vdim; i++)
+      {
+         temp[j+i*ndofs] = data[k++];
+      }
+   for (int i = 0; i < size; i++)
+   {
+      data[i] = temp[i];
+   }
+   delete [] temp;
+}
+
+template<const int T_D1D = 0, const int T_Q1D = 0>
+static void PAGeom2D(const int NE,
+                     const double* _B,
+                     const double* _G,
+                     const double* _X,
+                     double* _Xq,
+                     double* _J,
+                     double* _invJ,
+                     double* _detJ,
+                     const int d1d = 0,
+                     const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -88,7 +107,6 @@ void PAGeom2D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    const int ND = D1D*D1D;
    const int NQ = Q1D*Q1D;
-
    const DeviceTensor<2> B(_B, NQ, ND);
    const DeviceTensor<3> G(_G, 2,NQ, ND);
    const DeviceTensor<3> X(_X, 2,ND, NE);
@@ -96,14 +114,12 @@ void PAGeom2D(const int NE,
    DeviceTensor<4> J(_J, 2, 2, NQ, NE);
    DeviceTensor<4> invJ(_invJ, 2, 2, NQ, NE);
    DeviceMatrix detJ(_detJ, NQ, NE);
-
    MFEM_FORALL(e, NE,
    {
-      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int ND = D1D*D1D;
       const int NQ = Q1D*Q1D;
-
       double s_X[2*MAX_D1D*MAX_D1D];
       for (int q = 0; q < NQ; ++q)
       {
@@ -145,17 +161,17 @@ void PAGeom2D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0> static
-void PAGeom3D(const int NE,
-              const double* _B,
-              const double* _G,
-              const double* _X,
-              double* _Xq,
-              double* _J,
-              double* _invJ,
-              double* _detJ,
-              const int d1d = 0,
-              const int q1d = 0)
+template<const int T_D1D = 0, const int T_Q1D = 0>
+static void PAGeom3D(const int NE,
+                     const double* _B,
+                     const double* _G,
+                     const double* _X,
+                     double* _Xq,
+                     double* _J,
+                     double* _invJ,
+                     double* _detJ,
+                     const int d1d = 0,
+                     const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -163,7 +179,6 @@ void PAGeom3D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    const int ND = D1D*D1D*D1D;
    const int NQ = Q1D*Q1D*Q1D;
-
    const DeviceTensor<2> B(_B, NQ, NE);
    const DeviceTensor<3> G(_G, 3, NQ, NE);
    const DeviceTensor<3> X(_X, 3, ND, NE);
@@ -171,14 +186,12 @@ void PAGeom3D(const int NE,
    DeviceTensor<4> J(_J, 3, 3, NQ, NE);
    DeviceTensor<4> invJ(_invJ, 3, 3, NQ, NE);
    DeviceMatrix detJ(_detJ, NQ, NE);
-
    MFEM_FORALL(e,NE,
    {
-      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int ND = D1D*D1D*D1D;
       const int NQ = Q1D*Q1D*Q1D;
-
       double s_nodes[3*MAX_D1D*MAX_D1D*MAX_D1D];
       for (int q = 0; q < NQ; ++q)
       {
@@ -239,13 +252,13 @@ static void PAGeom(const int dim,
                    const int D1D,
                    const int Q1D,
                    const int NE,
-                   const double* B,
-                   const double* G,
-                   const double* X,
-                   double* Xq,
-                   double* J,
-                   double* invJ,
-                   double* detJ)
+                   const double *B,
+                   const double *G,
+                   const double *X,
+                   double *Xq,
+                   double *J,
+                   double *invJ,
+                   double *detJ)
 {
    if (dim == 2)
    {
@@ -282,140 +295,34 @@ static void PAGeom(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
-GeometryExtension* GeometryExtension::Get(Mesh* mesh,
-                                          const IntegrationRule& ir,
-                                          const Vector& Sx,
-                                          GeometryExtension*& geom)
+XTMesh::XTMesh(const Mesh *mesh, const IntegrationRule &ir) : sequence(-1)
 {
-   if (!geom) { geom = new GeometryExtension; }
-   const GridFunction *nodes = mesh->GetNodes();
-   const FiniteElementSpace *fespace = nodes->FESpace();
-   const FiniteElement *fe = fespace->GetFE(0);
-   const IntegrationRule& ir1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder());
-   const int dims     = fe->GetDim();
-   const int numDofs  = fe->GetDof();
-   const int D1D      = fe->GetOrder() + 1;
-   const int Q1D      = ir1D.GetNPoints();
-   const int elements = fespace->GetNE();
-   const int ndofs    = fespace->GetNDofs();
-   const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
-   NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->nodes);
-   PAGeom(dims, D1D, Q1D, elements,
-          maps->B, maps->G, geom->nodes,
-          geom->X, geom->J, geom->invJ, geom->detJ);
-   return geom;
-}
-
-GeometryExtension* GeometryExtension::Get(Mesh* mesh,
-                                          const IntegrationRule& ir,
-                                          GeometryExtension*& geom)
-{
-   const bool geom_to_allocate = geom ? ( geom->GetSequence() <
-                                          mesh->GetSequence() ) : true;
-   if (geom)
-   {
-      geom->GetSequence() = mesh->GetSequence();
-   }
-   if (geom_to_allocate)
-   {
-      if (geom) { delete geom; }
-      geom = new GeometryExtension();
-   }
-
-   const bool dev_enabled = Device::IsEnabled();
-   if (dev_enabled) { Device::Disable(); }
-   mesh->EnsureNodes();
-   if (dev_enabled) { Device::Enable(); }
-
    const GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
    const mfem::FiniteElement *fe = fespace->GetFE(0);
    const IntegrationRule& ir1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder());
-   const int dims     = fe->GetDim();
-   const int elements = fespace->GetNE();
-   const int numDofs  = fe->GetDof();
-   const int D1D      = fe->GetOrder() + 1;
-   const int Q1D      = ir1D.GetNPoints();
-   const int numQuad  = ir.GetNPoints();
-   const bool orderedByNODES = (fespace->GetOrdering() == Ordering::byNODES);
-   if (orderedByNODES) { ReorderByVDim(nodes); }
-   const int asize = dims*numDofs*elements;
-   mfem::Array<double> meshNodes(asize);
+   const int vdim = fe->GetDim();
+   const int NE   = fespace->GetNE();
+   const int DND  = fe->GetDof();
+   const int D1D  = fe->GetOrder() + 1;
+   const int Q1D  = ir1D.GetNPoints();
+   const int QND  = ir.GetNPoints();
+   const bool byNODES = (fespace->GetOrdering() == Ordering::byNODES);
+   if (byNODES) { ReorderByVDim(nodes); }
+   mfem::Array<double> Enodes(vdim*DND*NE);
    const Table& e2dTable = fespace->GetElementToDofTable();
-   const int* elementMap = e2dTable.GetJ();
-   mfem::Array<int> eMap(numDofs*elements);
-   GeomFill(dims,
-            elements,
-            numDofs,
-            nodes->Size(),
-            elementMap,
-            eMap,
-            nodes->GetData(),
-            meshNodes);
-   if (geom_to_allocate)
-   {
-      geom->nodes.SetSize(dims*numDofs*elements);
-      geom->eMap.SetSize(numDofs*elements);
-   }
-   geom->nodes = meshNodes;
-   geom->eMap = eMap;
-   // Reorder the original gf back
-   if (orderedByNODES) { ReorderByNodes(nodes); }
-   if (geom_to_allocate)
-   {
-      geom->X.SetSize(dims*numQuad*elements);
-      geom->J.SetSize(dims*dims*numQuad*elements);
-      geom->invJ.SetSize(dims*dims*numQuad*elements);
-      geom->detJ.SetSize(numQuad*elements);
-   }
+   const int *h_eMap = e2dTable.GetJ();
+   mfem::Array<int> eMap(DND*NE);
+   GeomFill(vdim, NE, DND, nodes->Size(), h_eMap, eMap, nodes->GetData(), Enodes);
+   if (byNODES) { ReorderByNodes(nodes); }
+   this->X.SetSize(vdim*QND*NE);
+   this->J.SetSize(vdim*vdim*QND*NE);
+   this->invJ.SetSize(vdim*vdim*QND*NE);
+   this->detJ.SetSize(QND*NE);
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
-   PAGeom(dims, D1D, Q1D, elements,
-          maps->B, maps->G, geom->nodes,
-          geom->X, geom->J, geom->invJ, geom->detJ);
+   PAGeom(vdim, D1D, Q1D, NE, maps->B, maps->G, Enodes,
+          this->X, this->J, this->invJ, this->detJ);
    delete maps;
-   return geom;
-}
-
-void GeometryExtension::ReorderByVDim(const GridFunction *nodes)
-{
-   const mfem::FiniteElementSpace *fes = nodes->FESpace();
-   const int size = nodes->Size();
-   const int vdim = fes->GetVDim();
-   const int ndofs = fes->GetNDofs();
-   double *data = nodes->GetData();
-   double *temp = new double[size];
-   int k=0;
-   for (int d = 0; d < ndofs; d++)
-      for (int v = 0; v < vdim; v++)
-      {
-         temp[k++] = data[d+v*ndofs];
-      }
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = temp[i];
-   }
-   delete [] temp;
-}
-
-void GeometryExtension::ReorderByNodes(const GridFunction *nodes)
-{
-   const mfem::FiniteElementSpace *fes = nodes->FESpace();
-   const int size = nodes->Size();
-   const int vdim = fes->GetVDim();
-   const int ndofs = fes->GetNDofs();
-   double *data = nodes->GetData();
-   double *temp = new double[size];
-   int k = 0;
-   for (int j = 0; j < ndofs; j++)
-      for (int i = 0; i < vdim; i++)
-      {
-         temp[j+i*ndofs] = data[k++];
-      }
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = temp[i];
-   }
-   delete [] temp;
 }
 
 } // namespace mfem
