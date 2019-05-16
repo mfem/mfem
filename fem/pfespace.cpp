@@ -1708,7 +1708,7 @@ void NeighborRowMessage::Encode(int rank)
          mfem::out << "Rank " << pncmesh->MyRank << " sending to " << rank
                    << ": ent " << ri.entity << ", index " << ri.index
                    << ", edof " << ri.edof << " (id " << id.element << "/"
-                   << id.local << ")" << std::endl;
+                   << int(id.local) << ")" << std::endl;
 #endif
 
          // handle orientation and sign change
@@ -1860,7 +1860,7 @@ void ParFiniteElementSpace
    for (int i = 0; i < dof_group.Size(); i++)
    {
       os << i << ": ";
-      if (i < (nvdofs + nedofs + nfdofs) || i > ndofs)
+      if (i < (nvdofs + nedofs + nfdofs) || i >= ndofs)
       {
          int ent, idx, edof;
          UnpackDof(i, ent, idx, edof);

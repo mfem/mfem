@@ -279,6 +279,9 @@ void ParNCMesh::BuildFaceList()
    // This is an extension of NCMesh::BuildFaceList() which also determines
    // face ownership and prepares face processor groups.
 
+   // (special case for prisms: to be able to handle edge-face constraints)
+   if (HavePrisms()) { GetEdgeList(); }
+
    int nfaces = NFaces + NGhostFaces;
 
    tmp_owner.SetSize(nfaces);
@@ -438,15 +441,25 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
    for (unsigned i = 0; i < list.masters.size(); i++)
    {
       const Master &master = list.masters[i];
-      char master_old_flag = tmp_shared_flag[master.index];
+      char &master_flag = tmp_shared_flag[master.index];
+      char master_old_flag = master_flag;
 
       for (int j = master.slaves_begin; j < master.slaves_end; j++)
       {
          int si = list.slaves[j].index;
-         if (si < 0) { continue; }
-         char &slave_flag = tmp_shared_flag[si];
-         tmp_shared_flag[master.index] |= slave_flag;
-         slave_flag |= master_old_flag;
+         if (si >= 0)
+         {
+            char &slave_flag = tmp_shared_flag[si];
+            master_flag |= slave_flag;
+            slave_flag |= master_old_flag;
+         }
+         else // special case: prism edge-face constraint
+         {
+            if (entity_owner[1][-1-si] != MyRank)
+            {
+               master_flag |= 0x2;
+            }
+         }
       }
    }
 

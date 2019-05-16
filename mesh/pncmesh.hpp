@@ -168,6 +168,7 @@ public:
       if (index < 0) // special case prism edge-face constraint
       {
          MFEM_ASSERT(entity == 2, "");
+         entity = 1;
          index = -1 - index;
       }
       switch (entity)
