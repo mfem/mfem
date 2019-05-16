@@ -36,10 +36,16 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // ir = &IntRules.Get(el.GetGeomType(),
-      //                    oa * el.GetOrder() + ob + Tr.OrderW());
-      // ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
-      ir = &IntRules.Get(el, oa * el.GetOrder() + ob); // New overload
+      if (el.Space() == FunctionSpace::SBPk)
+      {
+         ir = &el.GetNodes();
+      }
+      else 
+      {
+         // ir = &IntRules.Get(el.GetGeomType(),
+         //                    oa * el.GetOrder() + ob + Tr.OrderW());
+         ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
+      }
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)

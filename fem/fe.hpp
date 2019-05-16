@@ -126,7 +126,8 @@ public:
    {
       Pk, ///< Polynomials of order k
       Qk, ///< Tensor products of polynomials of order k
-      rQk ///< Refined tensor products of polynomials of order k
+      rQk,///< Refined tensor products of polynomials of order k
+      SBPk///< Summation-by-parts operator of order k with no explicit basis
    };
 };
 
@@ -154,7 +155,6 @@ protected:
 #endif
 
 public:
-   int OperatorType;
    /// Enumeration for RangeType and DerivRangeType
    enum { SCALAR, VECTOR };
 
@@ -197,14 +197,6 @@ public:
           GRAD, ///< Implements CalcDShape methods
           DIV,  ///< Implements CalcDivShape methods
           CURL  ///< Implements CalcCurlShape methods
-        };
-
-   /** @brief Enumeration for Operator Type: defines which integration rules
-       should be called.
-    
-   */
-   enum { FE = 0, ///< Traditional Finite Element
-          SBP = 1 ///< Summation-by-parts Element with collocated integration rule
         };
 
    /** Construct FiniteElement with given

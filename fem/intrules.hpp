@@ -18,8 +18,6 @@
 namespace mfem
 {
 
-class FiniteElement; // Forward declaration of class to alow overloaded Get()
-
 /* Classes for IntegrationPoint, IntegrationRule, and container class
    IntegrationRules.  Declares the global variable IntRules */
 
@@ -349,9 +347,6 @@ public:
 
    /// Returns an integration rule for given GeomType and Order.
    const IntegrationRule &Get(int GeomType, int Order);
-
-   /// Returns an integration rule for an element and order
-   const IntegrationRule &Get(const FiniteElement &el, int Order);
 
    void Set(int GeomType, int Order, IntegrationRule &IntRule);
 

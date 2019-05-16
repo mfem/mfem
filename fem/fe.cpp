@@ -31,7 +31,6 @@ FiniteElement::FiniteElement(int D, Geometry::Type G, int Do, int O, int F)
    DerivType = NONE;
    DerivRangeType = SCALAR;
    DerivMapType = VALUE;
-   OperatorType = FE;
    for (int i = 0; i < Geometry::MaxDim; i++) { Orders[i] = -1; }
 #ifndef MFEM_THREAD_SAFE
    vshape.SetSize(Dof, Dim);
@@ -11992,11 +11991,8 @@ void SBP_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 
 SBP_TriangleElement::SBP_TriangleElement(const int p, const int Do)
    : NodalFiniteElement(2, Geometry::TRIANGLE, Do, p,
-                        FunctionSpace::Pk)
+                        FunctionSpace::SBPk)
 {
-   // Set operator type to SBP to be used in IntegrationRules::Get()
-   OperatorType = SBP;
-
    // Create Dx and Dy matrixes
    Dx = new DenseMatrix(Dof);
    Dy = new DenseMatrix(Dof);

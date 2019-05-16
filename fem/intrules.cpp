@@ -907,30 +907,6 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
    return *(*ir_array)[Order];
 }
 
-/// Overloaded integration rule where FiniteElement is passed in, and the 
-/// OperatorType is used to determine which integration rules to use
-const IntegrationRule &IntegrationRules::Get(const FiniteElement &el, int Order)
-{
-   const IntegrationRule *ir = NULL;
-   switch (el.OperatorType)
-   {
-      case 0: // FE
-         ir = &Get(el.GetGeomType(), Order);
-         break;
-      case 1: // SBP
-         ir = &el.GetNodes(); // SBP type elements have collocated quadrature
-                               // notes and DOFs, weights are included in 
-                               // element construction so complete integration
-                               // rule is defined by the element's `Nodes`
-
-         break;
-      default:
-         MFEM_ABORT("Invalid OperatorType = " << el.OperatorType);
-         break;
-   }
-   return *ir;
-}
-
 void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
 {
    Array<IntegrationRule *> *ir_array;

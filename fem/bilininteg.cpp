@@ -415,10 +415,16 @@ void DiffusionIntegrator::AssembleElementMatrix
       {
          ir = &RefinedIntRules.Get(el.GetGeomType(), order);
       }
+      else if (el.Space() == FunctionSpace::SBPk)
+      {
+         ir = &el.GetNodes(); // SBP elements have collocated quadrature nodes
+                              // and DOFs, weights are included in element
+                              // construction so complete integration rule is
+                              // defined by the element's `Nodes`
+      }
       else
       {
-         // ir = &IntRules.Get(el.GetGeomType(), order);
-         ir = &IntRules.Get(el, order); // New overload
+         ir = &IntRules.Get(el.GetGeomType(), order);
       }
    }
 
