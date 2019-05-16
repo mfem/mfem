@@ -25,7 +25,6 @@
 #if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
 #error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
 #endif
-#include "raja.hpp"
 #endif
 
 namespace mfem
@@ -70,38 +69,10 @@ void OmpWrap(const int N, HBODY &&h_body)
 
 /// RAJA Cuda backend
 template <typename DBODY>
-void RajaCudaWrap1D(const int N, DBODY &&d_body)
+void RajaCudaWrap(const int N, DBODY &&d_body)
 {
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
    RAJA::forall<RAJA::cuda_exec<256>>(RAJA::RangeSegment(0,N),d_body);
-#else
-   MFEM_ABORT("RAJA::Cuda requested but RAJA::Cuda is not enabled!");
-#endif
-}
-
-template <typename DBODY>
-void RajaCudaWrap2D(const int N, DBODY &&d_body,
-                    const int X, const int Y, const int BZ)
-{
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
-   if (N==0) { return; }
-   const dim3 GRID = (N+BZ-1)/BZ;
-   const dim3 BLCK(X,Y,BZ);
-   RAJA::cuda::forallND<true>(GRID,BLCK,RAJA::RangeSegment(0,N),d_body);
-#else
-   MFEM_ABORT("RAJA::Cuda requested but RAJA::Cuda is not enabled!");
-#endif
-}
-
-template <typename DBODY>
-void RajaCudaWrap3D(const int N, DBODY &&d_body,
-                    const int X, const int Y, const int Z)
-{
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
-   if (N==0) { return; }
-   const dim3 GRID = N;
-   const dim3 BLCK(X,Y,Z);
-   RAJA::cuda::forallND<false>(GRID,BLCK,RAJA::RangeSegment(0,N),d_body);
 #else
    MFEM_ABORT("RAJA::Cuda requested but RAJA::Cuda is not enabled!");
 #endif
@@ -211,14 +182,8 @@ template <const bool XYZ, const bool NZ, typename DBODY, typename HBODY>
 void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body,
                 const int X=0, const int Y=0, const int Z=0)
 {
-   if (!XYZ && Device::Allows(Backend::RAJA_CUDA))
-   { return RajaCudaWrap1D(N, d_body); }
-
-   if (XYZ && NZ && Device::Allows(Backend::RAJA_CUDA))
-   { return RajaCudaWrap2D(N, d_body, X, Y, Z); }
-
-   if (XYZ && !NZ && Device::Allows(Backend::RAJA_CUDA))
-   { return RajaCudaWrap3D(N, d_body, X, Y, Z); }
+   if (Device::Allows(Backend::RAJA_CUDA))
+   { return RajaCudaWrap(N, d_body); }
 
    if (!XYZ && Device::Allows(Backend::CUDA))
    { return CuWrap1D(N, d_body); }
