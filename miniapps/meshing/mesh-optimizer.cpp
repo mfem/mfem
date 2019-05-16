@@ -55,7 +55,6 @@
 //   * mesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 
 #include "mfem.hpp"
-#include "fem/tmop_tools.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -92,15 +91,17 @@ double ind_values(const Vector &x)
       return val * small + (1.0 - val) * big;
    }
 
-   if (opt==3)
+   if (opt == 3)
    {
       // cross
-      double val = 0.;
       const double X = x(0), Y = x(1);
-      double r1 = 0.45;double r2 = 0.55;double sf=40.0;
-      val = ( 0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2)))
-              + 0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))) );
-      if (val > 1.) {val = 1;}
+      const double r1 = 0.45, r2 = 0.55;
+      const double sf = 40.0;
+
+      double val = 0.5 * ( std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
+                           std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)) );
+      if (val > 1.) { val = 1.0; }
+
       return val * small + (1.0 - val) * big;
    }
 
