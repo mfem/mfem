@@ -54,11 +54,11 @@ double gf_function(const Vector &x);
 
 //Tfinal
 double dt = 0.001;
-double Tf = 0.001;
+double Tf = 1.2;
 
 //Velocity function
 double cx = 1.0;
-double cy = 1.0;
+double cy = 5.0;
 double cz = 1.0;
 
 // Inflow boundary condition
@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
 
       if (done || ti % vis_steps == 0)
       {
-         cout << "time step: " << ti << ", time: " << t << endl;
+        //cout << "time step: " << ti << ", time: " << t << endl;
 
          if (visualization)
          {
@@ -335,16 +335,8 @@ FE_Evolution::FE_Evolution(Operator *_M, Operator *_K, int Sz)
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // y = M^{-1} (K x + b)
-   x.Print(mfem::out, 1); printf("\n");
+   // y = M^{-1} K x
    K->Mult(x, z);
-   exit(-1);
-
-   z.Print(mfem::out, 1);
-   printf("\n");
-
-   //z += b;
-   //M_solver.Mult(z, y);
    y=0.0;
    CG(*M, z, y, 0, 2000, 1e-12, 0.0); //Solve using CG
 }

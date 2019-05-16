@@ -18,6 +18,8 @@
 #include <algorithm>
 #include <unordered_map>
 
+//#define PA_DEBUG
+
 using namespace std;
 
 namespace mfem
@@ -746,7 +748,7 @@ DiffusionIntegrator::~DiffusionIntegrator()
 void myVelFun(double x0, double x1, double c_vel[2])
 {
   c_vel[0] = 1;
-  c_vel[1] = 1;
+  c_vel[1] = 5;
 }
 
 //PA Convection Assemble kernel
@@ -779,7 +781,7 @@ void ConvectionIntegrator::Assemble(const FiniteElementSpace &fes)
     const DeviceTensor<4> J(geom->J.GetData(), 2, 2, NQ, NE);
     const DeviceTensor<3> x(geom->X.GetData(), 2,NQ,NE);
     DeviceTensor<3> D(vec.GetData(), 2, NQ, NE);
-    const double COEFF = 1.0; //Will need a more general case
+    const double COEFF = -1.0; //Will need a more general case (coefficient for convection term)
 
     MFEM_FORALL(e, NE,
     {
@@ -828,10 +830,6 @@ void PAConvectionApply2D(const int NE,
    const int NQ  = Q1D*Q1D;
    const int ND  = D1D*D1D;
 
-   //stack size to allocate
-   const int NQ_s = 5*5;
-   const int ND_s = 5*5;
-
    const int DIM = 2;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
@@ -845,52 +843,118 @@ void PAConvectionApply2D(const int NE,
    const DeviceTensor<3> xloc(_x, D1D, D1D, NE);
    DeviceTensor<3> yloc(_y, D1D, D1D, NE);
 
-   MFEM_FORALL(e, 1,
+   MFEM_FORALL(e, NE,
    {
 
-     double U[DIM][Q1D][D1D];
-     for(int j1=0; j1<D1D; ++j1) {
-       for(int i2=0; i2<Q1D; ++i2) {
-
-	 double dot0=0.0; double dot1=0.0;
-	 for(int i1=0; i1<D1D; ++i1){
-	   dot0 += Bt(i1,j1)*xloc(i1, i2, e);
-	   dot1 += Gt(i1,j1)*xloc(i1, i2, e);
-	 }
-	 U[0][i2][j1] = dot0;
-	 U[1][i2][j1] = dot1;
-	 //printf("%f %f \n",dot0, dot1);
-       }
-     }
-     for(int i2=0; i2<D1D; ++i2) {
-       for(int k1=0; k1<Q1D; ++k1) {
-
-	  //printf("%f %f %f \n",B(k1,i2),xloc(k1,i2,e), U[0][k1][i2]);
-	  printf("%f %f %f \n",Gt(k1,i2),xloc(k1,i2,e), U[1][k1][i2]);
-	}
-     }
-
-
-     printf("\n");
-     double W[DIM][Q1D][Q1D];
+     double U[DIM][MAX_D1D][MAX_Q1D];
      for(int j1=0; j1<Q1D; ++j1) {
        for(int i2=0; i2<D1D; ++i2) {
 
-	 double dot0=0.0; double dot1=0.0;
-	 for(int i1=0; i1<D1D; ++i1){
-	   dot0 += G(i1,j1)*U[0][i1][i2];
-	   dot1 += B(i1,j1)*U[1][i1][i2];
-	 }
-	 W[0][i2][j1] = dot0;
-	 W[1][i2][j1] = dot1;
-	 printf("%f %f \n",dot0, dot1);
+         double dot0=0.0; double dot1=0.0;
+         for(int i1=0; i1<D1D; ++i1){
+           dot0 += G(j1,i1)*xloc(i1, i2, e);
+           dot1 += B(j1,i1)*xloc(i1, i2, e);
+         }
+         U[0][i2][j1] = dot0;
+         U[1][i2][j1] = dot1;
        }
      }
 
+#ifdef PA_DEBUG
+     for(int i2=0; i2<D1D; ++i2) {
+       for(int k1=0; k1<Q1D; ++k1) {
+         printf("%f %f \n", U[0][k1][i2], U[1][k1][k2]);
+       }
+     }
+     printf("\n");
+#endif
 
+     double W[DIM][MAX_Q1D][MAX_Q1D];
+     for(int j1=0; j1<Q1D; ++j1) {
+       for(int i2=0; i2<Q1D; ++i2) {
 
+         double dot0=0.0; double dot1=0.0;
+         for(int i1=0; i1<D1D; ++i1){
+           dot0 += B(j1,i1)*U[0][i1][i2];
+           dot1 += G(j1,i1)*U[1][i1][i2];
+         }
+         W[0][i2][j1] = dot0;
+         W[1][i2][j1] = dot1;
+       }
+     }
 
+#ifdef PA_DEBUG
+     for(int i2=0; i2<D1D; ++i2) {
+       for(int k1=0; k1<Q1D; ++k1) {
+         printf("%f %f \n", W[0][k1][i2], W[1][k1][i2]);
+       }
+     }
+     printf("\n");
+#endif
 
+     double Z[MAX_Q1D][MAX_Q1D];
+     for(int k2=0; k2<Q1D; ++k2) {
+       for(int k1=0; k1<Q1D; ++k1) {
+
+         double dot(0.0);
+         for(int c=0; c<2; ++c) {
+           dot += D(c, k1, k2, e) * W[c][k1][k2];
+         }
+         Z[k1][k2] = dot;
+       }
+     }
+
+#ifdef PA_DEBUG
+     for(int i2=0; i2<D1D; ++i2) {
+       for(int k1=0; k1<Q1D; ++k1) {
+         printf("%f \n", Z[k1][i2]);
+       }
+     }
+#endif
+
+     //Transposed contraction onward
+     double Q[MAX_Q1D][MAX_D1D];
+     for(int j1=0; j1<D1D; ++j1) {
+       for(int i2=0; i2<Q1D; ++i2) {
+
+         double dot(0.0);
+         for(int i1=0; i1<Q1D; ++i1) {
+           dot += Bt(j1, i1)*Z[i1][i2];
+         }
+         Q[i2][j1] = dot;
+       }
+     }
+
+#ifdef PA_DEBUG
+     printf("\n");
+     for(int j1=0; j1<D1D; ++j1) {
+       for(int i2=0; i2<Q1D; ++i2) {
+         printf("%f \n",Q[i2][j1]);
+       }
+     }
+#endif
+
+     double R[MAX_D1D][MAX_D1D];
+     for(int j1=0; j1<D1D; ++j1) {
+       for(int i2=0; i2<D1D; ++i2) {
+
+         double dot(0.0);
+         for(int i1=0; i1<Q1D; ++i1) {
+           dot += Bt(j1, i1)*Q[i1][i2];
+         }
+         R[i2][j1] = dot;
+         yloc(i2,j1,e) = dot;
+       }
+     }
+
+#ifdef PA_DEBUG
+     printf("\n");
+     for(int j1=0; j1<D1D; ++j1) {
+       for(int i2=0; i2<D1D; ++i2) {
+         printf("%f \n",R[i2][j1]);
+       }
+     }
+#endif
 
    });
 }
@@ -915,6 +979,10 @@ static void PAConvectionApply(const int dim,
     switch ((D1D << 4 ) | Q1D)
     {
        case 0x22: PAConvectionApply2D<2,2>(NE, B, Bt, G, Gt, op, x, y); break;
+       case 0x33: PAConvectionApply2D<3,3>(NE, B, Bt, G, Gt, op, x, y); break;
+       case 0x44: PAConvectionApply2D<4,4>(NE, B, Bt, G, Gt, op, x, y); break;
+       case 0x55: PAConvectionApply2D<5,5>(NE, B, Bt, G, Gt, op, x, y); break;
+       case 0x66: PAConvectionApply2D<5,5>(NE, B, Bt, G, Gt, op, x, y); break;
        default: mfem_error("convection kernel order not supported \n"); break;
     }
     return;
