@@ -32,6 +32,20 @@ glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
 
+5/15
+Q1. what happens to GetGradient when factory is used? It is called through __mfem_snes_jacobian
+2. Where is Mult implemented now? It is implemented through J->Mult from GetGradient
+3. reducedOperator->Mult is something else (not the same)
+
+see submatrix in (a good example on multiphysics coupling)
+https://www.mcs.anl.gov/petsc/petsc-current/src/snes/examples/tutorials/ex28.c.html
+
+Question: how could I access the block vec from y??
+MatGetLocalSubMatrix
+VecGetLocalVector
+Those will determine the local matrix and local vectors
+
+
 5/11
 -snes_mf_operator is working 
 
