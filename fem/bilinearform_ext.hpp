@@ -14,12 +14,14 @@
 
 #include "../config/config.hpp"
 #include "fespace.hpp"
+#include "../general/device.hpp"
 
 namespace mfem
 {
 
 class BilinearForm;
 
+// FIXME: rename to ElementRestriction
 /// Element restriction operator
 class ElemRestriction: public Operator
 {
@@ -31,15 +33,21 @@ public:
    const int ndofs;
    const int dof;
    const int nedofs;
-   Array<int> offsets;
-   Array<int> indices;
+   Table dofs_edofs; // edofs with lexicographical local ordering
+
 public:
    ElemRestriction(const FiniteElementSpace&);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+
+   virtual MemoryClass GetMemoryClass() const
+   { return Device::GetMemoryClass(); }
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
 };
 
 
+/** @brief Class extending the BilinearForm class to support the different
+    AssemblyLevel%s. */
 class BilinearFormExtension : public Operator
 {
 protected:
@@ -47,6 +55,9 @@ protected:
 
 public:
    BilinearFormExtension(BilinearForm *form);
+
+   virtual MemoryClass GetMemoryClass() const
+   { return Device::GetMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const;
@@ -80,6 +91,7 @@ public:
                          int copy_interior = 0) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
+   void Update() {}
    ~FABilinearFormExtension() {}
 };
 
@@ -99,6 +111,7 @@ public:
                          int copy_interior = 0) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
+   void Update() {}
    ~EABilinearFormExtension() {}
 };
 
@@ -143,6 +156,7 @@ public:
                          int copy_interior = 0) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
+   void Update() {}
    ~MFBilinearFormExtension() {}
 };
 

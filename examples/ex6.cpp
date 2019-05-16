@@ -72,6 +72,12 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   // FIXME
+   // 5. Set device config parameters from the command line options.
+   Device::Configure(device);
+   Device::Print();
+   Device::Enable();
+
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
@@ -95,10 +101,6 @@ int main(int argc, char *argv[])
    //    one (linear) by default, but this can be changed on the command line.
    H1_FECollection fec(order, dim);
    FiniteElementSpace fespace(&mesh, &fec);
-
-   // 5. Set device config parameters from the command line options.
-   Device::Configure(device);
-   Device::Print();
 
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
@@ -168,8 +170,9 @@ int main(int argc, char *argv[])
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
+      // FIXME
       // 15. Switch to the device and assemble the stiffness matrix.
-      Device::Enable();
+      // Device::Enable();
       a.Assemble();
 
       // 16. Create the linear system: eliminate boundary conditions, constrain
@@ -204,7 +207,7 @@ int main(int argc, char *argv[])
       // 18. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
-      Device::Disable();
+      // Device::Disable(); // FIXME
       a.RecoverFEMSolution(X, b, x);
 
       // 19. Send solution by socket to the GLVis server.

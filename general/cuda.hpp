@@ -67,16 +67,16 @@ void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
 void* CuMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
 
 /// Copies memory from Device to Device
-void* CuMemcpyDtoD(void *d_dst, void *d_src, size_t bytes);
+void* CuMemcpyDtoD(void *d_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Device
-void* CuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes);
+void* CuMemcpyDtoDAsync(void *d_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
-void* CuMemcpyDtoH(void *h_dst, void *d_src, size_t bytes);
+void* CuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
-void* CuMemcpyDtoHAsync(void *h_dst, void *d_src, size_t bytes);
+void* CuMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
 
 } // namespace mfem
 

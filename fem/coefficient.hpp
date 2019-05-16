@@ -172,6 +172,7 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
+   // FIXME: if this does not work, it should be removed.
    /// Return the coefficient's C-function that uses Vector3.
    /// Warning: for now, the returned function can only be used on the
    /// host inside a MFEM_FORALL.

@@ -385,6 +385,7 @@ void FiniteElementSpace::MarkerToList(const Array<int> &marker,
                                       Array<int> &list)
 {
    int num_marked = 0;
+   marker.ReadAccess(false); // make sure we can read the array on host
    for (int i = 0; i < marker.Size(); i++)
    {
       if (marker[i]) { num_marked++; }
@@ -652,9 +653,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // create the conforming restriction matrix cR
    int *cR_J;
    {
-      int *cR_I = mfem::New<int>(n_true_dofs+1);
-      double *cR_A = mfem::New<double>(n_true_dofs);
-      cR_J = mfem::New<int>(n_true_dofs);
+      int *cR_I = new int[n_true_dofs+1];
+      double *cR_A = new double[n_true_dofs];
+      cR_J = new int[n_true_dofs];
       for (int i = 0; i < n_true_dofs; i++)
       {
          cR_I[i] = i;
@@ -732,6 +733,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       MakeVDimMatrix(*cP);
       MakeVDimMatrix(*cR);
    }
+
+   if (Device::IsEnabled()) { cP->BuildTranspose(); }
 }
 
 void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const

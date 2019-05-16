@@ -30,6 +30,8 @@ using namespace std;
 GridFunction::GridFunction(Mesh *m, std::istream &input)
    : Vector()
 {
+   UseDevice();
+
    fes = new FiniteElementSpace;
    fec = fes->Load(m, input);
 
@@ -60,6 +62,8 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
 
 GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
 {
+   UseDevice();
+
    // all GridFunctions must have the same FE collection, vdim, ordering
    int vdim, ordering;
 
@@ -163,6 +167,7 @@ void GridFunction::Update()
       Vector old_data;
       old_data.Swap(*this);
       SetSize(T->Height());
+      UseDevice();
       T->Mult(old_data, *this);
    }
    else
@@ -192,7 +197,8 @@ void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
    if (f != fes) { Destroy(); }
    fes = f;
-   NewDataAndSize((double *)v + v_offset, fes->GetVSize());
+   NewMemoryAndSize(Memory<double>(v.GetMemory(), v_offset, fes->GetVSize()),
+                    fes->GetVSize(), true);
    sequence = fes->GetSequence();
 }
 
@@ -215,13 +221,15 @@ void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
    if (!f->GetProlongationMatrix())
    {
       MakeRef(f, tv, tv_offset);
-      t_vec.NewDataAndSize(data, size);
+      t_vec.NewMemoryAndSize(data, size, false);
    }
    else
    {
       MFEM_ASSERT(tv.Size() >= tv_offset + f->GetTrueVSize(), "");
       SetSpace(f); // works in parallel
-      t_vec.NewDataAndSize(&tv(tv_offset), f->GetTrueVSize());
+      const int tv_size = f->GetTrueVSize();
+      t_vec.NewMemoryAndSize(Memory<double>(tv.GetMemory(), tv_offset, tv_size),
+                             tv_size, true);
    }
 }
 
@@ -315,7 +323,7 @@ void GridFunction::GetTrueDofs(Vector &tv) const
    if (!R)
    {
       // R is identity -> make tv a reference to *this
-      tv.NewDataAndSize(data, size);
+      tv.NewDataAndSize(const_cast<double*>((const double*)data), size);
    }
    else
    {
@@ -1776,6 +1784,7 @@ void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
 void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
 {
    Array<int> values_counter;
+   this->ReadWriteAccess(false);
    AccumulateAndCountBdrValues(coeff, NULL, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
 #ifdef MFEM_DEBUG

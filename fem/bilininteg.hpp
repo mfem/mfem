@@ -23,17 +23,35 @@ namespace mfem
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
-public:
-   BilinearFormIntegrator(const IntegrationRule *ir = NULL) :
-      NonlinearFormIntegrator(ir) { }
+protected:
+   BilinearFormIntegrator(const IntegrationRule *ir = NULL)
+      : NonlinearFormIntegrator(ir) { }
 
 public:
+   // TODO: add support for other assembly levels (in addition to PA) and their
+   // action.
+
+   // TODO: for mixed meshes the quadrature rules to be used by methods like
+   // AssemblePA() can be given as a QuadratureSpace, e.g. using a new method:
+   // SetQuadratureSpace().
+
+   // TODO: the methods for the various assembly levels make sense even in the
+   // base class NonlinearFormIntegrator, except that not all assembly levels
+   // make sense for the action of the nonlinear operator but they all make
+   // sense for its Jacobian.
+
+   // FIXME: rename to AssemblePA()
    /// Method defining partial assembly.
    virtual void Assemble(const FiniteElementSpace&);
 
+   // FIXME: rename to MultPA()
+   // FIXME: documentation: E-vector to E-vector, currently performs +=, not =.
    /// Method for partially assembled action.
    virtual void MultAssembled(Vector&, Vector&);
 
+   // FIXME: rename to MultTransposePA()
+   // FIXME: documentation: E-vector to E-vector, currently meant to perform
+   // +=, not =.
    /// Method for partially assembled transposed action.
    virtual void MultAssembledTranspose(Vector&, Vector&);
 
@@ -1649,15 +1667,19 @@ private:
    DofToQuad *maps;
    GeometryExtension *geom;
    int dim, ne, dofs1D, quad1D;
+   Vector pa_data;
+
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator() { Q = NULL; MQ = NULL; maps = NULL; geom = NULL; }
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; maps = NULL; geom = NULL; }
+   DiffusionIntegrator(Coefficient &q)
+      : Q(&q) { MQ = NULL; maps = NULL; geom = NULL; }
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; maps = NULL; geom = NULL; }
+   DiffusionIntegrator(MatrixCoefficient &q)
+      : MQ(&q) { Q = NULL; maps = NULL; geom = NULL; }
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
@@ -1701,7 +1723,7 @@ protected:
 #endif
    Coefficient *Q;
    // PA extension
-   Vector vec;
+   Vector pa_data;
    DofToQuad *maps;
    GeometryExtension *geom;
    int dim, ne, nq, dofs1D, quad1D;

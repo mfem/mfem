@@ -85,6 +85,12 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   // FIXME
+   // 7. Set device config parameters from the command line options.
+   Device::Configure(device);
+   if (myid == 0) { Device::Print(); }
+   Device::Enable();
+
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
@@ -116,10 +122,6 @@ int main(int argc, char *argv[])
    //    one (linear) by default, but this can be changed on the command line.
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
-
-   // 7. Set device config parameters from the command line options.
-   Device::Configure(device);
-   if (myid == 0) { Device::Print(); }
 
    // 8. As in Example 1p, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
@@ -200,11 +202,12 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       b.Assemble();
 
+      // FIXME
       // 15. Switch to the device and assemble the stiffness matrix. Note that
       //     MFEM doesn't care at this point that the mesh is nonconforming and
       //     parallel.  The FE space is considered 'cut' along hanging
       //     edges/faces, and also across processor boundaries.
-      Device::Enable();
+      // Device::Enable();
       a.Assemble();
 
       // 16. Create the parallel linear system: eliminate boundary conditions.
@@ -232,7 +235,7 @@ int main(int argc, char *argv[])
       // 18. Switch back to the host and extract the parallel grid function
       //     corresponding to the finite element approximation X. This is the
       //     local solution on each processor.
-      Device::Disable();
+      // Device::Disable(); // FIXME
       a.RecoverFEMSolution(X, b, x);
 
       // 19. Send the solution by socket to a GLVis server.

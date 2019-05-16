@@ -30,32 +30,22 @@
 namespace mfem
 {
 
-void Vector::Push() const
-{
-   mfem::Push(data, size*sizeof(double));
-}
-
-void Vector::Pull() const
-{
-   mfem::Pull(data, size*sizeof(double));
-}
-
 Vector::Vector(const Vector &v)
 {
-   int s = v.Size();
-
+   const int s = v.Size();
    if (s > 0)
    {
-      MFEM_ASSERT(v.data, "invalid source vector");
-      allocsize = size = s;
-      data = mfem::New<double>(s);
-      mfem::Memcpy(data, v.data, sizeof(double)*s);
+      MFEM_ASSERT(!v.data.Empty(), "invalid source vector");
+      size = s;
+      data.New(s, v.data.GetMemoryType());
+      data.CopyFrom(v.data, s);
    }
    else
    {
-      allocsize = size = 0;
-      data = NULL;
+      size = 0;
+      data.Reset();
    }
+   data.SetExecFlag(v.data.GetExecFlag());
 }
 
 void Vector::Load(std::istream **in, int np, int *dim)
@@ -72,10 +62,12 @@ void Vector::Load(std::istream **in, int np, int *dim)
 
    int p = 0;
    for (i = 0; i < np; i++)
+   {
       for (j = 0; j < dim[i]; j++)
       {
          *in[i] >> data[p++];
       }
+   }
 }
 
 void Vector::Load(std::istream &in, int Size)
@@ -100,141 +92,126 @@ const double &Vector::Elem(int i) const
 
 double Vector::operator*(const double *v) const
 {
-   return Dot(size, data, v);
-}
-
-double Vector::operator*(const Vector &v) const
-{
-#ifdef MFEM_DEBUG
-   if (v.size != size)
-   {
-      mfem_error("Vector::operator*(const Vector &) const");
-   }
+   double dot = 0.0;
+#ifdef MFEM_USE_LEGACY_OPENMP
+   #pragma omp parallel for reduction(+:dot)
 #endif
-
-   return operator*(v.data);
+   for (int i = 0; i < size; i++)
+   {
+      dot += data[i] * v[i];
+   }
+   return dot;
 }
 
 Vector &Vector::operator=(const double *v)
 {
-   if (data != v)
-   {
-      MFEM_ASSERT(data + size <= v || v + size <= data, "Vectors overlap!");
-      mfem::Memcpy(data, v, sizeof(double)*size);
-   }
+   data.CopyFromHost(v, size);
    return *this;
 }
 
 Vector &Vector::operator=(const Vector &v)
 {
-   SetSize(v.Size());
-   return operator=(v.data);
+   SetSize(v.Size(), v.data.GetMemoryType());
+   data.CopyFrom(v.data, v.Size());
+   data.SetExecFlag(v.data.GetExecFlag());
+   return *this;
 }
 
 Vector &Vector::operator=(double value)
 {
-   DeviceVector y(data, size);
-   MFEM_FORALL(i, size, y[i] = value;);
+   const bool use_dev = data.GetExecFlag();
+   const int N = size;
+   auto y = WriteAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, N, y[i] = value;);
    return *this;
 }
 
 Vector &Vector::operator*=(double c)
 {
-   DeviceVector y(data, size);
-   MFEM_FORALL(i, size, y[i] *= c;);
+   const bool use_dev = data.GetExecFlag();
+   const int N = size;
+   auto y = ReadWriteAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, N, y[i] *= c;);
    return *this;
 }
 
 Vector &Vector::operator/=(double c)
 {
+   const bool use_dev = data.GetExecFlag();
+   const int N = size;
    const double m = 1.0/c;
-   DeviceVector y(data, size);
-   MFEM_FORALL(i, size, y[i] *= m;);
+   auto y = ReadWriteAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, N, y[i] *= m;);
    return *this;
 }
 
 Vector &Vector::operator-=(double c)
 {
-   DeviceVector y(data, size);
-   MFEM_FORALL(i, size, y[i] -= c;);
+   const bool use_dev = data.GetExecFlag();
+   const int N = size;
+   auto y = ReadWriteAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, N, y[i] -= c;);
    return *this;
 }
 
 Vector &Vector::operator-=(const Vector &v)
 {
-#ifdef MFEM_DEBUG
-   if (size != v.size)
-   {
-      mfem_error("Vector::operator-=(const Vector &)");
-   }
-#endif
+   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+
+   const bool use_dev = data.GetExecFlag() || v.data.GetExecFlag();
    const int N = size;
-   DeviceVector y(data, N);
-   const DeviceVector x(v, N);
-   MFEM_FORALL(i, N, y[i] -= x[i];);
+   auto y = ReadWriteAccess(use_dev);
+   auto x = v.ReadAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, N, y[i] -= x[i];);
    return *this;
 }
 
 Vector &Vector::operator+=(const Vector &v)
 {
-#ifdef MFEM_DEBUG
-   if (size != v.size)
-   {
-      mfem_error("Vector::operator+=(const Vector &)");
-   }
-#endif
+   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+
+   const bool use_dev = data.GetExecFlag() || v.data.GetExecFlag();
    const int N = size;
-   DeviceVector y(data, N);
-   const DeviceVector x(v, N);
-   MFEM_FORALL(i, N, y[i] += x[i];);
+   auto y = ReadWriteAccess(use_dev);
+   auto x = v.ReadAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, N, y[i] += x[i];);
    return *this;
 }
 
 Vector &Vector::Add(const double a, const Vector &Va)
 {
-#ifdef MFEM_DEBUG
-   if (size != Va.size)
-   {
-      mfem_error("Vector::Add(const double, const Vector &)");
-   }
-#endif
+   MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
+
    if (a != 0.0)
    {
       const int N = size;
-      DeviceVector y(data, N);
-      const DeviceVector x(Va, N);
-      MFEM_FORALL(i, N, y[i] += a * x[i];);
+      const bool use_dev = data.GetExecFlag() || Va.data.GetExecFlag();
+      auto y = ReadWriteAccess(use_dev);
+      auto x = Va.ReadAccess(use_dev);
+      MFEM_FORALL_IF(!use_dev, i, N, y[i] += a * x[i];);
    }
    return *this;
 }
 
 Vector &Vector::Set(const double a, const Vector &Va)
 {
-#ifdef MFEM_DEBUG
-   if (size != Va.size)
-   {
-      mfem_error("Vector::Set(const double, const Vector &)");
-   }
-#endif
+   MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
+
+   const bool use_dev = data.GetExecFlag() || Va.data.GetExecFlag();
    const int N = size;
-   DeviceVector y(data, N);
-   const DeviceVector x(Va, N);
-   MFEM_FORALL(i, N, y[i] = a * x[i];);
+   auto x = Va.ReadAccess(use_dev);
+   auto y = WriteAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, N, y[i] = a * x[i];);
    return *this;
 }
 
 void Vector::SetVector(const Vector &v, int offset)
 {
-   int vs = v.Size();
-   double *vp = v.data, *p = data + offset;
+   MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
 
-#ifdef MFEM_DEBUG
-   if (offset+vs > size)
-   {
-      mfem_error("Vector::SetVector(const Vector &, int)");
-   }
-#endif
-
+   const int vs = v.Size();
+   const double *vp = v.data;
+   double *p = data + offset;
    for (int i = 0; i < vs; i++)
    {
       p[i] = vp[i];
@@ -243,25 +220,26 @@ void Vector::SetVector(const Vector &v, int offset)
 
 void Vector::Neg()
 {
-   DeviceVector y(data, size);
-   MFEM_FORALL(i, size, y[i] = -y[i];);
+   const bool use_dev = data.GetExecFlag();
+   const int N = size;
+   auto y = ReadWriteAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, N, y[i] = -y[i];);
 }
 
 void add(const Vector &v1, const Vector &v2, Vector &v)
 {
-#ifdef MFEM_DEBUG
-   if (v.size != v1.size || v.size != v2.size)
-   {
-      mfem_error("add(Vector &v1, Vector &v2, Vector &v)");
-   }
-#endif
+   MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
+               "incompatible Vectors!");
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
+   const bool use_dev = v1.data.GetExecFlag() || v2.data.GetExecFlag() ||
+                        v.data.GetExecFlag();
    const int N = v.size;
-   DeviceVector y(v, N);
-   const DeviceVector x1(v1, N);
-   const DeviceVector x2(v2, N);
-   MFEM_FORALL(i, N, y[i] = x1[i] + x2[i];);
+   // Note: get read access first, in case v is the same as v1/v2.
+   auto x1 = v1.ReadAccess(use_dev);
+   auto x2 = v2.ReadAccess(use_dev);
+   auto y = v.WriteAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, N, y[i] = x1[i] + x2[i];);
 #else
    #pragma omp parallel for
    for (int i = 0; i < v.size; i++)
@@ -273,12 +251,9 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
 
 void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
 {
-#ifdef MFEM_DEBUG
-   if (v.size != v1.size || v.size != v2.size)
-   {
-      mfem_error ("add(Vector &v1, double alpha, Vector &v2, Vector &v)");
-   }
-#endif
+   MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
+               "incompatible Vectors!");
+
    if (alpha == 0.0)
    {
       v = v1;
@@ -289,17 +264,19 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
    }
    else
    {
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      const bool use_dev = v1.data.GetExecFlag() || v2.data.GetExecFlag() ||
+                           v.data.GetExecFlag();
+      const int N = v.size;
+      // Note: get read access first, in case v is the same as v1/v2.
+      auto d_x = v1.ReadAccess(use_dev);
+      auto d_y = v2.ReadAccess(use_dev);
+      auto d_z = v.WriteAccess(use_dev);
+      MFEM_FORALL_IF(!use_dev, i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
+#else
       const double *v1p = v1.data, *v2p = v2.data;
       double *vp = v.data;
-
       const int s = v.size;
-#if !defined(MFEM_USE_LEGACY_OPENMP)
-      const int N = s;
-      DeviceVector d_z(vp, N);
-      const DeviceVector d_x(v1p, N);
-      const DeviceVector d_y(v2p, N);
-      MFEM_FORALL(i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
-#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
@@ -311,11 +288,9 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
 
 void add(const double a, const Vector &x, const Vector &y, Vector &z)
 {
-#ifdef MFEM_DEBUG
-   if (x.size != y.size || x.size != z.size)
-      mfem_error ("add(const double a, const Vector &x, const Vector &y,"
-                  " Vector &z)");
-#endif
+   MFEM_ASSERT(x.size == y.size && x.size == z.size,
+               "incompatible Vectors!");
+
    if (a == 0.0)
    {
       z = 0.0;
@@ -326,16 +301,20 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
    }
    else
    {
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      const bool use_dev = x.data.GetExecFlag() || y.data.GetExecFlag() ||
+                           z.data.GetExecFlag();
+      const int N = x.size;
+      // Note: get read access first, in case z is the same as x/y.
+      auto xd = x.ReadAccess(use_dev);
+      auto yd = y.ReadAccess(use_dev);
+      auto zd = z.WriteAccess(use_dev);
+      MFEM_FORALL_IF(!use_dev, i, N, zd[i] = a * (xd[i] + yd[i]););
+#else
       const double *xp = x.data;
       const double *yp = y.data;
       double       *zp = z.data;
       const int      s = x.size;
-#if !defined(MFEM_USE_LEGACY_OPENMP)
-      DeviceVector z(zp, s);
-      const DeviceVector x(xp, s);
-      const DeviceVector y(yp, s);
-      MFEM_FORALL(i, s, z[i] = a * (x[i] + y[i]););
-#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
@@ -348,11 +327,9 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
 void add(const double a, const Vector &x,
          const double b, const Vector &y, Vector &z)
 {
-#ifdef MFEM_DEBUG
-   if (x.size != y.size || x.size != z.size)
-      mfem_error("add(const double a, const Vector &x,\n"
-                 "    const double b, const Vector &y, Vector &z)");
-#endif
+   MFEM_ASSERT(x.size == y.size && x.size == z.size,
+               "incompatible Vectors!");
+
    if (a == 0.0)
    {
       z.Set(b, y);
@@ -361,6 +338,7 @@ void add(const double a, const Vector &x,
    {
       z.Set(a, x);
    }
+#if 0
    else if (a == 1.0)
    {
       add(x, b, y, z);
@@ -373,19 +351,23 @@ void add(const double a, const Vector &x,
    {
       add(a, x, y, z);
    }
+#endif
    else
    {
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      const bool use_dev = x.data.GetExecFlag() || y.data.GetExecFlag() ||
+                           z.data.GetExecFlag();
+      const int N = x.size;
+      // Note: get read access first, in case z is the same as x/y.
+      auto xd = x.ReadAccess(use_dev);
+      auto yd = y.ReadAccess(use_dev);
+      auto zd = z.WriteAccess(use_dev);
+      MFEM_FORALL_IF(!use_dev, i, N, zd[i] = a * xd[i] + b * yd[i];);
+#else
       const double *xp = x.data;
       const double *yp = y.data;
       double       *zp = z.data;
       const int      s = x.size;
-
-#if !defined(MFEM_USE_LEGACY_OPENMP)
-      DeviceVector z(zp, s);
-      const DeviceVector x(xp, s);
-      const DeviceVector y(yp, s);
-      MFEM_FORALL(i, s, z[i] = a * x[i] + b * y[i];);
-#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
@@ -397,23 +379,23 @@ void add(const double a, const Vector &x,
 
 void subtract(const Vector &x, const Vector &y, Vector &z)
 {
-#ifdef MFEM_DEBUG
-   if (x.size != y.size || x.size != z.size)
-   {
-      mfem_error ("subtract(const Vector &, const Vector &, Vector &)");
-   }
-#endif
+   MFEM_ASSERT(x.size == y.size && x.size == z.size,
+               "incompatible Vectors!");
+
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+   const bool use_dev = x.data.GetExecFlag() || y.data.GetExecFlag() ||
+                        z.data.GetExecFlag();
+   const int N = x.size;
+   // Note: get read access first, in case z is the same as x/y.
+   auto xd = x.ReadAccess(use_dev);
+   auto yd = y.ReadAccess(use_dev);
+   auto zd = z.WriteAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, N, zd[i] = xd[i] - yd[i];);
+#else
    const double *xp = x.data;
    const double *yp = y.data;
    double       *zp = z.data;
    const int     s = x.size;
-
-#if !defined(MFEM_USE_LEGACY_OPENMP)
-   DeviceVector zd(zp, s);
-   const DeviceVector xd(xp, s);
-   const DeviceVector yd(yp, s);
-   MFEM_FORALL(i, s, zd[i] = xd[i] - yd[i];);
-#else
    #pragma omp parallel for
    for (int i = 0; i < s; i++)
    {
@@ -424,11 +406,8 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
 
 void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
 {
-#ifdef MFEM_DEBUG
-   if (x.size != y.size || x.size != z.size)
-      mfem_error("subtract(const double a, const Vector &x,"
-                 " const Vector &y, Vector &z)");
-#endif
+   MFEM_ASSERT(x.size == y.size && x.size == z.size,
+               "incompatible Vectors!");
 
    if (a == 0.)
    {
@@ -440,17 +419,20 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
    }
    else
    {
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+      const bool use_dev = x.data.GetExecFlag() || y.data.GetExecFlag() ||
+                           z.data.GetExecFlag();
+      const int N = x.size;
+      // Note: get read access first, in case z is the same as x/y.
+      auto xd = x.ReadAccess(use_dev);
+      auto yd = y.ReadAccess(use_dev);
+      auto zd = z.WriteAccess(use_dev);
+      MFEM_FORALL_IF(!use_dev, i, N, zd[i] = a * (xd[i] - yd[i]););
+#else
       const double *xp = x.data;
       const double *yp = y.data;
       double       *zp = z.data;
       const int      s = x.size;
-
-#if !defined(MFEM_USE_LEGACY_OPENMP)
-      DeviceVector zd(zp, s);
-      const DeviceVector xd(xp, s);
-      const DeviceVector yd(yp, s);
-      MFEM_FORALL(i, s, zd[i] = a * (xd[i] - yd[i]););
-#else
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
@@ -462,117 +444,168 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
 
 void Vector::median(const Vector &lo, const Vector &hi)
 {
+   MFEM_ASSERT(size == lo.size && size == hi.size,
+               "incompatible Vectors!");
+
+   const bool use_dev = data.GetExecFlag() || lo.data.GetExecFlag() ||
+                        hi.data.GetExecFlag();
    const int N = size;
-   DeviceVector v(data, N);
-   const DeviceVector l(lo, N);
-   const DeviceVector h(hi, N);
-   MFEM_FORALL(i, N,
+   // Note: get read access first, in case *this is the same as lo/hi.
+   auto l = lo.ReadAccess(use_dev);
+   auto h = hi.ReadAccess(use_dev);
+   auto m = WriteAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, N,
    {
-      if (v[i] < l[i])
+      if (m[i] < l[i])
       {
-         v[i] = l[i];
+         m[i] = l[i];
       }
-      else if (v[i] > h[i])
+      else if (m[i] > h[i])
       {
-         v[i] = h[i];
+         m[i] = h[i];
       }
    });
 }
 
-static void GetSubvector(const int N,
-                         double *y, const double *x, const int* dofs)
-{
-   DeviceVector d_y(y, N);
-   const DeviceVector d_x(x, N);
-   const DeviceArray d_dofs(dofs, N);
-   MFEM_FORALL(i, N,
-   {
-      const int dof_i = d_dofs[i];
-      d_y[i] = dof_i >= 0 ? d_x[dof_i] : -d_x[-dof_i-1];
-   });
-}
+// Enable/disble the use of kernels in the sub-vector operations in class Vector
+// TODO: Do we need this option enabled?
+//   * Vector::SetSubVector(const Array<int> &dofs, const double value) is used
+//     sometimes for T-vectors with dofs being the list of essential dofs.
+#define MFEM_USE_SUBVECTOR_KERNELS
 
 void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 {
    const int n = dofs.Size();
    elemvect.SetSize(n);
-   mfem::GetSubvector(n, elemvect, data, dofs);
+
+#ifdef MFEM_USE_SUBVECTOR_KERNELS
+   const bool use_dev = dofs.GetMemory().GetExecFlag() ||
+                        elemvect.data.GetExecFlag();
+   auto d_y = elemvect.WriteAccess(use_dev);
+   auto d_X = ReadAccess(use_dev);
+   auto d_dofs = dofs.ReadAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, n,
+   {
+      const int dof_i = d_dofs[i];
+      d_y[i] = dof_i >= 0 ? d_X[dof_i] : -d_X[-dof_i-1];
+   });
+#else
+   for (int i = 0; i < n; i++)
+   {
+      const int j = dofs[i];
+      elemvect(i) = (j >= 0) ? operator()(j) : -operator()(-1-j);
+   }
+#endif
 }
 
 void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 {
-   mfem::GetSubvector(dofs.Size(), elem_data, data,dofs);
-}
-
-static void SetSubvector(const int N, double* y, const double d,
-                         const int* dofs)
-{
-   DeviceVector d_y(y,N);
-   const DeviceArray d_dofs(dofs,N);
-   MFEM_FORALL(i, N,
+   data.ReadAccess(MemoryClass::HOST, size);
+   const int n = dofs.Size();
+   for (int i = 0; i < n; i++)
    {
-      const int j = d_dofs[i];
-      if (j >= 0)
-      {
-         d_y[j] = d;
-      }
-      else
-      {
-         d_y[-1-j] = -d;
-      }
-   });
-}
-
-static void SetSubvector(const int N, double *y, const double *x,
-                         const int* dofs)
-{
-   DeviceVector d_y(y,N);
-   const DeviceVector d_x(x,N);
-   const DeviceArray d_dofs(dofs,N);
-   MFEM_FORALL(i, N,
-   {
-      const int dof_i = d_dofs[i];
-      if (dof_i >= 0)
-      {
-         d_y[dof_i] = d_x[i];
-      }
-      else
-      {
-         d_y[-1-dof_i] = -d_x[i];
-      }
-   });
+      const int j = dofs[i];
+      elem_data[i] = (j >= 0) ? data[j] : -data[-1-j];
+   }
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const double value)
 {
-   mfem::SetSubvector(dofs.Size(), data, value, dofs);
+#ifdef MFEM_USE_SUBVECTOR_KERNELS
+   const bool use_dev = dofs.GetMemory().GetExecFlag();
+   const int n = dofs.Size();
+   // Use read+write access for *this - we only modify some of its entries
+   auto d_X = ReadWriteAccess(use_dev);
+   auto d_dofs = dofs.ReadAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, n,
+   {
+      const int j = d_dofs[i];
+      if (j >= 0)
+      {
+         d_X[j] = value;
+      }
+      else
+      {
+         d_X[-1-j] = -value;
+      }
+   });
+#else
+   const int n = dofs.Size();
+   for (int i = 0; i < n; i++)
+   {
+      const int j= dofs[i];
+      if (j >= 0)
+      {
+         operator()(j) = value;
+      }
+      else
+      {
+         operator()(-1-j) = -value;
+      }
+   }
+#endif
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   mfem::SetSubvector(dofs.Size(), data, elemvect, dofs);
+   MFEM_ASSERT(dofs.Size() == elemvect.Size(),
+               "Size mismatch: length of dofs is " << dofs.Size()
+               << ", length of elemvect is " << elemvect.Size());
+
+#ifdef MFEM_USE_SUBVECTOR_KERNELS
+   const bool use_dev = dofs.GetMemory().GetExecFlag() ||
+                        elemvect.data.GetExecFlag();
+   const int n = dofs.Size();
+   // Use read+write access for X - we only modify some of its entries
+   auto d_X = ReadWriteAccess(use_dev);
+   auto d_y = elemvect.ReadAccess(use_dev);
+   auto d_dofs = dofs.ReadAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, n,
+   {
+      const int dof_i = d_dofs[i];
+      if (dof_i >= 0)
+      {
+         d_X[dof_i] = d_y[i];
+      }
+      else
+      {
+         d_X[-1-dof_i] = -d_y[i];
+      }
+   });
+#else
+   const int n = dofs.Size();
+   for (int i = 0; i < n; i++)
+   {
+      const int j= dofs[i];
+      if (j >= 0)
+      {
+         operator()(j) = elemvect(i);
+      }
+      else
+      {
+         operator()(-1-j) = -elemvect(i);
+      }
+   }
+#endif
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 {
-   mfem::SetSubvector(dofs.Size(), data, elem_data, dofs);
-}
-
-static void AddElement(const int N, const int *dofs, const double *x, double *y)
-{
-   DeviceVector d_y(y,N);
-   const DeviceVector d_x(x,N);
-   const DeviceArray d_dofs(dofs,N);
-   MFEM_FORALL(i, N,
+   // Use read+write access because we overwrite only part of the data.
+   data.ReadWriteAccess(MemoryClass::HOST, size);
+   const int n = dofs.Size();
+   for (int i = 0; i < n; i++)
    {
-      const int j = d_dofs[i];
+      const int j= dofs[i];
       if (j >= 0)
-         d_y[j] += d_x[i];
+      {
+         operator()(j) = elem_data[i];
+      }
       else
       {
-         d_y[-1-j] -= d_x[i];
+         operator()(-1-j) = -elem_data[i];
       }
-   });
+   }
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
@@ -580,46 +613,121 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
    MFEM_ASSERT(dofs.Size() == elemvect.Size(), "Size mismatch: "
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
-   mfem::AddElement(dofs.Size(), dofs, elemvect.GetData(), data);
+
+#ifdef MFEM_USE_SUBVECTOR_KERNELS
+   const bool use_dev = dofs.GetMemory().GetExecFlag() ||
+                        elemvect.data.GetExecFlag();
+   const int n = dofs.Size();
+   auto d_y = elemvect.ReadAccess(use_dev);
+   auto d_X = ReadWriteAccess(use_dev);
+   auto d_dofs = dofs.ReadAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, n,
+   {
+      const int j = d_dofs[i];
+      if (j >= 0)
+      {
+         d_X[j] += d_y[i];
+      }
+      else
+      {
+         d_X[-1-j] -= d_y[i];
+      }
+   });
+#else
+   const int n = dofs.Size();
+   for (int i = 0; i < n; i++)
+   {
+      const int j = dofs[i];
+      if (j >= 0)
+      {
+         operator()(j) += elemvect(i);
+      }
+      else
+      {
+         operator()(-1-j) -= elemvect(i);
+      }
+   }
+#endif
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 {
-   mfem::AddElement(dofs.Size(), dofs, elem_data, data);
+   data.ReadWriteAccess(MemoryClass::HOST, size);
+   const int n = dofs.Size();
+   for (int i = 0; i < n; i++)
+   {
+      const int j = dofs[i];
+      if (j >= 0)
+      {
+         operator()(j) += elem_data[i];
+      }
+      else
+      {
+         operator()(-1-j) -= elem_data[i];
+      }
+   }
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const double a,
                               const Vector &elemvect)
 {
-   const int N = dofs.Size();
-   const double alpha = a;
-   DeviceVector d_y(data, N);
-   const DeviceVector d_x(elemvect, N);
-   const DeviceArray d_dofs(dofs, N);
-   MFEM_FORALL(i, N,
+   MFEM_ASSERT(dofs.Size() == elemvect.Size(), "Size mismatch: "
+               "length of dofs is " << dofs.Size() <<
+               ", length of elemvect is " << elemvect.Size());
+#ifdef MFEM_USE_SUBVECTOR_KERNELS
+   const bool use_dev = dofs.GetMemory().GetExecFlag() ||
+                        elemvect.data.GetExecFlag();
+   const int n = dofs.Size();
+   auto d_y = ReadWriteAccess(use_dev);
+   auto d_x = elemvect.ReadAccess(use_dev);
+   auto d_dofs = dofs.ReadAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, n,
    {
       const int j = d_dofs[i];
       if (j >= 0)
-         d_y[j] += alpha * d_x[i];
+      {
+         d_y[j] += a * d_x[i];
+      }
       else
       {
-         d_y[-1-j] -= alpha * d_x[i];
+         d_y[-1-j] -= a * d_x[i];
       }
    });
+#else
+   const int n = dofs.Size();
+   for (int i = 0; i < n; i++)
+   {
+      const int j = dofs[i];
+      if (j >= 0)
+      {
+         operator()(j) += a * elemvect(i);
+      }
+      else
+      {
+         operator()(-1-j) -= a * elemvect(i);
+      }
+   }
+#endif
 }
 
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 {
-   Vector dofs_vals;
-   GetSubVector(dofs, dofs_vals);
-   operator=(val);
-   SetSubVector(dofs, dofs_vals);
+   const bool use_dev = data.GetExecFlag() || dofs.GetMemory().GetExecFlag();
+   const int n = dofs.Size();
+   const int N = size;
+   Vector dofs_vals(n, use_dev ? Device::GetMemoryType() : MemoryType::HOST);
+   auto d_data = ReadWriteAccess(use_dev);
+   auto d_dofs_vals = dofs_vals.WriteAccess(use_dev);
+   auto d_dofs = dofs.ReadAccess(use_dev);
+   MFEM_FORALL_IF(!use_dev, i, n, d_dofs_vals[i] = d_data[d_dofs[i]];);
+   MFEM_FORALL_IF(!use_dev, i, N, d_data[i] = val;);
+   MFEM_FORALL_IF(!use_dev, i, n, d_data[d_dofs[i]] = d_dofs_vals[i];);
 }
 
 void Vector::Print(std::ostream &out, int width) const
 {
    if (!size) { return; }
-   Pull();
+   data.ReadAccess(MemoryClass::HOST, size);
    for (int i = 0; 1; )
    {
       out << data[i];
@@ -649,6 +757,7 @@ void Vector::Print_HYPRE(std::ostream &out) const
 
    out << size << '\n';  // number of rows
 
+   data.ReadAccess(MemoryClass::HOST, size);
    for (i = 0; i < size; i++)
    {
       out << data[i] << '\n';
@@ -737,6 +846,7 @@ double Vector::Norml1() const
 double Vector::Normlp(double p) const
 {
    MFEM_ASSERT(p > 0.0, "Vector::Normlp");
+
    if (p == 1.0)
    {
       return Norml1();
@@ -785,28 +895,19 @@ double Vector::Normlp(double p) const
 
 double Vector::Max() const
 {
+   if (size == 0) { return -infinity(); }
+
    double max = data[0];
 
    for (int i = 1; i < size; i++)
+   {
       if (data[i] > max)
       {
          max = data[i];
       }
+   }
 
    return max;
-}
-
-double Vector::Min() const
-{
-   double min = data[0];
-
-   for (int i = 1; i < size; i++)
-      if (data[i] < min)
-      {
-         min = data[i];
-      }
-
-   return min;
 }
 
 double Vector::Sum() const
@@ -849,19 +950,20 @@ static __global__ void cuKernelMin(const int N, double *gdsr, const double *x)
 
 static double cuVectorMin(const int N, const double *X)
 {
-   const DeviceVector x(X, N);
    const int tpb = MFEM_CUDA_BLOCKS;
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    const int bytes = min_sz*sizeof(double);
    static double *h_min = NULL;
+   // FIXME: min_sz depends on N, so single allocation for h_min and gdsr is not
+   // sufficient for different N. Also, h_min and gdsr should be freed.
    if (!h_min) { h_min = (double*)calloc(min_sz,sizeof(double)); }
    static void *gdsr = NULL;
-   if (!gdsr) { MFEM_CUDA_CHECK(cudaMalloc(&gdsr, bytes)); }
-   cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, x);
+   if (!gdsr) { CuMemAlloc(&gdsr, bytes); }
+   cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, X);
    MFEM_CUDA_CHECK(cudaGetLastError());
-   MFEM_CUDA_CHECK(cudaMemcpy(h_min, gdsr, bytes, cudaMemcpyDeviceToHost));
+   CuMemcpyDtoH(h_min, gdsr, bytes);
    double min = std::numeric_limits<double>::infinity();
    for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
    return min;
@@ -895,8 +997,6 @@ static __global__ void cuKernelDot(const int N, double *gdsr,
 
 static double cuVectorDot(const int N, const double *X, const double *Y)
 {
-   const DeviceVector x(X, N);
-   const DeviceVector y(Y, N);
    static int dot_block_sz = 0;
    const int tpb = MFEM_CUDA_BLOCKS;
    const int blockSize = MFEM_CUDA_BLOCKS;
@@ -912,54 +1012,117 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    static void *gdsr = NULL;
    if (!gdsr or dot_block_sz!=dot_sz)
    {
-      if (gdsr) { MFEM_CUDA_CHECK(cudaFree(gdsr)); }
-      MFEM_CUDA_CHECK(cudaMalloc(&gdsr,bytes));
+      if (gdsr) { CuMemFree(gdsr); }
+      CuMemAlloc(&gdsr,bytes);
    }
    if (dot_block_sz!=dot_sz)
    {
       dot_block_sz = dot_sz;
    }
-   cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
+   // FIXME: need to free h_dot and gdsr
+   cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, X, Y);
    MFEM_CUDA_CHECK(cudaGetLastError());
-   MFEM_CUDA_CHECK(cudaMemcpy(h_dot, gdsr, bytes, cudaMemcpyDeviceToHost));
+   CuMemcpyDtoH(h_dot, gdsr, bytes);
    double dot = 0.0;
    for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
    return dot;
 }
 #endif // MFEM_USE_CUDA
 
-double Min(const int N, const double *x)
+double Vector::operator*(const Vector &v) const
 {
+   MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+
+   const bool use_dev = data.GetExecFlag() || v.data.GetExecFlag();
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_OPENMP)
+   auto m_data = ReadAccess(use_dev);
+#else
+   ReadAccess(use_dev);
+#endif
+   auto v_data = v.ReadAccess(use_dev);
+
+   if (!use_dev) { goto vector_dot_cpu; }
+
+#ifdef MFEM_USE_OCCA
+   if (DeviceUseOcca())
+   {
+      return occa::linalg::dot<double,double,double>(
+                OccaMemoryRead(data, size), OccaMemoryRead(v.data, size));
+   }
+#endif
+
+#ifdef MFEM_USE_CUDA
    if (Device::Allows(Backend::CUDA_MASK))
    {
-#ifdef MFEM_USE_CUDA
-      return cuVectorMin(N, x);
-#else
-      mfem_error("Using Min on device w/o support");
-#endif // MFEM_USE_CUDA
+      return cuVectorDot(size, m_data, v_data);
    }
-   double min = std::numeric_limits<double>::infinity();
-   for (int i = 0; i < N; i++) { min = fmin(min, x[i]); }
-   return min;
+#endif
+
+#ifdef MFEM_USE_OPENMP
+   if (Device::Allows(Backend::OMP_MASK))
+   {
+      double prod = 0.0;
+      #pragma omp parallel for reduction(+:prod)
+      for (int i = 0; i < size; i++)
+      {
+         prod += m_data[i] * v_data[i];
+      }
+      return prod;
+   }
+#endif
+
+vector_dot_cpu:
+   return operator*(v_data);
 }
 
-double Dot(const int N, const double *x, const double *y)
+double Vector::Min() const
 {
+   if (size == 0) { return infinity(); }
+
+   const bool use_dev = data.GetExecFlag();
+   auto m_data = ReadAccess(use_dev);
+
+   if (!use_dev) { goto vector_min_cpu; }
+
+#ifdef MFEM_USE_OCCA
+   if (DeviceUseOcca())
+   {
+      return occa::linalg::min<double,double>(OccaMemoryRead(data, size));
+   }
+#endif
+
+#ifdef MFEM_USE_CUDA
    if (Device::Allows(Backend::CUDA_MASK))
    {
-#ifdef MFEM_USE_CUDA
-      return cuVectorDot(N, x, y);
-#else
-      mfem_error("Using Dot on device w/o support");
-#endif // MFEM_USE_CUDA
+      return cuVectorMin(size, m_data);
    }
-   double dot = 0.0;
-#ifdef MFEM_USE_LEGACY_OPENMP
-   #pragma omp parallel for reduction(+:dot)
 #endif
-   for (int i = 0; i < N; i++) { dot += x[i] * y[i]; }
-   return dot;
+
+#ifdef MFEM_USE_OPENMP
+   if (Device::Allows(Backend::OMP_MASK))
+   {
+      double minimum = m_data[0];
+      #pragma omp parallel for reduction(min:minimum)
+      for (int i = 0; i < size; i++)
+      {
+         minimum = std::min(minimum, m_data[i]);
+      }
+      return minimum;
+   }
+#endif
+
+vector_min_cpu:
+   double minimum = data[0];
+   for (int i = 1; i < size; i++)
+   {
+      if (m_data[i] < minimum)
+      {
+         minimum = m_data[i];
+      }
+   }
+   return minimum;
 }
+
 
 #ifdef MFEM_USE_SUNDIALS
 

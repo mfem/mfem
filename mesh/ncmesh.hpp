@@ -36,6 +36,8 @@ struct Refinement
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
+   Refinement() = default;
+
    Refinement(int index, int type = 7) : index(index), ref_type(type) {}
 };
 
@@ -47,6 +49,8 @@ struct Embedding
    /** @brief Index into the DenseTensor corresponding to the parent
        Geometry::Type stored in CoarseFineTransformations::point_matrices. */
    int matrix;
+
+   Embedding() = default;
 
    Embedding(int elem, int matrix = 0) : parent(elem), matrix(matrix) {}
 };

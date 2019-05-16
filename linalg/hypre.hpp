@@ -451,16 +451,18 @@ public:
 
    /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
-   void BooleanMult(int alpha, int *x, int beta, int *y)
+   void BooleanMult(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, x, beta, y);
+      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, const_cast<int*>(x),
+                                                beta, y);
    }
 
    /** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
-   void BooleanMultTranspose(int alpha, int *x, int beta, int *y)
+   void BooleanMultTranspose(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, x, beta, y);
+      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, const_cast<int*>(x),
+                                                 beta, y);
    }
 
    /// Initialize all entries with value.

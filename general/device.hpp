@@ -13,6 +13,7 @@
 #define MFEM_DEVICE_HPP
 
 #include "globals.hpp"
+#include "mem_manager.hpp"
 
 namespace mfem
 {
@@ -59,16 +60,20 @@ struct Backend
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
       NUM_BACKENDS = 9,
+
+      /// Biwise-OR of all CPU backends
+      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
-      /// Biwise-OR of all RAJA backends
-      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
-      /// Biwise-OR of all OCCA backends
-      OCCA_MASK = OCCA_CPU | OCCA_OMP | OCCA_CUDA,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK
+      DEVICE_MASK = CUDA_MASK,
+
+      /// Biwise-OR of all RAJA backends
+      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
+      /// Biwise-OR of all OCCA backends
+      OCCA_MASK = OCCA_CPU | OCCA_OMP | OCCA_CUDA
    };
 };
 
@@ -93,6 +98,8 @@ class Device
 private:
    enum MODES {SEQUENTIAL, ACCELERATED};
 
+   static Device device_singleton;
+
    MODES mode;
    int dev = 0; ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
@@ -102,18 +109,26 @@ private:
        is allowed. */
    unsigned long allowed_backends;
 
+   MemoryType mem_type;    ///< Current Device MemoryType
+   MemoryClass mem_class;  ///< Current Device MemoryClass
+
    Device()
       : mode(Device::SEQUENTIAL),
         backends(Backend::CPU),
-        allowed_backends(backends) { }
+        allowed_backends(backends),
+        mem_type(MemoryType::HOST),
+        mem_class(MemoryClass::HOST)
+   { }
    Device(Device const&);
    void operator=(Device const&);
-   static Device& Get() { static Device singleton; return singleton; }
+   static Device& Get() { return device_singleton; }
 
    /// Setup switcher based on configuration settings
    void Setup(const int dev = 0);
 
    void MarkBackend(Backend::Id b) { backends |= b; }
+
+   void UpdateMemoryTypeAndClass();
 
 public:
    /// Configure the Device backends.
@@ -149,24 +164,18 @@ public:
        possible, transferring data automatically to the device, if necessary.
 
        If the only configured backend is the default host CPU one, the device
-       will remain disabled. */
-   static inline void Enable()
-   {
-      if (Get().backends & ~Backend::CPU)
-      {
-         Get().mode = Device::ACCELERATED;
-         Get().allowed_backends = Get().backends;
-      }
-   }
+       will remain disabled.
+
+       If the device is actually enabled, this method will also update the
+       current MemoryType and MemoryClass. */
+   static void Enable();
 
    /// Disable the use of the configured device in the code that follows.
    /** After this call MFEM classes will only use default CPU kernels,
-       transferring data automatically from the device, if necessary. */
-   static inline void Disable()
-   {
-      Get().mode = Device::SEQUENTIAL;
-      Get().allowed_backends = Backend::CPU;
-   }
+       transferring data automatically from the device, if necessary.
+
+       This method will also update the current MemoryType and MemoryClass. */
+   static void Disable();
 
    /// Return true if the Device is enabled.
    static inline bool IsEnabled() { return Get().mode == ACCELERATED; }
@@ -181,7 +190,73 @@ public:
        Backend::*_MASK, or combinations of those. */
    static inline bool Allows(unsigned long b_mask)
    { return Get().allowed_backends & b_mask; }
+
+   /** @brief Get the current Device MemoryType. This is the MemoryType used by
+       most MFEM classes when allocating memory to be used with device kernels.
+   */
+   /** This value is updated when enabling or disabling the Device. */
+   static inline MemoryType GetMemoryType() { return Get().mem_type; }
+
+   /** @brief Get the current Device MemoryClass. This is the MemoryClass used
+       by most MFEM device kernels to access Memory objects. */
+   /** This value is updated when enabling or disabling the Device. */
+   static inline MemoryClass GetMemoryClass() { return Get().mem_class; }
 };
+
+
+// Inline Memory access functions using the mfem::Device MemoryClass or
+// MemoryClass::HOST.
+
+/** @brief Get a pointer for read access to @a mem with the mfem::Device
+    MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
+/** Also, if @a on_dev = true, the execution flag of @a mem will be set. */
+template <typename T>
+inline const T *ReadAccess(const Memory<T> &mem, int size, bool on_dev = true)
+{
+   if (!on_dev)
+   {
+      return mem.ReadAccess(MemoryClass::HOST, size);
+   }
+   else
+   {
+      mem.SetExecFlag(true);
+      return mem.ReadAccess(Device::GetMemoryClass(), size);
+   }
+}
+
+/** @brief Get a pointer for write access to @a mem with the mfem::Device
+    MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
+/** Also, if @a on_dev = true, the execution flag of @a mem will be set. */
+template <typename T>
+inline T *WriteAccess(Memory<T> &mem, int size, bool on_dev = true)
+{
+   if (!on_dev)
+   {
+      return mem.WriteAccess(MemoryClass::HOST, size);
+   }
+   else
+   {
+      mem.SetExecFlag(true);
+      return mem.WriteAccess(Device::GetMemoryClass(), size);
+   }
+}
+
+/** @brief Get a pointer for read+write access to @a mem with the mfem::Device
+    MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
+/** Also, if @a on_dev = true, the execution flag of @a mem will be set. */
+template <typename T>
+inline T *ReadWriteAccess(Memory<T> &mem, int size, bool on_dev = true)
+{
+   if (!on_dev)
+   {
+      return mem.ReadWriteAccess(MemoryClass::HOST, size);
+   }
+   else
+   {
+      mem.SetExecFlag(true);
+      return mem.ReadWriteAccess(Device::GetMemoryClass(), size);
+   }
+}
 
 } // mfem
 
