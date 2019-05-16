@@ -15,26 +15,15 @@
 namespace mfem
 {
 
-/// GeometryExtension
-class GeometryExtension
+/// Mesh Extension
+class XTMesh
 {
 private:
    long sequence;
 public:
-   Array<int> eMap;
-   Array<double> nodes;
    Array<double> X, J, invJ, detJ;
-   GeometryExtension():sequence(-1) {}
+   XTMesh(const Mesh*, const IntegrationRule&);
    long& GetSequence() {return sequence;}
-   static GeometryExtension* Get(Mesh*,
-                                 const IntegrationRule&,
-                                 GeometryExtension*& geom);
-   static GeometryExtension* Get(Mesh*,
-                                 const IntegrationRule&,
-                                 const Vector&,
-                                 GeometryExtension*& geom);
-   static void ReorderByVDim(const GridFunction*);
-   static void ReorderByNodes(const GridFunction*);
 };
 
 }

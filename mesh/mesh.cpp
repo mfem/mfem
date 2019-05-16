@@ -15,7 +15,7 @@
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
-#include "../general/forall.hpp"
+#include "../general/device.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -752,17 +752,18 @@ void Mesh::GetLocalQuadToWdgTransformation(
    Transf.FinalizeTransformation();
 }
 
-GeometryExtension* Mesh::GetGeometryExtension(const IntegrationRule& ir,
-                                              const Vector& Sx)
+XTMesh* Mesh::GetXTMesh(const IntegrationRule& ir)
 {
-   GeometryExtension::Get(this, ir, Sx, geom);
-   return geom;
-}
-
-GeometryExtension* Mesh::GetGeometryExtension(const IntegrationRule& ir)
-{
-   GeometryExtension::Get(this, ir, geom);
-   return geom;
+   const bool dev_enabled = Device::IsEnabled();
+   if (dev_enabled) { Device::Disable(); }
+   this->EnsureNodes();
+   if (dev_enabled) { Device::Enable(); }
+   if (!xtmesh) { return xtmesh = new XTMesh(this, ir); }
+   const bool new_sequence = (xtmesh->GetSequence() < this->GetSequence());
+   xtmesh->GetSequence() = this->GetSequence();
+   if (!new_sequence) { return xtmesh; }
+   delete xtmesh;
+   return xtmesh = new XTMesh(this, ir);
 }
 
 void Mesh::GetLocalFaceTransformation(
@@ -957,6 +958,7 @@ void Mesh::Init()
    own_nodes = 1;
    NURBSext = NULL;
    ncmesh = NULL;
+   xtmesh = NULL;
    last_operation = Mesh::NONE;
 }
 
@@ -1375,6 +1377,12 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    if (ncmesh)
    {
       MFEM_WARNING("element reordering of non-conforming meshes is not"
+                   " supported.");
+      return;
+   }
+   if (xtmesh)
+   {
+      MFEM_WARNING("element reordering with geometry extension is not"
                    " supported.");
       return;
    }

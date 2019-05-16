@@ -1648,17 +1648,17 @@ private:
    MatrixCoefficient *MQ;
    // PA extension
    DofToQuad *maps;
-   GeometryExtension *geom;
+   XTMesh *xtmesh;
    int dim, ne, dofs1D, quad1D;
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator() { Q = NULL; MQ = NULL; maps = NULL; geom = NULL; }
+   DiffusionIntegrator() { Q = NULL; MQ = NULL; maps = NULL; xtmesh = NULL; }
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; maps = NULL; geom = NULL; }
+   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; maps = NULL; xtmesh = NULL; }
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; maps = NULL; geom = NULL; }
+   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; maps = NULL; xtmesh = NULL; }
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
@@ -1704,14 +1704,14 @@ protected:
    // PA extension
    Vector vec;
    DofToQuad *maps;
-   GeometryExtension *geom;
+   XTMesh *xtmesh;
    int dim, ne, nq, dofs1D, quad1D;
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir) { Q = NULL; maps = NULL; geom = NULL; }
+      : BilinearFormIntegrator(ir) { Q = NULL; maps = NULL; xtmesh = NULL; }
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q) { maps = NULL; geom = NULL; }
+      : BilinearFormIntegrator(ir), Q(&q) { maps = NULL; xtmesh = NULL; }
 
    /** Given a particular Finite Element
        computes the element mass matrix elmat. */

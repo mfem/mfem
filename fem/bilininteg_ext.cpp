@@ -249,11 +249,11 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    ne = fes.GetNE();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   geom = mesh->GetGeometryExtension(*ir);
+   xtmesh = mesh->GetXTMesh(*ir);
    maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(symmDims * nq * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
-   PADiffusionSetup(dim, dofs1D, quad1D, ne, maps->W, geom->J, coeff, vec);
+   PADiffusionSetup(dim, dofs1D, quad1D, ne, maps->W, xtmesh->J, coeff, vec);
 }
 
 #ifdef MFEM_USE_OCCA
@@ -735,7 +735,7 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 
 DiffusionIntegrator::~DiffusionIntegrator()
 {
-   delete geom;
+   delete xtmesh;
    delete maps;
 }
 
@@ -751,7 +751,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    nq = ir->GetNPoints();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   geom = mesh->GetGeometryExtension(*ir);
+   xtmesh = mesh->GetXTMesh(*ir);
    maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(ne*nq);
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
@@ -777,8 +777,8 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       const int NE = ne;
       const int NQ = nq;
       const DeviceVector w(maps->W.GetData(), NQ);
-      const DeviceTensor<3> x(geom->X.GetData(), 2,NQ,NE);
-      const DeviceTensor<4> J(geom->J.GetData(), 2,2,NQ,NE);
+      const DeviceTensor<3> x(xtmesh->X, 2,NQ,NE);
+      const DeviceTensor<4> J(xtmesh->J, 2,2,NQ,NE);
       DeviceMatrix v(vec.GetData(), NQ, NE);
       MFEM_FORALL(e, NE,
       {
@@ -817,8 +817,8 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       const int NE = ne;
       const int NQ = nq;
       const DeviceVector W(maps->W.GetData(), NQ);
-      const DeviceTensor<3> x(geom->X.GetData(), 3,NQ,NE);
-      const DeviceTensor<4> J(geom->J.GetData(), 3,3,NQ,NE);
+      const DeviceTensor<3> x(xtmesh->X, 3,NQ,NE);
+      const DeviceTensor<4> J(xtmesh->J, 3,3,NQ,NE);
       DeviceMatrix v(vec.GetData(), NQ,NE);
       MFEM_FORALL(e, NE,
       {
@@ -1237,7 +1237,7 @@ void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 
 MassIntegrator::~MassIntegrator()
 {
-   delete geom;
+   delete xtmesh;
    delete maps;
 }
 

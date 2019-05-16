@@ -30,11 +30,11 @@ namespace mfem
 
 // Data type mesh
 
+class XTMesh;
 class KnotVector;
 class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
-class GeometryExtension;
 struct Refinement;
 
 #ifdef MFEM_USE_MPI
@@ -60,7 +60,6 @@ protected:
 
    int meshgen; // see MeshGenerator()
    int mesh_geoms; // sum of (1 << geom) for all geom of all dimensions
-   GeometryExtension *geom = NULL;
 
    // Counter for Mesh transformations: refinement, derefinement, rebalancing.
    // Used for checking during Update operations on objects depending on the
@@ -179,6 +178,7 @@ public:
 
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
+   XTMesh *xtmesh;           ///< Optional partial assembly mesh extension.
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -691,10 +691,8 @@ public:
    /// Return the total (global) number of elements.
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
-   GeometryExtension* GetGeometryExtension(const IntegrationRule& ir,
-                                           const Vector& Sx);
-
-   GeometryExtension* GetGeometryExtension(const IntegrationRule& ir);
+   /// Return the mesh extension coresponding to the given integration rule.
+   XTMesh* GetXTMesh(const IntegrationRule& ir);
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const
