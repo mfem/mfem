@@ -1988,7 +1988,7 @@ void Mesh::FinalizeMesh(int refine, bool fix_orientation)
    Finalize(refine, fix_orientation);
 }
 
-void Mesh::FinalizeTopology()
+void Mesh::FinalizeTopology(bool generate_bdr)
 {
    // Requirements: the following should be defined:
    //   1) Dim
@@ -2013,7 +2013,7 @@ void Mesh::FinalizeTopology()
    {
       GetElementToFaceTable();
       GenerateFaces();
-      if (NumOfBdrElements == 0)
+      if (NumOfBdrElements == 0 && generate_bdr)
       {
          GenerateBoundaryElements();
          GetElementToFaceTable(); // update be_to_face
@@ -2033,7 +2033,7 @@ void Mesh::FinalizeTopology()
       if (Dim == 2)
       {
          GenerateFaces(); // 'Faces' in 2D refers to the edges
-         if (NumOfBdrElements == 0)
+         if (NumOfBdrElements == 0 && generate_bdr)
          {
             GenerateBoundaryElements();
          }
@@ -3337,7 +3337,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
    }
 
-   FinalizeTopology();
+   FinalizeTopology(false);
    sequence = orig_mesh->GetSequence() + 1;
    last_operation = Mesh::REFINE;
 
