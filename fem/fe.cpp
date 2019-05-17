@@ -11827,7 +11827,7 @@ ND_WedgeElement::ND_WedgeElement(const int p,
    sn_shape.SetSize(NDSegmentFE.GetDof(), 1);
    t1_dshape.SetSize(H1TriangleFE.GetDof(), 2);
    s1_dshape.SetSize(H1SegmentFE.GetDof(), 1);
-   tn_dshape.SetSize(NDTriangleFE.GetDof(), 2);
+   tn_dshape.SetSize(NDTriangleFE.GetDof(), 1);
 #endif
 
    const int pm1 = p - 1, pm2 = p - 2;
@@ -12059,7 +12059,7 @@ void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
    DenseMatrix s1_dshape(H1SegmentFE.GetDof(), 1);
    DenseMatrix tn_shape(NDTriangleFE.GetDof(), 2);
    DenseMatrix sn_shape(NDSegmentFE.GetDof(), 1);
-   DenseMatrix tn_dshape(NDTriangleFE.GetDof(), 2);
+   DenseMatrix tn_dshape(NDTriangleFE.GetDof(), 1);
 #endif
 
    IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
