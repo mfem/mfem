@@ -30,8 +30,8 @@ public:
    static GeometryExtension* Get(const FiniteElementSpace&,
                                  const IntegrationRule&,
                                  const Vector&);
-   static void ReorderByVDim(const GridFunction*);
-   static void ReorderByNodes(const GridFunction*);
+   static void ReorderByVDim(GridFunction*);
+   static void ReorderByNodes(GridFunction*);
 };
 
 // FIXME: this class should store B and G for one FiniteElement and objects of
@@ -46,8 +46,6 @@ public:
    Array<double> W, B, G, Bt, Gt;
 
    ~DofToQuad();
-   void operator=(DofToQuad&);
-   void operator=(DofToQuad const&);
 
    static DofToQuad* Get(const FiniteElementSpace&,
                          const IntegrationRule&,
