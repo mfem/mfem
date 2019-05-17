@@ -45,6 +45,11 @@ MatGetLocalSubMatrix
 VecGetLocalVector
 Those will determine the local matrix and local vectors
 
+Define the linearform operator:
+the linear integral order is probably 3k/2
+define a special coefficient by myself
+then define a linearform and assemble
+
 
 5/11
 -snes_mf_operator is working 
