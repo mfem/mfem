@@ -764,10 +764,15 @@ void ConvectionIntegrator::Assemble(const FiniteElementSpace &fes)
   nq = ir->GetNPoints();
 
   dofs1D = el.GetOrder() + 1;
-  quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-  geom = GeometryExtension::Get(fes,*ir);
-  maps = DofToQuad::Get(fes, fes, *ir);
-  vec.SetSize(dim*quad1D*quad1D*ne);
+
+  static bool Conv_SetSize = true;
+  if(Conv_SetSize) {
+    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
+    geom = GeometryExtension::Get(fes,*ir);
+    maps = DofToQuad::Get(fes, fes, *ir);
+    vec.SetSize(dim*quad1D*quad1D*ne);
+    Conv_SetSize = false;
+  }
 
   //TODO handle the case with coefficients!!
   if(dim==1) { mfem_error("Not supported yet .... \n"); }
@@ -805,7 +810,6 @@ void ConvectionIntegrator::Assemble(const FiniteElementSpace &fes)
         D(1,q,e) =  - w_coeff*(cx * J21 - cy * J11);
       }
     });
-    printf("quit early \n");
   }
 
   if(dim==3) {mfem_error("Not supported yet ... \n");}
@@ -934,7 +938,7 @@ void PAConvectionApply2D(const int NE,
      }
 #endif
 
-     double R[MAX_D1D][MAX_D1D];
+     //double R[MAX_D1D][MAX_D1D];
      for(int j1=0; j1<D1D; ++j1) {
        for(int i2=0; i2<D1D; ++i2) {
 
@@ -942,7 +946,7 @@ void PAConvectionApply2D(const int NE,
          for(int i1=0; i1<Q1D; ++i1) {
            dot += Bt(j1, i1)*Q[i1][i2];
          }
-         R[i2][j1] = dot;
+         //R[i2][j1] = dot;
          yloc(i2,j1,e) = dot;
        }
      }
@@ -1014,10 +1018,16 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
    dofs1D = el.GetOrder() + 1;
-   quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   geom = GeometryExtension::Get(fes,*ir);
-   maps = DofToQuad::Get(fes, fes, *ir);
-   vec.SetSize(ne*nq);
+
+  static bool Mass_SetSize = true;
+  if(Mass_SetSize) {
+    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
+    geom = GeometryExtension::Get(fes,*ir);
+    maps = DofToQuad::Get(fes, fes, *ir);
+    vec.SetSize(ne*nq);
+    Mass_SetSize = false;
+  }
+
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
    FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
    // TODO: other types of coefficients ...

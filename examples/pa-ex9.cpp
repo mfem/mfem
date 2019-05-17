@@ -78,12 +78,12 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-  Operator *M, *K;
+   PABilinearFormExtension *M, *K;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(Operator *_M, Operator *_K, int Sz);
+   FE_Evolution(PABilinearFormExtension *_M, PABilinearFormExtension *_K, int Sz);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -105,9 +105,8 @@ int main(int argc, char *argv[])
    bool binary = false;
    int vis_steps = 5;
 
-   bool pa = true;
    const char *device = "cuda";
-   
+
    int precision = 8;
    cout.precision(precision);
 
@@ -186,9 +185,10 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
+   cout << "Number of Elements: " << fespace->GetNE() << endl;
    Device::Configure(device);
    Device::Print();
-   
+
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
 
    BilinearForm *m = new BilinearForm(fespace);
    BilinearForm *k = new BilinearForm(fespace);
-   
+
    ConstantCoefficient one(1.0);
    m->AddDomainIntegrator(new MassIntegrator(one));
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
    PABilinearFormExtension * m_ext = new PABilinearFormExtension(m);
    PABilinearFormExtension * k_ext = new PABilinearFormExtension(k);
 
-   Device::Enable();   
+   Device::Enable();
    m_ext->Assemble();
    k_ext->Assemble(); //Assemble quadrature data
    Device::Disable();
@@ -341,13 +341,17 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(Operator *_M, Operator *_K, int Sz)
+FE_Evolution::FE_Evolution(PABilinearFormExtension *_M, PABilinearFormExtension *_K, int Sz)
   : TimeDependentOperator(Sz), M(_M), K(_K), z(Sz)
 {
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
+
+   M->Assemble();
+   K->Assemble(); //Assemble quadrature data
+
    // y = M^{-1} K x
    K->Mult(x, z);
    y=0.0;
