@@ -98,6 +98,7 @@ static void PAGeom2D(const int NE,
                      double* _J,
                      double* _invJ,
                      double* _detJ,
+                     const int XJID,
                      const int d1d = 0,
                      const int q1d = 0)
 {
@@ -145,18 +146,32 @@ static void PAGeom2D(const int NE,
             J21 += (wy * x); J22 += (wy * y);
             X0 += b*x; X1 += b*y;
          }
-         Xq(0,q,e) = X0; Xq(1,q,e) = X1;
-         const double r_detJ = (J11 * J22)-(J12 * J21);
-         J(0,0,q,e) = J11;
-         J(1,0,q,e) = J12;
-         J(0,1,q,e) = J21;
-         J(1,1,q,e) = J22;
-         const double r_idetJ = 1.0 / r_detJ;
-         invJ(0,0,q,e) =  J22 * r_idetJ;
-         invJ(1,0,q,e) = -J12 * r_idetJ;
-         invJ(0,1,q,e) = -J21 * r_idetJ;
-         invJ(1,1,q,e) =  J11 * r_idetJ;
-         detJ(q,e) = r_detJ;
+         if (XJID & XTMesh::Compute::_X_)
+         {
+            Xq(0,q,e) = X0; Xq(1,q,e) = X1;
+         }
+         if (XJID & XTMesh::Compute::_J_)
+         {
+            J(0,0,q,e) = J11;
+            J(1,0,q,e) = J12;
+            J(0,1,q,e) = J21;
+            J(1,1,q,e) = J22;
+         }
+         double r_detJ = 0.0;
+         if ((XJID & XTMesh::Compute::_D_)  ||
+             (XJID & XTMesh::Compute::_I_))
+         {
+            r_detJ = (J11 * J22)-(J12 * J21);
+         }
+         if (XJID & XTMesh::Compute::_I_)
+         {
+            const double r_idetJ = 1.0 / r_detJ;
+            invJ(0,0,q,e) =  J22 * r_idetJ;
+            invJ(1,0,q,e) = -J12 * r_idetJ;
+            invJ(0,1,q,e) = -J21 * r_idetJ;
+            invJ(1,1,q,e) =  J11 * r_idetJ;
+         }
+         if (XJID & XTMesh::Compute::_D_) { detJ(q,e) = r_detJ; }
       }
    });
 }
@@ -170,6 +185,7 @@ static void PAGeom3D(const int NE,
                      double* _J,
                      double* _invJ,
                      double* _detJ,
+                     const int XJID,
                      const int d1d = 0,
                      const int q1d = 0)
 {
@@ -219,31 +235,45 @@ static void PAGeom3D(const int NE,
             J11 += (wx * x); J12 += (wx * y); J13 += (wx * z);
             J21 += (wy * x); J22 += (wy * y); J23 += (wy * z);
             J31 += (wz * x); J32 += (wz * y); J33 += (wz * z);
-            Xq(0,q,e) = b*x; Xq(1,q,e) = b*y; Xq(2,q,e) = b*z;
+            if (XJID & XTMesh::Compute::_X_)
+            {
+               Xq(0,q,e) = b*x; Xq(1,q,e) = b*y; Xq(2,q,e) = b*z;
+            }
          }
-         const double r_detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) +
-                                (J13 * J21 * J32) - (J13 * J22 * J31) -
-                                (J12 * J21 * J33) - (J11 * J23 * J32));
-         J(0,0,q,e) = J11;
-         J(1,0,q,e) = J12;
-         J(2,0,q,e) = J13;
-         J(0,1,q,e) = J21;
-         J(1,1,q,e) = J22;
-         J(2,1,q,e) = J23;
-         J(0,2,q,e) = J31;
-         J(1,2,q,e) = J32;
-         J(2,2,q,e) = J33;
-         const double r_idetJ = 1.0 / r_detJ;
-         invJ(0,0,q,e) = r_idetJ * ((J22 * J33)-(J23 * J32));
-         invJ(1,0,q,e) = r_idetJ * ((J32 * J13)-(J33 * J12));
-         invJ(2,0,q,e) = r_idetJ * ((J12 * J23)-(J13 * J22));
-         invJ(0,1,q,e) = r_idetJ * ((J23 * J31)-(J21 * J33));
-         invJ(1,1,q,e) = r_idetJ * ((J33 * J11)-(J31 * J13));
-         invJ(2,1,q,e) = r_idetJ * ((J13 * J21)-(J11 * J23));
-         invJ(0,2,q,e) = r_idetJ * ((J21 * J32)-(J22 * J31));
-         invJ(1,2,q,e) = r_idetJ * ((J31 * J12)-(J32 * J11));
-         invJ(2,2,q,e) = r_idetJ * ((J11 * J22)-(J12 * J21));
-         detJ(q,e) = r_detJ;
+         if (XJID & XTMesh::Compute::_J_)
+         {
+            J(0,0,q,e) = J11;
+            J(1,0,q,e) = J12;
+            J(2,0,q,e) = J13;
+            J(0,1,q,e) = J21;
+            J(1,1,q,e) = J22;
+            J(2,1,q,e) = J23;
+            J(0,2,q,e) = J31;
+            J(1,2,q,e) = J32;
+            J(2,2,q,e) = J33;
+         }
+         double r_detJ = 0.0;
+         if ((XJID & XTMesh::Compute::_D_)  ||
+             (XJID & XTMesh::Compute::_I_))
+         {
+            r_detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) +
+                      (J13 * J21 * J32) - (J13 * J22 * J31) -
+                      (J12 * J21 * J33) - (J11 * J23 * J32));
+         }
+         if (XJID & XTMesh::Compute::_I_)
+         {
+            const double r_idetJ = 1.0 / r_detJ;
+            invJ(0,0,q,e) = r_idetJ * ((J22 * J33)-(J23 * J32));
+            invJ(1,0,q,e) = r_idetJ * ((J32 * J13)-(J33 * J12));
+            invJ(2,0,q,e) = r_idetJ * ((J12 * J23)-(J13 * J22));
+            invJ(0,1,q,e) = r_idetJ * ((J23 * J31)-(J21 * J33));
+            invJ(1,1,q,e) = r_idetJ * ((J33 * J11)-(J31 * J13));
+            invJ(2,1,q,e) = r_idetJ * ((J13 * J21)-(J11 * J23));
+            invJ(0,2,q,e) = r_idetJ * ((J21 * J32)-(J22 * J31));
+            invJ(1,2,q,e) = r_idetJ * ((J31 * J12)-(J32 * J11));
+            invJ(2,2,q,e) = r_idetJ * ((J11 * J22)-(J12 * J21));
+         }
+         if (XJID & XTMesh::Compute::_D_) { detJ(q,e) = r_detJ; }
       }
    });
 }
@@ -258,24 +288,25 @@ static void PAGeom(const int dim,
                    double *Xq,
                    double *J,
                    double *invJ,
-                   double *detJ)
+                   double *detJ,
+                   const int f)
 {
    if (dim == 2)
    {
       switch ((D1D << 4) | Q1D)
       {
-         case 0x22: PAGeom2D<2,2>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x23: PAGeom2D<2,3>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x24: PAGeom2D<2,4>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x25: PAGeom2D<2,5>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x32: PAGeom2D<3,2>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x34: PAGeom2D<3,4>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x42: PAGeom2D<4,2>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x44: PAGeom2D<4,4>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x45: PAGeom2D<4,5>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x46: PAGeom2D<4,6>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x58: PAGeom2D<5,8>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         default: PAGeom2D(NE, B, G, X, Xq, J, invJ, detJ, D1D, Q1D); break;
+         case 0x22: PAGeom2D<2,2>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x23: PAGeom2D<2,3>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x24: PAGeom2D<2,4>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x25: PAGeom2D<2,5>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x32: PAGeom2D<3,2>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x34: PAGeom2D<3,4>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x42: PAGeom2D<4,2>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x44: PAGeom2D<4,4>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x45: PAGeom2D<4,5>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x46: PAGeom2D<4,6>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x58: PAGeom2D<5,8>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         default: PAGeom2D(NE, B, G, X, Xq, J, invJ, detJ, D1D, Q1D, f); break;
       }
       return;
    }
@@ -283,19 +314,20 @@ static void PAGeom(const int dim,
    {
       switch ((D1D << 4) | Q1D)
       {
-         case 0x23: PAGeom3D<2,3>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x24: PAGeom3D<2,4>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x25: PAGeom3D<2,5>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x26: PAGeom3D<2,6>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         case 0x34: PAGeom3D<3,4>(NE, B, G, X, Xq, J, invJ, detJ); break;
-         default: PAGeom3D(NE, B, G, X, Xq, J, invJ, detJ, D1D, Q1D); break;
+         case 0x23: PAGeom3D<2,3>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x24: PAGeom3D<2,4>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x25: PAGeom3D<2,5>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x26: PAGeom3D<2,6>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         case 0x34: PAGeom3D<3,4>(NE, B, G, X, Xq, J, invJ, detJ, f); break;
+         default: PAGeom3D(NE, B, G, X, Xq, J, invJ, detJ, D1D, Q1D, f); break;
       }
       return;
    }
    MFEM_ABORT("Unknown kernel.");
 }
 
-XTMesh::XTMesh(const Mesh *mesh, const IntegrationRule &ir) : sequence(-1)
+XTMesh::XTMesh(const Mesh *mesh, const IntegrationRule &ir, const int flags)
+   : sequence(-1), XJID(flags)
 {
    const GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
@@ -315,13 +347,13 @@ XTMesh::XTMesh(const Mesh *mesh, const IntegrationRule &ir) : sequence(-1)
    mfem::Array<int> eMap(DND*NE);
    GeomFill(vdim, NE, DND, nodes->Size(), h_eMap, eMap, nodes->GetData(), Enodes);
    if (byNODES) { ReorderByNodes(nodes); }
-   this->X.SetSize(vdim*QND*NE);
-   this->J.SetSize(vdim*vdim*QND*NE);
-   this->invJ.SetSize(vdim*vdim*QND*NE);
-   this->detJ.SetSize(QND*NE);
+   if (XJID & XTMesh::Compute::_X_) { this->X.SetSize(vdim*QND*NE); }
+   if (XJID & XTMesh::Compute::_J_) { this->J.SetSize(vdim*vdim*QND*NE); }
+   if (XJID & XTMesh::Compute::_I_) { this->invJ.SetSize(vdim*vdim*QND*NE); }
+   if (XJID & XTMesh::Compute::_D_) { this->detJ.SetSize(QND*NE); }
    const DofToQuad* maps = DofToQuad::GetSimplexMaps(*fe, ir);
    PAGeom(vdim, D1D, Q1D, NE, maps->B, maps->G, Enodes,
-          this->X, this->J, this->invJ, this->detJ);
+          this->X, this->J, this->invJ, this->detJ, XJID);
    delete maps;
 }
 

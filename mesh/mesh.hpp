@@ -692,7 +692,7 @@ public:
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
    /// Return the mesh extension coresponding to the given integration rule.
-   XTMesh* GetXTMesh(const IntegrationRule& ir);
+   XTMesh* GetXTMesh(const IntegrationRule& ir, const int flags);
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const

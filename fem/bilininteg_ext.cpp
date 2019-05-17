@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "../mesh/mesh_ext.hpp"
 
 #include <map>
 #include <cmath>
@@ -249,7 +250,7 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    ne = fes.GetNE();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   xtmesh = mesh->GetXTMesh(*ir);
+   xtmesh = mesh->GetXTMesh(*ir, XTMesh::Compute::_J_);
    maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(symmDims * nq * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
@@ -751,7 +752,7 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    nq = ir->GetNPoints();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   xtmesh = mesh->GetXTMesh(*ir);
+   xtmesh = mesh->GetXTMesh(*ir, XTMesh::Compute::_X_ | XTMesh::Compute::_J_);
    maps = DofToQuad::Get(fes, fes, *ir);
    vec.SetSize(ne*nq);
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);

@@ -19,10 +19,20 @@ namespace mfem
 class XTMesh
 {
 private:
+   int XJID;
    long sequence;
 public:
+   enum Compute
+   {
+      _X_ = 1 << 0,
+      _J_ = 1 << 1,
+      _I_ = 1 << 2,
+      _D_ = 1 << 3,
+   };
    Array<double> X, J, invJ, detJ;
-   XTMesh(const Mesh*, const IntegrationRule&);
+   XTMesh(const Mesh*,
+          const IntegrationRule&,
+          const int flags = (_X_|_J_|_I_|_D_));
    long& GetSequence() {return sequence;}
 };
 
