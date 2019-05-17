@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
 	bool visualization = 1;
-	bool sbp = 0;
+	bool sbp = 1;
 	problem = 1;
 	int ref_levels = 0;
 	bool convOut = false;
