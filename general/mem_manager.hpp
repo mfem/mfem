@@ -103,6 +103,7 @@ class Memory
 {
 protected:
    friend class MemoryManager;
+   friend void MemoryPrintFlags(unsigned flags);
 
    enum FlagMask
    {
@@ -340,6 +341,14 @@ public:
        use the same host and device pointers. */
    inline void SyncWith(const Memory &other) const;
 
+   /** @brief Copy/move the alias Memory (@a *this) to match the memory location
+       (all valid locations) of its base Memory, @a base. */
+   /** This method is useful when alias Memory is moved and manipulated in a
+       different memory space. Such operations render the validity flags of the
+       base invalid. Calling this method will ensure that @a base is up-to-date.
+       Note that this is achieved by moving/copying @a *this, not @a base. */
+   inline void SyncAliasToBase(const Memory &base, int size);
+
    /** @brief Return a MemoryType that is currently valid. If both the host and
        the device pointers are currently valid, then the device memory type is
        returned. */
@@ -413,6 +422,10 @@ private:
    static void *WriteAccess_(void *h_ptr, MemoryClass mc, std::size_t size,
                              unsigned &flags);
 
+   static void SyncAliasToBase_(const void *base_h_ptr, void *alias_h_ptr,
+                                size_t size, unsigned base_flags,
+                                unsigned &alias_flags);
+
    // Return the type the of the currently valid memory. If more than one types
    // are valid, return a device type.
    static MemoryType GetMemoryType_(void *h_ptr, unsigned flags);
@@ -442,7 +455,7 @@ private:
    /// data if needed (used in OccaPtr)
    void *GetDevicePtr(const void *ptr, size_t bytes, bool copy_data);
 
-   void InsertAlias(void *base_ptr, void *alias_ptr);
+   void InsertAlias(const void *base_ptr, void *alias_ptr, bool base_is_alias);
 
    void EraseAlias(void *alias_ptr);
 
@@ -660,6 +673,15 @@ inline void Memory<T>::SyncWith(const Memory &other) const
 }
 
 template <typename T>
+inline void Memory<T>::SyncAliasToBase(const Memory &base, int size)
+{
+   // Assuming that if *this is registered then base is also registered.
+   if (!(base.flags & REGISTERED)) { return; }
+   MemoryManager::SyncAliasToBase_(base.h_ptr, h_ptr, size*sizeof(T),
+                                   base.flags, flags);
+}
+
+template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
    if (!(flags & REGISTERED)) { return MemoryType::HOST; }
@@ -721,6 +743,11 @@ inline void Memory<T>::CopyToHost(T *dest, int size) const
       MemoryManager::CopyToHost_(dest, h_ptr, size*sizeof(T), flags);
    }
 }
+
+
+/** @brief Print the state of a Memory object based on its internal flags.
+    Useful in a debugger. */
+extern void MemoryPrintFlags(unsigned flags);
 
 
 /// The (single) global memory manager object

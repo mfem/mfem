@@ -749,21 +749,23 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    maps = DofToQuad::Get(fes, fes, *ir);
    pa_data.SetSize(ne*nq, Device::GetMemoryType());
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
-   FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
+   // FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
    // TODO: other types of coefficients ...
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)
    {
       double constant = 0.0;
-      double (*function)(const Vector3&) = NULL;
+      // double (*function)(const Vector3&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
       }
+#if 0
       else if (function_coeff)
       {
          function = function_coeff->GetDeviceFunction();
       }
+#endif
       else
       {
          MFEM_ABORT("Coefficient type not supported");
@@ -800,15 +802,17 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    if (dim==3)
    {
       double constant = 0.0;
-      double (*function)(const Vector3&) = NULL;
+      // double (*function)(const Vector3&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
       }
+#if 0
       else if (function_coeff)
       {
          function = function_coeff->GetDeviceFunction();
       }
+#endif
       else
       {
          MFEM_ABORT("Coefficient type not supported");
@@ -1835,7 +1839,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    mesh->EnsureNodes();
    // if (dev_enabled) { Device::Enable(); }
 
-   const GridFunction *nodes = mesh->GetNodes();
+   GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
    const mfem::FiniteElement *fe = fespace->GetFE(0);
    const IntegrationRule& ir1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder());
@@ -1878,13 +1882,13 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
    return geom;
 }
 
-void GeometryExtension::ReorderByVDim(const GridFunction *nodes)
+void GeometryExtension::ReorderByVDim(GridFunction *nodes)
 {
    const mfem::FiniteElementSpace *fes = nodes->FESpace();
    const int size = nodes->Size();
    const int vdim = fes->GetVDim();
    const int ndofs = fes->GetNDofs();
-   double *data = nodes->GetData();
+   double *data = nodes->ReadWriteAccess(false);
    double *temp = new double[size];
    int k=0;
    for (int d = 0; d < ndofs; d++)
@@ -1899,13 +1903,13 @@ void GeometryExtension::ReorderByVDim(const GridFunction *nodes)
    delete [] temp;
 }
 
-void GeometryExtension::ReorderByNodes(const GridFunction *nodes)
+void GeometryExtension::ReorderByNodes(GridFunction *nodes)
 {
    const mfem::FiniteElementSpace *fes = nodes->FESpace();
    const int size = nodes->Size();
    const int vdim = fes->GetVDim();
    const int ndofs = fes->GetNDofs();
-   double *data = nodes->GetData();
+   double *data = nodes->ReadWriteAccess(false);
    double *temp = new double[size];
    int k = 0;
    for (int j = 0; j < ndofs; j++)

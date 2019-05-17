@@ -784,6 +784,18 @@ double SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
                << " must be equal to Width() = " << Width());
    MFEM_ASSERT(y.Size() == Height(), "y.Size() = " << y.Size()
                << " must be equal to Height() = " << Height());
+
+   const bool on_dev = false;
+   x.ReadAccess(on_dev);
+   y.ReadAccess(on_dev);
+   if (Finalized())
+   {
+      const int nnz = J.Capacity();
+      ReadAccess(I, height+1, on_dev);
+      ReadAccess(J, nnz, on_dev);
+      ReadAccess(A, nnz, on_dev);
+   }
+
    double prod = 0.0;
    for (int i = 0; i < height; i++)
    {

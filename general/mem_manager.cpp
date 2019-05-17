@@ -15,6 +15,7 @@
 
 #include <list>
 #include <unordered_map>
+#include <algorithm> // std::max
 
 namespace mfem
 {
@@ -135,12 +136,14 @@ void *MemoryManager::Erase(void *ptr, bool free_dev_ptr)
    }
    internal::Memory &mem = mem_map_iter->second;
    if (mem.d_ptr && free_dev_ptr) { CuMemFree(mem.d_ptr); }
+#if 0
    for (const void *alias : mem.aliases)
    {
       auto alias_map_iter = maps->aliases.find(alias);
       delete alias_map_iter->second;
       maps->aliases.erase(alias_map_iter);
    }
+#endif
    mem.aliases.clear();
    maps->memories.erase(mem_map_iter);
    return ptr;
@@ -177,16 +180,22 @@ void *MemoryManager::GetDevicePtr(const void *ptr, size_t bytes, bool copy_data)
    return base.d_ptr;
 }
 
-void MemoryManager::InsertAlias(void *base_ptr, void *alias_ptr)
+void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
+                                bool base_is_alias)
 {
-   // FIXME: handle the case when base_ptr is an alias
-   const long offset = static_cast<const char*>(alias_ptr) -
-                       static_cast<const char*>(base_ptr);
+   long offset = static_cast<const char*>(alias_ptr) -
+                 static_cast<const char*>(base_ptr);
    if (!base_ptr)
    {
       MFEM_VERIFY(offset == 0,
                   "Trying to add alias to NULL at offset " << offset);
       return;
+   }
+   if (base_is_alias)
+   {
+      const internal::Alias *alias = maps->aliases.at(base_ptr);
+      base_ptr = alias->mem->h_ptr;
+      offset += alias->offset;
    }
    internal::Memory &mem = maps->memories.at(base_ptr);
    auto res = maps->aliases.emplace(alias_ptr, nullptr);
@@ -194,7 +203,7 @@ void MemoryManager::InsertAlias(void *base_ptr, void *alias_ptr)
    {
       if (res.first->second->mem != &mem || res.first->second->offset != offset)
       {
-         mfem_error("alias already exists!");
+         mfem_error("alias already exists with different base/offset!");
       }
       else
       {
@@ -218,6 +227,7 @@ void MemoryManager::EraseAlias(void *alias_ptr)
    }
    internal::Alias *alias = alias_map_iter->second;
    if (--alias->counter) { return; }
+#if 0
    // erase the alias from the list of all aliases of the base:
    auto &base_aliases = alias->mem->aliases;
    for (auto it = base_aliases.begin(); true; ++it)
@@ -232,6 +242,7 @@ void MemoryManager::EraseAlias(void *alias_ptr)
          break;
       }
    }
+#endif
    // erase the alias from the alias map:
    maps->aliases.erase(alias_map_iter);
    delete alias;
@@ -381,7 +392,8 @@ void MemoryManager::Alias_(void *base_h_ptr, std::size_t offset,
                            unsigned &flags)
 {
    // FIXME: store the 'size' in the MemoryManager?
-   mm.InsertAlias(base_h_ptr, (char*)base_h_ptr + offset);
+   mm.InsertAlias(base_h_ptr, (char*)base_h_ptr + offset,
+                  base_flags & Mem::ALIAS);
    flags = (base_flags | Mem::ALIAS | Mem::OWNS_INTERNAL) &
            ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
 }
@@ -561,6 +573,31 @@ void *MemoryManager::WriteAccess_(void *h_ptr, MemoryClass mc, std::size_t size,
    return nullptr;
 }
 
+void MemoryManager::SyncAliasToBase_(const void *base_h_ptr, void *alias_h_ptr,
+                                     size_t size, unsigned base_flags,
+                                     unsigned &alias_flags)
+{
+   // This is called only when (base_flags & Mem::REGISTERED) is true.
+   // Note that (alias_flags & REGISTERED) may not be true.
+   MFEM_ASSERT(alias_flags & Mem::ALIAS, "not an alias");
+   if ((base_flags & Mem::VALID_HOST) && !(alias_flags & Mem::VALID_HOST))
+   {
+      PullAlias(maps, alias_h_ptr, size, true);
+   }
+   if ((base_flags & Mem::VALID_DEVICE) && !(alias_flags & Mem::VALID_DEVICE))
+   {
+      if (!(alias_flags & Mem::REGISTERED))
+      {
+         mm.InsertAlias(base_h_ptr, alias_h_ptr, base_flags & Mem::ALIAS);
+         alias_flags = (alias_flags | Mem::REGISTERED | Mem::OWNS_INTERNAL) &
+                       ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
+      }
+      mm.GetAliasDevicePtr(alias_h_ptr, size, true);
+   }
+   alias_flags = (alias_flags & ~(Mem::VALID_HOST | Mem::VALID_DEVICE)) |
+                 (base_flags & (Mem::VALID_HOST | Mem::VALID_DEVICE));
+}
+
 MemoryType MemoryManager::GetMemoryType_(void *h_ptr, unsigned flags)
 {
    // FIXME: support other memory types
@@ -673,6 +710,22 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
    }
    dest_flags = dest_flags &
                 ~(dest_on_host ? Mem::VALID_DEVICE : Mem::VALID_HOST);
+}
+
+
+void MemoryPrintFlags(unsigned flags)
+{
+   typedef Memory<int> Mem;
+   mfem::out
+         <<   "   registered    = " << bool(flags & Mem::REGISTERED)
+         << "\n   owns host     = " << bool(flags & Mem::OWNS_HOST)
+         << "\n   owns device   = " << bool(flags & Mem::OWNS_DEVICE)
+         << "\n   owns internal = " << bool(flags & Mem::OWNS_INTERNAL)
+         << "\n   valid host    = " << bool(flags & Mem::VALID_HOST)
+         << "\n   valid device  = " << bool(flags & Mem::VALID_DEVICE)
+         << "\n   alias         = " << bool(flags & Mem::ALIAS)
+         << "\n   exec flags    = " << bool(flags & Mem::EXEC_FLAG)
+         << std::endl;
 }
 
 

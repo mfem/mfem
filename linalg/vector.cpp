@@ -111,9 +111,17 @@ Vector &Vector::operator=(const double *v)
 
 Vector &Vector::operator=(const Vector &v)
 {
+#if 0
    SetSize(v.Size(), v.data.GetMemoryType());
    data.CopyFrom(v.data, v.Size());
    data.SetExecFlag(v.data.GetExecFlag());
+#else
+   SetSize(v.Size());
+   const bool use_dev = data.GetExecFlag() || v.data.GetExecFlag();
+   v.data.SetExecFlag(use_dev);
+   WriteAccess(use_dev);
+   data.CopyFrom(v.data, v.Size());
+#endif
    return *this;
 }
 
