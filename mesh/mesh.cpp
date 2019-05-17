@@ -9492,6 +9492,27 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
                }
             }
          }
+         // Try neighbours for non-conforming meshes
+         if (ncmesh)
+         {
+            Array<int> neigh;
+            int le = ncmesh->leaf_elements[e_idx[k]];
+            ncmesh->FindNeighbors(le,neigh);
+            for (int e = 0; e < neigh.Size(); e++)
+            {
+               int nn = neigh[e];
+               if (ncmesh->IsGhost(ncmesh->elements[nn])) { continue; }
+               int el = ncmesh->elements[nn].index;
+               inv_tr->SetTransformation(*GetElementTransformation(el));
+               int res = inv_tr->Transform(pt, ips[k]);
+               if (res == InverseElementTransformation::Inside)
+               {
+                  elem_ids[k] = el;
+                  pts_found++;
+                  goto next_point;
+               }
+            }
+         }
       next_point: ;
       }
       delete vtoel;

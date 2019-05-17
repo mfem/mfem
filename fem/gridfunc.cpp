@@ -302,7 +302,7 @@ int GridFunction::VectorDim() const
    {
       fe = fes->GetFE(0);
    }
-   if (fe->GetRangeType() == FiniteElement::SCALAR)
+   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return fes->GetVDim();
    }
