@@ -421,13 +421,21 @@ void DiffusionIntegrator::AssembleElementMatrix
          ir = &IntRules.Get(el, order); // New overload
       }
    }
-
+   std::chrono::time_point<std::chrono::high_resolution_clock> start;
+   std::chrono::time_point<std::chrono::high_resolution_clock> finish;
+   std::chrono::duration<double> elapsed;
+   double totalTime;
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
+      // Start timing
+      start = std::chrono::high_resolution_clock::now();
       el.CalcDShape(ip, dshape);
-
+      // End timing and compute interval
+      finish = std::chrono::high_resolution_clock::now();
+      elapsed = finish - start;
+      totalTime += elapsed.count();
       Trans.SetIntPoint(&ip);
       w = Trans.Weight();
       w = ip.weight / (square ? w : w*w*w);
@@ -450,6 +458,7 @@ void DiffusionIntegrator::AssembleElementMatrix
          AddMultABt(dshape, dshapedxt, elmat);
       }
    }
+   mfem::out << totalTime << ", ";
 }
 
 void DiffusionIntegrator::AssembleElementMatrix2(
