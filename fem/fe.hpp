@@ -19,6 +19,7 @@
 #include "geom.hpp"
 
 #include <map>
+#include <unordered_map>
 
 namespace mfem
 {
@@ -2848,7 +2849,7 @@ private:
    mutable DenseMatrix du, ddu;
 #endif
    DenseMatrix *Dx, *Dy;
-   DenseMatrixInverse Ti;
+   std::unordered_map<const IntegrationPoint*, int> ipIdxMap;
 
 public:
    SBP_TriangleElement(const int p, const int Do);

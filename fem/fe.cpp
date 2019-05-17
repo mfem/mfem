@@ -12121,6 +12121,12 @@ SBP_TriangleElement::SBP_TriangleElement(const int p, const int Do)
          mfem_error("SBP elements are currently only supported for 0 <= order <= 4");
          break;
    }
+
+   // populate unordered_map with mapping from IntPoint address to index
+   for (int i = 0; i < Dof; i++)
+   {
+      ipIdxMap[&(Nodes.IntPoint(i))] = i;
+   }
 }
 
 /// CalcShape outputs ndofx1 vector shape based on Kronecker \delta_{i, ip}
@@ -12128,15 +12134,34 @@ SBP_TriangleElement::SBP_TriangleElement(const int p, const int Do)
 void SBP_TriangleElement::CalcShape(const IntegrationPoint &ip,
                                    Vector &shape) const
 {
-   shape = 0.0;
-
-   for (int i = 0; i < Dof; i++)
+   int ipIdx;
+   try
    {
-      if (ip.x == Nodes.IntPoint(i).x && ip.y == Nodes.IntPoint(i).y)
+      ipIdx = ipIdxMap.at(&ip);
+   }
+   catch (const std::out_of_range& oor)
+   // error handling code to handle cases where the pointer to ip is not
+   // in the map. Problems arise in GridFunction::SaveVTK() ->  GridFunction::GetValues()
+   // which calls CalcShape() with an `IntegrationPoint` defined by a refined
+   // geometry type. Since the IntegrationPoint is not in Nodes, its address is
+   // not in the ipIdxMap, and an out_of_range error is thrown. This code catches
+   // the error and uses float comparisons to determine the IntegrationPoint
+   // index.
+   {
+      double tol = 1e-12;
+      for (int i = 0; i < Dof; i++)
       {
-         shape(i) = 1;
+         double delta_x = ip.x - Nodes.IntPoint(i).x;
+         double delta_y = ip.y - Nodes.IntPoint(i).y;
+         if (delta_x*delta_x + delta_y*delta_y < tol)
+         {
+            ipIdx = i;
+            break;
+         }
       }
    }
+   shape = 0.0;
+   shape(ipIdx) = 1.0;
 }
 
 /// CalcDShape outputs ndof x ndim DenseMatrix dshape, where the first column
@@ -12147,25 +12172,41 @@ void SBP_TriangleElement::CalcShape(const IntegrationPoint &ip,
 void SBP_TriangleElement::CalcDShape(const IntegrationPoint &ip,
                                     DenseMatrix &dshape) const
 {
-   int ipNum;
-   dshape = 0.0;
-
-   for (int i = 0; i < Dof; i++)
+   int ipIdx;
+   try
    {
-      if (ip.x == Nodes.IntPoint(i).x && ip.y == Nodes.IntPoint(i).y)
+      ipIdx = ipIdxMap.at(&ip);
+   }
+   catch (const std::out_of_range& oor)
+   // error handling code to handle cases where the pointer to ip is not
+   // in the map. Problems arise in GridFunction::SaveVTK() ->  GridFunction::GetValues()
+   // which calls CalcShape() with an `IntegrationPoint` defined by a refined
+   // geometry type. Since the IntegrationPoint is not in Nodes, its address is
+   // not in the ipIdxMap, and an out_of_range error is thrown. This code catches 
+   // the error and uses float comparisons to determine the IntegrationPoint
+   // index.
+   {
+      double tol = 1e-12;
+      for (int i = 0; i < Dof; i++)
       {
-         ipNum = i;
+         double delta_x = ip.x - Nodes.IntPoint(i).x;
+         double delta_y = ip.y - Nodes.IntPoint(i).y;
+         if (delta_x*delta_x + delta_y*delta_y < tol)
+         {
+            ipIdx = i;
+            break;
+         }
       }
    }
+   dshape = 0.0;
 
    Vector tempVec(Dof);
 
    // when we switch to storing Dx and Dy transpose so that access to the row we want
-   // is faster Dx->GetRow() will be replaced with Dx->GetColumnReference() or 
-   // Dx->GetColumn(), whichever is faster
-   Dx->GetRow(ipNum, tempVec);
+   // is faster Dx->GetRow() will be replaced with Dx->GetColumnReference()
+   Dx->GetRow(ipIdx, tempVec);
    dshape.SetCol(0, tempVec);
-   Dy->GetRow(ipNum, tempVec);
+   Dy->GetRow(ipIdx, tempVec);
    dshape.SetCol(1, tempVec);
 }
 
