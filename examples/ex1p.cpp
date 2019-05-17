@@ -116,6 +116,8 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
+   mesh->EnsureNCMesh();
+
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
@@ -145,14 +147,17 @@ int main(int argc, char *argv[])
          std::ofstream f(fname);
          pmesh->pncmesh->DebugDump(f);}*/
 
-         pmesh->Rebalance();
+         /*if (myid==0) { std::cout << "*** Rebalance " << l << std::endl; }
+         pmesh->Rebalance();*/
+
+         //if (l==0) { pmesh->Rebalance(); }
       }
    }
 
-   {char fname[100];
+   /*{char fname[100];
    sprintf(fname, "ncdump%03d.txt", myid);
    std::ofstream f(fname);
-   pmesh->pncmesh->DebugDump(f);}
+   pmesh->pncmesh->DebugDump(f);}*/
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -193,7 +198,7 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   MPI_Finalize(); exit(EXIT_SUCCESS);
+   //MPI_Finalize(); exit(EXIT_SUCCESS);
 
    // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
