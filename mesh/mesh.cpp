@@ -752,18 +752,18 @@ void Mesh::GetLocalQuadToWdgTransformation(
    Transf.FinalizeTransformation();
 }
 
-XTMesh* Mesh::GetXTMesh(const IntegrationRule& ir)
+XTMesh* Mesh::GetXTMesh(const IntegrationRule& ir, const int flags)
 {
    const bool dev_enabled = Device::IsEnabled();
    if (dev_enabled) { Device::Disable(); }
    this->EnsureNodes();
    if (dev_enabled) { Device::Enable(); }
-   if (!xtmesh) { return xtmesh = new XTMesh(this, ir); }
+   if (!xtmesh) { return xtmesh = new XTMesh(this, ir, flags); }
    const bool new_sequence = (xtmesh->GetSequence() < this->GetSequence());
    xtmesh->GetSequence() = this->GetSequence();
    if (!new_sequence) { return xtmesh; }
    delete xtmesh;
-   return xtmesh = new XTMesh(this, ir);
+   return xtmesh = new XTMesh(this, ir, flags);
 }
 
 void Mesh::GetLocalFaceTransformation(
