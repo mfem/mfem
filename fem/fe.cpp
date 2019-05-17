@@ -11979,7 +11979,7 @@ ND_WedgeElement::ND_WedgeElement(const int p,
    for (int j = 0; j < p; j++)
       for (int i = 0; i < pm1; i++)
       {
-         t_dof[o] = 3 * p - 1 - i; s_dof[o] = j; dof2tk[o] = 3;
+         t_dof[o] = 2 * p + 1 + i; s_dof[o] = j; dof2tk[o] = 3;
          const IntegrationPoint & t_ip = t1_n.IntPoint(t_dof[o]);
          Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sn_n.IntPoint(s_dof[o]).x);
          o++;
