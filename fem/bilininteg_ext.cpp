@@ -744,7 +744,7 @@ DiffusionIntegrator::~DiffusionIntegrator()
    delete maps;
 }
 
-
+__host__ __device__
 void myVelFun(double x0, double x1, double c_vel[2])
 {
   c_vel[0] = 1;

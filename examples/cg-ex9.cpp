@@ -32,9 +32,11 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 
 using namespace std;
 using namespace mfem;
+typedef std::chrono::high_resolution_clock Clock;
 
 // Choice for the problem setup. The fluid velocity, initial condition and
 // inflow boundary condition are chosen based on this parameter.
@@ -282,6 +284,7 @@ int main(int argc, char *argv[])
    ode_solver->Init(adv);
 
    bool done = false;
+   auto evo_timer0 = Clock::now();
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
@@ -307,6 +310,11 @@ int main(int argc, char *argv[])
          }
       }
    }
+   auto evo_timer1 = Clock::now();
+   std::cout << "Evolution duration t2-t1: "
+   << std::chrono::duration_cast<std::chrono::nanoseconds>
+   (evo_timer1 - evo_timer0).count()*1e-9
+   << " seconds" << std::endl;
 
    //8.5 Compute error
    double h = mesh.GetElementSize(0);
