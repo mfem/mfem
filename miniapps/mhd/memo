@@ -29,8 +29,11 @@ parallel plot:
 glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
 
+5/17
 Issues:
 x it has to assemble nv and nb each time step, not sure how to do it implicitly (am I doing matrix-free for those two? Probably not)
+
+implemented a new approach based on LinearForm, but it is slower
 
 5/15
 Q1. what happens to GetGradient when factory is used? It is called through __mfem_snes_jacobian
