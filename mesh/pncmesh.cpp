@@ -1325,6 +1325,7 @@ bool ParNCMesh::PruneTree(int elem)
 
 void ParNCMesh::Prune()
 {
+#if 1
    if (!Iso && Dim == 3)
    {
       if (MyRank == 0)
@@ -1352,7 +1353,7 @@ void ParNCMesh::Prune()
    {
       if (PruneTree(i)) { DerefineElement(i); }
    }
-
+#endif
    Update();
 }
 
@@ -1847,6 +1848,8 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
             msg.AddElementRank(elem, new_ranks[elements[elem].index]);
          }
 
+         std::cout << "Rank " << MyRank << " sending " << msg.Size()
+                   << " boundary element assignements to rank " << rank << std::endl;
          msg.Isend(rank, MyComm);
 
          // prepare to receive a message from the neighbor too, these will
@@ -1864,6 +1867,8 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
    for (it = recv_ghost_ranks.begin(); it != recv_ghost_ranks.end(); ++it)
    {
       NeighborElementRankMessage &msg = it->second;
+      std::cout << "Rank " << MyRank << " received " << msg.Size()
+                << " ghost element assignments from rank " << it->first << std::endl;
       for (int i = 0; i < msg.Size(); i++)
       {
          int ghost_index = elements[msg.elements[i]].index;
