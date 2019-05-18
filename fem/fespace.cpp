@@ -820,7 +820,7 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    const Table *coarse_elem_fos, const DenseTensor localP[]) const
 {
    /// TODO: Implement DofTransformation support
-  
+
    MFEM_VERIFY(mesh->GetLastOperation() == Mesh::REFINE, "");
 
    Array<int> dofs, coarse_dofs, coarse_vdofs;
