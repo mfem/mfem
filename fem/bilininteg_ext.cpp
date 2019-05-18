@@ -728,8 +728,10 @@ void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
 
 DiffusionIntegrator::~DiffusionIntegrator()
 {
-   delete geom;
-   delete maps;
+   // FIXME: can lead to double delete:
+   // delete geom;
+   // FIXME: can lead to double delete:
+   // delete maps;
 }
 
 // PA Mass Assemble kernel
@@ -1248,8 +1250,10 @@ void MassIntegrator::MultAssembled(Vector &x, Vector &y)
 
 MassIntegrator::~MassIntegrator()
 {
-   delete geom;
-   delete maps;
+   // FIXME: leads to double delete, e.g. in laghos:
+   // delete geom;
+   // FIXME: leads to double delete, e.g. in laghos:
+   // delete maps;
 }
 
 // DofToQuad
