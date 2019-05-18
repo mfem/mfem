@@ -12,7 +12,7 @@
 #include "mfem.hpp"
 #include "myCoefficient.hpp"
 #include "BoundaryGradIntegrator.hpp"
-#include "ResistiveMHDOperatorp.hpp"
+#include "imResistiveMHDOperatorp.hpp"
 #include "PDSolver.hpp"
 #include <memory>
 #include <iostream>
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
    PDSolver *ode_solver;
    switch (ode_solver_type)
    {
-     case 2: ode_solver = new PDSolver; break;
+     case 1: ode_solver = new PDSolver; break;
      default:
          if (myid == 0) cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;

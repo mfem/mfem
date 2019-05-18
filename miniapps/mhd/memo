@@ -35,6 +35,11 @@ x it has to assemble nv and nb each time step, not sure how to do it implicitly 
 
 implemented a new approach based on LinearForm, but it is slower
 
+todo for imMHDp
+1. treat J as a true auxiliary variable
+2. implement a new class for implicit scheme and reduced operator
+
+
 5/15
 Q1. what happens to GetGradient when factory is used? It is called through __mfem_snes_jacobian
 2. Where is Mult implemented now? It is implemented through J->Mult from GetGradient
