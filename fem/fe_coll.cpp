@@ -2385,13 +2385,6 @@ const int *ND_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    }
    else if (GeomType == Geometry::TRIANGLE)
    {
-      /*
-      if (Or != 0 && Or != 5)
-      {
-         MFEM_ABORT("triangle face orientation " << Or << " is not supported! "
-                    "Use Mesh::ReorientTetMesh to fix it.");
-      }
-      */
       return TriDofOrd[Or%6];
    }
    else if (GeomType == Geometry::SQUARE)
