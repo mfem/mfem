@@ -786,16 +786,15 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double J22 = J(1,1,q,e);
             const double detJ = (J11*J22)-(J21*J12);
             // FIXME: this code seems to break the cuda kernel
-#if 0
-            const Vector3 Xq(x(0,q,e), x(1,q,e));
-            const double coeff =
-            const_coeff ? constant
-            : function_coeff ? function(Xq)
-            : 0.0;
-            v(q,e) =  w[q] * coeff * detJ;
-#else
+            //
+            // const Vector3 Xq(x(0,q,e), x(1,q,e));
+            // const double coeff =
+            // const_coeff ? constant
+            // : function_coeff ? function(Xq)
+            // : 0.0;
+            // v(q,e) =  w[q] * coeff * detJ;
+            //
             v(q,e) =  w[q] * constant * detJ;
-#endif
          }
       });
    }
@@ -834,16 +833,15 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             /* */               J21 * (J12 * J33 - J32 * J13) +
             /* */               J31 * (J12 * J23 - J22 * J13);
             // FIXME: this code seems to break the cuda kernel
-#if 0
-            const Vector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
-            const double coeff =
-            const_coeff ? constant
-            : function_coeff ? function(Xq)
-            : 0.0;
-            v(q,e) = W[q] * coeff * detJ;
-#else
+            //
+            // const Vector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
+            // const double coeff =
+            // const_coeff ? constant
+            // : function_coeff ? function(Xq)
+            // : 0.0;
+            // v(q,e) = W[q] * coeff * detJ;
+            //
             v(q,e) = W[q] * constant * detJ;
-#endif
          }
       });
    }
