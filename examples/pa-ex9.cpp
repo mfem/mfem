@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
    bool binary = false;
    int vis_steps = 5;
 
-   const char *device = "cuda";
+   const char *device = "cpu";
 
    int precision = 8;
    cout.precision(precision);
