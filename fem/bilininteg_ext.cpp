@@ -850,6 +850,77 @@ void PAConvectionApply2D(const int NE,
    MFEM_FORALL(e, NE,
    {
 
+#if 1  //Version with improved semantics
+
+     //qpt x dof
+     double BX[MAX_Q1D][MAX_D1D];
+     double GX[MAX_Q1D][MAX_D1D];
+     for(int j=0; j<Q1D; ++j) {
+       for(int i=0; i<D1D; ++i) {
+
+         GX[j][i] = 0.0;
+         BX[j][i] = 0.0;
+         for(int s=0; s<D1D; ++s) {
+           GX[j][i] += G(i,s)*xloc(s,j,e);
+           BX[j][i] += B(i,s)*xloc(s,j,e);
+         }
+       }
+     }
+
+     double BGX[MAX_Q1D][MAX_Q1D];
+     double GBX[MAX_Q1D][MAX_Q1D];
+     for(int j=0; j<Q1D; ++j) {
+       for(int i=0; i<Q1D; ++i) {
+
+         BGX[j][i] = 0.0;
+         GBX[j][i] = 0.0;
+         for(int s=0; s<D1D; ++s) {
+           BGX[j][i] += BX[s][i]*G(j,s);
+           GBX[j][i] += GX[s][i]*B(j,s);
+         }
+
+       }
+     }
+
+     double Z[MAX_Q1D][MAX_Q1D];
+     for(int k2=0; k2<Q1D; ++k2) {
+       for(int k1=0; k1<Q1D; ++k1) {
+
+         double dot(0.0);
+         {
+           dot += D(0, k1, k2, e) * GBX[k2][k1];
+           dot += D(1, k1, k2, e) * BGX[k2][k1];
+         }
+         Z[k2][k1] = dot;
+       }
+     }
+
+     double BZ[MAX_D1D][MAX_Q1D];
+     for(int j=0; j<Q1D; ++j) {
+       for(int i=0; i<D1D; ++i) {
+
+         BZ[j][i] = 0.0;
+         for(int s=0; s<Q1D; ++s) {
+           BZ[j][i] += Bt(i,s)*Z[j][s];
+         }
+
+       }
+     }
+
+     for(int j=0; j<D1D; ++j) {
+       for(int i=0; i<D1D; ++i) {
+
+         double dot(0.0);
+         for(int s=0; s<Q1D; ++s) {
+           dot += BZ[s][i]*Bt(j,s);
+         }
+         yloc(i,j,e) = dot;
+       }
+     }
+
+
+
+#else
      double U[DIM][MAX_D1D][MAX_Q1D];
      for(int j1=0; j1<Q1D; ++j1) {
        for(int i2=0; i2<D1D; ++i2) {
@@ -863,15 +934,6 @@ void PAConvectionApply2D(const int NE,
          U[1][i2][j1] = dot1;
        }
      }
-
-#ifdef PA_DEBUG
-     for(int i2=0; i2<D1D; ++i2) {
-       for(int k1=0; k1<Q1D; ++k1) {
-         printf("%f %f \n", U[0][k1][i2], U[1][k1][k2]);
-       }
-     }
-     printf("\n");
-#endif
 
      double W[DIM][MAX_Q1D][MAX_Q1D];
      for(int j1=0; j1<Q1D; ++j1) {
@@ -887,15 +949,6 @@ void PAConvectionApply2D(const int NE,
        }
      }
 
-#ifdef PA_DEBUG
-     for(int i2=0; i2<D1D; ++i2) {
-       for(int k1=0; k1<Q1D; ++k1) {
-         printf("%f %f \n", W[0][k1][i2], W[1][k1][i2]);
-       }
-     }
-     printf("\n");
-#endif
-
      double Z[MAX_Q1D][MAX_Q1D];
      for(int k2=0; k2<Q1D; ++k2) {
        for(int k1=0; k1<Q1D; ++k1) {
@@ -907,14 +960,6 @@ void PAConvectionApply2D(const int NE,
          Z[k1][k2] = dot;
        }
      }
-
-#ifdef PA_DEBUG
-     for(int i2=0; i2<D1D; ++i2) {
-       for(int k1=0; k1<Q1D; ++k1) {
-         printf("%f \n", Z[k1][i2]);
-       }
-     }
-#endif
 
      //Transposed contraction onward
      double Q[MAX_Q1D][MAX_D1D];
@@ -929,14 +974,6 @@ void PAConvectionApply2D(const int NE,
        }
      }
 
-#ifdef PA_DEBUG
-     printf("\n");
-     for(int j1=0; j1<D1D; ++j1) {
-       for(int i2=0; i2<Q1D; ++i2) {
-         printf("%f \n",Q[i2][j1]);
-       }
-     }
-#endif
 
      //double R[MAX_D1D][MAX_D1D];
      for(int j1=0; j1<D1D; ++j1) {
@@ -950,15 +987,8 @@ void PAConvectionApply2D(const int NE,
          yloc(i2,j1,e) = dot;
        }
      }
-
-#ifdef PA_DEBUG
-     printf("\n");
-     for(int j1=0; j1<D1D; ++j1) {
-       for(int i2=0; i2<D1D; ++i2) {
-         printf("%f \n",R[i2][j1]);
-       }
-     }
 #endif
+
 
    });
 }
