@@ -119,7 +119,8 @@ Vector &Vector::operator=(const Vector &v)
    SetSize(v.Size());
    const bool use_dev = data.GetExecFlag() || v.data.GetExecFlag();
    v.data.SetExecFlag(use_dev);
-   WriteAccess(use_dev);
+   // keep 'data' where it is, unless 'use_dev' is true
+   if (use_dev) { WriteAccess(true); }
    data.CopyFrom(v.data, v.Size());
 #endif
    return *this;

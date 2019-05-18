@@ -197,6 +197,7 @@ void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
    if (f != fes) { Destroy(); }
    fes = f;
+   v.UseDevice();
    NewMemoryAndSize(Memory<double>(v.GetMemory(), v_offset, fes->GetVSize()),
                     fes->GetVSize(), true);
    sequence = fes->GetSequence();
@@ -227,6 +228,7 @@ void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
    {
       MFEM_ASSERT(tv.Size() >= tv_offset + f->GetTrueVSize(), "");
       SetSpace(f); // works in parallel
+      tv.UseDevice();
       const int tv_size = f->GetTrueVSize();
       t_vec.NewMemoryAndSize(Memory<double>(tv.GetMemory(), tv_offset, tv_size),
                              tv_size, true);
