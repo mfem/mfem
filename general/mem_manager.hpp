@@ -338,7 +338,8 @@ public:
 
    /// Copy the validity flags from @a other to @a *this.
    /** This method synchronizes the validity flags of two Memory objects that
-       use the same host and device pointers. */
+       use the same host and device pointers, or @a *this is an alias
+       (sub-array) of @a other. */
    inline void SyncWith(const Memory &other) const;
 
    /** @brief Copy/move the alias Memory (@a *this) to match the memory location
