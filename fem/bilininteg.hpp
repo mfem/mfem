@@ -40,20 +40,28 @@ public:
    // make sense for the action of the nonlinear operator but they all make
    // sense for its Jacobian.
 
-   // FIXME: rename to AssemblePA()
    /// Method defining partial assembly.
-   virtual void Assemble(const FiniteElementSpace&);
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA() and AddMultTransposePA(). */
+   virtual void AssemblePA(const FiniteElementSpace &fes);
 
-   // FIXME: rename to MultPA()
-   // FIXME: documentation: E-vector to E-vector, currently performs +=, not =.
    /// Method for partially assembled action.
-   virtual void MultAssembled(Vector&, Vector&);
+   /** Perform the action of integrator on the input @a x and add the result to
+       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
+       the element-wise discontinuous version of the FE space.
 
-   // FIXME: rename to MultTransposePA()
-   // FIXME: documentation: E-vector to E-vector, currently meant to perform
-   // +=, not =.
+       This method can be called only after the method AssemblePA() has been
+       called. */
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
    /// Method for partially assembled transposed action.
-   virtual void MultAssembledTranspose(Vector&, Vector&);
+   /** Perform the transpose action of integrator on the input @a x and add the
+       result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
+       represent the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssemblePA() has been
+       called. */
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -1707,11 +1715,14 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
-   /// PA extension
-   virtual void Assemble(const FiniteElementSpace&);
-   virtual void MultAssembled(Vector&, Vector&);
+   virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
 
    virtual ~DiffusionIntegrator();
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -1727,9 +1738,11 @@ protected:
    DofToQuad *maps;
    GeometryExtension *geom;
    int dim, ne, nq, dofs1D, quad1D;
+
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir) { Q = NULL; maps = NULL; geom = NULL; }
+
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir), Q(&q) { maps = NULL; geom = NULL; }
@@ -1743,11 +1756,16 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
-   /// PA extension
-   virtual void Assemble(const FiniteElementSpace&);
-   virtual void MultAssembled(Vector&, Vector&);
+
+   virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
 
    virtual ~MassIntegrator();
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
 };
 
 class BoundaryMassIntegrator : public MassIntegrator

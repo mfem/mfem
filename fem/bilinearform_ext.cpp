@@ -162,7 +162,7 @@ void PABilinearFormExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->Assemble(*a->FESpace());
+      integrators[i]->AssemblePA(*a->FESpace());
    }
 }
 
@@ -210,8 +210,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iSz = integrators.Size();
    for (int i = 0; i < iSz; ++i)
    {
-      // FIXME: currently this method performs +=, not =.
-      integrators[i]->MultAssembled(localX, localY);
+      integrators[i]->AddMultPA(localX, localY);
    }
    elem_restrict->MultTranspose(localY, y);
 }
@@ -224,8 +223,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iSz = integrators.Size();
    for (int i = 0; i < iSz; ++i)
    {
-      // FIXME: currently this method is expected to perform +=, not =.
-      integrators[i]->MultAssembledTranspose(localX, localY);
+      integrators[i]->AddMultTransposePA(localX, localY);
    }
    elem_restrict->MultTranspose(localY, y);
 }

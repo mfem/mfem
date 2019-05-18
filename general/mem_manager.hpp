@@ -336,19 +336,22 @@ public:
        the same MemoryClass. */
    inline T *WriteAccess(MemoryClass mc, int size);
 
-   /// Copy the validity flags from @a other to @a *this.
-   /** This method synchronizes the validity flags of two Memory objects that
-       use the same host and device pointers, or @a *this is an alias
-       (sub-array) of @a other. */
+   /// Copy the host/device pointer validity flags from @a other to @a *this.
+   /** This method synchronizes the pointer validity flags of two Memory objects
+       that use the same host/device pointers, or when @a *this is an alias
+       (sub-Memory) of @a other. Typically, this method should be called after
+       @a other is manipulated in a way that changes its pointer validity flags
+       (e.g. it was moved from device to host memory). */
    inline void SyncWith(const Memory &other) const;
 
-   /** @brief Copy/move the alias Memory (@a *this) to match the memory location
-       (all valid locations) of its base Memory, @a base. */
+   /** @brief Update the alias Memory @a *this to match the memory location (all
+       valid locations) of its base Memory, @a base. */
    /** This method is useful when alias Memory is moved and manipulated in a
-       different memory space. Such operations render the validity flags of the
-       base invalid. Calling this method will ensure that @a base is up-to-date.
-       Note that this is achieved by moving/copying @a *this, not @a base. */
-   inline void SyncAliasToBase(const Memory &base, int size);
+       different memory space. Such operations render the pointer validity flags
+       of the base incorrect. Calling this method will ensure that @a base is
+       up-to-date. Note that this is achieved by moving/copying @a *this (if
+       necessary), and not @a base. */
+   inline void SyncAliasToBase(const Memory &base, int alias_size) const;
 
    /** @brief Return a MemoryType that is currently valid. If both the host and
        the device pointers are currently valid, then the device memory type is
@@ -409,8 +412,9 @@ private:
    static void Alias_(void *base_h_ptr, std::size_t offset, std::size_t size,
                       unsigned base_flags, unsigned &flags);
 
-   // Un-register and free memory identified by its host pointer.
-   static void Delete_(void *h_ptr, unsigned flags);
+   // Un-register and free memory identified by its host pointer. Returns the
+   // memory type of the host pointer.
+   static MemoryType Delete_(void *h_ptr, unsigned flags);
 
    // Return a pointer to the memory identified by the host pointer h_ptr for
    // access with the given MemoryClass.
@@ -424,7 +428,7 @@ private:
                              unsigned &flags);
 
    static void SyncAliasToBase_(const void *base_h_ptr, void *alias_h_ptr,
-                                size_t size, unsigned base_flags,
+                                size_t alias_size, unsigned base_flags,
                                 unsigned &alias_flags);
 
    // Return the type the of the currently valid memory. If more than one types
@@ -562,17 +566,10 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 template <typename T>
 inline void Memory<T>::Delete()
 {
-   if (!(flags & REGISTERED))
+   if (!(flags & REGISTERED) ||
+       MemoryManager::Delete_(h_ptr, flags) == MemoryType::HOST)
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
-   }
-   else
-   {
-      if (true) // FIXME: check that the host pointer is type MemoryType::HOST
-      {
-         if (flags & OWNS_HOST) { delete [] h_ptr; }
-      }
-      MemoryManager::Delete_(h_ptr, flags);
    }
 }
 
@@ -668,17 +665,24 @@ inline T *Memory<T>::WriteAccess(MemoryClass mc, int size)
 template <typename T>
 inline void Memory<T>::SyncWith(const Memory &other) const
 {
-   MFEM_ASSERT((flags & REGISTERED) == (other.flags & REGISTERED), "");
+   if (!(flags & REGISTERED) && (other.flags & REGISTERED))
+   {
+      MemoryManager::Register_(h_ptr, NULL, capacity*sizeof(T),
+                               MemoryType::HOST, flags & OWNS_HOST,
+                               flags & ALIAS, flags);
+   }
    flags = (flags & ~(VALID_HOST | VALID_DEVICE)) |
            (other.flags & (VALID_HOST | VALID_DEVICE));
 }
 
 template <typename T>
-inline void Memory<T>::SyncAliasToBase(const Memory &base, int size)
+inline void Memory<T>::SyncAliasToBase(const Memory &base, int alias_size) const
 {
    // Assuming that if *this is registered then base is also registered.
+   MFEM_ASSERT(!(flags & REGISTERED) || (base.flags & REGISTERED),
+               "invalid base state");
    if (!(base.flags & REGISTERED)) { return; }
-   MemoryManager::SyncAliasToBase_(base.h_ptr, h_ptr, size*sizeof(T),
+   MemoryManager::SyncAliasToBase_(base.h_ptr, h_ptr, alias_size*sizeof(T),
                                    base.flags, flags);
 }
 

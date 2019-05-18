@@ -28,30 +28,6 @@ typedef std::pair<int,int> id_t;
 typedef std::map<id_t, occa::kernel> occa_kernel_t;
 #endif // MFEM_USE_OCCA
 
-// FIXME: the default rules depend on the integrator -- they should be made
-// member functions in the integrator classes. This rule corresponds to the
-// diffusion integrator, however, it is used for both the mass and the diffusion
-// integrator below.
-static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
-                                             const FiniteElement &test_fe)
-{
-   int order;
-   if (trial_fe.Space() == FunctionSpace::Pk)
-   {
-      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
-   }
-   else
-   {
-      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
-      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
-   }
-   if (trial_fe.Space() == FunctionSpace::rQk)
-   {
-      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
-   }
-   return IntRules.Get(trial_fe.GetGeomType(), order);
-}
-
 // PA Diffusion Integrator
 
 // OCCA 2D Assemble kernel
@@ -221,13 +197,11 @@ static void PADiffusionSetup(const int dim,
    }
 }
 
-void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
+void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const Mesh *mesh = fes.GetMesh();
-   const IntegrationRule *rule = IntRule;
    const FiniteElement &el = *fes.GetFE(0);
-   // FIXME: use default quadrature rule defined as a member function.
-   const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
@@ -718,9 +692,8 @@ static void PADiffusionApply(const int dim,
 }
 
 // PA Diffusion Apply kernel
-void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
+void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   // FIXME: this function actually performs '+=', not '='
    PADiffusionApply(dim, dofs1D, quad1D, ne,
                     maps->B, maps->G, maps->Bt, maps->Gt,
                     pa_data, x, y);
@@ -735,15 +708,15 @@ DiffusionIntegrator::~DiffusionIntegrator()
 }
 
 // PA Mass Assemble kernel
-void MassIntegrator::Assemble(const FiniteElementSpace &fes)
+void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   const Mesh *mesh = fes.GetMesh();
-   const IntegrationRule *rule = IntRule;
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
-   // FIXME: use default quadrature rule defined as a member function.
-   const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
+   ElementTransformation *T = mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
    dim = mesh->Dimension();
-   ne = fes.GetMesh()->GetNE();
+   ne = mesh->GetNE();
    nq = ir->GetNPoints();
    dofs1D = el.GetOrder() + 1;
    quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
@@ -751,23 +724,15 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    maps = DofToQuad::Get(fes, fes, *ir);
    pa_data.SetSize(ne*nq, Device::GetMemoryType());
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
-   // FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
    // TODO: other types of coefficients ...
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)
    {
       double constant = 0.0;
-      // double (*function)(const Vector3&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
       }
-#if 0
-      else if (function_coeff)
-      {
-         function = function_coeff->GetDeviceFunction();
-      }
-#endif
       else
       {
          MFEM_ABORT("Coefficient type not supported");
@@ -775,7 +740,6 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       const int NE = ne;
       const int NQ = nq;
       auto w = maps->W.ReadAccess();
-      // auto x = Reshape(geom->X.ReadAccess(), 2, NQ, NE);
       auto J = Reshape(geom->J.ReadAccess(), 2, 2, NQ, NE);
       auto v = Reshape(pa_data.WriteAccess(), NQ, NE);
       MFEM_FORALL(e, NE,
@@ -787,15 +751,6 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double J12 = J(0,1,q,e);
             const double J22 = J(1,1,q,e);
             const double detJ = (J11*J22)-(J21*J12);
-            // FIXME: this code seems to break the cuda kernel
-            //
-            // const Vector3 Xq(x(0,q,e), x(1,q,e));
-            // const double coeff =
-            // const_coeff ? constant
-            // : function_coeff ? function(Xq)
-            // : 0.0;
-            // v(q,e) =  w[q] * coeff * detJ;
-            //
             v(q,e) =  w[q] * constant * detJ;
          }
       });
@@ -803,17 +758,10 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    if (dim==3)
    {
       double constant = 0.0;
-      // double (*function)(const Vector3&) = NULL;
       if (const_coeff)
       {
          constant = const_coeff->constant;
       }
-#if 0
-      else if (function_coeff)
-      {
-         function = function_coeff->GetDeviceFunction();
-      }
-#endif
       else
       {
          MFEM_ABORT("Coefficient type not supported");
@@ -821,7 +769,6 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       const int NE = ne;
       const int NQ = nq;
       auto W = maps->W.ReadAccess();
-      // auto x = Reshape(geom->X.ReadAccess(), 3, NQ, NE);
       auto J = Reshape(geom->J.ReadAccess(), 3, 3, NQ, NE);
       auto v = Reshape(pa_data.WriteAccess(), NQ, NE);
       MFEM_FORALL(e, NE,
@@ -834,15 +781,6 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
             const double detJ = J11 * (J22 * J33 - J32 * J23) -
             /* */               J21 * (J12 * J33 - J32 * J13) +
             /* */               J31 * (J12 * J23 - J22 * J13);
-            // FIXME: this code seems to break the cuda kernel
-            //
-            // const Vector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
-            // const double coeff =
-            // const_coeff ? constant
-            // : function_coeff ? function(Xq)
-            // : 0.0;
-            // v(q,e) = W[q] * coeff * detJ;
-            //
             v(q,e) = W[q] * constant * detJ;
          }
       });
@@ -1242,9 +1180,8 @@ static void PAMassApply(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
-void MassIntegrator::MultAssembled(Vector &x, Vector &y)
+void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   // FIXME: this function actually performs '+=', not '='
    PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
 }
 
@@ -1835,11 +1772,7 @@ GeometryExtension* GeometryExtension::Get(const FiniteElementSpace& fes,
       geom = new GeometryExtension();
    }
 
-   // FIXME
-   // const bool dev_enabled = Device::IsEnabled();
-   // if (dev_enabled) { Device::Disable(); }
    mesh->EnsureNodes();
-   // if (dev_enabled) { Device::Enable(); }
 
    GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();

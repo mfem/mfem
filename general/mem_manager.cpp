@@ -398,7 +398,7 @@ void MemoryManager::Alias_(void *base_h_ptr, std::size_t offset,
            ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
 }
 
-void MemoryManager::Delete_(void *h_ptr, unsigned flags)
+MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
 {
    // FIXME: this logic needs to be updated when support for HOST_32 and HOST_64
    // memory types is added.
@@ -416,6 +416,7 @@ void MemoryManager::Delete_(void *h_ptr, unsigned flags)
          mm.Erase(h_ptr, flags & Mem::OWNS_DEVICE);
       }
    }
+   return MemoryType::HOST;
 }
 
 void *MemoryManager::ReadWriteAccess_(void *h_ptr, MemoryClass mc,
@@ -574,7 +575,7 @@ void *MemoryManager::WriteAccess_(void *h_ptr, MemoryClass mc, std::size_t size,
 }
 
 void MemoryManager::SyncAliasToBase_(const void *base_h_ptr, void *alias_h_ptr,
-                                     size_t size, unsigned base_flags,
+                                     size_t alias_size, unsigned base_flags,
                                      unsigned &alias_flags)
 {
    // This is called only when (base_flags & Mem::REGISTERED) is true.
@@ -582,7 +583,7 @@ void MemoryManager::SyncAliasToBase_(const void *base_h_ptr, void *alias_h_ptr,
    MFEM_ASSERT(alias_flags & Mem::ALIAS, "not an alias");
    if ((base_flags & Mem::VALID_HOST) && !(alias_flags & Mem::VALID_HOST))
    {
-      PullAlias(maps, alias_h_ptr, size, true);
+      PullAlias(maps, alias_h_ptr, alias_size, true);
    }
    if ((base_flags & Mem::VALID_DEVICE) && !(alias_flags & Mem::VALID_DEVICE))
    {
@@ -592,7 +593,7 @@ void MemoryManager::SyncAliasToBase_(const void *base_h_ptr, void *alias_h_ptr,
          alias_flags = (alias_flags | Mem::REGISTERED | Mem::OWNS_INTERNAL) &
                        ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
       }
-      mm.GetAliasDevicePtr(alias_h_ptr, size, true);
+      mm.GetAliasDevicePtr(alias_h_ptr, alias_size, true);
    }
    alias_flags = (alias_flags & ~(Mem::VALID_HOST | Mem::VALID_DEVICE)) |
                  (base_flags & (Mem::VALID_HOST | Mem::VALID_DEVICE));
