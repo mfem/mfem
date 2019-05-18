@@ -27,12 +27,14 @@ namespace mfem
         GridFunc=gf;
     }
 
-    //not sure when this function will be called -QT
+    // this is not called in assembling
     void MyCoefficient::Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip)
     {
+        cout << "check me in MyCoefficient::Eval"<<endl;
         V.SetSize(vdim);
         Vector grad;
+        T.SetIntPoint (&ip);
         GridFunc->GetGradient(T, grad);
 
         V(0)=-grad(1);
@@ -62,4 +64,27 @@ namespace mfem
 
     }
     
+    //poisson bracket coefficient (follow grid function coefficient)
+    //coefficient=-u_y v_x + u_x v_y
+    class PBCoefficient : public Coefficient
+    {
+      private:
+         GridFunction *gfu, *gfv;
+      public:
+         PBCoefficient(GridFunction *gfu_, GridFunction *gfv_)
+        { gfu=gfu_; gfv=gfv_;}
+         double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+    };
+
+    //note that Tr->IntPoint has been set as ip in AssembleRHSElementVect
+    //so Getgradient(T, grad) should be fine
+    double PBCoefficient::Eval(ElementTransformation &T,
+                     const IntegrationPoint &ip)
+    {
+        Vector gradu, gradv;
+        gfu->GetGradient(T, gradu);
+        gfv->GetGradient(T, gradv);
+
+        return -gradu(1)*gradv(0)+gradu(0)*gradv(1);
+    }
 }

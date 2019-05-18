@@ -24,7 +24,7 @@ protected:
 
    BilinearForm *M, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
    BilinearForm *Nv, *Nb;
-   LinearForm *E0, *Sw; //two source terms
+   LinearForm *E0, *Sw, *PB_VPsi, *PB_VOmega, *PB_BJ; //two source terms and Poisson Bracket
    SparseMatrix Mmat, Kmat;
 
    double viscosity, resistivity;
@@ -54,13 +54,19 @@ public:
    void assembleNv(GridFunction *gf);
    void assembleNb(GridFunction *gf);
 
+   void SetVPsi(GridFunction *phi, GridFunction *psi);
+   void SetVOmega(GridFunction *phi, GridFunction *omega);
+   void SetBJ(GridFunction *psi, GridFunction *j);
+
    virtual ~ResistiveMHDOperator();
 };
 
 ResistiveMHDOperator::ResistiveMHDOperator(FiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc, double resi)
    : TimeDependentOperator(4*f.GetVSize(), 0.0), fespace(f),
-     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
+     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), 
+     Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), 
+     PB_VPsi(NULL), PB_VOmega(NULL),PB_BJ(NULL),
      viscosity(visc),  resistivity(resi), M_prec(NULL), K_prec(NULL), z(height/4)
 {
    const double rel_tol = 1e-10;
@@ -153,6 +159,37 @@ void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield)
    E0->Assemble();
 }
 
+void ResistiveMHDOperator::SetVPsi(GridFunction *phi, GridFunction *psi)
+{
+   delete PB_VPsi;
+   PB_VPsi = new LinearForm(&fespace);
+   PBCoefficient pbCoeff(phi, psi);
+
+   //intOrder = 3*k+0
+   PB_VPsi->AddDomainIntegrator(new DomainLFIntegrator(pbCoeff, 3, 0));
+   PB_VPsi->Assemble();
+}
+
+void ResistiveMHDOperator::SetVOmega(GridFunction *phi, GridFunction *omega)
+{
+   delete PB_VOmega;
+   PB_VOmega = new LinearForm(&fespace);
+   PBCoefficient pbCoeff(phi, omega);
+
+   PB_VOmega->AddDomainIntegrator(new DomainLFIntegrator(pbCoeff, 3, 0));
+   PB_VOmega->Assemble();
+}
+
+void ResistiveMHDOperator::SetBJ(GridFunction *psi, GridFunction *j)
+{
+   delete PB_BJ;
+   PB_BJ = new LinearForm(&fespace);
+   PBCoefficient pbCoeff(psi, j);
+
+   PB_BJ->AddDomainIntegrator(new DomainLFIntegrator(pbCoeff, 3, 0));
+   PB_BJ->Assemble();
+}
+
 void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 {
    // Create views to the sub-vectors and time derivative
@@ -169,7 +206,14 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
    Vector   dj_dt(dvx_dt.GetData() +3*sc, sc);
 
-   Nv->Mult(psi, z);
+   if (PB_VPsi!=NULL)
+   {
+       //cout <<"VPsi ";
+       z=*PB_VPsi;
+   }
+   else
+       Nv->Mult(psi, z);
+
    if (resistivity != 0.0)
    {
       DSl.AddMult(psi, z);
@@ -186,6 +230,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
       //ofstream myfile("z0.dat");
       //z.Print(myfile, 10);
       //cout<<z.Size()<<endl;
+      //
 
       z.SetSubVector(ess_tdof_list, 0.0);
       M_solver.Mult(z, dpsi_dt);
@@ -203,14 +248,26 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    //ofstream myfile("zLHS1.dat");
    //z.Print(myfile, 1000);
 
+   if (PB_VPsi!=NULL)
+   {
+       //cout <<"VOmgea ";
+       z=*PB_VOmega;
+   }
+   else
+       Nv->Mult(w, z);
 
-   Nv->Mult(w, z);
    if (viscosity != 0.0)
    {
       DRe.AddMult(w, z);
    }
    z.Neg(); // z = -z
-   Nb->AddMult(j, z);
+   if (PB_BJ!=NULL)
+   {
+      //cout <<"BJ ";
+      z+=*PB_BJ;
+   }
+   else
+      Nb->AddMult(j, z);
 
    //for (int i=0; i<ess_tdof_list.Size(); i++)
    //    z(ess_tdof_list[i])=0.0; //set Dirichlet condition by hand
@@ -308,6 +365,9 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete K;
     delete E0;
     delete Sw;
+    delete PB_VPsi;
+    delete PB_VOmega;
+    delete PB_BJ;
     delete KB;
     delete Nv;
     delete Nb;
