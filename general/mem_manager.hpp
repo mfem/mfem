@@ -667,9 +667,10 @@ inline void Memory<T>::SyncWith(const Memory &other) const
 {
    if (!(flags & REGISTERED) && (other.flags & REGISTERED))
    {
-      MemoryManager::Register_(h_ptr, NULL, capacity*sizeof(T),
-                               MemoryType::HOST, flags & OWNS_HOST,
-                               flags & ALIAS, flags);
+      MFEM_ASSERT(h_ptr == other.h_ptr &&
+                  (flags & ALIAS) == (other.flags & ALIAS),
+                  "invalid input");
+      flags = (flags | REGISTERED) & ~(OWNS_DEVICE | OWNS_INTERNAL);
    }
    flags = (flags & ~(VALID_HOST | VALID_DEVICE)) |
            (other.flags & (VALID_HOST | VALID_DEVICE));
