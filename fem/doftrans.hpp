@@ -28,9 +28,10 @@ protected:
 
    Array<int> Fo;
 
-public:
    DofTransformation(int height, int width)
       : height_(height), width_(width) {}
+
+public:
 
    inline int Height() const { return height_; }
    inline int NumRows() const { return height_; }
