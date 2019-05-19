@@ -2373,6 +2373,9 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       // TODO: cb_type and ob_type for tets
       ND_Elements[Geometry::TETRAHEDRON] = new ND_TetrahedronElement(p);
       ND_dof[Geometry::TETRAHEDRON] = p*pm1*pm2/2;
+
+      ND_Elements[Geometry::PRISM] = new ND_WedgeElement(p);
+      ND_dof[Geometry::PRISM] = p*pm1*(3*p-4)/2;
    }
 }
 
