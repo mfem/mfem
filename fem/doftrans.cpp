@@ -46,6 +46,12 @@ void DofTransformation::TransformPrimalCols(const DenseMatrix &A,
    }
 }
 
+void DofTransformation::TransformDual(const Vector &v, Vector &v_trans) const
+{
+   v_trans.SetSize(width_);
+   TransformDual(v.GetData(), v_trans.GetData());
+}
+
 void DofTransformation::TransformDual(const DenseMatrix &A,
                                       DenseMatrix &A_trans) const
 {
@@ -59,7 +65,7 @@ void DofTransformation::TransformDualRows(const DenseMatrix &A,
 {
    A_trans.SetSize(A.Height(), width_);
    Vector row;
-   Vector row_trans(width_);
+   Vector row_trans;
    for (int r=0; r<A.Height(); r++)
    {
       A.GetRow(r, row);
