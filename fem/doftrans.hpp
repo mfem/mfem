@@ -54,6 +54,7 @@ public:
    virtual void InvTransformPrimal(const Vector &, Vector &) const;
 
    virtual void TransformDual(const double *, double *) const = 0;
+   virtual void TransformDual(const Vector &, Vector &) const;
 
    virtual void TransformDual(const DenseMatrix &, DenseMatrix &) const;
 
