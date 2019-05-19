@@ -1,4 +1,6 @@
-
+//
+// ./transport -s 12 -v 1 -vs 5 -tol 1e-3 -tf 4
+//
 #include "mfem.hpp"
 #include <fstream>
 #include <sstream>
@@ -861,10 +863,10 @@ int main(int argc, char *argv[])
          }
 
          // Make sure errors will be recomputed in the following.
-	 if (mpi.Root())
-	 {
-	   cout << "\nEstimating errors." << endl;
-	 }
+         if (mpi.Root())
+         {
+            cout << "\nEstimating errors." << endl;
+         }
          refiner.Reset();
          derefiner.Reset();
 
@@ -941,14 +943,14 @@ int main(int argc, char *argv[])
             oper.Update();
             ode_solver->Init(oper);
          }
-	 else
-	 {
+         else
+         {
             if (mpi.Root())
             {
                cout << "No derefinements needed." << endl;
             }
-	 }
-	 
+         }
+
          amr_it++;
 
          global_dofs = fespace.GlobalTrueVSize();
@@ -964,7 +966,7 @@ int main(int argc, char *argv[])
    tic_toc.Stop();
    if (mpi.Root())
    {
-     cout << "\nTime stepping done after " << tic_toc.RealTime() << "s.\n";
+      cout << "\nTime stepping done after " << tic_toc.RealTime() << "s.\n";
    }
    /*
    // 11. Save the final solution. This output can be viewed later using GLVis:

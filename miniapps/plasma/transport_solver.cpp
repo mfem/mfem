@@ -276,6 +276,8 @@ DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(DGParams & dg,
      q_exp_(NULL),
      q_imp_(NULL),
      M_(NULL),
+     // B_(NULL),
+     // S_(NULL),
      rhs_(fes_),
      RHS_(fes_->GetTrueVSize()),
      X_(fes_->GetTrueVSize())
@@ -295,6 +297,8 @@ DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(DGParams & dg,
 DGAdvectionDiffusionTDO::~DGAdvectionDiffusionTDO()
 {
    delete M_;
+   // delete B_;
+   // delete S_;
 
    delete a_;
    delete b_;
@@ -395,8 +399,13 @@ void DGAdvectionDiffusionTDO::initB()
             new TransposeIntegrator(new DGTraceIntegrator(*negVCoef_,
                                                           1.0, -0.5)));
       }
+      /*
       b_->Assemble();
       b_->Finalize();
+
+      delete B_;
+      B_ = b_->ParallelAssemble();
+      */
    }
 }
 
@@ -426,8 +435,13 @@ void DGAdvectionDiffusionTDO::initS()
                                                             dg_.sigma,
                                                             dg_.kappa));
       }
+      /*
       s_->Assemble();
       s_->Finalize();
+
+      delete S_;
+      S_ = s_->ParallelAssemble();
+      */
    }
 }
 
@@ -699,15 +713,36 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
    {
       rhs_ = 0.0;
    }
+   rhs_.ParallelAssemble(RHS_);
+
+   fes_->Dof_TrueDof_Matrix()->Mult(u, X_);
+
    if (imex_)
    {
-      if (s_) { s_->AddMult(u, rhs_, -1.0); }
+      if (s_)
+      {
+         s_->Assemble();
+         s_->Finalize();
+
+         HypreParMatrix * S = s_->ParallelAssemble();
+
+         S->Mult(-1.0, X_, 1.0, RHS_);
+         delete S;
+      }
    }
    else
    {
-      if (b_) { b_->AddMult(u, rhs_, -1.0); }
+      if (b_)
+      {
+         b_->Assemble();
+         b_->Finalize();
+
+         HypreParMatrix * B = b_->ParallelAssemble();
+
+         B->Mult(-1.0, X_, 1.0, RHS_);
+         delete B;
+      }
    }
-   rhs_.ParallelAssemble(RHS_);
 
    a_->Assemble();
    a_->Finalize();

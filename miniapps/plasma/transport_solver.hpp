@@ -212,6 +212,9 @@ private:
    HypreSmoother M_prec_;
    CGSolver M_solver_;
 
+   // HypreParMatrix * B_;
+   // HypreParMatrix * S_;
+
    mutable ParLinearForm rhs_;
    mutable Vector RHS_;
    mutable Vector X_;
