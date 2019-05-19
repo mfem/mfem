@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-tet.mesh";
    int ser_ref_levels = -1;
-   int par_ref_levels = 1;
+   int par_ref_levels = 2;
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
@@ -66,12 +66,12 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree).");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree).");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -118,9 +118,9 @@ int main(int argc, char *argv[])
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
-   //    meshes need to be reoriented before we can define high-order Nedelec
-   //    spaces on them.
+   //    parallel mesh is defined, the serial mesh can be deleted. Face
+   //    orientation information must be exchanged with neighboring processors
+   //    before we can define high-order Nedelec spaces.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   // pmesh->ReorientTetMesh();
+   pmesh->ExchangeFaceNbrData();
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.

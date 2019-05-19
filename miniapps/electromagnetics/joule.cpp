@@ -416,9 +416,10 @@ int main(int argc, char *argv[])
       ref_list.DeleteAll();
    }
 
-   // 10. Reorient the mesh. Must be done after refinement but before definition
-   //     of higher order Nedelec spaces
-   // pmesh->ReorientTetMesh();
+   // 10. Exchange of face orientation information with neighboring processors.
+   //     Must be done after refinement but before definition of higher order
+   //     Nedelec spaces
+   pmesh->ExchangeFaceNbrData();
 
    // 11. Rebalance the mesh. Since the mesh was adaptively refined in a
    //     non-uniform way it will be computationally unbalanced.
