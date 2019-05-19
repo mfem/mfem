@@ -149,13 +149,13 @@ public:
 class PreconditionerFactory : public PetscPreconditionerFactory
 {
 private:
-   const ReducedSystemOperator& op;
+   // const ReducedSystemOperator& op; // unused for now (generates warning)
 
 public:
-   PreconditionerFactory(const ReducedSystemOperator& op_,
-                         const string& name_): PetscPreconditionerFactory(name_), op(op_) {};
+   PreconditionerFactory(const ReducedSystemOperator& op_, const string& name_)
+      : PetscPreconditionerFactory(name_) /* , op(op_) */ {}
    virtual mfem::Solver* NewPreconditioner(const mfem::OperatorHandle&);
-   virtual ~PreconditionerFactory() {};
+   virtual ~PreconditionerFactory() {}
 };
 
 /** Function representing the elastic energy density for the given hyperelastic
