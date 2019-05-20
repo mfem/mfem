@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
       cout << "Number of total scalar unknowns: " << global_size << endl;
    }
 
-   int fe_size = fespace.GetVSize();
+   int fe_size = fespace.TrueVSize();
    Array<int> fe_offset(4);
    fe_offset[0] = 0;
    fe_offset[1] = fe_size;
@@ -243,9 +243,9 @@ int main(int argc, char *argv[])
 
    BlockVector vx(fe_offset);
    ParGridFunction psi, phi, w, psiBack(&fespace), psiPer(&fespace);
-   phi.MakeRef(&fespace, vx.GetBlock(0), 0);
-   psi.MakeRef(&fespace, vx.GetBlock(1), 0);
-     w.MakeRef(&fespace, vx.GetBlock(2), 0);
+   phi.MakeTRef(&fespace, vx, fe_offset[0]);
+   psi.MakeTRef(&fespace, vx, fe_offset[1]);
+     w.MakeTRef(&fespace, vx, fe_offset[2]);
 
    // 6. Set the initial conditions, and the boundary conditions
    FunctionCoefficient phiInit(InitialPhi);

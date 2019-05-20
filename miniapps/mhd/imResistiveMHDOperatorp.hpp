@@ -23,10 +23,10 @@ protected:
    Array<int> ess_tdof_list;
 
    ParBilinearForm *M, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
-   ParBilinearForm *Mrhs;
    ParBilinearForm *Nv, *Nb;
    ParLinearForm *E0, *Sw; //two source terms
-   HypreParMatrix Kmat, Mmat;
+   HypreParMatrix Kmat, Mmat, Nvmat, Nbmat;
+   HypreParVector *E0Vec;
    double viscosity, resistivity;
    bool useAMG;
 
@@ -53,8 +53,6 @@ protected:
 public:
    ResistiveMHDOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr, 
                        double visc, double resi); 
-
-
 
    // Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
@@ -118,9 +116,9 @@ public:
 
 ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc, double resi)
-   : TimeDependentOperator(3*f.GetVSize(), 0.0), fespace(f),
-     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Mrhs(NULL),
-     Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
+   : TimeDependentOperator(3*f.TrueVSize(), 0.0), fespace(f),
+     M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
+     Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), E0Vec(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), 
      M_solver(f.GetComm()), K_solver(f.GetComm()), 
      K_amg(NULL), K_pcg(NULL), z(height/3), j(&fespace)
@@ -132,10 +130,6 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    M->AddDomainIntegrator(new MassIntegrator);
    M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
-
-   Mrhs = new ParBilinearForm(&fespace);
-   Mrhs->AddDomainIntegrator(new MassIntegrator);
-   Mrhs->Assemble();
 
    M_solver.iterative_mode = true;
    M_solver.SetRelTol(1e-12);
@@ -196,6 +190,7 @@ void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield)
    E0 = new ParLinearForm(&fespace);
    E0->AddDomainIntegrator(new DomainLFIntegrator(Efield));
    E0->Assemble();
+   E0Vec=E0->ParallelAssemble();
 }
 
 void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ) 
@@ -221,6 +216,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector Y, Z;
    HypreParMatrix A;
 
+   //FIXME
    //compute the current as an auxilary variable
    KB->Mult(psi, z);
    z.Neg(); // z = -z
@@ -232,27 +228,23 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Nv->Mult(psi, z);
    if (resistivity != 0.0)
    {
-      DSl.AddMult(psi, z);
+      DSl.TrueAddMult(psi, z);
    }
-   if (E0!=NULL)
-     z += *E0;
+   if (E0Vec!=NULL)
+     z += *E0Vec;
    z.Neg(); // z = -z
-
-   M->FormLinearSystem(ess_tdof_list, dpsi_dt, z, A, Y, Z); 
-   M_solver.Mult(Z, Y);
-   M->RecoverFEMSolution(Y, z, dpsi_dt);
+   z.SetSubVector(ess_tdof_list,0.0);
+   M_solver.Mult(z, dpsi_dt);
 
    Nv->Mult(w, z);
    if (viscosity != 0.0)
    {
-      DRe.AddMult(w, z);
+      DRe.TrueAddMult(w, z);
    }
    z.Neg(); // z = -z
-   Nb->AddMult(j, z);
-
-   M->FormLinearSystem(ess_tdof_list, dw_dt, z, A, Y, Z); 
-   M_solver.Mult(Z, Y);
-   M->RecoverFEMSolution(Y, z, dw_dt);
+   Nb->TrueAddMult(j, z);
+   z.SetSubVector(ess_tdof_list,0.0);
+   M_solver.Mult(z, dw_dt);
 }
 
 void ResistiveMHDOperator::assembleNv(ParGridFunction *gf) 
@@ -263,6 +255,7 @@ void ResistiveMHDOperator::assembleNv(ParGridFunction *gf)
 
    Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
    Nv->Assemble(); 
+   Nv->FormSystemMatrix(ess_tdof_list, Nvmat);
 }
 
 void ResistiveMHDOperator::assembleNb(ParGridFunction *gf) 
@@ -273,6 +266,7 @@ void ResistiveMHDOperator::assembleNb(ParGridFunction *gf)
 
    Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
    Nb->Assemble();
+   Nb->FormSystemMatrix(ess_tdof_list, Nbmat);
 }
 
 void ResistiveMHDOperator::UpdatePhi(Vector &vx)
@@ -282,21 +276,14 @@ void ResistiveMHDOperator::UpdatePhi(Vector &vx)
    Vector phi(vx.GetData() +   0, sc);
    Vector   w(vx.GetData() +2*sc, sc);
 
-   Mrhs->Mult(w, z);
+   M->Mult(w, z);
    z.Neg(); // z = -z
+   z.SetSubVector(ess_tdof_list,0.0);   //this is probably not necessary
 
-   //z.SetSubVector(ess_tdof_list, 0.0);
-   //K_solver.Mult(z, phi);
-
-   HypreParMatrix A;
-   Vector Y, Z;
-   K->FormLinearSystem(ess_tdof_list, phi, z, A, Y, Z); 
    if (useAMG)
-      K_pcg->Mult(Z,Y);
+      K_pcg->Mult(z,phi);
    else 
-      K_solver.Mult(Z, Y);
-
-   K->RecoverFEMSolution(Y, z, phi);
+      K_solver.Mult(z, phi);
 }
 
 void ResistiveMHDOperator::DestroyHypre()
@@ -308,16 +295,15 @@ void ResistiveMHDOperator::DestroyHypre()
 
 ResistiveMHDOperator::~ResistiveMHDOperator()
 {
-    //cout <<"ResistiveMHDOperator::~ResistiveMHDOperator() is called"<<endl;
     //free used memory
     delete M;
     delete K;
     delete E0;
+    delete E0Vec;
     delete Sw;
     delete KB;
     delete Nv;
     delete Nb;
-    delete Mrhs;
     delete K_pcg;
     //delete K_amg;
     //delete M_solver;
