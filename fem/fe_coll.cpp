@@ -1978,6 +1978,9 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
 
       RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
       RT_dof[Geometry::CUBE] = 3*p*pp1*pp1;
+
+      RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
+      RT_dof[Geometry::PRISM] = p*pp1*(3*p + 4)/2;
    }
    else
    {
