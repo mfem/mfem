@@ -61,7 +61,6 @@ public:
    virtual void TransformPrimal(const Vector &, Vector &) const;
 
    /// Transform groups of DoFs stored as dense matrices
-   virtual void TransformPrimalRows(const DenseMatrix &, DenseMatrix &) const;
    virtual void TransformPrimalCols(const DenseMatrix &, DenseMatrix &) const;
 
    /** Inverse transform local DoFs.  Used to transform DoFs from a global
