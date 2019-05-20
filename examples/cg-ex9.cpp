@@ -100,8 +100,8 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   //const char *mesh_file = "../data/periodic-square.mesh";
-   const char *mesh_file = "../data/periodic-cube.mesh";
+   const char *mesh_file = "../data/periodic-square.mesh";
+   //const char *mesh_file = "../data/periodic-cube.mesh";
    int ref_levels = 0;
    int order = 1;
    int ode_solver_type = 4;

@@ -915,11 +915,9 @@ void PAConvectionApply2D(const int NE,
    const DeviceTensor<3> xloc(_x, D1D, D1D, NE);
    DeviceTensor<3> yloc(_y, D1D, D1D, NE);
 
+#if 0  //Version with improved semantics
    MFEM_FORALL(e, NE,
    {
-
-#if 1  //Version with improved semantics
-
      //qpt x dof
      double BX[MAX_D1D][MAX_Q1D];
      double GX[MAX_D1D][MAX_Q1D];
@@ -984,10 +982,11 @@ void PAConvectionApply2D(const int NE,
          yloc(i,j,e) = dot;
        }
      }
-
-
+   });
 
 #else
+   MFEM_FORALL(e, NE,
+   {
      double U[DIM][MAX_D1D][MAX_Q1D];
      for(int j1=0; j1<Q1D; ++j1) {
        for(int i2=0; i2<D1D; ++i2) {
@@ -1054,10 +1053,11 @@ void PAConvectionApply2D(const int NE,
          yloc(i2,j1,e) = dot;
        }
      }
+
+   });
 #endif
 
 
-   });
 }
 
 
