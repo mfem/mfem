@@ -10779,9 +10779,10 @@ void RT_WedgeElement::CalcVShape(const IntegrationPoint &ip,
       }
       else
       {
+         double s = (dof2nk[i] == 0) ? -1.0 : 1.0;
          shape(i, 0) = 0.0;
          shape(i, 1) = 0.0;
-         shape(i, 2) = tl2_shape[t_dof[i]] * sh1_shape(s_dof[i]);
+         shape(i, 2) = s * tl2_shape[t_dof[i]] * sh1_shape(s_dof[i]);
       }
    }
 }
@@ -10812,7 +10813,8 @@ void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
       }
       else
       {
-         divshape(i) = tl2_shape(t_dof[i]) * sh1_dshape(s_dof[i], 0);
+         double s = (dof2nk[i] == 0) ? -1.0 : 1.0;
+         divshape(i) = s * tl2_shape(t_dof[i]) * sh1_dshape(s_dof[i], 0);
       }
    }
 }
