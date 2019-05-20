@@ -132,7 +132,7 @@ void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body)
 
    if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
 
-   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, h_body); }
+   if (Device::Allows(Backend::OMP_MASK)) { return OmpWrap(N, h_body); }
 
    if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
 
