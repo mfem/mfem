@@ -38,6 +38,8 @@ using namespace std;
 using namespace mfem;
 typedef std::chrono::high_resolution_clock Clock;
 
+#define ASSEMBLE_T
+
 // Choice for the problem setup. The fluid velocity, initial condition and
 // inflow boundary condition are chosen based on this parameter.
 int problem;
@@ -61,7 +63,7 @@ double Tf = 1.2;
 //Velocity function
 double cx = 1.0;
 double cy = 5.0;
-double cz = 1.0;
+double cz = 2.5;
 
 // Inflow boundary condition
 double inflow_function(const Vector &x);
@@ -98,7 +100,8 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-square.mesh";
+   //const char *mesh_file = "../data/periodic-square.mesh";
+   const char *mesh_file = "../data/periodic-cube.mesh";
    int ref_levels = 0;
    int order = 1;
    int ode_solver_type = 4;
@@ -356,9 +359,11 @@ FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
 
-   M.Assemble();
-   int skip_zeros = 0;
-   K.Assemble(skip_zeros);
+#if defined(ASSEMBLE_T)
+  M.Assemble();
+  int skip_zeros = 0;
+  K.Assemble(skip_zeros);
+#endif
 
    // y = M^{-1} K x
    K.Mult(x, z);
@@ -374,15 +379,7 @@ void velocity_function(const Vector &x, Vector &v)
 
    // map to the reference [-1,1] domain
    Vector X(dim);
-#if 0
-   for (int i = 0; i < dim; i++)
-   {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
-      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
-   }
-#endif
-
-   X(0) = x(0); X(1) = x(1);
+   X(0) = x(0); X(1) = x(1); if(dim==3) X(2) = x(2);
    switch (problem)
    {
       case 0:
@@ -392,7 +389,7 @@ void velocity_function(const Vector &x, Vector &v)
          {
             case 1: v(0) = 1.0; break;
             case 2: v(0) = cx; v(1) = cy; break;
-            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
+            case 3: v(0) = cx; v(1) = cy; v(2) = cz; break;
                break;
          }
          break;
@@ -433,8 +430,14 @@ double g0_function(const Vector &x)
   int dim = x.Size();
   if(dim==1) {
     return sin(2*M_PI*(x(0) - 0));
-  }else if(dim==2){
+  }
+
+  if(dim==2){
     return sin(2*M_PI*(x(0) - 0))*sin(2*M_PI*(x(1) - 0));
+  }
+
+  if(dim==3){
+    return sin(2*M_PI*(x(0) - 0))*sin(2*M_PI*(x(1) - 0))*sin(2*M_PI*(x(2) - 0));
   }
 
   return 0.0;
@@ -443,10 +446,17 @@ double g0_function(const Vector &x)
 double gf_function(const Vector &x)
 {
   int dim = x.Size();
+
   if(dim==1) {
     return sin(2*M_PI*(x(0) - Tf));
-  }else if(dim==2){
+  }
+
+  if(dim==2){
     return sin(2*M_PI*(x(0) - cx*Tf))*sin(2*M_PI*(x(1) - cy*Tf));
+  }
+
+  if(dim==3){
+    return sin(2*M_PI*(x(0) - cx*Tf))*sin(2*M_PI*(x(1) - cy*Tf))*sin(2*M_PI*(x(2) - cy*Tf));
   }
 
   return 0.0;

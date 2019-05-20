@@ -751,6 +751,14 @@ void myVelFun(double x0, double x1, double c_vel[2])
   c_vel[1] = 5;
 }
 
+void myVelFun(double x0, double x1, double x2, double c_vel[2])
+{
+  c_vel[0] = 1.0;
+  c_vel[1] = 5.0;
+  c_vel[2] = 2.5;
+}
+
+
 //PA Convection Assemble kernel
 //Store the D
 void ConvectionIntegrator::Assemble(const FiniteElementSpace &fes)
@@ -770,7 +778,10 @@ void ConvectionIntegrator::Assemble(const FiniteElementSpace &fes)
     quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
     geom = GeometryExtension::Get(fes,*ir);
     maps = DofToQuad::Get(fes, fes, *ir);
-    vec.SetSize(dim*quad1D*quad1D*ne);
+    int nqpts;
+    if(dim==2) nqpts = quad1D*quad1D;
+    if(dim==3) nqpts = quad1D*quad1D*quad1D;
+    vec.SetSize(dim*nqpts*ne);
     Conv_SetSize = false;
   }
 
@@ -786,7 +797,9 @@ void ConvectionIntegrator::Assemble(const FiniteElementSpace &fes)
     const DeviceTensor<4> J(geom->J.GetData(), 2, 2, NQ, NE);
     const DeviceTensor<3> x(geom->X.GetData(), 2,NQ,NE);
     DeviceTensor<3> D(vec.GetData(), 2, NQ, NE);
-    const double COEFF = -1.0; //Will need a more general case (coefficient for convection term)
+
+    //Will need a more general case (coefficient for convection term)
+    const double COEFF = -1.0;
 
     MFEM_FORALL(e, NE,
     {
@@ -812,9 +825,64 @@ void ConvectionIntegrator::Assemble(const FiniteElementSpace &fes)
     });
   }
 
-  if(dim==3) {mfem_error("Not supported yet ... \n");}
+  if(dim==3)
+  {
+    const int NE = ne;
+    const int NQ = quad1D*quad1D*quad1D;
+    const DeviceVector W(maps->W.GetData(), NQ);
+    const DeviceTensor<4> J(geom->J.GetData(), 3, 3, NQ, NE);
+    const DeviceTensor<3> x(geom->X.GetData(), 3, NQ,NE);
+    DeviceTensor<3> D(vec.GetData(), 3, NQ, NE);
+    const double COEFF = -1.0; //Will need a more general case
+
+    MFEM_FORALL(e, NE,
+    {
+      for(int q=0; q<NQ; ++q) {
+
+        const double J11 = J(0,0,q,e);
+        const double J12 = J(0,1,q,e);
+        const double J13 = J(0,2,q,e);
+
+        const double J21 = J(1,0,q,e);
+        const double J22 = J(1,1,q,e);
+        const double J23 = J(1,2,q,e);
+
+        const double J31 = J(2,0,q,e);
+        const double J32 = J(2,1,q,e);
+        const double J33 = J(2,2,q,e);
+
+        const double A11 = (J22 * J33) - (J23 * J32);
+        const double A12 = (J23 * J31) - (J21 * J33);
+        const double A13 = (J21 * J32) - (J22 * J31);
+        const double A21 = (J13 * J32) - (J12 * J33);
+        const double A22 = (J11 * J33) - (J13 * J31);
+        const double A23 = (J12 * J31) - (J11 * J32);
+        const double A31 = (J12 * J23) - (J13 * J22);
+        const double A32 = (J13 * J21) - (J11 * J23);
+        const double A33 = (J11 * J22) - (J12 * J21);
+
+        const double w_coeff = W(q) * COEFF;
+        double x0 = x(0,q,e);
+        double x1 = x(1,q,e);
+        double x2 = x(2,q,e);
+
+        double c_vel[3];
+        myVelFun(x0,x1,x2, c_vel);
+
+        double cx = c_vel[0];
+        double cy = c_vel[1];
+        double cz = c_vel[2];
+        D(0,q,e) = w_coeff*(cx*A11 + cy*A12 + cz*A13);
+        D(1,q,e) = w_coeff*(cx*A21 + cy*A22 + cz*A23);
+        D(2,q,e) = w_coeff*(cx*A31 + cy*A32 + cz*A33);
+      }
+
+    });
+
+  }
 
 }
+
 
 template<const int T_D1D = 0, const int T_Q1D = 0> static
 void PAConvectionApply2D(const int NE,
@@ -853,11 +921,10 @@ void PAConvectionApply2D(const int NE,
 #if 1  //Version with improved semantics
 
      //qpt x dof
-     double BX[MAX_Q1D][MAX_D1D];
-     double GX[MAX_Q1D][MAX_D1D];
-     for(int j=0; j<Q1D; ++j) {
-       for(int i=0; i<D1D; ++i) {
-
+     double BX[MAX_D1D][MAX_Q1D];
+     double GX[MAX_D1D][MAX_Q1D];
+     for(int j=0; j<D1D; ++j) {
+       for(int i=0; i<Q1D; ++i) {
          GX[j][i] = 0.0;
          BX[j][i] = 0.0;
          for(int s=0; s<D1D; ++s) {
@@ -994,6 +1061,164 @@ void PAConvectionApply2D(const int NE,
 }
 
 
+template<const int T_D1D = 0, const int T_Q1D = 0> static
+void PAConvectionApply3D(const int NE,
+                   const double* _B,
+                   const double* _Bt,
+                   const double* _G,
+                   const double* _Gt,
+                   const double* _op,
+                   const double* _x,
+                   double* _y,
+                   const int d1d = 0,
+                   const int q1d = 0)
+{
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int NQ  = Q1D*Q1D*Q1D;
+   const int ND  = D1D*D1D*D1D;
+
+   const int DIM = 3;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+
+   const DeviceMatrix B(_B, Q1D, D1D);
+   const DeviceMatrix Bt(_Bt, D1D, Q1D);
+   const DeviceMatrix G(_G, Q1D, D1D);
+   const DeviceMatrix Gt(_Gt, D1D, Q1D);
+   const DeviceTensor<5> D(_op, DIM, Q1D, Q1D, Q1D, NE);
+
+   const DeviceTensor<4> xloc(_x, D1D, D1D, D1D, NE);
+   DeviceTensor<4> yloc(_y, D1D, D1D, D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+
+     //qpt x dof x dof
+     double BX[MAX_D1D][MAX_D1D][MAX_Q1D];
+     double GX[MAX_D1D][MAX_D1D][MAX_Q1D];
+
+     for(int j1=0; j1<Q1D; ++j1) {
+       for(int i3=0; i3<D1D; ++i3) {
+         for(int i2=0; i2<D1D; ++i2) {
+
+           BX[i2][i3][j1] = 0.0;
+           GX[i2][i3][j1] = 0.0;
+           for(int i1=0; i1<D1D; ++i1) {
+             BX[i2][i3][j1] += B(j1, i1) * xloc(i1,i2,i3,e);
+             GX[i2][i3][j1] += G(j1, i1) * xloc(i1,i2,i3,e);
+           }
+         }
+       }
+     }
+
+     double BBX[MAX_D1D][MAX_Q1D][MAX_Q1D];
+     double GBX[MAX_D1D][MAX_Q1D][MAX_Q1D];
+     double BGX[MAX_D1D][MAX_Q1D][MAX_Q1D];
+
+     for(int j1=0; j1<Q1D; ++j1) {
+       for(int i3=0; i3<Q1D; ++i3) {
+         for(int i2=0; i2<D1D; ++i2) {
+
+           BBX[i2][i3][j1] = 0.0;
+           GBX[i2][i3][j1] = 0.0;
+           BGX[i2][i3][j1] = 0.0;
+           for(int i1=0; i1<D1D; ++i1) {
+             BBX[i2][i3][j1] += B(j1, i1) * BX[i1][i2][i3];
+             GBX[i2][i3][j1] += G(j1, i1) * BX[i1][i2][i3];
+             BGX[i2][i3][j1] += B(j1, i1) * GX[i1][i2][i3];
+           }
+
+         }
+       }
+     }
+
+     double GBBX[MAX_Q1D][MAX_Q1D][MAX_Q1D];
+     double BGBX[MAX_Q1D][MAX_Q1D][MAX_Q1D];
+     double BBGX[MAX_Q1D][MAX_Q1D][MAX_Q1D];
+
+     for(int j1=0; j1<Q1D; ++j1) {
+       for(int i3=0; i3<Q1D; ++i3) {
+         for(int i2=0; i2<Q1D; ++i2) {
+
+           GBBX[i2][i3][j1] = 0.0;
+           BGBX[i2][i3][j1] = 0.0;
+           BBGX[i2][i3][j1] = 0.0;
+           for(int i1=0; i1<D1D; ++i1) {
+             GBBX[i2][i3][j1] += G(j1, i1) * BBX[i1][i2][i3];
+             BGBX[i2][i3][j1] += B(j1, i1) * GBX[i1][i2][i3];
+             BBGX[i2][i3][j1] += B(j1, i1) * BGX[i1][i2][i3];
+           }
+
+         }
+       }
+     }
+
+     double Z[MAX_Q1D][MAX_Q1D][MAX_Q1D];
+     for(int k3=0; k3<Q1D; ++k3) {
+       for(int k2=0; k2<Q1D; ++k2) {
+         for(int k1=0; k1<Q1D; ++k1) {
+
+         double dot(0.0);
+         {
+           dot += D(0, k1, k2, k3, e) * BBGX[k1][k2][k3];
+           dot += D(1, k1, k2, k3, e) * BGBX[k1][k2][k3];
+           dot += D(2, k1, k2, k3, e) * GBBX[k1][k2][k3];
+         }
+         Z[k1][k2][k3] = dot;
+         }
+       }
+     }
+
+     //Apply (B1d)^T 3 more times
+     double BZ[MAX_Q1D][MAX_Q1D][MAX_D1D];
+     for(int j1=0; j1<D1D; ++j1) {
+       for(int i3=0; i3<Q1D; ++i3) {
+         for(int i2=0; i2<Q1D; ++i2) {
+
+           BZ[i2][i3][j1]=0.0;
+           for(int i1=0; i1<Q1D; ++i1) {
+             BZ[i2][i3][j1] += Bt(j1,i1)*Z[i1][i2][i3];
+           }
+
+         }
+       }
+     }
+
+     double BBZ[MAX_Q1D][MAX_D1D][MAX_D1D];
+     for(int j1=0; j1<D1D; ++j1) {
+       for(int i3=0; i3<D1D; ++i3) {
+         for(int i2=0; i2<Q1D; ++i2) {
+
+           BBZ[i2][i3][j1]=0.0;
+           for(int i1=0; i1<Q1D; ++i1) {
+             BBZ[i2][i3][j1] += Bt(j1,i1)*BZ[i1][i2][i3];
+           }
+
+         }
+       }
+     }
+
+     for(int j1=0; j1<D1D; ++j1) {
+       for(int i3=0; i3<D1D; ++i3) {
+         for(int i2=0; i2<D1D; ++i2) {
+
+           double dot(0.0);
+           for(int i1=0; i1<Q1D; ++i1) {
+             dot += Bt(j1,i1)*BBZ[i1][i2][i3];
+           }
+           yloc(i2,i3,j1,e) = dot;
+         }
+       }
+     }
+
+   });
+
+
+
+}
+
 static void PAConvectionApply(const int dim,
                               const int D1D,
                               const int Q1D,
@@ -1007,9 +1232,8 @@ static void PAConvectionApply(const int dim,
                               double* y)
 {
 
-  //printf("Q1D %d D1D %d \n",Q1D, D1D);
   if(dim==2)
-   {
+  {
     switch ((D1D << 4 ) | Q1D)
     {
        case 0x22: PAConvectionApply2D<2,2>(NE, B, Bt, G, Gt, op, x, y); break;
@@ -1023,7 +1247,16 @@ static void PAConvectionApply(const int dim,
   }
   if(dim == 3)
   {
-
+    switch ((D1D << 4 ) | Q1D)
+    {
+       case 0x23: PAConvectionApply3D<2,3>(NE, B, Bt, G, Gt, op, x, y); break;
+       case 0x34: PAConvectionApply3D<3,4>(NE, B, Bt, G, Gt, op, x, y); break;
+       case 0x45: PAConvectionApply3D<4,5>(NE, B, Bt, G, Gt, op, x, y); break;
+       case 0x56: PAConvectionApply3D<5,6>(NE, B, Bt, G, Gt, op, x, y); break;
+       case 0x67: PAConvectionApply3D<6,7>(NE, B, Bt, G, Gt, op, x, y); break;
+       default: mfem_error("convection kernel order not supported \n"); break;
+    }
+    return;
   }
   MFEM_ABORT("Unknown kernel.");
 
