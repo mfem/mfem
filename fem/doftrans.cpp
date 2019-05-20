@@ -20,20 +20,6 @@ void DofTransformation::TransformPrimal(const Vector &v, Vector &v_trans) const
    TransformPrimal(v.GetData(), v_trans.GetData());
 }
 
-void DofTransformation::TransformPrimalRows(const DenseMatrix &A,
-                                            DenseMatrix &A_trans) const
-{
-   A_trans.SetSize(A.Height(), width_);
-   Vector row;
-   Vector row_trans(width_);
-   for (int r=0; r<A.Height(); r++)
-   {
-      A.GetRow(r, row);
-      TransformPrimal(row, row_trans);
-      A_trans.SetRow(r, row_trans);
-   }
-}
-
 void DofTransformation::TransformPrimalCols(const DenseMatrix &A,
                                             DenseMatrix &A_trans) const
 {
@@ -101,7 +87,7 @@ void TransformPrimal(const DofTransformation *ran_dof_trans,
    {
       DenseMatrix elmat_tmp;
       ran_dof_trans->TransformPrimalCols(elmat, elmat_tmp);
-      dom_dof_trans->TransformPrimalRows(elmat_tmp, elmat_trans);
+      dom_dof_trans->TransformDualRows(elmat_tmp, elmat_trans);
    }
    else if (ran_dof_trans)
    {
@@ -109,7 +95,7 @@ void TransformPrimal(const DofTransformation *ran_dof_trans,
    }
    else if (dom_dof_trans)
    {
-      dom_dof_trans->TransformPrimalRows(elmat, elmat_trans);
+      dom_dof_trans->TransformDualRows(elmat, elmat_trans);
    }
    else
    {
