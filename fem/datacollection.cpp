@@ -108,6 +108,7 @@ DataCollection::DataCollection(const std::string& collection_name, Mesh *mesh_)
    precision = precision_default;
    pad_digits_cycle = pad_digits_rank = pad_digits_default;
    format = SERIAL_FORMAT; // use serial mesh format
+   compression = false;
    error = NO_ERROR;
 }
 
