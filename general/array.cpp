@@ -24,7 +24,7 @@ void Array<T>::Print(std::ostream &out, int width) const
 {
    for (int i = 0; i < size; i++)
    {
-      out << ((const T*)data)[i];
+      out << data[i];
       if ( !((i+1) % width) || i+1 == size )
       {
          out << '\n';
