@@ -176,14 +176,14 @@ FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
 {
    DofTransformation * doftrans = GetElementDofs(i, vdofs);
    DofsToVDofs(vdofs);
-   if (doftrans)
+   if (vdim == 1 || doftrans == NULL)
    {
-      VDoFTrans.SetDofTransformation(*doftrans);
-      return &VDoFTrans;
+      return doftrans;
    }
    else
    {
-      return NULL;
+      VDoFTrans.SetDofTransformation(*doftrans);
+      return &VDoFTrans;
    }
 }
 
