@@ -66,7 +66,7 @@ occa::memory OccaMemoryReadWrite(Memory<T> &mem, size_t size)
 
 /** @brief Function that determines if an OCCA kernel should be used, based on
     the current mfem::Device configuration. */
-inline bool DeviceUseOcca()
+inline bool DeviceCanUseOcca()
 {
    return Device::Allows(Backend::OCCA_CUDA) ||
           (Device::Allows(Backend::OCCA_OMP) &&

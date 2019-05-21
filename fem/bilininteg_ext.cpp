@@ -176,7 +176,7 @@ static void PADiffusionSetup(const int dim,
    if (dim == 2)
    {
 #ifdef MFEM_USE_OCCA
-      if (DeviceUseOcca())
+      if (DeviceCanUseOcca())
       {
          OccaPADiffusionSetup2D(D1D, Q1D, NE, W, J, COEFF, op);
          return;
@@ -187,7 +187,7 @@ static void PADiffusionSetup(const int dim,
    if (dim == 3)
    {
 #ifdef MFEM_USE_OCCA
-      if (DeviceUseOcca())
+      if (DeviceCanUseOcca())
       {
          OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, COEFF, op);
          return;
@@ -352,10 +352,10 @@ void PADiffusionApply2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int m_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int m_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
-      double grad[m_Q1D][m_Q1D][2];
+      double grad[max_Q1D][max_Q1D][2];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -366,7 +366,7 @@ void PADiffusionApply2D(const int NE,
       }
       for (int dy = 0; dy < D1D; ++dy)
       {
-         double gradX[m_Q1D][2];
+         double gradX[max_Q1D][2];
          for (int qx = 0; qx < Q1D; ++qx)
          {
             gradX[qx][0] = 0.0;
@@ -412,7 +412,7 @@ void PADiffusionApply2D(const int NE,
       }
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double gradX[m_D1D][2];
+         double gradX[max_D1D][2];
          for (int dx = 0; dx < D1D; ++dx)
          {
             gradX[dx][0] = 0;
@@ -472,10 +472,10 @@ void PADiffusionApply3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int m_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int m_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
-      double grad[m_Q1D][m_Q1D][m_Q1D][4];
+      double grad[max_Q1D][max_Q1D][max_Q1D][4];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -490,7 +490,7 @@ void PADiffusionApply3D(const int NE,
       }
       for (int dz = 0; dz < D1D; ++dz)
       {
-         double gradXY[m_Q1D][m_Q1D][4];
+         double gradXY[max_Q1D][max_Q1D][4];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -502,7 +502,7 @@ void PADiffusionApply3D(const int NE,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double gradX[m_Q1D][2];
+            double gradX[max_Q1D][2];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] = 0.0;
@@ -571,7 +571,7 @@ void PADiffusionApply3D(const int NE,
       }
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double gradXY[m_D1D][m_D1D][4];
+         double gradXY[max_D1D][max_D1D][4];
          for (int dy = 0; dy < D1D; ++dy)
          {
             for (int dx = 0; dx < D1D; ++dx)
@@ -583,7 +583,7 @@ void PADiffusionApply3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double gradX[m_D1D][4];
+            double gradX[max_D1D][4];
             for (int dx = 0; dx < D1D; ++dx)
             {
                gradX[dx][0] = 0;
@@ -648,7 +648,7 @@ static void PADiffusionApply(const int dim,
                              Vector &y)
 {
 #ifdef MFEM_USE_OCCA
-   if (DeviceUseOcca())
+   if (DeviceCanUseOcca())
    {
       if (dim == 2)
       {
@@ -904,10 +904,10 @@ void PAMassApply2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int m_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int m_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
-      double sol_xy[m_Q1D][m_Q1D];
+      double sol_xy[max_Q1D][max_Q1D];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -917,7 +917,7 @@ void PAMassApply2D(const int NE,
       }
       for (int dy = 0; dy < D1D; ++dy)
       {
-         double sol_x[m_Q1D];
+         double sol_x[max_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             sol_x[qy] = 0.0;
@@ -948,7 +948,7 @@ void PAMassApply2D(const int NE,
       }
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double sol_x[m_D1D];
+         double sol_x[max_D1D];
          for (int dx = 0; dx < D1D; ++dx)
          {
             sol_x[dx] = 0.0;
@@ -998,10 +998,10 @@ void PAMassApply3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int m_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int m_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
-      double sol_xyz[m_Q1D][m_Q1D][m_Q1D];
+      double sol_xyz[max_Q1D][max_Q1D][max_Q1D];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -1014,7 +1014,7 @@ void PAMassApply3D(const int NE,
       }
       for (int dz = 0; dz < D1D; ++dz)
       {
-         double sol_xy[m_Q1D][m_Q1D];
+         double sol_xy[max_Q1D][max_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -1024,7 +1024,7 @@ void PAMassApply3D(const int NE,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double sol_x[m_Q1D];
+            double sol_x[max_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_x[qx] = 0;
@@ -1070,7 +1070,7 @@ void PAMassApply3D(const int NE,
       }
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double sol_xy[m_D1D][m_D1D];
+         double sol_xy[max_D1D][max_D1D];
          for (int dy = 0; dy < D1D; ++dy)
          {
             for (int dx = 0; dx < D1D; ++dx)
@@ -1080,7 +1080,7 @@ void PAMassApply3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double sol_x[m_D1D];
+            double sol_x[max_D1D];
             for (int dx = 0; dx < D1D; ++dx)
             {
                sol_x[dx] = 0;
@@ -1128,7 +1128,7 @@ static void PAMassApply(const int dim,
                         Vector &y)
 {
 #ifdef MFEM_USE_OCCA
-   if (DeviceUseOcca())
+   if (DeviceCanUseOcca())
    {
       if (dim == 2)
       {
@@ -1553,9 +1553,9 @@ void PAGeom2D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int ND = D1D*D1D;
       const int NQ = Q1D*Q1D;
-      constexpr int m_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
 
-      double s_X[2*m_D1D*m_D1D];
+      double s_X[2*max_D1D*max_D1D];
       for (int d = 0; d < ND; d++)
       {
          s_X[0+d*2] = X(0,d,e);
@@ -1630,9 +1630,9 @@ void PAGeom3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int ND = D1D*D1D*D1D;
       const int NQ = Q1D*Q1D*Q1D;
-      constexpr int m_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
 
-      double s_nodes[3*m_D1D*m_D1D*m_D1D];
+      double s_nodes[3*max_D1D*max_D1D*max_D1D];
       for (int d = 0; d < ND; d++)
       {
          s_nodes[0+d*3] = X(0,d,e);

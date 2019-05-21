@@ -114,7 +114,8 @@ protected:
       VALID_HOST    = 16,  ///< Host pointer is valid
       VALID_DEVICE  = 32,  ///< Device pointer is valid
       ALIAS         = 64,
-      EXEC_FLAG     = 128  ///< Optional execution flag used by MFEM
+      /// Execution flag reserved for use by MFEM, e.g. see Vector::UseDevice()
+      EXEC_FLAG     = 128
    };
 
    /// Pointer to host memory. Not owned.
