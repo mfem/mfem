@@ -25,9 +25,10 @@ protected:
    ParBilinearForm *M, *K, *KB, DSl, DRe; //mass, stiffness, diffusion with SL and Re
    ParBilinearForm *Nv, *Nb;
    ParLinearForm *E0, *Sw; //two source terms
-   HypreParMatrix Kmat, Mmat, Nvmat, Nbmat;
+   HypreParMatrix Kmat, Mmat, Nvmat, Nbmat, KBmat;
    HypreParVector *E0Vec;
    double viscosity, resistivity;
+   double jBdy;
    bool useAMG;
 
    /*
@@ -60,6 +61,8 @@ public:
    //set rhs E0
    void SetRHSEfield(FunctionCoefficient Efield);
    void SetInitialJ(FunctionCoefficient initJ);
+   void SetJBdy(double jBdy_) 
+   {jBdy = jBdy_;}
 
    void UpdatePhi(Vector &vx);
    void assembleNv(ParGridFunction *gf);
@@ -125,6 +128,11 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 {
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
+   double lambda=5.;
+   //jBdy=lambda/pow(cosh(lambda*(1.-.5)),2);
+   jBdy=.0;
+   cout<<"boundary current is "<<jBdy<<endl;
+
    //mass matrix
    M = new ParBilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator);
@@ -174,6 +182,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    KB->AddDomainIntegrator(new DiffusionIntegrator);      //  K matrix
    KB->AddBdrFaceIntegrator(new BoundaryGradIntegrator);  // -B matrix
    KB->Assemble();
+   //KB->FormSystemMatrix(ess_tdof_list, KBmat);
 
    ConstantCoefficient visc_coeff(viscosity);
    DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
@@ -213,17 +222,40 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector dpsi_dt(dvx_dt.GetData() +  sc, sc);
    Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
 
-   Vector Y, Z;
-   HypreParMatrix A;
+   //for (int i=0; i<ess_tdof_list.Size(); i++)
+   //    cout<<j(ess_tdof_list[i])<<" "<<ess_tdof_list[i]<<" "; //set homogeneous Dirichlet condition by hand
+   //cout<<endl<<"j size is "<<j.Size()<<endl;
 
-   //FIXME
+   /*
    //compute the current as an auxilary variable
    KB->Mult(psi, z);
    z.Neg(); // z = -z
-   M->FormLinearSystem(ess_tdof_list, j, z, A, Y, Z); //apply Dirichelt boundary (j is initially from a projection with initial condition, so it satisfies the boundary conditino all the time)
+   //z.SetSubVector(ess_tdof_list,jBdy);
+   //Vector J(sc);
+   //M_solver.Mult(z, J);
+
+   HypreParMatrix tmp;
+   Vector Y, Z;
+   M->FormLinearSystem(ess_tdof_list, j, z, tmp, Y, Z); 
+   M_solver.Mult(Z, Y);
+   M->RecoverFEMSolution(Y, z, j);
+   */
+
+   Vector Y, Z;
+   HypreParMatrix A;
+
+   //compute the current as an auxilary variable
+   KB->Mult(psi, z);
+   z.Neg(); // z = -z
+   M->FormLinearSystem(ess_tdof_list, j, z, A, Y, Z); //apply Dirichelt boundary 
    M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, j);
    
+   /*
+   cout << "Size of matrix in Nv: " <<  Nv->Size()<< endl;
+   cout << "Size of z: " <<  z.Size()<< endl;
+   */
+
    //evolve the dofs
    Nv->Mult(psi, z);
    if (resistivity != 0.0)
@@ -242,9 +274,20 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
       DRe.TrueAddMult(w, z);
    }
    z.Neg(); // z = -z
-   Nb->TrueAddMult(j, z);
+   Nb->AddMult(j, z); 
    z.SetSubVector(ess_tdof_list,0.0);
    M_solver.Mult(z, dw_dt);
+
+   /*
+   ofstream myfile("z0.dat");
+   z.Print(myfile, 10);
+   cout<<z.Size()<<endl;
+
+   ofstream myfile2("dwdt.dat");
+   dw_dt.Print(myfile2, 10);
+   cout<<dw_dt.Size()<<endl;
+   */
+
 }
 
 void ResistiveMHDOperator::assembleNv(ParGridFunction *gf) 
@@ -255,7 +298,12 @@ void ResistiveMHDOperator::assembleNv(ParGridFunction *gf)
 
    Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
    Nv->Assemble(); 
-   Nv->FormSystemMatrix(ess_tdof_list, Nvmat);
+   //Nv->FormSystemMatrix(ess_tdof_list, Nvmat);
+
+   /*
+   cout << "M of matrix in Nv: " <<  Nvmat.M()<< endl;
+   cout << "N of matrix in Nv: " <<  Nvmat.N()<< endl;
+   */
 }
 
 void ResistiveMHDOperator::assembleNb(ParGridFunction *gf) 
@@ -266,7 +314,6 @@ void ResistiveMHDOperator::assembleNb(ParGridFunction *gf)
 
    Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
    Nb->Assemble();
-   Nb->FormSystemMatrix(ess_tdof_list, Nbmat);
 }
 
 void ResistiveMHDOperator::UpdatePhi(Vector &vx)
@@ -276,9 +323,9 @@ void ResistiveMHDOperator::UpdatePhi(Vector &vx)
    Vector phi(vx.GetData() +   0, sc);
    Vector   w(vx.GetData() +2*sc, sc);
 
-   M->Mult(w, z);
+   Mmat.Mult(w, z);
    z.Neg(); // z = -z
-   z.SetSubVector(ess_tdof_list,0.0);   //this is probably not necessary
+   z.SetSubVector(ess_tdof_list,0.0);
 
    if (useAMG)
       K_pcg->Mult(z,phi);

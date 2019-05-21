@@ -243,9 +243,9 @@ int main(int argc, char *argv[])
 
    BlockVector vx(fe_offset);
    ParGridFunction psi, phi, w, psiBack(&fespace), psiPer(&fespace);
-   phi.MakeTRef(&fespace, vx, fe_offset[0]);
-   psi.MakeTRef(&fespace, vx, fe_offset[1]);
-     w.MakeTRef(&fespace, vx, fe_offset[2]);
+   phi.MakeRef(&fespace, vx.GetBlock(0), 0);
+   psi.MakeRef(&fespace, vx.GetBlock(1), 0);
+     w.MakeRef(&fespace, vx.GetBlock(2), 0);
 
    // 6. Set the initial conditions, and the boundary conditions
    FunctionCoefficient phiInit(InitialPhi);
@@ -417,7 +417,12 @@ int main(int argc, char *argv[])
       //assemble the nonlinear terms
       oper.assembleNv(&phi);
       oper.assembleNb(&psi);
+   //ofstream myfile3("vx0.dat");
+   //vx.Print(myfile3, 10);
       ode_solver->StepP(vx, t, dt_real);
+   //   cout<<"dt = "<<dt_real<<endl;
+   //ofstream myfile2("w.dat");
+   //w.Print(myfile2, 10);
 
       //---Corrector stage---
       //assemble the nonlinear terms (only psi is updated)
@@ -431,6 +436,15 @@ int main(int argc, char *argv[])
       {
          if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
          subtract(psi,psiBack,psiPer);
+         
+         /*
+         ofstream myfile2("psiBack.dat");
+         psiBack.Print(myfile2, 10);
+         ofstream myfile1("psi.dat");
+         psi.Print(myfile1, 10);
+         ofstream myfile0("psiPer.dat");
+         psiPer.Print(myfile0, 10);
+         */
 
          if (visualization)
          {

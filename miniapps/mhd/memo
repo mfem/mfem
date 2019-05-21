@@ -8,7 +8,7 @@ mpirun -n 16 exAMRMHDp -m xperiodicR1.mesh -rs 0 -rp 2 -o 4 -tf 8 -vs 200 -dt .0
 parallel run:
 mpirun -n 4 exMHDp -rs 4 -o 2 -tf 3 -vs 100 -dt .001
 mpirun -n 4 exMHDp -rs 4 -tf 10 -vs 200 -dt .001 -i 2
-mpirun -n 4 exMHDp -m xperiodicR3.mesh -rs 0 -o 4 -tf 8 -vs 100 -dt .001 
+mpirun -n 4 exMHDp -m xperiodicR3.mesh -rs 0 -o 4 -tf 8 -vs 100 -dt .001 -i 3
 
 serial AMR quick test:
 ./exAMRMHD -m xperiodicR3.mesh -r 0 -o 4 -tf .025 -vs 10 -dt .0001 -i 3 -amrl 3 -ltol 1e-3
