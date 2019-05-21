@@ -367,10 +367,10 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
    gcomm.Bcast(zones_per_vdof);
-   // Accumulate for all tdofs.
-   HypreParVector *tv = this->ParallelAssemble();
-   this->Distribute(tv);
-   delete tv;
+
+   // Accumulate for all vdofs.
+   gcomm.Reduce(data, GroupCommunicator::Sum);
+   gcomm.Bcast(data);
 
    ComputeMeans(type, zones_per_vdof);
 }
@@ -389,10 +389,10 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
    gcomm.Bcast(zones_per_vdof);
-   // Accumulate for all tdofs.
-   HypreParVector *tv = this->ParallelAssemble();
-   this->Distribute(tv);
-   delete tv;
+
+   // Accumulate for all vdofs.
+   gcomm.Reduce(data, GroupCommunicator::Sum);
+   gcomm.Bcast(data);
 
    ComputeMeans(type, zones_per_vdof);
 }
