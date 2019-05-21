@@ -45,7 +45,7 @@ enum class MemoryClass
    CUDA_UVM ///< Memory types: { CUDA_UVM }
 };
 
-/// Return true is the given memory type is in MemoryClass::HOST.
+/// Return true if the given memory type is in MemoryClass::HOST.
 inline bool IsHostMemory(MemoryType mt) { return mt <= MemoryType::HOST_64; }
 
 /// Return a suitable MemoryType for a given MemoryClass.
