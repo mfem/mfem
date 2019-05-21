@@ -404,7 +404,7 @@ public:
       : VectorCoefficient(v.Size()), vec(v) { }
    using VectorCoefficient::Eval;
 
-   ///  Evaluate the vector coefficient at @ip.
+   ///  Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
 };
@@ -674,7 +674,7 @@ public:
       : VectorCoefficient(vc.GetVDim())
    { c = &vc; attr.Copy(active_attr); }
 
-   /// Evaluate the vector coefficient at @ip.
+   /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
@@ -737,7 +737,7 @@ public:
    MatrixConstantCoefficient(const DenseMatrix &m)
       : MatrixCoefficient(m.Height(), m.Width()), mat(m) { }
    using MatrixCoefficient::Eval;
-   /// Evaluate the matrix coefficient at @ip.
+   /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
 };
@@ -786,7 +786,7 @@ public:
       mat.SetSize(0);
    }
 
-   /// Evaluate the matrix coefficient at @ip.
+   /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
