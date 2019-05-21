@@ -125,6 +125,12 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
       ApplyLDofSigns(*elem_dof);
    }
 
+   if (dynamic_cast<const ND_FECollection*>(fec) &&
+       fec->HasFaceDofs(Geometry::PRISM))
+   {
+      pmesh->ExchangeFaceNbrData();
+   }
+
    // Check for shared trianglular faces with interior Nedelec DoFs
    CheckNDSTriaDofs();
 }
