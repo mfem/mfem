@@ -28,6 +28,31 @@ namespace mfem
     complimentary transformations are required for the entries stored in
     LinearForm and BilinearForm objects.  The DofTransformation class is
     designed to apply the action of both of these types of DoF transformations.
+
+    Let the "primal transformation" by given by the operator T.  This means that
+    given a local element vector v the data that must be placed into a
+    GridFunction object is v_t = T * v.
+
+    We also need the inverse of the primal transformation T^{-1} so that we can
+    recover the local element vector from data read out of a GridFunction
+    e.g. v = T^{-1} * v_t.
+
+    We need to preserve the action of our linear forms applied to primal
+    vectors.  In other words, if f is the local vector computed by a linear
+    form then f * v = f_t * v_t (where "*" represents an inner product of
+    vectors).  This requires that f_t = T^{-T} * f i.e. the "dual transform" is
+    given by the transpose of the inverse of the primal transformation.
+
+    For bilinear forms we require that v^T * A * v = v_t^T * A_t * v_t.  This
+    implies that A_t = T^{-T} * A * T^{-1}.  This can be accomplished by
+    performing dual transformations of the rows and columns of the matrix A.
+
+    For discrete linear operators the range must be modified with the primal
+    transformation rather than the dual transformation because the result is
+    a primal vector rather than a dual vector.  This leads to the
+    transformation D_t = T * D * T^{-1}.  This can be accomplished by using
+    a primal transformation on the columns of D and a dual transformation on
+    its rows.
 */
 class DofTransformation
 {
