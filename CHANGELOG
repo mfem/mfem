@@ -61,7 +61,7 @@ Discretization improvements
 
 - Added element flux, and flux energy computation in class ElasticityIntegrator,
   allowing for the use of Zienkiewicz-Zhu type error estimators with the
-  integrator. For an illustration of this addition, see the new Example 22.
+  integrator. For an illustration of this addition, see the new Example 21.
 
 - Added a variety of coefficients which are sums or products of existing
   coefficients as well as grid function coefficients which return the
@@ -132,7 +132,7 @@ New and updated examples and miniapps
   from a Hamiltonian. The example demonstrates the use of the variable order,
   symplectic integration algorithm implemented in class SIAVSolver.
 
-- Added a new example, Example 22/22p, that illustrates the use of AMR to solve
+- Added a new example, Example 21/21p, that illustrates the use of AMR to solve
   a linear elasticity problem. This is an extension of Example 2/2p.
 
 New and improved solvers and preconditioners
