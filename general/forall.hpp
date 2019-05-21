@@ -35,13 +35,13 @@ namespace mfem
 
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                                     \
-   ForallWrap(false,N,                                           \
+   ForallWrap(true,N,                                            \
               [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},        \
               [&]                  (int i) {__VA_ARGS__})
 
 // The MFEM_FORALL_IF wrapper
-#define MFEM_FORALL_IF(locked,i,N,...)                      \
-   ForallWrap(locked,N,                                     \
+#define MFEM_FORALL_IF(use_dev,i,N,...)                     \
+   ForallWrap(use_dev,N,                                    \
               [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},   \
               [&]                  (int i) {__VA_ARGS__})
 
@@ -122,10 +122,10 @@ void CuWrap(const int N, DBODY &&d_body)
 
 /// The forall kernel body wrapper
 template <typename DBODY, typename HBODY>
-inline void ForallWrap(const bool use_cpu, const int N,
+inline void ForallWrap(const bool use_dev, const int N,
                        DBODY &&d_body, HBODY &&h_body)
 {
-   if (use_cpu) { goto backend_cpu; }
+   if (!use_dev) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
    // Handle all allowed CUDA backends except Backend::CUDA

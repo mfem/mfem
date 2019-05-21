@@ -332,6 +332,7 @@ void MemoryManager::PrintPtrs(void)
                 << "h_ptr " << mem.h_ptr << ", "
                 << "d_ptr " << mem.d_ptr;
    }
+   mfem::out << std::endl;
 }
 
 // Static private MemoryManager methods used by class Memory

@@ -694,7 +694,7 @@ void SparseMatrix::PartMult(
    auto d_A = ReadAccess(A, nnz, use_dev);
    auto d_x = x.ReadAccess(use_dev);
    auto d_y = y.WriteAccess(use_dev);
-   MFEM_FORALL_IF(!use_dev, i, n,
+   MFEM_FORALL_IF(use_dev, i, n,
    {
       const int r = d_rows[i];
       const int end = d_I[r + 1];
