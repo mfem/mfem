@@ -4272,6 +4272,10 @@ static PetscErrorCode Convert_Vmarks_IS(MPI_Comm comm,
 
 #if !defined(PETSC_HAVE_HYPRE)
 
+#if defined(HYPRE_MIXEDINT)
+#error "HYPRE_MIXEDINT not supported"
+#endif
+
 #include "_hypre_parcsr_mv.h"
 static PetscErrorCode MatConvert_hypreParCSR_AIJ(hypre_ParCSRMatrix* hA,Mat* pA)
 {
