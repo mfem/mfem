@@ -690,7 +690,7 @@ public:
    /// Return the total (global) number of elements.
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
-   /** @brief Return the mesh geometric factors coresponding to the given
+   /** @brief Return the mesh geometric factors corresponding to the given
        integration rule. */
    const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
                                                const int flags);
