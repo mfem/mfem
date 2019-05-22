@@ -168,7 +168,8 @@ static bool SmemPAMassApply2D(const int NE,
          for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
          {
             double dq = 0.0;
-            for (int dx = 0; dx < D1D; ++dx) {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
                dq += X[dy][dx] * B[qx][dx];
             }
             DQ[dy][qx] = dq;
@@ -180,7 +181,8 @@ static bool SmemPAMassApply2D(const int NE,
          for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
          {
             double qq = 0.0;
-            for (int dy = 0; dy < D1D; ++dy) {
+            for (int dy = 0; dy < D1D; ++dy)
+            {
                qq += DQ[dy][qx] * B[qy][dy];
             }
             QQ[qy][qx] = qq * op(qx, qy, e);
@@ -192,14 +194,15 @@ static bool SmemPAMassApply2D(const int NE,
          {
             Bt[dy][qx] = bt(dy,qx);
          }
-      }      
+      }
       MFEM_SYNC_THREAD;
       for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
       {
          for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
          {
             double dq = 0.0;
-            for (int qx = 0; qx < Q1D; ++qx) {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
                dq += QQ[qy][qx] * Bt[dx][qx];
             }
             QD[qy][dx] = dq;
@@ -211,7 +214,8 @@ static bool SmemPAMassApply2D(const int NE,
          for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
          {
             double dd = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy) {
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
                dd += (QD[qy][dx] * Bt[dy][qy]);
             }
             y(dx, dy, e) += dd;
