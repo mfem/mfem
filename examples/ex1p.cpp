@@ -98,20 +98,18 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // FIXME
-   // 9. Set device config parameters from the command line options and switch
-   //    to working on the device.
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device::Configure(device);
    if (myid == 0) { Device::Print(); }
-   Device::Enable();
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution. In
+   // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
@@ -124,7 +122,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -137,7 +135,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 6. Define a parallel finite element space on the parallel mesh. Here we
+   // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
@@ -164,7 +162,7 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 7. Determine the list of true (i.e. parallel conforming) essential
+   // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
@@ -176,7 +174,7 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 8. Set up the parallel linear form b(.) which corresponds to the
+   // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
    ParLinearForm *b = new ParLinearForm(fespace);
@@ -226,11 +224,7 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
-   // FIXME
-   // 15. Switch back to the host.
-   // Device::Disable();
-
-   // 16. Save the refined mesh and the solution in parallel. This output can
+   // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -246,7 +240,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 17. Send the solution by socket to a GLVis server.
+   // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -257,7 +251,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 18. Free the used memory.
+   // 17. Free the used memory.
    delete a;
    delete b;
    delete fespace;
