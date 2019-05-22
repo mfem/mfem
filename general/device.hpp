@@ -78,8 +78,8 @@ struct Backend
 };
 
 
-/** @brief The MFEM Device class abstracts hardware devices, such as GPUs, as
-    well as programming models, such as CUDA, OCCA, RAJA and OpenMP. */
+/** @brief The MFEM Device class abstracts hardware devices such as GPUs, as
+    well as programming models such as CUDA, OCCA, RAJA and OpenMP. */
 /** This class represents a "virtual device" with the following properties:
     - There a single object of this class which is controlled by its static
       methods.

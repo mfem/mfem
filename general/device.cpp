@@ -84,6 +84,9 @@ void Device::Configure(const std::string &device, const int dev)
 
    // Enable only the default host CPU backend.
    Get().allowed_backends = Backend::CPU;
+
+   // Enable the device
+   Enable();
 }
 
 void Device::Print(std::ostream &out)
