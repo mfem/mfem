@@ -9559,7 +9559,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const int NQ   = ir.GetNPoints();
 
    Vector Enodes(vdim*ND*NE);
-   // For now, we're not using tensor product evaluation
+   // For now, we are not using tensor product evaluation
    const Operator *elem_restr = fespace->GetElementRestriction(
                                    ElementDofOrdering::NATIVE);
    elem_restr->Mult(*nodes, Enodes);
@@ -9582,7 +9582,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    }
 
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
-   // For now, we're not using tensor product evaluation (not implemented)
+   // For now, we are not using tensor product evaluation (not implemented)
    qi->DisableTensorProducts();
    qi->Mult(Enodes, eval_flags, X, J, detJ);
 }
