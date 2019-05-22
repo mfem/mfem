@@ -111,7 +111,6 @@ MemoryManager::~MemoryManager()
 
 void* MemoryManager::Insert(void *ptr, const std::size_t bytes)
 {
-   if (!UsingMM()) { return ptr; }
    if (ptr == NULL)
    {
       MFEM_VERIFY(bytes == 0, "Trying to add NULL with size " << bytes);
@@ -127,7 +126,6 @@ void* MemoryManager::Insert(void *ptr, const std::size_t bytes)
 
 void *MemoryManager::Erase(void *ptr, bool free_dev_ptr)
 {
-   if (!UsingMM()) { return ptr; }
    if (!ptr) { return ptr; }
    auto mem_map_iter = maps->memories.find(ptr);
    if (mem_map_iter == maps->memories.end())
@@ -312,7 +310,7 @@ static void PullAlias(const internal::Ledger *maps,
 
 void MemoryManager::RegisterCheck(void *ptr)
 {
-   if (ptr != NULL && UsingMM())
+   if (ptr != NULL)
    {
       if (!IsKnown(ptr))
       {

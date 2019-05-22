@@ -86,7 +86,7 @@ void LinearForm::Assemble()
    Vector::operator=(0.0);
 
    // The above operation is executed on device because of UseDevice().
-   // The fisrt use of AddElementVector() below will move it back to host
+   // The first use of AddElementVector() below will move it back to host
    // because both 'vdofs' and 'elemvect' are on host.
 
    if (dlfi.Size())
