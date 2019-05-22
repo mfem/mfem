@@ -22,7 +22,6 @@
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
 #include "../general/gzstream.hpp"
-#include "mesh_ext.hpp"
 #include <iostream>
 
 namespace mfem
@@ -30,7 +29,7 @@ namespace mfem
 
 // Data type mesh
 
-class XTMesh;
+class GeometricFactors;
 class KnotVector;
 class NURBSExtension;
 class FiniteElementSpace;
@@ -178,7 +177,7 @@ public:
 
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
-   XTMesh *xtmesh;           ///< Optional partial assembly mesh extension.
+   Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -691,8 +690,15 @@ public:
    /// Return the total (global) number of elements.
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
-   /// Return the mesh extension coresponding to the given integration rule.
-   XTMesh* GetXTMesh(const IntegrationRule& ir, const int flags);
+   /** @brief Return the mesh geometric factors coresponding to the given
+       integration rule. */
+   const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
+                                               const int flags);
+
+   /// Destroy all GeometricFactors stored by the Mesh.
+   /** This method can be used to force recomputation of the GeometricFactors,
+       for example, after the mesh nodes are modified externally. */
+   void DeleteGeometricFactors();
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const
@@ -1266,6 +1272,51 @@ public:
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived
     class ParMesh */
 std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
+
+
+/** @brief Structure for storing mesh geometric factors: coordinates, Jacobians,
+    and determinants of the Jacobians. */
+/** Typically objects of this type are constructed and owned by objects of class
+    Mesh. See Mesh::GetGeometricFactors(). */
+class GeometricFactors
+{
+public:
+   const Mesh *mesh;
+   const IntegrationRule *IntRule;
+   int computed_factors;
+
+   enum FactorFlags
+   {
+      COORDINATES  = 1 << 0,
+      JACOBIANS    = 1 << 1,
+      DETERMINANTS = 1 << 2,
+   };
+
+   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
+
+   /// Mapped (physical) coordinates of all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
+       where
+       - NQ = number of quadrature points per element,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NE = number of elements in the mesh. */
+   Vector X;
+
+   /// Jacobians of the element transformations at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
+       NE) where
+       - NQ = number of quadrature points per element,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
+       - DIM = dimension of the mesh = mesh.Dimension(), and
+       - NE = number of elements in the mesh. */
+   Vector J;
+
+   /// Determinants of the Jacobians at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x NE) where
+       - NQ = number of quadrature points per element, and
+       - NE = number of elements in the mesh. */
+   Vector detJ;
+};
 
 
 /// Class used to extrude the nodes of a mesh
