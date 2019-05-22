@@ -120,9 +120,9 @@ public:
    /// Same as SetSize(int) plus initialize new entries with 'initval'
    inline void SetSize(int nsize, const T &initval);
 
-   /** @brief Resize the vector to size @a nsize using MemoryType @a mt. Note
+   /** @brief Resize the array to size @a nsize using MemoryType @a mt. Note
        that unlike the other versions of SetSize(), the current content of the
-       Array is not preserved. */
+       array is not preserved. */
    inline void SetSize(int nsize, MemoryType mt);
 
    /** Maximum number of entries the array can store without allocating more

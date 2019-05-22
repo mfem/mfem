@@ -476,7 +476,7 @@ void Vector::median(const Vector &lo, const Vector &hi)
    });
 }
 
-// Enable/disble the use of kernels in the sub-vector operations in class Vector
+// Enable/disable the use of kernels in the sub-vector operations in class Vector
 // TODO: Do we need this option enabled?
 //   * Vector::SetSubVector(const Array<int> &dofs, const double value) is used
 //     sometimes for T-vectors with dofs being the list of essential dofs.

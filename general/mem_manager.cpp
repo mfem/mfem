@@ -134,14 +134,6 @@ void *MemoryManager::Erase(void *ptr, bool free_dev_ptr)
    }
    internal::Memory &mem = mem_map_iter->second;
    if (mem.d_ptr && free_dev_ptr) { CuMemFree(mem.d_ptr); }
-#if 0
-   for (const void *alias : mem.aliases)
-   {
-      auto alias_map_iter = maps->aliases.find(alias);
-      delete alias_map_iter->second;
-      maps->aliases.erase(alias_map_iter);
-   }
-#endif
    mem.aliases.clear();
    maps->memories.erase(mem_map_iter);
    return ptr;
@@ -225,22 +217,6 @@ void MemoryManager::EraseAlias(void *alias_ptr)
    }
    internal::Alias *alias = alias_map_iter->second;
    if (--alias->counter) { return; }
-#if 0
-   // erase the alias from the list of all aliases of the base:
-   auto &base_aliases = alias->mem->aliases;
-   for (auto it = base_aliases.begin(); true; ++it)
-   {
-      if (it == base_aliases.end())
-      {
-         mfem_error("internal error");
-      }
-      if (*it == alias_ptr)
-      {
-         base_aliases.erase(it);
-         break;
-      }
-   }
-#endif
    // erase the alias from the alias map:
    maps->aliases.erase(alias_map_iter);
    delete alias;

@@ -62,7 +62,7 @@ MemoryType GetSuitableMemoryType(MemoryClass mc);
 MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
 
 /// Class used by MFEM to store pointers to host and/or device memory.
-/** The template class paramter, T, must be a plain-old-data (POD) type.
+/** The template class parameter, T, must be a plain-old-data (POD) type.
 
     In many respects this class behaves like a pointer:
     * When destroyed, a Memory object does NOT automatically delete any
@@ -70,8 +70,8 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
     * Only the method Delete() will deallocate a Memory object.
     * Other methods that modify the object (e.g. New(), Wrap(), etc) will simply
       overwrite the old contents.
-    * One difference with a pointer is that a const Memory object is NOT like a
-      const pointer: it cannot be used to overwrite entries in the memory.
+    * One difference with a pointer is that a const Memory object does not allow
+      modification of the content (unlike e.g. a const pointer).
 
     A Memory object stores up to two different pointers: one host pointer (with
     MemoryType from MemoryClass::HOST) and one device pointer (currently one of
@@ -221,7 +221,7 @@ public:
    void Reset() { h_ptr = NULL; capacity = 0; flags = 0; }
 
    /// Return true if the Memory object is empty, see Reset().
-   /** Default-constructed objects are unintialized, so they are not guaranteed
+   /** Default-constructed objects are uninitialized, so they are not guaranteed
        to be empty. */
    bool Empty() const { return h_ptr == NULL; }
 
@@ -293,8 +293,8 @@ public:
 
    /// Direct access to the host memory via explicit typecast.
    /** A pointer to type T must be reinterpret_cast-able to a pointer to type U.
-       In particular, this method cannot be used to cast away constness from the
-       base type T.
+       In particular, this method cannot be used to cast away const-ness from
+       the base type T.
 
        When the type U is const-qualified, this method can be used only if the
        host pointer is currently valid (the device pointer may be valid or
