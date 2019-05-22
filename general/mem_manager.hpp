@@ -471,17 +471,6 @@ public:
    MemoryManager();
    ~MemoryManager();
 
-   /// Return true if the memory manager is used: pointers seen by mfem::New and
-   /// mfem::Delete will be inserted in the ledger and erased from it
-   static inline bool UsingMM()
-   {
-#ifdef MFEM_USE_MM
-      return true;
-#else
-      return false;
-#endif
-   }
-
    /// Disable the memory manager: Ptr, Push and Pull will be no-op
    void Disable() { enabled = false; }
 
@@ -489,7 +478,7 @@ public:
    void Enable() { enabled = true; }
 
    /// Return true if the memory manager is used and enabled
-   bool IsEnabled() { return UsingMM() && enabled; }
+   bool IsEnabled() { return enabled; }
 
    /// The opposite of IsEnabled().
    bool IsDisabled() { return !IsEnabled(); }
