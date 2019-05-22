@@ -1218,11 +1218,11 @@ public:
                                        const Array<int> &num_elems_by_geom,
                                        std::ostream &out);
 
-   /** @brief Compute and print mesh charateristics such as number of vertices,
+   /** @brief Compute and print mesh characteristics such as number of vertices,
        number of elements, number of boundary elements, minimal and maximal
        element sizes, minimal and maximal element aspect ratios, etc. */
    /** If @a Vh or @a Vk are not NULL, return the element sizes and aspect
-       ratios for all elements in the given Vecror%s. */
+       ratios for all elements in the given Vector%s. */
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
                              std::ostream &out = mfem::out);
 
