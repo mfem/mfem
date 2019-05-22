@@ -28,6 +28,9 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+5/21
+switch solver to true dofs for ImplicitSolve
+
 5/20
 swich J back to auxilary variable (keep the original implement in exMHD for debugging purpose)
 
