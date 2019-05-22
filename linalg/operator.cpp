@@ -32,9 +32,9 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
    if (P)
    {
       // Variational restriction with P
-      B.SetSize(P->Width(), b.GetMemory().GetMemoryType());
+      B.SetSize(P->Width(), b);
       P->MultTranspose(b, B);
-      X.SetSize(R->Height(), x.GetMemory().GetMemoryType());
+      X.SetSize(R->Height(), x);
       R->Mult(x, X);
       rap = new RAPOperator(*P, *this, *P);
    }
@@ -71,7 +71,7 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
 
       // If the validity flags of X's Memory were changed (e.g. if it was moved
       // to device memory) then we need to tell x about that.
-      x.GetMemory().SyncWith(X.GetMemory());
+      x.SyncMemory(X);
    }
 }
 

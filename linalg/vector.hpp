@@ -107,6 +107,9 @@ public:
    /// Resize the vector to size @a s using MemoryType @a mt.
    void SetSize(int s, MemoryType mt);
 
+   /// Resize the vector to size @a s using the MemoryType of @a v.
+   void SetSize(int s, Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
+
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
    void SetData(double *d) { data.Wrap(d, data.Capacity(), false); }
@@ -169,6 +172,9 @@ public:
    /** @brief Return a reference to the Memory object used by the Vector, const
        version. */
    const Memory<double> &GetMemory() const { return data; }
+
+   /// Update the memory location of the vector to match @a v.
+   void SyncMemory(const Vector &v) { GetMemory().SyncWith(v.GetMemory()); }
 
    /// Read the Vector data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
