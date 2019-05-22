@@ -49,7 +49,7 @@ public:
        vectors in the Mult() and MultTranspose() methods.
 
        For example, classes using the MFEM_FORALL macro for implementation can
-       return the value retuned by Device::GetMemoryClass().
+       return the value returned by Device::GetMemoryClass().
 
        The default implementation of this method in class Operator returns
        MemoryClass::HOST. */

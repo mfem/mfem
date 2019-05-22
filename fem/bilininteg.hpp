@@ -29,7 +29,7 @@ protected:
 
 public:
    // TODO: add support for other assembly levels (in addition to PA) and their
-   // action.
+   // actions.
 
    // TODO: for mixed meshes the quadrature rules to be used by methods like
    // AssemblePA() can be given as a QuadratureSpace, e.g. using a new method:
@@ -37,8 +37,8 @@ public:
 
    // TODO: the methods for the various assembly levels make sense even in the
    // base class NonlinearFormIntegrator, except that not all assembly levels
-   // make sense for the action of the nonlinear operator but they all make
-   // sense for its Jacobian.
+   // make sense for the action of the nonlinear operator (but they all make
+   // sense for its Jacobian).
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
