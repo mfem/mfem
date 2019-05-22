@@ -14,8 +14,8 @@ set(SRCS
   bilinearform_ext.cpp
   bilininteg.cpp
   bilininteg_ext.cpp
-  bilininteg_ext_diffusion.cpp
-  bilininteg_ext_mass.cpp
+  bilininteg_diffusion.cpp
+  bilininteg_mass.cpp
   coefficient.cpp
   datacollection.cpp
   eltrans.cpp

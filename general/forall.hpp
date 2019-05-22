@@ -35,21 +35,21 @@ namespace mfem
 
 // The MFEM_FORALL wrapper
 #define MFEM_FORALL(i,N,...)                                            \
-   ForallWrap<false,false>(N,                                           \
-                           [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},  \
-                           [&]                  (int i) {__VA_ARGS__})
+   ForallWrap<1>(N,                                                     \
+                 [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},            \
+                 [&]                  (int i) {__VA_ARGS__})
 
-#define MFEM_FORALL_2D(i,N,X,Y,NZ,...)                                  \
-   ForallWrap<true,true>(N,                                             \
-                         [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},    \
-                         [&]                  (int i) {__VA_ARGS__},    \
-                         X,Y,NZ)
+#define MFEM_FORALL_2D(i,N,X,Y,BZ,...)                                  \
+   ForallWrap<2>(N,                                                     \
+                 [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},            \
+                 [&]                  (int i) {__VA_ARGS__},            \
+                 X,Y,BZ)
 
 #define MFEM_FORALL_3D(i,N,X,Y,Z,...)                                   \
-   ForallWrap<true,false>(N,                                            \
-                          [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},   \
-                          [&]                  (int i) {__VA_ARGS__},   \
-                          X,Y,Z)
+   ForallWrap<3>(N,                                                     \
+                 [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},            \
+                 [&]                  (int i) {__VA_ARGS__},            \
+                 X,Y,Z)
 
 /// OpenMP backend
 template <typename HBODY>
@@ -139,7 +139,6 @@ void CuWrap1D(const int N, DBODY &&d_body)
    MFEM_CUDA_CHECK(cudaGetLastError());
 }
 
-
 template <typename DBODY>
 void CuWrap2D(const int N, DBODY &&d_body,
               const int X, const int Y, const int BZ)
@@ -179,20 +178,20 @@ void CuWrap3D(const int N, DBODY &&d_body,
 
 
 /// The forall kernel body wrapper
-template <const bool XYZ, const bool NZ, typename DBODY, typename HBODY>
+template <const int DIM, typename DBODY, typename HBODY>
 void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body,
                 const int X=0, const int Y=0, const int Z=0)
 {
    if (Device::Allows(Backend::RAJA_CUDA))
    { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
 
-   if (!XYZ && Device::Allows(Backend::CUDA))
+   if (DIM == 1 && Device::Allows(Backend::CUDA))
    { return CuWrap1D(N, d_body); }
 
-   if (XYZ && NZ && Device::Allows(Backend::CUDA))
+   if (DIM == 2 && Device::Allows(Backend::CUDA))
    { return CuWrap2D(N, d_body, X, Y, Z); }
 
-   if (XYZ && !NZ && Device::Allows(Backend::CUDA))
+   if (DIM == 3 && Device::Allows(Backend::CUDA))
    { return CuWrap3D(N, d_body, X, Y, Z); }
 
    if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
