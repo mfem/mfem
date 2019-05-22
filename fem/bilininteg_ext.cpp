@@ -12,7 +12,6 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "../mesh/mesh_ext.hpp"
 
 #include <map>
 #include <cmath>
@@ -116,20 +115,20 @@ static void PADiffusionSetup2D(const int Q1D,
 {
    const int NQ = Q1D*Q1D;
    const DeviceVector W(w, NQ);
-   const DeviceTensor<4> J(j, 2, 2, NQ, NE);
-   DeviceTensor<3> y(op, 3, NQ, NE);
+   const DeviceTensor<4> J(j, NQ, 2, 2, NE);
+   DeviceTensor<3> y(op, NQ, 3, NE);
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J(0,0,q,e);
-         const double J12 = J(1,0,q,e);
-         const double J21 = J(0,1,q,e);
-         const double J22 = J(1,1,q,e);
+         const double J11 = J(q,0,0,e);
+         const double J12 = J(q,1,0,e);
+         const double J21 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
          const double c_detJ = W(q) * COEFF / ((J11*J22)-(J21*J12));
-         y(0,q,e) =  c_detJ * (J21*J21 + J22*J22);
-         y(1,q,e) = -c_detJ * (J21*J11 + J22*J12);
-         y(2,q,e) =  c_detJ * (J11*J11 + J12*J12);
+         y(q,0,e) =  c_detJ * (J21*J21 + J22*J22);
+         y(q,1,e) = -c_detJ * (J21*J11 + J22*J12);
+         y(q,2,e) =  c_detJ * (J11*J11 + J12*J12);
       }
    });
 }
@@ -144,21 +143,21 @@ static void PADiffusionSetup3D(const int Q1D,
 {
    const int NQ = Q1D*Q1D*Q1D;
    const DeviceVector W(w, NQ);
-   const DeviceTensor<4> J(j, 3, 3, NQ, NE);
-   DeviceTensor<3> y(op, 6, NQ, NE);
+   const DeviceTensor<4> J(j, NQ, 3, 3, NE);
+   DeviceTensor<3> y(op, NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J(0,0,q,e);
-         const double J12 = J(1,0,q,e);
-         const double J13 = J(2,0,q,e);
-         const double J21 = J(0,1,q,e);
-         const double J22 = J(1,1,q,e);
-         const double J23 = J(2,1,q,e);
-         const double J31 = J(0,2,q,e);
-         const double J32 = J(1,2,q,e);
-         const double J33 = J(2,2,q,e);
+         const double J11 = J(q,0,0,e);
+         const double J12 = J(q,1,0,e);
+         const double J13 = J(q,2,0,e);
+         const double J21 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
+         const double J23 = J(q,2,1,e);
+         const double J31 = J(q,0,2,e);
+         const double J32 = J(q,1,2,e);
+         const double J33 = J(q,2,2,e);
          const double detJ =
          ((J11 * J22 * J33) + (J12 * J23 * J31) +
          (J13 * J21 * J32) - (J13 * J22 * J31) -
@@ -175,12 +174,12 @@ static void PADiffusionSetup3D(const int Q1D,
          const double A32 = (J13 * J21) - (J11 * J23);
          const double A33 = (J11 * J22) - (J12 * J21);
          // adj(J)^Tadj(J)
-         y(0,q,e) = c_detJ * (A11*A11 + A21*A21 + A31*A31);
-         y(1,q,e) = c_detJ * (A11*A12 + A21*A22 + A31*A32);
-         y(2,q,e) = c_detJ * (A11*A13 + A21*A23 + A31*A33);
-         y(3,q,e) = c_detJ * (A12*A12 + A22*A22 + A32*A32);
-         y(4,q,e) = c_detJ * (A12*A13 + A22*A23 + A32*A33);
-         y(5,q,e) = c_detJ * (A13*A13 + A23*A23 + A33*A33);
+         y(q,0,e) = c_detJ * (A11*A11 + A21*A21 + A31*A31);
+         y(q,1,e) = c_detJ * (A11*A12 + A21*A22 + A31*A32);
+         y(q,2,e) = c_detJ * (A11*A13 + A21*A23 + A31*A33);
+         y(q,3,e) = c_detJ * (A12*A12 + A22*A22 + A32*A32);
+         y(q,4,e) = c_detJ * (A12*A13 + A22*A23 + A32*A33);
+         y(q,5,e) = c_detJ * (A13*A13 + A23*A23 + A33*A33);
       }
    });
 }
@@ -239,6 +238,7 @@ static void PADiffusionSetup(const int dim,
 
 void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 {
+   // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const IntegrationRule *rule = IntRule;
    const FiniteElement &el = *fes.GetFE(0);
@@ -248,13 +248,14 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   dofs1D = el.GetOrder() + 1;
-   quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   xtmesh = mesh->GetXTMesh(*ir, XTMesh::Compute::_J_);
-   maps = DofToQuad::Get(fes, fes, *ir);
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
    vec.SetSize(symmDims * nq * ne);
    const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
-   PADiffusionSetup(dim, dofs1D, quad1D, ne, maps->W, xtmesh->J, coeff, vec);
+   PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
+                    coeff, vec);
 }
 
 #ifdef MFEM_USE_OCCA
@@ -383,7 +384,7 @@ void PADiffusionApply2D(const int NE,
    const DeviceMatrix G(g, Q1D, D1D);
    const DeviceMatrix Bt(bt, D1D, Q1D);
    const DeviceMatrix Gt(gt, D1D, Q1D);
-   const DeviceTensor<3> op(_op, 3, Q1D*Q1D, NE);
+   const DeviceTensor<3> op(_op, Q1D*Q1D, 3, NE);
    const DeviceTensor<3> x(_x, D1D, D1D, NE);
    DeviceTensor<3> y(_y, D1D, D1D, NE);
 
@@ -436,9 +437,9 @@ void PADiffusionApply2D(const int NE,
          {
             const int q = QUAD_2D_ID(qx, qy);
 
-            const double O11 = op(0,q,e);
-            const double O12 = op(1,q,e);
-            const double O22 = op(2,q,e);
+            const double O11 = op(q,0,e);
+            const double O12 = op(q,1,e);
+            const double O22 = op(q,2,e);
 
             const double gradX = grad[qy][qx][0];
             const double gradY = grad[qy][qx][1];
@@ -501,7 +502,7 @@ void PADiffusionApply3D(const int NE,
    const DeviceMatrix G(g, Q1D, D1D);
    const DeviceMatrix Bt(bt, D1D, Q1D);
    const DeviceMatrix Gt(gt, D1D, Q1D);
-   const DeviceTensor<3> op(_op, 6, Q1D*Q1D*Q1D, NE);
+   const DeviceTensor<3> op(_op, Q1D*Q1D*Q1D, 6, NE);
    const DeviceTensor<4> x(_x, D1D, D1D, D1D, NE);
    DeviceTensor<4> y(_y, D1D, D1D, D1D, NE);
 
@@ -589,12 +590,12 @@ void PADiffusionApply3D(const int NE,
             for (int qx = 0; qx < Q1D; ++qx)
             {
                const int q = QUAD_3D_ID(qx, qy, qz);
-               const double O11 = op(0,q,e);
-               const double O12 = op(1,q,e);
-               const double O13 = op(2,q,e);
-               const double O22 = op(3,q,e);
-               const double O23 = op(4,q,e);
-               const double O33 = op(5,q,e);
+               const double O11 = op(q,0,e);
+               const double O12 = op(q,1,e);
+               const double O13 = op(q,2,e);
+               const double O22 = op(q,3,e);
+               const double O23 = op(q,4,e);
+               const double O33 = op(q,5,e);
                const double gradX = grad[qz][qy][qx][0];
                const double gradY = grad[qz][qy][qx][1];
                const double gradZ = grad[qz][qy][qx][2];
@@ -727,18 +728,13 @@ static void PADiffusionApply(const int dim,
 }
 
 // PA Diffusion Apply kernel
-void DiffusionIntegrator::MultAssembled(Vector &x, Vector &y)
+void DiffusionIntegrator::MultAssembled(const Vector &x, Vector &y)
 {
    PADiffusionApply(dim, dofs1D, quad1D, ne,
                     maps->B, maps->G, maps->Bt, maps->Gt,
                     vec, x, y);
 }
 
-DiffusionIntegrator::~DiffusionIntegrator()
-{
-   delete xtmesh;
-   delete maps;
-}
 
 // PA Mass Assemble kernel
 void MassIntegrator::Assemble(const FiniteElementSpace &fes)
@@ -750,10 +746,11 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
-   dofs1D = el.GetOrder() + 1;
-   quad1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-   xtmesh = mesh->GetXTMesh(*ir, XTMesh::Compute::_X_ | XTMesh::Compute::_J_);
-   maps = DofToQuad::Get(fes, fes, *ir);
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
+                                    GeometricFactors::JACOBIANS);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
    vec.SetSize(ne*nq);
    ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
    FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
@@ -777,20 +774,20 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       }
       const int NE = ne;
       const int NQ = nq;
-      const DeviceVector w(maps->W.GetData(), NQ);
-      const DeviceTensor<3> x(xtmesh->X, 2,NQ,NE);
-      const DeviceTensor<4> J(xtmesh->J, 2,2,NQ,NE);
+      const DeviceVector w(ir->GetWeights(), NQ);
+      const DeviceTensor<3> x(geom->X, NQ,2,NE);
+      const DeviceTensor<4> J(geom->J, NQ,2,2,NE);
       DeviceMatrix v(vec.GetData(), NQ, NE);
       MFEM_FORALL(e, NE,
       {
          for (int q = 0; q < NQ; ++q)
          {
-            const double J11 = J(0,0,q,e);
-            const double J12 = J(1,0,q,e);
-            const double J21 = J(0,1,q,e);
-            const double J22 = J(1,1,q,e);
+            const double J11 = J(q,0,0,e);
+            const double J12 = J(q,1,0,e);
+            const double J21 = J(q,0,1,e);
+            const double J22 = J(q,1,1,e);
             const double detJ = (J11*J22)-(J21*J12);
-            const Vector3 Xq(x(0,q,e), x(1,q,e));
+            const Vector3 Xq(x(q,0,e), x(q,1,e));
             const double coeff =
             const_coeff ? constant
             : function_coeff ? function(Xq)
@@ -817,21 +814,21 @@ void MassIntegrator::Assemble(const FiniteElementSpace &fes)
       }
       const int NE = ne;
       const int NQ = nq;
-      const DeviceVector W(maps->W.GetData(), NQ);
-      const DeviceTensor<3> x(xtmesh->X, 3,NQ,NE);
-      const DeviceTensor<4> J(xtmesh->J, 3,3,NQ,NE);
+      const DeviceVector W(ir->GetWeights(), NQ);
+      const DeviceTensor<3> x(geom->X, NQ,3,NE);
+      const DeviceTensor<4> J(geom->J, NQ,3,3,NE);
       DeviceMatrix v(vec.GetData(), NQ,NE);
       MFEM_FORALL(e, NE,
       {
          for (int q = 0; q < NQ; ++q)
          {
-            const double J11 = J(0,0,q,e),J12 = J(1,0,q,e),J13 = J(2,0,q,e);
-            const double J21 = J(0,1,q,e),J22 = J(1,1,q,e),J23 = J(2,1,q,e);
-            const double J31 = J(0,2,q,e),J32 = J(1,2,q,e),J33 = J(2,2,q,e);
+            const double J11 = J(q,0,0,e),J12 = J(q,1,0,e),J13 = J(q,2,0,e);
+            const double J21 = J(q,0,1,e),J22 = J(q,1,1,e),J23 = J(q,2,1,e);
+            const double J31 = J(q,0,2,e),J32 = J(q,1,2,e),J33 = J(q,2,2,e);
             const double detJ =
             ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
             (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
-            const Vector3 Xq(x(0,q,e), x(1,q,e), x(2,q,e));
+            const Vector3 Xq(x(q,0,e), x(q,1,e), x(q,2,e));
             const double coeff =
             const_coeff ? constant
             : function_coeff ? function(Xq)
@@ -1231,275 +1228,9 @@ static void PAMassApply(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
-void MassIntegrator::MultAssembled(Vector &x, Vector &y)
+void MassIntegrator::MultAssembled(const Vector &x, Vector &y)
 {
    PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, vec, x, y);
 }
-
-MassIntegrator::~MassIntegrator()
-{
-   delete xtmesh;
-   delete maps;
-}
-
-// DofToQuad
-static std::map<std::string, DofToQuad* > AllDofQuadMaps;
-
-DofToQuad::~DofToQuad()
-{
-   MFEM_ASSERT(AllDofQuadMaps.at(hash),"");
-   AllDofQuadMaps.erase(hash);
-}
-
-DofToQuad* DofToQuad::Get(const FiniteElementSpace& fes,
-                          const IntegrationRule& ir,
-                          const bool transpose)
-{
-   return Get(*fes.GetFE(0), *fes.GetFE(0), ir, transpose);
-}
-
-DofToQuad* DofToQuad::Get(const FiniteElementSpace& trialFES,
-                          const FiniteElementSpace& testFES,
-                          const IntegrationRule& ir,
-                          const bool transpose)
-{
-   return Get(*trialFES.GetFE(0), *testFES.GetFE(0), ir, transpose);
-}
-
-DofToQuad* DofToQuad::Get(const FiniteElement& trialFE,
-                          const FiniteElement& testFE,
-                          const IntegrationRule& ir,
-                          const bool transpose)
-{
-   return GetTensorMaps(trialFE, testFE, ir, transpose);
-}
-
-DofToQuad* DofToQuad::GetTensorMaps(const FiniteElement& trialFE,
-                                    const FiniteElement& testFE,
-                                    const IntegrationRule& ir,
-                                    const bool transpose)
-{
-   const TensorBasisElement& trialTFE =
-      dynamic_cast<const TensorBasisElement&>(trialFE);
-   const TensorBasisElement& testTFE =
-      dynamic_cast<const TensorBasisElement&>(testFE);
-   std::stringstream ss;
-   ss << "TensorMap:"
-      << " O1:"  << trialFE.GetOrder()
-      << " O2:"  << testFE.GetOrder()
-      << " BT1:" << trialTFE.GetBasisType()
-      << " BT2:" << testTFE.GetBasisType()
-      << " Q:"   << ir.GetNPoints();
-   std::string hash = ss.str();
-   // If we've already made the dof-quad maps, reuse them
-   if (AllDofQuadMaps.find(hash)!=AllDofQuadMaps.end())
-   {
-      return AllDofQuadMaps[hash];
-   }
-   // Otherwise, build them
-   DofToQuad *maps = new DofToQuad();
-   AllDofQuadMaps[hash]=maps;
-   maps->hash = hash;
-   const DofToQuad* trialMaps = GetD2QTensorMaps(trialFE, ir);
-   const DofToQuad* testMaps  = GetD2QTensorMaps(testFE, ir, true);
-   maps->B = trialMaps->B;
-   maps->G = trialMaps->G;
-   maps->Bt = testMaps->B;
-   maps->Gt = testMaps->G;
-   maps->W = testMaps->W;
-   delete trialMaps;
-   delete testMaps;
-   return maps;
-}
-
-DofToQuad* DofToQuad::GetD2QTensorMaps(const FiniteElement& fe,
-                                       const IntegrationRule& ir,
-                                       const bool transpose)
-{
-   const IntegrationRule& ir1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder());
-
-   const int dims = fe.GetDim();
-   const int order = fe.GetOrder();
-   const int numDofs = order + 1;
-   const int numQuad1D = ir1D.GetNPoints();
-   const int numQuad2D = numQuad1D * numQuad1D;
-   const int numQuad3D = numQuad2D * numQuad1D;
-   const int numQuad =
-      (dims == 1) ? numQuad1D :
-      (dims == 2) ? numQuad2D :
-      (dims == 3) ? numQuad3D : 0;
-   std::stringstream ss;
-   ss << "D2QTensorMap:"
-      << " dims:" << dims
-      << " order:" << order
-      << " numDofs:" << numDofs
-      << " numQuad1D:" << numQuad1D
-      << " transpose:"  << (transpose?"true":"false");
-   std::string hash = ss.str();
-   if (AllDofQuadMaps.find(hash)!=AllDofQuadMaps.end())
-   {
-      return AllDofQuadMaps[hash];
-   }
-   DofToQuad *maps = new DofToQuad();
-   AllDofQuadMaps[hash]=maps;
-   maps->hash = hash;
-   maps->B.SetSize(numQuad1D*numDofs);
-   maps->G.SetSize(numQuad1D*numDofs);
-   const int dim0 = (!transpose)?1:numDofs;
-   const int dim1 = (!transpose)?numQuad1D:1;
-   if (transpose) // Initialize quad weights only for transpose
-   {
-      maps->W.SetSize(numQuad);
-   }
-   mfem::Vector d2q(numDofs);
-   mfem::Vector d2qD(numDofs);
-   mfem::Array<double> W1d(numQuad1D);
-   mfem::Array<double> B1d(numQuad1D*numDofs);
-   mfem::Array<double> G1d(numQuad1D*numDofs);
-   const TensorBasisElement& tbe = dynamic_cast<const TensorBasisElement&>(fe);
-   const Poly_1D::Basis& basis = tbe.GetBasis1D();
-   for (int q = 0; q < numQuad1D; ++q)
-   {
-      const IntegrationPoint& ip = ir1D.IntPoint(q);
-      if (transpose)
-      {
-         W1d[q] = ip.weight;
-      }
-      basis.Eval(ip.x, d2q, d2qD);
-      for (int d = 0; d < numDofs; ++d)
-      {
-         const double w = d2q[d];
-         const double wD = d2qD[d];
-         const int idx = dim0*q + dim1*d;
-         B1d[idx] = w;
-         G1d[idx] = wD;
-      }
-   }
-   if (transpose)
-   {
-      mfem::Array<double> W(numQuad);
-      for (int q = 0; q < numQuad; ++q)
-      {
-         const int qx = q % numQuad1D;
-         const int qz = q / numQuad2D;
-         const int qy = (q - qz*numQuad2D) / numQuad1D;
-         double w = W1d[qx];
-         if (dims > 1) { w *= W1d[qy]; }
-         if (dims > 2) { w *= W1d[qz]; }
-         W[q] = w;
-      }
-      maps->W = W;
-   }
-   mfem::Memcpy(maps->B, B1d, numQuad1D*numDofs*sizeof(double));
-   mfem::Memcpy(maps->G, G1d, numQuad1D*numDofs*sizeof(double));
-   return maps;
-}
-
-DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& fe,
-                                     const IntegrationRule& ir,
-                                     const bool transpose)
-{
-   return GetSimplexMaps(fe, fe, ir, transpose);
-}
-
-DofToQuad* DofToQuad::GetSimplexMaps(const FiniteElement& trialFE,
-                                     const FiniteElement& testFE,
-                                     const IntegrationRule& ir,
-                                     const bool transpose)
-{
-   std::stringstream ss;
-   ss << "SimplexMap:"
-      << " O1:" << trialFE.GetOrder()
-      << " O2:" << testFE.GetOrder()
-      << " Q:"  << ir.GetNPoints();
-   std::string hash = ss.str();
-   // If we've already made the dof-quad maps, reuse them
-   if (AllDofQuadMaps.find(hash)!=AllDofQuadMaps.end())
-   {
-      return AllDofQuadMaps[hash];
-   }
-   DofToQuad *maps = new DofToQuad();
-   AllDofQuadMaps[hash]=maps;
-   maps->hash = hash;
-   const DofToQuad* trialMaps = GetD2QSimplexMaps(trialFE, ir);
-   const DofToQuad* testMaps  = GetD2QSimplexMaps(testFE, ir, true);
-   maps->B = trialMaps->B;
-   maps->G = trialMaps->G;
-   maps->Bt = testMaps->B;
-   maps->Gt = testMaps->G;
-   maps->W = testMaps->W;
-   delete trialMaps;
-   delete testMaps;
-   return maps;
-}
-
-DofToQuad* DofToQuad::GetD2QSimplexMaps(const FiniteElement& fe,
-                                        const IntegrationRule& ir,
-                                        const bool transpose)
-{
-   const int dims = fe.GetDim();
-   const int numDofs = fe.GetDof();
-   const int numQuad = ir.GetNPoints();
-   std::stringstream ss ;
-   ss << "D2QSimplexMap:"
-      << " Dim:" << dims
-      << " numDofs:" << numDofs
-      << " numQuad:" << numQuad
-      << " transpose:" << (transpose?"true":"false");
-   std::string hash = ss.str();
-   if (AllDofQuadMaps.find(hash)!=AllDofQuadMaps.end())
-   {
-      return AllDofQuadMaps[hash];
-   }
-   DofToQuad* maps = new DofToQuad();
-   AllDofQuadMaps[hash]=maps;
-   maps->hash = hash;
-   maps->B.SetSize(numQuad*numDofs);
-   maps->G.SetSize(dims*numQuad*numDofs);
-   const int dim0 = (!transpose)?1:numDofs;
-   const int dim1 = (!transpose)?numQuad:1;
-   const int dim0D = (!transpose)?1:numQuad;
-   const int dim1D = (!transpose)?dims:1;
-   const int dim2D = dims*numQuad;
-   if (transpose) // Initialize quad weights only for transpose
-   {
-      maps->W.SetSize(numQuad);
-   }
-   mfem::Vector d2q(numDofs);
-   mfem::DenseMatrix d2qD(numDofs, dims);
-   mfem::Array<double> W(numQuad);
-   mfem::Array<double> B(numQuad*numDofs);
-   mfem::Array<double> G(dims*numQuad*numDofs);
-   for (int q = 0; q < numQuad; ++q)
-   {
-      const IntegrationPoint& ip = ir.IntPoint(q);
-      if (transpose)
-      {
-         W[q] = ip.weight;
-      }
-      fe.CalcShape(ip, d2q);
-      fe.CalcDShape(ip, d2qD);
-      for (int d = 0; d < numDofs; ++d)
-      {
-         const double w = d2q[d];
-         const int idx = dim0*q + dim1*d;
-         B[idx] = w;
-         for (int dim = 0; dim < dims; ++dim)
-         {
-            const double wD = d2qD(d, dim);
-            const int idxD = dim0D*dim + dim1D*q + dim2D*d;
-            G[idxD] = wD;
-         }
-      }
-   }
-   if (transpose)
-   {
-      mfem::Memcpy(maps->W, W, numQuad*sizeof(double));
-   }
-   mfem::Memcpy(maps->B, B, numQuad*numDofs*sizeof(double));
-   mfem::Memcpy(maps->G, G, dims*numQuad*numDofs*sizeof(double));
-   return maps;
-}
-
 
 } // namespace mfem
