@@ -2162,6 +2162,22 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
    }
 }
 
+bool NCMesh::TriFaceSplit(int v1, int v2, int v3, int mid[3]) const
+{
+   int e1 = nodes.FindId(v1, v2);
+   if (e1 < 0 || !nodes[e1].HasVertex()) { return false; }
+
+   int e2 = nodes.FindId(v2, v3);
+   if (e2 < 0 || !nodes[e2].HasVertex()) { return false; }
+
+   int e3 = nodes.FindId(v3, v1);
+   if (e3 < 0 || !nodes[e3].HasVertex()) { return false; }
+
+   if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3; }
+
+   return true;
+}
+
 int NCMesh::find_node(const Element &el, int node)
 {
    for (int i = 0; i < 8; i++)
@@ -2780,10 +2796,7 @@ void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
 void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
 {
    int mid[3];
-   if (faces.FindId(v0, v1, v2) < 0 &&
-       (mid[0] = nodes.FindId(v0, v1)) >= 0 &&
-       (mid[1] = nodes.FindId(v1, v2)) >= 0 &&
-       (mid[2] = nodes.FindId(v2, v0)) >= 0)
+   if (TriFaceSplit(v0, v1, v2, mid))
    {
       for (int i = 0; i < 3; i++)
       {
