@@ -1329,7 +1329,7 @@ void NewtonSolver::CheckJacobian(Vector &x, Array<int> &ess_tdof)
 
    double eps = 1e-8;
    Vector xpert(height), one(height), fx(height),
-         fxp(height), basis(height), jac_col(height);
+          fxp(height), basis(height), jac_col(height);
 
    basis = 0.0;
    xpert = x;
