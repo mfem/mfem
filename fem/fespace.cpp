@@ -1485,6 +1485,10 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
 
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
 {
+   if (i < 0 || !mesh->GetNE()) { return NULL; }
+   MFEM_VERIFY(i < mesh->GetNE(),
+               "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
+
    const FiniteElement *FE =
       fec->FiniteElementForGeometry(mesh->GetElementBaseGeometry(i));
 

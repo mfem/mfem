@@ -1295,7 +1295,7 @@ static void get_sorted_rows_cols(const Array<int> &rows_cols,
 
 void HypreParMatrix::Threshold(double threshold)
 {
-   int  ierr = 0;
+   int ierr = 0;
 
    MPI_Comm comm;
    hypre_CSRMatrix * csr_A;
@@ -2108,6 +2108,7 @@ HypreSolver::HypreSolver(HypreParMatrix *_A)
 
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 {
+   HYPRE_Int err;
    if (A == NULL)
    {
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
@@ -2115,7 +2116,9 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
    }
    if (!setup_called)
    {
-      SetupFcn()(*this, *A, b, x);
+      err = SetupFcn()(*this, *A, b, x);
+      MFEM_VERIFY(!err, "HypreSolver::Mult (...) : Error during setup! error code "
+                  << err);
       setup_called = 1;
    }
 
@@ -2123,7 +2126,9 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
    {
       x = 0.0;
    }
-   SolveFcn()(*this, *A, b, x);
+   err = SolveFcn()(*this, *A, b, x);
+   MFEM_VERIFY(!err,"HypreSolver::Mult (...) : Error during solve! error code "
+               << err);
 }
 
 void HypreSolver::Mult(const Vector &b, Vector &x) const
