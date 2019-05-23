@@ -1319,6 +1319,54 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 }
 
+void NewtonSolver::CheckJacobian(Vector &x, Array<int> &ess_tdof)
+{
+   MFEM_ASSERT(oper != nullptr, "Call SetOperator first.");
+
+   double eps = 1e-8;
+   Vector xpert(height), one(height), fx(height),
+          fxp(height), basis(height), jac_col(height);
+
+   basis = 0.0;
+   xpert = x;
+
+   Operator &jac = oper->GetGradient(x);
+
+   oper->Mult(x, fx);
+
+   for (int j = 0; j < height; j++)
+   {
+      // Is column associated with an essential boundary?
+      if (ess_tdof.FindSorted(j) >= 0)
+      {
+         jac_col = 0.0;
+      }
+      else
+      {
+         basis(j) = 1.0;
+
+         // Forward finite differences
+         xpert(j) += eps;
+         oper->Mult(xpert, fxp);
+         fxp -= fx;
+         fxp /= eps;
+
+         // Extract column from the operator using the j'th basis
+         jac.Mult(basis, jac_col);
+         jac_col -= fxp;
+
+         basis(j) = 0.0;
+         xpert(j) = x(j);
+      }
+
+      double norm = jac_col.Norml2();
+      if (norm >= sqrt(eps))
+      {
+         cout << "Possible error in jacobian column " << j << endl;
+         cout << "||J(:," << j << ")||_l2 = " << jac_col.Norml2() << endl;
+      }
+   }
+}
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
            const Operator &M, int &max_iter,
