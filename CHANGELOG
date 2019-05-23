@@ -11,19 +11,7 @@
 Version 4.0-RC2, Apr 24, 2019
 =============================
 
-Requirements and Limitations
-----------------------------
-- This is a release candidate for mfem-4.0.
-- Use at your own risk -- not everything will work and the API may change.
-- We are looking for feedback from friendly users.
-- Unlike previous MFEM releases, this version requires a C++11 compiler.
-
-- GPU-related limitations:
-  * Hypre preconditioners are not yet available in GPU mode.
-  * Only constant coefficients are currently supported on GPUs.
-  * Full-assembly (on device), element assembly, and matrix-free bilinear forms
-    are not supported yet. Element batching is currently ignored.
-  * Partial assembly kernels are not implemented yet for simplices.
+Unlike previous MFEM releases, this version requires a C++11 compiler.
 
 GPU support
 -----------
@@ -34,7 +22,7 @@ GPU support
   seamlessly with a new lightweight device/host memory manager. The kernels can
   be implemented either in OCCA, or as a simple wrapper around for-loops, which
   can then be dispatched to RAJA and native backends. See the files forall.hpp
-  and mem_manager.hpp in the general/ directory.
+  and mem_manager.hpp in the general/ directory for more details.
 
 - Several of the MFEM example codes (ex1, ex1p, ex6, and ex6p) can now take
   advantage of GPU acceleration with the backend selectable at runtime. Many of
@@ -49,8 +37,20 @@ GPU support
   The list of current backends is: "occa-cuda", "raja-cuda", "cuda", "occa-omp",
   "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
 
+- GPU-related limitations:
+  * Hypre preconditioners are not yet available in GPU mode.
+  * Only constant coefficients are currently supported on GPUs.
+  * Full-assembly (on device), element assembly, and matrix-free bilinear forms
+    are not supported yet. Element batching is currently ignored.
+  * Partial assembly kernels are not implemented yet for simplices.
+
 Discretization improvements
 ---------------------------
+- Partial assembled finite element operators are now available in the core
+  library, based on the new classes PABilinearFormExtension, ElementRestriction
+  DofToQuad and GeometricFactors which are associated with BilinearForm,
+  FiniteElementSpace, FiniteElement and Mesh, respectivelly.
+
 - Added support for a general "low-order refined"-to-"high-order" transfer of
   GridFunction data from a "low-order refined" (LOR) space defined on a refined
   mesh to a "high-order" (HO) finite element space defined on a coarse mesh. See

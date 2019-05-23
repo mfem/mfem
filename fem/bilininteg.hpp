@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
-#include "bilininteg_ext.hpp"
 
 namespace mfem
 {
@@ -32,10 +31,10 @@ public:
    virtual void Assemble(const FiniteElementSpace&);
 
    /// Method for partially assembled action.
-   virtual void MultAssembled(Vector&, Vector&);
+   virtual void MultAssembled(const Vector &, Vector&);
 
    /// Method for partially assembled transposed action.
-   virtual void MultAssembledTranspose(Vector&, Vector&);
+   virtual void MultAssembledTranspose(const Vector&, Vector&);
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -1649,8 +1648,8 @@ private:
 #endif
 
    // PA extension
-   DofToQuad *maps;
-   GeometryExtension *geom;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
 
 public:
@@ -1658,10 +1657,12 @@ public:
    DiffusionIntegrator() { Q = NULL; MQ = NULL; maps = NULL; geom = NULL; }
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; maps = NULL; geom = NULL; }
+   DiffusionIntegrator (Coefficient &q) : Q(&q)
+   { MQ = NULL; maps = NULL; geom = NULL; }
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; maps = NULL; geom = NULL; }
+   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q)
+   { Q = NULL; maps = NULL; geom = NULL; }
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
@@ -1691,9 +1692,9 @@ public:
 
    /// PA extension
    virtual void Assemble(const FiniteElementSpace&);
-   virtual void MultAssembled(Vector&, Vector&);
+   virtual void MultAssembled(const Vector&, Vector&);
 
-   virtual ~DiffusionIntegrator();
+   virtual ~DiffusionIntegrator() { }
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -1706,9 +1707,10 @@ protected:
    Coefficient *Q;
    // PA extension
    Vector vec;
-   DofToQuad *maps;
-   GeometryExtension *geom;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
+
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir) { Q = NULL; maps = NULL; geom = NULL; }
@@ -1727,9 +1729,9 @@ public:
                                        DenseMatrix &elmat);
    /// PA extension
    virtual void Assemble(const FiniteElementSpace&);
-   virtual void MultAssembled(Vector&, Vector&);
+   virtual void MultAssembled(const Vector&, Vector&);
 
-   virtual ~MassIntegrator();
+   virtual ~MassIntegrator() { }
 };
 
 class BoundaryMassIntegrator : public MassIntegrator
