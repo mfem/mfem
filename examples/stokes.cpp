@@ -1,10 +1,8 @@
 #include "mfem.hpp"
-#include "../common/pfem_extras.hpp"
 #include <fstream>
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
 
 void vel_ex(const Vector &x, Vector &u)
 {
@@ -40,15 +38,16 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   int viz = 0;
-   int print_level = 0;
+   int print_level = 2;
    int serial_ref_levels = 0;
    int order = 2;
-   const char *mesh_file = "../../data/inline-quad.mesh";
+   double tol = 1e-8;
+   const char *mesh_file = "../data/inline-single-quad.mesh";
 
    OptionsParser args(argc, argv);
-   args.AddOption(&viz, "-viz", "--viz", "");
    args.AddOption(&order, "-o", "--order", "");
+   args.AddOption(&tol, "-tol", "--tolerance",
+                  "Solver relative tolerance");
    args.AddOption(&print_level, "-pl", "--print-level",
                   "Solver print level");
    args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
@@ -90,7 +89,6 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    ess_bdr = 1;
-   ess_bdr[1] = 1;
    vel_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    Array<int> block_offsets(3);
@@ -104,6 +102,14 @@ int main(int argc, char *argv[])
    block_trueOffsets[1] = vel_fes->TrueVSize();
    block_trueOffsets[2] = pres_fes->TrueVSize();
    block_trueOffsets.PartialSum();
+
+   int vel_global_vsize = vel_fes->GlobalVSize();
+   int pres_global_vsize = pres_fes->GlobalVSize();
+   if (myid == 0)
+   {
+      cout << "Velocity dofs: " << vel_global_vsize << endl;
+      cout << "Pressure dofs: " << pres_global_vsize << endl;
+   }
 
    BlockVector x(block_offsets), rhs(block_offsets);
    BlockVector trueX(block_trueOffsets), trueRhs(block_trueOffsets);
@@ -146,6 +152,10 @@ int main(int argc, char *argv[])
    HypreParMatrix *G = D->Transpose();
    (*G) *= -1.0;
 
+   // Flip signs to make system symmetric
+   (*D) *= -1.0;
+   rhs.GetBlock(1) *= -1.0;
+
    ParBilinearForm *mpform = new ParBilinearForm(pres_fes);
    mpform->AddDomainIntegrator(new MassIntegrator);
    mpform->Assemble();
@@ -163,20 +173,27 @@ int main(int argc, char *argv[])
 
    HypreDiagScale *invMp = new HypreDiagScale(*Mp);
 
-   BlockDiagonalPreconditioner *stokesprec = new BlockDiagonalPreconditioner(block_trueOffsets);
+   BlockDiagonalPreconditioner *stokesprec = new BlockDiagonalPreconditioner(
+      block_trueOffsets);
    stokesprec->SetDiagonalBlock(0, invS);
    stokesprec->SetDiagonalBlock(1, invMp);
 
+   // Idea:
+   // Implement "GetTrueDofs" in ParFiniteElementSpace s.t.
+   // one can call vel_fes->GetTrueDofs(x.GetBlock(0), trueX.GetBlock(0));
+
    vel_fes->GetRestrictionMatrix()->Mult(x.GetBlock(0), trueX.GetBlock(0));
-   vel_fes->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0), trueRhs.GetBlock(0));
+   vel_fes->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),
+                                                   trueRhs.GetBlock(0));
 
    pres_fes->GetRestrictionMatrix()->Mult(x.GetBlock(1), trueX.GetBlock(1));
-   pres_fes->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1), trueRhs.GetBlock(1));
+   pres_fes->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),
+                                                    trueRhs.GetBlock(1));
 
-   GMRESSolver solver(MPI_COMM_WORLD);
+   MINRESSolver solver(MPI_COMM_WORLD);
    solver.iterative_mode = false;
    solver.SetAbsTol(0.0);
-   solver.SetRelTol(1e-8);
+   solver.SetRelTol(tol);
    solver.SetMaxIter(500);
    solver.SetOperator(*stokesop);
    solver.SetPreconditioner(*stokesprec);
@@ -207,28 +224,19 @@ int main(int argc, char *argv[])
       cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
    }
 
-   ParGridFunction u_ex_gf(vel_fes);
-   u_ex_gf.ProjectCoefficient(uexcoeff);
-
-   *u_gf -= u_ex_gf;
-
    char vishost[] = "localhost";
    int  visport = 19916;
    socketstream u_sock(vishost, visport);
    u_sock << "parallel " << num_procs << " " << myid << "\n";
    u_sock.precision(8);
-   u_sock << "solution\n" << *pmesh << *u_gf << "window_title 'velocity'" << "keys Rjlc\n"<< endl;
-
-
-   ParGridFunction p_ex_gf(pres_fes);
-   p_ex_gf.ProjectCoefficient(pexcoeff);
-
-   *p_gf -= p_ex_gf;
+   u_sock << "solution\n" << *pmesh << *u_gf << "window_title 'velocity'" <<
+          "keys Rjlc\n"<< endl;
 
    socketstream p_sock(vishost, visport);
    p_sock << "parallel " << num_procs << " " << myid << "\n";
    p_sock.precision(8);
-   p_sock << "solution\n" << *pmesh << *p_gf << "window_title 'pressure'" << "keys Rjlc\n"<< endl;
+   p_sock << "solution\n" << *pmesh << *p_gf << "window_title 'pressure'" <<
+          "keys Rjlc\n"<< endl;
 
    return 0;
 }
