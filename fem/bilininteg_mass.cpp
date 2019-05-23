@@ -18,9 +18,226 @@ using namespace std;
 namespace mfem
 {
 
+// PA Mass Integrator
+
+static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
+                                             const FiniteElement &test_fe)
+{
+   int order;
+   if (trial_fe.Space() == FunctionSpace::Pk)
+   {
+      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
+   }
+   else
+   {
+      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
+      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
+   }
+   if (trial_fe.Space() == FunctionSpace::rQk)
+   {
+      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
+// PA Mass Assemble kernel
+void MassIntegrator::Assemble(const FiniteElementSpace &fes)
+{
+   Mesh *mesh = fes.GetMesh();
+   const IntegrationRule *rule = IntRule;
+   const FiniteElement &el = *fes.GetFE(0);
+   const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
+   dim = mesh->Dimension();
+   ne = fes.GetMesh()->GetNE();
+   nq = ir->GetNPoints();
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
+                                    GeometricFactors::JACOBIANS);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
+   vec.SetSize(ne*nq);
+   ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
+   FunctionCoefficient *function_coeff = dynamic_cast<FunctionCoefficient*>(Q);
+   // TODO: other types of coefficients ...
+   if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
+   if (dim==2)
+   {
+      double constant = 0.0;
+      double (*function)(const Vector3&) = NULL;
+      if (const_coeff)
+      {
+         constant = const_coeff->constant;
+      }
+      else if (function_coeff)
+      {
+         function = function_coeff->GetDeviceFunction();
+      }
+      else
+      {
+         MFEM_ABORT("Coefficient type not supported");
+      }
+      const int NE = ne;
+      const int NQ = nq;
+      const DeviceVector w(ir->GetWeights(), NQ);
+      const DeviceTensor<3> x(geom->X, NQ,2,NE);
+      const DeviceTensor<4> J(geom->J, NQ,2,2,NE);
+      DeviceMatrix v(vec.GetData(), NQ, NE);
+      MFEM_FORALL(e, NE,
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            const double J11 = J(q,0,0,e);
+            const double J12 = J(q,1,0,e);
+            const double J21 = J(q,0,1,e);
+            const double J22 = J(q,1,1,e);
+            const double detJ = (J11*J22)-(J21*J12);
+            const Vector3 Xq(x(q,0,e), x(q,1,e));
+            const double coeff =
+            const_coeff ? constant
+            : function_coeff ? function(Xq)
+            : 0.0;
+            v(q,e) =  w[q] * coeff * detJ;
+         }
+      });
+   }
+   if (dim==3)
+   {
+      double constant = 0.0;
+      double (*function)(const Vector3&) = NULL;
+      if (const_coeff)
+      {
+         constant = const_coeff->constant;
+      }
+      else if (function_coeff)
+      {
+         function = function_coeff->GetDeviceFunction();
+      }
+      else
+      {
+         MFEM_ABORT("Coefficient type not supported");
+      }
+      const int NE = ne;
+      const int NQ = nq;
+      const DeviceVector W(ir->GetWeights(), NQ);
+      const DeviceTensor<3> x(geom->X, NQ,3,NE);
+      const DeviceTensor<4> J(geom->J, NQ,3,3,NE);
+      DeviceMatrix v(vec.GetData(), NQ,NE);
+      MFEM_FORALL(e, NE,
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            const double J11 = J(q,0,0,e),J12 = J(q,1,0,e),J13 = J(q,2,0,e);
+            const double J21 = J(q,0,1,e),J22 = J(q,1,1,e),J23 = J(q,2,1,e);
+            const double J31 = J(q,0,2,e),J32 = J(q,1,2,e),J33 = J(q,2,2,e);
+            const double detJ =
+            ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
+            (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
+            const Vector3 Xq(x(q,0,e), x(q,1,e), x(q,2,e));
+            const double coeff =
+            const_coeff ? constant
+            : function_coeff ? function(Xq)
+            : 0.0;
+            v(q,e) = W(q) * coeff * detJ;
+         }
+      });
+   }
+}
+
+#ifdef MFEM_USE_OCCA
+// OCCA PA Mass Apply 2D kernel
+static void OccaPAMassApply2D(const int D1D,
+                              const int Q1D,
+                              const int NE,
+                              const double* B,
+                              const double* Bt,
+                              const double* op,
+                              const double* x,
+                              double* y)
+{
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
+   const occa::memory o_B = mfem::OccaPtr(B);
+   const occa::memory o_Bt = mfem::OccaPtr(Bt);
+   const occa::memory o_op = mfem::OccaPtr(op);
+   const occa::memory o_x = mfem::OccaPtr(x);
+   occa::memory o_y = mfem::OccaPtr(y);
+   const occa_id_t id = std::make_pair(D1D,Q1D);
+   if (!Device::Allows(Backend::OCCA_CUDA))
+   {
+      static occa_kernel_t OccaMassApply2D_cpu;
+      if (OccaMassApply2D_cpu.find(id) == OccaMassApply2D_cpu.end())
+      {
+         const occa::kernel MassApply2D_CPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply2D_CPU", props);
+         OccaMassApply2D_cpu.emplace(id, MassApply2D_CPU);
+      }
+      OccaMassApply2D_cpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
+   }
+   else
+   {
+      static occa_kernel_t OccaMassApply2D_gpu;
+      if (OccaMassApply2D_gpu.find(id) == OccaMassApply2D_gpu.end())
+      {
+         const occa::kernel MassApply2D_GPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply2D_GPU", props);
+         OccaMassApply2D_gpu.emplace(id, MassApply2D_GPU);
+      }
+      OccaMassApply2D_gpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
+   }
+}
+
+// OCCA PA Mass Apply 3D kernel
+static void OccaPAMassApply3D(const int D1D,
+                              const int Q1D,
+                              const int NE,
+                              const double* B,
+                              const double* Bt,
+                              const double* op,
+                              const double* x,
+                              double* y)
+{
+   occa::properties props;
+   props["defines/D1D"] = D1D;
+   props["defines/Q1D"] = Q1D;
+   const occa::memory o_B = mfem::OccaPtr(B);
+   const occa::memory o_Bt = mfem::OccaPtr(Bt);
+   const occa::memory o_op = mfem::OccaPtr(op);
+   const occa::memory o_x = mfem::OccaPtr(x);
+   occa::memory o_y = mfem::OccaPtr(y);
+   const occa_id_t id = std::make_pair(D1D,Q1D);
+   if (!Device::Allows(Backend::OCCA_CUDA))
+   {
+      static occa_kernel_t OccaMassApply3D_cpu;
+      if (OccaMassApply3D_cpu.find(id) == OccaMassApply3D_cpu.end())
+      {
+         const occa::kernel MassApply3D_CPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply3D_CPU", props);
+         OccaMassApply3D_cpu.emplace(id, MassApply3D_CPU);
+      }
+      OccaMassApply3D_cpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
+   }
+   else
+   {
+      static occa_kernel_t OccaMassApply3D_gpu;
+      if (OccaMassApply3D_gpu.find(id) == OccaMassApply3D_gpu.end())
+      {
+         const occa::kernel MassApply3D_GPU =
+            mfem::OccaDev().buildKernel("occa://mfem/fem/occa.okl",
+                                        "MassApply3D_GPU", props);
+         OccaMassApply3D_gpu.emplace(id, MassApply3D_GPU);
+      }
+      OccaMassApply3D_gpu.at(id)(NE, o_B, o_Bt, o_op, o_x, o_y);
+   }
+}
+#endif // MFEM_USE_OCCA
+
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
-static bool PAMassApply2D(const int NE,
+static void PAMassApply2D(const int NE,
                           const double* _B,
                           const double* _Bt,
                           const double* _op,
@@ -107,12 +324,11 @@ static bool PAMassApply2D(const int NE,
          }
       }
    });
-   return true;
 }
 
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
-static bool SmemPAMassApply2D(const int NE,
+static void SmemPAMassApply2D(const int NE,
                               const double* _b,
                               const double* _bt,
                               const double* _op,
@@ -222,12 +438,11 @@ static bool SmemPAMassApply2D(const int NE,
          }
       }
    });
-   return true;
 }
 
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
-static bool PAMassApply3D(const int NE,
+static void PAMassApply3D(const int NE,
                           const double* _B,
                           const double* _Bt,
                           const double* _op,
@@ -363,12 +578,11 @@ static bool PAMassApply3D(const int NE,
          }
       }
    });
-   return true;
 }
 
 template<const int T_D1D = 0,
          const int T_Q1D = 0>
-static bool SmemPAMassApply3D(const int NE,
+static void SmemPAMassApply3D(const int NE,
                               const double* _b,
                               const double* _bt,
                               const double* _op,
@@ -534,16 +748,35 @@ static bool SmemPAMassApply3D(const int NE,
          }
       }
    });
-   return true;
 }
 
-/// PA diffusion kernels
-bool PAMassApplyKernel(const int dim, const int D1D,
-                       const int Q1D, const int NE,
-                       const double* B, const double* Bt,
-                       const double* op,
-                       const double* x, double* y)
+static void PAMassApply(const int dim,
+                        const int D1D,
+                        const int Q1D,
+                        const int NE,
+                        const double* B,
+                        const double* Bt,
+                        const double* op,
+                        const double* x,
+                        double* y)
 {
+#ifdef MFEM_USE_OCCA
+   if (DeviceUseOcca())
+   {
+      if (dim == 2)
+      {
+         OccaPAMassApply2D(D1D, Q1D, NE, B, Bt, op, x, y);
+         return;
+      }
+      if (dim == 3)
+      {
+         OccaPAMassApply3D(D1D, Q1D, NE, B, Bt, op, x, y);
+         return;
+      }
+      MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
+   }
+#endif // MFEM_USE_OCCA
+
    if (Device::Allows(Backend::RAJA_CUDA))
    {
       if (dim == 2)
@@ -575,9 +808,8 @@ bool PAMassApplyKernel(const int dim, const int D1D,
             default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
          }
       }
-      return false;
    }
-   if (dim == 2)
+   else if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
       {
@@ -592,7 +824,7 @@ bool PAMassApplyKernel(const int dim, const int D1D,
          default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
    }
-   if (dim == 3)
+   else if (dim == 3)
    {
       switch ((D1D << 4 ) | Q1D)
       {
@@ -606,7 +838,12 @@ bool PAMassApplyKernel(const int dim, const int D1D,
          default:   return PAMassApply3D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
    }
-   return false;
+   MFEM_ABORT("Unknown kernel.");
+}
+
+void MassIntegrator::MultAssembled(const Vector &x, Vector &y)
+{
+   PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, vec, x, y);
 }
 
 } // namespace mfem

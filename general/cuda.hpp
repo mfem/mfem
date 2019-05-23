@@ -37,7 +37,7 @@ const int MAX_Q1D = 16;
    do \
    { \
       cudaError_t err = (x); \
-      if (err != cudaSuccess) \
+      if (err != cudaSuccess && err != cudaErrorCudartUnloading) \
       { \
          mfem_cuda_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
       } \
