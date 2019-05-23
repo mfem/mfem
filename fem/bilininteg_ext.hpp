@@ -17,6 +17,21 @@
 namespace mfem
 {
 
+/// PA diffusion kernels
+bool PADiffusionApplyKernel(const int dim, const int D1D,
+                            const int Q1D, const int NE,
+                            const double* B, const double* G,
+                            const double* Bt, const double* Gt,
+                            const double* op,
+                            const double* x, double* y);
+
+/// PA mass kernels
+bool PAMassApplyKernel(const int dim, const int D1D,
+                       const int Q1D, const int NE,
+                       const double* B, const double* Bt,
+                       const double* op,
+                       const double* x, double* y);
+
 /// GeometryExtension
 class GeometryExtension
 {
