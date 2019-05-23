@@ -372,6 +372,11 @@ public:
    bool Finalized() const { return (A != NULL); }
    bool areColumnsSorted() const { return isSorted; }
 
+   /** @brief Remove entries smaller in absolute value than a given tolerance
+       @a tol. If @a fix_empty_rows is true, a zero value is inserted in the
+       diagonal entry (for square matrices only) */
+   void Threshold(double tol, bool fix_empty_rows = false);
+
    /** Split the matrix into M x N blocks of sparse matrices in CSR format.
        The 'blocks' array is M x N (i.e. M and N are determined by its
        dimensions) and its entries are overwritten by the new blocks. */

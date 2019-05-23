@@ -103,18 +103,18 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    if (mesh.Nonconforming())
    {
-      if (partitioning_ && MyRank == 0)
+      if (partitioning_)
       {
-         MFEM_WARNING("Prescribed partitioning is not supported for NC meshes.");
+         partitioning = partitioning_;
       }
-
-      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh);
-
-      // save the element partitioning before Prune()
-      partitioning = new int[mesh.GetNE()];
-      for (int i = 0; i < mesh.GetNE(); i++)
+      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
+      if (!partitioning)
       {
-         partitioning[i] = pncmesh->InitialPartition(i);
+         partitioning = new int[mesh.GetNE()];
+         for (int i = 0; i < mesh.GetNE(); i++)
+         {
+            partitioning[i] = pncmesh->InitialPartition(i);
+         }
       }
 
       pncmesh->Prune();
