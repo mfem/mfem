@@ -20,6 +20,14 @@ namespace mfem
 
 // PA Mass Integrator
 
+static inline MFEM_ATTR_HOST_DEVICE
+double LaghosRho0(const double problem, const double *x)
+{
+   if (problem == -2.0) return (x[0] < 0.5) ? 1.0 : 0.1;
+   if (problem == -3.0) return (x[0] > 1.0 && x[1] > 1.5) ? 0.125 : 1.0;
+   return 1.0;
+}
+
 // PA Mass Assemble kernel
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
@@ -55,6 +63,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NE = ne;
       const int NQ = nq;
       auto w = ir->GetWeights().ReadAccess();
+      auto X = Reshape(geom->X.ReadAccess(), NQ,2,NE);
       auto J = Reshape(geom->J.ReadAccess(), NQ,2,2,NE);
       auto v = Reshape(pa_data.WriteAccess(), NQ, NE);
       MFEM_FORALL(e, NE,
@@ -66,7 +75,9 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             const double J21 = J(q,0,1,e);
             const double J22 = J(q,1,1,e);
             const double detJ = (J11*J22)-(J21*J12);
-            v(q,e) =  w[q] * constant * detJ;
+            const double x[2] = { X(q,0,e), X(q,1,e)};
+            const double coeff = LaghosRho0(constant, x);
+            v(q,e) =  w[q] * coeff * detJ;
          }
       });
    }
