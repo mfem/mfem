@@ -20,6 +20,10 @@
 #include <cuda.h>
 #endif
 
+// Maximum size of dofs and quads in 1D.
+const int MAX_D1D = 16;
+const int MAX_Q1D = 16;
+
 // CUDA block size used by MFEM.
 #define MFEM_CUDA_BLOCKS 256
 
@@ -39,7 +43,22 @@
       } \
    } \
    while (0)
+#ifdef __CUDA_ARCH__
+#define blockDim(k) blockDim.k
+#define threadIdx(k) threadIdx.k
+#define MFEM_SHARED __shared__
+#define MFEM_SYNC_THREAD __syncthreads();
+#else // __CUDA_ARCH__
+#define MFEM_SHARED
+#define MFEM_SYNC_THREAD
+#define blockDim(x) 1
+#define threadIdx(x) 0
+#endif // __CUDA_ARCH__
 #else // MFEM_USE_CUDA
+#define MFEM_SHARED
+#define MFEM_SYNC_THREAD
+#define blockDim(x) 1
+#define threadIdx(x) 0
 #define MFEM_ATTR_DEVICE
 #define MFEM_ATTR_HOST_DEVICE
 #endif // MFEM_USE_CUDA

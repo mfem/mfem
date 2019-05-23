@@ -412,8 +412,8 @@ ElementTransformation *Mesh::GetElementTransformation(int i)
 
 ElementTransformation *Mesh::GetBdrElementTransformation(int i)
 {
-   GetBdrElementTransformation(i, &FaceTransformation);
-   return &FaceTransformation;
+   GetBdrElementTransformation(i, &BdrTransformation);
+   return &BdrTransformation;
 }
 
 void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
@@ -1047,7 +1047,7 @@ void Mesh::Destroy()
 
    // TODO:
    // IsoparametricTransformations
-   // Transformation, Transformation2, FaceTransformation, EdgeTransformation;
+   // Transformation, Transformation2, BdrTransformation, FaceTransformation, EdgeTransformation;
    // FaceElementTransformations FaceElemTr;
 
    CoarseFineTr.Clear();
@@ -9524,6 +9524,27 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
                if (res == InverseElementTransformation::Inside)
                {
                   elem_ids[k] = els[e];
+                  pts_found++;
+                  goto next_point;
+               }
+            }
+         }
+         // Try neighbours for non-conforming meshes
+         if (ncmesh)
+         {
+            Array<int> neigh;
+            int le = ncmesh->leaf_elements[e_idx[k]];
+            ncmesh->FindNeighbors(le,neigh);
+            for (int e = 0; e < neigh.Size(); e++)
+            {
+               int nn = neigh[e];
+               if (ncmesh->IsGhost(ncmesh->elements[nn])) { continue; }
+               int el = ncmesh->elements[nn].index;
+               inv_tr->SetTransformation(*GetElementTransformation(el));
+               int res = inv_tr->Transform(pt, ips[k]);
+               if (res == InverseElementTransformation::Inside)
+               {
+                  elem_ids[k] = el;
                   pts_found++;
                   goto next_point;
                }
