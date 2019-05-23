@@ -902,11 +902,15 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
       {
          GetElementVDofs(my_elems[i], ldofs);
          for (int j = 0; j < ldofs.Size(); j++)
-            if (ldof_marker[ldofs[j]] != fn)
+         {
+            int ldof = (ldofs[j] >= 0 ? ldofs[j] : -1-ldofs[j]);
+
+            if (ldof_marker[ldof] != fn)
             {
-               ldof_marker[ldofs[j]] = fn;
+               ldof_marker[ldof] = fn;
                send_face_nbr_ldof.AddAColumnInRow(fn);
             }
+         }
          send_nbr_elem_dof.AddColumnsInRow(send_el_off[fn] + i, ldofs.Size());
       }
 
@@ -960,9 +964,11 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
          GetElementVDofs(my_elems[i], ldofs);
          for (int j = 0; j < ldofs.Size(); j++)
          {
-            if (ldof_marker[ldofs[j]] != fn)
+            int ldof = (ldofs[j] >= 0 ? ldofs[j] : -1-ldofs[j]);
+
+            if (ldof_marker[ldof] != fn)
             {
-               ldof_marker[ldofs[j]] = fn;
+               ldof_marker[ldof] = fn;
                send_face_nbr_ldof.AddConnection(fn, ldofs[j]);
             }
          }
@@ -983,12 +989,14 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 
       for (int i = 0; i < num_ldofs; i++)
       {
-         ldof_marker[ldofs[i]] = i;
+         int ldof = (ldofs[i] >= 0 ? ldofs[i] : -1-ldofs[i]);
+         ldof_marker[ldof] = i;
       }
 
       for ( ; j < j_end; j++)
       {
-         send_J[j] = ldof_marker[send_J[j]];
+         int ldof = (send_J[j] >= 0 ? send_J[j] : -1-send_J[j]);
+         send_J[j] = (send_J[j] >= 0 ? ldof_marker[ldof] : -1-ldof_marker[ldof]);
       }
    }
 
@@ -1023,7 +1031,14 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 
       for ( ; j < j_end; j++)
       {
-         recv_J[j] += shift;
+         if (recv_J[j] >= 0)
+         {
+            recv_J[j] += shift;
+         }
+         else
+         {
+            recv_J[j] -= shift;
+         }
       }
    }
 
@@ -1072,8 +1087,15 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
    for (int fn = 0, j = 0; fn < num_face_nbrs; fn++)
    {
       for (int j_end = face_nbr_ldof.GetI()[fn+1]; j < j_end; j++)
-         face_nbr_glob_dof_map[j] =
-            dof_face_nbr_offsets[fn] + face_nbr_ldof.GetJ()[j];
+      {
+         int ldof = face_nbr_ldof.GetJ()[j];
+         if (ldof < 0)
+         {
+            ldof = -1-ldof;
+         }
+
+         face_nbr_glob_dof_map[j] = dof_face_nbr_offsets[fn] + ldof;
+      }
    }
 
    MPI_Waitall(num_face_nbrs, send_requests, statuses);
