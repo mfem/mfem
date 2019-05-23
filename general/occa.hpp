@@ -75,6 +75,9 @@ inline bool DeviceCanUseOcca()
            !Device::Allows(Backend::DEVICE_MASK|Backend::OMP_MASK));
 }
 
+typedef std::pair<int,int> occa_id_t;
+typedef std::map<occa_id_t, occa::kernel> occa_kernel_t;
+
 } // namespace mfem
 
 #endif // MFEM_USE_OCCA

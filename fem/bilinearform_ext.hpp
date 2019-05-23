@@ -21,30 +21,6 @@ namespace mfem
 
 class BilinearForm;
 
-// FIXME: rename to ElementRestriction
-/// Element restriction operator
-class ElemRestriction: public Operator
-{
-public:
-   const FiniteElementSpace &fes;
-   const int ne;
-   const int vdim;
-   const bool byvdim;
-   const int ndofs;
-   const int dof;
-   const int nedofs;
-   Table dofs_edofs; // edofs with lexicographical local ordering
-
-public:
-   ElemRestriction(const FiniteElementSpace&);
-
-   virtual MemoryClass GetMemoryClass() const
-   { return Device::GetMemoryClass(); }
-
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
-};
-
 
 /** @brief Class extending the BilinearForm class to support the different
     AssemblyLevel%s. */
@@ -119,9 +95,9 @@ public:
 class PABilinearFormExtension : public BilinearFormExtension
 {
 protected:
-   const FiniteElementSpace *trialFes, *testFes;
+   const FiniteElementSpace *trialFes, *testFes; // Not owned
    mutable Vector localX, localY;
-   ElemRestriction *elem_restrict;
+   const Operator *elem_restrict_lex; // Not owned
 
 public:
    PABilinearFormExtension(BilinearForm*);
@@ -136,8 +112,6 @@ public:
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void Update();
-
-   ~PABilinearFormExtension();
 };
 
 /// Data and methods for matrix-free bilinear forms
