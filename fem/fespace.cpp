@@ -2413,8 +2413,7 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
       return *B.Ptr();
    }
 
-   // Construct B
-   // If not set, define a suitable mass_integ
+   // Construct B, if not set, define a suitable mass_integ
    if (!mass_integ && ran_fes.GetNE() > 0)
    {
       const FiniteElement *f_fe_0 = ran_fes.GetFE(0);
@@ -2577,7 +2576,7 @@ void L2ProjectionGridTransfer::L2Projection::Mult(
       fes_ho.GetElementVDofs(iho, vdofs);
       x.GetSubVector(vdofs, xel_mat.GetData());
       mfem::Mult(R(iho), xel_mat, yel_mat);
-      // Place result correctly into low-order vector
+      // Place result correctly into the low-order vector
       for (int iref=0; iref<nref; ++iref)
       {
          int ilor = ho2lor.GetRow(iho)[iref];
@@ -2672,7 +2671,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    }
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
-   // We'll be keeping a count of how many local nodes point to its global dof
+   // We will be keeping a count of how many local nodes point to its global dof
    for (int i = 0; i <= ndofs; ++i)
    {
       offsets[i] = 0;
@@ -2690,7 +2689,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       offsets[i] += offsets[i - 1];
    }
-   // For each global dof, fill in all local nodes that point   to it
+   // For each global dof, fill in all local nodes that point to it
    for (int e = 0; e < ne; ++e)
    {
       for (int d = 0; d < dof; ++d)
@@ -2701,7 +2700,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          indices[offsets[gid]++] = lid;
       }
    }
-   // We shifted the offsets vector by 1 by using it as a counter
+   // We shifted the offsets vector by 1 by using it as a counter.
    // Now we shift it back.
    for (int i = ndofs; i > 0; --i)
    {
