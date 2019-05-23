@@ -216,11 +216,10 @@ static void PAMassApply2D(const int NE,
    auto y = Reshape(_y.ReadWriteAccess(), D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
-      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-
       double sol_xy[max_Q1D][max_Q1D];
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -288,7 +287,8 @@ static void PAMassApply2D(const int NE,
 }
 
 template<const int T_D1D = 0,
-         const int T_Q1D = 0>
+         const int T_Q1D = 0,
+         const int T_NBZ = 0>
 static void SmemPAMassApply2D(const int NE,
                               const Array<double> &_b,
                               const Array<double> &_bt,
@@ -300,31 +300,32 @@ static void SmemPAMassApply2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   const int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
    auto b = Reshape(_b.ReadAccess(), Q1D, D1D);
-   auto bt = Reshape(_bt.ReadAccess(), D1D, Q1D);
    auto op = Reshape(_op.ReadAccess(), Q1D, Q1D, NE);
    auto x = Reshape(_x.ReadAccess(), D1D, D1D, NE);
    auto y = Reshape(_y.ReadWriteAccess(), D1D, D1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      const int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      const int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
-      MFEM_SHARED double sDQ[MQ1*MD1];
-      double (*B)[MD1] = (double (*)[MD1]) sDQ;
-      double (*Bt)[MQ1] = (double (*)[MQ1]) sDQ;
-      MFEM_SHARED double sm0[MDQ*MDQ];
-      MFEM_SHARED double sm1[MDQ*MDQ];
-      double (*X)[MD1] = (double (*)[MD1]) sm0;
-      double (*DQ)[MQ1] = (double (*)[MQ1]) sm1;
-      double (*QQ)[MQ1] = (double (*)[MQ1]) sm0;
-      double (*QD)[MD1] = (double (*)[MD1]) sm1;
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+      MFEM_SHARED double BBt[MQ1*MD1];
+      double (*B)[MD1] = (double (*)[MD1]) BBt;
+      double (*Bt)[MQ1] = (double (*)[MQ1]) BBt;
+      MFEM_SHARED double sm0[NBZ][MDQ*MDQ];
+      MFEM_SHARED double sm1[NBZ][MDQ*MDQ];
+      double (*X)[MD1] = (double (*)[MD1]) (sm0 + threadIdx(z));
+      double (*DQ)[MQ1] = (double (*)[MQ1]) (sm1 + threadIdx(z));
+      double (*QQ)[MQ1] = (double (*)[MQ1]) (sm0 + threadIdx(z));
+      double (*QD)[MD1] = (double (*)[MD1]) (sm1 + threadIdx(z));
       for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
       {
          for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
@@ -332,11 +333,14 @@ static void SmemPAMassApply2D(const int NE,
             X[dy][dx] = x(dx,dy,e);
          }
       }
-      for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+      if (threadIdx(z) == 0)
       {
-         for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(y))
+         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
          {
-            B[qx][dy] = b(qx,dy);
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(y))
+            {
+               B[qx][dy] = b(qx,dy);
+            }
          }
       }
       MFEM_SYNC_THREAD;
@@ -365,11 +369,15 @@ static void SmemPAMassApply2D(const int NE,
             QQ[qy][qx] = qq * op(qx, qy, e);
          }
       }
-      for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+      MFEM_SYNC_THREAD;
+      if (threadIdx(z) == 0)
       {
-         for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
          {
-            Bt[dy][qx] = bt(dy,qx);
+            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            {
+               Bt[dy][qx] = b(qx,dy);
+            }
          }
       }
       MFEM_SYNC_THREAD;
@@ -423,11 +431,10 @@ static void PAMassApply3D(const int NE,
    auto y = Reshape(_y.ReadWriteAccess(), D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
-      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-
       double sol_xyz[max_Q1D][max_Q1D][max_Q1D];
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -557,12 +564,11 @@ static void SmemPAMassApply3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
-   const int M1D = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
    MFEM_VERIFY(Q1D <= M1Q, "");
    auto b = Reshape(_b.ReadAccess(), Q1D, D1D);
-   auto bt = Reshape(_bt.ReadAccess(), D1D, Q1D);
    auto op = Reshape(_op.ReadAccess(), Q1D, Q1D, Q1D, NE);
    auto x = Reshape(_x.ReadAccess(), D1D, D1D, D1D, NE);
    auto y = Reshape(_y.ReadWriteAccess(), D1D, D1D, D1D, NE);
@@ -570,9 +576,9 @@ static void SmemPAMassApply3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      const int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      const int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
       MFEM_SHARED double sDQ[MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) sDQ;
       double (*Bt)[MQ1] = (double (*)[MQ1]) sDQ;
@@ -659,7 +665,7 @@ static void SmemPAMassApply3D(const int NE,
          {
             for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
             {
-               Bt[dy][qx] = bt(dy,qx);
+               Bt[dy][qx] = b(qx,dy);
             }
          }
       }
@@ -777,14 +783,14 @@ static void PAMassApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return SmemPAMassApply2D<2,2>(NE, B, Bt, op, x, y);
-         case 0x33: return SmemPAMassApply2D<3,3>(NE, B, Bt, op, x, y);
-         case 0x44: return SmemPAMassApply2D<4,4>(NE, B, Bt, op, x, y);
-         case 0x55: return SmemPAMassApply2D<5,5>(NE, B, Bt, op, x, y);
-         case 0x66: return SmemPAMassApply2D<6,6>(NE, B, Bt, op, x, y);
-         case 0x77: return SmemPAMassApply2D<7,7>(NE, B, Bt, op, x, y);
-         case 0x88: return SmemPAMassApply2D<8,8>(NE, B, Bt, op, x, y);
-         case 0x99: return SmemPAMassApply2D<9,9>(NE, B, Bt, op, x, y);
+         case 0x22: return SmemPAMassApply2D<2,2,16>(NE, B, Bt, op, x, y);
+         case 0x33: return SmemPAMassApply2D<3,3,16>(NE, B, Bt, op, x, y);
+         case 0x44: return SmemPAMassApply2D<4,4,8>(NE, B, Bt, op, x, y);
+         case 0x55: return SmemPAMassApply2D<5,5,8>(NE, B, Bt, op, x, y);
+         case 0x66: return SmemPAMassApply2D<6,6,4>(NE, B, Bt, op, x, y);
+         case 0x77: return SmemPAMassApply2D<7,7,4>(NE, B, Bt, op, x, y);
+         case 0x88: return SmemPAMassApply2D<8,8,2>(NE, B, Bt, op, x, y);
+         case 0x99: return SmemPAMassApply2D<9,9,2>(NE, B, Bt, op, x, y);
          default:   return PAMassApply2D(NE, B, Bt, op, x, y, D1D, Q1D);
       }
    }
