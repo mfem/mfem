@@ -867,6 +867,67 @@ double SparseMatrix::GetRowNorml1(int irow) const
    return a;
 }
 
+void SparseMatrix::Threshold(double tol, bool fix_empty_rows)
+{
+   MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
+   double atol;
+   atol = std::abs(tol);
+
+   fix_empty_rows = height == width ? fix_empty_rows : false;
+
+   double *newA;
+   int *newI, *newJ;
+   int i, j, nz;
+
+   newI = new int[height+1];
+   newI[0] = 0;
+   for (i = 0, nz = 0; i < height; i++)
+   {
+      bool found = false;
+      for (j = I[i]; j < I[i+1]; j++)
+         if (std::abs(A[j]) > atol)
+         {
+            found = true;
+            nz++;
+         }
+      if (fix_empty_rows && !found) { nz++; }
+      newI[i+1] = nz;
+   }
+
+   newJ = new int[nz];
+   newA = new double[nz];
+   // Assume we're sorted until we find out otherwise
+   isSorted = true;
+   for (i = 0, nz = 0; i < height; i++)
+   {
+      bool found = false;
+      int lastCol = -1;
+      for (j = I[i]; j < I[i+1]; j++)
+         if (std::abs(A[j]) > atol)
+         {
+            found = true;
+            newJ[nz] = J[j];
+            newA[nz] = A[j];
+            if ( lastCol > newJ[nz] )
+            {
+               isSorted = false;
+            }
+            lastCol = newJ[nz];
+            nz++;
+         }
+      if (fix_empty_rows && !found)
+      {
+         newJ[nz] = i;
+         newA[nz] = 0.0;
+         nz++;
+      }
+   }
+   Destroy();
+   I.Wrap(newI, height+1, true);
+   J.Wrap(newJ, I[height], true);
+   A.Wrap(newA, I[height], true);
+}
+
 void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 {
    int i, j, nr, nz;

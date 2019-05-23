@@ -848,7 +848,7 @@ void ConvectionIntegrator::AssembleElementMatrix(
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
-   Q.Eval(Q_ir, Trans, *ir);
+   Q->Eval(Q_ir, Trans, *ir);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -889,7 +889,7 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
-   Q.Eval(Q_nodal, Trans, el.GetNodes()); // sets the size of Q_nodal
+   Q->Eval(Q_nodal, Trans, el.GetNodes()); // sets the size of Q_nodal
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -1370,7 +1370,7 @@ void DerivativeIntegrator::AssembleElementMatrix2 (
          dshapedxi(l) = dshapedxt(l,xi);
       }
 
-      shape *= Q.Eval(Trans,ip) * det * ip.weight;
+      shape *= Q->Eval(Trans,ip) * det * ip.weight;
       AddMultVWt (shape, dshapedxi, elmat);
    }
 }
@@ -3216,7 +3216,7 @@ ScalarProductInterpolator::AssembleElementMatrix2(const FiniteElement &dom_fe,
                                                   ElementTransformation &Trans,
                                                   DenseMatrix &elmat)
 {
-   internal::ShapeCoefficient dom_shape_coeff(Q, dom_fe);
+   internal::ShapeCoefficient dom_shape_coeff(*Q, dom_fe);
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
 
@@ -3251,7 +3251,7 @@ ScalarVectorProductInterpolator::AssembleElementMatrix2(
       }
    };
 
-   VShapeCoefficient dom_shape_coeff(Q, dom_fe, Trans.GetSpaceDim());
+   VShapeCoefficient dom_shape_coeff(*Q, dom_fe, Trans.GetSpaceDim());
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
 
@@ -3289,7 +3289,7 @@ VectorScalarProductInterpolator::AssembleElementMatrix2(
       }
    };
 
-   VecShapeCoefficient dom_shape_coeff(VQ, dom_fe);
+   VecShapeCoefficient dom_shape_coeff(*VQ, dom_fe);
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
 
@@ -3336,11 +3336,11 @@ VectorCrossProductInterpolator::AssembleElementMatrix2(
       }
    };
 
-   VCrossVShapeCoefficient dom_shape_coeff(VQ, dom_fe);
+   VCrossVShapeCoefficient dom_shape_coeff(*VQ, dom_fe);
 
    if (ran_fe.GetRangeType() == FiniteElement::SCALAR)
    {
-      elmat.SetSize(ran_fe.GetDof()*VQ.GetVDim(),dom_fe.GetDof());
+      elmat.SetSize(ran_fe.GetDof()*VQ->GetVDim(),dom_fe.GetDof());
    }
    else
    {
@@ -3389,7 +3389,7 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   internal::VDotVShapeCoefficient dom_shape_coeff(VQ, dom_fe);
+   internal::VDotVShapeCoefficient dom_shape_coeff(*VQ, dom_fe);
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
 
