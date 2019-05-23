@@ -558,6 +558,8 @@ protected: // implementation
    int QuadFaceSplitType(int v1, int v2, int v3, int v4, int mid[5]
                          = NULL /*optional output of mid-edge nodes*/) const;
 
+   bool TriFaceSplit(int v1, int v2, int v3, int mid[3] = NULL) const;
+
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
 
    void FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
