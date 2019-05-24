@@ -409,8 +409,8 @@ MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
    return MemoryType::HOST;
 }
 
-void *MemoryManager::ReadWriteAccess_(void *h_ptr, MemoryClass mc,
-                                      std::size_t size, unsigned &flags)
+void *MemoryManager::ReadWrite_(void *h_ptr, MemoryClass mc,
+                                std::size_t size, unsigned &flags)
 {
    switch (mc)
    {
@@ -462,8 +462,8 @@ void *MemoryManager::ReadWriteAccess_(void *h_ptr, MemoryClass mc,
    return nullptr;
 }
 
-const void *MemoryManager::ReadAccess_(void *h_ptr, MemoryClass mc,
-                                       std::size_t size, unsigned &flags)
+const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
+                                 std::size_t size, unsigned &flags)
 {
    switch (mc)
    {
@@ -515,8 +515,8 @@ const void *MemoryManager::ReadAccess_(void *h_ptr, MemoryClass mc,
    return nullptr;
 }
 
-void *MemoryManager::WriteAccess_(void *h_ptr, MemoryClass mc, std::size_t size,
-                                  unsigned &flags)
+void *MemoryManager::Write_(void *h_ptr, MemoryClass mc, std::size_t size,
+                            unsigned &flags)
 {
    switch (mc)
    {
