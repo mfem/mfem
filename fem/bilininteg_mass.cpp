@@ -229,6 +229,7 @@ static void PAMassApply2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // compile time evaluated variables
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
       double sol_xy[max_Q1D][max_Q1D];
@@ -329,11 +330,11 @@ static void SmemPAMassApply2D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
-      MFEM_ATTR_SHARED double BBt[MQ1*MD1];
+      MFEM_SHARED double BBt[MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) BBt;
       double (*Bt)[MQ1] = (double (*)[MQ1]) BBt;
-      MFEM_ATTR_SHARED double sm0[NBZ][MDQ*MDQ];
-      MFEM_ATTR_SHARED double sm1[NBZ][MDQ*MDQ];
+      MFEM_SHARED double sm0[NBZ][MDQ*MDQ];
+      MFEM_SHARED double sm1[NBZ][MDQ*MDQ];
       double (*X)[MD1] = (double (*)[MD1]) (sm0 + tidz);
       double (*DQ)[MQ1] = (double (*)[MQ1]) (sm1 + tidz);
       double (*QQ)[MQ1] = (double (*)[MQ1]) (sm0 + tidz);
@@ -592,11 +593,11 @@ static void SmemPAMassApply3D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
-      MFEM_ATTR_SHARED double sDQ[MQ1*MD1];
+      MFEM_SHARED double sDQ[MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) sDQ;
       double (*Bt)[MQ1] = (double (*)[MQ1]) sDQ;
-      MFEM_ATTR_SHARED double sm0[MDQ*MDQ*MDQ];
-      MFEM_ATTR_SHARED double sm1[MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
       double (*X)[MD1][MD1]   = (double (*)[MD1][MD1]) sm0;
       double (*DDQ)[MD1][MQ1] = (double (*)[MD1][MQ1]) sm1;
       double (*DQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm0;
