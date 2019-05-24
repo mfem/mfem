@@ -425,8 +425,8 @@ void ParGridFunction::ProjectBdrCoefficient(
    }
    else
    {
-      // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
-      //        merged?
+      // TODO: is this the same as the conforming case (after the merge of
+      //       cut-mesh-groups-dev)?
       ComputeMeans(ARITHMETIC, values_counter);
    }
 #ifdef MFEM_DEBUG
@@ -469,8 +469,8 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    }
    else
    {
-      // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
-      //        merged?
+      // TODO: is this the same as the conforming case (after the merge of
+      //       cut-mesh-groups-dev)?
       ComputeMeans(ARITHMETIC, values_counter);
    }
 #ifdef MFEM_DEBUG

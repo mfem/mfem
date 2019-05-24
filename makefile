@@ -226,7 +226,7 @@ ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
    ifneq ($(MFEM_THREAD_SAFE),YES)
       $(error Incompatible config: MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE)
    endif
-   # FIXME: MFEM_USE_LEGACY_OPENMP cannot be combined with any of:
+   # NOTE: MFEM_USE_LEGACY_OPENMP cannot be combined with any of:
    # MFEM_USE_OPENMP, MFEM_USE_CUDA, MFEM_USE_RAJA, MFEM_USE_OCCA
 endif
 
