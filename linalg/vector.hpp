@@ -315,17 +315,29 @@ public:
    /// Destroys vector.
    virtual ~Vector();
 
-   /// Shortcut for mfem::ReadAccess(vec.GetMemory(), vec.Size(), on_dev).
-   const double *ReadAccess(bool on_dev = true) const
-   { return mfem::ReadAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), on_dev).
+   const double *Read(bool on_dev = true) const
+   { return mfem::Read(data, size, on_dev); }
 
-   /// Shortcut for mfem::WriteAccess(vec.GetMemory(), vec.Size(), on_dev).
-   double *WriteAccess(bool on_dev = true)
-   { return mfem::WriteAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), false).
+   const double *HostRead() const
+   { return mfem::Read(data, size, false); }
 
-   /// Shortcut for mfem::ReadWriteAccess(vec.GetMemory(), vec.Size(), on_dev).
-   double *ReadWriteAccess(bool on_dev = true)
-   { return mfem::ReadWriteAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), on_dev).
+   double *Write(bool on_dev = true)
+   { return mfem::Write(data, size, on_dev); }
+
+   /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), false).
+   double *HostWrite()
+   { return mfem::Write(data, size, false); }
+
+   /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), on_dev).
+   double *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(data, size, on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), false).
+   double *HostReadWrite()
+   { return mfem::ReadWrite(data, size, false); }
 
 #ifdef MFEM_USE_SUNDIALS
    /// Construct a wrapper Vector from SUNDIALS N_Vector.

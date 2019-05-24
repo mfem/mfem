@@ -747,11 +747,11 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
    Array<int> true_ess_dofs2(true_ess_dofs.Size());
    HypreParMatrix *Pt = Dof_TrueDof_Matrix()->Transpose();
-   const int *ess_dofs_data = ess_dofs.ReadAccess(false);
+   const int *ess_dofs_data = ess_dofs.HostRead();
    Pt->BooleanMult(1, ess_dofs_data, 0, true_ess_dofs2);
    delete Pt;
    int counter = 0;
-   const int *ted = true_ess_dofs.ReadAccess(false);
+   const int *ted = true_ess_dofs.HostRead();
    for (int i = 0; i < true_ess_dofs.Size(); i++)
    {
       if (bool(ted[i]) != bool(true_ess_dofs2[i])) { counter++; }
@@ -2887,9 +2887,8 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(x.Size() == Width(), "");
    MFEM_ASSERT(y.Size() == Height(), "");
 
-   const bool on_dev = false;
-   const double *xdata = x.ReadAccess(on_dev);
-   double *ydata = y.WriteAccess(on_dev);
+   const double *xdata = x.HostRead();
+   double *ydata = y.HostWrite();
    const int m = external_ldofs.Size();
 
    const int in_layout = 2; // 2 - input is ltdofs array
@@ -2914,9 +2913,8 @@ void ConformingProlongationOperator::MultTranspose(
    MFEM_ASSERT(x.Size() == Height(), "");
    MFEM_ASSERT(y.Size() == Width(), "");
 
-   const bool on_dev = false;
-   const double *xdata = x.ReadAccess(on_dev);
-   double *ydata = y.WriteAccess(on_dev);
+   const double *xdata = x.HostRead();
+   double *ydata = y.HostWrite();
    const int m = external_ldofs.Size();
 
    gc.ReduceBegin(xdata);
