@@ -147,7 +147,7 @@ public:
         mem_class(MemoryClass::HOST)
    { }
 
-   /** @brief Contruct a Device and configure it based on the @a device string.
+   /** @brief Construct a Device and configure it based on the @a device string.
        See Configure() for more details. */
    /** @note At most one Device object can be constructed during the lifetime of
        a program.
