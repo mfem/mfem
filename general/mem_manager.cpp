@@ -60,17 +60,15 @@ struct Alias;
 /// Memory class that holds:
 ///   - a boolean telling which memory space is being used
 ///   - the size in bytes of this memory region,
-///   - the host and the device pointer,
-///   - a list of all aliases seen using this region (used only to free them).
+///   - the host and the device pointer.
 struct Memory
 {
    bool host;
    const std::size_t bytes;
    void *const h_ptr;
    void *d_ptr;
-   std::list<const void*> aliases;
    Memory(void* const h, const std::size_t size):
-      host(true), bytes(size), h_ptr(h), d_ptr(nullptr), aliases() {}
+      host(true), bytes(size), h_ptr(h), d_ptr(nullptr) {}
 };
 
 /// Alias class that holds the base memory region and the offset
@@ -83,7 +81,7 @@ struct Alias
 
 typedef std::unordered_map<const void*, Memory> MemoryMap;
 // TODO: use 'Alias' or 'const Alias' as the mapped type in the AliasMap instead
-// of 'const Alias*'
+// of 'Alias*'
 typedef std::unordered_map<const void*, Alias*> AliasMap;
 
 struct Ledger
@@ -99,12 +97,26 @@ static internal::Ledger *maps;
 MemoryManager::MemoryManager()
 {
    exists = true;
-   enabled = true;
    maps = new internal::Ledger();
 }
 
 MemoryManager::~MemoryManager()
 {
+   if (exists) { Destroy(); }
+}
+
+void MemoryManager::Destroy()
+{
+   MFEM_VERIFY(exists, "MemoryManager has been destroyed already!");
+   for (auto& n : maps->memories)
+   {
+      internal::Memory &mem = n.second;
+      if (mem.d_ptr) { CuMemFree(mem.d_ptr); }
+   }
+   for (auto& n : maps->aliases)
+   {
+      delete n.second;
+   }
    delete maps;
    exists = false;
 }
@@ -124,6 +136,18 @@ void* MemoryManager::Insert(void *ptr, const std::size_t bytes)
    return ptr;
 }
 
+void MemoryManager::InsertDevice(void *ptr, void *h_ptr, size_t bytes)
+{
+   MFEM_VERIFY(ptr != NULL, "cannot register NULL device pointer");
+   MFEM_VERIFY(h_ptr != NULL, "internal error");
+   auto res = maps->memories.emplace(h_ptr, internal::Memory(h_ptr, bytes));
+   if (res.second == false)
+   {
+      mfem_error("Trying to add an already present address!");
+   }
+   res.first->second.d_ptr = ptr;
+}
+
 void *MemoryManager::Erase(void *ptr, bool free_dev_ptr)
 {
    if (!ptr) { return ptr; }
@@ -134,7 +158,6 @@ void *MemoryManager::Erase(void *ptr, bool free_dev_ptr)
    }
    internal::Memory &mem = mem_map_iter->second;
    if (mem.d_ptr && free_dev_ptr) { CuMemFree(mem.d_ptr); }
-   mem.aliases.clear();
    maps->memories.erase(mem_map_iter);
    return ptr;
 }
@@ -142,11 +165,6 @@ void *MemoryManager::Erase(void *ptr, bool free_dev_ptr)
 bool MemoryManager::IsKnown(const void *ptr)
 {
    return maps->memories.find(ptr) != maps->memories.end();
-}
-
-std::size_t MemoryManager::Bytes(const void *ptr)
-{
-   return maps->memories.at(ptr).bytes;
 }
 
 void *MemoryManager::GetDevicePtr(const void *ptr, size_t bytes, bool copy_data)
@@ -203,7 +221,6 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
    else
    {
       res.first->second = new internal::Alias{&mem, offset, 1};
-      mem.aliases.push_back(alias_ptr);
    }
 }
 
@@ -353,13 +370,11 @@ void *MemoryManager::Register_(void *ptr, void *h_ptr, std::size_t capacity,
               Mem::OWNS_DEVICE | Mem::VALID_HOST;
       return ptr;
    }
-   // FIXME: for MemoryType::CUDA, insert 'h_ptr' with 'ptr' as the device
-   // pointer
-   mfem_error("Register_(): device pointers are not implemented yet");
-   // mm.RegisterDevicePtr(ptr, capacity);
+   MFEM_VERIFY(mt == MemoryType::CUDA, "Only CUDA pointers are supported");
+   mm.InsertDevice(ptr, h_ptr, capacity);
    flags = (own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE) |
            Mem::OWNS_HOST | Mem::VALID_DEVICE;
-   return nullptr;
+   return h_ptr;
 }
 
 void MemoryManager::Alias_(void *base_h_ptr, std::size_t offset,
@@ -380,7 +395,7 @@ MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
 
    MFEM_ASSERT(!(flags & Mem::OWNS_DEVICE) || (flags & Mem::OWNS_INTERNAL),
                "invalid Memory state");
-   if (flags & Mem::OWNS_INTERNAL)
+   if (mm.exists && (flags & Mem::OWNS_INTERNAL))
    {
       if (flags & Mem::ALIAS)
       {

@@ -388,10 +388,6 @@ private:
    // Used by the private static methods called by class Memory:
    typedef Memory<int> Mem;
 
-   /// Allow to enable/disable the Ptr, Pull and Push functionalities
-   /// New and Delete will still continue to register the pointers
-   bool enabled;
-
    /// Allow to detect if a global memory manager instance exists
    static bool exists;
 
@@ -454,6 +450,8 @@ private:
    /// Adds an address in the map
    void *Insert(void *ptr, const std::size_t bytes);
 
+   void InsertDevice(void *ptr, void *h_ptr, size_t bytes);
+
    /// Remove the address from the map, as well as all its aliases
    void *Erase(void *ptr, bool free_dev_ptr = true);
 
@@ -467,30 +465,17 @@ private:
 
    void *GetAliasDevicePtr(const void *alias_ptr, size_t bytes, bool copy_data);
 
+   /// Return true if the pointer has been registered
+   bool IsKnown(const void *ptr);
+
 public:
    MemoryManager();
    ~MemoryManager();
 
-   /// Disable the memory manager: Ptr, Push and Pull will be no-op
-   void Disable() { enabled = false; }
-
-   /// Enable the memory manager: Ptr, Push and Pull wont be no-op
-   void Enable() { enabled = true; }
-
-   /// Return true if the memory manager is used and enabled
-   bool IsEnabled() { return enabled; }
-
-   /// The opposite of IsEnabled().
-   bool IsDisabled() { return !IsEnabled(); }
+   void Destroy();
 
    /// Return true if a global memory manager instance exists
    static bool Exists() { return exists; }
-
-   /// Return the bytes of the memory region which base address is ptr
-   std::size_t Bytes(const void *ptr);
-
-   /// Return true if the pointer has been registered
-   bool IsKnown(const void *ptr);
 
    /// Check if pointer has been registered in the memory manager
    void RegisterCheck(void *ptr);
