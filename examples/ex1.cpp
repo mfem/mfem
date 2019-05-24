@@ -26,12 +26,12 @@
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
 //
 // Device sample runs:
-//             > ex1 -pa -d cuda
-//             > ex1 -pa -d raja-cuda
-//             > ex1 -pa -d occa-cuda
-//             > ex1 -pa -d raja-omp
-//             > ex1 -pa -d occa-omp
-//             > ex1 -m ../data/beam-hex.mesh -pa -d cuda
+//               ex1 -pa -d cuda
+//               ex1 -pa -d raja-cuda
+//               ex1 -pa -d occa-cuda
+//               ex1 -pa -d raja-omp
+//               ex1 -pa -d occa-omp
+//               ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -64,7 +64,6 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device = "cpu";
    bool visualization = true;
-   int ref_level = 1, seed = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -72,8 +71,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&seed, "-s", "--seed", "Random seed.");
-   args.AddOption(&ref_level, "-r", "--ref-level", "Refinement level.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -96,38 +93,19 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   mesh->EnsureNCMesh();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-#if 1
    {
-      srand(seed);
-      //mesh->UniformRefinement();
-      for (int l = 0; l < ref_level; l++)
+      int ref_levels =
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      for (int l = 0; l < ref_levels; l++)
       {
-         //mesh->UniformRefinement();
-         mesh->RandomRefinement(0.5, true);
+         mesh->UniformRefinement();
       }
-
    }
-#else
-   Array<Refinement> refs;
-   refs.Append(Refinement(1, 3));
-   mesh->GeneralRefinement(refs);
-
-   refs.SetSize(0);
-   refs.Append(Refinement(0, 4));
-   //refs.Append(Refinement(2, 4));
-   mesh->GeneralRefinement(refs);
-#endif
-
-   /*{char fname[100];
-   sprintf(fname, "ncdump.txt");
-   std::ofstream f(fname);
-   mesh->ncmesh->DebugDump(f);}*/
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -149,8 +127,6 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
-
-   //exit(EXIT_SUCCESS);
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all

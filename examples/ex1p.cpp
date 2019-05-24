@@ -26,9 +26,9 @@
 //               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh -o -1 -sc
 //
 // Device sample runs:
-//             > mpirun -np 4 ex1p -pa -d cuda
-//             > mpirun -np 4 ex1p -pa -d occa-cuda
-//             > mpirun -np 4 ex1p -pa -d raja-omp
+//               mpirun -np 4 ex1p -pa -d cuda
+//               mpirun -np 4 ex1p -pa -d occa-cuda
+//               mpirun -np 4 ex1p -pa -d raja-omp
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -52,9 +52,6 @@
 using namespace std;
 using namespace mfem;
 
-// Wedge rebalance problem:
-// mpirun -n 2 ex1p -m ../data/inline-wedge.mesh -o 2 -r 2  -s 15
-
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -66,9 +63,6 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
-   int seed = 1;
-   int ref_levels = 2;
-   int par_ref_levels = 2;
    bool static_cond = false;
    bool pa = false;
    const char *device = "cpu";
@@ -80,12 +74,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&seed, "-s", "--seed",
-                  "Random seed.");
-   args.AddOption(&ref_levels, "-rs", "--ref_levels_serial",
-                  "Serial refinement levels.");
-   args.AddOption(&par_ref_levels, "-rp", "--ref_levels_parallel",
-                  "Parallel refinement levels.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -116,18 +104,16 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   mesh->EnsureNCMesh();
-
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      srand(seed);
+      int ref_levels =
+         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         //mesh->UniformRefinement();
-         mesh->RandomRefinement(0.5);
+         mesh->UniformRefinement();
       }
    }
 
@@ -137,27 +123,12 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
+      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
-         //pmesh->UniformRefinement();
-         pmesh->RandomRefinement(0.5);
-
-         /*{char fname[100];
-         sprintf(fname, "ncdump%03d.txt", myid);
-         std::ofstream f(fname);
-         pmesh->pncmesh->DebugDump(f);}*/
-
-         /*if (myid==0) { std::cout << "*** Rebalance " << l << std::endl; }
-         pmesh->Rebalance();*/
-
-         //if (l==0) { pmesh->Rebalance(); }
+         pmesh->UniformRefinement();
       }
    }
-
-   /*{char fname[100];
-   sprintf(fname, "ncdump%03d.txt", myid);
-   std::ofstream f(fname);
-   pmesh->pncmesh->DebugDump(f);}*/
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -197,8 +168,6 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-
-   //MPI_Finalize(); exit(EXIT_SUCCESS);
 
    // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
