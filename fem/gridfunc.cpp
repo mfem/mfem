@@ -1787,7 +1787,7 @@ void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
 void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
 {
    Array<int> values_counter;
-   this->ReadWriteAccess(false);
+   this->HostReadWrite();
    AccumulateAndCountBdrValues(coeff, NULL, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
 #ifdef MFEM_DEBUG

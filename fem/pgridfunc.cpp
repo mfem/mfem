@@ -487,7 +487,7 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 
 void ParGridFunction::Save(std::ostream &out) const
 {
-   double *data_  = const_cast<double*>(ReadAccess(false));
+   double *data_  = const_cast<double*>(HostRead());
    for (int i = 0; i < size; i++)
    {
       if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }

@@ -82,16 +82,15 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
     given MemoryType.
 
     Access to the content of the Memory object can be requested with any given
-    MemoryClass through the methods ReadWriteAccess(), ReadAccess(), and
-    WriteAccess(). Requesting such access may result in additional (internally
-    handled) memory allocation and/or memory copy.
-    * When ReadWriteAccess() is called, the returned pointer becomes the only
+    MemoryClass through the methods ReadWrite(), Read(), and Write().
+    Requesting such access may result in additional (internally handled)
+    memory allocation and/or memory copy.
+    * When ReadWrite() is called, the returned pointer becomes the only
       valid pointer.
-    * When ReadAccess() is called, the returned pointer becomes valid, however
+    * When Read() is called, the returned pointer becomes valid, however
       the other pointer (host or device) may remain valid as well.
-    * When WriteAccess() is called, the returned pointer becomes the only valid
-      pointer, however, unlike ReadWriteAccess(), no memory copy will be
-      performed.
+    * When Write() is called, the returned pointer becomes the only valid
+      pointer, however, unlike ReadWrite(), no memory copy will be performed.
 
     The host memory (pointer from MemoryClass::HOST) can be accessed through the
     inline methods: `operator[]()`, `operator*()`, the implicit conversion
@@ -127,7 +126,7 @@ protected:
    int capacity;
    mutable unsigned flags;
    // 'flags' is mutable so that it can be modified in Set{Host,Device}PtrOwner,
-   // Copy{From,To}, {ReadWrite,Read,Write}Access.
+   // Copy{From,To}, {ReadWrite,Read,Write}.
 
 public:
    /// Default constructor: no initialization.
@@ -321,22 +320,22 @@ public:
 
    /// Get read-write access to the memory with the given MemoryClass.
    /** If only read or only write access is needed, then the methods
-       ReadAccess() or WriteAccess() should be used instead of this method.
+       Read() or Write() should be used instead of this method.
 
        The parameter @a size must not exceed the Capacity(). */
-   inline T *ReadWriteAccess(MemoryClass mc, int size);
+   inline T *ReadWrite(MemoryClass mc, int size);
 
    /// Get read-only access to the memory with the given MemoryClass.
    /** The parameter @a size must not exceed the Capacity(). */
-   inline const T *ReadAccess(MemoryClass mc, int size) const;
+   inline const T *Read(MemoryClass mc, int size) const;
 
    /// Get write-only access to the memory with the given MemoryClass.
    /** The parameter @a size must not exceed the Capacity().
 
        The contents of the returned pointer is undefined, unless it was
-       validated by a previous call to ReadAccess() or ReadWriteAccess() with
+       validated by a previous call to Read() or ReadWrite() with
        the same MemoryClass. */
-   inline T *WriteAccess(MemoryClass mc, int size);
+   inline T *Write(MemoryClass mc, int size);
 
    /// Copy the host/device pointer validity flags from @a other to @a *this.
    /** This method synchronizes the pointer validity flags of two Memory objects
@@ -416,14 +415,14 @@ private:
 
    // Return a pointer to the memory identified by the host pointer h_ptr for
    // access with the given MemoryClass.
-   static void *ReadWriteAccess_(void *h_ptr, MemoryClass mc, std::size_t size,
-                                 unsigned &flags);
+   static void *ReadWrite_(void *h_ptr, MemoryClass mc, std::size_t size,
+                           unsigned &flags);
 
-   static const void *ReadAccess_(void *h_ptr, MemoryClass mc, std::size_t size,
-                                  unsigned &flags);
+   static const void *Read_(void *h_ptr, MemoryClass mc, std::size_t size,
+                            unsigned &flags);
 
-   static void *WriteAccess_(void *h_ptr, MemoryClass mc, std::size_t size,
-                             unsigned &flags);
+   static void *Write_(void *h_ptr, MemoryClass mc, std::size_t size,
+                       unsigned &flags);
 
    static void SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
                           size_t alias_size, unsigned base_flags,
@@ -599,7 +598,7 @@ inline Memory<T>::operator const U*() const
 }
 
 template <typename T>
-inline T *Memory<T>::ReadWriteAccess(MemoryClass mc, int size)
+inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
    if (!(flags & REGISTERED))
    {
@@ -608,11 +607,11 @@ inline T *Memory<T>::ReadWriteAccess(MemoryClass mc, int size)
                                MemoryType::HOST, flags & OWNS_HOST,
                                flags & ALIAS, flags);
    }
-   return (T*)MemoryManager::ReadWriteAccess_(h_ptr, mc, size*sizeof(T), flags);
+   return (T*)MemoryManager::ReadWrite_(h_ptr, mc, size*sizeof(T), flags);
 }
 
 template <typename T>
-inline const T *Memory<T>::ReadAccess(MemoryClass mc, int size) const
+inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
    if (!(flags & REGISTERED))
    {
@@ -621,12 +620,12 @@ inline const T *Memory<T>::ReadAccess(MemoryClass mc, int size) const
                                MemoryType::HOST, flags & OWNS_HOST,
                                flags & ALIAS, flags);
    }
-   return (const T *)MemoryManager::ReadAccess_(
+   return (const T *)MemoryManager::Read_(
              (void*)h_ptr, mc, size*sizeof(T), flags);
 }
 
 template <typename T>
-inline T *Memory<T>::WriteAccess(MemoryClass mc, int size)
+inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
    if (!(flags & REGISTERED))
    {
@@ -635,7 +634,7 @@ inline T *Memory<T>::WriteAccess(MemoryClass mc, int size)
                                MemoryType::HOST, flags & OWNS_HOST,
                                flags & ALIAS, flags);
    }
-   return (T*)MemoryManager::WriteAccess_(h_ptr, mc, size*sizeof(T), flags);
+   return (T*)MemoryManager::Write_(h_ptr, mc, size*sizeof(T), flags);
 }
 
 template <typename T>
