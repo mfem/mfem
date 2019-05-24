@@ -957,22 +957,20 @@ static __global__ void cuKernelMin(const int N, double *gdsr, const double *x)
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
 
+static Array<double> cuda_reduce_buf;
+
 static double cuVectorMin(const int N, const double *X)
 {
    const int tpb = MFEM_CUDA_BLOCKS;
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   const int bytes = min_sz*sizeof(double);
-   static double *h_min = NULL;
-   // FIXME: min_sz depends on N, so single allocation for h_min and gdsr is not
-   // sufficient for different N. Also, h_min and gdsr should be freed.
-   if (!h_min) { h_min = (double*)calloc(min_sz,sizeof(double)); }
-   static void *gdsr = NULL;
-   if (!gdsr) { CuMemAlloc(&gdsr, bytes); }
-   cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, X);
+   cuda_reduce_buf.SetSize(min_sz);
+   Memory<double> &buf = cuda_reduce_buf.GetMemory();
+   double *d_min = buf.WriteAccess(MemoryClass::CUDA, min_sz);
+   cuKernelMin<<<gridSize,blockSize>>>(N, d_min, X);
    MFEM_CUDA_CHECK(cudaGetLastError());
-   CuMemcpyDtoH(h_min, gdsr, bytes);
+   const double *h_min = buf.ReadAccess(MemoryClass::HOST, min_sz);
    double min = std::numeric_limits<double>::infinity();
    for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
    return min;
@@ -1006,32 +1004,16 @@ static __global__ void cuKernelDot(const int N, double *gdsr,
 
 static double cuVectorDot(const int N, const double *X, const double *Y)
 {
-   static int dot_block_sz = 0;
    const int tpb = MFEM_CUDA_BLOCKS;
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   const int bytes = dot_sz*sizeof(double);
-   static double *h_dot = NULL;
-   if (!h_dot or dot_block_sz!=dot_sz)
-   {
-      if (h_dot) { free(h_dot); }
-      h_dot = (double*)calloc(dot_sz,sizeof(double));
-   }
-   static void *gdsr = NULL;
-   if (!gdsr or dot_block_sz!=dot_sz)
-   {
-      if (gdsr) { CuMemFree(gdsr); }
-      CuMemAlloc(&gdsr,bytes);
-   }
-   if (dot_block_sz!=dot_sz)
-   {
-      dot_block_sz = dot_sz;
-   }
-   // FIXME: need to free h_dot and gdsr
-   cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, X, Y);
+   cuda_reduce_buf.SetSize(dot_sz);
+   Memory<double> &buf = cuda_reduce_buf.GetMemory();
+   double *d_dot = buf.WriteAccess(MemoryClass::CUDA, dot_sz);
+   cuKernelDot<<<gridSize,blockSize>>>(N, d_dot, X, Y);
    MFEM_CUDA_CHECK(cudaGetLastError());
-   CuMemcpyDtoH(h_dot, gdsr, bytes);
+   const double *h_dot = buf.ReadAccess(MemoryClass::HOST, dot_sz);
    double dot = 0.0;
    for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
    return dot;
