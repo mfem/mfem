@@ -1016,9 +1016,8 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
                << ", expected size = " << Height());
 
-   const bool on_dev = false;
-   auto x_data = x.ReadAccess(on_dev);
-   auto y_data = y.WriteAccess(on_dev);
+   auto x_data = x.HostRead();
+   auto y_data = y.HostWrite();
    if (X == NULL)
    {
       X = new HypreParVector(A->comm,
@@ -1049,9 +1048,8 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
 
    // Note: x has the dimensions of Y (height), and
    //       y has the dimensions of X (width)
-   const bool on_dev = false;
-   auto x_data = x.ReadAccess(on_dev);
-   auto y_data = y.WriteAccess(on_dev);
+   auto x_data = x.HostRead();
+   auto y_data = y.HostWrite();
    if (X == NULL)
    {
       X = new HypreParVector(A->comm,
@@ -2141,9 +2139,8 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
       return;
    }
-   const bool on_dev = false;
-   auto b_data = b.ReadAccess(on_dev);
-   auto x_data = x.WriteAccess(on_dev);
+   auto b_data = b.HostRead();
+   auto x_data = x.HostWrite();
    if (B == NULL)
    {
       B = new HypreParVector(A->GetComm(),
@@ -2268,9 +2265,8 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
       x = 0.0;
    }
 
-   const bool on_dev = false;
-   b.ReadAccess(on_dev);
-   x.ReadWriteAccess(on_dev);
+   b.HostRead();
+   x.HostReadWrite();
 
    HYPRE_ParCSRPCGSolve(pcg_solver, *A, b, x);
 

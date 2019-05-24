@@ -45,7 +45,7 @@ Vector::Vector(const Vector &v)
       size = 0;
       data.Reset();
    }
-   data.SetExecFlag(v.data.GetExecFlag());
+   UseDevice(v.UseDevice());
 }
 
 void Vector::Load(std::istream **in, int np, int *dim)
@@ -114,13 +114,13 @@ Vector &Vector::operator=(const Vector &v)
 #if 0
    SetSize(v.Size(), v.data.GetMemoryType());
    data.CopyFrom(v.data, v.Size());
-   data.SetExecFlag(v.data.GetExecFlag());
+   UseDevice(v.UseDevice());
 #else
    SetSize(v.Size());
-   const bool use_dev = data.GetExecFlag() || v.data.GetExecFlag();
-   v.data.SetExecFlag(use_dev);
+   const bool use_dev = UseDevice() || v.UseDevice();
+   v.UseDevice(use_dev);
    // keep 'data' where it is, unless 'use_dev' is true
-   if (use_dev) { WriteAccess(true); }
+   if (use_dev) { Write(true); }
    data.CopyFrom(v.data, v.Size());
 #endif
    return *this;
@@ -128,37 +128,37 @@ Vector &Vector::operator=(const Vector &v)
 
 Vector &Vector::operator=(double value)
 {
-   const bool use_dev = data.GetExecFlag();
+   const bool use_dev = UseDevice();
    const int N = size;
-   auto y = WriteAccess(use_dev);
+   auto y = Write(use_dev);
    MFEM_FORALL_IF(use_dev, i, N, y[i] = value;);
    return *this;
 }
 
 Vector &Vector::operator*=(double c)
 {
-   const bool use_dev = data.GetExecFlag();
+   const bool use_dev = UseDevice();
    const int N = size;
-   auto y = ReadWriteAccess(use_dev);
+   auto y = ReadWrite(use_dev);
    MFEM_FORALL_IF(use_dev, i, N, y[i] *= c;);
    return *this;
 }
 
 Vector &Vector::operator/=(double c)
 {
-   const bool use_dev = data.GetExecFlag();
+   const bool use_dev = UseDevice();
    const int N = size;
    const double m = 1.0/c;
-   auto y = ReadWriteAccess(use_dev);
+   auto y = ReadWrite(use_dev);
    MFEM_FORALL_IF(use_dev, i, N, y[i] *= m;);
    return *this;
 }
 
 Vector &Vector::operator-=(double c)
 {
-   const bool use_dev = data.GetExecFlag();
+   const bool use_dev = UseDevice();
    const int N = size;
-   auto y = ReadWriteAccess(use_dev);
+   auto y = ReadWrite(use_dev);
    MFEM_FORALL_IF(use_dev, i, N, y[i] -= c;);
    return *this;
 }
@@ -167,10 +167,10 @@ Vector &Vector::operator-=(const Vector &v)
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
-   const bool use_dev = data.GetExecFlag() || v.data.GetExecFlag();
+   const bool use_dev = UseDevice() || v.UseDevice();
    const int N = size;
-   auto y = ReadWriteAccess(use_dev);
-   auto x = v.ReadAccess(use_dev);
+   auto y = ReadWrite(use_dev);
+   auto x = v.Read(use_dev);
    MFEM_FORALL_IF(use_dev, i, N, y[i] -= x[i];);
    return *this;
 }
@@ -179,10 +179,10 @@ Vector &Vector::operator+=(const Vector &v)
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
-   const bool use_dev = data.GetExecFlag() || v.data.GetExecFlag();
+   const bool use_dev = UseDevice() || v.UseDevice();
    const int N = size;
-   auto y = ReadWriteAccess(use_dev);
-   auto x = v.ReadAccess(use_dev);
+   auto y = ReadWrite(use_dev);
+   auto x = v.Read(use_dev);
    MFEM_FORALL_IF(use_dev, i, N, y[i] += x[i];);
    return *this;
 }
@@ -194,9 +194,9 @@ Vector &Vector::Add(const double a, const Vector &Va)
    if (a != 0.0)
    {
       const int N = size;
-      const bool use_dev = data.GetExecFlag() || Va.data.GetExecFlag();
-      auto y = ReadWriteAccess(use_dev);
-      auto x = Va.ReadAccess(use_dev);
+      const bool use_dev = UseDevice() || Va.UseDevice();
+      auto y = ReadWrite(use_dev);
+      auto x = Va.Read(use_dev);
       MFEM_FORALL_IF(use_dev, i, N, y[i] += a * x[i];);
    }
    return *this;
@@ -206,10 +206,10 @@ Vector &Vector::Set(const double a, const Vector &Va)
 {
    MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
 
-   const bool use_dev = data.GetExecFlag() || Va.data.GetExecFlag();
+   const bool use_dev = UseDevice() || Va.UseDevice();
    const int N = size;
-   auto x = Va.ReadAccess(use_dev);
-   auto y = WriteAccess(use_dev);
+   auto x = Va.Read(use_dev);
+   auto y = Write(use_dev);
    MFEM_FORALL_IF(use_dev, i, N, y[i] = a * x[i];);
    return *this;
 }
@@ -229,9 +229,9 @@ void Vector::SetVector(const Vector &v, int offset)
 
 void Vector::Neg()
 {
-   const bool use_dev = data.GetExecFlag();
+   const bool use_dev = UseDevice();
    const int N = size;
-   auto y = ReadWriteAccess(use_dev);
+   auto y = ReadWrite(use_dev);
    MFEM_FORALL_IF(use_dev, i, N, y[i] = -y[i];);
 }
 
@@ -241,13 +241,12 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
                "incompatible Vectors!");
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-   const bool use_dev = v1.data.GetExecFlag() || v2.data.GetExecFlag() ||
-                        v.data.GetExecFlag();
+   const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
    const int N = v.size;
    // Note: get read access first, in case v is the same as v1/v2.
-   auto x1 = v1.ReadAccess(use_dev);
-   auto x2 = v2.ReadAccess(use_dev);
-   auto y = v.WriteAccess(use_dev);
+   auto x1 = v1.Read(use_dev);
+   auto x2 = v2.Read(use_dev);
+   auto y = v.Write(use_dev);
    MFEM_FORALL_IF(use_dev, i, N, y[i] = x1[i] + x2[i];);
 #else
    #pragma omp parallel for
@@ -274,13 +273,12 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
    else
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-      const bool use_dev = v1.data.GetExecFlag() || v2.data.GetExecFlag() ||
-                           v.data.GetExecFlag();
+      const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
       const int N = v.size;
       // Note: get read access first, in case v is the same as v1/v2.
-      auto d_x = v1.ReadAccess(use_dev);
-      auto d_y = v2.ReadAccess(use_dev);
-      auto d_z = v.WriteAccess(use_dev);
+      auto d_x = v1.Read(use_dev);
+      auto d_y = v2.Read(use_dev);
+      auto d_z = v.Write(use_dev);
       MFEM_FORALL_IF(use_dev, i, N, d_z[i] = d_x[i] + alpha * d_y[i];);
 #else
       const double *v1p = v1.data, *v2p = v2.data;
@@ -311,13 +309,12 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
    else
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-      const bool use_dev = x.data.GetExecFlag() || y.data.GetExecFlag() ||
-                           z.data.GetExecFlag();
+      const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
-      auto xd = x.ReadAccess(use_dev);
-      auto yd = y.ReadAccess(use_dev);
-      auto zd = z.WriteAccess(use_dev);
+      auto xd = x.Read(use_dev);
+      auto yd = y.Read(use_dev);
+      auto zd = z.Write(use_dev);
       MFEM_FORALL_IF(use_dev, i, N, zd[i] = a * (xd[i] + yd[i]););
 #else
       const double *xp = x.data;
@@ -364,13 +361,12 @@ void add(const double a, const Vector &x,
    else
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-      const bool use_dev = x.data.GetExecFlag() || y.data.GetExecFlag() ||
-                           z.data.GetExecFlag();
+      const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
-      auto xd = x.ReadAccess(use_dev);
-      auto yd = y.ReadAccess(use_dev);
-      auto zd = z.WriteAccess(use_dev);
+      auto xd = x.Read(use_dev);
+      auto yd = y.Read(use_dev);
+      auto zd = z.Write(use_dev);
       MFEM_FORALL_IF(use_dev, i, N, zd[i] = a * xd[i] + b * yd[i];);
 #else
       const double *xp = x.data;
@@ -392,13 +388,12 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
                "incompatible Vectors!");
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-   const bool use_dev = x.data.GetExecFlag() || y.data.GetExecFlag() ||
-                        z.data.GetExecFlag();
+   const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
    const int N = x.size;
    // Note: get read access first, in case z is the same as x/y.
-   auto xd = x.ReadAccess(use_dev);
-   auto yd = y.ReadAccess(use_dev);
-   auto zd = z.WriteAccess(use_dev);
+   auto xd = x.Read(use_dev);
+   auto yd = y.Read(use_dev);
+   auto zd = z.Write(use_dev);
    MFEM_FORALL_IF(use_dev, i, N, zd[i] = xd[i] - yd[i];);
 #else
    const double *xp = x.data;
@@ -429,13 +424,12 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
    else
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
-      const bool use_dev = x.data.GetExecFlag() || y.data.GetExecFlag() ||
-                           z.data.GetExecFlag();
+      const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
-      auto xd = x.ReadAccess(use_dev);
-      auto yd = y.ReadAccess(use_dev);
-      auto zd = z.WriteAccess(use_dev);
+      auto xd = x.Read(use_dev);
+      auto yd = y.Read(use_dev);
+      auto zd = z.Write(use_dev);
       MFEM_FORALL_IF(use_dev, i, N, zd[i] = a * (xd[i] - yd[i]););
 #else
       const double *xp = x.data;
@@ -456,13 +450,12 @@ void Vector::median(const Vector &lo, const Vector &hi)
    MFEM_ASSERT(size == lo.size && size == hi.size,
                "incompatible Vectors!");
 
-   const bool use_dev = data.GetExecFlag() || lo.data.GetExecFlag() ||
-                        hi.data.GetExecFlag();
+   const bool use_dev = UseDevice() || lo.UseDevice() || hi.UseDevice();
    const int N = size;
    // Note: get read access first, in case *this is the same as lo/hi.
-   auto l = lo.ReadAccess(use_dev);
-   auto h = hi.ReadAccess(use_dev);
-   auto m = WriteAccess(use_dev);
+   auto l = lo.Read(use_dev);
+   auto h = hi.Read(use_dev);
+   auto m = Write(use_dev);
    MFEM_FORALL_IF(use_dev, i, N,
    {
       if (m[i] < l[i])
@@ -488,11 +481,10 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
    elemvect.SetSize(n);
 
 #ifdef MFEM_USE_SUBVECTOR_KERNELS
-   const bool use_dev = dofs.GetMemory().GetExecFlag() ||
-                        elemvect.data.GetExecFlag();
-   auto d_y = elemvect.WriteAccess(use_dev);
-   auto d_X = ReadAccess(use_dev);
-   auto d_dofs = dofs.ReadAccess(use_dev);
+   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
+   auto d_y = elemvect.Write(use_dev);
+   auto d_X = Read(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
    MFEM_FORALL_IF(use_dev, i, n,
    {
       const int dof_i = d_dofs[i];
@@ -509,7 +501,7 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 
 void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 {
-   data.ReadAccess(MemoryClass::HOST, size);
+   data.Read(MemoryClass::HOST, size);
    const int n = dofs.Size();
    for (int i = 0; i < n; i++)
    {
@@ -521,11 +513,11 @@ void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 void Vector::SetSubVector(const Array<int> &dofs, const double value)
 {
 #ifdef MFEM_USE_SUBVECTOR_KERNELS
-   const bool use_dev = dofs.GetMemory().GetExecFlag();
+   const bool use_dev = dofs.UseDevice();
    const int n = dofs.Size();
    // Use read+write access for *this - we only modify some of its entries
-   auto d_X = ReadWriteAccess(use_dev);
-   auto d_dofs = dofs.ReadAccess(use_dev);
+   auto d_X = ReadWrite(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
    MFEM_FORALL_IF(use_dev, i, n,
    {
       const int j = d_dofs[i];
@@ -562,13 +554,12 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
                << ", length of elemvect is " << elemvect.Size());
 
 #ifdef MFEM_USE_SUBVECTOR_KERNELS
-   const bool use_dev = dofs.GetMemory().GetExecFlag() ||
-                        elemvect.data.GetExecFlag();
+   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
    const int n = dofs.Size();
    // Use read+write access for X - we only modify some of its entries
-   auto d_X = ReadWriteAccess(use_dev);
-   auto d_y = elemvect.ReadAccess(use_dev);
-   auto d_dofs = dofs.ReadAccess(use_dev);
+   auto d_X = ReadWrite(use_dev);
+   auto d_y = elemvect.Read(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
    MFEM_FORALL_IF(use_dev, i, n,
    {
       const int dof_i = d_dofs[i];
@@ -601,7 +592,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 {
    // Use read+write access because we overwrite only part of the data.
-   data.ReadWriteAccess(MemoryClass::HOST, size);
+   data.ReadWrite(MemoryClass::HOST, size);
    const int n = dofs.Size();
    for (int i = 0; i < n; i++)
    {
@@ -624,12 +615,11 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
                ", length of elemvect is " << elemvect.Size());
 
 #ifdef MFEM_USE_SUBVECTOR_KERNELS
-   const bool use_dev = dofs.GetMemory().GetExecFlag() ||
-                        elemvect.data.GetExecFlag();
+   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
    const int n = dofs.Size();
-   auto d_y = elemvect.ReadAccess(use_dev);
-   auto d_X = ReadWriteAccess(use_dev);
-   auto d_dofs = dofs.ReadAccess(use_dev);
+   auto d_y = elemvect.Read(use_dev);
+   auto d_X = ReadWrite(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
    MFEM_FORALL_IF(use_dev, i, n,
    {
       const int j = d_dofs[i];
@@ -661,7 +651,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 
 void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 {
-   data.ReadWriteAccess(MemoryClass::HOST, size);
+   data.ReadWrite(MemoryClass::HOST, size);
    const int n = dofs.Size();
    for (int i = 0; i < n; i++)
    {
@@ -684,12 +674,11 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
 #ifdef MFEM_USE_SUBVECTOR_KERNELS
-   const bool use_dev = dofs.GetMemory().GetExecFlag() ||
-                        elemvect.data.GetExecFlag();
+   const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
    const int n = dofs.Size();
-   auto d_y = ReadWriteAccess(use_dev);
-   auto d_x = elemvect.ReadAccess(use_dev);
-   auto d_dofs = dofs.ReadAccess(use_dev);
+   auto d_y = ReadWrite(use_dev);
+   auto d_x = elemvect.Read(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
    MFEM_FORALL_IF(use_dev, i, n,
    {
       const int j = d_dofs[i];
@@ -721,13 +710,13 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
 
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 {
-   const bool use_dev = data.GetExecFlag() || dofs.GetMemory().GetExecFlag();
+   const bool use_dev = UseDevice() || dofs.UseDevice();
    const int n = dofs.Size();
    const int N = size;
    Vector dofs_vals(n, use_dev ? Device::GetMemoryType() : MemoryType::HOST);
-   auto d_data = ReadWriteAccess(use_dev);
-   auto d_dofs_vals = dofs_vals.WriteAccess(use_dev);
-   auto d_dofs = dofs.ReadAccess(use_dev);
+   auto d_data = ReadWrite(use_dev);
+   auto d_dofs_vals = dofs_vals.Write(use_dev);
+   auto d_dofs = dofs.Read(use_dev);
    MFEM_FORALL_IF(use_dev, i, n, d_dofs_vals[i] = d_data[d_dofs[i]];);
    MFEM_FORALL_IF(use_dev, i, N, d_data[i] = val;);
    MFEM_FORALL_IF(use_dev, i, n, d_data[d_dofs[i]] = d_dofs_vals[i];);
@@ -736,7 +725,7 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 void Vector::Print(std::ostream &out, int width) const
 {
    if (!size) { return; }
-   data.ReadAccess(MemoryClass::HOST, size);
+   data.Read(MemoryClass::HOST, size);
    for (int i = 0; 1; )
    {
       out << data[i];
@@ -766,7 +755,7 @@ void Vector::Print_HYPRE(std::ostream &out) const
 
    out << size << '\n';  // number of rows
 
-   data.ReadAccess(MemoryClass::HOST, size);
+   data.Read(MemoryClass::HOST, size);
    for (i = 0; i < size; i++)
    {
       out << data[i] << '\n';
@@ -967,10 +956,10 @@ static double cuVectorMin(const int N, const double *X)
    const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    cuda_reduce_buf.SetSize(min_sz);
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
-   double *d_min = buf.WriteAccess(MemoryClass::CUDA, min_sz);
+   double *d_min = buf.Write(MemoryClass::CUDA, min_sz);
    cuKernelMin<<<gridSize,blockSize>>>(N, d_min, X);
    MFEM_CUDA_CHECK(cudaGetLastError());
-   const double *h_min = buf.ReadAccess(MemoryClass::HOST, min_sz);
+   const double *h_min = buf.Read(MemoryClass::HOST, min_sz);
    double min = std::numeric_limits<double>::infinity();
    for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
    return min;
@@ -1010,10 +999,10 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    cuda_reduce_buf.SetSize(dot_sz);
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
-   double *d_dot = buf.WriteAccess(MemoryClass::CUDA, dot_sz);
+   double *d_dot = buf.Write(MemoryClass::CUDA, dot_sz);
    cuKernelDot<<<gridSize,blockSize>>>(N, d_dot, X, Y);
    MFEM_CUDA_CHECK(cudaGetLastError());
-   const double *h_dot = buf.ReadAccess(MemoryClass::HOST, dot_sz);
+   const double *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
    double dot = 0.0;
    for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
    return dot;
@@ -1024,13 +1013,13 @@ double Vector::operator*(const Vector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
-   const bool use_dev = data.GetExecFlag() || v.data.GetExecFlag();
+   const bool use_dev = UseDevice() || v.UseDevice();
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_OPENMP)
-   auto m_data = ReadAccess(use_dev);
+   auto m_data = Read(use_dev);
 #else
-   ReadAccess(use_dev);
+   Read(use_dev);
 #endif
-   auto v_data = v.ReadAccess(use_dev);
+   auto v_data = v.Read(use_dev);
 
    if (!use_dev) { goto vector_dot_cpu; }
 
@@ -1070,8 +1059,8 @@ double Vector::Min() const
 {
    if (size == 0) { return infinity(); }
 
-   const bool use_dev = data.GetExecFlag();
-   auto m_data = ReadAccess(use_dev);
+   const bool use_dev = UseDevice();
+   auto m_data = Read(use_dev);
 
    if (!use_dev) { goto vector_min_cpu; }
 

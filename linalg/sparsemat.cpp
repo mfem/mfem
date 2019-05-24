@@ -544,7 +544,7 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
 
 void SparseMatrix::Mult(const Vector &x, Vector &y) const
 {
-   if (Finalized()) { y.UseDevice(); }
+   if (Finalized()) { y.UseDevice(true); }
    y = 0.0;
    AddMult(x, y);
 }
@@ -579,11 +579,11 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 #ifndef MFEM_USE_LEGACY_OPENMP
    const int height = this->height;
    const int nnz = J.Capacity();
-   auto d_I = ReadAccess(I, height+1);
-   auto d_J = ReadAccess(J, nnz);
-   auto d_A = ReadAccess(A, nnz);
-   auto d_x = x.ReadAccess();
-   auto d_y = y.ReadWriteAccess();
+   auto d_I = Read(I, height+1);
+   auto d_J = Read(J, nnz);
+   auto d_A = Read(A, nnz);
+   auto d_x = x.Read();
+   auto d_y = y.ReadWrite();
    MFEM_FORALL(i, height,
    {
       double d = 0.0;
@@ -615,7 +615,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
 void SparseMatrix::MultTranspose(const Vector &x, Vector &y) const
 {
-   if (Finalized()) { y.UseDevice(); }
+   if (Finalized()) { y.UseDevice(true); }
    y = 0.0;
    AddMultTranspose(x, y);
 }
@@ -684,17 +684,15 @@ void SparseMatrix::PartMult(
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
-   // const bool use_dev = rows.GetMemory().GetExecFlag();
-   const bool use_dev = true;
    const int n = rows.Size();
    const int nnz = J.Capacity();
-   auto d_rows = rows.ReadAccess(use_dev);
-   auto d_I = ReadAccess(I, height+1, use_dev);
-   auto d_J = ReadAccess(J, nnz, use_dev);
-   auto d_A = ReadAccess(A, nnz, use_dev);
-   auto d_x = x.ReadAccess(use_dev);
-   auto d_y = y.WriteAccess(use_dev);
-   MFEM_FORALL_IF(use_dev, i, n,
+   auto d_rows = rows.Read();
+   auto d_I = Read(I, height+1);
+   auto d_J = Read(J, nnz);
+   auto d_A = Read(A, nnz);
+   auto d_x = x.Read();
+   auto d_y = y.Write();
+   MFEM_FORALL(i, n,
    {
       const int r = d_rows[i];
       const int end = d_I[r + 1];
@@ -735,10 +733,10 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
 
    const int height = Height();
    const int nnz = J.Capacity();
-   auto d_I = ReadAccess(I, height+1);
-   auto d_J = ReadAccess(J, nnz);
-   auto d_x = ReadAccess(x.GetMemory(), x.Size());
-   auto d_y = WriteAccess(y.GetMemory(), y.Size());
+   auto d_I = Read(I, height+1);
+   auto d_J = Read(J, nnz);
+   auto d_x = Read(x.GetMemory(), x.Size());
+   auto d_y = Write(y.GetMemory(), y.Size());
    MFEM_FORALL(i, height,
    {
       bool d_yi = false;
@@ -785,15 +783,14 @@ double SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
    MFEM_ASSERT(y.Size() == Height(), "y.Size() = " << y.Size()
                << " must be equal to Height() = " << Height());
 
-   const bool on_dev = false;
-   x.ReadAccess(on_dev);
-   y.ReadAccess(on_dev);
+   x.HostRead();
+   y.HostRead();
    if (Finalized())
    {
       const int nnz = J.Capacity();
-      ReadAccess(I, height+1, on_dev);
-      ReadAccess(J, nnz, on_dev);
-      ReadAccess(A, nnz, on_dev);
+      HostRead(I, height+1);
+      HostRead(J, nnz);
+      HostRead(A, nnz);
    }
 
    double prod = 0.0;
@@ -1918,14 +1915,13 @@ void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
    }
    else
    {
-      const bool on_dev = false;
       const int s = height;
       const int nnz = J.Capacity();
-      const int *Ip = ReadAccess(I, s+1, on_dev);
-      const int *Jp = ReadAccess(J, nnz, on_dev);
-      const double *Ap = ReadAccess(A, nnz, on_dev);
-      double *yp = y.ReadWriteAccess(on_dev);
-      const double *xp = x.ReadAccess(on_dev);
+      const int *Ip = HostRead(I, s+1);
+      const int *Jp = HostRead(J, nnz);
+      const double *Ap = HostRead(A, nnz);
+      double *yp = y.HostReadWrite();
+      const double *xp = x.HostRead();
 
       for (int i = 0, j = Ip[0]; i < s; i++)
       {
@@ -2002,14 +1998,13 @@ void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
    }
    else
    {
-      const bool on_dev = false;
       const int s = height;
       const int nnz = J.Capacity();
-      const int *Ip = ReadAccess(I, s+1, on_dev);
-      const int *Jp = ReadAccess(J, nnz, on_dev);
-      const double *Ap = ReadAccess(A, nnz, on_dev);
-      double *yp = y.ReadWriteAccess(on_dev);
-      const double *xp = x.ReadAccess(on_dev);
+      const int *Ip = HostRead(I, s+1);
+      const int *Jp = HostRead(J, nnz);
+      const double *Ap = HostRead(A, nnz);
+      double *yp = y.HostReadWrite();
+      const double *xp = x.HostRead();
 
       for (int i = s-1, j = Ip[s]-1; i >= 0; i--)
       {

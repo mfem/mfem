@@ -83,7 +83,10 @@ public:
 
        Some derived classes, e.g. GridFunction, enable the use of the
        mfem::Device by default. */
-   void UseDevice(bool use_dev = true) const { data.SetExecFlag(use_dev); }
+   void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
+
+   /// Return the device flag of the Memory object used by the Vector
+   bool UseDevice() const { return data.UseDevice(); }
 
    /// Reads a vector from multiple files
    void Load(std::istream ** in, int np, int * dim);
@@ -174,7 +177,11 @@ public:
    const Memory<double> &GetMemory() const { return data; }
 
    /// Update the memory location of the vector to match @a v.
-   void SyncMemory(const Vector &v) { GetMemory().SyncWith(v.GetMemory()); }
+   void SyncMemory(const Vector &v) { GetMemory().Sync(v.GetMemory()); }
+
+   /// Update the alias memory location of the vector to match @a v.
+   void SyncAliasMemory(const Vector &v)
+   { GetMemory().SyncAlias(v.GetMemory(),Size()); }
 
    /// Update the memory location of the vector to match @a v.
    void SyncAlias(const Vector &v) { GetMemory().SyncAliasToBase(v.GetMemory(),Size()); }
@@ -318,17 +325,29 @@ public:
    /// Destroys vector.
    virtual ~Vector();
 
-   /// Shortcut for mfem::ReadAccess(vec.GetMemory(), vec.Size(), on_dev).
-   const double *ReadAccess(bool on_dev = true) const
-   { return mfem::ReadAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), on_dev).
+   const double *Read(bool on_dev = true) const
+   { return mfem::Read(data, size, on_dev); }
 
-   /// Shortcut for mfem::WriteAccess(vec.GetMemory(), vec.Size(), on_dev).
-   double *WriteAccess(bool on_dev = true)
-   { return mfem::WriteAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), false).
+   const double *HostRead() const
+   { return mfem::Read(data, size, false); }
 
-   /// Shortcut for mfem::ReadWriteAccess(vec.GetMemory(), vec.Size(), on_dev).
-   double *ReadWriteAccess(bool on_dev = true)
-   { return mfem::ReadWriteAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), on_dev).
+   double *Write(bool on_dev = true)
+   { return mfem::Write(data, size, on_dev); }
+
+   /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), false).
+   double *HostWrite()
+   { return mfem::Write(data, size, false); }
+
+   /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), on_dev).
+   double *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(data, size, on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), false).
+   double *HostReadWrite()
+   { return mfem::ReadWrite(data, size, false); }
 
 #ifdef MFEM_USE_SUNDIALS
    /// Construct a wrapper Vector from SUNDIALS N_Vector.
@@ -392,13 +411,13 @@ inline void Vector::SetSize(int s)
       size = s;
       return;
    }
-   // preserve a valid MemoryType and exec flag
+   // preserve a valid MemoryType and device flag
    const MemoryType mt = data.GetMemoryType();
-   const bool exec = data.GetExecFlag();
+   const bool use_dev = data.UseDevice();
    data.Delete();
    size = s;
    data.New(s, mt);
-   data.SetExecFlag(exec);
+   data.UseDevice(use_dev);
 }
 
 inline void Vector::SetSize(int s, MemoryType mt)
@@ -415,7 +434,7 @@ inline void Vector::SetSize(int s, MemoryType mt)
          return;
       }
    }
-   const bool exec = data.GetExecFlag();
+   const bool use_dev = data.UseDevice();
    data.Delete();
    if (s > 0)
    {
@@ -427,7 +446,7 @@ inline void Vector::SetSize(int s, MemoryType mt)
       data.Reset();
       size = 0;
    }
-   data.SetExecFlag(exec);
+   data.UseDevice(use_dev);
 }
 
 inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
@@ -441,11 +460,11 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
 
 inline void Vector::Destroy()
 {
-   const bool exec = data.GetExecFlag();
+   const bool use_dev = data.UseDevice();
    data.Delete();
    size = 0;
    data.Reset();
-   data.SetExecFlag(exec);
+   data.UseDevice(use_dev);
 }
 
 inline double &Vector::operator()(int i)
