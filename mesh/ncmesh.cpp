@@ -2821,6 +2821,11 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
 
          CollectQuadFaceVertices(v0, mid[0], mid[2], v3, indices);
          CollectQuadFaceVertices(mid[0], v1, v2, mid[2], indices);
+
+         if (HavePrisms())
+         {
+            CollectEdgeVertices(mid[0], mid[2], indices);
+         }
          break;
 
       case 2:
@@ -2829,6 +2834,11 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
 
          CollectQuadFaceVertices(v0, v1, mid[1], mid[3], indices);
          CollectQuadFaceVertices(mid[3], mid[1], v2, v3, indices);
+
+         if (HavePrisms())
+         {
+            CollectEdgeVertices(mid[1], mid[3], indices);
+         }
          break;
    }
 }
