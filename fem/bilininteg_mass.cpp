@@ -229,7 +229,7 @@ static void PAMassApply2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // compile time evaluated variables
+      // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
       double sol_xy[max_Q1D][max_Q1D];
