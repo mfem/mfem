@@ -13,11 +13,12 @@ using namespace std;
 //#define EQUATE_REDUNDANT_VARS
 
 #define SPARSE_ASDCOMPLEX
+#define HYPRE_PARALLEL_ASDCOMPLEX
 
 #define PENALTY_U_S 0.0
 
 //#define SIGMAVAL -250.0
-#define SIGMAVAL -10.0
+#define SIGMAVAL -2.0
 
 
 void test1_E_exact(const Vector &x, Vector &E)
@@ -321,9 +322,9 @@ SparseMatrix* ReceiveSparseMatrix(const int source)
 	}
     }
 
-  delete I;
-  delete J;
-  delete data;
+  delete[] I;
+  delete[] J;
+  delete[] data;
 
   S->Finalize();
 
@@ -346,8 +347,9 @@ void SendSparseMatrix(SparseMatrix *S, const int dest)
 
 // We assume here that the sparsity structure of the interface matrix I is contained in that of the subdomain matrix A.
 // We simply add entries from I to existing entries of A. The constant cI times the interface identity matrix is added.
-HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(HypreParMatrix *A, HypreParMatrix *I, std::vector<int> & inj,
-						     ParFiniteElementSpace *ifespace, const double cI)
+HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMatrix *A, HypreParMatrix *I, std::vector<int> & inj,
+						     ParFiniteElementSpace *ifespace, ParFiniteElementSpace *ifespace2=NULL,
+						     const bool adding=true, const double cI=0.0, const double cA=1.0)
 {
   // inj maps from full local interface DOF's to local true DOF's in the subdomain. 
 
@@ -358,7 +360,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(HypreParMatrix *A, HyprePar
     {
       globalI = GatherHypreParMatrix(I);
 
-      if (globalI != NULL)
+      if (globalI != NULL && cI != 0.0)
 	{
 	  for (int i=0; i<globalI->Size(); ++i)
 	    {
@@ -439,27 +441,35 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(HypreParMatrix *A, HyprePar
   // First cast the matrix A to a hypre_ParCSRMatrix
   //hypre_ParCSRMatrix * A_parcsr_op = (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*A);
 
-  HypreParMatrix *Acopy = A;  // TODO: make a copy of A
-  //HypreParMatrix Acopy(A_parcsr_op);
+  HypreParMatrix *Acopy = NULL;
+  hypre_CSRMatrix * csr_op = NULL;
   
-  hypre_ParCSRMatrix * parcsr_op = (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Acopy);
+  if (adding)
+    {
+      Acopy = A;  // TODO: make a copy of A?
+      //HypreParMatrix Acopy(A_parcsr_op);
   
-  MFEM_ASSERT(parcsr_op != NULL,"STRUMPACK: const_cast failed in SetOperator");
+      hypre_ParCSRMatrix * parcsr_op = (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Acopy);
+  
+      MFEM_ASSERT(parcsr_op != NULL,"STRUMPACK: const_cast failed in SetOperator");
 
-  // Create the CSRMatrixMPI A_ by borrowing the internal data from a hypre_CSRMatrix.
-  hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
+      // Create the CSRMatrixMPI A_ by borrowing the internal data from a hypre_CSRMatrix.
+      csr_op = hypre_MergeDiagAndOffd(parcsr_op);
 
-  cout << rank << ": num rows " << csr_op->num_rows << ", RP0 " << A->RowPart()[0] << ", RP1 " << A->RowPart()[1] << endl;
+      cout << rank << ": num rows " << csr_op->num_rows << ", RP0 " << A->RowPart()[0] << ", RP1 " << A->RowPart()[1] << endl;
 
-  if (A != NULL)
-    MFEM_VERIFY(csr_op->num_rows == A->RowPart()[1] - A->RowPart()[0], "");
+      if (A != NULL)
+	MFEM_VERIFY(csr_op->num_rows == A->RowPart()[1] - A->RowPart()[0], "");
+    }
   
   // Create map from local true interface DOF's to local full interface DOF's. Composing inj with that map takes indices
   // from the local rows of the global interface matrix to local true DOF's in the subdomain. Gathering the result over
   // all processes yields a map from all global interface DOF's to global true subdomain DOF's.
   
   const int iftsize = (ifespace == NULL) ? 0 : ifespace->GetTrueVSize();
+  const int iftsize2 = (ifespace2 == NULL) ? 0 : ifespace2->GetTrueVSize();
   const int ifullsize = (ifespace == NULL) ? 0 : ifespace->GetVSize();
+  const int ifullsize2 = (ifespace2 == NULL) ? 0 : ifespace2->GetVSize();
 
   int *ifullsdt = (ifullsize > 0) ? new int[ifullsize] : NULL;  // interface full to subdomain true DOF map, well-defined as the max of inj over all processes.
 
@@ -510,11 +520,17 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(HypreParMatrix *A, HyprePar
   MPI_Allreduce(ifgtsdt, maxifgtsdt, alligsize, MPI_INT, MPI_MAX, MPI_COMM_WORLD);  // TODO: can this be done in place?
   
   int *iftfull = (iftsize > 0) ? new int[iftsize] : NULL;
+  int *iftfull2 = (iftsize2 > 0) ? new int[iftsize2] : NULL;
   int *iftsdt = (iftsize > 0) ? new int[iftsize] : NULL;  // interface true to subdomain true DOF map
 
   for (int i=0; i<iftsize; ++i)
     {
       iftfull[i] = -1;
+    }
+  
+  for (int i=0; i<iftsize2; ++i)
+    {
+      iftfull2[i] = -1;
     }
   
   count = 0;
@@ -533,6 +549,19 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(HypreParMatrix *A, HyprePar
 
   MFEM_VERIFY(count == iftsize, "");
 
+  count = 0;
+  for (int i=0; i<ifullsize2; ++i)
+    {
+      const int ltdof = ifespace2->GetLocalTDofNumber(i);
+      if (ltdof >= 0)
+	{
+	  iftfull2[ltdof] = i;
+	  count++;
+	}
+    }
+
+  MFEM_VERIFY(count == iftsize2, "");
+
   for (int i=0; i<iftsize; ++i)
     {
       MFEM_VERIFY(iftfull[i] >= 0, "");
@@ -540,7 +569,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(HypreParMatrix *A, HyprePar
       iftsdt[i] = ifullsdt[iftfull[i]];  // well-defined
     }
 
-  if (globalI != NULL && A != NULL) // Add values from globalI to the local rows of csr_op
+  if (globalI != NULL && A != NULL && adding) // Add values from globalI to the local rows of csr_op
     {
       MFEM_VERIFY(globalI->Size() == igsize, "");
 
@@ -564,7 +593,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(HypreParMatrix *A, HyprePar
 		  int colid = -1;
 		  for (int l=csr_op->i[ltsd]; l<csr_op->i[ltsd+1]; ++l)
 		    {
-		      if (sdcol == csr_op->j[l])
+		      if (sdcol == csr_op->j[l])  // TODO: sdcol is local, j is global, so there should be an offset added to j[l].
 			colid = l;
 		    }
 
@@ -579,30 +608,224 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(HypreParMatrix *A, HyprePar
       MFEM_VERIFY(allEntriesFound, "");
     }
 
-  const int size = A->GetGlobalNumRows();
-  HypreParMatrix *S = new HypreParMatrix(A->GetComm(), csr_op->num_rows, size, size, csr_op->i, csr_op->j, csr_op->data, Acopy->RowPart(), Acopy->ColPart());
+  HypreParMatrix *S = NULL;
+
+  if (A != NULL)
+    {
+      if (adding)
+	{
+	  const int size = A->GetGlobalNumRows();
+	  S = new HypreParMatrix(A->GetComm(), csr_op->num_rows, size, size, csr_op->i, csr_op->j, csr_op->data, Acopy->RowPart(), Acopy->ColPart());
+	}
+      else if (globalI != NULL)
+	{
+	  // Create new sparse matrix of size ncols(I) x nrows(A)
+
+	  MFEM_VERIFY(globalI->Height() == igsize, "");
+
+	  const bool mixed = (ifespace2 != NULL);  // interface matrix I is in the mixed space (ifespace, ifespace2)
+
+	  const int numLocRows = mixed ? iftsize2 : iftsize;
+
+	  SparseMatrix *globalI_tr = mixed ? Transpose(*globalI) : NULL;  // not the most efficient implementation, to avoid premature optimization.
+
+	  SparseMatrix *globalImat = mixed ? globalI_tr : globalI;  // In the non-mixed case, globalI is assumed to be symmetric, so no transpose is needed.
+	  
+	  MFEM_VERIFY(numLocRows > 0, "");
+	  
+	  int *SI = new int[numLocRows + 1];
+	  SI[0] = 0;
+	  
+	  for (int i=0; i<numLocRows; ++i)  // Loop over interface true DOF's, which correspond to local rows of S.
+	    {
+	      const HYPRE_Int gtdof = mixed ? ifespace2->GetGlobalTDofNumber(iftfull2[i]) : ifespace->GetGlobalTDofNumber(iftfull[i]);
+	      SI[i+1] = SI[i] + globalImat->GetI()[gtdof+1] - globalImat->GetI()[gtdof];  // local offsets to rows
+	    }
+
+	  const HYPRE_Int nnz = SI[numLocRows];
+	  HYPRE_Int *SJ = new HYPRE_Int[nnz];
+	  double *Sdata = new double[nnz];
+	  
+	  HYPRE_Int cnt = 0;
+	  for (int i=0; i<numLocRows; ++i)  // Loop over interface true DOF's, which correspond to local rows of S.
+	    {
+	      const HYPRE_Int gtdof = mixed ? ifespace2->GetGlobalTDofNumber(iftfull2[i]) : ifespace->GetGlobalTDofNumber(iftfull[i]);
+	      for (int k=globalImat->GetI()[gtdof]; k<globalImat->GetI()[gtdof+1]; ++k, ++cnt)  // Copy values in row gtdof of globalImat to values in local row i of S.
+		{
+		  SJ[cnt] = globalImat->GetJ()[k];
+		  Sdata[cnt] = globalImat->GetData()[k];
+		}
+	    }
+
+	  MFEM_VERIFY(nnz == cnt, "");
+	  
+	  S = new HypreParMatrix(ifcomm, numLocRows, globalI->Width(), A->GetGlobalNumRows(), SI, SJ, Sdata, I->ColPart(), A->RowPart());
+
+	  if (globalI_tr)
+	    delete globalI_tr;
+	  
+	  delete[] SI;
+	  delete[] SJ;
+	  delete[] Sdata;
+	}
+    }
   
   if (iftfull)
-    delete iftfull;
+    delete[] iftfull;
 
   if (iftsdt)
-    delete iftsdt;
+    delete[] iftsdt;
 
   if (ifgtsdt)
-    delete ifgtsdt;
+    delete[] ifgtsdt;
 
   if (maxifgtsdt)
-    delete maxifgtsdt;
+    delete[] maxifgtsdt;
 
   if (ifullsdt)
-    delete ifullsdt;
+    delete[] ifullsdt;
 
   if (globalI)
     delete globalI;
 
-  delete allg;
+  delete[] allg;
   
   return S;
+}
+
+// Row and column offsets are assumed to be the same.
+HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& offsets, Array2D<HypreParMatrix*> const& blocks,
+					       Array2D<double> const& coefficient)
+{
+  const int numBlocks = offsets.Size() - 1;
+  
+  const int num_loc_rows = offsets[numBlocks];
+
+  int nprocs, rank;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &nprocs);
+
+  std::vector<int> all_num_loc_rows(nprocs);
+
+  MPI_Allgather(&num_loc_rows, 1, MPI_INT, all_num_loc_rows.data(), 1, MPI_INT, comm);
+
+  int first_loc_row = 0;
+  int glob_nrows = 0;
+  for (int i=0; i<nprocs; ++i)
+    {
+      glob_nrows += all_num_loc_rows[i];
+      if (i < rank)
+	first_loc_row += all_num_loc_rows[i];
+    }
+    
+  const int glob_ncols = glob_nrows;
+
+  std::vector<int> opI(num_loc_rows+1);
+  std::vector<int> cnt(num_loc_rows);
+
+  for (int i=0; i<num_loc_rows; ++i)
+    {
+      opI[i] = 0;
+      cnt[i] = 0;
+    }
+
+  opI[num_loc_rows] = 0;
+  
+  Array2D<hypre_CSRMatrix*> csr_blocks(numBlocks, numBlocks);
+  
+  // Loop over all blocks, to determine nnz for each row.
+  for (int i=0; i<numBlocks; ++i)
+    {
+      for (int j=0; j<numBlocks; ++j)
+	{
+	  if (blocks(i, j) == NULL)
+	    {
+	      csr_blocks(i, j) = NULL;
+	    }
+	  else
+	    {
+	      csr_blocks(i, j) = GetHypreParMatrixData(*(blocks(i, j)));
+
+	      const int nrows = csr_blocks(i, j)->num_rows;
+
+	      for (int k=0; k<nrows; ++k)
+		{
+		  const int rowg = offsets[i] + k;
+		  //(*(leftInjection(i, j)))[k]
+		  opI[rowg + 1] += csr_blocks(i, j)->i[k+1] - csr_blocks(i, j)->i[k];
+		}
+	    }
+	}
+    }
+
+  // Now opI[i] is nnz for row i-1. Do a partial sum to get offsets.
+  for (int i=0; i<num_loc_rows; ++i)
+    opI[i+1] += opI[i];
+
+  const int nnz = opI[num_loc_rows];
+
+  std::vector<HYPRE_Int> opJ(nnz);
+  std::vector<double> data(nnz);
+
+  // Loop over all blocks, to set matrix data.
+  for (int i=0; i<numBlocks; ++i)
+    {
+      for (int j=0; j<numBlocks; ++j)
+	{
+	  if (csr_blocks(i, j) != NULL)
+	    {
+	      const int nrows = csr_blocks(i, j)->num_rows;
+	      const double coef = coefficient(i, j);
+	      
+	      MFEM_VERIFY(nrows == offsets[i+1] - offsets[i], "");
+	      
+	      for (int k=0; k<nrows; ++k)
+		{
+		  const int rowg = offsets[i] + k;
+		  const int nnz_k = csr_blocks(i, j)->i[k+1] - csr_blocks(i, j)->i[k];
+		  const int osk = csr_blocks(i, j)->i[k];
+		  
+		  for (int l=0; l<nnz_k; ++l)
+		    {
+		      const int colg = offsets[j] + csr_blocks(i, j)->j[osk + l];
+
+		      opJ[opI[rowg] + cnt[rowg]] = colg;
+		      data[opI[rowg] + cnt[rowg]] = coef * csr_blocks(i, j)->data[osk + l];
+		      cnt[rowg]++;
+		    }
+		}
+	    }
+	}
+    }
+
+  bool cntCheck = true;
+  for (int i=0; i<num_loc_rows; ++i)
+    {
+      if (cnt[i] != opI[i+1] - opI[i])
+	cntCheck = false;
+    }
+
+  MFEM_VERIFY(cntCheck, "");
+
+  for (int i=0; i<numBlocks; ++i)
+    {
+      for (int j=0; j<numBlocks; ++j)
+	{
+	  if (csr_blocks(i, j) != NULL)
+	    {
+	      hypre_CSRMatrixDestroy(csr_blocks(i, j));
+	    }
+	}
+    }
+  
+  std::vector<HYPRE_Int> rowStarts2(2);
+  rowStarts2[0] = first_loc_row;
+  rowStarts2[1] = first_loc_row + all_num_loc_rows[rank];
+
+  HypreParMatrix *hmat = new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols, (int*) opI.data(), (HYPRE_Int*) opJ.data(), (double*) data.data(),
+					    (HYPRE_Int*) rowStarts2.data(), (HYPRE_Int*) rowStarts2.data());
+  
+  return hmat;
 }
 
 Operator* CreateStrumpackMatrixFromHypreBlocks(MPI_Comm comm, const Array<int> & offsets, const Array2D<HypreParMatrix*> & blocks,
@@ -631,7 +854,7 @@ Operator* CreateStrumpackMatrixFromHypreBlocks(MPI_Comm comm, const Array<int> &
 	first_loc_row += all_num_loc_rows[i];
     }
 
-  delete all_num_loc_rows;
+  delete[] all_num_loc_rows;
     
   const int glob_ncols = glob_nrows;
 
@@ -754,7 +977,7 @@ Operator* CreateStrumpackMatrixFromHypreBlocks(MPI_Comm comm, const Array<int> &
 
   MFEM_VERIFY(cntCheck, "");
 
-  delete cnt;
+  delete[] cnt;
   
   for (int i=0; i<numBlocks; ++i)
     {
@@ -769,9 +992,9 @@ Operator* CreateStrumpackMatrixFromHypreBlocks(MPI_Comm comm, const Array<int> &
   
   Operator *op = new STRUMPACKRowLocMatrix(comm, num_loc_rows, first_loc_row, glob_nrows, glob_ncols, opI, opJ, data);
   
-  delete opI;
-  delete opJ;
-  delete data;
+  delete[] opI;
+  delete[] opJ;
+  delete[] data;
   
   return op;
 }
@@ -1309,7 +1532,14 @@ public:
 #ifdef SPARSE_ASDCOMPLEX
     SpAsdComplex = new SparseMatrix*[numSubdomains];
     HypreAsdComplex = new HypreParMatrix*[numSubdomains];
-    SpAsdComplexRowSizes = new HYPRE_Int*[numSubdomains];;
+    SpAsdComplexRowSizes = new HYPRE_Int*[numSubdomains];
+#ifdef HYPRE_PARALLEL_ASDCOMPLEX    
+    AsdRe_HypreBlocks.resize(numSubdomains);
+    AsdIm_HypreBlocks.resize(numSubdomains);
+    AsdRe_HypreBlockCoef.resize(numSubdomains);
+    AsdIm_HypreBlockCoef.resize(numSubdomains);
+    sd_com.resize(numSubdomains);
+#endif
 #endif
 #else
     alphaIm = 0.0;
@@ -1505,11 +1735,27 @@ public:
 	SetToRealParameters();
 	
 	AsdRe[m] = CreateSubdomainOperator(m);
+
+#ifdef HYPRE_PARALLEL_ASDCOMPLEX
+	{
+	  const int locSizeSD = trueOffsetsSD[m][trueOffsetsSD[m].Size()-1];
+
+	  int color = (locSizeSD == 0);
+	  const int status = MPI_Comm_split(MPI_COMM_WORLD, color, m_rank, &(sd_com[m]));
+	  MFEM_VERIFY(status == MPI_SUCCESS, "Construction of comm failed");
+	}
+	
+	CreateSubdomainHypreBlocks(m, AsdRe_HypreBlocks[m], AsdRe_HypreBlockCoef[m]);
+#endif
 	
 	// Imaginary part
 	SetToImaginaryParameters();
 	
 	AsdIm[m] = CreateSubdomainOperator(m);
+
+#ifdef HYPRE_PARALLEL_ASDCOMPLEX
+	CreateSubdomainHypreBlocks(m, AsdIm_HypreBlocks[m], AsdIm_HypreBlockCoef[m]);
+#endif
 
 	// Set real-valued subdomain operator for preconditioning purposes only.
 	SetToPreconditionerParameters();
@@ -1763,6 +2009,19 @@ public:
 	    MPI_Barrier(MPI_COMM_WORLD);
 
 #ifdef SPARSE_ASDCOMPLEX
+#ifdef HYPRE_PARALLEL_ASDCOMPLEX
+	    const int locSizeSD = trueOffsetsSD[m][trueOffsetsSD[m].Size()-1];
+
+	    if (locSizeSD > 0)
+	      {
+		HypreParMatrix *HypreAsdComplexRe = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsSD[m], AsdRe_HypreBlocks[m], AsdRe_HypreBlockCoef[m]);
+		HypreParMatrix *HypreAsdComplexIm = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsSD[m], AsdIm_HypreBlocks[m], AsdRe_HypreBlockCoef[m]);
+		ComplexHypreParMatrix tmpComplex(HypreAsdComplexRe, HypreAsdComplexIm, false, false);
+		HypreAsdComplex[m] = tmpComplex.GetSystemMatrix();
+
+		invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
+	      }
+#else
 	    SpAsdComplex[m] = GetSparseMatrixFromOperator(AsdComplex[m]);
 	    SpAsdComplexRowSizes[m] = new HYPRE_Int[2];
 	    SpAsdComplexRowSizes[m][0] = 0;
@@ -1778,7 +2037,9 @@ public:
 	    */
 
 	    HypreAsdComplex[m] = new HypreParMatrix(MPI_COMM_WORLD, SpAsdComplex[m]->Size(), SpAsdComplexRowSizes[m], SpAsdComplex[m]);  // constructor with 4 arguments, v1
+	    
 	    invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
+#endif
 #else
 	    //GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
 	    GMRESSolver *gmres = new GMRESSolver(MPI_COMM_WORLD);  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
@@ -2525,6 +2786,13 @@ private:
   SparseMatrix **SpAsdComplex;
   HypreParMatrix **HypreAsdComplex;
   HYPRE_Int **SpAsdComplexRowSizes;
+#ifdef HYPRE_PARALLEL_ASDCOMPLEX
+  std::vector<Array2D<HypreParMatrix*> > AsdRe_HypreBlocks;
+  std::vector<Array2D<HypreParMatrix*> > AsdIm_HypreBlocks;
+  std::vector<Array2D<double> > AsdRe_HypreBlockCoef;
+  std::vector<Array2D<double> > AsdIm_HypreBlockCoef;
+  std::vector<MPI_Comm> sd_com;
+#endif
 #endif
   BlockOperator **AsdComplex;
   BlockDiagonalPreconditioner **precAsdComplex;
@@ -3217,7 +3485,7 @@ private:
     Array<int> ess_tdof_list;  // empty
 
     // Eliminate essential BC on exterior boundary.
-    MFEM_VERIFY(m_rank == 0, "");  // TODO: this code will not work in parallel, in general. 
+    //MFEM_VERIFY(m_rank == 0, "");  // TODO: this code will not work in parallel, in general. 
 
     {
       Array<int> true_ess_dofs(fespace[subdomain]->GetTrueVSize());
@@ -3229,7 +3497,7 @@ private:
 
       MFEM_VERIFY(InterfaceToSurfaceInjectionData[subdomain].size() == subdomainLocalInterfaces[subdomain].size(), "");
 
-      set<int> interfaceTDofs;  // True DOF's of fespace[subdomain] which lie on an interface.
+      //set<int> interfaceTDofs;  // True DOF's of fespace[subdomain] which lie on an interface.
 
       for (int i=0; i<subdomainLocalInterfaces[subdomain].size(); ++i)
 	{
@@ -3239,7 +3507,7 @@ private:
 
 	  for (int j=0; j<InterfaceToSurfaceInjectionData[subdomain][i].size(); ++j)
 	    {
-	      interfaceTDofs.insert(InterfaceToSurfaceInjectionData[subdomain][i][j]);
+	      //interfaceTDofs.insert(InterfaceToSurfaceInjectionData[subdomain][i][j]);
 	      true_ess_dofs[InterfaceToSurfaceInjectionData[subdomain][i][j]] = 0;
 	    }
 	}
@@ -3594,8 +3862,8 @@ private:
 		    (*(ifNDmass[interfaceIndex])) *= -1.0 / alpha;
 		    (*(ifNDcurlcurl[interfaceIndex])) *= -1.0 / beta;
 
-		    A_SS[subdomain] = AddSubdomainMatrixAndInterfaceMatrix(sdNDcopy[subdomain], sumMassCC, InterfaceToSurfaceInjectionData[subdomain][i],
-									   ifespace[interfaceIndex], PENALTY_U_S);
+		    A_SS[subdomain] = AddSubdomainMatrixAndInterfaceMatrix(MPI_COMM_WORLD, sdNDcopy[subdomain], sumMassCC, InterfaceToSurfaceInjectionData[subdomain][i],
+									   ifespace[interfaceIndex], NULL, true, PENALTY_U_S);
 		    delete sumMassCC;
 		  }
 		else
@@ -3793,7 +4061,159 @@ private:
     
     return op;
   }
-  
+
+  void CreateSubdomainHypreBlocks(const int subdomain, Array2D<HypreParMatrix*>& block, Array2D<double>& blockCoefficient)
+  {
+    const int numBlocks = (2*subdomainLocalInterfaces[subdomain].size()) + 1;  // 1 for the subdomain, 2 for each interface (f_{mn} and \rho_{mn}).
+
+    block.SetSize(numBlocks, numBlocks);
+    blockCoefficient.SetSize(numBlocks, numBlocks);
+
+    for (int i=0; i<numBlocks; ++i)
+      {
+	for (int j=0; j<numBlocks; ++j)
+	  {
+	    block(i, j) = NULL;
+	    blockCoefficient(i, j) = 1.0;
+	  }
+      }
+
+    // Set blocks
+
+#ifdef DDMCOMPLEX
+    if (realPart)
+#endif
+      {
+	if (sdND[subdomain] != NULL)
+	  {
+	    block(0, 0) = sdND[subdomain];
+	  }
+      }
+
+    HypreParMatrix *A_SS_op = NULL;
+
+    for (int i=0; i<subdomainLocalInterfaces[subdomain].size(); ++i)
+      {
+	const int interfaceIndex = subdomainLocalInterfaces[subdomain][i];
+
+	// Add -alpha <\pi_{mn}(v_m), \pi_{mn}(u_m>_{S_{mn}} - beta <curl_\tau \pi_{mn}(v_m), curl_\tau \pi_{nm}(u_n)>_{S_{mn}} to A_m^{SS}.
+#ifdef DDMCOMPLEX
+	HypreParMatrix *ifSum = Add(-alpha, *(ifNDmass[interfaceIndex]), -beta, *(ifNDcurlcurl[interfaceIndex]));
+
+	const double sdNDcoef = realPart ? 1.0 : 0.0;
+	
+	if (A_SS_op == NULL)
+	  {
+	    // TODO: try with sdND, to see if sdNDcopy is unnecessary.
+	    A_SS_op = AddSubdomainMatrixAndInterfaceMatrix(MPI_COMM_WORLD, sdNDcopy[subdomain], ifSum, InterfaceToSurfaceInjectionData[subdomain][i],
+							   ifespace[interfaceIndex], NULL, true, 0.0, sdNDcoef);
+	  }
+	else
+	  {
+	    // TODO: add another interface operator to A_SS_op
+	    MFEM_VERIFY(false, "TODO");
+	  }
+		
+	block(0, 0) = A_SS_op;
+
+	delete ifSum;
+#else
+	// TODO: implement A_SS in the real case. 
+#endif
+
+	// In PengLee2012 A_m^{SF} corresponds to
+	// -<\pi_{mn}(v_m), -\mu_r^{-1} f + <<\mu_r^{-1} f>> >_{S_{mn}}
+	// Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the A_m^{SF} block is 0.  TODO: verify this. The paper does not say this block is 0.
+	
+	// op->SetBlock(0, (2*i) + 1, new ProductOperator(InterfaceToSurfaceInjection[subdomain][i], ifNDmass[interfaceIndex], false, false), 1.0 / alpha);
+
+	// In PengLee2012 A_m^{S\rho} corresponds to
+	// -\gamma <\pi_{mn}(v_m), \nabla_\tau <<\rho>>_{mn} >_{S_{mn}}
+	// Since <<\rho>>_{mn} = \rho_m + \rho_n, the A_m^{S\rho} block is the part
+	// -\gamma <\pi_{mn}(v_m), \nabla_\tau \rho_m >_{S_{mn}}
+	// The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
+
+	//HypreParMatrix* injectedTr = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifNDH1grad[interfaceIndex],
+	HypreParMatrix* injectedTr = AddSubdomainMatrixAndInterfaceMatrix(MPI_COMM_WORLD, sdNDcopy[subdomain], ifNDH1grad[interfaceIndex],
+									  InterfaceToSurfaceInjectionData[subdomain][i], ifespace[interfaceIndex],
+									  iH1fespace[interfaceIndex], false);
+
+	block(0, (2*i) + 2) = injectedTr->Transpose();  // not the most efficient implementation, to avoid premature optimization.
+	delete injectedTr;
+	
+	blockCoefficient(0, (2*i) + 2) = -gamma;
+	
+	// In PengLee2012 A_m^{F\rho} corresponds to
+	// gamma / alpha <w_m^s, \nabla_\tau <<\rho>>_{mn} >_{S_{mn}}
+	// Since <<\rho>>_{mn} = \rho_m + \rho_n, the A_m^{F\rho} block is the part
+	// gamma / alpha <w_m, \nabla_\tau \rho_n >_{S_{mn}}
+	// The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
+
+	block((2*i) + 1, (2*i) + 2) = ifNDH1grad[interfaceIndex];
+	blockCoefficient((2*i) + 1, (2*i) + 2) = gammaOverAlpha;
+	
+	// In PengLee2012 A_m^{FS} corresponds to
+	// <w_m^s, [[u]]_{mn}>_{S_{mn}} + beta/alpha <curl_\tau w_m, curl_\tau [[u]]_{mn}>_{S_{mn}}
+	// Since [[u]]_{mn} = \pi_{mn}(u_m) - \pi_{nm}(u_n), the A_m^{FS} block is the part
+	// <w_m, \pi_{mn}(u_m)>_{S_{mn}} + beta/alpha <curl_\tau w_m, curl_\tau \pi_{mn}(u_m)>_{S_{mn}}
+	// This is an interface mass plus curl-curl stiffness matrix.
+
+#ifdef DDMCOMPLEX
+	if (realPart)
+#endif
+	  {
+	    ifSum = Add(1.0, *(ifNDmass[interfaceIndex]), betaOverAlpha, *(ifNDcurlcurl[interfaceIndex]));
+	    block((2*i) + 1, 0) = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifSum,
+								       InterfaceToSurfaceInjectionData[subdomain][i], ifespace[interfaceIndex], NULL, false);
+	    
+	    delete ifSum;
+	  }
+#ifdef DDMCOMPLEX
+	else
+	  {
+	    block((2*i) + 1, 0) = AddSubdomainMatrixAndInterfaceMatrix(sd_com[subdomain], sdNDcopy[subdomain], ifNDcurlcurl[interfaceIndex],
+								       InterfaceToSurfaceInjectionData[subdomain][i], ifespace[interfaceIndex], NULL, false);
+	    blockCoefficient((2*i) + 1, 0) = betaOverAlpha;
+	  }
+#endif
+
+	// In PengLee2012 A_m^{\rho F} corresponds to
+	// <\nabla_\tau \psi_m, \mu_{rm}^{-1} f_{mn}>_{S_{mn}}
+	// The matrix is for a mixed bilinear form on the interface Nedelec space and H^1 space.
+	//op->SetBlock((2*i) + 2, (2*i) + 1, new TransposeOperator(ifNDH1grad[interfaceIndex]));  // TODO: Without this block, the block diagonal preconditioner works very well!
+
+#ifdef DDMCOMPLEX
+	if (realPart)
+#endif
+	  {
+	    block((2*i) + 2, (2*i) + 1) = ifNDH1gradT[interfaceIndex];
+	  }
+
+	// Diagonal blocks
+
+	// In PengLee2012 A_m^{FF} corresponds to
+	// 1/alpha <w_m^s, <<\mu_r^{-1} f>> >_{S_{mn}}
+	// Since <<\mu_r^{-1} f>> = \mu_{rm}^{-1} f_{mn} + \mu_{rn}^{-1} f_{nm}, the A_m^{FF} block is the part
+	// 1/alpha <w_m^s, \mu_{rm}^{-1} f_{mn} >_{S_{mn}}
+	// This is an interface mass matrix.
+	{
+	  block((2*i) + 1, (2*i) + 1) = ifNDmass[interfaceIndex];
+	  blockCoefficient((2*i) + 1, (2*i) + 1) = alphaInverse;
+	}
+
+	// In PengLee2012 A_m^{\rho\rho} corresponds to
+	// <\psi_m, \rho_m>_{S_{mn}}
+	// This is an interface H^1 mass matrix.
+
+#ifdef DDMCOMPLEX
+	if (realPart)
+#endif
+	  {
+	    block((2*i) + 2, (2*i) + 2) = ifH1mass[interfaceIndex];
+	  }
+      }    
+  }
+
   // This is the same operator as CreateSubdomainOperator, except it is stored as a strumpack matrix rather than a block operator. 
   Operator* CreateSubdomainOperatorStrumpack(const int subdomain)
   {

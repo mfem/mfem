@@ -54,7 +54,7 @@ double freq = 1.0, kappa;
 int dim;
 
 //#define SIGMAVAL -250.0
-#define SIGMAVAL -2.0
+//#define SIGMAVAL -2.0
 //#define SIGMAVAL -100.0
 
 
@@ -577,7 +577,7 @@ int main(int argc, char *argv[])
        GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
 
        gmres->SetOperator(ddi);
-       gmres->SetRelTol(1e-10);
+       gmres->SetRelTol(1e-8);
        gmres->SetMaxIter(100);
        gmres->SetPrintLevel(1);
 
