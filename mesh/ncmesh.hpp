@@ -319,7 +319,8 @@ public:
    int GetElementDepth(int i) const;
 
    /// Return the faces and face attributes of leaf element 'i'.
-   void GetElementFacesAttributes(int i, Array<int> &faces, Array<int> &fattr) const;
+   void GetElementFacesAttributes(int i, Array<int> &faces,
+                                  Array<int> &fattr) const;
 
    /// I/O: Print the "vertex_parents" section of the mesh file (ver. >= 1.1).
    void PrintVertexParents(std::ostream &out) const;
@@ -563,7 +564,7 @@ protected: // implementation
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
 
    void FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
-                      Array<MeshId> &prisms) const;
+                         Array<MeshId> &prisms) const;
 
    void CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
                         const Refinement *refs, int nref);
