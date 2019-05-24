@@ -64,6 +64,9 @@ protected:
    mutable int* ColPtrJ;
    mutable RowNode ** ColPtrNode;
 
+   /// Transpose of A. Owned. Used to perform MultTranspose() on devices.
+   mutable SparseMatrix *At;
+
 #ifdef MFEM_USE_MEMALLOC
    typedef MemAlloc <RowNode, 1024> RowNodeAlloc;
    RowNodeAlloc * NodesMem;
@@ -97,6 +100,9 @@ public:
 
    /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
        @a data is optionally transferred to the SparseMatrix. */
+   /** If the parameter @a data is NULL, then the internal #A array is allocated
+       by this constructor (initializing it with zeros and taking ownership,
+       regardless of the parameter @a owna). */
    SparseMatrix(int *i, int *j, double *data, int m, int n, bool ownij,
                 bool owna, bool issorted);
 
@@ -112,7 +118,7 @@ public:
        ownership. */
    SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
 
-   /// Create a SparseMatrix with diagonal v, i.e. A = Diag(v)
+   /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
 
@@ -134,21 +140,35 @@ public:
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
 
-   /// Return the array #I
-   inline int *GetI() const { return I; }
-   /// Return the array #J
-   inline int *GetJ() const { return J; }
-   /// Return element data, i.e. array #A
-   inline double *GetData() const { return A; }
-   /// Returns the number of elements in row @a i
+   /// Return the array #I.
+   inline int *GetI() { return I; }
+   /// Return the array #I, const version.
+   inline const int *GetI() const { return I; }
+
+   /// Return the array #J.
+   inline int *GetJ() { return J; }
+   /// Return the array #J, const version.
+   inline const int *GetJ() const { return J; }
+
+   /// Return the element data, i.e. the array #A.
+   inline double *GetData() { return A; }
+   /// Return the element data, i.e. the array #A, const version.
+   inline const double *GetData() const { return A; }
+
+   /// Returns the number of elements in row @a i.
    int RowSize(const int i) const;
-   /// Returns the maximum number of elements among all rows
+
+   /// Returns the maximum number of elements among all rows.
    int MaxRowSize() const;
-   /// Return a pointer to the column indices in a row
+
+   /// Return a pointer to the column indices in a row.
    int *GetRowColumns(const int row);
+   /// Return a pointer to the column indices in a row, const version.
    const int *GetRowColumns(const int row) const;
-   /// Return a pointer to the entries in a row
+
+   /// Return a pointer to the entries in a row.
    double *GetRowEntries(const int row);
+   /// Return a pointer to the entries in a row, const version.
    const double *GetRowEntries(const int row) const;
 
    /// Change the width of a SparseMatrix.
@@ -163,7 +183,7 @@ public:
 
    /// Returns the actual Width of the matrix.
    /*! This method can be called for matrices finalized or not. */
-   int ActualWidth();
+   int ActualWidth() const;
 
    /// Sort the column indices corresponding to each row.
    void SortColumnIndices();
@@ -206,13 +226,45 @@ public:
    void AddMultTranspose(const Vector &x, Vector &y,
                          const double a = 1.0) const;
 
+   /** @brief Build and store internally the transpose of this matrix which will
+       be used in the methods AddMultTranspose() and MultTranspose(). */
+   /** If this method has been called, the internal transpose matrix will be
+       used to perform the action of the transpose matrix in AddMultTranspose(),
+       and MultTranspose().
+
+       Warning: any changes in this matrix will invalidate the internal
+       transpose. To rebuild the transpose, call ResetTranspose() followed by a
+       call to this method. If the internal transpose is already built, this
+       method has no effect.
+
+       When any non-default backend is enabled, i.e. Device::IsEnabled() is
+       true, the methods AddMultTranspose(), and MultTranspose(), require the
+       internal transpose to be built. If that is not the case (i.e. the
+       internal transpose is not built), these methods will raise an error with
+       an appropriate message pointing to this method. When using the default
+       backend, calling this method is optional.
+
+       This method can only be used when the sparse matrix is finalized. */
+   void BuildTranspose() const;
+
+   /** Reset (destroy) the internal transpose matrix. See BuildTranspose() for
+       more details. */
+   void ResetTranspose() const;
+
    void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
    void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
                     const double a=1.0) const;
 
-   /// y = A * x, but treat all elements as booleans (zero=false, nonzero=true).
+   /// y = A * x, treating all entries as booleans (zero=false, nonzero=true).
+   /** The actual values stored in the data array, #A, are not used - this means
+       and that all entries in the sparsity pattern are considered to be true by
+       this method. */
    void BooleanMult(const Array<int> &x, Array<int> &y) const;
-   /// y = At * x, but treat all elements as booleans (zero=false, nonzero=true).
+
+   /// y = At * x, treating all entries as booleans (zero=false, nonzero=true).
+   /** The actual values stored in the data array, #A, are not used - this means
+       and that all entries in the sparsity pattern are considered to be true by
+       this method. */
    void BooleanMultTranspose(const Array<int> &x, Array<int> &y) const;
 
    /// Compute y^t A x
@@ -319,6 +371,11 @@ public:
 
    bool Finalized() const { return (A != NULL); }
    bool areColumnsSorted() const { return isSorted; }
+
+   /** @brief Remove entries smaller in absolute value than a given tolerance
+       @a tol. If @a fix_empty_rows is true, a zero value is inserted in the
+       diagonal entry (for square matrices only) */
+   void Threshold(double tol, bool fix_empty_rows = false);
 
    /** Split the matrix into M x N blocks of sparse matrices in CSR format.
        The 'blocks' array is M x N (i.e. M and N are determined by its
@@ -452,11 +509,11 @@ SparseMatrix *Transpose(const SparseMatrix &A);
 SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                              int useActualWidth);
 
-/** Matrix product A.B.
-    If OAB is not NULL, we assume it has the structure
-    of A.B and store the result in OAB.
-    If OAB is NULL, we create a new SparseMatrix to store
+/// Matrix product A.B.
+/** If @a OAB is not NULL, we assume it has the structure of A.B and store the
+    result in @a OAB. If @a OAB is NULL, we create a new SparseMatrix to store
     the result and return a pointer to it.
+
     All matrices must be finalized. */
 SparseMatrix *Mult(const SparseMatrix &A, const SparseMatrix &B,
                    SparseMatrix *OAB = NULL);
@@ -555,16 +612,20 @@ inline void SparseMatrix::SetColPtr(const int row) const
 inline void SparseMatrix::ClearColPtr() const
 {
    if (Rows)
+   {
       for (RowNode *node_p = Rows[current_row]; node_p != NULL;
            node_p = node_p->Prev)
       {
          ColPtrNode[node_p->Column] = NULL;
       }
+   }
    else
+   {
       for (int j = I[current_row], end = I[current_row+1]; j < end; j++)
       {
          ColPtrJ[J[j]] = -1;
       }
+   }
 }
 
 inline double &SparseMatrix::SearchRow(const int col)

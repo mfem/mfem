@@ -181,8 +181,6 @@ public:
        Backend::*_MASK, or combinations of those. */
    static inline bool Allows(unsigned long b_mask)
    { return Get().allowed_backends & b_mask; }
-
-   ~Device();
 };
 
 } // mfem

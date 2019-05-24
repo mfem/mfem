@@ -25,7 +25,7 @@ namespace mfem
 
 using namespace bin_io;
 
-ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
+ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
    : NCMesh(ncmesh)
 {
    MyComm = comm;
@@ -36,7 +36,7 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
    // sequence of leaf elements into 'NRanks' parts
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      elements[leaf_elements[i]].rank = InitialPartition(i);
+      elements[leaf_elements[i]].rank = part ? part[i] : InitialPartition(i);
    }
 
    Update();
@@ -913,9 +913,9 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
 
 void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
 {
+   // make sure we have entity_conf_group[x] and the ordering arrays
    if (leaf_elements.Size())
    {
-      // make sure we have entity_conf_group[x] and the ordering arrays
       for (int ent = 0; ent < Dim; ent++)
       {
          GetSharedList(ent);
