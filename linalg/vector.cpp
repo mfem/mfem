@@ -469,18 +469,10 @@ void Vector::median(const Vector &lo, const Vector &hi)
    });
 }
 
-// Enable/disable the use of kernels in the sub-vector operations in class Vector
-// TODO: Do we need this option enabled?
-//   * Vector::SetSubVector(const Array<int> &dofs, const double value) is used
-//     sometimes for T-vectors with dofs being the list of essential dofs.
-#define MFEM_USE_SUBVECTOR_KERNELS
-
 void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 {
    const int n = dofs.Size();
    elemvect.SetSize(n);
-
-#ifdef MFEM_USE_SUBVECTOR_KERNELS
    const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
    auto d_y = elemvect.Write(use_dev);
    auto d_X = Read(use_dev);
@@ -490,13 +482,6 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
       const int dof_i = d_dofs[i];
       d_y[i] = dof_i >= 0 ? d_X[dof_i] : -d_X[-dof_i-1];
    });
-#else
-   for (int i = 0; i < n; i++)
-   {
-      const int j = dofs[i];
-      elemvect(i) = (j >= 0) ? operator()(j) : -operator()(-1-j);
-   }
-#endif
 }
 
 void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
@@ -512,7 +497,6 @@ void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 
 void Vector::SetSubVector(const Array<int> &dofs, const double value)
 {
-#ifdef MFEM_USE_SUBVECTOR_KERNELS
    const bool use_dev = dofs.UseDevice();
    const int n = dofs.Size();
    // Use read+write access for *this - we only modify some of its entries
@@ -530,21 +514,6 @@ void Vector::SetSubVector(const Array<int> &dofs, const double value)
          d_X[-1-j] = -value;
       }
    });
-#else
-   const int n = dofs.Size();
-   for (int i = 0; i < n; i++)
-   {
-      const int j= dofs[i];
-      if (j >= 0)
-      {
-         operator()(j) = value;
-      }
-      else
-      {
-         operator()(-1-j) = -value;
-      }
-   }
-#endif
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
@@ -553,7 +522,6 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
                "Size mismatch: length of dofs is " << dofs.Size()
                << ", length of elemvect is " << elemvect.Size());
 
-#ifdef MFEM_USE_SUBVECTOR_KERNELS
    const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
    const int n = dofs.Size();
    // Use read+write access for X - we only modify some of its entries
@@ -572,21 +540,6 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
          d_X[-1-dof_i] = -d_y[i];
       }
    });
-#else
-   const int n = dofs.Size();
-   for (int i = 0; i < n; i++)
-   {
-      const int j= dofs[i];
-      if (j >= 0)
-      {
-         operator()(j) = elemvect(i);
-      }
-      else
-      {
-         operator()(-1-j) = -elemvect(i);
-      }
-   }
-#endif
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
@@ -614,7 +567,6 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
 
-#ifdef MFEM_USE_SUBVECTOR_KERNELS
    const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
    const int n = dofs.Size();
    auto d_y = elemvect.Read(use_dev);
@@ -632,21 +584,6 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
          d_X[-1-j] -= d_y[i];
       }
    });
-#else
-   const int n = dofs.Size();
-   for (int i = 0; i < n; i++)
-   {
-      const int j = dofs[i];
-      if (j >= 0)
-      {
-         operator()(j) += elemvect(i);
-      }
-      else
-      {
-         operator()(-1-j) -= elemvect(i);
-      }
-   }
-#endif
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
@@ -673,7 +610,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
    MFEM_ASSERT(dofs.Size() == elemvect.Size(), "Size mismatch: "
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
-#ifdef MFEM_USE_SUBVECTOR_KERNELS
+
    const bool use_dev = dofs.UseDevice() || elemvect.UseDevice();
    const int n = dofs.Size();
    auto d_y = ReadWrite(use_dev);
@@ -691,21 +628,6 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
          d_y[-1-j] -= a * d_x[i];
       }
    });
-#else
-   const int n = dofs.Size();
-   for (int i = 0; i < n; i++)
-   {
-      const int j = dofs[i];
-      if (j >= 0)
-      {
-         operator()(j) += a * elemvect(i);
-      }
-      else
-      {
-         operator()(-1-j) -= a * elemvect(i);
-      }
-   }
-#endif
 }
 
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
