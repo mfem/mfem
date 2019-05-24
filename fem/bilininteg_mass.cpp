@@ -605,11 +605,11 @@ static void SmemPAMassApply3D(const int NE,
       }
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
+         MFEM_FOREACH_THREAD(d,y,D1D)
          {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B[qx][dy] = b(qx,dy);
+               B[q][d] = b(q,d);
             }
          }
       }
