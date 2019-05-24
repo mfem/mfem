@@ -920,7 +920,9 @@ FiniteElementSpace::RefinementOperator::RefinementOperator
    : fespace(fespace)
    , old_elem_dof(old_elem_dof)
 {
-   MFEM_VERIFY(fespace->GetNDofs() >= old_ndofs,
+   const Mesh* mesh = fespace->GetMesh();
+   MFEM_VERIFY(mesh->ReduceInt(fespace->GetNDofs()) >=
+               mesh->ReduceInt(old_ndofs),
                "Previous space is not coarser.");
 
    width = old_ndofs * fespace->GetVDim();
