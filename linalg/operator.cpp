@@ -32,17 +32,17 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
    if (P)
    {
       // Variational restriction with P
-      B.SetSize(P->Width());
+      B.SetSize(P->Width(), b);
       P->MultTranspose(b, B);
-      X.SetSize(R->Height());
+      X.SetSize(R->Height(), x);
       R->Mult(x, X);
       rap = new RAPOperator(*P, *this, *P);
    }
    else
    {
-      // rap, X and B point to the same data as this, x and b
-      X.NewDataAndSize(x.GetData(), x.Size());
-      B.NewDataAndSize(b.GetData(), b.Size());
+      // rap, X and B point to the same data as this, x and b, respectively
+      X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+      B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
       rap = this;
    }
 
@@ -68,6 +68,10 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
    else
    {
       // X and x point to the same data
+
+      // If the validity flags of X's Memory were changed (e.g. if it was moved
+      // to device memory) then we need to tell x about that.
+      x.SyncMemory(X);
    }
 }
 
@@ -116,8 +120,7 @@ ProductOperator::~ProductOperator()
 
 RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
                          const Operator &P_)
-   : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_),
-     Px(P.Height()), APx(A.Height())
+   : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_)
 {
    MFEM_VERIFY(Rt.Height() == A.Height(),
                "incompatible Operators: Rt.Height() = " << Rt.Height()
@@ -125,6 +128,11 @@ RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
    MFEM_VERIFY(A.Width() == P.Height(),
                "incompatible Operators: A.Width() = " << A.Width()
                << ", P.Height() = " << P.Height());
+
+   mem_class = Rt.GetMemoryClass()*P.GetMemoryClass();
+   MemoryType mem_type = GetMemoryType(A.GetMemoryClass()*mem_class);
+   Px.SetSize(P.Height(), mem_type);
+   APx.SetSize(A.Height(), mem_type);
 }
 
 
@@ -134,7 +142,6 @@ TripleProductOperator::TripleProductOperator(
    : Operator(A->Height(), C->Width())
    , A(A), B(B), C(C)
    , ownA(ownA), ownB(ownB), ownC(ownC)
-   , t1(C->Height()), t2(B->Height())
 {
    MFEM_VERIFY(A->Width() == B->Height(),
                "incompatible Operators: A->Width() = " << A->Width()
@@ -142,6 +149,11 @@ TripleProductOperator::TripleProductOperator(
    MFEM_VERIFY(B->Width() == C->Height(),
                "incompatible Operators: B->Width() = " << B->Width()
                << ", C->Height() = " << C->Height());
+
+   mem_class = A->GetMemoryClass()*C->GetMemoryClass();
+   MemoryType mem_type = GetMemoryType(mem_class*B->GetMemoryClass());
+   t1.SetSize(C->Height(), mem_type);
+   t2.SetSize(B->Height(), mem_type);
 }
 
 TripleProductOperator::~TripleProductOperator()
@@ -152,23 +164,27 @@ TripleProductOperator::~TripleProductOperator()
 }
 
 
-
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
                                          bool _own_A)
    : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
 {
+   // 'mem_class' should work with A->Mult() and MFEM_FORALL():
+   mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
+   MemoryType mem_type = GetMemoryType(mem_class);
    constraint_list.MakeRef(list);
-   z.SetSize(height);
-   w.SetSize(height);
+   // typically z and w are large vectors, so store them on the device
+   z.SetSize(height, mem_type); z.UseDevice(true);
+   w.SetSize(height, mem_type); w.UseDevice(true);
 }
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
    w = 0.0;
    const int csz = constraint_list.Size();
-   const DeviceArray idx(constraint_list, csz);
-   const DeviceVector d_x(x, x.Size());
-   DeviceVector d_w(w, w.Size());
+   auto idx = constraint_list.Read();
+   auto d_x = x.Read();
+   // Use read+write access - we are modifying sub-vector of w
+   auto d_w = w.ReadWrite();
    MFEM_FORALL(i, csz,
    {
       const int id = idx[i];
@@ -178,7 +194,8 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    A->Mult(w, z);
 
    b -= z;
-   DeviceVector d_b(b, b.Size());
+   // Use read+write access - we are modifying sub-vector of b
+   auto d_b = b.ReadWrite();
    MFEM_FORALL(i, csz,
    {
       const int id = idx[i];
@@ -197,14 +214,16 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 
    z = x;
 
-   const DeviceArray idx(constraint_list, csz);
-   DeviceVector d_z(z, z.Size());
+   auto idx = constraint_list.Read();
+   // Use read+write access - we are modifying sub-vector of z
+   auto d_z = z.ReadWrite();
    MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
 
    A->Mult(z, y);
 
-   const DeviceVector d_x(x, x.Size());
-   DeviceVector d_y(y, y.Size());
+   auto d_x = x.Read();
+   // Use read+write access - we are modifying sub-vector of y
+   auto d_y = y.ReadWrite();
    MFEM_FORALL(i, csz,
    {
       const int id = idx[i];

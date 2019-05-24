@@ -19,6 +19,9 @@ namespace mfem
 LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    : Vector(f->GetVSize())
 {
+   // Linear forms are stored on the device
+   UseDevice(true);
+
    fes = f;
    extern_lfs = 1;
 
@@ -82,6 +85,10 @@ void LinearForm::Assemble()
    int i;
 
    Vector::operator=(0.0);
+
+   // The above operation is executed on device because of UseDevice().
+   // The first use of AddElementVector() below will move it back to host
+   // because both 'vdofs' and 'elemvect' are on host.
 
    if (dlfi.Size())
    {

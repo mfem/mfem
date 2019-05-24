@@ -286,7 +286,6 @@ if (MFEM_USE_CUDA)
       set(CUDA_CCBIN_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
    string(APPEND CMAKE_CUDA_FLAGS " -ccbin ${CUDA_CCBIN_COMPILER}")
-   set(MFEM_USE_MM YES CACHE BOOL "Enable MFEM's memory manager" FORCE)
 endif()
 
 # OCCA
