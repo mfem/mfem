@@ -433,62 +433,6 @@ int NCMesh::Face::GetSingleElement() const
    }
 }
 
-#if 0
-int NCMesh::FindAltParents(int node1, int node2)
-{
-   int mid = nodes.FindId(node1, node2);
-   if (mid < 0 && Dim >= 3 && !Iso)
-   {
-      // In rare cases, a mid-face node exists under alternate parents a1, a2
-      // (see picture) instead of the requested parents n1, n2. This is an
-      // inconsistent situation that may exist temporarily as a result of
-      // "nodes.Reparent" while doing anisotropic splits, before forced
-      // refinements are all processed. This function attempts to retrieve such
-      // a node. An extra twist is that w1 and w2 may themselves need to be
-      // obtained using this very function.
-      //
-      //                 n1.p1      n1       n1.p2
-      //                      *------*------*
-      //                      |      |      |
-      //                      |      |mid   |
-      //                   a1 *------*------* a2
-      //                      |      |      |
-      //                      |      |      |
-      //                      *------*------*
-      //                 n2.p1      n2       n2.p2
-      //
-      // NOTE: this function would not be needed if the elements remembered
-      // their edge nodes. We have however opted to save memory at the cost of
-      // this computation, which is only necessary when forced refinements are
-      // being done.
-
-      Node &n1 = nodes[node1], &n2 = nodes[node2];
-
-      int n1p1 = n1.p1, n1p2 = n1.p2;
-      int n2p1 = n2.p1, n2p2 = n2.p2;
-
-      if ((n1p1 != n1p2) && (n2p1 != n2p2)) // non-top-level nodes?
-      {
-         int a1 = FindAltParents(n1p1, n2p1);
-         int a2 = (a1 >= 0) ? FindAltParents(n1p2, n2p2) : -1 /*optimization*/;
-
-         if (a1 < 0 || a2 < 0)
-         {
-            // one more try may be needed as p1, p2 are unordered
-            a1 = FindAltParents(n1p1, n2p2);
-            a2 = (a1 >= 0) ? FindAltParents(n1p2, n2p1) : -1 /*optimization*/;
-         }
-
-         if (a1 >= 0 && a2 >= 0) // got both alternate parents?
-         {
-            mid = nodes.FindId(a1, a2);
-         }
-      }
-   }
-   return mid;
-}
-#endif
-
 
 //// Refinement ////////////////////////////////////////////////////////////////
 
