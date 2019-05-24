@@ -80,6 +80,10 @@ Support for wedge elements and meshes with mixed element types
   refinement of such meshes. Several examples of such meshes can be found in the
   data/ directory.
 
+- Added support for non-conforming wedge AMR, including coarsening and parallel
+  load balancing. Anisotropic wedge refinement is only available in the serial
+  version at the moment.
+
 - Added support for reading and writing linear and quadratic meshes containing
   wedge elements in VTK mesh format. Several examples of such meshes can be
   found in the data/ directory.
