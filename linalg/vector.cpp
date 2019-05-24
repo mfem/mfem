@@ -120,7 +120,7 @@ Vector &Vector::operator=(const Vector &v)
    const bool use_dev = UseDevice() || v.UseDevice();
    v.UseDevice(use_dev);
    // keep 'data' where it is, unless 'use_dev' is true
-   if (use_dev) { Write(true); }
+   if (use_dev) { Write(); }
    data.CopyFrom(v.data, v.Size());
 #endif
    return *this;
