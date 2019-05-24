@@ -38,26 +38,26 @@ const int MAX_Q1D = 16;
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
 
 // The MFEM_FORALL wrapper
-#define MFEM_FORALL(i,N,...)                                   \
-   ForallWrap<1>(true,N,                                       \
-                 [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},   \
+#define MFEM_FORALL(i,N,...)                                            \
+   ForallWrap<1>(true,N,                                                \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},                 \
                  [&]                  (int i) {__VA_ARGS__})
 
-#define MFEM_FORALL_2D(i,N,X,Y,BZ,...)                         \
-   ForallWrap<2>(true,N,                                       \
-                 [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},   \
-                 [&]                  (int i) {__VA_ARGS__},   \
+#define MFEM_FORALL_2D(i,N,X,Y,BZ,...)                                  \
+   ForallWrap<2>(true,N,                                                \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},                 \
+                 [&]                  (int i) {__VA_ARGS__},            \
                  X,Y,BZ)
 
-#define MFEM_FORALL_3D(i,N,X,Y,Z,...)                          \
-   ForallWrap<3>(true,N,                                       \
-                 [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},   \
-                 [&]                  (int i) {__VA_ARGS__},   \
+#define MFEM_FORALL_3D(i,N,X,Y,Z,...)                                   \
+   ForallWrap<3>(true,N,                                                \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},                 \
+                 [&]                  (int i) {__VA_ARGS__},            \
                  X,Y,Z)
 
-#define MFEM_FORALL_IF(use_dev,i,N,...)                        \
-   ForallWrap<1>(use_dev,N,                                    \
-                 [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},   \
+#define MFEM_FORALL_IF(use_dev,i,N,...)                                 \
+   ForallWrap<1>(use_dev,N,                                             \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},                 \
                  [&]                  (int i) {__VA_ARGS__})
 
 
