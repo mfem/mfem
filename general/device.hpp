@@ -222,51 +222,72 @@ public:
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
 /** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
-inline const T *ReadAccess(const Memory<T> &mem, int size, bool on_dev = true)
+inline const T *Read(const Memory<T> &mem, int size, bool on_dev = true)
 {
    if (!on_dev)
    {
-      return mem.ReadAccess(MemoryClass::HOST, size);
+      return mem.Read(MemoryClass::HOST, size);
    }
    else
    {
       mem.UseDevice(true);
-      return mem.ReadAccess(Device::GetMemoryClass(), size);
+      return mem.Read(Device::GetMemoryClass(), size);
    }
+}
+
+/** @brief Shortcut to Read(const Memory<T> &mem, int size, false) */
+template <typename T>
+inline const T *HostRead(const Memory<T> &mem, int size)
+{
+   return mfem::Read(mem, size, false);
 }
 
 /** @brief Get a pointer for write access to @a mem with the mfem::Device
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
 /** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
-inline T *WriteAccess(Memory<T> &mem, int size, bool on_dev = true)
+inline T *Write(Memory<T> &mem, int size, bool on_dev = true)
 {
    if (!on_dev)
    {
-      return mem.WriteAccess(MemoryClass::HOST, size);
+      return mem.Write(MemoryClass::HOST, size);
    }
    else
    {
       mem.UseDevice(true);
-      return mem.WriteAccess(Device::GetMemoryClass(), size);
+      return mem.Write(Device::GetMemoryClass(), size);
    }
+}
+
+/** @brief Shortcut to Write(const Memory<T> &mem, int size, false) */
+template <typename T>
+inline const T *HostWrite(const Memory<T> &mem, int size)
+{
+   return mfem::Write(mem, size, false);
 }
 
 /** @brief Get a pointer for read+write access to @a mem with the mfem::Device
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
 /** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
-inline T *ReadWriteAccess(Memory<T> &mem, int size, bool on_dev = true)
+inline T *ReadWrite(Memory<T> &mem, int size, bool on_dev = true)
 {
    if (!on_dev)
    {
-      return mem.ReadWriteAccess(MemoryClass::HOST, size);
+      return mem.ReadWrite(MemoryClass::HOST, size);
    }
    else
    {
       mem.UseDevice(true);
-      return mem.ReadWriteAccess(Device::GetMemoryClass(), size);
+      return mem.ReadWrite(Device::GetMemoryClass(), size);
    }
+}
+
+/** @brief Shortcut to ReadWrite(const Memory<T> &mem, int size, false) */
+template <typename T>
+inline const T *HostReadWrite(const Memory<T> &mem, int size)
+{
+   return mfem::ReadWrite(mem, size, false);
 }
 
 } // mfem

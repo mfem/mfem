@@ -257,17 +257,29 @@ public:
 
    long MemoryUsage() const { return Capacity() * sizeof(T); }
 
-   /// Shortcut for mfem::ReadAccess(a.GetMemory(), a.Size(), on_dev).
-   const T *ReadAccess(bool on_dev = true) const
-   { return mfem::ReadAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Read(a.GetMemory(), a.Size(), on_dev).
+   const T *Read(bool on_dev = true) const
+   { return mfem::Read(data, size, on_dev); }
 
-   /// Shortcut for mfem::WriteAccess(a.GetMemory(), a.Size(), on_dev).
-   T *WriteAccess(bool on_dev = true)
-   { return mfem::WriteAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Read(a.GetMemory(), a.Size(), false).
+   const T *HostRead() const
+   { return mfem::Read(data, size, false); }
 
-   /// Shortcut for mfem::ReadWriteAccess(a.GetMemory(), a.Size(), on_dev).
-   T *ReadWriteAccess(bool on_dev = true)
-   { return mfem::ReadWriteAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Write(a.GetMemory(), a.Size(), on_dev).
+   T *Write(bool on_dev = true)
+   { return mfem::Write(data, size, on_dev); }
+
+   /// Shortcut for mfem::Write(a.GetMemory(), a.Size(), false).
+   T *HostWrite()
+   { return mfem::Write(data, size, false); }
+
+   /// Shortcut for mfem::ReadWrite(a.GetMemory(), a.Size(), on_dev).
+   T *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(data, size, on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(a.GetMemory(), a.Size(), false).
+   T *HostReadWrite()
+   { return mfem::ReadWrite(data, size, false); }
 };
 
 template <class T>
