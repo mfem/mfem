@@ -216,7 +216,7 @@ static void PAMassApply2D(const int NE,
    auto y = Reshape(_y.ReadWriteAccess(), D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
