@@ -7270,8 +7270,8 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
           (meshgen & 0x4) /* wedges */ ||
           (triangles_nonconforming && Dim == 2 && (meshgen & 0x1)))
       {
-         /*MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
-                     "mixed meshes are not supported");*/
+         MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
+                     "mixed meshes are not supported");
          ncmesh = new NCMesh(this);
          ncmesh->OnMeshUpdated(this);
          GenerateNCFaceInfo();
