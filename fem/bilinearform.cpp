@@ -55,7 +55,7 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   double *data = mfem::New<double>(I[height]);
+   double *data = new double[I[height]];
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
@@ -122,11 +122,7 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    switch (assembly)
    {
       case AssemblyLevel::FULL:
-         if (Device::IsEnabled())
-         {
-            mfem_error("Full assembly not supported yet in device mode!");
-            // ext = new FABilinearFormExtension(this);
-         }
+         // ext = new FABilinearFormExtension(this);
          // Use the original BilinearForm implementation for now
          break;
       case AssemblyLevel::ELEMENT:
@@ -344,11 +340,6 @@ void BilinearForm::AssembleBdrElementMatrix(
 
 void BilinearForm::Assemble(int skip_zeros)
 {
-   if (Device::IsEnabled() && (assembly != AssemblyLevel::PARTIAL))
-   {
-      mfem_error("Chosen assembly level not supported yet in device mode!");
-   }
-
    if (ext)
    {
       ext->Assemble();
@@ -592,10 +583,6 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
 
    if (ext)
    {
-      if (P != NULL && assembly != AssemblyLevel::FULL && Device::IsEnabled())
-      {
-         P->BuildTranspose();
-      }
       ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
       return;
    }
@@ -625,8 +612,8 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       {
          // A, X and B point to the same data as mat, x and b
          EliminateVDofsInRHS(ess_tdof_list, x, b);
-         X.NewDataAndSize(x.GetData(), x.Size());
-         B.NewDataAndSize(b.GetData(), b.Size());
+         X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+         B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
          if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
       }
    }
@@ -727,6 +714,10 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
       else
       {
          // X and x point to the same data
+
+         // If the validity flags of X's Memory were changed (e.g. if it was
+         // moved to device memory) then we need to tell x about that.
+         x.SyncMemory(X);
       }
    }
    else // non-conforming space

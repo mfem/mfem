@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "fespace.hpp"
+#include "../general/device.hpp"
 
 namespace mfem
 {
@@ -21,6 +22,8 @@ namespace mfem
 class BilinearForm;
 
 
+/** @brief Class extending the BilinearForm class to support the different
+    AssemblyLevel%s. */
 class BilinearFormExtension : public Operator
 {
 protected:
@@ -28,6 +31,9 @@ protected:
 
 public:
    BilinearFormExtension(BilinearForm *form);
+
+   virtual MemoryClass GetMemoryClass() const
+   { return Device::GetMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const;
@@ -61,6 +67,7 @@ public:
                          int copy_interior = 0) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
+   void Update() {}
    ~FABilinearFormExtension() {}
 };
 
@@ -80,6 +87,7 @@ public:
                          int copy_interior = 0) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
+   void Update() {}
    ~EABilinearFormExtension() {}
 };
 
@@ -122,6 +130,7 @@ public:
                          int copy_interior = 0) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
+   void Update() {}
    ~MFBilinearFormExtension() {}
 };
 

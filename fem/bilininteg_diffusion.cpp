@@ -20,43 +20,22 @@ namespace mfem
 
 // PA Diffusion Integrator
 
-static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
-                                             const FiniteElement &test_fe)
-{
-   int order;
-   if (trial_fe.Space() == FunctionSpace::Pk)
-   {
-      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
-   }
-   else
-   {
-      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
-      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
-   }
-   if (trial_fe.Space() == FunctionSpace::rQk)
-   {
-      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
-   }
-   return IntRules.Get(trial_fe.GetGeomType(), order);
-}
-
-
 // OCCA 2D Assemble kernel
 #ifdef MFEM_USE_OCCA
 static void OccaPADiffusionSetup2D(const int D1D,
                                    const int Q1D,
                                    const int NE,
-                                   const double *W,
-                                   const double *J,
+                                   const Array<double> &W,
+                                   const Vector &J,
                                    const double COEFF,
-                                   double *op)
+                                   Vector &op)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
-   const occa::memory o_W = mfem::OccaPtr(W);
-   const occa::memory o_J = mfem::OccaPtr(J);
-   occa::memory o_op = mfem::OccaPtr(op);
+   const occa::memory o_W = OccaMemoryRead(W.GetMemory(), W.Size());
+   const occa::memory o_J = OccaMemoryRead(J.GetMemory(), J.Size());
+   occa::memory o_op = OccaMemoryWrite(op.GetMemory(), op.Size());
    const occa_id_t id = std::make_pair(D1D,Q1D);
    static occa_kernel_t OccaDiffSetup2D_ker;
    if (OccaDiffSetup2D_ker.find(id) == OccaDiffSetup2D_ker.end())
@@ -72,17 +51,17 @@ static void OccaPADiffusionSetup2D(const int D1D,
 static void OccaPADiffusionSetup3D(const int D1D,
                                    const int Q1D,
                                    const int NE,
-                                   const double *W,
-                                   const double *J,
+                                   const Array<double> &W,
+                                   const Vector &J,
                                    const double COEFF,
-                                   double *op)
+                                   Vector &op)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
-   const occa::memory o_W = mfem::OccaPtr(W);
-   const occa::memory o_J = mfem::OccaPtr(J);
-   occa::memory o_op = mfem::OccaPtr(op);
+   const occa::memory o_W = OccaMemoryRead(W.GetMemory(), W.Size());
+   const occa::memory o_J = OccaMemoryRead(J.GetMemory(), J.Size());
+   occa::memory o_op = OccaMemoryWrite(op.GetMemory(), op.Size());
    const occa_id_t id = std::make_pair(D1D,Q1D);
    static occa_kernel_t OccaDiffSetup3D_ker;
    if (OccaDiffSetup3D_ker.find(id) == OccaDiffSetup3D_ker.end())
@@ -99,27 +78,29 @@ static void OccaPADiffusionSetup3D(const int D1D,
 // PA Diffusion Assemble 2D kernel
 static void PADiffusionSetup2D(const int Q1D,
                                const int NE,
-                               const double* w,
-                               const double* j,
+                               const Array<double> &w,
+                               const Vector &j,
                                const double COEFF,
-                               double* op)
+                               Vector &op)
 {
    const int NQ = Q1D*Q1D;
-   const DeviceVector W(w, NQ);
-   const DeviceTensor<4> J(j, NQ, 2, 2, NE);
-   DeviceTensor<3> y(op, NQ, 3, NE);
+   auto W = w.Read();
+
+   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
+   auto y = Reshape(op.Write(), NQ, 3, NE);
+
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
       {
          const double J11 = J(q,0,0,e);
-         const double J12 = J(q,1,0,e);
-         const double J21 = J(q,0,1,e);
+         const double J21 = J(q,1,0,e);
+         const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double c_detJ = W(q) * COEFF / ((J11*J22)-(J21*J12));
-         y(q,0,e) =  c_detJ * (J21*J21 + J22*J22);
-         y(q,1,e) = -c_detJ * (J21*J11 + J22*J12);
-         y(q,2,e) =  c_detJ * (J11*J11 + J12*J12);
+         const double c_detJ = W[q] * COEFF / ((J11*J22)-(J21*J12));
+         y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
+         y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
+         y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
       }
    });
 }
@@ -127,50 +108,49 @@ static void PADiffusionSetup2D(const int Q1D,
 // PA Diffusion Assemble 3D kernel
 static void PADiffusionSetup3D(const int Q1D,
                                const int NE,
-                               const double* w,
-                               const double* j,
+                               const Array<double> &w,
+                               const Vector &j,
                                const double COEFF,
-                               double* op)
+                               Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
-   const DeviceVector W(w, NQ);
-   const DeviceTensor<4> J(j, NQ, 3, 3, NE);
-   DeviceTensor<3> y(op, NQ, 6, NE);
+   auto W = w.Read();
+   auto J = Reshape(j.Read(), NQ, 3, 3, NE);
+   auto y = Reshape(op.Write(), NQ, 6, NE);
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
       {
          const double J11 = J(q,0,0,e);
-         const double J12 = J(q,1,0,e);
-         const double J13 = J(q,2,0,e);
-         const double J21 = J(q,0,1,e);
+         const double J21 = J(q,1,0,e);
+         const double J31 = J(q,2,0,e);
+         const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double J23 = J(q,2,1,e);
-         const double J31 = J(q,0,2,e);
-         const double J32 = J(q,1,2,e);
+         const double J32 = J(q,2,1,e);
+         const double J13 = J(q,0,2,e);
+         const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
-         const double detJ =
-         ((J11 * J22 * J33) + (J12 * J23 * J31) +
-         (J13 * J21 * J32) - (J13 * J22 * J31) -
-         (J12 * J21 * J33) - (J11 * J23 * J32));
-         const double c_detJ = W(q) * COEFF / detJ;
+         const double detJ = J11 * (J22 * J33 - J32 * J23) -
+         /* */               J21 * (J12 * J33 - J32 * J13) +
+         /* */               J31 * (J12 * J23 - J22 * J13);
+         const double c_detJ = W[q] * COEFF / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
-         const double A12 = (J23 * J31) - (J21 * J33);
-         const double A13 = (J21 * J32) - (J22 * J31);
-         const double A21 = (J13 * J32) - (J12 * J33);
+         const double A12 = (J32 * J13) - (J12 * J33);
+         const double A13 = (J12 * J23) - (J22 * J13);
+         const double A21 = (J31 * J23) - (J21 * J33);
          const double A22 = (J11 * J33) - (J13 * J31);
-         const double A23 = (J12 * J31) - (J11 * J32);
-         const double A31 = (J12 * J23) - (J13 * J22);
-         const double A32 = (J13 * J21) - (J11 * J23);
+         const double A23 = (J21 * J13) - (J11 * J23);
+         const double A31 = (J21 * J32) - (J31 * J22);
+         const double A32 = (J31 * J12) - (J11 * J32);
          const double A33 = (J11 * J22) - (J12 * J21);
-         // adj(J)^Tadj(J)
-         y(q,0,e) = c_detJ * (A11*A11 + A21*A21 + A31*A31);
-         y(q,1,e) = c_detJ * (A11*A12 + A21*A22 + A31*A32);
-         y(q,2,e) = c_detJ * (A11*A13 + A21*A23 + A31*A33);
-         y(q,3,e) = c_detJ * (A12*A12 + A22*A22 + A32*A32);
-         y(q,4,e) = c_detJ * (A12*A13 + A22*A23 + A32*A33);
-         y(q,5,e) = c_detJ * (A13*A13 + A23*A23 + A33*A33);
+         // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
+         y(q,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+         y(q,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+         y(q,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+         y(q,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+         y(q,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+         y(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
       }
    });
 }
@@ -179,16 +159,16 @@ static void PADiffusionSetup(const int dim,
                              const int D1D,
                              const int Q1D,
                              const int NE,
-                             const double* W,
-                             const double* J,
+                             const Array<double> &W,
+                             const Vector &J,
                              const double COEFF,
-                             double* op)
+                             Vector &op)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADiffusionSetup"); }
    if (dim == 2)
    {
 #ifdef MFEM_USE_OCCA
-      if (DeviceUseOcca())
+      if (DeviceCanUseOcca())
       {
          OccaPADiffusionSetup2D(D1D, Q1D, NE, W, J, COEFF, op);
          return;
@@ -199,7 +179,7 @@ static void PADiffusionSetup(const int dim,
    if (dim == 3)
    {
 #ifdef MFEM_USE_OCCA
-      if (DeviceUseOcca())
+      if (DeviceCanUseOcca())
       {
          OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, COEFF, op);
          return;
@@ -209,13 +189,12 @@ static void PADiffusionSetup(const int dim,
    }
 }
 
-void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
+void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   const IntegrationRule *rule = IntRule;
    const FiniteElement &el = *fes.GetFE(0);
-   const IntegrationRule *ir = rule?rule:&DefaultGetRule(el,el);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
@@ -225,10 +204,12 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   vec.SetSize(symmDims * nq * ne);
-   const double coeff = static_cast<ConstantCoefficient*>(Q)->constant;
+   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
+   MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
+   const double coeff = cQ->constant;
    PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
-                    coeff, vec);
+                    coeff, pa_data);
 }
 
 #ifdef MFEM_USE_OCCA
@@ -236,24 +217,24 @@ void DiffusionIntegrator::Assemble(const FiniteElementSpace &fes)
 static void OccaPADiffusionApply2D(const int D1D,
                                    const int Q1D,
                                    const int NE,
-                                   const double* B,
-                                   const double* G,
-                                   const double* Bt,
-                                   const double* Gt,
-                                   const double* op,
-                                   const double* x,
-                                   double* y)
+                                   const Array<double> &B,
+                                   const Array<double> &G,
+                                   const Array<double> &Bt,
+                                   const Array<double> &Gt,
+                                   const Vector &op,
+                                   const Vector &x,
+                                   Vector &y)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
-   const occa::memory o_B = mfem::OccaPtr(B);
-   const occa::memory o_G = mfem::OccaPtr(G);
-   const occa::memory o_Bt = mfem::OccaPtr(Bt);
-   const occa::memory o_Gt = mfem::OccaPtr(Gt);
-   const occa::memory o_op = mfem::OccaPtr(op);
-   const occa::memory o_x = mfem::OccaPtr(x);
-   occa::memory o_y = mfem::OccaPtr(y);
+   const occa::memory o_B = OccaMemoryRead(B.GetMemory(), B.Size());
+   const occa::memory o_G = OccaMemoryRead(G.GetMemory(), G.Size());
+   const occa::memory o_Bt = OccaMemoryRead(Bt.GetMemory(), Bt.Size());
+   const occa::memory o_Gt = OccaMemoryRead(Gt.GetMemory(), Gt.Size());
+   const occa::memory o_op = OccaMemoryRead(op.GetMemory(), op.Size());
+   const occa::memory o_x = OccaMemoryRead(x.GetMemory(), x.Size());
+   occa::memory o_y = OccaMemoryReadWrite(y.GetMemory(), y.Size());
    const occa_id_t id = std::make_pair(D1D,Q1D);
    if (!Device::Allows(Backend::OCCA_CUDA))
    {
@@ -285,24 +266,24 @@ static void OccaPADiffusionApply2D(const int D1D,
 static void OccaPADiffusionApply3D(const int D1D,
                                    const int Q1D,
                                    const int NE,
-                                   const double* B,
-                                   const double* G,
-                                   const double* Bt,
-                                   const double* Gt,
-                                   const double* op,
-                                   const double* x,
-                                   double* y)
+                                   const Array<double> &B,
+                                   const Array<double> &G,
+                                   const Array<double> &Bt,
+                                   const Array<double> &Gt,
+                                   const Vector &op,
+                                   const Vector &x,
+                                   Vector &y)
 {
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
-   const occa::memory o_B = mfem::OccaPtr(B);
-   const occa::memory o_G = mfem::OccaPtr(G);
-   const occa::memory o_Bt = mfem::OccaPtr(Bt);
-   const occa::memory o_Gt = mfem::OccaPtr(Gt);
-   const occa::memory o_op = mfem::OccaPtr(op);
-   const occa::memory o_x = mfem::OccaPtr(x);
-   occa::memory o_y = mfem::OccaPtr(y);
+   const occa::memory o_B = OccaMemoryRead(B.GetMemory(), B.Size());
+   const occa::memory o_G = OccaMemoryRead(G.GetMemory(), G.Size());
+   const occa::memory o_Bt = OccaMemoryRead(Bt.GetMemory(), Bt.Size());
+   const occa::memory o_Gt = OccaMemoryRead(Gt.GetMemory(), Gt.Size());
+   const occa::memory o_op = OccaMemoryRead(op.GetMemory(), op.Size());
+   const occa::memory o_x = OccaMemoryRead(x.GetMemory(), x.Size());
+   occa::memory o_y = OccaMemoryReadWrite(y.GetMemory(), y.Size());
    const occa_id_t id = std::make_pair(D1D,Q1D);
    if (!Device::Allows(Backend::OCCA_CUDA))
    {
@@ -331,19 +312,16 @@ static void OccaPADiffusionApply3D(const int D1D,
 }
 #endif // MFEM_USE_OCCA
 
-#define QUAD_2D_ID(X, Y) (X + ((Y) * Q1D))
-#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * Q1D) + ((Z) * Q1D*Q1D))
-
 // PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADiffusionApply2D(const int NE,
-                        const double* b,
-                        const double* g,
-                        const double* bt,
-                        const double* gt,
-                        const double* _op,
-                        const double* _x,
-                        double* _y,
+                        const Array<double> &b,
+                        const Array<double> &g,
+                        const Array<double> &bt,
+                        const Array<double> &gt,
+                        const Vector &_op,
+                        const Vector &_x,
+                        Vector &_y,
                         const int d1d = 0,
                         const int q1d = 0)
 {
@@ -351,21 +329,22 @@ void PADiffusionApply2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-
-   const DeviceMatrix B(b, Q1D, D1D);
-   const DeviceMatrix G(g, Q1D, D1D);
-   const DeviceMatrix Bt(bt, D1D, Q1D);
-   const DeviceMatrix Gt(gt, D1D, Q1D);
-   const DeviceTensor<3> op(_op, Q1D*Q1D, 3, NE);
-   const DeviceTensor<3> x(_x, D1D, D1D, NE);
-   DeviceTensor<3> y(_y, D1D, D1D, NE);
-
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
-      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
-      double grad[MAX_Q1D][MAX_Q1D][2];
+      double grad[max_Q1D][max_Q1D][2];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -376,7 +355,7 @@ void PADiffusionApply2D(const int NE,
       }
       for (int dy = 0; dy < D1D; ++dy)
       {
-         double gradX[MAX_Q1D][2];
+         double gradX[max_Q1D][2];
          for (int qx = 0; qx < Q1D; ++qx)
          {
             gradX[qx][0] = 0.0;
@@ -407,7 +386,7 @@ void PADiffusionApply2D(const int NE,
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const int q = QUAD_2D_ID(qx, qy);
+            const int q = qx + qy * Q1D;
 
             const double O11 = op(q,0,e);
             const double O12 = op(q,1,e);
@@ -422,7 +401,7 @@ void PADiffusionApply2D(const int NE,
       }
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double gradX[MAX_D1D][2];
+         double gradX[max_D1D][2];
          for (int dx = 0; dx < D1D; ++dx)
          {
             gradX[dx][0] = 0;
@@ -458,71 +437,71 @@ template<const int T_D1D = 0,
          const int T_Q1D = 0,
          const int T_NBZ = 0>
 static void SmemPADiffusionApply2D(const int NE,
-                                   const double* _b,
-                                   const double* _g,
-                                   const double* _bt,
-                                   const double* _gt,
-                                   const double* _op,
-                                   const double* _x,
-                                   double* _y,
+                                   const Array<double> &_b,
+                                   const Array<double> &_g,
+                                   const Array<double> &_bt,
+                                   const Array<double> &_gt,
+                                   const Vector &_op,
+                                   const Vector &_x,
+                                   Vector &_y,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int NBZ = T_NBZ ? T_NBZ : 1;
-   const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   const int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   const DeviceMatrix b(_b, Q1D, D1D);
-   const DeviceMatrix g(_g, Q1D, D1D);
-   const DeviceMatrix bt(_bt, D1D, Q1D);
-   const DeviceMatrix gt(_gt, D1D, Q1D);
-   const DeviceTensor<3> op(_op, Q1D*Q1D, 3, NE);
-   const DeviceTensor<3> x(_x, D1D, D1D, NE);
-   DeviceTensor<3> y(_y, D1D, D1D, NE);
+   auto b = Reshape(_b.Read(), Q1D, D1D);
+   auto g = Reshape(_g.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      MFEM_SHARED double B[MQ1][MD1];
-      MFEM_SHARED double G[MQ1][MD1];
-      double (*Bt)[MQ1] = (double (*)[MQ1]) B;
-      double (*Gt)[MQ1] = (double (*)[MQ1]) G;
+      MFEM_SHARED double sBG[2][MQ1*MD1];
+      double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
+      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
+      double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
+      double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
       MFEM_SHARED double Xz[NBZ][MD1][MD1];
       MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
       MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
-      double (*X)[MD1] = (double (*)[MD1])(Xz + threadIdx(z));
-      double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + threadIdx(z));
-      double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + threadIdx(z));
-      double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + threadIdx(z));
-      double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + threadIdx(z));
-      for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+      double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
+      double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + tidz);
+      double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + tidz);
+      double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + tidz);
+      double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + tidz);
+      MFEM_FOREACH_THREAD(dy,y,D1D)
       {
-         for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+         MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             X[dy][dx] = x(dx,dy,e);
          }
       }
-      if (threadIdx(z) == 0)
+      if (tidz == 0)
       {
-         for (int dx = threadIdx(y); dx < D1D; dx += blockDim(y))
+         MFEM_FOREACH_THREAD(d,y,D1D)
          {
-            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B[qx][dx] = b(qx,dx);
-               G[qx][dx] = g(qx,dx);
+               B[q][d] = b(q,d);
+               G[q][d] = g(q,d);
             }
          }
       }
       MFEM_SYNC_THREAD;
-      for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+      MFEM_FOREACH_THREAD(dy,y,D1D)
       {
-         for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u = 0.0;
             double v = 0.0;
@@ -537,9 +516,9 @@ static void SmemPADiffusionApply2D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
-         for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double u = 0.0;
             double v = 0.0;
@@ -553,9 +532,9 @@ static void SmemPADiffusionApply2D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
-         for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             const int q = (qx + ((qy) * Q1D));
             const double O11 = op(q,0,e);
@@ -568,32 +547,44 @@ static void SmemPADiffusionApply2D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+      if (tidz == 0)
       {
-         for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bt[d][q] = b(q,d);
+               Gt[d][q] = g(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u = 0.0;
             double v = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               u += Gt[qx][dx] * QQ0[qy][qx];
-               v += Bt[qx][dx] * QQ1[qy][qx];
+               u += Gt[dx][qx] * QQ0[qy][qx];
+               v += Bt[dx][qx] * QQ1[qy][qx];
             }
             DQ0[qy][dx] = u;
             DQ1[qy][dx] = v;
          }
       }
       MFEM_SYNC_THREAD;
-      for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+      MFEM_FOREACH_THREAD(dy,y,D1D)
       {
-         for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+         MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u = 0.0;
             double v = 0.0;
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               u += DQ0[qy][dx] * Bt[qy][dy];
-               v += DQ1[qy][dx] * Gt[qy][dy];
+               u += DQ0[qy][dx] * Bt[dy][qy];
+               v += DQ1[qy][dx] * Gt[dy][qy];
             }
             y(dx,dy,e) += (u + v);
          }
@@ -603,36 +594,36 @@ static void SmemPADiffusionApply2D(const int NE,
 
 
 // PA Diffusion Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
+template<const int T_D1D = 0,
+         const int T_Q1D = 0> static
 void PADiffusionApply3D(const int NE,
-                        const double* b,
-                        const double* g,
-                        const double* bt,
-                        const double* gt,
-                        const double* _op,
-                        const double* _x,
-                        double* _y,
+                        const Array<double> &b,
+                        const Array<double> &g,
+                        const Array<double> &bt,
+                        const Array<double> &gt,
+                        const Vector &_op,
+                        const Vector &_x,
+                        Vector &_y,
                         int d1d = 0, int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-
-   const DeviceMatrix B(b, Q1D, D1D);
-   const DeviceMatrix G(g, Q1D, D1D);
-   const DeviceMatrix Bt(bt, D1D, Q1D);
-   const DeviceMatrix Gt(gt, D1D, Q1D);
-   const DeviceTensor<3> op(_op, Q1D*Q1D*Q1D, 6, NE);
-   const DeviceTensor<4> x(_x, D1D, D1D, D1D, NE);
-   DeviceTensor<4> y(_y, D1D, D1D, D1D, NE);
-
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
-      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-      double grad[MAX_Q1D][MAX_Q1D][MAX_Q1D][4];
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      double grad[max_Q1D][max_Q1D][max_Q1D][4];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -647,7 +638,7 @@ void PADiffusionApply3D(const int NE,
       }
       for (int dz = 0; dz < D1D; ++dz)
       {
-         double gradXY[MAX_Q1D][MAX_Q1D][4];
+         double gradXY[max_Q1D][max_Q1D][4];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -659,7 +650,7 @@ void PADiffusionApply3D(const int NE,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double gradX[MAX_Q1D][2];
+            double gradX[max_Q1D][2];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] = 0.0;
@@ -710,7 +701,7 @@ void PADiffusionApply3D(const int NE,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const int q = QUAD_3D_ID(qx, qy, qz);
+               const int q = qx + (qy + qz * Q1D) * Q1D;
                const double O11 = op(q,0,e);
                const double O12 = op(q,1,e);
                const double O13 = op(q,2,e);
@@ -728,7 +719,7 @@ void PADiffusionApply3D(const int NE,
       }
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double gradXY[MAX_D1D][MAX_D1D][4];
+         double gradXY[max_D1D][max_D1D][4];
          for (int dy = 0; dy < D1D; ++dy)
          {
             for (int dx = 0; dx < D1D; ++dx)
@@ -740,7 +731,7 @@ void PADiffusionApply3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double gradX[MAX_D1D][4];
+            double gradX[max_D1D][4];
             for (int dx = 0; dx < D1D; ++dx)
             {
                gradX[dx][0] = 0;
@@ -793,34 +784,33 @@ void PADiffusionApply3D(const int NE,
 }
 
 // Shared memory PA Diffusion Apply 3D kernel
-template<int T_D1D = 0,
-         int T_Q1D = 0>
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
 static void SmemPADiffusionApply3D(const int NE,
-                                   const double* _b,
-                                   const double* _g,
-                                   const double* _bt,
-                                   const double* _gt,
-                                   const double* _op,
-                                   const double* _x,
-                                   double* _y,
+                                   const Array<double> &_b,
+                                   const Array<double> &_g,
+                                   const Array<double> &_bt,
+                                   const Array<double> &_gt,
+                                   const Vector &_op,
+                                   const Vector &_x,
+                                   Vector &_y,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   const int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   const DeviceMatrix b(_b, Q1D, D1D);
-   const DeviceMatrix g(_g, Q1D, D1D);
-   const DeviceMatrix bt(_bt, D1D, Q1D);
-   const DeviceMatrix gt(_gt, D1D, Q1D);
-   const DeviceTensor<3> op(_op, Q1D*Q1D*Q1D, 6, NE);
-   const DeviceTensor<4> x(_x, D1D, D1D, D1D, NE);
-   DeviceTensor<4> y(_y, D1D, D1D, D1D, NE);
+   auto b = Reshape(_b.Read(), Q1D, D1D);
+   auto g = Reshape(_g.Read(), Q1D, D1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
@@ -848,33 +838,33 @@ static void SmemPADiffusionApply3D(const int NE,
       double (*QDD0)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+0);
       double (*QDD1)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+1);
       double (*QDD2)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+2);
-      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      MFEM_FOREACH_THREAD(dz,z,D1D)
       {
-         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                X[dz][dy][dx] = x(dx,dy,dz,e);
             }
          }
       }
-      if (threadIdx(z) == 0)
+      if (tidz == 0)
       {
-         for (int dx = threadIdx(y); dx < D1D; dx += blockDim(y))
+         MFEM_FOREACH_THREAD(d,y,D1D)
          {
-            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B[qx][dx] = b(qx,dx);
-               G[qx][dx] = g(qx,dx);
+               B[q][d] = b(q,d);
+               G[q][d] = g(q,d);
             }
          }
       }
       MFEM_SYNC_THREAD;
-      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      MFEM_FOREACH_THREAD(dz,z,D1D)
       {
-         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double u = 0.0;
                double v = 0.0;
@@ -890,11 +880,11 @@ static void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      MFEM_FOREACH_THREAD(dz,z,D1D)
       {
-         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double u = 0.0;
                double v = 0.0;
@@ -912,11 +902,11 @@ static void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
-         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double u = 0.0;
                double v = 0.0;
@@ -934,11 +924,11 @@ static void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
-         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                const int q = qx + ((qy*Q1D) + (qz*Q1D*Q1D));
                const double O11 = op(q,0,e);
@@ -957,23 +947,23 @@ static void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      if (threadIdx(z) == 0)
+      if (tidz == 0)
       {
-         for (int dx = threadIdx(y); dx < D1D; dx += blockDim(y))
+         MFEM_FOREACH_THREAD(d,y,D1D)
          {
-            for (int qx = threadIdx(x); qx < Q1D; qx += blockDim(x))
+            MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               Bt[dx][qx] = bt(dx,qx);
-               Gt[dx][qx] = gt(dx,qx);
+               Bt[d][q] = b(q,d);
+               Gt[d][q] = g(q,d);
             }
          }
       }
       MFEM_SYNC_THREAD;
-      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
-         for (int qy = threadIdx(y); qy < Q1D; qy += blockDim(y))
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                double u = 0.0;
                double v = 0.0;
@@ -991,11 +981,11 @@ static void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      for (int qz = threadIdx(z); qz < Q1D; qz += blockDim(z))
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
-         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                double u = 0.0;
                double v = 0.0;
@@ -1013,11 +1003,11 @@ static void SmemPADiffusionApply3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      for (int dz = threadIdx(z); dz < D1D; dz += blockDim(z))
+      MFEM_FOREACH_THREAD(dz,z,D1D)
       {
-         for (int dy = threadIdx(y); dy < D1D; dy += blockDim(y))
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            for (int dx = threadIdx(x); dx < D1D; dx += blockDim(x))
+            MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                double u = 0.0;
                double v = 0.0;
@@ -1039,16 +1029,16 @@ static void PADiffusionApply(const int dim,
                              const int D1D,
                              const int Q1D,
                              const int NE,
-                             const double* B,
-                             const double* G,
-                             const double* Bt,
-                             const double* Gt,
-                             const double* op,
-                             const double* x,
-                             double* y)
+                             const Array<double> &B,
+                             const Array<double> &G,
+                             const Array<double> &Bt,
+                             const Array<double> &Gt,
+                             const Vector &op,
+                             const Vector &x,
+                             Vector &y)
 {
 #ifdef MFEM_USE_OCCA
-   if (DeviceUseOcca())
+   if (DeviceCanUseOcca())
    {
       if (dim == 2)
       {
@@ -1100,14 +1090,14 @@ static void PADiffusionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         case 0x22: return SmemPADiffusionApply2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x33: return SmemPADiffusionApply2D<3,3,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x66: return SmemPADiffusionApply2D<6,6,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x77: return SmemPADiffusionApply2D<7,7,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x88: return SmemPADiffusionApply2D<8,8,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x99: return SmemPADiffusionApply2D<9,9,1>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,B,G,Bt,Gt,op,x,y);
          default:   return PADiffusionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
       }
    }
@@ -1129,11 +1119,11 @@ static void PADiffusionApply(const int dim,
 }
 
 // PA Diffusion Apply kernel
-void DiffusionIntegrator::MultAssembled(const Vector &x, Vector &y)
+void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    PADiffusionApply(dim, dofs1D, quad1D, ne,
                     maps->B, maps->G, maps->Bt, maps->Gt,
-                    vec, x, y);
+                    pa_data, x, y);
 }
 
 } // namespace mfem
