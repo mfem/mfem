@@ -242,9 +242,11 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
                                  el.node[fv[2]], el.node[fv[3]]);
          MFEM_ASSERT(face, "face not found!");
 
-         static const Geometry::Type types[5] = {
+         static const Geometry::Type types[5] =
+         {
             Geometry::INVALID, Geometry::INVALID,
-            Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE };
+            Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE
+         };
 
          face_geom[face->index] = types[gi.nfv[j]];
       }

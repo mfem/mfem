@@ -48,7 +48,7 @@ void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
       }
    }
    for (int i = 0; i < nf; i++)
-   {      
+   {
       nfv[i] = elem->GetNFaceVertices(i);
 
       faces[i][3] = 7; // invalid node index for 3-node faces
@@ -1400,15 +1400,6 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       int size = ref_stack.Size();
       RefineElement(ref.index, ref.ref_type);
       nforced += ref_stack.Size() - size;
-
-/*#ifdef MFEM_DEBUG
-      static int sequence = 0;
-      char fname[200];
-      sprintf(fname, "ncmesh.%03d", sequence++);
-      std::ofstream f(fname);
-      Update();
-      DebugDump(f);
-#endif*/
    }
 
    /* TODO: the current algorithm of forced refinements is not optimal. As
@@ -2321,7 +2312,7 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                int v1 = nodes[mid[0]].vert_index;
                int v2 = nodes[mid[2]].vert_index;
                ((v1 < v2) ? PointMatrix(mid0, mid2, mid2, mid0) :
-               /*        */ PointMatrix(mid2, mid0, mid0, mid2)).GetMatrix(mat);
+                /*       */ PointMatrix(mid2, mid0, mid0, mid2)).GetMatrix(mat);
             }
             else
             {
@@ -2329,7 +2320,7 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                int v1 = nodes[mid[1]].vert_index;
                int v2 = nodes[mid[3]].vert_index;
                ((v1 < v2) ? PointMatrix(mid1, mid3, mid3, mid1) :
-               /*        */ PointMatrix(mid3, mid1, mid1, mid3)).GetMatrix(mat);
+                /*       */ PointMatrix(mid3, mid1, mid1, mid3)).GetMatrix(mat);
             }
          }
       }
@@ -3722,7 +3713,7 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
             const PointMatrix &identity = GetGeomIdentity(geom);
 
             transforms.point_matrices[g]
-               .SetSize(Dim, identity.np, path_map[g].size());
+            .SetSize(Dim, identity.np, path_map[g].size());
 
             // calculate the point matrices
             RefPathMap::iterator it;
@@ -3776,7 +3767,7 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
             const PointMatrix &identity = GetGeomIdentity(geom);
 
             transforms.point_matrices[geom]
-               .SetSize(Dim, identity.np, mat_no[geom].size());
+            .SetSize(Dim, identity.np, mat_no[geom].size());
 
             // calculate point matrices
             std::map<int, int>::iterator it;
@@ -4471,7 +4462,7 @@ int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
 }
 
 void NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
-                            int& h_level, int& v_level) const
+                                int& h_level, int& v_level) const
 {
    int hl1, hl2, vl1, vl2;
    int mid[5];
@@ -4545,11 +4536,11 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
    else if (el.Geom() == Geometry::PRISM)
    {
       splits[0] = splits[1] =
-         std::max(
-            max6(flevel[0][0], flevel[1][0], 0,
-                 flevel[2][0], flevel[3][0], flevel[4][0]),
-            max6(elevel[0], elevel[1], elevel[2],
-                 elevel[3], elevel[4], elevel[5]));
+                     std::max(
+                        max6(flevel[0][0], flevel[1][0], 0,
+                             flevel[2][0], flevel[3][0], flevel[4][0]),
+                        max6(elevel[0], elevel[1], elevel[2],
+                             elevel[3], elevel[4], elevel[5]));
 
       splits[2] = max6(flevel[2][1], flevel[3][1], flevel[4][1],
                        elevel[6], elevel[7], elevel[8]);
