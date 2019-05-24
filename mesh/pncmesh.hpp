@@ -64,7 +64,7 @@ class FiniteElementSpace;
 class ParNCMesh : public NCMesh
 {
 public:
-   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh);
+   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
 
    ParNCMesh(const ParNCMesh &other);
 
