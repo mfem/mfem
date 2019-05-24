@@ -20,7 +20,7 @@
 namespace mfem
 {
 
-MemoryType GetSuitableMemoryType(MemoryClass mc)
+MemoryType GetMemoryType(MemoryClass mc)
 {
    switch (mc)
    {

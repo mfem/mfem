@@ -15,6 +15,12 @@
 namespace mfem
 {
 
+void ODESolver::Init(TimeDependentOperator &f)
+{
+   this->f = &f;
+   mem_type = GetMemoryType(f.GetMemoryClass());
+}
+
 void ForwardEulerSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
