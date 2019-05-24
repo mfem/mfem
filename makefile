@@ -159,7 +159,7 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- cuda pcuda cudebug pcudebug style
+ cuda pcuda cudebug pcudebug hpc style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -366,8 +366,8 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
 
-.PHONY: lib all clean distclean install config status info deps serial parallel\
-	debug pdebug cuda pcuda cudebug pcudebug style check test unittest\
+.PHONY: lib all clean distclean install config status info deps serial parallel	\
+	debug pdebug cuda pcuda cudebug pcudebug hpc style check test unittest \
 	deprecation-warnings
 
 .SUFFIXES:
@@ -433,6 +433,13 @@ serial parallel debug pdebug:
 cuda pcuda cudebug pcudebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
 	   MFEM_USE_CUDA=$(M_CUDA) $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
+
+# Build with MPI and all Device backends enabled (requires OCCA and RAJA)
+hpc:
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=YES MFEM_USE_CUDA=YES \
+	  MFEM_USE_OPENMP=YES MFEM_USE_OCCA=YES MFEM_USE_RAJA=YES \
+	  $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 deps:
