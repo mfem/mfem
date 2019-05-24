@@ -331,7 +331,7 @@ void MemoryManager::PrintPtrs(void)
 void *MemoryManager::New_(void *h_ptr, std::size_t size, MemoryType mt,
                           unsigned &flags)
 {
-   // FIXME: save the types of the pointers ...
+   // TODO: save the types of the pointers ...
    flags = Mem::REGISTERED | Mem::OWNS_INTERNAL;
    switch (mt)
    {
@@ -339,7 +339,6 @@ void *MemoryManager::New_(void *h_ptr, std::size_t size, MemoryType mt,
 
       case MemoryType::HOST_32:
       case MemoryType::HOST_64:
-         // FIXME: implement these two cases
          mfem_error("New_(): aligned host types are not implemented yet");
          return nullptr;
 
@@ -349,7 +348,6 @@ void *MemoryManager::New_(void *h_ptr, std::size_t size, MemoryType mt,
          return h_ptr;
 
       case MemoryType::CUDA_UVM:
-         // FIXME: implement this case
          mfem_error("New_(): CUDA UVM allocation is not implemented yet");
          return nullptr;
    }
@@ -360,7 +358,7 @@ void *MemoryManager::Register_(void *ptr, void *h_ptr, std::size_t capacity,
                                MemoryType mt, bool own, bool alias,
                                unsigned &flags)
 {
-   // FIXME: save the type of the registered pointer ...
+   // TODO: save the type of the registered pointer ...
    MFEM_VERIFY(alias == false, "cannot register an alias!");
    flags = flags | (Mem::REGISTERED | Mem::OWNS_INTERNAL);
    if (IsHostMemory(mt))
@@ -381,7 +379,7 @@ void MemoryManager::Alias_(void *base_h_ptr, std::size_t offset,
                            std::size_t size, unsigned base_flags,
                            unsigned &flags)
 {
-   // FIXME: store the 'size' in the MemoryManager?
+   // TODO: store the 'size' in the MemoryManager?
    mm.InsertAlias(base_h_ptr, (char*)base_h_ptr + offset,
                   base_flags & Mem::ALIAS);
    flags = (base_flags | Mem::ALIAS | Mem::OWNS_INTERNAL) &
@@ -390,7 +388,7 @@ void MemoryManager::Alias_(void *base_h_ptr, std::size_t offset,
 
 MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
 {
-   // FIXME: this logic needs to be updated when support for HOST_32 and HOST_64
+   // TODO: this logic needs to be updated when support for HOST_32 and HOST_64
    // memory types is added.
 
    MFEM_ASSERT(!(flags & Mem::OWNS_DEVICE) || (flags & Mem::OWNS_INTERNAL),
@@ -424,27 +422,23 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryClass mc,
          return h_ptr;
 
       case MemoryClass::HOST_32:
-         // FIXME: check that the host pointer is MemoryType::HOST_32 or
+         // TODO: check that the host pointer is MemoryType::HOST_32 or
          // MemoryType::HOST_64
-
-         // FIXME: add support for this case
          return h_ptr;
 
       case MemoryClass::HOST_64:
-         // FIXME: check that the host pointer is MemoryType::HOST_64
-
-         // FIXME: add support for this case
+         // TODO: check that the host pointer is MemoryType::HOST_64
          return h_ptr;
 
       case MemoryClass::CUDA:
       {
-         // FIXME: check that the device pointer is MemoryType::CUDA or
+         // TODO: check that the device pointer is MemoryType::CUDA or
          // MemoryType::CUDA_UVM
 
          const bool need_copy = !(flags & Mem::VALID_DEVICE);
          flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
 
-         // FIXME: add support for UVM.
+         // TODO: add support for UVM
          if (flags & Mem::ALIAS)
          {
             return mm.GetAliasDevicePtr(h_ptr, size, need_copy);
@@ -453,9 +447,9 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryClass mc,
       }
 
       case MemoryClass::CUDA_UVM:
-         // FIXME: check that the host+device pointers are MemoryType::CUDA_UVM
+         // TODO: check that the host+device pointers are MemoryType::CUDA_UVM
 
-         // FIXME: do we need to update the validity flags?
+         // Do we need to update the validity flags?
 
          return h_ptr; // the host and device pointers are the same
    }
@@ -477,27 +471,23 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
          return h_ptr;
 
       case MemoryClass::HOST_32:
-         // FIXME: check that the host pointer is MemoryType::HOST_32 or
+         // TODO: check that the host pointer is MemoryType::HOST_32 or
          // MemoryType::HOST_64
-
-         // FIXME: add support for this case
          return h_ptr;
 
       case MemoryClass::HOST_64:
-         // FIXME: check that the host pointer is MemoryType::HOST_64
-
-         // FIXME: add support for this case
+         // TODO: check that the host pointer is MemoryType::HOST_64
          return h_ptr;
 
       case MemoryClass::CUDA:
       {
-         // FIXME: check that the device pointer is MemoryType::CUDA or
+         // TODO: check that the device pointer is MemoryType::CUDA or
          // MemoryType::CUDA_UVM
 
          const bool need_copy = !(flags & Mem::VALID_DEVICE);
          flags = flags | Mem::VALID_DEVICE;
 
-         // FIXME: add support for UVM.
+         // TODO: add support for UVM
          if (flags & Mem::ALIAS)
          {
             return mm.GetAliasDevicePtr(h_ptr, size, need_copy);
@@ -506,9 +496,9 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
       }
 
       case MemoryClass::CUDA_UVM:
-         // FIXME: check that the host+device pointers are MemoryType::CUDA_UVM
+         // TODO: check that the host+device pointers are MemoryType::CUDA_UVM
 
-         // FIXME: do we need to update the validity flags?
+         // Do we need to update the validity flags?
 
          return h_ptr; // the host and device pointers are the same
    }
@@ -525,29 +515,25 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc, std::size_t size,
          return h_ptr;
 
       case MemoryClass::HOST_32:
-         // FIXME: check that the host pointer is MemoryType::HOST_32 or
+         // TODO: check that the host pointer is MemoryType::HOST_32 or
          // MemoryType::HOST_64
-
-         // FIXME: add support for this case
 
          flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
          return h_ptr;
 
       case MemoryClass::HOST_64:
-         // FIXME: check that the host pointer is MemoryType::HOST_64
-
-         // FIXME: add support for this case
+         // TODO: check that the host pointer is MemoryType::HOST_64
 
          flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
          return h_ptr;
 
       case MemoryClass::CUDA:
-         // FIXME: check that the device pointer is MemoryType::CUDA or
+         // TODO: check that the device pointer is MemoryType::CUDA or
          // MemoryType::CUDA_UVM
 
          flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
 
-         // FIXME: add support for UVM.
+         // TODO: add support for UVM
          if (flags & Mem::ALIAS)
          {
             return mm.GetAliasDevicePtr(h_ptr, size, false);
@@ -555,18 +541,18 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc, std::size_t size,
          return mm.GetDevicePtr(h_ptr, size, false);
 
       case MemoryClass::CUDA_UVM:
-         // FIXME: check that the host+device pointers are MemoryType::CUDA_UVM
+         // TODO: check that the host+device pointers are MemoryType::CUDA_UVM
 
-         // FIXME: do we need to update the validity flags?
+         // Do we need to update the validity flags?
 
          return h_ptr; // the host and device pointers are the same
    }
    return nullptr;
 }
 
-void MemoryManager::SyncAliasToBase_(const void *base_h_ptr, void *alias_h_ptr,
-                                     size_t alias_size, unsigned base_flags,
-                                     unsigned &alias_flags)
+void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
+                               size_t alias_size, unsigned base_flags,
+                               unsigned &alias_flags)
 {
    // This is called only when (base_flags & Mem::REGISTERED) is true.
    // Note that (alias_flags & REGISTERED) may not be true.
@@ -591,7 +577,7 @@ void MemoryManager::SyncAliasToBase_(const void *base_h_ptr, void *alias_h_ptr,
 
 MemoryType MemoryManager::GetMemoryType_(void *h_ptr, unsigned flags)
 {
-   // FIXME: support other memory types
+   // TODO: support other memory types
    if (flags & Mem::VALID_DEVICE) { return MemoryType::CUDA; }
    return MemoryType::HOST;
 }
@@ -715,7 +701,7 @@ void MemoryPrintFlags(unsigned flags)
          << "\n   valid host    = " << bool(flags & Mem::VALID_HOST)
          << "\n   valid device  = " << bool(flags & Mem::VALID_DEVICE)
          << "\n   alias         = " << bool(flags & Mem::ALIAS)
-         << "\n   exec flags    = " << bool(flags & Mem::EXEC_FLAG)
+         << "\n   device flag   = " << bool(flags & Mem::USE_DEVICE)
          << std::endl;
 }
 
