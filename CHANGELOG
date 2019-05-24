@@ -38,7 +38,8 @@ GPU support
   "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
 
 - GPU-related limitations:
-  * Hypre preconditioners are not yet available in GPU mode.
+  * Hypre preconditioners are not yet available in GPU mode.  Hypre must be built
+    in CPU only mode.
   * Only constant coefficients are currently supported on GPUs.
   * Full-assembly (on device), element assembly, and matrix-free bilinear forms
     are not supported yet. Element batching is currently ignored.
