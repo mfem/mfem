@@ -51,6 +51,11 @@ static const char *backend_name[Backend::NUM_BACKENDS] =
 Device Device::device_singleton;
 
 
+Device::~Device()
+{
+   if (destroy_mm) { mm.Destroy(); }
+}
+
 void Device::Configure(const std::string &device, const int dev)
 {
    std::map<std::string, Backend::Id> bmap;
@@ -72,21 +77,19 @@ void Device::Configure(const std::string &device, const int dev)
    }
 
    // OCCA_CUDA needs CUDA or RAJA_CUDA:
-   Get().allowed_backends = Get().backends;
    if (Allows(Backend::OCCA_CUDA) && !Allows(Backend::RAJA_CUDA))
    {
       Get().MarkBackend(Backend::CUDA);
    }
 
-   // Activate all backends for Setup().
-   Get().allowed_backends = Get().backends;
+   // Perform setup.
    Get().Setup(dev);
-
-   // Enable only the default host CPU backend.
-   Get().allowed_backends = Backend::CPU;
 
    // Enable the device
    Enable();
+
+   std::memcpy(this, &Get(), sizeof(Device));
+   destroy_mm = true;
 }
 
 void Device::Print(std::ostream &out)
@@ -95,7 +98,7 @@ void Device::Print(std::ostream &out)
    bool add_comma = false;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {
-      if (Get().backends & internal::backend_list[i])
+      if (backends & internal::backend_list[i])
       {
          if (add_comma) { out << ','; }
          add_comma = true;
@@ -124,16 +127,8 @@ void Device::Enable()
    if (Get().backends & ~Backend::CPU)
    {
       Get().mode = Device::ACCELERATED;
-      Get().allowed_backends = Get().backends;
       Get().UpdateMemoryTypeAndClass();
    }
-}
-
-void Device::Disable()
-{
-   Get().mode = Device::SEQUENTIAL;
-   Get().allowed_backends = Backend::CPU;
-   Get().UpdateMemoryTypeAndClass();
 }
 
 #ifdef MFEM_USE_CUDA

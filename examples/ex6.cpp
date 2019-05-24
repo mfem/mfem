@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool pa = false;
-   const char *device = "cpu";
+   const char *device_opts = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device, "-d", "--device",
+   args.AddOption(&device_opts, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -74,8 +74,8 @@ int main(int argc, char *argv[])
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device::Configure(device);
-   Device::Print();
+   Device device(device_opts);
+   device.Print();
 
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with

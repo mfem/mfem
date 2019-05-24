@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   const char *device = "cpu";
+   const char *device_opts = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device, "-d", "--device",
+   args.AddOption(&device_opts, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -100,8 +100,8 @@ int main(int argc, char *argv[])
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device::Configure(device);
-   if (myid == 0) { Device::Print(); }
+   Device device(device_opts);
+   if (myid == 0) { device.Print(); }
 
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
