@@ -506,7 +506,7 @@ protected: // implementation
    virtual int GetNumGhostVertices() const { return 0; }
 
    void InitGeomFlags();
-   bool HavePrisms() const { return true; /* FIXME Geoms & (1 << Geometry::PRISM);*/}
+   bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
 
 
    // refinement/derefinement
