@@ -20,7 +20,7 @@ namespace mfem
 
 // PA Mass Integrator
 
-static inline MFEM_ATTR_HOST_DEVICE
+static inline MFEM_HOST_DEVICE
 double LaghosRho0(const double problem, const double *x)
 {
    if (problem == -2.0) return (x[0] < 0.5) ? 1.0 : 0.1;
