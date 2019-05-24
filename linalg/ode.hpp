@@ -35,11 +35,7 @@ public:
        - When the dimensions of the associated TimeDependentOperator change.
        - When a time stepping sequence has to be restarted.
        - To change the associated TimeDependentOperator. */
-   virtual void Init(TimeDependentOperator &f)
-   {
-      this->f = &f;
-      mem_type = GetSuitableMemoryType(f.GetMemoryClass());
-   }
+   virtual void Init(TimeDependentOperator &f);
 
    /** @brief Perform a time step from time @a t [in] to time @a t [out] based
        on the requested step size @a dt [in]. */
