@@ -46,18 +46,17 @@
 
 // Define the MFEM inner threading macros
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
-#define MFEM_SHARED __shared__
+#define MFEM_ATTR_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
-// FIXME: try this
-// #define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
-#define blockDim(k) blockDim.k
-#define threadIdx(k) threadIdx.k
+#define MFEM_THREAD_ID(k) threadIdx.k
+#define MFEM_THREAD_SIZE(k) blockDim.k
+#define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
 #else
-#define MFEM_SHARED
+#define MFEM_ATTR_SHARED
 #define MFEM_SYNC_THREAD
-// #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
-#define blockDim(x) 1
-#define threadIdx(x) 0
+#define MFEM_THREAD_ID(k) 0
+#define MFEM_THREAD_SIZE(k) 1
+#define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
 
