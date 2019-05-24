@@ -1349,7 +1349,7 @@ void HypreParMatrix::Threshold(double threshold)
       ierr += hypre_CSRMatrixDestroy(csr_A);
    }
 
-   /* FIXME: GenerateDiagAndOffd() uses an int array of size equal to the number
+   /* TODO: GenerateDiagAndOffd() uses an int array of size equal to the number
       of columns in csr_A_wo_z which is the global number of columns in A. This
       does not scale well. */
    ierr += GenerateDiagAndOffd(csr_A_wo_z,parcsr_A_ptr,

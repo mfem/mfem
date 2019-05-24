@@ -283,7 +283,7 @@ public:
    /** Return "NC" orientation of an edge. As opposed to standard Mesh edge
        orientation based on vertex IDs, "NC" edge orientation follows the local
        edge orientation within the element 'edge_id.element' and is thus
-       processor independent. FIXME this seems only partially true */
+       processor independent. TODO: this seems only partially true? */
    int GetEdgeNCOrientation(const MeshId &edge_id) const;
 
    /// Return Mesh vertex and edge indices of a face identified by 'face_id'.

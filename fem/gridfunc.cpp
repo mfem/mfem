@@ -1378,7 +1378,7 @@ void GridFunction::AccumulateAndCountBdrValues(
          if (vdofs.Size() == 0) { continue; }
 
          transf = mesh->GetEdgeTransformation(edge);
-         transf->Attribute = -1; // FIXME: set the boundary attribute
+         transf->Attribute = -1; // TODO: set the boundary attribute
          fe = fes->GetEdgeElement(edge);
          if (!vcoeff)
          {
@@ -1482,7 +1482,7 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
          if (dofs.Size() == 0) { continue; }
 
          T = mesh->GetEdgeTransformation(edge);
-         T->Attribute = -1; // FIXME: set the boundary attribute
+         T->Attribute = -1; // TODO: set the boundary attribute
          fe = fes->GetEdgeElement(edge);
          lvec.SetSize(fe->GetDof());
          fe->Project(vcoeff, *T, lvec);
