@@ -85,8 +85,10 @@ static void PADiffusionSetup2D(const int Q1D,
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
+
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
+
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -338,7 +340,7 @@ void PADiffusionApply2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // compile time evaluated variables
+      // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
