@@ -338,6 +338,7 @@ void PADiffusionApply2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // compile time evaluated variables
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
@@ -464,14 +465,14 @@ static void SmemPADiffusionApply2D(const int NE,
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      MFEM_ATTR_SHARED double sBG[2][MQ1*MD1];
+      MFEM_SHARED double sBG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
       double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
       double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
       double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
-      MFEM_ATTR_SHARED double Xz[NBZ][MD1][MD1];
-      MFEM_ATTR_SHARED double GD[2][NBZ][MD1][MQ1];
-      MFEM_ATTR_SHARED double GQ[2][NBZ][MD1][MQ1];
+      MFEM_SHARED double Xz[NBZ][MD1][MD1];
+      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
+      MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
       double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
       double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + tidz);
       double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + tidz);
@@ -591,7 +592,8 @@ static void SmemPADiffusionApply2D(const int NE,
 
 
 // PA Diffusion Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
+template<const int T_D1D = 0,
+         const int T_Q1D = 0> static
 void PADiffusionApply3D(const int NE,
                         const Array<double> &b,
                         const Array<double> &g,
@@ -780,8 +782,8 @@ void PADiffusionApply3D(const int NE,
 }
 
 // Shared memory PA Diffusion Apply 3D kernel
-template<int T_D1D = 0,
-         int T_Q1D = 0>
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
 static void SmemPADiffusionApply3D(const int NE,
                                    const Array<double> &_b,
                                    const Array<double> &_g,
@@ -812,13 +814,13 @@ static void SmemPADiffusionApply3D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
-      MFEM_ATTR_SHARED double sBG[2][MQ1*MD1];
+      MFEM_SHARED double sBG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
       double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
       double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
       double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
-      MFEM_ATTR_SHARED double sm0[3][MDQ*MDQ*MDQ];
-      MFEM_ATTR_SHARED double sm1[3][MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm0[3][MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[3][MDQ*MDQ*MDQ];
       double (*X)[MD1][MD1]    = (double (*)[MD1][MD1]) (sm0+2);
       double (*DDQ0)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+0);
       double (*DDQ1)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+1);

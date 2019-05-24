@@ -23,7 +23,7 @@ template <int N, int Dim, typename T, typename... Args>
 class TensorInd
 {
 public:
-   MFEM_ATTR_HOST_DEVICE
+   MFEM_HOST_DEVICE
    static inline int result(const int* sizes, T first, Args... args)
    {
 #ifndef MFEM_USE_CUDA
@@ -39,7 +39,7 @@ template <int Dim, typename T, typename... Args>
 class TensorInd<Dim, Dim, T, Args...>
 {
 public:
-   MFEM_ATTR_HOST_DEVICE
+   MFEM_HOST_DEVICE
    static inline int result(const int* sizes, T first, Args... args)
    {
 #ifndef MFEM_USE_CUDA
@@ -100,7 +100,7 @@ public:
    }
 
    /// Copy constructor
-   MFEM_ATTR_HOST_DEVICE DeviceTensor(const DeviceTensor& t)
+   MFEM_HOST_DEVICE DeviceTensor(const DeviceTensor& t)
    {
       capacity = t.capacity;
       for (int i = 0; i < Dim; ++i)
@@ -114,7 +114,7 @@ public:
    inline operator Scalar *() const { return data; }
 
    /// Const accessor for the data
-   template <typename... Args> MFEM_ATTR_HOST_DEVICE inline
+   template <typename... Args> MFEM_HOST_DEVICE inline
    Scalar& operator()(Args... args) const
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
@@ -122,7 +122,7 @@ public:
    }
 
    /// Subscript operator where the tensor is viewed as a 1D array.
-   MFEM_ATTR_HOST_DEVICE inline Scalar& operator[](int i) const
+   MFEM_HOST_DEVICE inline Scalar& operator[](int i) const
    {
       return data[i];
    }
