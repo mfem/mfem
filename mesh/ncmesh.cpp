@@ -2131,6 +2131,7 @@ bool NCMesh::TriFaceSplit(int v1, int v2, int v3, int mid[3]) const
 
    if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3; }
 
+   // NOTE: face (v1, v2, v3) still needs to be checked
    return true;
 }
 
@@ -2361,9 +2362,7 @@ void NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
    }
 
    int mid[3];
-   if ((mid[0] = nodes.FindId(vn0, vn1)) >= 0 &&
-       (mid[1] = nodes.FindId(vn1, vn2)) >= 0 &&
-       (mid[2] = nodes.FindId(vn2, vn0)) >= 0)
+   if (TriFaceSplit(vn0, vn1, vn2, mid))
    {
       Point mid0(pm(0), pm(1)), mid1(pm(1), pm(2)), mid2(pm(2), pm(0));
 
@@ -4457,10 +4456,8 @@ int NCMesh::EdgeSplitLevel(int vn1, int vn2) const
 int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
 {
    int mid[3];
-   if (faces.FindId(vn1, vn2, vn3) < 0 &&
-       (mid[0] = nodes.FindId(vn1, vn2)) >= 0 &&
-       (mid[1] = nodes.FindId(vn2, vn3)) >= 0 &&
-       (mid[2] = nodes.FindId(vn3, vn1)) >= 0)
+   if (TriFaceSplit(vn1, vn2, vn3, mid) &&
+       faces.FindId(vn1, vn2, vn3) < 0)
    {
       return 1 + max4(TriFaceSplitLevel(vn1, mid[0], mid[2]),
                       TriFaceSplitLevel(mid[0], vn2, mid[1]),
