@@ -130,7 +130,7 @@ RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
                << ", P.Height() = " << P.Height());
 
    mem_class = Rt.GetMemoryClass()*P.GetMemoryClass();
-   MemoryType mem_type = GetSuitableMemoryType(A.GetMemoryClass()*mem_class);
+   MemoryType mem_type = GetMemoryType(A.GetMemoryClass()*mem_class);
    Px.SetSize(P.Height(), mem_type);
    APx.SetSize(A.Height(), mem_type);
 }
@@ -151,7 +151,7 @@ TripleProductOperator::TripleProductOperator(
                << ", C->Height() = " << C->Height());
 
    mem_class = A->GetMemoryClass()*C->GetMemoryClass();
-   MemoryType mem_type = GetSuitableMemoryType(mem_class*B->GetMemoryClass());
+   MemoryType mem_type = GetMemoryType(mem_class*B->GetMemoryClass());
    t1.SetSize(C->Height(), mem_type);
    t2.SetSize(B->Height(), mem_type);
 }
@@ -170,7 +170,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
-   MemoryType mem_type = GetSuitableMemoryType(mem_class);
+   MemoryType mem_type = GetMemoryType(mem_class);
    constraint_list.MakeRef(list);
    // typically z and w are large vectors, so store them on the device
    z.SetSize(height, mem_type); z.UseDevice(true);

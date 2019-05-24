@@ -50,7 +50,7 @@ enum class MemoryClass
 inline bool IsHostMemory(MemoryType mt) { return mt <= MemoryType::HOST_64; }
 
 /// Return a suitable MemoryType for a given MemoryClass.
-MemoryType GetSuitableMemoryType(MemoryClass mc);
+MemoryType GetMemoryType(MemoryClass mc);
 
 /// Return a suitable MemoryClass from a pair of MemoryClass%es.
 /** Note: this operation is commutative, i.e. a*b = b*a, associative, i.e.
