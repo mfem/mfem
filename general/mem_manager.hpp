@@ -27,15 +27,16 @@ namespace mfem
 enum class MemoryType
 {
    HOST,      ///< Host memory; using new[] and delete[]
-   HOST_32,   ///< Host memory alligned at 32 bytes
-   HOST_64,   ///< Host memory alligned at 64 bytes
+   HOST_32,   ///< Host memory aligned at 32 bytes (not supported yet)
+   HOST_64,   ///< Host memory aligned at 64 bytes (not supported yet)
    CUDA,      ///< cudaMalloc, cudaFree
-   CUDA_UVM   ///< cudaMallocManaged, cudaFree
+   CUDA_UVM   ///< cudaMallocManaged, cudaFree (not supported yet)
 };
 
 /// Memory classes identify subsets of memory types.
-/** This type is used by kernels that can work with multiple MemoryType%s to
-    request access to any input/output Memory objects. */
+/** This type is used by kernels that can work with multiple MemoryType%s. For
+    example, kernels that can use CUDA or CUDA_UVM memory types should use
+    MemoryClass::CUDA for their inputs. */
 enum class MemoryClass
 {
    HOST,    ///< Memory types: { HOST, HOST_32, HOST_64, CUDA_UVM }
@@ -113,8 +114,8 @@ protected:
       VALID_HOST    = 16,  ///< Host pointer is valid
       VALID_DEVICE  = 32,  ///< Device pointer is valid
       ALIAS         = 64,
-      /// Execution flag reserved for use by MFEM, e.g. see Vector::UseDevice()
-      EXEC_FLAG     = 128
+      /// Internal device flag, see e.g. Vector::UseDevice()
+      USE_DEVICE    = 128
    };
 
    /// Pointer to host memory. Not owned.
@@ -202,12 +203,12 @@ public:
    void ClearOwnerFlags() const
    { flags = flags & ~(OWNS_HOST | OWNS_DEVICE | OWNS_INTERNAL); }
 
-   /// Read the optional execution flag.
-   bool GetExecFlag() const { return flags & EXEC_FLAG; }
+   /// Read the optional device flag.
+   bool UseDevice() const { return flags & USE_DEVICE; }
 
-   /// Set the optional execution flag.
-   void SetExecFlag(bool exec) const
-   { flags = exec ? (flags | EXEC_FLAG) : (flags & ~EXEC_FLAG); }
+   /// Set the optional device flag.
+   void UseDevice(bool use_dev) const
+   { flags = use_dev ? (flags | USE_DEVICE) : (flags & ~USE_DEVICE); }
 
    /// Return the size of the allocated memory.
    int Capacity() const { return capacity; }
@@ -342,7 +343,7 @@ public:
        (sub-Memory) of @a other. Typically, this method should be called after
        @a other is manipulated in a way that changes its pointer validity flags
        (e.g. it was moved from device to host memory). */
-   inline void SyncWith(const Memory &other) const;
+   inline void Sync(const Memory &other) const;
 
    /** @brief Update the alias Memory @a *this to match the memory location (all
        valid locations) of its base Memory, @a base. */
@@ -351,7 +352,7 @@ public:
        of the base incorrect. Calling this method will ensure that @a base is
        up-to-date. Note that this is achieved by moving/copying @a *this (if
        necessary), and not @a base. */
-   inline void SyncAliasToBase(const Memory &base, int alias_size) const;
+   inline void SyncAlias(const Memory &base, int alias_size) const;
 
    /** @brief Return a MemoryType that is currently valid. If both the host and
        the device pointers are currently valid, then the device memory type is
@@ -423,9 +424,9 @@ private:
    static void *Write_(void *h_ptr, MemoryClass mc, std::size_t size,
                        unsigned &flags);
 
-   static void SyncAliasToBase_(const void *base_h_ptr, void *alias_h_ptr,
-                                size_t alias_size, unsigned base_flags,
-                                unsigned &alias_flags);
+   static void SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
+                          size_t alias_size, unsigned base_flags,
+                          unsigned &alias_flags);
 
    // Return the type the of the currently valid memory. If more than one types
    // are valid, return a device type.
@@ -637,7 +638,7 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
 }
 
 template <typename T>
-inline void Memory<T>::SyncWith(const Memory &other) const
+inline void Memory<T>::Sync(const Memory &other) const
 {
    if (!(flags & REGISTERED) && (other.flags & REGISTERED))
    {
@@ -651,14 +652,14 @@ inline void Memory<T>::SyncWith(const Memory &other) const
 }
 
 template <typename T>
-inline void Memory<T>::SyncAliasToBase(const Memory &base, int alias_size) const
+inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 {
    // Assuming that if *this is registered then base is also registered.
    MFEM_ASSERT(!(flags & REGISTERED) || (base.flags & REGISTERED),
                "invalid base state");
    if (!(base.flags & REGISTERED)) { return; }
-   MemoryManager::SyncAliasToBase_(base.h_ptr, h_ptr, alias_size*sizeof(T),
-                                   base.flags, flags);
+   MemoryManager::SyncAlias_(base.h_ptr, h_ptr, alias_size*sizeof(T),
+                             base.flags, flags);
 }
 
 template <typename T>

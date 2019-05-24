@@ -544,7 +544,7 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
 
 void SparseMatrix::Mult(const Vector &x, Vector &y) const
 {
-   if (Finalized()) { y.UseDevice(); }
+   if (Finalized()) { y.UseDevice(true); }
    y = 0.0;
    AddMult(x, y);
 }
@@ -615,7 +615,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
 void SparseMatrix::MultTranspose(const Vector &x, Vector &y) const
 {
-   if (Finalized()) { y.UseDevice(); }
+   if (Finalized()) { y.UseDevice(true); }
    y = 0.0;
    AddMultTranspose(x, y);
 }

@@ -220,7 +220,7 @@ public:
 
 /** @brief Get a pointer for read access to @a mem with the mfem::Device
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
-/** Also, if @a on_dev = true, the execution flag of @a mem will be set. */
+/** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
 inline const T *Read(const Memory<T> &mem, int size, bool on_dev = true)
 {
@@ -230,7 +230,7 @@ inline const T *Read(const Memory<T> &mem, int size, bool on_dev = true)
    }
    else
    {
-      mem.SetExecFlag(true);
+      mem.UseDevice(true);
       return mem.Read(Device::GetMemoryClass(), size);
    }
 }
@@ -244,7 +244,7 @@ inline const T *HostRead(const Memory<T> &mem, int size)
 
 /** @brief Get a pointer for write access to @a mem with the mfem::Device
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
-/** Also, if @a on_dev = true, the execution flag of @a mem will be set. */
+/** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
 inline T *Write(Memory<T> &mem, int size, bool on_dev = true)
 {
@@ -254,7 +254,7 @@ inline T *Write(Memory<T> &mem, int size, bool on_dev = true)
    }
    else
    {
-      mem.SetExecFlag(true);
+      mem.UseDevice(true);
       return mem.Write(Device::GetMemoryClass(), size);
    }
 }
@@ -268,7 +268,7 @@ inline const T *HostWrite(const Memory<T> &mem, int size)
 
 /** @brief Get a pointer for read+write access to @a mem with the mfem::Device
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
-/** Also, if @a on_dev = true, the execution flag of @a mem will be set. */
+/** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
 inline T *ReadWrite(Memory<T> &mem, int size, bool on_dev = true)
 {
@@ -278,7 +278,7 @@ inline T *ReadWrite(Memory<T> &mem, int size, bool on_dev = true)
    }
    else
    {
-      mem.SetExecFlag(true);
+      mem.UseDevice(true);
       return mem.ReadWrite(Device::GetMemoryClass(), size);
    }
 }

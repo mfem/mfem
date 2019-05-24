@@ -83,7 +83,10 @@ public:
 
        Some derived classes, e.g. GridFunction, enable the use of the
        mfem::Device by default. */
-   void UseDevice(bool use_dev = true) const { data.SetExecFlag(use_dev); }
+   void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
+
+   /// Return the device flag of the Memory object used by the Vector
+   bool UseDevice() const { return data.UseDevice(); }
 
    /// Reads a vector from multiple files
    void Load(std::istream ** in, int np, int * dim);
@@ -174,7 +177,11 @@ public:
    const Memory<double> &GetMemory() const { return data; }
 
    /// Update the memory location of the vector to match @a v.
-   void SyncMemory(const Vector &v) { GetMemory().SyncWith(v.GetMemory()); }
+   void SyncMemory(const Vector &v) { GetMemory().Sync(v.GetMemory()); }
+
+   /// Update the alias memory location of the vector to match @a v.
+   void SyncAliasMemory(const Vector &v)
+   { GetMemory().SyncAlias(v.GetMemory(),Size()); }
 
    /// Read the Vector data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
@@ -401,13 +408,13 @@ inline void Vector::SetSize(int s)
       size = s;
       return;
    }
-   // preserve a valid MemoryType and exec flag
+   // preserve a valid MemoryType and device flag
    const MemoryType mt = data.GetMemoryType();
-   const bool exec = data.GetExecFlag();
+   const bool use_dev = data.UseDevice();
    data.Delete();
    size = s;
    data.New(s, mt);
-   data.SetExecFlag(exec);
+   data.UseDevice(use_dev);
 }
 
 inline void Vector::SetSize(int s, MemoryType mt)
@@ -424,7 +431,7 @@ inline void Vector::SetSize(int s, MemoryType mt)
          return;
       }
    }
-   const bool exec = data.GetExecFlag();
+   const bool use_dev = data.UseDevice();
    data.Delete();
    if (s > 0)
    {
@@ -436,7 +443,7 @@ inline void Vector::SetSize(int s, MemoryType mt)
       data.Reset();
       size = 0;
    }
-   data.SetExecFlag(exec);
+   data.UseDevice(use_dev);
 }
 
 inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
@@ -450,11 +457,11 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
 
 inline void Vector::Destroy()
 {
-   const bool exec = data.GetExecFlag();
+   const bool use_dev = data.UseDevice();
    data.Delete();
    size = 0;
    data.Reset();
-   data.SetExecFlag(exec);
+   data.UseDevice(use_dev);
 }
 
 inline double &Vector::operator()(int i)

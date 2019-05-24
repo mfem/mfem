@@ -172,8 +172,9 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
    MemoryType mem_type = GetSuitableMemoryType(mem_class);
    constraint_list.MakeRef(list);
-   z.SetSize(height, mem_type); z.UseDevice();
-   w.SetSize(height, mem_type); w.UseDevice();
+   // typically z and w are large vectors, so store them on the device
+   z.SetSize(height, mem_type); z.UseDevice(true);
+   w.SetSize(height, mem_type); w.UseDevice(true);
 }
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
