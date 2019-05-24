@@ -2081,7 +2081,7 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
    if (e1 >= 0 && e3 >= 0) { midf1 = FindMidEdgeNode(e1, e3); }
    if (e2 >= 0 && e4 >= 0) { midf2 = FindMidEdgeNode(e2, e4); }
 
-   //
+   // get proper node if shadow node exists
    if (midf1 >= 0 && midf1 == midf2)
    {
       const Node &nd = nodes[midf1];
@@ -2475,15 +2475,6 @@ void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
       int v0index = nodes[vn0].vert_index;
       int v1index = nodes[vn1].vert_index;
       if (v0index > v1index) { sl.edge_flags |= 2; }
-
-      // in 2D, get the element/local info from the degenerate face
-      if (Dim == 2) // FIXME: is this still needed?
-      {
-         Face* fa = faces.Find(vn0, vn0, vn1, vn1);
-         MFEM_ASSERT(fa != NULL, "");
-         sl.element = fa->GetSingleElement();
-         sl.local = find_element_edge(elements[sl.element], vn0, vn1);
-      }
    }
 
    // recurse deeper
