@@ -99,6 +99,9 @@ public:
    /// Return a reference to the Memory object used by the Array, const version.
    const Memory<T> &GetMemory() const { return data; }
 
+   /// Return the device flag of the Memory object used by the Array
+   bool UseDevice() const { return data.UseDevice(); }
+
    /// Return true if the data will be deleted by the array
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
@@ -254,17 +257,29 @@ public:
 
    long MemoryUsage() const { return Capacity() * sizeof(T); }
 
-   /// Shortcut for mfem::ReadAccess(a.GetMemory(), a.Size(), on_dev).
-   const T *ReadAccess(bool on_dev = true) const
-   { return mfem::ReadAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Read(a.GetMemory(), a.Size(), on_dev).
+   const T *Read(bool on_dev = true) const
+   { return mfem::Read(data, size, on_dev); }
 
-   /// Shortcut for mfem::WriteAccess(a.GetMemory(), a.Size(), on_dev).
-   T *WriteAccess(bool on_dev = true)
-   { return mfem::WriteAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Read(a.GetMemory(), a.Size(), false).
+   const T *HostRead() const
+   { return mfem::Read(data, size, false); }
 
-   /// Shortcut for mfem::ReadWriteAccess(a.GetMemory(), a.Size(), on_dev).
-   T *ReadWriteAccess(bool on_dev = true)
-   { return mfem::ReadWriteAccess(data, size, on_dev); }
+   /// Shortcut for mfem::Write(a.GetMemory(), a.Size(), on_dev).
+   T *Write(bool on_dev = true)
+   { return mfem::Write(data, size, on_dev); }
+
+   /// Shortcut for mfem::Write(a.GetMemory(), a.Size(), false).
+   T *HostWrite()
+   { return mfem::Write(data, size, false); }
+
+   /// Shortcut for mfem::ReadWrite(a.GetMemory(), a.Size(), on_dev).
+   T *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(data, size, on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(a.GetMemory(), a.Size(), false).
+   T *HostReadWrite()
+   { return mfem::ReadWrite(data, size, false); }
 };
 
 template <class T>
@@ -569,7 +584,7 @@ inline Array<T>::Array(const Array &src)
 {
    size > 0 ? data.New(size, src.data.GetMemoryType()) : data.Reset();
    data.CopyFrom(src.data, size);
-   data.SetExecFlag(src.data.GetExecFlag());
+   data.UseDevice(src.data.UseDevice());
 }
 
 template <typename T> template <typename CT>
@@ -586,7 +601,7 @@ inline void Array<T>::GrowSize(int minsize)
    const int nsize = std::max(minsize, 2 * data.Capacity());
    Memory<T> p(nsize, data.GetMemoryType());
    p.CopyFrom(data, size);
-   p.SetExecFlag(data.GetExecFlag());
+   p.UseDevice(data.UseDevice());
    data.Delete();
    data = p;
 }
@@ -640,7 +655,7 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
          return;
       }
    }
-   const bool exec = data.GetExecFlag();
+   const bool use_dev = data.UseDevice();
    data.Delete();
    if (nsize > 0)
    {
@@ -652,7 +667,7 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
       data.Reset();
       size = 0;
    }
-   data.SetExecFlag(exec);
+   data.UseDevice(use_dev);
 }
 
 template <class T>
@@ -769,11 +784,11 @@ inline void Array<T>::DeleteFirst(const T &el)
 template <class T>
 inline void Array<T>::DeleteAll()
 {
-   const bool exec = data.GetExecFlag();
+   const bool use_dev = data.UseDevice();
    data.Delete();
    data.Reset();
    size = 0;
-   data.SetExecFlag(exec);
+   data.UseDevice(use_dev);
 }
 
 template <typename T>
@@ -781,7 +796,7 @@ inline void Array<T>::Copy(Array &copy) const
 {
    copy.SetSize(Size(), data.GetMemoryType());
    data.CopyTo(copy.data, Size());
-   copy.data.SetExecFlag(data.GetExecFlag());
+   copy.data.UseDevice(data.UseDevice());
 }
 
 template <class T>
@@ -796,7 +811,7 @@ template <class T>
 inline void Array<T>::MakeRef(const Array &master)
 {
    data.Delete();
-   data = master.data; // note: copies the exec flag
+   data = master.data; // note: copies the device flag
    size = master.size;
    data.ClearOwnerFlags();
 }

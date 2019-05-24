@@ -386,7 +386,7 @@ void FiniteElementSpace::MarkerToList(const Array<int> &marker,
                                       Array<int> &list)
 {
    int num_marked = 0;
-   marker.ReadAccess(false); // make sure we can read the array on host
+   marker.HostRead(); // make sure we can read the array on host
    for (int i = 0; i < marker.Size(); i++)
    {
       if (marker[i]) { num_marked++; }
@@ -2718,10 +2718,10 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   auto d_offsets = offsets.ReadAccess();
-   auto d_indices = indices.ReadAccess();
-   auto d_x = Reshape(x.ReadAccess(), t?vd:ndofs, t?ndofs:vd);
-   auto d_y = Reshape(y.WriteAccess(), nd, vd, ne);
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nd, vd, ne);
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
@@ -2744,10 +2744,10 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   auto d_offsets = offsets.ReadAccess();
-   auto d_indices = indices.ReadAccess();
-   auto d_x = Reshape(x.ReadAccess(), nd, vd, ne);
-   auto d_y = Reshape(y.WriteAccess(), t?vd:ndofs, t?ndofs:vd);
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, ne);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
@@ -2813,12 +2813,12 @@ void QuadratureInterpolator::Eval2D(
    MFEM_VERIFY(ND <= MAX_ND2D, "");
    MFEM_VERIFY(NQ <= MAX_NQ2D, "");
    MFEM_VERIFY(VDIM == 2 || !(eval_flags & DETERMINANTS), "");
-   auto B = Reshape(maps.B.ReadAccess(), NQ, ND);
-   auto G = Reshape(maps.G.ReadAccess(), NQ, 2, ND);
-   auto E = Reshape(e_vec.ReadAccess(), ND, VDIM, NE);
-   auto val = Reshape(q_val.WriteAccess(), NQ, VDIM, NE);
-   auto der = Reshape(q_der.WriteAccess(), NQ, VDIM, 2, NE);
-   auto det = Reshape(q_det.WriteAccess(), NQ, NE);
+   auto B = Reshape(maps.B.Read(), NQ, ND);
+   auto G = Reshape(maps.G.Read(), NQ, 2, ND);
+   auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
+   auto val = Reshape(q_val.Write(), NQ, VDIM, NE);
+   auto der = Reshape(q_der.Write(), NQ, VDIM, 2, NE);
+   auto det = Reshape(q_det.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
       const int ND = T_ND ? T_ND : nd;
@@ -2901,12 +2901,12 @@ void QuadratureInterpolator::Eval3D(
    MFEM_VERIFY(ND <= MAX_ND3D, "");
    MFEM_VERIFY(NQ <= MAX_NQ3D, "");
    MFEM_VERIFY(VDIM == 3 || !(eval_flags & DETERMINANTS), "");
-   auto B = Reshape(maps.B.ReadAccess(), NQ, ND);
-   auto G = Reshape(maps.G.ReadAccess(), NQ, 3, ND);
-   auto E = Reshape(e_vec.ReadAccess(), ND, VDIM, NE);
-   auto val = Reshape(q_val.WriteAccess(), NQ, VDIM, NE);
-   auto der = Reshape(q_der.WriteAccess(), NQ, VDIM, 3, NE);
-   auto det = Reshape(q_det.WriteAccess(), NQ, NE);
+   auto B = Reshape(maps.B.Read(), NQ, ND);
+   auto G = Reshape(maps.G.Read(), NQ, 3, ND);
+   auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
+   auto val = Reshape(q_val.Write(), NQ, VDIM, NE);
+   auto der = Reshape(q_der.Write(), NQ, VDIM, 3, NE);
+   auto det = Reshape(q_det.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
       const int ND = T_ND ? T_ND : nd;

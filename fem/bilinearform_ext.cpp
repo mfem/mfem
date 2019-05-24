@@ -46,7 +46,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    {
       localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
       localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.UseDevice(); // ensure 'localY = 0.0' is done on device
+      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
 }
 
@@ -114,7 +114,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      y.UseDevice();
+      y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
@@ -139,7 +139,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
    else
    {
-      y.UseDevice();
+      y.UseDevice(true);
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {

@@ -36,8 +36,8 @@ occa::memory OccaMemoryWrap(void *ptr, std::size_t bytes);
 template <typename T>
 const occa::memory OccaMemoryRead(const Memory<T> &mem, size_t size)
 {
-   mem.SetExecFlag(true);
-   const void *ptr = mem.ReadAccess(Device::GetMemoryClass(), size);
+   mem.UseDevice(true);
+   const void *ptr = mem.Read(Device::GetMemoryClass(), size);
    return OccaMemoryWrap(const_cast<void *>(ptr), size*sizeof(T));
 }
 
@@ -47,8 +47,8 @@ const occa::memory OccaMemoryRead(const Memory<T> &mem, size_t size)
 template <typename T>
 occa::memory OccaMemoryWrite(Memory<T> &mem, size_t size)
 {
-   mem.SetExecFlag(true);
-   return OccaMemoryWrap(mem.WriteAccess(Device::GetMemoryClass(), size),
+   mem.UseDevice(true);
+   return OccaMemoryWrap(mem.Write(Device::GetMemoryClass(), size),
                          size*sizeof(T));
 }
 
@@ -58,8 +58,8 @@ occa::memory OccaMemoryWrite(Memory<T> &mem, size_t size)
 template <typename T>
 occa::memory OccaMemoryReadWrite(Memory<T> &mem, size_t size)
 {
-   mem.SetExecFlag(true);
-   return OccaMemoryWrap(mem.ReadWriteAccess(Device::GetMemoryClass(), size),
+   mem.UseDevice(true);
+   return OccaMemoryWrap(mem.ReadWrite(Device::GetMemoryClass(), size),
                          size*sizeof(T));
 }
 
