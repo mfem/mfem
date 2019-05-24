@@ -189,6 +189,7 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    {
       InitRootState(mesh->GetNE());
    }
+   InitGeomFlags();
 
    Update();
 }
@@ -197,6 +198,7 @@ NCMesh::NCMesh(const NCMesh &other)
    : Dim(other.Dim)
    , spaceDim(other.spaceDim)
    , Iso(other.Iso)
+   , Geoms(other.Geoms)
    , nodes(other.nodes)
    , faces(other.faces)
    , elements(other.elements)
@@ -206,6 +208,15 @@ NCMesh::NCMesh(const NCMesh &other)
    other.root_state.Copy(root_state);
    other.top_vertex_pos.Copy(top_vertex_pos);
    Update();
+}
+
+void NCMesh::InitGeomFlags()
+{
+   Geoms = 0;
+   for (int i = 0; i < root_state.Size(); i++)
+   {
+      Geoms |= (1 << elements[i].Geom());
+   }
 }
 
 void NCMesh::Update()
@@ -1748,6 +1759,7 @@ void NCMesh::CollectLeafElements(int elem, int state)
    }
    else
    {
+      // try to order elements along a space-filling curve
       if (el.Geom() == Geometry::SQUARE && el.ref_type == 3)
       {
          for (int i = 0; i < 4; i++)
@@ -4824,6 +4836,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    Iso = iso;
 
    InitRootState(root_count);
+   InitGeomFlags();
 
    Update();
 }
