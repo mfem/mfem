@@ -544,7 +544,7 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
 
 void SparseMatrix::Mult(const Vector &x, Vector &y) const
 {
-   if (Finalized()) { y.UseDevice(); }
+   if (Finalized()) { y.UseDevice(true); }
    y = 0.0;
    AddMult(x, y);
 }
@@ -615,7 +615,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
 void SparseMatrix::MultTranspose(const Vector &x, Vector &y) const
 {
-   if (Finalized()) { y.UseDevice(); }
+   if (Finalized()) { y.UseDevice(true); }
    y = 0.0;
    AddMultTranspose(x, y);
 }
@@ -684,7 +684,7 @@ void SparseMatrix::PartMult(
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
-   // const bool use_dev = rows.GetMemory().GetExecFlag();
+   // const bool use_dev = rows.UseDevice();
    const bool use_dev = true;
    const int n = rows.Size();
    const int nnz = J.Capacity();

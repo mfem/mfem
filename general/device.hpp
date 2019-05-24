@@ -220,7 +220,7 @@ public:
 
 /** @brief Get a pointer for read access to @a mem with the mfem::Device
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
-/** Also, if @a on_dev = true, the execution flag of @a mem will be set. */
+/** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
 inline const T *ReadAccess(const Memory<T> &mem, int size, bool on_dev = true)
 {
@@ -230,14 +230,14 @@ inline const T *ReadAccess(const Memory<T> &mem, int size, bool on_dev = true)
    }
    else
    {
-      mem.SetExecFlag(true);
+      mem.UseDevice(true);
       return mem.ReadAccess(Device::GetMemoryClass(), size);
    }
 }
 
 /** @brief Get a pointer for write access to @a mem with the mfem::Device
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
-/** Also, if @a on_dev = true, the execution flag of @a mem will be set. */
+/** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
 inline T *WriteAccess(Memory<T> &mem, int size, bool on_dev = true)
 {
@@ -247,14 +247,14 @@ inline T *WriteAccess(Memory<T> &mem, int size, bool on_dev = true)
    }
    else
    {
-      mem.SetExecFlag(true);
+      mem.UseDevice(true);
       return mem.WriteAccess(Device::GetMemoryClass(), size);
    }
 }
 
 /** @brief Get a pointer for read+write access to @a mem with the mfem::Device
     MemoryClass, if @a on_dev = true, or MemoryClass::HOST, otherwise. */
-/** Also, if @a on_dev = true, the execution flag of @a mem will be set. */
+/** Also, if @a on_dev = true, the device flag of @a mem will be set. */
 template <typename T>
 inline T *ReadWriteAccess(Memory<T> &mem, int size, bool on_dev = true)
 {
@@ -264,7 +264,7 @@ inline T *ReadWriteAccess(Memory<T> &mem, int size, bool on_dev = true)
    }
    else
    {
-      mem.SetExecFlag(true);
+      mem.UseDevice(true);
       return mem.ReadWriteAccess(Device::GetMemoryClass(), size);
    }
 }

@@ -68,16 +68,16 @@ protected:
 
 public:
 
-   GridFunction() { fes = NULL; fec = NULL; sequence = 0; UseDevice(); }
+   GridFunction() { fes = NULL; fec = NULL; sequence = 0; UseDevice(true); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
       : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence)
-   { UseDevice(); }
+   { UseDevice(true); }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(); }
+   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -87,7 +87,7 @@ public:
     */
    GridFunction(FiniteElementSpace *f, double *data)
       : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(); }
+   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method

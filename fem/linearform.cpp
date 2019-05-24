@@ -19,7 +19,8 @@ namespace mfem
 LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    : Vector(f->GetVSize())
 {
-   UseDevice();
+   // Linear forms are stored on the device
+   UseDevice(true);
 
    fes = f;
    extern_lfs = 1;
