@@ -183,9 +183,6 @@ public:
    void SyncAliasMemory(const Vector &v)
    { GetMemory().SyncAlias(v.GetMemory(),Size()); }
 
-   /// Update the memory location of the vector to match @a v.
-   void SyncAlias(const Vector &v) { GetMemory().SyncAlias(v.GetMemory(),Size()); }
-
    /// Read the Vector data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
