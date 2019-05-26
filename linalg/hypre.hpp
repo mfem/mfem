@@ -451,16 +451,18 @@ public:
 
    /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
-   void BooleanMult(int alpha, int *x, int beta, int *y)
+   void BooleanMult(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, x, beta, y);
+      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, const_cast<int*>(x),
+                                                beta, y);
    }
 
    /** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
-   void BooleanMultTranspose(int alpha, int *x, int beta, int *y)
+   void BooleanMultTranspose(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, x, beta, y);
+      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, const_cast<int*>(x),
+                                                 beta, y);
    }
 
    /// Initialize all entries with value.
@@ -468,13 +470,16 @@ public:
    { internal::hypre_ParCSRMatrixSetConstantValues(A, value); return *this; }
 
    /** Perform the operation `*this += B`, assuming that both matrices use the
-       same row and column partitions and the same col_map_offd arrays. We also
-       assume that the sparsity pattern of `*this` contains that of `B`. */
+       same row and column partitions and the same col_map_offd arrays, or B has
+       an empty off-diagonal block. We also assume that the sparsity pattern of
+       `*this` contains that of `B`. */
    HypreParMatrix &operator+=(const HypreParMatrix &B) { return Add(1.0, B); }
 
    /** Perform the operation `*this += beta*B`, assuming that both matrices use
-       the same row and column partitions and the same col_map_offd arrays. We
-       also assume that the sparsity pattern of `*this` contains that of `B`. */
+       the same row and column partitions and the same col_map_offd arrays, or
+       B has an empty off-diagonal block. We also assume that the sparsity
+       pattern of `*this` contains that of `B`. For a more general case consider
+       the stand-alone function ParAdd described below. */
    HypreParMatrix &Add(const double beta, const HypreParMatrix &B)
    {
       MFEM_VERIFY(internal::hypre_ParCSRMatrixSum(A, beta, B.A) == 0,
