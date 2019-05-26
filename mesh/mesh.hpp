@@ -122,6 +122,8 @@ protected:
       const DenseMatrix* PointMatrix; // if Slave, position within master face
       // (NOTE: PointMatrix points to a matrix owned by NCMesh.)
 
+      NCFaceInfo() = default;
+
       NCFaceInfo(bool slave, int master, const DenseMatrix* pm)
          : Slave(slave), MasterFace(master), PointMatrix(pm) {}
    };

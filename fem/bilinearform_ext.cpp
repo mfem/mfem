@@ -44,8 +44,9 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
                           ElementDofOrdering::LEXICOGRAPHIC);
    if (elem_restrict_lex)
    {
-      localX.SetSize(elem_restrict_lex->Height());
-      localY.SetSize(elem_restrict_lex->Height());
+      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
 }
 
@@ -55,7 +56,7 @@ void PABilinearFormExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->Assemble(*a->FESpace());
+      integrators[i]->AssemblePA(*a->FESpace());
    }
 }
 
@@ -99,6 +100,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+
    const int iSz = integrators.Size();
    if (elem_restrict_lex)
    {
@@ -106,16 +108,17 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->MultAssembled(localX, localY);
+         integrators[i]->AddMultPA(localX, localY);
       }
       elem_restrict_lex->MultTranspose(localY, y);
    }
    else
    {
+      y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->MultAssembled(x, y);
+         integrators[i]->AddMultPA(x, y);
       }
    }
 }
@@ -130,16 +133,17 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->MultAssembledTranspose(localX, localY);
+         integrators[i]->AddMultTransposePA(localX, localY);
       }
       elem_restrict_lex->MultTranspose(localY, y);
    }
    else
    {
+      y.UseDevice(true);
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->MultAssembledTranspose(x, y);
+         integrators[i]->AddMultTransposePA(x, y);
       }
    }
 }

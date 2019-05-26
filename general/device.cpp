@@ -24,7 +24,10 @@ namespace mfem
 namespace internal
 {
 
-OccaDevice occaDevice;
+#ifdef MFEM_USE_OCCA
+// Default occa::device used by MFEM.
+occa::device occaDevice;
+#endif
 
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
@@ -42,6 +45,16 @@ static const char *backend_name[Backend::NUM_BACKENDS] =
 };
 
 } // namespace mfem::internal
+
+
+// Initialize the unique global Device variable.
+Device Device::device_singleton;
+
+
+Device::~Device()
+{
+   if (destroy_mm) { mm.Destroy(); }
+}
 
 void Device::Configure(const std::string &device, const int dev)
 {
@@ -64,18 +77,22 @@ void Device::Configure(const std::string &device, const int dev)
    }
 
    // OCCA_CUDA needs CUDA or RAJA_CUDA:
-   Get().allowed_backends = Get().backends;
    if (Allows(Backend::OCCA_CUDA) && !Allows(Backend::RAJA_CUDA))
    {
       Get().MarkBackend(Backend::CUDA);
    }
 
-   // Activate all backends for Setup().
-   Get().allowed_backends = Get().backends;
+   // Perform setup.
    Get().Setup(dev);
 
-   // Enable only the default host CPU backend.
-   Get().allowed_backends = Backend::CPU;
+   // Enable the device
+   Enable();
+
+   // Copy all data members from the global 'singleton_device' into '*this'.
+   std::memcpy(this, &Get(), sizeof(Device));
+
+   // Only '*this' will call the MemoryManager::Destroy() method.
+   destroy_mm = true;
 }
 
 void Device::Print(std::ostream &out)
@@ -84,7 +101,7 @@ void Device::Print(std::ostream &out)
    bool add_comma = false;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {
-      if (Get().backends & internal::backend_list[i])
+      if (backends & internal::backend_list[i])
       {
          if (add_comma) { out << ','; }
          add_comma = true;
@@ -92,6 +109,29 @@ void Device::Print(std::ostream &out)
       }
    }
    out << '\n';
+}
+
+void Device::UpdateMemoryTypeAndClass()
+{
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+      mem_type = MemoryType::CUDA;
+      mem_class = MemoryClass::CUDA;
+   }
+   else
+   {
+      mem_type = MemoryType::HOST;
+      mem_class = MemoryClass::HOST;
+   }
+}
+
+void Device::Enable()
+{
+   if (Get().backends & ~Backend::CPU)
+   {
+      Get().mode = Device::ACCELERATED;
+      Get().UpdateMemoryTypeAndClass();
+   }
 }
 
 #ifdef MFEM_USE_CUDA

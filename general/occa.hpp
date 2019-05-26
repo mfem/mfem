@@ -15,34 +15,58 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_OCCA
-#include <occa.hpp>
+#include "mem_manager.hpp"
 #include "device.hpp"
-
-#if defined(MFEM_USE_CUDA) && OCCA_CUDA_ENABLED
-#include <occa/modes/cuda/utils.hpp>
-#endif
-
-typedef occa::device OccaDevice;
-typedef occa::memory OccaMemory;
-
-#else // MFEM_USE_OCCA
-
-typedef void* OccaDevice;
-typedef void* OccaMemory;
-
-#endif // MFEM_USE_OCCA
+#include <occa.hpp>
 
 namespace mfem
 {
 
-#ifdef MFEM_USE_OCCA
+/// Return the default occa::device used by MFEM.
+occa::device &OccaDev();
 
-typedef std::pair<int,int> occa_id_t;
-typedef std::map<occa_id_t, occa::kernel> occa_kernel_t;
+/// Wrap a pointer as occa::memory with the default occa::device used by MFEM.
+/** It is assumed that @a ptr is suitable for use with the current mfem::Device
+    configuration. */
+occa::memory OccaMemoryWrap(void *ptr, std::size_t bytes);
 
-// This function is currently used to determine if an OCCA kernel should be
-// used.
-inline bool DeviceUseOcca()
+/** @brief Wrap a Memory object as occa::memory for read only access with the
+    mfem::Device MemoryClass. The returned occa::memory is associated with the
+    default occa::device used by MFEM. */
+template <typename T>
+const occa::memory OccaMemoryRead(const Memory<T> &mem, size_t size)
+{
+   mem.UseDevice(true);
+   const void *ptr = mem.Read(Device::GetMemoryClass(), size);
+   return OccaMemoryWrap(const_cast<void *>(ptr), size*sizeof(T));
+}
+
+/** @brief Wrap a Memory object as occa::memory for write only access with the
+    mfem::Device MemoryClass. The returned occa::memory is associated with the
+    default occa::device used by MFEM. */
+template <typename T>
+occa::memory OccaMemoryWrite(Memory<T> &mem, size_t size)
+{
+   mem.UseDevice(true);
+   return OccaMemoryWrap(mem.Write(Device::GetMemoryClass(), size),
+                         size*sizeof(T));
+}
+
+/** @brief Wrap a Memory object as occa::memory for read-write access with the
+    mfem::Device MemoryClass. The returned occa::memory is associated with the
+    default occa::device used by MFEM. */
+template <typename T>
+occa::memory OccaMemoryReadWrite(Memory<T> &mem, size_t size)
+{
+   mem.UseDevice(true);
+   return OccaMemoryWrap(mem.ReadWrite(Device::GetMemoryClass(), size),
+                         size*sizeof(T));
+}
+
+
+/** @brief Function that determines if an OCCA kernel should be used, based on
+    the current mfem::Device configuration. */
+inline bool DeviceCanUseOcca()
 {
    return Device::Allows(Backend::OCCA_CUDA) ||
           (Device::Allows(Backend::OCCA_OMP) &&
@@ -51,12 +75,11 @@ inline bool DeviceUseOcca()
            !Device::Allows(Backend::DEVICE_MASK|Backend::OMP_MASK));
 }
 
-#endif // MFEM_USE_OCCA
-
-// Function called when the pointer 'a' needs to be passed to an OCCA kernel.
-OccaMemory OccaPtr(const void *a);
-OccaDevice OccaDev();
+typedef std::pair<int,int> occa_id_t;
+typedef std::map<occa_id_t, occa::kernel> occa_kernel_t;
 
 } // namespace mfem
+
+#endif // MFEM_USE_OCCA
 
 #endif // MFEM_OCCA_HPP

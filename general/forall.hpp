@@ -30,29 +30,41 @@
 namespace mfem
 {
 
-const int MAX_Q1D = 10;
-const int MAX_D1D = 10;
+// Maximum size of dofs and quads in 1D.
+const int MAX_D1D = 16;
+const int MAX_Q1D = 16;
 
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
 
 // The MFEM_FORALL wrapper
-#define MFEM_FORALL(i,N,...)                                            \
-   ForallWrap<1>(N,                                                     \
-                 [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},            \
-                 [&]                  (int i) {__VA_ARGS__})
+#define MFEM_FORALL(i,N,...)                             \
+   ForallWrap<1>(true,N,                                 \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
+                 [&]             (int i) {__VA_ARGS__})
 
-#define MFEM_FORALL_2D(i,N,X,Y,BZ,...)                                  \
-   ForallWrap<2>(N,                                                     \
-                 [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},            \
-                 [&]                  (int i) {__VA_ARGS__},            \
+// MFEM_FORALL with a 2D CUDA block
+#define MFEM_FORALL_2D(i,N,X,Y,BZ,...)                   \
+   ForallWrap<2>(true,N,                                 \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
+                 [&]             (int i) {__VA_ARGS__},  \
                  X,Y,BZ)
 
-#define MFEM_FORALL_3D(i,N,X,Y,Z,...)                                   \
-   ForallWrap<3>(N,                                                     \
-                 [=] MFEM_ATTR_DEVICE (int i) {__VA_ARGS__},            \
-                 [&]                  (int i) {__VA_ARGS__},            \
+// MFEM_FORALL with a 3D CUDA block
+#define MFEM_FORALL_3D(i,N,X,Y,Z,...)                    \
+   ForallWrap<3>(true,N,                                 \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
+                 [&]             (int i) {__VA_ARGS__},  \
                  X,Y,Z)
+
+// MFEM_FORALL that uses the basic CPU backend when use_dev is false. See for
+// example the functions in vector.cpp, where we don't want to use the mfem
+// device for operations on small vectors.
+#define MFEM_FORALL_SWITCH(use_dev,i,N,...)              \
+   ForallWrap<1>(use_dev,N,                              \
+                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
+                 [&]             (int i) {__VA_ARGS__})
+
 
 /// OpenMP backend
 template <typename HBODY>
@@ -164,45 +176,56 @@ void CuWrap3D(const int N, DBODY &&d_body,
    MFEM_CUDA_CHECK(cudaGetLastError());
 }
 
-#else  // MFEM_USE_CUDA
-
-template <typename DBODY>
-void CuWrap1D(const int N, DBODY &&d_body) {}
-
-template <typename DBODY>
-void CuWrap2D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int BZ) {}
-
-template <typename DBODY>
-void CuWrap3D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int Z) {}
-
-#endif
+#endif // MFEM_USE_CUDA
 
 
 /// The forall kernel body wrapper
 template <const int DIM, typename DBODY, typename HBODY>
-void ForallWrap(const int N, DBODY &&d_body, HBODY &&h_body,
-                const int X=0, const int Y=0, const int Z=0)
+inline void ForallWrap(const bool use_dev, const int N,
+                       DBODY &&d_body, HBODY &&h_body,
+                       const int X=0, const int Y=0, const int Z=0)
 {
-   if (Device::Allows(Backend::RAJA_CUDA))
-   { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+   if (!use_dev) { goto backend_cpu; }
 
-   if (DIM == 1 && Device::Allows(Backend::CUDA))
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
+   // Handle all allowed CUDA backends except Backend::CUDA
+   if (Device::Allows(Backend::CUDA_MASK & ~Backend::CUDA))
+   { return RajaCudaWrap<MFEM_CUDA_BLOCKS>(N, d_body); }
+#endif
+
+#ifdef MFEM_USE_CUDA
+   // Handle all allowed CUDA backends
+   if (DIM == 1 && Device::Allows(Backend::CUDA_MASK))
    { return CuWrap1D(N, d_body); }
 
-   if (DIM == 2 && Device::Allows(Backend::CUDA))
+   if (DIM == 2 && Device::Allows(Backend::CUDA_MASK))
    { return CuWrap2D(N, d_body, X, Y, Z); }
 
-   if (DIM == 3 && Device::Allows(Backend::CUDA))
+   if (DIM == 3 && Device::Allows(Backend::CUDA_MASK))
    { return CuWrap3D(N, d_body, X, Y, Z); }
+#endif
 
-   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
+   // Handle all allowed OpenMP backends except Backend::OMP
+   if (Device::Allows(Backend::OMP_MASK & ~Backend::OMP))
+   { return RajaOmpWrap(N, h_body); }
+#endif
 
+#ifdef MFEM_USE_OPENMP
+   // Handle all allowed OpenMP backends
    if (Device::Allows(Backend::OMP_MASK)) { return OmpWrap(N, h_body); }
+#endif
 
-   if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
+#ifdef MFEM_USE_RAJA
+   // Handle all allowed CPU backends except Backend::CPU
+   if (Device::Allows(Backend::CPU_MASK & ~Backend::CPU))
+   { return RajaSeqWrap(N, h_body); }
+#endif
 
+backend_cpu:
+   // Handle Backend::CPU. This is also a fallback for any allowed backends not
+   // handled above, e.g. OCCA_CPU with configuration 'occa-cpu,cpu', or
+   // OCCA_OMP with configuration 'occa-omp,cpu'.
    for (int k = 0; k < N; k++) { h_body(k); }
 }
 

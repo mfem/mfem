@@ -347,14 +347,15 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
       DenseMatrix &pm = ElTr->GetPointMat();
       Array<int> vdofs;
       Nodes->FESpace()->GetElementVDofs(i, vdofs);
-
+      Nodes->HostRead();
+      const GridFunction &nodes = *Nodes;
       int n = vdofs.Size()/spaceDim;
       pm.SetSize(spaceDim, n);
       for (int k = 0; k < spaceDim; k++)
       {
          for (int j = 0; j < n; j++)
          {
-            pm(k,j) = (*Nodes)(vdofs[n*k+j]);
+            pm(k,j) = nodes(vdofs[n*k+j]);
          }
       }
       ElTr->SetFE(Nodes->FESpace()->GetFE(i));
@@ -764,10 +765,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
       }
    }
 
-   const bool dev_enabled = Device::IsEnabled();
-   if (dev_enabled) { Device::Disable(); }
    this->EnsureNodes();
-   if (dev_enabled) { Device::Enable(); }
 
    GeometricFactors *gf = new GeometricFactors(this, ir, flags);
    geom_factors.Append(gf);
@@ -5869,7 +5867,6 @@ void Mesh::SetNodes(const Vector &node_coord)
 void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
 {
    if (own_nodes) { delete Nodes; }
-   nodes.Pull();
    Nodes = &nodes;
    spaceDim = Nodes->FESpace()->GetVDim();
    own_nodes = (int)make_owner;
