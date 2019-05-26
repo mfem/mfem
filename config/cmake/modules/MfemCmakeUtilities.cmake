@@ -232,10 +232,12 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
   # If we have the TPL_ versions of _INCLUDE_DIRS and _LIBRARIES then set the
   # standard ${Prefix} versions
   if (TPL_${Prefix}_INCLUDE_DIRS)
-    set(${Prefix}_INCLUDE_DIRS ${TPL_${Prefix}_INCLUDE_DIRS} CACHE STRING "TPL_${Prefix}_INCLUDE_DIRS was found." FORCE)
+    set(${Prefix}_INCLUDE_DIRS ${TPL_${Prefix}_INCLUDE_DIRS} CACHE STRING
+      "TPL_${Prefix}_INCLUDE_DIRS was found." FORCE)
   endif()
   if (TPL_${Prefix}_LIBRARIES)
-    set(${Prefix}_LIBRARIES ${TPL_${Prefix}_LIBRARIES} CACHE STRING "TPL_${Prefix}_LIBRARIES was found." FORCE)
+    set(${Prefix}_LIBRARIES ${TPL_${Prefix}_LIBRARIES} CACHE STRING
+      "TPL_${Prefix}_LIBRARIES was found." FORCE)
   endif()
 
   # Quick return
@@ -714,11 +716,11 @@ function(mfem_export_mk_files)
   # Convert Boolean vars to YES/NO without writting the values to cache
   set(CONFIG_MK_BOOL_VARS MFEM_USE_MPI MFEM_USE_METIS MFEM_USE_METIS_5
       MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND
-      MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP MFEM_USE_MEMALLOC
-      MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_SUPERLU
-      MFEM_USE_STRUMPACK MFEM_USE_GECKO MFEM_USE_GNUTLS MFEM_USE_NETCDF
-      MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT
-      MFEM_USE_PUMI)
+      MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP
+      MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE
+      MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GECKO MFEM_USE_GNUTLS
+      MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
+      MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)
@@ -726,6 +728,7 @@ function(mfem_export_mk_files)
       set(${var} NO)
     endif()
   endforeach()
+  # TODO: Add support for MFEM_USE_CUDA=YES
   set(MFEM_CXX ${CMAKE_CXX_COMPILER})
   set(MFEM_CPPFLAGS "")
   string(STRIP "${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
@@ -746,8 +749,12 @@ function(mfem_export_mk_files)
   if (BUILD_SHARED_LIBS)
     set(MFEM_LIBS "${shared_link_flag}\$(MFEM_LIB_DIR) -L\$(MFEM_LIB_DIR)")
     set(MFEM_LIBS "${MFEM_LIBS} -lmfem \$(MFEM_EXT_LIBS)")
-    set(MFEM_LIB_FILE "\$(MFEM_LIB_DIR)/libmfem.${mfem_VERSION}\
-${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    if (APPLE)
+      set(SO_VER ".${mfem_VERSION}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    else()
+      set(SO_VER "${CMAKE_SHARED_LIBRARY_SUFFIX}.${mfem_VERSION}")
+    endif()
+    set(MFEM_LIB_FILE "\$(MFEM_LIB_DIR)/libmfem${SO_VER}")
     set(MFEM_SHARED YES)
     set(MFEM_STATIC NO)
   else()

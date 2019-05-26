@@ -59,12 +59,7 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
    }
    else
    {
-      double local_dot = (x * y);
-      double global_dot;
-
-      MPI_Allreduce(&local_dot, &global_dot, 1, MPI_DOUBLE, MPI_SUM, comm);
-
-      return global_dot;
+      return InnerProduct(comm, x, y);
    }
 #endif
 }
@@ -338,18 +333,20 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    oper->Mult(d, z);  // z = A d
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
-
-   if (print_level >= 0 && den < 0.0)
+   if (den <= 0.0)
    {
-      mfem::out << "Negative denominator in step 0 of PCG: " << den << '\n';
-   }
-
-   if (den == 0.0)
-   {
-      converged = 0;
-      final_iter = 0;
-      final_norm = sqrt(nom);
-      return;
+      if (Dot(d, d) > 0.0 && print_level >= 0)
+      {
+         mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
+                   << den << '\n';
+      }
+      if (den == 0.0)
+      {
+         converged = 0;
+         final_iter = 0;
+         final_norm = sqrt(nom);
+         return;
+      }
    }
 
    // start iteration
@@ -413,9 +410,16 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
-         if (print_level >= 0 && Dot(d, d) > 0.0)
+         if (Dot(d, d) > 0.0 && print_level >= 0)
+         {
             mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                       << den << '\n';
+         }
+         if (den == 0.0)
+         {
+            final_iter = i;
+            break;
+         }
       }
       nom = betanom;
    }

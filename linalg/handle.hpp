@@ -81,6 +81,12 @@ public:
    /// Access the underlying Operator pointer.
    Operator *Ptr() const { return oper; }
 
+   /// Support the use of -> to call methods of the underlying Operator.
+   Operator *operator->() const { return oper; }
+
+   /// Access the underlying Operator.
+   Operator &operator*() { return *oper; }
+
    /// Get the currently set operator type id.
    Operator::Type Type() const { return type_id; }
 
@@ -186,6 +192,10 @@ public:
    void EliminateBC(const OperatorHandle &A_e, const Array<int> &ess_dof_list,
                     const Vector &X, Vector &B) const;
 };
+
+
+/// Add an alternative name for OperatorHandle -- OperatorPtr.
+typedef OperatorHandle OperatorPtr;
 
 } // namespace mfem
 

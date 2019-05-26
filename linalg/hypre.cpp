@@ -207,7 +207,8 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 
 void HypreParVector::SetData(double *_data)
 {
-   Vector::data = hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
+   hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
+   Vector::SetData(_data);
 }
 
 HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
@@ -1015,21 +1016,23 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
                << ", expected size = " << Height());
 
+   auto x_data = x.HostRead();
+   auto y_data = y.HostWrite();
    if (X == NULL)
    {
       X = new HypreParVector(A->comm,
                              GetGlobalNumCols(),
-                             x.GetData(),
+                             const_cast<double*>(x_data),
                              GetColStarts());
       Y = new HypreParVector(A->comm,
                              GetGlobalNumRows(),
-                             y.GetData(),
+                             y_data,
                              GetRowStarts());
    }
    else
    {
-      X->SetData(x.GetData());
-      Y->SetData(y.GetData());
+      X->SetData(const_cast<double*>(x_data));
+      Y->SetData(y_data);
    }
 
    hypre_ParCSRMatrixMatvec(a, A, *X, b, *Y);
@@ -1045,21 +1048,23 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
 
    // Note: x has the dimensions of Y (height), and
    //       y has the dimensions of X (width)
+   auto x_data = x.HostRead();
+   auto y_data = y.HostWrite();
    if (X == NULL)
    {
       X = new HypreParVector(A->comm,
                              GetGlobalNumCols(),
-                             y.GetData(),
+                             y_data,
                              GetColStarts());
       Y = new HypreParVector(A->comm,
                              GetGlobalNumRows(),
-                             x.GetData(),
+                             const_cast<double*>(x_data),
                              GetRowStarts());
    }
    else
    {
-      X->SetData(y.GetData());
-      Y->SetData(x.GetData());
+      X->SetData(y_data);
+      Y->SetData(const_cast<double*>(x_data));
    }
 
    hypre_ParCSRMatrixMatvecT(a, A, *Y, b, *X);
@@ -1291,7 +1296,7 @@ static void get_sorted_rows_cols(const Array<int> &rows_cols,
 
 void HypreParMatrix::Threshold(double threshold)
 {
-   int  ierr = 0;
+   int ierr = 0;
 
    MPI_Comm comm;
    hypre_CSRMatrix * csr_A;
@@ -1342,7 +1347,7 @@ void HypreParMatrix::Threshold(double threshold)
       ierr += hypre_CSRMatrixDestroy(csr_A);
    }
 
-   /* FIXME: GenerateDiagAndOffd() uses an int array of size equal to the number
+   /* TODO: GenerateDiagAndOffd() uses an int array of size equal to the number
       of columns in csr_A_wo_z which is the global number of columns in A. This
       does not scale well. */
    ierr += GenerateDiagAndOffd(csr_A_wo_z,parcsr_A_ptr,
@@ -2104,6 +2109,7 @@ HypreSolver::HypreSolver(HypreParMatrix *_A)
 
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 {
+   HYPRE_Int err;
    if (A == NULL)
    {
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
@@ -2111,7 +2117,9 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
    }
    if (!setup_called)
    {
-      SetupFcn()(*this, *A, b, x);
+      err = SetupFcn()(*this, *A, b, x);
+      MFEM_VERIFY(!err, "HypreSolver::Mult (...) : Error during setup! error code "
+                  << err);
       setup_called = 1;
    }
 
@@ -2119,7 +2127,9 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
    {
       x = 0.0;
    }
-   SolveFcn()(*this, *A, b, x);
+   err = SolveFcn()(*this, *A, b, x);
+   MFEM_VERIFY(!err,"HypreSolver::Mult (...) : Error during solve! error code "
+               << err);
 }
 
 void HypreSolver::Mult(const Vector &b, Vector &x) const
@@ -2129,21 +2139,23 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
       return;
    }
+   auto b_data = b.HostRead();
+   auto x_data = x.HostWrite();
    if (B == NULL)
    {
       B = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumRows(),
-                             b.GetData(),
+                             const_cast<double*>(b_data),
                              A -> GetRowStarts());
       X = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumCols(),
-                             x.GetData(),
+                             x_data,
                              A -> GetColStarts());
    }
    else
    {
-      B -> SetData(b.GetData());
-      X -> SetData(x.GetData());
+      B -> SetData(const_cast<double*>(b_data));
+      X -> SetData(x_data);
    }
 
    Mult(*B, *X);
@@ -2252,6 +2264,9 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
    {
       x = 0.0;
    }
+
+   b.HostRead();
+   x.HostReadWrite();
 
    HYPRE_ParCSRPCGSolve(pcg_solver, *A, b, x);
 
@@ -3328,7 +3343,7 @@ HypreLOBPCG::SetPreconditioner(Solver & precond)
 void
 HypreLOBPCG::SetOperator(Operator & A)
 {
-   int locSize = A.Width();
+   HYPRE_Int locSize = A.Width();
 
    if (HYPRE_AssumedPartitionCheck())
    {
@@ -3344,7 +3359,7 @@ HypreLOBPCG::SetOperator(Operator & A)
    {
       part = new HYPRE_Int[numProcs+1];
 
-      MPI_Allgather(&locSize, 1, MPI_INT,
+      MPI_Allgather(&locSize, 1, HYPRE_MPI_INT,
                     &part[1], 1, HYPRE_MPI_INT, comm);
 
       part[0] = 0;

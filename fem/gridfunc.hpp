@@ -27,10 +27,13 @@ namespace mfem
 class GridFunction : public Vector
 {
 protected:
-   /// FE space on which grid function lives.
+   /// FE space on which the grid function lives. Owned if #fec is not NULL.
    FiniteElementSpace *fes;
 
-   /// Used when the grid function is read from a file
+   /** @brief Used when the grid function is read from a file. It can also be
+       set explicitly, see MakeOwner().
+
+       If not NULL, this pointer is owned by the GridFunction. */
    FiniteElementCollection *fec;
 
    long sequence; // see FiniteElementSpace::sequence, Mesh::sequence
@@ -65,15 +68,16 @@ protected:
 
 public:
 
-   GridFunction() { fes = NULL; fec = NULL; sequence = 0; }
+   GridFunction() { fes = NULL; fec = NULL; sequence = 0; UseDevice(true); }
 
-   /// Copy constructor.
+   /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence) { }
+      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence)
+   { UseDevice(true); }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -81,8 +85,9 @@ public:
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData().
     */
-   GridFunction(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+   GridFunction(FiniteElementSpace *f, double *data)
+      : Vector(data, f->GetVSize())
+   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
@@ -92,7 +97,18 @@ public:
 
    GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
 
-   /// Make the GridFunction the owner of 'fec' and 'fes'
+   /// Copy assignment. Only the data of the base class Vector is copied.
+   /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
+       have the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignemnt operator. */
+   GridFunction &operator=(const GridFunction &rhs)
+   { return operator=((const Vector &)rhs); }
+
+   /// Make the GridFunction the owner of #fec and #fes.
+   /** If the new FiniteElementCollection, @a _fec, is NULL, ownership of #fec
+       and #fes is taken away. */
    void MakeOwner(FiniteElementCollection *_fec) { fec = _fec; }
 
    FiniteElementCollection *OwnFEC() { return fec; }
@@ -110,6 +126,7 @@ public:
 
    /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
    /// then `tv` will be set to point to the data of `*this`.
+   /** @warning This method breaks const-ness when all dofs are true. */
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
@@ -403,8 +420,8 @@ public:
    GridFunction &operator=(double value);
 
    /// Copy the data from @a v.
-   /** The size of @a v must be equal to the size of the FiniteElementSpace
-       @a fes. */
+   /** The size of @a v must be equal to the size of the associated
+       FiniteElementSpace #fes. */
    GridFunction &operator=(const Vector &v);
 
    /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
@@ -487,6 +504,12 @@ public:
    QuadratureFunction()
       : qspace(NULL), vdim(0), own_qspace(false) { }
 
+   /** @brief Copy constructor. The QuadratureSpace ownership flag, #own_qspace,
+       in the new object is set to false. */
+   QuadratureFunction(const QuadratureFunction &orig)
+      : Vector(orig),
+        qspace(orig.qspace), vdim(orig.vdim), own_qspace(false) { }
+
    /// Create a QuadratureFunction based on the given QuadratureSpace.
    /** The QuadratureFunction does not assume ownership of the QuadratureSpace.
        @note The Vector data is not initialized. */
@@ -552,13 +575,16 @@ public:
    QuadratureFunction &operator=(double value);
 
    /// Copy the data from @a v.
-   /** The size of @a v must be equal to the size of the QuadratureSpace
-       @a qspace. */
+   /** The size of @a v must be equal to the size of the associated
+       QuadratureSpace #qspace. */
    QuadratureFunction &operator=(const Vector &v);
 
-   /// Copy the data from @a v.
+   /// Copy assignment. Only the data of the base class Vector is copied.
    /** The QuadratureFunctions @a v and @a *this must have QuadratureSpaces with
-       the same size. */
+       the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignemnt operator. */
    QuadratureFunction &operator=(const QuadratureFunction &v);
 
    /// Get the IntegrationRule associated with mesh element @a idx.
@@ -679,7 +705,7 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
    values.SetSize(vdim*sl_size);
-   double *q = data + vdim*s_offset;
+   const double *q = data + vdim*s_offset;
    for (int i = 0; i<values.Size(); i++)
    {
       values(i) = *(q++);
@@ -699,12 +725,14 @@ inline void QuadratureFunction::GetElementValues(int idx,
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
    values.SetSize(vdim, sl_size);
-   double *q = data + vdim*s_offset;
+   const double *q = data + vdim*s_offset;
    for (int j = 0; j<sl_size; j++)
+   {
       for (int i = 0; i<vdim; i++)
       {
          values(i,j) = *(q++);
       }
+   }
 }
 
 } // namespace mfem
