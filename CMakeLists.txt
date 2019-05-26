@@ -50,7 +50,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 3.4.1)
+set(${PROJECT_NAME}_VERSION 4.0.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -286,7 +286,6 @@ if (MFEM_USE_CUDA)
       set(CUDA_CCBIN_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
    string(APPEND CMAKE_CUDA_FLAGS " -ccbin ${CUDA_CCBIN_COMPILER}")
-   set(MFEM_USE_MM YES CACHE BOOL "Enable MFEM's memory manager" FORCE)
 endif()
 
 # OCCA

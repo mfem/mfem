@@ -124,7 +124,6 @@ MFEM_USE_PUMI          = NO
 MFEM_USE_CUDA          = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
-MFEM_USE_MM            = NO
 MFEM_USE_JIT           = NO
 
 # Compile and link options for zlib.
