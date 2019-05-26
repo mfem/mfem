@@ -2755,7 +2755,10 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
    RecomputeRBMs();
    HYPRE_BoomerAMGSetInterpVectors(amg_precond, rbms.Size(), rbms.GetData());
 
-   // See the documentation of SetErrorMode() for explanation:
+   // The above BoomerAMG options may result in singular matrices on the coarse
+   // grids, which are handled correctly in hypre's Solve method, but can produce
+   // hypre errors in the Setup (specifically in the l1 row norm computation).
+   // See the documentation of SetErrorMode() for more details.
    error_mode = IGNORE_HYPRE_ERRORS;
 }
 
@@ -2947,6 +2950,12 @@ HypreAMS::HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
                                theta, amg_interp_type, amg_Pmax);
    HYPRE_AMSSetBetaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
                               theta, amg_interp_type, amg_Pmax);
+
+   // The AMS preconditioner may sometimes require inverting singular matrices
+   // with BoomerAMG, which are handled correctly in hypre's Solve method, but
+   // can produce hypre errors in the Setup (specifically in the l1 row norm
+   // computation). See the documentation of SetErrorMode() for more details.
+   error_mode = IGNORE_HYPRE_ERRORS;
 }
 
 HypreAMS::~HypreAMS()
@@ -3186,7 +3195,10 @@ HypreADS::HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
    HYPRE_ADSSetAMSOptions(ads, ams_cycle_type, amg_coarsen_type, amg_agg_levels,
                           amg_rlx_type, theta, amg_interp_type, amg_Pmax);
 
-   // See the documentation of SetErrorMode() for explanation:
+   // The ADS preconditioner requires inverting singular matrices with BoomerAMG,
+   // which are handled correctly in hypre's Solve method, but can produce hypre
+   // errors in the Setup (specifically in the l1 row norm computation). See the
+   // documentation of SetErrorMode() for more details.
    error_mode = IGNORE_HYPRE_ERRORS;
 }
 
