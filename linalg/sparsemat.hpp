@@ -15,6 +15,8 @@
 // Data types for sparse matrix
 
 #include "../general/mem_alloc.hpp"
+#include "../general/mem_manager.hpp"
+#include "../general/device.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 #include "densemat.hpp"
@@ -47,13 +49,13 @@ protected:
        this array is always zero, I[0] = 0, and the last entry, I[height], gives
        the total number of entries stored (at a minimum, all nonzeros must be
        represented) in the sparse matrix. */
-   int *I;
+   Memory<int> I;
    /** @brief %Array with size #I[#height], containing the column indices for
        all matrix entries, as indexed by the #I array. */
-   int *J;
+   Memory<int> J;
    /** @brief %Array with size #I[#height], containing the actual entries of the
        sparse matrix, as indexed by the #I array. */
-   double *A;
+   Memory<double> A;
    ///@}
 
    /** @brief %Array of linked lists, one for every row. This array represents
@@ -71,11 +73,6 @@ protected:
    typedef MemAlloc <RowNode, 1024> RowNodeAlloc;
    RowNodeAlloc * NodesMem;
 #endif
-
-   /// Say whether we own the pointers for I and J (should we free them?).
-   bool ownGraph;
-   /// Say whether we own the pointers for A (should we free them?).
-   bool ownData;
 
    /// Are the columns sorted already.
    bool isSorted;
@@ -212,6 +209,9 @@ public:
 
    /// Produces a DenseMatrix from a SparseMatrix
    void ToDenseMatrix(DenseMatrix & B) const;
+
+   virtual MemoryClass GetMemoryClass() const
+   { return Finalized() ? Device::GetMemoryClass() : MemoryClass::HOST; }
 
    /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -369,8 +369,13 @@ public:
    /// A slightly more general version of the Finalize(int) method.
    void Finalize(int skip_zeros, bool fix_empty_rows);
 
-   bool Finalized() const { return (A != NULL); }
+   bool Finalized() const { return !A.Empty(); }
    bool areColumnsSorted() const { return isSorted; }
+
+   /** @brief Remove entries smaller in absolute value than a given tolerance
+       @a tol. If @a fix_empty_rows is true, a zero value is inserted in the
+       diagonal entry (for square matrices only) */
+   void Threshold(double tol, bool fix_empty_rows = false);
 
    /** Split the matrix into M x N blocks of sparse matrices in CSR format.
        The 'blocks' array is M x N (i.e. M and N are determined by its
@@ -380,13 +385,28 @@ public:
    void GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      DenseMatrix &subm) const;
 
+   /** @brief Initialize the SparseMatrix for fast access to the entries of the
+       given @a row which becomes the "current row". */
+   /** Fast access to the entries of the "current row" can be performed using
+       the methods: SearchRow(const int), _Add_(const int, const double),
+       _Set_(const int, const double), and _Get_(const int). */
    inline void SetColPtr(const int row) const;
+   /** @brief Reset the "current row" set by calling SetColPtr(). This method
+       must be called between any two calls to SetColPtr(). */
    inline void ClearColPtr() const;
+   /// Perform a fast search for an entry in the "current row". See SetColPtr().
+   /** If the matrix is not finalized and the entry is not found in the
+       SparseMatrix, it will be added to the sparsity pattern initialized with
+       zero. If the matrix is finalized and the entry is not found, an error
+       will be generated. */
    inline double &SearchRow(const int col);
+   /// Add a value to an entry in the "current row". See SetColPtr().
    inline void _Add_(const int col, const double a)
    { SearchRow(col) += a; }
+   /// Set an entry in the "current row". See SetColPtr().
    inline void _Set_(const int col, const double a)
    { SearchRow(col) = a; }
+   /// Read the value of an entry in the "current row". See SetColPtr().
    inline double _Get_(const int col) const;
 
    inline double &SearchRow(const int row, const int col);
@@ -416,23 +436,25 @@ public:
        - 0, if @a cols and @a srow are copies of the values in the matrix, i.e.
          when the matrix is open.
        - 1, if @a cols and @a srow are views of the values in the matrix, i.e.
-         when the matrix is finalized. */
+         when the matrix is finalized.
+       @warning This method breaks the const-ness when the matrix is finalized
+       because it gives write access to the #J and #A arrays. */
    virtual int GetRow(const int row, Array<int> &cols, Vector &srow) const;
 
    void SetRow(const int row, const Array<int> &cols, const Vector &srow);
    void AddRow(const int row, const Array<int> &cols, const Vector &srow);
 
    void ScaleRow(const int row, const double scale);
-   // this = diag(sl) * this;
+   /// this = diag(sl) * this;
    void ScaleRows(const Vector & sl);
-   // this = this * diag(sr);
+   /// this = this * diag(sr);
    void ScaleColumns(const Vector & sr);
 
-   /** Add the sparse matrix 'B' to '*this'. This operation will cause an error
-       if '*this' is finalized and 'B' has larger sparsity pattern. */
+   /** @brief Add the sparse matrix 'B' to '*this'. This operation will cause an
+       error if '*this' is finalized and 'B' has larger sparsity pattern. */
    SparseMatrix &operator+=(const SparseMatrix &B);
 
-   /** Add the sparse matrix 'B' scaled by the scalar 'a' into '*this'.
+   /** @brief Add the sparse matrix 'B' scaled by the scalar 'a' into '*this'.
        Only entries in the sparsity pattern of '*this' are added. */
    void Add(const double a, const SparseMatrix &B);
 
@@ -476,15 +498,20 @@ public:
    int CheckFinite() const;
 
    /// Set the graph ownership flag (I and J arrays).
-   void SetGraphOwner(bool ownij) { ownGraph = ownij; }
+   void SetGraphOwner(bool ownij)
+   { I.SetHostPtrOwner(ownij); J.SetHostPtrOwner(ownij); }
+
    /// Set the data ownership flag (A array).
-   void SetDataOwner(bool owna) { ownData = owna; }
+   void SetDataOwner(bool owna) { A.SetHostPtrOwner(owna); }
+
    /// Get the graph ownership flag (I and J arrays).
-   bool OwnsGraph() const { return ownGraph; }
+   bool OwnsGraph() const { return I.OwnsHostPtr() && J.OwnsHostPtr(); }
+
    /// Get the data ownership flag (A array).
-   bool OwnsData() const { return ownData; }
+   bool OwnsData() const { return A.OwnsHostPtr(); }
+
    /// Lose the ownership of the graph (I, J) and data (A) arrays.
-   void LoseData() { ownGraph = ownData = false; }
+   void LoseData() { SetGraphOwner(false); SetDataOwner(false); }
 
    void Swap(SparseMatrix &other);
 
@@ -713,6 +740,6 @@ template<> inline void Swap<SparseMatrix>(SparseMatrix &a, SparseMatrix &b)
    a.Swap(b);
 }
 
-}
+} // namespace mfem
 
 #endif
