@@ -8,22 +8,14 @@
                                http://mfem.org
 
 
-Version 4.0-RC2, Apr 24, 2019
-=============================
+Version 4.0.1 (development)
+===========================
 
-Requirements and Limitations
-----------------------------
-- This is a release candidate for mfem-4.0.
-- Use at your own risk -- not everything will work and the API may change.
-- We are looking for feedback from friendly users.
-- Unlike previous MFEM releases, this version requires a C++11 compiler.
 
-- GPU-related limitations:
-  * Hypre preconditioners are not yet available in GPU mode.
-  * Only constant coefficients are currently supported on GPUs.
-  * Full-assembly (on device), element assembly, and matrix-free bilinear forms
-    are not supported yet. Element batching is currently ignored.
-  * Partial assembly kernels are not implemented yet for simplices.
+Version 4.0, released on May 24, 2019
+=====================================
+
+Unlike previous MFEM releases, this version requires a C++11 compiler.
 
 GPU support
 -----------
@@ -34,7 +26,7 @@ GPU support
   seamlessly with a new lightweight device/host memory manager. The kernels can
   be implemented either in OCCA, or as a simple wrapper around for-loops, which
   can then be dispatched to RAJA and native backends. See the files forall.hpp
-  and mem_manager.hpp in the general/ directory.
+  and mem_manager.hpp in the general/ directory for more details.
 
 - Several of the MFEM example codes (ex1, ex1p, ex6, and ex6p) can now take
   advantage of GPU acceleration with the backend selectable at runtime. Many of
@@ -42,26 +34,44 @@ GPU support
   bilinear forms) have been extended to take advantage of kernel acceleration by
   simply replacing loops with the MFEM_FORALL() macro.
 
-- In addition to pure CUDA, the library currently supports OCCA, RAJA and OpenMP
-  kernels, which could be mixed and matched in different parts of the same
-  application. We plan on adding support for more programming models and devices
-  in the future, without the need for significant modifications in user code.
-  The list of current backends is: "occa-cuda", "raja-cuda", "cuda", "occa-omp",
-  "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
+- In addition to native CUDA kernels, the library currently supports OCCA, RAJA
+  and OpenMP kernels, which could be mixed and matched in different parts of the
+  same application. We plan on adding support for more programming models and
+  devices in the future, without the need for significant modifications in user
+  code. The list of current backends is: "occa-cuda", "raja-cuda", "cuda",
+  "occa-omp", "raja-omp", "omp", "occa-cpu", "raja-cpu", and "cpu".
+
+- GPU-related limitations:
+  * Hypre preconditioners are not yet available in GPU mode, and in particular
+    hypre must be built in CPU mode.
+  * Only constant coefficients are currently supported on GPUs.
+  * Optimized element assembly, and matrix-free bilinear forms are not
+    implemented yet. Element batching is currently ignored.
+  * In device mode, full assembly is performed on the host (but the matvec
+    action is performed on the device).
+  * Partial assembly kernels are not implemented yet for simplices.
 
 Discretization improvements
 ---------------------------
+
+- Partial assembled finite element operators are now available in the core
+  library, based on the new classes PABilinearFormExtension, ElementRestriction,
+  DofToQuad and GeometricFactors (associated with the classes BilinearForm,
+  FiniteElementSpace, FiniteElement and Mesh, respectively). The kernels for
+  partial assembled Setup/Assembly and Action/Mult are implemented in the
+  BilinearFormIntegrator methods AssemblePA and AddMultPA.
+
 - Added support for a general "low-order refined"-to-"high-order" transfer of
   GridFunction data from a "low-order refined" (LOR) space defined on a refined
   mesh to a "high-order" (HO) finite element space defined on a coarse mesh. See
   the new classes InterpolationGridTransfer and L2ProjectionGridTransfer and the
   new LOR Transfer miniapp: miniapps/tools/lor-transfer.cpp.
 
-- Added support for derefinement of vector (RT + ND) spaces.
-
 - Added element flux, and flux energy computation in class ElasticityIntegrator,
   allowing for the use of Zienkiewicz-Zhu type error estimators with the
-  integrator. For an illustration of this addition, see the new Example 22.
+  integrator. For an illustration of this addition, see the new Example 21.
+
+- Added support for derefinement of vector (RT + ND) spaces.
 
 - Added a variety of coefficients which are sums or products of existing
   coefficients as well as grid function coefficients which return the
@@ -73,12 +83,12 @@ Support for wedge elements and meshes with mixed element types
   type PRISM) which have two triangular faces and three quadrilateral faces.
   Several examples of such meshes can be found in the data/ directory.
 
-- Added H1 and L2 finite elements of arbitrary order for Wedge elements.
-
 - Added support for mixed meshes containing triangles and quadrilaterals in 2D
   or tetrahedra, wedges, and hexahedra in 3D. This includes support for uniform
   refinement of such meshes. Several examples of such meshes can be found in the
   data/ directory.
+
+- Added H1 and L2 finite elements of arbitrary order for Wedge elements.
 
 - Added support for reading and writing linear and quadratic meshes containing
   wedge elements in VTK mesh format. Several examples of such meshes can be
@@ -100,6 +110,10 @@ Other meshing improvements
   This guarantees that the shape regularity of the elements will be preserved
   under refinement.
 
+- The TMOP mesh optimization algorithms were extended to support user-defined
+  space-dependent limiting terms. Improved the TMOP objective functions by more
+  accurate normalization of the different terms.
+
 - Added support for parallel communication groups on non-conforming meshes.
 
 - Improved parallel partitioning of non-conforming meshes. If the coarse mesh
@@ -112,10 +126,6 @@ Other meshing improvements
 
 - Added support for reading linear and quadratic 2D quadrilateral and triangular
   Cubit meshes.
-
-- The TMOP mesh optimization algorithms were extended to support user-defined
-  space-dependent limiting terms. Improved the TMOP objective functions by more
-  accurate normalization of the different terms.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -132,7 +142,7 @@ New and updated examples and miniapps
   from a Hamiltonian. The example demonstrates the use of the variable order,
   symplectic integration algorithm implemented in class SIAVSolver.
 
-- Added a new example, Example 22/22p, that illustrates the use of AMR to solve
+- Added a new example, Example 21/21p, that illustrates the use of AMR to solve
   a linear elasticity problem. This is an extension of Example 2/2p.
 
 New and improved solvers and preconditioners
@@ -144,16 +154,16 @@ New and improved solvers and preconditioners
 
 Miscellaneous
 -------------
-- In SparseMatrix added the option to perform MultTranspose() by matvec with
-  computed and stored transpose matrix. This is required for deterministic
-  results when using devices such as CUDA and OpenMP.
-
-- Added unit tests based on the Catch++ library.
+- Added unit tests based on the Catch++ library in the test/ directory.
 
 - Renamed the option MFEM_USE_OPENMP to MFEM_USE_LEGACY_OPENMP. This legacy
   option is deprecated and planned for removal in a future release. The original
   option name, MFEM_USE_OPENMP, is now used to enable the new OpenMP backends in
   the new kernels.
+
+- In SparseMatrix added the option to perform MultTranspose() by matvec with
+  computed and stored transpose matrix. This is required for deterministic
+  results when using devices such as CUDA and OpenMP.
 
 - Altered the way FGMRES counts its iterations so that it matches GMRES.
 

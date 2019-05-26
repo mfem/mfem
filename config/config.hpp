@@ -56,9 +56,4 @@
 #endif
 #endif // MFEM_USE_MPI not defined
 
-// CUDA requires the memory manager
-#if defined(MFEM_USE_CUDA) && !defined(MFEM_USE_MM)
-#error Building with CUDA (MFEM_USE_CUDA=YES) requires MFEM_USE_MM=YES
-#endif
-
 #endif // MFEM_CONFIG_HPP
