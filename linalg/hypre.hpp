@@ -669,6 +669,15 @@ public:
 /// Abstract class for hypre's solvers and preconditioners
 class HypreSolver : public Solver
 {
+public:
+   /// How to treat hypre errors.
+   enum ErrorMode
+   {
+      IGNORE_HYPRE_ERRORS, ///< Ignore hypre errors
+      WARN_HYPRE_ERRORS,   ///< Issue warnings on hypre errors
+      ABORT_HYPRE_ERRORS   ///< Abort on hypre errors (default in base class)
+   };
+
 protected:
    /// The linear system matrix
    HypreParMatrix *A;
@@ -678,6 +687,9 @@ protected:
 
    /// Was hypre's Setup function called already?
    mutable int setup_called;
+
+   /// How to treat hypre errors.
+   mutable ErrorMode error_mode;
 
 public:
    HypreSolver();
@@ -698,6 +710,17 @@ public:
    /// Solve the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
+
+   /** @brief Set the behavior for treating hypre errors, see ErrorMode. The
+       default mode in the base class is ABORT_HYPRE_ERRORS. */
+   /** There are two cases in derived classes where the error flag is set to
+       IGNORE_HYPRE_ERRORS:
+       * in the method HypreBoomerAMG::SetElasticityOptions(), and
+       * in the constructor of class HypreADS.
+       The reason for this is that the hypre error flag is set when
+       hypre_ParCSRComputeL1Norms() encounters zero rows in a matrix, which is
+       expected in some cases with the above two solvers. */
+   void SetErrorMode(ErrorMode err_mode) const { error_mode = err_mode; }
 
    virtual ~HypreSolver();
 };
