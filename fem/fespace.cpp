@@ -386,6 +386,7 @@ void FiniteElementSpace::MarkerToList(const Array<int> &marker,
                                       Array<int> &list)
 {
    int num_marked = 0;
+   marker.HostRead(); // make sure we can read the array on host
    for (int i = 0; i < marker.Size(); i++)
    {
       if (marker[i]) { num_marked++; }
@@ -685,9 +686,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // create the conforming restriction matrix cR
    int *cR_J;
    {
-      int *cR_I = mfem::New<int>(n_true_dofs+1);
-      double *cR_A = mfem::New<double>(n_true_dofs);
-      cR_J = mfem::New<int>(n_true_dofs);
+      int *cR_I = new int[n_true_dofs+1];
+      double *cR_A = new double[n_true_dofs];
+      cR_J = new int[n_true_dofs];
       for (int i = 0; i < n_true_dofs; i++)
       {
          cR_I[i] = i;
@@ -765,6 +766,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       MakeVDimMatrix(*cP);
       MakeVDimMatrix(*cR);
    }
+
+   if (Device::IsEnabled()) { cP->BuildTranspose(); }
 }
 
 void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
@@ -2670,7 +2673,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     dof(fes.GetFE(0)->GetDof()),
+     dof(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
      nedofs(ne*dof),
      offsets(ndofs+1),
      indices(ne*dof)
@@ -2743,10 +2746,10 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   const DeviceArray d_offsets(offsets, ndofs+1);
-   const DeviceArray d_indices(indices, nedofs);
-   const DeviceMatrix d_x(x, t?vd:ndofs, t?ndofs:vd);
-   DeviceTensor<3> d_y(y, nd, vd, ne);
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nd, vd, ne);
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
@@ -2769,10 +2772,10 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   const DeviceArray d_offsets(offsets, ndofs+1);
-   const DeviceArray d_indices(indices, nedofs);
-   const DeviceTensor<3> d_x(x, nd, vd, ne);
-   DeviceMatrix d_y(y, t?vd:ndofs, t?ndofs:vd);
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, ne);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
@@ -2824,10 +2827,10 @@ void QuadratureInterpolator::Eval2D(
    const int NE,
    const int vdim,
    const DofToQuad &maps,
-   const double *e_vec,
-   double *q_val,
-   double *q_der,
-   double *q_det,
+   const Vector &e_vec,
+   Vector &q_val,
+   Vector &q_der,
+   Vector &q_det,
    const int eval_flags)
 {
    const int nd = maps.ndof;
@@ -2838,12 +2841,12 @@ void QuadratureInterpolator::Eval2D(
    MFEM_VERIFY(ND <= MAX_ND2D, "");
    MFEM_VERIFY(NQ <= MAX_NQ2D, "");
    MFEM_VERIFY(VDIM == 2 || !(eval_flags & DETERMINANTS), "");
-   const DeviceTensor<2> B(maps.B, NQ, ND);
-   const DeviceTensor<3> G(maps.G, NQ, 2, ND);
-   const DeviceTensor<3> E(e_vec, ND, VDIM, NE);
-   DeviceTensor<3> val(q_val, NQ, VDIM, NE);
-   DeviceTensor<4> der(q_der, NQ, VDIM, 2, NE);
-   DeviceMatrix det(q_det, NQ, NE);
+   auto B = Reshape(maps.B.Read(), NQ, ND);
+   auto G = Reshape(maps.G.Read(), NQ, 2, ND);
+   auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
+   auto val = Reshape(q_val.Write(), NQ, VDIM, NE);
+   auto der = Reshape(q_der.Write(), NQ, VDIM, 2, NE);
+   auto det = Reshape(q_det.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
       const int ND = T_ND ? T_ND : nd;
@@ -2912,10 +2915,10 @@ void QuadratureInterpolator::Eval3D(
    const int NE,
    const int vdim,
    const DofToQuad &maps,
-   const double *e_vec,
-   double *q_val,
-   double *q_der,
-   double *q_det,
+   const Vector &e_vec,
+   Vector &q_val,
+   Vector &q_der,
+   Vector &q_det,
    const int eval_flags)
 {
    const int nd = maps.ndof;
@@ -2926,12 +2929,12 @@ void QuadratureInterpolator::Eval3D(
    MFEM_VERIFY(ND <= MAX_ND3D, "");
    MFEM_VERIFY(NQ <= MAX_NQ3D, "");
    MFEM_VERIFY(VDIM == 3 || !(eval_flags & DETERMINANTS), "");
-   const DeviceTensor<2> B(maps.B, NQ, ND);
-   const DeviceTensor<3> G(maps.G, NQ, 3, ND);
-   const DeviceTensor<3> E(e_vec, ND, VDIM, NE);
-   DeviceTensor<3> val(q_val, NQ, VDIM, NE);
-   DeviceTensor<4> der(q_der, NQ, VDIM, 3, NE);
-   DeviceMatrix det(q_det, NQ, NE);
+   auto B = Reshape(maps.B.Read(), NQ, ND);
+   auto G = Reshape(maps.G.Read(), NQ, 3, ND);
+   auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
+   auto val = Reshape(q_val.Write(), NQ, VDIM, NE);
+   auto der = Reshape(q_der.Write(), NQ, VDIM, 3, NE);
+   auto det = Reshape(q_det.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
       const int ND = T_ND ? T_ND : nd;
@@ -3018,10 +3021,10 @@ void QuadratureInterpolator::Mult(
       const int NE,
       const int vdim,
       const DofToQuad &maps,
-      const double *e_vec,
-      double *q_val,
-      double *q_der,
-      double *q_det,
+      const Vector &e_vec,
+      Vector &q_val,
+      Vector &q_der,
+      Vector &q_det,
       const int eval_flags) = NULL;
    if (vdim == 1)
    {

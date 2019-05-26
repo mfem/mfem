@@ -37,7 +37,9 @@ namespace mfem {
  *
  * <H3>Main GPU classes</H3>
  * - Device
+ * - Memory
  * - MemoryManager
+ * - MFEM_FORALL macro in forall.hpp
  *
  * <H3>Example codes</H3>
  * - <a class="el" href="examples_2ex1_8cpp_source.html">Example 1</a>: nodal H1 FEM for the Laplace problem

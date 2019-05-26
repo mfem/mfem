@@ -973,10 +973,10 @@ public:
    static void Eval2D(const int NE,
                       const int vdim,
                       const DofToQuad &maps,
-                      const double *e_vec,
-                      double *q_val,
-                      double *q_der,
-                      double *q_det,
+                      const Vector &e_vec,
+                      Vector &q_val,
+                      Vector &q_der,
+                      Vector &q_det,
                       const int eval_flags);
 
    /// Template compute kernel for 3D.
@@ -984,10 +984,10 @@ public:
    static void Eval3D(const int NE,
                       const int vdim,
                       const DofToQuad &maps,
-                      const double *e_vec,
-                      double *q_val,
-                      double *q_der,
-                      double *q_det,
+                      const Vector &e_vec,
+                      Vector &q_val,
+                      Vector &q_der,
+                      Vector &q_det,
                       const int eval_flags);
 };
 
