@@ -64,7 +64,7 @@ class FiniteElementSpace;
 class ParNCMesh : public NCMesh
 {
 public:
-   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh);
+   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
 
    ParNCMesh(const ParNCMesh &other);
 
@@ -260,8 +260,11 @@ protected: // implementation
    Array<GroupId> entity_owner[3];
    // P matrix comm pattern groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_pmat_group[3];
+
    // ParMesh-compatible (conforming) groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_conf_group[3];
+   // ParMesh compatibility helper arrays to order groups, also temporary
+   Array<int> leaf_glob_order, entity_elem_local[3];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices, shared_edges, shared_faces;
@@ -307,9 +310,9 @@ protected: // implementation
    virtual void BuildEdgeList();
    virtual void BuildVertexList();
 
-   virtual void ElementSharesFace(int elem, int face);
-   virtual void ElementSharesEdge(int elem, int enode);
-   virtual void ElementSharesVertex(int elem, int vnode);
+   virtual void ElementSharesFace(int elem, int local, int face);
+   virtual void ElementSharesEdge(int elem, int local, int enode);
+   virtual void ElementSharesVertex(int elem, int local, int vnode);
 
    GroupId GetGroupId(const CommGroup &group);
    GroupId GetSingletonGroup(int rank);
@@ -331,6 +334,9 @@ protected: // implementation
    void CalcFaceOrientations();
 
    void UpdateLayers();
+
+   void MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
+                        Table &group_shared);
 
    /** Uniquely encodes a set of leaf elements in the refinement hierarchy of
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,
@@ -524,6 +530,7 @@ protected: // implementation
 
    friend class NeighborRowMessage;
 };
+
 
 
 // comparison operator so that MeshId can be used as key in std::map

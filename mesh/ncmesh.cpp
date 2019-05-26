@@ -11,10 +11,12 @@
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
+#include "../general/sort_pairs.hpp"
 
 #include <string>
 #include <cmath>
 #include <climits> // INT_MAX
+#include <map>
 
 namespace mfem
 {
@@ -29,6 +31,118 @@ const DenseTensor &CoarseFineTransformations::GetPointMatrices(
                "cannot find point matrices for geometry type \"" << geom
                << "\"");
    return pm_it->second;
+}
+
+namespace internal
+{
+
+// Used in CoarseFineTransformations::GetCoarseToFineMap() below.
+struct RefType
+{
+   Geometry::Type geom;
+   int num_children;
+   const Pair<int,int> *children;
+
+   RefType(Geometry::Type g, int n, const Pair<int,int> *c)
+      : geom(g), num_children(n), children(c) { }
+
+   bool operator<(const RefType &other) const
+   {
+      if (geom < other.geom) { return true; }
+      if (geom > other.geom) { return false; }
+      if (num_children < other.num_children) { return true; }
+      if (num_children > other.num_children) { return false; }
+      for (int i = 0; i < num_children; i++)
+      {
+         if (children[i].one < other.children[i].one) { return true; }
+         if (children[i].one > other.children[i].one) { return false; }
+      }
+      return false; // everything is equal
+   }
+};
+
+}
+
+void CoarseFineTransformations::GetCoarseToFineMap(
+   const mfem::Mesh &fine_mesh, Table &coarse_to_fine,
+   Array<int> &coarse_to_ref_type, Table &ref_type_to_matrix,
+   Array<mfem::Geometry::Type> &ref_type_to_geom) const
+{
+   const int fine_ne = embeddings.Size();
+   int coarse_ne = -1;
+   for (int i = 0; i < fine_ne; i++)
+   {
+      coarse_ne = std::max(coarse_ne, embeddings[i].parent);
+   }
+   coarse_ne++;
+
+   coarse_to_ref_type.SetSize(coarse_ne);
+   coarse_to_fine.SetDims(coarse_ne, fine_ne);
+
+   Array<int> cf_i(coarse_to_fine.GetI(), coarse_ne+1);
+   Array<Pair<int,int> > cf_j(fine_ne);
+   cf_i = 0;
+   for (int i = 0; i < fine_ne; i++)
+   {
+      cf_i[embeddings[i].parent+1]++;
+   }
+   cf_i.PartialSum();
+   MFEM_ASSERT(cf_i.Last() == cf_j.Size(), "internal error");
+   for (int i = 0; i < fine_ne; i++)
+   {
+      const Embedding &e = embeddings[i];
+      cf_j[cf_i[e.parent]].one = e.matrix; // used as sort key below
+      cf_j[cf_i[e.parent]].two = i;
+      cf_i[e.parent]++;
+   }
+   std::copy_backward(cf_i.begin(), cf_i.end()-1, cf_i.end());
+   cf_i[0] = 0;
+   for (int i = 0; i < coarse_ne; i++)
+   {
+      std::sort(&cf_j[cf_i[i]], cf_j.GetData() + cf_i[i+1]);
+   }
+   for (int i = 0; i < fine_ne; i++)
+   {
+      coarse_to_fine.GetJ()[i] = cf_j[i].two;
+   }
+
+   using internal::RefType;
+   using std::map;
+   using std::pair;
+
+   map<RefType,int> ref_type_map;
+   for (int i = 0; i < coarse_ne; i++)
+   {
+      const int num_children = cf_i[i+1]-cf_i[i];
+      MFEM_ASSERT(num_children > 0, "");
+      const int fine_el = cf_j[cf_i[i]].two;
+      // Assuming the coarse and the fine elements have the same geometry:
+      const Geometry::Type geom = fine_mesh.GetElementBaseGeometry(fine_el);
+      const RefType ref_type(geom, num_children, &cf_j[cf_i[i]]);
+      pair<map<RefType,int>::iterator,bool> res =
+         ref_type_map.insert(
+            pair<const RefType,int>(ref_type, (int)ref_type_map.size()));
+      coarse_to_ref_type[i] = res.first->second;
+   }
+   ref_type_to_matrix.MakeI((int)ref_type_map.size());
+   ref_type_to_geom.SetSize((int)ref_type_map.size());
+   for (map<RefType,int>::iterator it = ref_type_map.begin();
+        it != ref_type_map.end(); ++it)
+   {
+      ref_type_to_matrix.AddColumnsInRow(it->second, it->first.num_children);
+      ref_type_to_geom[it->second] = it->first.geom;
+   }
+   ref_type_to_matrix.MakeJ();
+   for (map<RefType,int>::iterator it = ref_type_map.begin();
+        it != ref_type_map.end(); ++it)
+   {
+      const RefType &rt = it->first;
+      for (int j = 0; j < rt.num_children; j++)
+      {
+         ref_type_to_matrix.AddConnection(it->second, rt.children[j].one);
+      }
+   }
+   ref_type_to_matrix.ShiftUpI();
 }
 
 NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
@@ -120,8 +234,7 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    }
 
    // create the NCMesh::Element struct for each Mesh element
-   root_count = mesh->GetNE();
-   for (int i = 0; i < root_count; i++)
+   for (int i = 0; i < mesh->GetNE(); i++)
    {
       const mfem::Element *elem = mesh->GetElement(i);
 
@@ -180,6 +293,11 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       }
    }
 
+   if (!vertex_parents) // not loading mesh
+   {
+      InitRootState(mesh->GetNE());
+   }
+
    Update();
 }
 
@@ -190,9 +308,9 @@ NCMesh::NCMesh(const NCMesh &other)
    , nodes(other.nodes)
    , faces(other.faces)
    , elements(other.elements)
-   , root_count(other.root_count)
 {
    other.free_element_ids.Copy(free_element_ids);
+   other.root_state.Copy(root_state);
    other.top_vertex_pos.Copy(top_vertex_pos);
    Update();
 }
@@ -1128,6 +1246,53 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
 //// Derefinement //////////////////////////////////////////////////////////////
 
+static int quad_deref_table[3][4 + 4] =
+{
+   { 0, 1, 1, 0, /**/ 1, 1, 0, 0 }, // 1 - X
+   { 0, 0, 1, 1, /**/ 0, 0, 1, 1 }, // 2 - Y
+   { 0, 1, 2, 3, /**/ 1, 1, 3, 3 }  // 3 - iso
+};
+static int hex_deref_table[7][8 + 6] =
+{
+   { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
+   { 0, 0, 1, 1, 0, 0, 1, 1, /**/ 0, 0, 0, 1, 1, 1 }, // 2 - Y
+   { 0, 1, 2, 3, 0, 1, 2, 3, /**/ 1, 1, 1, 3, 3, 3 }, // 3 - XY
+   { 0, 0, 0, 0, 1, 1, 1, 1, /**/ 0, 0, 0, 1, 1, 1 }, // 4 - Z
+   { 0, 1, 1, 0, 3, 2, 2, 3, /**/ 1, 1, 1, 3, 3, 3 }, // 5 - XZ
+   { 0, 0, 1, 1, 2, 2, 3, 3, /**/ 0, 0, 0, 3, 3, 3 }, // 6 - YZ
+   { 0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 1, 1, 7, 7, 7 }  // 7 - iso
+};
+
+
+int NCMesh::RetrieveNode(const Element &el, int index)
+{
+   if (!el.ref_type) { return el.node[index]; }
+
+   // need to retrieve node from a child element (there is always a child
+   // that inherited the parent's corner under the same index)
+   int ch;
+   switch (el.geom)
+   {
+      case Geometry::CUBE:
+         ch = el.child[hex_deref_table[el.ref_type - 1][index]];
+         break;
+
+      case Geometry::SQUARE:
+         ch = el.child[quad_deref_table[el.ref_type - 1][index]];
+         break;
+
+      case Geometry::TRIANGLE:
+         ch = el.child[index];
+         break;
+
+      default:
+         ch = 0; // suppress compiler warning
+         MFEM_ABORT("Unsupported element geometry.");
+   }
+   return RetrieveNode(elements[ch], index);
+}
+
+
 void NCMesh::DerefineElement(int elem)
 {
    Element &el = elements[elem];
@@ -1149,23 +1314,14 @@ void NCMesh::DerefineElement(int elem)
    int fa[6];
    if (el.geom == Geometry::CUBE)
    {
-      const int table[7][8 + 6] =
-      {
-         { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
-         { 0, 0, 1, 1, 0, 0, 1, 1, /**/ 0, 0, 0, 1, 1, 1 }, // 2 - Y
-         { 0, 1, 2, 3, 0, 1, 2, 3, /**/ 1, 1, 1, 3, 3, 3 }, // 3 - XY
-         { 0, 0, 0, 0, 1, 1, 1, 1, /**/ 0, 0, 0, 1, 1, 1 }, // 4 - Z
-         { 0, 1, 1, 0, 3, 2, 2, 3, /**/ 1, 1, 1, 3, 3, 3 }, // 5 - XZ
-         { 0, 0, 1, 1, 2, 2, 3, 3, /**/ 0, 0, 0, 3, 3, 3 }, // 6 - YZ
-         { 0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 1, 1, 7, 7, 7 }  // 7 - iso
-      };
       for (int i = 0; i < 8; i++)
       {
-         el.node[i] = elements[child[table[el.ref_type - 1][i]]].node[i];
+         Element &ch = elements[child[hex_deref_table[el.ref_type - 1][i]]];
+         el.node[i] = ch.node[i];
       }
       for (int i = 0; i < 6; i++)
       {
-         Element &ch = elements[child[table[el.ref_type - 1][i + 8]]];
+         Element &ch = elements[child[hex_deref_table[el.ref_type - 1][i + 8]]];
          const int* fv = gi_hex.faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
@@ -1173,19 +1329,14 @@ void NCMesh::DerefineElement(int elem)
    }
    else if (el.geom == Geometry::SQUARE)
    {
-      const int table[3][4 + 4] =
-      {
-         { 0, 1, 1, 0, /**/ 1, 1, 0, 0 }, // 1 - X
-         { 0, 0, 1, 1, /**/ 0, 0, 1, 1 }, // 2 - Y
-         { 0, 1, 2, 3, /**/ 1, 1, 3, 3 }  // 3 - iso
-      };
       for (int i = 0; i < 4; i++)
       {
-         el.node[i] = elements[child[table[el.ref_type - 1][i]]].node[i];
+         Element &ch = elements[child[quad_deref_table[el.ref_type - 1][i]]];
+         el.node[i] = ch.node[i];
       }
       for (int i = 0; i < 4; i++)
       {
-         Element &ch = elements[child[table[el.ref_type - 1][i + 4]]];
+         Element &ch = elements[child[quad_deref_table[el.ref_type - 1][i + 4]]];
          const int* fv = gi_quad.faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
@@ -1272,7 +1423,7 @@ const Table& NCMesh::GetDerefinementTable()
    Array<Connection> list;
    list.Reserve(leaf_elements.Size());
 
-   for (int i = 0; i < root_count; i++)
+   for (int i = 0; i < root_state.Size(); i++)
    {
       CollectDerefinements(i, list);
    }
@@ -1482,9 +1633,9 @@ void NCMesh::UpdateLeafElements()
 {
    // collect leaf elements from all roots
    leaf_elements.SetSize(0);
-   for (int i = 0; i < root_count; i++)
+   for (int i = 0; i < root_state.Size(); i++)
    {
-      CollectLeafElements(i, 0);
+      CollectLeafElements(i, root_state[i]);
       // TODO: root state should not always be 0, we need a precomputed array
       // with root element states to ensure continuity where possible, also
       // optimized ordering of the root elements themselves (Gecko?)
@@ -1498,6 +1649,69 @@ void NCMesh::AssignLeafIndices()
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       elements[leaf_elements[i]].index = i;
+   }
+}
+
+void NCMesh::InitRootState(int root_count)
+{
+   root_state.SetSize(root_count);
+   root_state = 0;
+
+   char* node_order;
+   int nch;
+
+   switch (GetElementGeometry())
+   {
+      case Geometry::SQUARE:
+         nch = 4;
+         node_order = (char*) quad_hilbert_child_order;
+         break;
+
+      case Geometry::CUBE:
+         nch = 8;
+         node_order = (char*) hex_hilbert_child_order;
+         break;
+
+      default:
+         return; // do nothing, all states stay zero
+   }
+
+   int entry_node = -2;
+
+   // process the root element sequence
+   for (int i = 0; i < root_count; i++)
+   {
+      Element &el = elements[i];
+
+      int v_in = FindNodeExt(el, entry_node, false);
+      if (v_in < 0) { v_in = 0; }
+
+      // determine which nodes are shared with the next element
+      bool shared[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+      if (i+1 < root_count)
+      {
+         Element &next = elements[i+1];
+         for (int j = 0; j < nch; j++)
+         {
+            int node = FindNodeExt(el, RetrieveNode(next, j), false);
+            if (node >= 0) { shared[node] = true; }
+         }
+      }
+
+      // select orientation that starts in v_in and exits in shared node
+      int state = Dim*v_in;
+      for (int j = 0; j < Dim; j++)
+      {
+         if (shared[(int) node_order[nch*(state + j) + nch-1]])
+         {
+            state += j;
+            break;
+         }
+      }
+
+      root_state[i] = state;
+
+      entry_node = RetrieveNode(el, node_order[nch*state + nch-1]);
    }
 }
 
@@ -1703,6 +1917,16 @@ int NCMesh::find_node(const Element &el, int node)
    return -1;
 }
 
+int NCMesh::FindNodeExt(const Element &el, int node, bool abort)
+{
+   for (int i = 0; i < GI[(int) el.geom].nv; i++)
+   {
+      if (RetrieveNode(el, i) == node) { return i; }
+   }
+   if (abort) { MFEM_ABORT("Node not found."); }
+   return -1;
+}
+
 int NCMesh::find_element_edge(const Element &el, int vn0, int vn1)
 {
    MFEM_ASSERT(!el.ref_type, "");
@@ -1848,7 +2072,7 @@ void NCMesh::BuildFaceList()
          MFEM_ASSERT(face >= 0, "face not found!");
 
          // tell ParNCMesh about the face
-         ElementSharesFace(elem, face);
+         ElementSharesFace(elem, j, face);
 
          // have we already processed this face? skip if yes
          if (processed_faces[face]) { continue; }
@@ -1939,7 +2163,7 @@ void NCMesh::BuildEdgeList()
    processed_edges = 0;
 
    Array<int> edge_element(nodes.NumIds());
-   Array<char> edge_local(nodes.NumIds());
+   Array<signed char> edge_local(nodes.NumIds());
    edge_local = -1;
 
    // visit edges of leaf elements
@@ -1963,7 +2187,7 @@ void NCMesh::BuildEdgeList()
          MFEM_ASSERT(nd.HasEdge(), "edge not found!");
 
          // tell ParNCMesh about the edge
-         ElementSharesEdge(elem, enode);
+         ElementSharesEdge(elem, j, enode);
 
          // (2D only, store boundary faces)
          if (Dim <= 2)
@@ -2051,7 +2275,7 @@ void NCMesh::BuildVertexList()
          int index = nd.vert_index;
          if (index >= 0)
          {
-            ElementSharesVertex(elem, node);
+            ElementSharesVertex(elem, j, node);
 
             if (processed_vertices[index]) { continue; }
             processed_vertices[index] = 1;
@@ -2237,7 +2461,7 @@ void NCMesh::BuildElementToVertexTable()
       int size = indices.Size();
       I[i] = size;
       JJ[i] = new int[size];
-      memcpy(JJ[i], indices.GetData(), size * sizeof(int));
+      std::memcpy(JJ[i], indices.GetData(), size * sizeof(int));
    }
 
    // finalize the I array of the table
@@ -2256,7 +2480,7 @@ void NCMesh::BuildElementToVertexTable()
    for (int i = 0; i < nrows; i++)
    {
       int cnt = I[i+1] - I[i];
-      memcpy(J+nnz, JJ[i], cnt * sizeof(int));
+      std::memcpy(J+nnz, JJ[i], cnt * sizeof(int));
       delete [] JJ[i];
       nnz += cnt;
    }
@@ -2987,9 +3211,277 @@ void NCMesh::ClearTransforms()
 }
 
 
+//// SFC Ordering //////////////////////////////////////////////////////////////
+
+static int sgn(int x)
+{
+   return (x < 0) ? -1 : (x > 0) ? 1 : 0;
+}
+
+static void HilbertSfc2D(int x, int y, int ax, int ay, int bx, int by,
+                         Array<int> &coords)
+{
+   int w = std::abs(ax + ay);
+   int h = std::abs(bx + by);
+
+   int dax = sgn(ax), day = sgn(ay); // unit major direction ("right")
+   int dbx = sgn(bx), dby = sgn(by); // unit orthogonal direction ("up")
+
+   if (h == 1) // trivial row fill
+   {
+      for (int i = 0; i < w; i++, x += dax, y += day)
+      {
+         coords.Append(x);
+         coords.Append(y);
+      }
+      return;
+   }
+   if (w == 1) // trivial column fill
+   {
+      for (int i = 0; i < h; i++, x += dbx, y += dby)
+      {
+         coords.Append(x);
+         coords.Append(y);
+      }
+      return;
+   }
+
+   int ax2 = ax/2, ay2 = ay/2;
+   int bx2 = bx/2, by2 = by/2;
+
+   int w2 = std::abs(ax2 + ay2);
+   int h2 = std::abs(bx2 + by2);
+
+   if (2*w > 3*h) // long case: split in two parts only
+   {
+      if ((w2 & 0x1) && (w > 2))
+      {
+         ax2 += dax, ay2 += day; // prefer even steps
+      }
+
+      HilbertSfc2D(x, y, ax2, ay2, bx, by, coords);
+      HilbertSfc2D(x+ax2, y+ay2, ax-ax2, ay-ay2, bx, by, coords);
+   }
+   else // standard case: one step up, one long horizontal step, one step down
+   {
+      if ((h2 & 0x1) && (h > 2))
+      {
+         bx2 += dbx, by2 += dby; // prefer even steps
+      }
+
+      HilbertSfc2D(x, y, bx2, by2, ax2, ay2, coords);
+      HilbertSfc2D(x+bx2, y+by2, ax, ay, bx-bx2, by-by2, coords);
+      HilbertSfc2D(x+(ax-dax)+(bx2-dbx), y+(ay-day)+(by2-dby),
+                   -bx2, -by2, -(ax-ax2), -(ay-ay2), coords);
+   }
+}
+
+static void HilbertSfc3D(int x, int y, int z,
+                         int ax, int ay, int az,
+                         int bx, int by, int bz,
+                         int cx, int cy, int cz,
+                         Array<int> &coords)
+{
+   int w = std::abs(ax + ay + az);
+   int h = std::abs(bx + by + bz);
+   int d = std::abs(cx + cy + cz);
+
+   int dax = sgn(ax), day = sgn(ay), daz = sgn(az); // unit major dir ("right")
+   int dbx = sgn(bx), dby = sgn(by), dbz = sgn(bz); // unit ortho dir ("forward")
+   int dcx = sgn(cx), dcy = sgn(cy), dcz = sgn(cz); // unit ortho dir ("up")
+
+   // trivial row/column fills
+   if (h == 1 && d == 1)
+   {
+      for (int i = 0; i < w; i++, x += dax, y += day, z += daz)
+      {
+         coords.Append(x);
+         coords.Append(y);
+         coords.Append(z);
+      }
+      return;
+   }
+   if (w == 1 && d == 1)
+   {
+      for (int i = 0; i < h; i++, x += dbx, y += dby, z += dbz)
+      {
+         coords.Append(x);
+         coords.Append(y);
+         coords.Append(z);
+      }
+      return;
+   }
+   if (w == 1 && h == 1)
+   {
+      for (int i = 0; i < d; i++, x += dcx, y += dcy, z += dcz)
+      {
+         coords.Append(x);
+         coords.Append(y);
+         coords.Append(z);
+      }
+      return;
+   }
+
+   int ax2 = ax/2, ay2 = ay/2, az2 = az/2;
+   int bx2 = bx/2, by2 = by/2, bz2 = bz/2;
+   int cx2 = cx/2, cy2 = cy/2, cz2 = cz/2;
+
+   int w2 = std::abs(ax2 + ay2 + az2);
+   int h2 = std::abs(bx2 + by2 + bz2);
+   int d2 = std::abs(cx2 + cy2 + cz2);
+
+   // prefer even steps
+   if ((w2 & 0x1) && (w > 2))
+   {
+      ax2 += dax, ay2 += day, az2 += daz;
+   }
+   if ((h2 & 0x1) && (h > 2))
+   {
+      bx2 += dbx, by2 += dby, bz2 += dbz;
+   }
+   if ((d2 & 0x1) && (d > 2))
+   {
+      cx2 += dcx, cy2 += dcy, cz2 += dcz;
+   }
+
+   // wide case, split in w only
+   if ((2*w > 3*h) && (2*w > 3*d))
+   {
+      HilbertSfc3D(x, y, z,
+                   ax2, ay2, az2,
+                   bx, by, bz,
+                   cx, cy, cz, coords);
+
+      HilbertSfc3D(x+ax2, y+ay2, z+az2,
+                   ax-ax2, ay-ay2, az-az2,
+                   bx, by, bz,
+                   cx, cy, cz, coords);
+   }
+   // do not split in d
+   else if (3*h > 4*d)
+   {
+      HilbertSfc3D(x, y, z,
+                   bx2, by2, bz2,
+                   cx, cy, cz,
+                   ax2, ay2, az2, coords);
+
+      HilbertSfc3D(x+bx2, y+by2, z+bz2,
+                   ax, ay, az,
+                   bx-bx2, by-by2, bz-bz2,
+                   cx, cy, cz, coords);
+
+      HilbertSfc3D(x+(ax-dax)+(bx2-dbx),
+                   y+(ay-day)+(by2-dby),
+                   z+(az-daz)+(bz2-dbz),
+                   -bx2, -by2, -bz2,
+                   cx, cy, cz,
+                   -(ax-ax2), -(ay-ay2), -(az-az2), coords);
+   }
+   // do not split in h
+   else if (3*d > 4*h)
+   {
+      HilbertSfc3D(x, y, z,
+                   cx2, cy2, cz2,
+                   ax2, ay2, az2,
+                   bx, by, bz, coords);
+
+      HilbertSfc3D(x+cx2, y+cy2, z+cz2,
+                   ax, ay, az,
+                   bx, by, bz,
+                   cx-cx2, cy-cy2, cz-cz2, coords);
+
+      HilbertSfc3D(x+(ax-dax)+(cx2-dcx),
+                   y+(ay-day)+(cy2-dcy),
+                   z+(az-daz)+(cz2-dcz),
+                   -cx2, -cy2, -cz2,
+                   -(ax-ax2), -(ay-ay2), -(az-az2),
+                   bx, by, bz, coords);
+   }
+   // regular case, split in all w/h/d
+   else
+   {
+      HilbertSfc3D(x, y, z,
+                   bx2, by2, bz2,
+                   cx2, cy2, cz2,
+                   ax2, ay2, az2, coords);
+
+      HilbertSfc3D(x+bx2, y+by2, z+bz2,
+                   cx, cy, cz,
+                   ax2, ay2, az2,
+                   bx-bx2, by-by2, bz-bz2, coords);
+
+      HilbertSfc3D(x+(bx2-dbx)+(cx-dcx),
+                   y+(by2-dby)+(cy-dcy),
+                   z+(bz2-dbz)+(cz-dcz),
+                   ax, ay, az,
+                   -bx2, -by2, -bz2,
+                   -(cx-cx2), -(cy-cy2), -(cz-cz2), coords);
+
+      HilbertSfc3D(x+(ax-dax)+bx2+(cx-dcx),
+                   y+(ay-day)+by2+(cy-dcy),
+                   z+(az-daz)+bz2+(cz-dcz),
+                   -cx, -cy, -cz,
+                   -(ax-ax2), -(ay-ay2), -(az-az2),
+                   bx-bx2, by-by2, bz-bz2, coords);
+
+      HilbertSfc3D(x+(ax-dax)+(bx2-dbx),
+                   y+(ay-day)+(by2-dby),
+                   z+(az-daz)+(bz2-dbz),
+                   -bx2, -by2, -bz2,
+                   cx2, cy2, cz2,
+                   -(ax-ax2), -(ay-ay2), -(az-az2), coords);
+   }
+}
+
+void NCMesh::GridSfcOrdering2D(int width, int height, Array<int> &coords)
+{
+   coords.SetSize(0);
+   coords.Reserve(2*width*height);
+
+   if (width >= height)
+   {
+      HilbertSfc2D(0, 0, width, 0, 0, height, coords);
+   }
+   else
+   {
+      HilbertSfc2D(0, 0, 0, height, width, 0, coords);
+   }
+}
+
+void NCMesh::GridSfcOrdering3D(int width, int height, int depth,
+                               Array<int> &coords)
+{
+   coords.SetSize(0);
+   coords.Reserve(3*width*height*depth);
+
+   if (width >= height && width >= depth)
+   {
+      HilbertSfc3D(0, 0, 0,
+                   width, 0, 0,
+                   0, height, 0,
+                   0, 0, depth, coords);
+   }
+   else if (height >= width && height >= depth)
+   {
+      HilbertSfc3D(0, 0, 0,
+                   0, height, 0,
+                   width, 0, 0,
+                   0, 0, depth, coords);
+   }
+   else // depth >= width && depth >= height
+   {
+      HilbertSfc3D(0, 0, 0,
+                   0, 0, depth,
+                   width, 0, 0,
+                   0, height, 0, coords);
+   }
+}
+
+
 //// Utility ///////////////////////////////////////////////////////////////////
 
-void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const
+void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2],
+                             bool oriented) const
 {
    const Element &el = elements[edge_id.element];
    const GeomInfo& gi = GI[(int) el.geom];
@@ -3001,7 +3493,7 @@ void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const
    vert_index[0] = nodes[n0].vert_index;
    vert_index[1] = nodes[n1].vert_index;
 
-   if (vert_index[0] > vert_index[1])
+   if (oriented && vert_index[0] > vert_index[1])
    {
       std::swap(vert_index[0], vert_index[1]);
    }
@@ -3419,7 +3911,7 @@ void NCMesh::PrintCoarseElements(std::ostream &out) const
 
    // print the hierarchy recursively
    int coarse_id = leaf_elements.Size();
-   for (int i = 0; i < root_count; i++)
+   for (int i = 0; i < root_state.Size(); i++)
    {
       PrintElements(out, i, coarse_id);
    }
@@ -3499,7 +3991,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    index_map = -1;
 
    // copy roots, they need to be at the beginning of 'elements'
-   root_count = 0;
+   int root_count = 0;
    for (elem_iterator el = tmp_elements.begin(); el != tmp_elements.end(); ++el)
    {
       if (el->parent == -1)
@@ -3531,6 +4023,8 @@ void NCMesh::LoadCoarseElements(std::istream &input)
 
    // set the Iso flag (must be false if there are 3D aniso refinements)
    Iso = iso;
+
+   InitRootState(root_count);
 
    Update();
 }
@@ -3581,6 +4075,7 @@ long NCMesh::MemoryUsage() const
           faces.MemoryUsage() +
           elements.MemoryUsage() +
           free_element_ids.MemoryUsage() +
+          root_state.MemoryUsage() +
           top_vertex_pos.MemoryUsage() +
           leaf_elements.MemoryUsage() +
           vertex_nodeId.MemoryUsage() +
@@ -3603,6 +4098,7 @@ int NCMesh::PrintMemoryDetail() const
 
    mfem::out << elements.MemoryUsage() << " elements\n"
              << free_element_ids.MemoryUsage() << " free_element_ids\n"
+             << root_state.MemoryUsage() << " root_state\n"
              << top_vertex_pos.MemoryUsage() << " top_vertex_pos\n"
              << leaf_elements.MemoryUsage() << " leaf_elements\n"
              << vertex_nodeId.MemoryUsage() << " vertex_nodeId\n"
@@ -3645,7 +4141,8 @@ void NCMesh::PrintStats(std::ostream &out) const
            free_element_ids.MemoryUsage())/MiB << " MiB ]\n"
        "      free                     " << std::setw(9)
        << free_element_ids.Size() << "\n"
-       "   number of root elements   : " << std::setw(9) << root_count << "\n"
+       "   number of root elements   : " << std::setw(9)
+       << root_state.Size() << "\n"
        "   number of leaf elements   : " << std::setw(9)
        << leaf_elements.Size() << "\n"
        "   number of vertices        : " << std::setw(9)
@@ -3674,6 +4171,31 @@ void NCMesh::PrintStats(std::ostream &out) const
 }
 
 #ifdef MFEM_DEBUG
+void NCMesh::DebugLeafOrder(std::ostream &out) const
+{
+   tmp_vertex = new TmpVertex[nodes.NumIds()];
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      const Element* elem = &elements[leaf_elements[i]];
+      for (int j = 0; j < Dim; j++)
+      {
+         double sum = 0.0;
+         int count = 0;
+         for (int k = 0; k < 8; k++)
+         {
+            if (elem->node[k] >= 0)
+            {
+               sum += CalcVertexPos(elem->node[k])[j];
+               count++;
+            }
+         }
+         out << sum / count << " ";
+      }
+      out << "\n";
+   }
+   delete [] tmp_vertex;
+}
+
 void NCMesh::DebugDump(std::ostream &out) const
 {
    // dump nodes
