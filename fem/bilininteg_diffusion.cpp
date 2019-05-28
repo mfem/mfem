@@ -1131,7 +1131,6 @@ static void PADiffusionApply(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
-namespace internal { extern Ceed ceed; }
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
@@ -1154,7 +1153,8 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
          mem = CEED_MEM_HOST;
       }
       CeedData& ceedData = *static_cast<CeedData*>(ceedDataPtr);
-      CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
+      CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER,
+                         const_cast<CeedScalar*>(x_ptr));
       CeedVectorSetArray(ceedData.v, mem, CEED_USE_POINTER, y_ptr);
 
       CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v,

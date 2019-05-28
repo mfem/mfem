@@ -9,9 +9,13 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#ifndef MFEM_CEED_HPP
+#define MFEM_CEED_HPP
 
 #ifdef MFEM_USE_CEED
-#include "ceed.h"
+#include <ceed.h>
 #else
 typedef void* Ceed;
 #endif
+
+#endif // MFEM_CEED_HPP
