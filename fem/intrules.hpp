@@ -74,6 +74,8 @@ public:
               const double w)
    { x = x1; y = x2; z = x3; t = x4; weight = w; }
 
+   void Set4(const double *p) { x = p[0]; y = p[1]; z = p[2]; t = p[3]; }
+
    void Set4(const double x1, const double x2, const double x3, const double x4)
    { x = x1; y = x2; z = x3; t = x4; }
 
