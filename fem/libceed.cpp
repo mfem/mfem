@@ -322,21 +322,18 @@ static void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
 void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
 {
    Ceed ceed(internal::ceed);
-   const bool dev_enabled = Device::IsEnabled();
    mfem::Mesh *mesh = fes.GetMesh();
    const int order = fes.GetOrder(0);
    const int ir_order = 2 * (order + 2) - 1; // <-----
    const mfem::IntegrationRule &ir =
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
    CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
-   if (dev_enabled) { Device::Disable(); }
    mesh->EnsureNodes();
    FESpace2Ceed(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
    FESpace2Ceed(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
-   // if (dev_enabled) { Device::Enable(); }
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts * dim * (dim + 1) / 2,
@@ -434,7 +431,6 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
 
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.u);
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
-   if (dev_enabled) { Device::Enable(); }
 }
 
 /// libCEED Q-function for building quadrature data for a mass operator
