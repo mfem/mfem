@@ -657,10 +657,6 @@ void VectorFiniteElement::CalcVShape_DivSkew (
    if (Dim!=4) { return; }
 
    MFEM_ASSERT(MapType == H_DIV_SKEW, "");
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim*Dim);
-#endif
-
    const DenseMatrix &J = Trans.Jacobian();
 
 #ifdef MFEM_THREAD_SAFE
@@ -1046,7 +1042,7 @@ void VectorFiniteElement::LocalInterpolation_RT(
    for (int k = 0; k < Dof; k++)
    {
       Trans.Transform(Nodes.IntPoint(k), xk);
-      ip.Set3(vk);
+      ip.Set4(vk);
       cfe.CalcVShape(ip, vshape);
       // xk = |J| J^{-t} n_k
       adjJ.MultTranspose(nk + d2n[k]*Dim, vk);
@@ -4485,21 +4481,21 @@ const double RT2TriangleFiniteElement::M[15][15] =
    },
    {
       -0.67620999227554986889, 0, -3.4427400463467007866, 0,
-      7.3524199845510997378, 0.67620999227554986889, 7.4141100695200511800, 0,
-      -0.76209992275549868892, 4.1189500386222506555, -12.,
-      -7.3524199845510997378, -3.2951600308978005244, -6.5903200617956010489,
-      12.
-   },
+         7.3524199845510997378, 0.67620999227554986889, 7.4141100695200511800, 0,
+         -0.76209992275549868892, 4.1189500386222506555, -12.,
+         -7.3524199845510997378, -3.2951600308978005244, -6.5903200617956010489,
+         12.
+      },
    {
       1.5, 0, 2.625, 0, -15., -1.5, -14.625, 0, 30., -4.125, 15., 15., 10.5,
       -15., -15.
    },
    {
       -5.3237900077244501311, 0, 24.442740046346700787, 0, 16.647580015448900262,
-      5.3237900077244501311, -34.414110069520051180, 0, -47.237900077244501311,
-      -19.118950038622250656, -12., -16.647580015448900262, 15.295160030897800524,
-      30.590320061795601049, 12.
-   },
+         5.3237900077244501311, -34.414110069520051180, 0, -47.237900077244501311,
+         -19.118950038622250656, -12., -16.647580015448900262, 15.295160030897800524,
+         30.590320061795601049, 12.
+      },
    { 0, 0, 18., 0, 0, 6., -42., 0, -30., -26., 0, -14., 24., 32., 8.},
    { 0, 0, 6., 0, 0, 18., -14., 0, -26., -30., 0, -42., 8., 32., 24.},
    { 0, 0, -6., 0, 0, -4., 30., 0, 4., 22., 0, 4., -24., -16., 0},
@@ -13735,6 +13731,269 @@ void RT_TetrahedronElement::CalcDivShape(const IntegrationPoint &ip,
    Ti.Mult(divu, divshape);
 }
 
+const double RT_PentatopeElement::nk[20] =
+{ 0,0,0,-1,  0,0,-1,0,  0,-1,0,0,  -1,0,0,0,  1,1,1,1};
+// { .5,.5,.5, -.5,0,0, 0,-.5,0, 0,0,-.5}; // n_F |F|
+
+const double RT_PentatopeElement::c = 1./5.;
+
+RT_PentatopeElement::RT_PentatopeElement(const int p)
+   : VectorFiniteElement(4, Geometry::PENTATOPE, (p + 1)*(p + 2)*(p + 3)*(p + 5)/6,
+                         p + 1, H_DIV, FunctionSpace::Pk),
+     dof2nk(Dof)
+{
+   const double *iop = (p > 0) ? poly1d.OpenPoints(p - 1) : NULL;
+   const double *bop = poly1d.OpenPoints(p);
+
+#ifndef MFEM_THREAD_SAFE
+   shape_x.SetSize(p + 1);
+   shape_y.SetSize(p + 1);
+   shape_z.SetSize(p + 1);
+   shape_t.SetSize(p + 1);
+   shape_l.SetSize(p + 1);
+   dshape_x.SetSize(p + 1);
+   dshape_y.SetSize(p + 1);
+   dshape_z.SetSize(p + 1);
+   dshape_t.SetSize(p + 1);
+   dshape_l.SetSize(p + 1);
+   u.SetSize(Dof, Dim);
+   divu.SetSize(Dof);
+#else
+   Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_t(p + 1),
+          shape_l(p + 1);
+#endif
+
+   int o = 0;
+   // faces (see Mesh::GenerateFaces in mesh/mesh.cpp,
+   //        the constructor of H1_PentatopeElement)
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j + k <= p; j++)
+         for (int i = 0; i + j + k <= p; i++)  // (0,1,2,3)
+         {
+            double w = bop[i] + bop[j] + bop[k] + bop[p-i-j-k];
+            Nodes.IntPoint(o).Set4(bop[i]/w, bop[j]/w, bop[k]/w, 0.);
+            dof2nk[o++] = 0;
+         }
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j + k <= p; j++)
+         for (int i = 0; i + j + k <= p; i++)  // (1,0,2,4)
+         {
+            double w = bop[i] + bop[j] + bop[k] + bop[p-i-j-k];
+            Nodes.IntPoint(o).Set4(bop[p-i-j-k]/w, bop[j]/w, 0., bop[k]/w);
+            dof2nk[o++] = 1;
+         }
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j + k <= p; j++)
+         for (int i = 0; i + j + k <= p; i++)  // (0,1,3,4)
+         {
+            double w = bop[i] + bop[j] + bop[k] + bop[p-i-j-k];
+            Nodes.IntPoint(o).Set4(bop[i]/w, 0., bop[j]/w, bop[k]/w);
+            dof2nk[o++] = 2;
+         }
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j + k <= p; j++)
+         for (int i = 0; i + j + k <= p; i++)  // (0,2,3,4)
+         {
+            double w = bop[i] + bop[j] + bop[k] + bop[p-i-j-k];
+            Nodes.IntPoint(o).Set4(0., bop[p-i-j-k]/w, bop[j]/w, bop[k]/w);
+            dof2nk[o++] = 3;
+         }
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j + k <= p; j++)
+         for (int i = 0; i + j + k <= p; i++)  // (1,2,3,4)
+         {
+            double w = bop[i] + bop[j] + bop[k] + bop[p-i-j-k];
+            Nodes.IntPoint(o).Set4(bop[p-i-j-k]/w, bop[i]/w, bop[j]/w, bop[k]/w);
+            dof2nk[o++] = 4;
+         }
+
+   // interior
+   for (int l = 0; l < p; l++)
+      for (int k = 0; k + l < p; k++)
+         for (int j = 0; j + k + l < p; j++)
+            for (int i = 0; i + j + k + l < p; i++)
+            {
+               double w = iop[i] + iop[j] + iop[k] + iop[l] + iop[p-1-i-j-k-l];
+               Nodes.IntPoint(o).Set4(iop[i]/w, iop[j]/w, iop[k]/w, iop[l]/w);
+               dof2nk[o++] = 1;
+               Nodes.IntPoint(o).Set4(iop[i]/w, iop[j]/w, iop[k]/w, iop[l]/w);
+               dof2nk[o++] = 2;
+               Nodes.IntPoint(o).Set4(iop[i]/w, iop[j]/w, iop[k]/w, iop[l]/w);
+               dof2nk[o++] = 3;
+               Nodes.IntPoint(o).Set4(iop[i]/w, iop[j]/w, iop[k]/w, iop[l]/w);
+               dof2nk[o++] = 4;
+            }
+
+   DenseMatrix T(Dof);
+   for (int m = 0; m < Dof; m++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+      poly1d.CalcBasis(p, ip.x, shape_x);
+      poly1d.CalcBasis(p, ip.y, shape_y);
+      poly1d.CalcBasis(p, ip.z, shape_z);
+      poly1d.CalcBasis(p, ip.t, shape_t);
+      poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z - ip.t, shape_l);
+      const double *nm = nk + 4*dof2nk[m];
+
+      o = 0;
+      for (int l = 0; l<= p; l++)
+         for (int k = 0; k + l <= p; k++)
+            for (int j = 0; j + k + l <= p; j++)
+               for (int i = 0; i + j + k + l <= p; i++)
+               {
+                  double s = shape_x(i)*shape_y(j)*shape_z(k)*shape_t(l)*shape_l(p-i-j-k-l);
+                  T(o++, m) = s * nm[0];
+                  T(o++, m) = s * nm[1];
+                  T(o++, m) = s * nm[2];
+                  T(o++, m) = s * nm[3];
+               }
+      for (int k = 0; k <= p; k++)
+         for (int j = 0; j + k <= p; j++)
+            for (int i = 0; i + j + k <= p; i++)
+            {
+               double s = shape_x(i)*shape_y(j)*shape_z(k)*shape_t(p-i-j-k);
+               T(o++, m) = s*((ip.x - c)*nm[0] + (ip.y - c)*nm[1] +
+                              (ip.z - c)*nm[2] + (ip.t - c)*nm[3]);
+            }
+   }
+
+   Ti.Factor(T);
+   // mfem::out << "RT_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
+}
+
+void RT_PentatopeElement::CalcVShape(const IntegrationPoint &ip,
+                                     DenseMatrix &shape) const
+{
+   const int p = Order - 1;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_t(p + 1),
+          shape_l(p + 1);
+   DenseMatrix u(Dof, Dim);
+#endif
+
+   poly1d.CalcBasis(p, ip.x, shape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y);
+   poly1d.CalcBasis(p, ip.z, shape_z);
+   poly1d.CalcBasis(p, ip.t, shape_t);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z - ip.t, shape_l);
+
+   int o = 0;
+   for (int l = 0; l <= p; l++)
+      for (int k = 0; k + l <= p; k++)
+         for (int j = 0; j + k + l <= p; j++)
+            for (int i = 0; i + j + k + l <= p; i++)
+            {
+               double s = shape_x(i)*shape_y(j)*shape_z(k)*shape_t(l)*shape_l(p-i-j-k-l);
+               u(o,0) = s;  u(o,1) = 0;  u(o,2) = 0;  u(o,3) = 0;  o++;
+               u(o,0) = 0;  u(o,1) = s;  u(o,2) = 0;  u(o,3) = 0;  o++;
+               u(o,0) = 0;  u(o,1) = 0;  u(o,2) = s;  u(o,3) = 0;  o++;
+               u(o,0) = 0;  u(o,1) = 0;  u(o,2) = 0;  u(o,3) = s;  o++;
+            }
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j + k <= p; j++)
+         for (int i = 0; i + j + k <= p; i++)
+         {
+            double s = shape_x(i)*shape_y(j)*shape_z(k)*shape_t(p-i-j-k);
+            u(o,0) = (ip.x - c)*s;  u(o,1) = (ip.y - c)*s;  u(o,2) = (ip.z - c)*s;
+            u(o,3) = (ip.t - c)*s;
+            o++;
+         }
+
+   Ti.Mult(u, shape);
+}
+
+void RT_PentatopeElement::CalcDivShape(const IntegrationPoint &ip,
+                                       Vector &divshape) const
+{
+   const int p = Order - 1;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p + 1),  shape_y(p + 1),  shape_z(p + 1),  shape_l(p + 1);
+   Vector dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1), dshape_l(p + 1);
+   Vector divu(Dof);
+#endif
+
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y);
+   poly1d.CalcBasis(p, ip.z, shape_z, dshape_z);
+   poly1d.CalcBasis(p, ip.t, shape_t, dshape_t);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z - ip.t, shape_l, dshape_l);
+
+   int o = 0;
+   for (int m = 0; m <= p; m++)
+      for (int k = 0; k + m <= p; k++)
+         for (int j = 0; j + k + m <= p; j++)
+            for (int i = 0; i + j + k + m <= p; i++)
+            {
+               int l = p - i - j - k - m;
+               divu(o++) = (dshape_x(i)*shape_l(l) -
+                            shape_x(i)*dshape_l(l))*shape_y(j)*shape_z(k)*shape_t(m);
+               divu(o++) = (dshape_y(j)*shape_l(l) -
+                            shape_y(j)*dshape_l(l))*shape_x(i)*shape_z(k)*shape_t(m);
+               divu(o++) = (dshape_z(k)*shape_l(l) -
+                            shape_z(k)*dshape_l(l))*shape_x(i)*shape_y(j)*shape_t(m);
+               divu(o++) = (dshape_t(m)*shape_l(l) -
+                            shape_t(m)*dshape_l(l))*shape_x(i)*shape_y(j)*shape_z(k);
+            }
+   for (int l = 0; l <= p; l++)
+      for (int j = 0; j + l<= p; j++)
+         for (int i = 0; i + j + l <= p; i++)
+         {
+            int k = p - i - j - l;
+            divu(o++) =
+               (shape_x(i) + (ip.x - c)*dshape_x(i))*shape_y(j)*shape_z(l)*shape_t(k) +
+               (shape_y(j) + (ip.y - c)*dshape_y(j))*shape_x(i)*shape_z(l)*shape_t(k) +
+               (shape_z(l) + (ip.z - c)*dshape_z(l))*shape_x(i)*shape_y(j)*shape_t(k) +
+               (shape_t(k) + (ip.t - c)*dshape_t(k))*shape_x(i)*shape_y(j)*shape_z(l);
+         }
+
+   Ti.Mult(divu, divshape);
+}
+
+void RT_PentatopeElement::ProjectDivSkew(const FiniteElement& fe,
+                                         ElementTransformation& Trans, DenseMatrix& DivSkew)
+{
+   int dof = fe.GetDof();
+
+   mfem_warning("RT_PentatopeElement::ProjectDivSkew(...) Implementation not tested!"); // TODO
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix Jinv(Dim, Dim);
+#endif
+
+   DivSkew.SetSize(Dof,dof);
+   DivSkew = 0.0;
+
+   double n[4];
+   Vector ni(n, 4);
+   Vector vecF(4);
+
+   DenseMatrix DivSkewshape(dof,4);
+   DenseMatrix DivSkew_dFt(dof,4);
+   for (int k = 0; k < Dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+      const DenseMatrix &J = Trans.Jacobian();
+      CalcAdjugateTranspose(J, Jinv);
+
+      fe.CalcDivSkewShape(Nodes.IntPoint(k), DivSkewshape);
+      MultABt(DivSkewshape, J, DivSkew_dFt);
+      DivSkew_dFt *= (1.0 / Trans.Weight());
+
+      Jinv.Mult(nk + dof2nk[k] * Dim,n);
+
+      for (int j=0; j<dof; j++)
+      {
+         vecF(0) = DivSkew_dFt(j,0);
+         vecF(1) = DivSkew_dFt(j,1);
+         vecF(2) = DivSkew_dFt(j,2);
+         vecF(3) = DivSkew_dFt(j,3);
+
+         DivSkew(k, j) = vecF * ni;
+      }
+   }
+}
 
 const double ND_HexahedronElement::tk[18] =
 { 1.,0.,0.,  0.,1.,0.,  0.,0.,1., -1.,0.,0.,  0.,-1.,0.,  0.,0.,-1. };

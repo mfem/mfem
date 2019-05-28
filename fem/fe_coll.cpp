@@ -2291,6 +2291,13 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
       RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
       RT_dof[Geometry::CUBE] = 3*p*pp1*pp1;
    }
+   else if (dim == 4)
+   {
+      RT_Elements[Geometry::PENTATOPE] = new RT_PentatopeElement(p);
+      RT_dof[Geometry::PENTATOPE] = p*pp1*(p + 2)*(p + 3)/6;
+
+      //TODO: tesseracts
+   }
    else
    {
       MFEM_ABORT("invalid dim = " << dim);
@@ -2320,7 +2327,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
    MFEM_VERIFY(Quadrature1D::CheckOpen(op_type) != Quadrature1D::Invalid,
                "invalid open point type");
 
-   const int pp1 = p + 1, pp2 = p + 2;
+   const int pp1 = p + 1, pp2 = p + 2, pp3 = p + 3;
 
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
@@ -2339,6 +2346,10 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
    for (int i = 0; i < 8; i++)
    {
       QuadDofOrd[i] = NULL;
+   }
+   for (int i = 0; i < 24; i++)
+   {
+      TetDofOrd[i] = NULL;
    }
 
    if (dim == 2)
@@ -2428,6 +2439,89 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
          }
       }
    }
+   else if (dim == 4)
+   {
+      L2_TetrahedronElement *l2_tet = new L2_TetrahedronElement(p, ob_type);
+      l2_tet->SetMapType(map_type);
+      RT_Elements[Geometry::TETRAHEDRON] = l2_tet;
+      RT_dof[Geometry::TETRAHEDRON] = pp1*pp2*pp3/6;
+
+      int TetDof = RT_dof[Geometry::TETRAHEDRON];
+      int TriDof2 = pp2*pp1/2;
+      TetDofOrd[0] = new int[24*TetDof];
+      for (int i = 1; i < 24; i++)
+      {
+         TetDofOrd[i] = TetDofOrd[i-1] + TetDof;
+      }
+      // see Mesh::GetTriOrientation in mesh/mesh.cpp,
+      // the constructor of H1_FECollection
+      for (int k=0; k<=p; k++)
+      {
+         for (int j=0; j+k<=p; j++)
+         {
+            for (int i=0; i+j+k<=p; i++)
+            {
+               int o = TetDof + TriDof2 - ((pp3-k)*(pp2-k)*(pp1-k))/6 - (pp2-j)*
+                       (pp1-j)/2 - k*j + i;
+               int l = p-k-j-i;
+               TetDofOrd[0][o] = o;
+               TetDofOrd[1][o] =  -1 - (TetDof + TriDof2 - ((pp3-k)*(pp2-k)*(pp1-k))/6 -
+                                        (pp2-j)*(pp1-j)/2 - k*j + l);
+               TetDofOrd[2][o] =        TetDof + TriDof2 - ((pp3-k)*(pp2-k)*(pp1-k))/6 -
+                                        (pp2-i)*(pp1-i)/2 - k*i + l;
+               TetDofOrd[3][o] =  -1 - (TetDof + TriDof2 - ((pp3-k)*(pp2-k)*(pp1-k))/6 -
+                                        (pp2-l)*(pp1-l)/2 - k*l + i);
+               TetDofOrd[4][o] =        TetDof + TriDof2 - ((pp3-k)*(pp2-k)*(pp1-k))/6 -
+                                        (pp2-l)*(pp1-l)/2 - k*l + j;
+               TetDofOrd[5][o] =  -1 - (TetDof + TriDof2 - ((pp3-k)*(pp2-k)*(pp1-k))/6 -
+                                        (pp2-i)*(pp1-i)/2 - k*i + j);
+               TetDofOrd[6][o] =        TetDof + TriDof2 - ((pp3-j)*(pp2-j)*(pp1-j))/6 -
+                                        (pp2-i)*(pp1-i)/2 - j*i + k;
+               TetDofOrd[7][o] =  -1 - (TetDof + TriDof2 - ((pp3-j)*(pp2-j)*(pp1-j))/6 -
+                                        (pp2-l)*(pp1-l)/2 - j*l + k);
+               TetDofOrd[8][o] =        TetDof + TriDof2 - ((pp3-i)*(pp2-i)*(pp1-i))/6 -
+                                        (pp2-l)*(pp1-l)/2 - i*l + k;
+               TetDofOrd[9][o] =  -1 - (TetDof + TriDof2 - ((pp3-l)*(pp2-l)*(pp1-l))/6 -
+                                        (pp2-i)*(pp1-i)/2 - l*i + k);
+               TetDofOrd[10][o] =       TetDof + TriDof2 - ((pp3-l)*(pp2-l)*(pp1-l))/6 -
+                                        (pp2-j)*(pp1-j)/2 - l*j + k;
+               TetDofOrd[11][o] = -1 - (TetDof + TriDof2 - ((pp3-i)*(pp2-i)*(pp1-i))/6 -
+                                        (pp2-j)*(pp1-j)/2 - i*j + k);
+               TetDofOrd[12][o] =       TetDof + TriDof2 - ((pp3-i)*(pp2-i)*(pp1-i))/6 -
+                                        (pp2-k)*(pp1-k)/2 - i*k + j;
+               TetDofOrd[13][o] = -1 - (TetDof + TriDof2 - ((pp3-l)*(pp2-l)*(pp1-l))/6 -
+                                        (pp2-k)*(pp1-k)/2 - l*k + j);
+               TetDofOrd[14][o] =       TetDof + TriDof2 - ((pp3-l)*(pp2-l)*(pp1-l))/6 -
+                                        (pp2-k)*(pp1-k)/2 - l*k + i;
+               TetDofOrd[15][o] = -1 - (TetDof + TriDof2 - ((pp3-i)*(pp2-i)*(pp1-i))/6 -
+                                        (pp2-k)*(pp1-k)/2 - i*k + l);
+               TetDofOrd[16][o] =       TetDof + TriDof2 - ((pp3-j)*(pp2-j)*(pp1-j))/6 -
+                                        (pp2-k)*(pp1-k)/2 - j*k + l;
+               TetDofOrd[17][o] = -1 - (TetDof + TriDof2 - ((pp3-j)*(pp2-j)*(pp1-j))/6 -
+                                        (pp2-k)*(pp1-k)/2 - j*k + i);
+               TetDofOrd[18][o] =       TetDof + TriDof2 - ((pp3-j)*(pp2-j)*(pp1-j))/6 -
+                                        (pp2-l)*(pp1-l)/2 - j*l + i;
+               TetDofOrd[19][o] = -1 - (TetDof + TriDof2 - ((pp3-j)*(pp2-j)*(pp1-j))/6 -
+                                        (pp2-i)*(pp1-i)/2 - j*i + l);
+               TetDofOrd[20][o] =       TetDof + TriDof2 - ((pp3-i)*(pp2-i)*(pp1-i))/6 -
+                                        (pp2-j)*(pp1-j)/2 - i*j + l;
+               TetDofOrd[21][o] = -1 - (TetDof + TriDof2 - ((pp3-l)*(pp2-l)*(pp1-l))/6 -
+                                        (pp2-j)*(pp1-j)/2 - l*j + i);
+               TetDofOrd[22][o] =       TetDof + TriDof2 - ((pp3-l)*(pp2-l)*(pp1-l))/6 -
+                                        (pp2-i)*(pp1-i)/2 - l*i + j;
+               TetDofOrd[23][o] = -1 - (TetDof + TriDof2 - ((pp3-i)*(pp2-i)*(pp1-i))/6 -
+                                        (pp2-l)*(pp1-l)/2 - i*l + j);
+               if (!signs)
+               {
+                  for (int m = 0; m < 24; m+=2)
+                  {
+                     TetDofOrd[m][o] = -1 - TetDofOrd[m][o];
+                  }
+               }
+            }
+         }
+      }
+   }
 }
 
 const int *RT_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
@@ -2444,6 +2538,10 @@ const int *RT_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    else if (GeomType == Geometry::SQUARE)
    {
       return QuadDofOrd[Or%8];
+   }
+   else if (GeomType == Geometry::TETRAHEDRON)
+   {
+      return TetDofOrd[Or%24];
    }
    return NULL;
 }

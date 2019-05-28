@@ -186,7 +186,7 @@ protected:
    char rt_name[32];
    FiniteElement *RT_Elements[Geometry::NumGeom];
    int RT_dof[Geometry::NumGeom];
-   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
+   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8], *TetDofOrd[24];
 
    // Initialize only the face elements
    void InitFaces(const int p, const int dim, const int map_type,

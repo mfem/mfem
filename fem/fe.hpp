@@ -2706,6 +2706,54 @@ public:
 };
 
 
+class RT_PentatopeElement : public VectorFiniteElement
+{
+   static const double nk[20], c;
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z, shape_t, shape_l;
+   mutable Vector dshape_x, dshape_y, dshape_z, dshape_t, dshape_l;
+   mutable DenseMatrix u;
+   mutable Vector divu;
+#endif
+   Array<int> dof2nk;
+   DenseMatrixInverse Ti;
+
+public:
+   RT_PentatopeElement(const int p);
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
+   using FiniteElement::Project;
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_RT(nk, dof2nk, fe, Trans, I); }
+   virtual void ProjectDivSkew(const FiniteElement &fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &DivSkew);
+};
+
+
 class ND_HexahedronElement : public VectorFiniteElement
 {
    static const double tk[18];
