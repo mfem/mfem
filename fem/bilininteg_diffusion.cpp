@@ -191,25 +191,37 @@ static void PADiffusionSetup(const int dim,
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   // Assumes tensor-product elements
-   Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetFE(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
-   const int dims = el.GetDim();
-   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int nq = ir->GetNPoints();
-   dim = mesh->Dimension();
-   ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-   dofs1D = maps->ndof;
-   quad1D = maps->nqpt;
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
-   ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-   MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-   const double coeff = cQ->constant;
-   PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
-                    coeff, pa_data);
+#ifdef MFEM_USE_CEED
+   if (Device::Allows(Backend::CEED_MASK))
+   {
+      CeedData* ptr = new CeedData();
+      ceedDataPtr = ptr;
+      initCeedCoeff(Q, ptr);
+      CeedPADiffusionAssemble(fes, *ptr);
+   }
+   else
+#endif
+   {
+      // Assumes tensor-product elements
+      Mesh *mesh = fes.GetMesh();
+      const FiniteElement &el = *fes.GetFE(0);
+      const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+      const int dims = el.GetDim();
+      const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+      const int nq = ir->GetNPoints();
+      dim = mesh->Dimension();
+      ne = fes.GetNE();
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+      maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+      dofs1D = maps->ndof;
+      quad1D = maps->nqpt;
+      pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
+      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
+      const double coeff = cQ->constant;
+      PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
+                       coeff, pa_data);
+   }
 }
 
 #ifdef MFEM_USE_OCCA
@@ -1088,9 +1100,39 @@ static void PADiffusionApply(const int dim,
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   PADiffusionApply(dim, dofs1D, quad1D, ne,
-                    maps->B, maps->G, maps->Bt, maps->Gt,
-                    pa_data, x, y);
+#ifdef MFEM_USE_CEED
+   if (Device::Allows(Backend::CEED_MASK))
+   {
+      CeedScalar *x_ptr, *y_ptr;
+      CeedMemType mem;
+      CeedGetPreferredMemType(internal::ceed, &mem);
+      if ( Device::IsEnabled() && mem==CEED_MEM_DEVICE )
+      {
+         x_ptr = Ptr(x.GetData());
+         y_ptr = Ptr(y.GetData());
+      }
+      else
+      {
+         x_ptr = x.GetData();
+         y_ptr = y.GetData();
+         mem = CEED_MEM_HOST;
+      }
+      CeedData& ceedData = *static_cast<CeedData*>(ceedDataPtr);
+      CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER, x_ptr);
+      CeedVectorSetArray(ceedData.v, mem, CEED_USE_POINTER, y_ptr);
+
+      CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v,
+                        CEED_REQUEST_IMMEDIATE);
+
+      CeedVectorSyncArray(ceedData.v, mem);
+   }
+   else
+#endif
+   {
+      PADiffusionApply(dim, dofs1D, quad1D, ne,
+                       maps->B, maps->G, maps->Bt, maps->Gt,
+                       pa_data, x, y);
+   }
 }
 
 } // namespace mfem
