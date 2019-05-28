@@ -544,7 +544,8 @@ public:
 
    virtual void EliminateTestDofs(Array<int> &bdr_attr_is_ess);
 
-   void Update();
+   virtual void Update(FiniteElementSpace *ntr_fes = NULL,
+                       FiniteElementSpace *nte_fes = NULL);
 
    virtual ~MixedBilinearForm();
 };

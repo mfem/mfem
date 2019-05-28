@@ -1164,8 +1164,14 @@ void MixedBilinearForm::EliminateTestDofs (Array<int> &bdr_attr_is_ess)
       }
 }
 
-void MixedBilinearForm::Update()
+void MixedBilinearForm::Update(FiniteElementSpace *ntr_fes,
+      FiniteElementSpace *nte_fes)
 {
+   if (ntr_fes != trial_fes || nte_fes != test_fes)
+   {
+      trial_fes = ntr_fes;
+      test_fes = nte_fes;
+   }
    delete mat;
    mat = NULL;
    height = test_fes->GetVSize();

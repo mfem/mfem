@@ -293,6 +293,17 @@ public:
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
+   virtual void Update(ParFiniteElementSpace *ntr_fes = NULL,
+                       ParFiniteElementSpace *nte_fes = NULL)
+   {
+      MixedBilinearForm::Update(ntr_fes, nte_fes);
+      if (ntr_fes && nte_fes )
+      {
+         trial_pfes = ntr_fes;
+         test_pfes  = nte_fes;
+      }
+   }
+
    virtual ~ParMixedBilinearForm() { }
 };
 
