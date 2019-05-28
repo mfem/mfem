@@ -125,7 +125,7 @@ private:
    MemoryType mem_type;    ///< Current Device MemoryType
    MemoryClass mem_class;  ///< Current Device MemoryClass
 
-   char *ceed_option;
+   char *ceed_option = NULL;
    Device(Device const&);
    void operator=(Device const&);
    static Device& Get() { return device_singleton; }

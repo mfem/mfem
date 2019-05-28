@@ -285,7 +285,7 @@ void Device::Setup(const int device)
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
    if (Allows(Backend::CEED_CPU))
    {
-      if (ceed_option)
+      if (!ceed_option)
       {
          CeedDeviceSetup("/cpu/self/ref/blocked");
       }
@@ -296,7 +296,7 @@ void Device::Setup(const int device)
    }
    if (Allows(Backend::CEED_CUDA))
    {
-      if (ceed_option)
+      if (!ceed_option)
       {
          CeedDeviceSetup("/gpu/cuda/ref");
       }
