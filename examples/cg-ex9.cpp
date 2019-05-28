@@ -38,7 +38,7 @@ using namespace std;
 using namespace mfem;
 typedef std::chrono::high_resolution_clock Clock;
 
-#define ASSEMBLE_T
+//#define ASSEMBLE_T
 
 // Choice for the problem setup. The fluid velocity, initial condition and
 // inflow boundary condition are chosen based on this parameter.
