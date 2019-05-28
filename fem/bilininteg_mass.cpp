@@ -24,7 +24,7 @@ namespace mfem
 // PA Mass Assemble kernel
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   #ifdef MFEM_USE_CEED
+#ifdef MFEM_USE_CEED
    if (Device::Allows(Backend::CEED_MASK))
    {
       CeedData* ptr = new CeedData();
@@ -794,7 +794,6 @@ static void PAMassApply(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
-namespace internal { extern Ceed ceed; }
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_CEED
@@ -816,7 +815,8 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          mem = CEED_MEM_HOST;
       }
       CeedData& ceedData = *static_cast<CeedData*>(ceedDataPtr);
-      CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
+      CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER,
+                         const_cast<CeedScalar*>(x_ptr));
       CeedVectorSetArray(ceedData.v, mem, CEED_USE_POINTER, y_ptr);
 
       CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v,

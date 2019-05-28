@@ -100,13 +100,17 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+
    const int iSz = integrators.Size();
-   if (Device::Allows(Backend::CEED_MASK)) {
+   if (Device::Allows(Backend::CEED_MASK))
+   {
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultPA(x, y);
       }
-   } else {
+   }
+   else
+   {
       if (elem_restrict_lex)
       {
          elem_restrict_lex->Mult(x, localX);
@@ -119,16 +123,11 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       }
       else
       {
-         localY = 0.0;
-         const int iSz = integrators.Size();
+         y.UseDevice(true); // typically this is a large vector, so store on device
+         y = 0.0;
          for (int i = 0; i < iSz; ++i)
          {
-            y.UseDevice(true); // typically this is a large vector, so store on device
-            y = 0.0;
-            for (int i = 0; i < iSz; ++i)
-            {
-               integrators[i]->AddMultPA(x, y);
-            }
+            integrators[i]->AddMultPA(x, y);
          }
       }
    }

@@ -29,7 +29,10 @@ namespace internal
 // Default occa::device used by MFEM.
 occa::device occaDevice;
 #endif
+
+#ifdef MFEM_USE_CEED
 Ceed ceed;
+#endif
 
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
@@ -56,6 +59,7 @@ Device Device::device_singleton;
 
 Device::~Device()
 {
+   free(ceed_option);
    if (destroy_mm) { mm.Destroy(); }
 }
 
@@ -84,7 +88,7 @@ void Device::Configure(const std::string &device, const int dev)
       {
          const std::string backend = bname.substr(0, option);
          const std::string boption = bname.substr(option+1);
-         Get().ceed_option = boption;
+         Get().ceed_option = strdup(boption.c_str());
          std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
          MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
          Get().MarkBackend(it->second);
@@ -279,32 +283,26 @@ void Device::Setup(const int device)
    if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
-
-   // We initialize CUDA and/or RAJA_CUDA first so OccaDeviceSetup() can reuse
-   // the same initialized cuDevice and cuContext objects when OCCA_CUDA is
-   // enabled.
-   if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
-   if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::CEED_CPU))
    {
-      if (ceed_option.empty())
+      if (ceed_option)
       {
          CeedDeviceSetup("/cpu/self/ref/blocked");
       }
       else
       {
-         CeedDeviceSetup(ceed_option.c_str());
+         CeedDeviceSetup(ceed_option);
       }
    }
    if (Allows(Backend::CEED_CUDA))
    {
-      if (ceed_option.empty())
+      if (ceed_option)
       {
          CeedDeviceSetup("/gpu/cuda/ref");
       }
       else
       {
-         CeedDeviceSetup(ceed_option.c_str());
+         CeedDeviceSetup(ceed_option);
       }
    }
 }

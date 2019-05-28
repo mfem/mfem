@@ -9,6 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#ifndef MFEM_LIBCEED_HPP
+#define MFEM_LIBCEED_HPP
 
 #include "gridfunc.hpp"
 #include "fespace.hpp"
@@ -18,6 +20,9 @@ namespace mfem
 {
 
 #ifdef MFEM_USE_CEED
+
+namespace internal { extern Ceed ceed; }
+
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
 
@@ -62,3 +67,5 @@ typedef void* CeedData;
 #endif
 
 }
+
+#endif // MFEM_LIBCEED_HPP
