@@ -2097,6 +2097,7 @@ HypreSolver::HypreSolver()
    A = NULL;
    setup_called = 0;
    B = X = NULL;
+   error_mode = ABORT_HYPRE_ERRORS;
 }
 
 HypreSolver::HypreSolver(HypreParMatrix *_A)
@@ -2105,6 +2106,7 @@ HypreSolver::HypreSolver(HypreParMatrix *_A)
    A = _A;
    setup_called = 0;
    B = X = NULL;
+   error_mode = ABORT_HYPRE_ERRORS;
 }
 
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
@@ -2118,8 +2120,15 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
    if (!setup_called)
    {
       err = SetupFcn()(*this, *A, b, x);
-      MFEM_VERIFY(!err, "HypreSolver::Mult (...) : Error during setup! error code "
-                  << err);
+      if (error_mode == WARN_HYPRE_ERRORS)
+      {
+         if (err) { MFEM_WARNING("Error during setup! Error code: " << err); }
+      }
+      else if (error_mode == ABORT_HYPRE_ERRORS)
+      {
+         MFEM_VERIFY(!err, "Error during setup! Error code: " << err);
+      }
+      hypre_error_flag = 0;
       setup_called = 1;
    }
 
@@ -2128,8 +2137,15 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
       x = 0.0;
    }
    err = SolveFcn()(*this, *A, b, x);
-   MFEM_VERIFY(!err,"HypreSolver::Mult (...) : Error during solve! error code "
-               << err);
+   if (error_mode == WARN_HYPRE_ERRORS)
+   {
+      if (err) { MFEM_WARNING("Error during solve! Error code: " << err); }
+   }
+   else if (error_mode == ABORT_HYPRE_ERRORS)
+   {
+      MFEM_VERIFY(!err, "Error during solve! Error code: " << err);
+   }
+   hypre_error_flag = 0;
 }
 
 void HypreSolver::Mult(const Vector &b, Vector &x) const
@@ -2738,6 +2754,12 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
 
    RecomputeRBMs();
    HYPRE_BoomerAMGSetInterpVectors(amg_precond, rbms.Size(), rbms.GetData());
+
+   // The above BoomerAMG options may result in singular matrices on the coarse
+   // grids, which are handled correctly in hypre's Solve method, but can produce
+   // hypre errors in the Setup (specifically in the l1 row norm computation).
+   // See the documentation of SetErrorMode() for more details.
+   error_mode = IGNORE_HYPRE_ERRORS;
 }
 
 HypreBoomerAMG::~HypreBoomerAMG()
@@ -2928,6 +2950,12 @@ HypreAMS::HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
                                theta, amg_interp_type, amg_Pmax);
    HYPRE_AMSSetBetaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
                               theta, amg_interp_type, amg_Pmax);
+
+   // The AMS preconditioner may sometimes require inverting singular matrices
+   // with BoomerAMG, which are handled correctly in hypre's Solve method, but
+   // can produce hypre errors in the Setup (specifically in the l1 row norm
+   // computation). See the documentation of SetErrorMode() for more details.
+   error_mode = IGNORE_HYPRE_ERRORS;
 }
 
 HypreAMS::~HypreAMS()
@@ -3166,6 +3194,12 @@ HypreADS::HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
                           theta, amg_interp_type, amg_Pmax);
    HYPRE_ADSSetAMSOptions(ads, ams_cycle_type, amg_coarsen_type, amg_agg_levels,
                           amg_rlx_type, theta, amg_interp_type, amg_Pmax);
+
+   // The ADS preconditioner requires inverting singular matrices with BoomerAMG,
+   // which are handled correctly in hypre's Solve method, but can produce hypre
+   // errors in the Setup (specifically in the l1 row norm computation). See the
+   // documentation of SetErrorMode() for more details.
+   error_mode = IGNORE_HYPRE_ERRORS;
 }
 
 HypreADS::~HypreADS()
