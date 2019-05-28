@@ -23,82 +23,94 @@ namespace mfem
 // PA Mass Assemble kernel
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   // Assuming the same element type
-   Mesh *mesh = fes.GetMesh();
-   if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation *T = mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
-   dim = mesh->Dimension();
-   ne = fes.GetMesh()->GetNE();
-   nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
-                                    GeometricFactors::JACOBIANS);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-   dofs1D = maps->ndof;
-   quad1D = maps->nqpt;
-   pa_data.SetSize(ne*nq, Device::GetMemoryType());
-   ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
-   // TODO: other types of coefficients ...
-   if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
-   if (dim==2)
+   #ifdef MFEM_USE_CEED
+   if (Device::Allows(Backend::CEED_MASK))
    {
-      double constant = 0.0;
-      if (const_coeff)
-      {
-         constant = const_coeff->constant;
-      }
-      else
-      {
-         MFEM_ABORT("Coefficient type not supported");
-      }
-      const int NE = ne;
-      const int NQ = nq;
-      auto w = ir->GetWeights().Read();
-      auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
-      auto v = Reshape(pa_data.Write(), NQ, NE);
-      MFEM_FORALL(e, NE,
-      {
-         for (int q = 0; q < NQ; ++q)
-         {
-            const double J11 = J(q,0,0,e);
-            const double J12 = J(q,1,0,e);
-            const double J21 = J(q,0,1,e);
-            const double J22 = J(q,1,1,e);
-            const double detJ = (J11*J22)-(J21*J12);
-            v(q,e) =  w[q] * constant * detJ;
-         }
-      });
+      CeedData* ptr = new CeedData();
+      ceedDataPtr = ptr;
+      initCeedCoeff(Q, ptr);
+      CeedPAMassAssemble(fes, *ptr);
    }
-   if (dim==3)
+   else
+#endif
    {
-      double constant = 0.0;
-      if (const_coeff)
+      // Assuming the same element type
+      Mesh *mesh = fes.GetMesh();
+      if (mesh->GetNE() == 0) { return; }
+      const FiniteElement &el = *fes.GetFE(0);
+      ElementTransformation *T = mesh->GetElementTransformation(0);
+      const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
+      dim = mesh->Dimension();
+      ne = fes.GetMesh()->GetNE();
+      nq = ir->GetNPoints();
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
+                                       GeometricFactors::JACOBIANS);
+      maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+      dofs1D = maps->ndof;
+      quad1D = maps->nqpt;
+      pa_data.SetSize(ne*nq, Device::GetMemoryType());
+      ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
+      // TODO: other types of coefficients ...
+      if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
+      if (dim==2)
       {
-         constant = const_coeff->constant;
-      }
-      else
-      {
-         MFEM_ABORT("Coefficient type not supported");
-      }
-      const int NE = ne;
-      const int NQ = nq;
-      auto W = ir->GetWeights().Read();
-      auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
-      auto v = Reshape(pa_data.Write(), NQ,NE);
-      MFEM_FORALL(e, NE,
-      {
-         for (int q = 0; q < NQ; ++q)
+         double constant = 0.0;
+         if (const_coeff)
          {
-            const double J11 = J(q,0,0,e), J12 = J(q,0,1,e), J13 = J(q,0,2,e);
-            const double J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
-            const double J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
-            const double detJ = J11 * (J22 * J33 - J32 * J23) -
-            /* */               J21 * (J12 * J33 - J32 * J13) +
-            /* */               J31 * (J12 * J23 - J22 * J13);
-            v(q,e) = W[q] * constant * detJ;
+            constant = const_coeff->constant;
          }
-      });
+         else
+         {
+            MFEM_ABORT("Coefficient type not supported");
+         }
+         const int NE = ne;
+         const int NQ = nq;
+         auto w = ir->GetWeights().Read();
+         auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
+         auto v = Reshape(pa_data.Write(), NQ, NE);
+         MFEM_FORALL(e, NE,
+         {
+            for (int q = 0; q < NQ; ++q)
+            {
+               const double J11 = J(q,0,0,e);
+               const double J12 = J(q,1,0,e);
+               const double J21 = J(q,0,1,e);
+               const double J22 = J(q,1,1,e);
+               const double detJ = (J11*J22)-(J21*J12);
+               v(q,e) =  w[q] * constant * detJ;
+            }
+         });
+      }
+      if (dim==3)
+      {
+         double constant = 0.0;
+         if (const_coeff)
+         {
+            constant = const_coeff->constant;
+         }
+         else
+         {
+            MFEM_ABORT("Coefficient type not supported");
+         }
+         const int NE = ne;
+         const int NQ = nq;
+         auto W = ir->GetWeights().Read();
+         auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
+         auto v = Reshape(pa_data.Write(), NQ,NE);
+         MFEM_FORALL(e, NE,
+         {
+            for (int q = 0; q < NQ; ++q)
+            {
+               const double J11 = J(q,0,0,e), J12 = J(q,0,1,e), J13 = J(q,0,2,e);
+               const double J21 = J(q,1,0,e), J22 = J(q,1,1,e), J23 = J(q,1,2,e);
+               const double J31 = J(q,2,0,e), J32 = J(q,2,1,e), J33 = J(q,2,2,e);
+               const double detJ = J11 * (J22 * J33 - J32 * J23) -
+               /* */               J21 * (J12 * J33 - J32 * J13) +
+               /* */               J31 * (J12 * J23 - J22 * J13);
+               v(q,e) = W[q] * constant * detJ;
+            }
+         });
+      }
    }
 }
 
@@ -783,7 +795,37 @@ static void PAMassApply(const int dim,
 
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+#ifdef MFEM_USE_CEED
+   if (Device::Allows(Backend::CEED_MASK))
+   {
+      CeedScalar *x_ptr, *y_ptr;
+      CeedMemType mem;
+      CeedGetPreferredMemType(internal::ceed, &mem);
+      if ( Device::IsEnabled() && mem==CEED_MEM_DEVICE )
+      {
+         x_ptr = Ptr(x.GetData());
+         y_ptr = Ptr(y.GetData());
+      }
+      else
+      {
+         x_ptr = x.GetData();
+         y_ptr = y.GetData();
+         mem = CEED_MEM_HOST;
+      }
+      CeedData& ceedData = *static_cast<CeedData*>(ceedDataPtr);
+      CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER, x_ptr);
+      CeedVectorSetArray(ceedData.v, mem, CEED_USE_POINTER, y_ptr);
+
+      CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v,
+                        CEED_REQUEST_IMMEDIATE);
+
+      CeedVectorSyncArray(ceedData.v, mem);
+   }
+   else
+#endif
+   {
+      PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+   }
 }
 
 } // namespace mfem
