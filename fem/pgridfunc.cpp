@@ -367,10 +367,10 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
    gcomm.Bcast(zones_per_vdof);
-   // Accumulate for all tdofs.
-   HypreParVector *tv = this->ParallelAssemble();
-   this->Distribute(tv);
-   delete tv;
+
+   // Accumulate for all vdofs.
+   gcomm.Reduce<double>(data, GroupCommunicator::Sum);
+   gcomm.Bcast<double>(data);
 
    ComputeMeans(type, zones_per_vdof);
 }
@@ -389,10 +389,10 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
    gcomm.Bcast(zones_per_vdof);
-   // Accumulate for all tdofs.
-   HypreParVector *tv = this->ParallelAssemble();
-   this->Distribute(tv);
-   delete tv;
+
+   // Accumulate for all vdofs.
+   gcomm.Reduce<double>(data, GroupCommunicator::Sum);
+   gcomm.Bcast<double>(data);
 
    ComputeMeans(type, zones_per_vdof);
 }
@@ -425,8 +425,8 @@ void ParGridFunction::ProjectBdrCoefficient(
    }
    else
    {
-      // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
-      //        merged?
+      // TODO: is this the same as the conforming case (after the merge of
+      //       cut-mesh-groups-dev)?
       ComputeMeans(ARITHMETIC, values_counter);
    }
 #ifdef MFEM_DEBUG
@@ -469,8 +469,8 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    }
    else
    {
-      // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
-      //        merged?
+      // TODO: is this the same as the conforming case (after the merge of
+      //       cut-mesh-groups-dev)?
       ComputeMeans(ARITHMETIC, values_counter);
    }
 #ifdef MFEM_DEBUG
@@ -487,16 +487,17 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 
 void ParGridFunction::Save(std::ostream &out) const
 {
+   double *data_  = const_cast<double*>(HostRead());
    for (int i = 0; i < size; i++)
    {
-      if (pfes->GetDofSign(i) < 0) { data[i] = -data[i]; }
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
    }
 
    GridFunction::Save(out);
 
    for (int i = 0; i < size; i++)
    {
-      if (pfes->GetDofSign(i) < 0) { data[i] = -data[i]; }
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
    }
 }
 

@@ -1,16 +1,16 @@
-//                                MFEM Example 22
+//                                MFEM Example 21
 //
-// Compile with: make ex22
+// Compile with: make ex21
 //
-// Sample runs:  ex22
-//               ex22 -o 3
-//               ex22 -m ../data/beam-quad.mesh
-//               ex22 -m ../data/beam-quad.mesh -o 3
-//               ex22 -m ../data/beam-quad.mesh -o 3 -f 1
-//               ex22 -m ../data/beam-tet.mesh
-//               ex22 -m ../data/beam-tet.mesh -o 2
-//               ex22 -m ../data/beam-hex.mesh
-//               ex22 -m ../data/beam-hex.mesh -o 2
+// Sample runs:  ex21
+//               ex21 -o 3
+//               ex21 -m ../data/beam-quad.mesh
+//               ex21 -m ../data/beam-quad.mesh -o 3
+//               ex21 -m ../data/beam-quad.mesh -o 3 -f 1
+//               ex21 -m ../data/beam-tet.mesh
+//               ex21 -m ../data/beam-tet.mesh -o 2
+//               ex21 -m ../data/beam-hex.mesh
+//               ex21 -m ../data/beam-hex.mesh -o 2
 //
 // Description:  This is a version of Example 2 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the linear
@@ -287,11 +287,11 @@ int main(int argc, char *argv[])
    }
 
    {
-      ofstream mesh_ref_out("ex22_reference.mesh");
+      ofstream mesh_ref_out("ex21_reference.mesh");
       mesh_ref_out.precision(16);
       mesh.Print(mesh_ref_out);
 
-      ofstream mesh_out("ex22_deformed.mesh");
+      ofstream mesh_out("ex21_deformed.mesh");
       mesh_out.precision(16);
       GridFunction nodes(&fespace), *nodes_p = &nodes;
       mesh.GetNodes(nodes);
@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
       mesh.Print(mesh_out);
       mesh.SwapNodes(nodes_p, own_nodes);
 
-      ofstream x_out("ex22_displacement.sol");
+      ofstream x_out("ex21_displacement.sol");
       x_out.precision(16);
       x.Save(x_out);
    }

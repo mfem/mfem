@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
    bool binary = false;
    int vis_steps = 5;
 
-   const char *device = "cpu";
+   const char *device_config = "cpu";
 
    int precision = 8;
    cout.precision(precision);
@@ -188,8 +188,8 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
    cout << "Number of Elements: " << fespace->GetNE() << endl;
-   Device::Configure(device);
-   Device::Print();
+   Device device(device_config);
+   device.Print();
 
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
@@ -209,10 +209,8 @@ int main(int argc, char *argv[])
    PABilinearFormExtension * m_ext = new PABilinearFormExtension(m);
    PABilinearFormExtension * k_ext = new PABilinearFormExtension(k);
 
-   Device::Enable();
    m_ext->Assemble();
    k_ext->Assemble(); //Assemble quadrature data
-   Device::Disable();
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -287,7 +285,6 @@ int main(int argc, char *argv[])
    ode_solver->Init(adv);
 
    bool done = false;
-   Device::Enable();
    auto evo_timer0 = Clock::now();
    for (int ti = 0; !done; )
    {
@@ -314,7 +311,7 @@ int main(int argc, char *argv[])
          }
       }
    }
-   Device::Disable();
+
    auto evo_timer1 = Clock::now();
 
    std::cout << "Evolution duration t2-t1: "
@@ -351,8 +348,8 @@ FE_Evolution::FE_Evolution(PABilinearFormExtension *_M, PABilinearFormExtension 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
 
-   M->Assemble();
-   K->Assemble(); //Assemble quadrature data
+  //M->Assemble();
+  //K->Assemble(); //Assemble quadrature data
 
    // y = M^{-1} K x
    K->Mult(x, z);

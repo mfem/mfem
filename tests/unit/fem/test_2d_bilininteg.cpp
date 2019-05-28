@@ -2090,7 +2090,6 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
@@ -2218,7 +2217,6 @@ TEST_CASE("2D Bilinear Scalar Weak Gradient Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
@@ -2426,7 +2424,6 @@ TEST_CASE("2D Bilinear Scalar Weak Divergence Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
@@ -2508,7 +2505,6 @@ TEST_CASE("2D Bilinear Vector Weak Divergence Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
@@ -2874,7 +2870,6 @@ TEST_CASE("2D Bilinear Weak Gradient Dot Product Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
@@ -3034,7 +3029,6 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Cross Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
