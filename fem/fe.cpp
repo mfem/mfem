@@ -7260,6 +7260,7 @@ void H1_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
    }
 }
 
+// H1_SerendipityElement here
 
 H1_QuadrilateralElement::H1_QuadrilateralElement(const int p, const int btype)
    : NodalTensorFiniteElement(2, p, VerifyClosed(btype), H1_DOF_MAP)
