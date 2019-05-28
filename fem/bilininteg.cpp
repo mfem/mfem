@@ -411,7 +411,7 @@ void DiffusionIntegrator::AssembleElementMatrix
       el.CalcDShape(ip, dshape);
 
       Trans.SetIntPoint(&ip);
-      w = std::abs(Trans.Weight());
+      w = Trans.Weight();
       w = ip.weight / (square ? w : w*w*w);
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
@@ -490,7 +490,7 @@ void DiffusionIntegrator::AssembleElementMatrix2(
 
       Trans.SetIntPoint(&ip);
       CalcAdjugate(Trans.Jacobian(), invdfdx);
-      w = std::abs(Trans.Weight());
+      w = Trans.Weight();
       w = ip.weight / (square ? w : w*w*w);
       Mult(dshape, invdfdx, dshapedxt);
       Mult(te_dshape, invdfdx, te_dshapedxt);
@@ -687,7 +687,7 @@ double DiffusionIntegrator::ComputeFluxEnergy
       }
 
       Trans.SetIntPoint(&ip);
-      double w = std::abs(Trans.Weight()) * ip.weight;
+      double w = Trans.Weight() * ip.weight;
 
       if (!MQ)
       {
@@ -754,7 +754,7 @@ void MassIntegrator::AssembleElementMatrix
       el.CalcShape(ip, shape);
 
       Trans.SetIntPoint (&ip);
-      w = std::abs(Trans.Weight()) * ip.weight;
+      w = Trans.Weight() * ip.weight;
       if (Q)
       {
          w *= Q -> Eval(Trans, ip);
@@ -796,7 +796,7 @@ void MassIntegrator::AssembleElementMatrix2(
       test_fe.CalcShape(ip, te_shape);
 
       Trans.SetIntPoint (&ip);
-      w = std::abs(Trans.Weight()) * ip.weight;
+      w = Trans.Weight() * ip.weight;
       if (Q)
       {
          w *= Q -> Eval(Trans, ip);
@@ -999,7 +999,7 @@ void VectorMassIntegrator::AssembleElementMatrix
       el.CalcShape(ip, shape);
 
       Trans.SetIntPoint (&ip);
-      norm = ip.weight * std::abs(Trans.Weight());
+      norm = ip.weight * Trans.Weight();
 
       MultVVt(shape, partelmat);
 
@@ -1084,7 +1084,7 @@ void VectorMassIntegrator::AssembleElementMatrix2(
       test_fe.CalcShape(ip, te_shape);
 
       Trans.SetIntPoint(&ip);
-      norm = ip.weight * std::abs(Trans.Weight());
+      norm = ip.weight * Trans.Weight();
 
       MultVWt(te_shape, shape, partelmat);
 
@@ -1479,7 +1479,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
             curlshape_dFt(dof,5) = tSh(2,3);
          }
 
-         w = ip.weight * std::abs(Trans.Weight());
+         w = ip.weight * Trans.Weight();
       }
       else if ( dim == 3 )
       {
@@ -1790,7 +1790,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
 
       el.CalcVShape(Trans, trial_vshape);
 
-      w = ip.weight * std::abs(Trans.Weight());
+      w = ip.weight * Trans.Weight();
       if (MQ)
       {
          MQ->Eval(K, Trans, ip);
@@ -2132,7 +2132,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       el.CalcDShape (ip, dshape);
 
       Trans.SetIntPoint (&ip);
-      norm = ip.weight * std::abs(Trans.Weight());
+      norm = ip.weight * Trans.Weight();
       CalcInverse (Trans.Jacobian(), Jinv);
 
       Mult (dshape, Jinv, gshape);
@@ -3520,7 +3520,7 @@ void HeatEquationIntegrator::AssembleElementMatrix
       el.CalcDShape(ip, dshape);
 
       Trans.SetIntPoint(&ip);
-      w = std::abs(Trans.Weight());
+      w = Trans.Weight();
       w *= ip.weight;
       CalcInverse(Trans.Jacobian(), invdfdx);
       Mult(dshape, invdfdx, dshapedxt);
