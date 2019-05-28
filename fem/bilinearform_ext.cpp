@@ -119,7 +119,6 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       }
       else
       {
-         elem_restrict->Mult(x, localX);
          localY = 0.0;
          const int iSz = integrators.Size();
          for (int i = 0; i < iSz; ++i)

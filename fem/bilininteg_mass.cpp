@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "libceed.hpp"
 
 using namespace std;
 
@@ -793,27 +794,29 @@ static void PAMassApply(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
+namespace internal { extern Ceed ceed; }
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_CEED
    if (Device::Allows(Backend::CEED_MASK))
    {
-      CeedScalar *x_ptr, *y_ptr;
+      const CeedScalar *x_ptr;
+      CeedScalar *y_ptr;
       CeedMemType mem;
       CeedGetPreferredMemType(internal::ceed, &mem);
       if ( Device::IsEnabled() && mem==CEED_MEM_DEVICE )
       {
-         x_ptr = Ptr(x.GetData());
-         y_ptr = Ptr(y.GetData());
+         x_ptr = x.Read();
+         y_ptr = y.ReadWrite();
       }
       else
       {
-         x_ptr = x.GetData();
-         y_ptr = y.GetData();
+         x_ptr = x.HostRead();
+         y_ptr = y.HostReadWrite();
          mem = CEED_MEM_HOST;
       }
       CeedData& ceedData = *static_cast<CeedData*>(ceedDataPtr);
-      CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER, x_ptr);
+      CeedVectorSetArray(ceedData.u, mem, CEED_USE_POINTER, const_cast<CeedScalar*>(x_ptr));
       CeedVectorSetArray(ceedData.v, mem, CEED_USE_POINTER, y_ptr);
 
       CeedOperatorApply(ceedData.oper, ceedData.u, ceedData.v,

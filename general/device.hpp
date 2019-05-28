@@ -209,30 +209,6 @@ public:
    /// Return true if an actual device (e.g. GPU) has been configured.
    static inline bool IsAvailable() { return Get().ngpu > 0; }
 
-   /// Enable the use of the configured device in the code that follows.
-   /** After this call MFEM classes will use the backend kernels whenever
-       possible, transferring data automatically to the device, if necessary.
-       
-       If the only configured backend is the default host CPU one, the device
-       will remain disabled. */
-   static inline void Enable()
-   {
-      if (Get().backends & ~Backend::CPU)
-      {
-         Get().mode = Device::ACCELERATED;
-         Get().allowed_backends = Get().backends;
-      }
-   }
-
-   /// Disable the use of the configured device in the code that follows.
-   /** After this call MFEM classes will only use default CPU kernels,
-       transferring data automatically from the device, if necessary. */
-   static inline void Disable()
-   {
-      Get().mode = Device::SEQUENTIAL;
-      Get().allowed_backends = Backend::CPU;
-   }
-
    /// Return true if any backend other than Backend::CPU is enabled.
    static inline bool IsEnabled() { return Get().mode == ACCELERATED; }
 
