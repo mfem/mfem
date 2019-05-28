@@ -54,7 +54,7 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
-      double val = std::abs(Tr.Weight()) * Q.Eval(Tr, ip);
+      double val = Tr.Weight() * Q.Eval(Tr, ip);
 
       el.CalcShape(ip, shape);
 
@@ -71,6 +71,56 @@ void DomainLFIntegrator::AssembleDeltaElementVect(
    elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
 }
 
+void DomainGradLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
+                                                ElementTransformation &Tr,
+                                                Vector &elvect)
+{
+   int dof = el.GetDof();
+   int dim = el.GetDim();
+
+   shape.SetSize(dof);
+   qfval.SetSize(dim);
+   dshape.SetSize(dof,dim);       // matrix of size dof x dim
+   dshapedxt.SetSize(dof,dim);
+   invJ.SetSize(dim);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // ir = &IntRules.Get(el.GetGeomType(),
+      //                    oa * el.GetOrder() + ob + Tr.OrderW());
+      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint (&ip);
+      Q.Eval(qfval, Tr, ip);
+      invJ = Tr.InverseJacobian();
+      double val = Tr.Weight() * f.Eval(Tr,ip);
+
+      el.CalcDShape(ip, dshape);
+      Mult(dshape,invJ,dshapedxt);
+      dshapedxt.Mult(qfval, shape);
+
+      add(elvect, ip.weight * val, shape, elvect);
+   }
+}
+
+void DomainGradLFIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   mfem_warning("Not implemented yet!");
+
+   MFEM_ASSERT(delta != NULL, "coefficient must be DeltaCoefficient");
+   elvect.SetSize(fe.GetDof());
+   fe.CalcPhysShape(Trans, elvect);
+   elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
+}
 
 void BoundaryLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
