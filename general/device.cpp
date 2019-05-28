@@ -29,10 +29,6 @@ namespace internal
 // Default occa::device used by MFEM.
 occa::device occaDevice;
 #endif
-CUstream *cuStream = NULL;
-static CUdevice cuDevice;
-static CUcontext cuContext;
-OccaDevice occaDevice;
 Ceed ceed;
 
 // Backends listed by priority, high to low:
@@ -289,10 +285,6 @@ void Device::Setup(const int device)
    // enabled.
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
-   if (Allows(Backend::OCCA_MASK))
-   {
-      OccaDeviceSetup(internal::cuDevice, internal::cuContext);
-   }
    if (Allows(Backend::CEED_CPU))
    {
       if (ceed_option.empty())
