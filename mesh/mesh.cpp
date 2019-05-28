@@ -1110,6 +1110,7 @@ void Mesh::Destroy()
    planars.DeleteAll();
    swappedElements.DeleteAll();
    swappedFaces.DeleteAll();
+   swappedBdr.DeleteAll();
 
 
    // TODO:
@@ -1182,6 +1183,7 @@ void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
 
    NumOfElements = 0;
    elements.SetSize(NElem);  // just allocate space for Element *
+   swappedElements.SetSize(NElem);
 
    NumOfBdrElements = 0;
    boundary.SetSize(NBdrElem);  // just allocate space for Element *
@@ -2369,23 +2371,23 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
          {
             for (x = 0; x < nx; x++)
             {
-               ind[0] = VTX4D(x  , y  , z  ,t  );
-               ind[1] = VTX4D(x+1, y  , z  ,t  );
-               ind[2] = VTX4D(x+1, y+1, z  ,t  );
-               ind[3] = VTX4D(x  , y+1, z  ,t  );
-               ind[4] = VTX4D(x  , y  , z+1,t  );
-               ind[5] = VTX4D(x+1, y  , z+1,t  );
+               ind[0] = VTX4D(x, y, z,t  );
+               ind[1] = VTX4D(x+1, y, z,t  );
+               ind[2] = VTX4D(x+1, y+1, z,t  );
+               ind[3] = VTX4D(x, y+1, z,t  );
+               ind[4] = VTX4D(x, y, z+1,t  );
+               ind[5] = VTX4D(x+1, y, z+1,t  );
                ind[6] = VTX4D(x+1, y+1, z+1,t  );
-               ind[7] = VTX4D(x  , y+1, z+1,t  );
+               ind[7] = VTX4D(x, y+1, z+1,t  );
 
-               ind[8] = VTX4D(x  , y  , z  ,t+1);
-               ind[9] = VTX4D(x+1, y  , z  ,t+1);
-               ind[10] = VTX4D(x+1, y+1, z  ,t+1);
-               ind[11] = VTX4D(x  , y+1, z  ,t+1);
-               ind[12] = VTX4D(x  , y  , z+1,t+1);
-               ind[13] = VTX4D(x+1, y  , z+1,t+1);
+               ind[8] = VTX4D(x, y, z,t+1);
+               ind[9] = VTX4D(x+1, y, z,t+1);
+               ind[10] = VTX4D(x+1, y+1, z,t+1);
+               ind[11] = VTX4D(x, y+1, z,t+1);
+               ind[12] = VTX4D(x, y, z+1,t+1);
+               ind[13] = VTX4D(x+1, y, z+1,t+1);
                ind[14] = VTX4D(x+1, y+1, z+1,t+1);
-               ind[15] = VTX4D(x  , y+1, z+1,t+1);
+               ind[15] = VTX4D(x, y+1, z+1,t+1);
 
                AddTes(ind, 1);
             }
@@ -2402,14 +2404,14 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
          {
             for (y = 0; y < ny; y++)
             {
-               ind[0] = VTX4D(0  , y  , z  ,t  );
-               ind[1] = VTX4D(0  , y+1, z  ,t  );
-               ind[3] = VTX4D(0  , y  , z+1,t  );
-               ind[2] = VTX4D(0  , y+1, z+1,t  );
-               ind[4] = VTX4D(0  , y  , z  ,t+1);
-               ind[5] = VTX4D(0  , y+1, z  ,t+1);
-               ind[7] = VTX4D(0  , y  , z+1,t+1);
-               ind[6] = VTX4D(0  , y+1, z+1,t+1);
+               ind[0] = VTX4D(0, y, z,t  );
+               ind[1] = VTX4D(0, y+1, z,t  );
+               ind[3] = VTX4D(0, y, z+1,t  );
+               ind[2] = VTX4D(0, y+1, z+1,t  );
+               ind[4] = VTX4D(0, y, z,t+1);
+               ind[5] = VTX4D(0, y+1, z,t+1);
+               ind[7] = VTX4D(0, y, z+1,t+1);
+               ind[6] = VTX4D(0, y+1, z+1,t+1);
 
                AddBdrHex(ind, 2);
             }
@@ -2422,13 +2424,13 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
          {
             for (y = 0; y < ny; y++)
             {
-               ind[0] = VTX4D(nx, y  , z  ,t  );
-               ind[1] = VTX4D(nx, y+1, z  ,t  );
-               ind[3] = VTX4D(nx, y  , z+1,t  );
+               ind[0] = VTX4D(nx, y, z,t  );
+               ind[1] = VTX4D(nx, y+1, z,t  );
+               ind[3] = VTX4D(nx, y, z+1,t  );
                ind[2] = VTX4D(nx, y+1, z+1,t  );
-               ind[4] = VTX4D(nx, y  , z  ,t+1);
-               ind[5] = VTX4D(nx, y+1, z  ,t+1);
-               ind[7] = VTX4D(nx, y  , z+1,t+1);
+               ind[4] = VTX4D(nx, y, z,t+1);
+               ind[5] = VTX4D(nx, y+1, z,t+1);
+               ind[7] = VTX4D(nx, y, z+1,t+1);
                ind[6] = VTX4D(nx, y+1, z+1,t+1);
 
                AddBdrHex(ind, 3);
@@ -2443,14 +2445,14 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
          {
             for (x = 0; x < nx; x++)
             {
-               ind[0] = VTX4D(x  , 0  , z  ,t  );
-               ind[1] = VTX4D(x+1, 0  , z  ,t  );
-               ind[3] = VTX4D(x  , 0  , z+1,t  );
-               ind[2] = VTX4D(x+1, 0  , z+1,t  );
-               ind[4] = VTX4D(x  , 0  , z  ,t+1);
-               ind[5] = VTX4D(x+1, 0  , z  ,t+1);
-               ind[7] = VTX4D(x  , 0  , z+1,t+1);
-               ind[6] = VTX4D(x+1, 0  , z+1,t+1);
+               ind[0] = VTX4D(x, 0, z,t  );
+               ind[1] = VTX4D(x+1, 0, z,t  );
+               ind[3] = VTX4D(x, 0, z+1,t  );
+               ind[2] = VTX4D(x+1, 0, z+1,t  );
+               ind[4] = VTX4D(x, 0, z,t+1);
+               ind[5] = VTX4D(x+1, 0, z,t+1);
+               ind[7] = VTX4D(x, 0, z+1,t+1);
+               ind[6] = VTX4D(x+1, 0, z+1,t+1);
 
                AddBdrHex(ind, 4);
             }
@@ -2464,14 +2466,14 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
          {
             for (x = 0; x < nx; x++)
             {
-               ind[0] = VTX4D(x+1, ny, z  ,t  );
-               ind[1] = VTX4D(x  , ny, z  ,t  );
+               ind[0] = VTX4D(x+1, ny, z,t  );
+               ind[1] = VTX4D(x, ny, z,t  );
                ind[3] = VTX4D(x+1, ny, z+1,t  );
-               ind[2] = VTX4D(x  , ny, z+1,t  );
-               ind[4] = VTX4D(x+1, ny, z  ,t+1);
-               ind[5] = VTX4D(x  , ny, z  ,t+1);
+               ind[2] = VTX4D(x, ny, z+1,t  );
+               ind[4] = VTX4D(x+1, ny, z,t+1);
+               ind[5] = VTX4D(x, ny, z,t+1);
                ind[7] = VTX4D(x+1, ny, z+1,t+1);
-               ind[6] = VTX4D(x  , ny, z+1,t+1);
+               ind[6] = VTX4D(x, ny, z+1,t+1);
 
                AddBdrHex(ind, 5);
             }
@@ -2486,14 +2488,14 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
          {
             for (x = 0; x < nx; x++)
             {
-               ind[0] = VTX4D(x  , y  , 0  ,t  );
-               ind[1] = VTX4D(x+1, y  , 0  ,t  );
-               ind[2] = VTX4D(x+1, y+1, 0  ,t  );
-               ind[3] = VTX4D(x  , y+1, 0  ,t  );
-               ind[4] = VTX4D(x  , y  , 0  ,t+1);
-               ind[5] = VTX4D(x+1, y  , 0  ,t+1);
-               ind[6] = VTX4D(x+1, y+1, 0  ,t+1);
-               ind[7] = VTX4D(x  , y+1, 0  ,t+1);
+               ind[0] = VTX4D(x, y, 0,t  );
+               ind[1] = VTX4D(x+1, y, 0,t  );
+               ind[2] = VTX4D(x+1, y+1, 0,t  );
+               ind[3] = VTX4D(x, y+1, 0,t  );
+               ind[4] = VTX4D(x, y, 0,t+1);
+               ind[5] = VTX4D(x+1, y, 0,t+1);
+               ind[6] = VTX4D(x+1, y+1, 0,t+1);
+               ind[7] = VTX4D(x, y+1, 0,t+1);
 
                AddBdrHex(ind, 6);
             }
@@ -2507,14 +2509,14 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
          {
             for (x = 0; x < nx; x++)
             {
-               ind[0] = VTX4D(x  , y  , nz,t  );
-               ind[1] = VTX4D(x+1, y  , nz,t  );
+               ind[0] = VTX4D(x, y, nz,t  );
+               ind[1] = VTX4D(x+1, y, nz,t  );
                ind[2] = VTX4D(x+1, y+1, nz,t  );
-               ind[3] = VTX4D(x  , y+1, nz,t  );
-               ind[4] = VTX4D(x  , y  , nz,t+1);
-               ind[5] = VTX4D(x+1, y  , nz,t+1);
+               ind[3] = VTX4D(x, y+1, nz,t  );
+               ind[4] = VTX4D(x, y, nz,t+1);
+               ind[5] = VTX4D(x+1, y, nz,t+1);
                ind[6] = VTX4D(x+1, y+1, nz,t+1);
-               ind[7] = VTX4D(x  , y+1, nz,t+1);
+               ind[7] = VTX4D(x, y+1, nz,t+1);
 
                AddBdrHex(ind, 7);
             }
@@ -2529,14 +2531,14 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
          {
             for (x = 0; x < nx; x++)
             {
-               ind[0] = VTX4D(x  , y  , z  ,0  );
-               ind[1] = VTX4D(x+1, y  , z  ,0  );
-               ind[2] = VTX4D(x+1, y+1, z  ,0  );
-               ind[3] = VTX4D(x  , y+1, z  ,0  );
-               ind[4] = VTX4D(x  , y  , z+1,0  );
-               ind[5] = VTX4D(x+1, y  , z+1,0  );
+               ind[0] = VTX4D(x, y, z,0  );
+               ind[1] = VTX4D(x+1, y, z,0  );
+               ind[2] = VTX4D(x+1, y+1, z,0  );
+               ind[3] = VTX4D(x, y+1, z,0  );
+               ind[4] = VTX4D(x, y, z+1,0  );
+               ind[5] = VTX4D(x+1, y, z+1,0  );
                ind[6] = VTX4D(x+1, y+1, z+1,0  );
-               ind[7] = VTX4D(x  , y+1, z+1,0  );
+               ind[7] = VTX4D(x, y+1, z+1,0  );
 
                AddBdrHex(ind, 1);
             }
@@ -2549,14 +2551,14 @@ void Mesh::Make4D(int nx, int ny, int nz, int nt, Element::Type type,
          {
             for (x = 0; x < nx; x++)
             {
-               ind[0] = VTX4D(x  , y  , z  ,nt  );
-               ind[1] = VTX4D(x+1, y  , z  ,nt  );
-               ind[2] = VTX4D(x+1, y+1, z  ,nt  );
-               ind[3] = VTX4D(x  , y+1, z  ,nt  );
-               ind[4] = VTX4D(x  , y  , z+1,nt  );
-               ind[5] = VTX4D(x+1, y  , z+1,nt  );
+               ind[0] = VTX4D(x, y, z,nt  );
+               ind[1] = VTX4D(x+1, y, z,nt  );
+               ind[2] = VTX4D(x+1, y+1, z,nt  );
+               ind[3] = VTX4D(x, y+1, z,nt  );
+               ind[4] = VTX4D(x, y, z+1,nt  );
+               ind[5] = VTX4D(x+1, y, z+1,nt  );
                ind[6] = VTX4D(x+1, y+1, z+1,nt  );
-               ind[7] = VTX4D(x  , y+1, z+1,nt  );
+               ind[7] = VTX4D(x, y+1, z+1,nt  );
 
                AddBdrHex(ind, 8);
             }
@@ -2621,14 +2623,14 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
       {
          for (x = 0; x < nx; x++)
          {
-            ind[0] = VTX(x  , y  , z  );
-            ind[1] = VTX(x+1, y  , z  );
+            ind[0] = VTX(x, y, z  );
+            ind[1] = VTX(x+1, y, z  );
             ind[2] = VTX(x+1, y+1, z  );
-            ind[3] = VTX(x  , y+1, z  );
-            ind[4] = VTX(x  , y  , z+1);
-            ind[5] = VTX(x+1, y  , z+1);
+            ind[3] = VTX(x, y+1, z  );
+            ind[4] = VTX(x, y, z+1);
+            ind[5] = VTX(x+1, y, z+1);
             ind[6] = VTX(x+1, y+1, z+1);
-            ind[7] = VTX(x  , y+1, z+1);
+            ind[7] = VTX(x, y+1, z+1);
             if (type == Element::TETRAHEDRON)
             {
                AddHexAsTets(ind, 1);
@@ -2650,10 +2652,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (y = 0; y < ny; y++)
       for (x = 0; x < nx; x++)
       {
-         ind[0] = VTX(x  , y  , 0);
-         ind[1] = VTX(x  , y+1, 0);
+         ind[0] = VTX(x, y, 0);
+         ind[1] = VTX(x, y+1, 0);
          ind[2] = VTX(x+1, y+1, 0);
-         ind[3] = VTX(x+1, y  , 0);
+         ind[3] = VTX(x+1, y, 0);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 1);
@@ -2671,10 +2673,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (y = 0; y < ny; y++)
       for (x = 0; x < nx; x++)
       {
-         ind[0] = VTX(x  , y  , nz);
-         ind[1] = VTX(x+1, y  , nz);
+         ind[0] = VTX(x, y, nz);
+         ind[1] = VTX(x+1, y, nz);
          ind[2] = VTX(x+1, y+1, nz);
-         ind[3] = VTX(x  , y+1, nz);
+         ind[3] = VTX(x, y+1, nz);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 6);
@@ -2692,10 +2694,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (z = 0; z < nz; z++)
       for (y = 0; y < ny; y++)
       {
-         ind[0] = VTX(0  , y  , z  );
-         ind[1] = VTX(0  , y  , z+1);
-         ind[2] = VTX(0  , y+1, z+1);
-         ind[3] = VTX(0  , y+1, z  );
+         ind[0] = VTX(0, y, z  );
+         ind[1] = VTX(0, y, z+1);
+         ind[2] = VTX(0, y+1, z+1);
+         ind[3] = VTX(0, y+1, z  );
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 5);
@@ -2709,10 +2711,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (z = 0; z < nz; z++)
       for (y = 0; y < ny; y++)
       {
-         ind[0] = VTX(nx, y  , z  );
+         ind[0] = VTX(nx, y, z  );
          ind[1] = VTX(nx, y+1, z  );
          ind[2] = VTX(nx, y+1, z+1);
-         ind[3] = VTX(nx, y  , z+1);
+         ind[3] = VTX(nx, y, z+1);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 3);
@@ -2726,10 +2728,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (x = 0; x < nx; x++)
       for (z = 0; z < nz; z++)
       {
-         ind[0] = VTX(x  , 0, z  );
+         ind[0] = VTX(x, 0, z  );
          ind[1] = VTX(x+1, 0, z  );
          ind[2] = VTX(x+1, 0, z+1);
-         ind[3] = VTX(x  , 0, z+1);
+         ind[3] = VTX(x, 0, z+1);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 2);
@@ -2743,8 +2745,8 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    for (x = 0; x < nx; x++)
       for (z = 0; z < nz; z++)
       {
-         ind[0] = VTX(x  , ny, z  );
-         ind[1] = VTX(x  , ny, z+1);
+         ind[0] = VTX(x, ny, z  );
+         ind[1] = VTX(x, ny, z+1);
          ind[2] = VTX(x+1, ny, z+1);
          ind[3] = VTX(x+1, ny, z  );
          if (type == Element::TETRAHEDRON)
@@ -3032,6 +3034,19 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    }
    mesh.faces_info.Copy(faces_info);
    mesh.nc_faces_info.Copy(nc_faces_info);
+
+   // Duplicate the planars and faces_info.
+   planars.SetSize(mesh.planars.Size());
+   for (int i = 0; i < planars.Size(); i++)
+   {
+      Element *planar = mesh.planars[i]; // in 1D the faces are NULL
+      planars[i] = (planar) ? planar->Duplicate(this) : NULL;
+   }
+
+   // copy the swapping arrays
+   mesh.swappedElements.Copy(swappedElements);
+   mesh.swappedBdr.Copy(swappedBdr);
+   mesh.swappedFaces.Copy(swappedFaces);
 
    // Do NOT copy the element-to-element Table, el_to_el
    el_to_el = NULL;
@@ -3421,13 +3436,13 @@ void Mesh::Loader(std::istream &input, int generate_edges,
             int *v = elements[j]->GetVertices();
             Sort5(v[0], v[1], v[2], v[3], v[4]);
 
-            //            GetElementJacobian(j, J);
-            //            if (J.Det() < 0.0)
-            //            {
-            //               swappedElements[j] = true;
-            //               Swap(v);
-            //            }
-            //            else
+            //                        GetElementJacobian(j, J);
+            //                        if (J.Det() < 0.0)
+            //                        {
+            //                           swappedElements[j] = true;
+            //                           Swap(v);
+            //                        }
+            //                        else
             {
                swappedElements[j] = false;
             }
@@ -4045,7 +4060,7 @@ static const char *fixed_or_not[] = { "fixed", "NOT FIXED" };
 int Mesh::CheckElementOrientation(bool fix_it)
 {
    int i, j, k, wo = 0, fo = 0, *vi = 0;
-   double *v[4];
+   double *v[5];
 
    if (Dim == 2 && spaceDim == 2)
    {
@@ -4161,6 +4176,66 @@ int Mesh::CheckElementOrientation(bool fix_it)
 
             default:
                MFEM_ABORT("Invalid 3D element type \""
+                          << GetElementType(i) << "\"");
+               break;
+         }
+      }
+   }
+
+   if (Dim == 4)
+   {
+      DenseMatrix J(4, 4);
+
+      for (i = 0; i < NumOfElements; i++)
+      {
+         vi = elements[i]->GetVertices();
+         switch (GetElementType(i))
+         {
+            case Element::PENTATOPE:
+               if (Nodes == NULL)
+               {
+                  for (j = 0; j < 5; j++)
+                  {
+                     v[j] = vertices[vi[j]]();
+                  }
+                  for (j = 0; j < 4; j++)
+                     for (k = 0; k < 4; k++)
+                     {
+                        J(j, k) = v[j+1][k] - v[0][k];
+                     }
+               }
+               else
+               {
+                  // only check the Jacobian at the center of the element
+                  GetElementJacobian(i, J);
+               }
+               if (J.Det() < 0.0)
+               {
+                  wo++;
+                  if (fix_it)
+                  {
+                     swappedElements[i] = true;
+                     mfem::Swap(vi[0], vi[1]);
+                     fo++;
+                  }
+               }
+               break;
+
+            case Element::TESSERACT:
+               // only check the Jacobian at the center of the element
+               GetElementJacobian(i, J);
+               if (J.Det() < 0.0)
+               {
+                  wo++;
+                  if (fix_it)
+                  {
+                     // how?
+                  }
+               }
+               break;
+
+            default:
+               MFEM_ABORT("Invalid 4D element type \""
                           << GetElementType(i) << "\"");
                break;
          }
@@ -5541,17 +5616,13 @@ void Mesh::GenerateFaces()
                }
 #else
                bool swapped = swappedElements[i];
-               swapped = false;
-               int tempv[5];
-               for (int j=0; j<5; j++) { tempv[j] = v[j]; }
-               if (swapped) { Swap(tempv); }
 
                int filter[5] = {0,1,2,3,4};
-               //            if (swapped)
-               //            {
-               //               filter[3] = 4;
-               //               filter[4] = 3;
-               //            }
+               if (swapped)
+               {
+                  filter[3] = 4;
+                  filter[4] = 3;
+               }
 
                for (int j = 0; j < 5; j++)
                {
@@ -5566,17 +5637,10 @@ void Mesh::GenerateFaces()
                      swappedFaces[ef[filter[j]]] = swapFace;
                   }
 
-                  const int *fv = pent_t::FaceVert[j];
-                  //               if (swapFace)
-                  //               {
-                  //                  AddTetrahedralFaceElement(j, ef[filter[j]], i,
-                  //                                            tempv[fv[1]], tempv[fv[0]], tempv[fv[2]], tempv[fv[3]]);
-                  //               }
-                  //               else
-                  {
-                     AddTetrahedralFaceElement(j, ef[filter[j]], i,
-                                               tempv[fv[0]], tempv[fv[1]], tempv[fv[2]], tempv[fv[3]]);
-                  }
+                  const int *fv = pent_t::FaceVert[filter[j]];
+                  //                     printf("%d:: %d %d %d %d\n",ef[filter[j]],tempv[fv[0]], tempv[fv[1]], tempv[fv[2]], tempv[fv[3]]);
+                  AddTetrahedralFaceElement(j, ef[filter[j]], i,
+                                            v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
 
                }
 #endif
@@ -5608,22 +5672,22 @@ void Mesh::GeneratePlanars()
    planars.SetSize(NumOfPlanars);
    for (int i = 0; i < NumOfPlanars; i++) { planars[i] = NULL; }
 
-   const int *fv;
+   const int *pv;
 
    for (int i = 0; i < NumOfElements; i++)
    {
       const int *v = elements[i]->GetVertices();
-      const int *ef;
+      const int *ep;
 
-      ef = el_to_planar->GetRow(i);
+      ep = el_to_planar->GetRow(i);
       if (GetElementType(i)==Element::PENTATOPE)
       {
          for (int j = 0; j < 10; j++)
          {
-            if (planars[ef[j]] == NULL)
+            if (planars[ep[j]] == NULL)
             {
-               fv = pent_t::PlanarVert[j];
-               planars[ef[j]] = new Triangle(v[fv[0]], v[fv[1]], v[fv[2]]);
+               pv = pent_t::PlanarVert[j];
+               planars[ep[j]] = new Triangle(v[pv[0]], v[pv[1]], v[pv[2]]);
             }
          }
       }
@@ -5997,6 +6061,7 @@ void Mesh::ReorientTetMesh()
 
 void Mesh::ReplaceBoundaryFromFaces()
 {
+   swappedBdr.SetSize(NumOfBdrElements);
    for (int i = 0; i < NumOfBdrElements; i++)
    {
       int faceID = be_to_face[i];
@@ -6004,6 +6069,7 @@ void Mesh::ReplaceBoundaryFromFaces()
       int* vFce = faces[faceID]->GetVertices();
 
       int NVertices = boundary[i]->GetNVertices();
+      swappedBdr[i] = swappedFaces[faceID];
 
       //    for(int k=0; k<NVertices; k++) cout << vBnd[k] << " "; cout << endl;
       //    for(int k=0; k<NVertices; k++) cout << vFce[k] << " "; cout << endl << endl;
@@ -7936,7 +8002,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
          GetElementToFaceTable4D();
          GenerateFaces();
 
-         //        ReplaceBoundaryFromFaces();
+         //                 ReplaceBoundaryFromFaces();
 
          GetElementToPlanarTable();
          GeneratePlanars();
@@ -8116,7 +8182,11 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    ncmesh.GetMeshComponents(vertices, elements, boundary);
 #endif
 
-
+   if (Dim == 4)
+   {
+      //ncmesh.GetSwappedElementFlags(swappedElements);// TODO
+      swappedElements.SetSize(elements.Size(), false);
+   }
 
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();
@@ -8137,8 +8207,6 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    }
    if (Dim > 3)
    {
-      swappedElements.SetSize(NumOfElements);
-      swappedElements = false;
       GetElementToFaceTable4D();
    }
    GenerateFaces();
@@ -8703,6 +8771,7 @@ void Mesh::RedRefinementPentatope(int i, HashTable<Hashed2> & v_to_v)
 
    int *v = elements[i]->GetVertices();
    if (swappedElements[i]) { Swap(v); }
+   //printf("pent[%d]: (%d %d %d %d %d) is %s\n", i,v[0],v[1],v[2],v[3],v[4] ,(swapped) ? "swapped" : "not swapped");
 
    for (int j = 0; j < 10; j++)
    {
@@ -8736,84 +8805,100 @@ void Mesh::RedRefinementPentatope(int i, HashTable<Hashed2> & v_to_v)
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[0]; w[1] = v[1];     w[2] = v_new[4]; w[3] = v_new[5];
    w[4] = v_new[6]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v[2];     w[3] = v_new[7];
    w[4] = v_new[8]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[7]; w[3] = v[3];
    w[4] = v_new[9]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[3]; w[1] = v_new[6]; w[2] = v_new[8]; w[3] = v_new[9]; w[4] = v[4];
    mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
 
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[4]; w[3] = v_new[5];
-   w[4] = v_new[6]; /*mySwaped = !swapped;*/ mySwaped = swapped;
+   w[4] = v_new[6]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[5];
    w[4] = v_new[6]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[3];
-   w[4] = v_new[6]; /*mySwaped = !swapped;*/ mySwaped = swapped;
+   w[4] = v_new[6]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
 
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v_new[7];
-   w[4] = v_new[8]; /*mySwaped = !swapped;*/ mySwaped = swapped;
+   w[4] = v_new[8]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v_new[6];
    w[4] = v_new[8]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[5]; w[3] = v_new[7];
    w[4] = v_new[8]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[5]; w[3] = v_new[6];
-   w[4] = v_new[8]; /*mySwaped = !swapped;*/ mySwaped = swapped;
+   w[4] = v_new[8]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[3]; w[3] = v_new[6];
    w[4] = v_new[8]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
 
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[7]; w[3] = v_new[8];
-   w[4] = v_new[9]; /*mySwaped = !swapped;*/ mySwaped = swapped;
+   w[4] = v_new[9]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[6]; w[3] = v_new[8];
    w[4] = v_new[9]; mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
    elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
    w[0] = v_new[2]; w[1] = v_new[3]; w[2] = v_new[6]; w[3] = v_new[8];
-   w[4] = v_new[9]; /*mySwaped = !swapped;*/ mySwaped = swapped;
+   w[4] = v_new[9]; /*mySwaped = !swapped;*/ mySwaped = !swapped;
    if (mySwaped) { Swap(w); } elements[i]->SetVertices(w);
    elements[i]->ResetTransform(o);
    swappedElements[i] = mySwaped;
+   //printf("\t%d %d %d %d %d\n", w[0], w[1], w[2],w[3],w[4]);
 
    int coarse = FindCoarseElement(i);
    CoarseFineTr.embeddings[i].parent = coarse;
@@ -8860,8 +8945,11 @@ void Mesh::RedRefinementBoundaryTet(int i, HashTable<Hashed2> & v_to_v)
    int lf = faces_info[be_to_face[i]].Elem1Inf / 64;
 
    bool swapped = swappedFaces[be_to_face[i]];
+   swapped = swappedBdr[i];
    int *v = boundary[i]->GetVertices();
-   if (swapped) { Swap(v); }
+   //   if ( (swapped = v[0] > v[1])) { std::swap(v[0],v[1]); }
+   if (swapped) { std::swap(v[0],v[1]); }
+   //printf("bdr[%d|%d]: (%d %d %d %d) %s\n",i,lf,v[0],v[1],v[2],v[3],(swapped) ? "swapped":"not swapped");
 
    //    cout << swapped << endl << " my computed " << endl;
 
@@ -8898,32 +8986,41 @@ void Mesh::RedRefinementBoundaryTet(int i, HashTable<Hashed2> & v_to_v)
          break;
    }
 
+
    bool mySwaped;
    w[0] = v[0];     w[1] = v_new[0]; w[2] = v_new[1]; w[3] = v_new[2];
    mySwaped = sw[0]; /*cout << mySwaped << endl;*/ if (mySwaped) { Swap(w); } boundary.Append(
-      new Tetrahedron(w, attr));
+      new Tetrahedron(w, attr)); swappedBdr.Append(mySwaped);
+   //printf("\t%d:: %d %d %d %d\n",i, w[0], w[1],w[2],w[3]);
    w[0] = v_new[0]; w[1] = v[1];     w[2] = v_new[3]; w[3] = v_new[4];
    mySwaped = sw[1]; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
-      new Tetrahedron(w, attr));
+      new Tetrahedron(w, attr)); swappedBdr.Append(mySwaped);
+   //printf("\t%d:: %d %d %d %d\n",i, w[0], w[1],w[2],w[3]);
    w[0] = v_new[1]; w[1] = v_new[3]; w[2] = v[2];     w[3] = v_new[5];
    mySwaped = sw[2]; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
-      new Tetrahedron(w, attr));
+      new Tetrahedron(w, attr)); swappedBdr.Append(mySwaped);
+   //printf("\t%d:: %d %d %d %d\n",i, w[0], w[1],w[2],w[3]);
    w[0] = v_new[2]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v[3];
    mySwaped = sw[3]; /*if(mySwaped) Swap(w); */if (mySwaped) { Swap(w); }  boundary.Append(
-      new Tetrahedron(w, attr));
+      new Tetrahedron(w, attr)); swappedBdr.Append(mySwaped);
+   //printf("\t%d:: %d %d %d %d\n",i, w[0], w[1],w[2],w[3]);
 
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[3]; w[3] = v_new[4];
    mySwaped = sw[4]; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
-      new Tetrahedron(w, attr));
+      new Tetrahedron(w, attr)); swappedBdr.Append(mySwaped);
+   //printf("\t%d:: %d %d %d %d\n",i, w[0], w[1],w[2],w[3]);
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[4];
    mySwaped = sw[5]; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
-      new Tetrahedron(w, attr));
+      new Tetrahedron(w, attr)); swappedBdr.Append(mySwaped);
+   //printf("\t%d:: %d %d %d %d\n",i, w[0], w[1],w[2],w[3]);
    w[0] = v_new[1]; w[1] = v_new[3]; w[2] = v_new[4]; w[3] = v_new[5];
    mySwaped = sw[6];/*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
-      new Tetrahedron(w, attr));
+      new Tetrahedron(w, attr)); swappedBdr.Append(mySwaped);
+   //printf("\t%d:: %d %d %d %d\n",i, w[0], w[1],w[2],w[3]);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[4]; w[3] = v_new[5];
    mySwaped = sw[7]; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary[i]->SetVertices(
-      w);
+      w); swappedBdr[i] = mySwaped;
+   //printf("\t%d:: %d %d %d %d\n",i, w[0], w[1],w[2],w[3]);
 
    // cout << endl;
 

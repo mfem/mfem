@@ -298,8 +298,8 @@ void ParNCMesh::BuildFaceList()
    entity_index_rank[face_entity_index].SetSize(6*leaf_elements.Size() * 3/2);
    entity_index_rank[face_entity_index].SetSize(0);
 
-   entity_elem_local[2].SetSize(nfaces);
-   entity_elem_local[2] = -1;
+   entity_elem_local[face_entity_index].SetSize(nfaces);
+   entity_elem_local[face_entity_index] = -1;
 
    NCMesh::BuildFaceList();
 
@@ -357,6 +357,9 @@ void ParNCMesh::BuildPlanarList()
    entity_index_rank[2].SetSize(10*leaf_elements.Size() * 3/2);
    entity_index_rank[2].SetSize(0);
 
+   entity_elem_local[2].SetSize(nplanars);
+   entity_elem_local[2] = -1;
+
    NCMesh::BuildPlanarList();
 
    InitOwners(nplanars, entity_owner[2]);
@@ -364,9 +367,12 @@ void ParNCMesh::BuildPlanarList()
 
    tmp_owner.DeleteAll();
    tmp_shared_flag.DeleteAll();
+
+   // create simple conforming (cut-mesh) groups now
+   CreateGroups(NPlanars, entity_index_rank[2], entity_conf_group[2]);
    // NOTE: entity_index_rank[2] is not deleted until CalculatePMatrixGroups
 
-   CalcFaceOrientations();
+   //   CalcFaceOrientations();
 }
 
 void ParNCMesh::ElementSharesEdge(int elem, int local, int enode)
@@ -610,6 +616,7 @@ void ParNCMesh::CreateGroups(int nentities, Array<Connection> &index_rank,
    while (begin < index_rank.Size())
    {
       int index = index_rank[begin].from;
+
       if (index >= nentities)
       {
          break; // probably creating entity_conf_group (no ghosts)
@@ -789,7 +796,6 @@ void ParNCMesh::CalculatePMatrixGroups4D()
          AddConnections(1, e[j], ranks);
          AddConnections(2, p[j], ranks);
       }
-      AddConnections(0, v[4], ranks);
       AddConnections(1, e[4], ranks);
       AddConnections(1, e[5], ranks);
    }
@@ -882,6 +888,37 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
       if (bdr_edges[i] < NEdges) { bdr_edges[j++] = bdr_edges[i]; }
    }
    bdr_edges.SetSize(j);
+}
+
+void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+                                   Array<int> &bdr_vertices,
+                                   Array<int> &bdr_edges,
+                                   Array<int> &bdr_planars)
+{
+   NCMesh::GetBoundaryClosure(bdr_attr_is_ess, bdr_vertices, bdr_edges,
+                              bdr_planars);
+
+   int i, j;
+   // filter out ghost vertices
+   for (i = j = 0; i < bdr_vertices.Size(); i++)
+   {
+      if (bdr_vertices[i] < NVertices) { bdr_vertices[j++] = bdr_vertices[i]; }
+   }
+   bdr_vertices.SetSize(j);
+
+   // filter out ghost edges
+   for (i = j = 0; i < bdr_edges.Size(); i++)
+   {
+      if (bdr_edges[i] < NEdges) { bdr_edges[j++] = bdr_edges[i]; }
+   }
+   bdr_edges.SetSize(j);
+
+   // filter out ghost planars
+   for (i = j = 0; i < bdr_planars.Size(); i++)
+   {
+      if (bdr_planars[i] < NPlanars) { bdr_planars[j++] = bdr_planars[i]; }
+   }
+   bdr_planars.SetSize(j);
 }
 
 
@@ -1058,6 +1095,11 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
 
 void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
 {
+   if (Dim > 3)
+   {
+      GetConformingSharedStructures4D(pmesh);
+      return;
+   }
    // make sure we have entity_conf_group[x] and the ordering arrays
    for (int ent = 0; ent < Dim; ent++)
    {
@@ -1141,6 +1183,103 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    leaf_glob_order.DeleteAll();
 }
 
+void ParNCMesh::GetConformingSharedStructures4D(ParMesh &pmesh)
+{
+   // make sure we have entity_conf_group[x] and the ordering arrays
+   for (int ent = 0; ent < Dim; ent++)
+   {
+      GetSharedList4D(ent);
+      MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
+      MFEM_VERIFY(entity_elem_local[ent].Size(), "internal error");
+   }
+   MFEM_VERIFY(leaf_glob_order.Size(), "internal error");
+
+   // create ParMesh groups, and the map (ncmesh_group -> pmesh_group)
+   Array<int> group_map(groups.size());
+   {
+      group_map = 0;
+      IntegerSet iset;
+      ListOfIntegerSets int_groups;
+      for (unsigned i = 0; i < groups.size(); i++)
+      {
+         if (groups[i].size() > 1 || !i) // skip singleton groups
+         {
+            iset.Recreate(groups[i].size(), groups[i].data());
+            group_map[i] = int_groups.Insert(iset);
+         }
+      }
+      pmesh.gtopo.Create(int_groups, 822);
+   }
+
+   // renumber groups in entity_conf_group[] (due to missing singletons)
+   for (int ent = 0; ent < Dim; ent++)
+   {
+      for (int i = 0; i < entity_conf_group[ent].Size(); i++)
+      {
+         GroupId &ecg = entity_conf_group[ent][i];
+         ecg = group_map[ecg];
+      }
+   }
+
+   // create shared to local index mappings and group tables
+   int ngroups = pmesh.gtopo.NGroups();
+   MakeSharedTable(ngroups, 0, pmesh.svert_lvert, pmesh.group_svert);
+   MakeSharedTable(ngroups, 1, pmesh.sedge_ledge, pmesh.group_sedge);
+   MakeSharedTable(ngroups, 2, pmesh.splan_lplan, pmesh.group_stria);
+   MakeSharedTable(ngroups, 3, pmesh.sface_lface, pmesh.group_stetr);
+
+   // create an empty group_stria (we currently don't have triangle faces)
+   pmesh.group_squad.MakeI(ngroups-1);
+   pmesh.group_squad.MakeJ();
+   pmesh.group_squad.ShiftUpI();
+
+   // create shared_edges
+   for (int i = 0; i < pmesh.shared_edges.Size(); i++)
+   {
+      delete pmesh.shared_edges[i];
+   }
+   pmesh.shared_edges.SetSize(pmesh.sedge_ledge.Size());
+   for (int i = 0; i < pmesh.shared_edges.Size(); i++)
+   {
+      int el_loc = entity_elem_local[1][pmesh.sedge_ledge[i]];
+      MeshId edge_id(-1, leaf_elements[(el_loc >> 4)], (el_loc & 0xf));
+
+      int v[2];
+      GetEdgeVertices(edge_id, v, false);
+      pmesh.shared_edges[i] = new Segment(v, 1);
+   }
+
+   // create shared_planars
+   pmesh.shared_trias.SetSize(pmesh.splan_lplan.Size());
+   for (int i = 0; i < pmesh.shared_trias.Size(); i++)
+   {
+      int el_loc = entity_elem_local[2][pmesh.splan_lplan[i]];
+      MeshId planar_id(-1, leaf_elements[(el_loc >> 4)], (el_loc & 0xf));
+
+      int e[3], eo[3];
+      GetPlanarVerticesEdges(planar_id,pmesh.shared_trias[i].v,e,eo);
+   }
+
+   // create shared_faces
+   pmesh.shared_tetra.SetSize(pmesh.sface_lface.Size());
+   for (int i = 0; i < pmesh.shared_tetra.Size(); i++)
+   {
+      int el_loc = entity_elem_local[3][pmesh.sface_lface[i]];
+      MeshId face_id(-1, leaf_elements[(el_loc >> 4)], (el_loc & 0xf));
+
+      int p[4], po[4], e[6], eo[6];
+      GetFaceVerticesEdgesPlanars(face_id, pmesh.shared_tetra[i].v, e, eo, p, po);
+   }
+
+   // free the arrays, they're not needed anymore (until next mesh update)
+   for (int ent = 0; ent < Dim; ent++)
+   {
+      entity_conf_group[ent].DeleteAll();
+      entity_elem_local[ent].DeleteAll();
+   }
+   leaf_glob_order.DeleteAll();
+}
+
 bool ParNCMesh::compare_ranks_indices(const Element* a, const Element* b)
 {
    return (a->rank != b->rank) ? a->rank < b->rank
@@ -1151,8 +1290,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 {
    ClearAuxPM();
 
-   const NCList &shared = (Dim == 3) ? GetSharedFaces() : GetSharedEdges();
-   const NCList &full_list = (Dim == 3) ? GetFaceList() : GetEdgeList();
+   const NCList &shared = (Dim >= 3) ? GetSharedFaces() : GetSharedEdges();
+   const NCList &full_list = (Dim >= 3) ? GetFaceList() : GetEdgeList();
 
    Array<Element*> fnbr;
    Array<Connection> send_elems;
@@ -2259,7 +2398,7 @@ void ParNCMesh::ElementSet::EncodeTree(int elem)
    {
       // check which subtrees contain marked elements
       int mask = 0;
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < 16; i++)
       {
          if (el.child[i] >= 0 && ncmesh->elements[el.child[i]].flag)
          {
@@ -2274,7 +2413,7 @@ void ParNCMesh::ElementSet::EncodeTree(int elem)
          data.Append(el.ref_type);
       }
 
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < 16; i++)
       {
          if (mask & (1 << i))
          {
@@ -2326,7 +2465,7 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
       }
       else { MFEM_ASSERT(el.ref_type != 0, ""); }
 
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < 16; i++)
       {
          if (mask & (1 << i))
          {

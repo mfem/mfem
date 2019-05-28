@@ -2803,9 +2803,9 @@ void NCMesh::TraversePlanar(int vn0, int vn1, int vn2, const PointMatrix& pm,
          DenseMatrix &mat = planar_list.slaves.back().point_matrix;
          pm.GetMatrix(mat);
 
-         // reorder the point matrix according to slave face orientation
+         // reorder the point matrix according to slave planar orientation TODO
          int local = -1/*ReorderPlanarPointMat(vn0, vn1, vn2, elem, mat)*/;
-         face_list.slaves.back().local = local;
+         planar_list.slaves.back().local = local;
 
          return;
       }

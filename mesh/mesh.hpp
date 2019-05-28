@@ -77,6 +77,7 @@ protected:
 
    Array<bool> swappedElements; //only for 4d meshes
    Array<bool> swappedFaces; //only for 4d meshes
+   Array<bool> swappedBdr; //only for 4d meshes
 
    struct FaceInfo
    {
@@ -776,6 +777,7 @@ public:
 
    bool getSwappedElementInfo(int i) const { return swappedElements[i]; }
    bool getSwappedFaceElementInfo(int i) const { return swappedFaces[i]; }
+   bool getSwappedBdrElementInfo(int i) const { return swappedBdr[i]; }
 
    const Element *GetBdrElement(int i) const { return boundary[i]; }
 

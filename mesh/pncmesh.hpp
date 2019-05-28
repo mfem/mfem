@@ -240,6 +240,11 @@ public:
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges);
 
+   virtual void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+                                   Array<int> &bdr_vertices,
+                                   Array<int> &bdr_edges,
+                                   Array<int> &bdr_planars);
+
    /// Save memory by releasing all non-essential and cached data.
    virtual void Trim();
 
@@ -261,6 +266,8 @@ protected: // interface for ParMesh
        Initializes shared structures in ParMesh: gtopo, shared_*, group_s*, s*_l*.
        The ParMesh then acts as a parallel mesh cut along the NC interfaces. */
    void GetConformingSharedStructures(class ParMesh &pmesh);
+
+   void GetConformingSharedStructures4D(class ParMesh &pmesh);
 
    /** Populate face neighbor members of ParMesh from the ghost layer, without
        communication. */

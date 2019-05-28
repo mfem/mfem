@@ -434,6 +434,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
 
       int bdrelem_counter = 0;
       boundary.SetSize(nbdry);
+      swappedBdr.SetSize(nbdry);
       for (int i = 0; i < mesh.GetNBE(); i++)
       {
          int face, o, el1, el2;
@@ -442,6 +443,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
          if (partitioning[(o % 2 == 0 || el2 < 0) ? el1 : el2] == MyRank)
          {
             boundary[bdrelem_counter] = mesh.GetBdrElement(i)->Duplicate(this);
+            if (Dim == 4) {swappedBdr[bdrelem_counter] = mesh.getSwappedBdrElementInfo(i);}
             int *v = boundary[bdrelem_counter]->GetVertices();
             int nv = boundary[bdrelem_counter]->GetNVertices();
             for (int j = 0; j < nv; j++)
