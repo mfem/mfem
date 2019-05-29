@@ -154,10 +154,12 @@ static void CudaDeviceSetup(const int dev, int &ngpu)
 static void RocmDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_ROCM
-   MFEM_HIP_CHECK(hipGetDevice(&dev));
+   int deviceId;
+   MFEM_HIP_CHECK(hipGetDevice(&deviceId));
    hipDeviceProp_t props;
-   MFEM_HIP_CHECK(hipGetDeviceProperties(&props, dev));
-   printf("info: running on device #%d %s\n", dev, props.name);
+   MFEM_HIP_CHECK(hipGetDeviceProperties(&props, deviceId));
+   printf("info: running on device #%d %s\n", deviceId, props.name);
+   MFEM_VERIFY(dev==deviceId,"");
    ngpu = 1;
 #endif
 }
