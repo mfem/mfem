@@ -212,30 +212,30 @@ void HipWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
    const int GRID = (N+BLCK-1)/BLCK;
-   HipKernel1D<<<GRID,BLCK>>>(N, d_body);
-   MFEM_ROCM_CHECK(hipGetLastError());
+   hipLaunchKernelGGL(HipKernel1D,GRID,BLCK,0,0,N,d_body);
+   MFEM_HIP_CHECK(hipGetLastError());
 }
 
 template <typename DBODY>
 void HipWrap2D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int BZ)
+               const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   HipKernel2D<<<GRID,BLCK>>>(N,d_body,BZ);
-   MFEM_ROCM_CHECK(hipGetLastError());
+   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,0,N,d_body,BZ);
+   MFEM_HIP_CHECK(hipGetLastError());
 }
 
 template <typename DBODY>
 void HipWrap3D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int Z)
+               const int X, const int Y, const int Z)
 {
    if (N==0) { return; }
    const int GRID = N;
    const dim3 BLCK(X,Y,Z);
-   HipKernel3D<<<GRID,BLCK>>>(N,d_body);
-   MFEM_ROCM_CHECK(hipGetLastError());
+   hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,0,N,d_body);
+   MFEM_HIP_CHECK(hipGetLastError());
 }
 
 #endif // MFEM_USE_ROCM

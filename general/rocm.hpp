@@ -23,8 +23,8 @@
 #define MFEM_ROCM_BLOCKS 256
 
 #ifdef MFEM_USE_ROCM
-#define MFEM_DEVICE __device__
-#define MFEM_HOST_DEVICE __host__ __device__
+//#define MFEM_DEVICE __device__
+//#define MFEM_HOST_DEVICE __host__ __device__
 // Define a ROCM error check macro, MFEM_ROCM_CHECK(x), where x returns/is of
 // type 'rocmError_t'. This macro evaluates 'x' and raises an error if the
 // result is not hipSuccess.
@@ -39,8 +39,8 @@
    } \
    while (0)
 #else
-#define MFEM_DEVICE
-#define MFEM_HOST_DEVICE
+//#define MFEM_DEVICE
+//#define MFEM_HOST_DEVICE
 #endif // MFEM_USE_ROCM
 
 // Define the MFEM inner threading macros
@@ -64,8 +64,8 @@ namespace mfem
 
 #ifdef MFEM_USE_ROCM
 // Function used by the macro MFEM_ROCM_CHECK.
-void mfem_rocm_error(rocmError_t err, const char *expr, const char *func,
-                     const char *file, int line);
+void mfem_hip_error(hipError_t err, const char *expr, const char *func,
+                    const char *file, int line);
 #endif
 
 /// Allocates device memory

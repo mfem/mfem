@@ -20,8 +20,8 @@ namespace mfem
 // #define MFEM_TRACK_ROCM_MEM
 
 #ifdef MFEM_USE_ROCM
-void mfem_rocm_error(hipError_t err, const char *expr, const char *func,
-                     const char *file, int line)
+void mfem_hip_error(hipError_t err, const char *expr, const char *func,
+                    const char *file, int line)
 {
    mfem::err << "\n\nROCM error: (" << expr << ") failed with error:\n --> "
              << hipGetErrorString(err)
@@ -38,7 +38,7 @@ void* HipMemAlloc(void** dptr, size_t bytes)
    mfem::out << "HipMemAlloc(): allocating " << bytes << " bytes ... "
              << std::flush;
 #endif
-   MFEM_ROCM_CHECK(hipMalloc(dptr, bytes));
+   MFEM_HIP_CHECK(hipMalloc(dptr, bytes));
 #ifdef MFEM_TRACK_ROCM_MEM
    mfem::out << "done: " << *dptr << std::endl;
 #endif
@@ -53,7 +53,7 @@ void* HipMemFree(void *dptr)
    mfem::out << "HipMemFree(): deallocating memory @ " << dptr << " ... "
              << std::flush;
 #endif
-   MFEM_ROCM_CHECK(hipFree(dptr));
+   MFEM_HIP_CHECK(hipFree(dptr));
 #ifdef MFEM_TRACK_ROCM_MEM
    mfem::out << "done." << std::endl;
 #endif
@@ -68,7 +68,7 @@ void* HipMemcpyHtoD(void* dst, const void* src, size_t bytes)
    mfem::out << "HipMemcpyHtoD(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
-   MFEM_ROCM_CHECK(hipMemcpy(dst, src, bytes, hipMemcpyHostToDevice));
+   MFEM_HIP_CHECK(hipMemcpy(dst, src, bytes, hipMemcpyHostToDevice));
 #ifdef MFEM_TRACK_ROCM_MEM
    mfem::out << "done." << std::endl;
 #endif
@@ -79,7 +79,7 @@ void* HipMemcpyHtoD(void* dst, const void* src, size_t bytes)
 void* HipMemcpyHtoDAsync(void* dst, const void* src, size_t bytes)
 {
 #ifdef MFEM_USE_ROCM
-   MFEM_ROCM_CHECK(hipMemcpyAsync(dst, src, bytes, hipMemcpyHostToDevice));
+   MFEM_HIP_CHECK(hipMemcpyAsync(dst, src, bytes, hipMemcpyHostToDevice));
 #endif
    return dst;
 }
@@ -91,7 +91,7 @@ void* HipMemcpyDtoD(void *dst, const void *src, size_t bytes)
    mfem::out << "HipMemcpyDtoD(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
-   MFEM_ROCM_CHECK(hipMemcpy(dst, src, bytes, hipMemcpyDeviceToDevice));
+   MFEM_HIP_CHECK(hipMemcpy(dst, src, bytes, hipMemcpyDeviceToDevice));
 #ifdef MFEM_TRACK_ROCM_MEM
    mfem::out << "done." << std::endl;
 #endif
@@ -102,7 +102,7 @@ void* HipMemcpyDtoD(void *dst, const void *src, size_t bytes)
 void* HipMemcpyDtoDAsync(void* dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_ROCM
-   MFEM_ROCM_CHECK(hipMemcpyAsync(dst, src, bytes, hipMemcpyDeviceToDevice));
+   MFEM_HIP_CHECK(hipMemcpyAsync(dst, src, bytes, hipMemcpyDeviceToDevice));
 #endif
    return dst;
 }
@@ -114,7 +114,7 @@ void* HipMemcpyDtoH(void *dst, const void *src, size_t bytes)
    mfem::out << "HipMemcpyDtoH(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
-   MFEM_ROCM_CHECK(hipMemcpy(dst, src, bytes, hipMemcpyDeviceToHost));
+   MFEM_HIP_CHECK(hipMemcpy(dst, src, bytes, hipMemcpyDeviceToHost));
 #ifdef MFEM_TRACK_ROCM_MEM
    mfem::out << "done." << std::endl;
 #endif
@@ -125,7 +125,7 @@ void* HipMemcpyDtoH(void *dst, const void *src, size_t bytes)
 void* HipMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_ROCM
-   MFEM_ROCM_CHECK(hipMemcpyAsync(dst, src, bytes, hipMemcpyDeviceToHost));
+   MFEM_HIP_CHECK(hipMemcpyAsync(dst, src, bytes, hipMemcpyDeviceToHost));
 #endif
    return dst;
 }

@@ -48,11 +48,6 @@ CUDA_XLINKER   = -Xlinker=
 
 # ROCM configuration options
 ROCM_CXX = hipcc
-ROCM_ARCH = sm_20
-ROCM_FLAGS = -arch=$(ROCM_ARCH)
-# Prefixes for passing flags to the host compiler and linker when using ROCM_CXX
-ROCM_XCOMPILER = -Xcompiler=
-ROCM_XLINKER   = -Xlinker=
 
 ifneq ($(NOTMAC),)
    AR      = ar
