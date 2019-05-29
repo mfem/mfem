@@ -46,6 +46,14 @@ CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
+# ROCM configuration options
+ROCM_CXX = hipcc
+ROCM_ARCH = sm_20
+ROCM_FLAGS = -arch=$(ROCM_ARCH)
+# Prefixes for passing flags to the host compiler and linker when using ROCM_CXX
+ROCM_XCOMPILER = -Xcompiler=
+ROCM_XLINKER   = -Xlinker=
+
 ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
@@ -122,6 +130,7 @@ MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_CUDA          = NO
+MFEM_USE_ROCM          = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 
@@ -302,6 +311,10 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
 # CUDA library configuration (currently not needed)
 CUDA_OPT =
 CUDA_LIB =
+
+# ROCM library configuration (currently not needed)
+ROCM_OPT =
+ROCM_LIB =
 
 # OCCA library configuration
 OCCA_DIR = @MFEM_DIR@/../occa
