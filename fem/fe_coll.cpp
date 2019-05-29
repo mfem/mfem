@@ -1594,7 +1594,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
       else if (b_type == BasisType::Serendipity)
       {
-	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p, btype);
+        H1_Elements[Geometry::SQUARE] = new SerQuad2DFiniteElement();
+	//	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p, btype);
       }
       else
       {

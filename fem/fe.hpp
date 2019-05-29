@@ -991,6 +991,7 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
+
 class BiQuadPos2DFiniteElement : public PositiveFiniteElement
 {
 public:
@@ -1019,6 +1020,30 @@ public:
                            DenseMatrix &dshape) const;
    // virtual void ProjectDelta(int vertex, Vector &dofs) const { dofs = 1.; }
 };
+
+
+
+/// Class for quadratic order serendipity FE on a quadrilateral
+class SerQuad2DFiniteElement : public NodalFiniteElement
+{
+public:
+   /// Construct a quadratic order serendipity FE on a quadrilateral
+   SerQuad2DFiniteElement();
+
+   /** virtual function which evaluates the values of all
+       shape functions at a given point ip and stores
+       them in the vector shape of dimension Dof (8) */
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+
+   /** virtual function which evaluates the values of all
+       partial derivatives of all shape functions at a given
+       point ip and stores them in the matrix dshape (Dof x Dim) (8 x 2)
+       so that each row contains the derivatives of one shape function */
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+};
+
 
 class BiCubic2DFiniteElement : public NodalFiniteElement
 {

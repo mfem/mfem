@@ -1750,6 +1750,97 @@ void BiQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 #endif
 }
 
+
+// begin serendipity code asdf
+
+SerQuad2DFiniteElement::SerQuad2DFiniteElement()
+   : NodalFiniteElement(2, Geometry::SQUARE, 8, 2, FunctionSpace::Pk)
+{
+   Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(1).x = 1.0;
+   Nodes.IntPoint(1).y = 0.0;
+   Nodes.IntPoint(2).x = 1.0;
+   Nodes.IntPoint(2).y = 1.0;
+   Nodes.IntPoint(3).x = 0.0;
+   Nodes.IntPoint(3).y = 1.0;
+   Nodes.IntPoint(4).x = 0.5;
+   Nodes.IntPoint(4).y = 0.0;
+   Nodes.IntPoint(5).x = 1.0;
+   Nodes.IntPoint(5).y = 0.5;
+   Nodes.IntPoint(6).x = 0.5;
+   Nodes.IntPoint(6).y = 1.0;
+   Nodes.IntPoint(7).x = 0.0;
+   Nodes.IntPoint(7).y = 0.5;
+}
+
+void SerQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                      Vector &shape) const
+{ 
+   double x = ip.x, y = ip.y;
+
+   shape(0) = (1. - x) * (1. - y) * (1. - x - y);
+   shape(1) = x * (1. - y) * (x - y);
+   shape(2) = x * y * (x + y - 1.);
+   shape(3) = (1. - x) * y * (y - x);
+   shape(4) = (1. - x) * x * (1 - y);
+   shape(5) = x * y * (1. - y);
+   shape(6) = x * y * (1. - x);
+   shape(7) = (1. - x) * (1. - y) * y;
+}
+
+
+
+ void SerQuad2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                       DenseMatrix &dshape) const
+{
+   double x = ip.x, y = ip.y;
+
+   dshape(0,0) = -((-1. + y)*(-2. + 2.*x + y));
+   dshape(0,1) = -((-1. + x)*(-2. + x + 2.*y));
+   
+   dshape(1,0) = -((2.*x - y)*(-1. + y));
+   dshape(1,1) = -(x*(1. + x - 2.*y));
+   
+   dshape(2,0) = y*(-1. + 2.*x + y);
+   dshape(2,1) = x*(-1. + x + 2.*y);
+   
+   dshape(3,0) = (-1. + 2.*x - y)*y;
+   dshape(3,1) = (-1. + x)*(x - 2.*y);
+   
+   dshape(4,0) = (-1. + 2.*x)*(-1. + y);
+   dshape(4,1) = (-1. + x)*x;
+   
+   dshape(5,0) = -((-1. + y)*y);
+   dshape(5,1) = x - 2.*x*y;
+   
+   dshape(6,0) = y - 2.*x*y;
+   dshape(6,1) = -((-1. + x)*x);
+   
+   dshape(7,0) = (-1. + y)*y;
+   dshape(7,1) = (-1. + x)*(-1. + 2.*y);
+}
+
+
+void SerQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
+{ // Prob won't work - try H1 Quad element code
+   dofs = 0.;
+   dofs(vertex) = 1.;
+   switch (vertex)
+   {
+      case 0: dofs(4) = 0.25; dofs(7) = 0.25; break;
+      case 1: dofs(4) = 0.25; dofs(5) = 0.25; break;
+      case 2: dofs(5) = 0.25; dofs(6) = 0.25; break;
+      case 3: dofs(6) = 0.25; dofs(7) = 0.25; break;
+   }
+   dofs(8) = 1./16.;
+} 
+
+
+
+// end serendipity edits asdf
+
+
 BiQuadPos2DFiniteElement::BiQuadPos2DFiniteElement()
    : PositiveFiniteElement(2, Geometry::SQUARE, 9, 2, FunctionSpace::Qk)
 {

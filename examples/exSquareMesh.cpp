@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
    // 4. Refine the mesh to increase the resolution.
 
    {
-     int ref_levels = 2;
+     int ref_levels = 1;
      //         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
      for (int l = 0; l < ref_levels; l++)
      {
@@ -70,8 +70,9 @@ int main(int argc, char *argv[])
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
    if (order > 0)
-   { 
-      fec = new H1Ser_FECollection(order, dim);
+   {
+     fec = new H1_FECollection(order, dim);
+     //fec = new H1Ser_FECollection(order, dim);
    }
    else if (mesh->GetNodes())
    {
