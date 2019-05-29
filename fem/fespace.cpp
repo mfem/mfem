@@ -572,7 +572,7 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index,
 {
    // In NC meshes with prisms, a special constraint occurs where a prism edge
    // is slave to a quadrilateral face. Rather than introduce a new edge-face
-   // constraint type, we handle such cases a degenerate face-face constraints,
+   // constraint type, we handle such cases as degenerate face-face constraints,
    // where the point-matrix rectangle has zero height. This method returns
    // DOFs for the first edge of the rectangle, duplicated in the orthogonal
    // direction, to resemble DOFs for a quadrilateral face. The extra DOFs are
