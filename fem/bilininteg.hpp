@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
-#include "bilininteg_ext.hpp"
 
 namespace mfem
 {
@@ -23,19 +22,45 @@ namespace mfem
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
-public:
-   BilinearFormIntegrator(const IntegrationRule *ir = NULL) :
-      NonlinearFormIntegrator(ir) { }
+protected:
+   BilinearFormIntegrator(const IntegrationRule *ir = NULL)
+      : NonlinearFormIntegrator(ir) { }
 
 public:
+   // TODO: add support for other assembly levels (in addition to PA) and their
+   // actions.
+
+   // TODO: for mixed meshes the quadrature rules to be used by methods like
+   // AssemblePA() can be given as a QuadratureSpace, e.g. using a new method:
+   // SetQuadratureSpace().
+
+   // TODO: the methods for the various assembly levels make sense even in the
+   // base class NonlinearFormIntegrator, except that not all assembly levels
+   // make sense for the action of the nonlinear operator (but they all make
+   // sense for its Jacobian).
+
    /// Method defining partial assembly.
-   virtual void Assemble(const FiniteElementSpace&);
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA() and AddMultTransposePA(). */
+   virtual void AssemblePA(const FiniteElementSpace &fes);
 
    /// Method for partially assembled action.
-   virtual void MultAssembled(Vector&, Vector&);
+   /** Perform the action of integrator on the input @a x and add the result to
+       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
+       the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssemblePA() has been
+       called. */
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    /// Method for partially assembled transposed action.
-   virtual void MultAssembledTranspose(Vector&, Vector&);
+   /** Perform the transpose action of integrator on the input @a x and add the
+       result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
+       represent the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssemblePA() has been
+       called. */
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -1649,19 +1674,22 @@ private:
 #endif
 
    // PA extension
-   DofToQuad *maps;
-   GeometryExtension *geom;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
+   Vector pa_data;
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator() { Q = NULL; MQ = NULL; maps = NULL; geom = NULL; }
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; maps = NULL; geom = NULL; }
+   DiffusionIntegrator(Coefficient &q)
+      : Q(&q) { MQ = NULL; maps = NULL; geom = NULL; }
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; maps = NULL; geom = NULL; }
+   DiffusionIntegrator(MatrixCoefficient &q)
+      : MQ(&q) { Q = NULL; maps = NULL; geom = NULL; }
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
@@ -1689,11 +1717,12 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
-   /// PA extension
-   virtual void Assemble(const FiniteElementSpace&);
-   virtual void MultAssembled(Vector&, Vector&);
+   virtual void AssemblePA(const FiniteElementSpace&);
 
-   virtual ~DiffusionIntegrator();
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -1705,13 +1734,15 @@ protected:
 #endif
    Coefficient *Q;
    // PA extension
-   Vector vec;
-   DofToQuad *maps;
-   GeometryExtension *geom;
+   Vector pa_data;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
+
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir) { Q = NULL; maps = NULL; geom = NULL; }
+
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir), Q(&q) { maps = NULL; geom = NULL; }
@@ -1725,11 +1756,14 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
-   /// PA extension
-   virtual void Assemble(const FiniteElementSpace&);
-   virtual void MultAssembled(Vector&, Vector&);
 
-   virtual ~MassIntegrator();
+   virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
 };
 
 class BoundaryMassIntegrator : public MassIntegrator

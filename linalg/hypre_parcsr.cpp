@@ -1484,7 +1484,7 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
                                    0, 0, 0);
 
       /* split C into diag and off-diag portions */
-      /* FIXME: GenerateDiagAndOffd() uses an int array of size equal to the
+      /* TODO: GenerateDiagAndOffd() uses an int array of size equal to the
          number of columns in csr_C_temp which is the global number of columns
          in A and B. This does not scale well. */
       ierr += GenerateDiagAndOffd(csr_C_temp, C,

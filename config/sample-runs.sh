@@ -276,8 +276,7 @@ case "$1" in
       ;;
    -dev)
        device_runs="yes"
-       mfem_config+=" MFEM_USE_CUDA=YES MFEM_USE_MM=YES \
-MFEM_USE_OCCA=YES MFEM_USE_RAJA=YES MFEM_USE_OPENMP=YES"
+       mfem_config+=" MFEM_USE_CUDA=YES MFEM_USE_OCCA=YES MFEM_USE_RAJA=YES MFEM_USE_OPENMP=YES"
       ;;
    -v)
       valgrind="yes"

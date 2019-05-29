@@ -44,6 +44,17 @@ public:
        with Width(). */
    inline int NumCols() const { return width; }
 
+   /// Return the MemoryClass preferred by the Operator.
+   /** This is the MemoryClass that will be used to access the input and output
+       vectors in the Mult() and MultTranspose() methods.
+
+       For example, classes using the MFEM_FORALL macro for implementation can
+       return the value returned by Device::GetMemoryClass().
+
+       The default implementation of this method in class Operator returns
+       MemoryClass::HOST. */
+   virtual MemoryClass GetMemoryClass() const { return MemoryClass::HOST; }
+
    /// Operator application: `y=A(x)`.
    virtual void Mult(const Vector &x, Vector &y) const = 0;
 
@@ -357,10 +368,13 @@ private:
    const Operator & P;
    mutable Vector Px;
    mutable Vector APx;
+   MemoryClass mem_class;
 
 public:
    /// Construct the RAP operator given R^T, A and P.
    RAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_);
+
+   virtual MemoryClass GetMemoryClass() const { return mem_class; }
 
    /// Operator application.
    virtual void Mult(const Vector & x, Vector & y) const
@@ -380,10 +394,13 @@ class TripleProductOperator : public Operator
    const Operator *C;
    bool ownA, ownB, ownC;
    mutable Vector t1, t2;
+   MemoryClass mem_class;
 
 public:
    TripleProductOperator(const Operator *A, const Operator *B,
                          const Operator *C, bool ownA, bool ownB, bool ownC);
+
+   virtual MemoryClass GetMemoryClass() const { return mem_class; }
 
    virtual void Mult(const Vector &x, Vector &y) const
    { C->Mult(x, t1); B->Mult(t1, t2); A->Mult(t2, y); }
@@ -408,6 +425,7 @@ protected:
    Operator *A;                 ///< The unconstrained Operator.
    bool own_A;                  ///< Ownership flag for A.
    mutable Vector z, w;         ///< Auxiliary vectors.
+   MemoryClass mem_class;
 
 public:
    /** @brief Constructor from a general Operator and a list of essential
@@ -418,6 +436,8 @@ public:
        ownership flag @a own_A is true, the operator @a *A will be destroyed
        when this object is destroyed. */
    ConstrainedOperator(Operator *A, const Array<int> &list, bool own_A = false);
+
+   virtual MemoryClass GetMemoryClass() const { return mem_class; }
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
@@ -440,7 +460,7 @@ public:
        the vectors, and "_i" -- the rest of the entries. */
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   /// Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
+   /// Destructor: destroys the unconstrained Operator, if owned.
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
 

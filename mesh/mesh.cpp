@@ -15,6 +15,7 @@
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
+#include "../general/device.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -346,14 +347,15 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
       DenseMatrix &pm = ElTr->GetPointMat();
       Array<int> vdofs;
       Nodes->FESpace()->GetElementVDofs(i, vdofs);
-
+      Nodes->HostRead();
+      const GridFunction &nodes = *Nodes;
       int n = vdofs.Size()/spaceDim;
       pm.SetSize(spaceDim, n);
       for (int k = 0; k < spaceDim; k++)
       {
          for (int j = 0; j < n; j++)
          {
-            pm(k,j) = (*Nodes)(vdofs[n*k+j]);
+            pm(k,j) = nodes(vdofs[n*k+j]);
          }
       }
       ElTr->SetFE(Nodes->FESpace()->GetFE(i));
@@ -411,8 +413,8 @@ ElementTransformation *Mesh::GetElementTransformation(int i)
 
 ElementTransformation *Mesh::GetBdrElementTransformation(int i)
 {
-   GetBdrElementTransformation(i, &FaceTransformation);
-   return &FaceTransformation;
+   GetBdrElementTransformation(i, &BdrTransformation);
+   return &BdrTransformation;
 }
 
 void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
@@ -751,6 +753,34 @@ void Mesh::GetLocalQuadToWdgTransformation(
    Transf.FinalizeTransformation();
 }
 
+const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
+                                                  const int flags)
+{
+   for (int i = 0; i < geom_factors.Size(); i++)
+   {
+      GeometricFactors *gf = geom_factors[i];
+      if (gf->IntRule == &ir && (gf->computed_factors & flags) == flags)
+      {
+         return gf;
+      }
+   }
+
+   this->EnsureNodes();
+
+   GeometricFactors *gf = new GeometricFactors(this, ir, flags);
+   geom_factors.Append(gf);
+   return gf;
+}
+
+void Mesh::DeleteGeometricFactors()
+{
+   for (int i = 0; i < geom_factors.Size(); i++)
+   {
+      delete geom_factors[i];
+   }
+   geom_factors.SetSize(0);
+}
+
 void Mesh::GetLocalFaceTransformation(
    int face_type, int elem_type, IsoparametricTransformation &Transf, int info)
 {
@@ -963,6 +993,7 @@ void Mesh::DestroyTables()
    delete el_to_edge;
    delete el_to_face;
    delete el_to_el;
+   DeleteGeometricFactors();
 
    if (Dim == 3)
    {
@@ -1014,7 +1045,7 @@ void Mesh::Destroy()
 
    // TODO:
    // IsoparametricTransformations
-   // Transformation, Transformation2, FaceTransformation, EdgeTransformation;
+   // Transformation, Transformation2, BdrTransformation, FaceTransformation, EdgeTransformation;
    // FaceElementTransformations FaceElemTr;
 
    CoarseFineTr.Clear();
@@ -1032,6 +1063,7 @@ void Mesh::DeleteLazyTables()
    delete el_to_el;     el_to_el = NULL;
    delete face_edge;    face_edge = NULL;
    delete edge_vertex;  edge_vertex = NULL;
+   DeleteGeometricFactors();
 }
 
 void Mesh::SetAttributes()
@@ -1382,6 +1414,7 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    // - el_to_el    - no need to rebuild
    // - face_edge   - no need to rebuild
    // - edge_vertex - no need to rebuild
+   // - geom_factors - no need to rebuild
 
    // - be_to_edge  - 2D only
    // - be_to_face  - 3D only
@@ -5828,7 +5861,6 @@ void Mesh::SetNodes(const Vector &node_coord)
 void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
 {
    if (own_nodes) { delete Nodes; }
-   nodes.Pull();
    Nodes = &nodes;
    spaceDim = Nodes->FESpace()->GetVDim();
    own_nodes = (int)make_owner;
@@ -7069,6 +7101,8 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
    mfem::Swap(attributes, other.attributes);
    mfem::Swap(bdr_attributes, other.bdr_attributes);
+
+   mfem::Swap(geom_factors, other.geom_factors);
 
    if (non_geometry)
    {
@@ -9525,6 +9559,52 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    }
    return pts_found;
 }
+
+
+GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
+                                   int flags)
+{
+   this->mesh = mesh;
+   IntRule = &ir;
+   computed_factors = flags;
+
+   const GridFunction *nodes = mesh->GetNodes();
+   const FiniteElementSpace *fespace = nodes->FESpace();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const int vdim = fespace->GetVDim();
+   const int NE   = fespace->GetNE();
+   const int ND   = fe->GetDof();
+   const int NQ   = ir.GetNPoints();
+
+   Vector Enodes(vdim*ND*NE);
+   // For now, we are not using tensor product evaluation
+   const Operator *elem_restr = fespace->GetElementRestriction(
+                                   ElementDofOrdering::NATIVE);
+   elem_restr->Mult(*nodes, Enodes);
+
+   unsigned eval_flags = 0;
+   if (flags & GeometricFactors::COORDINATES)
+   {
+      X.SetSize(vdim*NQ*NE);
+      eval_flags |= QuadratureInterpolator::VALUES;
+   }
+   if (flags & GeometricFactors::JACOBIANS)
+   {
+      J.SetSize(vdim*vdim*NQ*NE);
+      eval_flags |= QuadratureInterpolator::DERIVATIVES;
+   }
+   if (flags & GeometricFactors::DETERMINANTS)
+   {
+      detJ.SetSize(NQ*NE);
+      eval_flags |= QuadratureInterpolator::DETERMINANTS;
+   }
+
+   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
+   // For now, we are not using tensor product evaluation (not implemented)
+   qi->DisableTensorProducts();
+   qi->Mult(Enodes, eval_flags, X, J, detJ);
+}
+
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
                                                const double _s)
