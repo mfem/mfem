@@ -29,11 +29,9 @@ void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
              << "\n ... in file: " << file << ':' << line << '\n';
    mfem_error();
 }
-#endif
 
 void* CuMemAlloc(void** dptr, size_t bytes)
 {
-#ifdef MFEM_USE_CUDA
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "CuMemAlloc(): allocating " << bytes << " bytes ... "
              << std::flush;
@@ -42,13 +40,11 @@ void* CuMemAlloc(void** dptr, size_t bytes)
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "done: " << *dptr << std::endl;
 #endif
-#endif
    return *dptr;
 }
 
 void* CuMemFree(void *dptr)
 {
-#ifdef MFEM_USE_CUDA
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "CuMemFree(): deallocating memory @ " << dptr << " ... "
              << std::flush;
@@ -57,13 +53,11 @@ void* CuMemFree(void *dptr)
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "done." << std::endl;
 #endif
-#endif
    return dptr;
 }
 
 void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
-#ifdef MFEM_USE_CUDA
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "CuMemcpyHtoD(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
@@ -72,21 +66,17 @@ void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "done." << std::endl;
 #endif
-#endif
    return dst;
 }
 
 void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes)
 {
-#ifdef MFEM_USE_CUDA
    MFEM_CUDA_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyHostToDevice));
-#endif
    return dst;
 }
 
 void* CuMemcpyDtoD(void *dst, const void *src, size_t bytes)
 {
-#ifdef MFEM_USE_CUDA
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "CuMemcpyDtoD(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
@@ -95,21 +85,17 @@ void* CuMemcpyDtoD(void *dst, const void *src, size_t bytes)
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "done." << std::endl;
 #endif
-#endif
    return dst;
 }
 
 void* CuMemcpyDtoDAsync(void* dst, const void *src, size_t bytes)
 {
-#ifdef MFEM_USE_CUDA
    MFEM_CUDA_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToDevice));
-#endif
    return dst;
 }
 
 void* CuMemcpyDtoH(void *dst, const void *src, size_t bytes)
 {
-#ifdef MFEM_USE_CUDA
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "CuMemcpyDtoH(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
@@ -118,16 +104,15 @@ void* CuMemcpyDtoH(void *dst, const void *src, size_t bytes)
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "done." << std::endl;
 #endif
-#endif
    return dst;
 }
 
 void* CuMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
 {
-#ifdef MFEM_USE_CUDA
    MFEM_CUDA_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToHost));
-#endif
    return dst;
 }
+
+#endif
 
 } // namespace mfem

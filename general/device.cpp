@@ -230,11 +230,10 @@ void Device::Setup(const int device)
 
    ngpu = 0;
    dev = device;
-
-#ifndef MFEM_USE_CUDA
+/*#ifndef MFEM_USE_CUDA
    MFEM_VERIFY(!Allows(Backend::CUDA_MASK),
                "the CUDA backends require MFEM built with MFEM_USE_CUDA=YES");
-#endif
+               #endif*/
 #ifndef MFEM_USE_RAJA
    MFEM_VERIFY(!Allows(Backend::RAJA_MASK),
                "the RAJA backends require MFEM built with MFEM_USE_RAJA=YES");

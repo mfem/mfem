@@ -186,7 +186,7 @@ void CuWrap3D(const int N, DBODY &&d_body,
 template <typename BODY> __global__ static
 void HipKernel1D(const int N, BODY body)
 {
-   const int k = blockDim.x*blockIdx.x + threadIdx.x;
+   const int k = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
    if (k >= N) { return; }
    body(k);
 }
@@ -194,7 +194,7 @@ void HipKernel1D(const int N, BODY body)
 template <typename BODY> __global__ static
 void HipKernel2D(const int N, BODY body, const int BZ)
 {
-   const int k = blockIdx.x*BZ + threadIdx.z;
+   const int k = hipBlockIdx_x*BZ + hipThreadIdx_z;
    if (k >= N) { return; }
    body(k);
 }
@@ -202,7 +202,7 @@ void HipKernel2D(const int N, BODY body, const int BZ)
 template <typename BODY> __global__ static
 void HipKernel3D(const int N, BODY body)
 {
-   const int k = blockIdx.x;
+   const int k = hipBlockIdx_x;
    if (k >= N) { return; }
    body(k);
 }

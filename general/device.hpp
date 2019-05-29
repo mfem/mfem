@@ -66,7 +66,7 @@ struct Backend
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU,
       /// Biwise-OR of all CUDA backends
-      CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
+      CUDA_MASK = CUDA | ROCM | RAJA_CUDA | OCCA_CUDA,
       /// Biwise-OR of all ROCM backends
       ROCM_MASK = ROCM, // | RAJA_ROCM | OCCA_ROCM,
       /// Biwise-OR of all OpenMP backends

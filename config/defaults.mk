@@ -48,6 +48,7 @@ CUDA_XLINKER   = -Xlinker=
 
 # ROCM configuration options
 ROCM_CXX = hipcc
+ROCM_FLAGS = --amdgpu-target=gfx900 # link-time option
 
 ifneq ($(NOTMAC),)
    AR      = ar
@@ -56,7 +57,7 @@ ifneq ($(NOTMAC),)
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = so
    SO_VER  = so.$(MFEM_VERSION_STRING)
-   BUILD_SOFLAGS = -shared $(XLINKER)-soname,libmfem.$(SO_VER)
+   BUILD_SOFLAGS = -shared #$(XLINKER)-soname,libmfem.$(SO_VER)
    BUILD_RPATH = $(XLINKER)-rpath,$(BUILD_REAL_DIR)
    INSTALL_SOFLAGS = $(BUILD_SOFLAGS)
    INSTALL_RPATH = $(XLINKER)-rpath,@MFEM_LIB_DIR@
