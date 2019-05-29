@@ -27,6 +27,7 @@ MFEM makefile targets:
    make debug
    make pdebug
    make cuda
+   make rocm
    make pcuda
    make cudebug
    make pcudebug
@@ -61,6 +62,8 @@ make pdebug
    A shortcut to configure and build the parallel debug version of the library.
 make cuda
    A shortcut to configure and build the serial GPU/CUDA optimized version of the library.
+make rocm
+   A shortcut to configure and build the serial GPU/ROCM optimized version of the library.
 make pcuda
    A shortcut to configure and build the parallel GPU/CUDA optimized version of the library.
 make cudebug
@@ -159,7 +162,7 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- cuda pcuda cudebug pcudebug hpc style
+ cuda rocm pcuda cudebug pcudebug hpc style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -205,17 +208,28 @@ else
    ALL_LIBS += $(HYPRE_LIB)
 endif
 
-# CUDA configuration
-ifneq ($(MFEM_USE_CUDA),YES)
+# Default configuration
+ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_ROCM),NONO)
    MFEM_CXX ?= $(CXX_OR_MPICXX)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
-else
+endif
+
+ifeq ($(MFEM_USE_CUDA),YES)
    MFEM_CXX ?= $(CUDA_CXX)
    CXXFLAGS += $(CUDA_FLAGS) -ccbin $(CXX_OR_MPICXX)
    XCOMPILER = $(CUDA_XCOMPILER)
    XLINKER   = $(CUDA_XLINKER)
    # CUDA_OPT and CUDA_LIB are added below
+endif
+
+# ROCM configuration
+ifeq ($(MFEM_USE_ROCM),YES)
+   MFEM_CXX ?= $(ROCM_CXX)
+   CXXFLAGS += $(ROCM_FLAGS)
+   XCOMPILER = $(ROCM_XCOMPILER)
+   XLINKER   = $(ROCM_XLINKER)
+   # ROCM_OPT and ROCM_LIB are added below
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -248,7 +262,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA ROCM
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
@@ -293,7 +307,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO\
  MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF\
  MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI\
- MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_CUDA MFEM_USE_ROCM MFEM_USE_OCCA MFEM_USE_RAJA\
+ MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -367,7 +382,7 @@ OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
-	debug pdebug cuda pcuda cudebug pcudebug hpc style check test unittest \
+	debug pdebug cuda rocm pcuda cudebug pcudebug hpc style check test unittest \
 	deprecation-warnings
 
 .SUFFIXES:
@@ -419,11 +434,12 @@ $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	   $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
-serial debug cuda cudebug:      M_MPI=NO
-parallel pdebug pcuda pcudebug: M_MPI=YES
-serial parallel cuda pcuda:     M_DBG=NO
-debug pdebug cudebug pcudebug:  M_DBG=YES
-cuda pcuda cudebug pcudebug:    M_CUDA=YES
+serial debug cuda rocm cudebug:  M_MPI=NO
+parallel pdebug pcuda pcudebug:  M_MPI=YES
+serial parallel cuda rocm pcuda: M_DBG=NO
+debug pdebug cudebug pcudebug:   M_DBG=YES
+cuda pcuda cudebug pcudebug:     M_CUDA=YES
+rocm:                            M_ROCM=YES
 
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
@@ -433,6 +449,11 @@ serial parallel debug pdebug:
 cuda pcuda cudebug pcudebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
 	   MFEM_USE_CUDA=$(M_CUDA) $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
+
+rocm:
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
+	   MFEM_USE_ROCM=$(M_ROCM) $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 # Build with MPI and all Device backends enabled (requires OCCA and RAJA)
@@ -593,6 +614,7 @@ status info:
 	$(info MFEM_USE_CONDUIT       = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI          = $(MFEM_USE_PUMI))
 	$(info MFEM_USE_CUDA          = $(MFEM_USE_CUDA))
+	$(info MFEM_USE_ROCM          = $(MFEM_USE_ROCM))
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
