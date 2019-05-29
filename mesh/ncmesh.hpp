@@ -552,6 +552,9 @@ protected: // implementation
                 int fattr0, int fattr1,
                 int fattr2, int fattr3, int fattr4);
 
+   int NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
+                      int fattr0, int fattr1, int fattr2, int fattr3);
+
    int NewQuadrilateral(int n0, int n1, int n2, int n3, int attr,
                         int eattr0, int eattr1, int eattr2, int eattr3);
 
@@ -829,7 +832,7 @@ protected: // implementation
 
    static GeomInfo GI[Geometry::NumGeom];
 
-   static GeomInfo &gi_hex, &gi_wedge, &gi_quad, &gi_tri;
+   static GeomInfo &gi_hex, &gi_wedge, &gi_tet, &gi_quad, &gi_tri;
 
 #ifdef MFEM_DEBUG
 public:
