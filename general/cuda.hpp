@@ -67,7 +67,6 @@ namespace mfem
 // Function used by the macro MFEM_CUDA_CHECK.
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line);
-#endif
 
 /// Allocates device memory
 void* CuMemAlloc(void **d_ptr, size_t bytes);
@@ -92,6 +91,8 @@ void* CuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
 void* CuMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
+
+#endif
 
 } // namespace mfem
 

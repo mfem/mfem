@@ -226,6 +226,7 @@ endif
 # ROCM configuration
 ifeq ($(MFEM_USE_ROCM),YES)
    MFEM_CXX ?= $(ROCM_CXX)
+   ALL_LIBS += $(ROCM_FLAGS)
    # ROCM_OPT and ROCM_LIB are added below
 endif
 
