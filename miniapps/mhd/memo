@@ -28,6 +28,46 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+5/22
+Try this (is that for parallel?)
+   BlockOperator *darcyOp = new BlockOperator(block_trueOffsets);
+   darcyOp->SetBlock(0,0, M);
+   darcyOp->SetBlock(0,1, BT);
+   darcyOp->SetBlock(1,0, B);
+
+This is for serial:
+   BlockMatrix A = new BlockMatrix( offsets );
+   A->SetBlock(0,0, &A00);
+   A->SetBlock(0,1,  &A01);
+   A->SetBlock(1,0,  &A10);
+
+In pcshell, I need to
+KSPSetOperators(ksp1,Mdt,Mdt);
+KSPSolve(ksp1, b2, x2)
+KSPSolve(ksp1, b3, x3)
+
+Define three ksp in __mfem_pc_shell_ctx
+Then destroy them in __mfem_pc_shell_destroy
+
+MatMult(Mdt,x3,bTmp);
+bTmp=bTmp*dt+b1;
+KSPSetOperators(ksp2,K,K);
+KSPSolve(ksp2, b2, x2)
+
+See
+file:///Users/qtang/software/petsc-3.10.2/src/ksp/ksp/examples/tutorials/ex9.c.html
+
+Where should I initialize KSP?
+KSPCreate(PETSC_COMM_WORLD,&ksp1);
+KSPSetFromOptions(ksp1);
+KSPAppendOptionsPrefix(ksp2,"s1_");
+KSPCreate(PETSC_COMM_WORLD,&ksp2);
+KSPAppendOptionsPrefix(ksp2,"s2_");
+
+what would be a good initial guess? Use zero for now.
+
+
+
 5/21
 switch solver to true dofs for ImplicitSolve
 
