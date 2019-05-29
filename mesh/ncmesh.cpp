@@ -29,6 +29,7 @@ NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 
 NCMesh::GeomInfo& NCMesh::gi_hex   = NCMesh::GI[Geometry::CUBE];
 NCMesh::GeomInfo& NCMesh::gi_wedge = NCMesh::GI[Geometry::PRISM];
+NCMesh::GeomInfo& NCMesh::gi_tet   = NCMesh::GI[Geometry::TETRAHEDRON];
 NCMesh::GeomInfo& NCMesh::gi_quad  = NCMesh::GI[Geometry::SQUARE];
 NCMesh::GeomInfo& NCMesh::gi_tri   = NCMesh::GI[Geometry::TRIANGLE];
 
@@ -124,14 +125,10 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       const mfem::Element *elem = mesh->GetElement(i);
 
       Geometry::Type geom = elem->GetGeometryType();
-      if (geom != Geometry::TRIANGLE &&
-          geom != Geometry::SQUARE &&
-          geom != Geometry::CUBE &&
-          geom != Geometry::PRISM)
-      {
-         MFEM_ABORT("Only triangles, quads, hexes and prisms are supported "
-                    "by NCMesh.");
-      }
+      MFEM_VERIFY(geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
+                  geom == Geometry::CUBE || geom == Geometry::PRISM ||
+                  geom == Geometry::TETRAHEDRON,
+                  "Element type " << geom << " not supported by NCMesh.");
 
       // initialize edge/face tables for this type of element
       GI[geom].Initialize(elem);
@@ -515,6 +512,31 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
    f[2]->attribute = fattr2;
    f[3]->attribute = fattr3;
    f[4]->attribute = fattr4;
+
+   return new_id;
+}
+
+int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
+                           int fattr0, int fattr1, int fattr2, int fattr3)
+{
+   // create new unrefined element, initialize nodes
+   int new_id = AddElement(Element(Geometry::TETRAHEDRON, attr));
+   Element &el = elements[new_id];
+
+   el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
+
+   // get faces and assign face attributes
+   Face* f[4];
+   for (int i = 0; i < gi_tet.nf; i++)
+   {
+      const int* fv = gi_tet.faces[i];
+      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]], el.node[fv[2]]);
+   }
+
+   f[0]->attribute = fattr0;
+   f[1]->attribute = fattr1;
+   f[2]->attribute = fattr2;
+   f[3]->attribute = fattr3;
 
    return new_id;
 }
@@ -1271,6 +1293,68 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
       if (ref_type != 7) { Iso = false; }
    }
+   else if (el.Geom() == Geometry::TETRAHEDRON)
+   {
+      // Tetrahedron vertex numbering:
+      //
+      //    3
+      //     +                         Faces: 0 back (1, 2, 3)
+      //     |\\_                             1 left (0, 3, 2)
+      //     ||  \_                           2 front (0, 1, 3)
+      //     | \   \_                         3 bottom (0, 1, 2)
+      //     |  +__  \_
+      //     | /2  \__ \_       Z  Y
+      //     |/       \__\      | /
+      //     +------------+     *--X
+      //    0              1
+
+      ref_type = 7; // for consistence
+
+      int mid01 = GetMidEdgeNode(no[0], no[1]);
+      int mid12 = GetMidEdgeNode(no[1], no[2]);
+      int mid02 = GetMidEdgeNode(no[2], no[0]);
+
+      int mid03 = GetMidEdgeNode(no[0], no[3]);
+      int mid13 = GetMidEdgeNode(no[1], no[3]);
+      int mid23 = GetMidEdgeNode(no[2], no[3]);
+
+      child[0] = NewTetrahedron(no[0], mid01, mid02, mid03, attr,
+                                -1, fa[1], fa[2], fa[3]);
+
+      child[1] = NewTetrahedron(mid01, no[1], mid12, mid13, attr,
+                                fa[0], -1, fa[2], fa[3]);
+
+      child[2] = NewTetrahedron(mid02, mid12, no[2], mid23, attr,
+                                fa[0], fa[1], -1, fa[3]);
+
+      child[3] = NewTetrahedron(mid03, mid13, mid23, no[3], attr,
+                                fa[0], fa[1], fa[2], -1);
+
+      child[4] = NewTetrahedron(mid13, mid23, mid12, mid02, attr,
+                                -1, -1, -1, fa[0]);
+
+      child[5] = NewTetrahedron(mid23, mid03, mid02, mid13, attr,
+                                -1, -1, -1, fa[1]);
+
+      child[6] = NewTetrahedron(mid13, mid01, mid03, mid02, attr,
+                                -1, -1, -1, fa[2]);
+
+      child[7] = NewTetrahedron(mid12, mid02, mid01, mid13, attr,
+                                -1, -1, -1, fa[3]);
+
+      /*child[4] = NewTetrahedron(mid01, mid02, mid03, mid13, attr,
+                                -1, fa[2], -1, -1);
+
+      child[5] = NewTetrahedron(mid01, mid02, mid12, mid13, attr,
+                                -1, -1, -1, fa[3]);
+
+      child[6] = NewTetrahedron(mid02, mid03, mid13, mid23, attr,
+                                -1, -1, fa[1], -1);
+
+      child[7] = NewTetrahedron(mid02, mid12, mid13, mid23, attr,
+                                fa[0], -1, -1, -1);*/
+
+   }
    else if (el.Geom() == Geometry::SQUARE)
    {
       ref_type &= 0x3; // ignore Z bit
@@ -1872,6 +1956,7 @@ mfem::Element* NCMesh::NewMeshElement(int geom) const
    {
       case Geometry::CUBE: return new mfem::Hexahedron;
       case Geometry::PRISM: return new mfem::Wedge;
+      case Geometry::TETRAHEDRON: return new mfem::Tetrahedron;
       case Geometry::SQUARE: return new mfem::Quadrilateral;
       case Geometry::TRIANGLE: return new mfem::Triangle;
    }
@@ -1970,7 +2055,8 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex> &mvertices,
                }
                mboundary.Append(quad);
             }
-            else if (nc_elem.geom == Geometry::PRISM)
+            else if (nc_elem.geom == Geometry::PRISM ||
+                     nc_elem.geom == Geometry::TETRAHEDRON)
             {
                MFEM_ASSERT(nfv == 3, "");
                Triangle* tri = new Triangle;
