@@ -936,7 +936,7 @@ double Vector::operator*(const Vector &v) const
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
    const bool use_dev = UseDevice() || v.UseDevice();
-#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_OPENMP)
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_ROCM) || defined(MFEM_USE_OPENMP)
    auto m_data = Read(use_dev);
 #else
    Read(use_dev);
@@ -960,6 +960,21 @@ double Vector::operator*(const Vector &v) const
    }
 #endif
 
+#ifdef MFEM_USE_ROCM
+   if (Device::Allows(Backend::ROCM_MASK))
+   {
+      auto m_data = HostRead();
+      auto v_data = v.HostRead();
+      double prod = 0.0;
+      const int N = size;
+      for (int i = 0; i < size; i++)
+      {
+         prod += m_data[i] * v_data[i];
+      }
+      return prod;
+   }
+#endif
+
 #ifdef MFEM_USE_OPENMP
    if (Device::Allows(Backend::OMP_MASK))
    {
@@ -972,7 +987,6 @@ double Vector::operator*(const Vector &v) const
       return prod;
    }
 #endif
-
 vector_dot_cpu:
    return operator*(v_data);
 }
