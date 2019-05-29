@@ -158,6 +158,7 @@ protected:
    static bool DofFinalizable(int dof, const Array<bool>& finalized,
                               const SparseMatrix& deps);
 
+   /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
    /// GridFunction interpolation operator applicable after mesh refinement.
