@@ -70,8 +70,8 @@ int main(int argc, char *argv[])
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
    if (order > 0)
-   {
-      fec = new H1_FECollection(order, dim);
+   { 
+      fec = new H1Ser_FECollection(order, dim);
    }
    else if (mesh->GetNodes())
    {

@@ -162,6 +162,10 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       fec = new H1Pos_FECollection(atoi(name + 10), atoi(name + 6));
    }
+   else if (!strncmp(name, "H1Ser_", 6))
+   {
+      fec = new H1Ser_FECollection(atoi(name + 10), atoi(name + 6));
+   }
    else if (!strncmp(name, "H1@", 3))
    {
       fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
@@ -1520,6 +1524,12 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          snprintf(h1_name, 32, "H1Pos_%dD_P%d", dim, p);
          break;
       }
+      //      case BasisType::Serendipity:
+      //{
+      //   snprintf(h1_name, 32, "H1_%dD_P%d", dim, p);
+      //	 // Need to change to H1Ser_%dD_P%d and understand what effect that has
+      //   break;
+      //}
       default:
       {
          MFEM_VERIFY(Quadrature1D::CheckClosed(pt_type) !=
@@ -1557,7 +1567,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       H1_dof[Geometry::SEGMENT] = pm1;
       if (b_type == BasisType::Positive)
       {
-         H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
+	  H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
       }
       else
       {
@@ -1581,6 +1591,10 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       {
          H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
          H1_Elements[Geometry::SQUARE] = new H1Pos_QuadrilateralElement(p);
+      }
+      else if (b_type == BasisType::Serendipity)
+      {
+	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p, btype);
       }
       else
       {
@@ -2464,6 +2478,11 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    {
       GeomType = Geometry::SQUARE;
       Local_Element = new H1Pos_QuadrilateralElement(atoi(fe_name + 10));
+   }
+   else if (!strncmp(fe_name, "H1Ser_", 6))
+   {
+      GeomType = Geometry::SQUARE;
+      Local_Element = new H1Ser_QuadrilateralElement(atoi(fe_name + 10));
    }
    else if (!strncmp(fe_name, "L2_", 3))
    {

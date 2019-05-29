@@ -33,6 +33,7 @@ public:
       GaussLegendre   = 0,  ///< Open type
       GaussLobatto    = 1,  ///< Closed type
       Positive        = 2,  ///< Bernstein polynomials
+      Serendipity     = GaussLobatto,  ///< Serendipity basis, eventually
       OpenUniform     = 3,  ///< Nodes: x_i = (i+1)/(n+1), i=0,...,n-1
       ClosedUniform   = 4,  ///< Nodes: x_i = i/(n-1),     i=0,...,n-1
       OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
@@ -1966,6 +1967,28 @@ public:
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
+
+
+
+
+class H1Ser_QuadrilateralElement : public NodalTensorFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, dshape_x, dshape_y;
+#endif
+
+public:
+  H1Ser_QuadrilateralElement(const int p,
+                             const int btype = BasisType::Serendipity);
+  virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+  virtual void CalcDShape(const IntegrationPoint &ip,
+			  DenseMatrix &dshape) const;
+  virtual void ProjectDelta(int vertex, Vector &dofs) const;
+};
+
+
+
 
 
 class H1Pos_HexahedronElement : public PositiveTensorFiniteElement

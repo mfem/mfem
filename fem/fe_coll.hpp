@@ -120,6 +120,16 @@ public:
       : H1_FECollection(p, dim, BasisType::Positive) { }
 };
 
+  
+/** Arbitrary order H1-conforming (continuous) serendipity finite elements. */
+class H1Ser_FECollection : public H1_FECollection
+{
+public:
+   explicit H1Ser_FECollection(const int p, const int dim = 3)
+     : H1_FECollection(p, dim, BasisType::Serendipity) { }
+};
+
+
 /** Arbitrary order "H^{1/2}-conforming" trace finite elements defined on the
     interface between mesh elements (faces,edges,vertices); these are the trace
     FEs of the H1-conforming FEs. */
