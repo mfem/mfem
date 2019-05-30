@@ -1524,12 +1524,11 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          snprintf(h1_name, 32, "H1Pos_%dD_P%d", dim, p);
          break;
       }
-      //      case BasisType::Serendipity:
-      //{
-      //   snprintf(h1_name, 32, "H1_%dD_P%d", dim, p);
-      //	 // Need to change to H1Ser_%dD_P%d and understand what effect that has
-      //   break;
-      //}
+      case BasisType::Serendipity:
+      {
+	 snprintf(h1_name, 32, "H1Ser_%dD_P%d", dim, p);
+	 break;
+      }
       default:
       {
          MFEM_VERIFY(Quadrature1D::CheckClosed(pt_type) !=
@@ -1591,11 +1590,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       {
          H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
          H1_Elements[Geometry::SQUARE] = new H1Pos_QuadrilateralElement(p);
-      }
-      else if (b_type == BasisType::Serendipity)
-      {
-        H1_Elements[Geometry::SQUARE] = new SerQuad2DFiniteElement();
-	//	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p, btype);
       }
       else
       {
@@ -2455,6 +2449,7 @@ ND_Trace_FECollection::ND_Trace_FECollection(const int p, const int dim,
 Local_FECollection::Local_FECollection(const char *fe_name)
 {
    snprintf(d_name, 32, "Local_%s", fe_name);
+   cout << "fe_name is" << fe_name << "\n";
 
    Local_Element = NULL;
 
@@ -2483,7 +2478,8 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    else if (!strncmp(fe_name, "H1Ser_", 6))
    {
       GeomType = Geometry::SQUARE;
-      Local_Element = new H1Ser_QuadrilateralElement(atoi(fe_name + 10));
+      Local_Element = new H1Ser_QuadrilateralElement();
+      cout << "in fe_coll.cpp: using SerQuad2DFiniteElement" << "\n"; 
    }
    else if (!strncmp(fe_name, "L2_", 3))
    {

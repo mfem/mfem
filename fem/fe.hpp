@@ -33,11 +33,11 @@ public:
       GaussLegendre   = 0,  ///< Open type
       GaussLobatto    = 1,  ///< Closed type
       Positive        = 2,  ///< Bernstein polynomials
-      Serendipity     = GaussLobatto,  ///< Serendipity basis, eventually
       OpenUniform     = 3,  ///< Nodes: x_i = (i+1)/(n+1), i=0,...,n-1
       ClosedUniform   = 4,  ///< Nodes: x_i = i/(n-1),     i=0,...,n-1
       OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
-      NumBasisTypes   = 6   /**< Keep track of maximum types to prevent
+      Serendipity     = 6,  ///< Serendipity basis (squares / cubes)
+      NumBasisTypes   = 7   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
    /** @brief If the input does not represents a valid BasisType, abort with an
@@ -111,6 +111,7 @@ public:
          case 'u': return OpenUniform;
          case 'U': return ClosedUniform;
          case 'o': return OpenHalfUniform;
+         case 's': return GaussLobatto;
       }
       MFEM_ABORT("unknown BasisType identifier");
       return -1;
@@ -523,7 +524,7 @@ public:
    {
       const int q_type = BasisType::GetQuadrature1D(b_type);
       return ((q_type != Quadrature1D::Invalid) &&
-              (Quadrature1D::CheckClosed(q_type) != Quadrature1D::Invalid));
+	       (Quadrature1D::CheckClosed(q_type) != Quadrature1D::Invalid));
    }
 
    static bool IsOpenType(int b_type)
@@ -1021,28 +1022,6 @@ public:
    // virtual void ProjectDelta(int vertex, Vector &dofs) const { dofs = 1.; }
 };
 
-
-
-/// Class for quadratic order serendipity FE on a quadrilateral
-class SerQuad2DFiniteElement : public NodalFiniteElement
-{
-public:
-   /// Construct a quadratic order serendipity FE on a quadrilateral
-   SerQuad2DFiniteElement();
-
-   /** virtual function which evaluates the values of all
-       shape functions at a given point ip and stores
-       them in the vector shape of dimension Dof (8) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-
-   /** virtual function which evaluates the values of all
-       partial derivatives of all shape functions at a given
-       point ip and stores them in the matrix dshape (Dof x Dim) (8 x 2)
-       so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
-};
 
 
 class BiCubic2DFiniteElement : public NodalFiniteElement
@@ -1996,20 +1975,36 @@ public:
 
 
 
-class H1Ser_QuadrilateralElement : public NodalTensorFiniteElement
-{
-private:
-#ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, dshape_x, dshape_y;
-#endif
+// class H1Ser_QuadrilateralElement : public NodalFiniteElement
+// {
+// private:
+// #ifndef MFEM_THREAD_SAFE
+//  mutable Vector shape_x, shape_y, dshape_x, dshape_y;
+// #endif
+//
+// public:
+//   H1Ser_QuadrilateralElement(const int p,
+//                              const int btype = BasisType::Serendipity);
+//   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+//   virtual void CalcDShape(const IntegrationPoint &ip,
+// 			  DenseMatrix &dshape) const;
+//   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+// };
 
+
+/// Class for quadratic order serendipity FE on a square
+//class SerQuad2DFiniteElement : public NodalFiniteElement
+
+class H1Ser_QuadrilateralElement : public NodalFiniteElement
+{
 public:
-  H1Ser_QuadrilateralElement(const int p,
-                             const int btype = BasisType::Serendipity);
-  virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-  virtual void CalcDShape(const IntegrationPoint &ip,
-			  DenseMatrix &dshape) const;
-  virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   /// Construct a quadratic order serendipity FE on a quadrilateral
+   ////SerQuad2DFiniteElement();
+   H1Ser_QuadrilateralElement();
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
 

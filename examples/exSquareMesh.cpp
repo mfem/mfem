@@ -71,8 +71,9 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-     fec = new H1_FECollection(order, dim);
-     //fec = new H1Ser_FECollection(order, dim);
+     //fec = new H1_FECollection(order, dim);
+     fec = new H1Ser_FECollection(2, 2);
+     cout << "*** Requested H1Ser_FECollection of order " << order << ", but order 2 is hardcoded. ***" << endl;
    }
    else if (mesh->GetNodes())
    {

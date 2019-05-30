@@ -1751,10 +1751,13 @@ void BiQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 }
 
 
-// begin serendipity code asdf
+// begin quadratic serendipity hard code asdf
 
-SerQuad2DFiniteElement::SerQuad2DFiniteElement()
-   : NodalFiniteElement(2, Geometry::SQUARE, 8, 2, FunctionSpace::Pk)
+// SerQuad2DFiniteElement::SerQuad2DFiniteElement()
+//   : NodalFiniteElement(2, Geometry::SQUARE, 8, 2, FunctionSpace::Pk)
+
+H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement()
+  : NodalFiniteElement(2, Geometry::SQUARE, 8, 2, FunctionSpace::Pk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -1774,8 +1777,11 @@ SerQuad2DFiniteElement::SerQuad2DFiniteElement()
    Nodes.IntPoint(7).y = 0.5;
 }
 
-void SerQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
-                                      Vector &shape) const
+//void SerQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
+//				       Vector &shape) const
+
+void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
+                                           Vector &shape) const
 { 
    double x = ip.x, y = ip.y;
 
@@ -1791,7 +1797,10 @@ void SerQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 
 
 
- void SerQuad2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
+//void SerQuad2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
+//                                       DenseMatrix &dshape) const
+
+void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
    double x = ip.x, y = ip.y;
@@ -1822,8 +1831,9 @@ void SerQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 }
 
 
-void SerQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
-{ // Prob won't work - try H1 Quad element code
+//void SerQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
+void H1Ser_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
+{
    dofs = 0.;
    dofs(vertex) = 1.;
    switch (vertex)
@@ -1833,7 +1843,7 @@ void SerQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
       case 2: dofs(5) = 0.25; dofs(6) = 0.25; break;
       case 3: dofs(6) = 0.25; dofs(7) = 0.25; break;
    }
-   dofs(8) = 1./16.;
+   // May need to adjust edge dofs here - they evaluate to 1/4 at their associated edge midpoint
 } 
 
 
@@ -7708,33 +7718,100 @@ H1Pos_QuadrilateralElement::H1Pos_QuadrilateralElement(const int p)
 }
 
 
-H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p, const int btype)
-  : NodalTensorFiniteElement(2, p, VerifyNodal(btype), H1_DOF_MAP)
-{
-  // just making it a tensor element for now
-  //  cout << "btype" << btype << "\n";
-  cout << "b_type" << b_type << "\n";
+// H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p, const int btype)
+//   : NodalFiniteElement(2, Geometry::SQUARE, 8, 2, FunctionSpace::Pk)
+// {
+//   cout << "in fe.cpp: asdf" << endl;
+// }
+
+// void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
+//                                            Vector &shape) const
+// { // This is just the H1_Quad method for now
+//   const int p = Order;
+     
+// #ifdef MFEM_THREAD_SAFE
+//      Vector shape_x(p+1), shape_y(p+1);
+// #endif
+   
+//    basis1d.Eval(ip.x, shape_x);
+//    basis1d.Eval(ip.y, shape_y);
+   
+//    for (int o = 0, j = 0; j <= p; j++)
+//      for (int i = 0; i <= p; i++)
+// 	{
+// 	shape(dof_map[o++]) = shape_x(i)*shape_y(j);
+//       }
+// }
+
+// void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
+//                                             DenseMatrix &dshape) const
+// { // This is just the H1_Quad method for now
+//   const int p = Order;
   
-  const double *cp = poly1d.ClosedPoints(p, b_type);
+// #ifdef MFEM_THREAD_SAFE
+//   Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1);
+// #endif
   
-#ifndef MFEM_THREAD_SAFE
-  const int p1 = p + 1;
+//   basis1d.Eval(ip.x, shape_x, dshape_x);
+//   basis1d.Eval(ip.y, shape_y, dshape_y);
   
-  shape_x.SetSize(p1);
-  shape_y.SetSize(p1);
-  dshape_x.SetSize(p1);
-  dshape_y.SetSize(p1);
-#endif
+//   for (int o = 0, j = 0; j <= p; j++)
+//     {
+//       for (int i = 0; i <= p; i++)
+// 	{
+// 	  dshape(dof_map[o],0) = dshape_x(i)* shape_y(j);
+// 	  dshape(dof_map[o],1) =  shape_x(i)*dshape_y(j);  o++;
+// 	}
+//     }
+// }
+
+// void H1Ser_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
+// { // This is just the H1_quad method for now 
+//   const int p = Order;
+//   const double *cp = poly1d.ClosedPoints(p, b_type);
   
-  int o = 0;
-  for (int j = 0; j <= p; j++)
-    {
-      for (int i = 0; i <= p; i++)
-	{
-	  Nodes.IntPoint(dof_map[o++]).Set2(cp[i], cp[j]);
-	}
-    } 
-}
+// #ifdef MFEM_THREAD_SAFE
+//   Vector shape_x(p+1), shape_y(p+1);
+// #endif
+  
+//   for (int i = 0; i <= p; i++)
+//     {
+//       shape_x(i) = poly1d.CalcDelta(p, (1.0 - cp[i]));
+//       shape_y(i) = poly1d.CalcDelta(p, cp[i]);
+//     }
+  
+//   switch (vertex)
+//     {
+//     case 0:
+//       for (int o = 0, j = 0; j <= p; j++)
+// 	for (int i = 0; i <= p; i++)
+// 	  {
+// 	    dofs(dof_map[o++]) = shape_x(i)*shape_x(j);
+// 	  }
+//       break;
+//     case 1:
+//       for (int o = 0, j = 0; j <= p; j++)
+// 	for (int i = 0; i <= p; i++)
+//             {
+// 	      dofs(dof_map[o++]) = shape_y(i)*shape_x(j);
+//             }
+//       break;
+//     case 2:
+//       for (int o = 0, j = 0; j <= p; j++)
+// 	for (int i = 0; i <= p; i++)
+// 	  {
+// 	    dofs(dof_map[o++]) = shape_y(i)*shape_y(j);
+// 	  }
+//       break;
+//     case 3:
+//       for (int o = 0, j = 0; j <= p; j++)
+// 	for (int i = 0; i <= p; i++)
+// 	  {
+// 	    dofs(dof_map[o++]) = shape_x(i)*shape_y(j);
+// 	  }
+//       break;
+//     }
+// }
 
 
 
@@ -7758,24 +7835,6 @@ void H1Pos_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
       }
 }
 
-void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
-                                           Vector &shape) const
-{ // This is just the H1_Quad method for now
-  const int p = Order;
-     
-#ifdef MFEM_THREAD_SAFE
-     Vector shape_x(p+1), shape_y(p+1);
-#endif
-   
-   basis1d.Eval(ip.x, shape_x);
-   basis1d.Eval(ip.y, shape_y);
-   
-   for (int o = 0, j = 0; j <= p; j++)
-     for (int i = 0; i <= p; i++)
-	{
-	shape(dof_map[o++]) = shape_x(i)*shape_y(j);
-      }
-}
 
 
 void H1Pos_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
@@ -7800,27 +7859,6 @@ void H1Pos_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 
-void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
-                                            DenseMatrix &dshape) const
-{ // This is just the H1_Quad method for now
-  const int p = Order;
-  
-#ifdef MFEM_THREAD_SAFE
-  Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1);
-#endif
-  
-  basis1d.Eval(ip.x, shape_x, dshape_x);
-  basis1d.Eval(ip.y, shape_y, dshape_y);
-  
-  for (int o = 0, j = 0; j <= p; j++)
-    {
-      for (int i = 0; i <= p; i++)
-	{
-	  dshape(dof_map[o],0) = dshape_x(i)* shape_y(j);
-	  dshape(dof_map[o],1) =  shape_x(i)*dshape_y(j);  o++;
-	}
-    }
-}
 
 
 void H1Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
@@ -7830,53 +7868,6 @@ void H1Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 }
 
 
-void H1Ser_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
-{ // This is just the H1_quad method for now 
-  const int p = Order;
-  const double *cp = poly1d.ClosedPoints(p, b_type);
-  
-#ifdef MFEM_THREAD_SAFE
-  Vector shape_x(p+1), shape_y(p+1);
-#endif
-  
-  for (int i = 0; i <= p; i++)
-    {
-      shape_x(i) = poly1d.CalcDelta(p, (1.0 - cp[i]));
-      shape_y(i) = poly1d.CalcDelta(p, cp[i]);
-    }
-  
-  switch (vertex)
-    {
-    case 0:
-      for (int o = 0, j = 0; j <= p; j++)
-	for (int i = 0; i <= p; i++)
-	  {
-	    dofs(dof_map[o++]) = shape_x(i)*shape_x(j);
-	  }
-      break;
-    case 1:
-      for (int o = 0, j = 0; j <= p; j++)
-	for (int i = 0; i <= p; i++)
-            {
-	      dofs(dof_map[o++]) = shape_y(i)*shape_x(j);
-            }
-      break;
-    case 2:
-      for (int o = 0, j = 0; j <= p; j++)
-	for (int i = 0; i <= p; i++)
-	  {
-	    dofs(dof_map[o++]) = shape_y(i)*shape_y(j);
-	  }
-      break;
-    case 3:
-      for (int o = 0, j = 0; j <= p; j++)
-	for (int i = 0; i <= p; i++)
-	  {
-	    dofs(dof_map[o++]) = shape_x(i)*shape_y(j);
-	  }
-      break;
-    }
-}
 
 
 H1Pos_HexahedronElement::H1Pos_HexahedronElement(const int p)

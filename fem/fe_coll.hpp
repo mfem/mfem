@@ -125,7 +125,7 @@ public:
 class H1Ser_FECollection : public H1_FECollection
 {
 public:
-   explicit H1Ser_FECollection(const int p, const int dim = 3)
+   explicit H1Ser_FECollection(const int p, const int dim = 2)
      : H1_FECollection(p, dim, BasisType::Serendipity) { }
 };
 
