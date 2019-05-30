@@ -86,8 +86,9 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(cout);
+   // args.PrintOptions(cout);
 
+   cout << "mesh = " << mesh_file << ", order = " << order << endl;
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -106,11 +107,16 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      for (int k = 0; k < 3-log2(order); k++) { ref_levels++; }
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
+
+   StopWatch chrono;
+   chrono.Clear();
+   chrono.Start();
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -130,8 +136,8 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   cout << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
+   // cout << "Number of finite element unknowns: "
+   //      << fespace->GetTrueVSize() << endl;
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -196,11 +202,15 @@ int main(int argc, char *argv[])
    }
    else // No preconditioning for now in partial assembly mode.
    {
-      CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+      // CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+      CG(*A, B, X, -1, 200, 0.0, 0.0);
    }
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
+
+   chrono.Stop();
+   std::cout << "It took " << chrono.RealTime() << endl;
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".

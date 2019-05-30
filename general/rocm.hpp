@@ -42,9 +42,9 @@
 #if defined(MFEM_USE_ROCM) && defined(__ROCM_ARCH__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
-#define MFEM_THREAD_ID(k) hipThreadIdx_ #k
-#define MFEM_THREAD_SIZE(k) hipBlockDim_ #k
-#define MFEM_FOREACH_THREAD(i,k,N) for(int i=hipThreadIdx_ #k; i<N; i+=hipBlockDim_ #k)
+#define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
+#define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
+#define MFEM_FOREACH_THREAD(i,k,N) for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
 #else
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
