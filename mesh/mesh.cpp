@@ -4920,6 +4920,8 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
 
 void Mesh::ReorientTetMesh()
 {
+   MFEM_ABORT("test");
+
    int *v;
 
    if (Dim != 3 || !(meshgen & 1))
@@ -7154,28 +7156,14 @@ void Mesh::UniformRefinement(int ref_algo)
    {
       NURBSUniformRefinement();
    }
-   else if (ref_algo == 0 && Dim == 3 && meshgen == 1)
-   {
-      UniformRefinement3D();
-   }
-   else if (meshgen == 1 || ncmesh)
+   else if (ncmesh)
    {
       Array<int> elem_to_refine(GetNE());
       for (int i = 0; i < elem_to_refine.Size(); i++)
       {
          elem_to_refine[i] = i;
       }
-
-      if (Conforming())
-      {
-         // In parallel we should set the default 2nd argument to -3 to indicate
-         // uniform refinement.
-         LocalRefinement(elem_to_refine);
-      }
-      else
-      {
-         GeneralRefinement(elem_to_refine, 1);
-      }
+      GeneralRefinement(elem_to_refine, 1);
    }
    else
    {
@@ -7256,7 +7244,7 @@ void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
    GeneralRefinement(refinements, nonconforming, nc_limit);
 }
 
-void Mesh::EnsureNCMesh(bool triangles_nonconforming)
+void Mesh::EnsureNCMesh(bool simplices_nonconforming)
 {
    MFEM_VERIFY(!NURBSext, "Cannot convert a NURBS mesh to an NC mesh. "
                "Project the NURBS to Nodes first.");
@@ -7265,7 +7253,7 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
    {
       if ((meshgen & 0x2) /* quads/hexes */ ||
           (meshgen & 0x4) /* wedges */ ||
-          (triangles_nonconforming && Dim == 2 && (meshgen & 0x1)))
+          (simplices_nonconforming && (meshgen & 0x1)))
       {
          /*MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
                      "mixed meshes are not supported");*/
