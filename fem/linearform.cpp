@@ -138,7 +138,11 @@ void LinearForm::Assemble()
          eltrans = fes -> GetBdrElementTransformation (i);
          for (int k=0; k < blfi.Size(); k++)
          {
+            if (blfi_marker[k] &&
+                (*blfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
             blfi[k]->AssembleRHSElementVect(*fes->GetBE(i), *eltrans, elemvect);
+
             AddElementVector (vdofs, elemvect);
          }
       }
