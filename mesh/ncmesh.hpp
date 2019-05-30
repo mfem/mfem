@@ -430,6 +430,7 @@ protected: // implementation
       char geom;     ///< Geometry::Type of the element (char for storage only)
       char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
       char flag;     ///< generic flag/marker, can be used by algorithms
+      char tet_type; ///< tetrahedron refinement class (0/1)
       int index;     ///< element number in the Mesh, -1 if refined
       int rank;      ///< processor number (ParNCMesh), -1 if undefined/unknown
       int attribute;
@@ -552,7 +553,7 @@ protected: // implementation
                 int fattr0, int fattr1,
                 int fattr2, int fattr3, int fattr4);
 
-   int NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
+   int NewTetrahedron(int type, int n0, int n1, int n2, int n3, int attr,
                       int fattr0, int fattr1, int fattr2, int fattr3);
 
    int NewQuadrilateral(int n0, int n1, int n2, int n3, int attr,

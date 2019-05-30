@@ -445,8 +445,8 @@ int NCMesh::Face::GetSingleElement() const
 //// Refinement ////////////////////////////////////////////////////////////////
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
-   : geom(geom), ref_type(0), flag(0), index(-1), rank(0), attribute(attr)
-   , parent(-1)
+   : geom(geom), ref_type(0), flag(0), tet_type(0)
+   , index(-1), rank(0), attribute(attr), parent(-1)
 {
    for (int i = 0; i < 8; i++) { node[i] = -1; }
 
@@ -516,13 +516,14 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
    return new_id;
 }
 
-int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
+int NCMesh::NewTetrahedron(int type, int n0, int n1, int n2, int n3, int attr,
                            int fattr0, int fattr1, int fattr2, int fattr3)
 {
    // create new unrefined element, initialize nodes
    int new_id = AddElement(Element(Geometry::TETRAHEDRON, attr));
    Element &el = elements[new_id];
 
+   el.tet_type = type;
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
 
    // get faces and assign face attributes
@@ -1169,13 +1170,13 @@ void NCMesh::RefineElement(int elem, char ref_type)
       // Wedge vertex numbering:
       //
       //          5
-      //          +
-      //        / | \                     Faces: 0 bottom
+      //         _+_
+      //       _/ | \_                    Faces: 0 bottom
       //    3 /   |   \ 4                        1 top
       //     +---------+                         2 front
       //     |    |    |                         3 right (1 2 5 4)
-      //     |    +    |                         4 left (2 0 3 5)
-      //     |  / 2 \  |           Z  Y
+      //     |   _+_   |                         4 left (2 0 3 5)
+      //     | _/ 2 \_ |           Z  Y
       //     |/       \|           | /
       //     +---------+           *--X
       //    0           1
@@ -1318,42 +1319,68 @@ void NCMesh::RefineElement(int elem, char ref_type)
       int mid13 = GetMidEdgeNode(no[1], no[3]);
       int mid23 = GetMidEdgeNode(no[2], no[3]);
 
-      child[0] = NewTetrahedron(no[0], mid01, mid02, mid03, attr,
+      child[0] = NewTetrahedron(el.tet_type,
+                                no[0], mid01, mid02, mid03, attr,
                                 -1, fa[1], fa[2], fa[3]);
 
-      child[1] = NewTetrahedron(mid01, no[1], mid12, mid13, attr,
+      child[1] = NewTetrahedron(el.tet_type,
+                                mid01, no[1], mid12, mid13, attr,
                                 fa[0], -1, fa[2], fa[3]);
 
-      child[2] = NewTetrahedron(mid02, mid12, no[2], mid23, attr,
+      child[2] = NewTetrahedron(el.tet_type,
+                                mid02, mid12, no[2], mid23, attr,
                                 fa[0], fa[1], -1, fa[3]);
 
-      child[3] = NewTetrahedron(mid03, mid13, mid23, no[3], attr,
+      child[3] = NewTetrahedron(el.tet_type,
+                                mid03, mid13, mid23, no[3], attr,
                                 fa[0], fa[1], fa[2], -1);
 
-      child[4] = NewTetrahedron(mid13, mid23, mid12, mid02, attr,
+#if 0
+      child[4] = NewTetrahedron(0, mid13, mid23, mid12, mid02, attr,
                                 -1, -1, -1, fa[0]);
 
-      child[5] = NewTetrahedron(mid23, mid03, mid02, mid13, attr,
+      child[5] = NewTetrahedron(0, mid23, mid03, mid02, mid13, attr,
                                 -1, -1, -1, fa[1]);
 
-      child[6] = NewTetrahedron(mid13, mid01, mid03, mid02, attr,
+      child[6] = NewTetrahedron(0, mid13, mid01, mid03, mid02, attr,
                                 -1, -1, -1, fa[2]);
 
-      child[7] = NewTetrahedron(mid12, mid02, mid01, mid13, attr,
+      child[7] = NewTetrahedron(0, mid12, mid02, mid01, mid13, attr,
                                 -1, -1, -1, fa[3]);
+#else
+      int node4 = mid01, node5 = mid12, node6 = mid02;
+      int node7 = mid03, node8 = mid13, node9 = mid23;
 
-      /*child[4] = NewTetrahedron(mid01, mid02, mid03, mid13, attr,
-                                -1, fa[2], -1, -1);
+      if (el.tet_type == 0)
+      {
+         child[4] = NewTetrahedron(0, node8, node7, node9, node4, attr,
+                                   -1, -1, -1, -1);
 
-      child[5] = NewTetrahedron(mid01, mid02, mid12, mid13, attr,
-                                -1, -1, -1, fa[3]);
+         child[5] = NewTetrahedron(0, node8, node5, node4, node9, attr,
+                                   -1, -1, -1, -1);
 
-      child[6] = NewTetrahedron(mid02, mid03, mid13, mid23, attr,
-                                -1, -1, fa[1], -1);
+         child[6] = NewTetrahedron(1, node6, node4, node5, node9, attr,
+                                   -1, -1, -1, -1);
 
-      child[7] = NewTetrahedron(mid02, mid12, mid13, mid23, attr,
-                                fa[0], -1, -1, -1);*/
+         child[7] = NewTetrahedron(1, node9, node6, node4, node7, attr,
+                                   -1, -1, -1, -1);
+      }
+      else
+      {
+         child[4] = NewTetrahedron(1, node4, node7, node8, node6, attr,
+                                   -1, -1, -1, -1);
 
+         child[5] = NewTetrahedron(1, node4, node5, node6, node8, attr,
+                                   -1, -1, -1, -1);
+
+         child[6] = NewTetrahedron(0, node9, node6, node5, node8, attr,
+                                   -1, -1, -1, -1);
+
+         child[7] = NewTetrahedron(0, node9, node8, node7, node6, attr,
+                                   -1, -1, -1, -1);
+      }
+
+#endif
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
