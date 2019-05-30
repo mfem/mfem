@@ -187,6 +187,7 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       InitRootState(mesh->GetNE());
    }
    InitGeomFlags();
+   InitTetTypes();
 
    Update();
 }
@@ -213,6 +214,35 @@ void NCMesh::InitGeomFlags()
    for (int i = 0; i < root_state.Size(); i++)
    {
       Geoms |= (1 << elements[i].Geom());
+   }
+}
+
+void NCMesh::InitTetTypes()
+{
+   if (!HaveTets()) { return; }
+
+   MFEM_VERIFY(top_vertex_pos.Size(), "");
+   tmp_vertex = new TmpVertex[nodes.NumIds()];
+
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      Element &el = elements[leaf_elements[i]];
+      el.tet_type = GetTetType(el);
+   }
+
+   delete [] tmp_vertex;
+}
+
+void NCMesh::PrintTetTypes(const Element* el)
+{
+
+}
+
+void NCMesh::PrintTetTypes()
+{
+   for (int i = 0; i < root_state.Size(); i++)
+   {
+      PrintTetTypes(elements[i]);
    }
 }
 
@@ -523,8 +553,9 @@ int NCMesh::NewTetrahedron(int type, int n0, int n1, int n2, int n3, int attr,
    int new_id = AddElement(Element(Geometry::TETRAHEDRON, attr));
    Element &el = elements[new_id];
 
-   el.tet_type = type;
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
+
+   el.tet_type = (type < 0) ? GetTetType(el) : type;
 
    // get faces and assign face attributes
    Face* f[4];
@@ -540,6 +571,44 @@ int NCMesh::NewTetrahedron(int type, int n0, int n1, int n2, int n3, int attr,
    f[3]->attribute = fattr3;
 
    return new_id;
+}
+
+static void midpoint(const double *p1, const double *p2, double *mid)
+{
+   for (int i = 0; i < 3; i++)
+   {
+      mid[i] = (p1[i] + p2[i])*0.5;
+   }
+}
+
+static double distance2(const double *p1, const double *p2)
+{
+   double a = p1[0] - p2[0];
+   double b = p1[1] - p2[1];
+   double c = p1[2] - p2[2];
+   return a*a + b*b + c*c;
+}
+
+int NCMesh::GetTetType(const Element &el)
+{
+   MFEM_ASSERT(el.Geom() == Geometry::TETRAHEDRON, "");
+
+   const double* v0 = CalcVertexPos(el.node[0]);
+   const double* v1 = CalcVertexPos(el.node[1]);
+   const double* v2 = CalcVertexPos(el.node[2]);
+   const double* v3 = CalcVertexPos(el.node[3]);
+
+   double m01[3], m12[3], m20[3], m03[3], m13[3], m23[3];
+   midpoint(v0, v1, m01); midpoint(v1, v2, m12); midpoint(v2, v0, m20);
+   midpoint(v0, v3, m03); midpoint(v1, v3, m13); midpoint(v2, v3, m23);
+
+   double d0 = distance2(m01, m23);
+   double d1 = distance2(m12, m03);
+   double d2 = distance2(m20, m13);
+
+   if (d0 < d1 && d0 < d2) { return 0; }
+   if (d1 < d0 && d1 < d2) { return 1; }
+   return 2;
 }
 
 int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
@@ -1335,23 +1404,55 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                 mid03, mid13, mid23, no[3], attr,
                                 fa[0], fa[1], fa[2], -1);
 
-#if 0
-      child[4] = NewTetrahedron(0, mid13, mid23, mid12, mid02, attr,
-                                -1, -1, -1, fa[0]);
+#if 1
+      if (el.tet_type == 0) // shortest diagonal mid01--mid23
+      {
+         child[4] = NewTetrahedron(-1, mid13, mid23, mid12, mid01, attr,
+                                   -1, -1, -1, fa[0]);
 
-      child[5] = NewTetrahedron(0, mid23, mid03, mid02, mid13, attr,
-                                -1, -1, -1, fa[1]);
+         child[5] = NewTetrahedron(-1, mid23, mid03, mid02, mid01, attr,
+                                   -1, -1, -1, fa[1]);
 
-      child[6] = NewTetrahedron(0, mid13, mid01, mid03, mid02, attr,
-                                -1, -1, -1, fa[2]);
+         child[6] = NewTetrahedron(-1, mid13, mid01, mid03, mid23, attr,
+                                   -1, -1, -1, fa[2]);
 
-      child[7] = NewTetrahedron(0, mid12, mid02, mid01, mid13, attr,
-                                -1, -1, -1, fa[3]);
+         child[7] = NewTetrahedron(-1, mid12, mid02, mid01, mid23, attr,
+                                   -1, -1, -1, fa[3]);
+      }
+      else if (el.tet_type == 1) // shortest diagonal mid12--mid03
+      {
+         child[4] = NewTetrahedron(-1, mid13, mid23, mid12, mid03, attr,
+                                   -1, -1, -1, fa[0]);
+
+         child[5] = NewTetrahedron(-1, mid23, mid03, mid02, mid12, attr,
+                                   -1, -1, -1, fa[1]);
+
+         child[6] = NewTetrahedron(-1, mid13, mid01, mid03, mid12, attr,
+                                   -1, -1, -1, fa[2]);
+
+         child[7] = NewTetrahedron(-1, mid12, mid02, mid01, mid03, attr,
+                                   -1, -1, -1, fa[3]);
+      }
+      else // tet_type 2, shortest diagonal mid02--mid13
+      {
+         child[4] = NewTetrahedron(-1, mid13, mid23, mid12, mid02, attr,
+                                   -1, -1, -1, fa[0]);
+
+         child[5] = NewTetrahedron(-1, mid23, mid03, mid02, mid13, attr,
+                                   -1, -1, -1, fa[1]);
+
+         child[6] = NewTetrahedron(-1, mid13, mid01, mid03, mid02, attr,
+                                   -1, -1, -1, fa[2]);
+
+         child[7] = NewTetrahedron(-1, mid12, mid02, mid01, mid13, attr,
+                                   -1, -1, -1, fa[3]);
+      }
 #else
       int node4 = mid01, node5 = mid12, node6 = mid02;
       int node7 = mid03, node8 = mid13, node9 = mid23;
 
-      if (el.tet_type == 0)
+
+      if (el.tet_type == 0) // diagonal
       {
          child[4] = NewTetrahedron(0, node8, node7, node9, node4, attr,
                                    -1, -1, -1, -1);
@@ -1379,7 +1480,6 @@ void NCMesh::RefineElement(int elem, char ref_type)
          child[7] = NewTetrahedron(0, node9, node8, node7, node6, attr,
                                    -1, -1, -1, -1);
       }
-
 #endif
    }
    else if (el.Geom() == Geometry::SQUARE)
@@ -1501,6 +1601,13 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_stack.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
+   // TODO: remove
+   if (HaveTets())
+   {
+      MFEM_VERIFY(top_vertex_pos.Size(), "");
+      tmp_vertex = new TmpVertex[nodes.NumIds()];
+   }
+
    // keep refining as long as the stack contains something
    int nforced = 0;
    while (ref_stack.Size())
@@ -1530,6 +1637,12 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
    ref_stack.DeleteAll();
    shadow.DeleteAll();
+
+   // TODO: remove
+   if (HaveTets())
+   {
+      delete [] tmp_vertex;
+   }
 
    Update();
 }
@@ -1898,9 +2011,6 @@ void NCMesh::UpdateLeafElements()
    for (int i = 0; i < root_state.Size(); i++)
    {
       CollectLeafElements(i, root_state[i]);
-      // TODO: root state should not always be 0, we need a precomputed array
-      // with root element states to ensure continuity where possible, also
-      // optimized ordering of the root elements themselves (Gecko?)
    }
    AssignLeafIndices();
 }
@@ -4778,6 +4888,8 @@ void NCMesh::SetVertexPositions(const Array<mfem::Vertex> &mvertices)
    {
       std::memcpy(&top_vertex_pos[3*i], mvertices[i](), 3*sizeof(double));
    }
+
+   InitTetTypes();
 }
 
 int NCMesh::PrintElements(std::ostream &out, int elem, int &coarse_id) const

@@ -512,7 +512,10 @@ protected: // implementation
    virtual int GetNumGhostVertices() const { return 0; }
 
    void InitGeomFlags();
+   void InitTetTypes();
+
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
+   bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
 
 
    // refinement/derefinement
@@ -563,6 +566,8 @@ protected: // implementation
                    int attr, int eattr0, int eattr1, int eattr2);
 
    mfem::Element* NewMeshElement(int geom) const;
+
+   int GetTetType(const Element &el);
 
    int QuadFaceSplitType(int v1, int v2, int v3, int v4, int mid[5]
                          = NULL /*optional output of mid-edge nodes*/) const;
@@ -815,6 +820,9 @@ protected: // implementation
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
                      Array<int> &index_map);
 
+   void PrintTetTypes(const Element* el);
+
+
    // geometry
 
    /** This holds in one place the constants about the geometries we support
@@ -839,6 +847,7 @@ protected: // implementation
 public:
    void DebugLeafOrder(std::ostream &out) const;
    void DebugDump(std::ostream &out) const;
+   void PrintTetTypes();
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet
