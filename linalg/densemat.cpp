@@ -4456,7 +4456,8 @@ const
    int n = SizeI(), ne = SizeK();
    const int *I = elem_dof.GetI(), *J = elem_dof.GetJ(), *dofs;
    const double *d_col = tdata;
-   double *yp = y, x_col;
+   double *yp = y.HostReadWrite();
+   double x_col;
    const double *xp = x;
    // the '4' here can be tuned for given platform and compiler
    if (n <= 4)
