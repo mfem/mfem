@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
    // 4. Refine the mesh to increase the resolution.
 
    {
-     int ref_levels = 1;
+     int ref_levels = 3;
      //         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
      for (int l = 0; l < ref_levels; l++)
      {

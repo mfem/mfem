@@ -224,6 +224,7 @@ void FiniteElementSpace::BuildElementToDofTable() const
       el_dof -> AddColumnsInRow (i, dofs.Size());
    }
    el_dof -> MakeJ();
+
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       GetElementDofs (i, dofs);
@@ -1337,7 +1338,6 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       own_ext = 0;
       Construct();
    }
-   cout << "Ready to build ETD table" << endl;
    BuildElementToDofTable();
 }
 
@@ -1537,9 +1537,15 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
             ne += nf;
          }
       }
+      if (strncmp((this->FEColl())->Name(),"H1Ser_",6) == 0)
+      {
+	   // For serendipity elements with element DoFs, need to set nb accordingly here
+	   // and figure out what to do like in the case nb>0 below
+	   nb = 0;
+      }
       if (nb > 0)
       {
-         k = nvdofs + nedofs + nfdofs + bdofs[i];
+	 k = nvdofs + nedofs + nfdofs + bdofs[i];
          for (j = 0; j < nb; j++)
          {
             dofs[ne+j] = k + j;
