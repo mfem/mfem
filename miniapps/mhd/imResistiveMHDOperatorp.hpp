@@ -31,13 +31,10 @@ protected:
    double jBdy;
    bool useAMG;
 
-   /*
-   //new things for implicit stepping
+   //for implicit stepping
    ReducedSystemOperator *reduced_oper;
    PetscNonlinearSolver* pnewton_solver;
    PetscPreconditionerFactory *J_factory;
-   Solver *J_solver;
-   */
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    HypreSmoother M_prec;  // Preconditioner for the mass matrix M
@@ -48,8 +45,10 @@ protected:
    HypreSolver *K_amg; //BoomerAMG for stiffness matrix
    HyprePCG *K_pcg;
 
+   ParGridFunction j;
+
    mutable Vector z, zFull; // auxiliary vector 
-   mutable ParGridFunction j, gf;  //auxiliary variable (to store the boundary condition)
+   mutable ParGridFunction gf;  //auxiliary variable (to store the boundary condition)
 
 public:
    ResistiveMHDOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr, 
@@ -57,6 +56,10 @@ public:
 
    // Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
+
+   //Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
+   //here vector are block vectors
+   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
    //link gf with psi
    void BindingGF(Vector &vx)
@@ -76,38 +79,44 @@ public:
    virtual ~ResistiveMHDOperator();
 };
 
-/** reduced system
+// reduced system
 class ReducedSystemOperator : public Operator
 {
 private:
-   ParBilinearForm *M, *S;
-   ParNonlinearForm *H;
-   mutable HypreParMatrix *Jacobian;
+   ParFiniteElementSpace &fespace;
+   ParBilinearForm *M, *K;
+   ParLinearForm *E0;
+   ParGridFunction *j0;
    double dt;
-   const Vector *v, *x;
-   mutable Vector w, z;
+   const Vector *phi, *psi, *w;
+   mutable ParBilinearForm *Nv, *Nb;
+   mutable HypreParMatrix *Jacobian;
+   mutable Vector z;
    const Array<int> &ess_tdof_list;
 
 public:
-   ReducedSystemOperator(ParBilinearForm *M_, ParBilinearForm *S_,
-                         ParNonlinearForm *H_, const Array<int> &ess_tdof_list);
+   ReducedSystemOperator(ParFiniteElementSpace &f, 
+                         ParBilinearForm *M_, ParBilinearForm *K_, ParLinearForm *E0_,
+                         const Array<int> &ess_tdof_list);
 
-   /// Set current dt, v, x values - needed to compute action and Jacobian.
-   void SetParameters(double dt_, const Vector *v_, const Vector *x_);
+   /// Set current values - needed to compute action and Jacobian.
+   void SetParameters(double dt_, const Vector *phi_, const Vector *psi_, const Vector *w_)
+   {dt=dt_; phi=phi_; psi=psi_; w=w_;}
 
-   /// Compute y = H(x + dt (v + dt k)) + M k + S (v + dt k).
+   void SetCurrent(ParGridFunction *gf)
+   { j0=gf;}
+
+   /// Define F(k) 
    virtual void Mult(const Vector &k, Vector &y) const;
 
-   /// Compute J = M + dt S + dt^2 grad_H(x + dt (v + dt k)).
+   /// Define J 
    virtual Operator &GetGradient(const Vector &k) const;
 
    virtual ~ReducedSystemOperator();
 
 };
- *
- */
 
-/*** Auxiliary class to provide preconditioners for matrix-free methods 
+// Auxiliary class to provide preconditioners for matrix-free methods 
 class PreconditionerFactory : public PetscPreconditionerFactory
 {
 private:
@@ -119,7 +128,6 @@ public:
    virtual mfem::Solver* NewPreconditioner(const mfem::OperatorHandle&);
    virtual ~PreconditionerFactory() {};
 };
-*/
 
 ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc, double resi)
@@ -181,7 +189,6 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    KB->AddDomainIntegrator(new DiffusionIntegrator);      //  K matrix
    KB->AddBdrFaceIntegrator(new BoundaryGradIntegrator);  // -B matrix
    KB->Assemble();
-   //KB->FormSystemMatrix(ess_tdof_list, KBmat);
 
    ConstantCoefficient visc_coeff(viscosity);
    DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
@@ -205,6 +212,8 @@ void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ)
 {
     j.ProjectCoefficient(initJ);
     j.SetTrueVector();
+
+    //TODO add setCurrent!
 }
 
 void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
@@ -281,17 +290,27 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    z.SetSubVector(ess_tdof_list,0.0);
    M_solver.Mult(z, dw_dt);
 
-   /*
-   ofstream myfile("z0.dat");
-   z.Print(myfile, 10);
-   cout<<z.Size()<<endl;
-
-   ofstream myfile2("dwdt.dat");
-   dw_dt.Print(myfile2, 10);
-   cout<<dw_dt.Size()<<endl;
-   */
-
 }
+
+void HyperelasticOperator::ImplicitSolve(const double dt,
+                                         const Vector &vx, Vector &k)
+{
+   int sc = height/3;
+   Vector phi(vx.GetData() +   0, sc);
+   Vector psi(vx.GetData() +  sc, sc);
+   Vector   w(vx.GetData() +2*sc, sc);
+
+   reduced_oper->SetParameters(dt, &phi, &psi, &w);
+   Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
+   pnewton_solver->Mult(zero, k);  //here k is solved as vx^{n+1}
+   MFEM_VERIFY(pnewton_solver->GetConverged(),
+                  "Newton solver did not converge.");
+
+   //we renormalized so that it fit into the backward euler framework
+   k-=vx;
+   k/=dt;
+}
+
 
 void ResistiveMHDOperator::assembleNv(ParGridFunction *gf) 
 {
@@ -356,4 +375,74 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     //delete K_prec;
 }
 
+ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
+   ParBilinearForm *M_, ParBilinearForm *K_, ParLinearForm *E0_,
+   const Array<int> &ess_tdof_list_)
+   : Operator(3*f.TrueVSize()), fespace(f), 
+     M(M_), K(K_), E0(E0_),
+     dt(0.0), phi(NULL), psi(NULL), w(NULL), 
+     Jacobian(NULL), z(height/3),
+     ess_tdof_list(ess_tdof_list_)
+{ }
+
+void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
+{
+   int sc = height/3;
+
+   Vector phiNew(k.GetData() +   0, sc);
+   Vector psiNew(k.GetData() +  sc, sc);
+   Vector   wNew(k.GetData() +2*sc, sc);
+
+   Vector y1(y.GetData() +   0, sc);
+   Vector y2(y.GetData() +  sc, sc);
+   Vector y3(y.GetData() +2*sc, sc);
+
+   delete Nv;
+   delete Nb;
+
+   phiGf.MakeTRef(&fespace, k, 0);
+   phiGf.SetFromTrueVector();
+   Nv = new ParBilinearForm(&fespace);
+   MyCoefficient velocity(&phiGf, 2);   //we update velocity
+   Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
+   Nv->Assemble(); 
+
+   psiGf.MakeTRef(&fespace, k, sc);
+   psiGf.SetFromTrueVector();
+   Nb = new ParBilinearForm(&fespace);
+   MyCoefficient Bfield(&psiGf, 2);   //we update B
+   Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
+   Nb->Assemble();
+
+   //compute the current as an auxilary variable
+   Vector J, Z;
+   HypreParMatrix A;
+   KB->Mult(psiGF, zFull);
+   zFull.Neg(); // z = -z
+   M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
+   M_solver.Mult(Z, J); //XXX is this okay in mult? probably
+
+   //compute y1
+   Kmat.Mult(phiNew,y1);
+   Mmat.AddMult(wNew,y1);
+   y1.SetSubVector(ess_tdof_list, 0.0);
+
+   //compute y2
+   z=psiNew-*psi;
+   z/=dt;
+   y2=.0;
+   Mmat.Mult(z,y2);
+   Nv.TrueAddMult(psiNew,y2);
+   DSl.TrueAddMult(psiNew,y2);
+   y2.SetSubVector(ess_tdof_list, 0.0);
+
+   //compute y3
+   z=wNew-*w;
+   z/=dt;
+   Mmat.Mult(z,y3);
+   Nv.TrueAddMult(wNew,y3);
+   DRe.TrueAddMult(wNew,y3);
+   Nb->TrueAddMult(J, y3); 
+   y3.SetSubVector(ess_tdof_list, 0.0);
+}
 

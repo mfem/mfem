@@ -28,6 +28,61 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+5/29
+o ReducedSystemOperator 
+o link it with petsc
+o getgradient
+o preconditionerfactory 
+o add kspsolve into pcshell
+
+class MyBlockSolver : public mfem::Solver
+{
+   MyBlockSolver(OperatorHandle oh) { //constructor
+  PetscParMatrix *PP;
+  // Get the PetscParMatrix out of oh. I showed you how to do it
+  Mat P = *PP; // type cast to Petsc Mat
+  MatNestGetSubMats(P,&N,&M,&sub)// sub is an N by M array of matrices
+  // Create your own internal KSP objects to handle the subproblems
+ .// Create PetscParVectors as placeholders internal_x and internal_y
+}
+  Mult(const Vector & x, Vector &y)
+  {
+   internal_x.PlaceArray(x.GetData()); // no copy, only the data pointer is passed to PETSc
+ 
+   internal_y.PlaceArray(y.GetData());
+
+
+  MatNestGetIs(...) // get the index sets of the blocks
+  for i = 1:3
+    VecGetSubVector(internal_x,index_set[i],&blockx)
+    VecGetSubVector(internal_y,index_set[i],&blocky)
+   KSPSolve(kspblock[i],blockx,blocky)
+
+    VecRestoreSubVector(internal_x,index_set[i],&blockx)
+    VecRestoreSubVector(internal_y,index_set[i],&blocky)
+  }
+
+
+ 
+   internal_x.ResetArray();
+ 
+   internal_y.ResetArray();
+
+
+
+  }
+}
+
+Solver * PreconditionerFactory::NewPreconditioner(OperatorHandle oh)
+{
+  return new MyBlockSolver(oh);
+}
+
+Q:
+Could I call mfem linear solver in reducedsystem::mult?
+Is it better to pass pointers of HypreParMatrix to reducedsystem? I do not think reducedsystem owns those objects.
+Similarly, I could pass M_solver into reducedsystem.
+
 5/22
 Try this (is that for parallel?)
    BlockOperator *darcyOp = new BlockOperator(block_trueOffsets);
@@ -42,27 +97,27 @@ This is for serial:
    A->SetBlock(1,0,  &A10);
 
 In pcshell, I need to
-KSPSetOperators(ksp1,Mdt,Mdt);
-KSPSolve(ksp1, b2, x2)
-KSPSolve(ksp1, b3, x3)
-
-Define three ksp in __mfem_pc_shell_ctx
-Then destroy them in __mfem_pc_shell_destroy
-
-MatMult(Mdt,x3,bTmp);
-bTmp=bTmp*dt+b1;
-KSPSetOperators(ksp2,K,K);
-KSPSolve(ksp2, b2, x2)
+    KSPSetOperators(ksp1,Mdt,Mdt);
+    KSPSolve(ksp1, b2, x2)
+    KSPSolve(ksp1, b3, x3)
+    
+    MatMult(Mdt,x3,bTmp);
+    bTmp=bTmp*dt+b1;
+    KSPSetOperators(ksp2,K,K);
+    KSPSolve(ksp2, b2, x2)
 
 See
 file:///Users/qtang/software/petsc-3.10.2/src/ksp/ksp/examples/tutorials/ex9.c.html
 
 Where should I initialize KSP?
-KSPCreate(PETSC_COMM_WORLD,&ksp1);
-KSPSetFromOptions(ksp1);
-KSPAppendOptionsPrefix(ksp2,"s1_");
-KSPCreate(PETSC_COMM_WORLD,&ksp2);
-KSPAppendOptionsPrefix(ksp2,"s2_");
+    KSPCreate(PETSC_COMM_WORLD,&ksp1);
+    KSPSetFromOptions(ksp1);
+    KSPAppendOptionsPrefix(ksp2,"s1_");
+    KSPCreate(PETSC_COMM_WORLD,&ksp2);
+    KSPAppendOptionsPrefix(ksp2,"s2_");
+    
+    Define three ksp in __mfem_pc_shell_ctx
+    Then destroy them in __mfem_pc_shell_destroy
 
 what would be a good initial guess? Use zero for now.
 
