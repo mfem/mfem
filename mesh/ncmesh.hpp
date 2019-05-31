@@ -820,7 +820,7 @@ protected: // implementation
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
                      Array<int> &index_map);
 
-   void PrintTetTypes(const Element* el);
+   void PrintTetTypes(std::ofstream &f, int elem);
 
 
    // geometry
@@ -847,7 +847,7 @@ protected: // implementation
 public:
    void DebugLeafOrder(std::ostream &out) const;
    void DebugDump(std::ostream &out) const;
-   void PrintTetTypes();
+   void PrintTetTypes(std::ofstream &f);
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet
