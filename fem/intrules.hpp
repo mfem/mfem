@@ -283,7 +283,6 @@ public:
       Invalid         = -1,
       GaussLegendre   = 0,
       GaussLobatto    = 1,
-      Serendipity     = GaussLobatto,
       OpenUniform     = 2,  ///< aka open Newton-Cotes
       ClosedUniform   = 3,  ///< aka closed Newton-Cotes
       OpenHalfUniform = 4   ///< aka "open half" Newton-Cotes

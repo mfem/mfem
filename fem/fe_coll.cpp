@@ -1591,10 +1591,17 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
          H1_Elements[Geometry::SQUARE] = new H1Pos_QuadrilateralElement(p);
       }
+      else if (b_type == BasisType::Serendipity)
+      {
+	  // Should throw some error here if the geometry type is triangle
+	  H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement();
+	  cout << "in fe_coll.cpp: called H1Ser_QuadElt" << endl;
+      }
       else
       {
          H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
          H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
+	 cout << "in fe_coll.cpp: called H1_QuadElt" << endl;
       }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
@@ -2469,6 +2476,7 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    {
       GeomType = Geometry::SQUARE;
       Local_Element = new H1_QuadrilateralElement(atoi(fe_name + 7));
+      cout << "in fe_coll.cpp: using H1_QuadrilateralFiniteElement" << "\n"; 
    }
    else if (!strncmp(fe_name, "H1Pos_", 6))
    {
@@ -2479,7 +2487,7 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    {
       GeomType = Geometry::SQUARE;
       Local_Element = new H1Ser_QuadrilateralElement();
-      cout << "in fe_coll.cpp: using SerQuad2DFiniteElement" << "\n"; 
+      cout << "in fe_coll.cpp: using H1Ser_QuadrilateralElement" << "\n"; 
    }
    else if (!strncmp(fe_name, "L2_", 3))
    {

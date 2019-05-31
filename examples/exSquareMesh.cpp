@@ -69,21 +69,31 @@ int main(int argc, char *argv[])
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
-   if (order > 0)
-   {
-     //fec = new H1_FECollection(order, dim);
-     fec = new H1Ser_FECollection(2, 2);
-     cout << "*** Requested H1Ser_FECollection of order " << order << ", but order 2 is hardcoded. ***" << endl;
-   }
-   else if (mesh->GetNodes())
-   {
-      fec = mesh->GetNodes()->OwnFEC();
-      cout << "Using isoparametric FEs: " << fec->Name() << endl;
-   }
+   if (order == 1)
+     {
+       // fec = new H1_FECollection(order, dim);
+       fec = new H1_FECollection(2, 2);
+       cout << "exSqMsh: Using H1 quadratic tensor product elements" << endl;
+     }
+   else if(order == 2)
+     {
+       fec = new H1Ser_FECollection(2, 2);
+       cout << "exSqMsh: Using H1 quadratic serendipity elements!" << endl;
+     }
    else
-   {
-      fec = new H1_FECollection(order = 1, dim);
-   }
+     {
+       cout << "In this example, the order parameter is used as a proxy:\n order 1: quadratic tensor product elements\n order 2: quadratic quadratic serendipity elements" << endl;
+     }
+   // else if (mesh->GetNodes())
+   // {
+   //    fec = mesh->GetNodes()->OwnFEC();
+   //    cout << "Using isoparametric FEs: " << fec->Name() << endl;
+   // }
+   // else
+   // {
+   //    fec = new H1_FECollection(order = 1, dim);
+   // }
+   cout << "Done making the FE collection" << endl;
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;

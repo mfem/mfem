@@ -1305,6 +1305,8 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    sequence = mesh->GetSequence();
    Th.SetType(Operator::ANY_TYPE);
 
+   std::cout << "Element name is " << fec->Name() << std::endl;
+   
    const NURBSFECollection *nurbs_fec =
       dynamic_cast<const NURBSFECollection *>(fec);
    if (nurbs_fec)
@@ -1335,6 +1337,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       own_ext = 0;
       Construct();
    }
+   cout << "Ready to build ETD table" << endl;
    BuildElementToDofTable();
 }
 
@@ -1420,20 +1423,27 @@ void FiniteElementSpace::Construct()
 
    if (mesh->Dimension() > 0)
    {
-      bdofs = new int[mesh->GetNE()+1];
-      bdofs[0] = 0;
-      for (int i = 0; i < mesh->GetNE(); i++)
-      {
-         Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-         nbdofs += fec->DofForGeometry(geom);
-         bdofs[i+1] = nbdofs;
-      }
-   }
-
-   ndofs = nvdofs + nedofs + nfdofs + nbdofs;
+     if (strncmp(fec->Name(),"H1Ser_", 6)==0)
+     {
+       cout << "fespace.cpp: Using a serendipity element!" << endl;
+     }
+     else
+     {
+       bdofs = new int[mesh->GetNE()+1];
+       bdofs[0] = 0;
+       for (int i = 0; i < mesh->GetNE(); i++)
+       {
+	 Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+	 nbdofs += fec->DofForGeometry(geom);
+	 bdofs[i+1] = nbdofs;
+       }
+     }
+     ndofs = nvdofs + nedofs + nfdofs + nbdofs;
+     cout << "Computed ndofs as sum of " << nvdofs << " vdofs, " << nedofs << " nedofs, " << nfdofs << " nfdofs, and " << nbdofs << " nbdofs." << endl;
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
+   }
 }
 
 void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const

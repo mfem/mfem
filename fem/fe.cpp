@@ -1843,6 +1843,7 @@ void H1Ser_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
       case 2: dofs(5) = 0.25; dofs(6) = 0.25; break;
       case 3: dofs(6) = 0.25; dofs(7) = 0.25; break;
    }
+   cout << "Finished H1Ser ProjectDelta" << endl;
    // May need to adjust edge dofs here - they evaluate to 1/4 at their associated edge midpoint
 } 
 

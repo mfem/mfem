@@ -68,6 +68,7 @@ public:
          case OpenUniform:     return Quadrature1D::OpenUniform;
          case ClosedUniform:   return Quadrature1D::ClosedUniform;
          case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
+         case Serendipity:     return Quadrature1D::ClosedUniform; // <----
       }
       return Quadrature1D::Invalid;
    }
