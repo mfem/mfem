@@ -79,20 +79,28 @@ public:
    virtual ~ResistiveMHDOperator();
 };
 
-// reduced system
+// reduced system (it will not own anything)
 class ReducedSystemOperator : public Operator
 {
 private:
    ParFiniteElementSpace &fespace;
-   ParBilinearForm *M, *K;
-   ParLinearForm *E0;
+   ParBilinearForm *M, *K, *DRe, *DSl;
+   HypreParMatrix &Mmat, &Kmat;
+   HypreParMatrix Mdt;
+   HypreParVector *E0Vec;
    ParGridFunction *j0;
+
+   CGSolver *M_solver;
+
    double dt;
    const Vector *phi, *psi, *w;
+   const Array<int> &ess_tdof_list;
+
+   mutable ParGridFunction phiGf, psiGf;
    mutable ParBilinearForm *Nv, *Nb;
    mutable HypreParMatrix *Jacobian;
-   mutable Vector z;
-   const Array<int> &ess_tdof_list;
+   mutable HypreParMatrix Mtmp;
+   mutable Vector z, zFull, Z, J;
 
 public:
    ReducedSystemOperator(ParFiniteElementSpace &f, 
@@ -161,7 +169,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    K->Assemble();
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 
-   useAMG=true;
+   useAMG=false;
    if (useAMG)
    {
       K_amg = new HypreBoomerAMG(Kmat);
@@ -197,6 +205,9 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    ConstantCoefficient resi_coeff(resistivity);
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
+
+
+   //TODO define reducedSystem
 }
 
 void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield) 
@@ -306,7 +317,7 @@ void HyperelasticOperator::ImplicitSolve(const double dt,
    MFEM_VERIFY(pnewton_solver->GetConverged(),
                   "Newton solver did not converge.");
 
-   //we renormalized so that it fit into the backward euler framework
+   //modify k so that it fits into the backward euler framework
    k-=vx;
    k/=dt;
 }
@@ -376,14 +387,22 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
 }
 
 ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
-   ParBilinearForm *M_, ParBilinearForm *K_, ParLinearForm *E0_,
+   ParBilinearForm *M_, HypreParMatrix &Mmat_,
+   ParBilinearForm *K_, HypreParMatrix &Kmat_,
+   ParBilinearForm *DRe_, ParBilinearForm *DSl_,
+   ParLinearForm *E0_,
    const Array<int> &ess_tdof_list_)
    : Operator(3*f.TrueVSize()), fespace(f), 
-     M(M_), K(K_), E0(E0_),
+     M(M_), Mmat(Mmat_), K(K_),  Kmat(Kmat_), 
+     DRe(DRe_), DSl(DSl_), E0(E0_),
      dt(0.0), phi(NULL), psi(NULL), w(NULL), 
      Jacobian(NULL), z(height/3),
      ess_tdof_list(ess_tdof_list_)
-{ }
+{ 
+    //looks like I cannot do a deep copy now!
+    //maybe aviod it by multplying everything by dt?
+    Mdt=
+}
 
 void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 {
@@ -397,9 +416,8 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Vector y2(y.GetData() +  sc, sc);
    Vector y3(y.GetData() +2*sc, sc);
 
+   //------assemble Nv and Nb (operators are assembled locally)------
    delete Nv;
-   delete Nb;
-
    phiGf.MakeTRef(&fespace, k, 0);
    phiGf.SetFromTrueVector();
    Nv = new ParBilinearForm(&fespace);
@@ -407,6 +425,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
    Nv->Assemble(); 
 
+   delete Nb;
    psiGf.MakeTRef(&fespace, k, sc);
    psiGf.SetFromTrueVector();
    Nb = new ParBilinearForm(&fespace);
@@ -414,13 +433,11 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
    Nb->Assemble();
 
-   //compute the current as an auxilary variable
-   Vector J, Z;
-   HypreParMatrix A;
+   //------compute the current as an auxilary variable------
    KB->Mult(psiGF, zFull);
    zFull.Neg(); // z = -z
-   M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
-   M_solver.Mult(Z, J); //XXX is this okay in mult? probably
+   M->FormLinearSystem(ess_tdof_list, *j0, zFull, Mtmp, J, Z); //apply Dirichelt boundary 
+   M_solver->Mult(Z, J); //XXX is this okay in mult? probably
 
    //compute y1
    Kmat.Mult(phiNew,y1);
@@ -430,18 +447,21 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    //compute y2
    z=psiNew-*psi;
    z/=dt;
-   y2=.0;
    Mmat.Mult(z,y2);
-   Nv.TrueAddMult(psiNew,y2);
-   DSl.TrueAddMult(psiNew,y2);
+   Nv->TrueAddMult(psiNew,y2);
+   if (DSl!=NULL)
+       DSl->TrueAddMult(psiNew,y2);
+   if (E0Vec!=NULL)
+       z += *E0Vec;
    y2.SetSubVector(ess_tdof_list, 0.0);
 
    //compute y3
    z=wNew-*w;
    z/=dt;
    Mmat.Mult(z,y3);
-   Nv.TrueAddMult(wNew,y3);
-   DRe.TrueAddMult(wNew,y3);
+   Nv->TrueAddMult(wNew,y3);
+   if (DRe!=NULL)
+       DRe->TrueAddMult(wNew,y3);
    Nb->TrueAddMult(J, y3); 
    y3.SetSubVector(ess_tdof_list, 0.0);
 }
