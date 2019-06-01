@@ -836,6 +836,9 @@ int main(int argc, char *argv[])
    int Ww = 275, Wh = 250; // window size
 
    int amr_it = 0;
+   int ref_it = 0;
+   int dref_it = 0;
+   
    double t = t_init;
 
    if (mpi.Root()) { cout << "\nBegin time stepping at t = " << t << endl; }
@@ -897,10 +900,12 @@ int main(int argc, char *argv[])
          }
          else
          {
+	    ref_it++;	   
             if (mpi.Root())
             {
-               cout << "Refining elements." << endl;
+               cout << "Refining elements (iteration " << ref_it << ")" << endl;
             }
+
             // 21. Update the finite element space (recalculate the number of DOFs,
             //     etc.) and create a grid function update matrix. Apply the matrix
             //     to any GridFunctions over the space. In this case, the update
@@ -929,9 +934,10 @@ int main(int argc, char *argv[])
          }
          if (derefiner.Apply(pmesh))
          {
+	   dref_it++;
             if (mpi.Root())
             {
-               cout << "Derefining elements." << endl;
+	      cout << "Derefining elements (iteration " << dref_it << ")" << endl;
             }
 
             // 24. Update the space and the solution, rebalance the mesh.
