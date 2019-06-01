@@ -935,11 +935,16 @@ int main(int argc, char *argv[])
             }
 
             // 24. Update the space and the solution, rebalance the mesh.
+            cout << "fespace.Update();" << endl;
             fespace.Update();
+            cout << "fespace_l2_o0.Update();" << endl;
             fespace_l2_o0.Update();
+            cout << "u.Update();" << endl;
             u.Update();
+            cout << "m.Update();" << endl;
             m.Update(); m.Assemble(); m.Finalize();
             ode_diff_msr.SetOperator(m);
+            cout << "oper.Update();" << endl;
             oper.Update();
             ode_solver->Init(oper);
          }

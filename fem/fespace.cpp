@@ -213,6 +213,7 @@ void FiniteElementSpace::GetEdgeInteriorVDofs(int i, Array<int> &vdofs) const
 void FiniteElementSpace::BuildElementToDofTable() const
 {
    if (elem_dof) { return; }
+   std::cout << "FES::BuildElementToDofTable() rebuilding table" << std::endl;
 
    Table *el_dof = new Table;
    Array<int> dofs;
