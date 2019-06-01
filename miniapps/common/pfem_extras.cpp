@@ -520,10 +520,14 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       pmesh.PrintAsOne(sock);
       gf.SaveAsOne(sock);
 
+      if (myid == 0)
+      {
+         sock << "window_title '" << title << "'\n";
+      }
+      
       if (myid == 0 && newly_opened)
       {
-         sock << "window_title '" << title << "'\n"
-              << "window_geometry "
+         sock << "window_geometry "
               << x << " " << y << " " << w << " " << h << "\n";
          if ( keys ) { sock << "keys " << keys << "\n"; }
          else { sock << "keys maaAc"; }
