@@ -794,12 +794,12 @@ void DGAdvectionDiffusionTDO::Update()
    height = width = fes_->GetVSize();
    cout << "DGA::Update m" << endl;
    m_.Update(); m_.Assemble(); m_.Finalize();
-   a_->Update(); a_->Assemble(); a_->Finalize();
-   if (b_) { b_->Update(); b_->Assemble(); b_->Finalize(); }
-   if (s_) { s_->Update(); s_->Assemble(); s_->Finalize(); }
    cout << "DGA::Update a" << endl;
+   a_->Update(); // a_->Assemble(); a_->Finalize();
    cout << "DGA::Update b" << endl;
+   if (b_) { b_->Update(); /*b_->Assemble(); b_->Finalize();*/ }
    cout << "DGA::Update s" << endl;
+   if (s_) { s_->Update(); /*s_->Assemble(); s_->Finalize();*/ }
    cout << "DGA::Update k" << endl;
    if (k_) { k_->Update(); k_->Assemble(); k_->Finalize(); }
    cout << "DGA::Update q_exp" << endl;
