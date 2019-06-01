@@ -205,6 +205,7 @@ protected:
 
    /// Output mesh format: see the #Format enumeration
    int format;
+   bool compression;
 
    /// Should the collection delete its mesh and fields
    bool own_data;
@@ -345,6 +346,9 @@ public:
        their own format enumerations and override this method to perform input
        validation. */
    virtual void SetFormat(int fmt);
+
+   /// Set the flag for use of gz compressed files
+   void SetCompression(bool comp);
 
    /// Set the path where the DataCollection will be saved.
    void SetPrefixPath(const std::string &prefix);

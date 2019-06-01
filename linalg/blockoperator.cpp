@@ -121,11 +121,15 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
 BlockOperator::~BlockOperator()
 {
    if (owns_blocks)
+   {
       for (int iRow=0; iRow < nRowBlocks; ++iRow)
+      {
          for (int jCol=0; jCol < nColBlocks; ++jCol)
          {
             delete op(jCol,iRow);
          }
+      }
+   }
 }
 
 //-----------------------------------------------------------------------
@@ -161,6 +165,7 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
    xblock.Update(x.GetData(), offsets);
 
    for (int i=0; i<nBlocks; ++i)
+   {
       if (op[i])
       {
          op[i]->Mult(xblock.GetBlock(i), yblock.GetBlock(i));
@@ -169,6 +174,7 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
       {
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
+   }
 }
 
 // Action of the transpose operator
@@ -182,6 +188,7 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
    xblock.Update(x.GetData(), offsets);
 
    for (int i=0; i<nBlocks; ++i)
+   {
       if (op[i])
       {
          (op[i])->MultTranspose(xblock.GetBlock(i), yblock.GetBlock(i));
@@ -190,15 +197,18 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
       {
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
+   }
 }
 
 BlockDiagonalPreconditioner::~BlockDiagonalPreconditioner()
 {
    if (owns_blocks)
+   {
       for (int i=0; i<nBlocks; ++i)
       {
          delete op[i];
       }
+   }
 }
 
 BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(
