@@ -37,7 +37,9 @@ namespace mfem {
  *
  * <H3>Main GPU classes</H3>
  * - Device
+ * - Memory
  * - MemoryManager
+ * - MFEM_FORALL macro in forall.hpp
  *
  * <H3>Example codes</H3>
  * - <a class="el" href="examples_2ex1_8cpp_source.html">Example 1</a>: nodal H1 FEM for the Laplace problem
@@ -77,8 +79,8 @@ namespace mfem {
  * - <a class="el" href="ex19p_8cpp_source.html">Example 19p</a>: parallel incompressible nonlinear elasticity
  * - <a class="el" href="ex20_8cpp_source.html">Example 20</a>: symplectic ODE integration
  * - <a class="el" href="ex20p_8cpp_source.html">Example 20p</a>: parallel symplectic ODE integration
- * - <a class="el" href="ex22_8cpp_source.html">Example 22</a>: adaptive mesh refinement for linear elasticity
- * - <a class="el" href="ex22p_8cpp_source.html">Example 22p</a>: parallel adaptive mesh refinement for linear elasticity
+ * - <a class="el" href="ex21_8cpp_source.html">Example 21</a>: adaptive mesh refinement for linear elasticity
+ * - <a class="el" href="ex21p_8cpp_source.html">Example 21p</a>: parallel adaptive mesh refinement for linear elasticity
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples

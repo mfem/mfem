@@ -20,8 +20,9 @@ void BlockVector::SetBlocks()
 {
    for (int i = 0; i < numBlocks; ++i)
    {
-      blocks[i].NewDataAndSize(data+blockOffsets[i],
-                               blockOffsets[i+1]-blockOffsets[i]);
+      blocks[i].NewMemoryAndSize(
+         Memory<double>(data, blockOffsets[i], BlockSize(i)),
+         BlockSize(i), true);
    }
 }
 
@@ -39,6 +40,15 @@ BlockVector::BlockVector(const Array<int> & bOffsets):
    Vector(bOffsets.Last()),
    numBlocks(bOffsets.Size()-1),
    blockOffsets(bOffsets.GetData())
+{
+   blocks = new Vector[numBlocks];
+   SetBlocks();
+}
+
+BlockVector::BlockVector(const Array<int> & bOffsets, MemoryType mt)
+   : Vector(bOffsets.Last(), mt),
+     numBlocks(bOffsets.Size()-1),
+     blockOffsets(bOffsets.GetData())
 {
    blocks = new Vector[numBlocks];
    SetBlocks();
@@ -79,8 +89,13 @@ void BlockVector::Update(double *data, const Array<int> & bOffsets)
 
 void BlockVector::Update(const Array<int> &bOffsets)
 {
+   Update(bOffsets, data.GetMemoryType());
+}
+
+void BlockVector::Update(const Array<int> &bOffsets, MemoryType mt)
+{
    blockOffsets = bOffsets.GetData();
-   if (OwnsData())
+   if (OwnsData() && data.GetMemoryType() == mt)
    {
       // check if 'bOffsets' agree with the 'blocks'
       if (bOffsets.Size() == numBlocks+1)
@@ -102,7 +117,7 @@ void BlockVector::Update(const Array<int> &bOffsets)
    {
       Destroy();
    }
-   SetSize(bOffsets.Last());
+   SetSize(bOffsets.Last(), mt);
    if (numBlocks != bOffsets.Size()-1)
    {
       delete [] blocks;
@@ -120,12 +135,14 @@ BlockVector & BlockVector::operator=(const BlockVector & original)
    }
 
    for (int i(0); i <= numBlocks; ++i)
+   {
       if (blockOffsets[i]!=original.blockOffsets[i])
       {
          mfem_error("Size of Blocks don't match in BlockVector::operator=");
       }
+   }
 
-   Vector::operator=(original.GetData());
+   Vector::operator=(original);
 
    return *this;
 }
@@ -144,8 +161,9 @@ BlockVector::~BlockVector()
 
 void BlockVector::GetBlockView(int i, Vector & blockView)
 {
-   blockView.NewDataAndSize(data+blockOffsets[i],
-                            blockOffsets[i+1]-blockOffsets[i]);
+   blockView.NewMemoryAndSize(
+      Memory<double>(data, blockOffsets[i], BlockSize(i)),
+      BlockSize(i), true);
 }
 
 }
