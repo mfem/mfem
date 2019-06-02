@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
 
    GridFunction *phi = mesh.GetNodes();
    GridFunction phi_new(phi->FESpace());
-   std::vector<GridFunction> phi_i(3);
+   GridFunction phi_i[3];
    for (int i=0; i<sdim; ++i) { phi_i[i].SetSpace(&fespace); }
 
    ConstantCoefficient zero(0.0);
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
          a.Mult(phi_i[i], b);
          b.ProjectBdrCoefficient(zero, ess_bdr);
 #ifndef MFEM_USE_SUITESPARSE
-         GSSmoother M((SparseMatrix&)(*A0));
+         GSSmoother M(static_cast<SparseMatrix&>(*A0));
          PCG(*A0, M, b, x, 1, 200, 1e-12, 0.0);
 #else
          A0_inv.Mult(b, x);
