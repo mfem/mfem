@@ -33,7 +33,7 @@ int main()
        * J = partitioning;
 
     idx_t ncon = 1;
-    idx_t err;
+    int err;
     idx_t options[40];
 
     METIS_SetDefaultOptions(options);
