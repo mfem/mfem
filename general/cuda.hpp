@@ -24,8 +24,8 @@
 #define MFEM_CUDA_BLOCKS 256
 
 #ifdef MFEM_USE_CUDA
-#define MFEM_ATTR_DEVICE __device__
-#define MFEM_ATTR_HOST_DEVICE __host__ __device__
+#define MFEM_DEVICE __device__
+#define MFEM_HOST_DEVICE __host__ __device__
 // Define a CUDA error check macro, MFEM_CUDA_CHECK(x), where x returns/is of
 // type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
 // result is not cudaSuccess.
@@ -39,10 +39,25 @@
       } \
    } \
    while (0)
-#else // MFEM_USE_CUDA
-#define MFEM_ATTR_DEVICE
-#define MFEM_ATTR_HOST_DEVICE
+#else
+#define MFEM_DEVICE
+#define MFEM_HOST_DEVICE
 #endif // MFEM_USE_CUDA
+
+// Define the MFEM inner threading macros
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
+#define MFEM_SHARED __shared__
+#define MFEM_SYNC_THREAD __syncthreads()
+#define MFEM_THREAD_ID(k) threadIdx.k
+#define MFEM_THREAD_SIZE(k) blockDim.k
+#define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
+#else
+#define MFEM_SHARED
+#define MFEM_SYNC_THREAD
+#define MFEM_THREAD_ID(k) 0
+#define MFEM_THREAD_SIZE(k) 1
+#define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
+#endif
 
 
 namespace mfem
@@ -67,16 +82,16 @@ void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
 void* CuMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
 
 /// Copies memory from Device to Device
-void* CuMemcpyDtoD(void *d_dst, void *d_src, size_t bytes);
+void* CuMemcpyDtoD(void *d_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Device
-void* CuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes);
+void* CuMemcpyDtoDAsync(void *d_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
-void* CuMemcpyDtoH(void *h_dst, void *d_src, size_t bytes);
+void* CuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
-void* CuMemcpyDtoHAsync(void *h_dst, void *d_src, size_t bytes);
+void* CuMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
 
 } // namespace mfem
 

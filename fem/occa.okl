@@ -35,11 +35,11 @@ typedef double* QLocal2D_t @dim(Q1D, Q1D, NE);
 typedef double* DLocal3D_t @dim(D1D, D1D, D1D, NE);
 typedef double* QLocal3D_t @dim(Q1D, Q1D, Q1D, NE);
 
-typedef double* Jacobian2D_t @dim(2, 2, Q2D, NE);
-typedef double* Jacobian3D_t @dim(3, 3, Q3D, NE);
+typedef double* Jacobian2D_t @dim(Q2D, 2, 2, NE);
+typedef double* Jacobian3D_t @dim(Q3D, 3, 3, NE);
 
-typedef double* SymmOperator2D_t @dim(3, Q2D, NE);
-typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
+typedef double* SymmOperator2D_t @dim(Q2D, 3, NE);
+typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 
 @kernel void DiffusionSetup2D(const int NE,
                               @restrict const double *W,
@@ -48,12 +48,12 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                               @restrict SymmOperator2D_t op) {
   for (int e = 0; e < NE; ++e; @outer) {
     for (int q = 0; q < Q2D; ++q; @inner) {
-      const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
-      const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
+      const double J11 = J(q, 0, 0, e), J12 = J(q, 1, 0, e);
+      const double J21 = J(q, 0, 1, e), J22 = J(q, 1, 1, e);
       const double c_detJ = W[q] * COEFF / ((J11 * J22) - (J21 * J12));
-      op(0, q, e) =  c_detJ * (J21*J21 + J22*J22); // (1,1)
-      op(1, q, e) = -c_detJ * (J21*J11 + J22*J12); // (1,2), (2,1)
-      op(2, q, e) =  c_detJ * (J11*J11 + J12*J12); // (2,2)
+      op(q, 0, e) =  c_detJ * (J21*J21 + J22*J22); // (1,1)
+      op(q, 1, e) = -c_detJ * (J21*J11 + J22*J12); // (1,2), (2,1)
+      op(q, 2, e) =  c_detJ * (J11*J11 + J12*J12); // (2,2)
     }
   }
 }
@@ -65,9 +65,9 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                               @restrict SymmOperator3D_t op) {
   for (int e = 0; e < NE; ++e; @outer) {
     for (int q = 0; q < Q3D; ++q; @inner) {
-      const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e), J13 = J(2, 0, q, e);
-      const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e), J23 = J(2, 1, q, e);
-      const double J31 = J(0, 2, q, e), J32 = J(1, 2, q, e), J33 = J(2, 2, q, e);
+      const double J11 = J(q, 0, 0, e), J12 = J(q, 1, 0, e), J13 = J(q, 2, 0, e);
+      const double J21 = J(q, 0, 1, e), J22 = J(q, 1, 1, e), J23 = J(q, 2, 1, e);
+      const double J31 = J(q, 0, 2, e), J32 = J(q, 1, 2, e), J33 = J(q, 2, 2, e);
 
       const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
                            (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
@@ -88,12 +88,12 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
       const double A33 = (J11 * J22) - (J12 * J21);
 
       // adj(J)^Tadj(J)
-      op(0, q, e) = c_detJ * (A11*A11 + A21*A21 + A31*A31); // (1,1)
-      op(1, q, e) = c_detJ * (A11*A12 + A21*A22 + A31*A32); // (1,2), (2,1)
-      op(2, q, e) = c_detJ * (A11*A13 + A21*A23 + A31*A33); // (1,3), (3,1)
-      op(3, q, e) = c_detJ * (A12*A12 + A22*A22 + A32*A32); // (2,2)
-      op(4, q, e) = c_detJ * (A12*A13 + A22*A23 + A32*A33); // (2,3), (3,2)
-      op(5, q, e) = c_detJ * (A13*A13 + A23*A23 + A33*A33); // (3,3)
+      op(q, 0, e) = c_detJ * (A11*A11 + A21*A21 + A31*A31); // (1,1)
+      op(q, 1, e) = c_detJ * (A11*A12 + A21*A22 + A31*A32); // (1,2), (2,1)
+      op(q, 2, e) = c_detJ * (A11*A13 + A21*A23 + A31*A33); // (1,3), (3,1)
+      op(q, 3, e) = c_detJ * (A12*A12 + A22*A22 + A32*A32); // (2,2)
+      op(q, 4, e) = c_detJ * (A12*A13 + A22*A23 + A32*A33); // (2,3), (3,2)
+      op(q, 5, e) = c_detJ * (A13*A13 + A23*A23 + A33*A33); // (3,3)
     }
   }
 }
@@ -146,9 +146,9 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
          for (int qy = 0; qy < Q1D; ++qy) {
             for (int qx = 0; qx < Q1D; ++qx) {
                const int q = QUAD_2D_ID(qx, qy);
-               const double O11 = op(0, q, e);
-               const double O12 = op(1, q, e);
-               const double O22 = op(2, q, e);
+               const double O11 = op(q, 0, e);
+               const double O12 = op(q, 1, e);
+               const double O22 = op(q, 2, e);
 
                const double gradX = grad[qy][qx][0];
                const double gradY = grad[qy][qx][1];
@@ -255,9 +255,9 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
                      }
 
                      const int q = QUAD_2D_ID(qx, qy);
-                     const double O11 = op(0, q, e);
-                     const double O12 = op(1, q, e);
-                     const double O22 = op(2, q, e);
+                     const double O11 = op(q, 0, e);
+                     const double O12 = op(q, 1, e);
+                     const double O22 = op(q, 2, e);
 
                      s_grad(0, qx, qy) = (O11 * gradX) + (O12 * gradY);
                      s_grad(1, qx, qy) = (O12 * gradX) + (O22 * gradY);
@@ -382,12 +382,12 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
         for (int qy = 0; qy < Q1D; ++qy) {
           for (int qx = 0; qx < Q1D; ++qx) {
             const int q = QUAD_3D_ID(qx, qy, qz);
-            const double O11 = op(0, q, e);
-            const double O12 = op(1, q, e);
-            const double O13 = op(2, q, e);
-            const double O22 = op(3, q, e);
-            const double O23 = op(4, q, e);
-            const double O33 = op(5, q, e);
+            const double O11 = op(q, 0, e);
+            const double O12 = op(q, 1, e);
+            const double O13 = op(q, 2, e);
+            const double O22 = op(q, 3, e);
+            const double O23 = op(q, 4, e);
+            const double O33 = op(q, 5, e);
 
             const double gradX = grad[qz][qy][qx][0];
             const double gradY = grad[qz][qy][qx][1];
@@ -557,12 +557,12 @@ typedef double* SymmOperator3D_t @dim(6, Q3D, NE);
             }
 
             const int q = QUAD_3D_ID(qx, qy, qz);
-            const double O11 = op(0, q, e);
-            const double O12 = op(1, q, e);
-            const double O13 = op(2, q, e);
-            const double O22 = op(3, q, e);
-            const double O23 = op(4, q, e);
-            const double O33 = op(5, q, e);
+            const double O11 = op(q, 0, e);
+            const double O12 = op(q, 1, e);
+            const double O13 = op(q, 2, e);
+            const double O22 = op(q, 3, e);
+            const double O23 = op(q, 4, e);
+            const double O33 = op(q, 5, e);
 
             const double qDxyz = (O11 * Dxyz) + (O12 * xDyz) + (O13 * xyDz);
             const double qxDyz = (O12 * Dxyz) + (O22 * xDyz) + (O23 * xyDz);
