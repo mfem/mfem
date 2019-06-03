@@ -1179,6 +1179,9 @@ public:
                                        std::ostream &out,
                                        int interior_faces = 0);
 
+   void ParPrint(const char *mesh_file_root, int nparts,
+                 int *partitioning_ = NULL, int part_method = 1);
+
    /// Print set of disjoint surfaces:
    /*!
     * If Aface_face(i,j) != 0, print face j as a boundary
