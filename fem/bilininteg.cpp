@@ -2029,23 +2029,22 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   int dim = el.GetDim();
-   int dof = el.GetDof();
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
+   const int sdim = Trans.GetSpaceDim();
+   const bool square = (dim == sdim);
+   double w;
 
-   double norm;
-
-   elmat.SetSize (dim * dof);
-
-   Jinv.  SetSize (dim);
-   dshape.SetSize (dof, dim);
-   gshape.SetSize (dof, dim);
-   pelmat.SetSize (dof);
+   dshape.SetSize(nd, dim);
+   dshapedxt.SetSize(nd, sdim);
+   pelmat.SetSize(nd);
+   elmat.SetSize(sdim * nd);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
       // integrand is rational function if det(J) is not constant
-      int order = 2 * Trans.OrderGrad(&el); // order of the numerator
+      const int order = 2 * Trans.OrderGrad(&el); // order of the numerator
       if (el.Space() == FunctionSpace::rQk)
       {
          ir = &RefinedIntRules.Get(el.GetGeomType(), order);
@@ -2057,35 +2056,30 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    }
 
    elmat = 0.0;
-
-   for (int i = 0; i < ir -> GetNPoints(); i++)
+   pelmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
+      el.CalcDShape(ip, dshape);
 
-      el.CalcDShape (ip, dshape);
+      Trans.SetIntPoint(&ip);
+      w = Trans.Weight();
+      w = ip.weight / (square ? w : w*w*w);
+      // AdjugateJacobian = / adj(J),         if J is square
+      //                    \ adj(J^t.J).J^t, otherwise
+      Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
 
-      Trans.SetIntPoint (&ip);
-      norm = ip.weight * Trans.Weight();
-      CalcInverse (Trans.Jacobian(), Jinv);
-
-      Mult (dshape, Jinv, gshape);
-
-      MultAAt (gshape, pelmat);
-
-      if (Q)
+      if (Q) { w *= Q->Eval(Trans, ip); }
+      AddMult_a_AAt(w, dshapedxt, pelmat);
+   }
+   for (int d = 0; d < sdim; d++)
+   {
+      for (int k = 0; k < nd; k++)
       {
-         norm *= Q -> Eval (Trans, ip);
-      }
-
-      pelmat *= norm;
-
-      for (int d = 0; d < dim; d++)
-      {
-         for (int k = 0; k < dof; k++)
-            for (int l = 0; l < dof; l++)
-            {
-               elmat (dof*d+k, dof*d+l) += pelmat (k, l);
-            }
+         for (int l = 0; l < nd; l++)
+         {
+            elmat(nd*d+k, nd*d+l) = pelmat(k, l);
+         }
       }
    }
 }
@@ -2098,7 +2092,7 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    int dof = el.GetDof();
    double w;
 
-   Jinv.SetSize(dim);
+   //Jinv.SetSize(dim);
    dshape.SetSize(dof, dim);
    pelmat.SetSize(dim);
    gshape.SetSize(dim);

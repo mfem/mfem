@@ -10,9 +10,9 @@ void mobius_trans(const Vector &x, Vector &p);
 int main(int argc, char *argv[])
 {
    const char *new_mesh_file = "cylinder.mesh";
-   int nx = 8;
-   int ny = 2;
-   int order = 4;
+   int nx = 6;
+   int ny = 1;
+   int order = 1;
    int close_strip = 1;
    bool visualization = true;
 
