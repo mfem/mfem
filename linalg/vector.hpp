@@ -207,6 +207,12 @@ public:
    /// Swap the contents of two Vectors
    inline void Swap(Vector &other);
 
+   /// elementwise inverse
+   friend void ElementInv(const Vector &x, Vector &y);
+
+   /// Hadamard or entriwise product
+   friend void HadamardProd(const Vector &v1, const Vector &v2, Vector &v);
+
    /// Set v = v1 + v2.
    friend void add(const Vector &v1, const Vector &v2, Vector &v);
 

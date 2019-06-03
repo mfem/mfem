@@ -247,6 +247,53 @@ void Vector::Neg()
    MFEM_FORALL(i, size, y[i] = -y[i];);
 }
 
+void ElementInv(const Vector &x, Vector &y)
+{
+#ifdef MFEM_DEBUG
+   if (x.size != y.size)
+   {
+      mfem_error("ElementInv(const Vector &x, Vector &y)");
+   }
+#endif
+
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+   const int N = y.size;
+   DeviceVector y_dev(y, N);
+   const DeviceVector x_dev(x, N);
+   MFEM_FORALL(i, N, y_dev[i] = 1.0/x_dev[i];);
+#else
+   #pragma omp parallel for
+   for (int i = 0; i < y.size; i++)
+   {
+      y.data[i] = 1./x.data[i];
+   }
+#endif
+}
+
+void HadamardProd(const Vector &v1, const Vector &v2, Vector &v)
+{
+#ifdef MFEM_DEBUG
+   if (v.size != v1.size || v.size != v2.size)
+   {
+      mfem_error("HadamardProd(Vector &v1, Vector &v2, Vector &v)");
+   }
+#endif
+
+#if !defined(MFEM_USE_LEGACY_OPENMP)
+   const int N = v.size;
+   DeviceVector y(v, N);
+   const DeviceVector x1(v1, N);
+   const DeviceVector x2(v2, N);
+   MFEM_FORALL(i, N, y[i] = x1[i]*x2[i];);
+#else
+   #pragma omp parallel for
+   for (int i = 0; i < v.size; i++)
+   {
+      v.data[i] = v1.data[i]*v2.data[i];
+   }
+#endif
+}
+
 void add(const Vector &v1, const Vector &v2, Vector &v)
 {
 #ifdef MFEM_DEBUG
