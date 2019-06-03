@@ -17,6 +17,10 @@ add_mfem_miniapp(mesh-explorer
   MAIN mesh-explorer.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(mesh-part
+  MAIN mesh-part.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(mobius-strip
   MAIN mobius-strip.cpp
   LIBRARIES mfem)

@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid \
-	mesh-explorer shaper extruder mesh-optimizer
+	mesh-explorer mesh-part shaper extruder mesh-optimizer
 PAR_MINIAPPS = pmesh-optimizer
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
