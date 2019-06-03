@@ -9037,6 +9037,240 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &out) const
    }
 }
 
+void Mesh::ParPrint(const char *mesh_file_root, int nparts,
+                    int *partitioning_, int part_method)
+{
+   int *partitioning = NULL;
+   if (partitioning_)
+   {
+      partitioning = partitioning_;
+   }
+   else
+   {
+      partitioning = GeneratePartitioning(nparts, part_method);
+   }
+
+   Array<int> vert_global_local(NumOfVertices);
+   Array<bool> activeBdrElem;
+
+   Table *edge_element = NULL;
+   if (Dim == 2)
+   {
+      edge_element = new Table;
+      Transpose(ElementToEdgeTable(), *edge_element, GetNEdges());
+   }
+
+   for (int p=0; p<nparts; p++)
+   {
+      vert_global_local = -1;
+      activeBdrElem = false;
+
+      int nelems = 0;
+      int nbdry = 0;
+      int vert_counter = 0;
+
+      for (int i = 0; i < NumOfElements; i++)
+      {
+         if (partitioning[i] == p)
+         {
+            Array<int> vert;
+            GetElementVertices(i, vert);
+            for (int j = 0; j < vert.Size(); j++)
+            {
+               if (vert_global_local[vert[j]] < 0)
+               {
+                  vert_global_local[vert[j]] = vert_counter++;
+               }
+            }
+            nelems++;
+         }
+      }
+
+      if (Dim == 3)
+      {
+         for (int i = 0; i < GetNBE(); i++)
+         {
+            int face, o, el1, el2;
+            GetBdrElementFace(i, &face, &o);
+            GetFaceElements(face, &el1, &el2);
+            if (partitioning[(o % 2 == 0 || el2 < 0) ? el1 : el2] == p)
+            {
+               nbdry++;
+               if (NURBSext)
+               {
+                  activeBdrElem[i] = true;
+               }
+            }
+         }
+      }
+      else if (Dim == 2)
+      {
+         for (int i = 0; i < GetNBE(); i++)
+         {
+            int edge = GetBdrElementEdgeIndex(i);
+            int el1 = edge_element->GetRow(edge)[0];
+            if (partitioning[el1] == p)
+            {
+               nbdry++;
+               if (NURBSext)
+               {
+                  activeBdrElem[i] = true;
+               }
+            }
+         }
+      }
+      else
+      {
+         for (int i = 0; i < GetNBE(); i++)
+         {
+            int vert = boundary[i]->GetVertices()[0];
+            int el1, el2;
+            GetFaceElements(vert, &el1, &el2);
+            if (partitioning[el1] == p)
+            {
+               nbdry++;
+            }
+         }
+
+      }
+
+      // re-enumerate the local vertices to preserve the global ordering
+      vert_counter = 0;
+      for (int i = 0; i < vert_global_local.Size(); i++)
+      {
+         if (vert_global_local[i] >= 0)
+         {
+            vert_global_local[i] = vert_counter++;
+         }
+      }
+
+      ostringstream oss;
+      oss << mesh_file_root << "." << setw(5) << setfill('0') << p;
+      ofstream out(oss.str().c_str());
+
+      out << "MFEM mesh v1.2\n";
+      out <<
+          "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+          "# POINT       = 0\n"
+          "# SEGMENT     = 1\n"
+          "# TRIANGLE    = 2\n"
+          "# SQUARE      = 3\n"
+          "# TETRAHEDRON = 4\n"
+          "# CUBE        = 5\n"
+          "# PRISM       = 6\n"
+          "#\n";
+
+      out << "\ndimension\n" << Dim
+          << "\n\nelements\n" << nelems << '\n';
+      for (int i = 0; i < NumOfElements; i++)
+      {
+         if (partitioning[i] == p)
+         {
+            Element *el = GetElement(i);
+            out << el->GetAttribute() << ' ' << el->GetGeometryType();
+            const int nv = el->GetNVertices();
+            const int *v = el->GetVertices();
+            for (int j = 0; j < nv; j++)
+            {
+               out << ' ' << vert_global_local[v[j]];
+            }
+            out << '\n';
+         }
+      }
+      out << "\nboundary\n" << nbdry << '\n';
+      if (Dim == 3)
+      {
+         for (int i = 0; i < GetNBE(); i++)
+         {
+            int face, o, el1, el2;
+            GetBdrElementFace(i, &face, &o);
+            GetFaceElements(face, &el1, &el2);
+            if (partitioning[(o % 2 == 0 || el2 < 0) ? el1 : el2] == p)
+            {
+               Element *el = GetBdrElement(i);
+               int *v = el->GetVertices();
+               int nv = el->GetNVertices();
+               out << el->GetAttribute() << ' ' << el->GetGeometryType();
+               for (int j = 0; j < nv; j++)
+               {
+                  out << ' ' << vert_global_local[v[j]];
+               }
+               out << '\n';
+            }
+         }
+      }
+      else if (Dim == 2)
+      {
+         for (int i = 0; i < GetNBE(); i++)
+         {
+            int edge = GetBdrElementEdgeIndex(i);
+            int el1 = edge_element->GetRow(edge)[0];
+            if (partitioning[el1] == p)
+            {
+               Element * el = GetBdrElement(i);
+               int *v = el->GetVertices();
+               int nv = el->GetNVertices();
+               out << el->GetAttribute() << ' ' << el->GetGeometryType();
+               for (int j = 0; j < nv; j++)
+               {
+                  out << ' ' << vert_global_local[v[j]];
+               }
+               out << '\n';
+            }
+         }
+      }
+      else
+      {
+         for (int i = 0; i < GetNBE(); i++)
+         {
+            int vert = boundary[i]->GetVertices()[0];
+            int el1, el2;
+            GetFaceElements(vert, &el1, &el2);
+            if (partitioning[el1] == p)
+            {
+               Element * el = GetBdrElement(i);
+               int *v = el->GetVertices();
+               out << el->GetAttribute() << ' '
+                   << el->GetGeometryType() << ' '
+                   << vert_global_local[v[0]] << '\n';
+            }
+         }
+      }
+
+      out << "\nvertices\n" << vert_counter << '\n';
+      if (Nodes == NULL)
+      {
+         out << spaceDim << '\n';
+         for (int i=0; i<NumOfVertices; i++)
+         {
+            if (vert_global_local[i] >= 0)
+            {
+               out << vertices[i](0);
+               for (int j = 1; j < spaceDim; j++)
+               {
+                  out << ' ' << vertices[i](j);
+               }
+               out << '\n';
+            }
+         }
+      }
+      else
+      {
+         out << "\nnodes\n";
+      }
+      out << "mfem_serial_mesh_end\n";
+
+      out << "mfem_mesh_end\n";
+
+      out.close();
+   }
+
+   if (partitioning != partitioning_)
+   {
+      delete [] partitioning;
+   }
+}
+
 void Mesh::ScaleSubdomains(double sf)
 {
    int i,j,k;
