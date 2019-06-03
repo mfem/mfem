@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
   // int order = 1;
   // bool static_cond = false;
   int total_refinements = 4;
-  int max_serial_refinements = 2;
+  // int max_serial_refinements = 2;
 
 
    // 1. Parse command-line options.
@@ -134,17 +134,15 @@ int main(int argc, char *argv[])
 	{
 	  cout << "In this example, the order parameter is used as a proxy:\n order 1: quadratic tensor product elements\n order 2: quadratic quadratic serendipity elements" << endl;
 	}
-      cout << "Done making the FE collection" << endl;
+      // cout << "Done making the FE collection" << endl;
 
       // Set exact solution
       FunctionCoefficient f(f_exact);
       FunctionCoefficient u(u_exact);
       VectorFunctionCoefficient u_grad(dim, u_grad_exact);
 
-
       FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-      cout << "Number of finite element unknowns: "
-	   << fespace->GetTrueVSize() << endl;
+      //      cout << "Number of finite element unknowns: "  << fespace->GetTrueVSize() << endl;
 
       // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
       //    In this example, the boundary conditions are defined by marking all
@@ -152,8 +150,8 @@ int main(int argc, char *argv[])
       //    converting them to a list of true dofs.
 
       // this variable may not be right:
-      int size = fespace->GetTrueVSize();									 
-      
+      int size = fespace->GetTrueVSize();  
+
       Array<int> ess_tdof_list;
       if (mesh->bdr_attributes.Size())
 	{
@@ -161,7 +159,7 @@ int main(int argc, char *argv[])
 	  ess_bdr = 1;
 	  fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 	}
-      
+
       // 7. Set up the linear form b(.) which corresponds to the right-hand side of
       //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
       //    the basis functions in the finite element fespace.
@@ -169,7 +167,7 @@ int main(int argc, char *argv[])
       ConstantCoefficient one(1.0);
       b->AddDomainIntegrator(new DomainLFIntegrator(one));
       b->Assemble();
-      
+
       // 8. Define the solution vector x as a finite element grid function
       //    corresponding to fespace. Initialize x with initial guess of zero,
       //    which satisfies the boundary conditions.
@@ -194,7 +192,7 @@ int main(int argc, char *argv[])
       Vector B, X;
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
       
-      cout << "Size of linear system: " << A->Height() << endl;
+      // cout << "Size of linear system: " << A->Height() << endl;
       
       // 11. Solve the linear system A X = B.
       if (!pa)
@@ -225,6 +223,10 @@ int main(int argc, char *argv[])
       double h_min, h_max, kappa_min, kappa_max, l2_rate, h1_rate;
       //pmesh->GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
 
+      h_min = 1; // What is h_min and how should it be initialized???
+
+      cout << "l2_err=" << l2_err << " l2_err_prev=" << l2_err_prev << " h_min=" << h_min << " h_prev=" << h_prev << " ref=" << ref << endl; 
+      
       if (ref != 0)
       {
          l2_rate = log(l2_err/l2_err_prev) / log(h_min/h_prev);

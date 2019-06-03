@@ -572,16 +572,17 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
    auto d_y = elemvect.Read(use_dev);
    auto d_X = ReadWrite(use_dev);
    auto d_dofs = dofs.Read(use_dev);
+
    MFEM_FORALL_SWITCH(use_dev, i, n,
    {
       const int j = d_dofs[i];
       if (j >= 0)
       {
-         d_X[j] += d_y[i];
+	d_X[j] += d_y[i];
       }
       else
       {
-         d_X[-1-j] -= d_y[i];
+	d_X[-1-j] -= d_y[i];
       }
    });
 }

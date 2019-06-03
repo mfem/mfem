@@ -1306,8 +1306,6 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    sequence = mesh->GetSequence();
    Th.SetType(Operator::ANY_TYPE);
 
-   std::cout << "Element name is " << fec->Name() << std::endl;
-   
    const NURBSFECollection *nurbs_fec =
       dynamic_cast<const NURBSFECollection *>(fec);
    if (nurbs_fec)
@@ -1462,6 +1460,15 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
       nv = fec->DofForGeometry(Geometry::POINT);
       ne = (dim > 1) ? ( fec->DofForGeometry(Geometry::SEGMENT) ) : ( 0 );
       nb = (dim > 0) ? fec->DofForGeometry(mesh->GetElementBaseGeometry(i)) : 0;
+
+      
+      if (strncmp((this->FEColl())->Name(),"H1Ser_",6) == 0)
+      {
+	   // For serendipity elements with element DoFs, need to set nb accordingly here
+	   // and figure out what to do in the nb>0 case later in this function
+	   nb = 0;
+      }
+      
       if (nv > 0)
       {
          mesh->GetElementVertices(i, V);
@@ -1483,6 +1490,7 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
          }
       }
       nd = V.Size() * nv + E.Size() * ne + nfd + nb;
+
       dofs.SetSize(nd);
       if (nv > 0)
       {
@@ -1536,12 +1544,6 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
             }
             ne += nf;
          }
-      }
-      if (strncmp((this->FEColl())->Name(),"H1Ser_",6) == 0)
-      {
-	   // For serendipity elements with element DoFs, need to set nb accordingly here
-	   // and figure out what to do like in the case nb>0 below
-	   nb = 0;
       }
       if (nb > 0)
       {
