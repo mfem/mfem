@@ -59,8 +59,10 @@ Device Device::device_singleton;
 
 Device::~Device()
 {
-   free(ceed_option);
-   if (destroy_mm) { mm.Destroy(); }
+   if (destroy_mm) {
+      free(ceed_option);
+      mm.Destroy();
+   }
 }
 
 void Device::Configure(const std::string &device, const int dev)
