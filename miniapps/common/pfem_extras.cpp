@@ -524,7 +524,7 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       {
          sock << "window_title '" << title << "'\n";
       }
-      
+
       if (myid == 0 && newly_opened)
       {
          sock << "window_geometry "
