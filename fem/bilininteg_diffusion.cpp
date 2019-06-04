@@ -192,21 +192,21 @@ static void PADiffusionSetup(const int dim,
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   const FiniteElement &el = *fes.GetFE(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 #ifdef MFEM_USE_CEED
    if (Device::Allows(Backend::CEED_MASK))
    {
       CeedData* ptr = new CeedData();
       ceedDataPtr = ptr;
       initCeedCoeff(Q, ptr);
-      CeedPADiffusionAssemble(fes, *ptr);
+      CeedPADiffusionAssemble(fes, *ir, *ptr);
    }
    else
 #endif
    {
       // Assumes tensor-product elements
       Mesh *mesh = fes.GetMesh();
-      const FiniteElement &el = *fes.GetFE(0);
-      const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
       const int dims = el.GetDim();
       const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
       const int nq = ir->GetNPoints();

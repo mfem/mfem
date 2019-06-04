@@ -24,23 +24,23 @@ namespace mfem
 // PA Mass Assemble kernel
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   // Assuming the same element type
+   Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNE() == 0) { return; }
+   const FiniteElement &el = *fes.GetFE(0);
+   ElementTransformation *T = mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
 #ifdef MFEM_USE_CEED
    if (Device::Allows(Backend::CEED_MASK))
    {
       CeedData* ptr = new CeedData();
       ceedDataPtr = ptr;
       initCeedCoeff(Q, ptr);
-      CeedPAMassAssemble(fes, *ptr);
+      CeedPAMassAssemble(fes, *ir, *ptr);
    }
    else
 #endif
    {
-      // Assuming the same element type
-      Mesh *mesh = fes.GetMesh();
-      if (mesh->GetNE() == 0) { return; }
-      const FiniteElement &el = *fes.GetFE(0);
-      ElementTransformation *T = mesh->GetElementTransformation(0);
-      const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
       dim = mesh->Dimension();
       ne = fes.GetMesh()->GetNE();
       nq = ir->GetNPoints();
