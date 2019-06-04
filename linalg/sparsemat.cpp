@@ -3490,38 +3490,6 @@ SparseMatrix * Add(Array<SparseMatrix *> & Ai)
    return result;
 }
 
-SparseMatrix * Scale(double a, const SparseMatrix & A)
-{
-   int nrows = A.Height();
-   int ncols = A.Width();
-   int nnz = A.NumNonZeroElems();
-
-   int * B_i = new int[nrows+1];
-   int * B_j = new int[nnz];
-   double * B_data = new double[nnz];
-
-   const int * A_i = A.GetI();
-   const int * A_j = A.GetJ();
-   const double * A_data = A.GetData();
-
-   for (int i = 0; i < nrows+1; i++)
-   {
-      B_i[i] = A_i[i];
-   }
-
-   for (int j = 0; j < nnz; j++)
-   {
-      B_j[j] = A_j[j];
-   }
-
-   for (int j = 0; j < nnz; j++)
-   {
-      B_data[j] = a*A_data[j];
-   }
-
-   return new SparseMatrix(B_i, B_j, B_data, nrows, ncols);
-}
-
 /// B += alpha * A
 void Add(const SparseMatrix &A,
          double alpha, DenseMatrix &B)
