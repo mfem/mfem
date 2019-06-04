@@ -1956,7 +1956,14 @@ double GridFunction::ComputeL2Error(
       }
       else
       {
-         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+         if (fe->Space() == FunctionSpace::SBPk)
+         {
+            ir = &(fe->GetNodes());
+         }
+         else 
+         {
+            ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+         }
       }
       T = fes->GetElementTransformation(i);
       GetVectorValues(*T, *ir, vals);
