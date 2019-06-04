@@ -15,7 +15,7 @@
 
 namespace mfem
 {
-   
+
 void NewmarkSolver::Init(TimeDependent2Operator &_f)
 {
    ODE2Solver::Init(_f);
