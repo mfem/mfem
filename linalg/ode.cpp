@@ -545,8 +545,9 @@ void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
    double dt_fac2 = alpha_f*gamma/alpha_m;
    double dt_fac3 = 1.0/alpha_m;
 
-   // In the first pass xdot is not yet computed. If parameter choices requires
-   // xdot midpoint rule is used instead for the first step only.
+   // In the first pass xdot is not yet computed. 
+   // If parameter choices requires xdot then 
+   // the first step is done using the midpoint rule
    if (first && (dt_fac1 != 0.0))
    {
       dt_fac1 = 0.0;
@@ -565,7 +566,6 @@ void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 
    t += dt;
 }
-
 
 void
 SIASolver::Init(Operator &P, TimeDependentOperator & F)
