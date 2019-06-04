@@ -1423,7 +1423,7 @@ void FiniteElementSpace::Construct()
    {
      if (strncmp(fec->Name(),"H1Ser_", 6)==0)
      {
-       cout << "fespace.cpp: Using a serendipity element!" << endl;
+       //cout << "fespace.cpp: Using a serendipity element!" << endl;
      }
      else
      {
@@ -1437,7 +1437,8 @@ void FiniteElementSpace::Construct()
        }
      }
      ndofs = nvdofs + nedofs + nfdofs + nbdofs;
-     cout << "Computed ndofs as sum of " << nvdofs << " vdofs, " << nedofs << " nedofs, " << nfdofs << " nfdofs, and " << nbdofs << " nbdofs." << endl;
+     // cout << "Computed ndofs as sum of " << nvdofs << " vdofs, " << nedofs << " nedofs, " << nfdofs << " nfdofs, and " << nbdofs << " nbdofs." << endl;
+     // Serendipity edits will need to be done here...
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.

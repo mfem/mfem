@@ -1593,15 +1593,15 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
       else if (b_type == BasisType::Serendipity)
       {
-	  // Should throw some error here if the geometry type is triangle
-	  H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement();
-	  cout << "in fe_coll.cpp: called H1Ser_QuadElt" << endl;
+	// Should throw some error here if the geometry type is triangle
+	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement();
+	// cout << "in fe_coll.cpp: called H1Ser_QuadElt" << endl;
       }
       else
       {
-         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
+	 H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
          H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
-	 cout << "in fe_coll.cpp: called H1_QuadElt" << endl;
+	 //cout << "in fe_coll.cpp: called H1_QuadElt" << endl;
       }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];

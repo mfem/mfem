@@ -31,12 +31,12 @@ double kappa;
 
 int main(int argc, char *argv[])
 {
-  //   // NOT USED: Initialize MPI.
+  //  Initialize MPI.
   int num_procs = 1;
   int myid = 0;
-  // MPI_Init(&argc, &argv);
-  // MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-  // MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+  MPI_Init(&argc, &argv);
+  MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // Parse command-line options.
    const char *mesh_file = "../../../data/star.mesh";
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      // MPI_Finalize();
+      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
