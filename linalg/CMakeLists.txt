@@ -18,7 +18,6 @@ list(APPEND SRCS
   handle.cpp
   matrix.cpp
   ode.cpp
-  ode2.cpp
   operator.cpp
   solvers.cpp
   sparsemat.cpp
@@ -38,7 +37,6 @@ list(APPEND HDRS
   linalg.hpp
   matrix.hpp
   ode.hpp
-  ode2.hpp
   operator.hpp
   solvers.hpp
   sparsemat.hpp

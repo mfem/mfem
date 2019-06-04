@@ -30,13 +30,13 @@ using namespace mfem;
  *    du2/dt^2 + b du/dt  + a u = 0
  *
  */
-class ODE2 : public TimeDependent2Operator
+class ODE2 : public TimeDependentOperator
 {
 protected:
    double a,b;
 
 public:
-   ODE2(double a_, double b_) : TimeDependent2Operator(1, 0.0),  a(a_), b(b_) {};
+   ODE2(double a_, double b_) : TimeDependentOperator(1, 0.0),  a(a_), b(b_) {};
 
    virtual void ExplicitSolve(const Vector &u, const Vector &dudt,
                               Vector &d2udt2) const;
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
    // 2. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   ODE2Solver *ode_solver;
+   ODESolver *ode_solver;
    switch (ode_solver_type)
    {
       // Generalized-alpha solvers
@@ -158,9 +158,6 @@ int main(int argc, char *argv[])
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
    }
-   ode_solver->PrintProperties();
-
-
 
    // 3. Set the initial conditions for u.
    Vector u(1);

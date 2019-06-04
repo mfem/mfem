@@ -70,6 +70,9 @@ public:
          between the two Step() calls. */
    virtual void Step(Vector &x, double &t, double &dt) = 0;
 
+   virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt)
+   {  MFEM_ABORT("Step for 2nd order odes not implemented")};
+
    /// Perform time integration from time @a t [in] to time @a tf [in].
    /** @param[in,out] x   Approximate solution.
        @param[in,out] t   Time associated with the approximate solution @a x.
@@ -371,6 +374,136 @@ private:
    Array<double> a_;
    Array<double> b_;
 };
+
+
+/// The classical newmark method.
+/// Newmark, N. M. (1959) A method of computation for structural dynamics.
+/// Journal of Engineering Mechanics, ASCE, 85 (EM3) 67-94.
+class NewmarkSolver : public ODESolver
+{
+private:
+   Vector d2xdt2;
+
+   double beta, gamma;
+   bool first;
+
+public:
+   NewmarkSolver(double beta_ = 0.25, double gamma_ = 0.5) { beta = beta_; gamma = gamma_; };
+
+   virtual void PrintProperties(std::ostream &out = mfem::out);
+
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt)
+       {  MFEM_ABORT("Step for 1st-order odes not implemented")};
+
+   virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
+};
+
+class LinearAccelerationSolver : public NewmarkSolver
+{
+public:
+   LinearAccelerationSolver() : NewmarkSolver(1.0/6.0, 0.5) { };
+};
+
+class CentralDifferenceSolver : public NewmarkSolver
+{
+public:
+   CentralDifferenceSolver() : NewmarkSolver(0.0, 0.5) { };
+};
+
+class FoxGoodwinSolver : public NewmarkSolver
+{
+public:
+   FoxGoodwinSolver() : NewmarkSolver(1.0/12.0, 0.5) { };
+};
+
+/// Generalized-alpha ODE solver
+/// A Time Integration Algorithm for Structural Dynamics With Improved Numerical Dissipation: The Generalized-α Method
+/// J.Chung and G.M. Hulbert,  J. Appl. Mech 60(2), 371-375, 1993
+/// https://doi.org/10.1115/1.2900803
+class GeneralizedAlpha2Solver : public ODESolver
+{
+protected:
+   Vector xa,va,aa,d2xdt2;
+   double alpha_f, alpha_m, beta, gamma;
+   bool first;
+
+public:
+   GeneralizedAlpha2Solver(double rho_inf = 1.0)
+   {
+      rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
+      rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
+
+      alpha_m = (2.0 - rho_inf)/(1.0 + rho_inf);
+      alpha_f = 1.0/(1.0 + rho_inf);
+      beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
+      gamma   = 0.5 + alpha_m - alpha_f;
+   };
+
+   virtual void PrintProperties(std::ostream &out = mfem::out);
+
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt)
+       {  MFEM_ABORT("Step for 1st-order odes not implemented")};
+
+   virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
+};
+
+/// The classical midpoint method.
+class AverageAccelerationSolver : public GeneralizedAlpha2Solver
+{
+public:
+   AverageAccelerationSolver()
+   {
+      alpha_m = 0.5;
+      alpha_f = 0.5;
+      beta    = 0.25;
+      gamma   = 0.5;
+   };
+};
+
+/// HHT-alpha ODE solver
+/// Improved numerical dissipation for time integration algorithms in structural dynamics
+/// H.M. Hilber, T.J.R. Hughes and R.L. Taylor 1977
+/// https://doi.org/10.1002/eqe.4290050306
+class HHTAlphaSolver : public GeneralizedAlpha2Solver
+{
+public:
+   HHTAlphaSolver(double rho_inf = 1.0)
+   {
+      rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
+      rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
+
+      alpha_m = 1.0;
+      alpha_f = 2.0*rho_inf/(1.0 + rho_inf);
+      beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
+      gamma   = 0.5 + alpha_m - alpha_f;
+   };
+
+};
+
+/// WBZ-alpha ODE solver
+/// An alpha modification of Newmark's method
+/// W.L. Wood, M. Bossak and O.C. Zienkiewicz 1980
+/// https://doi.org/10.1002/nme.1620151011
+class WBZAlphaSolver : public GeneralizedAlpha2Solver
+{
+public:
+   WBZAlphaSolver(double rho_inf = 1.0)
+   {
+      rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
+      rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
+
+      alpha_f = 1.0;
+      alpha_m = 2.0/(1.0 + rho_inf);
+      beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
+      gamma   = 0.5 + alpha_m - alpha_f;
+   };
+
+};
+
 
 }
 
