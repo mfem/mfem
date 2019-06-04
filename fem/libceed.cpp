@@ -319,12 +319,12 @@ static void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
                              tp_el_dof.GetData(), restr);
 }
 
-void CeedPADiffusionAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
+void CeedPADiffusionAssemble(const FiniteElementSpace &fes, const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
    const int order = fes.GetOrder(0);
-   const int ir_order = 2 * (order + 2) - 1; // <-----
+   const int ir_order = irm.GetOrder();
    const mfem::IntegrationRule &ir =
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
    CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
@@ -532,12 +532,12 @@ static int f_apply_mass(void *ctx, CeedInt Q,
    return 0;
 }
 
-void CeedPAMassAssemble(const FiniteElementSpace &fes, CeedData& ceedData)
+void CeedPAMassAssemble(const FiniteElementSpace &fes, const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
    const int order = fes.GetOrder(0);
-   const int ir_order = 2*(order + 2) - 1; // <-----
+   const int ir_order = irm.GetOrder();
    const mfem::IntegrationRule &ir =
       mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
    CeedInt nqpts, nelem = mesh->GetNE();
