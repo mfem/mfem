@@ -829,8 +829,6 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    d2xdt2.Add (1.0/fac5, aa);
 
    t += dt;
-
 }
-
 
 }
