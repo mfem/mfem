@@ -175,20 +175,20 @@ public:
 
    virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
 };
-   
+
 /// The classical midpoint method.
 class AverageAccelerationSolver : public GeneralizedAlpha2Solver
 {
 public:
-   AverageAccelerationSolver() 
+   AverageAccelerationSolver()
    {
       alpha_m = 0.5;
       alpha_f = 0.5;
       beta    = 0.25;
-      gamma   = 0.5; 
+      gamma   = 0.5;
    };
 };
-   
+
 /// HHT-alpha ODE solver
 /// Improved numerical dissipation for time integration algorithms in structural dynamics
 /// H.M. Hilber, T.J.R. Hughes and R.L. Taylor 1977

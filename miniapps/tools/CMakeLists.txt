@@ -25,3 +25,7 @@ add_mfem_miniapp(check-1st-ti
 
 add_mfem_miniapp(check-2nd-ti
   MAIN check-2nd-ti.cpp LIBRARIES mfem)
+
+add_mfem_miniapp(lor-transfer
+  MAIN lor-transfer.cpp LIBRARIES mfem)
+

@@ -79,7 +79,7 @@ public:
       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
    void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip);
-
+   using VectorCoefficient::Eval;
 private:
    void Def1D(const Vector & u, Vector & v);
    void Def2D(const Vector & u, Vector & v);
@@ -504,25 +504,18 @@ string elemTypeStr(const Element::Type & eType)
    {
       case Element::POINT:
          return "POINT";
-         break;
       case Element::SEGMENT:
          return "SEGMENT";
-         break;
       case Element::TRIANGLE:
          return "TRIANGLE";
-         break;
       case Element::QUADRILATERAL:
          return "QUADRILATERAL";
-         break;
       case Element::TETRAHEDRON:
          return "TETRAHEDRON";
-         break;
       case Element::HEXAHEDRON:
          return "HEXAHEDRON";
-         break;
       default:
          return "INVALID";
-         break;
    };
 }
 
@@ -551,31 +544,22 @@ basisTypeStr(char bType)
    {
       case 'h':
          return "Continuous (H1)";
-         break;
       case 'p':
          return "Continuous Positive (H1)";
-         break;
       case 'n':
          return "Nedelec";
-         break;
       case 'r':
          return "Raviart-Thomas";
-         break;
       case 'l':
          return "Discontinuous (L2)";
-         break;
       case 'f':
          return "Fixed Order Continuous";
-         break;
       case 'g':
          return "Gaussian Discontinuous";
-         break;
       case 'c':
          return "Crouzeix-Raviart";
-         break;
       default:
          return "INVALID";
-         break;
    };
 }
 
@@ -607,19 +591,14 @@ mapTypeStr(int mType)
    {
       case FiniteElement::VALUE:
          return "VALUE";
-         break;
       case FiniteElement::H_CURL:
          return "H_CURL";
-         break;
       case FiniteElement::H_DIV:
          return "H_DIV";
-         break;
       case FiniteElement::INTEGRAL:
          return "INTEGRAL";
-         break;
       default:
          return "INVALID";
-         break;
    }
 }
 
@@ -849,7 +828,7 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
          VisualizeField(*sock[i], vishost, visport, *x[i], oss.str().c_str(),
                         (i % vwl.nx) * offx, ((i / vwl.nx) % vwl.ny) * offy,
                         vwl.w, vwl.h,
-                        vec);
+                        "aaAc", vec);
       }
    }
 
