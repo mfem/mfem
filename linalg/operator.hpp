@@ -293,8 +293,6 @@ public:
       return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
    }
 
-
-
    virtual ~TimeDependentOperator() { }
 };
 
