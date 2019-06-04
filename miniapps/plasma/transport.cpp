@@ -264,6 +264,8 @@ int main(int argc, char *argv[])
    // double dt_rel_tol = 0.1;
    double cfl = 0.3;
    bool visualization = true;
+   bool visit = false;
+   bool binary = false;
    int vis_steps = 10;
 
    Array<int> ion_charges;
@@ -344,6 +346,12 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
+                  "--ascii-datafiles",
+                  "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
 
@@ -835,10 +843,35 @@ int main(int argc, char *argv[])
    int Wx = 278, Wy = 0; // window position
    int Ww = 275, Wh = 250; // window size
 
+   DataCollection *dc = NULL;
+   if (visit)
+   {
+      if (binary)
+      {
+#ifdef MFEM_USE_SIDRE
+         dc = new SidreDataCollection("Transport-Parallel", &pmesh);
+#else
+         MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+#endif
+      }
+      else
+      {
+         dc = new VisItDataCollection("Transport-Parallel", &pmesh);
+         dc->SetPrecision(precision);
+         // To save the mesh using MFEM's parallel mesh format:
+         // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
+      }
+      dc->RegisterField("solution", &u);
+      dc->SetCycle(0);
+      dc->SetTime(t_init);
+      dc->Save();
+   }
+
+   int cycle = 0;
    int amr_it = 0;
    int ref_it = 0;
    int dref_it = 0;
-   
+
    double t = t_init;
 
    if (mpi.Root()) { cout << "\nBegin time stepping at t = " << t << endl; }
@@ -854,6 +887,14 @@ int main(int argc, char *argv[])
          oss << "Field at time " << t;
          VisualizeField(sout, vishost, visport, u, oss.str().c_str(),
                         Wx, Wy, Ww, Wh);
+      }
+
+      if (visit)
+      {
+         cycle++;
+         dc->SetCycle(cycle);
+         dc->SetTime(t);
+         dc->Save();
       }
 
       if (t_final - t > 1e-8 * (t_final - t_init))
@@ -900,7 +941,7 @@ int main(int argc, char *argv[])
          }
          else
          {
-	    ref_it++;	   
+            ref_it++;
             if (mpi.Root())
             {
                cout << "Refining elements (iteration " << ref_it << ")" << endl;
@@ -934,10 +975,10 @@ int main(int argc, char *argv[])
          }
          if (derefiner.Apply(pmesh))
          {
-	   dref_it++;
+            dref_it++;
             if (mpi.Root())
             {
-	      cout << "Derefining elements (iteration " << dref_it << ")" << endl;
+               cout << "Derefining elements (iteration " << dref_it << ")" << endl;
             }
 
             // 24. Update the space and the solution, rebalance the mesh.
@@ -1011,6 +1052,7 @@ int main(int argc, char *argv[])
    // Free the used memory.
    delete ode_solver;
    // delete ode_imp_solver;
+   delete dc;
 
    return 0;
 }
