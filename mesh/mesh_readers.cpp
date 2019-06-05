@@ -1111,7 +1111,7 @@ void Mesh::ProcessBoundaryElements(std::vector<Element*> &elements_0D,
                                     std::vector<Element*> &elements_2D,
                                     std::vector<Element*> &elements_3D)
 {
-   spaceDim = 3;
+   // spaceDim = 3; // defer to FinalizeTopology to figure out spaceDim
    if (!elements_3D.empty())
    {
       Dim = 3;
