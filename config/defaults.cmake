@@ -26,7 +26,8 @@ option(MFEM_USE_GZSTREAM "Enable gzstream for compressed data streams." OFF)
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
 option(MFEM_USE_LAPACK "Enable LAPACK usage" OFF)
 option(MFEM_THREAD_SAFE "Enable thread safety" OFF)
-option(MFEM_USE_OPENMP "Enable OpenMP usage" OFF)
+option(MFEM_USE_OPENMP "Enable the OpenMP backend" OFF)
+option(MFEM_USE_LEGACY_OPENMP "Enable legacy OpenMP usage" OFF)
 option(MFEM_USE_MEMALLOC "Enable the internal MEMALLOC option." ON)
 option(MFEM_USE_SUNDIALS "Enable SUNDIALS usage" OFF)
 option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
@@ -41,6 +42,9 @@ option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
+option(MFEM_USE_CUDA "Enable CUDA" OFF)
+option(MFEM_USE_OCCA "Enable OCCA" OFF)
+option(MFEM_USE_RAJA "Enable RAJA" OFF)
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 
@@ -58,13 +62,16 @@ option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
 # set(CXX g++)
 # set(MPICXX mpicxx)
 
+# Set the target CUDA architecture
+set(CUDA_ARCH "sm_60" CACHE STRING "Target CUDA architecture.")
+
 set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # The *_DIR paths below will be the first place searched for the corresponding
 # headers and library. If these fail, then standard cmake search is performed.
 # Note: if the variables are already in the cache, they are not overwritten.
 
-set(HYPRE_DIR "${MFEM_DIR}/../hypre-2.10.0b/src/hypre" CACHE PATH
+set(HYPRE_DIR "${MFEM_DIR}/../hypre/src/hypre" CACHE PATH
     "Path to the hypre library.")
 # If hypre was compiled to depend on BLAS and LAPACK:
 # set(HYPRE_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
@@ -102,6 +109,7 @@ set(SuperLUDist_REQUIRED_PACKAGES "MPI" "BLAS" "ParMETIS" CACHE STRING
 set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
     "Path to the STRUMPACK library.")
 # STRUMPACK may also depend on "OpenMP", depending on how it was compiled.
+# Starting with v2.2.0 of STRUMPACK, ParMETIS and Scotch are optional.
 set(STRUMPACK_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
     "ScaLAPACK" "Scotch/ptscotch/ptscotcherr/scotch/scotcherr" CACHE STRING
     "Additional packages required by STRUMPACK.")
@@ -109,7 +117,8 @@ set(STRUMPACK_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
 # set(STRUMPACK_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
 #     "Additional libraries required by STRUMPACK.")
 
-# The Scotch library, required by STRUMPACK
+# The Scotch library, required by STRUMPACK <= v2.1.0, optional in STRUMPACK >=
+# v2.2.0.
 set(Scotch_DIR "${MFEM_DIR}/../scotch_6.0.4" CACHE PATH
     "Path to the Scotch and PT-Scotch libraries.")
 set(Scotch_REQUIRED_PACKAGES "Threads" CACHE STRING
@@ -150,6 +159,9 @@ set(Axom_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
 
 set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
     "Directory where PUMI is installed")
+
+set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
+set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
