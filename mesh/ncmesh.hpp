@@ -36,6 +36,8 @@ struct Refinement
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
+   Refinement() = default;
+
    Refinement(int index, int type = 7) : index(index), ref_type(type) {}
 };
 
@@ -47,6 +49,8 @@ struct Embedding
    /** @brief Index into the DenseTensor corresponding to the parent
        Geometry::Type stored in CoarseFineTransformations::point_matrices. */
    int matrix;
+
+   Embedding() = default;
 
    Embedding(int elem, int matrix = 0) : parent(elem), matrix(matrix) {}
 };
@@ -279,7 +283,7 @@ public:
    /** Return "NC" orientation of an edge. As opposed to standard Mesh edge
        orientation based on vertex IDs, "NC" edge orientation follows the local
        edge orientation within the element 'edge_id.element' and is thus
-       processor independent. FIXME this seems only partially true */
+       processor independent. TODO: this seems only partially true? */
    int GetEdgeNCOrientation(const MeshId &edge_id) const;
 
    /// Return Mesh vertex and edge indices of a face identified by 'face_id'.
@@ -392,7 +396,7 @@ protected: // implementation
       Face() : attribute(-1), index(-1) { elem[0] = elem[1] = -1; }
 
       bool Boundary() const { return attribute >= 0; }
-      bool Unused() const { return elem[0] < 0 && elem[1] < 0;}
+      bool Unused() const { return elem[0] < 0 && elem[1] < 0; }
 
       // add or remove an element from the 'elem[2]' array
       void RegisterElement(int e);

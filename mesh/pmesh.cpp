@@ -103,18 +103,18 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    if (mesh.Nonconforming())
    {
-      if (partitioning_ && MyRank == 0)
+      if (partitioning_)
       {
-         MFEM_WARNING("Prescribed partitioning is not supported for NC meshes.");
+         partitioning = partitioning_;
       }
-
-      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh);
-
-      // save the element partitioning before Prune()
-      partitioning = new int[mesh.GetNE()];
-      for (int i = 0; i < mesh.GetNE(); i++)
+      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
+      if (!partitioning)
       {
-         partitioning[i] = pncmesh->InitialPartition(i);
+         partitioning = new int[mesh.GetNE()];
+         for (int i = 0; i < mesh.GetNE(); i++)
+         {
+            partitioning[i] = pncmesh->InitialPartition(i);
+         }
       }
 
       pncmesh->Prune();
@@ -3088,6 +3088,23 @@ void ParMesh::Rebalance()
    {
       MFEM_ABORT("Load balancing is currently not supported for conforming"
                  " meshes.");
+   }
+
+   // Make sure the Nodes use a ParFiniteElementSpace
+   if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
+   {
+      ParFiniteElementSpace *pfes =
+         new ParFiniteElementSpace(*Nodes->FESpace(), *this);
+      ParGridFunction *new_nodes = new ParGridFunction(pfes);
+      *new_nodes = *Nodes;
+      if (Nodes->OwnFEC())
+      {
+         new_nodes->MakeOwner(Nodes->OwnFEC());
+         Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
+         delete Nodes->FESpace();
+      }
+      delete Nodes;
+      Nodes = new_nodes;
    }
 
    DeleteFaceNbrData();
