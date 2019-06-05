@@ -122,7 +122,18 @@ int main(int argc, char *argv[])
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
-   x = 0.0;
+
+
+
+
+
+   //  x = 0.0; // Why was this here???
+
+
+
+
+
+
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -150,7 +161,7 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;

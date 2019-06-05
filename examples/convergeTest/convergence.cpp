@@ -26,25 +26,27 @@ double u_exact(const Vector &);
 void u_grad_exact(const Vector &, Vector &);
 double f_exact(const Vector &);
 
+// convergence study function declaration
+void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_err_prev, bool &visualization);
+
 // Setting the frequency for the exact solution
 double freq = 1.0;
 double kappa = freq * M_PI;
-
 
 int main(int argc, char *argv[])
 {
    int total_refinements = 4;
    
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/singleSquare.mesh";
+   // const char *mesh_file = "../../data/singleSquare.mesh";
    int order = 1;
    bool static_cond = false;
    const char *device_config = "cpu";
-   bool visualization = true;
+   bool visualization = false;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
+   //args.AddOption(&mesh_file, "-m", "--mesh",
+   //               "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -89,38 +91,35 @@ int main(int argc, char *argv[])
 
    cout << "----------------------------------------------------------------------------------------"
 	<< endl;
-   cout << left << setw(16) << "DOFs "<< setw(16) <<"h "<< setw(16) << "L^2 error "<< setw(16);
+   cout << left << setw(16) << "DOFs "<< setw(16) <<"1/h "<< setw(16) << "L^2 error "<< setw(16);
    cout << "L^2 rate "<< setw(16) << "H^1 error "<< setw(16) << "H^1 rate" << endl;
    cout << "----------------------------------------------------------------------------------------"
 	<< endl;
    
    double l2_err_prev = 0.0;
    double h1_err_prev = 0.0;
-   double h_prev = 0.0;
 
-   cout << "Vis type= " << typeid(visualization).name() << endl;
-
-   // convergenceStudy(0, &order, &l2_err_prev, &h1_err_prev, &h_prev, &visualization);
-
+   // should really pass this as a parameter
+   // const char *mesh_file = "../../data/singleSquare-refined.mesh";
+   
+   // 3. Read the mesh from the given mesh file.
+   // can use this as a max DoF tolerance:  (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+   
    // Loop over number of refinements for convergence study
-   for (int ref = 0; ref < total_refinements; ref++)
+   for (int i = 0; i < total_refinements; i++)
    {
-     // asdf call function here
+     //cout << "mesh type is " << typeid(mesh_file).name() << " PKc = pointer to a constanct char object" << endl;
+     convergenceStudy(i, order, l2_err_prev, h1_err_prev, visualization);
    }
    return 0;
 }
 
 
 
-
-void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_err_prev, double &h_prev, int &visualization)
+void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_err_prev, bool &visualization)
 {
-  // should really pass this as a parameter:
   const char *mesh_file = "../../data/singleSquare.mesh";
-  
-  // 3. Read the mesh from the given mesh file.
-  // can use this as a max DoF tolerance:  (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-  
+  // const char *mesh_file = "../../data/singleSquare-refined.mesh";
   Mesh *mesh = new Mesh(mesh_file, 1, 1);
   int dim = mesh->Dimension();
   
@@ -129,7 +128,7 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
   for (int l = 0; l < num_ref; l++)
     {
       mesh->UniformRefinement();
-      // cout << "Num of elements is " << mesh->GetNE() << endl;
+      // cout << "Did a unif ref; GetNE= " << mesh->GetNE() << endl;
     }
   
   
@@ -140,7 +139,7 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
   if (order == 1)
     {
       // fec = new H1_FECollection(order, dim);
-      fec = new H1_FECollection(3, 2);
+      fec = new H1_FECollection(2, 2);
     }
   else if(order == 2)
     {
@@ -156,7 +155,9 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
   FunctionCoefficient f(f_exact);
   FunctionCoefficient u(u_exact);
   VectorFunctionCoefficient u_grad(dim, u_grad_exact);
-  
+
+  // cout << "getNE= " << mesh->GetNE() << endl;
+    
   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
   //      cout << "Number of finite element unknowns: "  << fespace->GetTrueVSize() << endl;
   
@@ -166,7 +167,7 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
   //    converting them to a list of true dofs.
   
   // this variable may not be right:
-  int size = fespace->GetTrueVSize();  
+  int gotNdofs = fespace->GetNDofs();
   
   Array<int> ess_tdof_list;
   if (mesh->bdr_attributes.Size())
@@ -188,7 +189,7 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
   //    corresponding to fespace. Initialize x with initial guess of zero,
   //    which satisfies the boundary conditions.
   GridFunction x(fespace);
-  x = 0.0;
+  x=0.0;
   
   // 9. Set up the bilinear form a(.,.) on the finite element space
   //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -212,23 +213,14 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
   // cout << "Size of linear system: " << A->Height() << endl;
   
   // 11. Solve the linear system A X = B.
-#ifndef MFEM_USE_SUITESPARSE
+
   // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
   GSSmoother M((SparseMatrix&)(*A));
   PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
-  // Note: the 5th parameter is print_level; set to 1 for some Iteration informatio
-#else
-  // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-  UMFPackSolver umf_solver;
-  umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-  umf_solver.SetOperator(*A);
-  umf_solver.Mult(B, X);
-#endif
   
   
   // 12. Recover the solution as a finite element grid function.
   a->RecoverFEMSolution(X, *b, x);
-  
   
   // 13. Save the refined mesh and the solution. This output can be viewed later
   //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -253,31 +245,33 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
   // Compute and print the L^2 and H^1 norms of the error.
   double l2_err = x.ComputeL2Error(u);
   double h1_err = x.ComputeH1Error(&u, &u_grad, &one, 1.0, 1);
-  double h_min, h_max, kappa_min, kappa_max, l2_rate, h1_rate;
-  //pmesh->GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
+  double l2_rate, h1_rate;
   
-  // h_min = 1; // What is h_min and how should it be initialized???
-  
-  // cout << "l2_err=" << l2_err << " l2_err_prev=" << l2_err_prev << " h_min=" << h_min << " h_prev=" << h_prev << " num_ref=" << num_ref << endl; 
+  // cout << "l2_err=" << l2_err << " l2_err_prev=" << l2_err_prev << " num_ref=" << num_ref << endl; 
+
+  // NOTE: denominator here is log(2) because uniform refinement halves h each time.
+  //       if this is to be generalized, the denominator would have to change, too.
   
   if (num_ref != 0)
     {
-      l2_rate = log(l2_err/l2_err_prev) / log(h_min/h_prev);
-      h1_rate = log(h1_err/h1_err_prev) / log(h_min/h_prev);
+      l2_rate = log(l2_err/l2_err_prev) / log(2);
+      h1_rate = log(h1_err/h1_err_prev) / log(2);
     }
   else
     {
       l2_rate = 0.0;
       h1_rate = 0.0;
     }
+
+  int one_over_h = mesh->GetNE();
+  one_over_h = sqrt(one_over_h);
   
-  cout << setw(16) << size << setw(16) << h_min << setw(16) << l2_err << setw( 16) << l2_rate;
+  cout << setw(16) << gotNdofs << setw(16) << one_over_h << setw(16) << l2_err << setw( 16) << l2_rate;
   cout << setw(16) << h1_err << setw(16) << h1_rate << endl;
   
   l2_err_prev = l2_err;
   h1_err_prev = h1_err;
-  h_prev = h_min;
-  
+
   // 15. Free the used memory.
   // delete pcg;
   // delete amg;
@@ -285,10 +279,29 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
   delete b;
   delete fespace;
   if (order > 0) { delete fec; }
+
+  return;
 }
 
 
+// u_exact is for the case \Delta u = 1; the solution is u(x,y)=sin(pi x) sin(pi y)
 double u_exact(const Vector &x)
+{
+   double u = 0.0;
+   if (x.Size() == 2)
+   {
+      u = sin(kappa * x(0)) * sin(kappa * x(1));
+   }
+   else
+   {
+      u = sin(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
+   }
+   
+
+   return u;
+}
+
+double u_exact_2(const Vector &x)
 {
    double u = 0.0;
    if (x.Size() == 2)
@@ -333,4 +346,8 @@ double f_exact(const Vector &x)
 
    return f;
 }
+
+
+
+
 
