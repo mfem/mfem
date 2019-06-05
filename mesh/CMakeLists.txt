@@ -23,6 +23,7 @@ set(SRCS
   tetrahedron.cpp
   triangle.cpp
   vertex.cpp
+  wedge.cpp
   )
 
 set(HDRS
@@ -40,6 +41,7 @@ set(HDRS
   tmesh.hpp
   triangle.hpp
   vertex.hpp
+  wedge.hpp
   )
 
 if (MFEM_USE_MPI)
