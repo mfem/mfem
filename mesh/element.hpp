@@ -17,6 +17,7 @@
 #include "../general/table.hpp"
 #include "../linalg/densemat.hpp"
 #include "../fem/geom.hpp"
+#include "../general/hash.hpp"
 
 namespace mfem
 {
@@ -29,22 +30,26 @@ class Element
 protected:
 
    /// Element's attribute (specifying material property, etc).
-   int attribute, base_geom;
+   int attribute;
+
+   /// Element's type from the Finite Element's perspective
+   Geometry::Type base_geom;
 
 public:
 
    /// Constants for the classes derived from Element.
-   enum Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL, TETRAHEDRON,
-               HEXAHEDRON
+   enum Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL,
+               TETRAHEDRON, HEXAHEDRON, WEDGE
              };
 
    /// Default element constructor.
-   explicit Element(int bg = Geometry::POINT) { attribute = -1; base_geom = bg; }
+   explicit Element(Geometry::Type bg = Geometry::POINT)
+   { attribute = -1; base_geom = bg; }
 
    /// Returns element's type
-   virtual int GetType() const = 0;
+   virtual Type GetType() const = 0;
 
-   int GetGeometryType() const { return base_geom; }
+   Geometry::Type GetGeometryType() const { return base_geom; }
 
    /// Return element's attribute.
    inline int GetAttribute() const { return attribute; }
@@ -74,13 +79,10 @@ public:
    virtual const int *GetFaceVertices(int fi) const = 0;
 
    /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(DenseMatrix &pmat) {}
-
-   /// Mark the longest edge by assuming/changing the order of the vertices.
    virtual void MarkEdge(const DSTable &v_to_v, const int *length) {}
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
-   virtual int NeedRefinement(DSTable &v_to_v, int *middle) const { return 0; }
+   virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const { return 0; }
 
    /// Set current coarse-fine transformation number.
    virtual void ResetTransform(int tr) {}
@@ -90,8 +92,6 @@ public:
 
    /// Return current coarse-fine transformation.
    virtual unsigned GetTransform() const { return 0; }
-
-   virtual int GetRefinementFlag() { return 0; }
 
    virtual Element *Duplicate(Mesh *m) const = 0;
 

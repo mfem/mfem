@@ -7,6 +7,7 @@
 //    ex19 -m ../data/beam-tri.mesh
 //    ex19 -m ../data/beam-hex.mesh
 //    ex19 -m ../data/beam-tet.mesh
+//    ex19 -m ../data/beam-wedge.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an
@@ -143,7 +144,7 @@ void InitialDeformation(const Vector &x, Vector &y);
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options
-   const char *mesh_file = "../data/beam-hex.mesh";
+   const char *mesh_file = "../data/beam-tet.mesh";
    int ref_levels = 0;
    int order = 2;
    bool visualization = true;
