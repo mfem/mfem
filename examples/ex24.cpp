@@ -7,7 +7,6 @@ using namespace mfem;
 
 // Constant variables
 const double pi = M_PI;
-//const double ϵ = 1.e-12;
 static socketstream glvis;
 const int  visport   = 19916;
 const char vishost[] = "localhost";
@@ -38,8 +37,8 @@ public:
    {
       SetCurvature(order, discontinuous, space_dim, Ordering::byNODES);
       Transform(parametrization);
-      //RemoveUnusedVertices();
-      //RemoveInternalBoundaries();
+      RemoveUnusedVertices();
+      RemoveInternalBoundaries();
       glvis << "mesh\n" << *this << flush;
    }
 };
@@ -49,13 +48,15 @@ int main(int argc, char *argv[])
    int nx = 4;
    int ny = 4;
    int order = 4;
-   int niter = 8;
-   int ref_levels = 2;
-   int parametrization = 0;
+   int niter = 4;
+   int ref_levels = 1;
+   int parametrization = -1;
    bool visualization = true;
+   const char *mesh_file = "./cylinder.mesh";
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&parametrization, "-p", "--parametrization",
                   "Enable or disable parametrization .");
    args.AddOption(&nx, "-nx", "--num-elements-x",
@@ -79,10 +80,19 @@ int main(int argc, char *argv[])
 
    // Initialize our surface mesh from command line option.
    Mesh *mesh = nullptr;
-   if (parametrization==0)       { mesh = new SurfaceMesh(glvis, order, catenoid, nx, ny); }
-   else if (parametrization==1)  { mesh = new SurfaceMesh(glvis, order, helicoid, nx, ny); }
-   else if (parametrization==2)  { mesh = new SurfaceMesh(glvis, order, enneper, nx, ny); }
-   else if (parametrization==3)  { mesh = new SurfaceMesh(glvis, order, scherk, nx, ny); }
+   if (parametrization<0)
+   {
+      const int refine = 1;
+      const int generate_edges = 1;
+      const bool discontinuous = false;
+      mesh = new Mesh(mesh_file, generate_edges, refine);
+      const int sdim = mesh->SpaceDimension();
+      mesh->SetCurvature(order, discontinuous, sdim, Ordering::byNODES);
+   }
+   else if (parametrization==0) { mesh = new SurfaceMesh(glvis, order, catenoid, nx, ny); }
+   else if (parametrization==1) { mesh = new SurfaceMesh(glvis, order, helicoid, nx, ny); }
+   else if (parametrization==2) { mesh = new SurfaceMesh(glvis, order, enneper, nx, ny); }
+   else if (parametrization==3) { mesh = new SurfaceMesh(glvis, order, scherk, nx, ny); }
    else { mfem_error("Not a valid parametrization, which should be in [0,3]"); }
    const int sdim = mesh->SpaceDimension();
    const int mdim = mesh->Dimension();
@@ -155,8 +165,8 @@ void catenoid(const Vector &x, Vector &p)
    // u in [0,2π] and v in [-2π/3,2π/3]
    const double u = 2.0*pi*x[0];
    const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
-   p[0] = a*cos(u)*cosh(v);
-   p[1] = a*sin(u)*cosh(v);
+   p[0] = a*cos(u);//*cosh(v);
+   p[1] = a*sin(u);//*cosh(v);
    p[2] = a*v;
 }
 
