@@ -4,76 +4,137 @@
 using namespace std;
 using namespace mfem;
 
+#define REY 1.0
+
 enum EX
 {
    MMS,
    LDC
 };
 
-EX ex = EX::LDC;
+EX ex = EX::MMS;
 
-class VectorConvectionIntegrator : public BilinearFormIntegrator
+class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
-   DenseMatrix dshape, adjJ, Q_nodal, elmat_comp;
-   Vector shape, vec2, DQadjJ;
-   VectorCoefficient &Q;
-   double alpha;
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
+   Vector shape;
 
 public:
-   VectorConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
-      : Q(q) { alpha = a; }
-   virtual void AssembleElementMatrix(const FiniteElement &el,
+   VectorConvectionNLFIntegrator(){};
+
+   virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &trans,
-                                      DenseMatrix &elmat)
+                                      const Vector &elfun, Vector &elvect)
    {
       int nd = el.GetDof();
       int dim = el.GetDim();
 
-      elmat.SetSize(nd * dim);
-      elmat_comp.SetSize(nd);
-      dshape.SetSize(nd, dim);
-      adjJ.SetSize(dim);
       shape.SetSize(nd);
-      vec2.SetSize(dim);
-      DQadjJ.SetSize(nd);
+      dshape.SetSize(nd, dim);
+      elvect.SetSize(nd * dim);
+      gradEF.SetSize(dim);
 
-      Vector vec1;
+      EF.UseExternalData(elfun.GetData(), nd, dim);
+      ELV.UseExternalData(elvect.GetData(), nd, dim);
+
+      double w;
+      Vector vec1(dim), vec2(dim);
 
       const IntegrationRule *ir = IntRule;
       if (ir == nullptr)
       {
-         int order = trans.OrderGrad(&el) + trans.Order() + 2 * el.GetOrder();
+         int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
          ir = &IntRules.Get(el.GetGeomType(), order);
       }
 
-      Q.Eval(Q_nodal, trans, *ir);
+      // Same as elvect = 0.0;
+      ELV = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         trans.SetIntPoint(&ip);
 
-      elmat_comp = 0.0;
+         el.CalcShape(ip, shape);
+         el.CalcPhysDShape(trans, dshape);
+
+         w = ip.weight * trans.Weight();
+
+         MultAtB(EF, dshape, gradEF);
+         EF.MultTranspose(shape, vec1);
+         gradEF.Mult(vec1, vec2);
+         vec2 *= w;
+
+         AddMultVWt(shape, vec2, ELV);
+      }
+   }
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &trans,
+                                    const Vector &elfun, DenseMatrix &elmat)
+   {
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+
+      shape.SetSize(nd);
+      dshape.SetSize(nd, dim);
+      dshapex.SetSize(nd, dim);
+      elmat.SetSize(nd * dim);
+      elmat_comp.SetSize(nd);
+      gradEF.SetSize(dim);
+
+      EF.UseExternalData(elfun.GetData(), nd, dim);
+
+      double w;
+      Vector vec1(dim), vec2(dim), vec3(nd);
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == nullptr)
+      {
+         int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
+         ir = &IntRules.Get(el.GetGeomType(), order);
+      }
+
       elmat = 0.0;
       for (int i = 0; i < ir->GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir->IntPoint(i);
-         el.CalcDShape(ip, dshape);
-         el.CalcShape(ip, shape);
-
          trans.SetIntPoint(&ip);
-         CalcAdjugate(trans.Jacobian(), adjJ);
-         Q_nodal.GetColumnReference(i, vec1);
 
-         vec1 *= alpha * ip.weight;
+         el.CalcShape(ip, shape);
+         el.CalcDShape(ip, dshape);
 
-         adjJ.Mult(vec1, vec2);
-         dshape.Mult(vec2, DQadjJ);
+         Mult(dshape, trans.InverseJacobian(), dshapex);
 
-         AddMultVWt(shape, DQadjJ, elmat_comp);
-      }
+         w = ip.weight;
 
-      for (int i = 0; i < dim; i++)
-      {
-         elmat.AddMatrix(elmat_comp, i * nd, i * nd);
+         MultAtB(EF, dshapex, gradEF);
+         EF.MultTranspose(shape, vec1);
+
+         trans.AdjugateJacobian().Mult(vec1, vec2);
+
+         vec2 *= w;
+         dshape.Mult(vec2, vec3);
+         MultVWt(shape, vec3, elmat_comp);
+
+         for (int i = 0; i < dim; i++)
+         {
+            elmat.AddMatrix(elmat_comp, i * nd, i * nd);
+         }
+
+         MultVVt(shape, elmat_comp);
+         w = ip.weight * trans.Weight();
+         for (int i = 0; i < dim; i++)
+         {
+            for (int j = 0; j < dim; j++)
+            {
+               elmat.AddMatrix(w * gradEF(i, j), elmat_comp, i * nd, j * nd);
+            }
+         }
       }
    }
+
+   virtual ~VectorConvectionNLFIntegrator(){};
 };
 
 void vel_ex(const Vector &x, Vector &u)
@@ -113,8 +174,11 @@ void ffun(const Vector &x, Vector &u)
    double xi = x(0);
    double yi = x(1);
 
-   u(0) = 1.0 - 2.0 * M_PI * M_PI * cos(M_PI * xi) * sin(M_PI * yi);
-   u(1) = 1.0 + 2.0 * M_PI * M_PI * cos(M_PI * yi) * sin(M_PI * xi);
+   u(0) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * xi)
+   - 2.0 / REY * pow(M_PI, 2.0) * cos(M_PI * xi) * sin(M_PI * yi);
+
+   u(1) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * yi)
+   + 2.0 / REY * pow(M_PI, 2.0) * cos(M_PI * yi) * sin(M_PI * xi);
 }
 
 class NavierStokesOperator : public Operator
@@ -131,19 +195,22 @@ private:
    BlockVector trueX, trueRhs;
 
    VectorGridFunctionCoefficient vel_fc;
-   ParBilinearForm *N;
+   ParNonlinearForm *N;
+   ParBilinearForm *sform;
 
    HypreParMatrix *S;
    HypreParMatrix *Mp;
    HypreParMatrix *D;
    HypreParMatrix *G;
+   mutable HypreParMatrix *NjacS;
 
-   BlockOperator *stokesop;
+   BlockOperator *jac;
+   BlockOperator *lin;
 
    HypreSolver *invS;
    HypreDiagScale *invMp;
    BlockDiagonalPreconditioner *stokesprec;
-   MINRESSolver *jac_solver;
+   GMRESSolver *jac_solver;
 
    NewtonSolver newton_solver;
 
@@ -151,15 +218,14 @@ private:
    ParGridFunction *p_gf;
 
 public:
-   NavierStokesOperator(Array<ParFiniteElementSpace *> &fes) :
-      Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
-      pmesh_(fes[0]->GetParMesh()), fes_(fes),
-      ess_bdr_attr_(pmesh_->bdr_attributes.Max()),
-      N(nullptr),
-      S(nullptr), Mp(nullptr), D(nullptr), G(nullptr),
-      stokesop(nullptr), invS(nullptr), invMp(nullptr),
-      stokesprec(nullptr), jac_solver(nullptr),
-      newton_solver(pmesh_->GetComm()), vel_gf(nullptr)
+   NavierStokesOperator(Array<ParFiniteElementSpace *> &fes) : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
+                                                               pmesh_(fes[0]->GetParMesh()), fes_(fes),
+                                                               ess_bdr_attr_(pmesh_->bdr_attributes.Max()),
+                                                               N(nullptr),
+                                                               S(nullptr), Mp(nullptr), D(nullptr), G(nullptr), NjacS(nullptr),
+                                                               jac(nullptr), lin(nullptr), invS(nullptr), invMp(nullptr),
+                                                               stokesprec(nullptr), jac_solver(nullptr),
+                                                               newton_solver(pmesh_->GetComm()), vel_gf(nullptr)
    {
       // Mark all attributes as essential for now
       ess_bdr_attr_ = 1;
@@ -210,17 +276,20 @@ public:
 
       // Convective nonlinear term
       // N(u,u,v) = (u \cdot \nabla u, v)
-      vel_fc.SetGridFunction(vel_gf);
-      N = new ParBilinearForm(fes[0]);
-      N->AddDomainIntegrator(new VectorConvectionIntegrator(vel_fc));
+      N = new ParNonlinearForm(fes[0]);
+      N->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+      N->SetEssentialTrueDofs(ess_tdof_list_);
 
       ParLinearForm *fform = new ParLinearForm;
+      VectorDomainLFIntegrator *fvint = new VectorDomainLFIntegrator(fcoeff);
+      fvint->SetIntRule(&IntRules.Get(pmesh_->GetElementBaseGeometry(0), 4 + 3)); // order + 3
       fform->Update(fes[0], rhs.GetBlock(0), 0);
-      fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
+      fform->AddDomainIntegrator(fvint);
       fform->Assemble();
 
-      ParBilinearForm *sform = new ParBilinearForm(fes[0]);
+      sform = new ParBilinearForm(fes[0]);
       sform->AddDomainIntegrator(new VectorDiffusionIntegrator);
+      // sform->SetDiagonalPolicy(Matrix::DiagonalPolicy::DIAG_ZERO);
       sform->Assemble();
       sform->EliminateEssentialBC(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(0));
       sform->Finalize();
@@ -236,20 +305,21 @@ public:
       G = D->Transpose();
       (*G) *= -1.0;
 
-      // Flip signs to make system symmetric
-      (*D) *= -1.0;
-      rhs.GetBlock(1) *= -1.0;
-
       ParBilinearForm *mpform = new ParBilinearForm(fes[1]);
       mpform->AddDomainIntegrator(new MassIntegrator);
       mpform->Assemble();
       mpform->Finalize();
       Mp = mpform->ParallelAssemble();
 
-      stokesop = new BlockOperator(block_trueOffsets_);
-      stokesop->SetBlock(0, 0, S);
-      stokesop->SetBlock(0, 1, G);
-      stokesop->SetBlock(1, 0, D);
+      jac = new BlockOperator(block_trueOffsets_);
+      jac->SetBlock(0, 0, S);
+      jac->SetBlock(0, 1, G);
+      jac->SetBlock(1, 0, D);
+
+      lin = new BlockOperator(block_trueOffsets_);
+      lin->SetBlock(0, 0, S);
+      lin->SetBlock(0, 1, G);
+      lin->SetBlock(1, 0, D);
 
       invS = new HypreBoomerAMG(*S);
       static_cast<HypreBoomerAMG *>(invS)->SetPrintLevel(0);
@@ -261,10 +331,6 @@ public:
       stokesprec->SetDiagonalBlock(0, invS);
       stokesprec->SetDiagonalBlock(1, invMp);
 
-      // Idea:
-      // Implement "GetTrueDofs" in ParFiniteElementSpace s.t.
-      // one can call vel_fes->GetTrueDofs(x.GetBlock(0), trueX.GetBlock(0));
-
       fes[0]->GetRestrictionMatrix()->Mult(x.GetBlock(0), trueX.GetBlock(0));
       fes[0]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),
                                                      trueRhs.GetBlock(0));
@@ -273,12 +339,12 @@ public:
       fes[1]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),
                                                      trueRhs.GetBlock(1));
 
-      jac_solver = new MINRESSolver(MPI_COMM_WORLD);
+      jac_solver = new GMRESSolver(MPI_COMM_WORLD);
       jac_solver->iterative_mode = false;
       jac_solver->SetAbsTol(0.0);
-      jac_solver->SetRelTol(1e-8);
+      jac_solver->SetRelTol(1e-4);
       jac_solver->SetMaxIter(200);
-      jac_solver->SetOperator(*stokesop);
+      jac_solver->SetOperator(*jac);
       jac_solver->SetPreconditioner(*stokesprec);
       jac_solver->SetPrintLevel(2);
 
@@ -290,7 +356,8 @@ public:
       newton_solver.SetRelTol(1e-7);
       newton_solver.SetMaxIter(10);
 
-      newton_solver.CheckJacobian(trueX, ess_tdof_list_);
+      // trueX.Randomize();
+      // this->CheckJacobian(trueX, ess_tdof_list_);
    }
 
    virtual void Mult(const Vector &x, Vector &y) const
@@ -299,21 +366,33 @@ public:
       Vector vel_in(x.GetData(), block_trueOffsets_[1]);
       Vector vel_out(y.GetData(), block_trueOffsets_[1]);
 
-      // Update velocity ParGridFunction to reflect changes
-      // in the dependent coefficient for the form N
-      this->UpdateVelocityGF();
-      N->Assemble();
+      // Apply linear BlockOperator
+      lin->Mult(x, y);
 
-      stokesop->Mult(x, y);
-
-      N->TrueAddMult(vel_in, tmp);
-
-      // vel_out += tmp;
+      // Apply nonlinear action to velocity
+      N->Mult(vel_in, tmp);
+      vel_out += tmp;
    }
 
-   virtual Operator &GetGradient(const Vector &) const
+   virtual Operator &GetGradient(const Vector &x) const
    {
-      return *stokesop;
+      Vector u(x.GetData(), block_trueOffsets_[1]);
+
+      delete NjacS;
+
+      // NjacS = Add(1.0, *static_cast<HypreParMatrix *>(&(N->GetGradient(u))), 1.0, *S);
+
+      // hypre_ParCSRMatrix *NjacS_wrap;
+      // hypre_ParcsrAdd(1.0, *static_cast<HypreParMatrix *>(&(N->GetGradient(u))), 1.0, *S, &NjacS_wrap);
+      // NjacS = new HypreParMatrix(NjacS_wrap);
+
+      SparseMatrix *localJac = Add(1.0, N->GetLocalGradient(u), 1.0, sform->SpMat());
+      NjacS = sform->ParallelAssemble(localJac);
+      NjacS->EliminateRowsCols(ess_tdof_list_);
+
+      jac->SetBlock(0, 0, NjacS);
+
+      return *jac;
    }
 
    void Solve()
@@ -321,18 +400,18 @@ public:
       newton_solver.Mult(trueRhs, trueX);
    }
 
-   Solver* GetJacobianSolver() const
+   Solver *GetJacobianSolver() const
    {
       return jac_solver;
    }
 
-   ParGridFunction* UpdateVelocityGF() const
+   ParGridFunction *UpdateVelocityGF() const
    {
       vel_gf->Distribute(trueX.GetBlock(0));
       return vel_gf;
    }
 
-   ParGridFunction* UpdatePressureGF() const
+   ParGridFunction *UpdatePressureGF() const
    {
       p_gf->Distribute(trueX.GetBlock(1));
       return p_gf;
@@ -340,7 +419,6 @@ public:
 
    virtual ~NavierStokesOperator()
    {
-
    }
 };
 
@@ -413,9 +491,9 @@ int main(int argc, char *argv[])
 
    if (ex == EX::MMS)
    {
-      int order_quad = max(2, 2*order+1);
+      int order_quad = max(2, 2 * order + 1);
       const IntegrationRule *irs[Geometry::NumGeom];
-      for (int i=0; i < Geometry::NumGeom; ++i)
+      for (int i = 0; i < Geometry::NumGeom; ++i)
       {
          irs[i] = &(IntRules.Get(i, order_quad));
       }
@@ -439,18 +517,22 @@ int main(int argc, char *argv[])
    }
 
    char vishost[] = "localhost";
-   int  visport = 19916;
+   int visport = 19916;
    socketstream u_sock(vishost, visport);
    u_sock << "parallel " << num_procs << " " << myid << "\n";
    u_sock.precision(8);
-   u_sock << "solution\n" << *pmesh << *vel_gf << "window_title 'velocity'" <<
-          "keys Rjlc\n"<< endl;
+   u_sock << "solution\n"
+          << *pmesh << *vel_gf << "window_title 'velocity'"
+          << "keys Rjlc\n"
+          << endl;
 
    socketstream p_sock(vishost, visport);
    p_sock << "parallel " << num_procs << " " << myid << "\n";
    p_sock.precision(8);
-   p_sock << "solution\n" << *pmesh << *p_gf << "window_title 'pressure'" <<
-          "keys Rjlc\n"<< endl;
+   p_sock << "solution\n"
+          << *pmesh << *p_gf << "window_title 'pressure'"
+          << "keys Rjlc\n"
+          << endl;
 
    return 0;
 }

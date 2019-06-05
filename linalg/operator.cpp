@@ -96,6 +96,69 @@ void Operator::PrintMatlab(std::ostream & out, int n, int m) const
    }
 }
 
+void Operator::CheckJacobian(Vector &x, Array<int> &ess_tdof, int print_level)
+{
+   double eps = 1e-8;
+   Vector xpert(height), one(height), fx(height),
+          fxp(height), basis(height), jac_col(height);
+
+   basis = 0.0;
+   xpert = x;
+
+   Operator &jac = this->GetGradient(x);
+
+   this->Mult(x, fx);
+
+   for (int j = 0; j < height; j++)
+   {
+      // Check if column is associated with an essential boundary
+      if (ess_tdof.Find(j) >= 0)
+      {
+         jac_col = 0.0;
+      }
+      else
+      {
+         basis(j) = 1.0;
+
+         // Forward finite differences
+         xpert(j) += eps;
+         this->Mult(xpert, fxp);
+         fxp -= fx;
+         fxp /= eps;
+
+         // Extract column from the operator using the j'th basis
+         jac.Mult(basis, jac_col);
+         jac_col -= fxp;
+
+         basis(j) = 0.0;
+         xpert(j) = x(j);
+      }
+
+      double norm = jac_col.Norml2();
+      // Check if there is an error in the column
+      if (norm >= sqrt(eps))
+      {
+         if (print_level == 1)
+         {
+            std::cout << "Possible error in jacobian column " << j << std::endl;
+            std::cout << "||J(:," << j << ")||_l2 = " << jac_col.Norml2() << std::endl;
+         }
+         else if (print_level == 2)
+         {
+            for (int i = 0; i < height; i++)
+            {
+               if (jac_col(i) >= sqrt(eps))
+               {
+                  std::cout << "Possible error in jacobian column " << j << std::endl;
+                  std::cout << "dJ/du(" << i << "," << j << ") = " << jac_col(i) << std::endl;
+                  std::cout << "FD dJ/du(" << i << "," << j << ") = " << fxp(i) << std::endl;
+               }
+            }
+         }
+      }
+   }
+}
+
 
 ProductOperator::ProductOperator(const Operator *A, const Operator *B,
                                  bool ownA, bool ownB)
