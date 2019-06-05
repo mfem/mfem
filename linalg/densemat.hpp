@@ -53,11 +53,11 @@ public:
    /// Creates rectangular matrix equal to the transpose of mat.
    DenseMatrix(const DenseMatrix &mat, char ch);
 
-   /** Construct a DenseMatrix using existing data array. The DenseMatrix does
-       not assume ownership of the data array, i.e. it will not delete the
-       array. */
-   DenseMatrix(double *d, int h, int w) : Matrix(h, w)
-   { data = d; capacity = -h*w; }
+   /// Construct a DenseMatrix using an existing data array.
+   /** The DenseMatrix does not assume ownership of the data array, i.e. it will
+       not delete the array. */
+   DenseMatrix(double *d, int h, int w)
+      : Matrix(h, w) { UseExternalData(d, h, w); }
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
@@ -326,7 +326,7 @@ public:
    /// Perform (ro+i,co+j)+=A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(DenseMatrix &A, int ro, int co);
    /// Perform (ro+i,co+j)+=a*A(i,j) for 0<=i<A.Height, 0<=j<A.Width
-   void AddMatrix(double a, DenseMatrix &A, int ro, int co);
+   void AddMatrix(double a, const DenseMatrix &A, int ro, int co);
 
    /// Add the matrix 'data' to the Vector 'v' at the given 'offset'
    void AddToVector(int offset, Vector &v) const;
@@ -580,12 +580,11 @@ public:
    /// Multiply the inverse matrix by another matrix: X = A^{-1} B.
    void Mult(const DenseMatrix &B, DenseMatrix &X) const;
 
+   /// Multiply the inverse matrix by another matrix: X <- A^{-1} X.
+   void Mult(DenseMatrix &X) const { lu.Solve(width, X.Width(), X.Data()); }
+
    /// Compute and return the inverse matrix in Ainv.
-   void GetInverseMatrix(DenseMatrix &Ainv) const
-   {
-      Ainv.SetSize(width);
-      lu.GetInverseMatrix(width, Ainv.Data());
-   }
+   void GetInverseMatrix(DenseMatrix &Ainv) const;
 
    /// Compute the determinant of the original DenseMatrix using the LU factors.
    double Det() const { return lu.Det(width); }
@@ -658,39 +657,36 @@ class DenseTensor
 {
 private:
    DenseMatrix Mk;
-   double *tdata;
+   Memory<double> tdata;
    int nk;
-   bool own_data;
 
 public:
    DenseTensor()
    {
       nk = 0;
-      tdata = NULL;
-      own_data = true;
+      tdata.Reset();
    }
 
    DenseTensor(int i, int j, int k)
       : Mk(NULL, i, j)
    {
       nk = k;
-      tdata = new double[i*j*k];
-      own_data = true;
+      tdata.New(i*j*k);
    }
 
    /// Copy constructor: deep copy
-   DenseTensor(const DenseTensor& other)
-      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk), own_data(true)
+   DenseTensor(const DenseTensor &other)
+      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk)
    {
       const int size = Mk.Height()*Mk.Width()*nk;
       if (size > 0)
       {
-         tdata = new double[size];
-         std::memcpy(tdata, other.tdata, sizeof(double) * size);
+         tdata.New(size, other.tdata.GetMemoryType());
+         tdata.CopyFrom(other.tdata, size);
       }
       else
       {
-         tdata = NULL;
+         tdata.Reset();
       }
    }
 
@@ -698,22 +694,23 @@ public:
    int SizeJ() const { return Mk.Width(); }
    int SizeK() const { return nk; }
 
+   int TotalSize() const { return SizeI()*SizeJ()*SizeK(); }
+
    void SetSize(int i, int j, int k)
    {
-      if (own_data) { delete [] tdata; }
+      const MemoryType mt = tdata.GetMemoryType();
+      tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;
-      tdata = new double[i*j*k];
-      own_data = true;
+      tdata.New(i*j*k, mt);
    }
 
    void UseExternalData(double *ext_data, int i, int j, int k)
    {
-      if (own_data) { delete [] tdata; }
+      tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;
-      tdata = ext_data;
-      own_data = false;
+      tdata.Wrap(ext_data, i*j*k, false);
    }
 
    /// Sets the tensor elements equal to constant c
@@ -732,6 +729,11 @@ public:
 
    double *Data() { return tdata; }
 
+   const double *Data() const { return tdata; }
+
+   Memory<double> &GetMemory() { return tdata; }
+   const Memory<double> &GetMemory() const { return tdata; }
+
    /** Matrix-vector product from unassembled element matrices, assuming both
        'x' and 'y' use the same elem_dof table. */
    void AddMult(const Table &elem_dof, const Vector &x, Vector &y) const;
@@ -741,10 +743,7 @@ public:
 
    long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
 
-   ~DenseTensor()
-   {
-      if (own_data) { delete [] tdata; }
-   }
+   ~DenseTensor() { tdata.Delete(); }
 };
 
 

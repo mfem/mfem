@@ -699,8 +699,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    n_topo["type"]  = "unstructured";
    n_topo["coordset"] = coordset_name;
 
-   Element::Type ele_type = static_cast<Element::Type>(mesh->GetElement(
-                                                          0)->GetType());
+   Element::Type ele_type = mesh->GetElementType(0);
 
    std::string ele_shape = ElementTypeToShapeName(ele_type);
 
@@ -774,8 +773,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
       n_bndry_topo["type"]     = "unstructured";
       n_bndry_topo["coordset"] = coordset_name;
 
-      Element::Type bndry_ele_type = static_cast<Element::Type>(mesh->GetBdrElement(
-                                                                   0)->GetType());
+      Element::Type bndry_ele_type = mesh->GetBdrElementType(0);
 
       std::string bndry_ele_shape = ElementTypeToShapeName(bndry_ele_type);
 
@@ -1163,6 +1161,8 @@ ConduitDataCollection::ElementTypeToShapeName(Element::Type element_type)
       case Element::QUADRILATERAL:  return "quad";
       case Element::TETRAHEDRON:    return "tet";
       case Element::HEXAHEDRON:     return "hex";
+      case Element::WEDGE:
+      default: ;
    }
 
    return "unknown";

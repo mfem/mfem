@@ -20,10 +20,11 @@ namespace mfem
 {
 
 //! @class BlockVector
-/*
+/**
  * \brief A class to handle Vectors in a block fashion
  *
- * All data is contained in Vector::data, while blockVector is just a viewer for this data
+ * All data is contained in Vector::data, while blockVector is just a viewer for
+ * this data.
  *
  */
 class BlockVector: public Vector
@@ -35,9 +36,12 @@ protected:
    //! Offset for each block start. (length numBlocks+1)
    /**
     * blockOffsets[i+1] - blockOffsets[i] is the size of block i.
+    *
+    * This array is not owned.
     */
    const int *blockOffsets;
    //! array of Vector objects used to extract blocks without allocating memory.
+   /** This array is owned. */
    Vector *blocks;
 
    void SetBlocks();
@@ -53,11 +57,14 @@ public:
     */
    BlockVector(const Array<int> & bOffsets);
 
+   /// Construct a BlockVector with the given MemoryType @a mt.
+   BlockVector(const Array<int> & bOffsets, MemoryType mt);
+
    //! Copy constructor
    BlockVector(const BlockVector & block);
 
    //! View constructor
-   /*
+   /**
     * data is an array of double of length at least blockOffsets[numBlocks] that
     * contain all the values of the monolithic vector.  bOffsets is an array of
     * integers (length nBlocks+1) that tells the offsets of each block start.
@@ -81,7 +88,7 @@ public:
    //! Get the i-th vector in the block
    void GetBlockView(int i, Vector & blockView);
 
-   int BlockSize(int i) { return blockOffsets[i+1] - blockOffsets[i];}
+   int BlockSize(int i) { return blockOffsets[i+1] - blockOffsets[i]; }
 
    //! Update method
    /**
@@ -97,6 +104,14 @@ public:
        - the offsets @a bOffsets are different from the current offsets, or
        - currently, the block-vector does not own its data. */
    void Update(const Array<int> &bOffsets);
+
+   /** @brief Update a BlockVector with new @a bOffsets and make sure it owns
+       its data and uses the MemoryType @a mt. */
+   /** The block-vector will be re-allocated if either:
+       - the offsets @a bOffsets are different from the current offsets, or
+       - currently, the block-vector does not own its data, or
+       - currently, the block-vector does not use MemoryType @a mt. */
+   void Update(const Array<int> &bOffsets, MemoryType mt);
 };
 
 }

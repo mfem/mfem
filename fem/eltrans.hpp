@@ -36,7 +36,8 @@ protected:
       INVERSE_MASK  = 8,
       HESSIAN_MASK  = 16
    };
-   int geom, space_dim;
+   Geometry::Type geom;
+   int space_dim;
 
    // Evaluate the Jacobian of the transformation at the IntPoint and store it
    // in dFdx.
@@ -88,7 +89,7 @@ public:
    virtual int OrderGrad(const FiniteElement *fe) = 0;
 
    /// Return the Geometry::Type of the reference element.
-   int GetGeometryType() const { return geom; }
+   Geometry::Type GetGeometryType() const { return geom; }
 
    /// Return the dimension of the reference element.
    int GetDimension() const { return Geometry::Dimension[geom]; }
@@ -320,7 +321,7 @@ public:
    DenseMatrix &GetPointMat() { return PointMat; }
    void FinalizeTransformation() { space_dim = PointMat.Height(); }
 
-   void SetIdentityTransformation(int GeomType);
+   void SetIdentityTransformation(Geometry::Type GeomType);
 
    virtual void Transform(const IntegrationPoint &, Vector &);
    virtual void Transform(const IntegrationRule &, DenseMatrix &);
