@@ -6,13 +6,13 @@ using namespace std;
 using namespace mfem;
 
 // Constant variables
-const double π = M_PI;
+const double pi = M_PI;
 //const double ϵ = 1.e-12;
 static socketstream glvis;
 const int  visport   = 19916;
 const char vishost[] = "localhost";
 
-// Parametrizations: Enneper, Catenoid, Scherk
+// Parametrizations: Scherk, Enneper, Catenoid, Helicoid
 void scherk(const Vector &x, Vector &p);
 void enneper(const Vector &x, Vector &p);
 void catenoid(const Vector &x, Vector &p);
@@ -33,58 +33,28 @@ public:
                const Element::Type type = Element::QUADRILATERAL,
                const bool generate_edges = true,
                const bool space_filling_curve = true,
-               const bool discontinuous = false,
-               const Ordering::Type ordering = Ordering::byVDIM):
+               const bool discontinuous = false):
       Mesh(nx, ny, type, generate_edges, sx, sy, space_filling_curve)
    {
-      SetCurvature(order, discontinuous, space_dim, ordering);
+      SetCurvature(order, discontinuous, space_dim, Ordering::byNODES);
       Transform(parametrization);
-      RemoveUnusedVertices();
-      RemoveInternalBoundaries();
-      SetCurvature(order, discontinuous, space_dim, ordering);
+      //RemoveUnusedVertices();
+      //RemoveInternalBoundaries();
       glvis << "mesh\n" << *this << flush;
    }
 };
 
-class Catenoid: public SurfaceMesh
-{
-public:
-   Catenoid(socketstream &glvis, int order = 4, int nx = 4, int ny = 4):
-      SurfaceMesh(glvis, order, catenoid, nx, ny) {}
-};
-
-class Helicoid: public SurfaceMesh
-{
-public:
-   Helicoid(socketstream &glvis, int order = 4, int nx = 4, int ny = 4):
-      SurfaceMesh(glvis, order, helicoid, nx, ny) {}
-};
-
-class Enneper: public SurfaceMesh
-{
-public:
-   Enneper(socketstream &glvis, int order = 4, int nx = 4, int ny = 4):
-      SurfaceMesh(glvis, order, enneper, nx, ny) {}
-};
-
-class Scherk: public SurfaceMesh
-{
-public:
-   Scherk(socketstream &glvis, int order = 4, int nx = 4, int ny = 4):
-      SurfaceMesh(glvis, order, scherk, nx, ny) {}
-};
-
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
    int nx = 4;
    int ny = 4;
-   int order = 3;
+   int order = 4;
    int niter = 8;
-   int ref_levels = 1;
-   int parametrization = 1;
+   int ref_levels = 2;
+   int parametrization = 0;
    bool visualization = true;
 
+   // 1. Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&parametrization, "-p", "--parametrization",
                   "Enable or disable parametrization .");
@@ -92,20 +62,13 @@ int main(int argc, char *argv[])
                   "Number of elements in x-direction.");
    args.AddOption(&ny, "-ny", "--num-elements-y",
                   "Number of elements in y-direction.");
-   args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or -1 for"
-                  " isoparametric space.");
+   args.AddOption(&order, "-o", "--order", "Finite element order.");
    args.AddOption(&ref_levels, "-r", "--ref-levels", "Refinement");
    args.AddOption(&niter, "-n", "--niter", "Number of iterations");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
+                  "--no-visualization", "Enable or disable GLVis visualization.");
    args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
+   if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
 
    if (visualization)
@@ -114,21 +77,20 @@ int main(int argc, char *argv[])
       glvis.precision(8);
    }
 
-   // Initialize our mesh, either by reading the given 'mesh_file'
+   // Initialize our surface mesh from command line option.
    Mesh *mesh = nullptr;
-   const int sdim = 3;//mesh->SpaceDimension();
-   const int mdim = 2;//mesh->Dimension();
-   if (parametrization==0)       { mesh = new Catenoid(glvis, order, nx, ny); }
-   else if (parametrization==1)  { mesh = new Helicoid(glvis, order, nx, ny); }
-   else if (parametrization==2)  { mesh = new Enneper(glvis, order, nx, ny); }
-   else if (parametrization==3)  { mesh = new Scherk(glvis, order, nx, ny); }
-   else { mfem_error("Not a valid parametrization"); }
-   mesh->SetCurvature(order, false, sdim, Ordering::byNODES);
+   if (parametrization==0)       { mesh = new SurfaceMesh(glvis, order, catenoid, nx, ny); }
+   else if (parametrization==1)  { mesh = new SurfaceMesh(glvis, order, helicoid, nx, ny); }
+   else if (parametrization==2)  { mesh = new SurfaceMesh(glvis, order, enneper, nx, ny); }
+   else if (parametrization==3)  { mesh = new SurfaceMesh(glvis, order, scherk, nx, ny); }
+   else { mfem_error("Not a valid parametrization, which should be in [0,3]"); }
+   const int sdim = mesh->SpaceDimension();
+   const int mdim = mesh->Dimension();
 
-   //  Refine the mesh to increase the resolution
+   //  Refine the mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++) { mesh->UniformRefinement(); }
 
-   // Define a finite element space on the mesh
+   // Define a finite element space on the mesh.
    const H1_FECollection fec(order, mdim);
    FiniteElementSpace *fes = new FiniteElementSpace(mesh, &fec, sdim);
    cout << "Number of finite element unknowns: " << fes->GetTrueVSize() << endl;
@@ -159,10 +121,9 @@ int main(int argc, char *argv[])
 
    for (int iiter=0; iiter<niter; ++iiter)
    {
-      // Assemble the bilinear form and the corresponding linear system,
-      a.Assemble();
-      x = *nodes; // should only copy the BC
       b = 0.0;
+      x = *nodes; // should only copy the BC
+      a.Assemble();
       Vector B, X;
       OperatorPtr A;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
@@ -181,6 +142,7 @@ int main(int argc, char *argv[])
       a.Update();
    }
    // Free the used memory.
+   delete fes;
    delete mesh;
    return 0;
 }
@@ -191,8 +153,8 @@ void catenoid(const Vector &x, Vector &p)
    p.SetSize(3);
    const double a = 1.0;
    // u in [0,2π] and v in [-2π/3,2π/3]
-   const double u = 2.0*π*x[0];
-   const double v = 2.0*π*(2.0*x[1]-1.0)/3.0;
+   const double u = 2.0*pi*x[0];
+   const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
    p[0] = a*cos(u)*cosh(v);
    p[1] = a*sin(u)*cosh(v);
    p[2] = a*v;
@@ -204,20 +166,20 @@ void helicoid(const Vector &x, Vector &p)
    p.SetSize(3);
    const double a = 1.0;
    // u in [0,2π] and v in [-2π/3,2π/3]
-   const double u = 2.0*π*x[0];
-   const double v = 2.0*π*(2.0*x[1]-1.0)/3.0;
+   const double u = 2.0*pi*x[0];
+   const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
    p[0] = a*cos(u)*sinh(v);
    p[1] = a*sin(u)*sinh(v);
    p[2] = a*u;
 }
 
-// Parametrization of the Enneper surface
+// Parametrization of Enneper's surface
 void enneper(const Vector &x, Vector &p)
 {
    p.SetSize(3);
    // r in [0,1] and t in [−π, π]
    const double r = x[0];
-   const double t = π*(2.0*x[1]-1.0);
+   const double t = pi*(2.0*x[1]-1.0);
    const double third = 1./3.;
    const double u = r*cos(t);
    const double v = r*sin(t);
@@ -230,10 +192,10 @@ void enneper(const Vector &x, Vector &p)
 void scherk(const Vector &x, Vector &p)
 {
    p.SetSize(3);
-   const double α = 0.49;
+   const double alpha = 0.49;
    // (u,v) in [-απ, +απ]
-   const double u = α*π*(2.0*x[0]-1.0);
-   const double v = α*π*(2.0*x[1]-1.0);
+   const double u = alpha*pi*(2.0*x[0]-1.0);
+   const double v = alpha*pi*(2.0*x[1]-1.0);
    p[0] = u;
    p[1] = v;
    p[2] = log(cos(u)/cos(v));
