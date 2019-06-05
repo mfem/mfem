@@ -28,6 +28,15 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+6/5
+PetscParMatrix *pA;
+oh.Get(pA);
+hypre_ParCSRMatrix *parcsr;
+MatHYPREGetParCSR(*pA,&parcsr);
+
+Could I just use MATAIJ in jacType? I do not see the point to use MATHYPRE
+Do I construct a MyBlockSolver every time step or not?
+
 5/29
 o ReducedSystemOperator 
 o link it with petsc
@@ -43,7 +52,7 @@ class MyBlockSolver : public mfem::Solver
   Mat P = *PP; // type cast to Petsc Mat
   MatNestGetSubMats(P,&N,&M,&sub)// sub is an N by M array of matrices
   // Create your own internal KSP objects to handle the subproblems
- .// Create PetscParVectors as placeholders internal_x and internal_y
+  // Create PetscParVectors as placeholders internal_x and internal_y
 }
   Mult(const Vector & x, Vector &y)
   {

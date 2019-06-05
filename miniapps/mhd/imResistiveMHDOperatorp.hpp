@@ -79,7 +79,7 @@ public:
    virtual ~ResistiveMHDOperator();
 };
 
-// reduced system (it will not own anything)
+// reduced system (it will only own Jacobian and Mdt)
 class ReducedSystemOperator : public Operator
 {
 private:
@@ -87,12 +87,14 @@ private:
    ParBilinearForm *M, *K, *DRe, *DSl;
    HypreParMatrix &Mmat, &Kmat;
    HypreParMatrix Mdt;
+   bool initialMdt;
    HypreParVector *E0Vec;
    ParGridFunction *j0;
+   Array<int> block_trueOffsets(4);
 
    CGSolver *M_solver;
 
-   double dt;
+   double dt, dtOld;
    const Vector *phi, *psi, *w;
    const Array<int> &ess_tdof_list;
 
@@ -103,13 +105,28 @@ private:
    mutable Vector z, zFull, Z, J;
 
 public:
-   ReducedSystemOperator(ParFiniteElementSpace &f, 
-                         ParBilinearForm *M_, ParBilinearForm *K_, ParLinearForm *E0_,
-                         const Array<int> &ess_tdof_list);
+   ReducedSystemOperator(ParFiniteElementSpace &f,
+                         ParBilinearForm *M_, HypreParMatrix &Mmat_,
+                         ParBilinearForm *K_, HypreParMatrix &Kmat_,
+                         ParBilinearForm *DRe_, ParBilinearForm *DSl_,
+                         ParLinearForm *E0_, CGSolver *M_solver_,
+                         const Array<int> &ess_tdof_list_);
 
    /// Set current values - needed to compute action and Jacobian.
    void SetParameters(double dt_, const Vector *phi_, const Vector *psi_, const Vector *w_)
-   {dt=dt_; phi=phi_; psi=psi_; w=w_;}
+   {   dtOld=dt; dt=dt_; phi=phi_; psi=psi_; w=w_;
+       if (dtOld!=dt && initialMdt)
+       {
+           cout <<"------update Mdt------"<<endl;
+           double rate=dtOld/dt;
+           Mdt*=rate;
+       }
+       if(initialMdt==false)
+       {
+           cout <<"------initial Mdt-------"<<endl;
+           Mdt*=(1./dt); initialMdt=true;
+       }
+   }
 
    void SetCurrent(ParGridFunction *gf)
    { j0=gf;}
@@ -124,6 +141,84 @@ public:
 
 };
 
+//------petsc pcshell preconditioenr------
+class MyBlockSolver : public mfem::Solver
+{
+private:
+   Mat **sub; //TODO this sub mat could be problematic!
+   PetscInt M, N;
+   // Create internal KSP objects to handle the subproblems
+   KSP kspblock[3];
+   // Create PetscParVectors as placeholders internal_x and internal_y
+   PetscParVectors internal_x, internal_y;
+   IS index_set[3];
+
+public:
+   MyBlockSolver(OperatorHandle oh) { 
+      // Get the PetscParMatrix out of oh.       
+      PetscParMatrix *PP;
+      oh.Get(PP);
+      Mat P = *PP; // type cast to Petsc Mat
+      MatNestGetSubMats(P,&N,&M,&sub)// sub is an N by M array of matrices
+
+      for (int i=0; i++; i<3)
+      {
+        KSPCreate(PETSC_COMM_WORLD, kspblock[i]);
+        KSPSetOperator(kspblock[i], sub[i][i], sub[i][i]);
+        KSPSetFromOptions(ksplbock[i]);
+      }
+   }
+
+   Mult(const Vector &x, Vector &y);
+   virtual ~MyBlockSolver();
+}
+
+MyBlockSolver::Mult(const Vector &x, Vector &y)
+{
+      //Mat mass;
+      //&mass=&sub[0][2];
+      Vec blockx, blocky;
+      Vec blockx0, blocky0;
+
+      internal_x.PlaceArray(x.GetData()); // no copy, only the data pointer is passed to PETSc
+      internal_y.PlaceArray(y.GetData());
+
+      MatNestGetISs(P, index_set, NULL); // get the index sets of the blocks
+      for (i = 1: i<3; i++)
+      {
+        VecGetSubVector(internal_x,index_set[i],&blockx);
+        VecGetSubVector(internal_y,index_set[i],&blocky);
+
+        KSPSolve(kspblock[i],blockx,blocky);
+
+        if (i==2)
+        {
+           VecGetSubVector(internal_x,index_set[0],&blockx0);
+           VecGetSubVector(internal_y,index_set[0],&blocky0);
+           VecScale(blockx0, -1);
+           MatMultAdd(sub[0][2], blocky, blockx0, blockx0)
+           VecScale(blockx0, -1);
+        }
+
+        VecRestoreSubVector(internal_x,index_set[i],&blockx);
+        VecRestoreSubVector(internal_y,index_set[i],&blocky);
+      }
+      
+      //compute blockx
+      KSPSolve(kspblock[0],blockx0,blocky0);
+      VecRestoreSubVector(internal_x,index_set[0],&blockx0);
+      VecRestoreSubVector(internal_y,index_set[0],&blocky0);
+
+      internal_x.ResetArray();
+      internal_y.ResetArray();
+   }
+
+MyBlockSolver::~MyBlockSolver()
+{
+    for (int i=0; i<3; i++)
+        KSPDestroy(&kspblock[i]);
+}
+
 // Auxiliary class to provide preconditioners for matrix-free methods 
 class PreconditionerFactory : public PetscPreconditionerFactory
 {
@@ -136,6 +231,13 @@ public:
    virtual mfem::Solver* NewPreconditioner(const mfem::OperatorHandle&);
    virtual ~PreconditionerFactory() {};
 };
+
+Solver* PreconditionerFactory::NewPreconditioner(const mfem::OperatorHandle& oh)
+{
+   return new MyBlockSolver(*oh);
+}
+
+
 
 ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc, double resi)
@@ -206,9 +308,32 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
 
+   
+   ParBilinearForm *DRe_, *DSl_;
+   if (viscosity != 0.0)
+       DRe_ = &DRe;
+   else
+       DRe_ = NULL;
 
-   //TODO define reducedSystem
+   if (resistivity != 0.0)
+       DSl_ = &DSl;
+   else
+       DSl_ = NULL;
+
+   //TODO define reducedSystem and petsc_solver
+   reduced_oper  = new ReducedSystemOperator();
+
+   const double rel_tol=1.e-8;
+   pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
+   J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
+   pnewton_solver->SetPreconditionerFactory(J_factory);
+   pnewton_solver->SetPrintLevel(1); // print Newton iterations
+   pnewton_solver->SetRelTol(rel_tol);
+   pnewton_solver->SetAbsTol(0.0);
+   pnewton_solver->SetMaxIter(10);
 }
+
+
 
 void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield) 
 {
@@ -224,7 +349,8 @@ void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ)
     j.ProjectCoefficient(initJ);
     j.SetTrueVector();
 
-    //TODO add setCurrent!
+    //add current into reduced_operator
+    reduced_operator.setCurrent(j);
 }
 
 void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
@@ -303,7 +429,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 
 }
 
-void HyperelasticOperator::ImplicitSolve(const double dt,
+void ResisitiveMHDOperator::ImplicitSolve(const double dt,
                                          const Vector &vx, Vector &k)
 {
    int sc = height/3;
@@ -390,18 +516,41 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *M_, HypreParMatrix &Mmat_,
    ParBilinearForm *K_, HypreParMatrix &Kmat_,
    ParBilinearForm *DRe_, ParBilinearForm *DSl_,
-   ParLinearForm *E0_,
+   ParLinearForm *E0_, CGSolver *M_solver_,
    const Array<int> &ess_tdof_list_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), Mmat(Mmat_), K(K_),  Kmat(Kmat_), 
-     DRe(DRe_), DSl(DSl_), E0(E0_),
-     dt(0.0), phi(NULL), psi(NULL), w(NULL), 
-     Jacobian(NULL), z(height/3),
+     Mdt(Mmat_), initialMdt(false),
+     DRe(DRe_), DSl(DSl_), E0(E0_), M_solver(M_solver_),
+     dt(0.0), dtOld(0.0), 
+     phi(NULL), psi(NULL), w(NULL), 
+     Jacobian(NULL), z(height/3), zFull(f.GetVSize()),
      ess_tdof_list(ess_tdof_list_)
 { 
-    //looks like I cannot do a deep copy now!
-    //maybe aviod it by multplying everything by dt?
-    Mdt=
+    //FIXME looks like I cannot do a deep copy now! Mdt here should be a deep copy
+    int sc = height/3;
+    block_trueOffsets[0] = 0;
+    block_trueOffsets[1] = sc;
+    block_trueOffsets[2] = 2*sc;
+    block_trueOffsets[3] = 3*sc;
+}
+
+Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
+{
+   if (Jacobian == NULL)    //in the first pass we just set Jacobian once
+   {
+      Jacobian = new BlockOperator(block_trueOffsets);
+      Jacobian->SetBlock(0,0,Kmat);
+      Jacobian->SetBlock(0,2,Mmat);
+      Jacobian->SetBlock(1,1,Mdt);
+      Jacobian->SetBlock(2,2,Mdt);
+   }
+   return *Jacobian;
+}
+
+ReducedSystemOperator::~ReducedSystemOperator()
+{
+   delete Jacobian;
 }
 
 void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const

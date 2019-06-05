@@ -197,8 +197,13 @@ int main(int argc, char *argv[])
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
    PDSolver *ode_solver;
+   bool explicitSolve=true;
    switch (ode_solver_type)
    {
+     case 1: 
+         ode_solver = new BackwardEulerSolver; 
+         explicitSolve = false;
+         break;
      case 2: ode_solver = new PDSolver; break;
      default:
          if (myid == 0) cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -416,17 +421,24 @@ int main(int argc, char *argv[])
    {
       double dt_real = min(dt, t_final - t);
 
-      //---Predictor stage---
-      //assemble the nonlinear terms
-      phi.SetFromTrueVector(); oper.assembleNv(&phi);
-      psi.SetFromTrueVector(); oper.assembleNb(&psi);
-      ode_solver->StepP(vx, t, dt_real);
+      if (explicitSolve)
+      {
+         //---Predictor stage---
+         //assemble the nonlinear terms
+         phi.SetFromTrueVector(); oper.assembleNv(&phi);
+         psi.SetFromTrueVector(); oper.assembleNb(&psi);
+         ode_solver->StepP(vx, t, dt_real);
 
-      //---Corrector stage---
-      //assemble the nonlinear terms (only psi is updated)
-      psi.SetFromTrueVector(); oper.assembleNb(&psi);
-      ode_solver->Step(vx, t, dt_real);
-      oper.UpdatePhi(vx);
+         //---Corrector stage---
+         //assemble the nonlinear terms (only psi is updated)
+         psi.SetFromTrueVector(); oper.assembleNb(&psi);
+         ode_solver->Step(vx, t, dt_real);
+         oper.UpdatePhi(vx);
+      }
+      else
+      {
+         ode_solver->Step(vx, t, dt_real);
+      }
 
       last_step = (t >= t_final - 1e-8*dt);
 
