@@ -1318,6 +1318,7 @@ void GridFunction::AccumulateAndCountBdrValues(
    values_counter = 0;
 
    vdim = fes->GetVDim();
+
    for (i = 0; i < fes->GetNBE(); i++)
    {
       if (attr[fes->GetBdrAttribute(i) - 1] == 0) { continue; }

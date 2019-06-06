@@ -208,9 +208,11 @@ void u_grad_exact(const Vector &x, Vector &u)
 
 int main(int argc, char *argv[])
 {
-   int total_refinements = 4;
+
 
    // 1. Parse command-line options.
+   int total_refinements = 0;
+
    const char *mesh_file = "../../data/singleSquare.mesh";
    int order = 1;
    bool static_cond = false;
@@ -218,6 +220,8 @@ int main(int argc, char *argv[])
    bool visualization = false;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&total_refinements, "-r", "--refine",
+                  "Number of refinements to do.");   
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
@@ -239,6 +243,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
    if (order == 1)
    {
       cout << "convergence: Using H1 quadratic tensor product elements" << endl;
