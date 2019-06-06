@@ -419,7 +419,6 @@ public:
 
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 
-
    /** @brief Evaluate the Hessians of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
    /** Each row of the result DenseMatrix @a Hessian contains upper triangular
