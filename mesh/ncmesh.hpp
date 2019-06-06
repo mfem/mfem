@@ -430,7 +430,6 @@ protected: // implementation
       char geom;     ///< Geometry::Type of the element (char for storage only)
       char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
       char flag;     ///< generic flag/marker, can be used by algorithms
-      char tet_type; ///< tetrahedron refinement class (0/1)
       int index;     ///< element number in the Mesh, -1 if refined
       int rank;      ///< processor number (ParNCMesh), -1 if undefined/unknown
       int attribute;
@@ -512,7 +511,6 @@ protected: // implementation
    virtual int GetNumGhostVertices() const { return 0; }
 
    void InitGeomFlags();
-   void InitTetTypes();
 
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
    bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
@@ -556,7 +554,7 @@ protected: // implementation
                 int fattr0, int fattr1,
                 int fattr2, int fattr3, int fattr4);
 
-   int NewTetrahedron(int type, int n0, int n1, int n2, int n3, int attr,
+   int NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
                       int fattr0, int fattr1, int fattr2, int fattr3);
 
    int NewQuadrilateral(int n0, int n1, int n2, int n3, int attr,
@@ -820,8 +818,6 @@ protected: // implementation
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
                      Array<int> &index_map);
 
-   void PrintTetTypes(std::ofstream &f, int elem);
-
 
    // geometry
 
@@ -847,7 +843,6 @@ protected: // implementation
 public:
    void DebugLeafOrder(std::ostream &out) const;
    void DebugDump(std::ostream &out) const;
-   void PrintTetTypes(std::ofstream &f);
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet
