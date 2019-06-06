@@ -4920,8 +4920,6 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
 
 void Mesh::ReorientTetMesh()
 {
-   MFEM_ABORT("test");
-
    int *v;
 
    if (Dim != 3 || !(meshgen & 1))

@@ -565,8 +565,6 @@ protected: // implementation
 
    mfem::Element* NewMeshElement(int geom) const;
 
-   int GetTetType(const Element &el);
-
    int QuadFaceSplitType(int v1, int v2, int v3, int v4, int mid[5]
                          = NULL /*optional output of mid-edge nodes*/) const;
 
@@ -817,7 +815,6 @@ protected: // implementation
    int PrintElements(std::ostream &out, int elem, int &coarse_id) const;
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
                      Array<int> &index_map);
-
 
    // geometry
 
