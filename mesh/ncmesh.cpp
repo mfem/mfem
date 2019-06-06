@@ -445,8 +445,8 @@ int NCMesh::Face::GetSingleElement() const
 //// Refinement ////////////////////////////////////////////////////////////////
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
-   : geom(geom), ref_type(0), flag(0), index(-1)
-   , rank(0), attribute(attr), parent(-1)
+   : geom(geom), ref_type(0), flag(0), index(-1), rank(0), attribute(attr)
+   , parent(-1)
 {
    for (int i = 0; i < 8; i++) { node[i] = -1; }
 
@@ -1559,6 +1559,7 @@ int NCMesh::RetrieveNode(const Element &el, int index)
          ch = el.child[quad_deref_table[el.ref_type - 1][index]];
          break;
 
+      case Geometry::TETRAHEDRON:
       case Geometry::TRIANGLE:
          ch = el.child[index];
          break;
@@ -1590,6 +1591,8 @@ void NCMesh::DerefineElement(int elem)
 
    int fa[6];
    int rt1 = el.ref_type - 1;
+
+   for (int i = 0; i < 8; i++) { el.node[i] = -1; }
 
    // retrieve original corner nodes and face attributes from the children
    if (el.Geom() == Geometry::CUBE)
@@ -1623,6 +1626,18 @@ void NCMesh::DerefineElement(int elem)
          const int* fv = gi_wedge.faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
+      }
+   }
+   else if (el.Geom() == Geometry::TETRAHEDRON)
+   {
+      for (int i = 0; i < 4; i++)
+      {
+         Element& ch1 = elements[child[i]];
+         Element& ch2 = elements[child[(i+1) & 0x3]];
+         el.node[i] = ch1.node[i];
+         const int* fv = gi_tet.faces[i];
+         fa[i] = faces.Find(ch2.node[fv[0]], ch2.node[fv[1]],
+                            ch2.node[fv[2]], ch2.node[fv[3]])->attribute;
       }
    }
    else if (el.Geom() == Geometry::SQUARE)
