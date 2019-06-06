@@ -7,6 +7,7 @@ using namespace mfem;
 
 // Constant variables
 const double pi = M_PI;
+const double eps = 1.e-12;
 static socketstream glvis;
 const int  visport   = 19916;
 const char vishost[] = "localhost";
@@ -14,8 +15,9 @@ const char vishost[] = "localhost";
 // Parametrizations: Scherk, Enneper, Catenoid, Helicoid
 void scherk(const Vector &x, Vector &p);
 void enneper(const Vector &x, Vector &p);
-void catenoid(const Vector &x, Vector &p);
 void helicoid(const Vector &x, Vector &p);
+void catenoid(const Vector &x, Vector &p);
+void catenoid_postfix(const int nx, const int ny, Mesh*);
 
 // Surface mesh class
 class SurfaceMesh: public Mesh
@@ -24,6 +26,7 @@ public:
    SurfaceMesh(socketstream &glvis,
                const int order,
                void (*parametrization)(const Vector &x, Vector &p),
+               void (*postfix)(const int nx, const int ny, Mesh*),
                const int nx = 4,
                const int ny = 4,
                const double sx = 1.0,
@@ -36,9 +39,15 @@ public:
       Mesh(nx, ny, type, generate_edges, sx, sy, space_filling_curve)
    {
       SetCurvature(order, discontinuous, space_dim, Ordering::byNODES);
-      Transform(parametrization);
+      if (parametrization) { Transform(parametrization); }
+      if (postfix) { postfix(nx, ny, this); }
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
+      SetCurvature(order, discontinuous, space_dim, Ordering::byVDIM);
+      GridFunction &nodes = *GetNodes();
+      for (int i = 0; i < nodes.Size(); i++)
+      { if (std::abs(nodes(i)) < eps) { nodes(i) = 0.0; } }
+      SetCurvature(order, discontinuous, space_dim, Ordering::byNODES);
       glvis << "mesh\n" << *this << flush;
    }
 };
@@ -49,10 +58,10 @@ int main(int argc, char *argv[])
    int ny = 4;
    int order = 4;
    int niter = 4;
-   int ref_levels = 1;
+   int ref_levels = 2;
    int parametrization = -1;
    bool visualization = true;
-   const char *mesh_file = "./cylinder.mesh";
+   const char *mesh_file = "../data/mobius-strip.mesh";
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -89,10 +98,14 @@ int main(int argc, char *argv[])
       const int sdim = mesh->SpaceDimension();
       mesh->SetCurvature(order, discontinuous, sdim, Ordering::byNODES);
    }
-   else if (parametrization==0) { mesh = new SurfaceMesh(glvis, order, catenoid, nx, ny); }
-   else if (parametrization==1) { mesh = new SurfaceMesh(glvis, order, helicoid, nx, ny); }
-   else if (parametrization==2) { mesh = new SurfaceMesh(glvis, order, enneper, nx, ny); }
-   else if (parametrization==3) { mesh = new SurfaceMesh(glvis, order, scherk, nx, ny); }
+   else if (parametrization==0)
+   { mesh = new SurfaceMesh(glvis, order, catenoid, catenoid_postfix, nx, ny); }
+   else if (parametrization==1)
+   { mesh = new SurfaceMesh(glvis, order, helicoid, nullptr, nx, ny); }
+   else if (parametrization==2)
+   { mesh = new SurfaceMesh(glvis, order, enneper, nullptr, nx, ny); }
+   else if (parametrization==3)
+   { mesh = new SurfaceMesh(glvis, order, scherk, nullptr, nx, ny); }
    else { mfem_error("Not a valid parametrization, which should be in [0,3]"); }
    const int sdim = mesh->SpaceDimension();
    const int mdim = mesh->Dimension();
@@ -102,27 +115,31 @@ int main(int argc, char *argv[])
 
    // Define a finite element space on the mesh.
    const H1_FECollection fec(order, mdim);
-   FiniteElementSpace *fes = new FiniteElementSpace(mesh, &fec, sdim);
-   cout << "Number of finite element unknowns: " << fes->GetTrueVSize() << endl;
+   FiniteElementSpace *sfes = new FiniteElementSpace(mesh, &fec);
+   FiniteElementSpace *vfes = new FiniteElementSpace(mesh, &fec, sdim);
+   cout << "Number of finite element unknowns: " << vfes->GetTrueVSize() << endl;
 
    // Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> ess_tdof_list;
+   MFEM_VERIFY(mesh->bdr_attributes.Size(),"");
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
-   fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   vfes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // Define the solution vector x as a finite element grid function
    // and b as the right-hand side of the FEM linear system.
-   GridFunction x(fes), b(fes);
+   GridFunction x(vfes), b(vfes), s(sfes);
    GridFunction *nodes = mesh->GetNodes();
+   s = 0.0;
 
    // Set up the bilinear form a(.,.) on the finite element space.
-   BilinearForm a(fes);
+   BilinearForm a(vfes);
    ConstantCoefficient one(1.0);
    a.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
 
    if (visualization)
    {
+      //glvis << "solution\n" << *mesh << s <<flush;
       glvis << "mesh\n" << *mesh << flush;
       glvis << "keys gAmaa\n";
       glvis << "window_size 800 800\n";
@@ -152,7 +169,8 @@ int main(int argc, char *argv[])
       a.Update();
    }
    // Free the used memory.
-   delete fes;
+   delete sfes;
+   delete vfes;
    delete mesh;
    return 0;
 }
@@ -165,9 +183,41 @@ void catenoid(const Vector &x, Vector &p)
    // u in [0,2π] and v in [-2π/3,2π/3]
    const double u = 2.0*pi*x[0];
    const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
-   p[0] = a*cos(u);//*cosh(v);
-   p[1] = a*sin(u);//*cosh(v);
+   p[0] = a*cos(u)*cosh(v);
+   p[1] = a*sin(u)*cosh(v);
    p[2] = a*v;
+}
+
+// Postfix of the Catenoid surface
+void catenoid_postfix(const int nx, const int ny, Mesh *mesh)
+{
+   Array<int> v2v(mesh->GetNV());
+   for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
+   // identify vertices on vertical lines
+   for (int j = 0; j <= ny; j++)
+   {
+      int v_old = nx + j * (nx + 1);
+      int v_new =      j * (nx + 1);
+      v2v[v_old] = v_new;
+   }
+   // renumber elements
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Element *el = mesh->GetElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      { v[j] = v2v[v[j]]; }
+   }
+   // renumber boundary elements
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      Element *el = mesh->GetBdrElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      { v[j] = v2v[v[j]]; }
+   }
 }
 
 // Parametrization of a Helicoid surface
