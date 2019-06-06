@@ -55,9 +55,9 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    }
    else
    {
-      cout << "Error - should not have gotten here" << endl;
+     cout << "Error - should not have gotten here" << endl;
+     fec = NULL;
    }
-   // cout << "Done making the FE collection" << endl;
 
    // Set exact solution
    FunctionCoefficient u(u_exact);
@@ -163,8 +163,8 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    if (num_ref != 0)
    {
-      l2_rate = log(l2_err/l2_err_prev) / log(2);
-      h1_rate = log(h1_err/h1_err_prev) / log(2);
+      l2_rate = -log(l2_err/l2_err_prev) / log(2);
+      h1_rate = -log(h1_err/h1_err_prev) / log(2);
    }
    else
    {
@@ -274,13 +274,17 @@ int main(int argc, char *argv[])
    double h1_err_prev = 0.0;
 
    // 3. Read the mesh from the given mesh file.
+   // Run last round with vis, if desired.
+
    // can use this as a max DoF tolerance:  (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
 
    // Loop over number of refinements for convergence study
-   for (int i = 0; i < total_refinements; i++)
-   {
-      //cout << "mesh type is " << typeid(mesh_file).name() << " PKc = pointer to a constanct char object" << endl;
-      convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, visualization);
-   }
+
+   bool noVisYet = false;
+   for (int i = 0; i < (total_refinements-1); i++)
+     {
+       convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet);
+     }
+   convergenceStudy(mesh_file, total_refinements-1, order, l2_err_prev, h1_err_prev, visualization);
    return 0;
 }
