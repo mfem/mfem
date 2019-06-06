@@ -30,8 +30,8 @@ double f_exact(const Vector &);
 void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_err_prev, bool &visualization);
 
 // Setting the frequency for the exact solution
-double freq = 1.0;
-double kappa = freq * M_PI;
+// double freq = 1.0;
+// double kappa = freq * M_PI;
 
 int main(int argc, char *argv[])
 {
@@ -132,10 +132,9 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
     }
   
   
-  // 5. Define a finite element space on the mesh. Here we use continuous
-  //    Lagrange finite elements of the specified order.
-  
-  FiniteElementCollection *fec;
+  // 5. Define a finite element space on the mesh.
+
+    FiniteElementCollection *fec;
   if (order == 1)
     {
       // fec = new H1_FECollection(order, dim);
@@ -161,7 +160,7 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
   //      cout << "Number of finite element unknowns: "  << fespace->GetTrueVSize() << endl;
   
-  // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
+  // 6. Determine the list of  true (i.e. conforming) essential boundary dofs.
   //    In this example, the boundary conditions are defined by marking all
   //    the boundary attributes from the mesh as essential (Dirichlet) and
   //    converting them to a list of true dofs.
@@ -202,12 +201,13 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
   //     applying any necessary transformations such as: eliminating boundary
   //     conditions, applying conforming constraints for non-conforming AMR,
   //     static condensation, etc.
-  //  if (static_cond) { a->EnableStaticCondensation(); }
+  //     e.g. if (static_cond) { a->EnableStaticCondensation(); }
 
   a->Assemble();
   
   OperatorPtr A;
   Vector B, X;
+
   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
   
   // cout << "Size of linear system: " << A->Height() << endl;
@@ -217,7 +217,6 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
   // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
   GSSmoother M((SparseMatrix&)(*A));
   PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
-  
   
   // 12. Recover the solution as a finite element grid function.
   a->RecoverFEMSolution(X, *b, x);
@@ -284,70 +283,77 @@ void convergenceStudy(int num_ref, int &order, double &l2_err_prev, double &h1_e
 }
 
 
-// u_exact is for the case \Delta u = 1; the solution is u(x,y)=sin(pi x) sin(pi y)
+
+
 double u_exact(const Vector &x)
 {
-   double u = 0.0;
-   if (x.Size() == 2)
-   {
-      u = sin(kappa * x(0)) * sin(kappa * x(1));
-   }
-   else
-   {
-      u = sin(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
-   }
-   
-
-   return u;
-}
-
-double u_exact_2(const Vector &x)
-{
-   double u = 0.0;
-   if (x.Size() == 2)
-   {
-      u = sin(kappa * x(0)) * sin(kappa * x(1));
-   }
-   else
-   {
-      u = sin(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
-   }
-
+   double u = sin(x(0)) * exp(x(1));
    return u;
 }
 
 void u_grad_exact(const Vector &x, Vector &u)
 {
-   if (x.Size() == 2)
-   {
-      u(0) = kappa * cos(kappa * x(0)) * sin(kappa * x(1));
-      u(1) = kappa * sin(kappa * x(0)) * cos(kappa * x(1));
-   }
-   else
-   {
-      u(0) = kappa * cos(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
-      u(1) = kappa * sin(kappa * x(0)) * cos(kappa * x(1)) * sin(kappa * x(2));
-      u(2) = kappa * sin(kappa * x(0)) * sin(kappa * x(1)) * cos(kappa * x(2));
-   }
+  u(0) = cos(x(0)) * exp(x(1));
+  u(1) = sin(x(0)) * exp(x(1));
 }
 
 double f_exact(const Vector &x)
 {
-   double f = 0.0;
-   if (x.Size() == 2)
-   {
-      f = 2.0 * kappa * kappa * (sin(kappa * x(0)) * sin(kappa * x(1)));
-   }
-   else
-   {
-      f = 3.0 * kappa * kappa * (sin(kappa * x(0)) * sin(kappa * x(1)) * sin(
-                                    kappa * x(2)));
-   }
-
-   return f;
+  // double f = sin(x(0)) * exp(x(1));
+  double f = 0.0;
+  return f;
 }
 
 
+
+// // The "_eig" functions are for  \Delta u = \lambda u 
+
+// double u_exact_eig(const Vector &x)
+// {
+//    double u = 0.0;
+//    if (x.Size() == 2)
+//    {
+//       u = sin(kappa * x(0)) * sin(kappa * x(1));
+//    }
+//    else
+//    {
+//       u = sin(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
+//    }
+   
+
+//    return u;
+// }
+
+// void u_grad_exact_eig(const Vector &x, Vector &u)
+// {
+//    if (x.Size() == 2)
+//    {
+//       u(0) = kappa * cos(kappa * x(0)) * sin(kappa * x(1));
+//       u(1) = kappa * sin(kappa * x(0)) * cos(kappa * x(1));
+//    }
+//    else
+//    {
+//       u(0) = kappa * cos(kappa * x(0)) * sin(kappa * x(1)) * sin(kappa * x(2));
+//       u(1) = kappa * sin(kappa * x(0)) * cos(kappa * x(1)) * sin(kappa * x(2));
+//       u(2) = kappa * sin(kappa * x(0)) * sin(kappa * x(1)) * cos(kappa * x(2));
+//    }
+// }
+
+// double f_exact_eig(const Vector &x)
+// {
+//    double f = 0.0;
+//    if (x.Size() == 2)
+//    {
+//       f = 2.0 * kappa * kappa * (sin(kappa * x(0)) * sin(kappa * x(1)));
+//    }
+//    else
+//    {
+//       f = 3.0 * kappa * kappa * (sin(kappa * x(0)) * sin(kappa * x(1)) * sin(
+//                                     kappa * x(2)));
+//    }
+
+//    return f;
+// }
 
 
 
