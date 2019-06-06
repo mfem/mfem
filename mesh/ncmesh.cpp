@@ -189,8 +189,6 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    InitGeomFlags();
 
    Update();
-
-   InitTetTypes();
 }
 
 NCMesh::NCMesh(const NCMesh &other)
@@ -215,51 +213,6 @@ void NCMesh::InitGeomFlags()
    for (int i = 0; i < root_state.Size(); i++)
    {
       Geoms |= (1 << elements[i].Geom());
-   }
-}
-
-void NCMesh::InitTetTypes()
-{
-   if (!HaveTets()) { return; }
-
-   MFEM_VERIFY(top_vertex_pos.Size(), "");
-   tmp_vertex = new TmpVertex[nodes.NumIds()];
-
-   for (int i = 0; i < leaf_elements.Size(); i++)
-   {
-      Element &el = elements[leaf_elements[i]];
-      if (el.Geom() == Geometry::TETRAHEDRON)
-      {
-         el.tet_type = GetTetType(el);
-      }
-   }
-
-   delete [] tmp_vertex;
-}
-
-void NCMesh::PrintTetTypes(std::ofstream &f, int elem)
-{
-   const Element& el = elements[elem];
-   if (!el.ref_type) { return; }
-
-   f << "type " << int(el.tet_type) << ", children";
-   for (int i = 0; i < 8 && el.child[i] >= 0; i++)
-   {
-      f << " " << int(elements[el.child[i]].tet_type);
-   }
-   f << std::endl;
-
-   for (int i = 0; i < 8 && el.child[i] >= 0; i++)
-   {
-      PrintTetTypes(f, el.child[i]);
-   }
-}
-
-void NCMesh::PrintTetTypes(std::ofstream &f)
-{
-   for (int i = 0; i < root_state.Size(); i++)
-   {
-      PrintTetTypes(f, i);
    }
 }
 
@@ -492,8 +445,8 @@ int NCMesh::Face::GetSingleElement() const
 //// Refinement ////////////////////////////////////////////////////////////////
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
-   : geom(geom), ref_type(0), flag(0), tet_type(0)
-   , index(-1), rank(0), attribute(attr), parent(-1)
+   : geom(geom), ref_type(0), flag(0), index(-1)
+   , rank(0), attribute(attr), parent(-1)
 {
    for (int i = 0; i < 8; i++) { node[i] = -1; }
 
@@ -563,7 +516,7 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
    return new_id;
 }
 
-int NCMesh::NewTetrahedron(int type, int n0, int n1, int n2, int n3, int attr,
+int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
                            int fattr0, int fattr1, int fattr2, int fattr3)
 {
    // create new unrefined element, initialize nodes
@@ -571,9 +524,6 @@ int NCMesh::NewTetrahedron(int type, int n0, int n1, int n2, int n3, int attr,
    Element &el = elements[new_id];
 
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
-
-   el.tet_type = (type < 0) ? GetTetType(el) : type;
-   mfem::out << "type: " << int(el.tet_type) << std::endl;
 
    // get faces and assign face attributes
    Face* f[4];
@@ -589,58 +539,6 @@ int NCMesh::NewTetrahedron(int type, int n0, int n1, int n2, int n3, int attr,
    f[3]->attribute = fattr3;
 
    return new_id;
-}
-
-static void midpoint(const double *p1, const double *p2, double *mid)
-{
-   for (int i = 0; i < 3; i++)
-   {
-      mid[i] = (p1[i] + p2[i])*0.5;
-   }
-}
-
-static double distance2(const double *p1, const double *p2)
-{
-   double a = p1[0] - p2[0];
-   double b = p1[1] - p2[1];
-   double c = p1[2] - p2[2];
-   return a*a + b*b + c*c;
-}
-
-int NCMesh::GetTetType(const Element &el)
-{
-#if 1
-   MFEM_ASSERT(el.Geom() == Geometry::TETRAHEDRON, "");
-
-   const double* v0 = CalcVertexPos(el.node[0]);
-   const double* v1 = CalcVertexPos(el.node[1]);
-   const double* v2 = CalcVertexPos(el.node[2]);
-   const double* v3 = CalcVertexPos(el.node[3]);
-
-   double m01[3], m12[3], m20[3], m03[3], m13[3], m23[3];
-   midpoint(v0, v1, m01); midpoint(v1, v2, m12); midpoint(v2, v0, m20);
-   midpoint(v0, v3, m03); midpoint(v1, v3, m13); midpoint(v2, v3, m23);
-
-   double d0 = distance2(m01, m23);
-   double d1 = distance2(m12, m03);
-   double d2 = distance2(m20, m13);
-
-   mfem::out << "diagonals: " << d0 << ", " << d1 << ", " << d2 << std::endl;
-
-#if 0
-   if (d0 <= d1 && d0 <= d2) { return 0; }
-   if (d1 < d0 && d1 <= d2) { return 1; }
-   return 2;
-#else
-   const double eps = 1e-6; // ?
-   if (d0 < d1+eps && d0 < d2+eps) { return 0; }
-   if (d1 < d0+eps && d1 < d2+eps) { return 1; }
-   return 2;
-#endif
-#else
-   (void) el;
-   return 0;
-#endif
 }
 
 int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
@@ -1420,146 +1318,68 @@ void NCMesh::RefineElement(int elem, char ref_type)
       int mid13 = GetMidEdgeNode(no[1], no[3]);
       int mid23 = GetMidEdgeNode(no[2], no[3]);
 
-      child[0] = NewTetrahedron(el.tet_type,
-                                no[0], mid01, mid02, mid03, attr,
+      child[0] = NewTetrahedron(no[0], mid01, mid02, mid03, attr,
                                 -1, fa[1], fa[2], fa[3]);
 
-      child[1] = NewTetrahedron(el.tet_type,
-                                mid01, no[1], mid12, mid13, attr,
+      child[1] = NewTetrahedron(mid01, no[1], mid12, mid13, attr,
                                 fa[0], -1, fa[2], fa[3]);
 
-      child[2] = NewTetrahedron(el.tet_type,
-                                mid02, mid12, no[2], mid23, attr,
+      child[2] = NewTetrahedron(mid02, mid12, no[2], mid23, attr,
                                 fa[0], fa[1], -1, fa[3]);
 
-      child[3] = NewTetrahedron(el.tet_type,
-                                mid03, mid13, mid23, no[3], attr,
+      child[3] = NewTetrahedron(mid03, mid13, mid23, no[3], attr,
                                 fa[0], fa[1], fa[2], -1);
 
-#if 0
-      if (el.tet_type == 0) // shortest diagonal mid01--mid23
+      // There are three was to split the inner octahedron. A good strategy is
+      // to use the shortest diagonal. At the moment we don't have the geometric
+      // information in this class to determine which diagonal is the shortest,
+      // but it seems that with reasonable shapes of the coarse tets and MFEM's
+      // default tet orientation, always using tet_type == 0 produces stable
+      // refinements.
+      const int tet_type = 0;
+
+      if (tet_type == 0) // shortest diagonal mid01--mid23
       {
-         child[4] = NewTetrahedron(-1, mid13, mid23, mid12, mid01, attr,
-                                   -1, -1, -1, fa[0]);
-
-         child[5] = NewTetrahedron(-1, mid23, mid03, mid02, mid01, attr,
-                                   -1, -1, -1, fa[1]);
-
-         child[6] = NewTetrahedron(-1, mid13, mid01, mid03, mid23, attr,
-                                   -1, -1, -1, fa[2]);
-
-         child[7] = NewTetrahedron(-1, mid12, mid02, mid01, mid23, attr,
-                                   -1, -1, -1, fa[3]);
-      }
-      else if (el.tet_type == 1) // shortest diagonal mid12--mid03
-      {
-         child[4] = NewTetrahedron(-1, mid13, mid23, mid12, mid03, attr,
-                                   -1, -1, -1, fa[0]);
-
-         child[5] = NewTetrahedron(-1, mid23, mid03, mid02, mid12, attr,
-                                   -1, -1, -1, fa[1]);
-
-         child[6] = NewTetrahedron(-1, mid13, mid01, mid03, mid12, attr,
-                                   -1, -1, -1, fa[2]);
-
-         child[7] = NewTetrahedron(-1, mid12, mid02, mid01, mid03, attr,
-                                   -1, -1, -1, fa[3]);
-      }
-      else // tet_type 2, shortest diagonal mid02--mid13
-      {
-         child[4] = NewTetrahedron(-1, mid13, mid23, mid12, mid02, attr,
-                                   -1, -1, -1, fa[0]);
-
-         child[5] = NewTetrahedron(-1, mid23, mid03, mid02, mid13, attr,
-                                   -1, -1, -1, fa[1]);
-
-         child[6] = NewTetrahedron(-1, mid13, mid01, mid03, mid02, attr,
-                                   -1, -1, -1, fa[2]);
-
-         child[7] = NewTetrahedron(-1, mid12, mid02, mid01, mid13, attr,
-                                   -1, -1, -1, fa[3]);
-      }
-#elif 1
-//      { {0,5,1,2}, {0,5,2,4}, {0,5,4,3}, {0,5,3,1} }, // rt = 0
-//      { {1,0,4,2}, {1,2,4,5}, {1,5,4,3}, {1,3,4,0} }, // rt = 2
-//      { {2,0,1,3}, {2,1,5,3}, {2,5,4,3}, {2,4,0,3} }  // rt = 1
-
-      if (el.tet_type == 0) // shortest diagonal mid01--mid23
-      {
-         child[4] = NewTetrahedron(-1, mid01, mid23, mid02, mid03, attr,
+         child[4] = NewTetrahedron(mid01, mid23, mid02, mid03, attr,
                                    fa[1], -1, -1, -1);
 
-         child[5] = NewTetrahedron(-1, mid01, mid23, mid03, mid13, attr,
-                                   fa[2], -1, -1, -1);
+         child[5] = NewTetrahedron(mid01, mid23, mid03, mid13, attr,
+                                   -1, fa[2], -1, -1);
 
-         child[6] = NewTetrahedron(-1, mid01, mid23, mid13, mid12, attr,
+         child[6] = NewTetrahedron(mid01, mid23, mid13, mid12, attr,
                                    fa[0], -1, -1, -1);
 
-         child[7] = NewTetrahedron(-1, mid01, mid23, mid12, mid02, attr,
+         child[7] = NewTetrahedron(mid01, mid23, mid12, mid02, attr,
+                                   -1, fa[3], -1, -1);
+      }
+      else if (tet_type == 1) // shortest diagonal mid12--mid03
+      {
+         child[4] = NewTetrahedron(mid03, mid01, mid02, mid12, attr,
                                    fa[3], -1, -1, -1);
+
+         child[5] = NewTetrahedron(mid03, mid02, mid23, mid12, attr,
+                                   -1, -1, -1, fa[1]);
+
+         child[6] = NewTetrahedron(mid03, mid23, mid13, mid12, attr,
+                                   fa[0], -1, -1, -1);
+
+         child[7] = NewTetrahedron(mid03, mid13, mid01, mid12, attr,
+                                   -1, -1, -1, fa[2]);
       }
-      else if (el.tet_type == 1) // shortest diagonal mid12--mid03
+      else // tet_type == 2, shortest diagonal mid02--mid13
       {
-         child[4] = NewTetrahedron(-1, mid03, mid01, mid02, mid12, attr,
-                                   -1, -1, -1, -1);
+         child[4] = NewTetrahedron(mid02, mid01, mid13, mid03, attr,
+                                   fa[2], -1, -1, -1);
 
-         child[5] = NewTetrahedron(-1, mid03, mid02, mid23, mid12, attr,
-                                   -1, -1, -1, -1);
+         child[5] = NewTetrahedron(mid02, mid03, mid13, mid23, attr,
+                                   -1, -1, fa[1], -1);
 
-         child[6] = NewTetrahedron(-1, mid03, mid23, mid13, mid12, attr,
-                                   -1, -1, -1, -1);
+         child[6] = NewTetrahedron(mid02, mid23, mid13, mid12, attr,
+                                   fa[0], -1, -1, -1);
 
-         child[7] = NewTetrahedron(-1, mid03, mid13, mid01, mid12, attr,
-                                   -1, -1, -1, -1);
+         child[7] = NewTetrahedron(mid02, mid12, mid13, mid01, attr,
+                                   -1, -1, fa[3], -1);
       }
-      else // tet_type 2, shortest diagonal mid02--mid13
-      {
-         child[4] = NewTetrahedron(-1, mid02, mid01, mid13, mid03, attr,
-                                   -1, -1, -1, -1);
-
-         child[5] = NewTetrahedron(-1, mid02, mid03, mid13, mid23, attr,
-                                   -1, -1, -1, -1);
-
-         child[6] = NewTetrahedron(-1, mid02, mid23, mid13, mid12, attr,
-                                   -1, -1, -1, -1);
-
-         child[7] = NewTetrahedron(-1, mid02, mid12, mid13, mid01, attr,
-                                   -1, -1, -1, -1);
-      }
-#else
-      int node4 = mid01, node5 = mid12, node6 = mid02;
-      int node7 = mid03, node8 = mid13, node9 = mid23;
-
-
-      if (el.tet_type == 0) // diagonal
-      {
-         child[4] = NewTetrahedron(0, node8, node7, node9, node4, attr,
-                                   -1, -1, -1, -1);
-
-         child[5] = NewTetrahedron(0, node8, node5, node4, node9, attr,
-                                   -1, -1, -1, -1);
-
-         child[6] = NewTetrahedron(1, node6, node4, node5, node9, attr,
-                                   -1, -1, -1, -1);
-
-         child[7] = NewTetrahedron(1, node9, node6, node4, node7, attr,
-                                   -1, -1, -1, -1);
-      }
-      else
-      {
-         child[4] = NewTetrahedron(1, node4, node7, node8, node6, attr,
-                                   -1, -1, -1, -1);
-
-         child[5] = NewTetrahedron(1, node4, node5, node6, node8, attr,
-                                   -1, -1, -1, -1);
-
-         child[6] = NewTetrahedron(0, node9, node6, node5, node8, attr,
-                                   -1, -1, -1, -1);
-
-         child[7] = NewTetrahedron(0, node9, node8, node7, node6, attr,
-                                   -1, -1, -1, -1);
-      }
-#endif
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
@@ -1680,13 +1500,6 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_stack.Append(Refinement(leaf_elements[ref.index], ref.ref_type));
    }
 
-   // TODO: remove
-   if (HaveTets())
-   {
-      MFEM_VERIFY(top_vertex_pos.Size(), "");
-      tmp_vertex = new TmpVertex[nodes.NumIds()];
-   }
-
    // keep refining as long as the stack contains something
    int nforced = 0;
    while (ref_stack.Size())
@@ -1716,12 +1529,6 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
    ref_stack.DeleteAll();
    shadow.DeleteAll();
-
-   // TODO: remove
-   if (HaveTets())
-   {
-      delete [] tmp_vertex;
-   }
 
    Update();
 }
@@ -4967,8 +4774,6 @@ void NCMesh::SetVertexPositions(const Array<mfem::Vertex> &mvertices)
    {
       std::memcpy(&top_vertex_pos[3*i], mvertices[i](), 3*sizeof(double));
    }
-
-   InitTetTypes();
 }
 
 int NCMesh::PrintElements(std::ostream &out, int elem, int &coarse_id) const
