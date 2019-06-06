@@ -13,7 +13,6 @@
 //      Check timeintegrator Miniapp:
 //      ----------------------------------------------------------------
 //
-//
 // Compile with: make check-timeintegrator
 //
 // Sample runs:  check-timeintegrator
@@ -24,7 +23,6 @@
 
 using namespace std;
 using namespace mfem;
-
 
 /** Class for simple linear first order ODE.
  *
