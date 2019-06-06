@@ -94,8 +94,6 @@ public:
    virtual ~ODESolver() { }
 };
 
-ODESolver *SelectODESolver(const int ode_solver_type);
-
 /// The classical forward Euler method
 class ForwardEulerSolver : public ODESolver
 {
