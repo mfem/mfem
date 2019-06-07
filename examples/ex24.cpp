@@ -1,3 +1,16 @@
+//                                MFEM Example 24
+//
+// Compile with: make ex24
+//
+// Sample runs:  ex24 -m ../data/mobius-strip -r 1
+//               ex24 -p 0 -r 1
+//               ex24 -p 1 -r 1
+//               ex24 -p 2 -r 1
+//               ex24 -p 3 -r 1
+//
+// Device sample runs:
+//               ex24 -p 0 -pa
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -49,18 +62,64 @@ public:
       { if (std::abs(nodes(i)) < eps) { nodes(i) = 0.0; } }
       SetCurvature(order, discontinuous, space_dim, Ordering::byNODES);
       glvis << "mesh\n" << *this << flush;
+      glvis << "keys gAmaa\n";
+      glvis << "window_size 800 800\n" << flush;
    }
 };
 
+// ****************************************************************************
+void ExtractComponent(const GridFunction &phi, GridFunction &phi_i, int d)
+{
+   const FiniteElementSpace *fes = phi_i.FESpace();
+   // ASSUME phi IS ORDERED byNODES!
+   const int ndof = fes->GetNDofs();
+   for (int i = 0; i < ndof; i++)
+   {
+      const int j = d*ndof + i;
+      phi_i[i] = phi[j];
+   }
+}
+
+// ****************************************************************************
+void AddToComponent(GridFunction &phi, const GridFunction &phi_i, int d,
+                    double alpha=1.0)
+{
+   const FiniteElementSpace *fes = phi_i.FESpace();
+   // ASSUME phi IS ORDERED byNODES!
+   const int ndof = fes->GetNDofs();
+   for (int i = 0; i < ndof; i++)
+   {
+      const int j = d*ndof + i;
+      phi[j] += alpha*phi_i[i];
+   }
+}
+
+// ****************************************************************************
+void SetComponent(GridFunction &phi, const GridFunction &phi_i, int d)
+{
+   const FiniteElementSpace *fes = phi_i.FESpace();
+   // ASSUME phi IS ORDERED byNODES!
+   const int ndof = fes->GetNDofs();
+   for (int i = 0; i < ndof; i++)
+   {
+      const int j = d*ndof + i;
+      phi[j] = phi_i[i];
+   }
+}
+
+// ****************************************************************************
 int main(int argc, char *argv[])
 {
-   int nx = 4;
-   int ny = 4;
-   int order = 4;
+   int nx = 2;
+   int ny = 2;
+   int order = 2;
    int niter = 4;
-   int ref_levels = 2;
+   bool pa = true;
+   int ref_levels = 0;
+   bool wait = true;
    int parametrization = -1;
    bool visualization = true;
+   const char *device_config = "cpu";
    const char *mesh_file = "../data/mobius-strip.mesh";
 
    // 1. Parse command-line options.
@@ -68,6 +127,8 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&parametrization, "-p", "--parametrization",
                   "Enable or disable parametrization .");
+   args.AddOption(&wait, "-w", "--wait", "-no-w", "--no-wait",
+                  "Enable or disable a GLVis pause.");
    args.AddOption(&nx, "-nx", "--num-elements-x",
                   "Number of elements in x-direction.");
    args.AddOption(&ny, "-ny", "--num-elements-y",
@@ -75,11 +136,20 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order", "Finite element order.");
    args.AddOption(&ref_levels, "-r", "--ref-levels", "Refinement");
    args.AddOption(&niter, "-n", "--niter", "Number of iterations");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
+
+   // 2. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
 
    if (visualization)
    {
@@ -120,22 +190,36 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: " << vfes->GetTrueVSize() << endl;
 
    // Determine the list of true (i.e. conforming) essential boundary dofs.
-   Array<int> ess_tdof_list;
-   MFEM_VERIFY(mesh->bdr_attributes.Size(),"");
-   Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   ess_bdr = 1;
-   vfes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   Array<int> v_ess_tdof_list, s_ess_tdof_list;
+   if (mesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      sfes->GetEssentialTrueDofs(ess_bdr, s_ess_tdof_list);
+      vfes->GetEssentialTrueDofs(ess_bdr, v_ess_tdof_list);
+   }
 
    // Define the solution vector x as a finite element grid function
    // and b as the right-hand side of the FEM linear system.
-   GridFunction x(vfes), b(vfes), s(sfes);
+   //GridFunction vx(vfes), vb(vfes);
    GridFunction *nodes = mesh->GetNodes();
-   s = 0.0;
+
+   //GridFunction *phi = mesh->GetNodes();
+   GridFunction phi_new(nodes->FESpace());
+   //GridFunction phi_i[3];
+   //for (int i=0; i<sdim; ++i) { phi_i[i].SetSpace(sfes); }
+
+   GridFunction x(sfes), b(sfes);
+   x = 0.0;
 
    // Set up the bilinear form a(.,.) on the finite element space.
-   BilinearForm a(vfes);
+   //BilinearForm va(vfes);
    ConstantCoefficient one(1.0);
-   a.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
+   //if (pa) { va.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   //va.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
+
+   BilinearForm a(sfes);
+   a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    if (visualization)
    {
@@ -143,31 +227,74 @@ int main(int argc, char *argv[])
       glvis << "mesh\n" << *mesh << flush;
       glvis << "keys gAmaa\n";
       glvis << "window_size 800 800\n";
-      glvis << "pause\n" << flush;
+      if (wait) { glvis << "pause\n" << flush; }
    }
 
    for (int iiter=0; iiter<niter; ++iiter)
    {
-      b = 0.0;
-      x = *nodes; // should only copy the BC
       a.Assemble();
-      Vector B, X;
-      OperatorPtr A;
-      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M(static_cast<SparseMatrix&>(*A));
-      PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
-      // Recover the solution as a finite element grid function.
-      a.RecoverFEMSolution(X, b, x);
-      *nodes = x;
+      phi_new = *nodes;
+      for (int i=0; i<sdim; ++i)
+      {
+         b = 0.0;
+         ExtractComponent(*nodes, x, i);
+         Vector B, X;
+         OperatorPtr A;
+         a.FormLinearSystem(s_ess_tdof_list, x, b, A, X, B);
+         if (!pa)
+         {
+            // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+            GSSmoother M(static_cast<SparseMatrix&>(*A));
+            PCG(*A, M, B, X, 1, 2000, eps, 0.0);
+         }
+         else
+         {
+            CG(*A, B, X, 3, 2000, eps, 0.0);
+         }
+         // Recover the solution as a finite element grid function.
+         a.RecoverFEMSolution(X, b, x);
+         SetComponent(phi_new, x, i);
+      }
+      *nodes = phi_new;
       // Send the solution by socket to a GLVis server.
       if (visualization)
       {
          glvis << "mesh\n" << *mesh << flush;
-         glvis << "pause\n" << flush;
+         if (wait) { glvis << "pause\n" << flush; }
       }
       a.Update();
    }
+   /*
+      for (int iiter=0; iiter<niter; ++iiter)
+      {
+         vb = 0.0;
+         vx = *nodes; // should only copy the BC
+         va.Assemble();
+         Vector vB, vX;
+         OperatorPtr vA;
+         va.FormLinearSystem(v_ess_tdof_list, vx, vb, vA, vX, vB);
+         if (!pa)
+         {
+            // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+            GSSmoother vM(static_cast<SparseMatrix&>(*vA));
+            PCG(*vA, vM, vB, vX, 3, 2000, eps, 0.0);
+         }
+         else
+         {
+            CG(*vA, vB, vX, 3, 2000, eps, 0.0);
+         }
+         // Recover the solution as a finite element grid function.
+         va.RecoverFEMSolution(vX, vb, vx);
+         *nodes = vx;
+         // Send the solution by socket to a GLVis server.
+         if (visualization)
+         {
+            glvis << "mesh\n" << *mesh << flush;
+            if (wait) { glvis << "pause\n" << flush; }
+         }
+         va.Update();
+      }
+      */
    // Free the used memory.
    delete sfes;
    delete vfes;
@@ -178,6 +305,7 @@ int main(int argc, char *argv[])
 // Parametrization of a Catenoid surface
 void catenoid(const Vector &x, Vector &p)
 {
+   p = x; return;/*
    p.SetSize(3);
    const double a = 1.0;
    // u in [0,2π] and v in [-2π/3,2π/3]
@@ -186,38 +314,40 @@ void catenoid(const Vector &x, Vector &p)
    p[0] = a*cos(u)*cosh(v);
    p[1] = a*sin(u)*cosh(v);
    p[2] = a*v;
+   */
 }
 
 // Postfix of the Catenoid surface
 void catenoid_postfix(const int nx, const int ny, Mesh *mesh)
 {
-   Array<int> v2v(mesh->GetNV());
-   for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
-   // identify vertices on vertical lines
-   for (int j = 0; j <= ny; j++)
-   {
-      int v_old = nx + j * (nx + 1);
-      int v_new =      j * (nx + 1);
-      v2v[v_old] = v_new;
-   }
-   // renumber elements
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      Element *el = mesh->GetElement(i);
-      int *v = el->GetVertices();
-      int nv = el->GetNVertices();
-      for (int j = 0; j < nv; j++)
-      { v[j] = v2v[v[j]]; }
-   }
-   // renumber boundary elements
-   for (int i = 0; i < mesh->GetNBE(); i++)
-   {
-      Element *el = mesh->GetBdrElement(i);
-      int *v = el->GetVertices();
-      int nv = el->GetNVertices();
-      for (int j = 0; j < nv; j++)
-      { v[j] = v2v[v[j]]; }
-   }
+   /*
+     Array<int> v2v(mesh->GetNV());
+     for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
+     // identify vertices on vertical lines
+     for (int j = 0; j <= ny; j++)
+     {
+        int v_old = nx + j * (nx + 1);
+        int v_new =      j * (nx + 1);
+        v2v[v_old] = v_new;
+     }
+     // renumber elements
+     for (int i = 0; i < mesh->GetNE(); i++)
+     {
+        Element *el = mesh->GetElement(i);
+        int *v = el->GetVertices();
+        int nv = el->GetNVertices();
+        for (int j = 0; j < nv; j++)
+        { v[j] = v2v[v[j]]; }
+     }
+     // renumber boundary elements
+     for (int i = 0; i < mesh->GetNBE(); i++)
+     {
+        Element *el = mesh->GetBdrElement(i);
+        int *v = el->GetVertices();
+        int nv = el->GetNVertices();
+        for (int j = 0; j < nv; j++)
+        { v[j] = v2v[v[j]]; }
+     }*/
 }
 
 // Parametrization of a Helicoid surface
