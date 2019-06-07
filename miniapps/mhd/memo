@@ -35,7 +35,7 @@ hypre_ParCSRMatrix *parcsr;
 MatHYPREGetParCSR(*pA,&parcsr);
 
 Could I just use MATAIJ in jacType? I do not see the point to use MATHYPRE
-Do I construct a MyBlockSolver every time step or not?
+Do I construct a MyBlockSolver every time step or not? No
 
 5/29
 o ReducedSystemOperator 

@@ -2,8 +2,90 @@
 #include <iostream>
 #include <fstream>
 
+//copied from petsc.cpp
+#include "petsc.h"
+#if defined(PETSC_HAVE_HYPRE)
+#include "petscmathypre.h"
+#endif
+// Error handling
+// Prints PETSc's stacktrace and then calls MFEM_ABORT
+// We cannot use PETSc's CHKERRQ since it returns a PetscErrorCode
+#define PCHKERRQ(obj,err) do {                                                   \
+     if ((err))                                                                  \
+     {                                                                           \
+        PetscError(PetscObjectComm((PetscObject)(obj)),__LINE__,_MFEM_FUNC_NAME, \
+                   __FILE__,(err),PETSC_ERROR_REPEAT,NULL);                      \
+        MFEM_ABORT("Error in PETSc. See stacktrace above.");                     \
+     }                                                                           \
+  } while(0);
+
+
 using namespace std;
 using namespace mfem;
+
+// reduced system (it will only own Jacobian and Mdt)
+class ReducedSystemOperator : public Operator
+{
+private:
+   ParFiniteElementSpace &fespace;
+   ParBilinearForm *M, *K, *KB, *DRe, *DSl;
+   HypreParMatrix &Mmat, &Kmat;
+   mutable HypreParMatrix Mdt;
+   bool initialMdt;
+   HypreParVector *E0Vec;
+   ParGridFunction *j0;
+   Array<int> block_trueOffsets;
+
+   CGSolver *M_solver;
+
+   double dt, dtOld;
+   const Vector *phi, *psi, *w;
+   const Array<int> &ess_tdof_list;
+
+   mutable ParGridFunction phiGf, psiGf;
+   mutable ParBilinearForm *Nv, *Nb;
+   mutable BlockOperator *Jacobian;
+   mutable HypreParMatrix Mtmp;
+   mutable Vector z, zFull, Z, J;
+
+public:
+   ReducedSystemOperator(ParFiniteElementSpace &f,
+                         ParBilinearForm *M_, HypreParMatrix &Mmat_,
+                         ParBilinearForm *K_, HypreParMatrix &Kmat_,
+                         ParBilinearForm *KB_, ParBilinearForm *DRe_, ParBilinearForm *DSl_,
+                         CGSolver *M_solver_, const Array<int> &ess_tdof_list_);
+
+   /// Set current values - needed to compute action and Jacobian.
+   void SetParameters(double dt_, const Vector *phi_, const Vector *psi_, const Vector *w_)
+   {   dtOld=dt; dt=dt_; phi=phi_; psi=psi_; w=w_;
+       if (dtOld!=dt && initialMdt)
+       {
+           cout <<"------update Mdt------"<<endl;
+           double rate=dtOld/dt;
+           Mdt*=rate;
+       }
+       if(initialMdt==false)
+       {
+           cout <<"------initial Mdt-------"<<endl;
+           Mdt*=(1./dt); initialMdt=true;
+       }
+   }
+
+   void setCurrent(ParGridFunction *gf)
+   { j0=gf;}
+
+   void setE0(HypreParVector *E0Vec_)
+   { E0Vec=E0Vec_;}
+
+   /// Define F(k) 
+   virtual void Mult(const Vector &k, Vector &y) const;
+
+   /// Define J 
+   virtual Operator &GetGradient(const Vector &k) const;
+
+   virtual ~ReducedSystemOperator();
+
+};
 
 /** After spatial discretization, the resistive MHD model can be written as a
  *  system of ODEs:
@@ -33,7 +115,7 @@ protected:
 
    //for implicit stepping
    ReducedSystemOperator *reduced_oper;
-   PetscNonlinearSolver* pnewton_solver;
+   PetscNonlinearSolver *pnewton_solver;
    PetscPreconditionerFactory *J_factory;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
@@ -59,7 +141,7 @@ public:
 
    //Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
    //here vector are block vectors
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   virtual void ImplicitSolve(const double dt, const Vector &vx, Vector &k);
 
    //link gf with psi
    void BindingGF(Vector &vx)
@@ -79,112 +161,70 @@ public:
    virtual ~ResistiveMHDOperator();
 };
 
-// reduced system (it will only own Jacobian and Mdt)
-class ReducedSystemOperator : public Operator
-{
-private:
-   ParFiniteElementSpace &fespace;
-   ParBilinearForm *M, *K, *DRe, *DSl;
-   HypreParMatrix &Mmat, &Kmat;
-   HypreParMatrix Mdt;
-   bool initialMdt;
-   HypreParVector *E0Vec;
-   ParGridFunction *j0;
-   Array<int> block_trueOffsets(4);
 
-   CGSolver *M_solver;
-
-   double dt, dtOld;
-   const Vector *phi, *psi, *w;
-   const Array<int> &ess_tdof_list;
-
-   mutable ParGridFunction phiGf, psiGf;
-   mutable ParBilinearForm *Nv, *Nb;
-   mutable HypreParMatrix *Jacobian;
-   mutable HypreParMatrix Mtmp;
-   mutable Vector z, zFull, Z, J;
-
-public:
-   ReducedSystemOperator(ParFiniteElementSpace &f,
-                         ParBilinearForm *M_, HypreParMatrix &Mmat_,
-                         ParBilinearForm *K_, HypreParMatrix &Kmat_,
-                         ParBilinearForm *DRe_, ParBilinearForm *DSl_,
-                         ParLinearForm *E0_, CGSolver *M_solver_,
-                         const Array<int> &ess_tdof_list_);
-
-   /// Set current values - needed to compute action and Jacobian.
-   void SetParameters(double dt_, const Vector *phi_, const Vector *psi_, const Vector *w_)
-   {   dtOld=dt; dt=dt_; phi=phi_; psi=psi_; w=w_;
-       if (dtOld!=dt && initialMdt)
-       {
-           cout <<"------update Mdt------"<<endl;
-           double rate=dtOld/dt;
-           Mdt*=rate;
-       }
-       if(initialMdt==false)
-       {
-           cout <<"------initial Mdt-------"<<endl;
-           Mdt*=(1./dt); initialMdt=true;
-       }
-   }
-
-   void SetCurrent(ParGridFunction *gf)
-   { j0=gf;}
-
-   /// Define F(k) 
-   virtual void Mult(const Vector &k, Vector &y) const;
-
-   /// Define J 
-   virtual Operator &GetGradient(const Vector &k) const;
-
-   virtual ~ReducedSystemOperator();
-
-};
 
 //------petsc pcshell preconditioenr------
 class MyBlockSolver : public mfem::Solver
 {
 private:
-   Mat **sub; //TODO this sub mat could be problematic!
-   PetscInt M, N;
+   Mat **sub; //XXX does sub mat own mat?
+
    // Create internal KSP objects to handle the subproblems
    KSP kspblock[3];
+
    // Create PetscParVectors as placeholders internal_x and internal_y
-   PetscParVectors internal_x, internal_y;
+   PetscParVector internal_x, internal_y;
+
    IS index_set[3];
 
 public:
-   MyBlockSolver(OperatorHandle oh) { 
+   MyBlockSolver(OperatorHandle &oh) { 
+      PetscErrorCode ierr; 
+
       // Get the PetscParMatrix out of oh.       
       PetscParMatrix *PP;
       oh.Get(PP);
       Mat P = *PP; // type cast to Petsc Mat
-      MatNestGetSubMats(P,&N,&M,&sub)// sub is an N by M array of matrices
+      PetscInt M, N;
+      ierr=MatNestGetSubMats(P,&N,&M,&sub); PCHKERRQ(sub, ierr);// sub is an N by M array of matrices
+      ierr=MatNestGetISs(P, index_set, NULL);  PCHKERRQ(index_set, ierr);// get the index sets of the blocks
 
-      for (int i=0; i++; i<3)
+      ISView(index_set[0],PETSC_VIEWER_STDOUT_WORLD);
+      ISView(index_set[1],PETSC_VIEWER_STDOUT_WORLD);
+      ISView(index_set[2],PETSC_VIEWER_STDOUT_WORLD);
+
+      for (int i=0; i<3; i++)
       {
-        KSPCreate(PETSC_COMM_WORLD, kspblock[i]);
-        KSPSetOperator(kspblock[i], sub[i][i], sub[i][i]);
-        KSPSetFromOptions(ksplbock[i]);
+        KSPCreate(PETSC_COMM_WORLD, &kspblock[i]);
+        KSPSetOperators(kspblock[i], sub[i][i], sub[i][i]);
+
+        if (i==0) 
+            KSPAppendOptionsPrefix(kspblock[i],"s1_");
+        else
+            KSPAppendOptionsPrefix(kspblock[i],"s2_");
+        KSPSetFromOptions(kspblock[i]);
+        KSPSetUp(kspblock[i]);
       }
    }
 
-   Mult(const Vector &x, Vector &y);
-   virtual ~MyBlockSolver();
-}
+   virtual void SetOperator (const Operator &op)
+   { MFEM_ABORT("SetOperator::MyBlockSolver is not supported.");}
 
-MyBlockSolver::Mult(const Vector &x, Vector &y)
+   virtual void Mult(const Vector &x, Vector &y);
+   virtual ~MyBlockSolver();
+};
+
+void MyBlockSolver::Mult(const Vector &x, Vector &y)
 {
-      //Mat mass;
-      //&mass=&sub[0][2];
+      //Mat &mass = sub[0][2];
       Vec blockx, blocky;
       Vec blockx0, blocky0;
 
       internal_x.PlaceArray(x.GetData()); // no copy, only the data pointer is passed to PETSc
       internal_y.PlaceArray(y.GetData());
 
-      MatNestGetISs(P, index_set, NULL); // get the index sets of the blocks
-      for (i = 1: i<3; i++)
+      //solve the last two equations first
+      for (int i = 1; i<3; i++)
       {
         VecGetSubVector(internal_x,index_set[i],&blockx);
         VecGetSubVector(internal_y,index_set[i],&blocky);
@@ -196,7 +236,7 @@ MyBlockSolver::Mult(const Vector &x, Vector &y)
            VecGetSubVector(internal_x,index_set[0],&blockx0);
            VecGetSubVector(internal_y,index_set[0],&blocky0);
            VecScale(blockx0, -1);
-           MatMultAdd(sub[0][2], blocky, blockx0, blockx0)
+           MatMultAdd(sub[0][2], blocky, blockx0, blockx0);
            VecScale(blockx0, -1);
         }
 
@@ -211,12 +251,14 @@ MyBlockSolver::Mult(const Vector &x, Vector &y)
 
       internal_x.ResetArray();
       internal_y.ResetArray();
-   }
+}
 
 MyBlockSolver::~MyBlockSolver()
 {
     for (int i=0; i<3; i++)
         KSPDestroy(&kspblock[i]);
+    
+    ISDestroy(index_set);
 }
 
 // Auxiliary class to provide preconditioners for matrix-free methods 
@@ -228,15 +270,11 @@ private:
 public:
    PreconditionerFactory(const ReducedSystemOperator& op_,
                          const string& name_): PetscPreconditionerFactory(name_), op(op_) {};
-   virtual mfem::Solver* NewPreconditioner(const mfem::OperatorHandle&);
+   virtual mfem::Solver* NewPreconditioner(const mfem::OperatorHandle &oh)
+   { return new MyBlockSolver(oh);}
+
    virtual ~PreconditionerFactory() {};
 };
-
-Solver* PreconditionerFactory::NewPreconditioner(const mfem::OperatorHandle& oh)
-{
-   return new MyBlockSolver(*oh);
-}
-
 
 
 ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f, 
@@ -246,7 +284,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), E0Vec(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), 
      M_solver(f.GetComm()), K_solver(f.GetComm()), 
-     K_amg(NULL), K_pcg(NULL), z(height/3), zFull(f.GetVSize()), j(&fespace)
+     K_amg(NULL), K_pcg(NULL), j(&fespace), z(height/3), zFull(f.GetVSize()) 
 {
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -307,21 +345,20 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    ConstantCoefficient resi_coeff(resistivity);
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
-
    
-   ParBilinearForm *DRe_, *DSl_;
+   ParBilinearForm *DRepr, *DSlpr;
    if (viscosity != 0.0)
-       DRe_ = &DRe;
+       DRepr = &DRe;
    else
-       DRe_ = NULL;
+       DRepr = NULL;
 
    if (resistivity != 0.0)
-       DSl_ = &DSl;
+       DSlpr = &DSl;
    else
-       DSl_ = NULL;
+       DSlpr = NULL;
 
-   //TODO define reducedSystem and petsc_solver
-   reduced_oper  = new ReducedSystemOperator();
+   reduced_oper  = new ReducedSystemOperator(f, M, Mmat, K, Kmat,
+                      KB, DRepr, DSlpr, &M_solver, ess_tdof_list);
 
    const double rel_tol=1.e-8;
    pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
@@ -342,6 +379,9 @@ void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield)
    E0->AddDomainIntegrator(new DomainLFIntegrator(Efield));
    E0->Assemble();
    E0Vec=E0->ParallelAssemble();
+
+   //add E0 to reduced_oper
+   reduced_oper->setE0(E0Vec);
 }
 
 void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ) 
@@ -349,8 +389,8 @@ void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ)
     j.ProjectCoefficient(initJ);
     j.SetTrueVector();
 
-    //add current into reduced_operator
-    reduced_operator.setCurrent(j);
+    //add current to reduced_oper
+    reduced_oper->setCurrent(&j);
 }
 
 void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
@@ -429,7 +469,7 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 
 }
 
-void ResisitiveMHDOperator::ImplicitSolve(const double dt,
+void ResistiveMHDOperator::ImplicitSolve(const double dt,
                                          const Vector &vx, Vector &k)
 {
    int sc = height/3;
@@ -505,6 +545,8 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete Nv;
     delete Nb;
     delete K_pcg;
+    delete reduced_oper;
+    delete pnewton_solver;
     //delete K_amg;
     //delete M_solver;
     //delete K_solver;
@@ -515,20 +557,20 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
 ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *M_, HypreParMatrix &Mmat_,
    ParBilinearForm *K_, HypreParMatrix &Kmat_,
-   ParBilinearForm *DRe_, ParBilinearForm *DSl_,
-   ParLinearForm *E0_, CGSolver *M_solver_,
+   ParBilinearForm *KB_, ParBilinearForm *DRe_, ParBilinearForm *DSl_,
+   CGSolver *M_solver_,
    const Array<int> &ess_tdof_list_)
    : Operator(3*f.TrueVSize()), fespace(f), 
-     M(M_), Mmat(Mmat_), K(K_),  Kmat(Kmat_), 
+     M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), 
      Mdt(Mmat_), initialMdt(false),
-     DRe(DRe_), DSl(DSl_), E0(E0_), M_solver(M_solver_),
+     E0Vec(NULL), M_solver(M_solver_),
      dt(0.0), dtOld(0.0), 
-     phi(NULL), psi(NULL), w(NULL), 
-     Jacobian(NULL), z(height/3), zFull(f.GetVSize()),
-     ess_tdof_list(ess_tdof_list_)
+     phi(NULL), psi(NULL), w(NULL), ess_tdof_list(ess_tdof_list_),
+     Nv(NULL), Nb(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
     //FIXME looks like I cannot do a deep copy now! Mdt here should be a deep copy
     int sc = height/3;
+    block_trueOffsets.SetSize(4);
     block_trueOffsets[0] = 0;
     block_trueOffsets[1] = sc;
     block_trueOffsets[2] = 2*sc;
@@ -539,11 +581,12 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 {
    if (Jacobian == NULL)    //in the first pass we just set Jacobian once
    {
+      MFEM_ASSERT(initialMdt, "Mdt not initialized correctly!"); 
       Jacobian = new BlockOperator(block_trueOffsets);
-      Jacobian->SetBlock(0,0,Kmat);
-      Jacobian->SetBlock(0,2,Mmat);
-      Jacobian->SetBlock(1,1,Mdt);
-      Jacobian->SetBlock(2,2,Mdt);
+      Jacobian->SetBlock(0,0,&Kmat);
+      Jacobian->SetBlock(0,2,&Mmat);
+      Jacobian->SetBlock(1,1,&Mdt);
+      Jacobian->SetBlock(2,2,&Mdt);
    }
    return *Jacobian;
 }
@@ -551,6 +594,8 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 ReducedSystemOperator::~ReducedSystemOperator()
 {
    delete Jacobian;
+   delete Nv;
+   delete Nb;
 }
 
 void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
@@ -583,14 +628,15 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Nb->Assemble();
 
    //------compute the current as an auxilary variable------
-   KB->Mult(psiGF, zFull);
+   KB->Mult(psiGf, zFull);
    zFull.Neg(); // z = -z
    M->FormLinearSystem(ess_tdof_list, *j0, zFull, Mtmp, J, Z); //apply Dirichelt boundary 
    M_solver->Mult(Z, J); //XXX is this okay in mult? probably
 
    //compute y1
    Kmat.Mult(phiNew,y1);
-   Mmat.AddMult(wNew,y1);
+   Mmat.Mult(wNew,z);
+   y1+=z;
    y1.SetSubVector(ess_tdof_list, 0.0);
 
    //compute y2
@@ -601,7 +647,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    if (DSl!=NULL)
        DSl->TrueAddMult(psiNew,y2);
    if (E0Vec!=NULL)
-       z += *E0Vec;
+       y2 += *E0Vec;
    y2.SetSubVector(ess_tdof_list, 0.0);
 
    //compute y3

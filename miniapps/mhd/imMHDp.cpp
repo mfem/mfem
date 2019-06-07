@@ -18,6 +18,10 @@
 #include <iostream>
 #include <fstream>
 
+#ifndef MFEM_USE_PETSC
+#error This example requires that MFEM is built with MFEM_USE_PETSC=YES
+#endif
+
 using namespace std;
 using namespace mfem;
 
@@ -121,6 +125,8 @@ int main(int argc, char *argv[])
    double visc = 0.0;
    double resi = 0.0;
    bool visit = false;
+   bool use_petsc = false;
+   const char *petscrc_file = "";
    int icase = 1;
    alpha = 0.001; 
    Lx=3.0;
@@ -139,7 +145,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 2 - Brailovskaya.");
+                  "ODE solver: 1 Backward Euler; 2 - Brailovskaya.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -158,6 +164,12 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
+                  "--no-petsc",
+                  "Use or not PETSc to solve the nonlinear system.");
+   args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
+                  "PetscOptions file to use.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -189,6 +201,11 @@ int main(int argc, char *argv[])
    }
    if (myid == 0) args.PrintOptions(cout);
 
+   if (use_petsc)
+   {
+      MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
+   }
+
    // 2. Read the mesh from the given mesh file.    
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
@@ -197,11 +214,12 @@ int main(int argc, char *argv[])
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
    PDSolver *ode_solver;
+   ODESolver *ode_solver2;
    bool explicitSolve=true;
    switch (ode_solver_type)
    {
      case 1: 
-         ode_solver = new BackwardEulerSolver; 
+         ode_solver2 = new BackwardEulerSolver; 
          explicitSolve = false;
          break;
      case 2: ode_solver = new PDSolver; break;
@@ -307,6 +325,7 @@ int main(int argc, char *argv[])
    {
     if (myid==0) cout <<"ess_bdr size should be 1 but it is "<<ess_bdr.Size()<<endl;
     delete ode_solver;
+    delete ode_solver2;
     delete mesh;
     delete pmesh;
     MPI_Finalize();
@@ -380,7 +399,10 @@ int main(int argc, char *argv[])
 
    double t = 0.0;
    oper.SetTime(t);
-   ode_solver->Init(oper);
+   if (explicitSolve)
+      ode_solver->Init(oper);
+   else
+      ode_solver2->Init(oper);
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
@@ -437,7 +459,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         ode_solver->Step(vx, t, dt_real);
+         ode_solver2->Step(vx, t, dt_real);
       }
 
       last_step = (t >= t_final - 1e-8*dt);
@@ -522,10 +544,14 @@ int main(int argc, char *argv[])
 
    // 10. Free the used memory.
    delete ode_solver;
+   delete ode_solver2;
    delete pmesh;
    delete dc;
 
    oper.DestroyHypre();
+
+   if (use_petsc) { MFEMFinalizePetsc(); }
+
    MPI_Finalize();
 
    if (myid == 0) 
