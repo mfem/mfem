@@ -116,15 +116,14 @@ int main(int argc, char *argv[])
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);*/
       for (int l = 0; l < ref_levels; l++)
       {
-         //mesh->UniformRefinement();
-         mesh->RandomRefinement(0.5);
+         mesh->UniformRefinement();
+         //mesh->RandomRefinement(0.5);
       }
    }
 
-   /*if (mesh->ncmesh) {
-      ofstream f("tet-types.txt");
-      mesh->ncmesh->PrintTetTypes(f);
-   }*/
+   Array<double> errors(mesh->GetNE());
+   errors = 1;
+   mesh->DerefineByError(errors, 10);
 
    if (mesh->ncmesh) {
       ofstream f("ncdump.txt");

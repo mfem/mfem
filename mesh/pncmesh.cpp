@@ -1329,7 +1329,6 @@ bool ParNCMesh::PruneTree(int elem)
 
 void ParNCMesh::Prune()
 {
-#if 0
    if (!Iso && Dim == 3)
    {
       if (MyRank == 0)
@@ -1357,7 +1356,7 @@ void ParNCMesh::Prune()
    {
       if (PruneTree(i)) { DerefineElement(i); }
    }
-#endif
+
    Update();
 }
 
