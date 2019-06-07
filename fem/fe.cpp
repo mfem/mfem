@@ -14,6 +14,7 @@
 #include "fe.hpp"
 #include "fe_coll.hpp"
 #include "../mesh/nurbs.hpp"
+#include "../general/dbg.hpp"
 #include "bilininteg.hpp"
 #include <cmath>
 
@@ -206,6 +207,7 @@ void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
 const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &,
                                              DofToQuad::Mode) const
 {
+   dbg("");
    mfem_error("FiniteElement::GetDofToQuad(...) is not implemented for "
               "this element!");
    return *dof2quad_array[0]; // suppress a warning
@@ -297,6 +299,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
 const DofToQuad &ScalarFiniteElement::GetDofToQuad(const IntegrationRule &ir,
                                                    DofToQuad::Mode mode) const
 {
+   dbg("%s",mode==DofToQuad::FULL?"FULL":"TENSOR");
    MFEM_VERIFY(mode == DofToQuad::FULL, "invalid mode requested");
 
    for (int i = 0; i < dof2quad_array.Size(); i++)
@@ -312,9 +315,10 @@ const DofToQuad &ScalarFiniteElement::GetDofToQuad(const IntegrationRule &ir,
    d2q->mode = mode;
    d2q->ndof = Dof;
    d2q->nqpt = nqpt;
-   d2q->B.SetSize(nqpt*Dof);
+   dbg("ndof=%d, nqpt=%d, Dim=%d",Dof,nqpt,Dim);
+   d2q->B.SetSize(Dof*nqpt);
    d2q->Bt.SetSize(Dof*nqpt);
-   d2q->G.SetSize(nqpt*Dim*Dof);
+   d2q->G.SetSize(Dof*nqpt*Dim);
    d2q->Gt.SetSize(Dof*nqpt*Dim);
 #ifdef MFEM_THREAD_SAFE
    Vector c_shape(Dof);
@@ -346,6 +350,7 @@ const DofToQuad &ScalarFiniteElement::GetTensorDofToQuad(
    const TensorBasisElement &tb,
    const IntegrationRule &ir, DofToQuad::Mode mode) const
 {
+   dbg("");
    MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
 
    for (int i = 0; i < dof2quad_array.Size(); i++)
@@ -363,6 +368,7 @@ const DofToQuad &ScalarFiniteElement::GetTensorDofToQuad(
    d2q->mode = mode;
    d2q->ndof = ndof;
    d2q->nqpt = nqpt;
+   dbg("ndof=%d, nqpt=%d, Dim=%d",Dof,nqpt,Dim);
    d2q->B.SetSize(nqpt*ndof);
    d2q->Bt.SetSize(ndof*nqpt);
    d2q->G.SetSize(nqpt*ndof);

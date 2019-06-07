@@ -911,15 +911,15 @@ class QuadratureInterpolator
 protected:
    friend class FiniteElementSpace; // Needs access to qspace and IntRule
 
-   const FiniteElementSpace *fespace;  ///< Not owned
-   const QuadratureSpace *qspace;      ///< Not owned
-   const IntegrationRule *IntRule;     ///< Not owned
+   const FiniteElementSpace *nfes;  ///< Not owned
+   const QuadratureSpace *qspace;   ///< Not owned
+   const IntegrationRule *IntRule;  ///< Not owned
 
    mutable bool use_tensor_products;
 
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
-   static const int MAX_VDIM2D = 2;
+   static const int MAX_VDIM2D = 3;
 
    static const int MAX_NQ3D = 1000;
    static const int MAX_ND3D = 1000;

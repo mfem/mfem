@@ -13,6 +13,7 @@
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
+#include "../general/dbg.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
 #include "../general/device.hpp"
@@ -9569,40 +9570,52 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    computed_factors = flags;
 
    const GridFunction *nodes = mesh->GetNodes();
-   const FiniteElementSpace *fespace = nodes->FESpace();
-   const FiniteElement *fe = fespace->GetFE(0);
-   const int vdim = fespace->GetVDim();
-   const int NE   = fespace->GetNE();
+   const FiniteElementSpace *nfes = nodes->FESpace();
+   const FiniteElement *fe = nfes->GetFE(0);
+   const int edim = fe->GetDim();
+   const int vdim = nfes->GetVDim();
+   dbg("nodes vdim=%d", vdim);
+   const int NE   = nfes->GetNE();
    const int ND   = fe->GetDof();
    const int NQ   = ir.GetNPoints();
 
    Vector Enodes(vdim*ND*NE);
    // For now, we are not using tensor product evaluation
-   const Operator *elem_restr = fespace->GetElementRestriction(
-                                   ElementDofOrdering::NATIVE);
+   const Operator *elem_restr =
+      nfes->GetElementRestriction(ElementDofOrdering::NATIVE);
    elem_restr->Mult(*nodes, Enodes);
 
    unsigned eval_flags = 0;
    if (flags & GeometricFactors::COORDINATES)
    {
+      dbg("COORDINATES");
       X.SetSize(vdim*NQ*NE);
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(vdim*vdim*NQ*NE);
+      dbg("JACOBIANS");
+      J.SetSize(edim*vdim*NQ*NE);
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)
    {
+      dbg("DETERMINANTS");
       detJ.SetSize(NQ*NE);
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
-   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
+   const QuadratureInterpolator *qi = nfes->GetQuadratureInterpolator(ir);
    // For now, we are not using tensor product evaluation (not implemented)
    qi->DisableTensorProducts();
    qi->Mult(Enodes, eval_flags, X, J, detJ);
+   
+   if (flags & GeometricFactors::JACOBIANS)
+   {
+      dbg("J:");
+      J.Print();
+   }
+   dbg("done");
 }
 
 

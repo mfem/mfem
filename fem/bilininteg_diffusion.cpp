@@ -9,6 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
@@ -76,13 +77,23 @@ static void OccaPADiffusionSetup3D(const int D1D,
 #endif // MFEM_USE_OCCA
 
 // PA Diffusion Assemble 2D kernel
-static void PADiffusionSetup2D(const int Q1D,
-                               const int NE,
-                               const Array<double> &w,
-                               const Vector &j,
-                               const double COEFF,
-                               Vector &op)
+template<const int T_VDIM> static
+void PADiffusionSetup2D(const int Q1D,
+                        const int NE,
+                        const Array<double> &w,
+                        const Vector &j,
+                        const double COEFF,
+                        Vector &op);
+
+template<>
+void PADiffusionSetup2D<2>(const int Q1D,
+                           const int NE,
+                           const Array<double> &w,
+                           const Vector &j,
+                           const double COEFF,
+                           Vector &op)
 {
+   dbg("");
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
 
@@ -98,6 +109,49 @@ static void PADiffusionSetup2D(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double c_detJ = W[q] * COEFF / ((J11*J22)-(J21*J12));
+         y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
+         y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
+         y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
+      }
+   });
+}
+
+template<>
+void PADiffusionSetup2D<3>(const int Q1D,
+                           const int NE,
+                           const Array<double> &w,
+                           const Vector &j,
+                           const double COEFF,
+                           Vector &op)
+{
+   dbg("");
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+
+   auto J = Reshape(j.Read(), NQ, 3, 2, NE);
+   auto y = Reshape(op.Write(), NQ, 3, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         const double w = W[q];
+         const double J11 = J(q,0,0,e);
+         const double J21 = J(q,1,0,e);
+         const double J31 = J(q,2,0,e);
+         const double J12 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
+         const double J32 = J(q,2,1,e);
+         const double e = J11*J11 + J21*J21 + J31*J31;
+         const double g = J12*J12 + J22*J22 + J32*J32;
+         const double f = J11*J12 + J21*J22 + J31*J32;
+         const double ad0 = J11*g - J12*f;
+         const double ad1 = J12*e - J11*f;
+         const double ad2 = J21*g - J22*f;
+         const double ad3 = J31*g - J21*f;
+         const double ad4 = J31*g - J32*f;
+         const double ad5 = J32*g - J31*f;
+         const double c_detJ = w * COEFF / ((J11*J22)-(J21*J12));
          y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
          y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
          y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
@@ -156,6 +210,7 @@ static void PADiffusionSetup3D(const int Q1D,
 }
 
 static void PADiffusionSetup(const int dim,
+                             const int sdim,
                              const int D1D,
                              const int Q1D,
                              const int NE,
@@ -164,6 +219,7 @@ static void PADiffusionSetup(const int dim,
                              const double COEFF,
                              Vector &op)
 {
+   dbg("");
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADiffusionSetup"); }
    if (dim == 2)
    {
@@ -174,13 +230,15 @@ static void PADiffusionSetup(const int dim,
          return;
       }
 #endif // MFEM_USE_OCCA
-      PADiffusionSetup2D(Q1D, NE, W, J, COEFF, op);
+      if (sdim == 2) PADiffusionSetup2D<2>(Q1D, NE, W, J, COEFF, op);
+      if (sdim == 3) PADiffusionSetup2D<3>(Q1D, NE, W, J, COEFF, op);
    }
    if (dim == 3)
    {
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
       {
+         MFEM_VERIFY(sdim == 2,"");
          OccaPADiffusionSetup3D(D1D, Q1D, NE, W, J, COEFF, op);
          return;
       }
@@ -195,12 +253,15 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
-   const int dims = el.GetDim();
-   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+   const int eldim = el.GetDim();
+   dbg("el.GetDim()=%d", eldim);
+   const int symmDims = (eldim * (eldim + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
+   dbg("mesh->Dimension()=%d", dim);
    ne = fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   const int sdim = mesh->SpaceDimension();
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
@@ -208,7 +269,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
    MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
    const double coeff = cQ->constant;
-   PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
+   PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
                     coeff, pa_data);
 }
 

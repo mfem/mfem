@@ -11,6 +11,7 @@
 
 // Implementation of FiniteElementSpace
 
+#include "../general/dbg.hpp"
 #include "../general/text.hpp"
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
@@ -2769,13 +2770,13 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir)
 {
-   fespace = &fes;
+   nfes = &fes;
    qspace = NULL;
    IntRule = &ir;
    use_tensor_products = true; // not implemented yet (not used)
 
-   if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetFE(0);
+   if (nfes->GetNE() == 0) { return; }
+   const FiniteElement *fe = nfes->GetFE(0);
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
@@ -2783,13 +2784,13 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const QuadratureSpace &qs)
 {
-   fespace = &fes;
+   nfes = &fes;
    qspace = &qs;
    IntRule = NULL;
    use_tensor_products = true; // not implemented yet (not used)
 
-   if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetFE(0);
+   if (nfes->GetNE() == 0) { return; }
+   const FiniteElement *fe = nfes->GetFE(0);
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
@@ -2816,9 +2817,9 @@ void QuadratureInterpolator::Eval2D(
    auto B = Reshape(maps.B.Read(), NQ, ND);
    auto G = Reshape(maps.G.Read(), NQ, 2, ND);
    auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
-   auto val = Reshape(q_val.Write(), NQ, VDIM, NE);
-   auto der = Reshape(q_der.Write(), NQ, VDIM, 2, NE);
-   auto det = Reshape(q_det.Write(), NQ, NE);
+   auto    /*X*/val = Reshape(q_val.Write(), NQ, VDIM, NE); 
+   auto    /*J*/der = Reshape(q_der.Write(), NQ, VDIM, 2, NE);
+   auto /*detJ*/det = Reshape(q_det.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
       const int ND = T_ND ? T_ND : nd;
@@ -2979,11 +2980,11 @@ void QuadratureInterpolator::Mult(
    const Vector &e_vec, unsigned eval_flags,
    Vector &q_val, Vector &q_der, Vector &q_det) const
 {
-   const int ne = fespace->GetNE();
+   const int ne = nfes->GetNE();
    if (ne == 0) { return; }
-   const int vdim = fespace->GetVDim();
-   const int dim = fespace->GetMesh()->Dimension();
-   const FiniteElement *fe = fespace->GetFE(0);
+   const int vdim = nfes->GetVDim();
+   const int dim = nfes->GetMesh()->Dimension();
+   const FiniteElement *fe = nfes->GetFE(0);
    const IntegrationRule *ir =
       IntRule ? IntRule : &qspace->GetElementIntRule(0);
    const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::FULL);
@@ -2998,6 +2999,36 @@ void QuadratureInterpolator::Mult(
       Vector &q_der,
       Vector &q_det,
       const int eval_flags) = NULL;
+   dbg("vdim:%d, dim:%d", vdim, dim);
+   dbg("nd:%d, nq:%d, %d", nd, nq,100*nd + nq);
+   if (vdim == 3)
+   {
+      if (dim == 2)
+      {
+         switch (100*nd + nq)
+         {
+            // Q0
+            case 101: eval_func = &Eval2D<3,1,1>; break;
+            case 104: eval_func = &Eval2D<3,1,4>; break;
+            // Q1
+            case 404: eval_func = &Eval2D<3,4,4>; break;
+            case 409: eval_func = &Eval2D<3,4,9>; break;
+            // Q2
+            case 909: eval_func = &Eval2D<3,9,9>; break;
+            case 916: eval_func = &Eval2D<3,9,16>; break;
+            // Q3
+            case 1616: eval_func = &Eval2D<3,16,16>; break;
+            case 1625: eval_func = &Eval2D<3,16,25>; break;
+            case 1636: eval_func = &Eval2D<3,16,36>; break;
+            // Q4
+            case 2525: dbg("2525"); eval_func = &Eval2D<3,25,25>; break;
+            case 2536: eval_func = &Eval2D<3,25,36>; break;
+            case 2549: eval_func = &Eval2D<3,25,49>; break;
+            case 2564: eval_func = &Eval2D<3,25,64>; break;
+         }
+      }
+   }
+   
    if (vdim == 1)
    {
       if (dim == 2)

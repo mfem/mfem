@@ -12,70 +12,9 @@
 //               ex24 -p 0 -pa
 
 #include "mfem.hpp"
+#include "general/dbg.hpp"
 #include <fstream>
 #include <iostream>
-
-#include <cstring>
-#include <cstdarg>
-//*****************************************************************************
-static inline uint8_t chk8(const char *bfr)
-{
-   unsigned int chk = 0;
-   size_t len = strlen(bfr);
-   for (; len; len--,bfr++)
-   {
-      chk += *bfr;
-   }
-   return (uint8_t) chk;
-}
-// *****************************************************************************
-inline const char *strrnchr(const char *s, const unsigned char c, int n)
-{
-   size_t len = strlen(s);
-   char *p = (char*)s+len-1;
-   for (; n; n--,p--,len--)
-   {
-      for (; len; p--,len--)
-         if (*p==c) { break; }
-      if (!len) { return NULL; }
-      if (n==1) { return p; }
-   }
-   return NULL;
-}
-// *****************************************************************************
-#define MFEM_XA(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
-#define MFEM_NA(...) MFEM_XA(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
-#define MFEM_FILENAME ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
-#define MFEM_FLF MFEM_FILENAME,__LINE__,__FUNCTION__
-// *****************************************************************************
-static inline void mfem_FLF_NA_ARGS(const char *file, const int line,
-                                    const char *func, const int nargs, ...)
-{
-   static bool env_ini = false;
-   static bool env_dbg = false;
-   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
-   if (!env_dbg) { return; }
-   const uint8_t color = 17 + chk8(file)%216;
-   fflush(stdout);
-   fprintf(stdout,"\033[38;5;%dm",color);
-   fprintf(stdout,"\n%30s\b\b\b\b:\033[2m%4d\033[22m: %s: \033[1m",
-           file, line, func);
-   if (nargs==0) { return; }
-   va_list args;
-   va_start(args,nargs);
-   const char *format=va_arg(args,const char*);
-   vfprintf(stdout,format,args);
-   va_end(args);
-   fprintf(stdout,"\033[m");
-   fflush(stdout);
-   fflush(0);
-}
-// *****************************************************************************
-#ifdef _WIN32
-#define dbg(...)
-#else
-#define dbg(...) mfem_FLF_NA_ARGS(MFEM_FLF, MFEM_NA(__VA_ARGS__),__VA_ARGS__)
-#endif
 
 using namespace std;
 using namespace mfem;
@@ -124,10 +63,6 @@ public:
       GridFunction &nodes = *GetNodes();
       for (int i = 0; i < nodes.Size(); i++)
       { if (std::abs(nodes(i)) < eps) { nodes(i) = 0.0; } }
-      SetCurvature(order, discontinuous, space_dim, Ordering::byNODES);
-      glvis << "mesh\n" << *this << flush;
-      glvis << "keys gAmaa\n";
-      glvis << "window_size 800 800\n" << flush;
    }
 };
 
@@ -174,14 +109,14 @@ void SetComponent(GridFunction &phi, const GridFunction &phi_i, int d)
 // ****************************************************************************
 int main(int argc, char *argv[])
 {
-   int nx = 2;
-   int ny = 6;
-   int order = 2;
-   int niter = 1;
+   int nx = 3;
+   int ny = 3;
+   int order = 3;
+   int niter = 2;
    bool pa = false;
-   int ref_levels = 0;
-   bool wait = true;
-   int parametrization = 4;
+   int ref_levels = 1;
+   bool wait = false;
+   int parametrization = -1;
    bool visualization = true;
    const char *device_config = "cpu";
    const char *mesh_file = "../data/mobius-strip.mesh";
@@ -227,10 +162,7 @@ int main(int argc, char *argv[])
    {
       const int refine = 1;
       const int generate_edges = 1;
-      const bool discontinuous = false;
       mesh = new Mesh(mesh_file, generate_edges, refine);
-      const int sdim = mesh->SpaceDimension();
-      mesh->SetCurvature(order, discontinuous, sdim, Ordering::byNODES);
    }
    else if (parametrization==0)
    { mesh = new SurfaceMesh(glvis, order, catenoid, catenoid_postfix, nx, ny); }
@@ -243,8 +175,11 @@ int main(int argc, char *argv[])
    else if (parametrization==4)
    { mesh = new SurfaceMesh(glvis, order, mollusc, nullptr, nx, ny); }
    else { mfem_error("Not a valid parametrization, which should be in [0,4]"); }
-   const int sdim = mesh->SpaceDimension();
+   const bool discontinuous = false;
    const int mdim = mesh->Dimension();
+   const int sdim = mesh->SpaceDimension();
+   cout << "mesh dimension: " << mdim << " mesh space dimension: " << sdim << endl;
+   mesh->SetCurvature(order, discontinuous, sdim, Ordering::byNODES);
 
    //  Refine the mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++) { mesh->UniformRefinement(); }
@@ -285,6 +220,7 @@ int main(int argc, char *argv[])
    //va.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
 
    BilinearForm a(sfes);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    if (visualization)
@@ -298,27 +234,40 @@ int main(int argc, char *argv[])
 
    for (int iiter=0; iiter<niter; ++iiter)
    {
+      dbg("a.Assemble");
       a.Assemble();
+      dbg("phi_new = *nodes");
       phi_new = *nodes;
       for (int i=0; i<sdim; ++i)
       {
          b = 0.0;
+         dbg("b:");b.Print();
+         dbg("ExtractComponent(%d)",i);
          ExtractComponent(*nodes, x, i);
+         dbg("x:");x.Print();
          Vector B, X;
          OperatorPtr A;
+         dbg("FormLinearSystem");
          a.FormLinearSystem(s_ess_tdof_list, x, b, A, X, B);
+         dbg("X:");X.Print();
+         dbg("B:");B.Print();
+         return 0;
          if (!pa)
          {
             // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
             GSSmoother M(static_cast<SparseMatrix&>(*A));
+            dbg("PCG");
             PCG(*A, M, B, X, 1, 2000, eps, 0.0);
          }
          else
          {
-            CG(*A, B, X, 3, 2000, eps, 0.0);
+            dbg("CG");
+            CG(*A, B, X, 1, 2000, eps, 0.0);
          }
          // Recover the solution as a finite element grid function.
+         dbg("RecoverFEMSolution");
          a.RecoverFEMSolution(X, b, x);
+         dbg("SetComponent(%d)",i);
          SetComponent(phi_new, x, i);
       }
       *nodes = phi_new;
@@ -326,8 +275,10 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          glvis << "mesh\n" << *mesh << flush;
+         glvis << "keys gAmaa\n" << flush;
          if (wait) { glvis << "pause\n" << flush; }
       }
+      dbg("Update");
       a.Update();
    }
    /*
@@ -372,26 +323,24 @@ int main(int argc, char *argv[])
 void catenoid(const Vector &x, Vector &p)
 {
    p.SetSize(3);
-   const double a = 1.0;
    // u in [0,2π] and v in [-2π/3,2π/3]
    const double u = 2.0*pi*x[0];
    const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
-   p[0] = a*cos(u)*cosh(v);
-   p[1] = a*sin(u)*cosh(v);
-   p[2] = a*v;
+   p[0] = cos(u);//*cosh(v);
+   p[1] = sin(u);//*cosh(v);
+   p[2] = v;
 }
 
 // Postfix of the Catenoid surface
 void catenoid_postfix(const int nx, const int ny, Mesh *mesh)
 {
-   
    Array<int> v2v(mesh->GetNV());
    for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
    // identify vertices on vertical lines
    for (int j = 0; j <= ny; j++)
    {
-      int v_old = nx + j * (nx + 1);
-      int v_new =      j * (nx + 1);
+      const int v_old = nx + j * (nx + 1);
+      const int v_new =      j * (nx + 1);
       v2v[v_old] = v_new;
    }
    // renumber elements
@@ -399,7 +348,7 @@ void catenoid_postfix(const int nx, const int ny, Mesh *mesh)
    {
       Element *el = mesh->GetElement(i);
       int *v = el->GetVertices();
-      int nv = el->GetNVertices();
+      const int nv = el->GetNVertices();
       for (int j = 0; j < nv; j++)
       { v[j] = v2v[v[j]]; }
    }
@@ -408,7 +357,7 @@ void catenoid_postfix(const int nx, const int ny, Mesh *mesh)
    {
       Element *el = mesh->GetBdrElement(i);
       int *v = el->GetVertices();
-      int nv = el->GetNVertices();
+      const int nv = el->GetNVertices();
       for (int j = 0; j < nv; j++)
       { v[j] = v2v[v[j]]; }
    }
