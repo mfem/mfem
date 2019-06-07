@@ -15,6 +15,68 @@
 #include <fstream>
 #include <iostream>
 
+#include <cstring>
+#include <cstdarg>
+//*****************************************************************************
+static inline uint8_t chk8(const char *bfr)
+{
+   unsigned int chk = 0;
+   size_t len = strlen(bfr);
+   for (; len; len--,bfr++)
+   {
+      chk += *bfr;
+   }
+   return (uint8_t) chk;
+}
+// *****************************************************************************
+inline const char *strrnchr(const char *s, const unsigned char c, int n)
+{
+   size_t len = strlen(s);
+   char *p = (char*)s+len-1;
+   for (; n; n--,p--,len--)
+   {
+      for (; len; p--,len--)
+         if (*p==c) { break; }
+      if (!len) { return NULL; }
+      if (n==1) { return p; }
+   }
+   return NULL;
+}
+// *****************************************************************************
+#define MFEM_XA(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
+#define MFEM_NA(...) MFEM_XA(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
+#define MFEM_FILENAME ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
+#define MFEM_FLF MFEM_FILENAME,__LINE__,__FUNCTION__
+// *****************************************************************************
+static inline void mfem_FLF_NA_ARGS(const char *file, const int line,
+                                    const char *func, const int nargs, ...)
+{
+   static bool env_ini = false;
+   static bool env_dbg = false;
+   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
+   if (!env_dbg) { return; }
+   const uint8_t color = 17 + chk8(file)%216;
+   fflush(stdout);
+   fprintf(stdout,"\033[38;5;%dm",color);
+   fprintf(stdout,"\n%30s\b\b\b\b:\033[2m%4d\033[22m: %s: \033[1m",
+           file, line, func);
+   if (nargs==0) { return; }
+   va_list args;
+   va_start(args,nargs);
+   const char *format=va_arg(args,const char*);
+   vfprintf(stdout,format,args);
+   va_end(args);
+   fprintf(stdout,"\033[m");
+   fflush(stdout);
+   fflush(0);
+}
+// *****************************************************************************
+#ifdef _WIN32
+#define dbg(...)
+#else
+#define dbg(...) mfem_FLF_NA_ARGS(MFEM_FLF, MFEM_NA(__VA_ARGS__),__VA_ARGS__)
+#endif
+
 using namespace std;
 using namespace mfem;
 
@@ -27,10 +89,12 @@ const char vishost[] = "localhost";
 
 // Parametrizations: Scherk, Enneper, Catenoid, Helicoid
 void scherk(const Vector &x, Vector &p);
-void enneper(const Vector &x, Vector &p);
+void enneper1(const Vector &x, Vector &p);
+void enneper2(const Vector &x, Vector &p);
 void helicoid(const Vector &x, Vector &p);
 void catenoid(const Vector &x, Vector &p);
-void catenoid_postfix(const int nx, const int ny, Mesh*);
+void catenoid_postfix(const int, const int, Mesh*);
+void mollusc(const Vector &x, Vector &p);
 
 // Surface mesh class
 class SurfaceMesh: public Mesh
@@ -111,13 +175,13 @@ void SetComponent(GridFunction &phi, const GridFunction &phi_i, int d)
 int main(int argc, char *argv[])
 {
    int nx = 2;
-   int ny = 2;
+   int ny = 6;
    int order = 2;
-   int niter = 4;
-   bool pa = true;
+   int niter = 1;
+   bool pa = false;
    int ref_levels = 0;
    bool wait = true;
-   int parametrization = -1;
+   int parametrization = 4;
    bool visualization = true;
    const char *device_config = "cpu";
    const char *mesh_file = "../data/mobius-strip.mesh";
@@ -173,10 +237,12 @@ int main(int argc, char *argv[])
    else if (parametrization==1)
    { mesh = new SurfaceMesh(glvis, order, helicoid, nullptr, nx, ny); }
    else if (parametrization==2)
-   { mesh = new SurfaceMesh(glvis, order, enneper, nullptr, nx, ny); }
+   { mesh = new SurfaceMesh(glvis, order, enneper2, nullptr, nx, ny); }
    else if (parametrization==3)
    { mesh = new SurfaceMesh(glvis, order, scherk, nullptr, nx, ny); }
-   else { mfem_error("Not a valid parametrization, which should be in [0,3]"); }
+   else if (parametrization==4)
+   { mesh = new SurfaceMesh(glvis, order, mollusc, nullptr, nx, ny); }
+   else { mfem_error("Not a valid parametrization, which should be in [0,4]"); }
    const int sdim = mesh->SpaceDimension();
    const int mdim = mesh->Dimension();
 
@@ -305,7 +371,6 @@ int main(int argc, char *argv[])
 // Parametrization of a Catenoid surface
 void catenoid(const Vector &x, Vector &p)
 {
-   p = x; return;/*
    p.SetSize(3);
    const double a = 1.0;
    // u in [0,2π] and v in [-2π/3,2π/3]
@@ -314,40 +379,39 @@ void catenoid(const Vector &x, Vector &p)
    p[0] = a*cos(u)*cosh(v);
    p[1] = a*sin(u)*cosh(v);
    p[2] = a*v;
-   */
 }
 
 // Postfix of the Catenoid surface
 void catenoid_postfix(const int nx, const int ny, Mesh *mesh)
 {
-   /*
-     Array<int> v2v(mesh->GetNV());
-     for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
-     // identify vertices on vertical lines
-     for (int j = 0; j <= ny; j++)
-     {
-        int v_old = nx + j * (nx + 1);
-        int v_new =      j * (nx + 1);
-        v2v[v_old] = v_new;
-     }
-     // renumber elements
-     for (int i = 0; i < mesh->GetNE(); i++)
-     {
-        Element *el = mesh->GetElement(i);
-        int *v = el->GetVertices();
-        int nv = el->GetNVertices();
-        for (int j = 0; j < nv; j++)
-        { v[j] = v2v[v[j]]; }
-     }
-     // renumber boundary elements
-     for (int i = 0; i < mesh->GetNBE(); i++)
-     {
-        Element *el = mesh->GetBdrElement(i);
-        int *v = el->GetVertices();
-        int nv = el->GetNVertices();
-        for (int j = 0; j < nv; j++)
-        { v[j] = v2v[v[j]]; }
-     }*/
+   
+   Array<int> v2v(mesh->GetNV());
+   for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
+   // identify vertices on vertical lines
+   for (int j = 0; j <= ny; j++)
+   {
+      int v_old = nx + j * (nx + 1);
+      int v_new =      j * (nx + 1);
+      v2v[v_old] = v_new;
+   }
+   // renumber elements
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Element *el = mesh->GetElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      { v[j] = v2v[v[j]]; }
+   }
+   // renumber boundary elements
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      Element *el = mesh->GetBdrElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      { v[j] = v2v[v[j]]; }
+   }
 }
 
 // Parametrization of a Helicoid surface
@@ -364,7 +428,7 @@ void helicoid(const Vector &x, Vector &p)
 }
 
 // Parametrization of Enneper's surface
-void enneper(const Vector &x, Vector &p)
+void enneper1(const Vector &x, Vector &p)
 {
    p.SetSize(3);
    // r in [0,1] and t in [−π, π]
@@ -376,6 +440,16 @@ void enneper(const Vector &x, Vector &p)
    p[0] = u - third*u*u*u + u*v*v;
    p[1] = v - third*v*v*v + u*u*v;
    p[2] = u*u - v*v;
+}
+void enneper2(const Vector &x, Vector &p)
+{
+   p.SetSize(3);
+   // (u,v) in [-2, +2]
+   const double u = 2.0*(2.0*x[0]-1.0);
+   const double v = 2.0*(2.0*x[1]-1.0);
+   p[0] = +u - u*u*u/3.0 + u*v*v;
+   p[1] = -v - u*u*v + v*v*v/3.0;
+   p[2] =  u*u - v*v;
 }
 
 // Parametrization of Scherk's surface
@@ -389,4 +463,15 @@ void scherk(const Vector &x, Vector &p)
    p[0] = u;
    p[1] = v;
    p[2] = log(cos(u)/cos(v));
+}
+
+// Mollusc shell model
+void mollusc(const Vector &x, Vector &p){
+   p.SetSize(3);
+   // u in [0,2π] and v in [-15, 6]
+   const double u = 2.0*pi*x[0];
+   const double v = 21.0*x[1]-15.0;   
+   p[0] = +1.0*pow(1.16,v)*cos(v)*(1.0+cos(u));
+   p[1] = -1.0*pow(1.16,v)*sin(v)*(1.0+cos(u));
+   p[2] = -2.0*pow(1.16,v)*(1.0+sin(u));
 }

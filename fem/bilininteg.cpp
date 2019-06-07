@@ -690,12 +690,12 @@ const IntegrationRule &DiffusionIntegrator::GetRule(
    }
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
-
+/*
 const IntegrationRule &VectorDiffusionIntegrator::GetRule(
    const FiniteElement &trial_fe, const FiniteElement &test_fe)
 {
    return DiffusionIntegrator::GetRule(trial_fe, test_fe);
-}
+   }*/
 
 
 void MassIntegrator::AssembleElementMatrix
