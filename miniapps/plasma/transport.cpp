@@ -102,24 +102,24 @@ void ChiFunc(const Vector &x, DenseMatrix &M)
 
 double QFunc(const Vector &x, double t)
 {
-  double a = 0.4;
-  double b = 0.8;
+   double a = 0.4;
+   double b = 0.8;
 
-  double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-  double e = exp(-0.25 * t * M_PI * M_PI / (a * b) );
+   double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+   double e = exp(-0.25 * t * M_PI * M_PI / (a * b) );
 
-  if ( r == 0.0 )
-    return 0.25 * M_PI * M_PI *
-      ( (1.0 - e) * ( pow(a, -2) + pow(b, -2) ) + e / (a * b));
+   if ( r == 0.0 )
+      return 0.25 * M_PI * M_PI *
+             ( (1.0 - e) * ( pow(a, -2) + pow(b, -2) ) + e / (a * b));
 
-  return ( M_PI / r ) *
-    ( 0.25 * M_PI * pow(a * b, -4) *
-      ( pow(b * b * x[0],2) + pow(a * a * x[1], 2) +
-	(a - b) * (b * pow(b * x[0], 2) - a * pow(a*x[1],2)) * e) *
-      cos(0.5 * M_PI * sqrt(r)) +
-      0.5 * pow(a * b, -2) * (x * x) * (1.0 - e) *
-      sin(0.5 * M_PI * sqrt(r)) / sqrt(r)
-      );
+   return ( M_PI / r ) *
+          ( 0.25 * M_PI * pow(a * b, -4) *
+            ( pow(b * b * x[0],2) + pow(a * a * x[1], 2) +
+              (a - b) * (b * pow(b * x[0], 2) - a * pow(a*x[1],2)) * e) *
+            cos(0.5 * M_PI * sqrt(r)) +
+            0.5 * pow(a * b, -2) * (x * x) * (1.0 - e) *
+            sin(0.5 * M_PI * sqrt(r)) / sqrt(r)
+          );
 }
 
 double TFunc(const Vector &x, double t)
