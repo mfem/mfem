@@ -105,9 +105,33 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    x=0.0;
    x.ProjectBdrCoefficient(u, ess_bdr);
 
-   cout << "x before recoverFEM soln" << endl;
+   cout << "x after ProjectBdrCoeff" << endl;
    x.Print();
-   cout << endl;
+   cout << endl; 
+   
+   if (order == 2) // only in serendipity case...
+   {  
+      const FiniteElement *fe = fespace->GetFE(0);
+      
+      fe -> ProjectDelta(4,x);
+      fe -> ProjectDelta(5,x);
+      fe -> ProjectDelta(6,x);
+      fe -> ProjectDelta(7,x);      
+
+          
+
+      //DeltaCoefficient delta_c = DeltaCoefficient();
+      //double integral = 0.0;   
+      //x.ProjectDeltaCoefficient(delta_c, integral);
+   }
+   //(*this) *= (delta_c->Scale() / integral);
+
+   cout << "x after ProjectDeltaCoeff" << endl;
+   x.Print();
+   cout << endl; 
+
+
+   //x.ProjectDelta()
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -134,8 +158,8 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
    GSSmoother M((SparseMatrix&)(*A));
-   //X = 0.0;
-   //PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
+   X = 0.0;
+   PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);

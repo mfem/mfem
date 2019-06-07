@@ -1838,15 +1838,15 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 //void SerQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 void H1Ser_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
-   dofs = 0.;
-   dofs(vertex) = 1.;
-   switch (vertex)
-   {
-      case 0: dofs(4) = 0.25; dofs(7) = 0.25; break;
-      case 1: dofs(4) = 0.25; dofs(5) = 0.25; break;
-      case 2: dofs(5) = 0.25; dofs(6) = 0.25; break;
-      case 3: dofs(6) = 0.25; dofs(7) = 0.25; break;
-   }
+   // dofs = 0.;
+   dofs(vertex) = 2.;
+   // switch (vertex)
+   // {
+   //    case 0: dofs(4) = 0.25; dofs(7) = 0.25; break;
+   //    case 1: dofs(4) = 2019.0; dofs(5) = 0.25; break;
+   //    case 2: dofs(5) = 0.25; dofs(6) = 0.25; break;
+   //    case 3: dofs(6) = 0.25; dofs(7) = 0.25; break;
+   // }
    cout << "*****************************************" << endl;
    cout << "*** fe.cpp called H1Ser ProjectDelta! ***" << endl;
    cout << "*****************************************" << endl;

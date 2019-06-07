@@ -1582,10 +1582,13 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
 
 void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {
+   cout << "* gridfunc.cpp: Calling ProjectCoeff" << endl << endl;
+
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
    if (delta_c == NULL)
    {
+      cout << ".... delta_c was NULL" << endl;
       Array<int> vdofs;
       Vector vals;
 

@@ -47,10 +47,6 @@ protected:
 
    void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
-   // Project the delta coefficient without scaling and return the (local)
-   // integral of the projection.
-   void ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
-                                double &integral);
 
    // Sum fluxes to vertices and count element contributions
    void SumFluxAndCount(BilinearFormIntegrator &blfi,
@@ -67,6 +63,12 @@ protected:
    void Destroy();
 
 public:
+
+   // *** this function was formerly protected ***
+   // Project the delta coefficient without scaling and return the (local)
+   // integral of the projection.
+   void ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
+                                double &integral);
 
    GridFunction() { fes = NULL; fec = NULL; sequence = 0; UseDevice(true); }
 
