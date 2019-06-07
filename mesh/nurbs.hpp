@@ -119,7 +119,9 @@ public:
    void KnotInsert   (int dir, const KnotVector &knot);
    void KnotInsert   (int dir, const Vector     &knot);
 
+   void KnotInsert(Array<Vector *> &knot);
    void KnotInsert(Array<KnotVector *> &knot);
+
    void DegreeElevate(int t);
    void UniformRefinement();
 
@@ -389,6 +391,7 @@ public:
    void DegreeElevate(int rel_degree, int degree = 16);
    void UniformRefinement();
    void KnotInsert(Array<KnotVector *> &kv);
+   void KnotInsert(Array<Vector *> &kv);
 };
 
 
