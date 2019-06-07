@@ -696,17 +696,29 @@ public:
 class ProductCoefficient : public Coefficient
 {
 private:
+   double aConst;
    Coefficient * a;
    Coefficient * b;
 
 public:
+   ProductCoefficient(double A, Coefficient &B)
+      : aConst(A), a(NULL), b(&B) { }
    ProductCoefficient(Coefficient &A, Coefficient &B)
-      : a(&A), b(&B) { }
+      : aConst(0.0), a(&A), b(&B) { }
+
+   void SetAConst(double A) { a = NULL; aConst = A; }
+   double GetAConst() const { return aConst; }
+
+   void SetACoef(Coefficient &A) { a = &A; }
+   Coefficient * GetACoef() const { return a; }
+
+   void SetBCoef(Coefficient &B) { b = &B; }
+   Coefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
-   { return a->Eval(T, ip) * b->Eval(T, ip); }
+   { return ((a == NULL ) ? aConst : a->Eval(T, ip) ) * b->Eval(T, ip); }
 };
 
 /// Scalar coefficient defined as a scalar raised to a power
@@ -727,6 +739,33 @@ public:
                        const IntegrationPoint &ip)
    { return pow(a->Eval(T, ip), p); }
 };
+
+/// Coefficient which returns (k*x) or func(k*x) where k is a vector
+class PhaseCoefficient : public Coefficient
+{
+private:
+   double(*func_)(double);
+   VectorCoefficient * k_;
+   mutable Vector kVec_;
+
+public:
+   PhaseCoefficient(Vector & k, double(*func)(double) = NULL)
+      : func_(func), k_(NULL), kVec_(k) {}
+
+   PhaseCoefficient(VectorCoefficient & k, double(*func)(double) = NULL)
+      : func_(func), k_(&k), kVec_(k.GetVDim()) {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+      T.Transform(ip, transip);
+      if (k_) { k_->Eval(kVec_, T, ip); }
+      return (func_) ? (*func_)(kVec_ * transip) : (kVec_ * transip);
+   }
+};
+
 
 /// Scalar coefficient defined as the inner product of two vector coefficients
 class InnerProductCoefficient : public Coefficient
@@ -778,42 +817,86 @@ public:
                        const IntegrationPoint &ip);
 };
 
-/// Vector coefficient defined as the sum of two vector coefficients
+/// Vector coefficient defined as the linear combination of two vectors
 class VectorSumCoefficient : public VectorCoefficient
 {
 private:
-   VectorCoefficient * a;
-   VectorCoefficient * b;
+   VectorCoefficient * ACoef;
+   VectorCoefficient * BCoef;
+
+   Vector A;
+   Vector B;
+
+   Coefficient * alphaCoef;
+   Coefficient * betaCoef;
 
    double alpha;
    double beta;
 
-   mutable Vector va;
-
 public:
-   // Result is _alpha * A + _beta * B
-   VectorSumCoefficient(VectorCoefficient &A, VectorCoefficient &B,
+   // To be used with the various "Set" methods
+   VectorSumCoefficient(int dim);
+
+   // Result is _alpha * _A + _beta * _B
+   VectorSumCoefficient(VectorCoefficient &_A, VectorCoefficient &_B,
                         double _alpha = 1.0, double _beta = 1.0);
+
+   // Result is _alpha * _A + _beta * _B
+   VectorSumCoefficient(VectorCoefficient &_A, VectorCoefficient &_B,
+                        Coefficient &_alpha, Coefficient &_beta);
+
+   void SetACoef(VectorCoefficient &A) { ACoef = &A; }
+   VectorCoefficient * GetACoef() const { return ACoef; }
+
+   void SetBCoef(VectorCoefficient &B) { BCoef = &B; }
+   VectorCoefficient * GetBCoef() const { return BCoef; }
+
+   void SetAlphaCoef(Coefficient &A) { alphaCoef = &A; }
+   Coefficient * GetAlphaCoef() const { return alphaCoef; }
+
+   void SetBetaCoef(Coefficient &B) { betaCoef = &B; }
+   Coefficient * GetBetaCoef() const { return betaCoef; }
+
+   void SetA(const Vector &_A) { A = _A; ACoef = NULL; }
+   const Vector & GetA() const { return A; }
+
+   void SetB(const Vector &_B) { B = _B; BCoef = NULL; }
+   const Vector & GetB() const { return B; }
+
+   void SetAlpha(double _alpha) { alpha = _alpha; alphaCoef = NULL; }
+   double GetAlpha() const { return alpha; }
+
+   void SetBeta(double _beta) { beta = _beta; betaCoef = NULL; }
+   double GetBeta() const { return beta; }
 
    /// Evaluate the coefficient
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
-   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a product of a scalar and a vector
 class ScalarVectorProductCoefficient : public VectorCoefficient
 {
 private:
+   double aConst;
    Coefficient * a;
    VectorCoefficient * b;
 
 public:
+   ScalarVectorProductCoefficient(double A, VectorCoefficient &B);
    ScalarVectorProductCoefficient(Coefficient &A, VectorCoefficient &B);
+
+   void SetAConst(double A) { a = NULL; aConst = A; }
+   double GetAConst() const { return aConst; }
+
+   void SetACoef(Coefficient &A) { a = &A; }
+   Coefficient * GetACoef() const { return a; }
+
+   void SetBCoef(VectorCoefficient &B) { b = &B; }
+   VectorCoefficient * GetBCoef() const { return b; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
-   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a cross product of two vectors
@@ -944,6 +1027,28 @@ public:
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
 };
+/// Matrix coefficient defined as -a k x k x, for a vector k and scalar a
+class CrossCrossCoefficient : public MatrixCoefficient
+{
+private:
+   Coefficient * a;
+   VectorCoefficient * k;
+
+   mutable Vector vk;
+
+public:
+   CrossCrossCoefficient(Coefficient &A, VectorCoefficient &K);
+
+   void SetACoef(Coefficient &A) { a = &A; }
+   Coefficient * GetACoef() const { return a; }
+
+   void SetKCoef(VectorCoefficient &K) { k = &K; }
+   VectorCoefficient * GetKCoef() const { return k; }
+
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
 
 /** Compute the Lp norm of a function f.
     \f$ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} \f$ */

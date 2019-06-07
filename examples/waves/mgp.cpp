@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&k, "-k", "--wavelengths",
                   "Number of wavelengths.");
-   args.AddOption(&maxref, "-ref", "--maxref",
+   args.AddOption(&maxref, "-maxref", "--maxref",
                   "Number of Refinements.");
    args.AddOption(&initref, "-initref", "--initref",
                   "Number of initial refinements.");
@@ -93,8 +93,8 @@ int main(int argc, char *argv[])
    }
 
    // Angular frequency
-   // omega = 2.0*k*M_PI;
-   omega = k;
+   omega = 2.0*k*M_PI;
+   // omega = k;
 
    // 2b. We initialize PETSc
    MFEMInitializePetsc(NULL, NULL, petscrc_file, NULL);
@@ -115,8 +115,7 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // 4. Define a finite element space on the mesh.
-   FiniteElementCollection *fec = new ND_FECollection(order, dim);
-   // ParFiniteElementSpace *fespace = new ParFiniteElementSpace(mesh, fec);
+   FiniteElementCollection *fec   = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
 
@@ -130,9 +129,8 @@ int main(int argc, char *argv[])
       fespace->Update();
       OperatorHandle Tr(Operator::Hypre_ParCSR);
       fespace->GetTrueTransferOperator(cfespace, Tr);
-      HypreParMatrix * Paux;
-      Tr.Get(Paux);
-      P[i] = new HypreParMatrix(*Paux);
+      Tr.SetOperatorOwner(false);
+      Tr.Get(P[i]);
    }
 
    ConstantCoefficient muinv(1.0);
@@ -181,12 +179,6 @@ int main(int argc, char *argv[])
    GMGSolver M(A, P);
    M.SetTheta(0.5);
    M.SetSmootherType(HypreSmoother::Jacobi);
-
-
-
-   // Jacobi, l1Jacobi, l1GS, l1GStr, lumpedJacobi,
-   // GS, Chebyshev, Taubin
-
    chrono.Stop();
 
    if (myid == 0)
@@ -194,7 +186,7 @@ int main(int argc, char *argv[])
       cout << "Construction of MG precond time: " << chrono.RealTime() << endl;
    }
 
-   int maxit(5000);
+   int maxit(1000);
    double rtol(1.e-6);
    double atol(0.0);
 
@@ -202,10 +194,7 @@ int main(int argc, char *argv[])
    chrono.Start();
 
    X = 0.0;
-
-
    GMRESSolver gmres(MPI_COMM_WORLD);
-   // MINRESSolver gmres(MPI_COMM_WORLD);
    gmres.SetAbsTol(atol);
    gmres.SetRelTol(rtol);
    gmres.SetMaxIter(maxit);
@@ -258,21 +247,21 @@ int main(int argc, char *argv[])
 
 
    // Compare with direct solve
-   X = 0.0;
+   // X = 0.0;
 
-   PetscLinearSolver *invA;
-   invA = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
-   invA->SetOperator(PetscParMatrix(A, Operator::PETSC_MATAIJ));
-   invA->Mult(B, X);
+   // PetscLinearSolver *invA;
+   // invA = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
+   // invA->SetOperator(PetscParMatrix(A, Operator::PETSC_MATAIJ));
+   // invA->Mult(B, X);
 
-   a->RecoverFEMSolution(X, *b, x);
-   double L2Error_d = x.ComputeL2Error(E);
-   double norm_E_d = ComputeGlobalLpNorm(2, E, *pmesh, irs);
+   // a->RecoverFEMSolution(X, *b, x);
+   // double L2Error_d = x.ComputeL2Error(E);
+   // double norm_E_d = ComputeGlobalLpNorm(2, E, *pmesh, irs);
 
-   if (myid == 0)
-   {
-      cout << "\n Direct: || E_h - E || / ||E|| = " << L2Error_d / norm_E_d << '\n' << endl;
-   }
+   // if (myid == 0)
+   // {
+   //    cout << "\n Direct: || E_h - E || / ||E|| = " << L2Error_d / norm_E_d << '\n' << endl;
+   // }
 
 
    if (visualization)

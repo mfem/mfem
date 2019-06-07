@@ -26,6 +26,12 @@ class ElementMeshStream : public std::stringstream
 public:
    ElementMeshStream(Element::Type e);
 };
+void
+MergeMeshNodes(Mesh * mesh, int logging = 0);
+
+Mesh *
+MakePeriodicMesh(Mesh * mesh, const std::vector<Vector> & trans_vecs,
+                 int logging = 0);
 
 } // namespace miniapps
 

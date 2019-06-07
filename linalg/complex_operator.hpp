@@ -14,6 +14,9 @@
 
 #include "operator.hpp"
 #include "sparsemat.hpp"
+#ifdef MFEM_USE_MPI
+#include "hypre.hpp"
+#endif
 
 namespace mfem
 {
@@ -27,7 +30,8 @@ namespace mfem
     ComplexOperator allows one to choose a convention upon construction, which
     facilitates symmetry.
 
-    Matrix-vector products are then computed as:
+    If we let (y_r + i y_i) = (Op_r + i Op_i)(x_r + i x_i) then Matrix-vector
+    products are then computed as:
 
     1. When Convention::HERMITIAN is used (default)
     / y_r \   / Op_r -Op_i \ / x_r \
@@ -38,6 +42,8 @@ namespace mfem
     / y_r \   / Op_r -Op_i \ / x_r \
     |     | = |            | |     |
     \-y_i /   \-Op_i -Op_r / \ x_i /
+    In other words, Matrix-vector products with Convention::BLOCK_SYMMETRIC
+    compute the complex conjugate of Op*x.
 
     Either convention can be used with a given complex operator,
     however, each of them is best suited for certain classes of
@@ -82,8 +88,29 @@ public:
 
    virtual ~ComplexOperator();
 
+   /** @brief Check for existence of real or imaginary part of the operator
+
+       These methods do not check that the operators are non-zero but
+       only that the operators have been set.
+    */
+   bool hasRealPart() const { return Op_Real_ != NULL; }
+   bool hasImagPart() const { return Op_Imag_ != NULL; }
+
+   /** @brief Real or imaginary part accessor methods
+
+       The following accessor methods should only be called if the
+       requested part of the opertor is known to exist.  This
+       can be checked with hasRealPart() or hasImagPart().
+   */
+   virtual Operator & real();
+   virtual Operator & imag();
+   virtual const Operator & real() const;
+   virtual const Operator & imag() const;
+
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
+
+   virtual Type GetType() const { return Complex_Operator; }
 
 protected:
    // Let this be hidden from the public interface since the implementation
@@ -127,9 +154,61 @@ public:
       : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
    {}
 
+   virtual SparseMatrix & real();
+   virtual SparseMatrix & imag();
+
+   virtual const SparseMatrix & real() const;
+   virtual const SparseMatrix & imag() const;
+
    SparseMatrix * GetSystemMatrix() const;
+
+   virtual Type GetType() const { return MFEM_ComplexSparseMat; }
 };
+
+#ifdef MFEM_USE_MPI
+
+/** @brief Specialization of the ComplexOperator built from a pair of
+    HypreParMatrices.
+
+    The purpose of this specialization is to construct a single
+    HypreParMatrix object which is equivalent to the 2x2 block system
+    that the ComplexOperator mimics. The resulting HypreParMatrix can
+    then be passed along to solvers which require access to the CSR
+    matrix data such as SuperLU, STRUMPACK, or similar sparse linear
+    solvers.
+
+    See ComplexOperator documentation in operator.hpp for more information.
+ */
+class ComplexHypreParMatrix : public ComplexOperator
+{
+public:
+   ComplexHypreParMatrix(HypreParMatrix * A_Real, HypreParMatrix * A_Imag,
+                         bool ownReal, bool ownImag,
+                         Convention convention = HERMITIAN);
+
+   virtual HypreParMatrix & real();
+   virtual HypreParMatrix & imag();
+
+   virtual const HypreParMatrix & real() const;
+   virtual const HypreParMatrix & imag() const;
+
+   HypreParMatrix * GetSystemMatrix() const;
+
+   virtual Type GetType() const { return Complex_Hypre_ParCSR; }
+
+private:
+   void getColStartStop(const HypreParMatrix * A_r,
+                        const HypreParMatrix * A_i,
+                        int & num_recv_procs,
+                        HYPRE_Int *& offd_col_start_stop) const;
+
+   MPI_Comm comm_;
+   int myid_;
+   int nranks_;
+};
+
+#endif // MFEM_USE_MPI
 
 }
 
-#endif
+#endif // MFEM_COMPLEX_OPERATOR

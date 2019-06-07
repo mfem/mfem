@@ -366,6 +366,32 @@ public:
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~GMGSolver();
 };
+
+class ComplexGMGSolver : public Solver {
+private:
+   /// The linear system matrix
+   ComplexHypreParMatrix * Af;
+   std::vector<ComplexHypreParMatrix *> A;
+   std::vector<HypreParMatrix *> P;
+   std::vector<HypreSmoother  *> S;
+   int NumGrids;
+   PetscLinearSolver *invAc = nullptr;
+   double theta = 1.0;
+   mutable Array<int> block_OffsetsI;
+   mutable Array<int> block_OffsetsJ;
+public:
+   ComplexGMGSolver(ComplexHypreParMatrix * Af_, std::vector<HypreParMatrix *> P_);
+   virtual void SetOperator(const Operator &op) {}
+
+   virtual void SetSmootherType(const HypreSmoother::Type type) const;
+
+   virtual void SetTheta(const double a) {theta = a;}
+
+   virtual void Mult(const Vector &r, Vector &z) const;
+   virtual ~ComplexGMGSolver();
+};
+
+
 #endif
 
 #ifdef MFEM_USE_SUITESPARSE
