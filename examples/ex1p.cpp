@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int seed = 1;
    int ref_levels = 2;
    int par_ref_levels = 2;
    bool static_cond = false;
@@ -76,6 +77,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&seed, "-s", "--seed", "Random seed.");
    args.AddOption(&ref_levels, "-rs", "--ref_levels",
                   "Number of serial refinement levels.");
    args.AddOption(&par_ref_levels, "-rp", "--par_ref_levels",
@@ -121,9 +123,11 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
+      srand(seed);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         //mesh->UniformRefinement();
+         mesh->RandomRefinement(0.5);
       }
    }
 
@@ -136,8 +140,14 @@ int main(int argc, char *argv[])
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
+         pmesh->Rebalance();
       }
    }
+
+   {char fname[100];
+   sprintf(fname, "ncmesh%03d.txt", myid);
+   std::ofstream f(fname);
+   pmesh->ncmesh->DebugDump(f);}
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -165,6 +175,8 @@ int main(int argc, char *argv[])
    {
       cout << "Number of finite element unknowns: " << size << endl;
    }
+
+   MPI_Finalize(); exit(EXIT_SUCCESS);
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
