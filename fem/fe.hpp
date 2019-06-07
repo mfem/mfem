@@ -1996,7 +1996,7 @@ public:
 /// Class for quadratic order serendipity FE on a square
 //class SerQuad2DFiniteElement : public NodalFiniteElement
 
-class H1Ser_QuadrilateralElement : public NodalFiniteElement
+class H1Ser_QuadrilateralElement : public ScalarFiniteElement
 {
 public:
    /// Construct a quadratic order serendipity FE on a quadrilateral

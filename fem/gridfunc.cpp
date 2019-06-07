@@ -1787,9 +1787,15 @@ void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
 
 void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
 {
+   cout << " *** gridfunc.cpp: Calling ProjectBdrCoeff" << endl;
    Array<int> values_counter;
    this->HostReadWrite();
    AccumulateAndCountBdrValues(coeff, NULL, attr, values_counter);
+
+   cout << " *** values_counter is: " << endl;
+   // values_counter.Print();
+   cout << endl;
+
    ComputeMeans(ARITHMETIC, values_counter);
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
@@ -1799,6 +1805,10 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
       MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
                   "internal error");
    }
+   cout << " *** ess_vdofs_marker is: " << endl;
+   // ess_vdofs_marker.Print();
+   cout << endl;
+
 #endif
 }
 

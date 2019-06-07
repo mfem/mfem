@@ -36,7 +36,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    for (int l = 0; l < num_ref; l++)
    {
       mesh->UniformRefinement();
-      // cout << "Did a unif ref; GetNE= " << mesh->GetNE() << endl;
    }
 
 
@@ -78,10 +77,17 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
+   // Note: bdr_attributes.Max() finds max of all boudnary attribute numbers
+   
    ess_bdr = 1;
+
+   // Note: this is a flag that we should look at ess_bdr... or something like that 
+
+   // cout << " ess_bdr = " << *ess_bdr << endl;
+
    if (mesh->bdr_attributes.Size())
    {
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+     fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
@@ -98,6 +104,10 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    GridFunction x(fespace);
    x=0.0;
    x.ProjectBdrCoefficient(u, ess_bdr);
+
+   cout << "x before recoverFEM soln" << endl;
+   x.Print();
+   cout << endl;
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -124,11 +134,15 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
    GSSmoother M((SparseMatrix&)(*A));
-   X = 0.0;
-   PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
+   //X = 0.0;
+   //PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
+
+   cout << "x after recoverFEM soln" << endl;
+   x.Print();
+   cout << endl;
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -138,6 +152,12 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
+
+
+   cout << "x after saving soln" << endl;
+   x.Print();
+   cout << endl;
+
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -194,16 +214,19 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 }
 
 
-// u_exact is for the case \Delta u = 1; the solution is u(x,y)=sin(pi x) sin(pi y)
+// Case u(x,y) = sin(x) e^y
 double u_exact(const Vector &x)
 {
-   return sin(x(0))*exp(x(1));
+  return 1;
+  // return sin(x(0))*exp(x(1));
 }
 
 void u_grad_exact(const Vector &x, Vector &u)
 {
-   u(0) = cos(x(0))*exp(x(1));
-   u(1) = sin(x(0))*exp(x(1));
+  u(0)=0;
+  u(1)=0;
+  // u(0) = cos(x(0))*exp(x(1));
+  // u(1) = sin(x(0))*exp(x(1));
 }
 
 int main(int argc, char *argv[])

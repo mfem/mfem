@@ -1757,7 +1757,7 @@ void BiQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 //   : NodalFiniteElement(2, Geometry::SQUARE, 8, 2, FunctionSpace::Pk)
 
 H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement()
-  : NodalFiniteElement(2, Geometry::SQUARE, 8, 2, FunctionSpace::Pk)
+  : ScalarFiniteElement(2, Geometry::SQUARE, 8, 2, FunctionSpace::Pk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -1784,15 +1784,17 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 { 
    double x = ip.x, y = ip.y;
+   const double mult_v = 1.0;
+   const double mult_e = 1.0;
 
-   shape(0) = (1. - x) * (1. - y) * (1. - x - y);
-   shape(1) = x * (1. - y) * (x - y);
-   shape(2) = x * y * (x + y - 1.);
-   shape(3) = (1. - x) * y * (y - x);
-   shape(4) = (1. - x) * x * (1 - y);
-   shape(5) = x * y * (1. - y);
-   shape(6) = x * y * (1. - x);
-   shape(7) = (1. - x) * (1. - y) * y;
+   shape(0) = mult_v*(1. - x) * (1. - y) * (1. - x - y);
+   shape(1) = mult_v*x * (1. - y) * (x - y);
+   shape(2) = mult_v*x * y * (x + y - 1.);
+   shape(3) = mult_v*(1. - x) * y * (y - x);
+   shape(4) = mult_e*(1. - x) * x * (1 - y);
+   shape(5) = mult_e*x * y * (1. - y);
+   shape(6) = mult_e*x * y * (1. - x);
+   shape(7) = mult_e*(1. - x) * (1. - y) * y;
 }
 
 
@@ -1804,30 +1806,32 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
    double x = ip.x, y = ip.y;
+   const double mult_v = 1.0;
+   const double mult_e = 1.0;
 
-   dshape(0,0) = -((-1. + y)*(-2. + 2.*x + y));
-   dshape(0,1) = -((-1. + x)*(-2. + x + 2.*y));
+   dshape(0,0) = -mult_v*((-1. + y)*(-2. + 2.*x + y));
+   dshape(0,1) = -mult_v*((-1. + x)*(-2. + x + 2.*y));
    
-   dshape(1,0) = -((2.*x - y)*(-1. + y));
-   dshape(1,1) = -(x*(1. + x - 2.*y));
+   dshape(1,0) = -mult_v*((2.*x - y)*(-1. + y));
+   dshape(1,1) = -mult_v*(x*(1. + x - 2.*y));
    
-   dshape(2,0) = y*(-1. + 2.*x + y);
-   dshape(2,1) = x*(-1. + x + 2.*y);
+   dshape(2,0) = mult_v*y*(-1. + 2.*x + y);
+   dshape(2,1) = mult_v*x*(-1. + x + 2.*y);
    
-   dshape(3,0) = (-1. + 2.*x - y)*y;
-   dshape(3,1) = (-1. + x)*(x - 2.*y);
+   dshape(3,0) = mult_v*(-1. + 2.*x - y)*y;
+   dshape(3,1) = mult_v*(-1. + x)*(x - 2.*y);
    
-   dshape(4,0) = (-1. + 2.*x)*(-1. + y);
-   dshape(4,1) = (-1. + x)*x;
+   dshape(4,0) = mult_e*(-1. + 2.*x)*(-1. + y);
+   dshape(4,1) = mult_e*(-1. + x)*x;
    
-   dshape(5,0) = -((-1. + y)*y);
-   dshape(5,1) = x - 2.*x*y;
+   dshape(5,0) = -mult_e*((-1. + y)*y);
+   dshape(5,1) = mult_e*(x - 2.*x*y);
    
-   dshape(6,0) = y - 2.*x*y;
-   dshape(6,1) = -((-1. + x)*x);
+   dshape(6,0) = mult_e*(y - 2.*x*y);
+   dshape(6,1) = -mult_e*((-1. + x)*x);
    
-   dshape(7,0) = (-1. + y)*y;
-   dshape(7,1) = (-1. + x)*(-1. + 2.*y);
+   dshape(7,0) = mult_e*(-1. + y)*y;
+   dshape(7,1) = mult_e*(-1. + x)*(-1. + 2.*y);
 }
 
 
@@ -1843,7 +1847,10 @@ void H1Ser_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
       case 2: dofs(5) = 0.25; dofs(6) = 0.25; break;
       case 3: dofs(6) = 0.25; dofs(7) = 0.25; break;
    }
-   cout << "Finished H1Ser ProjectDelta" << endl;
+   cout << "*****************************************" << endl;
+   cout << "*** fe.cpp called H1Ser ProjectDelta! ***" << endl;
+   cout << "*****************************************" << endl;
+ 
    // May need to adjust edge dofs here - they evaluate to 1/4 at their associated edge midpoint
 } 
 
@@ -7084,7 +7091,8 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
          }
          case 2:
          {
-            const int p1 = p + 1;
+	    cout << " *** fe.cpp: Called this routine re dof_map" << endl;
+	    const int p1 = p + 1;
             dof_map.SetSize(p1*p1);
 
             // vertices
