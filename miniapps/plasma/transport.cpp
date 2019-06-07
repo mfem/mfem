@@ -473,39 +473,31 @@ int main(int argc, char *argv[])
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
-   ParFiniteElementSpace fespace(&pmesh, &fec);
+   ParFiniteElementSpace fes(&pmesh, &fec);
 
    // Adaptively refine mesh to accurately represent a given coefficient
    {
-      ParGridFunction coef_gf(&fespace);
+      ParGridFunction coef_gf(&fes);
 
       FunctionCoefficient coef(TeFunc);
 
-      AdaptInitialMesh(mpi, pmesh, fespace, coef_gf, coef,
+      AdaptInitialMesh(mpi, pmesh, fes, coef_gf, coef,
                        2, tol_init, visualization);
    }
-   /*
-   // Finite element space for a mesh-dim vector quantity (momentum)
-   ParFiniteElementSpace vfes(&pmesh, &fec, dim, Ordering::byNODES);
-   // Finite element space for all variables together (full thermodynamic state)
-   ParFiniteElementSpace ffes(&pmesh, &fec, num_equations_, Ordering::byNODES);
 
-   RT_FECollection fec_rt(order, dim);
-   // Finite element space for the magnetic field
-   ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
+   // Finite element space for all variables together (full thermodynamic state)
+   int num_equations = 5;
+   ParFiniteElementSpace ffes(&pmesh, &fec, num_equations, Ordering::byNODES);
 
    // This example depends on this ordering of the space.
    MFEM_ASSERT(ffes.GetOrdering() == Ordering::byNODES, "");
 
-   HYPRE_Int glob_size_sca = fespace.GlobalTrueVSize();
+   HYPRE_Int glob_size_sca = fes.GlobalTrueVSize();
    HYPRE_Int glob_size_tot = ffes.GlobalTrueVSize();
-   HYPRE_Int glob_size_rt  = fes_rt.GlobalTrueVSize();
    if (mpi.Root())
    { cout << "Number of unknowns per field: " << glob_size_sca << endl; }
    if (mpi.Root())
    { cout << "Total number of unknowns:     " << glob_size_tot << endl; }
-   if (mpi.Root())
-   { cout << "Number of magnetic field unknowns: " << glob_size_rt << endl; }
 
    //ConstantCoefficient nuCoef(diffusion_constant_);
    // MatrixFunctionCoefficient nuCoef(dim, ChiFunc);
@@ -516,13 +508,14 @@ int main(int argc, char *argv[])
    // The solution u has components {particle density, x-velocity,
    // y-velocity, temperature} for each species (species loop is the outermost).
    // These are stored contiguously in the BlockVector u_block.
-   Array<int> offsets(num_equations_ + 1);
-   for (int k = 0; k <= num_equations_; k++)
+   Array<int> offsets(num_equations + 1);
+   for (int k = 0; k <= num_equations; k++)
    {
-      offsets[k] = k * fespace.GetNDofs();
+      offsets[k] = k * fes.GetNDofs();
    }
-   BlockVector u_block(offsets);
-
+   ParGridFunction u(&ffes);
+   BlockVector u_block(u.GetData(), offsets);
+   /*
    Array<int> n_offsets(num_species_ + 2);
    for (int k = 0; k <= num_species_ + 1; k++)
    {
@@ -530,7 +523,6 @@ int main(int argc, char *argv[])
    }
    BlockVector n_block(u_block, n_offsets);
    */
-   // Momentum and Energy grid functions on for visualization.
    /*
    ParGridFunction density(&fes, u_block.GetData());
    ParGridFunction velocity(&dfes, u_block.GetData() + offsets[1]);
@@ -752,7 +744,7 @@ int main(int argc, char *argv[])
          return 3;
    }
 
-   ParBilinearForm m(&fespace);
+   ParBilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
    m.Assemble();
    m.Finalize();
@@ -765,13 +757,13 @@ int main(int argc, char *argv[])
    MatrixFunctionCoefficient DCoef(dim, ChiFunc);
    VectorFunctionCoefficient VCoef(dim, vFunc);
    FunctionCoefficient QCoef(QFunc);
-   
-   DGAdvectionDiffusionTDO oper(dg, fespace, one, imex);
+
+   DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
 
    oper.SetDiffusionCoefficient(DCoef);
    oper.SetAdvectionCoefficient(VCoef);
    oper.SetSourceCoefficient(QCoef);
-   
+
    Array<int> dbcAttr(pmesh.bdr_attributes.Max());
    dbcAttr = 1;
    oper.SetDirichletBC(dbcAttr, u0Coef);
@@ -787,14 +779,26 @@ int main(int argc, char *argv[])
    ode_controller.SetTolerance(tol_ode);
    ode_controller.SetRejectionLimit(rej_ode);
 
-   ParGridFunction u(&fespace);
-   u.ProjectCoefficient(u0Coef);
+   // Density, Velocity, and Energy grid functions on for visualization.
+   ParGridFunction neu_density(&fes, u_block.GetData());
+   ParGridFunction ion_density(&fes, u_block.GetData() + offsets[1]);
+   ParGridFunction para_velocity(&fes, u_block.GetData() + offsets[2]);
+   ParGridFunction ion_energy(&fes, u_block.GetData() + offsets[3]);
+   ParGridFunction elec_energy(&fes, u_block.GetData() + offsets[4]);
+
+   // ParGridFunction u(&fes);
+   // u.ProjectCoefficient(u0Coef);
+   neu_density = 1.0;
+   ion_density = 1.0;
+   para_velocity = 0.0;
+   ion_energy = 0.0;
+   elec_energy.ProjectCoefficient(u0Coef);
 
    L2_FECollection fec_l2_o0(0, dim);
    // Finite element space for a scalar (thermodynamic quantity)
-   ParFiniteElementSpace fespace_l2_o0(&pmesh, &fec_l2_o0);
+   ParFiniteElementSpace fes_l2_o0(&pmesh, &fec_l2_o0);
 
-   ParGridFunction err(&fespace_l2_o0, (double *)NULL);
+   ParGridFunction err(&fes_l2_o0, (double *)NULL);
 
    // 11. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
    //     with L2 projection in the smoothing step to better handle hanging
@@ -809,7 +813,8 @@ int main(int argc, char *argv[])
    // H1_FECollection smooth_flux_fec(order, dim);
    // ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec, dim);
    DiffusionIntegrator integ(DCoef);
-   L2ZienkiewiczZhuEstimator estimator(integ, u, flux_fes, smooth_flux_fes);
+   L2ZienkiewiczZhuEstimator estimator(integ, elec_energy, flux_fes,
+                                       smooth_flux_fes);
 
    if (max_elem_error < 0.0)
    {
@@ -860,12 +865,14 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   socketstream sout, eout;
+   socketstream eout;
+   vector<socketstream> sout(5);
    char vishost[] = "localhost";
    int  visport   = 19916;
 
-   int Wx = 278, Wy = 0; // window position
+   int Wx = 0, Wy = 0; // window position
    int Ww = 275, Wh = 250; // window size
+   int Dx = 3, Dy = 25;
 
    DataCollection *dc = NULL;
    if (visit)
@@ -885,7 +892,11 @@ int main(int argc, char *argv[])
          // To save the mesh using MFEM's parallel mesh format:
          // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
       }
-      dc->RegisterField("solution", &u);
+      dc->RegisterField("neutral_density", &neu_density);
+      dc->RegisterField("ion_density", &elec_energy);
+      dc->RegisterField("parallel_ion_velocity", &para_velocity);
+      dc->RegisterField("ion_temp", &ion_energy);
+      dc->RegisterField("electron_temp", &elec_energy);
       dc->SetCycle(0);
       dc->SetTime(t_init);
       dc->Save();
@@ -901,16 +912,44 @@ int main(int argc, char *argv[])
    if (mpi.Root()) { cout << "\nBegin time stepping at t = " << t << endl; }
    while (t < t_final)
    {
-      ode_controller.Run(u, t, t_final);
+      ode_controller.Run(elec_energy, t, t_final);
 
       if (mpi.Root()) { cout << "Time stepping paused at t = " << t << endl; }
 
       if (visualization)
       {
          ostringstream oss;
-         oss << "Field at time " << t;
-         VisualizeField(sout, vishost, visport, u, oss.str().c_str(),
-                        Wx, Wy, Ww, Wh);
+         oss << "Neutral Density at time " << t;
+         VisualizeField(sout[0], vishost, visport, neu_density, oss.str().c_str(),
+                        Wx, Wy + Wh + Dy, Ww, Wh);
+      }
+      if (visualization)
+      {
+         ostringstream oss;
+         oss << "Ion Density at time " << t;
+         VisualizeField(sout[1], vishost, visport, ion_density, oss.str().c_str(),
+                        Wx + (Ww + Dx), Wy + Wh + Dy, Ww, Wh);
+      }
+      if (visualization)
+      {
+         ostringstream oss;
+         oss << "Parallel Ion Velocity at time " << t;
+         VisualizeField(sout[2], vishost, visport, para_velocity, oss.str().c_str(),
+                        Wx + 2 * (Ww + Dx), Wy + Wh + Dy, Ww, Wh);
+      }
+      if (visualization)
+      {
+         ostringstream oss;
+         oss << "Electron Temperature at time " << t;
+         VisualizeField(sout[3], vishost, visport, elec_energy, oss.str().c_str(),
+                        Wx + 3 * (Ww + Dx), Wy + Wh + Dy, Ww, Wh);
+      }
+      if (visualization)
+      {
+         ostringstream oss;
+         oss << "Ion Temperature at time " << t;
+         VisualizeField(sout[4], vishost, visport, ion_energy, oss.str().c_str(),
+                        Wx + 4 * (Ww + Dx), Wy + Wh + Dy, Ww, Wh);
       }
 
       if (visit)
@@ -923,7 +962,7 @@ int main(int argc, char *argv[])
 
       if (t_final - t > 1e-8 * (t_final - t_init))
       {
-         HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
+         HYPRE_Int global_dofs = fes.GlobalTrueVSize();
 
          if (global_dofs > max_dofs)
          {
@@ -945,12 +984,12 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            err.MakeRef(&fespace_l2_o0,
+            err.MakeRef(&fes_l2_o0,
                         const_cast<double*>(&(estimator.GetLocalErrors())[0]));
             ostringstream oss;
             oss << "Error estimate at time " << t;
             VisualizeField(eout, vishost, visport, err, oss.str().c_str(),
-                           2*Wx, Wy, Ww, Wh);
+                           Wx + Ww + Dx, Wy, Ww, Wh);
          }
 
          refiner.Apply(pmesh);
@@ -976,9 +1015,24 @@ int main(int argc, char *argv[])
             //     to any GridFunctions over the space. In this case, the update
             //     matrix is an interpolation matrix so the updated GridFunction will
             //     still represent the same function as before refinement.
-            fespace.Update();
-            fespace_l2_o0.Update();
+            ffes.Update();
+            fes.Update();
+            fes_l2_o0.Update();
             u.Update();
+
+
+            {
+               for (int k = 0; k <= num_equations; k++)
+               {
+                  offsets[k] = k * fes.GetNDofs();
+               }
+
+               neu_density.MakeRef(&fes, u, offsets[0]);
+               ion_density.MakeRef(&fes, u, offsets[1]);
+               para_velocity.MakeRef(&fes, u, offsets[2]);
+               ion_energy.MakeRef(&fes, u, offsets[3]);
+               elec_energy.MakeRef(&fes, u, offsets[4]);
+            }
 
             // 22. Load balance the mesh, and update the space and solution. Currently
             //     available only for nonconforming meshes.
@@ -988,9 +1042,22 @@ int main(int argc, char *argv[])
 
                // Update the space and the GridFunction. This time the update matrix
                // redistributes the GridFunction among the processors.
-               fespace.Update();
-               fespace_l2_o0.Update();
+               ffes.Update();
+               fes.Update();
+               fes_l2_o0.Update();
                u.Update();
+               {
+                  for (int k = 0; k <= num_equations; k++)
+                  {
+                     offsets[k] = k * fes.GetNDofs();
+                  }
+
+                  neu_density.MakeRef(&fes, u, offsets[0]);
+                  ion_density.MakeRef(&fes, u, offsets[1]);
+                  para_velocity.MakeRef(&fes, u, offsets[2]);
+                  ion_energy.MakeRef(&fes, u, offsets[3]);
+                  elec_energy.MakeRef(&fes, u, offsets[4]);
+               }
             }
             m.Update(); m.Assemble(); m.Finalize();
             ode_diff_msr.SetOperator(m);
@@ -1006,16 +1073,29 @@ int main(int argc, char *argv[])
             }
 
             // 24. Update the space and the solution, rebalance the mesh.
-	    // cout << "fespace.Update();" << endl;
-            fespace.Update();
-	    // cout << "fespace_l2_o0.Update();" << endl;
-            fespace_l2_o0.Update();
-	    // cout << "u.Update();" << endl;
+            // cout << "fes.Update();" << endl;
+            ffes.Update();
+            fes.Update();
+            // cout << "fes_l2_o0.Update();" << endl;
+            fes_l2_o0.Update();
+            // cout << "u.Update();" << endl;
             u.Update();
-	    // cout << "m.Update();" << endl;
+            {
+               for (int k = 0; k <= num_equations; k++)
+               {
+                  offsets[k] = k * fes.GetNDofs();
+               }
+
+               neu_density.MakeRef(&fes, u, offsets[0]);
+               ion_density.MakeRef(&fes, u, offsets[1]);
+               para_velocity.MakeRef(&fes, u, offsets[2]);
+               ion_energy.MakeRef(&fes, u, offsets[3]);
+               elec_energy.MakeRef(&fes, u, offsets[4]);
+            }
+            // cout << "m.Update();" << endl;
             m.Update(); m.Assemble(); m.Finalize();
             ode_diff_msr.SetOperator(m);
-	    // cout << "oper.Update();" << endl;
+            // cout << "oper.Update();" << endl;
             oper.Update();
             ode_solver->Init(oper);
          }
@@ -1029,7 +1109,7 @@ int main(int argc, char *argv[])
 
          amr_it++;
 
-         global_dofs = fespace.GlobalTrueVSize();
+         global_dofs = fes.GlobalTrueVSize();
          if (mpi.Root())
          {
             cout << "\nAMR iteration " << amr_it << endl;
@@ -1052,7 +1132,7 @@ int main(int argc, char *argv[])
       for (int i = 0; i < num_species_; i++)
          for (int j = 0; j < dim + 2; j++)
          {
-            ParGridFunction uk(&fespace, u_block.GetBlock(k));
+            ParGridFunction uk(&fes, u_block.GetBlock(k));
             ostringstream sol_name;
             sol_name << "species-" << i << "-field-" << j << "-final."
                      << setfill('0') << setw(6) << mpi.WorldRank();
