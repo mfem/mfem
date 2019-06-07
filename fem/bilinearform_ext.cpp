@@ -12,6 +12,7 @@
 // Implementations of classes FABilinearFormExtension, EABilinearFormExtension,
 // PABilinearFormExtension and MFBilinearFormExtension.
 
+#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "bilinearform.hpp"
 
@@ -92,6 +93,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                Vector &X, Vector &B,
                                                int copy_interior)
 {
+   dbg("");
    Operator *oper;
    Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
    A.Reset(oper); // A will own oper
