@@ -19,6 +19,11 @@
 #include <mpi.h>
 #endif
 
+#ifdef MFEM_USE_PETSC
+#include "petsc.hpp"
+#include <vector>
+#endif
+
 #ifdef MFEM_USE_SUITESPARSE
 #include "sparsemat.hpp"
 #include <umfpack.h>
@@ -336,6 +341,41 @@ public:
    virtual void SetPreconditioner(Solver &pr);
    virtual void SetOperator(const Operator &op);
 };
+
+
+#ifdef MFEM_USE_PETSC
+
+class GMGSolver : public Solver {
+private:
+   /// The linear system matrix
+   std::vector<HypreParMatrix *> A;
+   std::vector<HypreParMatrix *> P;
+   HypreParMatrix * Af;
+
+   std::vector<PetscLinearSolver *>  Sv;
+   int myid;
+   int NumGrids;
+   PetscLinearSolver *invAc=nullptr;
+   double theta = 1.0;
+public:
+   GMGSolver(HypreParMatrix * Af_, std::vector<HypreParMatrix *> P_);
+   virtual void SetOperator(const Operator &op) {}
+
+   virtual void SetTheta(const double a) {theta = a;}
+
+   virtual void Mult(const Vector &r, Vector &z) const;
+   virtual ~GMGSolver();
+};
+
+
+#endif 
+
+
+
+
+
+
+
 
 
 #ifdef MFEM_USE_SUITESPARSE

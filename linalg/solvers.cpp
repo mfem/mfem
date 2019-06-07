@@ -1677,6 +1677,113 @@ slbqp_done:
    }
 }
 
+
+#ifdef MFEM_USE_PETSC
+GMGSolver::GMGSolver(HypreParMatrix * Af_, 
+             std::vector<HypreParMatrix *> P_)
+      : Solver(Af_->Height(),Af_->Width()), Af(Af_), P(P_) {
+
+
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid); // Determine process identifier 
+
+   NumGrids = P.size();
+   Sv.reserve(NumGrids);
+   A.reserve(NumGrids+1);
+
+   A[NumGrids] = Af;
+
+   for (int i=NumGrids ; i>0; i--)
+   {
+      A[i-1] = RAP(A[i], P[i-1]);
+   // Put a check on check dimension of RAP
+   }
+
+   // Coarse solve
+   invAc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
+   // Convert to PetscParMatrix
+   invAc->SetOperator(PetscParMatrix(A[0],Operator::PETSC_MATAIJ));
+   if (myid == 0)
+   {
+      cout << "Size of coarse grid system: " 
+           << A[0]->GetGlobalNumRows() << " x " << A[0]->GetGlobalNumCols() << endl;
+   }
+   // construct smoothers
+   for (int i=NumGrids-1; i>=0 ; i--)
+   {
+      Sv[i] = new PetscLinearSolver(MPI_COMM_WORLD, "smoother");
+   // Convert to PetscParMatrix
+      Sv[i]->SetOperator(PetscParMatrix(A[i+1],Operator::PETSC_MATAIJ));     
+   }     
+
+   }
+
+void GMGSolver::Mult(const Vector &r, Vector &z) const
+   {
+      // Residual vectors
+      std::vector<Vector> rv(NumGrids+1);
+      // correction vectors
+      std::vector<Vector> zv(NumGrids+1);
+      // allocation
+      for (int i = 0; i<=NumGrids ; i++)
+      {   
+         int n = A[i]->Width();
+         rv[i].SetSize(n); 
+         zv[i].SetSize(n); 
+      }   
+      // Initial residual
+      rv[NumGrids] = r;
+      // smooth and update residuals down to the coarsest level
+      for (int i = NumGrids; i>0 ; i--)
+      {
+         // Pre smooth
+         Sv[i-1]->Mult(rv[i],zv[i]); zv[i] *= theta;
+         // compute residual
+         Vector w(A[i]->Height());
+         A[i]->Mult(zv[i],w);
+         rv[i] -= w;
+         // Restrict 
+         P[i-1]->MultTranspose(rv[i], rv[i-1]);
+      }
+      // Coarse grid Stiffness matrix 
+      invAc->Mult(rv[0], zv[0]);
+      // 
+      for (int i = 1; i<=NumGrids ; i++)
+      {
+         // Prolong correction
+         Vector u(P[i-1]->Height());
+         P[i-1]->Mult(zv[i-1],u);
+         // Update correction 
+         zv[i] += u;
+         // Update residual  
+         Vector v(A[i]->Height());
+         A[i]->Mult(u,v); rv[i] -=v;
+         // Post smooth
+         Sv[i-1]->Mult(rv[i],v); v*= theta;
+         // Update correction
+         zv[i] += v;
+      }        
+      z = zv[NumGrids];
+   }
+
+ GMGSolver::~GMGSolver(){
+         int n = Sv.size();
+         // delete invAc;
+         for (int i=n-1; i>=0 ; i--)
+         {
+            delete Sv[i]; 
+         }    
+   }  
+
+#endif
+
+
+
+
+
+
+
+
+
 #ifdef MFEM_USE_SUITESPARSE
 
 void UMFPackSolver::Init()
