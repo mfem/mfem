@@ -3429,6 +3429,28 @@ void Mesh::KnotInsert(Array<KnotVector *> &kv)
    UpdateNURBS();
 }
 
+void Mesh::KnotInsert(Array<Vector *> &kv)
+{
+   if (NURBSext == NULL)
+   {
+      mfem_error("Mesh::KnotInsert : Not a NURBS mesh!");
+   }
+
+   if (kv.Size() != NURBSext->GetNKV())
+   {
+      mfem_error("Mesh::KnotInsert : KnotVector array size mismatch!");
+   }
+
+   NURBSext->ConvertToPatches(*Nodes);
+
+   NURBSext->KnotInsert(kv);
+
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
+
+   UpdateNURBS();
+}
+
 void Mesh::NURBSUniformRefinement()
 {
    // do not check for NURBSext since this method is protected
