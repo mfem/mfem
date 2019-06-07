@@ -28,6 +28,9 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+6/6
+Is the iterative mode working for PetscNonlinearSolver??
+
 6/5
 PetscParMatrix *pA;
 oh.Get(pA);

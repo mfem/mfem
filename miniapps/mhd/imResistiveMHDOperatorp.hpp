@@ -30,7 +30,7 @@ private:
    ParFiniteElementSpace &fespace;
    ParBilinearForm *M, *K, *KB, *DRe, *DSl;
    HypreParMatrix &Mmat, &Kmat;
-   mutable HypreParMatrix Mdt;
+   HypreParMatrix *Mdtpr;
    bool initialMdt;
    HypreParVector *E0Vec;
    ParGridFunction *j0;
@@ -45,8 +45,9 @@ private:
    mutable ParGridFunction phiGf, psiGf;
    mutable ParBilinearForm *Nv, *Nb;
    mutable BlockOperator *Jacobian;
-   mutable HypreParMatrix Mtmp;
-   mutable Vector z, zFull, Z, J;
+   //mutable HypreParMatrix Mtmp;
+   //mutable Vector z, zFull, Z, J;
+   mutable Vector z, zFull;
 
 public:
    ReducedSystemOperator(ParFiniteElementSpace &f,
@@ -62,12 +63,12 @@ public:
        {
            cout <<"------update Mdt------"<<endl;
            double rate=dtOld/dt;
-           Mdt*=rate;
+           *Mdtpr*=rate;
        }
        if(initialMdt==false)
        {
            cout <<"------initial Mdt-------"<<endl;
-           Mdt*=(1./dt); initialMdt=true;
+           *Mdtpr*=(1./dt); initialMdt=true;
        }
    }
 
@@ -76,6 +77,13 @@ public:
 
    void setE0(HypreParVector *E0Vec_)
    { E0Vec=E0Vec_;}
+
+   //link gf with psi
+   void BindingGF(Vector &k){
+       int sc = height/3;
+       phiGf.MakeTRef(&fespace, k, 0);
+       psiGf.MakeTRef(&fespace, k, sc);
+   }
 
    /// Define F(k) 
    virtual void Mult(const Vector &k, Vector &y) const;
@@ -127,10 +135,8 @@ protected:
    HypreSolver *K_amg; //BoomerAMG for stiffness matrix
    HyprePCG *K_pcg;
 
-   ParGridFunction j;
-
    mutable Vector z, zFull; // auxiliary vector 
-   mutable ParGridFunction gf;  //auxiliary variable (to store the boundary condition)
+   mutable ParGridFunction j, gf;  //auxiliary variable (to store the boundary condition)
 
 public:
    ResistiveMHDOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr, 
@@ -164,93 +170,99 @@ public:
 
 
 //------petsc pcshell preconditioenr------
-class MyBlockSolver : public mfem::Solver
+class MyBlockSolver : public Solver
 {
 private:
-   Mat **sub; //XXX does sub mat own mat?
+   Mat **sub; //XXX does sub own mat?
 
    // Create internal KSP objects to handle the subproblems
    KSP kspblock[3];
 
-   // Create PetscParVectors as placeholders internal_x and internal_y
-   PetscParVector internal_x, internal_y;
+   // Create PetscParVectors as placeholders X and Y
+   mutable PetscParVector *X, *Y;
 
    IS index_set[3];
 
 public:
-   MyBlockSolver(OperatorHandle &oh) { 
-      PetscErrorCode ierr; 
-
-      // Get the PetscParMatrix out of oh.       
-      PetscParMatrix *PP;
-      oh.Get(PP);
-      Mat P = *PP; // type cast to Petsc Mat
-      PetscInt M, N;
-      ierr=MatNestGetSubMats(P,&N,&M,&sub); PCHKERRQ(sub, ierr);// sub is an N by M array of matrices
-      ierr=MatNestGetISs(P, index_set, NULL);  PCHKERRQ(index_set, ierr);// get the index sets of the blocks
-
-      ISView(index_set[0],PETSC_VIEWER_STDOUT_WORLD);
-      ISView(index_set[1],PETSC_VIEWER_STDOUT_WORLD);
-      ISView(index_set[2],PETSC_VIEWER_STDOUT_WORLD);
-
-      for (int i=0; i<3; i++)
-      {
-        KSPCreate(PETSC_COMM_WORLD, &kspblock[i]);
-        KSPSetOperators(kspblock[i], sub[i][i], sub[i][i]);
-
-        if (i==0) 
-            KSPAppendOptionsPrefix(kspblock[i],"s1_");
-        else
-            KSPAppendOptionsPrefix(kspblock[i],"s2_");
-        KSPSetFromOptions(kspblock[i]);
-        KSPSetUp(kspblock[i]);
-      }
-   }
+   MyBlockSolver(const OperatorHandle &oh);
 
    virtual void SetOperator (const Operator &op)
-   { MFEM_ABORT("SetOperator::MyBlockSolver is not supported.");}
+   { MFEM_ABORT("MyBlockSolver::SetOperator is not supported.");}
 
-   virtual void Mult(const Vector &x, Vector &y);
+   virtual void Mult(const Vector &x, Vector &y) const;
    virtual ~MyBlockSolver();
 };
 
-void MyBlockSolver::Mult(const Vector &x, Vector &y)
+MyBlockSolver::MyBlockSolver(const OperatorHandle &oh) : Solver() { 
+   PetscErrorCode ierr; 
+
+   // Get the PetscParMatrix out of oh.       
+   PetscParMatrix *PP;
+   oh.Get(PP);
+   Mat P = *PP; // type cast to Petsc Mat
+   PetscInt M, N;
+   ierr=MatNestGetSubMats(P,&N,&M,&sub); PCHKERRQ(sub, ierr);// sub is an N by M array of matrices
+   ierr=MatNestGetISs(P, index_set, NULL);  PCHKERRQ(index_set, ierr);// get the index sets of the blocks
+
+   ISView(index_set[0],PETSC_VIEWER_STDOUT_WORLD);
+   ISView(index_set[1],PETSC_VIEWER_STDOUT_WORLD);
+   ISView(index_set[2],PETSC_VIEWER_STDOUT_WORLD);
+
+   X = new PetscParVector(P, true, false);
+   Y = new PetscParVector(P, false, false);
+
+   for (int i=0; i<3; i++)
+   {
+     KSPCreate(PETSC_COMM_WORLD, &kspblock[i]);
+     KSPSetOperators(kspblock[i], sub[i][i], sub[i][i]);
+
+     if (i==0) 
+         KSPAppendOptionsPrefix(kspblock[i],"s1_");
+     else
+         KSPAppendOptionsPrefix(kspblock[i],"s2_");
+     KSPSetFromOptions(kspblock[i]);
+     KSPSetUp(kspblock[i]);
+   }
+}
+
+//should I also do iterative_mode here?
+void MyBlockSolver::Mult(const Vector &x, Vector &y) const
 {
-      //Mat &mass = sub[0][2];
-      Vec blockx, blocky;
-      Vec blockx0, blocky0;
+   //Mat &mass = sub[0][2];
+   Vec blockx, blocky;
+   Vec blockx0, blocky0;
 
-      internal_x.PlaceArray(x.GetData()); // no copy, only the data pointer is passed to PETSc
-      internal_y.PlaceArray(y.GetData());
+   X->PlaceArray(x.GetData()); // no copy, only the data pointer is passed to PETSc
+   Y->PlaceArray(y.GetData());
 
-      //solve the last two equations first
-      for (int i = 1; i<3; i++)
-      {
-        VecGetSubVector(internal_x,index_set[i],&blockx);
-        VecGetSubVector(internal_y,index_set[i],&blocky);
+   //solve the last two equations first
+   for (int i = 1; i<3; i++)
+   {
+     VecGetSubVector(*X,index_set[i],&blockx);
+     VecGetSubVector(*Y,index_set[i],&blocky);
 
-        KSPSolve(kspblock[i],blockx,blocky);
+     KSPSolve(kspblock[i],blockx,blocky);
 
-        if (i==2)
-        {
-           VecGetSubVector(internal_x,index_set[0],&blockx0);
-           VecGetSubVector(internal_y,index_set[0],&blocky0);
-           VecScale(blockx0, -1);
-           MatMultAdd(sub[0][2], blocky, blockx0, blockx0);
-           VecScale(blockx0, -1);
-        }
+     if (i==2)
+     {
+        VecGetSubVector(*X,index_set[0],&blockx0);
+        VecGetSubVector(*Y,index_set[0],&blocky0);
+        VecScale(blockx0, -1);
+        MatMultAdd(sub[0][2], blocky, blockx0, blockx0);
+        VecScale(blockx0, -1);
+     }
 
-        VecRestoreSubVector(internal_x,index_set[i],&blockx);
-        VecRestoreSubVector(internal_y,index_set[i],&blocky);
-      }
-      
-      //compute blockx
-      KSPSolve(kspblock[0],blockx0,blocky0);
-      VecRestoreSubVector(internal_x,index_set[0],&blockx0);
-      VecRestoreSubVector(internal_y,index_set[0],&blocky0);
+     VecRestoreSubVector(*X,index_set[i],&blockx);
+     VecRestoreSubVector(*Y,index_set[i],&blocky);
+   }
+   
+   //compute blockx
+   KSPSolve(kspblock[0],blockx0,blocky0);
+   VecRestoreSubVector(*X,index_set[0],&blockx0);
+   VecRestoreSubVector(*Y,index_set[0],&blocky0);
 
-      internal_x.ResetArray();
-      internal_y.ResetArray();
+   X->ResetArray();
+   Y->ResetArray();
 }
 
 MyBlockSolver::~MyBlockSolver()
@@ -259,6 +271,8 @@ MyBlockSolver::~MyBlockSolver()
         KSPDestroy(&kspblock[i]);
     
     ISDestroy(index_set);
+    delete X;
+    delete Y;
 }
 
 // Auxiliary class to provide preconditioners for matrix-free methods 
@@ -284,7 +298,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), E0Vec(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), 
      M_solver(f.GetComm()), K_solver(f.GetComm()), 
-     K_amg(NULL), K_pcg(NULL), j(&fespace), z(height/3), zFull(f.GetVSize()) 
+     K_amg(NULL), K_pcg(NULL), z(height/3), zFull(f.GetVSize()), j(&fespace) 
 {
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -368,6 +382,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    pnewton_solver->SetRelTol(rel_tol);
    pnewton_solver->SetAbsTol(0.0);
    pnewton_solver->SetMaxIter(10);
+   pnewton_solver->iterative_mode=true;
 }
 
 
@@ -479,6 +494,9 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
 
    reduced_oper->SetParameters(dt, &phi, &psi, &w);
    Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
+   
+   k = vx; //Provide the initial guess as vx and use iterative_mode
+   reduced_oper->BindingGF(k);
    pnewton_solver->Mult(zero, k);  //here k is solved as vx^{n+1}
    MFEM_VERIFY(pnewton_solver->GetConverged(),
                   "Newton solver did not converge.");
@@ -547,7 +565,6 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete K_pcg;
     delete reduced_oper;
     delete pnewton_solver;
-    //delete K_amg;
     //delete M_solver;
     //delete K_solver;
     //delete M_prec;
@@ -562,13 +579,15 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    const Array<int> &ess_tdof_list_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), 
-     Mdt(Mmat_), initialMdt(false),
+     initialMdt(false),
      E0Vec(NULL), M_solver(M_solver_),
      dt(0.0), dtOld(0.0), 
      phi(NULL), psi(NULL), w(NULL), ess_tdof_list(ess_tdof_list_),
      Nv(NULL), Nb(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
     //FIXME looks like I cannot do a deep copy now! Mdt here should be a deep copy
+    Mdtpr = new HypreParMatrix(Mmat_);
+
     int sc = height/3;
     block_trueOffsets.SetSize(4);
     block_trueOffsets[0] = 0;
@@ -585,14 +604,15 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
       Jacobian = new BlockOperator(block_trueOffsets);
       Jacobian->SetBlock(0,0,&Kmat);
       Jacobian->SetBlock(0,2,&Mmat);
-      Jacobian->SetBlock(1,1,&Mdt);
-      Jacobian->SetBlock(2,2,&Mdt);
+      Jacobian->SetBlock(1,1,Mdtpr);
+      Jacobian->SetBlock(2,2,Mdtpr);
    }
    return *Jacobian;
 }
 
 ReducedSystemOperator::~ReducedSystemOperator()
 {
+   delete Mdtpr;
    delete Jacobian;
    delete Nv;
    delete Nb;
@@ -612,7 +632,6 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
 
    //------assemble Nv and Nb (operators are assembled locally)------
    delete Nv;
-   phiGf.MakeTRef(&fespace, k, 0);
    phiGf.SetFromTrueVector();
    Nv = new ParBilinearForm(&fespace);
    MyCoefficient velocity(&phiGf, 2);   //we update velocity
@@ -620,7 +639,6 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Nv->Assemble(); 
 
    delete Nb;
-   psiGf.MakeTRef(&fespace, k, sc);
    psiGf.SetFromTrueVector();
    Nb = new ParBilinearForm(&fespace);
    MyCoefficient Bfield(&psiGf, 2);   //we update B
@@ -628,9 +646,11 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Nb->Assemble();
 
    //------compute the current as an auxilary variable------
+   Vector J, Z;
+   HypreParMatrix A;
    KB->Mult(psiGf, zFull);
    zFull.Neg(); // z = -z
-   M->FormLinearSystem(ess_tdof_list, *j0, zFull, Mtmp, J, Z); //apply Dirichelt boundary 
+   M->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
    M_solver->Mult(Z, J); //XXX is this okay in mult? probably
 
    //compute y1
