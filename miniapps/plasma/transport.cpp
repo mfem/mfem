@@ -1,5 +1,5 @@
 //
-// ./transport -s 12 -v 1 -vs 5 -tol 1e-3 -tf 4
+// ./transport -s 12 -v 1 -vs 5 -tol 5e-3 -tf 4
 //
 #include "mfem.hpp"
 #include <fstream>
