@@ -2136,6 +2136,12 @@ private:
    DenseMatrix dshape, dshapedxt, invdfdx, pelmat;
    DenseMatrix Jinv, gshape;
 
+   // PA extension
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, NE, D1D, Q1D;
+   Vector pa_data;
+
 public:
    VectorDiffusionIntegrator() { Q = NULL; }
    VectorDiffusionIntegrator(Coefficient &q) { Q = &q; }
@@ -2146,6 +2152,13 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
+
+   virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe);
 };
 
 /** Integrator for the linear elasticity form:
