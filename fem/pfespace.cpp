@@ -2788,7 +2788,6 @@ void ParFiniteElementSpace::Update(bool want_transform)
    FiniteElementSpace::Construct();
    Construct();
 
-   std::cout << "PFES::Update calling BuildElementToDofTable()" << std::endl;
    BuildElementToDofTable();
 
    if (want_transform)

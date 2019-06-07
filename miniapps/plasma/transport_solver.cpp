@@ -734,7 +734,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
    {
       if (b_)
       {
-         cout << "DGA::ImplicitSolve assembling b" << endl;
+         // cout << "DGA::ImplicitSolve assembling b" << endl;
          b_->Assemble();
          b_->Finalize();
 
@@ -744,7 +744,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
          delete B;
       }
    }
-   cout << "DGA::ImplicitSolve assembling a" << endl;
+   // cout << "DGA::ImplicitSolve assembling a" << endl;
    a_->Assemble();
    a_->Finalize();
    HypreParMatrix *A = a_->ParallelAssemble();
@@ -792,21 +792,21 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
 void DGAdvectionDiffusionTDO::Update()
 {
    height = width = fes_->GetVSize();
-   cout << "DGA::Update m" << endl;
+   // cout << "DGA::Update m" << endl;
    m_.Update(); m_.Assemble(); m_.Finalize();
-   cout << "DGA::Update a" << endl;
+   // cout << "DGA::Update a" << endl;
    a_->Update(); // a_->Assemble(); a_->Finalize();
-   cout << "DGA::Update b" << endl;
+   // cout << "DGA::Update b" << endl;
    if (b_) { b_->Update(); /*b_->Assemble(); b_->Finalize();*/ }
-   cout << "DGA::Update s" << endl;
+   // cout << "DGA::Update s" << endl;
    if (s_) { s_->Update(); /*s_->Assemble(); s_->Finalize();*/ }
-   cout << "DGA::Update k" << endl;
+   // cout << "DGA::Update k" << endl;
    if (k_) { k_->Update(); k_->Assemble(); k_->Finalize(); }
-   cout << "DGA::Update q_exp" << endl;
+   // cout << "DGA::Update q_exp" << endl;
    if (q_exp_) { q_exp_->Update(); q_exp_->Assemble(); }
-   cout << "DGA::Update q_imp" << endl;
+   // cout << "DGA::Update q_imp" << endl;
    if (q_imp_) { q_imp_->Update(); q_imp_->Assemble(); }
-   cout << "DGA::Update rhs" << endl;
+   // cout << "DGA::Update rhs" << endl;
    rhs_.Update();
    RHS_.SetSize(fes_->GetTrueVSize());
    X_.SetSize(fes_->GetTrueVSize());
