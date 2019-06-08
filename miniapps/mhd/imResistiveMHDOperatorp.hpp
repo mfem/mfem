@@ -208,8 +208,7 @@ MyBlockSolver::MyBlockSolver(const OperatorHandle &oh) : Solver() {
    ISView(index_set[1],PETSC_VIEWER_STDOUT_WORLD);
    ISView(index_set[2],PETSC_VIEWER_STDOUT_WORLD);
 
-   X = new PetscParVector(P, true, false);
-   Y = new PetscParVector(P, false, false);
+   X = new PetscParVector(P, true, false); Y = new PetscParVector(P, false, false);
 
    for (int i=0; i<3; i++)
    {
@@ -297,6 +296,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
      Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), E0Vec(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), 
+     reduced_oper(NULL), pnewton_solver(NULL), J_factory(NULL),
      M_solver(f.GetComm()), K_solver(f.GetComm()), 
      K_amg(NULL), K_pcg(NULL), z(height/3), zFull(f.GetVSize()), j(&fespace) 
 {
@@ -323,7 +323,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    K->Assemble();
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 
-   useAMG=false;
+   useAMG=true;
    if (useAMG)
    {
       K_amg = new HypreBoomerAMG(Kmat);
@@ -360,29 +360,33 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
    
-   ParBilinearForm *DRepr, *DSlpr;
-   if (viscosity != 0.0)
-       DRepr = &DRe;
-   else
-       DRepr = NULL;
+   if (false)
+   {
+      ParBilinearForm *DRepr, *DSlpr;
+      if (viscosity != 0.0)
+          DRepr = &DRe;
+      else
+          DRepr = NULL;
 
-   if (resistivity != 0.0)
-       DSlpr = &DSl;
-   else
-       DSlpr = NULL;
+      if (resistivity != 0.0)
+          DSlpr = &DSl;
+      else
+          DSlpr = NULL;
 
-   reduced_oper  = new ReducedSystemOperator(f, M, Mmat, K, Kmat,
-                      KB, DRepr, DSlpr, &M_solver, ess_tdof_list);
 
-   const double rel_tol=1.e-8;
-   pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
-   J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
-   pnewton_solver->SetPreconditionerFactory(J_factory);
-   pnewton_solver->SetPrintLevel(1); // print Newton iterations
-   pnewton_solver->SetRelTol(rel_tol);
-   pnewton_solver->SetAbsTol(0.0);
-   pnewton_solver->SetMaxIter(10);
-   pnewton_solver->iterative_mode=true;
+      reduced_oper  = new ReducedSystemOperator(f, M, Mmat, K, Kmat,
+                         KB, DRepr, DSlpr, &M_solver, ess_tdof_list);
+
+      const double rel_tol=1.e-8;
+      pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
+      J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
+      pnewton_solver->SetPreconditionerFactory(J_factory);
+      pnewton_solver->SetPrintLevel(1); // print Newton iterations
+      pnewton_solver->SetRelTol(rel_tol);
+      pnewton_solver->SetAbsTol(0.0);
+      pnewton_solver->SetMaxIter(10);
+      pnewton_solver->iterative_mode=true;
+   }
 }
 
 
@@ -396,7 +400,8 @@ void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield)
    E0Vec=E0->ParallelAssemble();
 
    //add E0 to reduced_oper
-   reduced_oper->setE0(E0Vec);
+   if (reduced_oper!=NULL)
+      reduced_oper->setE0(E0Vec);
 }
 
 void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ) 
@@ -405,7 +410,8 @@ void ResistiveMHDOperator::SetInitialJ(FunctionCoefficient initJ)
     j.SetTrueVector();
 
     //add current to reduced_oper
-    reduced_oper->setCurrent(&j);
+    if (reduced_oper!=NULL)
+        reduced_oper->setCurrent(&j);
 }
 
 void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
@@ -565,10 +571,7 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete K_pcg;
     delete reduced_oper;
     delete pnewton_solver;
-    //delete M_solver;
-    //delete K_solver;
-    //delete M_prec;
-    //delete K_prec;
+    delete J_factory;
 }
 
 ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,

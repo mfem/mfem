@@ -213,8 +213,8 @@ int main(int argc, char *argv[])
    // 3. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   PDSolver *ode_solver;
-   ODESolver *ode_solver2;
+   PDSolver *ode_solver=NULL;
+   ODESolver *ode_solver2=NULL;
    bool explicitSolve=true;
    switch (ode_solver_type)
    {
