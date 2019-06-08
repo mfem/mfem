@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool pa = false;
-   const char *device = "cpu";
+   const char *device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device, "-d", "--device",
+   args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -85,14 +85,19 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution.
+   // 5. Refine the serial mesh on all processors to increase the resolution.
    //    Also project a NURBS mesh to a piecewise-quadratic curved mesh. Make
    //    sure that the mesh is non-conforming.
    if (mesh->NURBSext)
@@ -102,7 +107,7 @@ int main(int argc, char *argv[])
    }
    mesh->EnsureNCMesh();
 
-   // 5. Define a parallel mesh by partitioning the serial mesh.
+   // 6. Define a parallel mesh by partitioning the serial mesh.
    //    Once the parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
@@ -112,14 +117,10 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(pmesh.bdr_attributes.Max());
    ess_bdr = 1;
 
-   // 6. Define a finite element space on the mesh. The polynomial order is
+   // 7. Define a finite element space on the mesh. The polynomial order is
    //    one (linear) by default, but this can be changed on the command line.
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
-
-   // 7. Set device config parameters from the command line options.
-   Device::Configure(device);
-   if (myid == 0) { Device::Print(); }
 
    // 8. As in Example 1p, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
@@ -200,11 +201,10 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       b.Assemble();
 
-      // 15. Switch to the device and assemble the stiffness matrix. Note that
-      //     MFEM doesn't care at this point that the mesh is nonconforming and
-      //     parallel.  The FE space is considered 'cut' along hanging
-      //     edges/faces, and also across processor boundaries.
-      Device::Enable();
+      // 15. Assemble the stiffness matrix. Note that MFEM doesn't care at this
+      //     point that the mesh is nonconforming and parallel.  The FE space is
+      //     considered 'cut' along hanging edges/faces, and also across
+      //     processor boundaries.
       a.Assemble();
 
       // 16. Create the parallel linear system: eliminate boundary conditions.
@@ -232,7 +232,6 @@ int main(int argc, char *argv[])
       // 18. Switch back to the host and extract the parallel grid function
       //     corresponding to the finite element approximation X. This is the
       //     local solution on each processor.
-      Device::Disable();
       a.RecoverFEMSolution(X, b, x);
 
       // 19. Send the solution by socket to a GLVis server.

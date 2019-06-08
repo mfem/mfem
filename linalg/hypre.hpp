@@ -451,16 +451,18 @@ public:
 
    /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
-   void BooleanMult(int alpha, int *x, int beta, int *y)
+   void BooleanMult(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, x, beta, y);
+      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, const_cast<int*>(x),
+                                                beta, y);
    }
 
    /** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
-   void BooleanMultTranspose(int alpha, int *x, int beta, int *y)
+   void BooleanMultTranspose(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, x, beta, y);
+      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, const_cast<int*>(x),
+                                                 beta, y);
    }
 
    /// Initialize all entries with value.
@@ -667,6 +669,15 @@ public:
 /// Abstract class for hypre's solvers and preconditioners
 class HypreSolver : public Solver
 {
+public:
+   /// How to treat errors returned by hypre function calls.
+   enum ErrorMode
+   {
+      IGNORE_HYPRE_ERRORS, ///< Ignore hypre errors (see e.g. HypreADS)
+      WARN_HYPRE_ERRORS,   ///< Issue warnings on hypre errors
+      ABORT_HYPRE_ERRORS   ///< Abort on hypre errors (default in base class)
+   };
+
 protected:
    /// The linear system matrix
    HypreParMatrix *A;
@@ -676,6 +687,9 @@ protected:
 
    /// Was hypre's Setup function called already?
    mutable int setup_called;
+
+   /// How to treat hypre errors.
+   mutable ErrorMode error_mode;
 
 public:
    HypreSolver();
@@ -696,6 +710,17 @@ public:
    /// Solve the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
+
+   /** @brief Set the behavior for treating hypre errors, see the ErrorMode
+       enum. The default mode in the base class is ABORT_HYPRE_ERRORS. */
+   /** Currently, there are three cases in derived classes where the error flag
+       is set to IGNORE_HYPRE_ERRORS:
+       * in the method HypreBoomerAMG::SetElasticityOptions(), and
+       * in the constructor of classes HypreAMS and HypreADS.
+       The reason for this is that a nonzero hypre error is returned) when
+       hypre_ParCSRComputeL1Norms() encounters zero row in a matrix, which is
+       expected in some cases with the above solvers. */
+   void SetErrorMode(ErrorMode err_mode) const { error_mode = err_mode; }
 
    virtual ~HypreSolver();
 };
