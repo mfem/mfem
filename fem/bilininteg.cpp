@@ -1043,6 +1043,9 @@ void VectorMassIntegrator::AssembleElementMatrix
          {
             norm *= Q->Eval(Trans, ip);
          }
+         cout << ">> ELMAT_COMP" << endl;
+         partelmat.Print();
+
          partelmat *= norm;
          for (int k = 0; k < vdim; k++)
          {
@@ -1050,6 +1053,8 @@ void VectorMassIntegrator::AssembleElementMatrix
          }
       }
    }
+   cout << ">> ELMAT" << endl;
+   elmat.Print();
 }
 
 void VectorMassIntegrator::AssembleElementMatrix2(

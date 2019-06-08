@@ -4,15 +4,16 @@
 using namespace std;
 using namespace mfem;
 
-#define REY 1.0
+#define REY 40.0
 
 enum EX
 {
    MMS,
+   KOV,
    LDC
 };
 
-EX ex = EX::MMS;
+EX ex = EX::KOV;
 
 class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
@@ -174,11 +175,34 @@ void ffun(const Vector &x, Vector &u)
    double xi = x(0);
    double yi = x(1);
 
-   u(0) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * xi)
-   - 2.0 / REY * pow(M_PI, 2.0) * cos(M_PI * xi) * sin(M_PI * yi);
+   u(0) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * xi) - 2.0 / REY * pow(M_PI, 2.0) * cos(M_PI * xi) * sin(M_PI * yi);
 
-   u(1) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * yi)
-   + 2.0 / REY * pow(M_PI, 2.0) * cos(M_PI * yi) * sin(M_PI * xi);
+   u(1) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * yi) + 2.0 / REY * pow(M_PI, 2.0) * cos(M_PI * yi) * sin(M_PI * xi);
+}
+
+double kov_lam()
+{
+   return REY / 2.0 - sqrt(pow(REY, 2.0) / 4.0 + 4.0 * pow(M_PI, 2.0));
+}
+
+void kov_vel_ex(const Vector &x, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+
+   double lam = kov_lam();
+
+   u(0) = 1.0 - exp(lam * xi) * cos(2.0 * M_PI * yi);
+   u(1) = lam / (2.0 * M_PI) * exp(lam * xi) * sin(2.0 * M_PI * yi);
+}
+
+double kov_p_ex(const Vector &x)
+{
+   double xi = x(0);
+
+   double lam = kov_lam();
+
+   return 1.0 - 1.0 / 2.0 * exp(2.0 * lam * xi);
 }
 
 class NavierStokesOperator : public Operator
@@ -208,9 +232,9 @@ private:
    BlockOperator *lin;
 
    HypreSolver *invS;
-   HypreDiagScale *invMp;
+   HypreSolver *invMp;
    BlockDiagonalPreconditioner *stokesprec;
-   GMRESSolver *jac_solver;
+   IterativeSolver *jac_solver;
 
    NewtonSolver newton_solver;
 
@@ -266,6 +290,11 @@ public:
          VectorFunctionCoefficient uexcoeff(dim, vel_ex);
          vel_gf->ProjectBdrCoefficient(uexcoeff, ess_bdr_attr_);
       }
+      else if (ex == EX::KOV)
+      {
+         VectorFunctionCoefficient kovuexcoeff(dim, kov_vel_ex);
+         vel_gf->ProjectBdrCoefficient(kovuexcoeff, ess_bdr_attr_);
+      }
       else if (ex == EX::LDC)
       {
          VectorFunctionCoefficient ldccoeff(dim, vel_ldc);
@@ -280,15 +309,19 @@ public:
       N->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
       N->SetEssentialTrueDofs(ess_tdof_list_);
 
-      ParLinearForm *fform = new ParLinearForm;
-      VectorDomainLFIntegrator *fvint = new VectorDomainLFIntegrator(fcoeff);
-      fvint->SetIntRule(&IntRules.Get(pmesh_->GetElementBaseGeometry(0), 4 + 3)); // order + 3
-      fform->Update(fes[0], rhs.GetBlock(0), 0);
-      fform->AddDomainIntegrator(fvint);
-      fform->Assemble();
+      if (ex != EX::KOV)
+      {
+         ParLinearForm *fform = new ParLinearForm;
+         VectorDomainLFIntegrator *fvint = new VectorDomainLFIntegrator(fcoeff);
+         fvint->SetIntRule(&IntRules.Get(pmesh_->GetElementBaseGeometry(0), 4 + 3)); // order + 3
+         fform->Update(fes[0], rhs.GetBlock(0), 0);
+         fform->AddDomainIntegrator(fvint);
+         fform->Assemble();
+      }
 
       sform = new ParBilinearForm(fes[0]);
-      sform->AddDomainIntegrator(new VectorDiffusionIntegrator);
+      ConstantCoefficient kin_visc(1.0 / REY);
+      sform->AddDomainIntegrator(new VectorDiffusionIntegrator(kin_visc));
       // sform->SetDiagonalPolicy(Matrix::DiagonalPolicy::DIAG_ZERO);
       sform->Assemble();
       sform->EliminateEssentialBC(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(0));
@@ -340,21 +373,22 @@ public:
                                                      trueRhs.GetBlock(1));
 
       jac_solver = new GMRESSolver(MPI_COMM_WORLD);
-      jac_solver->iterative_mode = false;
+      jac_solver->iterative_mode = true;
       jac_solver->SetAbsTol(0.0);
       jac_solver->SetRelTol(1e-4);
-      jac_solver->SetMaxIter(200);
+      static_cast<GMRESSolver *>(jac_solver)->SetKDim(100);
+      jac_solver->SetMaxIter(500);
       jac_solver->SetOperator(*jac);
       jac_solver->SetPreconditioner(*stokesprec);
       jac_solver->SetPrintLevel(2);
 
-      newton_solver.iterative_mode = false;
+      newton_solver.iterative_mode = true;
       newton_solver.SetSolver(*jac_solver);
       newton_solver.SetOperator(*this);
       newton_solver.SetPrintLevel(1);
       newton_solver.SetAbsTol(0.0);
       newton_solver.SetRelTol(1e-7);
-      newton_solver.SetMaxIter(10);
+      newton_solver.SetMaxIter(15);
 
       // trueX.Randomize();
       // this->CheckJacobian(trueX, ess_tdof_list_);
@@ -380,17 +414,15 @@ public:
 
       delete NjacS;
 
-      // NjacS = Add(1.0, *static_cast<HypreParMatrix *>(&(N->GetGradient(u))), 1.0, *S);
+      hypre_ParCSRMatrix *NjacS_wrap;
+      hypre_ParcsrAdd(1.0, *static_cast<HypreParMatrix *>(&(N->GetGradient(u))), 1.0, *S, &NjacS_wrap);
+      NjacS = new HypreParMatrix(NjacS_wrap);
 
-      // hypre_ParCSRMatrix *NjacS_wrap;
-      // hypre_ParcsrAdd(1.0, *static_cast<HypreParMatrix *>(&(N->GetGradient(u))), 1.0, *S, &NjacS_wrap);
-      // NjacS = new HypreParMatrix(NjacS_wrap);
-
-      SparseMatrix *localJac = Add(1.0, N->GetLocalGradient(u), 1.0, sform->SpMat());
-      NjacS = sform->ParallelAssemble(localJac);
       NjacS->EliminateRowsCols(ess_tdof_list_);
 
       jac->SetBlock(0, 0, NjacS);
+
+      // invS->SetOperator(*NjacS);
 
       return *jac;
    }
@@ -482,6 +514,15 @@ int main(int argc, char *argv[])
    fes[0] = vel_fes;
    fes[1] = pres_fes;
 
+   int fes_size0 = fes[0]->GlobalVSize();
+   int fes_size1 = fes[1]->GlobalVSize();
+
+   if (myid == 0)
+   {
+      cout << "Velocity #DOFs: " << fes_size0 << endl;
+      cout << "Pressure #DOFs: " << fes_size1 << endl;
+   }
+
    NavierStokesOperator nso(fes);
 
    nso.Solve();
@@ -500,6 +541,33 @@ int main(int argc, char *argv[])
 
       VectorFunctionCoefficient uexcoeff(dim, vel_ex);
       FunctionCoefficient pexcoeff(p_ex);
+
+      double err_u = vel_gf->ComputeL2Error(uexcoeff, irs);
+      double norm_u = ComputeGlobalLpNorm(2, uexcoeff, *pmesh, irs);
+
+      double err_p = p_gf->ComputeL2Error(pexcoeff, irs);
+      double norm_p = ComputeGlobalLpNorm(2, pexcoeff, *pmesh, irs);
+
+      if (myid == 0)
+      {
+         cout << "|| u_h - u_ex || = " << err_u << "\n";
+         cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+         cout << "|| p_h - p_ex || = " << err_p << "\n";
+         cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+      }
+   }
+
+   if (ex == EX::KOV)
+   {
+      int order_quad = max(2, 2 * order + 1);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i = 0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(IntRules.Get(i, order_quad));
+      }
+
+      VectorFunctionCoefficient uexcoeff(dim, kov_vel_ex);
+      FunctionCoefficient pexcoeff(kov_p_ex);
 
       double err_u = vel_gf->ComputeL2Error(uexcoeff, irs);
       double norm_u = ComputeGlobalLpNorm(2, uexcoeff, *pmesh, irs);
