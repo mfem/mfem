@@ -316,9 +316,9 @@ protected:
    inline double solve(double l, const Vector &xt, Vector &x, int &nclip) const
    {
       add(xt, l, w, x);
-      x.median(lo,hi);
+      x.median(lo, hi);
       nclip++;
-      return Dot(w,x)-a;
+      return Dot(w, x) - a;
    }
 
    inline void print_iteration(int it, double r, double l) const;
@@ -355,7 +355,7 @@ private:
    std::vector<PetscLinearSolver *>  Sv;
    int myid;
    int NumGrids;
-   PetscLinearSolver *invAc=nullptr;
+   PetscLinearSolver *invAc = nullptr;
    double theta = 1.0;
 public:
    GMGSolver(HypreParMatrix * Af_, std::vector<HypreParMatrix *> P_);
@@ -366,17 +366,7 @@ public:
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~GMGSolver();
 };
-
-
-#endif 
-
-
-
-
-
-
-
-
+#endif
 
 #ifdef MFEM_USE_SUITESPARSE
 
@@ -433,10 +423,10 @@ protected:
 
 public:
    KLUSolver()
-      : mat(0),Symbolic(0),Numeric(0)
+      : mat(0), Symbolic(0), Numeric(0)
    { Init(); }
    KLUSolver(SparseMatrix &A)
-      : mat(0),Symbolic(0),Numeric(0)
+      : mat(0), Symbolic(0), Numeric(0)
    { Init(); SetOperator(A); }
 
    // Works on sparse matrices only; calls SparseMatrix::SortColumnIndices().
