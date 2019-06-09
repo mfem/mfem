@@ -35,7 +35,7 @@ void catenoid(const Vector &x, Vector &p);
 void catenoid_postfix(const int, const int, Mesh*);
 void mollusc(const Vector &x, Vector &p);
 
-// Surface mesh class
+// Surface mesh class *********************************************************
 class SurfaceMesh: public Mesh
 {
 public:
@@ -65,58 +65,169 @@ public:
    }
 };
 
-// ****************************************************************************
-void ExtractComponent(const GridFunction &phi, GridFunction &phi_i, int d)
+// Surface solver class *******************************************************
+class SurfaceSolver
 {
-   const FiniteElementSpace *fes = phi_i.FESpace();
-   // ASSUME phi IS ORDERED byNODES!
-   const int ndof = fes->GetNDofs();
-   for (int i = 0; i < ndof; i++)
-   {
-      const int j = d*ndof + i;
-      phi_i[i] = phi[j];
-   }
-}
+protected:
+   const bool pa, visualization, niter, wait;
+protected:
+   int sdim;
+   Mesh *mesh;
+   Vector X, B;
+   OperatorPtr A;
+   BilinearForm a;
+   Array<int> bc;
+   GridFunction x, b, *nodes, solution;
+   ConstantCoefficient one;
+public:
+   virtual ~SurfaceSolver() {}
+   SurfaceSolver(const bool p, const bool v,
+                 const int n, const bool w,
+                 Mesh *m, FiniteElementSpace *fes,
+                 Array<int> ess_tdof_list):
+      pa(p), visualization(v), niter(n), wait(w),
+      sdim(m->SpaceDimension()), mesh(m),
+      a(fes), bc(ess_tdof_list), x(fes), b(fes),
+      nodes(mesh->GetNodes()), solution(*nodes), one(1.0) {}
+   virtual void Solve() { MFEM_ABORT("Not implemented!"); }
+};
 
 // ****************************************************************************
-void AddToComponent(GridFunction &phi, const GridFunction &phi_i, int d,
-                    double alpha=1.0)
+class ComponentSolver: public SurfaceSolver
 {
-   const FiniteElementSpace *fes = phi_i.FESpace();
-   // ASSUME phi IS ORDERED byNODES!
-   const int ndof = fes->GetNDofs();
-   for (int i = 0; i < ndof; i++)
+public:
+   ComponentSolver(const bool pa,
+                   const bool vis,
+                   const int niter,
+                   const bool wait,
+                   Mesh *mesh,
+                   FiniteElementSpace *fes,
+                   Array<int> bc):
+      SurfaceSolver(pa, vis, niter, wait, mesh, fes, bc) {}
+
+   void Solve()
    {
-      const int j = d*ndof + i;
-      phi[j] += alpha*phi_i[i];
+      if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      for (int iiter=0; iiter<niter; ++iiter)
+      {
+         a.Assemble();
+         solution = *nodes;
+         for (int i=0; i<sdim; ++i)
+         {
+            b = 0.0;
+            GetComponent(*nodes, x, i);
+            a.FormLinearSystem(bc, x, b, A, X, B);
+            if (!pa)
+            {
+               // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+               GSSmoother M(static_cast<SparseMatrix&>(*A));
+               PCG(*A, M, B, X, 3, 2000, eps, 0.0);
+            }
+            else
+            {
+               CG(*A, B, X, 3, 2000, eps, 0.0);
+            }
+            // Recover the solution as a finite element grid function.
+            a.RecoverFEMSolution(X, b, x);
+            SetComponent(solution, x, i);
+         }
+         *nodes = solution;
+         // Send the solution by socket to a GLVis server.
+         if (visualization)
+         {
+            glvis << "mesh\n" << *mesh << flush;
+            if (wait) { glvis << "pause\n" << flush; }
+         }
+         a.Update();
+      }
    }
-}
+private:
+   void GetComponent(GridFunction &phi, const GridFunction &phi_i, int d)
+   {
+      const FiniteElementSpace *fes = phi_i.FESpace();
+      // ASSUME phi IS ORDERED byNODES!
+      const int ndof = fes->GetNDofs();
+      for (int i = 0; i < ndof; i++)
+      {
+         const int j = d*ndof + i;
+         phi[j] = phi_i[i];
+      }
+   }
+
+   void SetComponent(const GridFunction &phi, GridFunction &phi_i, int d)
+   {
+      const FiniteElementSpace *fes = phi_i.FESpace();
+      // ASSUME phi IS ORDERED byNODES!
+      const int ndof = fes->GetNDofs();
+      for (int i = 0; i < ndof; i++)
+      {
+         const int j = d*ndof + i;
+         phi_i[i] = phi[j];
+      }
+   }
+};
 
 // ****************************************************************************
-void SetComponent(GridFunction &phi, const GridFunction &phi_i, int d)
+class VectorSolver: public SurfaceSolver
 {
-   const FiniteElementSpace *fes = phi_i.FESpace();
-   // ASSUME phi IS ORDERED byNODES!
-   const int ndof = fes->GetNDofs();
-   for (int i = 0; i < ndof; i++)
+public:
+   VectorSolver(const bool pa,
+                const bool vis,
+                const int niter,
+                const bool wait,
+                Mesh *mesh,
+                FiniteElementSpace *fes,
+                Array<int> bc):
+      SurfaceSolver(pa, vis, niter, wait, mesh, fes, bc) {}
+
+   void Solve()
    {
-      const int j = d*ndof + i;
-      phi[j] = phi_i[i];
+      if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      a.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
+      for (int iiter=0; iiter<niter; ++iiter)
+      {
+         a.Assemble();
+         b = 0.0;
+         x = *nodes; // should only copy the BC
+         Vector B, X;
+         OperatorPtr A;
+         a.FormLinearSystem(bc, x, b, A, X, B);
+         if (!pa)
+         {
+            // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+            GSSmoother M(static_cast<SparseMatrix&>(*A));
+            PCG(*A, M, B, X, 3, 2000, eps, 0.0);
+         }
+         else
+         { CG(*A, B, X, 3, 2000, eps, 0.0); }
+         // Recover the solution as a finite element grid function.
+         a.RecoverFEMSolution(X, b, x);
+         *nodes = x;
+         // Send the solution by socket to a GLVis server.
+         if (visualization)
+         {
+            glvis << "mesh\n" << *mesh << flush;
+            if (wait) { glvis << "pause\n" << flush; }
+         }
+         a.Update();
+      }
    }
-}
+};
 
 // ****************************************************************************
 int main(int argc, char *argv[])
 {
-   int nx = 2;
-   int ny = 2;
-   int order = 2;
+   int nx = 4;
+   int ny = 4;
+   int order = 4;
    int niter = 2;
    bool pa = false;
-   int ref_levels = 0;
-   bool wait = true;
-   int parametrization = -1;
-   bool visualization = false;
+   int ref_levels = 1;
+   bool wait = false ;
+   bool components = true;
+   int parametrization = 4;
+   bool visualization = true;
    const char *keys = "gAaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../data/mobius-strip.mesh";
@@ -142,6 +253,8 @@ int main(int argc, char *argv[])
    args.AddOption(&keys, "-k", "--keys", "GLVis configuration keys.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable GLVis visualization.");
+   args.AddOption(&components, "-c", "--components", "-no-c",
+                  "--no-components", "Enable or disable the by 'component' solve");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -201,25 +314,6 @@ int main(int argc, char *argv[])
       vfes->GetEssentialTrueDofs(ess_bdr, v_ess_tdof_list);
    }
 
-   // Define the solution vector x as a finite element grid function
-   // and b as the right-hand side of the FEM linear system.
-   //GridFunction vx(vfes), vb(vfes);
-   GridFunction *nodes = mesh->GetNodes();
-   GridFunction phi_new(nodes->FESpace());
-   dbg("x, b");
-   GridFunction x(sfes), b(sfes);
-   x = 0.0;
-
-   // Set up the bilinear form a(.,.) on the finite element space.
-   //BilinearForm va(vfes);
-   ConstantCoefficient one(1.0);
-   //if (pa) { va.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   //va.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
-
-   BilinearForm a(sfes);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
-
    if (visualization)
    {
       //glvis << "solution\n" << *mesh << s <<flush;
@@ -229,79 +323,19 @@ int main(int argc, char *argv[])
       if (wait) { glvis << "pause\n" << flush; }
    }
 
-   for (int iiter=0; iiter<niter; ++iiter)
+   SurfaceSolver *solver;
+   if (components)
    {
-      dbg("a.Assemble");
-      a.Assemble();
-      dbg("phi_new = *nodes");
-      phi_new = *nodes;
-      for (int i=0; i<sdim; ++i)
-      {
-         b = 0.0;
-         dbg("ExtractComponent(%d)",i);
-         ExtractComponent(*nodes, x, i);
-         Vector B, X;
-         OperatorPtr A;
-         dbg("FormLinearSystem");
-         a.FormLinearSystem(s_ess_tdof_list, x, b, A, X, B);
-         if (!pa)
-         {
-            // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-            GSSmoother M(static_cast<SparseMatrix&>(*A));
-            PCG(*A, M, B, X, 1, 2000, eps, 0.0);
-         }
-         else
-         {
-            dbg("CG");
-            CG(*A, B, X, 1, 2000, eps, 0.0);
-         }
-         // Recover the solution as a finite element grid function.
-         dbg("RecoverFEMSolution");
-         a.RecoverFEMSolution(X, b, x);
-         dbg("SetComponent(%d)",i);
-         SetComponent(phi_new, x, i);
-      }
-      *nodes = phi_new;
-      // Send the solution by socket to a GLVis server.
-      if (visualization)
-      {
-         glvis << "mesh\n" << *mesh << flush;
-         if (wait) { glvis << "pause\n" << flush; }
-      }
-      dbg("Update");
-      a.Update();
+      solver = new ComponentSolver(pa, visualization, niter, wait,
+                                   mesh, sfes, s_ess_tdof_list);
    }
-   /*
-      for (int iiter=0; iiter<niter; ++iiter)
-      {
-         vb = 0.0;
-         vx = *nodes; // should only copy the BC
-         va.Assemble();
-         Vector vB, vX;
-         OperatorPtr vA;
-         va.FormLinearSystem(v_ess_tdof_list, vx, vb, vA, vX, vB);
-         if (!pa)
-         {
-            // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-            GSSmoother vM(static_cast<SparseMatrix&>(*vA));
-            PCG(*vA, vM, vB, vX, 3, 2000, eps, 0.0);
-         }
-         else
-         {
-            CG(*vA, vB, vX, 3, 2000, eps, 0.0);
-         }
-         // Recover the solution as a finite element grid function.
-         va.RecoverFEMSolution(vX, vb, vx);
-         *nodes = vx;
-         // Send the solution by socket to a GLVis server.
-         if (visualization)
-         {
-            glvis << "mesh\n" << *mesh << flush;
-            if (wait) { glvis << "pause\n" << flush; }
-         }
-         va.Update();
-      }
-      */
+   else
+   {
+      solver = new VectorSolver(pa, visualization, niter, wait,
+                                mesh, vfes, v_ess_tdof_list);
+   }
+   solver->Solve();
+
    // Free the used memory.
    delete sfes;
    delete vfes;
@@ -316,8 +350,8 @@ void catenoid(const Vector &x, Vector &p)
    // u in [0,2π] and v in [-2π/3,2π/3]
    const double u = 2.0*pi*x[0];
    const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
-   p[0] = cos(u)*0.1*cosh(v);
-   p[1] = sin(u)*0.1*cosh(v);
+   p[0] = cos(u)*cosh(v);
+   p[1] = sin(u)*cosh(v);
    p[2] = v;
 }
 
