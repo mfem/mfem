@@ -1001,8 +1001,8 @@ int main(int argc, char *argv[])
       {
          ostringstream oss;
          oss << "Ion Temperature at time " << t;
-         VisualizeField(sout[5], vishost, visport, ion_energy, oss.str().c_str(),
-                        Wx + 5 * (Ww + Dx), Wy + Wh + Dy, Ww, Wh);
+         VisualizeField(sout[3], vishost, visport, ion_energy, oss.str().c_str(),
+                        Wx + 3 * (Ww + Dx), Wy + Wh + Dy, Ww, Wh);
       }
       if (visualization)
       {
