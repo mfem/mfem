@@ -35,11 +35,11 @@ static double B_max_ = 5.0;
 static double v_max_ = 1e3;
 
 // Maximum characteristic speed (updated by integrators)
-static double max_char_speed_;
+//static double max_char_speed_;
 
 // Background fields and initial conditions
 static int prob_ = 4;
-static int gamma_ = 10;
+//static int gamma_ = 10;
 static double alpha_ = NAN;
 static double chi_max_ratio_ = 1.0;
 static double chi_min_ratio_ = 1.0;
