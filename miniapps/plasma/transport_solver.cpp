@@ -864,7 +864,10 @@ void DGTransportTDO::SetTeNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
 
 void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
 {
+   y = 0.0;
+
    int size = fes_->GetVSize();
+
    Te_x_.SetDataAndSize(const_cast<double*>(&x[4*size]), size);
    Te_y_.SetDataAndSize(&y[4*size], size);
    Te_oper_.ExplicitMult(Te_x_, Te_y_);
@@ -873,7 +876,10 @@ void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
 void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
                                    Vector &dudt)
 {
+   dudt = 0.0;
+
    int size = fes_->GetVSize();
+
    Te_u_.SetDataAndSize(const_cast<double*>(&u[4*size]), size);
    Te_dudt_.SetDataAndSize(&dudt[4*size], size);
    Te_oper_.ImplicitSolve(dt, Te_u_, Te_dudt_);
