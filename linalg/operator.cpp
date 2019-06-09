@@ -54,9 +54,9 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
    {
       dbg("!copy_interior");
       X.SetSubVectorComplement(ess_tdof_list, 0.0);
-      dbg("X:"); X.Print();
+      //dbg("X:"); X.Print();
    }
-   
+
    // Impose the boundary conditions through a ConstrainedOperator, which owns
    // the rap operator when P and R are non-trivial
    ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
@@ -201,10 +201,10 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
       const int id = idx[i];
       d_w[id] = d_x[id];
    });
-   dbg("w:"); w.Print();
-   
+   //dbg("w:"); w.Print();
+
    A->Mult(w, z);
-   dbg("z:"); z.Print();
+   //dbg("z:"); z.Print();
 
    b -= z;
    // Use read+write access - we are modifying sub-vector of b
@@ -218,7 +218,6 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
-   dbg("");
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
