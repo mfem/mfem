@@ -2152,14 +2152,13 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
-/*
+
    virtual void AssemblePA(const FiniteElementSpace&);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
-*/
 };
 
 /** Integrator for the linear elasticity form:

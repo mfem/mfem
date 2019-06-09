@@ -26,7 +26,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
-   const int dims = el.GetDim();
+   //const int dims = el.GetDim();
    const int sdim = 3;//el.GetDim();
    const int symmDims = (sdim * (sdim + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int NQ = ir->GetNPoints();

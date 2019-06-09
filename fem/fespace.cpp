@@ -2655,6 +2655,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    height = vdim*ne*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   dbg("dof_reorder: %s", dof_reorder?"YES":"NO");
    const int *dof_map = NULL;
    if (dof_reorder && ne > 0)
    {
@@ -2693,15 +2694,18 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       offsets[i] += offsets[i - 1];
    }
-   // For each global dof, fill in all local nodes that point to it
+   //dbg("For each global dof, fill in all local nodes that point to it");
    for (int e = 0; e < ne; ++e)
    {
+      //dbg("e: %d",e);
       for (int d = 0; d < dof; ++d)
       {
+         //dbg("dof: %d",d);
          const int did = (!dof_reorder)?d:dof_map[d];
          const int gid = elementMap[dof*e + did];
          const int lid = dof*e + d;
          indices[offsets[gid]++] = lid;
+         //dbg("indice[%d] = %d",offsets[gid]-1,lid);
       }
    }
    // We shifted the offsets vector by 1 by using it as a counter.
@@ -2801,6 +2805,7 @@ void QuadratureInterpolator::Eval2D(
    const int vdim,
    const DofToQuad &maps,
    const Vector &e_vec,
+   const Array<double> &W,
    Vector &q_val,
    Vector &q_der,
    Vector &q_det,
@@ -2816,12 +2821,16 @@ void QuadratureInterpolator::Eval2D(
    MFEM_VERIFY(VDIM == 2 || !(eval_flags & DETERMINANTS), "");
    auto B = Reshape(maps.B.Read(), NQ, ND);
    auto G = Reshape(maps.G.Read(), NQ, 2, ND);
+   //dbg("G:"); maps.G.Print();
    auto E = Reshape(e_vec.Read(), ND, VDIM, NE);
-   auto    /*X*/val = Reshape(q_val.Write(), NQ, VDIM, NE); 
+   //dbg("E:"); e_vec.Print();
+   auto    /*X*/val = Reshape(q_val.Write(), NQ, VDIM, NE);
    auto    /*J*/der = Reshape(q_der.Write(), NQ, VDIM, 2, NE);
    auto /*detJ*/det = Reshape(q_det.Write(), NQ, NE);
+   dbg("T_VDIM=%, max_VDIM=%d",T_VDIM, MAX_VDIM2D);
    MFEM_FORALL(e, NE,
    {
+      dbg("e=%d",e);
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -2837,6 +2846,8 @@ void QuadratureInterpolator::Eval2D(
       }
       for (int q = 0; q < NQ; ++q)
       {
+         //const double w = W[q];
+         //dbg("\tq: %d, w:%f", q, w);
          if (eval_flags & VALUES)
          {
             double ed[max_VDIM];
@@ -2852,24 +2863,36 @@ void QuadratureInterpolator::Eval2D(
          {
             // use MAX_VDIM2D to avoid "subscript out of range" warnings
             double D[MAX_VDIM2D*2];
+            //dbg("Flush D");
             for (int i = 0; i < 2*VDIM; i++) { D[i] = 0.0; }
             for (int d = 0; d < ND; ++d)
             {
+               //dbg("\t\tdof: %d", d);
                const double wx = G(q,0,d);
                const double wy = G(q,1,d);
+               dbg("\t\twx=%f, wy=%f", wx, wy);
                for (int c = 0; c < VDIM; c++)
                {
-                  double s_e = s_E[c+d*VDIM];
+                  //dbg("\t\t\tc: %d",c);
+                  const double s_e = s_E[c+d*VDIM];
+                  dbg("\t\t\ts_e: %f", s_e);
+                  dbg("\t\t\tD(%d & %d)", c+VDIM*0, c+VDIM*1);
                   D[c+VDIM*0] += s_e * wx;
                   D[c+VDIM*1] += s_e * wy;
+                  dbg("\t\t\tD: %f, %f", D[c+VDIM*0], D[c+VDIM*1]);
                }
             }
+            //dbg("Done sum");
+            for (int i = 0; i < 2*VDIM; i++) { dbg("D[%d] = %f",i,D[i]); }
             if (eval_flags & DERIVATIVES)
             {
                for (int c = 0; c < VDIM; c++)
                {
+                  //dbg("\t\t\tc: %d",c);
+                  //dbg("D: %f, %f", D[c+VDIM*0], D[c+VDIM*1]);
                   der(q,c,0,e) = D[c+VDIM*0];
                   der(q,c,1,e) = D[c+VDIM*1];
+                  dbg("J: %f, %f", der(q,c,0,e), der(q,c,1,e));
                }
             }
             if (VDIM == 2 && (eval_flags & DETERMINANTS))
@@ -2889,6 +2912,7 @@ void QuadratureInterpolator::Eval3D(
    const int vdim,
    const DofToQuad &maps,
    const Vector &e_vec,
+   const Array<double> &w,
    Vector &q_val,
    Vector &q_der,
    Vector &q_det,
@@ -2995,6 +3019,7 @@ void QuadratureInterpolator::Mult(
       const int vdim,
       const DofToQuad &maps,
       const Vector &e_vec,
+      const Array<double> &w,
       Vector &q_val,
       Vector &q_der,
       Vector &q_det,
@@ -3021,14 +3046,14 @@ void QuadratureInterpolator::Mult(
             case 1625: eval_func = &Eval2D<3,16,25>; break;
             case 1636: eval_func = &Eval2D<3,16,36>; break;
             // Q4
-            case 2525: dbg("2525"); eval_func = &Eval2D<3,25,25>; break;
+            case 2525: eval_func = &Eval2D<3,25,25>; break;
             case 2536: eval_func = &Eval2D<3,25,36>; break;
             case 2549: eval_func = &Eval2D<3,25,49>; break;
             case 2564: eval_func = &Eval2D<3,25,64>; break;
          }
       }
    }
-   
+
    if (vdim == 1)
    {
       if (dim == 2)
@@ -3139,7 +3164,8 @@ void QuadratureInterpolator::Mult(
    }
    if (eval_func)
    {
-      eval_func(ne, vdim, maps, e_vec, q_val, q_der, q_det, eval_flags);
+      eval_func(ne, vdim, maps, e_vec, IntRule->GetWeights(), q_val, q_der, q_det,
+                eval_flags);
    }
    else
    {

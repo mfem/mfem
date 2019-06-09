@@ -290,7 +290,7 @@ void CGSolver::UpdateVectors()
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
-   dbg("b:"); b.Print();
+   //dbg("b:"); b.Print();
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 

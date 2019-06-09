@@ -96,10 +96,8 @@ void PADiffusionSetup2D<2>(const int Q1D,
    dbg("");
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
-
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
-
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -124,39 +122,42 @@ void PADiffusionSetup2D<3>(const int Q1D,
                            const double COEFF,
                            Vector &op)
 {
-   dbg("");
+   //constexpr int VDIM = 3;
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
-
+   dbg("NQ=%d, NE=%d", NQ, NE);
    auto J = Reshape(j.Read(), NQ, 3, 2, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
-
-   MFEM_FORALL(e, NE,
+   //MFEM_FORALL(e, NE,
+   for (int e=0; e<NE; e++)
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double w = W[q];
+         const double wq = W[q];
          const double J11 = J(q,0,0,e);
          const double J21 = J(q,1,0,e);
          const double J31 = J(q,2,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double J32 = J(q,2,1,e);
-         const double e = J11*J11 + J21*J21 + J31*J31;
-         const double g = J12*J12 + J22*J22 + J32*J32;
-         const double f = J11*J12 + J21*J22 + J31*J32;
-         const double ad0 = J11*g - J12*f;
-         const double ad1 = J12*e - J11*f;
-         const double ad2 = J21*g - J22*f;
-         const double ad3 = J31*g - J21*f;
-         const double ad4 = J31*g - J32*f;
-         const double ad5 = J32*g - J31*f;
-         const double c_detJ = w * COEFF / ((J11*J22)-(J21*J12));
-         y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
-         y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
-         y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
+         dbg("Jacobian:");
+         dbg("%f %f",J11,J12);
+         dbg("%f %f",J21,J22);
+         dbg("%f %f",J31,J32);
+         const double E = J11*J11 + J21*J21 + J31*J31;
+         const double G = J12*J12 + J22*J22 + J32*J32;
+         const double F = J11*J12 + J21*J22 + J31*J32;
+         const double trw = sqrt(E*G - F*F);
+         dbg("wq=%f, coeff=%f, trw=%f", wq, COEFF, trw);
+         const double alpha = wq * COEFF / (trw*trw*trw);
+         dbg("alpha=%f", alpha);
+         dbg("e=%f, g=%f, f=%f", E,G,F);
+         y(q,0,e) =  alpha * G; // 1,1
+         y(q,1,e) = -alpha * F; // 1,2
+         y(q,2,e) =  alpha * E; // 2,2
+         dbg("Y: %f, %f, %f", y(q,0,e), y(q,1,e), y(q,2,e) );
       }
-   });
+   }//); fflush(0);
 }
 
 // PA Diffusion Assemble 3D kernel
@@ -230,8 +231,8 @@ static void PADiffusionSetup(const int dim,
          return;
       }
 #endif // MFEM_USE_OCCA
-      if (sdim == 2) PADiffusionSetup2D<2>(Q1D, NE, W, J, COEFF, op);
-      if (sdim == 3) PADiffusionSetup2D<3>(Q1D, NE, W, J, COEFF, op);
+      if (sdim == 2) { PADiffusionSetup2D<2>(Q1D, NE, W, J, COEFF, op); }
+      if (sdim == 3) { PADiffusionSetup2D<3>(Q1D, NE, W, J, COEFF, op); }
    }
    if (dim == 3)
    {

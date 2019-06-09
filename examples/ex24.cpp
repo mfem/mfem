@@ -39,8 +39,7 @@ void mollusc(const Vector &x, Vector &p);
 class SurfaceMesh: public Mesh
 {
 public:
-   SurfaceMesh(socketstream &glvis,
-               const int order,
+   SurfaceMesh(const int order,
                void (*parametrization)(const Vector &x, Vector &p),
                void (*postfix)(const int nx, const int ny, Mesh*),
                const int nx = 4,
@@ -109,15 +108,16 @@ void SetComponent(GridFunction &phi, const GridFunction &phi_i, int d)
 // ****************************************************************************
 int main(int argc, char *argv[])
 {
-   int nx = 3;
-   int ny = 3;
-   int order = 3;
+   int nx = 2;
+   int ny = 2;
+   int order = 2;
    int niter = 2;
    bool pa = false;
-   int ref_levels = 1;
-   bool wait = false;
+   int ref_levels = 0;
+   bool wait = true;
    int parametrization = -1;
-   bool visualization = true;
+   bool visualization = false;
+   const char *keys = "gAaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../data/mobius-strip.mesh";
 
@@ -139,6 +139,7 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&keys, "-k", "--keys", "GLVis configuration keys.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable GLVis visualization.");
    args.Parse();
@@ -165,15 +166,15 @@ int main(int argc, char *argv[])
       mesh = new Mesh(mesh_file, generate_edges, refine);
    }
    else if (parametrization==0)
-   { mesh = new SurfaceMesh(glvis, order, catenoid, catenoid_postfix, nx, ny); }
+   { mesh = new SurfaceMesh(order, catenoid, catenoid_postfix, nx, ny); }
    else if (parametrization==1)
-   { mesh = new SurfaceMesh(glvis, order, helicoid, nullptr, nx, ny); }
+   { mesh = new SurfaceMesh(order, helicoid, nullptr, nx, ny); }
    else if (parametrization==2)
-   { mesh = new SurfaceMesh(glvis, order, enneper2, nullptr, nx, ny); }
+   { mesh = new SurfaceMesh(order, enneper2, nullptr, nx, ny); }
    else if (parametrization==3)
-   { mesh = new SurfaceMesh(glvis, order, scherk, nullptr, nx, ny); }
+   { mesh = new SurfaceMesh(order, scherk, nullptr, nx, ny); }
    else if (parametrization==4)
-   { mesh = new SurfaceMesh(glvis, order, mollusc, nullptr, nx, ny); }
+   { mesh = new SurfaceMesh(order, mollusc, nullptr, nx, ny); }
    else { mfem_error("Not a valid parametrization, which should be in [0,4]"); }
    const bool discontinuous = false;
    const int mdim = mesh->Dimension();
@@ -204,12 +205,8 @@ int main(int argc, char *argv[])
    // and b as the right-hand side of the FEM linear system.
    //GridFunction vx(vfes), vb(vfes);
    GridFunction *nodes = mesh->GetNodes();
-
-   //GridFunction *phi = mesh->GetNodes();
    GridFunction phi_new(nodes->FESpace());
-   //GridFunction phi_i[3];
-   //for (int i=0; i<sdim; ++i) { phi_i[i].SetSpace(sfes); }
-
+   dbg("x, b");
    GridFunction x(sfes), b(sfes);
    x = 0.0;
 
@@ -227,7 +224,7 @@ int main(int argc, char *argv[])
    {
       //glvis << "solution\n" << *mesh << s <<flush;
       glvis << "mesh\n" << *mesh << flush;
-      glvis << "keys gAmaa\n";
+      glvis << "keys " << keys << "\n";
       glvis << "window_size 800 800\n";
       if (wait) { glvis << "pause\n" << flush; }
    }
@@ -241,22 +238,16 @@ int main(int argc, char *argv[])
       for (int i=0; i<sdim; ++i)
       {
          b = 0.0;
-         dbg("b:");b.Print();
          dbg("ExtractComponent(%d)",i);
          ExtractComponent(*nodes, x, i);
-         dbg("x:");x.Print();
          Vector B, X;
          OperatorPtr A;
          dbg("FormLinearSystem");
          a.FormLinearSystem(s_ess_tdof_list, x, b, A, X, B);
-         dbg("X:");X.Print();
-         dbg("B:");B.Print();
-         return 0;
          if (!pa)
          {
             // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
             GSSmoother M(static_cast<SparseMatrix&>(*A));
-            dbg("PCG");
             PCG(*A, M, B, X, 1, 2000, eps, 0.0);
          }
          else
@@ -275,7 +266,6 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          glvis << "mesh\n" << *mesh << flush;
-         glvis << "keys gAmaa\n" << flush;
          if (wait) { glvis << "pause\n" << flush; }
       }
       dbg("Update");
@@ -326,8 +316,8 @@ void catenoid(const Vector &x, Vector &p)
    // u in [0,2π] and v in [-2π/3,2π/3]
    const double u = 2.0*pi*x[0];
    const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
-   p[0] = cos(u);//*cosh(v);
-   p[1] = sin(u);//*cosh(v);
+   p[0] = cos(u)*0.1*cosh(v);
+   p[1] = sin(u)*0.1*cosh(v);
    p[2] = v;
 }
 
@@ -415,11 +405,12 @@ void scherk(const Vector &x, Vector &p)
 }
 
 // Mollusc shell model
-void mollusc(const Vector &x, Vector &p){
+void mollusc(const Vector &x, Vector &p)
+{
    p.SetSize(3);
    // u in [0,2π] and v in [-15, 6]
    const double u = 2.0*pi*x[0];
-   const double v = 21.0*x[1]-15.0;   
+   const double v = 21.0*x[1]-15.0;
    p[0] = +1.0*pow(1.16,v)*cos(v)*(1.0+cos(u));
    p[1] = -1.0*pow(1.16,v)*sin(v)*(1.0+cos(u));
    p[2] = -2.0*pow(1.16,v)*(1.0+sin(u));
