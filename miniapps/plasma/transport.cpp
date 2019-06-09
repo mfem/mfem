@@ -570,7 +570,7 @@ int main(int argc, char *argv[])
       offsets[k] = k * fes.GetNDofs();
    }
    ParGridFunction u(&ffes);
-   BlockVector u_block(u.GetData(), offsets);
+   // BlockVector u_block(u.GetData(), offsets);
    /*
    Array<int> n_offsets(num_species_ + 2);
    for (int k = 0; k <= num_species_ + 1; k++)
@@ -840,11 +840,11 @@ int main(int argc, char *argv[])
    ode_controller.SetRejectionLimit(rej_ode);
 
    // Density, Velocity, and Energy grid functions on for visualization.
-   ParGridFunction neu_density(&fes, u_block.GetData());
-   ParGridFunction ion_density(&fes, u_block.GetData() + offsets[1]);
-   ParGridFunction para_velocity(&fes, u_block.GetData() + offsets[2]);
-   ParGridFunction ion_energy(&fes, u_block.GetData() + offsets[3]);
-   ParGridFunction elec_energy(&fes, u_block.GetData() + offsets[4]);
+   ParGridFunction neu_density(&fes, u.GetData());
+   ParGridFunction ion_density(&fes, u.GetData() + offsets[1]);
+   ParGridFunction para_velocity(&fes, u.GetData() + offsets[2]);
+   ParGridFunction ion_energy(&fes, u.GetData() + offsets[3]);
+   ParGridFunction elec_energy(&fes, u.GetData() + offsets[4]);
 
    // ParGridFunction u(&fes);
    // u.ProjectCoefficient(u0Coef);
@@ -972,7 +972,7 @@ int main(int argc, char *argv[])
    if (mpi.Root()) { cout << "\nBegin time stepping at t = " << t << endl; }
    while (t < t_final)
    {
-      ode_controller.Run(u_block, t, t_final);
+      ode_controller.Run(u, t, t_final);
 
       if (mpi.Root()) { cout << "Time stepping paused at t = " << t << endl; }
 
