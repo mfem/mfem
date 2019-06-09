@@ -249,6 +249,43 @@ public:
    void Update();
 };
 
+class DGTransportTDO : public TimeDependentOperator
+{
+private:
+   ParFiniteElementSpace *fes_;
+   ParFiniteElementSpace *ffes_;
+
+   DGAdvectionDiffusionTDO Te_oper_;
+
+   mutable Vector Te_x_;
+   mutable Vector Te_y_;
+   Vector Te_u_;
+   Vector Te_dudt_;
+
+public:
+   DGTransportTDO(DGParams & dg,
+                  ParFiniteElementSpace &fes,
+                  ParFiniteElementSpace &ffes,
+                  Coefficient &CCoef, bool imex = true);
+
+   ~DGTransportTDO();
+
+   void SetTime(const double _t);
+
+   void SetTeAdvectionCoefficient(VectorCoefficient &VCoef);
+   void SetTeDiffusionCoefficient(Coefficient &dCoef);
+   void SetTeDiffusionCoefficient(MatrixCoefficient &DCoef);
+   void SetTeSourceCoefficient(Coefficient &SCoef);
+
+   void SetTeDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
+   void SetTeNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
+
+   virtual void ExplicitMult(const Vector &x, Vector &y) const;
+   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &dudt);
+
+   void Update();
+};
+
 class MultiSpeciesDiffusion;
 class MultiSpeciesAdvection;
 

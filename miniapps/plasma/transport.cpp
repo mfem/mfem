@@ -242,6 +242,62 @@ public:
    }
 };
 
+class VectorNormedDifferenceMeasure : public ODEDifferenceMeasure
+{
+private:
+   Array<double> w_;
+   Array<NormedDifferenceMeasure*> msr_;
+
+   int size_;
+   Vector u0_;
+   Vector u1_;
+
+public:
+   VectorNormedDifferenceMeasure(MPI_Comm comm, Array<double> & weights)
+      : w_(weights),
+        msr_(w_.Size()),
+        size_(0),
+        u0_(NULL, 0),
+        u1_(NULL, 0)
+   {
+      msr_ = NULL;
+      for (int i=0; i<w_.Size(); i++)
+      {
+         if (w_[i] != 0.0)
+         {
+            msr_[i] = new NormedDifferenceMeasure(comm);
+         }
+      }
+   }
+
+   void SetOperator(const Operator & op)
+   {
+      size_ = op.Width();
+      for (int i=0; i<w_.Size(); i++)
+      {
+         if (msr_[i] != NULL)
+         {
+            msr_[i]->SetOperator(op);
+         }
+      }
+   }
+
+   double Eval(Vector &u0, Vector &u1)
+   {
+      double m= 0.0;
+      for (int i=0; i<w_.Size(); i++)
+      {
+         if (w_[i] != 0.0)
+         {
+            u0_.SetDataAndSize(&u0[i * size_], size_);
+            u1_.SetDataAndSize(&u1[i * size_], size_);
+            m += w_[i] * msr_[i]->Eval(u0_, u1_);
+         }
+      }
+      return m;
+   }
+};
+
 // Initial condition
 void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &fespace,
@@ -749,7 +805,10 @@ int main(int argc, char *argv[])
    m.Assemble();
    m.Finalize();
 
-   NormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD);
+   Array<double> weights(5);
+   weights = 0.0;
+   weights[4] = 1.0;
+   VectorNormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD, weights);
    ode_diff_msr.SetOperator(m);
 
    ConstantCoefficient one(1.0);
@@ -758,15 +817,16 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient VCoef(dim, vFunc);
    FunctionCoefficient QCoef(QFunc);
 
-   DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
+   // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
+   DGTransportTDO oper(dg, fes, ffes, one, imex);
 
-   oper.SetDiffusionCoefficient(DCoef);
-   oper.SetAdvectionCoefficient(VCoef);
-   oper.SetSourceCoefficient(QCoef);
+   oper.SetTeDiffusionCoefficient(DCoef);
+   oper.SetTeAdvectionCoefficient(VCoef);
+   oper.SetTeSourceCoefficient(QCoef);
 
    Array<int> dbcAttr(pmesh.bdr_attributes.Max());
    dbcAttr = 1;
-   oper.SetDirichletBC(dbcAttr, u0Coef);
+   oper.SetTeDirichletBC(dbcAttr, u0Coef);
 
    oper.SetTime(0.0);
    ode_solver->Init(oper);
@@ -912,7 +972,7 @@ int main(int argc, char *argv[])
    if (mpi.Root()) { cout << "\nBegin time stepping at t = " << t << endl; }
    while (t < t_final)
    {
-      ode_controller.Run(elec_energy, t, t_final);
+      ode_controller.Run(u_block, t, t_final);
 
       if (mpi.Root()) { cout << "Time stepping paused at t = " << t << endl; }
 
@@ -940,15 +1000,15 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          ostringstream oss;
-         oss << "Electron Temperature at time " << t;
-         VisualizeField(sout[3], vishost, visport, elec_energy, oss.str().c_str(),
-                        Wx + 3 * (Ww + Dx), Wy + Wh + Dy, Ww, Wh);
+         oss << "Ion Temperature at time " << t;
+         VisualizeField(sout[5], vishost, visport, ion_energy, oss.str().c_str(),
+                        Wx + 5 * (Ww + Dx), Wy + Wh + Dy, Ww, Wh);
       }
       if (visualization)
       {
          ostringstream oss;
-         oss << "Ion Temperature at time " << t;
-         VisualizeField(sout[4], vishost, visport, ion_energy, oss.str().c_str(),
+         oss << "Electron Temperature at time " << t;
+         VisualizeField(sout[4], vishost, visport, elec_energy, oss.str().c_str(),
                         Wx + 4 * (Ww + Dx), Wy + Wh + Dy, Ww, Wh);
       }
 
