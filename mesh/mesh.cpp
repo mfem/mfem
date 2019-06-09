@@ -9584,24 +9584,20 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const Operator *elem_restr =
       nfes->GetElementRestriction(ElementDofOrdering::NATIVE);
    elem_restr->Mult(*nodes, Enodes);
-   //dbg("Enodes:\n"); Enodes.Print();
 
    unsigned eval_flags = 0;
    if (flags & GeometricFactors::COORDINATES)
    {
-      dbg("COORDINATES");
       X.SetSize(vdim*NQ*NE);
       eval_flags |= QuadratureInterpolator::VALUES;
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      dbg("JACOBIANS");
       J.SetSize(edim*vdim*NQ*NE);
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)
    {
-      dbg("DETERMINANTS");
       detJ.SetSize(NQ*NE);
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
@@ -9610,12 +9606,6 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    // For now, we are not using tensor product evaluation (not implemented)
    qi->DisableTensorProducts();
    qi->Mult(Enodes, eval_flags, X, J, detJ);
-
-   if (flags & GeometricFactors::JACOBIANS)
-   {
-      //dbg("J:"); J.Print();
-   }
-   dbg("done");
 }
 
 

@@ -12,7 +12,6 @@
 // Implementation of Bilinear Form Integrators
 
 #include "fem.hpp"
-#include "../general/dbg.hpp"
 #include <cmath>
 #include <algorithm>
 
@@ -399,42 +398,27 @@ void DiffusionIntegrator::AssembleElementMatrix
    invdfdx.SetSize(dim,spaceDim);
 #endif
    elmat.SetSize(nd);
-   dbg("nd=%d, dim=%d, spaceDim=%d", nd, dim, spaceDim);
-   dbg("elmat.Size()=%dx%d", elmat.Height(),elmat.Width());
-   dbg("dshape.Size()=%dx%d", dshape.Height(),dshape.Width());
-   dbg("dshapedxt.Size()=%dx%d", dshapedxt.Height(), dshapedxt.Width());
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
-      dbg("i=%d/%d",i,ir->GetNPoints());
       const IntegrationPoint &ip = ir->IntPoint(i);
       el.CalcDShape(ip, dshape);
-      dbg("dshape:\n"); dshape.Print();
 
       Trans.SetIntPoint(&ip);
-      //dbg("X (ip): %f, %f, %f", ip.x, ip.y, ip.z);
       w = Trans.Weight();
-      dbg("Trans.Weight()=%f", w);
       w = ip.weight / (square ? w : w*w*w);
-      dbg("w=%f", w);
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
-      const DenseMatrix &J = Trans.Jacobian();
-      dbg("J:\n"); J.Print();
       Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
-      dbg("Trans.AdjugateJacobian():\n"); Trans.AdjugateJacobian().Print();
-      dbg("dshapedxt:\n"); dshapedxt.Print();
       if (!MQ)
       {
          if (Q)
          {
             w *= Q->Eval(Trans, ip);
          }
-         dbg("w=%f", w);
          AddMult_a_AAt(w, dshapedxt, elmat);
-         dbg("elmat:\n"); elmat.Print();
       }
       else
       {
