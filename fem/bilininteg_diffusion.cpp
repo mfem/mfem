@@ -9,7 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
@@ -93,7 +92,6 @@ void PADiffusionSetup2D<2>(const int Q1D,
                            const double COEFF,
                            Vector &op)
 {
-   dbg("");
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
@@ -125,11 +123,10 @@ void PADiffusionSetup2D<3>(const int Q1D,
    //constexpr int VDIM = 3;
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
-   dbg("NQ=%d, NE=%d", NQ, NE);
+
    auto J = Reshape(j.Read(), NQ, 3, 2, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
-   //MFEM_FORALL(e, NE,
-   for (int e=0; e<NE; e++)
+   MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -140,24 +137,16 @@ void PADiffusionSetup2D<3>(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double J32 = J(q,2,1,e);
-         dbg("Jacobian:");
-         dbg("%f %f",J11,J12);
-         dbg("%f %f",J21,J22);
-         dbg("%f %f",J31,J32);
          const double E = J11*J11 + J21*J21 + J31*J31;
          const double G = J12*J12 + J22*J22 + J32*J32;
          const double F = J11*J12 + J21*J22 + J31*J32;
          const double trw = sqrt(E*G - F*F);
-         dbg("wq=%f, coeff=%f, trw=%f", wq, COEFF, trw);
          const double alpha = wq * COEFF / (trw*trw*trw);
-         dbg("alpha=%f", alpha);
-         dbg("e=%f, g=%f, f=%f", E,G,F);
          y(q,0,e) =  alpha * G; // 1,1
          y(q,1,e) = -alpha * F; // 1,2
          y(q,2,e) =  alpha * E; // 2,2
-         dbg("Y: %f, %f, %f", y(q,0,e), y(q,1,e), y(q,2,e) );
       }
-   }//); fflush(0);
+   });
 }
 
 // PA Diffusion Assemble 3D kernel
@@ -220,7 +209,6 @@ static void PADiffusionSetup(const int dim,
                              const double COEFF,
                              Vector &op)
 {
-   dbg("");
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADiffusionSetup"); }
    if (dim == 2)
    {
@@ -255,11 +243,9 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
    const int eldim = el.GetDim();
-   dbg("el.GetDim()=%d", eldim);
    const int symmDims = (eldim * (eldim + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
-   dbg("mesh->Dimension()=%d", dim);
    ne = fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    const int sdim = mesh->SpaceDimension();

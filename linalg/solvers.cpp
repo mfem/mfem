@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "linalg.hpp"
-#include "../general/dbg.hpp"
 #include "../general/globals.hpp"
 #include <iostream>
 #include <iomanip>
@@ -290,7 +289,6 @@ void CGSolver::UpdateVectors()
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
-   //dbg("b:"); b.Print();
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 

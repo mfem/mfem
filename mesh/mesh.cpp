@@ -13,7 +13,6 @@
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
-#include "../general/dbg.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
 #include "../general/device.hpp"
@@ -9574,7 +9573,6 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const FiniteElement *fe = nfes->GetFE(0);
    const int edim = fe->GetDim();
    const int vdim = nfes->GetVDim();
-   dbg("nodes vdim=%d", vdim);
    const int NE   = nfes->GetNE();
    const int ND   = fe->GetDof();
    const int NQ   = ir.GetNPoints();

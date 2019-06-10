@@ -12,7 +12,6 @@
 #include "vector.hpp"
 #include "dtensor.hpp"
 #include "operator.hpp"
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 
 #include <iostream>
@@ -26,14 +25,12 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
-   dbg("");
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
    Operator *rap;
 
    if (P)
    {
-      dbg("Variational restriction with P");
       // Variational restriction with P
       B.SetSize(P->Width(), b);
       P->MultTranspose(b, B);
@@ -43,7 +40,6 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
    }
    else
    {
-      dbg("rap, X and B");
       // rap, X and B point to the same data as this, x and b, respectively
       X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
       B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
@@ -52,9 +48,7 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    if (!copy_interior)
    {
-      dbg("!copy_interior");
       X.SetSubVectorComplement(ess_tdof_list, 0.0);
-      //dbg("X:"); X.Print();
    }
 
    // Impose the boundary conditions through a ConstrainedOperator, which owns
@@ -188,9 +182,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
-   dbg("");
    w = 0.0;
-   //dbg("w:"); w.Print();
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
    auto d_x = x.Read();
@@ -201,10 +193,8 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
       const int id = idx[i];
       d_w[id] = d_x[id];
    });
-   //dbg("w:"); w.Print();
 
    A->Mult(w, z);
-   //dbg("z:"); z.Print();
 
    b -= z;
    // Use read+write access - we are modifying sub-vector of b

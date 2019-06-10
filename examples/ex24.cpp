@@ -12,7 +12,6 @@
 //               ex24 -p 0 -pa
 
 #include "mfem.hpp"
-#include "general/dbg.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -34,6 +33,8 @@ void helicoid(const Vector &x, Vector &p);
 void catenoid(const Vector &x, Vector &p);
 void catenoid_postfix(const int, const int, Mesh*);
 void mollusc(const Vector &x, Vector &p);
+void hold(const Vector &x, Vector &p);
+void peach(const Vector &x, Vector &p);
 
 // Surface mesh class *********************************************************
 class SurfaceMesh: public Mesh
@@ -69,12 +70,13 @@ public:
 class SurfaceSolver
 {
 protected:
-   const bool pa, visualization, niter, wait;
-protected:
-   int sdim;
+   const bool pa, visualization, wait;
+   const int niter;
+   const int sdim;
    Mesh *mesh;
    Vector X, B;
    OperatorPtr A;
+   FiniteElementSpace *fes;
    BilinearForm a;
    Array<int> bc;
    GridFunction x, b, *nodes, solution;
@@ -83,12 +85,12 @@ public:
    virtual ~SurfaceSolver() {}
    SurfaceSolver(const bool p, const bool v,
                  const int n, const bool w,
-                 Mesh *m, FiniteElementSpace *fes,
+                 Mesh *m, FiniteElementSpace *f,
                  Array<int> ess_tdof_list):
-      pa(p), visualization(v), niter(n), wait(w),
-      sdim(m->SpaceDimension()), mesh(m),
+      pa(p), visualization(v), wait(w), niter(n),
+      sdim(m->SpaceDimension()), mesh(m), fes(f),
       a(fes), bc(ess_tdof_list), x(fes), b(fes),
-      nodes(mesh->GetNodes()), solution(*nodes), one(1.0) {}
+      nodes(mesh->GetNodes()), solution(*nodes), one(1.0) { }
    virtual void Solve() { MFEM_ABORT("Not implemented!"); }
 };
 
@@ -103,7 +105,7 @@ public:
                    Mesh *mesh,
                    FiniteElementSpace *fes,
                    Array<int> bc):
-      SurfaceSolver(pa, vis, niter, wait, mesh, fes, bc) {}
+      SurfaceSolver(pa, vis, niter, wait, mesh, fes, bc) { }
 
    void Solve()
    {
@@ -115,8 +117,8 @@ public:
          solution = *nodes;
          for (int i=0; i<sdim; ++i)
          {
-            b = 0.0;
-            GetComponent(*nodes, x, i);
+            x = b = 0.0;
+            GetComponent(solution, x, i);
             a.FormLinearSystem(bc, x, b, A, X, B);
             if (!pa)
             {
@@ -124,10 +126,7 @@ public:
                GSSmoother M(static_cast<SparseMatrix&>(*A));
                PCG(*A, M, B, X, 3, 2000, eps, 0.0);
             }
-            else
-            {
-               CG(*A, B, X, 3, 2000, eps, 0.0);
-            }
+            else { CG(*A, B, X, 3, 2000, eps, 0.0); }
             // Recover the solution as a finite element grid function.
             a.RecoverFEMSolution(X, b, x);
             SetComponent(solution, x, i);
@@ -143,28 +142,20 @@ public:
       }
    }
 private:
-   void GetComponent(GridFunction &phi, const GridFunction &phi_i, int d)
+   void SetComponent(GridFunction &phi, const GridFunction &phi_i, const int d)
    {
-      const FiniteElementSpace *fes = phi_i.FESpace();
       // ASSUME phi IS ORDERED byNODES!
       const int ndof = fes->GetNDofs();
       for (int i = 0; i < ndof; i++)
-      {
-         const int j = d*ndof + i;
-         phi[j] = phi_i[i];
-      }
+      { phi[d*ndof + i] = phi_i[i]; }
    }
 
-   void SetComponent(const GridFunction &phi, GridFunction &phi_i, int d)
+   void GetComponent(const GridFunction &phi, GridFunction &phi_i, const int d)
    {
-      const FiniteElementSpace *fes = phi_i.FESpace();
       // ASSUME phi IS ORDERED byNODES!
       const int ndof = fes->GetNDofs();
       for (int i = 0; i < ndof; i++)
-      {
-         const int j = d*ndof + i;
-         phi_i[i] = phi[j];
-      }
+      { phi_i[i] = phi[d*ndof + i]; }
    }
 };
 
@@ -199,8 +190,7 @@ public:
             GSSmoother M(static_cast<SparseMatrix&>(*A));
             PCG(*A, M, B, X, 3, 2000, eps, 0.0);
          }
-         else
-         { CG(*A, B, X, 3, 2000, eps, 0.0); }
+         else { CG(*A, B, X, 3, 2000, eps, 0.0); }
          // Recover the solution as a finite element grid function.
          a.RecoverFEMSolution(X, b, x);
          *nodes = x;
@@ -221,12 +211,12 @@ int main(int argc, char *argv[])
    int nx = 4;
    int ny = 4;
    int order = 4;
-   int niter = 2;
+   int niter = 4;
    bool pa = false;
    int ref_levels = 1;
-   bool wait = false ;
+   bool wait = false;
    bool components = true;
-   int parametrization = 4;
+   int parametrization = 0;
    bool visualization = true;
    const char *keys = "gAaa";
    const char *device_config = "cpu";
@@ -254,10 +244,12 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable GLVis visualization.");
    args.AddOption(&components, "-c", "--components", "-no-c",
-                  "--no-components", "Enable or disable the by 'component' solve");
+                  "--no-components", "Enable or disable the 'by component' solver");
+
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
+   MFEM_VERIFY(components || !pa, "Vector solver does not support PA yet!");
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -288,7 +280,11 @@ int main(int argc, char *argv[])
    { mesh = new SurfaceMesh(order, scherk, nullptr, nx, ny); }
    else if (parametrization==4)
    { mesh = new SurfaceMesh(order, mollusc, nullptr, nx, ny); }
-   else { mfem_error("Not a valid parametrization, which should be in [0,4]"); }
+   else if (parametrization==5)
+   { mesh = new SurfaceMesh(order, hold, nullptr, nx, ny); }
+   else if (parametrization==6)
+   { mesh = new SurfaceMesh(order, peach, nullptr, nx, ny); }
+   else { mfem_error("Not a valid parametrization, p should be in ]-infty, 6]"); }
    const bool discontinuous = false;
    const int mdim = mesh->Dimension();
    const int sdim = mesh->SpaceDimension();
@@ -448,4 +444,37 @@ void mollusc(const Vector &x, Vector &p)
    p[0] = +1.0*pow(1.16,v)*cos(v)*(1.0+cos(u));
    p[1] = -1.0*pow(1.16,v)*sin(v)*(1.0+cos(u));
    p[2] = -2.0*pow(1.16,v)*(1.0+sin(u));
+}
+
+// **********************************
+void hold(const Vector &x, Vector &p)
+{
+   p.SetSize(3);
+   // u in [0,2π] and v in [0,1]
+   const double u = 2.0*pi*x[0];
+   const double v = x[1];
+   p[0] = cos(u)*(1.0 + 0.3*sin(5.*u + pi*v));
+   p[1] = sin(u)*(1.0 + 0.3*sin(5.*u + pi*v));
+   p[2] = v;
+}
+
+// ***********************************
+void peach(const Vector &X, Vector &p)
+{
+   p = X;
+   const double x = 2.0*X[0]-1.0;
+   const double y = X[1];
+   const double h = 1.0;
+   const double r = sqrt(x*x + y*y);
+   const double t = (x==0.0) ? pi/2.0 :
+                    (y==0.0 && x>0.0) ? 0. :
+                    (y==0.0 && x<0.0) ? pi : acos(x/r);
+   const double sqrtx = sqrt(1.0 + x*x);
+   const double sqrty = sqrt(1.0 + y*y);
+   const bool yaxis = pi/4.0<t && t < 3.0*pi/4.0;
+   const double R = yaxis?sqrtx:sqrty;
+   const double gamma = r/R;
+   p[0] = gamma * cos(t);
+   p[1] = gamma * sin(t);
+   p[2] = h*(1.0 - gamma);
 }
