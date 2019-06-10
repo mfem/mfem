@@ -1,142 +1,21 @@
 #include "mfem.hpp"
+#include "vec_conv_integrator.hpp"
 #include <fstream>
 
 using namespace std;
 using namespace mfem;
 
-#define REY 40.0
+#define REY 20.0
 
 enum EX
 {
    MMS,
    KOV,
-   LDC
+   LDC,
+   CYL,
 };
 
-EX ex = EX::KOV;
-
-class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
-{
-private:
-   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
-   Vector shape;
-
-public:
-   VectorConvectionNLFIntegrator(){};
-
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &trans,
-                                      const Vector &elfun, Vector &elvect)
-   {
-      int nd = el.GetDof();
-      int dim = el.GetDim();
-
-      shape.SetSize(nd);
-      dshape.SetSize(nd, dim);
-      elvect.SetSize(nd * dim);
-      gradEF.SetSize(dim);
-
-      EF.UseExternalData(elfun.GetData(), nd, dim);
-      ELV.UseExternalData(elvect.GetData(), nd, dim);
-
-      double w;
-      Vector vec1(dim), vec2(dim);
-
-      const IntegrationRule *ir = IntRule;
-      if (ir == nullptr)
-      {
-         int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-         ir = &IntRules.Get(el.GetGeomType(), order);
-      }
-
-      // Same as elvect = 0.0;
-      ELV = 0.0;
-      for (int i = 0; i < ir->GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(i);
-         trans.SetIntPoint(&ip);
-
-         el.CalcShape(ip, shape);
-         el.CalcPhysDShape(trans, dshape);
-
-         w = ip.weight * trans.Weight();
-
-         MultAtB(EF, dshape, gradEF);
-         EF.MultTranspose(shape, vec1);
-         gradEF.Mult(vec1, vec2);
-         vec2 *= w;
-
-         AddMultVWt(shape, vec2, ELV);
-      }
-   }
-
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &trans,
-                                    const Vector &elfun, DenseMatrix &elmat)
-   {
-      int nd = el.GetDof();
-      int dim = el.GetDim();
-
-      shape.SetSize(nd);
-      dshape.SetSize(nd, dim);
-      dshapex.SetSize(nd, dim);
-      elmat.SetSize(nd * dim);
-      elmat_comp.SetSize(nd);
-      gradEF.SetSize(dim);
-
-      EF.UseExternalData(elfun.GetData(), nd, dim);
-
-      double w;
-      Vector vec1(dim), vec2(dim), vec3(nd);
-
-      const IntegrationRule *ir = IntRule;
-      if (ir == nullptr)
-      {
-         int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-         ir = &IntRules.Get(el.GetGeomType(), order);
-      }
-
-      elmat = 0.0;
-      for (int i = 0; i < ir->GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(i);
-         trans.SetIntPoint(&ip);
-
-         el.CalcShape(ip, shape);
-         el.CalcDShape(ip, dshape);
-
-         Mult(dshape, trans.InverseJacobian(), dshapex);
-
-         w = ip.weight;
-
-         MultAtB(EF, dshapex, gradEF);
-         EF.MultTranspose(shape, vec1);
-
-         trans.AdjugateJacobian().Mult(vec1, vec2);
-
-         vec2 *= w;
-         dshape.Mult(vec2, vec3);
-         MultVWt(shape, vec3, elmat_comp);
-
-         for (int i = 0; i < dim; i++)
-         {
-            elmat.AddMatrix(elmat_comp, i * nd, i * nd);
-         }
-
-         MultVVt(shape, elmat_comp);
-         w = ip.weight * trans.Weight();
-         for (int i = 0; i < dim; i++)
-         {
-            for (int j = 0; j < dim; j++)
-            {
-               elmat.AddMatrix(w * gradEF(i, j), elmat_comp, i * nd, j * nd);
-            }
-         }
-      }
-   }
-
-   virtual ~VectorConvectionNLFIntegrator(){};
-};
+EX ex = EX::LDC;
 
 void vel_ex(const Vector &x, Vector &u)
 {
@@ -145,6 +24,24 @@ void vel_ex(const Vector &x, Vector &u)
 
    u(0) = -cos(M_PI * xi) * sin(M_PI * yi);
    u(1) = sin(M_PI * xi) * cos(M_PI * yi);
+}
+
+void vel_cyl(const Vector &x, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+
+   double U = 0.3;
+
+   if (xi <= 1e-8)
+   {
+      u(0) = 4.0 * U * yi * (0.41 - yi) / (pow(0.41, 2.0));
+   }
+   else
+   {
+      u(0) = 0.0;
+   }
+   u(1) = 0.0;
 }
 
 void vel_ldc(const Vector &x, Vector &u)
@@ -176,7 +73,6 @@ void ffun(const Vector &x, Vector &u)
    double yi = x(1);
 
    u(0) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * xi) - 2.0 / REY * pow(M_PI, 2.0) * cos(M_PI * xi) * sin(M_PI * yi);
-
    u(1) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * yi) + 2.0 / REY * pow(M_PI, 2.0) * cos(M_PI * yi) * sin(M_PI * xi);
 }
 
@@ -251,9 +147,19 @@ public:
                                                                stokesprec(nullptr), jac_solver(nullptr),
                                                                newton_solver(pmesh_->GetComm()), vel_gf(nullptr)
    {
-      // Mark all attributes as essential for now
-      ess_bdr_attr_ = 1;
-      fes_[0]->GetEssentialTrueDofs(ess_bdr_attr_, ess_tdof_list_);
+      if (ex == EX::KOV || ex == EX::MMS || ex == EX::LDC)
+      {
+         ess_bdr_attr_ = 1;
+         fes_[0]->GetEssentialTrueDofs(ess_bdr_attr_, ess_tdof_list_);
+      }
+      else if (ex == EX::CYL)
+      {
+         ess_bdr_attr_[0] = 1;
+         ess_bdr_attr_[1] = 1;
+         ess_bdr_attr_[2] = 1;
+         ess_bdr_attr_[3] = 0;
+         fes_[0]->GetEssentialTrueDofs(ess_bdr_attr_, ess_tdof_list_);
+      }
 
       block_offsets_.SetSize(3);
       block_offsets_[0] = 0;
@@ -300,6 +206,11 @@ public:
          VectorFunctionCoefficient ldccoeff(dim, vel_ldc);
          vel_gf->ProjectBdrCoefficient(ldccoeff, ess_bdr_attr_);
       }
+      else if (ex == EX::CYL)
+      {
+         VectorFunctionCoefficient cylcoeff(dim, vel_cyl);
+         vel_gf->ProjectBdrCoefficient(cylcoeff, ess_bdr_attr_);
+      }
 
       p_gf = new ParGridFunction(fes[1]);
 
@@ -309,7 +220,7 @@ public:
       N->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
       N->SetEssentialTrueDofs(ess_tdof_list_);
 
-      if (ex != EX::KOV)
+      if (ex == EX::MMS)
       {
          ParLinearForm *fform = new ParLinearForm;
          VectorDomainLFIntegrator *fvint = new VectorDomainLFIntegrator(fcoeff);
@@ -322,7 +233,6 @@ public:
       sform = new ParBilinearForm(fes[0]);
       ConstantCoefficient kin_visc(1.0 / REY);
       sform->AddDomainIntegrator(new VectorDiffusionIntegrator(kin_visc));
-      // sform->SetDiagonalPolicy(Matrix::DiagonalPolicy::DIAG_ZERO);
       sform->Assemble();
       sform->EliminateEssentialBC(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(0));
       sform->Finalize();
@@ -338,12 +248,6 @@ public:
       G = D->Transpose();
       (*G) *= -1.0;
 
-      ParBilinearForm *mpform = new ParBilinearForm(fes[1]);
-      mpform->AddDomainIntegrator(new MassIntegrator);
-      mpform->Assemble();
-      mpform->Finalize();
-      Mp = mpform->ParallelAssemble();
-
       jac = new BlockOperator(block_trueOffsets_);
       jac->SetBlock(0, 0, S);
       jac->SetBlock(0, 1, G);
@@ -354,11 +258,26 @@ public:
       lin->SetBlock(0, 1, G);
       lin->SetBlock(1, 0, D);
 
+      // Silvester-Wathen preconditioner
+      // only good for Stokes or very small Reynolds numbers
+
+      ConstantCoefficient mpscalecoeff(1.0);
+      ConstantCoefficient mpdiffscalecoeff(0.0);
+
+      ParBilinearForm *mpform = new ParBilinearForm(fes[1]);
+      mpform->AddDomainIntegrator(new MassIntegrator(mpscalecoeff));
+      mpform->AddDomainIntegrator(new DiffusionIntegrator(mpdiffscalecoeff));
+      mpform->Assemble();
+      mpform->Finalize();
+      Mp = mpform->ParallelAssemble();
+
       invS = new HypreBoomerAMG(*S);
       static_cast<HypreBoomerAMG *>(invS)->SetPrintLevel(0);
       invS->iterative_mode = false;
 
-      invMp = new HypreDiagScale(*Mp);
+      invMp = new HypreBoomerAMG(*Mp);
+      static_cast<HypreBoomerAMG *>(invMp)->SetPrintLevel(0);
+      invMp->iterative_mode = false;
 
       stokesprec = new BlockDiagonalPreconditioner(block_trueOffsets_);
       stokesprec->SetDiagonalBlock(0, invS);
@@ -422,8 +341,6 @@ public:
 
       jac->SetBlock(0, 0, NjacS);
 
-      // invS->SetOperator(*NjacS);
-
       return *jac;
    }
 
@@ -466,7 +383,8 @@ int main(int argc, char *argv[])
    int serial_ref_levels = 0;
    int order = 2;
    double tol = 1e-8;
-   const char *mesh_file = "../data/inline-single-quad.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
+   // const char *mesh_file = "cyl.msh";
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "");
