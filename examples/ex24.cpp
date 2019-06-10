@@ -2,14 +2,31 @@
 //
 // Compile with: make ex24
 //
-// Sample runs:  ex24 -m ../data/mobius-strip -r 1
-//               ex24 -p 0 -r 1
-//               ex24 -p 1 -r 1
-//               ex24 -p 2 -r 1
-//               ex24 -p 3 -r 1
+// Sample runs:  ex24
+//               ex24 -p 0
+//               ex24 -p 0 -no-c
+//               ex24 -p 1
+//               ex24 -p 1 -no-c
+//               ex24 -p 2
+//               ex24 -p 2 -no-c
+//               ex24 -p 3
+//               ex24 -p 3 -no-c
+//               ex24 -p 4
+//               ex24 -p 4 -no-c
+//               ex24 -p 5
+//               ex24 -p 5 -no-c
+//               ex24 -p 6
+//               ex24 -p 6 -no-c
 //
 // Device sample runs:
+//               ex24 -pa
 //               ex24 -p 0 -pa
+//               ex24 -p 1 -pa
+//               ex24 -p 2 -pa
+//               ex24 -p 3 -pa
+//               ex24 -p 4 -pa
+//               ex24 -p 5 -pa
+//               ex24 -p 6 -pa
 
 #include "mfem.hpp"
 #include <fstream>
@@ -25,26 +42,26 @@ static socketstream glvis;
 const int  visport   = 19916;
 const char vishost[] = "localhost";
 
-// Parametrizations: Scherk, Enneper, Catenoid, Helicoid
+// Parametrizations: Scherk, Enneper, Helicoid, Catenoid, Shell, Hold & Peach
 void scherk(const Vector &x, Vector &p);
-void enneper1(const Vector &x, Vector &p);
-void enneper2(const Vector &x, Vector &p);
+void enneper(const Vector &x, Vector &p);
 void helicoid(const Vector &x, Vector &p);
 void catenoid(const Vector &x, Vector &p);
 void catenoid_postfix(const int, const int, Mesh*);
-void mollusc(const Vector &x, Vector &p);
+void shell(const Vector &x, Vector &p);
 void hold(const Vector &x, Vector &p);
 void peach(const Vector &x, Vector &p);
+void peach_postfix(const int, const int, Mesh*);
 
-// Surface mesh class *********************************************************
+// Surface mesh class
 class SurfaceMesh: public Mesh
 {
 public:
    SurfaceMesh(const int order,
-               void (*parametrization)(const Vector &x, Vector &p),
-               void (*postfix)(const int nx, const int ny, Mesh*),
                const int nx = 4,
                const int ny = 4,
+               void (*parametrization)(const Vector &x, Vector &p) = nullptr,
+               void (*postfix)(const int nx, const int ny, Mesh*) = nullptr,
                const double sx = 1.0,
                const double sy = 1.0,
                const int space_dim = 3,
@@ -54,6 +71,7 @@ public:
                const bool discontinuous = false):
       Mesh(nx, ny, type, generate_edges, sx, sy, space_filling_curve)
    {
+      EnsureNodes();
       SetCurvature(order, discontinuous, space_dim, Ordering::byNODES);
       if (parametrization) { Transform(parametrization); }
       if (postfix) { postfix(nx, ny, this); }
@@ -66,11 +84,11 @@ public:
    }
 };
 
-// Surface solver class *******************************************************
+// Surface solver class
 class SurfaceSolver
 {
 protected:
-   const bool pa, visualization, wait;
+   const bool pa, visualization, pause;
    const int niter;
    const int sdim;
    Mesh *mesh;
@@ -87,25 +105,25 @@ public:
                  const int n, const bool w,
                  Mesh *m, FiniteElementSpace *f,
                  Array<int> ess_tdof_list):
-      pa(p), visualization(v), wait(w), niter(n),
+      pa(p), visualization(v), pause(w), niter(n),
       sdim(m->SpaceDimension()), mesh(m), fes(f),
       a(fes), bc(ess_tdof_list), x(fes), b(fes),
       nodes(mesh->GetNodes()), solution(*nodes), one(1.0) { }
    virtual void Solve() { MFEM_ABORT("Not implemented!"); }
 };
 
-// ****************************************************************************
+// Surface solver 'by compnents'
 class ComponentSolver: public SurfaceSolver
 {
 public:
    ComponentSolver(const bool pa,
                    const bool vis,
                    const int niter,
-                   const bool wait,
+                   const bool pause,
                    Mesh *mesh,
                    FiniteElementSpace *fes,
                    Array<int> bc):
-      SurfaceSolver(pa, vis, niter, wait, mesh, fes, bc) { }
+      SurfaceSolver(pa, vis, niter, pause, mesh, fes, bc) { }
 
    void Solve()
    {
@@ -117,8 +135,10 @@ public:
          solution = *nodes;
          for (int i=0; i<sdim; ++i)
          {
-            x = b = 0.0;
-            GetComponent(solution, x, i);
+            b = 0.0;
+            GetComponent(*nodes, x, i);
+            Vector B, X;
+            OperatorPtr A;
             a.FormLinearSystem(bc, x, b, A, X, B);
             if (!pa)
             {
@@ -136,41 +156,39 @@ public:
          if (visualization)
          {
             glvis << "mesh\n" << *mesh << flush;
-            if (wait) { glvis << "pause\n" << flush; }
+            if (pause) { glvis << "pause\n" << flush; }
          }
          a.Update();
       }
    }
 private:
-   void SetComponent(GridFunction &phi, const GridFunction &phi_i, const int d)
+   void SetComponent(GridFunction &X, const GridFunction &Xi, const int d)
    {
-      // ASSUME phi IS ORDERED byNODES!
       const int ndof = fes->GetNDofs();
       for (int i = 0; i < ndof; i++)
-      { phi[d*ndof + i] = phi_i[i]; }
+      { X[d*ndof + i] = Xi[i]; }
    }
 
-   void GetComponent(const GridFunction &phi, GridFunction &phi_i, const int d)
+   void GetComponent(const GridFunction &X, GridFunction &Xi, const int d)
    {
-      // ASSUME phi IS ORDERED byNODES!
       const int ndof = fes->GetNDofs();
       for (int i = 0; i < ndof; i++)
-      { phi_i[i] = phi[d*ndof + i]; }
+      { Xi[i] = X[d*ndof + i]; }
    }
 };
 
-// ****************************************************************************
+// Surface solver 'by vector'
 class VectorSolver: public SurfaceSolver
 {
 public:
    VectorSolver(const bool pa,
                 const bool vis,
                 const int niter,
-                const bool wait,
+                const bool pause,
                 Mesh *mesh,
                 FiniteElementSpace *fes,
                 Array<int> bc):
-      SurfaceSolver(pa, vis, niter, wait, mesh, fes, bc) {}
+      SurfaceSolver(pa, vis, niter, pause, mesh, fes, bc) {}
 
    void Solve()
    {
@@ -198,14 +216,13 @@ public:
          if (visualization)
          {
             glvis << "mesh\n" << *mesh << flush;
-            if (wait) { glvis << "pause\n" << flush; }
+            if (pause) { glvis << "pause\n" << flush; }
          }
          a.Update();
       }
    }
 };
 
-// ****************************************************************************
 int main(int argc, char *argv[])
 {
    int nx = 4;
@@ -213,11 +230,11 @@ int main(int argc, char *argv[])
    int order = 4;
    int niter = 4;
    bool pa = false;
-   int ref_levels = 1;
-   bool wait = false;
+   int ref_levels = 2;
    bool components = true;
-   int parametrization = 0;
+   int parametrization = -1;
    bool visualization = true;
+   bool vis_wait = false;
    const char *keys = "gAaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../data/mobius-strip.mesh";
@@ -227,7 +244,7 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&parametrization, "-p", "--parametrization",
                   "Enable or disable parametrization .");
-   args.AddOption(&wait, "-w", "--wait", "-no-w", "--no-wait",
+   args.AddOption(&vis_wait, "-w", "--wait", "-no-w", "--no-wait",
                   "Enable or disable a GLVis pause.");
    args.AddOption(&nx, "-nx", "--num-elements-x",
                   "Number of elements in x-direction.");
@@ -242,9 +259,9 @@ int main(int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&keys, "-k", "--keys", "GLVis configuration keys.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization", "Enable or disable GLVis visualization.");
-   args.AddOption(&components, "-c", "--components", "-no-c",
-                  "--no-components", "Enable or disable the 'by component' solver");
+                  "--no-visualization", "Enable or disable visualization.");
+   args.AddOption(&components, "-c", "--components", "-no-c", "--no-components",
+                  "Enable or disable the 'by component' solver");
 
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
@@ -256,6 +273,7 @@ int main(int argc, char *argv[])
    Device device(device_config);
    device.Print();
 
+   // Initialize GLVis server if 'visualization' is set.
    if (visualization)
    {
       glvis.open(vishost, visport);
@@ -271,19 +289,19 @@ int main(int argc, char *argv[])
       mesh = new Mesh(mesh_file, generate_edges, refine);
    }
    else if (parametrization==0)
-   { mesh = new SurfaceMesh(order, catenoid, catenoid_postfix, nx, ny); }
+   { mesh = new SurfaceMesh(order, nx, ny, catenoid, catenoid_postfix); }
    else if (parametrization==1)
-   { mesh = new SurfaceMesh(order, helicoid, nullptr, nx, ny); }
+   { mesh = new SurfaceMesh(order, nx, ny, helicoid); }
    else if (parametrization==2)
-   { mesh = new SurfaceMesh(order, enneper2, nullptr, nx, ny); }
+   { mesh = new SurfaceMesh(order, nx, ny, enneper); }
    else if (parametrization==3)
-   { mesh = new SurfaceMesh(order, scherk, nullptr, nx, ny); }
+   { mesh = new SurfaceMesh(order, nx, ny, scherk); }
    else if (parametrization==4)
-   { mesh = new SurfaceMesh(order, mollusc, nullptr, nx, ny); }
+   { mesh = new SurfaceMesh(order, nx, ny, shell); }
    else if (parametrization==5)
-   { mesh = new SurfaceMesh(order, hold, nullptr, nx, ny); }
+   { mesh = new SurfaceMesh(order, nx, ny, hold); }
    else if (parametrization==6)
-   { mesh = new SurfaceMesh(order, peach, nullptr, nx, ny); }
+   { mesh = new SurfaceMesh(order, nx, ny, peach, peach_postfix); }
    else { mfem_error("Not a valid parametrization, p should be in ]-infty, 6]"); }
    const bool discontinuous = false;
    const int mdim = mesh->Dimension();
@@ -304,30 +322,33 @@ int main(int argc, char *argv[])
    Array<int> v_ess_tdof_list, s_ess_tdof_list;
    if (mesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      Array<bool> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = true;
+      //ess_bdr[0] = false; // with attribute set to '1'
       sfes->GetEssentialTrueDofs(ess_bdr, s_ess_tdof_list);
       vfes->GetEssentialTrueDofs(ess_bdr, v_ess_tdof_list);
    }
 
+   // Send to GLVis the first mesh and set the 'keys' options.
    if (visualization)
    {
       //glvis << "solution\n" << *mesh << s <<flush;
       glvis << "mesh\n" << *mesh << flush;
       glvis << "keys " << keys << "\n";
-      glvis << "window_size 800 800\n";
-      if (wait) { glvis << "pause\n" << flush; }
+      glvis << "window_size 640 480\n";
+      if (vis_wait) { glvis << "pause\n" << flush; }
    }
 
+   // Instanciate and launch the surface solver.
    SurfaceSolver *solver;
    if (components)
    {
-      solver = new ComponentSolver(pa, visualization, niter, wait,
+      solver = new ComponentSolver(pa, visualization, niter, vis_wait,
                                    mesh, sfes, s_ess_tdof_list);
    }
    else
    {
-      solver = new VectorSolver(pa, visualization, niter, wait,
+      solver = new VectorSolver(pa, visualization, niter, vis_wait,
                                 mesh, vfes, v_ess_tdof_list);
    }
    solver->Solve();
@@ -397,20 +418,7 @@ void helicoid(const Vector &x, Vector &p)
 }
 
 // Parametrization of Enneper's surface
-void enneper1(const Vector &x, Vector &p)
-{
-   p.SetSize(3);
-   // r in [0,1] and t in [−π, π]
-   const double r = x[0];
-   const double t = pi*(2.0*x[1]-1.0);
-   const double third = 1./3.;
-   const double u = r*cos(t);
-   const double v = r*sin(t);
-   p[0] = u - third*u*u*u + u*v*v;
-   p[1] = v - third*v*v*v + u*u*v;
-   p[2] = u*u - v*v;
-}
-void enneper2(const Vector &x, Vector &p)
+void enneper(const Vector &x, Vector &p)
 {
    p.SetSize(3);
    // (u,v) in [-2, +2]
@@ -434,8 +442,8 @@ void scherk(const Vector &x, Vector &p)
    p[2] = log(cos(u)/cos(v));
 }
 
-// Mollusc shell model
-void mollusc(const Vector &x, Vector &p)
+// Shell surface model
+void shell(const Vector &x, Vector &p)
 {
    p.SetSize(3);
    // u in [0,2π] and v in [-15, 6]
@@ -446,7 +454,7 @@ void mollusc(const Vector &x, Vector &p)
    p[2] = -2.0*pow(1.16,v)*(1.0+sin(u));
 }
 
-// **********************************
+// Hold surface
 void hold(const Vector &x, Vector &p)
 {
    p.SetSize(3);
@@ -458,7 +466,7 @@ void hold(const Vector &x, Vector &p)
    p[2] = v;
 }
 
-// ***********************************
+// Peach street model
 void peach(const Vector &X, Vector &p)
 {
    p = X;
@@ -477,4 +485,46 @@ void peach(const Vector &X, Vector &p)
    p[0] = gamma * cos(t);
    p[1] = gamma * sin(t);
    p[2] = h*(1.0 - gamma);
+}
+
+void peach_postfix(const int nx, const int ny, Mesh *mesh)
+{
+   //mesh->PrintCharacteristics();
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      Element *el = mesh->GetBdrElement(i);
+      //const int type = el->GetType();
+      //const int attr = el->GetAttribute();
+      //const int fn = mesh->be_to_edge[i];
+      const int fn = mesh->GetBdrElementEdgeIndex(i);
+      //MFEM_VERIFY(!mesh->FaceIsTrueInterior(fn),"");
+      //printf("el #%d fn:%d, type:%d, attr:%d, nodes:", i, fn, type, attr);
+      Array<int> v;
+      mesh->GetFaceVertices(fn, v);
+      //const int *v = mesh->faces[fn]->GetVertices();
+      const GridFunction *nodes = mesh->GetNodes();
+      Array<double> Z(2);
+      for (int j = 0; j < 2; j++)
+      {
+         const int n = v[j];
+         //printf(" #%d:(", n);
+         for (int d = 0; d < 3; d++)
+         {
+            Vector nval;
+            nodes->GetNodalValues(nval,d+1);
+            const double x = nval[n];
+            if (d==2) { Z[j] = x; }
+            //printf(" %f", x);
+         }
+         //printf(")");
+      }
+      //printf(", Z:(%f, %f)\n", Z[0], Z[1]);
+      if ((Z[0] > 0.0) && (Z[1] > 0.0))
+      { el->SetAttribute(1); }
+      else
+      { el->SetAttribute(2); }
+   }
+   //ofstream mesh_ofs("out.mesh");
+   //mesh_ofs.precision(8);
+   //mesh->Print(mesh_ofs);
 }
