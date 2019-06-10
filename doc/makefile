@@ -9,6 +9,7 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
+SHELL = /bin/bash
 MFEM_DIR ?= ..
 DOXYGEN_CONF = CodeDocumentation.conf
 
@@ -25,6 +26,7 @@ html: $(DOXYGEN_CONF)
 	@( cat $(DOXYGEN_CONF) ; echo "GENERATE_HTML=NO" ; echo "EXTRACT_ALL=NO" ; echo "WARN_LOGFILE=undoc.log" ; echo "QUIET=YES" ) | doxygen - &> /dev/null
 
 	@# Display info about the warnings
+	@pwd
 	@echo "Warnings excluding undocumented:"
 	@wc -l < warnings.log
 	@echo "All warnings:"
