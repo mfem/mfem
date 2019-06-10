@@ -132,6 +132,17 @@ double TFunc(const Vector &x, double t)
    return T_min_ + (T_max_ - T_min_) * cos(0.5 * M_PI * sqrt(r));
 }
 
+double TiFunc(const Vector &x, double t)
+{
+   double a = 0.4;
+   double b = 0.8;
+
+   double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+   double rs = pow(x[0] + 0.5 * a, 2) + pow(x[1] + 0.5 * b, 2);
+   return T_min_ +
+          (T_max_ - T_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.25 * exp(-200.0 * rs));
+}
+
 double TeFunc(const Vector &x, double t)
 {
    double a = 0.4;
@@ -812,13 +823,18 @@ int main(int argc, char *argv[])
    ode_diff_msr.SetOperator(m);
 
    ConstantCoefficient one(1.0);
-   FunctionCoefficient u0Coef(TeFunc);
+   FunctionCoefficient TiCoef(TiFunc);
+   FunctionCoefficient TeCoef(TeFunc);
    MatrixFunctionCoefficient DCoef(dim, ChiFunc);
    VectorFunctionCoefficient VCoef(dim, vFunc);
    FunctionCoefficient QCoef(QFunc);
 
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
-   DGTransportTDO oper(dg, fes, ffes, one, imex);
+   DGTransportTDO oper(dg, fes, ffes, one, one, imex);
+
+   oper.SetTiDiffusionCoefficient(DCoef);
+   oper.SetTiAdvectionCoefficient(VCoef);
+   oper.SetTiSourceCoefficient(QCoef);
 
    oper.SetTeDiffusionCoefficient(DCoef);
    oper.SetTeAdvectionCoefficient(VCoef);
@@ -826,7 +842,8 @@ int main(int argc, char *argv[])
 
    Array<int> dbcAttr(pmesh.bdr_attributes.Max());
    dbcAttr = 1;
-   oper.SetTeDirichletBC(dbcAttr, u0Coef);
+   oper.SetTiDirichletBC(dbcAttr, TiCoef);
+   oper.SetTeDirichletBC(dbcAttr, TeCoef);
 
    oper.SetTime(0.0);
    ode_solver->Init(oper);
@@ -851,8 +868,8 @@ int main(int argc, char *argv[])
    neu_density = 1.0;
    ion_density = 1.0;
    para_velocity = 0.0;
-   ion_energy = 0.0;
-   elec_energy.ProjectCoefficient(u0Coef);
+   ion_energy.ProjectCoefficient(TiCoef);
+   elec_energy.ProjectCoefficient(TeCoef);
 
    L2_FECollection fec_l2_o0(0, dim);
    // Finite element space for a scalar (thermodynamic quantity)

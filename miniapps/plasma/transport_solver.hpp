@@ -255,22 +255,31 @@ private:
    ParFiniteElementSpace *fes_;
    ParFiniteElementSpace *ffes_;
 
-   DGAdvectionDiffusionTDO Te_oper_;
+   DGAdvectionDiffusionTDO T_i_oper_;
+   DGAdvectionDiffusionTDO T_e_oper_;
 
-   mutable Vector Te_x_;
-   mutable Vector Te_y_;
-   Vector Te_u_;
-   Vector Te_dudt_;
+   mutable Vector x_;
+   mutable Vector y_;
+   Vector u_;
+   Vector dudt_;
 
 public:
    DGTransportTDO(DGParams & dg,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &ffes,
-                  Coefficient &CCoef, bool imex = true);
+                  Coefficient &CiCoef, Coefficient &CeCoef, bool imex = true);
 
    ~DGTransportTDO();
 
    void SetTime(const double _t);
+
+   void SetTiAdvectionCoefficient(VectorCoefficient &VCoef);
+   void SetTiDiffusionCoefficient(Coefficient &dCoef);
+   void SetTiDiffusionCoefficient(MatrixCoefficient &DCoef);
+   void SetTiSourceCoefficient(Coefficient &SCoef);
+
+   void SetTiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
+   void SetTiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
 
    void SetTeAdvectionCoefficient(VectorCoefficient &VCoef);
    void SetTeDiffusionCoefficient(Coefficient &dCoef);

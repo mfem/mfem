@@ -815,11 +815,13 @@ void DGAdvectionDiffusionTDO::Update()
 DGTransportTDO::DGTransportTDO(DGParams & dg,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &ffes,
-                               Coefficient &CCoef, bool imex)
+                               Coefficient &CiCoef,
+                               Coefficient &CeCoef, bool imex)
    : TimeDependentOperator(ffes.GetVSize()),
      fes_(&fes),
      ffes_(&ffes),
-     Te_oper_(dg, fes, CCoef, imex)
+     T_i_oper_(dg, fes, CiCoef, imex),
+     T_e_oper_(dg, fes, CeCoef, imex)
 {
 }
 
@@ -829,37 +831,68 @@ void DGTransportTDO::SetTime(const double _t)
 {
    this->TimeDependentOperator::SetTime(_t);
 
-   Te_oper_.SetTime(_t);
+   T_i_oper_.SetTime(_t);
+   T_e_oper_.SetTime(_t);
 }
 
 void DGTransportTDO::SetTeAdvectionCoefficient(VectorCoefficient &VCoef)
 {
-   Te_oper_.SetAdvectionCoefficient(VCoef);
+   T_e_oper_.SetAdvectionCoefficient(VCoef);
 }
 
 void DGTransportTDO::SetTeDiffusionCoefficient(Coefficient &dCoef)
 {
-   Te_oper_.SetDiffusionCoefficient(dCoef);
+   T_e_oper_.SetDiffusionCoefficient(dCoef);
 }
 
 void DGTransportTDO::SetTeDiffusionCoefficient(MatrixCoefficient &DCoef)
 {
-   Te_oper_.SetDiffusionCoefficient(DCoef);
+   T_e_oper_.SetDiffusionCoefficient(DCoef);
 }
 
 void DGTransportTDO::SetTeSourceCoefficient(Coefficient &SCoef)
 {
-   Te_oper_.SetSourceCoefficient(SCoef);
+   T_e_oper_.SetSourceCoefficient(SCoef);
 }
 
 void DGTransportTDO::SetTeDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
 {
-   Te_oper_.SetDirichletBC(dbc_attr, dbc);
+   T_e_oper_.SetDirichletBC(dbc_attr, dbc);
 }
 
 void DGTransportTDO::SetTeNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
 {
-   Te_oper_.SetNeumannBC(nbc_attr, nbc);
+   T_e_oper_.SetNeumannBC(nbc_attr, nbc);
+}
+
+void DGTransportTDO::SetTiAdvectionCoefficient(VectorCoefficient &VCoef)
+{
+   T_i_oper_.SetAdvectionCoefficient(VCoef);
+}
+
+void DGTransportTDO::SetTiDiffusionCoefficient(Coefficient &dCoef)
+{
+   T_i_oper_.SetDiffusionCoefficient(dCoef);
+}
+
+void DGTransportTDO::SetTiDiffusionCoefficient(MatrixCoefficient &DCoef)
+{
+   T_i_oper_.SetDiffusionCoefficient(DCoef);
+}
+
+void DGTransportTDO::SetTiSourceCoefficient(Coefficient &SCoef)
+{
+   T_i_oper_.SetSourceCoefficient(SCoef);
+}
+
+void DGTransportTDO::SetTiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
+{
+   T_i_oper_.SetDirichletBC(dbc_attr, dbc);
+}
+
+void DGTransportTDO::SetTiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
+{
+   T_i_oper_.SetNeumannBC(nbc_attr, nbc);
 }
 
 void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
@@ -868,9 +901,13 @@ void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
 
    int size = fes_->GetVSize();
 
-   Te_x_.SetDataAndSize(const_cast<double*>(&x[4*size]), size);
-   Te_y_.SetDataAndSize(&y[4*size], size);
-   Te_oper_.ExplicitMult(Te_x_, Te_y_);
+   x_.SetDataAndSize(const_cast<double*>(&x[3*size]), size);
+   y_.SetDataAndSize(&y[3*size], size);
+   T_i_oper_.ExplicitMult(x_, y_);
+
+   x_.SetDataAndSize(const_cast<double*>(&x[4*size]), size);
+   y_.SetDataAndSize(&y[4*size], size);
+   T_e_oper_.ExplicitMult(x_, y_);
 }
 
 void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
@@ -880,16 +917,21 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
 
    int size = fes_->GetVSize();
 
-   Te_u_.SetDataAndSize(const_cast<double*>(&u[4*size]), size);
-   Te_dudt_.SetDataAndSize(&dudt[4*size], size);
-   Te_oper_.ImplicitSolve(dt, Te_u_, Te_dudt_);
+   u_.SetDataAndSize(const_cast<double*>(&u[3*size]), size);
+   dudt_.SetDataAndSize(&dudt[3*size], size);
+   T_i_oper_.ImplicitSolve(dt, u_, dudt_);
+
+   u_.SetDataAndSize(const_cast<double*>(&u[4*size]), size);
+   dudt_.SetDataAndSize(&dudt[4*size], size);
+   T_e_oper_.ImplicitSolve(dt, u_, dudt_);
 }
 
 void DGTransportTDO::Update()
 {
    height = width = ffes_->GetVSize();
 
-   Te_oper_.Update();
+   T_i_oper_.Update();
+   T_e_oper_.Update();
 }
 
 TransportSolver::TransportSolver(ODESolver * implicitSolver,
