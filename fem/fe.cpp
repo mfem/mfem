@@ -249,7 +249,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    IntegrationPoint f_ip;
 
    const int fs = fine_fe.GetDof(), cs = this->GetDof();
-   I.SetSize(fs, cs);
+   I.SetSize(fs, cs );
    Vector fine_shape(fs), coarse_shape(cs);
    DenseMatrix fine_mass(fs), fine_coarse_mass(fs, cs); // initialized with 0
    const int ir_order = GetOrder() + fine_fe.GetOrder();
@@ -2705,7 +2705,7 @@ void TriLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0SegmentFiniteElement::P0SegmentFiniteElement(int Ord)
-   : NodalFiniteElement(1, Geometry::SEGMENT, 1, Ord)   // defaul Ord = 0
+   : NodalFiniteElement(1, Geometry::SEGMENT, 1, Ord)   // default Ord = 0
 {
    Nodes.IntPoint(0).x = 0.5;
 }
