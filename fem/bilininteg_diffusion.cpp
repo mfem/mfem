@@ -92,9 +92,11 @@ void PADiffusionSetup2D<2>(const int Q1D,
                            const double COEFF,
                            Vector &op)
 {
+   constexpr int DIM = 2;
+   constexpr int VDIM = 2;
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
+   auto J = Reshape(j.Read(), NQ, VDIM, DIM, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
    MFEM_FORALL(e, NE,
    {
@@ -112,6 +114,7 @@ void PADiffusionSetup2D<2>(const int Q1D,
    });
 }
 
+// PA Diffusion Assemble 2D kernel with 3D node coords
 template<>
 void PADiffusionSetup2D<3>(const int Q1D,
                            const int NE,
@@ -120,11 +123,12 @@ void PADiffusionSetup2D<3>(const int Q1D,
                            const double COEFF,
                            Vector &op)
 {
-   //constexpr int VDIM = 3;
+   constexpr int DIM = 2;
+   constexpr int VDIM = 3;
    const int NQ = Q1D*Q1D;
-   auto W = w.Read();
 
-   auto J = Reshape(j.Read(), NQ, 3, 2, NE);
+   auto W = w.Read();
+   auto J = Reshape(j.Read(), NQ, VDIM, DIM, NE);
    auto y = Reshape(op.Write(), NQ, 3, NE);
    MFEM_FORALL(e, NE,
    {
@@ -140,8 +144,8 @@ void PADiffusionSetup2D<3>(const int Q1D,
          const double E = J11*J11 + J21*J21 + J31*J31;
          const double G = J12*J12 + J22*J22 + J32*J32;
          const double F = J11*J12 + J21*J22 + J31*J32;
-         const double trw = sqrt(E*G - F*F);
-         const double alpha = wq * COEFF / (trw*trw*trw);
+         const double iw = 1.0 / sqrt(E*G - F*F);
+         const double alpha = wq * COEFF * iw;
          y(q,0,e) =  alpha * G; // 1,1
          y(q,1,e) = -alpha * F; // 1,2
          y(q,2,e) =  alpha * E; // 2,2
