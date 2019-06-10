@@ -24,9 +24,11 @@ using namespace mfem;
 // Exact smooth analytic solution for convergence study
 double u_exact(const Vector &);
 void u_grad_exact(const Vector &, Vector &);
+double u_exact_2(const Vector &);
+void u_grad_exact_2(const Vector &, Vector &);
 
 void convergenceStudy(const char *mesh_file, int num_ref, int &order,
-                      double &l2_err_prev, double &h1_err_prev, bool &visualization)
+                      double &l2_err_prev, double &h1_err_prev, bool &visualization, int &exact)
 {
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
@@ -59,8 +61,21 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    }
 
    // Set exact solution
-   FunctionCoefficient u(u_exact);
-   VectorFunctionCoefficient u_grad(dim, u_grad_exact);
+   
+
+   FunctionCoefficient u(u_exact_2);
+   VectorFunctionCoefficient u_grad(dim, u_grad_exact_2);
+
+//   FunctionCoefficient u(u_exact_2);
+//   VectorFunctionCoefficient u_grad(dim, u_grad_exact_2);
+
+
+   if(exact == 2)
+   {
+         cout << "HAVEN'T SET UP THIS FUNCTIONALITY YET" << endl;
+   //      ::u= u(u_exact_2);
+   //   ::u_grad = u_grad(dim,u_grad_exact_2);
+   }
 
    // cout << "getNE= " << mesh->GetNE() << endl;
 
@@ -105,30 +120,26 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    x=0.0;
    x.ProjectBdrCoefficient(u, ess_bdr);
 
-   cout << "x after ProjectBdrCoeff" << endl;
-   x.Print();
-   cout << endl; 
-   
-   if (order == 2) // only in serendipity case...
-   {  
-      const FiniteElement *fe = fespace->GetFE(0);
-      
-      fe -> ProjectDelta(4,x);
-      fe -> ProjectDelta(5,x);
-      fe -> ProjectDelta(6,x);
-      fe -> ProjectDelta(7,x);      
 
-          
+   
+   //if (order == 2) // only in serendipity case...
+   //{  
+      //const FiniteElement *fe = fespace->GetFE(0);
+      
+      //fe -> ProjectDelta(4,x);
+      //fe -> ProjectDelta(5,x);
+      //fe -> ProjectDelta(6,x);
+      //fe -> ProjectDelta(7,x);      
 
       //DeltaCoefficient delta_c = DeltaCoefficient();
       //double integral = 0.0;   
       //x.ProjectDeltaCoefficient(delta_c, integral);
-   }
+   //}
    //(*this) *= (delta_c->Scale() / integral);
 
-   cout << "x after ProjectDeltaCoeff" << endl;
-   x.Print();
-   cout << endl; 
+   //cout << "x after ProjectDeltaCoeff" << endl;
+   //x.Print();
+   //cout << endl; 
 
 
    //x.ProjectDelta()
@@ -157,16 +168,29 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // 11. Solve the linear system A X = B.
 
    // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+
+   // if (num_ref == 0)
+   // {
+   //    cout << "x before GSSmoother" << endl;
+   //    x.Print();
+   //    cout << endl; 
+   // }
+
    GSSmoother M((SparseMatrix&)(*A));
    X = 0.0;
    PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
 
+
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   cout << "x after recoverFEM soln" << endl;
-   x.Print();
-   cout << endl;
+
+   // if (num_ref == 0)
+   // {
+   //    cout << "x after recoverFEM soln" << endl;
+   //    x.Print();
+   //    cout << endl;
+   // }
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -177,10 +201,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-
-   cout << "x after saving soln" << endl;
-   x.Print();
-   cout << endl;
 
 
    // 14. Send the solution by socket to a GLVis server.
@@ -238,19 +258,34 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 }
 
 
-// Case u(x,y) = sin(x) e^y
+
+
+
 double u_exact(const Vector &x)
 {
-  return 1;
-  // return sin(x(0))*exp(x(1));
+   return 1;
 }
 
 void u_grad_exact(const Vector &x, Vector &u)
 {
-  u(0)=0;
-  u(1)=0;
-  // u(0) = cos(x(0))*exp(x(1));
-  // u(1) = sin(x(0))*exp(x(1));
+   u(0)=0;
+   u(1)=0;
+}
+
+
+
+double u_exact_2(const Vector &x)
+{
+   return sin(x(0))*exp(x(1));
+   // return(4*x(0));
+}
+
+void u_grad_exact_2(const Vector &x, Vector &u)
+{
+      // u(0) = 4;
+      // u(1) = 0;
+   u(0) = cos(x(0))*exp(x(1));
+   u(1) = sin(x(0))*exp(x(1));
 }
 
 int main(int argc, char *argv[])
@@ -258,13 +293,14 @@ int main(int argc, char *argv[])
 
 
    // 1. Parse command-line options.
-   int total_refinements = 0;
+   int total_refinements = 1;
 
    const char *mesh_file = "../../data/singleSquare.mesh";
    int order = 1;
    bool static_cond = false;
    const char *device_config = "cpu";
    bool visualization = false;
+   int exact = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&total_refinements, "-r", "--refine",
@@ -283,6 +319,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&exact, "-e", "--exact", 
+                  "Choice of exact solution. 1=constant 1; 2=sin(x)e^y.");
    args.Parse();
    if (!args.Good())
    {
@@ -305,6 +343,21 @@ int main(int argc, char *argv[])
            << endl;
       return 1;
    }
+
+   // if (exact == 1)
+   // {
+   //    cout << "convergence: Exact solution u(x,y)=1" << endl;
+   // }
+   // else if (exact == 2)
+   // {
+   //    cout << "convergence: Exact solution u(x,y)=sin(x)e^y" << endl;
+   // }
+   // else
+   // {
+   //    cout << "Wrong usage of exact solution parameter (-e)"
+   //         << endl;
+   //    return 1;
+   // }
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -335,8 +388,8 @@ int main(int argc, char *argv[])
    bool noVisYet = false;
    for (int i = 0; i < (total_refinements-1); i++)
      {
-       convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet);
+       convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, exact);
      }
-   convergenceStudy(mesh_file, total_refinements-1, order, l2_err_prev, h1_err_prev, visualization);
+   convergenceStudy(mesh_file, total_refinements-1, order, l2_err_prev, h1_err_prev, visualization, exact);
    return 0;
 }

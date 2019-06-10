@@ -1790,15 +1790,10 @@ void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
 
 void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
 {
-   cout << " *** gridfunc.cpp: Calling ProjectBdrCoeff" << endl;
+//   cout << " *** gridfunc.cpp: Calling ProjectBdrCoeff" << endl;
    Array<int> values_counter;
    this->HostReadWrite();
    AccumulateAndCountBdrValues(coeff, NULL, attr, values_counter);
-
-   cout << " *** values_counter is: " << endl;
-   // values_counter.Print();
-   cout << endl;
-
    ComputeMeans(ARITHMETIC, values_counter);
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
@@ -1808,10 +1803,6 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
       MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
                   "internal error");
    }
-   cout << " *** ess_vdofs_marker is: " << endl;
-   // ess_vdofs_marker.Print();
-   cout << endl;
-
 #endif
 }
 
@@ -1912,7 +1903,6 @@ double GridFunction::ComputeL2Error(
    Vector shape;
    Array<int> vdofs;
    int fdof, d, i, intorder, j, k;
-
    for (i = 0; i < fes->GetNE(); i++)
    {
       fe = fes->GetFE(i);
@@ -2320,6 +2310,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
                                     Coefficient *weight,
                                     const IntegrationRule *irs[]) const
 {
+   // std::cout << "********************************" << " *** gridfunc.cpp: Calling CompL2Err (in CompLpError)" << std::endl;  
    double error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *T;
@@ -2336,15 +2327,26 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       else
       {
          int intorder = 2*fe->GetOrder() + 1; // <----------
+          // cout << "******** gridfunc.cpp: intorder = " << intorder << endl; 
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
-      }
+      }      
       GetValues(i, *ir, vals);
+
+      // cout <<  "******** gridfunc.cpp: vals = " << endl; 
+      // vals.Print();
+      // cout << " *********" << endl;
+
+      // cout <<  "******** gridfunc.cpp: GetNPoints= " <<  ir->GetNPoints() << endl;
+      // cout << " *********" << endl;
+
       T = fes->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
          double err = fabs(vals(j) - exsol.Eval(*T, ip));
+//         cout <<  "  ******** err for j=" << j << " is " <<  err << endl;
+
          if (p < infinity())
          {
             err = pow(err, p);
@@ -2377,7 +2379,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
          error = pow(error, 1./p);
       }
    }
-
+   // cout << "     **** error= " << error << endl;
    return error;
 }
 

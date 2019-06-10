@@ -1975,26 +1975,20 @@ public:
 
 
 
+/// Classes for quadratic order serendipity FE on a square
 
-// class H1Ser_QuadrilateralElement : public NodalFiniteElement
-// {
-// private:
-// #ifndef MFEM_THREAD_SAFE
-//  mutable Vector shape_x, shape_y, dshape_x, dshape_y;
-// #endif
-//
-// public:
-//   H1Ser_QuadrilateralElement(const int p,
-//                              const int btype = BasisType::Serendipity);
-//   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-//   virtual void CalcDShape(const IntegrationPoint &ip,
-// 			  DenseMatrix &dshape) const;
-//   virtual void ProjectDelta(int vertex, Vector &dofs) const;
-// };
+class H1Ser_SegmentElement : public ScalarFiniteElement
+{
+  // The segment class is needed b/c the basis implemented is not nodal
+  // on segments
+public:
+   H1Ser_SegmentElement();
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   //   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+};  
 
-
-/// Class for quadratic order serendipity FE on a square
-//class SerQuad2DFiniteElement : public NodalFiniteElement
 
 class H1Ser_QuadrilateralElement : public ScalarFiniteElement
 {

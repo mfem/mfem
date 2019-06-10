@@ -1566,7 +1566,12 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       H1_dof[Geometry::SEGMENT] = pm1;
       if (b_type == BasisType::Positive)
       {
-	  H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
+	      H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
+      }
+      else if (b_type == BasisType::Serendipity)
+      {
+         // Need to pass parameter p in here for general order
+         H1_Elements[Geometry::SEGMENT] = new H1Ser_SegmentElement();
       }
       else
       {
@@ -1593,16 +1598,14 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
       else if (b_type == BasisType::Serendipity)
       {
-	// Should throw some error here if the geometry type is triangle
-	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement();
-	// cout << "in fe_coll.cpp: called H1Ser_QuadElt" << endl;
+         // Need to pass parameter p in here for general ordering
+      	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement();
       }
       else
       {
-	 H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
+	      H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
          H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
-	 //cout << "in fe_coll.cpp: called H1_QuadElt" << endl;
-      }
+     }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
       const int &QuadDof = H1_dof[Geometry::SQUARE];

@@ -339,6 +339,7 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
    ElTr->ElementNo = i;
    if (Nodes == NULL)
    {
+      cout << "  mesh.cpp:  In this option" << endl;
       GetPointMatrix(i, ElTr->GetPointMat());
       ElTr->SetFE(GetTransformationFEforElementType(GetElementType(i)));
    }
@@ -432,6 +433,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
       const FiniteElement *bdr_el = Nodes->FESpace()->GetBE(i);
       if (bdr_el)
       {
+         cout << "mesh.cpp: Line 435 - looking at bdy nodes" << endl;
          Array<int> vdofs;
          Nodes->FESpace()->GetBdrElementVDofs(i, vdofs);
          int n = vdofs.Size()/spaceDim;
