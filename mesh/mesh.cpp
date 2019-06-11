@@ -339,7 +339,7 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
    ElTr->ElementNo = i;
    if (Nodes == NULL)
    {
-      cout << "  mesh.cpp:  In this option" << endl;
+      //   cout << "  mesh.cpp:  In this option" << endl;
       GetPointMatrix(i, ElTr->GetPointMat());
       ElTr->SetFE(GetTransformationFEforElementType(GetElementType(i)));
    }

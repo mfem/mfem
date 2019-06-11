@@ -60,24 +60,29 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
      fec = NULL;
    }
 
-   // Set exact solution
+   // // Set exact solution
    
+   FunctionCoefficient *u;
+   VectorFunctionCoefficient *u_grad;
 
-   FunctionCoefficient u(u_exact_2);
-   VectorFunctionCoefficient u_grad(dim, u_grad_exact_2);
-
-//   FunctionCoefficient u(u_exact_2);
-//   VectorFunctionCoefficient u_grad(dim, u_grad_exact_2);
-
-
-   if(exact == 2)
+   
+   if (exact == 1)
    {
-         cout << "HAVEN'T SET UP THIS FUNCTIONALITY YET" << endl;
-   //      ::u= u(u_exact_2);
-   //   ::u_grad = u_grad(dim,u_grad_exact_2);
+       u = new FunctionCoefficient(u_exact);
+       u_grad = new VectorFunctionCoefficient(dim, u_grad_exact);
+   }
+   else if (exact == 2)
+   {
+      u = new FunctionCoefficient(u_exact_2);
+      u_grad = new VectorFunctionCoefficient(dim, u_grad_exact_2);
+   }
+   else
+   {
+      cout << "Error - did not set exact solution" << endl;
+      u = NULL;
+      u_grad = NULL;
    }
 
-   // cout << "getNE= " << mesh->GetNE() << endl;
 
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    //      cout << "Number of finite element unknowns: "  << fespace->GetTrueVSize() << endl;
@@ -118,31 +123,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x=0.0;
-   x.ProjectBdrCoefficient(u, ess_bdr);
-
-
-   
-   //if (order == 2) // only in serendipity case...
-   //{  
-      //const FiniteElement *fe = fespace->GetFE(0);
-      
-      //fe -> ProjectDelta(4,x);
-      //fe -> ProjectDelta(5,x);
-      //fe -> ProjectDelta(6,x);
-      //fe -> ProjectDelta(7,x);      
-
-      //DeltaCoefficient delta_c = DeltaCoefficient();
-      //double integral = 0.0;   
-      //x.ProjectDeltaCoefficient(delta_c, integral);
-   //}
-   //(*this) *= (delta_c->Scale() / integral);
-
-   //cout << "x after ProjectDeltaCoeff" << endl;
-   //x.Print();
-   //cout << endl; 
-
-
-   //x.ProjectDelta()
+   x.ProjectBdrCoefficient(*u, ess_bdr);
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -176,13 +157,18 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    //    cout << endl; 
    // }
 
+   A->PrintMatlab(std::cout);
+   //a->SpMat().Print();
+
    GSSmoother M((SparseMatrix&)(*A));
    X = 0.0;
-   PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
+   PCG(*A, M, B, X, 0, 200, 1e-24, 0.0);
 
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
+
+   x.ProjectCoefficient(*u);
 
 
    // if (num_ref == 0)
@@ -216,8 +202,8 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    // Compute and print the L^2 and H^1 norms of the error.
    ConstantCoefficient one(1.0);
-   double l2_err = x.ComputeL2Error(u);
-   double h1_err = x.ComputeH1Error(&u, &u_grad, &one, 1.0, 1);
+   double l2_err = x.ComputeL2Error(*u);
+   double h1_err = x.ComputeH1Error(u, u_grad, &one, 1.0, 1);
    double l2_rate, h1_rate;
 
    // cout << "l2_err=" << l2_err << " l2_err_prev=" << l2_err_prev << " num_ref=" << num_ref << endl;
@@ -252,7 +238,9 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    delete a;
    delete b;
    delete fespace;
-   if (order > 0) { delete fec; }
+   delete u;
+   delete u_grad;
+   delete fec;
 
    return;
 }
@@ -263,13 +251,14 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
 double u_exact(const Vector &x)
 {
+   return(4*x(0));
    return 1;
 }
 
 void u_grad_exact(const Vector &x, Vector &u)
 {
-   u(0)=0;
-   u(1)=0;
+   u(0) = 4;
+   u(1) = 0;
 }
 
 
@@ -277,13 +266,10 @@ void u_grad_exact(const Vector &x, Vector &u)
 double u_exact_2(const Vector &x)
 {
    return sin(x(0))*exp(x(1));
-   // return(4*x(0));
 }
 
 void u_grad_exact_2(const Vector &x, Vector &u)
 {
-      // u(0) = 4;
-      // u(1) = 0;
    u(0) = cos(x(0))*exp(x(1));
    u(1) = sin(x(0))*exp(x(1));
 }
@@ -344,20 +330,19 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   // if (exact == 1)
-   // {
-   //    cout << "convergence: Exact solution u(x,y)=1" << endl;
-   // }
-   // else if (exact == 2)
-   // {
-   //    cout << "convergence: Exact solution u(x,y)=sin(x)e^y" << endl;
-   // }
-   // else
-   // {
-   //    cout << "Wrong usage of exact solution parameter (-e)"
-   //         << endl;
-   //    return 1;
-   // }
+   if (exact == 1)
+   {
+      cout << "convergence: Exact solution u(x,y)=4x" << endl;
+   }
+   else if (exact == 2)
+   {
+      cout << "convergence: Exact solution u(x,y)=sin(x)e^y" << endl;
+   }
+   else
+   {
+      cout << "Wrong usage of exact solution parameter (-e)"
+           << endl;
+   }
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.

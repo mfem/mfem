@@ -2332,9 +2332,9 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       }      
       GetValues(i, *ir, vals);
 
-      // cout <<  "******** gridfunc.cpp: vals = " << endl; 
-      // vals.Print();
-      // cout << " *********" << endl;
+      //  cout << "******** gridfunc.cpp: vals = " << endl; 
+      //  vals.Print();
+      //  cout << "********" << endl;
 
       // cout <<  "******** gridfunc.cpp: GetNPoints= " <<  ir->GetNPoints() << endl;
       // cout << " *********" << endl;
@@ -2343,9 +2343,23 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
+
+         double *toPrint = new double[3];
+         ip.Get(toPrint, 2);
+         
+         // cout << "  gridfunc.cpp: got point (" << toPrint[0]  << ", " << toPrint[1] << ") " << endl;
+         
          T->SetIntPoint(&ip);
+
+         // printing matrix of transformation
+         // if(j==0)
+         // {
+         //    const DenseMatrix &J = T->Jacobian();
+         //    J.Print();
+         // }
+
          double err = fabs(vals(j) - exsol.Eval(*T, ip));
-//         cout <<  "  ******** err for j=" << j << " is " <<  err << endl;
+         // cout <<  "  ******** exsol is =" << exsol.Eval(*T, ip) << endl;
 
          if (p < infinity())
          {
