@@ -833,10 +833,17 @@ int main(int argc, char *argv[])
    FunctionCoefficient QCoef(QFunc);
 
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
-   DGTransportTDO oper(dg, fes, ffes, one, one, imex);
+   DGTransportTDO oper(dg, fes, ffes, one, one, one, one, imex);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
    
+   oper.SetNnDiffusionCoefficient(DCoef);
+   oper.SetNnSourceCoefficient(QCoef);
+
+   oper.SetNiDiffusionCoefficient(DCoef);
+   oper.SetNiAdvectionCoefficient(VCoef);
+   oper.SetNiSourceCoefficient(QCoef);
+
    oper.SetTiDiffusionCoefficient(DCoef);
    oper.SetTiAdvectionCoefficient(VCoef);
    oper.SetTiSourceCoefficient(QCoef);

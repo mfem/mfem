@@ -258,8 +258,10 @@ private:
    ParFiniteElementSpace *fes_;
    ParFiniteElementSpace *ffes_;
 
-   DGAdvectionDiffusionTDO T_i_oper_;
-   DGAdvectionDiffusionTDO T_e_oper_;
+   DGAdvectionDiffusionTDO n_n_oper_; // Neutral Density
+   DGAdvectionDiffusionTDO n_i_oper_; // Ion Density
+   DGAdvectionDiffusionTDO T_i_oper_; // Ion Temperature
+   DGAdvectionDiffusionTDO T_e_oper_; // Electron Temperature
 
    mutable Vector x_;
    mutable Vector y_;
@@ -270,13 +272,30 @@ public:
    DGTransportTDO(DGParams & dg,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &ffes,
-                  Coefficient &CiCoef, Coefficient &CeCoef, bool imex = true);
+                  Coefficient &CNnCoef, Coefficient &CNiCoef,
+		  Coefficient &CTiCoef, Coefficient &CTeCoef,
+		  bool imex = true);
 
    ~DGTransportTDO();
 
    void SetTime(const double _t);
    void SetLogging(int logging);
   
+   void SetNnDiffusionCoefficient(Coefficient &dCoef);
+   void SetNnDiffusionCoefficient(MatrixCoefficient &DCoef);
+   void SetNnSourceCoefficient(Coefficient &SCoef);
+
+   void SetNnDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
+   void SetNnNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
+
+   void SetNiAdvectionCoefficient(VectorCoefficient &VCoef);
+   void SetNiDiffusionCoefficient(Coefficient &dCoef);
+   void SetNiDiffusionCoefficient(MatrixCoefficient &DCoef);
+   void SetNiSourceCoefficient(Coefficient &SCoef);
+
+   void SetNiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
+   void SetNiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
+
    void SetTiAdvectionCoefficient(VectorCoefficient &VCoef);
    void SetTiDiffusionCoefficient(Coefficient &dCoef);
    void SetTiDiffusionCoefficient(MatrixCoefficient &DCoef);

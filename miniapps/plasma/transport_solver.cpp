@@ -352,7 +352,7 @@ void DGAdvectionDiffusionTDO::initA()
                                                             dg_.sigma,
                                                             dg_.kappa));
       }
-      if (negVCoef_ || !imex_)
+      if (negVCoef_ && !imex_)
       {
          a_->AddDomainIntegrator(new ConvectionIntegrator(*dtNegVCoef_, -1.0));
          a_->AddInteriorFaceIntegrator(
@@ -710,13 +710,14 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
 
    if (fabs(dt - dt_) > 1e-4 * dt_)
    {
+      // cout << "Setting time step" << endl;
       if (dtdCoef_   ) { dtdCoef_->SetAConst(dt); }
       if (dtDCoef_   ) { dtDCoef_->SetAConst(dt); }
       if (dtNegVCoef_) { dtNegVCoef_->SetAConst(dt); }
 
       dt_ = dt;
    }
-
+   // cout << "applying q_imp" << endl;
    if (q_imp_)
    {
       rhs_ = *q_imp_;
@@ -744,9 +745,10 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
    }
    else
    {
+     //cout << "applying b" << endl;
       if (b_)
       {
-         // cout << "DGA::ImplicitSolve assembling b" << endl;
+        // cout << "DGA::ImplicitSolve assembling b" << endl;
          b_->Assemble();
          b_->Finalize();
 
@@ -765,6 +767,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
    A_prec->SetPrintLevel(0);
    if (imex_)
    {
+     // cout << "solving with CG" << endl;
       CGSolver *A_solver = new CGSolver(A->GetComm());
       A_solver->SetOperator(*A);
       A_solver->SetPreconditioner(*A_prec);
@@ -779,6 +782,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
    }
    else
    {
+     // cout << "solving with GMRES" << endl;
       GMRESSolver *A_solver = new GMRESSolver(A->GetComm());
       A_solver->SetOperator(*A);
       A_solver->SetPreconditioner(*A_prec);
@@ -791,7 +795,8 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
       A_solver->Mult(RHS_, X_);
       delete A_solver;
    }
-
+   // cout << "done with solve" << endl;
+   
    ParGridFunction dudt_gf(fes_, (double*)NULL);
    dudt_gf.MakeRef(fes_, &dudt[0]);
    dudt_gf = X_;
@@ -827,13 +832,17 @@ void DGAdvectionDiffusionTDO::Update()
 DGTransportTDO::DGTransportTDO(DGParams & dg,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &ffes,
-                               Coefficient &CiCoef,
-                               Coefficient &CeCoef, bool imex)
+                               Coefficient &CNnCoef,
+                               Coefficient &CNiCoef,
+                               Coefficient &CTiCoef,
+                               Coefficient &CTeCoef, bool imex)
    : TimeDependentOperator(ffes.GetVSize()),
      fes_(&fes),
      ffes_(&ffes),
-     T_i_oper_(dg, fes, CiCoef, imex),
-     T_e_oper_(dg, fes, CeCoef, imex)
+     n_n_oper_(dg, fes, CNnCoef, imex),
+     n_i_oper_(dg, fes, CNiCoef, imex),
+     T_i_oper_(dg, fes, CTiCoef, imex),
+     T_e_oper_(dg, fes, CTeCoef, imex)
 {
 }
 
@@ -843,44 +852,73 @@ void DGTransportTDO::SetTime(const double _t)
 {
    this->TimeDependentOperator::SetTime(_t);
 
+   n_n_oper_.SetTime(_t);
+   n_i_oper_.SetTime(_t);
    T_i_oper_.SetTime(_t);
    T_e_oper_.SetTime(_t);
 }
   
 void DGTransportTDO::SetLogging(int logging)
 {
-  T_i_oper_.SetLogging(logging, "Ion Temp:      ");
-  T_e_oper_.SetLogging(logging, "Electron Temp: ");
+  n_n_oper_.SetLogging(logging, "Neutral Density: ");
+  n_i_oper_.SetLogging(logging, "Ion Density:     ");
+  T_i_oper_.SetLogging(logging, "Ion Temp:        ");
+  T_e_oper_.SetLogging(logging, "Electron Temp:   ");
 }
   
-void DGTransportTDO::SetTeAdvectionCoefficient(VectorCoefficient &VCoef)
+void DGTransportTDO::SetNnDiffusionCoefficient(Coefficient &dCoef)
 {
-   T_e_oper_.SetAdvectionCoefficient(VCoef);
+   n_n_oper_.SetDiffusionCoefficient(dCoef);
 }
 
-void DGTransportTDO::SetTeDiffusionCoefficient(Coefficient &dCoef)
+void DGTransportTDO::SetNnDiffusionCoefficient(MatrixCoefficient &DCoef)
 {
-   T_e_oper_.SetDiffusionCoefficient(dCoef);
+   n_n_oper_.SetDiffusionCoefficient(DCoef);
 }
 
-void DGTransportTDO::SetTeDiffusionCoefficient(MatrixCoefficient &DCoef)
+void DGTransportTDO::SetNnSourceCoefficient(Coefficient &SCoef)
 {
-   T_e_oper_.SetDiffusionCoefficient(DCoef);
+   n_n_oper_.SetSourceCoefficient(SCoef);
 }
 
-void DGTransportTDO::SetTeSourceCoefficient(Coefficient &SCoef)
+void DGTransportTDO::SetNnDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
 {
-   T_e_oper_.SetSourceCoefficient(SCoef);
+   n_n_oper_.SetDirichletBC(dbc_attr, dbc);
 }
 
-void DGTransportTDO::SetTeDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
+void DGTransportTDO::SetNnNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
 {
-   T_e_oper_.SetDirichletBC(dbc_attr, dbc);
+   n_n_oper_.SetNeumannBC(nbc_attr, nbc);
 }
 
-void DGTransportTDO::SetTeNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
+void DGTransportTDO::SetNiAdvectionCoefficient(VectorCoefficient &VCoef)
 {
-   T_e_oper_.SetNeumannBC(nbc_attr, nbc);
+   n_i_oper_.SetAdvectionCoefficient(VCoef);
+}
+
+void DGTransportTDO::SetNiDiffusionCoefficient(Coefficient &dCoef)
+{
+   n_i_oper_.SetDiffusionCoefficient(dCoef);
+}
+
+void DGTransportTDO::SetNiDiffusionCoefficient(MatrixCoefficient &DCoef)
+{
+   n_i_oper_.SetDiffusionCoefficient(DCoef);
+}
+
+void DGTransportTDO::SetNiSourceCoefficient(Coefficient &SCoef)
+{
+   n_i_oper_.SetSourceCoefficient(SCoef);
+}
+
+void DGTransportTDO::SetNiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
+{
+   n_i_oper_.SetDirichletBC(dbc_attr, dbc);
+}
+
+void DGTransportTDO::SetNiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
+{
+   n_i_oper_.SetNeumannBC(nbc_attr, nbc);
 }
 
 void DGTransportTDO::SetTiAdvectionCoefficient(VectorCoefficient &VCoef)
@@ -913,11 +951,49 @@ void DGTransportTDO::SetTiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
    T_i_oper_.SetNeumannBC(nbc_attr, nbc);
 }
 
+void DGTransportTDO::SetTeAdvectionCoefficient(VectorCoefficient &VCoef)
+{
+   T_e_oper_.SetAdvectionCoefficient(VCoef);
+}
+
+void DGTransportTDO::SetTeDiffusionCoefficient(Coefficient &dCoef)
+{
+   T_e_oper_.SetDiffusionCoefficient(dCoef);
+}
+
+void DGTransportTDO::SetTeDiffusionCoefficient(MatrixCoefficient &DCoef)
+{
+   T_e_oper_.SetDiffusionCoefficient(DCoef);
+}
+
+void DGTransportTDO::SetTeSourceCoefficient(Coefficient &SCoef)
+{
+   T_e_oper_.SetSourceCoefficient(SCoef);
+}
+
+void DGTransportTDO::SetTeDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
+{
+   T_e_oper_.SetDirichletBC(dbc_attr, dbc);
+}
+
+void DGTransportTDO::SetTeNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
+{
+   T_e_oper_.SetNeumannBC(nbc_attr, nbc);
+}
+
 void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
 {
    y = 0.0;
 
    int size = fes_->GetVSize();
+
+   x_.SetDataAndSize(const_cast<double*>(&x[0*size]), size);
+   y_.SetDataAndSize(&y[0*size], size);
+   n_n_oper_.ExplicitMult(x_, y_);
+
+   x_.SetDataAndSize(const_cast<double*>(&x[1*size]), size);
+   y_.SetDataAndSize(&y[1*size], size);
+   n_i_oper_.ExplicitMult(x_, y_);
 
    x_.SetDataAndSize(const_cast<double*>(&x[3*size]), size);
    y_.SetDataAndSize(&y[3*size], size);
@@ -934,6 +1010,14 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
    dudt = 0.0;
 
    int size = fes_->GetVSize();
+
+   u_.SetDataAndSize(const_cast<double*>(&u[0*size]), size);
+   dudt_.SetDataAndSize(&dudt[0*size], size);
+   n_n_oper_.ImplicitSolve(dt, u_, dudt_);
+
+   u_.SetDataAndSize(const_cast<double*>(&u[1*size]), size);
+   dudt_.SetDataAndSize(&dudt[1*size], size);
+   n_i_oper_.ImplicitSolve(dt, u_, dudt_);
 
    u_.SetDataAndSize(const_cast<double*>(&u[3*size]), size);
    dudt_.SetDataAndSize(&dudt[3*size], size);
