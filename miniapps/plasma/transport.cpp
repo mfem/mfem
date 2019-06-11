@@ -903,6 +903,7 @@ int main(int argc, char *argv[])
 
    Array<int> dbcAttr(pmesh.bdr_attributes.Max());
    dbcAttr = 1;
+   oper.SetViDirichletBC(dbcAttr, vi0Coef);
    oper.SetTiDirichletBC(dbcAttr, Ti0Coef);
    oper.SetTeDirichletBC(dbcAttr, Te0Coef);
 
