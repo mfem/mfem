@@ -5,9 +5,7 @@
 using namespace std;
 using namespace mfem;
 
-#define REY 20.0
-
-enum EX
+enum PROB_TYPE
 {
    MMS,
    KOV,
@@ -15,7 +13,13 @@ enum EX
    CYL,
 };
 
-EX ex = EX::LDC;
+struct OptionSet
+{
+   PROB_TYPE prob_type;
+   double rey;
+   int vel_order;
+   int print_level;
+} opt_;
 
 void vel_ex(const Vector &x, Vector &u)
 {
@@ -48,7 +52,7 @@ void vel_ldc(const Vector &x, Vector &u)
 {
    double yi = x(1);
 
-   if (yi > 1.0 - 1e-6)
+   if (yi > 1.0 - 1e-8)
    {
       u(0) = 1.0;
    }
@@ -72,13 +76,13 @@ void ffun(const Vector &x, Vector &u)
    double xi = x(0);
    double yi = x(1);
 
-   u(0) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * xi) - 2.0 / REY * pow(M_PI, 2.0) * cos(M_PI * xi) * sin(M_PI * yi);
-   u(1) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * yi) + 2.0 / REY * pow(M_PI, 2.0) * cos(M_PI * yi) * sin(M_PI * xi);
+   u(0) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * xi) - 2.0 / opt_.rey * pow(M_PI, 2.0) * cos(M_PI * xi) * sin(M_PI * yi);
+   u(1) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * yi) + 2.0 / opt_.rey * pow(M_PI, 2.0) * cos(M_PI * yi) * sin(M_PI * xi);
 }
 
 double kov_lam()
 {
-   return REY / 2.0 - sqrt(pow(REY, 2.0) / 4.0 + 4.0 * pow(M_PI, 2.0));
+   return opt_.rey / 2.0 - sqrt(pow(opt_.rey, 2.0) / 4.0 + 4.0 * pow(M_PI, 2.0));
 }
 
 void kov_vel_ex(const Vector &x, Vector &u)
@@ -147,19 +151,21 @@ public:
                                                                stokesprec(nullptr), jac_solver(nullptr),
                                                                newton_solver(pmesh_->GetComm()), vel_gf(nullptr)
    {
-      if (ex == EX::KOV || ex == EX::MMS || ex == EX::LDC)
+      if (opt_.prob_type == PROB_TYPE::KOV ||
+          opt_.prob_type == PROB_TYPE::MMS ||
+          opt_.prob_type == PROB_TYPE::LDC)
       {
          ess_bdr_attr_ = 1;
-         fes_[0]->GetEssentialTrueDofs(ess_bdr_attr_, ess_tdof_list_);
       }
-      else if (ex == EX::CYL)
+      else if (opt_.prob_type == PROB_TYPE::CYL)
       {
          ess_bdr_attr_[0] = 1;
          ess_bdr_attr_[1] = 1;
          ess_bdr_attr_[2] = 1;
          ess_bdr_attr_[3] = 0;
-         fes_[0]->GetEssentialTrueDofs(ess_bdr_attr_, ess_tdof_list_);
       }
+
+      fes_[0]->GetEssentialTrueDofs(ess_bdr_attr_, ess_tdof_list_);
 
       block_offsets_.SetSize(3);
       block_offsets_[0] = 0;
@@ -191,22 +197,22 @@ public:
       vel_gf = new ParGridFunction;
       vel_gf->MakeRef(fes[0], x.GetBlock(0));
 
-      if (ex == EX::MMS)
+      if (opt_.prob_type == PROB_TYPE::MMS)
       {
          VectorFunctionCoefficient uexcoeff(dim, vel_ex);
          vel_gf->ProjectBdrCoefficient(uexcoeff, ess_bdr_attr_);
       }
-      else if (ex == EX::KOV)
+      else if (opt_.prob_type == PROB_TYPE::KOV)
       {
          VectorFunctionCoefficient kovuexcoeff(dim, kov_vel_ex);
          vel_gf->ProjectBdrCoefficient(kovuexcoeff, ess_bdr_attr_);
       }
-      else if (ex == EX::LDC)
+      else if (opt_.prob_type == PROB_TYPE::LDC)
       {
          VectorFunctionCoefficient ldccoeff(dim, vel_ldc);
          vel_gf->ProjectBdrCoefficient(ldccoeff, ess_bdr_attr_);
       }
-      else if (ex == EX::CYL)
+      else if (opt_.prob_type == PROB_TYPE::CYL)
       {
          VectorFunctionCoefficient cylcoeff(dim, vel_cyl);
          vel_gf->ProjectBdrCoefficient(cylcoeff, ess_bdr_attr_);
@@ -220,7 +226,7 @@ public:
       N->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
       N->SetEssentialTrueDofs(ess_tdof_list_);
 
-      if (ex == EX::MMS)
+      if (opt_.prob_type == PROB_TYPE::MMS)
       {
          ParLinearForm *fform = new ParLinearForm;
          VectorDomainLFIntegrator *fvint = new VectorDomainLFIntegrator(fcoeff);
@@ -231,7 +237,7 @@ public:
       }
 
       sform = new ParBilinearForm(fes[0]);
-      ConstantCoefficient kin_visc(1.0 / REY);
+      ConstantCoefficient kin_visc(1.0 / opt_.rey);
       sform->AddDomainIntegrator(new VectorDiffusionIntegrator(kin_visc));
       sform->Assemble();
       sform->EliminateEssentialBC(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(0));
@@ -341,6 +347,8 @@ public:
 
       jac->SetBlock(0, 0, NjacS);
 
+      // invS->SetOperator(*NjacS);
+
       return *jac;
    }
 
@@ -379,21 +387,28 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
+   int prob_type = 1;
    int print_level = 2;
    int serial_ref_levels = 0;
    int order = 2;
-   double tol = 1e-8;
-   const char *mesh_file = "../../data/inline-quad.mesh";
-   // const char *mesh_file = "cyl.msh";
+   double rey = 1.0;
+   double ltol = 1e-8;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&order, "-o", "--order", "");
-   args.AddOption(&tol, "-tol", "--tolerance",
-                  "Solver relative tolerance");
+   args.AddOption(&order, "-o", "--order", "Polynomial order for the velocity.");
+   args.AddOption(&ltol, "-ltol", "--linear_solver_tolerance",
+                  "Linear solver relative tolerance.");
    args.AddOption(&print_level, "-pl", "--print-level",
-                  "Solver print level");
+                  "Solver print level.");
    args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
                   "Number of serial refinement levels.");
+   args.AddOption(&prob_type, "-prob", "--problem_type",
+                  "Choose problem type\n\t"
+                  "0 - MMS\n\t"
+                  "1 - Kovasznay\n\t"
+                  "2 - Lid driven cavity\n\t"
+                  "3 - Flow past a cylinder");
+   args.AddOption(&rey, "-rey", "--reynolds", "Choose Reynolds number");
    args.Parse();
    if (!args.Good())
    {
@@ -406,6 +421,21 @@ int main(int argc, char *argv[])
    if (mpi.Root())
    {
       args.PrintOptions(cout);
+   }
+
+   opt_.prob_type = static_cast<PROB_TYPE>(prob_type);
+   opt_.rey = rey;
+   opt_.print_level = print_level;
+
+   const char *mesh_file = nullptr;
+
+   if (opt_.prob_type == PROB_TYPE::CYL)
+   {
+      mesh_file = "cyl.msh";
+   }
+   else
+   {
+      mesh_file = "../../data/inline-quad.mesh";
    }
 
    int vel_order = order;
@@ -448,7 +478,8 @@ int main(int argc, char *argv[])
    ParGridFunction *vel_gf = nso.UpdateVelocityGF();
    ParGridFunction *p_gf = nso.UpdatePressureGF();
 
-   if (ex == EX::MMS)
+   if (opt_.prob_type == PROB_TYPE::MMS ||
+       opt_.prob_type == PROB_TYPE::KOV)
    {
       int order_quad = max(2, 2 * order + 1);
       const IntegrationRule *irs[Geometry::NumGeom];
@@ -457,41 +488,25 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
-      VectorFunctionCoefficient uexcoeff(dim, vel_ex);
-      FunctionCoefficient pexcoeff(p_ex);
+      VectorFunctionCoefficient *uexcoeff = nullptr;
+      FunctionCoefficient *pexcoeff = nullptr;
 
-      double err_u = vel_gf->ComputeL2Error(uexcoeff, irs);
-      double norm_u = ComputeGlobalLpNorm(2, uexcoeff, *pmesh, irs);
-
-      double err_p = p_gf->ComputeL2Error(pexcoeff, irs);
-      double norm_p = ComputeGlobalLpNorm(2, pexcoeff, *pmesh, irs);
-
-      if (myid == 0)
+      if (opt_.prob_type == PROB_TYPE::MMS)
       {
-         cout << "|| u_h - u_ex || = " << err_u << "\n";
-         cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-         cout << "|| p_h - p_ex || = " << err_p << "\n";
-         cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+         uexcoeff = new VectorFunctionCoefficient(dim, vel_ex);
+         pexcoeff = new FunctionCoefficient(p_ex);
       }
-   }
-
-   if (ex == EX::KOV)
-   {
-      int order_quad = max(2, 2 * order + 1);
-      const IntegrationRule *irs[Geometry::NumGeom];
-      for (int i = 0; i < Geometry::NumGeom; ++i)
+      else if (opt_.prob_type == PROB_TYPE::KOV)
       {
-         irs[i] = &(IntRules.Get(i, order_quad));
+         uexcoeff = new VectorFunctionCoefficient(dim, kov_vel_ex);
+         pexcoeff = new FunctionCoefficient(kov_p_ex);
       }
 
-      VectorFunctionCoefficient uexcoeff(dim, kov_vel_ex);
-      FunctionCoefficient pexcoeff(kov_p_ex);
+      double err_u = vel_gf->ComputeL2Error(*uexcoeff, irs);
+      double norm_u = ComputeGlobalLpNorm(2, *uexcoeff, *pmesh, irs);
 
-      double err_u = vel_gf->ComputeL2Error(uexcoeff, irs);
-      double norm_u = ComputeGlobalLpNorm(2, uexcoeff, *pmesh, irs);
-
-      double err_p = p_gf->ComputeL2Error(pexcoeff, irs);
-      double norm_p = ComputeGlobalLpNorm(2, pexcoeff, *pmesh, irs);
+      double err_p = p_gf->ComputeL2Error(*pexcoeff, irs);
+      double norm_p = ComputeGlobalLpNorm(2, *pexcoeff, *pmesh, irs);
 
       if (myid == 0)
       {
