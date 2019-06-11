@@ -51,46 +51,267 @@ static socketstream glvis;
 const int  visport   = 19916;
 const char vishost[] = "localhost";
 
-// Parametrizations: Scherk, Enneper,
-// Helicoid, Catenoid, Shell, Hold & Peach
-void scherk(const Vector &x, Vector &p);
-void enneper(const Vector &x, Vector &p);
-void helicoid(const Vector &x, Vector &p);
-void catenoid(const Vector &x, Vector &p);
-void catenoid_fix(const int, const int, Mesh*);
-void shell(const Vector &x, Vector &p);
-void hold(const Vector &x, Vector &p);
-void peach(const Vector &x, Vector &p);
-void peach_fix(const int, const int, Mesh*);
-
 // Surface mesh class
 class SurfaceMesh: public Mesh
 {
+protected:
+   const int order, nx, ny;
+   const double sx = 1.0;
+   const double sy = 1.0;
+   const int space_dim = 3;
+   const Element::Type type = Element::QUADRILATERAL;
+   const bool generate_edges = true;
+   const bool space_filling_curve = true;
+   const bool discontinuous = false;
 public:
-   SurfaceMesh(const int order,
-               const int nx = 4,
-               const int ny = 4,
-               void (*parametrization)(const Vector &x, Vector &p) = nullptr,
-               void (*postfix)(const int nx, const int ny, Mesh*) = nullptr,
-               const double sx = 1.0,
-               const double sy = 1.0,
+   SurfaceMesh(const int Order,
+               const int Nx = 4,
+               const int Ny = 4,
+               const double Sx = 1.0,
+               const double Sy = 1.0,
                const int space_dim = 3,
                const Element::Type type = Element::QUADRILATERAL,
-               const bool generate_edges = true,
-               const bool space_filling_curve = true,
-               const bool discontinuous = false):
-      Mesh(nx, ny, type, generate_edges, sx, sy, space_filling_curve)
+               const bool edges = true,
+               const bool sfc = true,
+               const bool disc = false):
+      Mesh(Nx, Ny, type, edges, Sx, Sy, sfc),
+      order(Order), nx(Nx), ny(Ny), sx(Sx), sy(Sy)
    {
       EnsureNodes();
+      Prefix();
       SetCurvature(order, discontinuous, space_dim, Ordering::byNODES);
-      if (parametrization) { Transform(parametrization); }
-      if (postfix) { postfix(nx, ny, this); }
+      //Transform(Parametrization);
+      {
+         //GridFunction &nodes = *GetNodes();
+         Vector x(spaceDim), X(NULL, spaceDim);
+         for (int i = 0; i < vertices.Size(); i++)
+         {
+            for (int j = 0; j < spaceDim; j++)
+            {
+               x(j) = vertices[i](j);
+            }
+            X.SetData(vertices[i]());
+            Parametrization(x, X);
+            //*Nodes = X;
+         }
+      }
+      Postfix();
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
       SetCurvature(order, discontinuous, space_dim, Ordering::byVDIM);
       GridFunction &nodes = *GetNodes();
       for (int i = 0; i < nodes.Size(); i++)
       { if (std::abs(nodes(i)) < eps) { nodes(i) = 0.0; } }
+   }
+   virtual void Parametrization(const Vector &x, Vector &X) { X = x; }
+   virtual void Prefix(){
+      SetCurvature(order, discontinuous, space_dim, Ordering::byNODES);
+   }
+   virtual void Postfix(){
+      SetCurvature(order, discontinuous, space_dim, Ordering::byNODES);
+   }
+};
+
+// Parametrization of a Helicoid surface
+struct Helicoid: public SurfaceMesh{
+   Helicoid(int o, int x, int y):SurfaceMesh(o, x, y) {}
+   void Parametrization(const Vector &x, Vector &p)
+   {
+      p.SetSize(3);
+      const double a = 1.0;
+      // u in [0,2π] and v in [-2π/3,2π/3]
+      const double u = 2.0*pi*x[0];
+      const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
+      p[0] = a*cos(u)*sinh(v);
+      p[1] = a*sin(u)*sinh(v);
+      p[2] = a*u;
+   }
+};
+
+// Parametrization of a Catenoid surface
+struct Catenoid: public SurfaceMesh{
+   Catenoid(int o, int x, int y):SurfaceMesh(o, x, y) {}
+   void Parametrization(const Vector &x, Vector &p)
+   {
+      p.SetSize(3);
+      // u in [0,2π] and v in [-2π/3,2π/3]
+      const double u = 2.0*pi*x[0];
+      const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
+      p[0] = cos(u)*cosh(v);
+      p[1] = sin(u)*cosh(v);
+      p[2] = v;
+   }
+   // Postfix of the Catenoid surface
+   void Postfix()
+   {
+      Array<int> v2v(GetNV());
+      for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
+      // identify vertices on vertical lines
+      for (int j = 0; j <= ny; j++)
+      {
+         const int v_old = nx + j * (nx + 1);
+         const int v_new =      j * (nx + 1);
+         v2v[v_old] = v_new;
+      }
+      // renumber elements
+      for (int i = 0; i < GetNE(); i++)
+      {
+         Element *el = GetElement(i);
+         int *v = el->GetVertices();
+         const int nv = el->GetNVertices();
+         for (int j = 0; j < nv; j++)
+         { v[j] = v2v[v[j]]; }
+      }
+      // renumber boundary elements
+      for (int i = 0; i < GetNBE(); i++)
+      {
+         Element *el = GetBdrElement(i);
+         int *v = el->GetVertices();
+         const int nv = el->GetNVertices();
+         for (int j = 0; j < nv; j++)
+         { v[j] = v2v[v[j]]; }
+      }
+   }
+};
+
+// Parametrization of Enneper's surface
+struct Enneper: public SurfaceMesh{
+   Enneper(int o, int x, int y):SurfaceMesh(o, x, y) {}
+   void Parametrization(const Vector &x, Vector &p)
+   {
+      p.SetSize(3);
+      // (u,v) in [-2, +2]
+      const double u = 2.0*(2.0*x[0]-1.0);
+      const double v = 2.0*(2.0*x[1]-1.0);
+      p[0] = +u - u*u*u/3.0 + u*v*v;
+      p[1] = -v - u*u*v + v*v*v/3.0;
+      p[2] =  u*u - v*v;
+   }
+};
+
+// Parametrization of Scherk's surface
+struct Scherk: public SurfaceMesh{
+   Scherk(int o, int x, int y):SurfaceMesh(o, x, y) {}
+   void Parametrization(const Vector &x, Vector &p)
+   {
+      p.SetSize(3);
+      const double alpha = 0.49;
+      // (u,v) in [-απ, +απ]
+      const double u = alpha*pi*(2.0*x[0]-1.0);
+      const double v = alpha*pi*(2.0*x[1]-1.0);
+      p[0] = u;
+      p[1] = v;
+      p[2] = log(cos(u)/cos(v));
+   }
+};
+
+// Shell surface model
+struct Shell: public SurfaceMesh{
+   Shell(int o, int x, int y):SurfaceMesh(o, x, y) {}
+   void Parametrization(const Vector &x, Vector &p)
+   {
+      p.SetSize(3);
+      // u in [0,2π] and v in [-15, 6]
+      const double u = 2.0*pi*x[0];
+      const double v = 21.0*x[1]-15.0;
+      p[0] = +1.0*pow(1.16,v)*cos(v)*(1.0+cos(u));
+      p[1] = -1.0*pow(1.16,v)*sin(v)*(1.0+cos(u));
+      p[2] = -2.0*pow(1.16,v)*(1.0+sin(u));
+   }
+};
+
+// Hold surface
+struct Hold: public SurfaceMesh{
+   Hold(int o, int x, int y):SurfaceMesh(o, x, y) {}
+   void Parametrization(const Vector &x, Vector &p)
+   {
+      p.SetSize(3);
+      // u in [0,2π] and v in [0,1]
+      const double u = 2.0*pi*x[0];
+      const double v = x[1];
+      p[0] = cos(u)*(1.0 + 0.3*sin(5.*u + pi*v));
+      p[1] = sin(u)*(1.0 + 0.3*sin(5.*u + pi*v));
+      p[2] = v;
+   }
+};
+
+// Peach street model
+struct Peach: public SurfaceMesh{
+   Peach(int o, int x, int y):SurfaceMesh(o, x, y) {}
+   void Parametrization(const Vector &X, Vector &p)
+   {
+      p = X;
+      const double x = 2.0*X[0]-1.0;
+      const double y = X[1];
+      const double h = 1.0;
+      const double r = sqrt(x*x + y*y);
+      const double t = (x==0.0) ? pi/2.0 :
+         (y==0.0 && x>0.0) ? 0. :
+         (y==0.0 && x<0.0) ? pi : acos(x/r);
+      const double sqrtx = sqrt(1.0 + x*x);
+      const double sqrty = sqrt(1.0 + y*y);
+      const bool yaxis = pi/4.0<t && t < 3.0*pi/4.0;
+      const double R = yaxis?sqrtx:sqrty;
+      const double gamma = r/R;
+      p[0] = gamma * cos(t);
+      p[1] = gamma * sin(t);
+      p[2] = (fabs(p[1])<=eps && gamma<1.0)?1.0:0.0;//h*(1.0 - gamma);
+      //p[2] = h*(1.0 - gamma);
+   }
+   void Prefix(){
+      SetCurvature(1, discontinuous, space_dim, Ordering::byNODES);
+   }
+   void Postfix()
+   {
+      //mesh->PrintCharacteristics();
+      for (int i = 0; i < GetNBE(); i++)
+      {
+         Element *el = GetBdrElement(i);
+         //const int type = el->GetType();
+         //const int attr = el->GetAttribute();
+         //const int fn = mesh->be_to_edge[i];
+         const int fn = GetBdrElementEdgeIndex(i);
+         //MFEM_VERIFY(!mesh->FaceIsTrueInterior(fn),"");
+         //printf("el #%d fn:%d, type:%d, attr:%d, nodes:", i, fn, type, attr);
+         Array<int> v;
+         GetFaceVertices(fn, v);
+         //const int *v = mesh->faces[fn]->GetVertices();
+         const GridFunction *nodes = GetNodes();
+         Array<double> Y(2);
+         Array<double> R(2);
+         R = 0.0;
+         //Array<double> Z(2);
+         for (int j = 0; j < 2; j++)
+         {
+            const int n = v[j];
+            //printf(" #%d:(", n);
+            for (int d = 0; d < 3; d++)
+            {
+               Vector nval;
+               nodes->GetNodalValues(nval,d+1);
+               const double x = nval[n];
+               if (d==1) {
+                  Y[j] = x;
+               }
+               if (d<=1){
+                  R[j] += x*x;
+               }
+               //if (d==2) { Z[j] = x; }
+               //printf(" %f", x);
+            }
+            //printf(")");
+         }
+         //printf(", Z:(%f, %f)\n", Z[0], Z[1]);
+         //if ((Z[0] > 0.0) && (Z[1] > 0.0))
+         /*if ((0.0 < Z[0]) && (Z[0] < 1.0) ||
+           (0.0 < Z[1]) && (Z[1] < 1.0))*/
+         if (fabs(Y[0])<=eps && fabs(Y[1])<=eps && (R[0]>0.25 || R[1]>0.25))
+         { el->SetAttribute(1); }
+         else { el->SetAttribute(2); }
+         //ofstream mesh_ofs("out.mesh");
+         //mesh_ofs.precision(8);
+         //Print(mesh_ofs);
+      }
    }
 };
 
@@ -298,20 +519,13 @@ int main(int argc, char *argv[])
       const int generate_edges = 1;
       mesh = new Mesh(mesh_file, generate_edges, refine);
    }
-   else if (parametrization==0)
-   { mesh = new SurfaceMesh(order, nx, ny, catenoid, catenoid_fix); }
-   else if (parametrization==1)
-   { mesh = new SurfaceMesh(order, nx, ny, helicoid); }
-   else if (parametrization==2)
-   { mesh = new SurfaceMesh(order, nx, ny, enneper); }
-   else if (parametrization==3)
-   { mesh = new SurfaceMesh(order, nx, ny, scherk); }
-   else if (parametrization==4)
-   { mesh = new SurfaceMesh(order, nx, ny, shell); }
-   else if (parametrization==5)
-   { mesh = new SurfaceMesh(order, nx, ny, hold); }
-   else if (parametrization==6)
-   { mesh = new SurfaceMesh(order, nx, ny, peach, peach_fix); }
+   else if (parametrization==0) { mesh = new Catenoid(order, nx, ny); }
+   else if (parametrization==1) { mesh = new Helicoid(order, nx, ny); }
+   else if (parametrization==2) { mesh = new Enneper(order, nx, ny); }
+   else if (parametrization==3) { mesh = new Scherk(order, nx, ny); }
+   else if (parametrization==4) { mesh = new Shell(order, nx, ny); }
+   else if (parametrization==5) { mesh = new Hold(order, nx, ny); }
+   else if (parametrization==6) { mesh = new Peach(order, nx, ny); }
    else { mfem_error("Not a valid parametrization, p should be in ]-infty, 6]"); }
    const bool discontinuous = false;
    const int mdim = mesh->Dimension();
@@ -368,173 +582,4 @@ int main(int argc, char *argv[])
    delete vfes;
    delete mesh;
    return 0;
-}
-
-// Parametrization of a Catenoid surface
-void catenoid(const Vector &x, Vector &p)
-{
-   p.SetSize(3);
-   // u in [0,2π] and v in [-2π/3,2π/3]
-   const double u = 2.0*pi*x[0];
-   const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
-   p[0] = cos(u)*cosh(v);
-   p[1] = sin(u)*cosh(v);
-   p[2] = v;
-}
-
-// Postfix of the Catenoid surface
-void catenoid_fix(const int nx, const int ny, Mesh *mesh)
-{
-   Array<int> v2v(mesh->GetNV());
-   for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
-   // identify vertices on vertical lines
-   for (int j = 0; j <= ny; j++)
-   {
-      const int v_old = nx + j * (nx + 1);
-      const int v_new =      j * (nx + 1);
-      v2v[v_old] = v_new;
-   }
-   // renumber elements
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      Element *el = mesh->GetElement(i);
-      int *v = el->GetVertices();
-      const int nv = el->GetNVertices();
-      for (int j = 0; j < nv; j++)
-      { v[j] = v2v[v[j]]; }
-   }
-   // renumber boundary elements
-   for (int i = 0; i < mesh->GetNBE(); i++)
-   {
-      Element *el = mesh->GetBdrElement(i);
-      int *v = el->GetVertices();
-      const int nv = el->GetNVertices();
-      for (int j = 0; j < nv; j++)
-      { v[j] = v2v[v[j]]; }
-   }
-}
-
-// Parametrization of a Helicoid surface
-void helicoid(const Vector &x, Vector &p)
-{
-   p.SetSize(3);
-   const double a = 1.0;
-   // u in [0,2π] and v in [-2π/3,2π/3]
-   const double u = 2.0*pi*x[0];
-   const double v = 2.0*pi*(2.0*x[1]-1.0)/3.0;
-   p[0] = a*cos(u)*sinh(v);
-   p[1] = a*sin(u)*sinh(v);
-   p[2] = a*u;
-}
-
-// Parametrization of Enneper's surface
-void enneper(const Vector &x, Vector &p)
-{
-   p.SetSize(3);
-   // (u,v) in [-2, +2]
-   const double u = 2.0*(2.0*x[0]-1.0);
-   const double v = 2.0*(2.0*x[1]-1.0);
-   p[0] = +u - u*u*u/3.0 + u*v*v;
-   p[1] = -v - u*u*v + v*v*v/3.0;
-   p[2] =  u*u - v*v;
-}
-
-// Parametrization of Scherk's surface
-void scherk(const Vector &x, Vector &p)
-{
-   p.SetSize(3);
-   const double alpha = 0.49;
-   // (u,v) in [-απ, +απ]
-   const double u = alpha*pi*(2.0*x[0]-1.0);
-   const double v = alpha*pi*(2.0*x[1]-1.0);
-   p[0] = u;
-   p[1] = v;
-   p[2] = log(cos(u)/cos(v));
-}
-
-// Shell surface model
-void shell(const Vector &x, Vector &p)
-{
-   p.SetSize(3);
-   // u in [0,2π] and v in [-15, 6]
-   const double u = 2.0*pi*x[0];
-   const double v = 21.0*x[1]-15.0;
-   p[0] = +1.0*pow(1.16,v)*cos(v)*(1.0+cos(u));
-   p[1] = -1.0*pow(1.16,v)*sin(v)*(1.0+cos(u));
-   p[2] = -2.0*pow(1.16,v)*(1.0+sin(u));
-}
-
-// Hold surface
-void hold(const Vector &x, Vector &p)
-{
-   p.SetSize(3);
-   // u in [0,2π] and v in [0,1]
-   const double u = 2.0*pi*x[0];
-   const double v = x[1];
-   p[0] = cos(u)*(1.0 + 0.3*sin(5.*u + pi*v));
-   p[1] = sin(u)*(1.0 + 0.3*sin(5.*u + pi*v));
-   p[2] = v;
-}
-
-// Peach street model
-void peach(const Vector &X, Vector &p)
-{
-   p = X;
-   const double x = 2.0*X[0]-1.0;
-   const double y = X[1];
-   const double h = 1.0;
-   const double r = sqrt(x*x + y*y);
-   const double t = (x==0.0) ? pi/2.0 :
-                    (y==0.0 && x>0.0) ? 0. :
-                    (y==0.0 && x<0.0) ? pi : acos(x/r);
-   const double sqrtx = sqrt(1.0 + x*x);
-   const double sqrty = sqrt(1.0 + y*y);
-   const bool yaxis = pi/4.0<t && t < 3.0*pi/4.0;
-   const double R = yaxis?sqrtx:sqrty;
-   const double gamma = r/R;
-   p[0] = gamma * cos(t);
-   p[1] = gamma * sin(t);
-   p[2] = h*(1.0 - gamma);
-}
-
-void peach_fix(const int nx, const int ny, Mesh *mesh)
-{
-   //mesh->PrintCharacteristics();
-   for (int i = 0; i < mesh->GetNBE(); i++)
-   {
-      Element *el = mesh->GetBdrElement(i);
-      //const int type = el->GetType();
-      //const int attr = el->GetAttribute();
-      //const int fn = mesh->be_to_edge[i];
-      const int fn = mesh->GetBdrElementEdgeIndex(i);
-      //MFEM_VERIFY(!mesh->FaceIsTrueInterior(fn),"");
-      //printf("el #%d fn:%d, type:%d, attr:%d, nodes:", i, fn, type, attr);
-      Array<int> v;
-      mesh->GetFaceVertices(fn, v);
-      //const int *v = mesh->faces[fn]->GetVertices();
-      const GridFunction *nodes = mesh->GetNodes();
-      Array<double> Z(2);
-      for (int j = 0; j < 2; j++)
-      {
-         const int n = v[j];
-         //printf(" #%d:(", n);
-         for (int d = 0; d < 3; d++)
-         {
-            Vector nval;
-            nodes->GetNodalValues(nval,d+1);
-            const double x = nval[n];
-            if (d==2) { Z[j] = x; }
-            //printf(" %f", x);
-         }
-         //printf(")");
-      }
-      //printf(", Z:(%f, %f)\n", Z[0], Z[1]);
-      if ((Z[0] > 0.0) && (Z[1] > 0.0))
-      { el->SetAttribute(1); }
-      else
-      { el->SetAttribute(2); }
-   }
-   //ofstream mesh_ofs("out.mesh");
-   //mesh_ofs.precision(8);
-   //mesh->Print(mesh_ofs);
 }
