@@ -1032,6 +1032,8 @@ void DGTransportTDO::Update()
 {
    height = width = ffes_->GetVSize();
 
+   n_n_oper_.Update();
+   n_i_oper_.Update();
    T_i_oper_.Update();
    T_e_oper_.Update();
 }
