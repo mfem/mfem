@@ -2342,24 +2342,9 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       T = fes->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-
-         double *toPrint = new double[3];
-         ip.Get(toPrint, 2);
-         
-         // cout << "  gridfunc.cpp: got point (" << toPrint[0]  << ", " << toPrint[1] << ") " << endl;
-         
+         const IntegrationPoint &ip = ir->IntPoint(j);         
          T->SetIntPoint(&ip);
-
-         // printing matrix of transformation
-         // if(j==0)
-         // {
-         //    const DenseMatrix &J = T->Jacobian();
-         //    J.Print();
-         // }
-
          double err = fabs(vals(j) - exsol.Eval(*T, ip));
-         // cout <<  "  ******** exsol is =" << exsol.Eval(*T, ip) << endl;
 
          if (p < infinity())
          {

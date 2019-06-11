@@ -85,7 +85,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
 
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   //      cout << "Number of finite element unknowns: "  << fespace->GetTrueVSize() << endl;
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -97,13 +96,8 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   // Note: bdr_attributes.Max() finds max of all boudnary attribute numbers
-   
    ess_bdr = 1;
 
-   // Note: this is a flag that we should look at ess_bdr... or something like that 
-
-   // cout << " ess_bdr = " << *ess_bdr << endl;
 
    if (mesh->bdr_attributes.Size())
    {
@@ -145,20 +139,9 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    // cout << "Size of linear system: " << A->Height() << endl;
+   // size of system is same as DOFs
 
    // 11. Solve the linear system A X = B.
-
-   // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-
-   // if (num_ref == 0)
-   // {
-   //    cout << "x before GSSmoother" << endl;
-   //    x.Print();
-   //    cout << endl; 
-   // }
-
-   A->PrintMatlab(std::cout);
-   //a->SpMat().Print();
 
    GSSmoother M((SparseMatrix&)(*A));
    X = 0.0;
@@ -168,15 +151,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   x.ProjectCoefficient(*u);
-
-
-   // if (num_ref == 0)
-   // {
-   //    cout << "x after recoverFEM soln" << endl;
-   //    x.Print();
-   //    cout << endl;
-   // }
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -205,11 +179,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    double l2_err = x.ComputeL2Error(*u);
    double h1_err = x.ComputeH1Error(u, u_grad, &one, 1.0, 1);
    double l2_rate, h1_rate;
-
-   // cout << "l2_err=" << l2_err << " l2_err_prev=" << l2_err_prev << " num_ref=" << num_ref << endl;
-
-   // NOTE: denominator here is log(2) because uniform refinement halves h each time.
-   //       if this is to be generalized, the denominator would have to change, too.
 
    if (num_ref != 0)
    {
