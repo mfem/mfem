@@ -225,6 +225,7 @@ static void PADiffusionSetup(const int dim,
 #endif // MFEM_USE_OCCA
       if (sdim == 2) { PADiffusionSetup2D<2>(Q1D, NE, W, J, COEFF, op); }
       if (sdim == 3) { PADiffusionSetup2D<3>(Q1D, NE, W, J, COEFF, op); }
+      dbg("dim:%d, sdim:%d, op:\n",dim,sdim); op.Print();
    }
    if (dim == 3)
    {
@@ -1173,6 +1174,19 @@ static void PADiffusionApply(const int dim,
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   static bool viewed = false;
+   if (!viewed)
+   {
+      viewed = true;
+      dbg("D1D=%d, Q1D=%d", dofs1D, quad1D);
+      dbg("Sizes x:%d, y:%d", x.Size(), y.Size());
+      dbg("B:\n"); maps->B.Print();
+      dbg("G:\n"); maps->G.Print();
+      dbg("Bt\n");  maps->Bt.Print();
+      dbg("Gt:\n");  maps->Gt.Print();
+      dbg("pa_data:\n"); pa_data.Print();
+   }
+   dbg("x"); x.Print();
    PADiffusionApply(dim, dofs1D, quad1D, ne,
                     maps->B, maps->G, maps->Bt, maps->Gt,
                     pa_data, x, y);

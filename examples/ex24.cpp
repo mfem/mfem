@@ -225,15 +225,15 @@ public:
 
 int main(int argc, char *argv[])
 {
-   int nx = 4;
-   int ny = 4;
-   int order = 4;
-   int niter = 4;
-   bool pa = false;
-   int ref_levels = 2;
-   bool components = true;
-   int parametrization = -1;
-   bool visualization = true;
+   int nx = 2;
+   int ny = 2;
+   int order = 1;
+   int niter = 1;
+   bool pa = true;
+   int ref_levels = 0;
+   bool components = false;
+   int parametrization = 6;
+   bool visualization = false;
    bool vis_wait = false;
    const char *keys = "gAaa";
    const char *device_config = "cpu";
@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
-   MFEM_VERIFY(components || !pa, "Vector solver does not support PA yet!");
+   //MFEM_VERIFY(components || !pa, "Vector solver does not support PA yet!");
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
