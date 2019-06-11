@@ -3001,7 +3001,9 @@ void QuadratureInterpolator::Mult(
       Vector &q_der,
       Vector &q_det,
       const int eval_flags) = NULL;
-
+   printf("\033[32m[QuadratureInterpolator::Mult] dim=%d, vdim=%d, nd=%d, nq=%d\033[m\n",
+          dim,
+          vdim, nd, nq); fflush(0);
    if (vdim == 1)
    {
       if (dim == 2)
@@ -3072,8 +3074,10 @@ void QuadratureInterpolator::Mult(
             case 404: eval_func = &Eval2D<3,4,4>; break;
             case 409: eval_func = &Eval2D<3,4,9>; break;
             // Q2
+            case 904: eval_func = &Eval2D<3,9,4>; break;
             case 909: eval_func = &Eval2D<3,9,9>; break;
             case 916: eval_func = &Eval2D<3,9,16>; break;
+            case 925: eval_func = &Eval2D<3,9,25>; break;
             // Q3
             case 1616: eval_func = &Eval2D<3,16,16>; break;
             case 1625: eval_func = &Eval2D<3,16,25>; break;
