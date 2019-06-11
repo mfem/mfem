@@ -1987,7 +1987,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    //   virtual void ProjectDelta(int vertex, Vector &dofs) const;
-};  
+};
 
 
 class H1Ser_QuadrilateralElement : public ScalarFiniteElement

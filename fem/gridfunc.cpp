@@ -1329,28 +1329,38 @@ void GridFunction::AccumulateAndCountBdrValues(
       const IntegrationRule &ir = fe->GetNodes();
       fes->GetBdrElementVDofs(i, vdofs);
 
-      for (j = 0; j < fdof; j++)
+      DenseMatrix V(fdof, ir.Size());
+      Vector rhs(ir.Size());
+      for (j = 0; j < ir.Size(); ++j)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
          transf->SetIntPoint(&ip);
-         if (vcoeff) { vcoeff->Eval(vc, *transf, ip); }
-         for (d = 0; d < vdim; d++)
-         {
-            if (!vcoeff && !coeff[d]) { continue; }
+         Vector col;
+         V.GetColumnReference(j, col);
+         fe->CalcShape(ip, col);
+         rhs[j] = coeff[0]->Eval(*transf, ip);
+      }
+      V.Transpose();
+      DenseMatrixInverse Vinv(V);
+      Vector dofs(fdof);
+      Vinv.Mult(rhs, dofs);
 
-            val = vcoeff ? vc(d) : coeff[d]->Eval(*transf, ip);
-            if ( (ind = vdofs[fdof*d+j]) < 0 )
-            {
-               val = -val, ind = -1-ind;
-            }
-            if (++values_counter[ind] == 1)
-            {
-               (*this)(ind) = val;
-            }
-            else
-            {
-               (*this)(ind) += val;
-            }
+      for (j = 0; j < fdof; j++)
+      {
+         // TEMP: assume vdim = 1
+         int d = 0;
+         double val = dofs[j];
+         if ( (ind = vdofs[fdof*d+j]) < 0 )
+         {
+            val = -val, ind = -1-ind;
+         }
+         if (++values_counter[ind] == 1)
+         {
+            (*this)(ind) = val;
+         }
+         else
+         {
+            (*this)(ind) += val;
          }
       }
    }
@@ -2310,7 +2320,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
                                     Coefficient *weight,
                                     const IntegrationRule *irs[]) const
 {
-   // std::cout << "********************************" << " *** gridfunc.cpp: Calling CompL2Err (in CompLpError)" << std::endl;  
+   // std::cout << "********************************" << " *** gridfunc.cpp: Calling CompL2Err (in CompLpError)" << std::endl;
    double error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *T;
@@ -2327,22 +2337,15 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       else
       {
          int intorder = 2*fe->GetOrder() + 1; // <----------
-          // cout << "******** gridfunc.cpp: intorder = " << intorder << endl; 
+          // cout << "******** gridfunc.cpp: intorder = " << intorder << endl;
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
-      }      
+      }
       GetValues(i, *ir, vals);
-
-      //  cout << "******** gridfunc.cpp: vals = " << endl; 
-      //  vals.Print();
-      //  cout << "********" << endl;
-
-      // cout <<  "******** gridfunc.cpp: GetNPoints= " <<  ir->GetNPoints() << endl;
-      // cout << " *********" << endl;
 
       T = fes->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(j);         
+         const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
          double err = fabs(vals(j) - exsol.Eval(*T, ip));
 

@@ -1770,7 +1770,7 @@ H1Ser_SegmentElement::H1Ser_SegmentElement()
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(1).x = 1.0;
 
-   const int p = Order;  
+   const int p = Order;
 
    for (int i = 1; i < 2; i++)
    {
@@ -1788,7 +1788,7 @@ void H1Ser_SegmentElement::CalcShape(const IntegrationPoint &ip,
 
    shape(0) = (1. - x) * (1. - x);
    shape(1) = 1. * x * x;
-   shape(2) = (1. - x) * x;
+   shape(2) = 2 * (1. - x) * x;
 }
 
 
@@ -1802,9 +1802,8 @@ void H1Ser_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 
    dshape(0,0) = 2.*x -2.;
    dshape(1,0) = 2.*x;
-   dshape(2,0) = -2.*x + 1;
+   dshape(2,0) = -4.*x + 2;
 }
-
 
 //void H1Ser_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 //{
@@ -1838,45 +1837,16 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement()
 
 void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
-{ 
-   // Functions built by distributing the interior bubble function
-   // to all the node and edge functions --> nodal basis
-
+{
    double x = ip.x, y = ip.y;
-   double l1x, l2x, l3x, l1y, l2y, l3y;
-
-   l1x = (x - 1.) * (2. * x - 1);
-   l2x = 4. * x * (1. - x);
-   l3x = x * (2. * x - 1.);
-   l1y = (y - 1.) * (2. * y - 1);
-   l2y = 4. * y * (1. - y);
-   l3y = y * (2. * y - 1.);
-
-   double bubble = (l2x * l2y)/8.0;
-
-   shape(0) = l1x * l1y + bubble;
-   shape(4) = l2x * l1y + bubble;
-   shape(1) = l3x * l1y + bubble;
-   shape(7) = l1x * l2y + bubble;
-   shape(5) = l3x * l2y + bubble;
-   shape(3) = l1x * l3y + bubble;
-   shape(6) = l2x * l3y + bubble;
-   shape(2) = l3x * l3y + bubble;
-
-   // Functions as stated in Quadratic Serendipity paper eq (4.4).
-   // These are not Lagrange-like, but do evaluate to 1 at associated
-   // vertex or node.
-   //
-   // double x = ip.x, y = ip.y;
-
-   // shape(0) = (1. - x) * (1. - y) * (1. - x - y);
-   // shape(1) = x * (1. - y) * (x - y);
-   // shape(2) = x * y * (x + y - 1.);
-   // shape(3) = (1. - x) * y * (y - x);
-   // shape(4) = 2.*(1. - x) * x * (1 - y);
-   // shape(5) = 2.*x * y * (1. - y);
-   // shape(6) = 2.*x * y * (1. - x);
-   // shape(7) = 2.*(1. - x) * (1. - y) * y;
+   shape(0) = (1. - x) * (1. - y) * (1. - x - y);
+   shape(1) = x * (1. - y) * (x - y);
+   shape(2) = x * y * (x + y - 1.);
+   shape(3) = (1. - x) * y * (y - x);
+   shape(4) = 2.*(1. - x) * x * (1 - y);
+   shape(5) = 2.*x * y * (1. - y);
+   shape(6) = 2.*x * y * (1. - x);
+   shape(7) = 2.*(1. - x) * (1. - y) * y;
 }
 
 
@@ -1892,66 +1862,29 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    // to all the node and edge functions --> nodal basis
 
    double x = ip.x, y = ip.y;
-   double l1x, l2x, l3x, l1y, l2y, l3y;
-   double d1x, d2x, d3x, d1y, d2y, d3y;
+   dshape(0,0) = -((-1. + y)*(-2. + 2.*x + y));
+   dshape(0,1) = -((-1. + x)*(-2. + x + 2.*y));
 
-   l1x = (x - 1.) * (2. * x - 1);
-   l2x = 4. * x * (1. - x);
-   l3x = x * (2. * x - 1.);
-   l1y = (y - 1.) * (2. * y - 1);
-   l2y = 4. * y * (1. - y);
-   l3y = y * (2. * y - 1.);
+   dshape(1,0) = -((2.*x - y)*(-1. + y));
+   dshape(1,1) = -(x*(1. + x - 2.*y));
 
-   d1x = 4. * x - 3.;
-   d2x = 4. - 8. * x;
-   d3x = 4. * x - 1.;
-   d1y = 4. * y - 3.;
-   d2y = 4. - 8. * y;
-   d3y = 4. * y - 1.;
+   dshape(2,0) = y*(-1. + 2.*x + y);
+   dshape(2,1) = x*(-1. + x + 2.*y);
 
-   double dbubbledx = (d2x * l2y)/8.0;
-   double dbubbledy = (l2x * d2y)/8.0;
+   dshape(3,0) = (-1. + 2.*x - y)*y;
+   dshape(3,1) = (-1. + x)*(x - 2.*y);
 
-   dshape(0,0) = d1x * l1y + dbubbledx;
-   dshape(0,1) = l1x * d1y + dbubbledy;
-   dshape(4,0) = d2x * l1y + dbubbledx;
-   dshape(4,1) = l2x * d1y + dbubbledy;
-   dshape(1,0) = d3x * l1y + dbubbledx;
-   dshape(1,1) = l3x * d1y + dbubbledy;
-   dshape(7,0) = d1x * l2y + dbubbledx;
-   dshape(7,1) = l1x * d2y + dbubbledy;
-   dshape(5,0) = d3x * l2y + dbubbledx;
-   dshape(5,1) = l3x * d2y + dbubbledy;
-   dshape(3,0) = d1x * l3y + dbubbledx;
-   dshape(3,1) = l1x * d3y + dbubbledy;
-   dshape(6,0) = d2x * l3y + dbubbledx;
-   dshape(6,1) = l2x * d3y + dbubbledy;
-   dshape(2,0) = d3x * l3y + dbubbledx;
-   dshape(2,1) = l3x * d3y + dbubbledy;
+   dshape(4,0) = 2.*(-1. + 2.*x)*(-1. + y);
+   dshape(4,1) = 2.*(-1. + x)*x;
 
+   dshape(5,0) = -2.*((-1. + y)*y);
+   dshape(5,1) = 2.*(x - 2.*x*y);
 
+   dshape(6,0) = 2.*(y - 2.*x*y);
+   dshape(6,1) = -2.*((-1. + x)*x);
 
-   // Functions as stated in Quadratic Serendipity paper eq (4.4).
-
-
-   // double x = ip.x, y = ip.y;
-
-   // dshape(0,0) = -((-1. + y)*(-2. + 2.*x + y));
-   // dshape(0,1) = -((-1. + x)*(-2. + x + 2.*y));
-   // dshape(1,0) = -((2.*x - y)*(-1. + y));
-   // dshape(1,1) = -(x*(1. + x - 2.*y));
-   // dshape(2,0) = y*(-1. + 2.*x + y);
-   // dshape(2,1) = x*(-1. + x + 2.*y);
-   // dshape(3,0) = (-1. + 2.*x - y)*y;
-   // dshape(3,1) = (-1. + x)*(x - 2.*y);
-   // dshape(4,0) = 2.*(-1. + 2.*x)*(-1. + y);
-   // dshape(4,1) = 2.*(-1. + x)*x;
-   // dshape(5,0) = -2.*((-1. + y)*y);
-   // dshape(5,1) = 2.*(x - 2.*x*y);
-   // dshape(6,0) = 2.*(y - 2.*x*y);
-   // dshape(6,1) = -2.*((-1. + x)*x);
-   // dshape(7,0) = 2.*(-1. + y)*y;
-   // dshape(7,1) = 2.*(-1. + x)*(-1. + 2.*y);
+   dshape(7,0) = 2.*(-1. + y)*y;
+   dshape(7,1) = 2.*(-1. + x)*(-1. + 2.*y);
 }
 
 
@@ -1970,9 +1903,9 @@ void H1Ser_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
    cout << "*****************************************" << endl;
    cout << "*** fe.cpp called H1Ser ProjectDelta! ***" << endl;
    cout << "*****************************************" << endl;
- 
+
    // May need to adjust edge dofs here - they evaluate to 1/4 at their associated edge midpoint
-} 
+}
 
 
 

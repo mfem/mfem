@@ -48,11 +48,17 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    if (order == 1)
    {
       // fec = new H1_FECollection(order, dim);
-      fec = new H1_FECollection(2, 2);
+      //fec = new H1_FECollection(2, 2);
+      //fec = new H1_FECollection(2, 2);
+      fec = new H1_FECollection(2, 2, BasisType::Positive);
    }
    else if (order == 2)
    {
       fec = new H1Ser_FECollection(2, 2);
+   }
+   else if (order < 0)
+   {
+      fec = new H1_FECollection(-order, 2, BasisType::Positive);
    }
    else
    {
@@ -291,6 +297,10 @@ int main(int argc, char *argv[])
    else if (order == 2)
    {
       cout << "convergence: Using H1 quadratic serendipity elements!" << endl;
+   }
+   else if (order < 0)
+   {
+      cout << "tmp\n";
    }
    else
    {
