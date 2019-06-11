@@ -13,7 +13,7 @@
 #define MFEM_FORALL_HPP
 
 #include "../config/config.hpp"
-#include "dbg.hpp"
+//#include "dbg.hpp"
 #include "error.hpp"
 #include "cuda.hpp"
 #include "occa.hpp"

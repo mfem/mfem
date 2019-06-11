@@ -3,30 +3,39 @@
 // Compile with: make ex24
 //
 // Sample runs:  ex24
+//               ex24 -c
 //               ex24 -p 0
-//               ex24 -p 0 -no-c
+//               ex24 -p 0 -c
 //               ex24 -p 1
-//               ex24 -p 1 -no-c
+//               ex24 -p 1 -c
 //               ex24 -p 2
-//               ex24 -p 2 -no-c
+//               ex24 -p 2 -c
 //               ex24 -p 3
-//               ex24 -p 3 -no-c
+//               ex24 -p 3 -c
 //               ex24 -p 4
-//               ex24 -p 4 -no-c
+//               ex24 -p 4 -c
 //               ex24 -p 5
-//               ex24 -p 5 -no-c
+//               ex24 -p 5 -c
 //               ex24 -p 6
-//               ex24 -p 6 -no-c
+//               ex24 -p 6 -c
 //
 // Device sample runs:
 //               ex24 -pa
+//               ex24 -pa -c
 //               ex24 -p 0 -pa
+//               ex24 -p 0 -pa -c
 //               ex24 -p 1 -pa
+//               ex24 -p 1 -pa -c
 //               ex24 -p 2 -pa
+//               ex24 -p 2 -pa -c
 //               ex24 -p 3 -pa
+//               ex24 -p 3 -pa -c
 //               ex24 -p 4 -pa
+//               ex24 -p 4 -pa -c
 //               ex24 -p 5 -pa
+//               ex24 -p 5 -pa -c
 //               ex24 -p 6 -pa
+//               ex24 -p 6 -pa -c
 
 #include "mfem.hpp"
 #include <fstream>
@@ -42,16 +51,17 @@ static socketstream glvis;
 const int  visport   = 19916;
 const char vishost[] = "localhost";
 
-// Parametrizations: Scherk, Enneper, Helicoid, Catenoid, Shell, Hold & Peach
+// Parametrizations: Scherk, Enneper,
+// Helicoid, Catenoid, Shell, Hold & Peach
 void scherk(const Vector &x, Vector &p);
 void enneper(const Vector &x, Vector &p);
 void helicoid(const Vector &x, Vector &p);
 void catenoid(const Vector &x, Vector &p);
-void catenoid_postfix(const int, const int, Mesh*);
+void catenoid_fix(const int, const int, Mesh*);
 void shell(const Vector &x, Vector &p);
 void hold(const Vector &x, Vector &p);
 void peach(const Vector &x, Vector &p);
-void peach_postfix(const int, const int, Mesh*);
+void peach_fix(const int, const int, Mesh*);
 
 // Surface mesh class
 class SurfaceMesh: public Mesh
@@ -225,15 +235,15 @@ public:
 
 int main(int argc, char *argv[])
 {
-   int nx = 2;
-   int ny = 2;
-   int order = 1;
-   int niter = 1;
-   bool pa = true;
-   int ref_levels = 0;
+   int nx = 4;
+   int ny = 4;
+   int order = 2;
+   int niter = 4;
+   bool pa = false;
+   int ref_levels = 2;
    bool components = false;
-   int parametrization = 6;
-   bool visualization = false;
+   int parametrization = -1;
+   bool visualization = true;
    bool vis_wait = false;
    const char *keys = "gAaa";
    const char *device_config = "cpu";
@@ -289,7 +299,7 @@ int main(int argc, char *argv[])
       mesh = new Mesh(mesh_file, generate_edges, refine);
    }
    else if (parametrization==0)
-   { mesh = new SurfaceMesh(order, nx, ny, catenoid, catenoid_postfix); }
+   { mesh = new SurfaceMesh(order, nx, ny, catenoid, catenoid_fix); }
    else if (parametrization==1)
    { mesh = new SurfaceMesh(order, nx, ny, helicoid); }
    else if (parametrization==2)
@@ -301,7 +311,7 @@ int main(int argc, char *argv[])
    else if (parametrization==5)
    { mesh = new SurfaceMesh(order, nx, ny, hold); }
    else if (parametrization==6)
-   { mesh = new SurfaceMesh(order, nx, ny, peach, peach_postfix); }
+   { mesh = new SurfaceMesh(order, nx, ny, peach, peach_fix); }
    else { mfem_error("Not a valid parametrization, p should be in ]-infty, 6]"); }
    const bool discontinuous = false;
    const int mdim = mesh->Dimension();
@@ -373,7 +383,7 @@ void catenoid(const Vector &x, Vector &p)
 }
 
 // Postfix of the Catenoid surface
-void catenoid_postfix(const int nx, const int ny, Mesh *mesh)
+void catenoid_fix(const int nx, const int ny, Mesh *mesh)
 {
    Array<int> v2v(mesh->GetNV());
    for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
@@ -487,7 +497,7 @@ void peach(const Vector &X, Vector &p)
    p[2] = h*(1.0 - gamma);
 }
 
-void peach_postfix(const int nx, const int ny, Mesh *mesh)
+void peach_fix(const int nx, const int ny, Mesh *mesh)
 {
    //mesh->PrintCharacteristics();
    for (int i = 0; i < mesh->GetNBE(); i++)
