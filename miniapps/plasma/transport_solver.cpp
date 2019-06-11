@@ -832,17 +832,17 @@ void DGAdvectionDiffusionTDO::Update()
 DGTransportTDO::DGTransportTDO(DGParams & dg,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &ffes,
-                               Coefficient &CNnCoef,
-                               Coefficient &CNiCoef,
-                               Coefficient &CTiCoef,
-                               Coefficient &CTeCoef, bool imex)
+                               Coefficient &MomCCoef,
+			       bool imex)
    : TimeDependentOperator(ffes.GetVSize()),
      fes_(&fes),
      ffes_(&ffes),
-     n_n_oper_(dg, fes, CNnCoef, imex),
-     n_i_oper_(dg, fes, CNiCoef, imex),
-     T_i_oper_(dg, fes, CTiCoef, imex),
-     T_e_oper_(dg, fes, CTeCoef, imex)
+     oneCoef_(1.0),
+     n_n_oper_(dg, fes, oneCoef_, imex),
+     n_i_oper_(dg, fes, oneCoef_, imex),
+     v_i_oper_(dg, fes, MomCCoef, imex),
+     T_i_oper_(dg, fes, oneCoef_, imex),
+     T_e_oper_(dg, fes, oneCoef_, imex)
 {
 }
 
@@ -854,16 +854,18 @@ void DGTransportTDO::SetTime(const double _t)
 
    n_n_oper_.SetTime(_t);
    n_i_oper_.SetTime(_t);
+   v_i_oper_.SetTime(_t);
    T_i_oper_.SetTime(_t);
    T_e_oper_.SetTime(_t);
 }
   
 void DGTransportTDO::SetLogging(int logging)
 {
-  n_n_oper_.SetLogging(logging, "Neutral Density: ");
-  n_i_oper_.SetLogging(logging, "Ion Density:     ");
-  T_i_oper_.SetLogging(logging, "Ion Temp:        ");
-  T_e_oper_.SetLogging(logging, "Electron Temp:   ");
+  n_n_oper_.SetLogging(logging, "Neutral Density:       ");
+  n_i_oper_.SetLogging(logging, "Ion Density:           ");
+  v_i_oper_.SetLogging(logging, "Ion Parallel Velocity: ");
+  T_i_oper_.SetLogging(logging, "Ion Temp:              ");
+  T_e_oper_.SetLogging(logging, "Electron Temp:         ");
 }
   
 void DGTransportTDO::SetNnDiffusionCoefficient(Coefficient &dCoef)
@@ -919,6 +921,36 @@ void DGTransportTDO::SetNiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
 void DGTransportTDO::SetNiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
 {
    n_i_oper_.SetNeumannBC(nbc_attr, nbc);
+}
+
+void DGTransportTDO::SetViAdvectionCoefficient(VectorCoefficient &VCoef)
+{
+   v_i_oper_.SetAdvectionCoefficient(VCoef);
+}
+
+void DGTransportTDO::SetViDiffusionCoefficient(Coefficient &dCoef)
+{
+   v_i_oper_.SetDiffusionCoefficient(dCoef);
+}
+
+void DGTransportTDO::SetViDiffusionCoefficient(MatrixCoefficient &DCoef)
+{
+   v_i_oper_.SetDiffusionCoefficient(DCoef);
+}
+
+void DGTransportTDO::SetViSourceCoefficient(Coefficient &SCoef)
+{
+   v_i_oper_.SetSourceCoefficient(SCoef);
+}
+
+void DGTransportTDO::SetViDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
+{
+   v_i_oper_.SetDirichletBC(dbc_attr, dbc);
+}
+
+void DGTransportTDO::SetViNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
+{
+   v_i_oper_.SetNeumannBC(nbc_attr, nbc);
 }
 
 void DGTransportTDO::SetTiAdvectionCoefficient(VectorCoefficient &VCoef)
@@ -995,6 +1027,10 @@ void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
    y_.SetDataAndSize(&y[1*size], size);
    n_i_oper_.ExplicitMult(x_, y_);
 
+   x_.SetDataAndSize(const_cast<double*>(&x[2*size]), size);
+   y_.SetDataAndSize(&y[2*size], size);
+   v_i_oper_.ExplicitMult(x_, y_);
+
    x_.SetDataAndSize(const_cast<double*>(&x[3*size]), size);
    y_.SetDataAndSize(&y[3*size], size);
    T_i_oper_.ExplicitMult(x_, y_);
@@ -1019,6 +1055,10 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
    dudt_.SetDataAndSize(&dudt[1*size], size);
    n_i_oper_.ImplicitSolve(dt, u_, dudt_);
 
+   u_.SetDataAndSize(const_cast<double*>(&u[2*size]), size);
+   dudt_.SetDataAndSize(&dudt[2*size], size);
+   v_i_oper_.ImplicitSolve(dt, u_, dudt_);
+
    u_.SetDataAndSize(const_cast<double*>(&u[3*size]), size);
    dudt_.SetDataAndSize(&dudt[3*size], size);
    T_i_oper_.ImplicitSolve(dt, u_, dudt_);
@@ -1034,6 +1074,7 @@ void DGTransportTDO::Update()
 
    n_n_oper_.Update();
    n_i_oper_.Update();
+   v_i_oper_.Update();
    T_i_oper_.Update();
    T_e_oper_.Update();
 }

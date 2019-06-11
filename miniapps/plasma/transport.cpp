@@ -819,6 +819,19 @@ int main(int argc, char *argv[])
    m.Assemble();
    m.Finalize();
 
+   // Density, Velocity, and Energy grid functions on for visualization.
+   ParGridFunction neu_density(&fes, u.GetData());
+   ParGridFunction ion_density(&fes, u.GetData() + offsets[1]);
+   ParGridFunction para_velocity(&fes, u.GetData() + offsets[2]);
+   ParGridFunction ion_energy(&fes, u.GetData() + offsets[3]);
+   ParGridFunction elec_energy(&fes, u.GetData() + offsets[4]);
+
+   // ParGridFunction u(&fes);
+   // u.ProjectCoefficient(u0Coef);
+   neu_density = 1.0;
+   ion_density = 1.0;
+   para_velocity = 0.0;
+
    Array<double> weights(5);
    weights = 0.0;
    weights[4] = 1.0;
@@ -826,14 +839,19 @@ int main(int argc, char *argv[])
    ode_diff_msr.SetOperator(m);
 
    ConstantCoefficient one(1.0);
+   GridFunctionCoefficient niCoef(&ion_density);
+   ProductCoefficient mnCoef(ion_masses[0], niCoef);
    FunctionCoefficient TiCoef(TiFunc);
    FunctionCoefficient TeCoef(TeFunc);
    MatrixFunctionCoefficient DCoef(dim, ChiFunc);
    VectorFunctionCoefficient VCoef(dim, vFunc);
    FunctionCoefficient QCoef(QFunc);
 
+   ion_energy.ProjectCoefficient(TiCoef);
+   elec_energy.ProjectCoefficient(TeCoef);
+
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
-   DGTransportTDO oper(dg, fes, ffes, one, one, one, one, imex);
+   DGTransportTDO oper(dg, fes, ffes, mnCoef, imex);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
    
@@ -843,6 +861,10 @@ int main(int argc, char *argv[])
    oper.SetNiDiffusionCoefficient(DCoef);
    oper.SetNiAdvectionCoefficient(VCoef);
    oper.SetNiSourceCoefficient(QCoef);
+
+   oper.SetViDiffusionCoefficient(DCoef);
+   oper.SetViAdvectionCoefficient(VCoef);
+   oper.SetViSourceCoefficient(QCoef);
 
    oper.SetTiDiffusionCoefficient(DCoef);
    oper.SetTiAdvectionCoefficient(VCoef);
@@ -868,20 +890,6 @@ int main(int argc, char *argv[])
    ode_controller.SetTolerance(tol_ode);
    ode_controller.SetRejectionLimit(rej_ode);
 
-   // Density, Velocity, and Energy grid functions on for visualization.
-   ParGridFunction neu_density(&fes, u.GetData());
-   ParGridFunction ion_density(&fes, u.GetData() + offsets[1]);
-   ParGridFunction para_velocity(&fes, u.GetData() + offsets[2]);
-   ParGridFunction ion_energy(&fes, u.GetData() + offsets[3]);
-   ParGridFunction elec_energy(&fes, u.GetData() + offsets[4]);
-
-   // ParGridFunction u(&fes);
-   // u.ProjectCoefficient(u0Coef);
-   neu_density = 1.0;
-   ion_density = 1.0;
-   para_velocity = 0.0;
-   ion_energy.ProjectCoefficient(TiCoef);
-   elec_energy.ProjectCoefficient(TeCoef);
 
    L2_FECollection fec_l2_o0(0, dim);
    // Finite element space for a scalar (thermodynamic quantity)
