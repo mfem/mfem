@@ -2139,7 +2139,7 @@ private:
    // PA extension
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, NE, D1D, Q1D;
+   int dim, sdim, NE, D1D, Q1D;
    Vector pa_data;
 
 public:
