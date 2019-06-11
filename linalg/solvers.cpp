@@ -1684,7 +1684,7 @@ GMGSolver::GMGSolver(HypreParMatrix * Af_,
    : Solver(Af_->Height(), Af_->Width()), Af(Af_), P(P_) {
 
    NumGrids = P.size();
-   Sv.reserve(NumGrids);
+   S.reserve(NumGrids);
    A.reserve(NumGrids + 1);
 
    A[NumGrids] = Af;
@@ -1701,12 +1701,21 @@ GMGSolver::GMGSolver(HypreParMatrix * Af_,
    // construct smoothers
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
-      Sv[i] = new PetscLinearSolver(MPI_COMM_WORLD, "smoother");
-      // Convert to PetscParMatrix
-      Sv[i]->SetOperator(PetscParMatrix(A[i + 1], Operator::PETSC_MATAIJ));
+      S[i] = new HypreSmoother;
+      S[i]->SetType(HypreSmoother::Jacobi);
+      S[i]->SetOperator(*A[i+1]);
    }
-
 }
+
+void GMGSolver::SetSmootherType(const HypreSmoother::Type type) const
+{
+   for (int i = NumGrids - 1; i >= 0 ; i--)
+   {
+      S[i]->SetType(type);
+      S[i]->SetOperator(*A[i+1]);
+   }
+}
+
 
 void GMGSolver::Mult(const Vector &r, Vector &z) const
 {
@@ -1727,7 +1736,7 @@ void GMGSolver::Mult(const Vector &r, Vector &z) const
    for (int i = NumGrids; i > 0 ; i--)
    {
       // Pre smooth
-      Sv[i - 1]->Mult(rv[i], zv[i]); zv[i] *= theta;
+      S[i - 1]->Mult(rv[i], zv[i]); zv[i] *= theta;
       // compute residual
       Vector w(A[i]->Height());
       A[i]->Mult(zv[i], w);
@@ -1749,7 +1758,7 @@ void GMGSolver::Mult(const Vector &r, Vector &z) const
       Vector v(A[i]->Height());
       A[i]->Mult(u, v); rv[i] -= v;
       // Post smooth
-      Sv[i - 1]->Mult(rv[i], v); v *= theta;
+      S[i - 1]->Mult(rv[i], v); v *= theta;
       // Update correction
       zv[i] += v;
    }
@@ -1757,11 +1766,11 @@ void GMGSolver::Mult(const Vector &r, Vector &z) const
 }
 
 GMGSolver::~GMGSolver() {
-   int n = Sv.size();
+   int n = S.size();
    // delete invAc;
    for (int i = n - 1; i >= 0 ; i--)
    {
-      delete Sv[i];
+      delete S[i];
    }
 }
 

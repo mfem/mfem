@@ -350,16 +350,16 @@ private:
    /// The linear system matrix
    std::vector<HypreParMatrix *> A;
    std::vector<HypreParMatrix *> P;
+   std::vector<HypreSmoother  *> S;
    HypreParMatrix * Af;
-
-   std::vector<PetscLinearSolver *>  Sv;
-   int myid;
    int NumGrids;
    PetscLinearSolver *invAc = nullptr;
    double theta = 1.0;
 public:
    GMGSolver(HypreParMatrix * Af_, std::vector<HypreParMatrix *> P_);
    virtual void SetOperator(const Operator &op) {}
+
+   virtual void SetSmootherType(const HypreSmoother::Type type) const;
 
    virtual void SetTheta(const double a) {theta = a;}
 

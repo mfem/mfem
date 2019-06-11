@@ -27,7 +27,6 @@ double omega;
 int isol = 1;
 
 
-
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
@@ -181,6 +180,7 @@ int main(int argc, char *argv[])
    chrono.Start();
    GMGSolver M(A, P);
    M.SetTheta(0.5);
+   M.SetSmootherType(HypreSmoother::Jacobi);
    chrono.Stop();
 
    if (myid == 0)
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
    }
 
    int maxit(5000);
-   double rtol(1.e-10);
+   double rtol(1.e-6);
    double atol(0.0);
 
    chrono.Clear();
