@@ -154,6 +154,26 @@ double TeFunc(const Vector &x, double t)
           (T_max_ - T_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs));
 }
 
+void bHatFunc(const Vector &x, Vector &B)
+{
+   B.SetSize(2);
+     
+   double a = 0.4;
+   double b = 0.8;
+   double r2 = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+
+   if ( r2 < 1.0e-4 * a * b)
+   {
+       B = 0.0;
+       return;
+   }
+
+   double den = sqrt(pow(b * b * x[0], 2) + pow(a * a * x[1], 2));
+   
+   B[0] = a * a * x[1] / den;
+   B[1] = -b * b * x[0] / den;
+}
+
 void bFunc(const Vector &x, Vector &B)
 {
    B.SetSize(2);
@@ -223,10 +243,12 @@ void bbTFunc(const Vector &x, DenseMatrix &M)
    }
 }
 
-void vFunc(const Vector &x, Vector &V)
+double viFunc(const Vector &x)
 {
-   bFunc(x, V);
-   V *= -v_max_ / B_max_;
+   double a = 0.4;
+   double b = 0.8;
+
+   return -v_max_ * sin(M_PI * (pow(x[0] / a, 2) + pow(x[1] / b, 2)));
 }
 
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
@@ -840,15 +862,20 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient one(1.0);
    GridFunctionCoefficient niCoef(&ion_density);
+   GridFunctionCoefficient viCoef(&para_velocity);
    ProductCoefficient mnCoef(ion_masses[0], niCoef);
-   FunctionCoefficient TiCoef(TiFunc);
-   FunctionCoefficient TeCoef(TeFunc);
+   FunctionCoefficient vi0Coef(viFunc);
+   FunctionCoefficient Ti0Coef(TiFunc);
+   FunctionCoefficient Te0Coef(TeFunc);
    MatrixFunctionCoefficient DCoef(dim, ChiFunc);
-   VectorFunctionCoefficient VCoef(dim, vFunc);
+   VectorFunctionCoefficient bHatCoef(2, bHatFunc);
+   // VectorFunctionCoefficient VCoef(dim, vFunc);
+   ScalarVectorProductCoefficient VCoef(viCoef, bHatCoef);
    FunctionCoefficient QCoef(QFunc);
 
-   ion_energy.ProjectCoefficient(TiCoef);
-   elec_energy.ProjectCoefficient(TeCoef);
+   para_velocity.ProjectCoefficient(vi0Coef);
+   ion_energy.ProjectCoefficient(Ti0Coef);
+   elec_energy.ProjectCoefficient(Te0Coef);
 
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
    DGTransportTDO oper(dg, fes, ffes, mnCoef, imex);
@@ -876,8 +903,8 @@ int main(int argc, char *argv[])
 
    Array<int> dbcAttr(pmesh.bdr_attributes.Max());
    dbcAttr = 1;
-   oper.SetTiDirichletBC(dbcAttr, TiCoef);
-   oper.SetTeDirichletBC(dbcAttr, TeCoef);
+   oper.SetTiDirichletBC(dbcAttr, Ti0Coef);
+   oper.SetTeDirichletBC(dbcAttr, Te0Coef);
 
    oper.SetTime(0.0);
    ode_solver->Init(oper);
