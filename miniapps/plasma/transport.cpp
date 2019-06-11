@@ -337,6 +337,7 @@ int main(int argc, char *argv[])
    dg.kappa = -1.0;
 
    int ode_solver_type = 2;
+   int logging = 1;
    bool   imex = true;
    double tol_ode = 1e-3;
    double rej_ode = 1.2;
@@ -366,6 +367,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&logging, "-l", "--logging",
+                  "Set the logging level.");
    args.AddOption(&problem_, "-p", "--problem",
                   "Problem setup to use. See options in velocity_function().");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
@@ -832,6 +835,8 @@ int main(int argc, char *argv[])
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
    DGTransportTDO oper(dg, fes, ffes, one, one, imex);
 
+   oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
+   
    oper.SetTiDiffusionCoefficient(DCoef);
    oper.SetTiAdvectionCoefficient(VCoef);
    oper.SetTiSourceCoefficient(QCoef);

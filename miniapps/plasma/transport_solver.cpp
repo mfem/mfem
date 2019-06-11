@@ -253,6 +253,8 @@ DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(DGParams & dg,
    : TimeDependentOperator(fes.GetVSize()),
      dg_(dg),
      imex_(imex),
+     logging_(0),
+     log_prefix_(""),
      dt_(-1.0),
      fes_(&fes),
      CCoef_(&CCoef),
@@ -568,6 +570,12 @@ void DGAdvectionDiffusionTDO::SetTime(const double _t)
    this->initQ();
 }
 
+void DGAdvectionDiffusionTDO::SetLogging(int logging, const string & prefix)
+{
+  logging_ = logging;
+  log_prefix_ = prefix;
+}
+
 void DGAdvectionDiffusionTDO::SetAdvectionCoefficient(VectorCoefficient &VCoef)
 {
    VCoef_ = &VCoef;
@@ -695,7 +703,11 @@ void DGAdvectionDiffusionTDO::ExplicitMult(const Vector &x, Vector &fx) const
 void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
                                             const Vector &u, Vector &dudt)
 {
-   if (fes_->GetMyRank() == 0) { cout << "ImplicitSolve with dt = " << dt << endl; }
+   if (fes_->GetMyRank() == 0 && logging_)
+   {
+     cout << log_prefix_ << "ImplicitSolve with dt = " << dt << endl;
+   }
+
    if (fabs(dt - dt_) > 1e-4 * dt_)
    {
       if (dtdCoef_   ) { dtdCoef_->SetAConst(dt); }
@@ -834,7 +846,13 @@ void DGTransportTDO::SetTime(const double _t)
    T_i_oper_.SetTime(_t);
    T_e_oper_.SetTime(_t);
 }
-
+  
+void DGTransportTDO::SetLogging(int logging)
+{
+  T_i_oper_.SetLogging(logging, "Ion Temp:      ");
+  T_e_oper_.SetLogging(logging, "Electron Temp: ");
+}
+  
 void DGTransportTDO::SetTeAdvectionCoefficient(VectorCoefficient &VCoef)
 {
    T_e_oper_.SetAdvectionCoefficient(VCoef);

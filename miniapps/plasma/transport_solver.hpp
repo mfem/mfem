@@ -179,7 +179,8 @@ private:
    DGParams & dg_;
 
    bool imex_;
-
+   int logging_;
+   std::string log_prefix_;
    double dt_;
 
    ParFiniteElementSpace *fes_;
@@ -235,6 +236,8 @@ public:
 
    void SetTime(const double _t);
 
+   void SetLogging(int logging, const std::string & prefix = "");
+  
    void SetAdvectionCoefficient(VectorCoefficient &VCoef);
    void SetDiffusionCoefficient(Coefficient &dCoef);
    void SetDiffusionCoefficient(MatrixCoefficient &DCoef);
@@ -272,7 +275,8 @@ public:
    ~DGTransportTDO();
 
    void SetTime(const double _t);
-
+   void SetLogging(int logging);
+  
    void SetTiAdvectionCoefficient(VectorCoefficient &VCoef);
    void SetTiDiffusionCoefficient(Coefficient &dCoef);
    void SetTiDiffusionCoefficient(MatrixCoefficient &DCoef);
