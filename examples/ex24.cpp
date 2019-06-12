@@ -38,6 +38,8 @@
 //               ex24 -p 6 -pa -c
 
 #include "mfem.hpp"
+#include "../general/dbg.hpp"
+#include <cassert>
 #include <fstream>
 #include <iostream>
 
@@ -66,8 +68,8 @@ protected:
    const bool Discontinuous = false;
 public:
    SurfaceMesh(const int order,
-               const int nx = 4,
-               const int ny = 4,
+               const int nx,
+               const int ny,
                const double sx = 1.0,
                const double sy = 1.0,
                const int space_dim = 3,
@@ -92,12 +94,26 @@ public:
       for (int i = 0; i < nodes.Size(); i++)
       { if (std::abs(nodes(i)) < eps) { nodes(i) = 0.0; } }
    }
-   void Equation() { Transform(Surface::Parametrization); }
-   void Prefix()
+   SurfaceMesh(const bool snap,
+               const int order,
+               const int dim,
+               const int NVert,
+               const int NElem,
+               const int NBdrElem,
+               const int space_dim):
+      Mesh(dim, NVert, NElem, NBdrElem, space_dim),
+      Order(order), Nx(NVert), Ny(NElem), Sx(1.0), Sy(1.0),
+      SpaceDim(space_dim), Type(Element::QUADRILATERAL), GenerateEdges(true),
+      SpaceFillingCurves(true), Discontinuous(false)
    {
-      SetCurvature(Order, Discontinuous, SpaceDim, Ordering::byNODES);
+      dbg("SurfaceMesh ex7");
+      Surface *S = static_cast<Surface*>(this);
+      S->Prefix();
+      SetCurvature(order, Discontinuous, space_dim, Ordering::byVDIM);
    }
-   void Postfix() { }
+   void Equation() {dbg("Equation");}
+   void Prefix() { dbg("Prefix"); }
+   void Postfix() { dbg("Postfix");}
 };
 
 // Parametrization of a Helicoid surface
@@ -293,65 +309,72 @@ struct QPeach: public SurfaceMesh<QPeach>
 };
 
 // Full Peach street model
-struct FPeach: public SurfaceMesh<FPeach>
+class FPeach: public SurfaceMesh<FPeach>
 {
-   FPeach(int order, int nx, int ny): SurfaceMesh(order, nx, ny) {}
-   static void Parametrization(const Vector &X, Vector &p)
-   {
-      p = X;
-      const double x = 2.0*X[0]-1.0;
-      const double y = X[1];
-      const double r = sqrt(x*x + y*y);
-      const double t = (x==0.0) ? pi/2.0 :
-                       (y==0.0 && x>0.0) ? 0. :
-                       (y==0.0 && x<0.0) ? pi : acos(x/r);
-      const double sqrtx = sqrt(1.0 + x*x);
-      const double sqrty = sqrt(1.0 + y*y);
-      const bool yaxis = pi/4.0<t && t < 3.0*pi/4.0;
-      const double R = yaxis?sqrtx:sqrty;
-      const double gamma = r/R;
-      p[0] = gamma * cos(t);
-      p[1] = gamma * sin(t);
-      p[2] = fabs(t)<eps?1.0:0.0;
-      p[2] = 1.0 - gamma;
-   }
+private:
+   H1_FECollection *Fec;
+   FiniteElementSpace *NodalFes;
+public:
+   FPeach(H1_FECollection *fec, FiniteElementSpace *nodal_fes,
+          int order, int nx, int ny):
+      // dim:2, Nvert:8, Nelem:6, NBdrElem:0, space_dim:3
+      SurfaceMesh(true, order, 2, 8, 6, 0, 3),
+      Fec(fec), NodalFes(nodal_fes) {}
    void Prefix()
    {
-      SetCurvature(1, Discontinuous, SpaceDim, Ordering::byNODES);
-   }
-   void Postfix()
-   {
-      PrintCharacteristics();
-      for (int i = 0; i < GetNBE(); i++)
+      dbg("Prefix");
+      const double quad_v[8][3] =
       {
-         Element *el = GetBdrElement(i);
-         const int fn = GetBdrElementEdgeIndex(i);
-         MFEM_VERIFY(!FaceIsTrueInterior(fn),"");
-         Array<int> vertices;
-         GetFaceVertices(fn, vertices);
-         const GridFunction *nodes = GetNodes();
-         Vector nval;
-         double R[2], X[2][3];
-         for (int v = 0; v < 2; v++)
+         {-1, -1, -1}, {+1, -1, -1}, {+1, +1, -1}, {-1, +1, -1},
+         {-1, -1, +1}, {+1, -1, +1}, {+1, +1, +1}, {-1, +1, +1}
+      };
+      const int quad_e[6][4] =
+      {
+         {3, 2, 1, 0}, {0, 1, 5, 4}, {1, 2, 6, 5},
+         {2, 3, 7, 6}, {3, 0, 4, 7}, {4, 5, 6, 7}
+      };
+      // Nx == Nvert
+      dbg("Nvert: %d",Nx);
+      for (int j = 0; j < Nx; j++)
+      {
+         AddVertex(quad_v[j]);
+      }
+      // Ny == NElem
+      dbg("NElem: %d",Ny);
+      for (int j = 0; j < Ny; j++)
+      {
+         int attribute = j + 1;
+         AddQuad(quad_e[j], attribute);
+      }
+      FinalizeQuadMesh(1, 1, true);
+      Fec = new H1_FECollection(Order, Dimension());
+      NodalFes = new FiniteElementSpace(this, Fec, SpaceDimension());
+      //SetCurvature(Order, Discontinuous, SpaceDim, Ordering::byNODES);
+      //EnsureNodes();
+      SetNodalFESpace(NodalFes);
+      //UniformRefinement();
+      SnapNodes();
+   }
+   void SnapNodes()
+   {
+      GridFunction &nodes = *GetNodes();
+      Vector node(SpaceDimension());
+      for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
+      {
+         for (int d = 0; d < SpaceDimension(); d++)
          {
-            R[v] = 0.0;
-            const int iv = vertices[v];
-            for (int d = 0; d < 3; d++)
-            {
-               nodes->GetNodalValues(nval, d+1);
-               const double x = X[v][d] = nval[iv];
-               if (d < 2) { R[v] += x*x; }
-            }
+            node(d) = nodes(nodes.FESpace()->DofToVDof(i, d));
          }
-         if (fabs(X[0][1])<=eps &&
-             fabs(X[1][1])<=eps && (R[0]>0.1 || R[1]>0.1))
-         { el->SetAttribute(1); }
-         else { el->SetAttribute(2); }
-         //ofstream mesh_ofs("out.mesh");
-         //mesh_ofs.precision(8);
-         //Print(mesh_ofs);
+
+         node /= node.Norml2();
+
+         for (int d = 0; d < SpaceDimension(); d++)
+         {
+            nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d);
+         }
       }
    }
+
 };
 
 // Visualize some solution on the given mesh
@@ -518,9 +541,9 @@ int main(int argc, char *argv[])
    int order = 2;
    int niter = 4;
    bool pa = true;
-   int ref_levels = 2;
+   int ref_levels = 1;
    bool components = false;
-   int parametrization = -1;
+   int parametrization = 7;
    bool visualization = true;
    bool wait = false;
    const char *keys = "gAaaa";
@@ -569,6 +592,8 @@ int main(int argc, char *argv[])
 
    // Initialize our surface mesh from command line option.
    Mesh *mesh = nullptr;
+   H1_FECollection *nodal_fec = nullptr;
+   FiniteElementSpace *nodal_fes = nullptr;
    if (parametrization<0)
    {
       const int refine = 1;
@@ -582,23 +607,34 @@ int main(int argc, char *argv[])
    else if (parametrization==4) { mesh = new Shell(order, nx, ny); }
    else if (parametrization==5) { mesh = new Hold(order, nx, ny); }
    else if (parametrization==6) { mesh = new QPeach(order, nx, ny); }
-   else if (parametrization==7) { mesh = new FPeach(order, nx, ny); }
+   else if (parametrization==7)
+   {
+      mesh = new FPeach(nodal_fec, nodal_fes, order, nx, ny);
+   }
    else { mfem_error("Not a valid parametrization, p should be in ]-infty, 7]"); }
    const bool discontinuous = false;
    const int mdim = mesh->Dimension();
    const int sdim = mesh->SpaceDimension();
+   dbg("SetCurvature");
    mesh->SetCurvature(order, discontinuous, sdim, Ordering::byNODES);
 
    //  Refine the mesh to increase the resolution.
-   for (int l = 0; l < ref_levels; l++) { mesh->UniformRefinement(); }
+   dbg("Refine");
+   if (parametrization!=7)
+   {
+      for (int l = 0; l < ref_levels; l++) { mesh->UniformRefinement(); }
+   }
 
    // Define a finite element space on the mesh.
+   dbg("fec");
    const H1_FECollection fec(order, mdim);
    FiniteElementSpace *sfes = new FiniteElementSpace(mesh, &fec);
+   dbg("vfes");
    FiniteElementSpace *vfes = new FiniteElementSpace(mesh, &fec, sdim);
    cout << "Number of true DOFs: " << vfes->GetTrueVSize() << endl;
 
    // Determine the list of true (i.e. conforming) essential boundary dofs.
+   dbg("BC: %d", mesh->bdr_attributes.Size());
    Array<int> v_ess_tdof_list, s_ess_tdof_list;
    if (mesh->bdr_attributes.Size())
    {
@@ -607,11 +643,51 @@ int main(int argc, char *argv[])
       sfes->GetEssentialTrueDofs(ess_bdr, s_ess_tdof_list);
       vfes->GetEssentialTrueDofs(ess_bdr, v_ess_tdof_list);
    }
+   else
+   {
+      dbg("No bdr_attributes!");
+      // GetEssentialTrueDofs:
+      Array<int> ess_cdofs, ess_tdofs;
+      const FiniteElementSpace *nfes = mesh->GetNodalFESpace();
+      // GetEssentialVDofs:
+      {
+         Array<int> cdofs, dofs;
+         ess_cdofs.SetSize(nfes->GetVSize());
+         ess_cdofs = 0;
+         for (int i = 0; i < nfes->GetNE(); i++)
+         {
+            nfes->GetElementDofs(i, cdofs);
+            // Mark all components.
+            // mark_dofs(vdofs, ess_vdofs);
+            for (int i = 0; i < cdofs.Size(); i++)
+            {
+               int k = cdofs[i];
+               //dbg(" %d",k);
+               if (k < 0) { k = -1 - k; }
+               Array<double> X(3);
+               X = 0.0;
+               mesh->GetNode(k, X);
+               //dbg("(%f,%f,%f)", X[0], X[1], X[2]);
+               if (fabs(X[0])<eps) { ess_cdofs[k] = -1; }
+               else if (fabs(X[1])<eps) { ess_cdofs[k] = -1; }
+               else { ess_cdofs[k] = 0; }
+               dbg("ess_cdofs:\n"); ess_cdofs.Print();
+            }
+         }
+      }
+      dbg("v_ess_tdof_list:\n"); v_ess_tdof_list.Print();
+      const SparseMatrix *R = nfes->GetConformingRestriction();
+      if (!R) { ess_tdofs.MakeRef(ess_cdofs); }
+      else { R->BooleanMult(ess_cdofs, ess_tdofs); }
+      FiniteElementSpace::MarkerToList(ess_tdofs, v_ess_tdof_list);
+   }
 
+   dbg("visualization");
    // Send to GLVis the first mesh and set the 'keys' options.
    if (visualization) { Visualize(mesh, order, wait, keys, 800, 800); }
 
    // Instanciate and launch the surface solver.
+   dbg("Solver");
    SurfaceSolver *s;
    if (components)
    {
