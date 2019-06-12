@@ -1570,8 +1570,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
       else if (b_type == BasisType::Serendipity)
       {
-         // Need to pass parameter p in here for general order
-         H1_Elements[Geometry::SEGMENT] = new H1Ser_SegmentElement();
+         H1_Elements[Geometry::SEGMENT] = new H1Ser_SegmentElement(p);
       }
       else
       {
@@ -1598,8 +1597,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
       else if (b_type == BasisType::Serendipity)
       {
-         // Need to pass parameter p in here for general ordering
-      	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement();
+      	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
       }
       else
       {
@@ -2489,7 +2487,7 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    else if (!strncmp(fe_name, "H1Ser_", 6))
    {
       GeomType = Geometry::SQUARE;
-      Local_Element = new H1Ser_QuadrilateralElement();
+      Local_Element = new H1Ser_QuadrilateralElement(atoi(fe_name + 10));
       cout << "in fe_coll.cpp: using H1Ser_QuadrilateralElement" << "\n"; 
    }
    else if (!strncmp(fe_name, "L2_", 3))

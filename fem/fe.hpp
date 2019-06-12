@@ -1707,9 +1707,6 @@ private:
    static void CalcMono(const int p, const double x, double *u);
    static void CalcMono(const int p, const double x, double *u, double *d);
 
-   static void CalcLegendre(const int p, const double x, double *u);
-   static void CalcLegendre(const int p, const double x, double *u, double *d);
-
    static void CalcChebyshev(const int p, const double x, double *u);
    static void CalcChebyshev(const int p, const double x, double *u, double *d);
    static void CalcChebyshev(const int p, const double x, double *u, double *d,
@@ -1797,6 +1794,10 @@ public:
    { CalcBinomTerms(p, x, 1. - x, u); }
    static void CalcBernstein(const int p, const double x, double *u, double *d)
    { CalcBinomTerms(p, x, 1. - x, u, d); }
+
+   // Made these methods public for serendipity basis construction:
+   static void CalcLegendre(const int p, const double x, double *u);
+   static void CalcLegendre(const int p, const double x, double *u, double *d);
 
    ~Poly_1D();
 };
@@ -1979,10 +1980,8 @@ public:
 
 class H1Ser_SegmentElement : public ScalarFiniteElement
 {
-  // The segment class is needed b/c the basis implemented is not nodal
-  // on segments
 public:
-   H1Ser_SegmentElement();
+   H1Ser_SegmentElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1993,13 +1992,10 @@ public:
 class H1Ser_QuadrilateralElement : public ScalarFiniteElement
 {
 public:
-   /// Construct a quadratic order serendipity FE on a quadrilateral
-   ////SerQuad2DFiniteElement();
-   H1Ser_QuadrilateralElement();
+   H1Ser_QuadrilateralElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
 

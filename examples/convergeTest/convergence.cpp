@@ -47,14 +47,11 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    FiniteElementCollection *fec;
    if (order == 1)
    {
-      // fec = new H1_FECollection(order, dim);
-      //fec = new H1_FECollection(2, 2);
-      //fec = new H1_FECollection(2, 2);
       fec = new H1_FECollection(2, 2, BasisType::Positive);
    }
    else if (order == 2)
    {
-      fec = new H1Ser_FECollection(2, 2);
+      fec = new H1Ser_FECollection(order, 2);
    }
    else if (order < 0)
    {
@@ -62,11 +59,11 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    }
    else
    {
-     cout << "Error - should not have gotten here" << endl;
+     cout << "Error - something went wrong in processing order input." << endl;
      fec = NULL;
    }
 
-   // // Set exact solution
+   // Set exact solution
    
    FunctionCoefficient *u;
    VectorFunctionCoefficient *u_grad;
@@ -226,14 +223,13 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
 double u_exact(const Vector &x)
 {
-   return(4*x(0));
-   return 1;
+   return(x(0)+x(1));
 }
 
 void u_grad_exact(const Vector &x, Vector &u)
 {
-   u(0) = 4;
-   u(1) = 0;
+   u(0) = 1;
+   u(1) = 1;
 }
 
 
@@ -292,26 +288,28 @@ int main(int argc, char *argv[])
 
    if (order == 1)
    {
-      cout << "convergence: Using H1 quadratic tensor product elements" << endl;
+      cout << "Using H1 quadratic tensor product elements (for testing / comparison)." << endl;
    }
-   else if (order == 2)
+   else if (order > 1)
    {
-      cout << "convergence: Using H1 quadratic serendipity elements!" << endl;
+      cout << "Using H1 serendipity elements of order " << order << "." << endl;
    }
    else if (order < 0)
    {
-      cout << "tmp\n";
+      cout << "Using H1 positive (Bernstein) basis of order " << -order << "." << endl;
    }
    else
    {
-      cout << "In this example, the order parameter is used as a proxy:\n order 1: quadratic tensor product elements\n order 2: quadratic quadratic serendipity elements"
-           << endl;
+      cout << "In this example, the order parameter is used as a proxy:\n" << 
+      "order = 1: quadratic tensor product elements\n" <<
+      "order = p>1: order p serendipity elements\n" <<
+      "order = p<0: order -p Bernstein basis tensor product elements"  << endl;
       return 1;
    }
 
    if (exact == 1)
    {
-      cout << "convergence: Exact solution u(x,y)=4x" << endl;
+      cout << "convergence: Exact solution u(x,y)=x+y" << endl;
    }
    else if (exact == 2)
    {

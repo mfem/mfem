@@ -1751,26 +1751,22 @@ void BiQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 }
 
 
-// begin quadratic serendipity case
 
-// SerQuad2DFiniteElement::SerQuad2DFiniteElement()
-//   : NodalFiniteElement(2, Geometry::SQUARE, 8, 2, FunctionSpace::Pk)
-
-
-H1Ser_SegmentElement::H1Ser_SegmentElement()
-   : ScalarFiniteElement(1, Geometry::SEGMENT, 3, 2, FunctionSpace::Pk)
-//  parameters for an FE object:
-//  Dim = D ; GeomType = G ; Dof = Do ; Order = O ; FuncSpace = F;
-// I think Do = # of dofs and O = polynomial order of element
+H1Ser_SegmentElement::H1Ser_SegmentElement(const int p)
+   : ScalarFiniteElement(1, Geometry::SEGMENT, p+1, p, FunctionSpace::Pk)
 {
+   //  parameters for an FE object:
+   //  Dim = D ; GeomType = G ; Dof = Do ; Order = O ; FuncSpace = F;
+   // I think Do = # of dofs and O = polynomial order of element
 
-//   cout << endl << "*** fe.cpp: called h1ser segment element! ***" << endl;
+   if (p >2)
+   {  
+      cout << endl << "*** fe.cpp: Need to edit H1Ser_SegmentElement member functions! ***" << endl;
+   }
 
    // Endpoints need to be first in the list, so reorder them.
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(1).x = 1.0;
-
-   const int p = Order;
 
    for (int i = 1; i < 2; i++)
    {
@@ -1781,14 +1777,22 @@ H1Ser_SegmentElement::H1Ser_SegmentElement()
 void H1Ser_SegmentElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
 {
-   //   const int p = Order;
-
-
+   int p = (this)->GetOrder();
    double x = ip.x;
 
-   shape(0) = (1. - x) * (1. - x);
-   shape(1) = 1. * x * x;
-   shape(2) = 2 * (1. - x) * x;
+   shape(0) = (1. - x);
+   shape(1) = x;
+   shape(2) = 2* x * (1. - x);
+
+   if(p == 3)
+   {
+      shape(3) = (2*x - 1)*shape(2);
+   }
+   // Shape functions for quadratic-only case:
+   //
+   // shape(0) = (1. - x) * (1. - x);
+   // shape(1) = 1. * x * x;
+   // shape(2) = 2 * (1. - x) * x;
 }
 
 
@@ -1796,22 +1800,28 @@ void H1Ser_SegmentElement::CalcShape(const IntegrationPoint &ip,
 void H1Ser_SegmentElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
-   //   const int p = Order;
+   int p = (this)->GetOrder();
 
    double x = ip.x;
 
-   dshape(0,0) = 2.*x -2.;
-   dshape(1,0) = 2.*x;
-   dshape(2,0) = -4.*x + 2;
+   dshape(0,0) = -1;
+   dshape(1,0) = 1;
+   dshape(2,0) = -4. * x + 2;
+   if(p == 3)
+   {   
+      dshape(3,0) = -2.*(-1.+x)*x*(-1.+2.*x);
+   }
+
+   // Deriv shape functions for quadratic-only case:
+   //
+   // dshape(0,0) = 2.*x - 2.;
+   // dshape(1,0) = 2.*x;
+   // dshape(2,0) = -4.*x + 2;
 }
 
-//void H1Ser_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
-//{
-//  cout << "fe.cpp: Called H1Ser_Segment Project Delta" << endl;
-// /}
 
 
-H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement()
+H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
   : ScalarFiniteElement(2, Geometry::SQUARE, 8, 2, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.0;
@@ -1832,84 +1842,137 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement()
    Nodes.IntPoint(7).y = 0.5;
 }
 
-//void SerQuad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
-//				       Vector &shape) const
+
 
 void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
+   int p = (this)->GetOrder();
    double x = ip.x, y = ip.y;
-   shape(0) = (1. - x) * (1. - y) * (1. - x - y);
-   shape(1) = x * (1. - y) * (x - y);
-   shape(2) = x * y * (x + y - 1.);
-   shape(3) = (1. - x) * y * (y - x);
-   shape(4) = 2.*(1. - x) * x * (1 - y);
-   shape(5) = 2.*x * y * (1. - y);
-   shape(6) = 2.*x * y * (1. - x);
-   shape(7) = 2.*(1. - x) * (1. - y) * y;
+
+   shape(0) = (1.-x)*(1.-y);
+   shape(1) = x*(1.-y);
+   shape(2) = x*y;
+   shape(3) = (1.-x)*y;
+
+   double *legX = new double[p-1];
+   double *legY = new double[p-1];
+   Poly_1D *storeLegendre = new Poly_1D();
+
+   storeLegendre->CalcLegendre(p-2, 2. * x - 1., legX);
+   storeLegendre->CalcLegendre(p-2, 2. * y - 1., legY);
+   
+   for (int i = 0; i < p-1; i++)
+   {
+      shape(4 + 4*i) = 2* legX[i] * (1. - y) * x * (1. - x);
+      shape(5 + 4*i) = 2* legY[i] * x * y * (1. - y);
+      shape(6 + 4*i) = 2* legX[i] * x * y * (1. - x);
+      shape(7 + 4*i) = 2* legY[i] * (1. - x) * y * (1. - y);
+   }
+
+   delete legX;
+   delete legY;
+   delete storeLegendre;
+
+   //
+   //    Storing quadratic only case here:
+   //
+   //    double x = ip.x, y = ip.y;
+   // shape(0) = (1. - x) * (1. - y) * (1. - x - y);
+   // shape(1) = x * (1. - y) * (x - y);
+   // shape(2) = x * y * (x + y - 1.);
+   // shape(3) = (1. - x) * y * (y - x);
+   // shape(4) = 2.*(1. - x) * x * (1 - y);
+   // shape(5) = 2.*x * y * (1. - y);
+   // shape(6) = 2.*x * y * (1. - x);
+   // shape(7) = 2.*(1. - x) * (1. - y) * y;
 }
 
 
 
 
-//void SerQuad2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
-//                                       DenseMatrix &dshape) const
 
 void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
-   // Functions built by distributing the interior bubble function
-   // to all the node and edge functions --> nodal basis
-
+   int p = (this)->GetOrder();
    double x = ip.x, y = ip.y;
-   dshape(0,0) = -((-1. + y)*(-2. + 2.*x + y));
-   dshape(0,1) = -((-1. + x)*(-2. + x + 2.*y));
 
-   dshape(1,0) = -((2.*x - y)*(-1. + y));
-   dshape(1,1) = -(x*(1. + x - 2.*y));
+   double *legX = new double[p-1];
+   double *legY = new double[p-1];
+   double *DlegX = new double[p-1];
+   double *DlegY = new double[p-1];
+   Poly_1D *storeLegendre = new Poly_1D();
 
-   dshape(2,0) = y*(-1. + 2.*x + y);
-   dshape(2,1) = x*(-1. + x + 2.*y);
+   storeLegendre->CalcLegendre(p-2, 2. * x - 1., legX, DlegX);
+   storeLegendre->CalcLegendre(p-2, 2. * y - 1., legY, DlegY);
 
-   dshape(3,0) = (-1. + 2.*x - y)*y;
-   dshape(3,1) = (-1. + x)*(x - 2.*y);
+   cout << "calcDshape p = " << p << endl;
+   cout << "fe.cpp:  legX = " << legX[0] << " " << legX[1] << " " << legX[2]  << " " << legX[3] << " " << legX[4]  << " " << legX[5] << endl;
+   cout << "fe.cpp:  DlegX = " << DlegX[0] << " " << DlegX[1] << " " << DlegX[2]  << " " << DlegX[3] << endl;
 
-   dshape(4,0) = 2.*(-1. + 2.*x)*(-1. + y);
-   dshape(4,1) = 2.*(-1. + x)*x;
+   dshape(0,0) = -(1. - y);
+   dshape(0,1) = -(1. - x);
 
-   dshape(5,0) = -2.*((-1. + y)*y);
-   dshape(5,1) = 2.*(x - 2.*x*y);
+   dshape(1,0) = (1. -y);
+   dshape(1,1) = -x;
 
-   dshape(6,0) = 2.*(y - 2.*x*y);
-   dshape(6,1) = -2.*((-1. + x)*x);
+   dshape(2,0) = y;
+   dshape(2,1) = x;
 
-   dshape(7,0) = 2.*(-1. + y)*y;
-   dshape(7,1) = 2.*(-1. + x)*(-1. + 2.*y);
+   dshape(3,0) = -y;
+   dshape(3,1) = (1. - x);
+
+   for (int i = 0; i < p-1; i++)
+   {
+      dshape(4 + 4*i,0) = 2* (1. - y) * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));
+      dshape(4 + 4*i,1) = -2* legX[i] * x * (1. - x);
+      dshape(5 + 4*i,0) = 2* legY[i] * y * (1. - y); 
+      dshape(5 + 4*i,1) = 2* x* (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+      dshape(6 + 4*i,0) = 2* y * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
+      dshape(6 + 4*i,1) = 2* legX[i] * x * (1. - x);
+      dshape(7 + 4*i,0) = -2* legY[i] * y * (1. - y); 
+      dshape(7 + 4*i,1) = 2* (1. - x) * (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+   }
+
+   delete legX;
+   delete legY;
+   delete DlegX;
+   delete DlegY;
+   delete storeLegendre;
+
+   // Storing quadratic only case here:
+   //
+   // double x = ip.x, y = ip.y;
+   //
+   //
+   // dshape(0,0) = -((-1. + y)*(-2. + 2.*x + y));
+   // dshape(0,1) = -((-1. + x)*(-2. + x + 2.*y));
+
+   // dshape(1,0) = -((2.*x - y)*(-1. + y));
+   // dshape(1,1) = -(x*(1. + x - 2.*y));
+
+   // dshape(2,0) = y*(-1. + 2.*x + y);
+   // dshape(2,1) = x*(-1. + x + 2.*y);
+
+   // dshape(3,0) = (-1. + 2.*x - y)*y;
+   // dshape(3,1) = (-1. + x)*(x - 2.*y);
+
+   // dshape(4,0) = 2.*(-1. + 2.*x)*(-1. + y);
+   // dshape(4,1) = 2.*(-1. + x)*x;
+
+   // dshape(5,0) = -2.*((-1. + y)*y);
+   // dshape(5,1) = 2.*(x - 2.*x*y);
+
+   // dshape(6,0) = 2.*(y - 2.*x*y);
+   // dshape(6,1) = -2.*((-1. + x)*x);
+
+   // dshape(7,0) = 2.*(-1. + y)*y;
+   // dshape(7,1) = 2.*(-1. + x)*(-1. + 2.*y);
 }
 
 
-//void SerQuad2DFiniteElement::
-void H1Ser_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
-{
-   // dofs = 0.;
 
-   // switch (vertex)
-   // {
-   //    case 0: dofs(4) = 0.25; dofs(7) = 0.25; break;
-   //    case 1: dofs(4) = 2019.0; dofs(5) = 0.25; break;
-   //    case 2: dofs(5) = 0.25; dofs(6) = 0.25; break;
-   //    case 3: dofs(6) = 0.25; dofs(7) = 0.25; break;
-   // }
-   cout << "*****************************************" << endl;
-   cout << "*** fe.cpp called H1Ser ProjectDelta! ***" << endl;
-   cout << "*****************************************" << endl;
-
-   // May need to adjust edge dofs here - they evaluate to 1/4 at their associated edge midpoint
-}
-
-
-
-// end serendipity edits asdf
 
 
 BiQuadPos2DFiniteElement::BiQuadPos2DFiniteElement()
