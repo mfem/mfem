@@ -92,7 +92,7 @@ public:
       for (int i = 0; i < nodes.Size(); i++)
       { if (std::abs(nodes(i)) < eps) { nodes(i) = 0.0; } }
    }
-   void Equation() { Transform(Surface::Parameterization); }
+   void Equation() { Transform(Surface::Parametrization); }
    void Prefix()
    {
       SetCurvature(Order, Discontinuous, SpaceDim, Ordering::byNODES);
@@ -100,11 +100,11 @@ public:
    void Postfix() { }
 };
 
-// Parameterization of a Helicoid surface
+// Parametrization of a Helicoid surface
 struct Helicoid: public SurfaceMesh<Helicoid>
 {
    Helicoid(int order, int nx, int ny): SurfaceMesh(order, nx, ny) {}
-   static void Parameterization(const Vector &x, Vector &p)
+   static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
       const double a = 1.0;
@@ -117,11 +117,11 @@ struct Helicoid: public SurfaceMesh<Helicoid>
    }
 };
 
-// Parameterization of a Catenoid surface
+// Parametrization of a Catenoid surface
 struct Catenoid: public SurfaceMesh<Catenoid>
 {
    Catenoid(int order, int nx, int ny): SurfaceMesh(order, nx, ny) {}
-   static void Parameterization(const Vector &x, Vector &p)
+   static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
       // u in [0,2π] and v in [-2π/3,2π/3]
@@ -164,11 +164,11 @@ struct Catenoid: public SurfaceMesh<Catenoid>
    }
 };
 
-// Parameterization of Enneper's surface
+// Parametrization of Enneper's surface
 struct Enneper: public SurfaceMesh<Enneper>
 {
    Enneper(int order, int nx, int ny): SurfaceMesh(order, nx, ny) {}
-   static void Parameterization(const Vector &x, Vector &p)
+   static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
       // (u,v) in [-2, +2]
@@ -180,11 +180,11 @@ struct Enneper: public SurfaceMesh<Enneper>
    }
 };
 
-// Parameterization of Scherk's surface
+// Parametrization of Scherk's surface
 struct Scherk: public SurfaceMesh<Scherk>
 {
    Scherk(int order, int nx, int ny): SurfaceMesh(order, nx, ny) {}
-   static void Parameterization(const Vector &x, Vector &p)
+   static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
       const double alpha = 0.49;
@@ -201,7 +201,7 @@ struct Scherk: public SurfaceMesh<Scherk>
 struct Shell: public SurfaceMesh<Shell>
 {
    Shell(int order, int nx, int ny): SurfaceMesh(order, nx, ny) {}
-   static void Parameterization(const Vector &x, Vector &p)
+   static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
       // u in [0,2π] and v in [-15, 6]
@@ -217,7 +217,7 @@ struct Shell: public SurfaceMesh<Shell>
 struct Hold: public SurfaceMesh<Hold>
 {
    Hold(int order, int nx, int ny): SurfaceMesh(order, nx, ny) {}
-   static void Parameterization(const Vector &x, Vector &p)
+   static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
       // u in [0,2π] and v in [0,1]
@@ -229,12 +229,12 @@ struct Hold: public SurfaceMesh<Hold>
    }
 };
 
-// Peach street model
+// 1/4th Peach street model
 // Could set BC: ess_bdr[0] = false; with attribute set to '1' from postfix
-struct Peach: public SurfaceMesh<Peach>
+struct QPeach: public SurfaceMesh<QPeach>
 {
-   Peach(int order, int nx, int ny): SurfaceMesh(order, nx, ny) {}
-   static void Parameterization(const Vector &X, Vector &p)
+   QPeach(int order, int nx, int ny): SurfaceMesh(order, nx, ny) {}
+   static void Parametrization(const Vector &X, Vector &p)
    {
       p = X;
       const double x = 2.0*X[0]-1.0;
@@ -292,13 +292,102 @@ struct Peach: public SurfaceMesh<Peach>
    }
 };
 
+// Full Peach street model
+struct FPeach: public SurfaceMesh<FPeach>
+{
+   FPeach(int order, int nx, int ny): SurfaceMesh(order, nx, ny) {}
+   static void Parametrization(const Vector &X, Vector &p)
+   {
+      p = X;
+      const double x = 2.0*X[0]-1.0;
+      const double y = X[1];
+      const double r = sqrt(x*x + y*y);
+      const double t = (x==0.0) ? pi/2.0 :
+                       (y==0.0 && x>0.0) ? 0. :
+                       (y==0.0 && x<0.0) ? pi : acos(x/r);
+      const double sqrtx = sqrt(1.0 + x*x);
+      const double sqrty = sqrt(1.0 + y*y);
+      const bool yaxis = pi/4.0<t && t < 3.0*pi/4.0;
+      const double R = yaxis?sqrtx:sqrty;
+      const double gamma = r/R;
+      p[0] = gamma * cos(t);
+      p[1] = gamma * sin(t);
+      p[2] = fabs(t)<eps?1.0:0.0;
+      p[2] = 1.0 - gamma;
+   }
+   void Prefix()
+   {
+      SetCurvature(1, Discontinuous, SpaceDim, Ordering::byNODES);
+   }
+   void Postfix()
+   {
+      PrintCharacteristics();
+      for (int i = 0; i < GetNBE(); i++)
+      {
+         Element *el = GetBdrElement(i);
+         const int fn = GetBdrElementEdgeIndex(i);
+         MFEM_VERIFY(!FaceIsTrueInterior(fn),"");
+         Array<int> vertices;
+         GetFaceVertices(fn, vertices);
+         const GridFunction *nodes = GetNodes();
+         Vector nval;
+         double R[2], X[2][3];
+         for (int v = 0; v < 2; v++)
+         {
+            R[v] = 0.0;
+            const int iv = vertices[v];
+            for (int d = 0; d < 3; d++)
+            {
+               nodes->GetNodalValues(nval, d+1);
+               const double x = X[v][d] = nval[iv];
+               if (d < 2) { R[v] += x*x; }
+            }
+         }
+         if (fabs(X[0][1])<=eps &&
+             fabs(X[1][1])<=eps && (R[0]>0.1 || R[1]>0.1))
+         { el->SetAttribute(1); }
+         else { el->SetAttribute(2); }
+         //ofstream mesh_ofs("out.mesh");
+         //mesh_ofs.precision(8);
+         //Print(mesh_ofs);
+      }
+   }
+};
+
+// Visualize some solution on the given mesh
+static void Visualize(Mesh *mesh, const int order, const bool pause,
+                      const char *keys = NULL,
+                      const int width = 0, const int height = 0)
+{
+   const H1_FECollection fec(2, 2);
+   FiniteElementSpace *sfes = new FiniteElementSpace(mesh, &fec);
+   GridFunction K(sfes);
+   const int NE = mesh->GetNE();
+   const Element::Type type = Element::QUADRILATERAL;
+   const IntegrationRule *ir = &IntRules.Get(type, order);
+   for (int i = 0; i < NE; i++)
+   {
+      ElementTransformation *tr = mesh->GetElementTransformation(i);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         tr->SetIntPoint(&ir->IntPoint(j));
+         K(i) = tr->Weight();
+      }
+   }
+   //glvis << "mesh\n" << *mesh << flush;
+   glvis << "solution\n" << *mesh << K << flush;
+   if (keys) { glvis << "keys " << keys << "\n"; }
+   if (width * height > 0)
+   { glvis << "window_size " << width << " " << height <<"\n" << flush; }
+   if (pause) { glvis << "pause\n" << flush; }
+}
+
 // Surface solver class
 class SurfaceSolver
 {
 protected:
    const bool pa, visualization, pause;
-   const int niter;
-   const int sdim;
+   const int niter, sdim, order;
    Mesh *mesh;
    Vector X, B;
    OperatorPtr A;
@@ -311,10 +400,11 @@ public:
    virtual ~SurfaceSolver() {}
    SurfaceSolver(const bool p, const bool v,
                  const int n, const bool w,
-                 Mesh *m, FiniteElementSpace *f,
+                 const int o, Mesh *m,
+                 FiniteElementSpace *f,
                  Array<int> ess_tdof_list):
       pa(p), visualization(v), pause(w), niter(n),
-      sdim(m->SpaceDimension()), mesh(m), fes(f),
+      sdim(m->SpaceDimension()), order(o), mesh(m), fes(f),
       a(fes), bc(ess_tdof_list), x(fes), b(fes),
       nodes(mesh->GetNodes()), solution(*nodes), one(1.0) { }
    virtual void Solve() { MFEM_ABORT("Not implemented!"); }
@@ -328,10 +418,11 @@ public:
                    const bool vis,
                    const int niter,
                    const bool pause,
+                   const int order,
                    Mesh *mesh,
                    FiniteElementSpace *fes,
                    Array<int> bc):
-      SurfaceSolver(pa, vis, niter, pause, mesh, fes, bc) { }
+      SurfaceSolver(pa, vis, niter, pause, order, mesh, fes, bc) { }
 
    void Solve()
    {
@@ -345,8 +436,6 @@ public:
          {
             b = 0.0;
             GetComponent(*nodes, x, i);
-            Vector B, X;
-            OperatorPtr A;
             a.FormLinearSystem(bc, x, b, A, X, B);
             if (!pa)
             {
@@ -361,11 +450,7 @@ public:
          }
          *nodes = solution;
          // Send the solution by socket to a GLVis server.
-         if (visualization)
-         {
-            glvis << "mesh\n" << *mesh << flush;
-            if (pause) { glvis << "pause\n" << flush; }
-         }
+         if (visualization) { Visualize(mesh, order, pause); }
          a.Update();
       }
    }
@@ -393,10 +478,11 @@ public:
                 const bool vis,
                 const int niter,
                 const bool pause,
+                const int order,
                 Mesh *mesh,
                 FiniteElementSpace *fes,
                 Array<int> bc):
-      SurfaceSolver(pa, vis, niter, pause, mesh, fes, bc) {}
+      SurfaceSolver(pa, vis, niter, pause, order, mesh, fes, bc) {}
 
    void Solve()
    {
@@ -407,8 +493,6 @@ public:
          a.Assemble();
          b = 0.0;
          x = *nodes; // should only copy the BC
-         Vector B, X;
-         OperatorPtr A;
          a.FormLinearSystem(bc, x, b, A, X, B);
          if (!pa)
          {
@@ -421,11 +505,7 @@ public:
          a.RecoverFEMSolution(X, b, x);
          *nodes = x;
          // Send the solution by socket to a GLVis server.
-         if (visualization)
-         {
-            glvis << "mesh\n" << *mesh << flush;
-            if (pause) { glvis << "pause\n" << flush; }
-         }
+         if (visualization) { Visualize(mesh, order, pause); }
          a.Update();
       }
    }
@@ -440,19 +520,19 @@ int main(int argc, char *argv[])
    bool pa = true;
    int ref_levels = 2;
    bool components = false;
-   int parameterization = -1;
+   int parametrization = -1;
    bool visualization = true;
-   bool vis_wait = false;
-   const char *keys = "gmAmaa";
+   bool wait = false;
+   const char *keys = "gAaaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../data/mobius-strip.mesh";
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&parameterization, "-p", "--Parameterization",
-                  "Enable or disable Parameterization .");
-   args.AddOption(&vis_wait, "-w", "--wait", "-no-w", "--no-wait",
+   args.AddOption(&parametrization, "-p", "--parametrization",
+                  "Enable or disable parametrization .");
+   args.AddOption(&wait, "-w", "--wait", "-no-w", "--no-wait",
                   "Enable or disable a GLVis pause.");
    args.AddOption(&nx, "-nx", "--num-elements-x",
                   "Number of elements in x-direction.");
@@ -474,7 +554,6 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
-   //MFEM_VERIFY(components || !pa, "Vector solver does not support PA yet!");
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -490,24 +569,24 @@ int main(int argc, char *argv[])
 
    // Initialize our surface mesh from command line option.
    Mesh *mesh = nullptr;
-   if (parameterization<0)
+   if (parametrization<0)
    {
       const int refine = 1;
       const int generate_edges = 1;
       mesh = new Mesh(mesh_file, generate_edges, refine);
    }
-   else if (parameterization==0) { mesh = new Catenoid(order, nx, ny); }
-   else if (parameterization==1) { mesh = new Helicoid(order, nx, ny); }
-   else if (parameterization==2) { mesh = new Enneper(order, nx, ny); }
-   else if (parameterization==3) { mesh = new Scherk(order, nx, ny); }
-   else if (parameterization==4) { mesh = new Shell(order, nx, ny); }
-   else if (parameterization==5) { mesh = new Hold(order, nx, ny); }
-   else if (parameterization==6) { mesh = new Peach(order, nx, ny); }
-   else { mfem_error("Not a valid Parameterization, p should be in ]-infty, 6]"); }
+   else if (parametrization==0) { mesh = new Catenoid(order, nx, ny); }
+   else if (parametrization==1) { mesh = new Helicoid(order, nx, ny); }
+   else if (parametrization==2) { mesh = new Enneper(order, nx, ny); }
+   else if (parametrization==3) { mesh = new Scherk(order, nx, ny); }
+   else if (parametrization==4) { mesh = new Shell(order, nx, ny); }
+   else if (parametrization==5) { mesh = new Hold(order, nx, ny); }
+   else if (parametrization==6) { mesh = new QPeach(order, nx, ny); }
+   else if (parametrization==7) { mesh = new FPeach(order, nx, ny); }
+   else { mfem_error("Not a valid parametrization, p should be in ]-infty, 7]"); }
    const bool discontinuous = false;
    const int mdim = mesh->Dimension();
    const int sdim = mesh->SpaceDimension();
-   cout << "mesh dimension: " << mdim << " mesh space dimension: " << sdim << endl;
    mesh->SetCurvature(order, discontinuous, sdim, Ordering::byNODES);
 
    //  Refine the mesh to increase the resolution.
@@ -517,7 +596,7 @@ int main(int argc, char *argv[])
    const H1_FECollection fec(order, mdim);
    FiniteElementSpace *sfes = new FiniteElementSpace(mesh, &fec);
    FiniteElementSpace *vfes = new FiniteElementSpace(mesh, &fec, sdim);
-   cout << "Number of finite element unknowns: " << vfes->GetTrueVSize() << endl;
+   cout << "Number of true DOFs: " << vfes->GetTrueVSize() << endl;
 
    // Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> v_ess_tdof_list, s_ess_tdof_list;
@@ -530,28 +609,21 @@ int main(int argc, char *argv[])
    }
 
    // Send to GLVis the first mesh and set the 'keys' options.
-   if (visualization)
-   {
-      //glvis << "solution\n" << *mesh << s <<flush;
-      glvis << "mesh\n" << *mesh << flush;
-      glvis << "keys " << keys << "\n";
-      glvis << "window_size 640 480\n";
-      if (vis_wait) { glvis << "pause\n" << flush; }
-   }
+   if (visualization) { Visualize(mesh, order, wait, keys, 800, 800); }
 
    // Instanciate and launch the surface solver.
-   SurfaceSolver *solver;
+   SurfaceSolver *s;
    if (components)
    {
-      solver = new ComponentSolver(pa, visualization, niter, vis_wait,
-                                   mesh, sfes, s_ess_tdof_list);
+      s = new ComponentSolver(pa, visualization, niter, wait,
+                              order, mesh, sfes, s_ess_tdof_list);
    }
    else
    {
-      solver = new VectorSolver(pa, visualization, niter, vis_wait,
-                                mesh, vfes, v_ess_tdof_list);
+      s = new VectorSolver(pa, visualization, niter, wait,
+                           order, mesh, vfes, v_ess_tdof_list);
    }
-   solver->Solve();
+   s->Solve();
 
    // Free the used memory.
    delete sfes;
