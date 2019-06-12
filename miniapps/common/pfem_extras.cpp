@@ -523,20 +523,17 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       if (myid == 0)
       {
          sock << "window_title '" << title << "'\n";
-      }
 
-      if (myid == 0 && newly_opened)
-      {
-         sock << "window_geometry "
-              << x << " " << y << " " << w << " " << h << "\n";
-         if ( keys ) { sock << "keys " << keys << "\n"; }
-         else { sock << "keys maaAc"; }
-         if ( vec ) { sock << "vvv"; }
+         if (newly_opened)
+         {
+            sock << "window_geometry "
+                 << x << " " << y << " " << w << " " << h << "\n";
+            if ( keys ) { sock << "keys " << keys << "\n"; }
+            else { sock << "keys maaAc"; }
+            if ( vec ) { sock << "vvv"; }
+         }
          sock << endl;
-      }
 
-      if (myid == 0)
-      {
          connection_failed = !sock && !newly_opened;
       }
       MPI_Bcast(&connection_failed, 1, MPI_INT, 0, comm);
