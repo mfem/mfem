@@ -44,7 +44,6 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
       // rap, X and B point to the same data as this, x and b, respectively
       X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
       B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
-      rap = this;
    }
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
