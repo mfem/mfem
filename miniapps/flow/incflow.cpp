@@ -121,6 +121,9 @@ private:
    VectorGridFunctionCoefficient vel_fc;
    ParNonlinearForm *N;
    ParBilinearForm *sform;
+   ParLinearForm *fform;
+   ParBilinearForm *mpform;
+   ParMixedBilinearForm *dform;
 
    HypreParMatrix *S;
    HypreParMatrix *Mp;
@@ -228,9 +231,9 @@ public:
 
       if (opt_.prob_type == PROB_TYPE::MMS)
       {
-         ParLinearForm *fform = new ParLinearForm;
+         fform = new ParLinearForm;
          VectorDomainLFIntegrator *fvint = new VectorDomainLFIntegrator(fcoeff);
-         fvint->SetIntRule(&IntRules.Get(pmesh_->GetElementBaseGeometry(0), 4 + 3)); // order + 3
+         fvint->SetIntRule(&IntRules.Get(pmesh_->GetElementBaseGeometry(0), opt_.vel_order + 3));
          fform->Update(fes[0], rhs.GetBlock(0), 0);
          fform->AddDomainIntegrator(fvint);
          fform->Assemble();
@@ -244,7 +247,7 @@ public:
       sform->Finalize();
       S = sform->ParallelAssemble();
 
-      ParMixedBilinearForm *dform = new ParMixedBilinearForm(fes[0], fes[1]);
+      dform = new ParMixedBilinearForm(fes[0], fes[1]);
       dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
       dform->Assemble();
       dform->EliminateTrialDofs(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(1));
@@ -270,7 +273,7 @@ public:
       ConstantCoefficient mpscalecoeff(1.0);
       ConstantCoefficient mpdiffscalecoeff(0.0);
 
-      ParBilinearForm *mpform = new ParBilinearForm(fes[1]);
+      mpform = new ParBilinearForm(fes[1]);
       mpform->AddDomainIntegrator(new MassIntegrator(mpscalecoeff));
       mpform->AddDomainIntegrator(new DiffusionIntegrator(mpdiffscalecoeff));
       mpform->Assemble();
@@ -298,11 +301,11 @@ public:
                                                      trueRhs.GetBlock(1));
 
       jac_solver = new GMRESSolver(MPI_COMM_WORLD);
-      jac_solver->iterative_mode = true;
+      jac_solver->iterative_mode = false;
       jac_solver->SetAbsTol(0.0);
       jac_solver->SetRelTol(1e-4);
       static_cast<GMRESSolver *>(jac_solver)->SetKDim(100);
-      jac_solver->SetMaxIter(500);
+      jac_solver->SetMaxIter(1000);
       jac_solver->SetOperator(*jac);
       jac_solver->SetPreconditioner(*stokesprec);
       jac_solver->SetPrintLevel(2);
@@ -343,7 +346,8 @@ public:
       hypre_ParcsrAdd(1.0, *static_cast<HypreParMatrix *>(&(N->GetGradient(u))), 1.0, *S, &NjacS_wrap);
       NjacS = new HypreParMatrix(NjacS_wrap);
 
-      NjacS->EliminateRowsCols(ess_tdof_list_);
+      HypreParMatrix* NjacS_e = NjacS->EliminateRowsCols(ess_tdof_list_);
+      delete NjacS_e;
 
       jac->SetBlock(0, 0, NjacS);
 
@@ -376,6 +380,27 @@ public:
 
    virtual ~NavierStokesOperator()
    {
+      delete sform;
+      if (opt_.prob_type == PROB_TYPE::MMS)
+      {
+         delete fform;
+      }
+      delete mpform;
+      delete dform;
+      delete N;
+      delete S;
+      delete Mp;
+      delete D;
+      delete G;
+      delete NjacS;
+      delete jac;
+      delete lin;
+      delete invS;
+      delete invMp;
+      delete stokesprec;
+      delete jac_solver;
+      delete vel_gf;
+      delete p_gf;
    }
 };
 
@@ -387,7 +412,7 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   int prob_type = 1;
+   int prob_type = 0;
    int print_level = 2;
    int serial_ref_levels = 0;
    int order = 2;
@@ -515,6 +540,9 @@ int main(int argc, char *argv[])
          cout << "|| p_h - p_ex || = " << err_p << "\n";
          cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
       }
+
+      delete uexcoeff;
+      delete pexcoeff;
    }
 
    char vishost[] = "localhost";
@@ -534,6 +562,12 @@ int main(int argc, char *argv[])
           << *pmesh << *p_gf << "window_title 'pressure'"
           << "keys Rjlc\n"
           << endl;
+
+   delete vel_fec;
+   delete pres_fec;
+   delete vel_fes;
+   delete pres_fes;
+   delete pmesh;
 
    return 0;
 }
