@@ -360,7 +360,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
    
-   if (false)
+   if (true)
    {
       ParBilinearForm *DRepr, *DSlpr;
       if (viscosity != 0.0)
@@ -502,7 +502,7 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
    Vector zero; // empty vector is interpreted as zero r.h.s. by NewtonSolver
    
    k = vx; //Provide the initial guess as vx and use iterative_mode
-   reduced_oper->BindingGF(k);
+   //reduced_oper->BindingGF(k); use type cast in Mult instead
    pnewton_solver->Mult(zero, k);  //here k is solved as vx^{n+1}
    MFEM_VERIFY(pnewton_solver->GetConverged(),
                   "Newton solver did not converge.");
@@ -588,7 +588,12 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      phi(NULL), psi(NULL), w(NULL), ess_tdof_list(ess_tdof_list_),
      Nv(NULL), Nb(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
-    //FIXME looks like I cannot do a deep copy now! Mdt here should be a deep copy
+    
+    //this is not right because Mdtpr shares the same matrix with Mmat_
+    //hypre_ParCSRMatrix *csrM = (hypre_ParCSRMatrix*)(Mmat_);
+    //Mdtpr = new HypreParMatrix(csrM, true);
+    
+    //XXX this is the right way to deep copy
     Mdtpr = new HypreParMatrix(Mmat_);
 
     int sc = height/3;
@@ -633,8 +638,10 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Vector y2(y.GetData() +  sc, sc);
    Vector y3(y.GetData() +2*sc, sc);
 
+   Vector &k_ = const_cast<Vector &>(k);
    //------assemble Nv and Nb (operators are assembled locally)------
    delete Nv;
+   phiGf.MakeTRef(&fespace, k_, 0);
    phiGf.SetFromTrueVector();
    Nv = new ParBilinearForm(&fespace);
    MyCoefficient velocity(&phiGf, 2);   //we update velocity
@@ -642,6 +649,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Nv->Assemble(); 
 
    delete Nb;
+   psiGf.MakeTRef(&fespace, k_, sc);
    psiGf.SetFromTrueVector();
    Nb = new ParBilinearForm(&fespace);
    MyCoefficient Bfield(&psiGf, 2);   //we update B
