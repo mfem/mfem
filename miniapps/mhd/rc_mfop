@@ -1,5 +1,6 @@
 # matrix-free Jacobian action, preconditioner constructed from the matrix obtained by the GetGradient() method
 -snes_monitor
 -snes_mf_operator
+-snes_view
 -ksp_type minres
 -pc_type jacobi
