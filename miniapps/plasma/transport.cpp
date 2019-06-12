@@ -871,6 +871,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient bHatCoef(2, bHatFunc);
    // VectorFunctionCoefficient VCoef(dim, vFunc);
    ScalarVectorProductCoefficient VCoef(viCoef, bHatCoef);
+   ScalarVectorProductCoefficient MomCoef(mnCoef, VCoef);
    FunctionCoefficient QCoef(QFunc);
 
    para_velocity.ProjectCoefficient(vi0Coef);
@@ -890,7 +891,7 @@ int main(int argc, char *argv[])
    oper.SetNiSourceCoefficient(QCoef);
 
    oper.SetViDiffusionCoefficient(DCoef);
-   oper.SetViAdvectionCoefficient(VCoef);
+   oper.SetViAdvectionCoefficient(MomCoef);
    oper.SetViSourceCoefficient(QCoef);
 
    oper.SetTiDiffusionCoefficient(DCoef);
