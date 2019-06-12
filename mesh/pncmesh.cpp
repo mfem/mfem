@@ -202,7 +202,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    // go assign existing edge/face indices
    NCMesh::OnMeshUpdated(mesh);
 
-   // assign ghost edge indices
+   // count ghost edges and assign their indices
    NEdges = mesh->GetNEdges();
    NGhostEdges = 0;
    for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
@@ -213,12 +213,13 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       }
    }
 
-   // assign ghost face indices
+   // count ghost faces
    NFaces = mesh->GetNumFaces();
    NGhostFaces = 0;
    for (face_iterator face = faces.begin(); face != faces.end(); ++face)
    {
-      if (face->index < 0) { face->index = NFaces + (NGhostFaces++); }
+      if (face->index < 0) { NGhostFaces++; }
+      //if (face->index < 0) { face->index = NFaces + (NGhostFaces++); }
    }
 
    if (Dim == 2)
@@ -228,8 +229,11 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
    }
 
-   // update face_geom for ghost faces
-   face_geom.SetSize(NFaces + NGhostFaces, Geometry::SQUARE);
+#if 1
+   face_geom.SetSize(NFaces + NGhostFaces, Geometry::INVALID);
+   NGhostFaces = 0;
+
+   // update face_geom for ghost faces, assign ghost face indices
    for (int i = 0; i < NGhostElements; i++)
    {
       Element &el = elements[leaf_elements[NElements + i]]; // ghost element
@@ -242,15 +246,25 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
                                  el.node[fv[2]], el.node[fv[3]]);
          MFEM_ASSERT(face, "face not found!");
 
-         static const Geometry::Type types[5] =
+         if (face->index < 0)
          {
-            Geometry::INVALID, Geometry::INVALID,
-            Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE
-         };
+            face->index = NFaces + (NGhostFaces++);
 
-         face_geom[face->index] = types[gi.nfv[j]];
+            // store the face geometry
+            static const Geometry::Type types[5] =
+            {
+               Geometry::INVALID, Geometry::INVALID,
+               Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE
+            };
+            face_geom[face->index] = types[gi.nfv[j]];
+         }
       }
    }
+
+#else
+   face_geom.SetSize(NFaces + NGhostFaces, Geometry::TRIANGLE);
+
+#endif
 }
 
 void ParNCMesh::ElementSharesFace(int elem, int local, int face)
