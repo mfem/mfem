@@ -157,19 +157,19 @@ double TeFunc(const Vector &x, double t)
 void bHatFunc(const Vector &x, Vector &B)
 {
    B.SetSize(2);
-     
+
    double a = 0.4;
    double b = 0.8;
    double r2 = pow(x[0] / a, 2) + pow(x[1] / b, 2);
 
    if ( r2 < 1.0e-4 * a * b)
    {
-       B = 0.0;
-       return;
+      B = 0.0;
+      return;
    }
 
    double den = sqrt(pow(b * b * x[0], 2) + pow(a * a * x[1], 2));
-   
+
    B[0] = a * a * x[1] / den;
    B[1] = -b * b * x[0] / den;
 }
@@ -882,7 +882,7 @@ int main(int argc, char *argv[])
    DGTransportTDO oper(dg, fes, ffes, mnCoef, imex);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
-   
+
    oper.SetNnDiffusionCoefficient(DCoef);
    oper.SetNnSourceCoefficient(QCoef);
 

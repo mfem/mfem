@@ -237,7 +237,7 @@ public:
    void SetTime(const double _t);
 
    void SetLogging(int logging, const std::string & prefix = "");
-  
+
    void SetAdvectionCoefficient(VectorCoefficient &VCoef);
    void SetDiffusionCoefficient(Coefficient &dCoef);
    void SetDiffusionCoefficient(MatrixCoefficient &DCoef);
@@ -259,7 +259,7 @@ private:
    ParFiniteElementSpace *ffes_;
 
    ConstantCoefficient oneCoef_;
-  
+
    DGAdvectionDiffusionTDO n_n_oper_; // Neutral Density
    DGAdvectionDiffusionTDO n_i_oper_; // Ion Density
    DGAdvectionDiffusionTDO v_i_oper_; // Ion Parallel Velocity
@@ -275,14 +275,14 @@ public:
    DGTransportTDO(DGParams & dg,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &ffes,
-		  Coefficient &MomCCoef,
-		  bool imex = true);
+                  Coefficient &MomCCoef,
+                  bool imex = true);
 
    ~DGTransportTDO();
 
    void SetTime(const double _t);
    void SetLogging(int logging);
-  
+
    void SetNnDiffusionCoefficient(Coefficient &dCoef);
    void SetNnDiffusionCoefficient(MatrixCoefficient &DCoef);
    void SetNnSourceCoefficient(Coefficient &SCoef);

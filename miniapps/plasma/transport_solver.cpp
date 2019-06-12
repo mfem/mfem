@@ -572,8 +572,8 @@ void DGAdvectionDiffusionTDO::SetTime(const double _t)
 
 void DGAdvectionDiffusionTDO::SetLogging(int logging, const string & prefix)
 {
-  logging_ = logging;
-  log_prefix_ = prefix;
+   logging_ = logging;
+   log_prefix_ = prefix;
 }
 
 void DGAdvectionDiffusionTDO::SetAdvectionCoefficient(VectorCoefficient &VCoef)
@@ -705,7 +705,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
 {
    if (fes_->GetMyRank() == 0 && logging_)
    {
-     cout << log_prefix_ << "ImplicitSolve with dt = " << dt << endl;
+      cout << log_prefix_ << "ImplicitSolve with dt = " << dt << endl;
    }
 
    if (fabs(dt - dt_) > 1e-4 * dt_)
@@ -745,10 +745,10 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
    }
    else
    {
-     //cout << "applying b" << endl;
+      //cout << "applying b" << endl;
       if (b_)
       {
-        // cout << "DGA::ImplicitSolve assembling b" << endl;
+         // cout << "DGA::ImplicitSolve assembling b" << endl;
          b_->Assemble();
          b_->Finalize();
 
@@ -767,7 +767,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
    A_prec->SetPrintLevel(0);
    if (imex_)
    {
-     // cout << "solving with CG" << endl;
+      // cout << "solving with CG" << endl;
       CGSolver *A_solver = new CGSolver(A->GetComm());
       A_solver->SetOperator(*A);
       A_solver->SetPreconditioner(*A_prec);
@@ -782,7 +782,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
    }
    else
    {
-     // cout << "solving with GMRES" << endl;
+      // cout << "solving with GMRES" << endl;
       GMRESSolver *A_solver = new GMRESSolver(A->GetComm());
       A_solver->SetOperator(*A);
       A_solver->SetPreconditioner(*A_prec);
@@ -796,7 +796,7 @@ void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
       delete A_solver;
    }
    // cout << "done with solve" << endl;
-   
+
    ParGridFunction dudt_gf(fes_, (double*)NULL);
    dudt_gf.MakeRef(fes_, &dudt[0]);
    dudt_gf = X_;
@@ -833,7 +833,7 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &ffes,
                                Coefficient &MomCCoef,
-			       bool imex)
+                               bool imex)
    : TimeDependentOperator(ffes.GetVSize()),
      fes_(&fes),
      ffes_(&ffes),
@@ -858,16 +858,16 @@ void DGTransportTDO::SetTime(const double _t)
    T_i_oper_.SetTime(_t);
    T_e_oper_.SetTime(_t);
 }
-  
+
 void DGTransportTDO::SetLogging(int logging)
 {
-  n_n_oper_.SetLogging(logging, "Neutral Density:       ");
-  n_i_oper_.SetLogging(logging, "Ion Density:           ");
-  v_i_oper_.SetLogging(logging, "Ion Parallel Velocity: ");
-  T_i_oper_.SetLogging(logging, "Ion Temp:              ");
-  T_e_oper_.SetLogging(logging, "Electron Temp:         ");
+   n_n_oper_.SetLogging(logging, "Neutral Density:       ");
+   n_i_oper_.SetLogging(logging, "Ion Density:           ");
+   v_i_oper_.SetLogging(logging, "Ion Parallel Velocity: ");
+   T_i_oper_.SetLogging(logging, "Ion Temp:              ");
+   T_e_oper_.SetLogging(logging, "Electron Temp:         ");
 }
-  
+
 void DGTransportTDO::SetNnDiffusionCoefficient(Coefficient &dCoef)
 {
    n_n_oper_.SetDiffusionCoefficient(dCoef);
