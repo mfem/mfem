@@ -251,6 +251,26 @@ double viFunc(const Vector &x)
    return -v_max_ * sin(M_PI * (pow(x[0] / a, 2) + pow(x[1] / b, 2)));
 }
 
+/** Given the electron temperature in eV this coefficient returns an
+    approzximation to the expected ionization rate in m^3/s.
+*/
+class ApproxIonizationRate : public Coefficient
+{
+private:
+   GridFunction *Te_;
+
+public:
+   ApproxIonizationRate(GridFunction &Te) : Te_(&Te) {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      double Te2 = pow(Te_->GetValue(T.ElementNo, ip), 2);
+
+      return 3.0e-16 * Te2 / (3.0 + 0.01 * Te2);
+   }
+};
+
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
 {
 private:
@@ -860,20 +880,36 @@ int main(int argc, char *argv[])
    VectorNormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD, weights);
    ode_diff_msr.SetOperator(m);
 
-   ConstantCoefficient one(1.0);
+   // Coefficients representing primary fields
+   GridFunctionCoefficient nnCoef(&neu_density);
    GridFunctionCoefficient niCoef(&ion_density);
    GridFunctionCoefficient viCoef(&para_velocity);
+   GridFunctionCoefficient TiCoef(&ion_energy);
+   GridFunctionCoefficient TeCoef(&elec_energy);
+
+   // Coefficients representing secondary fields
+   ProductCoefficient neCoef(ion_charges[0], niCoef);
+   GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
+   
+   // Advection Coefficients
+   VectorFunctionCoefficient bHatCoef(2, bHatFunc);
+   ScalarVectorProductCoefficient ViCoef(viCoef, bHatCoef);
+   ScalarVectorProductCoefficient VeCoef(veCoef, bHatCoef);
    ProductCoefficient mnCoef(ion_masses[0], niCoef);
+   ScalarVectorProductCoefficient MomCoef(mnCoef, ViCoef);
+
+   // Diffusion Coefficients
+   ProductCoefficient nnneCoef(nnCoef, neCoef);
+   MatrixFunctionCoefficient DCoef(dim, ChiFunc);
+
+   // Source Coefficients
+   FunctionCoefficient QCoef(QFunc);
+   
+   // Coefficients for initial conditions
    FunctionCoefficient vi0Coef(viFunc);
    FunctionCoefficient Ti0Coef(TiFunc);
    FunctionCoefficient Te0Coef(TeFunc);
-   MatrixFunctionCoefficient DCoef(dim, ChiFunc);
-   VectorFunctionCoefficient bHatCoef(2, bHatFunc);
-   // VectorFunctionCoefficient VCoef(dim, vFunc);
-   ScalarVectorProductCoefficient VCoef(viCoef, bHatCoef);
-   ScalarVectorProductCoefficient MomCoef(mnCoef, VCoef);
-   FunctionCoefficient QCoef(QFunc);
-
+   
    para_velocity.ProjectCoefficient(vi0Coef);
    ion_energy.ProjectCoefficient(Ti0Coef);
    elec_energy.ProjectCoefficient(Te0Coef);
@@ -887,7 +923,7 @@ int main(int argc, char *argv[])
    oper.SetNnSourceCoefficient(QCoef);
 
    oper.SetNiDiffusionCoefficient(DCoef);
-   oper.SetNiAdvectionCoefficient(VCoef);
+   oper.SetNiAdvectionCoefficient(ViCoef);
    oper.SetNiSourceCoefficient(QCoef);
 
    oper.SetViDiffusionCoefficient(DCoef);
@@ -895,11 +931,11 @@ int main(int argc, char *argv[])
    oper.SetViSourceCoefficient(QCoef);
 
    oper.SetTiDiffusionCoefficient(DCoef);
-   oper.SetTiAdvectionCoefficient(VCoef);
+   oper.SetTiAdvectionCoefficient(ViCoef);
    oper.SetTiSourceCoefficient(QCoef);
 
    oper.SetTeDiffusionCoefficient(DCoef);
-   oper.SetTeAdvectionCoefficient(VCoef);
+   oper.SetTeAdvectionCoefficient(VeCoef);
    oper.SetTeSourceCoefficient(QCoef);
 
    Array<int> dbcAttr(pmesh.bdr_attributes.Max());
