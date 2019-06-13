@@ -333,10 +333,8 @@ struct FPeach: public Surface<FPeach>
          AddQuad(quad_e[j], attribute);
       }
       FinalizeQuadMesh(1, 1, true);
-      H1_FECollection fec(Order, Dimension());
-      FiniteElementSpace *fes = new FiniteElementSpace(this, &fec, SpaceDimension());
-      SetNodalFESpace(fes);
       SetCurvature(Order, Discontinuous, SpaceDim, Ordering::byNODES);
+#warning Should be ref_levels
       for (int l = 0; l < 1; l++) { UniformRefinement(); }
       SnapNodes(*this);
    }
