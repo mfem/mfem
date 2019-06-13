@@ -400,10 +400,11 @@ int main(int argc, char *argv[])
    bool binary = false;
    int vis_steps = 10;
 
-   int      ion_charge =  0;
-   double     ion_mass = -1.0;
-   double neutral_mass = -1.0;
-
+   int      ion_charge = 1;
+   double     ion_mass = 2.01410178;
+   double neutral_mass = 2.01410178;
+   double neutral_temp = 3.0;
+   
    int precision = 8;
    cout.precision(precision);
 
@@ -514,18 +515,6 @@ int main(int argc, char *argv[])
    */
    imex = ode_solver_type < 10;
 
-   if (ion_charge == 0)
-   {
-      ion_charge =  1.0;
-   }
-   if (ion_mass < 0)
-   {
-      ion_mass = 2.01410178;
-   }
-   if (neutral_mass < 0)
-   {
-      neutral_mass = 2.01410178;
-   }
    if (dg_kappa_ < 0)
    {
       dg_kappa_ = (order+1)*(order+1);
