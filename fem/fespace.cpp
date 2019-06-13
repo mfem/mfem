@@ -3084,6 +3084,7 @@ void QuadratureInterpolator::Mult(
             case 2536: eval_func = &Eval2D<3,25,36>; break;
             case 2549: eval_func = &Eval2D<3,25,49>; break;
             case 2564: eval_func = &Eval2D<3,25,64>; break;
+            default:   eval_func = &Eval2D<3>;
          }
       }
    }
