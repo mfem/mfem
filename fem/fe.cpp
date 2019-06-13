@@ -1837,9 +1837,9 @@ void H1Ser_SegmentElement::CalcDShape(const IntegrationPoint &ip,
    //
    double x = ip.x;
    
-   dshape(0,0) = -1;
-   dshape(1,0) = 1;
-   dshape(2,0) = -4. * x + 2;
+   dshape(0,0) = -1.;
+   dshape(1,0) = 1.;
+   dshape(2,0) = -4. * x + 2.;
    if(p == 3)
    {   
       dshape(3,0) = -2.*(-1.+x)*x*(-1.+2.*x);
@@ -1932,10 +1932,10 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    
    for (int i = 0; i < p-1; i++)
    {
-      shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
-      shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
-      shape(4 + 2*(p-1) + i) = 2* legX[i] * x * y * (1. - x);
-      shape(4 + 3*(p-1) + i) = 2* legY[i] * (1. - x) * y * (1. - y);
+      shape(4 + 0*(p-1) + i)     = 2* legX[i] * (1. - y) * x * (1. - x);
+      shape(4 + 1*(p-1) + i)     = 2* legY[i] * x * y * (1. - y);
+      shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
+      shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
    }
 
    delete legX;
@@ -1993,14 +1993,14 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 
    for (int i = 0; i < p-1; i++)
    {
-      dshape(4 + 0*(p-1) + i,0) = 2* (1. - y) * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));
-      dshape(4 + 0*(p-1) + i,1) = -2* legX[i] * x * (1. - x);
-      dshape(4 + 1*(p-1) + i,0) = 2* legY[i] * y * (1. - y); 
-      dshape(4 + 1*(p-1) + i,1) = 2* x* (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
-      dshape(4 + 2*(p-1) + i,0) = 2* y * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
-      dshape(4 + 2*(p-1) + i,1) = 2* legX[i] * x * (1. - x);
-      dshape(4 + 3*(p-1) + i,0) = -2* legY[i] * y * (1. - y); 
-      dshape(4 + 3*(p-1) + i,1) = 2* (1. - x) * (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+      dshape(4 + 0*(p-1) + i    ,0) =  2* (1. - y) * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));
+      dshape(4 + 0*(p-1) + i    ,1) = -2* legX[i] * x * (1. - x);
+      dshape(4 + 1*(p-1) + i    ,0) =  2* legY[i] * y * (1. - y); 
+      dshape(4 + 1*(p-1) + i    ,1) =  2* x* (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+      dshape(4 + 3*(p-1) - i - 1,0) =  2* y * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
+      dshape(4 + 3*(p-1) - i - 1,1) =  2* legX[i] * x * (1. - x);
+      dshape(4 + 4*(p-1) - i - 1,0) = -2* legY[i] * y * (1. - y); 
+      dshape(4 + 4*(p-1) - i - 1,1) =  2* (1. - x) * (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
    }
 
    delete legX;

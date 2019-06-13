@@ -35,9 +35,9 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    // 4. Refine the mesh num_ref times
 
-   for (int l = 0; l < num_ref; l++)
+   for (int l = 1; l < num_ref+1; l++)
    {
-      mesh->UniformRefinement();
+     mesh->UniformRefinement();
    }
 
 
@@ -154,6 +154,8 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
+   x=0;
+   x(5)=1;
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -163,7 +165,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
-
 
 
    // 14. Send the solution by socket to a GLVis server.
@@ -250,7 +251,7 @@ int main(int argc, char *argv[])
 
 
    // 1. Parse command-line options.
-   int total_refinements = 1;
+   int total_refinements = 0;
 
    const char *mesh_file = "../../data/singleSquare.mesh";
    int order = 1;
@@ -348,10 +349,10 @@ int main(int argc, char *argv[])
    // Loop over number of refinements for convergence study
 
    bool noVisYet = false;
-   for (int i = 0; i < (total_refinements-1); i++)
+   for (int i = 0; i < (total_refinements); i++)
      {
        convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, exact);
      }
-   convergenceStudy(mesh_file, total_refinements-1, order, l2_err_prev, h1_err_prev, visualization, exact);
+   convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, exact);
    return 0;
 }
