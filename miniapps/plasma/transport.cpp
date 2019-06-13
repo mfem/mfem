@@ -271,6 +271,29 @@ public:
    }
 };
 
+class NeutralDiffusionCoef : public Coefficient
+{
+private:
+  Coefficient * ne_;
+  Coefficient * vn_;
+  Coefficient * iz_;
+
+public:
+   NeutralDiffusionCoef(Coefficient &neCoef, Coefficient &vnCoef,
+			Coefficient &izCoef)
+     : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef) {}
+
+  double Eval(ElementTransformation &T,
+	      const IntegrationPoint &ip)
+  {
+    double ne = ne_->Eval(T, ip);
+    double vn = vn_->Eval(T, ip);
+    double iz = iz_->Eval(T, ip);
+
+    return vn * vn / (3.0 * ne * iz);
+  }
+};
+
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
 {
 private:
@@ -462,9 +485,11 @@ int main(int argc, char *argv[])
                   "Charge of the species "
                   "(in units of electron charge)");
    args.AddOption(&ion_mass, "-mi", "--ion-mass",
-                  "Masses of the ion species (in amu)");
+                  "Mass of the ion species (in amu)");
    args.AddOption(&neutral_mass, "-mn", "--neutral-mass",
-                  "Masses of the neutral species (in amu)");
+                  "Mass of the neutral species (in amu)");
+   args.AddOption(&neutral_temp, "-Tn", "--neutral-temp",
+                  "Temperature of the neutral species (in eV)");
    args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
                   "Diffusion constant used in momentum equation.");
    args.AddOption(&dg_sigma_, "-dgs", "--sigma",
@@ -882,19 +907,25 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient TeCoef(&elec_energy);
 
    // Coefficients representing secondary fields
-   ProductCoefficient neCoef(ion_charge, niCoef);
+   ProductCoefficient      neCoef(ion_charge, niCoef);
+   ConstantCoefficient     vnCoef(8.0 * neutral_temp /
+				  sqrt(M_PI * neutral_mass));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
+
    
    // Advection Coefficients
-   VectorFunctionCoefficient bHatCoef(2, bHatFunc);
-   ScalarVectorProductCoefficient ViCoef(viCoef, bHatCoef);
-   ScalarVectorProductCoefficient VeCoef(veCoef, bHatCoef);
-   ProductCoefficient mnCoef(ion_mass, niCoef);
-   ScalarVectorProductCoefficient MomCoef(mnCoef, ViCoef);
+   VectorFunctionCoefficient      bHatCoef(2, bHatFunc);
+   ScalarVectorProductCoefficient   ViCoef(viCoef, bHatCoef);
+   ScalarVectorProductCoefficient   VeCoef(veCoef, bHatCoef);
+   ProductCoefficient               mnCoef(ion_mass, niCoef);
+   ScalarVectorProductCoefficient  MomCoef(mnCoef, ViCoef);
 
    // Diffusion Coefficients
-   ProductCoefficient nnneCoef(nnCoef, neCoef);
+   ApproxIonizationRate izCoef(elec_energy);
    MatrixFunctionCoefficient DCoef(dim, ChiFunc);
+   NeutralDiffusionCoef  DnCoef(neCoef, vnCoef, izCoef);
+   
+   ProductCoefficient nnneCoef(nnCoef, neCoef);
 
    // Source Coefficients
    FunctionCoefficient QCoef(QFunc);
