@@ -219,7 +219,6 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    for (face_iterator face = faces.begin(); face != faces.end(); ++face)
    {
       if (face->index < 0) { NGhostFaces++; }
-      //if (face->index < 0) { face->index = NFaces + (NGhostFaces++); }
    }
 
    if (Dim == 2)
@@ -229,11 +228,10 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
    }
 
-#if 1
    face_geom.SetSize(NFaces + NGhostFaces, Geometry::INVALID);
-   NGhostFaces = 0;
 
-   // update face_geom for ghost faces, assign ghost face indices
+   // update 'face_geom' for ghost faces, assign ghost face indices
+   int nghosts = 0;
    for (int i = 0; i < NGhostElements; i++)
    {
       Element &el = elements[leaf_elements[NElements + i]]; // ghost element
@@ -248,7 +246,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
 
          if (face->index < 0)
          {
-            face->index = NFaces + (NGhostFaces++);
+            face->index = NFaces + (nghosts++);
 
             // store the face geometry
             static const Geometry::Type types[5] =
@@ -261,10 +259,12 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       }
    }
 
-#else
-   face_geom.SetSize(NFaces + NGhostFaces, Geometry::TRIANGLE);
-
-#endif
+   // assign valid indices also to faces beyond the ghost layer
+   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   {
+      if (face->index < 0) { face->index = NFaces + (nghosts++); }
+   }
+   MFEM_ASSERT(nghosts == NGhostFaces, "");
 }
 
 void ParNCMesh::ElementSharesFace(int elem, int local, int face)
