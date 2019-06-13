@@ -402,6 +402,7 @@ int main(int argc, char *argv[])
 
    int      ion_charge =  0;
    double     ion_mass = -1.0;
+   double neutral_mass = -1.0;
 
    int precision = 8;
    cout.precision(precision);
@@ -461,6 +462,8 @@ int main(int argc, char *argv[])
                   "(in units of electron charge)");
    args.AddOption(&ion_mass, "-mi", "--ion-mass",
                   "Masses of the ion species (in amu)");
+   args.AddOption(&neutral_mass, "-mn", "--neutral-mass",
+                  "Masses of the neutral species (in amu)");
    args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
                   "Diffusion constant used in momentum equation.");
    args.AddOption(&dg_sigma_, "-dgs", "--sigma",
@@ -519,6 +522,9 @@ int main(int argc, char *argv[])
    {
       ion_mass = 2.01410178;
    }
+   if (neutral_mass < 0)
+   {
+      neutral_mass = 2.01410178;
    }
    if (dg_kappa_ < 0)
    {
