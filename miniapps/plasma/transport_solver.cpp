@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "transport_solver.hpp"
-#include "braginskii_coefs.hpp"
+//#include "braginskii_coefs.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -833,6 +833,8 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &ffes,
                                Coefficient &MomCCoef,
+                               Coefficient &TiCCoef,
+                               Coefficient &TeCCoef,
                                bool imex)
    : TimeDependentOperator(ffes.GetVSize()),
      fes_(&fes),
@@ -841,8 +843,8 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
      n_n_oper_(dg, fes, oneCoef_, imex),
      n_i_oper_(dg, fes, oneCoef_, imex),
      v_i_oper_(dg, fes, MomCCoef, imex),
-     T_i_oper_(dg, fes, oneCoef_, imex),
-     T_e_oper_(dg, fes, oneCoef_, imex)
+     T_i_oper_(dg, fes, TiCCoef, imex),
+     T_e_oper_(dg, fes, TeCCoef, imex)
 {
 }
 

@@ -23,7 +23,24 @@ namespace mfem
 namespace plasma
 {
 
-/** Multispecies Electron-Ion Collision Time in seconds
+/**
+   Returns the mean Ion-Ion mean collision time in seconds (see equation 2.5i)
+   mi is the ion mass in a.m.u.
+   zi is the charge number of the ion species
+   ni is the density of ions in particles per meter^3
+   Ti is the ion temperature in eV
+   lnLambda is the Coulomb Logarithm
+*/
+inline double tau_i(double mi, double zi, double ni, double Ti,
+                    double lnLambda)
+{
+   // The factor of q_^{3/2} is included to convert Ti from eV to Joules
+   return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
+          sqrt(mi * amu_ * pow(q_ * Ti, 3) / M_PI) /
+          (lnLambda * pow(q_ * zi, 4) * ni);
+}
+
+  /** Multispecies Electron-Ion Collision Time in seconds
    Te is the electron temperature in eV
    ns is the number of ion species
    ni is the density of ions (assuming ni=ne) in particles per meter^3
@@ -276,6 +293,8 @@ public:
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &ffes,
                   Coefficient &MomCCoef,
+                  Coefficient &TiCCoef,
+                  Coefficient &TeCCoef,
                   bool imex = true);
 
    ~DGTransportTDO();

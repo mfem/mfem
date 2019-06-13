@@ -243,6 +243,16 @@ void bbTFunc(const Vector &x, DenseMatrix &M)
    }
 }
 
+void perpFunc(const Vector &x, DenseMatrix &M)
+{
+  int dim = x.Size();
+  
+  bbTFunc(x, M);
+  M *= -1.0;
+
+  for (int d=0; d<dim; d++) { M(d,d) += 1.0; }
+}
+
 double viFunc(const Vector &x)
 {
    double a = 0.4;
@@ -291,6 +301,50 @@ public:
     double iz = iz_->Eval(T, ip);
 
     return vn * vn / (3.0 * ne * iz);
+  }
+};
+
+class MomentumDiffusionCoef : public MatrixCoefficient
+{
+private:
+
+  int    zi_;
+  double mi_;
+  double lnLam_;
+  double Di_perp_;
+  
+  Coefficient *ni_;
+  Coefficient *Ti_;
+  
+  mutable DenseMatrix perp_;
+  mutable Vector x_;
+
+public:
+  MomentumDiffusionCoef(int dim, int zi, double mi, double Di_perp,
+			Coefficient &niCoef, Coefficient &TiCoef)
+      : MatrixCoefficient(dim),
+	zi_(zi), mi_(mi), lnLam_(17.0), Di_perp_(Di_perp),
+	ni_(&niCoef), Ti_(&TiCoef),
+	perp_(dim), x_(dim) {}
+
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+	     const IntegrationPoint &ip)
+  {
+    K.SetSize(width);
+    
+    T.Transform(ip, x_);
+
+    double ni = ni_->Eval(T, ip);
+    double Ti = Ti_->Eval(T, ip);
+    
+    double tau = tau_i(mi_, zi_, ni, Ti, lnLam_);
+
+    bbTFunc(x_, K);
+    K *= 0.96 * ni * Ti * tau;
+
+    perpFunc(x_, perp_);
+
+    K.Add(mi_ * ni * Di_perp_, perp_);
   }
 };
 
@@ -424,9 +478,11 @@ int main(int argc, char *argv[])
    int vis_steps = 10;
 
    int      ion_charge = 1;
-   double     ion_mass = 2.01410178;
-   double neutral_mass = 2.01410178;
-   double neutral_temp = 3.0;
+   double     ion_mass = 2.01410178; // (amu)
+   double neutral_mass = 2.01410178; // (amu)
+   double neutral_temp = 3.0;        // (eV)
+
+   double      Di_perp = 1.0;        // (m^2/s)
    
    int precision = 8;
    cout.precision(precision);
@@ -502,6 +558,8 @@ int main(int argc, char *argv[])
                   "");
    args.AddOption(&v_max_, "-v", "--velocity",
                   "");
+   args.AddOption(&Di_perp, "-dip", "--Di_perp",
+                  "Cross field ion diffusivity (m^2/s).");
    args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
                   "Ratio of chi_max_parallel/chi_perp.");
    args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
@@ -912,23 +970,32 @@ int main(int argc, char *argv[])
 				  sqrt(M_PI * neutral_mass));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
 
-   
+   // Intermediate Coefficients
+   VectorFunctionCoefficient bHatCoef(2, bHatFunc);
+   MatrixFunctionCoefficient perpCoef(2, perpFunc);
+   ProductCoefficient          mnCoef(ion_mass, niCoef);
+   ProductCoefficient        nnneCoef(nnCoef, neCoef);
+   ApproxIonizationRate        izCoef(elec_energy);
+
    // Advection Coefficients
-   VectorFunctionCoefficient      bHatCoef(2, bHatFunc);
    ScalarVectorProductCoefficient   ViCoef(viCoef, bHatCoef);
    ScalarVectorProductCoefficient   VeCoef(veCoef, bHatCoef);
-   ProductCoefficient               mnCoef(ion_mass, niCoef);
    ScalarVectorProductCoefficient  MomCoef(mnCoef, ViCoef);
 
    // Diffusion Coefficients
-   ApproxIonizationRate izCoef(elec_energy);
-   MatrixFunctionCoefficient DCoef(dim, ChiFunc);
-   NeutralDiffusionCoef  DnCoef(neCoef, vnCoef, izCoef);
+   MatrixFunctionCoefficient      DCoef(dim, ChiFunc);
+   NeutralDiffusionCoef           DnCoef(neCoef, vnCoef, izCoef);
+   ScalarMatrixProductCoefficient DiCoef(Di_perp, perpCoef);
+   MomentumDiffusionCoef          EtaCoef(dim, ion_charge, ion_mass, Di_perp,
+					  niCoef, TiCoef);
    
-   ProductCoefficient nnneCoef(nnCoef, neCoef);
-
    // Source Coefficients
-   FunctionCoefficient QCoef(QFunc);
+   ProductCoefficient  SiCoef(nnneCoef, izCoef);
+   ProductCoefficient  SnCoef(-1, SiCoef);
+   ConstantCoefficient SMomCoef(0.0); // TODO: implement momentum source
+   ConstantCoefficient QiCoef(0.0);   // TODO: implement ion energy source
+   ConstantCoefficient QeCoef(0.0); // TODO: implement electron energy source
+   // FunctionCoefficient QCoef(QFunc);
    
    // Coefficients for initial conditions
    FunctionCoefficient vi0Coef(viFunc);
@@ -940,28 +1007,28 @@ int main(int argc, char *argv[])
    elec_energy.ProjectCoefficient(Te0Coef);
 
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
-   DGTransportTDO oper(dg, fes, ffes, mnCoef, imex);
+   DGTransportTDO oper(dg, fes, ffes, mnCoef, niCoef, neCoef, imex);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
 
-   oper.SetNnDiffusionCoefficient(DCoef);
-   oper.SetNnSourceCoefficient(QCoef);
+   oper.SetNnDiffusionCoefficient(DnCoef);
+   oper.SetNnSourceCoefficient(SnCoef);
 
-   oper.SetNiDiffusionCoefficient(DCoef);
+   oper.SetNiDiffusionCoefficient(DiCoef);
    oper.SetNiAdvectionCoefficient(ViCoef);
-   oper.SetNiSourceCoefficient(QCoef);
+   oper.SetNiSourceCoefficient(SiCoef);
 
-   oper.SetViDiffusionCoefficient(DCoef);
+   oper.SetViDiffusionCoefficient(EtaCoef);
    oper.SetViAdvectionCoefficient(MomCoef);
-   oper.SetViSourceCoefficient(QCoef);
+   oper.SetViSourceCoefficient(SMomCoef);
 
-   oper.SetTiDiffusionCoefficient(DCoef);
+   oper.SetTiDiffusionCoefficient(ChiiCoef);
    oper.SetTiAdvectionCoefficient(ViCoef);
-   oper.SetTiSourceCoefficient(QCoef);
+   oper.SetTiSourceCoefficient(QiCoef);
 
-   oper.SetTeDiffusionCoefficient(DCoef);
+   oper.SetTeDiffusionCoefficient(ChieCoef);
    oper.SetTeAdvectionCoefficient(VeCoef);
-   oper.SetTeSourceCoefficient(QCoef);
+   oper.SetTeSourceCoefficient(QeCoef);
 
    Array<int> dbcAttr(pmesh.bdr_attributes.Max());
    dbcAttr = 1;
