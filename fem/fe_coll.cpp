@@ -1571,6 +1571,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       else if (b_type == BasisType::Serendipity)
       {
          H1_Elements[Geometry::SEGMENT] = new H1Ser_SegmentElement(p);
+         // H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, BasisType::GaussLobatto);
       }
       else
       {

@@ -1308,7 +1308,9 @@ void GridFunction::AccumulateAndCountBdrValues(
    Array<int> &values_counter)
 {
    int i, j, fdof, d, ind, vdim;
-   double val;
+
+   double val;  // maybe not used, or in wrong scope?
+   
    const FiniteElement *fe;
    ElementTransformation *transf;
    Array<int> vdofs;
@@ -1329,6 +1331,9 @@ void GridFunction::AccumulateAndCountBdrValues(
       const IntegrationRule &ir = fe->GetNodes();
       fes->GetBdrElementVDofs(i, vdofs);
 
+      // Will wrote this next part to compute the Vandermonde matrix and compute 
+      // the dofs accordingly.  It only works for scalar FE types.
+
       DenseMatrix V(fdof, ir.Size());
       Vector rhs(ir.Size());
       for (j = 0; j < ir.Size(); ++j)
@@ -1342,6 +1347,8 @@ void GridFunction::AccumulateAndCountBdrValues(
       }
       V.Transpose();
       DenseMatrixInverse Vinv(V);
+
+
       Vector dofs(fdof);
       Vinv.Mult(rhs, dofs);
 

@@ -49,7 +49,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    {
       fec = new H1_FECollection(2, 2, BasisType::Positive);
    }
-   else if (order == 2)
+   else if (order > 1)
    {
       fec = new H1Ser_FECollection(order, 2);
    }
