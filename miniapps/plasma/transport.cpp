@@ -400,8 +400,8 @@ int main(int argc, char *argv[])
    bool binary = false;
    int vis_steps = 10;
 
-   Array<int> ion_charges;
-   Vector ion_masses;
+   int      ion_charge =  0;
+   double     ion_mass = -1.0;
 
    int precision = 8;
    cout.precision(precision);
@@ -456,11 +456,11 @@ int main(int argc, char *argv[])
    //                "exceeds dttol.");
    args.AddOption(&cfl, "-c", "--cfl-number",
                   "CFL number for timestep calculation.");
-   args.AddOption(&ion_charges, "-qi", "--ion-charges",
-                  "Charges of the various species "
+   args.AddOption(&ion_charge, "-qi", "--ion-charge",
+                  "Charge of the species "
                   "(in units of electron charge)");
-   args.AddOption(&ion_masses, "-mi", "--ion-masses",
-                  "Masses of the various species (in amu)");
+   args.AddOption(&ion_mass, "-mi", "--ion-mass",
+                  "Masses of the ion species (in amu)");
    args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
                   "Diffusion constant used in momentum equation.");
    args.AddOption(&dg_sigma_, "-dgs", "--sigma",
@@ -511,15 +511,14 @@ int main(int argc, char *argv[])
    */
    imex = ode_solver_type < 10;
 
-   if (ion_charges.Size() == 0)
+   if (ion_charge == 0)
    {
-      ion_charges.SetSize(1);
-      ion_charges[0] =  1.0;
+      ion_charge =  1.0;
    }
-   if (ion_masses.Size() == 0)
+   if (ion_mass < 0)
    {
-      ion_masses.SetSize(1);
-      ion_masses[0] = 2.01410178;
+      ion_mass = 2.01410178;
+   }
    }
    if (dg_kappa_ < 0)
    {
@@ -888,14 +887,14 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient TeCoef(&elec_energy);
 
    // Coefficients representing secondary fields
-   ProductCoefficient neCoef(ion_charges[0], niCoef);
+   ProductCoefficient neCoef(ion_charge, niCoef);
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
    
    // Advection Coefficients
    VectorFunctionCoefficient bHatCoef(2, bHatFunc);
    ScalarVectorProductCoefficient ViCoef(viCoef, bHatCoef);
    ScalarVectorProductCoefficient VeCoef(veCoef, bHatCoef);
-   ProductCoefficient mnCoef(ion_masses[0], niCoef);
+   ProductCoefficient mnCoef(ion_mass, niCoef);
    ScalarVectorProductCoefficient MomCoef(mnCoef, ViCoef);
 
    // Diffusion Coefficients
