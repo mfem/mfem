@@ -2856,6 +2856,11 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+
+   /// Get the derivative operator in the direction di; transposed if trans=true
+   void GetOperator(int di, DenseMatrix &D, bool trans=false) const;
+   /// Get the SBP diagonal norm matrix
+   void GetDiagNorm(Vector &H) const;
    virtual ~SBP_TriangleElement();
 };
 

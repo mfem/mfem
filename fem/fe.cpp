@@ -12210,6 +12210,27 @@ void SBP_TriangleElement::CalcDShape(const IntegrationPoint &ip,
    dshape.SetCol(1, tempVec);
 }
 
+void SBP_TriangleElement::GetOperator(int di, DenseMatrix &D, bool trans) const
+{
+   MFEM_ASSERT(di >= 0 && di <= 1, "");
+   if (trans)
+   {
+      di == 0 ? D.Transpose(*Dx) : D.Transpose(*Dy); // this copies Dx^T, etc
+   }
+   else
+   {
+      di == 0 ? D = *Dx : D = *Dy; // assignment (deep copy)
+   }
+}
+
+void SBP_TriangleElement::GetDiagNorm(Vector &H) const
+{
+   /// TODO: if we decide to store H as a Vector, this needs to change
+   H.SetSize(Dof);
+   for (int i = 0; i < Dof; i++)
+      H[i] = Nodes.IntPoint(i).weight;
+}
+
 SBP_TriangleElement::~SBP_TriangleElement()
 {
    delete Dx;
