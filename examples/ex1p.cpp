@@ -52,6 +52,34 @@
 using namespace std;
 using namespace mfem;
 
+
+void DumpLayers(const ParNCMesh* pncmesh)
+{
+   Mesh dbg_mesh;
+   pncmesh->GetDebugMesh(dbg_mesh);
+   delete dbg_mesh.ncmesh;
+   dbg_mesh.ncmesh = NULL;
+
+   char fname[100];
+   sprintf(fname, "debug%03d.mesh", pncmesh->GetMyRank());
+   std::ofstream f1(fname);
+   dbg_mesh.Print(f1);
+
+   L2_FECollection fec(0, pncmesh->Dimension());
+   FiniteElementSpace fes(&dbg_mesh, &fec);
+   GridFunction gf(&fes);
+
+   for (int i = 0; i < dbg_mesh.GetNE(); i++)
+   {
+      gf(i) = dbg_mesh.GetAttribute(i) - 1;
+   }
+
+   sprintf(fname, "debug%03d.gf", pncmesh->GetMyRank());
+   std::ofstream f2(fname);
+   gf.Save(f2);
+}
+
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -140,14 +168,17 @@ int main(int argc, char *argv[])
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
+
+         /*{char fname[100];
+         sprintf(fname, "ncmesh%03d.txt", myid);
+         std::ofstream f(fname);
+         pmesh->ncmesh->DebugDump(f);}
+
+         DumpLayers(pmesh->pncmesh);*/
+
          pmesh->Rebalance();
       }
    }
-
-   {char fname[100];
-   sprintf(fname, "ncmesh%03d.txt", myid);
-   std::ofstream f(fname);
-   pmesh->ncmesh->DebugDump(f);}
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If

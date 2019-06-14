@@ -2715,6 +2715,8 @@ void ParNCMesh::RebalanceDofMessage::Decode(int)
 
 void ParNCMesh::GetDebugMesh(Mesh &debug_mesh) const
 {
+   //((ParNCMesh*) this)->UpdateLayers();
+
    // create a serial NCMesh containing all our elements (ghosts and all)
    NCMesh* copy = new NCMesh(*this);
 
@@ -2723,6 +2725,7 @@ void ParNCMesh::GetDebugMesh(Mesh &debug_mesh) const
    {
       Element &el = copy->elements[cle[i]];
       el.attribute = el.rank + 1;
+      //el.attribute = element_type[i] + 1;
    }
 
    debug_mesh.InitFromNCMesh(*copy);
