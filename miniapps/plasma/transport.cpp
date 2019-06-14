@@ -24,7 +24,7 @@ const double specific_heat_ratio_ = 1.4;
 const double gas_constant_ = 1.0;
 */
 // Scalar coefficient for diffusion of momentum
-static double diffusion_constant_ = 0.1;
+//static double diffusion_constant_ = 0.1;
 static double dg_sigma_ = -1.0;
 static double dg_kappa_ = -1.0;
 
@@ -41,9 +41,9 @@ static double v_max_ = 1e3;
 static int prob_ = 4;
 //static int gamma_ = 10;
 static double alpha_ = NAN;
-static double chi_max_ratio_ = 1.0;
-static double chi_min_ratio_ = 1.0;
-
+//static double chi_max_ratio_ = 1.0;
+//static double chi_min_ratio_ = 1.0;
+/*
 void ChiFunc(const Vector &x, DenseMatrix &M)
 {
    M.SetSize(2);
@@ -99,7 +99,7 @@ void ChiFunc(const Vector &x, DenseMatrix &M)
       break;
    }
 }
-
+*/
 double QFunc(const Vector &x, double t)
 {
    double a = 0.4;
@@ -121,7 +121,7 @@ double QFunc(const Vector &x, double t)
             sin(0.5 * M_PI * sqrt(r)) / sqrt(r)
           );
 }
-
+/*
 double TFunc(const Vector &x, double t)
 {
    double a = 0.4;
@@ -131,7 +131,7 @@ double TFunc(const Vector &x, double t)
 
    return T_min_ + (T_max_ - T_min_) * cos(0.5 * M_PI * sqrt(r));
 }
-
+*/
 double TiFunc(const Vector &x, double t)
 {
    double a = 0.4;
@@ -608,8 +608,8 @@ int main(int argc, char *argv[])
                   "Mass of the neutral species (in amu)");
    args.AddOption(&neutral_temp, "-Tn", "--neutral-temp",
                   "Temperature of the neutral species (in eV)");
-   args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
-                  "Diffusion constant used in momentum equation.");
+   // args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
+   //               "Diffusion constant used in momentum equation.");
    args.AddOption(&dg_sigma_, "-dgs", "--sigma",
                   "One of the two DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
@@ -626,10 +626,12 @@ int main(int argc, char *argv[])
                   "Cross field ion thermal diffusivity (m^2/s).");
    args.AddOption(&Xe_perp, "-xep", "--Xe-perp",
                   "Cross field electron thermal diffusivity (m^2/s).");
+   /*
    args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
                   "Ratio of chi_max_parallel/chi_perp.");
    args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
                   "Ratio of chi_min_parallel/chi_perp.");
+   */
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -958,7 +960,8 @@ int main(int argc, char *argv[])
       // Reduce to find the global minimum element size
       MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
 
-      double dt_diff = hmin * hmin / chi_max_ratio_;
+      double chi_max_ratio = 1e6;
+      double dt_diff = hmin * hmin / chi_max_ratio;
       double dt_adv  = hmin / max(v_max_, DBL_MIN);
 
       if (mpi.Root())
