@@ -24,6 +24,22 @@ namespace plasma
 {
 
 /**
+   Returns the mean Electron-Ion mean collision time in seconds (see
+   equation 2.5e)
+   Te is the electron temperature in eV
+   ni is the density of ions (assuming ni=ne) in particles per meter^3
+   zi is the charge number of the ion species
+   lnLambda is the Coulomb Logarithm
+*/
+inline double tau_e(double Te, double zi, double ni, double lnLambda)
+{
+   // The factor of q_^{3/2} is included to convert Te from eV to Joules
+   return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
+          sqrt(0.5 * me_kg_ * pow(q_ * Te, 3) / M_PI) /
+          (lnLambda * pow(q_, 4) * zi * zi * ni);
+}
+
+/**
    Returns the mean Ion-Ion mean collision time in seconds (see equation 2.5i)
    mi is the ion mass in a.m.u.
    zi is the charge number of the ion species

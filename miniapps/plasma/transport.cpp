@@ -311,8 +311,8 @@ private:
   int    zi_;
   double mi_;
   double lnLam_;
-  double Di_perp_;
   
+  Coefficient *Di_perp_;
   Coefficient *ni_;
   Coefficient *Ti_;
   
@@ -320,10 +320,11 @@ private:
   mutable Vector x_;
 
 public:
-  MomentumDiffusionCoef(int dim, int zi, double mi, double Di_perp,
+  MomentumDiffusionCoef(int dim, int zi, double mi, Coefficient &DiPerpCoef,
 			Coefficient &niCoef, Coefficient &TiCoef)
       : MatrixCoefficient(dim),
-	zi_(zi), mi_(mi), lnLam_(17.0), Di_perp_(Di_perp),
+	zi_(zi), mi_(mi), lnLam_(17.0),
+	Di_perp_(&DiPerpCoef),
 	ni_(&niCoef), Ti_(&TiCoef),
 	perp_(dim), x_(dim) {}
 
@@ -344,8 +345,67 @@ public:
 
     perpFunc(x_, perp_);
 
-    K.Add(mi_ * ni * Di_perp_, perp_);
+    double Di_perp = Di_perp_->Eval(T, ip);
+
+    K.Add(mi_ * ni * Di_perp, perp_);
   }
+};
+
+class ThermalDiffusionCoef : public MatrixCoefficient
+{
+private:
+
+  int zi_;
+  double a_;
+  double m_;
+  double lnLam_;
+
+  Coefficient *X_perp_;
+  Coefficient *n_;
+  Coefficient *T_;
+  Coefficient *ni_;
+  
+  mutable DenseMatrix perp_;
+  mutable Vector x_;
+
+public:
+  ThermalDiffusionCoef(int dim, int ion_charge, double mass,
+		       Coefficient &XPerpCoef,
+		       Coefficient &nCoef, Coefficient &TCoef,
+		       Coefficient *niCoef = NULL)
+    : MatrixCoefficient(dim),
+      zi_(ion_charge),
+      a_(niCoef ? 3.16 : 3.9),
+      m_(mass), lnLam_(17.0),
+      X_perp_(&XPerpCoef),
+      n_(&nCoef), T_(&TCoef), ni_(niCoef),
+      perp_(dim), x_(dim) {}
+
+  void Eval(DenseMatrix &K, ElementTransformation &T,
+	    const IntegrationPoint &ip)
+  {
+    K.SetSize(width);
+    
+    double n    = n_->Eval(T, ip);
+    double Temp = T_->Eval(T, ip);
+    double ni = ni_ ? ni_->Eval(T, ip) : 0.0;
+    
+    double tau = ni_ ?
+      tau_e(Temp, zi_, ni, lnLam_) :
+      tau_i(m_, zi_, n, Temp, lnLam_);
+    
+    T.Transform(ip, x_);
+    
+    bbTFunc(x_, K);
+
+    K *= a_ * n * n * Temp * tau / m_;
+    
+    perpFunc(x_, perp_);
+
+    double X_perp = X_perp_->Eval(T, ip);
+
+    K.Add(X_perp, perp_);
+  }  
 };
 
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
@@ -482,7 +542,9 @@ int main(int argc, char *argv[])
    double neutral_mass = 2.01410178; // (amu)
    double neutral_temp = 3.0;        // (eV)
 
-   double      Di_perp = 1.0;        // (m^2/s)
+   double      Di_perp = 1.0;        // Ion perp diffusion (m^2/s)
+   double      Xi_perp = 1.0;        // Ion thermal diffusion (m^2/s)
+   double      Xe_perp = 1.0;        // Electron thermal diffusion (m^2/s)
    
    int precision = 8;
    cout.precision(precision);
@@ -558,8 +620,12 @@ int main(int argc, char *argv[])
                   "");
    args.AddOption(&v_max_, "-v", "--velocity",
                   "");
-   args.AddOption(&Di_perp, "-dip", "--Di_perp",
+   args.AddOption(&Di_perp, "-dip", "--Di-perp",
                   "Cross field ion diffusivity (m^2/s).");
+   args.AddOption(&Xi_perp, "-xip", "--Xi-perp",
+                  "Cross field ion thermal diffusivity (m^2/s).");
+   args.AddOption(&Xe_perp, "-xep", "--Xe-perp",
+                  "Cross field electron thermal diffusivity (m^2/s).");
    args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
                   "Ratio of chi_max_parallel/chi_perp.");
    args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
@@ -976,22 +1042,28 @@ int main(int argc, char *argv[])
    ProductCoefficient          mnCoef(ion_mass, niCoef);
    ProductCoefficient        nnneCoef(nnCoef, neCoef);
    ApproxIonizationRate        izCoef(elec_energy);
-
+   ConstantCoefficient     DiPerpCoef(Di_perp);
+   ConstantCoefficient     XiPerpCoef(Xi_perp);
+   ConstantCoefficient     XePerpCoef(Xe_perp);
+   
    // Advection Coefficients
    ScalarVectorProductCoefficient   ViCoef(viCoef, bHatCoef);
    ScalarVectorProductCoefficient   VeCoef(veCoef, bHatCoef);
    ScalarVectorProductCoefficient  MomCoef(mnCoef, ViCoef);
 
    // Diffusion Coefficients
-   MatrixFunctionCoefficient      DCoef(dim, ChiFunc);
    NeutralDiffusionCoef           DnCoef(neCoef, vnCoef, izCoef);
-   ScalarMatrixProductCoefficient DiCoef(Di_perp, perpCoef);
-   MomentumDiffusionCoef          EtaCoef(dim, ion_charge, ion_mass, Di_perp,
-					  niCoef, TiCoef);
+   ScalarMatrixProductCoefficient DiCoef(DiPerpCoef, perpCoef);
+   MomentumDiffusionCoef          EtaCoef(dim, ion_charge, ion_mass,
+					  DiPerpCoef, niCoef, TiCoef);
+   ThermalDiffusionCoef           XiCoef(dim, ion_charge, ion_mass,
+					 XiPerpCoef, niCoef, TiCoef);
+   ThermalDiffusionCoef           XeCoef(dim, ion_charge, me_u_,
+					 XePerpCoef, neCoef, TeCoef, &niCoef);
    
    // Source Coefficients
    ProductCoefficient  SiCoef(nnneCoef, izCoef);
-   ProductCoefficient  SnCoef(-1, SiCoef);
+   ProductCoefficient  SnCoef(-1.0, SiCoef);
    ConstantCoefficient SMomCoef(0.0); // TODO: implement momentum source
    ConstantCoefficient QiCoef(0.0);   // TODO: implement ion energy source
    ConstantCoefficient QeCoef(0.0); // TODO: implement electron energy source
@@ -1022,11 +1094,11 @@ int main(int argc, char *argv[])
    oper.SetViAdvectionCoefficient(MomCoef);
    oper.SetViSourceCoefficient(SMomCoef);
 
-   oper.SetTiDiffusionCoefficient(ChiiCoef);
+   oper.SetTiDiffusionCoefficient(XiCoef);
    oper.SetTiAdvectionCoefficient(ViCoef);
    oper.SetTiSourceCoefficient(QiCoef);
 
-   oper.SetTeDiffusionCoefficient(ChieCoef);
+   oper.SetTeDiffusionCoefficient(XeCoef);
    oper.SetTeAdvectionCoefficient(VeCoef);
    oper.SetTeSourceCoefficient(QeCoef);
 
@@ -1066,7 +1138,7 @@ int main(int argc, char *argv[])
    // Another possible option for the smoothed flux space:
    // H1_FECollection smooth_flux_fec(order, dim);
    // ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec, dim);
-   DiffusionIntegrator integ(DCoef);
+   DiffusionIntegrator integ(XeCoef);
    L2ZienkiewiczZhuEstimator estimator(integ, elec_energy, flux_fes,
                                        smooth_flux_fes);
 
