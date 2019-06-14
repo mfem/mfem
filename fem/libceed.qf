@@ -13,7 +13,7 @@
 struct BuildContext { CeedInt dim, space_dim; CeedScalar coeff; };
 
 /// libCEED Q-function for building quadrature data for a diffusion operator
-inline __device__ void f_build_diff_const(void *ctx, CeedInt Q, const CeedScalar *J, const CeedScalar *qw, CeedScalar *qd) {
+inline __device__ void f_build_diff_const(void *ctx, const CeedInt Q, const CeedScalar *J, const CeedScalar *qw, CeedScalar *qd) {
   BuildContext *bc = (BuildContext*)ctx;
   // in[0] is Jacobians with shape [dim, nc=dim, Q]
   // in[1] is quadrature weights, size (Q)
@@ -76,7 +76,7 @@ inline __device__ void f_build_diff_const(void *ctx, CeedInt Q, const CeedScalar
   }
 }
 
-inline __device__ void f_build_diff_grid(void *ctx, CeedInt Q, const CeedScalar *c, const CeedScalar *J, const CeedScalar *qw, CeedScalar *qd) {
+inline __device__ void f_build_diff_grid(void *ctx, const CeedInt Q, const CeedScalar *c, const CeedScalar *J, const CeedScalar *qw, CeedScalar *qd) {
   BuildContext *bc = (BuildContext*)ctx;
   // in[1] is Jacobians with shape [dim, nc=dim, Q]
   // in[2] is quadrature weights, size (Q)
@@ -142,7 +142,7 @@ inline __device__ void f_build_diff_grid(void *ctx, CeedInt Q, const CeedScalar 
 
 
 /// libCEED Q-function for applying a diff operator
-inline __device__ void f_apply_diff(void *ctx, CeedInt Q, const CeedScalar *ug, const CeedScalar *qd, CeedScalar *vg) {
+inline __device__ void f_apply_diff(void *ctx, const CeedInt Q, const CeedScalar *ug, const CeedScalar *qd, CeedScalar *vg) {
   BuildContext *bc = (BuildContext*)ctx;
   // in[0], out[0] have shape [dim, nc=1, Q]
   switch (bc->dim) {
@@ -175,7 +175,7 @@ inline __device__ void f_apply_diff(void *ctx, CeedInt Q, const CeedScalar *ug, 
 }
 
 /// libCEED Q-function for building quadrature data for a mass operator
-inline __device__ void f_build_mass_const(void *ctx, CeedInt Q, const CeedScalar *J, const CeedScalar *qw, CeedScalar *qd) {
+inline __device__ void f_build_mass_const(void *ctx, const CeedInt Q, const CeedScalar *J, const CeedScalar *qw, CeedScalar *qd) {
   // in[0] is Jacobians with shape [dim, nc=dim, Q]
   // in[1] is quadrature weights, size (Q)
   struct BuildContext *bc = (struct BuildContext*)ctx;
@@ -206,7 +206,7 @@ inline __device__ void f_build_mass_const(void *ctx, CeedInt Q, const CeedScalar
   }
 }
 
-inline __device__ void f_build_mass_grid(void *ctx, CeedInt Q, const CeedScalar *c, const CeedScalar *J, const CeedScalar *qw, CeedScalar *qd) {
+inline __device__ void f_build_mass_grid(void *ctx, const CeedInt Q, const CeedScalar *c, const CeedScalar *J, const CeedScalar *qw, CeedScalar *qd) {
   // in[0] is Jacobians with shape [dim, nc=dim, Q]
   // in[1] is quadrature weights, size (Q)
   struct BuildContext *bc = (struct BuildContext*)ctx;
@@ -237,7 +237,7 @@ inline __device__ void f_build_mass_grid(void *ctx, CeedInt Q, const CeedScalar 
 }
 
 /// libCEED Q-function for applying a mass operator
-inline __device__ void f_apply_mass(void *ctx, CeedInt Q, const CeedScalar *u, const CeedScalar *w, CeedScalar *v) {
+inline __device__ void f_apply_mass(void *ctx, const CeedInt Q, const CeedScalar *u, const CeedScalar *w, CeedScalar *v) {
   for (CeedInt i = 0; i < Q; ++i) {
     v[i] = w[i] * u[i];
   }
