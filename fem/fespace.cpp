@@ -220,17 +220,30 @@ void FiniteElementSpace::BuildElementToDofTable() const
    el_dof -> MakeI (mesh -> GetNE());
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
+      //
+      // For serendipity: first the element dofs are found...
+      //
       GetElementDofs (i, dofs);
       el_dof -> AddColumnsInRow (i, dofs.Size());
    }
    el_dof -> MakeJ();
 
+   cout << "  fespace: printing el_dof 1st time:" << endl;
+   el_dof->Print();
+
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
+      //
+      // For serendipity: ... then the connections are found.
+      //
       GetElementDofs (i, dofs);
       el_dof -> AddConnections (i, (int *)dofs, dofs.Size());
    }
    el_dof -> ShiftUpI();
+
+   cout << "  fespace: printing el_dof 2nd time:" << endl;
+   el_dof->Print();
+
    elem_dof = el_dof;
 }
 
@@ -1423,7 +1436,8 @@ void FiniteElementSpace::Construct()
    {
      if (strncmp(fec->Name(),"H1Ser_", 6)==0)
      {
-       //cout << "fespace.cpp: Using a serendipity element!" << endl;
+       // cout << "fespace.cpp: Using a serendipity element!" << endl;
+       // Need to adjust something here for serendipity elements
      }
      else
      {
@@ -1447,6 +1461,7 @@ void FiniteElementSpace::Construct()
 
 void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
 {
+   // cout << "fespace.cpp: calling GetElementDofs" << endl;
    if (elem_dof)
    {
       elem_dof -> GetRow (i, dofs);
@@ -1509,6 +1524,7 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
          // if (dim > 1)
          for (k = 0; k < E.Size(); k++)
          {
+            // cout << "fespace: about to call DofOrderForOrientation" << endl;
             ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);
             for (j = 0; j < ne; j++)
             {
@@ -1620,6 +1636,9 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
       if (ne > 0)
       {
          // if (dim > 1)
+
+         // cout << "fespace.cpp: GetBdrElementDofs is about to call DofOrderForOrientation " << endl;
+
          for (k = 0; k < E.Size(); k++)
          {
             ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);

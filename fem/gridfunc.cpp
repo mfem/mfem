@@ -1370,6 +1370,8 @@ void GridFunction::AccumulateAndCountBdrValues(
             (*this)(ind) += val;
          }
       }
+      // cout << "gridfunc: values_counter = " << endl;
+      // values_counter.Print();
    }
 
    // In the case of partially conforming space, i.e. (fes->cP != NULL), we need

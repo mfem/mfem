@@ -28,16 +28,19 @@ double u_exact_2(const Vector &);
 void u_grad_exact_2(const Vector &, Vector &);
 
 void convergenceStudy(const char *mesh_file, int num_ref, int &order,
-                      double &l2_err_prev, double &h1_err_prev, bool &visualization, int &exact)
+                      double &l2_err_prev, double &h1_err_prev, bool &visualization, int &exact, int &dof2view)
 {
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 4. Refine the mesh num_ref times
 
-   for (int l = 1; l < num_ref+1; l++)
+   if (dof2view == -1)
    {
-     mesh->UniformRefinement();
+      for (int l = 1; l < num_ref+1; l++)
+      {
+         mesh->UniformRefinement();
+      }
    }
 
 
@@ -154,8 +157,12 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   x=0;
-   x(5)=1;
+   // Hack to viusalize a single basis function
+   if (dof2view != -1)
+   {
+      x=0;
+      x(dof2view) = 1;
+   }
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -165,7 +172,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
-
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -237,19 +243,17 @@ void u_grad_exact(const Vector &x, Vector &u)
 
 double u_exact_2(const Vector &x)
 {
-   return sin(x(0))*exp(x(1));
+   return sin(x(1))*exp(x(0));
 }
 
 void u_grad_exact_2(const Vector &x, Vector &u)
 {
-   u(0) = cos(x(0))*exp(x(1));
-   u(1) = sin(x(0))*exp(x(1));
+   u(0) = sin(x(1))*exp(x(0));
+   u(1) = cos(x(1))*exp(x(0));
 }
 
 int main(int argc, char *argv[])
 {
-
-
    // 1. Parse command-line options.
    int total_refinements = 0;
 
@@ -259,6 +263,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = false;
    int exact = 1;
+   int dof2view = -1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&total_refinements, "-r", "--refine",
@@ -279,6 +284,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&exact, "-e", "--exact", 
                   "Choice of exact solution. 1=constant 1; 2=sin(x)e^y.");
+   args.AddOption(&dof2view, "-dof", "--dof2view",
+                  "DEBUG option: viewing a single dof:");
    args.Parse();
    if (!args.Good())
    {
@@ -314,13 +321,19 @@ int main(int argc, char *argv[])
    }
    else if (exact == 2)
    {
-      cout << "convergence: Exact solution u(x,y)=sin(x)e^y" << endl;
+      cout << "convergence: Exact solution u(x,y)=sin(y)e^x" << endl;
    }
    else
    {
       cout << "Wrong usage of exact solution parameter (-e)"
            << endl;
    }
+
+   if (dof2view != -1)
+   {
+      cout << "DEBUG option: solution deleted; just viewing dof # " << dof2view << endl;
+   }
+
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -348,11 +361,15 @@ int main(int argc, char *argv[])
 
    // Loop over number of refinements for convergence study
 
-   bool noVisYet = false;
-   for (int i = 0; i < (total_refinements); i++)
-     {
-       convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, exact);
-     }
-   convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, exact);
+
+   if (dof2view == -1)
+   {
+      bool noVisYet = false;
+      for (int i = 0; i < (total_refinements); i++)
+      {
+         convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, exact, dof2view);
+      }
+   }
+   convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, exact, dof2view);
    return 0;
 }

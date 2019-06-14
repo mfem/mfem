@@ -1580,11 +1580,17 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 
       SegDofOrd[0] = new int[2*pm1];
       SegDofOrd[1] = SegDofOrd[0] + pm1;
+
       for (int i = 0; i < pm1; i++)
       {
          SegDofOrd[0][i] = i;
          SegDofOrd[1][i] = pm2 - i;
+         // if (btype == BasisType::Serendipity)
+         // {
+         //    SegDofOrd[1][i] = i;  // change dof orderings the case of serendipity...
+         // }
       }
+
    }
 
    if (dim >= 2)
@@ -1676,6 +1682,12 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                    int Or) const
 {
+
+
+     // if ((this)->GetBasisType() == BasisType::Serendipity)
+     // {
+     //    return SegDofOrd[0];
+     // }
    if (GeomType == Geometry::SEGMENT)
    {
       return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
@@ -1686,6 +1698,7 @@ const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    }
    else if (GeomType == Geometry::SQUARE)
    {
+      // cout << "fe_coll: QuadDofOrd = " << QuadDofOrd[Or%8][0] << "," << QuadDofOrd[Or%8][1] << "," << QuadDofOrd[Or%8][2] << "," << QuadDofOrd[Or%8][3] << endl;
       return QuadDofOrd[Or%8];
    }
    return NULL;

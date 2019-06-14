@@ -1856,6 +1856,8 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
                           << " FE collection) are not supported yet!");
                break;
          }
+
+
          dof_ord = fec->DofOrderForOrientation(geom, new_or);
          MFEM_VERIFY(dof_ord != NULL,
                      "FE collection '" << fec->Name()
