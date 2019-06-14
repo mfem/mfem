@@ -6,6 +6,8 @@
 #include <sstream>
 #include <iostream>
 
+#include <float.h>
+
 #include "../common/pfem_extras.hpp"
 #include "transport_solver.hpp"
 
