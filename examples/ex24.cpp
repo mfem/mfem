@@ -328,7 +328,7 @@ struct FPeach: public Surface<FPeach>
       for (int j = 0; j < Ny; j++) { AddQuad(quad_e[j], j+1); }
       FinalizeQuadMesh(1, 1, true);
       SetCurvature(Order, Discontinuous, SpaceDim, Ordering::byNODES);
-      for (int l = 0; l < 1 + RefLvl; l++) { UniformRefinement(); }
+      UniformRefinement();
       SnapNodes(this);
    }
 };
@@ -491,14 +491,14 @@ int main(int argc, char *argv[])
    int ny = 4;
    int order = 3;
    int niter = 4;
-   int surface = 7;
+   int surface = -1;
    int ref_levels = 2;
    bool pa = true;
    bool vis = true;
    bool amr = false;
    bool byc = false;
    bool wait = false;
-   const char *keys = "gAaaa";
+   const char *keys = "gAmaaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../data/mobius-strip.mesh";
 
@@ -560,10 +560,7 @@ int main(int argc, char *argv[])
    mesh->SetCurvature(order, discontinuous, sdim, Ordering::byNODES);
 
    //  Refine the mesh to increase the resolution.
-   if (surface != 7)
-   {
-      for (int l = 0; l < ref_levels; l++) { mesh->UniformRefinement(); }
-   }
+   for (int l = 0; l < ref_levels; l++) { mesh->UniformRefinement(); }
 
    // Adaptive mesh refinement
    if (amr)  { for (int l = 0; l < 1; l++) { mesh->RandomRefinement(0.5); } }
@@ -577,8 +574,8 @@ int main(int argc, char *argv[])
    Array<int> dbc;
    if (mesh->bdr_attributes.Size())
    {
-      Array<bool> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = true;
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
       fes->GetEssentialTrueDofs(ess_bdr, dbc);
    }
    else
@@ -597,8 +594,8 @@ int main(int argc, char *argv[])
             int k = cdofs[c];
             if (k < 0) { k = -1 - k; }
             mesh->GetNode(k, X);
-            const bool hX =  fabs(X[0]) < eps && X[1] < 0;
-            const bool hY =  fabs(X[2]) < eps && X[1] > 0;
+            const bool hX =  fabs(X[0]) <= eps && X[1] <= 0;
+            const bool hY =  fabs(X[2]) <= eps && X[1] >= 0;
             const bool is_on_bc = hX || hY;
             for (int d = 0; d < vdim; d++)
             { ess_cdofs[nfes->DofToVDof(k, d)] = is_on_bc; }
