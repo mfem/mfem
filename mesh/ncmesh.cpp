@@ -1330,12 +1330,12 @@ void NCMesh::RefineElement(int elem, char ref_type)
       child[3] = NewTetrahedron(mid03, mid13, mid23, no[3], attr,
                                 fa[0], fa[1], fa[2], -1);
 
-      // There are three was to split the inner octahedron. A good strategy is
+      // There are three ways to split the inner octahedron. A good strategy is
       // to use the shortest diagonal. At the moment we don't have the geometric
       // information in this class to determine which diagonal is the shortest,
       // but it seems that with reasonable shapes of the coarse tets and MFEM's
       // default tet orientation, always using tet_type == 0 produces stable
-      // refinements.
+      // refinements. Types 1 and 2 are unused for now.
       const int tet_type = 0;
 
       if (tet_type == 0) // shortest diagonal mid01--mid23

@@ -2184,9 +2184,29 @@ void ParNCMesh::ElementSet::Encode(const Array<int> &elements)
    FlagElements(elements, 0);
 }
 
+std::string ParNCMesh::ElementSet::RefPath() const
+{
+   std::ostringstream oss;
+   for (int i = 0; i < ref_path.Size(); i++)
+   {
+      oss << "     elem " << ref_path[i] << " (";
+      const Element &el = ncmesh->elements[ref_path[i]];
+      for (int j = 0; j < GI[el.Geom()].nv; j++)
+      {
+         if (j) { oss << ", "; }
+         oss << ncmesh->RetrieveNode(el, j);
+      }
+      oss << ")\n";
+   }
+   return oss.str();
+}
+
 void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
                                        Array<int> &elements) const
 {
+#ifdef MFEM_DEBUG
+   ref_path.Append(elem);
+#endif
    int mask = data[pos++];
    if (!mask)
    {
@@ -2204,7 +2224,11 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
          }
          else { MFEM_ASSERT(ref_type == el.ref_type, "") }
       }
-      else { MFEM_ASSERT(el.ref_type != 0, ""); }
+      else
+      {
+         MFEM_ASSERT(el.ref_type != 0, "Path not found:\n"
+                     << RefPath() << "     mask = " << mask);
+      }
 
       for (int i = 0; i < 8; i++)
       {
@@ -2214,6 +2238,9 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
          }
       }
    }
+#ifdef MFEM_DEBUG
+   ref_path.DeleteLast();
+#endif
 }
 
 void ParNCMesh::ElementSet::Decode(Array<int> &elements) const
