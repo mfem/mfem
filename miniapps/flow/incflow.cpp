@@ -11,6 +11,7 @@ enum PROB_TYPE
    KOV,
    LDC,
    CYL,
+   THREEDCYL,
 };
 
 struct OptionSet
@@ -48,6 +49,26 @@ void vel_cyl(const Vector &x, Vector &u)
    u(1) = 0.0;
 }
 
+void vel_threedcyl(const Vector &x, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+   double zi = x(2);
+
+   double U = 0.45;
+
+   if (xi <= 1e-8)
+   {
+      u(0) = 16.0 * U * yi * zi * (0.41 - yi) * (0.41 - zi) / pow(0.41, 4.0);
+   }
+   else
+   {
+      u(0) = 0.0;
+   }
+   u(1) = 0.0;
+   u(2) = 0.0;
+}
+
 void vel_ldc(const Vector &x, Vector &u)
 {
    double yi = x(1);
@@ -76,8 +97,10 @@ void ffun(const Vector &x, Vector &u)
    double xi = x(0);
    double yi = x(1);
 
-   u(0) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * xi) - 2.0 / opt_.rey * pow(M_PI, 2.0) * cos(M_PI * xi) * sin(M_PI * yi);
-   u(1) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * yi) + 2.0 / opt_.rey * pow(M_PI, 2.0) * cos(M_PI * yi) * sin(M_PI * xi);
+   u(0) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * xi) - 2.0 / opt_.rey * pow(M_PI,
+                                                                         2.0) * cos(M_PI * xi) * sin(M_PI * yi);
+   u(1) = 1.0 - 0.5 * M_PI * sin(2.0 * M_PI * yi) + 2.0 / opt_.rey * pow(M_PI,
+                                                                         2.0) * cos(M_PI * yi) * sin(M_PI * xi);
 }
 
 double kov_lam()
@@ -145,14 +168,15 @@ private:
    ParGridFunction *p_gf;
 
 public:
-   NavierStokesOperator(Array<ParFiniteElementSpace *> &fes) : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
-                                                               pmesh_(fes[0]->GetParMesh()), fes_(fes),
-                                                               ess_bdr_attr_(pmesh_->bdr_attributes.Max()),
-                                                               N(nullptr),
-                                                               S(nullptr), Mp(nullptr), D(nullptr), G(nullptr), NjacS(nullptr),
-                                                               jac(nullptr), lin(nullptr), invS(nullptr), invMp(nullptr),
-                                                               stokesprec(nullptr), jac_solver(nullptr),
-                                                               newton_solver(pmesh_->GetComm()), vel_gf(nullptr)
+   NavierStokesOperator(Array<ParFiniteElementSpace *> &fes) : Operator(
+         fes[0]->TrueVSize() + fes[1]->TrueVSize()),
+      pmesh_(fes[0]->GetParMesh()), fes_(fes),
+      ess_bdr_attr_(pmesh_->bdr_attributes.Max()),
+      N(nullptr),
+      S(nullptr), Mp(nullptr), D(nullptr), G(nullptr), NjacS(nullptr),
+      jac(nullptr), lin(nullptr), invS(nullptr), invMp(nullptr),
+      stokesprec(nullptr), jac_solver(nullptr),
+      newton_solver(pmesh_->GetComm()), vel_gf(nullptr)
    {
       if (opt_.prob_type == PROB_TYPE::KOV ||
           opt_.prob_type == PROB_TYPE::MMS ||
@@ -166,6 +190,12 @@ public:
          ess_bdr_attr_[1] = 1;
          ess_bdr_attr_[2] = 1;
          ess_bdr_attr_[3] = 0;
+      }
+      else if (opt_.prob_type == PROB_TYPE::THREEDCYL)
+      {
+         ess_bdr_attr_[0] = 1;
+         ess_bdr_attr_[1] = 0;
+         ess_bdr_attr_[2] = 1;
       }
 
       fes_[0]->GetEssentialTrueDofs(ess_bdr_attr_, ess_tdof_list_);
@@ -220,6 +250,11 @@ public:
          VectorFunctionCoefficient cylcoeff(dim, vel_cyl);
          vel_gf->ProjectBdrCoefficient(cylcoeff, ess_bdr_attr_);
       }
+      else if (opt_.prob_type == PROB_TYPE::THREEDCYL)
+      {
+         VectorFunctionCoefficient cylcoeff(dim, vel_threedcyl);
+         vel_gf->ProjectBdrCoefficient(cylcoeff, ess_bdr_attr_);
+      }
 
       p_gf = new ParGridFunction(fes[1]);
 
@@ -233,7 +268,8 @@ public:
       {
          fform = new ParLinearForm;
          VectorDomainLFIntegrator *fvint = new VectorDomainLFIntegrator(fcoeff);
-         fvint->SetIntRule(&IntRules.Get(pmesh_->GetElementBaseGeometry(0), opt_.vel_order + 3));
+         fvint->SetIntRule(&IntRules.Get(pmesh_->GetElementBaseGeometry(0),
+                                         opt_.vel_order + 3));
          fform->Update(fes[0], rhs.GetBlock(0), 0);
          fform->AddDomainIntegrator(fvint);
          fform->Assemble();
@@ -343,10 +379,11 @@ public:
       delete NjacS;
 
       hypre_ParCSRMatrix *NjacS_wrap;
-      hypre_ParcsrAdd(1.0, *static_cast<HypreParMatrix *>(&(N->GetGradient(u))), 1.0, *S, &NjacS_wrap);
+      hypre_ParcsrAdd(1.0, *static_cast<HypreParMatrix *>(&(N->GetGradient(u))), 1.0,
+                      *S, &NjacS_wrap);
       NjacS = new HypreParMatrix(NjacS_wrap);
 
-      HypreParMatrix* NjacS_e = NjacS->EliminateRowsCols(ess_tdof_list_);
+      HypreParMatrix *NjacS_e = NjacS->EliminateRowsCols(ess_tdof_list_);
       delete NjacS_e;
 
       jac->SetBlock(0, 0, NjacS);
@@ -432,7 +469,8 @@ int main(int argc, char *argv[])
                   "0 - MMS\n\t"
                   "1 - Kovasznay\n\t"
                   "2 - Lid driven cavity\n\t"
-                  "3 - Flow past a cylinder");
+                  "3 - Flow past a cylinder\n\t"
+                  "4 - 3D flow past a cylinder");
    args.AddOption(&rey, "-rey", "--reynolds", "Choose Reynolds number");
    args.Parse();
    if (!args.Good())
@@ -458,9 +496,13 @@ int main(int argc, char *argv[])
    {
       mesh_file = "cyl.msh";
    }
+   else if (opt_.prob_type == PROB_TYPE::THREEDCYL)
+   {
+      mesh_file = "3dfoc.e";
+   }
    else
    {
-      mesh_file = "../../data/inline-quad.mesh";
+      mesh_file = "../../data/amr-quad.mesh";
    }
 
    int vel_order = order;
