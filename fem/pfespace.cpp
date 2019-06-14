@@ -13,8 +13,8 @@
 
 #ifdef MFEM_USE_MPI
 
-#include <fstream>
-#define MFEM_DEBUG_PMATRIX
+/*#include <fstream>
+#define MFEM_DEBUG_PMATRIX*/
 
 #include "pfespace.hpp"
 #include "../general/sort_pairs.hpp"
