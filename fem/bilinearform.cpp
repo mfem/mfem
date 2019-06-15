@@ -12,6 +12,7 @@
 // Implementation of class BilinearForm
 
 #include "fem.hpp"
+#include "../general/dbg.hpp"
 #include "../general/device.hpp"
 #include <cmath>
 
@@ -583,6 +584,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
 
    if (ext)
    {
+      dbg("ext");
       ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
       return;
    }
@@ -600,8 +602,10 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
    }
    else if (!P) // conforming space
    {
+      dbg("!P");
       if (hybridization)
       {
+         dbg("hyb");
          // Reduction to the Lagrange multipliers system
          EliminateVDofsInRHS(ess_tdof_list, x, b);
          hybridization->ReduceRHS(b, B);
@@ -610,6 +614,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       }
       else
       {
+         dbg("else");
          // A, X and B point to the same data as mat, x and b
          EliminateVDofsInRHS(ess_tdof_list, x, b);
          X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
@@ -619,6 +624,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
    }
    else // non-conforming space
    {
+      dbg("non-conforming space");
       if (hybridization)
       {
          // Reduction to the Lagrange multipliers system
@@ -634,6 +640,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       }
       else
       {
+         dbg("else");
          // Variational restriction with P
          const SparseMatrix *R = fes->GetConformingRestriction();
          B.SetSize(P->Width());

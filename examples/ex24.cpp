@@ -301,7 +301,6 @@ struct Hold: public Surface<Hold>
 };
 
 // 1/4th Peach street model
-// Could set BC: ess_bdr[0] = false; with attribute set to '1' from postfix
 struct QPeach: public Surface<QPeach>
 {
    QPeach(Array<int> &bc, int order, int nx, int ny, int nr, int sdim):
@@ -388,6 +387,7 @@ struct FPeach: public Surface<FPeach>
 
    void BC()
    {
+      PrintCharacteristics();
       double X[3];
       Array<int> dofs;
       Array<int> ess_cdofs, ess_tdofs;
@@ -544,21 +544,34 @@ public:
    {
       if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       a.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
+      dbg("dbc:\n"); dbc.Print();
       for (int iiter=0; iiter<niter; ++iiter)
       {
          a.Assemble();
          b = 0.0;
          x = *nodes; // should only copy the BC
+         //dbg("x:\n"); x.Print();
+         dbg("x.Size():%d", x.Size());
+         dbg("x:%f", x*x);
+         dbg("a: %dx%d", a.Height(),a.Width());
+         B = 0.0;
          a.FormLinearSystem(dbc, x, b, A, X, B);
+         dbg("b:%f", b*b);
+         //dbg("B:\n"); B.Print();
+         dbg("X:%f", X*X);
+         dbg("B:%f", B*B);
          if (!pa)
          {
             // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-            GSSmoother M(static_cast<SparseMatrix&>(*A));
-            PCG(*A, M, B, X, 3, 2000, eps, 0.0);
+            //GSSmoother M(static_cast<SparseMatrix&>(*A));
+            //PCG(*A, M, B, X, 3, 2000, eps, 0.0);
+            CG(*A, B, X, 3, 2000, eps, 0.0);
          }
          else { CG(*A, B, X, 3, 2000, eps, 0.0); }
          // Recover the solution as a finite element grid function.
          a.RecoverFEMSolution(X, b, x);
+         //dbg("X:\n"); X.Print();
+         dbg("X:%f", X*X);
          *nodes = x;
          // Send the solution by socket to a GLVis server.
          if (vis) { Visualize(mesh, order, pause); }
@@ -571,7 +584,7 @@ int main(int argc, char *argv[])
 {
    int nx = 4;
    int ny = 4;
-   int nr = 3;
+   int nr = 2;
    int order = 3;
    int niter = 4;
    int surface = 0;
