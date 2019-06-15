@@ -2769,13 +2769,13 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir)
 {
-   nfes = &fes;
+   fespace = &fes;
    qspace = NULL;
    IntRule = &ir;
    use_tensor_products = true; // not implemented yet (not used)
 
-   if (nfes->GetNE() == 0) { return; }
-   const FiniteElement *fe = nfes->GetFE(0);
+   if (fespace->GetNE() == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
@@ -2783,13 +2783,13 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const QuadratureSpace &qs)
 {
-   nfes = &fes;
+   fespace = &fes;
    qspace = &qs;
    IntRule = NULL;
    use_tensor_products = true; // not implemented yet (not used)
 
-   if (nfes->GetNE() == 0) { return; }
-   const FiniteElement *fe = nfes->GetFE(0);
+   if (fespace->GetNE() == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
@@ -2800,7 +2800,6 @@ void QuadratureInterpolator::Eval2D(
    const int vdim,
    const DofToQuad &maps,
    const Vector &e_vec,
-   const Array<double> &W,
    Vector &q_val,
    Vector &q_der,
    Vector &q_det,
@@ -2859,7 +2858,7 @@ void QuadratureInterpolator::Eval2D(
                const double wy = G(q,1,d);
                for (int c = 0; c < VDIM; c++)
                {
-                  const double s_e = s_E[c+d*VDIM];
+                  double s_e = s_E[c+d*VDIM];
                   D[c+VDIM*0] += s_e * wx;
                   D[c+VDIM*1] += s_e * wy;
                }
@@ -2889,7 +2888,6 @@ void QuadratureInterpolator::Eval3D(
    const int vdim,
    const DofToQuad &maps,
    const Vector &e_vec,
-   const Array<double> &w,
    Vector &q_val,
    Vector &q_der,
    Vector &q_det,
@@ -2981,11 +2979,11 @@ void QuadratureInterpolator::Mult(
    const Vector &e_vec, unsigned eval_flags,
    Vector &q_val, Vector &q_der, Vector &q_det) const
 {
-   const int ne = nfes->GetNE();
+   const int ne = fespace->GetNE();
    if (ne == 0) { return; }
-   const int vdim = nfes->GetVDim();
-   const int dim = nfes->GetMesh()->Dimension();
-   const FiniteElement *fe = nfes->GetFE(0);
+   const int vdim = fespace->GetVDim();
+   const int dim = fespace->GetMesh()->Dimension();
+   const FiniteElement *fe = fespace->GetFE(0);
    const IntegrationRule *ir =
       IntRule ? IntRule : &qspace->GetElementIntRule(0);
    const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::FULL);
@@ -2996,7 +2994,6 @@ void QuadratureInterpolator::Mult(
       const int vdim,
       const DofToQuad &maps,
       const Vector &e_vec,
-      const Array<double> &w,
       Vector &q_val,
       Vector &q_der,
       Vector &q_det,
@@ -3141,8 +3138,7 @@ void QuadratureInterpolator::Mult(
    }
    if (eval_func)
    {
-      eval_func(ne, vdim, maps, e_vec, IntRule->GetWeights(), q_val, q_der, q_det,
-                eval_flags);
+      eval_func(ne, vdim, maps, e_vec, q_val, q_der, q_det, eval_flags);
    }
    else
    {

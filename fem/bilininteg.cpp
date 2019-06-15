@@ -398,6 +398,7 @@ void DiffusionIntegrator::AssembleElementMatrix
    invdfdx.SetSize(dim,spaceDim);
 #endif
    elmat.SetSize(nd);
+
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 
    elmat = 0.0;
