@@ -1016,6 +1016,13 @@ int main(int argc, char *argv[])
    ParGridFunction ion_energy(&fes, u.GetData() + offsets[3]);
    ParGridFunction elec_energy(&fes, u.GetData() + offsets[4]);
 
+   ParGridFunctionArray pgf;
+   pgf.Append(&neu_density);
+   pgf.Append(&ion_density);
+   pgf.Append(&para_velocity);
+   pgf.Append(&ion_energy);
+   pgf.Append(&elec_energy);
+
    // ParGridFunction u(&fes);
    // u.ProjectCoefficient(u0Coef);
    neu_density = 1.0;
@@ -1084,7 +1091,7 @@ int main(int argc, char *argv[])
    elec_energy.ProjectCoefficient(Te0Coef);
 
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
-   DGTransportTDO oper(dg, fes, ffes, mnCoef, niCoef, neCoef, imex);
+   DGTransportTDO oper(dg, fes, ffes, pgf, mnCoef, niCoef, neCoef, imex);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
 

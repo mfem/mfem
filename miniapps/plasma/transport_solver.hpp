@@ -285,12 +285,27 @@ public:
    void Update();
 };
 
+class ParGridFunctionArray : public Array<ParGridFunction*>
+{
+public:
+  ParGridFunctionArray() {}
+  
+  void ExchangeFaceNbrData()
+  {
+    for (int i=0; i<size; i++)
+      {
+	data[i]->ExchangeFaceNbrData();
+      }
+  }
+};
+
 class DGTransportTDO : public TimeDependentOperator
 {
 private:
    ParFiniteElementSpace *fes_;
    ParFiniteElementSpace *ffes_;
-
+   ParGridFunctionArray  *pgf_;
+  
    ConstantCoefficient oneCoef_;
 
    DGAdvectionDiffusionTDO n_n_oper_; // Neutral Density
@@ -308,6 +323,7 @@ public:
    DGTransportTDO(DGParams & dg,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &ffes,
+		  ParGridFunctionArray &pgf,
                   Coefficient &MomCCoef,
                   Coefficient &TiCCoef,
                   Coefficient &TeCCoef,
