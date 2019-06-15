@@ -911,9 +911,9 @@ class QuadratureInterpolator
 protected:
    friend class FiniteElementSpace; // Needs access to qspace and IntRule
 
-   const FiniteElementSpace *nfes;  ///< Not owned
-   const QuadratureSpace *qspace;   ///< Not owned
-   const IntegrationRule *IntRule;  ///< Not owned
+   const FiniteElementSpace *fespace;  ///< Not owned
+   const QuadratureSpace *qspace;      ///< Not owned
+   const IntegrationRule *IntRule;     ///< Not owned
 
    mutable bool use_tensor_products;
 
@@ -973,7 +973,6 @@ public:
                       const int vdim,
                       const DofToQuad &maps,
                       const Vector &e_vec,
-                      const Array<double> &w,
                       Vector &q_val,
                       Vector &q_der,
                       Vector &q_det,
@@ -985,7 +984,6 @@ public:
                       const int vdim,
                       const DofToQuad &maps,
                       const Vector &e_vec,
-                      const Array<double> &w,
                       Vector &q_val,
                       Vector &q_der,
                       Vector &q_det,
