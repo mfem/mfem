@@ -28,11 +28,47 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+6/16
+the explicit and implicit solvers are comparable with pcshell:
+(this uses a very bad linear solver, so it converges very slow)
+
+ok:
+###
+srun -n 1 ../imMHDp -rs 2 -o 2 -tf .05 -vs 100 -dt .001 -m ../xperiodic-square.mesh
+###vs###
+srun -n 1 imMHDp -rs 2 -o 2 -tf .05 -vs 40 -dt .00025 -usepetsc --petscopts rc_mfop -s 1 -no-vis
+-snes_monitor
+-snes_mf_operator
+-snes_max_it 10
+-snes_rtol 1e-5
+-ksp_type minres
+-ksp_rtol 1e-5
+-ksp_atol 1e-20
+-pc_type jacobi
+
+ok:
+###
+srun -n 4 ../imMHDp -rs 4 -o 2 -tf .0001 -vs 100 -dt .0001 -m ../xperiodic-square.mesh
+###vs###
+srun -n 4 imMHDp -rs 4 -o 2 -tf .0001 -vs 40 -dt .00002 -usepetsc --petscopts rc_mfop -s 1 -no-vis
+
+
+ok:
+mpirun -n 4 ../imMHDp -rs 4 -tf .001 -vs 200 -dt .001 -i 2
+srun -n 4 imMHDp -rs 4 -o 2 -tf .001 -dt .00002 -i 2 -usepetsc --petscopts rc_mfop -s 1 -no-vis
+petsc flag:
+-snes_monitor -snes_mf_operator
+-snes_max_it 10
+-snes_rtol 1e-5
+-ksp_type minres
+-ksp_rtol 1e-5
+-ksp_atol 1e-20
+-pc_type jacobi
+
+
 6/11
 debug:
-srun -n 1 imMHDp -rs 2 -o 2 -tf 3 -vs 100 -dt .001 -usepetsc --petscopts rc_jfnk -s 1 -no-vis
-
-Q:
+srun -n 1 imMHDp -rs 2 -o 2 -tf 3 -vs 100 -dt .002 -usepetsc --petscopts rc_jfnk -s 1 -no-vis
 
 
 

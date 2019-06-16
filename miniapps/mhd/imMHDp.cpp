@@ -333,7 +333,7 @@ int main(int argc, char *argv[])
    }
 
    // 7. Initialize the MHD operator, the GLVis visualization    
-   ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi);
+   ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc);
    if (icase==2)  //add the source term
    {
        FunctionCoefficient e0(E0rhs);
@@ -542,6 +542,11 @@ int main(int argc, char *argv[])
       w.Save(osol4);
    }
 
+   if (myid == 0) 
+   { 
+       cout <<"######Runtime = "<<end-start<<" ######"<<endl;
+   }
+
    // 10. Free the used memory.
    delete ode_solver;
    delete ode_solver2;
@@ -554,10 +559,6 @@ int main(int argc, char *argv[])
 
    MPI_Finalize();
 
-   if (myid == 0) 
-   { 
-       cout <<"######Runtime = "<<end-start<<" ######"<<endl;
-   }
    return 0;
 }
 

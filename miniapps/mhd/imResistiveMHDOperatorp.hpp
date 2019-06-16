@@ -140,7 +140,7 @@ protected:
 
 public:
    ResistiveMHDOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr, 
-                       double visc, double resi); 
+                       double visc, double resi, bool use_petsc); 
 
    // Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
@@ -296,7 +296,8 @@ public:
 
 
 ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f, 
-                                         Array<int> &ess_bdr, double visc, double resi)
+                                         Array<int> &ess_bdr, double visc, double resi, 
+                                         bool use_petsc = false)
    : TimeDependentOperator(3*f.TrueVSize(), 0.0), fespace(f),
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
      Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), E0Vec(NULL),
@@ -329,7 +330,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 
    useAMG=true;
-   if (useAMG)
+   if (useAMG && !use_petsc)
    {
       K_amg = new HypreBoomerAMG(Kmat);
       K_pcg = new HyprePCG(Kmat);
@@ -365,7 +366,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
    DSl.Assemble();
    
-   if (true)
+   if (use_petsc)
    {
       ParBilinearForm *DRepr, *DSlpr;
       if (viscosity != 0.0)
@@ -384,8 +385,11 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
       const double rel_tol=1.e-8;
       pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
-      J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
-      pnewton_solver->SetPreconditionerFactory(J_factory);
+      if (false)
+      {
+         J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
+         pnewton_solver->SetPreconditionerFactory(J_factory);
+      }
       pnewton_solver->SetPrintLevel(1); // print Newton iterations
       pnewton_solver->SetRelTol(rel_tol);
       pnewton_solver->SetAbsTol(0.0);
@@ -557,8 +561,11 @@ void ResistiveMHDOperator::UpdatePhi(Vector &vx)
 
 void ResistiveMHDOperator::DestroyHypre()
 {
-    //hypre needs to be deleted earilier
+    //hypre and petsc needs to be deleted earilier
     delete K_amg;
+    delete pnewton_solver;
+    delete reduced_oper;
+    delete J_factory;
 }
 
 
@@ -574,9 +581,6 @@ ResistiveMHDOperator::~ResistiveMHDOperator()
     delete Nv;
     delete Nb;
     delete K_pcg;
-    delete reduced_oper;
-    delete pnewton_solver;
-    delete J_factory;
 }
 
 ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
@@ -698,6 +702,9 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Nv->TrueAddMult(wNew,y3);
    if (DRe!=NULL)
        DRe->TrueAddMult(wNew,y3);
+
+   //note J=-M^{-1} KB*Psi; so let J=-J
+   J.Neg();
    Nb->TrueAddMult(J, y3); 
    y3.SetSubVector(ess_tdof_list, 0.0);
 }
