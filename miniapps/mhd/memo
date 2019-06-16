@@ -28,8 +28,18 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+6/11
+debug:
+srun -n 1 imMHDp -rs 2 -o 2 -tf 3 -vs 100 -dt .001 -usepetsc --petscopts rc_jfnk -s 1 -no-vis
+
+Q:
+
+
+
+
 6/6
 Is the iterative mode working for PetscNonlinearSolver??
+I think so. However, preconditioner should not use iterative mode, since it solves for du!
 
 6/5
 PetscParMatrix *pA;

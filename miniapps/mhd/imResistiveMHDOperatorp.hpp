@@ -201,7 +201,7 @@ MyBlockSolver::MyBlockSolver(const OperatorHandle &oh) : Solver() {
    oh.Get(PP);
    Mat P = *PP; // type cast to Petsc Mat
    PetscInt M, N;
-   ierr=MatNestGetSubMats(P,&N,&M,&sub); PCHKERRQ(sub, ierr);// sub is an N by M array of matrices
+   ierr=MatNestGetSubMats(P,&N,&M,&sub); PCHKERRQ(sub[0][0], ierr);// sub is an N by M array of matrices
    ierr=MatNestGetISs(P, index_set, NULL);  PCHKERRQ(index_set, ierr);// get the index sets of the blocks
 
    ISView(index_set[0],PETSC_VIEWER_STDOUT_WORLD);
@@ -212,8 +212,8 @@ MyBlockSolver::MyBlockSolver(const OperatorHandle &oh) : Solver() {
 
    for (int i=0; i<3; i++)
    {
-     KSPCreate(PETSC_COMM_WORLD, &kspblock[i]);
-     KSPSetOperators(kspblock[i], sub[i][i], sub[i][i]);
+     ierr=KSPCreate(PETSC_COMM_WORLD, &kspblock[i]);    PCHKERRQ(kspblock[i], ierr);
+     ierr=KSPSetOperators(kspblock[i], sub[i][i], sub[i][i]);PCHKERRQ(sub[i][i], ierr);
 
      if (i==0) 
          KSPAppendOptionsPrefix(kspblock[i],"s1_");
@@ -267,9 +267,11 @@ void MyBlockSolver::Mult(const Vector &x, Vector &y) const
 MyBlockSolver::~MyBlockSolver()
 {
     for (int i=0; i<3; i++)
+    {
         KSPDestroy(&kspblock[i]);
+        ISDestroy(&index_set[i]);
+    }
     
-    ISDestroy(index_set);
     delete X;
     delete Y;
 }
@@ -639,6 +641,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    Vector y3(y.GetData() +2*sc, sc);
 
    Vector &k_ = const_cast<Vector &>(k);
+
    //------assemble Nv and Nb (operators are assembled locally)------
    delete Nv;
    phiGf.MakeTRef(&fespace, k_, 0);
@@ -671,7 +674,9 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    y1.SetSubVector(ess_tdof_list, 0.0);
 
    //compute y2
-   z=psiNew-*psi;
+   //note z=psiNew-*psi
+   z=psiNew;
+   z-=*psi;
    z/=dt;
    Mmat.Mult(z,y2);
    Nv->TrueAddMult(psiNew,y2);
@@ -682,7 +687,9 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    y2.SetSubVector(ess_tdof_list, 0.0);
 
    //compute y3
-   z=wNew-*w;
+   //note z=wNew-*w
+   z=wNew;
+   z-=*w;
    z/=dt;
    Mmat.Mult(z,y3);
    Nv->TrueAddMult(wNew,y3);
