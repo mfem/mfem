@@ -34,8 +34,9 @@ newton_solver(fes.GetComm())
    rhs = NULL;
    
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   
-   umat_used = options.umat;
+   if(options.mech_type == MechType::UMAT){
+      umat_used = true;
+   }
    
    // Define the parallel nonlinear form
    Hform = new ParNonlinearForm(&fes);
@@ -43,7 +44,7 @@ newton_solver(fes.GetComm())
    // Set the essential boundary conditions
    Hform->SetEssentialBCPartial(ess_bdr, rhs);
    
-   if (options.umat) {
+   if (options.mech_type == MechType::UMAT) {
       //Our class will initialize our deformation gradients and
       //our local shape function gradients which are taken with respect
       //to our initial mesh when 1st created.
@@ -54,7 +55,39 @@ newton_solver(fes.GetComm())
       // Add the user defined integrator
       Hform->AddDomainIntegrator(new ExaNLFIntegrator(dynamic_cast<AbaqusUmatModel*>(model)));
       
+   } else if (options.mech_type == MechType::EXACMECH){
+      //Time to go through a nice switch field to pick out the correct model to be run...
+      //Should probably figure a better way to do this in the future so this doesn't become
+      //one giant switch yard. Multiphase materials will probably require a complete revamp of things...
+      //First we check the xtal symmetry type
+      if (options.xtal_type == XtalType::FCC){
+         //Now we find out what slip kinetics and hardening law were chosen.
+         if(options.slip_type == SlipType::POWERVOCE){
+            //Our class will initialize our deformation gradients and
+            //our local shape function gradients which are taken with respect
+            //to our initial mesh when 1st created.
+            model = new VoceFCCModel(&q_sigma0, &q_sigma1, &q_matGrad, &q_matVars0, &q_matVars1,
+                                  &q_kinVars0, &beg_crds, &end_crds, pmesh,
+                                  &matProps, options.nProps, nStateVars, options.temp_k);
+      
+            // Add the user defined integrator
+            Hform->AddDomainIntegrator(new ExaNLFIntegrator(dynamic_cast<VoceFCCModel*>(model)));
+         } else if(options.slip_type == SlipType::MTSDD){
+            //Our class will initialize our deformation gradients and
+            //our local shape function gradients which are taken with respect
+            //to our initial mesh when 1st created.
+            model = new KinKMBalDDFCCModel(&q_sigma0, &q_sigma1, &q_matGrad, &q_matVars0, &q_matVars1,
+                                  &q_kinVars0, &beg_crds, &end_crds, pmesh,
+                                  &matProps, options.nProps, nStateVars, options.temp_k);
+      
+            // Add the user defined integrator
+            Hform->AddDomainIntegrator(new ExaNLFIntegrator(dynamic_cast<KinKMBalDDFCCModel*>(model)));
+         }
+      }
+
    }
+   //We'll probably want to eventually add a print settings into our option class that tells us whether
+   //or not we're going to be printing this.
    
    model->setVonMisesPtr(&q_vonMises);
    

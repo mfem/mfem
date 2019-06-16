@@ -15,10 +15,13 @@
 #include "mfem.hpp"
 #include "mechanics_coefficient.hpp"
 #include "userumat.h"
+#include "ECMech_cases.h"
+#include "ECMech_evptnWrap.h"
+//#include "exacmech.hpp" //Will need to export all of the various header files into here as well
 
-namespace mfem
-{
-
+//namespace mfem
+//{
+using namespace mfem;
 // free function to compute the beginning step deformation gradient to store 
 // on a quadrature function
 void computeDefGrad(const QuadratureFunction *qf, ParFiniteElementSpace *fes, 
@@ -465,6 +468,297 @@ public:
 
 };
 
+using namespace ecmech;
+// Base class for all of our ExaCMechModels.
+class ExaCMechModel : public ExaModel
+{
+protected:
+
+   //Current temperature in Kelvin degrees
+   double temp_k;
+   //The indices of our history variables which will be quite useful for
+   //post processing of the results.
+   //These will be set during the initialization stage of things
+   //Initial values for these are passed in through the state variable file.
+   //This file will include everything associated with the history variables
+   //along with the relative volume value and the initial internal energy value.
+   //For most purposes the relative volume should be set to 1 and the initial internal
+   //energy should be set to 0.
+   int ind_dp_eff, ind_eql_pl_strain, ind_num_evals, ind_dev_elas_strain;
+   int ind_quats, ind_hardness, ind_gdot, ind_vols, ind_int_eng;
+   //number of hardness variables and number of slip systems
+   //these are available in the mat_model_base class as well but I thought
+   //it might not hurt to have these explicitly declared.
+   int num_hardness, num_slip, num_vols, num_int_eng;
+   //Our total number of state variables for the FCC Voce and KinKMBalDD model should be equal to
+   //3+5+1+12+2 = 27 with 4 supplied from quaternion sets so 23 should be in the state variable file.
+   virtual void class_instantiation() = 0;
+   //A pointer to our actual material model class that ExaCMech uses.
+   //The childern classes to this class will have also have another variable
+   //that actually contains the real material model that is then dynamically casted
+   //to this base class during the instantiation of the class. 
+   matModelBase* mat_model_base;
+   //We might also want a QuadratureFunctionCoefficientVector class for our accumulated gammadots called gamma
+   //We would update this using a pretty simple integration scheme so gamma += delta_t * gammadot
+   //QuadratureVectorFunctionCoefficient gamma;                 
+
+public:
+   ExaCMechModel(QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
+             QuadratureFunction *_q_matGrad, QuadratureFunction *_q_matVars0,
+             QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0,
+	          ParGridFunction* _beg_coords, ParGridFunction* _end_coords, ParMesh* _pmesh,  
+	          Vector *_props, int _nProps, int _nStateVars, double _temp_k) : 
+             ExaModel(_q_stress0, _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1,
+               _q_defGrad0, _beg_coords, _end_coords, _pmesh, _props, _nProps, _nStateVars,
+               true, true), temp_k(_temp_k) { }
+
+   virtual ~ExaCMechModel() { }
+   //The interface for this will look the same across all of the other functions
+   virtual void EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight);
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A);
+
+   virtual void calc_incr_end_def_grad(ParFiniteElementSpace *fes,
+                                       const Vector &x0) {}
+   
+   //For when the ParFinitieElementSpace is stored on the class...
+   virtual void calc_incr_end_def_grad(const Vector &x0){}
+   virtual void UpdateModelVars();
+
+};
+
+// A linear isotropic Voce hardening model with a power law formulation for the slip kinetics
+// This model generally can do a decent job of capturing the material behavior in strain rates
+// that are a bit lower where thermally activated slip is a more appropriate approximation.
+// Generally, you'll find that if fitted to capture the elastic plastic transition it will miss the later
+// plastic behavior of the material. However, if it is fitted to the general macroscopic stress-strain
+// curve and the d\sigma / d \epsilon_e vs epsilon it will miss the elastic-plastic regime.
+// Based on far-field high energy x-ray diffraction (ff-HEXD) data, this model is capable of capture 1st
+// order behaviors of the distribution of elastic intragrain heterogeneity. However, it fails to capture 
+// transient behaviors of these distributions as seen in  http://doi.org/10.7298/X4JM27SD and 
+// http://doi.org/10.1088/1361-651x/aa6dc5 for fatigue applications.
+
+// A good reference for the Voce implementation can be found in:
+// section 2.1 https://doi.org/10.1016/S0045-7825(98)00034-6
+// section 2.1 https://doi.org/10.1016/j.ijplas.2007.03.004
+// Basics for how to fit such a model can be found here:
+// https://doi.org/10.1016/S0921-5093(01)01174-1 . Although, it should be noted
+// that this is more for the MTS model it can be adapted to the Voce model by taking into
+// account that the m parameter determines the rate sensitivity. So, the more rate insensitive
+// the material is the closer this will be to 0. It is also largely responsible for how sharp
+// the knee of the macroscopic stress-strain curve is. You'll often see OFHC copper around 0.01 - 0.02.
+// The exponent to the Voce hardening law can be determined by what ordered function best
+// fits the d\sigma / d \epsilon_e vs epsilon curve. The initial CRSS term best determines
+// when the material starts to plastically deform. The saturation CRSS term determines pretty
+// much how much the material is able to harden. The hardening coeff. for CRSS best determines
+// the rate at which the material hardens so larger values lead to a quicker hardening of the material.
+// The saturation CRSS isn't seen as constant in several papers involving this model.
+// Since, they are often only examining things for a specific strain rate and temperature.
+//I don't have a lot of personal experience with fitting this, so I can't provide
+//good guidance on how to properly fit this parameter. 
+//
+class VoceFCCModel : public ExaCMechModel
+{
+protected:
+
+   //We can define our class instantiation using the following
+   virtual void class_instantiation(){
+
+      mat_model_base = dynamic_cast<matModelBase*>(&mat_model);
+
+      ind_dp_eff = ecmech::evptn::ind_histA_shrateEff;
+      ind_eql_pl_strain = ecmech::evptn::ind_histA_shrEff;
+      ind_num_evals = ecmech::evptn::ind_histA_nFEval;
+      ind_dev_elas_strain = ecmech::evptn::ind_hist_LbE;
+      ind_quats = ecmech::evptn::ind_hist_LbQ;
+      ind_hardness = ecmech::evptn::ind_hist_LbH;
+      
+      ind_gdot = mat_model.ind_hist_Lb_gdot;
+      //This will always be 1 for this class
+      num_hardness = mat_model.nH;
+      //This will always be 12 for this class
+      num_slip = mat_model.nslip;
+      //The number of vols -> we actually only need to save the previous time step value
+      //instead of all 4 values used in the evalModel. The rest can be calculated from
+      //this value.
+      num_vols = 1;
+      ind_vols = ind_gdot + num_slip;
+      //The number of internal energy variables -> currently 1
+      num_int_eng = 1;
+      ind_int_eng = ind_vols + num_vols;
+      //Params start off with:
+      //initial density, heat capacity at constant volume, and a tolerance param
+      //Params then include Elastic constants:
+      // c11, c12, c44 for Cubic crystals
+      //Params then include the following: 
+      //shear modulus, m parameter seen in slip kinetics, gdot_0 term found in slip kinetic eqn,
+      //hardening coeff. defined for g_crss evolution eqn, initial CRSS saturation strength,
+      //initial CRSS value, CRSS saturation strength scaling exponent,
+      //CRSS saturation strength rate scaling coeff, tausi -> hdn_init (not used)
+      //Params then include the following:
+      //the Grüneisen parameter, reference internal energy
+
+      //Opts and strs are just empty vectors of int and strings
+      std::vector<double> params;
+      std::vector<int> opts;
+      std::vector<std::string> strs;
+      //9 terms come from hardening law, 3 terms come from elastic modulus, 4 terms are related to EOS params,
+      //1 terms is related to solving tolerances == 17 total params
+      MFEM_ASSERT(matProps->Size() == 17, "Properties did not contain 17 parameters for Voce FCC model.");
+
+      for(int i = 0; i < matProps->Size(); i++)
+      {
+	 params.push_back(matProps->Elem(i));
+      }
+      //We really shouldn't see this change over time at least for our applications.
+      mat_model_base->initFromParams(opts, params, strs);
+      //
+      mat_model_base->complete();
+   }
+
+   //This is a type alias for:
+   //evptn::matModel< SlipGeomFCC, KineticsVocePL, evptn::ThermoElastNCubic, EosModelConst<false> >
+   //We also need to store the full class instantiation of the class on our own class.
+   matModelEvptn_FCC_A mat_model; 
+
+   //We might also want a QuadratureFunctionCoefficientVector class for our accumulated gammadots called gamma
+   //We would update this using a pretty simple integration scheme so gamma += delta_t * gammadot
+   //QuadratureVectorFunctionCoefficient gamma;                 
+
+public:
+   VoceFCCModel(QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
+             QuadratureFunction *_q_matGrad, QuadratureFunction *_q_matVars0,
+             QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0,
+	          ParGridFunction* _beg_coords, ParGridFunction* _end_coords, ParMesh* _pmesh,  
+	          Vector *_props, int _nProps, int _nStateVars, double _temp_k) : 
+               ExaCMechModel(_q_stress0, _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1,
+			     _q_defGrad0, _beg_coords, _end_coords,_pmesh, _props, _nProps, _nStateVars, _temp_k)
+               {
+                  class_instantiation();
+               }
+
+   virtual ~VoceFCCModel() { }
+
+};
+
+// A class with slip and hardening kinetics based on a single Kocks-Mecking dislocation density
+// balanced thermally activated MTS-like slip kinetics with phonon drag effects.
+// See papers https://doi.org/10.1088/0965-0393/17/3/035003 (Section 2 - 2.3) 
+// and https://doi.org/10.1063/1.4792227  (Section 3 up to the intro of the twinning kinetics ~ eq 8)
+// for more info on this particular style of models.
+// This model includes a combination of the above two see the actual implementation of
+// ExaCMech ECMech_kinetics_KMBalD.h file for the actual specifics.
+//
+// This model is much more complicated than the simple Voce hardening model and power law slip kinetics
+// seen above. However, it is capable of capturing the behavior of the material over a wide range of
+// not only strain rates but also temperature ranges. The thermal activated slip kinetics is more or less
+// what the slip kinetic power law used with the Voce hardening model approximates as seen in: 
+// https://doi.org/10.1016/0079-6425(75)90007-9 and more specifically the Emperical Law section eqns:
+// 34h - 34s. It should be noted though that this was based on work for FCC materials.
+// The classical MTS model can be seen here towards its application towards copper for historical context: 
+// https://doi.org/10.1016/0001-6160(88)90030-2
+// An incredibly detailed overview of the thermally activated slip mechanisms can
+// be found in https://doi.org/10.1016/S0079-6425(02)00003-8 . The conclusions provide a nice
+// overview for how several of the parameters can be fitted for this model. Sections 2.3 - 3.4
+// also go a bit more in-depth into the basis for why the fits are done the way they are
+// conducted.
+// The phonon drag contribution has shown to really start to play a role at strain rates
+// 10^3 and above. A bit of a review on this topic can be found in https://doi.org/10.1016/0001-6160(87)90285-9 .
+// It should be noted that the model implemented here does not follow the same formulation
+// provided in that paper. This model can be thought of as a simplified version. 
+class KinKMBalDDFCCModel : public ExaCMechModel
+{
+protected:
+
+   //We can define our class instantiation using the following
+   virtual void class_instantiation(){
+
+      mat_model_base = dynamic_cast<matModelBase*>(&mat_model);
+
+      ind_dp_eff = ecmech::evptn::ind_histA_shrateEff;
+      ind_eql_pl_strain = ecmech::evptn::ind_histA_shrEff;
+      ind_num_evals = ecmech::evptn::ind_histA_nFEval;
+      ind_dev_elas_strain = ecmech::evptn::ind_hist_LbE;
+      ind_quats = ecmech::evptn::ind_hist_LbQ;
+      ind_hardness = ecmech::evptn::ind_hist_LbH;
+      
+      ind_gdot = mat_model.ind_hist_Lb_gdot;
+      //This will always be 1 for this class
+      num_hardness = mat_model.nH;
+      //This will always be 12 for this class
+      num_slip = mat_model.nslip;
+      //The number of vols -> we actually only need to save the previous time step value
+      //instead of all 4 values used in the evalModel. The rest can be calculated from
+      //this value.
+      num_vols = 1;
+      ind_vols = ind_gdot + num_slip;
+      //The number of internal energy variables -> currently 1
+      num_int_eng = 1;
+      ind_int_eng = ind_vols + num_vols;
+
+      //Params start off with:
+      //initial density, heat capacity at constant volume, and a tolerance param
+      //Params then include Elastic constants:
+      // c11, c12, c44 for Cubic crystals
+      //Params then include the following: 
+      //reference shear modulus, reference temperature, g_0 * b^3 / \kappa where b is the 
+      //magnitude of the burger's vector and \kappa is Boltzmann's constant, Peierls barrier,
+      //MTS curve shape parameter (p), MTS curve shape parameter (q), reference thermally activated
+      //slip rate, reference drag limited slip rate, drag reference stress, slip resistance const (g_0),
+      //slip resistance const (s), dislocation density production constant (k_1), 
+      //dislocation density production constant (k_{2_0}), dislocation density exponential constant,
+      //reference net slip rate constant, reference relative dislocation density
+      //Params then include the following:
+      //the Grüneisen parameter, reference internal energy
+
+      //Opts and strs are just empty vectors of int and strings
+      std::vector<double> params;
+      std::vector<int> opts;
+      std::vector<std::string> strs;
+      //15 terms come from hardening law, 3 terms come from elastic modulus, 4 terms are related to EOS params,
+      //1 terms is related to solving tolerances == 23 total params
+      MFEM_ASSERT(matProps->Size() == 23, "Properties need 23 parameters for FCC MTS like hardening model");
+
+      for(int i = 0; i < matProps->Size(); i++)
+      {
+	 params.push_back(matProps->Elem(i));
+      }
+      //We really shouldn't see this change over time at least for our applications.
+      mat_model_base->initFromParams(opts, params, strs);
+      //
+      mat_model_base->complete();
+   }
+
+   //This is a type alias for:
+   //evptn::matModel< SlipGeomFCC, Kin_KMBalD_FFF, evptn::ThermoElastNCubic, EosModelConst<false> >
+   //where Kin_KMBalD_FFF is further a type alias for:
+   //KineticsKMBalD< false, false, false > Kin_KMBalD_FFF; 
+   //We also need to store the full class instantiation of the class on our own class.
+   matModelEvptn_FCC_B mat_model; 
+
+   //We might also want a QuadratureFunctionCoefficientVector class for our accumulated gammadots called gamma
+   //We would update this using a pretty simple integration scheme so gamma += delta_t * gammadot
+   //QuadratureVectorFunctionCoefficient gamma;                 
+
+public:
+   KinKMBalDDFCCModel(QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
+             QuadratureFunction *_q_matGrad, QuadratureFunction *_q_matVars0,
+             QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0,
+	          ParGridFunction* _beg_coords, ParGridFunction* _end_coords, ParMesh* _pmesh,  
+	          Vector *_props, int _nProps, int _nStateVars, double _temp_k) : 
+               ExaCMechModel(_q_stress0, _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1,
+               _q_defGrad0, _beg_coords, _end_coords, _pmesh, _props, _nProps, _nStateVars, _temp_k)
+               {
+                  class_instantiation();
+               }
+
+   virtual ~KinKMBalDDFCCModel() { }
+
+};
+
+//End the need for the ecmech namespace
 class ExaNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
@@ -501,6 +795,6 @@ public:
 
 };
 
-}
+//}
 
 #endif

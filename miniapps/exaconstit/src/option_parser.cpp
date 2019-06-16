@@ -41,6 +41,14 @@ void ExaOptions::parse_options(int my_id){
 //properties
 void ExaOptions::get_properties(){
    
+   double _temp_k = toml->get_qualified_as<double>("Properties.temperature").value_or(300.);
+
+   if(_temp_k <= 0.0) {
+      MFEM_ABORT("Properties.temperature is given in Kelvins and therefore can't be less than 0");
+   }
+
+   temp_k = _temp_k;
+
    //Material properties are obtained first
    auto prop_table = toml->get_table_qualified("Properties.Matl_Props");
    //Check to see if our table exists
@@ -80,7 +88,7 @@ void ExaOptions::get_properties(){
       }else if((_ori_type == "custom") || (_ori_type == "Custom") || (_ori_type == "CUSTOM")){
          ori_type = OriType::CUSTOM;
       }else{
-         MFEM_ABORT("Properties.Grain.ori_type was not provided a valid type.");
+	 MFEM_ABORT("Properties.Grain.ori_type was not provided a valid type.");
          ori_type = OriType::NOTYPE;
       }
    }//end of if statement for grain data
@@ -141,8 +149,72 @@ void ExaOptions::get_bcs(){
 
 //From the toml file it finds all the values related to the model
 void ExaOptions::get_model(){
-   umat = toml->get_qualified_as<bool>("Model.umat").value_or(false);
+   std::string _mech_type = toml->get_qualified_as<std::string>("Model.mech_type").value_or("");
+
+   //I still can't believe C++ doesn't allow strings to be used in switch statements...
+   if((_mech_type == "umat") || (_mech_type == "Umat") || (_mech_type == "UMAT") || (_mech_type == "UMat")) {
+      mech_type = MechType::UMAT;
+   }else if((_mech_type == "exacmech") || (_mech_type == "Exacmech") || (_mech_type == "ExaCMech") || (_mech_type == "EXACMECH")){
+      mech_type = MechType::EXACMECH;
+   }else{
+      MFEM_ABORT("Model.mech_type was not provided a valid type.");
+      mech_type = MechType::NOTYPE;
+   }
+
    cp = toml->get_qualified_as<bool>("Model.cp").value_or(false);
+
+   if (mech_type == MechType::EXACMECH)
+   {
+      if (!cp) {
+         MFEM_ABORT("Model.cp needs to be set to true when using ExaCMech based models.");
+      }
+
+      if(ori_type != OriType::QUAT){
+         MFEM_ABORT("Properties.Grain.ori_type is not set to quaternion for use with an ExaCMech model.");
+         xtal_type = XtalType::NOTYPE;
+      }
+
+      grain_statevar_offset = 8;
+
+      auto exacmech_table = toml->get_table_qualified("Model.ExaCMech");
+      
+      std::string _xtal_type = exacmech_table->get_as<std::string>("xtal_type").value_or("");
+      std::string _slip_type = exacmech_table->get_as<std::string>("slip_type").value_or("");
+
+      if((_xtal_type == "fcc") || (_xtal_type == "FCC"))
+      {
+         xtal_type = XtalType::FCC;
+
+         if(numStateVars != 23){
+            MFEM_ABORT("Properties.State_Vars.num_vars needs 23 values for a " 
+            "cubic material when using an ExaCMech model. Note: the number of values for a quaternion " 
+            "are not included in this count.");
+         }
+
+      }else{
+         MFEM_ABORT("Model.ExaCMech.xtal_type was not provided a valid type.");
+         xtal_type = XtalType::NOTYPE;
+      }
+
+      if((_slip_type == "mts") || (_slip_type == "MTS") || (_slip_type == "mtsdd") || (_slip_type == "MTSDD"))
+      {
+         slip_type = SlipType::MTSDD;
+         if(nProps != 23){
+            MFEM_ABORT("Properties.Matl_Props.num_props needs 23 values for the MTSDD option");
+         }
+      }else if ((_slip_type == "powervoce") || (_slip_type == "PowerVoce") || (_slip_type == "POWERVOCE"))
+      {
+         slip_type = SlipType::POWERVOCE;
+         if(nProps != 17){
+            MFEM_ABORT("Properties.Matl_Props.num_props needs 17 values for the PowerVoce option");
+         }
+      }else{
+         MFEM_ABORT("Model.ExaCMech.slip_type was not provided a valid type.");
+         slip_type = SlipType::NOTYPE;
+      }
+
+   } 
+
 }//end of model parsing
 
 //From the toml file it finds all the values related to the time
@@ -286,7 +358,26 @@ void ExaOptions::print_options(){
    std::cout << "Krylov solver abs. tol.: " << krylov_abs_tol << "\n";
    std::cout << "Krylov solver # of iter.: " << krylov_iter << "\n";
 
-   std::cout << "UMAT being used: " << umat << "\n";
+   std::cout << "Mechanical model library being used ";
+
+   if (mech_type == MechType::UMAT){
+      std::cout << "UMAT\n";
+   }else if (mech_type == MechType::EXACMECH){
+      std::cout << "ExaCMech\n";
+      std::cout << "Crystal symmetry group is ";
+      if (xtal_type == XtalType::FCC) {
+         std::cout << "FCC\n";
+      }
+
+      std::cout << "Slip system and hardening model being used is ";
+
+      if(slip_type == SlipType::MTSDD){
+         std::cout << "MTS slip like kinetics with dislocation density based hardening\n";
+      } else if (slip_type == SlipType::POWERVOCE) {
+         std::cout << "Power law slip kinetics with a Voce hardening law\n";
+      }
+   }
+   
    std::cout << "Xtal Plasticity being used: " << cp << "\n";
    
    std::cout << "Orientation file location: " << ori_file << "\n";

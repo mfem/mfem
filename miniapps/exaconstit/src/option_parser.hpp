@@ -19,6 +19,20 @@
 enum class KrylovSolver {GMRES, PCG, MINRES, NOTYPE};
 enum class OriType {EULER, QUAT, CUSTOM, NOTYPE};
 enum class MeshType {CUBIT, AUTO, OTHER, NOTYPE};
+//Later on we'll want to support multiple different types here like 
+//BCC and HCP at a minimum. However, we'll need to wait on that support reaching
+//ExaCMech
+enum class XtalType {FCC, NOTYPE};
+//We currently only have support for UMATs and ExaCMech later on this might change
+//to add support for more systems.
+enum class MechType {UMAT, EXACMECH, NOTYPE};
+//Hardening law and slip kinetics we'll be using if ExaCMech is specified
+//MTSDD refers to a MTS like slip kinetics with DD hardening evolution
+//POWERVOCE refers to power law slip kinetics with a linear voce hardening law
+//We might expand upon this later on as more options are added to ExaCMech
+//If ExaCMech also eventually allows for the mix and match of different slip laws with
+//power laws this will also change
+enum class SlipType {MTSDD, POWERVOCE, NOTYPE};
 
 using namespace std;
 
@@ -78,10 +92,20 @@ class ExaOptions{
       KrylovSolver solver;
    
       // input arg to specify Abaqus UMAT
-      bool umat;
+      //bool umat;
    
       // input arg to specify crystal plasticity
       bool cp;
+
+      //The type of mechanical interface that we'll be using
+      MechType mech_type;
+      //The slip and hardening laws being used for ExaCMech
+      SlipType slip_type;
+      //Specify the xtal type we'll be using - used if ExaCMech is being used
+      XtalType xtal_type;
+      //Specify the temperature of the material
+      double temp_k;
+
    
       // grain input arguments
       std::string ori_file; // grain orientations (F_p_inv for Curt's UMAT?)
@@ -127,7 +151,16 @@ class ExaOptions{
       
       //Model related parameters
       cp = false;
-      umat = false;
+      // umat = false;
+      //Want all of these to be not set. If they aren't specified
+      //then we want other things to fail in our driver file.
+      mech_type = MechType::NOTYPE;
+      //The slip and hardening laws being used for ExaCMech
+      slip_type = SlipType::NOTYPE;
+      //Specify the xtal type we'll be using - used if ExaCMech is being used
+      xtal_type = XtalType::NOTYPE;
+      //Specify the temperature of the material
+      temp_k = 300.;
       
       //Krylov Solver related variables
       //We set the default solver as GMRES in case we accidentally end up dealing

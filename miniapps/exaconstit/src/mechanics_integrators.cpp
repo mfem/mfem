@@ -16,12 +16,16 @@
 #include <algorithm>
 #include <iostream> // cerr
 #include "userumat.h"
+#include "ECMech_cases.h"
+#include "ECMech_evptnWrap.h"
+//#include "exacmech.hpp" //Will need to export all of the various header files into here as well
 
-namespace mfem
-{
-
+//namespace mfem
+//{
+using namespace mfem;
 using namespace std;
-
+using namespace ecmech;
+  
 void computeDefGrad(const QuadratureFunction *qf, ParFiniteElementSpace *fes, 
                     const Vector &x0)
 {
@@ -806,6 +810,19 @@ void AbaqusUmatModel::UpdateModelVars()
 //   if(!EndCoordsMesh){
 //     SwapMeshNodes();
 //   }
+   return;
+}
+
+void ExaCMechModel::UpdateModelVars()
+{
+   // update the beginning step deformation gradient
+   //QuadratureFunction* defGrad = defGrad0.GetQuadFunction();
+   //double* dgrad0 = defGrad -> GetData();
+   //double* dgrad1 = end_def_grad.GetData();
+   
+   //for(int i = 0; i < defGrad -> Size(); i++){
+   //   dgrad0[i] = dgrad1[i];
+   //}
    return;
 }
 
@@ -1779,34 +1796,39 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
         &layer, &kspt, &kstep, &kinc);
 
    // restore the material Jacobian in a 1D array
-   double mGrad[36];
-
-   for (int i=0; i<6; ++i)
-   {
-     for (int j=0; j<6; ++j)
-     {
-       // column-wise ordering of material Jacobian
-       mGrad[(6 * i) + j] = ddsdde[(i * 6) + j];
-     }
-   }
+   // double mGrad[36];
+   // //Really isn't a reason to do this at all...
+   // for (int i=0; i<6; ++i)
+   // {
+   //   for (int j=0; j<6; ++j)
+   //   {
+   //     // column-wise ordering of material Jacobian
+   //     mGrad[(6 * i) + j] = ddsdde[(i * 6) + j];
+   //   }
+   // }
    
    //Due to how Abaqus has things ordered we need to swap the 4th and 6th columns
    //and rows with one another for our C_stiffness matrix.
-   double temp=0;
+   double temp = 0;
    int j = 3;
-   for(int i=0; i<6; i++){
-     temp = mGrad[(6*i) + j];
-     mGrad[(6*i) + j] = mGrad[(6*i) + 5];
-     mGrad[(6*i) + 5] = temp;
+   //We could probably just replace this with a std::swap operation...
+   for(int i = 0; i < 6; i++)
+   {
+     std::swap(ddsdde[(6 * i) + j], ddsdde[(6*i) + 5]);
+   //   temp = ddsdde[(6*i) + j];
+   //   ddsdde[(6*i) + j] = mGrad[(6*i) + 5];
+   //   mGrad[(6*i) + 5] = temp;
    }
-   for(int i=0; i<6; i++){
-     temp = mGrad[(6*j) + i];
-     mGrad[(6*j) + i] = mGrad[(6*5) + i];
-     mGrad[(6*5) + i] = temp;
+   for(int i = 0; i < 6; i++)
+   {
+     std::swap(ddsdde[(6 * j) + i], ddsdde[(6 * 5) + i]);
+   //   temp = mGrad[(6*j) + i];
+   //   mGrad[(6*j) + i] = mGrad[(6*5) + i];
+   //   mGrad[(6*5) + i] = temp;
    }
 
    // set the material stiffness on the model
-   SetElementMatGrad(elemID, ipID, mGrad, ntens*ntens);
+   SetElementMatGrad(elemID, ipID, ddsdde, ntens * ntens);
 
    // set the updated stress on the model. Have to convert from Abaqus 
    // ordering to Voigt notation ordering
@@ -1975,6 +1997,189 @@ void AbaqusUmatModel::CalcElemLength()
 
    return;
 }
+
+//For ExaCMechModel definitions the ecmech namespace is useful
+
+void ExaCMechModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
+                                const double weight)
+{
+   
+   // set properties and state variables length (hard code for now);
+   int nprops = numProps;
+   int nstatv = numStateVars;
+   int ntens = 6; 
+
+   double statev[nstatv]; // populate from the state variables associated with this element/ip
+
+   double stress[6]; // Cauchy stress at ip
+   double stress_svec_p[7]; //Cauchy stress at ip layed out as deviatoric portion first then pressure term
+
+   double d_svec_p[7];
+   double w_vec[3];
+
+   double ddsdde[36]; // output Jacobian matrix of the constitutive model.
+                     // ddsdde(i,j) defines the change in the ith stress component 
+                     // due to an incremental perturbation in the jth deformation rate component
+
+   double sdd[2]; //not really used for our purposes as a quasi-static type code
+   double vol_ratio[4];
+   double eng_int;
+
+   // get state variables and material properties
+   GetElementStateVars(elemID, ipID, true, statev, nstatv);
+   // get element stress and make sure ordering is ok
+   GetElementStress(elemID, ipID, true, stress, 6);
+
+   // initialize 6x6 2d arrays
+   for (int i = 0; i < 6; ++i) 
+   {
+      for (int j = 0; j < 6; ++j) 
+      {
+         ddsdde[(i * 6) + j] = 0.0;
+      }
+   }
+
+   eng_int = statev[ind_int_eng];
+
+   //Here we have the skew portion of our velocity gradient as represented as an
+   //axial vector.
+   w_vec[0] = 0.5 * (J(2, 1) - J(1, 2));
+   w_vec[1] = 0.5 * (J(0, 2) - J(2, 0));
+   w_vec[2] = 0.5 * (J(1, 0) - J(0, 1));
+
+   //Really we're looking at the negative of J but this will do...
+   double d_mean = -ecmech::one_third * (J(0, 0) + J(1, 1) + J(2, 2));
+   //The 1st 6 components are the symmetric deviatoric portion of our
+   //Vgrad or J as seen here
+   //The last value is the minus of hydrostatic term so the "pressure"
+   d_svec_p[0] = J(0, 0) + d_mean; 
+   d_svec_p[1] = J(0, 0) + d_mean; 
+   d_svec_p[2] = J(0, 0) + d_mean; 
+   d_svec_p[3] = 0.5 * (J(2, 1) + J(1, 2));
+   d_svec_p[4] = 0.5 * (J(2, 0) + J(0, 2));
+   d_svec_p[5] = 0.5 * (J(1, 0) + J(0, 1));
+   d_svec_p[6] = d_mean;
+
+   vol_ratio[0] = statev[ind_vols];
+   vol_ratio[1] = vol_ratio[0] * exp(d_svec_p[ecmech::iSvecP] * dt);
+   vol_ratio[3] = vol_ratio[1] - vol_ratio[0];
+   vol_ratio[2] = vol_ratio[3] / (dt * 0.5 * (vol_ratio[0] + vol_ratio[1]));
+   
+   std::copy(stress, stress + ecmech::nsvec, stress_svec_p);
+   
+   double stress_mean = -ecmech::one_third * (stress[0] + stress[1] + stress[2]);
+   stress_svec_p[0] += stress_mean;
+   stress_svec_p[1] += stress_mean;
+   stress_svec_p[2] += stress_mean;
+   stress_svec_p[6] = stress_mean;
+   
+   mat_model_base->getResponse(dt, &d_svec_p[0], &w_vec[0], &vol_ratio[0],
+                   &eng_int, &stress_svec_p[0], &statev[0], &temp_k, &sdd[0], &ddsdde[0], 1);
+
+   //ExaCMech saves this in Row major, so we need to get out the transpose.
+   //The good thing is we can do this all in place no problem.
+   for (int i = 0; i < 5; ++i)
+   {
+     for (int j = i + 1; j < 6; ++j)
+     {
+        std::swap(ddsdde[(6 * j) + i], ddsdde[(6 * i) + j]);
+     }
+   }
+
+   //We need to update our state variables to include the volume ratio and 
+   //internal energy portions
+   statev[ind_vols] = vol_ratio[1];
+   statev[ind_int_eng] = eng_int;
+
+   //Here we're converting back from our deviatoric + pressure representation of our
+   //Cauchy stress back to the Voigt notation of stress.
+   stress_mean = -stress_svec_p[6];
+   std::copy(stress_svec_p, stress_svec_p + ecmech::nsvec, stress);
+   stress[0] += stress_mean;
+   stress[1] += stress_mean;
+   stress[2] += stress_mean;
+
+   // set the material stiffness on the model
+   SetElementMatGrad(elemID, ipID, ddsdde, ntens * ntens);
+   // set the updated stress values
+   SetElementStress(elemID, ipID, false, stress, ntens);
+   // set the updated statevars
+   SetElementStateVars(elemID, ipID, false, statev, nstatv);
+   //This could become a problem when we have this all vectorized to run on the GPU... 
+   //Could probably later have this only set once...
+   //Would reduce the number mallocs that we're doing and
+   //should potentially provide a small speed boost.
+   P.SetSize(3);
+   P(0, 0) = stress[0];
+   P(1, 1) = stress[1];
+   P(2, 2) = stress[2];
+   P(1, 2) = stress[3];
+   P(0, 2) = stress[4];
+   P(0, 1) = stress[5];
+
+   P(2, 1) = P(1, 2);
+   P(2, 0) = P(0, 2);
+   P(1, 0) = P(0, 1);
+
+   int dof = DS.Height(), dim = DS.Width();
+
+   //The below is letting us just do: Int_{body} B^t sigma dV
+   DenseMatrix PMatO, DSt(DS);
+   DSt *= weight;
+
+   PMatO.UseExternalData(elresid->GetData(), dof, dim);
+   
+   AddMult(DSt, P, PMatO);
+   
+   return;
+}
+
+//The formulation for this is essentially the exact same as the Abaqus version for now
+//Once a newer version of ExaCMech is updated the only difference for this will be that
+//we no longer have to account for the dt term.
+void ExaCMechModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
+                                const double weight, DenseMatrix &A)
+{  
+   //We currently only take into account the material tangent stiffness contribution
+   //Generally for the applications that we are examining one doesn't need to also include
+   //the geometrical tangent stiffness contributions. If we start looking at problems where our
+   //elements are becoming highly distorted then we'll probably want to bring that factor back into
+   //tangent stiffness matrix.
+   int offset = 36;
+   double matGrad[offset];
+
+   int dof = DS.Height(), dim = DS.Width();
+   
+   GetElementMatGrad(elemID, ipID, matGrad, offset);
+
+   DenseMatrix Cstiff(matGrad, 6, 6);
+
+   //Now time to start assembling stuff
+   
+   DenseMatrix temp1, Bt;
+   DenseMatrix sbar;
+   DenseMatrix BtsigB;
+   
+   //temp1 is now going to become the transpose Bmatrix as seen in
+   //[B^t][Cstiff][B]
+   Bt.SetSize(dof*dim, 6);
+   //We need a temp matrix to store our first matrix results as seen in here
+   temp1.SetSize(6, dof*dim);
+   //temp1 is B^t as seen above
+   GenerateGradMatrix(DS, Bt);
+   //We multiple our quadrature wts here to our Cstiff matrix
+   //We also include the dt term here. Later on this dt term won't be needed
+   Cstiff *= dt * weight;
+   //We use kgeom as a temporary matrix
+   //[temp1] = [Cstiff][B]
+   MultABt(Cstiff, Bt, temp1);
+   //We now add our [B^t][temp1] product to our tangent stiffness matrix that
+   //we want to output to our material tangent stiffness matrix
+   AddMult(Bt, temp1, A);
+
+   return;
+}
+
 
 //This function is used in generating the B matrix commonly seen in the formation of 
 //the material tangent stiffness matrix in mechanics [B^t][Cstiff][B]
@@ -2428,4 +2633,4 @@ void ExaNLFIntegrator::AssembleElementGradFD(
    return;
 }
 
-}
+//}

@@ -89,7 +89,7 @@ void DirBdrFunc(const Vector &x, double t, int attr_id, Vector &y);
 void InitGridFunction(const Vector &x, Vector &y);
 
 // material input check routine
-bool checkMaterialArgs(bool umat, bool cp, int ngrains, int numProps,
+bool checkMaterialArgs(MechType mt, bool cp, int ngrains, int numProps,
                        int numStateVars);
 
 // material state variable and grain data setter routine
@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
    
    // Check material model argument input parameters for valid combinations
    if(myid == 0) printf("after input before checkMaterialArgs. \n");
-   bool err = checkMaterialArgs(toml_opt.umat, toml_opt.cp,
+   bool err = checkMaterialArgs(toml_opt.mech_type, toml_opt.cp,
               toml_opt.ngrains, toml_opt.nProps, toml_opt.numStateVars);
    if (!err && myid == 0) 
    {
@@ -859,7 +859,7 @@ void InitGridFunction(const Vector &x, Vector &y)
    y = 0.;
 }
 
-bool checkMaterialArgs(bool umat, bool cp, int ngrains, int numProps,
+bool checkMaterialArgs(MechType mt, bool cp, int ngrains, int numProps,
                        int numStateVars)
 {
    bool err = true;
@@ -870,9 +870,9 @@ bool checkMaterialArgs(bool umat, bool cp, int ngrains, int numProps,
       err = false;
    }
 
-   if (umat && (numProps < 1))
+   if (mt !=  MechType::NOTYPE && (numProps < 1))
    {
-      cerr << "\nMust specify material properties for umat or cp calculation." << '\n';
+      cerr << "\nMust specify material properties for mechanical model or cp calculation." << '\n';
       err = false;
    }
 
