@@ -173,7 +173,7 @@ public:
 class MyBlockSolver : public Solver
 {
 private:
-   Mat **sub; //XXX does sub own mat?
+   Mat **sub; 
 
    // Create internal KSP objects to handle the subproblems
    KSP kspblock[3];
@@ -204,11 +204,14 @@ MyBlockSolver::MyBlockSolver(const OperatorHandle &oh) : Solver() {
    ierr=MatNestGetSubMats(P,&N,&M,&sub); PCHKERRQ(sub[0][0], ierr);// sub is an N by M array of matrices
    ierr=MatNestGetISs(P, index_set, NULL);  PCHKERRQ(index_set, ierr);// get the index sets of the blocks
 
+   /*
    ISView(index_set[0],PETSC_VIEWER_STDOUT_WORLD);
    ISView(index_set[1],PETSC_VIEWER_STDOUT_WORLD);
    ISView(index_set[2],PETSC_VIEWER_STDOUT_WORLD);
+   */
 
-   X = new PetscParVector(P, true, false); Y = new PetscParVector(P, false, false);
+   X = new PetscParVector(P, true, false); 
+   Y = new PetscParVector(P, false, false);
 
    for (int i=0; i<3; i++)
    {
@@ -269,7 +272,7 @@ MyBlockSolver::~MyBlockSolver()
     for (int i=0; i<3; i++)
     {
         KSPDestroy(&kspblock[i]);
-        ISDestroy(&index_set[i]);
+        //ISDestroy(&index_set[i]); no need to delete it
     }
     
     delete X;
