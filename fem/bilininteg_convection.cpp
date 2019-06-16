@@ -165,9 +165,16 @@ void PAConvectionApply2D(const int NE,
    auto yloc = Reshape(_y.ReadWrite(), D1D, D1D, NE);
 
    MFEM_FORALL(e, NE,
-   {
-
-     double U[DIM][MAX_D1D][MAX_Q1D];
+   {     
+     const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+     const int Q1D = T_Q1D ? T_Q1D : q1d;
+     
+     // the following variables are evaluated at compile time
+     constexpr int iDIM     = 2; 
+     constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+     constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+     
+     double U[iDIM][max_D1D][max_Q1D];
      for(int j1=0; j1<Q1D; ++j1) {
        for(int i2=0; i2<D1D; ++i2) {
 
@@ -181,7 +188,7 @@ void PAConvectionApply2D(const int NE,
        }
      }
 
-     double W[DIM][MAX_Q1D][MAX_Q1D];
+     double W[iDIM][max_Q1D][max_Q1D];
      for(int j1=0; j1<Q1D; ++j1) {
        for(int i2=0; i2<Q1D; ++i2) {
 
@@ -195,7 +202,7 @@ void PAConvectionApply2D(const int NE,
        }
      }
 
-     double Z[MAX_Q1D][MAX_Q1D];
+     double Z[max_Q1D][max_Q1D];
      for(int k2=0; k2<Q1D; ++k2) {
        for(int k1=0; k1<Q1D; ++k1) {
 
@@ -208,7 +215,7 @@ void PAConvectionApply2D(const int NE,
      }
 
      //Transposed contraction onward
-     double Q[MAX_Q1D][MAX_D1D];
+     double Q[max_Q1D][max_D1D];
      for(int j1=0; j1<D1D; ++j1) {
        for(int i2=0; i2<Q1D; ++i2) {
 
