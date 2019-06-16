@@ -140,7 +140,7 @@ protected:
 
 public:
    ResistiveMHDOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr, 
-                       double visc, double resi, bool use_petsc); 
+                       double visc, double resi, bool use_petsc, bool use_factory); 
 
    // Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
@@ -227,7 +227,6 @@ MyBlockSolver::MyBlockSolver(const OperatorHandle &oh) : Solver() {
    }
 }
 
-//should I also do iterative_mode here?
 void MyBlockSolver::Mult(const Vector &x, Vector &y) const
 {
    //Mat &mass = sub[0][2];
@@ -297,7 +296,7 @@ public:
 
 ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f, 
                                          Array<int> &ess_bdr, double visc, double resi, 
-                                         bool use_petsc = false)
+                                         bool use_petsc = false, bool use_factory=false)
    : TimeDependentOperator(3*f.TrueVSize(), 0.0), fespace(f),
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
      Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), E0Vec(NULL),
@@ -385,8 +384,9 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
       const double rel_tol=1.e-8;
       pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
-      if (false)
+      if (use_factory)
       {
+         //cout <<"use pcshell"<<endl;
          J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
          pnewton_solver->SetPreconditionerFactory(J_factory);
       }
@@ -672,7 +672,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    KB->Mult(psiGf, zFull);
    zFull.Neg(); // z = -z
    M->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
-   M_solver->Mult(Z, J); //XXX is this okay in mult? probably
+   M_solver->Mult(Z, J); 
 
    //compute y1
    Kmat.Mult(phiNew,y1);

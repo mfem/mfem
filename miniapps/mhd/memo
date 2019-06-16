@@ -65,6 +65,11 @@ petsc flag:
 -ksp_atol 1e-20
 -pc_type jacobi
 
+not ok:
+srun -n 1 imMHDp -rs 2 -o 2 -tf .05 -vs 40 -dt .00025 -usepetsc --petscopts rc_jfnk -s 1 -shell
+
+sub is deleted in petsc!!
+
 
 6/11
 debug:

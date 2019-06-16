@@ -126,6 +126,7 @@ int main(int argc, char *argv[])
    double resi = 0.0;
    bool visit = false;
    bool use_petsc = false;
+   bool use_factory = false;
    const char *petscrc_file = "";
    int icase = 1;
    alpha = 0.001; 
@@ -167,6 +168,9 @@ int main(int argc, char *argv[])
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
                   "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
+   args.AddOption(&use_factory, "-shell", "--shell", "-no-shell",
+                  "--no-shell",
+                  "Use user-defined preconditioner factory (PCSHELL).");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                   "PetscOptions file to use.");
 
@@ -333,7 +337,7 @@ int main(int argc, char *argv[])
    }
 
    // 7. Initialize the MHD operator, the GLVis visualization    
-   ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc);
+   ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
    if (icase==2)  //add the source term
    {
        FunctionCoefficient e0(E0rhs);
