@@ -144,23 +144,22 @@ public:
 };
 
 MyBlockSolver::MyBlockSolver(const OperatorHandle &oh) : Solver() { 
-   PetscErrorCode ierr; 
 
    // Get the PetscParMatrix out of oh.       
    PetscParMatrix *PP;
    oh.Get(PP);
    Mat P = *PP; // type cast to Petsc Mat
    PetscInt M, N;
-   ierr=MatNestGetSubMats(P,&N,&M,&sub); // sub is an N by M array of matrices
-   ierr=MatNestGetISs(P, index_set, NULL);  // get the index sets of the blocks
+   MatNestGetSubMats(P,&N,&M,&sub); // sub is an N by M array of matrices
+   MatNestGetISs(P, index_set, NULL);  // get the index sets of the blocks
 
    X = new PetscParVector(P, true, false); 
    Y = new PetscParVector(P, false, false);
 
    for (int i=0; i<3; i++)
    {
-     ierr=KSPCreate(PETSC_COMM_WORLD, &kspblock[i]);    
-     ierr=KSPSetOperators(kspblock[i], sub[i][i], sub[i][i]);
+     KSPCreate(PETSC_COMM_WORLD, &kspblock[i]);    
+     KSPSetOperators(kspblock[i], sub[i][i], sub[i][i]);
 
      if (i==0) 
          KSPAppendOptionsPrefix(kspblock[i],"s1_");
@@ -270,7 +269,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f, Array<int> 
 
    {
       reduced_oper  = new ReducedSystemOperator(f, M, Mmat, K, Kmat,
-                         KB, NULL, NULL, &M_solver, ess_tdof_list);
+                         KB, &M_solver, ess_tdof_list);
 
       const double rel_tol=1.e-8;
       pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
@@ -493,7 +492,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
-   ODESolver ode_solver2 = new BackwardEulerSolver; 
+   ODESolver *ode_solver2=new BackwardEulerSolver; 
 
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll); 
@@ -542,7 +541,6 @@ int main(int argc, char *argv[])
    //set initial J
    FunctionCoefficient jInit(InitialJ);
    oper.SetInitialJ(jInit);
-   oper.BindingGF(vx);
 
    double t = 0.0;
    oper.SetTime(t);
