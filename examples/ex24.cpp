@@ -60,6 +60,7 @@
 //               ex24 -d cuda -p 7 -pa -c
 
 #include "mfem.hpp"
+#include "../general/dbg.hpp"
 #include <cassert>
 #include <fstream>
 #include <iostream>
@@ -73,9 +74,6 @@ const double eps = 1.e-12;
 static socketstream glvis;
 const int  visport   = 19916;
 const char vishost[] = "localhost";
-
-// Forward declaration
-void SnapNodes(Mesh *mesh);
 
 // Surface mesh class
 template<class Type>
@@ -138,6 +136,7 @@ public:
       for (int l = 0; l < Nr; l++) { UniformRefinement(); }
       // Adaptive mesh refinement
       //if (amr)  { for (int l = 0; l < 1; l++) { RandomRefinement(0.5); } }
+      PrintCharacteristics();
    }
 
    void BC()
@@ -209,6 +208,7 @@ struct Catenoid: public Surface<Catenoid>
          { v[j] = v2v[v[j]]; }
       }
       for (int l = 0; l < Nr; l++) { UniformRefinement(); }
+      PrintCharacteristics();
    }
 };
 
@@ -320,13 +320,11 @@ struct QPeach: public Surface<QPeach>
       const double gamma = r/R;
       p[0] = gamma * cos(t);
       p[1] = gamma * sin(t);
-      p[2] = fabs(t)<eps?1.0:0.0;
       p[2] = 1.0 - gamma;
    }
    void Prefix() { SetCurvature(1, false, 3, Ordering::byNODES); }
    void Postfix()
    {
-      PrintCharacteristics();
       for (int i = 0; i < GetNBE(); i++)
       {
          Element *el = GetBdrElement(i);
@@ -354,6 +352,7 @@ struct QPeach: public Surface<QPeach>
          else { el->SetAttribute(2); }
       }
       for (int l = 0; l < Nr; l++) { UniformRefinement(); }
+      PrintCharacteristics();
    }
 };
 
@@ -373,15 +372,36 @@ struct FPeach: public Surface<FPeach>
       {
          {3, 2, 1, 0}, {0, 1, 5, 4}, {1, 2, 6, 5},
          {2, 3, 7, 6}, {3, 0, 4, 7}, {4, 5, 6, 7}
+
       };
-      // Nx == NVert and Ny == NBdrElem
       for (int j = 0; j < Nx; j++) { AddVertex(quad_v[j]); }
       for (int j = 0; j < Ny; j++) { AddQuad(quad_e[j], j+1); }
       for (int j = 0; j < Ny; j++) { AddBdrQuad(quad_e[j], j+1); }
       FinalizeQuadMesh(1, 1, true);
       UniformRefinement();
       SetCurvature(Order, false, 3, Ordering::byNODES);
-      SnapNodes(this);
+      // Now change our coordinates
+      GridFunction &nodes = *GetNodes();
+      Vector node(Sdim);
+      for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
+      {
+         for (int d = 0; d < Sdim; d++)
+         { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
+         const double R = node.Norml2();
+         node /= R;
+         const bool onlyZ = fabs(node[1]) < eps;
+         for (int d = 0; d < Sdim; d++)
+         {
+            const int k = nodes.FESpace()->DofToVDof(i, d);
+            //nodes(k) = node(d);
+            if (!onlyZ) { nodes(k) = node(d); }
+            else
+            {
+               if (d==2) { nodes(k) = /* 0.25* */node(d); }
+               else { nodes(k) = node(d); }
+            }
+         }
+      }
    }
 
    void BC()
@@ -400,11 +420,15 @@ struct FPeach: public Surface<FPeach>
             int k = dofs[c];
             if (k < 0) { k = -1 - k; }
             GetNode(k, X);
-            const bool halfX = fabs(X[0]) < eps && X[1] <= 0;
-            const bool halfY = fabs(X[2]) < eps && X[1] >= 0;
-            const bool is_on_bc = halfX || halfY;
+            const double width = eps;
+            const bool halfV = fabs(X[0]) < width && X[1] <= 0;
+            const bool halfH = fabs(X[2]) < width && X[1] >= 0;
+            //const bool XY = fabs(X[2]) < width;
+            //const bool XZ = fabs(X[1]) < width;
+            //const bool YZ = fabs(X[0]) < width;
+            const bool is_on_bc = halfV || halfH;
             for (int d = 0; d < Sdim; d++)
-            { ess_cdofs[fes->DofToVDof(k, d)] = is_on_bc; }
+            { ess_cdofs[fes->DofToVDof(k, d)] = is_on_bc;} // || XY || YZ; } // YZ
          }
       }
       const SparseMatrix *R = fes->GetConformingRestriction();
@@ -495,6 +519,7 @@ public:
          // Send the solution by socket to a GLVis server.
          if (vis) { Visualize(mesh, pause); }
          a.Update();
+         mesh->DeleteGeometricFactors();
       }
    }
 private:
@@ -546,6 +571,7 @@ public:
          // Send the solution by socket to a GLVis server.
          if (vis) { Visualize(mesh, pause); }
          a.Update();
+         mesh->DeleteGeometricFactors();
       }
    }
 };
@@ -555,11 +581,11 @@ int main(int argc, char *argv[])
    int nx = 4;
    int ny = 4;
    int nr = 2;
-   int order = 4;
+   int order = 3;
    int niter = 4;
    int surface = 0;
    bool c = false;
-   bool pa = true;
+   bool pa = false;
    bool vis = true;
    bool amr = false;
    bool wait = false;
@@ -637,19 +663,4 @@ int main(int argc, char *argv[])
    // Free the used memory.
    delete mesh;
    return 0;
-}
-
-void SnapNodes(Mesh *mesh)
-{
-   const int sdim = mesh->SpaceDimension();
-   GridFunction &nodes = *mesh->GetNodes();
-   Vector node(sdim);
-   for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
-   {
-      for (int d = 0; d < sdim; d++)
-      { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
-      node /= node.Norml2();
-      for (int d = 0; d < sdim; d++)
-      { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
-   }
 }
