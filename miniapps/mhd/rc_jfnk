@@ -4,7 +4,9 @@
 -snes_max_it 10
 -snes_rtol 1e-5
 #
--ksp_type minres
+-ksp_type preonly
+#-ksp_monitor_true_residual
+-ksp_view
 -s1_ksp_view
 -s1_ksp_monitor
 -s2_ksp_view
