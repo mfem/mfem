@@ -228,8 +228,8 @@ void FiniteElementSpace::BuildElementToDofTable() const
    }
    el_dof -> MakeJ();
 
-   cout << "  fespace: printing el_dof 1st time:" << endl;
-   el_dof->Print();
+   // cout << "  fespace: printing el_dof 1st time:" << endl;
+   // el_dof->Print();
 
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
@@ -241,8 +241,8 @@ void FiniteElementSpace::BuildElementToDofTable() const
    }
    el_dof -> ShiftUpI();
 
-   cout << "  fespace: printing el_dof 2nd time:" << endl;
-   el_dof->Print();
+   // cout << "  fespace: printing el_dof 2nd time:" << endl;
+   // el_dof->Print();
 
    elem_dof = el_dof;
 }
@@ -1434,23 +1434,31 @@ void FiniteElementSpace::Construct()
 
    if (mesh->Dimension() > 0)
    {
-     if (strncmp(fec->Name(),"H1Ser_", 6)==0)
-     {
-       // cout << "fespace.cpp: Using a serendipity element!" << endl;
-       // Need to adjust something here for serendipity elements
-     }
-     else
-     {
-       bdofs = new int[mesh->GetNE()+1];
-       bdofs[0] = 0;
-       for (int i = 0; i < mesh->GetNE(); i++)
-       {
-	 Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-	 nbdofs += fec->DofForGeometry(geom);
-	 bdofs[i+1] = nbdofs;
-       }
-     }
-     ndofs = nvdofs + nedofs + nfdofs + nbdofs;
+      if (strncmp(fec->Name(),"H1Ser_", 6)==0)
+      {
+         bdofs = new int[mesh->GetNE()+1];
+         bdofs[0] = 0;
+         for (int i = 0; i < mesh->GetNE(); i++)
+         {
+            Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+            nbdofs += fec->DofForGeometry(geom);
+            bdofs[i+1] = nbdofs;
+         }
+      // cout << "fespace.cpp: Using a serendipity element!" << endl;
+      // Need to adjust something here for serendipity elements
+      }
+      else
+      {
+         bdofs = new int[mesh->GetNE()+1];
+         bdofs[0] = 0;
+         for (int i = 0; i < mesh->GetNE(); i++)
+         {
+            Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+            nbdofs += fec->DofForGeometry(geom);
+            bdofs[i+1] = nbdofs;
+         }
+      }
+      ndofs = nvdofs + nedofs + nfdofs + nbdofs;
      // cout << "Computed ndofs as sum of " << nvdofs << " vdofs, " << nedofs << " nedofs, " << nfdofs << " nfdofs, and " << nbdofs << " nbdofs." << endl;
      // Serendipity edits will need to be done here...
 
@@ -1598,6 +1606,7 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
    }
    else
    {
+      // cout << "fespace.cpp: bdrElem_dof doesn't exist: setting it now?" << endl;
       Array<int> V, E, Eo;
       int k, j, nv, ne, nf, nd, iF, oF, dim;
       const int *ind;
@@ -1654,6 +1663,8 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
                }
             }
          }
+         // cout << "fespace.cpp: bdrelt set; dofs = " << endl;
+         // dofs.Print();
       }
       if (nf > 0)
          // if (dim == 3)

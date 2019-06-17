@@ -1604,6 +1604,10 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
       else if (b_type == BasisType::Serendipity)
       {
+         if (p > 1)
+         {
+            H1_dof[Geometry::SQUARE] = (p*p + 3*p +6) / 2; // formula for numbe of serendipity DoFs (when p>1)
+         }
       	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
       }
       else
@@ -1682,12 +1686,10 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                    int Or) const
 {
-
-
-     // if ((this)->GetBasisType() == BasisType::Serendipity)
-     // {
-     //    return SegDofOrd[0];
-     // }
+   // if ((this)->GetBasisType() == BasisType::Serendipity)
+   // {
+   //    return SegDofOrd[0];
+   // }
    if (GeomType == Geometry::SEGMENT)
    {
       return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];

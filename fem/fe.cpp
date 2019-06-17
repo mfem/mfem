@@ -1894,7 +1894,7 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
    }
    if(p==3)
    {
-      // set these using Bicubic quad FE class
+      // set these using Bicubic quad FE class asdf
       Nodes.IntPoint(4).x = 1./3.;
       Nodes.IntPoint(4).y = 0.;
       Nodes.IntPoint(5).x = 2./3.;
@@ -1912,6 +1912,40 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
       Nodes.IntPoint(11).x = 0.;
       Nodes.IntPoint(11).y = 1./3.;
    }
+   if(p==4)
+   {
+      Nodes.IntPoint(4).x  = .25;
+      Nodes.IntPoint(4).y  = 0;
+      Nodes.IntPoint(5).x  = .5;
+      Nodes.IntPoint(5).y  = 0;
+      Nodes.IntPoint(6).x  = .75;
+      Nodes.IntPoint(6).y  = 0;
+
+      Nodes.IntPoint(7).x  = 1;
+      Nodes.IntPoint(7).y  = .25;
+      Nodes.IntPoint(8).x  = 1;
+      Nodes.IntPoint(8).y  = .5;
+      Nodes.IntPoint(9).x  = 1; 
+      Nodes.IntPoint(9).y  =.75;
+
+      Nodes.IntPoint(10).x = .25;
+      Nodes.IntPoint(10).y = 1;
+      Nodes.IntPoint(11).x = .5;
+      Nodes.IntPoint(11).y = 1;
+      Nodes.IntPoint(12).x = .75;
+      Nodes.IntPoint(12).y = 1;
+
+      Nodes.IntPoint(13).x = 0;
+      Nodes.IntPoint(13).y = .25;
+      Nodes.IntPoint(14).x = 0;
+      Nodes.IntPoint(14).y = .5;
+      Nodes.IntPoint(15).x = 0;
+      Nodes.IntPoint(15).y = .75;
+
+      Nodes.IntPoint(16).x = .5;
+      Nodes.IntPoint(16).y = .5;
+   }
+
 }
 
 
@@ -1942,6 +1976,19 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
       // shape(4 + 3*(p-1) + i) = 2* legY[i] * (1. - x) * y * (1. - y);
       shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
       shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
+      // cout << "setting shape # " << 4 + 4*(p-1) + i-1 << endl;
+   }
+
+   int interior_total = 0;
+   for (int j = 4; j < p + 1; j++)
+   {
+      for (int k = 0; k < j-3; k++)
+      {
+         shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
+         // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
+         cout << "setting shape # " << 4 + 4*(p-1) + interior_total << endl;
+         interior_total++;
+      }
    }
 
    delete legX;
@@ -1951,7 +1998,7 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    //
    //    Storing quadratic only case here:
    //
-   //    double x = ip.x, y = ip.y;
+   // double x = ip.x, y = ip.y;
    // shape(0) = (1. - x) * (1. - y) * (1. - x - y);
    // shape(1) = x * (1. - y) * (x - y);
    // shape(2) = x * y * (x + y - 1.);
@@ -2012,6 +2059,18 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
       dshape(4 + 3*(p-1) - i - 1,1) =  2* legX[i] * x * (1. - x);
       dshape(4 + 4*(p-1) - i - 1,0) = -2* legY[i] * y * (1. - y); 
       dshape(4 + 4*(p-1) - i - 1,1) =  2* (1. - x) * (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+   }
+
+   int interior_total = 0;
+   for (int j = 4; j < p + 1; j++)
+   {
+      for (int k = 0; k < j-3; k++)
+      {
+         // shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
+         // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
+         cout << " ** NEED TO CODE DShape in p=4 case" << endl;
+         interior_total++;
+      }
    }
 
    delete legX;

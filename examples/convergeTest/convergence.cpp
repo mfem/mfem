@@ -116,7 +116,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient zero(0.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(zero));
-   b->Assemble();
+    b->Assemble();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -317,6 +317,7 @@ int main(int argc, char *argv[])
 
    if (exact == 1)
    {
+      // cout << "convergence: Exact solution u(x,y)=x+y" << endl;
       cout << "convergence: Exact solution u(x,y)=x+y" << endl;
    }
    else if (exact == 2)

@@ -1309,7 +1309,7 @@ void GridFunction::AccumulateAndCountBdrValues(
 {
    int i, j, fdof, d, ind, vdim;
 
-   double val;  // maybe not used, or in wrong scope?
+   // double val;  // maybe not used, or in wrong scope?
    
    const FiniteElement *fe;
    ElementTransformation *transf;
@@ -1339,6 +1339,16 @@ void GridFunction::AccumulateAndCountBdrValues(
       for (j = 0; j < ir.Size(); ++j)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
+         //
+         // Attempting to take integration points in a different order...
+         //
+         // int altIndex = ir.Size()-1-j;
+         // if (j == 0 || j == 1)
+         // {
+         //    altIndex = j;
+         // }
+         // const IntegrationPoint &ip = ir.IntPoint(altIndex);
+         //
          transf->SetIntPoint(&ip);
          Vector col;
          V.GetColumnReference(j, col);
@@ -1350,7 +1360,47 @@ void GridFunction::AccumulateAndCountBdrValues(
 
 
       Vector dofs(fdof);
+
+      // cout << " *** vdofs before vinv.mult(rhs,dofs):" << endl;
+      // vdofs.Print();
+
+
       Vinv.Mult(rhs, dofs);
+
+      // cout << " *** after vinv.mult(rhs,dofs):" << endl;
+      // dofs.Print();
+
+      // if vdofs has "2" as first or second entry, then we're on a north or west edge and the 
+      //    interior edge dofs must be reordered
+
+      if  (0 == 1) // (dofs.Size() > 3) is the real condition to check.
+      {
+         if (vdofs[0] == 2 || vdofs[1] == 2)         
+         {
+            int justCounting[dofs.Size()-2];
+            for(int k = 0; k < dofs.Size()-2; k++)
+            {
+               justCounting[k] = k+2;
+            }
+            Array<int> toBeReordered = Array<int>(justCounting, dofs.Size()-2);
+
+            Vector valuesToCopyInBackward;
+            dofs.GetSubVector(toBeReordered, valuesToCopyInBackward);
+
+            for(int k = 0; k < dofs.Size()-2; k++)
+            {
+               justCounting[k] = dofs.Size()-1-k;
+            } // now justCounting is 3 2 for order 3; 4 3 2 for order 4, etc
+            toBeReordered = Array<int>(justCounting, dofs.Size()-2);
+
+            dofs.SetSubVector(toBeReordered, valuesToCopyInBackward);
+
+            cout << "   reordered dofs to be: " << endl;
+            dofs.Print();
+            cout << endl;
+         }
+      }
+
 
       for (j = 0; j < fdof; j++)
       {
