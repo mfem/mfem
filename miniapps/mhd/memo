@@ -70,6 +70,20 @@ srun -n 1 imMHDp -rs 2 -o 2 -tf .05 -vs 40 -dt .00025 -usepetsc --petscopts rc_j
 
 sub is deleted in petsc!!
 
+add a mini example:
+
+this works fine:
+srun -n 1 mini -rs 2 -tf .00004 -dt .00002 --petscopts rc_mfop
+srun -n 4 mini -rs 4 -tf .00004 -dt .00002 --petscopts rc_mfop
+
+this is not working:
+srun -n 1 mini -rs 2 -tf .00004 -dt .00002 --petscopts rc_jfnk -shell
+srun -n 4 mini -rs 4 -tf .00004 -dt .00002 --petscopts rc_jfnk -shell
+
+counter part:
+srun -n 1 imMHDp -rs 2 -o 2 -tf .00004 -dt .00002 -usepetsc --petscopts rc_jfnk -s 1 -shell
+srun -n 4 imMHDp -rs 4 -o 2 -tf .00004 -dt .00002 -usepetsc --petscopts rc_jfnk -s 1 -shell
+
 
 6/11
 debug:
