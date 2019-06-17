@@ -57,6 +57,67 @@ int dim;
 //#define SIGMAVAL -2.0
 //#define SIGMAVAL -100.0
 
+void TestHypreRectangularSerial()
+{
+  const int num_loc_cols = 100;
+  const int num_loc_rows = 2 * num_loc_cols;
+  const int nnz = num_loc_cols;
+  
+  HYPRE_Int rowStarts2[2];
+  HYPRE_Int colStarts2[2];
+  
+  rowStarts2[0] = 0;
+  rowStarts2[1] = num_loc_rows;
+
+  colStarts2[0] = 0;
+  colStarts2[1] = num_loc_cols;
+  
+  int *I_nnz = new int[num_loc_rows + 1];
+  HYPRE_Int *J_col = new HYPRE_Int[nnz];
+
+  I_nnz[0] = 0;
+
+  // row 0: 0
+  // row 1: 1
+  // row 2: 0
+  // ...
+
+  // I_nnz row 0: 0
+  // I_nnz row 1: 0
+  // I_nnz row 2: 1
+  // I_nnz row 3: 1
+  // I_nnz row 4: 2
+  // ...
+
+  for (int i=0; i<num_loc_cols; ++i)
+    {
+      I_nnz[(2*i)+1] = i;
+      I_nnz[(2*i)+2] = i+1;
+
+      J_col[i] = i;
+    }
+
+  Vector diag(nnz);
+  diag = 1.0;
+  
+  HypreParMatrix *A = new HypreParMatrix(MPI_COMM_WORLD, num_loc_rows, num_loc_rows, num_loc_cols, I_nnz, J_col, diag.GetData(), rowStarts2, colStarts2);
+
+  Vector x(num_loc_cols);
+  Vector y(num_loc_rows);
+
+  x = 1.0;
+  y = 0.0;
+
+  cout << "Hypre serial test x norm " << x.Norml2() << endl;
+  
+  A->Mult(x, y);
+
+  cout << "Hypre serial test y norm " << y.Norml2() << endl;
+
+  delete I_nnz;
+  delete J_col;
+  delete A;
+}
 
 void TestHypreIdentity(MPI_Comm comm)
 {
@@ -361,7 +422,8 @@ int main(int argc, char *argv[])
      }
 
    //TestHypreIdentity(MPI_COMM_WORLD);
-   
+   //TestHypreRectangularSerial();
+
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
@@ -605,7 +667,7 @@ int main(int argc, char *argv[])
        }
 
        ddi.RecoverDomainSolution(fespace, xdd, X);
-       
+
        delete gmres;
      }
 
