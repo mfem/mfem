@@ -364,6 +364,137 @@ struct FPeach: public Surface<FPeach>
    }
 };
 
+// Full Peach street model
+struct SlottedSphere: public Mesh
+{
+   SlottedSphere(Array<int> &bc, int order, int nr, int sdim)
+   {
+      const double delta = 0.15;
+      static const int nv1d = 4;
+      static const int nv = nv1d*nv1d*nv1d;
+      static const int nel_per_face = (nv1d-1)*(nv1d-1);
+      static const int nel_delete = 7*2;
+      static const int nel_total = nel_per_face*6;
+      static const int nel = nel_total - nel_delete;
+
+      InitMesh(2, 3, nv, nel, 0);
+
+      double vert1d[nv1d] = {-1.0, -delta, delta, 1.0};
+      double quad_v[nv][3];
+
+      for (int iv=0; iv<nv; ++iv)
+      {
+         int ix = iv % nv1d;
+         int iy = (iv / nv1d) % nv1d;
+         int iz = (iv / nv1d) / nv1d;
+
+         quad_v[iv][0] = vert1d[ix];
+         quad_v[iv][1] = vert1d[iy];
+         quad_v[iv][2] = vert1d[iz];
+      }
+
+      int quad_e[nel_total][4];
+
+      for (int ix=0; ix<nv1d-1; ++ix)
+      {
+         for (int iy=0; iy<nv1d-1; ++iy)
+         {
+            int el_offset = ix + iy*(nv1d-1);
+            // x = 0
+            quad_e[0*nel_per_face + el_offset][0] = nv1d*ix + nv1d*nv1d*iy;
+            quad_e[0*nel_per_face + el_offset][1] = nv1d*(ix+1) + nv1d*nv1d*iy;
+            quad_e[0*nel_per_face + el_offset][2] = nv1d*(ix+1) + nv1d*nv1d*(iy+1);
+            quad_e[0*nel_per_face + el_offset][3] = nv1d*ix + nv1d*nv1d*(iy+1);
+            // x = 1
+            int x_off = nv1d-1;
+            quad_e[1*nel_per_face + el_offset][3] = x_off + nv1d*ix + nv1d*nv1d*iy;
+            quad_e[1*nel_per_face + el_offset][2] = x_off + nv1d*(ix+1) + nv1d*nv1d*iy;
+            quad_e[1*nel_per_face + el_offset][1] = x_off + nv1d*(ix+1) + nv1d*nv1d*(iy+1);
+            quad_e[1*nel_per_face + el_offset][0] = x_off + nv1d*ix + nv1d*nv1d*(iy+1);
+            // y = 0
+            quad_e[2*nel_per_face + el_offset][0] = nv1d*nv1d*iy + ix;
+            quad_e[2*nel_per_face + el_offset][1] = nv1d*nv1d*iy + ix + 1;
+            quad_e[2*nel_per_face + el_offset][2] = nv1d*nv1d*(iy+1) + ix + 1;
+            quad_e[2*nel_per_face + el_offset][3] = nv1d*nv1d*(iy+1) + ix;
+            // y = 1
+            int y_off = nv1d*(nv1d-1);
+            quad_e[3*nel_per_face + el_offset][0] = y_off + nv1d*nv1d*iy + ix;
+            quad_e[3*nel_per_face + el_offset][1] = y_off + nv1d*nv1d*iy + ix + 1;
+            quad_e[3*nel_per_face + el_offset][2] = y_off + nv1d*nv1d*(iy+1) + ix + 1;
+            quad_e[3*nel_per_face + el_offset][3] = y_off + nv1d*nv1d*(iy+1) + ix;
+            // z = 0
+            quad_e[4*nel_per_face + el_offset][0] = nv1d*iy + ix;
+            quad_e[4*nel_per_face + el_offset][1] = nv1d*iy + ix + 1;
+            quad_e[4*nel_per_face + el_offset][2] = nv1d*(iy+1) + ix + 1;
+            quad_e[4*nel_per_face + el_offset][3] = nv1d*(iy+1) + ix;
+            // z = 1
+            int z_off = nv1d*nv1d*(nv1d-1);
+            quad_e[5*nel_per_face + el_offset][0] = z_off + nv1d*iy + ix;
+            quad_e[5*nel_per_face + el_offset][1] = z_off + nv1d*iy + ix + 1;
+            quad_e[5*nel_per_face + el_offset][2] = z_off + nv1d*(iy+1) + ix + 1;
+            quad_e[5*nel_per_face + el_offset][3] = z_off + nv1d*(iy+1) + ix;
+         }
+      }
+
+      // Delete on z = 0 face
+      quad_e[4*nel_per_face + 1 + 0*(nv1d-1)][0] = -1;
+      quad_e[4*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
+      quad_e[4*nel_per_face + 1 + 2*(nv1d-1)][0] = -1;
+      // Delete on y = 0 face
+      quad_e[2*nel_per_face + 1 + 0*(nv1d-1)][0] = -1;
+      quad_e[2*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
+      // Delete on y = 1 face
+      quad_e[3*nel_per_face + 1 + 0*(nv1d-1)][0] = -1;
+      quad_e[3*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
+
+      // Delete on z = 1 face
+      quad_e[5*nel_per_face + 0 + 1*(nv1d-1)][0] = -1;
+      quad_e[5*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
+      quad_e[5*nel_per_face + 2 + 1*(nv1d-1)][0] = -1;
+      // Delete on x = 0 face
+      quad_e[0*nel_per_face + 1 + 2*(nv1d-1)][0] = -1;
+      quad_e[0*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
+      // Delete on x = 1 face
+      quad_e[1*nel_per_face + 1 + 2*(nv1d-1)][0] = -1;
+      quad_e[1*nel_per_face + 1 + 1*(nv1d-1)][0] = -1;
+
+      for (int j = 0; j < nv; j++) { AddVertex(quad_v[j]); }
+      for (int j = 0; j < nel_total; j++)
+      {
+         if (quad_e[j][0] >= 0)
+         {
+            AddQuad(quad_e[j], j+1);
+         }
+      }
+
+      RemoveUnusedVertices();
+      FinalizeQuadMesh(1, 1, true);
+      FinalizeTopology();
+      for (int l = 0; l < nr; l++) { UniformRefinement(); }
+      SetCurvature(order, false, 3, Ordering::byNODES);
+
+      // Snap the nodes to the unit sphere
+      const int mesh_sdim = SpaceDimension();
+      GridFunction &nodes = *GetNodes();
+      Vector node(mesh_sdim);
+      for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
+      {
+         for (int d = 0; d < mesh_sdim; d++)
+         { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
+         node /= node.Norml2();
+         for (int d = 0; d < mesh_sdim; d++)
+         { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
+      }
+
+      if (bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(bdr_attributes.Max());
+         ess_bdr = 1;
+         Nodes->FESpace()->GetEssentialTrueDofs(ess_bdr, bc);
+      }
+   }
+};
+
 // Visualize some solution on the given mesh
 static void Visualize(Mesh *mesh, const bool pause,
                       const char *keys = NULL,
@@ -574,6 +705,7 @@ int main(int argc, char *argv[])
    if (surface == 5) { mesh = new Hold(bc, order, nx, ny, nr, sdim); }
    if (surface == 6) { mesh = new QPeach(bc, order, nx, ny, nr, sdim); }
    if (surface == 7) { mesh = new FPeach(bc, order, nr, sdim); }
+   if (surface == 8) { mesh = new SlottedSphere(bc, order, nr, sdim); }
    MFEM_VERIFY(mesh!=nullptr, "Not a valid surface number!");
 
    // Define a finite element space on the mesh.
