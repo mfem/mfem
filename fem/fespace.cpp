@@ -1488,9 +1488,12 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
       
       if (strncmp((this->FEColl())->Name(),"H1Ser_",6) == 0)
       {
-	   // For serendipity elements with element DoFs, need to set nb accordingly here
-	   // and figure out what to do in the nb>0 case later in this function
-	   nb = 0;
+   	   // For serendipity elements with element DoFs, need to set nb accordingly here
+   	   // and figure out what to do in the nb>0 case later in this function
+//         cout << "fespace: order is " << fec->GetBasisType() << endl;
+//         cout << "is basis type serendipity? " << (fec->GetBasisType() == BasisType::Serendipity) << endl;
+   	   nb = 0;
+         cout << "fespace.cpp: defintion of nb above this message needs to be edited" << endl;
       }
       
       if (nv > 0)
@@ -1572,7 +1575,7 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
       }
       if (nb > 0)
       {
-	 k = nvdofs + nedofs + nfdofs + bdofs[i];
+         k = nvdofs + nedofs + nfdofs + bdofs[i];
          for (j = 0; j < nb; j++)
          {
             dofs[ne+j] = k + j;

@@ -1942,8 +1942,10 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
       Nodes.IntPoint(15).x = 0;
       Nodes.IntPoint(15).y = .75;
 
-      Nodes.IntPoint(16).x = .5;
-      Nodes.IntPoint(16).y = .5;
+      cout << "fe.cpp: Removed interior point for debugging p=4 case" << endl;
+
+      // Nodes.IntPoint(16).x = .5;
+      // Nodes.IntPoint(16).y = .5;
    }
 
 }
@@ -1965,18 +1967,17 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    double *legY = new double[p-1];
    Poly_1D *storeLegendre = new Poly_1D();
 
-   storeLegendre->CalcLegendre(p-2, 2. * x - 1., legX);
-   storeLegendre->CalcLegendre(p-2, 2. * y - 1., legY);
+   storeLegendre->CalcLegendre(p-2, x , legX);
+   storeLegendre->CalcLegendre(p-2, y , legY);
    
    for (int i = 0; i < p-1; i++)
    {
       shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
       shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
-      // shape(4 + 2*(p-1) + i) = 2* legX[i] * x * y * (1. - x);
-      // shape(4 + 3*(p-1) + i) = 2* legY[i] * (1. - x) * y * (1. - y);
       shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
       shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
-      // cout << "setting shape # " << 4 + 4*(p-1) + i-1 << endl;
+      // shape(4 + 2*(p-1) + i) = 2* legX[i] * x * y * (1. - x);
+      // shape(4 + 3*(p-1) + i) = 2* legY[i] * (1. - x) * y * (1. - y);
    }
 
    int interior_total = 0;
@@ -2000,7 +2001,7 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    //
    // double x = ip.x, y = ip.y;
    // shape(0) = (1. - x) * (1. - y) * (1. - x - y);
-   // shape(1) = x * (1. - y) * (x - y);
+   // shape(1) = x * (1. - y) * (x - y); 
    // shape(2) = x * y * (x + y - 1.);
    // shape(3) = (1. - x) * y * (y - x);
    // shape(4) = 2.*(1. - x) * x * (1 - y);
@@ -2025,12 +2026,15 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    double *DlegY = new double[p-1];
    Poly_1D *storeLegendre = new Poly_1D();
 
-   storeLegendre->CalcLegendre(p-2, 2. * x - 1., legX, DlegX);
-   storeLegendre->CalcLegendre(p-2, 2. * y - 1., legY, DlegY);
+   storeLegendre->CalcLegendre(p-2, x, legX, DlegX);
+   storeLegendre->CalcLegendre(p-2, y, legY, DlegY);
 
    // cout << "calcDshape p = " << p << endl;
    // cout << "fe.cpp:  legX = " << legX[0] << " " << legX[1] << " " << legX[2]  << " " << legX[3] << " " << legX[4]  << " " << legX[5] << endl;
+   // cout << "fe.cpp:  2x-1 = " << 2*x-1 << endl;
    // cout << "fe.cpp:  DlegX = " << DlegX[0] << " " << DlegX[1] << " " << DlegX[2]  << " " << DlegX[3] << endl;
+   // cout << "fe.cpp:  legY = " << legY[0] << " " << legY[1] << " " << legY[2]  << " " << legY[3] << " " << legY[4]  << " " << legY[5] << endl;
+   // cout << "fe.cpp:  DlegY = " << DlegY[0] << " " << DlegY[1] << " " << DlegY[2]  << " " << DlegY[3] << endl;
 
    dshape(0,0) = -(1. - y);
    dshape(0,1) = -(1. - x);
@@ -2068,7 +2072,7 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
       {
          // shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
          // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
-         cout << " ** NEED TO CODE DShape in p=4 case" << endl;
+         cout << " ** NEED TO CODE DShape in p>=4 case" << endl;
          interior_total++;
       }
    }

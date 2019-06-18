@@ -158,10 +158,19 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    a->RecoverFEMSolution(X, *b, x);
 
    // Hack to viusalize a single basis function
-   if (dof2view != -1)
+   if (dof2view != -1 && dof2view != -2)
    {
       x=0;
       x(dof2view) = 1;
+   }
+
+   // Interpolation hack
+   if (dof2view == -2)
+   {
+      for(int k=0; k<x.Size(); k++)
+      {
+         x(k) = 1;
+      }         
    }
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
