@@ -17,9 +17,6 @@ static socketstream glvis;
 const int  visport   = 19916;
 const char vishost[] = "localhost";
 
-// Forward declaration
-static void SnapNodes(Mesh *mesh);
-
 // Surface mesh class
 template<class Type>
 class Surface: public Mesh
@@ -324,7 +321,18 @@ struct FPeach: public Surface<FPeach>
       FinalizeQuadMesh(1, 1, true);
       UniformRefinement();
       SetCurvature(Order, false, 3, Ordering::byNODES);
-      SnapNodes(this);
+      // Snap the nodes to the unit sphere
+      const int mesh_sdim = SpaceDimension();
+      GridFunction &nodes = *GetNodes();
+      Vector node(mesh_sdim);
+      for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
+      {
+         for (int d = 0; d < mesh_sdim; d++)
+         { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
+         node /= node.Norml2();
+         for (int d = 0; d < mesh_sdim; d++)
+         { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
+      }
    }
 
    void BC()
@@ -583,19 +591,4 @@ int main(int argc, char *argv[])
    // Free the used memory.
    delete mesh;
    return 0;
-}
-
-static void SnapNodes(Mesh *mesh)
-{
-   const int sdim = mesh->SpaceDimension();
-   GridFunction &nodes = *mesh->GetNodes();
-   Vector node(sdim);
-   for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
-   {
-      for (int d = 0; d < sdim; d++)
-      { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
-      node /= node.Norml2();
-      for (int d = 0; d < sdim; d++)
-      { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
-   }
 }
