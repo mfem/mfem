@@ -140,6 +140,13 @@ public:
        @sa NewDataAndSize(). */
    inline void NewMemoryAndSize(const Memory<double> &mem, int s, bool own_mem);
 
+   /// Reset the Vector to be a reference to a sub-vector of @a base.
+   inline void MakeRef(Vector &base, int offset, int size);
+
+   /** @brief Reset the Vector to be a reference to a sub-vector of @a base
+       without changing its current size. */
+   inline void MakeRef(Vector &base, int offset);
+
    /// Set the Vector data (host pointer) ownership flag.
    void MakeDataOwner() const { data.SetHostPtrOwner(true); }
 
@@ -293,6 +300,9 @@ public:
 
    /// Prints vector to stream out in HYPRE_Vector format.
    void Print_HYPRE(std::ostream &out) const;
+
+   // TODO: add documentation
+   void PrintTrace() const;
 
    /// Set random values in the vector.
    void Randomize(int seed = 0);
@@ -453,6 +463,19 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
    size = s;
    data = mem;
    if (!own_mem) { data.ClearOwnerFlags(); }
+}
+
+inline void Vector::MakeRef(Vector &base, int offset, int s)
+{
+   data.Delete();
+   size = s;
+   data.MakeAlias(base.GetMemory(), offset, s);
+}
+
+inline void Vector::MakeRef(Vector &base, int offset)
+{
+   data.Delete();
+   data.MakeAlias(base.GetMemory(), offset, size);
 }
 
 inline void Vector::Destroy()
