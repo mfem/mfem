@@ -4443,6 +4443,11 @@ PetscErrorCode MakeShellPC(PC pc, mfem::Solver &precond, bool ownsop)
    ctx->factory = NULL;
    ctx->numprec = 0;
 
+   // In case the PC was already of type SHELL, this will destroy any
+   // previous user-defined data structure
+   // We cannot call PCReset as it will wipe out any operator already set
+   ierr = PCSetType(pc,PCNONE); CHKERRQ(ierr);
+
    ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
    ierr = PCShellSetName(pc,"MFEM Solver (unknown Pmat)"); CHKERRQ(ierr);
    ierr = PCShellSetContext(pc,(void *)ctx); CHKERRQ(ierr);
@@ -4466,6 +4471,11 @@ PetscErrorCode MakeShellPCWithFactory(PC pc,
    ctx->ownsop  = true;
    ctx->factory = factory;
    ctx->numprec = 0;
+
+   // In case the PC was already of type SHELL, this will destroy any
+   // previous user-defined data structure
+   // We cannot call PCReset as it will wipe out any operator already set
+   ierr = PCSetType(pc,PCNONE); CHKERRQ(ierr);
 
    ierr = PCSetType(pc,PCSHELL); CHKERRQ(ierr);
    ierr = PCShellSetName(pc,factory->GetName()); CHKERRQ(ierr);
