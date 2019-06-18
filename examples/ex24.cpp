@@ -122,18 +122,12 @@ public:
       Mesh(2, NVert, NElem, NBdrElem, 3), S(static_cast<Type*>(this)),
       bc(b), Order(order), Nx(NVert), Ny(NElem), Nr(nr), Sdim(sdim)
    { S->Generate(); S->Postfix(); S->GenFESpace(); S->BC(); }
-
-   void Prefix()
-   {
-      SetCurvature(Order, false, 3, Ordering::byNODES);
-   }
-
+   void Prefix() { SetCurvature(Order, false, 3, Ordering::byNODES); }
    void Generate() { Transform(Type::Parametrization); }
-
    void Postfix()
    {
-      SetCurvature(Order, false, 3, Ordering::byNODES);
       for (int l = 0; l < Nr; l++) { UniformRefinement(); }
+      SetCurvature(Order, false, 3, Ordering::byNODES);
       // Adaptive mesh refinement
       //if (amr)  { for (int l = 0; l < 1; l++) { RandomRefinement(0.5); } }
       PrintCharacteristics();
@@ -365,8 +359,8 @@ struct FPeach: public Surface<FPeach>
    {
       const double quad_v[8][3] =
       {
-         {-1, -1, -1}, {+1, -1, -1}, {+1, +1, -1}, {-1, +1, -1},
-         {-1, -1, +1}, {+1, -1, +1}, {+1, +1, +1}, {-1, +1, +1}
+         {-1, -1, -2}, {+1, -1, -2}, {+1, +1, -2}, {-1, +1, -2},
+         {-1, -1, +2}, {+1, -1, +2}, {+1, +1, +2}, {-1, +1, +2}
       };
       const int quad_e[6][4] =
       {
@@ -380,27 +374,16 @@ struct FPeach: public Surface<FPeach>
       FinalizeQuadMesh(1, 1, true);
       UniformRefinement();
       SetCurvature(Order, false, 3, Ordering::byNODES);
-      // Now change our coordinates
+      // Now snap our coordinates on a unit sphere
       GridFunction &nodes = *GetNodes();
       Vector node(Sdim);
       for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
       {
          for (int d = 0; d < Sdim; d++)
          { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
-         const double R = node.Norml2();
-         node /= R;
-         const bool onlyZ = fabs(node[1]) < eps;
+         node /= node.Norml2();
          for (int d = 0; d < Sdim; d++)
-         {
-            const int k = nodes.FESpace()->DofToVDof(i, d);
-            //nodes(k) = node(d);
-            if (!onlyZ) { nodes(k) = node(d); }
-            else
-            {
-               if (d==2) { nodes(k) = /* 0.25* */node(d); }
-               else { nodes(k) = node(d); }
-            }
-         }
+         { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
       }
    }
 
@@ -420,15 +403,15 @@ struct FPeach: public Surface<FPeach>
             int k = dofs[c];
             if (k < 0) { k = -1 - k; }
             GetNode(k, X);
-            const double width = eps;
-            const bool halfV = fabs(X[0]) < width && X[1] <= 0;
-            const bool halfH = fabs(X[2]) < width && X[1] >= 0;
-            //const bool XY = fabs(X[2]) < width;
-            //const bool XZ = fabs(X[1]) < width;
-            //const bool YZ = fabs(X[0]) < width;
-            const bool is_on_bc = halfV || halfH;
+            const double x = X[0];
+            const double y = X[1];
+            const double z = X[2];
+            const double width = 0.0;//1./3.;
+            const bool XY = fabs(z) <= width && y >= 0;
+            const bool YZ = fabs(x) <= width && y <= 0;
+            const bool is_bc = XY || YZ;
             for (int d = 0; d < Sdim; d++)
-            { ess_cdofs[fes->DofToVDof(k, d)] = is_on_bc;} // || XY || YZ; } // YZ
+            { ess_cdofs[fes->DofToVDof(k, d)] = is_bc; }
          }
       }
       const SparseMatrix *R = fes->GetConformingRestriction();
@@ -581,11 +564,11 @@ int main(int argc, char *argv[])
    int nx = 4;
    int ny = 4;
    int nr = 2;
-   int order = 3;
+   int order = 2;
    int niter = 4;
-   int surface = 0;
-   bool c = false;
-   bool pa = false;
+   int surface = -1;
+   bool c = true;
+   bool pa = true;
    bool vis = true;
    bool amr = false;
    bool wait = false;
