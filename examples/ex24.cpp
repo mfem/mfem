@@ -1,67 +1,8 @@
 //                                MFEM Example 24
 //
 // Compile with: make ex24
-//
-// Sample runs:  ex24
-//               ex24 -c
-//               ex24 -pa
-//               ex24 -pa -c
-//               ex24 -p 0
-//               ex24 -p 0 -c
-//               ex24 -p 0 -pa
-//               ex24 -p 0 -pa -c
-//               ex24 -p 1
-//               ex24 -p 1 -c
-//               ex24 -p 1 -pa
-//               ex24 -p 1 -pa -c
-//               ex24 -p 2
-//               ex24 -p 2 -c
-//               ex24 -p 2 -pa
-//               ex24 -p 2 -pa -c
-//               ex24 -p 3
-//               ex24 -p 3 -c
-//               ex24 -p 3 -pa
-//               ex24 -p 3 -pa -c
-//               ex24 -p 4
-//               ex24 -p 4 -c
-//               ex24 -p 4 -pa
-//               ex24 -p 4 -pa -c
-//               ex24 -p 5
-//               ex24 -p 5 -c
-//               ex24 -p 5 -pa
-//               ex24 -p 5 -pa -c
-//               ex24 -p 6
-//               ex24 -p 6 -c
-//               ex24 -p 6 -pa
-//               ex24 -p 6 -pa -c
-//               ex24 -p 7
-//               ex24 -p 7 -c
-//               ex24 -p 7 -pa
-//               ex24 -p 7 -pa -c
-//
-// Device sample runs:
-//               ex24 -d cuda -pa
-//               ex24 -d cuda -pa -c
-//               ex24 -d cuda -p 0 -pa
-//               ex24 -d cuda -p 0 -pa -c
-//               ex24 -d cuda -p 1 -pa
-//               ex24 -d cuda -p 1 -pa -c
-//               ex24 -d cuda -p 2 -pa
-//               ex24 -d cuda -p 2 -pa -c
-//               ex24 -d cuda -p 3 -pa
-//               ex24 -d cuda -p 3 -pa -c
-//               ex24 -d cuda -p 4 -pa
-//               ex24 -d cuda -p 4 -pa -c
-//               ex24 -d cuda -p 5 -pa
-//               ex24 -d cuda -p 5 -pa -c
-//               ex24 -d cuda -p 6 -pa
-//               ex24 -d cuda -p 6 -pa -c
-//               ex24 -d cuda -p 7 -pa
-//               ex24 -d cuda -p 7 -pa -c
 
 #include "mfem.hpp"
-#include "../general/dbg.hpp"
-#include <cassert>
 #include <fstream>
 #include <iostream>
 
@@ -75,6 +16,9 @@ static socketstream glvis;
 const int  visport   = 19916;
 const char vishost[] = "localhost";
 
+// Forward declaration
+static void SnapNodes(Mesh *mesh);
+
 // Surface mesh class
 template<class Type>
 class Surface: public Mesh
@@ -86,7 +30,7 @@ protected:
    H1_FECollection *fec = nullptr;
    FiniteElementSpace *fes = nullptr;
 public:
-   ~Surface() { delete fec; delete fes;}
+
    // Reading from mesh file
    Surface(Array<int> &b, int order, const char *file, int nr, int sdim):
       Mesh(file, true), S(static_cast<Type*>(this)),
@@ -122,12 +66,17 @@ public:
       Mesh(2, NVert, NElem, NBdrElem, 3), S(static_cast<Type*>(this)),
       bc(b), Order(order), Nx(NVert), Ny(NElem), Nr(nr), Sdim(sdim)
    { S->Generate(); S->Postfix(); S->GenFESpace(); S->BC(); }
+
+   ~Surface() { delete fec; delete fes;}
+
    void Prefix() { SetCurvature(Order, false, 3, Ordering::byNODES); }
+
    void Generate() { Transform(Type::Parametrization); }
+
    void Postfix()
    {
-      for (int l = 0; l < Nr; l++) { UniformRefinement(); }
       SetCurvature(Order, false, 3, Ordering::byNODES);
+      for (int l = 0; l < Nr; l++) { UniformRefinement(); }
       // Adaptive mesh refinement
       //if (amr)  { for (int l = 0; l < 1; l++) { RandomRefinement(0.5); } }
       PrintCharacteristics();
@@ -142,6 +91,7 @@ public:
          fes->GetEssentialTrueDofs(ess_bdr, bc);
       }
    }
+
    void GenFESpace()
    {
       fec = new H1_FECollection(Order, 2);
@@ -359,8 +309,8 @@ struct FPeach: public Surface<FPeach>
    {
       const double quad_v[8][3] =
       {
-         {-1, -1, -2}, {+1, -1, -2}, {+1, +1, -2}, {-1, +1, -2},
-         {-1, -1, +2}, {+1, -1, +2}, {+1, +1, +2}, {-1, +1, +2}
+         {-1, -1, -1}, {+1, -1, -1}, {+1, +1, -1}, {-1, +1, -1},
+         {-1, -1, +1}, {+1, -1, +1}, {+1, +1, +1}, {-1, +1, +1}
       };
       const int quad_e[6][4] =
       {
@@ -374,17 +324,7 @@ struct FPeach: public Surface<FPeach>
       FinalizeQuadMesh(1, 1, true);
       UniformRefinement();
       SetCurvature(Order, false, 3, Ordering::byNODES);
-      // Now snap our coordinates on a unit sphere
-      GridFunction &nodes = *GetNodes();
-      Vector node(Sdim);
-      for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
-      {
-         for (int d = 0; d < Sdim; d++)
-         { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
-         node /= node.Norml2();
-         for (int d = 0; d < Sdim; d++)
-         { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
-      }
+      SnapNodes(this);
    }
 
    void BC()
@@ -403,15 +343,11 @@ struct FPeach: public Surface<FPeach>
             int k = dofs[c];
             if (k < 0) { k = -1 - k; }
             GetNode(k, X);
-            const double x = X[0];
-            const double y = X[1];
-            const double z = X[2];
-            const double width = 0.0;//1./3.;
-            const bool XY = fabs(z) <= width && y >= 0;
-            const bool YZ = fabs(x) <= width && y <= 0;
-            const bool is_bc = XY || YZ;
+            const bool halfX = fabs(X[0]) < eps && X[1] <= 0;
+            const bool halfY = fabs(X[2]) < eps && X[1] >= 0;
+            const bool is_on_bc = halfX || halfY;
             for (int d = 0; d < Sdim; d++)
-            { ess_cdofs[fes->DofToVDof(k, d)] = is_bc; }
+            { ess_cdofs[fes->DofToVDof(k, d)] = is_on_bc; }
          }
       }
       const SparseMatrix *R = fes->GetConformingRestriction();
@@ -564,10 +500,10 @@ int main(int argc, char *argv[])
    int nx = 4;
    int ny = 4;
    int nr = 2;
-   int order = 2;
+   int order = 3;
    int niter = 4;
    int surface = -1;
-   bool c = true;
+   bool c = false;
    bool pa = true;
    bool vis = true;
    bool amr = false;
@@ -605,7 +541,7 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
-   MFEM_VERIFY(!amr, "WIP");
+   MFEM_VERIFY(!amr, "AMR not yet supported!");
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -621,14 +557,14 @@ int main(int argc, char *argv[])
    Mesh *mesh = nullptr;
    const int sdim = c ? 1 : 3;
    if (surface < 0)  { mesh = new File(bc, order, mesh_file, nr, sdim); }
-   if (surface == 0) { mesh = new FPeach(bc, order, nr, sdim); }
-   if (surface == 1) { mesh = new Catenoid(bc, order, nx, ny, nr, sdim); }
-   if (surface == 2) { mesh = new Helicoid(bc, order, nx, ny, nr, sdim); }
-   if (surface == 3) { mesh = new Enneper(bc, order, nx, ny, nr, sdim); }
-   if (surface == 4) { mesh = new Scherk(bc, order, nx, ny, nr, sdim); }
-   if (surface == 5) { mesh = new Shell(bc, order, nx, ny, nr, sdim); }
-   if (surface == 6) { mesh = new Hold(bc, order, nx, ny, nr, sdim); }
-   if (surface == 7) { mesh = new QPeach(bc, order, nx, ny, nr, sdim); }
+   if (surface == 0) { mesh = new Catenoid(bc, order, nx, ny, nr, sdim); }
+   if (surface == 1) { mesh = new Helicoid(bc, order, nx, ny, nr, sdim); }
+   if (surface == 2) { mesh = new Enneper(bc, order, nx, ny, nr, sdim); }
+   if (surface == 3) { mesh = new Scherk(bc, order, nx, ny, nr, sdim); }
+   if (surface == 4) { mesh = new Shell(bc, order, nx, ny, nr, sdim); }
+   if (surface == 5) { mesh = new Hold(bc, order, nx, ny, nr, sdim); }
+   if (surface == 6) { mesh = new QPeach(bc, order, nx, ny, nr, sdim); }
+   if (surface == 7) { mesh = new FPeach(bc, order, nr, sdim); }
    MFEM_VERIFY(mesh!=nullptr, "Not a valid surface number!");
 
    // Define a finite element space on the mesh.
@@ -646,4 +582,19 @@ int main(int argc, char *argv[])
    // Free the used memory.
    delete mesh;
    return 0;
+}
+
+static void SnapNodes(Mesh *mesh)
+{
+   const int sdim = mesh->SpaceDimension();
+   GridFunction &nodes = *mesh->GetNodes();
+   Vector node(sdim);
+   for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
+   {
+      for (int d = 0; d < sdim; d++)
+      { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
+      node /= node.Norml2();
+      for (int d = 0; d < sdim; d++)
+      { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
+   }
 }
