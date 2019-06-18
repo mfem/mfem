@@ -153,8 +153,21 @@ MyBlockSolver::MyBlockSolver(const OperatorHandle &oh) : Solver() {
    MatNestGetSubMats(P,&N,&M,&sub); // sub is an N by M array of matrices
    MatNestGetISs(P, index_set, NULL);  // get the index sets of the blocks
 
-   X = new PetscParVector(P, true, false); 
-   Y = new PetscParVector(P, false, false);
+   // update base (Solver) class
+   width = PP->Width();
+   height = PP->Height();
+
+   // There's some strange bug when creating vectors out of a MATNEST
+   // I need to track this down. Anyway, since the index sets are always
+   // contiguous when converting from an MFEM BlockOperator, we
+   // get the same optimization by constructing the needed vectors matching
+   // the shape of *this.
+   // VecGetSubVector will return a subvector that will actually use the
+   // same memory of the parent vector
+   //X = new PetscParVector(P, true, false);
+   //Y = new PetscParVector(P, false, false);
+   X = new PetscParVector(PETSC_COMM_WORLD, *this, true, false);
+   Y = new PetscParVector(PETSC_COMM_WORLD, *this, false, false);
 
    for (int i=0; i<3; i++)
    {
