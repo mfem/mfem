@@ -3,6 +3,7 @@
 // Compile with: make ex24
 
 #include "mfem.hpp"
+#include "../general/forall.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -35,7 +36,7 @@ public:
    Surface(Array<int> &b, int order, const char *file, int nr, int sdim):
       Mesh(file, true), S(static_cast<Type*>(this)),
       bc(b), Order(order), Nr(nr), Sdim(sdim)
-   { S->Postfix(); GenFESpace(); S->BC(); }
+   { S->Postfix(); S->Refine(); GenFESpace(); S->BC(); }
 
    // Generate Quad surface mesh
    Surface(Array<int> &b, const int order,
@@ -48,6 +49,7 @@ public:
       S->Prefix();
       S->Generate();
       S->Postfix();
+      S->Refine();
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
       SetCurvature(Order, false, 3, Ordering::byVDIM);
@@ -65,7 +67,7 @@ public:
            const int NElem, const int NBdrElem, const int sdim):
       Mesh(2, NVert, NElem, NBdrElem, 3), S(static_cast<Type*>(this)),
       bc(b), Order(order), Nx(NVert), Ny(NElem), Nr(nr), Sdim(sdim)
-   { S->Generate(); S->Postfix(); S->GenFESpace(); S->BC(); }
+   { S->Generate(); S->Postfix(); S->Refine(); S->GenFESpace(); S->BC(); }
 
    ~Surface() { delete fec; delete fes;}
 
@@ -73,9 +75,10 @@ public:
 
    void Generate() { Transform(Type::Parametrization); }
 
-   void Postfix()
+   void Postfix() { SetCurvature(Order, false, 3, Ordering::byNODES); }
+
+   void Refine()
    {
-      SetCurvature(Order, false, 3, Ordering::byNODES);
       for (int l = 0; l < Nr; l++) { UniformRefinement(); }
       // Adaptive mesh refinement
       //if (amr)  { for (int l = 0; l < 1; l++) { RandomRefinement(0.5); } }
@@ -124,6 +127,7 @@ struct Catenoid: public Surface<Catenoid>
    // Postfix of the Catenoid surface
    void Postfix()
    {
+      SetCurvature(Order, false, 3, Ordering::byNODES);
       Array<int> v2v(GetNV());
       for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
       // identify vertices on vertical lines
@@ -151,8 +155,6 @@ struct Catenoid: public Surface<Catenoid>
          for (int j = 0; j < nv; j++)
          { v[j] = v2v[v[j]]; }
       }
-      for (int l = 0; l < Nr; l++) { UniformRefinement(); }
-      PrintCharacteristics();
    }
 };
 
@@ -295,8 +297,6 @@ struct QPeach: public Surface<QPeach>
          { el->SetAttribute(1); }
          else { el->SetAttribute(2); }
       }
-      for (int l = 0; l < Nr; l++) { UniformRefinement(); }
-      PrintCharacteristics();
    }
 };
 
@@ -329,7 +329,6 @@ struct FPeach: public Surface<FPeach>
 
    void BC()
    {
-      PrintCharacteristics();
       double X[3];
       Array<int> dofs;
       Array<int> ess_cdofs, ess_tdofs;
@@ -383,7 +382,7 @@ protected:
    FiniteElementSpace *fes;
    BilinearForm a;
    Array<int> &dbc;
-   GridFunction x, b, *nodes, solution;
+   GridFunction x, b, *nodes;
    ConstantCoefficient one;
    Type *solver;
 public:
@@ -395,7 +394,7 @@ public:
       pa(p), vis(v), pause(w), niter(n),
       sdim(f->GetVDim()), order(o), mesh(m), fes(f),
       a(fes), dbc(bc), x(fes), b(fes),
-      nodes(mesh->GetNodes()), solution(*nodes), one(1.0),
+      nodes(mesh->GetNodes()), one(1.0),
       solver(static_cast<Type*>(this)) { Solve(); }
    void Solve() { solver->Solve(); }
 };
@@ -417,10 +416,10 @@ public:
       for (int iiter=0; iiter<niter; ++iiter)
       {
          a.Assemble();
-         solution = *nodes;
+         GridFunction solution = *nodes;
          for (int i=0; i < 3; ++i)
          {
-            b = 0.0;
+            x = b = 0.0;
             GetComponent(*nodes, x, i);
             a.FormLinearSystem(dbc, x, b, A, X, B);
             if (!pa)
@@ -437,23 +436,25 @@ public:
          *nodes = solution;
          // Send the solution by socket to a GLVis server.
          if (vis) { Visualize(mesh, pause); }
-         a.Update();
          mesh->DeleteGeometricFactors();
+         a.Update();
       }
    }
-private:
+public:
    void SetComponent(GridFunction &X, const GridFunction &Xi, const int d)
    {
+      auto d_Xi = Xi.Read();
+      auto d_X  = X.Write();
       const int ndof = fes->GetNDofs();
-      for (int i = 0; i < ndof; i++)
-      { X[d*ndof + i] = Xi[i]; }
+      MFEM_FORALL(i, ndof, d_X[d*ndof + i] = d_Xi[i]; );
    }
 
    void GetComponent(const GridFunction &X, GridFunction &Xi, const int d)
    {
+      auto d_X  = X.Read();
+      auto d_Xi = Xi.Write();
       const int ndof = fes->GetNDofs();
-      for (int i = 0; i < ndof; i++)
-      { Xi[i] = X[d*ndof + i]; }
+      MFEM_FORALL(i, ndof, d_Xi[i] = d_X[d*ndof + i]; );
    }
 };
 
