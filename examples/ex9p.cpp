@@ -516,21 +516,13 @@ void FE_Evolution::ImplicitSolve(const double dt_, const Vector &u, Vector &du_d
       delete preconditioner;
       delete A;
 
-<<<<<<< Updated upstream
       dt = dt_;
       A = HypreParMatrixAdd(1.0, M, -1.0*dt, K);
-=======
-      A = HypreParMatrixAdd(1.0, M, -1.0*dt, K);
-      dt = dt;
->>>>>>> Stashed changes
 
       // Scale A by block-diagonal inverse
       BlockInvScal(A, &A_s, NULL, NULL, blocksize, 0);
 
-<<<<<<< Updated upstream
       int print_level = 1;
-=======
->>>>>>> Stashed changes
       if (!trisolve) {
          AMG_solver = new HypreBoomerAMG(A_s);
          AMG_solver->SetLAIROptions(AIR.distanceR, AIR.prerelax, AIR.postrelax,
