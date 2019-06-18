@@ -185,7 +185,7 @@ Vector * HypreParVector::GlobalVector() const
 
 HypreParVector& HypreParVector::operator=(double d)
 {
-   hypre_ParVectorSetConstantValues(x,d);
+   Vector::operator=(d);
    return *this;
 }
 
@@ -198,10 +198,7 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
    }
 #endif
 
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = y.data[i];
-   }
+   Vector::operator=(y);
    return *this;
 }
 
@@ -1019,7 +1016,7 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
                << ", expected size = " << Height());
 
    auto x_data = x.HostRead();
-   auto y_data = y.HostWrite();
+   auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
    if (X == NULL)
    {
       X = new HypreParVector(A->comm,
@@ -1051,7 +1048,7 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
    // Note: x has the dimensions of Y (height), and
    //       y has the dimensions of X (width)
    auto x_data = x.HostRead();
-   auto y_data = y.HostWrite();
+   auto y_data = (b == 0.0) ? y.HostWrite() : y.HostReadWrite();
    if (X == NULL)
    {
       X = new HypreParVector(A->comm,
@@ -1993,10 +1990,12 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
       return;
    }
 
+   b.HostRead();
    if (!iterative_mode)
    {
       if (type == 0 && relax_times == 1)
       {
+         x.HostWrite();
          HYPRE_ParCSRDiagScale(NULL, *A, b, x);
          if (relax_weight != 1.0)
          {
@@ -2006,6 +2005,7 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
       }
       x = 0.0;
    }
+   x.HostReadWrite();
 
    if (V == NULL)
    {
@@ -2057,7 +2057,7 @@ void HypreSmoother::Mult(const Vector &b, Vector &x) const
    }
 
    auto b_data = b.HostRead();
-   auto x_data = x.HostWrite();
+   auto x_data = iterative_mode ? x.HostReadWrite() : x.HostWrite();
 
    if (B == NULL)
    {

@@ -377,6 +377,16 @@ public:
    /// Copy @a size entries from @a *this to the host pointer @a dest.
    /** The given @a size should not exceed the Capacity() of @a *this. */
    inline void CopyToHost(T *dest, int size) const;
+
+   /// Print the internal flags.
+   /** This method can be useful for debugging. It is explicitly instantiated
+       for Memory<T> with T = int and T = double. */
+   inline void PrintFlags() const;
+
+   /// If both the host and the device data are valid, compare their contents.
+   /** This method can be useful for debugging. It is explicitly instantiated
+       for Memory<T> with T = int and T = double. */
+   inline int CompareHostAndDevice(int size) const;
 };
 
 
@@ -446,6 +456,11 @@ private:
    // registered host pointer and src_h_ptr is not a registered host pointer.
    static void CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
                              std::size_t size, unsigned &dest_flags);
+
+   // Compare the contents of the host and the device memory - useful for
+   // debugging.
+   static int CompareHostAndDevice_(void *h_ptr, size_t size, unsigned flags);
+
 
    /// Adds an address in the map
    void *Insert(void *ptr, const std::size_t bytes);
@@ -727,8 +742,22 @@ inline void Memory<T>::CopyToHost(T *dest, int size) const
 
 
 /** @brief Print the state of a Memory object based on its internal flags.
-    Useful in a debugger. */
+    Useful in a debugger. See also Memory<T>::PrintFlags(). */
 extern void MemoryPrintFlags(unsigned flags);
+
+
+template <typename T>
+inline void Memory<T>::PrintFlags() const
+{
+   MemoryPrintFlags(flags);
+}
+
+template <typename T>
+inline int Memory<T>::CompareHostAndDevice(int size) const
+{
+   if (!(flags & VALID_HOST) || !(flags & VALID_DEVICE)) { return 0; }
+   return MemoryManager::CompareHostAndDevice_(h_ptr, size*sizeof(T), flags);
+}
 
 
 /// The (single) global memory manager object
