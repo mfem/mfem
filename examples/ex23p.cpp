@@ -1,32 +1,38 @@
-//                       MFEM Example 9 - Parallel Version
+//                       MFEM Example 23 - Parallel Version
 //
-// Compile with: make ex9p
+// Compile with: make ex23p
 //
 // Sample runs:
-//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -dt 0.005
-//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -dt 0.01
-//    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.01
-//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9
-//    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.004 -tf 9
-//    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
-//    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
-//    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
+//    mpirun -np 4 ex23p -m ../data/periodic-segment.mesh -p 0 -dt 0.005
+//    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 0 -dt 0.01
+//    mpirun -np 4 ex23p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.01
+//    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
+//    mpirun -np 4 ex23p -m ../data/periodic-hexagon.mesh -p 1 -dt 0.005 -tf 9
+//    mpirun -np 4 ex23p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9
+//    mpirun -np 4 ex23p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.004 -tf 9
+//    mpirun -np 4 ex23p -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
+//    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
+//    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
+//    mpirun -np 4 ex23p -m ../data/disc-nurbs.mesh -p 3 -rp 1 -dt 0.005 -tf 9 -d 0.05
+//    mpirun -np 4 ex23p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
+//    mpirun -np 4 ex23p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
 //
-// Description:  This example code solves the time-dependent advection equation
-//               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
+// Description:  This example code solves the time-dependent advection-diffusion
+//               equation
+//               du/dt - div(D grad(u)) + v.grad(u) = 0, where
+//               D is a diffusion coefficient,
+//               v is a given fluid velocity, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of explicit
+//               bilinear forms in MFEM (face integrators), the use of implicit
 //               ODE time integrators, the definition of periodic boundary
 //               conditions through periodic meshes, as well as the use of GLVis
 //               for persistent visualization of a time-evolving solution. The
 //               saving of time-dependent data files for external visualization
 //               with VisIt (visit.llnl.gov) is also illustrated.
+//
+//               This example is a merger of examples 9 and 14.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -37,7 +43,8 @@ using namespace mfem;
 
 // Choice for the problem setup. The fluid velocity, initial condition and
 // inflow boundary condition are chosen based on this parameter.
-int problem, trisolve, use_gmres;
+int problem, use_gmres;
+bool use_AIR;
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
@@ -64,42 +71,41 @@ struct AIR_parameters {
    double filterA_tol;
 };
 
-
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
-    form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
-    and advection matrices, and b describes the flow on the boundary. This can
-    be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
-    used to evaluate the right-hand side. */
+    form of du/dt = div(D grad(u))-v.grad(u) is
+    [M + dt (S - K)] du/dt = - S u + K u + b, where M, S, and K are the mass,
+    stiffness, and advection matrices, and b describes sources and the flow on
+    the boundary.
+    This can be written as a general ODE,
+    du/dt = A^{-1} (-S u + K u + b) with A = [M + dt (S - K)], and this class is
+    used to perform the implicit or explicit solve for du/dt. */
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   HypreParMatrix &M, &K, *A, A_s;
+   HypreParMatrix &M, &S, &K;
+   HypreParMatrix *A;
+   HypreParMatrix A_s;
    const Vector &b;
+
    HypreSmoother M_prec;
    CGSolver M_solver;
 
-   // Preconditioner/solvers for A
    HypreBoomerAMG *AMG_solver;
-   HypreGMRES     *GMRES_solver;
-   HypreTriSolve *preconditioner;
-   AIR_parameters &AIR;
-
+   HypreGMRES *GMRES_solver;
    double dt;
    int blocksize;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b,
-                int order, AIR_parameters &_AIR);
+   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_S, HypreParMatrix &_K,
+                const Vector &_b, int order);
 
-   /** Solve the Backward-Euler equation: d = f(x + dt*d, t+dt), where u_t = f(x,t).
-       This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   virtual ~FE_Evolution();
+   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
 
+   virtual ~FE_Evolution() { delete GMRES_solver; delete AMG_solver; delete A; }
 };
 
 
@@ -113,27 +119,24 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    problem = 0;
-   use_gmres = 0;
-   trisolve = 0;
+   use_gmres = true;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
    int ode_solver_type = 3;
    double t_final = 10.0;
+   double d_coef = 0.01;
    double dt = 0.01;
+   double sigma = -1.0;
+   double kappa = -1.0;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
    int vis_steps = 5;
-   int basis_type = 1;
 
    int precision = 8;
    cout.precision(precision);
-
-    AIR_parameters AIR = {1, "", "FA", 100, 10, 10, 0.1, 0.01, 0.0, 1e-4};
-    const char* temp_prerelax = "";
-    const char* temp_postrelax = "FA";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -147,38 +150,20 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
+                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
+                  "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption(&basis_type, "-b", "--basis-type",
-                  "DG finite element basis type. 0 for G-Leg, 1 for G-Lob.");
-   args.AddOption(&use_gmres, "-gmres", "--use-gmres",
-                  "Boolean to use GMRES as solver (default with AIR preconditioning).");
-   args.AddOption(&trisolve, "-trisolve", "--precond-trisolve",
-                  "Precondition GMRES with an on-processor triangular solve.");
-   args.AddOption(&(AIR.distanceR), "-Ad", "--AIR-distance",
-                  "Distance restriction neighborhood for AIR.");
-   args.AddOption(&(AIR.interp_type), "-Ai", "--AIR-interpolation",
-                  "Index for hypre interpolation routine.");
-   args.AddOption(&(AIR.coarsen_type), "-Ac", "--AIR-coarsen_type",
-                  "Index for hypre coarsening routine.");
-   args.AddOption(&(AIR.strength_tolC), "-AsC", "--AIR-strengthC",
-                  "Theta value determining strong connections for AIR (coarsen_type).");
-   args.AddOption(&(AIR.strength_tolR), "-AsR", "--AIR-strengthR",
-                  "Theta value determining strong connections for AIR (restriction).");
-   args.AddOption(&(AIR.filter_tolR), "-AfR", "--AIR-filterR",
-                  "Theta value eliminating small entries in restriction (after building).");
-   args.AddOption(&(AIR.filterA_tol), "-Af", "--AIR-filter",
-                  "Theta value to eliminate small connections in AIR hierarchy. Use -1 to specify O(h).");
-   args.AddOption(&(AIR.relax_type), "-Ar", "--AIR-relaxation",
-                  "Index for hypre relaxation routine.");
-   args.AddOption(&temp_prerelax, "-Ar1", "--AIR-prerelax",
-                  "String denoting prerelaxation scheme; e.g., FCC.");
-   args.AddOption(&temp_postrelax, "-Ar2", "--AIR-postrelax",
-                  "String denoting postrelaxation scheme; e.g., FFC.");
+   args.AddOption(&d_coef, "-d", "--diff-coef",
+                  "Diffusion coefficient.");
+   args.AddOption(&sigma, "-s", "--sigma",
+                  "One of the two DG penalty parameters, typically +1/-1."
+                  " See the documentation of class DGDiffusionIntegrator.");
+   args.AddOption(&kappa, "-k", "--kappa",
+                  "One of the two DG penalty parameters, should be positive."
+                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -191,9 +176,6 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.Parse();
-   AIR.prerelax = std::string(temp_prerelax);
-   AIR.postrelax = std::string(temp_postrelax);
-   if (trisolve) use_gmres = 1;
    if (!args.Good())
    {
       if (myid == 0)
@@ -202,6 +184,10 @@ int main(int argc, char *argv[])
       }
       MPI_Finalize();
       return 1;
+   }
+   if (kappa < 0)
+   {
+      kappa = (order+1)*(order+1);
    }
    if (myid == 0)
    {
@@ -224,22 +210,17 @@ int main(int argc, char *argv[])
       case 3:  ode_solver = new SDIRK33Solver; break;
       // Explicit methods
       case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(1.0); break;
+      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
       case 13: ode_solver = new RK3SSPSolver; break;
       case 14: ode_solver = new RK4Solver; break;
       case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
-      case 16: ode_solver = new RK6Solver; break;
       // Implicit A-stable methods (not L-stable)
       case 22: ode_solver = new ImplicitMidpointSolver; break;
       case 23: ode_solver = new SDIRK23Solver; break;
       case 24: ode_solver = new SDIRK34Solver; break;
       default:
-         if (myid == 0)
-         {
-            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         }
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          delete mesh;
-         MPI_Finalize();
          return 3;
    }
 
@@ -267,11 +248,18 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
+   // Get mesh size, compare with time step and diffusion coefficient. Use
+   // classical AMG for diffusion-dominated problems, and nonsymmetric AMG
+   // based on approximate ideal restriction (AIR) for advection dominated.
+   double h_min, h_max, k_min, k_max;
+   pmesh->GetCharacteristics(h_min, h_max, k_min, k_max);
+   if (dt > d_coef*h_max) use_AIR = true;
+   else use_AIR = true;
+   cout << "ratio = " << d_coef*h_max / dt << "\n";
+
    // 7. Define the parallel discontinuous DG finite element space on the
-   //    parallel refined mesh of the given polynomial order. Basis_type=1
-   //    gives Gauss-Lobatto quadrature points, which are preferable for
-   //    nonsymmetric AMG implict solves. 
-   DG_FECollection fec(order, dim, basis_type);
+   //    parallel refined mesh of the given polynomial order.
+   DG_FECollection fec(order, dim);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
    HYPRE_Int global_vSize = fes->GlobalTrueVSize();
@@ -283,12 +271,19 @@ int main(int argc, char *argv[])
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
    //    DGTraceIntegrator involves integrals over mesh interior faces.
+   ConstantCoefficient diff_coef(d_coef);
    VectorFunctionCoefficient velocity(dim, velocity_function);
-   FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
    ParBilinearForm *m = new ParBilinearForm(fes);
    m->AddDomainIntegrator(new MassIntegrator);
+
+   ParBilinearForm *s = new ParBilinearForm(fes);
+   s->AddDomainIntegrator(new DiffusionIntegrator(diff_coef));
+   s->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coef, sigma,
+                                                          kappa));
+   s->AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coef, sigma, kappa));
+
    ParBilinearForm *k = new ParBilinearForm(fes);
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k->AddInteriorFaceIntegrator(
@@ -298,16 +293,19 @@ int main(int argc, char *argv[])
 
    ParLinearForm *b = new ParLinearForm(fes);
    b->AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
+      new DGDirichletLFIntegrator(u0, diff_coef, sigma, kappa));
 
-   m->Assemble();
-   m->Finalize();
    int skip_zeros = 0;
+   m->Assemble(skip_zeros);
+   m->Finalize(skip_zeros);
+   s->Assemble(skip_zeros);
+   s->Finalize(skip_zeros);
    k->Assemble(skip_zeros);
    k->Finalize(skip_zeros);
    b->Assemble();
 
    HypreParMatrix *M = m->ParallelAssemble();
+   HypreParMatrix *S = s->ParallelAssemble();
    HypreParMatrix *K = k->ParallelAssemble();
    HypreParVector *B = b->ParallelAssemble();
 
@@ -320,8 +318,8 @@ int main(int argc, char *argv[])
 
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "ex9-mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "ex9-init." << setfill('0') << setw(6) << myid;
+      mesh_name << "ex23-mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "ex23-init." << setfill('0') << setw(6) << myid;
       ofstream omesh(mesh_name.str().c_str());
       omesh.precision(precision);
       pmesh->Print(omesh);
@@ -338,14 +336,14 @@ int main(int argc, char *argv[])
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example9-Parallel", pmesh);
+         dc = new SidreDataCollection("Example23-Parallel", pmesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc = new VisItDataCollection("Example9-Parallel", pmesh);
+         dc = new VisItDataCollection("Example23-Parallel", pmesh);
          dc->SetPrecision(precision);
          // To save the mesh using MFEM's parallel mesh format:
          // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
@@ -389,7 +387,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*M, *K, *B, order, AIR);
+   FE_Evolution adv(*M, *S, *K, *B, order);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -431,11 +429,11 @@ int main(int argc, char *argv[])
    }
 
    // 12. Save the final solution in parallel. This output can be viewed later
-   //     using GLVis: "glvis -np <np> -m ex9-mesh -g ex9-final".
+   //     using GLVis: "glvis -np <np> -m ex23-mesh -g ex23-final".
    {
       *u = *U;
       ostringstream sol_name;
-      sol_name << "ex9-final." << setfill('0') << setw(6) << myid;
+      sol_name << "ex23-final." << setfill('0') << setw(6) << myid;
       ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
       u->Save(osol);
@@ -448,6 +446,8 @@ int main(int argc, char *argv[])
    delete b;
    delete K;
    delete k;
+   delete S;
+   delete s;
    delete M;
    delete m;
    delete fes;
@@ -461,12 +461,12 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                           const Vector &_b, int order,
-                           AIR_parameters &_AIR)
-   : TimeDependentOperator(_M.Height()), A(NULL), AMG_solver(NULL),
-     GMRES_solver(NULL), preconditioner(NULL), M(_M), K(_K), b(_b),
-     M_solver(M.GetComm()), z(_M.Height()), AIR(_AIR)
+FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_S,
+                           HypreParMatrix &_K, const Vector &_b, int order)
+   : TimeDependentOperator(_M.Height()),
+     M(_M), S(_S), K(_K), b(_b), GMRES_solver(NULL), AMG_solver(NULL),
+     M_prec(M), M_solver(M.GetComm()), A(NULL),
+     dt(-1.0), z(M.Height())
 {
    M_prec.SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(M_prec);
@@ -480,96 +480,74 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
 
    // DG block size given by (FEorder+1)^2 on square meshes.
    blocksize = (order+1)*(order+1);
-   dt = -1;
-}
-
-
-FE_Evolution::~FE_Evolution()
-{
-   BlockInvScal(NULL, NULL, NULL, NULL, 0, -1);
-   if (A) delete A;
-   if (AMG_solver) delete AMG_solver;
-   if (GMRES_solver) delete GMRES_solver;
-   if (preconditioner) delete preconditioner;
 }
 
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // y = M^{-1} (K x + b)
-   K.Mult(x, z);
+   // y = M^{-1} (-S x + K x + b)
+   S.Mult(-1.0, x, 0.0, z);
+   K.Mult(1.0, x, 1.0, z);
    z += b;
    M_solver.Mult(z, y);
 }
 
 
-// Solve the equation:
-//    u_t = M^{-1}(Ku + b), 
-// by solving associated linear system
-//    (M - dt*K) d = K*u + b
-void FE_Evolution::ImplicitSolve(const double dt_, const Vector &u, Vector &du_dt)
+void FE_Evolution::ImplicitSolve(const double _dt, const Vector &x, Vector &y)
 {
-   // if A is NULL or dt has changed since A was built, rebuild matrix and solver.
-   if ( (fabs(dt - dt_) > 1e-4 * dt) || !A ) {
+   if ((fabs(dt - _dt) > 1e-4 * _dt) || !A)
+   {
       delete GMRES_solver;
       delete AMG_solver;
-      delete preconditioner;
       delete A;
 
-      dt = dt_;
-      A = HypreParMatrixAdd(1.0, M, -1.0*dt, K);
+      dt = _dt;
+      HypreParMatrix *SK = Add(1.0, S, -1.0, K);
+      A = Add(1.0, M, dt, *SK);
+      delete SK;
 
-      // Scale A by block-diagonal inverse
       BlockInvScal(A, &A_s, NULL, NULL, blocksize, 0);
 
       int print_level = 1;
-      if (!trisolve) {
-         AMG_solver = new HypreBoomerAMG(A_s);
-         AMG_solver->SetLAIROptions(AIR.distanceR, AIR.prerelax, AIR.postrelax,
-                                    AIR.strength_tolC, AIR.strength_tolR, AIR.filter_tolR,
-                                    AIR.interp_type, AIR.relax_type, AIR.filterA_tol,
-                                    AIR.coarsen_type, -1, 1);  
-         AMG_solver->SetMaxLevels(50);
-         if (use_gmres) {
-            GMRES_solver = new HypreGMRES(A_s);
-            GMRES_solver->SetTol(1e-12);
-            GMRES_solver->SetMaxIter(100);
-            GMRES_solver->SetPrintLevel(print_level);
-            GMRES_solver->SetPreconditioner(*AMG_solver);
-            GMRES_solver->iterative_mode = false;
-         }
-         else {
-            AMG_solver->SetPrintLevel(print_level);
-            AMG_solver->SetTol(1e-12);
-            AMG_solver->SetMaxIter(100);
-         }
+      AMG_solver = new HypreBoomerAMG(A_s);
+      AMG_solver->SetMaxLevels(50);      
+      if (use_AIR) {
+         AMG_solver->SetLAIROptions(1.5, "", "FFC", 0.1, 0.01, 0.0,
+                                    100, 3, 0.0, 10, -1, 1);
+                                // 100, 3, 0.0, 6, -1, 1);
       }
       else {
-         preconditioner = new HypreTriSolve();
+         AMG_solver->SetInterpolation(0);
+         AMG_solver->SetCoarsening(6);
+         AMG_solver->SetAggressiveCoarsening(1);
+      }
+
+      if (use_gmres) {
          GMRES_solver = new HypreGMRES(A_s);
          GMRES_solver->SetTol(1e-12);
          GMRES_solver->SetMaxIter(100);
          GMRES_solver->SetPrintLevel(print_level);
-         GMRES_solver->SetPreconditioner(*preconditioner);
-         GMRES_solver->SetZeroInintialIterate();
+         GMRES_solver->SetPreconditioner(*AMG_solver);
          GMRES_solver->iterative_mode = false;
+      }
+      else {
+         AMG_solver->SetPrintLevel(print_level);
+         AMG_solver->SetTol(1e-12);
+         AMG_solver->SetMaxIter(100);
       }
    }
 
-   K.Mult(u, z);
+   // y = (M + dt S - dt K)^{-1} (-S x + K x + b)
+   S.Mult(-1.0, x, 0.0, z);
+   K.Mult(1.0, x, 1.0, z);
    z += b;
 
-   // scale the rhs and solve system 
-   HypreParVector z_s;
-   BlockInvScal(A, NULL, &z, &z_s, blocksize, 2);
-   if (use_gmres){
-      GMRES_solver->Mult(z_s, du_dt);
-   }
-   else {
-      AMG_solver->Mult(z_s, du_dt);
-   }
-}
+   // Scale block inverse to right hand side
+   HypreParVector b_s;
+   BlockInvScal(A, NULL, &z, &b_s, blocksize, 2);
+   GMRES_solver->Mult(b_s, y);
 
+}
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v)
