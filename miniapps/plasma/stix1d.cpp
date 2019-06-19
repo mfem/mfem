@@ -99,12 +99,24 @@ using namespace mfem;
 using namespace mfem::miniapps;
 using namespace mfem::plasma;
 
-// Impedance
-Coefficient * SetupAdmittanceCoefficient(const Mesh & mesh,
-                                         const Array<int> & abcs);
+// Admittance for Absorbing Boundary Condition
+Coefficient * SetupRealAdmittanceCoefficient(const Mesh & mesh,
+                                             const Array<int> & abcs);
 
+// Admittance for Complex-Valued Sheath Boundary Condition
+void SetupComplexAdmittanceCoefs(const Mesh & mesh, const Array<int> & sbcs,
+                                 Coefficient *& etaInvReCoef,
+                                 Coefficient *& etaInvImCoef);
+
+// Storage for user-supplied, real-valued impedance
 static Vector pw_eta_(0);      // Piecewise impedance values
 static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
+
+// Storage for user-supplied, complex-valued impedance
+static Vector pw_eta_re_(0);      // Piecewise real impedance
+static Vector pw_eta_inv_re_(0);  // Piecewise inverse real impedance
+static Vector pw_eta_im_(0);      // Piecewise imaginary impedance
+static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
 
 // Current Density Function
 static Vector slab_params_(0); // Amplitude of x, y, z current source
@@ -249,8 +261,9 @@ int main(int argc, char *argv[])
    Vector charges;
    Vector masses;
 
-   Array<int> abcs;
-   Array<int> dbcs;
+   Array<int> abcs; // Absorbing BC attributes
+   Array<int> sbcs; // Sheath BC attributes
+   Array<int> dbcs; // Dirichlet BC attributes
    int num_elements = 10;
 
    SolverOptions solOpts;
@@ -312,10 +325,18 @@ int main(int argc, char *argv[])
                   "Euclid factorization level for ILU(k).");
    args.AddOption(&pw_eta_, "-pwz", "--piecewise-eta",
                   "Piecewise values of Impedance (one value per abc surface)");
+   args.AddOption(&pw_eta_re_, "-pwz-r", "--piecewise-eta-r",
+                  "Piecewise values of Real part of Complex Impedance "
+                  "(one value per abc surface)");
+   args.AddOption(&pw_eta_im_, "-pwz-i", "--piecewise-eta-i",
+                  "Piecewise values of Imaginary part of Complex Impedance "
+                  "(one value per abc surface)");
    args.AddOption(&slab_params_, "-slab", "--slab_params",
                   "Amplitude");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
+   args.AddOption(&sbcs, "-sbcs", "--sheath-bc-surf",
+                  "Sheath Boundary Condition Surfaces");
    args.AddOption(&dbcs, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
    args.AddOption(&mesh_dim_, "-md", "--mesh_dimensions",
@@ -616,7 +637,11 @@ int main(int argc, char *argv[])
    ConstantCoefficient muInvCoef(1.0 / mu0_);
 
    // Create a coefficient describing the surface admittance
-   Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
+   Coefficient * etaInvCoef = SetupRealAdmittanceCoefficient(pmesh, abcs);
+
+   Coefficient * etaInvReCoef = NULL;
+   Coefficient * etaInvImCoef = NULL;
+   SetupComplexAdmittanceCoefs(pmesh, sbcs, etaInvReCoef, etaInvImCoef);
 
    // Create tensor coefficients describing the dielectric permittivity
    DielectricTensor epsilon_real(BField, density,
@@ -695,9 +720,9 @@ int main(int argc, char *argv[])
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,
                  conv, epsilon_real, epsilon_imag, epsilon_abs,
-                 muInvCoef, etaInvCoef,
+                 muInvCoef, etaInvCoef, etaInvReCoef, etaInvImCoef,
                  (phase_shift) ? &kCoef : NULL,
-                 abcs, dbcs,
+                 abcs, sbcs, dbcs,
                  // e_bc_r, e_bc_i,
                  EReCoef, EImCoef,
                  (slab_params_.Size() > 0) ? j_src : NULL, NULL);
@@ -897,7 +922,7 @@ void display_banner(ostream & os)
 // The Admittance is an optional coefficient defined on boundary surfaces which
 // can be used in conjunction with absorbing boundary conditions.
 Coefficient *
-SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
+SetupRealAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
 {
    Coefficient * coef = NULL;
 
@@ -926,6 +951,49 @@ SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
    }
 
    return coef;
+}
+
+// Complex Admittance is an optional pair of coefficients, defined on boundary
+// surfaces, which can be used to approximate a sheath boundary condition.
+void
+SetupComplexAdmittanceCoefs(const Mesh & mesh, const Array<int> & sbcs,
+                            Coefficient *& etaInvReCoef,
+                            Coefficient *& etaInvImCoef )
+{
+   if (pw_eta_re_.Size() > 0)
+   {
+      MFEM_VERIFY(pw_eta_re_.Size() == sbcs.Size() &&
+                  pw_eta_im_.Size() == sbcs.Size(),
+                  "Each impedance value must be associated with exactly one "
+                  "sheath boundary surface.");
+
+      pw_eta_inv_re_.SetSize(mesh.bdr_attributes.Size());
+      pw_eta_inv_im_.SetSize(mesh.bdr_attributes.Size());
+
+      if ( sbcs[0] == -1 )
+      {
+         double zmag2 = pow(pw_eta_re_[0], 2) + pow(pw_eta_im_[0], 2);
+         pw_eta_inv_re_ =  pw_eta_re_[0] / zmag2;
+         pw_eta_inv_im_ = -pw_eta_im_[0] / zmag2;
+      }
+      else
+      {
+         pw_eta_inv_re_ = 0.0;
+         pw_eta_inv_im_ = 0.0;
+
+         for (int i=0; i<pw_eta_re_.Size(); i++)
+         {
+            double zmag2 = pow(pw_eta_re_[i], 2) + pow(pw_eta_im_[i], 2);
+            if ( zmag2 > 0.0 )
+            {
+               pw_eta_inv_re_[sbcs[i]-1] =  pw_eta_re_[i] / zmag2;
+               pw_eta_inv_im_[sbcs[i]-1] = -pw_eta_im_[i] / zmag2;
+            }
+         }
+      }
+      etaInvReCoef = new PWConstCoefficient(pw_eta_inv_re_);
+      etaInvImCoef = new PWConstCoefficient(pw_eta_inv_im_);
+   }
 }
 
 void slab_current_source(const Vector &x, Vector &j)

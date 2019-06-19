@@ -78,8 +78,11 @@ public:
              MatrixCoefficient & espAbsCoef,
              Coefficient & muInvCoef,
              Coefficient * etaInvCoef,
+             Coefficient * etaInvReCoef,
+             Coefficient * etaInvImCoef,
              VectorCoefficient * kCoef,
              Array<int> & abcs,
+             Array<int> & sbcs,
              Array<int> & dbcs,
              VectorCoefficient & EReCoef,
              VectorCoefficient & EImCoef,
@@ -152,18 +155,22 @@ private:
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * j_v_; // Complex current density (L2^d)
 
-   MatrixCoefficient * epsReCoef_;  // Dielectric Material Coefficient
-   MatrixCoefficient * epsImCoef_;  // Dielectric Material Coefficient
-   MatrixCoefficient * epsAbsCoef_; // Dielectric Material Coefficient
-   Coefficient       * muInvCoef_;  // Dia/Paramagnetic Material Coefficient
-   Coefficient       * etaInvCoef_; // Admittance Coefficient
-   VectorCoefficient * kCoef_;      // Wave Vector
+   MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
+   MatrixCoefficient * epsImCoef_;    // Dielectric Material Coefficient
+   MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient
+   Coefficient       * muInvCoef_;    // Dia/Paramagnetic Material Coefficient
+   Coefficient       * etaInvCoef_;   // Admittance Coefficient
+   Coefficient       * etaInvReCoef_; // Real Admittance Coefficient
+   Coefficient       * etaInvImCoef_; // Imaginary Admittance Coefficient
+   VectorCoefficient * kCoef_;        // Wave Vector
 
    Coefficient * omegaCoef_;     // omega expressed as a Coefficient
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
    Coefficient * omega2Coef_;    // omega^2 expressed as a Coefficient
    Coefficient * negOmega2Coef_; // -omega^2 expressed as a Coefficient
    Coefficient * abcCoef_;       // -omega eta^{-1}
+   Coefficient * sbcReCoef_;     //  omega Im(eta^{-1})
+   Coefficient * sbcImCoef_;     // -omega Re(eta^{-1})
    Coefficient * sinkx_;         // sin(ky * y + kz * z)
    Coefficient * coskx_;         // cos(ky * y + kz * z)
    Coefficient * negsinkx_;      // -sin(ky * y + kz * z)
@@ -187,6 +194,9 @@ private:
 
    // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_marker_;
+
+   // Array of 0's and 1's marking the location of sheath surfaces
+   Array<int> sbc_marker_;
 
    // Array of 0's and 1's marking the location of Dirichlet boundaries
    Array<int> dbc_marker_;

@@ -34,8 +34,11 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      MatrixCoefficient & epsAbsCoef,
                      Coefficient & muInvCoef,
                      Coefficient * etaInvCoef,
+                     Coefficient * etaInvReCoef,
+                     Coefficient * etaInvImCoef,
                      VectorCoefficient * kCoef,
                      Array<int> & abcs,
+                     Array<int> & sbcs,
                      Array<int> & dbcs,
                      // void   (*e_r_bc )(const Vector&, Vector&),
                      // void   (*e_i_bc )(const Vector&, Vector&),
@@ -70,12 +73,16 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      epsAbsCoef_(&epsAbsCoef),
      muInvCoef_(&muInvCoef),
      etaInvCoef_(etaInvCoef),
+     etaInvReCoef_(etaInvReCoef),
+     etaInvImCoef_(etaInvImCoef),
      kCoef_(kCoef),
      omegaCoef_(new ConstantCoefficient(omega_)),
      negOmegaCoef_(new ConstantCoefficient(-omega_)),
      omega2Coef_(new ConstantCoefficient(pow(omega_, 2))),
      negOmega2Coef_(new ConstantCoefficient(-pow(omega_, 2))),
      abcCoef_(NULL),
+     sbcReCoef_(NULL),
+     sbcImCoef_(NULL),
      sinkx_(NULL),
      coskx_(NULL),
      negsinkx_(NULL),
@@ -238,6 +245,29 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                                             prodFunc);
    }
 
+   // Complex Impedance
+   if ( sbcs.Size() > 0 && etaInvReCoef_ != NULL && etaInvReCoef_ != NULL )
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "Creating Complex Admittance Coefficient" << endl;
+      }
+
+      sbc_marker_.SetSize(pmesh.bdr_attributes.Max());
+
+      // Mark select boundaries as absorbing
+      sbc_marker_ = 0;
+      for (int i=0; i<sbcs.Size(); i++)
+      {
+         sbc_marker_[sbcs[i]-1] = 1;
+      }
+
+      sbcReCoef_ = new TransformedCoefficient(omegaCoef_, etaInvImCoef_,
+                                              prodFunc);
+      sbcImCoef_ = new TransformedCoefficient(negOmegaCoef_, etaInvReCoef_,
+                                              prodFunc);
+   }
+
    // Volume Current Density
    if ( j_r_src_ != NULL )
    {
@@ -287,6 +317,12 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    {
       a1_->AddBoundaryIntegrator(NULL, new VectorFEMassIntegrator(*abcCoef_),
                                  abc_marker_);
+   }
+   if ( sbcReCoef_ && sbcImCoef_ )
+   {
+      a1_->AddBoundaryIntegrator(new VectorFEMassIntegrator(*sbcReCoef_),
+                                 new VectorFEMassIntegrator(*sbcImCoef_),
+                                 sbc_marker_);
    }
 
    b1_ = new ParBilinearForm(HCurlFESpace_);
