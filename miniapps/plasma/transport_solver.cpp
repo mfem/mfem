@@ -832,7 +832,7 @@ void DGAdvectionDiffusionTDO::Update()
 DGTransportTDO::DGTransportTDO(DGParams & dg,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &ffes,
-			       ParGridFunctionArray &pgf,
+                               ParGridFunctionArray &pgf,
                                Coefficient &MomCCoef,
                                Coefficient &TiCCoef,
                                Coefficient &TeCCoef,
@@ -1022,7 +1022,7 @@ void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
    y = 0.0;
 
    pgf_->ExchangeFaceNbrData();
-   
+
    int size = fes_->GetVSize();
 
    x_.SetDataAndSize(const_cast<double*>(&x[0*size]), size);
@@ -1052,7 +1052,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
    dudt = 0.0;
 
    pgf_->ExchangeFaceNbrData();
-   
+
    int size = fes_->GetVSize();
 
    u_.SetDataAndSize(const_cast<double*>(&u[0*size]), size);

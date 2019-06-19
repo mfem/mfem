@@ -247,12 +247,12 @@ void bbTFunc(const Vector &x, DenseMatrix &M)
 
 void perpFunc(const Vector &x, DenseMatrix &M)
 {
-  int dim = x.Size();
-  
-  bbTFunc(x, M);
-  M *= -1.0;
+   int dim = x.Size();
 
-  for (int d=0; d<dim; d++) { M(d,d) += 1.0; }
+   bbTFunc(x, M);
+   M *= -1.0;
+
+   for (int d=0; d<dim; d++) { M(d,d) += 1.0; }
 }
 
 double viFunc(const Vector &x)
@@ -286,128 +286,128 @@ public:
 class NeutralDiffusionCoef : public Coefficient
 {
 private:
-  Coefficient * ne_;
-  Coefficient * vn_;
-  Coefficient * iz_;
+   Coefficient * ne_;
+   Coefficient * vn_;
+   Coefficient * iz_;
 
 public:
    NeutralDiffusionCoef(Coefficient &neCoef, Coefficient &vnCoef,
-			Coefficient &izCoef)
-     : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef) {}
+                        Coefficient &izCoef)
+      : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef) {}
 
-  double Eval(ElementTransformation &T,
-	      const IntegrationPoint &ip)
-  {
-    double ne = ne_->Eval(T, ip);
-    double vn = vn_->Eval(T, ip);
-    double iz = iz_->Eval(T, ip);
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      double ne = ne_->Eval(T, ip);
+      double vn = vn_->Eval(T, ip);
+      double iz = iz_->Eval(T, ip);
 
-    return vn * vn / (3.0 * ne * iz);
-  }
+      return vn * vn / (3.0 * ne * iz);
+   }
 };
 
 class MomentumDiffusionCoef : public MatrixCoefficient
 {
 private:
 
-  int    zi_;
-  double mi_;
-  double lnLam_;
-  
-  Coefficient *Di_perp_;
-  Coefficient *ni_;
-  Coefficient *Ti_;
-  
-  mutable DenseMatrix perp_;
-  mutable Vector x_;
+   int    zi_;
+   double mi_;
+   double lnLam_;
+
+   Coefficient *Di_perp_;
+   Coefficient *ni_;
+   Coefficient *Ti_;
+
+   mutable DenseMatrix perp_;
+   mutable Vector x_;
 
 public:
-  MomentumDiffusionCoef(int dim, int zi, double mi, Coefficient &DiPerpCoef,
-			Coefficient &niCoef, Coefficient &TiCoef)
+   MomentumDiffusionCoef(int dim, int zi, double mi, Coefficient &DiPerpCoef,
+                         Coefficient &niCoef, Coefficient &TiCoef)
       : MatrixCoefficient(dim),
-	zi_(zi), mi_(mi), lnLam_(17.0),
-	Di_perp_(&DiPerpCoef),
-	ni_(&niCoef), Ti_(&TiCoef),
-	perp_(dim), x_(dim) {}
+        zi_(zi), mi_(mi), lnLam_(17.0),
+        Di_perp_(&DiPerpCoef),
+        ni_(&niCoef), Ti_(&TiCoef),
+        perp_(dim), x_(dim) {}
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
-	     const IntegrationPoint &ip)
-  {
-    K.SetSize(width);
-    
-    T.Transform(ip, x_);
+             const IntegrationPoint &ip)
+   {
+      K.SetSize(width);
 
-    double ni = ni_->Eval(T, ip);
-    double Ti = Ti_->Eval(T, ip);
-    
-    double tau = tau_i(mi_, zi_, ni, Ti, lnLam_);
+      T.Transform(ip, x_);
 
-    bbTFunc(x_, K);
-    K *= 0.96 * ni * Ti * tau;
+      double ni = ni_->Eval(T, ip);
+      double Ti = Ti_->Eval(T, ip);
 
-    perpFunc(x_, perp_);
+      double tau = tau_i(mi_, zi_, ni, Ti, lnLam_);
 
-    double Di_perp = Di_perp_->Eval(T, ip);
+      bbTFunc(x_, K);
+      K *= 0.96 * ni * Ti * tau;
 
-    K.Add(mi_ * ni * Di_perp, perp_);
-  }
+      perpFunc(x_, perp_);
+
+      double Di_perp = Di_perp_->Eval(T, ip);
+
+      K.Add(mi_ * ni * Di_perp, perp_);
+   }
 };
 
 class ThermalDiffusionCoef : public MatrixCoefficient
 {
 private:
 
-  int zi_;
-  double a_;
-  double m_;
-  double lnLam_;
+   int zi_;
+   double a_;
+   double m_;
+   double lnLam_;
 
-  Coefficient *X_perp_;
-  Coefficient *n_;
-  Coefficient *T_;
-  Coefficient *ni_;
-  
-  mutable DenseMatrix perp_;
-  mutable Vector x_;
+   Coefficient *X_perp_;
+   Coefficient *n_;
+   Coefficient *T_;
+   Coefficient *ni_;
+
+   mutable DenseMatrix perp_;
+   mutable Vector x_;
 
 public:
-  ThermalDiffusionCoef(int dim, int ion_charge, double mass,
-		       Coefficient &XPerpCoef,
-		       Coefficient &nCoef, Coefficient &TCoef,
-		       Coefficient *niCoef = NULL)
-    : MatrixCoefficient(dim),
-      zi_(ion_charge),
-      a_(niCoef ? 3.16 : 3.9),
-      m_(mass), lnLam_(17.0),
-      X_perp_(&XPerpCoef),
-      n_(&nCoef), T_(&TCoef), ni_(niCoef),
-      perp_(dim), x_(dim) {}
+   ThermalDiffusionCoef(int dim, int ion_charge, double mass,
+                        Coefficient &XPerpCoef,
+                        Coefficient &nCoef, Coefficient &TCoef,
+                        Coefficient *niCoef = NULL)
+      : MatrixCoefficient(dim),
+        zi_(ion_charge),
+        a_(niCoef ? 3.16 : 3.9),
+        m_(mass), lnLam_(17.0),
+        X_perp_(&XPerpCoef),
+        n_(&nCoef), T_(&TCoef), ni_(niCoef),
+        perp_(dim), x_(dim) {}
 
-  void Eval(DenseMatrix &K, ElementTransformation &T,
-	    const IntegrationPoint &ip)
-  {
-    K.SetSize(width);
-    
-    double n    = n_->Eval(T, ip);
-    double Temp = T_->Eval(T, ip);
-    double ni = ni_ ? ni_->Eval(T, ip) : 0.0;
-    
-    double tau = ni_ ?
-      tau_e(Temp, zi_, ni, lnLam_) :
-      tau_i(m_, zi_, n, Temp, lnLam_);
-    
-    T.Transform(ip, x_);
-    
-    bbTFunc(x_, K);
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      K.SetSize(width);
 
-    K *= a_ * n * n * Temp * tau / m_;
-    
-    perpFunc(x_, perp_);
+      double n    = n_->Eval(T, ip);
+      double Temp = T_->Eval(T, ip);
+      double ni = ni_ ? ni_->Eval(T, ip) : 0.0;
 
-    double X_perp = X_perp_->Eval(T, ip);
+      double tau = ni_ ?
+                   tau_e(Temp, zi_, ni, lnLam_) :
+                   tau_i(m_, zi_, n, Temp, lnLam_);
 
-    K.Add(X_perp, perp_);
-  }  
+      T.Transform(ip, x_);
+
+      bbTFunc(x_, K);
+
+      K *= a_ * n * n * Temp * tau / m_;
+
+      perpFunc(x_, perp_);
+
+      double X_perp = X_perp_->Eval(T, ip);
+
+      K.Add(X_perp, perp_);
+   }
 };
 
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
@@ -547,7 +547,7 @@ int main(int argc, char *argv[])
    double      Di_perp = 1.0;        // Ion perp diffusion (m^2/s)
    double      Xi_perp = 1.0;        // Ion thermal diffusion (m^2/s)
    double      Xe_perp = 1.0;        // Electron thermal diffusion (m^2/s)
-   
+
    int precision = 8;
    cout.precision(precision);
 
@@ -1045,7 +1045,7 @@ int main(int argc, char *argv[])
    // Coefficients representing secondary fields
    ProductCoefficient      neCoef(ion_charge, niCoef);
    ConstantCoefficient     vnCoef(8.0 * neutral_temp /
-				  sqrt(M_PI * neutral_mass));
+                                  sqrt(M_PI * neutral_mass));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
 
    // Intermediate Coefficients
@@ -1057,7 +1057,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient     DiPerpCoef(Di_perp);
    ConstantCoefficient     XiPerpCoef(Xi_perp);
    ConstantCoefficient     XePerpCoef(Xe_perp);
-   
+
    // Advection Coefficients
    ScalarVectorProductCoefficient   ViCoef(viCoef, bHatCoef);
    ScalarVectorProductCoefficient   VeCoef(veCoef, bHatCoef);
@@ -1067,12 +1067,12 @@ int main(int argc, char *argv[])
    NeutralDiffusionCoef           DnCoef(neCoef, vnCoef, izCoef);
    ScalarMatrixProductCoefficient DiCoef(DiPerpCoef, perpCoef);
    MomentumDiffusionCoef          EtaCoef(dim, ion_charge, ion_mass,
-					  DiPerpCoef, niCoef, TiCoef);
+                                          DiPerpCoef, niCoef, TiCoef);
    ThermalDiffusionCoef           XiCoef(dim, ion_charge, ion_mass,
-					 XiPerpCoef, niCoef, TiCoef);
+                                         XiPerpCoef, niCoef, TiCoef);
    ThermalDiffusionCoef           XeCoef(dim, ion_charge, me_u_,
-					 XePerpCoef, neCoef, TeCoef, &niCoef);
-   
+                                         XePerpCoef, neCoef, TeCoef, &niCoef);
+
    // Source Coefficients
    ProductCoefficient  SiCoef(nnneCoef, izCoef);
    ProductCoefficient  SnCoef(-1.0, SiCoef);
@@ -1080,12 +1080,12 @@ int main(int argc, char *argv[])
    ConstantCoefficient QiCoef(0.0);   // TODO: implement ion energy source
    ConstantCoefficient QeCoef(0.0); // TODO: implement electron energy source
    // FunctionCoefficient QCoef(QFunc);
-   
+
    // Coefficients for initial conditions
    FunctionCoefficient vi0Coef(viFunc);
    FunctionCoefficient Ti0Coef(TiFunc);
    FunctionCoefficient Te0Coef(TeFunc);
-   
+
    para_velocity.ProjectCoefficient(vi0Coef);
    ion_energy.ProjectCoefficient(Ti0Coef);
    elec_energy.ProjectCoefficient(Te0Coef);

@@ -56,12 +56,12 @@ inline double tau_i(double mi, double zi, double ni, double Ti,
           (lnLambda * pow(q_ * zi, 4) * ni);
 }
 
-  /** Multispecies Electron-Ion Collision Time in seconds
-   Te is the electron temperature in eV
-   ns is the number of ion species
-   ni is the density of ions (assuming ni=ne) in particles per meter^3
-   zi is the charge number of the ion species
-   lnLambda is the Coulomb Logarithm
+/** Multispecies Electron-Ion Collision Time in seconds
+ Te is the electron temperature in eV
+ ns is the number of ion species
+ ni is the density of ions (assuming ni=ne) in particles per meter^3
+ zi is the charge number of the ion species
+ lnLambda is the Coulomb Logarithm
 */
 //double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda);
 
@@ -288,15 +288,15 @@ public:
 class ParGridFunctionArray : public Array<ParGridFunction*>
 {
 public:
-  ParGridFunctionArray() {}
-  
-  void ExchangeFaceNbrData()
-  {
-    for (int i=0; i<size; i++)
+   ParGridFunctionArray() {}
+
+   void ExchangeFaceNbrData()
+   {
+      for (int i=0; i<size; i++)
       {
-	data[i]->ExchangeFaceNbrData();
+         data[i]->ExchangeFaceNbrData();
       }
-  }
+   }
 };
 
 class DGTransportTDO : public TimeDependentOperator
@@ -305,7 +305,7 @@ private:
    ParFiniteElementSpace *fes_;
    ParFiniteElementSpace *ffes_;
    ParGridFunctionArray  *pgf_;
-  
+
    ConstantCoefficient oneCoef_;
 
    DGAdvectionDiffusionTDO n_n_oper_; // Neutral Density
@@ -323,7 +323,7 @@ public:
    DGTransportTDO(DGParams & dg,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &ffes,
-		  ParGridFunctionArray &pgf,
+                  ParGridFunctionArray &pgf,
                   Coefficient &MomCCoef,
                   Coefficient &TiCCoef,
                   Coefficient &TeCCoef,
