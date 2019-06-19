@@ -1044,8 +1044,8 @@ int main(int argc, char *argv[])
 
    // Coefficients representing secondary fields
    ProductCoefficient      neCoef(ion_charge, niCoef);
-   ConstantCoefficient     vnCoef(8.0 * neutral_temp /
-                                  sqrt(M_PI * neutral_mass));
+   ConstantCoefficient     vnCoef(sqrt(8.0 * neutral_temp /
+                                       (M_PI * neutral_mass)));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
 
    // Intermediate Coefficients
