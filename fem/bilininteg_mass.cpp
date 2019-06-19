@@ -112,6 +112,47 @@ static void PAMassAssembleDiagonal2D(const int NE,
                                      const int d1d = 0,
                                      const int q1d = 0)
 {
+   // see PAMassApply2D
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(_B.Read(), Q1D, D1D);
+   // auto Bt = Reshape(_Bt.Read(), D1D, Q1D); // ?? (TODO atb@llnl.gov)
+   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
+   auto y = Reshape(_diag.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      double temp[max_Q1D][max_D1D];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            temp[qx][dy] = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               temp[qx][dy] += B(qy, dy) * B(qy, dy) * op(qx, qy, e);
+            }
+         }
+      }
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               // might need absolute values on next line
+               y(dx,dy,e) += B(qx, dx) * B(qx, dx) * temp[qx][dy];
+            }
+         }
+      }
+   });
 }
 
 template<const int T_D1D = 0,
