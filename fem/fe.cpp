@@ -2031,10 +2031,12 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 
    // cout << "calcDshape p = " << p << endl;
    // cout << "fe.cpp:  legX = " << legX[0] << " " << legX[1] << " " << legX[2]  << " " << legX[3] << " " << legX[4]  << " " << legX[5] << endl;
-   // cout << "fe.cpp:  2x-1 = " << 2*x-1 << endl;
    // cout << "fe.cpp:  DlegX = " << DlegX[0] << " " << DlegX[1] << " " << DlegX[2]  << " " << DlegX[3] << endl;
+   // cout << "fe.cpp:  2x-1 = " << 2*x-1 << endl;
    // cout << "fe.cpp:  legY = " << legY[0] << " " << legY[1] << " " << legY[2]  << " " << legY[3] << " " << legY[4]  << " " << legY[5] << endl;
    // cout << "fe.cpp:  DlegY = " << DlegY[0] << " " << DlegY[1] << " " << DlegY[2]  << " " << DlegY[3] << endl;
+
+
 
    dshape(0,0) = -(1. - y);
    dshape(0,1) = -(1. - x);
@@ -2048,22 +2050,50 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    dshape(3,0) = -y;
    dshape(3,1) = (1. - x);
 
-   for (int i = 0; i < p-1; i++)
-   {
-      // cout << "fe.cpp: p= " << p << ", and DlegX[" << i << "]= " << DlegX[i] << endl;
-      dshape(4 + 0*(p-1) + i ,0) =  2* (1. - y) * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));
-      dshape(4 + 0*(p-1) + i ,1) = -2* legX[i] * x * (1. - x);
-      dshape(4 + 1*(p-1) + i ,0) =  2* legY[i] * y * (1. - y); 
-      dshape(4 + 1*(p-1) + i ,1) =  2* x* (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
-      // dshape(4 + 2*(p-1) + 1 ,0) =  2* y * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
-      // dshape(4 + 2*(p-1) + 1 ,1) =  2* legX[i] * x * (1. - x);
-      // dshape(4 + 3*(p-1) + 1 ,0) = -2* legY[i] * y * (1. - y); 
-      // dshape(4 + 3*(p-1) + 1 ,1) =  2* (1. - x) * (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
-      dshape(4 + 3*(p-1) - i - 1,0) =  2* y * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
-      dshape(4 + 3*(p-1) - i - 1,1) =  2* legX[i] * x * (1. - x);
-      dshape(4 + 4*(p-1) - i - 1,0) = -2* legY[i] * y * (1. - y); 
-      dshape(4 + 4*(p-1) - i - 1,1) =  2* (1. - x) * (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
-   }
+
+   dshape(4,0) = 2*(-1 + 2*x)*(-1 + y);
+   dshape(4,1) = 2*(-1 + x)*x;
+
+   dshape(5,0) = 2*(1 - 6*x + 6*x*x)*(-1 + y);
+   dshape(5,1) = 2*(-1 + x)*x*(-1 + 2*x);
+
+   dshape(6,0) = (2 - 4*x)*y;
+   dshape(6,1) = -2*(-1 + x)*x;
+
+   dshape(7,0) = -2*(-1 + y)*y*(-1 + 2*y);
+   dshape(7,1) = -2*x*(1 - 6*y + 6*y*y);
+
+   dshape(8,0) = -2*(1 - 6*x + 6*x*x)*y;
+   dshape(8,1) = -2*(-1 + x)*x*(-1 + 2*x);
+
+   dshape(9,0) = 2*(-1 + y)*y;
+   dshape(9,1) = 2*(-1 + x)*(-1 + 2*y);
+
+   dshape(10,0) = 2*(-1 + y)*y*(-1 + 2*y);
+   dshape(10,1) = 2*(-1 + x)*(1 - 6*y + 6*y*y);
+
+   dshape(11,0) = 2*(-1 + y)*y;
+   dshape(11,1) = 2*(-1 + x)*(-1 + 2*y);
+
+
+
+   // prev attempt to write dshape functions:
+
+   // for (int i = 0; i < p-1; i++)
+   // {
+   //    dshape(4 + 0*(p-1) + i ,0) =  2* (1. - y) * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));
+   //    dshape(4 + 0*(p-1) + i ,1) = -2* legX[i] * x * (1. - x);
+   //    dshape(4 + 1*(p-1) + i ,0) =  2* legY[i] * y * (1. - y); 
+   //    dshape(4 + 1*(p-1) + i ,1) =  2* x* (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+   //    // dshape(4 + 2*(p-1) + 1 ,0) =  2* y * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
+   //    // dshape(4 + 2*(p-1) + 1 ,1) =  2* legX[i] * x * (1. - x);
+   //    // dshape(4 + 3*(p-1) + 1 ,0) = -2* legY[i] * y * (1. - y); 
+   //    // dshape(4 + 3*(p-1) + 1 ,1) =  2* (1. - x) * (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+   //    dshape(4 + 3*(p-1) - i - 1,0) =  2* y * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
+   //    dshape(4 + 3*(p-1) - i - 1,1) =  2* legX[i] * x * (1. - x);
+   //    dshape(4 + 4*(p-1) - i - 1,0) = -2* legY[i] * y * (1. - y); 
+   //    dshape(4 + 4*(p-1) - i - 1,1) =  2* (1. - x) * (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+   // }
 
    int interior_total = 0;
    for (int j = 4; j < p + 1; j++)
@@ -2114,6 +2144,51 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 
+
+void H1Ser_QuadrilateralElement::Project (
+   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
+{
+   // for (int i = 0; i < Dof; i++)
+   // {
+   //    const IntegrationPoint &ip = Nodes.IntPoint(i);
+   //    // some coefficients expect that Trans.IntPoint is the same
+   //    // as the second argument of Eval
+   //    Trans.SetIntPoint(&ip);
+   //    dofs(i) = coeff.Eval (Trans, ip);
+   //    if (MapType == INTEGRAL)
+   //    {
+   //       dofs(i) *= Trans.Weight();
+   //    }
+   // }
+
+//   DenseMatrix V(fdof, ir.Size());
+   DenseMatrix V(dofs.Size(), Nodes.Size());
+//   Vector rhs(ir.Size());
+   Vector rhs(Nodes.Size());
+
+//   for (j = 0; j < ir.Size(); ++j)
+   for (int j = 0; j < Nodes.Size(); ++j)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(j);
+//      transf->SetIntPoint(&ip);
+      Trans.SetIntPoint(&ip);
+      Vector col;
+      V.GetColumnReference(j, col);
+      (this)->CalcShape(ip, col);
+//      rhs[j] = coeff[0]->Eval(Trans, ip);
+      rhs[j] = coeff.Eval(Trans, ip); // WHAT WAS THE POINT OF THE [0] ABOVE?
+   }
+   V.Transpose();
+   DenseMatrixInverse Vinv(V);
+
+   // Vector dofs(fdof);
+
+   // cout << " *** vdofs before vinv.mult(rhs,dofs):" << endl;
+   // vdofs.Print();
+
+   Vinv.Mult(rhs, dofs);
+
+}
 
 
 

@@ -1727,6 +1727,7 @@ FiniteElementCollection *H1_FECollection::GetTraceCollection() const
 
 const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
 {
+   cout << "fe_coll.cpp: calling GetDofMap" << endl;
    const int *dof_map = NULL;
    const FiniteElement *fe = H1_Elements[GeomType];
    switch (GeomType)

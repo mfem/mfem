@@ -1309,7 +1309,7 @@ void GridFunction::AccumulateAndCountBdrValues(
 {
    int i, j, fdof, d, ind, vdim;
 
-   // double val;  // maybe not used, or in wrong scope?
+   double val;  // maybe not used, or in wrong scope?
    
    const FiniteElement *fe;
    ElementTransformation *transf;
@@ -1331,44 +1331,34 @@ void GridFunction::AccumulateAndCountBdrValues(
       const IntegrationRule &ir = fe->GetNodes();
       fes->GetBdrElementVDofs(i, vdofs);
 
-      // // Will wrote this next part to compute the Vandermonde matrix and compute 
-      // // the dofs accordingly.  It only works for scalar FE types.
+      // Will wrote this next part to compute the Vandermonde matrix and compute 
+      // the dofs accordingly.  It only works for scalar FE types.
 
-      // DenseMatrix V(fdof, ir.Size());
-      // Vector rhs(ir.Size());
-      // for (j = 0; j < ir.Size(); ++j)
-      // {
-      //    const IntegrationPoint &ip = ir.IntPoint(j);
-      //    //
-      //    // Attempting to take integration points in a different order...
-      //    //
-      //    // int altIndex = ir.Size()-1-j;
-      //    // if (j == 0 || j == 1)
-      //    // {
-      //    //    altIndex = j;
-      //    // }
-      //    // const IntegrationPoint &ip = ir.IntPoint(altIndex);
-      //    //
-      //    transf->SetIntPoint(&ip);
-      //    Vector col;
-      //    V.GetColumnReference(j, col);
-      //    fe->CalcShape(ip, col);
-      //    rhs[j] = coeff[0]->Eval(*transf, ip);
-      // }
-      // V.Transpose();
-      // DenseMatrixInverse Vinv(V);
+      DenseMatrix V(fdof, ir.Size());
+      Vector rhs(ir.Size());
+      for (j = 0; j < ir.Size(); ++j)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         transf->SetIntPoint(&ip);
+         Vector col;
+         V.GetColumnReference(j, col);
+         fe->CalcShape(ip, col);
+         rhs[j] = coeff[0]->Eval(*transf, ip);
+      }
+      V.Transpose();
+      DenseMatrixInverse Vinv(V);
 
 
-      // Vector dofs(fdof);
+      Vector dofs(fdof);
 
-      // // cout << " *** vdofs before vinv.mult(rhs,dofs):" << endl;
-      // // vdofs.Print();
+      // cout << " *** vdofs before vinv.mult(rhs,dofs):" << endl;
+      // vdofs.Print();
 
 
-      // Vinv.Mult(rhs, dofs);
+      Vinv.Mult(rhs, dofs);
 
-      // // cout << " *** after vinv.mult(rhs,dofs):" << endl;
-      // // dofs.Print();
+      // cout << " *** after vinv.mult(rhs,dofs):" << endl;
+      // dofs.Print();
 
       // // if vdofs has "2" as first or second entry, then we're on a north or west edge and the 
       // //    interior edge dofs must be reordered
@@ -1401,7 +1391,32 @@ void GridFunction::AccumulateAndCountBdrValues(
       //    }
       // }
 
+      // code from master branch:
 
+      // for (j = 0; j < fdof; j++)
+      // {
+      //    const IntegrationPoint &ip = ir.IntPoint(j);
+      //    transf->SetIntPoint(&ip);
+      //    if (vcoeff) { vcoeff->Eval(vc, *transf, ip); }
+      //    for (d = 0; d < vdim; d++)
+      //    {
+      //       if (!vcoeff && !coeff[d]) { continue; }
+
+      //       val = vcoeff ? vc(d) : coeff[d]->Eval(*transf, ip);
+      //       if ( (ind = vdofs[fdof*d+j]) < 0 )
+      //       {
+      //          val = -val, ind = -1-ind;
+      //       }
+      //       if (++values_counter[ind] == 1)
+      //       {
+      //          (*this)(ind) = val;
+      //       }
+      //       else
+      //       {
+      //          (*this)(ind) += val;
+      //       }
+      //    }
+   
       for (j = 0; j < fdof; j++)
       {
          // TEMP: assume vdim = 1
@@ -1422,6 +1437,7 @@ void GridFunction::AccumulateAndCountBdrValues(
       }
       // cout << "gridfunc: values_counter = " << endl;
       // values_counter.Print();
+
    }
 
    // In the case of partially conforming space, i.e. (fes->cP != NULL), we need

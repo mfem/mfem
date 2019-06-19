@@ -278,6 +278,8 @@ void FiniteElementSpace::BuildDofToArrays()
 {
    if (dof_elem_array.Size()) { return; }
 
+   cout << "** fespace: calling BuildDofToArrays()" << endl;
+
    BuildElementToDofTable();
 
    dof_elem_array.SetSize (ndofs);
@@ -1493,7 +1495,7 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
 //         cout << "fespace: order is " << fec->GetBasisType() << endl;
 //         cout << "is basis type serendipity? " << (fec->GetBasisType() == BasisType::Serendipity) << endl;
    	   nb = 0;
-         cout << "fespace.cpp: defintion of nb above this message needs to be edited" << endl;
+//         cout << "fespace.cpp: defintion of nb above this message needs to be edited" << endl;
       }
       
       if (nv > 0)
