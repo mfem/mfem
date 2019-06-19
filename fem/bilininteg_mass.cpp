@@ -102,6 +102,80 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
+static void PAMassAssembleDiagonal2D(const int NE,
+                                     const Array<double> &_B,
+                                     const Array<double> &_Bt,
+                                     const Vector &_op,
+                                     Vector &_diag,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
+{
+}
+
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
+static void PAMassAssembleDiagonal3D(const int NE,
+                                     const Array<double> &_B,
+                                     const Array<double> &_Bt,
+                                     const Vector &_op,
+                                     Vector &_diag,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
+{
+}
+
+static void PAMassAssembleDiagonal(
+   const int dim, const int D1D,
+   const int Q1D, const int NE,
+   const Array<double> &B, const Array<double> &Bt,
+   const Vector &op, Vector &y)
+{
+#ifdef MFEM_USE_OCCA
+   MFEM_ABORT("OCCA PA Mass Assemble unknown kernel!");
+#endif // MFEM_USE_OCCA
+
+   if (Device::Allows(Backend::RAJA_CUDA))
+   {
+      if (dim == 2)
+      {
+         switch ((D1D << 4 ) | Q1D)
+         {
+            default:   return PAMassAssembleDiagonal2D(NE, B, Bt, op, y, D1D, Q1D);
+         }
+      }
+      if (dim == 3)
+      {
+         switch ((D1D << 4 ) | Q1D)
+         {
+            default:   return PAMassAssembleDiagonal3D(NE, B, Bt, op, y, D1D, Q1D);
+         }
+      }
+   }
+   else if (dim == 2)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         default:   return PAMassAssembleDiagonal2D(NE, B, Bt, op, y, D1D, Q1D);
+      }
+   }
+   else if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         default:   return PAMassAssembleDiagonal3D(NE, B, Bt, op, y, D1D, Q1D);
+      }
+   }
+   MFEM_ABORT("Unknown kernel.");
+}
+
+void MassIntegrator::AssembleDiagonalPA(Vector& diag) const
+{
+   PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne,
+                          maps->B, maps->Bt, pa_data, diag);
+}
+
 #ifdef MFEM_USE_OCCA
 // OCCA PA Mass Apply 2D kernel
 static void OccaPAMassApply2D(const int D1D,

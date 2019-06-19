@@ -109,6 +109,9 @@ protected:
 
    void ConformingAssemble();
 
+   /// Assemble diagonal of bilinear form into diag
+   void AssembleDiagonal(Vector& diag) const;
+
    // may be used in the construction of derived classes
    BilinearForm() : Matrix (0)
    {
