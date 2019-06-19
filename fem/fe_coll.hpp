@@ -77,6 +77,8 @@ public:
       that 0 <= SDim <= Dim(Geom). */
    void SubDofOrder(Geometry::Type Geom, int SDim, int Info,
                     Array<int> &dofs) const;
+
+   // virtual int GetBasisType() const = 0;
 };
 
 /// Arbitrary order H1-conforming (continuous) finite elements.
@@ -108,6 +110,9 @@ public:
    /// Get the Cartesian to local H1 dof map
    const int *GetDofMap(Geometry::Type GeomType) const;
 
+   // virtual int GetSerendipityOrder() const = 0;
+   // virtual int SetSerendipityOrder() = 0;
+
    virtual ~H1_FECollection();
 };
 
@@ -124,9 +129,14 @@ public:
 /** Arbitrary order H1-conforming (continuous) serendipity finite elements. */
 class H1Ser_FECollection : public H1_FECollection
 {
+private:
+  int serendipityOrder;
+
 public:
-   explicit H1Ser_FECollection(const int p, const int dim = 2)
+    explicit H1Ser_FECollection(const int p, const int dim = 2)
      : H1_FECollection(p, dim, BasisType::Serendipity) { }
+    int GetSerendipityOrder() const;
+    int SetSerendipityOrder(int i); 
 };
 
 

@@ -1331,75 +1331,75 @@ void GridFunction::AccumulateAndCountBdrValues(
       const IntegrationRule &ir = fe->GetNodes();
       fes->GetBdrElementVDofs(i, vdofs);
 
-      // Will wrote this next part to compute the Vandermonde matrix and compute 
-      // the dofs accordingly.  It only works for scalar FE types.
+      // // Will wrote this next part to compute the Vandermonde matrix and compute 
+      // // the dofs accordingly.  It only works for scalar FE types.
 
-      DenseMatrix V(fdof, ir.Size());
-      Vector rhs(ir.Size());
-      for (j = 0; j < ir.Size(); ++j)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(j);
-         //
-         // Attempting to take integration points in a different order...
-         //
-         // int altIndex = ir.Size()-1-j;
-         // if (j == 0 || j == 1)
-         // {
-         //    altIndex = j;
-         // }
-         // const IntegrationPoint &ip = ir.IntPoint(altIndex);
-         //
-         transf->SetIntPoint(&ip);
-         Vector col;
-         V.GetColumnReference(j, col);
-         fe->CalcShape(ip, col);
-         rhs[j] = coeff[0]->Eval(*transf, ip);
-      }
-      V.Transpose();
-      DenseMatrixInverse Vinv(V);
-
-
-      Vector dofs(fdof);
-
-      // cout << " *** vdofs before vinv.mult(rhs,dofs):" << endl;
-      // vdofs.Print();
+      // DenseMatrix V(fdof, ir.Size());
+      // Vector rhs(ir.Size());
+      // for (j = 0; j < ir.Size(); ++j)
+      // {
+      //    const IntegrationPoint &ip = ir.IntPoint(j);
+      //    //
+      //    // Attempting to take integration points in a different order...
+      //    //
+      //    // int altIndex = ir.Size()-1-j;
+      //    // if (j == 0 || j == 1)
+      //    // {
+      //    //    altIndex = j;
+      //    // }
+      //    // const IntegrationPoint &ip = ir.IntPoint(altIndex);
+      //    //
+      //    transf->SetIntPoint(&ip);
+      //    Vector col;
+      //    V.GetColumnReference(j, col);
+      //    fe->CalcShape(ip, col);
+      //    rhs[j] = coeff[0]->Eval(*transf, ip);
+      // }
+      // V.Transpose();
+      // DenseMatrixInverse Vinv(V);
 
 
-      Vinv.Mult(rhs, dofs);
+      // Vector dofs(fdof);
 
-      // cout << " *** after vinv.mult(rhs,dofs):" << endl;
-      // dofs.Print();
+      // // cout << " *** vdofs before vinv.mult(rhs,dofs):" << endl;
+      // // vdofs.Print();
 
-      // if vdofs has "2" as first or second entry, then we're on a north or west edge and the 
-      //    interior edge dofs must be reordered
 
-      if  (0 == 1) // (dofs.Size() > 3) is the real condition to check.
-      {
-         if (vdofs[0] == 2 || vdofs[1] == 2)         
-         {
-            int justCounting[dofs.Size()-2];
-            for(int k = 0; k < dofs.Size()-2; k++)
-            {
-               justCounting[k] = k+2;
-            }
-            Array<int> toBeReordered = Array<int>(justCounting, dofs.Size()-2);
+      // Vinv.Mult(rhs, dofs);
 
-            Vector valuesToCopyInBackward;
-            dofs.GetSubVector(toBeReordered, valuesToCopyInBackward);
+      // // cout << " *** after vinv.mult(rhs,dofs):" << endl;
+      // // dofs.Print();
 
-            for(int k = 0; k < dofs.Size()-2; k++)
-            {
-               justCounting[k] = dofs.Size()-1-k;
-            } // now justCounting is 3 2 for order 3; 4 3 2 for order 4, etc
-            toBeReordered = Array<int>(justCounting, dofs.Size()-2);
+      // // if vdofs has "2" as first or second entry, then we're on a north or west edge and the 
+      // //    interior edge dofs must be reordered
 
-            dofs.SetSubVector(toBeReordered, valuesToCopyInBackward);
+      // if  (0 == 1) // (dofs.Size() > 3) is the real condition to check.
+      // {
+      //    if (vdofs[0] == 2 || vdofs[1] == 2)         
+      //    {
+      //       int justCounting[dofs.Size()-2];
+      //       for(int k = 0; k < dofs.Size()-2; k++)
+      //       {
+      //          justCounting[k] = k+2;
+      //       }
+      //       Array<int> toBeReordered = Array<int>(justCounting, dofs.Size()-2);
 
-            cout << "   reordered dofs to be: " << endl;
-            dofs.Print();
-            cout << endl;
-         }
-      }
+      //       Vector valuesToCopyInBackward;
+      //       dofs.GetSubVector(toBeReordered, valuesToCopyInBackward);
+
+      //       for(int k = 0; k < dofs.Size()-2; k++)
+      //       {
+      //          justCounting[k] = dofs.Size()-1-k;
+      //       } // now justCounting is 3 2 for order 3; 4 3 2 for order 4, etc
+      //       toBeReordered = Array<int>(justCounting, dofs.Size()-2);
+
+      //       dofs.SetSubVector(toBeReordered, valuesToCopyInBackward);
+
+      //       cout << "   reordered dofs to be: " << endl;
+      //       dofs.Print();
+      //       cout << endl;
+      //    }
+      // }
 
 
       for (j = 0; j < fdof; j++)
