@@ -960,12 +960,13 @@ SetupComplexAdmittanceCoefs(const Mesh & mesh, const Array<int> & sbcs,
                             Coefficient *& etaInvReCoef,
                             Coefficient *& etaInvImCoef )
 {
+   MFEM_VERIFY(pw_eta_re_.Size() == sbcs.Size() &&
+               pw_eta_im_.Size() == sbcs.Size(),
+               "Each impedance value must be associated with exactly one "
+               "sheath boundary surface.");
+
    if (pw_eta_re_.Size() > 0)
    {
-      MFEM_VERIFY(pw_eta_re_.Size() == sbcs.Size() &&
-                  pw_eta_im_.Size() == sbcs.Size(),
-                  "Each impedance value must be associated with exactly one "
-                  "sheath boundary surface.");
 
       pw_eta_inv_re_.SetSize(mesh.bdr_attributes.Size());
       pw_eta_inv_im_.SetSize(mesh.bdr_attributes.Size());
