@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
    int serial_ref_levels = 0;
    int order = 2;
    double dt = 1e-2;
-   double t_final = 1000 * dt;
+   double t_final = 1.0;
 
    opt_.rey = 1.0;
 
@@ -291,7 +291,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order", "Polynomial order for the velocity.");
    args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
                   "Number of serial refinement levels.");
-   args.AddOption(&opt_.rey, "-rey", "--reynolds", "Choose Reynolds number");
+   args.AddOption(&opt_.rey, "-rey", "--reynolds", "Choose Reynolds number.");
+   args.AddOption(&dt, "-dt", "--timestep", "Timestep.");
+   args.AddOption(&t_final, "-tf", "--tfinal", "Final time.");
    args.Parse();
    if (!args.Good())
    {
@@ -355,8 +357,7 @@ int main(int argc, char *argv[])
    block_trueOffsets[2] = fes[1]->TrueVSize();
    block_trueOffsets.PartialSum();
 
-   // ODESolver *ode_solver = new BackwardEulerSolver;
-   ODESolver *ode_solver = new SDIRK23Solver(2);
+   ODESolver *ode_solver = new BackwardEulerSolver;
 
    Array<int> ess_bdr_attr(pmesh->bdr_attributes.Max());
    ess_bdr_attr = 1;
