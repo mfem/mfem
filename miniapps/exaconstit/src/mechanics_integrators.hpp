@@ -761,9 +761,9 @@ protected:
       std::vector<double> params;
       std::vector<int> opts;
       std::vector<std::string> strs;
-      //15 terms come from hardening law, 3 terms come from elastic modulus, 4 terms are related to EOS params,
-      //1 terms is related to solving tolerances == 23 total params
-      MFEM_ASSERT(matProps->Size() == 23, "Properties need 23 parameters for FCC MTS like hardening model");
+      //16 terms come from hardening law, 3 terms come from elastic modulus, 4 terms are related to EOS params,
+      //1 terms is related to solving tolerances == 24 total params
+      MFEM_ASSERT(matProps->Size() == 24, "Properties need 24 parameters for FCC MTS like hardening model");
 
       for(int i = 0; i < matProps->Size(); i++)
       {

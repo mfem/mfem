@@ -199,8 +199,8 @@ void ExaOptions::get_model(){
       if((_slip_type == "mts") || (_slip_type == "MTS") || (_slip_type == "mtsdd") || (_slip_type == "MTSDD"))
       {
          slip_type = SlipType::MTSDD;
-         if(nProps != 23){
-            MFEM_ABORT("Properties.Matl_Props.num_props needs 23 values for the MTSDD option");
+         if(nProps != 24){
+            MFEM_ABORT("Properties.Matl_Props.num_props needs 24 values for the MTSDD option");
          }
       }else if ((_slip_type == "powervoce") || (_slip_type == "PowerVoce") || (_slip_type == "POWERVOCE"))
       {
