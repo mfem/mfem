@@ -200,6 +200,16 @@ MyBlockSolver::MyBlockSolver(const OperatorHandle &oh) : Solver() {
    PetscParMatrix *PP;
    oh.Get(PP);
    Mat P = *PP; // type cast to Petsc Mat
+
+   //X = new PetscParVector(P, true, false); 
+   //Y = new PetscParVector(P, false, false);
+   
+   // update base (Solver) class
+   width = PP->Width();
+   height = PP->Height();
+   X = new PetscParVector(PETSC_COMM_WORLD, *this, true, false);
+   Y = new PetscParVector(PETSC_COMM_WORLD, *this, false, false);
+
    PetscInt M, N;
    ierr=MatNestGetSubMats(P,&N,&M,&sub); PCHKERRQ(sub[0][0], ierr);// sub is an N by M array of matrices
    ierr=MatNestGetISs(P, index_set, NULL);  PCHKERRQ(index_set, ierr);// get the index sets of the blocks
@@ -210,8 +220,6 @@ MyBlockSolver::MyBlockSolver(const OperatorHandle &oh) : Solver() {
    ISView(index_set[2],PETSC_VIEWER_STDOUT_WORLD);
    */
 
-   X = new PetscParVector(P, true, false); 
-   Y = new PetscParVector(P, false, false);
 
    for (int i=0; i<3; i++)
    {
@@ -563,9 +571,9 @@ void ResistiveMHDOperator::DestroyHypre()
 {
     //hypre and petsc needs to be deleted earilier
     delete K_amg;
-    delete pnewton_solver;
     delete reduced_oper;
     delete J_factory;
+    delete pnewton_solver;
 }
 
 
