@@ -9,15 +9,16 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//             ---------------------------------------------------
-//             Boundary Mesh Extractor Miniapp:
-//             ---------------------------------------------------
+//    --------------------------------------------------------------------
+//    Boundary Mesh Extractor Miniapp:  Create boundary 2D mesh of 3D mesh
+//    --------------------------------------------------------------------
 //
-// Description here
+// This miniapp creates a 2D mesh formed from the boundary elements of
+// an inputted 3D mesh.
 //
 // Compile with: make extract_boundary_mesh
 //
-// Sample runs:  extract_boundary_mesh EXAMPLE
+// Sample runs:  extract_boundary_mesh -m ../../data/beam-tet.mesh
 
 #include <map>
 #include <set>
@@ -111,4 +112,6 @@ int main(int argc, char *argv[])
   } else {
     boundary_mesh.FinalizeQuadMesh(1, 0, true);
   }
+
+  // TODO - what do we want to do with the boundary mesh?
 }
