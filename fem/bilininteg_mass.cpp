@@ -174,7 +174,10 @@ static void PAMassAssembleDiagonal(
    const Vector &op, Vector &y)
 {
 #ifdef MFEM_USE_OCCA
-   MFEM_ABORT("OCCA PA Mass Assemble unknown kernel!");
+   if (DeviceCanUseOcca())
+   {
+      MFEM_ABORT("OCCA PA Mass Assemble unknown kernel!");
+   }
 #endif // MFEM_USE_OCCA
 
    if (Device::Allows(Backend::RAJA_CUDA))
@@ -196,15 +199,21 @@ static void PAMassAssembleDiagonal(
    }
    else if (dim == 2)
    {
+      /*
       switch ((D1D << 4 ) | Q1D)
       {
+         // should look at smem routines in what follows?
          default:   return PAMassAssembleDiagonal2D(NE, B, Bt, op, y, D1D, Q1D);
       }
+      */
+      PAMassAssembleDiagonal2D(NE, B, Bt, op, y, D1D, Q1D);
+      return;
    }
    else if (dim == 3)
    {
       switch ((D1D << 4 ) | Q1D)
       {
+         // should look at smem routines in what follows?
          default:   return PAMassAssembleDiagonal3D(NE, B, Bt, op, y, D1D, Q1D);
       }
    }
