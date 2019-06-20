@@ -174,6 +174,12 @@ public:
                              DenseMatrix &vals,
                              DenseMatrix &tr, int comp = 0) const;
 
+	/// Obtain the value of a GridFunction defined on an Interface Space
+	/// where i indexes into the Face elements of the mesh (i.e. codimension one
+	/// elements)
+	double GetInterfaceValue( int i, const IntegrationPoint& ip ) const;
+	void GetInterfaceValues( int i, const IntegrationRule& ir, Vector &v, int vdim = 1 ) const;
+
    /// For a vector grid function, makes sure that the ordering is byNODES.
    void ReorderByNodes();
 
