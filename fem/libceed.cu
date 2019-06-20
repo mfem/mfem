@@ -203,6 +203,53 @@ extern "C" __global__ void f_apply_diff(void *ctx, CeedInt Q,
   }
 }
 
+extern "C" __global__ void f_apply_diff_1d(void *ctx, CeedInt Q,
+                                        Fields_Cuda fields) {
+  // in[0], out[0] have shape [dim, nc=1, Q]
+  const CeedScalar *ug = (const CeedScalar *)fields.inputs[0];
+  const CeedScalar *qd = (const CeedScalar *)fields.inputs[1];
+  CeedScalar *vg = fields.outputs[0];
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+       i < Q;
+       i += blockDim.x * gridDim.x) {
+    vg[i] = ug[i] * qd[i];
+  }
+}
+
+extern "C" __global__ void f_apply_diff_2d(void *ctx, CeedInt Q,
+                                        Fields_Cuda fields) {
+  // in[0], out[0] have shape [dim, nc=1, Q]
+  const CeedScalar *ug = (const CeedScalar *)fields.inputs[0];
+  const CeedScalar *qd = (const CeedScalar *)fields.inputs[1];
+  CeedScalar *vg = fields.outputs[0];
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+       i < Q;
+       i += blockDim.x * gridDim.x) {
+    const CeedScalar ug0 = ug[i+Q*0];
+    const CeedScalar ug1 = ug[i+Q*1];
+    vg[i+Q*0] = qd[i+Q*0]*ug0 + qd[i+Q*1]*ug1;
+    vg[i+Q*1] = qd[i+Q*1]*ug0 + qd[i+Q*2]*ug1;
+  }
+}
+
+extern "C" __global__ void f_apply_diff_3d(void *ctx, CeedInt Q,
+                                        Fields_Cuda fields) {
+  // in[0], out[0] have shape [dim, nc=1, Q]
+  const CeedScalar *ug = (const CeedScalar *)fields.inputs[0];
+  const CeedScalar *qd = (const CeedScalar *)fields.inputs[1];
+  CeedScalar *vg = fields.outputs[0];
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+       i < Q;
+       i += blockDim.x * gridDim.x) {
+    const CeedScalar ug0 = ug[i+Q*0];
+    const CeedScalar ug1 = ug[i+Q*1];
+    const CeedScalar ug2 = ug[i+Q*2];
+    vg[i+Q*0] = qd[i+Q*0]*ug0 + qd[i+Q*1]*ug1 + qd[i+Q*2]*ug2;
+    vg[i+Q*1] = qd[i+Q*1]*ug0 + qd[i+Q*3]*ug1 + qd[i+Q*4]*ug2;
+    vg[i+Q*2] = qd[i+Q*2]*ug0 + qd[i+Q*4]*ug1 + qd[i+Q*5]*ug2;
+  }
+}
+
 /// libCEED Q-function for building quadrature data for a mass operator
 extern "C" __global__ void f_build_mass_const(void *ctx, CeedInt Q,
                         Fields_Cuda fields) {
