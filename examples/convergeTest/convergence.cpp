@@ -28,7 +28,7 @@ double u_exact_2(const Vector &);
 void u_grad_exact_2(const Vector &, Vector &);
 
 void convergenceStudy(const char *mesh_file, int num_ref, int &order,
-                      double &l2_err_prev, double &h1_err_prev, bool &visualization, int &exact, int &dof2view)
+                      double &l2_err_prev, double &h1_err_prev, bool &visualization, int &exact, int &dof2view, int &solvePDE)
 {
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
@@ -46,6 +46,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order.
+
 
    FiniteElementCollection *fec;
    if (order == 1)
@@ -71,7 +72,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    FunctionCoefficient *u;
    VectorFunctionCoefficient *u_grad;
 
-   
+
    if (exact == 1)
    {
        u = new FunctionCoefficient(u_exact);
@@ -89,6 +90,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       u_grad = NULL;
    }
 
+   
 
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
@@ -97,6 +99,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
 
+
    // this variable may not be right:
    int gotNdofs = fespace->GetNDofs();
 
@@ -104,34 +107,40 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
 
-   // For solving PDE: (1 of 3 changes)
-   // if (mesh->bdr_attributes.Size())
-   // {
-   //  fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   // }
 
+   if (solvePDE==1)
+   {
+      if (mesh->bdr_attributes.Size())
+      {
+         fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+   }
    // For L2 Projection:
    // Do not get boundary dofs
-
 
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
 
-
    LinearForm *b = new LinearForm(fespace);
 
    // // For solving PDE: (2 of 3 changes)
-   // ConstantCoefficient zero(0.0);
-   // b->AddDomainIntegrator(new DomainLFIntegrator(zero));
-
-   // For L2 Projection:
-   b->AddDomainIntegrator(new DomainLFIntegrator(*u));
-
+   if (solvePDE==1)
+   {
+      ConstantCoefficient zero(0.0);
+      b->AddDomainIntegrator(new DomainLFIntegrator(zero));
+   }
+   else
+   {
+      b->AddDomainIntegrator(new DomainLFIntegrator(*u));
+   }
+   cout << "*** convergence.cpp: got here in convergence study ***" << endl;
 
    b->Assemble();
 
+   cout << "*** convergence.cpp: and here ***" << endl;
+   
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -144,13 +153,17 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
 
-   // For solving PDE: (3 of 3 changes)
-   // DiffusionIntegrator *my_integrator = new DiffusionIntegrator;
-
-   // For L2 Projection:
-   MassIntegrator *my_integrator = new MassIntegrator;
-
-   a->AddDomainIntegrator(my_integrator);
+   if (solvePDE==1)
+   {
+      DiffusionIntegrator *my_integrator = new DiffusionIntegrator;
+      a->AddDomainIntegrator(my_integrator);
+   }
+   else
+   {
+      MassIntegrator *my_integrator = new MassIntegrator;
+      a->AddDomainIntegrator(my_integrator);
+   }
+   
 
 
    // 10. Assemble the bilinear form and the corresponding linear system,
@@ -304,6 +317,7 @@ int main(int argc, char *argv[])
    bool visualization = false;
    int exact = 1;
    int dof2view = -1;
+   int solvePDE = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&total_refinements, "-r", "--refine",
@@ -326,6 +340,8 @@ int main(int argc, char *argv[])
                   "Choice of exact solution. 1=constant 1; 2=sin(x)e^y.");
    args.AddOption(&dof2view, "-dof", "--dof2view",
                   "DEBUG option: viewing a single dof:");
+   args.AddOption(&solvePDE, "-L", "--L2Project",
+                  "Solve a PDE (1) or do L2 Projection (2)");
    args.Parse();
    if (!args.Good())
    {
@@ -355,21 +371,49 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-
-   if (exact == 1)
+   if (solvePDE == 1)
    {
-      // cout << "convergence: Exact solution u(x,y)=x+y" << endl;
-      cout << "convergence: Exact solution u(x,y)=x+y" << endl;
+      cout << "Approximating solution to Laplace problem with ";
+      if (exact == 1)
+      {
+        cout << "exact solution u(x,y)=x+y" << endl;
+      }
+      else if (exact == 2)
+      {
+         cout << "exact solution u(x,y)=sin(y)e^x" << endl;
+      }
+      else
+      {
+         cout << endl << "*** Wrong usage of exact solution parameter (-e)"
+              << endl;
+         return 1;
+      }
    }
-   else if (exact == 2)
+   else if (solvePDE == 2)
    {
-      cout << "convergence: Exact solution u(x,y)=sin(y)e^x" << endl;
+      cout << "Doing L^2 projection of basis with right hand side ";
+      if (exact == 1)
+      {
+        cout << "u(x,y)=x+y" << endl;
+      }
+      else if (exact == 2)
+      {
+         cout << "u(x,y)=sin(y)e^x" << endl;
+      }
+      else
+      {
+         cout << endl << "*** Wrong usage of exact solution parameter (-e)"
+              << endl;
+         return 1;
+      }
    }
    else
    {
-      cout << "Wrong usage of exact solution parameter (-e)"
+      cout << "Wrong usage of solve vs. L2 Projection option -L."
            << endl;
+      return 1;
    }
+
 
    if (dof2view != -1)
    {
@@ -409,9 +453,9 @@ int main(int argc, char *argv[])
       bool noVisYet = false;
       for (int i = 0; i < (total_refinements); i++)
       {
-         convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, exact, dof2view);
+         convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, exact, dof2view, solvePDE);
       }
    }
-   convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, exact, dof2view);
+   convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, exact, dof2view, solvePDE);
    return 0;
 }

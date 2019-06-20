@@ -1775,24 +1775,8 @@ void H1Ser_SegmentElement::CalcShape(const IntegrationPoint &ip,
 {
    int p = (this)->GetOrder();
 
-   // Subbing in Bernstein polynomials here
-   //
-   // // #ifdef MFEM_THREAD_SAFE
-   // Vector shape_x(p+1);
-   // // #endif
+   cout << "fe.cpp: NEED TO SET higher order H1 segment elements " << endl;
 
-   // Poly_1D::CalcBernstein(p, ip.x, shape_x.GetData() );
-
-   // // Endpoints need to be first in the list, so reorder them.
-   // shape(0) = shape_x(0);
-   // shape(1) = shape_x(p);
-   // for (int i = 1; i < p; i++)
-   // {
-   //    shape(i+1) = shape_x(i);
-   // }
- 
-   // what the serendipity functions actually restrict to:
-   //
    double x = ip.x;  
    shape(0) = (1. - x);
    shape(1) = x;
@@ -1802,13 +1786,7 @@ void H1Ser_SegmentElement::CalcShape(const IntegrationPoint &ip,
    {
       shape(3) = (2*x - 1)*shape(2);
    }
-   
 
-   // Shape functions for quadratic-only case:
-   //
-   // shape(0) = (1. - x) * (1. - x);
-   // shape(1) = 1. * x * x;
-   // shape(2) = 2 * (1. - x) * x;
 }
 
 
@@ -1834,8 +1812,6 @@ void H1Ser_SegmentElement::CalcDShape(const IntegrationPoint &ip,
    //    dshape(i+1,0) = dshape_x(i);
    // }
 
-   // what the serendipity functions actually restrict to:
-   //
 
    cout << "fe.cpp: calling H1Ser_SegmentElement::CalcDShape... this is unusual" << endl;
 
@@ -1859,7 +1835,7 @@ void H1Ser_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 
 
 H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
-  : ScalarFiniteElement(2, Geometry::SQUARE, 4*p, p, FunctionSpace::Qk)
+  : ScalarFiniteElement(2, Geometry::SQUARE, (p*p + 3*p +6) / 2, p, FunctionSpace::Qk)
 {
    //  parameters for an FE object:
    //  Dim = D ; GeomType = G ; Dof = Do ; Order = O ; FuncSpace = F;
@@ -1894,7 +1870,6 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
    }
    if(p==3)
    {
-      // set these using Bicubic quad FE class asdf
       Nodes.IntPoint(4).x = 1./3.;
       Nodes.IntPoint(4).y = 0.;
       Nodes.IntPoint(5).x = 2./3.;
@@ -1942,10 +1917,8 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
       Nodes.IntPoint(15).x = 0;
       Nodes.IntPoint(15).y = .75;
 
-      cout << "fe.cpp: Removed interior point for debugging p=4 case" << endl;
-
-      // Nodes.IntPoint(16).x = .5;
-      // Nodes.IntPoint(16).y = .5;
+      Nodes.IntPoint(16).x = .5;
+      Nodes.IntPoint(16).y = .5;
    }
 
 }
@@ -1982,19 +1955,16 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
       // shape(4 + 3*(p-1) + i) = 2* legY[i] * (1. - x) * y * (1. - y);
    }
 
-
-
-   int interior_total = 0;
-   for (int j = 4; j < p + 1; j++)
-   {
-      for (int k = 0; k < j-3; k++)
-      {
-         shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
-         // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
-         cout << "setting shape # " << 4 + 4*(p-1) + interior_total << endl;
-         interior_total++;
-      }
-   }
+   // int interior_total = 0;
+   // for (int j = 4; j < p + 1; j++)
+   // {
+   //    for (int k = 0; k < j-3; k++)
+   //    {
+   //       shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
+   //       // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
+   //       interior_total++;
+   //    }
+   // }
 
    delete[] legX;
    delete[] legY;
@@ -2067,13 +2037,14 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
       dshape(4 + 4*(p-1) - i - 1,1) =  2* (1. - x) * (DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
    }
 
-
+   
  
    int interior_total = 0;
    for (int j = 4; j < p + 1; j++)
    {
       for (int k = 0; k < j-3; k++)
       {
+         cout << "fe.cpp: making D shape functions" << endl;
          // shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
          // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
          cout << " ** NEED TO CODE DShape in p>=4 case" << endl;

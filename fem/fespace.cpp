@@ -1443,6 +1443,7 @@ void FiniteElementSpace::Construct()
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+            cout << "fespace.cpp: fec->DofForGeometry(geom) = " << fec->DofForGeometry(geom) << endl;
             nbdofs += fec->DofForGeometry(geom);
             bdofs[i+1] = nbdofs;
          }
@@ -1456,12 +1457,13 @@ void FiniteElementSpace::Construct()
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+            cout << "fespace.cpp: fec->DofForGeometry(geom) = " << fec->DofForGeometry(geom) << endl;
             nbdofs += fec->DofForGeometry(geom);
             bdofs[i+1] = nbdofs;
          }
       }
       ndofs = nvdofs + nedofs + nfdofs + nbdofs;
-     // cout << "Computed ndofs as sum of " << nvdofs << " vdofs, " << nedofs << " nedofs, " << nfdofs << " nfdofs, and " << nbdofs << " nbdofs." << endl;
+      cout << "Computed ndofs as sum of " << nvdofs << " vdofs, " << nedofs << " nedofs, " << nfdofs << " nfdofs, and " << nbdofs << " nbdofs." << endl;
      // Serendipity edits will need to be done here...
 
    // Do not build elem_dof Table here: in parallel it has to be constructed

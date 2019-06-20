@@ -1526,8 +1526,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
       case BasisType::Serendipity:
       {
-	 snprintf(h1_name, 32, "H1Ser_%dD_P%d", dim, p);
-	 break;
+      	snprintf(h1_name, 32, "H1Ser_%dD_P%d", dim, p);
+         break;
       }
       default:
       {
@@ -1604,17 +1604,21 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
       else if (b_type == BasisType::Serendipity)
       {
+         // NOTE: fe_coll.hpp has 
+         //            virtual int DofForGeometry(Geometry::Type GeomType) const  { return H1_dof[GeomType]; }
+         //       so we need to fix the value of H1_dof here for the serendipity case
          if (p > 1)
          {
-            H1_dof[Geometry::SQUARE] = (p*p + 3*p +6) / 2; // formula for numbe of serendipity DoFs (when p>1)
+            H1_dof[Geometry::SQUARE] = (p-3)*(p-2)/2; // formula for number of interior serendipity DoFs (when p>1)
          }
+         cout << "fe_coll: setting H1_dof[Geometry::SQUARE] to be " << H1_dof[Geometry::SQUARE] << endl;
       	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
       }
       else
       {
 	      H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
          H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
-     }
+      }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
       const int &QuadDof = H1_dof[Geometry::SQUARE];
@@ -1681,6 +1685,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          }
       }
    }
+   cout << "fe_coll: done with H1 collection constructor" << endl;
 }
 
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
@@ -2494,7 +2499,6 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    {
       GeomType = Geometry::SQUARE;
       Local_Element = new H1_QuadrilateralElement(atoi(fe_name + 7));
-      cout << "in fe_coll.cpp: using H1_QuadrilateralFiniteElement" << "\n"; 
    }
    else if (!strncmp(fe_name, "H1Pos_", 6))
    {
@@ -2504,8 +2508,7 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    else if (!strncmp(fe_name, "H1Ser_", 6))
    {
       GeomType = Geometry::SQUARE;
-      Local_Element = new H1Ser_QuadrilateralElement(atoi(fe_name + 10));
-      cout << "in fe_coll.cpp: using H1Ser_QuadrilateralElement" << "\n"; 
+      Local_Element = new H1Ser_QuadrilateralElement(atoi(fe_name + 10)); 
    }
    else if (!strncmp(fe_name, "L2_", 3))
    {
