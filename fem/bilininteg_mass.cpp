@@ -199,15 +199,11 @@ static void PAMassAssembleDiagonal(
    }
    else if (dim == 2)
    {
-      /*
       switch ((D1D << 4 ) | Q1D)
       {
          // should look at smem routines in what follows?
          default:   return PAMassAssembleDiagonal2D(NE, B, Bt, op, y, D1D, Q1D);
       }
-      */
-      PAMassAssembleDiagonal2D(NE, B, Bt, op, y, D1D, Q1D);
-      return;
    }
    else if (dim == 3)
    {
