@@ -411,8 +411,20 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, const mfem::Integrat
                      CEED_REQUEST_IMMEDIATE);
 
    // Create the Q-function that defines the action of the diff operator.
-   CeedQFunctionCreateInterior(ceed, 1, f_apply_diff,
-                               MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff", &ceedData.apply_qfunc);
+   switch(dim){
+   case 1:
+      CeedQFunctionCreateInterior(ceed, 1, f_apply_diff,
+                               MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff_1d", &ceedData.apply_qfunc);
+      break;
+   case 2:
+      CeedQFunctionCreateInterior(ceed, 1, f_apply_diff,
+                               MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff_2d", &ceedData.apply_qfunc);
+      break;
+   case 3:
+      CeedQFunctionCreateInterior(ceed, 1, f_apply_diff,
+                               MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff_3d", &ceedData.apply_qfunc);
+      break;
+   }
    CeedQFunctionAddInput(ceedData.apply_qfunc, "u", 1, CEED_EVAL_GRAD);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "rho", dim * (dim + 1) / 2,
                          CEED_EVAL_NONE);
