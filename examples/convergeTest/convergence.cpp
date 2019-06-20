@@ -104,28 +104,30 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
 
-   // For solving PDE:
-   if (mesh->bdr_attributes.Size())
-   {
-    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
+   // For solving PDE: (1 of 3 changes)
+   // if (mesh->bdr_attributes.Size())
+   // {
+   //  fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   // }
 
-   // For solving PDE:
-   // // Do not get boundary dofs
+   // For L2 Projection:
+   // Do not get boundary dofs
 
 
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
+
+
    LinearForm *b = new LinearForm(fespace);
 
-   // // For solving PDE:
-   ConstantCoefficient zero(0.0);
-   b->AddDomainIntegrator(new DomainLFIntegrator(zero));
+   // // For solving PDE: (2 of 3 changes)
+   // ConstantCoefficient zero(0.0);
+   // b->AddDomainIntegrator(new DomainLFIntegrator(zero));
 
    // For L2 Projection:
-   // b->AddDomainIntegrator(new DomainLFIntegrator(*u));
+   b->AddDomainIntegrator(new DomainLFIntegrator(*u));
 
 
    b->Assemble();
@@ -142,13 +144,12 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
 
-   // // For solving PDE:
-   DiffusionIntegrator *my_integrator = new DiffusionIntegrator;
+   // For solving PDE: (3 of 3 changes)
+   // DiffusionIntegrator *my_integrator = new DiffusionIntegrator;
 
    // For L2 Projection:
-   //MassIntegrator *my_integrator = new MassIntegrator;
+   MassIntegrator *my_integrator = new MassIntegrator;
 
-   //   // For solving PDE:
    a->AddDomainIntegrator(my_integrator);
 
 
@@ -294,7 +295,8 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int total_refinements = 0;
 
-//   const char *mesh_file = "../../data/twoSquare.mesh";
+   // const char *mesh_file = "../../data/twoSquare.mesh";
+   // const char *mesh_file = "../../data/star.mesh";
    const char *mesh_file = "../../data/singleSquare.mesh";
    int order = 1;
    bool static_cond = false;
@@ -353,12 +355,6 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-
-   if (order ==2)
-   {
-      cout << "temporarily broke quadratic serendipity functionality; shape functions set to cubic case only in fe.cpp" << endl;
-      return 1;
-   }
 
    if (exact == 1)
    {

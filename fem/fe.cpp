@@ -1974,11 +1974,15 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    {
       shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
       shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
+      // shape(4 + 2*(p-1) + i) = 2* legX[i] * x * y * (1. - x);
+      // shape(4 + 3*(p-1) + i) = 2* legY[i] * (1. - x) * y * (1. - y);
       shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
       shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
       // shape(4 + 2*(p-1) + i) = 2* legX[i] * x * y * (1. - x);
       // shape(4 + 3*(p-1) + i) = 2* legY[i] * (1. - x) * y * (1. - y);
    }
+
+
 
    int interior_total = 0;
    for (int j = 4; j < p + 1; j++)
@@ -2050,51 +2054,21 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    dshape(3,0) = -y;
    dshape(3,1) = (1. - x);
 
-
-   dshape(4,0) = 2*(-1 + 2*x)*(-1 + y);
-   dshape(4,1) = 2*(-1 + x)*x;
-
-   dshape(5,0) = 2*(1 - 6*x + 6*x*x)*(-1 + y);
-   dshape(5,1) = 2*(-1 + x)*x*(-1 + 2*x);
-
-   dshape(6,0) = (2 - 4*x)*y;
-   dshape(6,1) = -2*(-1 + x)*x;
-
-   dshape(7,0) = -2*(-1 + y)*y*(-1 + 2*y);
-   dshape(7,1) = -2*x*(1 - 6*y + 6*y*y);
-
-   dshape(8,0) = -2*(1 - 6*x + 6*x*x)*y;
-   dshape(8,1) = -2*(-1 + x)*x*(-1 + 2*x);
-
-   dshape(9,0) = 2*(-1 + y)*y;
-   dshape(9,1) = 2*(-1 + x)*(-1 + 2*y);
-
-   dshape(10,0) = 2*(-1 + y)*y*(-1 + 2*y);
-   dshape(10,1) = 2*(-1 + x)*(1 - 6*y + 6*y*y);
-
-   dshape(11,0) = 2*(-1 + y)*y;
-   dshape(11,1) = 2*(-1 + x)*(-1 + 2*y);
+   
+  for (int i = 0; i < p-1; i++) // only works for p=2
+   {
+      dshape(4 + 0*(p-1) + i ,0) =  2* (1. - y) * (DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));
+      dshape(4 + 0*(p-1) + i ,1) = -2* legX[i] * x * (1. - x);
+      dshape(4 + 1*(p-1) + i ,0) =  2* legY[i] * y * (1. - y); 
+      dshape(4 + 1*(p-1) + i ,1) =  2* x* (DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+      dshape(4 + 3*(p-1) - i - 1,0) =  2* y * (DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
+      dshape(4 + 3*(p-1) - i - 1,1) =  2* legX[i] * x * (1. - x);
+      dshape(4 + 4*(p-1) - i - 1,0) = -2* legY[i] * y * (1. - y); 
+      dshape(4 + 4*(p-1) - i - 1,1) =  2* (1. - x) * (DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+   }
 
 
-
-   // prev attempt to write dshape functions:
-
-   // for (int i = 0; i < p-1; i++)
-   // {
-   //    dshape(4 + 0*(p-1) + i ,0) =  2* (1. - y) * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));
-   //    dshape(4 + 0*(p-1) + i ,1) = -2* legX[i] * x * (1. - x);
-   //    dshape(4 + 1*(p-1) + i ,0) =  2* legY[i] * y * (1. - y); 
-   //    dshape(4 + 1*(p-1) + i ,1) =  2* x* (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
-   //    // dshape(4 + 2*(p-1) + 1 ,0) =  2* y * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
-   //    // dshape(4 + 2*(p-1) + 1 ,1) =  2* legX[i] * x * (1. - x);
-   //    // dshape(4 + 3*(p-1) + 1 ,0) = -2* legY[i] * y * (1. - y); 
-   //    // dshape(4 + 3*(p-1) + 1 ,1) =  2* (1. - x) * (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
-   //    dshape(4 + 3*(p-1) - i - 1,0) =  2* y * (2 * DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
-   //    dshape(4 + 3*(p-1) - i - 1,1) =  2* legX[i] * x * (1. - x);
-   //    dshape(4 + 4*(p-1) - i - 1,0) = -2* legY[i] * y * (1. - y); 
-   //    dshape(4 + 4*(p-1) - i - 1,1) =  2* (1. - x) * (2 * DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
-   // }
-
+ 
    int interior_total = 0;
    for (int j = 4; j < p + 1; j++)
    {
@@ -2175,8 +2149,8 @@ void H1Ser_QuadrilateralElement::Project (
       Vector col;
       V.GetColumnReference(j, col);
       (this)->CalcShape(ip, col);
-//      rhs[j] = coeff[0]->Eval(Trans, ip);
-      rhs[j] = coeff.Eval(Trans, ip); // WHAT WAS THE POINT OF THE [0] ABOVE?
+//      rhs[j] = coeff[0]->Eval(Trans, ip); // [0] was to deal with potential vector coeffs; not considered yet
+      rhs[j] = coeff.Eval(Trans, ip); 
    }
    V.Transpose();
    DenseMatrixInverse Vinv(V);
