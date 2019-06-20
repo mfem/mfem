@@ -205,6 +205,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
+   list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    constraint_list.MakeRef(list);
    // typically z and w are large vectors, so store them on the device
    z.SetSize(height, mem_type); z.UseDevice(true);

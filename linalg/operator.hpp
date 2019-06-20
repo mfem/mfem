@@ -133,7 +133,7 @@ public:
        forms, though currently @a b is not used in the implementation. */
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
-   /** @brief Return in @A a parallel (on truedofs) version of this square
+   /** @brief Return in @a A a parallel (on truedofs) version of this square
        operator.
 
        This returns the same operator as FormLinearSystem(), but does without
@@ -141,8 +141,8 @@ public:
    void FormSystemOperator(const Array<int> &ess_tdof_list,
                            Operator* &A);
 
-   /** @brief Return in @A a parallel (on truedofs) version of this rectangular
-       operator.
+   /** @brief Return in @a A a parallel (on truedofs) version of this
+       rectangular operator.
 
        This is similar to FormSystemOperator(), but for dof-to-dof mappings
        (discrete linear operators), which can also correspond to rectangular
