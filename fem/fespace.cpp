@@ -570,13 +570,13 @@ bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
 void FiniteElementSpace::GetDegenerateFaceDofs(int index,
                                                Array<int> &dofs) const
 {
-   // In NC meshes with prisms, a special constraint occurs where a prism edge
-   // is slave to a quadrilateral face. Rather than introduce a new edge-face
-   // constraint type, we handle such cases as degenerate face-face constraints,
-   // where the point-matrix rectangle has zero height. This method returns
-   // DOFs for the first edge of the rectangle, duplicated in the orthogonal
-   // direction, to resemble DOFs for a quadrilateral face. The extra DOFs are
-   // ignored by FiniteElementSpace::AddDependencies.
+   // In NC meshes with prisms/tets, a special constraint occurs where a
+   // prism/tet edge is slave to another element's face. Rather than introduce a
+   // new edge-face constraint type, we handle such cases as degenerate
+   // face-face constraints, where the point-matrix rectangle has zero height.
+   // This method returns DOFs for the first edge of the rectangle, duplicated
+   // in the orthogonal direction, to resemble DOFs for a quadrilateral face.
+   // The extra DOFs are ignored by FiniteElementSpace::AddDependencies.
 
    Array<int> edof;
    GetEdgeDofs(-1 - index, edof);
