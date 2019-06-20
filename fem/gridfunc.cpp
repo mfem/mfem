@@ -740,30 +740,40 @@ void GridFunction::GetVectorFieldValues(
 
 double GridFunction::GetInterfaceValue( int i, const IntegrationPoint& ip, int vdim ) const
 {
+   Array<int> dofs;
    fes->GetFaceDofs(i, dofs);
    fes->DofsToVDofs(vdim-1, dofs);
-	Vector DofVal(dofs.Size()), LocVec;
+
+   Vector DofVal(dofs.Size()), LocVec;
+
    const FiniteElement *fe = fes->GetFaceElement(i);
+
    MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
+
    fe->CalcShape(ip, DofVal);
-   lambda.GetSubVector(dofs, LocVec);
+   GetSubVector(dofs, LocVec);
 
    return (DofVal * LocVec);
 }
 
-void GridFunction::GetInterfaceValues(int i, const IntegrationRule &ir, Vector &vals,
-                             int vdim)
-const
+void GridFunction::GetInterfaceValues(int i, const IntegrationRule &ir, Vector &vals, int vdim) const
 {
    Array<int> dofs;
+
    int n = ir.GetNPoints();
    vals.SetSize(n);
+
    fes->GetFaceDofs(i, dofs);
    fes->DofsToVDofs(vdim-1, dofs);
+
    const FiniteElement *FElem = fes->GetFaceElement(i);
+
    MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
+
    int dof = FElem->GetDof();
+
    Vector DofVal(dof), loc_data(dof);
+
    GetSubVector(dofs, loc_data);
    for (int k = 0; k < n; k++)
    {
