@@ -27,6 +27,7 @@ namespace mfem
 
 NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 
+// TODO: remove these
 NCMesh::GeomInfo& NCMesh::gi_hex   = NCMesh::GI[Geometry::CUBE];
 NCMesh::GeomInfo& NCMesh::gi_wedge = NCMesh::GI[Geometry::PRISM];
 NCMesh::GeomInfo& NCMesh::gi_tet   = NCMesh::GI[Geometry::TETRAHEDRON];
@@ -2375,13 +2376,13 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
    Face *ef[2][4];
    if (split == 1) // "X" split face
    {
-      Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
+      Point pmid0(pm(0), pm(1)), pmid2(pm(2), pm(3));
 
       TraverseQuadFace(vn0, mid[0], mid[2], vn3,
-                       PointMatrix(pm(0), mid0, mid2, pm(3)), level+1, ef[0]);
+                       PointMatrix(pm(0), pmid0, pmid2, pm(3)), level+1, ef[0]);
 
       TraverseQuadFace(mid[0], vn1, vn2, mid[2],
-                       PointMatrix(mid0, pm(1), pm(2), mid2), level+1, ef[1]);
+                       PointMatrix(pmid0, pm(1), pm(2), pmid2), level+1, ef[1]);
 
       eface[1] = ef[1][1];
       eface[3] = ef[0][3];
@@ -2389,13 +2390,13 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
    }
    else if (split == 2) // "Y" split face
    {
-      Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
+      Point pmid1(pm(1), pm(2)), pmid3(pm(3), pm(0));
 
       TraverseQuadFace(vn0, vn1, mid[1], mid[3],
-                       PointMatrix(pm(0), pm(1), mid1, mid3), level+1, ef[0]);
+                       PointMatrix(pm(0), pm(1), pmid1, pmid3), level+1, ef[0]);
 
       TraverseQuadFace(mid[3], mid[1], vn2, vn3,
-                       PointMatrix(mid3, mid1, pm(2), pm(3)), level+1, ef[1]);
+                       PointMatrix(pmid3, pmid1, pm(2), pm(3)), level+1, ef[1]);
 
       eface[0] = ef[0][0];
       eface[2] = ef[1][2];
@@ -2451,7 +2452,45 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
    }
 }
 
-void NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
+void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1)
+{
+   int mid = nodes.FindId(vn0, vn1);
+   if (mid < 0) { return; }
+
+   const Node &nd = nodes[mid];
+   if (nd.HasEdge())
+   {
+      // check if the edge is already a master in 'edge_list'
+      int type;
+      const MeshId &eid = edge_list.LookUp(nd.edge_index, &type);
+      if (type == 1)
+      {
+         // in this case we need to add an edge-face constraint, because the
+         // master edge is really a (face-)slave itself
+
+         std::cout << "tet edge-face constraint!" << std::endl;
+
+         face_list.slaves.push_back(
+            Slave(-1 - eid.index, eid.element, eid.local, eid.geom));
+
+         DenseMatrix &mat = face_list.slaves.back().point_matrix;
+
+         int v0index = nodes[vn0].vert_index;
+         int v1index = nodes[vn1].vert_index;
+         ((v0index < v1index) ? PointMatrix(p0, p1, p0)
+          /*               */ : PointMatrix(p1, p0, p1)).GetMatrix(mat);
+
+         return; // no need to continue deeper
+      }
+   }
+
+   // recurse deeper
+   Point pmid(p0, p1);
+   TraverseTetEdge(vn0, mid, p0, pmid);
+   TraverseTetEdge(mid, vn1, pmid, p1);
+}
+
+bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
                              const PointMatrix& pm, int level)
 {
    if (level > 0)
@@ -2472,27 +2511,38 @@ void NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
          int local = ReorderFacePointMat(vn0, vn1, vn2, -1, elem, mat);
          face_list.slaves.back().local = local;
 
-         return;
+         return true;
       }
    }
 
    int mid[3];
    if (TriFaceSplit(vn0, vn1, vn2, mid))
    {
-      Point mid0(pm(0), pm(1)), mid1(pm(1), pm(2)), mid2(pm(2), pm(0));
+      Point pmid0(pm(0), pm(1)), pmid1(pm(1), pm(2)), pmid2(pm(2), pm(0));
+      bool b[4];
 
-      TraverseTriFace(vn0, mid[0], mid[2],
-                      PointMatrix(pm(0), mid0, mid2), level+1);
+      b[0] = TraverseTriFace(vn0, mid[0], mid[2],
+                             PointMatrix(pm(0), pmid0, pmid2), level+1);
 
-      TraverseTriFace(mid[0], vn1, mid[1],
-                      PointMatrix(mid0, pm(1), mid1), level+1);
+      b[1] = TraverseTriFace(mid[0], vn1, mid[1],
+                             PointMatrix(pmid0, pm(1), pmid1), level+1);
 
-      TraverseTriFace(mid[2], mid[1], vn2,
-                      PointMatrix(mid2, mid1, pm(2)), level+1);
+      b[2] = TraverseTriFace(mid[2], mid[1], vn2,
+                             PointMatrix(pmid2, pmid1, pm(2)), level+1);
 
-      TraverseTriFace(mid[1], mid[2], mid[0],
-                      PointMatrix(mid1, mid2, mid0), level+1);
+      b[3] = TraverseTriFace(mid[1], mid[2], mid[0],
+                             PointMatrix(pmid1, pmid2, pmid0), level+1);
+
+      // traverse possible tet edges constrained by the master face
+      if (HaveTets() && !b[3])
+      {
+         if (!b[1]) { TraverseTetEdge(mid[0], mid[1], pmid0, pmid1); }
+         if (!b[2]) { TraverseTetEdge(mid[1], mid[2], pmid1, pmid2); }
+         if (!b[0]) { TraverseTetEdge(mid[2], mid[0], pmid2, pmid0); }
+      }
    }
+
+   return false;
 }
 
 void NCMesh::BuildFaceList()
@@ -2501,6 +2551,8 @@ void NCMesh::BuildFaceList()
    boundary_faces.SetSize(0);
 
    if (Dim < 3) { return; }
+
+   if (HaveTets()) { GetEdgeList(); } // needed by TraverseTetEdge()
 
    Array<char> processed_faces(faces.NumIds());
    processed_faces = 0;

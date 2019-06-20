@@ -616,11 +616,13 @@ protected: // implementation
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
                            int elem, DenseMatrix& mat) const;
+   struct Point;
    struct PointMatrix;
    void TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                          const PointMatrix& pm, int level, Face* eface[4]);
-   void TraverseTriFace(int vn0, int vn1, int vn2,
+   bool TraverseTriFace(int vn0, int vn1, int vn2,
                         const PointMatrix& pm, int level);
+   void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1);
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                      int level);
 
