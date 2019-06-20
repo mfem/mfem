@@ -594,8 +594,8 @@ protected:
       // c11, c12, c44 for Cubic crystals
       //Params then include the following: 
       //shear modulus, m parameter seen in slip kinetics, gdot_0 term found in slip kinetic eqn,
-      //hardening coeff. defined for g_crss evolution eqn, initial CRSS saturation strength,
-      //initial CRSS value, CRSS saturation strength scaling exponent,
+      //hardening coeff. defined for g_crss evolution eqn, initial CRSS value,
+      //initial CRSS saturation strength, CRSS saturation strength scaling exponent,
       //CRSS saturation strength rate scaling coeff, tausi -> hdn_init (not used)
       //Params then include the following:
       //the Grüneisen parameter, reference internal energy
@@ -610,12 +610,56 @@ protected:
 
       for(int i = 0; i < matProps->Size(); i++)
       {
-	 params.push_back(matProps->Elem(i));
+         params.push_back(matProps->Elem(i));
       }
       //We really shouldn't see this change over time at least for our applications.
       mat_model_base->initFromParams(opts, params, strs);
       //
       mat_model_base->complete();
+
+      std::vector<double> histInit_vec;
+      {
+         std::vector<std::string> names;
+         std::vector<bool>        plot;
+         std::vector<bool>        state;
+         mat_model_base->getHistInfo(names, histInit_vec, plot, state );
+      }
+      
+      QuadratureFunction* _state_vars = matVars0.GetQuadFunction();
+      double* state_vars = _state_vars->GetData();
+
+      int qf_size = (_state_vars->Size()) / (_state_vars->GetVDim());
+      
+      int vdim = _state_vars->GetVDim();
+      int ind = 0;
+      
+      for(int i = 0; i < qf_size; i++)
+      {
+         ind = i * vdim;
+
+         state_vars[ind + ind_dp_eff] = histInit_vec[ind_dp_eff];
+         state_vars[ind + ind_eql_pl_strain] = histInit_vec[ind_eql_pl_strain];
+         state_vars[ind + ind_num_evals] = histInit_vec[ind_num_evals];
+         state_vars[ind + ind_hardness] = histInit_vec[ind_hardness];
+         state_vars[ind + ind_vols] = 1.0;
+
+         for(int j = 0; j < ecmech::ne; j++)
+         {
+            state_vars[ind + ind_int_eng] = 0.0;
+         }
+
+         for(int j = 0; j < 5; j++)
+         {
+            state_vars[ind + ind_dev_elas_strain + j] = histInit_vec[ind_dev_elas_strain + j];
+         }
+
+         for(int j = 0; j < num_slip; j++)
+         {
+            state_vars[ind + ind_gdot + j] = histInit_vec[ind_gdot + j];
+         }
+
+      }
+
    }
 
    //This is a type alias for:
@@ -695,7 +739,7 @@ protected:
       num_vols = 1;
       ind_vols = ind_gdot + num_slip;
       //The number of internal energy variables -> currently 1
-      num_int_eng = 1;
+      num_int_eng = ecmech::ne;
       ind_int_eng = ind_vols + num_vols;
 
       //Params start off with:
@@ -723,12 +767,56 @@ protected:
 
       for(int i = 0; i < matProps->Size(); i++)
       {
-	 params.push_back(matProps->Elem(i));
+         params.push_back(matProps->Elem(i));
       }
       //We really shouldn't see this change over time at least for our applications.
       mat_model_base->initFromParams(opts, params, strs);
       //
       mat_model_base->complete();
+
+
+      std::vector<double> histInit_vec;
+      {
+         std::vector<std::string> names;
+         std::vector<bool>        plot;
+         std::vector<bool>        state;
+         mat_model_base->getHistInfo(names, histInit_vec, plot, state );
+      }
+      
+      QuadratureFunction* _state_vars = matVars0.GetQuadFunction();
+      double* state_vars = _state_vars->GetData();
+
+      int qf_size = (_state_vars->Size()) / (_state_vars->GetVDim());
+      
+      int vdim = _state_vars->GetVDim();
+      int ind = 0;
+      
+      for(int i = 0; i < qf_size; i++)
+      {
+         ind = i * vdim;
+
+         state_vars[ind + ind_dp_eff] = histInit_vec[ind_dp_eff];
+         state_vars[ind + ind_eql_pl_strain] = histInit_vec[ind_eql_pl_strain];
+         state_vars[ind + ind_num_evals] = histInit_vec[ind_num_evals];
+         state_vars[ind + ind_hardness] = histInit_vec[ind_hardness];
+         state_vars[ind + ind_vols] = 1.0;
+
+         for(int j = 0; j < ecmech::ne; j++)
+         {
+            state_vars[ind + ind_int_eng] = 0.0;
+         }
+
+         for(int j = 0; j < ecmech::ntvec; j++)
+         {
+            state_vars[ind + ind_dev_elas_strain + j] = histInit_vec[ind_dev_elas_strain + j];
+         }
+
+         for(int j = 0; j < num_slip; j++)
+         {
+            state_vars[ind + ind_gdot + j] = histInit_vec[ind_gdot + j];
+         }
+         
+      }
    }
 
    //This is a type alias for:

@@ -1999,7 +1999,6 @@ void AbaqusUmatModel::CalcElemLength()
 }
 
 //For ExaCMechModel definitions the ecmech namespace is useful
-
 void ExaCMechModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
                                 const double weight)
 {
@@ -2011,19 +2010,19 @@ void ExaCMechModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
 
    double statev[nstatv]; // populate from the state variables associated with this element/ip
 
-   double stress[6]; // Cauchy stress at ip
-   double stress_svec_p[7]; //Cauchy stress at ip layed out as deviatoric portion first then pressure term
+   double stress[ecmech::nsvec]; // Cauchy stress at ip
+   double stress_svec_p[ecmech::nsvp]; //Cauchy stress at ip layed out as deviatoric portion first then pressure term
 
-   double d_svec_p[7];
-   double w_vec[3];
+   double d_svec_p[ecmech::nsvp];
+   double w_vec[ecmech::nwvec];
 
-   double ddsdde[36]; // output Jacobian matrix of the constitutive model.
+   double ddsdde[ecmech::nsvp * ecmech::nsvp]; // output Jacobian matrix of the constitutive model.
                      // ddsdde(i,j) defines the change in the ith stress component 
                      // due to an incremental perturbation in the jth deformation rate component
 
-   double sdd[2]; //not really used for our purposes as a quasi-static type code
+   double sdd[ecmech::nsdd]; //not really used for our purposes as a quasi-static type code
    double vol_ratio[4];
-   double eng_int;
+   double eng_int[ecmech::ne];
 
    // get state variables and material properties
    GetElementStateVars(elemID, ipID, true, statev, nstatv);
@@ -2031,16 +2030,18 @@ void ExaCMechModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    GetElementStress(elemID, ipID, true, stress, 6);
 
    // initialize 6x6 2d arrays
-   for (int i = 0; i < 6; ++i) 
+   for (int i = 0; i < ecmech::nsvec; ++i) 
    {
-      for (int j = 0; j < 6; ++j) 
-      {
-         ddsdde[(i * 6) + j] = 0.0;
-      }
+     for (int j = 0; j < ecmech::nsvec; ++j) 
+     {
+        ddsdde[(i * ecmech::nsvec) + j] = 0.0;
+     }
    }
-
-   eng_int = statev[ind_int_eng];
-
+   
+   for(int i = 0; i < ecmech::ne; ++i)
+   {
+     eng_int[i] = statev[ind_int_eng + i];
+   }
    //Here we have the skew portion of our velocity gradient as represented as an
    //axial vector.
    w_vec[0] = 0.5 * (J(2, 1) - J(1, 2));
@@ -2053,47 +2054,49 @@ void ExaCMechModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    //Vgrad or J as seen here
    //The last value is the minus of hydrostatic term so the "pressure"
    d_svec_p[0] = J(0, 0) + d_mean; 
-   d_svec_p[1] = J(0, 0) + d_mean; 
-   d_svec_p[2] = J(0, 0) + d_mean; 
+   d_svec_p[1] = J(1, 1) + d_mean; 
+   d_svec_p[2] = J(2, 2) + d_mean; 
    d_svec_p[3] = 0.5 * (J(2, 1) + J(1, 2));
    d_svec_p[4] = 0.5 * (J(2, 0) + J(0, 2));
    d_svec_p[5] = 0.5 * (J(1, 0) + J(0, 1));
-   d_svec_p[6] = d_mean;
+   d_svec_p[6] = -3 * d_mean;
 
    vol_ratio[0] = statev[ind_vols];
    vol_ratio[1] = vol_ratio[0] * exp(d_svec_p[ecmech::iSvecP] * dt);
    vol_ratio[3] = vol_ratio[1] - vol_ratio[0];
    vol_ratio[2] = vol_ratio[3] / (dt * 0.5 * (vol_ratio[0] + vol_ratio[1]));
-   
+
    std::copy(stress, stress + ecmech::nsvec, stress_svec_p);
    
    double stress_mean = -ecmech::one_third * (stress[0] + stress[1] + stress[2]);
    stress_svec_p[0] += stress_mean;
    stress_svec_p[1] += stress_mean;
    stress_svec_p[2] += stress_mean;
-   stress_svec_p[6] = stress_mean;
+   stress_svec_p[ecmech::iSvecP] = stress_mean;
    
    mat_model_base->getResponse(dt, &d_svec_p[0], &w_vec[0], &vol_ratio[0],
-                   &eng_int, &stress_svec_p[0], &statev[0], &temp_k, &sdd[0], &ddsdde[0], 1);
+                   &eng_int[0], &stress_svec_p[0], &statev[0], &temp_k, &sdd[0], &ddsdde[0], 1);
 
    //ExaCMech saves this in Row major, so we need to get out the transpose.
    //The good thing is we can do this all in place no problem.
-   for (int i = 0; i < 5; ++i)
+   for (int i = 0; i < ecmech::ntvec; ++i)
    {
-     for (int j = i + 1; j < 6; ++j)
+     for (int j = i + 1; j < ecmech::nsvec; ++j)
      {
-        std::swap(ddsdde[(6 * j) + i], ddsdde[(6 * i) + j]);
+        std::swap(ddsdde[(ecmech::nsvec * j) + i], ddsdde[(ecmech::nsvec * i) + j]);
      }
    }
 
    //We need to update our state variables to include the volume ratio and 
    //internal energy portions
    statev[ind_vols] = vol_ratio[1];
-   statev[ind_int_eng] = eng_int;
-
+   for(int i = 0; i < ecmech::ne; ++i)
+   {
+      statev[ind_int_eng + i] = eng_int[i];
+   }
    //Here we're converting back from our deviatoric + pressure representation of our
    //Cauchy stress back to the Voigt notation of stress.
-   stress_mean = -stress_svec_p[6];
+   stress_mean = -stress_svec_p[ecmech::iSvecP];
    std::copy(stress_svec_p, stress_svec_p + ecmech::nsvec, stress);
    stress[0] += stress_mean;
    stress[1] += stress_mean;
