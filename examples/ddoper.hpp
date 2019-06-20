@@ -300,23 +300,23 @@ SparseMatrix* GatherHypreParMatrix(HypreParMatrix *A)
 
 SparseMatrix* ReceiveSparseMatrix(const int source)
 {
-  int sizes[2];  // {size of matrix, number of nonzeros}
+  int sizes[3];  // {matrix height, matrix width, number of nonzeros}
 
-  MPI_Recv(sizes, 2, MPI_INT, source, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Recv(sizes, 3, MPI_INT, source, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-  MFEM_VERIFY(sizes[0] > 0 && sizes[1] > 0, "");
+  MFEM_VERIFY(sizes[0] > 0 && sizes[1] > 0 && sizes[2] > 0, "");
   
   int *I = new int[sizes[0]+1];
-  int *J = new int[sizes[1]];
-  double *data = new double[sizes[1]];
+  int *J = new int[sizes[2]];
+  double *data = new double[sizes[2]];
 
   MPI_Recv(I, sizes[0]+1, MPI_INT, source, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-  MPI_Recv(J, sizes[1], MPI_INT, source, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-  MPI_Recv(data, sizes[1], MPI_DOUBLE, source, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Recv(J, sizes[2], MPI_INT, source, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Recv(data, sizes[2], MPI_DOUBLE, source, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-  MFEM_VERIFY(sizes[1] == I[sizes[0]], "");
+  MFEM_VERIFY(sizes[2] == I[sizes[0]], "");
 
-  SparseMatrix *S = new SparseMatrix(sizes[0], sizes[0]);
+  SparseMatrix *S = new SparseMatrix(sizes[0], sizes[1]);
   
   for (int k=0; k<sizes[0]; ++k)  // loop over rows
     {
@@ -337,16 +337,17 @@ SparseMatrix* ReceiveSparseMatrix(const int source)
 
 void SendSparseMatrix(SparseMatrix *S, const int dest)
 {
-  int sizes[2];
+  int sizes[3];
 
-  sizes[0] = S->Size();  // size of matrix
-  sizes[1] = S->GetI()[sizes[0]];  // number of nonzeros
+  sizes[0] = S->Height();
+  sizes[1] = S->Width();
+  sizes[2] = S->GetI()[sizes[0]];  // number of nonzeros
   
-  MPI_Send(sizes, 2, MPI_INT, dest, 0, MPI_COMM_WORLD);
+  MPI_Send(sizes, 3, MPI_INT, dest, 0, MPI_COMM_WORLD);
 
   MPI_Send(S->GetI(), sizes[0]+1, MPI_INT, dest, 1, MPI_COMM_WORLD);
-  MPI_Send(S->GetJ(), sizes[1], MPI_INT, dest, 2, MPI_COMM_WORLD);
-  MPI_Send(S->GetData(), sizes[1], MPI_DOUBLE, dest, 3, MPI_COMM_WORLD);
+  MPI_Send(S->GetJ(), sizes[2], MPI_INT, dest, 2, MPI_COMM_WORLD);
+  MPI_Send(S->GetData(), sizes[2], MPI_DOUBLE, dest, 3, MPI_COMM_WORLD);
 }
 
 // We assume here that the sparsity structure of the interface matrix I is contained in that of the subdomain matrix A.
@@ -573,6 +574,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
     {
       MFEM_VERIFY(iftfull[i] >= 0, "");
 
+      // TODO: is this ever used?
       iftsdt[i] = ifullsdt[iftfull[i]];  // well-defined
     }
 
@@ -654,12 +656,13 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 
 	  if (injRows) // Inject the rows from interface DOF's to subdomain DOF's.
 	    {
-	      for (int i=0; i<ifullsize; ++i)  // Loop over interface full DOF's, finding only those that correspond to SD true DOF's. The corresponding rows are injected.
+	      // Loop over interface full DOF's, finding only those that correspond to SD local true DOF's. The corresponding rows are injected.
+	      for (int i=0; i<ifullsize; ++i)
 		{
-		  if (ifullsdt[i] >= 0)
+		  if (ifullsdt[i] >= 0 && ifullsdt[i] >= ossdt && ifullsdt[i] < ossdtNext)
 		    {
 		      const HYPRE_Int gtdof = ifespace->GetGlobalTDofNumber(i);
-		      SI[ifullsdt[i]+1] += globalI->GetI()[gtdof+1] - globalI->GetI()[gtdof];
+		      SI[ifullsdt[i] - ossdt + 1] += globalI->GetI()[gtdof+1] - globalI->GetI()[gtdof];
 		    }
 		}
 	    }
@@ -685,13 +688,13 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 	  HYPRE_Int cnt = 0;
 
 	  if (injRows) // Inject the rows from interface DOF's to subdomain DOF's.
-	    {
-	      for (int i=0; i<ifullsize; ++i)  // Loop over interface full DOF's, finding only those that correspond to SD true DOF's. The corresponding rows are injected.
+	    { // Loop over interface full DOF's, finding only those that correspond to SD local true DOF's. The corresponding rows are injected.
+	      for (int i=0; i<ifullsize; ++i)  
 		{
-		  if (ifullsdt[i] >= 0)
+		  if (ifullsdt[i] >= 0 && ifullsdt[i] >= ossdt && ifullsdt[i] < ossdtNext)
 		    {
 		      const HYPRE_Int gtdof = ifespace->GetGlobalTDofNumber(i);
-		      const std::size_t row = ifullsdt[i];
+		      const std::size_t row = ifullsdt[i] - ossdt;
 		      for (int k=globalI->GetI()[gtdof]; k<globalI->GetI()[gtdof+1]; ++k, ++cnt, rowCount[row]++)
 			{ // Copy values in row gtdof of globalI to local row ifullsdt[i] of S.
 			  SJ[SI[row]+rowCount[row]] = globalI->GetJ()[k];  // Column index in globalI is already global in ifespace or ifespace2.
@@ -733,6 +736,9 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 
 		  for (int k=globalI->GetI()[gtdof]; k<globalI->GetI()[gtdof+1]; ++k, ++cnt, rowCount[i]++)
 		    { // Copy values in row gtdof of globalI to local row i of S.
+		      if (maxifgtsdt[globalI->GetJ()[k]] < 0)
+			cout << "BUG" << endl;
+		      
 		      SJ[SI[i]+rowCount[i]] = maxifgtsdt[globalI->GetJ()[k]];  // Column index in globalI is already global in ifespace or ifespace2. Map to global injected DOF.
 		      Sdata[SI[i]+rowCount[i]] = globalI->GetData()[k];
 		    }
@@ -744,6 +750,8 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 	    sumCnt += i;
 	  
 	  MFEM_VERIFY(nnz == cnt && sumCnt == cnt, "");
+
+	  MPI_Barrier(MPI_COMM_WORLD);
 
 	  if (injRows)
 	    S = new HypreParMatrix(ifcomm, numLocRows, A->GetGlobalNumRows(), globalI->Width(), SI, SJ, Sdata, A->RowPart(), I->ColPart());
@@ -828,6 +836,7 @@ HypreParMatrix* AddSubdomainMatrixAndInterfaceMatrix(MPI_Comm ifcomm, HypreParMa
 }
 
 // Row and column offsets are assumed to be the same.
+// Array offsets stores process-local offsets with respect to the blocks. Process offsets are not included.
 HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& offsets, Array2D<HypreParMatrix*> const& blocks,
 					       Array2D<double> const& coefficient)
 {
@@ -840,16 +849,36 @@ HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& 
   MPI_Comm_size(comm, &nprocs);
 
   std::vector<int> all_num_loc_rows(nprocs);
-
+  std::vector<int> procOffsets(nprocs);
+  std::vector<std::vector<int> > all_block_num_loc_rows(numBlocks);
+  std::vector<std::vector<int> > blockProcOffsets(numBlocks);
+  
   MPI_Allgather(&num_loc_rows, 1, MPI_INT, all_num_loc_rows.data(), 1, MPI_INT, comm);
 
+  for (int j=0; j<numBlocks; ++j)
+    {
+      all_block_num_loc_rows[j].resize(nprocs);
+      blockProcOffsets[j].resize(nprocs);
+      
+      const int blockNumRows = offsets[j+1] - offsets[j];
+      MPI_Allgather(&blockNumRows, 1, MPI_INT, all_block_num_loc_rows[j].data(), 1, MPI_INT, comm);
+
+      blockProcOffsets[j][0] = 0;
+      for (int i=0; i<nprocs-1; ++i)
+	blockProcOffsets[j][i+1] = blockProcOffsets[j][i] + all_block_num_loc_rows[j][i];
+    }
+  
   int first_loc_row = 0;
   int glob_nrows = 0;
+  procOffsets[0] = 0;
   for (int i=0; i<nprocs; ++i)
     {
       glob_nrows += all_num_loc_rows[i];
       if (i < rank)
 	first_loc_row += all_num_loc_rows[i];
+
+      if (i < nprocs-1)
+	procOffsets[i+1] = procOffsets[i] + all_num_loc_rows[i];
     }
     
   const int glob_ncols = glob_nrows;
@@ -917,14 +946,33 @@ HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& 
 	      
 	      for (int k=0; k<nrows; ++k)
 		{
-		  const int rowg = offsets[i] + k;
+		  const int rowg = offsets[i] + k;  // process-local row
 		  const int nnz_k = csr_blocks(i, j)->i[k+1] - csr_blocks(i, j)->i[k];
 		  const int osk = csr_blocks(i, j)->i[k];
 		  
 		  for (int l=0; l<nnz_k; ++l)
 		    {
-		      const int colg = offsets[j] + csr_blocks(i, j)->j[osk + l];
+		      // Find the column process offset for the block.
+		      const int bcol = csr_blocks(i, j)->j[osk + l];
+		      int bcolproc = 0;
 
+		      for (int p=1; p<nprocs; ++p)
+			{
+			  if (blockProcOffsets[j][p] > bcol)
+			    {
+			      bcolproc = p-1;
+			      break;
+			    }
+			}
+
+		      if (blockProcOffsets[j][nprocs - 1] <= bcol)
+			bcolproc = nprocs - 1;
+
+		      const int colg = procOffsets[bcolproc] + offsets[j] + (bcol - blockProcOffsets[j][bcolproc]);
+
+		      if (colg < 0)
+			cout << "BUG, negative global column index" << endl;
+		      
 		      opJ[opI[rowg] + cnt[rowg]] = colg;
 		      data[opI[rowg] + cnt[rowg]] = coef * csr_blocks(i, j)->data[osk + l];
 		      cnt[rowg]++;
@@ -958,6 +1006,14 @@ HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& 
   rowStarts2[0] = first_loc_row;
   rowStarts2[1] = first_loc_row + all_num_loc_rows[rank];
 
+  HYPRE_Int minJ = opJ[0];
+  HYPRE_Int maxJ = opJ[0];
+  for (int i=0; i<nnz; ++i)
+    {
+      minJ = std::min(minJ, opJ[i]);
+      maxJ = std::max(maxJ, opJ[i]);
+    }
+  
   HypreParMatrix *hmat = new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols, (int*) opI.data(), (HYPRE_Int*) opJ.data(), (double*) data.data(),
 					    (HYPRE_Int*) rowStarts2.data(), (HYPRE_Int*) rowStarts2.data());
   
@@ -1194,6 +1250,35 @@ bool FacesCoincideGeometrically(ParMesh *volumeMesh, const int face, ParMesh *su
   return true;
 }
 
+void PrintMeshBoundingBox(ParMesh *mesh)
+{
+  double vmin[3];
+  double vmax[3];
+  
+  for (int i=0; i<mesh->GetNV(); ++i)
+    {
+      double *v = mesh->GetVertex(i);
+
+      if (i == 0)
+	{
+	  for (int j=0; j<3; ++j)
+	    {
+	      vmin[j] = v[j];
+	      vmax[j] = v[j];
+	    }
+	}
+      else
+	{
+	  for (int j=0; j<3; ++j)
+	    {
+	      vmin[j] = std::min(v[j], vmin[j]);
+	      vmax[j] = std::max(v[j], vmax[j]);
+	    }
+	}
+    }
+
+  cout << mesh->GetMyRank() << ": sd box [" << vmin[0] << ", " << vmin[1] << ", " << vmin[2] << "] to [" << vmax[0] << ", " << vmax[1] << ", " << vmax[2] << "]" << endl;
+}
 
 // For InterfaceToSurfaceInjection, we need a map from DOF's on the interfaces to the corresponding DOF's on the surfaces of the subdomains.
 // These maps could be created efficiently by maintaining maps between subdomain meshes and the original mesh, as well as maps between the
@@ -1236,6 +1321,8 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
   ParMesh *ifMesh = ifespace->GetParMesh();  // Interface mesh
   ParMesh *sdMesh = fespace->GetParMesh();  // Subdomain mesh
 
+  //PrintMeshBoundingBox(sdMesh);
+  
   // Create map from face indices in pmeshFacesInInterface to pmesh elements containing those faces.
   std::map<int, int> pmeshFaceToElem;
   std::set<int> pmeshElemsByInterface;
@@ -1432,7 +1519,7 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 	      for (int d=0; d<ifdofs.Size(); ++d)
 		{
 		  const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
-			  
+
 		  if (sdtdof >= 0)  // if this is a true DOF of fespace.
 		    {
 		      MFEM_VERIFY(dofmap[ifdofs[d]] == sdtdof || dofmap[ifdofs[d]] == -1, "");
@@ -2157,7 +2244,7 @@ public:
 
 		//if (m == 0) HypreAsdComplexRe->Print("HypreAsdComplexRe0");
 		//if (m == 0) HypreAsdComplexIm->Print("HypreAsdComplexIm0");
-		//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplex_Par");
+		//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplex_Par2");
 		
 		invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
 	      }
@@ -3651,7 +3738,13 @@ private:
 	  for (int j=0; j<InterfaceToSurfaceInjectionData[subdomain][i].size(); ++j)
 	    {
 	      //interfaceTDofs.insert(InterfaceToSurfaceInjectionData[subdomain][i][j]);
-	      true_ess_dofs[InterfaceToSurfaceInjectionData[subdomain][i][j]] = 0;
+	      /*
+	      if (InterfaceToSurfaceInjectionData[subdomain][i][j] < 0)
+		cout << "BUG" << endl;
+	      */
+	      
+	      if (InterfaceToSurfaceInjectionData[subdomain][i][j] >= 0)
+		true_ess_dofs[InterfaceToSurfaceInjectionData[subdomain][i][j]] = 0;
 	    }
 	}
 
