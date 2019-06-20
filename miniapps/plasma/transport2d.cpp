@@ -343,13 +343,13 @@ public:
       double tau = tau_i(mi_, zi_, ni, Ti, lnLam_);
 
       bbTFunc(x_, K);
-      K *= 0.96 * ni * Ti * tau;
+      K *= 0.96 * ni * Ti * eV_ * tau;
 
       perpFunc(x_, perp_);
 
       double Di_perp = Di_perp_->Eval(T, ip);
 
-      K.Add(mi_ * ni * Di_perp, perp_);
+      K.Add(mi_ * amu_ * ni * Di_perp, perp_);
    }
 };
 
@@ -400,7 +400,7 @@ public:
 
       bbTFunc(x_, K);
 
-      K *= a_ * n * n * Temp * tau / m_;
+      K *= a_ * Temp * eV_ * tau / ( m_ * amu_ );
 
       perpFunc(x_, perp_);
 
@@ -1025,8 +1025,8 @@ int main(int argc, char *argv[])
 
    // ParGridFunction u(&fes);
    // u.ProjectCoefficient(u0Coef);
-   neu_density = 1.0;
-   ion_density = 1.0;
+   neu_density = 1.0e14;
+   ion_density = 1.0e19;
    para_velocity = 0.0;
 
    Array<double> weights(5);
@@ -1044,19 +1044,23 @@ int main(int argc, char *argv[])
 
    // Coefficients representing secondary fields
    ProductCoefficient      neCoef(ion_charge, niCoef);
-   ConstantCoefficient     vnCoef(sqrt(8.0 * neutral_temp /
-                                       (M_PI * neutral_mass)));
+   ConstantCoefficient     vnCoef(sqrt(8.0 * neutral_temp * eV_ /
+                                       (M_PI * neutral_mass * amu_)));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
 
    // Intermediate Coefficients
    VectorFunctionCoefficient bHatCoef(2, bHatFunc);
    MatrixFunctionCoefficient perpCoef(2, perpFunc);
-   ProductCoefficient          mnCoef(ion_mass, niCoef);
+   ProductCoefficient          mnCoef(ion_mass * amu_, niCoef);
    ProductCoefficient        nnneCoef(nnCoef, neCoef);
    ApproxIonizationRate        izCoef(elec_energy);
    ConstantCoefficient     DiPerpCoef(Di_perp);
    ConstantCoefficient     XiPerpCoef(Xi_perp);
    ConstantCoefficient     XePerpCoef(Xe_perp);
+   ThermalDiffusionCoef        XiCoef(dim, ion_charge, ion_mass,
+				      XiPerpCoef, niCoef, TiCoef);
+   ThermalDiffusionCoef        XeCoef(dim, ion_charge, me_u_,
+				      XePerpCoef, neCoef, TeCoef, &niCoef);
 
    // Advection Coefficients
    ScalarVectorProductCoefficient   ViCoef(viCoef, bHatCoef);
@@ -1068,11 +1072,9 @@ int main(int argc, char *argv[])
    ScalarMatrixProductCoefficient DiCoef(DiPerpCoef, perpCoef);
    MomentumDiffusionCoef          EtaCoef(dim, ion_charge, ion_mass,
                                           DiPerpCoef, niCoef, TiCoef);
-   ThermalDiffusionCoef           XiCoef(dim, ion_charge, ion_mass,
-                                         XiPerpCoef, niCoef, TiCoef);
-   ThermalDiffusionCoef           XeCoef(dim, ion_charge, me_u_,
-                                         XePerpCoef, neCoef, TeCoef, &niCoef);
-
+   ScalarMatrixProductCoefficient nXiCoef(niCoef, XiCoef);
+   ScalarMatrixProductCoefficient nXeCoef(neCoef, XeCoef);
+   
    // Source Coefficients
    ProductCoefficient  SiCoef(nnneCoef, izCoef);
    ProductCoefficient  SnCoef(-1.0, SiCoef);
@@ -1090,6 +1092,120 @@ int main(int argc, char *argv[])
    ion_energy.ProjectCoefficient(Ti0Coef);
    elec_energy.ProjectCoefficient(Te0Coef);
 
+   {
+     L2_ParFESpace l2_fes(&pmesh, order - 1, dim);
+     ParLinearForm Mc(&l2_fes);
+     ParGridFunction cHat(&l2_fes);
+
+     ConstantCoefficient oneCoef(1.0);
+     cHat.ProjectCoefficient(oneCoef);
+
+     double cMc  = -1.0;
+     double cmnc = -1.0;
+     double cnic = -1.0;
+     double cnec = -1.0;
+
+     {
+       ParBilinearForm m(&l2_fes);
+       m.AddDomainIntegrator(new MassIntegrator);
+       m.Assemble();
+       m.Mult(cHat, Mc);
+       cMc = Mc(cHat);
+     }
+     {
+       ParBilinearForm m(&l2_fes);
+       m.AddDomainIntegrator(new MassIntegrator(mnCoef));
+       m.Assemble();
+       m.Mult(cHat, Mc);
+       cmnc = Mc(cHat);
+     }
+     {
+       ParBilinearForm m(&l2_fes);
+       m.AddDomainIntegrator(new MassIntegrator(niCoef));
+       m.Assemble();
+       m.Mult(cHat, Mc);
+       cnic = Mc(cHat);
+     }
+     {
+       ParBilinearForm m(&l2_fes);
+       m.AddDomainIntegrator(new MassIntegrator(neCoef));
+       m.Assemble();
+       m.Mult(cHat, Mc);
+       cnec = Mc(cHat);
+     }
+
+     double mnAvg = cmnc / cMc;
+     double niAvg = cnic / cMc;
+     double neAvg = cnec / cMc;
+     
+     if (mpi.Root()) { cout << "|mn| = " << mnAvg << endl; }
+     if (mpi.Root()) { cout << "|ni| = " << niAvg << endl; }
+     if (mpi.Root()) { cout << "|ne| = " << neAvg << endl << endl; }
+
+     ND_ParFESpace nd_fes(&pmesh, order, dim);
+     ParLinearForm Mb(&nd_fes);
+     ParGridFunction bHat(&nd_fes);
+     bHat.ProjectCoefficient(bHatCoef);
+
+     double bMb   = -1.0;
+     double bDnb  = -1.0;
+     double bDib  = -1.0;
+     double bEtab = -1.0;
+     double bnXib = -1.0;
+     double bnXeb = -1.0;
+
+     {
+       ParBilinearForm m(&nd_fes);
+       m.AddDomainIntegrator(new VectorFEMassIntegrator);
+       m.Assemble();
+       m.Mult(bHat, Mb);
+       bMb = Mb(bHat);
+     }
+     {
+       ParBilinearForm m(&nd_fes);
+       m.AddDomainIntegrator(new VectorFEMassIntegrator(DnCoef));
+       m.Assemble();
+       m.Mult(bHat, Mb);
+       bDnb = Mb(bHat);
+     }
+     {
+       ParBilinearForm m(&nd_fes);
+       m.AddDomainIntegrator(new VectorFEMassIntegrator(DiCoef));
+       m.Assemble();
+       m.Mult(bHat, Mb);
+       bDib = Mb(bHat);
+     }
+     {
+       ParBilinearForm m(&nd_fes);
+       m.AddDomainIntegrator(new VectorFEMassIntegrator(EtaCoef));
+       m.Assemble();
+       m.Mult(bHat, Mb);
+       bEtab = Mb(bHat);
+     }
+     {
+       ParBilinearForm m(&nd_fes);
+       m.AddDomainIntegrator(new VectorFEMassIntegrator(nXiCoef));
+       m.Assemble();
+       m.Mult(bHat, Mb);
+       bnXib = Mb(bHat);
+     }
+     {
+       ParBilinearForm m(&nd_fes);
+       m.AddDomainIntegrator(new VectorFEMassIntegrator(nXeCoef));
+       m.Assemble();
+       m.Mult(bHat, Mb);
+       bnXeb = Mb(bHat);
+     }
+     if (mpi.Root()) { cout << "|Dn|     = " << bDnb / bMb << endl; }
+     if (mpi.Root()) { cout << "|Di|     = " << bDib / bMb << endl; }
+     if (mpi.Root()) { cout << "|Eta|    = " << bEtab / bMb << endl; }
+     if (mpi.Root()) { cout << "|nXi|    = " << bnXib / bMb << endl; }
+     if (mpi.Root()) { cout << "|nXe|    = " << bnXeb / bMb << endl << endl; }
+     if (mpi.Root()) { cout << "|Eta/mn| = " << bEtab / bMb / mnAvg << endl; }
+     if (mpi.Root()) { cout << "|nXi/ni| = " << bnXib / bMb / niAvg << endl; }
+     if (mpi.Root()) { cout << "|nXe/ne| = " << bnXeb / bMb / neAvg << endl; }
+   }
+   
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
    DGTransportTDO oper(dg, fes, ffes, pgf, mnCoef, niCoef, neCoef, imex);
 
@@ -1218,14 +1334,14 @@ int main(int argc, char *argv[])
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Transport-Parallel", &pmesh);
+         dc = new SidreDataCollection("Transport2D-Parallel", &pmesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc = new VisItDataCollection("Transport-Parallel", &pmesh);
+         dc = new VisItDataCollection("Transport2D-Parallel", &pmesh);
          dc->SetPrecision(precision);
          // To save the mesh using MFEM's parallel mesh format:
          // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
