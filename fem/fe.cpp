@@ -1992,8 +1992,8 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
       }
    }
 
-   delete legX;
-   delete legY;
+   delete[] legX;
+   delete[] legY;
    delete storeLegendre;
 
    //
@@ -2107,10 +2107,10 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
       }
    }
 
-   delete legX;
-   delete legY;
-   delete DlegX;
-   delete DlegY;
+   delete[] legX;
+   delete[] legY;
+   delete[] DlegX;
+   delete[] DlegY;
    delete storeLegendre;
 
    // Storing quadratic only case here:

@@ -104,11 +104,16 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
 
-   // // For solving PDE:
-   // if (mesh->bdr_attributes.Size())
-   // {
-   //  fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   // }
+   // For solving PDE:
+   if (mesh->bdr_attributes.Size())
+   {
+    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+   // For solving PDE:
+   // // Do not get boundary dofs
+
+
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
@@ -116,11 +121,11 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    LinearForm *b = new LinearForm(fespace);
 
    // // For solving PDE:
-   // ConstantCoefficient zero(0.0);
-   // b->AddDomainIntegrator(new DomainLFIntegrator(zero));
+   ConstantCoefficient zero(0.0);
+   b->AddDomainIntegrator(new DomainLFIntegrator(zero));
 
    // For L2 Projection:
-   b->AddDomainIntegrator(new DomainLFIntegrator(*u));
+   // b->AddDomainIntegrator(new DomainLFIntegrator(*u));
 
 
    b->Assemble();
@@ -138,16 +143,14 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    BilinearForm *a = new BilinearForm(fespace);
 
    // // For solving PDE:
-   // DiffusionIntegrator *my_integrator = new DiffusionIntegrator;
+   DiffusionIntegrator *my_integrator = new DiffusionIntegrator;
 
    // For L2 Projection:
-   MassIntegrator *mass_integrator = new MassIntegrator;
+   //MassIntegrator *my_integrator = new MassIntegrator;
 
    //   // For solving PDE:
-   // a->AddDomainIntegrator(my_integrator);
+   a->AddDomainIntegrator(my_integrator);
 
-   // For L2 Projection
-   a->AddDomainIntegrator(mass_integrator);
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -291,8 +294,8 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int total_refinements = 0;
 
-   const char *mesh_file = "../../data/twoSquare.mesh";
-//   const char *mesh_file = "../../data/singleSquare.mesh";
+//   const char *mesh_file = "../../data/twoSquare.mesh";
+   const char *mesh_file = "../../data/singleSquare.mesh";
    int order = 1;
    bool static_cond = false;
    const char *device_config = "cpu";
