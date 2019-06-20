@@ -6,306 +6,416 @@ using namespace mfem;
 
 struct OptionSet
 {
-    double rey;
+   double rey;
 } opt_;
 
 class NavierStokesOperator : public Operator
 {
 public:
-    ParMesh *pmesh_;
-    Array<ParFiniteElementSpace *> fes_;
-    Array<int> ess_bdr_attr_;
-    Array<int> ess_tdof_list_;
+   ParMesh *pmesh_;
+   Array<ParFiniteElementSpace *> fes_;
+   Array<int> ess_bdr_attr_;
+   Array<int> ess_tdof_list_;
 
-    Array<int> block_offsets_;
-    Array<int> block_trueOffsets_;
-    BlockVector rhs, trueRhs;
+   Array<int> block_offsets_;
+   Array<int> block_trueOffsets_;
+   BlockVector rhs, trueRhs;
 
-    ParNonlinearForm *N;
-    ParBilinearForm *sform;
-    ParLinearForm *fform;
-    ParBilinearForm *mpform;
-    ParMixedBilinearForm *dform;
+   ConstantCoefficient *dtcoeff;
 
-    HypreParMatrix *S;
-    HypreParMatrix *Mp;
-    HypreParMatrix *D;
-    HypreParMatrix *G;
-    mutable HypreParMatrix *NjacS;
+   ParNonlinearForm *N;
+   ParBilinearForm *sform;
+   ParLinearForm *fform;
+   ParBilinearForm *mpform;
+   ParBilinearForm *mvform;
+   ParMixedBilinearForm *dform;
 
-    BlockOperator *jac;
-    BlockOperator *lin;
+   HypreParMatrix *S;
+   HypreParMatrix *Mv;
+   HypreParMatrix *Mp;
+   HypreParMatrix *D;
+   HypreParMatrix *G;
+   mutable HypreParMatrix *NjacS;
 
-    HypreSolver *invS;
-    HypreSolver *invMp;
-    BlockDiagonalPreconditioner *stokesprec;
-    IterativeSolver *jac_solver;
-    NewtonSolver newton_solver;
+   BlockOperator *jac;
+   BlockOperator *lin;
 
-    NavierStokesOperator(Array<ParFiniteElementSpace *> &fes) : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
-                                                                pmesh_(fes[0]->GetParMesh()), fes_(fes),
-                                                                ess_bdr_attr_(pmesh_->bdr_attributes.Max())
-    {
-        fes_[0]->GetEssentialTrueDofs(ess_bdr_attr_, ess_tdof_list_);
+   HypreSolver *invS;
+   HypreSolver *invMp;
+   BlockDiagonalPreconditioner *stokesprec;
+   IterativeSolver *jac_solver;
+   NewtonSolver newton_solver;
 
-        block_offsets_.SetSize(3);
-        block_offsets_[0] = 0;
-        block_offsets_[1] = fes[0]->GetVSize();
-        block_offsets_[2] = fes[1]->GetVSize();
-        block_offsets_.PartialSum();
+   NavierStokesOperator(Array<ParFiniteElementSpace *> &fes) : Operator(
+                                                                   fes[0]->TrueVSize() + fes[1]->TrueVSize()),
+                                                               pmesh_(fes[0]->GetParMesh()), fes_(fes),
+                                                               ess_bdr_attr_(pmesh_->bdr_attributes.Max()),
+                                                               NjacS(nullptr)
+   {
+      ess_bdr_attr_ = 1;
+      fes_[0]->GetEssentialTrueDofs(ess_bdr_attr_, ess_tdof_list_);
 
-        block_trueOffsets_.SetSize(3);
-        block_trueOffsets_[0] = 0;
-        block_trueOffsets_[1] = fes[0]->TrueVSize();
-        block_trueOffsets_[2] = fes[1]->TrueVSize();
-        block_trueOffsets_.PartialSum();
+      block_offsets_.SetSize(3);
+      block_offsets_[0] = 0;
+      block_offsets_[1] = fes[0]->GetVSize();
+      block_offsets_[2] = fes[1]->GetVSize();
+      block_offsets_.PartialSum();
 
-        rhs.Update(block_offsets_);
-        trueRhs.Update(block_trueOffsets_);
-    }
+      block_trueOffsets_.SetSize(3);
+      block_trueOffsets_[0] = 0;
+      block_trueOffsets_[1] = fes[0]->TrueVSize();
+      block_trueOffsets_[2] = fes[1]->TrueVSize();
+      block_trueOffsets_.PartialSum();
 
-    void Init(const BlockVector &x)
-    {
-        N = new ParNonlinearForm(fes_[0]);
-        N->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
-        N->SetEssentialTrueDofs(ess_tdof_list_);
+      rhs.Update(block_offsets_);
+      trueRhs.Update(block_trueOffsets_);
 
-        sform = new ParBilinearForm(fes_[0]);
-        ConstantCoefficient kin_visc(1.0 / opt_.rey);
-        sform->AddDomainIntegrator(new VectorDiffusionIntegrator(kin_visc));
-        sform->Assemble();
-        sform->EliminateEssentialBC(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(0));
-        sform->Finalize();
-        S = sform->ParallelAssemble();
+      rhs = 0.0;
+      trueRhs = 0.0;
+   }
 
-        dform = new ParMixedBilinearForm(fes_[0], fes_[1]);
-        dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
-        dform->Assemble();
-        dform->EliminateTrialDofs(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(1));
-        dform->Finalize();
-        D = dform->ParallelAssemble();
+   void Init(const BlockVector &x, const double dt)
+   {
+      dtcoeff = new ConstantCoefficient(dt);
 
-        G = D->Transpose();
-        (*G) *= -1.0;
+      N = new ParNonlinearForm(fes_[0]);
+      N->AddDomainIntegrator(new VectorConvectionNLFIntegrator(*dtcoeff));
+      N->SetEssentialTrueDofs(ess_tdof_list_);
 
-        jac = new BlockOperator(block_trueOffsets_);
-        jac->SetBlock(0, 0, S);
-        jac->SetBlock(0, 1, G);
-        jac->SetBlock(1, 0, D);
+      sform = new ParBilinearForm(fes_[0]);
+      ConstantCoefficient kin_visc(dt / opt_.rey);
+      sform->AddDomainIntegrator(new VectorMassIntegrator);
+      sform->AddDomainIntegrator(new VectorDiffusionIntegrator(kin_visc));
+      sform->Assemble();
+      sform->EliminateEssentialBC(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(0));
+      sform->Finalize();
+      S = sform->ParallelAssemble();
 
-        lin = new BlockOperator(block_trueOffsets_);
-        lin->SetBlock(0, 0, S);
-        lin->SetBlock(0, 1, G);
-        lin->SetBlock(1, 0, D);
+      dform = new ParMixedBilinearForm(fes_[0], fes_[1]);
+      dform->AddDomainIntegrator(new VectorDivergenceIntegrator(*dtcoeff));
+      dform->Assemble();
+      dform->EliminateTrialDofs(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(1));
+      dform->Finalize();
+      D = dform->ParallelAssemble();
 
-        mpform = new ParBilinearForm(fes_[1]);
-        mpform->AddDomainIntegrator(new MassIntegrator);
-        mpform->Assemble();
-        mpform->Finalize();
-        Mp = mpform->ParallelAssemble();
+      G = D->Transpose();
+      (*G) *= -1.0;
 
-        invS = new HypreBoomerAMG(*S);
-        static_cast<HypreBoomerAMG *>(invS)->SetPrintLevel(0);
-        invS->iterative_mode = false;
+      mvform = new ParBilinearForm(fes_[0]);
+      mvform->AddDomainIntegrator(new VectorMassIntegrator);
+      mvform->Assemble();
+      mvform->Finalize();
+      Mv = mvform->ParallelAssemble();
 
-        invMp = new HypreBoomerAMG(*Mp);
-        static_cast<HypreBoomerAMG *>(invMp)->SetPrintLevel(0);
-        invMp->iterative_mode = false;
+      mpform = new ParBilinearForm(fes_[1]);
+      mpform->AddDomainIntegrator(new MassIntegrator);
+      mpform->Assemble();
+      mpform->Finalize();
+      Mp = mpform->ParallelAssemble();
 
-        stokesprec = new BlockDiagonalPreconditioner(block_trueOffsets_);
-        stokesprec->SetDiagonalBlock(0, invS);
-        stokesprec->SetDiagonalBlock(1, invMp);
+      jac = new BlockOperator(block_trueOffsets_);
+      jac->SetBlock(0, 0, S);
+      jac->SetBlock(0, 1, G);
+      jac->SetBlock(1, 0, D);
 
-        fes_[0]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),
-                                                        trueRhs.GetBlock(0));
-        fes_[1]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),
-                                                        trueRhs.GetBlock(1));
+      lin = new BlockOperator(block_trueOffsets_);
+      lin->SetBlock(0, 0, S);
+      lin->SetBlock(0, 1, G);
+      lin->SetBlock(1, 0, D);
 
-        jac_solver = new GMRESSolver(MPI_COMM_WORLD);
-        jac_solver->iterative_mode = false;
-        jac_solver->SetAbsTol(0.0);
-        jac_solver->SetRelTol(1e-4);
-        static_cast<GMRESSolver *>(jac_solver)->SetKDim(100);
-        jac_solver->SetMaxIter(1000);
-        jac_solver->SetOperator(*jac);
-        jac_solver->SetPreconditioner(*stokesprec);
-        jac_solver->SetPrintLevel(2);
+      invS = new HypreBoomerAMG(*S);
+      static_cast<HypreBoomerAMG *>(invS)->SetPrintLevel(0);
+      invS->iterative_mode = false;
 
-        newton_solver.iterative_mode = true;
-        newton_solver.SetSolver(*jac_solver);
-        newton_solver.SetOperator(*this);
-        newton_solver.SetPrintLevel(1);
-        newton_solver.SetAbsTol(0.0);
-        newton_solver.SetRelTol(1e-7);
-        newton_solver.SetMaxIter(15);
-    }
+      invMp = new HypreBoomerAMG(*Mp);
+      static_cast<HypreBoomerAMG *>(invMp)->SetPrintLevel(0);
+      invMp->iterative_mode = false;
 
-    virtual void Mult(const Vector &x, Vector &y) const
-    {
-        Vector tmp(block_trueOffsets_[1]);
-        Vector vel_in(x.GetData(), block_trueOffsets_[1]);
-        Vector vel_out(y.GetData(), block_trueOffsets_[1]);
+      stokesprec = new BlockDiagonalPreconditioner(block_trueOffsets_);
+      stokesprec->SetDiagonalBlock(0, invS);
+      stokesprec->SetDiagonalBlock(1, invMp);
 
-        // Apply linear BlockOperator
-        lin->Mult(x, y);
+      fes_[0]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),
+                                                      trueRhs.GetBlock(0));
+      fes_[1]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),
+                                                      trueRhs.GetBlock(1));
 
-        // Apply nonlinear action to velocity
-        N->Mult(vel_in, tmp);
-        vel_out += tmp;
-    }
+      jac_solver = new GMRESSolver(MPI_COMM_WORLD);
+      jac_solver->iterative_mode = false;
+      jac_solver->SetAbsTol(0.0);
+      jac_solver->SetRelTol(1e-4);
+      static_cast<GMRESSolver *>(jac_solver)->SetKDim(100);
+      jac_solver->SetMaxIter(200);
+      jac_solver->SetOperator(*jac);
+      jac_solver->SetPreconditioner(*stokesprec);
+      jac_solver->SetPrintLevel(2);
 
-    virtual Operator &GetGradient(const Vector &x) const
-    {
-        Vector u(x.GetData(), block_trueOffsets_[1]);
+      newton_solver.iterative_mode = true;
+      newton_solver.SetSolver(*jac_solver);
+      newton_solver.SetOperator(*this);
+      newton_solver.SetPrintLevel(1);
+      newton_solver.SetAbsTol(0.0);
+      newton_solver.SetRelTol(1e-8);
+      newton_solver.SetMaxIter(15);
+   }
 
-        delete NjacS;
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      Vector tmp(block_trueOffsets_[1]);
+      Vector vel_in(x.GetData(), block_trueOffsets_[1]);
+      Vector vel_out(y.GetData(), block_trueOffsets_[1]);
 
-        hypre_ParCSRMatrix *NjacS_wrap;
-        hypre_ParcsrAdd(1.0, *static_cast<HypreParMatrix *>(&(N->GetGradient(u))), 1.0,
-                        *S, &NjacS_wrap);
-        NjacS = new HypreParMatrix(NjacS_wrap);
+      // Apply linear BlockOperator
+      lin->Mult(x, y);
 
-        HypreParMatrix *NjacS_e = NjacS->EliminateRowsCols(ess_tdof_list_);
-        delete NjacS_e;
+      // Apply nonlinear action to velocity
+      N->Mult(vel_in, tmp);
+      vel_out += tmp;
+   }
 
-        jac->SetBlock(0, 0, NjacS);
+   virtual Operator &GetGradient(const Vector &x) const
+   {
+      Vector u(x.GetData(), block_trueOffsets_[1]);
 
-        // invS->SetOperator(*NjacS);
+      delete NjacS;
 
-        return *jac;
-    }
+      hypre_ParCSRMatrix *NjacS_wrap;
+      hypre_ParcsrAdd(1.0, *static_cast<HypreParMatrix *>(&(N->GetGradient(u))), 1.0,
+                      *S, &NjacS_wrap);
+      NjacS = new HypreParMatrix(NjacS_wrap);
+
+      HypreParMatrix *NjacS_e = NjacS->EliminateRowsCols(ess_tdof_list_);
+      delete NjacS_e;
+
+      jac->SetBlock(0, 0, NjacS);
+
+      // invS->SetOperator(*NjacS);
+
+      return *jac;
+   }
+
+   virtual ~NavierStokesOperator()
+   {
+      delete dtcoeff;
+      delete sform;
+      delete mvform;
+      delete mpform;
+      delete dform;
+      delete N;
+      delete S;
+      delete Mv;
+      delete Mp;
+      delete D;
+      delete G;
+      if (NjacS != nullptr)
+      {
+         delete NjacS;
+      }
+      delete jac;
+      delete lin;
+      delete invS;
+      delete invMp;
+      delete stokesprec;
+      delete jac_solver;
+   }
 };
 
 class TDNavierStokesOperator : public TimeDependentOperator
 {
 private:
-    NavierStokesOperator *nso_;
+   NavierStokesOperator *nso_;
 
 public:
-    TDNavierStokesOperator(NavierStokesOperator *nso) : TimeDependentOperator(nso->fes_[0]->GetTrueVSize()), nso_(nso)
-    {
-    }
+   TDNavierStokesOperator(NavierStokesOperator *nso) : TimeDependentOperator(
+                                                           nso->fes_[0]->GetTrueVSize()),
+                                                       nso_(nso)
+   {
+   }
 
-    void ImplicitSolve(const double dt,
-                       const Vector &x, Vector &dx_dt)
-    {
-    }
+   void ImplicitSolve(const double dt,
+                      const Vector &x, Vector &dx_dt)
+   {
+      BlockVector b(nso_->block_trueOffsets_);
+      BlockVector xh(nso_->block_trueOffsets_);
+
+      Vector rhs_v(nso_->block_trueOffsets_[1]);
+
+      xh.GetBlock(0) = x;
+      xh.GetBlock(1) = 0.0;
+      
+      b = nso_->trueRhs;
+
+      nso_->Mv->Mult(x, rhs_v);
+
+      rhs_v.SetSubVector(nso_->ess_tdof_list_, 0.0);
+
+      b.GetBlock(0) += rhs_v;
+
+      nso_->newton_solver.Mult(b, xh);
+
+      subtract(1.0 / dt, xh.GetBlock(0), x, dx_dt);
+   }
 };
 
 void vel_ldc(const Vector &x, Vector &u)
 {
-    double yi = x(1);
+   double yi = x(1);
 
-    if (yi > 1.0 - 1e-8)
-    {
-        u(0) = 1.0;
-    }
-    else
-    {
-        u(0) = 0.0;
-    }
-    u(1) = 0.0;
+   if (yi > 1.0 - 1e-8)
+   {
+      u(0) = 1.0;
+   }
+   else
+   {
+      u(0) = 0.0;
+   }
+   u(1) = 0.0;
 }
 
 int main(int argc, char *argv[])
 {
-    MPI_Session mpi(argc, argv);
+   MPI_Session mpi(argc, argv);
 
-    int num_procs, myid;
-    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   int num_procs, myid;
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-    int serial_ref_levels = 0;
-    int order = 2;
-    double dt = 1e-5;
-    double t_final = 2 * dt;
+   int serial_ref_levels = 0;
+   int order = 2;
+   double dt = 1e-2;
+   double t_final = 1000 * dt;
 
-    opt_.rey = 1.0;
+   opt_.rey = 1.0;
 
-    const char *mesh_file = "../../data/inline-quad.mesh";
+   OptionsParser args(argc, argv);
+   args.AddOption(&order, "-o", "--order", "Polynomial order for the velocity.");
+   args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
+                  "Number of serial refinement levels.");
+   args.AddOption(&opt_.rey, "-rey", "--reynolds", "Choose Reynolds number");
+   args.Parse();
+   if (!args.Good())
+   {
+      if (mpi.Root())
+      {
+         args.PrintUsage(cout);
+      }
+      return 1;
+   }
+   if (mpi.Root())
+   {
+      args.PrintOptions(cout);
+   }
 
-    int vel_order = order;
-    int pres_order = order - 1;
+   const char *mesh_file = "../../data/inline-quad.mesh";
 
-    Mesh *mesh = new Mesh(mesh_file);
-    int dim = mesh->Dimension();
+   int vel_order = order;
+   int pres_order = order - 1;
 
-    for (int l = 0; l < serial_ref_levels; l++)
-    {
-        mesh->UniformRefinement();
-    }
+   Mesh *mesh = new Mesh(mesh_file);
+   int dim = mesh->Dimension();
 
-    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-    delete mesh;
+   for (int l = 0; l < serial_ref_levels; l++)
+   {
+      mesh->UniformRefinement();
+   }
 
-    FiniteElementCollection *vel_fec = new H1_FECollection(vel_order, dim);
-    FiniteElementCollection *pres_fec = new H1_FECollection(pres_order);
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
 
-    ParFiniteElementSpace *vel_fes = new ParFiniteElementSpace(pmesh, vel_fec, dim);
-    ParFiniteElementSpace *pres_fes = new ParFiniteElementSpace(pmesh, pres_fec);
+   FiniteElementCollection *vel_fec = new H1_FECollection(vel_order, dim);
+   FiniteElementCollection *pres_fec = new H1_FECollection(pres_order);
 
-    Array<ParFiniteElementSpace *> fes(2);
-    fes[0] = vel_fes;
-    fes[1] = pres_fes;
+   ParFiniteElementSpace *vel_fes = new ParFiniteElementSpace(pmesh, vel_fec, dim);
+   ParFiniteElementSpace *pres_fes = new ParFiniteElementSpace(pmesh, pres_fec);
 
-    int fes_size0 = fes[0]->GlobalVSize();
-    int fes_size1 = fes[1]->GlobalVSize();
+   Array<ParFiniteElementSpace *> fes(2);
+   fes[0] = vel_fes;
+   fes[1] = pres_fes;
 
-    if (myid == 0)
-    {
-        cout << "Velocity #DOFs: " << fes_size0 << endl;
-        cout << "Pressure #DOFs: " << fes_size1 << endl;
-    }
+   int fes_size0 = fes[0]->GlobalVSize();
+   int fes_size1 = fes[1]->GlobalVSize();
 
-    Array<int> block_offsets;
-    Array<int> block_trueOffsets;
-    block_offsets.SetSize(3);
-    block_offsets[0] = 0;
-    block_offsets[1] = fes[0]->GetVSize();
-    block_offsets[2] = fes[1]->GetVSize();
-    block_offsets.PartialSum();
+   if (myid == 0)
+   {
+      cout << "Velocity #DOFs: " << fes_size0 << endl;
+      cout << "Pressure #DOFs: " << fes_size1 << endl;
+   }
 
-    block_trueOffsets.SetSize(3);
-    block_trueOffsets[0] = 0;
-    block_trueOffsets[1] = fes[0]->TrueVSize();
-    block_trueOffsets[2] = fes[1]->TrueVSize();
-    block_trueOffsets.PartialSum();
+   Array<int> block_offsets;
+   Array<int> block_trueOffsets;
+   block_offsets.SetSize(3);
+   block_offsets[0] = 0;
+   block_offsets[1] = fes[0]->GetVSize();
+   block_offsets[2] = fes[1]->GetVSize();
+   block_offsets.PartialSum();
 
-    ODESolver *ode_solver = new BackwardEulerSolver;
+   block_trueOffsets.SetSize(3);
+   block_trueOffsets[0] = 0;
+   block_trueOffsets[1] = fes[0]->TrueVSize();
+   block_trueOffsets[2] = fes[1]->TrueVSize();
+   block_trueOffsets.PartialSum();
 
-    Array<int> ess_bdr_attr(pmesh->bdr_attributes.Max());
+   // ODESolver *ode_solver = new BackwardEulerSolver;
+   ODESolver *ode_solver = new SDIRK23Solver(2);
 
-    BlockVector x(block_offsets), trueX(block_trueOffsets);
+   Array<int> ess_bdr_attr(pmesh->bdr_attributes.Max());
+   ess_bdr_attr = 1;
 
-    VectorFunctionCoefficient ldccoeff(dim, vel_ldc);
-    ParGridFunction vel_gf;
-    vel_gf.MakeRef(fes[0], x.GetBlock(0));
-    vel_gf.ProjectBdrCoefficient(ldccoeff, ess_bdr_attr);
+   BlockVector x(block_offsets), trueX(block_trueOffsets);
 
-    fes[0]->GetRestrictionMatrix()->Mult(x.GetBlock(0), trueX.GetBlock(0));
-    fes[1]->GetRestrictionMatrix()->Mult(x.GetBlock(1), trueX.GetBlock(1));
+   x = 0.0;
+   trueX = 0.0;
 
-    NavierStokesOperator nso(fes);
-    TDNavierStokesOperator td_nso(&nso);
-    ode_solver->Init(td_nso);
+   VectorFunctionCoefficient ldccoeff(dim, vel_ldc);
+   ParGridFunction vel_gf;
+   vel_gf.MakeRef(fes[0], x.GetBlock(0));
+   vel_gf.ProjectBdrCoefficient(ldccoeff, ess_bdr_attr);
 
-    double t = 0.0;
-    bool last_step = false;
+   fes[0]->GetRestrictionMatrix()->Mult(x.GetBlock(0), trueX.GetBlock(0));
+   fes[1]->GetRestrictionMatrix()->Mult(x.GetBlock(1), trueX.GetBlock(1));
 
-    for (int ti = 1; !last_step; ti++)
-    {
-        if (t + dt >= t_final - dt / 2)
-        {
-            last_step = true;
-        }
+   NavierStokesOperator nso(fes);
+   nso.Init(x, dt);
+   TDNavierStokesOperator td_nso(&nso);
+   ode_solver->Init(td_nso);
 
-        cout << "Timestep: " << t << endl;
-        ode_solver->Step(trueX, t, dt);
+   char vishost[] = "localhost";
+   int visport = 19916;
+   socketstream u_sock(vishost, visport);
+   u_sock.precision(8);
+   u_sock << "parallel " << num_procs << " " << myid << "\n";
+   u_sock << "solution\n"
+          << *pmesh << vel_gf << "window_title 'velocity'"
+          << "keys Rjlc\n"
+          << "pause\n"
+          << flush;
 
-        vel_gf.Distribute(trueX.GetBlock(0));
+   double t = 0.0;
+   bool last_step = false;
 
-        t += dt;
-    }
+   for (int ti = 1; !last_step; ti++)
+   {
+      if (t + dt >= t_final - dt / 2)
+      {
+         last_step = true;
+      }
 
-    return 0;
+      cout << "\nTimestep: " << t << endl;
+      ode_solver->Step(trueX.GetBlock(0), t, dt);
+
+      vel_gf.Distribute(trueX.GetBlock(0));
+
+      u_sock << "parallel " << num_procs << " " << myid << "\n";
+      u_sock << "solution\n"
+             << *pmesh << vel_gf << flush;
+   }
+
+   delete ode_solver;
+   delete pmesh;
+   delete vel_fec;
+   delete pres_fec;
+   delete vel_fes;
+   delete pres_fes;
+
+   return 0;
 }
