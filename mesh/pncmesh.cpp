@@ -2184,6 +2184,7 @@ void ParNCMesh::ElementSet::Encode(const Array<int> &elements)
    FlagElements(elements, 0);
 }
 
+#ifdef MFEM_DEBUG
 std::string ParNCMesh::ElementSet::RefPath() const
 {
    std::ostringstream oss;
@@ -2200,6 +2201,7 @@ std::string ParNCMesh::ElementSet::RefPath() const
    }
    return oss.str();
 }
+#endif
 
 void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
                                        Array<int> &elements) const
