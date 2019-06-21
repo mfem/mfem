@@ -365,6 +365,8 @@ CPDSolver::~CPDSolver()
    delete massImCoef_;
    delete posMassCoef_;
    delete abcCoef_;
+   delete sbcReCoef_;
+   delete sbcImCoef_;
    if ( ownsEtaInv_ ) { delete etaInvCoef_; }
    delete omegaCoef_;
    delete negOmegaCoef_;
