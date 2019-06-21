@@ -1607,11 +1607,9 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          // NOTE: fe_coll.hpp has 
          //            virtual int DofForGeometry(Geometry::Type GeomType) const  { return H1_dof[GeomType]; }
          //       so we need to fix the value of H1_dof here for the serendipity case
-         if (p > 1)
-         {
-            H1_dof[Geometry::SQUARE] = (p-3)*(p-2)/2; // formula for number of interior serendipity DoFs (when p>1)
-         }
-         cout << "fe_coll: setting H1_dof[Geometry::SQUARE] to be " << H1_dof[Geometry::SQUARE] << endl;
+         H1_dof[Geometry::SQUARE] = (pm3*pm2)/2; // formula for number of interior serendipity DoFs (when p>1)
+         // cout << "fe_coll: pm2 =" << pm2 << ", pm3= " << pm3 << ", pm3*pm2 = " << pm3*pm2 << ", (pm3*pm2)/2 = " << (pm3*pm2)/2 << endl;
+         // cout << "fe_coll: setting H1_dof[Geometry::SQUARE] to be " << (pm3*pm2)/2 << "   confirm this = " << H1_dof[Geometry::SQUARE] << endl;
       	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
       }
       else
@@ -1685,7 +1683,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          }
       }
    }
-   cout << "fe_coll: done with H1 collection constructor" << endl;
+   // cout << "fe_coll: done with H1 collection constructor" << endl;
 }
 
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,

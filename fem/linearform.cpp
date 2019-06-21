@@ -78,6 +78,8 @@ void LinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
 
 void LinearForm::Assemble()
 {
+
+
    Array<int> vdofs;
    ElementTransformation *eltrans;
    Vector elemvect;
@@ -103,8 +105,11 @@ void LinearForm::Assemble()
          }
       }
    }
+   
+
    AssembleDelta();
 
+   
 
    if (blfi.Size())
    {

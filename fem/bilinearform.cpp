@@ -340,11 +340,14 @@ void BilinearForm::AssembleBdrElementMatrix(
 
 void BilinearForm::Assemble(int skip_zeros)
 {
+
    if (ext)
    {
       ext->Assemble();
       return;
    }
+
+
 
    ElementTransformation *eltrans;
    Mesh *mesh = fes -> GetMesh();

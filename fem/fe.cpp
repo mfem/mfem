@@ -1775,17 +1775,33 @@ void H1Ser_SegmentElement::CalcShape(const IntegrationPoint &ip,
 {
    int p = (this)->GetOrder();
 
-   cout << "fe.cpp: NEED TO SET higher order H1 segment elements " << endl;
-
    double x = ip.x;  
    shape(0) = (1. - x);
    shape(1) = x;
    shape(2) = 2* x * (1. - x);
 
-   if(p == 3)
+   if(p >= 3)
    {
-      shape(3) = (2*x - 1)*shape(2);
+      double *legX = new double[p-1];
+      Poly_1D *storeLegendre = new Poly_1D();
+      storeLegendre->CalcLegendre(p-2, x , legX);
+      for (int i = 3; i < p+1; i++)
+      {
+         shape(i) = legX[i-2]*shape(2);
+      }
+      delete[] legX;
+      delete storeLegendre;
    }
+   // if (p>2)
+   // {
+   //    cout << "fe: shape(3) should be " << (2*x - 1)*shape(2) << endl 
+   //         << "fe: shape(3) is set to " << shape(3) << endl << endl;
+   //    if (p>3)
+   //    {
+   //        cout << "fe: shape(4) should be " << (1-6*x+6*x*x)*shape(2) << endl 
+   //       << "fe: shape(4) is set to " << shape(4) << endl << endl;
+   //    }
+   // }
 
 }
 
@@ -1947,41 +1963,25 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    {
       shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
       shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
-      // shape(4 + 2*(p-1) + i) = 2* legX[i] * x * y * (1. - x);
-      // shape(4 + 3*(p-1) + i) = 2* legY[i] * (1. - x) * y * (1. - y);
       shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
       shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
-      // shape(4 + 2*(p-1) + i) = 2* legX[i] * x * y * (1. - x);
-      // shape(4 + 3*(p-1) + i) = 2* legY[i] * (1. - x) * y * (1. - y);
    }
 
-   // int interior_total = 0;
-   // for (int j = 4; j < p + 1; j++)
-   // {
-   //    for (int k = 0; k < j-3; k++)
-   //    {
-   //       shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
-   //       // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
-   //       interior_total++;
-   //    }
-   // }
+   int interior_total = 0;
+   for (int j = 4; j < p + 1; j++)
+   {
+      for (int k = 0; k < j-3; k++)
+      {
+         shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
+         // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
+         // cout << " Just set shape # " << 4 + 4*(p-1) + interior_total << " with k= " << k << " and j-4-k= " << j-4-k << endl;
+         interior_total++;
+      }
+   }
 
    delete[] legX;
    delete[] legY;
    delete storeLegendre;
-
-   //
-   //    Storing quadratic only case here:
-   //
-   // double x = ip.x, y = ip.y;
-   // shape(0) = (1. - x) * (1. - y) * (1. - x - y);
-   // shape(1) = x * (1. - y) * (x - y); 
-   // shape(2) = x * y * (x + y - 1.);
-   // shape(3) = (1. - x) * y * (y - x);
-   // shape(4) = 2.*(1. - x) * x * (1 - y);
-   // shape(5) = 2.*x * y * (1. - y);
-   // shape(6) = 2.*x * y * (1. - x);
-   // shape(7) = 2.*(1. - x) * (1. - y) * y;
 }
 
 
@@ -2039,15 +2039,19 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 
    
  
-   int interior_total = 0;
+   int int
+
+   erior_total = 0;
    for (int j = 4; j < p + 1; j++)
    {
       for (int k = 0; k < j-3; k++)
       {
-         cout << "fe.cpp: making D shape functions" << endl;
-         // shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
-         // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
-         cout << " ** NEED TO CODE DShape in p>=4 case" << endl;
+         dshape(4 + 4*(p-1) + interior_total, 0) = legY[j-4-k]*y*(1-y) * (DlegX[k]*x*(1-x) + legX[k]*(1-2*x));
+         dshape(4 + 4*(p-1) + interior_total, 1) = legX[k]*x*(1-x)     * (DlegY[j-4-k]*y*(1-y) + legY[j-4-k]*(1-2*y));
+         // cout << "fe.cpp: making D shape functions" << endl;
+         // // shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
+         // // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
+         // cout << " ** NEED TO CODE DShape in p>=4 case" << endl;
          interior_total++;
       }
    }

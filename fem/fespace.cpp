@@ -1443,7 +1443,6 @@ void FiniteElementSpace::Construct()
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-            cout << "fespace.cpp: fec->DofForGeometry(geom) = " << fec->DofForGeometry(geom) << endl;
             nbdofs += fec->DofForGeometry(geom);
             bdofs[i+1] = nbdofs;
          }
@@ -1457,13 +1456,12 @@ void FiniteElementSpace::Construct()
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-            cout << "fespace.cpp: fec->DofForGeometry(geom) = " << fec->DofForGeometry(geom) << endl;
             nbdofs += fec->DofForGeometry(geom);
             bdofs[i+1] = nbdofs;
          }
       }
       ndofs = nvdofs + nedofs + nfdofs + nbdofs;
-      cout << "Computed ndofs as sum of " << nvdofs << " vdofs, " << nedofs << " nedofs, " << nfdofs << " nfdofs, and " << nbdofs << " nbdofs." << endl;
+      // cout << "Computed ndofs as sum of " << nvdofs << " vdofs, " << nedofs << " nedofs, " << nfdofs << " nfdofs, and " << nbdofs << " nbdofs." << endl;
      // Serendipity edits will need to be done here...
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
@@ -1473,7 +1471,6 @@ void FiniteElementSpace::Construct()
 
 void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
 {
-   // cout << "fespace.cpp: calling GetElementDofs" << endl;
    if (elem_dof)
    {
       elem_dof -> GetRow (i, dofs);
@@ -1488,17 +1485,6 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
       nv = fec->DofForGeometry(Geometry::POINT);
       ne = (dim > 1) ? ( fec->DofForGeometry(Geometry::SEGMENT) ) : ( 0 );
       nb = (dim > 0) ? fec->DofForGeometry(mesh->GetElementBaseGeometry(i)) : 0;
-
-      
-      if (strncmp((this->FEColl())->Name(),"H1Ser_",6) == 0)
-      {
-   	   // For serendipity elements with element DoFs, need to set nb accordingly here
-   	   // and figure out what to do in the nb>0 case later in this function
-//         cout << "fespace: order is " << fec->GetBasisType() << endl;
-//         cout << "is basis type serendipity? " << (fec->GetBasisType() == BasisType::Serendipity) << endl;
-   	   nb = 0;
-//         cout << "fespace.cpp: defintion of nb above this message needs to be edited" << endl;
-      }
       
       if (nv > 0)
       {

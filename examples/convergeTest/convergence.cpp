@@ -135,11 +135,8 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    {
       b->AddDomainIntegrator(new DomainLFIntegrator(*u));
    }
-   cout << "*** convergence.cpp: got here in convergence study ***" << endl;
 
    b->Assemble();
-
-   cout << "*** convergence.cpp: and here ***" << endl;
    
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -153,15 +150,16 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
 
+   // DiffusionIntegrator *my_diff_integrator = new DiffusionIntegrator;
+   // MassIntegrator *my_mass_integrator = new MassIntegrator;
+
    if (solvePDE==1)
-   {
-      DiffusionIntegrator *my_integrator = new DiffusionIntegrator;
-      a->AddDomainIntegrator(my_integrator);
+   {   
+      a->AddDomainIntegrator(new DiffusionIntegrator);
    }
    else
    {
-      MassIntegrator *my_integrator = new MassIntegrator;
-      a->AddDomainIntegrator(my_integrator);
+      a->AddDomainIntegrator(new MassIntegrator);
    }
    
 
@@ -265,12 +263,15 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // 15. Free the used memory.
    // delete pcg;
    // delete amg;
+   // delete my_diff_integrator;
+   // delete my_mass_integrator;
    delete a;
    delete b;
    delete fespace;
-   delete u;
    delete u_grad;
+   delete u;
    delete fec;
+   delete mesh;
 
    return;
 }
