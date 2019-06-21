@@ -2139,7 +2139,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       node->edge_index = i;
    }
 
-   // get face enumeration from the Mesh
+   // get face enumeration from the Mesh, initialize 'face_geom'
    face_geom.SetSize(NFaces);
    for (int i = 0; i < NFaces; i++)
    {
@@ -2874,10 +2874,20 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
 
    MFEM_ASSERT(index >= 0 && index < inv_index.Size(), "");
    int key = inv_index[index];
-   MFEM_VERIFY(key >= 0, "entity not found.");
 
-   if (type) { *type = key & 0x3; }
+   if (!type)
+   {
+      MFEM_VERIFY(key >= 0, "entity not found.");
+   }
+   else // return entity type if requested, don't abort when not found
+   {
+      *type = (key >= 0) ? (key & 0x3) : -1;
 
+      static MeshId invalid;
+      if (*type < 0) { return invalid; } // not found
+   }
+
+   // return found entity MeshId
    switch (key & 0x3)
    {
       case 0: return conforming[key >> 2];
