@@ -845,8 +845,8 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
      n_n_oper_(dg, fes, oneCoef_, imex),
      n_i_oper_(dg, fes, oneCoef_, imex),
      v_i_oper_(dg, fes, MomCCoef, imex),
-     T_i_oper_(dg, fes, TiCCoef, imex),
-     T_e_oper_(dg, fes, TeCCoef, imex)
+     T_i_oper_(dg, fes,  TiCCoef, imex),
+     T_e_oper_(dg, fes,  TeCCoef, imex)
 {
 }
 

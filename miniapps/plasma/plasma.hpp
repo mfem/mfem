@@ -32,6 +32,7 @@ static const double mu0_ = 4.0e-7 * M_PI;
 static const double c0_ = 1.0 / sqrt(epsilon0_ * mu0_);
 
 static const double q_     = 1.602176634e-19; // Elementary charge in coulombs
+static const double eV_    = 1.602176634e-19; // 1 eV in Joules
 static const double amu_   = 1.660539040e-27; // Atomic mass unit in kilograms
 static const double me_kg_ = 9.10938356e-31;  // Mass of electron in kilograms
 static const double me_u_  = 5.4857990907e-4; // Mass of electron in a.m.u

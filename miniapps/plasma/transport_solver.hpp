@@ -33,9 +33,9 @@ namespace plasma
 */
 inline double tau_e(double Te, double zi, double ni, double lnLambda)
 {
-   // The factor of q_^{3/2} is included to convert Te from eV to Joules
+   // The factor of eV_ is included to convert Te from eV to Joules
    return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(0.5 * me_kg_ * pow(q_ * Te, 3) / M_PI) /
+          sqrt(0.5 * me_kg_ * pow(Te * eV_, 3) / M_PI) /
           (lnLambda * pow(q_, 4) * zi * zi * ni);
 }
 
@@ -50,9 +50,9 @@ inline double tau_e(double Te, double zi, double ni, double lnLambda)
 inline double tau_i(double mi, double zi, double ni, double Ti,
                     double lnLambda)
 {
-   // The factor of q_^{3/2} is included to convert Ti from eV to Joules
+   // The factor of eV_ is included to convert Ti from eV to Joules
    return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(mi * amu_ * pow(q_ * Ti, 3) / M_PI) /
+          sqrt(mi * amu_ * pow(Ti * eV_, 3) / M_PI) /
           (lnLambda * pow(q_ * zi, 4) * ni);
 }
 
