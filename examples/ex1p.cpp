@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   MPI_Finalize(); exit(EXIT_SUCCESS);
+   //MPI_Finalize(); exit(EXIT_SUCCESS);
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined

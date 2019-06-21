@@ -567,8 +567,8 @@ bool FiniteElementSpace::DofFinalizable(int dof, const Array<bool>& finalized,
    return true;
 }
 
-void FiniteElementSpace::GetDegenerateFaceDofs(int index,
-                                               Array<int> &dofs) const
+void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
+                                               Geometry::Type master_geom) const
 {
    // In NC meshes with prisms/tets, a special constraint occurs where a
    // prism/tet edge is slave to another element's face. Rather than introduce a
@@ -595,21 +595,23 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index,
       dofs[nv+i] = edof[nv+i];
    }
    // copy first edge DOFs
+   int face_vert = Geometry::NumVerts[master_geom];
    for (int i = 0; i < ne; i++)
    {
-      dofs[4*nv + i] = edof[2*nv + i];
+      dofs[face_vert*nv + i] = edof[2*nv + i];
    }
 }
 
 void
-FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs) const
+FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
+                                  Geometry::Type master_geom) const
 {
    switch (entity)
    {
       case 0: GetVertexDofs(index, dofs); break;
       case 1: GetEdgeDofs(index, dofs); break;
       case 2: (index >= 0) ? GetFaceDofs(index, dofs)
-         /*             */ : GetDegenerateFaceDofs(index, dofs);
+         /*             */ : GetDegenerateFaceDofs(index, dofs, master_geom);
    }
 }
 
@@ -662,7 +664,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
             const NCMesh::Slave &slave = list.slaves[si];
-            GetEntityDofs(entity, slave.index, slave_dofs);
+            GetEntityDofs(entity, slave.index, slave_dofs, master.Geom());
             if (!slave_dofs.Size()) { continue; }
 
             slave.OrientedPointMatrix(T.GetPointMat());
