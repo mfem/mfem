@@ -2039,9 +2039,7 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 
    
  
-   int int
-
-   erior_total = 0;
+   int interior_total = 0;
    for (int j = 4; j < p + 1; j++)
    {
       for (int k = 0; k < j-3; k++)
