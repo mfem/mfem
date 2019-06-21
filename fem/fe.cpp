@@ -1862,6 +1862,10 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
    // ***  Do we want FunctionSpace = Pk or Qk ???   ***
    //
    // **************************************************
+   //
+   // ***  Do we even need to set these points ???   ***
+   //
+   // **************************************************
 
    // vertices
    Nodes.IntPoint(0).x = 0.0;
@@ -1873,69 +1877,69 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
    Nodes.IntPoint(3).x = 0.0;
    Nodes.IntPoint(3).y = 1.0;
 
-   if(p==2)
-   {
-      Nodes.IntPoint(4).x = 0.5;
-      Nodes.IntPoint(4).y = 0.0;
-      Nodes.IntPoint(5).x = 1.0;
-      Nodes.IntPoint(5).y = 0.5;
-      Nodes.IntPoint(6).x = 0.5;
-      Nodes.IntPoint(6).y = 1.0;
-      Nodes.IntPoint(7).x = 0.0;
-      Nodes.IntPoint(7).y = 0.5;
-   }
-   if(p==3)
-   {
-      Nodes.IntPoint(4).x = 1./3.;
-      Nodes.IntPoint(4).y = 0.;
-      Nodes.IntPoint(5).x = 2./3.;
-      Nodes.IntPoint(5).y = 0.;
-      Nodes.IntPoint(6).x = 1.;
-      Nodes.IntPoint(6).y = 1./3.;
-      Nodes.IntPoint(7).x = 1.;
-      Nodes.IntPoint(7).y = 2./3.;
-      Nodes.IntPoint(8).x = 2./3.;
-      Nodes.IntPoint(8).y = 1.;
-      Nodes.IntPoint(9).x = 1./3.;
-      Nodes.IntPoint(9).y = 1.;
-      Nodes.IntPoint(10).x = 0.;
-      Nodes.IntPoint(10).y = 2./3.;
-      Nodes.IntPoint(11).x = 0.;
-      Nodes.IntPoint(11).y = 1./3.;
-   }
-   if(p==4)
-   {
-      Nodes.IntPoint(4).x  = .25;
-      Nodes.IntPoint(4).y  = 0;
-      Nodes.IntPoint(5).x  = .5;
-      Nodes.IntPoint(5).y  = 0;
-      Nodes.IntPoint(6).x  = .75;
-      Nodes.IntPoint(6).y  = 0;
+   // if(p==2)
+   // {
+   //    Nodes.IntPoint(4).x = 0.5;
+   //    Nodes.IntPoint(4).y = 0.0;
+   //    Nodes.IntPoint(5).x = 1.0;
+   //    Nodes.IntPoint(5).y = 0.5;
+   //    Nodes.IntPoint(6).x = 0.5;
+   //    Nodes.IntPoint(6).y = 1.0;
+   //    Nodes.IntPoint(7).x = 0.0;
+   //    Nodes.IntPoint(7).y = 0.5;
+   // }
+   // if(p==3)
+   // {
+   //    Nodes.IntPoint(4).x = 1./3.;
+   //    Nodes.IntPoint(4).y = 0.;
+   //    Nodes.IntPoint(5).x = 2./3.;
+   //    Nodes.IntPoint(5).y = 0.;
+   //    Nodes.IntPoint(6).x = 1.;
+   //    Nodes.IntPoint(6).y = 1./3.;
+   //    Nodes.IntPoint(7).x = 1.;
+   //    Nodes.IntPoint(7).y = 2./3.;
+   //    Nodes.IntPoint(8).x = 2./3.;
+   //    Nodes.IntPoint(8).y = 1.;
+   //    Nodes.IntPoint(9).x = 1./3.;
+   //    Nodes.IntPoint(9).y = 1.;
+   //    Nodes.IntPoint(10).x = 0.;
+   //    Nodes.IntPoint(10).y = 2./3.;
+   //    Nodes.IntPoint(11).x = 0.;
+   //    Nodes.IntPoint(11).y = 1./3.;
+   // }
+   // if(p==4)
+   // {
+   //    Nodes.IntPoint(4).x  = .25;
+   //    Nodes.IntPoint(4).y  = 0;
+   //    Nodes.IntPoint(5).x  = .5;
+   //    Nodes.IntPoint(5).y  = 0;
+   //    Nodes.IntPoint(6).x  = .75;
+   //    Nodes.IntPoint(6).y  = 0;
 
-      Nodes.IntPoint(7).x  = 1;
-      Nodes.IntPoint(7).y  = .25;
-      Nodes.IntPoint(8).x  = 1;
-      Nodes.IntPoint(8).y  = .5;
-      Nodes.IntPoint(9).x  = 1; 
-      Nodes.IntPoint(9).y  =.75;
+   //    Nodes.IntPoint(7).x  = 1;
+   //    Nodes.IntPoint(7).y  = .25;
+   //    Nodes.IntPoint(8).x  = 1;
+   //    Nodes.IntPoint(8).y  = .5;
+   //    Nodes.IntPoint(9).x  = 1; 
+   //    Nodes.IntPoint(9).y  =.75;
 
-      Nodes.IntPoint(10).x = .25;
-      Nodes.IntPoint(10).y = 1;
-      Nodes.IntPoint(11).x = .5;
-      Nodes.IntPoint(11).y = 1;
-      Nodes.IntPoint(12).x = .75;
-      Nodes.IntPoint(12).y = 1;
+   //    Nodes.IntPoint(10).x = .25;
+   //    Nodes.IntPoint(10).y = 1;
+   //    Nodes.IntPoint(11).x = .5;
+   //    Nodes.IntPoint(11).y = 1;
+   //    Nodes.IntPoint(12).x = .75;
+   //    Nodes.IntPoint(12).y = 1;
 
-      Nodes.IntPoint(13).x = 0;
-      Nodes.IntPoint(13).y = .25;
-      Nodes.IntPoint(14).x = 0;
-      Nodes.IntPoint(14).y = .5;
-      Nodes.IntPoint(15).x = 0;
-      Nodes.IntPoint(15).y = .75;
+   //    Nodes.IntPoint(13).x = 0;
+   //    Nodes.IntPoint(13).y = .25;
+   //    Nodes.IntPoint(14).x = 0;
+   //    Nodes.IntPoint(14).y = .5;
+   //    Nodes.IntPoint(15).x = 0;
+   //    Nodes.IntPoint(15).y = .75;
 
-      Nodes.IntPoint(16).x = .5;
-      Nodes.IntPoint(16).y = .5;
-   }
+   //    Nodes.IntPoint(16).x = .5;
+   //    Nodes.IntPoint(16).y = .5;
+   //}
 
 }
 
@@ -2107,13 +2111,11 @@ void H1Ser_QuadrilateralElement::Project (
    //       dofs(i) *= Trans.Weight();
    //    }
    // }
+   cout << "fe.cpp: Nodes.Size is " << Nodes.Size() << endl;
 
-//   DenseMatrix V(fdof, ir.Size());
    DenseMatrix V(dofs.Size(), Nodes.Size());
-//   Vector rhs(ir.Size());
    Vector rhs(Nodes.Size());
 
-//   for (j = 0; j < ir.Size(); ++j)
    for (int j = 0; j < Nodes.Size(); ++j)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(j);

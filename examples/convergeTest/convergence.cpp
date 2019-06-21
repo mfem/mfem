@@ -310,7 +310,7 @@ int main(int argc, char *argv[])
    int total_refinements = 0;
 
    // const char *mesh_file = "../../data/twoSquare.mesh";
-   // const char *mesh_file = "../../data/star.mesh";
+   // const char *mesh_file = "../../data/star-q3.mesh";
    const char *mesh_file = "../../data/singleSquare.mesh";
    int order = 1;
    bool static_cond = false;

@@ -436,7 +436,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
       const FiniteElement *bdr_el = Nodes->FESpace()->GetBE(i);
       if (bdr_el)
       {
-         cout << "mesh.cpp: Looking at boundary nodes" << endl;
+         // cout << "mesh.cpp: Mesh has curved edges" << endl;
          Array<int> vdofs;
          Nodes->FESpace()->GetBdrElementVDofs(i, vdofs);
          int n = vdofs.Size()/spaceDim;

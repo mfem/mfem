@@ -1611,6 +1611,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          // cout << "fe_coll: pm2 =" << pm2 << ", pm3= " << pm3 << ", pm3*pm2 = " << pm3*pm2 << ", (pm3*pm2)/2 = " << (pm3*pm2)/2 << endl;
          // cout << "fe_coll: setting H1_dof[Geometry::SQUARE] to be " << (pm3*pm2)/2 << "   confirm this = " << H1_dof[Geometry::SQUARE] << endl;
       	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
+         // H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p); // allows for mixed tri/quad meshes
+         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
       }
       else
       {
