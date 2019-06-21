@@ -2000,7 +2000,7 @@ int ParFiniteElementSpace
                const NCMesh::Slave &sf = list.slaves[si];
                if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
-               GetEntityDofs(entity, sf.index, slave_dofs);
+               GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom());
                if (!slave_dofs.Size()) { continue; }
 
                sf.OrientedPointMatrix(T.GetPointMat());
