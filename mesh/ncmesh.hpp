@@ -836,8 +836,6 @@ protected: // implementation
 
    static GeomInfo GI[Geometry::NumGeom];
 
-   static GeomInfo &gi_hex, &gi_wedge, &gi_tet, &gi_quad, &gi_tri;
-
 #ifdef MFEM_DEBUG
 public:
    void DebugLeafOrder(std::ostream &out) const;
