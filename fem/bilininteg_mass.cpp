@@ -165,6 +165,66 @@ static void PAMassAssembleDiagonal3D(const int NE,
                                      const int d1d = 0,
                                      const int q1d = 0)
 {
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(_B.Read(), Q1D, D1D);
+   // auto Bt = Reshape(_Bt.Read(), D1D, Q1D); // ?? (TODO atb@llnl.gov)
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
+   auto y = Reshape(_diag.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      double temp[max_Q1D][max_Q1D][max_D1D];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               temp[qx][qy][dz] = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  temp[qx][qy][dz] += B(qz, dz) * B(qz, dz) * op(qx, qy, qz, e);
+               }
+            }
+         }
+      }
+      double temp2[max_Q1D][max_D1D][max_D1D];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               temp2[qx][dy][dz] = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  temp2[qx][dy][dz] += B(qy, dy) * B(qy, dy) * temp[qx][qy][dz];
+               }
+            }
+         }
+      }
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * temp2[qx][dy][dz];
+               }
+            }
+         }
+      }
+   });
 }
 
 static void PAMassAssembleDiagonal(
