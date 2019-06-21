@@ -27,13 +27,6 @@ namespace mfem
 
 NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 
-// TODO: remove these
-NCMesh::GeomInfo& NCMesh::gi_hex   = NCMesh::GI[Geometry::CUBE];
-NCMesh::GeomInfo& NCMesh::gi_wedge = NCMesh::GI[Geometry::PRISM];
-NCMesh::GeomInfo& NCMesh::gi_tet   = NCMesh::GI[Geometry::TETRAHEDRON];
-NCMesh::GeomInfo& NCMesh::gi_quad  = NCMesh::GI[Geometry::SQUARE];
-NCMesh::GeomInfo& NCMesh::gi_tri   = NCMesh::GI[Geometry::TRIANGLE];
-
 void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
 {
    if (initialized) { return; }
@@ -472,6 +465,7 @@ int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
 
    // get faces and assign face attributes
    Face* f[6];
+   const GeomInfo &gi_hex = GI[Geometry::CUBE];
    for (int i = 0; i < gi_hex.nf; i++)
    {
       const int* fv = gi_hex.faces[i];
@@ -501,6 +495,7 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
 
    // get faces and assign face attributes
    Face* f[5];
+   const GeomInfo &gi_wedge = GI[Geometry::PRISM];
    for (int i = 0; i < gi_wedge.nf; i++)
    {
       const int* fv = gi_wedge.faces[i];
@@ -528,6 +523,7 @@ int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
 
    // get faces and assign face attributes
    Face* f[4];
+   const GeomInfo &gi_tet = GI[Geometry::TETRAHEDRON];
    for (int i = 0; i < gi_tet.nf; i++)
    {
       const int* fv = gi_tet.faces[i];
@@ -554,6 +550,7 @@ int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
 
    // get (degenerate) faces and assign face attributes
    Face* f[4];
+   const GeomInfo &gi_quad = GI[Geometry::SQUARE];
    for (int i = 0; i < gi_quad.nf; i++)
    {
       const int* fv = gi_quad.faces[i];
@@ -577,6 +574,7 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
 
    // get (degenerate) faces and assign face attributes
    Face* f[3];
+   const GeomInfo &gi_tri = GI[Geometry::TRIANGLE];
    for (int i = 0; i < gi_tri.nf; i++)
    {
       const int* fv = gi_tri.faces[i];
@@ -1606,7 +1604,7 @@ void NCMesh::DerefineElement(int elem)
       for (int i = 0; i < 6; i++)
       {
          Element &ch = elements[child[hex_deref_table[rt1][i + 8]]];
-         const int* fv = gi_hex.faces[i];
+         const int* fv = GI[el.Geom()].faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
@@ -1624,7 +1622,7 @@ void NCMesh::DerefineElement(int elem)
       for (int i = 0; i < 5; i++)
       {
          Element &ch = elements[child[prism_deref_table[rt1][i + 6]]];
-         const int* fv = gi_wedge.faces[i];
+         const int* fv = GI[el.Geom()].faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
@@ -1636,7 +1634,7 @@ void NCMesh::DerefineElement(int elem)
          Element& ch1 = elements[child[i]];
          Element& ch2 = elements[child[(i+1) & 0x3]];
          el.node[i] = ch1.node[i];
-         const int* fv = gi_tet.faces[i];
+         const int* fv = GI[el.Geom()].faces[i];
          fa[i] = faces.Find(ch2.node[fv[0]], ch2.node[fv[1]],
                             ch2.node[fv[2]], ch2.node[fv[3]])->attribute;
       }
@@ -1651,7 +1649,7 @@ void NCMesh::DerefineElement(int elem)
       for (int i = 0; i < 4; i++)
       {
          Element &ch = elements[child[quad_deref_table[rt1][i + 4]]];
-         const int* fv = gi_quad.faces[i];
+         const int* fv = GI[el.Geom()].faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
@@ -1662,7 +1660,7 @@ void NCMesh::DerefineElement(int elem)
       {
          Element& ch = elements[child[i]];
          el.node[i] = ch.node[i];
-         const int* fv = gi_tri.faces[i];
+         const int* fv = GI[el.Geom()].faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
