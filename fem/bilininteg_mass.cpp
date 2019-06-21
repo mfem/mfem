@@ -236,7 +236,7 @@ static void PAMassAssembleDiagonal(
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
-      MFEM_ABORT("OCCA PA Mass Assemble unknown kernel!");
+      MFEM_ABORT("OCCA PA Mass Assemble Diagonal unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
 
