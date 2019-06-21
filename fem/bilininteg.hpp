@@ -1722,6 +1722,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace&);
 
+   virtual void AssembleDiagonalPA(Vector& diag) const;
+
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,

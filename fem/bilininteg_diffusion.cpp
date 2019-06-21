@@ -212,6 +212,93 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                     coeff, pa_data);
 }
 
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
+static void PADiffusionAssembleDiagonal2D(const int NE,
+                                          const Array<double> &b,
+                                          const Array<double> &g,
+                                          const Array<double> &bt,
+                                          const Array<double> &gt,
+                                          const Vector &_op,
+                                          Vector &_diag,
+                                          const int d1d = 0,
+                                          const int q1d = 0)
+{
+}
+
+template<const int T_D1D = 0,
+         const int T_Q1D = 0>
+static void PADiffusionAssembleDiagonal3D(const int NE,
+                                          const Array<double> &b,
+                                          const Array<double> &g,
+                                          const Array<double> &bt,
+                                          const Array<double> &gt,
+                                          const Vector &_op,
+                                          Vector &_diag,
+                                          const int d1d = 0,
+                                          const int q1d = 0)
+{
+}
+
+static void PADiffusionAssembleDiagonal(const int dim,
+                                        const int D1D,
+                                        const int Q1D,
+                                        const int NE,
+                                        const Array<double> &B,
+                                        const Array<double> &G,
+                                        const Array<double> &Bt,
+                                        const Array<double> &Gt,
+                                        const Vector &op,
+                                        Vector &y)
+{
+#ifdef MFEM_USE_OCCA
+   if (DeviceCanUseOcca())
+   {
+      MFEM_ABORT("OCCA PADiffusionAssembleDiagonal unknown kernel!");
+   }
+#endif // MFEM_USE_OCCA
+
+   if (Device::Allows(Backend::RAJA_CUDA))
+   {
+      if (dim == 2)
+      {
+         switch ((D1D << 4 ) | Q1D)
+         {
+            default:   return PADiffusionAssembleDiagonal2D(NE,B,G,Bt,Gt,op,y,D1D,Q1D);
+         }
+      }
+      if (dim == 3)
+      {
+         switch ((D1D << 4 ) | Q1D)
+         {
+            default:   return PADiffusionAssembleDiagonal3D(NE,B,G,Bt,Gt,op,y,D1D,Q1D);
+         }
+      }
+   }
+   else if (dim == 2)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         default:   return PADiffusionAssembleDiagonal2D(NE,B,G,Bt,Gt,op,y,D1D,Q1D);
+      }
+   }
+   else if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         default:   return PADiffusionAssembleDiagonal3D(NE,B,G,Bt,Gt,op,y,D1D,Q1D);
+      }
+   }
+   MFEM_ABORT("Unknown kernel.");
+}
+
+void DiffusionIntegrator::AssembleDiagonalPA(Vector& diag) const
+{
+   PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
+                               maps->B, maps->G, maps->Bt, maps->Gt,
+                               pa_data, diag);
+}
+
 #ifdef MFEM_USE_OCCA
 // OCCA PA Diffusion Apply 2D kernel
 static void OccaPADiffusionApply2D(const int D1D,
