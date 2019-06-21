@@ -2468,8 +2468,6 @@ void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1)
          // in this case we need to add an edge-face constraint, because the
          // master edge is really a (face-)slave itself
 
-         std::cout << "tet edge-face constraint!" << std::endl;
-
          face_list.slaves.push_back(
             Slave(-1 - eid.index, eid.element, eid.local, eid.geom));
 
