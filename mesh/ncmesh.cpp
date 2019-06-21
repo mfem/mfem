@@ -439,8 +439,8 @@ int NCMesh::Face::GetSingleElement() const
 //// Refinement ////////////////////////////////////////////////////////////////
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
-   : geom(geom), ref_type(0), flag(0), index(-1), rank(0), attribute(attr)
-   , parent(-1)
+   : geom(geom), ref_type(0), tet_type(0), flag(0), index(-1)
+   , rank(0), attribute(attr), parent(-1)
 {
    for (int i = 0; i < 8; i++) { node[i] = -1; }
 
@@ -1335,9 +1335,9 @@ void NCMesh::RefineElement(int elem, char ref_type)
       // but it seems that with reasonable shapes of the coarse tets and MFEM's
       // default tet orientation, always using tet_type == 0 produces stable
       // refinements. Types 1 and 2 are unused for now.
-      const int tet_type = 0;
+      el.tet_type = 0;
 
-      if (tet_type == 0) // shortest diagonal mid01--mid23
+      if (el.tet_type == 0) // shortest diagonal mid01--mid23
       {
          child[4] = NewTetrahedron(mid01, mid23, mid02, mid03, attr,
                                    fa[1], -1, -1, -1);
@@ -1351,7 +1351,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          child[7] = NewTetrahedron(mid01, mid23, mid12, mid02, attr,
                                    -1, fa[3], -1, -1);
       }
-      else if (tet_type == 1) // shortest diagonal mid12--mid03
+      else if (el.tet_type == 1) // shortest diagonal mid12--mid03
       {
          child[4] = NewTetrahedron(mid03, mid01, mid02, mid12, attr,
                                    fa[3], -1, -1, -1);
@@ -1365,7 +1365,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          child[7] = NewTetrahedron(mid03, mid13, mid01, mid12, attr,
                                    -1, -1, -1, fa[2]);
       }
-      else // tet_type == 2, shortest diagonal mid02--mid13
+      else // el.tet_type == 2, shortest diagonal mid02--mid13
       {
          child[4] = NewTetrahedron(mid02, mid01, mid13, mid03, attr,
                                    fa[2], -1, -1, -1);
@@ -3409,6 +3409,9 @@ NCMesh::PointMatrix NCMesh::pm_tri_identity(
 NCMesh::PointMatrix NCMesh::pm_quad_identity(
    Point(0, 0), Point(1, 0), Point(1, 1), Point(0, 1)
 );
+NCMesh::PointMatrix NCMesh::pm_tet_identity(
+   Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0), Point(0, 0, 1)
+);
 NCMesh::PointMatrix NCMesh::pm_prism_identity(
    Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0),
    Point(0, 0, 1), Point(1, 0, 1), Point(0, 1, 1)
@@ -3422,10 +3425,11 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
 {
    switch (geom)
    {
-      case Geometry::TRIANGLE: return pm_tri_identity;
-      case Geometry::SQUARE:   return pm_quad_identity;
-      case Geometry::PRISM:    return pm_prism_identity;
-      case Geometry::CUBE:     return pm_hex_identity;
+      case Geometry::TRIANGLE:    return pm_tri_identity;
+      case Geometry::SQUARE:      return pm_quad_identity;
+      case Geometry::TETRAHEDRON: return pm_tet_identity;
+      case Geometry::PRISM:       return pm_prism_identity;
+      case Geometry::CUBE:        return pm_hex_identity;
       default:
          MFEM_ABORT("unsupported geometry " << geom);
          return pm_tri_identity;
@@ -3729,6 +3733,44 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
             }
          }
       }
+      else if (geom == Geometry::TETRAHEDRON)
+      {
+         Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid02(pm(2), pm(0));
+         Point mid03(pm(0), pm(3)), mid13(pm(1), pm(3)), mid23(pm(2), pm(3));
+
+         if (child == 0)
+         {
+            pm = PointMatrix(pm(0), mid01, mid02, mid03);
+         }
+         else if (child == 1)
+         {
+            pm = PointMatrix(mid01, pm(1), mid12, mid13);
+         }
+         else if (child == 2)
+         {
+            pm = PointMatrix(mid02, mid12, pm(2), mid23);
+         }
+         else if (child == 3)
+         {
+            pm = PointMatrix(mid03, mid13, mid23, pm(3));
+         }
+         else if (child == 4)
+         {
+            pm = PointMatrix(mid01, mid23, mid02, mid03);
+         }
+         else if (child == 5)
+         {
+            pm = PointMatrix(mid01, mid23, mid03, mid13);
+         }
+         else if (child == 6)
+         {
+            pm = PointMatrix(mid01, mid23, mid13, mid12);
+         }
+         else if (child == 7)
+         {
+            pm = PointMatrix(mid01, mid23, mid12, mid02);
+         }
+      }
       else if (geom == Geometry::SQUARE)
       {
          if (ref_type == 1) // X split
@@ -3843,6 +3885,8 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
    }
    else
    {
+      MFEM_ASSERT(el.tet_type == 0, "not implemented");
+
       ref_path.push_back(el.ref_type);
       ref_path.push_back(0);
 
