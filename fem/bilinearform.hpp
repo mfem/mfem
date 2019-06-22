@@ -509,6 +509,7 @@ class MixedBilinearForm : public Matrix
 {
 protected:
    SparseMatrix *mat; ///< Owned.
+   SparseMatrix *mat_e; ///< Owned.
 
    FiniteElementSpace *trial_fes, ///< Not owned
                       *test_fes;  ///< Not owned
@@ -620,6 +621,14 @@ public:
                                           const Vector &sol, Vector &rhs);
 
    virtual void EliminateTestDofs(Array<int> &bdr_attr_is_ess);
+
+   void FormColSystemMatrix(const Array<int> &ess_trial_tdof_list,
+                            SparseMatrix &A);
+
+   void FormColLinearSystem(const Array<int> &ess_trial_tdof_list, Vector &x,
+                            Vector &b,
+                            SparseMatrix &A, Vector &X, Vector &B,
+                            int copy_interior = 0);
 
    void Update();
 

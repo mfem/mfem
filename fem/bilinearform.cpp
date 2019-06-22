@@ -1011,6 +1011,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   mat_e = NULL;
    extern_bfs = 0;
 }
 
@@ -1022,6 +1023,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   mat_e = NULL;
    extern_bfs = 1;
 
    // Copy the pointers to the integrators
@@ -1254,10 +1256,74 @@ void MixedBilinearForm::EliminateTestDofs (Array<int> &bdr_attr_is_ess)
       }
 }
 
+void MixedBilinearForm::FormColSystemMatrix(const Array<int>
+                                            &ess_trial_tdof_list, SparseMatrix &A)
+{
+   const SparseMatrix *test_P = test_fes->GetConformingProlongation();
+   const SparseMatrix *trial_P = trial_fes->GetConformingProlongation();
+
+   mat->Finalize();
+
+   if (test_P)
+   {
+      SparseMatrix *m = RAP(*test_P, *mat, *trial_P);
+      delete mat;
+      mat = m;
+   }
+
+   Array<int> ess_trial_tdof_marker;
+
+   FiniteElementSpace::ListToMarker(ess_trial_tdof_list, trial_fes->GetTrueVSize(),
+                                    ess_trial_tdof_marker);
+
+   mat_e = new SparseMatrix(mat->Height(), mat->Width());
+
+   mat->EliminateCols(ess_trial_tdof_marker, *mat_e);
+
+   mat_e->Finalize();
+   A.MakeRef(*mat);
+}
+
+void MixedBilinearForm::FormColLinearSystem(const Array<int>
+                                            &ess_trial_tdof_list, Vector &x, Vector &b,
+                                            SparseMatrix &A, Vector &X, Vector &B, int copy_interior)
+{
+   const SparseMatrix *test_P = test_fes->GetConformingProlongation();
+   // const SparseMatrix *trial_P = trial_fes->GetConformingProlongation();
+
+   if (mat_e == nullptr)
+   {
+      FormColSystemMatrix(ess_trial_tdof_list, A);
+   }
+
+   if (test_P == nullptr) // conforming space
+   {
+      // A, X and B point to the same data as mat, x and b
+      X.NewDataAndSize(x.GetData(), x.Size());
+      B.NewDataAndSize(b.GetData(), b.Size());
+   }
+   else // non-conforming space
+   {
+      // Variational restriction with P
+      const SparseMatrix *trial_R = trial_fes->GetConformingRestriction();
+      B.SetSize(test_P->Width());
+      test_P->MultTranspose(b, B);
+      X.SetSize(trial_R->Height());
+      trial_R->Mult(x, X);
+   }
+
+   // B = B - Ae xe
+   mat_e->AddMult(X, B, -1.0);
+
+   if (!copy_interior) { X.SetSubVectorComplement(ess_trial_tdof_list, 0.0); }
+}
+
 void MixedBilinearForm::Update()
 {
    delete mat;
    mat = NULL;
+   delete mat_e;
+   mat_e = nullptr;
    height = test_fes->GetVSize();
    width = trial_fes->GetVSize();
 }
@@ -1265,6 +1331,7 @@ void MixedBilinearForm::Update()
 MixedBilinearForm::~MixedBilinearForm()
 {
    if (mat) { delete mat; }
+   if (mat_e) { delete mat_e; }
    if (!extern_bfs)
    {
       int i;
