@@ -23,6 +23,9 @@ namespace mfem
 namespace plasma
 {
 
+namespace transport
+{
+
 /**
    Returns the mean Electron-Ion mean collision time in seconds (see
    equation 2.5e)
@@ -691,6 +694,8 @@ public:
                                    const Vector &elfun, Vector &elvect);
 };
 
+} // namespace transport
+  
 } // namespace plasma
 
 } // namespace mfem

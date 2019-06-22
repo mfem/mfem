@@ -21,6 +21,9 @@ using namespace miniapps;
 
 namespace plasma
 {
+
+namespace transport
+{
 /*
 double tau_e(double Te, int ns, double * ni, int * zi, double lnLambda)
 {
@@ -1705,6 +1708,8 @@ bool StateIsPhysical(const Vector &state, int dim,
    }
    return true;
 }
+
+} // namespace transport
 
 } // namespace plasma
 

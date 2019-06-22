@@ -15,6 +15,7 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::miniapps;
 using namespace mfem::plasma;
+using namespace mfem::plasma::transport;
 
 int problem_;
 
