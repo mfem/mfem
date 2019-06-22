@@ -18,6 +18,14 @@ using namespace mfem::plasma;
 
 int problem_;
 
+// Axisymmetry parameters
+// If axis_sym_ is TRUE then cylindrical symmetry is assumed.
+// The mesh coordinates are taken to be (x,y).  We overlay an (r,z) coordinate
+// system where r = 0 corresponds to x = axis_x_ (or r = x - axis_x),
+// and z = y.
+static bool axis_sym_ = true;
+static double axis_x_ = -0.8;
+
 // Equation constant parameters.
 /*
 int num_species_ = -1;
@@ -181,8 +189,10 @@ void bFunc(const Vector &x, Vector &B)
    double a = 0.4;
    double b = 0.8;
 
-   B[0] =  a * x[1] / (b * b);
-   B[1] = -x[0] / a;
+   double r = axis_sym_ ? (x[0] - axis_x_) : 1.0;
+
+   B[0] = -a * x[1] / (b * b * r);
+   B[1] =  x[0] / (a * r);
 
    B *= B_max_;
 }
@@ -683,7 +693,7 @@ int main(int argc, char *argv[])
    const int dim = mesh->Dimension();
    const int sdim = mesh->SpaceDimension();
 
-   MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
+   MFEM_ASSERT(dim == 2, "This miniapp is specialized to 2D geometries.");
 
    // 4. Refine the serial mesh on all processors to increase the resolution.
    //    Also project a NURBS mesh to a piecewise-quadratic curved mesh. Make
