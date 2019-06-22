@@ -206,6 +206,20 @@ struct DGParams
    double kappa;
 };
 
+class ParGridFunctionArray : public Array<ParGridFunction*>
+{
+public:
+   ParGridFunctionArray() {}
+
+   void ExchangeFaceNbrData()
+   {
+      for (int i=0; i<size; i++)
+      {
+         data[i]->ExchangeFaceNbrData();
+      }
+   }
+};
+
 class DGAdvectionDiffusionTDO : public TimeDependentOperator
 {
 private:
@@ -217,6 +231,8 @@ private:
    double dt_;
 
    ParFiniteElementSpace *fes_;
+   ParGridFunctionArray  *pgf_;
+
    Coefficient       *CCoef_;    // Scalar coefficient in front of du/dt
    VectorCoefficient *VCoef_;    // Velocity coefficient
    Coefficient       *dCoef_;    // Scalar diffusion coefficient
@@ -263,6 +279,7 @@ private:
 public:
    DGAdvectionDiffusionTDO(DGParams & dg,
                            ParFiniteElementSpace &fes,
+                           ParGridFunctionArray &pgf,
                            Coefficient &CCoef, bool imex = true);
 
    ~DGAdvectionDiffusionTDO();
@@ -283,20 +300,6 @@ public:
    virtual void ImplicitSolve(const double dt, const Vector &u, Vector &dudt);
 
    void Update();
-};
-
-class ParGridFunctionArray : public Array<ParGridFunction*>
-{
-public:
-   ParGridFunctionArray() {}
-
-   void ExchangeFaceNbrData()
-   {
-      for (int i=0; i<size; i++)
-      {
-         data[i]->ExchangeFaceNbrData();
-      }
-   }
 };
 
 class DGTransportTDO : public TimeDependentOperator

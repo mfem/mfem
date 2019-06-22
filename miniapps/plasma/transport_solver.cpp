@@ -248,6 +248,7 @@ EtaParaCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
 */
 DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(DGParams & dg,
                                                  ParFiniteElementSpace &fes,
+                                                 ParGridFunctionArray &pgf,
                                                  Coefficient &CCoef,
                                                  bool imex)
    : TimeDependentOperator(fes.GetVSize()),
@@ -257,6 +258,7 @@ DGAdvectionDiffusionTDO::DGAdvectionDiffusionTDO(DGParams & dg,
      log_prefix_(""),
      dt_(-1.0),
      fes_(&fes),
+     pgf_(&pgf),
      CCoef_(&CCoef),
      VCoef_(NULL),
      dCoef_(NULL),
@@ -677,6 +679,8 @@ void DGAdvectionDiffusionTDO::ExplicitMult(const Vector &x, Vector &fx) const
 {
    MFEM_VERIFY(imex_, "Unexpected call to ExplicitMult for non-IMEX method!");
 
+   pgf_->ExchangeFaceNbrData();
+
    if (q_exp_)
    {
       rhs_ = *q_exp_;
@@ -703,6 +707,8 @@ void DGAdvectionDiffusionTDO::ExplicitMult(const Vector &x, Vector &fx) const
 void DGAdvectionDiffusionTDO::ImplicitSolve(const double dt,
                                             const Vector &u, Vector &dudt)
 {
+   pgf_->ExchangeFaceNbrData();
+
    if (fes_->GetMyRank() == 0 && logging_)
    {
       cout << log_prefix_ << "ImplicitSolve with dt = " << dt << endl;
@@ -842,11 +848,11 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
      ffes_(&ffes),
      pgf_(&pgf),
      oneCoef_(1.0),
-     n_n_oper_(dg, fes, oneCoef_, imex),
-     n_i_oper_(dg, fes, oneCoef_, imex),
-     v_i_oper_(dg, fes, MomCCoef, imex),
-     T_i_oper_(dg, fes,  TiCCoef, imex),
-     T_e_oper_(dg, fes,  TeCCoef, imex)
+     n_n_oper_(dg, fes, pgf, oneCoef_, imex),
+     n_i_oper_(dg, fes, pgf, oneCoef_, imex),
+     v_i_oper_(dg, fes, pgf, MomCCoef, imex),
+     T_i_oper_(dg, fes, pgf,  TiCCoef, imex),
+     T_e_oper_(dg, fes, pgf,  TeCCoef, imex)
 {
 }
 
@@ -1021,7 +1027,7 @@ void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
 {
    y = 0.0;
 
-   pgf_->ExchangeFaceNbrData();
+   // pgf_->ExchangeFaceNbrData();
 
    int size = fes_->GetVSize();
 
@@ -1051,7 +1057,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
 {
    dudt = 0.0;
 
-   pgf_->ExchangeFaceNbrData();
+   // pgf_->ExchangeFaceNbrData();
 
    int size = fes_->GetVSize();
 
