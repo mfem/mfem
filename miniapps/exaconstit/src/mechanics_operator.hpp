@@ -50,7 +50,7 @@ protected:
    ExaModel *model;
    /// Variable telling us if we should use the UMAT specific
    /// stuff
-   bool umat_used;
+   MechType mech_type;
    int newton_iter;
    int myid;
    
@@ -107,6 +107,15 @@ public:
    void ProjectModelStress(ParGridFunction &s);
    void ProjectVonMisesStress(ParGridFunction &vm);
    void ProjectHydroStress(ParGridFunction &hss);
+   //These next group of Project* functions are only available with ExaCMech type models
+   void ProjectDpEff(ParGridFunction &dpeff);
+   void ProjectEffPlasticStrain(ParGridFunction &pleff);
+   void ProjectShearRate(ParGridFunction &gdot);
+   //This one requires that the orientations be made unit normals afterwards
+   void ProjectOrientation(ParGridFunction &quats);
+   //Here this can be either the CRSS for a voce model or relative dislocation density
+   //value for the MTS model.
+   void ProjectH(ParGridFunction &h);
    
    void SetTime(const double t);
    void SetDt(const double dt);

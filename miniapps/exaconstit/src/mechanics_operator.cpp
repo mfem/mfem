@@ -34,9 +34,8 @@ newton_solver(fes.GetComm())
    rhs = NULL;
    
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   if(options.mech_type == MechType::UMAT){
-      umat_used = true;
-   }
+
+   mech_type = options.mech_type;
    
    // Define the parallel nonlinear form
    Hform = new ParNonlinearForm(&fes);
@@ -384,7 +383,7 @@ void NonlinearMechOperator::Mult(const Vector &k, Vector &y) const
    //We now update our end coordinates based on the solved for velocity.
    UpdateEndCoords(k);
    // Apply the nonlinear form
-   if(umat_used){
+   if(mech_type == MechType::UMAT){
 //      const ParFiniteElementSpace *fes = GetFESpace();
       //I really don't like this. It feels so hacky and
       //potentially dangerous to have these methods just
@@ -500,7 +499,7 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
    const FiniteElement *fe;
    const IntegrationRule *ir;
    
-   if(umat_used){
+   if(mech_type == MechType::UMAT){
       
       //I really don't like this. It feels so hacky and
       //potentially dangerous to have these methods just
@@ -584,27 +583,27 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
    qf = NULL;
    
    //Here we're computing the average deformation gradient
-   Vector defgrad;
-   size = 9;
+   // Vector defgrad;
+   // size = 9;
    
-   defgrad.SetSize(size);
+   // defgrad.SetSize(size);
    
-   defgrad = 0.0;
+   // defgrad = 0.0;
    
-   QuadratureVectorFunctionCoefficient* qdefgrad = model->GetDefGrad0();
+   // QuadratureVectorFunctionCoefficient* qdefgrad = model->GetDefGrad0();
    
-   const QuadratureFunction* qf1 = qdefgrad->GetQuadFunction();
+   // const QuadratureFunction* qf1 = qdefgrad->GetQuadFunction();
    
-   ComputeVolAvgTensor(fes, qf1, defgrad, size);
+   // ComputeVolAvgTensor(fes, qf1, defgrad, size);
    
-   //We're now saving the average def grad off to a file
-   if(my_id == 0){
-      std::ofstream file;
+   // //We're now saving the average def grad off to a file
+   // if(my_id == 0){
+   //    std::ofstream file;
       
-      file.open("avg_dgrad.txt", std::ios_base::app);
+   //    file.open("avg_dgrad.txt", std::ios_base::app);
       
-      defgrad.Print(file, 9);
-   }
+   //    defgrad.Print(file, 9);
+   // }
    
 }
 
@@ -614,7 +613,7 @@ void NonlinearMechOperator::ProjectModelStress(ParGridFunction &s)
 {
    QuadratureVectorFunctionCoefficient *stress;
    stress = model->GetStress0();
-   s.ProjectCoefficient(*stress);
+   s.ProjectDiscCoefficient(*stress, mfem::GridFunction::ARITHMETIC);
    
    stress = NULL;
    
@@ -662,6 +661,66 @@ void NonlinearMechOperator::ProjectHydroStress(ParGridFunction &hss)
    
    hss.ProjectDiscCoefficient(*hydroStress, mfem::GridFunction::ARITHMETIC);
    
+   return;
+}
+
+//These next group of Project* functions are only available with ExaCMech type models
+//Need to figure out a smart way to get all of the indices that I want for down below
+//that go with ExaModel
+void NonlinearMechOperator::ProjectDpEff(ParGridFunction &dpeff)
+{
+   if(mech_type == MechType::EXACMECH){
+      QuadratureVectorFunctionCoefficient* qfvc = model->GetMatVars0();
+      qfvc->SetIndex(0);
+      qfvc->SetLength(1);
+      dpeff.ProjectDiscCoefficient(*qfvc, mfem::GridFunction::ARITHMETIC);
+   }
+   return;
+}
+void NonlinearMechOperator::ProjectEffPlasticStrain(ParGridFunction &pleff)
+{
+   if(mech_type == MechType::EXACMECH){
+      QuadratureVectorFunctionCoefficient* qfvc = model->GetMatVars0();
+      qfvc->SetIndex(1);
+      qfvc->SetLength(1);
+      pleff.ProjectDiscCoefficient(*qfvc, mfem::GridFunction::ARITHMETIC);
+   }
+   return;
+}
+void NonlinearMechOperator::ProjectShearRate(ParGridFunction &gdot)
+{
+   if(mech_type == MechType::EXACMECH){
+      QuadratureVectorFunctionCoefficient* qfvc = model->GetMatVars0();
+      qfvc->SetIndex(13);
+      qfvc->SetLength(12);
+      gdot.ProjectDiscCoefficient(*qfvc, mfem::GridFunction::ARITHMETIC);
+   }
+   return;
+}
+//This one requires that the orientations be made unit normals afterwards
+void NonlinearMechOperator::ProjectOrientation(ParGridFunction &quats)
+{
+   if(mech_type == MechType::EXACMECH){
+      
+      QuadratureVectorFunctionCoefficient* qfvc = model->GetMatVars0();
+      qfvc->SetIndex(8);
+      qfvc->SetLength(4);
+      quats.ProjectDiscCoefficient(*qfvc, mfem::GridFunction::ARITHMETIC);
+      //We need to normalize the quaternions here
+      //fix me...
+   }
+   return;
+}
+//Here this can be either the CRSS for a voce model or relative dislocation density
+//value for the MTS model.
+void NonlinearMechOperator::ProjectH(ParGridFunction &h)
+{
+   if(mech_type == MechType::EXACMECH){
+      QuadratureVectorFunctionCoefficient* qfvc = model->GetMatVars0();
+      qfvc->SetIndex(12);
+      qfvc->SetLength(1);
+      h.ProjectDiscCoefficient(*qfvc, mfem::GridFunction::ARITHMETIC);
+   }
    return;
 }
 

@@ -22,12 +22,39 @@
 namespace mfem
 {
 
+void QuadratureVectorFunctionCoefficient::SetLength(int _length)
+{
+   int vdim = QuadF->GetVDim();
+
+   MFEM_ASSERT(_length > 0, "Length must be > 0");
+   vdim -= index;
+   MFEM_ASSERT(_length <= vdim, "Length must be <= (QuadratureFunction length - index)");
+
+   length = _length;
+}
+
+void QuadratureVectorFunctionCoefficient::SetIndex(int _index)
+{
+   MFEM_ASSERT(_index >= 0, "Index must be >= 0");
+   MFEM_ASSERT(_index < QuadF->GetVDim(), "Index must be < the QuadratureFunction length");
+   index = _index;
+}
+
 void QuadratureVectorFunctionCoefficient::Eval(Vector &V,
                                                ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
    int elem_no = T.ElementNo;
-   QuadF->GetElementValues(elem_no, ip.ipID, V); 
+   if(index == 0 && length == QuadF->GetVDim()){
+      QuadF->GetElementValues(elem_no, ip.ipID, V); 
+   }else{
+      QuadratureSpace* qspace = QuadF->GetSpace();
+      double* data = QuadF->GetData(); 
+      const int s_offset = QuadF->GetVDim() * elem_no;
+      // const int sl_size = qspace->element_offsets[idx+1] - s_offset;
+      V.NewDataAndSize(data + s_offset + index, length);
+   }
+   
    return;
 }
 
