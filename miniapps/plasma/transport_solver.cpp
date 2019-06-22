@@ -340,9 +340,9 @@ void DGAdvectionDiffusionTDO::initA()
          a_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dtdCoef_,
                                                                  dg_.sigma,
                                                                  dg_.kappa));
-         a_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtdCoef_,
-                                                            dg_.sigma,
-                                                            dg_.kappa));
+         // a_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtdCoef_,
+         //                                                 dg_.sigma,
+         //                                                 dg_.kappa));
       }
       else if (DCoef_)
       {
@@ -350,9 +350,9 @@ void DGAdvectionDiffusionTDO::initA()
          a_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef_,
                                                                  dg_.sigma,
                                                                  dg_.kappa));
-         a_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef_,
-                                                            dg_.sigma,
-                                                            dg_.kappa));
+         // a_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef_,
+         //                                                 dg_.sigma,
+         //                                                 dg_.kappa));
       }
       if (negVCoef_ && !imex_)
       {
@@ -379,9 +379,9 @@ void DGAdvectionDiffusionTDO::initB()
          b_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
                                                                  dg_.sigma,
                                                                  dg_.kappa));
-         b_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
-                                                            dg_.sigma,
-                                                            dg_.kappa));
+         // b_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
+         //                                                 dg_.sigma,
+         //                                                 dg_.kappa));
       }
       else if (DCoef_)
       {
@@ -389,9 +389,9 @@ void DGAdvectionDiffusionTDO::initB()
          b_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
                                                                  dg_.sigma,
                                                                  dg_.kappa));
-         b_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
-                                                            dg_.sigma,
-                                                            dg_.kappa));
+         // b_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
+         //                                                 dg_.sigma,
+         //                                                 dg_.kappa));
       }
       if (negVCoef_)
       {
@@ -425,9 +425,9 @@ void DGAdvectionDiffusionTDO::initS()
          s_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
                                                                  dg_.sigma,
                                                                  dg_.kappa));
-         s_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
-                                                            dg_.sigma,
-                                                            dg_.kappa));
+         // s_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dCoef_,
+         //                                                 dg_.sigma,
+         //                                                 dg_.kappa));
       }
       else if (DCoef_)
       {
@@ -435,9 +435,9 @@ void DGAdvectionDiffusionTDO::initS()
          s_->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
                                                                  dg_.sigma,
                                                                  dg_.kappa));
-         s_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
-                                                            dg_.sigma,
-                                                            dg_.kappa));
+         // s_->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*DCoef_,
+         //                                                 dg_.sigma,
+         //                                                 dg_.kappa));
       }
       /*
       s_->Assemble();
