@@ -27,8 +27,6 @@ const double gas_constant_ = 1.0;
 */
 // Scalar coefficient for diffusion of momentum
 //static double diffusion_constant_ = 0.1;
-static double dg_sigma_ = -1.0;
-static double dg_kappa_ = -1.0;
 
 static double T_max_ = 10.0;
 static double T_min_ =  1.0;
@@ -612,12 +610,6 @@ int main(int argc, char *argv[])
                   "Temperature of the neutral species (in eV)");
    // args.AddOption(&diffusion_constant_, "-nu", "--diffusion-constant",
    //               "Diffusion constant used in momentum equation.");
-   args.AddOption(&dg_sigma_, "-dgs", "--sigma",
-                  "One of the two DG penalty parameters, typically +1/-1."
-                  " See the documentation of class DGDiffusionIntegrator.");
-   args.AddOption(&dg_kappa_, "-dgk", "--kappa",
-                  "One of the two DG penalty parameters, should be positive."
-                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&B_max_, "-B", "--B-magnitude",
                   "");
    args.AddOption(&v_max_, "-v", "--velocity",
@@ -668,10 +660,6 @@ int main(int argc, char *argv[])
    */
    imex = ode_solver_type < 10;
 
-   if (dg_kappa_ < 0)
-   {
-      dg_kappa_ = (order+1)*(order+1);
-   }
    if (t_final < 0.0)
    {
       if (strcmp(mesh_file, "../data/periodic-hexagon.mesh") == 0)
