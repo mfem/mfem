@@ -37,7 +37,7 @@ endif
 COMMON_O=../common/fem_extras.o ../common/pfem_extras.o \
 	../common/mesh_extras.o \
 	cold_plasma_dielectric_solver.o cold_plasma_dielectric_coefs.o \
-	braginskii_coefs.o
+	transport_solver.o braginskii_coefs.o
 
 # Remove built-in rules
 %: %.cpp
@@ -49,8 +49,14 @@ all: $(MINIAPPS)
 braginskii: braginskii.cpp braginskii_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ braginskii_solver.o $(COMMON_O) $(MFEM_LIBS)
 
-transport2d: transport2d.cpp transport_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ transport_solver.o $(COMMON_O) $(MFEM_LIBS)
+#dg_adv_diff_test: dg_adv_diff_test.cpp transport_solver.hpp \
+#	transport_solver.cpp transport_solver.o \
+#	$(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+#	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ transport_solver.o $(COMMON_O) $(MFEM_LIBS)
+
+#transport2d: transport2d.cpp transport_solver.hpp transport_solver.cpp \
+#	transport_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+#	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ transport_solver.o $(COMMON_O) $(MFEM_LIBS)
 
 %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
