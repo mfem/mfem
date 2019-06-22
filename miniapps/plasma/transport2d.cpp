@@ -1046,9 +1046,9 @@ int main(int argc, char *argv[])
    ConstantCoefficient     XiPerpCoef(Xi_perp);
    ConstantCoefficient     XePerpCoef(Xe_perp);
    ThermalDiffusionCoef        XiCoef(dim, ion_charge, ion_mass,
-				      XiPerpCoef, niCoef, TiCoef);
+                                      XiPerpCoef, niCoef, TiCoef);
    ThermalDiffusionCoef        XeCoef(dim, ion_charge, me_u_,
-				      XePerpCoef, neCoef, TeCoef, &niCoef);
+                                      XePerpCoef, neCoef, TeCoef, &niCoef);
 
    // Advection Coefficients
    ScalarVectorProductCoefficient   ViCoef(viCoef, bHatCoef);
@@ -1062,7 +1062,7 @@ int main(int argc, char *argv[])
                                           DiPerpCoef, niCoef, TiCoef);
    ScalarMatrixProductCoefficient nXiCoef(niCoef, XiCoef);
    ScalarMatrixProductCoefficient nXeCoef(neCoef, XeCoef);
-   
+
    // Source Coefficients
    ProductCoefficient  SiCoef(nnneCoef, izCoef);
    ProductCoefficient  SnCoef(-1.0, SiCoef);
@@ -1081,119 +1081,119 @@ int main(int argc, char *argv[])
    elec_energy.ProjectCoefficient(Te0Coef);
 
    {
-     L2_ParFESpace l2_fes(&pmesh, order - 1, dim);
-     ParLinearForm Mc(&l2_fes);
-     ParGridFunction cHat(&l2_fes);
+      L2_ParFESpace l2_fes(&pmesh, order - 1, dim);
+      ParLinearForm Mc(&l2_fes);
+      ParGridFunction cHat(&l2_fes);
 
-     ConstantCoefficient oneCoef(1.0);
-     cHat.ProjectCoefficient(oneCoef);
+      ConstantCoefficient oneCoef(1.0);
+      cHat.ProjectCoefficient(oneCoef);
 
-     double cMc  = -1.0;
-     double cmnc = -1.0;
-     double cnic = -1.0;
-     double cnec = -1.0;
+      double cMc  = -1.0;
+      double cmnc = -1.0;
+      double cnic = -1.0;
+      double cnec = -1.0;
 
-     {
-       ParBilinearForm m(&l2_fes);
-       m.AddDomainIntegrator(new MassIntegrator);
-       m.Assemble();
-       m.Mult(cHat, Mc);
-       cMc = Mc(cHat);
-     }
-     {
-       ParBilinearForm m(&l2_fes);
-       m.AddDomainIntegrator(new MassIntegrator(mnCoef));
-       m.Assemble();
-       m.Mult(cHat, Mc);
-       cmnc = Mc(cHat);
-     }
-     {
-       ParBilinearForm m(&l2_fes);
-       m.AddDomainIntegrator(new MassIntegrator(niCoef));
-       m.Assemble();
-       m.Mult(cHat, Mc);
-       cnic = Mc(cHat);
-     }
-     {
-       ParBilinearForm m(&l2_fes);
-       m.AddDomainIntegrator(new MassIntegrator(neCoef));
-       m.Assemble();
-       m.Mult(cHat, Mc);
-       cnec = Mc(cHat);
-     }
+      {
+         ParBilinearForm m(&l2_fes);
+         m.AddDomainIntegrator(new MassIntegrator);
+         m.Assemble();
+         m.Mult(cHat, Mc);
+         cMc = Mc(cHat);
+      }
+      {
+         ParBilinearForm m(&l2_fes);
+         m.AddDomainIntegrator(new MassIntegrator(mnCoef));
+         m.Assemble();
+         m.Mult(cHat, Mc);
+         cmnc = Mc(cHat);
+      }
+      {
+         ParBilinearForm m(&l2_fes);
+         m.AddDomainIntegrator(new MassIntegrator(niCoef));
+         m.Assemble();
+         m.Mult(cHat, Mc);
+         cnic = Mc(cHat);
+      }
+      {
+         ParBilinearForm m(&l2_fes);
+         m.AddDomainIntegrator(new MassIntegrator(neCoef));
+         m.Assemble();
+         m.Mult(cHat, Mc);
+         cnec = Mc(cHat);
+      }
 
-     double mnAvg = cmnc / cMc;
-     double niAvg = cnic / cMc;
-     double neAvg = cnec / cMc;
-     
-     if (mpi.Root()) { cout << "|mn| = " << mnAvg << endl; }
-     if (mpi.Root()) { cout << "|ni| = " << niAvg << endl; }
-     if (mpi.Root()) { cout << "|ne| = " << neAvg << endl << endl; }
+      double mnAvg = cmnc / cMc;
+      double niAvg = cnic / cMc;
+      double neAvg = cnec / cMc;
 
-     ND_ParFESpace nd_fes(&pmesh, order, dim);
-     ParLinearForm Mb(&nd_fes);
-     ParGridFunction bHat(&nd_fes);
-     bHat.ProjectCoefficient(bHatCoef);
+      if (mpi.Root()) { cout << "|mn| = " << mnAvg << endl; }
+      if (mpi.Root()) { cout << "|ni| = " << niAvg << endl; }
+      if (mpi.Root()) { cout << "|ne| = " << neAvg << endl << endl; }
 
-     double bMb   = -1.0;
-     double bDnb  = -1.0;
-     double bDib  = -1.0;
-     double bEtab = -1.0;
-     double bnXib = -1.0;
-     double bnXeb = -1.0;
+      ND_ParFESpace nd_fes(&pmesh, order, dim);
+      ParLinearForm Mb(&nd_fes);
+      ParGridFunction bHat(&nd_fes);
+      bHat.ProjectCoefficient(bHatCoef);
 
-     {
-       ParBilinearForm m(&nd_fes);
-       m.AddDomainIntegrator(new VectorFEMassIntegrator);
-       m.Assemble();
-       m.Mult(bHat, Mb);
-       bMb = Mb(bHat);
-     }
-     {
-       ParBilinearForm m(&nd_fes);
-       m.AddDomainIntegrator(new VectorFEMassIntegrator(DnCoef));
-       m.Assemble();
-       m.Mult(bHat, Mb);
-       bDnb = Mb(bHat);
-     }
-     {
-       ParBilinearForm m(&nd_fes);
-       m.AddDomainIntegrator(new VectorFEMassIntegrator(DiCoef));
-       m.Assemble();
-       m.Mult(bHat, Mb);
-       bDib = Mb(bHat);
-     }
-     {
-       ParBilinearForm m(&nd_fes);
-       m.AddDomainIntegrator(new VectorFEMassIntegrator(EtaCoef));
-       m.Assemble();
-       m.Mult(bHat, Mb);
-       bEtab = Mb(bHat);
-     }
-     {
-       ParBilinearForm m(&nd_fes);
-       m.AddDomainIntegrator(new VectorFEMassIntegrator(nXiCoef));
-       m.Assemble();
-       m.Mult(bHat, Mb);
-       bnXib = Mb(bHat);
-     }
-     {
-       ParBilinearForm m(&nd_fes);
-       m.AddDomainIntegrator(new VectorFEMassIntegrator(nXeCoef));
-       m.Assemble();
-       m.Mult(bHat, Mb);
-       bnXeb = Mb(bHat);
-     }
-     if (mpi.Root()) { cout << "|Dn|     = " << bDnb / bMb << endl; }
-     if (mpi.Root()) { cout << "|Di|     = " << bDib / bMb << endl; }
-     if (mpi.Root()) { cout << "|Eta|    = " << bEtab / bMb << endl; }
-     if (mpi.Root()) { cout << "|nXi|    = " << bnXib / bMb << endl; }
-     if (mpi.Root()) { cout << "|nXe|    = " << bnXeb / bMb << endl << endl; }
-     if (mpi.Root()) { cout << "|Eta/mn| = " << bEtab / bMb / mnAvg << endl; }
-     if (mpi.Root()) { cout << "|nXi/ni| = " << bnXib / bMb / niAvg << endl; }
-     if (mpi.Root()) { cout << "|nXe/ne| = " << bnXeb / bMb / neAvg << endl; }
+      double bMb   = -1.0;
+      double bDnb  = -1.0;
+      double bDib  = -1.0;
+      double bEtab = -1.0;
+      double bnXib = -1.0;
+      double bnXeb = -1.0;
+
+      {
+         ParBilinearForm m(&nd_fes);
+         m.AddDomainIntegrator(new VectorFEMassIntegrator);
+         m.Assemble();
+         m.Mult(bHat, Mb);
+         bMb = Mb(bHat);
+      }
+      {
+         ParBilinearForm m(&nd_fes);
+         m.AddDomainIntegrator(new VectorFEMassIntegrator(DnCoef));
+         m.Assemble();
+         m.Mult(bHat, Mb);
+         bDnb = Mb(bHat);
+      }
+      {
+         ParBilinearForm m(&nd_fes);
+         m.AddDomainIntegrator(new VectorFEMassIntegrator(DiCoef));
+         m.Assemble();
+         m.Mult(bHat, Mb);
+         bDib = Mb(bHat);
+      }
+      {
+         ParBilinearForm m(&nd_fes);
+         m.AddDomainIntegrator(new VectorFEMassIntegrator(EtaCoef));
+         m.Assemble();
+         m.Mult(bHat, Mb);
+         bEtab = Mb(bHat);
+      }
+      {
+         ParBilinearForm m(&nd_fes);
+         m.AddDomainIntegrator(new VectorFEMassIntegrator(nXiCoef));
+         m.Assemble();
+         m.Mult(bHat, Mb);
+         bnXib = Mb(bHat);
+      }
+      {
+         ParBilinearForm m(&nd_fes);
+         m.AddDomainIntegrator(new VectorFEMassIntegrator(nXeCoef));
+         m.Assemble();
+         m.Mult(bHat, Mb);
+         bnXeb = Mb(bHat);
+      }
+      if (mpi.Root()) { cout << "|Dn|     = " << bDnb / bMb << endl; }
+      if (mpi.Root()) { cout << "|Di|     = " << bDib / bMb << endl; }
+      if (mpi.Root()) { cout << "|Eta|    = " << bEtab / bMb << endl; }
+      if (mpi.Root()) { cout << "|nXi|    = " << bnXib / bMb << endl; }
+      if (mpi.Root()) { cout << "|nXe|    = " << bnXeb / bMb << endl << endl; }
+      if (mpi.Root()) { cout << "|Eta/mn| = " << bEtab / bMb / mnAvg << endl; }
+      if (mpi.Root()) { cout << "|nXi/ni| = " << bnXib / bMb / niAvg << endl; }
+      if (mpi.Root()) { cout << "|nXe/ne| = " << bnXeb / bMb / neAvg << endl; }
    }
-   
+
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
    DGTransportTDO oper(dg, fes, ffes, pgf, mnCoef, niCoef, neCoef, imex);
 
