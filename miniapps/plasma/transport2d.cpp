@@ -1023,12 +1023,13 @@ int main(int argc, char *argv[])
 
    // ParGridFunction u(&fes);
    // u.ProjectCoefficient(u0Coef);
-   neu_density = 1.0e14;
+   neu_density = 1.0e16;
    ion_density = 1.0e19;
    para_velocity = 0.0;
 
    Array<double> weights(5);
    weights = 0.0;
+   weights[0] = 1.0;
    weights[4] = 1.0;
    VectorNormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD, weights);
    ode_diff_msr.SetOperator(m);
@@ -1264,7 +1265,7 @@ int main(int argc, char *argv[])
    // Another possible option for the smoothed flux space:
    // H1_FECollection smooth_flux_fec(order, dim);
    // ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec, dim);
-   DiffusionIntegrator integ(XeCoef);
+   DiffusionIntegrator integ(nXeCoef);
    L2ZienkiewiczZhuEstimator estimator(integ, elec_energy, flux_fes,
                                        smooth_flux_fes);
 
