@@ -489,6 +489,21 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
    test_pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
+void ParMixedBilinearForm::FormColSystemMatrix(const Array<int> &ess_tdof_list, HypreParMatrix &A)
+{
+   if (mat)
+   {
+      Finalize();
+      p_mat = ParallelAssemble();
+      delete mat;
+      mat = nullptr;
+      delete mat_e;
+      mat_e = nullptr;
+      // p_mat_e = p_mat->EliminateCols(ess_tdof_list);
+   }
+
+   A = *p_mat;
+}
 
 HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
 {

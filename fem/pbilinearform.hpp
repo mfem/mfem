@@ -195,6 +195,8 @@ protected:
    /// Auxiliary objects used in TrueAddMult().
    mutable ParGridFunction X, Y;
 
+   HypreParMatrix *p_mat, *p_mat_e;
+
 private:
    /// Copy construction is not supported; body is undefined.
    ParMixedBilinearForm(const ParMixedBilinearForm &);
@@ -240,6 +242,9 @@ public:
        @a A = P_test^t A_local P_trial, in the format (type id) specified by
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
+
+   virtual void FormColSystemMatrix(const Array<int> &ess_tdof_list,
+                                 HypreParMatrix &A);
 
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;

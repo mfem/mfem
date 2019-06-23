@@ -478,7 +478,8 @@ void hypre_CSRMatrixEliminateRowsCols(hypre_CSRMatrix *A,
 void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                     hypre_ParCSRMatrix **Ae,
                                     HYPRE_Int num_rowscols_to_elim,
-                                    HYPRE_Int *rowscols_to_elim)
+                                    HYPRE_Int *rowscols_to_elim,
+                                    int ignore_rows)
 {
    HYPRE_Int i, j, k;
 
@@ -558,15 +559,31 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                                  int_buf_data, eliminate_col);
 
       /* eliminate diagonal part, overlapping it with communication */
-      hypre_CSRMatrixElimCreate(A_diag, Ae_diag,
-                                num_rowscols_to_elim, rowscols_to_elim,
-                                num_rowscols_to_elim, rowscols_to_elim,
-                                NULL);
+      if (ignore_rows)
+      {
+         hypre_CSRMatrixElimCreate(A_diag, Ae_diag,
+                                   0, nullptr,
+                                   num_rowscols_to_elim, rowscols_to_elim,
+                                   NULL);
 
-      hypre_CSRMatrixEliminateRowsCols(A_diag, Ae_diag,
-                                       num_rowscols_to_elim, rowscols_to_elim,
-                                       num_rowscols_to_elim, rowscols_to_elim,
-                                       1, NULL);
+         hypre_CSRMatrixEliminateRowsCols(A_diag, Ae_diag,
+                                          0, nullptr,
+                                          num_rowscols_to_elim, rowscols_to_elim,
+                                          1, NULL);
+      }
+      else
+      {
+         hypre_CSRMatrixElimCreate(A_diag, Ae_diag,
+                                   num_rowscols_to_elim, rowscols_to_elim,
+                                   num_rowscols_to_elim, rowscols_to_elim,
+                                   NULL);
+
+         hypre_CSRMatrixEliminateRowsCols(A_diag, Ae_diag,
+                                          num_rowscols_to_elim, rowscols_to_elim,
+                                          num_rowscols_to_elim, rowscols_to_elim,
+                                          1, NULL);
+      }
+
       hypre_CSRMatrixReorder(Ae_diag);
 
       /* finish the communication */
@@ -600,20 +617,40 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
    col_mark = mfem_hypre_CTAlloc(HYPRE_Int, A_offd_ncols);
    col_remap = mfem_hypre_CTAlloc(HYPRE_Int, A_offd_ncols);
 
-   hypre_CSRMatrixElimCreate(A_offd, Ae_offd,
-                             num_rowscols_to_elim, rowscols_to_elim,
-                             num_offd_cols_to_elim, offd_cols_to_elim,
-                             col_mark);
-
-   for (i = k = 0; i < A_offd_ncols; i++)
+   if (ignore_rows)
    {
-      if (col_mark[i]) { col_remap[i] = k++; }
-   }
+      hypre_CSRMatrixElimCreate(A_offd, Ae_offd,
+                                0, nullptr,
+                                num_offd_cols_to_elim, offd_cols_to_elim,
+                                col_mark);
 
-   hypre_CSRMatrixEliminateRowsCols(A_offd, Ae_offd,
-                                    num_rowscols_to_elim, rowscols_to_elim,
-                                    num_offd_cols_to_elim, offd_cols_to_elim,
-                                    0, col_remap);
+      for (i = k = 0; i < A_offd_ncols; i++)
+      {
+         if (col_mark[i]) { col_remap[i] = k++; }
+      }
+
+      hypre_CSRMatrixEliminateRowsCols(A_offd, Ae_offd,
+                                       0, nullptr,
+                                       num_offd_cols_to_elim, offd_cols_to_elim,
+                                       0, col_remap);
+   }
+   else
+   {
+      hypre_CSRMatrixElimCreate(A_offd, Ae_offd,
+                                num_rowscols_to_elim, rowscols_to_elim,
+                                num_offd_cols_to_elim, offd_cols_to_elim,
+                                col_mark);
+
+      for (i = k = 0; i < A_offd_ncols; i++)
+      {
+         if (col_mark[i]) { col_remap[i] = k++; }
+      }
+
+      hypre_CSRMatrixEliminateRowsCols(A_offd, Ae_offd,
+                                       num_rowscols_to_elim, rowscols_to_elim,
+                                       num_offd_cols_to_elim, offd_cols_to_elim,
+                                       0, col_remap);
+   }
 
    /* create col_map_offd for Ae */
    Ae_offd_ncols = 0;

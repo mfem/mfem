@@ -178,12 +178,17 @@ int main(int argc, char *argv[])
    ess_bdr = 1;
    Array<int> ess_dof;
    x0_space->GetEssentialVDofs(ess_bdr, ess_dof);
+   Array<int> ess_tdof_list;
+   x0_space->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    ParMixedBilinearForm *B0 = new ParMixedBilinearForm(x0_space,test_space);
    B0->AddDomainIntegrator(new DiffusionIntegrator(one));
    B0->Assemble();
-   B0->EliminateEssentialBCFromTrialDofs(ess_dof, *x0, *F);
-   B0->Finalize();
+//   B0->EliminateEssentialBCFromTrialDofs(ess_dof, *x0, *F);
+//   B0->Finalize();
+
+   HypreParMatrix matB00;
+   B0->FormColSystemMatrix(ess_tdof_list, matB00);
 
    ParMixedBilinearForm *Bhat = new ParMixedBilinearForm(xhat_space,test_space);
    Bhat->AddTraceFaceIntegrator(new TraceJumpIntegrator());
@@ -204,7 +209,8 @@ int main(int argc, char *argv[])
    S0->EliminateEssentialBC(ess_bdr);
    S0->Finalize();
 
-   HypreParMatrix * matB0   = B0->ParallelAssemble();    delete B0;
+   // HypreParMatrix * matB0   = B0->ParallelAssemble();    delete B0;
+   HypreParMatrix * matB0 = &matB00;
    HypreParMatrix * matBhat = Bhat->ParallelAssemble();  delete Bhat;
    HypreParMatrix * matSinv = Sinv->ParallelAssemble();  delete Sinv;
    HypreParMatrix * matS0   = S0->ParallelAssemble();    delete S0;
@@ -326,7 +332,7 @@ int main(int argc, char *argv[])
    delete Shatinv;
    delete S0inv;
    delete Shat;
-   delete matB0;
+   // delete matB0;
    delete matBhat;
    delete matSinv;
    delete matS0;
