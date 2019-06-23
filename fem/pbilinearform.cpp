@@ -499,7 +499,7 @@ void ParMixedBilinearForm::FormColSystemMatrix(const Array<int> &ess_tdof_list, 
       mat = nullptr;
       delete mat_e;
       mat_e = nullptr;
-      // p_mat_e = p_mat->EliminateCols(ess_tdof_list);
+      p_mat_e = p_mat->EliminateCols(ess_tdof_list);
    }
 
    A = *p_mat;
