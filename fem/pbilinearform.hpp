@@ -246,6 +246,10 @@ public:
    virtual void FormColSystemMatrix(const Array<int> &ess_tdof_list,
                                  HypreParMatrix &A);
 
+   virtual void FormColLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                                 Vector &b, HypreParMatrix &A, Vector &X,
+                                 Vector &B, int copy_interior = 0);
+
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 

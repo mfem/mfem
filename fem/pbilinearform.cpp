@@ -489,7 +489,8 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
    test_pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
-void ParMixedBilinearForm::FormColSystemMatrix(const Array<int> &ess_tdof_list, HypreParMatrix &A)
+void ParMixedBilinearForm::FormColSystemMatrix(const Array<int> &ess_tdof_list,
+                                               HypreParMatrix &A)
 {
    if (mat)
    {
@@ -503,6 +504,28 @@ void ParMixedBilinearForm::FormColSystemMatrix(const Array<int> &ess_tdof_list, 
    }
 
    A = *p_mat;
+}
+
+void ParMixedBilinearForm::FormColLinearSystem(const Array<int> &ess_tdof_list,
+                                               Vector &x,
+                                               Vector &b,
+                                               HypreParMatrix &A,
+                                               Vector &X,
+                                               Vector &B,
+                                               int copy_interior)
+{
+   FormColSystemMatrix(ess_tdof_list, A);
+
+   const Operator *test_P = test_pfes->GetProlongationMatrix();
+   const SparseMatrix *trial_R = trial_pfes->GetRestrictionMatrix();
+
+   X.SetSize(trial_pfes->TrueVSize());
+   B.SetSize(test_pfes->TrueVSize());
+   test_P->MultTranspose(b, B);
+   trial_R->Mult(x, X);
+
+   mfem::EliminateBC(*p_mat, *p_mat_e, ess_tdof_list, X, B);
+   if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 }
 
 HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
