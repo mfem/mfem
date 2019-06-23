@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
    int serial_ref_levels = 0;
    int order = 2;
    double tol = 1e-8;
-   const char *mesh_file = "../data/inline-single-quad.mesh";
+   const char *mesh_file = "../data/inline-quad.mesh";
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "");
@@ -138,22 +138,23 @@ int main(int argc, char *argv[])
    ParBilinearForm *sform = new ParBilinearForm(vel_fes);
    sform->AddDomainIntegrator(new VectorDiffusionIntegrator);
    sform->Assemble();
-   sform->EliminateEssentialBC(ess_bdr, x.GetBlock(0), rhs.GetBlock(0));
-   sform->Finalize();
-   HypreParMatrix *S = sform->ParallelAssemble();
+   HypreParMatrix S;
+   sform->FormLinearSystem(ess_tdof_list, x.GetBlock(0), rhs.GetBlock(0), S, trueX.GetBlock(0), trueRhs.GetBlock(0));
 
    ParMixedBilinearForm *dform = new ParMixedBilinearForm(vel_fes, pres_fes);
    dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
    dform->Assemble();
-   dform->EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
-   dform->Finalize();
-   HypreParMatrix *D = dform->ParallelAssemble();
+//   dform->EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
+//   dform->Finalize();
+//   HypreParMatrix *D = dform->ParallelAssemble();
+   HypreParMatrix D;
+   dform->FormColLinearSystem(ess_tdof_list, x.GetBlock(0), rhs.GetBlock(1), D, trueX.GetBlock(0), trueRhs.GetBlock(1));
 
-   HypreParMatrix *G = D->Transpose();
+   HypreParMatrix *G = D.Transpose();
    (*G) *= -1.0;
 
    // Flip signs to make system symmetric
-   (*D) *= -1.0;
+   D *= -1.0;
    rhs.GetBlock(1) *= -1.0;
 
    ParBilinearForm *mpform = new ParBilinearForm(pres_fes);
@@ -163,11 +164,11 @@ int main(int argc, char *argv[])
    HypreParMatrix *Mp = mpform->ParallelAssemble();
 
    BlockOperator *stokesop = new BlockOperator(block_trueOffsets);
-   stokesop->SetBlock(0, 0, S);
+   stokesop->SetBlock(0, 0, &S);
    stokesop->SetBlock(0, 1, G);
-   stokesop->SetBlock(1, 0, D);
+   stokesop->SetBlock(1, 0, &D);
 
-   HypreSolver *invS = new HypreBoomerAMG(*S);
+   HypreSolver *invS = new HypreBoomerAMG(S);
    static_cast<HypreBoomerAMG *>(invS)->SetPrintLevel(0);
    invS->iterative_mode = false;
 
@@ -182,13 +183,13 @@ int main(int argc, char *argv[])
    // Implement "GetTrueDofs" in ParFiniteElementSpace s.t.
    // one can call vel_fes->GetTrueDofs(x.GetBlock(0), trueX.GetBlock(0));
 
-   vel_fes->GetRestrictionMatrix()->Mult(x.GetBlock(0), trueX.GetBlock(0));
-   vel_fes->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),
-                                                   trueRhs.GetBlock(0));
+//   vel_fes->GetRestrictionMatrix()->Mult(x.GetBlock(0), trueX.GetBlock(0));
+//   vel_fes->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),
+//                                                   trueRhs.GetBlock(0));
 
-   pres_fes->GetRestrictionMatrix()->Mult(x.GetBlock(1), trueX.GetBlock(1));
-   pres_fes->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),
-                                                    trueRhs.GetBlock(1));
+//   pres_fes->GetRestrictionMatrix()->Mult(x.GetBlock(1), trueX.GetBlock(1));
+//   pres_fes->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),
+//                                                    trueRhs.GetBlock(1));
 
    MINRESSolver solver(MPI_COMM_WORLD);
    solver.iterative_mode = false;
