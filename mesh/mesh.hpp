@@ -158,6 +158,25 @@ protected:
    static const int vtk_quadratic_wedge[18];
    static const int vtk_quadratic_hex[27];
 
+
+   // We're also adding some static tri/tet/wedge permutation maps for the vtk lagrange cell types.
+   // These maps used the reference cell in various generate map functions to 
+   // determine the permutation via sorting of faces or internal nodes depending on the situation.
+   // The static maps should work up to the currently permitted max order for tri/tet/wedges of order 6
+   static const int vtk_tri_o5[21];
+   static const int vtk_tri_o6[28];
+
+   static const int vtk_tet_o2[10];
+   static const int vtk_tet_o3[20];
+   static const int vtk_tet_o4[35];
+   static const int vtk_tet_o5[56];
+   static const int vtk_tet_o6[84];
+
+   static const int vtk_wedge_o3[40];
+   static const int vtk_wedge_o4[75];
+   static const int vtk_wedge_o5[126];
+   static const int vtk_wedge_o6[196];
+
 #ifdef MFEM_USE_MEMALLOC
    friend class Tetrahedron;
    MemAlloc <Tetrahedron, 1024> TetMemory;
@@ -212,6 +231,8 @@ protected:
    void ReadNetgen2DMesh(std::istream &input, int &curved);
    void ReadNetgen3DMesh(std::istream &input);
    void ReadTrueGridMesh(std::istream &input);
+   void GenVtkQuadMap(Array<int> &quad_map, const int order);
+   void GenVtkHexMap(Array<int> &hex_map,  const int order);
    void ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                     bool &finalize_topo);
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
