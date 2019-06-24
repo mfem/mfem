@@ -612,7 +612,7 @@ CPDSolver::Solve()
    Operator * pci = NULL;
    BlockDiagonalPreconditioner * BDP = NULL;
 
-   if (sol_ == FGMRES || sol_ == MINRES)
+   if (sol_ == GMRES || sol_ == FGMRES || sol_ == MINRES)
    {
       switch (prec_)
       {
@@ -689,6 +689,7 @@ CPDSolver::Solve()
             cout << "GMRES Solver Requested" << endl;
          }
          GMRESSolver gmres(HCurlFESpace_->GetComm());
+         if (BDP) { gmres.SetPreconditioner(*BDP); }
          gmres.SetOperator(*A1.Ptr());
          gmres.SetRelTol(solOpts_.relTol);
          gmres.SetMaxIter(solOpts_.maxIter);
