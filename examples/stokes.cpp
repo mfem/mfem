@@ -144,9 +144,6 @@ int main(int argc, char *argv[])
    ParMixedBilinearForm *dform = new ParMixedBilinearForm(vel_fes, pres_fes);
    dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
    dform->Assemble();
-//   dform->EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
-//   dform->Finalize();
-//   HypreParMatrix *D = dform->ParallelAssemble();
    HypreParMatrix D;
    dform->FormColLinearSystem(ess_tdof_list, x.GetBlock(0), rhs.GetBlock(1), D, trueX.GetBlock(0), trueRhs.GetBlock(1));
 
@@ -155,7 +152,7 @@ int main(int argc, char *argv[])
 
    // Flip signs to make system symmetric
    D *= -1.0;
-   rhs.GetBlock(1) *= -1.0;
+   trueRhs.GetBlock(1) *= -1.0;
 
    ParBilinearForm *mpform = new ParBilinearForm(pres_fes);
    mpform->AddDomainIntegrator(new MassIntegrator);
@@ -178,18 +175,6 @@ int main(int argc, char *argv[])
       block_trueOffsets);
    stokesprec->SetDiagonalBlock(0, invS);
    stokesprec->SetDiagonalBlock(1, invMp);
-
-   // Idea:
-   // Implement "GetTrueDofs" in ParFiniteElementSpace s.t.
-   // one can call vel_fes->GetTrueDofs(x.GetBlock(0), trueX.GetBlock(0));
-
-//   vel_fes->GetRestrictionMatrix()->Mult(x.GetBlock(0), trueX.GetBlock(0));
-//   vel_fes->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),
-//                                                   trueRhs.GetBlock(0));
-
-//   pres_fes->GetRestrictionMatrix()->Mult(x.GetBlock(1), trueX.GetBlock(1));
-//   pres_fes->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),
-//                                                    trueRhs.GetBlock(1));
 
    MINRESSolver solver(MPI_COMM_WORLD);
    solver.iterative_mode = false;

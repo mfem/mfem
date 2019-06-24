@@ -503,7 +503,7 @@ void ParMixedBilinearForm::FormColSystemMatrix(const Array<int> &ess_tdof_list,
       p_mat_e = p_mat->EliminateCols(ess_tdof_list);
    }
 
-   A = *p_mat;
+   A.MakeRef(*p_mat);
 }
 
 void ParMixedBilinearForm::FormColLinearSystem(const Array<int> &ess_tdof_list,
@@ -524,7 +524,7 @@ void ParMixedBilinearForm::FormColLinearSystem(const Array<int> &ess_tdof_list,
    test_P->MultTranspose(b, B);
    trial_R->Mult(x, X);
 
-   mfem::EliminateBC(*p_mat, *p_mat_e, ess_tdof_list, X, B);
+   p_mat_e->Mult(-1.0, X, 1.0, B);
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 }
 
