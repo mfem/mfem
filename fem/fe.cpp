@@ -1867,6 +1867,9 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
    //
    // **************************************************
 
+cout << "fe.cpp (ser quad): Nodes.Size is " << Nodes.Size() << endl;
+
+
    // vertices
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -2111,7 +2114,7 @@ void H1Ser_QuadrilateralElement::Project (
    //       dofs(i) *= Trans.Weight();
    //    }
    // }
-   cout << "fe.cpp: Nodes.Size is " << Nodes.Size() << endl;
+   cout << "fe.cpp (ser quad project): Nodes.Size is " << Nodes.Size() << endl;
 
    DenseMatrix V(dofs.Size(), Nodes.Size());
    Vector rhs(Nodes.Size());
@@ -2139,6 +2142,63 @@ void H1Ser_QuadrilateralElement::Project (
 
 }
 
+
+
+H1Ser_HexElement::H1Ser_HexElement(const int p, const int ser_space_dim)
+  : ScalarFiniteElement(3, Geometry::CUBE, ser_space_dim, p, FunctionSpace::Qk)
+{
+   //  parameters for an FE object:
+   //  Dim = D ; GeomType = G ; Dof = Do ; Order = O ; FuncSpace = F;
+   //  whhere Do = # of dofs and O = polynomial order of element
+
+   // not setting these for now
+   Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).y = 0.0;
+   Nodes.IntPoint(0).z = 0.0;
+}
+
+void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
+                                           Vector &shape) const
+{
+   // int p = (this)->GetOrder();
+   // cout << "fe.cpp: Need to implement H1Ser_Hex shape fns" << endl;
+   double x = ip.x, y = ip.y, z = ip.z;
+
+   shape( 0) = (1.-x)*(1.-y)*(1-z);
+   shape( 1) = (1.-x)*(1.-y)*z;
+   shape( 2) = (1.-x)*     y*(1.-z);
+   shape( 3) = (1.-x)*     y*z;
+   shape( 4) = x     *(1.-y)*(1-z);;
+   shape( 5) = x     *(1.-y)*z;
+   shape( 6) = x     *y     *(1.-z);
+   shape( 7) = x     *y     *z;
+   shape( 8) = (1.-x)*(1.-y)*z*(1.-z);
+   shape( 9) = (1.-x)*     y*z*(1.-z);
+   shape(10) =      x*(1.-y)*z*(1.-z);
+   shape(11) =      x*     y*z*(1.-z);
+   shape(12) = (1.-x)*(1.-z)*y*(1.-y);
+   shape(13) = (1.-x)*     z*y*(1.-y);
+   shape(14) =      x*(1.-z)*y*(1.-y);
+   shape(15) =      x*     z*y*(1.-y);
+   shape(16) = (1.-y)*(1.-z)*x*(1.-x);
+   shape(17) = (1.-y)*     z*x*(1.-x);
+   shape(18) =      y*(1.-z)*x*(1.-x);
+   shape(19) =      y*     z*x*(1.-x);
+}
+
+void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
+                                       DenseMatrix &dshape) const
+{
+   int p = (this)->GetOrder();
+   // cout << "fe.cpp: Need to implement H1Ser_Hex Dshape fns!" << endl;
+   p=p+1;
+} 
+
+void H1Ser_HexElement::Project (
+   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
+{
+   cout << "fe.cpp (ser hex project): Nodes.Size is " << Nodes.Size() << endl;
+}
 
 
 BiQuadPos2DFiniteElement::BiQuadPos2DFiniteElement()

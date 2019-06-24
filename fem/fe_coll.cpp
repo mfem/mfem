@@ -1508,7 +1508,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
    MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
 
-   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
+   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1, pm4 = pm3 -1, pm5 = pm4 -1;
 
    int pt_type = BasisType::GetQuadrature1D(btype);
    b_type = BasisType::Check(btype);
@@ -1676,6 +1676,21 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             H1_Elements[Geometry::CUBE] = new H1Pos_HexahedronElement(p);
             H1_Elements[Geometry::PRISM] = new H1Pos_WedgeElement(p);
          }
+         else if (b_type == BasisType::Serendipity)
+         {
+            // NOTE: fe_coll.hpp has 
+            //       virtual int DofForGeometry(Geometry::Type GeomType) const  { return H1_dof[GeomType]; }
+            //       so we need to fix the value of H1_dof here for the serendipity case
+            
+            int ser_space_dim = 8 + 12*pm1 + 3* pm2 * pm3;
+            if(p>2)
+            {
+               ser_space_dim += pm3 * pm4 * pm5 / 6;
+            }
+            cout << "fe_coll: set ser_space_dim = " << ser_space_dim << endl;
+            
+            H1_Elements[Geometry::CUBE] = new H1Ser_HexElement(p, ser_space_dim);
+         }            
          else
          {
             H1_Elements[Geometry::TETRAHEDRON] =
@@ -2498,18 +2513,26 @@ Local_FECollection::Local_FECollection(const char *fe_name)
    else if (!strncmp(fe_name, "H1_", 3))
    {
       GeomType = Geometry::SQUARE;
+      std::cout << "fe_coll: atoi(fe_name) = " << atoi(fe_name) << std::endl;
       Local_Element = new H1_QuadrilateralElement(atoi(fe_name + 7));
    }
    else if (!strncmp(fe_name, "H1Pos_", 6))
    {
       GeomType = Geometry::SQUARE;
+      std::cout << "fe_coll: atoi(fe_name) = " << atoi(fe_name) << std::endl;
       Local_Element = new H1Pos_QuadrilateralElement(atoi(fe_name + 10));
    }
-   else if (!strncmp(fe_name, "H1Ser_", 6))
+   else if (!strncmp(fe_name, "H1Ser_Qua", 9))
    {
       GeomType = Geometry::SQUARE;
+      std::cout << "fe_coll: atoi(fe_name) = " << atoi(fe_name) << std::endl;
       Local_Element = new H1Ser_QuadrilateralElement(atoi(fe_name + 10)); 
    }
+   // else if (!strncmp(fe_name, "H1Ser_Hex", 9))
+   // {
+   //    GeomType = Geometry::CUBE;
+   //    Local_Element = new H1Ser_HexElement(atoi(fe_name + 10)); 
+   // }
    else if (!strncmp(fe_name, "L2_", 3))
    {
       GeomType = Geometry::SQUARE;

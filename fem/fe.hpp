@@ -1996,10 +1996,18 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
+   virtual void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
 };
 
-
+class H1Ser_HexElement : public ScalarFiniteElement
+{
+public:
+   H1Ser_HexElement(const int p, const int ser_space_dim);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
+};
 
 
 

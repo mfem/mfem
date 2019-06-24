@@ -1309,8 +1309,10 @@ void GridFunction::AccumulateAndCountBdrValues(
 {
    int i, j, fdof, d, ind, vdim;
 
-   double val;  // maybe not used, or in wrong scope?
+   // double val;  // maybe not used, or in wrong scope?
    
+   // cout << "Doing acum and count" << endl;
+
    const FiniteElement *fe;
    ElementTransformation *transf;
    Array<int> vdofs;
@@ -1348,17 +1350,13 @@ void GridFunction::AccumulateAndCountBdrValues(
       V.Transpose();
       DenseMatrixInverse Vinv(V);
 
-
       Vector dofs(fdof);
 
-      // cout << " *** vdofs before vinv.mult(rhs,dofs):" << endl;
+      // cout << " *** vdofs before and after vinv.mult(rhs,dofs):" << endl;
       // vdofs.Print();
-
-
       Vinv.Mult(rhs, dofs);
-
-      // cout << " *** after vinv.mult(rhs,dofs):" << endl;
       // dofs.Print();
+      // cout << endl;
 
       // // if vdofs has "2" as first or second entry, then we're on a north or west edge and the 
       // //    interior edge dofs must be reordered
