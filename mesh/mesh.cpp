@@ -21,6 +21,7 @@
 #include <sstream>
 #include <fstream>
 #include <limits>
+#include <float.h>
 #include <cmath>
 #include <cstring>
 #include <ctime>
@@ -2035,7 +2036,46 @@ void Mesh::FinalizeTopology()
    FinalizeCheck();
    bool generate_edges = true;
 
-   if (spaceDim == 0) { spaceDim = Dim; }
+   if (spaceDim == 0) // then determine spaceDim based on min/max differences detected in any given dimension
+   { 
+      double initX = vertices[0](0);
+      double initY = vertices[0](1);
+      double initZ = vertices[0](2);
+      double minValue[3] = {initX,initY,initZ};
+      double maxValue[3] = {initX,initY,initZ};
+
+      // we're expecting early exits 
+      for(int i = 1; i < vertices.Size(); i++)
+      {
+         minValue[0] = std::min(minValue[0],vertices[i](0));
+         maxValue[0] = std::max(maxValue[0],vertices[i](0));
+         if(minValue[0] != maxValue[0]) 
+         {
+            spaceDim++;
+            break;
+         }
+      } // test x values
+      for(int i = 1; i < vertices.Size(); i++)
+      {
+         minValue[1] = std::min(minValue[1],vertices[i](1));
+         maxValue[1] = std::max(maxValue[1],vertices[i](1));
+         if(minValue[1] != maxValue[1]) 
+         {
+            spaceDim++;
+            break;
+         }
+      } // test y values
+      for(int i = 1; i < vertices.Size(); i++)
+      {
+         minValue[2] = std::min(minValue[2],vertices[i](2));
+         maxValue[2] = std::max(maxValue[2],vertices[i](2));
+         if(minValue[2] != maxValue[2]) 
+         {
+            spaceDim++;
+            break;
+         }
+      } // test z values
+   } // if spaceDim == 0
    if (ncmesh) { ncmesh->spaceDim = spaceDim; }
 
    // set the mesh type: 'meshgen', ...
@@ -3010,9 +3050,11 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadTrueGridMesh(input);
    }
-   else if (mesh_type == "# vtk DataFile Version 3.0" ||
+   else if (mesh_type == "# vtk DataFile Version 4.2" ||
+            mesh_type == "# vtk DataFile Version 3.0" ||
             mesh_type == "# vtk DataFile Version 2.0") // VTK
    {
+      std::cerr << "Processing VTK mesh: " << mesh_type << std::endl;
       ReadVTKMesh(input, curved, read_gf, finalize_topo);
    }
    else if (mesh_type == "MFEM NURBS mesh v1.0")
