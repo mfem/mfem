@@ -200,7 +200,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       CeedData* ptr = new CeedData();
       ceedDataPtr = ptr;
       initCeedCoeff(Q, ptr);
-      CeedPADiffusionAssemble(fes, *ir, *ptr);
+      // CeedPADiffusionAssemble(fes, *ir, *ptr);
+      CeedMFDiffusionAssemble(fes, *ir, *ptr);
    }
    else
 #endif

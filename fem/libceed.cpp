@@ -445,6 +445,297 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, const mfem::Integrat
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
 }
 
+/// libCEED Q-function for applying a diff operator
+static int f_apply_diff_mf_const(void *ctx, CeedInt Q,
+                                 const CeedScalar *const *in, CeedScalar *const *out)
+{
+   BuildContext *bc = (BuildContext*)ctx;
+   // in[0], out[0] have shape [dim, nc=1, Q]
+   // in[1] is Jacobians with shape [dim, nc=dim, Q]
+   // in[2] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T
+   const CeedScalar coeff = bc->coeff;
+   const CeedScalar *ug = in[0], *J = in[1], *qw = in[2];
+   CeedScalar *vg = out[0];
+   switch (bc->dim + 10 * bc->space_dim)
+   {
+      case 11:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar qd = coeff * qw[i] / J[i];
+            vg[i] = ug[i] * qd;
+         }
+         break;
+      case 22:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            // J: 0 2   qd: 0 1   adj(J):  J22 -J12
+            //    1 3       1 2           -J21  J11
+            const CeedScalar J11 = J[i + Q * 0];
+            const CeedScalar J21 = J[i + Q * 1];
+            const CeedScalar J12 = J[i + Q * 2];
+            const CeedScalar J22 = J[i + Q * 3];
+            const CeedScalar w = qw[i] / (J11 * J22 - J21 * J12);
+            CeedScalar qd[3];
+            qd[0] =   coeff * w * (J12 * J12 + J22 * J22);
+            qd[1] = - coeff * w * (J11 * J12 + J21 * J22);
+            qd[2] =   coeff * w * (J11 * J11 + J21 * J21);
+            const CeedScalar ug0 = ug[i + Q * 0];
+            const CeedScalar ug1 = ug[i + Q * 1];
+            vg[i + Q * 0] = qd[0] * ug0 + qd[1] * ug1;
+            vg[i + Q * 1] = qd[1] * ug0 + qd[2] * ug1;
+         }
+         break;
+      case 33:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            // J: 0 3 6   qd: 0 1 2
+            //    1 4 7       1 3 4
+            //    2 5 8       2 4 5
+            const CeedScalar J11 = J[i + Q * 0];
+            const CeedScalar J21 = J[i + Q * 1];
+            const CeedScalar J31 = J[i + Q * 2];
+            const CeedScalar J12 = J[i + Q * 3];
+            const CeedScalar J22 = J[i + Q * 4];
+            const CeedScalar J32 = J[i + Q * 5];
+            const CeedScalar J13 = J[i + Q * 6];
+            const CeedScalar J23 = J[i + Q * 7];
+            const CeedScalar J33 = J[i + Q * 8];
+            const CeedScalar A11 = J22 * J33 - J23 * J32;
+            const CeedScalar A12 = J13 * J32 - J12 * J33;
+            const CeedScalar A13 = J12 * J23 - J13 * J22;
+            const CeedScalar A21 = J23 * J31 - J21 * J33;
+            const CeedScalar A22 = J11 * J33 - J13 * J31;
+            const CeedScalar A23 = J13 * J21 - J11 * J23;
+            const CeedScalar A31 = J21 * J32 - J22 * J31;
+            const CeedScalar A32 = J12 * J31 - J11 * J32;
+            const CeedScalar A33 = J11 * J22 - J12 * J21;
+            const CeedScalar w = qw[i] / (J11 * A11 + J21 * A12 + J31 * A13);
+            CeedScalar qd[6];
+            qd[0] = coeff * w * (A11 * A11 + A12 * A12 + A13 * A13);
+            qd[1] = coeff * w * (A11 * A21 + A12 * A22 + A13 * A23);
+            qd[2] = coeff * w * (A11 * A31 + A12 * A32 + A13 * A33);
+            qd[3] = coeff * w * (A21 * A21 + A22 * A22 + A23 * A23);
+            qd[4] = coeff * w * (A21 * A31 + A22 * A32 + A23 * A33);
+            qd[5] = coeff * w * (A31 * A31 + A32 * A32 + A33 * A33);
+            const CeedScalar ug0 = ug[i + Q * 0];
+            const CeedScalar ug1 = ug[i + Q * 1];
+            const CeedScalar ug2 = ug[i + Q * 2];
+            vg[i + Q * 0] = qd[0] * ug0 + qd[1] * ug1 + qd[2] * ug2;
+            vg[i + Q * 1] = qd[1] * ug0 + qd[3] * ug1 + qd[4] * ug2;
+            vg[i + Q * 2] = qd[2] * ug0 + qd[4] * ug1 + qd[5] * ug2;
+         }
+         break;
+      default:
+         return CeedError(NULL, 1, "dim=%d, space_dim=%d is not supported",
+                          bc->dim, bc->space_dim);
+   }
+   return 0;
+}
+
+static int f_apply_diff_mf_grid(void *ctx, CeedInt Q,
+                                 const CeedScalar *const *in, CeedScalar *const *out)
+{
+   BuildContext *bc = (BuildContext*)ctx;
+   // in[0], out[0] have shape [dim, nc=1, Q]
+   // in[1] is Jacobians with shape [dim, nc=dim, Q]
+   // in[2] is quadrature weights, size (Q)
+   //
+   // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T
+   const CeedScalar *ug = in[0], *c = in[1], *J = in[2], *qw = in[3];
+   CeedScalar *vg = out[0];
+   switch (bc->dim + 10 * bc->space_dim)
+   {
+      case 11:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            const CeedScalar qd = c[i] * qw[i] / J[i];
+            vg[i] = ug[i] * qd;
+         }
+         break;
+      case 22:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            // J: 0 2   qd: 0 1   adj(J):  J22 -J12
+            //    1 3       1 2           -J21  J11
+            const CeedScalar J11 = J[i + Q * 0];
+            const CeedScalar J21 = J[i + Q * 1];
+            const CeedScalar J12 = J[i + Q * 2];
+            const CeedScalar J22 = J[i + Q * 3];
+            const CeedScalar w = qw[i] / (J11 * J22 - J21 * J12);
+            CeedScalar qd[3];
+            const CeedScalar coeff = c[i];
+            qd[0] =   coeff * w * (J12 * J12 + J22 * J22);
+            qd[1] = - coeff * w * (J11 * J12 + J21 * J22);
+            qd[2] =   coeff * w * (J11 * J11 + J21 * J21);
+            const CeedScalar ug0 = ug[i + Q * 0];
+            const CeedScalar ug1 = ug[i + Q * 1];
+            vg[i + Q * 0] = qd[0] * ug0 + qd[1] * ug1;
+            vg[i + Q * 1] = qd[1] * ug0 + qd[2] * ug1;
+         }
+         break;
+      case 33:
+         for (CeedInt i = 0; i < Q; i++)
+         {
+            // J: 0 3 6   qd: 0 1 2
+            //    1 4 7       1 3 4
+            //    2 5 8       2 4 5
+            const CeedScalar J11 = J[i + Q * 0];
+            const CeedScalar J21 = J[i + Q * 1];
+            const CeedScalar J31 = J[i + Q * 2];
+            const CeedScalar J12 = J[i + Q * 3];
+            const CeedScalar J22 = J[i + Q * 4];
+            const CeedScalar J32 = J[i + Q * 5];
+            const CeedScalar J13 = J[i + Q * 6];
+            const CeedScalar J23 = J[i + Q * 7];
+            const CeedScalar J33 = J[i + Q * 8];
+            const CeedScalar A11 = J22 * J33 - J23 * J32;
+            const CeedScalar A12 = J13 * J32 - J12 * J33;
+            const CeedScalar A13 = J12 * J23 - J13 * J22;
+            const CeedScalar A21 = J23 * J31 - J21 * J33;
+            const CeedScalar A22 = J11 * J33 - J13 * J31;
+            const CeedScalar A23 = J13 * J21 - J11 * J23;
+            const CeedScalar A31 = J21 * J32 - J22 * J31;
+            const CeedScalar A32 = J12 * J31 - J11 * J32;
+            const CeedScalar A33 = J11 * J22 - J12 * J21;
+            const CeedScalar w = qw[i] / (J11 * A11 + J21 * A12 + J31 * A13);
+            CeedScalar qd[6];
+            const CeedScalar coeff = c[i];
+            qd[0] = coeff * w * (A11 * A11 + A12 * A12 + A13 * A13);
+            qd[1] = coeff * w * (A11 * A21 + A12 * A22 + A13 * A23);
+            qd[2] = coeff * w * (A11 * A31 + A12 * A32 + A13 * A33);
+            qd[3] = coeff * w * (A21 * A21 + A22 * A22 + A23 * A23);
+            qd[4] = coeff * w * (A21 * A31 + A22 * A32 + A23 * A33);
+            qd[5] = coeff * w * (A31 * A31 + A32 * A32 + A33 * A33);
+            const CeedScalar ug0 = ug[i + Q * 0];
+            const CeedScalar ug1 = ug[i + Q * 1];
+            const CeedScalar ug2 = ug[i + Q * 2];
+            vg[i + Q * 0] = qd[0] * ug0 + qd[1] * ug1 + qd[2] * ug2;
+            vg[i + Q * 1] = qd[1] * ug0 + qd[3] * ug1 + qd[4] * ug2;
+            vg[i + Q * 2] = qd[2] * ug0 + qd[4] * ug1 + qd[5] * ug2;
+         }
+         break;
+      default:
+         return CeedError(NULL, 1, "dim=%d, space_dim=%d is not supported",
+                          bc->dim, bc->space_dim);
+   }
+   return 0;
+}
+
+void CeedMFDiffusionAssemble(const FiniteElementSpace &fes, const mfem::IntegrationRule &irm, CeedData& ceedData)
+{
+   Ceed ceed(internal::ceed);
+   mfem::Mesh *mesh = fes.GetMesh();
+   const int order = fes.GetOrder(0);
+   const int ir_order = irm.GetOrder();
+   const mfem::IntegrationRule &ir =
+      mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
+   CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
+   mesh->EnsureNodes();
+   FESpace2Ceed(fes, ir, ceed, &ceedData.basis, &ceedData.restr);
+
+   const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
+   MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
+   FESpace2Ceed(*mesh_fes, ir, ceed, &ceedData.mesh_basis, &ceedData.mesh_restr);
+   CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
+
+   CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts * dim * (dim + 1) / 2,
+                                     nqpts * nelem * dim * (dim + 1) / 2, 1, &ceedData.restr_i);
+   CeedElemRestrictionCreateIdentity(ceed, nelem, nqpts,
+                                     nqpts * nelem, 1, &ceedData.mesh_restr_i);
+
+   CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
+   CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
+                      mesh->GetNodes()->GetData());
+
+   // Context data to be passed to the 'f_build_diff' Q-function.
+   ceedData.build_ctx.dim = mesh->Dimension();
+   ceedData.build_ctx.space_dim = mesh->SpaceDimension();
+
+   // Create the Q-function that defines the action of the diff operator.
+   switch (ceedData.coeff_type)
+   {
+      case Const:
+         switch(dim){
+         case 1:
+            CeedQFunctionCreateInterior(ceed, 1, f_apply_diff_mf_const,
+                                     MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff_mf_const_1d", &ceedData.apply_qfunc);
+            break;
+         case 2:
+            CeedQFunctionCreateInterior(ceed, 1, f_apply_diff_mf_const,
+                                     MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff_mf_const_2d", &ceedData.apply_qfunc);
+            break;
+         case 3:
+            CeedQFunctionCreateInterior(ceed, 1, f_apply_diff_mf_const,
+                                     MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff_mf_const_3d", &ceedData.apply_qfunc);
+            break;
+         }
+         ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
+         CeedQFunctionAddInput(ceedData.apply_qfunc, "u", 1, CEED_EVAL_GRAD);
+         break;
+      case Grid:
+         switch(dim){
+         case 1:
+            CeedQFunctionCreateInterior(ceed, 1, f_apply_diff_mf_grid,
+                                     MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff_mf_grid_1d", &ceedData.apply_qfunc);
+            break;
+         case 2:
+            CeedQFunctionCreateInterior(ceed, 1, f_apply_diff_mf_grid,
+                                     MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff_mf_grid_2d", &ceedData.apply_qfunc);
+            break;
+         case 3:
+            CeedQFunctionCreateInterior(ceed, 1, f_apply_diff_mf_grid,
+                                     MFEM_SOURCE_DIR"/fem/libceed.okl:f_apply_diff_mf_grid_3d", &ceedData.apply_qfunc);
+            break;
+         }
+         CeedQFunctionAddInput(ceedData.apply_qfunc, "u", 1, CEED_EVAL_GRAD);
+         CeedQFunctionAddInput(ceedData.apply_qfunc, "coeff", 1, CEED_EVAL_INTERP);
+         break;
+      default:
+         MFEM_ABORT("This coeff_type is not handled");
+   }
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "dx", dim, CEED_EVAL_GRAD);
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
+   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", 1, CEED_EVAL_GRAD);
+   CeedQFunctionSetContext(ceedData.apply_qfunc, &ceedData.build_ctx,
+                           sizeof(ceedData.build_ctx));
+
+   // Create the diff operator.
+   CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
+   CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, CEED_NOTRANSPOSE,
+                        ceedData.basis, CEED_VECTOR_ACTIVE);
+   CeedTransposeMode lmode = CEED_NOTRANSPOSE;
+   if (mesh_fes->GetOrdering()==Ordering::byVDIM)
+   {
+      lmode = CEED_TRANSPOSE;
+   }
+   if (ceedData.coeff_type==Grid)
+   {
+      CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
+      // if (dev_enabled) { Device::Disable(); }
+      FESpace2Ceed(*ceedCoeff->coeff->FESpace(), ir, ceed, &ceedCoeff->basis,
+                   &ceedCoeff->restr);
+      // if (dev_enabled) { Device::Enable(); }
+      CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
+                       &ceedCoeff->coeffVector);
+      CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
+                         ceedCoeff->coeff->GetData());
+      CeedOperatorSetField(ceedData.oper, "coeff", ceedCoeff->restr, lmode,
+                           ceedCoeff->basis, ceedCoeff->coeffVector);
+   }
+   CeedOperatorSetField(ceedData.oper, "dx", ceedData.mesh_restr, lmode,
+                        ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
+   CeedOperatorSetField(ceedData.oper, "weights", ceedData.mesh_restr_i,
+                        CEED_NOTRANSPOSE,
+                        ceedData.mesh_basis, CEED_VECTOR_NONE);
+   CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, CEED_NOTRANSPOSE,
+                        ceedData.basis, CEED_VECTOR_ACTIVE);
+
+   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.u);
+   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
+}
+
 /// libCEED Q-function for building quadrature data for a mass operator
 static int f_build_mass_const(void *ctx, CeedInt Q,
                               const CeedScalar *const *in, CeedScalar *const *out)
