@@ -224,6 +224,79 @@ static void PADiffusionAssembleDiagonal2D(const int NE,
                                           const int d1d = 0,
                                           const int q1d = 0)
 {
+   // see eg PADiffusionApply2D
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   // auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   // auto Gt = Reshape(gt.Read(), D1D, Q1D);
+
+   // note different shape for op, this is a (symmetric) matrix, we only
+   // store necessary entries
+   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
+   auto y = Reshape(_diag.ReadWrite(), D1D, D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      // 4 terms: 
+      // one   Gx By O11 Gx By;
+      // two   Gx By O12 Bx Gy;
+      // three Bx Gy O21 Gx By;
+      // four  Bx Gy O22 Bx Gy
+      // below I do them all at once, but you could save memory by
+      // doing them one at a time
+
+      double tempone[max_Q1D][max_D1D];
+      double temptwo[max_Q1D][max_D1D];
+      double tempthree[max_Q1D][max_D1D];
+      double tempfour[max_Q1D][max_D1D];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            tempone[qx][dy] = 0.0;
+            temptwo[qx][dy] = 0.0;
+            tempthree[qx][dy] = 0.0;
+            tempfour[qx][dy] = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const int q = qx + qy * Q1D;
+
+               const double O11 = op(q,0,e);
+               const double O12 = op(q,1,e);
+               const double O22 = op(q,2,e);
+
+               tempone[qx][dy] += B(qy, dy) * B(qy, dy) * O11;
+               temptwo[qx][dy] += B(qy, dy) * G(qy, dy) * O12;
+               tempthree[qx][dy] += G(qy, dy) * B(qy, dy) * O12;
+               tempfour[qx][dy] += G(qy, dy) * G(qy, dy) * O22;
+            }
+         }
+      }
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               y(dx,dy,e) += G(qx, dx) * G(qx, dx) * tempone[qx][dy];
+               y(dx,dy,e) += G(qx, dx) * B(qx, dx) * temptwo[qx][dy];
+               y(dx,dy,e) += B(qx, dx) * G(qx, dx) * tempthree[qx][dy];
+               y(dx,dy,e) += B(qx, dx) * B(qx, dx) * tempfour[qx][dy];
+            }
+         }
+      }
+   });
 }
 
 template<const int T_D1D = 0,
