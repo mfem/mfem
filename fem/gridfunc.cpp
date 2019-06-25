@@ -1217,6 +1217,7 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
                                            AvgType type,
                                            Array<int> &zones_per_vdof)
 {
+   cout << "gridfunc.cpp: Doing accum + count zeros (includes Project call)" << endl;
    zones_per_vdof.SetSize(fes->GetVSize());
    zones_per_vdof = 0;
 

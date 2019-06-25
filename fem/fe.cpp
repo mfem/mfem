@@ -451,6 +451,7 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 void NodalFiniteElement::Project (
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
+   cout << "fe.cpp: used this Project function (1)" << endl;
    for (int i = 0; i < Dof; i++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
@@ -512,6 +513,7 @@ void NodalFiniteElement::ProjectMatrixCoefficient(
 void NodalFiniteElement::Project(
    const FiniteElement &fe, ElementTransformation &Trans, DenseMatrix &I) const
 {
+   cout << "fe.cpp: used this Project function (2)" << endl;
    if (fe.GetRangeType() == SCALAR)
    {
       MFEM_ASSERT(MapType == fe.GetMapType(), "");
@@ -614,6 +616,7 @@ void NodalFiniteElement::ProjectDiv(
 void PositiveFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
+   cout << "fe.cpp: used this Project function (3)" << endl;
    for (int i = 0; i < Dof; i++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
@@ -1867,7 +1870,7 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
    //
    // **************************************************
 
-cout << "fe.cpp (ser quad): Nodes.Size is " << Nodes.Size() << endl;
+// cout << "fe.cpp (ser quad): Nodes.Size is " << Nodes.Size() << endl;
 
 
    // vertices
@@ -1951,44 +1954,69 @@ cout << "fe.cpp (ser quad): Nodes.Size is " << Nodes.Size() << endl;
 void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
-   int p = (this)->GetOrder();
+   // int p = (this)->GetOrder();
    double x = ip.x, y = ip.y;
 
-   shape(0) = (1.-x)*(1.-y);
-   shape(1) = x*(1.-y);
-   shape(2) = x*y;
-   shape(3) = (1.-x)*y;
-
-   double *legX = new double[p-1];
-   double *legY = new double[p-1];
-   Poly_1D *storeLegendre = new Poly_1D();
-
-   storeLegendre->CalcLegendre(p-2, x , legX);
-   storeLegendre->CalcLegendre(p-2, y , legY);
    
-   for (int i = 0; i < p-1; i++)
-   {
-      shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
-      shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
-      shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
-      shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
-   }
+   shape(0) = (-1 + x)*(-1 + y)*(1 - 5*x + 5*x*x - 5*y + 5*y*y);
+   shape(1) = -(x*(-1 + y)*(1 - 5*x + 5*x*x - 5*y + 5*y*y));
+   shape(2) = x*y*(1 - 5*x + 5*x*x - 5*y + 5*y*y);
+   shape(3) = (1 - x)*y*(1 - 5*x + 5*x*x - 5*y + 5*y*y);
+   shape(4) = (-5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x)*(-1 + y))/2;
+   shape(5) = (5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x)*(-1 + y))/2;
+   shape(6) = (5*x*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   shape(7) = (-5*x*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   shape(8) = (-5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x)*y)/2;
+   shape(9) = (5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x)*y)/2;
+   shape(10) = (5*(-1 + x)*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   shape(11) = (-5*(-1 + x)*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
 
-   int interior_total = 0;
-   for (int j = 4; j < p + 1; j++)
-   {
-      for (int k = 0; k < j-3; k++)
-      {
-         shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
-         // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
-         // cout << " Just set shape # " << 4 + 4*(p-1) + interior_total << " with k= " << k << " and j-4-k= " << j-4-k << endl;
-         interior_total++;
-      }
-   }
 
-   delete[] legX;
-   delete[] legY;
-   delete storeLegendre;
+
+
+   // BELOW: shape functions based on GKS serendipity paper
+   //        substituted Legendre polynomials for monomials
+   //        works fine for projection but has challenge with 
+   //        edge orientations since it's not nodal
+
+   // shape(0) = (1.-x)*(1.-y);
+   // shape(1) = x*(1.-y);
+   // shape(2) = x*y;
+   // shape(3) = (1.-x)*y;
+
+   // double *legX = new double[p-1];
+   // double *legY = new double[p-1];
+   // Poly_1D *storeLegendre = new Poly_1D();
+
+   // storeLegendre->CalcLegendre(p-2, x , legX);
+   // storeLegendre->CalcLegendre(p-2, y , legY);
+   
+   // for (int i = 0; i < p-1; i++)
+   // {
+   //    shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
+   //    shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
+   //    shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
+   //    shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
+   // }
+
+   // int interior_total = 0;
+   // for (int j = 4; j < p + 1; j++)
+   // {
+   //    for (int k = 0; k < j-3; k++)
+   //    {
+   //       shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
+   //       // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
+   //       // cout << " Just set shape # " << 4 + 4*(p-1) + interior_total << " with k= " << k << " and j-4-k= " << j-4-k << endl;
+   //       interior_total++;
+   //    }
+   // }
+   // delete[] legX;
+   // delete[] legY;
+   // delete storeLegendre;
+
+
+
+  
 }
 
 
@@ -1998,74 +2026,108 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
 void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
-   int p = (this)->GetOrder();
+   // int p = (this)->GetOrder();
    double x = ip.x, y = ip.y;
 
-   double *legX = new double[p-1];
-   double *legY = new double[p-1];
-   double *DlegX = new double[p-1];
-   double *DlegY = new double[p-1];
-   Poly_1D *storeLegendre = new Poly_1D();
+   dshape(0,0) = (-1 + y)*(6 - 20*x + 15*x*x - 5*y + 5*y*y);
+   dshape(0,1) = (-1 + x)*(6 - 5*x + 5*x*x - 20*y + 15*y*y);
 
-   storeLegendre->CalcLegendre(p-2, x, legX, DlegX);
-   storeLegendre->CalcLegendre(p-2, y, legY, DlegY);
+   dshape(1,0) = -((-1 + y)*(1 - 10*x + 15*x*x - 5*y + 5*y*y));
+   dshape(1,1) = x*(-6 + 5*x - 5*x*x + 20*y - 15*y*y);
 
-   // cout << "calcDshape p = " << p << endl;
-   // cout << "fe.cpp:  legX = " << legX[0] << " " << legX[1] << " " << legX[2]  << " " << legX[3] << " " << legX[4]  << " " << legX[5] << endl;
-   // cout << "fe.cpp:  DlegX = " << DlegX[0] << " " << DlegX[1] << " " << DlegX[2]  << " " << DlegX[3] << endl;
-   // cout << "fe.cpp:  2x-1 = " << 2*x-1 << endl;
-   // cout << "fe.cpp:  legY = " << legY[0] << " " << legY[1] << " " << legY[2]  << " " << legY[3] << " " << legY[4]  << " " << legY[5] << endl;
-   // cout << "fe.cpp:  DlegY = " << DlegY[0] << " " << DlegY[1] << " " << DlegY[2]  << " " << DlegY[3] << endl;
+   dshape(2,0) = y*(1 - 10*x + 15*x*x - 5*y + 5*y*y);
+   dshape(2,1) = x*(1 - 5*x + 5*x*x - 10*y + 15*y*y);
+
+   dshape(3,0) = y*(-6 + 20*x - 15*x*x + 5*y - 5*y*y);
+   dshape(3,1) = -((-1 + x)*(1 - 5*x + 5*x*x - 10*y + 15*y*y));
+
+   dshape(4,0) = (-5*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*x + 6*sqrt(5)*x*x)*(-1 + y))/2;
+   dshape(4,1) = (-5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x))/2;
+
+   dshape(5,0) = (5*(-1 + sqrt(5) + (2 - 6*sqrt(5))*x + 6*sqrt(5)*x*x)*(-1 + y))/2;
+   dshape(5,1) = (5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x))/2;
+
+   dshape(6,0) = (5*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   dshape(6,1) = (5*x*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
+
+   dshape(7,0) = (-5*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   dshape(7,1) = (-5*x*(-1 + sqrt(5) + (2 - 6*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
+
+   dshape(8,0) = (-5*(-1 + sqrt(5) + (2 - 6*sqrt(5))*x + 6*sqrt(5)*x*x)*y)/2;
+   dshape(8,1) = (-5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x))/2;
+
+   dshape(9,0) = (5*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*x + 6*sqrt(5)*x*x)*y)/2;
+   dshape(9,1) = (5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x))/2;
+
+   dshape(10,0) = (5*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   dshape(10,1) = (5*(-1 + x)*(-1 + sqrt(5) + (2 - 6*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
+
+   dshape(11,0) = (-5*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   dshape(11,1) = (-5*(-1 + x)*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
 
 
+   // BELOW: shape functions based on GKS serendipity paper
+   //        substituted Legendre polynomials for monomials
+   //        works fine for projection but has challenge with 
+   //        edge orientations since it's not nodal
 
-   dshape(0,0) = -(1. - y);
-   dshape(0,1) = -(1. - x);
 
-   dshape(1,0) = (1. -y);
-   dshape(1,1) = -x;
+  //  double *legX = new double[p-1];
+  //  double *legY = new double[p-1];
+  //  double *DlegX = new double[p-1];
+  //  double *DlegY = new double[p-1];
+  //  Poly_1D *storeLegendre = new Poly_1D();
 
-   dshape(2,0) = y;
-   dshape(2,1) = x;
+  //  storeLegendre->CalcLegendre(p-2, x, legX, DlegX);
+  //  storeLegendre->CalcLegendre(p-2, y, legY, DlegY);
 
-   dshape(3,0) = -y;
-   dshape(3,1) = (1. - x);
+  //  dshape(0,0) = -(1. - y);
+  //  dshape(0,1) = -(1. - x);
+
+  //  dshape(1,0) = (1. -y);
+  //  dshape(1,1) = -x;
+
+  //  dshape(2,0) = y;
+  //  dshape(2,1) = x;
+
+  //  dshape(3,0) = -y;
+  //  dshape(3,1) = (1. - x);
 
    
-  for (int i = 0; i < p-1; i++) // only works for p=2
-   {
-      dshape(4 + 0*(p-1) + i ,0) =  2* (1. - y) * (DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));
-      dshape(4 + 0*(p-1) + i ,1) = -2* legX[i] * x * (1. - x);
-      dshape(4 + 1*(p-1) + i ,0) =  2* legY[i] * y * (1. - y); 
-      dshape(4 + 1*(p-1) + i ,1) =  2* x* (DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
-      dshape(4 + 3*(p-1) - i - 1,0) =  2* y * (DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
-      dshape(4 + 3*(p-1) - i - 1,1) =  2* legX[i] * x * (1. - x);
-      dshape(4 + 4*(p-1) - i - 1,0) = -2* legY[i] * y * (1. - y); 
-      dshape(4 + 4*(p-1) - i - 1,1) =  2* (1. - x) * (DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
-   }
+  // for (int i = 0; i < p-1; i++) // only works for p=2
+  //  {
+  //     dshape(4 + 0*(p-1) + i ,0) =  2* (1. - y) * (DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));
+  //     dshape(4 + 0*(p-1) + i ,1) = -2* legX[i] * x * (1. - x);
+  //     dshape(4 + 1*(p-1) + i ,0) =  2* legY[i] * y * (1. - y); 
+  //     dshape(4 + 1*(p-1) + i ,1) =  2* x* (DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+  //     dshape(4 + 3*(p-1) - i - 1,0) =  2* y * (DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
+  //     dshape(4 + 3*(p-1) - i - 1,1) =  2* legX[i] * x * (1. - x);
+  //     dshape(4 + 4*(p-1) - i - 1,0) = -2* legY[i] * y * (1. - y); 
+  //     dshape(4 + 4*(p-1) - i - 1,1) =  2* (1. - x) * (DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
+  //  }
 
    
  
-   int interior_total = 0;
-   for (int j = 4; j < p + 1; j++)
-   {
-      for (int k = 0; k < j-3; k++)
-      {
-         dshape(4 + 4*(p-1) + interior_total, 0) = legY[j-4-k]*y*(1-y) * (DlegX[k]*x*(1-x) + legX[k]*(1-2*x));
-         dshape(4 + 4*(p-1) + interior_total, 1) = legX[k]*x*(1-x)     * (DlegY[j-4-k]*y*(1-y) + legY[j-4-k]*(1-2*y));
-         // cout << "fe.cpp: making D shape functions" << endl;
-         // // shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
-         // // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
-         // cout << " ** NEED TO CODE DShape in p>=4 case" << endl;
-         interior_total++;
-      }
-   }
+  //  int interior_total = 0;
+  //  for (int j = 4; j < p + 1; j++)
+  //  {
+  //     for (int k = 0; k < j-3; k++)
+  //     {
+  //        dshape(4 + 4*(p-1) + interior_total, 0) = legY[j-4-k]*y*(1-y) * (DlegX[k]*x*(1-x) + legX[k]*(1-2*x));
+  //        dshape(4 + 4*(p-1) + interior_total, 1) = legX[k]*x*(1-x)     * (DlegY[j-4-k]*y*(1-y) + legY[j-4-k]*(1-2*y));
+  //        // cout << "fe.cpp: making D shape functions" << endl;
+  //        // // shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
+  //        // // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
+  //        // cout << " ** NEED TO CODE DShape in p>=4 case" << endl;
+  //        interior_total++;
+  //     }
+  //  }
 
-   delete[] legX;
-   delete[] legY;
-   delete[] DlegX;
-   delete[] DlegY;
-   delete storeLegendre;
+  //  delete[] legX;
+  //  delete[] legY;
+  //  delete[] DlegX;
+  //  delete[] DlegY;
+  //  delete storeLegendre;
 
    // Storing quadratic only case here:
    //
@@ -3307,7 +3369,7 @@ void CrouzeixRaviartFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 CrouzeixRaviartQuadFiniteElement::CrouzeixRaviartQuadFiniteElement()
 // the FunctionSpace should be rotated (45 degrees) Q_1
-// i.e. the span of { 1, x, y, x^2 - y^2 }
+// i.e. the span of { 1, x, y, x*x - y*y }
    : NodalFiniteElement(2, Geometry::SQUARE, 4, 2, FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.5;
