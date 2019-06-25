@@ -253,7 +253,13 @@ public:
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
-   virtual ~ParMixedBilinearForm() { }
+   virtual ~ParMixedBilinearForm()
+   {
+      // We need this right because p_mat and p_mat_e are
+      // not OperatorHandles which get destroyed on scope exit.
+      if (p_mat) { delete p_mat; }
+      if (p_mat_e) { delete p_mat_e; }
+   }
 };
 
 /** The parallel matrix representation a linear operator between parallel finite

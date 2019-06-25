@@ -224,5 +224,23 @@ int main(int argc, char *argv[])
    p_sock << "solution\n" << *pmesh << *p_gf << "window_title 'pressure'" <<
           "keys Rjlc\n"<< endl;
 
+   delete vel_fec;
+   delete pres_fec;
+   delete vel_fes;
+   delete pres_fes;
+   delete u_gf;
+   delete p_gf;
+   delete fform;
+   delete sform;
+   delete dform;
+   delete mpform;
+   delete stokesop;
+   delete stokesprec;
+   delete invS;
+   delete invMp;
+   delete G;
+   delete Mp;
+   delete pmesh;
+
    return 0;
 }

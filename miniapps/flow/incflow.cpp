@@ -71,11 +71,12 @@ void vel_threedcyl(const Vector &x, Vector &u)
 
 void vel_ldc(const Vector &x, Vector &u)
 {
+   double xi = x(0);
    double yi = x(1);
 
    if (yi > 1.0 - 1e-8)
    {
-      u(0) = 1.0;
+      u(0) = 4.0 * xi * (1.0 - xi);
    }
    else
    {
@@ -279,16 +280,16 @@ public:
       ConstantCoefficient kin_visc(1.0 / opt_.rey);
       sform->AddDomainIntegrator(new VectorDiffusionIntegrator(kin_visc));
       sform->Assemble();
-      sform->EliminateEssentialBC(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(0));
-      sform->Finalize();
-      S = sform->ParallelAssemble();
+      S = new HypreParMatrix;
+      sform->FormLinearSystem(ess_tdof_list_, x.GetBlock(0), rhs.GetBlock(0),
+                              *S, trueX.GetBlock(0), trueRhs.GetBlock(0));
 
       dform = new ParMixedBilinearForm(fes[0], fes[1]);
       dform->AddDomainIntegrator(new VectorDivergenceIntegrator);
       dform->Assemble();
-      dform->EliminateTrialDofs(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(1));
-      dform->Finalize();
-      D = dform->ParallelAssemble();
+      D = new HypreParMatrix;
+      dform->FormColLinearSystem(ess_tdof_list_, x.GetBlock(0), rhs.GetBlock(1),
+                                 *D, trueX.GetBlock(0), trueRhs.GetBlock(1));
 
       G = D->Transpose();
       (*G) *= -1.0;
@@ -328,20 +329,12 @@ public:
       stokesprec->SetDiagonalBlock(0, invS);
       stokesprec->SetDiagonalBlock(1, invMp);
 
-      fes[0]->GetRestrictionMatrix()->Mult(x.GetBlock(0), trueX.GetBlock(0));
-      fes[0]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),
-                                                     trueRhs.GetBlock(0));
-
-      fes[1]->GetRestrictionMatrix()->Mult(x.GetBlock(1), trueX.GetBlock(1));
-      fes[1]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),
-                                                     trueRhs.GetBlock(1));
-
       jac_solver = new GMRESSolver(MPI_COMM_WORLD);
       jac_solver->iterative_mode = false;
       jac_solver->SetAbsTol(0.0);
       jac_solver->SetRelTol(1e-4);
       static_cast<GMRESSolver *>(jac_solver)->SetKDim(100);
-      jac_solver->SetMaxIter(1000);
+      jac_solver->SetMaxIter(500);
       jac_solver->SetOperator(*jac);
       jac_solver->SetPreconditioner(*stokesprec);
       jac_solver->SetPrintLevel(2);
@@ -502,7 +495,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh_file = "../../data/amr-quad.mesh";
+      mesh_file = "../../data/inline-quad.mesh";
    }
 
    int vel_order = order;
