@@ -539,20 +539,24 @@ void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
 }
 
 // This routine assumes xdot is initialized.
-void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
+/*void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 {
    double dt_fac1 = alpha_f*(1.0 - gamma/alpha_m);
    double dt_fac2 = alpha_f*gamma/alpha_m;
-   double dt_fac3 = 1.0/alpha_m;
+   double dt_fac3 = (1.0 - gamma/alpha_m);
+   double dt_fac4 =  gamma/alpha_m;
+   double dt_fac5 = 1.0/alpha_m;
 
-   // In the first pass xdot is not yet computed. 
-   // If parameter choices requires xdot then 
-   // the first step is done using the midpoint rule
+   // In the first pass xdot is not yet computed. If parameter choices requires
+   // xdot midpoint rule is used instead for the first step only.
    if (first && (dt_fac1 != 0.0))
    {
       dt_fac1 = 0.0;
       dt_fac2 = 0.5;
-      dt_fac3 = 2.0;
+      dt_fac3 = 0.0;
+      dt_fac4 = 1.0;
+      dt_fac5 = 2.0;
+
       first = false;
    }
 
@@ -560,9 +564,42 @@ void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
    f->SetTime(t + dt_fac2*dt);
    f->ImplicitSolve(dt_fac2*dt, y, k);
 
-   add(y, dt_fac2*dt, k, x);
+   x.Add(dt_fac3*dt, xdot);
+   x.Add(dt_fac4*dt, k);
+
    k.Add(-1.0, xdot);
-   xdot.Add(dt_fac3, k);
+   xdot.Add(dt_fac5, k);
+}*/
+
+
+// This routine assumes xdot is initialized.
+void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
+{
+   double dt_fac1 = alpha_f*(1.0 - gamma/alpha_m);
+   double dt_fac2 = alpha_f*gamma/alpha_m;
+   double dt_fac3 = gamma/alpha_m;
+   double dt_fac4 = 1.0/alpha_m;
+   // In the first pass xdot is not yet computed. If parameter choices requires
+   // xdot midpoint rule is used instead for the first step only.
+   if (first && (dt_fac1 != 0.0))
+   {
+      dt_fac1 = 0.0;
+      dt_fac2 = 0.5;
+      dt_fac3 = 1.0;
+      dt_fac4 = 2.0;
+
+      first = false;
+   }
+
+   add(x, dt_fac1*dt, xdot, y);
+   f->SetTime(t + dt_fac2*dt);
+   f->ImplicitSolve(dt_fac2*dt, y, k);
+
+   x.Add((1.0 - dt_fac3)*dt, xdot);
+   x.Add(       dt_fac3 *dt, k);
+
+   k.Add(-1.0, xdot);
+   xdot.Add(dt_fac4, k);
 
    t += dt;
 }
