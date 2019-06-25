@@ -1568,11 +1568,13 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       {
 	      H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
       }
-      else if (b_type == BasisType::Serendipity)
-      {
-         H1_Elements[Geometry::SEGMENT] = new H1Ser_SegmentElement(p);
-         // H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, BasisType::GaussLobatto);
-      }
+      // Don't need H1 segment element any more...
+      //
+      // else if (b_type == BasisType::Serendipity)
+      // {
+      //    H1_Elements[Geometry::SEGMENT] = new H1Ser_SegmentElement(p);
+      //    // H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, BasisType::GaussLobatto);
+      // }
       else
       {
          H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, btype);

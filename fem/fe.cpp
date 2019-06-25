@@ -1765,6 +1765,8 @@ H1Ser_SegmentElement::H1Ser_SegmentElement(const int p)
    // Endpoints need to be first in the list, so reorder them.
    // Copied this routine from H1Pos_SegmentElement(...)
 
+   cout << "fe.cpp: Should re-write H1Ser_SegmentElement routines to refelct new bases" << endl;
+
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(1).x = 1.0;
    for (int i = 1; i < p; i++)
@@ -1954,65 +1956,100 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
 void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
-   // int p = (this)->GetOrder();
-   double x = ip.x, y = ip.y;
+   int p = (this)->GetOrder();
+   double x = ip.x, y = ip.y; 
 
-   
-   shape(0) = (-1 + x)*(-1 + y)*(1 - 5*x + 5*x*x - 5*y + 5*y*y);
-   shape(1) = -(x*(-1 + y)*(1 - 5*x + 5*x*x - 5*y + 5*y*y));
-   shape(2) = x*y*(1 - 5*x + 5*x*x - 5*y + 5*y*y);
-   shape(3) = (1 - x)*y*(1 - 5*x + 5*x*x - 5*y + 5*y*y);
-   shape(4) = (-5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x)*(-1 + y))/2;
-   shape(5) = (5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x)*(-1 + y))/2;
-   shape(6) = (5*x*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   shape(7) = (-5*x*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   shape(8) = (-5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x)*y)/2;
-   shape(9) = (5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x)*y)/2;
-   shape(10) = (5*(-1 + x)*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   shape(11) = (-5*(-1 + x)*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   // cout << " ip is (" << x << ", " << y << ")" << endl;
+
+   Poly_1D::Basis edgeNodalBasis(poly1d.GetBasis(p-2, BasisType::GaussLobatto));
+   Vector nodalX(p-1);
+   Vector nodalY(p-1);
+
+   edgeNodalBasis.Eval(x, nodalX);
+   edgeNodalBasis.Eval(y, nodalY);
+
+   for (int i = 0; i < p-1; i++)
+   {
+      shape(4 + 0*(p-1) + i) = (nodalX(i)) * (1. - y) * x * (1. - x);      // south edge 0->1
+      shape(4 + 1*(p-1) + i) = (nodalY(i)) * x * y * (1. - y);             // east edge  1->2
+      shape(4 + 3*(p-1) - i - 1) = (nodalX(i)) * x * y * (1. - x);         // north edge 3->2
+      shape(4 + 4*(p-1) - i - 1) = (nodalY(i)) * (1. - x) * y * (1. - y);  // west edge  0->3
+      // // shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
+      // // shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
+      // // shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
+      // // shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
+   }
+
+   cout << " edge shapes are " << shape(4) << ", " << shape(5) << ", " << shape(6) << ", " << shape(7)  << endl;
+
+   BiLinear2DFiniteElement bilinear = BiLinear2DFiniteElement();
+   Vector bilinearsAtIP(4);
+   bilinear.CalcShape(ip, bilinearsAtIP);
+
+   cout << " bilins at integration point are " << endl;
+   bilinearsAtIP.Print();
+
+   const double *edgePts(poly1d.OpenPoints(p, BasisType::GaussLobatto));
+
+   cout << " edgePts[1] = " << edgePts[1] << endl;
+
+   // shape function for a vertex V at x,y = 
+   //    bilinear function for V evaluated at x,y
+   //  - sum( shape function at edge point P, weighted by bilinear function for V evaluated at P)
+   //   and you only have to take the sum over edges incident to V
+
+   shape(0) = bilinearsAtIP(0) - ((1-edgePts[1])*shape(4) + (edgePts[1])*shape(7));
+   shape(1) = bilinearsAtIP(1) - ((1-edgePts[1])*shape(5) + ((1-edgePts[1])*shape(4)));
+   shape(2) = bilinearsAtIP(2) - ((edgePts[1])*shape(6)   + (1-edgePts[1])*shape(5));
+   shape(3) = bilinearsAtIP(3) - ((edgePts[1])*shape(7)   + (edgePts[1])*shape(6));
+
+   cout << " vtx vals are : " << shape(0) << ", " << shape(1) << ", " << shape(2) << ", " << shape(3) << endl << endl;
 
 
-
-
-   // BELOW: shape functions based on GKS serendipity paper
-   //        substituted Legendre polynomials for monomials
-   //        works fine for projection but has challenge with 
-   //        edge orientations since it's not nodal
 
    // shape(0) = (1.-x)*(1.-y);
    // shape(1) = x*(1.-y);
    // shape(2) = x*y;
-   // shape(3) = (1.-x)*y;
+   // shape(3) = (1.-x)*y;  
 
-   // double *legX = new double[p-1];
-   // double *legY = new double[p-1];
-   // Poly_1D *storeLegendre = new Poly_1D();
+   if (p>3) // quad-interior basis functions appear starting at order p=4
+   {
+      double *legX = new double[p-1];
+      double *legY = new double[p-1];
+      Poly_1D *storeLegendre = new Poly_1D();
 
-   // storeLegendre->CalcLegendre(p-2, x , legX);
-   // storeLegendre->CalcLegendre(p-2, y , legY);
+      storeLegendre->CalcLegendre(p-2, x , legX);
+      storeLegendre->CalcLegendre(p-2, y , legY);
+
+      int interior_total = 0;
+      for (int j = 4; j < p + 1; j++)
+      {
+         for (int k = 0; k < j-3; k++)
+         {
+            shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
+            interior_total++;
+         }
+      }
+
+      delete[] legX;
+      delete[] legY;
+      delete storeLegendre;
+   }
+
+   // Cubic order nodal functions, for reference
    
-   // for (int i = 0; i < p-1; i++)
-   // {
-   //    shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
-   //    shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
-   //    shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
-   //    shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
-   // }
-
-   // int interior_total = 0;
-   // for (int j = 4; j < p + 1; j++)
-   // {
-   //    for (int k = 0; k < j-3; k++)
-   //    {
-   //       shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
-   //       // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
-   //       // cout << " Just set shape # " << 4 + 4*(p-1) + interior_total << " with k= " << k << " and j-4-k= " << j-4-k << endl;
-   //       interior_total++;
-   //    }
-   // }
-   // delete[] legX;
-   // delete[] legY;
-   // delete storeLegendre;
+   // shape(0) = (-1 + x)*(-1 + y)*(1 - 5*x + 5*x*x - 5*y + 5*y*y);
+   // shape(1) = -(x*(-1 + y)*(1 - 5*x + 5*x*x - 5*y + 5*y*y));
+   // shape(2) = x*y*(1 - 5*x + 5*x*x - 5*y + 5*y*y);
+   // shape(3) = (1 - x)*y*(1 - 5*x + 5*x*x - 5*y + 5*y*y);
+   // shape(4) = (-5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x)*(-1 + y))/2;
+   // shape(5) = (5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x)*(-1 + y))/2;
+   // shape(6) = (5*x*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   // shape(7) = (-5*x*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   // shape(8) = (-5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x)*y)/2;
+   // shape(9) = (5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x)*y)/2;
+   // shape(10) = (5*(-1 + x)*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   // shape(11) = (-5*(-1 + x)*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
 
 
 
@@ -2026,108 +2063,100 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
 void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
-   // int p = (this)->GetOrder();
+   int p = (this)->GetOrder();
    double x = ip.x, y = ip.y;
 
-   dshape(0,0) = (-1 + y)*(6 - 20*x + 15*x*x - 5*y + 5*y*y);
-   dshape(0,1) = (-1 + x)*(6 - 5*x + 5*x*x - 20*y + 15*y*y);
+   Poly_1D::Basis edgeNodalBasis(poly1d.GetBasis(p-2, BasisType::GaussLobatto));
+   Vector nodalX(p-1);
+   Vector DnodalX(p-1);
+   Vector nodalY(p-1);
+   Vector DnodalY(p-1);
 
-   dshape(1,0) = -((-1 + y)*(1 - 10*x + 15*x*x - 5*y + 5*y*y));
-   dshape(1,1) = x*(-6 + 5*x - 5*x*x + 20*y - 15*y*y);
-
-   dshape(2,0) = y*(1 - 10*x + 15*x*x - 5*y + 5*y*y);
-   dshape(2,1) = x*(1 - 5*x + 5*x*x - 10*y + 15*y*y);
-
-   dshape(3,0) = y*(-6 + 20*x - 15*x*x + 5*y - 5*y*y);
-   dshape(3,1) = -((-1 + x)*(1 - 5*x + 5*x*x - 10*y + 15*y*y));
-
-   dshape(4,0) = (-5*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*x + 6*sqrt(5)*x*x)*(-1 + y))/2;
-   dshape(4,1) = (-5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x))/2;
-
-   dshape(5,0) = (5*(-1 + sqrt(5) + (2 - 6*sqrt(5))*x + 6*sqrt(5)*x*x)*(-1 + y))/2;
-   dshape(5,1) = (5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x))/2;
-
-   dshape(6,0) = (5*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   dshape(6,1) = (5*x*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
-
-   dshape(7,0) = (-5*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   dshape(7,1) = (-5*x*(-1 + sqrt(5) + (2 - 6*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
-
-   dshape(8,0) = (-5*(-1 + sqrt(5) + (2 - 6*sqrt(5))*x + 6*sqrt(5)*x*x)*y)/2;
-   dshape(8,1) = (-5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x))/2;
-
-   dshape(9,0) = (5*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*x + 6*sqrt(5)*x*x)*y)/2;
-   dshape(9,1) = (5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x))/2;
-
-   dshape(10,0) = (5*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   dshape(10,1) = (5*(-1 + x)*(-1 + sqrt(5) + (2 - 6*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
-
-   dshape(11,0) = (-5*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   dshape(11,1) = (-5*(-1 + x)*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
+   edgeNodalBasis.Eval(x, nodalX, DnodalX);
+   edgeNodalBasis.Eval(y, nodalY, DnodalY);
 
 
-   // BELOW: shape functions based on GKS serendipity paper
-   //        substituted Legendre polynomials for monomials
-   //        works fine for projection but has challenge with 
-   //        edge orientations since it's not nodal
+   dshape(0,0) = -(1. - y);
+   dshape(0,1) = -(1. - x);
 
+   dshape(1,0) = (1. -y);
+   dshape(1,1) = -x;
 
-  //  double *legX = new double[p-1];
-  //  double *legY = new double[p-1];
-  //  double *DlegX = new double[p-1];
-  //  double *DlegY = new double[p-1];
-  //  Poly_1D *storeLegendre = new Poly_1D();
+   dshape(2,0) = y;
+   dshape(2,1) = x;
 
-  //  storeLegendre->CalcLegendre(p-2, x, legX, DlegX);
-  //  storeLegendre->CalcLegendre(p-2, y, legY, DlegY);
-
-  //  dshape(0,0) = -(1. - y);
-  //  dshape(0,1) = -(1. - x);
-
-  //  dshape(1,0) = (1. -y);
-  //  dshape(1,1) = -x;
-
-  //  dshape(2,0) = y;
-  //  dshape(2,1) = x;
-
-  //  dshape(3,0) = -y;
-  //  dshape(3,1) = (1. - x);
+   dshape(3,0) = -y;
+   dshape(3,1) = (1. - x);
 
    
-  // for (int i = 0; i < p-1; i++) // only works for p=2
-  //  {
-  //     dshape(4 + 0*(p-1) + i ,0) =  2* (1. - y) * (DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));
-  //     dshape(4 + 0*(p-1) + i ,1) = -2* legX[i] * x * (1. - x);
-  //     dshape(4 + 1*(p-1) + i ,0) =  2* legY[i] * y * (1. - y); 
-  //     dshape(4 + 1*(p-1) + i ,1) =  2* x* (DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
-  //     dshape(4 + 3*(p-1) - i - 1,0) =  2* y * (DlegX[i] * (- x*x + x) + legX[i]*(-2 * x + 1));;
-  //     dshape(4 + 3*(p-1) - i - 1,1) =  2* legX[i] * x * (1. - x);
-  //     dshape(4 + 4*(p-1) - i - 1,0) = -2* legY[i] * y * (1. - y); 
-  //     dshape(4 + 4*(p-1) - i - 1,1) =  2* (1. - x) * (DlegY[i] * (- y*y + y) + legY[i]*(-2 * y +1));
-  //  }
+  for (int i = 0; i < p-1; i++) 
+   {
+      dshape(4 + 0*(p-1) + i ,0) =  (1. - y) * (DnodalX(i) * (- x*x + x) + nodalX(i)*(-2 * x + 1));
+      dshape(4 + 0*(p-1) + i ,1) = -nodalX(i) * x * (1. - x);
+      dshape(4 + 1*(p-1) + i ,0) =  nodalY(i) * y * (1. - y); 
+      dshape(4 + 1*(p-1) + i ,1) =  x* (DnodalY(i) * (- y*y + y) + nodalY(i)*(-2 * y +1));
+      dshape(4 + 3*(p-1) - i - 1,0) =  y * (DnodalX(i) * (- x*x + x) + nodalX(i)*(-2 * x + 1));;
+      dshape(4 + 3*(p-1) - i - 1,1) =  nodalX(i) * x * (1. - x);
+      dshape(4 + 4*(p-1) - i - 1,0) = -nodalY(i) * y * (1. - y); 
+      dshape(4 + 4*(p-1) - i - 1,1) =  (1. - x) * (DnodalY(i) * (- y*y + y) + nodalY(i)*(-2 * y +1));
+   }
 
-   
- 
-  //  int interior_total = 0;
-  //  for (int j = 4; j < p + 1; j++)
-  //  {
-  //     for (int k = 0; k < j-3; k++)
-  //     {
-  //        dshape(4 + 4*(p-1) + interior_total, 0) = legY[j-4-k]*y*(1-y) * (DlegX[k]*x*(1-x) + legX[k]*(1-2*x));
-  //        dshape(4 + 4*(p-1) + interior_total, 1) = legX[k]*x*(1-x)     * (DlegY[j-4-k]*y*(1-y) + legY[j-4-k]*(1-2*y));
-  //        // cout << "fe.cpp: making D shape functions" << endl;
-  //        // // shape(4 + 4*(p-1) + interior_total) = legX[k] * legY[j-4-k] * x * (1. - x) * y * (1. - y);
-  //        // // leg(k,2x-1)*leg(j-4-k,2y-1)x(x-1)y(y-1)
-  //        // cout << " ** NEED TO CODE DShape in p>=4 case" << endl;
-  //        interior_total++;
-  //     }
-  //  }
+   if (p>3) // quad-interior basis functions appear starting at order p=4
+   {
+      double *legX = new double[p-1];
+      double *legY = new double[p-1];
+      double *DlegX = new double[p-1];
+      double *DlegY = new double[p-1];
+      Poly_1D *storeLegendre = new Poly_1D();
 
-  //  delete[] legX;
-  //  delete[] legY;
-  //  delete[] DlegX;
-  //  delete[] DlegY;
-  //  delete storeLegendre;
+      storeLegendre->CalcLegendre(p-2, x, legX, DlegX);
+      storeLegendre->CalcLegendre(p-2, y, legY, DlegY);
+    
+      int interior_total = 0;
+      for (int j = 4; j < p + 1; j++)
+      {
+         for (int k = 0; k < j-3; k++)
+         {
+            dshape(4 + 4*(p-1) + interior_total, 0) = legY[j-4-k]*y*(1-y) * (DlegX[k]*x*(1-x) + legX[k]*(1-2*x));
+            dshape(4 + 4*(p-1) + interior_total, 1) = legX[k]*x*(1-x)     * (DlegY[j-4-k]*y*(1-y) + legY[j-4-k]*(1-2*y));
+            interior_total++;
+         }
+      }
+
+      delete[] legX;
+      delete[] legY;
+      delete[] DlegX;
+      delete[] DlegY;
+      delete storeLegendre;
+   }
+
+   // Cubic order nodal functions, for reference
+
+   // dshape(0,0) = (-1 + y)*(6 - 20*x + 15*x*x - 5*y + 5*y*y);
+   // dshape(0,1) = (-1 + x)*(6 - 5*x + 5*x*x - 20*y + 15*y*y);
+   // dshape(1,0) = -((-1 + y)*(1 - 10*x + 15*x*x - 5*y + 5*y*y));
+   // dshape(1,1) = x*(-6 + 5*x - 5*x*x + 20*y - 15*y*y);
+   // dshape(2,0) = y*(1 - 10*x + 15*x*x - 5*y + 5*y*y);
+   // dshape(2,1) = x*(1 - 5*x + 5*x*x - 10*y + 15*y*y);
+   // dshape(3,0) = y*(-6 + 20*x - 15*x*x + 5*y - 5*y*y);
+   // dshape(3,1) = -((-1 + x)*(1 - 5*x + 5*x*x - 10*y + 15*y*y));
+   // dshape(4,0) = (-5*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*x + 6*sqrt(5)*x*x)*(-1 + y))/2;
+   // dshape(4,1) = (-5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x))/2;
+   // dshape(5,0) = (5*(-1 + sqrt(5) + (2 - 6*sqrt(5))*x + 6*sqrt(5)*x*x)*(-1 + y))/2;
+   // dshape(5,1) = (5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x))/2;
+   // dshape(6,0) = (5*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   // dshape(6,1) = (5*x*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
+   // dshape(7,0) = (-5*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   // dshape(7,1) = (-5*x*(-1 + sqrt(5) + (2 - 6*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
+   // dshape(8,0) = (-5*(-1 + sqrt(5) + (2 - 6*sqrt(5))*x + 6*sqrt(5)*x*x)*y)/2;
+   // dshape(8,1) = (-5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x))/2;
+   // dshape(9,0) = (5*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*x + 6*sqrt(5)*x*x)*y)/2;
+   // dshape(9,1) = (5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x))/2;
+   // dshape(10,0) = (5*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   // dshape(10,1) = (5*(-1 + x)*(-1 + sqrt(5) + (2 - 6*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
+   // dshape(11,0) = (-5*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
+   // dshape(11,1) = (-5*(-1 + x)*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
+
 
    // Storing quadratic only case here:
    //

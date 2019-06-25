@@ -311,7 +311,7 @@ int main(int argc, char *argv[])
 
    // const char *mesh_file = "../../data/twoSquare.mesh";
    // const char *mesh_file = "../../data/star-q3.mesh";
-   const char *mesh_file = "../../data/singleSquare.mesh";
+   const char *mesh_file = "../../data/inline-oneQuad.mesh";
    int order = 1;
    bool static_cond = false;
    const char *device_config = "cpu";
