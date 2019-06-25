@@ -158,22 +158,22 @@ public:
    const Memory<int> &GetMemoryI() const { return I; }
 
    const int *ReadI(bool on_dev = true) const
-   { return mfem::Read(I, Height(), on_dev); }
+   { return mfem::Read(I, Height()+1, on_dev); }
 
    const int *HostReadI() const
-   { return mfem::Read(I, Height(), false); }
+   { return mfem::Read(I, Height()+1, false); }
 
    int *WriteI(bool on_dev = true)
-   { return mfem::Write(I, Height(), on_dev); }
+   { return mfem::Write(I, Height()+1, on_dev); }
 
    int *HostWriteI()
-   { return mfem::Write(I, Height(), false); }
+   { return mfem::Write(I, Height()+1, false); }
 
    int *ReadWriteI(bool on_dev = true)
-   { return mfem::ReadWrite(I, Height(), on_dev); }
+   { return mfem::ReadWrite(I, Height()+1, on_dev); }
 
    int *HostReadWriteI()
-   { return mfem::ReadWrite(I, Height(), false); }
+   { return mfem::ReadWrite(I, Height()+1, false); }
 
    //Methods for J
    Memory<int> &GetMemoryJ() { return J; }
