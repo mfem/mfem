@@ -248,13 +248,17 @@ static void PADiffusionAssembleDiagonal2D(const int NE,
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
+      // gradphi \cdot OP \gradphi has four terms
+      // we could probably use symmetry to make it three?
+
       // 4 terms: 
       // one   Gx By O11 Gx By;
       // two   Gx By O12 Bx Gy;
       // three Bx Gy O21 Gx By;
       // four  Bx Gy O22 Bx Gy
+
       // below I do them all at once, but you could save memory by
-      // doing them one at a time
+      // doing them one at a time (with longer code...)
 
       double tempone[max_Q1D][max_D1D];
       double temptwo[max_Q1D][max_D1D];
@@ -311,6 +315,157 @@ static void PADiffusionAssembleDiagonal3D(const int NE,
                                           const int d1d = 0,
                                           const int q1d = 0)
 {
+   // see eg PADiffusionApply3D
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   // auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   // auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto y = Reshape(_diag.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      // gradphi \cdot OP \gradphi has nine terms
+      // nine terms might be too many, but for proof of concept that's what I'll do
+      // (you could use symmetry to only have six?)
+
+      // nine terms:
+      // one   Gx By Bz O11 Gx By Bz;
+      // two   Gx By Bz O12 Bx Gy Bz;
+      // three Gx By Bz O13 Bx By Gz;
+      // four  Bx Gy Bz O21 Gx By Bz;
+      // five  Bx Gy Bz O22 Bx Gy Bz;
+      // six   Bx Gy Bz O23 Bx By Gz;
+      // seven Bx By Gz O31 Gx By Bz;
+      // eight Bx By Gz O32 Bx Gy Bz;
+      // nine  Bx By Gz O33 Bx By Gz;
+
+      double tempone[max_Q1D][max_Q1D][max_D1D];
+      double temptwo[max_Q1D][max_Q1D][max_D1D];
+      double tempthree[max_Q1D][max_Q1D][max_D1D];
+      double tempfour[max_Q1D][max_Q1D][max_D1D];
+      double tempfive[max_Q1D][max_Q1D][max_D1D];
+      double tempsix[max_Q1D][max_Q1D][max_D1D];
+      double tempseven[max_Q1D][max_Q1D][max_D1D];
+      double tempeight[max_Q1D][max_Q1D][max_D1D];
+      double tempnine[max_Q1D][max_Q1D][max_D1D];
+
+      // first tensor contraction, along z direction
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               tempone[qx][qy][dz] = 0.0;
+               temptwo[qx][qy][dz] = 0.0;
+               tempthree[qx][qy][dz] = 0.0;
+               tempfour[qx][qy][dz] = 0.0;
+               tempfive[qx][qy][dz] = 0.0;
+               tempsix[qx][qy][dz] = 0.0;
+               tempseven[qx][qy][dz] = 0.0;
+               tempeight[qx][qy][dz] = 0.0;
+               tempnine[qx][qy][dz] = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  const int q = qx + (qy + qz * Q1D) * Q1D;
+                  const double O11 = op(q,0,e);
+                  const double O12 = op(q,1,e);
+                  const double O13 = op(q,2,e);
+                  const double O22 = op(q,3,e);
+                  const double O23 = op(q,4,e);
+                  const double O33 = op(q,5,e);
+
+                  tempone[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O11;
+                  temptwo[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O12;
+                  tempthree[qx][qy][dz] += B(qz, dz) * G(qz, dz) * O13;
+                  tempfour[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O12;
+                  tempfive[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O22;
+                  tempsix[qx][qy][dz] += B(qz, dz) * G(qz, dz) * O23;
+                  tempseven[qx][qy][dz] += G(qz, dz) * B(qz, dz) * O13;
+                  tempeight[qx][qy][dz] += G(qz, dz) * B(qz, dz) * O23;
+                  tempnine[qx][qy][dz] += G(qz, dz) * G(qz, dz) * O33;
+               }
+            }
+         }
+      }
+
+      // these are really terrible variable names
+      double temp2one[max_Q1D][max_D1D][max_D1D];
+      double temp2two[max_Q1D][max_D1D][max_D1D];
+      double temp2three[max_Q1D][max_D1D][max_D1D];
+      double temp2four[max_Q1D][max_D1D][max_D1D];
+      double temp2five[max_Q1D][max_D1D][max_D1D];
+      double temp2six[max_Q1D][max_D1D][max_D1D];
+      double temp2seven[max_Q1D][max_D1D][max_D1D];
+      double temp2eight[max_Q1D][max_D1D][max_D1D];
+      double temp2nine[max_Q1D][max_D1D][max_D1D];
+
+      // second tensor contraction, along y direction
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               temp2one[qx][dy][dz] = 0.0;
+               temp2two[qx][dy][dz] = 0.0;
+               temp2three[qx][dy][dz] = 0.0;
+               temp2four[qx][dy][dz] = 0.0;
+               temp2five[qx][dy][dz] = 0.0;
+               temp2six[qx][dy][dz] = 0.0;
+               temp2seven[qx][dy][dz] = 0.0;
+               temp2eight[qx][dy][dz] = 0.0;
+               temp2nine[qx][dy][dz] = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  temp2one[qx][dy][dz] += B(qy, dy) * B(qy, dy) * tempone[qx][qy][dz];
+                  temp2two[qx][dy][dz] += B(qy, dy) * G(qy, dy) * temptwo[qx][qy][dz];
+                  temp2three[qx][dy][dz] += B(qy, dy) * B(qy, dy) * tempthree[qx][qy][dz];
+                  temp2four[qx][dy][dz] += G(qy, dy) * B(qy, dy) * tempfour[qx][qy][dz];
+                  temp2five[qx][dy][dz] += G(qy, dy) * G(qy, dy) * tempfive[qx][qy][dz];
+                  temp2six[qx][dy][dz] += G(qy, dy) * B(qy, dy) * tempsix[qx][qy][dz];
+                  temp2seven[qx][dy][dz] += B(qy, dy) * B(qy, dy) * tempseven[qx][qy][dz];
+                  temp2eight[qx][dy][dz] += B(qy, dy) * G(qy, dy) * tempeight[qx][qy][dz];
+                  temp2nine[qx][dy][dz] += B(qy, dy) * B(qy, dy) * tempnine[qx][qy][dz];
+               }
+            }
+         }
+      }
+
+      // third tensor contraction, along x direction
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  y(dx, dy, dz, e) += G(qx, dx) * G(qx, dx) * temp2one[qx][dy][dz];
+                  y(dx, dy, dz, e) += G(qx, dx) * B(qx, dx) * temp2two[qx][dy][dz];
+                  y(dx, dy, dz, e) += G(qx, dx) * B(qx, dx) * temp2three[qx][dy][dz];
+                  y(dx, dy, dz, e) += B(qx, dx) * G(qx, dx) * temp2four[qx][dy][dz];
+                  y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * temp2five[qx][dy][dz];
+                  y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * temp2six[qx][dy][dz];
+                  y(dx, dy, dz, e) += B(qx, dx) * G(qx, dx) * temp2seven[qx][dy][dz];
+                  y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * temp2eight[qx][dy][dz];
+                  y(dx, dy, dz, e) += B(qx, dx) * B(qx, dx) * temp2nine[qx][dy][dz];
+               }
+            }
+         }
+      }
+
+   });
+
 }
 
 static void PADiffusionAssembleDiagonal(const int dim,
