@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "linalg.hpp"
+#include "../general/forall.hpp"
 #include "../general/globals.hpp"
 #include <iostream>
 #include <iomanip>
@@ -100,6 +101,47 @@ void IterativeSolver::SetOperator(const Operator &op)
    {
       prec->SetOperator(*oper);
    }
+}
+
+
+VectorSmoother::VectorSmoother(Vector d, Array<int>& ess_tdof_list, double damping)
+   :
+   Solver(d.Size()),
+   dinv(d.Size()),
+   residual(d.Size())
+{
+   dinv.UseDevice(true);
+   residual.UseDevice(true);
+
+   MFEM_FORALL(i, d.Size(),
+   {
+      dinv(i) = damping / d(i);
+   });
+   for (int k = 0; k < ess_tdof_list.Size(); ++k)
+   {
+      dinv(ess_tdof_list[k]) = damping;
+   }
+}
+
+void VectorSmoother::Mult(const Vector& x, Vector &y) const
+{
+   if (iterative_mode && oper)
+   {
+      oper->Mult(y, residual);  // r = A x
+      subtract(x, residual, residual); // r = b - A x
+   }
+   else
+   {
+      residual = x;
+      y.UseDevice(true);
+      y = 0.0;
+   }
+
+   auto ydata = y.ReadWrite(true);
+   MFEM_FORALL(i, dinv.Size(),
+   {
+      ydata[i] += dinv(i) * residual(i);
+   });
 }
 
 
