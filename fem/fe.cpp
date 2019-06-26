@@ -1754,7 +1754,6 @@ void BiQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 }
 
 
-
 H1Ser_SegmentElement::H1Ser_SegmentElement(const int p)
    : ScalarFiniteElement(1, Geometry::SEGMENT, p+1, p, FunctionSpace::Pk)
 {
@@ -1959,25 +1958,54 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    int p = (this)->GetOrder();
    double x = ip.x, y = ip.y; 
 
-   // cout << " ip is (" << x << ", " << y << ")" << endl;
+   cout << " ip is (" << x << ", " << y << ")" << endl;
 
-   Poly_1D::Basis edgeNodalBasis(poly1d.GetBasis(p-2, BasisType::GaussLobatto));
-   Vector nodalX(p-1);
-   Vector nodalY(p-1);
+   Poly_1D::Basis edgeNodalBasis(poly1d.GetBasis(p, BasisType::GaussLobatto));
+   Vector nodalX(p+1);
+   Vector nodalY(p+1);
 
    edgeNodalBasis.Eval(x, nodalX);
    edgeNodalBasis.Eval(y, nodalY);
 
+   // cout << "nodalX = ";
+   // nodalX.Print();
+
+   // compute values of shape functions at edge points
+   // use these as weights to normalize functions  -> enforce nodality
+
+   const double *edgePts(poly1d.OpenPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
+
+   // cout << "edgePts = ";
+   // for(int i=0; i<p+1; i++)
+   // {
+   //    cout << edgePts[i] << ", ";
+   // }
+   // cout << endl;
+   Vector edgeWeights(p-1); // indices 0 to p-1 correspond to edge pts 1 to p; same for any edge
+   
+   for(int i = 0; i<p-1; i++)
+   {
+      // Vector temp(p-1); // hold result of next function call - this is wasteful 
+      // edgeNodalBasis.Eval(edgePts[i+1], temp);
+      // edgeWeights(i) = 1/(temp(i) * (edgePts[i+1]) * (1. - edgePts[i+1]));  // dividing by a small number - this is probably REALLY bad
+      edgeWeights(i) = edgePts[i+1]; // (1.)/((edgePts[i+1]) * (1. - edgePts[i+1]));  
+   }
+
+   cout << "edgePts= ";
+   edgeWeights.Print();
+   cout << endl;
+
+
    for (int i = 0; i < p-1; i++)
    {
-      shape(4 + 0*(p-1) + i) = 4*(nodalX(i)) * (1. - y) * x * (1. - x);      // south edge 0->1
-      shape(4 + 1*(p-1) + i) = 4*(nodalY(i)) * x * y * (1. - y);             // east edge  1->2
-      shape(4 + 3*(p-1) - i - 1) = 4*(nodalX(i)) * x * y * (1. - x);         // north edge 3->2
-      shape(4 + 4*(p-1) - i - 1) = 4*(nodalY(i)) * (1. - x) * y * (1. - y);  // west edge  0->3
-      // // shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
-      // // shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
-      // // shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
-      // // shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
+      shape(4 + 0*(p-1) + i) = (nodalX(i+1)) * (1. - y) * x * (1. - x);      // south edge 0->1
+      shape(4 + 1*(p-1) + i) = edgeWeights(i)*(nodalY(i+1)) * x * y * (1. - y);             // east edge  1->2
+      shape(4 + 3*(p-1) - i - 1) = edgeWeights(i)*(nodalX(i+1)) * x * y * (1. - x);         // north edge 3->2
+      shape(4 + 4*(p-1) - i - 1) = edgeWeights(i)*(nodalY(i+1)) * (1. - x) * y * (1. - y);  // west edge  0->3
+      // shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
+      // shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
+      // shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
+      // shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
    }
 
   // cout << " edge shapes are " << shape(4) << ", " << shape(5) << ", " << shape(6) << ", " << shape(7)  << endl;
@@ -1986,10 +2014,6 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    Vector bilinearsAtIP(4);
    bilinear.CalcShape(ip, bilinearsAtIP);
 
-   // cout << " bilins at integration point are " << endl;
-   // bilinearsAtIP.Print();
-
-   const double *edgePts(poly1d.OpenPoints(p, BasisType::GaussLobatto));
 
    // cout << " edgePts[1] = " << edgePts[1] << endl;
 
@@ -2073,14 +2097,14 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    
   for (int i = 0; i < p-1; i++) 
    {
-      dshape(4 + 0*(p-1) + i ,0) =  4*(1. - y) * (DnodalX(i) * (- x*x + x) + nodalX(i)*(-2 * x + 1));
-      dshape(4 + 0*(p-1) + i ,1) = -4*nodalX(i) * x * (1. - x);
-      dshape(4 + 1*(p-1) + i ,0) =  4*nodalY(i) * y * (1. - y); 
-      dshape(4 + 1*(p-1) + i ,1) =  4*x* (DnodalY(i) * (- y*y + y) + nodalY(i)*(-2 * y +1));
-      dshape(4 + 3*(p-1) - i - 1,0) =  4*y * (DnodalX(i) * (- x*x + x) + nodalX(i)*(-2 * x + 1));;
-      dshape(4 + 3*(p-1) - i - 1,1) =  4*nodalX(i) * x * (1. - x);
-      dshape(4 + 4*(p-1) - i - 1,0) = -4*nodalY(i) * y * (1. - y); 
-      dshape(4 + 4*(p-1) - i - 1,1) =  4*(1. - x) * (DnodalY(i) * (- y*y + y) + nodalY(i)*(-2 * y +1));
+      dshape(4 + 0*(p-1) + i ,0) =  (1. - y) * (DnodalX(i) * (- x*x + x) + nodalX(i)*(-2 * x + 1));
+      dshape(4 + 0*(p-1) + i ,1) = -nodalX(i) * x * (1. - x);
+      dshape(4 + 1*(p-1) + i ,0) =  nodalY(i) * y * (1. - y); 
+      dshape(4 + 1*(p-1) + i ,1) =  x* (DnodalY(i) * (- y*y + y) + nodalY(i)*(-2 * y +1));
+      dshape(4 + 3*(p-1) - i - 1,0) =  y * (DnodalX(i) * (- x*x + x) + nodalX(i)*(-2 * x + 1));;
+      dshape(4 + 3*(p-1) - i - 1,1) =  nodalX(i) * x * (1. - x);
+      dshape(4 + 4*(p-1) - i - 1,0) = -nodalY(i) * y * (1. - y); 
+      dshape(4 + 4*(p-1) - i - 1,1) =  (1. - x) * (DnodalY(i) * (- y*y + y) + nodalY(i)*(-2 * y +1));
    }
 
    BiLinear2DFiniteElement bilinear = BiLinear2DFiniteElement();
