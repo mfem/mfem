@@ -1970,28 +1970,28 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
 
    for (int i = 0; i < p-1; i++)
    {
-      shape(4 + 0*(p-1) + i) = (nodalX(i)) * (1. - y) * x * (1. - x);      // south edge 0->1
-      shape(4 + 1*(p-1) + i) = (nodalY(i)) * x * y * (1. - y);             // east edge  1->2
-      shape(4 + 3*(p-1) - i - 1) = (nodalX(i)) * x * y * (1. - x);         // north edge 3->2
-      shape(4 + 4*(p-1) - i - 1) = (nodalY(i)) * (1. - x) * y * (1. - y);  // west edge  0->3
+      shape(4 + 0*(p-1) + i) = 4*(nodalX(i)) * (1. - y) * x * (1. - x);      // south edge 0->1
+      shape(4 + 1*(p-1) + i) = 4*(nodalY(i)) * x * y * (1. - y);             // east edge  1->2
+      shape(4 + 3*(p-1) - i - 1) = 4*(nodalX(i)) * x * y * (1. - x);         // north edge 3->2
+      shape(4 + 4*(p-1) - i - 1) = 4*(nodalY(i)) * (1. - x) * y * (1. - y);  // west edge  0->3
       // // shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
       // // shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
       // // shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
       // // shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
    }
 
-   cout << " edge shapes are " << shape(4) << ", " << shape(5) << ", " << shape(6) << ", " << shape(7)  << endl;
+  // cout << " edge shapes are " << shape(4) << ", " << shape(5) << ", " << shape(6) << ", " << shape(7)  << endl;
 
    BiLinear2DFiniteElement bilinear = BiLinear2DFiniteElement();
    Vector bilinearsAtIP(4);
    bilinear.CalcShape(ip, bilinearsAtIP);
 
-   cout << " bilins at integration point are " << endl;
-   bilinearsAtIP.Print();
+   // cout << " bilins at integration point are " << endl;
+   // bilinearsAtIP.Print();
 
    const double *edgePts(poly1d.OpenPoints(p, BasisType::GaussLobatto));
 
-   cout << " edgePts[1] = " << edgePts[1] << endl;
+   // cout << " edgePts[1] = " << edgePts[1] << endl;
 
    // shape function for a vertex V at x,y = 
    //    bilinear function for V evaluated at x,y
@@ -2003,7 +2003,7 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    shape(2) = bilinearsAtIP(2) - ((edgePts[1])*shape(6)   + (1-edgePts[1])*shape(5));
    shape(3) = bilinearsAtIP(3) - ((edgePts[1])*shape(7)   + (edgePts[1])*shape(6));
 
-   cout << " vtx vals are : " << shape(0) << ", " << shape(1) << ", " << shape(2) << ", " << shape(3) << endl << endl;
+   // cout << " vtx vals are : " << shape(0) << ", " << shape(1) << ", " << shape(2) << ", " << shape(3) << endl << endl;
 
 
 
@@ -2049,11 +2049,7 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    // shape(8) = (-5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x)*y)/2;
    // shape(9) = (5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x)*y)/2;
    // shape(10) = (5*(-1 + x)*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   // shape(11) = (-5*(-1 + x)*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
-
-
-
-  
+   // shape(11) = (-5*(-1 + x)*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2; 
 }
 
 
@@ -2074,32 +2070,47 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 
    edgeNodalBasis.Eval(x, nodalX, DnodalX);
    edgeNodalBasis.Eval(y, nodalY, DnodalY);
-
-
-   dshape(0,0) = -(1. - y);
-   dshape(0,1) = -(1. - x);
-
-   dshape(1,0) = (1. -y);
-   dshape(1,1) = -x;
-
-   dshape(2,0) = y;
-   dshape(2,1) = x;
-
-   dshape(3,0) = -y;
-   dshape(3,1) = (1. - x);
-
    
   for (int i = 0; i < p-1; i++) 
    {
-      dshape(4 + 0*(p-1) + i ,0) =  (1. - y) * (DnodalX(i) * (- x*x + x) + nodalX(i)*(-2 * x + 1));
-      dshape(4 + 0*(p-1) + i ,1) = -nodalX(i) * x * (1. - x);
-      dshape(4 + 1*(p-1) + i ,0) =  nodalY(i) * y * (1. - y); 
-      dshape(4 + 1*(p-1) + i ,1) =  x* (DnodalY(i) * (- y*y + y) + nodalY(i)*(-2 * y +1));
-      dshape(4 + 3*(p-1) - i - 1,0) =  y * (DnodalX(i) * (- x*x + x) + nodalX(i)*(-2 * x + 1));;
-      dshape(4 + 3*(p-1) - i - 1,1) =  nodalX(i) * x * (1. - x);
-      dshape(4 + 4*(p-1) - i - 1,0) = -nodalY(i) * y * (1. - y); 
-      dshape(4 + 4*(p-1) - i - 1,1) =  (1. - x) * (DnodalY(i) * (- y*y + y) + nodalY(i)*(-2 * y +1));
+      dshape(4 + 0*(p-1) + i ,0) =  4*(1. - y) * (DnodalX(i) * (- x*x + x) + nodalX(i)*(-2 * x + 1));
+      dshape(4 + 0*(p-1) + i ,1) = -4*nodalX(i) * x * (1. - x);
+      dshape(4 + 1*(p-1) + i ,0) =  4*nodalY(i) * y * (1. - y); 
+      dshape(4 + 1*(p-1) + i ,1) =  4*x* (DnodalY(i) * (- y*y + y) + nodalY(i)*(-2 * y +1));
+      dshape(4 + 3*(p-1) - i - 1,0) =  4*y * (DnodalX(i) * (- x*x + x) + nodalX(i)*(-2 * x + 1));;
+      dshape(4 + 3*(p-1) - i - 1,1) =  4*nodalX(i) * x * (1. - x);
+      dshape(4 + 4*(p-1) - i - 1,0) = -4*nodalY(i) * y * (1. - y); 
+      dshape(4 + 4*(p-1) - i - 1,1) =  4*(1. - x) * (DnodalY(i) * (- y*y + y) + nodalY(i)*(-2 * y +1));
    }
+
+   BiLinear2DFiniteElement bilinear = BiLinear2DFiniteElement();
+   DenseMatrix DbilinearsAtIP(4);
+   bilinear.CalcDShape(ip, DbilinearsAtIP);
+
+   const double *edgePts(poly1d.OpenPoints(p, BasisType::GaussLobatto));
+
+   dshape(0,0) = DbilinearsAtIP(0,0) - ((1-edgePts[1])*dshape(4,0) + (edgePts[1])*dshape(7,0));
+   dshape(0,1) = DbilinearsAtIP(0,1) - ((1-edgePts[1])*dshape(4,1) + (edgePts[1])*dshape(7,1));
+   dshape(1,0) = DbilinearsAtIP(1,0) - ((1-edgePts[1])*dshape(5,0) + ((1-edgePts[1])*dshape(4,0)));
+   dshape(1,1) = DbilinearsAtIP(1,1) - ((1-edgePts[1])*dshape(5,1) + ((1-edgePts[1])*dshape(4,1)));
+   dshape(2,0) = DbilinearsAtIP(2,0) - ((edgePts[1])*dshape(6,0)   + (1-edgePts[1])*dshape(5,0));
+   dshape(2,1) = DbilinearsAtIP(2,1) - ((edgePts[1])*dshape(6,1)   + (1-edgePts[1])*dshape(5,1));
+   dshape(3,0) = DbilinearsAtIP(3,0) - ((edgePts[1])*dshape(7,0)   + (edgePts[1])*dshape(6,0));
+   dshape(3,1) = DbilinearsAtIP(3,1) - ((edgePts[1])*dshape(7,1)   + (edgePts[1])*dshape(6,1));
+
+
+   // Derivs of bilinears
+   //
+   // dshape(0,0) = -(1. - y);
+   // dshape(0,1) = -(1. - x);
+   // dshape(1,0) = (1. -y);
+   // dshape(1,1) = -x;
+   // dshape(2,0) = y;
+   // dshape(2,1) = x;
+   // dshape(3,0) = -y;
+   // dshape(3,1) = (1. - x);
+
+
 
    if (p>3) // quad-interior basis functions appear starting at order p=4
    {
