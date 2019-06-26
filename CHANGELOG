@@ -10,9 +10,10 @@
 
 Version 4.0.1 (development)
 ===========================
-- Added support for non-conforming wedge AMR, including coarsening and parallel
-  load balancing. Anisotropic wedge refinement is only available in the serial
-  version at the moment.
+
+- Added support for non-conforming AMR on wedges and tetrahedra, including
+  coarsening and parallel load balancing. Anisotropic wedge refinement is only
+  available in the serial version at the moment.
 
 
 Version 4.0, released on May 24, 2019
