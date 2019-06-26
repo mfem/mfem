@@ -55,7 +55,6 @@ public:
 
    Array<int> block_offsets_;
    Array<int> block_trueOffsets_;
-   BlockVector rhs, trueRhs;
 
    ConstantCoefficient *dtcoeff;
 
@@ -83,10 +82,10 @@ public:
    NewtonSolver newton_solver;
 
    NavierStokesOperator(Array<ParFiniteElementSpace *> &fes) : Operator(
-         fes[0]->TrueVSize() + fes[1]->TrueVSize()),
-      pmesh_(fes[0]->GetParMesh()), fes_(fes),
-      ess_bdr_attr_(pmesh_->bdr_attributes.Max()),
-      NjacS(nullptr)
+                                                                   fes[0]->TrueVSize() + fes[1]->TrueVSize()),
+                                                               pmesh_(fes[0]->GetParMesh()), fes_(fes),
+                                                               ess_bdr_attr_(pmesh_->bdr_attributes.Max()),
+                                                               NjacS(nullptr)
    {
       ess_bdr_attr_ = 1;
       fes_[0]->GetEssentialTrueDofs(ess_bdr_attr_, ess_tdof_list_);
@@ -102,26 +101,9 @@ public:
       block_trueOffsets_[1] = fes[0]->TrueVSize();
       block_trueOffsets_[2] = fes[1]->TrueVSize();
       block_trueOffsets_.PartialSum();
-
-      rhs.Update(block_offsets_);
-      trueRhs.Update(block_trueOffsets_);
-
-      rhs = 0.0;
-      trueRhs = 0.0;
    }
 
-   void SetParameters(const BlockVector &x, double t)
-   {
-      sform->EliminateEssentialBC(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(0));
-      dform->EliminateTrialDofs(ess_bdr_attr_, x.GetBlock(0), rhs.GetBlock(1));
-
-      fes_[0]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),
-                                                      trueRhs.GetBlock(0));
-      fes_[1]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),
-                                                      trueRhs.GetBlock(1));
-   }
-
-   void Init(const BlockVector &x, const double dt)
+   void BuildOperator(const double dt)
    {
       dtcoeff = new ConstantCoefficient(dt);
 
@@ -134,13 +116,14 @@ public:
       sform->AddDomainIntegrator(new VectorMassIntegrator);
       sform->AddDomainIntegrator(new VectorDiffusionIntegrator(kin_visc));
       sform->Assemble();
-      sform->FormSystemMatrix(ess_bdr_attr_, *S);
+      S = new HypreParMatrix;
+      sform->FormSystemMatrix(ess_tdof_list_, *S);
 
       dform = new ParMixedBilinearForm(fes_[0], fes_[1]);
       dform->AddDomainIntegrator(new VectorDivergenceIntegrator(*dtcoeff));
       dform->Assemble();
-      dform->Finalize();
-      D = dform->ParallelAssemble();
+      D = new HypreParMatrix;
+      dform->FormColSystemMatrix(ess_tdof_list_, *D);
 
       G = D->Transpose();
       (*G) *= -1.0;
@@ -184,7 +167,7 @@ public:
       jac_solver->SetAbsTol(0.0);
       jac_solver->SetRelTol(1e-4);
       static_cast<GMRESSolver *>(jac_solver)->SetKDim(100);
-      jac_solver->SetMaxIter(200);
+      jac_solver->SetMaxIter(500);
       jac_solver->SetOperator(*jac);
       jac_solver->SetPreconditioner(*stokesprec);
       jac_solver->SetPrintLevel(2);
@@ -196,11 +179,6 @@ public:
       newton_solver.SetAbsTol(0.0);
       newton_solver.SetRelTol(1e-8);
       newton_solver.SetMaxIter(15);
-
-      fes_[0]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(0),
-                                                      trueRhs.GetBlock(0));
-      fes_[1]->GetProlongationMatrix()->MultTranspose(rhs.GetBlock(1),
-                                                      trueRhs.GetBlock(1));
    }
 
    virtual void Mult(const Vector &x, Vector &y) const
@@ -270,33 +248,46 @@ private:
    NavierStokesOperator *nso_;
 
 public:
-   TDNavierStokesOperator(NavierStokesOperator *nso) : TimeDependentOperator(
-         nso->fes_[0]->GetTrueVSize()),
-      nso_(nso)
-   {
-   }
+   TDNavierStokesOperator(NavierStokesOperator *nso) :
+      TimeDependentOperator(nso->fes_[0]->TrueVSize()), nso_(nso) {}
 
    void ImplicitSolve(const double dt,
-                      const Vector &x, Vector &dx_dt)
+                      const Vector &X, Vector &dX_dt)
    {
-      BlockVector b(nso_->block_trueOffsets_);
-      BlockVector xh(nso_->block_trueOffsets_);
-      Vector rhs_v(nso_->block_trueOffsets_[1]);
+      BlockVector xh(nso_->block_offsets_);
+      BlockVector b(nso_->block_offsets_);
 
-      xh.GetBlock(0) = x;
-      xh.GetBlock(1) = 0.0;
+      xh = 0.0;
+      b = 0.0;
 
-      b = nso_->trueRhs;
+      BlockVector Xh(nso_->block_trueOffsets_);
+      BlockVector B(nso_->block_trueOffsets_);
 
-      nso_->Mv->Mult(x, rhs_v);
+      Xh = 0.0;
+      B = 0.0;
 
-      rhs_v.SetSubVector(nso_->ess_tdof_list_, 0.0);
+      VectorFunctionCoefficient velexcoeff(nso_->pmesh_->Dimension(), vel_ex);
+      velexcoeff.SetTime(GetTime());
 
-      b.GetBlock(0) += rhs_v;
+      ParGridFunction vel_gf;
+      vel_gf.MakeRef(nso_->fes_[0], xh.GetBlock(0));
+      vel_gf.ProjectBdrCoefficient(velexcoeff, nso_->ess_bdr_attr_);
 
-      nso_->newton_solver.Mult(b, xh);
+      nso_->sform->FormLinearSystem(nso_->ess_tdof_list_, xh.GetBlock(0), b.GetBlock(0),
+                                    *(nso_->S), Xh.GetBlock(0), B.GetBlock(0));
 
-      subtract(1.0 / dt, xh.GetBlock(0), x, dx_dt);
+      nso_->dform->FormColLinearSystem(nso_->ess_tdof_list_, xh.GetBlock(0), b.GetBlock(1),
+                                       *(nso_->D), Xh.GetBlock(0), B.GetBlock(1));
+
+      Vector V(nso_->block_trueOffsets_[1]);
+      nso_->Mv->Mult(X, V);
+      V.SetSubVector(nso_->ess_tdof_list_, 0.0);
+
+      B.GetBlock(0) += V;
+
+      nso_->newton_solver.Mult(B, Xh);
+
+      subtract(1.0 / dt, Xh.GetBlock(0), X, dX_dt);
    }
 };
 
@@ -310,8 +301,9 @@ int main(int argc, char *argv[])
 
    int serial_ref_levels = 0;
    int order = 2;
-   double dt = 1e-2;
-   double t_final = 1.0;
+   double t_final = 1e-1;
+   int num_steps = 40;
+   double dt = t_final / num_steps;
 
    opt_.rey = 1.0;
 
@@ -336,13 +328,11 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   const char *mesh_file = "../../data/inline-quad.mesh";
-
    int vel_order = order;
    int pres_order = order - 1;
 
-   // Mesh *mesh = new Mesh(mesh_file);
-   Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, false, M_PI, M_PI);
+   Mesh *mesh = new Mesh(1, 1, Element::Type::QUADRILATERAL, false, 2.0 * M_PI, 2.0 * M_PI);
+   // Mesh *mesh = new Mesh("../../data/amr-quad.mesh");
    int dim = mesh->Dimension();
 
    for (int l = 0; l < serial_ref_levels; l++)
@@ -372,40 +362,22 @@ int main(int argc, char *argv[])
       cout << "Pressure #DOFs: " << fes_size1 << endl;
    }
 
-   Array<int> block_offsets;
-   Array<int> block_trueOffsets;
-   block_offsets.SetSize(3);
-   block_offsets[0] = 0;
-   block_offsets[1] = fes[0]->GetVSize();
-   block_offsets[2] = fes[1]->GetVSize();
-   block_offsets.PartialSum();
-
-   block_trueOffsets.SetSize(3);
-   block_trueOffsets[0] = 0;
-   block_trueOffsets[1] = fes[0]->TrueVSize();
-   block_trueOffsets[2] = fes[1]->TrueVSize();
-   block_trueOffsets.PartialSum();
-
    ODESolver *ode_solver = new BackwardEulerSolver;
+//   ODESolver *ode_solver = new SDIRK23Solver(2);
+//   ODESolver *ode_solver = new SDIRK33Solver;
 
    Array<int> ess_bdr_attr(pmesh->bdr_attributes.Max());
    ess_bdr_attr = 1;
 
-   BlockVector x(block_offsets), trueX(block_trueOffsets);
-
-   x = 0.0;
-   trueX = 0.0;
-
    VectorFunctionCoefficient velexcoeff(dim, vel_ex);
-   ParGridFunction vel_gf;
-   vel_gf.MakeRef(fes[0], x.GetBlock(0));
+   ParGridFunction vel_gf(fes[0]);
    vel_gf.ProjectCoefficient(velexcoeff);
 
-   fes[0]->GetRestrictionMatrix()->Mult(x.GetBlock(0), trueX.GetBlock(0));
-   fes[1]->GetRestrictionMatrix()->Mult(x.GetBlock(1), trueX.GetBlock(1));
+   Vector X(fes[0]->GlobalVSize());
+   vel_gf.GetTrueDofs(X);
 
    NavierStokesOperator nso(fes);
-   nso.Init(x, dt);
+   nso.BuildOperator(dt);
    TDNavierStokesOperator td_nso(&nso);
    ode_solver->Init(td_nso);
 
@@ -437,29 +409,30 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      cout << "\nTimestep: " << t << endl;
+      if (myid == 0)
+      {
+         cout << "\nTimestep: " << t << endl;
+      }
+
+      ode_solver->Step(X, t, dt);
+
+      vel_gf.Distribute(X);
 
       velexcoeff.SetTime(t);
-      vel_gf.ProjectBdrCoefficient(velexcoeff, ess_bdr_attr);
-
-      ode_solver->Step(trueX.GetBlock(0), t, dt);
-
-      vel_gf.Distribute(trueX.GetBlock(0));
-
       double err_u = vel_gf.ComputeL2Error(velexcoeff, irs);
       if (myid == 0)
       {
          cout << "|| u_h - u_ex || = " << err_u << "\n";
       }
 
-      ParGridFunction vel_gf_ex(fes[0]);
-      vel_gf_ex.ProjectCoefficient(velexcoeff);
-
-      vel_gf_ex -= vel_gf;
+      // Plot difference
+      ParGridFunction vel_ex_gf(fes[0]);
+      vel_ex_gf.ProjectCoefficient(velexcoeff);
+      vel_gf -= vel_ex_gf;
 
       u_sock << "parallel " << num_procs << " " << myid << "\n";
       u_sock << "solution\n"
-             << *pmesh << vel_gf_ex << flush;
+             << *pmesh << vel_gf << flush;
    }
 
    delete ode_solver;
