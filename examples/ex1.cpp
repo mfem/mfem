@@ -60,8 +60,6 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
-   int ref_levels = 2;
-   int seed = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -73,10 +71,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&ref_levels, "-r", "--ref_levels",
-                  "Number of refinement levels.");
-   args.AddOption(&seed, "-s", "--seed",
-                  "Random seed.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -104,28 +98,19 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   mesh->EnsureNCMesh(true);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      srand(seed);
-      /*int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);*/
+      int ref_levels =
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         //mesh->UniformRefinement();
-         mesh->RandomRefinement(0.5);
+         mesh->UniformRefinement();
       }
    }
-
-   if (mesh->ncmesh) {
-      ofstream f("ncdump.txt");
-      mesh->ncmesh->DebugDump(f);
-   }
-
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
