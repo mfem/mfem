@@ -195,6 +195,12 @@ protected:
    /// Auxiliary objects used in TrueAddMult().
    mutable ParGridFunction X, Y;
 
+   /// Contains the parallel assembled matrix.
+   HypreParMatrix *p_mat;
+   /// Contains the eliminated part of the parallel assembled matrix, when
+   /// essential boundary conditions have been applied.
+   HypreParMatrix *p_mat_e;
+
 private:
    /// Copy construction is not supported; body is undefined.
    ParMixedBilinearForm(const ParMixedBilinearForm &);
@@ -209,7 +215,7 @@ public:
        constructed object. */
    ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
                         ParFiniteElementSpace *test_fes)
-      : MixedBilinearForm(trial_fes, test_fes)
+      : MixedBilinearForm(trial_fes, test_fes), p_mat(nullptr), p_mat_e(nullptr)
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
@@ -241,10 +247,29 @@ public:
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
 
+   /// Form the rectangular matrix A and eliminate essential dofs.
+   virtual void FormColSystemMatrix(const Array<int> &ess_tdof_list,
+                                    HypreParMatrix &A);
+
+   /// Form the rectangular matrix A and eliminate essential dofs.
+   /** Form the rectangular matrix A and eliminate (zero out) the columns
+       corresponding to @a ess_trial_tdof_list. This takes the essential values
+       from @a x and puts them into @a b. Finally the vectors @a X and @a B
+       are created on the true dofs. This method can be called multiple times. */
+   virtual void FormColLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                                    Vector &b, HypreParMatrix &A, Vector &X,
+                                    Vector &B, int copy_interior = 0);
+
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
-   virtual ~ParMixedBilinearForm() { }
+   virtual ~ParMixedBilinearForm()
+   {
+      // We need this right because p_mat and p_mat_e are
+      // not OperatorHandles which get destroyed on scope exit.
+      if (p_mat) { delete p_mat; }
+      if (p_mat_e) { delete p_mat_e; }
+   }
 };
 
 /** The parallel matrix representation a linear operator between parallel finite

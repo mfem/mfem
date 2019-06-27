@@ -334,6 +334,11 @@ public:
    void EliminateRowCol(int rc, SparseMatrix &Ae,
                         DiagonalPolicy dpolicy = DIAG_ONE);
 
+   /** @brief Similar to EliminateCols + save the
+    eliminated entries into @a Ae so that (*this) + Ae is equal to the
+    original matrix. */
+   void EliminateCols(const Array<int> &col_marker, SparseMatrix &Ae);
+
    /// If a row contains only one diag entry of zero, set it to 1.
    void SetDiagIdentity();
    /// If a row contains only zeros, set its diagonal to 1.

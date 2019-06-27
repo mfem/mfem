@@ -509,6 +509,7 @@ class MixedBilinearForm : public Matrix
 {
 protected:
    SparseMatrix *mat; ///< Owned.
+   SparseMatrix *mat_e; ///< Owned.
 
    FiniteElementSpace *trial_fes, ///< Not owned
                       *test_fes;  ///< Not owned
@@ -620,6 +621,21 @@ public:
                                           const Vector &sol, Vector &rhs);
 
    virtual void EliminateTestDofs(Array<int> &bdr_attr_is_ess);
+
+
+   /// Form the rectangular matrix A and eliminate essential dofs.
+   void FormColSystemMatrix(const Array<int> &ess_trial_tdof_list,
+                            SparseMatrix &A);
+
+   /// Form the rectangular matrix A and eliminate essential dofs.
+   /** Form the rectangular matrix A and eliminate (zero out) the columns
+       corresponding to @a ess_trial_tdof_list. This takes the essential values
+       from @a x and puts them into @a b. Finally the vectors @a X and @a B
+       are created on the true dofs. This method can be called multiple times. */
+   void FormColLinearSystem(const Array<int> &ess_trial_tdof_list, Vector &x,
+                            Vector &b,
+                            SparseMatrix &A, Vector &X, Vector &B,
+                            int copy_interior = 0);
 
    void Update();
 

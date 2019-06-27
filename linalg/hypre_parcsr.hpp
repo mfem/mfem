@@ -41,11 +41,13 @@ void hypre_ParCSRMatrixEliminateAXB(hypre_ParCSRMatrix *A,
 
 /** Parallel essential BC elimination from matrix A only. The eliminated
     elements are stored in a new matrix Ae, so that (A + Ae) equals the original
-    matrix A. */
+    matrix A. The parameter @a ignore_rows allows to ignore rows on
+    the elimination. */
 void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                     hypre_ParCSRMatrix **Ae,
                                     HYPRE_Int num_rowscols_to_elim,
-                                    HYPRE_Int *rowscols_to_elim);
+                                    HYPRE_Int *rowscols_to_elim,
+                                    int ignore_rows = 0);
 
 /** Split matrix 'A' into nr x nc blocks, return nr x nc pointers to
     new parallel matrices. The array 'blocks' needs to be preallocated to hold
