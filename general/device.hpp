@@ -285,7 +285,7 @@ inline T *ReadWrite(Memory<T> &mem, int size, bool on_dev = true)
 
 /** @brief Shortcut to ReadWrite(const Memory<T> &mem, int size, false) */
 template <typename T>
-inline T *HostReadWrite(const Memory<T> &mem, int size)
+inline T *HostReadWrite(Memory<T> &mem, int size)
 {
    return mfem::ReadWrite(mem, size, false);
 }
