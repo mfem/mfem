@@ -17,6 +17,10 @@
       <Configuration>ParDebug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="ParReleaseWithDebugInfo|x64">
+      <Configuration>ParReleaseWithDebugInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="ParRelease|x64">
       <Configuration>ParRelease</Configuration>
       <Platform>x64</Platform>
@@ -69,6 +73,11 @@
     <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>Intel C++ Compiler 18.0</PlatformToolset>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ParReleaseWithDebugInfo|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>Intel C++ Compiler 18.0</PlatformToolset>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
@@ -108,6 +117,10 @@
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
     <Import Project="..\..\..\src\Win32\Properties\Parallel.x64.props" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ParReleaseWithDebugInfo|x64'" Label="PropertySheets">
+    <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
+    <Import Project="..\..\..\src\Win32\Properties\Parallel.x64.props" />
+  </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
@@ -120,9 +133,11 @@
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">mfem</TargetName>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='CUDARelease|x64'">mfem</TargetName>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">mfem</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='ParReleaseWithDebugInfo|x64'">mfem</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.lib</TargetExt>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='CUDARelease|x64'">.lib</TargetExt>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">.lib</TargetExt>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='ParReleaseWithDebugInfo|x64'">.lib</TargetExt>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">mfem</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">.lib</TargetExt>
   </PropertyGroup>
@@ -272,6 +287,35 @@
     <Lib />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>config;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_USE_MPI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib />
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ParReleaseWithDebugInfo|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>config;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
