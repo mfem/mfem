@@ -212,54 +212,41 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                     coeff, pa_data);
 }
 
-template<const int T_D1D = 0,
-         const int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 static void PADiffusionAssembleDiagonal2D(const int NE,
                                           const Array<double> &b,
                                           const Array<double> &g,
-                                          const Array<double> &bt,
-                                          const Array<double> &gt,
-                                          const Vector &_op,
-                                          Vector &_diag,
+                                          const Vector &op,
+                                          Vector &diag,
                                           const int d1d = 0,
                                           const int q1d = 0)
 {
    // see eg PADiffusionApply2D
-
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
-   // auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   // auto Gt = Reshape(gt.Read(), D1D, Q1D);
-
-   // note different shape for op, this is a (symmetric) matrix, we only
-   // store necessary entries
-   auto op = Reshape(_op.Read(), Q1D*Q1D, 3, NE);
-   auto y = Reshape(_diag.ReadWrite(), D1D, D1D, NE);
-
+   // note different shape for op, this is a (symmetric) matrix,
+   // we only store necessary entries
+   auto Q = Reshape(op.Read(), Q1D*Q1D, 3, NE);
+   auto Y = Reshape(diag.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-
-      // gradphi \cdot OP \gradphi has four terms
+      // gradphi \cdot Q \gradphi has four terms
       // we could probably use symmetry to make it three?
-
-      // 4 terms: 
+      // 4 terms:
       // one   Gx By O11 Gx By;
       // two   Gx By O12 Bx Gy;
       // three Bx Gy O21 Gx By;
       // four  Bx Gy O22 Bx Gy
-
       // below I do them all at once, but you could save memory by
       // doing them one at a time (with longer code...)
-
       double tempone[max_Q1D][max_D1D];
       double temptwo[max_Q1D][max_D1D];
       double tempthree[max_Q1D][max_D1D];
@@ -275,15 +262,13 @@ static void PADiffusionAssembleDiagonal2D(const int NE,
             for (int qy = 0; qy < Q1D; ++qy)
             {
                const int q = qx + qy * Q1D;
-
-               const double O11 = op(q,0,e);
-               const double O12 = op(q,1,e);
-               const double O22 = op(q,2,e);
-
-               tempone[qx][dy] += B(qy, dy) * B(qy, dy) * O11;
-               temptwo[qx][dy] += B(qy, dy) * G(qy, dy) * O12;
+               const double O11 = Q(q,0,e);
+               const double O12 = Q(q,1,e);
+               const double O22 = Q(q,2,e);
+               tempone[qx][dy]   += B(qy, dy) * B(qy, dy) * O11;
+               temptwo[qx][dy]   += B(qy, dy) * G(qy, dy) * O12;
                tempthree[qx][dy] += G(qy, dy) * B(qy, dy) * O12;
-               tempfour[qx][dy] += G(qy, dy) * G(qy, dy) * O22;
+               tempfour[qx][dy]  += G(qy, dy) * G(qy, dy) * O22;
             }
          }
       }
@@ -293,25 +278,114 @@ static void PADiffusionAssembleDiagonal2D(const int NE,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               y(dx,dy,e) += G(qx, dx) * G(qx, dx) * tempone[qx][dy];
-               y(dx,dy,e) += G(qx, dx) * B(qx, dx) * temptwo[qx][dy];
-               y(dx,dy,e) += B(qx, dx) * G(qx, dx) * tempthree[qx][dy];
-               y(dx,dy,e) += B(qx, dx) * B(qx, dx) * tempfour[qx][dy];
+               Y(dx,dy,e) += G(qx, dx) * G(qx, dx) * tempone[qx][dy];
+               Y(dx,dy,e) += G(qx, dx) * B(qx, dx) * temptwo[qx][dy];
+               Y(dx,dy,e) += B(qx, dx) * G(qx, dx) * tempthree[qx][dy];
+               Y(dx,dy,e) += B(qx, dx) * B(qx, dx) * tempfour[qx][dy];
             }
          }
       }
    });
 }
 
-template<const int T_D1D = 0,
-         const int T_Q1D = 0>
+// Shared memory PA Diffusion Diagonal 2D kernel
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+static void SmemPADiffusionAssembleDiagonal2D(const int NE,
+                                              const Array<double> &_b,
+                                              const Array<double> &_g,
+                                              const Vector &_q,
+                                              Vector &_y,
+                                              const int d1d = 0,
+                                              const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
+   auto b = Reshape(_b.Read(), Q1D, D1D);
+   auto g = Reshape(_g.Read(), Q1D, D1D);
+   auto Q = Reshape(_q.Read(), Q1D*Q1D, 3, NE);
+   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      MFEM_SHARED double BG[2][MQ1*MD1];
+      double (*B)[MD1] = (double (*)[MD1]) (BG+0);
+      double (*G)[MD1] = (double (*)[MD1]) (BG+1);
+      MFEM_SHARED double T[4][NBZ][MD1][MQ1];
+      double (*T0)[MD1] = (double (*)[MD1])(T[0] + tidz);
+      double (*T1)[MD1] = (double (*)[MD1])(T[1] + tidz);
+      double (*T2)[MD1] = (double (*)[MD1])(T[2] + tidz);
+      double (*T3)[MD1] = (double (*)[MD1])(T[3] + tidz);
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               B[q][d] = b(q,d);
+               G[q][d] = g(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            T0[qx][dy] = 0.0;
+            T1[qx][dy] = 0.0;
+            T2[qx][dy] = 0.0;
+            T3[qx][dy] = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const int q = qx + qy * Q1D;
+               const double O11 = Q(q,0,e);
+               const double O12 = Q(q,1,e);
+               const double O22 = Q(q,2,e);
+               const double By = B[qy][dy];
+               const double Gy = G[qy][dy];
+               T0[qx][dy] += By * By * O11;
+               T1[qx][dy] += By * Gy * O12;
+               T2[qx][dy] += Gy * By * O12;
+               T3[qx][dy] += Gy * Gy * O22;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double Bx = B[qx][dx];
+               const double Gx = G[qx][dx];
+               y(dx,dy,e) += Gx * Gx * T0[qx][dy];
+               y(dx,dy,e) += Gx * Bx * T1[qx][dy];
+               y(dx,dy,e) += Bx * Gx * T2[qx][dy];
+               y(dx,dy,e) += Bx * Bx * T3[qx][dy];
+            }
+         }
+      }
+   });
+}
+
+
+template<int T_D1D = 0, int T_Q1D = 0>
 static void PADiffusionAssembleDiagonal3D(const int NE,
                                           const Array<double> &b,
                                           const Array<double> &g,
-                                          const Array<double> &bt,
-                                          const Array<double> &gt,
-                                          const Vector &_op,
-                                          Vector &_diag,
+                                          const Vector &op,
+                                          Vector &diag,
                                           const int d1d = 0,
                                           const int q1d = 0)
 {
@@ -322,10 +396,8 @@ static void PADiffusionAssembleDiagonal3D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
-   // auto Bt = Reshape(bt.Read(), D1D, Q1D);
-   // auto Gt = Reshape(gt.Read(), D1D, Q1D);
-   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 6, NE);
-   auto y = Reshape(_diag.ReadWrite(), D1D, D1D, D1D, NE);
+   auto Q = Reshape(op.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto y = Reshape(diag.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -377,12 +449,12 @@ static void PADiffusionAssembleDiagonal3D(const int NE,
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   const int q = qx + (qy + qz * Q1D) * Q1D;
-                  const double O11 = op(q,0,e);
-                  const double O12 = op(q,1,e);
-                  const double O13 = op(q,2,e);
-                  const double O22 = op(q,3,e);
-                  const double O23 = op(q,4,e);
-                  const double O33 = op(q,5,e);
+                  const double O11 = Q(q,0,e);
+                  const double O12 = Q(q,1,e);
+                  const double O13 = Q(q,2,e);
+                  const double O22 = Q(q,3,e);
+                  const double O23 = Q(q,4,e);
+                  const double O33 = Q(q,5,e);
 
                   tempone[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O11;
                   temptwo[qx][qy][dz] += B(qz, dz) * B(qz, dz) * O12;
@@ -474,8 +546,6 @@ static void PADiffusionAssembleDiagonal(const int dim,
                                         const int NE,
                                         const Array<double> &B,
                                         const Array<double> &G,
-                                        const Array<double> &Bt,
-                                        const Array<double> &Gt,
                                         const Vector &op,
                                         Vector &y)
 {
@@ -492,14 +562,14 @@ static void PADiffusionAssembleDiagonal(const int dim,
       {
          switch ((D1D << 4 ) | Q1D)
          {
-            default:   return PADiffusionAssembleDiagonal2D(NE,B,G,Bt,Gt,op,y,D1D,Q1D);
+            default:   return PADiffusionAssembleDiagonal2D(NE,B,G,op,y,D1D,Q1D);
          }
       }
       if (dim == 3)
       {
          switch ((D1D << 4 ) | Q1D)
          {
-            default:   return PADiffusionAssembleDiagonal3D(NE,B,G,Bt,Gt,op,y,D1D,Q1D);
+            default:   return PADiffusionAssembleDiagonal3D(NE,B,G,op,y,D1D,Q1D);
          }
       }
    }
@@ -507,14 +577,17 @@ static void PADiffusionAssembleDiagonal(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         default:   return PADiffusionAssembleDiagonal2D(NE,B,G,Bt,Gt,op,y,D1D,Q1D);
+         //case 0x22: return SmemPADiffusionAssembleDiagonal2D<2,2,16>(NE,B,G,op,y);
+         case 0x22: return PADiffusionAssembleDiagonal2D(NE,B,G,op,y,D1D,Q1D);
+         default: mfem_error("Unimplemented!");
+            // return PADiffusionAssembleDiagonal2D(NE,B,G,op,y,D1D,Q1D);
       }
    }
    else if (dim == 3)
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         default:   return PADiffusionAssembleDiagonal3D(NE,B,G,Bt,Gt,op,y,D1D,Q1D);
+         default:   return PADiffusionAssembleDiagonal3D(NE,B,G,op,y,D1D,Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
@@ -523,8 +596,7 @@ static void PADiffusionAssembleDiagonal(const int dim,
 void DiffusionIntegrator::AssembleDiagonalPA(Vector& diag) const
 {
    PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
-                               maps->B, maps->G, maps->Bt, maps->Gt,
-                               pa_data, diag);
+                               maps->B, maps->G, pa_data, diag);
 }
 
 #ifdef MFEM_USE_OCCA

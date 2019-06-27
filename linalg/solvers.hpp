@@ -86,8 +86,9 @@ public:
        It is assumed the underlying operator acts as the identity
        on entries in ess_tdof_list, corresponding to (assembled) DIAG_ONE
        policy or ConstratinedOperator in the matrix-free setting. */
-   VectorSmoother(Vector d, Array<int>& ess_tdof_list,
-                  double damping=1.0);
+   VectorSmoother(const Vector &d,
+                  const Array<int>& ess_tdof_list,
+                  const double damping=1.0);
    ~VectorSmoother() {}
 
    void Mult(const Vector&x, Vector &y) const;
@@ -97,10 +98,15 @@ public:
       oper = &op_;
    }
 
-private:
-   Vector dinv;
-   mutable Vector residual;
+   void Setup();
 
+private:
+   const int N;
+   Vector dinv;
+   const Vector &diag;
+   const double damping;
+   const Array<int>& ess_tdof_list;
+   mutable Vector residual;
    /// could use IterativeSolver as base class to have this
    /// but don't want tolerances, preconditioner, etc.
    const Operator* oper;
