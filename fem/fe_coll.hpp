@@ -129,15 +129,9 @@ public:
 /** Arbitrary order H1-conforming (continuous) serendipity finite elements. */
 class H1Ser_FECollection : public H1_FECollection
 {
-private:
-    int serendipityOrder;
-
 public:
     explicit H1Ser_FECollection(const int p, const int dim = 2)
      : H1_FECollection(p, dim, BasisType::Serendipity) { }
-    // int DofForGeometry(Geometry::Type GeomType) const;
-    int GetSerendipityOrder() const;
-    int SetSerendipityOrder(int i); 
 };
 
 

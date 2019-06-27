@@ -1958,7 +1958,21 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    int p = (this)->GetOrder();
    double x = ip.x, y = ip.y; 
 
-   cout << " ip is (" << x << ", " << y << ")" << endl;
+
+   // compute values of shape functions at edge points
+   // use these as weights to normalize functions  -> enforce nodality
+
+  
+   // cout << "edgePts = ";
+   // for(int i=0; i<p+1; i++)
+   // {
+   //    cout << edgePts[i] << ", ";
+   // }
+   // cout << endl;
+
+   // cout << " ip is (" << x << ", " << y << ")" << endl;
+
+   // asdf
 
    Poly_1D::Basis edgeNodalBasis(poly1d.GetBasis(p, BasisType::GaussLobatto));
    Vector nodalX(p+1);
@@ -1967,69 +1981,65 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    edgeNodalBasis.Eval(x, nodalX);
    edgeNodalBasis.Eval(y, nodalY);
 
-   // cout << "nodalX = ";
-   // nodalX.Print();
-
-   // compute values of shape functions at edge points
-   // use these as weights to normalize functions  -> enforce nodality
-
-   const double *edgePts(poly1d.OpenPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
-
-   // cout << "edgePts = ";
-   // for(int i=0; i<p+1; i++)
-   // {
-   //    cout << edgePts[i] << ", ";
-   // }
-   // cout << endl;
-   Vector edgeWeights(p-1); // indices 0 to p-1 correspond to edge pts 1 to p; same for any edge
-   
-   for(int i = 0; i<p-1; i++)
-   {
-      // Vector temp(p-1); // hold result of next function call - this is wasteful 
-      // edgeNodalBasis.Eval(edgePts[i+1], temp);
-      // edgeWeights(i) = 1/(temp(i) * (edgePts[i+1]) * (1. - edgePts[i+1]));  // dividing by a small number - this is probably REALLY bad
-      edgeWeights(i) = edgePts[i+1]; // (1.)/((edgePts[i+1]) * (1. - edgePts[i+1]));  
-   }
-
-   cout << "edgePts= ";
-   edgeWeights.Print();
-   cout << endl;
-
-
    for (int i = 0; i < p-1; i++)
    {
-      shape(4 + 0*(p-1) + i) = (nodalX(i+1)) * (1. - y) * x * (1. - x);      // south edge 0->1
-      shape(4 + 1*(p-1) + i) = edgeWeights(i)*(nodalY(i+1)) * x * y * (1. - y);             // east edge  1->2
-      shape(4 + 3*(p-1) - i - 1) = edgeWeights(i)*(nodalX(i+1)) * x * y * (1. - x);         // north edge 3->2
-      shape(4 + 4*(p-1) - i - 1) = edgeWeights(i)*(nodalY(i+1)) * (1. - x) * y * (1. - y);  // west edge  0->3
-      // shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
-      // shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
-      // shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
-      // shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
+      // cout << "loop i=" << i << ", eW(i)= " << edgeWeights(i) << ", nodalX(i+1)= " << nodalX(i+1) << " rest= " << (1. - y) * x * (1. - x) << endl;
+      shape(4 + 0*(p-1) + i) = (nodalX(i+1))*(1.-y);      // south edge 0->1
+      shape(4 + 1*(p-1) + i) = (nodalY(i+1))*x;             // east edge  1->2
+      shape(4 + 3*(p-1) - i - 1) = (nodalX(i+1)) * y;         // north edge 3->2
+      shape(4 + 4*(p-1) - i - 1) = (nodalY(i+1)) * (1. - x);  // west edge  0->3
+
+      // shape(4 + 0*(p-1) + i) = edgeWeights(i)*(nodalX(i+1)) * (1. - y) * x * (1. - x);      // south edge 0->1
+      // shape(4 + 1*(p-1) + i) = edgeWeights(i)*(nodalY(i+1)) * x * y * (1. - y);             // east edge  1->2
+      // shape(4 + 3*(p-1) - i - 1) = edgeWeights(i)*(nodalX(i+1)) * x * y * (1. - x);         // north edge 3->2
+      // shape(4 + 4*(p-1) - i - 1) = edgeWeights(i)*(nodalY(i+1)) * (1. - x) * y * (1. - y);  // west edge  0->3
+      // // shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
+      // // shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
+      // // shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
+      // // shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
    }
 
-  // cout << " edge shapes are " << shape(4) << ", " << shape(5) << ", " << shape(6) << ", " << shape(7)  << endl;
+   // cout << " edge shapes are " << shape(4) << ", " << shape(5) << ", " << shape(6) << ", " << shape(7)  << endl << endl;
 
    BiLinear2DFiniteElement bilinear = BiLinear2DFiniteElement();
    Vector bilinearsAtIP(4);
    bilinear.CalcShape(ip, bilinearsAtIP);
 
-
-   // cout << " edgePts[1] = " << edgePts[1] << endl;
+   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
 
    // shape function for a vertex V at x,y = 
    //    bilinear function for V evaluated at x,y
    //  - sum( shape function at edge point P, weighted by bilinear function for V evaluated at P)
    //   and you only have to take the sum over edges incident to V
 
-   shape(0) = bilinearsAtIP(0) - ((1-edgePts[1])*shape(4) + (edgePts[1])*shape(7));
-   shape(1) = bilinearsAtIP(1) - ((1-edgePts[1])*shape(5) + ((1-edgePts[1])*shape(4)));
-   shape(2) = bilinearsAtIP(2) - ((edgePts[1])*shape(6)   + (1-edgePts[1])*shape(5));
-   shape(3) = bilinearsAtIP(3) - ((edgePts[1])*shape(7)   + (edgePts[1])*shape(6));
+   double vtx0fix =0;
+   double vtx1fix =0;
+   double vtx2fix =0;
+   double vtx3fix =0;
+   for(int i = 0; i<p-1; i++)
+   {
+      // cout << "i= " << i << ", adding shapes " << 4 + 0*(p-1) + i << " and " << 4 + 4*(p-1) - i - 1 << endl;
+      // cout << "1-edgePts[i] = " <<(1-edgePts[i]) << endl;
+      vtx0fix += (1-edgePts[i+1])*(shape(4 + i)          +shape(4 + 4*(p-1) - i - 1));  // bot + left edge
+      vtx1fix += (1-edgePts[i+1])*(shape(4 + 1*(p-1) + i)+shape(4 + (p-2)-i));      // right + bot edge
+      vtx2fix += (1-edgePts[i+1])*(shape(4 + 2*(p-1) + i)+shape(1 + 2*p-i));  // top + right edge
+      vtx3fix += (1-edgePts[i+1])*(shape(4 + 3*(p-1) + i)+shape(3*p - i));  // left + top edge
+   }
+
+   shape(0) = bilinearsAtIP(0) - vtx0fix;
+   shape(1) = bilinearsAtIP(1) - vtx1fix;
+   shape(2) = bilinearsAtIP(2) - vtx2fix;
+   shape(3) = bilinearsAtIP(3) - vtx3fix;
+
+
+   // these work for order 3:
+
+   // shape(0) = bilinearsAtIP(0) - ((1-edgePts[1])*(shape(4)+shape(11)) + (edgePts[1])*(shape(5)+shape(10)));
+   // shape(1) = bilinearsAtIP(1) - ((1-edgePts[1])*(shape(5)+shape(6 )) + (edgePts[1])*(shape(4)+shape(7 )));
+   // shape(2) = bilinearsAtIP(2) - ((1-edgePts[1])*(shape(7)+shape(8 )) + (edgePts[1])*(shape(6)+shape(9 )));
+   // shape(3) = bilinearsAtIP(3) - ((1-edgePts[1])*(shape(9)+shape(10)) + (edgePts[1])*(shape(8)+shape(11)));
 
    // cout << " vtx vals are : " << shape(0) << ", " << shape(1) << ", " << shape(2) << ", " << shape(3) << endl << endl;
-
-
 
    // shape(0) = (1.-x)*(1.-y);
    // shape(1) = x*(1.-y);
@@ -7874,6 +7884,11 @@ void H1_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
 
    basis1d.Eval(ip.x, shape_x);
    basis1d.Eval(ip.y, shape_y);
+
+   // cout << " ips are: " << endl;
+   // shape_x.Print();
+   // shape_y.Print();
+
 
    for (int o = 0, j = 0; j <= p; j++)
       for (int i = 0; i <= p; i++)

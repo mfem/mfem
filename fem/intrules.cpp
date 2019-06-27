@@ -620,7 +620,6 @@ void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
       }
       case Quadrature1D::GaussLobatto:
       {
-         cout << "intrules: in GaussLobatto case" << endl;
          GaussLobatto(np, &ir);
          break;
       }
@@ -645,14 +644,10 @@ void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
                     "type = " << type);
       }
    }
-
-   cout << "type = " << type << ", np = " << np << endl;
    for (int i = 0 ; i < np ; ++i)
    {
       pts[i] = ir.IntPoint(i).x;
-      cout << " pts[" << i << "]= " << pts[i] << ", ";
    }
-   cout << endl;
 }
 
 void QuadratureFunctions1D::CalculateUniformWeights(IntegrationRule *ir,
@@ -819,6 +814,7 @@ int Quadrature1D::CheckClosed(int type)
    {
       case GaussLobatto:
       case ClosedUniform:
+      case Serendipity:
          return type;
       default:
          return Invalid;
