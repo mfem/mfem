@@ -283,15 +283,6 @@ public:
        value of 0 indicates a failure, interrupting the Newton iteration. */
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const
    { return 1.0; }
-
-   /** @brief Compare the gradient of the Operator to a finite difference
-    * approximation. */
-   /** Using forward finite differences on the input vector @a x, compute
-    * the gradient and compare it to the gradient defined in the Operator.
-    * The true dofs in @a ess_tdof are ignored, s.t. gradients with applied
-    * essential boundary conditions can be tested. The method will inform
-    * the user which column has an l2 norm above the tolerance. */
-   void CheckJacobian(Vector &x, Array<int> &ess_tdof);
 };
 
 /** Adaptive restarted GMRES.
