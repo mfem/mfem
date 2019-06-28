@@ -340,6 +340,10 @@ Before a PR can be merged, it should satisfy the following:
     - [ ] Have the version ranges for any required or optional libraries changed?
     - [ ] Does `make` or `cmake` have a new target?
     - [ ] Did the requirements or the installation process change? *(rare)*
+- [ ] Update `.travis.yml` and `.appveyor.yml`:
+    - [ ] Had a new optional library (with required versions) been
+          added to `INSTALL`?
+    - [ ] Have version ranges for any required or optional libraries changed?
 - [ ] Update `.gitignore`:
     - [ ] Check if `make distclean; git status` shows any files that are generated from the source but we don't want to track in the repository.
     - [ ] Add new patterns (just for the new files above) and re-run the above test.
