@@ -286,7 +286,7 @@ public:
       OpenUniform     = 2,  ///< aka open Newton-Cotes
       ClosedUniform   = 3,  ///< aka closed Newton-Cotes
       OpenHalfUniform = 4,  ///< aka "open half" Newton-Cotes
-      Serendipity      = 5   ///< will be Gauss-Lobatto, but need flag for serendipity
+      Serendipity     = 5   ///< will be Gauss-Lobatto, but need flag for serendipity
    };
    /** @brief If the Quadrature1D type is not closed return Invalid; otherwise
        return type. */

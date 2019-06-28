@@ -1,18 +1,5 @@
-//                        MFEM Analytic Convergence Example
+//      MFEM Comparing Tensor product and serendipity implementations
 //
-// *** Adapted from an MPI example in atpesc-dev branch
-// *** find it at mfem/examples/atpesc/mfem/convergence.cpp
-// *** Developed at LLNL
-//
-// Compile with: make convergence
-//
-// Sample runs:  convergence -m ../../../data/square-disc.mesh
-//
-// Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
-//               -Delta u = f with exact sinusoidal solution under uniform
-//               refinement. Convergence statistics are gathered for both
-//               L2 and H1 error so various order methods can be compared.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -27,39 +14,30 @@ void u_grad_exact(const Vector &, Vector &);
 double u_exact_2(const Vector &);
 void u_grad_exact_2(const Vector &, Vector &);
 
-void convergenceStudy(const char *mesh_file, int num_ref, int &order,
-                      double &l2_err_prev, double &h1_err_prev, bool &visualization, int &exact, int &dof2view, int &solvePDE, bool static_cond)
+void compare(const char *mesh_file, int num_ref, int &order,
+                      double &l2_err_prev, double &h1_err_prev, int &exact, int &solvePDE)
 {
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 4. Refine the mesh num_ref times
 
-   if (dof2view == -1)
+   for (int l = 1; l < num_ref+1; l++)
    {
-      for (int l = 1; l < num_ref+1; l++)
-      {
-         mesh->UniformRefinement();
-      }
+      mesh->UniformRefinement();
    }
 
-
-   // 5. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order.
-
+   // order > 1 --> serendipity
+   // order < 0 --> tensor product
 
    FiniteElementCollection *fec;
-   if (order == 1)
-   {
-      fec = new H1_FECollection(3, 2);
-   }
-   else if (order > 1)
+   if (order > 1)
    {
       fec = new H1Ser_FECollection(order, 2);
    }
    else if (order < 0)
    {
-      fec = new H1_FECollection(-order, 2, BasisType::Positive);
+      fec = new H1_FECollection(-order, 2);
    }
    else
    {
@@ -118,6 +96,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // For L2 Projection:
    // Do not get boundary dofs
 
+
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
@@ -160,12 +139,13 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    {
       a->AddDomainIntegrator(new MassIntegrator);
    }
-   
+
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
+   //  if (static_cond) { a->EnableStaticCondensation(); }
+
    a->Assemble();
 
    OperatorPtr A;
@@ -185,12 +165,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // Hack to viusalize a single basis function
-   if (dof2view != -1)
-   {
-      x=0;
-      x(dof2view) = 1;
-   }
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -200,17 +174,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
-
-   // 14. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
-   }
-
 
    // Compute and print the L^2 and H^1 norms of the error.
    ConstantCoefficient one(1.0);
@@ -232,9 +195,8 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    int one_over_h = mesh->GetNE();
    one_over_h = sqrt(one_over_h);
 
-   cout << setw(16) << gotNdofs << setw(16) << one_over_h << setw(
-           16) << l2_err << setw( 16) << l2_rate;
-   cout << setw(16) << h1_err << setw(16) << h1_rate << endl;
+   cout << gotNdofs <<  ", " << l2_err <<  ", ";
+   cout << h1_err;
 
    l2_err_prev = l2_err;
    h1_err_prev = h1_err;
@@ -294,9 +256,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    const char *device_config = "cpu";
-   bool visualization = false;
    int exact = 1;
-   int dof2view = -1;
    int solvePDE = 1;
 
    OptionsParser args(argc, argv);
@@ -309,17 +269,10 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   //args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-   //             "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
    args.AddOption(&exact, "-e", "--exact", 
                   "Choice of exact solution. 1=constant 1; 2=sin(x)e^y.");
-   args.AddOption(&dof2view, "-dof", "--dof2view",
-                  "DEBUG option: viewing a single dof:");
    args.AddOption(&solvePDE, "-L", "--L2Project",
                   "Solve a PDE (1) or do L2 Projection (2)");
    args.Parse();
@@ -328,19 +281,19 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(cout);
+   // args.PrintOptions(cout);
 
    if (order == 1)
    {
-      cout << "Using nodal H1 *** CUBIC *** tensor product elements (for testing / comparison)." << endl;
+      // cout << "Using nodal H1 *** CUBIC *** tensor product elements (for testing / comparison)." << endl;
    }
    else if (order > 1)
    {
-      cout << "Using H1 serendipity elements of order " << order << "." << endl;
+      // cout << "Using H1 serendipity elements of order " << order << "." << endl;
    }
    else if (order < 0)
    {
-      cout << "Using H1 positive (Bernstein) basis of order " << -order << "." << endl;
+      // cout << "Using H1 positive (Bernstein) basis of order " << -order << "." << endl;
    }
    else
    {
@@ -353,14 +306,14 @@ int main(int argc, char *argv[])
 
    if (solvePDE == 1)
    {
-      cout << "Approximating solution to Laplace problem with ";
+      // cout << "Approximating solution to Laplace problem with ";
       if (exact == 1)
       {
-        cout << "exact solution u(x,y)=x+y" << endl;
+        // cout << "exact solution u(x,y)=x+y" << endl;
       }
       else if (exact == 2)
       {
-         cout << "exact solution u(x,y)=sin(y)e^x" << endl;
+         // cout << "exact solution u(x,y)=sin(y)e^x" << endl;
       }
       else
       {
@@ -371,14 +324,14 @@ int main(int argc, char *argv[])
    }
    else if (solvePDE == 2)
    {
-      cout << "Doing L^2 projection of basis with right hand side ";
+      // cout << "Doing L^2 projection of basis with right hand side ";
       if (exact == 1)
       {
-        cout << "u(x,y)=x+y" << endl;
+        // cout << "u(x,y)=x+y" << endl;
       }
       else if (exact == 2)
       {
-         cout << "u(x,y)=sin(y)e^x" << endl;
+         // cout << "u(x,y)=sin(y)e^x" << endl;
       }
       else
       {
@@ -395,47 +348,48 @@ int main(int argc, char *argv[])
    }
 
 
-   if (dof2view != -1)
-   {
-      cout << "DEBUG option: solution deleted; just viewing dof # " << dof2view << endl;
-   }
-
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
-   device.Print();
+   // device.Print();
 
    // Set output options and print header
-   cout.precision(4);
+   cout.precision(10);
 
-   cout << "----------------------------------------------------------------------------------------"
-        << endl;
-   cout << left << setw(16) << "DOFs "<< setw(16) <<"1/h "<< setw(
-           16) << "L^2 error "<< setw(16);
-   cout << "L^2 rate "<< setw(16) << "H^1 error "<< setw(16) << "H^1 rate" << endl;
-   cout << "----------------------------------------------------------------------------------------"
-        << endl;
+
+   // cout << left << "q3dofs, " << "q3eru, " << "q3erDu, ";
+   // cout << "s3dofs, " << "s3eru, " << "s3erDu";
+   // cout << "q4dofs, " << "q4eru, " << "q4erDu";
+   // cout << "s4dofs, " << "s4eru, " << "s4erDu";
+   // cout << "q5dofs, " << "q5eru, " << "q5erDu";
+   cout << "s5dofs, " << "s5eru, " << "s5erDu";
+   cout << endl;
 
    double l2_err_prev = 0.0;
    double h1_err_prev = 0.0;
 
-   // 3. Read the mesh from the given mesh file.
-   // Run last round with vis, if desired.
+   int o1 = -3;
+   int o2 = 3;
+   int o3 = -4;
+   int o4 = 4;
+   int o5 = -5;
+   int o6 = 5;
 
-   // can use this as a max DoF tolerance:  (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-
-   // Loop over number of refinements for convergence study
-
-
-   if (dof2view == -1)
+   for (int i = 0; i < (total_refinements)+1; i++)
    {
-      bool noVisYet = false;
-      for (int i = 0; i < (total_refinements); i++)
-      {
-         convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, exact, dof2view, solvePDE, static_cond);
-      }
+       // compare(mesh_file, i, o1, l2_err_prev, h1_err_prev, exact, solvePDE);
+       // cout << ", ";
+       // compare(mesh_file, i, o2, l2_err_prev, h1_err_prev, exact, solvePDE);
+       // cout << ", ";
+       // compare(mesh_file, i, o3, l2_err_prev, h1_err_prev, exact, solvePDE);
+       // // cout << ", ";
+       // compare(mesh_file, i, o4, l2_err_prev, h1_err_prev, exact, solvePDE);
+       // cout << ", ";
+       // compare(mesh_file, i, o5, l2_err_prev, h1_err_prev, exact, solvePDE);
+       // cout << ", ";
+       compare(mesh_file, i, o6, l2_err_prev, h1_err_prev, exact, solvePDE);
+       cout << endl;
    }
-   convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, exact, dof2view, solvePDE, static_cond);
    return 0;
 }
