@@ -90,11 +90,16 @@ public:
     globalIndex = -1;
   }
   
-  std::set<int> vertices, faces;  // local pmesh vertex and face indices
+  std::set<int> vertices, edges, faces;  // local pmesh vertex, edges, and face indices
   
   void InsertVertexIndex(const int v)
   {
     vertices.insert(v);
+  }
+
+  void InsertEdgeIndex(const int e)
+  {
+    edges.insert(e);
   }
 
   void InsertFaceIndex(const int f)
@@ -231,9 +236,10 @@ public:
 		
 		const int interfaceIndex = interfaceGlobalToLocal[gi];
 
-		Array<int> v, f, cor;
+		Array<int> v, f, e, fcor, ecor;
 		pmesh->GetElementVertices(i, v);
-		pmesh->GetElementFaces(i, f, cor);
+		pmesh->GetElementEdges(i, e, ecor);
+		pmesh->GetElementFaces(i, f, fcor);
 		
 		for (int j = 0; j < v.Size(); j++)
 		  {
@@ -241,6 +247,23 @@ public:
 		      interfaces[interfaceIndex].InsertVertexIndex(v[j]);
 		  }
 
+		for (int k = 0; k < e.Size(); ++k)
+		  {
+		    Array<int> ev;
+		    pmesh->GetEdgeVertices(e[k], ev);
+		    bool edgeOn = true;
+		    for (int j=0; j<ev.Size(); ++j)
+		      {
+			if (vert_marker_gf[ev[j]] < 0.1)
+			  edgeOn = false;
+		      }
+
+		    if (edgeOn)
+		      {
+			interfaces[interfaceIndex].InsertEdgeIndex(e[k]);
+		      }
+		  }
+		
 		for (int k = 0; k < f.Size(); ++k)
 		  {
 		    Array<int> fv;

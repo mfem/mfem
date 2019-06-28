@@ -152,7 +152,7 @@ void TestHypreIdentity(MPI_Comm comm)
   
   int *I_nnz = new int[num_loc_rows + 1];
   HYPRE_Int *J_col = new HYPRE_Int[num_loc_rows];
-		    
+
   for (int i=0; i<num_loc_rows + 1; ++i)
     I_nnz[i] = i;
 
@@ -164,6 +164,17 @@ void TestHypreIdentity(MPI_Comm comm)
   
   HypreParMatrix *A = new HypreParMatrix(comm, num_loc_rows, size, size, I_nnz, J_col, diag.GetData(), rowStarts2, rowStarts2);
 
+  /*
+  {
+    HypreParMatrix *B = new HypreParMatrix(comm, num_loc_rows, size, size, I_nnz, J_col, diag.GetData(), rowStarts2, rowStarts2);
+    HypreParMatrix *C = ParAdd(A, B);
+
+    A->Print("IA");
+    B->Print("IB");
+    C->Print("IC");
+  }
+  */
+  
   Vector x(num_loc_rows);
   Vector y(num_loc_rows);
 
@@ -401,6 +412,7 @@ int main(int argc, char *argv[])
 	   ostringstream filename;
 	   filename << "sd" << setfill('0') << setw(3) << i;
 	   VisitTestPlotParMesh(filename.str(), pmeshSD[i], -1, myid);
+	   //PrintMeshBoundingBox2(pmeshSD[i]);
 	 }
        
        for (int i=0; i<numInterfaces; ++i)
@@ -502,7 +514,7 @@ int main(int argc, char *argv[])
    //a->FormSystemMatrix(ess_tdof_list, A);
 
    //HypreParMatrix *Apa = a->ParallelAssemble();
-
+   /*
    if (false)
    { // Output ddi as a DenseMatrix
      const int Ndd = ddi.Height();
@@ -527,7 +539,7 @@ int main(int argc, char *argv[])
      ofstream ost("ddimat.mat", std::ofstream::out);
      ddd.PrintMatlab(ost);
    }
-   
+   */
    if (false)
    { // Test projection as solution
      ParBilinearForm *mbf = new ParBilinearForm(fespace);
@@ -616,7 +628,7 @@ int main(int argc, char *argv[])
    chrono.Start();
 
    //TestStrumpackConstructor();
-   
+
    const bool solveDD = true;
    if (solveDD)
      {
@@ -649,23 +661,21 @@ int main(int argc, char *argv[])
        gmres->Mult(Bdd, xdd);
        //ddi.Mult(Bdd, xdd);
 
-       /*
        {
-	 ifstream ddsolfile("xddEss2");
-	 for (int i=0; i<xdd.Size(); ++i)
-	   ddsolfile >> xdd[i];
+       //ifstream ddsolfile("xddEss2");
+	 //for (int i=0; i<xdd.Size(); ++i)
+	   //ddsolfile >> xdd[i];
 
 	 //xdd.Load(ddsolfile);
        }
-       */
 
        cout << myid << ": xdd norm " << xdd.Norml2() << endl;
-
+       /*
        {
 	 ofstream ddsolfile("xddtmp");
 	 xdd.Print(ddsolfile);
        }
-
+       */
        ddi.RecoverDomainSolution(fespace, xdd, X);
 
        delete gmres;

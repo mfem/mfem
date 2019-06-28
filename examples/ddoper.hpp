@@ -852,6 +852,7 @@ HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& 
   std::vector<int> procOffsets(nprocs);
   std::vector<std::vector<int> > all_block_num_loc_rows(numBlocks);
   std::vector<std::vector<int> > blockProcOffsets(numBlocks);
+  std::vector<std::vector<int> > procBlockOffsets(nprocs);
   
   MPI_Allgather(&num_loc_rows, 1, MPI_INT, all_num_loc_rows.data(), 1, MPI_INT, comm);
 
@@ -879,6 +880,11 @@ HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& 
 
       if (i < nprocs-1)
 	procOffsets[i+1] = procOffsets[i] + all_num_loc_rows[i];
+
+      procBlockOffsets[i].resize(numBlocks);
+      procBlockOffsets[i][0] = 0;
+      for (int j=1; j<numBlocks; ++j)
+	procBlockOffsets[i][j] = procBlockOffsets[i][j-1] + all_block_num_loc_rows[j-1][i];
     }
     
   const int glob_ncols = glob_nrows;
@@ -940,7 +946,7 @@ HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& 
 	      const int nrows = csr_blocks(i, j)->num_rows;
 	      const double coef = coefficient(i, j);
 
-	      const bool failure = (nrows != offsets[i+1] - offsets[i]);
+	      //const bool failure = (nrows != offsets[i+1] - offsets[i]);
 	      
 	      MFEM_VERIFY(nrows == offsets[i+1] - offsets[i], "");
 	      
@@ -968,10 +974,19 @@ HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& 
 		      if (blockProcOffsets[j][nprocs - 1] <= bcol)
 			bcolproc = nprocs - 1;
 
-		      const int colg = procOffsets[bcolproc] + offsets[j] + (bcol - blockProcOffsets[j][bcolproc]);
+		      const int colg = procOffsets[bcolproc] + procBlockOffsets[bcolproc][j] + (bcol - blockProcOffsets[j][bcolproc]);
 
 		      if (colg < 0)
 			cout << "BUG, negative global column index" << endl;
+
+		      /*
+		      if (rowg == 52 && cnt[rowg] == 15)
+			cout << "Setting colg to " << colg << endl;
+		      */
+		      /*
+		      if (rowg == 570)
+			cout << rank << ": row 570 col " << colg << " val " << coef * csr_blocks(i, j)->data[osk + l] << endl;
+		      */
 		      
 		      opJ[opI[rowg] + cnt[rowg]] = colg;
 		      data[opI[rowg] + cnt[rowg]] = coef * csr_blocks(i, j)->data[osk + l];
@@ -1012,6 +1027,9 @@ HypreParMatrix* CreateHypreParMatrixFromBlocks(MPI_Comm comm, Array<int> const& 
     {
       minJ = std::min(minJ, opJ[i]);
       maxJ = std::max(maxJ, opJ[i]);
+
+      if (opJ[i] >= glob_ncols)
+	cout << "Column indices out of range" << endl;
     }
   
   HypreParMatrix *hmat = new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols, (int*) opI.data(), (HYPRE_Int*) opJ.data(), (double*) data.data(),
@@ -1310,7 +1328,9 @@ void PrintMeshBoundingBox(ParMesh *mesh)
 // Therefore, dofmap is defined by SetInterfaceToSurfaceDOFMap() to be of full ifespace DOF size, mapping from the full ifespace DOF's to
 // true subdomain DOF's in fespace.
 void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteElementSpace *fespace, ParMesh *pmesh, const int sdAttribute,
-				 const std::set<int>& pmeshFacesInInterface, const FiniteElementCollection *fec, std::vector<int>& dofmap)
+				 const std::set<int>& pmeshFacesInInterface, const std::set<int>& pmeshEdgesInInterface,
+				 const std::set<int>& pmeshVerticesInInterface, 
+				 const FiniteElementCollection *fec, std::vector<int>& dofmap)
 {
   const int ifSize = ifespace->GetVSize();  // Full DOF size
 
@@ -1326,6 +1346,7 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
   // Create map from face indices in pmeshFacesInInterface to pmesh elements containing those faces.
   std::map<int, int> pmeshFaceToElem;
   std::set<int> pmeshElemsByInterface;
+  //std::set<int> pmeshEdgesOnInterface;
 
   for (int elId=0; elId<pmesh->GetNE(); ++elId)
     {
@@ -1345,12 +1366,47 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 
 		  pmeshElemsByInterface.insert(elId);
 		}
+
+	      Array<int> edges, eori;
+	      pmesh->GetFaceEdges(elFaces[j], edges, eori);
+
+	      for (int k=0; k<edges.Size(); ++k)
+		{
+		  Array<int> vert;
+		  pmesh->GetEdgeVertices(edges[k], vert);
+
+		  MFEM_VERIFY(vert.Size() == 2, "");
+
+		  bool onInterface = true;
+		  bool touchingInterface = false;
+		  
+		  for (int l=0; l<2; ++l)
+		    {
+		      std::set<int>::const_iterator itv = pmeshVerticesInInterface.find(vert[l]);
+			
+		      if (itv == pmeshVerticesInInterface.end())
+			onInterface = false;
+		      else
+			touchingInterface = true;
+		    }
+
+		  //if (onInterface)
+		  // pmeshEdgesOnInterface.insert(edges[k]);
+
+		  if (touchingInterface)
+		    pmeshElemsByInterface.insert(elId);		    
+		}
 	    }
 	}
     }
 
   // Set a map pmeshElemToSDmesh from pmesh element indices to the corresponding sdMesh element indices, only for elements neighboring the interface.
+  // Also set a map pmeshToSDMeshIFEdge from pmesh edges in the interface to sdMesh edges, by searching only on sdMesh elements touching the interface.
   std::map<int, int> pmeshElemToSDmesh;
+  std::map<int, int> pmeshToSDMeshIFEdge;
+  std::map<int, int> pmeshToSDMeshIFVertex;
+  std::map<int, int> pmeshToIFMeshIFVertex;
+  
   for (int elId=0; elId<sdMesh->GetNE(); ++elId)
     {
       // The sdMesh element attribute is set as the local index of the corresponding pmesh element, which is unique since SD elements do not overlap.
@@ -1359,18 +1415,134 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
       if (it != pmeshElemsByInterface.end())  // if pmeshElemId neighbors the interface
 	{
 	  pmeshElemToSDmesh[pmeshElemId] = elId;
+
+	  // Set map from pmesh vertices in the interface to sdMesh vertices, by comparing coordinates on the two elements that have been identified.
+
+	  Array<int> pVertex, sdVertex;
+	  pmesh->GetElementVertices(pmeshElemId, pVertex);
+	  sdMesh->GetElementVertices(elId, sdVertex);
+
+	  MFEM_VERIFY(pVertex.Size() == sdVertex.Size(), "");
+
+	  for (int j=0; j<pVertex.Size(); ++j)
+	    {
+	      // First check whether vertex is in the interface
+	      std::set<int>::const_iterator itpv = pmeshVerticesInInterface.find(pVertex[j]);
+	      if (itpv == pmeshVerticesInInterface.end())
+		continue;
+
+	      for (int k=0; k<sdVertex.Size(); ++k)
+		{
+		  bool vertexMatch = true;
+		  for (int l=0; l<3; ++l)
+		    {
+		      if (fabs(pmesh->GetVertex(pVertex[j])[l] - sdMesh->GetVertex(sdVertex[k])[l]) > vertexTol)
+			{
+			  vertexMatch = false;
+			}
+		    }
+
+		  if (vertexMatch)
+		    {
+		      std::map<int, int>::iterator itchk = pmeshToSDMeshIFVertex.find(pVertex[j]);
+
+		      if (itchk != pmeshToSDMeshIFVertex.end())
+			{
+			  MFEM_VERIFY(itchk->first == pVertex[j] && itchk->second == sdVertex[k], "");
+			}
+		      else
+			pmeshToSDMeshIFVertex[pVertex[j]] = sdVertex[k];
+		    }
+		}
+	    }
+	      
+	  // Set map from pmesh edges in the interface to sdMesh edges, by comparing edge midpoints on the two elements that have been identified.
+
+	  Array<int> pEdge, sdEdge, pOri, sdOri;
+	  pmesh->GetElementEdges(pmeshElemId, pEdge, pOri);
+	  sdMesh->GetElementEdges(elId, sdEdge, sdOri);
+
+	  MFEM_VERIFY(pEdge.Size() == sdEdge.Size(), "");
+
+	  for (int j=0; j<pEdge.Size(); ++j)
+	    {
+	      // First check whether edge is in the interface
+	      std::set<int>::const_iterator itpe = pmeshEdgesInInterface.find(pEdge[j]);
+	      if (itpe == pmeshEdgesInInterface.end())
+		continue;
+	      
+	      double mp[3];
+	      Array<int> pmeshEdgeVert;
+	      pmesh->GetEdgeVertices(pEdge[j], pmeshEdgeVert);
+
+	      MFEM_VERIFY(pmeshEdgeVert.Size() == 2, "");
+
+	      for (int l=0; l<3; ++l)
+		mp[l] = 0.5 * (pmesh->GetVertex(pmeshEdgeVert[0])[l] + pmesh->GetVertex(pmeshEdgeVert[1])[l]);
+					 
+	      for (int k=0; k<sdEdge.Size(); ++k)
+		{
+		  Array<int> sdMeshEdgeVert;
+		  sdMesh->GetEdgeVertices(sdEdge[k], sdMeshEdgeVert);
+
+		  MFEM_VERIFY(sdMeshEdgeVert.Size() == 2, "");
+
+		  bool kjmatch = true;
+		  
+		  for (int l=0; l<3; ++l)
+		    {
+		      if (fabs(mp[l] - (0.5 * (sdMesh->GetVertex(sdMeshEdgeVert[0])[l] + sdMesh->GetVertex(sdMeshEdgeVert[1])[l]))) > vertexTol)
+			kjmatch = false;
+		    }
+
+		  if (kjmatch)
+		    {
+		      std::map<int, int>::iterator itchk = pmeshToSDMeshIFEdge.find(pEdge[j]);
+
+		      if (itchk != pmeshToSDMeshIFEdge.end())
+			{
+			  MFEM_VERIFY(itchk->first == pEdge[j] && itchk->second == sdEdge[k], "");
+			}
+		      else
+			pmeshToSDMeshIFEdge[pEdge[j]] = sdEdge[k];
+		    }
+		}
+	    }
 	}
     }
   
-  // Loop over interface faces.
+  // The strategy in the following code is to loop over interface faces, identifying each with ifMesh face i and sdMesh face sdMeshFace,
+  // and then mapping DOF's in ifMesh face i to DOF's in sdMesh face sdMeshFace. This is insufficient, since a process may own a 
+  // portion of sdMesh that intersects the interface only on an edge or at a vertex, in which case no sdMesh DOF's will be found.
+  // Although this strategy is insufficent to find all edge and vertex sdMesh DOF's in general, it is necessary in order to map face DOF's. 
+  
+  // Another strategy is to loop over interface edges, identifying each with an ifMesh edge and a sdMesh edge. In case there are vertex DOF's,
+  // it is also necessary to loop over interface vertices, identifying each with an ifMesh vertex and a sdMesh vertex. This necessitates
+  // the data pmeshEdgesInInterface and pmeshVerticesInInterface.
+
+  // Therefore, in the following we loop over (1) faces, (2) edges, and (3) vertices in the interface.
+  
+  // (1) Loop over interface faces.
+  std::map<int, int> pmeshEdgeToAnyFaceInInterface;
+  std::map<int, int> pmeshFaceToIFFace;
   int i = 0;
   for (std::set<int>::const_iterator it = pmeshFacesInInterface.begin(); it != pmeshFacesInInterface.end(); ++it, ++i)
     {
       const int pmeshFace = *it;
 
+      pmeshFaceToIFFace[pmeshFace] = i;
+      
       // Face pmeshFace of pmesh coincides with face i of ifMesh on this process (the same face may also exist on a different process in the same ifMesh,
       // as there can be redundant overlapping faces in parallel, for communication).
 
+      { // For each pmesh edge of this face, map to pmeshFace.
+	Array<int> edges, ori;
+	pmesh->GetFaceEdges(pmeshFace, edges, ori);
+
+	for (int j=0; j<edges.Size(); ++j)
+	  pmeshEdgeToAnyFaceInInterface[edges[j]] = pmeshFace;
+      }
+      
       // Find the neighboring pmesh element.
       std::map<int, int>::iterator ite = pmeshFaceToElem.find(pmeshFace);
 
@@ -1520,6 +1692,11 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 		{
 		  const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
 
+		  /*
+		  if (ifdofs[d] == 276)
+		    cout << "276 found on " << endl;
+		  */
+		  
 		  if (sdtdof >= 0)  // if this is a true DOF of fespace.
 		    {
 		      MFEM_VERIFY(dofmap[ifdofs[d]] == sdtdof || dofmap[ifdofs[d]] == -1, "");
@@ -1551,7 +1728,243 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 	}
     }
 
-  // Note that some entries of dofmap may be undefined, if the corresponding subdomain DOF's in fespace are not true DOF's. 
+  // (2) Loop over interface edges.
+  for (std::set<int>::const_iterator it = pmeshEdgesInInterface.begin(); it != pmeshEdgesInInterface.end(); ++it)
+    {
+      const int pmeshEdge = *it;
+
+      // Find the edge of ifMesh that coincides with pmesh edge pmeshEdge.
+      int ifMeshEdge = -1;
+
+      {
+	std::map<int, int>::iterator ite = pmeshEdgeToAnyFaceInInterface.find(pmeshEdge);
+
+	if (ite == pmeshEdgeToAnyFaceInInterface.end())
+	  continue;  // If the edge is not part of a local face in the interface, then it should have no DOF's in ifespace.
+	
+	MFEM_VERIFY(ite != pmeshEdgeToAnyFaceInInterface.end(), "");
+	MFEM_VERIFY(ite->first == pmeshEdge, "");
+
+	const int pmeshFace = ite->second;
+
+	std::map<int, int>::iterator itf = pmeshFaceToIFFace.find(pmeshFace);
+	MFEM_VERIFY(itf != pmeshFaceToIFFace.end(), "");
+	MFEM_VERIFY(itf->first == pmeshFace, "");
+	
+	const int ifMeshFace = itf->second;
+
+	// Loop over edges of ifMeshFace to find a geometric match.
+	Array<int> ifEdge, ifOri;
+	ifMesh->GetElementEdges(ifMeshFace, ifEdge, ifOri);
+
+	Array<int> pmeshEdgeVert;
+	pmesh->GetEdgeVertices(pmeshEdge, pmeshEdgeVert);
+
+	MFEM_VERIFY(pmeshEdgeVert.Size() == 2, "");
+	
+	double pmeshEdgeMidpoint[3];
+
+	for (int k=0; k<3; ++k)
+	  pmeshEdgeMidpoint[k] = 0.5 * (pmesh->GetVertex(pmeshEdgeVert[0])[k] + pmesh->GetVertex(pmeshEdgeVert[1])[k]);
+
+	for (int j=0; j<ifEdge.Size(); ++j)
+	  {
+	    Array<int> ifmeshEdgeVert;
+	    ifMesh->GetEdgeVertices(ifEdge[j], ifmeshEdgeVert);
+
+	    MFEM_VERIFY(ifmeshEdgeVert.Size() == 2, "");
+
+	    bool pointsEqual = true;
+	    for (int k=0; k<3; ++k)
+	      {
+		const double ifMeshEdgeMidpoint_k = 0.5 * (ifMesh->GetVertex(ifmeshEdgeVert[0])[k] + ifMesh->GetVertex(ifmeshEdgeVert[1])[k]);
+		if (fabs(ifMeshEdgeMidpoint_k - pmeshEdgeMidpoint[k]) > vertexTol)
+		  pointsEqual = false;
+	      }
+
+	    if (pointsEqual)
+	      {
+		MFEM_VERIFY(ifMeshEdge == -1, "");
+		ifMeshEdge = ifEdge[j];
+
+		// Set the map from pmesh vertices to ifMesh vertices
+		for (int k=0; k<2; ++k)
+		  {
+		    bool matchFound = false;
+		    for (int m=0; m<2; ++m)
+		      {
+			bool vertexMatch = true;
+			for (int l=0; l<3; ++l)
+			  {
+			    if (fabs(pmesh->GetVertex(pmeshEdgeVert[k])[l] - ifMesh->GetVertex(ifmeshEdgeVert[m])[l]) > vertexTol)
+			      vertexMatch = false;
+			  }
+
+			if (vertexMatch)
+			  {
+			    std::map<int, int>::iterator itv = pmeshToIFMeshIFVertex.find(pmeshEdgeVert[k]);
+
+			    if (itv == pmeshToIFMeshIFVertex.end())
+			      pmeshToIFMeshIFVertex[pmeshEdgeVert[k]] = ifmeshEdgeVert[m];
+			    else
+			      {
+				MFEM_VERIFY(itv->first == pmeshEdgeVert[k] && itv->second == ifmeshEdgeVert[m], "");
+			      }
+			    
+			    matchFound = true;
+			  }
+		      }
+
+		    MFEM_VERIFY(matchFound, "");
+		  }
+	      }
+	  }
+
+	MFEM_VERIFY(ifMeshEdge >= 0, "");
+      }
+      
+      std::map<int, int>::iterator itsde = pmeshToSDMeshIFEdge.find(pmeshEdge);
+
+      if (itsde == pmeshToSDMeshIFEdge.end())
+	continue;  // there are no SD DOF's to map to
+      
+      MFEM_VERIFY(itsde != pmeshToSDMeshIFEdge.end(), "");
+      MFEM_VERIFY(itsde->first == pmeshEdge, "");
+      
+      const int sdMeshEdge = itsde->second;
+      
+      // Map vertex DOF's on ifMesh edge ifMeshEdge to vertex DOF's on sdMesh edge sdMeshEdge.
+      // TODO: is this necessary, since FiniteElementSpace::GetEdgeDofs claims to return vertex DOF's as well?
+      const int nv = fec->DofForGeometry(Geometry::POINT);
+      if (nv > 0)
+	{
+	  Array<int> ifVert, sdVert;
+	  ifMesh->GetEdgeVertices(i, ifVert);
+	  sdMesh->GetEdgeVertices(sdMeshEdge, sdVert);
+
+	  MFEM_VERIFY(ifVert.Size() == sdVert.Size(), "");
+	  
+	  for (int j=0; j<ifVert.Size(); ++j)
+	    {
+	      double *ifv = ifMesh->GetVertex(ifVert[j]);
+
+	      bool vertexFound = false;
+	      
+	      for (int k=0; k<sdVert.Size(); ++k)
+		{
+		  double *sdv = sdMesh->GetVertex(sdVert[k]);
+
+		  bool verticesEqual = true;
+		  for (int l=0; l<3; ++l)
+		    {
+		      if (fabs(ifv[l] - sdv[l]) > vertexTol)
+			verticesEqual = false;
+		    }
+
+		  if (verticesEqual)
+		    {
+		      vertexFound = true;
+		      Array<int> ifdofs, sddofs;
+		      ifespace->GetVertexDofs(ifVert[j], ifdofs);
+		      fespace->GetVertexDofs(sdVert[k], sddofs);
+
+		      MFEM_VERIFY(ifdofs.Size() == sddofs.Size(), "");
+		      for (int d=0; d<ifdofs.Size(); ++d)
+			{
+			  const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
+			  
+			  if (sdtdof >= 0)  // if this is a true DOF of fespace.
+			    {
+			      MFEM_VERIFY(dofmap[ifdofs[d]] == sdtdof || dofmap[ifdofs[d]] == -1, "");
+			      dofmap[ifdofs[d]] = sdtdof;
+			    }
+			}
+		    }
+		}
+	      
+	      MFEM_VERIFY(vertexFound, "");
+	    }
+	}
+      
+      // Map edge DOF's on ifMesh edge ifMeshEdge to edge DOF's on sdMesh edge sdMeshEdge.
+      const int ne = fec->DofForGeometry(Geometry::SEGMENT);
+      if (ne > 0)
+	{
+	  // TODO: could there be multiple DOF's on an edge with different orderings (depending on orientation) in ifespace and fespace?
+	  // TODO: Check orientation for ND_HexahedronElement? Does ND_TetrahedronElement have orientation?
+
+	  Array<int> ifdofs, sddofs;
+	  ifespace->GetEdgeDofs(ifMeshEdge, ifdofs);
+	  fespace->GetEdgeDofs(sdMeshEdge, sddofs);
+
+	  MFEM_VERIFY(ifdofs.Size() == sddofs.Size(), "");
+	  for (int d=0; d<ifdofs.Size(); ++d)
+	    {
+	      const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
+
+	      if (sdtdof >= 0)  // if this is a true DOF of fespace.
+		{
+		  MFEM_VERIFY(dofmap[ifdofs[d]] == sdtdof || dofmap[ifdofs[d]] == -1, "");
+		  dofmap[ifdofs[d]] = sdtdof;
+		}
+	    }
+	}
+    }
+
+  // (3) Loop over interface vertices.
+  for (std::set<int>::const_iterator it = pmeshVerticesInInterface.begin(); it != pmeshVerticesInInterface.end(); ++it)
+    {
+      const int pmeshVertex = *it;
+
+      // Find the vertex of ifMesh that coincides with pmesh vertex pmeshVertex.
+
+      std::map<int, int>::iterator itsdv = pmeshToIFMeshIFVertex.find(pmeshVertex);
+
+      if (itsdv == pmeshToIFMeshIFVertex.end())
+	continue;
+      
+      MFEM_VERIFY(itsdv != pmeshToIFMeshIFVertex.end(), "");
+      MFEM_VERIFY(itsdv->first == pmeshVertex, "");
+
+      const int ifMeshVertex = itsdv->second;
+      
+      MFEM_VERIFY(ifMeshVertex >= 0, "");
+
+      itsdv = pmeshToSDMeshIFVertex.find(pmeshVertex);
+
+      if (itsdv == pmeshToSDMeshIFVertex.end())
+	continue;  // there are no SD DOF's to map to
+      
+      MFEM_VERIFY(itsdv != pmeshToSDMeshIFVertex.end(), "");
+      MFEM_VERIFY(itsdv->first == pmeshVertex, "");
+      
+      const int sdMeshVertex = itsdv->second;
+      
+      // Map vertex DOF's in ifMesh space to vertex DOF's in sdMesh space.
+      // TODO: is this necessary, since FiniteElementSpace::GetEdgeDofs claims to return vertex DOF's as well?
+      const int nv = fec->DofForGeometry(Geometry::POINT);
+      if (nv > 0)
+	{
+	  Array<int> ifdofs, sddofs;
+	  ifespace->GetVertexDofs(ifMeshVertex, ifdofs);
+	  fespace->GetVertexDofs(sdMeshVertex, sddofs);
+
+	  MFEM_VERIFY(ifdofs.Size() == sddofs.Size(), "");
+	  for (int d=0; d<ifdofs.Size(); ++d)
+	    {
+	      const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
+			  
+	      if (sdtdof >= 0)  // if this is a true DOF of fespace.
+		{
+		  MFEM_VERIFY(dofmap[ifdofs[d]] == sdtdof || dofmap[ifdofs[d]] == -1, "");
+		  dofmap[ifdofs[d]] = sdtdof;
+		}
+	    }
+	}
+    }
+
+  // Note that some entries of dofmap may be undefined, if the corresponding subdomain DOF's in fespace are not true DOF's.
+  
   /*
   bool mapDefined = true;
   for (i=0; i<ifSize; ++i)
@@ -1897,8 +2310,47 @@ public:
 	      {
 		const int ifli = (*interfaceLocalIndex)[interfaceIndex];
 		MFEM_VERIFY(ifli >= 0, "");
+
+		/*
+		if (m == 0)
+		{ // debugging
+		  for (int j=0; j<pmeshIF[interfaceIndex]->GetNEdges(); ++j)
+		    {
+		      Array<int> dofs;
+
+		      ifespace[interfaceIndex]->GetEdgeDofs(j, dofs);
+		      MFEM_VERIFY(dofs.Size() == 1, ""); // only implemented for testing order 1 edge elements
+
+		      Array<int> edgeVert;
+		      pmeshIF[interfaceIndex]->GetEdgeVertices(j, edgeVert);
+		      MFEM_VERIFY(edgeVert.Size() == 2, "");
+	    
+		      const int tdof = ifespace[interfaceIndex]->GetLocalTDofNumber(dofs[0]);
+		      //if (tdof >= 0)
+			{
+			  bool foundEdge = true;
+			  const double tol = 1.0e-8;
+
+			  for (int l=0; l<3; ++l)
+			    {
+			      const double mp_l = 0.5 * (pmeshIF[interfaceIndex]->GetVertex(edgeVert[0])[l] + pmeshIF[interfaceIndex]->GetVertex(edgeVert[1])[l]);
+			      if (l == 0 && fabs(mp_l - 0.1875) > tol)
+				foundEdge = false;
+			      if (l == 1 && fabs(mp_l - 0.5) > tol)
+				foundEdge = false;
+			      if (l == 2 && fabs(mp_l - 0.25) > tol)
+				foundEdge = false;
+			    }
+
+			  if (foundEdge)
+			    cout << m_rank << ": edge " << j << " has dof " << dofs[0] << " tdof " << tdof << " and midpoint [0.1875, 0.5, 0.25]" << endl;
+			}
+		    }
+		}
+		*/
 		
-		SetInterfaceToSurfaceDOFMap(ifespace[interfaceIndex], fespace[m], pmeshGlobal, m+1, (*localInterfaces)[ifli].faces, &fecbdry,
+		SetInterfaceToSurfaceDOFMap(ifespace[interfaceIndex], fespace[m], pmeshGlobal, m+1, (*localInterfaces)[ifli].faces, 
+					    (*localInterfaces)[ifli].edges, (*localInterfaces)[ifli].vertices, &fecbdry,
 					    InterfaceToSurfaceInjectionData[m][i]);
 	    
 		InterfaceToSurfaceInjection[m][i] = new InjectionOperator(fespace[m]->GetTrueVSize(), ifespace[interfaceIndex],
@@ -2235,6 +2687,14 @@ public:
 #ifdef HYPRE_PARALLEL_ASDCOMPLEX
 	    const int locSizeSD = trueOffsetsSD[m][trueOffsetsSD[m].Size()-1];
 
+	    /*
+	    { // debugging
+	      //hypre_CSRMatrix* csrsdND2 = GetHypreParMatrixData(*(sdND[0]));
+	      hypre_CSRMatrix* csrsdND2 = GetHypreParMatrixData(*(AsdRe_HypreBlocks[0](0, 0)));
+	      cout << csrsdND2->num_rows << endl;
+	    }
+	    */
+	    
 	    if (locSizeSD > 0)
 	      {
 		HypreParMatrix *HypreAsdComplexRe = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsSD[m], AsdRe_HypreBlocks[m], AsdRe_HypreBlockCoef[m]);
@@ -2242,9 +2702,11 @@ public:
 		ComplexHypreParMatrix tmpComplex(HypreAsdComplexRe, HypreAsdComplexIm, false, false);
 		HypreAsdComplex[m] = tmpComplex.GetSystemMatrix();
 
-		//if (m == 0) HypreAsdComplexRe->Print("HypreAsdComplexRe0");
+		//if (m == 0) HypreAsdComplexRe->Print("HypreAsdComplexRe0_Par3");
+		//if (m == 0) HypreAsdComplexRe->Print("HypreAsdComplexRe0_Serial");
 		//if (m == 0) HypreAsdComplexIm->Print("HypreAsdComplexIm0");
-		//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplex_Par2");
+		//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplex_Par3");
+		//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplex_Serial");
 		
 		invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
 	      }
@@ -3801,6 +4263,13 @@ private:
     bf_sdND[subdomain]->FormSystemMatrix(ess_tdof_list, *(sdNDcopy[subdomain]));  // TODO: is there a way to avoid making a copy of this matrix?
 
     /*
+    { // debugging
+
+      hypre_CSRMatrix* csrsdND = GetHypreParMatrixData(*(sdND[subdomain]));
+      cout << csrsdND->num_rows << endl;
+    }
+    */
+    /*
     {
       Vector zero(3);
       zero = 0.0;
@@ -3952,6 +4421,135 @@ private:
       }
     
     trueOffsetsSD[subdomain].PartialSum();
+    
+    const bool debugging = false;
+    if (debugging && subdomain == 0)
+      {
+	const int numTrueDofs = trueOffsetsSD[subdomain][numBlocks];
+
+	std::vector<double> dofcrd(3*numTrueDofs);
+
+	const double largeOffset = 1.0e7;
+	const double vertexTol = 1.0e-8;
+	
+	for (int j=0; j<dofcrd.size(); ++j)
+	  dofcrd[j] = -largeOffset;
+	
+	ParMesh *sdMesh = fespace[subdomain]->GetParMesh();
+
+	bool uniqueness = true;
+
+	// Set coordinates of edge DOF's in subdomain
+	for (int j=0; j<sdMesh->GetNEdges(); ++j)
+	  {
+	    Array<int> dofs;
+
+	    fespace[subdomain]->GetEdgeDofs(j, dofs);
+	    MFEM_VERIFY(dofs.Size() == 1, ""); // only implemented for testing order 1 edge elements
+
+	    Array<int> sdMeshEdgeVert;
+	    sdMesh->GetEdgeVertices(j, sdMeshEdgeVert);
+	    MFEM_VERIFY(sdMeshEdgeVert.Size() == 2, "");
+	    
+	    const int sdtdof = fespace[subdomain]->GetLocalTDofNumber(dofs[0]);
+	    if (sdtdof >= 0)
+	      {
+		const int os = (3*sdtdof);
+		for (int l=0; l<3; ++l)
+		  {
+		    const double mp_l = 0.5 * (sdMesh->GetVertex(sdMeshEdgeVert[0])[l] + sdMesh->GetVertex(sdMeshEdgeVert[1])[l]);
+		    if (dofcrd[os + l] > -largeOffset + 1.0 && fabs(dofcrd[os + l] - mp_l) > vertexTol)
+		      uniqueness = false;
+		    
+		    dofcrd[os + l] = mp_l;
+		  }
+	      }
+	  }
+
+	// Set coordinates of edge DOF's in interfaces, with a shift to distinguish them from subdomain edge DOF's.
+
+	const double ifshift = 1000.0;
+
+	for (int i=0; i<subdomainLocalInterfaces[subdomain].size(); ++i)
+	  {
+	    const int interfaceIndex = subdomainLocalInterfaces[subdomain][i];
+	
+	    ParMesh *ifMesh = ifespace[interfaceIndex]->GetParMesh();
+
+	    for (int j=0; j<ifMesh->GetNEdges(); ++j)
+	      {
+		Array<int> dofs;
+
+		ifespace[interfaceIndex]->GetEdgeDofs(j, dofs);
+		MFEM_VERIFY(dofs.Size() == 1, ""); // only implemented for testing order 1 edge elements
+
+		Array<int> edgeVert;
+		ifMesh->GetEdgeVertices(j, edgeVert);
+		MFEM_VERIFY(edgeVert.Size() == 2, "");
+	    
+		const int iftdof = ifespace[interfaceIndex]->GetLocalTDofNumber(dofs[0]);
+		if (iftdof >= 0)
+		  {
+		    const int os = 3 * (trueOffsetsSD[subdomain][(2*i) + 1] + iftdof);
+		    
+		    for (int l=0; l<3; ++l)
+		      {
+			const double mp_l = (0.5 * (ifMesh->GetVertex(edgeVert[0])[l] + ifMesh->GetVertex(edgeVert[1])[l])) + ifshift;
+			if (dofcrd[os + l] > -largeOffset + 1.0 && fabs(dofcrd[os + l] - mp_l) > vertexTol)
+			  uniqueness = false;
+		    
+			dofcrd[os + l] = mp_l;
+		      }
+		  }
+	      }
+
+	    for (int j=0; j<ifMesh->GetNV(); ++j)
+	      {
+		Array<int> dofs;
+
+		iH1fespace[interfaceIndex]->GetVertexDofs(j, dofs);
+		MFEM_VERIFY(dofs.Size() == 1, ""); // only implemented for testing order 1 nodal elements
+	    
+		const int iftdof = iH1fespace[interfaceIndex]->GetLocalTDofNumber(dofs[0]);
+		if (iftdof >= 0)
+		  {
+		    const int os = 3 * (trueOffsetsSD[subdomain][(2*i) + 2] + iftdof);
+		    
+		    for (int l=0; l<3; ++l)
+		      {
+			if (dofcrd[os + l] > -largeOffset + 1.0 && fabs(dofcrd[os + l] - ifMesh->GetVertex(j)[l]) > vertexTol)
+			  uniqueness = false;
+		    
+			dofcrd[os + l] = ifMesh->GetVertex(j)[l];
+		      }
+		  }
+	      }	    
+	  }
+
+	for (int j=0; j<dofcrd.size(); ++j)
+	  {
+	    if (dofcrd[j] < -largeOffset + 1.0)
+	      uniqueness = false;
+	  }
+	
+	MFEM_VERIFY(uniqueness, "");
+
+	/*
+	// File output
+	ofstream file("dofcrdSer");
+	//ofstream file("dofcrdPar" + std::to_string(m_rank));
+
+	for (int j=0; j<numTrueDofs; ++j)
+	  {
+	    for (int k=0; k<3; ++k)
+	      file << dofcrd[(3*j) + k] << " ";
+	    
+	    file << endl;
+	  }
+
+	file.close();
+	*/
+      }
   }
   
   //#define SCHURCOMPSD
@@ -4337,6 +4935,21 @@ private:
 #ifdef DDMCOMPLEX
 	HypreParMatrix *ifSum = Add(-alpha, *(ifNDmass[interfaceIndex]), -beta, *(ifNDcurlcurl[interfaceIndex]));
 
+	// TODO: the following are wrong, just for testing!
+	//HypreParMatrix *ifSum = ParAdd(ifNDmass[interfaceIndex], ifNDcurlcurl[interfaceIndex]);
+	//HypreParMatrix *ifSum = Add(1.0, *(ifNDmass[interfaceIndex]), 1.0, *(ifNDcurlcurl[interfaceIndex]));
+	{
+	  //ifNDmass[interfaceIndex]->Print("ifNDmass");
+	  //ifNDcurlcurl[interfaceIndex]->Print("ifNDcc");
+	}
+	
+	/*
+	{
+	  std::string fname("ifsumAdd");
+	  ifSum->Print(fname.c_str());
+	}
+	*/
+	
 	const double sdNDcoef = realPart ? 1.0 : 0.0;
 	
 	if (A_SS_op == NULL)
