@@ -348,10 +348,10 @@ public:
 class GMGSolver : public Solver {
 private:
    /// The linear system matrix
+   HypreParMatrix * Af;
    std::vector<HypreParMatrix *> A;
    std::vector<HypreParMatrix *> P;
    std::vector<HypreSmoother  *> S;
-   HypreParMatrix * Af;
    int NumGrids;
    PetscLinearSolver *invAc = nullptr;
    double theta = 1.0;

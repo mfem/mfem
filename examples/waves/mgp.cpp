@@ -181,6 +181,12 @@ int main(int argc, char *argv[])
    GMGSolver M(A, P);
    M.SetTheta(0.5);
    M.SetSmootherType(HypreSmoother::Jacobi);
+
+
+
+   // Jacobi, l1Jacobi, l1GS, l1GStr, lumpedJacobi,
+   // GS, Chebyshev, Taubin
+
    chrono.Stop();
 
    if (myid == 0)
@@ -197,7 +203,9 @@ int main(int argc, char *argv[])
 
    X = 0.0;
 
+
    GMRESSolver gmres(MPI_COMM_WORLD);
+   // MINRESSolver gmres(MPI_COMM_WORLD);
    gmres.SetAbsTol(atol);
    gmres.SetRelTol(rtol);
    gmres.SetMaxIter(maxit);

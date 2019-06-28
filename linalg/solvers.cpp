@@ -1692,7 +1692,7 @@ GMGSolver::GMGSolver(HypreParMatrix * Af_,
    for (int i = NumGrids ; i > 0; i--)
    {
       A[i - 1] = RAP(A[i], P[i - 1]);
-      // Put a check on check dimension of RAP
+      // Put a check on check dimension of RAP (to do)
    }
    // Set up coarse solve operator
    invAc = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
