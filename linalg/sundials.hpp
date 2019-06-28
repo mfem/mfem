@@ -9,18 +9,6 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-/*
-  Approach 1:
-    - Updated Init function to take initial contion as input
-    - Setting options must occur after initialization
-    - Addition of LinSysSetup functions to setup linear systems
-    - Addition of SUNLinSolEmpty() and SUNMatEmpty() functions to make
-      creating wrappers to linear solver and matrix easier. Also protects
-      against the addition of new optional operations to the APIs.
-    - Simplified user-supplied methods for custom linear solvers.
-    - Need to add ReInit and ReSize methods.
-*/
-
 #ifndef MFEM_SUNDIALS
 #define MFEM_SUNDIALS
 
