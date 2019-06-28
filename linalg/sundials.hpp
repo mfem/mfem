@@ -24,385 +24,476 @@
 #include "solvers.hpp"
 
 #include <cvode/cvode.h>
-#include <arkode/arkode.h>
+#include <arkode/arkode_arkstep.h>
 #include <kinsol/kinsol.h>
-
-struct KINMemRec;
 
 namespace mfem
 {
+  // ---------------------------------------------------------------------------
+  // Base class for interfacing with SUNMatrix and SUNLinearSolver API
+  // ---------------------------------------------------------------------------
 
-/** @brief Abstract base class, wrapping the custom linear solvers interface in
-    SUNDIALS' CVODE and ARKODE solvers. */
-/** For a given ODE system
+  /** Abstract base class for providing custom linear solvers to SUNDIALS ODE
+      packages, CVODE and ARKODE. For a given ODE system
 
-        dx/dt = f(x,t)
+      dy/dt = f(y,t) or M dy/dt = f(y,t)
 
-    the purpose of this class is to facilitate the (approximate) solution of
-    linear systems of the form
+      the purpose of this class is to facilitate the (approximate) solution of
+      linear systems of the form
 
-        (I - γJ) y = b,   J = J(x,t) = df/dx
+      (I - gamma J) y = b or (M - gamma J) y = b,   J = J(y,t) = df/dy
 
-    for given b, x, t and γ, where γ = GetTimeStep() is a scaled time step. */
-class SundialsODELinearSolver
-{
-public:
-   enum {CVODE, ARKODE} type; ///< Is CVODE or ARKODE using this object?
+      and mass matrix systems of the form
 
-protected:
-   SundialsODELinearSolver() { }
-   virtual ~SundialsODELinearSolver() { }
+      M y = b,   M = M(t)
 
-   /// Get the current scaled time step, gamma, from @a sundials_mem.
-   double GetTimeStep(void *sundials_mem);
-   /// Get the TimeDependentOperator associated with @a sundials_mem.
-   TimeDependentOperator *GetTimeDependentOperator(void *sundials_mem);
+      for given b, y, t and gamma, where gamma is a scaled time step. */
+  class SundialsLinearSolver
+  {
+  protected:
+    SundialsLinearSolver() { }
+    virtual ~SundialsLinearSolver() { }
 
-public:
-   /** @name Linear solver interface methods.
-       These four functions and their parameters are documented in Section 7 of
-       http://computation.llnl.gov/sites/default/files/public/cv_guide.pdf
-       and Section 7.4 of
-       http://computation.llnl.gov/sites/default/files/public/ark_guide.pdf
+  public:
+    /** Setup the ODE linear system A(y,t) = (I - gamma J) or A = (M - gamma J).
+        @param[in]  t     The time at which A(y,t) should be evaluated
+        @param[in]  y     The state at which A(y,t) should be evaluated
+        @param[in]  fy    The current value of the ODE Rhs function, f(y,t)
+        @param[in]  jok   Flag indicating if the Jacobian should be updated
+        @param[out] jcur  Flag to signal if the Jacobian was updated
+        @param[in]  gamma The scaled time step value */
+    virtual int ODELinSys(double t, Vector y, Vector fy, int jok, int *jcur,
+                          double gamma)
+    {
+      mfem_error("SundialsLinearSolver::ODELinSys() is not overridden!");
+      return(-1);
+    }
 
-       The first argument, @a sundials_mem, is one of the pointer types,
-       CVodeMem or ARKodeMem, depending on the value of the data member @a type.
-   */
-   ///@{
-   virtual int InitSystem(void *sundials_mem) = 0;
-   virtual int SetupSystem(void *sundials_mem, int conv_fail,
-                           const Vector &y_pred, const Vector &f_pred,
-                           int &jac_cur, Vector &v_temp1,
-                           Vector &v_temp2, Vector &v_temp3) = 0;
-   virtual int SolveSystem(void *sundials_mem, Vector &b, const Vector &w,
-                           const Vector &y_cur, const Vector &f_cur) = 0;
-   virtual int FreeSystem(void *sundials_mem) = 0;
-   ///@}
-};
+    /** Setup the ODE Mass matrix system M.
+        @param[in] t The time at which M(t) should be evaluated */
+    virtual int ODEMassSys(double t)
+    {
+      mfem_error("SundialsLinearSolver::ODEMassSys() is not overridden!");
+      return(-1);
+    }
 
+    /** Initialize the linear solver (optional). */
+    virtual int Init() { return(0); };
 
-/// A base class for the MFEM classes wrapping SUNDIALS' solvers.
-/** This class defines some common data and functions used by the SUNDIALS
-    solvers, e.g the common @a #sundials_mem pointer and return @a #flag. */
-class SundialsSolver
-{
-protected:
-   void *sundials_mem; ///< Pointer to the SUNDIALS mem object.
-   mutable int flag;   ///< Flag returned by the last call to SUNDIALS.
+    /** Setup the linear solver (optional). */
+    virtual int Setup() { return(0); };
 
-   N_Vector y;  ///< Auxiliary N_Vector.
+    /** Solve the linear system A x = b.
+        @param[in/out]  x  On input, the initial guess. On output, the solution
+        @param[in]      b  The linear system right-hand side */
+    virtual int Solve(Vector &x, Vector b) = 0;
+  };
+
+  // ---------------------------------------------------------------------------
+  // Base class for interfacing with SUNDIALS packages
+  // ---------------------------------------------------------------------------
+
+  class SundialsSolver
+  {
+  protected:
+    void *sundials_mem; /// SUNDIALS mem structure.
+    mutable int flag;   /// Last flag returned from a call to SUNDIALS.
+
+    N_Vector           y;   /// State vector.
+    SUNMatrix          A;   /// Linear system A = I - gamma J, M - gamma J, or J.
+    SUNMatrix          M;   /// Mass matrix M.
+    SUNLinearSolver    LSA; /// Linear solver for A.
+    SUNLinearSolver    LSM; /// Linear solver for M.
+    SUNNonlinearSolver NLS; /// Nonlinear solver.
+
 #ifdef MFEM_USE_MPI
-   bool Parallel() const
-   { return (y->ops->nvgetvectorid != N_VGetVectorID_Serial); }
+    bool Parallel() const
+    { return (N_VGetVectorID(y) != SUNDIALS_NVEC_SERIAL); }
 #else
-   bool Parallel() const { return false; }
+    bool Parallel() const { return false; }
 #endif
 
-   static const double default_rel_tol;
-   static const double default_abs_tol;
+    /// Default scalar tolerances.
+    static constexpr double default_rel_tol = 1e-4;
+    static constexpr double default_abs_tol = 1e-9;
 
-   // Computes the action of a time-dependent operator.
-   /// Callback function used in CVODESolver and ARKODESolver.
-   static int ODEMult(realtype t, const N_Vector y,
-                      N_Vector ydot, void *td_oper);
+    /// Constructors
+    SundialsSolver() : sundials_mem(NULL), flag(0), y(NULL), A(NULL), M(NULL),
+                       LSA(NULL), LSM(NULL), NLS(NULL) { }
 
-   /// @name The constructors are protected
-   ///@{
-   SundialsSolver() : sundials_mem(NULL) { }
-   SundialsSolver(void *mem) : sundials_mem(mem) { }
-   ///@}
+  public:
+    /// Access the SUNDIALS memory structure.
+    void *GetMem() const { return sundials_mem; }
 
-public:
-   /// Access the underlying SUNDIALS object.
-   void *SundialsMem() const { return sundials_mem; }
+    /// Returns the last flag retured a call to a SUNDIALS function.
+    int GetFlag() const { return flag; }
+  };
 
-   /// Return the flag returned by the last call to a SUNDIALS function.
-   int GetFlag() const { return flag; }
-};
+  // ---------------------------------------------------------------------------
+  // Interface to the CVODE library -- linear multi-step methods
+  // ---------------------------------------------------------------------------
 
-/// Wrapper for SUNDIALS' CVODE library -- Multi-step time integration.
-/**
-   - http://computation.llnl.gov/projects/sundials
-   - http://computation.llnl.gov/sites/default/files/public/cv_guide.pdf
+  class CVODESolver : public ODESolver, public SundialsSolver
+  {
+  private:
+    /// Utility function for creating CVODE.
+    void Create(double &t, Vector &x);
 
-   @note All methods except Step() can be called before Init().
-   To minimize uncertainty, we advise the user to adhere to the given
-   interface, instead of making similar calls by the CVODE's
-   internal CVodeMem object.
-*/
-class CVODESolver : public ODESolver, public SundialsSolver
-{
-public:
-   /// Construct a serial CVODESolver, a wrapper for SUNDIALS' CVODE solver.
-   /** @param[in] lmm   Specifies the linear multistep method, the options are
-                        CV_ADAMS (explicit methods) or CV_BDF (implicit
-                        methods).
-       @param[in] iter  Specifies type of nonlinear solver iteration, the
-                        options are CV_FUNCTIONAL (usually with CV_ADAMS) or
-                        CV_NEWTON (usually with CV_BDF).
-       For parameter desciption, see the CVodeCreate documentation (cvode.h). */
-   CVODESolver(int lmm, int iter);
+  protected:
+    int lmm_type;  /// linear multistep method type
+    int step_mode; /// CVODE step mode (CV_NORMAL or CV_ONE_STEP).
+
+    /// Wrapper to compute the ODE Rhs function.
+    static int RHS(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
+
+    /// Setup the linear system A x = b
+    static int LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
+                           booleantype jok, booleantype *jcur,
+                           realtype gamma, void *user_data, N_Vector tmp1,
+                           N_Vector tmp2, N_Vector tmp3);
+
+    /// Solve the linear system A x = b
+    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
+                           N_Vector b, realtype tol);
+
+  public:
+    /** Construct a serial wrapper to SUNDIALS' CVODE integrator.
+        @param[in] lmm Specifies the linear multistep method, the options are:
+                       CV_ADAMS - implicit methods for non-stiff systems
+                       CV_BDF   - implicit methods for stiff systems */
+    CVODESolver(int lmm);
 
 #ifdef MFEM_USE_MPI
-   /// Construct a parallel CVODESolver, a wrapper for SUNDIALS' CVODE solver.
-   /** @param[in] comm  The MPI communicator used to partition the ODE system.
-       @param[in] lmm   Specifies the linear multistep method, the options are
-                        CV_ADAMS (explicit methods) or CV_BDF (implicit
-                        methods).
-       @param[in] iter  Specifies type of nonlinear solver iteration, the
-                        options are CV_FUNCTIONAL (usually with CV_ADAMS) or
-                        CV_NEWTON (usually with CV_BDF).
-       For parameter desciption, see the CVodeCreate documentation (cvode.h). */
-   CVODESolver(MPI_Comm comm, int lmm, int iter);
+    /** Construct a parallel wrapper to SUNDIALS' CVODE integrator.
+        @param[in] comm The MPI communicator used to partition the ODE system
+        @param[in] lmm  Specifies the linear multistep method, the options are:
+                        CV_ADAMS - implicit methods for non-stiff systems
+                        CV_BDF   - implicit methods for stiff systems */
+    CVODESolver(MPI_Comm comm, int lmm);
 #endif
 
-   /// Set the scalar relative and scalar absolute tolerances.
-   void SetSStolerances(double reltol, double abstol);
+    /// Base class Init -- DO NOT CALL, use the below initialization function
+    /// that takes the initial t and x as inputs.
+    virtual void Init(TimeDependentOperator &f_);
 
-   /// Set a custom Jacobian system solver for the CV_NEWTON option usually used
-   /// with implicit CV_BDF.
-   void SetLinearSolver(SundialsODELinearSolver &ls_spec);
+    /** Initialize CVODE: Calls CVodeInit() and sets some defaults.
+        @param[in] f_ the TimeDependentOperator that defines the ODE system
+        @param[in] t  the initial time
+        @param[in] x  the initial condition
 
-   /** @brief CVode supports two modes, specified by itask: CV_NORMAL (default)
-       and CV_ONE_STEP. */
-   /** In the CV_NORMAL mode, the solver steps until it reaches or passes
-       tout = t + dt, where t and dt are specified in Step(), and then
-       interpolates to obtain y(tout). In the CV_ONE_STEP mode, it takes one
-       internal step and returns. */
-   void SetStepMode(int itask);
+        @note All other methods must be called after Init(). */
+    void Init(TimeDependentOperator &f_, double &t, Vector &x);
 
-   /// Set the maximum order of the linear multistep method.
-   /** The default is 12 (CV_ADAMS) or 5 (CV_BDF).
-       CVODE uses adaptive-order integration, based on the local truncation
-       error. Use this if you know a priori that your system is such that
-       higher order integration formulas are unstable.
-       @note @a max_order can't be higher than the current maximum order. */
-   void SetMaxOrder(int max_order);
+    /** Integrate the ODE with CVODE using the specified step mode.
 
-   /// Set the maximum time step of the linear multistep method.
-   void SetMaxStep(double dt_max)
-   { flag = CVodeSetMaxStep(sundials_mem, dt_max); }
+        @param[out]    x  Solution vector at the requested output timem x=x(t).
+        @param[in/out] t  On output, the output time reached.
+        @param[in/out] dt On output, the last time step taken.
 
-   /// Set the ODE right-hand-side operator.
-   /** The start time of CVODE is initialized from the current time of @a f_.
-       @note This method calls CVodeInit(). Some CVODE parameters can be set
-       (using the handle returned by SundialsMem()) only after this call. */
-   virtual void Init(TimeDependentOperator &f_);
+        @note On input, the values of t and dt are used to compute desired
+        output time for the integration, tout = t + dt.
+    */
+    virtual void Step(Vector &x, double &t, double &dt);
 
-   /// Use CVODE to integrate over [t, t + dt], with the specified step mode.
-   /** Calls CVode(), which is the main driver of the CVODE package.
-       @param[in,out] x  Solution vector to advance. On input/output x=x(t)
-                         for t corresponding to the input/output value of t,
-                         respectively.
-       @param[in,out] t  Input: the starting time value. Output: the time value
-                         of the solution output, as returned by CVode().
-       @param[in,out] dt Input: desired time step. Output: the last incremental
-                         time step used. */
-   virtual void Step(Vector &x, double &t, double &dt);
+    /** Attach a custom linear solver solver to CVODE.
+        @param[in] ls_spec A SundialsLinearSolver object defining the custom
+                           linear solver */
+    void SetLinearSolver(SundialsLinearSolver &ls_spec);
 
-   /// Print CVODE statistics.
-   void PrintInfo() const;
+    /** Attach a custom linear solver solver to CVODE. */
+    void SetLinearSolver();
 
-   /// Destroy the associated CVODE memory.
-   virtual ~CVODESolver();
-};
+    /** Select the CVODE step mode: CV_NORMAL (default) or CV_ONE_STEP.
+        @param[in] itask  The desired step mode */
+    void SetStepMode(int itask);
 
-/// Wrapper for SUNDIALS' ARKODE library -- Runge-Kutta time integration.
-/**
-  - http://computation.llnl.gov/projects/sundials
-  - http://computation.llnl.gov/sites/default/files/public/ark_guide.pdf
+    /** Set the scalar relative and scalar absolute tolerances. */
+    void SetSStolerances(double reltol, double abstol);
 
-   @note All methods except Step() can be called before Init().
-   To minimize uncertainty, we advise the user to adhere to the given
-   interface, instead of making similar calls by the ARKODE's
-   internal ARKodeMem object.
-*/
-class ARKODESolver : public ODESolver, public SundialsSolver
-{
-protected:
-   bool use_implicit;
-   int irk_table, erk_table;
+    /** Set the maximum time step. */
+    void SetMaxStep(double dt_max);
 
-public:
-   /// Types of ARKODE solvers.
-   enum Type { EXPLICIT, IMPLICIT };
+    /** Set the maximum method order.
 
-   /// Construct a serial ARKODESolver, a wrapper for SUNDIALS' ARKODE solver.
-   /** @param[in] type  Specifies the #Type of ARKODE solver to construct. */
-   ARKODESolver(Type type = EXPLICIT);
+        CVODE uses adaptive-order integration, based on the local truncation
+        error. The default values for max_order are 12 for CV_ADAMS and
+        5 for CV_BDF. Use this if you know a priori that your system is such
+        that higher order integration formulas are unstable.
+
+        @note max_order can't be higher than the current maximum order. */
+    void SetMaxOrder(int max_order);
+
+    /** Print various CVODE statistics. */
+    void PrintInfo() const;
+
+    /// Destroy the associated CVODE memory and SUNDIALS objects.
+    virtual ~CVODESolver();
+  };
+
+  // ---------------------------------------------------------------------------
+  // Interface to ARKode's ARKStep module -- Additive Runge-Kutta methods
+  // ---------------------------------------------------------------------------
+
+  class ARKStepSolver : public ODESolver, public SundialsSolver
+  {
+  private:
+    /// Utility function for creating ARKStep.
+    void Create(double &t, Vector &x);
+
+  public:
+    /// Types of ARKODE solvers.
+    enum Type { EXPLICIT, IMPLICIT, IMEX };
+
+  protected:
+    Type rk_type;      /// Runge-Kutta type
+    int step_mode;     /// ARKStep step mode (ARK_NORMAL or ARK_ONE_STEP).
+    bool use_implicit; /// true for implicit or imex integration
+
+    /// Wrappers to compute the ODE Rhs functions. RHS1 is explicit RHS and RHS2
+    /// the implicit RHS for IMEX integration. When purely implicit or explicit
+    /// only RHS1 is used.
+    static int RHS1(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
+    static int RHS2(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
+
+    /// Setup the linear system A x = b
+    static int LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
+                           SUNMatrix M, booleantype jok, booleantype *jcur,
+                           realtype gamma, void *user_data, N_Vector tmp1,
+                           N_Vector tmp2, N_Vector tmp3);
+
+    /// Solve the linear system A x = b
+    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
+                           N_Vector b, realtype tol);
+
+    /// Setup the linear system M x = b
+    static int MassSysSetup(realtype t, SUNMatrix M, void *user_data,
+                            N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
+
+    /// Solve the linear system M x = b
+    static int MassSysSolve(SUNLinearSolver LS, SUNMatrix M, N_Vector x,
+                            N_Vector b, realtype tol);
+
+  public:
+    /** Construct a serial wrapper to SUNDIALS' ARKode integrator.
+        @param[in] type Specifies the RK method type
+                        EXPLICIT - explicit RK method
+                        IMPLICIT - implicit RK method
+                        IMEX     - implicit-explicit ARK method */
+    ARKStepSolver(Type type = EXPLICIT);
 
 #ifdef MFEM_USE_MPI
-   /// Construct a parallel ARKODESolver, a wrapper for SUNDIALS' ARKODE solver.
-   /** @param[in] comm  The MPI communicator used to partition the ODE system.
-       @param[in] type  Specifies the #Type of ARKODE solver to construct. */
-   ARKODESolver(MPI_Comm comm, Type type = EXPLICIT);
+    /** Construct a parallel wrapper to SUNDIALS' ARKode integrator.
+        @param[in] comm The MPI communicator used to partition the ODE system
+        @param[in] type Specifies the RK method type
+                        EXPLICIT - explicit RK method
+                        IMPLICIT - implicit RK method
+                        IMEX     - implicit-explicit ARK method */
+    ARKStepSolver(MPI_Comm comm, Type type = EXPLICIT);
 #endif
 
-   /// Specify the scalar relative and scalar absolute tolerances.
-   void SetSStolerances(double reltol, double abstol);
+    /// Base class Init -- DO NOT CALL, use the below initialization function
+    /// that takes the initial t and x as inputs.
+    virtual void Init(TimeDependentOperator &f_);
 
-   /// Set a custom Jacobian system solver for implicit methods.
-   void SetLinearSolver(SundialsODELinearSolver &ls_spec);
+    /** Initialize ARKode: Calls ARKStepInit() for explicit or implicit problems
+        and sets some defaults.
+        @param[in] f_ the TimeDependentOperator that defines the ODE system
+        @param[in] t  the initial time
+        @param[in] x  the initial condition
 
-   /** @brief ARKode supports two modes, specified by itask: ARK_NORMAL
-       (default) and ARK_ONE_STEP. */
-   /** In the ARK_NORMAL mode, the solver steps until it reaches or passes
-       tout = t + dt, where t and dt are specified in Step(), and then
-       interpolates to obtain y(tout). In the ARK_ONE_STEP mode, it takes one
-       internal step and returns. */
-   void SetStepMode(int itask);
+        @note All other methods must be called after Init(). */
+    void Init(TimeDependentOperator &f_, double &t, Vector &x);
 
-   /// Chooses integration order for all explicit / implicit / IMEX methods.
-   /** The default is 4, and the allowed ranges are: [2, 8] for explicit; [2, 5]
-       for implicit; [3, 5] for IMEX. */
-   void SetOrder(int order);
+    /** Initialize ARKode: Calls ARKStepInit() for IMEX problems and sets some
+        defaults.
+        @param[in] f_ the TimeDependentOperator that defines the ODE system
+        @param[in] t  the initial time
+        @param[in] x  the initial condition
 
-   /// Choose a specific Butcher table for implicit RK method.
-   /** See the documentation for all possible options, stability regions, etc.
-       For example, table_num = ARK548L2SA_DIRK_8_4_5 is 8-stage 5th order. */
-   void SetIRKTableNum(int table_num);
-   /// Choose a specific Butcher table for explicit RK method.
-   /** See the documentation for all possible options, stability regions, etc.*/
-   void SetERKTableNum(int table_num);
+        @note All other methods must be called after Init(). */
+    void Init(TimeDependentOperator &f_, TimeDependentOperator &f2_, double &t,
+              Vector &x);
 
-   /** @brief Use a fixed time step size, instead of performing any form of
-       temporal adaptivity. */
-   /** Use of this function is not recommended, since there is no assurance of
-       the validity of the computed solutions. It is primarily provided for
-       code-to-code verification testing purposes. */
-   void SetFixedStep(double dt);
+    /** Resize ARKode: Resize ARKode internal memory for the current problem.
 
-   /// Set the maximum time step of the Runge-Kutta method.
-   void SetMaxStep(double dt_max)
-   { flag = ARKodeSetMaxStep(sundials_mem, dt_max); }
+        @param[in] x      the newly-sized state vector x(t).
+        @param[in] hscale sacling factor for the next time step.
+        @param[in] t      the current time (must be consistent with x(t).
+    */
+    void Resize(Vector &x, double hscale, double &t);
 
-   /// Set the ODE right-hand-side operator.
-   /** The start time of ARKODE is initialized from the current time of @a f_.
-       @note This method calls ARKodeInit(). Some ARKODE parameters can be set
-       (using the handle returned by SundialsMem()) only after this call. */
-   virtual void Init(TimeDependentOperator &f_);
+    /** Integrate the ODE with ARKode using the specified step mode.
 
-   /// Use ARKODE to integrate over [t, t + dt], with the specified step mode.
-   /** Calls ARKode(), which is the main driver of the ARKODE package.
-       @param[in,out] x  Solution vector to advance. On input/output x=x(t)
-                         for t corresponding to the input/output value of t,
-                         respectively.
-       @param[in,out] t  Input: the starting time value. Output: the time value
-                         of the solution output, as returned by CVode().
-       @param[in,out] dt Input: desired time step. Output: the last incremental
-                         time step used. */
-   virtual void Step(Vector &x, double &t, double &dt);
+        @param[out]    x  Solution vector at the requested output timem x=x(t).
+        @param[in/out] t  On output, the output time reached.
+        @param[in/out] dt On output, the last time step taken.
 
-   /// Print ARKODE statistics.
-   void PrintInfo() const;
+        @note On input, the values of t and dt are used to compute desired
+        output time for the integration, tout = t + dt.
+    */
+    virtual void Step(Vector &x, double &t, double &dt);
 
-   /// Destroy the associated ARKODE memory.
-   virtual ~ARKODESolver();
-};
+    /** Attach a custom linear solver solver to ARKode.
+        @param[in] ls_spec A SundialsLinearSolver object defining the custom
+                           linear solver */
+    void SetLinearSolver(SundialsLinearSolver &ls_spec);
 
-/// Wrapper for SUNDIALS' KINSOL library -- Nonlinear solvers.
-/**
-   - http://computation.llnl.gov/projects/sundials
-   - http://computation.llnl.gov/sites/default/files/public/kin_guide.pdf
+    /** Attach a custom linear solver solver to ARKode.*/
+    void SetLinearSolver();
 
-   @note To minimize uncertainty, we advise the user to adhere to the given
-   interface, instead of making similar calls by the KINSOL's
-   internal KINMem object.
-*/
-class KinSolver : public NewtonSolver, public SundialsSolver
-{
-protected:
-   bool use_oper_grad;
-   mutable N_Vector y_scale, f_scale;
-   const Operator *jacobian; // stores the result of oper->GetGradient()
+    /** Attach a custom mass matrix linear solver solver to ARKode.
+        @param[in] ls_spec A SundialsLinearSolver object defining the custom
+                           linear solver
+        @param[in] tdep    A integer flag indicating if the mass matrix is time
+                           dependent (1) or time independent (0). */
+    void SetMassLinearSolver(SundialsLinearSolver &ls_spec, int tdep);
 
-   /// @name Auxiliary callback functions.
-   ///@{
-   // Computes the non-linear operator action F(u).
-   // The real type of user_data is pointer to KinSolver.
-   static int Mult(const N_Vector u, N_Vector fu, void *user_data);
+    /** Attach a custom mass matrix linear solver solver to ARKode.
+        @param[in] tdep    A integer flag indicating if the mass matrix is time
+                           dependent (1) or time independent (0). */
+    void SetMassLinearSolver(int tdep);
 
-   // Computes J(u)v. The real type of user_data is pointer to KinSolver.
-   static int GradientMult(N_Vector v, N_Vector Jv, N_Vector u,
-                           booleantype *new_u, void *user_data);
+    /** Select the ARKode step mode: ARK_NORMAL (default) or ARK_ONE_STEP.
+        @param[in] itask  The desired step mode */
+    void SetStepMode(int itask);
 
-   static int LinSysSetup(KINMemRec *kin_mem);
+    /** Set the scalar relative and scalar absolute tolerances. */
+    void SetSStolerances(double reltol, double abstol);
 
-   static int LinSysSolve(KINMemRec *kin_mem, N_Vector x, N_Vector b,
-                          realtype *sJpnorm, realtype *sFdotJp);
-   ///@}
+    /** Set the maximum time step. */
+    void SetMaxStep(double dt_max);
 
-public:
-   /// Construct a serial KinSolver, a wrapper for SUNDIALS' KINSOL solver.
-   /** @param[in] strategy   Specifies the nonlinear solver strategy:
-                             KIN_NONE / KIN_LINESEARCH / KIN_PICARD / KIN_FP.
-       @param[in] oper_grad  Specifies whether the solver should use its
-                             Operator's GetGradient() method to compute the
-                             Jacobian of the system. */
-   KinSolver(int strategy, bool oper_grad = true);
+    /// Chooses integration order for all explicit / implicit / IMEX methods.
+    /** The default is 4, and the allowed ranges are: [2, 8] for explicit;
+        [2, 5] for implicit; [3, 5] for IMEX. */
+    void SetOrder(int order);
+
+    /// Choose a specific Butcher table for an explicit RK method.
+    /** See the documentation for all possible options, stability regions, etc.
+        For example, table_num = BOGACKI_SHAMPINE_4_2_3 is 4-stage 3rd order. */
+    void SetERKTableNum(int table_num);
+
+    /// Choose a specific Butcher table for a diagonally implicit RK method.
+    /** See the documentation for all possible options, stability regions, etc.
+        For example, table_num = CASH_5_3_4 is 5-stage 4th order. */
+    void SetIRKTableNum(int table_num);
+
+    /// Choose a specific Butcher table for an IMEX RK method.
+    /** See the documentation for all possible options, stability regions, etc.
+        For example, etable_num = ARK548L2SA_DIRK_8_4_5 and
+        itable_num = ARK548L2SA_ERK_8_4_5 is 8-stage 5th order. */
+    void SetIMEXTableNum(int etable_num, int itable_num);
+
+    /// Use a fixed time step size (disable temporal adaptivity).
+    /** Use of this function is not recommended, since there is no assurance of
+        the validity of the computed solutions. It is primarily provided for
+        code-to-code verification testing purposes. */
+    void SetFixedStep(double dt);
+
+    /** Print various ARKStep statistics. */
+    void PrintInfo() const;
+
+    /// Destroy the associated ARKode memory and SUNDIALS objects.
+    virtual ~ARKStepSolver();
+  };
+
+  // ---------------------------------------------------------------------------
+  // Interface to the KINSOL library -- nonlinear solver methods
+  // ---------------------------------------------------------------------------
+
+  class KINSolver : public NewtonSolver, public SundialsSolver
+  {
+  protected:
+    int global_strategy;               // KINSOL solution strategy
+    bool use_oper_grad;                // use the Jv prod function
+    mutable N_Vector y_scale, f_scale; // scaling vectors
+    const Operator *jacobian;          // stores oper->GetGradient()
+
+    /// Wrapper to compute the nonlinear residual F(u) = 0
+    static int Mult(const N_Vector u, N_Vector fu, void *user_data);
+
+    /// Wrapper to compute the Jacobian-vector product J(u) v = Jv
+    static int GradientMult(N_Vector v, N_Vector Jv, N_Vector u,
+                            booleantype *new_u, void *user_data);
+
+    /// Setup the linear system J u = b
+    static int LinSysSetup(N_Vector u, N_Vector fu, SUNMatrix J,
+                           void *user_data, N_Vector tmp1, N_Vector tmp2);
+
+    /// Solve the linear system J u = b
+    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix J, N_Vector u,
+                           N_Vector b, realtype tol);
+
+  public:
+
+    /// Construct a serial warpper to SUNDIALS' KINSOL nonlinear solver
+    /** @param[in] strategy   Specifies the nonlinear solver strategy:
+                              KIN_NONE / KIN_LINESEARCH / KIN_PICARD / KIN_FP.
+        @param[in] oper_grad  Specifies whether the solver should use its
+                              Operator's GetGradient() method to compute the
+                              Jacobian of the system. */
+    KINSolver(int strategy, bool oper_grad = true);
 
 #ifdef MFEM_USE_MPI
-   /// Construct a parallel KinSolver, a wrapper for SUNDIALS' KINSOL solver.
-   /** @param[in] comm       The MPI communicator used to partition the system.
-       @param[in] strategy   Specifies the nonlinear solver strategy:
-                             KIN_NONE / KIN_LINESEARCH / KIN_PICARD / KIN_FP.
-       @param[in] oper_grad  Specifies whether the solver should use its
-                             Operator's GetGradient() method to compute the
-                             Jacobian of the system. */
-   KinSolver(MPI_Comm comm, int strategy, bool oper_grad = true);
+    /// Construct a parallel warpper to SUNDIALS' KINSOL nonlinear solver
+    /** @param[in] comm       The MPI communicator used to partition the system.
+        @param[in] strategy   Specifies the nonlinear solver strategy:
+                              KIN_NONE / KIN_LINESEARCH / KIN_PICARD / KIN_FP.
+       @param[in] oper_grad   Specifies whether the solver should use its
+                              Operator's GetGradient() method to compute the
+                              Jacobian of the system. */
+    KINSolver(MPI_Comm comm, int strategy, bool oper_grad = true);
 #endif
 
-   /// Destroy the associated KINSOL memory.
-   virtual ~KinSolver();
+    /// Destroy the associated KINSOL memory.
+    virtual ~KINSolver();
 
-   /// Set the nonlinear Operator of the system. This method calls KINInit().
-   virtual void SetOperator(const Operator &op);
+    /// Set the nonlinear Operator of the system and initialize KINSOL.
+    virtual void SetOperator(const Operator &op);
 
-   /// Set the linear solver for inverting the Jacobian.
-   /** @note This function assumes that Operator::GetGradient(const Vector &)
-             is implemented by the Operator specified by
-             SetOperator(const Operator &). */
-   virtual void SetSolver(Solver &solver);
-   /// Equivalent to SetSolver(Solver).
-   virtual void SetPreconditioner(Solver &solver) { SetSolver(solver); }
+    /// Set the linear solver for inverting the Jacobian.
+    /** @note This function assumes that Operator::GetGradient(const Vector &)
+              is implemented by the Operator specified by
+              SetOperator(const Operator &). */
+    virtual void SetSolver(Solver &solver);
+
+    /// Equivalent to SetSolver(Solver)
+    virtual void SetPreconditioner(Solver &solver) { SetSolver(solver); }
 
    /// Set KINSOL's scaled step tolerance.
    /** The default tolerance is U^(2/3), where U = machine unit roundoff. */
    void SetScaledStepTol(double sstol);
-   /// Set KINSOL's functional norm tolerance.
-   /** The default tolerance is U^(1/3), where U = machine unit roundoff.
-        @note This function is equivalent to SetAbsTol(double). */
-   void SetFuncNormTol(double ftol) { abs_tol = ftol; }
 
-   /// Set maximum number of nonlinear iterations without a Jacobian update.
-   /** The default is 10. */
-   void SetMaxSetupCalls(int max_calls);
+    /// Set maximum number of nonlinear iterations without a Jacobian update.
+    /** The default is 10. */
+    void SetMaxSetupCalls(int max_calls);
 
-   /// Solve the nonlinear system F(x) = 0.
-   /** Calls the other Mult(Vector&, Vector&, Vector&) const method with
-       `x_scale = 1`. The values of 'fx_scale' are determined by comparing
-       the chosen relative and functional norm (i.e. absolute) tolerances.
-       @param[in]     b  Not used, KINSol always assumes zero RHS.
-       @param[in,out] x  On input, initial guess, if @a #iterative_mode = true,
-                         otherwise the initial guess is zero; on output, the
-                         solution. */
-   virtual void Mult(const Vector &b, Vector &x) const;
+    /// Solve the nonlinear system F(x) = 0.
+    /** This method computes the x_scale and fx_scale vectors and calls the
+        other Mult(Vector&, Vector&, Vector&) const method. The x_scale vector
+        is a vector of ones and values of fx_scale are determined by comparing
+        the chosen relative and functional norm (i.e. absolute) tolerances.
+        @param[in]     b  Not used, KINSOL always assumes zero RHS.
+        @param[in,out] x  On input, initial guess, if @a #iterative_mode = true,
+                          otherwise the initial guess is zero; on output, the
+                          solution. */
+    virtual void Mult(const Vector &b, Vector &x) const;
 
    /// Solve the nonlinear system F(x) = 0.
    /** Calls KINSol() to solve the nonlinear system. Before calling KINSol(),
        this functions uses the data members inherited from class IterativeSolver
        to set corresponding KINSOL options.
-       @param[in,out] x        On input, initial guess, if @a #iterative_mode =
-                               true, otherwise the initial guess is zero; on
-                               output, the solution.
-       @param[in]     x_scale  Elements of a diagonal scaling matrix D, s.t.
-                               D*x has all elements roughly the same when
-                               x is close to a solution.
-       @param[in]    fx_scale  Elements of a diagonal scaling matrix E, s.t.
-                               D*F(x) has all elements roughly the same when
-                               x is not too close to a solution. */
-   void Mult(Vector &x, const Vector &x_scale, const Vector &fx_scale) const;
-};
+       @param[in,out] x         On input, initial guess, if @a #iterative_mode =
+                                true, otherwise the initial guess is zero; on
+                                output, the solution.
+       @param[in]     x_scale   Elements of a diagonal scaling matrix D, s.t.
+                                D*x has all elements roughly the same when
+                                x is close to a solution.
+       @param[in]     fx_scale  Elements of a diagonal scaling matrix E, s.t.
+                                D*F(x) has all elements roughly the same when
+                                x is not too close to a solution. */
+    void Mult(Vector &x, const Vector &x_scale, const Vector &fx_scale) const;
+  };
 
 }  // namespace mfem
 
