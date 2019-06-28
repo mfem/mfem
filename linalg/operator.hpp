@@ -164,7 +164,8 @@ public:
        The true dofs in @a ess_tdof are ignored, s.t. gradients with applied
        essential boundary conditions can be tested. The method will inform
        the user which column has an l2 norm above the tolerance. */
-   void CheckJacobian(Vector &x, Array<int> &ess_tdof, int print_level = 2);
+   void CheckJacobian(Vector &x, Array<int> &ess_tdof, double eps = 1e-8,
+                      int print_level = 2);
 
    /// Virtual destructor.
    virtual ~Operator() { }

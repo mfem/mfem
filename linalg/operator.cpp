@@ -134,11 +134,11 @@ void Operator::PrintMatlab(std::ostream & out, int n, int m) const
    }
 }
 
-void Operator::CheckJacobian(Vector &x, Array<int> &ess_tdof, int print_level)
+void Operator::CheckJacobian(Vector &x, Array<int> &ess_tdof, double eps,
+                             int print_level)
 {
-   double eps = 1e-8;
-   Vector xpert(height), one(height), fx(height),
-          fxp(height), basis(height), jac_col(height);
+   Vector xpert(height), fx(height), fxp(height), basis(height),
+         jac_col(height);
 
    basis = 0.0;
    xpert = x;
