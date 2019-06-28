@@ -181,22 +181,22 @@ public:
    const Memory<int> &GetMemoryJ() const { return J; }
 
    const int *ReadJ(bool on_dev = true) const
-   { return mfem::Read(J, I[Height()], on_dev); }
+   { return mfem::Read(J, J.Capacity(), on_dev); }
 
    const int *HostReadJ() const
-   { return mfem::Read(J, I[Height()], false); }
+   { return mfem::Read(J, J.Capacity(), false); }
 
    int *WriteJ(bool on_dev = true)
-   { return mfem::Write(J, I[Height()], on_dev); }
+   { return mfem::Write(J, J.Capacity(), on_dev); }
 
    int *HostWriteJ()
-   { return mfem::Write(J, I[Height()], false); }
+   { return mfem::Write(J, J.Capacity(), false); }
 
    int *ReadWriteJ(bool on_dev = true)
-   { return mfem::ReadWrite(J, I[Height()], on_dev); }
+   { return mfem::ReadWrite(J, J.Capacity(), on_dev); }
 
    int *HostReadWriteJ()
-   { return mfem::ReadWrite(J, I[Height()], false); }
+   { return mfem::ReadWrite(J, J.Capacity(), false); }
 
    //Methods for Data
    Memory<double> &GetMemoryData() { return A; }
@@ -204,22 +204,22 @@ public:
    const Memory<double> &GetMemoryData() const { return A; }
 
    const double *ReadData(bool on_dev = true) const
-   { return mfem::Read(A, I[Height()], on_dev); }
+   { return mfem::Read(A, A.Capacity(), on_dev); }
 
    const double *HostReadData() const
-   { return mfem::Read(A, I[Height()], false); }
+   { return mfem::Read(A, A.Capacity(), false); }
 
    double *WriteData(bool on_dev = true)
-   { return mfem::Write(A, I[Height()], on_dev); }
+   { return mfem::Write(A, A.Capacity(), on_dev); }
 
    double *HostWriteData()
-   { return mfem::Write(A, I[Height()], false); }
+   { return mfem::Write(A, A.Capacity(), false); }
 
    double *ReadWriteData(bool on_dev = true)
-   { return mfem::ReadWrite(A, I[Height()], on_dev); }
+   { return mfem::ReadWrite(A, A.Capacity(), on_dev); }
 
    double *HostReadWriteData()
-   { return mfem::ReadWrite(A, I[Height()], false); }
+   { return mfem::ReadWrite(A, A.Capacity(), false); }
 
    /// Returns the number of elements in row @a i.
    int RowSize(const int i) const;
