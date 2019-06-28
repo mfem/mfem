@@ -334,7 +334,10 @@ Before a PR can be merged, it should satisfy the following:
     - [ ] Is this a new feature users need to be aware of? New or updated example or miniapp?
     - [ ] Does it make sense to create a new section in the `CHANGELOG` to group with other related features?
 - [ ] Update `INSTALL`:
-    - [ ] Had a new optional library been added? (*Make sure the external library is licensed under LGPL, not GPL!*)
+    - [ ] Had a new optional library been added? If so, what range of
+          versions of this library are required? (*Make sure the
+          external library is licensed under LGPL, not GPL!*)
+    - [ ] Have the version ranges for any required or optional libraries changed?
     - [ ] Does `make` or `cmake` have a new target?
     - [ ] Did the requirements or the installation process change? *(rare)*
 - [ ] Update `.gitignore`:
@@ -452,6 +455,12 @@ MFEM uses a `master`/`next`-branch workflow as described below:
     - [ ] `makefile`
     - [ ] `CMakeLists.txt`
     - [ ] `doc/CodeDocumentation.conf.in`
+- [ ] Check that version requirements for each of MFEM's dependencies
+      are documented in `INSTALL` and up-to-date
+- [ ] Check that continuous integration server configurations reflect
+      the dependency version requirements of the new release
+    - [ ] `.travis.yml`
+    - [ ] `.appveyor.yml`
 - [ ] (LLNL only) Make sure all `README.html` files in the source repo are up to date.
 - [ ] Tag the repository:
 
