@@ -381,7 +381,7 @@ public:
 
       jac->SetBlock(0, 0, NjacS);
 
-      // invS->SetOperator(*NjacS);
+      invS->SetOperator(*NjacS);
 
       return *jac;
    }
@@ -406,6 +406,11 @@ public:
    {
       p_gf->Distribute(trueX.GetBlock(1));
       return p_gf;
+   }
+
+   ParMesh *GetParMesh() const
+   {
+      return pmesh_;
    }
 
    virtual ~NavierStokesOperator()
@@ -433,6 +438,59 @@ public:
       delete p_gf;
    }
 };
+
+void UpdateFESpaces(Array<ParFiniteElementSpace *> &fes)
+{
+   for (int i = 0; i < fes.Size(); i++)
+   {
+      fes[i]->Update();
+   }
+}
+
+void CompareSolution(NavierStokesOperator &nso, ParGridFunction *vel_gf, ParGridFunction *p_gf)
+{
+   if (opt_.prob_type == PROB_TYPE::MMS ||
+       opt_.prob_type == PROB_TYPE::KOV)
+   {
+      int order_quad = max(2, 2 * 2 + 1);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i = 0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(IntRules.Get(i, order_quad));
+      }
+
+      VectorFunctionCoefficient *uexcoeff = nullptr;
+      FunctionCoefficient *pexcoeff = nullptr;
+
+      if (opt_.prob_type == PROB_TYPE::MMS)
+      {
+         uexcoeff = new VectorFunctionCoefficient(nso.GetParMesh()->Dimension(), vel_ex);
+         pexcoeff = new FunctionCoefficient(p_ex);
+      }
+      else if (opt_.prob_type == PROB_TYPE::KOV)
+      {
+         uexcoeff = new VectorFunctionCoefficient(nso.GetParMesh()->Dimension(), kov_vel_ex);
+         pexcoeff = new FunctionCoefficient(kov_p_ex);
+      }
+
+      double err_u = vel_gf->ComputeL2Error(*uexcoeff, irs);
+      double norm_u = ComputeGlobalLpNorm(2, *uexcoeff, *nso.GetParMesh(), irs);
+
+      double err_p = p_gf->ComputeL2Error(*pexcoeff, irs);
+      double norm_p = ComputeGlobalLpNorm(2, *pexcoeff, *nso.GetParMesh(), irs);
+
+      if (nso.GetParMesh()->GetMyRank() == 0)
+      {
+         cout << "|| u_h - u_ex || = " << err_u << "\n";
+         cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+         cout << "|| p_h - p_ex || = " << err_p << "\n";
+         cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+      }
+
+      delete uexcoeff;
+      delete pexcoeff;
+   }
+}
 
 int main(int argc, char *argv[])
 {
@@ -495,13 +553,16 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh_file = "../../data/inline-quad.mesh";
+      mesh_file = "../../data/amr-quad.mesh";
    }
 
    int vel_order = order;
    int pres_order = order - 1;
 
    Mesh *mesh = new Mesh(mesh_file);
+
+   mesh->EnsureNCMesh();
+
    int dim = mesh->Dimension();
 
    for (int l = 0; l < serial_ref_levels; l++)
@@ -531,72 +592,57 @@ int main(int argc, char *argv[])
       cout << "Pressure #DOFs: " << fes_size1 << endl;
    }
 
-   NavierStokesOperator nso(fes);
-
-   nso.Solve();
-
-   ParGridFunction *vel_gf = nso.UpdateVelocityGF();
-   ParGridFunction *p_gf = nso.UpdatePressureGF();
-
-   if (opt_.prob_type == PROB_TYPE::MMS ||
-       opt_.prob_type == PROB_TYPE::KOV)
-   {
-      int order_quad = max(2, 2 * order + 1);
-      const IntegrationRule *irs[Geometry::NumGeom];
-      for (int i = 0; i < Geometry::NumGeom; ++i)
-      {
-         irs[i] = &(IntRules.Get(i, order_quad));
-      }
-
-      VectorFunctionCoefficient *uexcoeff = nullptr;
-      FunctionCoefficient *pexcoeff = nullptr;
-
-      if (opt_.prob_type == PROB_TYPE::MMS)
-      {
-         uexcoeff = new VectorFunctionCoefficient(dim, vel_ex);
-         pexcoeff = new FunctionCoefficient(p_ex);
-      }
-      else if (opt_.prob_type == PROB_TYPE::KOV)
-      {
-         uexcoeff = new VectorFunctionCoefficient(dim, kov_vel_ex);
-         pexcoeff = new FunctionCoefficient(kov_p_ex);
-      }
-
-      double err_u = vel_gf->ComputeL2Error(*uexcoeff, irs);
-      double norm_u = ComputeGlobalLpNorm(2, *uexcoeff, *pmesh, irs);
-
-      double err_p = p_gf->ComputeL2Error(*pexcoeff, irs);
-      double norm_p = ComputeGlobalLpNorm(2, *pexcoeff, *pmesh, irs);
-
-      if (myid == 0)
-      {
-         cout << "|| u_h - u_ex || = " << err_u << "\n";
-         cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-         cout << "|| p_h - p_ex || = " << err_p << "\n";
-         cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
-      }
-
-      delete uexcoeff;
-      delete pexcoeff;
-   }
+   ParGridFunction *vel_gf;
+   ParGridFunction *p_gf;
 
    char vishost[] = "localhost";
    int visport = 19916;
    socketstream u_sock(vishost, visport);
-   u_sock << "parallel " << num_procs << " " << myid << "\n";
    u_sock.precision(8);
-   u_sock << "solution\n"
-          << *pmesh << *vel_gf << "window_title 'velocity'"
-          << "keys Rjlc\n"
-          << endl;
 
-   socketstream p_sock(vishost, visport);
-   p_sock << "parallel " << num_procs << " " << myid << "\n";
-   p_sock.precision(8);
-   p_sock << "solution\n"
-          << *pmesh << *p_gf << "window_title 'pressure'"
-          << "keys Rjlc\n"
-          << endl;
+   const int max_vel_dofs = 100000;
+
+   for (int amr_it = 0; ; amr_it++)
+   {
+      HYPRE_Int global_dofs = fes[0]->GlobalTrueVSize();
+      if (myid == 0)
+      {
+         cout << "\nAMR iteration " << amr_it << endl;
+         cout << "Number of unknowns: " << global_dofs << endl;
+      }
+
+      NavierStokesOperator nso(fes);
+      nso.Solve();
+
+      vel_gf = nso.UpdateVelocityGF();
+      p_gf = nso.UpdatePressureGF();
+
+      CompareSolution(nso, vel_gf, p_gf);
+
+      u_sock << "parallel " << num_procs << " " << myid << "\n"
+             << "solution\n"
+             << *pmesh << *vel_gf << "window_title 'velocity'"
+             << endl;
+
+      if (global_dofs > max_vel_dofs)
+      {
+         if (myid == 0)
+         {
+            cout << "Reached the maximum number of dofs. Stop." << endl;
+         }
+         break;
+      }
+
+      pmesh->UniformRefinement();
+
+      UpdateFESpaces(fes);
+
+      if (pmesh->Nonconforming())
+      {
+         pmesh->Rebalance();
+         UpdateFESpaces(fes);
+      }
+   }
 
    delete vel_fec;
    delete pres_fec;
