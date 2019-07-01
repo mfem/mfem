@@ -275,6 +275,7 @@ double viFunc(const Vector &x)
 /** Given the electron temperature in eV this coefficient returns an
     approzximation to the expected ionization rate in m^3/s.
 */
+/*
 class ApproxIonizationRate : public Coefficient
 {
 private:
@@ -291,30 +292,7 @@ public:
       return 3.0e-16 * Te2 / (3.0 + 0.01 * Te2);
    }
 };
-
-class NeutralDiffusionCoef : public Coefficient
-{
-private:
-   Coefficient * ne_;
-   Coefficient * vn_;
-   Coefficient * iz_;
-
-public:
-   NeutralDiffusionCoef(Coefficient &neCoef, Coefficient &vnCoef,
-                        Coefficient &izCoef)
-      : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef) {}
-
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      double ne = ne_->Eval(T, ip);
-      double vn = vn_->Eval(T, ip);
-      double iz = iz_->Eval(T, ip);
-
-      return vn * vn / (3.0 * ne * iz);
-   }
-};
-
+*/
 class MomentumDiffusionCoef : public MatrixCoefficient
 {
 private:
@@ -526,7 +504,7 @@ int main(int argc, char *argv[])
    dg.sigma = -1.0;
    dg.kappa = -1.0;
 
-   int ode_solver_type = 2;
+   int ode_solver_type = 12;
    int logging = 1;
    bool   imex = true;
    double tol_ode = 1e-3;
@@ -1022,6 +1000,12 @@ int main(int argc, char *argv[])
    pgf.Append(&ion_energy);
    pgf.Append(&elec_energy);
 
+   ParGridFunctionArray dpgf;
+   for (int i=0; i<5; i++)
+   {
+     dpgf.Append(new ParGridFunction(&fes, (double*)NULL));
+   }
+
    // ParGridFunction u(&fes);
    // u.ProjectCoefficient(u0Coef);
    neu_density = 1.0e16;
@@ -1053,7 +1037,7 @@ int main(int argc, char *argv[])
    MatrixFunctionCoefficient perpCoef(2, perpFunc);
    ProductCoefficient          mnCoef(ion_mass * amu_, niCoef);
    ProductCoefficient        nnneCoef(nnCoef, neCoef);
-   ApproxIonizationRate        izCoef(elec_energy);
+   ApproxIonizationRate        izCoef(TeCoef);
    ConstantCoefficient     DiPerpCoef(Di_perp);
    ConstantCoefficient     XiPerpCoef(Xi_perp);
    ConstantCoefficient     XePerpCoef(Xe_perp);
@@ -1207,17 +1191,19 @@ int main(int argc, char *argv[])
    }
 
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
-   DGTransportTDO oper(dg, fes, ffes, pgf, mnCoef, niCoef, neCoef, imex);
+   DGTransportTDO oper(dg, fes, ffes, pgf, dpgf,
+                       ion_charge, neutral_mass, neutral_temp,
+                       mnCoef, niCoef, neCoef, imex);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
-
+   /*
    oper.SetNnDiffusionCoefficient(DnCoef);
    oper.SetNnSourceCoefficient(SnCoef);
 
    oper.SetNiDiffusionCoefficient(DiCoef);
    oper.SetNiAdvectionCoefficient(ViCoef);
    oper.SetNiSourceCoefficient(SiCoef);
-
+   */
    oper.SetViDiffusionCoefficient(EtaCoef);
    oper.SetViAdvectionCoefficient(MomCoef);
    oper.SetViSourceCoefficient(SMomCoef);

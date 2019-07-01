@@ -842,6 +842,10 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &ffes,
                                ParGridFunctionArray &pgf,
+                               ParGridFunctionArray &dpgf,
+                               int ion_charge,
+                               double neutral_mass,
+                               double neutral_temp,
                                Coefficient &MomCCoef,
                                Coefficient &TiCCoef,
                                Coefficient &TeCCoef,
@@ -850,13 +854,35 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
      fes_(&fes),
      ffes_(&ffes),
      pgf_(&pgf),
-     oneCoef_(1.0),
-     n_n_oper_(dg, fes, pgf, oneCoef_, imex),
-     n_i_oper_(dg, fes, pgf, oneCoef_, imex),
+     dpgf_(&dpgf),
+     newton_op_solver_(fes.GetComm()),
+     newton_solver_(fes.GetComm()),
+     op_(dg, pgf, dpgf, ion_charge, neutral_mass, neutral_temp),
+     // oneCoef_(1.0),
+     // n_n_oper_(dg, fes, pgf, oneCoef_, imex),
+     // n_i_oper_(dg, fes, pgf, oneCoef_, imex),
      v_i_oper_(dg, fes, pgf, MomCCoef, imex),
      T_i_oper_(dg, fes, pgf,  TiCCoef, imex),
      T_e_oper_(dg, fes, pgf,  TeCCoef, imex)
 {
+   const double rel_tol = 1e-8;
+
+   newton_op_prec_.SetType(HypreSmoother::l1Jacobi);
+   newton_op_prec_.SetPositiveDiagonal(true);
+
+   newton_op_solver_.SetRelTol(rel_tol);
+   newton_op_solver_.SetAbsTol(0.0);
+   newton_op_solver_.SetMaxIter(300);
+   newton_op_solver_.SetPrintLevel(-1);
+   newton_op_solver_.SetPreconditioner(newton_op_prec_);
+
+   newton_solver_.iterative_mode = false;
+   newton_solver_.SetSolver(newton_op_solver_);
+   newton_solver_.SetOperator(op_);
+   newton_solver_.SetPrintLevel(1); // print Newton iterations
+   newton_solver_.SetRelTol(rel_tol);
+   newton_solver_.SetAbsTol(0.0);
+   newton_solver_.SetMaxIter(10);
 }
 
 DGTransportTDO::~DGTransportTDO() {}
@@ -865,8 +891,8 @@ void DGTransportTDO::SetTime(const double _t)
 {
    this->TimeDependentOperator::SetTime(_t);
 
-   n_n_oper_.SetTime(_t);
-   n_i_oper_.SetTime(_t);
+   // n_n_oper_.SetTime(_t);
+   // n_i_oper_.SetTime(_t);
    v_i_oper_.SetTime(_t);
    T_i_oper_.SetTime(_t);
    T_e_oper_.SetTime(_t);
@@ -874,68 +900,68 @@ void DGTransportTDO::SetTime(const double _t)
 
 void DGTransportTDO::SetLogging(int logging)
 {
-   n_n_oper_.SetLogging(logging, "Neutral Density:       ");
-   n_i_oper_.SetLogging(logging, "Ion Density:           ");
+   // n_n_oper_.SetLogging(logging, "Neutral Density:       ");
+   // n_i_oper_.SetLogging(logging, "Ion Density:           ");
    v_i_oper_.SetLogging(logging, "Ion Parallel Velocity: ");
    T_i_oper_.SetLogging(logging, "Ion Temp:              ");
    T_e_oper_.SetLogging(logging, "Electron Temp:         ");
 }
-
+/*
 void DGTransportTDO::SetNnDiffusionCoefficient(Coefficient &dCoef)
 {
-   n_n_oper_.SetDiffusionCoefficient(dCoef);
+ n_n_oper_.SetDiffusionCoefficient(dCoef);
 }
 
 void DGTransportTDO::SetNnDiffusionCoefficient(MatrixCoefficient &DCoef)
 {
-   n_n_oper_.SetDiffusionCoefficient(DCoef);
+ n_n_oper_.SetDiffusionCoefficient(DCoef);
 }
 
 void DGTransportTDO::SetNnSourceCoefficient(Coefficient &SCoef)
 {
-   n_n_oper_.SetSourceCoefficient(SCoef);
+ n_n_oper_.SetSourceCoefficient(SCoef);
 }
 
 void DGTransportTDO::SetNnDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
 {
-   n_n_oper_.SetDirichletBC(dbc_attr, dbc);
+ n_n_oper_.SetDirichletBC(dbc_attr, dbc);
 }
 
 void DGTransportTDO::SetNnNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
 {
-   n_n_oper_.SetNeumannBC(nbc_attr, nbc);
+ n_n_oper_.SetNeumannBC(nbc_attr, nbc);
 }
 
 void DGTransportTDO::SetNiAdvectionCoefficient(VectorCoefficient &VCoef)
 {
-   n_i_oper_.SetAdvectionCoefficient(VCoef);
+ n_i_oper_.SetAdvectionCoefficient(VCoef);
 }
 
 void DGTransportTDO::SetNiDiffusionCoefficient(Coefficient &dCoef)
 {
-   n_i_oper_.SetDiffusionCoefficient(dCoef);
+ n_i_oper_.SetDiffusionCoefficient(dCoef);
 }
 
 void DGTransportTDO::SetNiDiffusionCoefficient(MatrixCoefficient &DCoef)
 {
-   n_i_oper_.SetDiffusionCoefficient(DCoef);
+ n_i_oper_.SetDiffusionCoefficient(DCoef);
 }
 
 void DGTransportTDO::SetNiSourceCoefficient(Coefficient &SCoef)
 {
-   n_i_oper_.SetSourceCoefficient(SCoef);
+ n_i_oper_.SetSourceCoefficient(SCoef);
 }
 
 void DGTransportTDO::SetNiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
 {
-   n_i_oper_.SetDirichletBC(dbc_attr, dbc);
+ n_i_oper_.SetDirichletBC(dbc_attr, dbc);
 }
 
 void DGTransportTDO::SetNiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
 {
-   n_i_oper_.SetNeumannBC(nbc_attr, nbc);
+ n_i_oper_.SetNeumannBC(nbc_attr, nbc);
 }
-
+*/
 void DGTransportTDO::SetViAdvectionCoefficient(VectorCoefficient &VCoef)
 {
    v_i_oper_.SetAdvectionCoefficient(VCoef);
@@ -1025,45 +1051,50 @@ void DGTransportTDO::SetTeNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
 {
    T_e_oper_.SetNeumannBC(nbc_attr, nbc);
 }
-
+/*
 void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
 {
-   y = 0.0;
+ y = 0.0;
 
-   // pgf_->ExchangeFaceNbrData();
+ // pgf_->ExchangeFaceNbrData();
 
-   int size = fes_->GetVSize();
+ int size = fes_->GetVSize();
 
-   x_.SetDataAndSize(const_cast<double*>(&x[0*size]), size);
-   y_.SetDataAndSize(&y[0*size], size);
-   n_n_oper_.ExplicitMult(x_, y_);
+ x_.SetDataAndSize(const_cast<double*>(&x[0*size]), size);
+ y_.SetDataAndSize(&y[0*size], size);
+ n_n_oper_.ExplicitMult(x_, y_);
 
-   x_.SetDataAndSize(const_cast<double*>(&x[1*size]), size);
-   y_.SetDataAndSize(&y[1*size], size);
-   n_i_oper_.ExplicitMult(x_, y_);
+ x_.SetDataAndSize(const_cast<double*>(&x[1*size]), size);
+ y_.SetDataAndSize(&y[1*size], size);
+ n_i_oper_.ExplicitMult(x_, y_);
 
-   x_.SetDataAndSize(const_cast<double*>(&x[2*size]), size);
-   y_.SetDataAndSize(&y[2*size], size);
-   v_i_oper_.ExplicitMult(x_, y_);
+ x_.SetDataAndSize(const_cast<double*>(&x[2*size]), size);
+ y_.SetDataAndSize(&y[2*size], size);
+ v_i_oper_.ExplicitMult(x_, y_);
 
-   x_.SetDataAndSize(const_cast<double*>(&x[3*size]), size);
-   y_.SetDataAndSize(&y[3*size], size);
-   T_i_oper_.ExplicitMult(x_, y_);
+ x_.SetDataAndSize(const_cast<double*>(&x[3*size]), size);
+ y_.SetDataAndSize(&y[3*size], size);
+ T_i_oper_.ExplicitMult(x_, y_);
 
-   x_.SetDataAndSize(const_cast<double*>(&x[4*size]), size);
-   y_.SetDataAndSize(&y[4*size], size);
-   T_e_oper_.ExplicitMult(x_, y_);
+ x_.SetDataAndSize(const_cast<double*>(&x[4*size]), size);
+ y_.SetDataAndSize(&y[4*size], size);
+ T_e_oper_.ExplicitMult(x_, y_);
 }
-
+*/
 void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
                                    Vector &dudt)
 {
    dudt = 0.0;
 
-   // pgf_->ExchangeFaceNbrData();
+   pgf_->ExchangeFaceNbrData();
+
+   op_.SetTimeStep(dt);
 
    int size = fes_->GetVSize();
 
+   Vector zero;
+   newton_solver_.Mult(zero, dudt);
+   /*
    u_.SetDataAndSize(const_cast<double*>(&u[0*size]), size);
    dudt_.SetDataAndSize(&dudt[0*size], size);
    n_n_oper_.ImplicitSolve(dt, u_, dudt_);
@@ -1071,7 +1102,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
    u_.SetDataAndSize(const_cast<double*>(&u[1*size]), size);
    dudt_.SetDataAndSize(&dudt[1*size], size);
    n_i_oper_.ImplicitSolve(dt, u_, dudt_);
-
+   */
    u_.SetDataAndSize(const_cast<double*>(&u[2*size]), size);
    dudt_.SetDataAndSize(&dudt[2*size], size);
    v_i_oper_.ImplicitSolve(dt, u_, dudt_);
@@ -1089,11 +1120,258 @@ void DGTransportTDO::Update()
 {
    height = width = ffes_->GetVSize();
 
-   n_n_oper_.Update();
-   n_i_oper_.Update();
+   op_.Update();
+   // n_n_oper_.Update();
+   // n_i_oper_.Update();
    v_i_oper_.Update();
    T_i_oper_.Update();
    T_e_oper_.Update();
+}
+
+DGTransportTDO::CombinedOp::CombinedOp(DGParams & dg,
+				       ParGridFunctionArray & pgf,
+				       ParGridFunctionArray & dpgf,
+                                       int ion_charge,
+                                       double neutral_mass, double neutral_temp)
+  : neq_(2), pgf_(&pgf), dpgf_(&dpgf),
+     n_n_op_(dg, pgf, dpgf, ion_charge, neutral_mass, neutral_temp),
+     n_i_op_(dg, pgf, dpgf), op_(neq_),
+     offsets_(neq_+1), grad_(NULL)
+{
+   op_ = NULL;
+   op_[0] = &n_n_op_; op_[1] = &n_i_op_;
+
+   this->updateOffsets();
+}
+
+DGTransportTDO::CombinedOp::~CombinedOp()
+{
+   delete grad_;
+}
+
+void DGTransportTDO::CombinedOp::updateOffsets()
+{
+   offsets_[0] = 0;
+
+   for (int i=0; i<neq_; i++)
+   {
+      offsets_[i+1] = op_[i]->Height();
+   }
+
+   offsets_.PartialSum();
+
+   height = width = offsets_[neq_];
+}
+
+void DGTransportTDO::CombinedOp::SetTimeStep(double dt)
+{
+   for (int i=0; i<neq_; i++)
+   {
+      op_[i]->SetTimeStep(dt);
+   }
+}
+
+void DGTransportTDO::CombinedOp::Update()
+{
+   for (int i=0; i<neq_; i++)
+   {
+      op_[i]->Update();
+   }
+
+   this->updateOffsets();
+}
+
+void DGTransportTDO::CombinedOp::UpdateGradient()
+{
+   delete grad_;
+   grad_ = new BlockOperator(offsets_);
+
+   for (int i=0; i<neq_; i++)
+   {
+      for (int j=0; j<neq_; j++)
+      {
+         Operator * gradIJ = op_[i]->GetGradientBlock(j);
+         if (gradIJ)
+         {
+            grad_->SetBlock(i, j, gradIJ);
+         }
+      }
+   }
+}
+
+void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
+{
+   cout << "DGTransportTDO::CombinedOp::Mult" << endl;
+   ParFiniteElementSpace *fes = (*pgf_)[0]->ParFESpace();
+
+   int size = fes->GetVSize();
+   for (int i=0; i<dpgf_->Size(); i++)
+   {
+      // dpgf_[i]->MakeRef(fes, const_cast<Vector&>(k), offsets_[i]);
+     (*dpgf_)[i]->MakeRef(fes, const_cast<Vector&>(k), i * size);
+   }
+   dpgf_->ExchangeFaceNbrData();
+
+
+   for (int i=0; i<2; i++)
+   {
+      int size = offsets_[i+1] - offsets_[i];
+
+      // Vector k_i(const_cast<double*>(&k[offsets_[i]]), size);
+      Vector y_i(&y[offsets_[i]], size);
+
+      op_[i]->Mult(k, y_i);
+   }
+   cout << "DGTransportTDO::CombinedOp::Mult done" << endl;
+}
+
+void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
+{
+  NLOperator::SetTimeStep(dt);
+
+  nn1Coef_.SetBeta(dt);
+  ni1Coef_.SetBeta(dt);
+  Te1Coef_.SetBeta(dt);
+}
+
+void DGTransportTDO::NeutralDensityOp::Update()
+{
+   height = width = (*pgf_)[0]->ParFESpace()->GetVSize();
+}
+
+void DGTransportTDO::NeutralDensityOp::Mult(const Vector &k, Vector &y) const
+{
+   cout << "DGTransportTDO::NeutralDensityOp::Mult" << endl;
+   ParFiniteElementSpace *fespace = (*pgf_)[0]->ParFESpace();
+   ParMesh *pmesh = fespace->GetParMesh();
+
+   y = 0.0;
+
+   {
+      Array<int> vdofs;
+
+      for (int e=0; e<fespace->GetNE(); e++)
+      {
+         const FiniteElement *fe = fespace->GetFE(e);
+         ElementTransformation *eltrans = fespace->GetElementTransformation(e);
+
+         int ndof = fe->GetDof();
+         int dim  = fe->GetDim();
+         int bord = fe->GetOrder();
+
+         shape_.SetSize(ndof);
+         dshape_.SetSize(ndof, dim);
+         dshapedxt_.SetSize(ndof, dim);
+         elvec_.SetSize(ndof);
+         locvec_.SetSize(ndof);
+         locdvec_.SetSize(ndof);
+         vec_.SetSize(dim);
+
+         elvec_ = 0.0;
+
+         fespace->GetElementVDofs (e, vdofs);
+         (*pgf_)[0]->GetSubVector(vdofs, locvec_);
+         (*dpgf_)[0]->GetSubVector(vdofs, locdvec_);
+
+         locvec_.Add(dt_, locdvec_);
+
+         Geometry::Type geom = fe->GetGeomType();
+
+         int iord = 2 * bord;
+
+         const IntegrationRule *ir = &IntRules.Get(geom, iord);
+
+         for (int i=0; i<ir->GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir->IntPoint(i);
+            eltrans->SetIntPoint(&ip);
+
+            double detJ = eltrans->Weight();
+
+            fe->CalcShape(ip, shape_);
+            fe->CalcDShape(ip, dshape_);
+
+            mfem::Mult(dshape_, eltrans->AdjugateJacobian(), dshapedxt_);
+
+	    cout << "calling Eval methods" << endl;
+	    double nn = nn1Coef_.Eval(*eltrans, ip);
+	    double ni = ni1Coef_.Eval(*eltrans, ip);
+	    double Te = Te1Coef_.Eval(*eltrans, ip);
+	    cout << "done calling Eval methods" << endl;
+            double ne = ni * z_i_;
+
+            const double vn2 = 8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_);
+            double sv_iz = 3.0e-16 * Te * Te / (3.0 + 0.01 * Te * Te);
+
+            double Dn = vn2 / (3.0 * ne * sv_iz);
+            double Sn = -ne * nn * sv_iz;
+
+            dshapedxt_.MultTranspose(locvec_, vec_);
+            dshapedxt_.AddMult_a(Dn, vec_, elvec_);
+
+            add(elvec_, detJ * ip.weight * Sn, shape_, elvec_);
+         }
+
+         y.AddElementVector(vdofs, elvec_);
+      }
+   }
+   cout << "DGTransportTDO::NeutralDensityOp::Mult element loop done" << endl;
+   {
+      FaceElementTransformations *ftrans = NULL;
+      Array<int> vdofs;
+      Array<int> vdofs2;
+
+      for (int f = 0; f < pmesh->GetNumFaces(); f++)
+      {
+         ftrans = pmesh->GetInteriorFaceTransformations(f);
+         if (ftrans != NULL)
+         {
+            fespace->GetElementVDofs(ftrans->Elem1No, vdofs);
+            fespace->GetElementVDofs(ftrans->Elem2No, vdofs2);
+            vdofs.Append(vdofs2);
+
+            const FiniteElement *fe1 = fespace->GetFE(ftrans->Elem1No);
+            const FiniteElement *fe2 = fespace->GetFE(ftrans->Elem2No);
+
+	    dg_diff_.AssembleFaceMatrix(*fe1, *fe2, *ftrans, elmat_);
+
+	    (*pgf_)[0]->GetSubVector(vdofs, locvec_);
+	    elmat_.Mult(locvec_, elvec_);
+	    y.AddElementVector(vdofs, elvec_);
+         }
+      }
+   }
+   cout << "DGTransportTDO::NeutralDensityOp::Mult done" << endl;
+}
+
+Operator *DGTransportTDO::NeutralDensityOp::GetGradientBlock(int i)
+{
+   switch (i)
+   {
+      default:
+         return NULL;
+   }
+}
+
+void DGTransportTDO::IonDensityOp::Update()
+{
+   height = width = (*pgf_)[0]->ParFESpace()->GetVSize();
+}
+
+void DGTransportTDO::IonDensityOp::Mult(const Vector &k, Vector &y) const
+{
+   cout << "DGTransportTDO::IonDensityOp::Mult" << endl;
+   y = 0.0;
+   cout << "DGTransportTDO::IonDensityOp::Mult done" << endl;
+}
+
+Operator *DGTransportTDO::IonDensityOp::GetGradientBlock(int i)
+{
+   switch (i)
+   {
+      default:
+         return NULL;
+   }
 }
 
 TransportSolver::TransportSolver(ODESolver * implicitSolver,
