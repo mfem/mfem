@@ -409,7 +409,7 @@ void DiffusionIntegrator::AssembleElementMatrix
 
       Trans.SetIntPoint(&ip);
       w = Trans.Weight();
-      w = ip.weight / (square ? w : w*w*w);
+      w = ip.weight / (square ? w : w*w*w); // w = c wq / det(J)
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
       Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
@@ -1925,6 +1925,15 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    }
 }
 
+const IntegrationRule &VectorDivergenceIntegrator::GetRule(const FiniteElement &trial_fe,
+                                                           const FiniteElement &test_fe,
+                                                           ElementTransformation &Trans)
+{
+   int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder();
+   // TODO: Shouldn't it be: Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ()
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
 void VectorDivergenceIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,
@@ -1944,12 +1953,7 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize (test_dof, dim*trial_dof);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder();
-      ir = &IntRules.Get(trial_fe.GetGeomType(), order);
-   }
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, Trans);
 
    elmat = 0.0;
 
@@ -1957,15 +1961,15 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      trial_fe.CalcDShape (ip, dshape);
-      test_fe.CalcShape (ip, shape);
+      trial_fe.CalcDShape (ip, dshape); // dshape = grad phi_j at ip
+      test_fe.CalcShape (ip, shape);    // shape  = p_i at ip
 
       Trans.SetIntPoint (&ip);
       CalcAdjugate(Trans.Jacobian(), Jadj);
 
-      Mult (dshape, Jadj, gshape);
+      Mult (dshape, Jadj, gshape); // gshape = dshape * Jadj
 
-      gshape.GradToDiv (divshape);
+      gshape.GradToDiv (divshape); // Reshape into long "divergence" vector
 
       c = ip.weight;
       if (Q)
