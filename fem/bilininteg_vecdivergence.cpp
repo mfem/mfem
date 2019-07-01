@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../general/forall.hpp"
-#include "bilinteg.hpp"
+#include "bilininteg.hpp"
 #include "gridfunc.hpp"
 
 using namespace std;
@@ -195,27 +195,33 @@ static void PAVectorDivergenceSetup(const int dim,
    }
 }
 
-void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &fes)
+void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+                                            const FiniteElementSpace &test_fes)
 {
    // Assumes tensor-product elements
-   Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetFE(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
-   const int dims = el.GetDim();
-   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+   Mesh *mesh = trial_fes.GetMesh();
+   const FiniteElement &trial_fe = *trial_fes.GetFE(0);
+   const FiniteElement &test_fe = *test_fes.GetFE(0);
+   ElementTransformation *trans = mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, *trans);
+   const int dims = trial_fe.GetDim();
+   const int dimsToStore = dims * dims;
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
-   ne = fes.GetNE();
+   ne = trial_fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-   dofs1D = maps->ndof;
-   quad1D = maps->nqpt;
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   trial_maps = &trial_fe.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   trial_dofs1D = trial_maps->ndof;
+   trial_quad1D = trial_maps->nqpt;
+   test_maps  = &test_fe.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   test_dofs1D = test_maps->ndof;
+   test_quad1D = test_maps->nqpt; // TODO: Is this necessary?
+   pa_data.SetSize(dimsToStore * nq * ne, Device::GetMemoryType());
    ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
    MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
    const double coeff = cQ->constant;
-   PAVectorDivergenceSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
-                           coeff, pa_data);
+   PAVectorDivergenceSetup(dim, trial_dofs1D, trial_quad1D, ne, ir->GetWeights(), 
+                           geom->J, coeff, pa_data);
 }
 
 } // namespace mfem
