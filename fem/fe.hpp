@@ -1997,6 +1997,8 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const;
 };
 
 class H1Ser_HexElement : public ScalarFiniteElement

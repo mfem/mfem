@@ -43,10 +43,8 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       }
    }
 
-
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order.
-
 
    FiniteElementCollection *fec;
    if (order == 1)
@@ -90,8 +88,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       u_grad = NULL;
    }
 
-   
-
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -99,8 +95,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
 
-
-   // this variable may not be right:
+   // this variable may not be right for more general meshes than lattices?
    int gotNdofs = fespace->GetNDofs();
 
    Array<int> ess_tdof_list;
@@ -181,12 +176,22 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    X = 0.0;
    PCG(*A, M, B, X, 0, 200, 1e-24, 0.0);
 
-
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // Hack to viusalize a single basis function
-   if (dof2view != -1)
+   // Hack to project something
+   if (dof2view == -2)
+   {
+      // void H1Ser_QuadrilateralElement::Project(Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
+      // fe->Project(coeff, Trans, X)
+      // fes->GetFE(i)-> Project(*src.fes->GetFE(i), *mesh->GetElementTransformation(i), P);
+      const FiniteElement *feholder = fespace->GetFE(0);
+      ElementTransformation *trans = mesh->GetElementTransformation(0);
+      DenseMatrix temporary;
+      feholder->Project(*feholder, *trans, temporary);
+      temporary.Print();
+   }
+   else if (dof2view != -1)    // Hack to viusalize a single basis function   
    {
       x=0;
       x(dof2view) = 1;
@@ -255,10 +260,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    return;
 }
 
-
-
-
-
 double u_exact(const Vector &x)
 {
    return(x(0)+x(1));
@@ -269,8 +270,6 @@ void u_grad_exact(const Vector &x, Vector &u)
    u(0) = 1;
    u(1) = 1;
 }
-
-
 
 double u_exact_2(const Vector &x)
 {
@@ -394,12 +393,10 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-
    if (dof2view != -1)
    {
       cout << "DEBUG option: solution deleted; just viewing dof # " << dof2view << endl;
    }
-
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.

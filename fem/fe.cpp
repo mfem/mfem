@@ -513,7 +513,7 @@ void NodalFiniteElement::ProjectMatrixCoefficient(
 void NodalFiniteElement::Project(
    const FiniteElement &fe, ElementTransformation &Trans, DenseMatrix &I) const
 {
-   cout << "fe.cpp: used this Project function (2)" << endl;
+   cout << "fe.cpp: used the NodalFiniteElement Project function (2)" << endl;
    if (fe.GetRangeType() == SCALAR)
    {
       MFEM_ASSERT(MapType == fe.GetMapType(), "");
@@ -648,6 +648,8 @@ void PositiveFiniteElement::Project(
 {
    const NodalFiniteElement *nfe =
       dynamic_cast<const NodalFiniteElement *>(&fe);
+
+   cout << "fe.cpp: Used this project call (4)" << endl;
 
    if (nfe && Dof == nfe->GetDof())
    {
@@ -2248,7 +2250,7 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 
 
 
-void H1Ser_QuadrilateralElement::Project (
+void H1Ser_QuadrilateralElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
    // for (int i = 0; i < Dof; i++)
@@ -2292,6 +2294,11 @@ void H1Ser_QuadrilateralElement::Project (
 
 }
 
+void H1Ser_QuadrilateralElement::GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+{ 
+   NodalLocalInterpolation(Trans, I, *this); 
+}
 
 
 H1Ser_HexElement::H1Ser_HexElement(const int p, const int ser_space_dim)

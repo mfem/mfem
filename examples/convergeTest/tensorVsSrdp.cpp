@@ -68,15 +68,12 @@ void compare(const char *mesh_file, int num_ref, int &order,
       u_grad = NULL;
    }
 
-   
-
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
-
 
    // this variable may not be right:
    int gotNdofs = fespace->GetNDofs();
@@ -358,12 +355,12 @@ int main(int argc, char *argv[])
    cout.precision(10);
 
 
-   // cout << left << "q3dofs, " << "q3eru, " << "q3erDu, ";
-   // cout << "s3dofs, " << "s3eru, " << "s3erDu";
+   cout << left << "q3dofs, " << "q3eru, " << "q3erDu, ";
+   cout << "s3dofs, " << "s3eru, " << "s3erDu";
    // cout << "q4dofs, " << "q4eru, " << "q4erDu";
    // cout << "s4dofs, " << "s4eru, " << "s4erDu";
    // cout << "q5dofs, " << "q5eru, " << "q5erDu";
-   cout << "s5dofs, " << "s5eru, " << "s5erDu";
+   // cout << "s5dofs, " << "s5eru, " << "s5erDu";
    cout << endl;
 
    double l2_err_prev = 0.0;
@@ -371,24 +368,24 @@ int main(int argc, char *argv[])
 
    int o1 = -3;
    int o2 = 3;
-   int o3 = -4;
-   int o4 = 4;
-   int o5 = -5;
-   int o6 = 5;
+   // int o3 = -4;
+   // int o4 = 4;
+   // int o5 = -5;
+   // int o6 = 5;
 
    for (int i = 0; i < (total_refinements)+1; i++)
    {
-       // compare(mesh_file, i, o1, l2_err_prev, h1_err_prev, exact, solvePDE);
-       // cout << ", ";
-       // compare(mesh_file, i, o2, l2_err_prev, h1_err_prev, exact, solvePDE);
-       // cout << ", ";
-       // compare(mesh_file, i, o3, l2_err_prev, h1_err_prev, exact, solvePDE);
-       // // cout << ", ";
-       // compare(mesh_file, i, o4, l2_err_prev, h1_err_prev, exact, solvePDE);
+       compare(mesh_file, i, o1, l2_err_prev, h1_err_prev, exact, solvePDE);
+       cout << ", ";
+       compare(mesh_file, i, o2, l2_err_prev, h1_err_prev, exact, solvePDE);
+      //  cout << ", ";
+      //  compare(mesh_file, i, o3, l2_err_prev, h1_err_prev, exact, solvePDE);
+      //  cout << ", ";
+      //  compare(mesh_file, i, o4, l2_err_prev, h1_err_prev, exact, solvePDE);
        // cout << ", ";
        // compare(mesh_file, i, o5, l2_err_prev, h1_err_prev, exact, solvePDE);
        // cout << ", ";
-       compare(mesh_file, i, o6, l2_err_prev, h1_err_prev, exact, solvePDE);
+      //  compare(mesh_file, i, o6, l2_err_prev, h1_err_prev, exact, solvePDE);
        cout << endl;
    }
    return 0;
