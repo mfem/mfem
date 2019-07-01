@@ -210,11 +210,11 @@ class ApproxIonizationRate : public Coefficient
 {
 private:
    Coefficient *TeCoef_;
-  // GridFunction *Te_;
+   // GridFunction *Te_;
 
 public:
-  // ApproxIonizationRate(GridFunction &Te) : Te_(&Te) {}
-  ApproxIonizationRate(Coefficient &TeCoef) : TeCoef_(&TeCoef) {}
+   // ApproxIonizationRate(GridFunction &Te) : Te_(&Te) {}
+   ApproxIonizationRate(Coefficient &TeCoef) : TeCoef_(&TeCoef) {}
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip)
@@ -382,8 +382,8 @@ private:
       mutable Vector vec_;
 
       NLOperator(DGParams & dg,
-		 ParGridFunctionArray & pgf,
-		 ParGridFunctionArray & dpgf)
+                 ParGridFunctionArray & pgf,
+                 ParGridFunctionArray & dpgf)
          : Operator(pgf[0]->ParFESpace()->GetVSize(),
                     5*(pgf[0]->ParFESpace()->GetVSize())),
            dg_(dg), dt_(0.0), pgf_(&pgf), dpgf_(&dpgf) {}
@@ -418,25 +418,25 @@ private:
       ProductCoefficient      ne1Coef_;
       ConstantCoefficient      vnCoef_;
       ApproxIonizationRate     izCoef_;
-     
+
       NeutralDiffusionCoef      DCoef_;
 
       mutable DGDiffusionIntegrator dg_diff_;
-     
+
    public:
       NeutralDensityOp(DGParams & dg,
-		       ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
+                       ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                        int ion_charge, double neutral_mass, double neutral_temp)
-	: NLOperator(dg, pgf, dpgf),
-	  z_i_(ion_charge), m_n_(neutral_mass), T_n_(neutral_temp),
-	  nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), Te0Coef_(pgf[4]),
-	  dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dTeCoef_(dpgf[4]),
-	  nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
-	  Te1Coef_(Te0Coef_, dTeCoef_), ne1Coef_(z_i_, ni1Coef_),
-	  vnCoef_(sqrt(8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_))),
-	  izCoef_(Te1Coef_), DCoef_(ne1Coef_, vnCoef_, izCoef_),
-	  dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
-     {}
+         : NLOperator(dg, pgf, dpgf),
+           z_i_(ion_charge), m_n_(neutral_mass), T_n_(neutral_temp),
+           nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), Te0Coef_(pgf[4]),
+           dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dTeCoef_(dpgf[4]),
+           nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
+           Te1Coef_(Te0Coef_, dTeCoef_), ne1Coef_(z_i_, ni1Coef_),
+           vnCoef_(sqrt(8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_))),
+           izCoef_(Te1Coef_), DCoef_(ne1Coef_, vnCoef_, izCoef_),
+           dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
+      {}
 
       void SetTimeStep(double dt);
 
@@ -449,10 +449,42 @@ private:
 
    class IonDensityOp : public NLOperator
    {
+   private:
+      int    z_i_;
+      double DPerpConst_;
+
+      GridFunctionCoefficient nn0Coef_;
+      GridFunctionCoefficient ni0Coef_;
+      GridFunctionCoefficient Te0Coef_;
+
+      GridFunctionCoefficient dnnCoef_;
+      GridFunctionCoefficient dniCoef_;
+      GridFunctionCoefficient dTeCoef_;
+
+      mutable SumCoefficient  nn1Coef_;
+      mutable SumCoefficient  ni1Coef_;
+      mutable SumCoefficient  Te1Coef_;
+
+      ConstantCoefficient DPerpCoef_;
+      MatrixCoefficient * PerpCoef_;
+      ScalarMatrixProductCoefficient DCoef_;
+
+      mutable DiffusionIntegrator   diff_;
+      mutable DGDiffusionIntegrator dg_diff_;
+
    public:
       IonDensityOp(DGParams & dg,
-		   ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf)
-	: NLOperator(dg, pgf, dpgf) {}
+                   ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
+                   int ion_charge, double DPerp, MatrixCoefficient & PerpCoef)
+         : NLOperator(dg, pgf, dpgf), z_i_(ion_charge), DPerpConst_(DPerp),
+           nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), Te0Coef_(pgf[4]),
+           dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dTeCoef_(dpgf[4]),
+           nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
+           Te1Coef_(Te0Coef_, dTeCoef_),
+           DPerpCoef_(DPerp),
+           PerpCoef_(&PerpCoef), DCoef_(DPerpCoef_, *PerpCoef_),
+           diff_(DCoef_), dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
+      {}
 
       void Update();
 
@@ -481,8 +513,9 @@ private:
 
    public:
       CombinedOp(DGParams & dg,
-		 ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
-                 int ion_charge, double neutral_mass, double neutral_temp);
+                 ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
+                 int ion_charge, double neutral_mass, double neutral_temp,
+                 double DiPerp, MatrixCoefficient & PerpCoef);
 
       ~CombinedOp();
 
@@ -521,6 +554,8 @@ public:
                   int ion_charge,
                   double neutral_mass,
                   double neutral_temp,
+                  double Di_perp,
+                  MatrixCoefficient & perpCoef,
                   Coefficient &MomCCoef,
                   Coefficient &TiCCoef,
                   Coefficient &TeCCoef,

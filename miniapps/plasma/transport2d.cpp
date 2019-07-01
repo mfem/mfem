@@ -1003,7 +1003,7 @@ int main(int argc, char *argv[])
    ParGridFunctionArray dpgf;
    for (int i=0; i<5; i++)
    {
-     dpgf.Append(new ParGridFunction(&fes, (double*)NULL));
+      dpgf.Append(new ParGridFunction(&fes, (double*)NULL));
    }
 
    // ParGridFunction u(&fes);
@@ -1193,7 +1193,7 @@ int main(int argc, char *argv[])
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
    DGTransportTDO oper(dg, fes, ffes, pgf, dpgf,
                        ion_charge, neutral_mass, neutral_temp,
-                       mnCoef, niCoef, neCoef, imex);
+                       Di_perp, perpCoef, mnCoef, niCoef, neCoef, imex);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
    /*

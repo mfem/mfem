@@ -846,6 +846,8 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
                                int ion_charge,
                                double neutral_mass,
                                double neutral_temp,
+                               double Di_perp,
+                               MatrixCoefficient &perpCoef,
                                Coefficient &MomCCoef,
                                Coefficient &TiCCoef,
                                Coefficient &TeCCoef,
@@ -857,7 +859,8 @@ DGTransportTDO::DGTransportTDO(DGParams & dg,
      dpgf_(&dpgf),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
-     op_(dg, pgf, dpgf, ion_charge, neutral_mass, neutral_temp),
+     op_(dg, pgf, dpgf, ion_charge, neutral_mass, neutral_temp, Di_perp,
+         perpCoef),
      // oneCoef_(1.0),
      // n_n_oper_(dg, fes, pgf, oneCoef_, imex),
      // n_i_oper_(dg, fes, pgf, oneCoef_, imex),
@@ -1129,13 +1132,15 @@ void DGTransportTDO::Update()
 }
 
 DGTransportTDO::CombinedOp::CombinedOp(DGParams & dg,
-				       ParGridFunctionArray & pgf,
-				       ParGridFunctionArray & dpgf,
+                                       ParGridFunctionArray & pgf,
+                                       ParGridFunctionArray & dpgf,
                                        int ion_charge,
-                                       double neutral_mass, double neutral_temp)
-  : neq_(2), pgf_(&pgf), dpgf_(&dpgf),
+                                       double neutral_mass, double neutral_temp,
+                                       double DiPerp,
+                                       MatrixCoefficient &PerpCoef)
+   : neq_(2), pgf_(&pgf), dpgf_(&dpgf),
      n_n_op_(dg, pgf, dpgf, ion_charge, neutral_mass, neutral_temp),
-     n_i_op_(dg, pgf, dpgf), op_(neq_),
+     n_i_op_(dg, pgf, dpgf, ion_charge, DiPerp, PerpCoef), op_(neq_),
      offsets_(neq_+1), grad_(NULL)
 {
    op_ = NULL;
@@ -1208,7 +1213,7 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
    for (int i=0; i<dpgf_->Size(); i++)
    {
       // dpgf_[i]->MakeRef(fes, const_cast<Vector&>(k), offsets_[i]);
-     (*dpgf_)[i]->MakeRef(fes, const_cast<Vector&>(k), i * size);
+      (*dpgf_)[i]->MakeRef(fes, const_cast<Vector&>(k), i * size);
    }
    dpgf_->ExchangeFaceNbrData();
 
@@ -1227,11 +1232,11 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
 
 void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
 {
-  NLOperator::SetTimeStep(dt);
+   NLOperator::SetTimeStep(dt);
 
-  nn1Coef_.SetBeta(dt);
-  ni1Coef_.SetBeta(dt);
-  Te1Coef_.SetBeta(dt);
+   nn1Coef_.SetBeta(dt);
+   ni1Coef_.SetBeta(dt);
+   Te1Coef_.SetBeta(dt);
 }
 
 void DGTransportTDO::NeutralDensityOp::Update()
@@ -1293,11 +1298,10 @@ void DGTransportTDO::NeutralDensityOp::Mult(const Vector &k, Vector &y) const
 
             mfem::Mult(dshape_, eltrans->AdjugateJacobian(), dshapedxt_);
 
-	    cout << "calling Eval methods" << endl;
-	    double nn = nn1Coef_.Eval(*eltrans, ip);
-	    double ni = ni1Coef_.Eval(*eltrans, ip);
-	    double Te = Te1Coef_.Eval(*eltrans, ip);
-	    cout << "done calling Eval methods" << endl;
+            double nn = nn1Coef_.Eval(*eltrans, ip);
+            double ni = ni1Coef_.Eval(*eltrans, ip);
+            double Te = Te1Coef_.Eval(*eltrans, ip);
+
             double ne = ni * z_i_;
 
             const double vn2 = 8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_);
@@ -1333,11 +1337,16 @@ void DGTransportTDO::NeutralDensityOp::Mult(const Vector &k, Vector &y) const
             const FiniteElement *fe1 = fespace->GetFE(ftrans->Elem1No);
             const FiniteElement *fe2 = fespace->GetFE(ftrans->Elem2No);
 
-	    dg_diff_.AssembleFaceMatrix(*fe1, *fe2, *ftrans, elmat_);
+            dg_diff_.AssembleFaceMatrix(*fe1, *fe2, *ftrans, elmat_);
 
-	    (*pgf_)[0]->GetSubVector(vdofs, locvec_);
-	    elmat_.Mult(locvec_, elvec_);
-	    y.AddElementVector(vdofs, elvec_);
+            (*pgf_)[0]->GetSubVector(vdofs, locvec_);
+            (*dpgf_)[0]->GetSubVector(vdofs, locdvec_);
+
+            locvec_.Add(dt_, locdvec_);
+
+            elvec_.SetSize(elmat_.Height());
+            elmat_.Mult(locvec_, elvec_);
+            y.AddElementVector(vdofs, elvec_);
          }
       }
    }
@@ -1361,7 +1370,115 @@ void DGTransportTDO::IonDensityOp::Update()
 void DGTransportTDO::IonDensityOp::Mult(const Vector &k, Vector &y) const
 {
    cout << "DGTransportTDO::IonDensityOp::Mult" << endl;
+   ParFiniteElementSpace *fespace = (*pgf_)[0]->ParFESpace();
+   ParMesh *pmesh = fespace->GetParMesh();
+
    y = 0.0;
+   {
+      Array<int> vdofs;
+
+      for (int e=0; e<fespace->GetNE(); e++)
+      {
+         fespace->GetElementVDofs (e, vdofs);
+
+         const FiniteElement *fe = fespace->GetFE(e);
+         ElementTransformation *eltrans = fespace->GetElementTransformation(e);
+         diff_.AssembleElementMatrix(*fe, *eltrans, elmat_);
+
+         (*pgf_)[0]->GetSubVector(vdofs, locvec_);
+         (*dpgf_)[0]->GetSubVector(vdofs, locdvec_);
+
+         locvec_.Add(dt_, locdvec_);
+
+         elvec_.SetSize(elmat_.Height());
+         elmat_.Mult(locvec_, elvec_);
+
+         int ndof = fe->GetDof();
+         int dim  = fe->GetDim();
+         int bord = fe->GetOrder();
+
+         shape_.SetSize(ndof);
+         // dshape_.SetSize(ndof, dim);
+         // dshapedxt_.SetSize(ndof, dim);
+         // elvec_.SetSize(ndof);
+         // locvec_.SetSize(ndof);
+         // locdvec_.SetSize(ndof);
+         // vec_.SetSize(dim);
+
+         // elvec_ = 0.0;
+
+         // fespace->GetElementVDofs (e, vdofs);
+         // (*pgf_)[0]->GetSubVector(vdofs, locvec_);
+         // (*dpgf_)[0]->GetSubVector(vdofs, locdvec_);
+
+         // locvec_.Add(dt_, locdvec_);
+
+         Geometry::Type geom = fe->GetGeomType();
+
+         int iord = 2 * bord;
+
+         const IntegrationRule *ir = &IntRules.Get(geom, iord);
+
+         for (int i=0; i<ir->GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir->IntPoint(i);
+            eltrans->SetIntPoint(&ip);
+
+            double detJ = eltrans->Weight();
+
+            fe->CalcShape(ip, shape_);
+
+            double nn = nn1Coef_.Eval(*eltrans, ip);
+            double ni = ni1Coef_.Eval(*eltrans, ip);
+            double Te = Te1Coef_.Eval(*eltrans, ip);
+
+            double ne = ni * z_i_;
+
+            // const double vn2 = 8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_);
+            double sv_iz = 3.0e-16 * Te * Te / (3.0 + 0.01 * Te * Te);
+
+            double Sn = ne * nn * sv_iz;
+
+            // dshapedxt_.MultTranspose(locvec_, vec_);
+            // dshapedxt_.AddMult_a(Dn, vec_, elvec_);
+
+            add(elvec_, detJ * ip.weight * Sn, shape_, elvec_);
+         }
+
+         y.AddElementVector(vdofs, elvec_);
+      }
+   }
+   cout << "DGTransportTDO::IonDensityOp::Mult element loop done" << endl;
+   {
+      FaceElementTransformations *ftrans = NULL;
+      Array<int> vdofs;
+      Array<int> vdofs2;
+
+      for (int f = 0; f < pmesh->GetNumFaces(); f++)
+      {
+         ftrans = pmesh->GetInteriorFaceTransformations(f);
+         if (ftrans != NULL)
+         {
+            fespace->GetElementVDofs(ftrans->Elem1No, vdofs);
+            fespace->GetElementVDofs(ftrans->Elem2No, vdofs2);
+            vdofs.Append(vdofs2);
+
+            const FiniteElement *fe1 = fespace->GetFE(ftrans->Elem1No);
+            const FiniteElement *fe2 = fespace->GetFE(ftrans->Elem2No);
+
+            dg_diff_.AssembleFaceMatrix(*fe1, *fe2, *ftrans, elmat_);
+
+            (*pgf_)[0]->GetSubVector(vdofs, locvec_);
+            (*dpgf_)[0]->GetSubVector(vdofs, locdvec_);
+
+            locvec_.Add(dt_, locdvec_);
+
+            elvec_.SetSize(elmat_.Height());
+            elmat_.Mult(locvec_, elvec_);
+            y.AddElementVector(vdofs, elvec_);
+         }
+      }
+   }
    cout << "DGTransportTDO::IonDensityOp::Mult done" << endl;
 }
 
