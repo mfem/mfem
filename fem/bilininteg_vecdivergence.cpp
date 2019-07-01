@@ -30,6 +30,7 @@ static void OccaPAVectorDivergenceSetup2D(const int D1D,
                                           const double COEFF,
                                           Vector &op)
 {
+   /* TODO: Taken from diffusion
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
@@ -46,6 +47,7 @@ static void OccaPAVectorDivergenceSetup2D(const int D1D,
       OccaVecDivSetup2D_ker.emplace(id, VectorDivergenceSetup2D);
    }
    OccaVecDivSetup2D_ker.at(id)(NE, o_W, o_J, COEFF, o_op);
+   */
 }
 
 // OCCA 3D Assemble kernel
@@ -57,6 +59,7 @@ static void OccaPAVectorDivergenceSetup3D(const int D1D,
                                           const double COEFF,
                                           Vector &op)
 {
+   /* TODO: Taken from diffusion
    occa::properties props;
    props["defines/D1D"] = D1D;
    props["defines/Q1D"] = Q1D;
@@ -73,6 +76,7 @@ static void OccaPAVectorDivergenceSetup3D(const int D1D,
       OccaVecDivSetup3D_ker.emplace(id, VectorDivergenceSetup3D);
    }
    OccaVecDivSetup3D_ker.at(id)(NE, o_W, o_J, COEFF, o_op);
+   */
 }
 #endif // MFEM_USE_OCCA
 
@@ -88,7 +92,7 @@ static void PAVectorDivergenceSetup2D(const int Q1D,
    auto W = w.Read();
 
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto y = Reshape(op.Write(), NQ, 3, NE);
+   auto y = Reshape(op.Write(), NQ, 4, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -98,10 +102,11 @@ static void PAVectorDivergenceSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double c_detJ = W[q] * COEFF / ((J11*J22)-(J21*J12));
-         y(q,0,e) =  c_detJ * (J12*J12 + J22*J22); // 1,1
-         y(q,1,e) = -c_detJ * (J12*J11 + J22*J21); // 1,2
-         y(q,2,e) =  c_detJ * (J11*J11 + J21*J21); // 2,2
+         // Store wq * Q * adj(J)
+         y(q,0,e) = W[q] * COEFF *  J22; // 1,1
+         y(q,1,e) = W[q] * COEFF * -J12; // 1,2
+         y(q,2,e) = W[q] * COEFF * -J21; // 2,1
+         y(q,3,e) = W[q] * COEFF *  J11; // 2,2
       }
    });
 }
@@ -117,7 +122,7 @@ static void PAVectorDivergenceSetup3D(const int Q1D,
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto y = Reshape(op.Write(), NQ, 6, NE);
+   auto y = Reshape(op.Write(), NQ, 9, NE);
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -131,10 +136,7 @@ static void PAVectorDivergenceSetup3D(const int Q1D,
          const double J13 = J(q,0,2,e);
          const double J23 = J(q,1,2,e);
          const double J33 = J(q,2,2,e);
-         const double detJ = J11 * (J22 * J33 - J32 * J23) -
-         /* */               J21 * (J12 * J33 - J32 * J13) +
-         /* */               J31 * (J12 * J23 - J22 * J13);
-         const double c_detJ = W[q] * COEFF / detJ;
+         const double cw  = W[q] * COEFF;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -145,13 +147,16 @@ static void PAVectorDivergenceSetup3D(const int Q1D,
          const double A31 = (J21 * J32) - (J31 * J22);
          const double A32 = (J31 * J12) - (J11 * J32);
          const double A33 = (J11 * J22) - (J12 * J21);
-         // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
-         y(q,0,e) = c_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-         y(q,1,e) = c_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-         y(q,2,e) = c_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-         y(q,3,e) = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-         y(q,4,e) = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-         y(q,5,e) = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+         // Store wq * Q * adj(J)
+         y(q,0,e) = cw * A11; // 1,1
+         y(q,1,e) = cw * A12; // 1,2
+         y(q,2,e) = cw * A13; // 1,3
+         y(q,3,e) = cw * A21; // 2,1
+         y(q,4,e) = cw * A22; // 2,2
+         y(q,5,e) = cw * A23; // 2,3
+         y(q,6,e) = cw * A31; // 3,1
+         y(q,7,e) = cw * A32; // 3,2
+         y(q,8,e) = cw * A33; // 3,3
       }
    });
 }
