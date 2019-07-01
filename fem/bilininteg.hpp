@@ -1757,13 +1757,13 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   virtual void AssemblePA(const FiniteElementSpace&);
+   virtual void AssemblePA(const FiniteElementSpace &fes);
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);
+                                         ElementTransformation &Trans);// TODO: Is this necessary?
 };
 
 class BoundaryMassIntegrator : public MassIntegrator
@@ -2089,16 +2089,33 @@ private:
    DenseMatrix dshape;
    DenseMatrix gshape;
    DenseMatrix Jadj;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
 
 public:
-   VectorDivergenceIntegrator() { Q = NULL; }
-   VectorDivergenceIntegrator(Coefficient *_q) { Q = _q; }
-   VectorDivergenceIntegrator(Coefficient &q) { Q = &q; }
+   VectorDivergenceIntegrator() { Q = NULL; maps = NULL; geom = NULL; }
+   VectorDivergenceIntegrator(Coefficient *_q) :
+      Q(_q)
+   { maps = NULL; geom = NULL; }
+   VectorDivergenceIntegrator(Coefficient &q) :
+      Q(&q)
+   { maps = NULL; geom = NULL; }
 
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
 };
 
 /// (Q div u, div v) for RT elements
