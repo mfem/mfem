@@ -765,6 +765,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+
 #ifdef MFEM_DEBUG
    // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
    Array<int> true_ess_dofs2(true_ess_dofs.Size());
@@ -780,6 +781,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    }
    MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter);
 #endif
+
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
@@ -2484,10 +2486,11 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
 
    // create the offdiagonal part of the matrix
    HYPRE_Int* i_offd = make_i_array(vsize);
-   for (int i = 0; i < new_elements.Size(); i++)
+   for (int i = 0, pos = 0; i < new_elements.Size(); i++)
    {
       GetElementDofs(new_elements[i], dofs);
-      const long* old_dofs = &old_remote_dofs[i * dofs.Size() * vdim];
+      const long* old_dofs = &old_remote_dofs[pos];
+      pos += dofs.Size() * vdim;
 
       for (int vd = 0; vd < vdim; vd++)
       {
