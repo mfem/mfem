@@ -44,6 +44,12 @@ public:
        used later in the methods AddMultPA() and AddMultTransposePA(). */
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA() and AddMultTransposePA(). 
+       Used with BilinearFormIntegrators that have different spaces. */
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
@@ -1717,9 +1723,9 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
-   virtual void AssemblePA(const FiniteElementSpace&);
+   virtual void AssemblePA(const FiniteElementSpace &fes);
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
@@ -1763,7 +1769,7 @@ public:
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);// TODO: Is this necessary?
+                                         ElementTransformation &Trans);
 };
 
 class BoundaryMassIntegrator : public MassIntegrator
@@ -2091,27 +2097,32 @@ private:
    DenseMatrix Jadj;
    // PA extension
    Vector pa_data;
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq, dofs1D, quad1D;
+   const DofToQuad *trial_maps, *test_maps; ///< Not owned
+   const GeometricFactors *geom;            ///< Not owned
+   int dim, ne, nq;
+   int trial_dofs1D, trial_quad1D;
+   int test_dofs1D, test_quad1D;
 
 public:
-   VectorDivergenceIntegrator() { Q = NULL; maps = NULL; geom = NULL; }
+   VectorDivergenceIntegrator() :
+      Q(NULL), trial_maps(NULL), test_maps(NULL), geom(NULL)
+   {  }
    VectorDivergenceIntegrator(Coefficient *_q) :
-      Q(_q)
-   { maps = NULL; geom = NULL; }
+      Q(_q), trial_maps(NULL), test_maps(NULL), geom(NULL)
+   { }
    VectorDivergenceIntegrator(Coefficient &q) :
-      Q(&q)
-   { maps = NULL; geom = NULL; }
+      Q(&q), trial_maps(NULL), test_maps(NULL), geom(NULL)
+   { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   virtual void AssemblePA(const FiniteElementSpace&);
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
 
-   virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
