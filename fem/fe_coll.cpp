@@ -1687,7 +1687,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             {
                ser_space_dim += pm3 * pm4 * pm5 / 6;
             }
-            cout << "fe_coll: set ser_space_dim = " << ser_space_dim << endl;
+            //  cout << "fe_coll: set ser_space_dim = " << ser_space_dim << endl;
             
             H1_Elements[Geometry::CUBE] = new H1Ser_HexElement(p, ser_space_dim);
          }            

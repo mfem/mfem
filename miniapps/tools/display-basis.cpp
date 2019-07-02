@@ -111,7 +111,7 @@ string mapTypeStr(int mType);
 int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
                  Element::Type e, char bType, int bOrder, int mType,
                  Deformation::DefType dType, const DeformationData &defData,
-                 bool visualization);
+                 bool visualization, int &onlySome);
 
 int main(int argc, char *argv[])
 {
@@ -134,6 +134,7 @@ int main(int argc, char *argv[])
    DeformationData defData;
 
    bool visualization = true;
+   int onlySome = -1;
 
    vector<socketstream *> sock;
 
@@ -157,6 +158,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&onlySome, "-only", "--onlySome", "Only view 10 dofs starting at this one.");
    args.Parse();
    if (!args.Good())
    {
@@ -214,7 +216,7 @@ int main(int argc, char *argv[])
          cout << "Map Type:              " << mapTypeStr(mType) << endl;
       }
       if (update_basis(sock, vwl, eType, bType, bOrder, mType,
-                       dType, defData, visualization))
+                       dType, defData, visualization, onlySome))
       {
          cerr << "Invalid combination of basis info (try again)" << endl;
       }
@@ -308,12 +310,9 @@ int main(int argc, char *argv[])
          cout << "valid basis types:\n";
          cout << "h) H1 Finite Element\n";
          cout << "p) H1 Positive Finite Element\n";
-         if (elemIs2D(eType))
-         {
-            cout << "s) H1 Serendipity Finite Element\n";
-         }
          if (elemIs2D(eType) || elemIs3D(eType))
          {
+            cout << "s) H1 Serendipity Finite Element\n";
             cout << "n) Nedelec Finite Element\n";
             cout << "r) Raviart-Thomas Finite Element\n";
          }
@@ -330,6 +329,7 @@ int main(int argc, char *argv[])
          cout << "enter new basis type --> " << flush;
          cin >> bChar;
          if (bChar == 'h' || bChar == 'p' || bChar == 'l' || bChar == 'f' ||
+            bChar == 's' ||
              ((bChar == 'n' || bChar == 'r') &&
               (elemIs2D(eType) || elemIs3D(eType))) ||
              (bChar == 'c' && (elemIs1D(eType) || elemIs2D(eType))) ||
@@ -414,7 +414,7 @@ int main(int argc, char *argv[])
       {
          int oInt = 1;
          int oMin = (bType == 'h' || bType == 'p' || bType == 'n' ||
-                     bType == 'f' || bType == 'g')
+                     bType == 'f' || bType == 'g' || bType == 's')
                         ? 1
                         : 0;
          int oMax = -1;
@@ -598,7 +598,7 @@ bool basisIs2D(char bType)
 bool basisIs3D(char bType)
 {
    return bType == 'h' || bType == 'p' || bType == 'n' || bType == 'r' ||
-          bType == 'f' || bType == 'l';
+          bType == 'f' || bType == 'l' || bType == 's';
 }
 
 string
@@ -696,7 +696,7 @@ void Deformation::Def3D(const Vector &u, Vector &v)
 int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
                  Element::Type e, char bType, int bOrder, int mType,
                  Deformation::DefType dType, const DeformationData &defData,
-                 bool visualization)
+                 bool visualization, int &onlySome)
 {
    bool vec = false;
 
@@ -737,7 +737,7 @@ int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
       }
       else
       {
-         FEC = new H1Ser_FECollection(bOrder);
+         FEC = new H1Ser_FECollection(bOrder, dim);
       }
       vec = false;
       break;
@@ -838,7 +838,7 @@ int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
    {
       exOrder += 2;
    }
-   if (bType != 's') // There is some bug if you viz serendipity basis on a refined mesh; will debug later
+   if (bType != 's') // There is some bug if you viz serendipity basis on a refined mesh
    {
       while (1 << ref < bOrder + exOrder || ref == 0)
       {
@@ -853,8 +853,14 @@ int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
       }
    }
 
-   for (int i = 0; i < ndof; i++)
+   int stopAt = ndof;
+   for (int i = 0; i < stopAt; i++)
    {
+      if (i ==0 && onlySome > -1 && onlySome <ndof)
+      {
+         i = onlySome;
+         stopAt = min(ndof,onlySome+10);
+      }
       ostringstream oss;
       oss << "DoF " << i + 1;
       if (visualization)

@@ -52,7 +52,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    FiniteElementCollection *fec;
    if (order == 1)
    {
-      fec = new H1_FECollection(3, 3);
+      fec = new H1_FECollection(2, 3);
    }
    else if (order > 1)
    {
@@ -302,7 +302,7 @@ double u_exact_2(const Vector &x)
 
 void u_grad_exact_2(const Vector &x, Vector &u)
 {
-   u(0) = sqrt(2)*sin(sqrt(2)*x(0))*exp(x(1))*exp(x(2));
+   u(0) = sqrt(2)*cos(sqrt(2)*x(0))*exp(x(1))*exp(x(2));
    u(1) = sin(sqrt(2)*x(0))*exp(x(1))*exp(x(2));
    u(2) = sin(sqrt(2)*x(0))*exp(x(1))*exp(x(2));
 }
@@ -313,13 +313,13 @@ int main(int argc, char *argv[])
    int total_refinements = 0;
 
    const char *mesh_file = "../../data/inline-oneHex.mesh";
-   int order = 1;
+   int order = 2;
    bool static_cond = false;
    const char *device_config = "cpu";
    bool visualization = false;
    int exact = 1;
    int dof2view = -1;
-   int solvePDE = 1;
+   int solvePDE = 2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&total_refinements, "-r", "--refine",
@@ -354,7 +354,7 @@ int main(int argc, char *argv[])
 
    if (order == 1)
    {
-      cout << "Using nodal H1 *** CUBIC *** tensor product elements (for testing / comparison)." << endl;
+      cout << "Using nodal H1 *** QUADRATIC *** tensor product elements (for testing / comparison)." << endl;
    }
    else if (order > 1)
    {

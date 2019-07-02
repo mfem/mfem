@@ -2155,19 +2155,6 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    // dshape(4 + 4*(p-1) - i - 1,0) = -nodalY(i) * y * (1. - y); 
    // dshape(4 + 4*(p-1) - i - 1,1) =  (1. - x) * (DnodalY(i) * (- y*y + y) + nodalY(i)*(-2 * y +1));
 
-   // Derivs of bilinears
-
-   // dshape(0,0) = -(1. - y);
-   // dshape(0,1) = -(1. - x);
-   // dshape(1,0) = (1. -y);
-   // dshape(1,1) = -x;
-   // dshape(2,0) = y;
-   // dshape(2,1) = x;
-   // dshape(3,0) = -y;
-   // dshape(3,1) = (1. - x);
-
-
-
    if (p>3) // quad-interior basis functions appear starting at order p=4.  These are non-nodal bubble funtions.
    {
       double *legX = new double[p-1];
@@ -2320,27 +2307,28 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    // int p = (this)->GetOrder();
    // cout << "fe.cpp: Need to implement H1Ser_Hex shape fns" << endl;
    double x = ip.x, y = ip.y, z = ip.z;
+   double omx = 1.-x, omy = 1.-y, omz = 1.-z;
 
-   shape( 0) = (1.-x)*(1.-y)*(1-z);
-   shape( 1) = (1.-x)*(1.-y)*z;
-   shape( 2) = (1.-x)*     y*(1.-z);
-   shape( 3) = (1.-x)*     y*z;
-   shape( 4) = x     *(1.-y)*(1-z);;
-   shape( 5) = x     *(1.-y)*z;
-   shape( 6) = x     *y     *(1.-z);
-   shape( 7) = x     *y     *z;
-   shape( 8) = (1.-x)*(1.-y)*z*(1.-z);
-   shape( 9) = (1.-x)*     y*z*(1.-z);
-   shape(10) =      x*(1.-y)*z*(1.-z);
-   shape(11) =      x*     y*z*(1.-z);
-   shape(12) = (1.-x)*(1.-z)*y*(1.-y);
-   shape(13) = (1.-x)*     z*y*(1.-y);
-   shape(14) =      x*(1.-z)*y*(1.-y);
-   shape(15) =      x*     z*y*(1.-y);
-   shape(16) = (1.-y)*(1.-z)*x*(1.-x);
-   shape(17) = (1.-y)*     z*x*(1.-x);
-   shape(18) =      y*(1.-z)*x*(1.-x);
-   shape(19) =      y*     z*x*(1.-x);
+   shape( 0) = omx*omy*omz;
+   shape( 1) = x  *omy*omz;;
+   shape( 2) = x  *y  *omz;
+   shape( 3) = omx*  y*omz;
+   shape( 4) = omx*omy*z;
+   shape( 5) = x  *omy*z;
+   shape( 6) = x  *y  *z;
+   shape( 7) = omx*  y*z;
+   shape( 8) = omy*omz*x*omx;
+   shape( 9) =   x*omz*y*omy;
+   shape(10) =   y*omz*x*omx;
+   shape(11) = omx*omz*y*omy;
+   shape(12) = omy*  z*x*omx;
+   shape(13) =   x*  z*y*omy;
+   shape(14) =   y*  z*x*omx;
+   shape(15) = omx*  z*y*omy;
+   shape(16) = omx*omy*z*omz;
+   shape(17) =   x*omy*z*omz;
+   shape(18) =   x*  y*z*omz;
+   shape(19) = omx*  y*z*omz;
 }
 
 void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
