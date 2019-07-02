@@ -415,7 +415,7 @@ void DiffusionIntegrator::AssembleElementMatrix
 
       Trans.SetIntPoint(&ip);
       w = Trans.Weight();
-      w = ip.weight / (square ? w : w*w*w); // w = c wq / det(J)
+      w = ip.weight / (square ? w : w*w*w);
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
       Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
@@ -423,7 +423,7 @@ void DiffusionIntegrator::AssembleElementMatrix
       {
          if (Q)
          {
-            w *= Q->Eval(Trans, ip);
+            w *= Q->Eval(Trans, ip); // w = c wq / det(J)
          }
          AddMult_a_AAt(w, dshapedxt, elmat);
       }
