@@ -24,10 +24,10 @@ namespace mfem
 namespace internal
 {
 
-CUstream *cuStream = NULL;
-static CUdevice cuDevice;
-static CUcontext cuContext;
-OccaDevice occaDevice;
+#ifdef MFEM_USE_OCCA
+// Default occa::device used by MFEM.
+occa::device occaDevice;
+#endif
 
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
@@ -45,6 +45,16 @@ static const char *backend_name[Backend::NUM_BACKENDS] =
 };
 
 } // namespace mfem::internal
+
+
+// Initialize the unique global Device variable.
+Device Device::device_singleton;
+
+
+Device::~Device()
+{
+   if (destroy_mm) { mm.Destroy(); }
+}
 
 void Device::Configure(const std::string &device, const int dev)
 {
@@ -67,18 +77,22 @@ void Device::Configure(const std::string &device, const int dev)
    }
 
    // OCCA_CUDA needs CUDA or RAJA_CUDA:
-   Get().allowed_backends = Get().backends;
    if (Allows(Backend::OCCA_CUDA) && !Allows(Backend::RAJA_CUDA))
    {
       Get().MarkBackend(Backend::CUDA);
    }
 
-   // Activate all backends for Setup().
-   Get().allowed_backends = Get().backends;
+   // Perform setup.
    Get().Setup(dev);
 
-   // Enable only the default host CPU backend.
-   Get().allowed_backends = Backend::CPU;
+   // Enable the device
+   Enable();
+
+   // Copy all data members from the global 'singleton_device' into '*this'.
+   std::memcpy(this, &Get(), sizeof(Device));
+
+   // Only '*this' will call the MemoryManager::Destroy() method.
+   destroy_mm = true;
 }
 
 void Device::Print(std::ostream &out)
@@ -87,7 +101,7 @@ void Device::Print(std::ostream &out)
    bool add_comma = false;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {
-      if (Get().backends & internal::backend_list[i])
+      if (backends & internal::backend_list[i])
       {
          if (add_comma) { out << ','; }
          add_comma = true;
@@ -97,17 +111,35 @@ void Device::Print(std::ostream &out)
    out << '\n';
 }
 
+void Device::UpdateMemoryTypeAndClass()
+{
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+      mem_type = MemoryType::CUDA;
+      mem_class = MemoryClass::CUDA;
+   }
+   else
+   {
+      mem_type = MemoryType::HOST;
+      mem_class = MemoryClass::HOST;
+   }
+}
+
+void Device::Enable()
+{
+   if (Get().backends & ~Backend::CPU)
+   {
+      Get().mode = Device::ACCELERATED;
+      Get().UpdateMemoryTypeAndClass();
+   }
+}
+
 #ifdef MFEM_USE_CUDA
 static void DeviceSetup(const int dev, int &ngpu)
 {
-   cudaGetDeviceCount(&ngpu);
-   MFEM_VERIFY(ngpu>0, "No CUDA device found!");
-   cuInit(0);
-   cuDeviceGet(&internal::cuDevice, dev);
-   cuCtxCreate(&internal::cuContext, CU_CTX_SCHED_AUTO, internal::cuDevice);
-   internal::cuStream = new CUstream;
-   MFEM_VERIFY(internal::cuStream, "CUDA stream could not be created!");
-   cuStreamCreate(internal::cuStream, CU_STREAM_DEFAULT);
+   MFEM_CUDA_CHECK(cudaGetDeviceCount(&ngpu));
+   MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
+   MFEM_CUDA_CHECK(cudaSetDevice(dev));
 }
 #endif
 
@@ -125,7 +157,7 @@ static void RajaDeviceSetup(const int dev, int &ngpu)
 #endif
 }
 
-static void OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
+static void OccaDeviceSetup(const int dev)
 {
 #ifdef MFEM_USE_OCCA
    const int cpu  = Device::Allows(Backend::OCCA_CPU);
@@ -138,7 +170,8 @@ static void OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
    if (cuda)
    {
 #if OCCA_CUDA_ENABLED
-      internal::occaDevice = occa::cuda::wrapDevice(cu_dev, cu_ctx);
+      std::string mode("mode: 'CUDA', device_id : ");
+      internal::occaDevice.setup(mode.append(1,'0'+dev));
 #else
       MFEM_ABORT("the OCCA CUDA backend requires OCCA built with CUDA!");
 #endif
@@ -197,22 +230,10 @@ void Device::Setup(const int device)
                "the OpenMP and RAJA OpenMP backends require MFEM built with"
                " MFEM_USE_OPENMP=YES");
 #endif
-   // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
-
-   // We initialize CUDA and/or RAJA_CUDA first so OccaDeviceSetup() can reuse
-   // the same initialized cuDevice and cuContext objects when OCCA_CUDA is
-   // enabled.
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
-   if (Allows(Backend::OCCA_MASK))
-   {
-      OccaDeviceSetup(internal::cuDevice, internal::cuContext);
-   }
-}
-
-Device::~Device()
-{
-   delete internal::cuStream;
+   // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
+   if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
 }
 
 } // mfem

@@ -29,6 +29,15 @@ Example UMATs maybe obtained from https://web.njit.edu/~sac3/Software.html . We 
 
 Note: the grain.txt, props.txt and state.txt files are expected inputs for CP problems, specifically ones that use the Abaqus UMAT interface class under the ExaModel.
 
+# Installing Notes:
+
+* git clone the LLNL BLT library into the directory above MFEM. It can be obtained at https://github.com/LLNL/blt.git 
+
+* Create a build directory and cd into there
+* Run ```cmake .. -DMFEM_DIR{where mfem was installed} -DBLT_SOURCE_DIR=${BLT cloned location} -DEC_MECH_DIR=${ExaCMech installed cmake location}```
+* Run ```make -j 4```
+
+
 #  Future Implemenations Notes:
                
 * Visco-plasticity constitutive model

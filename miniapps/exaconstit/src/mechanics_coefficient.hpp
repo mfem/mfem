@@ -23,16 +23,25 @@ class QuadratureVectorFunctionCoefficient : public VectorCoefficient
 {
 private:
    QuadratureFunction *QuadF;
+   int index;
+   int length;
 
 public:
    // constructor with a quadrature function as input
    QuadratureVectorFunctionCoefficient(QuadratureFunction *qf) 
-      : VectorCoefficient() { QuadF = qf; }
+      : VectorCoefficient() 
+      { 
+         QuadF = qf;
+         index = 0;
+         length = qf->GetVDim();
+      }
 
    // constructor with a null qf
    QuadratureVectorFunctionCoefficient() : VectorCoefficient(0) { QuadF = NULL; }
 
    void SetQuadratureFunction(QuadratureFunction *qf) { QuadF = qf; }
+   void SetIndex(int _index);
+   void SetLength(int _length);
 
    QuadratureFunction * GetQuadFunction() const { return QuadF; }
 

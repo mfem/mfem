@@ -89,7 +89,7 @@ void DirBdrFunc(const Vector &x, double t, int attr_id, Vector &y);
 void InitGridFunction(const Vector &x, Vector &y);
 
 // material input check routine
-bool checkMaterialArgs(bool umat, bool cp, int ngrains, int numProps,
+bool checkMaterialArgs(MechType mt, bool cp, int ngrains, int numProps,
                        int numStateVars);
 
 // material state variable and grain data setter routine
@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
    
    // Check material model argument input parameters for valid combinations
    if(myid == 0) printf("after input before checkMaterialArgs. \n");
-   bool err = checkMaterialArgs(toml_opt.umat, toml_opt.cp,
+   bool err = checkMaterialArgs(toml_opt.mech_type, toml_opt.cp,
               toml_opt.ngrains, toml_opt.nProps, toml_opt.numStateVars);
    if (!err && myid == 0) 
    {
@@ -335,8 +335,34 @@ int main(int argc, char *argv[])
    //our quadrature functions from
    L2_FECollection l2_fec(order_0, dim);
    ParFiniteElementSpace l2_fes(pmesh, &l2_fec);
+   ParFiniteElementSpace l2_fes_pl(pmesh, &l2_fec, 1);
+   ParFiniteElementSpace l2_fes_ori(pmesh, &l2_fec, 4, mfem::Ordering::byVDIM);
+   ParFiniteElementSpace l2_fes_voigt(pmesh, &l2_fec, 6, mfem::Ordering::byVDIM);
+   ParFiniteElementSpace l2_fes_gdots_cubic(pmesh, &l2_fec, 12, mfem::Ordering::byVDIM);
+
    ParGridFunction vonMises(&l2_fes);
    ParGridFunction hydroStress(&l2_fes);
+   ParGridFunction stress(&l2_fes_voigt);
+
+   ParGridFunction dpeff(&l2_fes);
+   ParGridFunction pleff(&l2_fes);
+   ParGridFunction hardness(&l2_fes);
+   ParGridFunction quats(&l2_fes);
+   ParGridFunction gdots(&l2_fes);
+
+   if(toml_opt.mech_type == MechType::EXACMECH){
+      
+      dpeff.SetSpace(&l2_fes_pl);
+      pleff.SetSpace(&l2_fes_pl);
+      //Right now this is only a scalar value but that might change later...
+      hardness.SetSpace(&l2_fes_pl);
+      quats.SetSpace(&l2_fes_ori);
+      //We'll probably need to change this later on and make it actually depend on
+      //what the model reports for the xtal types.
+      if(toml_opt.xtal_type == XtalType::FCC){
+         gdots.SetSpace(&l2_fes_gdots_cubic);
+      }
+   }
    
    HYPRE_Int glob_size = fe_space.GlobalTrueVSize();
 
@@ -597,13 +623,29 @@ int main(int argc, char *argv[])
    VisItDataCollection visit_dc(toml_opt.basename, pmesh);
    if (toml_opt.visit)
    {
+     visit_dc.SetPrecision(12);
      visit_dc.RegisterField("Displacement",  &x_diff);
-//     visit_dc.RegisterQField("Stress", &sigma0);
+     visit_dc.RegisterField("Stress", &stress);
      visit_dc.RegisterField("Velocity", &v_cur);
-     //visit_dc.RegisterQField("State Variables", &matVars0);
      //visit_dc.RegisterQField("DefGrad", &kinVars0);
-     visit_dc.RegisterField("Von Mises Stress", &vonMises);
-     visit_dc.RegisterField("Hydrostatic Stress", &hydroStress);
+     visit_dc.RegisterField("VonMisesStress", &vonMises);
+     visit_dc.RegisterField("HydrostaticStress", &hydroStress);
+
+     if(toml_opt.mech_type == MechType::EXACMECH){
+        //We also want to project the values out originally
+        //so our initial values are correct
+        oper.ProjectDpEff(dpeff);
+        oper.ProjectEffPlasticStrain(pleff);
+        oper.ProjectOrientation(quats);
+        oper.ProjectShearRate(gdots);
+        oper.ProjectH(hardness);
+
+        visit_dc.RegisterField("DpEff", &dpeff);
+        visit_dc.RegisterField("EffPlasticStrain", &pleff);
+        visit_dc.RegisterField("LatticeOrientation", &quats);
+        visit_dc.RegisterField("ShearRate", &gdots);
+        visit_dc.RegisterField("Hardness", &hardness);
+     }
       
      visit_dc.SetCycle(0);
      visit_dc.SetTime(0.0);
@@ -701,12 +743,24 @@ int main(int argc, char *argv[])
          {
             cout << "step " << ti << ", t = " << t << endl;
          }
-          // mesh and stress output. Consider moving this to a separate routine
-         //We might not want to update the vonMises stuff
-         oper.ProjectVonMisesStress(vonMises);
-         oper.ProjectHydroStress(hydroStress);
+
          if (toml_opt.visit)
          {
+
+            // mesh and stress output. Consider moving this to a separate routine
+            //We might not want to update the vonMises stuff
+            oper.ProjectModelStress(stress);
+            oper.ProjectVonMisesStress(vonMises);
+            oper.ProjectHydroStress(hydroStress);
+
+            if(toml_opt.mech_type == MechType::EXACMECH){
+               oper.ProjectDpEff(dpeff);
+               oper.ProjectEffPlasticStrain(pleff);
+               oper.ProjectOrientation(quats);
+               oper.ProjectShearRate(gdots);
+               oper.ProjectH(hardness);
+            }
+
             visit_dc.SetCycle(ti);
             visit_dc.SetTime(t);
             //Our visit data is now saved off
@@ -859,7 +913,7 @@ void InitGridFunction(const Vector &x, Vector &y)
    y = 0.;
 }
 
-bool checkMaterialArgs(bool umat, bool cp, int ngrains, int numProps,
+bool checkMaterialArgs(MechType mt, bool cp, int ngrains, int numProps,
                        int numStateVars)
 {
    bool err = true;
@@ -870,9 +924,9 @@ bool checkMaterialArgs(bool umat, bool cp, int ngrains, int numProps,
       err = false;
    }
 
-   if (umat && (numProps < 1))
+   if (mt !=  MechType::NOTYPE && (numProps < 1))
    {
-      cerr << "\nMust specify material properties for umat or cp calculation." << '\n';
+      cerr << "\nMust specify material properties for mechanical model or cp calculation." << '\n';
       err = false;
    }
 

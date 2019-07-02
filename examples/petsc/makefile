@@ -84,6 +84,10 @@ EX9_E_ARGS       := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts r
 EX9_ES_ARGS      := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl --no-step
 EX9_IS_ARGS      := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_impl --implicit -tf 0.5
 EX10_ARGS        := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p -tf 30 -s 3 -rs 2 -dt 3
+EX10_MF_ARGS     := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_mf -tf 6 -s 3 -rs 0 -dt 3
+EX10_MFOP_ARGS   := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_mfop -tf 6 -s 3 -rs 0 -dt 3
+EX10_JFNK_ARGS   := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_jfnk --jfnk -tf 6 -s 3 -rs 0 -dt 3
+
 ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_W))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_P))
@@ -107,6 +111,9 @@ ex9p-test-par: ex9p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_IS_ARGS))
 ex10p-test-par: ex10p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_MF_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_MFOP_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_JFNK_ARGS))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
