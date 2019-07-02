@@ -1931,15 +1931,6 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    }
 }
 
-const IntegrationRule &VectorDivergenceIntegrator::GetRule(const FiniteElement &trial_fe,
-                                                           const FiniteElement &test_fe,
-                                                           ElementTransformation &Trans)
-{
-   int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder();
-   // TODO: Shouldn't it be: Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ()
-   return IntRules.Get(trial_fe.GetGeomType(), order);
-}
-
 void VectorDivergenceIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,
@@ -1987,6 +1978,15 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
       shape *= c;
       AddMultVWt (shape, divshape, elmat);
    }
+}
+
+const IntegrationRule &VectorDivergenceIntegrator::GetRule(const FiniteElement &trial_fe,
+                                                           const FiniteElement &test_fe,
+                                                           ElementTransformation &Trans)
+{
+   int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder();
+   // TODO: Shouldn't it be: Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ()
+   return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
 
