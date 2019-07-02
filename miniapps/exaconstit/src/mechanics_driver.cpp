@@ -337,10 +337,12 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace l2_fes(pmesh, &l2_fec);
    ParFiniteElementSpace l2_fes_pl(pmesh, &l2_fec, 1);
    ParFiniteElementSpace l2_fes_ori(pmesh, &l2_fec, 4, mfem::Ordering::byVDIM);
+   ParFiniteElementSpace l2_fes_voigt(pmesh, &l2_fec, 6, mfem::Ordering::byVDIM);
    ParFiniteElementSpace l2_fes_gdots_cubic(pmesh, &l2_fec, 12, mfem::Ordering::byVDIM);
 
    ParGridFunction vonMises(&l2_fes);
    ParGridFunction hydroStress(&l2_fes);
+   ParGridFunction stress(&l2_fes_voigt);
 
    ParGridFunction dpeff(&l2_fes);
    ParGridFunction pleff(&l2_fes);
@@ -621,14 +623,23 @@ int main(int argc, char *argv[])
    VisItDataCollection visit_dc(toml_opt.basename, pmesh);
    if (toml_opt.visit)
    {
+     visit_dc.SetPrecision(12);
      visit_dc.RegisterField("Displacement",  &x_diff);
-//     visit_dc.RegisterQField("Stress", &sigma0);
+     visit_dc.RegisterField("Stress", &stress);
      visit_dc.RegisterField("Velocity", &v_cur);
-     //visit_dc.RegisterQField("State Variables", &matVars0);
      //visit_dc.RegisterQField("DefGrad", &kinVars0);
      visit_dc.RegisterField("VonMisesStress", &vonMises);
-     visit_dc.RegisterField("Hydrostatic Stress", &hydroStress);
+     visit_dc.RegisterField("HydrostaticStress", &hydroStress);
+
      if(toml_opt.mech_type == MechType::EXACMECH){
+        //We also want to project the values out originally
+        //so our initial values are correct
+        oper.ProjectDpEff(dpeff);
+        oper.ProjectEffPlasticStrain(pleff);
+        oper.ProjectOrientation(quats);
+        oper.ProjectShearRate(gdots);
+        oper.ProjectH(hardness);
+
         visit_dc.RegisterField("DpEff", &dpeff);
         visit_dc.RegisterField("EffPlasticStrain", &pleff);
         visit_dc.RegisterField("LatticeOrientation", &quats);
@@ -732,19 +743,24 @@ int main(int argc, char *argv[])
          {
             cout << "step " << ti << ", t = " << t << endl;
          }
-          // mesh and stress output. Consider moving this to a separate routine
-         //We might not want to update the vonMises stuff
-         oper.ProjectVonMisesStress(vonMises);
-         oper.ProjectHydroStress(hydroStress);
-         if(toml_opt.mech_type == MechType::EXACMECH){
-            oper.ProjectDpEff(dpeff);
-            oper.ProjectEffPlasticStrain(pleff);
-            oper.ProjectOrientation(quats);
-            oper.ProjectShearRate(gdots);
-            oper.ProjectH(hardness);
-         }
+
          if (toml_opt.visit)
          {
+
+            // mesh and stress output. Consider moving this to a separate routine
+            //We might not want to update the vonMises stuff
+            oper.ProjectModelStress(stress);
+            oper.ProjectVonMisesStress(vonMises);
+            oper.ProjectHydroStress(hydroStress);
+
+            if(toml_opt.mech_type == MechType::EXACMECH){
+               oper.ProjectDpEff(dpeff);
+               oper.ProjectEffPlasticStrain(pleff);
+               oper.ProjectOrientation(quats);
+               oper.ProjectShearRate(gdots);
+               oper.ProjectH(hardness);
+            }
+
             visit_dc.SetCycle(ti);
             visit_dc.SetTime(t);
             //Our visit data is now saved off

@@ -706,8 +706,33 @@ void NonlinearMechOperator::ProjectOrientation(ParGridFunction &quats)
       qfvc->SetIndex(8);
       qfvc->SetLength(4);
       quats.ProjectDiscCoefficient(*qfvc, mfem::GridFunction::ARITHMETIC);
-      //We need to normalize the quaternions here
-      //fix me...
+      
+      //The below is normalizing the quaternion since it most likely was not
+      //returned normalized
+      int _size = quats.Size();
+      int size = _size / 4;
+
+      double norm = 0;
+      double inv_norm = 0;
+      int index = 0;
+
+      for (int i = 0; i < size; i++)
+      {
+         index = i * 4;
+
+         norm = quats(index + 0) * quats(index + 0);
+         norm += quats(index + 1) * quats(index + 1);
+         norm += quats(index + 2) * quats(index + 2);
+         norm += quats(index + 3) * quats(index + 3);
+
+         inv_norm = 1.0 / norm;
+
+         for (int j = 0; j < 4; j++)
+         {
+            quats(index + j) *= inv_norm;
+         }
+      }
+      
    }
    return;
 }

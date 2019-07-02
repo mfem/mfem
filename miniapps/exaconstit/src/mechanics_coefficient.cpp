@@ -48,11 +48,11 @@ void QuadratureVectorFunctionCoefficient::Eval(Vector &V,
    if(index == 0 && length == QuadF->GetVDim()){
       QuadF->GetElementValues(elem_no, ip.ipID, V); 
    }else{
-      QuadratureSpace* qspace = QuadF->GetSpace();
-      double* data = QuadF->GetData(); 
-      const int s_offset = QuadF->GetVDim() * elem_no;
-      // const int sl_size = qspace->element_offsets[idx+1] - s_offset;
-      V.NewDataAndSize(data + s_offset + index, length);
+      //This will need to be improved upon...
+      Vector temp;
+      QuadF->GetElementValues(elem_no, ip.ipID, temp);
+      double *data = temp.GetData();
+      V.NewDataAndSize(data + index, length);
    }
    
    return;
