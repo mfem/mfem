@@ -160,30 +160,24 @@ public:
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
 
-       A reference function, `uh(xh)`, can be mapped to a function, `u(x)`, on a
-       general physical element in following ways:
-
-           VALUE       u(x) = uh(xh)
-           INTEGRAL    u(x) = (1/w) * uh(xh)
-           H_DIV       u(x) = (J/w) * uh(xh)
-           H_CURL      u(x) = J^{-t} * uh(xh)           (square J)
-           H_CURL      u(x) = J*(J^t*J)^{-1} * uh(xh)   (general J)
-
-       where
-
-           x = T(xh) is the image of the reference point xh ("x hat"),
-           J = J(xh) is the Jacobian matrix of the transformation T, and
-           w = w(xh) = / det(J),           for square J,
-                       \ det(J^t*J)^{1/2}, for general J,
-                     is the transformation weight factor.
+       A reference function \f$ \hat u(\hat x) \f$ can be mapped to a function 
+      \f$ u(x) \f$ on a general physical element in following where:
+       - \f$ x = T(\hat x) \f$ is the image of the reference point \f$ \hat x \f$
+       - \f$ J = J(\hat x) \f$ is the Jacobian matrix of the transformation T
+       - \f$ w = w(\hat x) = det(J) \f$ is the transformation weight factor for square J
+       - \f$ w = w(\hat x) = det(J^t J)^{1/2} \f$ is the transformation weight factor in general
    */
    enum MapT { 
-          VALUE,     ///< For scalar fields; preserves point values
-          INTEGRAL,  ///< For scalar fields; preserves volume integrals
+          VALUE,     /**< For scalar fields; preserves point values
+                          \f$ u(x) = \hat u(\hat x) \f$ */
+          INTEGRAL,  /**< For scalar fields; preserves volume integrals
+                          \f$ u(x) = (1/w) \hat u(\hat x) \f$ */
           H_DIV,     /**< For vector fields; preserves surface integrals of the
-                          normal component */
+                          normal component \f$ u(x) = (J/w) \hat u(\hat x) \f$ */
           H_CURL     /**< For vector fields; preserves line integrals of the
-                          tangential component */
+                          tangential component 
+                          \f$ u(x) = J^{-t} \hat u(\hat x) \f$ (square J), 
+                          \f$ u(x) = J(J^t J)^{-1} \hat u(\hat x) \f$ (general J) */
         };
 
    /** @brief Enumeration for DerivType: defines which derivative method
@@ -846,7 +840,7 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
-/** @brief A degenerate 2D linear element on a square with nodes at the 
+/** @brief A  2D linear element on a square with 3 nodes at the 
     vertices of the lower left triangle */
 class P1OnQuadFiniteElement : public NodalFiniteElement
 {
@@ -1178,7 +1172,7 @@ public:
                            DenseMatrix &dshape) const;
 };
 
-/** @brief A 2D 0-order Raviart-Thomas vector element on a triangle */
+/** @brief A 2D 1st Raviart-Thomas vector element on a triangle */
 class RT0TriangleFiniteElement : public VectorFiniteElement
 {
 private:
@@ -1207,7 +1201,7 @@ public:
                          ElementTransformation &Trans, Vector &dofs) const;
 };
 
-/** @brief A 2D 0-order Raviart-Thomas vector element on a square*/
+/** @brief A 2D 1st Raviart-Thomas vector element on a square*/
 class RT0QuadFiniteElement : public VectorFiniteElement
 {
 private:
@@ -1236,7 +1230,7 @@ public:
                          ElementTransformation &Trans, Vector &dofs) const;
 };
 
-/** @brief A 2D 1-order Raviart-Thomas vector element on a triangle */
+/** @brief A 2D 2nd Raviart-Thomas vector element on a triangle */
 class RT1TriangleFiniteElement : public VectorFiniteElement
 {
 private:
@@ -1265,7 +1259,7 @@ public:
                          ElementTransformation &Trans, Vector &dofs) const;
 };
 
-/** @brief A 2D 1-order Raviart-Thomas vector element on a square */
+/** @brief A 2D 2nd Raviart-Thomas vector element on a square */
 class RT1QuadFiniteElement : public VectorFiniteElement
 {
 private:
@@ -1294,7 +1288,7 @@ public:
                          ElementTransformation &Trans, Vector &dofs) const;
 };
 
-/** @brief A 2D 2-order Raviart-Thomas vector element on a triangle */
+/** @brief A 2D 3rd Raviart-Thomas vector element on a triangle */
 class RT2TriangleFiniteElement : public VectorFiniteElement
 {
 private:
@@ -1314,7 +1308,7 @@ public:
                              Vector &divshape) const;
 };
 
-/** @brief A 2D 2-order Raviart-Thomas vector element on a square */
+/** @brief A 2D 3rd Raviart-Thomas vector element on a square */
 class RT2QuadFiniteElement : public VectorFiniteElement
 {
 private:
