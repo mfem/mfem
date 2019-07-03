@@ -293,12 +293,12 @@ int main(int argc, char *argv[])
          arkode->Init(adv, t, u);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         if (ode_solver_type == 13) arkode->SetERKTableNum(FEHLBERG_13_7_8);
+         if (ode_solver_type == 13) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
          ode_solver = arkode; break;
    }
 
    // Initialize MFEM integrators, SUNDIALS integrators are initialized above
-   if (ode_solver_type < 7) ode_solver->Init(adv);
+   if (ode_solver_type < 7) { ode_solver->Init(adv); }
 
    // 8. Perform time-integration (looping over the time iterations, ti,
    //    with a time-step dt).

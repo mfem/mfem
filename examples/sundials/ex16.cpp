@@ -109,12 +109,12 @@ private:
    ConductionOperator *oper;
 
 public:
-  SundialsJacSolver(ConductionOperator &oper_) : oper(&oper_) { }
-  ~SundialsJacSolver() { }
+   SundialsJacSolver(ConductionOperator &oper_) : oper(&oper_) { }
+   ~SundialsJacSolver() { }
 
-  int ODELinSys(double t, Vector y, Vector fy, int jok, int *jcur,
-                double gamma);
-  int Solve(Vector &x, Vector b);
+   int ODELinSys(double t, Vector y, Vector fy, int jok, int *jcur,
+                 double gamma);
+   int Solve(Vector &x, Vector b);
 };
 
 double InitialTemperature(const Vector &x);
@@ -307,7 +307,7 @@ int main(int argc, char *argv[])
          arkode->Init(oper, t, u);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         if (ode_solver_type == 11) arkode->SetERKTableNum(FEHLBERG_13_7_8);
+         if (ode_solver_type == 11) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
          ode_solver = arkode; break;
       case 12:
          arkode = new ARKStepSolver(ARKStepSolver::IMPLICIT);
@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
    }
 
    // Initialize MFEM integrators, SUNDIALS integrators are initialized above
-   if (ode_solver_type < 8) ode_solver->Init(oper);
+   if (ode_solver_type < 8) { ode_solver->Init(oper); }
 
    // Since we want to update the diffusion coefficient after every time step,
    // we need to use the "one-step" mode of the SUNDIALS solvers.
@@ -435,7 +435,7 @@ void ConductionOperator::ImplicitSolve(const double dt,
    // Solve the equation:
    //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
    // for du_dt
-   if (T) delete T;
+   if (T) { delete T; }
    T = Add(1.0, Mmat, dt, Kmat);
    T_solver.SetOperator(*T);
    Kmat.Mult(u, z);
@@ -464,20 +464,20 @@ void ConductionOperator::SetParameters(const Vector &u)
 
 int ConductionOperator::SundialsSetup(int *jcur, double gamma)
 {
-  // Setup the ODE Jacobian T = M + gamma K.
-  if (T) delete T;
-  T = Add(1.0, Mmat, gamma, Kmat);
-  T_solver.SetOperator(*T);
-  *jcur = 1;
-  return(0);
+   // Setup the ODE Jacobian T = M + gamma K.
+   if (T) { delete T; }
+   T = Add(1.0, Mmat, gamma, Kmat);
+   T_solver.SetOperator(*T);
+   *jcur = 1;
+   return (0);
 }
 
 int ConductionOperator::SundialsSolve(Vector &x, Vector b)
 {
    // Solve the system A x = z => (M - gamma K) x = M b.
-  Mmat.Mult(b, z);
-  T_solver.Mult(z, x);
-  return(0);
+   Mmat.Mult(b, z);
+   T_solver.Mult(z, x);
+   return (0);
 }
 
 ConductionOperator::~ConductionOperator()
@@ -490,12 +490,12 @@ ConductionOperator::~ConductionOperator()
 int SundialsJacSolver::ODELinSys(double t, Vector y, Vector fy, int jok,
                                  int *jcur, double gamma)
 {
-  return(oper->SundialsSetup(jcur, gamma));
+   return (oper->SundialsSetup(jcur, gamma));
 }
 
 int SundialsJacSolver::Solve(Vector &x, Vector b)
 {
-  return(oper->SundialsSolve(x, b));
+   return (oper->SundialsSolve(x, b));
 }
 
 double InitialTemperature(const Vector &x)

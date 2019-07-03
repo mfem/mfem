@@ -158,12 +158,12 @@ int main(int argc, char *argv[])
    // check for vaild ODE solver option
    if (ode_solver_type < 1 || ode_solver_type > 9)
    {
-     if (myid == 0)
-     {
+      if (myid == 0)
+      {
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-     }
-     MPI_Finalize();
-     return 3;
+      }
+      MPI_Finalize();
+      return 3;
    }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
@@ -340,12 +340,12 @@ int main(int argc, char *argv[])
          arkode->Init(adv, t, *U);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         if (ode_solver_type == 13) arkode->SetERKTableNum(FEHLBERG_13_7_8);
+         if (ode_solver_type == 13) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
          ode_solver = arkode; break;
    }
 
    // Initialize MFEM integrators, SUNDIALS integrators are initialized above
-   if (ode_solver_type < 7) ode_solver->Init(adv);
+   if (ode_solver_type < 7) { ode_solver->Init(adv); }
 
    // 10. Perform time-integration (looping over the time iterations, ti,
    //     with a time-step dt).

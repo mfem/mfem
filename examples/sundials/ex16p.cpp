@@ -182,12 +182,12 @@ int main(int argc, char *argv[])
    // check for vaild ODE solver option
    if (ode_solver_type < 1 || ode_solver_type > 12)
    {
-     if (myid == 0)
-     {
+      if (myid == 0)
+      {
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-     }
-     MPI_Finalize();
-     return 1;
+      }
+      MPI_Finalize();
+      return 1;
    }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
@@ -331,7 +331,7 @@ int main(int argc, char *argv[])
          arkode->Init(oper, t, u);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         if (ode_solver_type == 11) arkode->SetERKTableNum(FEHLBERG_13_7_8);
+         if (ode_solver_type == 11) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
          ode_solver = arkode; break;
       case 12:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::IMPLICIT);
@@ -343,7 +343,7 @@ int main(int argc, char *argv[])
    }
 
    // Initialize MFEM integrators, SUNDIALS integrators are initialized above
-   if (ode_solver_type < 8) ode_solver->Init(oper);
+   if (ode_solver_type < 8) { ode_solver->Init(oper); }
 
    // Since we want to update the diffusion coefficient after every time step,
    // we need to use the "one-step" mode of the SUNDIALS solvers.
@@ -474,7 +474,7 @@ void ConductionOperator::ImplicitSolve(const double dt,
    // Solve the equation:
    //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
    // for du_dt
-   if (T) delete T;
+   if (T) { delete T; }
    T = Add(1.0, Mmat, dt, Kmat);
    T_solver.SetOperator(*T);
    Kmat.Mult(u, z);
@@ -486,20 +486,20 @@ int ConductionOperator::ImplicitSetup(const double t, const Vector &x,
                                       const Vector &fx, int jok, int *jcur,
                                       double gamma)
 {
-  // Setup the ODE Jacobian T = M + gamma K.
-  if (T) delete T;
-  T = Add(1.0, Mmat, gamma, Kmat);
-  T_solver.SetOperator(*T);
-  *jcur = 1;
-  return(0);
+   // Setup the ODE Jacobian T = M + gamma K.
+   if (T) { delete T; }
+   T = Add(1.0, Mmat, gamma, Kmat);
+   T_solver.SetOperator(*T);
+   *jcur = 1;
+   return (0);
 }
 
 int ConductionOperator::ImplicitSolve(Vector &x, const Vector &b, double tol)
 {
    // Solve the system A x = z => (M - gamma K) x = M b.
-  Mmat.Mult(b, z);
-  T_solver.Mult(z, x);
-  return(0);
+   Mmat.Mult(b, z);
+   T_solver.Mult(z, x);
+   return (0);
 }
 
 void ConductionOperator::SetParameters(const Vector &u)
