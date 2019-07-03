@@ -233,28 +233,19 @@ public:
 
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual. */
-   virtual void ExplicitMult(const Vector &x, Vector &y) const
-   {
-      mfem_error("TimeDependentOperator::ExplicitMult() is not overridden!");
-   }
+   virtual void ExplicitMult(const Vector &x, Vector &y) const;
 
    /** @brief Perform the action of the implicit part of the operator, F:
        @a y = F(@a x, @a k, t) where t is the current time.
 
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual.*/
-   virtual void ImplicitMult(const Vector &x, const Vector &k, Vector &y) const
-   {
-      mfem_error("TimeDependentOperator::ImplicitMult() is not overridden!");
-   }
+   virtual void ImplicitMult(const Vector &x, const Vector &k, Vector &y) const;
 
    /** @brief Perform the action of the operator: @a y = k = f(@a x, t), where
        k solves the algebraic equation F(@a x, k, t) = G(@a x, t) and t is the
        current time. */
-   virtual void Mult(const Vector &x, Vector &y) const
-   {
-      mfem_error("TimeDependentOperator::Mult() is not overridden!");
-   }
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    /** @brief Solve the equation: @a k = f(@a x + @a dt @a k, t), for the
        unknown @a k at the current time t.
@@ -272,10 +263,7 @@ public:
        methods and the backward Euler method in particular.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k)
-   {
-      mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
-   }
+   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
    /** @brief Return an Operator representing (dF/dk @a shift + dF/dx) at the
        given @a x, @a k, and the currently set time.
@@ -283,24 +271,14 @@ public:
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual. */
    virtual Operator& GetImplicitGradient(const Vector &x, const Vector &k,
-                                         double shift) const
-   {
-      mfem_error("TimeDependentOperator::GetImplicitGradient() is "
-                 "not overridden!");
-      return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
-   }
+                                         double shift) const;
 
    /** @brief Return an Operator representing dG/dx at the given point @a x and
        the currently set time.
 
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual. */
-   virtual Operator& GetExplicitGradient(const Vector &x) const
-   {
-      mfem_error("TimeDependentOperator::GetExplicitGradient() is "
-                 "not overridden!");
-      return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
-   }
+   virtual Operator& GetExplicitGradient(const Vector &x) const;
 
    /** Setup the ODE linear system A(y,t) = (I - gamma J) or A = (M - gamma J).
         @param[in]  t     The time at which A(y,t) should be evaluated
@@ -315,11 +293,7 @@ public:
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
    virtual int ImplicitSetup(const double t, const Vector &x, const Vector &fx,
-                             int jok, int *jcur, double gamma)
-   {
-      mfem_error("TimeDependentOperator::ImplicitSetup() is not overridden!");
-      return (-1);
-   }
+                             int jok, int *jcur, double gamma);
 
    /** Solve the ODE linear system A x = b.
        @param[in/out]  x  On input, the initial guess. On output, the solution
@@ -330,11 +304,7 @@ public:
 
       Presently, this method is used by SUNDIALS ODE solvers, for more
       details, see the SUNDIALS User Guides. */
-   virtual int ImplicitSolve(Vector &x, const Vector &b, double tol)
-   {
-      mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
-      return (-1);
-   }
+   virtual int ImplicitSolve(Vector &x, const Vector &b, double tol);
 
    /** Setup the mass matrix in the ODE system M y' = f(y,t)
         @param[in]  t     The time at which A(y,t) should be evaluated
@@ -343,11 +313,7 @@ public:
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int MassSetup(const double t)
-   {
-      mfem_error("TimeDependentOperator::MassSetup() is not overridden!");
-      return (-1);
-   }
+   virtual int MassSetup(const double t);
 
    /** Solve the mass matrix linear system M x = b.
         @param[in/out]  x   On input, the initial guess. On output, the solution
@@ -358,11 +324,7 @@ public:
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int MassSolve(Vector &x, const Vector &b, double tol)
-   {
-      mfem_error("TimeDependentOperator::MassSolve() is not overridden!");
-      return (-1);
-   }
+   virtual int MassSolve(Vector &x, const Vector &b, double tol);
 
    virtual ~TimeDependentOperator() { }
 };
