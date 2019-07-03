@@ -318,22 +318,22 @@ public:
                              int jok, int *jcur, double gamma)
    {
       mfem_error("TimeDependentOperator::ImplicitSetup() is not overridden!");
-      return(-1);
+      return (-1);
    }
 
-    /** Solve the ODE linear system A x = b.
-        @param[in/out]  x  On input, the initial guess. On output, the solution
-        @param[in]      b  The linear system right-hand side
-        @param[in]      tol Linear solve tolerance
+   /** Solve the ODE linear system A x = b.
+       @param[in/out]  x  On input, the initial guess. On output, the solution
+       @param[in]      b  The linear system right-hand side
+       @param[in]      tol Linear solve tolerance
 
-       If not re-implemented, this method simply generates an error.
+      If not re-implemented, this method simply generates an error.
 
-       Presently, this method is used by SUNDIALS ODE solvers, for more
-       details, see the SUNDIALS User Guides. */
+      Presently, this method is used by SUNDIALS ODE solvers, for more
+      details, see the SUNDIALS User Guides. */
    virtual int ImplicitSolve(Vector &x, const Vector &b, double tol)
    {
       mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
-      return(-1);
+      return (-1);
    }
 
    /** Setup the mass matrix in the ODE system M y' = f(y,t)
@@ -346,7 +346,7 @@ public:
    virtual int MassSetup(const double t)
    {
       mfem_error("TimeDependentOperator::MassSetup() is not overridden!");
-      return(-1);
+      return (-1);
    }
 
    /** Solve the mass matrix linear system M x = b.
@@ -361,7 +361,7 @@ public:
    virtual int MassSolve(Vector &x, const Vector &b, double tol)
    {
       mfem_error("TimeDependentOperator::MassSolve() is not overridden!");
-      return(-1);
+      return (-1);
    }
 
    virtual ~TimeDependentOperator() { }
