@@ -2304,10 +2304,19 @@ H1Ser_HexElement::H1Ser_HexElement(const int p, const int ser_space_dim)
 void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
                                            Vector &shape) const
 {
-   // int p = (this)->GetOrder();
-   // cout << "fe.cpp: Need to implement H1Ser_Hex shape fns" << endl;
+   int p = (this)->GetOrder();
+
    double x = ip.x, y = ip.y, z = ip.z;
    double omx = 1.-x, omy = 1.-y, omz = 1.-z;
+
+   Poly_1D::Basis edgeNodalBasis(poly1d.GetBasis(p, BasisType::GaussLobatto));
+   Vector nodalX(p+1);
+   Vector nodalY(p+1);
+   Vector nodalZ(p+1);
+
+   edgeNodalBasis.Eval(x, nodalX);
+   edgeNodalBasis.Eval(y, nodalY);
+   edgeNodalBasis.Eval(z, nodalZ);
 
    shape( 0) = omx*omy*omz;
    shape( 1) = x  *omy*omz;;
@@ -2317,26 +2326,100 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    shape( 5) = x  *omy*z;
    shape( 6) = x  *y  *z;
    shape( 7) = omx*  y*z;
-   shape( 8) = omy*omz*x*omx;
-   shape( 9) =   x*omz*y*omy;
-   shape(10) =   y*omz*x*omx;
-   shape(11) = omx*omz*y*omy;
-   shape(12) = omy*  z*x*omx;
-   shape(13) =   x*  z*y*omy;
-   shape(14) =   y*  z*x*omx;
-   shape(15) = omx*  z*y*omy;
-   shape(16) = omx*omy*z*omz;
-   shape(17) =   x*omy*z*omz;
-   shape(18) =   x*  y*z*omz;
-   shape(19) = omx*  y*z*omz;
+
+   for (int i = 0; i < p-1; i++) 
+   {
+      shape(8 + 0*(p-1) + i) =     omy*omz*nodalX(i+1); // 1
+      shape(8 + 1*(p-1) + i) =       x*omz*nodalY(i+1); // 2
+      shape(8 + 3*(p-1) - i - 1) =   y*omz*nodalX(i+1); // 3
+      shape(8 + 4*(p-1) - i - 1) = omx*omz*nodalY(i+1); // 4
+      shape(8 + 4*(p-1) + i) =     omy*  z*nodalX(i+1); // 5
+      shape(8 + 5*(p-1) + i) =       x*  z*nodalY(i+1); // 6
+      shape(8 + 7*(p-1) - i - 1) =   y*  z*nodalX(i+1); // 7
+      shape(8 + 8*(p-1) - i - 1) = omx*  z*nodalY(i+1); // 8
+      shape(8 + 8*(p-1) + i) =     omx*omy*nodalZ(i+1); // 9
+      shape(8 + 9*(p-1) + i) =       x*omy*nodalZ(i+1); // 0
+      shape(8 + 10*(p-1) + i) =      x*  y*nodalZ(i+1); // A
+      shape(8 + 11*(p-1) + i) =    omx*  y*nodalZ(i+1); // B
+   }
 }
 
 void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
    int p = (this)->GetOrder();
-   // cout << "fe.cpp: Need to implement H1Ser_Hex Dshape fns!" << endl;
-   p=p+1;
+   double x = ip.x, y = ip.y, z = ip.z;
+
+   x=0;
+   y=0;
+   z=0;
+
+   double omx = 1.-x, omy = 1.-y, omz = 1.-z;
+
+   Poly_1D::Basis edgeNodalBasis(poly1d.GetBasis(p, BasisType::GaussLobatto));
+   Vector nodalX(p+1);
+   Vector DnodalX(p+1);
+   Vector nodalY(p+1);
+   Vector DnodalY(p+1);
+   Vector nodalZ(p+1);
+   Vector DnodalZ(p+1);
+
+   edgeNodalBasis.Eval(x, nodalX, DnodalX);
+   edgeNodalBasis.Eval(y, nodalY, DnodalY);
+   edgeNodalBasis.Eval(z, nodalZ, DnodalZ);
+
+  for (int i = 0; i < p-1; i++) 
+   {
+      dshape(8 + 0*(p-1) + i,     0) = omy*omz*DnodalX(i+1);
+      dshape(8 + 0*(p-1) + i,     1) = -omz*nodalX(i+1);
+      dshape(8 + 0*(p-1) + i,     2) = -omy*nodalX(i+1);
+
+      dshape(8 + 1*(p-1) + i,     0) = omz*nodalY(i+1);
+      dshape(8 + 1*(p-1) + i,     1) = x*omz*DnodalY(i+1);
+      dshape(8 + 1*(p-1) + i,     2) = -x*nodalY(i+1);
+
+      dshape(8 + 3*(p-1) - i - 1, 0) = y*omz*DnodalX(i+1);
+      dshape(8 + 3*(p-1) - i - 1, 1) = omz*nodalX(i+1);
+      dshape(8 + 3*(p-1) - i - 1, 2) = -y*nodalX(i+1);
+
+      dshape(8 + 4*(p-1) - i - 1, 0) = -omz*nodalY(i+1);
+      dshape(8 + 4*(p-1) - i - 1, 1) = omx*omz*DnodalY(i+1);
+      dshape(8 + 4*(p-1) - i - 1, 2) = -omx*nodalY(i+1);
+
+      dshape(8 + 4*(p-1) + i,     0) = omy*  z*DnodalX(i+1);
+      dshape(8 + 4*(p-1) + i,     1) = - z*nodalX(i+1);
+      dshape(8 + 4*(p-1) + i,     2) = omy*nodalX(i+1);
+
+      dshape(8 + 5*(p-1) + i,     0) = z*nodalY(i+1);
+      dshape(8 + 5*(p-1) + i,     1) = x*  z*DnodalY(i+1);
+      dshape(8 + 5*(p-1) + i,     2) = x*nodalY(i+1);
+
+      dshape(8 + 7*(p-1) - i - 1, 0) = y*  z*DnodalX(i+1);
+      dshape(8 + 7*(p-1) - i - 1, 1) = z*nodalX(i+1);
+      dshape(8 + 7*(p-1) - i - 1, 2) = y*nodalX(i+1);
+
+      dshape(8 + 8*(p-1) - i - 1, 0) = - z*nodalY(i+1);
+      dshape(8 + 8*(p-1) - i - 1, 1) = omx*  z*DnodalY(i+1);
+      dshape(8 + 8*(p-1) - i - 1, 2) = omx*nodalY(i+1);
+
+      dshape(8 + 8*(p-1) + i,     0) = -omy*nodalZ(i+1);
+      dshape(8 + 8*(p-1) + i,     1) = -omx*nodalZ(i+1);
+      dshape(8 + 8*(p-1) + i,     2) = omx*omy*DnodalZ(i+1);
+
+      dshape(8 + 9*(p-1) + i,     0) = omy*nodalZ(i+1);
+      dshape(8 + 9*(p-1) + i,     1) = -x*nodalZ(i+1);
+      dshape(8 + 9*(p-1) + i,     2) = x*omy*DnodalZ(i+1);
+
+      dshape(8 + 10*(p-1) + i,    0) = y*nodalZ(i+1);
+      dshape(8 + 10*(p-1) + i,    1) = x*nodalZ(i+1);
+      dshape(8 + 10*(p-1) + i,    2) = x*  y*DnodalZ(i+1);
+
+      dshape(8 + 11*(p-1) + i,    0) = -y*nodalZ(i+1);
+      dshape(8 + 11*(p-1) + i,    1) = omx*nodalZ(i+1);
+      dshape(8 + 11*(p-1) + i,    2) = omx*  y*DnodalZ(i+1);
+   }
+   // cout << "dshape is: ";
+   // dshape.PrintMatlab();
 } 
 
 void H1Ser_HexElement::Project (
