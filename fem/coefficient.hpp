@@ -118,7 +118,6 @@ public:
                        const IntegrationPoint &ip);
 };
 
-typedef double (*DeviceFunctionCoefficientPtr)(const Vector3&);
 
 /// A general C-function coefficient
 class FunctionCoefficient : public Coefficient
@@ -126,7 +125,6 @@ class FunctionCoefficient : public Coefficient
 protected:
    double (*Function)(const Vector &);
    double (*TDFunction)(const Vector &, double);
-   double (*DeviceFunction)(const Vector3&);
 
 public:
    /// Define a time-independent coefficient from a pointer to a C-function
@@ -134,7 +132,6 @@ public:
    {
       Function = f;
       TDFunction = NULL;
-      DeviceFunction = NULL;
    }
 
    /// Define a time-dependent coefficient from a pointer to a C-function
@@ -142,16 +139,6 @@ public:
    {
       Function = NULL;
       TDFunction = tdf;
-      DeviceFunction = NULL;
-   }
-
-   /// Define a time-independent coefficient from a C-function using
-   /// Vector3 instead of a Vector.
-   FunctionCoefficient(double (*df)(const Vector3 &))
-   {
-      Function = NULL;
-      TDFunction = NULL;
-      DeviceFunction = df;
    }
 
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
@@ -161,7 +148,6 @@ public:
    {
       Function = reinterpret_cast<double(*)(const Vector&)>(f);
       TDFunction = NULL;
-      DeviceFunction = NULL;
    }
 
    /// (DEPRECATED) Define a time-dependent coefficient from a C-function
@@ -171,17 +157,11 @@ public:
    {
       Function = NULL;
       TDFunction = reinterpret_cast<double(*)(const Vector&,double)>(tdf);
-      DeviceFunction = NULL;
    }
 
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
-
-   /// Return the coefficient's C-function that uses Vector3.
-   /** Warning: for now, the returned function can only be used on the
-       host inside a MFEM_FORALL. */
-   DeviceFunctionCoefficientPtr GetDeviceFunction();
 };
 
 class GridFunction;
@@ -453,6 +433,7 @@ class VectorArrayCoefficient : public VectorCoefficient
 {
 private:
    Array<Coefficient*> Coeff;
+   Array<bool> ownCoeff;
 
 public:
    /** @brief Construct vector of dim coefficients.  The actual coefficients 
@@ -465,9 +446,8 @@ public:
    /// Returns the entire array of coefficients.
    Coefficient **GetCoeffs() { return Coeff; }
 
-   //TODO:  Do we really want to delete
-   /// Sets i'th coefficient in the array.
-   void Set(int i, Coefficient *c) { delete Coeff[i]; Coeff[i] = c; }
+   /// Sets coefficient in the vector.
+   void Set(int i, Coefficient *c, bool own=true);
 
    /// Evaluates i'th component of the vector of coefficients.  Returns 
    double Eval(int i, ElementTransformation &T, const IntegrationPoint &ip)
@@ -638,10 +618,10 @@ public:
    /// Return the associated scalar DeltaCoefficient.
    DeltaCoefficient& GetDeltaCoefficient() { return d; }
 
-   /// Set the direction vector to @a _d.
+   void SetScale(double s) { d.SetScale(s); }
    void SetDirection(const Vector& _d);
 
-   /// Get the center of the underlying delta function.
+   void SetDeltaCenter(const Vector& center) { d.SetDeltaCenter(center); }
    void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }
 
    /** @brief Return the specified direction vector multiplied by the value
@@ -805,6 +785,7 @@ class MatrixArrayCoefficient : public MatrixCoefficient
 {
 private:
    Array<Coefficient *> Coeff;
+   Array<bool> ownCoeff;
 
 public:
    /** @brief Construct matrix of dim = height*width coefficients.  
@@ -815,7 +796,7 @@ public:
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
    /// Set the coefficient located at (i,j) in the matrix.
-   void Set(int i, int j, Coefficient * c) { delete Coeff[i*width+j]; Coeff[i*width+j] = c; }
+   void Set(int i, int j, Coefficient * c, bool own=true);
 
    /// Evaluate coefficient located at (i,j) in the matrix using integration point @a ip.
    double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)

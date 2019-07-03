@@ -26,6 +26,8 @@ public:
    A one;
    B two;
 
+   Pair() = default;
+
    Pair(const A &one, const B &two) : one(one), two(two) {}
 };
 
