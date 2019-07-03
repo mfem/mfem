@@ -14,36 +14,15 @@
 
 #include "../config/config.hpp"
 #include "fespace.hpp"
+#include "../general/device.hpp"
 
 namespace mfem
 {
 
 class BilinearForm;
 
-/// Element restriction operator \f$ R \f$
-class ElemRestriction: public Operator
-{
-public:
-   const FiniteElementSpace &fes;
-   const int ne;
-   const int vdim;
-   const bool byvdim;
-   const int ndofs;
-   const int dof;
-   const int nedofs;
-   Array<int> offsets;
-   Array<int> indices;
-public:
-   ElemRestriction(const FiniteElementSpace&);
-
-   /// Apply the restriction operator \f$ y = R x \f$
-   void Mult(const Vector &x, Vector &y) const;
-
-   /// Apply the restriction transpose operator \f$ y = R^T x \f$
-   void MultTranspose(const Vector &x, Vector &y) const;
-};
-
-
+/** @brief Class extending the BilinearForm class to support the different
+    AssemblyLevel%s. */
 class BilinearFormExtension : public Operator
 {
 protected:
@@ -51,6 +30,9 @@ protected:
 
 public:
    BilinearFormExtension(BilinearForm *form);
+
+   virtual MemoryClass GetMemoryClass() const
+   { return Device::GetMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const;
@@ -85,6 +67,7 @@ public:
                          int copy_interior = 0) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
+   void Update() {}
    ~FABilinearFormExtension() {}
 };
 
@@ -104,6 +87,7 @@ public:
                          int copy_interior = 0) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
+   void Update() {}
    ~EABilinearFormExtension() {}
 };
 
@@ -111,9 +95,9 @@ public:
 class PABilinearFormExtension : public BilinearFormExtension
 {
 protected:
-   const FiniteElementSpace *trialFes, *testFes;
+   const FiniteElementSpace *trialFes, *testFes; // Not owned
    mutable Vector localX, localY;
-   ElemRestriction *elem_restrict;
+   const Operator *elem_restrict_lex; // Not owned
 
 public:
    PABilinearFormExtension(BilinearForm*);
@@ -128,8 +112,6 @@ public:
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void Update();
-
-   ~PABilinearFormExtension();
 };
 
 /// Data and methods for matrix-free bilinear forms NOT IMPLEMENTED HERE
@@ -148,6 +130,7 @@ public:
                          int copy_interior = 0) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
+   void Update() {}
    ~MFBilinearFormExtension() {}
 };
 
