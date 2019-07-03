@@ -38,7 +38,7 @@ public:
        - To change the associated TimeDependentOperator. */
    virtual void Init(TimeDependentOperator &f);
 
-  virtual void Init(TimeDependentOperator &f, TimeDependentOperator &f2)
+   virtual void Init(TimeDependentOperator &f, TimeDependentOperator &f2)
    {
       this->f  = &f;
       this->f2 = &f2;

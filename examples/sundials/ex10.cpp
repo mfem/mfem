@@ -290,8 +290,8 @@ int main(int argc, char *argv[])
    // check for vaild ODE solver option
    if (ode_solver_type < 1 || ode_solver_type > 17)
    {
-     cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-     return 1;
+      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+      return 1;
    }
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
@@ -463,7 +463,7 @@ int main(int argc, char *argv[])
    }
 
    // Initialize MFEM integrators, SUNDIALS integrators are initialized above
-   if (ode_solver_type < 11) ode_solver->Init(oper);
+   if (ode_solver_type < 11) { ode_solver->Init(oper); }
 
    // 9. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
@@ -731,7 +731,7 @@ int HyperelasticOperator::SundialsSetup(Vector y, int *jcur, double gamma)
    const Vector x(y.GetData() + sc, sc);
 
    // J = M + dt*(S + dt*grad(H))
-   if (Jacobian) delete Jacobian;
+   if (Jacobian) { delete Jacobian; }
    Jacobian = Add(1.0, M.SpMat(), gamma, S.SpMat());
    grad_H = dynamic_cast<SparseMatrix *>(&H.GetGradient(x));
    Jacobian->Add(gamma * gamma, *grad_H);
@@ -796,14 +796,14 @@ HyperelasticOperator::~HyperelasticOperator()
 int SundialsJacSolver::ODELinSys(double t, Vector y, Vector fy, int jok,
                                  int *jcur, double gamma)
 {
-  // Save gamma value to use in solve
-  saved_gamma = gamma;
-  return(oper->SundialsSetup(y, jcur, gamma));
+   // Save gamma value to use in solve
+   saved_gamma = gamma;
+   return (oper->SundialsSetup(y, jcur, gamma));
 }
 
 int SundialsJacSolver::Solve(Vector &x, Vector b)
 {
-  return(oper->SundialsSolve(saved_gamma, x, b));
+   return (oper->SundialsSolve(saved_gamma, x, b));
 }
 
 double ElasticEnergyCoefficient::Eval(ElementTransformation &T,
