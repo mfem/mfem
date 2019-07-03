@@ -240,7 +240,8 @@ void Vector::SetVector(const Vector &v, int offset)
 void Vector::SetVector(const Vector &v, int offset, int sslen, int ssoffset)
 {
    int vs = v.Size();
-   double *vp = v.data + ssoffset, *p = data + offset;
+   const double *vp = v.data + ssoffset;
+   double *p = data + offset;
 
 #ifdef MFEM_DEBUG
    if (offset+sslen > size)
