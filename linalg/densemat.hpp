@@ -346,6 +346,7 @@ public:
    /// Prints matrix to stream out.
    virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
    virtual void PrintMatlab(std::ostream &out = mfem::out) const;
+   virtual void PrintShort(std::ostream &out = mfem::out) const;
    /// Prints the transpose matrix to stream out.
    virtual void PrintT(std::ostream &out = mfem::out, int width_ = 4) const;
 

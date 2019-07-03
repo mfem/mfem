@@ -2061,7 +2061,6 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
 
    // Legendre based functions, for reference
 
-
    // shape(4 + 0*(p-1) + i) = 2* legX[i] * (1. - y) * x * (1. - x);
    // shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
    // shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
@@ -2176,63 +2175,12 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
             interior_total++;
          }
       }
-
       delete[] legX;
       delete[] legY;
       delete[] DlegX;
       delete[] DlegY;
       delete storeLegendre;
    }
-
-   // Cubic order nodal functions, for reference
-
-   // dshape(0,0) = (-1 + y)*(6 - 20*x + 15*x*x - 5*y + 5*y*y);
-   // dshape(0,1) = (-1 + x)*(6 - 5*x + 5*x*x - 20*y + 15*y*y);
-   // dshape(1,0) = -((-1 + y)*(1 - 10*x + 15*x*x - 5*y + 5*y*y));
-   // dshape(1,1) = x*(-6 + 5*x - 5*x*x + 20*y - 15*y*y);
-   // dshape(2,0) = y*(1 - 10*x + 15*x*x - 5*y + 5*y*y);
-   // dshape(2,1) = x*(1 - 5*x + 5*x*x - 10*y + 15*y*y);
-   // dshape(3,0) = y*(-6 + 20*x - 15*x*x + 5*y - 5*y*y);
-   // dshape(3,1) = -((-1 + x)*(1 - 5*x + 5*x*x - 10*y + 15*y*y));
-   // dshape(4,0) = (-5*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*x + 6*sqrt(5)*x*x)*(-1 + y))/2;
-   // dshape(4,1) = (-5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x))/2;
-   // dshape(5,0) = (5*(-1 + sqrt(5) + (2 - 6*sqrt(5))*x + 6*sqrt(5)*x*x)*(-1 + y))/2;
-   // dshape(5,1) = (5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x))/2;
-   // dshape(6,0) = (5*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   // dshape(6,1) = (5*x*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
-   // dshape(7,0) = (-5*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   // dshape(7,1) = (-5*x*(-1 + sqrt(5) + (2 - 6*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
-   // dshape(8,0) = (-5*(-1 + sqrt(5) + (2 - 6*sqrt(5))*x + 6*sqrt(5)*x*x)*y)/2;
-   // dshape(8,1) = (-5*(-1 + x)*x*(1 - sqrt(5) + 2*sqrt(5)*x))/2;
-   // dshape(9,0) = (5*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*x + 6*sqrt(5)*x*x)*y)/2;
-   // dshape(9,1) = (5*(-1 + x)*x*(-1 - sqrt(5) + 2*sqrt(5)*x))/2;
-   // dshape(10,0) = (5*(-1 + y)*y*(1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   // dshape(10,1) = (5*(-1 + x)*(-1 + sqrt(5) + (2 - 6*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
-   // dshape(11,0) = (-5*(-1 + y)*y*(-1 - sqrt(5) + 2*sqrt(5)*y))/2;
-   // dshape(11,1) = (-5*(-1 + x)*(1 + sqrt(5) - 2*(1 + 3*sqrt(5))*y + 6*sqrt(5)*y*y))/2;
-
-
-   // Storing quadratic only case here:
-   //
-   // double x = ip.x, y = ip.y;
-   //
-   //
-   // dshape(0,0) = -((-1. + y)*(-2. + 2.*x + y));
-   // dshape(0,1) = -((-1. + x)*(-2. + x + 2.*y));
-   // dshape(1,0) = -((2.*x - y)*(-1. + y));
-   // dshape(1,1) = -(x*(1. + x - 2.*y));
-   // dshape(2,0) = y*(-1. + 2.*x + y);
-   // dshape(2,1) = x*(-1. + x + 2.*y);
-   // dshape(3,0) = (-1. + 2.*x - y)*y;
-   // dshape(3,1) = (-1. + x)*(x - 2.*y);
-   // dshape(4,0) = 2.*(-1. + 2.*x)*(-1. + y);
-   // dshape(4,1) = 2.*(-1. + x)*x;
-   // dshape(5,0) = -2.*((-1. + y)*y);
-   // dshape(5,1) = 2.*(x - 2.*x*y);
-   // dshape(6,0) = 2.*(y - 2.*x*y);
-   // dshape(6,1) = -2.*((-1. + x)*x);
-   // dshape(7,0) = 2.*(-1. + y)*y;
-   // dshape(7,1) = 2.*(-1. + x)*(-1. + 2.*y);
 }
 
 
@@ -2318,6 +2266,26 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    edgeNodalBasis.Eval(y, nodalY);
    edgeNodalBasis.Eval(z, nodalZ);
 
+   // Set edge shape functions as nodals times an applicable bilinear:
+
+   for (int i = 0; i < p-1; i++) 
+   {
+      shape(8 + 0*(p-1) + i) =     omy*omz*nodalX(i+1); // edge 8
+      shape(8 + 1*(p-1) + i) =       x*omz*nodalY(i+1); // edge 9
+      shape(8 + 3*(p-1) - i - 1) =   y*omz*nodalX(i+1); // edge 10
+      shape(8 + 4*(p-1) - i - 1) = omx*omz*nodalY(i+1); // edge 11
+      shape(8 + 4*(p-1) + i) =     omy*  z*nodalX(i+1); // edge 12
+      shape(8 + 5*(p-1) + i) =       x*  z*nodalY(i+1); // edge 13
+      shape(8 + 7*(p-1) - i - 1) =   y*  z*nodalX(i+1); // edge 14
+      shape(8 + 8*(p-1) - i - 1) = omx*  z*nodalY(i+1); // edge 15
+      shape(8 + 8*(p-1) + i) =     omx*omy*nodalZ(i+1); // edge 16
+      shape(8 + 9*(p-1) + i) =       x*omy*nodalZ(i+1); // edge 17
+      shape(8 + 10*(p-1) + i) =      x*  y*nodalZ(i+1); // edge 18
+      shape(8 + 11*(p-1) + i) =    omx*  y*nodalZ(i+1); // edge 19
+   }
+
+   // Set vertex shape functions as trilinears, then made nodal:
+
    shape( 0) = omx*omy*omz;
    shape( 1) = x  *omy*omz;;
    shape( 2) = x  *y  *omz;
@@ -2327,20 +2295,44 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    shape( 6) = x  *y  *z;
    shape( 7) = omx*  y*z;
 
-   for (int i = 0; i < p-1; i++) 
+   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
+
+   for(int i = 0; i<p-1; i++)
    {
-      shape(8 + 0*(p-1) + i) =     omy*omz*nodalX(i+1); // 1
-      shape(8 + 1*(p-1) + i) =       x*omz*nodalY(i+1); // 2
-      shape(8 + 3*(p-1) - i - 1) =   y*omz*nodalX(i+1); // 3
-      shape(8 + 4*(p-1) - i - 1) = omx*omz*nodalY(i+1); // 4
-      shape(8 + 4*(p-1) + i) =     omy*  z*nodalX(i+1); // 5
-      shape(8 + 5*(p-1) + i) =       x*  z*nodalY(i+1); // 6
-      shape(8 + 7*(p-1) - i - 1) =   y*  z*nodalX(i+1); // 7
-      shape(8 + 8*(p-1) - i - 1) = omx*  z*nodalY(i+1); // 8
-      shape(8 + 8*(p-1) + i) =     omx*omy*nodalZ(i+1); // 9
-      shape(8 + 9*(p-1) + i) =       x*omy*nodalZ(i+1); // 0
-      shape(8 + 10*(p-1) + i) =      x*  y*nodalZ(i+1); // A
-      shape(8 + 11*(p-1) + i) =    omx*  y*nodalZ(i+1); // B
+      int e08p = 8 + 0*(p-1) + i;
+      int e09p = 8 + 1*(p-1) + i;
+      int e10p = 8 + 3*(p-1) - i - 1;
+      int e11p = 8 + 4*(p-1) - i - 1;
+      int e12p = 8 + 4*(p-1) + i;
+      int e13p = 8 + 5*(p-1) + i;
+      int e14p = 8 + 7*(p-1) - i - 1;
+      int e15p = 8 + 8*(p-1) - i - 1;
+      int e16p = 8 + 8*(p-1) + i;
+      int e17p = 8 + 9*(p-1) + i;
+      int e18p = 8 + 10*(p-1) + i;
+      int e19p = 8 + 11*(p-1) + i;
+
+      int e08m = 8 + 0*(p-1) + ((p-2)-i);
+      int e09m = 8 + 1*(p-1) + ((p-2)-i);
+      int e10m = 8 + 3*(p-1) - ((p-2)-i) - 1;
+      int e11m = 8 + 4*(p-1) - ((p-2)-i) - 1;
+      int e12m = 8 + 4*(p-1) + ((p-2)-i);
+      int e13m = 8 + 5*(p-1) + ((p-2)-i);
+      int e14m = 8 + 7*(p-1) - ((p-2)-i) - 1;
+      int e15m = 8 + 8*(p-1) - ((p-2)-i) - 1;
+      int e16m = 8 + 8*(p-1) + ((p-2)-i);
+      int e17m = 8 + 9*(p-1) + ((p-2)-i);
+      int e18m = 8 + 10*(p-1) + ((p-2)-i);
+      int e19m = 8 + 11*(p-1) + ((p-2)-i);
+
+      shape( 0) -= (1-edgePts[i+1])*(shape(e08p) + shape(e11p) + shape(e16p));
+      shape( 1) -= (1-edgePts[i+1])*(shape(e08m) + shape(e09p) + shape(e17p));
+      shape( 2) -= (1-edgePts[i+1])*(shape(e09m) + shape(e10m) + shape(e18p));
+      shape( 3) -= (1-edgePts[i+1])*(shape(e10p) + shape(e11m) + shape(e19p));
+      shape( 4) -= (1-edgePts[i+1])*(shape(e12p) + shape(e15p) + shape(e16m));
+      shape( 5) -= (1-edgePts[i+1])*(shape(e12m) + shape(e13p) + shape(e17m));
+      shape( 6) -= (1-edgePts[i+1])*(shape(e13m) + shape(e14m) + shape(e18m));
+      shape( 7) -= (1-edgePts[i+1])*(shape(e14p) + shape(e15m) + shape(e19m));
    }
 }
 
@@ -2353,6 +2345,11 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
    x=0;
    y=0;
    z=0;
+   IntegrationPoint myIP;
+   myIP.x = x;
+   myIP.y = y;
+   myIP.z = z;
+   cout << endl << "myIP is " << myIP.x << ", " << myIP.y << ", " << myIP.z << endl;
 
    double omx = 1.-x, omy = 1.-y, omz = 1.-z;
 
@@ -2418,8 +2415,67 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       dshape(8 + 11*(p-1) + i,    1) = omx*nodalZ(i+1);
       dshape(8 + 11*(p-1) + i,    2) = omx*  y*DnodalZ(i+1);
    }
-   // cout << "dshape is: ";
-   // dshape.PrintMatlab();
+
+
+
+
+   TriLinear3DFiniteElement trilinear = TriLinear3DFiniteElement();
+   DenseMatrix DtrilinearsAtIP(8);
+   trilinear.CalcDShape(myIP, DtrilinearsAtIP);
+
+   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
+
+   for(int i=0; i<8; i++)
+   {
+      for(int j=0; j<3; j++)
+      {
+         dshape(i,j) = DtrilinearsAtIP(i,j);
+      }
+   }
+
+   for(int i = 0; i < p-1; i++)
+   {
+      int e08p = 8 + 0*(p-1) + i;
+      int e09p = 8 + 1*(p-1) + i;
+      int e10p = 8 + 3*(p-1) - i - 1;
+      int e11p = 8 + 4*(p-1) - i - 1;
+      int e12p = 8 + 4*(p-1) + i;
+      int e13p = 8 + 5*(p-1) + i;
+      int e14p = 8 + 7*(p-1) - i - 1;
+      int e15p = 8 + 8*(p-1) - i - 1;
+      int e16p = 8 + 8*(p-1) + i;
+      int e17p = 8 + 9*(p-1) + i;
+      int e18p = 8 + 10*(p-1) + i;
+      int e19p = 8 + 11*(p-1) + i;
+
+      int e08m = 8 + 0*(p-1) + ((p-2)-i);
+      int e09m = 8 + 1*(p-1) + ((p-2)-i);
+      int e10m = 8 + 3*(p-1) - ((p-2)-i) - 1;
+      int e11m = 8 + 4*(p-1) - ((p-2)-i) - 1;
+      int e12m = 8 + 4*(p-1) + ((p-2)-i);
+      int e13m = 8 + 5*(p-1) + ((p-2)-i);
+      int e14m = 8 + 7*(p-1) - ((p-2)-i) - 1;
+      int e15m = 8 + 8*(p-1) - ((p-2)-i) - 1;
+      int e16m = 8 + 8*(p-1) + ((p-2)-i);
+      int e17m = 8 + 9*(p-1) + ((p-2)-i);
+      int e18m = 8 + 10*(p-1) + ((p-2)-i);
+      int e19m = 8 + 11*(p-1) + ((p-2)-i);
+
+      for(int j = 0; j < 3; j++)
+      {
+         dshape(0,j) -= (1-edgePts[i+1])*(dshape(e08p,j) + dshape(e11p,j) + dshape(e16p,j));
+         dshape(2,j) -= (1-edgePts[i+1])*(dshape(e08m,j) + dshape(e09p,j) + dshape(e17p,j));
+         dshape(3,j) -= (1-edgePts[i+1])*(dshape(e09m,j) + dshape(e10m,j) + dshape(e18p,j));
+         dshape(1,j) -= (1-edgePts[i+1])*(dshape(e10p,j) + dshape(e11m,j) + dshape(e19p,j));
+         dshape(4,j) -= (1-edgePts[i+1])*(dshape(e12p,j) + dshape(e15p,j) + dshape(e16m,j));
+         dshape(5,j) -= (1-edgePts[i+1])*(dshape(e12m,j) + dshape(e13p,j) + dshape(e17m,j));
+         dshape(6,j) -= (1-edgePts[i+1])*(dshape(e13m,j) + dshape(e14m,j) + dshape(e18m,j));
+         dshape(7,j) -= (1-edgePts[i+1])*(dshape(e14p,j) + dshape(e15m,j) + dshape(e19m,j));
+      }
+   }
+
+   cout << "dshape is: " << endl;
+   dshape.PrintShort();
 } 
 
 void H1Ser_HexElement::Project (

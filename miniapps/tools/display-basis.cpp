@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&onlySome, "-only", "--onlySome", "Only view 10 dofs starting at this one.");
+   args.AddOption(&onlySome, "-only", "--onlySome", "Only view 10 dofs starting with the specified one.");
    args.Parse();
    if (!args.Good())
    {
@@ -854,12 +854,19 @@ int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
    }
 
    int stopAt = ndof;
+   if (ndof > 25 && onlySome == -1)
+   {
+      cout << endl;
+      cout << "There are more than 25 windows to open.  Only showing Dofs 1-10 to avoid crashing. "
+      << endl << "Use the -only option in command line select which Dofs to view." << endl;
+      onlySome = 1;
+   }
    for (int i = 0; i < stopAt; i++)
    {
-      if (i ==0 && onlySome > -1 && onlySome <ndof)
+      if (i ==0 && onlySome > 0 && onlySome <ndof)
       {
-         i = onlySome;
-         stopAt = min(ndof,onlySome+10);
+         i = onlySome-1;
+         stopAt = min(ndof,onlySome+9);
       }
       ostringstream oss;
       oss << "DoF " << i + 1;

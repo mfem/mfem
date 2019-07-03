@@ -2958,6 +2958,26 @@ void DenseMatrix::Print(std::ostream &out, int width_) const
    out.flags(old_flags);
 }
 
+void DenseMatrix::PrintShort(std::ostream &out) const
+{
+   // save current output flags
+   ios::fmtflags old_flags = out.flags();
+   // output flags = scientific + show sign
+   // out << setiosflags(ios::scientific | ios::showpos);
+   for (int i = 0; i < height; i++)
+   {
+      out << 100+i << " ";
+      for (int j = 0; j < width; j++)
+      {
+         out << (*this)(i,j);
+         out << ' ';
+      }
+      out << "\n";
+   }
+   // reset output flags to original values
+   out.flags(old_flags);
+}
+
 void DenseMatrix::PrintMatlab(std::ostream &out) const
 {
    // save current output flags
