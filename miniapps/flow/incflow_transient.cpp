@@ -1,21 +1,32 @@
 #include "mfem.hpp"
 #include "vec_conv_integrator.hpp"
+#include "schurlsc.hpp"
 
 using namespace std;
 using namespace mfem;
 
+enum PROB_TYPE
+{
+   TGV,
+   CYL,
+};
+
 struct OptionSet
 {
+   PROB_TYPE prob_type;
    double rey;
 } opt_;
 
-void vel_ldc(const Vector &x, Vector &u)
+void vel_cyl(const Vector &x, Vector &u)
 {
+   double xi = x(0);
    double yi = x(1);
 
-   if (yi > 1.0 - 1e-8)
+   double U = 1.5;
+
+   if (xi == 0.0)
    {
-      u(0) = 1.0;
+      u(0) = 4.0 * U * yi * (0.41 - yi) / (pow(0.41, 2.0));
    }
    else
    {
@@ -77,6 +88,7 @@ public:
 
    HypreSolver *invS;
    HypreSolver *invMp;
+   SchurLSC *schurLSC;
    BlockDiagonalPreconditioner *stokesprec;
    IterativeSolver *jac_solver;
    NewtonSolver newton_solver;
@@ -85,9 +97,21 @@ public:
                                                                    fes[0]->TrueVSize() + fes[1]->TrueVSize()),
                                                                pmesh_(fes[0]->GetParMesh()), fes_(fes),
                                                                ess_bdr_attr_(pmesh_->bdr_attributes.Max()),
-                                                               NjacS(nullptr)
+                                                               NjacS(nullptr),
+                                                               newton_solver(MPI_COMM_WORLD)
    {
-      ess_bdr_attr_ = 1;
+      if (opt_.prob_type == PROB_TYPE::CYL)
+      {
+         ess_bdr_attr_[0] = 1;
+         ess_bdr_attr_[1] = 1;
+         ess_bdr_attr_[2] = 1;
+         ess_bdr_attr_[3] = 0;
+      }
+      else if (opt_.prob_type == PROB_TYPE::TGV)
+      {
+         ess_bdr_attr_ = 1;
+      }
+
       fes_[0]->GetEssentialTrueDofs(ess_bdr_attr_, ess_tdof_list_);
 
       block_offsets_.SetSize(3);
@@ -158,14 +182,16 @@ public:
       static_cast<HypreBoomerAMG *>(invMp)->SetPrintLevel(0);
       invMp->iterative_mode = false;
 
+      schurLSC = new SchurLSC(D, G);
+
       stokesprec = new BlockDiagonalPreconditioner(block_trueOffsets_);
       stokesprec->SetDiagonalBlock(0, invS);
-      stokesprec->SetDiagonalBlock(1, invMp);
+      stokesprec->SetDiagonalBlock(1, schurLSC);
 
       jac_solver = new GMRESSolver(MPI_COMM_WORLD);
       jac_solver->iterative_mode = false;
-      jac_solver->SetAbsTol(0.0);
-      jac_solver->SetRelTol(1e-4);
+      jac_solver->SetAbsTol(1e-12);
+      jac_solver->SetRelTol(1e-5);
       static_cast<GMRESSolver *>(jac_solver)->SetKDim(100);
       jac_solver->SetMaxIter(500);
       jac_solver->SetOperator(*jac);
@@ -176,7 +202,7 @@ public:
       newton_solver.SetSolver(*jac_solver);
       newton_solver.SetOperator(*this);
       newton_solver.SetPrintLevel(1);
-      newton_solver.SetAbsTol(0.0);
+      newton_solver.SetAbsTol(1e-12);
       newton_solver.SetRelTol(1e-8);
       newton_solver.SetMaxIter(15);
    }
@@ -211,7 +237,9 @@ public:
 
       jac->SetBlock(0, 0, NjacS);
 
-      // invS->SetOperator(*NjacS);
+      invS->SetOperator(*NjacS);
+
+      schurLSC->SetA(NjacS);
 
       return *jac;
    }
@@ -239,6 +267,7 @@ public:
       delete invMp;
       delete stokesprec;
       delete jac_solver;
+      delete schurLSC;
    }
 };
 
@@ -266,12 +295,20 @@ public:
       Xh = 0.0;
       B = 0.0;
 
-      VectorFunctionCoefficient velexcoeff(nso_->pmesh_->Dimension(), vel_ex);
-      velexcoeff.SetTime(GetTime());
+      VectorFunctionCoefficient *velbdrcoeff = nullptr;
+      if (opt_.prob_type == PROB_TYPE::CYL)
+      {
+         velbdrcoeff = new VectorFunctionCoefficient(nso_->pmesh_->Dimension(), vel_cyl);
+      }
+      else if (opt_.prob_type == PROB_TYPE::TGV)
+      {
+         velbdrcoeff = new VectorFunctionCoefficient(nso_->pmesh_->Dimension(), vel_ex);
+      }
+      velbdrcoeff->SetTime(GetTime());
 
       ParGridFunction vel_gf;
       vel_gf.MakeRef(nso_->fes_[0], xh.GetBlock(0));
-      vel_gf.ProjectBdrCoefficient(velexcoeff, nso_->ess_bdr_attr_);
+      vel_gf.ProjectBdrCoefficient(*velbdrcoeff, nso_->ess_bdr_attr_);
 
       nso_->sform->FormLinearSystem(nso_->ess_tdof_list_, xh.GetBlock(0), b.GetBlock(0),
                                     *(nso_->S), Xh.GetBlock(0), B.GetBlock(0));
@@ -288,6 +325,8 @@ public:
       nso_->newton_solver.Mult(B, Xh);
 
       subtract(1.0 / dt, Xh.GetBlock(0), X, dX_dt);
+
+      delete velbdrcoeff;
    }
 };
 
@@ -299,6 +338,7 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
+   int prob_type = 0;
    int serial_ref_levels = 0;
    int order = 2;
    double t_final = 1e-1;
@@ -314,6 +354,10 @@ int main(int argc, char *argv[])
    args.AddOption(&opt_.rey, "-rey", "--reynolds", "Choose Reynolds number.");
    args.AddOption(&dt, "-dt", "--timestep", "Timestep.");
    args.AddOption(&t_final, "-tf", "--tfinal", "Final time.");
+   args.AddOption(&prob_type, "-prob", "--problem_type",
+                  "Choose problem type\n\t"
+                  "0 - MMS\n\t"
+                  "1 - FLow past a cylinder\n\t");
    args.Parse();
    if (!args.Good())
    {
@@ -328,11 +372,22 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   opt_.prob_type = static_cast<PROB_TYPE>(prob_type);
+
    int vel_order = order;
    int pres_order = order - 1;
 
-   Mesh *mesh = new Mesh(1, 1, Element::Type::QUADRILATERAL, false, 2.0 * M_PI, 2.0 * M_PI);
-   // Mesh *mesh = new Mesh("../../data/amr-quad.mesh");
+   Mesh *mesh = nullptr;
+
+   if (opt_.prob_type == PROB_TYPE::CYL)
+   {
+      mesh = new Mesh("cyl.msh");
+   }
+   else if (opt_.prob_type == PROB_TYPE::TGV)
+   {
+      mesh = new Mesh(1, 1, Element::Type::QUADRILATERAL, false, 2.0 * M_PI, 2.0 * M_PI);
+   }
+
    int dim = mesh->Dimension();
 
    for (int l = 0; l < serial_ref_levels; l++)
@@ -363,15 +418,20 @@ int main(int argc, char *argv[])
    }
 
    ODESolver *ode_solver = new BackwardEulerSolver;
-//   ODESolver *ode_solver = new SDIRK23Solver(2);
-//   ODESolver *ode_solver = new SDIRK33Solver;
 
-   Array<int> ess_bdr_attr(pmesh->bdr_attributes.Max());
-   ess_bdr_attr = 1;
+   VectorFunctionCoefficient *velcoeff = nullptr;
 
-   VectorFunctionCoefficient velexcoeff(dim, vel_ex);
+   if (opt_.prob_type == PROB_TYPE::CYL)
+   {
+      velcoeff = new VectorFunctionCoefficient(dim, vel_cyl);
+   }
+   else if (opt_.prob_type == PROB_TYPE::TGV)
+   {
+      velcoeff = new VectorFunctionCoefficient(dim, vel_ex);
+   }
+
    ParGridFunction vel_gf(fes[0]);
-   vel_gf.ProjectCoefficient(velexcoeff);
+   vel_gf.ProjectCoefficient(*velcoeff);
 
    Vector X(fes[0]->GlobalVSize());
    vel_gf.GetTrueDofs(X);
@@ -418,17 +478,15 @@ int main(int argc, char *argv[])
 
       vel_gf.Distribute(X);
 
-      velexcoeff.SetTime(t);
-      double err_u = vel_gf.ComputeL2Error(velexcoeff, irs);
-      if (myid == 0)
+      if (prob_type == PROB_TYPE::TGV)
       {
-         cout << "|| u_h - u_ex || = " << err_u << "\n";
+         velcoeff->SetTime(t);
+         double err_u = vel_gf.ComputeL2Error(*velcoeff, irs);
+         if (myid == 0)
+         {
+            cout << "|| u_h - u_ex || = " << err_u << "\n";
+         }
       }
-
-      // Plot difference
-      ParGridFunction vel_ex_gf(fes[0]);
-      vel_ex_gf.ProjectCoefficient(velexcoeff);
-      vel_gf -= vel_ex_gf;
 
       u_sock << "parallel " << num_procs << " " << myid << "\n";
       u_sock << "solution\n"
