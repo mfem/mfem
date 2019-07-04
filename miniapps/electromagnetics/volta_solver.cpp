@@ -51,18 +51,18 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
      rhod_(NULL),
      grad_(NULL),
      phi_(NULL),
-     rho_(NULL),
-     sigma_(NULL),
+     rho_src_(NULL),
+     sigma_src_(NULL),
      e_(NULL),
      d_(NULL),
-     p_(NULL),
+     p_src_(NULL),
      epsCoef_(&epsCoef),
      phiBCCoef_(NULL),
      rhoCoef_(NULL),
      pCoef_(NULL),
-     phi_bc_(phi_bc),
-     rho_src_(rho_src),
-     p_src_(p_src),
+     phi_bc_func_(phi_bc),
+     rho_src_func_(rho_src),
+     p_src_func_(p_src),
      point_charge_params_(point_charges),
      point_charges_(0)
 {
@@ -88,22 +88,22 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
    // Setup various coefficients
 
    // Potential on outer surface
-   if ( phi_bc_ != NULL )
+   if ( phi_bc_func_ != NULL )
    {
-      phiBCCoef_ = new FunctionCoefficient(*phi_bc_);
+      phiBCCoef_ = new FunctionCoefficient(*phi_bc_func_);
    }
 
    // Volume Charge Density
-   if ( rho_src_ != NULL )
+   if ( rho_src_func_ != NULL )
    {
-      rhoCoef_ = new FunctionCoefficient(rho_src_);
+      rhoCoef_ = new FunctionCoefficient(rho_src_func_);
    }
 
    // Polarization
-   if ( p_src_ != NULL )
+   if ( p_src_func_ != NULL )
    {
       pCoef_ = new VectorFunctionCoefficient(pmesh_->SpaceDimension(),
-                                             p_src_);
+                                             p_src_func_);
    }
 
    // Bilinear Forms
@@ -149,29 +149,28 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
       }
    }
 
-   if ( rho_src_ )
+   if ( rho_src_func_ )
    {
-      rho_ = new ParGridFunction(H1FESpace_);
+      rho_src_ = new ParGridFunction(H1FESpace_);
 
       h1Mass_ = new ParBilinearForm(H1FESpace_);
       h1Mass_->AddDomainIntegrator(new MassIntegrator);
    }
 
-   if ( p_src_ )
+   if ( p_src_func_ )
    {
-      p_ = new ParGridFunction(HCurlFESpace_);
+      p_src_ = new ParGridFunction(HCurlFESpace_);
 
       hCurlHDiv_ = new ParMixedBilinearForm(HCurlFESpace_, HDivFESpace_);
       hCurlHDiv_->AddDomainIntegrator(new VectorFEMassIntegrator);
 
       weakDiv_ = new ParMixedBilinearForm(HCurlFESpace_, H1FESpace_);
       weakDiv_->AddDomainIntegrator(new VectorFEWeakDivergenceIntegrator);
-
    }
 
    if ( nbcs_->Size() > 0 )
    {
-      sigma_ = new ParGridFunction(H1FESpace_);
+      sigma_src_ = new ParGridFunction(H1FESpace_);
 
       h1SurfMass_ = new ParBilinearForm(H1FESpace_);
       h1SurfMass_->AddBoundaryIntegrator(new MassIntegrator);
@@ -185,12 +184,12 @@ VoltaSolver::~VoltaSolver()
    delete pCoef_;
 
    delete phi_;
-   delete rho_;
+   delete rho_src_;
    delete rhod_;
-   delete sigma_;
+   delete sigma_src_;
    delete d_;
    delete e_;
-   delete p_;
+   delete p_src_;
 
    delete grad_;
 
@@ -298,9 +297,9 @@ VoltaSolver::Update()
    rhod_->Update();
    d_->Update();
    e_->Update();
-   if ( rho_   ) { rho_->Update(); }
-   if ( sigma_ ) { sigma_->Update(); }
-   if ( p_     ) { p_->Update(); }
+   if ( rho_src_   ) { rho_src_->Update(); }
+   if ( sigma_src_ ) { sigma_src_->Update(); }
+   if ( p_src_     ) { p_src_->Update(); }
 
    // Inform the bilinear forms that the space has changed.
    divEpsGrad_->Update();
@@ -346,23 +345,23 @@ VoltaSolver::Solve()
    }
 
    // Initialize the volumetric charge density
-   if ( rho_ )
+   if ( rho_src_ )
    {
-      rho_->ProjectCoefficient(*rhoCoef_);
-      h1Mass_->AddMult(*rho_, *rhod_);
+      rho_src_->ProjectCoefficient(*rhoCoef_);
+      h1Mass_->AddMult(*rho_src_, *rhod_);
    }
 
    // Initialize the Polarization
-   if ( p_ )
+   if ( p_src_ )
    {
-      p_->ProjectCoefficient(*pCoef_);
-      weakDiv_->AddMult(*p_, *rhod_);
+      p_src_->ProjectCoefficient(*pCoef_);
+      weakDiv_->AddMult(*p_src_, *rhod_);
    }
 
    // Initialize the surface charge density
-   if ( sigma_ )
+   if ( sigma_src_ )
    {
-      *sigma_ = 0.0;
+      *sigma_src_ = 0.0;
 
       Array<int> nbc_bdr_attr(pmesh_->bdr_attributes.Max());
       for (int i=0; i<nbcs_->Size(); i++)
@@ -370,9 +369,9 @@ VoltaSolver::Solve()
          ConstantCoefficient sigma_coef((*nbcv_)[i]);
          nbc_bdr_attr = 0;
          nbc_bdr_attr[(*nbcs_)[i]-1] = 1;
-         sigma_->ProjectBdrCoefficient(sigma_coef, nbc_bdr_attr);
+         sigma_src_->ProjectBdrCoefficient(sigma_coef, nbc_bdr_attr);
       }
-      h1SurfMass_->AddMult(*sigma_, *rhod_);
+      h1SurfMass_->AddMult(*sigma_src_, *rhod_);
    }
 
    // Determine the essential BC degrees of freedom
@@ -424,9 +423,9 @@ VoltaSolver::Solve()
 
    ParGridFunction ed(HDivFESpace_);
    hCurlHDivEps_->Mult(*e_, ed);
-   if ( p_ )
+   if ( p_src_ )
    {
-      hCurlHDiv_->AddMult(*p_, ed, -1.0);
+      hCurlHDiv_->AddMult(*p_src_, ed, -1.0);
    }
 
    HypreParMatrix MassHDiv;
@@ -480,9 +479,9 @@ VoltaSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
    visit_dc.RegisterField("Phi", phi_);
    visit_dc.RegisterField("D",     d_);
    visit_dc.RegisterField("E",     e_);
-   if ( rho_   ) { visit_dc.RegisterField("Rho",     rho_); }
-   if ( p_     ) { visit_dc.RegisterField("P",         p_); }
-   if ( sigma_ ) { visit_dc.RegisterField("Sigma", sigma_); }
+   if ( rho_src_   ) { visit_dc.RegisterField("Rho Source",     rho_src_); }
+   if ( p_src_     ) { visit_dc.RegisterField("P Source",         p_src_); }
+   if ( sigma_src_ ) { visit_dc.RegisterField("Sigma Source", sigma_src_); }
 }
 
 void
@@ -515,20 +514,20 @@ VoltaSolver::InitializeGLVis()
    socks_["E"] = new socketstream;
    socks_["E"]->precision(8);
 
-   if ( rho_)
+   if ( rho_src_ )
    {
-      socks_["Rho"] = new socketstream;
-      socks_["Rho"]->precision(8);
+      socks_["RhoSrc"] = new socketstream;
+      socks_["RhoSrc"]->precision(8);
    }
-   if ( p_)
+   if ( p_src_ )
    {
-      socks_["P"] = new socketstream;
-      socks_["P"]->precision(8);
+      socks_["PSrc"] = new socketstream;
+      socks_["PSrc"]->precision(8);
    }
-   if ( sigma_)
+   if ( sigma_src_ )
    {
-      socks_["Sigma"] = new socketstream;
-      socks_["Sigma"]->precision(8);
+      socks_["SigmaSrc"] = new socketstream;
+      socks_["SigmaSrc"]->precision(8);
    }
 }
 
@@ -557,22 +556,24 @@ VoltaSolver::DisplayToGLVis()
 
    Wx = 0; Wy += offy; // next line
 
-   if ( rho_ )
+   if ( rho_src_ )
    {
-      VisualizeField(*socks_["Rho"], vishost, visport,
-                     *rho_, "Charge Density (Rho)", Wx, Wy, Ww, Wh);
+      VisualizeField(*socks_["RhoSrc"], vishost, visport,
+                     *rho_src_, "Charge Density Source (Rho)", Wx, Wy, Ww, Wh);
       Wx += offx;
    }
-   if ( p_ )
+   if ( p_src_ )
    {
-      VisualizeField(*socks_["P"], vishost, visport,
-                     *p_, "Electric Polarization (P)", Wx, Wy, Ww, Wh);
+      VisualizeField(*socks_["PSrc"], vishost, visport,
+                     *p_src_, "Electric Polarization Source (P)",
+		     Wx, Wy, Ww, Wh);
       Wx += offx;
    }
-   if ( sigma_ )
+   if ( sigma_src_ )
    {
-      VisualizeField(*socks_["Sigma"], vishost, visport,
-                     *sigma_, "Surface Charge Density (Sigma)", Wx, Wy, Ww, Wh);
+      VisualizeField(*socks_["SigmaSrc"], vishost, visport,
+                     *sigma_src_, "Surface Charge Density Source (Sigma)",
+		     Wx, Wy, Ww, Wh);
       // Wx += offx; // not used
    }
    if (myid_ == 0) { cout << " done." << endl; }

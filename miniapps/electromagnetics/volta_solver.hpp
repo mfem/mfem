@@ -94,16 +94,16 @@ private:
    ParMixedBilinearForm * hCurlHDiv_;    // For computing D from E and P
    ParMixedBilinearForm * weakDiv_;      // For computing the source term from P
 
-   ParLinearForm * rhod_; // Dual of Volumetric Charge Density
+   ParLinearForm * rhod_; // Dual of Volumetric Charge Density Source
 
    ParDiscreteGradOperator * grad_; // For Computing E from phi
 
-   ParGridFunction * phi_; // Electric Scalar Potential
-   ParGridFunction * rho_; // Volumetric Charge Density
-   ParGridFunction * sigma_; // Surface Charge Density
-   ParGridFunction * e_; // Electric Field
-   ParGridFunction * d_; // Electric Flux Density (aka Dielectric Flux)
-   ParGridFunction * p_; // Polarization Field
+   ParGridFunction * phi_;       // Electric Scalar Potential
+   ParGridFunction * rho_src_;   // Volumetric Charge Density Source
+   ParGridFunction * sigma_src_; // Surface Charge Density Source
+   ParGridFunction * e_;         // Electric Field
+   ParGridFunction * d_;         // Electric Flux Density (aka Dielectric Flux)
+   ParGridFunction * p_src_;     // Polarization Field Source
 
    Coefficient       * epsCoef_;   // Dielectric Permittivity Coefficient
    Coefficient       * phiBCCoef_; // Scalar Potential Boundary Condition
@@ -111,9 +111,9 @@ private:
    VectorCoefficient * pCoef_;     // Polarization Vector Field Coefficient
 
    // Source functions
-   double (*phi_bc_ )(const Vector&);          // Scalar Potential BC
-   double (*rho_src_)(const Vector&);          // Volumetric Charge Density
-   void   (*p_src_  )(const Vector&, Vector&); // Polarization Field
+   double (*phi_bc_func_ )(const Vector&);          // Scalar Potential BC
+   double (*rho_src_func_)(const Vector&);          // Volumetric Charge Density
+   void   (*p_src_func_  )(const Vector&, Vector&); // Polarization Field
 
    const Vector & point_charge_params_;
 
