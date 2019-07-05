@@ -10,7 +10,9 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "vector.hpp"
+#include "dtensor.hpp"
 #include "operator.hpp"
+#include "../general/forall.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -23,35 +25,31 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Operator* &Aout, Vector &X, Vector &B,
                                 int copy_interior)
 {
+   ConstrainedOperator *constrainedA;
+   FormConstrainedSystemOperator(ess_tdof_list, constrainedA);
+
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
-   Operator *rap;
 
    if (P)
    {
       // Variational restriction with P
-      B.SetSize(P->Width());
+      B.SetSize(P->Width(), b);
       P->MultTranspose(b, B);
-      X.SetSize(R->Height());
+      X.SetSize(R->Height(), x);
       R->Mult(x, X);
-      rap = new RAPOperator(*P, *this, *P);
    }
    else
    {
-      // rap, X and B point to the same data as this, x and b
-      X.NewDataAndSize(x.GetData(), x.Size());
-      B.NewDataAndSize(b.GetData(), b.Size());
-      rap = this;
+      // rap, X and B point to the same data as this, x and b, respectively
+      X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+      B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
    }
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
-   // Impose the boundary conditions through a ConstrainedOperator, which owns
-   // the rap operator when P and R are non-trivial
-   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
-                                                    rap != this);
-   A->EliminateRHS(X, B);
-   Aout = A;
+   constrainedA->EliminateRHS(X, B);
+   Aout = constrainedA;
 }
 
 void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
@@ -66,7 +64,49 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
    else
    {
       // X and x point to the same data
+
+      // If the validity flags of X's Memory were changed (e.g. if it was moved
+      // to device memory) then we need to tell x about that.
+      x.SyncMemory(X);
    }
+}
+
+void Operator::FormConstrainedSystemOperator(
+   const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout)
+{
+   const Operator *P = this->GetProlongation();
+   Operator *rap;
+
+   if (P)
+   {
+      // Variational restriction with P
+      rap = new RAPOperator(*P, *this, *P);
+   }
+   else
+   {
+      rap = this;
+   }
+
+   // Impose the boundary conditions through a ConstrainedOperator, which owns
+   // the rap operator when P and R are non-trivial
+   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
+                                                    rap != this);
+   Aout = A;
+}
+
+void Operator::FormSystemOperator(const Array<int> &ess_tdof_list,
+                                  Operator* &Aout)
+{
+   ConstrainedOperator *A;
+   FormConstrainedSystemOperator(ess_tdof_list, A);
+   Aout = A;
+}
+
+void Operator::FormDiscreteOperator(Operator* &Aout)
+{
+   const Operator *Pin  = this->GetProlongation();
+   const Operator *Rout = this->GetOutputRestriction();
+   Aout = new TripleProductOperator(Rout, this, Pin,false, false, false);
 }
 
 void Operator::PrintMatlab(std::ostream & out, int n, int m) const
@@ -114,8 +154,7 @@ ProductOperator::~ProductOperator()
 
 RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
                          const Operator &P_)
-   : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_),
-     Px(P.Height()), APx(A.Height())
+   : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_)
 {
    MFEM_VERIFY(Rt.Height() == A.Height(),
                "incompatible Operators: Rt.Height() = " << Rt.Height()
@@ -123,6 +162,11 @@ RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
    MFEM_VERIFY(A.Width() == P.Height(),
                "incompatible Operators: A.Width() = " << A.Width()
                << ", P.Height() = " << P.Height());
+
+   mem_class = Rt.GetMemoryClass()*P.GetMemoryClass();
+   MemoryType mem_type = GetMemoryType(A.GetMemoryClass()*mem_class);
+   Px.SetSize(P.Height(), mem_type);
+   APx.SetSize(A.Height(), mem_type);
 }
 
 
@@ -132,7 +176,6 @@ TripleProductOperator::TripleProductOperator(
    : Operator(A->Height(), C->Width())
    , A(A), B(B), C(C)
    , ownA(ownA), ownB(ownB), ownC(ownC)
-   , t1(C->Height()), t2(B->Height())
 {
    MFEM_VERIFY(A->Width() == B->Height(),
                "incompatible Operators: A->Width() = " << A->Width()
@@ -140,6 +183,11 @@ TripleProductOperator::TripleProductOperator(
    MFEM_VERIFY(B->Width() == C->Height(),
                "incompatible Operators: B->Width() = " << B->Width()
                << ", C->Height() = " << C->Height());
+
+   mem_class = A->GetMemoryClass()*C->GetMemoryClass();
+   MemoryType mem_type = GetMemoryType(mem_class*B->GetMemoryClass());
+   t1.SetSize(C->Height(), mem_type);
+   t2.SetSize(B->Height(), mem_type);
 }
 
 TripleProductOperator::~TripleProductOperator()
@@ -150,38 +198,50 @@ TripleProductOperator::~TripleProductOperator()
 }
 
 
-
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
                                          bool _own_A)
    : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
 {
+   // 'mem_class' should work with A->Mult() and MFEM_FORALL():
+   mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
+   MemoryType mem_type = GetMemoryType(mem_class);
+   list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    constraint_list.MakeRef(list);
-   z.SetSize(height);
-   w.SetSize(height);
+   // typically z and w are large vectors, so store them on the device
+   z.SetSize(height, mem_type); z.UseDevice(true);
+   w.SetSize(height, mem_type); w.UseDevice(true);
 }
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
    w = 0.0;
-
-   for (int i = 0; i < constraint_list.Size(); i++)
+   const int csz = constraint_list.Size();
+   auto idx = constraint_list.Read();
+   auto d_x = x.Read();
+   // Use read+write access - we are modifying sub-vector of w
+   auto d_w = w.ReadWrite();
+   MFEM_FORALL(i, csz,
    {
-      w(constraint_list[i]) = x(constraint_list[i]);
-   }
+      const int id = idx[i];
+      d_w[id] = d_x[id];
+   });
 
    A->Mult(w, z);
 
    b -= z;
-
-   for (int i = 0; i < constraint_list.Size(); i++)
+   // Use read+write access - we are modifying sub-vector of b
+   auto d_b = b.ReadWrite();
+   MFEM_FORALL(i, csz,
    {
-      b(constraint_list[i]) = x(constraint_list[i]);
-   }
+      const int id = idx[i];
+      d_b[id] = d_x[id];
+   });
 }
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
-   if (constraint_list.Size() == 0)
+   const int csz = constraint_list.Size();
+   if (csz == 0)
    {
       A->Mult(x, y);
       return;
@@ -189,17 +249,21 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 
    z = x;
 
-   for (int i = 0; i < constraint_list.Size(); i++)
-   {
-      z(constraint_list[i]) = 0.0;
-   }
+   auto idx = constraint_list.Read();
+   // Use read+write access - we are modifying sub-vector of z
+   auto d_z = z.ReadWrite();
+   MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
 
    A->Mult(z, y);
 
-   for (int i = 0; i < constraint_list.Size(); i++)
+   auto d_x = x.Read();
+   // Use read+write access - we are modifying sub-vector of y
+   auto d_y = y.ReadWrite();
+   MFEM_FORALL(i, csz,
    {
-      y(constraint_list[i]) = x(constraint_list[i]);
-   }
+      const int id = idx[i];
+      d_y[id] = d_x[id];
+   });
 }
 
 }

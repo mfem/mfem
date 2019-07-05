@@ -142,6 +142,16 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   + [`HypreParMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParMatrix.html) and [`HypreParVector`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParVector.html)
   + [`HypreSolver`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreSolver.html) and other [hypre classes](http://mfem.github.io/doxygen/html/hypre_8hpp.html)
 
+- GPU and multi-core CPU support is based on device kernels supporting different
+  backends (CUDA, OCCA, RAJA, OpenMP, etc.) and an internal lightweight
+  device/host memory manager.
+
+- The main device-relevant classes and sources are:
+  + [`Device`](http://mfem.github.io/doxygen/html/device_8hpp.html)
+  + [`MemoryManager`](http://mfem.github.io/doxygen/html/mem_manager_8hpp.html)
+  + the [`MFEM_FORALL`](http://mfem.github.io/doxygen/html/forall_8hpp.html) macro
+  + the [`cuda.hpp`](http://mfem.github.io/doxygen/html/cuda_8hpp.html) and [`occa.hpp`](http://mfem.github.io/doxygen/html/occa_8hpp.html) files
+
 - The `general/` directory contains C++ classes that serve as utilities for
   communication, error handling, arrays, (Boolean) tables, timing, etc.
 
