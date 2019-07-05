@@ -449,9 +449,18 @@ int main(int argc, char *argv[])
      cout << "Root local number of finite element unknowns: " << fespace->TrueVSize() << endl;
    }
 
+   { // Print the interface mesh
+     ostringstream mesh_name;
+     mesh_name << "ifmesh." << setfill('0') << setw(6) << myid;
+
+     ofstream mesh_ofs(mesh_name.str().c_str());
+     mesh_ofs.precision(8);
+     pmeshInterfaces[0]->Print(mesh_ofs);
+   }
+   
    // 6.1. Create interface operator.
 
-   DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmesh, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
+   DDMInterfaceOperator ddi(numSubdomains, numInterfaces, pmesh, fespace, pmeshSD, pmeshInterfaces, order, pmesh->Dimension(),
 			    &interfaces, &interfaceGlobalToLocalMap);  // PengLee2012 uses order 2 
 
    // 7. Determine the list of true (i.e. parallel conforming) essential

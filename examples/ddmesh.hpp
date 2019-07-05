@@ -175,8 +175,12 @@ public:
     
     L2_FECollection elem_fec(0, pmesh->Dimension());
     H1_FECollection vert_fec(1, pmesh->Dimension());
+    RT_FECollection face_fec(0, pmesh->Dimension());
+    
     ParFiniteElementSpace elem_fes(pmesh, &elem_fec);
     ParFiniteElementSpace vert_fes(pmesh, &vert_fec);
+    ParFiniteElementSpace face_fes(pmesh, &face_fec);
+    
     ParDiscreteLinearOperator vert_elem_oper(&vert_fes, &elem_fes); // maps vert_fes to elem_fes
     vert_elem_oper.AddDomainInterpolator(new AdjacencyInterpolator);
     vert_elem_oper.Assemble();
@@ -269,15 +273,32 @@ public:
 		    Array<int> fv;
 		    pmesh->GetFaceVertices(f[k], fv);
 		    bool faceOn = true;
+		    //bool yhalf = true;
 		    for (int j=0; j<fv.Size(); ++j)
 		      {
 			if (vert_marker_gf[fv[j]] < 0.1)
 			  faceOn = false;
+
+			//if (fabs(pmesh->GetVertex(fv[j])[1] - 0.5) > 1.0e-8)
+			//yhalf = false;
 		      }
 
+		    //MFEM_VERIFY(faceOn == yhalf, "yhalf");
+		    
 		    if (faceOn)
 		      {
-			interfaces[interfaceIndex].InsertFaceIndex(f[k]);
+			// Also check whether the face is owned by this process, by checking whether the only DOF in face_fes is true.
+			Array<int> fdof;
+			face_fes.GetFaceDofs(f[k], fdof);
+
+			MFEM_VERIFY(fdof.Size() == 1, "");
+
+			const int fdof0 = (fdof[0] >= 0) ? fdof[0] : -1 - fdof[0];
+			const int tdof = face_fes.GetLocalTDofNumber(fdof0);
+			if (tdof >= 0)  // if this is a true DOF
+			  {
+			    interfaces[interfaceIndex].InsertFaceIndex(f[k]);
+			  }
 		      }
 		  }
 	      }
