@@ -26,7 +26,9 @@ namespace mfem
 using miniapps::H1_ParFESpace;
 using miniapps::ND_ParFESpace;
 using miniapps::RT_ParFESpace;
+using miniapps::L2_ParFESpace;
 using miniapps::ParDiscreteGradOperator;
+using miniapps::ParDiscreteDivOperator;
 
 namespace electromagnetics
 {
@@ -84,6 +86,7 @@ private:
    H1_ParFESpace * H1FESpace_;    // Continuous space for phi
    ND_ParFESpace * HCurlFESpace_; // Tangentially continuous space for E
    RT_ParFESpace * HDivFESpace_;  // Normally continuous space for D
+   L2_ParFESpace * L2FESpace_;    // Discontinuous space for rho
 
    ParBilinearForm * divEpsGrad_; // Laplacian operator
    ParBilinearForm * h1Mass_;     // For Volumetric Charge Density Source
@@ -96,15 +99,21 @@ private:
 
    ParLinearForm * rhod_; // Dual of Volumetric Charge Density Source
 
+   ParLinearForm * l2_vol_int_;  // Integral of L2 field
+   ParLinearForm * rt_surf_int_; // Integral of H(Div) field over boundary
+
    ParDiscreteGradOperator * grad_; // For Computing E from phi
+   ParDiscreteDivOperator  * div_;  // For Computing rho from D
 
    ParGridFunction * phi_;       // Electric Scalar Potential
    ParGridFunction * rho_src_;   // Volumetric Charge Density Source
+   ParGridFunction * rho_;       // Volumetric Charge Density (Div(D))
    ParGridFunction * sigma_src_; // Surface Charge Density Source
    ParGridFunction * e_;         // Electric Field
    ParGridFunction * d_;         // Electric Flux Density (aka Dielectric Flux)
    ParGridFunction * p_src_;     // Polarization Field Source
 
+   ConstantCoefficient oneCoef_;   // Coefficient equal to 1
    Coefficient       * epsCoef_;   // Dielectric Permittivity Coefficient
    Coefficient       * phiBCCoef_; // Scalar Potential Boundary Condition
    Coefficient       * rhoCoef_;   // Charge Density Coefficient

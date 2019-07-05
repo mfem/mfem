@@ -41,6 +41,7 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
      H1FESpace_(NULL),
      HCurlFESpace_(NULL),
      HDivFESpace_(NULL),
+     L2FESpace_(NULL),
      divEpsGrad_(NULL),
      h1Mass_(NULL),
      h1SurfMass_(NULL),
@@ -49,13 +50,17 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
      hCurlHDiv_(NULL),
      weakDiv_(NULL),
      rhod_(NULL),
+     l2_vol_int_(NULL),
+     rt_surf_int_(NULL),
      grad_(NULL),
      phi_(NULL),
      rho_src_(NULL),
+     rho_(NULL),
      sigma_src_(NULL),
      e_(NULL),
      d_(NULL),
      p_src_(NULL),
+     oneCoef_(1.0),
      epsCoef_(&epsCoef),
      phiBCCoef_(NULL),
      rhoCoef_(NULL),
@@ -76,6 +81,7 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
    H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
+   L2FESpace_    = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
 
    // Select surface attributes for Dirichlet BCs
    ess_bdr_.SetSize(pmesh.bdr_attributes.Max());
@@ -116,15 +122,23 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
    hCurlHDivEps_ = new ParMixedBilinearForm(HCurlFESpace_,HDivFESpace_);
    hCurlHDivEps_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsCoef_));
 
-   rhod_ = new ParLinearForm(H1FESpace_);
+   rhod_   = new ParLinearForm(H1FESpace_);
 
-   // Discrete Grad operator
+   l2_vol_int_ = new ParLinearForm(L2FESpace_);
+   l2_vol_int_->AddDomainIntegrator(new DomainLFIntegrator(oneCoef_));
+
+   rt_surf_int_ = new ParLinearForm(HDivFESpace_);
+   rt_surf_int_->AddBoundaryIntegrator(new VectorFEBoundaryLFIntegrator);
+
+   // Discrete derivative operator
    grad_ = new ParDiscreteGradOperator(H1FESpace_, HCurlFESpace_);
+   div_  = new ParDiscreteDivOperator(HDivFESpace_, L2FESpace_);
 
    // Build grid functions
    phi_  = new ParGridFunction(H1FESpace_);
    d_    = new ParGridFunction(HDivFESpace_);
    e_    = new ParGridFunction(HCurlFESpace_);
+   rho_  = new ParGridFunction(L2FESpace_);
 
    if ( point_charge_params_.Size() > 0 )
    {
@@ -185,13 +199,17 @@ VoltaSolver::~VoltaSolver()
 
    delete phi_;
    delete rho_src_;
+   delete rho_;
    delete rhod_;
+   delete l2_vol_int_;
+   delete rt_surf_int_;
    delete sigma_src_;
    delete d_;
    delete e_;
    delete p_src_;
 
    delete grad_;
+   delete div_;
 
    delete divEpsGrad_;
    delete h1Mass_;
@@ -204,6 +222,7 @@ VoltaSolver::~VoltaSolver()
    delete H1FESpace_;
    delete HCurlFESpace_;
    delete HDivFESpace_;
+   delete L2FESpace_;
 
    for (unsigned int i=0; i<point_charges_.size(); i++)
    {
@@ -229,11 +248,13 @@ VoltaSolver::PrintSizes()
    HYPRE_Int size_h1 = H1FESpace_->GlobalTrueVSize();
    HYPRE_Int size_nd = HCurlFESpace_->GlobalTrueVSize();
    HYPRE_Int size_rt = HDivFESpace_->GlobalTrueVSize();
+   HYPRE_Int size_l2 = L2FESpace_->GlobalTrueVSize();
    if (myid_ == 0)
    {
       cout << "Number of H1      unknowns: " << size_h1 << endl;
       cout << "Number of H(Curl) unknowns: " << size_nd << endl;
       cout << "Number of H(Div)  unknowns: " << size_rt << endl;
+      cout << "Number of L2      unknowns: " << size_l2 << endl;
    }
 }
 
@@ -253,8 +274,14 @@ void VoltaSolver::Assemble()
    *rhod_ = 0.0;
    rhod_->Assemble();
 
+   l2_vol_int_->Assemble();
+   rt_surf_int_->Assemble();
+
    grad_->Assemble();
    grad_->Finalize();
+
+   div_->Assemble();
+   div_->Finalize();
 
    if ( h1Mass_ )
    {
@@ -291,12 +318,16 @@ VoltaSolver::Update()
    H1FESpace_->Update(false);
    HCurlFESpace_->Update(false);
    HDivFESpace_->Update(false);
+   L2FESpace_->Update(false);
 
    // Inform the grid functions that the space has changed.
    phi_->Update();
    rhod_->Update();
+   l2_vol_int_->Update();
+   rt_surf_int_->Update();
    d_->Update();
    e_->Update();
+   rho_->Update();
    if ( rho_src_   ) { rho_src_->Update(); }
    if ( sigma_src_ ) { sigma_src_->Update(); }
    if ( p_src_     ) { p_src_->Update(); }
@@ -313,6 +344,7 @@ VoltaSolver::Update()
 
    // Inform the other objects that the space has changed.
    grad_->Update();
+   div_->Update();
 }
 
 void
@@ -444,7 +476,26 @@ VoltaSolver::Solve()
 
    hDivMass_->RecoverFEMSolution(D, ed, *d_);
 
+   // Compute charge density from rho = Div(D)
+   div_->Mult(*d_, *rho_);
+
    if (myid_ == 0) { cout << "done." << flush; }
+
+   {
+      // Compute total charge as volume integral of rho
+      double charge_rho = (*l2_vol_int_)(*rho_);
+
+      // Compute total charge as surface integral of D
+      double charge_D = (*rt_surf_int_)(*d_);
+
+      if (myid_ == 0)
+      {
+         cout << endl << "Total charge: \n"
+              << "   Volume integral of charge density:   " << charge_rho
+              << "\n   Surface integral of dielectric flux: " << charge_D
+              << endl << flush;
+      }
+   }
 
    if (myid_ == 0) { cout << "Solver done. " << endl; }
 }
@@ -479,6 +530,7 @@ VoltaSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
    visit_dc.RegisterField("Phi", phi_);
    visit_dc.RegisterField("D",     d_);
    visit_dc.RegisterField("E",     e_);
+   visit_dc.RegisterField("Rho", rho_);
    if ( rho_src_   ) { visit_dc.RegisterField("Rho Source",     rho_src_); }
    if ( p_src_     ) { visit_dc.RegisterField("P Source",         p_src_); }
    if ( sigma_src_ ) { visit_dc.RegisterField("Sigma Source", sigma_src_); }
@@ -514,6 +566,9 @@ VoltaSolver::InitializeGLVis()
    socks_["E"] = new socketstream;
    socks_["E"]->precision(8);
 
+   socks_["Rho"] = new socketstream;
+   socks_["Rho"]->precision(8);
+
    if ( rho_src_ )
    {
       socks_["RhoSrc"] = new socketstream;
@@ -547,13 +602,16 @@ VoltaSolver::DisplayToGLVis()
                   *phi_, "Electric Potential (Phi)", Wx, Wy, Ww, Wh);
    Wx += offx;
 
+   VisualizeField(*socks_["E"], vishost, visport,
+                  *e_, "Electric Field (E)", Wx, Wy, Ww, Wh);
+   Wx += offx;
+
    VisualizeField(*socks_["D"], vishost, visport,
                   *d_, "Electric Displacement (D)", Wx, Wy, Ww, Wh);
    Wx += offx;
 
-   VisualizeField(*socks_["E"], vishost, visport,
-                  *e_, "Electric Field (E)", Wx, Wy, Ww, Wh);
-
+   VisualizeField(*socks_["Rho"], vishost, visport,
+                  *rho_, "Charge Density", Wx, Wy, Ww, Wh);
    Wx = 0; Wy += offy; // next line
 
    if ( rho_src_ )
@@ -566,14 +624,14 @@ VoltaSolver::DisplayToGLVis()
    {
       VisualizeField(*socks_["PSrc"], vishost, visport,
                      *p_src_, "Electric Polarization Source (P)",
-		     Wx, Wy, Ww, Wh);
+                     Wx, Wy, Ww, Wh);
       Wx += offx;
    }
    if ( sigma_src_ )
    {
       VisualizeField(*socks_["SigmaSrc"], vishost, visport,
                      *sigma_src_, "Surface Charge Density Source (Sigma)",
-		     Wx, Wy, Ww, Wh);
+                     Wx, Wy, Ww, Wh);
       // Wx += offx; // not used
    }
    if (myid_ == 0) { cout << " done." << endl; }
