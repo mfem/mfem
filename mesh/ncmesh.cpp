@@ -2544,11 +2544,11 @@ bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
 void NCMesh::BuildFaceList()
 {
    face_list.Clear();
-   boundary_faces.SetSize(0);
-
    if (Dim < 3) { return; }
 
    if (HaveTets()) { GetEdgeList(); } // needed by TraverseTetEdge()
+
+   boundary_faces.SetSize(0);
 
    Array<char> processed_faces(faces.NumIds());
    processed_faces = 0;

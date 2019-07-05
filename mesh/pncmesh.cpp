@@ -295,8 +295,8 @@ void ParNCMesh::BuildFaceList()
    // This is an extension of NCMesh::BuildFaceList() which also determines
    // face ownership and prepares face processor groups.
 
-   // (special case for prisms: to be able to handle edge-face constraints)
-   //if (HavePrisms()) { GetEdgeList(); }
+   face_list.Clear();
+   if (Dim < 3) { return; }
 
    int nfaces = NFaces + NGhostFaces;
 
