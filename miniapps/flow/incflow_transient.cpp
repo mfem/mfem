@@ -150,7 +150,7 @@ public:
       dform->FormColSystemMatrix(ess_tdof_list_, *D);
 
       G = D->Transpose();
-      (*G) *= -1.0;
+      // (*G) *= -1.0;
 
       mvform = new ParBilinearForm(fes_[0]);
       mvform->AddDomainIntegrator(new VectorMassIntegrator);
@@ -188,11 +188,10 @@ public:
       stokesprec->SetDiagonalBlock(0, invS);
       stokesprec->SetDiagonalBlock(1, schurLSC);
 
-      jac_solver = new GMRESSolver(MPI_COMM_WORLD);
+      jac_solver = new MINRESSolver(MPI_COMM_WORLD);
       jac_solver->iterative_mode = false;
       jac_solver->SetAbsTol(1e-12);
       jac_solver->SetRelTol(1e-5);
-      static_cast<GMRESSolver *>(jac_solver)->SetKDim(100);
       jac_solver->SetMaxIter(500);
       jac_solver->SetOperator(*jac);
       jac_solver->SetPreconditioner(*stokesprec);
@@ -311,16 +310,19 @@ public:
       vel_gf.ProjectBdrCoefficient(*velbdrcoeff, nso_->ess_bdr_attr_);
 
       nso_->sform->FormLinearSystem(nso_->ess_tdof_list_, xh.GetBlock(0), b.GetBlock(0),
-                                    *(nso_->S), Xh.GetBlock(0), B.GetBlock(0));
+                                    *(nso_->S), Xh.GetBlock(0), B.GetBlock(0), 1);
 
       nso_->dform->FormColLinearSystem(nso_->ess_tdof_list_, xh.GetBlock(0), b.GetBlock(1),
-                                       *(nso_->D), Xh.GetBlock(0), B.GetBlock(1));
+                                       *(nso_->D), Xh.GetBlock(0), B.GetBlock(1), 1);
 
       Vector V(nso_->block_trueOffsets_[1]);
       nso_->Mv->Mult(X, V);
       V.SetSubVector(nso_->ess_tdof_list_, 0.0);
 
       B.GetBlock(0) += V;
+
+      // Retrieve initial guess from previous solution
+      Xh.GetBlock(0) = X;
 
       nso_->newton_solver.Mult(B, Xh);
 
