@@ -513,6 +513,12 @@ protected:
    FiniteElementSpace *trial_fes, ///< Not owned
                       *test_fes;  ///< Not owned
 
+   /// The form assembly level (full, partial, etc.)
+   AssemblyLevel assembly;
+   /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
+       Partial Assembly (PA), or Matrix Free assembly (MF). */
+   MixedBilinearFormExtension *ext;
+
    /** @brief Indicates the BilinearFormIntegrator%s stored in #dom, #bdr, and
        #skt are owned by another MixedBilinearForm. */
    int extern_bfs;
@@ -604,6 +610,10 @@ public:
 
    void operator=(const double a) { *mat = a; }
 
+   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
+
    void Assemble(int skip_zeros = 1);
 
    /** For partially conforming trial and/or test FE spaces, complete the
@@ -622,6 +632,16 @@ public:
    virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
 
    void Update();
+
+   /// Return the trial FE space associated with the BilinearForm.
+   FiniteElementSpace *TrialFESpace() { return trial_fes; }
+   /// Read-only access to the associated trial FiniteElementSpace.
+   const FiniteElementSpace *TrialFESpace() const { return trial_fes; }
+
+   /// Return the test FE space associated with the BilinearForm.
+   FiniteElementSpace *TestFESpace() { return test_fes; }
+   /// Read-only access to the associated test FiniteElementSpace.
+   const FiniteElementSpace *TestFESpace() const { return test_fes; }
 
    virtual ~MixedBilinearForm();
 };

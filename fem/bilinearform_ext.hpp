@@ -134,6 +134,81 @@ public:
    ~MFBilinearFormExtension() {}
 };
 
+class MixedBilinearForm;
+
+
+/** @brief Class extending the MixedBilinearForm class to support the different
+    AssemblyLevel%s. */
+class MixedBilinearFormExtension : public Operator
+{
+protected:
+   MixedBilinearForm *a; ///< Not owned
+
+public:
+   MixedBilinearFormExtension(MixedBilinearForm *form);
+
+   virtual MemoryClass GetMemoryClass() const
+   { return Device::GetMemoryClass(); }
+
+   /// Get the finite element space prolongation matrix
+   virtual const Operator *GetProlongation() const;
+
+   /// Get the finite element space restriction matrix
+   virtual const Operator *GetRestriction() const;
+
+   virtual void Assemble() = 0;
+   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                 OperatorHandle &A) = 0;
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                 Vector &x, Vector &b,
+                                 OperatorHandle &A, Vector &X, Vector &B,
+                                 int copy_interior = 0) = 0;
+   virtual void Update() = 0;
+};
+
+/// Data and methods for fully-assembled mixed bilinear forms
+class FAMixedBilinearFormExtension : public MixedBilinearFormExtension
+{
+public:
+   FAMixedBilinearFormExtension(MixedBilinearForm *form)
+      : MixedBilinearFormExtension(form) { }
+
+   /// TODO
+   void Assemble() {}
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A) {}
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         OperatorHandle &A, Vector &X, Vector &B,
+                         int copy_interior = 0) {}
+   void Mult(const Vector &x, Vector &y) const {}
+   void MultTranspose(const Vector &x, Vector &y) const {}
+   void Update() {}
+   ~FAMixedBilinearFormExtension() {}
+};
+
+/// Data and methods for partially-assembled mixed bilinear forms
+class PAMixedBilinearFormExtension : public MixedBilinearFormExtension
+{
+protected:
+   const FiniteElementSpace *trialFes, *testFes; // Not owned
+   mutable Vector localX, localY;
+   const Operator *elem_restrict_lex; // Not owned
+
+public:
+   PAMixedBilinearFormExtension(MixedBilinearForm*);
+
+   void Assemble();
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         OperatorHandle &A, Vector &X, Vector &B,
+                         int copy_interior = 0);
+
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+   void Update();
+};
+
 }
 
 #endif

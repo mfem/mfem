@@ -1003,6 +1003,9 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    test_fes = te_fes;
    mat = NULL;
    extern_bfs = 0;
+
+   assembly = AssemblyLevel::FULL;
+   ext = NULL;
 }
 
 MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
@@ -1019,6 +1022,38 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    dom = mbf->dom;
    bdr = mbf->bdr;
    skt = mbf->skt;
+
+   assembly = AssemblyLevel::FULL;
+   ext = NULL;
+}
+
+void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+         // ext = new FAMixedBilinearFormExtension(this);
+         // Use the original BilinearForm implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Element assembly not supported yet... stay tuned!");
+         // ext = new EAMixedBilinearFormExtension(this);
+         break;
+      case AssemblyLevel::PARTIAL:
+         ext = new PAMixedBilinearFormExtension(this);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Matrix-free action not supported yet... stay tuned!");
+         // ext = new MFMixedBilinearFormExtension(this);
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
 }
 
 double & MixedBilinearForm::Elem (int i, int j)
@@ -1033,29 +1068,57 @@ const double & MixedBilinearForm::Elem (int i, int j) const
 
 void MixedBilinearForm::Mult (const Vector & x, Vector & y) const
 {
-   mat -> Mult (x, y);
+   if (assembly == AssemblyLevel::PARTIAL)
+   {
+      ext -> Mult(x, y);
+   }
+   else
+   {
+      mat -> Mult (x, y);
+   }
 }
 
 void MixedBilinearForm::AddMult (const Vector & x, Vector & y,
                                  const double a) const
 {
+   if (assembly != AssemblyLevel::FULL)
+   {
+      MFEM_WARNING("MixedBilinearForm::AddMult not yet programmed for this assembly level!");
+      return;
+   }
    mat -> AddMult (x, y, a);
 }
 
 void MixedBilinearForm::AddMultTranspose (const Vector & x, Vector & y,
                                           const double a) const
 {
+   if (assembly != AssemblyLevel::FULL)
+   {
+      MFEM_WARNING("MixedBilinearForm::AddMultTranspose not yet programmed for this assembly level!");
+      return;
+   }
    mat -> AddMultTranspose (x, y, a);
 }
 
 MatrixInverse * MixedBilinearForm::Inverse() const
 {
-   return mat -> Inverse ();
+   if (assembly != AssemblyLevel::FULL)
+   {
+      MFEM_WARNING("MixedBilinearForm::Inverse not possible with this assembly level!");
+      return NULL;
+   }
+   else
+   {
+      return mat -> Inverse ();
+   }
 }
 
 void MixedBilinearForm::Finalize (int skip_zeros)
 {
-   mat -> Finalize (skip_zeros);
+   if (assembly == AssemblyLevel::FULL)
+   {
+      mat -> Finalize (skip_zeros);
+   }
 }
 
 void MixedBilinearForm::GetBlocks(Array2D<SparseMatrix *> &blocks) const
@@ -1087,6 +1150,12 @@ void MixedBilinearForm::AddTraceFaceIntegrator (BilinearFormIntegrator * bfi)
 
 void MixedBilinearForm::Assemble (int skip_zeros)
 {
+   if (ext)
+   {
+      ext->Assemble();
+      return;
+   }
+   
    int i, k;
    Array<int> tr_vdofs, te_vdofs;
    ElementTransformation *eltrans;
@@ -1172,6 +1241,12 @@ void MixedBilinearForm::Assemble (int skip_zeros)
 
 void MixedBilinearForm::ConformingAssemble()
 {
+   if (assembly != AssemblyLevel::FULL)
+   {
+      MFEM_WARNING("Conforming assemble not supported for this assembly level!");
+      return;
+   }
+   
    Finalize();
 
    const SparseMatrix *P2 = test_fes->GetConformingProlongation();
@@ -1251,6 +1326,7 @@ void MixedBilinearForm::Update()
    mat = NULL;
    height = test_fes->GetVSize();
    width = trial_fes->GetVSize();
+   if (ext) { ext->Update(); }
 }
 
 MixedBilinearForm::~MixedBilinearForm()
@@ -1263,6 +1339,7 @@ MixedBilinearForm::~MixedBilinearForm()
       for (i = 0; i < bdr.Size(); i++) { delete bdr[i]; }
       for (i = 0; i < skt.Size(); i++) { delete skt[i]; }
    }
+   delete ext;
 }
 
 

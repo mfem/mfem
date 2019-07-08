@@ -336,7 +336,7 @@ void PAVectorDivergenceApply2D(const int NE,
             }
          }
       }
-      // We've now calculated p * (div u * op)
+      // We've now calculated p * reshape(div u * op)
    });
 }
 
