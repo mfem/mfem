@@ -828,6 +828,7 @@ int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
       }
    }
 
+
    int ref = 0;
    int exOrder = 0;
    if (bType == 'n')
@@ -838,19 +839,21 @@ int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
    {
       exOrder += 2;
    }
-   if (bType != 's') // There is some bug if you viz serendipity basis on a refined mesh
-   {
-      while (1 << ref < bOrder + exOrder || ref == 0)
-      {
-         mesh->UniformRefinement();
-         FESpace.Update();
 
-         for (int i = 0; i < ndof; i++)
-         {
-            x[i]->Update();
-         }
-         ref++;
+   while (1 << ref < bOrder + exOrder || ref == 0)
+   {
+      if (bType == 's')
+      {
+         // break;
       }
+      mesh->UniformRefinement();
+      FESpace.Update();
+
+      for (int i = 0; i < ndof; i++)
+      {
+         x[i]->Update();
+      }
+      ref++;
    }
 
    int stopAt = ndof;

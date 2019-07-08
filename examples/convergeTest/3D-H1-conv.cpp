@@ -204,14 +204,14 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       {
          x(k) = 1;
       }         
-      if (order == 3)
-      {
-         cout << "dof -2, order 3" << endl;
-         for(int k=4; k<x.Size(); k++)
-         {
-            x(k) = 0;
-         }
-      }
+      // if (order == 3)
+      // {
+      //    cout << "dof -2, order 3 option" << endl;
+      //    for(int k=4; k<x.Size(); k++)
+      //    {
+      //       x(k) = 1;
+      //    }
+      // }
    }
 
    // 13. Save the refined mesh and the solution. This output can be viewed later

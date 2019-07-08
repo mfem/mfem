@@ -224,6 +224,8 @@ void ScalarFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
    const ScalarFiniteElement &fine_fe) const
 {
+   cout << "fe: ScalarFE: Nodal Local Int" << endl;
+
    double v[Geometry::MaxDim];
    Vector vv (v, Dim);
    IntegrationPoint f_ip;
@@ -259,6 +261,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    const ScalarFiniteElement &fine_fe) const
 {
    // General "interpolation", defined by L2 projection
+   cout << "fe: ScalarFE: Scalar Local Int" << endl;
 
    double v[Geometry::MaxDim];
    Vector vv (v, Dim);
@@ -2232,9 +2235,9 @@ void H1Ser_QuadrilateralElement::Project(
 void H1Ser_QuadrilateralElement::GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
 { 
-   NodalLocalInterpolation(Trans, I, *this); 
+   ScalarLocalInterpolation(Trans, I, *this);
+   // NodalLocalInterpolation(Trans, I, *this); 
 }
-
 
 H1Ser_HexElement::H1Ser_HexElement(const int p, const int ser_space_dim)
   : ScalarFiniteElement(3, Geometry::CUBE, ser_space_dim, p, FunctionSpace::Qk)
@@ -2265,6 +2268,7 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    edgeNodalBasis.Eval(x, nodalX);
    edgeNodalBasis.Eval(y, nodalY);
    edgeNodalBasis.Eval(z, nodalZ);
+
 
    // Set edge shape functions as nodals times an applicable bilinear:
 
@@ -2334,6 +2338,9 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
       shape( 6) -= (1-edgePts[i+1])*(shape(e13m) + shape(e14m) + shape(e18m));
       shape( 7) -= (1-edgePts[i+1])*(shape(e14p) + shape(e15m) + shape(e19m));
    }
+
+   // cout << "shape is: " << endl;
+   // shape.Print(mfem::out, 4);
 }
 
 void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
@@ -2342,14 +2349,14 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
    int p = (this)->GetOrder();
    double x = ip.x, y = ip.y, z = ip.z;
 
-   x=0;
-   y=0;
-   z=0;
-   IntegrationPoint myIP;
-   myIP.x = x;
-   myIP.y = y;
-   myIP.z = z;
-   cout << endl << "myIP is " << myIP.x << ", " << myIP.y << ", " << myIP.z << endl;
+   // x=1;
+   // y=1;
+   // z=1;
+   // IntegrationPoint myIP;
+   // myIP.x = x;
+   // myIP.y = y;
+   // myIP.z = z;
+   // cout << endl << "myIP is " << myIP.x << ", " << myIP.y << ", " << myIP.z << endl;
 
    double omx = 1.-x, omy = 1.-y, omz = 1.-z;
 
@@ -2416,12 +2423,9 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       dshape(8 + 11*(p-1) + i,    2) = omx*  y*DnodalZ(i+1);
    }
 
-
-
-
    TriLinear3DFiniteElement trilinear = TriLinear3DFiniteElement();
    DenseMatrix DtrilinearsAtIP(8);
-   trilinear.CalcDShape(myIP, DtrilinearsAtIP);
+   trilinear.CalcDShape(ip, DtrilinearsAtIP);
 
    const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
 
@@ -2464,9 +2468,9 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       for(int j = 0; j < 3; j++)
       {
          dshape(0,j) -= (1-edgePts[i+1])*(dshape(e08p,j) + dshape(e11p,j) + dshape(e16p,j));
-         dshape(2,j) -= (1-edgePts[i+1])*(dshape(e08m,j) + dshape(e09p,j) + dshape(e17p,j));
-         dshape(3,j) -= (1-edgePts[i+1])*(dshape(e09m,j) + dshape(e10m,j) + dshape(e18p,j));
-         dshape(1,j) -= (1-edgePts[i+1])*(dshape(e10p,j) + dshape(e11m,j) + dshape(e19p,j));
+         dshape(1,j) -= (1-edgePts[i+1])*(dshape(e08m,j) + dshape(e09p,j) + dshape(e17p,j));
+         dshape(2,j) -= (1-edgePts[i+1])*(dshape(e09m,j) + dshape(e10m,j) + dshape(e18p,j));
+         dshape(3,j) -= (1-edgePts[i+1])*(dshape(e10p,j) + dshape(e11m,j) + dshape(e19p,j));
          dshape(4,j) -= (1-edgePts[i+1])*(dshape(e12p,j) + dshape(e15p,j) + dshape(e16m,j));
          dshape(5,j) -= (1-edgePts[i+1])*(dshape(e12m,j) + dshape(e13p,j) + dshape(e17m,j));
          dshape(6,j) -= (1-edgePts[i+1])*(dshape(e13m,j) + dshape(e14m,j) + dshape(e18m,j));
@@ -2474,8 +2478,8 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       }
    }
 
-   cout << "dshape is: " << endl;
-   dshape.PrintShort();
+   // cout << "dshape is: " << endl;
+   // dshape.PrintShort();
 } 
 
 void H1Ser_HexElement::Project (
@@ -2484,6 +2488,12 @@ void H1Ser_HexElement::Project (
    cout << "fe.cpp (ser hex project): Nodes.Size is " << Nodes.Size() << endl;
 }
 
+void H1Ser_HexElement::GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+{ 
+   ScalarLocalInterpolation(Trans, I, *this);
+   // NodalLocalInterpolation(Trans, I, *this); 
+}
 
 BiQuadPos2DFiniteElement::BiQuadPos2DFiniteElement()
    : PositiveFiniteElement(2, Geometry::SQUARE, 9, 2, FunctionSpace::Qk)

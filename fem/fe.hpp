@@ -1997,7 +1997,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
-   void GetLocalInterpolation(ElementTransformation &Trans,
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const;
 };
 
@@ -2009,6 +2009,8 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const;
 };
 
 
