@@ -27,7 +27,7 @@ list(APPEND ALL_EXE_SRCS
   ex18.cpp
   ex19.cpp
   ex20.cpp
-  ex22.cpp
+  ex21.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -52,7 +52,7 @@ if (MFEM_USE_MPI)
     ex18p.cpp
     ex19p.cpp
     ex20p.cpp
-    ex22p.cpp
+    ex21p.cpp
     )
 endif()
 

@@ -16,8 +16,6 @@
 #include "vector.hpp"
 #include "matrix.hpp"
 #include "densemat.hpp"
-#include "dtensor.hpp"
-#include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 
@@ -74,13 +72,13 @@ DenseMatrix::DenseMatrix() : Matrix(0)
 
 DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
 {
-   int hw = height * width;
+   const int hw = height * width;
    if (hw > 0)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
-      data = mfem::New<double>(hw);
+      data = new double[hw];
       capacity = hw;
-      mfem::Memcpy(data, m.data, sizeof(double)*hw);
+      std::memcpy(data, m.data, sizeof(double)*hw);
    }
    else
    {
@@ -89,20 +87,13 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    }
 }
 
-static void Set(const double d, const int size, double *data)
-{
-   DeviceVector d_data(data);
-   MFEM_FORALL(i, size, d_data[i] = d;);
-}
-
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
    capacity = s*s;
    if (capacity > 0)
    {
-      data = mfem::New<double>(capacity);
-      mfem::Set(0.0, capacity, data);
+      data = new double[capacity](); // init with zeroes
    }
    else
    {
@@ -117,27 +108,12 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    capacity = m*n;
    if (capacity > 0)
    {
-      data = mfem::New<double>(capacity);
-      mfem::Set(0.0, capacity, data);
+      data = new double[capacity](); // init with zeroes
    }
    else
    {
       data = NULL;
    }
-}
-
-static void Transpose(const int height, const int width,
-                      double *data, const double *mdata)
-{
-   DeviceVector d_data(data);
-   const DeviceVector d_mdata(mdata);
-   MFEM_FORALL(i, height,
-   {
-      for (int j = 0; j < width; j++)
-      {
-         d_data[i+j*height] = d_mdata[j+i*height];
-      }
-   });
 }
 
 DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
@@ -146,20 +122,20 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    capacity = height*width;
    if (capacity > 0)
    {
-      data = mfem::New<double>(capacity);
-      mfem::Transpose(height, width, data, mat.Data());
+      data = new double[capacity];
+
+      for (int i = 0; i < height; i++)
+      {
+         for (int j = 0; j < width; j++)
+         {
+            (*this)(i,j) = mat(j,i);
+         }
+      }
    }
    else
    {
       data = NULL;
    }
-}
-
-DenseMatrix::DenseMatrix(double *d, int h, int w)
-   : Matrix(h, w)
-{
-   data = d;
-   capacity = -h*w;
 }
 
 void DenseMatrix::SetSize(int h, int w)
@@ -177,11 +153,10 @@ void DenseMatrix::SetSize(int h, int w)
    {
       if (capacity > 0)
       {
-         mfem::Delete(data);
+         delete [] data;
       }
       capacity = hw;
-      data = mfem::New<double>(capacity);
-      mfem::Set(0.0, capacity, data);
+      data = new double[hw](); // init with zeroes
    }
 }
 
@@ -195,31 +170,32 @@ const double &DenseMatrix::Elem(int i, int j) const
    return (*this)(i,j);
 }
 
-static void Mult(const int height, const int width,
-                 const double *data, const double *x, double *y)
-{
-   const DeviceVector d_data(data);
-   const DeviceVector d_x(x);
-   DeviceVector d_y(y);
-   MFEM_FORALL(i, height,
-   {
-      double sum = 0.0;
-      for (int j = 0; j < width; j++)
-      {
-         sum += d_x[j]*d_data[i+j*height];
-      }
-      d_y[i] = sum;
-   });
-}
-
 void DenseMatrix::Mult(const double *x, double *y) const
 {
    if (width == 0)
    {
-      mfem::Set(0.0, height, y);
+      for (int row = 0; row < height; row++)
+      {
+         y[row] = 0.0;
+      }
       return;
    }
-   mfem::Mult(height, width, data, x, y);
+   double *d_col = data;
+   double x_col = x[0];
+   for (int row = 0; row < height; row++)
+   {
+      y[row] = x_col*d_col[row];
+   }
+   d_col += height;
+   for (int col = 1; col < width; col++)
+   {
+      x_col = x[col];
+      for (int row = 0; row < height; row++)
+      {
+         y[row] += x_col*d_col[row];
+      }
+      d_col += height;
+   }
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -235,7 +211,7 @@ double DenseMatrix::operator *(const DenseMatrix &m) const
    MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
                "incompatible dimensions");
 
-   int hw = height * width;
+   const int hw = height * width;
    double a = 0.0;
    for (int i = 0; i < hw; i++)
    {
@@ -273,8 +249,8 @@ void DenseMatrix::AddMult(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   const double *xp = x;
-   double *d_col = data, *yp = y;
+   const double *xp = x, *d_col = data;
+   double *yp = y;
    for (int col = 0; col < width; col++)
    {
       double x_col = xp[col];
@@ -291,7 +267,7 @@ void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   double *d_col = data;
+   const double *d_col = data;
    for (int col = 0; col < width; col++)
    {
       double y_col = 0.0;
@@ -309,11 +285,11 @@ void DenseMatrix::AddMult_a(double a, const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   const double *xp = x;
-   double *d_col = data, *yp = y;
+   const double *xp = x, *d_col = data;
+   double *yp = y;
    for (int col = 0; col < width; col++)
    {
-      double x_col = a*xp[col];
+      const double x_col = a*xp[col];
       for (int row = 0; row < height; row++)
       {
          yp[row] += x_col*d_col[row];
@@ -328,7 +304,7 @@ void DenseMatrix::AddMultTranspose_a(double a, const Vector &x,
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   double *d_col = data;
+   const double *d_col = data;
    for (int col = 0; col < width; col++)
    {
       double y_col = 0.0;
@@ -363,10 +339,12 @@ void DenseMatrix::LeftScaling(const Vector & s)
 {
    double * it_data = data;
    for (int j = 0; j < width; ++j)
+   {
       for (int i = 0; i < height; ++i)
       {
          *(it_data++) *= s(i);
       }
+   }
 }
 
 // InvLeftScaling this = diag(1./s) * this
@@ -374,10 +352,12 @@ void DenseMatrix::InvLeftScaling(const Vector & s)
 {
    double * it_data = data;
    for (int j = 0; j < width; ++j)
+   {
       for (int i = 0; i < height; ++i)
       {
          *(it_data++) /= s(i);
       }
+   }
 }
 
 // RightScaling: this = this * diag(s);
@@ -398,11 +378,10 @@ void DenseMatrix::RightScaling(const Vector & s)
 // InvRightScaling: this = this * diag(1./s);
 void DenseMatrix::InvRightScaling(const Vector & s)
 {
-   double sj;
    double * it_data = data;
    for (int j = 0; j < width; ++j)
    {
-      sj = 1./s(j);
+      const double sj = 1./s(j);
       for (int i = 0; i < height; ++i)
       {
          *(it_data++) *= sj;
@@ -428,10 +407,12 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
 
    double * it_data = data;
    for (int j = 0; j < width; ++j)
+   {
       for (int i = 0; i < height; ++i)
       {
          *(it_data++) *= ss[i]*ss[j];
       }
+   }
 
    delete[] ss;
 }
@@ -447,17 +428,19 @@ void DenseMatrix::InvSymmetricScaling(const Vector & s)
    double * ss = new double[width];
    double * it_s = s.GetData();
    double * it_ss = ss;
-   for ( double * end_s = it_s + width; it_s != end_s; ++it_s)
+   for (double * end_s = it_s + width; it_s != end_s; ++it_s)
    {
       *(it_ss++) = 1./sqrt(*it_s);
    }
 
    double * it_data = data;
    for (int j = 0; j < width; ++j)
+   {
       for (int i = 0; i < height; ++i)
       {
          *(it_data++) *= ss[i]*ss[j];
       }
+   }
 
    delete[] ss;
 }
@@ -582,22 +565,27 @@ void DenseMatrix::Set(double alpha, const double *A)
 void DenseMatrix::Add(const double c, const DenseMatrix &A)
 {
    for (int j = 0; j < Width(); j++)
+   {
       for (int i = 0; i < Height(); i++)
       {
          (*this)(i,j) += c * A(i,j);
       }
+   }
 }
 
 DenseMatrix &DenseMatrix::operator=(double c)
 {
    const int s = Height()*Width();
-   mfem::Set(c, s, data);
+   for (int i = 0; i < s; i++)
+   {
+      data[i] = c;
+   }
    return *this;
 }
 
 DenseMatrix &DenseMatrix::operator=(const double *d)
 {
-   int s = Height()*Width();
+   const int s = Height()*Width();
    for (int i = 0; i < s; i++)
    {
       data[i] = d[i];
@@ -610,9 +598,11 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    SetSize(m.height, m.width);
 
    const int hw = height * width;
-   const DeviceVector d_m(m.GetData());
-   DeviceVector d_data(data);
-   MFEM_FORALL(i, hw, d_data[i] = d_m[i];);
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] = m.data[i];
+   }
+
    return *this;
 }
 
@@ -636,10 +626,12 @@ DenseMatrix &DenseMatrix::operator+=(const DenseMatrix &m)
 DenseMatrix &DenseMatrix::operator-=(const DenseMatrix &m)
 {
    for (int j = 0; j < width; j++)
+   {
       for (int i = 0; i < height; i++)
       {
          (*this)(i, j) -= m(i, j);
       }
+   }
 
    return *this;
 }
@@ -2463,11 +2455,16 @@ void DenseMatrix::GetRowSums(Vector &l) const
 void DenseMatrix::Diag(double c, int n)
 {
    SetSize(n);
-   const int N = n*n;
-   DeviceVector d_data(data);
-   MFEM_FORALL(i, N, d_data[i] = 0.0;);
-   MFEM_FORALL(i, n, d_data[i*(n+1)] = c;);
 
+   const int N = n*n;
+   for (int i = 0; i < N; i++)
+   {
+      data[i] = 0.0;
+   }
+   for (int i = 0; i < n; i++)
+   {
+      data[i*(n+1)] = c;
+   }
 }
 
 void DenseMatrix::Diag(double *diag, int n)
@@ -2610,20 +2607,17 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
 
 void DenseMatrix::GradToDiv(Vector &div)
 {
-#ifdef MFEM_DEBUG
-   if (Width()*Height() != div.Size())
-   {
-      mfem_error("DenseMatrix::GradToDiv(...)");
-   }
-#endif
+   MFEM_ASSERT(Width()*Height() == div.Size(), "incompatible Vector 'div'!");
 
    // div(dof*j+i) <-- (*this)(i,j)
 
    const int n = height * width;
    double *ddata = div.GetData();
-   const DeviceVector d_data(data);
-   DeviceVector d_ddata(ddata);
-   MFEM_FORALL(i, n, d_ddata[i] = d_data[i];);
+
+   for (int i = 0; i < n; i++)
+   {
+      ddata[i] = data[i];
+   }
 }
 
 void DenseMatrix::CopyRows(const DenseMatrix &A, int row1, int row2)
@@ -2631,10 +2625,12 @@ void DenseMatrix::CopyRows(const DenseMatrix &A, int row1, int row2)
    SetSize(row2 - row1 + 1, A.Width());
 
    for (int j = 0; j < Width(); j++)
+   {
       for (int i = row1; i <= row2; i++)
       {
          (*this)(i-row1,j) = A(i,j);
       }
+   }
 }
 
 void DenseMatrix::CopyCols(const DenseMatrix &A, int col1, int col2)
@@ -2642,54 +2638,56 @@ void DenseMatrix::CopyCols(const DenseMatrix &A, int col1, int col2)
    SetSize(A.Height(), col2 - col1 + 1);
 
    for (int j = col1; j <= col2; j++)
+   {
       for (int i = 0; i < Height(); i++)
       {
          (*this)(i,j-col1) = A(i,j);
       }
+   }
 }
 
 void DenseMatrix::CopyMN(const DenseMatrix &A, int m, int n, int Aro, int Aco)
 {
-   int i, j;
-
    SetSize(m,n);
 
-   for (j = 0; j < n; j++)
-      for (i = 0; i < m; i++)
+   for (int j = 0; j < n; j++)
+   {
+      for (int i = 0; i < m; i++)
       {
          (*this)(i,j) = A(Aro+i,Aco+j);
       }
+   }
 }
 
 void DenseMatrix::CopyMN(const DenseMatrix &A, int row_offset, int col_offset)
 {
-   int i, j;
    double *v = A.data;
 
-   for (j = 0; j < A.Width(); j++)
-      for (i = 0; i < A.Height(); i++)
+   for (int j = 0; j < A.Width(); j++)
+   {
+      for (int i = 0; i < A.Height(); i++)
       {
          (*this)(row_offset+i,col_offset+j) = *(v++);
       }
+   }
 }
 
 void DenseMatrix::CopyMNt(const DenseMatrix &A, int row_offset, int col_offset)
 {
-   int i, j;
    double *v = A.data;
 
-   for (i = 0; i < A.Width(); i++)
-      for (j = 0; j < A.Height(); j++)
+   for (int i = 0; i < A.Width(); i++)
+   {
+      for (int j = 0; j < A.Height(); j++)
       {
          (*this)(row_offset+i,col_offset+j) = *(v++);
       }
+   }
 }
 
 void DenseMatrix::CopyMN(const DenseMatrix &A, int m, int n, int Aro, int Aco,
                          int row_offset, int col_offset)
 {
-   int i, j;
-
    MFEM_VERIFY(row_offset+m <= this->Height() && col_offset+n <= this->Width(),
                "this DenseMatrix is too small to accomodate the submatrix.  "
                << "row_offset = " << row_offset
@@ -2709,23 +2707,27 @@ void DenseMatrix::CopyMN(const DenseMatrix &A, int m, int n, int Aro, int Aco,
                << ", A.Width() = " << A.Width()
               );
 
-   for (j = 0; j < n; j++)
-      for (i = 0; i < m; i++)
+   for (int j = 0; j < n; j++)
+   {
+      for (int i = 0; i < m; i++)
       {
          (*this)(row_offset+i,col_offset+j) = A(Aro+i,Aco+j);
       }
+   }
 }
 
 void DenseMatrix::CopyMNDiag(double c, int n, int row_offset, int col_offset)
 {
-   int i, j;
-
-   for (i = 0; i < n; i++)
-      for (j = i+1; j < n; j++)
+   for (int i = 0; i < n; i++)
+   {
+      for (int j = i+1; j < n; j++)
+      {
          (*this)(row_offset+i,col_offset+j) =
             (*this)(row_offset+j,col_offset+i) = 0.0;
+      }
+   }
 
-   for (i = 0; i < n; i++)
+   for (int i = 0; i < n; i++)
    {
       (*this)(row_offset+i,col_offset+i) = c;
    }
@@ -2734,14 +2736,16 @@ void DenseMatrix::CopyMNDiag(double c, int n, int row_offset, int col_offset)
 void DenseMatrix::CopyMNDiag(double *diag, int n, int row_offset,
                              int col_offset)
 {
-   int i, j;
-
-   for (i = 0; i < n; i++)
-      for (j = i+1; j < n; j++)
+   for (int i = 0; i < n; i++)
+   {
+      for (int j = i+1; j < n; j++)
+      {
          (*this)(row_offset+i,col_offset+j) =
             (*this)(row_offset+j,col_offset+i) = 0.0;
+      }
+   }
 
-   for (i = 0; i < n; i++)
+   for (int i = 0; i < n; i++)
    {
       (*this)(row_offset+i,col_offset+i) = diag[i];
    }
@@ -2803,7 +2807,7 @@ void DenseMatrix::AddMatrix(DenseMatrix &A, int ro, int co)
    }
 }
 
-void DenseMatrix::AddMatrix(double a, DenseMatrix &A, int ro, int co)
+void DenseMatrix::AddMatrix(double a, const DenseMatrix &A, int ro, int co)
 {
    int h, ah, aw;
    double *p, *ap;
@@ -2835,10 +2839,10 @@ void DenseMatrix::AddMatrix(double a, DenseMatrix &A, int ro, int co)
 
 void DenseMatrix::AddToVector(int offset, Vector &v) const
 {
-   int i, n = height * width;
+   const int n = height * width;
    double *vdata = v.GetData() + offset;
 
-   for (i = 0; i < n; i++)
+   for (int i = 0; i < n; i++)
    {
       vdata[i] += data[i];
    }
@@ -2846,10 +2850,10 @@ void DenseMatrix::AddToVector(int offset, Vector &v) const
 
 void DenseMatrix::GetFromVector(int offset, const Vector &v)
 {
-   int i, n = height * width;
+   const int n = height * width;
    const double *vdata = v.GetData() + offset;
 
-   for (i = 0; i < n; i++)
+   for (int i = 0; i < n; i++)
    {
       data[i] = vdata[i];
    }
@@ -2857,7 +2861,7 @@ void DenseMatrix::GetFromVector(int offset, const Vector &v)
 
 void DenseMatrix::AdjustDofDirection(Array<int> &dofs)
 {
-   int n = Height();
+   const int n = Height();
 
 #ifdef MFEM_DEBUG
    if (dofs.Size() != n || Width() != n)
@@ -2869,10 +2873,10 @@ void DenseMatrix::AdjustDofDirection(Array<int> &dofs)
    int *dof = dofs;
    for (int i = 0; i < n-1; i++)
    {
-      int s = (dof[i] < 0) ? (-1) : (1);
+      const int s = (dof[i] < 0) ? (-1) : (1);
       for (int j = i+1; j < n; j++)
       {
-         int t = (dof[j] < 0) ? (-s) : (s);
+         const int t = (dof[j] < 0) ? (-s) : (s);
          if (t < 0)
          {
             (*this)(i,j) = -(*this)(i,j);
@@ -3017,7 +3021,7 @@ DenseMatrix::~DenseMatrix()
 {
    if (capacity > 0)
    {
-      mfem::Delete(data);
+      delete [] data;
    }
 }
 
@@ -3027,10 +3031,12 @@ void Add(const DenseMatrix &A, const DenseMatrix &B,
          double alpha, DenseMatrix &C)
 {
    for (int j = 0; j < C.Width(); j++)
+   {
       for (int i = 0; i < C.Height(); i++)
       {
          C(i,j) = A(i,j) + alpha * B(i,j);
       }
+   }
 }
 
 void Add(double alpha, const double *A,
@@ -3074,20 +3080,20 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    double *ad = a.Data();
    const double *bd = b.Data();
    const double *cd = c.Data();
-   const DeviceVector d_bd(bd);
-   const DeviceVector d_cd(cd);
-   DeviceVector d_ad(ad);
-   MFEM_FORALL(i, ah*aw, d_ad[i] = 0.0;);
-   MFEM_FORALL(j, aw,
+   for (int i = 0; i < ah*aw; i++)
+   {
+      ad[i] = 0.0;
+   }
+   for (int j = 0; j < aw; j++)
    {
       for (int k = 0; k < bw; k++)
       {
          for (int i = 0; i < ah; i++)
          {
-            d_ad[i+j*ah] += d_bd[i+k*ah] * d_cd[k+j*bw];
+            ad[i+j*ah] += bd[i+k*ah] * cd[k+j*bw];
          }
       }
-   });
+   }
 #endif
 }
 
@@ -3383,20 +3389,18 @@ void MultAAt(const DenseMatrix &a, DenseMatrix &aat)
 {
    const int height = a.Height();
    const int width = a.Width();
-   const DeviceVector d_a(a.GetData());
-   DeviceVector d_aat(aat.GetData());
-   MFEM_FORALL(i, height,
+   for (int i = 0; i < height; i++)
    {
-      for (int j=0; j<=i; j++)
+      for (int j = 0; j <= i; j++)
       {
-         double temp = 0.0;
-         for (int k=0; k<width; k++)
+         double temp = 0.;
+         for (int k = 0; k < width; k++)
          {
-            temp += d_a[i+k*height] * d_a[j+k*height];
+            temp += a(i,k) * a(j,k);
          }
-         d_aat[j+i*height] = d_aat[i+j*height] = temp;
+         aat(j,i) = aat(i,j) = temp;
       }
-   });
+   }
 }
 
 void AddMultADAt(const DenseMatrix &A, const Vector &D, DenseMatrix &ADAt)
@@ -3803,6 +3807,7 @@ void AddMult_a_AAt(double a, const DenseMatrix &A, DenseMatrix &AAt)
 void Mult_a_AAt(double a, const DenseMatrix &A, DenseMatrix &AAt)
 {
    for (int i = 0; i < A.Height(); i++)
+   {
       for (int j = 0; j <= i; j++)
       {
          double d = 0.;
@@ -3812,22 +3817,22 @@ void Mult_a_AAt(double a, const DenseMatrix &A, DenseMatrix &AAt)
          }
          AAt(i, j) = AAt(j, i) = a * d;
       }
+   }
 }
 
 void MultVVt(const Vector &v, DenseMatrix &vvt)
 {
    for (int i = 0; i < v.Size(); i++)
+   {
       for (int j = 0; j <= i; j++)
       {
          vvt(i,j) = vvt(j,i) = v(i) * v(j);
       }
+   }
 }
 
 void MultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
 {
-   int i, j;
-   double vi;
-
 #ifdef MFEM_DEBUG
    if (v.Size() != VWt.Height() || w.Size() != VWt.Width())
    {
@@ -3835,10 +3840,10 @@ void MultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
    }
 #endif
 
-   for (i = 0; i < v.Size(); i++)
+   for (int i = 0; i < v.Size(); i++)
    {
-      vi = v(i);
-      for (j = 0; j < w.Size(); j++)
+      const double vi = v(i);
+      for (int j = 0; j < w.Size(); j++)
       {
          VWt(i, j) = vi * w(j);
       }
@@ -3847,7 +3852,7 @@ void MultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
 
 void AddMultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
 {
-   int m = v.Size(), n = w.Size();
+   const int m = v.Size(), n = w.Size();
 
 #ifdef MFEM_DEBUG
    if (VWt.Height() != m || VWt.Width() != n)
@@ -3858,7 +3863,7 @@ void AddMultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
 
    for (int i = 0; i < m; i++)
    {
-      double vi = v(i);
+      const double vi = v(i);
       for (int j = 0; j < n; j++)
       {
          VWt(i, j) += vi * w(j);
@@ -3868,7 +3873,7 @@ void AddMultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
 
 void AddMultVVt(const Vector &v, DenseMatrix &VVt)
 {
-   int n = v.Size();
+   const int n = v.Size();
 
 #ifdef MFEM_DEBUG
    if (VVt.Height() != n || VVt.Width() != n)
@@ -3879,21 +3884,21 @@ void AddMultVVt(const Vector &v, DenseMatrix &VVt)
 
    for (int i = 0; i < n; i++)
    {
-      double vi = v(i);
+      const double vi = v(i);
       for (int j = 0; j < i; j++)
       {
-         double vivj = vi * v(j);
+         const double vivj = vi * v(j);
          VVt(i, j) += vivj;
          VVt(j, i) += vivj;
       }
-      VVt(i, i) += vi * v(i);
+      VVt(i, i) += vi * vi;
    }
 }
 
 void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
                    DenseMatrix &VWt)
 {
-   int m = v.Size(), n = w.Size();
+   const int m = v.Size(), n = w.Size();
 
 #ifdef MFEM_DEBUG
    if (VWt.Height() != m || VWt.Width() != n)
@@ -3914,28 +3919,21 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 {
-   int n = v.Size();
+   MFEM_ASSERT(VVt.Height() == v.Size() && VVt.Width() == v.Size(),
+               "incompatible dimensions!");
 
-#ifdef MFEM_DEBUG
-   if (VVt.Height() != n || VVt.Width() != n)
+   const int n = v.Size();
+   for (int i = 0; i < n; i++)
    {
-      mfem_error("AddMult_a_VVt(...)");
-   }
-#endif
-   const int height = VVt.Height();
-   const DeviceVector d_v(v.GetData());
-   DeviceVector d_VVt(VVt.GetData());
-   MFEM_FORALL(i, n,
-   {
-      double avi = a * d_v[i];
+      double avi = a * v(i);
       for (int j = 0; j < i; j++)
       {
-         double avivj = avi * d_v[j];
-         d_VVt[i+j*height] += avivj;
-         d_VVt[j+i*height] += avivj;
+         const double avivj = avi * v(j);
+         VVt(i, j) += avivj;
+         VVt(j, i) += avivj;
       }
-      d_VVt[i+i*height] += avi * d_v[i];
-   });
+      VVt(i, i) += avi * v(i);
+   }
 }
 
 
@@ -3947,49 +3945,47 @@ void LUFactors::Factor(int m)
    MFEM_VERIFY(!info, "LAPACK: error in DGETRF");
 #else
    // compiling without LAPACK
-   DeviceArray d_ipiv(ipiv);
-   DeviceVector d_data(data);
-   MFEM_FORALL(i, m,
+   double *data = this->data;
+   for (int i = 0; i < m; i++)
    {
       // pivoting
       {
          int piv = i;
-         double a = fabs(d_data[piv+i*m]);
+         double a = std::abs(data[piv+i*m]);
          for (int j = i+1; j < m; j++)
          {
-            const double b = fabs(d_data[j+i*m]);
+            const double b = std::abs(data[j+i*m]);
             if (b > a)
             {
                a = b;
                piv = j;
             }
          }
-         d_ipiv[i] = piv;
+         ipiv[i] = piv;
          if (piv != i)
          {
             // swap rows i and piv in both L and U parts
             for (int j = 0; j < m; j++)
             {
-               const double tmp = d_data[i+j*m];
-               d_data[i+j*m] = d_data[piv+j*m];
-               d_data[piv+j*m] = tmp;
+               Swap<double>(data[i+j*m], data[piv+j*m]);
             }
          }
       }
-      const double a_ii_inv = 1.0/d_data[i+i*m];
+      MFEM_ASSERT(data[i+i*m] != 0.0, "division by zero");
+      const double a_ii_inv = 1.0/data[i+i*m];
       for (int j = i+1; j < m; j++)
       {
-         d_data[j+i*m] *= a_ii_inv;
+         data[j+i*m] *= a_ii_inv;
       }
       for (int k = i+1; k < m; k++)
       {
-         const double a_ik = d_data[i+k*m];
+         const double a_ik = data[i+k*m];
          for (int j = i+1; j < m; j++)
          {
-            d_data[j+k*m] -= a_ik * d_data[j+i*m];
+            data[j+k*m] -= a_ik * data[j+i*m];
          }
       }
-   });
+   }
 #endif
 }
 
@@ -4051,29 +4047,24 @@ void LUFactors::LSolve(int m, int n, double *X) const
    const double *data = this->data;
    const int *ipiv = this->ipiv;
    double *x = X;
-   const DeviceVector d_data(data);
-   const DeviceArray d_ipiv(ipiv);
-   DeviceVector d_x(x);
-   MFEM_FORALL(k, n,
+   for (int k = 0; k < n; k++)
    {
-      double *d_mx = &d_x[k*m];
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-         const double tmp = d_mx[i];
-         d_mx[i] = d_mx[d_ipiv[i]];
-         d_mx[d_ipiv[i]] = tmp;
+         Swap<double>(x[i], x[ipiv[i]-ipiv_base]);
       }
       // X <- L^{-1} X
       for (int j = 0; j < m; j++)
       {
-         const double d_mx_j = d_mx[j];
+         const double x_j = x[j];
          for (int i = j+1; i < m; i++)
          {
-            d_mx[i] -= d_data[i+j*m] * d_mx_j;
+            x[i] -= data[i+j*m] * x_j;
          }
       }
-   });
+      x += m;
+   }
 }
 
 void LUFactors::USolve(int m, int n, double *X) const
@@ -4081,20 +4072,18 @@ void LUFactors::USolve(int m, int n, double *X) const
    const double *data = this->data;
    double *x = X;
    // X <- U^{-1} X
-   const DeviceVector d_data(data);
-   DeviceVector d_x(x);
-   MFEM_FORALL(k, n,
+   for (int k = 0; k < n; k++)
    {
-      double *d_mx = &d_x[k*m];
       for (int j = m-1; j >= 0; j--)
       {
-         const double x_j = ( d_mx[j] /= d_data[j+j*m] );
+         const double x_j = ( x[j] /= data[j+j*m] );
          for (int i = 0; i < j; i++)
          {
-            d_mx[i] -= d_data[i+j*m] * x_j;
+            x[i] -= data[i+j*m] * x_j;
          }
       }
-   });
+      x += m;
+   }
 }
 
 void LUFactors::Solve(int m, int n, double *X) const
@@ -4244,8 +4233,8 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix &mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = &mat;
-   lu.data = mfem::New<double>(width*width);
-   lu.ipiv = mfem::New<int>(width);
+   lu.data = new double[width*width];
+   lu.ipiv = new int[width];
    Factor();
 }
 
@@ -4254,21 +4243,19 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix *mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = mat;
-   lu.data = mfem::New<double>(width*width);
-   lu.ipiv = mfem::New<int>(width);
+   lu.data = new double[width*width];
+   lu.ipiv = new int[width];
 }
 
 void DenseMatrixInverse::Factor()
 {
    MFEM_ASSERT(a, "DenseMatrix is not given");
    const double *adata = a->data;
-   const int N = width*width;
-   const DeviceVector d_data(adata);
-   DeviceVector d_ludata(lu.data);
-   MFEM_FORALL(i, N,
+   const int s = width*width;
+   for (int i = 0; i < s; i++)
    {
-      d_ludata[i] = d_data[i];
-   });
+      lu.data[i] = adata[i];
+   }
    lu.Factor(width);
 }
 
@@ -4284,10 +4271,10 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
    if (width != mat.width)
    {
       height = width = mat.width;
-      mfem::Delete(lu.data);
-      lu.data = mfem::New<double>(width*width);
-      mfem::Delete(lu.ipiv);
-      lu.ipiv = mfem::New<int>(width);
+      delete [] lu.data;
+      lu.data = new double[width*width];
+      delete [] lu.ipiv;
+      lu.ipiv = new int[width];
    }
    a = &mat;
    Factor();
@@ -4325,8 +4312,8 @@ void DenseMatrixInverse::TestInversion()
 
 DenseMatrixInverse::~DenseMatrixInverse()
 {
-   mfem::Delete(lu.data);
-   mfem::Delete(lu.ipiv);
+   delete [] lu.data;
+   delete [] lu.ipiv;
 }
 
 
@@ -4468,7 +4455,8 @@ const
 {
    int n = SizeI(), ne = SizeK();
    const int *I = elem_dof.GetI(), *J = elem_dof.GetJ(), *dofs;
-   double *d_col = tdata, *yp = y, x_col;
+   const double *d_col = tdata;
+   double *yp = y, x_col;
    const double *xp = x;
    // the '4' here can be tuned for given platform and compiler
    if (n <= 4)

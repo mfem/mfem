@@ -24,10 +24,15 @@ namespace mfem
 namespace internal
 {
 
+#ifdef MFEM_USE_OCCA
+// Default occa::device used by MFEM.
+occa::device occaDevice;
+#endif
+
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
-   Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA, Backend::CUDA_UVM,
+   Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
    Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::DEBUG,
    Backend::CPU
@@ -36,12 +41,23 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "occa-cuda", "raja-cuda", "cuda", "cuda-uvm",
+   "occa-cuda", "raja-cuda", "cuda", //"cuda-uvm",
    "occa-omp", "raja-omp", "omp",
-   "occa-cpu", "raja-cpu", "debug", "cpu"
+   "occa-cpu", "raja-cpu", "debug",
+   "cpu"
 };
 
 } // namespace mfem::internal
+
+
+// Initialize the unique global Device variable.
+Device Device::device_singleton;
+
+
+Device::~Device()
+{
+   if (destroy_mm) { mm.Destroy(); }
+}
 
 void Device::Configure(const std::string &device, const int dev)
 {
@@ -64,18 +80,22 @@ void Device::Configure(const std::string &device, const int dev)
    }
 
    // OCCA_CUDA needs CUDA or RAJA_CUDA:
-   Get().allowed_backends = Get().backends;
    if (Allows(Backend::OCCA_CUDA) && !Allows(Backend::RAJA_CUDA))
    {
       Get().MarkBackend(Backend::CUDA);
    }
 
-   // Activate all backends for Setup().
-   Get().allowed_backends = Get().backends;
+   // Perform setup.
    Get().Setup(dev);
 
-   // Enable only the default host CPU backend.
-   Get().allowed_backends = Backend::CPU;
+   // Enable the device
+   Enable();
+
+   // Copy all data members from the global 'singleton_device' into '*this'.
+   std::memcpy(this, &Get(), sizeof(Device));
+
+   // Only '*this' will call the MemoryManager::Destroy() method.
+   destroy_mm = true;
 }
 
 void Device::Print(std::ostream &out)
@@ -84,7 +104,7 @@ void Device::Print(std::ostream &out)
    bool add_comma = false;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {
-      if (Get().backends & internal::backend_list[i])
+      if (backends & internal::backend_list[i])
       {
          if (add_comma) { out << ','; }
          add_comma = true;
@@ -92,6 +112,105 @@ void Device::Print(std::ostream &out)
       }
    }
    out << '\n';
+}
+
+void Device::UpdateMemoryTypeAndClass()
+{
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+      mem_type = MemoryType::CUDA;
+      mem_class = MemoryClass::CUDA;
+   }
+   else
+   {
+      mem_type = MemoryType::HOST;
+      mem_class = MemoryClass::HOST;
+   }
+}
+
+void Device::Enable()
+{
+   if (Get().backends & ~Backend::CPU)
+   {
+      Get().mode = Device::ACCELERATED;
+      Get().UpdateMemoryTypeAndClass();
+   }
+}
+
+#ifdef MFEM_USE_CUDA
+static void DeviceSetup(const int dev, int &ngpu)
+{
+   MFEM_CUDA_CHECK(cudaGetDeviceCount(&ngpu));
+   MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
+   MFEM_CUDA_CHECK(cudaSetDevice(dev));
+}
+#endif
+
+static void CudaDeviceSetup(const int dev, int &ngpu)
+{
+#ifdef MFEM_USE_CUDA
+   DeviceSetup(dev, ngpu);
+#endif
+}
+
+static void RajaDeviceSetup(const int dev, int &ngpu)
+{
+#ifdef MFEM_USE_CUDA
+   if (ngpu <= 0) { DeviceSetup(dev, ngpu); }
+#endif
+}
+
+static void OccaDeviceSetup(const int dev)
+{
+#ifdef MFEM_USE_OCCA
+   const int cpu  = Device::Allows(Backend::OCCA_CPU);
+   const int omp  = Device::Allows(Backend::OCCA_OMP);
+   const int cuda = Device::Allows(Backend::OCCA_CUDA);
+   if (cpu + omp + cuda > 1)
+   {
+      MFEM_ABORT("Only one OCCA backend can be configured at a time!");
+   }
+   if (cuda)
+   {
+#if OCCA_CUDA_ENABLED
+      std::string mode("mode: 'CUDA', device_id : ");
+      internal::occaDevice.setup(mode.append(1,'0'+dev));
+#else
+      MFEM_ABORT("the OCCA CUDA backend requires OCCA built with CUDA!");
+#endif
+   }
+   else if (omp)
+   {
+#if OCCA_OPENMP_ENABLED
+      internal::occaDevice.setup("mode: 'OpenMP'");
+#else
+      MFEM_ABORT("the OCCA OpenMP backend requires OCCA built with OpenMP!");
+#endif
+   }
+   else
+   {
+      internal::occaDevice.setup("mode: 'Serial'");
+   }
+
+   std::string mfemDir;
+   if (occa::io::exists(MFEM_INSTALL_DIR "/include/mfem/"))
+   {
+      mfemDir = MFEM_INSTALL_DIR "/include/mfem/";
+   }
+   else if (occa::io::exists(MFEM_SOURCE_DIR))
+   {
+      mfemDir = MFEM_SOURCE_DIR;
+   }
+   else
+   {
+      MFEM_ABORT("Cannot find OCCA kernels in MFEM_INSTALL_DIR or MFEM_SOURCE_DIR");
+   }
+
+   occa::io::addLibraryPath("mfem", mfemDir);
+   occa::loadKernels("mfem");
+#else
+   MFEM_ABORT("the OCCA backends require MFEM built with MFEM_USE_OCCA=YES");
+#endif
 }
 
 void Device::Setup(const int device)
@@ -130,12 +249,12 @@ void Device::Setup(const int device)
    // Memory backends setup
    if (cuda)
    {
-      if (Allows(Backend::CUDA_UVM)) { SetMemoryTypes(Memory::UNIFIED); }
-      else { SetMemoryTypes(Memory::STD, Memory::CUDA); }
+      //if (Allows(Backend::CUDA_UVM)) { SetMemoryTypes(Memory::UNIFIED); }
+      //else { SetMemoryTypes(Memory::STD, Memory::CUDA); }
    }
    if (debug)
    {
-      SetMemoryTypes(Memory::DEBUG);
+      //SetMemoryTypes(Memory::DEBUG);
       MFEM_VERIFY((cuda|raja|occa|openmp)^debug, "Device 'debug' is exclusive!");
    }
 }
