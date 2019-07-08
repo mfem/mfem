@@ -230,6 +230,9 @@ public:
    FiniteElementSpace *FESpace() { return pgfr_->FESpace(); }
    const FiniteElementSpace *FESpace() const { return pgfr_->FESpace(); }
 
+   ParFiniteElementSpace *ParFESpace() { return pgfr_->ParFESpace(); }
+   const ParFiniteElementSpace *ParFESpace() const { return pgfr_->ParFESpace(); }
+
    ParGridFunction & real() { return *pgfr_; }
    ParGridFunction & imag() { return *pgfi_; }
    const ParGridFunction & real() const { return *pgfr_; }

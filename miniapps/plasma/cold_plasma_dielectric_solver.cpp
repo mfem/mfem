@@ -56,7 +56,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      conv_(conv),
      ownsEtaInv_(etaInvCoef == NULL),
      omega_(omega),
-     solNorm_(-1.0),
+     // solNorm_(-1.0),
      pmesh_(&pmesh),
      L2VFESpace_(NULL),
      HCurlFESpace_(NULL),
@@ -334,8 +334,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    // Build grid functions
    e_  = new ParComplexGridFunction(HCurlFESpace_);
    *e_ = 0.0;
-   solNorm_ = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
-                                 const_cast<VectorCoefficient&>(eiCoef_));
+   // solNorm_ = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
+   //                               const_cast<VectorCoefficient&>(eiCoef_));
 
    j_ = new ParComplexGridFunction(HCurlFESpace_);
    j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
@@ -883,12 +883,20 @@ CPDSolver::Solve()
 }
 
 double
-CPDSolver::GetError()
+CPDSolver::GetError(const VectorCoefficient & EReCoef,
+                    const VectorCoefficient & EImCoef) const
 {
-   double solErr = e_->ComputeL2Error(const_cast<VectorCoefficient&>(erCoef_),
-                                      const_cast<VectorCoefficient&>(eiCoef_));
+   ParComplexGridFunction z(e_->ParFESpace());
+   z = 0.0;
 
-   return (solNorm_ > 0.0) ? solErr / solNorm_ : solErr;
+   double solNorm = z.ComputeL2Error(const_cast<VectorCoefficient&>(EReCoef),
+                                     const_cast<VectorCoefficient&>(EImCoef));
+
+
+   double solErr = e_->ComputeL2Error(const_cast<VectorCoefficient&>(EReCoef),
+                                      const_cast<VectorCoefficient&>(EImCoef));
+
+   return (solNorm > 0.0) ? solErr / solNorm : solErr;
 }
 
 void

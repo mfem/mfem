@@ -766,7 +766,7 @@ int main(int argc, char *argv[])
       CPD.Solve();
 
       // Compute error
-      double glb_error = CPD.GetError();
+      double glb_error = CPD.GetError(EReCoef, EImCoef);
       if (mpi.Root())
       {
          cout << "Global L2 Error " << glb_error << endl;

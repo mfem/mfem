@@ -100,7 +100,8 @@ public:
 
    void Solve();
 
-   double GetError();
+   double GetError(const VectorCoefficient & EReCoef,
+                   const VectorCoefficient & EImCoef) const;
 
    void GetErrorEstimates(Vector & errors);
 
@@ -133,7 +134,7 @@ private:
 
    double omega_;
 
-   double solNorm_;
+   // double solNorm_;
 
    ParMesh * pmesh_;
 
