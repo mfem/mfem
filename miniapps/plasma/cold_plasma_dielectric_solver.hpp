@@ -45,6 +45,13 @@ struct SolverOptions
    int euLvl;
 };
 
+struct ComplexVectorCoefficientByAttr
+{
+   Array<int> attr;
+   VectorCoefficient * real;
+   VectorCoefficient * imag;
+};
+
 /// Cold Plasma Dielectric Solver
 class CPDSolver
 {
@@ -83,9 +90,8 @@ public:
              VectorCoefficient * kCoef,
              Array<int> & abcs,
              Array<int> & sbcs,
-             Array<int> & dbcs,
-             VectorCoefficient & EReCoef,
-             VectorCoefficient & EImCoef,
+             // Array<int> & dbcs,
+             Array<ComplexVectorCoefficientByAttr> & dbcs,
              void (*j_r_src)(const Vector&, Vector&),
              void (*j_i_src)(const Vector&, Vector&));
    ~CPDSolver();
@@ -187,8 +193,8 @@ private:
    VectorCoefficient * jiCoef_;     // Volume Current Density Function
    VectorCoefficient * rhsrCoef_;     // Volume Current Density Function
    VectorCoefficient * rhsiCoef_;     // Volume Current Density Function
-   const VectorCoefficient & erCoef_;     // Electric Field Boundary Condition
-   const VectorCoefficient & eiCoef_;     // Electric Field Boundary Condition
+   // const VectorCoefficient & erCoef_;     // Electric Field Boundary Condition
+   // const VectorCoefficient & eiCoef_;     // Electric Field Boundary Condition
 
    void   (*j_r_src_)(const Vector&, Vector&);
    void   (*j_i_src_)(const Vector&, Vector&);
@@ -204,7 +210,8 @@ private:
    // void   (*e_r_bc_)(const Vector&, Vector&);
    // void   (*e_i_bc_)(const Vector&, Vector&);
 
-   Array<int> * dbcs_;
+   // Array<int> * dbcs_;
+   Array<ComplexVectorCoefficientByAttr> * dbcs_;
    Array<int> ess_bdr_;
    Array<int> ess_bdr_tdofs_;
    Array<int> non_k_bdr_;

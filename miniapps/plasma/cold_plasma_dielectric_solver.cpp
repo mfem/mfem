@@ -39,11 +39,12 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      VectorCoefficient * kCoef,
                      Array<int> & abcs,
                      Array<int> & sbcs,
-                     Array<int> & dbcs,
+                     // Array<int> & dbcs,
+                     Array<ComplexVectorCoefficientByAttr> & dbcs,
                      // void   (*e_r_bc )(const Vector&, Vector&),
                      // void   (*e_i_bc )(const Vector&, Vector&),
-                     VectorCoefficient & EReCoef,
-                     VectorCoefficient & EImCoef,
+                     // VectorCoefficient & EReCoef,
+                     // VectorCoefficient & EImCoef,
                      void   (*j_r_src)(const Vector&, Vector&),
                      void   (*j_i_src)(const Vector&, Vector&))
    : myid_(0),
@@ -96,8 +97,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      jiCoef_(NULL),
      rhsrCoef_(NULL),
      rhsiCoef_(NULL),
-     erCoef_(EReCoef),
-     eiCoef_(EImCoef),
+     // erCoef_(EReCoef),
+     // eiCoef_(EImCoef),
      j_r_src_(j_r_src),
      j_i_src_(j_i_src),
      // e_r_bc_(e_r_bc),
@@ -178,7 +179,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    ess_bdr_.SetSize(pmesh.bdr_attributes.Max());
    if ( dbcs_ != NULL )
    {
-      if ( dbcs_->Size() == 1 && (*dbcs_)[0] == -1 )
+      if ( dbcs_->Size() == 1 && (*dbcs_)[0].attr[0] == -1 )
       {
          ess_bdr_ = 1;
       }
@@ -187,7 +188,10 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
          ess_bdr_ = 0;
          for (int i=0; i<dbcs_->Size(); i++)
          {
-            ess_bdr_[(*dbcs_)[i]-1] = 1;
+            for (int j=0; j<(*dbcs_)[i].attr.Size(); j++)
+            {
+               ess_bdr_[(*dbcs_)[i].attr[j]-1] = 1;
+            }
          }
       }
       HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
@@ -572,8 +576,17 @@ CPDSolver::Solve()
    OperatorHandle A1;
    Vector E, RHS;
    // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
-   e_->ProjectCoefficient(const_cast<VectorCoefficient&>(erCoef_),
-                          const_cast<VectorCoefficient&>(eiCoef_));
+   if (dbcs_)
+   {
+      for (int i = 0; i<dbcs_->Size(); i++)
+      {
+         e_->ProjectBdrCoefficientTangent(*(*dbcs_)[i].real,
+                                          *(*dbcs_)[i].imag,
+                                          (*dbcs_)[i].attr);
+      }
+   }
+   // e_->ProjectCoefficient(const_cast<VectorCoefficient&>(erCoef_),
+   //                       const_cast<VectorCoefficient&>(eiCoef_));
    a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *rhs_, A1, E, RHS);
 
    // cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;

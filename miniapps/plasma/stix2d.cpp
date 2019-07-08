@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbcs; // Sheath BC attributes
-   Array<int> dbcs; // Dirichlet BC attributes
+   Array<int> dbca; // Dirichlet BC attributes
    int num_elements = 10;
 
    SolverOptions solOpts;
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
                   "3D Vector Amplitude, 2D Position, Radius");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
-   args.AddOption(&dbcs, "-dbcs", "--dirichlet-bc-surf",
+   args.AddOption(&dbca, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
    // args.AddOption(&num_elements, "-ne", "--num-elements",
    //             "The number of mesh elements in x");
@@ -649,6 +649,12 @@ int main(int argc, char *argv[])
 
    }
 
+   // Setup coefficients for Dirichlet BC
+   Array<ComplexVectorCoefficientByAttr> dbcs(1);
+   dbcs[0].attr = dbca;
+   dbcs[0].real = &EReCoef;
+   dbcs[0].imag = &EImCoef;
+
    // Create the Magnetostatic solver
    CPDSolver CPD(pmesh, order, omega,
                  (CPDSolver::SolverType)sol, solOpts,
@@ -658,7 +664,7 @@ int main(int argc, char *argv[])
                  (phase_shift) ? &kCoef : NULL,
                  abcs, sbcs, dbcs,
                  // e_bc_r, e_bc_i,
-                 EReCoef, EImCoef,
+                 // EReCoef, EImCoef,
                  (rod_params_.Size() > 0) ? j_src : NULL, NULL);
 
    // Initialize GLVis visualization
