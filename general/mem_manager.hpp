@@ -393,23 +393,26 @@ private:
    /// Allow to detect if a global memory manager instance exists
    static bool exists;
 
+   /// Return true if the global memory manager instance exists
+   static bool Exists() { return exists; }
+
    // Methods used by class Memory
 
    // Allocate and register a new pointer. Return the host pointer.
    // h_ptr must be already allocated using new T[] if mt is a pure device
    // memory type, e.g. CUDA (mt will not be HOST).
-   static void *New_(void *h_ptr, std::size_t size, MemoryType mt,
+   static void *New_(void *h_ptr, size_t bytes, MemoryType mt,
                      unsigned &flags);
 
-   // Register an external pointer of the given MemoryType. Return the host
-   // pointer.
-   static void *Register_(void *ptr, void *h_ptr, std::size_t capacity,
+   // Register an external pointer of the given MemoryType.
+   // Return the host pointer.
+   static void *Register_(void *ptr, void *h_ptr, size_t bytes,
                           MemoryType mt, bool own, bool alias, unsigned &flags);
 
    // Register an alias. Return the host pointer. Note: base_h_ptr may be an
    // alias.
-   static void Alias_(void *base_h_ptr, std::size_t offset, std::size_t size,
-                      unsigned base_flags, unsigned &flags);
+   static void Alias_(void *base_h_ptr, const size_t offset, const size_t bytes,
+                      const unsigned base_flags, unsigned &flags);
 
    // Un-register and free memory identified by its host pointer. Returns the
    // memory type of the host pointer.
@@ -417,17 +420,17 @@ private:
 
    // Return a pointer to the memory identified by the host pointer h_ptr for
    // access with the given MemoryClass.
-   static void *ReadWrite_(void *h_ptr, MemoryClass mc, std::size_t size,
+   static void *ReadWrite_(void *h_ptr, MemoryClass mc, size_t bytes,
                            unsigned &flags);
 
-   static const void *Read_(void *h_ptr, MemoryClass mc, std::size_t size,
+   static const void *Read_(void *h_ptr, MemoryClass mc, size_t bytes,
                             unsigned &flags);
 
-   static void *Write_(void *h_ptr, MemoryClass mc, std::size_t size,
+   static void *Write_(void *h_ptr, MemoryClass mc, size_t bytes,
                        unsigned &flags);
 
    static void SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
-                          size_t alias_size, unsigned base_flags,
+                          size_t alias_bytes, unsigned base_flags,
                           unsigned &alias_flags);
 
    // Return the type the of the currently valid memory. If more than one types
@@ -436,49 +439,47 @@ private:
 
    // Copy entries from valid memory type to valid memory type. Both dest_h_ptr
    // and src_h_ptr are registered host pointers.
-   static void Copy_(void *dest_h_ptr, const void *src_h_ptr, std::size_t size,
+   static void Copy_(void *dest_h_ptr, const void *src_h_ptr, size_t bytes,
                      unsigned src_flags, unsigned &dest_flags);
 
    // Copy entries from valid memory type to host memory, where dest_h_ptr is
    // not a registered host pointer and src_h_ptr is a registered host pointer.
    static void CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
-                           std::size_t size, unsigned src_flags);
+                           size_t bytes, unsigned src_flags);
 
    // Copy entries from host memory to valid memory type, where dest_h_ptr is a
    // registered host pointer and src_h_ptr is not a registered host pointer.
    static void CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
-                             std::size_t size, unsigned &dest_flags);
+                             size_t bytes, unsigned &dest_flags);
 
    /// Adds an address in the map
-   void *Insert(void *ptr, const std::size_t bytes);
+   void *Insert(void *h_ptr, const size_t bytes);
 
-   void InsertDevice(void *ptr, void *h_ptr, size_t bytes);
+   void InsertDevice(void *d_ptr, void *h_ptr, size_t bytes);
 
    /// Remove the address from the map, as well as all its aliases
-   void *Erase(void *ptr, bool free_dev_ptr = true);
+   void *Erase(void *h_ptr, bool free_dev_ptr = true);
 
-   /// Return the corresponding device pointer of ptr, allocating and moving the
+   /// Return the corresponding device pointer of h_ptr, allocating and moving the
    /// data if needed (used in OccaPtr)
-   void *GetDevicePtr(const void *ptr, size_t bytes, bool copy_data);
+   void *GetDevicePtr(const void *h_ptr, size_t bytes, bool copy_data);
 
-   void InsertAlias(const void *base_ptr, void *alias_ptr, bool base_is_alias);
+   void InsertAlias(const void *base_ptr, void *alias_ptr,
+                    const size_t bytes, const bool base_is_alias);
 
    void EraseAlias(void *alias_ptr);
 
    void *GetAliasDevicePtr(const void *alias_ptr, size_t bytes, bool copy_data);
 
 public:
-   /// Return true if the pointer has been registered
-   bool IsKnown(const void *ptr);
-
-public:
    MemoryManager();
    ~MemoryManager();
 
+   /// Free all the device memories
    void Destroy();
 
-   /// Return true if a global memory manager instance exists
-   static bool Exists() { return exists; }
+   /// Return true if the pointer is known by the memory manager
+   bool IsKnown(const void *ptr);
 
    /// Check if pointer has been registered in the memory manager
    void RegisterCheck(void *ptr);
@@ -499,8 +500,8 @@ inline void Memory<T>::New(int size, MemoryType mt)
    }
    else
    {
-      // Allocate the host pointer with new T[] if 'mt' is a pure device memory
-      // type, e.g. CUDA.
+      // Allocate the host pointer with new T[] if 'mt' is a pure
+      // device memory type, e.g. CUDA.
       T *tmp = (mt == MemoryType::CUDA) ? new T[size] : NULL;
       h_ptr = (T*)MemoryManager::New_(tmp, size*sizeof(T), mt, flags);
       capacity = size;
@@ -623,7 +624,7 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
                                MemoryType::HOST, flags & OWNS_HOST,
                                flags & ALIAS, flags);
    }
-   return (const T *)MemoryManager::Read_(
+   return (const T*)MemoryManager::Read_(
              (void*)h_ptr, mc, size*sizeof(T), flags);
 }
 

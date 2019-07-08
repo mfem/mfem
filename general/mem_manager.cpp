@@ -66,37 +66,33 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
 namespace internal
 {
 
-/// Forward declaration of the Alias structure
-struct Alias;
-
 /// Memory class that holds:
-///   - a boolean telling which memory space is being used
-///   - the size in bytes of this memory region,
 ///   - the host and the device pointer.
+///   - the size in bytes of this memory region,
+///   - a boolean telling which memory space is being used
 ///   - a boolean telling if managed memory is being used
 struct Memory
 {
-   bool host;
-   const std::size_t bytes;
    void *const h_ptr;
    void *d_ptr;
-   bool managed;
+   const size_t bytes;
+   bool host, managed;
    Memory(void* const h, const size_t size):
-      host(true), bytes(size), h_ptr(h), d_ptr(nullptr), managed(false) { }
+      h_ptr(h), d_ptr(nullptr), bytes(size), host(true), managed(false) { }
 };
 
 /// Alias class that holds the base memory region and the offset
 struct Alias
 {
    Memory *const mem;
-   const long offset;
+   const size_t offset, bytes;
    size_t counter;
 };
 
 typedef std::unordered_map<const void*, Memory> MemoryMap;
 typedef std::unordered_map<const void*, Alias> AliasMap;
 
-struct Ledger
+struct Maps
 {
    MemoryMap memories;
    AliasMap aliases;
@@ -104,7 +100,7 @@ struct Ledger
 
 } // namespace mfem::internal
 
-static internal::Ledger *maps;
+static internal::Maps *maps;
 
 namespace internal
 {
@@ -127,7 +123,7 @@ public:
    virtual ~DeviceMemorySpace() { }
    virtual void Alloc(internal::Memory &base, const size_t bytes)
    { base.d_ptr = std::malloc(bytes); }
-   virtual void Dealloc(void *dptr) { std::free(dptr); }
+   virtual void Dealloc(void *d_ptr) { std::free(d_ptr); }
 };
 
 // The copy memory space abstract class
@@ -168,9 +164,9 @@ class Aligned32HostMemorySpace : public HostMemorySpace
 {
 public:
    Aligned32HostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, const std::size_t bytes)
+   void Alloc(void **ptr, const size_t bytes)
    {
-      const std::size_t alignment = 32;
+      const size_t alignment = 32;
       const int returned = posix_memalign(ptr, alignment, bytes);
       if (returned != 0) { throw ::std::bad_alloc(); }
    }
@@ -181,9 +177,9 @@ class Aligned64HostMemorySpace : public HostMemorySpace
 {
 public:
    Aligned64HostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, const std::size_t bytes)
+   void Alloc(void **ptr, const size_t bytes)
    {
-      const std::size_t alignment = 64;
+      const size_t alignment = 64;
       const int returned = posix_memalign(ptr, alignment, bytes);
       if (returned != 0) { throw ::std::bad_alloc(); }
    }
@@ -197,7 +193,7 @@ class ProtectedHostMemorySpace : public HostMemorySpace
    {
       fflush(0);
       char str[64];
-      void *ptr = si->si_addr;
+      const void *ptr = si->si_addr;
       sprintf(str, "Error while accessing address %p!", ptr);
       mfem::out << std::endl << "A illegal memory access was made!";
       MFEM_ABORT(str);
@@ -216,12 +212,13 @@ public:
 #endif
    }
 
-   void Alloc(void **ptr, const std::size_t bytes)
+   void Alloc(void **ptr, const size_t bytes)
    {
 #ifdef _WIN32
       mfem_error("Protected HostAlloc is not available on WIN32.");
 #else
-      const size_t length = bytes > 0 ? bytes : 1;
+      const size_t length = bytes; // > 0 ? bytes : 1;
+      MFEM_VERIFY(length > 0, "Alloc of null-length requested!")
       const int prot = PROT_READ | PROT_WRITE;
       const int flags = MAP_ANONYMOUS | MAP_PRIVATE;
       *ptr = ::mmap(NULL, length, prot, flags, -1, 0);
@@ -238,13 +235,14 @@ public:
 #else
       const internal::Memory &base = maps->memories.at(ptr);
       const size_t bytes = base.bytes;
-      const size_t length = bytes > 0 ? bytes : 1;
+      const size_t length = bytes; // > 0 ? bytes : 1;
+      MFEM_VERIFY(length > 0, "Dealloc of null-length requested!")
       if (::munmap(ptr, length) == -1) { mfem_error("Dealloc error!"); }
 #endif
    }
 
    // Memory may not be accessed.
-   void Protect(const void *ptr, const std::size_t bytes)
+   void Protect(const void *ptr, const size_t bytes)
    {
 #ifndef _WIN32
       if (::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE))
@@ -253,24 +251,23 @@ public:
    }
 
    // Memory may be read and written.
-   void Unprotect(const void *ptr, const std::size_t bytes)
+   void Unprotect(const void *ptr, const size_t bytes)
    {
 #ifndef _WIN32
-      const int returned =
-         ::mprotect(const_cast<void*>(ptr), bytes, PROT_READ | PROT_WRITE);
+      const int RW = PROT_READ | PROT_WRITE;
+      const int returned = ::mprotect(const_cast<void*>(ptr), bytes, RW);
       if (returned != 0) { mfem_error("Unprotect error!"); }
 #endif
    }
 };
 
-/// The 'none' device memory space
-class NoneDeviceMemorySpace: public DeviceMemorySpace
+/// The 'No' device memory space
+class NoDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
-   void Alloc(internal::Memory &base, const std::size_t bytes)
+   void Alloc(internal::Memory &base, const size_t bytes)
    { mfem_error("No Alloc in this memory space"); }
-   void Dealloc(void *ptr)
-   { mfem_error("No Dealloc in this memory space"); }
+   void Dealloc(void *ptr) { mfem_error("No Dealloc in this memory space"); }
 };
 
 /// The std:: device memory space, used with the 'debug' device
@@ -283,8 +280,7 @@ public:
    CudaDeviceMemorySpace(): DeviceMemorySpace() { }
    void Alloc(internal::Memory &base, const size_t bytes)
    { CuMemAlloc(&base.d_ptr, bytes); }
-   void Dealloc(void *dptr)
-   { CuMemFree(dptr); }
+   void Dealloc(void *dptr) { CuMemFree(dptr); }
 };
 
 /// The std:: copy memory space
@@ -307,8 +303,8 @@ class UvmDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
    UvmDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(internal::Memory &base, const std::size_t bytes)
-   { base.d_ptr = base.h_ptr; }
+   void Alloc(internal::Memory &base, const size_t bytes)
+   { base.d_ptr = base.h_ptr; base.managed = true; }
    void Dealloc(void *dptr) { }
 };
 
@@ -335,7 +331,7 @@ public:
       rm(umpire::ResourceManager::getInstance()),
       h_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
                   ("host_pool", rm.getAllocator("HOST"))) { }
-   void Alloc(void **ptr, const std::size_t bytes)
+   void Alloc(void **ptr, const size_t bytes)
    { *ptr = h_allocator.allocate(bytes); }
    void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
 };
@@ -351,7 +347,7 @@ public:
       rm(umpire::ResourceManager::getInstance()),
       d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
                   ("device_pool",rm.getAllocator("DEVICE"))) { }
-   void Alloc(internal::Memory &base, const std::size_t bytes)
+   void Alloc(internal::Memory &base, const size_t bytes)
    { base.d_ptr = d_allocator.allocate(bytes); }
    void Dealloc(void *dptr)
    { d_allocator.deallocate(dptr); }
@@ -389,44 +385,60 @@ public:
    internal::DeviceMemorySpace *device;
    internal::CopyMemorySpace *memcpy;
 public:
-   Controller(const MemoryType h = MemoryType::HOST,
-              const MemoryType d = MemoryType::CUDA)
+   Controller(const MemoryType h, const MemoryType d)
       : host(nullptr), device(nullptr), memcpy(nullptr)
    {
 #ifndef MFEM_USE_UMPIRE
-      const bool h_uvm = h == MemoryType::CUDA_UVM;
-      const bool d_uvm = d == MemoryType::CUDA_UVM;
-      if (h_uvm != d_uvm) { mfem_error("Host != device with UVM memory!"); }
-      //const bool uvm = h_uvm && d_uvm;
-      if (h == MemoryType::HOST_32)
-      { mfem_error("ALIGNED mode is not yet supported!"); }
-      host = new internal::ProtectedHostMemorySpace();
-      device = new internal::StdDeviceMemorySpace();
-      memcpy = new internal::StdCopyMemorySpace();
-      /*
-      const bool debug = false; // MfemDebug();
-      const bool use_cuda = false; // UsingCUDA();
-      const bool use_mm = true; // MemoryManager::UsingMM();
-      const bool mem_cuda = d == MemoryType::CUDA;
-      const bool mem_debug = d == MemoryType::HOST_MMU;
-      // HostMemorySpace setup
-      if (uvm) { host = new internal::UvmHostMemorySpace(); }
-      else if ((use_cuda && debug) || (!use_cuda && use_mm))
-      { host = new internal::ProtectedHostMemorySpace(); }
-      else { host = new internal::StdHostMemorySpace(); }
-      // DeviceMemorySpace setup
-      if (uvm) { device = new internal::UvmDeviceMemorySpace(); }
-      else if (use_cuda && mem_cuda)
-      { device = new internal::CudaDeviceMemorySpace(); }
-      else if ((use_cuda && mem_debug) || (use_mm && mem_debug) || debug)
-      { device = new internal::StdDeviceMemorySpace(); }
-      else { device = new internal::NoneDeviceMemorySpace(); }
-      // CopyMemorySpace setup
-      if (uvm) { memcpy = new internal::UvmCopyMemorySpace(); }
-      else if (use_cuda && mem_cuda)
-      { memcpy = new internal::CudaCopyMemorySpace(); }
-      else { memcpy = new internal::StdCopyMemorySpace(); }
-      */
+      switch (h)
+      {
+         case MemoryType::HOST:
+         {
+            host = new internal::StdHostMemorySpace();
+            device = new internal::NoDeviceMemorySpace();
+            memcpy = new internal::StdCopyMemorySpace();
+            break;
+         }
+         case MemoryType::HOST_32:
+         {
+            host = new internal::Aligned32HostMemorySpace();
+            device = new internal::NoDeviceMemorySpace();
+            memcpy = new internal::StdCopyMemorySpace();
+            break;
+         }
+         case MemoryType::HOST_64:
+         {
+            host = new internal::Aligned64HostMemorySpace();
+            device = new internal::NoDeviceMemorySpace();
+            memcpy = new internal::StdCopyMemorySpace();
+            break;
+         }
+         case MemoryType::HOST_MMU:
+         {
+            host = new internal::ProtectedHostMemorySpace();
+            device = new internal::NoDeviceMemorySpace();
+            memcpy = new internal::StdCopyMemorySpace();
+            break;
+         }
+         default:mfem_error("Unknown host memory type!");
+      }
+      switch (d)
+      {
+         case MemoryType::CUDA:
+         {
+            host = new internal::ProtectedHostMemorySpace();
+            device = new internal::NoDeviceMemorySpace();
+            memcpy = new internal::StdCopyMemorySpace();
+            break;
+         }
+         case MemoryType::CUDA_UVM:
+         {
+            host = new internal::UvmHostMemorySpace();
+            device = new internal::UvmDeviceMemorySpace();
+            memcpy = new internal::UvmCopyMemorySpace();
+            break;
+         }
+         default:mfem_error("Unknown device memory type!");
+      }
 #else
       host =   new internal::UmpireHostMemorySpace();
       device = new internal::UmpireDeviceMemorySpace();
@@ -448,8 +460,9 @@ static internal::Controller *ctrl;
 MemoryManager::MemoryManager()
 {
    exists = true;
-   maps = new internal::Ledger();
-   ctrl = new internal::Controller();
+   maps = new internal::Maps();
+   ctrl = new internal::Controller(MemoryType::HOST,
+                                   MemoryType::HOST_MMU);
 }
 
 MemoryManager::~MemoryManager() { if (exists) { Destroy(); } }
@@ -462,33 +475,11 @@ void MemoryManager::Destroy()
       internal::Memory &mem = n.second;
       if (mem.d_ptr) { CuMemFree(mem.d_ptr); }
    }
-   //for (auto& n : maps->aliases) { delete n.second; }
    delete maps;
    delete ctrl;
    exists = false;
 }
 
-/*void *MemoryManager::New(void **ptr, const std::size_t bytes)
-{ ctrl->host->Alloc(ptr, bytes); return *ptr; }
-
-void MemoryManager::Delete(void *ptr)
-{ ctrl->host->Dealloc(ptr); }
-
-void MemoryManager::MemEnable(const void *ptr, const std::size_t bytes)
-{ ctrl->host->Unprotect(ptr, bytes); }
-
-// Function to set the host and device memory types
-void MemoryManager::SetMemoryTypes(const Memory::Type h, const Memory::Type d)
-{
-#ifndef MFEM_USE_UMPIRE
-   delete ctrl;
-   ctrl = new MemorySpaceController(h, d);
-#else
-   if (h == mfem::Memory::UNIFIED)
-   { mfem_error("Umpire cannot switch to UVM!"); }
-#endif // MFEM_USE_UMPIRE
-}
-*/
 void* MemoryManager::Insert(void *h_ptr, size_t bytes)
 {
    if (h_ptr == NULL)
@@ -506,19 +497,6 @@ void* MemoryManager::Insert(void *h_ptr, size_t bytes)
 
 void MemoryManager::InsertDevice(void *d_ptr, void *h_ptr, size_t bytes)
 {
-   /* HEAD
-      if (!UsingMM()) { return ptr; }
-      if (!ptr) { return ptr; }
-      const bool known = IsKnown(ptr);
-      if (!known) { mfem_error("Trying to erase an unknown pointer!"); }
-      internal::Memory &mem = maps->memories.at(ptr);
-      if (mem.d_ptr) { ctrl->device->Dealloc(mem.d_ptr); }
-      for (const void *alias : mem.aliases)
-      { maps->aliases.erase(maps->aliases.find(alias)); }
-      mem.aliases.clear();
-      maps->memories.erase(maps->memories.find(ptr));
-      return ptr;
-   */
    MFEM_VERIFY(d_ptr != NULL, "cannot register NULL device pointer");
    MFEM_VERIFY(h_ptr != NULL, "internal error");
    auto res = maps->memories.emplace(h_ptr, internal::Memory(h_ptr, bytes));
@@ -571,10 +549,10 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
 }
 
 void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
-                                bool base_is_alias)
+                                const size_t bytes, const bool base_is_alias)
 {
-   long offset = static_cast<const char*>(alias_ptr) -
-                 static_cast<const char*>(base_ptr);
+   size_t offset = static_cast<const char*>(alias_ptr) -
+                   static_cast<const char*>(base_ptr);
    if (!base_ptr)
    {
       MFEM_VERIFY(offset == 0,
@@ -588,8 +566,8 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
       offset += alias.offset;
    }
    internal::Memory &mem = maps->memories.at(base_ptr);
-   //auto res = maps->aliases.emplace(alias_ptr, nullptr);
-   auto res = maps->aliases.emplace(alias_ptr, internal::Alias{&mem, offset, 1});
+   auto res = maps->aliases.emplace(alias_ptr,
+                                    internal::Alias{&mem, offset, bytes, 1});
    if (res.second == false) // alias_ptr was already in the map
    {
       if (res.first->second.mem != &mem || res.first->second.offset != offset)
@@ -600,11 +578,6 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
       {
          res.first->second.counter++;
       }
-   }
-   else
-   {
-      // the alias has been inserted
-      // res.first->second = new internal::Alias{&mem, offset, 1};
    }
 }
 
@@ -620,7 +593,6 @@ void MemoryManager::EraseAlias(void *alias_ptr)
    if (--alias.counter) { return; }
    // erase the alias from the alias map:
    maps->aliases.erase(alias_map_iter);
-   //delete alias;
 }
 
 void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
@@ -642,16 +614,13 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    internal::Memory &base = *alias.mem;
    MFEM_ASSERT((char*)base.h_ptr + offset == alias_ptr,
                "internal error");
-   if (!base.d_ptr)
-   {
-      CuMemAlloc(&base.d_ptr, base.bytes);
-   }
+   if (!base.d_ptr) { CuMemAlloc(&base.d_ptr, base.bytes); }
    if (copy_data)
    {
       CuMemcpyHtoD((char*)base.d_ptr + offset, alias_ptr, bytes);
       base.host = false;
    }
-   return (char*)base.d_ptr + offset;
+   return (char*) base.d_ptr + offset;
 }
 
 bool MemoryManager::IsKnown(const void *ptr)
@@ -659,37 +628,6 @@ bool MemoryManager::IsKnown(const void *ptr)
    return maps->memories.find(ptr) != maps->memories.end();
 }
 
-static void PullKnown(internal::Ledger *maps,
-                      const void *ptr, const std::size_t bytes, bool copy_data)
-{
-   internal::Memory &base = maps->memories.at(ptr);
-   MFEM_ASSERT(base.h_ptr == ptr, "internal error");
-   // There are cases where it is OK if base.d_ptr is not allocated yet:
-   // for example, when requesting read-write access on host to memory created
-   // as device memory.
-   if (copy_data && base.d_ptr)
-   {
-      CuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes);
-      base.host = true;
-   }
-}
-
-static void PullAlias(const internal::Ledger *maps,
-                      const void *ptr, const std::size_t bytes, bool copy_data)
-{
-   const internal::Alias &alias = maps->aliases.at(ptr);
-   MFEM_ASSERT((char*)alias.mem->h_ptr + alias.offset == ptr,
-               "internal error");
-   // There are cases where it is OK if alias->mem->d_ptr is not allocated yet:
-   // for example, when requesting read-write access on host to memory created
-   // as device memory.
-   if (copy_data && alias.mem->d_ptr)
-   {
-      CuMemcpyDtoH(const_cast<void*>(ptr),
-                   static_cast<char*>(alias.mem->d_ptr) + alias.offset,
-                   bytes);
-   }
-}
 
 void MemoryManager::RegisterCheck(void *ptr)
 {
@@ -718,14 +656,36 @@ void MemoryManager::PrintPtrs(void)
 
 // Static private MemoryManager methods used by class Memory
 
-void *MemoryManager::New_(void *h_ptr, std::size_t size, MemoryType mt,
+/*void *MemoryManager::New(void **ptr, const size_t bytes)
+{ ctrl->host->Alloc(ptr, bytes); return *ptr; }
+
+void MemoryManager::Delete(void *ptr)
+{ ctrl->host->Dealloc(ptr); }
+
+void MemoryManager::MemEnable(const void *ptr, const size_t bytes)
+{ ctrl->host->Unprotect(ptr, bytes); }
+
+// Function to set the host and device memory types
+void MemoryManager::SetMemoryTypes(const Memory::Type h, const Memory::Type d)
+{
+#ifndef MFEM_USE_UMPIRE
+   delete ctrl;
+   ctrl = new MemorySpaceController(h, d);
+#else
+   if (h == mfem::Memory::UNIFIED)
+   { mfem_error("Umpire cannot switch to UVM!"); }
+#endif // MFEM_USE_UMPIRE
+}
+*/
+
+void *MemoryManager::New_(void *h_ptr, size_t bytes, MemoryType mt,
                           unsigned &flags)
 {
    // TODO: save the types of the pointers ...
    flags = Mem::REGISTERED | Mem::OWNS_INTERNAL;
    switch (mt)
    {
-      case MemoryType::HOST: return nullptr; // case is handled outside
+      case MemoryType::HOST: return nullptr; // case is handled before
 
       case MemoryType::HOST_32:
       case MemoryType::HOST_64:
@@ -737,7 +697,7 @@ void *MemoryManager::New_(void *h_ptr, std::size_t size, MemoryType mt,
          return nullptr;
 
       case MemoryType::CUDA:
-         mm.Insert(h_ptr, size);
+         mm.Insert(h_ptr, bytes);
          flags = flags | Mem::OWNS_HOST | Mem::OWNS_DEVICE | Mem::VALID_DEVICE;
          return h_ptr;
 
@@ -748,7 +708,7 @@ void *MemoryManager::New_(void *h_ptr, std::size_t size, MemoryType mt,
    return nullptr;
 }
 
-void *MemoryManager::Register_(void *ptr, void *h_ptr, std::size_t capacity,
+void *MemoryManager::Register_(void *ptr, void *h_ptr, size_t bytes,
                                MemoryType mt, bool own, bool alias,
                                unsigned &flags)
 {
@@ -757,24 +717,23 @@ void *MemoryManager::Register_(void *ptr, void *h_ptr, std::size_t capacity,
    flags = flags | (Mem::REGISTERED | Mem::OWNS_INTERNAL);
    if (IsHostMemory(mt))
    {
-      mm.Insert(ptr, capacity);
+      mm.Insert(ptr, bytes);
       flags = (own ? flags | Mem::OWNS_HOST : flags & ~Mem::OWNS_HOST) |
               Mem::OWNS_DEVICE | Mem::VALID_HOST;
       return ptr;
    }
    MFEM_VERIFY(mt == MemoryType::CUDA, "Only CUDA pointers are supported");
-   mm.InsertDevice(ptr, h_ptr, capacity);
+   mm.InsertDevice(ptr, h_ptr, bytes);
    flags = (own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE) |
            Mem::OWNS_HOST | Mem::VALID_DEVICE;
    return h_ptr;
 }
 
-void MemoryManager::Alias_(void *base_h_ptr, std::size_t offset,
-                           std::size_t size, unsigned base_flags,
+void MemoryManager::Alias_(void *base_h_ptr, const size_t offset,
+                           const size_t bytes, const unsigned base_flags,
                            unsigned &flags)
 {
-   // TODO: store the 'size' in the MemoryManager?
-   mm.InsertAlias(base_h_ptr, (char*)base_h_ptr + offset,
+   mm.InsertAlias(base_h_ptr, (char*)base_h_ptr + offset, bytes,
                   base_flags & Mem::ALIAS);
    flags = (base_flags | Mem::ALIAS | Mem::OWNS_INTERNAL) &
            ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
@@ -801,16 +760,48 @@ MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
    return MemoryType::HOST;
 }
 
+static void PullKnown(internal::Maps *maps, const void *ptr,
+                      const size_t bytes, bool copy_data)
+{
+   internal::Memory &base = maps->memories.at(ptr);
+   MFEM_ASSERT(base.h_ptr == ptr, "internal error");
+   // There are cases where it is OK if base.d_ptr is not allocated yet:
+   // for example, when requesting read-write access on host to memory created
+   // as device memory.
+   if (copy_data && base.d_ptr)
+   {
+      CuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes);
+      base.host = true;
+   }
+}
+
+static void PullAlias(const internal::Maps *maps, const void *ptr,
+                      const size_t bytes, bool copy_data)
+{
+   const internal::Alias &alias = maps->aliases.at(ptr);
+   MFEM_ASSERT((char*)alias.mem->h_ptr + alias.offset == ptr,
+               "internal error");
+   // There are cases where it is OK if alias->mem->d_ptr is not allocated yet:
+   // for example, when requesting read-write access on host to memory created
+   // as device memory.
+   if (copy_data && alias.mem->d_ptr)
+   {
+      CuMemcpyDtoH(const_cast<void*>(ptr),
+                   static_cast<char*>(alias.mem->d_ptr) + alias.offset,
+                   bytes);
+   }
+}
+
 void *MemoryManager::ReadWrite_(void *h_ptr, MemoryClass mc,
-                                std::size_t size, unsigned &flags)
+                                size_t bytes, unsigned &flags)
 {
    switch (mc)
    {
       case MemoryClass::HOST:
          if (!(flags & Mem::VALID_HOST))
          {
-            if (flags & Mem::ALIAS) { PullAlias(maps, h_ptr, size, true); }
-            else { PullKnown(maps, h_ptr, size, true); }
+            if (flags & Mem::ALIAS) { PullAlias(maps, h_ptr, bytes, true); }
+            else { PullKnown(maps, h_ptr, bytes, true); }
          }
          flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
          return h_ptr;
@@ -839,9 +830,9 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryClass mc,
          // TODO: add support for UVM
          if (flags & Mem::ALIAS)
          {
-            return mm.GetAliasDevicePtr(h_ptr, size, need_copy);
+            return mm.GetAliasDevicePtr(h_ptr, bytes, need_copy);
          }
-         return mm.GetDevicePtr(h_ptr, size, need_copy);
+         return mm.GetDevicePtr(h_ptr, bytes, need_copy);
       }
 
       case MemoryClass::CUDA_UVM:
@@ -855,15 +846,15 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryClass mc,
 }
 
 const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
-                                 std::size_t size, unsigned &flags)
+                                 size_t bytes, unsigned &flags)
 {
    switch (mc)
    {
       case MemoryClass::HOST:
          if (!(flags & Mem::VALID_HOST))
          {
-            if (flags & Mem::ALIAS) { PullAlias(maps, h_ptr, size, true); }
-            else { PullKnown(maps, h_ptr, size, true); }
+            if (flags & Mem::ALIAS) { PullAlias(maps, h_ptr, bytes, true); }
+            else { PullKnown(maps, h_ptr, bytes, true); }
          }
          flags = flags | Mem::VALID_HOST;
          return h_ptr;
@@ -892,9 +883,9 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
          // TODO: add support for UVM
          if (flags & Mem::ALIAS)
          {
-            return mm.GetAliasDevicePtr(h_ptr, size, need_copy);
+            return mm.GetAliasDevicePtr(h_ptr, bytes, need_copy);
          }
-         return mm.GetDevicePtr(h_ptr, size, need_copy);
+         return mm.GetDevicePtr(h_ptr, bytes, need_copy);
       }
 
       case MemoryClass::CUDA_UVM:
@@ -907,7 +898,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
    return nullptr;
 }
 
-void *MemoryManager::Write_(void *h_ptr, MemoryClass mc, std::size_t size,
+void *MemoryManager::Write_(void *h_ptr, MemoryClass mc, size_t bytes,
                             unsigned &flags)
 {
    switch (mc)
@@ -942,9 +933,9 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc, std::size_t size,
          // TODO: add support for UVM
          if (flags & Mem::ALIAS)
          {
-            return mm.GetAliasDevicePtr(h_ptr, size, false);
+            return mm.GetAliasDevicePtr(h_ptr, bytes, false);
          }
-         return mm.GetDevicePtr(h_ptr, size, false);
+         return mm.GetDevicePtr(h_ptr, bytes, false);
 
       case MemoryClass::CUDA_UVM:
          // TODO: check that the host+device pointers are MemoryType::CUDA_UVM
@@ -957,7 +948,7 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc, std::size_t size,
 }
 
 void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
-                               size_t alias_size, unsigned base_flags,
+                               size_t alias_bytes, unsigned base_flags,
                                unsigned &alias_flags)
 {
    // This is called only when (base_flags & Mem::REGISTERED) is true.
@@ -965,17 +956,17 @@ void MemoryManager::SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
    MFEM_ASSERT(alias_flags & Mem::ALIAS, "not an alias");
    if ((base_flags & Mem::VALID_HOST) && !(alias_flags & Mem::VALID_HOST))
    {
-      PullAlias(maps, alias_h_ptr, alias_size, true);
+      PullAlias(maps, alias_h_ptr, alias_bytes, true);
    }
    if ((base_flags & Mem::VALID_DEVICE) && !(alias_flags & Mem::VALID_DEVICE))
    {
       if (!(alias_flags & Mem::REGISTERED))
       {
-         mm.InsertAlias(base_h_ptr, alias_h_ptr, base_flags & Mem::ALIAS);
+         mm.InsertAlias(base_h_ptr, alias_h_ptr, alias_bytes, base_flags & Mem::ALIAS);
          alias_flags = (alias_flags | Mem::REGISTERED | Mem::OWNS_INTERNAL) &
                        ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE);
       }
-      mm.GetAliasDevicePtr(alias_h_ptr, alias_size, true);
+      mm.GetAliasDevicePtr(alias_h_ptr, alias_bytes, true);
    }
    alias_flags = (alias_flags & ~(Mem::VALID_HOST | Mem::VALID_DEVICE)) |
                  (base_flags & (Mem::VALID_HOST | Mem::VALID_DEVICE));
@@ -989,7 +980,7 @@ MemoryType MemoryManager::GetMemoryType_(void *h_ptr, unsigned flags)
 }
 
 void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
-                          std::size_t size, unsigned src_flags,
+                          size_t bytes, unsigned src_flags,
                           unsigned &dst_flags)
 {
    // Type of copy to use based on the src and dest validity flags:
@@ -1010,37 +1001,37 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
        ((src_flags & Mem::VALID_HOST) && !(src_flags & Mem::VALID_DEVICE)));
    const void *src_d_ptr = src_on_host ? NULL :
                            ((src_flags & Mem::ALIAS) ?
-                            mm.GetAliasDevicePtr(src_h_ptr, size, false) :
-                            mm.GetDevicePtr(src_h_ptr, size, false));
+                            mm.GetAliasDevicePtr(src_h_ptr, bytes, false) :
+                            mm.GetDevicePtr(src_h_ptr, bytes, false));
    if (dst_on_host)
    {
       if (src_on_host)
       {
-         if (dst_h_ptr != src_h_ptr && size != 0)
+         if (dst_h_ptr != src_h_ptr && bytes != 0)
          {
-            MFEM_ASSERT((const char*)dst_h_ptr + size <= src_h_ptr ||
-                        (const char*)src_h_ptr + size <= dst_h_ptr,
+            MFEM_ASSERT((const char*)dst_h_ptr + bytes <= src_h_ptr ||
+                        (const char*)src_h_ptr + bytes <= dst_h_ptr,
                         "data overlaps!");
-            std::memcpy(dst_h_ptr, src_h_ptr, size);
+            std::memcpy(dst_h_ptr, src_h_ptr, bytes);
          }
       }
       else
       {
-         CuMemcpyDtoH(dst_h_ptr, src_d_ptr, size);
+         CuMemcpyDtoH(dst_h_ptr, src_d_ptr, bytes);
       }
    }
    else
    {
       void *dest_d_ptr = (dst_flags & Mem::ALIAS) ?
-                         mm.GetAliasDevicePtr(dst_h_ptr, size, false) :
-                         mm.GetDevicePtr(dst_h_ptr, size, false);
+                         mm.GetAliasDevicePtr(dst_h_ptr, bytes, false) :
+                         mm.GetDevicePtr(dst_h_ptr, bytes, false);
       if (src_on_host)
       {
-         CuMemcpyHtoD(dest_d_ptr, src_h_ptr, size);
+         CuMemcpyHtoD(dest_d_ptr, src_h_ptr, bytes);
       }
       else
       {
-         CuMemcpyDtoD(dest_d_ptr, src_d_ptr, size);
+         CuMemcpyDtoD(dest_d_ptr, src_d_ptr, bytes);
       }
    }
    dst_flags = dst_flags &
@@ -1048,48 +1039,48 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
 }
 
 void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
-                                std::size_t size, unsigned src_flags)
+                                size_t bytes, unsigned src_flags)
 {
    const bool src_on_host = src_flags & Mem::VALID_HOST;
    if (src_on_host)
    {
-      if (dest_h_ptr != src_h_ptr && size != 0)
+      if (dest_h_ptr != src_h_ptr && bytes != 0)
       {
-         MFEM_ASSERT((char*)dest_h_ptr + size <= src_h_ptr ||
-                     (const char*)src_h_ptr + size <= dest_h_ptr,
+         MFEM_ASSERT((char*)dest_h_ptr + bytes <= src_h_ptr ||
+                     (const char*)src_h_ptr + bytes <= dest_h_ptr,
                      "data overlaps!");
-         std::memcpy(dest_h_ptr, src_h_ptr, size);
+         std::memcpy(dest_h_ptr, src_h_ptr, bytes);
       }
    }
    else
    {
       const void *src_d_ptr = (src_flags & Mem::ALIAS) ?
-                              mm.GetAliasDevicePtr(src_h_ptr, size, false) :
-                              mm.GetDevicePtr(src_h_ptr, size, false);
-      CuMemcpyDtoH(dest_h_ptr, src_d_ptr, size);
+                              mm.GetAliasDevicePtr(src_h_ptr, bytes, false) :
+                              mm.GetDevicePtr(src_h_ptr, bytes, false);
+      CuMemcpyDtoH(dest_h_ptr, src_d_ptr, bytes);
    }
 }
 
 void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
-                                  std::size_t size, unsigned &dest_flags)
+                                  size_t bytes, unsigned &dest_flags)
 {
    const bool dest_on_host = dest_flags & Mem::VALID_HOST;
    if (dest_on_host)
    {
-      if (dest_h_ptr != src_h_ptr && size != 0)
+      if (dest_h_ptr != src_h_ptr && bytes != 0)
       {
-         MFEM_ASSERT((char*)dest_h_ptr + size <= src_h_ptr ||
-                     (const char*)src_h_ptr + size <= dest_h_ptr,
+         MFEM_ASSERT((char*)dest_h_ptr + bytes <= src_h_ptr ||
+                     (const char*)src_h_ptr + bytes <= dest_h_ptr,
                      "data overlaps!");
-         std::memcpy(dest_h_ptr, src_h_ptr, size);
+         std::memcpy(dest_h_ptr, src_h_ptr, bytes);
       }
    }
    else
    {
       void *dest_d_ptr = (dest_flags & Mem::ALIAS) ?
-                         mm.GetAliasDevicePtr(dest_h_ptr, size, false) :
-                         mm.GetDevicePtr(dest_h_ptr, size, false);
-      CuMemcpyHtoD(dest_d_ptr, src_h_ptr, size);
+                         mm.GetAliasDevicePtr(dest_h_ptr, bytes, false) :
+                         mm.GetDevicePtr(dest_h_ptr, bytes, false);
+      CuMemcpyHtoD(dest_d_ptr, src_h_ptr, bytes);
    }
    dest_flags = dest_flags &
                 ~(dest_on_host ? Mem::VALID_DEVICE : Mem::VALID_HOST);
