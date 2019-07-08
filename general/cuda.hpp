@@ -24,8 +24,8 @@
 #define MFEM_CUDA_BLOCKS 256
 
 #ifdef MFEM_USE_CUDA
-#define MFEM_ATTR_DEVICE __device__
-#define MFEM_ATTR_HOST_DEVICE __host__ __device__
+#define MFEM_DEVICE __device__
+#define MFEM_HOST_DEVICE __host__ __device__
 // Define a CUDA error check macro, MFEM_CUDA_CHECK(x), where x returns/is of
 // type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
 // result is not cudaSuccess.
@@ -39,11 +39,26 @@
       } \
    } \
    while (0)
-#else // MFEM_USE_CUDA
-#define MFEM_CUDA_CHECK(x)
-#define MFEM_ATTR_DEVICE
-#define MFEM_ATTR_HOST_DEVICE
+#else
+#define MFEM_DEVICE
+#define MFEM_HOST_DEVICE
 #endif // MFEM_USE_CUDA
+
+// Define the MFEM inner threading macros
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
+#define MFEM_SHARED __shared__
+#define MFEM_SYNC_THREAD __syncthreads()
+#define MFEM_THREAD_ID(k) threadIdx.k
+#define MFEM_THREAD_SIZE(k) blockDim.k
+#define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
+#else
+#define MFEM_SHARED
+#define MFEM_SYNC_THREAD
+#define MFEM_THREAD_ID(k) 0
+#define MFEM_THREAD_SIZE(k) 1
+#define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
+#endif
+
 
 namespace mfem
 {
@@ -54,18 +69,34 @@ void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line);
 #endif
 
-// Function to setup the CUDA device and get the number of GPU
-void CudaDeviceSetup(const int dev, int &ngpu);
+/// Allocates device memory
+void* CuMemAlloc(void **d_ptr, size_t bytes);
 
-/// Return true if CUDA is used
-static inline bool UsingCUDA()
-{
-#ifdef MFEM_USE_CUDA
-   return true;
-#else
-   return false;
-#endif
-}
+/// Allocates managed device memory
+void* CuMallocManaged(void **d_ptr, size_t bytes);
+
+/// Frees device memory
+void* CuMemFree(void *d_ptr);
+
+/// Copies memory from Host to Device
+void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
+
+/// Copies memory from Host to Device
+void* CuMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
+
+/// Copies memory from Device to Device
+void* CuMemcpyDtoD(void *d_dst, const void *d_src, size_t bytes);
+
+/// Copies memory from Device to Device
+void* CuMemcpyDtoDAsync(void *d_dst, const void *d_src, size_t bytes);
+
+/// Copies memory from Device to Host
+void* CuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
+
+/// Copies memory from Device to Host
+void* CuMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
+
+void CuGetLastError();
 
 } // namespace mfem
 

@@ -36,16 +36,18 @@ const Operator *BilinearFormExtension::GetRestriction() const
 
 
 // Data and methods for partially-assembled bilinear forms
-PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
-   BilinearFormExtension(form),
-   trialFes(a->FESpace()), testFes(a->FESpace()),
-   localX(trialFes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
-   localY( testFes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   elem_restrict(new ElemRestriction(*a->FESpace())) { }
-
-PABilinearFormExtension::~PABilinearFormExtension()
+PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
+   : BilinearFormExtension(form),
+     trialFes(a->FESpace()), testFes(a->FESpace())
 {
-   delete elem_restrict;
+   elem_restrict_lex = trialFes->GetElementRestriction(
+                          ElementDofOrdering::LEXICOGRAPHIC);
+   if (elem_restrict_lex)
+   {
+      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+   }
 }
 
 void PABilinearFormExtension::Assemble()
@@ -54,7 +56,7 @@ void PABilinearFormExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->Assemble(*a->FESpace());
+      integrators[i]->AssemblePA(*a->FESpace());
    }
 }
 
@@ -64,12 +66,13 @@ void PABilinearFormExtension::Update()
    height = width = fes->GetVSize();
    trialFes = fes;
    testFes = fes;
-   localX.SetSize(trialFes->GetNE() * trialFes->GetFE(0)->GetDof() *
-                  trialFes->GetVDim());
-   localY.SetSize(testFes->GetNE() * testFes->GetFE(0)->GetDof() *
-                  testFes->GetVDim());
-   delete elem_restrict;
-   elem_restrict = new ElemRestriction(*fes);
+   elem_restrict_lex = trialFes->GetElementRestriction(
+                          ElementDofOrdering::LEXICOGRAPHIC);
+   if (elem_restrict_lex)
+   {
+      localX.SetSize(elem_restrict_lex->Height());
+      localY.SetSize(elem_restrict_lex->Height());
+   }
 }
 
 void PABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
@@ -97,140 +100,52 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-   elem_restrict->Mult(x, localX);
-   localY = 0.0;
+
    const int iSz = integrators.Size();
-   for (int i = 0; i < iSz; ++i)
+   if (elem_restrict_lex)
    {
-      integrators[i]->MultAssembled(localX, localY);
+      elem_restrict_lex->Mult(x, localX);
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultPA(localX, localY);
+      }
+      elem_restrict_lex->MultTranspose(localY, y);
    }
-   elem_restrict->MultTranspose(localY, y);
+   else
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultPA(x, y);
+      }
+   }
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-   elem_restrict->Mult(x, localX);
-   localY = 0.0;
    const int iSz = integrators.Size();
-   for (int i = 0; i < iSz; ++i)
+   if (elem_restrict_lex)
    {
-      integrators[i]->MultAssembledTranspose(localX, localY);
-   }
-   elem_restrict->MultTranspose(localY, y);
-}
-
-
-ElemRestriction::ElemRestriction(const FiniteElementSpace &f)
-   : fes(f),
-     ne(fes.GetNE()),
-     vdim(fes.GetVDim()),
-     byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     ndofs(fes.GetNDofs()),
-     dof(fes.GetFE(0)->GetDof()),
-     nedofs(ne*dof),
-     offsets(ndofs+1),
-     indices(ne*dof)
-{
-   for (int e = 0; e < ne; ++e)
-   {
-      const FiniteElement *fe = fes.GetFE(e);
-      const TensorBasisElement* el =
-         dynamic_cast<const TensorBasisElement*>(fe);
-      if (el) { continue; }
-      mfem_error("Finite element not supported with partial assembly");
-   }
-   const FiniteElement *fe = fes.GetFE(0);
-   const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
-   const Array<int> &dof_map = el->GetDofMap();
-   const bool dof_map_is_identity = (dof_map.Size()==0);
-   const Table& e2dTable = fes.GetElementToDofTable();
-   const int* elementMap = e2dTable.GetJ();
-   // We'll be keeping a count of how many local nodes point to its global dof
-   for (int i = 0; i <= ndofs; ++i)
-   {
-      offsets[i] = 0;
-   }
-   for (int e = 0; e < ne; ++e)
-   {
-      for (int d = 0; d < dof; ++d)
+      elem_restrict_lex->Mult(x, localX);
+      localY = 0.0;
+      for (int i = 0; i < iSz; ++i)
       {
-         const int gid = elementMap[dof*e + d];
-         ++offsets[gid + 1];
+         integrators[i]->AddMultTransposePA(localX, localY);
+      }
+      elem_restrict_lex->MultTranspose(localY, y);
+   }
+   else
+   {
+      y.UseDevice(true);
+      y = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         integrators[i]->AddMultTransposePA(x, y);
       }
    }
-   // Aggregate to find offsets for each global dof
-   for (int i = 1; i <= ndofs; ++i)
-   {
-      offsets[i] += offsets[i - 1];
-   }
-   // For each global dof, fill in all local nodes that point   to it
-   for (int e = 0; e < ne; ++e)
-   {
-      for (int d = 0; d < dof; ++d)
-      {
-         const int did = dof_map_is_identity?d:dof_map[d];
-         const int gid = elementMap[dof*e + did];
-         const int lid = dof*e + d;
-         indices[offsets[gid]++] = lid;
-      }
-   }
-   // We shifted the offsets vector by 1 by using it as a counter
-   // Now we shift it back.
-   for (int i = ndofs; i > 0; --i)
-   {
-      offsets[i] = offsets[i - 1];
-   }
-   offsets[0] = 0;
-}
-
-void ElemRestriction::Mult(const Vector& x, Vector& y) const
-{
-   const int vd = vdim;
-   const bool t = byvdim;
-   const DeviceArray d_offsets(offsets, ndofs+1);
-   const DeviceArray d_indices(indices, nedofs);
-   const DeviceMatrix d_x(x, t?vd:ndofs, t?ndofs:vd);
-   DeviceMatrix d_y(y, t?vd:nedofs, t?nedofs:vd);
-   MFEM_FORALL(i, ndofs,
-   {
-      const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i+1];
-      for (int c = 0; c < vd; ++c)
-      {
-         const double dofValue = d_x(t?c:i,t?i:c);
-         for (int j = offset; j < nextOffset; ++j)
-         {
-            const int idx_j = d_indices[j];
-            d_y(t?c:idx_j,t?idx_j:c) = dofValue;
-         }
-      }
-   });
-}
-
-void ElemRestriction::MultTranspose(const Vector& x, Vector& y) const
-{
-   const int vd = vdim;
-   const bool t = byvdim;
-   const DeviceArray d_offsets(offsets, ndofs+1);
-   const DeviceArray d_indices(indices, nedofs);
-   const DeviceMatrix d_x(x, t?vd:nedofs, t?nedofs:vd);
-   DeviceMatrix d_y(y, t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
-   {
-      const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i + 1];
-      for (int c = 0; c < vd; ++c)
-      {
-         double dofValue = 0;
-         for (int j = offset; j < nextOffset; ++j)
-         {
-            const int idx_j = d_indices[j];
-            dofValue +=  d_x(t?c:idx_j,t?idx_j:c);
-         }
-         d_y(t?c:i,t?i:c) = dofValue;
-      }
-   });
 }
 
 } // namespace mfem
