@@ -29,7 +29,7 @@ enum class MemoryType
    HOST,      ///< Host memory; using new[] and delete[]
    HOST_32,   ///< Host memory aligned at 32 bytes (not supported yet)
    HOST_64,   ///< Host memory aligned at 64 bytes (not supported yet)
-   HOST_MMU,  ///< Host memory in protected mode
+   HOST_MMU,  ///< Host memory with protection control
    CUDA,      ///< cudaMalloc, cudaFree
    CUDA_UVM   ///< cudaMallocManaged, cudaFree (not supported yet)
 };
