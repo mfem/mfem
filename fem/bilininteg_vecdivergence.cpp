@@ -22,7 +22,8 @@ namespace mfem
 
 #ifdef MFEM_USE_OCCA
 // OCCA 2D Assemble kernel
-static void OccaPAVectorDivergenceSetup2D(const int D1D,
+static void OccaPAVectorDivergenceSetup2D(const int TR_D1D,
+                                          const int TE_D1D,
                                           const int Q1D,
                                           const int NE,
                                           const Array<double> &W,
@@ -34,7 +35,8 @@ static void OccaPAVectorDivergenceSetup2D(const int D1D,
 }
 
 // OCCA 3D Assemble kernel
-static void OccaPAVectorDivergenceSetup3D(const int D1D,
+static void OccaPAVectorDivergenceSetup3D(const int TR_D1D,
+                                          const int TE_D1D,
                                           const int Q1D,
                                           const int NE,
                                           const Array<double> &W,
@@ -128,7 +130,8 @@ static void PAVectorDivergenceSetup3D(const int Q1D,
 }
 
 static void PAVectorDivergenceSetup(const int dim,
-                                    const int D1D,
+                                    const int TR_D1D,
+                                    const int TE_D1D,
                                     const int Q1D,
                                     const int NE,
                                     const Array<double> &W,
@@ -142,7 +145,7 @@ static void PAVectorDivergenceSetup(const int dim,
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
       {
-         OccaPAVectorDivergenceSetup2D(D1D, Q1D, NE, W, J, COEFF, op);
+         OccaPAVectorDivergenceSetup2D(TR_D1D, TE_D1D, Q1D, NE, W, J, COEFF, op);
          return;
       }
 #endif // MFEM_USE_OCCA
@@ -153,7 +156,7 @@ static void PAVectorDivergenceSetup(const int dim,
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
       {
-         OccaPAVectorDivergenceSetup3D(D1D, Q1D, NE, W, J, COEFF, op);
+         OccaPAVectorDivergenceSetup3D(TR_D1D, TE_D1D, Q1D, NE, W, J, COEFF, op);
          return;
       }
 #endif // MFEM_USE_OCCA
@@ -180,26 +183,24 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    trial_maps = &trial_fe.GetDofToQuad(*ir, DofToQuad::TENSOR);
    trial_dofs1D = trial_maps->ndof;
-   trial_quad1D = trial_maps->nqpt;
+   quad1D = trial_maps->nqpt;
    test_maps  = &test_fe.GetDofToQuad(*ir, DofToQuad::TENSOR);
    test_dofs1D = test_maps->ndof;
-   test_quad1D = test_maps->nqpt;
-   // TODO: This might not be necessary
-   MFEM_ASSERT(trial_dofs1D == test_dofs1D,
-               "PA requires test and trial space to have same number of dofs!");
-   MFEM_ASSERT(trial_quad1D == test_quad1D,
+   int test_quad1D = test_maps->nqpt;
+   MFEM_ASSERT(quad1D == test_quad1D,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
    ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
    MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
    const double coeff = cQ->constant;
-   PAVectorDivergenceSetup(dim, trial_dofs1D, trial_quad1D, ne, ir->GetWeights(), 
-                           geom->J, coeff, pa_data);
+   PAVectorDivergenceSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
+                           ne, ir->GetWeights(), geom->J, coeff, pa_data);
 }
 
 #ifdef MFEM_USE_OCCA
 // OCCA PA VectorDivergence Apply 2D kernel
-static void OccaPAVectorDivergenceApply2D(const int D1D,
+static void OccaPAVectorDivergenceApply2D(const int TR_D1D,
+                                          const int TE_D1D,
                                           const int Q1D,
                                           const int NE,
                                           const Array<double> &B,
@@ -213,7 +214,8 @@ static void OccaPAVectorDivergenceApply2D(const int D1D,
 }
 
 // OCCA PA VectorDivergence Apply 3D kernel
-static void OccaPAVectorDivergenceApply3D(const int D1D,
+static void OccaPAVectorDivergenceApply3D(const int TR_D1D,
+                                          const int TE_D1D,
                                           const int Q1D,
                                           const int NE,
                                           const Array<double> &B,
@@ -228,7 +230,7 @@ static void OccaPAVectorDivergenceApply3D(const int D1D,
 #endif
 
 // PA VectorDivergence Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0> static
+template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0> static
 void PAVectorDivergenceApply2D(const int NE,
                                const Array<double> &b,
                                const Array<double> &g,
@@ -236,25 +238,30 @@ void PAVectorDivergenceApply2D(const int NE,
                                const Vector &_op,
                                const Vector &_x,
                                Vector &_y,
-                               const int d1d = 0,
+                               const int tr_d1d = 0,
+                               const int te_d1d = 0,
                                const int q1d = 0)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
+   const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
+   const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto G = Reshape(g.Read(), Q1D, D1D);
-   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto B = Reshape(b.Read(), Q1D, TR_D1D);
+   auto G = Reshape(g.Read(), Q1D, TR_D1D);
+   auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
    auto op = Reshape(_op.Read(), Q1D*Q1D, 2,2, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, NE,2); // TODO: Is it actually d1d, d1d, 2, ne ?
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   auto x = Reshape(_x.Read(), TR_D1D, TR_D1D, 2, NE); // TODO: Is it actually d1d, d1d, ne, 2?
+   auto y = Reshape(_y.ReadWrite(), TE_D1D, TE_D1D, NE);
    MFEM_FORALL(e, NE,
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
+      const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
+      const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      //constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : MAX_D1D; // unneeded
+      constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
       double grad[max_Q1D][max_Q1D][2];
@@ -266,7 +273,7 @@ void PAVectorDivergenceApply2D(const int NE,
             grad[qy][qx][1] = 0.0;
          }
       }
-      for (int dy = 0; dy < D1D; ++dy)
+      for (int dy = 0; dy < TR_D1D; ++dy)
       {
          double gradX[max_Q1D][2];
          for (int qx = 0; qx < Q1D; ++qx)
@@ -274,10 +281,10 @@ void PAVectorDivergenceApply2D(const int NE,
             gradX[qx][0] = 0.0;
             gradX[qx][1] = 0.0;
          }
-         for (int dx = 0; dx < D1D; ++dx)
+         for (int dx = 0; dx < TR_D1D; ++dx)
          {
-            const double s1 = x(dx,dy,e,0); // TODO - confirm this is correct
-            const double s2 = x(dx,dy,e,1); // TODO
+            const double s1 = x(dx,dy,0,e); // TODO - confirm this is correct
+            const double s2 = x(dx,dy,1,e); // TODO
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] += s2 * B(qx,dx);
@@ -319,8 +326,8 @@ void PAVectorDivergenceApply2D(const int NE,
       // We've now calculated reshape(div u * op)
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double gradX[max_D1D];
-         for (int dx = 0; dx < D1D; ++dx)
+         double gradX[max_TE_D1D];
+         for (int dx = 0; dx < TE_D1D; ++dx)
          {
             gradX[dx] = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
@@ -328,9 +335,9 @@ void PAVectorDivergenceApply2D(const int NE,
                gradX[dx] += Bt(dx,qx)*div[qx][qy];
             }
          }
-         for (int dy = 0; dy < D1D; ++dy)
+         for (int dy = 0; dy < TE_D1D; ++dy)
          {
-            for (int dx = 0; dx < D1D; ++dx)
+            for (int dx = 0; dx < TE_D1D; ++dx)
             {
                y(dx,dy,e) += Bt(dy,qy)*gradX[dx];
             }
@@ -341,8 +348,7 @@ void PAVectorDivergenceApply2D(const int NE,
 }
 
 // Shared memory PA VectorDivergence Apply 2D kernel
-template<const int T_D1D = 0,
-         const int T_Q1D = 0,
+template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0,
          const int T_NBZ = 0>
 static void SmemPAVectorDivergenceApply2D(const int NE,
                                           const Array<double> &_b,
@@ -351,7 +357,8 @@ static void SmemPAVectorDivergenceApply2D(const int NE,
                                           const Vector &_op,
                                           const Vector &_x,
                                           Vector &_y,
-                                          const int d1d = 0,
+                                          const int tr_d1d = 0,
+                                          const int te_d1d = 0,
                                           const int q1d = 0)
 {
    // TODO
@@ -359,24 +366,24 @@ static void SmemPAVectorDivergenceApply2D(const int NE,
 }
 
 // PA Vector Divergence Apply 3D kernel
-template<const int T_D1D = 0,
-         const int T_Q1D = 0> static
-void PAVectorDivergenceApply3D(const int NE,
-                               const Array<double> &b,
-                               const Array<double> &g,
-                               const Array<double> &bt,
-                               const Vector &_op,
-                               const Vector &_x,
-                               Vector &_y,
-                               int d1d = 0, int q1d = 0)
+template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
+static void PAVectorDivergenceApply3D(const int NE,
+                                      const Array<double> &b,
+                                      const Array<double> &g,
+                                      const Array<double> &bt,
+                                      const Vector &_op,
+                                      const Vector &_x,
+                                      Vector &_y,
+                                      int tr_d1d = 0,
+                                      int te_d1d = 0,
+                                      int q1d = 0)
 {
    // TODO
    MFEM_ASSERT(false, "3D NOT PROGRAMMED YET");
 }
 
 // Shared memory PA Vector Divergence Apply 3D kernel
-template<const int T_D1D = 0,
-         const int T_Q1D = 0>
+template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void SmemPAVectorDivergenceApply3D(const int NE,
                                           const Array<double> &_b,
                                           const Array<double> &_g,
@@ -384,7 +391,8 @@ static void SmemPAVectorDivergenceApply3D(const int NE,
                                           const Vector &_op,
                                           const Vector &_x,
                                           Vector &_y,
-                                          const int d1d = 0,
+                                          const int tr_d1d = 0,
+                                          const int te_d1d = 0,
                                           const int q1d = 0)
 {
    // TODO
@@ -392,10 +400,9 @@ static void SmemPAVectorDivergenceApply3D(const int NE,
 }
 
 static void PAVectorDivergenceApply(const int dim,
-                                    const int D1D,
+                                    const int TR_D1D,
+                                    const int TE_D1D,
                                     const int Q1D,
-                                    const int pD1D,
-                                    const int pQ1D,
                                     const int NE,
                                     const Array<double> &B,
                                     const Array<double> &G,
@@ -409,53 +416,75 @@ static void PAVectorDivergenceApply(const int dim,
    {
       if (dim == 2)
       {
-         OccaPAVectorDivergenceApply2D(D1D, Q1D, NE, B, G, Bt, op, x, y);
+         OccaPAVectorDivergenceApply2D(TR_D1D, TE_D1D, Q1D, NE, B, G, Bt, op, x, y);
          return;
       }
       if (dim == 3)
       {
-         OccaPAVectorDivergenceApply3D(D1D, Q1D, NE, B, G, Bt, op, x, y);
+         OccaPAVectorDivergenceApply3D(TR_D1D, TE_D1D, Q1D, NE, B, G, Bt, op, x, y);
          return;
       }
       MFEM_ABORT("OCCA PAVectorDivergenceApply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
 
-   if (Device::Allows(Backend::RAJA_CUDA))
-   {
+   //if (Device::Allows(Backend::RAJA_CUDA))
+   //{
       if (dim == 2)
       {
-         switch ((D1D << 4 ) | Q1D)
+         switch ((TR_D1D << 4) | TE_D1D)
          {
-            case 0x22: return PAVectorDivergenceApply2D<2,2>(NE,B,G,Bt,op,x,y);
-            case 0x33: return PAVectorDivergenceApply2D<3,3>(NE,B,G,Bt,op,x,y);
-            case 0x44: return PAVectorDivergenceApply2D<4,4>(NE,B,G,Bt,op,x,y);
-            case 0x55: return PAVectorDivergenceApply2D<5,5>(NE,B,G,Bt,op,x,y);
-            case 0x66: return PAVectorDivergenceApply2D<6,6>(NE,B,G,Bt,op,x,y);
-            case 0x77: return PAVectorDivergenceApply2D<7,7>(NE,B,G,Bt,op,x,y);
-            case 0x88: return PAVectorDivergenceApply2D<8,8>(NE,B,G,Bt,op,x,y);
-            case 0x99: return PAVectorDivergenceApply2D<9,9>(NE,B,G,Bt,op,x,y);
-            default:   return PAVectorDivergenceApply2D(NE,B,G,Bt,op,x,y,D1D,Q1D);
+         case 0x32: // Specialized for Taylor-Hood elements
+            if (Q1D == 3)
+               return PAVectorDivergenceApply2D<3,2,3>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x43:
+            if (Q1D == 4)
+               return PAVectorDivergenceApply2D<4,3,4>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x54:
+            if (Q1D == 6)
+               return PAVectorDivergenceApply2D<5,4,6>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x65:
+            if (Q1D == 7)
+               return PAVectorDivergenceApply2D<6,5,7>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x76:
+            if (Q1D == 9)
+               return PAVectorDivergenceApply2D<7,6,9>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x87:
+            if (Q1D == 10)
+               return PAVectorDivergenceApply2D<8,7,10>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x98:
+            if (Q1D == 12)
+               return PAVectorDivergenceApply2D<9,8,12>(NE,B,G,Bt,op,x,y);
+            break;
+         default:
+            break;
          }
+         return PAVectorDivergenceApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
       if (dim == 3)
       {
-         switch ((D1D << 4 ) | Q1D)
-         {
-            case 0x23: return PAVectorDivergenceApply3D<2,3>(NE,B,G,Bt,op,x,y);
-            case 0x34: return PAVectorDivergenceApply3D<3,4>(NE,B,G,Bt,op,x,y);
-            case 0x45: return PAVectorDivergenceApply3D<4,5>(NE,B,G,Bt,op,x,y);
-            case 0x56: return PAVectorDivergenceApply3D<5,6>(NE,B,G,Bt,op,x,y);
-            case 0x67: return PAVectorDivergenceApply3D<6,7>(NE,B,G,Bt,op,x,y);
-            case 0x78: return PAVectorDivergenceApply3D<7,8>(NE,B,G,Bt,op,x,y);
-            case 0x89: return PAVectorDivergenceApply3D<8,9>(NE,B,G,Bt,op,x,y);
-            default:   return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,D1D,Q1D);
+         switch ((TR_D1D << 4) | TE_D1D)
+         { // TODO: 3D not done yet
+         case 0x23: return PAVectorDivergenceApply3D<2,3,0>(NE,B,G,Bt,op,x,y);
+         case 0x34: return PAVectorDivergenceApply3D<3,4,0>(NE,B,G,Bt,op,x,y);
+         case 0x45: return PAVectorDivergenceApply3D<4,5,0>(NE,B,G,Bt,op,x,y);
+         case 0x56: return PAVectorDivergenceApply3D<5,6,0>(NE,B,G,Bt,op,x,y);
+         case 0x67: return PAVectorDivergenceApply3D<6,7,0>(NE,B,G,Bt,op,x,y);
+         case 0x78: return PAVectorDivergenceApply3D<7,8,0>(NE,B,G,Bt,op,x,y);
+         case 0x89: return PAVectorDivergenceApply3D<8,9,0>(NE,B,G,Bt,op,x,y);
+         default:   return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
          }
       }
-   }
+      /*}
    else if (dim == 2)
-   {
-      switch ((D1D << 4 ) | Q1D)
+   { // TODO: Smem not done yet
+      switch ((D1D << 4) | Q1D)
       {
          case 0x22: return SmemPAVectorDivergenceApply2D<2,2,16>(NE,B,G,Bt,op,x,y);
          case 0x33: return SmemPAVectorDivergenceApply2D<3,3,16>(NE,B,G,Bt,op,x,y);
@@ -470,7 +499,7 @@ static void PAVectorDivergenceApply(const int dim,
    }
    else if (dim == 3)
    {
-      switch ((D1D << 4 ) | Q1D)
+      switch ((D1D << 4) | Q1D)
       {
          case 0x23: return SmemPAVectorDivergenceApply3D<2,3>(NE,B,G,Bt,op,x,y);
          case 0x34: return SmemPAVectorDivergenceApply3D<3,4>(NE,B,G,Bt,op,x,y);
@@ -481,7 +510,7 @@ static void PAVectorDivergenceApply(const int dim,
          case 0x89: return SmemPAVectorDivergenceApply3D<8,9>(NE,B,G,Bt,op,x,y);
          default:   return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,D1D,Q1D);
       }
-   }
+   }*/
    MFEM_ABORT("Unknown kernel.");
 }
 
@@ -489,8 +518,8 @@ static void PAVectorDivergenceApply(const int dim,
 void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    // TODO: confirm this choice of maps is correct
-   PAVectorDivergenceApply(dim, trial_dofs1D, trial_quad1D, test_dofs1D, test_quad1D, ne,
-                           trial_maps->B, trial_maps->G, test_maps->B, pa_data, x, y);
+   PAVectorDivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
+                           trial_maps->B, trial_maps->G, test_maps->Bt, pa_data, x, y);
 }
 
 } // namespace mfem
