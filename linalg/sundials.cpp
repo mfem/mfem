@@ -35,6 +35,7 @@ using namespace std;
 
 namespace mfem
 {
+
 // ---------------------------------------------------------------------------
 // SUNMatrix interface functions
 // ---------------------------------------------------------------------------
@@ -103,6 +104,20 @@ static int LSFree(SUNLinearSolver LS)
    free(LS); LS = NULL;
    return (0);
 }
+
+
+int SundialsLinearSolver::ODELinSys(double, Vector, Vector, int, int *, double)
+{
+   mfem_error("SundialsLinearSolver::ODELinSys() is not overridden!");
+   return (-1);
+}
+
+int SundialsLinearSolver::ODEMassSys(double)
+{
+   mfem_error("SundialsLinearSolver::ODEMassSys() is not overridden!");
+   return (-1);
+}
+
 
 // ---------------------------------------------------------------------------
 // Wrappers for evaluating ODE linear systems

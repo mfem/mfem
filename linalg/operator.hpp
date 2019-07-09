@@ -280,10 +280,10 @@ public:
        details, see the PETSc Manual. */
    virtual Operator& GetExplicitGradient(const Vector &x) const;
 
-   /** Setup the ODE linear system A(y,t) = (I - gamma J) or A = (M - gamma J).
-        @param[in]  t     The time at which A(y,t) should be evaluated
-        @param[in]  y     The state at which A(y,t) should be evaluated
-        @param[in]  fy    The current value of the ODE Rhs function, f(y,t)
+   /** Setup the ODE linear system A(x,t) = (I - gamma J) or A = (M - gamma J).
+        @param[in]  t     The time at which A(x,t) should be evaluated
+        @param[in]  x     The state at which A(x,t) should be evaluated
+        @param[in]  fx    The current value of the ODE Rhs function, f(x,t)
         @param[in]  jok   Flag indicating if the Jacobian should be updated
         @param[out] jcur  Flag to signal if the Jacobian was updated
         @param[in]  gamma The scaled time step value
@@ -296,7 +296,7 @@ public:
                              int jok, int *jcur, double gamma);
 
    /** Solve the ODE linear system A x = b.
-       @param[in/out]  x  On input, the initial guess. On output, the solution
+       @param[in,out]  x  On input, the initial guess. On output, the solution
        @param[in]      b  The linear system right-hand side
        @param[in]      tol Linear solve tolerance
 
@@ -316,7 +316,7 @@ public:
    virtual int MassSetup(const double t);
 
    /** Solve the mass matrix linear system M x = b.
-        @param[in/out]  x   On input, the initial guess. On output, the solution
+        @param[in,out]  x   On input, the initial guess. On output, the solution
         @param[in]      b   The linear system right-hand side
         @param[in]      tol Linear solve tolerance
 
