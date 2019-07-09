@@ -363,7 +363,7 @@ void VectorFEBoundaryLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();  // <----------
+      int intorder = el.GetOrder() - 1;  // <----------
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -371,12 +371,11 @@ void VectorFEBoundaryLFIntegrator::AssembleRHSElementVect(
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Tr.SetIntPoint (&ip);
       double val = ip.weight;
 
       el.CalcShape(ip, shape);
 
-      add(elvect, val, shape, elvect);
+      elvect.Add(val, shape);
    }
 }
 
