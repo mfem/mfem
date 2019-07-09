@@ -342,7 +342,7 @@ protected:
    mutable Vector dq_;
 };
 
-// First Order Symplectic Integration Algorithm
+/// First Order Symplectic Integration Algorithm
 class SIA1Solver : public SIASolver
 {
 public:
@@ -350,7 +350,7 @@ public:
    void Step(Vector &q, Vector &p, double &t, double &dt);
 };
 
-// Second Order Symplectic Integration Algorithm
+/// Second Order Symplectic Integration Algorithm
 class SIA2Solver : public SIASolver
 {
 public:
@@ -358,7 +358,7 @@ public:
    void Step(Vector &q, Vector &p, double &t, double &dt);
 };
 
-// Variable order Symplectic Integration Algorithm (orders 1-4)
+/// Variable order Symplectic Integration Algorithm (orders 1-4)
 class SIAVSolver : public SIASolver
 {
 public:

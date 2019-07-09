@@ -271,6 +271,7 @@ public:
    /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
    void median(const Vector &lo, const Vector &hi);
 
+   /// Extract entries listed in `dofs` to the output `elemvect`
    void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
    void GetSubVector(const Array<int> &dofs, double *elem_data) const;
 

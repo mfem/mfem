@@ -732,6 +732,8 @@ public:
                         DenseMatrix &I) const;
 };
 
+/** Abstract base clase for finite elements whose basis functions are
+    vector valued. */
 class VectorFiniteElement : public FiniteElement
 {
    // Hide the scalar functions CalcShape and CalcDShape.
