@@ -52,11 +52,9 @@ struct Backend
       /** @brief [device] OCCA CUDA backend. Enabled when MFEM_USE_OCCA = YES
           and MFEM_USE_CUDA = YES. */
       OCCA_CUDA = 1 << 8,
-      /** @brief [device] Debug backend. Enabled when MFEM_USE_MM = YES and
-          MFEM_DEBUG = YES. */
-      DEBUG = 1 << 9//,
-      /// [device] CUDA backend with UVM. Enabled when MFEM_USE_CUDA = YES.
-      //CUDA_UVM = 1 << 10,
+      /** @brief [host] CPU backend: sequential execution on each MPI rank in
+          different protected memory spaces.*/
+      DEBUG = 1 << 9
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -64,29 +62,16 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-/* HEAD
-      NUM_BACKENDS = 11,
-      /// Biwise-OR of all CUDA backends
-      CUDA_MASK = CUDA | CUDA_UVM | RAJA_CUDA | OCCA_CUDA,
-      /// Biwise-OR of all RAJA backends
-      RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
-      /// Biwise-OR of all OCCA backends
-      OCCA_MASK = OCCA_CPU | OCCA_OMP | OCCA_CUDA,
-      /// Biwise-OR of all OpenMP backends
-      OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
-      /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK | DEBUG
-*/
       NUM_BACKENDS = 10,
 
       /// Biwise-OR of all CPU backends
-      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU,
+      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | DEBUG,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK /*| DEBUG*/,
+      DEVICE_MASK = CUDA_MASK,
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
       /// Biwise-OR of all OCCA backends
@@ -192,7 +177,7 @@ public:
        * The 'cpu' backend is always enabled with lowest priority.
        * The current backend priority from highest to lowest is: 'occa-cuda',
          'raja-cuda', 'cuda', 'occa-omp', 'raja-omp', 'omp', 'occa-cpu',
-         'raja-cpu', 'cpu'.
+         'raja-cpu', 'cpu', 'debug'.
        * Multiple backends can be configured at the same time.
        * Only one 'occa-*' backend can be configured at a time.
        * The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'
