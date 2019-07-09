@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 // Implementation of data type vector
-
+#define DBG_COLOR 180
 #include "vector.hpp"
 #include "dtensor.hpp"
 #include "../general/forall.hpp"
@@ -972,7 +972,19 @@ double Vector::operator*(const Vector &v) const
       return prod;
    }
 #endif
-
+   if (Device::Allows(Backend::DEBUG))
+   {
+      const int N = size;
+      auto v_data = v.Read();
+      auto m_data = Read();
+      Vector dot(1);
+      dot.UseDevice();
+      auto d_dot = dot.Write();
+      dot = 0.0;
+      MFEM_FORALL(i, N, d_dot[0] += m_data[i] * v_data[i];);
+      dot.HostReadWrite(); // why not just HostRead ?
+      return dot[0];
+   }
 vector_dot_cpu:
    return operator*(v_data);
 }

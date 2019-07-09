@@ -47,7 +47,8 @@
 //               discrete linear system. We also cover the explicit elimination
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
-
+#define DBG_COLOR 38
+#include "../general/forall.hpp"
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -105,7 +106,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(50./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -156,8 +157,13 @@ int main(int argc, char *argv[])
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
+   dbg("GridFunction x");
    GridFunction x(fespace);
+   dbg("x = 0.0;");
    x = 0.0;
+   printf("x[0] = 0.0;\n"); fflush(0);
+   x[0] = 0.0;
+   exit(0);
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion

@@ -8,7 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-
+#define DBG_COLOR 198
 #include "forall.hpp"
 #include "cuda.hpp"
 #include "occa.hpp"
@@ -41,7 +41,7 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "occa-cuda", "raja-cuda", "cuda", //"cuda-uvm",
+   "occa-cuda", "raja-cuda", "cuda",
    "occa-omp", "raja-omp", "omp",
    "occa-cpu", "raja-cpu", "debug",
    "cpu"
@@ -61,6 +61,7 @@ Device::~Device()
 
 void Device::Configure(const std::string &device, const int dev)
 {
+   dbg("Device::Configure");
    std::map<std::string, Backend::Id> bmap;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {
@@ -118,11 +119,20 @@ void Device::UpdateMemoryTypeAndClass()
 {
    if (Device::Allows(Backend::CUDA_MASK))
    {
+      dbg("[Device::UpdateMemoryTypeAndClass] CUDA_MASK");
       mem_type = MemoryType::CUDA;
       mem_class = MemoryClass::CUDA;
    }
+   else if (Device::Allows(Backend::DEBUG))
+   {
+      dbg("[Device::UpdateMemoryTypeAndClass] DEBUG");
+      mem_type = MemoryType::HOST_MMU;
+      mem_class = MemoryClass::HOST_MMU;
+      mm.Setup(mem_type);
+   }
    else
    {
+      dbg("[Device::UpdateMemoryTypeAndClass] HOST");
       mem_type = MemoryType::HOST;
       mem_class = MemoryClass::HOST;
    }
@@ -130,8 +140,10 @@ void Device::UpdateMemoryTypeAndClass()
 
 void Device::Enable()
 {
+   dbg("Device::Enable");
    if (Get().backends & ~Backend::CPU)
    {
+      dbg("Device::Enable: ACCELERATED");
       Get().mode = Device::ACCELERATED;
       Get().UpdateMemoryTypeAndClass();
    }
@@ -150,13 +162,6 @@ static void CudaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
    DeviceSetup(dev, ngpu);
-#endif
-}
-
-static void RajaDeviceSetup(const int dev, int &ngpu)
-{
-#ifdef MFEM_USE_CUDA
-   if (ngpu <= 0) { DeviceSetup(dev, ngpu); }
 #endif
 }
 
@@ -215,6 +220,7 @@ static void OccaDeviceSetup(const int dev)
 
 void Device::Setup(const int device)
 {
+   dbg("Device::Setup");
    MFEM_VERIFY(ngpu == -1, "the mfem::Device is already configured!");
 
    ngpu = 0;
@@ -244,18 +250,10 @@ void Device::Setup(const int device)
    // Device backends setup
    if (cuda) { CudaDeviceSetup(dev, ngpu); }
    if (occa) { OccaDeviceSetup(dev); }
-   if (debug) { ngpu = 1; }
-
-   // Memory backends setup
-   if (cuda)
-   {
-      //if (Allows(Backend::CUDA_UVM)) { SetMemoryTypes(Memory::UNIFIED); }
-      //else { SetMemoryTypes(Memory::STD, Memory::CUDA); }
-   }
    if (debug)
    {
-      //SetMemoryTypes(Memory::DEBUG);
-      MFEM_VERIFY((cuda|raja|occa|openmp)^debug, "Device 'debug' is exclusive!");
+      ngpu = 1;
+      MFEM_VERIFY((cuda|raja|occa|openmp) ^ debug, "'debug' mode is exclusive!");
    }
 }
 

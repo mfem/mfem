@@ -109,15 +109,14 @@ protected:
 
    enum FlagMask
    {
-      REGISTERED    = 1,   ///< #h_ptr is registered with the MemoryManager
-      OWNS_HOST     = 2,   ///< The host pointer will be deleted by Delete()
-      OWNS_DEVICE   = 4,   ///< The device pointer will be deleted by Delete()
-      OWNS_INTERNAL = 8,   ///< Ownership flag for internal Memory data
-      VALID_HOST    = 16,  ///< Host pointer is valid
-      VALID_DEVICE  = 32,  ///< Device pointer is valid
-      ALIAS         = 64,
-      /// Internal device flag, see e.g. Vector::UseDevice()
-      USE_DEVICE    = 128
+      REGISTERED    = 1 << 0, ///< #h_ptr is registered with the MemoryManager
+      OWNS_HOST     = 1 << 1, ///< The host pointer will be deleted by Delete()
+      OWNS_DEVICE   = 1 << 2, ///< The device pointer will be deleted by Delete()
+      OWNS_INTERNAL = 1 << 3, ///< Ownership flag for internal Memory data
+      VALID_HOST    = 1 << 4, ///< Host pointer is valid
+      VALID_DEVICE  = 1 << 5, ///< Device pointer is valid
+      ALIAS         = 1 << 6, ///< Pointer is an alias
+      USE_DEVICE    = 1 << 7  /// Internal device flag, see e.g. Vector::UseDevice()
    };
 
    /// Pointer to host memory. Not owned.
@@ -452,28 +451,29 @@ private:
    static void CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
                              size_t bytes, unsigned &dest_flags);
 
-   /// Adds an address in the map
-   void *Insert(void *h_ptr, const size_t bytes);
+private: // Methods used by the static methods
 
-   void InsertDevice(void *d_ptr, void *h_ptr, size_t bytes);
-
-   /// Remove the address from the map, as well as all its aliases
-   void *Erase(void *h_ptr, bool free_dev_ptr = true);
-
-   /// Return the corresponding device pointer of h_ptr, allocating and moving the
-   /// data if needed (used in OccaPtr)
-   void *GetDevicePtr(const void *h_ptr, size_t bytes, bool copy_data);
-
+   /// Insert an address in the map
+   void *Insert(void *h_ptr, size_t bytes, MemoryType mt);
+   void InsertDevice(void *d_ptr, void *h_ptr, size_t bytes, MemoryType mt);
    void InsertAlias(const void *base_ptr, void *alias_ptr,
                     const size_t bytes, const bool base_is_alias);
 
-   void EraseAlias(void *alias_ptr);
+   /// Erase an address from the map, as well as all its aliases
+   MemoryType Erase(void *h_ptr, bool free_dev_ptr = true);
+   MemoryType EraseAlias(void *alias_ptr);
 
+   /// Return the corresponding device pointer of h_ptr,
+   /// allocating and moving the data if needed
+   void *GetDevicePtr(const void *h_ptr, size_t bytes, bool copy_data);
    void *GetAliasDevicePtr(const void *alias_ptr, size_t bytes, bool copy_data);
 
 public:
    MemoryManager();
    ~MemoryManager();
+
+   /// Memory manager setup with given host and device memory types
+   void Setup(MemoryType mt);
 
    /// Free all the device memories
    void Destroy();
@@ -494,15 +494,12 @@ public:
 template <typename T>
 inline void Memory<T>::New(int size, MemoryType mt)
 {
-   if (mt == MemoryType::HOST)
-   {
-      New(size);
-   }
+   if (mt == MemoryType::HOST) { New(size); }
    else
    {
       // Allocate the host pointer with new T[] if 'mt' is a pure
       // device memory type, e.g. CUDA.
-      T *tmp = (mt == MemoryType::CUDA) ? new T[size] : NULL;
+      T *tmp = (mt == MemoryType::CUDA) ? new T[size] : nullptr;
       h_ptr = (T*)MemoryManager::New_(tmp, size*sizeof(T), mt, flags);
       capacity = size;
    }
@@ -607,6 +604,7 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
+      mfem_error("");
       MemoryManager::Register_(h_ptr, NULL, capacity*sizeof(T),
                                MemoryType::HOST, flags & OWNS_HOST,
                                flags & ALIAS, flags);
@@ -620,6 +618,7 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
+      mfem_error("");
       MemoryManager::Register_((void*)h_ptr, NULL, capacity*sizeof(T),
                                MemoryType::HOST, flags & OWNS_HOST,
                                flags & ALIAS, flags);
@@ -634,6 +633,7 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return h_ptr; }
+      mfem_error("");
       MemoryManager::Register_(h_ptr, NULL, capacity*sizeof(T),
                                MemoryType::HOST, flags & OWNS_HOST,
                                flags & ALIAS, flags);

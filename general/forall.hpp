@@ -27,6 +27,26 @@
 #endif
 #endif
 
+inline void dbg256_(const unsigned char color, const char *format, ...)
+{
+   if (!getenv("DBG")) { return; }
+   va_list args;
+   va_start(args, format);
+   fflush(stdout);
+   fprintf(stdout,"\033[38;5;%dm",color);
+   vfprintf(stdout,format,args);
+   fprintf(stdout,"\033[m\n");
+   fflush(stdout);
+   va_end(args);
+}
+
+#ifndef DBG_COLOR
+#define DBG_COLOR 0
+#endif
+
+#define dbg256(color, ...) dbg256_(color, ## __VA_ARGS__)
+#define dbg(...) dbg256((unsigned char)DBG_COLOR, ## __VA_ARGS__)
+
 namespace mfem
 {
 
