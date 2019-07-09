@@ -29,6 +29,7 @@
 
 namespace mfem
 {
+
 // ---------------------------------------------------------------------------
 // Base class for interfacing with SUNMatrix and SUNLinearSolver API
 // ---------------------------------------------------------------------------
@@ -63,19 +64,11 @@ public:
        @param[out] jcur  Flag to signal if the Jacobian was updated
        @param[in]  gamma The scaled time step value */
    virtual int ODELinSys(double t, Vector y, Vector fy, int jok, int *jcur,
-                         double gamma)
-   {
-      mfem_error("SundialsLinearSolver::ODELinSys() is not overridden!");
-      return (-1);
-   }
+                         double gamma);
 
    /** Setup the ODE Mass matrix system M.
        @param[in] t The time at which M(t) should be evaluated */
-   virtual int ODEMassSys(double t)
-   {
-      mfem_error("SundialsLinearSolver::ODEMassSys() is not overridden!");
-      return (-1);
-   }
+   virtual int ODEMassSys(double t);
 
    /** Initialize the linear solver (optional). */
    virtual int Init() { return (0); };
@@ -84,7 +77,7 @@ public:
    virtual int Setup() { return (0); };
 
    /** Solve the linear system A x = b.
-       @param[in/out]  x  On input, the initial guess. On output, the solution
+       @param[in,out]  x  On input, the initial guess. On output, the solution
        @param[in]      b  The linear system right-hand side */
    virtual int Solve(Vector &x, Vector b) = 0;
 };
@@ -176,6 +169,8 @@ public:
    /// that takes the initial t and x as inputs.
    virtual void Init(TimeDependentOperator &f_);
 
+   using ODESolver::Init;
+
    /** Initialize CVODE: Calls CVodeInit() and sets some defaults.
        @param[in] f_ the TimeDependentOperator that defines the ODE system
        @param[in] t  the initial time
@@ -187,8 +182,8 @@ public:
    /** Integrate the ODE with CVODE using the specified step mode.
 
        @param[out]    x  Solution vector at the requested output timem x=x(t).
-       @param[in/out] t  On output, the output time reached.
-       @param[in/out] dt On output, the last time step taken.
+       @param[in,out] t  On output, the output time reached.
+       @param[in,out] dt On output, the last time step taken.
 
        @note On input, the values of t and dt are used to compute desired
        output time for the integration, tout = t + dt.
@@ -295,6 +290,8 @@ public:
    /// that takes the initial t and x as inputs.
    virtual void Init(TimeDependentOperator &f_);
 
+   using ODESolver::Init;
+
    /** Initialize ARKode: Calls ARKStepInit() for explicit or implicit problems
        and sets some defaults.
        @param[in] f_ the TimeDependentOperator that defines the ODE system
@@ -306,9 +303,10 @@ public:
 
    /** Initialize ARKode: Calls ARKStepInit() for IMEX problems and sets some
        defaults.
-       @param[in] f_ the TimeDependentOperator that defines the ODE system
-       @param[in] t  the initial time
-       @param[in] x  the initial condition
+       @param[in] f_  the TimeDependentOperator that defines the ODE system
+       @param[in] f2_ FIXME
+       @param[in] t   the initial time
+       @param[in] x   the initial condition
 
        @note All other methods must be called after Init(). */
    void Init(TimeDependentOperator &f_, TimeDependentOperator &f2_, double &t,
@@ -325,8 +323,8 @@ public:
    /** Integrate the ODE with ARKode using the specified step mode.
 
        @param[out]    x  Solution vector at the requested output timem x=x(t).
-       @param[in/out] t  On output, the output time reached.
-       @param[in/out] dt On output, the last time step taken.
+       @param[in,out] t  On output, the output time reached.
+       @param[in,out] dt On output, the last time step taken.
 
        @note On input, the values of t and dt are used to compute desired
        output time for the integration, tout = t + dt.
