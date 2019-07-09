@@ -147,9 +147,7 @@ inline __device__ void f_apply_diff(void *ctx, const CeedInt Q, const CeedScalar
   // in[0], out[0] have shape [dim, nc=1, Q]
   switch (bc->dim) {
   case 1:
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x;
-         i < Q;
-         i += blockDim.x * gridDim.x) {
+    for (CeedInt i = 0; i < Q; ++i) {
       vg[i] = ug[i] * qd[i];
     }
     break;
