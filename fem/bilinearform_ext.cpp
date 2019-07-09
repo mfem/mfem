@@ -172,8 +172,8 @@ PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(MixedBilinearForm *fo
    : MixedBilinearFormExtension(form),
      trialFes(form->TrialFESpace()),
      testFes(form->TestFESpace()),
-     elem_restrict_trial(nullptr),
-     elem_restrict_test(nullptr)
+     elem_restrict_trial(NULL),
+     elem_restrict_test(NULL)
 {
    Update();
 }
