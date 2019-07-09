@@ -20,6 +20,8 @@ namespace mfem
 {
 
 class BilinearForm;
+class MixedBilinearForm;
+
 
 
 /** @brief Class extending the BilinearForm class to support the different
@@ -134,8 +136,6 @@ public:
    ~MFBilinearFormExtension() {}
 };
 
-class MixedBilinearForm;
-
 
 /** @brief Class extending the MixedBilinearForm class to support the different
     AssemblyLevel%s. */
@@ -192,7 +192,8 @@ class PAMixedBilinearFormExtension : public MixedBilinearFormExtension
 protected:
    const FiniteElementSpace *trialFes, *testFes; // Not owned
    mutable Vector localX, localY;
-   const Operator *elem_restrict_lex; // Not owned
+   const Operator *elem_restrict_trial; // Not owned
+   const Operator *elem_restrict_test;  // Not owned
 
 public:
    PAMixedBilinearFormExtension(MixedBilinearForm*);

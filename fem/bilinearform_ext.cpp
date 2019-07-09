@@ -38,7 +38,8 @@ const Operator *BilinearFormExtension::GetRestriction() const
 // Data and methods for partially-assembled bilinear forms
 PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    : BilinearFormExtension(form),
-     trialFes(a->FESpace()), testFes(a->FESpace())
+     trialFes(a->FESpace()),
+     testFes(a->FESpace())
 {
    elem_restrict_lex = trialFes->GetElementRestriction(
                           ElementDofOrdering::LEXICOGRAPHIC);
@@ -169,16 +170,12 @@ const Operator *MixedBilinearFormExtension::GetRestriction() const
 // Data and methods for partially-assembled bilinear forms
 PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(MixedBilinearForm *form)
    : MixedBilinearFormExtension(form),
-     trialFes(a->TrialFESpace()), testFes(a->TestFESpace())
+     trialFes(form->TrialFESpace()),
+     testFes(form->TestFESpace()),
+     elem_restrict_trial(nullptr),
+     elem_restrict_test(nullptr)
 {
-   elem_restrict_lex = trialFes->GetElementRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
-   if (elem_restrict_lex)
-   {
-      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
-   }
+   Update();
 }
 
 void PAMixedBilinearFormExtension::Assemble()
@@ -197,12 +194,19 @@ void PAMixedBilinearFormExtension::Update()
    testFes  = a->TestFESpace();
    height = testFes->GetVSize();
    width = trialFes->GetVSize();
-   elem_restrict_lex = trialFes->GetElementRestriction(
-                                 ElementDofOrdering::LEXICOGRAPHIC);
-   if (elem_restrict_lex)
+   elem_restrict_trial = trialFes->GetElementRestriction(
+                           ElementDofOrdering::LEXICOGRAPHIC);
+   elem_restrict_test  =  testFes->GetElementRestriction(
+                           ElementDofOrdering::LEXICOGRAPHIC);
+   if (elem_restrict_trial)
    {
-      localX.SetSize(elem_restrict_lex->Height());
-      localY.SetSize(elem_restrict_lex->Height());
+      localX.SetSize(elem_restrict_trial->Height(), Device::GetMemoryType());
+      localX.UseDevice(true);
+   }
+   if (elem_restrict_test)
+   {
+      localY.SetSize(elem_restrict_test->Height(), Device::GetMemoryType());
+      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
 }
 
@@ -232,24 +236,34 @@ void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
-   if (elem_restrict_lex)
+
+   // * G operation
+   if (elem_restrict_trial)
    {
-      elem_restrict_lex->Mult(x, localX);
-      localY = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultPA(localX, localY);
-      }
-      elem_restrict_lex->MultTranspose(localY, y); // TODO: This should be a different elem_restrict for test space
+      elem_restrict_trial->Mult(x, localX);
    }
    else
    {
+      localX.SyncAliasMemory(x);
+   }
+   
+   if (!elem_restrict_test)
+   {
       y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultPA(x, y);
-      }
+      localY.SyncAliasMemory(y);
+   }
+
+   // * B^TDB operation
+   localY = 0.0;
+   for (int i = 0; i < iSz; ++i)
+   {
+      integrators[i]->AddMultPA(localX, localY);
+   }
+
+   // * G^T operation
+   if (elem_restrict_test)
+   {
+      elem_restrict_test->MultTranspose(localY, y);
    }
 }
 
@@ -257,24 +271,33 @@ void PAMixedBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) con
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
-   if (elem_restrict_lex)
+
+   // * G operation
+   if (elem_restrict_test)
    {
-      elem_restrict_lex->Mult(x, localX); // TODO: This should be a different elem_restrict for test space
-      localY = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultTransposePA(localX, localY);
-      }
-      elem_restrict_lex->MultTranspose(localY, y);
+      elem_restrict_test->Mult(x, localX);
    }
    else
    {
-      y.UseDevice(true);
-      y = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultTransposePA(x, y);
-      }
+      localX.SyncAliasMemory(x);
+   }
+   if (!elem_restrict_trial)
+   {
+      y.UseDevice(true); // typically this is a large vector, so store on device
+      localY.SyncAliasMemory(y);
+   }
+
+   // * B^TD^TB operation
+   localY = 0.0;
+   for (int i = 0; i < iSz; ++i)
+   {
+      integrators[i]->AddMultTransposePA(localX, localY);
+   }
+
+   // * G^T operation
+   if (elem_restrict_trial)
+   {
+      elem_restrict_trial->MultTranspose(localY, y);
    }
 }
 
