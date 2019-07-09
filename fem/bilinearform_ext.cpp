@@ -200,13 +200,14 @@ void PAMixedBilinearFormExtension::Update()
                            ElementDofOrdering::LEXICOGRAPHIC);
    if (elem_restrict_trial)
    {
-      localX.SetSize(elem_restrict_trial->Height(), Device::GetMemoryType());
       localX.UseDevice(true);
+      localX.SetSize(elem_restrict_trial->Height(), Device::GetMemoryType());
+      
    }
    if (elem_restrict_test)
    {
-      localY.SetSize(elem_restrict_test->Height(), Device::GetMemoryType());
       localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      localY.SetSize(elem_restrict_test->Height(), Device::GetMemoryType());
    }
 }
 
