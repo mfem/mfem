@@ -176,7 +176,7 @@ protected:
       virtual ~RefinementOperator();
    };
 
-   // Derefinement operator, used by the friend class InterpolationGridTransfer.
+   /// Derefinement operator, used by the friend class InterpolationGridTransfer.
    class DerefinementOperator : public Operator
    {
       const FiniteElementSpace *fine_fes; // Not owned.
@@ -195,12 +195,12 @@ protected:
       virtual ~DerefinementOperator();
    };
 
-   // This method makes the same assumptions as the method:
-   //    void GetLocalRefinementMatrices(
-   //       const FiniteElementSpace &coarse_fes, Geometry::Type geom,
-   //       DenseTensor &localP) const
-   // which is defined below. It also assumes that the coarse fes and this have
-   // the same vector dimension, vdim.
+   /** This method makes the same assumptions as the method:
+       void GetLocalRefinementMatrices(
+           const FiniteElementSpace &coarse_fes, Geometry::Type geom,
+           DenseTensor &localP) const
+       which is defined below. It also assumes that the coarse fes and this have
+       the same vector dimension, vdim. */
    SparseMatrix *RefinementMatrix_main(const int coarse_ndofs,
                                        const Table &coarse_elem_dof,
                                        const DenseTensor localP[]) const;
@@ -218,11 +218,13 @@ protected:
    /// Calculate GridFunction restriction matrix after mesh derefinement.
    SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof);
 
-   // This method assumes that this->mesh is a refinement of coarse_fes->mesh
-   // and that the CoarseFineTransformations of this->mesh are set accordingly.
-   // Another assumption is that the FEs of this use the same MapType as the FEs
-   // of coarse_fes. Finally, it assumes that the spaces this and coarse_fes are
-   // NOT variable-order spaces.
+   /** @brief Return in @a localP the local refinement matrices that map
+       between fespaces after mesh refinement. */
+   /** This method assumes that this->mesh is a refinement of coarse_fes->mesh
+       and that the CoarseFineTransformations of this->mesh are set accordingly.
+       Another assumption is that the FEs of this use the same MapType as the FEs
+       of coarse_fes. Finally, it assumes that the spaces this and coarse_fes are
+       NOT variable-order spaces. */
    void GetLocalRefinementMatrices(const FiniteElementSpace &coarse_fes,
                                    Geometry::Type geom,
                                    DenseTensor &localP) const;
@@ -490,8 +492,10 @@ public:
    /// Returns pointer to the FiniteElement for the i'th boundary element.
    const FiniteElement *GetBE(int i) const;
 
+   /// Return pointer for an internal face between elements
    const FiniteElement *GetFaceElement(int i) const;
 
+   /// Returns pointer for edge in 3D or face in 2D
    const FiniteElement *GetEdgeElement(int i) const;
 
    /// Return the trace element from element 'i' to the given 'geom_type'
@@ -613,6 +617,7 @@ public:
    /// Return update counter (see Mesh::sequence)
    long GetSequence() const { return sequence; }
 
+   /// Save finite element space to output stream @a out.
    void Save(std::ostream &out) const;
 
    /** @brief Read a FiniteElementSpace from a stream. The returned
