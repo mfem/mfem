@@ -23,14 +23,16 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
    Vector vec1(dim), vec2(dim);
 
    const IntegrationRule *ir = IntRule;
-   if (ir == nullptr) {
+   if (ir == nullptr)
+   {
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
    // Same as elvect = 0.0;
    ELV = 0.0;
-   for (int i = 0; i < ir->GetNPoints(); i++) {
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
 
@@ -39,7 +41,8 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
 
       w = ip.weight * trans.Weight();
 
-      if (Q) {
+      if (Q)
+      {
          w *= Q->Eval(trans, ip);
       }
 
@@ -74,13 +77,15 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    Vector vec1(dim), vec2(dim), vec3(nd);
 
    const IntegrationRule *ir = IntRule;
-   if (ir == nullptr) {
+   if (ir == nullptr)
+   {
       int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
    elmat = 0.0;
-   for (int i = 0; i < ir->GetNPoints(); i++) {
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
 
@@ -91,7 +96,8 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
 
       w = ip.weight;
 
-      if (Q) {
+      if (Q)
+      {
          w *= Q->Eval(trans, ip);
       }
 
@@ -104,17 +110,21 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
       dshape.Mult(vec2, vec3);
       MultVWt(shape, vec3, elmat_comp);
 
-      for (int i = 0; i < dim; i++) {
+      for (int i = 0; i < dim; i++)
+      {
          elmat.AddMatrix(elmat_comp, i * nd, i * nd);
       }
 
       MultVVt(shape, elmat_comp);
       w = ip.weight * trans.Weight();
-      if (Q) {
+      if (Q)
+      {
          w *= Q->Eval(trans, ip);
       }
-      for (int i = 0; i < dim; i++) {
-         for (int j = 0; j < dim; j++) {
+      for (int i = 0; i < dim; i++)
+      {
+         for (int j = 0; j < dim; j++)
+         {
             elmat.AddMatrix(w * gradEF(i, j), elmat_comp, i * nd, j * nd);
          }
       }
