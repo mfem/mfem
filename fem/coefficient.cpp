@@ -49,7 +49,23 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   return GridF -> GetValue (T.ElementNo, ip, Component);
+   Mesh *mesh = GridF->FESpace()->GetMesh();
+   if (mesh->Dimension() == T.GetDimension())
+   {
+      return GridF -> GetValue (T.ElementNo, ip, Component);
+   }
+   else // Assuming T is a boundary element transformation:
+   {
+      int el_id, el_info;
+      mesh->GetBdrElementAdjacentElement(T.ElementNo, el_id, el_info);
+      IntegrationPointTransformation loc_T;
+      mesh->GetLocalFaceTransformation(mesh->GetBdrElementType(T.ElementNo),
+                                       mesh->GetElementType(el_id),
+                                       loc_T.Transf, el_info);
+      IntegrationPoint eip;
+      loc_T.Transform(ip, eip);
+      return GridF->GetValue(el_id, eip, Component);
+   }
 }
 
 double TransformedCoefficient::Eval(ElementTransformation &T,
@@ -174,7 +190,23 @@ void VectorGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
 void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
-   GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   Mesh *mesh = GridFunc->FESpace()->GetMesh();
+   if (mesh->Dimension() == T.GetDimension())
+   {
+      GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   }
+   else // Assuming T is a boundary element transformation:
+   {
+      int el_id, el_info;
+      mesh->GetBdrElementAdjacentElement(T.ElementNo, el_id, el_info);
+      IntegrationPointTransformation loc_T;
+      mesh->GetLocalFaceTransformation(mesh->GetBdrElementType(T.ElementNo),
+                                       mesh->GetElementType(el_id),
+                                       loc_T.Transf, el_info);
+      IntegrationPoint eip;
+      loc_T.Transform(ip, eip);
+      GridFunc->GetVectorValue(el_id, eip, V);
+   }
 }
 
 void VectorGridFunctionCoefficient::Eval(
