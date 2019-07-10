@@ -111,7 +111,9 @@
 
 // Windows specific options
 // Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
+#ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
+#endif
 
 // Version of HYPRE used for building MFEM.
 #define MFEM_HYPRE_VERSION 21400
