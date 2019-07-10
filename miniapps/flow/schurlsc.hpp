@@ -4,25 +4,19 @@
 #ifndef MFEM_USE_MPI
 #endif
 
-#include "../../linalg/linalg.hpp"
 #include "../../general/error.hpp"
+#include "../../linalg/linalg.hpp"
 
-namespace mfem
-{
+namespace mfem {
 
 class SchurLSC : public Operator
 {
 public:
-   SchurLSC(HypreParMatrix *C, HypreParMatrix *B);
-
-   void SetA(HypreParMatrix *A)
-   {
-      A_ = A;
-   }
+   SchurLSC(BlockOperator *op);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   virtual void MultTranspose(const Vector &, Vector &) const
    {
       mfem_error("Wrong code path.");
    }
@@ -30,7 +24,7 @@ public:
    ~SchurLSC();
 
 private:
-   HypreParMatrix *A_;
+   BlockOperator *op_;
    HypreParMatrix *B_;
    HypreParMatrix *C_;
    HypreParMatrix *CB_;
@@ -38,5 +32,5 @@ private:
    mutable Vector x0, y0, x1;
 };
 
-}
+} // namespace mfem
 #endif

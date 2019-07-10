@@ -150,7 +150,6 @@ public:
       dform->FormColSystemMatrix(ess_tdof_list_, *D);
 
       G = D->Transpose();
-      // (*G) *= -1.0;
 
       mvform = new ParBilinearForm(fes_[0]);
       mvform->AddDomainIntegrator(new VectorMassIntegrator);
@@ -182,7 +181,7 @@ public:
       static_cast<HypreBoomerAMG *>(invMp)->SetPrintLevel(0);
       invMp->iterative_mode = false;
 
-      schurLSC = new SchurLSC(D, G);
+      schurLSC = new SchurLSC(jac);
 
       stokesprec = new BlockDiagonalPreconditioner(block_trueOffsets_);
       stokesprec->SetDiagonalBlock(0, invS);
@@ -237,8 +236,6 @@ public:
       jac->SetBlock(0, 0, NjacS);
 
       invS->SetOperator(*NjacS);
-
-      schurLSC->SetA(NjacS);
 
       return *jac;
    }
