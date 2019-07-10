@@ -396,7 +396,6 @@ static void PAVectorDivergenceApply3D(const int NE,
       const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
-      //constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : MAX_D1D; // unneeded
       constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
@@ -637,16 +636,39 @@ static void PAVectorDivergenceApply(const int dim,
       if (dim == 3)
       {
          switch ((TR_D1D << 4) | TE_D1D)
-         { // TODO: 3D not done yet
-         case 0x23: return PAVectorDivergenceApply3D<2,3,0>(NE,B,G,Bt,op,x,y);
-         case 0x34: return PAVectorDivergenceApply3D<3,4,0>(NE,B,G,Bt,op,x,y);
-         case 0x45: return PAVectorDivergenceApply3D<4,5,0>(NE,B,G,Bt,op,x,y);
-         case 0x56: return PAVectorDivergenceApply3D<5,6,0>(NE,B,G,Bt,op,x,y);
-         case 0x67: return PAVectorDivergenceApply3D<6,7,0>(NE,B,G,Bt,op,x,y);
-         case 0x78: return PAVectorDivergenceApply3D<7,8,0>(NE,B,G,Bt,op,x,y);
-         case 0x89: return PAVectorDivergenceApply3D<8,9,0>(NE,B,G,Bt,op,x,y);
-         default:   return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+         {
+         case 0x32: // Specialized for Taylor-Hood elements - TODO: Is this correct?
+            if (Q1D == 3)
+               return PAVectorDivergenceApply3D<3,2,3>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x43:
+            if (Q1D == 4)
+               return PAVectorDivergenceApply3D<4,3,4>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x54:
+            if (Q1D == 6)
+               return PAVectorDivergenceApply3D<5,4,6>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x65:
+            if (Q1D == 7)
+               return PAVectorDivergenceApply3D<6,5,7>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x76:
+            if (Q1D == 9)
+               return PAVectorDivergenceApply3D<7,6,9>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x87:
+            if (Q1D == 10)
+               return PAVectorDivergenceApply3D<8,7,10>(NE,B,G,Bt,op,x,y);
+            break;
+         case 0x98:
+            if (Q1D == 12)
+               return PAVectorDivergenceApply3D<9,8,12>(NE,B,G,Bt,op,x,y);
+            break;
+         default:
+            break;
          }
+         return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
       /*}
    else if (dim == 2)
