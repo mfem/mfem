@@ -4,11 +4,14 @@
 namespace mfem {
 
 SchurLSC::SchurLSC(BlockOperator *op)
-   : Operator(op->GetBlock(1, 0).Height(), op->GetBlock(0, 1).Width()),
-   op_(op)
+   : Operator(op->GetBlock(1, 0).Height(), op->GetBlock(0, 1).Width())
+   , op_(op)
 {
-   B_ = static_cast<HypreParMatrix *>(&op->GetBlock(0, 1));
-   C_ = static_cast<HypreParMatrix *>(&op->GetBlock(1, 0));
+   B_ = dynamic_cast<HypreParMatrix *>(&op->GetBlock(0, 1));
+   MFEM_ASSERT(B_, "Block(0, 1) needs to be of type HypreParMatrix");
+   C_ = dynamic_cast<HypreParMatrix *>(&op->GetBlock(1, 0));
+   MFEM_ASSERT(C_, "Block(1, 0) needs to be of type HypreParMatrix");
+
    CB_ = ParMult(C_, B_);
    amgCB_ = new HypreBoomerAMG(*CB_);
    amgCB_->SetPrintLevel(0);
