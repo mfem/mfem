@@ -1,6 +1,6 @@
 #include "mfem.hpp"
-#include "vec_conv_integrator.hpp"
 #include "schurlsc.hpp"
+#include "vec_conv_integrator.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -93,12 +93,11 @@ public:
    IterativeSolver *jac_solver;
    NewtonSolver newton_solver;
 
-   NavierStokesOperator(Array<ParFiniteElementSpace *> &fes) : Operator(
-                                                                   fes[0]->TrueVSize() + fes[1]->TrueVSize()),
-                                                               pmesh_(fes[0]->GetParMesh()), fes_(fes),
-                                                               ess_bdr_attr_(pmesh_->bdr_attributes.Max()),
-                                                               NjacS(nullptr),
-                                                               newton_solver(MPI_COMM_WORLD)
+   NavierStokesOperator(Array<ParFiniteElementSpace *> &fes)
+      : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
+        pmesh_(fes[0]->GetParMesh()), fes_(fes),
+        ess_bdr_attr_(pmesh_->bdr_attributes.Max()), NjacS(nullptr),
+        newton_solver(MPI_COMM_WORLD)
    {
       if (opt_.prob_type == PROB_TYPE::CYL)
       {
@@ -205,7 +204,7 @@ public:
       newton_solver.SetMaxIter(15);
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       Vector tmp(block_trueOffsets_[1]);
       Vector vel_in(x.GetData(), block_trueOffsets_[1]);
@@ -219,15 +218,18 @@ public:
       vel_out += tmp;
    }
 
-   virtual Operator &GetGradient(const Vector &x) const
+   Operator &GetGradient(const Vector &x) const override
    {
       Vector u(x.GetData(), block_trueOffsets_[1]);
 
       delete NjacS;
 
       hypre_ParCSRMatrix *NjacS_wrap;
-      hypre_ParcsrAdd(1.0, *static_cast<HypreParMatrix *>(&(N->GetGradient(u))), 1.0,
-                      *S, &NjacS_wrap);
+      hypre_ParcsrAdd(1.0,
+                      *static_cast<HypreParMatrix *>(&(N->GetGradient(u))),
+                      1.0,
+                      *S,
+                      &NjacS_wrap);
       NjacS = new HypreParMatrix(NjacS_wrap);
 
       HypreParMatrix *NjacS_e = NjacS->EliminateRowsCols(ess_tdof_list_);
@@ -240,7 +242,7 @@ public:
       return *jac;
    }
 
-   virtual ~NavierStokesOperator()
+   ~NavierStokesOperator() override
    {
       delete dtcoeff;
       delete sform;
@@ -253,10 +255,7 @@ public:
       delete Mp;
       delete D;
       delete G;
-      if (NjacS != nullptr)
-      {
-         delete NjacS;
-      }
+      delete NjacS;
       delete jac;
       delete lin;
       delete invS;
@@ -273,11 +272,11 @@ private:
    NavierStokesOperator *nso_;
 
 public:
-   TDNavierStokesOperator(NavierStokesOperator *nso) :
-      TimeDependentOperator(nso->fes_[0]->TrueVSize()), nso_(nso) {}
+   TDNavierStokesOperator(NavierStokesOperator *nso)
+      : TimeDependentOperator(nso->fes_[0]->TrueVSize()), nso_(nso)
+   {}
 
-   void ImplicitSolve(const double dt,
-                      const Vector &X, Vector &dX_dt)
+   void ImplicitSolve(const double dt, const Vector &X, Vector &dX_dt) override
    {
       BlockVector xh(nso_->block_offsets_);
       BlockVector b(nso_->block_offsets_);
@@ -294,11 +293,13 @@ public:
       VectorFunctionCoefficient *velbdrcoeff = nullptr;
       if (opt_.prob_type == PROB_TYPE::CYL)
       {
-         velbdrcoeff = new VectorFunctionCoefficient(nso_->pmesh_->Dimension(), vel_cyl);
+         velbdrcoeff = new VectorFunctionCoefficient(nso_->pmesh_->Dimension(),
+                                                     vel_cyl);
       }
       else if (opt_.prob_type == PROB_TYPE::TGV)
       {
-         velbdrcoeff = new VectorFunctionCoefficient(nso_->pmesh_->Dimension(), vel_ex);
+         velbdrcoeff = new VectorFunctionCoefficient(nso_->pmesh_->Dimension(),
+                                                     vel_ex);
       }
       velbdrcoeff->SetTime(GetTime());
 
@@ -306,11 +307,21 @@ public:
       vel_gf.MakeRef(nso_->fes_[0], xh.GetBlock(0));
       vel_gf.ProjectBdrCoefficient(*velbdrcoeff, nso_->ess_bdr_attr_);
 
-      nso_->sform->FormLinearSystem(nso_->ess_tdof_list_, xh.GetBlock(0), b.GetBlock(0),
-                                    *(nso_->S), Xh.GetBlock(0), B.GetBlock(0), 1);
+      nso_->sform->FormLinearSystem(nso_->ess_tdof_list_,
+                                    xh.GetBlock(0),
+                                    b.GetBlock(0),
+                                    *(nso_->S),
+                                    Xh.GetBlock(0),
+                                    B.GetBlock(0),
+                                    1);
 
-      nso_->dform->FormColLinearSystem(nso_->ess_tdof_list_, xh.GetBlock(0), b.GetBlock(1),
-                                       *(nso_->D), Xh.GetBlock(0), B.GetBlock(1), 1);
+      nso_->dform->FormColLinearSystem(nso_->ess_tdof_list_,
+                                       xh.GetBlock(0),
+                                       b.GetBlock(1),
+                                       *(nso_->D),
+                                       Xh.GetBlock(0),
+                                       B.GetBlock(1),
+                                       1);
 
       Vector V(nso_->block_trueOffsets_[1]);
       nso_->Mv->Mult(X, V);
@@ -348,12 +359,16 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "Polynomial order for the velocity.");
-   args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
+   args.AddOption(&serial_ref_levels,
+                  "-rs",
+                  "--serial-ref-levels",
                   "Number of serial refinement levels.");
    args.AddOption(&opt_.rey, "-rey", "--reynolds", "Choose Reynolds number.");
    args.AddOption(&dt, "-dt", "--timestep", "Timestep.");
    args.AddOption(&t_final, "-tf", "--tfinal", "Final time.");
-   args.AddOption(&prob_type, "-prob", "--problem_type",
+   args.AddOption(&prob_type,
+                  "-prob",
+                  "--problem_type",
                   "Choose problem type\n\t"
                   "0 - MMS\n\t"
                   "1 - FLow past a cylinder\n\t");
@@ -384,7 +399,12 @@ int main(int argc, char *argv[])
    }
    else if (opt_.prob_type == PROB_TYPE::TGV)
    {
-      mesh = new Mesh(1, 1, Element::Type::QUADRILATERAL, false, 2.0 * M_PI, 2.0 * M_PI);
+      mesh = new Mesh(1,
+                      1,
+                      Element::Type::QUADRILATERAL,
+                      false,
+                      2.0 * M_PI,
+                      2.0 * M_PI);
    }
 
    int dim = mesh->Dimension();
@@ -400,7 +420,9 @@ int main(int argc, char *argv[])
    FiniteElementCollection *vel_fec = new H1_FECollection(vel_order, dim);
    FiniteElementCollection *pres_fec = new H1_FECollection(pres_order);
 
-   ParFiniteElementSpace *vel_fes = new ParFiniteElementSpace(pmesh, vel_fec, dim);
+   ParFiniteElementSpace *vel_fes = new ParFiniteElementSpace(pmesh,
+                                                              vel_fec,
+                                                              dim);
    ParFiniteElementSpace *pres_fes = new ParFiniteElementSpace(pmesh, pres_fec);
 
    Array<ParFiniteElementSpace *> fes(2);
@@ -488,8 +510,7 @@ int main(int argc, char *argv[])
       }
 
       u_sock << "parallel " << num_procs << " " << myid << "\n";
-      u_sock << "solution\n"
-             << *pmesh << vel_gf << flush;
+      u_sock << "solution\n" << *pmesh << vel_gf << flush;
    }
 
    delete ode_solver;

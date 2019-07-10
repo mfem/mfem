@@ -7,8 +7,8 @@
 #include "../../general/error.hpp"
 #include "../../linalg/linalg.hpp"
 
-namespace mfem {
-
+namespace mfem
+{
 /**
  * @brief SchurLSC approximates the Schur complement of a Saddle point problem.
  *
@@ -37,14 +37,14 @@ public:
    /**
     * @brief Apply \f$(CB)^{-1}(CAB)(CB)^{-1}\f$ to the residual @a x.
     */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
-   virtual void MultTranspose(const Vector &, Vector &) const
+   void MultTranspose(const Vector &, Vector &) const override
    {
       mfem_error("SchurLSC: Not supported.");
    }
 
-   ~SchurLSC();
+   ~SchurLSC() override;
 
 private:
    BlockOperator *op_;
@@ -54,6 +54,5 @@ private:
    HypreBoomerAMG *amgCB_;
    mutable Vector x0, y0, x1;
 };
-
 } // namespace mfem
 #endif

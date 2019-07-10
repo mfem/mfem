@@ -1,7 +1,8 @@
 #include "schurlsc.hpp"
 #include "_hypre_parcsr_ls.h"
 
-namespace mfem {
+namespace mfem
+{
 
 SchurLSC::SchurLSC(BlockOperator *op)
    : Operator(op->GetBlock(1, 0).Height(), op->GetBlock(0, 1).Width())
