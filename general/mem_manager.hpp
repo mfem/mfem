@@ -14,6 +14,12 @@
 
 #include "globals.hpp"
 #include "error.hpp"
+
+#ifndef DBG_COLOR
+#define DBG_COLOR 187
+#endif
+#include "dbg.hpp"
+
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
 
@@ -27,28 +33,29 @@ namespace mfem
 enum class MemoryType
 {
    HOST,      ///< Host memory; using new[] and delete[]
-   HOST_32,   ///< Host memory aligned at 32 bytes (not supported yet)
-   HOST_64,   ///< Host memory aligned at 64 bytes (not supported yet)
-   HOST_MMU,  ///< Host memory with protection control
+   HOST_32,   ///< Host memory aligned at 32 bytes
+   HOST_64,   ///< Host memory aligned at 64 bytes
+   HOST_MMU,  ///< Host memory with MMU protection
    CUDA,      ///< cudaMalloc, cudaFree
-   CUDA_UVM   ///< cudaMallocManaged, cudaFree (not supported yet)
+   CUDA_UVM   ///< cudaMallocManaged, cudaFree
 };
 
 /// Memory classes identify subsets of memory types.
-/** This type is used by kernels that can work with multiple MemoryType%s. For
-    example, kernels that can use CUDA or CUDA_UVM memory types should use
-    MemoryClass::CUDA for their inputs. */
+/** This type is used by kernels that can work with multiple MemoryType%s.
+ *  For example, kernels that can use CUDA or CUDA_UVM memory types should
+ *  use MemoryClass::CUDA for their inputs. */
 enum class MemoryClass
 {
-   HOST,     ///< Memory types: { HOST, HOST_32, HOST_64, CUDA_UVM }
-   HOST_32,  ///< Memory types: { HOST_32, HOST_64 }
-   HOST_64,  ///< Memory types: { HOST_64 }
-   HOST_MMU, ///< Memory types: { HOST_32, HOST_64, HOST_MMU, CUDA_UVM}
+   HOST,     ///< Memory types: { HOST, HOST_32, HOST_64, HOST_MMU, CUDA_UVM }
+   HOST_32,  ///< Memory types: { HOST_32, HOST_64, HOST_MMU }
+   HOST_64,  ///< Memory types: { HOST_64, HOST_MMU }
+   HOST_MMU, ///< Memory types: { HOST_MMU }
    CUDA,     ///< Memory types: { CUDA, CUDA_UVM }
-   CUDA_UVM  ///< Memory types: { CUDA_UVM }
+   CUDA_UVM, ///< Memory types: { CUDA_UVM }
 };
 
 /// Return true if the given memory type is in MemoryClass::HOST.
+/// HOST_MMU, CUDA and CUDA_UVM are 'device' memories.
 inline bool IsHostMemory(MemoryType mt) { return mt <= MemoryType::HOST_64; }
 
 /// Return a suitable MemoryType for a given MemoryClass.
@@ -109,21 +116,21 @@ protected:
 
    enum FlagMask
    {
-      REGISTERED    = 1 << 0, ///< #h_ptr is registered with the MemoryManager
+      REGISTERED    = 1 << 0, ///< #m_ptr is registered with the MemoryManager
       OWNS_HOST     = 1 << 1, ///< The host pointer will be deleted by Delete()
       OWNS_DEVICE   = 1 << 2, ///< The device pointer will be deleted by Delete()
       OWNS_INTERNAL = 1 << 3, ///< Ownership flag for internal Memory data
       VALID_HOST    = 1 << 4, ///< Host pointer is valid
       VALID_DEVICE  = 1 << 5, ///< Device pointer is valid
       ALIAS         = 1 << 6, ///< Pointer is an alias
-      USE_DEVICE    = 1 << 7  /// Internal device flag, see e.g. Vector::UseDevice()
+      USE_DEVICE    = 1 << 7  ///< Internal device flag, see e.g. Vector::UseDevice()
    };
 
    /// Pointer to host memory. Not owned.
    /** When the pointer is not registered with the MemoryManager, this pointer
        has type MemoryType::HOST. When the pointer is registered, it can be any
        type from MemoryClass::HOST. */
-   T *h_ptr;
+   T *m_ptr;
    int capacity;
    mutable unsigned flags;
    // 'flags' is mutable so that it can be modified in Set{Host,Device}PtrOwner,
@@ -219,17 +226,17 @@ public:
        Empty().
 
        @note The current memory is NOT deleted by this method. */
-   void Reset() { h_ptr = NULL; capacity = 0; flags = 0; }
+   void Reset() { m_ptr = NULL; capacity = 0; flags = 0; }
 
    /// Return true if the Memory object is empty, see Reset().
    /** Default-constructed objects are uninitialized, so they are not guaranteed
        to be empty. */
-   bool Empty() const { return h_ptr == NULL; }
+   bool Empty() const { return m_ptr == NULL; }
 
    /// Allocate host memory for @a size entries with type MemoryType::HOST.
    /** @note The current memory is NOT deleted by this method. */
-   void New(int size)
-   { h_ptr = new T[size]; capacity = size; flags = OWNS_HOST | VALID_HOST; }
+   inline void New(int size);
+   //{ m_ptr = new T[size]; capacity = size; flags = OWNS_HOST | VALID_HOST; }
 
    /// Allocate memory for @a size entries with the given MemoryType.
    /** The newly allocated memory is not initialized, however the given
@@ -245,7 +252,7 @@ public:
 
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *ptr, int size, bool own)
-   { h_ptr = ptr; capacity = size; flags = (own ? OWNS_HOST : 0) | VALID_HOST; }
+   { m_ptr = ptr; capacity = size; flags = (own ? OWNS_HOST : 0) | VALID_HOST; }
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
    /** The new memory object will have the given MemoryType set as valid.
@@ -398,10 +405,11 @@ private:
    // Methods used by class Memory
 
    // Allocate and register a new pointer. Return the host pointer.
-   // h_ptr must be already allocated using new T[] if mt is a pure device
-   // memory type, e.g. CUDA (mt will not be HOST).
-   static void *New_(void *h_ptr, size_t bytes, MemoryType mt,
-                     unsigned &flags);
+   static void *New_(size_t bytes, MemoryType mt, unsigned &flags);
+   static void *HostNew_(void **ptr, const size_t bytes);
+
+   /// Host function: New, Delete, Unprotect
+   static void HostUnprotect_(const void *ptr, const size_t bytes);
 
    // Register an external pointer of the given MemoryType.
    // Return the host pointer.
@@ -416,6 +424,7 @@ private:
    // Un-register and free memory identified by its host pointer. Returns the
    // memory type of the host pointer.
    static MemoryType Delete_(void *h_ptr, unsigned flags);
+   static void HostDelete_(void *h_ptr, unsigned flags);
 
    // Return a pointer to the memory identified by the host pointer h_ptr for
    // access with the given MemoryClass.
@@ -488,26 +497,28 @@ public:
    void PrintPtrs(void);
 };
 
+// ****************************************************************************
+// * Memory<T> inline methods
+// ****************************************************************************
+template <typename T>
+inline void Memory<T>::New(int size)
+{ Memory<T>::New(size, MemoryType::HOST); }
 
-// Inline methods
-
+// ****************************************************************************
 template <typename T>
 inline void Memory<T>::New(int size, MemoryType mt)
 {
-   if (mt == MemoryType::HOST) { New(size); }
-   else
-   {
-      // Allocate the host pointer with new T[] if 'mt' is a pure
-      // device memory type, e.g. CUDA.
-      T *tmp = (mt == MemoryType::CUDA) ? new T[size] : nullptr;
-      h_ptr = (T*)MemoryManager::New_(tmp, size*sizeof(T), mt, flags);
-      capacity = size;
-   }
+   dbg("Memory<T>::New<%d>",mt);
+   capacity = size;
+   const size_t bytes = size * sizeof(T);
+   m_ptr = (T*)MemoryManager::New_(bytes, mt, flags);
 }
 
+// ****************************************************************************
 template <typename T>
 inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 {
+   dbg("Memory<T>::Wrap");
    if (mt == MemoryType::HOST)
    {
       Wrap(ptr, size, own);
@@ -517,16 +528,17 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
       // Allocate the host pointer with new T[] if 'mt' is a pure device memory
       // type, e.g. CUDA.
       T *tmp = (mt == MemoryType::CUDA) ? new T[size] : NULL;
-      h_ptr = (T*)MemoryManager::Register_(ptr, tmp, size*sizeof(T), mt, own,
+      m_ptr = (T*)MemoryManager::Register_(ptr, tmp, size*sizeof(T), mt, own,
                                            false, flags);
       capacity = size;
    }
 }
 
+// ****************************************************************************
 template <typename T>
 inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
-   h_ptr = base.h_ptr + offset;
+   m_ptr = base.m_ptr + offset;
    capacity = size;
    if (!(base.flags & REGISTERED))
    {
@@ -534,36 +546,54 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    }
    else
    {
-      MemoryManager::Alias_(base.h_ptr, offset*sizeof(T), size*sizeof(T),
+      MemoryManager::Alias_(base.m_ptr, offset*sizeof(T), size*sizeof(T),
                             base.flags, flags);
    }
 }
 
+// ****************************************************************************
 template <typename T>
 inline void Memory<T>::Delete()
 {
+   dbg("Memory<T>::Delete");
    if (!(flags & REGISTERED) ||
-       MemoryManager::Delete_(h_ptr, flags) == MemoryType::HOST)
+       MemoryManager::Delete_(m_ptr, flags) == MemoryType::HOST)
    {
-      if (flags & OWNS_HOST) { delete [] h_ptr; }
+      if (flags & OWNS_HOST)
+      {
+         if (flags & OWNS_DEVICE)
+         {
+            dbg("Memory<T>::Delete => HostDelete_");
+            MemoryManager::HostDelete_(m_ptr, flags);
+         }
+         else
+         {
+            dbg("Memory<T>::Delete => delete []");
+            MFEM_VERIFY(m_ptr,"m_ptr");
+            //delete m_ptr;
+         }
+      }
    }
 }
 
+// ****************************************************************************
 template <typename T>
 inline T &Memory<T>::operator[](int idx)
 {
    MFEM_ASSERT((flags & VALID_HOST) && !(flags & VALID_DEVICE),
                "invalid host pointer access");
-   return h_ptr[idx];
+   return m_ptr[idx];
 }
 
+// ****************************************************************************
 template <typename T>
 inline const T &Memory<T>::operator[](int idx) const
 {
    MFEM_ASSERT((flags & VALID_HOST), "invalid host pointer access");
-   return h_ptr[idx];
+   return m_ptr[idx];
 }
 
+// ****************************************************************************
 template <typename T>
 inline Memory<T>::operator T*()
 {
@@ -571,16 +601,18 @@ inline Memory<T>::operator T*()
                ((flags & VALID_HOST) &&
                 (std::is_const<T>::value || !(flags & VALID_DEVICE))),
                "invalid host pointer access");
-   return h_ptr;
+   return m_ptr;
 }
 
+// ****************************************************************************
 template <typename T>
 inline Memory<T>::operator const T*() const
 {
    MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
-   return h_ptr;
+   return m_ptr;
 }
 
+// ****************************************************************************
 template <typename T> template <typename U>
 inline Memory<T>::operator U*()
 {
@@ -588,65 +620,72 @@ inline Memory<T>::operator U*()
                ((flags & VALID_HOST) &&
                 (std::is_const<U>::value || !(flags & VALID_DEVICE))),
                "invalid host pointer access");
-   return reinterpret_cast<U*>(h_ptr);
+   return reinterpret_cast<U*>(m_ptr);
 }
 
+// ****************************************************************************
 template <typename T> template <typename U>
 inline Memory<T>::operator const U*() const
 {
    MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
-   return reinterpret_cast<U*>(h_ptr);
+   return reinterpret_cast<U*>(m_ptr);
 }
 
+// ****************************************************************************
 template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
+   dbg("Memory<T>::ReadWrite");
    if (!(flags & REGISTERED))
    {
-      if (mc == MemoryClass::HOST) { return h_ptr; }
-      mfem_error("");
-      MemoryManager::Register_(h_ptr, NULL, capacity*sizeof(T),
-                               MemoryType::HOST, flags & OWNS_HOST,
+      if (mc == MemoryClass::HOST) { return m_ptr; }
+      MemoryManager::Register_(m_ptr, NULL, capacity*sizeof(T),
+                               mfem::GetMemoryType(mc), flags & OWNS_HOST,
                                flags & ALIAS, flags);
    }
-   return (T*)MemoryManager::ReadWrite_(h_ptr, mc, size*sizeof(T), flags);
+   return (T*)MemoryManager::ReadWrite_(m_ptr, mc, size*sizeof(T), flags);
 }
 
+// ****************************************************************************
 template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
+   dbg("Memory<T>::Read");
    if (!(flags & REGISTERED))
    {
-      if (mc == MemoryClass::HOST) { return h_ptr; }
-      mfem_error("");
-      MemoryManager::Register_((void*)h_ptr, NULL, capacity*sizeof(T),
-                               MemoryType::HOST, flags & OWNS_HOST,
+      if (mc == MemoryClass::HOST) { return m_ptr; }
+      MemoryManager::Register_((void*)m_ptr, NULL, capacity*sizeof(T),
+                               mfem::GetMemoryType(mc), flags & OWNS_HOST,
                                flags & ALIAS, flags);
    }
    return (const T*)MemoryManager::Read_(
-             (void*)h_ptr, mc, size*sizeof(T), flags);
+             (void*)m_ptr, mc, size*sizeof(T), flags);
 }
 
+// ****************************************************************************
 template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
+   dbg("Memory<T>::Write<%d> %p",mfem::GetMemoryType(mc),m_ptr);
    if (!(flags & REGISTERED))
    {
-      if (mc == MemoryClass::HOST) { return h_ptr; }
-      mfem_error("");
-      MemoryManager::Register_(h_ptr, NULL, capacity*sizeof(T),
-                               MemoryType::HOST, flags & OWNS_HOST,
+      if (mc == MemoryClass::HOST) { return m_ptr; }
+      MemoryManager::Register_(m_ptr, NULL, capacity*sizeof(T),
+                               mfem::GetMemoryType(mc),
+                               flags & OWNS_HOST,
                                flags & ALIAS, flags);
    }
-   return (T*)MemoryManager::Write_(h_ptr, mc, size*sizeof(T), flags);
+   return (T*)MemoryManager::Write_(m_ptr, mc, size*sizeof(T), flags);
 }
 
+// ****************************************************************************
 template <typename T>
 inline void Memory<T>::Sync(const Memory &other) const
 {
+   dbg("Memory<T>::Sync");
    if (!(flags & REGISTERED) && (other.flags & REGISTERED))
    {
-      MFEM_ASSERT(h_ptr == other.h_ptr &&
+      MFEM_ASSERT(m_ptr == other.m_ptr &&
                   (flags & ALIAS) == (other.flags & ALIAS),
                   "invalid input");
       flags = (flags | REGISTERED) & ~(OWNS_DEVICE | OWNS_INTERNAL);
@@ -655,6 +694,7 @@ inline void Memory<T>::Sync(const Memory &other) const
            (other.flags & (VALID_HOST | VALID_DEVICE));
 }
 
+// ****************************************************************************
 template <typename T>
 inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 {
@@ -662,70 +702,77 @@ inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
    MFEM_ASSERT(!(flags & REGISTERED) || (base.flags & REGISTERED),
                "invalid base state");
    if (!(base.flags & REGISTERED)) { return; }
-   MemoryManager::SyncAlias_(base.h_ptr, h_ptr, alias_size*sizeof(T),
+   MemoryManager::SyncAlias_(base.m_ptr, m_ptr, alias_size*sizeof(T),
                              base.flags, flags);
 }
 
+// ****************************************************************************
 template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
    if (!(flags & REGISTERED)) { return MemoryType::HOST; }
-   return MemoryManager::GetMemoryType_(h_ptr, flags);
+   return MemoryManager::GetMemoryType_(m_ptr, flags);
 }
 
+// ****************************************************************************
 template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
+   dbg("Memory<T>::CopyFrom");
    if (!(flags & REGISTERED) && !(src.flags & REGISTERED))
    {
-      if (h_ptr != src.h_ptr && size != 0)
+      if (m_ptr != src.m_ptr && size != 0)
       {
-         MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
+         MFEM_ASSERT(m_ptr + size <= src || src + size <= m_ptr,
                      "data overlaps!");
-         std::memcpy(h_ptr, src, size*sizeof(T));
+         std::memcpy(m_ptr, src, size*sizeof(T));
       }
       // *this is not registered, so (flags & VALID_HOST) must be true
    }
    else
    {
-      MemoryManager::Copy_(h_ptr, src.h_ptr, size*sizeof(T), src.flags, flags);
+      MemoryManager::Copy_(m_ptr, src.m_ptr, size*sizeof(T), src.flags, flags);
    }
 }
 
+// ****************************************************************************
 template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
+   dbg("Memory<T>::CopyFromHost");
    if (!(flags & REGISTERED))
    {
-      if (h_ptr != src && size != 0)
+      if (m_ptr != src && size != 0)
       {
-         MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
+         MFEM_ASSERT(m_ptr + size <= src || src + size <= m_ptr,
                      "data overlaps!");
-         std::memcpy(h_ptr, src, size*sizeof(T));
+         std::memcpy(m_ptr, src, size*sizeof(T));
       }
       // *this is not registered, so (flags & VALID_HOST) must be true
    }
    else
    {
-      MemoryManager::CopyFromHost_(h_ptr, src, size*sizeof(T), flags);
+      MemoryManager::CopyFromHost_(m_ptr, src, size*sizeof(T), flags);
    }
 }
 
+// ****************************************************************************
 template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
+   dbg("Memory<T>::CopyToHost");
    if (!(flags & REGISTERED))
    {
-      if (h_ptr != dest && size != 0)
+      if (m_ptr != dest && size != 0)
       {
-         MFEM_ASSERT(h_ptr + size <= dest || dest + size <= h_ptr,
+         MFEM_ASSERT(m_ptr + size <= dest || dest + size <= m_ptr,
                      "data overlaps!");
-         std::memcpy(dest, h_ptr, size*sizeof(T));
+         std::memcpy(dest, m_ptr, size*sizeof(T));
       }
    }
    else
    {
-      MemoryManager::CopyToHost_(dest, h_ptr, size*sizeof(T), flags);
+      MemoryManager::CopyToHost_(dest, m_ptr, size*sizeof(T), flags);
    }
 }
 

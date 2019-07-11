@@ -48,7 +48,7 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 #define DBG_COLOR 38
-#include "../general/forall.hpp"
+#include "../general/dbg.hpp"
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -113,6 +113,15 @@ int main(int argc, char *argv[])
       }
    }
 
+   dbg("Test Y");
+   Vector Y(16);
+   Y.UseDevice(true);
+   dbg("Y = 0.0;");
+   Y = 0.0;
+   dbg("Y[0] = 0.0;");
+   Y[0] = 0.0;
+   exit(0);
+
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -158,10 +167,11 @@ int main(int argc, char *argv[])
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    dbg("GridFunction x");
+   exit(0);
    GridFunction x(fespace);
    dbg("x = 0.0;");
    x = 0.0;
-   printf("x[0] = 0.0;\n"); fflush(0);
+   dbg("x[0] = 0.0;");
    x[0] = 0.0;
    exit(0);
 

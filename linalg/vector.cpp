@@ -129,6 +129,7 @@ Vector &Vector::operator=(const Vector &v)
 Vector &Vector::operator=(double value)
 {
    const bool use_dev = UseDevice();
+   dbg("use_dev: %s",use_dev?"true":"false");
    const int N = size;
    auto y = Write(use_dev);
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = value;);
