@@ -1706,10 +1706,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
                                                    int Or) const
 {
-   // if ((this)->GetBasisType() == BasisType::Serendipity)
-   // {
-   //    return SegDofOrd[0];
-   // }
    if (GeomType == Geometry::SEGMENT)
    {
       return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
@@ -1720,7 +1716,6 @@ const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    }
    else if (GeomType == Geometry::SQUARE)
    {
-      // cout << "fe_coll: QuadDofOrd = " << QuadDofOrd[Or%8][0] << "," << QuadDofOrd[Or%8][1] << "," << QuadDofOrd[Or%8][2] << "," << QuadDofOrd[Or%8][3] << endl;
       return QuadDofOrd[Or%8];
    }
    return NULL;

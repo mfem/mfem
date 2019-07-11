@@ -1996,7 +1996,9 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   virtual void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
+   void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+   void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const;
 };
@@ -2008,7 +2010,9 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   virtual void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
+   void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+   void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const;
 };

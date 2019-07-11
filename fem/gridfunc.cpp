@@ -1350,79 +1350,95 @@ void GridFunction::AccumulateAndCountBdrValues(
       const IntegrationRule &ir = fe->GetNodes();
       fes->GetBdrElementVDofs(i, vdofs);
 
+      // cout << "gridfunc: vdofs is" << endl;
+      // vdofs.Print();
+      // cout << endl;
+
+      // cout << "gridfunc: coeff[0] is: " << coeff[0]->GetTime() << endl;
+
       // Will wrote this next part to compute the Vandermonde matrix and compute
       // the dofs accordingly.  It only works for scalar FE types.
 
-      // DenseMatrix V(fdof, ir.Size());
-      // Vector rhs(ir.Size());
-      // for (j = 0; j < ir.Size(); ++j)
-      // {
-      //    const IntegrationPoint &ip = ir.IntPoint(j);
-      //    transf->SetIntPoint(&ip);
-      //    Vector col;
-      //    V.GetColumnReference(j, col);
-      //    fe->CalcShape(ip, col);
-      //    rhs[j] = coeff[0]->Eval(*transf, ip);
-      // }
-      // V.Transpose();
-      // DenseMatrixInverse Vinv(V);
-      // Vector dofs(fdof);
-      // Vinv.Mult(rhs, dofs);
-
-      // for (j = 0; j < fdof; j++)
-      // {
-      //    // TEMP: assume vdim = 1
-      //    int d = 0;
-      //    double val = dofs[j];
-      //    if ( (ind = vdofs[fdof*d+j]) < 0 )
-      //    {
-      //       val = -val, ind = -1-ind;
-      //    }
-      //    if (++values_counter[ind] == 1)
-      //    {
-      //       (*this)(ind) = val;
-      //    }
-      //    else
-      //    {
-      //       (*this)(ind) += val;
-      //    }
-      // }
-      // // cout << "gridfunc: values_counter = " << endl;
-      // // values_counter.Print();
-
-      // Original code from master branch:
-
-      for (j = 0; j < fdof; j++)
+      DenseMatrix V(fdof, ir.Size());
+      Vector rhs(ir.Size());
+      for (j = 0; j < ir.Size(); ++j)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
          transf->SetIntPoint(&ip);
-         if (vcoeff)
-         {
-            vcoeff->Eval(vc, *transf, ip);
-         }
-         for (d = 0; d < vdim; d++)
-         {
-            if (!vcoeff && !coeff[d])
-            {
-               continue;
-            }
+         Vector col;
+         V.GetColumnReference(j, col);
 
-            val = vcoeff ? vc(d) : coeff[d]->Eval(*transf, ip);
-            if ((ind = vdofs[fdof * d + j]) < 0)
-            {
-               val = -val, ind = -1 - ind;
-            }
-            if (++values_counter[ind] == 1)
-            {
-               (*this)(ind) = val;
-            }
-            else
-            {
-               (*this)(ind) += val;
-            }
+         // cout << "gridfunc: j= " << j << ", ip= " << ip.x << ", " << ip.y << endl;
+
+         fe->CalcShape(ip, col);
+         rhs[j] = coeff[0]->Eval(*transf, ip);
+      }
+      V.Transpose();
+      
+      // cout << "gridfunc: V is: " << endl;
+      // V.PrintShort();
+      // cout << endl;
+
+      DenseMatrixInverse Vinv(V);
+      Vector dofs(fdof);
+      Vinv.Mult(rhs, dofs);
+
+      for (j = 0; j < fdof; j++)
+      {
+         // TEMP: assume vdim = 1
+         int d = 0;
+         double val = dofs[j];
+         if ( (ind = vdofs[fdof * d + j]) < 0 )
+         {
+            val = -val, ind = -1-ind;
+         }
+         if (++values_counter[ind] == 1)
+         {
+            (*this)(ind) = val;
+         }
+         else
+         {
+            (*this)(ind) += val;
          }
       }
-   }
+
+      // cout << "gridfunc: values_counter = " << endl;
+      // values_counter.Print();
+
+      // Original code from master branch:
+
+      // for (j = 0; j < fdof; j++)
+      // {
+      //    const IntegrationPoint &ip = ir.IntPoint(j);
+      //    transf->SetIntPoint(&ip);
+      //    if (vcoeff)
+      //    {
+      //       vcoeff->Eval(vc, *transf, ip);
+      //    }
+      //    for (d = 0; d < vdim; d++)
+      //    {
+      //       if (!vcoeff && !coeff[d])
+      //       {
+      //          continue;
+      //       }
+
+      //       val = vcoeff ? vc(d) : coeff[d]->Eval(*transf, ip);
+      //       if ((ind = vdofs[fdof * d + j]) < 0)
+      //       {
+      //          val = -val, ind = -1 - ind;
+      //       }
+      //       if (++values_counter[ind] == 1)
+      //       {
+      //          (*this)(ind) = val;
+      //       }
+      //       else
+      //       {
+      //          (*this)(ind) += val;
+      //       }
+      //    }
+      // }
+
+   }  // Keep this close curly brace
 
    // In the case of partially conforming space, i.e. (fes->cP != NULL), we need
    // to set the values of all dofs on which the dofs set above depend.

@@ -1889,36 +1889,44 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
    Nodes.IntPoint(3).x = 0.0;
    Nodes.IntPoint(3).y = 1.0;
 
-   // if(p==2)
-   // {
-   //    Nodes.IntPoint(4).x = 0.5;
-   //    Nodes.IntPoint(4).y = 0.0;
-   //    Nodes.IntPoint(5).x = 1.0;
-   //    Nodes.IntPoint(5).y = 0.5;
-   //    Nodes.IntPoint(6).x = 0.5;
-   //    Nodes.IntPoint(6).y = 1.0;
-   //    Nodes.IntPoint(7).x = 0.0;
-   //    Nodes.IntPoint(7).y = 0.5;
-   // }
-   // if(p==3)
-   // {
-   //    Nodes.IntPoint(4).x = 1./3.;
-   //    Nodes.IntPoint(4).y = 0.;
-   //    Nodes.IntPoint(5).x = 2./3.;
-   //    Nodes.IntPoint(5).y = 0.;
-   //    Nodes.IntPoint(6).x = 1.;
-   //    Nodes.IntPoint(6).y = 1./3.;
-   //    Nodes.IntPoint(7).x = 1.;
-   //    Nodes.IntPoint(7).y = 2./3.;
-   //    Nodes.IntPoint(8).x = 2./3.;
-   //    Nodes.IntPoint(8).y = 1.;
-   //    Nodes.IntPoint(9).x = 1./3.;
-   //    Nodes.IntPoint(9).y = 1.;
-   //    Nodes.IntPoint(10).x = 0.;
-   //    Nodes.IntPoint(10).y = 2./3.;
-   //    Nodes.IntPoint(11).x = 0.;
-   //    Nodes.IntPoint(11).y = 1./3.;
-   // }
+   if(p==2)
+   {
+      Nodes.IntPoint(4).x = 0.5;
+      Nodes.IntPoint(4).y = 0.0;
+      Nodes.IntPoint(5).x = 1.0;
+      Nodes.IntPoint(5).y = 0.5;
+      Nodes.IntPoint(6).x = 0.5;
+      Nodes.IntPoint(6).y = 1.0;
+      Nodes.IntPoint(7).x = 0.0;
+      Nodes.IntPoint(7).y = 0.5;
+   }
+   
+   if(p==3)
+   {
+      const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  
+      // returns a double array of size p+1; first and last entries are 0
+      double gl1 = edgePts[1];
+      double gl2 = edgePts[2];
+
+      Nodes.IntPoint(4).x = gl1;
+      Nodes.IntPoint(4).y = 0.0;
+      Nodes.IntPoint(5).x = gl2;
+      Nodes.IntPoint(5).y = 0.0;
+      Nodes.IntPoint(6).x = 1.0;
+      Nodes.IntPoint(6).y = gl1;
+      Nodes.IntPoint(7).x = 1.0;
+      Nodes.IntPoint(7).y = gl2;
+
+      Nodes.IntPoint(8).x = gl1;
+      Nodes.IntPoint(8).y = 1.;
+      Nodes.IntPoint(9).x = gl2;
+      Nodes.IntPoint(9).y = 1.;
+      Nodes.IntPoint(10).x = 0.;
+      Nodes.IntPoint(10).y = gl1;
+      Nodes.IntPoint(11).x = 0.;
+      Nodes.IntPoint(11).y = gl2;
+   }
+
    // if(p==4)
    // {
    //    Nodes.IntPoint(4).x  = .25;
@@ -1951,7 +1959,7 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
 
    //    Nodes.IntPoint(16).x = .5;
    //    Nodes.IntPoint(16).y = .5;
-   //}
+   // }
 
 }
 
@@ -2186,7 +2194,48 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
+void H1Ser_QuadrilateralElement::Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const
+{
+    cout << "fe.cpp: used the H1Ser_quad Project function (copied from Nodal)" << endl;
+   if (fe.GetRangeType() == SCALAR)
+   {
+      MFEM_ASSERT(MapType == fe.GetMapType(), "");
 
+      Vector shape(fe.GetDof());
+
+      I.SetSize(Dof, fe.GetDof());
+      for (int k = 0; k < Dof; k++)
+      {
+         fe.CalcShape(Nodes.IntPoint(k), shape);
+         for (int j = 0; j < shape.Size(); j++)
+         {
+            I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
+         }
+      }
+   }
+   else
+   {
+      DenseMatrix vshape(fe.GetDof(), Trans.GetSpaceDim());
+
+      I.SetSize(vshape.Width()*Dof, fe.GetDof());
+      for (int k = 0; k < Dof; k++)
+      {
+         Trans.SetIntPoint(&Nodes.IntPoint(k));
+         fe.CalcVShape(Trans, vshape);
+         if (MapType == INTEGRAL)
+         {
+            vshape *= Trans.Weight();
+         }
+         for (int j = 0; j < vshape.Height(); j++)
+            for (int d = 0; d < vshape.Width(); d++)
+            {
+               I(k+d*Dof,j) = vshape(j,d);
+            }
+      }
+   }
+   // ScalarFiniteElement::Project(*this, Trans, I);
+}
 
 void H1Ser_QuadrilateralElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
@@ -2274,18 +2323,31 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
 
    for (int i = 0; i < p-1; i++) 
    {
-      shape(8 + 0*(p-1) + i) =     omy*omz*nodalX(i+1); // edge 8
-      shape(8 + 1*(p-1) + i) =       x*omz*nodalY(i+1); // edge 9
-      shape(8 + 3*(p-1) - i - 1) =   y*omz*nodalX(i+1); // edge 10
-      shape(8 + 4*(p-1) - i - 1) = omx*omz*nodalY(i+1); // edge 11
-      shape(8 + 4*(p-1) + i) =     omy*  z*nodalX(i+1); // edge 12
-      shape(8 + 5*(p-1) + i) =       x*  z*nodalY(i+1); // edge 13
-      shape(8 + 7*(p-1) - i - 1) =   y*  z*nodalX(i+1); // edge 14
-      shape(8 + 8*(p-1) - i - 1) = omx*  z*nodalY(i+1); // edge 15
-      shape(8 + 8*(p-1) + i) =     omx*omy*nodalZ(i+1); // edge 16
-      shape(8 + 9*(p-1) + i) =       x*omy*nodalZ(i+1); // edge 17
-      shape(8 + 10*(p-1) + i) =      x*  y*nodalZ(i+1); // edge 18
-      shape(8 + 11*(p-1) + i) =    omx*  y*nodalZ(i+1); // edge 19
+      shape(8 +  0*(p-1) + i) =     omy*omz*nodalX(i+1); // edge 8
+      shape(8 +  1*(p-1) + i) =       x*omz*nodalY(i+1); // edge 9
+      shape(8 +  2*(p-1) + i) =       y*omz*nodalX(i+1); // edge 10
+      shape(8 +  3*(p-1) + i) =     omx*omz*nodalY(i+1); // edge 11
+      shape(8 +  4*(p-1) + i) =     omy*  z*nodalX(i+1); // edge 12
+      shape(8 +  5*(p-1) + i) =       x*  z*nodalY(i+1); // edge 13
+      shape(8 +  6*(p-1) + i) =       y*  z*nodalX(i+1); // edge 14
+      shape(8 +  7*(p-1) + i) =     omx*  z*nodalY(i+1); // edge 15
+      shape(8 +  8*(p-1) + i) =     omx*omy*nodalZ(i+1); // edge 16
+      shape(8 +  9*(p-1) + i) =       x*omy*nodalZ(i+1); // edge 17
+      shape(8 + 10*(p-1) + i) =       x*  y*nodalZ(i+1); // edge 18
+      shape(8 + 11*(p-1) + i) =     omx*  y*nodalZ(i+1); // edge 19
+
+      // shape(8 + 0*(p-1) + i) =     omy*omz*nodalX(i+1); // edge 8
+      // shape(8 + 1*(p-1) + i) =       x*omz*nodalY(i+1); // edge 9
+      // shape(8 + 3*(p-1) - i - 1) =   y*omz*nodalX(i+1); // edge 10
+      // shape(8 + 4*(p-1) - i - 1) = omx*omz*nodalY(i+1); // edge 11
+      // shape(8 + 4*(p-1) + i) =     omy*  z*nodalX(i+1); // edge 12
+      // shape(8 + 5*(p-1) + i) =       x*  z*nodalY(i+1); // edge 13
+      // shape(8 + 7*(p-1) - i - 1) =   y*  z*nodalX(i+1); // edge 14
+      // shape(8 + 8*(p-1) - i - 1) = omx*  z*nodalY(i+1); // edge 15
+      // shape(8 + 8*(p-1) + i) =     omx*omy*nodalZ(i+1); // edge 16
+      // shape(8 + 9*(p-1) + i) =       x*omy*nodalZ(i+1); // edge 17
+      // shape(8 + 10*(p-1) + i) =      x*  y*nodalZ(i+1); // edge 18
+      // shape(8 + 11*(p-1) + i) =    omx*  y*nodalZ(i+1); // edge 19
    }
 
    // Set vertex shape functions as trilinears, then made nodal:
@@ -2301,33 +2363,37 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
 
    const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
 
+   // cout << "fe: shape is: ";
+   // shape.Print();
+   // cout << endl;
+
    for(int i = 0; i<p-1; i++)
    {
       int e08p = 8 + 0*(p-1) + i;
       int e09p = 8 + 1*(p-1) + i;
-      int e10p = 8 + 3*(p-1) - i - 1;
-      int e11p = 8 + 4*(p-1) - i - 1;
+      int e10p = 8 + 2*(p-1) + i;
+      int e11p = 8 + 3*(p-1) + i;
       int e12p = 8 + 4*(p-1) + i;
       int e13p = 8 + 5*(p-1) + i;
-      int e14p = 8 + 7*(p-1) - i - 1;
-      int e15p = 8 + 8*(p-1) - i - 1;
+      int e14p = 8 + 6*(p-1) + i;
+      int e15p = 8 + 7*(p-1) + i;
       int e16p = 8 + 8*(p-1) + i;
       int e17p = 8 + 9*(p-1) + i;
       int e18p = 8 + 10*(p-1) + i;
       int e19p = 8 + 11*(p-1) + i;
 
-      int e08m = 8 + 0*(p-1) + ((p-2)-i);
-      int e09m = 8 + 1*(p-1) + ((p-2)-i);
-      int e10m = 8 + 3*(p-1) - ((p-2)-i) - 1;
-      int e11m = 8 + 4*(p-1) - ((p-2)-i) - 1;
-      int e12m = 8 + 4*(p-1) + ((p-2)-i);
-      int e13m = 8 + 5*(p-1) + ((p-2)-i);
-      int e14m = 8 + 7*(p-1) - ((p-2)-i) - 1;
-      int e15m = 8 + 8*(p-1) - ((p-2)-i) - 1;
-      int e16m = 8 + 8*(p-1) + ((p-2)-i);
-      int e17m = 8 + 9*(p-1) + ((p-2)-i);
-      int e18m = 8 + 10*(p-1) + ((p-2)-i);
-      int e19m = 8 + 11*(p-1) + ((p-2)-i);
+      int e08m = 8 + 1*(p-1) - i - 1;
+      int e09m = 8 + 2*(p-1) - i - 1;
+      int e10m = 8 + 3*(p-1) - i - 1;
+      int e11m = 8 + 4*(p-1) - i - 1;
+      int e12m = 8 + 5*(p-1) - i - 1;
+      int e13m = 8 + 6*(p-1) - i - 1;
+      int e14m = 8 + 7*(p-1) - i - 1;
+      int e15m = 8 + 8*(p-1) - i - 1;
+      int e16m = 8 + 9*(p-1) - i - 1;
+      int e17m = 8 + 10*(p-1) - i - 1;
+      int e18m = 8 + 11*(p-1) - i - 1;
+      int e19m = 8 + 12*(p-1) - i - 1;
 
       shape( 0) -= (1-edgePts[i+1])*(shape(e08p) + shape(e11p) + shape(e16p));
       shape( 1) -= (1-edgePts[i+1])*(shape(e08m) + shape(e09p) + shape(e17p));
@@ -2339,6 +2405,8 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
       shape( 7) -= (1-edgePts[i+1])*(shape(e14p) + shape(e15m) + shape(e19m));
    }
 
+   // cout << endl;
+
    // cout << "shape is: " << endl;
    // shape.Print(mfem::out, 4);
 }
@@ -2349,9 +2417,20 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
    int p = (this)->GetOrder();
    double x = ip.x, y = ip.y, z = ip.z;
 
-   // x=1;
-   // y=1;
-   // z=1;
+   // cout << endl << "ip is " << ip.x << ", " << ip.y << ", " << ip.z << endl;
+
+   // Print out some dshape values
+
+   // for(int a=0; a<2; a++)
+   // {
+   //    for(int b=0; b<2; b++)
+   //    {
+   //       for(int c=0; c<2; c++)
+   //       { 
+
+   // x=a;
+   // y=b;
+   // z=c;
    // IntegrationPoint myIP;
    // myIP.x = x;
    // myIP.y = y;
@@ -2374,58 +2453,63 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
 
   for (int i = 0; i < p-1; i++) 
    {
-      dshape(8 + 0*(p-1) + i,     0) = omy*omz*DnodalX(i+1);
-      dshape(8 + 0*(p-1) + i,     1) = -omz*nodalX(i+1);
-      dshape(8 + 0*(p-1) + i,     2) = -omy*nodalX(i+1);
+      dshape(8 + 0*(p-1) + i, 0) = omy*omz*DnodalX(i+1);
+      dshape(8 + 0*(p-1) + i, 1) = -omz*nodalX(i+1);
+      dshape(8 + 0*(p-1) + i, 2) = -omy*nodalX(i+1);
 
-      dshape(8 + 1*(p-1) + i,     0) = omz*nodalY(i+1);
-      dshape(8 + 1*(p-1) + i,     1) = x*omz*DnodalY(i+1);
-      dshape(8 + 1*(p-1) + i,     2) = -x*nodalY(i+1);
+      dshape(8 + 1*(p-1) + i, 0) = omz*nodalY(i+1);
+      dshape(8 + 1*(p-1) + i, 1) = x*omz*DnodalY(i+1);
+      dshape(8 + 1*(p-1) + i, 2) = -x*nodalY(i+1);
 
-      dshape(8 + 3*(p-1) - i - 1, 0) = y*omz*DnodalX(i+1);
-      dshape(8 + 3*(p-1) - i - 1, 1) = omz*nodalX(i+1);
-      dshape(8 + 3*(p-1) - i - 1, 2) = -y*nodalX(i+1);
+      dshape(8 + 2*(p-1) + i, 0) = y*omz*DnodalX(i+1);
+      dshape(8 + 2*(p-1) + i, 1) = omz*nodalX(i+1);
+      dshape(8 + 2*(p-1) + i, 2) = -y*nodalX(i+1);
 
-      dshape(8 + 4*(p-1) - i - 1, 0) = -omz*nodalY(i+1);
-      dshape(8 + 4*(p-1) - i - 1, 1) = omx*omz*DnodalY(i+1);
-      dshape(8 + 4*(p-1) - i - 1, 2) = -omx*nodalY(i+1);
+      dshape(8 + 3*(p-1) + i, 0) = -omz*nodalY(i+1);
+      dshape(8 + 3*(p-1) + i, 1) = omx*omz*DnodalY(i+1);
+      dshape(8 + 3*(p-1) + i, 2) = -omx*nodalY(i+1);
 
-      dshape(8 + 4*(p-1) + i,     0) = omy*  z*DnodalX(i+1);
-      dshape(8 + 4*(p-1) + i,     1) = - z*nodalX(i+1);
-      dshape(8 + 4*(p-1) + i,     2) = omy*nodalX(i+1);
+      dshape(8 + 4*(p-1) + i, 0) = omy*  z*DnodalX(i+1);
+      dshape(8 + 4*(p-1) + i, 1) = - z*nodalX(i+1);
+      dshape(8 + 4*(p-1) + i, 2) = omy*nodalX(i+1);
 
-      dshape(8 + 5*(p-1) + i,     0) = z*nodalY(i+1);
-      dshape(8 + 5*(p-1) + i,     1) = x*  z*DnodalY(i+1);
-      dshape(8 + 5*(p-1) + i,     2) = x*nodalY(i+1);
+      dshape(8 + 5*(p-1) + i, 0) = z*nodalY(i+1);
+      dshape(8 + 5*(p-1) + i, 1) = x*  z*DnodalY(i+1);
+      dshape(8 + 5*(p-1) + i, 2) = x*nodalY(i+1);
 
-      dshape(8 + 7*(p-1) - i - 1, 0) = y*  z*DnodalX(i+1);
-      dshape(8 + 7*(p-1) - i - 1, 1) = z*nodalX(i+1);
-      dshape(8 + 7*(p-1) - i - 1, 2) = y*nodalX(i+1);
+      dshape(8 + 6*(p-1) + i, 0) = y*  z*DnodalX(i+1);
+      dshape(8 + 6*(p-1) + i, 1) = z*nodalX(i+1);
+      dshape(8 + 6*(p-1) + i, 2) = y*nodalX(i+1);
 
-      dshape(8 + 8*(p-1) - i - 1, 0) = - z*nodalY(i+1);
-      dshape(8 + 8*(p-1) - i - 1, 1) = omx*  z*DnodalY(i+1);
-      dshape(8 + 8*(p-1) - i - 1, 2) = omx*nodalY(i+1);
+      dshape(8 + 7*(p-1) + i, 0) = - z*nodalY(i+1);
+      dshape(8 + 7*(p-1) + i, 1) = omx*  z*DnodalY(i+1);
+      dshape(8 + 7*(p-1) + i, 2) = omx*nodalY(i+1);
 
-      dshape(8 + 8*(p-1) + i,     0) = -omy*nodalZ(i+1);
-      dshape(8 + 8*(p-1) + i,     1) = -omx*nodalZ(i+1);
-      dshape(8 + 8*(p-1) + i,     2) = omx*omy*DnodalZ(i+1);
+      dshape(8 + 8*(p-1) + i, 0) = -omy*nodalZ(i+1);
+      dshape(8 + 8*(p-1) + i, 1) = -omx*nodalZ(i+1);
+      dshape(8 + 8*(p-1) + i, 2) = omx*omy*DnodalZ(i+1);
 
-      dshape(8 + 9*(p-1) + i,     0) = omy*nodalZ(i+1);
-      dshape(8 + 9*(p-1) + i,     1) = -x*nodalZ(i+1);
-      dshape(8 + 9*(p-1) + i,     2) = x*omy*DnodalZ(i+1);
+      dshape(8 + 9*(p-1) + i, 0) = omy*nodalZ(i+1);
+      dshape(8 + 9*(p-1) + i, 1) = -x*nodalZ(i+1);
+      dshape(8 + 9*(p-1) + i, 2) = x*omy*DnodalZ(i+1);
 
-      dshape(8 + 10*(p-1) + i,    0) = y*nodalZ(i+1);
-      dshape(8 + 10*(p-1) + i,    1) = x*nodalZ(i+1);
-      dshape(8 + 10*(p-1) + i,    2) = x*  y*DnodalZ(i+1);
+      dshape(8 + 10*(p-1) + i, 0) = y*nodalZ(i+1);
+      dshape(8 + 10*(p-1) + i, 1) = x*nodalZ(i+1);
+      dshape(8 + 10*(p-1) + i, 2) = x*  y*DnodalZ(i+1);
 
-      dshape(8 + 11*(p-1) + i,    0) = -y*nodalZ(i+1);
-      dshape(8 + 11*(p-1) + i,    1) = omx*nodalZ(i+1);
-      dshape(8 + 11*(p-1) + i,    2) = omx*  y*DnodalZ(i+1);
+      dshape(8 + 11*(p-1) + i, 0) = -y*nodalZ(i+1);
+      dshape(8 + 11*(p-1) + i, 1) = omx*nodalZ(i+1);
+      dshape(8 + 11*(p-1) + i, 2) = omx*  y*DnodalZ(i+1);
    }
 
    TriLinear3DFiniteElement trilinear = TriLinear3DFiniteElement();
    DenseMatrix DtrilinearsAtIP(8);
    trilinear.CalcDShape(ip, DtrilinearsAtIP);
+   
+
+   // trilinear.CalcDShape(myIP, DtrilinearsAtIP);
+
+
 
    const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
 
@@ -2441,29 +2525,29 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
    {
       int e08p = 8 + 0*(p-1) + i;
       int e09p = 8 + 1*(p-1) + i;
-      int e10p = 8 + 3*(p-1) - i - 1;
-      int e11p = 8 + 4*(p-1) - i - 1;
+      int e10p = 8 + 2*(p-1) + i;
+      int e11p = 8 + 3*(p-1) + i;
       int e12p = 8 + 4*(p-1) + i;
       int e13p = 8 + 5*(p-1) + i;
-      int e14p = 8 + 7*(p-1) - i - 1;
-      int e15p = 8 + 8*(p-1) - i - 1;
+      int e14p = 8 + 6*(p-1) + i;
+      int e15p = 8 + 7*(p-1) + i;
       int e16p = 8 + 8*(p-1) + i;
       int e17p = 8 + 9*(p-1) + i;
       int e18p = 8 + 10*(p-1) + i;
       int e19p = 8 + 11*(p-1) + i;
 
-      int e08m = 8 + 0*(p-1) + ((p-2)-i);
-      int e09m = 8 + 1*(p-1) + ((p-2)-i);
-      int e10m = 8 + 3*(p-1) - ((p-2)-i) - 1;
-      int e11m = 8 + 4*(p-1) - ((p-2)-i) - 1;
-      int e12m = 8 + 4*(p-1) + ((p-2)-i);
-      int e13m = 8 + 5*(p-1) + ((p-2)-i);
-      int e14m = 8 + 7*(p-1) - ((p-2)-i) - 1;
-      int e15m = 8 + 8*(p-1) - ((p-2)-i) - 1;
-      int e16m = 8 + 8*(p-1) + ((p-2)-i);
-      int e17m = 8 + 9*(p-1) + ((p-2)-i);
-      int e18m = 8 + 10*(p-1) + ((p-2)-i);
-      int e19m = 8 + 11*(p-1) + ((p-2)-i);
+      int e08m = 8 + 1*(p-1) - i - 1;
+      int e09m = 8 + 2*(p-1) - i - 1;
+      int e10m = 8 + 3*(p-1) - i - 1;
+      int e11m = 8 + 4*(p-1) - i - 1;
+      int e12m = 8 + 5*(p-1) - i - 1;
+      int e13m = 8 + 6*(p-1) - i - 1;
+      int e14m = 8 + 7*(p-1) - i - 1;
+      int e15m = 8 + 8*(p-1) - i - 1;
+      int e16m = 8 + 9*(p-1) - i - 1;
+      int e17m = 8 + 10*(p-1) - i - 1;
+      int e18m = 8 + 11*(p-1) - i - 1;
+      int e19m = 8 + 12*(p-1) - i - 1;
 
       for(int j = 0; j < 3; j++)
       {
@@ -2478,14 +2562,64 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
       }
    }
 
-   // cout << "dshape is: " << endl;
+   // cout << "fe: dshape is: " << endl;
    // dshape.PrintShort();
+   // cout << endl;
+
+   //       }
+   //    }
+   // }
+   // cout << "END OF LINE" << endl;
 } 
 
 void H1Ser_HexElement::Project (
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
    cout << "fe.cpp (ser hex project): Nodes.Size is " << Nodes.Size() << endl;
+}
+
+
+void H1Ser_HexElement::Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const
+{
+    cout << "fe.cpp: used the H1Ser_hex Project function (copied from Nodal)" << endl;
+   if (fe.GetRangeType() == SCALAR)
+   {
+      MFEM_ASSERT(MapType == fe.GetMapType(), "");
+
+      Vector shape(fe.GetDof());
+
+      I.SetSize(Dof, fe.GetDof());
+      for (int k = 0; k < Dof; k++)
+      {
+         fe.CalcShape(Nodes.IntPoint(k), shape);
+         for (int j = 0; j < shape.Size(); j++)
+         {
+            I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
+         }
+      }
+   }
+   else
+   {
+      DenseMatrix vshape(fe.GetDof(), Trans.GetSpaceDim());
+
+      I.SetSize(vshape.Width()*Dof, fe.GetDof());
+      for (int k = 0; k < Dof; k++)
+      {
+         Trans.SetIntPoint(&Nodes.IntPoint(k));
+         fe.CalcVShape(Trans, vshape);
+         if (MapType == INTEGRAL)
+         {
+            vshape *= Trans.Weight();
+         }
+         for (int j = 0; j < vshape.Height(); j++)
+            for (int d = 0; d < vshape.Width(); d++)
+            {
+               I(k+d*Dof,j) = vshape(j,d);
+            }
+      }
+   }
+   // ScalarFiniteElement::Project(*this, Trans, I);
 }
 
 void H1Ser_HexElement::GetLocalInterpolation(ElementTransformation &Trans,

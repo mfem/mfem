@@ -144,7 +144,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x=0.0;
-   x.ProjectBdrCoefficient(*u, ess_bdr);
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -156,14 +155,13 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    if (solvePDE==1)
    {   
+      x.ProjectBdrCoefficient(*u, ess_bdr);
       a->AddDomainIntegrator(new DiffusionIntegrator);
    }
    else
    {
       a->AddDomainIntegrator(new MassIntegrator);
    }
-   
-
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -190,29 +188,24 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // Hack to viusalize a single basis function
-   if (dof2view != -1 && dof2view != -2)
+
+   if (dof2view == -2)     // Hack to project something
+   {
+      // void H1Ser_QuadrilateralElement::Project(Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
+      // fe->Project(coeff, Trans, X)
+      // fes->GetFE(i)-> Project(*src.fes->GetFE(i), *mesh->GetElementTransformation(i), P);
+      const FiniteElement *feholder = fespace->GetFE(0);
+      ElementTransformation *trans = mesh->GetElementTransformation(0);
+      DenseMatrix temporary;
+      feholder->Project(*feholder, *trans, temporary);
+      temporary.Print();
+   }
+   else if (dof2view != -1 && dof2view != -2)
    {
       x=0;
       x(dof2view) = 1;
    }
 
-   // Interpolation hack
-   if (dof2view == -2)
-   {
-      for(int k=0; k<x.Size(); k++)
-      {
-         x(k) = 1;
-      }         
-      // if (order == 3)
-      // {
-      //    cout << "dof -2, order 3 option" << endl;
-      //    for(int k=4; k<x.Size(); k++)
-      //    {
-      //       x(k) = 1;
-      //    }
-      // }
-   }
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".

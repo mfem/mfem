@@ -179,8 +179,27 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // Hack to project something
-   if (dof2view == -2)
+
+   // Hack to work on interior nodal interpolation
+   if (dof2view == -3)
+   {
+      x=0;
+      if (order <0)
+      {
+         order = -order;
+      }
+      int firstIntDof = 4 + 4*(order-1);
+      cout << "dof2view = -3 ==> Setting all Dofs to 1 up to Dof " << firstIntDof << endl;
+      // int numIntDofs = (order - 3)*(order - 2)/2; // assumes serendipity case
+
+      // can go up to x.Size()
+
+      for (int i = 0; i < firstIntDof; i++)
+      {
+         x(i) = 3.14159;
+      }
+   }
+   else if (dof2view == -2)     // Hack to project something
    {
       // void H1Ser_QuadrilateralElement::Project(Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
       // fe->Project(coeff, Trans, X)
@@ -189,7 +208,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       ElementTransformation *trans = mesh->GetElementTransformation(0);
       DenseMatrix temporary;
       feholder->Project(*feholder, *trans, temporary);
-      temporary.Print();
+      // temporary.Print();
    }
    else if (dof2view != -1)    // Hack to viusalize a single basis function   
    {
