@@ -43,7 +43,7 @@ add_mfem_examples(SUNDIALS_EXAMPLES_SRCS ${PFX} "" test_sundials)
 
 # Command line options for the tests.
 # Example 9: test explicit CVODE time stepping
-set(EX9_COMMON_OPTS -m ../../data/periodic-hexagon.mesh -p 0 -s 11)
+set(EX9_COMMON_OPTS -m ../../data/periodic-hexagon.mesh -p 0 -s 7)
 set(EX9_TEST_OPTS ${EX9_COMMON_OPTS}  -r  2 -dt 0.0018 -vs 25)
 set(EX9P_TEST_OPTS ${EX9_COMMON_OPTS} -rp 1 -dt 0.0009 -vs 50)
 # Example 10: test implicit CVODE time stepping
