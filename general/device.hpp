@@ -52,7 +52,7 @@ struct Backend
       /** @brief [device] OCCA CUDA backend. Enabled when MFEM_USE_OCCA = YES
           and MFEM_USE_CUDA = YES. */
       OCCA_CUDA = 1 << 8,
-      /** @brief [host] CPU backend: sequential execution on each MPI rank in
+      /** @brief [device] CPU backend: sequential execution on each MPI rank in
           different protected memory spaces.*/
       DEBUG = 1 << 9
    };
@@ -65,13 +65,13 @@ struct Backend
       NUM_BACKENDS = 10,
 
       /// Biwise-OR of all CPU backends
-      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | DEBUG,
+      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK,
+      DEVICE_MASK = CUDA_MASK | DEBUG,
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,
       /// Biwise-OR of all OCCA backends
