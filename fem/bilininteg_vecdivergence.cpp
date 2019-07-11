@@ -332,7 +332,7 @@ void PAVectorDivergenceApply2D(const int NE,
             opX[dx] = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               opX[dx] += Bt(dx,qx)*div[qy][qx]; // TODO: Oops this was backwards??????
+               opX[dx] += Bt(dx,qx)*div[qy][qx];
             }
          }
          for (int dy = 0; dy < TE_D1D; ++dy)
@@ -637,33 +637,33 @@ static void PAVectorDivergenceApply(const int dim,
       {
          switch ((TR_D1D << 4) | TE_D1D)
          {
-         case 0x32: // Specialized for Taylor-Hood elements - TODO: Is this correct?
-            if (Q1D == 3)
-               return PAVectorDivergenceApply3D<3,2,3>(NE,B,G,Bt,op,x,y);
+         case 0x32: // Specialized for Taylor-Hood elements
+            if (Q1D == 4)
+               return PAVectorDivergenceApply3D<3,2,4>(NE,B,G,Bt,op,x,y);
             break;
          case 0x43:
-            if (Q1D == 4)
-               return PAVectorDivergenceApply3D<4,3,4>(NE,B,G,Bt,op,x,y);
+            if (Q1D == 6)
+               return PAVectorDivergenceApply3D<4,3,6>(NE,B,G,Bt,op,x,y);
             break;
          case 0x54:
-            if (Q1D == 6)
-               return PAVectorDivergenceApply3D<5,4,6>(NE,B,G,Bt,op,x,y);
+            if (Q1D == 8)
+               return PAVectorDivergenceApply3D<5,4,8>(NE,B,G,Bt,op,x,y);
             break;
          case 0x65:
-            if (Q1D == 7)
-               return PAVectorDivergenceApply3D<6,5,7>(NE,B,G,Bt,op,x,y);
+            if (Q1D == 10)
+               return PAVectorDivergenceApply3D<6,5,10>(NE,B,G,Bt,op,x,y);
             break;
          case 0x76:
-            if (Q1D == 9)
-               return PAVectorDivergenceApply3D<7,6,9>(NE,B,G,Bt,op,x,y);
+            if (Q1D == 12)
+               return PAVectorDivergenceApply3D<7,6,12>(NE,B,G,Bt,op,x,y);
             break;
          case 0x87:
-            if (Q1D == 10)
-               return PAVectorDivergenceApply3D<8,7,10>(NE,B,G,Bt,op,x,y);
+            if (Q1D == 14)
+               return PAVectorDivergenceApply3D<8,7,14>(NE,B,G,Bt,op,x,y);
             break;
          case 0x98:
-            if (Q1D == 12)
-               return PAVectorDivergenceApply3D<9,8,12>(NE,B,G,Bt,op,x,y);
+            if (Q1D == 16)
+               return PAVectorDivergenceApply3D<9,8,16>(NE,B,G,Bt,op,x,y);
             break;
          default:
             break;
@@ -706,7 +706,6 @@ static void PAVectorDivergenceApply(const int dim,
 // PA VectorDivergence Apply kernel
 void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   // TODO: confirm this choice of maps is correct
    PAVectorDivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
                            trial_maps->B, trial_maps->G, test_maps->Bt, pa_data, x, y);
 }
