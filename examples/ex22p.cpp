@@ -60,18 +60,25 @@ int main(int argc, char *argv[])
    int print_level = 2;
    int serial_ref_levels = 0;
    int order = 2;
+   bool visualization = 0;
    double tol = 1e-8;
    const char *mesh_file = "../data/inline-quad.mesh";
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "");
-   args.AddOption(&tol, "-tol", "--tolerance",
-                  "Solver relative tolerance");
-   args.AddOption(&print_level, "-pl", "--print-level",
-                  "Solver print level");
-   args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
+   args.AddOption(&tol, "-tol", "--tolerance", "Solver relative tolerance");
+   args.AddOption(&print_level, "-pl", "--print-level", "Solver print level");
+   args.AddOption(&serial_ref_levels,
+                  "-rs",
+                  "--serial-ref-levels",
                   "Number of serial refinement levels.");
+   args.AddOption(&visualization,
+                  "-vis",
+                  "--visualization",
+                  "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -262,20 +269,27 @@ int main(int argc, char *argv[])
       cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
    }
 
-   // Visualize the solution through GLVis.
-   char vishost[] = "localhost";
-   int  visport = 19916;
-   socketstream u_sock(vishost, visport);
-   u_sock << "parallel " << num_procs << " " << myid << "\n";
-   u_sock.precision(8);
-   u_sock << "solution\n" << *pmesh << *u_gf << "window_title 'velocity'" <<
-          "keys Rjlc\n"<< endl;
+   if (visualization)
+   {
+      // Visualize the solution through GLVis.
+      char vishost[] = "localhost";
+      int visport = 19916;
+      socketstream u_sock(vishost, visport);
+      u_sock << "parallel " << num_procs << " " << myid << "\n";
+      u_sock.precision(8);
+      u_sock << "solution\n"
+             << *pmesh << *u_gf << "window_title 'velocity'"
+             << "keys Rjlc\n"
+             << endl;
 
-   socketstream p_sock(vishost, visport);
-   p_sock << "parallel " << num_procs << " " << myid << "\n";
-   p_sock.precision(8);
-   p_sock << "solution\n" << *pmesh << *p_gf << "window_title 'pressure'" <<
-          "keys Rjlc\n"<< endl;
+      socketstream p_sock(vishost, visport);
+      p_sock << "parallel " << num_procs << " " << myid << "\n";
+      p_sock.precision(8);
+      p_sock << "solution\n"
+             << *pmesh << *p_gf << "window_title 'pressure'"
+             << "keys Rjlc\n"
+             << endl;
+   }
 
    // Free used memory.
    delete vel_fec;
