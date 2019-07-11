@@ -258,73 +258,75 @@ void PAVectorDivergenceApply2D(const int NE,
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
       const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = 2;
       // the following variables are evaluated at compile time
       //constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : MAX_D1D; // unneeded
       constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
       double grad[max_Q1D][max_Q1D][2];
-      for (int qy = 0; qy < Q1D; ++qy)
-      {
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            grad[qy][qx][0] = 0.0;
-            grad[qy][qx][1] = 0.0;
-         }
-      }
-      for (int dy = 0; dy < TR_D1D; ++dy)
-      {
-         double gradX[max_Q1D][2];
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            gradX[qx][0] = 0.0;
-            gradX[qx][1] = 0.0;
-         }
-         for (int dx = 0; dx < TR_D1D; ++dx)
-         {
-            const double s1 = x(dx,dy,0,e);
-            const double s2 = x(dx,dy,1,e);
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               gradX[qx][0] += s1 * G(qx,dx);
-               gradX[qx][1] += s2 * B(qx,dx);
-            }
-         }
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            const double wy  = B(qy,dy);
-            const double wDy = G(qy,dy);
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               grad[qy][qx][0] += gradX[qx][0] * wy;
-               grad[qy][qx][1] += gradX[qx][1] * wDy;
-            }
-         }
-      }
-      // We've now calculated diag grad = [Dxy_1, xDy_2] in plane
       double div[max_Q1D][max_Q1D];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const int q = qx + qy * Q1D;
-
-            const double O11 = op(q,0,0,e);
-            const double O12 = op(q,0,1,e);
-            const double O21 = op(q,1,0,e);
-            const double O22 = op(q,1,1,e);
-
-            const double gradX = grad[qy][qx][0];
-            const double gradY = grad[qy][qx][1];
-
             div[qy][qx] = 0.0;
-            /*div[qy][qx] += gradX*O11 + gradY*O12; // TODO: Is it divu*op or op*divu?
-              div[qy][qx] += gradX*O21 + gradY*O22;*/
-            div[qy][qx] += gradX*O11 + gradY*O21;
-            div[qy][qx] += gradX*O12 + gradY*O22;
+            div[qy][qx] = 0.0;
          }
       }
-      // We've now calculated reshape(div u * op)
+
+      for (int c = 0; c < VDIM; ++c)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               grad[qy][qx][0] = 0.0;
+               grad[qy][qx][1] = 0.0;
+            }
+         }
+         for (int dy = 0; dy < TR_D1D; ++dy)
+         {
+            double gradX[max_Q1D][2];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               gradX[qx][0] = 0.0;
+               gradX[qx][1] = 0.0;
+            }
+            for (int dx = 0; dx < TR_D1D; ++dx)
+            {
+               const double s = x(dx,dy,c,e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  gradX[qx][0] += s * G(qx,dx);
+                  gradX[qx][1] += s * B(qx,dx);
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy  = B(qy,dy);
+               const double wDy = G(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  grad[qy][qx][0] += gradX[qx][0] * wy;
+                  grad[qy][qx][1] += gradX[qx][1] * wDy;
+               }
+            }
+         }
+         // We've now calculated grad(u_c) = [Dxy_1, xDy_2] in plane
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const int q = qx + qy * Q1D;
+               const double gradX = grad[qy][qx][0];
+               const double gradY = grad[qy][qx][1];
+
+               div[qy][qx] += gradX*op(q,0,c,e) + gradY*op(q,1,c,e);
+            }
+         }
+      }
+      // We've now calculated div = reshape(div phi * op) * u
       for (int qy = 0; qy < Q1D; ++qy)
       {
          double opX[max_TE_D1D];
