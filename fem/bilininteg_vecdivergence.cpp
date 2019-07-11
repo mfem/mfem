@@ -58,7 +58,6 @@ static void PAVectorDivergenceSetup2D(const int Q1D,
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
-
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 2, 2, NE);
 
@@ -499,9 +498,9 @@ static void PAVectorDivergenceApply3D(const int NE,
                const double gradZ = grad[qz][qy][qx][2];
 
                div[qz][qy][qx] = 0.0; // TODO: Is it divu*op or op*divu
-               div[qz][qy][qx] += gradX*O11 + gradY*O12 + gradZ*O13;
-               div[qz][qy][qx] += gradX*O21 + gradY*O22 + gradZ*O23;
-               div[qz][qy][qx] += gradX*O31 + gradY*O32 + gradZ*O33;
+               div[qz][qy][qx] += gradX*O11 + gradY*O21 + gradZ*O31;
+               div[qz][qy][qx] += gradX*O12 + gradY*O22 + gradZ*O32;
+               div[qz][qy][qx] += gradX*O13 + gradY*O23 + gradZ*O33;
             }
          }
       }

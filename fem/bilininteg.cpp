@@ -1985,7 +1985,8 @@ const IntegrationRule &VectorDivergenceIntegrator::GetRule(const FiniteElement &
                                                            ElementTransformation &Trans)
 {
    int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder();
-   // TODO: Shouldn't it be: Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ()
+   // TODO: Why doesn't it have to be:
+   //int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ();
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
