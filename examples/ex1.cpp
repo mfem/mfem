@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   bool mmu = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -76,6 +77,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&mmu, "-y", "--mmu", "-no-y",
+                  "--no-mmu", "Enable MMU test on vector Y.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -113,14 +116,19 @@ int main(int argc, char *argv[])
       }
    }
 
-   dbg("Test Y");
-   Vector Y(16);
-   Y.UseDevice(true);
-   dbg("Y = 0.0;");
-   Y = 0.0;
-   dbg("Y[0] = 0.0;");
-   Y[0] = 0.0;
-   exit(0);
+   if (mmu)
+   {
+      dbg("Test Y");
+      Vector Y(16);
+      double *Yd = (double*)Y;
+      Y.UseDevice(true);
+      dbg("Y = 0.0;");
+      Y = 0.0;
+      dbg("Y[0] = 0.0;");
+      Yd[0] = 0.0;
+      dbg("done");
+      return 0;
+   }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -166,14 +174,8 @@ int main(int argc, char *argv[])
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
-   dbg("GridFunction x");
-   exit(0);
    GridFunction x(fespace);
-   dbg("x = 0.0;");
    x = 0.0;
-   dbg("x[0] = 0.0;");
-   x[0] = 0.0;
-   exit(0);
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
