@@ -23,6 +23,11 @@
 #include "ode.hpp"
 #include "solvers.hpp"
 
+#include <sundials/sundials_config.h>
+// Check for appropriate SUNDIALS version
+#if !defined(SUNDIALS_VERSION_MAJOR) || (SUNDIALS_VERSION_MAJOR < 5)
+#error MFEM requires SUNDIALS version 5.0.0 or newer!
+#endif
 #include <cvode/cvode.h>
 #include <arkode/arkode_arkstep.h>
 #include <kinsol/kinsol.h>
