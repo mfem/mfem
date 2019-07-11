@@ -67,7 +67,7 @@ static void PAVectorDivergenceSetup2D(const int Q1D,
       for (int q = 0; q < NQ; ++q)
       {
          const double J11 = J(q,0,0,e);
-         const double J12 = J(q,0,1,e);
+         const double J12 = J(q,0,1,e); // TODO: WHICH IS IT???
          const double J21 = J(q,1,0,e);
          const double J22 = J(q,1,1,e);
          // Store wq * Q * adj(J)
@@ -319,8 +319,10 @@ void PAVectorDivergenceApply2D(const int NE,
             const double gradY = grad[qy][qx][1];
 
             div[qy][qx] = 0.0;
-            div[qy][qx] += gradX*O11 + gradY*O12; // TODO: Is it divu*op or op*divu?
-            div[qy][qx] += gradX*O21 + gradY*O22;
+            /*div[qy][qx] += gradX*O11 + gradY*O12; // TODO: Is it divu*op or op*divu?
+              div[qy][qx] += gradX*O21 + gradY*O22;*/
+            div[qy][qx] += gradX*O11 + gradY*O21;
+            div[qy][qx] += gradX*O12 + gradY*O22;
          }
       }
       // We've now calculated reshape(div u * op)
