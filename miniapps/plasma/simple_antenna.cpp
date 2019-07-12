@@ -106,7 +106,7 @@ int main(int argc, char ** argv)
    }
    for (int j=1; j < na; j++)
    {
-      c[0] = af;
+      c[0] = (1.0 + 1.0e-4) * af;
       c[1] = bb + ba * j / na;
       mesh->AddVertex(c);
    }
