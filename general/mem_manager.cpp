@@ -75,7 +75,7 @@ struct Memory
    void *const h_ptr;
    void *d_ptr;
    const size_t bytes;
-   MemoryType type;
+   const MemoryType type;
    Memory(void *const h, const size_t b, const MemoryType t):
       h_ptr(h), d_ptr(nullptr), bytes(b), type(t) { }
 };
@@ -471,31 +471,37 @@ void MemoryManager::Destroy()
 //*****************************************************************************
 // Inserts
 //*****************************************************************************
-void* MemoryManager::Insert(void *h_ptr, size_t bytes, MemoryType mt)
+void* MemoryManager::Insert(void *m_ptr, size_t bytes, MemoryType mt)
 {
-   dbg("Insert <%d>",mt);
-   if (h_ptr == NULL)
+   dbg("Insert <%d> %p", mt, m_ptr);
+   if (m_ptr == NULL)
    {
       MFEM_VERIFY(bytes == 0, "Trying to add NULL with size " << bytes);
       return NULL;
    }
-   auto res = maps->memories.emplace(h_ptr, internal::Memory(h_ptr, bytes, mt));
+   auto res = maps->memories.emplace(m_ptr, internal::Memory(m_ptr, bytes, mt));
    if (res.second == false)
    { mfem_error("Trying to add an already present address!"); }
-   return h_ptr;
+   return m_ptr;
 }
 
 //*****************************************************************************
-void MemoryManager::InsertDevice(void *d_ptr, void *h_ptr,
+void MemoryManager::InsertDevice(void *d_ptr, void *m_ptr,
                                  size_t bytes, MemoryType mt)
 {
-   dbg("InsertDevice <%d>", mt);
-   MFEM_VERIFY(d_ptr != NULL, "cannot register NULL device pointer");
-   MFEM_VERIFY(h_ptr != NULL, "internal error");
-   auto res = maps->memories.emplace(h_ptr, internal::Memory(h_ptr, bytes, mt));
+   dbg("InsertDevice <%d> [%p, %p]", mt, m_ptr, d_ptr);
+   if (m_ptr == NULL)
+   {
+      MFEM_VERIFY(bytes == 0, "Trying to add NULL with size " << bytes);
+      return;
+   }
+   auto res = maps->memories.emplace(m_ptr, internal::Memory(m_ptr, bytes, mt));
    if (res.second == false)
    { mfem_error("Trying to add an already present address!"); }
+   internal::Memory &base = res.first->second;
+   if (d_ptr == NULL) { dbg("device->Alloc"); ctrl->device->Alloc(base, bytes); }
    res.first->second.d_ptr = d_ptr;
+   dbg("done");
 }
 
 //*****************************************************************************
@@ -587,7 +593,7 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
    if (base.type == MemoryType::HOST_MMU)
    {
       dbg("Protect %p", h_ptr);
-      ctrl->host->Protect(h_ptr, bytes);
+      //ctrl->host->Protect(h_ptr, bytes);
    }
    dbg("return");
    return base.d_ptr;
@@ -648,7 +654,6 @@ void MemoryManager::PrintPtrs(void)
       const internal::Memory &mem = n.second;
       mfem::out << std::endl
                 << "key " << n.first << ", "
-                //<< "host " << mem.host << ", "
                 << "h_ptr " << mem.h_ptr << ", "
                 << "d_ptr " << mem.d_ptr;
    }
@@ -675,32 +680,40 @@ void *MemoryManager::New_(size_t bytes, MemoryType mt, unsigned &flags)
 }
 
 //*****************************************************************************
-void *MemoryManager::HostNew_(void **ptr, const size_t bytes)
-{ ctrl->host->Alloc(ptr, bytes); return *ptr; }
+void *MemoryManager::HostNew_(void **ptr, const size_t bytes, unsigned &flags)
+{
+   ctrl->host->Alloc(ptr, bytes);
+   return *ptr;
+}
 
 // ****************************************************************************
-void *MemoryManager::Register_(void *m_ptr, void *h_ptr, size_t bytes,
-                               MemoryType mt, bool own, bool alias,
-                               unsigned &flags)
+void *MemoryManager::Register_(void *ptr, size_t bytes, MemoryType mt,
+                               bool own, bool alias, unsigned &flags)
 {
+   dbg("mm::Register_<%d> %p", mt, ptr);
    MFEM_VERIFY(alias == false, "cannot register an alias!");
-   flags = flags | (Mem::REGISTERED | Mem::OWNS_INTERNAL);
+   flags |= (Mem::REGISTERED | Mem::OWNS_INTERNAL);
    if (IsHostMemory(mt))
    {
       dbg("Register_ @ <%d>", mt);
-      mm.Insert(m_ptr, bytes, mt);
+      mm.Insert(ptr, bytes, mt);
       flags = (own ? flags | Mem::OWNS_HOST : flags & ~Mem::OWNS_HOST) |
               Mem::OWNS_DEVICE | Mem::VALID_HOST;
-      return m_ptr;
+      return ptr;
+   }
+   if (mt == MemoryType::HOST_MMU)
+   {
+      mfem_error("here");
    }
    dbg("Register_ @ DEVICE");
-   //mfem_error("here");
-   MFEM_VERIFY(mt == MemoryType::CUDA || mt == MemoryType::HOST_MMU,
+   MFEM_VERIFY(mt == MemoryType::CUDA,
                "Only CUDA and MMU pointers are supported");
-   mm.InsertDevice(m_ptr, h_ptr, bytes, mt);
+   void *m_ptr;
+   ctrl->host->Alloc(&m_ptr, bytes);
+   mm.InsertDevice(ptr, m_ptr, bytes, mt);
    flags = (own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE) |
            Mem::OWNS_HOST | Mem::VALID_DEVICE;
-   return h_ptr;
+   return m_ptr;
 }
 
 // ****************************************************************************
@@ -737,7 +750,7 @@ void MemoryManager::HostDelete_(void *ptr, unsigned flags)
 }
 
 //*****************************************************************************
-void MemoryManager::HostUnprotect_(const void *ptr, const std::size_t bytes)
+void MemoryManager::HostUnprotect_(const void *ptr, const size_t bytes)
 { ctrl->host->Unprotect(ptr, bytes); }
 
 // ****************************************************************************
@@ -755,7 +768,7 @@ static void PullKnown(internal::Maps *maps, const void *ptr,
       if (base.type == MemoryType::HOST_MMU)
       {
          MFEM_VERIFY(base.type == MemoryType::HOST_MMU, "internal error");
-         ctrl->host->Unprotect(base.h_ptr, base.bytes);
+         //ctrl->host->Unprotect(base.h_ptr, base.bytes);
       }
       ctrl->memcpy->DtoH(base.h_ptr, base.d_ptr, bytes);
    }
@@ -913,20 +926,24 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
 }
 
 // ****************************************************************************
-void *MemoryManager::Write_(void *h_ptr, MemoryClass mc,
+void *MemoryManager::Write_(void *m_ptr, MemoryClass mc,
                             size_t bytes, unsigned &flags)
 {
-   internal::Memory &base = maps->memories.at(h_ptr);
+   if (m_ptr == NULL)
+   {
+      MFEM_VERIFY(bytes == 0, "internal error");
+      return NULL;
+   }
+   internal::Memory &base = maps->memories.at(m_ptr);
    const MemoryType mt = base.type;
-   base.type = GetMemoryType(mc);
-   dbg("W<%d,%d>", mc, mt);
+   dbg("mm::W<%d,%d>", mt, mc);
    switch (mc)
    {
       case MemoryClass::HOST:
       {
          flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
          dbg("W @ HOST");
-         return h_ptr;
+         return m_ptr;
       }
 
       case MemoryClass::HOST_32:
@@ -935,7 +952,7 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc,
          MFEM_VERIFY(mt == MemoryType::HOST_32 ||
                      mt == MemoryType::HOST_64, "internal error");
          flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
-         return h_ptr;
+         return m_ptr;
       }
 
       case MemoryClass::HOST_64:
@@ -943,7 +960,7 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc,
          dbg("W @ HOST_64");
          MFEM_VERIFY(mt == MemoryType::HOST_64, "internal error");
          flags = (flags | Mem::VALID_HOST) & ~Mem::VALID_DEVICE;
-         return h_ptr;
+         return m_ptr;
       }
 
       case MemoryClass::HOST_MMU:
@@ -951,7 +968,7 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc,
          //MFEM_VERIFY(mt == MemoryType::HOST_MMU, "internal error");
          flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
          dbg("W @ HOST_MMU");
-         return mm.GetDevicePtr(h_ptr, bytes, false);
+         return mm.GetDevicePtr(m_ptr, bytes, false);
       }
 
       case MemoryClass::CUDA:
@@ -962,9 +979,9 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc,
          // TODO: add support for UVM
          if (flags & Mem::ALIAS)
          {
-            return mm.GetAliasDevicePtr(h_ptr, bytes, false);
+            return mm.GetAliasDevicePtr(m_ptr, bytes, false);
          }
-         return mm.GetDevicePtr(h_ptr, bytes, false);
+         return mm.GetDevicePtr(m_ptr, bytes, false);
       }
 
       case MemoryClass::CUDA_UVM:
@@ -972,7 +989,7 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc,
          MFEM_VERIFY(mt == MemoryType::CUDA ||
                      mt == MemoryType::CUDA_UVM, "internal error");
          // Do we need to update the validity flags?
-         return h_ptr; // the host and device pointers are the same
+         return m_ptr; // the host and device pointers are the same
       }
    }
    return nullptr;
