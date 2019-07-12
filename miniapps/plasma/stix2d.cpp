@@ -615,6 +615,7 @@ int main(int argc, char *argv[])
       EReCoef.SetPhaseShift(kVec);
       EImCoef.SetPhaseShift(kVec);
    }
+   if (visualization)
    {
       ParComplexGridFunction EField(&HCurlFESpace);
       EField.ProjectCoefficient(EReCoef, EImCoef);

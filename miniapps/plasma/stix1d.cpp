@@ -715,30 +715,23 @@ int main(int argc, char *argv[])
       sock_L.precision(8);
 
       Wx += 2 * offx;
-      if (visualization)
-      {
-         VisualizeField(sock_Er, vishost, visport,
-                        EField.real(), "Exact Electric Field, Re(E)",
-                        Wx, Wy, Ww, Wh);
-      }
+      VisualizeField(sock_Er, vishost, visport,
+		     EField.real(), "Exact Electric Field, Re(E)",
+		     Wx, Wy, Ww, Wh);
+
       Wx += offx;
-      if (visualization)
-      {
-         VisualizeField(sock_Ei, vishost, visport,
-                        EField.imag(), "Exact Electric Field, Im(E)",
-                        Wx, Wy, Ww, Wh);
-      }
+      VisualizeField(sock_Ei, vishost, visport,
+		     EField.imag(), "Exact Electric Field, Im(E)",
+		     Wx, Wy, Ww, Wh);
+
       Wx -= offx;
       Wy += offy;
-      if (visualization)
-      {
-         VisualizeField(sock_B, vishost, visport,
-                        BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
 
-         VisualizeField(sock_L, vishost, visport,
-                        LField, "L", Wx, Wy, Ww, Wh);
-      }
+      VisualizeField(sock_B, vishost, visport,
+		     BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
 
+      VisualizeField(sock_L, vishost, visport,
+		     LField, "L", Wx, Wy, Ww, Wh);
    }
 
    // Setup coefficients for Dirichlet BC
