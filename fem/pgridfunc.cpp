@@ -231,7 +231,7 @@ void ParGridFunction::ExchangeFaceNbrData()
       send_data[i] = h_data[send_ldof[i]];
    }
 
-   double *h_face_nbr_data = face_nbr_data.HostReadWrite();
+   double *h_face_nbr_data = face_nbr_data.HostWrite();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
