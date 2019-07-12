@@ -651,10 +651,38 @@ int main(int argc, char *argv[])
    }
 
    // Setup coefficients for Dirichlet BC
+   /*
    Array<ComplexVectorCoefficientByAttr> dbcs(1);
    dbcs[0].attr = dbca;
    dbcs[0].real = &EReCoef;
    dbcs[0].imag = &EImCoef;
+   */
+
+   Vector zeroVec(3); zeroVec = 0.0;
+   Vector yVec(3); yVec = 0.0; yVec[1] = 1.0;
+   Vector yNegVec(3); yNegVec = 0.0; yNegVec[1] = -0.5;
+   VectorConstantCoefficient zeroCoef(zeroVec);
+   VectorConstantCoefficient yCoef(yVec);
+   VectorConstantCoefficient yNegCoef(yNegVec);
+
+   Array<ComplexVectorCoefficientByAttr> dbcs(3);
+
+   Array<int> dbcz(4); dbcz[0] = 1; dbcz[1] = 2; dbcz[2] = 3; dbcz[3] = 4;
+   dbcs[0].attr = dbcz;
+   dbcs[0].real = &zeroCoef;
+   dbcs[0].imag = &zeroCoef;
+
+   Array<int> dbcf(1); dbcf[0] = 5;
+   dbcs[1].attr = dbcf;
+   dbcs[1].real = &yCoef;
+   dbcs[1].imag = &zeroCoef;
+
+   Array<int> dbcb(1); dbcb[0] = 6;
+   dbcs[2].attr = dbcb;
+   dbcs[2].real = &yNegCoef;
+   dbcs[2].imag = &zeroCoef;
+
+   cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;
 
    // Create the Magnetostatic solver
    CPDSolver CPD(pmesh, order, omega,
