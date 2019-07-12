@@ -110,6 +110,14 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    MPI_Comm_size(pmesh_->GetComm(), &num_procs_);
    MPI_Comm_rank(pmesh_->GetComm(), &myid_);
 
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+     cout << "Constructing CPDSolver ..." << endl;
+   }
+
+   tic_toc.Clear();
+   tic_toc.Start();
+
    // Define compatible parallel finite element spaces on the parallel
    // mesh. Here we use arbitrary order H1, Nedelec, and Raviart-Thomas finite
    // elements.
@@ -349,6 +357,13 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                              new VectorFEDomainLFIntegrator(*rhsiCoef_));
    rhs_->real().Vector::operator=(0.0);
    rhs_->imag().Vector::operator=(0.0);
+
+   tic_toc.Stop();
+
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+     cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
 }
 
 CPDSolver::~CPDSolver()
@@ -445,6 +460,9 @@ CPDSolver::Assemble()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Assembling ..." << flush; }
 
+   tic_toc.Clear();
+   tic_toc.Start();
+
    // a0_->Assemble();
    // a0_->Finalize();
 
@@ -475,13 +493,21 @@ CPDSolver::Assemble()
       weakCurlMuInv_->Finalize();
    }
    */
-   if ( myid_ == 0 && logging_ > 0 ) { cout << " done." << endl; }
+   tic_toc.Stop();
+
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+     cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
 }
 
 void
 CPDSolver::Update()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Updating ..." << endl; }
+
+   tic_toc.Clear();
+   tic_toc.Start();
 
    // Inform the spaces that the mesh has changed
    // Note: we don't need to interpolate any GridFunctions on the new mesh
@@ -530,6 +556,12 @@ CPDSolver::Update()
    // if ( grad_        ) { grad_->Update(); }
    // if ( DivFreeProj_ ) { DivFreeProj_->Update(); }
    // if ( SurfCur_     ) { SurfCur_->Update(); }
+   tic_toc.Stop();
+
+   if ( myid_ == 0 && logging_ > 0 )
+   {
+     cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
 }
 
 void

@@ -235,6 +235,8 @@ int main(int argc, char *argv[])
 
    if ( mpi.Root() ) { display_banner(cout); }
 
+   int logging = 1;
+   
    // Parse command-line options.
    int order = 1;
    int maxit = 1;
@@ -486,6 +488,10 @@ int main(int argc, char *argv[])
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
+   if ( mpi.Root() && logging > 0 ) { cout << "Building Mesh ..." << endl; }
+
+   tic_toc.Clear();
+   tic_toc.Start();
 
    Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
                           mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
@@ -522,10 +528,6 @@ int main(int argc, char *argv[])
       delete mesh;
       mesh = per_mesh;
    }
-   if (mpi.Root())
-   {
-      cout << "Starting initialization." << endl;
-   }
 
    // Ensure that quad and hex meshes are treated as non-conforming.
    mesh->EnsureNCMesh();
@@ -535,6 +537,14 @@ int main(int argc, char *argv[])
    // parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+
+   tic_toc.Stop();
+
+   if (mpi.Root() && logging > 0 )
+   {
+     cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
+
    /*
    {
      for (int i=0; i<pmesh.GetNBE(); i++)
@@ -561,6 +571,13 @@ int main(int argc, char *argv[])
       return 3;
    }
    */
+   if (mpi.Root() && logging > 0)
+   {
+      cout << "Initializing coefficients..." << endl;
+   }
+   tic_toc.Clear();
+   tic_toc.Start();
+   
    VectorCoefficient * BCoef = NULL;
    if (B_params_.Size()  == 7)
    {
@@ -671,6 +688,15 @@ int main(int argc, char *argv[])
       EReCoef.SetPhaseShift(kVec);
       EImCoef.SetPhaseShift(kVec);
    }
+
+   tic_toc.Stop();
+
+   if (mpi.Root() && logging > 0 )
+   {
+     cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+   }
+
+   if (visualization)
    {
       ParComplexGridFunction EField(&HCurlFESpace);
       EField.ProjectCoefficient(EReCoef, EImCoef);
