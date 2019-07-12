@@ -584,9 +584,7 @@ inline void Memory<T>::Delete()
          if (h_type == MemoryType::HOST) { dbg("delete []"); delete [] h_ptr; }
          else { MemoryManager::HostDelete_(h_ptr, flags); }
       }
-      //else {dbg("!OWNS_HOST");}
    }
-   //else { dbg("!REGISTERED"); }
 }
 
 // ****************************************************************************
@@ -678,7 +676,7 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
-   dbg("Memory<T>::Write<%d,%d> %p", h_type, mfem::GetMemoryType(mc),h_ptr);
+   dbg("Memory<T>::Write<%d,%d> %p", h_type, mfem::GetMemoryType(mc), h_ptr);
    const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
