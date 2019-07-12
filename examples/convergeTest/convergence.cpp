@@ -67,21 +67,19 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    // Set exact solution
    
-   FunctionCoefficient *u;
-   VectorFunctionCoefficient *u_grad;
-
+   FunctionCoefficient *u = new FunctionCoefficient(u_exact_2);
+   VectorFunctionCoefficient *u_grad = new VectorFunctionCoefficient(dim, u_grad_exact_2);
 
    if (exact == 1)
    {
-       u = new FunctionCoefficient(u_exact);
-       u_grad = new VectorFunctionCoefficient(dim, u_grad_exact);
+      FunctionCoefficient *v = new FunctionCoefficient(u_exact);
+      u = v;
+      delete v;
+      VectorFunctionCoefficient *(v_grad) = new VectorFunctionCoefficient(dim, u_grad_exact);
+      (u_grad) = (v_grad);
+      delete v_grad;
    }
-   else if (exact == 2)
-   {
-      u = new FunctionCoefficient(u_exact_2);
-      u_grad = new VectorFunctionCoefficient(dim, u_grad_exact_2);
-   }
-   else
+   else if (exact != 2)
    {
       cout << "Error - did not set exact solution" << endl;
       u = NULL;

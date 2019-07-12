@@ -69,29 +69,14 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    }
 
    // Set exact solution
+
+   // exact == 1 case:
+   FunctionCoefficient *u1 = new FunctionCoefficient(u_exact);
+   VectorFunctionCoefficient *(u1_grad) = new VectorFunctionCoefficient(dim, u_grad_exact);
    
-   FunctionCoefficient *u;
-   VectorFunctionCoefficient *u_grad;
-
-
-   if (exact == 1)
-   {
-       u = new FunctionCoefficient(u_exact);
-       u_grad = new VectorFunctionCoefficient(dim, u_grad_exact);
-   }
-   else if (exact == 2)
-   {
-      u = new FunctionCoefficient(u_exact_2);
-      u_grad = new VectorFunctionCoefficient(dim, u_grad_exact_2);
-   }
-   else
-   {
-      cout << "Error - did not set exact solution" << endl;
-      u = NULL;
-      u_grad = NULL;
-   }
-
-   
+   // exact == 2 case:
+   FunctionCoefficient *u2 = new FunctionCoefficient(u_exact_2);
+   VectorFunctionCoefficient *u2_grad = new VectorFunctionCoefficient(dim, u_grad_exact_2);
 
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
@@ -99,7 +84,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
-
 
    // this variable may not be right:
    int gotNdofs = fespace->GetNDofs();
@@ -119,7 +103,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // For L2 Projection:
    // Do not get boundary dofs
 
-
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
@@ -134,7 +117,14 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    }
    else
    {
-      b->AddDomainIntegrator(new DomainLFIntegrator(*u));
+      if (exact == 1)
+      {
+         b->AddDomainIntegrator(new DomainLFIntegrator(*u1));
+      }
+      else // exact == 2
+      {
+         b->AddDomainIntegrator(new DomainLFIntegrator(*u2));
+      }
    }
 
    b->Assemble();
@@ -155,7 +145,14 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    if (solvePDE==1)
    {   
-      x.ProjectBdrCoefficient(*u, ess_bdr);
+      if (exact == 1)
+      {
+         x.ProjectBdrCoefficient(*u1, ess_bdr);
+      }
+      else
+      {
+         x.ProjectBdrCoefficient(*u2, ess_bdr);
+      }
       a->AddDomainIntegrator(new DiffusionIntegrator);
    }
    else
@@ -229,8 +226,21 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    // Compute and print the L^2 and H^1 norms of the error.
    ConstantCoefficient one(1.0);
-   double l2_err = x.ComputeL2Error(*u);
-   double h1_err = x.ComputeH1Error(u, u_grad, &one, 1.0, 1);
+
+   double l2_err = 0;
+   double h1_err = 0;
+
+   if (exact == 1)
+   {
+      l2_err = x.ComputeL2Error(*u1);
+      h1_err = x.ComputeH1Error(u1, u1_grad, &one, 1.0, 1);
+   }
+   else
+   {
+      l2_err = x.ComputeL2Error(*u2);
+      h1_err = x.ComputeH1Error(u2, u2_grad, &one, 1.0, 1);
+   }
+   
    double l2_rate, h1_rate;
 
    if (num_ref != 0)
@@ -262,8 +272,10 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    delete a;
    delete b;
    delete fespace;
-   delete u_grad;
-   delete u;
+   delete u2_grad;
+   delete u2;
+   delete u1_grad;
+   delete u1;
    delete fec;
    delete mesh;
 
@@ -276,7 +288,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
 double u_exact(const Vector &x)
 {
-   return(x(0)+x(1)+x(2));
+   return (x(0)+x(1)+x(2));
 }
 
 void u_grad_exact(const Vector &x, Vector &u)

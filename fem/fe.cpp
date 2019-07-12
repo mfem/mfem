@@ -261,7 +261,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    const ScalarFiniteElement &fine_fe) const
 {
    // General "interpolation", defined by L2 projection
-   cout << "fe: ScalarFE: Scalar Local Int" << endl;
+   // cout << "fe: ScalarFE: Scalar Local Int" << endl;
 
    double v[Geometry::MaxDim];
    Vector vv (v, Dim);
@@ -1927,39 +1927,39 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
       Nodes.IntPoint(11).y = gl2;
    }
 
-   // if(p==4)
-   // {
-   //    Nodes.IntPoint(4).x  = .25;
-   //    Nodes.IntPoint(4).y  = 0;
-   //    Nodes.IntPoint(5).x  = .5;
-   //    Nodes.IntPoint(5).y  = 0;
-   //    Nodes.IntPoint(6).x  = .75;
-   //    Nodes.IntPoint(6).y  = 0;
+   if(p==4)
+   {
+      Nodes.IntPoint(4).x  = .25;
+      Nodes.IntPoint(4).y  = 0;
+      Nodes.IntPoint(5).x  = .5;
+      Nodes.IntPoint(5).y  = 0;
+      Nodes.IntPoint(6).x  = .75;
+      Nodes.IntPoint(6).y  = 0;
 
-   //    Nodes.IntPoint(7).x  = 1;
-   //    Nodes.IntPoint(7).y  = .25;
-   //    Nodes.IntPoint(8).x  = 1;
-   //    Nodes.IntPoint(8).y  = .5;
-   //    Nodes.IntPoint(9).x  = 1; 
-   //    Nodes.IntPoint(9).y  =.75;
+      Nodes.IntPoint(7).x  = 1;
+      Nodes.IntPoint(7).y  = .25;
+      Nodes.IntPoint(8).x  = 1;
+      Nodes.IntPoint(8).y  = .5;
+      Nodes.IntPoint(9).x  = 1; 
+      Nodes.IntPoint(9).y  =.75;
 
-   //    Nodes.IntPoint(10).x = .25;
-   //    Nodes.IntPoint(10).y = 1;
-   //    Nodes.IntPoint(11).x = .5;
-   //    Nodes.IntPoint(11).y = 1;
-   //    Nodes.IntPoint(12).x = .75;
-   //    Nodes.IntPoint(12).y = 1;
+      Nodes.IntPoint(10).x = .25;
+      Nodes.IntPoint(10).y = 1;
+      Nodes.IntPoint(11).x = .5;
+      Nodes.IntPoint(11).y = 1;
+      Nodes.IntPoint(12).x = .75;
+      Nodes.IntPoint(12).y = 1;
 
-   //    Nodes.IntPoint(13).x = 0;
-   //    Nodes.IntPoint(13).y = .25;
-   //    Nodes.IntPoint(14).x = 0;
-   //    Nodes.IntPoint(14).y = .5;
-   //    Nodes.IntPoint(15).x = 0;
-   //    Nodes.IntPoint(15).y = .75;
+      Nodes.IntPoint(13).x = 0;
+      Nodes.IntPoint(13).y = .25;
+      Nodes.IntPoint(14).x = 0;
+      Nodes.IntPoint(14).y = .5;
+      Nodes.IntPoint(15).x = 0;
+      Nodes.IntPoint(15).y = .75;
 
-   //    Nodes.IntPoint(16).x = .5;
-   //    Nodes.IntPoint(16).y = .5;
-   // }
+      Nodes.IntPoint(16).x = .5;
+      Nodes.IntPoint(16).y = .5;
+   }
 
 }
 
@@ -2143,17 +2143,6 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
       dshape(3,1) -= (1-edgePts[i+1])*(dshape(4 + 3*(p-1) + i, 1)+dshape(3*p - i, 1));
    }
 
-   // cubic only:
-
-   // dshape(0,0) = DbilinearsAtIP(0,0) - ((1-edgePts[1])*dshape(4,0) + (edgePts[1])*dshape(7,0));
-   // dshape(0,1) = DbilinearsAtIP(0,1) - ((1-edgePts[1])*dshape(4,1) + (edgePts[1])*dshape(7,1));
-   // dshape(1,0) = DbilinearsAtIP(1,0) - ((1-edgePts[1])*dshape(5,0) + ((1-edgePts[1])*dshape(4,0)));
-   // dshape(1,1) = DbilinearsAtIP(1,1) - ((1-edgePts[1])*dshape(5,1) + ((1-edgePts[1])*dshape(4,1)));
-   // dshape(2,0) = DbilinearsAtIP(2,0) - ((edgePts[1])*dshape(6,0)   + (1-edgePts[1])*dshape(5,0));
-   // dshape(2,1) = DbilinearsAtIP(2,1) - ((edgePts[1])*dshape(6,1)   + (1-edgePts[1])*dshape(5,1));
-   // dshape(3,0) = DbilinearsAtIP(3,0) - ((edgePts[1])*dshape(7,0)   + (edgePts[1])*dshape(6,0));
-   // dshape(3,1) = DbilinearsAtIP(3,1) - ((edgePts[1])*dshape(7,1)   + (edgePts[1])*dshape(6,1));
-
    // Derivs for legendre-based functions (substitute leg for nod)
 
    // dshape(4 + 0*(p-1) + i ,0) =  (1. - y) * (DnodalX(i) * (- x*x + x) + nodalX(i)*(-2 * x + 1));
@@ -2284,6 +2273,7 @@ void H1Ser_QuadrilateralElement::Project(
 void H1Ser_QuadrilateralElement::GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
 { 
+   cout << "fe: using Ser Quad GetLocalInterp" << endl;
    ScalarLocalInterpolation(Trans, I, *this);
    // NodalLocalInterpolation(Trans, I, *this); 
 }
@@ -2307,6 +2297,32 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    int p = (this)->GetOrder();
 
    double x = ip.x, y = ip.y, z = ip.z;
+
+
+   // cout << endl << "ip is " << ip.x << ", " << ip.y << ", " << ip.z << endl;
+
+   // Print out some shape values
+
+   // for(int a=0; a<2; a++)
+   // {
+   //    for(int b=0; b<2; b++)
+   //    {
+   //       for(int c=0; c<2; c++)
+   //       { 
+   
+   // x=a;
+   // if(x==1){x=.5;}
+   // y=b;
+   // if(y==1){y=.5;}
+   // z=c;
+   // if(z==1){z=.5;}
+   // IntegrationPoint myIP;
+   // myIP.x = x;
+   // myIP.y = y;
+   // myIP.z = z;
+   // cout << endl << "myIP is " << myIP.x << ", " << myIP.y << ", " << myIP.z << endl;
+
+
    double omx = 1.-x, omy = 1.-y, omz = 1.-z;
 
    Poly_1D::Basis edgeNodalBasis(poly1d.GetBasis(p, BasisType::GaussLobatto));
@@ -2318,8 +2334,8 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    edgeNodalBasis.Eval(y, nodalY);
    edgeNodalBasis.Eval(z, nodalZ);
 
-
    // Set edge shape functions as nodals times an applicable bilinear:
+   //     edge shape indices = 8 through 8 + 12*(p-1) - 1
 
    for (int i = 0; i < p-1; i++) 
    {
@@ -2335,22 +2351,9 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
       shape(8 +  9*(p-1) + i) =       x*omy*nodalZ(i+1); // edge 17
       shape(8 + 10*(p-1) + i) =       x*  y*nodalZ(i+1); // edge 18
       shape(8 + 11*(p-1) + i) =     omx*  y*nodalZ(i+1); // edge 19
-
-      // shape(8 + 0*(p-1) + i) =     omy*omz*nodalX(i+1); // edge 8
-      // shape(8 + 1*(p-1) + i) =       x*omz*nodalY(i+1); // edge 9
-      // shape(8 + 3*(p-1) - i - 1) =   y*omz*nodalX(i+1); // edge 10
-      // shape(8 + 4*(p-1) - i - 1) = omx*omz*nodalY(i+1); // edge 11
-      // shape(8 + 4*(p-1) + i) =     omy*  z*nodalX(i+1); // edge 12
-      // shape(8 + 5*(p-1) + i) =       x*  z*nodalY(i+1); // edge 13
-      // shape(8 + 7*(p-1) - i - 1) =   y*  z*nodalX(i+1); // edge 14
-      // shape(8 + 8*(p-1) - i - 1) = omx*  z*nodalY(i+1); // edge 15
-      // shape(8 + 8*(p-1) + i) =     omx*omy*nodalZ(i+1); // edge 16
-      // shape(8 + 9*(p-1) + i) =       x*omy*nodalZ(i+1); // edge 17
-      // shape(8 + 10*(p-1) + i) =      x*  y*nodalZ(i+1); // edge 18
-      // shape(8 + 11*(p-1) + i) =    omx*  y*nodalZ(i+1); // edge 19
    }
 
-   // Set vertex shape functions as trilinears, then made nodal:
+   // Set vertex shape functions as trilinears, then made nodal using edge functions:
 
    shape( 0) = omx*omy*omz;
    shape( 1) = x  *omy*omz;;
@@ -2405,10 +2408,27 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
       shape( 7) -= (1-edgePts[i+1])*(shape(e14p) + shape(e15m) + shape(e19m));
    }
 
-   // cout << endl;
+   // Set face shape functions 
+   //     face shape indices = 8 + 12*(p-1) through ...
+
+   if (p>3)
+   {
+      shape(44) = x*omx*y*omy * omz;
+      shape(45) = x*omx*z*omz * omy;
+      shape(46) = y*omy*z*omz * x;
+      shape(47) = x*omx*z*omz * y;
+      shape(48) = y*omy*z*omz * omx;
+      shape(49) = x*omx*y*omy * z;
+   }
 
    // cout << "shape is: " << endl;
-   // shape.Print(mfem::out, 4);
+   // shape.Print(mfem::out, 5);
+   // cout << endl;
+   //       }
+   //    }
+   // }
+   // cout << "END OF LINE" << endl;
+
 }
 
 void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
@@ -2625,7 +2645,7 @@ void H1Ser_HexElement::Project(const FiniteElement &fe, ElementTransformation &T
 void H1Ser_HexElement::GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
 { 
-   ScalarLocalInterpolation(Trans, I, *this);
+   ScalarLocalInterpolation(Trans, I, *this); 
    // NodalLocalInterpolation(Trans, I, *this); 
 }
 

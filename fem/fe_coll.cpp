@@ -160,7 +160,7 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "H1Pos_", 6))
    {
-      fec = new H1Pos_FECollection(atoi(name + 10), atoi(name + 6));
+      fec = new H1Pos_FECollection(atoi(name + 10), atoi(name + 6)); 
    }
    else if (!strncmp(name, "H1Ser_", 6))
    {
@@ -1568,13 +1568,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       {
 	      H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
       }
-      // Don't need H1 segment element any more...
-      //
-      // else if (b_type == BasisType::Serendipity)
-      // {
-      //    H1_Elements[Geometry::SEGMENT] = new H1Ser_SegmentElement(p);
-      //    // H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, BasisType::GaussLobatto);
-      // }
       else
       {
          H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, btype);
@@ -1587,12 +1580,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       {
          SegDofOrd[0][i] = i;
          SegDofOrd[1][i] = pm2 - i;
-         // if (btype == BasisType::Serendipity)
-         // {
-         //    SegDofOrd[1][i] = i;  // change dof orderings the case of serendipity...
-         // }
       }
-
    }
 
    if (dim >= 2)
@@ -1611,8 +1599,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          //       so we need to fix the value of H1_dof here for the serendipity case
          H1_dof[Geometry::SQUARE] = (pm3*pm2)/2; // formula for number of interior serendipity DoFs (when p>1)
       	H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
-         // H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p); // allows for mixed tri/quad meshes
-         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
+         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p); // allows for mixed tri/quad meshes
       }
       else
       {
@@ -1682,14 +1669,14 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             //       virtual int DofForGeometry(Geometry::Type GeomType) const  { return H1_dof[GeomType]; }
             //       so we need to fix the value of H1_dof here for the serendipity case
             
-            int ser_space_dim = 8 + 12*pm1 + 3* pm2 * pm3;
-            if(p>2)
+            int ser_exterior_dim = 8 + 12*pm1 + 3* pm2 * pm3;
+            int ser_interior_dim = 0;
+            if(p>5)
             {
-               ser_space_dim += pm3 * pm4 * pm5 / 6;
+               ser_interior_dim += pm3 * pm4 * pm5 / 6;
             }
-            //  cout << "fe_coll: set ser_space_dim = " << ser_space_dim << endl;
-            
-            H1_Elements[Geometry::CUBE] = new H1Ser_HexElement(p, ser_space_dim);
+            H1_dof[Geometry::CUBE] =  ser_interior_dim;
+            H1_Elements[Geometry::CUBE] = new H1Ser_HexElement(p, ser_exterior_dim + ser_interior_dim);
          }            
          else
          {

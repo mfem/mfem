@@ -844,7 +844,7 @@ int update_basis(vector<socketstream *> &sock, const VisWinLayout &vwl,
    {
       if (bType == 's')
       {
-         // break;
+        // break;
       }
       mesh->UniformRefinement();
       FESpace.Update();
