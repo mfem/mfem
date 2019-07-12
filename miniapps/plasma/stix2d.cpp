@@ -802,7 +802,23 @@ int main(int argc, char *argv[])
       const double frac = 0.5;
       double threshold = frac * global_max_err;
       if (mpi.Root()) { cout << "Refining ..." << endl; }
-      pmesh.RefineByError(errors, threshold);
+      {
+         pmesh.RefineByError(errors, threshold);
+         /*
+              Array<Refinement> refs;
+              for (int i=0; i<pmesh.GetNE(); i++)
+              {
+                 if (errors[i] > threshold)
+                 {
+                    refs.Append(Refinement(i, 3));
+                 }
+              }
+              if (refs.Size() > 0)
+              {
+                 pmesh.GeneralRefinement(refs);
+              }
+         */
+      }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Update(HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
