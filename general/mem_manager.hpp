@@ -132,6 +132,7 @@ protected:
        type from MemoryClass::HOST. */
    T *m_ptr;
    int capacity;
+   MemoryType type;
    mutable unsigned flags;
    // 'flags' is mutable so that it can be modified in Set{Host,Device}PtrOwner,
    // Copy{From,To}, {ReadWrite,Read,Write}.
@@ -226,7 +227,8 @@ public:
        Empty().
 
        @note The current memory is NOT deleted by this method. */
-   void Reset() { m_ptr = NULL; capacity = 0; flags = 0; }
+   void Reset()
+   { m_ptr = NULL; type = MemoryType::HOST; capacity = 0; flags = 0; }
 
    /// Return true if the Memory object is empty, see Reset().
    /** Default-constructed objects are uninitialized, so they are not guaranteed
@@ -235,13 +237,17 @@ public:
 
    /// Allocate host memory for @a size entries with type MemoryType::HOST.
    /** @note The current memory is NOT deleted by this method. */
-   inline void New(int size);
-   //{ m_ptr = new T[size]; capacity = size; flags = OWNS_HOST | VALID_HOST; }
+   inline void New(int size)
+   {
+      capacity = size;
+      m_ptr = new T[size];
+      type = MemoryType::HOST;
+      flags = OWNS_HOST | VALID_HOST;
+   }
 
    /// Allocate memory for @a size entries with the given MemoryType.
    /** The newly allocated memory is not initialized, however the given
        MemoryType is still set as valid.
-
        @note The current memory is NOT deleted by this method. */
    inline void New(int size, MemoryType mt);
 
@@ -249,26 +255,26 @@ public:
        MemoryType::HOST. */
    /** The parameter @a own determines whether @a ptr will be deleted (using
        operator delete[]) when the method Delete() is called.
-
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *ptr, int size, bool own)
-   { m_ptr = ptr; capacity = size; flags = (own ? OWNS_HOST : 0) | VALID_HOST; }
+   {
+      m_ptr = ptr;
+      capacity = size;
+      type = MemoryType::HOST;
+      flags = (own ? OWNS_HOST : 0) | VALID_HOST;
+   }
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
    /** The new memory object will have the given MemoryType set as valid.
-
        The given @a ptr must be allocated appropriately for the given
        MemoryType.
-
        The parameter @a own determines whether @a ptr will be deleted when the
        method Delete() is called.
-
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *ptr, int size, MemoryType mt, bool own);
 
    /// Create a memory object that points inside the memory object @a base.
    /** The new Memory object uses the same MemoryType(s) as @a base.
-
        @note The current memory is NOT deleted by this method. */
    inline void MakeAlias(const Memory &base, int offset, int size);
 
@@ -285,17 +291,14 @@ public:
    /** When the type T is const-qualified, this method can be used only if the
        host pointer is currently valid (the device pointer may be valid or
        invalid).
-
        When the type T is not const-qualified, this method can be used only if
        the host pointer is the only valid pointer.
-
        When the Memory is empty, this method can be used and it returns NULL. */
    inline operator T*();
 
    /// Direct access to the host memory as const T* (implicit conversion).
    /** This method can be used only if the host pointer is currently valid (the
        device pointer may be valid or invalid).
-
        When the Memory is empty, this method can be used and it returns NULL. */
    inline operator const T*() const;
 
@@ -303,14 +306,11 @@ public:
    /** A pointer to type T must be reinterpret_cast-able to a pointer to type U.
        In particular, this method cannot be used to cast away const-ness from
        the base type T.
-
        When the type U is const-qualified, this method can be used only if the
        host pointer is currently valid (the device pointer may be valid or
        invalid).
-
        When the type U is not const-qualified, this method can be used only if
        the host pointer is the only valid pointer.
-
        When the Memory is empty, this method can be used and it returns NULL. */
    template <typename U>
    inline explicit operator U*();
@@ -318,10 +318,8 @@ public:
    /// Direct access to the host memory via explicit typecast, const version.
    /** A pointer to type T must be reinterpret_cast-able to a pointer to type
        const U.
-
        This method can be used only if the host pointer is currently valid (the
        device pointer may be valid or invalid).
-
        When the Memory is empty, this method can be used and it returns NULL. */
    template <typename U>
    inline explicit operator const U*() const;
@@ -329,7 +327,6 @@ public:
    /// Get read-write access to the memory with the given MemoryClass.
    /** If only read or only write access is needed, then the methods
        Read() or Write() should be used instead of this method.
-
        The parameter @a size must not exceed the Capacity(). */
    inline T *ReadWrite(MemoryClass mc, int size);
 
@@ -339,7 +336,6 @@ public:
 
    /// Get write-only access to the memory with the given MemoryClass.
    /** The parameter @a size must not exceed the Capacity().
-
        The contents of the returned pointer is undefined, unless it was
        validated by a previous call to Read() or ReadWrite() with
        the same MemoryClass. */
@@ -406,15 +402,15 @@ private:
 
    // Allocate and register a new pointer. Return the host pointer.
    static void *New_(size_t bytes, MemoryType mt, unsigned &flags);
-   static void *HostNew_(void **ptr, const size_t bytes);
+   static void *HostNew_(void **ptr, const size_t bytes, unsigned &flags);
 
    /// Host function: New, Delete, Unprotect
    static void HostUnprotect_(const void *ptr, const size_t bytes);
 
    // Register an external pointer of the given MemoryType.
    // Return the host pointer.
-   static void *Register_(void *ptr, void *h_ptr, size_t bytes,
-                          MemoryType mt, bool own, bool alias, unsigned &flags);
+   static void *Register_(void *ptr, size_t bytes, MemoryType mt,
+                          bool own, bool alias, unsigned &flags);
 
    // Register an alias. Return the host pointer. Note: base_h_ptr may be an
    // alias.
@@ -500,18 +496,22 @@ public:
 // ****************************************************************************
 // * Memory<T> inline methods
 // ****************************************************************************
-template <typename T>
-inline void Memory<T>::New(int size)
-{ Memory<T>::New(size, MemoryType::HOST); }
 
 // ****************************************************************************
 template <typename T>
 inline void Memory<T>::New(int size, MemoryType mt)
 {
    dbg("Memory<T>::New<%d>",mt);
-   capacity = size;
-   const size_t bytes = size * sizeof(T);
-   m_ptr = (T*)MemoryManager::New_(bytes, mt, flags);
+   if (mt == MemoryType::HOST)
+   {
+      New(size);
+   }
+   else
+   {
+      type = mt;
+      capacity = size;
+      m_ptr = (T*)MemoryManager::New_(size*sizeof(T), mt, flags);
+   }
 }
 
 // ****************************************************************************
@@ -525,10 +525,9 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    }
    else
    {
-      // Allocate the host pointer with new T[] if 'mt' is a pure device memory
-      // type, e.g. CUDA.
-      T *tmp = (mt == MemoryType::CUDA) ? new T[size] : NULL;
-      m_ptr = (T*)MemoryManager::Register_(ptr, tmp, size*sizeof(T), mt, own,
+      type = mt;
+      mfem_error("not implemented");
+      m_ptr = (T*)MemoryManager::Register_(ptr, size*sizeof(T), mt, own,
                                            false, flags);
       capacity = size;
    }
@@ -538,8 +537,9 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 template <typename T>
 inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
-   m_ptr = base.m_ptr + offset;
    capacity = size;
+   type = base.type;
+   m_ptr = base.m_ptr + offset;
    if (!(base.flags & REGISTERED))
    {
       flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE);
@@ -561,17 +561,8 @@ inline void Memory<T>::Delete()
    {
       if (flags & OWNS_HOST)
       {
-         if (flags & OWNS_DEVICE)
-         {
-            dbg("Memory<T>::Delete => HostDelete_");
-            MemoryManager::HostDelete_(m_ptr, flags);
-         }
-         else
-         {
-            dbg("Memory<T>::Delete => delete []");
-            MFEM_VERIFY(m_ptr,"m_ptr");
-            //delete m_ptr;
-         }
+         if (type == MemoryType::HOST) { delete [] m_ptr; }
+         else { MemoryManager::HostDelete_(m_ptr, flags); }
       }
    }
 }
@@ -635,47 +626,45 @@ inline Memory<T>::operator const U*() const
 template <typename T>
 inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 {
-   dbg("Memory<T>::ReadWrite");
+   dbg("Memory<T>::ReadWrite<%d,%d> %p", type, mfem::GetMemoryType(mc),m_ptr);
+   const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return m_ptr; }
-      MemoryManager::Register_(m_ptr, NULL, capacity*sizeof(T),
-                               mfem::GetMemoryType(mc), flags & OWNS_HOST,
-                               flags & ALIAS, flags);
+      MemoryManager::Register_(m_ptr, bytes, type,
+                               flags & OWNS_HOST, flags & ALIAS, flags);
    }
-   return (T*)MemoryManager::ReadWrite_(m_ptr, mc, size*sizeof(T), flags);
+   return (T*)MemoryManager::ReadWrite_(m_ptr, mc, bytes, flags);
 }
 
 // ****************************************************************************
 template <typename T>
 inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 {
-   dbg("Memory<T>::Read");
+   dbg("Memory<T>::Read<%d,%d> %p", type, mfem::GetMemoryType(mc),m_ptr);
+   const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return m_ptr; }
-      MemoryManager::Register_((void*)m_ptr, NULL, capacity*sizeof(T),
-                               mfem::GetMemoryType(mc), flags & OWNS_HOST,
-                               flags & ALIAS, flags);
+      MemoryManager::Register_(m_ptr, bytes, type,
+                               flags & OWNS_HOST, flags & ALIAS, flags);
    }
-   return (const T*)MemoryManager::Read_(
-             (void*)m_ptr, mc, size*sizeof(T), flags);
+   return (const T*)MemoryManager::Read_(m_ptr, mc, bytes, flags);
 }
 
 // ****************************************************************************
 template <typename T>
 inline T *Memory<T>::Write(MemoryClass mc, int size)
 {
-   dbg("Memory<T>::Write<%d> %p",mfem::GetMemoryType(mc),m_ptr);
+   dbg("Memory<T>::Write<%d,%d> %p", type, mfem::GetMemoryType(mc),m_ptr);
+   const size_t bytes = capacity * sizeof(T);
    if (!(flags & REGISTERED))
    {
       if (mc == MemoryClass::HOST) { return m_ptr; }
-      MemoryManager::Register_(m_ptr, NULL, capacity*sizeof(T),
-                               mfem::GetMemoryType(mc),
-                               flags & OWNS_HOST,
-                               flags & ALIAS, flags);
+      MemoryManager::Register_(m_ptr, bytes, type,
+                               flags & OWNS_HOST, flags & ALIAS, flags);
    }
-   return (T*)MemoryManager::Write_(m_ptr, mc, size*sizeof(T), flags);
+   return (T*)MemoryManager::Write_(m_ptr, mc, bytes, flags);
 }
 
 // ****************************************************************************
@@ -711,7 +700,7 @@ template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
    if (!(flags & REGISTERED)) { return MemoryType::HOST; }
-   return MemoryManager::GetMemoryType_(m_ptr, flags);
+   return type; //MemoryManager::GetMemoryType_(m_ptr, flags);
 }
 
 // ****************************************************************************

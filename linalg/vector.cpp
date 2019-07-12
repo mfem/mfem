@@ -979,7 +979,7 @@ double Vector::operator*(const Vector &v) const
       auto v_data = v.Read();
       auto m_data = Read();
       Vector dot(1);
-      dot.UseDevice();
+      dot.UseDevice(true);
       auto d_dot = dot.Write();
       dot = 0.0;
       MFEM_FORALL(i, N, d_dot[0] += m_data[i] * v_data[i];);
