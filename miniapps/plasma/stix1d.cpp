@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
    if ( mpi.Root() ) { display_banner(cout); }
 
    int logging = 1;
-   
+
    // Parse command-line options.
    int order = 1;
    int maxit = 1;
@@ -542,7 +542,7 @@ int main(int argc, char *argv[])
 
    if (mpi.Root() && logging > 0 )
    {
-     cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
 
    /*
@@ -577,7 +577,7 @@ int main(int argc, char *argv[])
    }
    tic_toc.Clear();
    tic_toc.Start();
-   
+
    VectorCoefficient * BCoef = NULL;
    if (B_params_.Size()  == 7)
    {
@@ -693,7 +693,7 @@ int main(int argc, char *argv[])
 
    if (mpi.Root() && logging > 0 )
    {
-     cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
 
    if (visualization)
@@ -716,22 +716,22 @@ int main(int argc, char *argv[])
 
       Wx += 2 * offx;
       VisualizeField(sock_Er, vishost, visport,
-		     EField.real(), "Exact Electric Field, Re(E)",
-		     Wx, Wy, Ww, Wh);
+                     EField.real(), "Exact Electric Field, Re(E)",
+                     Wx, Wy, Ww, Wh);
 
       Wx += offx;
       VisualizeField(sock_Ei, vishost, visport,
-		     EField.imag(), "Exact Electric Field, Im(E)",
-		     Wx, Wy, Ww, Wh);
+                     EField.imag(), "Exact Electric Field, Im(E)",
+                     Wx, Wy, Ww, Wh);
 
       Wx -= offx;
       Wy += offy;
 
       VisualizeField(sock_B, vishost, visport,
-		     BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
+                     BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
 
       VisualizeField(sock_L, vishost, visport,
-		     LField, "L", Wx, Wy, Ww, Wh);
+                     LField, "L", Wx, Wy, Ww, Wh);
    }
 
    // Setup coefficients for Dirichlet BC

@@ -112,7 +112,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    if ( myid_ == 0 && logging_ > 0 )
    {
-     cout << "Constructing CPDSolver ..." << endl;
+      cout << "Constructing CPDSolver ..." << endl;
    }
 
    tic_toc.Clear();
@@ -362,7 +362,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    if ( myid_ == 0 && logging_ > 0 )
    {
-     cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
 }
 
@@ -497,7 +497,7 @@ CPDSolver::Assemble()
 
    if ( myid_ == 0 && logging_ > 0 )
    {
-     cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
 }
 
@@ -560,7 +560,7 @@ CPDSolver::Update()
 
    if ( myid_ == 0 && logging_ > 0 )
    {
-     cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
 }
 
@@ -612,13 +612,13 @@ CPDSolver::Solve()
    {
       for (int i = 0; i<dbcs_->Size(); i++)
       {
-	 Array<int> attr_marker(pmesh_->bdr_attributes.Max());
-	 attr_marker = 0;
-	 for (int j=0; j<(*dbcs_)[i].attr.Size(); j++)
-	 {
-	    attr_marker[(*dbcs_)[i].attr[j] - 1] = 1;
-	 }
-	 e_->ProjectBdrCoefficientTangent(*(*dbcs_)[i].real,
+         Array<int> attr_marker(pmesh_->bdr_attributes.Max());
+         attr_marker = 0;
+         for (int j=0; j<(*dbcs_)[i].attr.Size(); j++)
+         {
+            attr_marker[(*dbcs_)[i].attr[j] - 1] = 1;
+         }
+         e_->ProjectBdrCoefficientTangent(*(*dbcs_)[i].real,
                                           *(*dbcs_)[i].imag,
                                           attr_marker);
       }
