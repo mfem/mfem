@@ -569,7 +569,7 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
       }
       EdTr->SetFE(GetTransformationFEforElementType(Element::SEGMENT));
    }
-   else
+   else // curved mesh
    {
       const FiniteElement *edge_el = Nodes->FESpace()->GetEdgeElement(EdgeNo);
       if (edge_el)
@@ -587,9 +587,16 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
          }
          EdTr->SetFE(edge_el);
       }
-      else
+      else // L2 Nodes (e.g., periodic mesh), go through the volume of Elem1
       {
-         MFEM_ABORT("Not implemented.");
+         // The element index is not used in the following
+         const FiniteElement *edge_el =
+            Nodes->FESpace()->GetTraceElement(-1, Geometry::SEGMENT);
+
+         // 'Transformation' is not used
+         Nodes->GetVectorValues(Transformation, edge_el->GetNodes(), pm);
+
+         EdTr->SetFE(edge_el);
       }
    }
    EdTr->FinalizeTransformation();

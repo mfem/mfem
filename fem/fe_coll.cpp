@@ -1875,6 +1875,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
       L2_Elements[Geometry::PRISM]->SetMapType(map_type);
       // All trace element use the default Gauss-Legendre nodal points
+      Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
       Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
       Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
 
