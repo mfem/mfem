@@ -503,9 +503,8 @@ void MemoryManager::InsertDevice(void *d_ptr, void *h_ptr,
    if (res.second == false)
    { mfem_error("Trying to add an already present address!"); }
    internal::Memory &base = res.first->second;
-   if (d_ptr == NULL) { dbg("device->Alloc"); ctrl->device->Alloc(base, bytes); }
+   if (d_ptr == NULL) { ctrl->device->Alloc(base, bytes); }
    res.first->second.d_ptr = d_ptr;
-   dbg("done");
 }
 
 //*****************************************************************************
@@ -547,8 +546,7 @@ void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
 //*****************************************************************************
 MemoryType MemoryManager::Erase(void *h_ptr, bool free_dev_ptr)
 {
-   dbg("Erase");
-   if (!h_ptr) { dbg("!h_ptr"); return MemoryType::HOST; }
+   if (!h_ptr) { return MemoryType::HOST; }
    auto mem_map_iter = maps->memories.find(h_ptr);
    if (mem_map_iter == maps->memories.end())
    { mfem_error("Trying to erase an unknown pointer!"); }
@@ -592,14 +590,8 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
       dbg("copy_data");
       MFEM_ASSERT(bytes <= base.bytes, "invalid copy size");
       ctrl->memcpy->HtoD(base.d_ptr, h_ptr, bytes);
-
    }
-   if (base.d_type == MemoryType::HOST_MMU)
-   {
-      dbg("Protect %p", h_ptr);
-      ctrl->host->Protect(h_ptr, bytes);
-   }
-   dbg("return");
+   if (base.d_type == MemoryType::HOST_MMU) { ctrl->host->Protect(h_ptr, bytes); }
    return base.d_ptr;
 }
 
@@ -625,7 +617,7 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
    if (copy_data)
    {
       ctrl->memcpy->HtoD((char*)base.d_ptr + offset, alias_ptr, bytes);
-      ctrl->host->Protect(alias_ptr, bytes);
+      //ctrl->host->Protect(alias_ptr, bytes);
    }
    return (char*) base.d_ptr + offset;
 }
@@ -672,6 +664,7 @@ void MemoryManager::PrintPtrs(void)
 // ****************************************************************************
 void *MemoryManager::New_(size_t bytes, MemoryType mt, unsigned &flags)
 {
+   MFEM_VERIFY(bytes>0, " bytes==0");
    MFEM_VERIFY(mt != MemoryType::HOST, "internal error");
    dbg("mm::New_<%d>",mt);
    void *m_ptr;
@@ -694,6 +687,8 @@ void *MemoryManager::HostNew_(void **ptr, const size_t bytes, unsigned &flags)
 void *MemoryManager::Register_(void *ptr, size_t bytes, MemoryType mt,
                                bool own, bool alias, unsigned &flags)
 {
+   if (bytes == 0) { return NULL;}
+   MFEM_VERIFY(bytes>0, " bytes==0");
    dbg("mm::Register_<%d> %p", mt, ptr);
    MFEM_VERIFY(alias == false, "cannot register an alias!");
    flags |= (Mem::REGISTERED | Mem::OWNS_INTERNAL);
@@ -739,11 +734,10 @@ MemoryType MemoryManager::Delete_(void *h_ptr, unsigned flags)
                "invalid Memory state");
    if (mm.exists && (flags & Mem::OWNS_INTERNAL))
    {
-      dbg("OWNS_INTERNAL!");
       if (flags & Mem::ALIAS) { return mm.EraseAlias(h_ptr); }
       else { return mm.Erase(h_ptr, flags & Mem::OWNS_DEVICE); }
    }
-   return MemoryType::HOST;
+   return m_type;
 }
 
 //*****************************************************************************
@@ -772,11 +766,7 @@ static void PullKnown(internal::Maps *maps, const void *ptr,
    // as device memory.
    if (copy_data && base.d_ptr)
    {
-      if (base.d_type == MemoryType::HOST_MMU)
-      {
-         MFEM_VERIFY(base.d_type == MemoryType::HOST_MMU, "internal error");
-         ctrl->host->Unprotect(base.h_ptr, base.bytes);
-      }
+      ctrl->host->Unprotect(base.h_ptr, base.bytes);
       ctrl->memcpy->DtoH(base.h_ptr, base.d_ptr, bytes);
    }
 }
@@ -875,6 +865,7 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryClass mc,
 const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
                                  size_t bytes, unsigned &flags)
 {
+   dbg("Read_");
    switch (mc)
    {
       case MemoryClass::HOST:
@@ -883,6 +874,7 @@ const void *MemoryManager::Read_(void *h_ptr, MemoryClass mc,
             if (flags & Mem::ALIAS) { PullAlias(maps, h_ptr, bytes, true); }
             else { PullKnown(maps, h_ptr, bytes, true); }
          }
+         else { ctrl->host->Unprotect(h_ptr, bytes); }
          flags = flags | Mem::VALID_HOST;
          dbg("R @ HOST");
          return h_ptr;
