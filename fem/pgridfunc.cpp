@@ -444,22 +444,22 @@ void ParGridFunction::ProjectBdrCoefficient(
 void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                                    Array<int> &bdr_attr)
 {
-   if (fes->GetFE(0)->GetMapType() == FiniteElement::H_CURL)
+   if (pfes->GetFE(0)->GetMapType() == FiniteElement::H_CURL)
    {
       const FiniteElement *fe;
       ElementTransformation *T;
       Array<int> dofs;
       Vector vals;
 
-      for (int i = 0; i < fes->GetNBE(); i++)
+      for (int i = 0; i < pfes->GetNBE(); i++)
       {
-         if (bdr_attr[fes->GetBdrAttribute(i)-1] == 0)
+         if (bdr_attr[pfes->GetBdrAttribute(i)-1] == 0)
          {
             continue;
          }
-         fe = fes->GetBE(i);
-         T = fes->GetBdrElementTransformation(i);
-         fes->GetBdrElementDofs(i, dofs);
+         fe = pfes->GetBE(i);
+         T = pfes->GetBdrElementTransformation(i);
+         pfes->GetBdrElementDofs(i, dofs);
          vals.SetSize(dofs.Size());
          fe->Project(vcoeff, *T, vals);
          SetSubVector(dofs, vals);
