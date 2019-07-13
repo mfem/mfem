@@ -231,10 +231,6 @@ HypreParVector::~HypreParVector()
 
 #ifdef MFEM_USE_SUNDIALS
 
-#ifndef SUNFALSE
-#define SUNFALSE FALSE
-#endif
-
 void HypreParVector::ToNVector(N_Vector &nv)
 {
    MFEM_ASSERT(nv && N_VGetVectorID(nv) == SUNDIALS_NVEC_PARHYP,
