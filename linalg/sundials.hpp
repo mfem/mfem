@@ -362,14 +362,14 @@ public:
    /// Attach a custom linear solver solver to ARKode.
    void SetLinearSolver();
 
-   /// Attach a custom mass matrix linear solver solver to ARKode.
+   /// Attach a custom mass matrix linear solver to ARKode.
    /** @param[in] ls_spec A SundialsLinearSolver object defining the custom
                           linear solver.
        @param[in] tdep    A integer flag indicating if the mass matrix is time
                           dependent (1) or time independent (0). */
    void SetMassLinearSolver(SundialsLinearSolver &ls_spec, int tdep);
 
-   /// Attach a custom mass matrix linear solver solver to ARKode.
+   /// Attach a custom mass matrix linear solver to ARKode.
    /** @param[in] tdep    A integer flag indicating if the mass matrix is time
                           dependent (1) or time independent (0). */
    void SetMassLinearSolver(int tdep);
