@@ -28,6 +28,13 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+6/25
+try to reproduce results:
+srun -n 4 imMHDp -rs 4 -tf 1 -vs 200 -dt .001 -i 2 -no-vis
+
+but 
+EliminateEssentialBC(ess_bdr) will not generate the matrix I need
+
 6/16
 the explicit and implicit solvers are comparable with pcshell:
 (this uses a very bad linear solver, so it converges very slow)
