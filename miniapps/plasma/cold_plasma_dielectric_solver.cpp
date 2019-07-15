@@ -610,9 +610,9 @@ CPDSolver::Solve()
    // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
    if (dbcs_)
    {
+      Array<int> attr_marker(pmesh_->bdr_attributes.Max());
       for (int i = 0; i<dbcs_->Size(); i++)
       {
-         Array<int> attr_marker(pmesh_->bdr_attributes.Max());
          attr_marker = 0;
          for (int j=0; j<(*dbcs_)[i].attr.Size(); j++)
          {
@@ -623,8 +623,7 @@ CPDSolver::Solve()
                                           attr_marker);
       }
    }
-   // e_->ProjectCoefficient(const_cast<VectorCoefficient&>(erCoef_),
-   //                       const_cast<VectorCoefficient&>(eiCoef_));
+
    a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *rhs_, A1, E, RHS);
 
    // cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;

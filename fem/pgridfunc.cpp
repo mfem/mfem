@@ -448,21 +448,18 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    {
       const FiniteElement *fe;
       ElementTransformation *T;
-      Array<int> dofs;
+      Array<int> vdofs;
       Vector vals;
 
       for (int i = 0; i < pfes->GetNBE(); i++)
       {
-         if (bdr_attr[pfes->GetBdrAttribute(i)-1] == 0)
-         {
-            continue;
-         }
+         if (bdr_attr[pfes->GetBdrAttribute(i) - 1] == 0) { continue; }
          fe = pfes->GetBE(i);
          T = pfes->GetBdrElementTransformation(i);
-         pfes->GetBdrElementDofs(i, dofs);
-         vals.SetSize(dofs.Size());
+         pfes->GetBdrElementVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
          fe->Project(vcoeff, *T, vals);
-         SetSubVector(dofs, vals);
+         SetSubVector(vdofs, vals);
       }
       return;
    }

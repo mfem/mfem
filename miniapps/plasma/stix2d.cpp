@@ -660,7 +660,7 @@ int main(int argc, char *argv[])
 
    Vector zeroVec(3); zeroVec = 0.0;
    Vector yVec(3); yVec = 0.0; yVec[1] = 1.0;
-   Vector yNegVec(3); yNegVec = 0.0; yNegVec[1] = -0.5;
+   Vector yNegVec(3); yNegVec = 0.0; yNegVec[1] = -1.0;
    VectorConstantCoefficient zeroCoef(zeroVec);
    VectorConstantCoefficient yCoef(yVec);
    VectorConstantCoefficient yNegCoef(yNegVec);
