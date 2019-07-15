@@ -31,9 +31,7 @@
 
 
 #ifdef MFEM_USE_LAPACK
-extern "C" void
-dgemm_(char *, char *, int *, int *, int *, double *, double *,
-       int *, double *, int *, double *, double *, int *);
+#include "cblas.h"
 extern "C" void
 dgetrf_(int *, int *, double *, int *, int *, int *);
 extern "C" void
@@ -3067,12 +3065,16 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
                b.Width() == c.Height(), "incompatible dimensions");
 
 #ifdef MFEM_USE_LAPACK
-   static char transa = 'N', transb = 'N';
-   static double alpha = 1.0, beta = 0.0;
-   int m = b.Height(), n = c.Width(), k = b.Width();
-
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-          c.Data(), &k, &beta, a.Data(), &m);
+   const CBLAS_LAYOUT layout = CblasColMajor;
+   const CBLAS_TRANSPOSE transa = CblasNoTrans;
+   const CBLAS_TRANSPOSE transb = CblasNoTrans;
+   const double alpha = 1.0;
+   const double beta = 0.0;
+   const int m = b.Height();
+   const int n = c.Width();
+   const int k = b.Width();
+   cblas_dgemm(layout, transa, transb, m, n, k, alpha, b.Data(), m,
+               c.Data(), k, beta, a.Data(), m);
 #else
    const int ah = a.Height();
    const int aw = a.Width();
@@ -3103,12 +3105,16 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
                b.Width() == c.Height(), "incompatible dimensions");
 
 #ifdef MFEM_USE_LAPACK
-   static char transa = 'N', transb = 'N';
-   static double alpha = 1.0, beta = 1.0;
-   int m = b.Height(), n = c.Width(), k = b.Width();
-
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-          c.Data(), &k, &beta, a.Data(), &m);
+   const CBLAS_LAYOUT layout = CblasColMajor;
+   const CBLAS_TRANSPOSE transa = CblasNoTrans;
+   const CBLAS_TRANSPOSE transb = CblasNoTrans;
+   const double alpha = 1.0;
+   const double beta = 1.0;
+   const int m = b.Height();
+   const int n = c.Width();
+   const int k = b.Width();
+   cblas_dgemm(layout, transa, transb, m, n, k, alpha, b.Data(), m,
+               c.Data(), k, beta, a.Data(), m);
 #else
    const int ah = a.Height();
    const int aw = a.Width();
@@ -3458,12 +3464,16 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
 #endif
 
 #ifdef MFEM_USE_LAPACK
-   static char transa = 'N', transb = 'T';
-   static double alpha = 1.0, beta = 0.0;
-   int m = A.Height(), n = B.Height(), k = A.Width();
-
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-          B.Data(), &n, &beta, ABt.Data(), &m);
+   const CBLAS_LAYOUT layout = CblasColMajor;
+   const CBLAS_TRANSPOSE transa = CblasNoTrans;
+   const CBLAS_TRANSPOSE transb = CblasTrans;
+   const double alpha = 1.0;
+   const double beta = 0.0;
+   const int m = A.Height();
+   const int n = B.Height();
+   const int k = A.Width();
+   cblas_dgemm(layout, transa, transb, m, n, k, alpha, A.Data(), m,
+               B.Data(), n, beta, ABt.Data(), m);
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
@@ -3581,12 +3591,16 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
 #endif
 
 #ifdef MFEM_USE_LAPACK
-   static char transa = 'N', transb = 'T';
-   static double alpha = 1.0, beta = 1.0;
-   int m = A.Height(), n = B.Height(), k = A.Width();
-
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-          B.Data(), &n, &beta, ABt.Data(), &m);
+   const CBLAS_LAYOUT layout = CblasColMajor;
+   const CBLAS_TRANSPOSE transa = CblasNoTrans;
+   const CBLAS_TRANSPOSE transb = CblasTrans;
+   const double alpha = 1.0;
+   const double beta = 1.0;
+   const int m = A.Height();
+   const int n = B.Height();
+   const int k = A.Width();
+   cblas_dgemm(layout, transa, transb, m, n, k, alpha, A.Data(), m,
+               B.Data(), n, beta, ABt.Data(), m);
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
@@ -3675,13 +3689,16 @@ void AddMult_a_ABt(double a, const DenseMatrix &A, const DenseMatrix &B,
 #endif
 
 #ifdef MFEM_USE_LAPACK
-   static char transa = 'N', transb = 'T';
-   double alpha = a;
-   static double beta = 1.0;
-   int m = A.Height(), n = B.Height(), k = A.Width();
-
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-          B.Data(), &n, &beta, ABt.Data(), &m);
+   const CBLAS_LAYOUT layout = CblasColMajor;
+   const CBLAS_TRANSPOSE transa = CblasNoTrans;
+   const CBLAS_TRANSPOSE transb = CblasTrans;
+   const double alpha = a; // Unnecessary; left here for review
+   const double beta = 1.0;
+   const int m = A.Height();
+   const int n = B.Height();
+   const int k = A.Width();
+   cblas_dgemm(layout, transa, transb, m, n, k, alpha, A.Data(), m,
+               B.Data(), n, beta, ABt.Data(), m);
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
@@ -3733,12 +3750,16 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
 #endif
 
 #ifdef MFEM_USE_LAPACK
-   static char transa = 'T', transb = 'N';
-   static double alpha = 1.0, beta = 0.0;
-   int m = A.Width(), n = B.Width(), k = A.Height();
-
-   dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
-          B.Data(), &k, &beta, AtB.Data(), &m);
+   const CBLAS_LAYOUT layout = CblasColMajor;
+   const CBLAS_TRANSPOSE transa = CblasTrans;
+   const CBLAS_TRANSPOSE transb = CblasNoTrans;
+   const double alpha = 1.0;
+   const double beta = 0.0;
+   const int m = A.Width();
+   const int n = B.Width();
+   const int k = A.Height();
+   cblas_dgemm(layout, transa, transb, m, n, k, alpha, A.Data(), k,
+               B.Data(), k, beta, AtB.Data(), m);
 #elif 1
    const int ah = A.Height();
    const int aw = A.Width();
