@@ -361,7 +361,7 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   ~VectorFunctionCoefficient() { std::cout << "coeff: destructing VecFuncCoef" << std::endl; }
+   ~VectorFunctionCoefficient() { }
 };
 
 /// Vector coefficient defined by an array of scalar coefficients.

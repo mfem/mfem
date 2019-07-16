@@ -4310,6 +4310,9 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
 
    // find the orientation of the bdr. elem. w.r.t.
    // the corresponding face element (that's the base)
+   
+   // *** may be relevant for serendipity ??? ***
+
    switch (GetBdrElementType(i))
    {
       case Element::TRIANGLE:

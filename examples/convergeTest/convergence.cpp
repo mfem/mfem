@@ -66,25 +66,14 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    }
 
    // Set exact solution
-   
-   FunctionCoefficient *u = new FunctionCoefficient(u_exact_2);
-   VectorFunctionCoefficient *u_grad = new VectorFunctionCoefficient(dim, u_grad_exact_2);
 
-   if (exact == 1)
-   {
-      FunctionCoefficient *v = new FunctionCoefficient(u_exact);
-      u = v;
-      delete v;
-      VectorFunctionCoefficient *(v_grad) = new VectorFunctionCoefficient(dim, u_grad_exact);
-      (u_grad) = (v_grad);
-      delete v_grad;
-   }
-   else if (exact != 2)
-   {
-      cout << "Error - did not set exact solution" << endl;
-      u = NULL;
-      u_grad = NULL;
-   }
+   // exact == 1 case:
+   FunctionCoefficient *u1 = new FunctionCoefficient(u_exact);
+   VectorFunctionCoefficient *(u1_grad) = new VectorFunctionCoefficient(dim, u_grad_exact);
+   
+   // exact == 2 case:
+   FunctionCoefficient *u2 = new FunctionCoefficient(u_exact_2);
+   VectorFunctionCoefficient *u2_grad = new VectorFunctionCoefficient(dim, u_grad_exact_2);
 
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
@@ -117,15 +106,21 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    LinearForm *b = new LinearForm(fespace);
 
-   // // For solving PDE: (2 of 3 changes)
    if (solvePDE==1)
    {
       ConstantCoefficient zero(0.0);
       b->AddDomainIntegrator(new DomainLFIntegrator(zero));
    }
-   else
+   else // L2 Projection
    {
-      b->AddDomainIntegrator(new DomainLFIntegrator(*u));
+      if (exact == 1)
+      {
+         b->AddDomainIntegrator(new DomainLFIntegrator(*u1));
+      }
+      else // exact == 2
+      {
+         b->AddDomainIntegrator(new DomainLFIntegrator(*u2));
+      }
    }
 
    b->Assemble();
@@ -135,7 +130,6 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x=0.0;
-   x.ProjectBdrCoefficient(*u, ess_bdr);
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -147,9 +141,17 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    if (solvePDE==1)
    {   
+      if (exact == 1)
+      {
+         x.ProjectBdrCoefficient(*u1, ess_bdr);
+      }
+      else
+      {
+         x.ProjectBdrCoefficient(*u2, ess_bdr);
+      }
       a->AddDomainIntegrator(new DiffusionIntegrator);
    }
-   else
+   else // L2 Projection
    {
       a->AddDomainIntegrator(new MassIntegrator);
    }
@@ -236,8 +238,21 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    // Compute and print the L^2 and H^1 norms of the error.
    ConstantCoefficient one(1.0);
-   double l2_err = x.ComputeL2Error(*u);
-   double h1_err = x.ComputeH1Error(u, u_grad, &one, 1.0, 1);
+   
+   double l2_err = 0;
+   double h1_err = 0;
+
+   if (exact == 1)
+   {
+      l2_err = x.ComputeL2Error(*u1);
+      h1_err = x.ComputeH1Error(u1, u1_grad, &one, 1.0, 1);
+   }
+   else
+   {
+      l2_err = x.ComputeL2Error(*u2);
+      h1_err = x.ComputeH1Error(u2, u2_grad, &one, 1.0, 1);
+   }
+
    double l2_rate, h1_rate;
 
    if (num_ref != 0)
@@ -266,11 +281,13 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    // delete amg;
    // delete my_diff_integrator;
    // delete my_mass_integrator;
-   delete a;
+   delete a; 
    delete b;
    delete fespace;
-   delete u_grad;
-   delete u;
+   delete u1;
+   delete u1_grad;
+   delete u2;
+   delete u2_grad;
    delete fec;
    delete mesh;
 

@@ -1630,12 +1630,19 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          }
       }
 
+
       QuadDofOrd[0] = new int[8*QuadDof];
       for (int i = 1; i < 8; i++)
       {
          QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
       }
       // see Mesh::GetQuadOrientation in mesh/mesh.cpp
+
+      // For serendipity, we need to adjust the QuadDofOrd array
+      // For now, we trick it by setting pm1 to 2 in the case where 
+      //  we have serendipity order 4, but this will not work in 
+      //  general.
+
       for (int j = 0; j < pm1; j++)
       {
          for (int i = 0; i < pm1; i++)
@@ -1701,8 +1708,13 @@ const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    {
       return TriDofOrd[Or%6];
    }
-   else if (GeomType == Geometry::SQUARE)
+   else if (GeomType == Geometry::SQUARE) 
    {
+      // for (int i=1; i<8; i++)
+      // {
+      //    cout << "Quad dof order " << i << " = " << *QuadDofOrd[i] << endl;
+      // }
+      // cout << endl;
       return QuadDofOrd[Or%8];
    }
    return NULL;
@@ -2504,12 +2516,12 @@ Local_FECollection::Local_FECollection(const char *fe_name)
       std::cout << "fe_coll: atoi(fe_name) = " << atoi(fe_name) << std::endl;
       Local_Element = new H1Pos_QuadrilateralElement(atoi(fe_name + 10));
    }
-   else if (!strncmp(fe_name, "H1Ser_Qua", 9))
-   {
-      GeomType = Geometry::SQUARE;
-      std::cout << "fe_coll: atoi(fe_name) = " << atoi(fe_name) << std::endl;
-      Local_Element = new H1Ser_QuadrilateralElement(atoi(fe_name + 10)); 
-   }
+   // else if (!strncmp(fe_name, "H1Ser_Qua", 9))
+   // {
+   //    GeomType = Geometry::SQUARE;
+   //    std::cout << "fe_coll: atoi(fe_name) = " << atoi(fe_name) << std::endl;
+   //    Local_Element = new H1Ser_QuadrilateralElement(atoi(fe_name + 10)); 
+   // }
    // else if (!strncmp(fe_name, "H1Ser_Hex", 9))
    // {
    //    GeomType = Geometry::CUBE;

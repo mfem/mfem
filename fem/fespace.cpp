@@ -178,6 +178,9 @@ void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
 void FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
 {
    GetBdrElementDofs(i, vdofs);
+   // cout << "fespace: vdofs is: " << endl;
+   // vdofs.Print();
+   // cout << "   (done)" << endl;
    DofsToVDofs(vdofs);
 }
 
@@ -1667,14 +1670,26 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
                   mesh->GetBdrElementBaseGeometry(i), oF);
          for (j = 0; j < nf; j++)
          {
+            
             if (ind[j] < 0)
             {
                dofs[ne+j] = -1 - ( nvdofs+nedofs+fdofs[iF]+(-1-ind[j]) );
             }
             else
             {
-               dofs[ne+j] = nvdofs+nedofs+fdofs[iF]+ind[j];
+               // cout << "fespace: setting dofs[" << ne+j << "] = nvdofs + nedofs + fdofs[iF]+ind[j] = ";
+               // cout << nvdofs << " + " << nedofs << " + " << fdofs[iF] << " + " <<  ind[j] << endl;
+               if (ind[j] != 0)
+               {
+                  dofs[ne+j] = nvdofs+nedofs+fdofs[iF];
+               }
+               else
+               {               
+                  dofs[ne+j] = nvdofs+nedofs+fdofs[iF]+ind[j];
+               }
+               // cout << "    -> Actually set it to " << dofs[ne+j] << endl;
             }
+            // cout << endl;
          }
       }
    }

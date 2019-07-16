@@ -109,13 +109,12 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    LinearForm *b = new LinearForm(fespace);
 
-   // // For solving PDE: (2 of 3 changes)
    if (solvePDE==1)
    {
       ConstantCoefficient zero(0.0);
       b->AddDomainIntegrator(new DomainLFIntegrator(zero));
    }
-   else
+   else // L2 Projection
    {
       if (exact == 1)
       {
@@ -155,7 +154,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
       }
       a->AddDomainIntegrator(new DiffusionIntegrator);
    }
-   else
+   else // L2 Projection
    {
       a->AddDomainIntegrator(new MassIntegrator);
    }
@@ -180,7 +179,8 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    GSSmoother M((SparseMatrix&)(*A));
    X = 0.0;
    PCG(*A, M, B, X, 0, 200, 1e-24, 0.0);
-
+   // PCG(*A, M, B, X, 0, 200, 1e-12, 1e-12);
+   // GMRES(*A, M, B, X);
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
@@ -272,17 +272,15 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    delete a;
    delete b;
    delete fespace;
-   delete u2_grad;
-   delete u2;
-   delete u1_grad;
    delete u1;
+   delete u1_grad;
+   delete u2;
+   delete u2_grad;
    delete fec;
    delete mesh;
 
    return;
 }
-
-
 
 
 
@@ -324,7 +322,7 @@ int main(int argc, char *argv[])
    bool visualization = false;
    int exact = 1;
    int dof2view = -1;
-   int solvePDE = 2;
+   int solvePDE = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&total_refinements, "-r", "--refine",
@@ -464,5 +462,8 @@ int main(int argc, char *argv[])
       }
    }
    convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, exact, dof2view, solvePDE);
+
+   // cout << endl;
+   // cout << "Warning: search in fespace.cpp for fespace: setting dofs" << endl;
    return 0;
 }
