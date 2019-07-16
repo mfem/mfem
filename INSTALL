@@ -454,10 +454,11 @@ The specific libraries and their options are:
   Options: METIS_OPT, METIS_LIB.
 
 - LAPACK (optional), used when MFEM_USE_LAPACK = YES. Alternative, optimized
-  implementations can also be used, e.g. the ATLAS project.
+  implementations can also be used, e.g. the ATLAS project. The implementation
+  must implement LAPACK version 3.4.0 or later.
   URL: http://www.netlib.org/lapack (LAPACK)
        http://math-atlas.sourceforge.net (ATLAS)
-  Options: LAPACK_OPT (currently not used/needed), LAPACK_LIB.
+  Options: LAPACK_OPT, LAPACK_LIB.
 
 - OpenMP (optional), usually part of compiler, used when either MFEM_USE_OPENMP
   or MFEM_USE_LEGACY_OPENMP is set to YES.
