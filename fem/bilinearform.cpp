@@ -1089,6 +1089,18 @@ void MixedBilinearForm::AddMult (const Vector & x, Vector & y,
    mat -> AddMult (x, y, a);
 }
 
+void MixedBilinearForm::MultTranspose(const Vector & x, Vector & y) const
+{
+   if (assembly == AssemblyLevel::PARTIAL)
+   {
+      ext -> MultTranspose(x, y);
+   }
+   else
+   {
+      mat -> MultTranspose(x, y);
+   }
+}
+
 void MixedBilinearForm::AddMultTranspose (const Vector & x, Vector & y,
                                           const double a) const
 {

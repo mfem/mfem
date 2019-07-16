@@ -2122,6 +2122,7 @@ public:
                            const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
