@@ -32,28 +32,7 @@
 
 #ifdef MFEM_USE_LAPACK
 #include "cblas.h"
-extern "C" void
-dgetrf_(int *, int *, double *, int *, int *, int *);
-extern "C" void
-dgetrs_(char *, int *, int *, double *, int *, int *, double *, int *, int *);
-extern "C" void
-dgetri_(int *N, double *A, int *LDA, int *IPIV, double *WORK,
-        int *LWORK, int *INFO);
-extern "C" void
-dsyevr_(char *JOBZ, char *RANGE, char *UPLO, int *N, double *A, int *LDA,
-        double *VL, double *VU, int *IL, int *IU, double *ABSTOL, int *M,
-        double *W, double *Z, int *LDZ, int *ISUPPZ, double *WORK, int *LWORK,
-        int *IWORK, int *LIWORK, int *INFO);
-extern "C" void
-dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W,
-       double *WORK, int *LWORK, int *INFO);
-extern "C" void
-dsygv_ (int *ITYPE, char *JOBZ, char *UPLO, int * N, double *A, int *LDA,
-        double *B, int *LDB, double *W,  double *WORK, int *LWORK, int *INFO);
-extern "C" void
-dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
-        double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
-        int *LWORK, int *INFO);
+#include "lapacke.h"
 #endif
 
 
@@ -663,31 +642,21 @@ void DenseMatrix::Invert()
 #endif
 
 #ifdef MFEM_USE_LAPACK
-   int   *ipiv = new int[width];
-   int    lwork = -1;
-   double qwork, *work;
-   int    info;
+   const int layout = LAPACK_COL_MAJOR;
+   int *ipiv = new int[width];
 
-   dgetrf_(&width, &width, data, &width, ipiv, &info);
-
+   int info = LAPACKE_dgetrf(layout, width, width, data, width, ipiv);
    if (info)
    {
-      mfem_error("DenseMatrix::Invert() : Error in DGETRF");
+      mfem_error("DenseMatrix::Invert() : Error in LAPACKE_dgetrf");
    }
 
-   dgetri_(&width, data, &width, ipiv, &qwork, &lwork, &info);
-
-   lwork = (int) qwork;
-   work = new double[lwork];
-
-   dgetri_(&width, data, &width, ipiv, work, &lwork, &info);
-
+   info = LAPACKE_dgetri(layout, width, data, width, ipiv);
    if (info)
    {
-      mfem_error("DenseMatrix::Invert() : Error in DGETRI");
+      mfem_error("DenseMatrix::Invert() : Error in LAPACKE_dgetri");
    }
 
-   delete [] work;
    delete [] ipiv;
 #else
    int c, i, j, n = Width();
@@ -891,12 +860,6 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    double   *Z        = NULL;
    int       LDZ      = 1;
    int      *ISUPPZ   = new int[2*N];
-   int       LWORK    = -1; // query optimal (double) workspace size
-   double    QWORK;
-   double   *WORK     = NULL;
-   int       LIWORK   = -1; // query optimal (int) workspace size
-   int       QIWORK;
-   int      *IWORK    = NULL;
    int       INFO;
 
    if (evect) // Compute eigenvectors too
@@ -916,19 +879,9 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
       A[i] = data[i];
    }
 
-   dsyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
-            &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, &QWORK, &LWORK,
-            &QIWORK, &LIWORK, &INFO );
-
-   LWORK  = (int) QWORK;
-   LIWORK = QIWORK;
-
-   WORK  = new double[LWORK];
-   IWORK = new int[LIWORK];
-
-   dsyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
-            &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, WORK, &LWORK,
-            IWORK, &LIWORK, &INFO );
+   int layout = LAPACK_COL_MAJOR;
+   INFO = LAPACKE_dsyevr(layout, JOBZ, RANGE, UPLO, N, A,
+                         LDA, VL, VU, IL, IU, ABSTOL, &M, W, Z, LDZ, ISUPPZ);
 
    if (INFO != 0)
    {
@@ -1022,8 +975,6 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    }
 #endif
 
-   delete [] IWORK;
-   delete [] WORK;
    delete [] ISUPPZ;
    delete [] A;
 
@@ -1033,19 +984,17 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 {
 #ifdef MFEM_USE_LAPACK
+   int   layout = LAPACK_COL_MAJOR;
    int   N      = a.Width();
    char  JOBZ   = 'N';
    char  UPLO   = 'U';
    int   LDA    = N;
-   int   LWORK  = -1; /* query optimal workspace size */
    int   INFO;
 
    ev.SetSize(N);
 
    double *A    = NULL;
    double *W    = ev.GetData();
-   double *WORK = NULL;
-   double  QWORK;
 
    if (evect)
    {
@@ -1065,20 +1014,14 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
       A[i] = data[i];
    }
 
-   dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
-
-   LWORK = (int) QWORK;
-   WORK = new double[LWORK];
-
-   dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
-
+   INFO = LAPACKE_dsyev(layout, JOBZ, UPLO, N, A, LDA, W);
    if (INFO != 0)
    {
-      mfem::err << "dsyev_Eigensystem: DSYEV error code: " << INFO << endl;
+      mfem::err << "dsyev_Eigensystem: LAPACK_dsyev error code: "
+                << INFO << endl;
       mfem_error();
    }
 
-   delete [] WORK;
    if (evect == NULL) { delete [] A; }
 #endif
 }
@@ -1108,7 +1051,6 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
    char  UPLO   = 'U';
    int   LDA    = N;
    int   LDB    = N;
-   int   LWORK  = -1; /* query optimal workspace size */
    int   INFO;
 
    ev.SetSize(N);
@@ -1116,8 +1058,6 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
    double *A    = NULL;
    double *B    = new double[N*N];
    double *W    = ev.GetData();
-   double *WORK = NULL;
-   double  QWORK;
 
    if (evect)
    {
@@ -1139,12 +1079,8 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
       B[i] = b_data[i];
    }
 
-   dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
-
-   LWORK = (int) QWORK;
-   WORK = new double[LWORK];
-
-   dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
+   int layout = LAPACK_COL_MAJOR;
+   INFO = LAPACKE_dsygv(layout, ITYPE, JOBZ, UPLO, N, A, LDA, B, LDB, W);
 
    if (INFO != 0)
    {
@@ -1152,7 +1088,6 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
       mfem_error();
    }
 
-   delete [] WORK;
    delete [] B;
    if (evect == NULL) { delete [] A; }
 #endif
@@ -1184,21 +1119,12 @@ void DenseMatrix::SingularValues(Vector &sv) const
    double      *s           = sv;
    double      *u           = NULL;
    double      *vt          = NULL;
-   double      *work        = NULL;
-   int         lwork        = -1;
+   double      superb[min(m,n) - 1];
    int         info;
-   double      qwork;
+   int layout = LAPACK_COL_MAJOR;
 
-   dgesvd_(&jobu, &jobvt, &m, &n, a, &m,
-           s, u, &m, vt, &n, &qwork, &lwork, &info);
-
-   lwork = (int) qwork;
-   work = new double[lwork];
-
-   dgesvd_(&jobu, &jobvt, &m, &n, a, &m,
-           s, u, &m, vt, &n, work, &lwork, &info);
-
-   delete [] work;
+   info = LAPACKE_dgesvd(layout, jobu, jobvt, m, n, a, m, s, u, m, vt, n,
+                         superb);
    if (info)
    {
       mfem::err << "DenseMatrix::SingularValues : info = " << info << endl;
@@ -3962,7 +3888,11 @@ void LUFactors::Factor(int m)
 {
 #ifdef MFEM_USE_LAPACK
    int info = 0;
-   if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
+   if (m)
+   {
+      int layout = LAPACK_COL_MAJOR;
+      info = LAPACKE_dgetrf(layout, m, m, data, m, ipiv);
+   }
    MFEM_VERIFY(!info, "LAPACK: error in DGETRF");
 #else
    // compiling without LAPACK
@@ -4110,10 +4040,14 @@ void LUFactors::USolve(int m, int n, double *X) const
 void LUFactors::Solve(int m, int n, double *X) const
 {
 #ifdef MFEM_USE_LAPACK
+   int layout = LAPACK_COL_MAJOR;
    char trans = 'N';
    int  info = 0;
-   if (m > 0 && n > 0) { dgetrs_(&trans, &m, &n, data, &m, ipiv, X, &m, &info); }
-   MFEM_VERIFY(!info, "LAPACK: error in DGETRS");
+   if (m > 0 && n > 0)
+   {
+      info = LAPACKE_dgetrs(layout, trans, m, n, data, m, ipiv, X, m);
+   }
+   MFEM_VERIFY(!info, "LAPACK: error in LAPACKE_dgetrs");
 #else
    // compiling without LAPACK
    LSolve(m, n, X);
@@ -4347,15 +4281,10 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    ev.SetDataAndSize(NULL, n);
 
 #ifdef MFEM_USE_LAPACK
+   int layout = LAPACK_COL_MAJOR;
    jobz = 'V';
    uplo = 'U';
-   lwork = -1;
-   double qwork;
-   dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-          &qwork, &lwork, &info);
-
-   lwork = (int) qwork;
-   work = new double[lwork];
+   info = LAPACKE_dsyev(layout, jobz, uplo, n, EVect.Data(), n, EVal.GetData());
 #endif
 }
 
@@ -4367,9 +4296,6 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(
 #ifdef MFEM_USE_LAPACK
    jobz = other.jobz;
    uplo = other.uplo;
-   lwork = other.lwork;
-
-   work = new double[lwork];
 #endif
 }
 
@@ -4383,13 +4309,13 @@ void DenseMatrixEigensystem::Eval()
 #endif
 
 #ifdef MFEM_USE_LAPACK
+   int layout = LAPACK_COL_MAJOR;
    EVect = mat;
-   dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-          work, &lwork, &info);
 
+   info = LAPACKE_dsyev(layout, jobz, uplo, n, EVect.Data(), n, EVal.GetData());
    if (info != 0)
    {
-      mfem::err << "DenseMatrixEigensystem::Eval(): DSYEV error code: "
+      mfem::err << "DenseMatrixEigensystem::Eval(): LAPACK_dsyev error code: "
                 << info << endl;
       mfem_error();
    }
@@ -4401,7 +4327,6 @@ void DenseMatrixEigensystem::Eval()
 DenseMatrixEigensystem::~DenseMatrixEigensystem()
 {
 #ifdef MFEM_USE_LAPACK
-   delete [] work;
 #endif
 }
 
@@ -4427,14 +4352,6 @@ void DenseMatrixSVD::Init()
 
    jobu  = 'N';
    jobvt = 'N';
-
-   double qwork;
-   lwork = -1;
-   dgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
-           NULL, &n, &qwork, &lwork, &info);
-
-   lwork = (int) qwork;
-   work = new double[lwork];
 #else
    mfem_error("DenseMatrixSVD::Init(): Compiled without LAPACK");
 #endif
@@ -4450,9 +4367,10 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
 #endif
 
 #ifdef MFEM_USE_LAPACK
-   dgesvd_(&jobu, &jobvt, &m, &n, M.Data(), &m, sv.GetData(), NULL, &m,
-           NULL, &n, work, &lwork, &info);
-
+   int layout = LAPACK_COL_MAJOR;
+   double superb[min(m,n) - 1];
+   info = LAPACKE_dgesvd(layout, jobu, jobvt, m, n, M.Data(), m, sv.GetData(),
+                         NULL, m, NULL, n, superb);
    if (info)
    {
       mfem::err << "DenseMatrixSVD::Eval() : info = " << info << endl;
@@ -4466,7 +4384,6 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
 DenseMatrixSVD::~DenseMatrixSVD()
 {
 #ifdef MFEM_USE_LAPACK
-   delete [] work;
 #endif
 }
 

@@ -606,9 +606,8 @@ class DenseMatrixEigensystem
    int n;
 
 #ifdef MFEM_USE_LAPACK
-   double *work;
    char jobz, uplo;
-   int lwork, info;
+   int info;
 #endif
 
 public:
@@ -634,9 +633,8 @@ class DenseMatrixSVD
    int m, n;
 
 #ifdef MFEM_USE_LAPACK
-   double *work;
    char jobu, jobvt;
-   int lwork, info;
+   int info;
 #endif
 
    void Init();
