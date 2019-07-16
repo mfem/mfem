@@ -28,11 +28,6 @@ double PWConstCoefficient::Eval(ElementTransformation & T,
    return (constants(att-1));
 }
 
-DeviceFunctionCoefficientPtr FunctionCoefficient::GetDeviceFunction()
-{
-   return DeviceFunction;
-}
-
 double FunctionCoefficient::Eval(ElementTransformation & T,
                                  const IntegrationPoint & ip)
 {
@@ -45,10 +40,6 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    {
       return ((*Function)(transip));
    }
-   else if (DeviceFunction)
-   {
-      return ((*DeviceFunction)(Vector3(x)));
-   }
    else
    {
       return (*TDFunction)(transip, GetTime());
@@ -58,7 +49,23 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   return GridF -> GetValue (T.ElementNo, ip, Component);
+   Mesh *mesh = GridF->FESpace()->GetMesh();
+   if (mesh->Dimension() == T.GetDimension())
+   {
+      return GridF -> GetValue (T.ElementNo, ip, Component);
+   }
+   else // Assuming T is a boundary element transformation:
+   {
+      int el_id, el_info;
+      mesh->GetBdrElementAdjacentElement(T.ElementNo, el_id, el_info);
+      IntegrationPointTransformation loc_T;
+      mesh->GetLocalFaceTransformation(mesh->GetBdrElementType(T.ElementNo),
+                                       mesh->GetElementType(el_id),
+                                       loc_T.Transf, el_info);
+      IntegrationPoint eip;
+      loc_T.Transform(ip, eip);
+      return GridF->GetValue(el_id, eip, Component);
+   }
 }
 
 double TransformedCoefficient::Eval(ElementTransformation &T,
@@ -134,19 +141,27 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 VectorArrayCoefficient::VectorArrayCoefficient (int dim)
-   : VectorCoefficient(dim), Coeff(dim)
+   : VectorCoefficient(dim), Coeff(dim), ownCoeff(dim)
 {
    for (int i = 0; i < dim; i++)
    {
       Coeff[i] = NULL;
+      ownCoeff[i] = true;
    }
+}
+
+void VectorArrayCoefficient::Set(int i, Coefficient *c, bool own)
+{
+   if (ownCoeff[i]) { delete Coeff[i]; }
+   Coeff[i] = c;
+   ownCoeff[i] = own;
 }
 
 VectorArrayCoefficient::~VectorArrayCoefficient()
 {
    for (int i = 0; i < vdim; i++)
    {
-      delete Coeff[i];
+      if (ownCoeff[i]) { delete Coeff[i]; }
    }
 }
 
@@ -175,7 +190,23 @@ void VectorGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
 void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
-   GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   Mesh *mesh = GridFunc->FESpace()->GetMesh();
+   if (mesh->Dimension() == T.GetDimension())
+   {
+      GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   }
+   else // Assuming T is a boundary element transformation:
+   {
+      int el_id, el_info;
+      mesh->GetBdrElementAdjacentElement(T.ElementNo, el_id, el_info);
+      IntegrationPointTransformation loc_T;
+      mesh->GetLocalFaceTransformation(mesh->GetBdrElementType(T.ElementNo),
+                                       mesh->GetElementType(el_id),
+                                       loc_T.Transf, el_info);
+      IntegrationPoint eip;
+      loc_T.Transform(ip, eip);
+      GridFunc->GetVectorValue(el_id, eip, V);
+   }
 }
 
 void VectorGridFunctionCoefficient::Eval(
@@ -318,17 +349,26 @@ MatrixArrayCoefficient::MatrixArrayCoefficient (int dim)
    : MatrixCoefficient (dim)
 {
    Coeff.SetSize(height*width);
+   ownCoeff.SetSize(height*width);
    for (int i = 0; i < (height*width); i++)
    {
       Coeff[i] = NULL;
+      ownCoeff[i] = true;
    }
+}
+
+void MatrixArrayCoefficient::Set(int i, int j, Coefficient * c, bool own)
+{
+   if (ownCoeff[i*width+j]) { delete Coeff[i*width+j]; }
+   Coeff[i*width+j] = c;
+   ownCoeff[i*width+j] = own;
 }
 
 MatrixArrayCoefficient::~MatrixArrayCoefficient ()
 {
    for (int i=0; i < height*width; i++)
    {
-      delete Coeff[i];
+      if (ownCoeff[i]) { delete Coeff[i]; }
    }
 }
 
