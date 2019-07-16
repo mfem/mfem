@@ -162,8 +162,9 @@ else
 endif
 
 # LAPACK library configuration
-LAPACK_OPT =
-LAPACK_LIB = $(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
+LAPACK_DIR = /usr
+LAPACK_OPT = -I$(LAPACK_DIR)/include
+LAPACK_LIB = -L$(LAPACK_DIR)/lib -llapack -lblas
 
 # OpenMP configuration
 OPENMP_OPT = $(XCOMPILER)-fopenmp
