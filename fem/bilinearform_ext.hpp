@@ -191,7 +191,7 @@ class PAMixedBilinearFormExtension : public MixedBilinearFormExtension
 {
 protected:
    const FiniteElementSpace *trialFes, *testFes; // Not owned
-   mutable Vector localX, localY;
+   mutable Vector localTrial, localTest;
    const Operator *elem_restrict_trial; // Not owned
    const Operator *elem_restrict_test;  // Not owned
 

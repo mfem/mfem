@@ -200,14 +200,14 @@ void PAMixedBilinearFormExtension::Update()
                            ElementDofOrdering::LEXICOGRAPHIC);
    if (elem_restrict_trial)
    {
-      localX.UseDevice(true);
-      localX.SetSize(elem_restrict_trial->Height(), Device::GetMemoryType());
+      localTrial.UseDevice(true);
+      localTrial.SetSize(elem_restrict_trial->Height(), Device::GetMemoryType());
       
    }
    if (elem_restrict_test)
    {
-      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
-      localY.SetSize(elem_restrict_test->Height(), Device::GetMemoryType());
+      localTest.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      localTest.SetSize(elem_restrict_test->Height(), Device::GetMemoryType());
    }
 }
 
@@ -241,30 +241,30 @@ void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    // * G operation
    if (elem_restrict_trial)
    {
-      elem_restrict_trial->Mult(x, localX);
+      elem_restrict_trial->Mult(x, localTrial);
    }
    else
    {
-      localX.SyncAliasMemory(x);
+      localTrial.SyncAliasMemory(x);
    }
    
    if (!elem_restrict_test)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
-      localY.SyncAliasMemory(y);
+      localTest.SyncAliasMemory(y);
    }
 
    // * B^TDB operation
-   localY = 0.0;
+   localTest = 0.0;
    for (int i = 0; i < iSz; ++i)
    {
-      integrators[i]->AddMultPA(localX, localY);
+      integrators[i]->AddMultPA(localTrial, localTest);
    }
 
    // * G^T operation
    if (elem_restrict_test)
    {
-      elem_restrict_test->MultTranspose(localY, y);
+      elem_restrict_test->MultTranspose(localTest, y);
    }
 }
 
@@ -276,29 +276,29 @@ void PAMixedBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) con
    // * G operation
    if (elem_restrict_test)
    {
-      elem_restrict_test->Mult(x, localX);
+      elem_restrict_test->Mult(x, localTest);
    }
    else
    {
-      localX.SyncAliasMemory(x);
+      localTest.SyncAliasMemory(x);
    }
    if (!elem_restrict_trial)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
-      localY.SyncAliasMemory(y);
+      localTrial.SyncAliasMemory(y);
    }
 
    // * B^TD^TB operation
-   localY = 0.0;
+   localTrial = 0.0;
    for (int i = 0; i < iSz; ++i)
    {
-      integrators[i]->AddMultTransposePA(localX, localY);
+      integrators[i]->AddMultTransposePA(localTest, localTrial);
    }
 
    // * G^T operation
    if (elem_restrict_trial)
    {
-      elem_restrict_trial->MultTranspose(localY, y);
+      elem_restrict_trial->MultTranspose(localTrial, y);
    }
 }
 
