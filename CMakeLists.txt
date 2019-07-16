@@ -177,8 +177,8 @@ endif()
 
 # BLAS, LAPACK
 if (MFEM_USE_LAPACK)
-  find_package(BLAS REQUIRED)
-  find_package(LAPACK REQUIRED)
+  find_package(BLAS 3.4.0 REQUIRED)
+  find_package(LAPACK 3.4.0 REQUIRED)
 endif()
 
 # OpenMP
