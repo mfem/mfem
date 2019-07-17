@@ -372,7 +372,7 @@ static void PAVectorDivergenceApplyTranspose2D(const int NE,
             const int q = qx + qy * Q1D;
             const double gradX = grad[qy][qx][0];
             const double gradY = grad[qy][qx][1];
-
+            // TODO: Is this transpose of what we need to be computing?
             grad[qy][qx][0] = gradX*op(q,0,0,e) + gradY*op(q,1,0,e);
             grad[qy][qx][1] = gradX*op(q,0,1,e) + gradY*op(q,1,1,e);
          }
@@ -396,7 +396,7 @@ static void PAVectorDivergenceApplyTranspose2D(const int NE,
             for (int dx = 0; dx < TR_D1D; ++dx)
             {
                y(dx,dy,0,e) += Bt(dy,qy)*opX[dx][0];
-               y(dx,dy,0,e) += Bt(dy,qy)*opX[dx][1];
+               y(dx,dy,1,e) += Bt(dy,qy)*opX[dx][1];
             }
          }
       }
