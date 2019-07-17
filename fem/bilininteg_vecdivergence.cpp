@@ -295,9 +295,9 @@ static void SmemPAVectorDivergenceApply2D(const int NE,
 // PA VectorDivergence Apply 2D kernel transpose
 template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 static void PAVectorDivergenceApplyTranspose2D(const int NE,
-                                               const Array<double> &b,
-                                               const Array<double> &g,
                                                const Array<double> &bt,
+                                               const Array<double> &gt,
+                                               const Array<double> &b,
                                                const Vector &_op,
                                                const Vector &_x,
                                                Vector &_y,
@@ -311,9 +311,9 @@ static void PAVectorDivergenceApplyTranspose2D(const int NE,
    MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
    MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, TE_D1D);
-   auto G = Reshape(g.Read(), Q1D, TE_D1D);
    auto Bt = Reshape(bt.Read(), TR_D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), TR_D1D, Q1D);
+   auto B = Reshape(b.Read(), Q1D, TE_D1D);
    auto op = Reshape(_op.Read(), Q1D*Q1D, 2,2, NE);
    auto x = Reshape(_x.Read(), TE_D1D, TE_D1D, NE);
    auto y = Reshape(_y.ReadWrite(), TR_D1D, TR_D1D, 2, NE);
@@ -327,80 +327,84 @@ static void PAVectorDivergenceApplyTranspose2D(const int NE,
       constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
+      double quadTest[max_Q1D][max_Q1D];
       double grad[max_Q1D][max_Q1D][VDIM];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            grad[qy][qx][0] = 0.0;
-            grad[qy][qx][1] = 0.0;
+            quadTest[qy][qx] = 0.0;
          }
       }
       for (int dy = 0; dy < TE_D1D; ++dy)
       {
-         double gradX[max_Q1D][VDIM];
+         double quadTestX[max_Q1D];
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            gradX[qx][0] = 0.0;
-            gradX[qx][1] = 0.0;
+            quadTestX[qx] = 0.0;
          }
          for (int dx = 0; dx < TE_D1D; ++dx)
          {
             const double s = x(dx,dy,e);
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               gradX[qx][0] += s * G(qx,dx);
-               gradX[qx][1] += s * B(qx,dx);
+               quadTestX[qx] += s * B(qx,dx);
             }
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            const double wy  = B(qy,dy);
-            const double wDy = G(qy,dy);
+            const double wy = B(qy,dy);
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               grad[qy][qx][0] += gradX[qx][0] * wy;
-               grad[qy][qx][1] += gradX[qx][1] * wDy;
+               quadTest[qy][qx] += quadTestX[qx] * wy;
             }
          }
       }
-      // We've now calculated grad(p) = [Dxy_1, xDy_2] in plane
-      for (int qy = 0; qy < Q1D; ++qy)
+      // We've now calculated x on the quads
+      for (int c = 0; c < VDIM; ++c)
       {
-         for (int qx = 0; qx < Q1D; ++qx)
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            const int q = qx + qy * Q1D;
-            const double gradX = grad[qy][qx][0];
-            const double gradY = grad[qy][qx][1];
-            // TODO: Is this transpose of what we need to be computing?
-            grad[qy][qx][0] = gradX*op(q,0,0,e) + gradY*op(q,1,0,e);
-            grad[qy][qx][1] = gradX*op(q,0,1,e) + gradY*op(q,1,1,e);
-         }
-      }
-      // We've now calculated grad = grad p * op
-      for (int qy = 0; qy < Q1D; ++qy)
-      {
-         double opX[max_TR_D1D][VDIM];
-         for (int dx = 0; dx < TR_D1D; ++dx)
-         {
-            opX[dx][0] = 0.0;
-            opX[dx][1] = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               opX[dx][0] += Bt(dx,qx)*grad[qy][qx][0];
-               opX[dx][1] += Bt(dx,qx)*grad[qy][qx][1];
+               const int q = qx + qy * Q1D;
+               grad[qy][qx][0] = quadTest[qy][qx]*op(q,0,c,e);
+               grad[qy][qx][1] = quadTest[qy][qx]*op(q,1,c,e);
             }
          }
-         for (int dy = 0; dy < TR_D1D; ++dy)
+         // We've now calculated op_c^T * x
+         for (int qy = 0; qy < Q1D; ++qy)
          {
+            double gradX[max_TR_D1D][VDIM];
             for (int dx = 0; dx < TR_D1D; ++dx)
             {
-               y(dx,dy,0,e) += Bt(dy,qy)*opX[dx][0];
-               y(dx,dy,1,e) += Bt(dy,qy)*opX[dx][1];
+               gradX[dx][0] = 0;
+               gradX[dx][1] = 0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double gX = grad[qy][qx][0];
+               const double gY = grad[qy][qx][1];
+               for (int dx = 0; dx < TR_D1D; ++dx)
+               {
+                  const double wx  = Bt(dx,qx);
+                  const double wDx = Gt(dx,qx);
+                  gradX[dx][0] += gX * wDx;
+                  gradX[dx][1] += gY * wx;
+               }
+            }
+            for (int dy = 0; dy < TR_D1D; ++dy)
+            {
+               const double wy  = Bt(dy,qy);
+               const double wDy = Gt(dy,qy);
+               for (int dx = 0; dx < TR_D1D; ++dx)
+               {
+                  y(dx,dy,c,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
+               }
             }
          }
       }
-      // We've now calculated y = u * grad
+      // We've now calculated y = reshape(div u * op^T) * x
    });
 }  
 
@@ -586,6 +590,7 @@ static void PAVectorDivergenceApply3D(const int NE,
       // We've now calculated y = p * div
    });
 }
+
 
 // Shared memory PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
@@ -774,7 +779,7 @@ void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    PAVectorDivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
-                           test_maps->B, test_maps->G, trial_maps->Bt, pa_data, x, y,
+                           trial_maps->Bt, trial_maps->Gt, test_maps->B, pa_data, x, y,
                            true);
 }
 
