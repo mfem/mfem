@@ -1,4 +1,5 @@
-// Implements gradient-based MMPDE method for solving the nonlinear optimization problem in TMOP adaptivity
+// Implements gradient-based MMPDE method for solving the nonlinear optimization
+// problem in TMOP adaptivity
 
 #include "mfem.hpp"
 #include <fstream>
@@ -62,7 +63,8 @@ int main (int argc, char *argv[])
    const char *mesh_file = "../../data/star.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
-   double jitter         = 10.0;
+   double jitter         = 0.1;
+   double dt             = 0.1;
    int metric_id         = 1;
    int target_id         = 1;
    double lim_const      = 0.0;
@@ -84,6 +86,8 @@ int main (int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&jitter, "-ji", "--jitter",
                   "Random perturbation scaling factor.");
+   args.AddOption(&dt, "-dt", "--time-step",
+                  "Time step size.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
                   "Mesh optimization metric:\n\t"
                   "1  : |T|^2                          -- 2D shape\n\t"
@@ -142,14 +146,7 @@ int main (int argc, char *argv[])
    // Initialize mesh and finite element space
 
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-
-#if 1
-   int ref_levels;
-   cout << "enter number of refinement levels --> " << flush;
-   cin >> ref_levels;
-   for (int lev = 0; lev < ref_levels; lev++)
-      mesh->UniformRefinement();
-#endif
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
 
    int dim = mesh->Dimension();
    mesh->PrintCharacteristics();
@@ -177,6 +174,7 @@ int main (int argc, char *argv[])
 
    // Initial conditions for v and x
    v = 0.0;
+#if 0
    if (argc >= 3)
    {
       ifstream ivelo(argv[2]);
@@ -186,6 +184,7 @@ int main (int argc, char *argv[])
       else
          mfem_error("initial velocity is not compatible!");
    }
+#endif
    x = *init_nodes;
 
    //set up random perturbation
@@ -205,12 +204,13 @@ int main (int argc, char *argv[])
       }
       volume += mesh->GetElementVolume(i);
    }
-   //Random perturbation of the nodes
+
+
+   // Random perturbation of the nodes.
    GridFunction rdm(&fespace);
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
-
    // Scale the random values to be of order of the local mesh size.
    for (int i = 0; i < fespace.GetNDofs(); i++)
    {
@@ -227,7 +227,7 @@ int main (int argc, char *argv[])
       // Set the boundary values to zero.
       for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
    }
-   x -= *rdm;
+   x -= rdm;
 
    // Set the perturbation of all nodes from the true nodes.
    x.SetTrueVector();
@@ -242,7 +242,7 @@ int main (int argc, char *argv[])
    ess_bdr = 1; // all boundary attributes are fixed
 
    GridFunction x0(&fespace);
-   x0 = *x;
+   x0 = x;
 
    // Form the integrator that uses the chosen metric and target.
    double tauval = -0.1;
@@ -354,10 +354,6 @@ int main (int argc, char *argv[])
    ode_solver->Init(oper);
 
    double t = 0.0;
-   double dt;
-   cout << "enter dt --> " << flush;
-   cin >> dt;
-
 
    // Compute the minimum det(J) of the starting mesh.
    tauval = infinity();
@@ -408,9 +404,22 @@ int main (int argc, char *argv[])
    Vector old_vx(vx);
    //Vector old_x(x);
 
+   double old_norm = x.Norml2();
    for (int i = 1; i < 2000; i++)
    {
       ode_solver->Step(vx, t, dt);
+
+      double new_norm = x.Norml2();
+      if (fabs(old_norm - new_norm) < 1e-12)
+      {
+         std::cout << "Converged!" << std::endl;
+         break;
+      }
+      else
+      {
+         std::cout << i << ": " << fabs(old_norm - new_norm) << std::endl;
+         old_norm = new_norm;
+      }
 
       old_vx = vx;
       old_t = t;
@@ -435,7 +444,7 @@ int main (int argc, char *argv[])
    // Visualize the mesh displacement.
    if (visualization)
    {
-      x0 -= *x;
+      x0 -= x;
  
       osockstream sock(19916, "localhost");
       sock << "solution\n";
