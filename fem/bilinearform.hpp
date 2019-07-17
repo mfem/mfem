@@ -563,15 +563,14 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    virtual void Mult(const Vector & x, Vector & y) const;
-
    virtual void AddMult(const Vector & x, Vector & y,
                         const double a = 1.0) const;
 
+   virtual void MultTranspose(const Vector & x, Vector & y) const;
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double a = 1.0) const;
 
-   virtual void MultTranspose(const Vector & x, Vector & y) const;
-   //{ y = 0.0; AddMultTranspose (x, y); } // TODO: Remove for good or combine
+   
 
    virtual MatrixInverse *Inverse() const;
 
