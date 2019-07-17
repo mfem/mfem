@@ -313,10 +313,10 @@ static void PAVectorDivergenceApplyTranspose2D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto Bt = Reshape(bt.Read(), TR_D1D, Q1D);
    auto Gt = Reshape(gt.Read(), TR_D1D, Q1D);
-   auto B = Reshape(b.Read(), Q1D, TE_D1D);
+   auto B  = Reshape(b.Read(), Q1D, TE_D1D);
    auto op = Reshape(_op.Read(), Q1D*Q1D, 2,2, NE);
-   auto x = Reshape(_x.Read(), TE_D1D, TE_D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), TR_D1D, TR_D1D, 2, NE);
+   auto x  = Reshape(_x.Read(), TE_D1D, TE_D1D, NE);
+   auto y  = Reshape(_y.ReadWrite(), TR_D1D, TR_D1D, 2, NE);
    MFEM_FORALL(e, NE,
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
@@ -378,8 +378,8 @@ static void PAVectorDivergenceApplyTranspose2D(const int NE,
             double gradX[max_TR_D1D][VDIM];
             for (int dx = 0; dx < TR_D1D; ++dx)
             {
-               gradX[dx][0] = 0;
-               gradX[dx][1] = 0;
+               gradX[dx][0] = 0.0;
+               gradX[dx][1] = 0.0;
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
@@ -591,6 +591,183 @@ static void PAVectorDivergenceApply3D(const int NE,
    });
 }
 
+// PA Vector Divergence Apply 3D kernel
+template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
+static void PAVectorDivergenceApplyTranspose3D(const int NE,
+                                               const Array<double> &bt,
+                                               const Array<double> &gt,
+                                               const Array<double> &b,
+                                               const Vector &_op,
+                                               const Vector &_x,
+                                               Vector &_y,
+                                               int tr_d1d = 0,
+                                               int te_d1d = 0,
+                                               int q1d = 0)
+{
+   const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
+   const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto Bt = Reshape(bt.Read(), TR_D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), TR_D1D, Q1D);
+   auto B  = Reshape(b.Read(), Q1D, TE_D1D);
+   auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 3,3, NE);
+   auto x  = Reshape(_x.Read(), TE_D1D, TE_D1D, TE_D1D, NE);
+   auto y  = Reshape(_y.ReadWrite(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
+      const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = 3;
+      // the following variables are evaluated at compile time
+      constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      double quadTest[max_Q1D][max_Q1D][max_Q1D];
+      double grad[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               quadTest[qz][qy][qx] = 0.0;
+            }
+         }
+      }
+      for (int dz = 0; dz < TE_D1D; ++dz)
+      {
+         double quadTestXY[max_Q1D][max_Q1D];
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               quadTestXY[qy][qx] = 0.0;
+            }
+         }
+         for (int dy = 0; dy < TE_D1D; ++dy)
+         {
+            double quadTestX[max_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               quadTestX[qx] = 0.0;
+            }
+            for (int dx = 0; dx < TE_D1D; ++dx)
+            {
+               const double s = x(dx,dy,dz,e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  quadTestX[qx] += s * B(qx,dx);
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy  = B(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  quadTestXY[qy][qx] += quadTestX[qx] * wy;
+               }
+            }
+         }
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            const double wz  = B(qz,dz);
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  quadTest[qz][qy][qx] += quadTestXY[qy][qx] * wz;
+               }
+            }
+         }
+      }
+      // We've now calculated x on the quads
+      for (int c = 0; c < VDIM; ++c)
+      {
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const int q = qx + (qy + qz * Q1D) * Q1D;
+                  grad[qz][qy][qx][0] = quadTest[qz][qy][qx]*op(q,0,c,e);
+                  grad[qz][qy][qx][1] = quadTest[qz][qy][qx]*op(q,1,c,e);
+                  grad[qz][qy][qx][2] = quadTest[qz][qy][qx]*op(q,2,c,e);
+               }
+            }
+         }
+         // We've now calculated op_c^T * x
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            double gradXY[max_TR_D1D][max_TR_D1D][VDIM];
+            for (int dy = 0; dy < TR_D1D; ++dy)
+            {
+               for (int dx = 0; dx < TR_D1D; ++dx)
+               {
+                  gradXY[dy][dx][0] = 0.0;
+                  gradXY[dy][dx][1] = 0.0;
+                  gradXY[dy][dx][2] = 0.0;
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               double gradX[max_TR_D1D][VDIM];
+               for (int dx = 0; dx < TR_D1D; ++dx)
+               {
+                  gradX[dx][0] = 0.0;
+                  gradX[dx][1] = 0.0;
+                  gradX[dx][2] = 0.0;
+               }
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const double gX = grad[qz][qy][qx][0];
+                  const double gY = grad[qz][qy][qx][1];
+                  const double gZ = grad[qz][qy][qx][2];
+                  for (int dx = 0; dx < TR_D1D; ++dx)
+                  {
+                     const double wx  = Bt(dx,qx);
+                     const double wDx = Gt(dx,qx);
+                     gradX[dx][0] += gX * wDx;
+                     gradX[dx][1] += gY * wx;
+                     gradX[dx][2] += gZ * wx;
+                  }
+               }
+               for (int dy = 0; dy < TR_D1D; ++dy)
+               {
+                  const double wy  = Bt(dy,qy);
+                  const double wDy = Gt(dy,qy);
+                  for (int dx = 0; dx < TR_D1D; ++dx)
+                  {
+                     gradXY[dy][dx][0] += gradX[dx][0] * wy;
+                     gradXY[dy][dx][1] += gradX[dx][1] * wDy;
+                     gradXY[dy][dx][2] += gradX[dx][2] * wy;
+                  }
+               }
+            }
+            for (int dz = 0; dz < TR_D1D; ++dz)
+            {
+               const double wz  = Bt(dz,qz);
+               const double wDz = Gt(dz,qz);
+               for (int dy = 0; dy < TR_D1D; ++dy)
+               {
+                  for (int dx = 0; dx < TR_D1D; ++dx)
+                  {
+                     y(dx,dy,dz,c,e) +=
+                        ((gradXY[dy][dx][0] * wz) +
+                         (gradXY[dy][dx][1] * wz) +
+                         (gradXY[dy][dx][2] * wDz));
+                  }
+               }
+            }
+         }
+      }
+      // We've now calculated y = reshape(div u * op^T) * x
+   });
+}
 
 // Shared memory PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
@@ -700,39 +877,77 @@ static void PAVectorDivergenceApply(const int dim,
       if (dim == 3)
       {
          switch ((TR_D1D << 4) | TE_D1D)
-         { // TODO: Handle transpose
+         {
          case 0x32: // Specialized for Taylor-Hood elements
             if (Q1D == 4)
-               return PAVectorDivergenceApply3D<3,2,4>(NE,B,G,Bt,op,x,y);
+            {
+               if (transpose)
+                  return PAVectorDivergenceApplyTranspose3D<3,2,4>(NE,B,G,Bt,op,x,y);
+               else
+                  return PAVectorDivergenceApply3D<3,2,4>(NE,B,G,Bt,op,x,y);
+            }
             break;
          case 0x43:
             if (Q1D == 6)
-               return PAVectorDivergenceApply3D<4,3,6>(NE,B,G,Bt,op,x,y);
+            {
+               if (transpose)
+                  return PAVectorDivergenceApplyTranspose3D<4,3,6>(NE,B,G,Bt,op,x,y);
+               else
+                  return PAVectorDivergenceApply3D<4,3,6>(NE,B,G,Bt,op,x,y);
+            }
             break;
          case 0x54:
             if (Q1D == 8)
-               return PAVectorDivergenceApply3D<5,4,8>(NE,B,G,Bt,op,x,y);
+            {
+               if (transpose)
+                  return PAVectorDivergenceApplyTranspose3D<5,4,8>(NE,B,G,Bt,op,x,y);
+               else
+                  return PAVectorDivergenceApply3D<5,4,8>(NE,B,G,Bt,op,x,y);
+            }
             break;
          case 0x65:
             if (Q1D == 10)
-               return PAVectorDivergenceApply3D<6,5,10>(NE,B,G,Bt,op,x,y);
+            {
+               if (transpose)
+                  return PAVectorDivergenceApplyTranspose3D<6,5,10>(NE,B,G,Bt,op,x,y);
+               else
+                  return PAVectorDivergenceApply3D<6,5,10>(NE,B,G,Bt,op,x,y);
+            }
             break;
          case 0x76:
             if (Q1D == 12)
-               return PAVectorDivergenceApply3D<7,6,12>(NE,B,G,Bt,op,x,y);
+            {
+               if (transpose)
+                  return PAVectorDivergenceApplyTranspose3D<7,6,12>(NE,B,G,Bt,op,x,y);
+               else
+                  return PAVectorDivergenceApply3D<7,6,12>(NE,B,G,Bt,op,x,y);
+            }
             break;
          case 0x87:
             if (Q1D == 14)
-               return PAVectorDivergenceApply3D<8,7,14>(NE,B,G,Bt,op,x,y);
+            {
+               if (transpose)
+                  return PAVectorDivergenceApplyTranspose3D<8,7,14>(NE,B,G,Bt,op,x,y);
+               else
+                  return PAVectorDivergenceApply3D<8,7,14>(NE,B,G,Bt,op,x,y);
+            }
             break;
          case 0x98:
             if (Q1D == 16)
-               return PAVectorDivergenceApply3D<9,8,16>(NE,B,G,Bt,op,x,y);
+            {
+               if (transpose)
+                  return PAVectorDivergenceApplyTranspose3D<9,8,16>(NE,B,G,Bt,op,x,y);
+               else
+                  return PAVectorDivergenceApply3D<9,8,16>(NE,B,G,Bt,op,x,y);
+            }
             break;
          default:
             break;
          }
-         return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+         if (transpose)
+            return PAVectorDivergenceApplyTranspose3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+         else
+            return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
       /*}
    else if (dim == 2)
