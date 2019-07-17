@@ -1066,50 +1066,42 @@ const double & MixedBilinearForm::Elem (int i, int j) const
    return (*mat)(i, j);
 }
 
-void MixedBilinearForm::Mult (const Vector & x, Vector & y) const
+void MixedBilinearForm::Mult(const Vector & x, Vector & y) const
+{
+   y = 0.0;
+   AddMult(x, y);
+}
+
+void MixedBilinearForm::AddMult(const Vector & x, Vector & y,
+                                const double a) const
 {
    if (assembly == AssemblyLevel::PARTIAL)
    {
-      ext -> Mult(x, y);
+      ext->AddMult(x, y, a);
    }
    else
    {
-      mat -> Mult (x, y);
+      mat->AddMult(x, y, a);
    }
-}
-
-void MixedBilinearForm::AddMult (const Vector & x, Vector & y,
-                                 const double a) const
-{
-   if (assembly != AssemblyLevel::FULL)
-   {
-      MFEM_WARNING("MixedBilinearForm::AddMult not yet programmed for this assembly level!");
-      return;
-   }
-   mat -> AddMult (x, y, a);
 }
 
 void MixedBilinearForm::MultTranspose(const Vector & x, Vector & y) const
 {
+   y = 0.0;
+   AddMultTranspose(x, y);
+}
+
+void MixedBilinearForm::AddMultTranspose(const Vector & x, Vector & y,
+                                         const double a) const
+{
    if (assembly == AssemblyLevel::PARTIAL)
    {
-      ext -> MultTranspose(x, y);
+      ext->AddMultTranspose(x, y, a);
    }
    else
    {
-      mat -> MultTranspose(x, y);
+      mat->AddMultTranspose(x, y, a);
    }
-}
-
-void MixedBilinearForm::AddMultTranspose (const Vector & x, Vector & y,
-                                          const double a) const
-{
-   if (assembly != AssemblyLevel::FULL)
-   {
-      MFEM_WARNING("MixedBilinearForm::AddMultTranspose not yet programmed for this assembly level!");
-      return;
-   }
-   mat -> AddMultTranspose (x, y, a);
 }
 
 MatrixInverse * MixedBilinearForm::Inverse() const

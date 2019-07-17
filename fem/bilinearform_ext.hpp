@@ -163,6 +163,10 @@ public:
                                  Vector &x, Vector &b,
                                  OperatorHandle &A, Vector &X, Vector &B,
                                  int copy_interior = 0) = 0;
+
+   virtual void AddMult(const Vector &x, Vector &y, const double c=1.0) const = 0;
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double c=1.0) const = 0;
    virtual void Update() = 0;
 };
 
@@ -191,9 +195,14 @@ class PAMixedBilinearFormExtension : public MixedBilinearFormExtension
 {
 protected:
    const FiniteElementSpace *trialFes, *testFes; // Not owned
-   mutable Vector localTrial, localTest;
+   mutable Vector localTrial, localTest, tempY;
    const Operator *elem_restrict_trial; // Not owned
    const Operator *elem_restrict_test;  // Not owned
+private:
+   void SetupMultInputs(const Operator *elem_restrict_x,
+                        const Vector &x, Vector &localX,
+                        const Operator *elem_restrict_y,
+                        Vector &y, Vector &localY, const double c) const;
 
 public:
    PAMixedBilinearFormExtension(MixedBilinearForm*);
@@ -206,7 +215,9 @@ public:
                          int copy_interior = 0);
 
    void Mult(const Vector &x, Vector &y) const;
+   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
    void Update();
 };
 

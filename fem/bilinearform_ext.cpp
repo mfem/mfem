@@ -233,29 +233,58 @@ void PAMixedBilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_l
    A.Reset(oper); // A will own oper
 }
 
+/// Helper function to set up inputs/outputs for Mult or MultTranspose
+void PAMixedBilinearFormExtension::SetupMultInputs(const Operator *elem_restrict_x,
+                                                   const Vector &x,
+                                                   Vector &localX,
+                                                   const Operator *elem_restrict_y,
+                                                   Vector &y,
+                                                   Vector &localY,
+                                                   const double c) const
+{
+   // * G operation: localX = c*local(x)
+   if (elem_restrict_x)
+   {
+      elem_restrict_x->Mult(x, localX);
+      if (c != 1.0)
+         localX *= c;
+   }
+   else
+   {
+      if (c == 1.0)
+         localX.SyncAliasMemory(x);
+      else
+         localX.Set(c, x);
+   }
+   if (elem_restrict_y)
+   {
+      localY = 0.0;
+   }
+   else
+   {
+      y.UseDevice(true);
+      localY.SyncAliasMemory(y);
+   }
+}
+
 void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   y = 0.0;
+   AddMult(x, y);
+}
+
+/// y += c*A*x
+void PAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
+                                           const double c) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
    // * G operation
-   if (elem_restrict_trial)
-   {
-      elem_restrict_trial->Mult(x, localTrial);
-   }
-   else
-   {
-      localTrial.SyncAliasMemory(x);
-   }
-   
-   if (!elem_restrict_test)
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      localTest.SyncAliasMemory(y);
-   }
+   SetupMultInputs(elem_restrict_trial, x, localTrial,
+                   elem_restrict_test, y, localTest, c);
 
    // * B^TDB operation
-   localTest = 0.0;
    for (int i = 0; i < iSz; ++i)
    {
       integrators[i]->AddMultPA(localTrial, localTest);
@@ -264,32 +293,30 @@ void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    // * G^T operation
    if (elem_restrict_test)
    {
-      elem_restrict_test->MultTranspose(localTest, y);
+      tempY.SetSize(y.Size());
+      elem_restrict_test->MultTranspose(localTest, tempY);
+      y += tempY;
    }
 }
 
 void PAMixedBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
+   y = 0.0;
+   AddMultTranspose(x, y);
+}
+
+/// y += c*A^T*x
+void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
+                                                    const double c) const
+{
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
    // * G operation
-   if (elem_restrict_test)
-   {
-      elem_restrict_test->Mult(x, localTest);
-   }
-   else
-   {
-      localTest.SyncAliasMemory(x);
-   }
-   if (!elem_restrict_trial)
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      localTrial.SyncAliasMemory(y);
-   }
+   SetupMultInputs(elem_restrict_test, x, localTest,
+                   elem_restrict_trial, y, localTrial, c);
 
    // * B^TD^TB operation
-   localTrial = 0.0;
    for (int i = 0; i < iSz; ++i)
    {
       integrators[i]->AddMultTransposePA(localTest, localTrial);
@@ -298,7 +325,9 @@ void PAMixedBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) con
    // * G^T operation
    if (elem_restrict_trial)
    {
-      elem_restrict_trial->MultTranspose(localTrial, y);
+      tempY.SetSize(y.Size());
+      elem_restrict_trial->MultTranspose(localTrial, tempY);
+      y += tempY;
    }
 }
 
