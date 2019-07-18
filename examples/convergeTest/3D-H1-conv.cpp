@@ -463,7 +463,5 @@ int main(int argc, char *argv[])
    }
    convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, exact, dof2view, solvePDE);
 
-   // cout << endl;
-   // cout << "Warning: search in fespace.cpp for fespace: setting dofs" << endl;
    return 0;
 }

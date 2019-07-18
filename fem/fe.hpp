@@ -1985,7 +1985,7 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   //   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   using FiniteElement::Project;
 };
 
 
@@ -1996,11 +1996,12 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const;
-   void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
+   // void Project(const FiniteElement &fe, ElementTransformation &Trans,
+   //                      DenseMatrix &I) const;
+   // void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const;
+   using FiniteElement::Project;
 };
 
 class H1Ser_HexElement : public ScalarFiniteElement
@@ -2010,11 +2011,14 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-   void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const;
-   void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const;
+                           DenseMatrix &I) const;
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+   // void Project(const FiniteElement &fe, ElementTransformation &Trans,
+   //                      DenseMatrix &I) const;
+   // void Project (Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const;
+   using FiniteElement::Project;
 };
 
 

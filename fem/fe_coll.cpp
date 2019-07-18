@@ -1643,19 +1643,41 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       //  we have serendipity order 4, but this will not work in 
       //  general.
 
-      for (int j = 0; j < pm1; j++)
+      if (b_type == BasisType::Serendipity && p > 3)
       {
-         for (int i = 0; i < pm1; i++)
+         if (p == 4) // For S_4 L^0 R^3, we have one Dof per face --> equiv to Q_2^- L^0
          {
-            int o = i + j*pm1;
-            QuadDofOrd[0][o] = i + j*pm1;  // (0,1,2,3)
-            QuadDofOrd[1][o] = j + i*pm1;  // (0,3,2,1)
-            QuadDofOrd[2][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
-            QuadDofOrd[3][o] = (pm2 - i) + j*pm1;  // (1,0,3,2)
-            QuadDofOrd[4][o] = (pm2 - i) + (pm2 - j)*pm1;  // (2,3,0,1)
-            QuadDofOrd[5][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
-            QuadDofOrd[6][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
-            QuadDofOrd[7][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
+            for (int j = 0; j < 8; j++)
+            {
+               int o = 0;
+               QuadDofOrd[j][o] = 0;
+            }
+         }
+         else // p> 4
+         {
+            cout << endl;
+            cout << " ERROR: Order p>5 serendipity not supported yet in 3D." << endl;
+            cout << " Find this location in fe_coll.cpp to put in DoF ordering for faces!" << endl;
+            // In the tensor product case, i and j index tensor directions, and o indexes from 0 to (pm1)^2
+            // In the serendipity case, a relation to partial derivs or something else is needed
+         }
+      }
+      else // not serendipity, or p <=3, or 2D
+      {
+         for (int j = 0; j < pm1; j++)
+         {
+            for (int i = 0; i < pm1; i++)
+            {
+               int o = i + j*pm1;
+               QuadDofOrd[0][o] = i + j*pm1;  // (0,1,2,3)
+               QuadDofOrd[1][o] = j + i*pm1;  // (0,3,2,1)
+               QuadDofOrd[2][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
+               QuadDofOrd[3][o] = (pm2 - i) + j*pm1;  // (1,0,3,2)
+               QuadDofOrd[4][o] = (pm2 - i) + (pm2 - j)*pm1;  // (2,3,0,1)
+               QuadDofOrd[5][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
+               QuadDofOrd[6][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
+               QuadDofOrd[7][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
+            }
          }
       }
 
@@ -1694,7 +1716,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          }
       }
    }
-   // cout << "fe_coll: done with H1 collection constructor" << endl;
 }
 
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
@@ -1715,6 +1736,7 @@ const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
       //    cout << "Quad dof order " << i << " = " << *QuadDofOrd[i] << endl;
       // }
       // cout << endl;
+      // cout << "fe_coll: In serendipity 3D, 4th order +, need to set different quad dof order here" << endl;
       return QuadDofOrd[Or%8];
    }
    return NULL;

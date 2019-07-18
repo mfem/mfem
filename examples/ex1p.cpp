@@ -67,6 +67,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool use_serendip = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -83,6 +84,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_serendip, "-ser", "--use-serendipity", 
+                  "-no-ser", "--not-serendipity", 
+                  "Use serendipity element collection.");
    args.Parse();
    if (!args.Good())
    {
@@ -141,7 +145,14 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
+      if (use_serendip)
+      {     
+         fec = new H1Ser_FECollection(order,dim);
+      }
+      else
+      {
+         fec = new H1_FECollection(order, dim);
+      }
    }
    else if (pmesh->GetNodes())
    {
@@ -157,6 +168,7 @@ int main(int argc, char *argv[])
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
+
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -209,16 +221,19 @@ int main(int argc, char *argv[])
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use no preconditioner, for now.
-   Solver *prec = NULL;
-   if (!pa) { prec = new HypreBoomerAMG; }
+   HypreBoomerAMG *amg =  new HypreBoomerAMG;
+
+   HYPRE_BoomerAMGSetRelaxType(*amg, 18); // use l1-scaled Jacobi relaxation method
+
+
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
-   if (prec) { cg.SetPreconditioner(*prec); }
+   cg.SetPreconditioner(*amg);
    cg.SetOperator(*A);
    cg.Mult(B, X);
-   delete prec;
+   delete amg;
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.

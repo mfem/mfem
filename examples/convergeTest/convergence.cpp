@@ -28,7 +28,9 @@ double u_exact_2(const Vector &);
 void u_grad_exact_2(const Vector &, Vector &);
 
 void convergenceStudy(const char *mesh_file, int num_ref, int &order,
-                      double &l2_err_prev, double &h1_err_prev, bool &visualization, int &exact, int &dof2view, int &solvePDE, bool static_cond)
+                      double &l2_err_prev, double &h1_err_prev, bool &visualization, 
+                      int &exact, int &dof2view, int &solvePDE, bool static_cond, 
+                      std::ofstream &iterfile)
 {
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
@@ -165,16 +167,46 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    OperatorPtr A;
    Vector B, X;
+   
+   B.Randomize();
+
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   // cout << "Size of linear system: " << A->Height() << endl;
-   // size of system is same as DOFs
+   CGSolver cg;
+   cg.SetPrintLevel(3);
+   cg.SetMaxIter(1000);
+   cg.SetRelTol(sqrt(1e-12));
+   cg.SetAbsTol(sqrt(1e-24));
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   // CG(const Operator &A, const Vector &b, Vector &x,
+      //   int print_iter, int max_num_iter,
+      //   double RTOLERANCE, double ATOLERANCE)
+
+      // int max_num_iter = 1000,
+      // double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+
+   // CG(*A, B, X, 3);
+   
+   cout << "Size of linear system: " << A->Height() << endl;
+   cout << "done with CG" << endl;
+
+ 
+   int niter = cg.GetNumIterations();
+   cout << "Niter is " << niter << endl;
+   // iterfile << niter << std::endl;
+   // iterfile << order << '\t' << num_ref << std::endl;
+
 
    // 11. Solve the linear system A X = B.
 
    GSSmoother M((SparseMatrix&)(*A));
    X = 0.0;
-   PCG(*A, M, B, X, 0, 200, 1e-24, 0.0);
+   PCG(*A, M, B, X, 3, 200, 1e-24, 0.0);
+
+   cout << "Size of linear system: " << A->Height() << endl;
+   cout << "done with PCG" << endl;
+   return;
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
@@ -458,15 +490,23 @@ int main(int argc, char *argv[])
 
    // Loop over number of refinements for convergence study
 
+   std::cout << " *** Testing conditioning *** " << endl;
+   std::ofstream iterfile;   
+   iterfile.open("iters.txt", std::ios_base::app);
+   iterfile << "order" << '\t' << "num_ref" << '\t' << "num_iters"  << std::endl;
 
    if (dof2view == -1)
    {
       bool noVisYet = false;
       for (int i = 0; i < (total_refinements); i++)
       {
-         convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, exact, dof2view, solvePDE, static_cond);
+         convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, 
+            exact, dof2view, solvePDE, static_cond, iterfile);
       }
    }
-   convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, exact, dof2view, solvePDE, static_cond);
+   convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, 
+            exact, dof2view, solvePDE, static_cond, iterfile);
+   
+   iterfile.close();
    return 0;
 }

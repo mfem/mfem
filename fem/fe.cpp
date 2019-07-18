@@ -224,8 +224,6 @@ void ScalarFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
    const ScalarFiniteElement &fine_fe) const
 {
-   cout << "fe: ScalarFE: Nodal Local Int" << endl;
-
    double v[Geometry::MaxDim];
    Vector vv (v, Dim);
    IntegrationPoint f_ip;
@@ -2183,99 +2181,104 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
-void H1Ser_QuadrilateralElement::Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const
-{
-    cout << "fe.cpp: used the H1Ser_quad Project function (copied from Nodal)" << endl;
-   if (fe.GetRangeType() == SCALAR)
-   {
-      MFEM_ASSERT(MapType == fe.GetMapType(), "");
+// void H1Ser_QuadrilateralElement::Project(const FiniteElement &fe, ElementTransformation &Trans,
+//                         DenseMatrix &I) const
+// {
+//     cout << "fe.cpp: used the H1Ser_quad Project function (copied from Nodal)" << endl;
+//    if (fe.GetRangeType() == SCALAR)
+//    {
+//       MFEM_ASSERT(MapType == fe.GetMapType(), "");
 
-      Vector shape(fe.GetDof());
+//       Vector shape(fe.GetDof());
 
-      I.SetSize(Dof, fe.GetDof());
-      for (int k = 0; k < Dof; k++)
-      {
-         fe.CalcShape(Nodes.IntPoint(k), shape);
-         for (int j = 0; j < shape.Size(); j++)
-         {
-            I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
-         }
-      }
-   }
-   else
-   {
-      DenseMatrix vshape(fe.GetDof(), Trans.GetSpaceDim());
+//       I.SetSize(Dof, fe.GetDof());
+//       for (int k = 0; k < Dof; k++)
+//       {
+//          fe.CalcShape(Nodes.IntPoint(k), shape);
+//          for (int j = 0; j < shape.Size(); j++)
+//          {
+//             I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
+//          }
+//       }
+//    }
+//    else
+//    {
+//       DenseMatrix vshape(fe.GetDof(), Trans.GetSpaceDim());
 
-      I.SetSize(vshape.Width()*Dof, fe.GetDof());
-      for (int k = 0; k < Dof; k++)
-      {
-         Trans.SetIntPoint(&Nodes.IntPoint(k));
-         fe.CalcVShape(Trans, vshape);
-         if (MapType == INTEGRAL)
-         {
-            vshape *= Trans.Weight();
-         }
-         for (int j = 0; j < vshape.Height(); j++)
-            for (int d = 0; d < vshape.Width(); d++)
-            {
-               I(k+d*Dof,j) = vshape(j,d);
-            }
-      }
-   }
-   // ScalarFiniteElement::Project(*this, Trans, I);
-}
+//       I.SetSize(vshape.Width()*Dof, fe.GetDof());
+//       for (int k = 0; k < Dof; k++)
+//       {
+//          Trans.SetIntPoint(&Nodes.IntPoint(k));
+//          fe.CalcVShape(Trans, vshape);
+//          if (MapType == INTEGRAL)
+//          {
+//             vshape *= Trans.Weight();
+//          }
+//          for (int j = 0; j < vshape.Height(); j++)
+//             for (int d = 0; d < vshape.Width(); d++)
+//             {
+//                I(k+d*Dof,j) = vshape(j,d);
+//             }
+//       }
+//    }
+//    // ScalarFiniteElement::Project(*this, Trans, I);
+// }
 
-void H1Ser_QuadrilateralElement::Project(
-   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
-{
-   // for (int i = 0; i < Dof; i++)
-   // {
-   //    const IntegrationPoint &ip = Nodes.IntPoint(i);
-   //    // some coefficients expect that Trans.IntPoint is the same
-   //    // as the second argument of Eval
-   //    Trans.SetIntPoint(&ip);
-   //    dofs(i) = coeff.Eval (Trans, ip);
-   //    if (MapType == INTEGRAL)
-   //    {
-   //       dofs(i) *= Trans.Weight();
-   //    }
-   // }
+// void H1Ser_QuadrilateralElement::Project(
+//    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
+// {
+//    // for (int i = 0; i < Dof; i++)
+//    // {
+//    //    const IntegrationPoint &ip = Nodes.IntPoint(i);
+//    //    // some coefficients expect that Trans.IntPoint is the same
+//    //    // as the second argument of Eval
+//    //    Trans.SetIntPoint(&ip);
+//    //    dofs(i) = coeff.Eval (Trans, ip);
+//    //    if (MapType == INTEGRAL)
+//    //    {
+//    //       dofs(i) *= Trans.Weight();
+//    //    }
+//    // }
 
-   cout << "fe.cpp (ser quad project): Nodes.Size is " << Nodes.Size() << endl;
+//    cout << "fe.cpp (ser quad project): Nodes.Size is " << Nodes.Size() << endl;
 
-   DenseMatrix V(dofs.Size(), Nodes.Size());
-   Vector rhs(Nodes.Size());
+//    DenseMatrix V(dofs.Size(), Nodes.Size());
+//    Vector rhs(Nodes.Size());
 
-   for (int j = 0; j < Nodes.Size(); ++j)
-   {
-      const IntegrationPoint &ip = Nodes.IntPoint(j);
-//      transf->SetIntPoint(&ip);
-      Trans.SetIntPoint(&ip);
-      Vector col;
-      V.GetColumnReference(j, col);
-      (this)->CalcShape(ip, col);
-//      rhs[j] = coeff[0]->Eval(Trans, ip); // [0] was to deal with potential vector coeffs; not considered yet
-      rhs[j] = coeff.Eval(Trans, ip); 
-   }
-   V.Transpose();
-   DenseMatrixInverse Vinv(V);
+//    for (int j = 0; j < Nodes.Size(); ++j)
+//    {
+//       const IntegrationPoint &ip = Nodes.IntPoint(j);
+// //      transf->SetIntPoint(&ip);
+//       Trans.SetIntPoint(&ip);
+//       Vector col;
+//       V.GetColumnReference(j, col);
+//       (this)->CalcShape(ip, col);
+// //      rhs[j] = coeff[0]->Eval(Trans, ip); // [0] was to deal with potential vector coeffs; not considered yet
+//       rhs[j] = coeff.Eval(Trans, ip); 
+//    }
+//    V.Transpose();
+//    DenseMatrixInverse Vinv(V);
 
-   // Vector dofs(fdof);
+//    // Vector dofs(fdof);
 
-   // cout << " *** vdofs before vinv.mult(rhs,dofs):" << endl;
-   // vdofs.Print();
+//    // cout << " *** vdofs before vinv.mult(rhs,dofs):" << endl;
+//    // vdofs.Print();
 
-   Vinv.Mult(rhs, dofs);
+//    Vinv.Mult(rhs, dofs);
 
-}
+// }
 
 void H1Ser_QuadrilateralElement::GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
 { 
-   cout << "fe: using Ser Quad GetLocalInterp" << endl;
-   ScalarLocalInterpolation(Trans, I, *this);
-   // NodalLocalInterpolation(Trans, I, *this); 
+   if (Order <= 4)
+   {
+      NodalLocalInterpolation(Trans, I, *this); 
+   }
+   else
+   {
+      ScalarLocalInterpolation(Trans, I, *this);
+   }
 }
 
 H1Ser_HexElement::H1Ser_HexElement(const int p, const int ser_space_dim)
@@ -2592,61 +2595,40 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
    // cout << "END OF LINE" << endl;
 } 
 
-void H1Ser_HexElement::Project (
-   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
-{
-   cout << "fe.cpp (ser hex project): Nodes.Size is " << Nodes.Size() << endl;
-}
-
-
-void H1Ser_HexElement::Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const
-{
-    cout << "fe.cpp: used the H1Ser_hex Project function (copied from Nodal)" << endl;
-   if (fe.GetRangeType() == SCALAR)
-   {
-      MFEM_ASSERT(MapType == fe.GetMapType(), "");
-
-      Vector shape(fe.GetDof());
-
-      I.SetSize(Dof, fe.GetDof());
-      for (int k = 0; k < Dof; k++)
-      {
-         fe.CalcShape(Nodes.IntPoint(k), shape);
-         for (int j = 0; j < shape.Size(); j++)
-         {
-            I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
-         }
-      }
-   }
-   else
-   {
-      DenseMatrix vshape(fe.GetDof(), Trans.GetSpaceDim());
-
-      I.SetSize(vshape.Width()*Dof, fe.GetDof());
-      for (int k = 0; k < Dof; k++)
-      {
-         Trans.SetIntPoint(&Nodes.IntPoint(k));
-         fe.CalcVShape(Trans, vshape);
-         if (MapType == INTEGRAL)
-         {
-            vshape *= Trans.Weight();
-         }
-         for (int j = 0; j < vshape.Height(); j++)
-            for (int d = 0; d < vshape.Width(); d++)
-            {
-               I(k+d*Dof,j) = vshape(j,d);
-            }
-      }
-   }
-   // ScalarFiniteElement::Project(*this, Trans, I);
-}
-
 void H1Ser_HexElement::GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
 { 
-   ScalarLocalInterpolation(Trans, I, *this); 
-   // NodalLocalInterpolation(Trans, I, *this); 
+   if (Order <= 4)
+   {
+      NodalLocalInterpolation(Trans, I, *this); 
+   }
+   else
+   {
+      ScalarLocalInterpolation(Trans, I, *this);
+   }
+}
+
+void H1Ser_HexElement::Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const
+{
+   // Copied from NodalFiniteElement::Project
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
+   Vector x(vc.GetVDim());
+
+   for (int i = 0; i < Dof; i++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(i);
+      Trans.SetIntPoint(&ip);
+      vc.Eval (x, Trans, ip);
+      if (MapType == INTEGRAL)
+      {
+         x *= Trans.Weight();
+      }
+      for (int j = 0; j < x.Size(); j++)
+      {
+         dofs(Dof*j+i) = x(j);
+      }
+   }
 }
 
 BiQuadPos2DFiniteElement::BiQuadPos2DFiniteElement()

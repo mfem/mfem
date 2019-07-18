@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FECollection(order, dim);
+      fec = new H1Ser_FECollection(order, dim);
       fespace = new FiniteElementSpace(mesh, fec, dim);
    }
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()

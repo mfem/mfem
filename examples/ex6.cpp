@@ -51,6 +51,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool use_serendip = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -64,6 +65,11 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_serendip, "-ser", "--use-serendipity", 
+                  "-no-ser", "--not-serendipity", 
+                  "Use serendipity element collection.");
+
+
    args.Parse();
    if (!args.Good())
    {
@@ -98,8 +104,18 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. The polynomial order is
    //    one (linear) by default, but this can be changed on the command line.
-   H1_FECollection fec(order, dim);
-   FiniteElementSpace fespace(&mesh, &fec);
+
+   FiniteElementCollection *fec;
+   if (use_serendip)
+   {     
+      fec = new H1Ser_FECollection(order,dim);
+   }
+   else
+   {
+      fec = new H1_FECollection(order, dim);
+   }
+
+   FiniteElementSpace fespace(&mesh, fec);
 
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
@@ -140,7 +156,7 @@ int main(int argc, char *argv[])
    //     recover a smoothed flux (gradient) that is subtracted from the element
    //     flux to get an error indicator. We need to supply the space for the
    //     smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
-   FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
+   FiniteElementSpace flux_fespace(&mesh, fec, sdim);
    ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
    estimator.SetAnisotropic();
 
@@ -244,6 +260,6 @@ int main(int argc, char *argv[])
       a.Update();
       b.Update();
    }
-
+   delete fec;
    return 0;
 }

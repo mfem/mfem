@@ -1677,19 +1677,13 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
             }
             else
             {
-               // cout << "fespace: setting dofs[" << ne+j << "] = nvdofs + nedofs + fdofs[iF]+ind[j] = ";
-               // cout << nvdofs << " + " << nedofs << " + " << fdofs[iF] << " + " <<  ind[j] << endl;
-               if (ind[j] != 0)
-               {
-                  dofs[ne+j] = nvdofs+nedofs+fdofs[iF];
-               }
-               else
-               {               
-                  dofs[ne+j] = nvdofs+nedofs+fdofs[iF]+ind[j];
-               }
-               // cout << "    -> Actually set it to " << dofs[ne+j] << endl;
+               // // cout << "fespace: setting dofs[" << ne+j << "] = nvdofs + nedofs + fdofs[iF]+ind[j] = ";
+               // // cout << nvdofs << " + " << nedofs << " + " << fdofs[iF] << " + " <<  ind[j] << endl;
+
+               // For serendipity order p > 4, may need to adjust this
+
+               dofs[ne+j] = nvdofs+nedofs+fdofs[iF]+ind[j];
             }
-            // cout << endl;
          }
       }
    }

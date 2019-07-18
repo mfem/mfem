@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool use_serendip = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -80,6 +81,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_serendip, "-ser", "--use-serendipity", 
+                  "-no-ser", "--not-serendipity", 
+                  "Use serendipity element collection.");
    args.Parse();
    if (!args.Good())
    {
@@ -87,6 +91,10 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   // Start the timer.
+   tic_toc.Clear();
+   tic_toc.Start();
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -118,7 +126,14 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
+      if (use_serendip)
+      {     
+         fec = new H1Ser_FECollection(order,dim);
+      }
+      else
+      {
+         fec = new H1_FECollection(order, dim);
+      }
    }
    else if (mesh->GetNodes())
    {
@@ -177,6 +192,11 @@ int main(int argc, char *argv[])
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
+   tic_toc.Stop();
+   cout << " Assembly took " << tic_toc.RealTime() << "s." << endl;
+   tic_toc.Clear();
+   tic_toc.Start();
+
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
@@ -185,7 +205,8 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      PCG(*A, M, B, X, 2, 200, 1e-12, 0.0);
+      // set 5th parameter to "2" instaed of 1 to limit information on interations
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;
@@ -210,6 +231,9 @@ int main(int argc, char *argv[])
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
+
+   tic_toc.Stop();
+   cout << " Solving  took " << tic_toc.RealTime() << "s." << endl;
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
