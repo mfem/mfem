@@ -9,6 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 #include "../general/forall.hpp"
+#include "mem_manager.hpp"
 
 #include <list>
 #include <cstring> // std::memcpy
@@ -110,6 +111,7 @@ public:
    virtual void Alloc(void **ptr, const size_t bytes)
    { *ptr = std::malloc(bytes); }
    virtual void Dealloc(void *ptr) { std::free(ptr); }
+   virtual void Insert(void *ptr, const size_t bytes) { }
    virtual void Protect(const void *ptr, const size_t bytes) { }
    virtual void Unprotect(const void *ptr, const size_t bytes) { }
 };
@@ -187,7 +189,7 @@ class ProtectedHostMemorySpace : public HostMemorySpace
 #ifndef _WIN32
    static void ProtectedAccessError(int sig, siginfo_t *si, void *unused)
    {
-      dbg("[MMU] ProtectedAccessError");
+      dbg("ProtectedAccessError");
       fflush(0);
       char str[64];
       const void *ptr = si->si_addr;
@@ -211,7 +213,7 @@ public:
 
    void Alloc(void **ptr, const size_t bytes)
    {
-      dbg("\033[31;1m[MMU] Alloc");
+      dbg("Alloc");
 #ifdef _WIN32
       mfem_error("Protected HostAlloc is not available on WIN32.");
 #else
@@ -226,7 +228,7 @@ public:
 
    void Dealloc(void *ptr)
    {
-      dbg("\033[31;1m[MMU] Dealloc");
+      dbg("Dealloc");
       const bool known = mm.IsKnown(ptr);
       if (!known) { mfem_error("Trying to Free an unknown pointer!"); }
 #ifdef _WIN32
@@ -243,7 +245,7 @@ public:
    // Memory may not be accessed.
    void Protect(const void *ptr, const size_t bytes)
    {
-      dbg("\033[31;1m[MMU] Protect");
+      dbg("Protect");
 #ifndef _WIN32
       if (::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE))
       { mfem_error("Protect error!"); }
@@ -253,7 +255,7 @@ public:
    // Memory may be read and written.
    void Unprotect(const void *ptr, const size_t bytes)
    {
-      dbg("\033[31;1m[MMU] Unprotect");
+      dbg("Unprotect");
 #ifndef _WIN32
       const int RW = PROT_READ | PROT_WRITE;
       const int returned = ::mprotect(const_cast<void*>(ptr), bytes, RW);
@@ -335,6 +337,13 @@ public:
    void Alloc(void **ptr, const size_t bytes)
    { *ptr = h_allocator.allocate(bytes); }
    void Dealloc(void *ptr) { h_allocator.deallocate(ptr); }
+   virtual void Insert(void *ptr, const size_t bytes)
+   {
+      auto strat = rm.getDefaultAllocator().getAllocationStrategy();
+      umpire::util::AllocationRecord* record =
+         new umpire::util::AllocationRecord{ptr, bytes, strat};
+      rm.registerAllocation(ptr, record);
+   }
 };
 
 /// The Umpire device memory space
@@ -349,9 +358,9 @@ public:
       d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
                   ("device_pool",rm.getAllocator("DEVICE"))) { }
    void Alloc(internal::Memory &base, const size_t bytes)
-   { base.d_ptr = d_allocator.allocate(bytes); }
+   { base.d_ptr = d_allocator.allocate(bytes); dbg("D_allocator.allocate(%d): %p", bytes, base.d_ptr);}
    void Dealloc(void *dptr)
-   { d_allocator.deallocate(dptr); }
+   { d_allocator.deallocate(dptr); dbg("D_allocator.Deallocate: %p", dptr);}
 };
 
 /// The Umpire copy memory space
@@ -367,7 +376,16 @@ public:
    void *DtoD(void* dst, const void* src, const size_t bytes)
    { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
    void *DtoH(void *dst, const void *src, const size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   {
+      dbg("getSize: src");
+      rm.getSize(const_cast<void*>(src));
+      dbg("getSize: dst");
+      rm.getSize(dst);
+      dbg("copy");
+      rm.copy(dst, const_cast<void*>(src), bytes);
+      dbg("done");
+      return dst;
+   }
 };
 #endif // MFEM_USE_UMPIRE
 
@@ -452,7 +470,7 @@ void MemoryManager::Setup(MemoryType mt)
       ctrl = new internal::Ctrl(MemoryType::HOST, MemoryType::CUDA);
    }
 #else
-   if (h == mfem::Memory::UNIFIED)
+   if (mt == MemoryType::CUDA_UVM)
    { mfem_error("Umpire cannot switch to UVM!"); }
 #endif // MFEM_USE_UMPIRE
 }
@@ -460,7 +478,7 @@ void MemoryManager::Setup(MemoryType mt)
 void MemoryManager::Destroy()
 {
    dbg("Destroy");
-   MFEM_VERIFY(exists, "MemoryManager has been destroyed already!");
+   MFEM_VERIFY(exists, "MemoryManager has already been destroyed!");
    for (auto& n : maps->memories)
    {
       internal::Memory &mem = n.second;
@@ -485,6 +503,7 @@ void* MemoryManager::Insert(void *h_ptr, size_t bytes, MemoryType mt)
    auto res = maps->memories.emplace(h_ptr, internal::Memory(h_ptr, bytes, mt));
    if (res.second == false)
    { mfem_error("Trying to add an already present address!"); }
+   ctrl->host->Insert(h_ptr, bytes);
    return h_ptr;
 }
 
@@ -758,16 +777,19 @@ static void PullKnown(internal::Maps *maps, const void *ptr,
                       const size_t bytes, bool copy_data)
 {
    internal::Memory &base = maps->memories.at(ptr);
-   dbg("PullKnown<%d>", base.d_type);
+   dbg("PullKnown<%d> %p", base.d_type, ptr);
    MFEM_ASSERT(base.h_ptr == ptr, "internal error");
    // There are cases where it is OK if base.d_ptr is not allocated yet:
    // for example, when requesting read-write access on host to memory created
    // as device memory.
    if (copy_data && base.d_ptr)
    {
+      dbg("Unprotect");
       ctrl->host->Unprotect(base.h_ptr, base.bytes);
+      dbg("DtoH: %p <= %p", base.h_ptr, base.d_ptr);
       ctrl->memcpy->DtoH(base.h_ptr, base.d_ptr, bytes);
    }
+   dbg("done");
 }
 
 // ****************************************************************************
@@ -837,8 +859,8 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryClass mc,
       case MemoryClass::CUDA:
       {
          dbg("RW: CUDA");
-         const internal::Memory &base = maps->memories.at(h_ptr);
-         const MemoryType mt = base.d_type;
+         //const internal::Memory &base = maps->memories.at(h_ptr);
+         //const MemoryType mt = base.d_type;
          /*MFEM_VERIFY(mt == MemoryType::CUDA ||
            mt == MemoryType::CUDA_UVM, "internal error");*/
          const bool need_copy = !(flags & Mem::VALID_DEVICE);

@@ -109,7 +109,7 @@ protected:
    friend class MemoryManager;
    friend void MemoryPrintFlags(unsigned flags);
 
-   enum FlagMask
+   enum FlagMask: unsigned long
    {
       REGISTERED    = 1 << 0, ///< #h_ptr is registered with the MemoryManager
       OWNS_HOST     = 1 << 1, ///< The host pointer will be deleted by Delete()
