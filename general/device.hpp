@@ -27,7 +27,7 @@ struct Backend
 {
    /** @brief In the documentation below, we use square brackets to indicate the
        type of the backend: host or device. */
-   enum Id
+   enum Id: unsigned long
    {
       /// [host] Default CPU backend: sequential execution on each MPI rank.
       CPU = 1 << 0,

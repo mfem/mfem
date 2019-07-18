@@ -253,6 +253,9 @@ void Device::Setup(const int device)
    {
       ngpu = 1;
       MFEM_VERIFY((cuda|raja|occa|openmp) ^ debug, "'debug' mode is exclusive!");
+#ifdef MFEM_USE_UMPIRE
+      MFEM_ABORT("'debug' mode is not compatible with UMPIRE!");
+#endif
    }
 }
 
