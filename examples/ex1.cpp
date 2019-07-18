@@ -47,7 +47,6 @@
 //               discrete linear system. We also cover the explicit elimination
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
-#define DBG_COLOR 38
 #include "../general/dbg.hpp"
 #include "mfem.hpp"
 #include <fstream>

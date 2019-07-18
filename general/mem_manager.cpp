@@ -8,7 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-#define DBG_COLOR 177
 #include "../general/forall.hpp"
 
 #include <list>
@@ -840,8 +839,8 @@ void *MemoryManager::ReadWrite_(void *h_ptr, MemoryClass mc,
          dbg("RW: CUDA");
          const internal::Memory &base = maps->memories.at(h_ptr);
          const MemoryType mt = base.d_type;
-         MFEM_VERIFY(mt == MemoryType::CUDA ||
-                     mt == MemoryType::CUDA_UVM, "internal error");
+         /*MFEM_VERIFY(mt == MemoryType::CUDA ||
+           mt == MemoryType::CUDA_UVM, "internal error");*/
          const bool need_copy = !(flags & Mem::VALID_DEVICE);
          flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
          if (flags & Mem::ALIAS)
@@ -972,8 +971,9 @@ void *MemoryManager::Write_(void *h_ptr, MemoryClass mc,
 
       case MemoryClass::CUDA:
       {
-         MFEM_VERIFY(mt == MemoryType::CUDA ||
-                     mt == MemoryType::CUDA_UVM, "internal error");
+         dbg("W @ CUDA");
+         /*MFEM_VERIFY(mt == MemoryType::CUDA ||
+           mt == MemoryType::CUDA_UVM, "internal error");*/
          flags = (flags | Mem::VALID_DEVICE) & ~Mem::VALID_HOST;
          // TODO: add support for UVM
          if (flags & Mem::ALIAS)

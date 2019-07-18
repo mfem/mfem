@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 // Implementation of data type vector
-#define DBG_COLOR 180
 #include "vector.hpp"
 #include "dtensor.hpp"
 #include "../general/forall.hpp"

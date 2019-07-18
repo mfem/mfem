@@ -53,7 +53,7 @@ void* CuMallocManaged(void** dptr, size_t bytes)
    mfem::out << "CuMallocManaged(): allocating " << bytes << " bytes ... "
              << std::flush;
 #endif
-   MFEM_CUDA_CHECK(CuMallocManaged(dptr, bytes));
+   MFEM_CUDA_CHECK(cudaMallocManaged(dptr, bytes));
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "done: " << *dptr << std::endl;
 #endif
