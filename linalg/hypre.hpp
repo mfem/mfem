@@ -586,6 +586,8 @@ protected:
    double poly_fraction;
    /// Apply the polynomial smoother to A or D^{-1/2} A D^{-1/2}
    int poly_scale;
+   /// Number of CG iterations to determine eigenvalue estimates, 0 means the max norm
+   int poly_iter;
 
    /// Taubin's lambda-mu method parameters
    double lambda;
@@ -626,14 +628,14 @@ public:
    HypreSmoother(HypreParMatrix &_A, int type = l1GS,
                  int relax_times = 1, double relax_weight = 1.0,
                  double omega = 1.0, int poly_order = 2,
-                 double poly_fraction = .3);
+                 double poly_fraction = .3, int poly_iter = 10);
 
    /// Set the relaxation type and number of sweeps
    void SetType(HypreSmoother::Type type, int relax_times = 1);
    /// Set SOR-related parameters
    void SetSOROptions(double relax_weight, double omega);
    /// Set parameters for polynomial smoothing
-   void SetPolyOptions(int poly_order, double poly_fraction);
+   void SetPolyOptions(int poly_order, double poly_fraction, int poly_iter = 10);
    /// Set parameters for Taubin's lambda-mu method
    void SetTaubinOptions(double lambda, double mu, int iter);
 
