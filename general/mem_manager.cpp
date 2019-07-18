@@ -358,9 +358,9 @@ public:
       d_allocator(rm.makeAllocator<umpire::strategy::DynamicPool>
                   ("device_pool",rm.getAllocator("DEVICE"))) { }
    void Alloc(internal::Memory &base, const size_t bytes)
-   { base.d_ptr = d_allocator.allocate(bytes); dbg("D_allocator.allocate(%d): %p", bytes, base.d_ptr);}
+   { base.d_ptr = d_allocator.allocate(bytes); }
    void Dealloc(void *dptr)
-   { d_allocator.deallocate(dptr); dbg("D_allocator.Deallocate: %p", dptr);}
+   { d_allocator.deallocate(dptr); }
 };
 
 /// The Umpire copy memory space
@@ -376,16 +376,7 @@ public:
    void *DtoD(void* dst, const void* src, const size_t bytes)
    { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
    void *DtoH(void *dst, const void *src, const size_t bytes)
-   {
-      dbg("getSize: src");
-      rm.getSize(const_cast<void*>(src));
-      dbg("getSize: dst");
-      rm.getSize(dst);
-      dbg("copy");
-      rm.copy(dst, const_cast<void*>(src), bytes);
-      dbg("done");
-      return dst;
-   }
+   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
 };
 #endif // MFEM_USE_UMPIRE
 
@@ -441,7 +432,6 @@ static internal::Ctrl *ctrl;
 
 MemoryManager::MemoryManager()
 {
-   dbg("MemoryManager with default HOST");
    exists = true;
    maps = new internal::Maps();
    ctrl = new internal::Ctrl();
@@ -477,7 +467,6 @@ void MemoryManager::Setup(MemoryType mt)
 
 void MemoryManager::Destroy()
 {
-   dbg("Destroy");
    MFEM_VERIFY(exists, "MemoryManager has already been destroyed!");
    for (auto& n : maps->memories)
    {
@@ -529,8 +518,8 @@ void MemoryManager::InsertDevice(void *d_ptr, void *h_ptr,
 void MemoryManager::InsertAlias(const void *base_ptr, void *alias_ptr,
                                 const size_t bytes, const bool base_is_alias)
 {
-   size_t offset = static_cast<const char*>(alias_ptr) -
-                   static_cast<const char*>(base_ptr);
+   size_t offset = static_cast<size_t>(static_cast<const char*>(alias_ptr) -
+                                       static_cast<const char*>(base_ptr));
    if (!base_ptr)
    {
       MFEM_VERIFY(offset == 0,
