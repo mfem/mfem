@@ -259,8 +259,6 @@ int main(int argc, char *argv[])
                   "'Z' - Zero");
    args.AddOption(&BVec, "-B", "--magnetic-flux",
                   "Background magnetic flux vector");
-   args.AddOption(&kVec[1], "-ky", "--wave-vector-y",
-                  "y-Component of wave vector.");
    args.AddOption(&kVec[2], "-kz", "--wave-vector-z",
                   "z-Component of wave vector.");
    args.AddOption(&numbers, "-num", "--number-densites",
@@ -353,7 +351,7 @@ int main(int argc, char *argv[])
       hz = 0.1;
    }
    double omega = 2.0 * M_PI * freq;
-   if (kVec[1] != 0.0 || kVec[2] != 0.0)
+   if (kVec[2] != 0.0)
    {
       phase_shift = true;
    }
