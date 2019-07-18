@@ -14,10 +14,6 @@
 
 #include "globals.hpp"
 #include "error.hpp"
-
-#ifndef DBG_COLOR
-#define DBG_COLOR 187
-#endif
 #include "dbg.hpp"
 
 #include <cstring> // std::memcpy
