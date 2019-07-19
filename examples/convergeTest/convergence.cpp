@@ -29,8 +29,7 @@ void u_grad_exact_2(const Vector &, Vector &);
 
 void convergenceStudy(const char *mesh_file, int num_ref, int &order,
                       double &l2_err_prev, double &h1_err_prev, bool &visualization, 
-                      int &exact, int &dof2view, int &solvePDE, bool static_cond, 
-                      std::ofstream &iterfile)
+                      int &exact, int &dof2view, int &solvePDE, bool static_cond)
 {
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
@@ -167,65 +166,17 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    OperatorPtr A;
    Vector B, X;
-   
-   B.Randomize();
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
-   CGSolver cg;
-   cg.SetPrintLevel(3);
-   cg.SetMaxIter(1000);
-   cg.SetRelTol(sqrt(1e-12));
-   cg.SetAbsTol(sqrt(1e-24));
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
-   // CG(const Operator &A, const Vector &b, Vector &x,
-      //   int print_iter, int max_num_iter,
-      //   double RTOLERANCE, double ATOLERANCE)
-
-      // int max_num_iter = 1000,
-      // double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
-
-   // CG(*A, B, X, 3);
    
-   cout << "Size of linear system: " << A->Height() << endl;
-   cout << "done with CG" << endl;
-
- 
-   int cg_niter = cg.GetNumIterations();
-   cout << "num of iterations is " << cg_niter << endl;
-   iterfile << order << '\t' << num_ref << '\t' << cg_niter  << '\t';
-   // iterfile << niter << std::endl;
-
-
+   // cout << "Size of linear system: " << A->Height() << endl;
+  
    // 11. Solve the linear system A X = B.
 
    GSSmoother M((SparseMatrix&)(*A));
    X = 0.0;
-   // PCG(*A, M, B, X, 3, 200, 1e-24, 0.0);
+   PCG(*A, M, B, X, 0, 200, 1e-24, 0.0);
    
-   // void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
-   //       int print_iter, int max_num_iter,
-   //       double RTOLERANCE, double ATOLERANCE)
-
-   CGSolver pcg;
-   pcg.SetPrintLevel(3);
-   pcg.SetMaxIter(200);
-   pcg.SetRelTol(sqrt(1e-24));
-   pcg.SetAbsTol(sqrt(0.0));
-   pcg.SetOperator(*A);
-   pcg.SetPreconditioner(M);
-   pcg.Mult(B, X);
-
-   cout << "Size of linear system: " << A->Height() << endl;
-   cout << "done with PCG" << endl;
-
-   int pcg_niter = pcg.GetNumIterations();
-   cout << "num of iterations is " << pcg_niter << endl;
-   iterfile << pcg_niter  <<  std::endl;
-
-   return;
-
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
@@ -415,7 +366,7 @@ int main(int argc, char *argv[])
 
    if (order == 1)
    {
-      cout << "Using nodal H1 *** CUBIC *** tensor product elements (for testing / comparison)." << endl;
+      cout << "Using nodal H1 *** QUADRATIC *** tensor product elements (for testing / comparison)." << endl;
    }
    else if (order > 1)
    {
@@ -508,23 +459,17 @@ int main(int argc, char *argv[])
 
    // Loop over number of refinements for convergence study
 
-   std::cout << " *** Testing conditioning *** " << endl;
-   std::ofstream iterfile;   
-   iterfile.open("iters.txt", std::ios_base::app);
-   iterfile << "order" << '\t' << "num_ref" << '\t' << "cg_its" << '\t' << "pcg_its"  << std::endl;
-
    if (dof2view == -1)
    {
       bool noVisYet = false;
       for (int i = 0; i < (total_refinements); i++)
       {
          convergenceStudy(mesh_file, i, order, l2_err_prev, h1_err_prev, noVisYet, 
-            exact, dof2view, solvePDE, static_cond, iterfile);
+            exact, dof2view, solvePDE, static_cond);
       }
    }
    convergenceStudy(mesh_file, total_refinements, order, l2_err_prev, h1_err_prev, visualization, 
-            exact, dof2view, solvePDE, static_cond, iterfile);
-   
-   iterfile.close();
+            exact, dof2view, solvePDE, static_cond);
+
    return 0;
 }
