@@ -51,7 +51,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    FiniteElementCollection *fec;
    if (order == 1)
    {
-      fec = new H1_FECollection(3, 2);
+      fec = new H1_FECollection(2, 2);
    }
    else if (order > 1)
    {
@@ -192,20 +192,38 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
    cout << "done with CG" << endl;
 
  
-   int niter = cg.GetNumIterations();
-   cout << "Niter is " << niter << endl;
+   int cg_niter = cg.GetNumIterations();
+   cout << "num of iterations is " << cg_niter << endl;
+   iterfile << order << '\t' << num_ref << '\t' << cg_niter  << '\t';
    // iterfile << niter << std::endl;
-   // iterfile << order << '\t' << num_ref << std::endl;
 
 
    // 11. Solve the linear system A X = B.
 
    GSSmoother M((SparseMatrix&)(*A));
    X = 0.0;
-   PCG(*A, M, B, X, 3, 200, 1e-24, 0.0);
+   // PCG(*A, M, B, X, 3, 200, 1e-24, 0.0);
+   
+   // void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
+   //       int print_iter, int max_num_iter,
+   //       double RTOLERANCE, double ATOLERANCE)
+
+   CGSolver pcg;
+   pcg.SetPrintLevel(3);
+   pcg.SetMaxIter(200);
+   pcg.SetRelTol(sqrt(1e-24));
+   pcg.SetAbsTol(sqrt(0.0));
+   pcg.SetOperator(*A);
+   pcg.SetPreconditioner(M);
+   pcg.Mult(B, X);
 
    cout << "Size of linear system: " << A->Height() << endl;
    cout << "done with PCG" << endl;
+
+   int pcg_niter = pcg.GetNumIterations();
+   cout << "num of iterations is " << pcg_niter << endl;
+   iterfile << pcg_niter  <<  std::endl;
+
    return;
 
    // 12. Recover the solution as a finite element grid function.
@@ -493,7 +511,7 @@ int main(int argc, char *argv[])
    std::cout << " *** Testing conditioning *** " << endl;
    std::ofstream iterfile;   
    iterfile.open("iters.txt", std::ios_base::app);
-   iterfile << "order" << '\t' << "num_ref" << '\t' << "num_iters"  << std::endl;
+   iterfile << "order" << '\t' << "num_ref" << '\t' << "cg_its" << '\t' << "pcg_its"  << std::endl;
 
    if (dof2view == -1)
    {
