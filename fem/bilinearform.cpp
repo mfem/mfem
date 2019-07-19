@@ -1002,6 +1002,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   mat_e = NULL;
    extern_bfs = 0;
 
    assembly = AssemblyLevel::FULL;
@@ -1016,6 +1017,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   mat_e = NULL;
    extern_bfs = 1;
 
    // Copy the pointers to the integrators
@@ -1324,10 +1326,90 @@ void MixedBilinearForm::EliminateTestDofs (const Array<int> &bdr_attr_is_ess)
       }
 }
 
+void MixedBilinearForm::FormColumnSystemMatrix(const Array<int> &ess_trial_tdof_list,
+                                               OperatorHandle &A)
+
+{
+   if (ext)
+   {
+      ext->FormColumnSystemOperator(ess_trial_tdof_list, A);
+      return;
+   }
+   
+   const SparseMatrix *test_P = test_fes->GetConformingProlongation();
+   const SparseMatrix *trial_P = trial_fes->GetConformingProlongation();
+
+   mat->Finalize();
+
+   if (test_P) // TODO: Must actually check for trial_P too
+   {
+      SparseMatrix *m = RAP(*test_P, *mat, *trial_P);
+      delete mat;
+      mat = m;
+   }
+
+   Array<int> ess_trial_tdof_marker;
+   FiniteElementSpace::ListToMarker(ess_trial_tdof_list, trial_fes->GetTrueVSize(),
+                                    ess_trial_tdof_marker);
+
+   mat_e = new SparseMatrix(mat->Height(), mat->Width());
+   mat->EliminateCols(ess_trial_tdof_marker, *mat_e);
+   mat_e->Finalize();
+   A.Reset(mat, false);
+}
+
+void MixedBilinearForm::FormColumnLinearSystem(const Array<int> &ess_trial_tdof_list,
+                                               Vector &x, Vector &b,
+                                               OperatorHandle &A,
+                                               Vector &X, Vector &B)
+{
+   if (ext)
+   {
+      ext->FormColumnLinearSystem(ess_trial_tdof_list, x, b, A, X, B);
+      return;
+   }
+   
+   const Operator *Pi = this->GetProlongation();
+   const Operator *Ro = this->GetOutputRestriction();
+
+   if (Pi)
+   {
+      // Variational restriction with Pi
+      X.SetSize(Pi->Width(), x);
+      Pi->MultTranspose(x, X);
+   }
+   else
+   {
+      // X points to same data as x
+      X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+   }
+
+   if (Ro)
+   {
+      // Variational restriction with Ro
+      B.SetSize(Ro->Height(), b);
+      Ro->Mult(b, B);
+   }
+   else
+   {
+      // B points to same data as b
+      B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
+   }
+
+   if (!mat_e)
+   {
+      FormColumnSystemMatrix(ess_trial_tdof_list, A); // Set A = mat_e
+   }
+   // Eliminate essential BCs with B -= Ab xb
+   mat_e->AddMult(X, B, -1.0);
+}
+
 void MixedBilinearForm::Update()
 {
    delete mat;
    mat = NULL;
+   delete mat_e;
+   mat_e = NULL;
    height = test_fes->GetVSize();
    width = trial_fes->GetVSize();
    if (ext) { ext->Update(); }
@@ -1336,6 +1418,7 @@ void MixedBilinearForm::Update()
 MixedBilinearForm::~MixedBilinearForm()
 {
    if (mat) { delete mat; }
+   if (mat_e) { delete mat_e; }
    if (!extern_bfs)
    {
       int i;

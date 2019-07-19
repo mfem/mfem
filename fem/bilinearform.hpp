@@ -357,8 +357,9 @@ public:
                                  Vector &B, int copy_interior = 0);
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
-       form and the linear form @a b(.). */
-   /** Version of the method FormLinearSystem() where the system matrix is
+       form and the linear form @a b(.).
+   
+       Version of the method FormLinearSystem() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
@@ -381,7 +382,7 @@ public:
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A);
 
-   /// Form the linear system matrix A, see FormLinearSystem() for details.
+   /// @brief Form the linear system matrix A, see FormLinearSystem() for details.
    /** Version of the method FormSystemMatrix() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
@@ -509,6 +510,7 @@ class MixedBilinearForm : public Matrix
 {
 protected:
    SparseMatrix *mat; ///< Owned.
+   SparseMatrix *mat_e; ///< Owned.
 
    FiniteElementSpace *trial_fes, ///< Not owned
                       *test_fes;  ///< Not owned
@@ -615,6 +617,16 @@ public:
 
    void Assemble(int skip_zeros = 1);
 
+   /// Get the input finite element space prolongation matrix
+   virtual const Operator *GetProlongation() const
+   { return trial_fes->GetProlongationMatrix(); }
+   /// Get the input finite element space restriction matrix
+   virtual const Operator *GetRestriction() const
+   { return trial_fes->GetRestrictionMatrix(); }
+   /// Get the output finite element space restriction matrix
+   virtual const Operator *GetOutputRestriction() const
+   { return test_fes->GetRestrictionMatrix(); }
+
    /** For partially conforming trial and/or test FE spaces, complete the
        assembly process by performing A := P2^t A P1 where A is the internal
        sparse matrix; P1 and P2 are the conforming prolongation matrices of the
@@ -629,6 +641,65 @@ public:
                                           const Vector &sol, Vector &rhs);
 
    virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator.
+
+      This returns the same operator as FormColumnLinearSystem(), but does
+      without the transformations of the right-hand side. */
+   void FormColumnSystemMatrix(const Array<int> &ess_trial_tdof_list,
+                               OperatorHandle &A);
+
+   /** @brief Form the column-constrained linear system matrix A.
+       See FormColumnSystemMatrix() for details.
+       
+       Version of the method FormColumnSystemMatrix() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called. 
+
+       Currently, this method can be used only with AssemblyLevel::FULL. */
+   template <typename OpType>
+   void FormColumnSystemMatrix(const Array<int> &ess_trial_tdof_list, OpType &A)
+   {
+      OperatorHandle Ah;
+      FormColumnSystemMatrix(ess_trial_tdof_list, Ah);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
+
+   /** @brief Form the linear system A X = B, corresponding to this mixed bilinear
+       form and the linear form @a b(.).
+
+       Return in @a A a *reference* to the system matrix that is column-constrained.
+       The reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called. */
+   void FormColumnLinearSystem(const Array<int> &ess_trial_tdof_list,
+                               Vector &x, Vector &b,
+                               OperatorHandle &A, Vector &X, Vector &B);
+   
+   /** @brief Form the linear system A X = B, corresponding to this bilinear
+       form and the linear form @a b(.).
+
+       Version of the method FormColumnLinearSystem() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called.
+
+       Currently, this method can be used only with AssemblyLevel::FULL. */
+   template <typename OpType>
+   void FormColumnLinearSystem(const Array<int> &ess_trial_tdof_list,
+                               Vector &x, Vector &b,
+                               OpType &A, Vector &X, Vector &B)
+   {
+      OperatorHandle Ah;
+      FormColumnLinearSystem(ess_trial_tdof_list, x, b, Ah, X, B);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
 
    void Update();
 

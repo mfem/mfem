@@ -156,13 +156,15 @@ public:
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const;
 
+   /// Get the finite element space restriction matrix
+   virtual const Operator *GetOutputRestriction() const;
+
    virtual void Assemble() = 0;
-   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                 OperatorHandle &A) = 0;
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
-                                 Vector &x, Vector &b,
-                                 OperatorHandle &A, Vector &X, Vector &B,
-                                 int copy_interior = 0) = 0;
+   virtual void FormColumnSystemOperator(const Array<int> &ess_tdof_list,
+                                       OperatorHandle &A) = 0;
+   virtual void FormColumnLinearSystem(const Array<int> &ess_tdof_list,
+                                       Vector &x, Vector &b,
+                                       OperatorHandle &A, Vector &X, Vector &B) = 0;
 
    virtual void AddMult(const Vector &x, Vector &y, const double c=1.0) const = 0;
    virtual void AddMultTranspose(const Vector &x, Vector &y,
@@ -179,11 +181,11 @@ public:
 
    /// TODO
    void Assemble() {}
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A) {}
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0) {}
+   void FormColumnSystemOperator(const Array<int> &ess_tdof_list, OperatorHandle &A)
+   {}
+   void FormColumnLinearSystem(const Array<int> &ess_tdof_list,
+                               Vector &x, Vector &b,
+                               OperatorHandle &A, Vector &X, Vector &B) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
    void Update() {}
@@ -199,25 +201,41 @@ protected:
    const Operator *elem_restrict_trial; // Not owned
    const Operator *elem_restrict_test;  // Not owned
 private:
+   /// Helper function to set up inputs/outputs for Mult or MultTranspose
    void SetupMultInputs(const Operator *elem_restrict_x,
                         const Vector &x, Vector &localX,
                         const Operator *elem_restrict_y,
                         Vector &y, Vector &localY, const double c) const;
 
 public:
-   PAMixedBilinearFormExtension(MixedBilinearForm*);
+   PAMixedBilinearFormExtension(MixedBilinearForm *form);
 
+   /// Partial assembly of all internal integrators
    void Assemble();
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
+   /**
+      @brief Setup OperatorHandle A to contain constrained linear operator
 
+      OperatorHandle A contains matrix-free constrained operator formed for RAP system
+      where ess_tdof_list are in trial space and eliminated from "columns" of A.
+   */
+   void FormColumnSystemOperator(const Array<int> &ess_tdof_list, OperatorHandle &A);
+   /**
+      Setup OperatorHandle A to contain constrained linear operator and 
+      eliminate columns corresponding to essential dofs from system, 
+      updating RHS B vector with the results.
+   */
+   void FormColumnLinearSystem(const Array<int> &ess_tdof_list,
+                               Vector &x, Vector &b,
+                               OperatorHandle &A, Vector &X, Vector &B);
+   /// y = A*x
    void Mult(const Vector &x, Vector &y) const;
+   /// y += c*A*x
    void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
+   /// y = A^T*x
    void MultTranspose(const Vector &x, Vector &y) const;
+   /// y += c*A^T*x
    void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   /// Update internals for when a new MixedBilinearForm is given to this class
    void Update();
 };
 

@@ -1387,6 +1387,40 @@ void SparseMatrix::EliminateCols(const Array<int> &cols, const Vector *x,
    }
 }
 
+void SparseMatrix::EliminateCols(const Array<int> &col_marker, SparseMatrix &Ae)
+{
+   if (Rows)
+   {
+      RowNode *nd;
+      for (int row = 0; row < height; row++)
+      {
+         for (nd = Rows[row]; nd != NULL; nd = nd->Prev)
+         {
+            if (col_marker[nd->Column])
+            {
+               Ae.Add(row, nd->Column, nd->Value);
+               nd->Value = 0.0;
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int row = 0; row < height; row++)
+      {
+         for (int j = I[row]; j < I[row+1]; j++)
+         {
+            if (col_marker[J[j]])
+            {
+               Ae.Add(row, J[j], A[j]);
+               A[j] = 0.0;
+            }
+         }
+      }
+   }
+}
+
+
 void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
                                    DiagonalPolicy dpolicy)
 {

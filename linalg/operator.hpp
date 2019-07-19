@@ -18,6 +18,7 @@ namespace mfem
 {
 
 class ConstrainedOperator;
+class ColumnConstrainedOperator;
 
 /// Abstract operator
 class Operator
@@ -29,6 +30,10 @@ protected:
    /// see FormSystemOperator()
    void FormConstrainedSystemOperator(
       const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
+
+   /// see FormColumnSystemOperator()
+   void FormColumnConstrainedSystemOperator(
+      const Array<int> &ess_tdof_list, ColumnConstrainedOperator* &Aout);
 
 public:
    /// Construct a square Operator with given size s (default 0).
@@ -122,9 +127,39 @@ public:
                          Operator* &A, Vector &X, Vector &B,
                          int copy_interior = 0);
 
+   /** @brief Form a column-constrained linear system using a matrix-free approach.
+
+       Form the operator linear system `A(X)=B`
+       corresponding to it and the right-hand side @a b, by applying any
+       necessary transformations such as: parallel assembly, conforming
+       constraints for non-conforming AMR and eliminating boundary conditions.
+       @note Static condensation and hybridization are not supported for general
+       operators (cf. the method MixedBilinearForm::FormColumnLinearSystem())
+
+       The constraints are specified through the input prolongation Pi from
+       GetProlongation(), and output restriction Ro from GetOutputRestriction() 
+       methods, which are e.g. available through the (parallel) finite element 
+       spaces of any (parallel) mixed bilinear form operator. So we have: 
+       `A(X)=[Ro (*this) Pi](X)`, `B=Ro(b)`, and `X=Pi^T(x)`.
+
+       The vector @a x must contain the essential boundary condition values.
+       The "columns" in this operator corresponding to these values are 
+       eliminated through the ColumnConstrainedOperator class.
+
+       After solving the system `A(X)=B`, the (finite element) solution @a x can
+       be recovered by calling Operator::RecoverFEMSolution() with the same
+       vectors @a X, @a b, and @a x.
+
+       @note The caller is responsible for destroying the output operator @a A!
+       @note If there are no transformations, @a X simply reuses the data of @a
+       x. */
+   void FormColumnLinearSystem(const Array<int> &ess_tdof_list,
+                               Vector &x, Vector &b,
+                               Operator* &A, Vector &X, Vector &B);
+
    /** @brief Reconstruct a solution vector @a x (e.g. a GridFunction) from the
        solution @a X of a constrained linear system obtained from
-       Operator::FormLinearSystem().
+       Operator::FormLinearSystem() or Operator::FormColumnLinearSystem().
 
        Call this method after solving a linear system constructed using
        Operator::FormLinearSystem() to recover the solution as an input vector,
@@ -140,6 +175,14 @@ public:
        the transformations of the right-hand side and initial guess. */
    void FormSystemOperator(const Array<int> &ess_tdof_list,
                            Operator* &A);
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this 
+       rectangular operator (including constraints).
+
+       This returns the same operator as FormColumnLinearSystem(), but does without
+       the transformations of the right-hand side. */
+   void FormColumnSystemOperator(const Array<int> &ess_tdof_list,
+                                 Operator* &A);
 
    /** @brief Return in @a A a parallel (on truedofs) version of this
        rectangular operator.
@@ -467,6 +510,7 @@ public:
        when this object is destroyed. */
    ConstrainedOperator(Operator *A, const Array<int> &list, bool own_A = false);
 
+   /// Returns the type of memory in which the solution and temporaries are stored.
    virtual MemoryClass GetMemoryClass() const { return mem_class; }
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
@@ -492,6 +536,57 @@ public:
 
    /// Destructor: destroys the unconstrained Operator, if owned.
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
+};
+
+/** @brief Rectangular Operator for imposing essential boundary conditions on the
+    input space using only the action, Mult(), of a given unconstrained Operator.
+
+    Rectangular operator constrained by fixing certain entries in the solution to
+    given "essential boundary condition" values. This class is used by the
+    general, matrix-free system formulation of Operator::FormColumnLinearSystem. */
+class ColumnConstrainedOperator : public Operator
+{
+protected:
+   Array<int> constraint_list;  ///< List of constrained indices/dofs in the input.
+   Operator *A;                 ///< The unconstrained Operator.
+   bool own_A;                  ///< Ownership flag for A.
+   mutable Vector z, w;         ///< Auxiliary vectors.
+   MemoryClass mem_class;
+
+public:
+   /** @brief Constructor from a general Operator and a list of essential
+       indices/dofs.
+
+       Specify the unconstrained operator @a *A and a @a list of indices to
+       constrain, i.e. each entry @a list[i] represents an essential dof. If the
+       ownership flag @a own_A is true, the operator @a *A will be destroyed
+       when this object is destroyed. */
+   ColumnConstrainedOperator(Operator *A, const Array<int> &list, bool own_A = false);
+
+   /// Returns the type of memory in which the solution and temporaries are stored.
+   virtual MemoryClass GetMemoryClass() const { return mem_class; }
+
+   /** @brief Eliminate columns corresponding to "essential boundary condition" 
+       values specified in @a x from the given right-hand side @a b.
+
+       Performs the following steps:
+
+           b -= A((0,x_b));
+
+       where the "_b" subscripts denote the essential (boundary) indices */
+   void EliminateRHS(const Vector &x, Vector &b) const;
+
+   /** @brief Column-constrained operator action.
+
+       Performs the following steps:
+
+           y = A((x_i,0));
+
+       where the "_i" subscripts denote all the nonessential (boundary) indices */
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   /// Destructor: destroys the unconstrained Operator, if owned.
+   virtual ~ColumnConstrainedOperator() { if (own_A) { delete A; } }
 };
 
 }

@@ -165,9 +165,14 @@ const Operator *MixedBilinearFormExtension::GetRestriction() const
 {
    return a->GetRestriction();
 }
-
+   
+const Operator *MixedBilinearFormExtension::GetOutputRestriction() const
+{
+   return a->GetOutputRestriction();
+}
 
 // Data and methods for partially-assembled bilinear forms
+
 PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(MixedBilinearForm *form)
    : MixedBilinearFormExtension(form),
      trialFes(form->TrialFESpace()),
@@ -211,29 +216,56 @@ void PAMixedBilinearFormExtension::Update()
    }
 }
 
-void PAMixedBilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
+void PAMixedBilinearFormExtension::FormColumnSystemOperator(
+                                                    const Array<int> &ess_tdof_list,
                                                     OperatorHandle &A)
 {
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
-   Operator *rap = this;
-   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
-   const bool own_A = (rap!=this);
-   A.Reset(new ConstrainedOperator(rap, ess_tdof_list, own_A));
+   Operator *rap;
+   if (trialP)
+   {
+      if (testP)
+      {
+         rap = new RAPOperator(*testP, *this, *trialP);
+      }
+      else
+      {
+         rap = new ProductOperator(this,trialP, false, false);
+      }
+   }
+   else
+   {
+      if (testP)
+      {
+         const Operator * testR = new TransposeOperator(testP);
+         //rap = new RAPOperator(*testP, *this, new IdentityOperator(trialP.Height()));
+         rap = new ProductOperator(testR, this, true, false);
+         // TODO: These should be equivalent
+      }
+      else
+      {
+         rap = this;
+      }
+   }
+   A.Reset(new ColumnConstrainedOperator(rap, ess_tdof_list, rap != this));
+   /* TODO: All the above should be equivalent to:
+   Operator *oper;
+   Operator::FormColumnSystemOperator(ess_tdof_list, oper);
+   A.Reset(oper); */
 }
 
-void PAMixedBilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
+void PAMixedBilinearFormExtension::FormColumnLinearSystem(
+                                                    const Array<int> &ess_tdof_list,
                                                     Vector &x, Vector &b,
                                                     OperatorHandle &A,
-                                                    Vector &X, Vector &B,
-                                                    int copy_interior)
+                                                    Vector &X, Vector &B)
 {
    Operator *oper;
-   Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
+   Operator::FormColumnLinearSystem(ess_tdof_list, x, b, oper, X, B);
    A.Reset(oper); // A will own oper
 }
 
-/// Helper function to set up inputs/outputs for Mult or MultTranspose
 void PAMixedBilinearFormExtension::SetupMultInputs(const Operator *elem_restrict_x,
                                                    const Vector &x,
                                                    Vector &localX,
@@ -273,7 +305,6 @@ void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    AddMult(x, y);
 }
 
-/// y += c*A*x
 void PAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
                                            const double c) const
 {
@@ -305,7 +336,6 @@ void PAMixedBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) con
    AddMultTranspose(x, y);
 }
 
-/// y += c*A^T*x
 void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
                                                     const double c) const
 {
