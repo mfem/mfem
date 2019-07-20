@@ -29,13 +29,12 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::miniapps;
 
-// #define DEFINITE
-
 #ifndef MFEM_USE_PETSC
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
 #endif
 
 void visualize_approx(ParComplexGridFunction &);
+void visualize_animation(ParMesh &, ParComplexGridFunction &);
 void visualize_exact(ParFiniteElementSpace &, ColdPlasmaPlaneWave &, ColdPlasmaPlaneWave &, ParGridFunction &, ParGridFunction &);
 void set_plasma_defaults(Vector & , Vector & , Vector &, Vector &);
 void print_plasma_info(double &, double & ,Vector & , Vector &, Vector &, Vector &);
@@ -82,7 +81,8 @@ int main(int argc, char *argv[])
    bool visualization = true;
    // number of initial ref
    int initref = 1;
-
+   // number of mg levels
+   int maxref = 1;
    const char *petscrc_file = "petscrc_mult_options";
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -112,6 +112,8 @@ int main(int argc, char *argv[])
                   "Masses of the various species (in amu)");
    args.AddOption(&initref, "-initref", "--initref",
                   "Number of initial refinements.");
+   args.AddOption(&maxref, "-maxref", "--maxref",
+                  "Number of Refinements.");   
    args.AddOption(&pw_eta_, "-pwz", "--piecewise-eta",
                   "Piecewise values of Impedance (one value per abc surface)");
    args.AddOption(&slab_params_, "-slab", "--slab_params",
@@ -175,7 +177,7 @@ int main(int argc, char *argv[])
       mesh = per_mesh;
    }
 
-   // 3. Executing uniform h-refinement
+   //3. Executing uniform h-refinement
    for (int i = 0; i < initref; i++ )
    {
       mesh->UniformRefinement();
@@ -202,9 +204,22 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec   = new ND_FECollection(order, dim);
    ParFiniteElementSpace *HCurlFESpace = new ParFiniteElementSpace(pmesh, fec);
 
+   std::vector<HypreParMatrix*>  P(maxref);
+   for (int i = 0; i < maxref; i++)
+   {
+      const ParFiniteElementSpace cfespace(*HCurlFESpace);
+      pmesh->UniformRefinement();
+      // Update fespace
+      HCurlFESpace->Update();
+      OperatorHandle Tr(Operator::Hypre_ParCSR);
+      HCurlFESpace->GetTrueTransferOperator(cfespace, Tr);
+      Tr.SetOperatorOwner(false);
+      Tr.Get(P[i]);
+   }
+
+
    RT_ParFESpace HDivFESpace(pmesh, order, pmesh->Dimension());
    L2_ParFESpace L2FESpace(pmesh, order, pmesh->Dimension());
-
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction LField(&L2FESpace);
    ParGridFunction density_gf;
@@ -383,31 +398,93 @@ int main(int argc, char *argv[])
                           new VectorFEDomainLFIntegrator(*rhsiCoef));
    b->real().Vector::operator=(0.0);
    b->imag().Vector::operator=(0.0);
-  
    b->Assemble();
-  
 
    OperatorHandle A;
    Vector X, B;
 
    E_gf->ProjectCoefficient(EReCoef,EImCoef);
    a->FormLinearSystem(ess_bdr_tdofs, *E_gf, *b, A, X, B);
-
-
    ComplexHypreParMatrix * AZ = A.As<ComplexHypreParMatrix>();
-   HypreParMatrix * Ah = AZ->GetSystemMatrix();
 
-   PetscLinearSolver * invA = new PetscLinearSolver(MPI_COMM_WORLD, "direct");
-   invA->SetOperator(PetscParMatrix(Ah, Operator::PETSC_MATAIJ));
-   invA->Mult(B,X);
+   HypreParMatrix * Ah = AZ->GetSystemMatrix();
+   if (mpi.Root())
+   {
+      cout << "Size of fine grid system: "
+           << Ah->GetGlobalNumRows() << " x " << Ah->GetGlobalNumCols() << endl;
+   }
+   ComplexGMGSolver M(AZ, P);
+   M.SetTheta(0.5);
+   M.SetSmootherType(HypreSmoother::Jacobi);
+
+
+   int maxit(5000);
+   double rtol(1.e-8);
+   double atol(0.0);
+   X = 0.0;
+   GMRESSolver gmres(MPI_COMM_WORLD);
+   gmres.SetAbsTol(atol);
+   gmres.SetRelTol(rtol);
+   gmres.SetMaxIter(maxit);
+   gmres.SetOperator(*AZ);
+   gmres.SetPreconditioner(M);
+   gmres.SetPrintLevel(1);
+   gmres.Mult(B, X);
 
    a->RecoverFEMSolution(X,B,*E_gf);
+
+   // Compute error
+   int order_quad = max(2, 2 * order + 1);
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i = 0; i < Geometry::NumGeom; ++i)
+   {
+      irs[i] = &(IntRules.Get(i, order_quad));
+   }
+
+   double L2Error_Re = E_gf->real().ComputeL2Error(EReCoef, irs);
+   double norm_E_Re = ComputeGlobalLpNorm(2, EReCoef, *pmesh, irs);
+
+   double L2Error_Im = E_gf->imag().ComputeL2Error(EImCoef, irs);
+   double norm_E_Im = ComputeGlobalLpNorm(2, EImCoef, *pmesh, irs);
+
+
+   if (mpi.Root())
+   {
+      cout << " Real Part: || E_h - E || / ||E|| = " << L2Error_Re / norm_E_Re << '\n' << endl;
+      cout << " Imag Part: || E_h - E || / ||E|| = " << L2Error_Im / norm_E_Im << '\n' << endl;
+
+      cout << " Real Part: || E_h - E || = " << L2Error_Re << '\n' << endl;
+      cout << " Imag Part: || E_h - E || = " << L2Error_Im << '\n' << endl;
+   }
+
 
    // visualization   
    if (visualization)
    {
       visualize_approx(*E_gf);
+      // visualize_animation(*pmesh,*E_gf);
    }
+
+   delete b;
+   delete E_gf;
+   delete J_gf;
+   if (kCoef)
+   {
+      delete negMuInvCoef;
+      delete negMuInvkCoef;
+      delete negMuInvkxkxCoef;
+   }   
+   delete a;
+   delete rhsrCoef;
+   delete rhsiCoef;
+   delete jrCoef;
+   delete jiCoef;
+   delete etaInvCoef;
+   delete HCurlFESpace;
+   delete fec;
+   delete kCoef;
+   delete BCoef;
+   delete pmesh;
 
    MFEMFinalizePetsc();
 }
@@ -511,42 +588,6 @@ void print_plasma_info(double & freq , double & omega,Vector & BVec, Vector & nu
 
 
 
-void visualize_exact(ParFiniteElementSpace & HCurlFESpace, ColdPlasmaPlaneWave & EReCoef, ColdPlasmaPlaneWave & EImCoef,
-                     ParGridFunction &  BField, ParGridFunction & LField)
-{
-   ParComplexGridFunction EField(&HCurlFESpace);
-   EField.ProjectCoefficient(EReCoef, EImCoef);
-
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-
-   int Wx = 0, Wy = 0; // window position
-   int Ww = 1920, Wh = 1080; // window size
-   int offx = Ww+10, offy = Wh+45; // window offsets
-
-   socketstream sock_Er, sock_Ei, sock_B, sock_L;
-   sock_Er.precision(8);
-   sock_Ei.precision(8);
-   sock_B.precision(8);
-   sock_L.precision(8);
-
-   Wx += 2 * offx;
-   VisualizeField(sock_Er, vishost, visport,
-                  EField.real(), "Exact Electric Field, Re(E)",
-                  Wx, Wy, Ww, Wh);
-   Wx += offx;
-   VisualizeField(sock_Ei, vishost, visport,
-                  EField.imag(), "Exact Electric Field, Im(E)",
-                  Wx, Wy, Ww, Wh);
-   // Wx -= offx;
-   // Wy += offy;
-   // VisualizeField(sock_B, vishost, visport,
-   //                BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
-
-   // VisualizeField(sock_L, vishost, visport,
-   //                LField, "L", Wx, Wy, Ww, Wh);
-}
-
 void slab_current_source(const Vector &x, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
@@ -600,6 +641,41 @@ void B_func(const Vector &x, Vector &B)
 }
 
 
+void visualize_exact(ParFiniteElementSpace & HCurlFESpace, ColdPlasmaPlaneWave & EReCoef, ColdPlasmaPlaneWave & EImCoef,
+                     ParGridFunction &  BField, ParGridFunction & LField)
+{
+   ParComplexGridFunction EField(&HCurlFESpace);
+   EField.ProjectCoefficient(EReCoef, EImCoef);
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   int Ww = 960, Wh = 540; // window size
+
+   socketstream sock_Er, sock_Ei, sock_B, sock_L;
+   sock_Er.precision(8);
+   sock_Ei.precision(8);
+   sock_B.precision(8);
+   sock_L.precision(8);
+
+   int Wx = 0, Wy = 0; // window position
+   VisualizeField(sock_Er, vishost, visport,
+                  EField.real(), "Exact Electric Field, Re(E)",
+                  Wx, Wy, Ww, Wh);
+   Wx += Ww;
+   VisualizeField(sock_Ei, vishost, visport,
+                  EField.imag(), "Exact Electric Field, Im(E)",
+                  Wx, Wy, Ww, Wh);
+   // Wx += Ww;
+   // VisualizeField(sock_B, vishost, visport,
+   //                BField, "Background Magnetic Field", Wx, Wy, Ww, Wh);
+
+   // Wx += Ww;
+   // VisualizeField(sock_L, vishost, visport,
+   //                LField, "L", Wx, Wy, Ww, Wh);
+}
+
+
 
 void visualize_approx(ParComplexGridFunction &  E_gf)
 {
@@ -607,19 +683,69 @@ void visualize_approx(ParComplexGridFunction &  E_gf)
    int  visport   = 19916;
 
    int Wx = 0, Wy = 0; // window position
-   int Ww = 1920, Wh = 1080; // window size
-   int offx = Ww+10, offy = Wh+45; // window offsets
+   int Ww = 960, Wh = 540; // window size
 
    socketstream sock_cEr, sock_cEi;
    sock_cEr.precision(8);
    sock_cEi.precision(8);
 
-   Wx += 20 * offx;
+   Wx += Ww;
+   Wy += Wh+100;
    VisualizeField(sock_cEr, vishost, visport,
                   E_gf.real(), "Computed Electric Field, Re(E)",
                   Wx, Wy, Ww, Wh);
-   Wx += offx;
+   Wx += Ww;
    VisualizeField(sock_cEi, vishost, visport,
                   E_gf.imag(), "Computed Electric Field, Im(E)",
                   Wx, Wy, Ww, Wh);
+}
+
+
+void visualize_animation(ParMesh & pmesh, ParComplexGridFunction &  E_gf)
+{
+   MPI_Comm comm = pmesh.GetComm();
+
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+
+   Vector zeroVec(3); zeroVec = 0.0;
+   VectorConstantCoefficient zeroCoef(zeroVec);
+
+   double norm_r = E_gf.real().ComputeMaxError(zeroCoef);
+   double norm_i = E_gf.imag().ComputeMaxError(zeroCoef);
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   int Wx = 0, Wy = 0; // window position
+   int Ww = 1920, Wh = 1080; // window size
+
+   socketstream sol_sock(vishost, visport);
+   sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   sol_sock.precision(8);
+   sol_sock << "solution\n" << pmesh << E_gf.real()
+            << "window_title 'Harmonic Solution (t = 0.0 T)'"
+            << "valuerange 0.0 " << max(norm_r, norm_i) << "\n"
+            << "autoscale off\n"
+            << "keys cvvv\n"
+            << "pause\n" << flush;
+   if (myid == 0)
+      cout << "GLVis visualization paused."
+           << " Press space (in the GLVis window) to resume it.\n";
+   int num_frames = 24;
+   int i = 0;
+   while (sol_sock)
+   {
+      double t = (double)(i % num_frames) / num_frames;
+      ostringstream oss;
+      oss << "Harmonic Solution (t = " << t << " T)";
+
+      add( cos( 2.0 * M_PI * t), E_gf.real(),
+           -sin( 2.0 * M_PI * t), E_gf.imag(), E_gf.real());
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock << "solution\n" << pmesh << E_gf.real()
+               << "window_title '" << oss.str() << "'" << flush;
+      i++;
+   }
 }

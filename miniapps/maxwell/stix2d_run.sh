@@ -20,7 +20,7 @@
 # read -p "Press [Enter] key to continue..."
 
 # Executable
-exec=stix1d
+exec=stix2d
 # mpi processes
 nproc=6
 
@@ -29,9 +29,6 @@ nproc=6
 order=1
 numref=2
 mgref=1
-num_elem_x=48
-num_elem_y=4
-num_elem_z=4
 comp_conv=herm
 dirichlet='3 5'
 frequency=8e5
@@ -44,18 +41,20 @@ num_densities='2e20 2e20'
 # mpirun -np 6 ./stix1d -o 1 -nex 480 -ney 3 -nez 3 -dbcs '3 5' -f 8e6 -B '0 0 5.4' -w J -slab '0 1 0 0.06 0.02' -num '2e20 2e20' -herm
 # -B '0 0 5.4' -slab '0 1 0 0.06 0.02' -num '2e20 2e20' -herm
 
+mpirun -np 6 ./stix2d -rod '0 0 1 0 0 0.1' -dbcs '1' -w Z -o 2 -f 1e6
+
 # # gdb --args \
-mpirun -np $nproc ./$exec \
-                           -o           $order      \
-                           -initref     $numref     \
-                           -maxref      $mgref     \
-                           -$comp_conv              \
-                           -nex         $num_elem_x \
-                           -ney         $num_elem_y \
-                           -nez         $num_elem_z \
-                           -f           $frequency  \
-                           -w           $wave_type  \
-                           -dbcs        "${dirichlet}" \
-                           -B           "${magnetic_flux}"   \
-                           -slab        "${slab_params}"  \
-                           -num         "${num_densities}"
+# mpirun -np $nproc ./$exec \
+#                            -o           $order      \
+#                            -initref     $numref     \
+#                            -maxref      $mgref     \
+#                            -$comp_conv              \
+#                            -nex         $num_elem_x \
+#                            -ney         $num_elem_y \
+#                            -nez         $num_elem_z \
+#                            -f           $frequency  \
+#                            -w           $wave_type  \
+#                            -dbcs        "${dirichlet}" \
+#                            -B           "${magnetic_flux}"   \
+#                            -slab        "${slab_params}"  \
+#                            -num         "${num_densities}"

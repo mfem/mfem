@@ -14,40 +14,8 @@ using namespace mfem::plasma;
 static Vector pw_eta_(0);      // Piecewise impedance values
 static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
 // Current Density Function
-static Vector slab_params_(0); // Amplitude of x, y, z current source
-static Vector B_params_(0);
+static Vector rod_params_(0); // Amplitude of x, y, z current source
 
-class StixLCoefficient : public Coefficient
-{
-private:
-   double   omega_;
-   VectorCoefficient & B_;
-   const Vector & number_;
-   const Vector & charge_;
-   const Vector & mass_;
-   mutable Vector BVec_;
-
-public:
-   StixLCoefficient(double omega, VectorCoefficient &B,
-                    const Vector & number,
-                    const Vector & charge,
-                    const Vector & mass)
-      : omega_(omega),
-        B_(B),
-        number_(number),
-        charge_(charge),
-        mass_(mass),
-        BVec_(3)
-   {}
-
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      B_.Eval(BVec_, T, ip);
-      double BMag = BVec_.Norml2();
-      return L_cold_plasma(omega_, BMag, number_, charge_, mass_);
-   }
-};
 
 // The Admittance is an optional coefficient defined on boundary surfaces which
 // can be used in conjunction with absorbing boundary conditions.
