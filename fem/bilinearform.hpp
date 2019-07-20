@@ -476,8 +476,8 @@ protected:
    FiniteElementSpace *trial_fes, ///< Not owned
                       *test_fes;  ///< Not owned
 
-   /** @brief Indicates the BilinearFormIntegrator%s stored in #dom, #bdr,
-       #skt and #bskt are owned by another MixedBilinearForm. */
+   /** @brief Indicates the BilinearFormIntegrator%s stored in #dbfi, #bbfi,
+       #tfbfi and #btfbfi are owned by another MixedBilinearForm. */
    int extern_bfs;
 
    /// Domain integrators.
@@ -562,6 +562,7 @@ public:
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
                                Array<int> &bdr_marker);
+
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
        This type of integrator assembles terms over all faces of the mesh using
