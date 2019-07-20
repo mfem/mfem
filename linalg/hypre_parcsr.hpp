@@ -115,8 +115,9 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
                       hypre_ParCSRMatrix *B);
 
 /** Perform the operation A += beta*B, assuming that both matrices use the same
-    row and column partitions and the same col_map_offd arrays. We also assume
-    that the sparsity pattern of A contains that of B. */
+    row and column partitions and the same col_map_offd arrays, or B has an empty
+    off-diagonal block. We also assume that the sparsity pattern of A contains
+    that of B. */
 HYPRE_Int
 hypre_ParCSRMatrixSum(hypre_ParCSRMatrix *A,
                       HYPRE_Complex       beta,
