@@ -64,7 +64,7 @@ public:
    /// Creates linear form associated with FE space @a *f.
    /** The pointer @a f is not owned by the newly constructed object. */
    LinearForm(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; extern_lfs = 0; }
+   { fes = f; extern_lfs = 0; UseDevice(true); }
 
    /** @brief Create a LinearForm on the FiniteElementSpace @a f, using the
        same integrators as the LinearForm @a lf.
@@ -79,7 +79,7 @@ public:
    /** The associated FiniteElementSpace can be set later using one of the
        methods: Update(FiniteElementSpace *) or
        Update(FiniteElementSpace *, Vector &, int). */
-   LinearForm() { fes = NULL; extern_lfs = 0; }
+   LinearForm() { fes = NULL; extern_lfs = 0; UseDevice(true); }
 
    /// Copy assignment. Only the data of the base class Vector is copied.
    /** It is assumed that this object and @a rhs use FiniteElementSpace%s that

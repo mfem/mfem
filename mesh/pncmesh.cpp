@@ -25,7 +25,7 @@ namespace mfem
 
 using namespace bin_io;
 
-ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
+ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
    : NCMesh(ncmesh)
 {
    MyComm = comm;
@@ -36,7 +36,7 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
    // sequence of leaf elements into 'NRanks' parts
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      elements[leaf_elements[i]].rank = InitialPartition(i);
+      elements[leaf_elements[i]].rank = part ? part[i] : InitialPartition(i);
    }
 
    Update();
@@ -874,13 +874,16 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
 void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
 {
    // make sure we have entity_conf_group[x] and the ordering arrays
-   for (int ent = 0; ent < Dim; ent++)
+   if (leaf_elements.Size())
    {
-      GetSharedList(ent);
-      MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
-      MFEM_VERIFY(entity_elem_local[ent].Size(), "internal error");
+      for (int ent = 0; ent < Dim; ent++)
+      {
+         GetSharedList(ent);
+         MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
+         MFEM_VERIFY(entity_elem_local[ent].Size(), "internal error");
+      }
+      MFEM_VERIFY(leaf_glob_order.Size(), "internal error");
    }
-   MFEM_VERIFY(leaf_glob_order.Size(), "internal error");
 
    // create ParMesh groups, and the map (ncmesh_group -> pmesh_group)
    Array<int> group_map(groups.size());
@@ -921,6 +924,10 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    pmesh.group_stria.ShiftUpI();
 
    // create shared_edges
+   for (int i = 0; i < pmesh.shared_edges.Size(); i++)
+   {
+      delete pmesh.shared_edges[i];
+   }
    pmesh.shared_edges.SetSize(pmesh.sedge_ledge.Size());
    for (int i = 0; i < pmesh.shared_edges.Size(); i++)
    {
@@ -1292,7 +1299,7 @@ void ParNCMesh::Prune()
    }
 
    // derefine subtrees whose leaves are all unneeded
-   for (int i = 0; i < root_count; i++)
+   for (int i = 0; i < root_state.Size(); i++)
    {
       if (PruneTree(i)) { DerefineElement(i); }
    }
@@ -2102,7 +2109,7 @@ void ParNCMesh::ElementSet::Encode(const Array<int> &elements)
    // Each refinement tree that contains at least one element from the set
    // is encoded as HEADER + TREE, where HEADER is the root element number and
    // TREE is the output of EncodeTree().
-   for (int i = 0; i < ncmesh->root_count; i++)
+   for (int i = 0; i < ncmesh->root_state.Size(); i++)
    {
       if (ncmesh->elements[i].flag)
       {

@@ -114,6 +114,12 @@ void FiniteElement::GetLocalInterpolation (ElementTransformation &Trans,
    mfem_error ("GetLocalInterpolation (...) is not overloaded !");
 }
 
+void FiniteElement::GetLocalRestriction(ElementTransformation &,
+                                        DenseMatrix &) const
+{
+   mfem_error("FiniteElement::GetLocalRestriction() is not overloaded !");
+}
+
 void FiniteElement::GetTransferMatrix(const FiniteElement &fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix &I) const
@@ -197,6 +203,22 @@ void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
    Mult(vshape, Trans.InverseJacobian(), dshape);
 }
 
+const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &,
+                                             DofToQuad::Mode) const
+{
+   mfem_error("FiniteElement::GetDofToQuad(...) is not implemented for "
+              "this element!");
+   return *dof2quad_array[0]; // suppress a warning
+}
+
+FiniteElement::~FiniteElement()
+{
+   for (int i = 0; i < dof2quad_array.Size(); i++)
+   {
+      delete dof2quad_array[i];
+   }
+}
+
 
 void ScalarFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
@@ -272,6 +294,95 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    }
 }
 
+const DofToQuad &ScalarFiniteElement::GetDofToQuad(const IntegrationRule &ir,
+                                                   DofToQuad::Mode mode) const
+{
+   MFEM_VERIFY(mode == DofToQuad::FULL, "invalid mode requested");
+
+   for (int i = 0; i < dof2quad_array.Size(); i++)
+   {
+      const DofToQuad &d2q = *dof2quad_array[i];
+      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
+   }
+
+   DofToQuad *d2q = new DofToQuad;
+   const int nqpt = ir.GetNPoints();
+   d2q->FE = this;
+   d2q->IntRule = &ir;
+   d2q->mode = mode;
+   d2q->ndof = Dof;
+   d2q->nqpt = nqpt;
+   d2q->B.SetSize(nqpt*Dof);
+   d2q->Bt.SetSize(Dof*nqpt);
+   d2q->G.SetSize(nqpt*Dim*Dof);
+   d2q->Gt.SetSize(Dof*nqpt*Dim);
+#ifdef MFEM_THREAD_SAFE
+   Vector c_shape(Dof);
+   DenseMatrix vshape(Dof, Dim);
+#endif
+   for (int i = 0; i < nqpt; i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      CalcShape(ip, c_shape);
+      for (int j = 0; j < Dof; j++)
+      {
+         d2q->B[i+nqpt*j] = d2q->Bt[j+Dof*i] = c_shape(j);
+      }
+      CalcDShape(ip, vshape);
+      for (int d = 0; d < Dim; d++)
+      {
+         for (int j = 0; j < Dof; j++)
+         {
+            d2q->G[i+nqpt*(d+Dim*j)] = d2q->Gt[j+Dof*(i+nqpt*d)] = vshape(j,d);
+         }
+      }
+   }
+   dof2quad_array.Append(d2q);
+   return *d2q;
+}
+
+// protected method
+const DofToQuad &ScalarFiniteElement::GetTensorDofToQuad(
+   const TensorBasisElement &tb,
+   const IntegrationRule &ir, DofToQuad::Mode mode) const
+{
+   MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
+
+   for (int i = 0; i < dof2quad_array.Size(); i++)
+   {
+      const DofToQuad &d2q = *dof2quad_array[i];
+      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
+   }
+
+   DofToQuad *d2q = new DofToQuad;
+   const Poly_1D::Basis &basis_1d = tb.GetBasis1D();
+   const int ndof = Order + 1;
+   const int nqpt = (int)floor(pow(ir.GetNPoints(), 1.0/Dim) + 0.5);
+   d2q->FE = this;
+   d2q->IntRule = &ir;
+   d2q->mode = mode;
+   d2q->ndof = ndof;
+   d2q->nqpt = nqpt;
+   d2q->B.SetSize(nqpt*ndof);
+   d2q->Bt.SetSize(ndof*nqpt);
+   d2q->G.SetSize(nqpt*ndof);
+   d2q->Gt.SetSize(ndof*nqpt);
+   Vector val(ndof), grad(ndof);
+   for (int i = 0; i < nqpt; i++)
+   {
+      // The first 'nqpt' points in 'ir' have the same x-coordinates as those
+      // of the 1D rule.
+      basis_1d.Eval(ir.IntPoint(i).x, val, grad);
+      for (int j = 0; j < ndof; j++)
+      {
+         d2q->B[i+nqpt*j] = d2q->Bt[j+ndof*i] = val(j);
+         d2q->G[i+nqpt*j] = d2q->Gt[j+ndof*i] = grad(j);
+      }
+   }
+   dof2quad_array.Append(d2q);
+   return *d2q;
+}
+
 
 void NodalFiniteElement::ProjectCurl_2D(
    const FiniteElement &fe, ElementTransformation &Trans,
@@ -290,6 +401,51 @@ void NodalFiniteElement::ProjectCurl_2D(
          curl(i,j) = curl_shape(j,0);
       }
    }
+}
+
+void InvertLinearTrans(ElementTransformation &trans,
+                       const IntegrationPoint &pt, Vector &x)
+{
+   // invert a linear transform with one Newton step
+   IntegrationPoint p0;
+   p0.Set3(0, 0, 0);
+   trans.Transform(p0, x);
+
+   double store[3];
+   Vector v(store, x.Size());
+   pt.Get(v, x.Size());
+   v -= x;
+
+   trans.InverseJacobian().Mult(v, x);
+}
+
+void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
+                                             DenseMatrix &R) const
+{
+   IntegrationPoint ipt;
+   Vector pt(&ipt.x, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   Vector c_shape(Dof);
+#endif
+
+   Trans.SetIntPoint(&Nodes[0]);
+
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes[j], pt);
+      if (Geometries.CheckPoint(GeomType, ipt)) // do we need an epsilon here?
+      {
+         CalcShape(ipt, c_shape);
+         R.SetRow(j, c_shape);
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
 }
 
 void NodalFiniteElement::Project (
@@ -949,6 +1105,90 @@ void VectorFiniteElement::LocalInterpolation_ND(
          I(k, j) = (fabs(Ikj) < 1e-12) ? 0.0 : Ikj;
       }
    }
+}
+
+void VectorFiniteElement::LocalRestriction_RT(
+   const double *nk, const Array<int> &d2n, ElementTransformation &Trans,
+   DenseMatrix &R) const
+{
+   double pt_data[Geometry::MaxDim];
+   IntegrationPoint ip;
+   Vector pt(pt_data, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(Dof, Dim);
+#endif
+
+   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   const DenseMatrix &J = Trans.Jacobian();
+   const double weight = Trans.Weight();
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
+      ip.Set(pt_data, Dim);
+      if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
+      {
+         CalcVShape(ip, vshape);
+         J.MultTranspose(nk+Dim*d2n[j], pt_data);
+         pt /= weight;
+         for (int k = 0; k < Dof; k++)
+         {
+            double R_jk = 0.0;
+            for (int d = 0; d < Dim; d++)
+            {
+               R_jk += vshape(k,d)*pt_data[d];
+            }
+            R(j,k) = R_jk;
+         }
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
+}
+
+void VectorFiniteElement::LocalRestriction_ND(
+   const double *tk, const Array<int> &d2t, ElementTransformation &Trans,
+   DenseMatrix &R) const
+{
+   double pt_data[Geometry::MaxDim];
+   IntegrationPoint ip;
+   Vector pt(pt_data, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(Dof, Dim);
+#endif
+
+   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   const DenseMatrix &Jinv = Trans.InverseJacobian();
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
+      ip.Set(pt_data, Dim);
+      if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
+      {
+         CalcVShape(ip, vshape);
+         Jinv.Mult(tk+Dim*d2t[j], pt_data);
+         for (int k = 0; k < Dof; k++)
+         {
+            double R_jk = 0.0;
+            for (int d = 0; d < Dim; d++)
+            {
+               R_jk += vshape(k,d)*pt_data[d];
+            }
+            R(j,k) = R_jk;
+         }
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
+   }
+   R.Threshold(1e-12);
 }
 
 
