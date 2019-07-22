@@ -198,6 +198,8 @@ int main(int argc, char *argv[])
 
    if ( mpi.Root() ) { display_banner(cout); }
 
+   int logging = 1;
+
    // Parse command-line options.
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
    int ser_ref_levels = 0;
@@ -433,6 +435,10 @@ int main(int argc, char *argv[])
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
+   if ( mpi.Root() && logging > 0 ) { cout << "Building Mesh ..." << endl; }
+
+   tic_toc.Clear();
+   tic_toc.Start();
 
    // Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
    //                      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
@@ -444,10 +450,16 @@ int main(int argc, char *argv[])
    Mesh * mesh = Extrude2D(mesh2d, 3, hz);
    delete mesh2d;
    {
+      /*
       vector<Vector> trans(1);
       trans[0].SetSize(3);
       trans[0] = 0.0; trans[0][2] = hz;
-      Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, trans);
+      */
+      Array<int> v2v(mesh->GetNV());
+      for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
+      for (int i=0; i<mesh->GetNV() / 4; i++) { v2v[4 * i + 3] = 4 * i; }
+
+      Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, v2v);
       /*
       ofstream ofs("per_mesh.mesh");
       per_mesh->Print(ofs);
@@ -473,6 +485,12 @@ int main(int argc, char *argv[])
       */
       delete mesh;
       mesh = per_mesh;
+   }
+   tic_toc.Stop();
+
+   if (mpi.Root() && logging > 0 )
+   {
+      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
    if (mpi.Root())
    {

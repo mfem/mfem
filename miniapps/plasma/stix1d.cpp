@@ -496,12 +496,39 @@ int main(int argc, char *argv[])
    Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
                           mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
    {
+      /*
       vector<Vector> trans(2);
       trans[0].SetSize(3);
       trans[1].SetSize(3);
       trans[0] = 0.0; trans[0][1] = mesh_dim_[1];
       trans[1] = 0.0; trans[1][2] = mesh_dim_[2];
-      Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, trans);
+      */
+      Array<int> v2v(mesh->GetNV());
+      for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
+      for (int i=0; i<=num_elements; i++)
+      {
+         v2v[ 3 * num_elements +  3 + i] = i; // y = sy, z = 0
+         v2v[12 * num_elements + 12 + i] = i; // y =  0, z = sz
+         v2v[15 * num_elements + 15 + i] = i; // y = sy, z = sz
+      }
+      for (int j=1; j<3; j++)
+      {
+         for (int i=0; i<=num_elements; i++)
+         {
+            v2v[(j + 12) * (num_elements +  1) + i] =
+               j * (num_elements +  1) + i;
+         }
+      }
+      for (int k=1; k<3; k++)
+      {
+         for (int i=0; i<=num_elements; i++)
+         {
+            v2v[(4 * k + 3) * (num_elements +  1) + i] =
+               4 * k * (num_elements +  1) + i;
+         }
+      }
+
+      Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, v2v);
       /*
       ofstream ofs("per_mesh.mesh");
       per_mesh->Print(ofs);

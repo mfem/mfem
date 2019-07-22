@@ -192,18 +192,16 @@ MergeMeshNodes(Mesh * mesh, int logging)
    }
 }
 
-Mesh *
-MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
+void
+IdentifyPeriodicMeshVertices(const Mesh & mesh,
+                             const vector<Vector> & trans_vecs,
+                             Array<int> & v2v,
+                             int logging)
 {
-   int dim  = mesh->Dimension();
-   int sdim = mesh->SpaceDimension();
+   int sdim = mesh.SpaceDimension();
 
    double tol = 1.0e-8;
    double dia = -1.0;
-
-   if ( logging > 0 )
-      cout << "Euler Number of Initial Mesh:  "
-           << ((dim==3)?mesh->EulerNumber():mesh->EulerNumber2D()) << endl;
 
    // map<int,map<int,map<int,int> > > c2v;
    set<int> v;
@@ -220,16 +218,16 @@ MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
    Vector xMax(sdim), xMin(sdim), xDiff(sdim);
    xMax = xMin = xDiff = 0.0;
 
-   for (int be=0; be<mesh->GetNBE(); be++)
+   for (int be=0; be<mesh.GetNBE(); be++)
    {
       Array<int> dofs;
-      mesh->GetBdrElementVertices(be,dofs);
+      mesh.GetBdrElementVertices(be,dofs);
 
       for (int i=0; i<dofs.Size(); i++)
       {
          v.insert(dofs[i]);
 
-         coord.SetData(mesh->GetVertex(dofs[i]));
+         coord.SetData(const_cast<double*>(mesh.GetVertex(dofs[i])));
          for (int j=0; j<sdim; j++)
          {
             xMax[j] = max(xMax[j],coord[j]);
@@ -257,7 +255,7 @@ MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
       for (si=v.begin(); si!=v.end(); si++)
       {
          cout << *si << ": ";
-         coord.SetData(mesh->GetVertex(*si));
+         coord.SetData(const_cast<double*>(mesh.GetVertex(*si)));
          coord.Print(cout);
       }
    }
@@ -281,13 +279,13 @@ MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
 
       for (si=v.begin(); si!=v.end(); si++)
       {
-         coord.SetData(mesh->GetVertex(*si));
+         coord.SetData(const_cast<double*>(mesh.GetVertex(*si)));
 
          add(coord, trans_vecs[i], at);
 
          for (sj=v.begin(); sj!=v.end(); sj++)
          {
-            coord.SetData(mesh->GetVertex(*sj));
+            coord.SetData(const_cast<double*>(mesh.GetVertex(*sj)));
             add(at, -1.0, coord, dx);
 
             if ( dx.Norml2() > dia * tol )
@@ -427,7 +425,7 @@ MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
       }
    }
 
-   Array<int> v2v(mesh->GetNV());
+   v2v.SetSize(mesh.GetNV());
 
    for (int i=0; i<v2v.Size(); i++)
    {
@@ -438,6 +436,17 @@ MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
    {
       v2v[mi->first] = mi->second;
    }
+}
+
+Mesh *
+MakePeriodicMesh(Mesh * mesh, const Array<int> & v2v,
+                 int logging)
+{
+   int dim  = mesh->Dimension();
+
+   if ( logging > 0 )
+      cout << "Euler Number of Initial Mesh:  "
+           << ((dim==3)?mesh->EulerNumber():mesh->EulerNumber2D()) << endl;
 
    Mesh *per_mesh = new Mesh(*mesh, true);
 
