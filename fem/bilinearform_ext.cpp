@@ -79,12 +79,9 @@ void PABilinearFormExtension::Update()
 void PABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                                OperatorHandle &A)
 {
-   const Operator* trialP = trialFes->GetProlongationMatrix();
-   const Operator* testP  = testFes->GetProlongationMatrix();
-   Operator *rap = this;
-   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
-   const bool own_A = (rap!=this);
-   A.Reset(new ConstrainedOperator(rap, ess_tdof_list, own_A));
+   Operator *oper;
+   Operator::FormSystemOperator(ess_tdof_list, oper);
+   A.Reset(oper); // A will own oper
 }
 
 void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -165,6 +162,11 @@ const Operator *MixedBilinearFormExtension::GetRestriction() const
 {
    return a->GetRestriction();
 }
+
+const Operator *MixedBilinearFormExtension::GetOutputProlongation() const
+{
+   return a->GetOutputProlongation();
+}
    
 const Operator *MixedBilinearFormExtension::GetOutputRestriction() const
 {
@@ -220,39 +222,9 @@ void PAMixedBilinearFormExtension::FormColumnSystemOperator(
                                                     const Array<int> &ess_tdof_list,
                                                     OperatorHandle &A)
 {
-   const Operator* trialP = trialFes->GetProlongationMatrix();
-   const Operator* testP  = testFes->GetProlongationMatrix();
-   Operator *rap;
-   if (trialP)
-   {
-      if (testP)
-      {
-         rap = new RAPOperator(*testP, *this, *trialP);
-      }
-      else
-      {
-         rap = new ProductOperator(this,trialP, false, false);
-      }
-   }
-   else
-   {
-      if (testP)
-      {
-         const Operator * testR = new TransposeOperator(testP);
-         //rap = new RAPOperator(*testP, *this, new IdentityOperator(trialP.Height()));
-         rap = new ProductOperator(testR, this, true, false);
-         // TODO: These should be equivalent
-      }
-      else
-      {
-         rap = this;
-      }
-   }
-   A.Reset(new ColumnConstrainedOperator(rap, ess_tdof_list, rap != this));
-   /* TODO: All the above should be equivalent to:
-   Operator *oper;
+   Operator * oper;
    Operator::FormColumnSystemOperator(ess_tdof_list, oper);
-   A.Reset(oper); */
+   A.Reset(oper); // A will own oper
 }
 
 void PAMixedBilinearFormExtension::FormColumnLinearSystem(

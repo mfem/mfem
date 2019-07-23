@@ -549,6 +549,7 @@ void BilinearForm::ConformingAssemble()
    Finalize(0);
    MFEM_ASSERT(mat, "the BilinearForm is not assembled");
 
+   // TODO3: use new functions
    const SparseMatrix *P = fes->GetConformingProlongation();
    if (!P) { return; } // conforming mesh
 
@@ -584,6 +585,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
       return;
    }
+   // TODO3: use new functions
    const SparseMatrix *P = fes->GetConformingProlongation();
    FormSystemMatrix(ess_tdof_list, A);
 
@@ -620,6 +622,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       if (hybridization)
       {
          // Reduction to the Lagrange multipliers system
+         // TODO3: use new functions
          const SparseMatrix *R = fes->GetConformingRestriction();
          Vector conf_b(P->Width()), conf_x(P->Width());
          P->MultTranspose(b, conf_b);
@@ -633,6 +636,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       else
       {
          // Variational restriction with P
+         // TODO3: use new functions
          const SparseMatrix *R = fes->GetConformingRestriction();
          B.SetSize(P->Width());
          P->MultTranspose(b, B);
@@ -670,6 +674,7 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    {
       if (!mat_e)
       {
+         // TODO3: use new functions
          const SparseMatrix *P = fes->GetConformingProlongation();
          if (P) { ConformingAssemble(); }
          EliminateVDofs(ess_tdof_list, diag_policy);
@@ -696,6 +701,7 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
       return;
    }
 
+   // TODO3: use new functions
    const SparseMatrix *P = fes->GetConformingProlongation();
    if (!P) // conforming space
    {
@@ -730,6 +736,7 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
          // Primal unknowns recovery
          Vector conf_b(P->Width()), conf_x(P->Width());
          P->MultTranspose(b, conf_b);
+         // TODO3: use new functions
          const SparseMatrix *R = fes->GetConformingRestriction();
          R->Mult(x, conf_x); // get essential b.c. from x
          hybridization->ComputeSolution(conf_b, X, conf_x);
@@ -1253,6 +1260,7 @@ void MixedBilinearForm::ConformingAssemble()
    
    Finalize();
 
+   // TODO3: use new functions
    const SparseMatrix *P2 = test_fes->GetConformingProlongation();
    if (P2)
    {
@@ -1263,6 +1271,7 @@ void MixedBilinearForm::ConformingAssemble()
       mat = RA;
    }
 
+   // TODO3: use new functions
    const SparseMatrix *P1 = trial_fes->GetConformingProlongation();
    if (P1)
    {
@@ -1333,8 +1342,9 @@ void MixedBilinearForm::FormColumnSystemMatrix(const Array<int> &ess_trial_tdof_
       ext->FormColumnSystemOperator(ess_trial_tdof_list, A);
       return;
    }
-   
-   const SparseMatrix *test_P = test_fes->GetConformingProlongation();
+
+   // TODO3: use new functions
+   const SparseMatrix *test_P = test_fes->GetConformingProlongation(); 
    const SparseMatrix *trial_P = trial_fes->GetConformingProlongation();
 
    mat->Finalize();
@@ -1367,32 +1377,9 @@ void MixedBilinearForm::FormColumnLinearSystem(const Array<int> &ess_trial_tdof_
       return;
    }
    
-   const Operator *Pi = this->GetProlongation();
-   const Operator *Ro = this->GetOutputRestriction();
-
-   if (Pi)
-   {
-      // Variational restriction with Pi
-      X.SetSize(Pi->Width(), x);
-      Pi->MultTranspose(x, X);
-   }
-   else
-   {
-      // X points to same data as x
-      X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
-   }
-
-   if (Ro)
-   {
-      // Variational restriction with Ro
-      B.SetSize(Ro->Height(), b);
-      Ro->Mult(b, B);
-   }
-   else
-   {
-      // B points to same data as b
-      B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
-   }
+   const Operator *Po = this->GetOutputProlongation();
+   const Operator *Ri = this->GetRestriction();
+   InitTVectors(Po, Ri, x, b, X, B);
 
    if (!mat_e)
    {

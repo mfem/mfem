@@ -156,7 +156,10 @@ public:
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const;
 
-   /// Get the finite element space restriction matrix
+   /// Get the output finite element space restriction matrix
+   virtual const Operator *GetOutputProlongation() const;
+
+   /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const;
 
    virtual void Assemble() = 0;
