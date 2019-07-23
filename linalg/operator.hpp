@@ -35,7 +35,6 @@ protected:
    void FormColumnConstrainedSystemOperator(
       const Array<int> &ess_tdof_list, ColumnConstrainedOperator* &Aout);
 
-private:
    /// Initializes memory for true vectors of linear system
    void InitTVectors(const Operator *Po, const Operator *Ri,
                      Vector &x, Vector &b,
