@@ -35,6 +35,15 @@ protected:
    void FormColumnConstrainedSystemOperator(
       const Array<int> &ess_tdof_list, ColumnConstrainedOperator* &Aout);
 
+private:
+   /// Initializes memory for true vectors of linear system
+   void InitTVectors(const Operator *Po, const Operator *Ri,
+                     Vector &x, Vector &b,
+                     Vector &X, Vector &B) const;
+   
+   /// Returns RAP Operator of this, taking in input/output Prolongation matrices
+   Operator *SetupRAP(const Operator *Pi, const Operator *Po);
+
 public:
    /// Construct a square Operator with given size s (default 0).
    explicit Operator(int s = 0) { height = width = s; }
@@ -88,9 +97,18 @@ public:
    /** @brief Restriction operator from input vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetRestriction() const  { return NULL; }
+   /** @brief Prolongation operator from linear algebra (linear system) vectors,
+       to output vectors for the operator. `NULL` means identity. */
+   virtual const Operator *GetOutputProlongation() const
+   {
+      return GetProlongation(); // Assume square unless specialized
+   }
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
-   virtual const Operator *GetOutputRestriction() const  { return NULL; }
+   virtual const Operator *GetOutputRestriction() const
+   {
+      return GetRestriction(); // Assume square unless specialized
+   }
 
    /** @brief Form a constrained linear system using a matrix-free approach.
 

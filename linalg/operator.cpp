@@ -20,6 +20,34 @@
 namespace mfem
 {
 
+void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
+                            Vector &x, Vector &b,
+                            Vector &X, Vector &B) const
+{
+   if (Po)
+   {
+      // Variational restriction with Po
+      B.SetSize(Po->Width(), b);
+      Po->MultTranspose(b, B);
+   }
+   else
+   {
+      // B points to same data as b
+      B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
+   }
+   if (Ri)
+   {
+      // Variational restriction with Ri
+      X.SetSize(Ri->Height(), x);
+      Ri->Mult(x, X);
+   }
+   else
+   {
+      // X points to same data as x
+      X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+   }
+}
+
 void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
                                 Vector &x, Vector &b,
                                 Operator* &Aout, Vector &X, Vector &B,
@@ -27,21 +55,7 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
 {
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
-
-   if (P)
-   {
-      // Variational restriction with P
-      B.SetSize(P->Width(), b);
-      P->MultTranspose(b, B);
-      X.SetSize(R->Height(), x);
-      R->Mult(x, X);
-   }
-   else
-   {
-      // rap, X, and B point to the same data as this, x, and b, respectively
-      X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
-      B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
-   }
+   InitTVectors(P, R, x, b, X, B);
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
@@ -55,32 +69,9 @@ void Operator::FormColumnLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &x, Vector &b,
                                       Operator* &Aout, Vector &X, Vector &B)
 {
-   const Operator *Pi = this->GetProlongation();
-   const Operator *Ro = this->GetOutputRestriction();
-
-   if (Pi)
-   {
-      // Variational restriction with Pi
-      X.SetSize(Pi->Width(), x);
-      Pi->MultTranspose(x, X);
-   }
-   else
-   {
-      // X points to same data as x
-      X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
-   }
-
-   if (Ro)
-   {
-      // Variational restriction with Ro
-      B.SetSize(Ro->Height(), b);
-      Ro->Mult(b, B);
-   }
-   else
-   {
-      // B points to same data as b
-      B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
-   }
+   const Operator *Po = this->GetOutputProlongation();
+   const Operator *Ri = this->GetRestriction();
+   InitTVectors(Po, Ri, x, b, X, B);
 
    ColumnConstrainedOperator *constrainedA;
    FormColumnConstrainedSystemOperator(ess_tdof_list, constrainedA);
@@ -108,21 +99,40 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
    }
 }
 
+Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
+{
+   Operator *rap;
+   if (Pi)
+   {
+      if (Po)
+      {
+         rap = new RAPOperator(*Po, *this, *Pi);
+      }
+      else
+      {
+         rap = new ProductOperator(this, Pi, false,false);
+      }
+   }
+   else
+   {
+      if (Po)
+      {
+         TransposeOperator * PoT = new TransposeOperator(Po);
+         rap = new ProductOperator(PoT, this, true,false);
+      }
+      else
+      {
+         rap = this;
+      }
+   }
+   return rap;
+}
+
 void Operator::FormConstrainedSystemOperator(
    const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout)
 {
    const Operator *P = this->GetProlongation();
-   Operator *rap;
-
-   if (P)
-   {
-      // Variational restriction with P
-      rap = new RAPOperator(*P, *this, *P);
-   }
-   else
-   {
-      rap = this;
-   }
+   Operator *rap = SetupRAP(P, P);
 
    // Impose the boundary conditions through a ConstrainedOperator, which owns
    // the rap operator when P and R are non-trivial
@@ -135,34 +145,11 @@ void Operator::FormColumnConstrainedSystemOperator(
    const Array<int> &ess_tdof_list, ColumnConstrainedOperator* &Aout)
 {
    const Operator *Pi = this->GetProlongation();
-   const Operator *Ro = this->GetOutputRestriction();
-   Operator *rap;
+   const Operator *Po = this->GetOutputProlongation();
+   Operator *rap = SetupRAP(Pi, Po);
 
-   if (Pi)
-   {
-      if (Ro)
-      {
-         rap = new TripleProductOperator(Ro, this, Pi, false,false,false);
-      }
-      else
-      {
-         rap = new ProductOperator(this, Pi, false,false);
-      }
-   }
-   else
-   {
-      if (Ro)
-      {
-         rap = new ProductOperator(Ro, this, false,false);
-      }
-      else
-      {
-         rap = this;
-      }
-   }
-
-   // Impose the boundary conditions through a ConstrainedOperator, which owns
-   // the rap operator when P and R are non-trivial
+   // Impose the boundary conditions through a ColumnConstrainedOperator, 
+   // which owns the rap operator when P and R are non-trivial
    ColumnConstrainedOperator *A = new ColumnConstrainedOperator(rap, ess_tdof_list,
                                                                 rap != this);
    Aout = A;
