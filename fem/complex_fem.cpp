@@ -523,6 +523,14 @@ ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 }
 
 void
+ParComplexLinearForm::AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+                                            LinearFormIntegrator *lfi_imag)
+{
+   if ( lfi_real ) { plfr_->AddBoundaryIntegrator(lfi_real); }
+   if ( lfi_imag ) { plfi_->AddBoundaryIntegrator(lfi_imag); }
+}
+
+void
 ParComplexLinearForm::Update(ParFiniteElementSpace *pf)
 {
    ParFiniteElementSpace *pfes = (pf!=NULL)?pf:plfr_->ParFESpace();

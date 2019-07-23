@@ -281,6 +281,9 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
+   /// Adds new Domain Integrator.
+   void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
+                              LinearFormIntegrator *lfi_imag);                         
 
    ParFiniteElementSpace *ParFESpace() const { return plfr_->ParFESpace(); }
 

@@ -292,7 +292,7 @@ void f_exact_Re(const Vector &x, Vector &f)
    f(1) = curl2E_Re[1] + coeff * E_Re[1];
    f(2) = curl2E_Re[2] + coeff * E_Re[2];
 
-   // Acount for the complex shift
+   // Account for the complex shift
    f(0) += -complex_shift*E_Im[0];
    f(1) += -complex_shift*E_Im[1];
    f(2) += -complex_shift*E_Im[2];
