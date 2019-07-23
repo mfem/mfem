@@ -950,7 +950,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    const DenseTensor &pmats = rtrans.point_matrices[geom];
 
    int nmat = pmats.SizeK();
-   int ldof = fe->GetDof(); // assuming the same FE everywhere
+   int ldof = fe->GetDof();
 
    IsoparametricTransformation isotr;
    isotr.SetIdentityTransformation(geom);
