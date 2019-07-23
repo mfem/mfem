@@ -539,7 +539,7 @@ public:
 
        After calling this method, setting the Mesh vertices or nodes, it may be
        appropriate to call the method Finalize(). */
-   void FinalizeTopology();
+   void FinalizeTopology(bool generate_bdr = true);
 
    /// Finalize the construction of a general Mesh.
    /** This method will:
