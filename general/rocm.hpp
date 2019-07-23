@@ -23,16 +23,16 @@
 #define MFEM_ROCM_BLOCKS 256
 
 #ifdef MFEM_USE_ROCM
-// Define a ROCM error check macro, MFEM_ROCM_CHECK(x), where x returns/is of
+// Define a ROCM error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'rocmError_t'. This macro evaluates 'x' and raises an error if the
 // result is not hipSuccess.
-#define MFEM_HIP_CHECK(x) \
+#define MFEM_GPU_CHECK(x) \
    do \
    { \
       hipError_t err = (x); \
       if (err != hipSuccess) \
       { \
-         mfem_hip_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
+         mfem_rocm_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
       } \
    } \
    while (0)
@@ -58,35 +58,34 @@ namespace mfem
 {
 
 #ifdef MFEM_USE_ROCM
-// Function used by the macro MFEM_ROCM_CHECK.
-void mfem_hip_error(hipError_t err, const char *expr, const char *func,
-                    const char *file, int line);
+// Function used by the macro MFEM_GPU_CHECK.
+void mfem_rocm_error(hipError_t err, const char *expr, const char *func,
+                     const char *file, int line);
+#endif
 
 /// Allocates device memory
-void* CuMemAlloc(void **d_ptr, size_t bytes);
+void* RocMemAlloc(void **d_ptr, size_t bytes);
 
 /// Frees device memory
-void* CuMemFree(void *d_ptr);
+void* RocMemFree(void *d_ptr);
 
 /// Copies memory from Host to Device
-void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
+void* RocMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
 
 /// Copies memory from Host to Device
-void* CuMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
+void* RocMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
 
 /// Copies memory from Device to Device
-void* CuMemcpyDtoD(void *d_dst, const void *d_src, size_t bytes);
+void* RocMemcpyDtoD(void *d_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Device
-void* CuMemcpyDtoDAsync(void *d_dst, const void *d_src, size_t bytes);
+void* RocMemcpyDtoDAsync(void *d_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
-void* CuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
+void* RocMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
-void* CuMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
-
-#endif
+void* RocMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
 
 } // namespace mfem
 
