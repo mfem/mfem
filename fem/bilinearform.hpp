@@ -325,6 +325,12 @@ public:
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return fes->GetConformingRestriction(); }
+   /// Get the output finite element space prolongation matrix
+   virtual const Operator *GetOutputProlongation() const
+   { return GetProlongation(); }
+   /// Get the output finite element space restriction matrix
+   virtual const Operator *GetOutputRestriction() const
+   { return GetRestriction(); }
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
@@ -623,6 +629,9 @@ public:
    /// Get the input finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return trial_fes->GetRestrictionMatrix(); }
+   /// Get the output finite element space prolongation matrix
+   virtual const Operator *GetOutputProlongation() const
+   { return test_fes->GetProlongationMatrix(); }
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return test_fes->GetRestrictionMatrix(); }
