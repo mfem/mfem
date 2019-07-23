@@ -2624,9 +2624,10 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    }
 
    // create the diagonal part of the derefinement matrix
-   SparseMatrix *diag = (elem_geoms.Size() > 1)
-      ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
-      : new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof[elem_geoms[0]]);
+   SparseMatrix *diag = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
+   //SparseMatrix *diag = (elem_geoms.Size() > 1)
+      //? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
+      //: new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof[elem_geoms[0]]);
 
    Array<char> mark(diag->Height());
    mark = 0;
@@ -2705,7 +2706,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
             for (int i = 0; i < lR.Height(); i++)
             {
-               if (lR(i, 0) == infinity()) { continue; }
+               if (!std::isfinite(lR(i, 0))) { continue; }
 
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
