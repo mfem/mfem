@@ -114,7 +114,7 @@ void Device::Print(std::ostream &out)
 
 void Device::UpdateMemoryTypeAndClass()
 {
-   if (Device::Allows(Backend::CUDA_MASK))
+   if (Device::Allows(Backend::DEVICE_MASK))
    {
       mem_type = MemoryType::CUDA;
       mem_class = MemoryClass::CUDA;
@@ -138,9 +138,9 @@ void Device::Enable()
 #ifdef MFEM_USE_CUDA
 static void DeviceSetup(const int dev, int &ngpu)
 {
-   MFEM_CUDA_CHECK(cudaGetDeviceCount(&ngpu));
+   MFEM_GPU_CHECK(cudaGetDeviceCount(&ngpu));
    MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
-   MFEM_CUDA_CHECK(cudaSetDevice(dev));
+   MFEM_GPU_CHECK(cudaSetDevice(dev));
 }
 #endif
 
@@ -155,9 +155,9 @@ static void RocmDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_ROCM
    int deviceId;
-   MFEM_HIP_CHECK(hipGetDevice(&deviceId));
+   MFEM_GPU_CHECK(hipGetDevice(&deviceId));
    hipDeviceProp_t props;
-   MFEM_HIP_CHECK(hipGetDeviceProperties(&props, deviceId));
+   MFEM_GPU_CHECK(hipGetDeviceProperties(&props, deviceId));
    printf("info: running on device #%d %s\n", deviceId, props.name);
    MFEM_VERIFY(dev==deviceId,"");
    ngpu = 1;
@@ -230,10 +230,14 @@ void Device::Setup(const int device)
 
    ngpu = 0;
    dev = device;
-/*#ifndef MFEM_USE_CUDA
+#ifndef MFEM_USE_CUDA
    MFEM_VERIFY(!Allows(Backend::CUDA_MASK),
                "the CUDA backends require MFEM built with MFEM_USE_CUDA=YES");
-               #endif*/
+#endif
+#ifndef MFEM_USE_ROCM
+   MFEM_VERIFY(!Allows(Backend::ROCM_MASK),
+               "the ROCM backends require MFEM built with MFEM_USE_ROCM=YES");
+#endif
 #ifndef MFEM_USE_RAJA
    MFEM_VERIFY(!Allows(Backend::RAJA_MASK),
                "the RAJA backends require MFEM built with MFEM_USE_RAJA=YES");
