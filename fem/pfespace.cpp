@@ -2545,9 +2545,6 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    int nrk = HYPRE_AssumedPartitionCheck() ? 2 : NRanks;
 
    MFEM_VERIFY(Nonconforming(), "Not implemented for conforming meshes.");
-   MFEM_VERIFY(pmesh->GetNumGeometries(pmesh->Dimension()) == 1,
-               "Not implemented for mixed meshes.");
-
    MFEM_VERIFY(old_dof_offsets[nrk], "Missing previous (finer) space.");
    MFEM_VERIFY(dof_offsets[nrk] <= old_dof_offsets[nrk],
                "Previous space is not finer.");
@@ -2557,12 +2554,19 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    // FiniteElementSpace::DerefinementMatrix, and only then this function.
    // You have been warned! :-)
 
+   Mesh::GeometryList elem_geoms(*mesh);
+
    Array<int> dofs, old_dofs, old_vdofs;
    Vector row;
 
    ParNCMesh* pncmesh = pmesh->pncmesh;
-   Geometry::Type geom = pncmesh->GetElementGeometry(0); // TODO mixed meshes
-   int ldof = fec->FiniteElementForGeometry(geom)->GetDof();
+
+   int ldof[Geometry::NumGeom] = { 0 };
+   for (int i = 0; i < elem_geoms.Size(); i++)
+   {
+      Geometry::Type geom = elem_geoms[i];
+      ldof[geom] = fec->FiniteElementForGeometry(geom)->GetDof();
+   }
 
    const CoarseFineTransformations &dtrans = pncmesh->GetDerefinementTransforms();
    const Array<int> &old_ranks = pncmesh->GetDerefineOldRanks();
@@ -2599,10 +2603,13 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
       }
       else if (coarse_rank == MyRank && fine_rank != MyRank)
       {
-         DerefDofMessage &msg = messages[k];
-         msg.dofs.resize(ldof*vdim);
+         MFEM_ASSERT(emb.parent >= 0, "");
+         Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
 
-         MPI_Irecv(&msg.dofs[0], ldof*vdim, HYPRE_MPI_INT,
+         DerefDofMessage &msg = messages[k];
+         msg.dofs.resize(ldof[geom]*vdim);
+
+         MPI_Irecv(&msg.dofs[0], ldof[geom]*vdim, HYPRE_MPI_INT,
                    fine_rank, 291, MyComm, &msg.request);
       }
       // TODO: coalesce Isends/Irecvs to the same rank. Typically, on uniform
@@ -2610,14 +2617,20 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
       // from MyRank+1
    }
 
-   DenseTensor localR;
-   GetLocalDerefinementMatrices(geom, localR);
+   DenseTensor localR[Geometry::NumGeom];
+   for (int i = 0; i < elem_geoms.Size(); i++)
+   {
+      GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
+   }
 
    // create the diagonal part of the derefinement matrix
-   SparseMatrix *diag = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
+   SparseMatrix *diag = (elem_geoms.Size() > 1)
+      ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
+      : new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof[elem_geoms[0]]);
 
    Array<char> mark(diag->Height());
    mark = 0;
+
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
@@ -2628,7 +2641,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
       if (coarse_rank == MyRank && fine_rank == MyRank)
       {
-         DenseMatrix &lR = localR(emb.matrix);
+         Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+         DenseMatrix &lR = localR[geom](emb.matrix);
 
          elem_dof->GetRow(emb.parent, dofs);
          old_elem_dof->GetRow(k, old_dofs);
@@ -2640,7 +2654,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
             for (int i = 0; i < lR.Height(); i++)
             {
-               if (lR(i, 0) == infinity()) { continue; }
+               if (!std::isfinite(lR(i, 0))) { continue; }
 
                int r = DofToVDof(dofs[i], vd);
                int m = (r >= 0) ? r : (-1 - r);
@@ -2658,8 +2672,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    diag->Finalize();
 
    // wait for all sends/receives to complete
-   for (std::map<int, DerefDofMessage>::iterator
-        it = messages.begin(); it != messages.end(); ++it)
+   for (auto it = messages.begin(); it != messages.end(); ++it)
    {
       MPI_Wait(&it->second.request, MPI_STATUS_IGNORE);
    }
@@ -2678,7 +2691,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
       if (coarse_rank == MyRank && fine_rank != MyRank)
       {
-         DenseMatrix &lR = localR(emb.matrix);
+         Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+         DenseMatrix &lR = localR[geom](emb.matrix);
 
          elem_dof->GetRow(emb.parent, dofs);
 
@@ -2687,7 +2701,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
          for (int vd = 0; vd < vdim; vd++)
          {
-            HYPRE_Int* remote_dofs = &msg.dofs[vd*ldof];
+            HYPRE_Int* remote_dofs = &msg.dofs[vd*ldof[geom]];
 
             for (int i = 0; i < lR.Height(); i++)
             {
@@ -2699,7 +2713,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                if (!mark[m])
                {
                   lR.GetRow(i, row);
-                  for (int j = 0; j < ldof; j++)
+                  for (int j = 0; j < ldof[geom]; j++)
                   {
                      if (row[j] == 0.0) { continue; } // NOTE: lR thresholded
                      int &lcol = col_map[remote_dofs[j]];

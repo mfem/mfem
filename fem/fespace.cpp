@@ -1251,16 +1251,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
    }
 
-   SparseMatrix *R;
-   if (elem_geoms.Size() == 1)
-   {
-      R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
-                           localR[elem_geoms[0]].SizeI());
-   }
-   else
-   {
-      R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
-   }
+   SparseMatrix *R = (elem_geoms.Size() > 1)
+      ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
+      : new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
+                         localR[elem_geoms[0]].SizeI());
+
    Array<int> mark(R->Height());
    mark = 0;
 
@@ -1273,7 +1268,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+      Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
       DenseMatrix &lR = localR[geom](emb.matrix);
 
       elem_dof->GetRow(emb.parent, dofs);
@@ -1286,7 +1281,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
          for (int i = 0; i < lR.Height(); i++)
          {
-            if (lR(i, 0) == infinity()) { continue; }
+            if (!std::isfinite(lR(i, 0))) { continue; }
 
             int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);
@@ -1304,7 +1299,8 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    MFEM_VERIFY(num_marked == R->Height(),
                "internal error: not all rows of R were set.");
-   if (elem_geoms.Size() != 1) { R->Finalize(); }
+
+   R->Finalize(); // no-op if fixed width
    return R;
 }
 
