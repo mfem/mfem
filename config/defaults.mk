@@ -57,7 +57,7 @@ ifneq ($(NOTMAC),)
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = so
    SO_VER  = so.$(MFEM_VERSION_STRING)
-   BUILD_SOFLAGS = -shared #$(XLINKER)-soname,libmfem.$(SO_VER)
+   BUILD_SOFLAGS = -shared $(XLINKER)-soname,libmfem.$(SO_VER)
    BUILD_RPATH = $(XLINKER)-rpath,$(BUILD_REAL_DIR)
    INSTALL_SOFLAGS = $(BUILD_SOFLAGS)
    INSTALL_RPATH = $(XLINKER)-rpath,@MFEM_LIB_DIR@
