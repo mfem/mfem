@@ -23,10 +23,6 @@
 namespace mfem
 {
 
-  //class ScaledCoefficient;
-  //class ScaledVectorCoefficient;
-  //class ScaledMatrixCoefficient;
-
 namespace thermal
 {
 

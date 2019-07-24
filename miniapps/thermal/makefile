@@ -23,7 +23,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS =
 PAR_MINIAPPS = fourier fourier_nl fourier_vanEs fourier_hybrid \
-	fourier_flux ex1p_nl adv_diff_v1 adv_diff_v2 fourier_pid fourier_adv_pid
+	fourier_flux ex1p_nl adv_diff_v1 adv_diff_v2 fourier_pid fourier_adv_pid fourier_nl_adv_pid
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -72,6 +72,9 @@ fourier_pid: fourier_pid.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 
 fourier_adv_pid: fourier_adv_pid.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
+
+fourier_nl_adv_pid: fourier_nl_adv_pid.cpp fourier_nl_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ fourier_nl_solver.o $(COMMON_O) $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies
 $(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
