@@ -8,6 +8,10 @@
                                http://mfem.org
 
 
+Version 4.0.1 (development)
+===========================
+
+
 Version 4.0, released on May 24, 2019
 =====================================
 
@@ -164,6 +168,9 @@ Miscellaneous
 - Altered the way FGMRES counts its iterations so that it matches GMRES.
 
 - Various other simplifications, extensions, and bugfixes in the code.
+
+- Construct abstract parallel rectangular truedof-to-truedof operators via
+  Operator::FormDiscreteOperator().
 
 API changes
 -----------

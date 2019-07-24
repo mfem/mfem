@@ -17,12 +17,18 @@
 namespace mfem
 {
 
+class ConstrainedOperator;
+
 /// Abstract operator
 class Operator
 {
 protected:
    int height; ///< Dimension of the output / number of rows in the matrix.
    int width;  ///< Dimension of the input / number of columns in the matrix.
+
+   /// see FormSystemOperator()
+   void FormConstrainedSystemOperator(
+      const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
 
 public:
    /// Construct a square Operator with given size s (default 0).
@@ -77,6 +83,9 @@ public:
    /** @brief Restriction operator from input vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetRestriction() const  { return NULL; }
+   /** @brief Restriction operator from output vectors for the operator to linear
+       algebra (linear system) vectors. `NULL` means identity. */
+   virtual const Operator *GetOutputRestriction() const  { return NULL; }
 
    /** @brief Form a constrained linear system using a matrix-free approach.
 
@@ -93,7 +102,7 @@ public:
        are e.g. available through the (parallel) finite element space of any
        (parallel) bilinear form operator. We assume that the operator is square,
        using the same input and output space, so we have: `A(X)=[P^t (*this)
-       P](X)`, `B=P^t(b)`, and `x=P(X)`.
+       P](X)`, `B=P^t(b)`, and `X=R(x)`.
 
        The vector @a x must contain the essential boundary condition values.
        These are eliminated through the ConstrainedOperator class and the vector
@@ -123,6 +132,27 @@ public:
        method has identical signature to the analogous method for bilinear
        forms, though currently @a b is not used in the implementation. */
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this square
+       operator.
+
+       This returns the same operator as FormLinearSystem(), but does without
+       the transformations of the right-hand side and initial guess. */
+   void FormSystemOperator(const Array<int> &ess_tdof_list,
+                           Operator* &A);
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this
+       rectangular operator.
+
+       This is similar to FormSystemOperator(), but for dof-to-dof mappings
+       (discrete linear operators), which can also correspond to rectangular
+       matrices. The user should provide specializations of GetProlongation()
+       for the input dofs and GetOutputRestriction() for the output dofs in
+       their Operator implementation that are appropriate for the two spaces the
+       Operator maps between. These are e.g. available through the (parallel)
+       finite element space of any (parallel) bilinear form operator. We have:
+       `A(X)=[Rout (*this) Pin](X)`. */
+   void FormDiscreteOperator(Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
