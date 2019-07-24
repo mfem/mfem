@@ -452,7 +452,7 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 void NodalFiniteElement::Project (
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
-   cout << "fe.cpp: used this Project function (1)" << endl;
+   // cout << "fe.cpp: used this Project function (1)" << endl;
    for (int i = 0; i < Dof; i++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
@@ -2528,11 +2528,8 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
    TriLinear3DFiniteElement trilinear = TriLinear3DFiniteElement();
    DenseMatrix DtrilinearsAtIP(8);
    trilinear.CalcDShape(ip, DtrilinearsAtIP);
-   
 
-   // trilinear.CalcDShape(myIP, DtrilinearsAtIP);
-
-
+   // Fix vertex functions for nodality
 
    const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
 
@@ -2583,6 +2580,40 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
          dshape(6,j) -= (1-edgePts[i+1])*(dshape(e13m,j) + dshape(e14m,j) + dshape(e18m,j));
          dshape(7,j) -= (1-edgePts[i+1])*(dshape(e14p,j) + dshape(e15m,j) + dshape(e19m,j));
       }
+   }
+
+   // Set face functions
+
+   if (p==4)
+   {
+      dshape(44,0) = -((-1 + 2*x)*(-1 + y)*y*(-1 + z));
+      dshape(44,1) = -((-1 + x)*x*(-1 + 2*y)*(-1 + z));
+      dshape(44,2) = -((-1 + x)*x*(-1 + y)*y);
+
+      dshape(45,0) = -((-1 + 2*x)*(-1 + y)*(-1 + z)*z);
+      dshape(45,1) = -((-1 + x)*x*(-1 + z)*z);
+      dshape(45,2) = -((-1 + x)*x*(-1 + y)*(-1 + 2*z));
+
+      dshape(46,0) = (-1 + y)*y*(-1 + z)*z;
+      dshape(46,1) = x*(-1 + 2*y)*(-1 + z)*z;
+      dshape(46,2) = x*(-1 + y)*y*(-1 + 2*z);
+
+      dshape(47,0) = (-1 + 2*x)*y*(-1 + z)*z;
+      dshape(47,1) = (-1 + x)*x*(-1 + z)*z;
+      dshape(47,2) = (-1 + x)*x*y*(-1 + 2*z);
+
+      dshape(48,0) = -((-1 + y)*y*(-1 + z)*z);
+      dshape(48,1) = -((-1 + x)*(-1 + 2*y)*(-1 + z)*z);
+      dshape(48,2) = -((-1 + x)*(-1 + y)*y*(-1 + 2*z));
+
+      dshape(49,0) = (-1 + 2*x)*(-1 + y)*y*z;
+      dshape(49,1) = (-1 + x)*x*(-1 + 2*y)*z;
+      dshape(49,2) = (-1 + x)*x*(-1 + y)*y;
+   }
+
+   if (p>4)
+   {
+      cout << endl << " *** ERROR *** dshape not yet implemented for p>4 in 3D " << endl;
    }
 
    // cout << "fe: dshape is: " << endl;

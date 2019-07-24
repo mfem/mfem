@@ -238,6 +238,7 @@ int main(int argc, char *argv[])
    HypreBoomerAMG *amg =  new HypreBoomerAMG;
 
    HYPRE_BoomerAMGSetRelaxType(*amg, 18); // use l1-scaled Jacobi relaxation method
+   // HYPRE_BoomerAMGSetRelaxType(*amg, 16); // Chebyshev
 
 
    CGSolver cg(MPI_COMM_WORLD);

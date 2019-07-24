@@ -169,7 +169,9 @@ int main(int argc, char *argv[])
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 50000;
+   // const int max_dofs = 50000;
+   const int max_dofs = 10000;
+
    for (int it = 0; ; it++)
    {
       int cdofs = fespace.GetTrueVSize();
@@ -240,6 +242,9 @@ int main(int argc, char *argv[])
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
       refiner.Apply(mesh);
+
+
+      // cout << "Bypassing stopping criterion check." << endl;
       if (refiner.Stop())
       {
          cout << "Stopping criterion satisfied. Stop." << endl;

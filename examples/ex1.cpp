@@ -58,13 +58,15 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/inline-oneHex.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
    bool use_serendip = false;
+   int total_refinements = -1;
+   int CG_max_its = 100;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -81,9 +83,13 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&use_serendip, "-ser", "--use-serendipity", 
-                  "-no-ser", "--not-serendipity", 
+   args.AddOption(&use_serendip, "-ser", "--use-serendipity",
+                  "-no-ser", "--not-serendipity",
                   "Use serendipity element collection.");
+   args.AddOption(&total_refinements, "-r", "--refine",
+                  "Number of uniform refinements to do."); 
+   args.AddOption(&CG_max_its, "-i", "--cg-its",
+                  "Max number of iterations of CG to do."); 
    args.Parse();
    if (!args.Good())
    {
@@ -111,13 +117,16 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+
+   int ref_levels =
+       (int)floor(log(50000. / mesh->GetNE()) / log(2.) / dim);
+   if (total_refinements > -1)
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
+      ref_levels = total_refinements;
+   }
+   for (int l = 0; l < ref_levels; l++)
+   {
+      mesh->UniformRefinement();
    }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
@@ -127,8 +136,8 @@ int main(int argc, char *argv[])
    if (order > 0)
    {
       if (use_serendip)
-      {     
-         fec = new H1Ser_FECollection(order,dim);
+      {
+         fec = new H1Ser_FECollection(order, dim);
       }
       else
       {
@@ -178,15 +187,26 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
-   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (pa)
+   {
+      a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }  
+   // a->AddDomainIntegrator(new MassIntegrator); // works okay
+   // a->AddDomainIntegrator(new DiffusionIntegrator); // only makes 44/50
+   a->AddDomainIntegrator(new DiffusionIntegrator(one));  // only makes 44/50
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
+   if (static_cond)
+   {
+      a->EnableStaticCondensation();
+   }
    a->Assemble();
+   // a->PrintMatlab(out);
+
+
 
    OperatorPtr A;
    Vector B, X;
@@ -204,9 +224,24 @@ int main(int argc, char *argv[])
    {
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
+
+      // DSmoother M((SparseMatrix&)(*A));
+      // PCG(*A, M, B, X, 2, 5, 1e-12, 0.0);
+      
+      GSSmoother M((SparseMatrix &)(*A));
       PCG(*A, M, B, X, 2, 200, 1e-12, 0.0);
-      // set 5th parameter to "2" instaed of 1 to limit information on interations
+            // set 5th parameter to "2" instead of 1 to limit information on interations
+      
+      // DSmoother M((SparseMatrix &)(*A));
+      // PCG(*A, M, B, X, 1, CG_max_its, 1e-12, 0.0);
+      
+      // SparseMatrix *Amat;
+      // Amat = A.As<SparseMatrix>();
+      // cout << "Type ID: " << A.Type() << '\n';
+      // Amat->PrintMatlab(out);
+      // A->PrintMatlab(out);
+      // return 0;
+      // CG(*A, B, X, 1, CG_max_its, 1e-12, 0.0);
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;
@@ -239,17 +274,21 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
+      int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
+      sol_sock << "solution\n"
+               << *mesh << x << flush;
    }
 
    // 15. Free the used memory.
    delete a;
    delete b;
    delete fespace;
-   if (order > 0) { delete fec; }
+   if (order > 0)
+   {
+      delete fec;
+   }
    delete mesh;
 
    return 0;

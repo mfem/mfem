@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool use_serendip = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -70,6 +71,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_serendip, "-ser", "--use-serendipity", 
+                  "-no-ser", "--not-serendipity", 
+                  "Use serendipity element collection.");
+                     
    args.Parse();
    if (!args.Good())
    {
@@ -119,8 +124,20 @@ int main(int argc, char *argv[])
 
    // 7. Define a finite element space on the mesh. The polynomial order is
    //    one (linear) by default, but this can be changed on the command line.
-   H1_FECollection fec(order, dim);
-   ParFiniteElementSpace fespace(&pmesh, &fec);
+   
+   FiniteElementCollection *fec;
+   if (use_serendip)
+   {     
+      fec = new H1Ser_FECollection(order,dim);
+   }
+   else
+   {
+      fec = new H1_FECollection(order, dim);
+   }
+
+
+   // H1_FECollection fec(order, dim);
+   ParFiniteElementSpace fespace(&pmesh, fec);
 
    // 8. As in Example 1p, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
@@ -185,8 +202,11 @@ int main(int argc, char *argv[])
 
    // 13. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 100000;
-   for (int it = 0; ; it++)
+   
+   // const int max_dofs = 100000;
+   const int max_dofs = 10000;
+   const int max_its = 2; // remove it<max_its condition from for loop below
+   for (int it = 0; it < max_its; it++)
    {
       HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
       if (myid == 0)
