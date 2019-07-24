@@ -459,6 +459,31 @@ void hypre_CSRMatrixEliminateRowsCols(hypre_CSRMatrix *A,
    }
 }
 
+/*
+  Eliminate rows of A, setting all entries in the eliminated rows to zero.
+*/
+void hypre_CSRMatrixEliminateRows(hypre_CSRMatrix *A,
+                                  HYPRE_Int nrows, const HYPRE_Int *rows)
+{
+   HYPRE_Int  irow, i, j;
+   HYPRE_Int  A_beg, A_end;
+
+   HYPRE_Int  *A_i     = hypre_CSRMatrixI(A);
+   HYPRE_Real *A_data  = hypre_CSRMatrixData(A);
+
+   for (i = 0; i < nrows; i++)
+   {
+      irow = rows[i];
+      A_beg = A_i[irow];
+      A_end = A_i[irow+1];
+      /* eliminate row */
+      for (j = A_beg; j < A_end; j++)
+      {
+         A_data[j] = 0.0;
+      }
+   }
+}
+
 
 /*
   Function:  hypre_ParCSRMatrixEliminateAAe
@@ -679,6 +704,18 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
 
    hypre_ParCSRMatrixSetNumNonzeros(*Ae);
    hypre_MatvecCommPkgCreate(*Ae);
+}
+
+
+// Eliminate rows from the diagonal and off-diagonal blocks of the matrix
+void hypre_ParCSRMatrixEliminateRows(hypre_ParCSRMatrix *A,
+                                     HYPRE_Int num_rows_to_elim,
+                                     const HYPRE_Int *rows_to_elim)
+{
+   hypre_CSRMatrix *A_diag = hypre_ParCSRMatrixDiag(A);
+   hypre_CSRMatrix *A_offd = hypre_ParCSRMatrixOffd(A);
+   hypre_CSRMatrixEliminateRows(A_diag, num_rows_to_elim, rows_to_elim);
+   hypre_CSRMatrixEliminateRows(A_offd, num_rows_to_elim, rows_to_elim);
 }
 
 

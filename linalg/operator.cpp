@@ -65,16 +65,18 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
    Aout = constrainedA;
 }
 
-void Operator::FormColumnLinearSystem(const Array<int> &ess_tdof_list,
-                                      Vector &x, Vector &b,
-                                      Operator* &Aout, Vector &X, Vector &B)
+void Operator::FormRectangularLinearSystem(
+   const Array<int> &trial_tdof_list,
+   const Array<int> &test_tdof_list, Vector &x, Vector &b,
+   Operator* &Aout, Vector &X, Vector &B)
 {
    const Operator *Po = this->GetOutputProlongation();
    const Operator *Ri = this->GetRestriction();
    InitTVectors(Po, Ri, x, b, X, B);
 
-   ColumnConstrainedOperator *constrainedA;
-   FormColumnConstrainedSystemOperator(ess_tdof_list, constrainedA);
+   RectangularConstrainedOperator *constrainedA;
+   FormRectangularConstrainedSystemOperator(trial_tdof_list, test_tdof_list,
+                                            constrainedA);
    constrainedA->EliminateRHS(X, B);
    Aout = constrainedA;
 }
@@ -141,17 +143,20 @@ void Operator::FormConstrainedSystemOperator(
    Aout = A;
 }
 
-void Operator::FormColumnConstrainedSystemOperator(
-   const Array<int> &ess_tdof_list, ColumnConstrainedOperator* &Aout)
+void Operator::FormRectangularConstrainedSystemOperator(
+   const Array<int> &trial_tdof_list, const Array<int> &test_tdof_list,
+   RectangularConstrainedOperator* &Aout)
 {
    const Operator *Pi = this->GetProlongation();
    const Operator *Po = this->GetOutputProlongation();
    Operator *rap = SetupRAP(Pi, Po);
 
-   // Impose the boundary conditions through a ColumnConstrainedOperator, 
+   // Impose the boundary conditions through a RectangularConstrainedOperator,
    // which owns the rap operator when P and R are non-trivial
-   ColumnConstrainedOperator *A = new ColumnConstrainedOperator(rap, ess_tdof_list,
-                                                                rap != this);
+   RectangularConstrainedOperator *A
+      = new RectangularConstrainedOperator(rap,
+                                           trial_tdof_list, test_tdof_list,
+                                           rap != this);
    Aout = A;
 }
 
@@ -163,11 +168,12 @@ void Operator::FormSystemOperator(const Array<int> &ess_tdof_list,
    Aout = A;
 }
 
-void Operator::FormColumnSystemOperator(const Array<int> &ess_tdof_list,
-                                        Operator* &Aout)
+void Operator::FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
+                                             const Array<int> &test_tdof_list,
+                                             Operator* &Aout)
 {
-   ColumnConstrainedOperator *A;
-   FormColumnConstrainedSystemOperator(ess_tdof_list, A);
+   RectangularConstrainedOperator *A;
+   FormRectangularConstrainedSystemOperator(trial_tdof_list, test_tdof_list, A);
    Aout = A;
 }
 
@@ -298,7 +304,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    // A.AddMult(w, b, -1.0); // if available to all Operators
    A->Mult(w, z);
    b -= z;
-   
+
    // Use read+write access - we are modifying sub-vector of b
    auto d_b = b.ReadWrite();
    MFEM_FORALL(i, csz,
@@ -336,57 +342,76 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    });
 }
 
-ColumnConstrainedOperator::ColumnConstrainedOperator(Operator *A,
-                                                     const Array<int> &list,
-                                                     bool _own_A)
+RectangularConstrainedOperator::RectangularConstrainedOperator(
+   Operator *A,
+   const Array<int> &trial_list,
+   const Array<int> &test_list,
+   bool _own_A)
    : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
-   list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
-   constraint_list.MakeRef(list);
+   trial_list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
+   test_list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
+   trial_constraints.MakeRef(trial_list);
+   test_constraints.MakeRef(test_list);
    // typically z and w are large vectors, so store them on the device
    z.SetSize(height, mem_type); z.UseDevice(true);
    w.SetSize(width, mem_type); w.UseDevice(true);
 }
 
-void ColumnConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
+void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
+                                                  Vector &b) const
 {
    w = 0.0;
-   const int csz = constraint_list.Size();
-   auto idx = constraint_list.Read();
+   const int trial_csz = trial_constraints.Size();
+   auto trial_idx = trial_constraints.Read();
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of w
    auto d_w = w.ReadWrite();
-   MFEM_FORALL(i, csz,
+   MFEM_FORALL(i, trial_csz,
    {
-      const int id = idx[i];
+      const int id = trial_idx[i];
       d_w[id] = d_x[id];
    });
 
    // A.AddMult(w, b, -1.0); // if available to all Operators
    A->Mult(w, z);
    b -= z;
+
+   const int test_csz = test_constraints.Size();
+   auto test_idx = test_constraints.Read();
+   auto d_b = b.ReadWrite();
+   MFEM_FORALL(i, test_csz, d_b[test_idx[i]] = 0.0;);
 }
 
-void ColumnConstrainedOperator::Mult(const Vector &x, Vector &y) const
+void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
-   const int csz = constraint_list.Size();
-   if (csz == 0)
+   const int trial_csz = trial_constraints.Size();
+   const int test_csz = test_constraints.Size();
+   if (trial_csz == 0)
    {
       A->Mult(x, y);
-      return;
+   }
+   else
+   {
+      z = x;
+
+      auto idx = trial_constraints.Read();
+      // Use read+write access - we are modifying sub-vector of z
+      auto d_z = z.ReadWrite();
+      MFEM_FORALL(i, trial_csz, d_z[idx[i]] = 0.0;);
+
+      A->Mult(z, y);
    }
 
-   z = x;
-
-   auto idx = constraint_list.Read();
-   // Use read+write access - we are modifying sub-vector of z
-   auto d_z = z.ReadWrite();
-   MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
-
-   A->Mult(z, y);
+   if (test_csz != 0)
+   {
+      auto idx = test_constraints.Read();
+      auto d_y = y.ReadWrite();
+      MFEM_FORALL(i, test_csz, d_y[idx[i]] = 0.0;);
+   }
 }
 
 }

@@ -167,7 +167,7 @@ const Operator *MixedBilinearFormExtension::GetOutputProlongation() const
 {
    return a->GetOutputProlongation();
 }
-   
+
 const Operator *MixedBilinearFormExtension::GetOutputRestriction() const
 {
    return a->GetOutputRestriction();
@@ -175,7 +175,8 @@ const Operator *MixedBilinearFormExtension::GetOutputRestriction() const
 
 // Data and methods for partially-assembled bilinear forms
 
-PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(MixedBilinearForm *form)
+PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(
+   MixedBilinearForm *form)
    : MixedBilinearFormExtension(form),
      trialFes(form->TrialFESpace()),
      testFes(form->TestFESpace()),
@@ -202,14 +203,14 @@ void PAMixedBilinearFormExtension::Update()
    height = testFes->GetVSize();
    width = trialFes->GetVSize();
    elem_restrict_trial = trialFes->GetElementRestriction(
-                           ElementDofOrdering::LEXICOGRAPHIC);
+                            ElementDofOrdering::LEXICOGRAPHIC);
    elem_restrict_test  =  testFes->GetElementRestriction(
-                           ElementDofOrdering::LEXICOGRAPHIC);
+                             ElementDofOrdering::LEXICOGRAPHIC);
    if (elem_restrict_trial)
    {
       localTrial.UseDevice(true);
       localTrial.SetSize(elem_restrict_trial->Height(), Device::GetMemoryType());
-      
+
    }
    if (elem_restrict_test)
    {
@@ -218,27 +219,31 @@ void PAMixedBilinearFormExtension::Update()
    }
 }
 
-void PAMixedBilinearFormExtension::FormColumnSystemOperator(
-                                                    const Array<int> &ess_tdof_list,
-                                                    OperatorHandle &A)
+void PAMixedBilinearFormExtension::FormRectangularSystemOperator(
+   const Array<int> &trial_tdof_list,
+   const Array<int> &test_tdof_list,
+   OperatorHandle &A)
 {
    Operator * oper;
-   Operator::FormColumnSystemOperator(ess_tdof_list, oper);
+   Operator::FormRectangularSystemOperator(trial_tdof_list, test_tdof_list, oper);
    A.Reset(oper); // A will own oper
 }
 
-void PAMixedBilinearFormExtension::FormColumnLinearSystem(
-                                                    const Array<int> &ess_tdof_list,
-                                                    Vector &x, Vector &b,
-                                                    OperatorHandle &A,
-                                                    Vector &X, Vector &B)
+void PAMixedBilinearFormExtension::FormRectangularLinearSystem(
+   const Array<int> &trial_tdof_list,
+   const Array<int> &test_tdof_list,
+   Vector &x, Vector &b,
+   OperatorHandle &A,
+   Vector &X, Vector &B)
 {
    Operator *oper;
-   Operator::FormColumnLinearSystem(ess_tdof_list, x, b, oper, X, B);
+   Operator::FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b,
+                                         oper, X, B);
    A.Reset(oper); // A will own oper
 }
 
-void PAMixedBilinearFormExtension::SetupMultInputs(const Operator *elem_restrict_x,
+void PAMixedBilinearFormExtension::SetupMultInputs(const Operator
+                                                   *elem_restrict_x,
                                                    const Vector &x,
                                                    Vector &localX,
                                                    const Operator *elem_restrict_y,
@@ -302,7 +307,8 @@ void PAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
    }
 }
 
-void PAMixedBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
+void PAMixedBilinearFormExtension::MultTranspose(const Vector &x,
+                                                 Vector &y) const
 {
    y = 0.0;
    AddMultTranspose(x, y);
