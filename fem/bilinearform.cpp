@@ -932,6 +932,18 @@ void BilinearForm::EliminateVDofsInRHS(
    mat->PartMult(vdofs, x, b);
 }
 
+void BilinearForm::Mult(const Vector &x, Vector &y) const
+{
+   if (ext)
+   {
+      ext->Mult(x, y);
+   }
+   else
+   {
+      mat->Mult(x, y);
+   }
+}
+
 void BilinearForm::Update(FiniteElementSpace *nfes)
 {
    bool full_update;
@@ -1082,7 +1094,7 @@ void MixedBilinearForm::Mult(const Vector & x, Vector & y) const
 void MixedBilinearForm::AddMult(const Vector & x, Vector & y,
                                 const double a) const
 {
-   if (assembly == AssemblyLevel::PARTIAL)
+   if (ext)
    {
       ext->AddMult(x, y, a);
    }
@@ -1101,7 +1113,7 @@ void MixedBilinearForm::MultTranspose(const Vector & x, Vector & y) const
 void MixedBilinearForm::AddMultTranspose(const Vector & x, Vector & y,
                                          const double a) const
 {
-   if (assembly == AssemblyLevel::PARTIAL)
+   if (ext)
    {
       ext->AddMultTranspose(x, y, a);
    }
@@ -1166,7 +1178,7 @@ void MixedBilinearForm::Assemble (int skip_zeros)
       ext->Assemble();
       return;
    }
-   
+
    int i, k;
    Array<int> tr_vdofs, te_vdofs;
    ElementTransformation *eltrans;
@@ -1257,7 +1269,7 @@ void MixedBilinearForm::ConformingAssemble()
       MFEM_WARNING("Conforming assemble not supported for this assembly level!");
       return;
    }
-   
+
    Finalize();
 
    // TODO3: use new functions
