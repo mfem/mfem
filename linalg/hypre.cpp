@@ -1405,6 +1405,14 @@ HypreParMatrix* HypreParMatrix::EliminateCols(const Array<int> &cols)
    return new HypreParMatrix(Ae);
 }
 
+void HypreParMatrix::EliminateRows(const Array<int> &rows)
+{
+   if (rows.Size() > 0)
+   {
+      MFEM_ABORT("Not yet implemented.");
+   }
+}
+
 void HypreParMatrix::Print(const char *fname, HYPRE_Int offi, HYPRE_Int offj)
 {
    hypre_ParCSRMatrixPrintIJ(A,offi,offj,fname);

@@ -525,13 +525,8 @@ public:
        elements in a new matrix Ae (returned) so that the modified
        matrix and Ae sum to the original matrix. */
    HypreParMatrix* EliminateCols(const Array<int> &cols);
-   void EliminateRows(const Array<int> &rows)
-   {
-      if (rows.Size() > 0)
-      {
-         MFEM_ABORT("Not yet implemented.");
-      }
-   }
+
+   void EliminateRows(const Array<int> &rows);
 
    /// Prints the locally owned rows in parallel
    void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0);
