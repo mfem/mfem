@@ -28,6 +28,7 @@ using namespace mfem::thermal;
 void display_banner(ostream & os);
 
 static int    prob_          = 1;
+static int    gamma_         = 10;
 static int    unit_vec_type_ = 1;
 static bool   non_linear_    = false;
 static double theta_         = M_PI/6.0;
@@ -38,6 +39,36 @@ static double chi_para_min_  = 1.0;
 
 double TFunc(const Vector &x, double t)
 {
+   switch (prob_)
+   {
+      case 1:
+      {
+         double e = exp(-2.0 * M_PI * M_PI * t);
+         return sin(M_PI * x[0]) * sin(M_PI * x[1]) * (1.0 - e);
+      }
+      case 2:
+      {
+         double a = 0.4;
+         double b = 0.8;
+
+         double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+         double e = exp(-0.25 * t * M_PI * M_PI / (a * b) );
+
+         return cos(0.5 * M_PI * sqrt(r)) * (1.0 - e);
+      }
+      case 3:
+         return pow(sin(M_PI * x[0]) * sin(M_PI * x[1]), gamma_);
+      case 4:
+      {
+         double a = 0.4;
+         double b = 0.8;
+
+         double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+         double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
+         return cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
+      }
+   }
+   /*
    if ( prob_ % 2 == 1)
    {
       double e = exp(-2.0 * M_PI * M_PI * t);
@@ -53,6 +84,7 @@ double TFunc(const Vector &x, double t)
 
       return cos(0.5 * M_PI * sqrt(r)) * (1.0 - e);
    }
+   */
 }
 
 double QFunc(const Vector &x, double t)
