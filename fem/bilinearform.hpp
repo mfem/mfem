@@ -227,7 +227,7 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    /// Matrix vector multiplication.
-   virtual void Mult(const Vector &x, Vector &y) const { mat->Mult(x, y); }
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
@@ -364,7 +364,7 @@ public:
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.).
-   
+
        Version of the method FormLinearSystem() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
