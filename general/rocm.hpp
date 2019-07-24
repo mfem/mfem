@@ -45,12 +45,6 @@
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
-#else
-#define MFEM_SHARED
-#define MFEM_SYNC_THREAD
-#define MFEM_THREAD_ID(k) 0
-#define MFEM_THREAD_SIZE(k) 1
-#define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
 
