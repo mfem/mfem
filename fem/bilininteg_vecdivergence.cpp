@@ -147,9 +147,18 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_ASSERT(quad1D == test_quad1D,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
-   ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
-   MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
-   const double coeff = cQ->constant;
+   double tempCoeff;
+   if (Q)
+   {
+      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
+      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
+      tempCoeff = cQ->constant;
+   }
+   else
+   {
+      tempCoeff = 1.0;
+   }
+   const double coeff = tempCoeff;
    PAVectorDivergenceSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
                            ne, ir->GetWeights(), geom->J, coeff, pa_data);
 }
