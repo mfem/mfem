@@ -586,6 +586,8 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
    int nn = 2*nv + ne;
 
    dofs.SetSize(nn*nn);
+   if (!dofs.Size()) { return; }
+
    dofs = edof[0];
 
    // copy first two vertex DOFs
