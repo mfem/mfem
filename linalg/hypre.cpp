@@ -1409,7 +1409,7 @@ void HypreParMatrix::EliminateRows(const Array<int> &rows)
 {
    if (rows.Size() > 0)
    {
-      MFEM_ABORT("Not yet implemented.");
+      internal::hypre_ParCSRMatrixEliminateRows(A, rows.Size(), rows.GetData());
    }
 }
 
