@@ -2546,8 +2546,9 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
    MFEM_VERIFY(Nonconforming(), "Not implemented for conforming meshes.");
    MFEM_VERIFY(old_dof_offsets[nrk], "Missing previous (finer) space.");
-   MFEM_VERIFY(dof_offsets[nrk] <= old_dof_offsets[nrk],
-               "Previous space is not finer.");
+
+   /*MFEM_VERIFY(dof_offsets[nrk] <= old_dof_offsets[nrk],
+               "Previous space is not finer.");*/
 
    // Note to the reader: please make sure you first read
    // FiniteElementSpace::RefinementMatrix, then
@@ -2624,10 +2625,9 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    }
 
    // create the diagonal part of the derefinement matrix
-   SparseMatrix *diag = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
-   //SparseMatrix *diag = (elem_geoms.Size() > 1)
-      //? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
-      //: new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof[elem_geoms[0]]);
+   SparseMatrix *diag = (elem_geoms.Size() > 1)
+      ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
+      : new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof[elem_geoms[0]]);
 
    Array<char> mark(diag->Height());
    mark = 0;

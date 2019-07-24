@@ -259,14 +259,6 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // TEST derefinement
-   Vector errors(pmesh->GetNE());
-   errors = 1;
-   pmesh->DerefineByError(errors, 0);
-
-   fespace->Update();
-   x.Update();
-
    // 17. Free the used memory.
    delete a;
    delete b;
