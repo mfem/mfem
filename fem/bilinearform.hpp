@@ -578,8 +578,6 @@ public:
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double a = 1.0) const;
 
-   
-
    virtual MatrixInverse *Inverse() const;
 
    virtual void Finalize(int skip_zeros = 1);
