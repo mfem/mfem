@@ -163,11 +163,13 @@ public:
    virtual const Operator *GetOutputRestriction() const;
 
    virtual void Assemble() = 0;
-   virtual void FormColumnSystemOperator(const Array<int> &ess_tdof_list,
-                                       OperatorHandle &A) = 0;
-   virtual void FormColumnLinearSystem(const Array<int> &ess_tdof_list,
-                                       Vector &x, Vector &b,
-                                       OperatorHandle &A, Vector &X, Vector &B) = 0;
+   virtual void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
+                                              const Array<int> &test_tdof_list,
+                                              OperatorHandle &A) = 0;
+   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            Vector &x, Vector &b,
+                                            OperatorHandle &A, Vector &X, Vector &B) = 0;
 
    virtual void AddMult(const Vector &x, Vector &y, const double c=1.0) const = 0;
    virtual void AddMultTranspose(const Vector &x, Vector &y,
@@ -184,11 +186,14 @@ public:
 
    /// TODO
    void Assemble() {}
-   void FormColumnSystemOperator(const Array<int> &ess_tdof_list, OperatorHandle &A)
+   void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
+                                      const Array<int> &test_tdof_list,
+                                      OperatorHandle &A)
    {}
-   void FormColumnLinearSystem(const Array<int> &ess_tdof_list,
-                               Vector &x, Vector &b,
-                               OperatorHandle &A, Vector &X, Vector &B) {}
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    Vector &x, Vector &b,
+                                    OperatorHandle &A, Vector &X, Vector &B) {}
    void Mult(const Vector &x, Vector &y) const {}
    void MultTranspose(const Vector &x, Vector &y) const {}
    void Update() {}
@@ -221,15 +226,18 @@ public:
       OperatorHandle A contains matrix-free constrained operator formed for RAP system
       where ess_tdof_list are in trial space and eliminated from "columns" of A.
    */
-   void FormColumnSystemOperator(const Array<int> &ess_tdof_list, OperatorHandle &A);
+   void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
+                                      const Array<int> &test_tdof_list,
+                                      OperatorHandle &A);
    /**
-      Setup OperatorHandle A to contain constrained linear operator and 
-      eliminate columns corresponding to essential dofs from system, 
+      Setup OperatorHandle A to contain constrained linear operator and
+      eliminate columns corresponding to essential dofs from system,
       updating RHS B vector with the results.
    */
-   void FormColumnLinearSystem(const Array<int> &ess_tdof_list,
-                               Vector &x, Vector &b,
-                               OperatorHandle &A, Vector &X, Vector &B);
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    Vector &x, Vector &b,
+                                    OperatorHandle &A, Vector &X, Vector &B);
    /// y = A*x
    void Mult(const Vector &x, Vector &y) const;
    /// y += c*A*x

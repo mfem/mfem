@@ -18,7 +18,7 @@ namespace mfem
 {
 
 class ConstrainedOperator;
-class ColumnConstrainedOperator;
+class RectangularConstrainedOperator;
 
 /// Abstract operator
 class Operator
@@ -31,15 +31,17 @@ protected:
    void FormConstrainedSystemOperator(
       const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
 
-   /// see FormColumnSystemOperator()
-   void FormColumnConstrainedSystemOperator(
-      const Array<int> &ess_tdof_list, ColumnConstrainedOperator* &Aout);
+   /// see FormRectangularSystemOperator()
+   void FormRectangularConstrainedSystemOperator(
+      const Array<int> &trial_tdof_list,
+      const Array<int> &test_tdof_list,
+      RectangularConstrainedOperator* &Aout);
 
    /// Initializes memory for true vectors of linear system
    void InitTVectors(const Operator *Po, const Operator *Ri,
                      Vector &x, Vector &b,
                      Vector &X, Vector &B) const;
-   
+
    /// Returns RAP Operator of this, taking in input/output Prolongation matrices
    Operator *SetupRAP(const Operator *Pi, const Operator *Po);
 
@@ -151,17 +153,17 @@ public:
        necessary transformations such as: parallel assembly, conforming
        constraints for non-conforming AMR and eliminating boundary conditions.
        @note Static condensation and hybridization are not supported for general
-       operators (cf. the method MixedBilinearForm::FormColumnLinearSystem())
+       operators (cf. the method MixedBilinearForm::FormRectangularLinearSystem())
 
        The constraints are specified through the input prolongation Pi from
-       GetProlongation(), and output restriction Ro from GetOutputRestriction() 
-       methods, which are e.g. available through the (parallel) finite element 
-       spaces of any (parallel) mixed bilinear form operator. So we have: 
+       GetProlongation(), and output restriction Ro from GetOutputRestriction()
+       methods, which are e.g. available through the (parallel) finite element
+       spaces of any (parallel) mixed bilinear form operator. So we have:
        `A(X)=[Ro (*this) Pi](X)`, `B=Ro(b)`, and `X=Pi^T(x)`.
 
        The vector @a x must contain the essential boundary condition values.
-       The "columns" in this operator corresponding to these values are 
-       eliminated through the ColumnConstrainedOperator class.
+       The "columns" in this operator corresponding to these values are
+       eliminated through the RectangularConstrainedOperator class.
 
        After solving the system `A(X)=B`, the (finite element) solution @a x can
        be recovered by calling Operator::RecoverFEMSolution() with the same
@@ -170,13 +172,14 @@ public:
        @note The caller is responsible for destroying the output operator @a A!
        @note If there are no transformations, @a X simply reuses the data of @a
        x. */
-   void FormColumnLinearSystem(const Array<int> &ess_tdof_list,
-                               Vector &x, Vector &b,
-                               Operator* &A, Vector &X, Vector &B);
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    Vector &x, Vector &b,
+                                    Operator* &A, Vector &X, Vector &B);
 
    /** @brief Reconstruct a solution vector @a x (e.g. a GridFunction) from the
        solution @a X of a constrained linear system obtained from
-       Operator::FormLinearSystem() or Operator::FormColumnLinearSystem().
+       Operator::FormLinearSystem() or Operator::FormRectangularLinearSystem().
 
        Call this method after solving a linear system constructed using
        Operator::FormLinearSystem() to recover the solution as an input vector,
@@ -193,13 +196,14 @@ public:
    void FormSystemOperator(const Array<int> &ess_tdof_list,
                            Operator* &A);
 
-   /** @brief Return in @a A a parallel (on truedofs) version of this 
+   /** @brief Return in @a A a parallel (on truedofs) version of this
        rectangular operator (including constraints).
 
-       This returns the same operator as FormColumnLinearSystem(), but does without
+       This returns the same operator as FormRectangularLinearSystem(), but does without
        the transformations of the right-hand side. */
-   void FormColumnSystemOperator(const Array<int> &ess_tdof_list,
-                                 Operator* &A);
+   void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
+                                      const Array<int> &test_tdof_list,
+                                      Operator* &A);
 
    /** @brief Return in @a A a parallel (on truedofs) version of this
        rectangular operator.
@@ -560,50 +564,50 @@ public:
 
     Rectangular operator constrained by fixing certain entries in the solution to
     given "essential boundary condition" values. This class is used by the
-    general, matrix-free system formulation of Operator::FormColumnLinearSystem. */
-class ColumnConstrainedOperator : public Operator
+    general, matrix-free system formulation of Operator::FormRectangularLinearSystem. */
+class RectangularConstrainedOperator : public Operator
 {
 protected:
-   Array<int> constraint_list;  ///< List of constrained indices/dofs in the input.
-   Operator *A;                 ///< The unconstrained Operator.
-   bool own_A;                  ///< Ownership flag for A.
-   mutable Vector z, w;         ///< Auxiliary vectors.
+   Array<int> trial_constraints, test_constraints;
+   Operator *A;
+   bool own_A;
+   mutable Vector z, w;
    MemoryClass mem_class;
 
 public:
    /** @brief Constructor from a general Operator and a list of essential
        indices/dofs.
 
-       Specify the unconstrained operator @a *A and a @a list of indices to
-       constrain, i.e. each entry @a list[i] represents an essential dof. If the
-       ownership flag @a own_A is true, the operator @a *A will be destroyed
-       when this object is destroyed. */
-   ColumnConstrainedOperator(Operator *A, const Array<int> &list, bool own_A = false);
-
+       Specify the unconstrained operator @a *A and two lists of indices to
+       constrain, i.e. each entry @a trial_list[i] represents an essential
+       trial dof. If the ownership flag @a own_A is true, the operator @a *A
+       will be destroyed when this object is destroyed. */
+   RectangularConstrainedOperator(Operator *A, const Array<int> &trial_list,
+                                  const Array<int> &test_list, bool own_A = false);
    /// Returns the type of memory in which the solution and temporaries are stored.
    virtual MemoryClass GetMemoryClass() const { return mem_class; }
-
-   /** @brief Eliminate columns corresponding to "essential boundary condition" 
+   /** @brief Eliminate columns corresponding to "essential boundary condition"
        values specified in @a x from the given right-hand side @a b.
 
        Performs the following steps:
 
            b -= A((0,x_b));
+           b_j = 0
 
-       where the "_b" subscripts denote the essential (boundary) indices */
+       where the "_b" subscripts denote the essential (boundary) indices
+       and the "_j" subscript denotes the essential test indices */
    void EliminateRHS(const Vector &x, Vector &b) const;
-
-   /** @brief Column-constrained operator action.
+   /** @brief Rectangular-constrained operator action.
 
        Performs the following steps:
 
            y = A((x_i,0));
+           y_j = 0
 
-       where the "_i" subscripts denote all the nonessential (boundary) indices */
+       where the "_i" subscripts denote all the nonessential (boundary) trial indices
+       and the "_j" subscript denotes the essential test indices */
    virtual void Mult(const Vector &x, Vector &y) const;
-
-   /// Destructor: destroys the unconstrained Operator, if owned.
-   virtual ~ColumnConstrainedOperator() { if (own_A) { delete A; } }
+   virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
 };
 
 }

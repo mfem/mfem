@@ -1333,18 +1333,19 @@ void MixedBilinearForm::EliminateTestDofs (const Array<int> &bdr_attr_is_ess)
       }
 }
 
-void MixedBilinearForm::FormColumnSystemMatrix(const Array<int> &ess_trial_tdof_list,
-                                               OperatorHandle &A)
+void MixedBilinearForm::FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                                    const Array<int> &test_tdof_list,
+                                                    OperatorHandle &A)
 
 {
    if (ext)
    {
-      ext->FormColumnSystemOperator(ess_trial_tdof_list, A);
+      ext->FormRectangularSystemOperator(trial_tdof_list, test_tdof_list, A);
       return;
    }
 
    // TODO3: use new functions
-   const SparseMatrix *test_P = test_fes->GetConformingProlongation(); 
+   const SparseMatrix *test_P = test_fes->GetConformingProlongation();
    const SparseMatrix *trial_P = trial_fes->GetConformingProlongation();
 
    mat->Finalize();
@@ -1356,37 +1357,47 @@ void MixedBilinearForm::FormColumnSystemMatrix(const Array<int> &ess_trial_tdof_
       mat = m;
    }
 
-   Array<int> ess_trial_tdof_marker;
-   FiniteElementSpace::ListToMarker(ess_trial_tdof_list, trial_fes->GetTrueVSize(),
+   Array<int> ess_trial_tdof_marker, ess_test_tdof_marker;
+   FiniteElementSpace::ListToMarker(trial_tdof_list, trial_fes->GetTrueVSize(),
                                     ess_trial_tdof_marker);
+   FiniteElementSpace::ListToMarker(test_tdof_list, trial_fes->GetTrueVSize(),
+                                    ess_test_tdof_marker);
 
    mat_e = new SparseMatrix(mat->Height(), mat->Width());
    mat->EliminateCols(ess_trial_tdof_marker, *mat_e);
+   // TODO: WP: are we doing the right thing here?
+   for (int i=0; i<test_tdof_list.Size(); ++i)
+   {
+      mat->EliminateRow(test_tdof_list[i]);
+   }
    mat_e->Finalize();
    A.Reset(mat, false);
 }
 
-void MixedBilinearForm::FormColumnLinearSystem(const Array<int> &ess_trial_tdof_list,
+void MixedBilinearForm::FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                              const Array<int> &test_tdof_list,
                                                Vector &x, Vector &b,
                                                OperatorHandle &A,
                                                Vector &X, Vector &B)
 {
    if (ext)
    {
-      ext->FormColumnLinearSystem(ess_trial_tdof_list, x, b, A, X, B);
+      ext->FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b, A, X, B);
       return;
    }
-   
+
    const Operator *Po = this->GetOutputProlongation();
    const Operator *Ri = this->GetRestriction();
    InitTVectors(Po, Ri, x, b, X, B);
 
    if (!mat_e)
    {
-      FormColumnSystemMatrix(ess_trial_tdof_list, A); // Set A = mat_e
+      FormRectangularSystemMatrix(trial_tdof_list, test_tdof_list, A); // Set A = mat_e
    }
    // Eliminate essential BCs with B -= Ab xb
    mat_e->AddMult(X, B, -1.0);
+
+   B.SetSubVector(test_tdof_list, 0.0);
 }
 
 void MixedBilinearForm::Update()

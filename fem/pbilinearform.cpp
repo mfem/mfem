@@ -489,15 +489,17 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
    test_pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
-void ParMixedBilinearForm::FormColumnSystemMatrix(const Array<int> &ess_tdof_list,
-                                                  OperatorHandle &A)
+void ParMixedBilinearForm::FormRectangularSystemMatrix(const Array<int>
+                                                       &trial_tdof_list,
+                                                       const Array<int> &test_tdof_list,
+                                                       OperatorHandle &A)
 {
    if (ext)
    {
-      ext->FormColumnSystemOperator(ess_tdof_list, A);
+      ext->FormRectangularSystemOperator(trial_tdof_list, test_tdof_list, A);
       return;
    }
-   
+
    if (mat)
    {
       Finalize();
@@ -506,24 +508,29 @@ void ParMixedBilinearForm::FormColumnSystemMatrix(const Array<int> &ess_tdof_lis
       mat = NULL;
       delete mat_e;
       mat_e = NULL;
-      HypreParMatrix *temp = p_mat.As<HypreParMatrix>()->EliminateCols(ess_tdof_list);
+      HypreParMatrix *temp = p_mat.As<HypreParMatrix>()->EliminateCols(
+                                trial_tdof_list);
+      p_mat.As<HypreParMatrix>()->EliminateRows(test_tdof_list);
       p_mat_e.Reset(temp, true);
    }
 
    A = p_mat;
 }
 
-void ParMixedBilinearForm::FormColumnLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
-                                                  Vector &b, OperatorHandle &A, Vector &X,
-                                                  Vector &B)
+void ParMixedBilinearForm::FormRectangularLinearSystem(const Array<int>
+                                                       &trial_tdof_list,
+                                                       const Array<int> &test_tdof_list, Vector &x,
+                                                       Vector &b, OperatorHandle &A, Vector &X,
+                                                       Vector &B)
 {
    if (ext)
    {
-      ext->FormColumnLinearSystem(ess_tdof_list, x, b, A, X, B);
+      ext->FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b, A, X,
+                                       B);
       return;
    }
 
-   FormColumnSystemMatrix(ess_tdof_list, A);
+   FormRectangularSystemMatrix(trial_tdof_list, test_tdof_list, A);
 
    const Operator *test_P = test_pfes->GetProlongationMatrix();
    const SparseMatrix *trial_R = trial_pfes->GetRestrictionMatrix();
@@ -534,6 +541,7 @@ void ParMixedBilinearForm::FormColumnLinearSystem(const Array<int> &ess_tdof_lis
    trial_R->Mult(x, X);
 
    p_mat_e.As<HypreParMatrix>()->Mult(-1.0, X, 1.0, B);
+   B.SetSubVector(test_tdof_list, 0.0);
 }
 
 void ParMixedBilinearForm::Update()

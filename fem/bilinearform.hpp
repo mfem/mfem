@@ -653,26 +653,28 @@ public:
 
    /** @brief Return in @a A a parallel (on truedofs) version of this operator.
 
-      This returns the same operator as FormColumnLinearSystem(), but does
+      This returns the same operator as FormRectangularLinearSystem(), but does
       without the transformations of the right-hand side. */
-   void FormColumnSystemMatrix(const Array<int> &ess_trial_tdof_list,
-                               OperatorHandle &A);
+   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    OperatorHandle &A);
 
    /** @brief Form the column-constrained linear system matrix A.
-       See FormColumnSystemMatrix() for details.
-       
-       Version of the method FormColumnSystemMatrix() where the system matrix is
+       See FormRectangularSystemMatrix() for details.
+
+       Version of the method FormRectangularSystemMatrix() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called. 
+       destructor is called.
 
        Currently, this method can be used only with AssemblyLevel::FULL. */
    template <typename OpType>
-   void FormColumnSystemMatrix(const Array<int> &ess_trial_tdof_list, OpType &A)
+   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list, OpType &A)
    {
       OperatorHandle Ah;
-      FormColumnSystemMatrix(ess_trial_tdof_list, Ah);
+      FormRectangularSystemMatrix(trial_tdof_list, test_tdof_list, Ah);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
@@ -684,14 +686,15 @@ public:
        Return in @a A a *reference* to the system matrix that is column-constrained.
        The reference will be invalidated when SetOperatorType(), Update(), or the
        destructor is called. */
-   void FormColumnLinearSystem(const Array<int> &ess_trial_tdof_list,
-                               Vector &x, Vector &b,
-                               OperatorHandle &A, Vector &X, Vector &B);
-   
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    Vector &x, Vector &b,
+                                    OperatorHandle &A, Vector &X, Vector &B);
+
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.).
 
-       Version of the method FormColumnLinearSystem() where the system matrix is
+       Version of the method FormRectangularLinearSystem() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
        reference will be invalidated when SetOperatorType(), Update(), or the
@@ -699,12 +702,13 @@ public:
 
        Currently, this method can be used only with AssemblyLevel::FULL. */
    template <typename OpType>
-   void FormColumnLinearSystem(const Array<int> &ess_trial_tdof_list,
-                               Vector &x, Vector &b,
-                               OpType &A, Vector &X, Vector &B)
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    Vector &x, Vector &b,
+                                    OpType &A, Vector &X, Vector &B)
    {
       OperatorHandle Ah;
-      FormColumnLinearSystem(ess_trial_tdof_list, x, b, Ah, X, B);
+      FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b, Ah, X, B);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
