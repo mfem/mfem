@@ -29,7 +29,8 @@ MINIAPPS = $(PAR_MINIAPPS)
 .PHONY: all clean clean-build clean-exec
 .PRECIOUS: %.o
 
-COMMON_O = ../common/pfem_extras.o vec_conv_integrator.o schurlsc.o
+COMMON_O = ../common/pfem_extras.o vec_grad_integrator.o vec_conv_integrator.o \
+schurlsc.o
 
 # Remove built-in rules
 %: %.cpp
