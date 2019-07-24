@@ -3967,7 +3967,6 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
       }
 
       // assign numbers to the different matrices used
-      int used_geoms = 0;
       for (int i = 0; i < transforms.embeddings.Size(); i++)
       {
          int code = transforms.embeddings[i].matrix;
@@ -3979,14 +3978,12 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
             int &matrix = mat_no[geom][ref_type_child];
             if (!matrix) { matrix = mat_no[geom].size(); }
             transforms.embeddings[i].matrix = matrix - 1;
-
-            used_geoms |= (1 << geom);
          }
       }
 
       for (int g = 0; g < Geometry::NumGeom; g++)
       {
-         if (used_geoms & (1 << g))
+         if (Geoms & (1 << g))
          {
             Geometry::Type geom = Geometry::Type(g);
             const PointMatrix &identity = GetGeomIdentity(geom);
@@ -3995,14 +3992,16 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
             .SetSize(Dim, identity.np, mat_no[geom].size());
 
             // calculate point matrices
-            std::map<int, int>::iterator it;
-            for (it = mat_no[geom].begin(); it != mat_no[geom].end(); ++it)
+            for (auto it = mat_no[geom].begin(); it != mat_no[geom].end(); ++it)
             {
-               char path[3];
+               char path[3] = { 0, 0, 0 };
+
                int code = it->first;
-               path[0] = code >> 4;  // ref_type (see SetDerefMatrixCodes())
-               path[1] = code & 0xf; // child
-               path[2] = 0;
+               if (code)
+               {
+                  path[0] = code >> 4;  // ref_type (see SetDerefMatrixCodes())
+                  path[1] = code & 0xf; // child
+               }
 
                GetPointMatrix(geom, path,
                               transforms.point_matrices[geom](it->second-1));
