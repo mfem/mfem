@@ -125,9 +125,9 @@
 // Requires a CUDA compiler (nvcc).
 // #define MFEM_USE_CUDA
 
-// Build the GPU/ROCM-enabled version of the MFEM library.
+// Build the GPU/HIP-enabled version of the MFEM library.
 // Requires a HIP compiler (hipcc).
-// #define MFEM_USE_ROCM
+// #define MFEM_USE_HIP
 
 // Enable functionality based on the RAJA library.
 // #define MFEM_USE_RAJA

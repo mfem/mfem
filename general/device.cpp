@@ -33,7 +33,7 @@ occa::device occaDevice;
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
    Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
-   Backend::ROCM,
+   Backend::HIP,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
    Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
@@ -41,7 +41,7 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "occa-cuda", "raja-cuda", "cuda", "rocm", "occa-omp", "raja-omp", "omp",
+   "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp", "omp",
    "occa-cpu", "raja-cpu", "cpu"
 };
 
@@ -151,9 +151,9 @@ static void CudaDeviceSetup(const int dev, int &ngpu)
 #endif
 }
 
-static void RocmDeviceSetup(const int dev, int &ngpu)
+static void HipDeviceSetup(const int dev, int &ngpu)
 {
-#ifdef MFEM_USE_ROCM
+#ifdef MFEM_USE_HIP
    int deviceId;
    MFEM_GPU_CHECK(hipGetDevice(&deviceId));
    hipDeviceProp_t props;
@@ -234,9 +234,9 @@ void Device::Setup(const int device)
    MFEM_VERIFY(!Allows(Backend::CUDA_MASK),
                "the CUDA backends require MFEM built with MFEM_USE_CUDA=YES");
 #endif
-#ifndef MFEM_USE_ROCM
-   MFEM_VERIFY(!Allows(Backend::ROCM_MASK),
-               "the ROCM backends require MFEM built with MFEM_USE_ROCM=YES");
+#ifndef MFEM_USE_HIP
+   MFEM_VERIFY(!Allows(Backend::HIP_MASK),
+               "the HIP backends require MFEM built with MFEM_USE_HIP=YES");
 #endif
 #ifndef MFEM_USE_RAJA
    MFEM_VERIFY(!Allows(Backend::RAJA_MASK),
@@ -248,7 +248,7 @@ void Device::Setup(const int device)
                " MFEM_USE_OPENMP=YES");
 #endif
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
-   if (Allows(Backend::ROCM)) { RocmDeviceSetup(dev, ngpu); }
+   if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
    if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
