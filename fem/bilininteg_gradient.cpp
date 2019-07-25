@@ -231,7 +231,7 @@ static void PAGradientApply2D(const int NE,
             }
          }
       }
-      // We've now calculated grad(p) = [Dxy_1, xDy_2] in plane
+      // We've now calculated grad(p) = [Dxy, xDy] in plane
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -239,7 +239,7 @@ static void PAGradientApply2D(const int NE,
             const int q = qx + qy * Q1D;
             const double gradX = grad[qy][qx][0];
             const double gradY = grad[qy][qx][1];
-            // TODO: Is this transpose of what we need to be computing?
+            
             grad[qy][qx][0] = gradX*op(q,0,0,e) + gradY*op(q,1,0,e);
             grad[qy][qx][1] = gradX*op(q,0,1,e) + gradY*op(q,1,1,e);
          }
@@ -331,8 +331,8 @@ static void PAGradientApply3D(const int NE,
    auto G = Reshape(g.Read(), Q1D, TR_D1D);
    auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
    auto op = Reshape(_op.Read(), Q1D*Q1D*Q1D, 3,3, NE);
-   auto x = Reshape(_x.Read(), TR_D1D, TR_D1D, TR_D1D, 3, NE);
-   auto y = Reshape(_y.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, NE);
+   auto x = Reshape(_x.Read(), TR_D1D, TR_D1D, TR_D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), TE_D1D, TE_D1D, TE_D1D, 3, NE);
    MFEM_FORALL(e, NE,
    {
       const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
@@ -344,135 +344,129 @@ static void PAGradientApply3D(const int NE,
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
 
       double grad[max_Q1D][max_Q1D][max_Q1D][VDIM];
-      double div[max_Q1D][max_Q1D][max_Q1D];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               div[qz][qy][qx] = 0.0;
+               grad[qz][qy][qx][0] = 0.0;
+               grad[qz][qy][qx][1] = 0.0;
+               grad[qz][qy][qx][2] = 0.0;
             }
          }
       }
-
-      for (int c = 0; c < VDIM; ++c)
+      for (int dz = 0; dz < TR_D1D; ++dz)
       {
-         for (int qz = 0; qz < Q1D; ++qz)
+         double gradXY[max_Q1D][max_Q1D][3];
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            for (int qy = 0; qy < Q1D; ++qy)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
+               gradXY[qy][qx][0] = 0.0;
+               gradXY[qy][qx][1] = 0.0;
+               gradXY[qy][qx][2] = 0.0;
+            }
+         }
+         for (int dy = 0; dy < TR_D1D; ++dy)
+         {
+            double gradX[max_Q1D][2];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               gradX[qx][0] = 0.0;
+               gradX[qx][1] = 0.0;
+            }
+            for (int dx = 0; dx < TR_D1D; ++dx)
+            {
+               const double s = x(dx,dy,dz,e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  grad[qz][qy][qx][0] = 0.0;
-                  grad[qz][qy][qx][1] = 0.0;
-                  grad[qz][qy][qx][2] = 0.0;
+                  gradX[qx][0] += s * B(qx,dx);
+                  gradX[qx][1] += s * G(qx,dx);
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy  = B(qy,dy);
+               const double wDy = G(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const double wx  = gradX[qx][0];
+                  const double wDx = gradX[qx][1];
+                  gradXY[qy][qx][0] += wDx * wy;
+                  gradXY[qy][qx][1] += wx  * wDy;
+                  gradXY[qy][qx][2] += wx  * wy;
                }
             }
          }
-         for (int dz = 0; dz < TR_D1D; ++dz)
-         {
-            double gradXY[max_Q1D][max_Q1D][VDIM];
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  gradXY[qy][qx][0] = 0.0;
-                  gradXY[qy][qx][1] = 0.0;
-                  gradXY[qy][qx][2] = 0.0;
-               }
-            }
-            for (int dy = 0; dy < TR_D1D; ++dy)
-            {
-               double gradX[max_Q1D][VDIM];
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  gradX[qx][0] = 0.0;
-                  gradX[qx][1] = 0.0;
-                  gradX[qx][2] = 0.0;
-               }
-               for (int dx = 0; dx < TR_D1D; ++dx)
-               {
-                  const double s = x(dx,dy,dz,c,e);
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     gradX[qx][0] += s * G(qx,dx);
-                     gradX[qx][1] += s * B(qx,dx);
-                     gradX[qx][2] += s * B(qx,dx);
-                  }
-               }
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  const double wy  = B(qy,dy);
-                  const double wDy = G(qy,dy);
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     gradXY[qy][qx][0] += gradX[qx][0] * wy;
-                     gradXY[qy][qx][1] += gradX[qx][1] * wDy;
-                     gradXY[qy][qx][2] += gradX[qx][2] * wy;
-                  }
-               }
-            }
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               const double wz  = B(qz,dz);
-               const double wDz = G(qz,dz);
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     grad[qz][qy][qx][0] += gradXY[qy][qx][0] * wz;
-                     grad[qz][qy][qx][1] += gradXY[qy][qx][1] * wz;
-                     grad[qz][qy][qx][2] += gradXY[qy][qx][2] * wDz;
-                  }
-               }
-            }
-         }
-         // We've now calculated grad(u_c) = [Dxyz_1, xDyz_2, xyDz_3] in plane
          for (int qz = 0; qz < Q1D; ++qz)
          {
+            const double wz  = B(qz,dz);
+            const double wDz = G(qz,dz);
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const int q = qx + (qy + qz * Q1D) * Q1D;
-                  const double gradX = grad[qz][qy][qx][0];
-                  const double gradY = grad[qz][qy][qx][1];
-                  const double gradZ = grad[qz][qy][qx][2];
-
-                  div[qz][qy][qx] += gradX*op(q,0,c,e) + gradY*op(q,1,c,e) + gradZ*op(q,2,c,e);
-
+                  grad[qz][qy][qx][0] += gradXY[qy][qx][0] * wz;
+                  grad[qz][qy][qx][1] += gradXY[qy][qx][1] * wz;
+                  grad[qz][qy][qx][2] += gradXY[qy][qx][2] * wDz;
                }
             }
          }
       }
-      // We've now calculated div = reshape(div phi * op) * u
+      // We've now calculated grad(p) = [Dxyz, xDyz, xyDz] in plane
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double opXY[max_TE_D1D][max_TE_D1D];
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const int q = qx + (qy + qz * Q1D) * Q1D;
+               const double gradX = grad[qz][qy][qx][0];
+               const double gradY = grad[qz][qy][qx][1];
+               const double gradZ = grad[qz][qy][qx][2];
+
+               grad[qz][qy][qx][0] = gradX*op(q,0,0,e) + gradY*op(q,1,0,e) + gradZ*op(q,2,0,e);
+               grad[qz][qy][qx][1] = gradX*op(q,0,1,e) + gradY*op(q,1,1,e) + gradZ*op(q,2,1,e);
+               grad[qz][qy][qx][2] = gradX*op(q,0,2,e) + gradY*op(q,1,2,e) + gradZ*op(q,2,2,e);
+            }
+         }
+      }
+      // We've now calculated grad = grad p * op
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         double opXY[max_TE_D1D][max_TE_D1D][VDIM];
          for (int dy = 0; dy < TE_D1D; ++dy)
          {
             for (int dx = 0; dx < TE_D1D; ++dx)
             {
-               opXY[dy][dx] = 0.0;
+               opXY[dy][dx][0] = 0.0;
+               opXY[dy][dx][1] = 0.0;
+               opXY[dy][dx][2] = 0.0;
             }
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double opX[max_TE_D1D];
+            double opX[max_TE_D1D][VDIM];
             for (int dx = 0; dx < TE_D1D; ++dx)
             {
-               opX[dx] = 0.0;
+               opX[dx][0] = 0.0;
+               opX[dx][1] = 0.0;
+               opX[dx][2] = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  opX[dx] += Bt(dx,qx)*div[qz][qy][qx];
+                  opX[dx][0] += Bt(dx,qx)*grad[qz][qy][qx][0];
+                  opX[dx][1] += Bt(dx,qx)*grad[qz][qy][qx][1];
+                  opX[dx][2] += Bt(dx,qx)*grad[qz][qy][qx][2];
                }
             }
             for (int dy = 0; dy < TE_D1D; ++dy)
             {
                for (int dx = 0; dx < TE_D1D; ++dx)
                {
-                  opXY[dy][dx] += Bt(dy,qy)*opX[dx];
+                  opXY[dy][dx][0] += Bt(dy,qy)*opX[dx][0];
+                  opXY[dy][dx][1] += Bt(dy,qy)*opX[dx][1];
+                  opXY[dy][dx][2] += Bt(dy,qy)*opX[dx][2];
                }
             }
          }
@@ -482,12 +476,14 @@ static void PAGradientApply3D(const int NE,
             {
                for (int dx = 0; dx < TE_D1D; ++dx)
                {
-                  y(dx,dy,dz,e) += Bt(dz,qz)*opXY[dy][dx];
+                  y(dx,dy,dz,0,e) += Bt(dz,qz)*opXY[dy][dx][0];
+                  y(dx,dy,dz,1,e) += Bt(dz,qz)*opXY[dy][dx][1];
+                  y(dx,dy,dz,2,e) += Bt(dz,qz)*opXY[dy][dx][2];
                }
             }
          }
       }
-      // We've now calculated y = p * div
+      // We've now calculated y = u * grad
    });
 }
 
