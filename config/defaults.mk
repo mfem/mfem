@@ -43,7 +43,7 @@ CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
 CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
 # Prefixes for passing flags to the host compiler and linker when using CUDA_CXX
-CUDA_XCOMPILER = -Xcompiler=
+CUDA_XCOMPILER = -Xcompiler 
 CUDA_XLINKER   = -Xlinker=
 
 ifneq ($(NOTMAC),)
@@ -193,7 +193,7 @@ MESQUITE_LIB = -L$(MESQUITE_DIR)/lib -lmesquite
 LIB_RT = $(if $(NOTMAC),-lrt,)
 SUITESPARSE_DIR = @MFEM_DIR@/../SuiteSparse
 SUITESPARSE_OPT = -I$(SUITESPARSE_DIR)/include
-SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
+SUITESPARSE_LIB = $(XCOMPILER)\\"-Wl,-rpath,$(SUITESPARSE_DIR)/lib\\" -L$(SUITESPARSE_DIR)/lib\
  -lklu -lbtf -lumfpack -lcholmod -lcolamd -lamd -lcamd -lccolamd\
  -lsuitesparseconfig $(LIB_RT) $(METIS_LIB) $(LAPACK_LIB)
 
