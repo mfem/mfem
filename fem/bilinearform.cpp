@@ -1205,7 +1205,7 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          trial_fes -> GetBdrElementVDofs (i, tr_vdofs);
          test_fes  -> GetBdrElementVDofs (i, te_vdofs);
          eltrans = test_fes -> GetBdrElementTransformation (i);
-         for (k = 0; k < bbfi.Size(); k++)
+         for (int k = 0; k < bbfi.Size(); k++)
          {
             if (bbfi_marker[k] &&
                 (*bbfi_marker[k])[bdr_attr-1] == 0) { continue; }
