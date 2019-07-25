@@ -2625,9 +2625,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    }
 
    // create the diagonal part of the derefinement matrix
-   SparseMatrix *diag = (elem_geoms.Size() > 1)
-      ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
-      : new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof[elem_geoms[0]]);
+   SparseMatrix *diag = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
 
    Array<char> mark(diag->Height());
    mark = 0;
@@ -2702,6 +2700,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
          for (int vd = 0; vd < vdim; vd++)
          {
+            MFEM_ASSERT(ldof[geom], "");
             HYPRE_Int* remote_dofs = &msg.dofs[vd*ldof[geom]];
 
             for (int i = 0; i < lR.Height(); i++)
@@ -2714,6 +2713,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                if (!mark[m])
                {
                   lR.GetRow(i, row);
+                  MFEM_ASSERT(ldof[geom] == row.Size(), "");
                   for (int j = 0; j < ldof[geom]; j++)
                   {
                      if (row[j] == 0.0) { continue; } // NOTE: lR thresholded
@@ -2744,7 +2744,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    // sure cmap is determined and sorted before the offd matrix is created
    {
       int width = offd->Width();
-      Array<Pair<int, int> > reorder(width);
+      Array<Pair<HYPRE_Int, int> > reorder(width);
       for (int i = 0; i < width; i++)
       {
          reorder[i].one = cmap[i];
