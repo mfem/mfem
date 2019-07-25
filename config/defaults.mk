@@ -46,9 +46,9 @@ CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
-# ROCM configuration options
-ROCM_CXX = hipcc
-ROCM_FLAGS = --amdgpu-target=gfx900 # link-time option
+# HIP configuration options
+HIP_CXX = hipcc
+HIP_FLAGS = --amdgpu-target=gfx900 # link-time option
 
 ifneq ($(NOTMAC),)
    AR      = ar
@@ -126,7 +126,7 @@ MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_CUDA          = NO
-MFEM_USE_ROCM          = NO
+MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 
@@ -308,9 +308,9 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
 CUDA_OPT =
 CUDA_LIB =
 
-# ROCM library configuration (currently not needed)
-ROCM_OPT =
-ROCM_LIB =
+# HIP library configuration (currently not needed)
+HIP_OPT =
+HIP_LIB =
 
 # OCCA library configuration
 OCCA_DIR = @MFEM_DIR@/../occa

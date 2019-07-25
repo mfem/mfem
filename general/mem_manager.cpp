@@ -20,8 +20,8 @@
 namespace mfem
 {
 
-#ifdef MFEM_USE_ROCM
-#define GPU(...) Roc ## __VA_ARGS__
+#ifdef MFEM_USE_HIP
+#define GPU(...) Hip ## __VA_ARGS__
 #else
 #define GPU(...) Cu ## __VA_ARGS__
 #endif

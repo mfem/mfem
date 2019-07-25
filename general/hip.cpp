@@ -9,21 +9,21 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "rocm.hpp"
+#include "hip.hpp"
 #include "globals.hpp"
 
 namespace mfem
 {
 
-// Internal debug option, useful for tracking ROCM allocations, deallocations
+// Internal debug option, useful for tracking HIP allocations, deallocations
 // and transfers.
-//#define MFEM_TRACK_ROCM_MEM
+//#define MFEM_TRACK_HIP_MEM
 
-#ifdef MFEM_USE_ROCM
-void mfem_rocm_error(hipError_t err, const char *expr, const char *func,
-                     const char *file, int line)
+#ifdef MFEM_USE_HIP
+void mfem_hip_error(hipError_t err, const char *expr, const char *func,
+                    const char *file, int line)
 {
-   mfem::err << "\n\nROCM error: (" << expr << ") failed with error:\n --> "
+   mfem::err << "\n\nHIP error: (" << expr << ") failed with error:\n --> "
              << hipGetErrorString(err)
              << "\n ... in function: " << func
              << "\n ... in file: " << file << ':' << line << '\n';
@@ -31,100 +31,100 @@ void mfem_rocm_error(hipError_t err, const char *expr, const char *func,
 }
 #endif
 
-void* RocMemAlloc(void** dptr, size_t bytes)
+void* HipMemAlloc(void** dptr, size_t bytes)
 {
-#ifdef MFEM_USE_ROCM
-#ifdef MFEM_TRACK_ROCM_MEM
-   mfem::out << "RocMemAlloc(): allocating " << bytes << " bytes ... "
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMemAlloc(): allocating " << bytes << " bytes ... "
              << std::flush;
 #endif
    MFEM_GPU_CHECK(hipMalloc(dptr, bytes));
-#ifdef MFEM_TRACK_ROCM_MEM
+#ifdef MFEM_TRACK_HIP_MEM
    mfem::out << "done: " << *dptr << std::endl;
 #endif
 #endif
    return *dptr;
 }
 
-void* RocMemFree(void *dptr)
+void* HipMemFree(void *dptr)
 {
-#ifdef MFEM_USE_ROCM
-#ifdef MFEM_TRACK_ROCM_MEM
-   mfem::out << "RocMemFree(): deallocating memory @ " << dptr << " ... "
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMemFree(): deallocating memory @ " << dptr << " ... "
              << std::flush;
 #endif
    MFEM_GPU_CHECK(hipFree(dptr));
-#ifdef MFEM_TRACK_ROCM_MEM
+#ifdef MFEM_TRACK_HIP_MEM
    mfem::out << "done." << std::endl;
 #endif
 #endif
    return dptr;
 }
 
-void* RocMemcpyHtoD(void* dst, const void* src, size_t bytes)
+void* HipMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
-#ifdef MFEM_USE_ROCM
-#ifdef MFEM_TRACK_ROCM_MEM
-   mfem::out << "RocMemcpyHtoD(): copying " << bytes << " bytes from "
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMemcpyHtoD(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
    MFEM_GPU_CHECK(hipMemcpy(dst, src, bytes, hipMemcpyHostToDevice));
-#ifdef MFEM_TRACK_ROCM_MEM
+#ifdef MFEM_TRACK_HIP_MEM
    mfem::out << "done." << std::endl;
 #endif
 #endif
    return dst;
 }
 
-void* RocMemcpyHtoDAsync(void* dst, const void* src, size_t bytes)
+void* HipMemcpyHtoDAsync(void* dst, const void* src, size_t bytes)
 {
-#ifdef MFEM_USE_ROCM
+#ifdef MFEM_USE_HIP
    MFEM_GPU_CHECK(hipMemcpyAsync(dst, src, bytes, hipMemcpyHostToDevice));
 #endif
    return dst;
 }
 
-void* RocMemcpyDtoD(void *dst, const void *src, size_t bytes)
+void* HipMemcpyDtoD(void *dst, const void *src, size_t bytes)
 {
-#ifdef MFEM_USE_ROCM
-#ifdef MFEM_TRACK_ROCM_MEM
-   mfem::out << "RocMemcpyDtoD(): copying " << bytes << " bytes from "
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMemcpyDtoD(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
    MFEM_GPU_CHECK(hipMemcpy(dst, src, bytes, hipMemcpyDeviceToDevice));
-#ifdef MFEM_TRACK_ROCM_MEM
+#ifdef MFEM_TRACK_HIP_MEM
    mfem::out << "done." << std::endl;
 #endif
 #endif
    return dst;
 }
 
-void* RocMemcpyDtoDAsync(void* dst, const void *src, size_t bytes)
+void* HipMemcpyDtoDAsync(void* dst, const void *src, size_t bytes)
 {
-#ifdef MFEM_USE_ROCM
+#ifdef MFEM_USE_HIP
    MFEM_GPU_CHECK(hipMemcpyAsync(dst, src, bytes, hipMemcpyDeviceToDevice));
 #endif
    return dst;
 }
 
-void* RocMemcpyDtoH(void *dst, const void *src, size_t bytes)
+void* HipMemcpyDtoH(void *dst, const void *src, size_t bytes)
 {
-#ifdef MFEM_USE_ROCM
-#ifdef MFEM_TRACK_ROCM_MEM
-   mfem::out << "RocMemcpyDtoH(): copying " << bytes << " bytes from "
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HPI_MEM
+   mfem::out << "HipMemcpyDtoH(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
    MFEM_GPU_CHECK(hipMemcpy(dst, src, bytes, hipMemcpyDeviceToHost));
-#ifdef MFEM_TRACK_ROCM_MEM
+#ifdef MFEM_TRACK_HIP_MEM
    mfem::out << "done." << std::endl;
 #endif
 #endif
    return dst;
 }
 
-void* RocMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
+void* HipMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
 {
-#ifdef MFEM_USE_ROCM
+#ifdef MFEM_USE_HIP
    MFEM_GPU_CHECK(hipMemcpyAsync(dst, src, bytes, hipMemcpyDeviceToHost));
 #endif
    return dst;

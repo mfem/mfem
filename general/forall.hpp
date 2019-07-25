@@ -15,7 +15,7 @@
 #include "../config/config.hpp"
 #include "error.hpp"
 #include "cuda.hpp"
-#include "rocm.hpp"
+#include "hip.hpp"
 #include "occa.hpp"
 #include "device.hpp"
 #include "mem_manager.hpp"
@@ -180,11 +180,11 @@ void CuWrap3D(const int N, DBODY &&d_body,
 #endif // MFEM_USE_CUDA
 
 
-/// ROCM backend
-#ifdef MFEM_USE_ROCM
+/// HIP backend
+#ifdef MFEM_USE_HIP
 
 template <typename BODY> __global__ static
-void RocKernel1D(const int N, BODY body)
+void HipKernel1D(const int N, BODY body)
 {
    const int k = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
    if (k >= N) { return; }
@@ -192,7 +192,7 @@ void RocKernel1D(const int N, BODY body)
 }
 
 template <typename BODY> __global__ static
-void RocKernel2D(const int N, BODY body, const int BZ)
+void HipKernel2D(const int N, BODY body, const int BZ)
 {
    const int k = hipBlockIdx_x*BZ + hipThreadIdx_z;
    if (k >= N) { return; }
@@ -200,45 +200,45 @@ void RocKernel2D(const int N, BODY body, const int BZ)
 }
 
 template <typename BODY> __global__ static
-void RocKernel3D(const int N, BODY body)
+void HipKernel3D(const int N, BODY body)
 {
    const int k = hipBlockIdx_x;
    if (k >= N) { return; }
    body(k);
 }
 
-template <const int BLCK = MFEM_ROCM_BLOCKS, typename DBODY>
-void RocWrap1D(const int N, DBODY &&d_body)
+template <const int BLCK = MFEM_HIP_BLOCKS, typename DBODY>
+void HipWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
    const int GRID = (N+BLCK-1)/BLCK;
-   hipLaunchKernelGGL(RocKernel1D,GRID,BLCK,0,0,N,d_body);
+   hipLaunchKernelGGL(HipKernel1D,GRID,BLCK,0,0,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
 template <typename DBODY>
-void RocWrap2D(const int N, DBODY &&d_body,
+void HipWrap2D(const int N, DBODY &&d_body,
                const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   hipLaunchKernelGGL(RocKernel2D,GRID,BLCK,0,0,N,d_body,BZ);
+   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,0,N,d_body,BZ);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
 template <typename DBODY>
-void RocWrap3D(const int N, DBODY &&d_body,
+void HipWrap3D(const int N, DBODY &&d_body,
                const int X, const int Y, const int Z)
 {
    if (N==0) { return; }
    const int GRID = N;
    const dim3 BLCK(X,Y,Z);
-   hipLaunchKernelGGL(RocKernel3D,GRID,BLCK,0,0,N,d_body);
+   hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,0,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
-#endif // MFEM_USE_ROCM
+#endif // MFEM_USE_HIP
 
 
 /// The forall kernel body wrapper
@@ -267,16 +267,16 @@ inline void ForallWrap(const bool use_dev, const int N,
    { return CuWrap3D(N, d_body, X, Y, Z); }
 #endif
 
-#ifdef MFEM_USE_ROCM
-   // Handle all allowed ROCM backends
-   if (DIM == 1 && Device::Allows(Backend::ROCM_MASK))
-   { return RocWrap1D(N, d_body); }
+#ifdef MFEM_USE_HIP
+   // Handle all allowed HIP backends
+   if (DIM == 1 && Device::Allows(Backend::HIP_MASK))
+   { return HipWrap1D(N, d_body); }
 
-   if (DIM == 2 && Device::Allows(Backend::ROCM_MASK))
-   { return RocWrap2D(N, d_body, X, Y, Z); }
+   if (DIM == 2 && Device::Allows(Backend::HIP_MASK))
+   { return HipWrap2D(N, d_body, X, Y, Z); }
 
-   if (DIM == 3 && Device::Allows(Backend::ROCM_MASK))
-   { return RocWrap3D(N, d_body, X, Y, Z); }
+   if (DIM == 3 && Device::Allows(Backend::HIP_MASK))
+   { return HipWrap3D(N, d_body, X, Y, Z); }
 #endif
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)

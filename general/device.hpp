@@ -35,8 +35,8 @@ struct Backend
       OMP = 1 << 1,
       /// [device] CUDA backend. Enabled when MFEM_USE_CUDA = YES.
       CUDA = 1 << 2,
-      /// [device] ROCM backend. Enabled when MFEM_USE_ROCM = YES.
-      ROCM = 1 << 3,
+      /// [device] HIP backend. Enabled when MFEM_USE_HIP = YES.
+      HIP = 1 << 3,
       /** @brief [host] RAJA CPU backend: sequential execution on each MPI rank.
           Enabled when MFEM_USE_RAJA = YES. */
       RAJA_CPU = 1 << 4,
@@ -67,12 +67,12 @@ struct Backend
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU,
       /// Biwise-OR of all CUDA backends
       CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
-      /// Biwise-OR of all ROCM backends
-      ROCM_MASK = ROCM,
+      /// Biwise-OR of all HIP backends
+      HIP_MASK = HIP,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK | ROCM_MASK,
+      DEVICE_MASK = CUDA_MASK | HIP_MASK,
 
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA,

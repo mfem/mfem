@@ -9,22 +9,22 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_ROCM_HPP
-#define MFEM_ROCM_HPP
+#ifndef MFEM_HIP_HPP
+#define MFEM_HIP_HPP
 
 #include "../config/config.hpp"
 #include "error.hpp"
 
-#ifdef MFEM_USE_ROCM
+#ifdef MFEM_USE_HIP
 #include <hip/hip_runtime.h>
 #endif
 
-// ROCM block size used by MFEM.
-#define MFEM_ROCM_BLOCKS 256
+// HIP block size used by MFEM.
+#define MFEM_HIP_BLOCKS 256
 
-#ifdef MFEM_USE_ROCM
-// Define a ROCM error check macro, MFEM_GPU_CHECK(x), where x returns/is of
-// type 'rocmError_t'. This macro evaluates 'x' and raises an error if the
+#ifdef MFEM_USE_HIP
+// Define a HIP error check macro, MFEM_GPU_CHECK(x), where x returns/is of
+// type 'hipError_t'. This macro evaluates 'x' and raises an error if the
 // result is not hipSuccess.
 #define MFEM_GPU_CHECK(x) \
    do \
@@ -32,14 +32,14 @@
       hipError_t err = (x); \
       if (err != hipSuccess) \
       { \
-         mfem_rocm_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
+         mfem_hip_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
       } \
    } \
    while (0)
-#endif // MFEM_USE_ROCM
+#endif // MFEM_USE_HIP
 
 // Define the MFEM inner threading macros
-#if defined(MFEM_USE_ROCM) && defined(__ROCM_ARCH__)
+#if defined(MFEM_USE_HIP) && defined(__ROCM_ARCH__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
@@ -51,36 +51,36 @@
 namespace mfem
 {
 
-#ifdef MFEM_USE_ROCM
+#ifdef MFEM_USE_HIP
 // Function used by the macro MFEM_GPU_CHECK.
-void mfem_rocm_error(hipError_t err, const char *expr, const char *func,
-                     const char *file, int line);
+void mfem_hip_error(hipError_t err, const char *expr, const char *func,
+                    const char *file, int line);
 #endif
 
 /// Allocates device memory
-void* RocMemAlloc(void **d_ptr, size_t bytes);
+void* HipMemAlloc(void **d_ptr, size_t bytes);
 
 /// Frees device memory
-void* RocMemFree(void *d_ptr);
+void* HipMemFree(void *d_ptr);
 
 /// Copies memory from Host to Device
-void* RocMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
+void* HipMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
 
 /// Copies memory from Host to Device
-void* RocMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
+void* HipMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
 
 /// Copies memory from Device to Device
-void* RocMemcpyDtoD(void *d_dst, const void *d_src, size_t bytes);
+void* HipMemcpyDtoD(void *d_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Device
-void* RocMemcpyDtoDAsync(void *d_dst, const void *d_src, size_t bytes);
+void* HipMemcpyDtoDAsync(void *d_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
-void* RocMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
+void* HipMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
-void* RocMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
+void* HipMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
 
 } // namespace mfem
 
-#endif // MFEM_ROCM_HPP
+#endif // MFEM_HIP_HPP
