@@ -158,7 +158,8 @@ static void HipDeviceSetup(const int dev, int &ngpu)
    MFEM_GPU_CHECK(hipGetDevice(&deviceId));
    hipDeviceProp_t props;
    MFEM_GPU_CHECK(hipGetDeviceProperties(&props, deviceId));
-   printf("info: running on device #%d %s\n", deviceId, props.name);
+   mfem::out << "info: running on device #"
+             << deviceId << " " << props.name << endl;
    MFEM_VERIFY(dev==deviceId,"");
    ngpu = 1;
 #endif
