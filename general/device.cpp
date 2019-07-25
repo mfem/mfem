@@ -300,7 +300,7 @@ void Device::Setup(const int device)
    {
       if (!ceed_option)
       {
-         CeedDeviceSetup("/gpu/cuda/ref");
+         CeedDeviceSetup("/gpu/cuda/gen");
       }
       else
       {
