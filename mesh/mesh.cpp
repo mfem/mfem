@@ -1711,6 +1711,153 @@ void Mesh::MarkTetMeshForRefinement(DSTable &v_to_v)
    }
 }
 
+void Mesh::MakeReflectingPentMesh()
+{
+   MFEM_VERIFY(Dim == 4, "");
+
+   // global vertex indices of all centroids,
+   // as follows:  element centroids (elid, NumOfElements, NumOfElements, NumOfElements)
+   //              tet centroids (4 ids)
+   //              tri centroids (3 ids, NumOfVertices)
+   HashTable<Hashed5> centroids;
+   Vertex V;
+   int *vert;
+   int i, j, k, m, o, n, el_cent, tet_cent, tri_cent;
+   int tet[4], tri[3];
+   int new_vert[5];
+   int attr;
+
+   for (i = 0; i < NumOfElements; i++)
+   {
+      o = 0;
+      Pentatope *pent = (Pentatope*)elements[i];
+      vert = pent->GetVertices();
+      attr = pent->GetAttribute();
+      for (j = 0; j < 4; j++)
+      {
+         V(j) = 0.2 * (vertices[vert[0]](j) + vertices[vert[1]](j) + vertices[vert[2]](j) + vertices[vert[3]](j) + vertices[vert[4]](j));
+      }
+      vertices.Append(V);
+      el_cent = NumOfVertices + centroids.GetId(i, NumOfElements,NumOfElements, NumOfElements, NumOfElements);
+      new_vert[3] = el_cent;
+      for (k = 0; k < 5; ++k)
+      {
+         const int* fv = pent->GetFaceVertices(k);
+         for(j = 0; j < 4; ++j)
+            tet[j] = vert[fv[j]];
+         if (k % 2 == 1)
+            swap(tet[0], tet[1]);
+
+         tet_cent = centroids.FindId(tet[0],tet[1],tet[2],tet[3], NumOfVertices);
+         if (tet_cent == -1)
+         {
+            new_vert[2] = NumOfVertices + centroids.GetId(tet[0],tet[1],tet[2],tet[3], NumOfVertices);
+            for (j = 0; j < 4; j++)
+            {
+               V(j) = 0.25 * (vertices[tet[0]](j) + vertices[tet[1]](j) + vertices[tet[2]](j) + vertices[tet[3]](j));
+            }
+            vertices.Append(V);
+         }
+         else{
+            new_vert[2] = NumOfVertices + tet_cent;
+         }
+
+
+         for(m = 0; m < 4; ++m)
+         {
+            const int* tfv = tet_t::FaceVert[m];
+            for(n = 0; n < 3; ++n)
+               tri[n] = tet[tfv[n]];
+
+            tri_cent = centroids.FindId(tri[0],tri[1],tri[2],NumOfVertices, NumOfVertices);
+            if (tri_cent == -1)
+            {
+               new_vert[1] = NumOfVertices + centroids.GetId(tri[0],tri[1],tri[2],NumOfVertices, NumOfVertices);
+               for (j = 0; j < 4; j++)
+               {
+                  V(j) = 1./3. * (vertices[tri[0]](j) + vertices[tri[1]](j) + vertices[tri[2]](j));
+               }
+               vertices.Append(V);
+            }
+            else
+            {
+               new_vert[1] = tri_cent + NumOfVertices;
+            }
+
+            new_vert[0] = tri[0]; new_vert[4] = tri[1];
+            elements.Append(new Pentatope(new_vert, attr, 3));o++;
+            new_vert[0] = tri[1]; new_vert[4] = tri[2];
+            elements.Append(new Pentatope(new_vert, attr, 3));o++;
+            new_vert[0] = tri[2]; new_vert[4] = tri[0];
+            if (o == 59)
+            {
+                  elements[i]->SetVertices(new_vert);
+                  ((Pentatope*)elements[i])->SetSimplexType(3);
+            }
+            else
+            {
+               elements.Append(new Pentatope(new_vert, attr, 3)); o++;
+            }
+         }
+      }
+   }
+
+   MFEM_VERIFY(60*NumOfElements == elements.Size(), "");
+   NumOfElements = elements.Size();
+   swappedElements.SetSize(NumOfElements, false);
+
+   for (i = 0; i < NumOfBdrElements; ++i)
+   {
+      o = 0;
+      Tetrahedron *bdr_tet = (Tetrahedron*)boundary[i];
+
+      vert = bdr_tet->GetVertices();
+      attr = bdr_tet->GetAttribute();
+
+      tet_cent = centroids.FindId(vert[0], vert[1], vert[2], vert[3], NumOfVertices);
+      MFEM_ASSERT(tet_cent >= 0, "Tetrahedron centroid not found.");
+      new_vert[2] = NumOfVertices + tet_cent;
+
+      for (j = 0; j < 4; ++j)
+      {
+         const int* fv = bdr_tet->GetFaceVertices(j);
+         for (k = 0; k < 3; ++k)
+            tri[k] = vert[fv[k]];
+
+         tri_cent = centroids.FindId(tri[0], tri[1], tri[2], NumOfVertices, NumOfVertices);
+         MFEM_ASSERT(tri_cent >= 0, "Tetrahedron face centroid not found.");
+         new_vert[1] = NumOfVertices + tri_cent;
+
+         new_vert[0] = tri[0]; new_vert[3] = tri[1];
+         boundary.Append(new Tetrahedron(new_vert, attr)); ((Tetrahedron*)boundary.Last())->SetRefinementFlag(2);o++;
+         new_vert[0] = tri[1]; new_vert[3] = tri[2];
+         boundary.Append(new Tetrahedron(new_vert, attr)); ((Tetrahedron*)boundary.Last())->SetRefinementFlag(2);o++;
+         new_vert[0] = tri[2]; new_vert[3] = tri[0];
+         if (o == 11)
+         {
+            boundary[i]->SetVertices(new_vert);
+            ((Tetrahedron*) boundary[i])->SetRefinementFlag(2);
+         }
+         else
+         {
+            boundary.Append(new Tetrahedron(new_vert, attr)); ((Tetrahedron*)boundary.Last())->SetRefinementFlag(2);o++;
+         }
+      }
+   }
+
+   MFEM_VERIFY(12*NumOfBdrElements == boundary.Size(), "i=" << i << '\n' << 12*NumOfBdrElements << " != " << boundary.Size());
+   NumOfBdrElements = boundary.Size(); // FIXME
+   swappedBdr.SetSize(NumOfBdrElements, false);
+
+   NumOfVertices = vertices.Size();
+
+   ofstream file("reflect.mesh");
+   Print(file);
+   file.close();
+
+   Finalize(true, true);
+}
+
 void Mesh::PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert)
 {
    if (*old_v_to_v && *old_elem_vert)
@@ -3434,7 +3581,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
          if (elements[j]->GetType() == Element::PENTATOPE)
          {
             int *v = elements[j]->GetVertices();
-            Sort5(v[0], v[1], v[2], v[3], v[4]);
+//            Sort5(v[0], v[1], v[2], v[3], v[4]);
 
             //                        GetElementJacobian(j, J);
             //                        if (J.Det() < 0.0)
@@ -3454,7 +3601,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
          if (boundary[j]->GetType() == Element::TETRAHEDRON)
          {
             int *v = boundary[j]->GetVertices();
-            Sort4(v[0], v[1], v[2], v[3]);
+//            Sort4(v[0], v[1], v[2], v[3]);
          }
       }
    }
@@ -4214,8 +4361,8 @@ int Mesh::CheckElementOrientation(bool fix_it)
                   wo++;
                   if (fix_it)
                   {
-                     swappedElements[i] = true;
-                     mfem::Swap(vi[0], vi[1]);
+//                     swappedElements[i] = true;
+                     mfem::Swap(vi[0], vi[4]);
                      fo++;
                   }
                }
@@ -5441,9 +5588,11 @@ void Mesh::AddTetrahedralFaceElement(int lf, int gf, int el,
       Element *tet = NewElement(Geometry::TETRAHEDRON);
       tet->SetVertices(vi);
       tet->SetAttribute(1);
+      tet->SetRefinementFlag(0);
       faces[gf] = tet;
 #else
       faces[gf] = new Tetrahedron(v0, v1, v2, v3);
+      ((Tetrahedron*)faces[gf])->SetRefinementFlag(0);
 #endif
       faces_info[gf].Elem1No  = el;
       //   faces_info[gf].Elem1Inf = 64 * lf+ lf%2 + oEl;
@@ -7975,20 +8124,73 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       //    edges.
       HashTable<Hashed2> v_to_v;
 
-      // 2. Do the red refinement.
-      for (int i = 0; i < marked_el.Size(); i++)
+      int need_refinement, green_cycles;
+      switch(type)
       {
-         RedRefinementPentatope(marked_el[i], v_to_v);
+      case 3:
+      case 2:
+      case 1: // Stevenson Bisection
+         // 2. Do the red refinement.
+         for (i = 0; i < marked_el.Size(); i++)
+         {
+            Bisection(marked_el[i], v_to_v);
+         }
+
+         // 3. Do the green refinement (to get conforming mesh).
+         green_cycles = 0;
+         do
+         {
+            need_refinement = 0;
+            for (i = 0; i < NumOfElements; i++)
+            {
+               if (elements[i]->NeedRefinement(v_to_v))
+               {
+                  need_refinement = 1;
+                  Bisection(i, v_to_v);
+               }
+            }
+            green_cycles++;
+         }
+         while (need_refinement == 1);
+
+         mfem::out << "Green cycles: " << green_cycles << endl;
+
+         // 4. Update the boundary elements.
+         do
+         {
+            need_refinement = 0;
+            for (i = 0; i < NumOfBdrElements; i++)
+               if (boundary[i]->NeedRefinement(v_to_v))
+               {
+                  need_refinement = 1;
+                  BdrBisection(i, v_to_v);
+               }
+         }
+         while (need_refinement == 1);
+
+         swappedElements.SetSize(NumOfElements, false);
+         break;
+      default: // Freudenthal
+         // 2. Do the red refinement.
+         for (int i = 0; i < marked_el.Size(); i++)
+         {
+            RedRefinementPentatope(marked_el[i], v_to_v);
+         }
+         // 4. Update the boundary elements.
+         for (int i = 0; i < NumOfBdrElements; i++)
+            if (boundary[i]->NeedRefinement(v_to_v))
+            {
+               RedRefinementBoundaryTet(i, v_to_v);
+            }
       }
 
-      // 4. Update the boundary elements.
-      for (int i = 0; i < NumOfBdrElements; i++)
-         if (boundary[i]->NeedRefinement(v_to_v))
-         {
-            RedRefinementBoundaryTet(i, v_to_v);
-         }
       NumOfVertices = vertices.Size();
-      NumOfBdrElements = boundary.Size();
+      NumOfBdrElements = boundary.Size(); //FIXME
+//      NumOfBdrElements = 0; //FIXME
+
+      ofstream file("refined.mesh");
+      Print(file);
+      file.close();
 
       // 5. Free the allocated memory.
 
@@ -8605,7 +8807,7 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
 void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
 {
    int *vert;
-   int v[2][4], v_new, bisect, t;
+   int v[2][5], v_new, bisect, t;
    Element *el = elements[i];
    Vertex V;
 
@@ -8715,16 +8917,94 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
 
       NumOfElements++;
    }
+   else if (t == Element::PENTATOPE) // Stevenson Bisection TODO
+   {
+      int j;
+      char type, new_type;
+
+      Pentatope *pent = (Pentatope*) el;
+
+      // MFEM_VERIFY ?
+
+      vert = pent->GetVertices();
+      type = pent->GetSimplexType();
+
+      // 1. Get the index for the new vertex in v_new.
+      bisect = v_to_v.FindId(vert[0], vert[4]);
+      if (bisect == -1)
+      {
+         v_new = NumOfVertices + v_to_v.GetId(vert[0],vert[4]);
+         for (j = 0; j < 4; j++)
+         {
+            V(j) = 0.5 * (vertices[vert[0]](j) + vertices[vert[4]](j));
+         }
+         vertices.Append(V);
+      }
+      else
+      {
+         v_new = NumOfVertices + bisect;
+      }
+
+      v[0][1] = v_new;
+      v[1][1] = v_new;
+      v[0][0] = vert[0];
+      v[1][0] = vert[4];
+
+      switch(type)
+      {
+      case 0:
+         v[0][2] = v[1][4] = vert[1];
+         v[0][3] = v[1][3] = vert[2];
+         v[0][4] = v[1][2] = vert[3];
+         new_type = 1;
+         break;
+      case 1:
+         v[0][2] = v[1][2] = vert[1];
+         v[0][3] = v[1][4] = vert[2];
+         v[0][4] = v[1][3] = vert[3];
+         new_type = 2;
+         break;
+      case 2:
+         v[0][2] = v[1][2] = vert[1];
+         v[0][3] = v[1][3] = vert[2];
+         v[0][4] = v[1][4] = vert[3];
+         new_type = 3;
+         break;
+      case 3:
+         v[0][2] = v[1][2] = vert[1];
+         v[0][3] = v[1][3] = vert[2];
+         v[0][4] = v[1][4] = vert[3];
+         new_type = 0;
+         break;
+      default:
+         MFEM_ABORT("Invalid simplex type " << type << ".");
+      }
+
+      int attr = el->GetAttribute();
+      pent->SetVertices(v[0]);
+      pent->SetSimplexType(new_type);
+
+      Pentatope *pent2 = new Pentatope(v[1], attr, new_type);
+
+      pent2->ResetTransform(pent->GetTransform());
+      elements.Append(pent2);
+
+      int coarse = FindCoarseElement(i);
+      CoarseFineTr.embeddings[i].parent = coarse;
+      CoarseFineTr.embeddings.Append(Embedding(coarse));
+
+      NumOfElements++;
+   }
    else
    {
-      MFEM_ABORT("Bisection with HashTable for now works only for tetrahedra.");
+      MFEM_ABORT("Bisection with HashTable for now works only for tetrahedra and pentatopes.");
    }
 }
 
 void Mesh::BdrBisection(int i, const HashTable<Hashed2> &v_to_v)
 {
    int *vert;
-   int v[2][3], v_new, bisect, t;
+   int v[2][4], v_new, bisect, t;
    Element *bdr_el = boundary[i];
 
    t = bdr_el->GetType();
@@ -8751,10 +9031,68 @@ void Mesh::BdrBisection(int i, const HashTable<Hashed2> &v_to_v)
 
       NumOfBdrElements++;
    }
+   else if (t == Element::TETRAHEDRON)
+   {
+      Tetrahedron *tet = (Tetrahedron *) bdr_el;
+      char type, new_type;
+      bool swapped = swappedBdr[i];
+
+      vert = tet->GetVertices();
+      type = tet->GetRefinementFlag(); // using refinement_flag to indicate simplex type
+      if (swapped)
+            swap(vert[0], vert[1]);
+
+//      printf("bdr[%d] = (%d, %d, %d, %d)_%d is%s swapped\n", i, vert[0], vert[1], vert[2], vert[3], type, (swapped) ? "" : " not");
+
+      // 1. Get the index for the new vertex in v_new.
+      bisect = v_to_v.FindId(vert[0], vert[3]);
+      MFEM_ASSERT(bisect >= 0, "");
+      v_new = NumOfVertices + bisect;
+      MFEM_ASSERT(v_new != -1, "");
+
+//      printf("v_new = %d\n", v_new);
+
+      // 2. Set the node indices for the new elements in v[0] and v[1] so that
+
+      v[0][0] = vert[0]; v[0][1] = v_new;
+      v[1][0] = vert[3]; v[1][1] = v_new;
+
+      switch(type)
+      {
+      case 0:
+         v[0][2] = v[1][3] = vert[1];
+         v[0][3] = v[1][2] = vert[2];
+         new_type = 1;
+         break;
+      case 1:
+         v[0][2] = v[1][2] = vert[1];
+         v[0][3] = v[1][3] = vert[2];
+         new_type = 2;
+         break;
+      case 2:
+         v[0][2] = v[1][2] = vert[1];
+         v[0][3] = v[1][3] = vert[2];
+         new_type = 0;
+         break;
+      }
+
+      tet->SetVertices(v[0]);
+      tet->SetRefinementFlag(new_type);
+
+//      printf("child1 = (%d, %d, %d, %d)\n", v[0][0], v[0][1], v[0][2], v[0][3]);
+//      printf("child2 = (%d, %d, %d, %d)\n", v[1][0], v[1][1], v[1][2], v[1][3]);
+
+      boundary.Append(new Tetrahedron(v[1], tet->GetAttribute()));
+      ((Tetrahedron*)boundary.Last())->SetRefinementFlag(new_type);
+      swappedBdr[i] = false;
+      swappedBdr.Append(false);
+
+      NumOfBdrElements++;
+   }
    else
    {
       MFEM_ABORT("Bisection of boundary elements with HashTable works only for"
-                 " triangles!");
+                 " triangles and tetrahedra!");
    }
 }
 
@@ -10707,7 +11045,7 @@ void Mesh::RemoveUnusedVertices()
    }
 
    if (num_vert == v2v.Size()) { return; }
-
+printf("UNUSED VERTICES!!!!!\n");
    Vector nodes_by_element;
    Array<int> vdofs;
    if (Nodes)
@@ -10759,7 +11097,16 @@ void Mesh::RemoveUnusedVertices()
    if (Dim > 2)
    {
       // generate el_to_face, be_to_face
-      GetElementToFaceTable();
+      if (Dim > 3)
+      {
+         if (!swappedElements.Size())
+            swappedElements.SetSize(elements.Size(), false);
+         GetElementToFaceTable4D();
+      }
+      else
+      {
+         GetElementToFaceTable();
+      }
    }
    // Update faces and faces_info
    GenerateFaces();

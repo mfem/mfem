@@ -18,7 +18,7 @@ namespace mfem
 {
 
 
-Pentatope::Pentatope(const int *ind, int attr)
+Pentatope::Pentatope(const int *ind, int attr, char t)
    : Element(Geometry::PENTATOPE)
 {
    attribute = attr;
@@ -28,9 +28,10 @@ Pentatope::Pentatope(const int *ind, int attr)
    }
 
    transform = 0;
+   type = t;
 }
 
-Pentatope::Pentatope(int ind1, int ind2, int ind3, int ind4, int ind5, int attr)
+Pentatope::Pentatope(int ind1, int ind2, int ind3, int ind4, int ind5, int attr, char t)
    : Element(Geometry::PENTATOPE)
 {
    attribute  = attr;
@@ -41,6 +42,7 @@ Pentatope::Pentatope(int ind1, int ind2, int ind3, int ind4, int ind5, int attr)
    indices[4] = ind5;
 
    transform = 0;
+   type = t;
 }
 
 void Pentatope::GetVertices(Array<int> &v) const
@@ -61,7 +63,7 @@ void Pentatope::SetVertices(const int *ind)
 }
 
 //static method
-void Pentatope::GetPointMatrix(unsigned transform, DenseMatrix &pm)
+void Pentatope::GetPointMatrix(unsigned transform, DenseMatrix &pm) // FIXME for bisection
 {
    double* a = &pm(0,0), *b = &pm(0,1), *c = &pm(0,2), *d = &pm(0,3), *e = &pm(0,
                                                                                4);
@@ -118,6 +120,21 @@ Element *Pentatope::Duplicate(Mesh *m) const
    pent->SetVertices(indices);
    pent->SetAttribute(attribute);
    return pent;
+}
+
+int Pentatope::NeedRefinement(HashTable<Hashed2> &v_to_v) const
+{
+   if (v_to_v.FindId(indices[0], indices[1]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[1], indices[2]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[2], indices[0]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[0], indices[3]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[1], indices[3]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[2], indices[3]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[0], indices[4]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[1], indices[4]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[2], indices[4]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[4], indices[3]) != -1) { return 1; }
+   return 0;
 }
 
 Linear4DFiniteElement PentatopeFE;

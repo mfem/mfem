@@ -248,6 +248,7 @@ protected:
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
    virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
 
+
    // Methods used to prepare and apply permutation of the mesh nodes assuming
    // that the mesh elements may be rotated (e.g. to mark triangle or tet edges
    // for refinement) between the two calls - PrepareNodeReorder() and
@@ -565,6 +566,9 @@ public:
    /// Finalize the construction of any type of Mesh.
    /** This method calls FinalizeTopology() and Finalize(). */
    void FinalizeMesh(int refine = 0, bool fix_orientation = true);
+
+   virtual void MakeReflectingPentMesh();
+
 
    ///@}
 

@@ -27,17 +27,19 @@ protected:
 
    unsigned transform;
 
+   char type; /// simplex type is either 0, 1 ,2, 3
+
 public:
 
    typedef Geometry::Constants<Geometry::PENTATOPE> geom_p;
 
-   Pentatope() : Element(Geometry::PENTATOPE) { transform = 0; };
+   Pentatope() : Element(Geometry::PENTATOPE) { transform = 0; type = 0;};
 
    /// Constructs pentatope by specifying the indices and the attribute.
-   Pentatope(const int *ind, int attr = 1);
+   Pentatope(const int *ind, int attr = 1, char type = 0);
 
    /// Constructs pentatope by specifying the indices and the attribute.
-   Pentatope(int ind1, int ind2, int ind3, int ind4, int ind5, int attr = 1);
+   Pentatope(int ind1, int ind2, int ind3, int ind4, int ind5, int attr = 1, char type = 0);
 
 
    virtual int GetRefinementFlag()
@@ -45,8 +47,7 @@ public:
 
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
-   virtual int NeedRefinement(DSTable &v_to_v, int *middle) const
-   { MFEM_ABORT("PENTATOPE:: NeedRefinement not implemented"); return 0; }
+   virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const;
 
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
@@ -64,6 +65,11 @@ public:
 
    /// Return element's type.
    virtual Type GetType() const { return Element::PENTATOPE; }
+
+   virtual void SetSimplexType(const char t) { type = t; }
+
+   /// Return simplex type of element.
+   virtual char GetSimplexType() const { return type; }
 
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices(Array<int> &v) const;
