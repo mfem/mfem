@@ -237,8 +237,9 @@ int main(int argc, char *argv[])
    //     * With partial assembly, use no preconditioner, for now.
    HypreBoomerAMG *amg =  new HypreBoomerAMG;
 
-   HYPRE_BoomerAMGSetRelaxType(*amg, 18); // use l1-scaled Jacobi relaxation method
+   // HYPRE_BoomerAMGSetRelaxType(*amg, 18); // use l1-scaled Jacobi relaxation method
    // HYPRE_BoomerAMGSetRelaxType(*amg, 16); // Chebyshev
+   HYPRE_BoomerAMGSetRelaxType(*amg, 8); // 
 
 
    CGSolver cg(MPI_COMM_WORLD);

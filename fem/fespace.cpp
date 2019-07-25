@@ -963,6 +963,11 @@ FiniteElementSpace::RefinementOperator::RefinementOperator
    : fespace(fespace)
    , old_elem_dof(old_elem_dof)
 {
+   if(fespace->GetNDofs() < old_ndofs)
+   {
+      cout << endl << "*** fespace about to abort with fec = " << fespace->fec->Name();
+      cout << " because new dofs = " << fespace->GetNDofs() << " < " << old_ndofs << " = old dofs!";
+   }
    MFEM_VERIFY(fespace->GetNDofs() >= old_ndofs,
                "Previous space is not coarser.");
 
