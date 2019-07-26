@@ -2912,7 +2912,6 @@ void ConformingProlongationOperator::MultTranspose(
 {
    MFEM_ASSERT(x.Size() == Height(), "");
    MFEM_ASSERT(y.Size() == Width(), "");
-
    const double *xdata = x.HostRead();
    double *ydata = y.HostWrite();
    const int m = external_ldofs.Size();

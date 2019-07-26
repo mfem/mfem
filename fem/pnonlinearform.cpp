@@ -45,9 +45,9 @@ double ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
 
 void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
+   //NonlinearForm::Mult(Xtmp, y); // x --(P)--> aux1 --(A_local)--> aux2
    NonlinearForm::Mult(x, y); // x --(P)--> aux1 --(A_local)--> aux2
    Y.SetData(aux2.GetData()); // aux2 contains A_local.P.x
-
    if (fnfi.Size())
    {
       // Terms over shared interior faces in parallel.
@@ -82,7 +82,6 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
          }
       }
    }
-
    P->MultTranspose(Y, y);
 
    for (int i = 0; i < ess_tdof_list.Size(); i++)

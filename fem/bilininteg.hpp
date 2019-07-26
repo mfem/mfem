@@ -27,47 +27,6 @@ protected:
       : NonlinearFormIntegrator(ir) { }
 
 public:
-   // TODO: add support for other assembly levels (in addition to PA) and their
-   // actions.
-
-   // TODO: for mixed meshes the quadrature rules to be used by methods like
-   // AssemblePA() can be given as a QuadratureSpace, e.g. using a new method:
-   // SetQuadratureSpace().
-
-   // TODO: the methods for the various assembly levels make sense even in the
-   // base class NonlinearFormIntegrator, except that not all assembly levels
-   // make sense for the action of the nonlinear operator (but they all make
-   // sense for its Jacobian).
-
-   /// Method defining partial assembly.
-   /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultPA() and AddMultTransposePA(). */
-   virtual void AssemblePA(const FiniteElementSpace &fes);
-
-   /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultPA() and AddMultTransposePA().
-       Used with BilinearFormIntegrators that have different spaces. */
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
-
-   /// Method for partially assembled action.
-   /** Perform the action of integrator on the input @a x and add the result to
-       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
-       the element-wise discontinuous version of the FE space.
-
-       This method can be called only after the method AssemblePA() has been
-       called. */
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
-
-   /// Method for partially assembled transposed action.
-   /** Perform the transpose action of integrator on the input @a x and add the
-       result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
-       represent the element-wise discontinuous version of the FE space.
-
-       This method can be called only after the method AssemblePA() has been
-       called. */
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
-
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,

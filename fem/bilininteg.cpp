@@ -20,30 +20,6 @@ using namespace std;
 namespace mfem
 {
 
-void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
-{
-   mfem_error ("BilinearFormIntegrator::AssemblePA(...)\n"
-               "   is not implemented for this class.");
-}
-
-void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&, const FiniteElementSpace&)
-{
-   mfem_error ("BilinearFormIntegrator::AssemblePA(...)\n"
-               "   is not implemented for this class.");
-}
-
-void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
-{
-   mfem_error ("BilinearFormIntegrator::AddMultPA(...)\n"
-               "   is not implemented for this class.");
-}
-
-void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
-{
-   mfem_error ("BilinearFormIntegrator::AddMultTransposePA(...)\n"
-               "   is not implemented for this class.");
-}
-
 void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,
    DenseMatrix &elmat )
@@ -395,15 +371,16 @@ void GradientIntegrator::AssembleElementMatrix2(
    int test_dof = test_fe.GetDof();
    double c;
    Vector d_col;
-   
+
    dshape.SetSize(trial_dof, dim);
    gshape.SetSize(trial_dof, dim);
    Jadj.SetSize(dim);
    shape.SetSize(test_dof);
    elmat.SetSize(dim * test_dof, trial_dof);
 
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, Trans);
-   
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
+                                                            Trans);
+
    elmat = 0.0;
    elmat_comp.SetSize(test_dof, trial_dof);
 
@@ -441,7 +418,8 @@ void GradientIntegrator::AssembleElementMatrix2(
    }
 }
 
-const IntegrationRule &GradientIntegrator::GetRule(const FiniteElement &trial_fe,
+const IntegrationRule &GradientIntegrator::GetRule(const FiniteElement
+                                                   &trial_fe,
                                                    const FiniteElement &test_fe,
                                                    ElementTransformation &Trans)
 {
@@ -938,7 +916,6 @@ void ConvectionIntegrator::AssembleElementMatrix(
       AddMultVWt(shape, BdFidxT, elmat);
    }
 }
-
 
 void GroupConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
@@ -2014,7 +1991,8 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize (test_dof, dim*trial_dof);
 
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, Trans);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
+                                                            Trans);
 
    elmat = 0.0;
 
@@ -2044,9 +2022,10 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
    }
 }
 
-const IntegrationRule &VectorDivergenceIntegrator::GetRule(const FiniteElement &trial_fe,
-                                                           const FiniteElement &test_fe,
-                                                           ElementTransformation &Trans)
+const IntegrationRule &VectorDivergenceIntegrator::GetRule(
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &Trans)
 {
    int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ();
    return IntRules.Get(trial_fe.GetGeomType(), order);
