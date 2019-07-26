@@ -1555,6 +1555,14 @@ void NCMesh::UpdateVertices()
    }
 }
 
+static char tri_sfc_child_order[6][4] =
+{
+   {0,2,3,1}, {0,1,3,2}, {1,0,3,2}, {1,2,3,0}, {2,1,3,0}, {2,0,3,1}
+};
+static char tri_sfc_child_state[6][4] =
+{
+   {1,0,1,0}, {0,1,0,1}, {3,2,3,2}, {2,3,2,3}, {5,4,5,4}, {4,5,4,5}
+};
 static char quad_hilbert_child_order[8][4] =
 {
    {0,1,2,3}, {0,3,2,1}, {1,2,3,0}, {1,0,3,2},
@@ -1600,7 +1608,16 @@ void NCMesh::CollectLeafElements(int elem, int state)
    }
    else
    {
-      if (el.geom == Geometry::SQUARE && el.ref_type == 3)
+      if (el.geom == Geometry::TRIANGLE)
+      {
+         for (int i = 0; i < 4; i++)
+         {
+            int ch = tri_sfc_child_order[state][i];
+            int st = tri_sfc_child_state[state][i];
+            CollectLeafElements(el.child[ch], st);
+         }
+      }
+      else if (el.geom == Geometry::SQUARE && el.ref_type == 3)
       {
          for (int i = 0; i < 4; i++)
          {
