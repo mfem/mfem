@@ -85,6 +85,58 @@ private:
    mutable DenseMatrix eps_i_;
 };
 
+class PoyntingVectorReCoef : public VectorCoefficient
+{
+public:
+   PoyntingVectorReCoef(double omega,
+                        VectorCoefficient &Er, VectorCoefficient &Ei,
+                        VectorCoefficient &dEr, VectorCoefficient &dEi,
+                        Coefficient &muInv);
+
+   void Eval(Vector &S, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+private:
+   double omega_;
+
+   VectorCoefficient &ErCoef_;
+   VectorCoefficient &EiCoef_;
+   VectorCoefficient &dErCoef_;
+   VectorCoefficient &dEiCoef_;
+   Coefficient &muInvCoef_;
+
+   mutable Vector Er_;
+   mutable Vector Ei_;
+   mutable Vector Hr_;
+   mutable Vector Hi_;
+};
+
+class PoyntingVectorImCoef : public VectorCoefficient
+{
+public:
+   PoyntingVectorImCoef(double omega,
+                        VectorCoefficient &Er, VectorCoefficient &Ei,
+                        VectorCoefficient &dEr, VectorCoefficient &dEi,
+                        Coefficient &muInv);
+
+   void Eval(Vector &S, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+private:
+   double omega_;
+
+   VectorCoefficient &ErCoef_;
+   VectorCoefficient &EiCoef_;
+   VectorCoefficient &dErCoef_;
+   VectorCoefficient &dEiCoef_;
+   Coefficient &muInvCoef_;
+
+   mutable Vector Er_;
+   mutable Vector Ei_;
+   mutable Vector Hr_;
+   mutable Vector Hi_;
+};
+
 /// Cold Plasma Dielectric Solver
 class CPDSolver
 {
@@ -183,7 +235,7 @@ private:
    L2_ParFESpace * L2VFESpace_;
    // H1_ParFESpace * H1FESpace_;
    ND_ParFESpace * HCurlFESpace_;
-   // RT_ParFESpace * HDivFESpace_;
+   RT_ParFESpace * HDivFESpace_;
 
    Array<HYPRE_Int> blockTrueOffsets_;
 
@@ -198,6 +250,7 @@ private:
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * j_v_; // Complex current density (L2^d)
    ParGridFunction        * u_;   // Energy density (L2)
+   ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
 
    MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsImCoef_;    // Dielectric Material Coefficient
@@ -237,7 +290,9 @@ private:
    CurlGridFunctionCoefficient derCoef_;
    CurlGridFunctionCoefficient deiCoef_;
 
-   EnergyDensityCoef uCoef_;
+   EnergyDensityCoef     uCoef_;
+   PoyntingVectorReCoef SrCoef_;
+   PoyntingVectorImCoef SiCoef_;
 
    // const VectorCoefficient & erCoef_;     // Electric Field Boundary Condition
    // const VectorCoefficient & eiCoef_;     // Electric Field Boundary Condition

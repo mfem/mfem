@@ -76,6 +76,94 @@ double EnergyDensityCoef::Eval(ElementTransformation &T,
    return 0.5 * u;
 }
 
+PoyntingVectorReCoef::PoyntingVectorReCoef(double omega,
+                                           VectorCoefficient &Er,
+                                           VectorCoefficient &Ei,
+                                           VectorCoefficient &dEr,
+                                           VectorCoefficient &dEi,
+                                           Coefficient &muInv)
+   : VectorCoefficient(3),
+     omega_(omega),
+     ErCoef_(Er),
+     EiCoef_(Ei),
+     dErCoef_(dEr),
+     dEiCoef_(dEi),
+     muInvCoef_(muInv),
+     Er_(3),
+     Ei_(3),
+     Hr_(3),
+     Hi_(3)
+{}
+
+void PoyntingVectorReCoef::Eval(Vector &S, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   ErCoef_.Eval(Er_, T, ip);
+   EiCoef_.Eval(Ei_, T, ip);
+
+   double muInv = muInvCoef_.Eval(T, ip);
+
+   dErCoef_.Eval(Hi_, T, ip); Hi_ *=  muInv / omega_;
+   dEiCoef_.Eval(Hr_, T, ip); Hr_ *= -muInv / omega_;
+
+   S.SetSize(3);
+
+   S[0] = Er_[1] * Hr_[2] - Er_[2] * Hr_[1] +
+          Ei_[1] * Hi_[2] - Ei_[2] * Hi_[1] ;
+
+   S[1] = Er_[2] * Hr_[0] - Er_[0] * Hr_[2] +
+          Ei_[2] * Hi_[0] - Ei_[0] * Hi_[2] ;
+
+   S[2] = Er_[0] * Hr_[1] - Er_[1] * Hr_[0] +
+          Ei_[0] * Hi_[1] - Ei_[1] * Hi_[0] ;
+
+   S *= 0.5;
+}
+
+PoyntingVectorImCoef::PoyntingVectorImCoef(double omega,
+                                           VectorCoefficient &Er,
+                                           VectorCoefficient &Ei,
+                                           VectorCoefficient &dEr,
+                                           VectorCoefficient &dEi,
+                                           Coefficient &muInv)
+   : VectorCoefficient(3),
+     omega_(omega),
+     ErCoef_(Er),
+     EiCoef_(Ei),
+     dErCoef_(dEr),
+     dEiCoef_(dEi),
+     muInvCoef_(muInv),
+     Er_(3),
+     Ei_(3),
+     Hr_(3),
+     Hi_(3)
+{}
+
+void PoyntingVectorImCoef::Eval(Vector &S, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   ErCoef_.Eval(Er_, T, ip);
+   EiCoef_.Eval(Ei_, T, ip);
+
+   double muInv = muInvCoef_.Eval(T, ip);
+
+   dErCoef_.Eval(Hi_, T, ip); Hi_ *=  muInv / omega_;
+   dEiCoef_.Eval(Hr_, T, ip); Hr_ *= -muInv / omega_;
+
+   S.SetSize(3);
+
+   S[0] = Er_[1] * Hi_[2] - Er_[2] * Hi_[1] -
+          Ei_[1] * Hr_[2] + Ei_[2] * Hr_[1] ;
+
+   S[1] = Er_[2] * Hi_[0] - Er_[0] * Hi_[2] -
+          Ei_[2] * Hr_[0] + Ei_[0] * Hr_[2] ;
+
+   S[2] = Er_[0] * Hi_[1] - Er_[1] * Hi_[0] -
+          Ei_[0] * Hr_[1] + Ei_[1] * Hr_[0] ;
+
+   S *= 0.5;
+}
+
 CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      CPDSolver::SolverType sol, SolverOptions & sOpts,
                      CPDSolver::PrecondType prec,
@@ -115,6 +203,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      L2FESpace_(NULL),
      L2VFESpace_(NULL),
      HCurlFESpace_(NULL),
+     HDivFESpace_(NULL),
      a1_(NULL),
      b1_(NULL),
      e_(NULL),
@@ -124,6 +213,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      e_v_(NULL),
      j_v_(NULL),
      u_(NULL),
+     S_(NULL),
      epsReCoef_(&epsReCoef),
      epsImCoef_(&epsImCoef),
      epsAbsCoef_(&epsAbsCoef),
@@ -158,6 +248,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      deiCoef_(NULL),
      uCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_,
             *epsReCoef_, *epsImCoef_, *muInvCoef_),
+     SrCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvCoef_),
+     SiCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, *muInvCoef_),
      j_r_src_(j_r_src),
      j_i_src_(j_i_src),
      // e_r_bc_(e_r_bc),
@@ -422,6 +514,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       L2FESpace_ = new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension());
       u_ = new ParGridFunction(L2FESpace_);
 
+      HDivFESpace_ = new RT_ParFESpace(pmesh_,2*order,pmesh_->Dimension());
+      S_ = new ParComplexGridFunction(HDivFESpace_);
+
       erCoef_.SetGridFunction(&e_->real());
       eiCoef_.SetGridFunction(&e_->imag());
 
@@ -586,10 +681,10 @@ CPDSolver::Update()
    // Note: we don't need to interpolate any GridFunctions on the new mesh
    // so we pass 'false' to skip creation of any transformation matrices.
    // H1FESpace_->Update(false);
-   if (L2FESpace_) L2FESpace_->Update();
-   if (L2VFESpace_) L2VFESpace_->Update();
+   if (L2FESpace_) { L2FESpace_->Update(); }
+   if (L2VFESpace_) { L2VFESpace_->Update(); }
    HCurlFESpace_->Update();
-   // HDivFESpace_->Update(false);
+   HDivFESpace_->Update(false);
 
    if ( ess_bdr_.Size() > 0 )
    {
@@ -603,10 +698,11 @@ CPDSolver::Update()
 
    // Inform the grid functions that the space has changed.
    e_->Update();
-   if (u_) u_->Update();
-   if (e_t_) e_t_->Update();
-   if (e_v_) e_v_->Update();
-   if (j_v_) j_v_->Update();
+   if (u_) { u_->Update(); }
+   if (S_) { S_->Update(); }
+   if (e_t_) { e_t_->Update(); }
+   if (e_v_) { e_v_->Update(); }
+   if (j_v_) { j_v_->Update(); }
    // e_r_->Update();
    // e_i_->Update();
    // h_->Update();
@@ -1069,6 +1165,8 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
    if ( u_ )
    {
       visit_dc.RegisterField("U", u_);
+      visit_dc.RegisterField("Re(S)", &S_->real());
+      visit_dc.RegisterField("Im(S)", &S_->imag());
       // visit_dc.RegisterField("Im(u)", &u_->imag());
    }
    // if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
@@ -1092,6 +1190,7 @@ CPDSolver::WriteVisItFields(int it)
       if ( u_ )
       {
          u_->ProjectCoefficient(uCoef_);
+         S_->ProjectCoefficient(SrCoef_, SiCoef_);
       }
 
       HYPRE_Int prob_size = this->GetProblemSize();
@@ -1133,6 +1232,12 @@ CPDSolver::InitializeGLVis()
    {
       socks_["U"] = new socketstream;
       socks_["U"]->precision(8);
+
+      socks_["Sr"] = new socketstream;
+      socks_["Sr"]->precision(8);
+
+      socks_["Si"] = new socketstream;
+      socks_["Si"]->precision(8);
    }
    /*
    if ( k_ )
@@ -1225,9 +1330,17 @@ CPDSolver::DisplayToGLVis()
       Wx = 0; Wy += offy; // next line
 
       u_->ProjectCoefficient(uCoef_);
+      S_->ProjectCoefficient(SrCoef_, SiCoef_);
 
       VisualizeField(*socks_["U"], vishost, visport,
                      *u_, "Energy Density, U", Wx, Wy, Ww, Wh);
+
+      Wx += offx;
+      VisualizeField(*socks_["Sr"], vishost, visport,
+                     S_->real(), "Poynting Vector, Re(S)", Wx, Wy, Ww, Wh);
+      Wx += offx;
+      VisualizeField(*socks_["Si"], vishost, visport,
+                     S_->imag(), "Poynting Vector, Im(S)", Wx, Wy, Ww, Wh);
    }
    Wx = 0; Wy += offy; // next line
    /*
