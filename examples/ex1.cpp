@@ -103,15 +103,18 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+   mesh->EnsureNCMesh(true);
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 2;
+         //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
+         //mesh->RandomRefinement(0.5);
       }
    }
 
+#if 0
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -201,6 +204,19 @@ int main(int argc, char *argv[])
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
+#else
+
+   FiniteElementCollection *fec = new L2_FECollection(0, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+
+   GridFunction x(fespace);
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      x(i) = i;
+   }
+
+   int *a = NULL, *b = NULL;
+#endif
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
