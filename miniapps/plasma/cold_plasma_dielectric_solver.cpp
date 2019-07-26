@@ -419,7 +419,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    if (vis_u_)
    {
-      L2FESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension());
+      L2FESpace_ = new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension());
       u_ = new ParGridFunction(L2FESpace_);
 
       erCoef_.SetGridFunction(&e_->real());
@@ -586,6 +586,8 @@ CPDSolver::Update()
    // Note: we don't need to interpolate any GridFunctions on the new mesh
    // so we pass 'false' to skip creation of any transformation matrices.
    // H1FESpace_->Update(false);
+   if (L2FESpace_) L2FESpace_->Update();
+   if (L2VFESpace_) L2VFESpace_->Update();
    HCurlFESpace_->Update();
    // HDivFESpace_->Update(false);
 
@@ -601,6 +603,10 @@ CPDSolver::Update()
 
    // Inform the grid functions that the space has changed.
    e_->Update();
+   if (u_) u_->Update();
+   if (e_t_) e_t_->Update();
+   if (e_v_) e_v_->Update();
+   if (j_v_) j_v_->Update();
    // e_r_->Update();
    // e_i_->Update();
    // h_->Update();
