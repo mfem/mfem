@@ -70,8 +70,8 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(),row_offsets);
-   xblock.Update(x.GetData(),col_offsets);
+   yblock.Update(y,row_offsets);
+   xblock.Update(x,col_offsets);
 
    y = 0.0;
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
@@ -96,8 +96,8 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
 
    y = 0.0;
 
-   xblock.Update(x.GetData(),row_offsets);
-   yblock.Update(y.GetData(),col_offsets);
+   xblock.Update(x,row_offsets);
+   yblock.Update(y,col_offsets);
 
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
@@ -157,8 +157,8 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(), offsets);
-   xblock.Update(x.GetData(), offsets);
+   yblock.Update(y, offsets);
+   xblock.Update(x, offsets);
 
    for (int i=0; i<nBlocks; ++i)
    {
@@ -180,8 +180,8 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(), offsets);
-   xblock.Update(x.GetData(), offsets);
+   yblock.Update(y, offsets);
+   xblock.Update(x, offsets);
 
    for (int i=0; i<nBlocks; ++i)
    {
@@ -247,8 +247,8 @@ void BlockLowerTriangularPreconditioner::Mult (const Vector & x,
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(),offsets);
-   xblock.Update(x.GetData(),offsets);
+   yblock.Update(y,offsets);
+   xblock.Update(x,offsets);
 
    y = 0.0;
    for (int iRow=0; iRow < nBlocks; ++iRow)
@@ -283,8 +283,8 @@ void BlockLowerTriangularPreconditioner::MultTranspose (const Vector & x,
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(),offsets);
-   xblock.Update(x.GetData(),offsets);
+   yblock.Update(y,offsets);
+   xblock.Update(x,offsets);
 
    y = 0.0;
    for (int iRow=nBlocks-1; iRow >=0; --iRow)
