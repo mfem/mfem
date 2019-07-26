@@ -209,6 +209,7 @@ int main(int argc, char *argv[])
    int prec = 1;
    // int nspecies = 2;
    bool herm_conv = false;
+   bool vis_u = false;
    bool visualization = true;
    bool visit = true;
 
@@ -312,6 +313,9 @@ int main(int argc, char *argv[])
                   "Max number of iterations in the main AMR loop.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
                   "--no-hermitian", "Use convention for Hermitian operators.");
+   args.AddOption(&vis_u, "-vis-u", "--visualize-energy", "-no-vis-u",
+                  "--no-visualize-energy",
+                  "Enable or disable visualization of energy density.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -710,7 +714,7 @@ int main(int argc, char *argv[])
                  abcs, sbcs, dbcs,
                  // e_bc_r, e_bc_i,
                  // EReCoef, EImCoef,
-                 (rod_params_.Size() > 0) ? j_src : NULL, NULL);
+                 (rod_params_.Size() > 0) ? j_src : NULL, NULL, vis_u);
 
    // Initialize GLVis visualization
    if (visualization)

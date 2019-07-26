@@ -25,6 +25,57 @@ namespace plasma
 // Used for combining scalar coefficients
 double prodFunc(double a, double b) { return a * b; }
 
+EnergyDensityCoef::EnergyDensityCoef(double omega,
+                                     VectorCoefficient &Er,
+                                     VectorCoefficient &Ei,
+                                     VectorCoefficient &dEr,
+                                     VectorCoefficient &dEi,
+                                     MatrixCoefficient &epsr,
+                                     MatrixCoefficient &epsi,
+                                     Coefficient &muInv)
+   : omega_(omega),
+     ErCoef_(Er),
+     EiCoef_(Ei),
+     dErCoef_(dEr),
+     dEiCoef_(dEi),
+     epsrCoef_(epsr),
+     epsiCoef_(epsi),
+     muInvCoef_(muInv),
+     Er_(3),
+     Ei_(3),
+     Dr_(3),
+     Di_(3),
+     Br_(3),
+     Bi_(3),
+     eps_r_(3),
+     eps_i_(3)
+{}
+
+double EnergyDensityCoef::Eval(ElementTransformation &T,
+                               const IntegrationPoint &ip)
+{
+   ErCoef_.Eval(Er_, T, ip);
+   EiCoef_.Eval(Ei_, T, ip);
+
+   dErCoef_.Eval(Bi_, T, ip); Bi_ /=  omega_;
+   dEiCoef_.Eval(Br_, T, ip); Br_ /= -omega_;
+
+   epsrCoef_.Eval(eps_r_, T, ip);
+   epsiCoef_.Eval(eps_i_, T, ip);
+
+   eps_r_.Mult(Er_, Dr_);
+   eps_i_.AddMult_a(-1.0, Ei_, Dr_);
+
+   eps_i_.Mult(Er_, Di_);
+   eps_r_.AddMult(Ei_, Di_);
+
+   double muInv = muInvCoef_.Eval(T, ip);
+
+   double u = (Er_ * Dr_) + (Ei_ * Di_) + ((Br_ * Br_) + (Bi_ * Bi_)) * muInv;
+
+   return 0.5 * u;
+}
+
 CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      CPDSolver::SolverType sol, SolverOptions & sOpts,
                      CPDSolver::PrecondType prec,
@@ -45,8 +96,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      // void   (*e_i_bc )(const Vector&, Vector&),
                      // VectorCoefficient & EReCoef,
                      // VectorCoefficient & EImCoef,
-                     void   (*j_r_src)(const Vector&, Vector&),
-                     void   (*j_i_src)(const Vector&, Vector&))
+                     void (*j_r_src)(const Vector&, Vector&),
+                     void (*j_i_src)(const Vector&, Vector&),
+                     bool vis_u)
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -56,9 +108,11 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      prec_(prec),
      conv_(conv),
      ownsEtaInv_(etaInvCoef == NULL),
+     vis_u_(vis_u),
      omega_(omega),
      // solNorm_(-1.0),
      pmesh_(&pmesh),
+     L2FESpace_(NULL),
      L2VFESpace_(NULL),
      HCurlFESpace_(NULL),
      a1_(NULL),
@@ -69,6 +123,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      e_t_(NULL),
      e_v_(NULL),
      j_v_(NULL),
+     u_(NULL),
      epsReCoef_(&epsReCoef),
      epsImCoef_(&epsImCoef),
      epsAbsCoef_(&epsAbsCoef),
@@ -99,6 +154,10 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      rhsiCoef_(NULL),
      // erCoef_(EReCoef),
      // eiCoef_(EImCoef),
+     derCoef_(NULL),
+     deiCoef_(NULL),
+     uCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_,
+            *epsReCoef_, *epsImCoef_, *muInvCoef_),
      j_r_src_(j_r_src),
      j_i_src_(j_i_src),
      // e_r_bc_(e_r_bc),
@@ -358,6 +417,18 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    rhs_->real().Vector::operator=(0.0);
    rhs_->imag().Vector::operator=(0.0);
 
+   if (vis_u_)
+   {
+      L2FESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension());
+      u_ = new ParGridFunction(L2FESpace_);
+
+      erCoef_.SetGridFunction(&e_->real());
+      eiCoef_.SetGridFunction(&e_->imag());
+
+      derCoef_.SetGridFunction(&e_->real());
+      deiCoef_.SetGridFunction(&e_->imag());
+   }
+
    tic_toc.Stop();
 
    if ( myid_ == 0 && logging_ > 0 )
@@ -403,6 +474,7 @@ CPDSolver::~CPDSolver()
    // delete b_;
    // delete h_;
    delete j_;
+   delete u_;
    // delete j_r_;
    // delete j_i_;
    // delete j_;
@@ -423,6 +495,7 @@ CPDSolver::~CPDSolver()
    // delete hDivHCurlMuInv_;
    // delete weakCurlMuInv_;
 
+   delete L2FESpace_;
    delete L2VFESpace_;
    // delete H1FESpace_;
    delete HCurlFESpace_;
@@ -987,6 +1060,11 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("Re(J)", &j_->real());
       visit_dc.RegisterField("Im(J)", &j_->imag());
    }
+   if ( u_ )
+   {
+      visit_dc.RegisterField("U", u_);
+      // visit_dc.RegisterField("Im(u)", &u_->imag());
+   }
    // if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
    // if ( j_i_ ) { visit_dc.RegisterField("Ji", j_i_); }
    // if ( k_ ) { visit_dc.RegisterField("K", k_); }
@@ -1004,6 +1082,10 @@ CPDSolver::WriteVisItFields(int it)
       if ( j_ )
       {
          j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
+      }
+      if ( u_ )
+      {
+         u_->ProjectCoefficient(uCoef_);
       }
 
       HYPRE_Int prob_size = this->GetProblemSize();
@@ -1039,6 +1121,12 @@ CPDSolver::InitializeGLVis()
 
       socks_["Ji"] = new socketstream;
       socks_["Ji"]->precision(8);
+   }
+
+   if ( u_ )
+   {
+      socks_["U"] = new socketstream;
+      socks_["U"]->precision(8);
    }
    /*
    if ( k_ )
@@ -1123,6 +1211,17 @@ CPDSolver::DisplayToGLVis()
       Wx += offx;
       VisualizeField(*socks_["Ji"], vishost, visport,
                      j_v_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
+   }
+   Wx = 0; Wy += offy; // next line
+
+   if ( u_ )
+   {
+      Wx = 0; Wy += offy; // next line
+
+      u_->ProjectCoefficient(uCoef_);
+
+      VisualizeField(*socks_["U"], vishost, visport,
+                     *u_, "Energy Density, U", Wx, Wy, Ww, Wh);
    }
    Wx = 0; Wy += offy; // next line
    /*
