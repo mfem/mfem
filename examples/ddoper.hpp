@@ -140,6 +140,136 @@ SparseMatrix* GetSparseMatrixFromOperator(Operator *op)
   return S;
 }
 
+void PrintNonzerosOfInterfaceOperator(Operator const& op, const int tsize0, const int tsize1, set<int> const& tdofsbdry0,
+				      set<int> const& tdofsbdry1, const int nprocs, const int rank)
+{
+  const int n0 = op.Height();
+  const int n1 = op.Width();
+
+  const int tbdrysize0 = tdofsbdry0.size();
+  const int tbdrysize1 = tdofsbdry1.size();
+
+  std::vector<int> tdofsbdryvec0(tbdrysize0);
+  std::vector<int> tdofsbdryvec1(tbdrysize1);
+
+  {
+    int i = 0;
+    for (std::set<int>::const_iterator it = tdofsbdry0.begin(); it != tdofsbdry0.end(); ++it, ++i)
+      tdofsbdryvec0[i] = *it;
+
+    MFEM_VERIFY(i == tbdrysize0, "");
+    
+    i = 0;
+    for (std::set<int>::const_iterator it = tdofsbdry1.begin(); it != tdofsbdry1.end(); ++it, ++i)
+      tdofsbdryvec1[i] = *it;
+
+    MFEM_VERIFY(i == tbdrysize1, "");
+  }
+  
+  const int nf0 = n0 + tsize0 - tbdrysize0;
+  const int nf1 = n1 + tsize1 - tbdrysize1;
+  
+  std::vector<int> alln0(nprocs);
+  MPI_Allgather(&n0, 1, MPI_INT, alln0.data(), 1, MPI_INT, MPI_COMM_WORLD);
+  std::vector<int> alln1(nprocs);
+  MPI_Allgather(&n1, 1, MPI_INT, alln1.data(), 1, MPI_INT, MPI_COMM_WORLD);
+
+  std::vector<int> allnf0(nprocs);
+  MPI_Allgather(&nf0, 1, MPI_INT, allnf0.data(), 1, MPI_INT, MPI_COMM_WORLD);
+  std::vector<int> allnf1(nprocs);
+  MPI_Allgather(&nf1, 1, MPI_INT, allnf1.data(), 1, MPI_INT, MPI_COMM_WORLD);
+
+  std::vector<int> alltsize1(nprocs);
+  MPI_Allgather(&tsize1, 1, MPI_INT, alltsize1.data(), 1, MPI_INT, MPI_COMM_WORLD);
+
+  std::vector<int> alltbdrysize1(nprocs);
+  MPI_Allgather(&tbdrysize1, 1, MPI_INT, alltbdrysize1.data(), 1, MPI_INT, MPI_COMM_WORLD);
+
+  int myos0 = 0;
+  int myos1 = 0;
+
+  int myosf0 = 0;
+  int myosf1 = 0;
+
+  int sumtbdrysize1 = 0;
+
+  std::vector<int> rdspl(nprocs);
+  rdspl[0] = 0;
+  
+  for (int i=0; i<nprocs; ++i)
+    {
+      if (i < rank)
+	{
+	  myosf0 += allnf0[i];
+	  myosf1 += allnf1[i];
+	}
+
+      sumtbdrysize1 += alltbdrysize1[i];
+
+      if (i > 0)
+	rdspl[i] = rdspl[i-1] + alltbdrysize1[i-1];
+    }
+
+  std::vector<int> alltdofsbdryvec1(sumtbdrysize1);
+  
+  MPI_Allgatherv(tdofsbdryvec1.data(), tbdrysize1, MPI_INT, alltdofsbdryvec1.data(), alltbdrysize1.data(), rdspl.data(), MPI_INT, MPI_COMM_WORLD);
+
+  //return;
+  
+  //MFEM_VERIFY(cnt == ng, "");
+  
+  Vector ej(n1);
+  Vector Aej(n0);
+
+  char buffer[80];
+  //sprintf(buffer, "tmpppppppp.%05d", rank);
+  sprintf(buffer, "ifopPar.%05d", rank);
+  //sprintf(buffer, "ifopSer.%05d", rank);
+  ofstream file(buffer);
+  //ofstream file("ifopPar" + std::to_string(rank));
+
+  file << myosf0 << " " << myosf0 + nf0 - 1 << " " << myosf1 << " " << myosf1 + nf1 - 1 << endl; 
+
+  int posf1 = 0;
+  for (int p=0; p<nprocs; ++p)
+    {
+      for (int j=0; j<alln1[p]; ++j)
+	{
+	  ej = 0.0;
+
+	  if (p == rank)  // if true dof is on this process
+	    ej[j] = 1.0;
+
+	  int fullcol = posf1;
+	  if (j < alltbdrysize1[p])
+	    fullcol += alltdofsbdryvec1[rdspl[p] + j];
+	  else
+	    fullcol += j + alltsize1[p] - alltbdrysize1[p];
+	      
+	  //Aej = 0.0;  // results should be the same with or without this line
+	  op.Mult(ej, Aej);
+
+	  // Aej is now the local rows (on proc myid) for column j of proc p.
+
+	  for (int i=0; i<n0; ++i)
+	    {
+	      if (fabs(Aej[i]) > 1.0e-15)
+		{
+		  int fullrow = myosf0;
+		  if (i < tbdrysize0)
+		    fullrow += tdofsbdryvec0[i];
+		  else
+		    fullrow += i + tsize0 - tbdrysize0;
+
+		  file << fullrow << " " << fullcol << " " << setprecision(15) << Aej[i] << endl;
+		}
+	    }
+	}
+      
+      posf1 += allnf1[p];
+    }
+}
+
 hypre_CSRMatrix* GetHypreParMatrixData(const HypreParMatrix & hypParMat)
 {
   // First cast the parameter to a hypre_ParCSRMatrix
@@ -1364,17 +1494,17 @@ void PrintMeshBoundingBox(ParMesh *mesh)
 // DOF's in the interface space but correspond to true DOF's on the surfaces of the subdomain spaces. In the extreme case, an interface space
 // may have zero true DOF's on a process, although the same process may have many true DOF's in the subdomain space on that interface. As a
 // result, the subdomain would not receive the contributions from the interface operator, if it acted only on true DOF's. Instead, we must
-// inject from full DOF's in the interface spaces to true DOF's in the subdomain spaces. This is also valid for the transpose of injection.
-// The use of full DOF's in the interface spaces is done in InjectionOperator. Whether a DOF is true is determined by
-// fespace.GetLocalTDofNumber().
+// inject from full DOF's in the interface spaces to true DOF's in the subdomain spaces. For the transpose of injection, we also need a map
+// from full ifespace DOF's to full fespace DOF's. The use of full or true DOF's in the interface and subdomain spaces is handled in
+// InjectionOperator via a ParGridFunction. Whether a DOF is true is determined by fespace.GetLocalTDofNumber().
 
-// Therefore, dofmap is defined by SetInterfaceToSurfaceDOFMap() to be of full ifespace DOF size, mapping from the full ifespace DOF's to
-// true subdomain DOF's in fespace.
+// Therefore, dofmap is defined by SetInterfaceToSurfaceDOFMap() to be of full ifespace DOF size, mapping from full ifespace DOF's to true
+// subdomain DOF's in fespace; fdofmap is also of full ifespace DOF size, mapping from full ifespace DOF's to full subdomain DOF's in fespace.
 void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteElementSpace *fespace, ParFiniteElementSpace *fespaceGlobal,
-				 ParMesh *pmesh, const int sdAttribute,
-				 const std::set<int>& pmeshFacesInInterface, const std::set<int>& pmeshEdgesInInterface,
-				 const std::set<int>& pmeshVerticesInInterface, 
-				 const FiniteElementCollection *fec, std::vector<int>& dofmap, std::vector<int>& gdofmap)
+				 ParMesh *pmesh, const int sdAttribute, const std::set<int>& pmeshFacesInInterface,
+				 const std::set<int>& pmeshEdgesInInterface, const std::set<int>& pmeshVerticesInInterface, 
+				 const FiniteElementCollection *fec, std::vector<int>& dofmap, //std::vector<int>& fdofmap,
+				 std::vector<int>& gdofmap)
 {
   const int ifSize = ifespace->GetVSize();  // Full DOF size
   const int iftSize = ifespace->GetTrueVSize();  // True DOF size, used for global gdofmap
@@ -1386,8 +1516,11 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 
   // TODO: in general, this may need to be MPI_COMM_WORLD, since a process may see the subdomain but not the interface.
   MPI_Allreduce(&iftSize, &ifgSize, 1, MPI_INT, MPI_SUM, ifespace->GetComm());
+
+  std::vector<int> fdofmap; // TODO: remove
   
   dofmap.assign(ifSize, -1);
+  fdofmap.assign(ifSize, -1);
   gdofmap.assign(ifgSize, -1);
 
   std::vector<int> ifpedge, maxifpedge;
@@ -1464,9 +1597,48 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
   std::map<int, int> pmeshToSDMeshIFEdge;
   std::map<int, int> pmeshToSDMeshIFVertex;
   std::map<int, int> pmeshToIFMeshIFVertex;
+
+  /*
+  { // debugging
+	int edges[2];
+	edges[0] = 1086;
+	edges[1] = 1097;
+
+	for (int j=0; j<2; ++j)
+	  {
+	    Array<int> sdMeshEdgeVert;
+	    sdMesh->GetEdgeVertices(edges[j], sdMeshEdgeVert);
+
+	    for (int k=0; k<2; ++k)
+	      {
+		cout << "Edge " << edges[j] << " has vertex " << sdMeshEdgeVert[k] << " with crd ";
+		for (int l=0; l<3; ++l)
+		  cout << sdMesh->GetVertex(sdMeshEdgeVert[k])[l] << " ";
+
+		cout << endl;
+	      }
+	  }
+
+  }
+  */
   
   for (int elId=0; elId<sdMesh->GetNE(); ++elId)
     {
+      {
+	Array<int> sdEdge, sdOri;
+	sdMesh->GetElementEdges(elId, sdEdge, sdOri);
+
+	for (int j=0; j<sdEdge.Size(); ++j)
+	  {
+	    Array<int> sddofs;
+	    fespace->GetEdgeDofs(sdEdge[j], sddofs);
+
+	    if (sddofs[0] == 1086 || sddofs[0] == 1097)
+	      cout << "sd el " << elId << " has edge dof " << sddofs[0] << endl;
+	  }
+
+      }
+      
       // The sdMesh element attribute is set as the local index of the corresponding pmesh element, which is unique since SD elements do not overlap.
       const int pmeshElemId = sdMesh->GetAttribute(elId) - 1;  // 1 was added to ensure a positive attribute.
       std::set<int>::const_iterator it = pmeshElemsByInterface.find(pmeshElemId);
@@ -1672,6 +1844,9 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 		      for (int d=0; d<ifdofs.Size(); ++d)
 			{
 			  const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
+
+			  MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
+			  fdofmap[ifdofs[d]] = sddofs[d];
 			  
 			  if (sdtdof >= 0)  // if this is a true DOF of fespace.
 			    {
@@ -1755,6 +1930,9 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 		    cout << "276 found on " << endl;
 		  */
 		  
+		  MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
+		  fdofmap[ifdofs[d]] = sddofs[d];
+		  
 		  if (sdtdof >= 0)  // if this is a true DOF of fespace.
 		    {
 		      MFEM_VERIFY(dofmap[ifdofs[d]] == sdtdof || dofmap[ifdofs[d]] == -1, "");
@@ -1778,6 +1956,9 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 	  for (int d=0; d<ifdofs.Size(); ++d)
 	    {
 	      const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
+
+	      MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
+	      fdofmap[ifdofs[d]] = sddofs[d];
 			  
 	      if (sdtdof >= 0)  // if this is a true DOF of fespace.
 		{
@@ -2021,6 +2202,9 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 		      for (int d=0; d<ifdofs.Size(); ++d)
 			{
 			  const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
+
+			  MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
+			  fdofmap[ifdofs[d]] = sddofs[d];
 			  
 			  if (sdtdof >= 0)  // if this is a true DOF of fespace.
 			    {
@@ -2078,6 +2262,12 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 		      gdofmap[pedgeToIFGDOF[i] + d] = sdtdof + sdtos;
 		    }
 		}
+
+	      if (ifMeshEdge >= 0)
+		{ // Set local fdofmap
+		  MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
+		  fdofmap[ifdofs[d]] = sddofs[d];
+		}
 	    }
 	}
     }
@@ -2126,7 +2316,10 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 	  for (int d=0; d<ifdofs.Size(); ++d)
 	    {
 	      const int sdtdof = fespace->GetLocalTDofNumber(sddofs[d]);
-			  
+
+	      MFEM_VERIFY(fdofmap[ifdofs[d]] == sddofs[d] || fdofmap[ifdofs[d]] == -1, "");
+	      fdofmap[ifdofs[d]] = sddofs[d];
+	      
 	      if (sdtdof >= 0)  // if this is a true DOF of fespace.
 		{
 		  MFEM_VERIFY(dofmap[ifdofs[d]] == sdtdof || dofmap[ifdofs[d]] == -1, "");
@@ -2152,6 +2345,8 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 	  }
 	*/
 
+	//MFEM_VERIFY(fdofmap[i] >= 0, "undefined dofmap");
+	
 	if (dofmap[i] >= 0)
 	  {
 	    const int gtdof = ifespace->GetGlobalTDofNumber(i);
@@ -2212,15 +2407,183 @@ public:
 class InjectionOperator : public Operator
 {
 private:
-  int *id;  // Size should be fullWidth.
-  mutable ParGridFunction gf;
+  int *id;  // Size should be fullWidth, mapping to true subdomain DOF's.
+  //mutable ParGridFunction gf;
   int fullWidth;
+  int m_nprocs, m_rank;
+  
+  std::vector<int> m_numTrueSD;
+  std::vector<int> m_numLocalTrueSDmappedFromProc;
+  std::vector<int> m_alliftsize;  // TODO: not needed as a class member.
+  std::vector<int> m_alltrueSD;
+
+  std::vector<int> m_iftToSDrank;  // map from interface true DOF to rank owning the corresponding subdomain true DOF.
+  
+  mutable std::vector<double> m_recv, m_send;
+  std::vector<int> m_scnt, m_sdspl, m_rcnt, m_rdspl;
   
 public:
-  InjectionOperator(const int height, ParFiniteElementSpace *interfaceSpace, int *a) : Operator(height, interfaceSpace->GetTrueVSize()),
-										       fullWidth(interfaceSpace->GetVSize()), id(a), gf(interfaceSpace)
+  InjectionOperator(ParFiniteElementSpace *subdomainSpace, ParFiniteElementSpace *interfaceSpace, int *a,
+		    std::vector<int> const& gdofmap) : Operator(subdomainSpace->GetTrueVSize(), interfaceSpace->GetTrueVSize()),
+						       fullWidth(interfaceSpace->GetVSize()), id(a) //, gf(interfaceSpace)
   {
     MFEM_VERIFY(height >= width, "InjectionOperator constructor");
+
+    MPI_Comm_size(MPI_COMM_WORLD, &m_nprocs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &m_rank);
+    
+    const HYPRE_Int sdtos = (subdomainSpace == NULL) ? 0 : subdomainSpace->GetMyTDofOffset();
+    const int int_sdtos = sdtos; // TODO: what is HYPRE_Int as an MPI type?
+
+    const int sdtsize = (subdomainSpace == NULL) ? 0 : subdomainSpace->GetTrueVSize();
+    const int iftsize = (interfaceSpace == NULL) ? 0 : interfaceSpace->GetTrueVSize();
+
+    std::vector<int> allsdtos, alliftos;
+    allsdtos.assign(m_nprocs, 0);
+    alliftos.assign(m_nprocs, 0);
+    m_alliftsize.assign(m_nprocs, 0);
+    
+    MPI_Allgather(&int_sdtos, 1, MPI_INT, allsdtos.data(), 1, MPI_INT, MPI_COMM_WORLD);
+    MPI_Allgather(&iftsize, 1, MPI_INT, m_alliftsize.data(), 1, MPI_INT, MPI_COMM_WORLD);
+
+    for (int ifp=1; ifp<m_nprocs; ++ifp)
+      alliftos[ifp] = alliftos[ifp-1] + m_alliftsize[ifp-1];
+  
+    int ifgsize = 0;
+    MPI_Allreduce(&iftsize, &ifgsize, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    
+    m_numTrueSD.assign(m_nprocs, 0);
+    m_numLocalTrueSDmappedFromProc.assign(m_nprocs, 0);
+
+    m_iftToSDrank.assign(iftsize, -1);
+    
+    for (int ifp=0; ifp<m_nprocs; ++ifp)
+      {
+	for (int i=0; i<m_alliftsize[ifp]; ++i)
+	  {
+	    const int gsd = gdofmap[alliftos[ifp] + i];
+	
+	    // Find the process owning global SD DOF gsd.
+	    int p = 0;
+	    for (p=m_nprocs-1; p >= 0; --p)
+	      {
+		if (gsd >= allsdtos[p])
+		  break;
+	      }
+	
+	    m_numTrueSD[p]++;
+
+	    if (p == m_rank)
+	      m_numLocalTrueSDmappedFromProc[ifp]++;
+	  }
+      }
+
+    {
+      int cnt = 0;
+      for (int ifp=0; ifp<m_nprocs; ++ifp)
+	cnt += m_numLocalTrueSDmappedFromProc[ifp];
+    
+      MFEM_VERIFY(cnt == m_numTrueSD[m_rank], "");
+    }
+
+    // Set m_alltrueSD to contain local true SD DOF's identified with other processes' local true interface DOF's, ordered according to gdofmap.
+    m_alltrueSD.assign(m_numTrueSD[m_rank], 0);
+
+    std::vector<int> os;
+    os.assign(m_nprocs, 0);
+    for (int ifp=1; ifp<m_nprocs; ++ifp)
+      os[ifp] = os[ifp-1] + m_numLocalTrueSDmappedFromProc[ifp-1];
+
+    m_scnt.assign(m_nprocs, 0);
+    m_rcnt.assign(m_nprocs, 0);
+    
+    m_numLocalTrueSDmappedFromProc.assign(m_nprocs, 0);  // reset in the following loop
+
+    for (int ifp=0; ifp<m_nprocs; ++ifp)
+      {
+	for (int i=0; i<m_alliftsize[ifp]; ++i)
+	  {
+	    const int gsd = gdofmap[alliftos[ifp] + i];
+	
+	    // Find the process owning global SD DOF gsd.
+	    int p = 0;
+	    for (p=m_nprocs-1; p >= 0; --p)
+	      {
+		if (gsd >= allsdtos[p])
+		  break;
+	      }
+	
+	    if (p == m_rank)
+	      {
+		m_alltrueSD[os[ifp] + m_numLocalTrueSDmappedFromProc[ifp]] = gsd - allsdtos[p];
+		m_numLocalTrueSDmappedFromProc[ifp]++;
+
+		m_rcnt[ifp]++;
+	      }
+
+	    if (ifp == m_rank)
+	      {
+		m_scnt[p]++;
+		m_iftToSDrank[i] = p;
+	      }
+	  }
+      }
+
+    /*
+    //MFEM_VERIFY(sizeof(unsigned int) == sizeof(std::size_t), "");
+    int i = sizeof(unsigned int);
+    cout << "size of ui " << i << endl;
+    i = sizeof(std::size_t);
+    cout << "size of st " << i << endl;
+    i = sizeof(int);
+    cout << "size of int " << i << endl;
+    */
+    
+    m_send.assign(iftsize, 0.0);
+    m_recv.assign(m_alltrueSD.size(), 0.0);
+
+    m_sdspl.assign(m_nprocs, 0);
+    m_rdspl.assign(m_nprocs, 0);
+
+    for (int i=1; i<m_nprocs; ++i)
+      {
+	m_sdspl[i] = m_sdspl[i-1] + m_scnt[i-1];
+	m_rdspl[i] = m_rdspl[i-1] + m_rcnt[i-1];
+      }
+
+    MFEM_VERIFY(m_scnt[m_nprocs-1] + m_sdspl[m_nprocs-1] == iftsize, "");
+    
+    /*
+    trueSD.assign(numTrueSD, -1);
+    numTrueSD = 0;
+     
+    for (auto gsd : gdofmap)
+      {
+	if (gsd >= sdtos && gsd - sdtos < sdtsize)  // If a local true SD DOF
+	  {
+	    trueSD[numTrueSD] = gsd - sdtos;
+	    numTrueSD++;
+	  }
+      }
+
+    MFEM_VERIFY(numTrueSD == trueSDsize(), "");
+
+    
+    std::vector<int> scnt, sdspl, rcnt, rdspl;
+    std::vector<std::size_t> sendTrueSD;
+
+    sendTrueSD.assign(, 0);
+
+    scnt.assign(nprocs, 0);
+    sdspl.assign(nprocs, 0);
+    rcnt.assign(nprocs, 0);
+    rdspl.assign(nprocs, 0);
+
+    MPI_Alltoall(scnt.data(), MPI_INT, MPI_INT, MPI_COMM_WORLD);
+      
+    MPI_Alltoallv(sendTrueSD.data(), scnt.data(), sdsp.data(), MPI_UNSIGNED, m_alltrueSD.data(),
+		  rcnt.data(), rdspl.data(), MPI_UNSIGNED, MPI_COMM_WORLD);
+    */
   }
   
   ~InjectionOperator()
@@ -2229,18 +2592,81 @@ public:
   
   virtual void Mult(const Vector & x, Vector & y) const
   {
-    gf.SetFromTrueDofs(x);
-    
-    y = 0.0;
-    for (int i=0; i<fullWidth; ++i)
+    //gf.SetFromTrueDofs(x);
+
+    // Given an input vector x of local true interface DOF's, set the output vector y of local true SD DOF's, which may require values from other processes. 
+
+    MFEM_VERIFY(m_alltrueSD.size() == m_recv.size(), "");
+    MFEM_VERIFY(x.Size() == m_send.size(), "");
+
+    std::vector<int> cnt;
+    cnt.assign(m_nprocs, 0);
+
+    //for (int ifp=0; ifp<m_nprocs; ++ifp)
+    for (int i=0; i<x.Size(); ++i) // loop over local true interface DOF's
       {
-	if (id[i] >= 0)
-	  y[id[i]] = gf[i];
+	m_send[m_sdspl[m_iftToSDrank[i]] + cnt[m_iftToSDrank[i]]] = x[i];
+	cnt[m_iftToSDrank[i]]++;
       }
+
+    { // debugging
+      for (int i=0; i<m_nprocs; ++i)
+	{
+	  MFEM_VERIFY(cnt[i] == m_scnt[i], "");
+	}
+    }
+    
+    MPI_Alltoallv(m_send.data(), m_scnt.data(), m_sdspl.data(), MPI_DOUBLE, (double*) m_recv.data(), m_rcnt.data(), m_rdspl.data(), MPI_DOUBLE, MPI_COMM_WORLD);
+
+    y = 0.0;
+    /*
+    for (int ifp=0; ifp<m_nprocs; ++ifp)
+      {
+	for (int i=0; i<m_rcnt[ifp]; ++i)
+	  {
+	    m_recv[m_rdspl[ifp] + i];
+	  }
+      }
+    */
+
+    for (int i=0; i<m_recv.size(); ++i)
+      {
+	y[m_alltrueSD[i]] = m_recv[i];
+      }
+
   }
 
   virtual void MultTranspose(const Vector &x, Vector &y) const
   {
+    // Given an input vector x of local true SD DOF's, set the output vector y of local true interface DOF's, which may require values from other processes.
+    MFEM_VERIFY(y.Size() == m_send.size(), "");
+
+    for (int i=0; i<m_recv.size(); ++i)
+      {
+	m_recv[i] = x[m_alltrueSD[i]];
+      }
+
+    // The roles of receive and send data are reversed.
+    MPI_Alltoallv(m_recv.data(), m_rcnt.data(), m_rdspl.data(), MPI_DOUBLE, m_send.data(), m_scnt.data(), m_sdspl.data(), MPI_DOUBLE, MPI_COMM_WORLD);
+
+    std::vector<int> cnt;
+    cnt.assign(m_nprocs, 0);
+
+    for (int i=0; i<y.Size(); ++i) // loop over local true interface DOF's
+      {
+	y[i] = m_send[m_sdspl[m_iftToSDrank[i]] + cnt[m_iftToSDrank[i]]];
+	cnt[m_iftToSDrank[i]]++;
+      }
+
+    { // debugging
+      for (int i=0; i<m_nprocs; ++i)
+	{
+	  MFEM_VERIFY(cnt[i] == m_scnt[i], "");
+	}
+    }
+    
+    /*
+    //gf = 0.0;
     for (int i=0; i<fullWidth; ++i)
       {
       	if (id[i] >= 0)
@@ -2248,6 +2674,7 @@ public:
       }
     
     gf.GetTrueDofs(y);
+    */
   }
 };
 
@@ -2475,12 +2902,14 @@ public:
 
     InterfaceToSurfaceInjection.resize(numSubdomains);
     InterfaceToSurfaceInjectionData.resize(numSubdomains);
+    //InterfaceToSurfaceInjectionFullData.resize(numSubdomains);
     InterfaceToSurfaceInjectionGlobalData.resize(numSubdomains);
     
     for (int m=0; m<numSubdomains; ++m)
       {
 	InterfaceToSurfaceInjection[m].resize(subdomainLocalInterfaces[m].size());
 	InterfaceToSurfaceInjectionData[m].resize(subdomainLocalInterfaces[m].size());
+	//InterfaceToSurfaceInjectionFullData[m].resize(subdomainLocalInterfaces[m].size());
 	InterfaceToSurfaceInjectionGlobalData[m].resize(subdomainLocalInterfaces[m].size());
 
 	cout << rank << ": setup for subdomain " << m << endl;
@@ -2492,11 +2921,58 @@ public:
 	else
 	  {
 	    fespace[m] = new ParFiniteElementSpace(pmeshSD[m], &fec);  // Nedelec space for u_m
-
+	    
 	    /*
+	    { // debugging
+	      for (int i=0; i<fespace[m]->GetVSize(); ++i)
+		{
+		  const HYPRE_Int gtdof = fespace[m]->GetGlobalTDofNumber(i);
+      
+		  if (m == 1 && gtdof == 188)
+		    cout << "m 1 " << gtdof << endl;
+		  
+		  const int ltdof = fespace[m]->GetLocalTDofNumber(i);
+		  if (ltdof >= 0)
+		    {
+		      if (m == 1 && ltdof == 188)
+			cout << "rank 1 " << gtdof << endl;
+		    }
+		}
+
+
+	      if (m == 1)
+		{
+		  for (int i=0; i<pmeshSD[m]->GetNE(); ++i)
+		    {
+		      Array<int> dofs;
+		      fespace[m]->GetElementDofs(i, dofs);
+		      bool has1597 = false;
+		      bool has188 = false;
+		  
+		      for (int j=0; j<dofs.Size(); ++j)
+			{
+			  const int dofj = dofs[j] >= 0 ? dofs[j] : -1 - dofs[j];
+			  const HYPRE_Int gtdof = fespace[m]->GetGlobalTDofNumber(dofj);
+
+			  if (gtdof == 1597)
+			    has1597 = true;
+
+			  if (gtdof == 188)
+			    has188 = true;
+			}
+
+		      if (has188 && has1597)
+			{
+			  cout << "Element " << i << " has both" << endl;
+			}
+		    }
+		}
+	    }
+	    */
+
 	    if (m == 0)
 	      cout << rank << ": sd 0 ND space true size " << fespace[m]->GetTrueVSize() << ", full size " << fespace[m]->GetVSize() << endl;
-	    */
+
 	  }
 	
 	for (int i=0; i<subdomainLocalInterfaces[m].size(); ++i)
@@ -2554,10 +3030,12 @@ public:
 		
 		SetInterfaceToSurfaceDOFMap(ifespace[interfaceIndex], fespace[m], fespaceGlobal, pmeshGlobal, m+1, (*localInterfaces)[ifli].faces, 
 					    (*localInterfaces)[ifli].edges, (*localInterfaces)[ifli].vertices, &fecbdry,
-					    InterfaceToSurfaceInjectionData[m][i], InterfaceToSurfaceInjectionGlobalData[m][i]);
+					    InterfaceToSurfaceInjectionData[m][i], //InterfaceToSurfaceInjectionFullData[m][i],
+					    InterfaceToSurfaceInjectionGlobalData[m][i]);
 	    
-		InterfaceToSurfaceInjection[m][i] = new InjectionOperator(fespace[m]->GetTrueVSize(), ifespace[interfaceIndex],
-									  &(InterfaceToSurfaceInjectionData[m][i][0]));
+		InterfaceToSurfaceInjection[m][i] = new InjectionOperator(fespace[m], ifespace[interfaceIndex],
+									  &(InterfaceToSurfaceInjectionData[m][i][0]),
+									  InterfaceToSurfaceInjectionGlobalData[m][i]);
 	      }
 	    else
 	      {
@@ -2601,6 +3079,13 @@ public:
 	    tdofsBdryInjectionTranspose[m] = new TransposeOperator(tdofsBdryInjection[m]);
 	    
 	    CreateSubdomainMatrices(m);
+
+	    /*
+	    { // debugging
+	      hypre_CSRMatrix* csr = GetHypreParMatrixData(*(sdND[m]));
+	      cout << "csr nr " << csr->num_rows << endl;
+	    }
+	    */
 	  }
 	
 	SetOffsetsSD(m);
@@ -2752,6 +3237,11 @@ public:
 
 	rowTrueOffsetsComplexIF[ili].PartialSum();
 	colTrueOffsetsComplexIF[ili].PartialSum();
+
+	/*
+	PrintNonzerosOfInterfaceOperator(globalInterfaceOpRe->GetBlock(sd0, sd1), fespace[sd0]->GetTrueVSize(), fespace[sd1]->GetTrueVSize(),
+					 tdofsBdry[sd0], tdofsBdry[sd1], num_procs, rank);
+	*/
 	
 	BlockOperator *complexBlock01 = new BlockOperator(rowTrueOffsetsComplexIF[ili], colTrueOffsetsComplexIF[ili]);
 	complexBlock01->SetBlock(0, 0, &(globalInterfaceOpRe->GetBlock(sd0, sd1)));
@@ -2791,10 +3281,12 @@ public:
 
     block_ComplexOffsetsSD.resize(numSubdomains);
 
-    BlockOperator *globalSubdomainOp = new BlockOperator(block_trueOffsets2);
+    //BlockOperator *globalSubdomainOp = new BlockOperator(block_trueOffsets2);
+    globalSubdomainOp = new BlockOperator(block_trueOffsets2);
 #else
     // Create block diagonal operator with entries R_{sd0} A_{sd0}^{-1} R_{sd0}^T
-    BlockOperator *globalSubdomainOp = new BlockOperator(block_trueOffsets);
+    //BlockOperator *globalSubdomainOp = new BlockOperator(block_trueOffsets);
+    globalSubdomainOp = new BlockOperator(block_trueOffsets);
 #endif
     
     rowTrueOffsetsSD.resize(numSubdomains);
@@ -2905,9 +3397,15 @@ public:
 		ComplexHypreParMatrix tmpComplex(HypreAsdComplexRe, HypreAsdComplexIm, false, false);
 		HypreAsdComplex[m] = tmpComplex.GetSystemMatrix();
 
-		//if (m == 0) HypreAsdComplexRe->Print("HypreAsdComplexRe0_Par3");
+		//if (m == 0) HypreAsdComplexRe->Print("HypreAsdComplexRe0_Par5");
 		//if (m == 0) HypreAsdComplexRe->Print("HypreAsdComplexRe0_Serial");
+		//if (m == 1) HypreAsdComplexRe->Print("HypreAsdComplexRe1_Par5");
+		//if (m == 1) HypreAsdComplexRe->Print("HypreAsdComplexRe1_Serial");
 		//if (m == 0) HypreAsdComplexIm->Print("HypreAsdComplexIm0");
+		//if (m == 0) HypreAsdComplexIm->Print("HypreAsdComplexIm0_Serial");
+		//if (m == 1) HypreAsdComplexIm->Print("HypreAsdComplexIm1_Serial");
+		//if (m == 0) HypreAsdComplexIm->Print("HypreAsdComplexIm0_Par5");
+		//if (m == 1) HypreAsdComplexIm->Print("HypreAsdComplexIm1_Par5");
 		//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplex_Par3");
 		//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplex_Serial");
 		
@@ -3028,6 +3526,10 @@ public:
     // those surface DOF's and DOF's on the individual interfaces.
     
     globalOp->Mult(x, y);
+
+    //BlockOperator *globalSubdomainOp
+    //m_globalSubdomainOp->Mult(x, y);
+    //globalInterfaceOp->Mult(x, y);
   }  
 
 #ifndef DDMCOMPLEX
@@ -3716,7 +4218,7 @@ private:
   BlockOperator **injComplexSD;
 #endif
 
-  BlockOperator *globalInterfaceOp;
+  BlockOperator *globalInterfaceOp, *globalSubdomainOp;
   
   Operator *globalOp;  // Operator for all global subdomains (blocks corresponding to non-local subdomains will be NULL).
   
@@ -3737,6 +4239,7 @@ private:
   
   std::vector<std::vector<InjectionOperator*> > InterfaceToSurfaceInjection;
   std::vector<std::vector<std::vector<int> > > InterfaceToSurfaceInjectionData;
+  //std::vector<std::vector<std::vector<int> > > InterfaceToSurfaceInjectionFullData;
   std::vector<std::vector<std::vector<int> > > InterfaceToSurfaceInjectionGlobalData;
 
   std::vector<Array<int> > rowTrueOffsetsSD, colTrueOffsetsSD;
@@ -4384,7 +4887,10 @@ private:
     //MFEM_VERIFY(m_rank == 0, "");  // TODO: this code will not work in parallel, in general. 
 
     {
-      Array<int> true_ess_dofs(fespace[subdomain]->GetTrueVSize());
+      const HYPRE_Int sdtos = fespace[subdomain]->GetMyTDofOffset();
+      const int sdtsize = fespace[subdomain]->GetTrueVSize();
+      
+      Array<int> true_ess_dofs(sdtsize);
       for (int i=0; i<fespace[subdomain]->GetTrueVSize(); ++i)
 	true_ess_dofs[i] = 0;
 
@@ -4392,6 +4898,7 @@ private:
 	true_ess_dofs[*it] = 1;
 
       MFEM_VERIFY(InterfaceToSurfaceInjectionData[subdomain].size() == subdomainLocalInterfaces[subdomain].size(), "");
+      MFEM_VERIFY(InterfaceToSurfaceInjectionGlobalData[subdomain].size() == subdomainLocalInterfaces[subdomain].size(), "");
 
       //set<int> interfaceTDofs;  // True DOF's of fespace[subdomain] which lie on an interface.
 
@@ -4401,17 +4908,24 @@ private:
 	  const int ifli = (*interfaceLocalIndex)[interfaceIndex];
 	  MFEM_VERIFY(ifli >= 0, "");
 
+	  for (int j=0; j<InterfaceToSurfaceInjectionGlobalData[subdomain][i].size(); ++j)
+	    {
+	      if (InterfaceToSurfaceInjectionGlobalData[subdomain][i][j] >= sdtos &&
+		  InterfaceToSurfaceInjectionGlobalData[subdomain][i][j] - sdtos < sdtsize)
+		true_ess_dofs[InterfaceToSurfaceInjectionGlobalData[subdomain][i][j] - sdtos] = 0;
+	    }
+	  
+	  /*
 	  for (int j=0; j<InterfaceToSurfaceInjectionData[subdomain][i].size(); ++j)
 	    {
 	      //interfaceTDofs.insert(InterfaceToSurfaceInjectionData[subdomain][i][j]);
-	      /*
-	      if (InterfaceToSurfaceInjectionData[subdomain][i][j] < 0)
-		cout << "BUG" << endl;
-	      */
+	      //if (InterfaceToSurfaceInjectionData[subdomain][i][j] < 0)
+	      //cout << "BUG" << endl;
 	      
 	      if (InterfaceToSurfaceInjectionData[subdomain][i][j] >= 0)
 		true_ess_dofs[InterfaceToSurfaceInjectionData[subdomain][i][j]] = 0;
 	    }
+	  */
 	}
 
       // At this point, true_ess_dofs[i] == 1 if and only if true DOF i is on the boundary minus the interface.
@@ -4737,11 +5251,10 @@ private:
 	  }
 	
 	MFEM_VERIFY(uniqueness, "");
-
 	/*
 	// File output
-	ofstream file("dofcrdSer");
-	//ofstream file("dofcrdPar" + std::to_string(m_rank));
+	//ofstream file("dofcrd" + std::to_string(subdomain) + "Ser");
+	ofstream file("dofcrd" + std::to_string(subdomain) + "Par" + std::to_string(m_rank));
 
 	for (int j=0; j<numTrueDofs; ++j)
 	  {
