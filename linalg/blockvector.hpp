@@ -91,6 +91,12 @@ public:
    int BlockSize(int i) { return blockOffsets[i+1] - blockOffsets[i]; }
 
    //! Update method
+
+   /**
+      data is another vector that contains all the values of the monolithic vector. bOffsets is an array of integers (length nBlocks + 1) that tells the offsets of each block start. Does not take ownership of data.
+    */
+   void Update(const Vector& data, const Array<int> &bOffsets);
+
    /**
     * data is an array of double of length at least blockOffsets[numBlocks] that
     * contain all the values of the monolithic vector.  bOffsets is an array of

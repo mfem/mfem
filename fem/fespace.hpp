@@ -917,12 +917,13 @@ protected:
 
    mutable bool use_tensor_products;
 
-   static const int MAX_NQ2D = 100;
-   static const int MAX_ND2D = 100;
+   // TODO:WP:this is temporary
+   static const int MAX_NQ2D = 4000;
+   static const int MAX_ND2D = 1000;
    static const int MAX_VDIM2D = 2;
 
-   static const int MAX_NQ3D = 1000;
-   static const int MAX_ND3D = 1000;
+   static const int MAX_NQ3D = 240000;
+   static const int MAX_ND3D = 30000;
    static const int MAX_VDIM3D = 3;
 
 public:

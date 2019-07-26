@@ -74,6 +74,19 @@ BlockVector::BlockVector(double *data, const Array<int> & bOffsets):
    SetBlocks();
 }
 
+void BlockVector::Update(const Vector& data, const Array<int> &bOffsets)
+{
+   NewMemoryAndSize(data.GetMemory(), bOffsets.Last(), false);
+   blockOffsets = bOffsets.GetData();
+   if (numBlocks != bOffsets.Size()-1)
+   {
+      delete [] blocks;
+      numBlocks = bOffsets.Size()-1;
+      blocks = new Vector[numBlocks];
+   }
+   SetBlocks();
+}
+
 void BlockVector::Update(double *data, const Array<int> & bOffsets)
 {
    NewDataAndSize(data, bOffsets.Last());

@@ -38,20 +38,17 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetMemoryType());
-   ConstantCoefficient *const_coeff = dynamic_cast<ConstantCoefficient*>(Q);
-   // TODO: other types of coefficients ...
+   double coeff = 1.0;
+   if (Q)
+   {
+      ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
+      MFEM_VERIFY(cQ != NULL, "only ConstantCoefficient is supported!");
+      coeff = cQ->constant;
+   }
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)
    {
-      double constant = 0.0;
-      if (const_coeff)
-      {
-         constant = const_coeff->constant;
-      }
-      else
-      {
-         MFEM_ABORT("Coefficient type not supported");
-      }
+      const double constant = coeff;
       const int NE = ne;
       const int NQ = nq;
       auto w = ir->GetWeights().Read();
@@ -72,15 +69,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    if (dim==3)
    {
-      double constant = 0.0;
-      if (const_coeff)
-      {
-         constant = const_coeff->constant;
-      }
-      else
-      {
-         MFEM_ABORT("Coefficient type not supported");
-      }
+      const double constant = coeff;
       const int NE = ne;
       const int NQ = nq;
       auto W = ir->GetWeights().Read();
