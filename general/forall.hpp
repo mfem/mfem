@@ -30,9 +30,10 @@
 namespace mfem
 {
 
+// TODO:WP:this is temporary
 // Maximum size of dofs and quads in 1D.
-const int MAX_D1D = 16;
-const int MAX_Q1D = 16;
+const int MAX_D1D = 30;
+const int MAX_Q1D = 60;
 
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
