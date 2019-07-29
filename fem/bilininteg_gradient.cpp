@@ -124,7 +124,6 @@ static void PAGradientSetup(const int dim,
 void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                     const FiniteElementSpace &test_fes)
 {
-   // TODO: I am here
    // Assumes tensor-product elements ordered by nodes
    MFEM_ASSERT(trial_fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
@@ -144,8 +143,7 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    quad1D = trial_maps->nqpt;
    test_maps  = &test_fe.GetDofToQuad(*ir, DofToQuad::TENSOR);
    test_dofs1D = test_maps->ndof;
-   int test_quad1D = test_maps->nqpt;
-   MFEM_ASSERT(quad1D == test_quad1D,
+   MFEM_ASSERT(quad1D == test_maps->nqpt,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
    double coeff = 1.0;
@@ -320,7 +318,6 @@ static void PAGradientApply3D(const int NE,
                               int te_d1d = 0,
                               int q1d = 0)
 {
-   // TODO: This is all wrong
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
