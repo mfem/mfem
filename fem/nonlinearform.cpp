@@ -14,6 +14,31 @@
 namespace mfem
 {
 
+void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+         // Use the original NonlinearForm implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Element assembly not supported yet... stay tuned!");
+         break;
+      case AssemblyLevel::PARTIAL:
+         ext = new PANonlinearFormExtension(this);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Matrix-free action not supported yet... stay tuned!");
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+}
 void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
                                    Vector *rhs)
 {
@@ -109,13 +134,21 @@ const Vector &NonlinearForm::Prolongate(const Vector &x) const
 
 void NonlinearForm::Mult(const Vector &x, Vector &y) const
 {
+   if (P) { aux2.SetSize(P->Height()); }
+
+   if (ext)
+   {
+      ext->Mult(x, aux2);
+      return;
+   }
+
    Array<int> vdofs;
    Vector el_x, el_y;
    const FiniteElement *fe;
    ElementTransformation *T;
    Mesh *mesh = fes->GetMesh();
    const Vector &px = Prolongate(x);
-   Vector &py = P ? aux2.SetSize(P->Height()), aux2 : y;
+   Vector &py = P ? aux2 : y;
 
    py = 0.0;
 
@@ -232,6 +265,11 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
 {
+   if (ext)
+   {
+      MFEM_ABORT("Not yet implemented!");
+   }
+
    const int skip_zeros = 0;
    Array<int> vdofs;
    Vector el_x;
@@ -375,6 +413,11 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 
 void NonlinearForm::Update()
 {
+   if (ext)
+   {
+      MFEM_ABORT("Not yet implemented!");
+   }
+
    if (sequence == fes->GetSequence()) { return; }
 
    height = width = fes->GetTrueVSize();
@@ -382,7 +425,7 @@ void NonlinearForm::Update()
    delete Grad; Grad = NULL;
    ess_tdof_list.SetSize(0); // essential b.c. will need to be set again
    sequence = fes->GetSequence();
-   // Do not modify aux1 and aux2, their size will be set before use.
+   // Do not modify aux1 and , their size will be set before use.
    P = fes->GetProlongationMatrix();
    cP = dynamic_cast<const SparseMatrix*>(P);
 }

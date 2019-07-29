@@ -10,10 +10,35 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "fem.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
 
+void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
+{
+   mfem_error ("NonlinearFormIntegrator::AssemblePA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace&,
+                                         const FiniteElementSpace&)
+{
+   mfem_error ("NonlinearFormIntegrator::AssemblePA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
+{
+   mfem_error ("NonlinearFormIntegrator::AddMultPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
+{
+   mfem_error ("NonlinearFormIntegrator::AddMultTransposePA(...)\n"
+               "   is not implemented for this class.");
+}
 void NonlinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,
    const Vector &elfun, Vector &elvect)
@@ -671,6 +696,285 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
       }
    }
 
+}
+
+const IntegrationRule&
+VectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,
+                                       ElementTransformation &T)
+{
+   const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
+   return IntRules.Get(fe.GetGeomType(), order);
+}
+
+void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
+               "PA Only supports Ordering::byNODES!");
+   Mesh *mesh = fes.GetMesh();
+   const FiniteElement &el = *fes.GetFE(0);
+   ElementTransformation &T = *mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   dim = mesh->Dimension();
+   ne = fes.GetMesh()->GetNE();
+   nq = ir->GetNPoints();
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   dofs1D = maps->ndof;
+   quad1D = maps->nqpt;
+   pa_mdata.SetSize(ne*nq, Device::GetMemoryType());
+   pa_gdata.SetSize(ne*nq*dim*dim, Device::GetMemoryType());
+   const double COEFF = 1.0;
+   const int NE = ne;
+   const int NQ = nq;
+   auto W = ir->GetWeights().Read();
+   if (dim==1) { MFEM_ABORT("dim==1 not supported!"); }
+   if (dim==2)
+   {
+      auto J = Reshape(geom->J.Read(), NQ, 2, 2,NE);
+      auto G = Reshape(pa_gdata.Write(), NQ, 2, 2, NE);
+      MFEM_FORALL(e, NE,
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            const double J11 = J(q,0,0,e);
+            const double J12 = J(q,0,1,e);
+            const double J21 = J(q,1,0,e);
+            const double J22 = J(q,1,1,e);
+            // Store wq * Q * adj(J)
+            G(q,0,0,e) = W[q] * COEFF *  J22; // 1,1
+            G(q,0,1,e) = W[q] * COEFF * -J12; // 1,2
+            G(q,1,0,e) = W[q] * COEFF * -J21; // 2,1
+            G(q,1,1,e) = W[q] * COEFF *  J11; // 2,2
+         }
+      });
+   }
+   if (dim==3)
+   {
+      auto J = Reshape(geom->J.Read(), NQ, 3, 3,NE);
+      auto G = Reshape(pa_gdata.Write(), NQ, 3, 3, NE);
+      MFEM_FORALL(e, NE,
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            const double J11 = J(q,0,0,e);
+            const double J21 = J(q,1,0,e);
+            const double J31 = J(q,2,0,e);
+            const double J12 = J(q,0,1,e);
+            const double J22 = J(q,1,1,e);
+            const double J32 = J(q,2,1,e);
+            const double J13 = J(q,0,2,e);
+            const double J23 = J(q,1,2,e);
+            const double J33 = J(q,2,2,e);
+            const double cw  = W[q] * COEFF;
+            // adj(J)
+            const double A11 = (J22 * J33) - (J23 * J32);
+            const double A12 = (J32 * J13) - (J12 * J33);
+            const double A13 = (J12 * J23) - (J22 * J13);
+            const double A21 = (J31 * J23) - (J21 * J33);
+            const double A22 = (J11 * J33) - (J13 * J31);
+            const double A23 = (J21 * J13) - (J11 * J23);
+            const double A31 = (J21 * J32) - (J31 * J22);
+            const double A32 = (J31 * J12) - (J11 * J32);
+            const double A33 = (J11 * J22) - (J12 * J21);
+            // Store wq * Q * adj(J)
+            G(q,0,0,e) = cw * A11; // 1,1
+            G(q,0,1,e) = cw * A12; // 1,2
+            G(q,0,2,e) = cw * A13; // 1,3
+            G(q,1,0,e) = cw * A21; // 2,1
+            G(q,1,1,e) = cw * A22; // 2,2
+            G(q,1,2,e) = cw * A23; // 2,3
+            G(q,2,0,e) = cw * A31; // 3,1
+            G(q,2,1,e) = cw * A32; // 3,2
+            G(q,2,2,e) = cw * A33; // 3,3
+         }
+      });
+   }
+}
+
+// PA Convection NL 2D kernel
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PAConvectionNLApply2D(const int NE,
+                           const Array<double> &b,
+                           const Array<double> &g,
+                           const Array<double> &bt,
+                           const Vector &mop_,
+                           const Vector &q_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int d1d = 0,
+                           const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Q = Reshape(q_.Read(), Q1D*Q1D, 2, 2, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, 2, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, 2, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      double data[max_Q1D][max_Q1D][2];
+      double grad0[max_Q1D][max_Q1D][2];
+      double grad1[max_Q1D][max_Q1D][2];
+      double Z[max_Q1D][max_Q1D][2];
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            data[qy][qx][0] = 0.0;
+            data[qy][qx][1] = 0.0;
+            grad0[qy][qx][0] = 0.0;
+            grad0[qy][qx][1] = 0.0;
+            grad1[qy][qx][0] = 0.0;
+            grad1[qy][qx][1] = 0.0;
+         }
+      }
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         double dataX[max_Q1D][2];
+         double gradX0[max_Q1D][2];
+         double gradX1[max_Q1D][2];
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            dataX[qx][0] = 0.0;
+            dataX[qx][1] = 0.0;
+            gradX0[qx][0] = 0.0;
+            gradX0[qx][1] = 0.0;
+            gradX1[qx][0] = 0.0;
+            gradX1[qx][1] = 0.0;
+         }
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            const double s0 = x(dx,dy,0,e);
+            const double s1 = x(dx,dy,1,e);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double Bx = B(qx,dx);
+               const double Gx = G(qx,dx);
+               dataX[qx][0] += s0 * Bx;
+               dataX[qx][1] += s1 * Bx;
+               gradX0[qx][0] += s0 * Gx;
+               gradX0[qx][1] += s0 * Bx;
+               gradX1[qx][0] += s1 * Gx;
+               gradX1[qx][1] += s1 * Bx;
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            const double By = B(qy,dy);
+            const double Gy = G(qy,dy);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               data[qy][qx][0] += dataX[qx][0] * By;
+               data[qy][qx][1] += dataX[qx][1] * By;
+               grad0[qy][qx][0] += gradX0[qx][0] * By;
+               grad0[qy][qx][1] += gradX0[qx][1] * Gy;
+               grad1[qy][qx][0] += gradX1[qx][0] * By;
+               grad1[qy][qx][1] += gradX1[qx][1] * Gy;
+            }
+         }
+      }
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const int q = qx + qy * Q1D;
+            const double u1 = data[qy][qx][0];
+            const double u2 = data[qy][qx][1];
+            const double grad00 = grad0[qy][qx][0];
+            const double grad01 = grad0[qy][qx][1];
+            const double grad10 = grad1[qy][qx][0];
+            const double grad11 = grad1[qy][qx][1];
+            const double Dxu1 = grad00*Q(q,0,0,e) + grad01*Q(q,1,0,e);
+            const double Dyu1 = grad00*Q(q,0,1,e) + grad01*Q(q,1,1,e);
+            const double Dxu2 = grad10*Q(q,0,0,e) + grad11*Q(q,1,0,e);
+            const double Dyu2 = grad10*Q(q,0,1,e) + grad11*Q(q,1,1,e);
+            Z[qy][qx][0] = u1 * Dxu1 + u2 * Dyu1;
+            Z[qy][qx][1] = u1 * Dxu2 + u2 * Dyu2;
+         }
+      }
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         double Y[max_D1D][2];
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            Y[dx][0] = 0.0;
+            Y[dx][1] = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double Btx = Bt(dx,qx);
+               Y[dx][0] += Btx * Z[qy][qx][0];
+               Y[dx][1] += Btx * Z[qy][qx][1];
+            }
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double Bty = Bt(dy,qy);
+               y(dx,dy,0,e) += Bty * Y[dx][0];
+               y(dx,dy,1,e) += Bty * Y[dx][1];
+            }
+         }
+      }
+   });
+}
+
+void VectorConvectionNLFIntegrator::MultPA(const Vector &x, Vector &y) const
+{
+   const int NE = ne;
+   const int D1D = dofs1D;
+   const int Q1D = quad1D;
+   const Vector &M = pa_mdata;
+   const Vector &Q = pa_gdata;
+   const Array<double> &B = maps->B;
+   const Array<double> &G = maps->G;
+   const Array<double> &Bt = maps->Bt;
+   PAConvectionNLApply2D(NE,B,G,Bt,M,Q,x,y,D1D,Q1D);
+}
+
+void VectorConvectionNLFIntegrator::AssembleElementVector(
+   const FiniteElement &el,
+   ElementTransformation &T,
+   const Vector &elfun,
+   Vector &elvect)
+{
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd, dim);
+   elvect.SetSize(nd * dim);
+   gradEF.SetSize(dim);
+
+   EF.UseExternalData(elfun.GetData(), nd, dim);
+   ELV.UseExternalData(elvect.GetData(), nd, dim);
+
+   Vector vec1(dim), vec2(dim);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, T);
+   ELV = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      T.SetIntPoint(&ip);
+      el.CalcShape(ip, shape);
+      el.CalcPhysDShape(T, dshape);
+      double w = ip.weight * T.Weight();
+      if (Q) { w *= Q->Eval(T, ip); }
+      MultAtB(EF, dshape, gradEF);
+      EF.MultTranspose(shape, vec1);
+      gradEF.Mult(vec1, vec2);
+      vec2 *= w;
+      AddMultVWt(shape, vec2, ELV);
+   }
 }
 
 }
