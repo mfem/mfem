@@ -36,10 +36,19 @@ PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
    }
 }
 
+void PANonlinearFormExtension::Setup()
+{
+   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
+   const int Ni = integrators.Size();
+   for (int i = 0; i < Ni; ++i)
+   {
+      integrators[i]->Setup(*n->FESpace());
+   }
+}
+
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
-
    const int iSz = integrators.Size();
    if (elem_restrict_lex)
    {
@@ -47,7 +56,6 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->AssemblePA(fes);
          integrators[i]->MultPA(localX, localY);
       }
       elem_restrict_lex->MultTranspose(localY, y);
@@ -58,7 +66,6 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->AssemblePA(fes);
          integrators[i]->MultPA(x, y);
       }
    }

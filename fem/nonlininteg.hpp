@@ -84,13 +84,13 @@ public:
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA() and AddMultTransposePA(). */
-   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void Setup(const FiniteElementSpace &fes);
 
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA() and AddMultTransposePA().
        Used with BilinearFormIntegrators that have different spaces. */
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes);
+   virtual void Setup(const FiniteElementSpace &trial_fes,
+                      const FiniteElementSpace &test_fes);
 
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
@@ -334,25 +334,25 @@ class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
    Coefficient *Q{};
-   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
+   DenseMatrix dshape, EF, gradEF, ELV;
    Vector shape;
    // PA extension
-   Vector pa_gdata;
-   Vector pa_mdata;
+   Vector pa_data;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq, dofs1D, quad1D;
+   int dim, ne, nq;
 public:
    VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
    VectorConvectionNLFIntegrator() = default;
+   static const IntegrationRule &GetRule(const FiniteElement &fe,
+                                         ElementTransformation &T);
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &trans,
                                       const Vector &elfun,
                                       Vector &elvect);
-   virtual void AssemblePA(const FiniteElementSpace &fes);
+   using NonlinearFormIntegrator::Setup;
+   virtual void Setup(const FiniteElementSpace &fes);
    virtual void MultPA(const Vector &x, Vector &y) const;
-   static const IntegrationRule &GetRule(const FiniteElement &fe,
-                                         ElementTransformation &T);
 };
 
 }

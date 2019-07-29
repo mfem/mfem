@@ -134,11 +134,13 @@ const Vector &NonlinearForm::Prolongate(const Vector &x) const
 
 void NonlinearForm::Mult(const Vector &x, Vector &y) const
 {
+   const Vector &px = Prolongate(x);
    if (P) { aux2.SetSize(P->Height()); }
 
    if (ext)
    {
-      ext->Mult(x, aux2);
+      ext->Mult(px, aux2);
+      aux2.HostRead();
       return;
    }
 
@@ -147,7 +149,6 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    const FiniteElement *fe;
    ElementTransformation *T;
    Mesh *mesh = fes->GetMesh();
-   const Vector &px = Prolongate(x);
    Vector &py = P ? aux2 : y;
 
    py = 0.0;
@@ -413,10 +414,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 
 void NonlinearForm::Update()
 {
-   if (ext)
-   {
-      MFEM_ABORT("Not yet implemented!");
-   }
+   if (ext) { MFEM_ABORT("Not yet implemented!"); }
 
    if (sequence == fes->GetSequence()) { return; }
 
@@ -425,9 +423,14 @@ void NonlinearForm::Update()
    delete Grad; Grad = NULL;
    ess_tdof_list.SetSize(0); // essential b.c. will need to be set again
    sequence = fes->GetSequence();
-   // Do not modify aux1 and , their size will be set before use.
+   // Do not modify aux1 and aux2, their size will be set before use.
    P = fes->GetProlongationMatrix();
    cP = dynamic_cast<const SparseMatrix*>(P);
+}
+
+void NonlinearForm::Setup()
+{
+   if (ext) { return ext->Setup(); }
 }
 
 NonlinearForm::~NonlinearForm()

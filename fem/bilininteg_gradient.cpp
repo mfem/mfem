@@ -32,7 +32,7 @@ static void PAGradientSetup2D(const int Q1D,
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto y = Reshape(op.Write(), NQ, 2, 2, NE);
-   
+
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
@@ -121,8 +121,8 @@ static void PAGradientSetup(const int dim,
    }
 }
 
-void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
-                                    const FiniteElementSpace &test_fes)
+void GradientIntegrator::Setup(const FiniteElementSpace &trial_fes,
+                               const FiniteElementSpace &test_fes)
 {
    // TODO: I am here
    // Assumes tensor-product elements ordered by nodes
@@ -132,7 +132,8 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const FiniteElement &trial_fe = *trial_fes.GetFE(0);
    const FiniteElement &test_fe = *test_fes.GetFE(0);
    ElementTransformation *trans = mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, *trans);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
+                                                            *trans);
    const int dims = trial_fe.GetDim();
    const int dimsToStore = dims * dims;
    const int nq = ir->GetNPoints();
@@ -144,7 +145,6 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    quad1D = trial_maps->nqpt;
    test_maps  = &test_fe.GetDofToQuad(*ir, DofToQuad::TENSOR);
    test_dofs1D = test_maps->ndof;
-   int test_quad1D = test_maps->nqpt;
    MFEM_ASSERT(quad1D == test_quad1D,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
@@ -239,7 +239,7 @@ static void PAGradientApply2D(const int NE,
             const int q = qx + qy * Q1D;
             const double gradX = grad[qy][qx][0];
             const double gradY = grad[qy][qx][1];
-            
+
             grad[qy][qx][0] = gradX*op(q,0,0,e) + gradY*op(q,1,0,e);
             grad[qy][qx][1] = gradX*op(q,0,1,e) + gradY*op(q,1,1,e);
          }
@@ -269,7 +269,7 @@ static void PAGradientApply2D(const int NE,
       }
       // We've now calculated y = u * grad
    });
-   
+
 }
 
 // Shared memory PA Gradient Apply 2D kernel
@@ -305,7 +305,7 @@ static void PAGradientApplyTranspose2D(const int NE,
 {
    // TODO
    MFEM_ASSERT(false, "Gradient PA Apply Transpose 2D NOT PROGRAMMED YET");
-}  
+}
 
 // PA Gradient Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
@@ -537,153 +537,213 @@ static void PAGradientApply(const int dim,
 
    //if (Device::Allows(Backend::RAJA_CUDA))
    //{
-      if (dim == 2)
+   if (dim == 2)
+   {
+      switch ((TR_D1D << 4) | TE_D1D)
       {
-         switch ((TR_D1D << 4) | TE_D1D)
-         {
          case 0x23: // Specialized for Taylor-Hood elements
             if (Q1D == 3)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose2D<2,3,3>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply2D<2,3,3>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x34:
             if (Q1D == 4)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose2D<3,4,4>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply2D<3,4,4>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x45:
             if (Q1D == 6)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose2D<4,5,6>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply2D<4,5,6>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x56:
             if (Q1D == 7)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose2D<5,6,7>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply2D<5,6,7>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x67:
             if (Q1D == 9)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose2D<6,7,9>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply2D<6,7,9>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x78:
             if (Q1D == 10)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose2D<7,8,10>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply2D<7,8,10>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x89:
             if (Q1D == 12)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose2D<8,9,12>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply2D<8,9,12>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          default:
             break;
-         }
-         return PAGradientApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
-      if (dim == 3)
+      return PAGradientApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+   }
+   if (dim == 3)
+   {
+      switch ((TR_D1D << 4) | TE_D1D)
       {
-         switch ((TR_D1D << 4) | TE_D1D)
-         {
          case 0x23: // Specialized for Taylor-Hood elements
             if (Q1D == 4)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose3D<2,3,4>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply3D<2,3,4>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x34:
             if (Q1D == 6)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose3D<3,4,6>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply3D<3,4,6>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x45:
             if (Q1D == 8)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose3D<4,5,8>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply3D<4,5,8>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x56:
             if (Q1D == 10)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose3D<5,6,10>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply3D<5,6,10>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x67:
             if (Q1D == 12)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose3D<6,7,12>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply3D<6,7,12>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x78:
             if (Q1D == 14)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose3D<7,8,14>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply3D<7,8,14>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x89:
             if (Q1D == 16)
             {
                if (transpose)
+               {
                   return PAGradientApplyTranspose3D<8,9,16>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAGradientApply3D<8,9,16>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          default:
             break;
-         }
-         if (transpose)
-            return PAGradientApplyTranspose3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
-         else
-            return PAGradientApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
+      if (transpose)
+      {
+         return PAGradientApplyTranspose3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      }
+      else
+      {
+         return PAGradientApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      }
+   }
    //}
    MFEM_ABORT("Unknown kernel.");
 }

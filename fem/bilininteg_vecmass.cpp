@@ -21,7 +21,7 @@ namespace mfem
 // PA Mass Integrator
 
 // PA Mass Assemble kernel
-void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
+void VectorMassIntegrator::Setup(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
    Mesh *mesh = fes.GetMesh();

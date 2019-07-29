@@ -120,7 +120,7 @@ static void PAVectorDiffusionSetup(const int dim,
    }
 }
 
-void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
+void VectorDiffusionIntegrator::Setup(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
@@ -456,8 +456,8 @@ void PAVectorDiffusionApply3D(const int NE,
                   {
                      y(dx,dy,dz,c,e) +=
                         ((gradXY[dy][dx][0] * wz) +
-                        (gradXY[dy][dx][1] * wz) +
-                        (gradXY[dy][dx][2] * wDz));
+                         (gradXY[dy][dx][1] * wz) +
+                         (gradXY[dy][dx][2] * wDz));
                   }
                }
             }
