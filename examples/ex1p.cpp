@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order = 1, dim);
    }
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec, dim);
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
@@ -177,117 +177,87 @@ int main(int argc, char *argv[])
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
-   /*ParLinearForm *b = new ParLinearForm(fespace);
+   ParLinearForm *b = new ParLinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   b->Assemble();*/
+   b->Assemble();
+
+   // 10. Define the solution vector x as a parallel finite element grid function
+   //     corresponding to fespace. Initialize x with initial guess of zero,
+   //     which satisfies the boundary conditions.
+   ParGridFunction x(fespace);
+   x = 0.0;
+
+   // 11. Set up the parallel bilinear form a(.,.) on the finite element space
+   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
+   //     domain integrator.
+   ParBilinearForm *a = new ParBilinearForm(fespace);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+
+   // 12. Assemble the parallel bilinear form and the corresponding linear
+   //     system, applying any necessary transformations such as: parallel
+   //     assembly, eliminating boundary conditions, applying conforming
+   //     constraints for non-conforming AMR, static condensation, etc.
+   if (static_cond) { a->EnableStaticCondensation(); }
+   a->Assemble();
+
+   OperatorPtr A;
+   Vector B, X;
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+   // 13. Solve the linear system A X = B.
+   //     * With full assembly, use the BoomerAMG preconditioner from hypre.
+   //     * With partial assembly, use no preconditioner, for now.
+   Solver *prec = NULL;
+   if (!pa) { prec = new HypreBoomerAMG; }
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(1);
+   if (prec) { cg.SetPreconditioner(*prec); }
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   delete prec;
+
+   // 14. Recover the parallel grid function corresponding to X. This is the
+   //     local finite element solution on each processor.
+   a->RecoverFEMSolution(X, *b, x);
+
+   // 15. Save the refined mesh and the solution in parallel. This output can
+   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
-      // Set up the nonlilinear form on the finite element space
-      // corresponding to the convection form.
-      Vector x_tdofs(fespace->GetTrueVSize());
-      x_tdofs.UseDevice(true);
-      Vector y_tdofs(fespace->GetTrueVSize());
-      y_tdofs.UseDevice(true);
-      ParGridFunction x{fespace}, y{fespace}, y2{fespace};
-      x.Randomize(3);
+      ostringstream mesh_name, sol_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "sol." << setfill('0') << setw(6) << myid;
 
-      ParNonlinearForm *nl_vconv_fa = new ParNonlinearForm(fespace);
-      nl_vconv_fa->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
-      x.ParallelProject(x_tdofs);
-      nl_vconv_fa->Mult(x_tdofs, y_tdofs);
-      y.Distribute(y_tdofs);
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh->Print(mesh_ofs);
 
-      ParNonlinearForm *nl_vconv_pa = new ParNonlinearForm(fespace);
-      nl_vconv_pa->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      nl_vconv_pa->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
-      nl_vconv_pa->Setup();
-      x.ParallelProject(x_tdofs);
-      nl_vconv_pa->Mult(x_tdofs, y_tdofs);
-      y2.Distribute(y_tdofs);
-
-      std::cout << y.Norml2() << '\t' << y2.Norml2() << '\n';
-      y -= y2;
-      y.HostRead();
-      const double error = GlobalLpNorm(infinity(), y.Normlinf(), MPI_COMM_WORLD);
-      std::cout << "error = " << error << std::endl;
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(8);
+      x.Save(sol_ofs);
    }
-   /*
-      // 10. Define the solution vector x as a parallel finite element grid function
-      //     corresponding to fespace. Initialize x with initial guess of zero,
-      //     which satisfies the boundary conditions.
-      ParGridFunction x(fespace);
-      x = 0.0;
 
-      // 11. Set up the parallel bilinear form a(.,.) on the finite element space
-      //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
-      //     domain integrator.
-      ParBilinearForm *a = new ParBilinearForm(fespace);
-      if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-      a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   // 16. Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *pmesh << x << flush;
+   }
 
-      // 12. Assemble the parallel bilinear form and the corresponding linear
-      //     system, applying any necessary transformations such as: parallel
-      //     assembly, eliminating boundary conditions, applying conforming
-      //     constraints for non-conforming AMR, static condensation, etc.
-      if (static_cond) { a->EnableStaticCondensation(); }
-      a->Assemble();
+   // 17. Free the used memory.
+   delete a;
+   delete b;
+   delete fespace;
+   if (order > 0) { delete fec; }
+   delete pmesh;
 
-      OperatorPtr A;
-      Vector B, X;
-      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
-      // 13. Solve the linear system A X = B.
-      //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-      //     * With partial assembly, use no preconditioner, for now.
-      Solver *prec = NULL;
-      if (!pa) { prec = new HypreBoomerAMG; }
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(1);
-      if (prec) { cg.SetPreconditioner(*prec); }
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
-      delete prec;
-
-      // 14. Recover the parallel grid function corresponding to X. This is the
-      //     local finite element solution on each processor.
-      a->RecoverFEMSolution(X, *b, x);
-
-      // 15. Save the refined mesh and the solution in parallel. This output can
-      //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-      {
-         ostringstream mesh_name, sol_name;
-         mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-         sol_name << "sol." << setfill('0') << setw(6) << myid;
-
-         ofstream mesh_ofs(mesh_name.str().c_str());
-         mesh_ofs.precision(8);
-         pmesh->Print(mesh_ofs);
-
-         ofstream sol_ofs(sol_name.str().c_str());
-         sol_ofs.precision(8);
-         x.Save(sol_ofs);
-      }
-
-      // 16. Send the solution by socket to a GLVis server.
-      if (visualization)
-      {
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream sol_sock(vishost, visport);
-         sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << *pmesh << x << flush;
-      }
-
-      // 17. Free the used memory.
-      delete a;
-      delete b;
-      delete fespace;
-      if (order > 0) { delete fec; }
-      delete pmesh;
-   */
    MPI_Finalize();
 
    return 0;
