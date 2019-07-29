@@ -228,7 +228,9 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
    }
 
-   face_geom.SetSize(NFaces + NGhostFaces, Geometry::INVALID);
+   // resize face_geom (default_geom is for slave faces beyond the ghost layer)
+   Geometry::Type default_geom = Geometry::SQUARE;
+   face_geom.SetSize(NFaces + NGhostFaces, default_geom);
 
    // update 'face_geom' for ghost faces, assign ghost face indices
    int nghosts = 0;
