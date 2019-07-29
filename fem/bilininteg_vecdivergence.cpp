@@ -143,8 +143,7 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    quad1D = trial_maps->nqpt;
    test_maps  = &test_fe.GetDofToQuad(*ir, DofToQuad::TENSOR);
    test_dofs1D = test_maps->ndof;
-   int test_quad1D = test_maps->nqpt;
-   MFEM_ASSERT(quad1D == test_quad1D,
+   MFEM_ASSERT(quad1D == test_maps->nqpt,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
    double coeff = 1.0;
@@ -159,7 +158,7 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 }
 
 // PA VectorDivergence Apply 2D kernel
-template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
+template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PAVectorDivergenceApply2D(const int NE,
                                       const Array<double> &b,
                                       const Array<double> &g,
@@ -297,7 +296,7 @@ static void SmemPAVectorDivergenceApply2D(const int NE,
 }
 
 // PA VectorDivergence Apply 2D kernel transpose
-template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
+template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PAVectorDivergenceApplyTranspose2D(const int NE,
                                                const Array<double> &bt,
                                                const Array<double> &gt,
