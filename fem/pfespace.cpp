@@ -1414,7 +1414,8 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
 
       default:
          Geometry::Type geom = pncmesh->GetFaceGeometry(index);
-         MFEM_VERIFY(geom != Geometry::INVALID, "");
+         MFEM_ASSERT(geom == Geometry::SQUARE ||
+                     geom == Geometry::TRIANGLE, "");
 
          ned = fec->DofForGeometry(geom);
          ghost = pncmesh->GetNFaces();
