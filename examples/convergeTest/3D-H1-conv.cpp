@@ -87,7 +87,7 @@ void convergenceStudy(const char *mesh_file, int num_ref, int &order,
 
    // this variable may not be right:
    int gotNdofs = fespace->GetNDofs();
-
+ 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    const char *device_config = "cpu";
    bool visualization = false;
-   int exact = 1;
+   int exact = 2;
    int dof2view = -1;
    int solvePDE = 1;
 

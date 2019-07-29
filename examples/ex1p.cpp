@@ -52,6 +52,18 @@
 using namespace std;
 using namespace mfem;
 
+double u_exact(const Vector &x)
+{
+   return sin(sqrt(2)*x(0))*exp(x(1))*exp(x(2));
+}
+
+void u_grad_exact(const Vector &x, Vector &u)
+{
+   u(0) = sqrt(2)*cos(sqrt(2)*x(0))*exp(x(1))*exp(x(2));
+   u(1) = sin(sqrt(2)*x(0))*exp(x(1))*exp(x(2));
+   u(2) = sin(sqrt(2)*x(0))*exp(x(1))*exp(x(2));
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -69,6 +81,8 @@ int main(int argc, char *argv[])
    bool visualization = false;
    bool use_serendip = false;
    int total_refinements = -1;
+   int cg_num_its = -85716;
+   double solve_time = -0.85716;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -105,6 +119,14 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   //   Start the timer.
+   if (myid == 0)
+   {
+      tic_toc.Clear();
+      tic_toc.Start();
+   }
+ 
+
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -115,7 +137,7 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-
+ 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
@@ -176,10 +198,11 @@ int main(int argc, char *argv[])
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
-
-   if (myid == 0)
+   
+   int total_dofs = size;
+   if(myid == 0)
    {
-      cout << "Number of finite element unknowns: " << size << endl;
+      cout << "total_dofs = " << total_dofs << endl;
    }
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
@@ -187,19 +210,27 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (pmesh->bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-
+   
+   // if (pmesh->bdr_attributes.Size())
+   // {
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   ess_bdr = 1;
+   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   // }
+ 
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
    ParLinearForm *b = new ParLinearForm(fespace);
-   ConstantCoefficient one(1.0);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   
+   // For Delta u = 0:
+   ConstantCoefficient zero(0.0);
+   b->AddDomainIntegrator(new DomainLFIntegrator(zero));
+
+   // For Delta u = 1:
+   // ConstantCoefficient one(1.0);
+   // b->AddDomainIntegrator(new DomainLFIntegrator(one));
+
    b->Assemble();
 
    // 10. Define the solution vector x as a parallel finite element grid function
@@ -212,8 +243,14 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
+   
+   // Define exact solution, for boundary
+   FunctionCoefficient *uExCoeff = new FunctionCoefficient(u_exact);
+   x.ProjectBdrCoefficient(*uExCoeff, ess_bdr);  
+
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   a->AddDomainIntegrator(new DiffusionIntegrator);
+   // a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -225,12 +262,23 @@ int main(int argc, char *argv[])
    OperatorPtr A;
    Vector B, X;
 
-   cout <<  endl << "******* randomizing RHS for condition testing ****" << endl;
-   B.Randomize(1);
-
-
+   // cout <<  endl << "******* randomizing RHS for condition testing ****" << endl;
+   // B.Randomize(1);
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+   double assemble_time = -0.85716;
+   
+   if (myid == 0)
+   {
+      tic_toc.Stop();
+      assemble_time = tic_toc.RealTime();
+      cout << " Assembly took " << assemble_time << "s." << endl;
+      tic_toc.Clear();
+      tic_toc.Start();
+   }
+
+   // cout << "Size of linear system: " << A->Height() << endl;
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
@@ -239,8 +287,7 @@ int main(int argc, char *argv[])
 
    // HYPRE_BoomerAMGSetRelaxType(*amg, 18); // use l1-scaled Jacobi relaxation method
    // HYPRE_BoomerAMGSetRelaxType(*amg, 16); // Chebyshev
-   HYPRE_BoomerAMGSetRelaxType(*amg, 8); // 
-
+   HYPRE_BoomerAMGSetRelaxType(*amg, 8); // $\ell_1$-scaled hybrid symmetric Gauss-Seidel
 
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
@@ -252,15 +299,9 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      // Writing to file
-      std::ofstream iterfile;   
-      iterfile.open("iters.txt", std::ios_base::app);
-      int cg_num_its = cg.GetNumIterations();
-      cout << "num of iterations is " << cg_num_its << endl;
-      iterfile << cg_num_its  << '\t';
-      iterfile.close();
+      cg_num_its = cg.GetNumIterations();
    }
-   delete amg;
+   delete amg;  
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -268,18 +309,26 @@ int main(int argc, char *argv[])
 
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+
+   ostringstream mesh_name, sol_name;
+   mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+   sol_name << "sol." << setfill('0') << setw(6) << myid;
+
+   ofstream mesh_ofs(mesh_name.str().c_str());
+   mesh_ofs.precision(8);
+   pmesh->Print(mesh_ofs);
+
+   ofstream sol_ofs(sol_name.str().c_str());
+   sol_ofs.precision(8);
+   x.Save(sol_ofs);
+
+   if (myid == 0)
    {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
-
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
+      tic_toc.Stop();
+      solve_time = tic_toc.RealTime();
+      cout << " ex1p: Done timing with solve_time = " << solve_time << endl;
+      tic_toc.Clear();
+      tic_toc.Start();
    }
 
    // 16. Send the solution by socket to a GLVis server.
@@ -293,7 +342,57 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
+   // Compute and print the L^2 and H^1 norms of the error.
+   ConstantCoefficient one(1.0);
+   VectorFunctionCoefficient *(uExCoeff_grad) = new VectorFunctionCoefficient(dim, u_grad_exact);
+
+   double l2_err = x.ComputeL2Error(*uExCoeff);
+   double h1_err = x.ComputeH1Error(uExCoeff, uExCoeff_grad, &one, 1.0, 1);
+
+   if (myid == 0)
+   {   
+      tic_toc.Stop();
+      cout << endl << endl;
+      cout << "Computing the error took " << tic_toc.RealTime() << "s." << endl;
+      tic_toc.Clear();
+
+      cout << "mesh = " << mesh_file << endl;
+      cout << "exact solution u(x,y,z) = sin(sqrt(2)x) e^y e^z" << endl;
+      cout << "Solver = BoomerAMG with l_1-scaled hybrid symmetric Gauss-Seidel relaxation" << endl; 
+      cout << "Used static condensation (N/A for serendipity): " << static_cond << endl;
+            
+      cout << endl << "***********" << endl;
+      cout << "Number of uniform refinements = " << ref_levels << endl;
+      cout << "Used serendipity = " << use_serendip << endl;
+      cout << "Order of element = " << order << endl;
+      cout << "L2 err = " << l2_err << endl;
+      cout << "H1 err = " << h1_err << endl;
+      cout << "Assembly time (s) = " << assemble_time << endl;
+      cout << "Solve time (s) = " << solve_time << endl;
+      cout << "# of global dofs = " << total_dofs << endl;
+      cout << "# of solver iterations = " << cg_num_its << endl;
+      cout << endl << "Writing the above information to data_out.txt.  Done." << endl;
+     
+      // Write to file
+      std::ofstream fileForWriting;   
+      fileForWriting.open("data_out.txt", std::ios_base::app);
+      fileForWriting << ref_levels  << '\t';
+      fileForWriting << use_serendip  << '\t';
+      fileForWriting << order << '\t';
+      fileForWriting << l2_err << '\t';
+      fileForWriting << h1_err << '\t';
+      fileForWriting << assemble_time << '\t';
+      fileForWriting << solve_time << '\t';
+      fileForWriting << total_dofs << '\t';
+      fileForWriting << cg_num_its << '\t';
+      fileForWriting << std::endl;
+      fileForWriting.close();
+      
+      delete uExCoeff_grad;
+   }
+
    // 17. Free the used memory.
+   delete uExCoeff;
    delete a;
    delete b;
    delete fespace;
@@ -304,3 +403,5 @@ int main(int argc, char *argv[])
 
    return 0;
 }
+
+

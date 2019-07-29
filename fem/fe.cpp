@@ -1760,15 +1760,7 @@ void BiQuad2DFiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 H1Ser_SegmentElement::H1Ser_SegmentElement(const int p)
    : ScalarFiniteElement(1, Geometry::SEGMENT, p+1, p, FunctionSpace::Pk)
 {
-   //  parameters for an FE object:
-   //  Dim = D ; GeomType = G ; Dof = Do ; Order = O ; FuncSpace = F;
-   // I think Do = # of dofs and O = polynomial order of element
-
-   // Endpoints need to be first in the list, so reorder them.
-   // Copied this routine from H1Pos_SegmentElement(...)
-
-   cout << "fe.cpp: Should re-write H1Ser_SegmentElement routines to refelct new bases" << endl;
-
+   cout << " **** Calling H1Ser_SegmentElement - this is unusual *** " << endl;
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(1).x = 1.0;
    for (int i = 1; i < p; i++)
@@ -1799,17 +1791,6 @@ void H1Ser_SegmentElement::CalcShape(const IntegrationPoint &ip,
       delete[] legX;
       delete storeLegendre;
    }
-   // if (p>2)
-   // {
-   //    cout << "fe: shape(3) should be " << (2*x - 1)*shape(2) << endl 
-   //         << "fe: shape(3) is set to " << shape(3) << endl << endl;
-   //    if (p>3)
-   //    {
-   //        cout << "fe: shape(4) should be " << (1-6*x+6*x*x)*shape(2) << endl 
-   //       << "fe: shape(4) is set to " << shape(4) << endl << endl;
-   //    }
-   // }
-
 }
 
 
@@ -1818,23 +1799,6 @@ void H1Ser_SegmentElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
    int p = (this)->GetOrder();
-
-   // Subbing in Bernstein polynomials here
-   //
-   // // #ifdef MFEM_THREAD_SAFE
-   // Vector shape_x(p+1), dshape_x(p+1);
-   // // #endif
-
-   // Poly_1D::CalcBernstein(p, ip.x, shape_x.GetData(), dshape_x.GetData() );
-
-   // // Endpoints need to be first in the list, so reorder them.
-   // dshape(0,0) = dshape_x(0);
-   // dshape(1,0) = dshape_x(p);
-   // for (int i = 1; i < p; i++)
-   // {
-   //    dshape(i+1,0) = dshape_x(i);
-   // }
-
 
    cout << "fe.cpp: calling H1Ser_SegmentElement::CalcDShape... this is unusual" << endl;
 
@@ -1847,12 +1811,6 @@ void H1Ser_SegmentElement::CalcDShape(const IntegrationPoint &ip,
    {   
       dshape(3,0) = -2.*(-1.+x)*x*(-1.+2.*x);
    }
-
-   // Deriv shape functions for quadratic-only case:
-   //
-   // dshape(0,0) = 2.*x - 2.;
-   // dshape(1,0) = 2.*x;
-   // dshape(2,0) = -4.*x + 2;
 }
 
 
@@ -1860,22 +1818,11 @@ void H1Ser_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
   : ScalarFiniteElement(2, Geometry::SQUARE, (p*p + 3*p +6) / 2, p, FunctionSpace::Qk)
 {
-   //  parameters for an FE object:
-   //  Dim = D ; GeomType = G ; Dof = Do ; Order = O ; FuncSpace = F;
-   // I think Do = # of dofs and O = polynomial order of element
-
    // **************************************************
    //
    // ***  Do we want FunctionSpace = Pk or Qk ???   ***
    //
    // **************************************************
-   //
-   // ***  Do we even need to set these points ???   ***
-   //
-   // **************************************************
-
-// cout << "fe.cpp (ser quad): Nodes.Size is " << Nodes.Size() << endl;
-
 
    // vertices
    Nodes.IntPoint(0).x = 0.0;
@@ -1958,7 +1905,6 @@ H1Ser_QuadrilateralElement::H1Ser_QuadrilateralElement(const int p)
       Nodes.IntPoint(16).x = .5;
       Nodes.IntPoint(16).y = .5;
    }
-
 }
 
 
@@ -1985,20 +1931,14 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
       shape(4 + 1*(p-1) + i) = (nodalY(i+1))*x;             // east edge  1->2
       shape(4 + 3*(p-1) - i - 1) = (nodalX(i+1)) * y;         // north edge 3->2
       shape(4 + 4*(p-1) - i - 1) = (nodalY(i+1)) * (1. - x);  // west edge  0->3
-
-      // altenate edge dof ordering (top & left)
-
-      // shape(4 + 0*(p-1) + i) = (nodalX(i+1))*(1.-y);      // south edge 0->1
-      // shape(4 + 1*(p-1) + i) = (nodalY(i+1))*x;             // east edge  1->2
-      // shape(4 + 2*(p-1) + i) = (nodalX(i+1)) * y;         // north edge 3->2
-      // shape(4 + 3*(p-1) + i) = (nodalY(i+1)) * (1. - x);  // west edge  0->3
    }
 
    BiLinear2DFiniteElement bilinear = BiLinear2DFiniteElement();
    Vector bilinearsAtIP(4);
    bilinear.CalcShape(ip, bilinearsAtIP);
 
-   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
+   // edgePts is a double array of size p+1; first and last entries are 0 
+   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  
 
    // Next set the shape function for a vertex V at x,y = 
    //    bilinear function for V evaluated at x,y
@@ -2015,13 +1955,6 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
       vtx1fix += (1-edgePts[i+1])*(shape(4 + 1*(p-1) + i)+shape(4 + (p-2)-i));      // right + bot edge
       vtx2fix += (1-edgePts[i+1])*(shape(4 + 2*(p-1) + i)+shape(1 + 2*p-i));  // top + right edge
       vtx3fix += (1-edgePts[i+1])*(shape(4 + 3*(p-1) + i)+shape(3*p - i));  // left + top edge
-
-      // altenate edge dof ordering (top & left)
-
-      // vtx0fix += (1-edgePts[i+1])*(shape(4 + i)          +shape(4 + 3*(p-1) + i));  // bot + left edge
-      // vtx1fix += (1-edgePts[i+1])*(shape(4 + 1*(p-1) + i)+shape(4 + (p-2)-i));      // right + bot edge
-      // vtx2fix += (1-edgePts[i+1])*(shape(3*p-i)          +shape(1 + 2*p - i));  // top + right edge
-      // vtx3fix += (1-edgePts[i+1])*(shape(4*p - i - 1)    +shape(2*p + 2 + i));  // left + top edge
    }
 
    shape(0) = bilinearsAtIP(0) - vtx0fix;
@@ -2074,13 +2007,6 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    // shape(4 + 1*(p-1) + i) = 2* legY[i] * x * y * (1. - y);
    // shape(4 + 3*(p-1) - i - 1) = 2* legX[i] * x * y * (1. - x);
    // shape(4 + 4*(p-1) - i - 1) = 2* legY[i] * (1. - x) * y * (1. - y);
-
-   // bilinears, for reference
-
-   // shape(0) = (1.-x)*(1.-y);
-   // shape(1) = x*(1.-y);
-   // shape(2) = x*y;
-   // shape(3) = (1.-x)*y;  
 }
 
 
@@ -2118,7 +2044,8 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    DenseMatrix DbilinearsAtIP(4);
    bilinear.CalcDShape(ip, DbilinearsAtIP);
 
-   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
+   // returns a double array of size p+1; first and last entries are 0
+   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  
 
    dshape(0,0) = DbilinearsAtIP(0,0);
    dshape(0,1) = DbilinearsAtIP(0,1);
@@ -2181,93 +2108,6 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
-// void H1Ser_QuadrilateralElement::Project(const FiniteElement &fe, ElementTransformation &Trans,
-//                         DenseMatrix &I) const
-// {
-//     cout << "fe.cpp: used the H1Ser_quad Project function (copied from Nodal)" << endl;
-//    if (fe.GetRangeType() == SCALAR)
-//    {
-//       MFEM_ASSERT(MapType == fe.GetMapType(), "");
-
-//       Vector shape(fe.GetDof());
-
-//       I.SetSize(Dof, fe.GetDof());
-//       for (int k = 0; k < Dof; k++)
-//       {
-//          fe.CalcShape(Nodes.IntPoint(k), shape);
-//          for (int j = 0; j < shape.Size(); j++)
-//          {
-//             I(k,j) = (fabs(shape(j)) < 1e-12) ? 0.0 : shape(j);
-//          }
-//       }
-//    }
-//    else
-//    {
-//       DenseMatrix vshape(fe.GetDof(), Trans.GetSpaceDim());
-
-//       I.SetSize(vshape.Width()*Dof, fe.GetDof());
-//       for (int k = 0; k < Dof; k++)
-//       {
-//          Trans.SetIntPoint(&Nodes.IntPoint(k));
-//          fe.CalcVShape(Trans, vshape);
-//          if (MapType == INTEGRAL)
-//          {
-//             vshape *= Trans.Weight();
-//          }
-//          for (int j = 0; j < vshape.Height(); j++)
-//             for (int d = 0; d < vshape.Width(); d++)
-//             {
-//                I(k+d*Dof,j) = vshape(j,d);
-//             }
-//       }
-//    }
-//    // ScalarFiniteElement::Project(*this, Trans, I);
-// }
-
-// void H1Ser_QuadrilateralElement::Project(
-//    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
-// {
-//    // for (int i = 0; i < Dof; i++)
-//    // {
-//    //    const IntegrationPoint &ip = Nodes.IntPoint(i);
-//    //    // some coefficients expect that Trans.IntPoint is the same
-//    //    // as the second argument of Eval
-//    //    Trans.SetIntPoint(&ip);
-//    //    dofs(i) = coeff.Eval (Trans, ip);
-//    //    if (MapType == INTEGRAL)
-//    //    {
-//    //       dofs(i) *= Trans.Weight();
-//    //    }
-//    // }
-
-//    cout << "fe.cpp (ser quad project): Nodes.Size is " << Nodes.Size() << endl;
-
-//    DenseMatrix V(dofs.Size(), Nodes.Size());
-//    Vector rhs(Nodes.Size());
-
-//    for (int j = 0; j < Nodes.Size(); ++j)
-//    {
-//       const IntegrationPoint &ip = Nodes.IntPoint(j);
-// //      transf->SetIntPoint(&ip);
-//       Trans.SetIntPoint(&ip);
-//       Vector col;
-//       V.GetColumnReference(j, col);
-//       (this)->CalcShape(ip, col);
-// //      rhs[j] = coeff[0]->Eval(Trans, ip); // [0] was to deal with potential vector coeffs; not considered yet
-//       rhs[j] = coeff.Eval(Trans, ip); 
-//    }
-//    V.Transpose();
-//    DenseMatrixInverse Vinv(V);
-
-//    // Vector dofs(fdof);
-
-//    // cout << " *** vdofs before vinv.mult(rhs,dofs):" << endl;
-//    // vdofs.Print();
-
-//    Vinv.Mult(rhs, dofs);
-
-// }
-
 void H1Ser_QuadrilateralElement::GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
 { 
@@ -2291,7 +2131,9 @@ H1Ser_HexElement::H1Ser_HexElement(const int p, const int ser_space_dim)
    // not setting these for now
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
-   Nodes.IntPoint(0).z = 0.0;
+   Nodes.IntPoint(0).z = 0.0; 
+
+   cout << "*** Calling H1Ser_Hex Nodes - NOT SET YET! ***" << endl;
 }
 
 void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
@@ -2300,7 +2142,6 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    int p = (this)->GetOrder();
 
    double x = ip.x, y = ip.y, z = ip.z;
-
 
    // cout << endl << "ip is " << ip.x << ", " << ip.y << ", " << ip.z << endl;
 
@@ -2324,7 +2165,6 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    // myIP.y = y;
    // myIP.z = z;
    // cout << endl << "myIP is " << myIP.x << ", " << myIP.y << ", " << myIP.z << endl;
-
 
    double omx = 1.-x, omy = 1.-y, omz = 1.-z;
 
@@ -2367,12 +2207,14 @@ void H1Ser_HexElement::CalcShape(const IntegrationPoint &ip,
    shape( 6) = x  *y  *z;
    shape( 7) = omx*  y*z;
 
-   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
+   // returns a double array of size p+1; first and last entries are 0
+   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  
 
    // cout << "fe: shape is: ";
    // shape.Print();
    // cout << endl;
 
+   // The defintion of these e##p ints is for debugging - can certainly condense code once finalized
    for(int i = 0; i<p-1; i++)
    {
       int e08p = 8 + 0*(p-1) + i;
@@ -2531,7 +2373,8 @@ void H1Ser_HexElement::CalcDShape(const IntegrationPoint &ip,
 
    // Fix vertex functions for nodality
 
-   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  // returns a double array of size p+1; first and last entries are 0
+   // returns a double array of size p+1; first and last entries are 0
+   const double *edgePts(poly1d.ClosedPoints(p, BasisType::GaussLobatto));  
 
    for(int i=0; i<8; i++)
    {

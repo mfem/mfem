@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    const char *device_config = "cpu";
    bool visualization = false;
-   int exact = 1;
+   int exact = 2;
    int dof2view = -1;
    int solvePDE = 1;
 
