@@ -1413,7 +1413,10 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
          break;
 
       default:
-         ned = fec->DofForGeometry(pncmesh->GetFaceGeometry(index));
+         Geometry::Type geom = pncmesh->GetFaceGeometry(index);
+         MFEM_VERIFY(geom != Geometry::INVALID, "");
+
+         ned = fec->DofForGeometry(geom);
          ghost = pncmesh->GetNFaces();
 
          if (index < ghost) // regular face
