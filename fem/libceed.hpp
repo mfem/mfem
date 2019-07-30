@@ -59,9 +59,11 @@ struct CeedData
 
 void initCeedCoeff(Coefficient* Q, CeedData* ptr);
 
-void CeedPADiffusionAssemble(const FiniteElementSpace &fes, const mfem::IntegrationRule &ir,  CeedData& ceedData);
+void FESpace2Ceed(const mfem::FiniteElementSpace &fes,
+                  const mfem::IntegrationRule &ir,
+                  Ceed ceed, CeedBasis *basis,
+                  CeedElemRestriction *restr);
 
-void CeedPAMassAssemble(const FiniteElementSpace &fes, const mfem::IntegrationRule &ir,  CeedData& ceedData);
 #else
 typedef void* CeedData;
 #endif
