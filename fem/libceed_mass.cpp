@@ -16,6 +16,8 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_CEED
+
 /// libCEED Q-function for building quadrature data for a mass operator
 static int f_build_mass_const(void *ctx, CeedInt Q,
                               const CeedScalar *const *in, CeedScalar *const *out)
@@ -223,5 +225,7 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes, const mfem::IntegrationRu
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.u);
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
 }
+
+#endif
 
 }
