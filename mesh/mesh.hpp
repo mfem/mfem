@@ -79,6 +79,9 @@ protected:
    Array<bool> swappedFaces; //only for 4d meshes
    Array<bool> swappedBdr; //only for 4d meshes
 
+   // Flag to indicate if two neighbours are reflected neighbours (4D)
+   bool is_reflected;
+
    struct FaceInfo
    {
       // Inf = 64 * LocalFaceIndex + FaceOrientation
@@ -247,6 +250,7 @@ protected:
    void MarkTriMeshForRefinement();
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
    virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
+   virtual void MakeReflectedPentMesh();
 
 
    // Methods used to prepare and apply permutation of the mesh nodes assuming
@@ -566,9 +570,6 @@ public:
    /// Finalize the construction of any type of Mesh.
    /** This method calls FinalizeTopology() and Finalize(). */
    void FinalizeMesh(int refine = 0, bool fix_orientation = true);
-
-   virtual void MakeReflectingPentMesh();
-
 
    ///@}
 

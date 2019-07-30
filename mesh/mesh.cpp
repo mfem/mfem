@@ -1025,6 +1025,7 @@ void Mesh::Init()
    NURBSext = NULL;
    ncmesh = NULL;
    last_operation = Mesh::NONE;
+   is_reflected = false;
 }
 
 void Mesh::InitTables()
@@ -1645,6 +1646,10 @@ void Mesh::MarkForRefinement()
          GetVertexToVertexTable(v_to_v);
          MarkTetMeshForRefinement(v_to_v);
       }
+      else if (Dim == 4)
+      {
+          MakeReflectedPentMesh();
+      }
    }
 }
 
@@ -1711,9 +1716,11 @@ void Mesh::MarkTetMeshForRefinement(DSTable &v_to_v)
    }
 }
 
-void Mesh::MakeReflectingPentMesh()
+void Mesh::MakeReflectedPentMesh()
 {
    MFEM_VERIFY(Dim == 4, "");
+   if (is_reflected)
+       return;
 
    // global vertex indices of all centroids,
    // as follows:  element centroids (elid, NumOfElements, NumOfElements, NumOfElements)
@@ -1854,8 +1861,9 @@ void Mesh::MakeReflectingPentMesh()
    ofstream file("reflect.mesh");
    Print(file);
    file.close();
+   is_reflected = true;
 
-   Finalize(true, true);
+   Finalize(false, true);
 }
 
 void Mesh::PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert)
@@ -2378,7 +2386,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
    const bool may_change_topology =
       ( refine && (Dim > 1 && (meshgen & 1)) ) ||
       ( check_orientation && fix_orientation &&
-        (Dim == 2 || (Dim == 3 && (meshgen & 1))) );
+        (Dim == 2 || (Dim >= 3 && (meshgen & 1))) );
 
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;
@@ -3143,6 +3151,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    {
       elements[i] = mesh.elements[i]->Duplicate(this);
    }
+   is_reflected = mesh.is_reflected;
 
    // Copy the vertices
    mesh.vertices.Copy(vertices);
