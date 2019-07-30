@@ -16,6 +16,8 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_CEED
+
 /// libCEED Q-function for building quadrature data for a diffusion operator
 static int f_build_diff_const(void *ctx, CeedInt Q,
                               const CeedScalar *const *in, CeedScalar *const *out)
@@ -323,5 +325,7 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes, const mfem::Integrat
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.u);
    CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
 }
+
+#endif
 
 }
