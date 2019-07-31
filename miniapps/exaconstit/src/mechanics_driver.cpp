@@ -117,7 +117,7 @@ void setBdrConditions(Mesh *mesh);
 // reorder mesh elements in MFEM generated mesh using Make3D() in 
 // mesh constructor so that the ordering matches the element ordering 
 // in the input grain map (e.g. from CA calculation)
-void reorderMeshElements(Mesh *mesh, const int nx);
+void reorderMeshElements(Mesh *mesh, const int *nxyz);
 
 //  provides a constant gradient across a grid function
 void test_deformation_field_set(ParGridFunction *gf, Vector *vals, ParFiniteElementSpace *fes);
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
    }
    else if (toml_opt.mesh_type == MeshType::AUTO)
    {
-      if (toml_opt.nx == 0 || toml_opt.mx == 0)
+      if (toml_opt.nxyz[0] <= 0 || toml_opt.mxyz[0] <= 0)
       {
          cerr << "\nMust input mesh geometry/discretization for hex_mesh_gen" << '\n';
       }
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
       // The false at the end is to tell the inline mesh generator to use the lexicographic ordering of the mesh
       // The newer space-filling ordering option that was added in the pre-okina tag of MFEM resulted in a noticeable divergence
       // of the material response for a monotonic tension test using symmetric boundary conditions out to 1% strain.
-      mesh = new Mesh(toml_opt.nx, toml_opt.nx, toml_opt.nx, Element::HEXAHEDRON, 0, toml_opt.mx, toml_opt.mx, toml_opt.mx, false); 
+      mesh = new Mesh(toml_opt.nxyz[0], toml_opt.nxyz[1], toml_opt.nxyz[2], Element::HEXAHEDRON, 0, toml_opt.mxyz[0], toml_opt.mxyz[1], toml_opt.mxyz[2], false); 
    }
    else // read in mesh file
    {
@@ -268,8 +268,9 @@ int main(int argc, char *argv[])
       g_map.Load(igmap, gmapSize);
       igmap.close();
 
-      // reorder elements to conform to ordering convention in grain map file
-      reorderMeshElements(mesh, toml_opt.nx);
+      // // reorder elements to conform to ordering convention in grain map file
+      // No longer needed for the CA stuff. It's now ordered as X->Y->Z
+      // reorderMeshElements(mesh, &toml_opt.nxyz[0]);
 
       // reset boundary conditions from 
       setBdrConditions(mesh);
@@ -338,6 +339,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace l2_fes_pl(pmesh, &l2_fec, 1);
    ParFiniteElementSpace l2_fes_ori(pmesh, &l2_fec, 4, mfem::Ordering::byVDIM);
    ParFiniteElementSpace l2_fes_voigt(pmesh, &l2_fec, 6, mfem::Ordering::byVDIM);
+   ParFiniteElementSpace l2_fes_tens(pmesh, &l2_fec, 9, mfem::Ordering::byVDIM);
    ParFiniteElementSpace l2_fes_gdots_cubic(pmesh, &l2_fec, 12, mfem::Ordering::byVDIM);
 
    ParGridFunction vonMises(&l2_fes);
@@ -347,7 +349,7 @@ int main(int argc, char *argv[])
    ParGridFunction dpeff(&l2_fes);
    ParGridFunction pleff(&l2_fes);
    ParGridFunction hardness(&l2_fes);
-   ParGridFunction quats(&l2_fes);
+   ParGridFunction quats(&l2_fes_ori);
    ParGridFunction gdots(&l2_fes);
 
    if(toml_opt.mech_type == MechType::EXACMECH){
@@ -621,6 +623,7 @@ int main(int argc, char *argv[])
    // a lot of data that you want to output for the user. It might be nice if this
    // was either a netcdf or hdf5 type format instead.
    VisItDataCollection visit_dc(toml_opt.basename, pmesh);
+
    if (toml_opt.visit)
    {
      visit_dc.SetPrecision(12);
@@ -630,10 +633,11 @@ int main(int argc, char *argv[])
      //visit_dc.RegisterQField("DefGrad", &kinVars0);
      visit_dc.RegisterField("VonMisesStress", &vonMises);
      visit_dc.RegisterField("HydrostaticStress", &hydroStress);
-
+     
      if(toml_opt.mech_type == MechType::EXACMECH){
         //We also want to project the values out originally
         //so our initial values are correct
+        
         oper.ProjectDpEff(dpeff);
         oper.ProjectEffPlasticStrain(pleff);
         oper.ProjectOrientation(quats);
@@ -645,7 +649,8 @@ int main(int argc, char *argv[])
         visit_dc.RegisterField("LatticeOrientation", &quats);
         visit_dc.RegisterField("ShearRate", &gdots);
         visit_dc.RegisterField("Hardness", &hardness);
-     }
+	
+	}
       
      visit_dc.SetCycle(0);
      visit_dc.SetTime(0.0);
@@ -744,9 +749,7 @@ int main(int argc, char *argv[])
             cout << "step " << ti << ", t = " << t << endl;
          }
 
-         if (toml_opt.visit)
-         {
-
+         if(toml_opt.visit){
             // mesh and stress output. Consider moving this to a separate routine
             //We might not want to update the vonMises stuff
             oper.ProjectModelStress(stress);
@@ -754,29 +757,27 @@ int main(int argc, char *argv[])
             oper.ProjectHydroStress(hydroStress);
 
             if(toml_opt.mech_type == MechType::EXACMECH){
+            
                oper.ProjectDpEff(dpeff);
                oper.ProjectEffPlasticStrain(pleff);
                oper.ProjectOrientation(quats);
                oper.ProjectShearRate(gdots);
                oper.ProjectH(hardness);
+            
             }
+         } 
+
+         if (toml_opt.visit)
+         {
 
             visit_dc.SetCycle(ti);
             visit_dc.SetTime(t);
             //Our visit data is now saved off
             visit_dc.Save();
          }
-
       } // end output scope
    } // end loop over time steps
 
-//   This was for a really large simulation so only the last step was desired
-//   if (visit)
-//   {
-//      visit_dc.SetCycle(1);
-//      visit_dc.SetTime(t);
-//      visit_dc.Save();
-//   }
 
    // Free the used memory.
    delete pmesh;
@@ -1152,7 +1153,7 @@ void setBdrConditions(Mesh *mesh)
    return;
 }
 
-void reorderMeshElements(Mesh *mesh, const int nx) 
+void reorderMeshElements(Mesh *mesh, const int *nxyz) 
 {
    // reorder mesh elements depending on how the 
    // computational cells are ordered in the grain map file.
@@ -1163,17 +1164,17 @@ void reorderMeshElements(Mesh *mesh, const int nx)
 
    // MFEM Make3D(.) mesh gen increments in x, y, then z.
 
-  Array<int> order(nx*nx*nx);
+   Array<int> order(nxyz[0]*nxyz[1]*nxyz[2]);
    int id = 0;
    int k = 0;
-   for (int z = 0; z < nx; ++z)
+   for (int z = 0; z < nxyz[2]; ++z)
    {
-      for (int y = 0; y < nx; ++y)
+      for (int y = 0; y < nxyz[1]; ++y)
       {
-         for (int x = 0; x < nx; ++x)
+         for (int x = 0; x < nxyz[0]; ++x)
          {
-            id = (nx * nx) * x + nx * y + z;
-            order[k] = id;
+	         id = (nxyz[2] * nxyz[1]) * x + nxyz[2] * y + z;
+	         order[k] = id;
             ++k;
          }
       }

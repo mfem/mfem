@@ -45,8 +45,8 @@ class ExaOptions{
       // mesh variables
       std::string mesh_file;
       MeshType mesh_type;
-      double mx; // edge dimension (mx = my = mz)
-      int  nx; // number of cells on an edge (nx = ny = nz)
+      double mxyz[3]; // edge dimensions (mx, my, mz)
+      int  nxyz[3]; // number of cells on an edge (nx, ny, nz)
    
    
       // serial and parallel refinement levels
@@ -194,8 +194,14 @@ class ExaOptions{
       order = 1;
       mesh_file = "../../data/cube-hex-ro.mesh";
       mesh_type = MeshType::OTHER;
-      mx = 1.0;
-      nx = 1;
+
+      mxyz[0] = 1.0;
+      mxyz[1] = 1.0;
+      mxyz[2] = 1.0;
+
+      nxyz[0] = 1;
+      nxyz[1] = 1;
+      nxyz[2] = 1;
    }//End of ExaOptions constructor
    
    virtual ~ExaOptions() {}
