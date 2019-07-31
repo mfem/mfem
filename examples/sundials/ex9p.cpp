@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
          arkode->Init(adv, t, *U);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         if (ode_solver_type == 13) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
+         if (ode_solver_type == 9) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
          ode_solver = arkode; break;
    }
 

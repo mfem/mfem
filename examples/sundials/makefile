@@ -61,7 +61,7 @@ PARALLEL_NAME := Parallel SUNDIALS example
 
 # Testing: Specific execution options:
 # Example 9: test explicit CVODE time stepping
-EX9_COMMON_ARGS := -m ../../data/periodic-hexagon.mesh -p 0 -s 11
+EX9_COMMON_ARGS := -m ../../data/periodic-hexagon.mesh -p 0 -s 7
 EX9_ARGS  := $(EX9_COMMON_ARGS) -r  2 -dt 0.0018 -vs 25
 EX9P_ARGS := $(EX9_COMMON_ARGS) -rp 1 -dt 0.0009 -vs 50
 ex9-test-seq: ex9

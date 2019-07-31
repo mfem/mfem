@@ -280,13 +280,15 @@ public:
        details, see the PETSc Manual. */
    virtual Operator& GetExplicitGradient(const Vector &x) const;
 
-   /** Setup the ODE linear system A(x,t) = (I - gamma J) or A = (M - gamma J).
-        @param[in]  t     The time at which A(x,t) should be evaluated
-        @param[in]  x     The state at which A(x,t) should be evaluated
-        @param[in]  fx    The current value of the ODE Rhs function, f(x,t)
-        @param[in]  jok   Flag indicating if the Jacobian should be updated
-        @param[out] jcur  Flag to signal if the Jacobian was updated
-        @param[in]  gamma The scaled time step value
+   /** @brief Setup the ODE linear system A(x,t) = (I - gamma J) or
+       A = (M - gamma J), where J(x,t) = df/dt(x,t).
+
+       @param[in]  t     The time at which A(x,t) should be evaluated.
+       @param[in]  x     The state at which A(x,t) should be evaluated.
+       @param[in]  fx    The current value of the ODE rhs function, f(x,t).
+       @param[in]  jok   Flag indicating if the Jacobian should be updated.
+       @param[out] jcur  Flag to signal if the Jacobian was updated.
+       @param[in]  gamma The scaled time step value.
 
        If not re-implemented, this method simply generates an error.
 
@@ -295,19 +297,22 @@ public:
    virtual int ImplicitSetup(const double t, const Vector &x, const Vector &fx,
                              int jok, int *jcur, double gamma);
 
-   /** Solve the ODE linear system A x = b.
-       @param[in,out]  x  On input, the initial guess. On output, the solution
-       @param[in]      b  The linear system right-hand side
-       @param[in]      tol Linear solve tolerance
+   /** @brief Solve the ODE linear system A x = b as setup by the method
+       ImplicitSetup().
 
-      If not re-implemented, this method simply generates an error.
+       @param[in,out]  x   On input, the initial guess. On output, the solution.
+       @param[in]      b   The linear system right-hand side.
+       @param[in]      tol Linear solve tolerance.
 
-      Presently, this method is used by SUNDIALS ODE solvers, for more
-      details, see the SUNDIALS User Guides. */
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by SUNDIALS ODE solvers, for more
+       details, see the SUNDIALS User Guides. */
    virtual int ImplicitSolve(Vector &x, const Vector &b, double tol);
 
-   /** Setup the mass matrix in the ODE system M y' = f(y,t)
-        @param[in]  t     The time at which A(y,t) should be evaluated
+   /** @brief Setup the mass matrix in the ODE system M y' = f(y,t).
+
+       @param[in]  t     The time at which M(t) should be evaluated.
 
        If not re-implemented, this method simply generates an error.
 
@@ -315,10 +320,12 @@ public:
        details, see the ARKode User Guide. */
    virtual int MassSetup(const double t);
 
-   /** Solve the mass matrix linear system M x = b.
-        @param[in,out]  x   On input, the initial guess. On output, the solution
-        @param[in]      b   The linear system right-hand side
-        @param[in]      tol Linear solve tolerance
+   /** @brief Solve the mass matrix linear system M x = b as setup by the method
+       MassSetup().
+
+       @param[in,out]  x   On input, the initial guess. On output, the solution.
+       @param[in]      b   The linear system right-hand side.
+       @param[in]      tol Linear solve tolerance.
 
        If not re-implemented, this method simply generates an error.
 

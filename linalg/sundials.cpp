@@ -361,7 +361,7 @@ void CVODESolver::SetLinearSolver(SundialsLinearSolver &ls_spec)
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
    LSA = SUNLinSolNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+   MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
    LSA->content         = &ls_spec;
    LSA->ops->gettype    = LSGetType;
@@ -371,7 +371,7 @@ void CVODESolver::SetLinearSolver(SundialsLinearSolver &ls_spec)
    LSA->ops->free       = LSFree;
 
    A = SUNMatNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+   MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
 
    A->content      = &ls_spec;
    A->ops->getid   = MatGetID;
@@ -394,7 +394,7 @@ void CVODESolver::SetLinearSolver()
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
    LSA = SUNLinSolNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+   MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
    LSA->content         = this;
    LSA->ops->gettype    = LSGetType;
@@ -402,7 +402,7 @@ void CVODESolver::SetLinearSolver()
    LSA->ops->free       = LSFree;
 
    A = SUNMatNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+   MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
 
    A->content      = this;
    A->ops->getid   = MatGetID;
@@ -680,7 +680,7 @@ void ARKStepSolver::Init(TimeDependentOperator &f_, double &t, Vector &x)
       {
          flag = ARKStepReInit(sundials_mem, ARKStepSolver::RHS1, NULL, t, y);
       }
-      MFEM_VERIFY(sundials_mem, "error in ARKStepReInit()");
+      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepReInit()");
 
    }
 }
@@ -732,7 +732,7 @@ void ARKStepSolver::Init(TimeDependentOperator &f_, TimeDependentOperator &f2_,
       // Reinitialize ARKStep memory
       flag = ARKStepReInit(sundials_mem, ARKStepSolver::RHS1, ARKStepSolver::RHS2, t,
                            y);
-      MFEM_VERIFY(sundials_mem, "error in ARKStepCreate()");
+      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepCreate()");
 
    }
 }
@@ -798,8 +798,9 @@ void ARKStepSolver::Resize(Vector &x, double hscale, double &t)
                "error inconsistent times");
 
    if (rk_type == IMEX)
-      MFEM_VERIFY(f2->GetTime() == t,
-                  "error inconsistent times");
+   {
+      MFEM_VERIFY(f2->GetTime() == t, "error inconsistent times");
+   }
 
    // Fill N_Vector wrapper
    if (!Parallel())
@@ -821,7 +822,7 @@ void ARKStepSolver::Resize(Vector &x, double hscale, double &t)
    }
 
    // Resize ARKode memory
-   ARKStepResize(sundials_mem, y, hscale, t, NULL, NULL);
+   flag = ARKStepResize(sundials_mem, y, hscale, t, NULL, NULL);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepResize()");
 }
 
@@ -858,11 +859,12 @@ void ARKStepSolver::SetLinearSolver(SundialsLinearSolver &ls_spec)
 
    // Check for implicit method before attaching
    MFEM_VERIFY(use_implicit,
-               "The function is applicable only to implicit or imex time integration.");
+               "The function is applicable only to implicit or imex time"
+               " integration.");
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
    LSA = SUNLinSolNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+   MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
    LSA->content         = &ls_spec;
    LSA->ops->gettype    = LSGetType;
@@ -872,7 +874,7 @@ void ARKStepSolver::SetLinearSolver(SundialsLinearSolver &ls_spec)
    LSA->ops->free       = LSFree;
 
    A = SUNMatNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+   MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
 
    A->content      = &ls_spec;
    A->ops->getid   = MatGetID;
@@ -894,7 +896,7 @@ void ARKStepSolver::SetLinearSolver()
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
    LSA = SUNLinSolNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+   MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
    LSA->content         = this;
    LSA->ops->gettype    = LSGetType;
@@ -902,7 +904,7 @@ void ARKStepSolver::SetLinearSolver()
    LSA->ops->free       = LSFree;
 
    A = SUNMatNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+   MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
 
    A->content      = this;
    A->ops->getid   = MatGetID;
@@ -910,11 +912,11 @@ void ARKStepSolver::SetLinearSolver()
 
    // Attach the linear solver and matrix
    flag = ARKStepSetLinearSolver(sundials_mem, LSA, A);
-   MFEM_VERIFY(flag == CV_SUCCESS, "error in ARKStepSetLinearSolver()");
+   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
 
    // Set the linear system evaluation function
    flag = ARKStepSetLinSysFn(sundials_mem, ARKStepSolver::LinSysSetup);
-   MFEM_VERIFY(flag == CV_SUCCESS, "error in ARKStepSetLinSysFn()");
+   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinSysFn()");
 }
 
 void ARKStepSolver::SetMassLinearSolver(SundialsLinearSolver &ls_spec,
@@ -926,7 +928,7 @@ void ARKStepSolver::SetMassLinearSolver(SundialsLinearSolver &ls_spec,
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
    LSM = SUNLinSolNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+   MFEM_VERIFY(LSM, "error in SUNLinSolNewEmpty()");
 
    LSM->content         = &ls_spec;
    LSM->ops->gettype    = LSGetType;
@@ -936,7 +938,7 @@ void ARKStepSolver::SetMassLinearSolver(SundialsLinearSolver &ls_spec,
    LSA->ops->free       = LSFree;
 
    M = SUNMatNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+   MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
 
    M->content      = &ls_spec;
    M->ops->getid   = SUNMatGetID;
@@ -959,7 +961,7 @@ void ARKStepSolver::SetMassLinearSolver(int tdep)
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
    LSM = SUNLinSolNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+   MFEM_VERIFY(LSM, "error in SUNLinSolNewEmpty()");
 
    LSM->content         = this;
    LSM->ops->gettype    = LSGetType;
@@ -967,7 +969,7 @@ void ARKStepSolver::SetMassLinearSolver(int tdep)
    LSA->ops->free       = LSFree;
 
    M = SUNMatNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+   MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
 
    M->content      = this;
    M->ops->getid   = SUNMatGetID;
@@ -1304,7 +1306,7 @@ void KINSolver::SetSolver(Solver &solver)
 
    // Wrap KINSolver as SUNLinearSolver and SUNMatrix
    LSA = SUNLinSolNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNLinSolNewEmpty()");
+   MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
    LSA->content      = this;
    LSA->ops->gettype = LSGetType;
@@ -1312,7 +1314,7 @@ void KINSolver::SetSolver(Solver &solver)
    LSA->ops->free    = LSFree;
 
    A = SUNMatNewEmpty();
-   MFEM_VERIFY(sundials_mem, "error in SUNMatNewEmpty()");
+   MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
 
    A->content      = this;
    A->ops->getid   = MatGetID;
@@ -1324,7 +1326,7 @@ void KINSolver::SetSolver(Solver &solver)
 
    // Set the Jacobian evaluation function
    flag = KINSetJacFn(sundials_mem, KINSolver::LinSysSetup);
-   MFEM_VERIFY(flag == CV_SUCCESS, "error in KINSetJacFn()");
+   MFEM_VERIFY(flag == KIN_SUCCESS, "error in KINSetJacFn()");
 }
 
 void KINSolver::SetScaledStepTol(double sstol)
@@ -1354,18 +1356,14 @@ void KINSolver::Mult(const Vector &b, Vector &x) const
       oper->Mult(x, r);
 
       // Note that KINSOL uses infinity norms.
-      double norm;
-      if (!Parallel())
-      {
-         norm = r.Normlinf();
-      }
-      else
-      {
+      double norm = r.Normlinf();
 #ifdef MFEM_USE_MPI
-         double lnorm = r.Normlinf();
+      if (Parallel())
+      {
+         double lnorm = norm;
          MPI_Allreduce(&lnorm, &norm, 1, MPI_DOUBLE, MPI_MAX, NV_COMM_P(y));
-#endif
       }
+#endif
       if (abs_tol > rel_tol * norm)
       {
          r = 1.0;
