@@ -1708,7 +1708,7 @@ void ParNCMesh::CheckDerefinementNCLevel(const Table &deref_table,
 
 //// Rebalance /////////////////////////////////////////////////////////////////
 
-void ParNCMesh::Rebalance()
+void ParNCMesh::Rebalance(const Array<int> *custom_partition)
 {
    send_rebalance_dofs.clear();
    recv_rebalance_dofs.clear();
@@ -1716,30 +1716,46 @@ void ParNCMesh::Rebalance()
    Array<int> old_elements;
    leaf_elements.GetSubArray(0, NElements, old_elements);
 
-   // figure out new assignments for Element::rank
-   long local_elems = NElements, total_elems = 0;
-   MPI_Allreduce(&local_elems, &total_elems, 1, MPI_LONG, MPI_SUM, MyComm);
-
-   long first_elem_global = 0;
-   MPI_Scan(&local_elems, &first_elem_global, 1, MPI_LONG, MPI_SUM, MyComm);
-   first_elem_global -= local_elems;
-
-   Array<int> new_ranks(leaf_elements.Size());
-   new_ranks = -1;
-
-   for (int i = 0, j = 0; i < leaf_elements.Size(); i++)
+   if (!custom_partition) // SFC based partitioning
    {
-      if (elements[leaf_elements[i]].rank == MyRank)
+      Array<int> new_ranks(leaf_elements.Size());
+      new_ranks = -1;
+
+      // figure out new assignments for Element::rank
+      long local_elems = NElements, total_elems = 0;
+      MPI_Allreduce(&local_elems, &total_elems, 1, MPI_LONG, MPI_SUM, MyComm);
+
+      long first_elem_global = 0;
+      MPI_Scan(&local_elems, &first_elem_global, 1, MPI_LONG, MPI_SUM, MyComm);
+      first_elem_global -= local_elems;
+
+      for (int i = 0, j = 0; i < leaf_elements.Size(); i++)
       {
-         new_ranks[i] = Partition(first_elem_global + (j++), total_elems);
+         if (elements[leaf_elements[i]].rank == MyRank)
+         {
+            new_ranks[i] = Partition(first_elem_global + (j++), total_elems);
+         }
       }
+
+      int target_elements = PartitionFirstIndex(MyRank+1, total_elems)
+                            - PartitionFirstIndex(MyRank, total_elems);
+
+      // assign the new ranks and send elements (plus ghosts) to new owners
+      RedistributeElements(new_ranks, target_elements, true);
    }
+   else // whatever partitioning the user has passed
+   {
+      MFEM_VERIFY(custom_partition->Size() == NElements,
+                  "Size of the partition array must match the number "
+                  "of local mesh elements (ParMesh::GetNE()).");
 
-   int target_elements = PartitionFirstIndex(MyRank+1, total_elems)
-                         - PartitionFirstIndex(MyRank, total_elems);
+      Array<int> new_ranks;
+      custom_partition->Copy(new_ranks);
 
-   // assign the new ranks and send elements (plus ghosts) to new owners
-   RedistributeElements(new_ranks, target_elements, true);
+      new_ranks.SetSize(leaf_elements.Size(), -1); // make room for ghosts
+
+      RedistributeElements(new_ranks, -1, true);
+   }
 
    // set up the old index array
    old_index_or_rank.SetSize(NElements);
