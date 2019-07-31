@@ -121,8 +121,8 @@ static void PAVectorDivergenceSetup(const int dim,
    }
 }
 
-void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
-                                            const FiniteElementSpace &test_fes)
+void VectorDivergenceIntegrator::Setup(const FiniteElementSpace &trial_fes,
+                                       const FiniteElementSpace &test_fes)
 {
    // Assumes tensor-product elements ordered by nodes
    MFEM_ASSERT(trial_fes.GetOrdering() == Ordering::byNODES,
@@ -131,7 +131,8 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const FiniteElement &trial_fe = *trial_fes.GetFE(0);
    const FiniteElement &test_fe = *test_fes.GetFE(0);
    ElementTransformation *trans = mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe, *trans);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
+                                                            *trans);
    const int dims = trial_fe.GetDim();
    const int dimsToStore = dims * dims;
    const int nq = ir->GetNPoints();
@@ -409,7 +410,7 @@ static void PAVectorDivergenceApplyTranspose2D(const int NE,
       }
       // We've now calculated y = reshape(div u * op^T) * x
    });
-}  
+}
 
 // PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
@@ -805,182 +806,242 @@ static void PAVectorDivergenceApply(const int dim,
 
    //if (Device::Allows(Backend::RAJA_CUDA))
    //{
-      if (dim == 2)
+   if (dim == 2)
+   {
+      switch ((TR_D1D << 4) | TE_D1D)
       {
-         switch ((TR_D1D << 4) | TE_D1D)
-         {
          case 0x32: // Specialized for Taylor-Hood elements
             if (Q1D == 3)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose2D<3,2,3>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply2D<3,2,3>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x43:
             if (Q1D == 4)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose2D<4,3,4>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply2D<4,3,4>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x54:
             if (Q1D == 6)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose2D<5,4,6>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply2D<5,4,6>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x65:
             if (Q1D == 7)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose2D<6,5,7>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply2D<6,5,7>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x76:
             if (Q1D == 9)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose2D<7,6,9>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply2D<7,6,9>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x87:
             if (Q1D == 10)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose2D<8,7,10>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply2D<8,7,10>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x98:
             if (Q1D == 12)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose2D<9,8,12>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply2D<9,8,12>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          default:
             break;
-         }
-         return PAVectorDivergenceApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
-      if (dim == 3)
+      return PAVectorDivergenceApply2D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+   }
+   if (dim == 3)
+   {
+      switch ((TR_D1D << 4) | TE_D1D)
       {
-         switch ((TR_D1D << 4) | TE_D1D)
-         {
          case 0x32: // Specialized for Taylor-Hood elements
             if (Q1D == 4)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose3D<3,2,4>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply3D<3,2,4>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x43:
             if (Q1D == 6)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose3D<4,3,6>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply3D<4,3,6>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x54:
             if (Q1D == 8)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose3D<5,4,8>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply3D<5,4,8>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x65:
             if (Q1D == 10)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose3D<6,5,10>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply3D<6,5,10>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x76:
             if (Q1D == 12)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose3D<7,6,12>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply3D<7,6,12>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x87:
             if (Q1D == 14)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose3D<8,7,14>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply3D<8,7,14>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          case 0x98:
             if (Q1D == 16)
             {
                if (transpose)
+               {
                   return PAVectorDivergenceApplyTranspose3D<9,8,16>(NE,B,G,Bt,op,x,y);
+               }
                else
+               {
                   return PAVectorDivergenceApply3D<9,8,16>(NE,B,G,Bt,op,x,y);
+               }
             }
             break;
          default:
             break;
-         }
-         if (transpose)
-            return PAVectorDivergenceApplyTranspose3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
-         else
-            return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
       }
-      /*}
+      if (transpose)
+      {
+         return PAVectorDivergenceApplyTranspose3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      }
+      else
+      {
+         return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,TR_D1D,TE_D1D,Q1D);
+      }
+   }
+   /*}
    else if (dim == 2)
    { // TODO: Smem not done yet
-      switch ((D1D << 4) | Q1D)
-      {
-         case 0x22: return SmemPAVectorDivergenceApply2D<2,2,16>(NE,B,G,Bt,op,x,y);
-         case 0x33: return SmemPAVectorDivergenceApply2D<3,3,16>(NE,B,G,Bt,op,x,y);
-         case 0x44: return SmemPAVectorDivergenceApply2D<4,4,8>(NE,B,G,Bt,op,x,y);
-         case 0x55: return SmemPAVectorDivergenceApply2D<5,5,8>(NE,B,G,Bt,op,x,y);
-         case 0x66: return SmemPAVectorDivergenceApply2D<6,6,4>(NE,B,G,Bt,op,x,y);
-         case 0x77: return SmemPAVectorDivergenceApply2D<7,7,4>(NE,B,G,Bt,op,x,y);
-         case 0x88: return SmemPAVectorDivergenceApply2D<8,8,2>(NE,B,G,Bt,op,x,y);
-         case 0x99: return SmemPAVectorDivergenceApply2D<9,9,2>(NE,B,G,Bt,op,x,y);
-         default:   return PAVectorDivergenceApply2D(NE,B,G,Bt,op,x,y,D1D,Q1D);
-      }
+   switch ((D1D << 4) | Q1D)
+   {
+      case 0x22: return SmemPAVectorDivergenceApply2D<2,2,16>(NE,B,G,Bt,op,x,y);
+      case 0x33: return SmemPAVectorDivergenceApply2D<3,3,16>(NE,B,G,Bt,op,x,y);
+      case 0x44: return SmemPAVectorDivergenceApply2D<4,4,8>(NE,B,G,Bt,op,x,y);
+      case 0x55: return SmemPAVectorDivergenceApply2D<5,5,8>(NE,B,G,Bt,op,x,y);
+      case 0x66: return SmemPAVectorDivergenceApply2D<6,6,4>(NE,B,G,Bt,op,x,y);
+      case 0x77: return SmemPAVectorDivergenceApply2D<7,7,4>(NE,B,G,Bt,op,x,y);
+      case 0x88: return SmemPAVectorDivergenceApply2D<8,8,2>(NE,B,G,Bt,op,x,y);
+      case 0x99: return SmemPAVectorDivergenceApply2D<9,9,2>(NE,B,G,Bt,op,x,y);
+      default:   return PAVectorDivergenceApply2D(NE,B,G,Bt,op,x,y,D1D,Q1D);
+   }
    }
    else if (dim == 3)
    {
-      switch ((D1D << 4) | Q1D)
-      {
-         case 0x23: return SmemPAVectorDivergenceApply3D<2,3>(NE,B,G,Bt,op,x,y);
-         case 0x34: return SmemPAVectorDivergenceApply3D<3,4>(NE,B,G,Bt,op,x,y);
-         case 0x45: return SmemPAVectorDivergenceApply3D<4,5>(NE,B,G,Bt,op,x,y);
-         case 0x56: return SmemPAVectorDivergenceApply3D<5,6>(NE,B,G,Bt,op,x,y);
-         case 0x67: return SmemPAVectorDivergenceApply3D<6,7>(NE,B,G,Bt,op,x,y);
-         case 0x78: return SmemPAVectorDivergenceApply3D<7,8>(NE,B,G,Bt,op,x,y);
-         case 0x89: return SmemPAVectorDivergenceApply3D<8,9>(NE,B,G,Bt,op,x,y);
-         default:   return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,D1D,Q1D);
-      }
+   switch ((D1D << 4) | Q1D)
+   {
+      case 0x23: return SmemPAVectorDivergenceApply3D<2,3>(NE,B,G,Bt,op,x,y);
+      case 0x34: return SmemPAVectorDivergenceApply3D<3,4>(NE,B,G,Bt,op,x,y);
+      case 0x45: return SmemPAVectorDivergenceApply3D<4,5>(NE,B,G,Bt,op,x,y);
+      case 0x56: return SmemPAVectorDivergenceApply3D<5,6>(NE,B,G,Bt,op,x,y);
+      case 0x67: return SmemPAVectorDivergenceApply3D<6,7>(NE,B,G,Bt,op,x,y);
+      case 0x78: return SmemPAVectorDivergenceApply3D<7,8>(NE,B,G,Bt,op,x,y);
+      case 0x89: return SmemPAVectorDivergenceApply3D<8,9>(NE,B,G,Bt,op,x,y);
+      default:   return PAVectorDivergenceApply3D(NE,B,G,Bt,op,x,y,D1D,Q1D);
+   }
    }*/
    MFEM_ABORT("Unknown kernel.");
 }
@@ -994,7 +1055,8 @@ void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 }
 
 // PA VectorDivergence Apply kernel
-void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x,
+                                                    Vector &y) const
 {
    PAVectorDivergenceApply(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
                            trial_maps->Bt, trial_maps->Gt, test_maps->B, pa_data, x, y,

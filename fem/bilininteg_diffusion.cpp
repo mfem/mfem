@@ -189,7 +189,7 @@ static void PADiffusionSetup(const int dim,
    }
 }
 
-void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
+void DiffusionIntegrator::Setup(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();

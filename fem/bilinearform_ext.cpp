@@ -57,7 +57,7 @@ void PABilinearFormExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->AssemblePA(*a->FESpace());
+      integrators[i]->Setup(*a->FESpace());
    }
 }
 
@@ -192,7 +192,7 @@ void PAMixedBilinearFormExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->AssemblePA(*trialFes, *testFes);
+      integrators[i]->Setup(*trialFes, *testFes);
    }
 }
 
@@ -256,14 +256,20 @@ void PAMixedBilinearFormExtension::SetupMultInputs(const Operator
    {
       elem_restrict_x->Mult(x, localX);
       if (c != 1.0)
+      {
          localX *= c;
+      }
    }
    else
    {
       if (c == 1.0)
+      {
          localX.SyncAliasMemory(x);
+      }
       else
+      {
          localX.Set(c, x);
+      }
    }
    if (elem_restrict_y)
    {

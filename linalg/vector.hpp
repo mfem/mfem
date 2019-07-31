@@ -83,7 +83,7 @@ public:
 
        Some derived classes, e.g. GridFunction, enable the use of the
        mfem::Device by default. */
-   void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
+   virtual void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
 
    /// Return the device flag of the Memory object used by the Vector
    bool UseDevice() const { return data.UseDevice(); }

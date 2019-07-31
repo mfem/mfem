@@ -161,6 +161,9 @@ public:
        set again. */
    virtual void Update();
 
+   /// Setup the NonlinearForm
+   virtual void Setup();
+
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const { return P; }
    /// Get the finite element space restriction matrix

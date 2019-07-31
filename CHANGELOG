@@ -59,7 +59,7 @@ Discretization improvements
   DofToQuad and GeometricFactors (associated with the classes BilinearForm,
   FiniteElementSpace, FiniteElement and Mesh, respectively). The kernels for
   partial assembled Setup/Assembly and Action/Mult are implemented in the
-  BilinearFormIntegrator methods AssemblePA and AddMultPA.
+  BilinearFormIntegrator methods Setup and AddMultPA.
 
 - Added support for a general "low-order refined"-to-"high-order" transfer of
   GridFunction data from a "low-order refined" (LOR) space defined on a refined

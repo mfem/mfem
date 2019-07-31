@@ -93,7 +93,9 @@ public:
    //! Update method
 
    /**
-      data is another vector that contains all the values of the monolithic vector. bOffsets is an array of integers (length nBlocks + 1) that tells the offsets of each block start. Does not take ownership of data.
+      data is another vector that contains all the values of the monolithic vector. 
+      bOffsets is an array of integers (length nBlocks + 1) that tells the offsets
+      of each block start. Does not take ownership of data.
     */
    void Update(const Vector& data, const Array<int> &bOffsets);
 
@@ -118,6 +120,12 @@ public:
        - currently, the block-vector does not own its data, or
        - currently, the block-vector does not use MemoryType @a mt. */
    void Update(const Array<int> &bOffsets, MemoryType mt);
+
+   /**
+      Overload the internal UseDevice and propogate to blocks too
+   */
+   virtual void UseDevice(bool use_dev);
+   using Vector::UseDevice; // Ensure we call Vector::UseDevice() without inputs
 };
 
 }

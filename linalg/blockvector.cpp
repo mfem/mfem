@@ -179,4 +179,14 @@ void BlockVector::GetBlockView(int i, Vector & blockView)
       BlockSize(i), true);
 }
 
+
+void BlockVector::UseDevice(bool use_dev)
+{
+   Vector::UseDevice(use_dev);
+   for (int i = 0; i < numBlocks; ++i)
+   {
+      blocks[i].UseDevice(use_dev);
+   }
+}
+
 }
