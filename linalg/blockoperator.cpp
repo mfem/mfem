@@ -69,9 +69,13 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
 {
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
-
+   
+   const bool use_dev = x.UseDevice() || y.UseDevice();
    yblock.Update(y,row_offsets);
+   yblock.UseDevice(use_dev);
    xblock.Update(x,col_offsets);
+   xblock.UseDevice(use_dev);
+   tmp.UseDevice(use_dev);
 
    y = 0.0;
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
@@ -96,8 +100,12 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
 
    y = 0.0;
 
+   const bool use_dev = x.UseDevice() || y.UseDevice();
    xblock.Update(x,row_offsets);
+   xblock.UseDevice(use_dev);
    yblock.Update(y,col_offsets);
+   yblock.UseDevice(use_dev);
+   tmp.UseDevice(use_dev);
 
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
@@ -157,8 +165,11 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
+   const bool use_dev = x.UseDevice() || y.UseDevice();
    yblock.Update(y, offsets);
+   yblock.UseDevice(use_dev);
    xblock.Update(x, offsets);
+   xblock.UseDevice(use_dev);
 
    for (int i=0; i<nBlocks; ++i)
    {
@@ -180,8 +191,11 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
+   const bool use_dev = x.UseDevice() || y.UseDevice();
    yblock.Update(y, offsets);
+   yblock.UseDevice(use_dev);
    xblock.Update(x, offsets);
+   xblock.UseDevice(use_dev);
 
    for (int i=0; i<nBlocks; ++i)
    {
@@ -247,8 +261,13 @@ void BlockLowerTriangularPreconditioner::Mult (const Vector & x,
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
+   const bool use_dev = x.UseDevice() || y.UseDevice();
    yblock.Update(y,offsets);
+   yblock.UseDevice(use_dev);
    xblock.Update(x,offsets);
+   xblock.UseDevice(use_dev);
+   tmp.UseDevice(use_dev);
+   tmp2.UseDevice(use_dev);
 
    y = 0.0;
    for (int iRow=0; iRow < nBlocks; ++iRow)
@@ -283,8 +302,13 @@ void BlockLowerTriangularPreconditioner::MultTranspose (const Vector & x,
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
+   const bool use_dev = x.UseDevice() || y.UseDevice();
    yblock.Update(y,offsets);
+   yblock.UseDevice(use_dev);
    xblock.Update(x,offsets);
+   xblock.UseDevice(use_dev);
+   tmp.UseDevice(use_dev);
+   tmp2.UseDevice(use_dev);
 
    y = 0.0;
    for (int iRow=nBlocks-1; iRow >=0; --iRow)
