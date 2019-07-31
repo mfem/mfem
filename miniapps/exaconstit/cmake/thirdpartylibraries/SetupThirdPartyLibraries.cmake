@@ -132,7 +132,7 @@ if (DEFINED CONDUIT_DIR)
         blt_register_library( NAME       conduit
                               TREAT_INCLUDES_AS_SYSTEM ON
                               INCLUDES   ${CONDUIT_INCLUDE_DIRS}
-                              LIBRARIES  conduit::conduit ${HDF5_LIBRARIES})
+                              LIBRARIES  ${CONDUIT_LIBRARIES} ${CONDUIT_BLUEPRINT_LIBRARY} ${CONDUIT_RELAY_LIBRARY})
     else()
         message(FATAL_ERROR "Unable to find CONDUIT with given path ${CONDUIT_DIR}")
     endif()

@@ -73,6 +73,7 @@ class ExaOptions{
       int vis_steps;
       // visualization variable for visit
       bool visit;
+      bool conduit;
       //Where to store the end time step files
       std::string basename;
    
@@ -179,6 +180,7 @@ class ExaOptions{
       //Visualization related parameters
       basename = "results/exaconstit";
       visit = false;
+      conduit = false;
       vis_steps = 1;
       
       //Time step related parameters

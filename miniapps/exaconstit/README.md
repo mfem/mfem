@@ -35,7 +35,7 @@ Note: the grain.txt, props.txt and state.txt files are expected inputs for CP pr
 * MFEM will need to be built with Conduit (built with HDF5). The easiest way to install Conduit is to use spack install instruction provided by Conduit.  
 
 * Create a build directory and cd into there
-* Run ```cmake .. -DENABLE_MPI=ON -DENABLE_FORTRAN=ON -DMFEM_DIR{mfem's installed cmake location} -DBLT_SOURCE_DIR=${BLT cloned location} -DECMECH_DIR=${ExaCMech installed cmake location} -DRAJA_DIR={RAJA installed location} -DSNLS_DIR={SNLS location in ExaCMech} -DMETIS_DIR={Metis used in mfem location} -DHYPRE_DIR={HYPRE install location} -DCONDUIT_DIR={Conduit install location}```
+* Run ```cmake .. -DENABLE_MPI=ON -DENABLE_FORTRAN=ON -DMFEM_DIR{mfem's installed cmake location} -DBLT_SOURCE_DIR=${BLT cloned location} -DECMECH_DIR=${ExaCMech installed cmake location} -DRAJA_DIR={RAJA installed location} -DSNLS_DIR={SNLS location in ExaCMech} -DMETIS_DIR={Metis used in mfem location} -DHYPRE_DIR={HYPRE install location} -DCONDUIT_DIR={Conduit install location} -DHDF5_ROOT:PATH={HDF5 install location}```
 * Run ```make -j 4```
 
 

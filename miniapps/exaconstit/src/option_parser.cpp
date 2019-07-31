@@ -242,6 +242,7 @@ void ExaOptions::get_time_steps(){
 void ExaOptions::get_visualizations(){
    vis_steps = toml->get_qualified_as<int>("Visualizations.steps").value_or(1);
    visit = toml->get_qualified_as<bool>("Visualizations.visit").value_or(false);
+   conduit = toml->get_qualified_as<bool>("Visualizations.conduit").value_or(false);
    std::string _basename = toml->get_qualified_as<std::string>("Visualizations.floc").value_or("results/exaconstit");
    basename = _basename;
 }//end of visualization parsing
@@ -361,6 +362,7 @@ void ExaOptions::print_options(){
    }
 
    std::cout << "Visit flag: " << visit << "\n";
+   std::cout << "Conduit flag: " << conduit << "\n";
    std::cout << "Visualization steps: " << vis_steps << "\n";
    std::cout << "Visualization directory: " << basename << "\n";
    

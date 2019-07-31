@@ -15,6 +15,8 @@ if (ENABLE_FORTRAN)
    enable_language(Fortran)
 endif()
 
+enable_language(C)
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
