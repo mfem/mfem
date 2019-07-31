@@ -1145,7 +1145,6 @@ void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
 
 void MixedBilinearForm::Assemble (int skip_zeros)
 {
-   int i, k;
    Array<int> tr_vdofs, te_vdofs;
    ElementTransformation *eltrans;
    DenseMatrix elemmat;
@@ -1159,12 +1158,12 @@ void MixedBilinearForm::Assemble (int skip_zeros)
 
    if (dbfi.Size())
    {
-      for (i = 0; i < test_fes -> GetNE(); i++)
+      for (int i = 0; i < test_fes -> GetNE(); i++)
       {
          trial_fes -> GetElementVDofs (i, tr_vdofs);
          test_fes  -> GetElementVDofs (i, te_vdofs);
          eltrans = test_fes -> GetElementTransformation (i);
-         for (k = 0; k < dbfi.Size(); k++)
+         for (int k = 0; k < dbfi.Size(); k++)
          {
             dbfi[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
                                                *test_fes  -> GetFE(i),
@@ -1197,7 +1196,7 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          }
       }
 
-      for (i = 0; i < test_fes -> GetNBE(); i++)
+      for (int i = 0; i < test_fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -1205,7 +1204,7 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          trial_fes -> GetBdrElementVDofs (i, tr_vdofs);
          test_fes  -> GetBdrElementVDofs (i, te_vdofs);
          eltrans = test_fes -> GetBdrElementTransformation (i);
-         for (k = 0; k < bbfi.Size(); k++)
+         for (int k = 0; k < bbfi.Size(); k++)
          {
             if (bbfi_marker[k] &&
                 (*bbfi_marker[k])[bdr_attr-1] == 0) { continue; }
@@ -1225,7 +1224,7 @@ void MixedBilinearForm::Assemble (int skip_zeros)
       const FiniteElement *trial_face_fe, *test_fe1, *test_fe2;
 
       int nfaces = mesh->GetNumFaces();
-      for (i = 0; i < nfaces; i++)
+      for (int i = 0; i < nfaces; i++)
       {
          ftr = mesh->GetFaceElementTransformations(i);
          trial_fes->GetFaceVDofs(i, tr_vdofs);
@@ -1281,7 +1280,7 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          }
       }
 
-      for (i = 0; i < trial_fes -> GetNBE(); i++)
+      for (int i = 0; i < trial_fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
