@@ -1916,41 +1916,93 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
    // *** STEP 3: receive elements from others ***
 
-   /* We don't know from whom we're going to receive so we need to probe.
-      Fortunately, we do know how many elements we're going to own eventually
-      so the termination condition is easy. */
-
    RebalanceMessage msg;
    msg.SetNCMesh(this);
 
-   while (received_elements < target_elements)
+   if (target_elements >= 0)
    {
-      int rank, size;
-      RebalanceMessage::Probe(rank, size, MyComm);
+      /* We don't know from whom we're going to receive, so we need to probe.
+         However, for the default SFC partitioning, we do know how many elements
+         we're going to own eventually, so the termination condition is easy. */
 
-      // receive message; note: elements are created as the message is decoded
-      msg.Recv(rank, size, MyComm);
-
-      for (int i = 0; i < msg.Size(); i++)
+      while (received_elements < target_elements)
       {
-         int elem_rank = msg.values[i];
-         elements[msg.elements[i]].rank = elem_rank;
+         int rank, size;
+         RebalanceMessage::Probe(rank, size, MyComm);
 
-         if (elem_rank == MyRank) { received_elements++; }
+         // receive message; note: elements are created as the message is decoded
+         msg.Recv(rank, size, MyComm);
+
+         for (int i = 0; i < msg.Size(); i++)
+         {
+            int elem_rank = msg.values[i];
+            elements[msg.elements[i]].rank = elem_rank;
+
+            if (elem_rank == MyRank) { received_elements++; }
+         }
+
+         // save the ranks we received from, for later use in RecvRebalanceDofs
+         if (record_comm)
+         {
+            recv_rebalance_dofs[rank].SetNCMesh(this);
+         }
       }
 
-      // save the ranks we received from, for later use in RecvRebalanceDofs
-      if (record_comm)
+      Update();
+
+      RebalanceMessage::WaitAllSent(send_elems);
+   }
+   else
+   {
+      /* The case (target_elements < 0) is used for custom partitioning.
+         Here we need to employ the "non-blocking consensus" algorithm
+         (https://scorec.rpi.edu/REPORTS/2015-9.pdf) to determine when the
+         element exchange is finished. The algorithm uses a non-blocking
+         barrier. */
+
+      MPI_Request barrier = MPI_REQUEST_NULL;
+      int done = 0;
+
+      while (!done)
       {
-         recv_rebalance_dofs[rank].SetNCMesh(this);
+         int rank, size;
+         while (RebalanceMessage::IProbe(rank, size, MyComm))
+         {
+            // receive message; note: elements are created as the msg is decoded
+            msg.Recv(rank, size, MyComm);
+
+            for (int i = 0; i < msg.Size(); i++)
+            {
+               elements[msg.elements[i]].rank = msg.values[i];
+            }
+
+            // save the ranks we received from, for later use in RecvRebalanceDofs
+            if (record_comm)
+            {
+               recv_rebalance_dofs[rank].SetNCMesh(this);
+            }
+         }
+
+         if (barrier != MPI_REQUEST_NULL)
+         {
+            MPI_Test(&barrier, &done, MPI_STATUS_IGNORE);
+         }
+         else
+         {
+            if (RebalanceMessage::TestAllSent(send_elems))
+            {
+               int err = MPI_Ibarrier(MyComm, &barrier);
+
+               MFEM_VERIFY(err == MPI_SUCCESS, "");
+               MFEM_VERIFY(barrier != MPI_REQUEST_NULL, "");
+            }
+         }
       }
+
+      Update();
    }
 
-   Update();
-
-   // make sure we can delete all send buffers
    NeighborElementRankMessage::WaitAllSent(send_ghost_ranks);
-   NeighborElementRankMessage::WaitAllSent(send_elems);
 }
 
 

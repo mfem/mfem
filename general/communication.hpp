@@ -328,8 +328,7 @@ struct VarMessage
    template<typename MapT>
    static void IsendAll(MapT& rank_msg, MPI_Comm comm)
    {
-      typename MapT::iterator it;
-      for (it = rank_msg.begin(); it != rank_msg.end(); ++it)
+      for (auto it = rank_msg.begin(); it != rank_msg.end(); ++it)
       {
          it->second.Isend(it->first, comm);
       }
@@ -339,12 +338,30 @@ struct VarMessage
    template<typename MapT>
    static void WaitAllSent(MapT& rank_msg)
    {
-      typename MapT::iterator it;
-      for (it = rank_msg.begin(); it != rank_msg.end(); ++it)
+      for (auto it = rank_msg.begin(); it != rank_msg.end(); ++it)
       {
          MPI_Wait(&it->second.send_request, MPI_STATUS_IGNORE);
          it->second.Clear();
       }
+   }
+
+   /** Return true if all messages in the map container were sent, otherwise
+       return false, without waiting. */
+   template<typename MapT>
+   static bool TestAllSent(MapT& rank_msg)
+   {
+      for (auto it = rank_msg.begin(); it != rank_msg.end(); ++it)
+      {
+         VarMessage &msg = it->second;
+         if (msg.send_request != MPI_REQUEST_NULL)
+         {
+            int sent;
+            MPI_Test(&msg.send_request, &sent, MPI_STATUS_IGNORE);
+            if (!sent) { return false; }
+            msg.Clear();
+         }
+      }
+      return true;
    }
 
    /** Blocking probe for incoming message of this type from any rank.
