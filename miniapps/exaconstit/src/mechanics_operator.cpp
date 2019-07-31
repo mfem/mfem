@@ -258,7 +258,9 @@ void NonlinearMechOperator::SolveInit(Vector &x)
 //      model->SwapMeshNodes();
 //   }
    //The end nodes are updated before the 1st step of the solution here so we're good.
+   model->init_step = true;
    newton_solver.Mult(zero, x);
+   model->init_step = false;
    //Just gotta be safe incase something in the solver wasn't playing nice and didn't swap things
    //back to the current configuration...
 //   if(!model->GetEndCoordsMesh()){

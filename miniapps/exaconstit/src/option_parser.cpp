@@ -292,9 +292,34 @@ void ExaOptions::get_mesh(){
    }else if((mtype == "auto") || (mtype == "Auto") || (mtype == "AUTO")){
       mesh_type = MeshType::AUTO;
       auto auto_table = toml->get_table_qualified("Mesh.Auto");
+
       //Basics to generate at least 1 element of length 1.
-      mx = auto_table->get_as<double>("length").value_or(1.0);
-      nx = auto_table->get_as<int>("ncuts").value_or(1);
+      //mx = auto_table->get_as<double>("length").value_or(1.0);
+      auto mx = auto_table->get_qualified_array_of<double>("length");
+      std::vector<double> _mxyz;
+      for(const auto& val: *mx){
+	_mxyz.push_back(val);
+      }
+      if(_mxyz.size() != 3){
+	 MFEM_ABORT("Mesh.Auto.length was not provided a valid array of size 3.");
+      }
+      mxyz[0] = _mxyz[0];
+      mxyz[1] = _mxyz[1];
+      mxyz[2] = _mxyz[2];
+
+      //nx = auto_table->get_as<int>("ncuts").value_or(1);
+      auto nx = auto_table->get_qualified_array_of<int64_t>("ncuts");
+      std::vector<int> _nxyz;
+      for(const auto& val: *nx){
+        _nxyz.push_back(val);
+      }
+      if(_nxyz.size() != 3){
+	MFEM_ABORT("Mesh.Auto.ncuts was not provided a valid array of size 3.");
+      } 
+      nxyz[0] =_nxyz[0];
+      nxyz[1] =_nxyz[1];
+      nxyz[2] =_nxyz[2];
+
    }else if((mtype == "other") || (mtype == "Other") || (mtype == "OTHER")){
       mesh_type = MeshType::OTHER;
    }else{
@@ -316,8 +341,8 @@ void ExaOptions::print_options(){
    }
    std::cout << "\n";
 
-   std::cout << "Edge dimension (mx): " << mx << "\n";
-   std::cout << "Number of cells on an edge (nx): " << nx << "\n";
+   std::cout << "Edge dimensions (mx, my, mz): " << mxyz[0] <<" " << mxyz[1] << " " << mxyz[2] <<"\n";
+   std::cout << "Number of cells on an edge (nx, ny, nz): " << nxyz[0] <<" " << nxyz[1] << " " << nxyz[2] <<"\n";
    
    std::cout << "Serial Refinement level: " << ser_ref_levels << "\n";
    std::cout << "Parallel Refinement level: " << par_ref_levels << "\n";

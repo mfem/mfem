@@ -52,6 +52,7 @@ public:
    int numStateVars;
    bool cauchy;
    bool debug;
+   bool init_step;
    DenseMatrix currElemCoords; // local variable to store current configuration 
                                // element coordinates
 protected:

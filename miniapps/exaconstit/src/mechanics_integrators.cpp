@@ -1044,7 +1044,7 @@ void ExaModel::CalcPolarDecompDefGrad(DenseMatrix& R, DenseMatrix& U,
    DenseMatrix omega_mat, temp;
    DenseMatrix def_grad(R, 3);
    
-   int dim = Ttr->GetDimension();
+   int dim = 3;//Ttr->GetDimension();
    Vector quat;
    
    int max_iter = 500;
@@ -1794,18 +1794,6 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
         &ndi, &nshr, &ntens, &nstatv, &props[0], &nprops, &coords[0],
         drot, &pnewdt, &celent, &dfgrd0[0], &dfgrd1[0], &noel, &npt,
         &layer, &kspt, &kstep, &kinc);
-
-   // restore the material Jacobian in a 1D array
-   // double mGrad[36];
-   // //Really isn't a reason to do this at all...
-   // for (int i=0; i<6; ++i)
-   // {
-   //   for (int j=0; j<6; ++j)
-   //   {
-   //     // column-wise ordering of material Jacobian
-   //     mGrad[(6 * i) + j] = ddsdde[(i * 6) + j];
-   //   }
-   // }
    
    //Due to how Abaqus has things ordered we need to swap the 4th and 6th columns
    //and rows with one another for our C_stiffness matrix.
@@ -1815,16 +1803,10 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    for(int i = 0; i < 6; i++)
    {
      std::swap(ddsdde[(6 * i) + j], ddsdde[(6*i) + 5]);
-   //   temp = ddsdde[(6*i) + j];
-   //   ddsdde[(6*i) + j] = mGrad[(6*i) + 5];
-   //   mGrad[(6*i) + 5] = temp;
    }
    for(int i = 0; i < 6; i++)
    {
      std::swap(ddsdde[(6 * j) + i], ddsdde[(6 * 5) + i]);
-   //   temp = mGrad[(6*j) + i];
-   //   mGrad[(6*j) + i] = mGrad[(6*5) + i];
-   //   mGrad[(6*5) + i] = temp;
    }
 
    // set the material stiffness on the model
@@ -2023,6 +2005,8 @@ void ExaCMechModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    double sdd[ecmech::nsdd]; //not really used for our purposes as a quasi-static type code
    double vol_ratio[4];
    double eng_int[ecmech::ne];
+   double d_mean;
+   double stress_mean;
 
    // get state variables and material properties
    GetElementStateVars(elemID, ipID, true, statev, nstatv);
@@ -2032,60 +2016,138 @@ void ExaCMechModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    // initialize 6x6 2d arrays
    for (int i = 0; i < ecmech::nsvec; ++i) 
    {
-     for (int j = 0; j < ecmech::nsvec; ++j) 
-     {
-        ddsdde[(i * ecmech::nsvec) + j] = 0.0;
-     }
+      for (int j = 0; j < ecmech::nsvec; ++j) 
+      {
+         ddsdde[(i * ecmech::nsvec) + j] = 0.0;
+      }
    }
    
    for(int i = 0; i < ecmech::ne; ++i)
    {
-     eng_int[i] = statev[ind_int_eng + i];
+      eng_int[i] = statev[ind_int_eng + i];
    }
-   //Here we have the skew portion of our velocity gradient as represented as an
-   //axial vector.
-   w_vec[0] = 0.5 * (J(2, 1) - J(1, 2));
-   w_vec[1] = 0.5 * (J(0, 2) - J(2, 0));
-   w_vec[2] = 0.5 * (J(1, 0) - J(0, 1));
 
-   //Really we're looking at the negative of J but this will do...
-   double d_mean = -ecmech::one_third * (J(0, 0) + J(1, 1) + J(2, 2));
-   //The 1st 6 components are the symmetric deviatoric portion of our
-   //Vgrad or J as seen here
-   //The last value is the minus of hydrostatic term so the "pressure"
-   d_svec_p[0] = J(0, 0) + d_mean; 
-   d_svec_p[1] = J(1, 1) + d_mean; 
-   d_svec_p[2] = J(2, 2) + d_mean; 
-   d_svec_p[3] = 0.5 * (J(2, 1) + J(1, 2));
-   d_svec_p[4] = 0.5 * (J(2, 0) + J(0, 2));
-   d_svec_p[5] = 0.5 * (J(1, 0) + J(0, 1));
-   d_svec_p[6] = -3 * d_mean;
+   if(init_step){
+      w_vec[0] = 0.0;
+      w_vec[1] = 0.0;
+      w_vec[2] = 0.0;
 
-   vol_ratio[0] = statev[ind_vols];
-   vol_ratio[1] = vol_ratio[0] * exp(d_svec_p[ecmech::iSvecP] * dt);
-   vol_ratio[3] = vol_ratio[1] - vol_ratio[0];
-   vol_ratio[2] = vol_ratio[3] / (dt * 0.5 * (vol_ratio[0] + vol_ratio[1]));
+      d_svec_p[0] = 0.0;
+      d_svec_p[1] = 0.0;
+      d_svec_p[2] = 0.0;
+      d_svec_p[3] = 0.0;
+      d_svec_p[4] = 0.0;
+      d_svec_p[5] = 0.0;
+      d_svec_p[6] = 0.0;
 
-   std::copy(stress, stress + ecmech::nsvec, stress_svec_p);
-   
-   double stress_mean = -ecmech::one_third * (stress[0] + stress[1] + stress[2]);
-   stress_svec_p[0] += stress_mean;
-   stress_svec_p[1] += stress_mean;
-   stress_svec_p[2] += stress_mean;
-   stress_svec_p[ecmech::iSvecP] = stress_mean;
-   
-   mat_model_base->getResponse(dt, &d_svec_p[0], &w_vec[0], &vol_ratio[0],
-                   &eng_int[0], &stress_svec_p[0], &statev[0], &temp_k, &sdd[0], &ddsdde[0], 1);
+      vol_ratio[0] = statev[ind_vols];
+      vol_ratio[1] = vol_ratio[0] * exp(d_svec_p[ecmech::iSvecP] * dt);
+      vol_ratio[3] = vol_ratio[1] - vol_ratio[0];
+      vol_ratio[2] = vol_ratio[3] / (dt * 0.5 * (vol_ratio[0] + vol_ratio[1]));
 
-   //ExaCMech saves this in Row major, so we need to get out the transpose.
-   //The good thing is we can do this all in place no problem.
-   for (int i = 0; i < ecmech::ntvec; ++i)
+      std::copy(stress, stress + ecmech::nsvec, stress_svec_p);
+
+      stress_mean = -ecmech::one_third * (stress[0] + stress[1] + stress[2]);
+      stress_svec_p[0] += stress_mean;
+      stress_svec_p[1] += stress_mean;
+      stress_svec_p[2] += stress_mean;
+      stress_svec_p[ecmech::iSvecP] = stress_mean;
+
+      mat_model_base->getResponse(dt, &d_svec_p[0], &w_vec[0], &vol_ratio[0],
+                                 &eng_int[0], &stress_svec_p[0], &statev[0], &temp_k, &sdd[0], &ddsdde[0], 1);
+
+      //ExaCMech saves this in Row major, so we need to get out the transpose.                                                                                                          
+      //The good thing is we can do this all in place no problem.                                                                                                                       
+      for (int i = 0; i < ecmech::ntvec; ++i)
+      {
+         for (int j = i + 1; j < ecmech::nsvec; ++j)
+         {                                                                                                                                     
+            std::swap(ddsdde[(ecmech::nsvec * j) + i], ddsdde[(ecmech::nsvec * i) + j]);
+         }                                                                                                                                          
+      }
+
+      //Here we have the skew portion of our velocity gradient as represented as an                                                                                                     
+      //axial vector.                                                                                                                                                                   
+      w_vec[0] = 0.5 * (J(2, 1) - J(1, 2));
+      w_vec[1] = 0.5 * (J(0, 2) - J(2, 0));
+      w_vec[2] = 0.5 * (J(1, 0) - J(0, 1));
+
+      //Really we're looking at the negative of J but this will do...                                                                                                                   
+      d_mean = -ecmech::one_third * (J(0, 0) + J(1, 1) + J(2, 2));
+      //The 1st 6 components are the symmetric deviatoric portion of our                                                                                                                
+      //Vgrad or J as seen here                                                                                                                                                         
+      //The last value is the minus of hydrostatic term so the "pressure"                                                                                                               
+      d_svec_p[0] = J(0, 0) + d_mean;
+      d_svec_p[1] = J(1, 1) + d_mean;
+      d_svec_p[2] = J(2, 2) + d_mean;
+      d_svec_p[3] = 0.5 * (J(2, 1) + J(1, 2));
+      d_svec_p[4] = 0.5 * (J(2, 0) + J(0, 2));
+      d_svec_p[5] = 0.5 * (J(1, 0) + J(0, 1));
+      d_svec_p[6] = -3 * d_mean;
+
+      vol_ratio[0] = statev[ind_vols];
+      vol_ratio[1] = vol_ratio[0] * exp(d_svec_p[ecmech::iSvecP] * dt);
+      vol_ratio[3] = vol_ratio[1] - vol_ratio[0];
+      vol_ratio[2] = vol_ratio[3] / (dt * 0.5 * (vol_ratio[0] + vol_ratio[1]));
+
+      std::copy(stress, stress + ecmech::nsvec, stress_svec_p);
+
+      stress_mean = -ecmech::one_third * (stress[0] + stress[1] + stress[2]);
+      stress_svec_p[0] += stress_mean;
+      stress_svec_p[1] += stress_mean;
+      stress_svec_p[2] += stress_mean;
+      stress_svec_p[ecmech::iSvecP] = stress_mean;
+
+      mat_model_base->getResponse(dt, &d_svec_p[0], &w_vec[0], &vol_ratio[0],
+                                 &eng_int[0], &stress_svec_p[0], &statev[0], &temp_k, &sdd[0], nullptr, 1);
+
+   }else
    {
-     for (int j = i + 1; j < ecmech::nsvec; ++j)
-     {
-        std::swap(ddsdde[(ecmech::nsvec * j) + i], ddsdde[(ecmech::nsvec * i) + j]);
-     }
-   }
+      //Here we have the skew portion of our velocity gradient as represented as an
+      //axial vector.
+      w_vec[0] = 0.5 * (J(2, 1) - J(1, 2));
+      w_vec[1] = 0.5 * (J(0, 2) - J(2, 0));
+      w_vec[2] = 0.5 * (J(1, 0) - J(0, 1));
+
+      //Really we're looking at the negative of J but this will do...
+      d_mean = -ecmech::one_third * (J(0, 0) + J(1, 1) + J(2, 2));
+      //The 1st 6 components are the symmetric deviatoric portion of our
+      //Vgrad or J as seen here
+      //The last value is the minus of hydrostatic term so the "pressure"
+      d_svec_p[0] = J(0, 0) + d_mean; 
+      d_svec_p[1] = J(1, 1) + d_mean; 
+      d_svec_p[2] = J(2, 2) + d_mean; 
+      d_svec_p[3] = 0.5 * (J(2, 1) + J(1, 2));
+      d_svec_p[4] = 0.5 * (J(2, 0) + J(0, 2));
+      d_svec_p[5] = 0.5 * (J(1, 0) + J(0, 1));
+      d_svec_p[6] = -3 * d_mean;
+
+      vol_ratio[0] = statev[ind_vols];
+      vol_ratio[1] = vol_ratio[0] * exp(d_svec_p[ecmech::iSvecP] * dt);
+      vol_ratio[3] = vol_ratio[1] - vol_ratio[0];
+      vol_ratio[2] = vol_ratio[3] / (dt * 0.5 * (vol_ratio[0] + vol_ratio[1]));
+
+      std::copy(stress, stress + ecmech::nsvec, stress_svec_p);
+
+      stress_mean = -ecmech::one_third * (stress[0] + stress[1] + stress[2]);
+      stress_svec_p[0] += stress_mean;
+      stress_svec_p[1] += stress_mean;
+      stress_svec_p[2] += stress_mean;
+      stress_svec_p[ecmech::iSvecP] = stress_mean;
+
+      mat_model_base->getResponse(dt, &d_svec_p[0], &w_vec[0], &vol_ratio[0],
+                     &eng_int[0], &stress_svec_p[0], &statev[0], &temp_k, &sdd[0], &ddsdde[0], 1);
+
+      //ExaCMech saves this in Row major, so we need to get out the transpose.
+      //The good thing is we can do this all in place no problem.
+      for (int i = 0; i < ecmech::ntvec; ++i)
+      {
+         for (int j = i + 1; j < ecmech::nsvec; ++j)
+         {
+            std::swap(ddsdde[(ecmech::nsvec * j) + i], ddsdde[(ecmech::nsvec * i) + j]);
+         }
+      }
+   }//endif
 
    //We need to update our state variables to include the volume ratio and 
    //internal energy portions
@@ -2224,30 +2286,30 @@ void ExaModel::GenerateGradMatrix(const DenseMatrix& DS, DenseMatrix& B){
    //operations in a single loop.
    //x dofs
    for (int i = 0; i < dof; i++){
-     B(i, 0) = DS(i, 0);
-     B(i, 1) = 0.0;
-     B(i, 2) = 0.0;
-     B(i, 3) = 0.0;
-     B(i, 4) = DS(i, 2);
-     B(i, 5) = DS(i, 1);
+      B(i, 0) = DS(i, 0);
+      B(i, 1) = 0.0;
+      B(i, 2) = 0.0;
+      B(i, 3) = 0.0;
+      B(i, 4) = DS(i, 2);
+      B(i, 5) = DS(i, 1);
    }
    //y dofs
    for (int i = 0; i < dof; i++){
-     B(i + dof, 0) = 0.0;
-     B(i + dof, 1) = DS(i, 1);
-     B(i + dof, 2) = 0.0;
-     B(i + dof, 3) = DS(i, 2);
-     B(i + dof, 4) = 0.0;
-     B(i + dof, 5) = DS(i, 0);
+      B(i + dof, 0) = 0.0;
+      B(i + dof, 1) = DS(i, 1);
+      B(i + dof, 2) = 0.0;
+      B(i + dof, 3) = DS(i, 2);
+      B(i + dof, 4) = 0.0;
+      B(i + dof, 5) = DS(i, 0);
    }
    //z dofs
    for (int i = 0; i < dof; i++){
-     B(i + 2*dof, 0) = 0.0;
-     B(i + 2*dof, 1) = 0.0;
-     B(i + 2*dof, 2) = DS(i, 2);
-     B(i + 2*dof, 3) = DS(i, 1);
-     B(i + 2*dof, 4) = DS(i, 0);
-     B(i + 2*dof, 5) = 0.0;
+      B(i + 2*dof, 0) = 0.0;
+      B(i + 2*dof, 1) = 0.0;
+      B(i + 2*dof, 2) = DS(i, 2);
+      B(i + 2*dof, 3) = DS(i, 1);
+      B(i + 2*dof, 4) = DS(i, 0);
+      B(i + 2*dof, 5) = 0.0;
    }
 
    return;
@@ -2282,39 +2344,39 @@ void ExaModel::GenerateGradGeomMatrix(const DenseMatrix& DS, DenseMatrix& Bgeom)
   
   //x dofs
   for (int i = 0; i < dof; i++){
-    Bgeom(i, 0) = DS(i, 0);
-    Bgeom(i, 1) = DS(i, 1);
-    Bgeom(i, 2) = DS(i, 2);
-    Bgeom(i, 3) = 0.0;
-    Bgeom(i, 4) = 0.0;
-    Bgeom(i, 5) = 0.0;
-    Bgeom(i, 6) = 0.0;
-    Bgeom(i, 7) = 0.0;
-    Bgeom(i, 8) = 0.0;
+      Bgeom(i, 0) = DS(i, 0);
+      Bgeom(i, 1) = DS(i, 1);
+      Bgeom(i, 2) = DS(i, 2);
+      Bgeom(i, 3) = 0.0;
+      Bgeom(i, 4) = 0.0;
+      Bgeom(i, 5) = 0.0;
+      Bgeom(i, 6) = 0.0;
+      Bgeom(i, 7) = 0.0;
+      Bgeom(i, 8) = 0.0;
   }
   //y dofs
   for (int i = 0; i < dof; i++){
-    Bgeom(i + dof, 0) = 0.0;
-    Bgeom(i + dof, 1) = 0.0;
-    Bgeom(i + dof, 2) = 0.0;
-    Bgeom(i + dof, 3) = DS(i, 0);
-    Bgeom(i + dof, 4) = DS(i, 1);
-    Bgeom(i + dof, 5) = DS(i, 2);
-    Bgeom(i + dof, 6) = 0.0;
-    Bgeom(i + dof, 7) = 0.0;
-    Bgeom(i + dof, 8) = 0.0;
+      Bgeom(i + dof, 0) = 0.0;
+      Bgeom(i + dof, 1) = 0.0;
+      Bgeom(i + dof, 2) = 0.0;
+      Bgeom(i + dof, 3) = DS(i, 0);
+      Bgeom(i + dof, 4) = DS(i, 1);
+      Bgeom(i + dof, 5) = DS(i, 2);
+      Bgeom(i + dof, 6) = 0.0;
+      Bgeom(i + dof, 7) = 0.0;
+      Bgeom(i + dof, 8) = 0.0;
   }
   //z dofs
   for (int i = 0; i < dof; i++){
-    Bgeom(i + 2*dof, 0) = 0.0;
-    Bgeom(i + 2*dof, 1) = 0.0;
-    Bgeom(i + 2*dof, 2) = 0.0;
-    Bgeom(i + 2*dof, 3) = 0.0;
-    Bgeom(i + 2*dof, 4) = 0.0;
-    Bgeom(i + 2*dof, 5) = 0.0;
-    Bgeom(i + 2*dof, 6) = DS(i, 0);
-    Bgeom(i + 2*dof, 7) = DS(i, 1);
-    Bgeom(i + 2*dof, 8) = DS(i, 2);
+      Bgeom(i + 2*dof, 0) = 0.0;
+      Bgeom(i + 2*dof, 1) = 0.0;
+      Bgeom(i + 2*dof, 2) = 0.0;
+      Bgeom(i + 2*dof, 3) = 0.0;
+      Bgeom(i + 2*dof, 4) = 0.0;
+      Bgeom(i + 2*dof, 5) = 0.0;
+      Bgeom(i + 2*dof, 6) = DS(i, 0);
+      Bgeom(i + 2*dof, 7) = DS(i, 1);
+      Bgeom(i + 2*dof, 8) = DS(i, 2);
   }
   
 }
