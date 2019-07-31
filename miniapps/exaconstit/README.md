@@ -13,7 +13,7 @@ Date: Aug. 6, 2017
 Updated: Feb. 4, 2019
 
 # Description: 
-The purpose of this code app is to determine bulk constitutive properties for 3D printed metal alloys. This is a nonlinear quasi-static, implicit solid mechanics code built on the MFEM library based on an updated Lagrangian formulation (velocity based).
+The purpose of this code app is to determine bulk constitutive properties of metals. This is a nonlinear quasi-static, implicit solid mechanics code built on the MFEM library based on an updated Lagrangian formulation (velocity based).
                
 Currently, only Dirichlet boundary conditions (homogeneous and inhomogeneous by dof component) have been implemented. Neumann (traction) boundary conditions and a body force are not implemented. A new ExaModel class allows one to implement arbitrary constitutive models. The code currently successfully allows for various UMATs to be interfaced within the code framework. Development work is currently focused on allowing for the mechanical models to run on GPGPUs. 
 
@@ -31,10 +31,11 @@ Note: the grain.txt, props.txt and state.txt files are expected inputs for CP pr
 
 # Installing Notes:
 
-* git clone the LLNL BLT library into the directory above MFEM. It can be obtained at https://github.com/LLNL/blt.git 
+* git clone the LLNL BLT library into the directory above MFEM. It can be obtained at https://github.com/LLNL/blt.git
+* MFEM will need to be built with Conduit (built with HDF5). The easiest way to install Conduit is to use spack install instruction provided by Conduit.  
 
 * Create a build directory and cd into there
-* Run ```cmake .. -DMFEM_DIR{where mfem was installed} -DBLT_SOURCE_DIR=${BLT cloned location} -DEC_MECH_DIR=${ExaCMech installed cmake location}```
+* Run ```cmake .. -DENABLE_MPI=ON -DENABLE_FORTRAN=ON -DMFEM_DIR{mfem's installed cmake location} -DBLT_SOURCE_DIR=${BLT cloned location} -DECMECH_DIR=${ExaCMech installed cmake location} -DRAJA_DIR={RAJA installed location} -DSNLS_DIR={SNLS location in ExaCMech} -DMETIS_DIR={Metis used in mfem location} -DHYPRE_DIR={HYPRE install location} -DCONDUIT_DIR={Conduit install location}```
 * Run ```make -j 4```
 
 
@@ -44,3 +45,4 @@ Note: the grain.txt, props.txt and state.txt files are expected inputs for CP pr
 * GPGPU material models
 * A more in-depth README that better covers the different options available.
 * debug ability to read different mesh formats
+* An up-to-date example options.toml file

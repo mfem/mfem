@@ -623,6 +623,35 @@ int main(int argc, char *argv[])
    // a lot of data that you want to output for the user. It might be nice if this
    // was either a netcdf or hdf5 type format instead.
    VisItDataCollection visit_dc(toml_opt.basename, pmesh);
+   ConduitDataCollection conduit_dc(toml_opt.basename, pmesh);
+   if(toml_opt.conduit){
+      // conduit_dc.SetProtocol("json");
+      conduit_dc.RegisterField("Displacement",  &x_diff);
+      conduit_dc.RegisterField("Stress", &stress);
+      conduit_dc.RegisterField("Velocity", &v_cur);
+      //visit_dc.RegisterQField("DefGrad", &kinVars0);                                                                                         
+      conduit_dc.RegisterField("VonMisesStress", &vonMises);
+      conduit_dc.RegisterField("HydrostaticStress", &hydroStress);
+
+      if(toml_opt.mech_type == MechType::EXACMECH){
+         //We also want to project the values out originally                                                                                   
+         //so our initial values are correct                                                                                                   
+         oper.ProjectDpEff(dpeff);
+         oper.ProjectEffPlasticStrain(pleff);
+         oper.ProjectOrientation(quats);
+         oper.ProjectShearRate(gdots);
+         oper.ProjectH(hardness);
+
+         conduit_dc.RegisterField("DpEff", &dpeff);
+         conduit_dc.RegisterField("EffPlasticStrain", &pleff);
+         conduit_dc.RegisterField("LatticeOrientation", &quats);
+         conduit_dc.RegisterField("ShearRate", &gdots);
+         conduit_dc.RegisterField("Hardness", &hardness);
+      }
+      conduit_dc.SetCycle(0);
+      conduit_dc.SetTime(0.0);
+      conduit_dc.Save();
+   }
 
    if (toml_opt.visit)
    {
@@ -749,7 +778,7 @@ int main(int argc, char *argv[])
             cout << "step " << ti << ", t = " << t << endl;
          }
 
-         if(toml_opt.visit){
+         if(toml_opt.visit || toml_opt.conduit){
             // mesh and stress output. Consider moving this to a separate routine
             //We might not want to update the vonMises stuff
             oper.ProjectModelStress(stress);
@@ -769,11 +798,18 @@ int main(int argc, char *argv[])
 
          if (toml_opt.visit)
          {
-
             visit_dc.SetCycle(ti);
             visit_dc.SetTime(t);
             //Our visit data is now saved off
             visit_dc.Save();
+         }
+         
+         if (toml_opt.conduit)
+         {
+            conduit_dc.SetCycle(ti);
+            conduit_dc.SetTime(t);
+            //Our conduit data is now saved off                                                                                                                                 
+            conduit_dc.Save();
          }
       } // end output scope
    } // end loop over time steps

@@ -121,3 +121,21 @@ if (DEFINED METIS_DIR)
 else()
     message(FATAL_ERROR "METIS_DIR was not provided. It is needed to find METIS.")
 endif()
+
+################################
+# CONDUIT
+################################
+
+if (DEFINED CONDUIT_DIR)
+    include(cmake/thirdpartylibraries/FindConduit.cmake)
+    if (CONDUIT_FOUND)
+        blt_register_library( NAME       conduit
+                              TREAT_INCLUDES_AS_SYSTEM ON
+                              INCLUDES   ${CONDUIT_INCLUDE_DIRS}
+                              LIBRARIES  conduit::conduit ${HDF5_LIBRARIES})
+    else()
+        message(FATAL_ERROR "Unable to find CONDUIT with given path ${CONDUIT_DIR}")
+    endif()
+else()
+    message(FATAL_ERROR "CONDUIT_DIR was not provided. It is needed to find CONDUIT.")
+endif()
