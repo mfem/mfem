@@ -316,12 +316,23 @@ struct VarMessage
    std::string data;
    MPI_Request send_request;
 
-   /// Non-blocking send to processor 'rank'.
+   /** Non-blocking send to processor 'rank'. Returns immediately. Completion
+       (as tested by MPI_Wait/Test) does not mean the message was received --
+       it may be on its way or just buffered locally. */
    void Isend(int rank, MPI_Comm comm)
    {
       Encode(rank);
       MPI_Isend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
                 &send_request);
+   }
+
+   /** Non-blocking synchronous send to processor 'rank'. Returns immediately.
+       Completion (MPI_Wait/Test) means that the message was received. */
+   void Issend(int rank, MPI_Comm comm)
+   {
+      Encode(rank);
+      MPI_Issend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
+                 &send_request);
    }
 
    /// Helper to send all messages in a rank-to-message map container.
