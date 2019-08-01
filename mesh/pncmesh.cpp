@@ -1785,6 +1785,8 @@ struct CompareRanks // TODO: use lambda when C++11 available
 void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
                                      bool record_comm)
 {
+   bool sfc = (target_elements >= 0);
+
    UpdateLayers();
 
    // *** STEP 1: communicate new rank assignments for the ghost layer ***
@@ -1869,6 +1871,8 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
       el.rank = new_ranks[i];
    }
 
+   int nsent = 0, nrecv = 0; // for debug check
+
    RebalanceMessage::Map send_elems;
    {
       // sort elements we own by the new rank
@@ -1916,7 +1920,16 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
                // disrupting the termination mechanism in Step 4.
             }
 
-            msg.Isend(rank, MyComm);
+            if (sfc)
+            {
+               msg.Isend(rank, MyComm);
+            }
+            else
+            {
+               // custom partitioning needs synchronous sends
+               msg.Issend(rank, MyComm);
+            }
+            nsent++;
 
             // also: record what elements we sent (excluding the ghosts)
             // so that SendRebalanceDofs can later send data for them
@@ -1935,7 +1948,7 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
    RebalanceMessage msg;
    msg.SetNCMesh(this);
 
-   if (target_elements >= 0)
+   if (sfc)
    {
       /* We don't know from whom we're going to receive, so we need to probe.
          However, for the default SFC partitioning, we do know how many elements
@@ -1948,6 +1961,7 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
          // receive message; note: elements are created as the message is decoded
          msg.Recv(rank, size, MyComm);
+         nrecv++;
 
          for (int i = 0; i < msg.Size(); i++)
          {
@@ -1986,6 +2000,7 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
          {
             // receive message; note: elements are created as the msg is decoded
             msg.Recv(rank, size, MyComm);
+            nrecv++;
 
             for (int i = 0; i < msg.Size(); i++)
             {
@@ -2019,6 +2034,19 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
    }
 
    NeighborElementRankMessage::WaitAllSent(send_ghost_ranks);
+
+#ifdef MFEM_DEBUG
+   int glob_sent, glob_recv;
+   MPI_Reduce(&nsent, &glob_sent, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&nrecv, &glob_recv, 1, MPI_INT, MPI_SUM, 0, MyComm);
+
+   if (MyRank == 0)
+   {
+      MFEM_ASSERT(glob_sent == glob_recv,
+                  "(glob_sent, glob_recv) = ("
+                  << glob_sent << ", " << glob_recv << ")");
+   }
+#endif
 }
 
 
