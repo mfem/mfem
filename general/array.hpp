@@ -251,6 +251,10 @@ public:
    template <typename U>
    inline void CopyTo(U *dest) { std::copy(begin(), end(), dest); }
 
+   template <typename U>
+   inline void CopyFrom(const U *src)
+   { std::memcpy(data, src, size * sizeof(T)); }
+
    // STL-like begin/end
    inline T* begin() { return data; }
    inline T* end() { return data + size; }

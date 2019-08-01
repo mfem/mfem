@@ -62,6 +62,8 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   int ser_ref_levels = -1;
+   int par_ref_levels = -1;
    int order = 1;
    bool static_cond = false;
    bool pa = false;
@@ -71,6 +73,10 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -114,8 +120,12 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      ref_levels = ser_ref_levels >= 0 ? ser_ref_levels : ref_levels;
+      if (myid == 0)
+      {
+         cout << "Serial refinement levels: " << ref_levels << endl;
+      }
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -128,12 +138,18 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
+      par_ref_levels = par_ref_levels >= 0 ? par_ref_levels : 2;
+      if (myid == 0)
+      {
+         cout << "Parallel refinement levels: " << par_ref_levels << endl;
+      }
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
       }
    }
+   pmesh->PrintInfo(cout);
+   if (myid == 0) { cout << endl; }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
