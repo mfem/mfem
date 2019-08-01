@@ -191,10 +191,10 @@ int main(int argc, char *argv[])
 
    // Set up the bilinear form for the whole system. HDGBilinearForm2 can compute
    // the Schur complement locally for a 2x2 problem.
-   HDGBilinearForm2 *AVarf(new HDGBilinearForm2(Uh_space, Uhbar_space));
+   HDGBilinearForm *AVarf(new HDGBilinearForm(Uh_space, Uhbar_space));
    AVarf->AddHDGDomainIntegrator(
       new HDGDomainIntegratorAdvection(mu, advection));
-   AVarf->AddHDGBdrIntegrator(
+   AVarf->AddHDGFaceIntegrator(
       new HDGFaceIntegratorAdvection(advection));
 
    GridFunction ubar(Uhbar_space);
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
 
       // Compute and Finalize the Schur complement
       GridFunction *F = new GridFunction(Uh_space, rhs_F);
-      AVarf->AssembleSC(*F, memA, memB);
+      AVarf->AssembleSC(F, memA, memB);
       AVarf->Finalize();
 
       SparseMatrix *SC = AVarf->SpMatSC();

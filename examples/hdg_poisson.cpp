@@ -181,8 +181,8 @@ int main(int argc, char *argv[])
    FiniteElementCollection *face(new DG_Interface_FECollection(order, dim));
 
    // Finite element spaces:
-   // V_space is the scalar DG space on elements for u_h
-   // W_space is the vector valued DG space on elements for q_h
+   // V_space is the vector valued DG space on elements for q_h
+   // W_space is the scalar DG space on elements for u_h
    // M_space is the DG space on faces for lambda_h
    FiniteElementSpace *V_space = new FiniteElementSpace(mesh, dg_coll, dim);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, dg_coll);
@@ -199,9 +199,9 @@ int main(int argc, char *argv[])
    double tau_D = 5.0;
 
    // 6. Define the different forms and gridfunctions.
-   HDGBilinearForm3 *AVarf(new HDGBilinearForm3(V_space, W_space, M_space));
+   HDGBilinearForm *AVarf(new HDGBilinearForm(V_space, W_space, M_space));
    AVarf->AddHDGDomainIntegrator(new HDGDomainIntegratorDiffusion(diffusion));
-   AVarf->AddHDGBdrIntegrator(new HDGFaceIntegratorDiffusion(tau_D));
+   AVarf->AddHDGFaceIntegrator(new HDGFaceIntegratorDiffusion(tau_D));
 
    GridFunction lambda_variable(M_space);
    GridFunction q_variable(V_space), u_variable(W_space);
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
 
       GridFunction *R = new GridFunction(V_space, rhs_R);
       GridFunction *F = new GridFunction(W_space, rhs_F);
-      AVarf->AssembleSC(*R, *F, ess_bdr, lambda_variable, memA, memB);
+      AVarf->AssembleSC(R, F, ess_bdr, lambda_variable, memA, memB);
       AVarf->Finalize();
 
       SparseMatrix* SC = AVarf->SpMatSC();
@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
 
       // 11. Reconstruction
       // Reconstruct the solution u and q from the facet solution lambda
-      AVarf->Reconstruct(R, F, lambda_variable, &q_variable, &u_variable);
+      AVarf->Reconstruct(R, F, &lambda_variable, &q_variable, &u_variable);
 
       // 12. Compute the discretization error
       int order_quad = max(2, 2*order+2);
