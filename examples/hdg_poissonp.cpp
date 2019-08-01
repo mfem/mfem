@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
 
 #ifdef MFEM_USE_PETSC
    // We initialize PETSc
-   PetscInitialize(NULL,NULL,petscrc_file,NULL);
+   MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
 #endif
 
 #ifndef MFEM_USE_PETSC
@@ -607,7 +607,7 @@ int main(int argc, char *argv[])
    }
 
 #ifdef MFEM_USE_PETSC
-   PetscFinalize();
+   MFEMFinalizePetsc();
 #endif
    MPI_Finalize();
 
