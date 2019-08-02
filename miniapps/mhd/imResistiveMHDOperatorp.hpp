@@ -32,7 +32,7 @@ private:
    HypreParMatrix &Mmat, &Kmat, *DRematpr, *DSlmatpr;
    //own by this:
    HypreParMatrix *Mdtpr, *ARe, *ASl;
-   HypreParMatrix *ScFull, *AReFull, *NbFull;
+   mutable HypreParMatrix *ScFull, *AReFull, *NbFull;
    bool initialMdt, useFull;
    HypreParVector *E0Vec;
    ParGridFunction *j0;
@@ -43,6 +43,7 @@ private:
    double dt, dtOld;
    const Vector *phi, *psi, *w;
    const Array<int> &ess_tdof_list;
+   const Array<int> &ess_bdr;
 
    mutable ParGridFunction phiGf, psiGf;
    mutable ParBilinearForm *Nv, *Nb;
@@ -54,7 +55,8 @@ public:
                          ParBilinearForm *M_, HypreParMatrix &Mmat_,
                          ParBilinearForm *K_, HypreParMatrix &Kmat_,
                          ParBilinearForm *KB_, ParBilinearForm *DRe_, ParBilinearForm *DSl_,
-                         CGSolver *M_solver_, const Array<int> &ess_tdof_list_);
+                         CGSolver *M_solver_, const Array<int> &ess_tdof_list_,
+                         const Array<int> &ess_bdr_);
 
    ReducedSystemOperator(ParFiniteElementSpace &f,
                          ParBilinearForm *M_, HypreParMatrix &Mmat_,
@@ -63,7 +65,7 @@ public:
                          ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
                          ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
                          CGSolver *M_solver_, const Array<int> &ess_tdof_list_,
-                         bool useFull_);
+                         const Array<int> &ess_bdr_, bool useFull_);
 
    /// Set current values - needed to compute action and Jacobian.
    void SetParameters(double dt_, const Vector *phi_, const Vector *psi_, const Vector *w_)
@@ -300,10 +302,10 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
    for (int j = 0; j<iter; j++)
    {
       if (j==0)
-          VecCopy(b, bhat)
+          VecCopy(b, bhat);
       else 
       {
-          VecPointMult(bhat,diag,y0);
+          VecPointwiseMult(bhat,diag,y0);
           VecAXPY(bhat, 1.0, b);
           VecScale(bhat, -1.0);
           MatMultAdd(sub[0][0], y0, bhat, bhat);
@@ -334,11 +336,11 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
    VecRestoreSubVector(*Y,index_set[1],&y1);
    VecRestoreSubVector(*Y,index_set[2],&y2);
 
-   VecDestroy(b);
-   VecDestroy(bhat); 
-   VecDestroy(diag);
-   VecDestroy(rhs);
-   VecDestroy(tmp);
+   VecDestroy(&b);
+   VecDestroy(&bhat); 
+   VecDestroy(&diag);
+   VecDestroy(&rhs);
+   VecDestroy(&tmp);
 
    X->ResetArray();
    Y->ResetArray();
@@ -616,15 +618,15 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
 
       bool useFull = false;
       reduced_oper  = new ReducedSystemOperator(f, M, Mmat, K, Kmat,
-                         KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, ess_tdof_list, useFull);
+                         KB, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, 
+                         ess_tdof_list, ess_bdr, useFull);
 
       const double rel_tol=1.e-8;
       pnewton_solver = new PetscNonlinearSolver(f.GetComm(),*reduced_oper);
       if (use_factory)
       {
          //we should set ksptype as preonly here:
-         SNES snes;
-         snes=pnewton_solver.SNES();
+         SNES snes=SNES(*pnewton_solver);
          KSP ksp; 
 		 SNESGetKSP(snes,&ksp);
 		 KSPSetType(ksp,KSPPREONLY);
@@ -681,10 +683,6 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector dphi_dt(dvx_dt.GetData() +   0, sc);
    Vector dpsi_dt(dvx_dt.GetData() +  sc, sc);
    Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
-
-   //for (int i=0; i<ess_tdof_list.Size(); i++)
-   //    cout<<j(ess_tdof_list[i])<<" "<<ess_tdof_list[i]<<" "; //set homogeneous Dirichlet condition by hand
-   //cout<<endl<<"j size is "<<j.Size()<<endl;
 
    /*
    //compute the current as an auxilary variable
@@ -833,13 +831,12 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *K_, HypreParMatrix &Kmat_,
    ParBilinearForm *KB_, ParBilinearForm *DRe_, ParBilinearForm *DSl_,
    CGSolver *M_solver_,
-   const Array<int> &ess_tdof_list_)
+   const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), 
-     initialMdt(false),
-     E0Vec(NULL), M_solver(M_solver_),
-     dt(0.0), dtOld(0.0), 
-     phi(NULL), psi(NULL), w(NULL), ess_tdof_list(ess_tdof_list_),
+     initialMdt(false), E0Vec(NULL), M_solver(M_solver_),
+     dt(0.0), dtOld(0.0), phi(NULL), psi(NULL), w(NULL), 
+     ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_),
      Nv(NULL), Nb(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
     //this is not right because Mdtpr shares the same matrix with Mmat_
@@ -866,13 +863,13 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    ParBilinearForm *DRe_, HypreParMatrix *DRemat_,
    ParBilinearForm *DSl_, HypreParMatrix *DSlmat_,
    CGSolver *M_solver_,const Array<int> &ess_tdof_list_,
-   bool useFull_)
+   const Array<int> &ess_bdr_, bool useFull_)
    : Operator(3*f.TrueVSize()), fespace(f), 
      M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), 
      initialMdt(false),
      E0Vec(NULL), M_solver(M_solver_), useFull(useFull_),
-     dt(0.0), dtOld(0.0), 
-     phi(NULL), psi(NULL), w(NULL), ess_tdof_list(ess_tdof_list_),
+     dt(0.0), dtOld(0.0), phi(NULL), psi(NULL), w(NULL), 
+     ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_),
      Nv(NULL), Nb(NULL), Jacobian(NULL), z(height/3), zFull(f.GetVSize())
 { 
     Mdtpr = new HypreParMatrix(Mmat_);
@@ -905,6 +902,8 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
 
 Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 {
+   MFEM_ASSERT(initialMdt, "Mdt not initialized correctly!"); 
+
    if (useFull)
    {
        delete Jacobian;
@@ -923,7 +922,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        MyCoefficient velocity(&phiGf, 2);   //we update velocity
        Nv->AddDomainIntegrator(new ConvectionIntegrator(velocity));
        Nv->Assemble(); 
-       Nv->EliminateEssentialBC(ess_bdr, DIAG_ZERO);
+       Nv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
        Nv->Finalize();
        AReFull = Nv->ParallelAssemble();
 
@@ -941,7 +940,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        MyCoefficient Bfield(&psiGf, 2);   //we update B
        Nb->AddDomainIntegrator(new ConvectionIntegrator(Bfield));
        Nb->Assemble();
-       Nb->EliminateEssentialBC(ess_bdr, DIAG_ZERO);
+       Nb->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
        Nb->Finalize();
        NbFull = Nb->ParallelAssemble();
 
@@ -971,16 +970,11 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
    {
       if (Jacobian == NULL)    //in the first pass we just set Jacobian once
       {
-         MFEM_ASSERT(initialMdt, "Mdt not initialized correctly!"); 
-         
-         else
-         {
-             Jacobian = new BlockOperator(block_trueOffsets);
-             Jacobian->SetBlock(0,0,&Kmat);
-             Jacobian->SetBlock(0,2,&Mmat);
-             Jacobian->SetBlock(1,1,Mdtpr);
-             Jacobian->SetBlock(2,2,Mdtpr);
-         }
+         Jacobian = new BlockOperator(block_trueOffsets);
+         Jacobian->SetBlock(0,0,&Kmat);
+         Jacobian->SetBlock(0,2,&Mmat);
+         Jacobian->SetBlock(1,1,Mdtpr);
+         Jacobian->SetBlock(2,2,Mdtpr);
       }
    }
 

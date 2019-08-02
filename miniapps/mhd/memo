@@ -33,6 +33,80 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 1 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+7/29
+1. try useFull=false first
+
+7/13
+in GetGradient:
+assemble Nv and Nb (let diag = 0)
+construct Sc = ASl + Nb^T D^-1 Nb: follow ex5p
+   M->GetDiag(*Md);
+   MinvBt->InvScaleRows(*Md); 
+and pass
+ARe Nb 0
+0   Sc 0
+K   0  M
+
+there is something wrong in the Jacobi iteration:
+missed one right hand side!
+missed the correction for the second equation in my Jacobi iteration!
+
+Save Mdt+KSl and Mdt+KRe; adjust only when timestep is changed
+
+working example:
+mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -tf 1 -dt .001 -usepetsc --petscopts rc_jfnk -s 1 -shell
+vs
+mpirun -n 4 imMHDp -rs 4 -o 2 -i 2 -tf 1 -dt .001 -s 2 
+
+6/24
+working on full preconditioner: follow ex5p.cpp
+
+option 1:
+GetDiag for M/dt+SRe and GetGiag for Nv
+option 2:
+use MatGetDiagonal (eaiser)
+DRe and DSl are assembled in parallel
+
+Step 1: Try this instead (this will give me HypreParMat for diffusion operartor):
+   S0->Assemble();
+   S0->EliminateEssentialBC(ess_bdr);
+   S0->Finalize();
+   HypreParMatrix * matS0   = S0->ParallelAssemble();    delete S0;
+
+Mult (HypreParVector &x, HypreParVector &y, double alpha=1.0, double beta=0.0)
+   y = alpha * A * x + beta * y
+So addMult should be
+matS0.Mult( x, y, 1.0, 1.0)
+
+then delete DSl DRe
+
+>>>tried but this is not going to work because ParallelAssemble removes all the terms w.r.t essential dofs
+>>>However, this should not affect the preconditioner
+
+Step 2: double check notes; ok
+Step 3: build two operators and add capibility of changing time step (variable time stepping is left for later)
+Step 4: implement Jacobi iteration in pcshell
+
+
+Nb->ParallelAssemble;
+Md = new HypreParVector(MPI_COMM_WORLD, Nb->GetGlobalNumRows(),
+                              Nb->GetRowStarts());
+HypreParVector *Md = NULL;
+M->GetDiag(*Md);
+MinvBt->InvScaleRows(*Md);
+S = ParMult(B, MinvBt);
+
+the only question is Jacobi iteration. Maybe, I could rescale in pcshell
+Yes, use VecPointwiseDivide to implemented Diag_Re
+
+There are two ways to build Schur complement: in mfem or petsc. I will build it in mfem for now
+
+How many Jacobi iterations? fixed of 2-4 (no need to set stoppage)
+What would be a good stoppage critera for Jacobi iteration?
+
+Be careful for the negative signs in the preconditioner!
+Should I do something special for the boundary? 
+
 6/16
 the explicit and implicit solvers are comparable with pcshell:
 (this uses a very bad linear solver, so it converges very slow)
