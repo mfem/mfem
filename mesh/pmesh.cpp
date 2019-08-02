@@ -149,6 +149,47 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       else
       {
          partitioning = mesh.GeneratePartitioning(NRanks, part_method);
+         if (mesh.Dim == 4 && mesh.is_reflected)
+         {
+            // modify the partioning such that all childs of one orginial element are on the same processor
+            // Assumptions:
+            //    - mesh has been only once subdivided to obtain reflected neighbors
+            //    - no element reordering
+            int NumOfSuperElements = mesh.NumOfElements / 60;
+            Array<int> elem_per_proc(NRanks), num_procs;
+            for (int i = 0; i < NumOfSuperElements; ++i)
+            {
+//               //printf("superElement[%d]: ", i);
+               elem_per_proc = 0;
+               num_procs.SetSize(0);
+               elem_per_proc[partitioning[i]]++;
+               for (int j = 0; j < 59; ++j)
+               {
+                  elem_per_proc[partitioning[NumOfSuperElements + i*59 + j]]++;
+               }
+               int maxElem = 0, maxElemProc = 0;
+               for (int p = 0; p < NRanks; p++)
+               {
+//                  //printf("proc %d: %d Elements ", p, elem_per_proc[p]);
+                  if (elem_per_proc[p] > maxElem)
+                  {
+                     maxElem = elem_per_proc[p];
+                     maxElemProc = p;
+                  }
+                  if (elem_per_proc[p] > 0)
+                     num_procs.Append(p);
+               }
+               if (num_procs.Size() > 1)
+               {
+//                  //printf("shuffling everthing to processor %d\n", maxElemProc);
+                  partitioning[i] = maxElemProc;
+                  for (int j = 0; j < 59; ++j)
+                  {
+                     partitioning[NumOfSuperElements + i*59 + j] = maxElemProc;
+                  }
+               }
+            }
+         }
       }
 
       // re-enumerate the partitions to better map to actual processor
@@ -595,7 +636,7 @@ int ParMesh::FindSharedPlanars(const Mesh &mesh, const int *partitioning,
          }
       }
    }
-   //   cout << "shared planars: " << splan_counter << endl;
+//      cout << "shared planars: " << splan_counter << endl;
    return splan_counter;
 }
 
@@ -959,7 +1000,7 @@ void ParMesh::BuildSharedFaceElems4D(int ntet_faces, int nhex_faces,
       {
          case Element::TETRAHEDRON:
          {
-            shared_tetra[stetr_counter].Set(fv);
+            shared_tetra[stetr_counter].Set(fv, 2);
             int *v = shared_tetra[stetr_counter].v;
             for (int j = 0; j <4 ; j++) { v[j] = vert_global_local[v[j]]; }
             sface_lface[stetr_counter] =
@@ -2770,6 +2811,201 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
    if (Dim == 4)
    {
+      int uniform_refinement = 1;
+      if (type < 0)
+      {
+         type = -type;
+         uniform_refinement = 1;
+      }
+
+      // 1. Hash table of vertex to vertex connections corresponding to refined
+      //    edges.
+      HashTable<Hashed2> v_to_v;
+
+      // 2. Do the red refinement.
+      for (int i = 0; i < marked_el.Size(); i++)
+      {
+         Bisection(marked_el[i], v_to_v);
+      }
+
+      // 3. Do the green refinement (to get conforming mesh).
+      int need_refinement;
+      int max_faces_in_group = 0;
+      // face_splittings identify how the shared faces have been split
+      Array<unsigned> *face_splittings = new Array<unsigned>[GetNGroups()-1];
+      for (int i = 0; i < GetNGroups()-1; i++)
+      {
+         const int faces_in_group = GroupNTetrahedra(i+1);
+         face_splittings[i].Reserve(faces_in_group);
+         if (faces_in_group > max_faces_in_group)
+         {
+            max_faces_in_group = faces_in_group;
+         }
+      }
+
+      int neighbor;
+      Array<unsigned> iBuf(max_faces_in_group);
+
+      MPI_Request *requests = new MPI_Request[GetNGroups()-1];
+      MPI_Status  status;
+
+#ifdef MFEM_DEBUG_PARMESH_LOCALREF
+      int ref_loops_all = 0, ref_loops_par = 0;
+#endif
+      do
+      {
+         need_refinement = 0;
+         for (int i = 0; i < NumOfElements; i++)
+         {
+            if (elements[i]->NeedRefinement(v_to_v))
+            {
+               need_refinement = 1;
+               Bisection(i, v_to_v);
+            }
+         }
+#ifdef MFEM_DEBUG_PARMESH_LOCALREF
+         ref_loops_all++;
+#endif
+
+         if (uniform_refinement)
+         {
+            continue;
+         }
+
+         // if the mesh is locally conforming start making it globally
+         // conforming
+         if (need_refinement == 0)
+         {
+#ifdef MFEM_DEBUG_PARMESH_LOCALREF
+            ref_loops_par++;
+#endif
+            // MPI_Barrier(MyComm);
+            const int tag = 293;
+
+            // (a) send the type of interface splitting
+            int req_count = 0;
+            for (int i = 0; i < GetNGroups()-1; i++)
+            {
+               const int *group_faces = group_stria.GetRow(i);
+               const int faces_in_group = group_stria.RowSize(i);
+               // it is enough to communicate through the faces
+               if (faces_in_group == 0) { continue; }
+
+               face_splittings[i].SetSize(0);
+               for (int j = 0; j < faces_in_group; j++)
+               {
+                  GetFaceSplittings(shared_trias[group_faces[j]].v, v_to_v,
+                                    face_splittings[i]);
+               }
+               const int *nbs = gtopo.GetGroup(i+1);
+               neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
+               MPI_Isend(face_splittings[i], face_splittings[i].Size(),
+                         MPI_UNSIGNED, neighbor, tag, MyComm,
+                         &requests[req_count++]);
+            }
+
+            // (b) receive the type of interface splitting
+            for (int i = 0; i < GetNGroups()-1; i++)
+            {
+               const int *group_faces = group_stria.GetRow(i);
+               const int faces_in_group = group_stria.RowSize(i);
+               if (faces_in_group == 0) { continue; }
+
+               const int *nbs = gtopo.GetGroup(i+1);
+               neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
+               MPI_Probe(neighbor, tag, MyComm, &status);
+               int count;
+               MPI_Get_count(&status, MPI_UNSIGNED, &count);
+               iBuf.SetSize(count);
+               MPI_Recv(iBuf, count, MPI_UNSIGNED, neighbor, tag, MyComm,
+                        MPI_STATUS_IGNORE);
+
+               for (int j = 0, pos = 0; j < faces_in_group; j++)
+               {
+                  const int *v = shared_trias[group_faces[j]].v;
+                  need_refinement |= DecodeFaceSplittings(v_to_v, v, iBuf, pos);
+               }
+            }
+
+            int nr = need_refinement;
+            MPI_Allreduce(&nr, &need_refinement, 1, MPI_INT, MPI_LOR, MyComm);
+
+            MPI_Waitall(req_count, requests, MPI_STATUSES_IGNORE);
+         }
+      }
+      while (need_refinement == 1);
+
+#ifdef MFEM_DEBUG_PARMESH_LOCALREF
+      {
+         int i = ref_loops_all;
+         MPI_Reduce(&i, &ref_loops_all, 1, MPI_INT, MPI_MAX, 0, MyComm);
+         if (MyRank == 0)
+         {
+            mfem::out << "\n\nParMesh::LocalRefinement : max. ref_loops_all = "
+                      << ref_loops_all << ", ref_loops_par = " << ref_loops_par
+                      << '\n' << endl;
+         }
+      }
+#endif
+
+      delete [] requests;
+      iBuf.DeleteAll();
+      delete [] face_splittings;
+
+      // 4. Update the boundary elements.
+      do
+      {
+         need_refinement = 0;
+         for (int i = 0; i < NumOfBdrElements; i++)
+         {
+            if (boundary[i]->NeedRefinement(v_to_v))
+            {
+               need_refinement = 1;
+               BdrBisection(i, v_to_v);
+            }
+         }
+      }
+      while (need_refinement == 1);
+
+      if (NumOfBdrElements != boundary.Size())
+      {
+         mfem_error("ParMesh::LocalRefinement :"
+                    " (NumOfBdrElements != boundary.Size())");
+      }
+
+      swappedElements.SetSize(NumOfElements, false);
+
+      DeleteLazyTables();
+
+      const int old_nv = NumOfVertices;
+      NumOfVertices = vertices.Size();
+
+//      if (MyRank == 0)
+//      {
+//      for (auto iter = v_to_v.begin(); iter != v_to_v.end(); iter.operator ++())
+//      {
+//         printf("v_to_v(%d) : %d - %d\n", old_nv+iter.index(), (*iter).p1, (*iter).p2);
+//      }
+//      }
+
+      RefineGroups4D(old_nv, v_to_v); // FIXME
+
+      // 5. Update the groups after refinement.
+      if (el_to_face != NULL)
+      {
+         GetElementToFaceTable4D();
+         GenerateFaces();
+
+         GetElementToPlanarTable();
+         GeneratePlanars();
+      }
+
+      // 6. Update element-to-edge relations.
+      if (el_to_edge != NULL)
+      {
+         NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+      }
+#if 0 // Freudenthal
       // 1. Get table of vertex to vertex connections.
       HashTable<Hashed2> v_to_v;
 
@@ -2793,7 +3029,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 5a. Update the groups after refinement.
       if (el_to_face != NULL)
       {
-         RefineGroups4D(old_nv, v_to_v);
+         UniformRefineGroups4D_Freudenthal(old_nv, v_to_v);
          //         GetElementToFaceTable4D(); // Called by RefineGroups
          GenerateFaces();
 
@@ -2809,6 +3045,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       {
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
       }
+
+#endif
    } //  'if (Dim == 4)'
    else if (Dim == 3)
    {
@@ -3517,8 +3755,8 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
    group_sedge.SetIJ(I_group_sedge, J_group_sedge);
 }
 
-void ParMesh::RefineGroups4D(int old_nv,
-                             const HashTable<Hashed2> &v_to_v) // TODO write just for 4D
+void ParMesh::UniformRefineGroups4D_Freudenthal(int old_nv,
+                             const HashTable<Hashed2> &v_to_v)
 {
    MFEM_ASSERT(Dim == 4 && meshgen == 1, "internal error");
 
@@ -3884,6 +4122,349 @@ void ParMesh::RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v)
    I_group_stria.LoseData(); J_group_stria.LoseData();
 }
 
+void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
+{
+   // Refine groups after LocalRefinement in 4D (pentatope meshes)
+
+   MFEM_ASSERT(Dim == 4 && meshgen == 1, "internal error");
+
+   Array<int> group_verts, group_edges, group_trias, group_tetra;
+
+   // To update the groups after a refinement, we observe that:
+   // - every (new and old) vertex, edge and face belongs to exactly one group
+   // - the refinement does not create new groups
+   // - a new vertex appears only as the middle of a refined edge
+   // - a face can be refined multiple times producing new edges and faces
+
+   Array<Segment *> sedge_stack;
+   Array<Vert3> splan_stack;
+   Array<Vert4> sface_stack;
+
+   Array<int> I_group_svert, J_group_svert;
+   Array<int> I_group_sedge, J_group_sedge;
+   Array<int> I_group_stria, J_group_stria;
+   Array<int> I_group_stets, J_group_stets;
+
+   I_group_svert.SetSize(GetNGroups());
+   I_group_sedge.SetSize(GetNGroups());
+   I_group_stria.SetSize(GetNGroups());
+   I_group_stets.SetSize(GetNGroups());
+
+   I_group_svert[0] = 0;
+   I_group_sedge[0] = 0;
+   I_group_stria[0] = 0;
+   I_group_stets[0] = 0;
+
+   for (int group = 0; group < GetNGroups()-1; group++)
+   {
+      // Get the group shared objects
+      group_svert.GetRow(group, group_verts);
+      group_sedge.GetRow(group, group_edges);
+      group_stria.GetRow(group, group_trias);
+      group_stetr.GetRow(group, group_tetra);
+      //printf("before: nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
+
+      // Check which edges have been refined
+      for (int i = 0; i < group_sedge.RowSize(group); i++)
+      {
+         int *v = shared_edges[group_edges[i]]->GetVertices();
+         int ind = v_to_v.FindId(v[0], v[1]);
+         if (ind == -1) { continue; }
+
+         // This shared edge is refined: walk the whole refinement tree
+         const int attr = shared_edges[group_edges[i]]->GetAttribute();
+         do
+         {
+            ind += old_nv;
+            // Add new shared vertex
+            group_verts.Append(svert_lvert.Append(ind)-1);
+            // Put the right sub-edge on top of the stack
+            sedge_stack.Append(new Segment(ind, v[1], attr));
+            // The left sub-edge replaces the original edge
+            v[1] = ind;
+            ind = v_to_v.FindId(v[0], ind);
+         }
+         while (ind != -1);
+         // Process all edges in the edge stack
+         do
+         {
+            Segment *se = sedge_stack.Last();
+            v = se->GetVertices();
+            ind = v_to_v.FindId(v[0], v[1]);
+            if (ind == -1)
+            {
+               // The edge 'se' is not refined
+               sedge_stack.DeleteLast();
+               // Add new shared edge
+               shared_edges.Append(se);
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+            }
+            else
+            {
+               // The edge 'se' is refined
+               ind += old_nv;
+               // Add new shared vertex
+               group_verts.Append(svert_lvert.Append(ind)-1);
+               // Put the left sub-edge on top of the stack
+               sedge_stack.Append(new Segment(v[0], ind, attr));
+               // The right sub-edge replaces the original edge
+               v[0] = ind;
+            }
+         }
+         while (sedge_stack.Size() > 0);
+      }
+      //printf("edges: nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
+
+      // Check which triangles have been refined
+      for (int i = 0; i < group_stria.RowSize(group); i++)
+      {
+         int *v = shared_trias[group_trias[i]].v;
+         int ind = v_to_v.FindId(v[0], v[2]);
+         int lplan = splan_lplan[group_trias[i]];
+
+//         if (MyRank == 0)
+            //printf("st=%d (%d): (%d, %d, %d)\n", group_trias[i], lplan, v[0], v[1], v[2]);
+         if (ind == -1)
+         {
+            // we may not have the right ordering, rotate the vertices to the left
+            swap(v[0], v[2]); swap(v[1], v[2]);
+            ind = v_to_v.FindId(v[0], v[2]);
+            if (ind == -1)
+            {
+               // still no luck, try again
+               swap(v[0], v[2]); swap(v[1], v[2]);
+               ind = v_to_v.FindId(v[0], v[2]);
+               if (ind == -1)
+               {
+                  // triangle was not refined, restore original ordering
+                  swap(v[0], v[2]); swap(v[1], v[2]);
+                  continue;
+               }
+            }
+         }
+
+         // This shared planar is refined: walk the whole refinement tree
+         const int edge_attr = 1;
+         do
+         {
+            ind += old_nv;
+            // Add the refinement edge to the edge stack
+            sedge_stack.Append(new Segment(v[1], ind, edge_attr));
+            // Put the upper sub-triangle on top of the planar stack
+            splan_stack.Append(Vert3(v[2], ind, v[1]));
+            // The lower sub-triangle replaces the original one
+            v[2] = v[1]; v[1] = ind;
+            ind = v_to_v.FindId(v[0], v[2]);
+         }
+         while (ind != -1);
+         // Process all planars (triangles) in the planar stack
+         do
+         {
+            Vert3 &sp = splan_stack.Last();
+            v = sp.v;
+            ind = v_to_v.FindId(v[0], v[2]);
+            if (ind == -1)
+            {
+               // The triangle 'sp' is not refined
+               // Add new shared face
+               shared_trias.Append(sp);
+               group_trias.Append(splan_lplan.Append(-1)-1);
+               splan_stack.DeleteLast();
+            }
+            else
+            {
+               // The triangle 'sp' is refined
+               ind += old_nv;
+               // Add the refinement edge to the edge stack
+               sedge_stack.Append(new Segment(v[1], ind, edge_attr));
+               // Put the lower sub-triangle on top of the planar stack
+               splan_stack.Append(Vert3(v[0], ind, v[1]));
+               // Note that the above Append() may invalidate 'v'
+               v = splan_stack[splan_stack.Size()-2].v;
+               // The upper sub-triangle replaces the original one
+               v[0] = v[2]; v[2] = v[1]; v[1] = ind;
+            }
+         }
+         while (splan_stack.Size() > 0);
+         // Process all edges in the edge stack (same code as above)
+         do
+         {
+            Segment *se = sedge_stack.Last();
+            v = se->GetVertices();
+            ind = v_to_v.FindId(v[0], v[1]);
+            if (ind == -1)
+            {
+               // The edge 'se' is not refined
+               sedge_stack.DeleteLast();
+               // Add new shared edge
+               shared_edges.Append(se);
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+            }
+            else
+            {
+               // The edge 'se' is refined
+               ind += old_nv;
+               // Add new shared vertex
+               group_verts.Append(svert_lvert.Append(ind)-1);
+               // Put the left sub-edge on top of the stack
+               sedge_stack.Append(new Segment(v[0], ind, edge_attr));
+               // The right sub-edge replaces the original edge
+               v[0] = ind;
+            }
+         }
+         while (sedge_stack.Size() > 0);
+      }
+      //printf("planars: nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
+
+      // TODO faces (Pls kill me!)
+      // Check which tetrahedra have been refined
+      for (int i = 0; i < group_stetr.RowSize(group); i++)
+      {
+         char tag = shared_tetra[group_tetra[i]].tag;
+         int *v = shared_tetra[group_tetra[i]].v;
+         int ind = v_to_v.FindId(v[0], v[3]);
+         if (ind == -1) { continue; }
+
+         // This shared face is refined: walk the whole refinement tree
+         const int edge_attr = 1;
+         do
+         {
+            ind += old_nv;
+            // Add the interior refinement triangle to the planar stack
+            splan_stack.Append(Vert3(ind, v[1], v[2])); // TODO check if orientation matters
+            // TODO see if interior faces need to be tagged correctly
+            // Put the upper sub-tetrahedron on top of the face stack
+            if (tag > 0)
+               sface_stack.Append(Vert4(v[3], ind, v[1], v[2], (tag+1) % 3));
+            else
+               sface_stack.Append(Vert4(v[3], ind, v[2], v[1], (tag+1) % 3));
+            // The lower sub-tetrahedron replaces the original one
+            v[3] = v[2]; v[2] = v[1]; v[1] = ind;
+            shared_tetra[group_tetra[i]].tag = (tag+1) % 3;
+            ind = v_to_v.FindId(v[0], v[3]);
+         }
+         while (ind != -1);
+         // Process all faces (tetrahedrons) in the face stack
+         do
+         {
+            Vert4 &sf = sface_stack.Last();
+            v = sf.v;
+            tag = sf.tag;
+            ind = v_to_v.FindId(v[0], v[3]);
+            if (ind == -1)
+            {
+               // The tetrahedron 'sf' is not refined
+               // Add new shared face
+               shared_tetra.Append(sf);
+               group_tetra.Append(sface_lface.Append(-1)-1);
+               sface_stack.DeleteLast();
+            }
+            else
+            {
+               // The tetrahedron 'sf' is refined
+               ind += old_nv;
+               // Add the interior refinement triangle to the planar stack
+               splan_stack.Append(Vert3(ind, v[1], v[2])); // TODO check if orientation matters
+               // Put the lower sub-tetrahedron on top of the face stack
+               sface_stack.Append(Vert4(v[0], ind, v[1], v[2], (tag + 1) % 3)); // TODO continue here!
+               // Note that the above Append() may invalidate 'v'
+               v = sface_stack[sface_stack.Size()-2].v;
+               // The upper sub-triangle replaces the original one
+               v[0] = v[3];
+               if (tag > 0)
+               {
+                  v[3] = v[2]; v[2] = v[1]; v[1] = ind;
+               }
+               else
+               {
+                  v[3] = v[1]; v[1] = ind; // v[2] stays
+               }
+               sface_stack[sface_stack.Size()-2].tag = (tag + 1) % 3;
+            }
+         }
+         while (sface_stack.Size() > 0);
+         // Process all planars (triangles) in the planar stack
+         do
+         {
+            Vert3 &sp = splan_stack.Last();
+            v = sp.v;
+            ind = v_to_v.FindId(v[0], v[2]);
+            if (ind == -1)
+            {
+               // The triangle 'sp' is not refined
+               // Add new shared face
+               shared_trias.Append(sp);
+               group_trias.Append(splan_lplan.Append(-1)-1);
+               splan_stack.DeleteLast();
+            }
+            else
+            {
+               // The triangle 'sp' is refined
+               ind += old_nv;
+               // Add the refinement edge to the edge stack
+               sedge_stack.Append(new Segment(v[1], ind, edge_attr));
+               // Put the lower sub-triangle on top of the planar stack
+               splan_stack.Append(Vert3(v[0], ind, v[1]));
+               // Note that the above Append() may invalidate 'v'
+               v = splan_stack[splan_stack.Size()-2].v;
+               // The upper sub-triangle replaces the original one
+               v[0] = v[2]; v[2] = v[1]; v[1] = ind;
+            }
+         }
+         while (splan_stack.Size() > 0);
+         // Process all edges in the edge stack (same code as above)
+         while (sedge_stack.Size() > 0)
+         {
+            Segment *se = sedge_stack.Last();
+            v = se->GetVertices();
+            ind = v_to_v.FindId(v[0], v[1]);
+            if (ind == -1)
+            {
+               // The edge 'se' is not refined
+               sedge_stack.DeleteLast();
+               // Add new shared edge
+               shared_edges.Append(se);
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+            }
+            else
+            {
+               // The edge 'se' is refined
+               ind += old_nv;
+               // Add new shared vertex
+               group_verts.Append(svert_lvert.Append(ind)-1);
+               // Put the left sub-edge on top of the stack
+               sedge_stack.Append(new Segment(v[0], ind, edge_attr));
+               // The right sub-edge replaces the original edge
+               v[0] = ind;
+            }
+         }
+      }
+      //printf("faces: nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
+
+      I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
+      I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
+      I_group_stria[group+1] = I_group_stria[group] + group_trias.Size();
+      I_group_stets[group+1] = I_group_stets[group] + group_tetra.Size();
+
+      J_group_svert.Append(group_verts);
+      J_group_sedge.Append(group_edges);
+      J_group_stria.Append(group_trias);
+      J_group_stets.Append(group_tetra);
+   }
+   //printf("final: nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
+
+   FinalizeParTopo();
+
+   group_svert.SetIJ(I_group_svert, J_group_svert);
+   group_sedge.SetIJ(I_group_sedge, J_group_sedge);
+   group_stria.SetIJ(I_group_stria, J_group_stria);
+   group_stetr.SetIJ(I_group_stets, J_group_stets);
+   I_group_svert.LoseData(); J_group_svert.LoseData();
+   I_group_sedge.LoseData(); J_group_sedge.LoseData();
+   I_group_stria.LoseData(); J_group_stria.LoseData();
+   I_group_stets.LoseData(); J_group_stets.LoseData();
+}
+
 void ParMesh::UniformRefineGroups2D(int old_nv)
 {
    Array<int> sverts, sedges;
@@ -4075,6 +4656,7 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
       group_trias.CopyTo(J_group_stria + I_group_stria[group]);
       group_quads.CopyTo(J_group_squad + I_group_squad[group]);
    }
+   //printf("nstetr=%d, nstria=%d, nsedges=%d\n", shared_tetra.Size(), shared_trias.Size(), shared_edges.Size());
 
    FinalizeParTopo();
 

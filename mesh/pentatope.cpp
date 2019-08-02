@@ -119,6 +119,7 @@ Element *Pentatope::Duplicate(Mesh *m) const
    Pentatope *pent = new Pentatope;
    pent->SetVertices(indices);
    pent->SetAttribute(attribute);
+   pent->SetSimplexType(type);
    return pent;
 }
 

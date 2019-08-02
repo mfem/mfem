@@ -50,13 +50,14 @@ protected:
    struct Vert4
    {
       int v[4];
-      Vert4() { }
-      Vert4(int v0, int v1, int v2, int v3)
-      { v[0] = v0; v[1] = v1; v[2] = v2; v[3] = v3; }
+      char tag;
+      Vert4() { tag = 0; }
+      Vert4(int v0, int v1, int v2, int v3, char _tag = 0)
+      { v[0] = v0; v[1] = v1; v[2] = v2; v[3] = v3; tag = _tag; }
       void Set(int v0, int v1, int v2, int v3)
       { v[0] = v0; v[1] = v1; v[2] = v2; v[3] = v3; }
-      void Set(const int *w)
-      { v[0] = w[0]; v[1] = w[1]; v[2] = w[2]; v[3] = w[3]; }
+      void Set(const int *w, char _tag = 0)
+      { v[0] = w[0]; v[1] = w[1]; v[2] = w[2]; v[3] = w[3]; tag = _tag;}
    };
 
    Array<Element *> shared_edges;
@@ -120,6 +121,7 @@ protected:
    void RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v);
 
    void RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v);
+   void UniformRefineGroups4D_Freudenthal(int old_nv, const HashTable<Hashed2> &v_to_v);
 
    void UniformRefineGroups2D(int old_nv);
 

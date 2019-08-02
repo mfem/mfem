@@ -6219,7 +6219,7 @@ void Mesh::ReorientTetMesh()
 
 void Mesh::ReplaceBoundaryFromFaces()
 {
-   swappedBdr.SetSize(NumOfBdrElements);
+   swappedBdr.SetSize(NumOfBdrElements, false);
    for (int i = 0; i < NumOfBdrElements; i++)
    {
       int faceID = be_to_face[i];
@@ -6229,8 +6229,8 @@ void Mesh::ReplaceBoundaryFromFaces()
       int NVertices = boundary[i]->GetNVertices();
       swappedBdr[i] = swappedFaces[faceID];
 
-      //    for(int k=0; k<NVertices; k++) cout << vBnd[k] << " "; cout << endl;
-      //    for(int k=0; k<NVertices; k++) cout << vFce[k] << " "; cout << endl << endl;
+//          for(int k=0; k<NVertices; k++) cout << vBnd[k] << " "; cout << endl;
+//          for(int k=0; k<NVertices; k++) cout << vFce[k] << " "; cout << endl << endl;
 
       for (int k=0; k<NVertices; k++) { vBnd[k] = vFce[k]; }
    }
@@ -8195,12 +8195,6 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       NumOfVertices = vertices.Size();
       NumOfBdrElements = boundary.Size(); //FIXME
-//      NumOfBdrElements = 0; //FIXME
-
-      ofstream file("refined.mesh");
-      Print(file);
-      file.close();
-
       // 5. Free the allocated memory.
 
       DeleteLazyTables();
@@ -8212,9 +8206,6 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       {
          GetElementToFaceTable4D();
          GenerateFaces();
-
-         //                 ReplaceBoundaryFromFaces();
-
          GetElementToPlanarTable();
          GeneratePlanars();
       }
