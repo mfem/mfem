@@ -74,7 +74,7 @@ public:
    //! Check if block (i,j) is a zero block
    int IsZeroBlock(int i, int j) const { return (op(i,j)==NULL) ? 1 : 0; }
    //! Return a reference to block i,j
-   Operator & GetBlock(int i, int j)
+   Operator & GetBlock(int i, int j) const
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
    //! Return the coefficient for block i,j
    double GetBlockCoef(int i, int j) const
@@ -85,8 +85,10 @@ public:
 
    //! Return the row offsets for block starts
    Array<int> & RowOffsets() { return row_offsets; }
+   const Array<int> & RowOffsets() const { return row_offsets; }
    //! Return the columns offsets for block starts
    Array<int> & ColOffsets() { return col_offsets; }
+   const Array<int> & ColOffsets() const { return col_offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
@@ -155,6 +157,7 @@ public:
 
    //! Return the offsets for block starts
    Array<int> & Offsets() { return offsets; }
+   const Array<int> & Offsets() const { return offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
