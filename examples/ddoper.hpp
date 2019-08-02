@@ -2710,7 +2710,8 @@ void SetSubdomainDofsFromDomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteE
 
 	  if (lsddof >= 0)
 	    {
-	      ssd[lsddof] = s_gf[dof_i];
+	      const double flip = ((dofs[i] >= 0 && sddofs[i] < 0) || (dofs[i] < 0 && sddofs[i] >= 0)) ? -1.0 : 1.0;
+	      ssd[lsddof] = s_gf[dof_i] * flip;
 	    }
 	}
     }
@@ -3262,7 +3263,7 @@ public:
 	globalInterfaceOp->SetBlock(sd1, sd0, complexBlock10);
 #endif
 
-#else
+#else // if DDMCOMPLEX is not defined
 	globalInterfaceOp->SetBlock(sd0, sd1, CreateInterfaceOperator(ili, 0));
 	globalInterfaceOp->SetBlock(sd1, sd0, CreateInterfaceOperator(ili, 1));
 #endif
@@ -3394,24 +3395,56 @@ public:
 	      {
 		HypreParMatrix *HypreAsdComplexRe = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsSD[m], AsdRe_HypreBlocks[m], AsdRe_HypreBlockCoef[m]);
 		HypreParMatrix *HypreAsdComplexIm = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsSD[m], AsdIm_HypreBlocks[m], AsdIm_HypreBlockCoef[m]);
+
 		ComplexHypreParMatrix tmpComplex(HypreAsdComplexRe, HypreAsdComplexIm, false, false);
 		HypreAsdComplex[m] = tmpComplex.GetSystemMatrix();
 
+		/*
+		{ // This should do the same as ComplexHypreParMatrix::GetSystemMatrix().
+		  Array<int> complexOS(3);  // number of blocks + 1
+		  complexOS = 0;
+		  for (int i=1; i<3; ++i)
+		    complexOS[i] = HypreAsdComplexRe->Height();
+		  
+		  complexOS.PartialSum();
+
+		  Array2D<double> complexCoef;
+		  Array2D<HypreParMatrix*> complexBlock;
+
+		  complexCoef.SetSize(2, 2);
+		  complexBlock.SetSize(2, 2);
+
+		  complexBlock(0, 0) = HypreAsdComplexRe;
+		  complexCoef(0, 0) = 1.0;
+
+		  complexBlock(0, 1) = HypreAsdComplexIm;
+		  complexCoef(0, 1) = -1.0;
+
+		  complexBlock(1, 0) = HypreAsdComplexIm;
+		  complexCoef(1, 0) = 1.0;
+
+		  complexBlock(1, 1) = HypreAsdComplexRe;
+		  complexCoef(1, 1) = 1.0;
+		  
+		  HypreAsdComplex[m] = CreateHypreParMatrixFromBlocks(sd_com[m], complexOS, complexBlock, complexCoef);
+		}
+		*/
+		
 		//if (m == 0) HypreAsdComplexRe->Print("HypreAsdComplexRe0_Par5");
 		//if (m == 0) HypreAsdComplexRe->Print("HypreAsdComplexRe0_Serial");
-		//if (m == 1) HypreAsdComplexRe->Print("HypreAsdComplexRe1_Par5");
+		//if (m == 1) HypreAsdComplexRe->Print("HypreAsdComplexRe1_Par6");
 		//if (m == 1) HypreAsdComplexRe->Print("HypreAsdComplexRe1_Serial");
 		//if (m == 0) HypreAsdComplexIm->Print("HypreAsdComplexIm0");
 		//if (m == 0) HypreAsdComplexIm->Print("HypreAsdComplexIm0_Serial");
 		//if (m == 1) HypreAsdComplexIm->Print("HypreAsdComplexIm1_Serial");
 		//if (m == 0) HypreAsdComplexIm->Print("HypreAsdComplexIm0_Par5");
-		//if (m == 1) HypreAsdComplexIm->Print("HypreAsdComplexIm1_Par5");
-		//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplex_Par3");
-		//if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplex_Serial");
+		//if (m == 1) HypreAsdComplexIm->Print("HypreAsdComplexIm1_Par6");
+		//if (m == 1) HypreAsdComplex[m]->Print("HypreAsdComplex_Par7");
+		//if (m == 1) HypreAsdComplex[m]->Print("HypreAsdComplex_Serial");
 		
 		invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
 	      }
-#else
+#else // if not HYPRE_PARALLEL_ASDCOMPLEX
 	    SpAsdComplex[m] = GetSparseMatrixFromOperator(AsdComplex[m]);
 	    SpAsdComplexRowSizes[m] = new HYPRE_Int[2];
 	    SpAsdComplexRowSizes[m][0] = 0;
@@ -3429,9 +3462,9 @@ public:
 	    HypreAsdComplex[m] = new HypreParMatrix(MPI_COMM_WORLD, SpAsdComplex[m]->Size(), SpAsdComplexRowSizes[m], SpAsdComplex[m]);  // constructor with 4 arguments, v1
 	    
 	    invAsdComplex[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreAsdComplex[m])), MPI_COMM_WORLD);
-#endif
+#endif // HYPRE_PARALLEL_ASDCOMPLEX
 	    //if (m == 0) HypreAsdComplex[m]->Print("HypreAsdComplex");
-#else
+#else // if not SPARSE_ASDCOMPLEX
 	    //GMRESSolver *gmres = new GMRESSolver(fespace[m]->GetComm());  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
 	    GMRESSolver *gmres = new GMRESSolver(MPI_COMM_WORLD);  // TODO: this communicator is not necessarily the same as the pmeshIF communicators. Does GMRES actually use the communicator?
 
@@ -3446,13 +3479,13 @@ public:
 	    gmres->iterative_mode = false;
 	    
 	    invAsdComplex[m] = gmres;
-#endif
+#endif // SPARSE_ASDCOMPLEX
 
 	    globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injComplexSD[m]), invAsdComplex[m], injComplexSD[m],
 									false, false, false));
-#else
+#else // if not DDMCOMPLEX
 	    globalSubdomainOp->SetBlock(m, m, new TripleProductOperator(new TransposeOperator(injSD[m]), invAsd[m], injSD[m], false, false, false));
-#endif
+#endif // DDMCOMPLEX
 
 	    if (fespace[m] != NULL)
 	      {
@@ -3906,8 +3939,15 @@ public:
 	    wSD.SetSize(AsdComplex[m]->Height());
 	    wSD = 0.0;
 	    
+	    sourceSD = -1.0e7;
 	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalRe, sourceSD);
 
+	    for (int i=0; i<sourceSD.Size(); ++i)
+	      {
+		if (fabs(sourceSD[i]) > 1.0e5 || sourceSD[i] < -1.0e5)
+		  cout << "Entry not set!!!!!!!!!!!!!!" << endl;
+	      }
+	    
 	    const bool explicitRHS = false;
 
 	    if (explicitRHS)
@@ -3950,7 +3990,8 @@ public:
 	    (*(ySD[m])) = 0.0;
 	    for (int i=0; i<sourceSD.Size(); ++i)
 	      (*(ySD[m]))[i] = sourceSD[i];  // Set the u_m block of ySD, real part
-	    
+
+	    /*
 	    cout << rank << ": Setting imaginary subdomain DOFs, sd " << m << endl;
 	    SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalIm, sourceSD);
 
@@ -3961,6 +4002,7 @@ public:
 
 	    for (int i=0; i<sourceSD.Size(); ++i)
 	      (*(ySD[m]))[block_ComplexOffsetsSD[m][1] + i] = sourceSD[i];  // Set the u_m block of ySD, imaginary part
+	    */
 	  }
 
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -3975,7 +4017,7 @@ public:
 	    invAsdComplex[m]->Mult(*(ySD[m]), wSD);
 	    //AsdComplex[m]->Mult(*(ySD[m]), wSD);
 
-	    cout << rank << ": Done applying invAsdComplex[" << m << "]" << endl;
+	    cout << rank << ": Done applying invAsdComplex[" << m << "], norm of wSD: " << wSD.Norml2() << endl;
 
 	    // Extract only the [u_m^s, f_m, \rho_m] entries, real and imaginary parts.
 	    vSD.SetSize(block_trueOffsets2[m+1] - block_trueOffsets2[m]);
@@ -5141,7 +5183,7 @@ private:
     trueOffsetsSD[subdomain].PartialSum();
     
     const bool debugging = false;
-    if (debugging && subdomain == 0)
+    if (debugging && subdomain == 1)
       {
 	const int numTrueDofs = trueOffsetsSD[subdomain][numBlocks];
 
