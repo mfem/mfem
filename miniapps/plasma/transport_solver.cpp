@@ -1545,6 +1545,86 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             y.AddElementVector(vdofs_, elvec_);
          }
       }
+      // cout << "Size of y vector: " << y.Size() << ", height = " << height << ", fnd = " << (*pgf_)[index_]->FaceNbrData().Size() << endl;
+
+      Vector elvec(NULL, 0);
+      Vector locvec1(NULL, 0);
+      Vector locvec2(NULL, 0);
+      Vector locdvec1(NULL, 0);
+      Vector locdvec2(NULL, 0);
+
+      // DenseMatrix elmat(NULL, 0, 0);
+      
+      int nsfaces = pmesh_->GetNSharedFaces();
+      for (int i = 0; i < nsfaces; i++)
+      {
+	ftrans = pmesh_->GetSharedFaceTransformations(i);
+	fes_->GetElementVDofs(ftrans->Elem1No, vdofs_);
+	fes_->GetFaceNbrElementVDofs(ftrans->Elem2No, vdofs2_);
+	// cout << "vdofs2_ = {" << vdofs2_[0] << "..." << vdofs2_[vdofs2_.Size()-1] << endl;
+	/*
+	vdofs_.Copy(vdofs_all_);
+	for (int j = 0; j < vdofs2_.Size(); j++)
+	{
+         if (vdofs2_[j] >= 0)
+         {
+            vdofs2_[j] += height;
+         }
+         else
+         {
+            vdofs2_[j] -= height;
+         }
+      }
+
+      vdofs_all_.Append(vdofs2_);
+	*/
+	for (int k = 0; k < fbfi_.Size(); k++)
+	  {
+	    fbfi_[k]->AssembleFaceMatrix(*fes_->GetFE(ftrans->Elem1No),
+					 *fes_->GetFaceNbrFE(ftrans->Elem2No),
+					 *ftrans, elmat_);
+	    // cout << "vdof sizes " << vdofs_.Size() << " " << vdofs2_.Size() << " " << vdofs_all_.Size() << ", elmat " << elmat_.Height() << "x" << elmat_.Width() << endl;
+       	 /*
+         if (keep_nbr_block)
+         {
+            mat->AddSubMatrix(vdofs_all, vdofs_all, elemmat, skip_zeros);
+         }
+         else
+         {
+            mat->AddSubMatrix(vdofs1, vdofs_all, elemmat, skip_zeros);
+         }
+	 */
+            int ndof  = vdofs_.Size();
+            int ndof2 = vdofs2_.Size();
+
+            elvec_.SetSize(ndof+ndof2);
+            locvec_.SetSize(ndof+ndof2);
+            locdvec_.SetSize(ndof+ndof2);
+
+	    elvec.SetDataAndSize(&elvec_[0], ndof);
+
+	    locvec1.SetDataAndSize(&locvec_[0], ndof);
+	    locvec2.SetDataAndSize(&locvec_[ndof], ndof2);
+	    
+	    locdvec1.SetDataAndSize(&locdvec_[0], ndof);
+	    locdvec2.SetDataAndSize(&locdvec_[ndof], ndof2);
+
+	    // elmat.UseExternalData(elmat_.Data(), ndof, ndof + ndof2);
+	    
+            (*pgf_)[index_]->GetSubVector(vdofs_, locvec1);
+            (*dpgf_)[index_]->GetSubVector(vdofs_, locdvec1);
+
+            (*pgf_)[index_]->FaceNbrData().GetSubVector(vdofs2_, locvec2);
+            (*dpgf_)[index_]->FaceNbrData().GetSubVector(vdofs2_, locdvec2);
+
+            locvec_.Add(dt_, locdvec_);
+
+            elmat_.Mult(locvec_, elvec_);
+
+            y.AddElementVector(vdofs_, elvec);
+	  }
+      }
+
    }
    cout << "|y| after fbfi: " << y.Norml2() << endl;
    if (fes_->GetMyRank() == 0 && logging_)
