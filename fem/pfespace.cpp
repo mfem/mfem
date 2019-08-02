@@ -89,6 +89,7 @@ ParNURBSExtension *ParFiniteElementSpace::MakeLocalNURBSext(
 
 void ParFiniteElementSpace::ParInit(ParMesh *pm)
 {
+   dbg("");
    pmesh = pm;
    pncmesh = pm->pncmesh;
 
@@ -129,6 +130,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
 void ParFiniteElementSpace::Construct()
 {
+   dbg("");
    if (NURBSext)
    {
       ConstructTrueNURBSDofs();
@@ -136,11 +138,13 @@ void ParFiniteElementSpace::Construct()
    }
    else if (Conforming())
    {
+      dbg("Conforming");
       ConstructTrueDofs();
       GenerateGlobalOffsets();
    }
    else // Nonconforming()
    {
+      dbg("Nonconforming");
       // Initialize 'gcomm' for the cut (aka "partially conforming") space.
       // In the process, the array 'ldof_ltdof' is also initialized (for the cut
       // space) and used; however, it will be overwritten below with the real
@@ -1183,6 +1187,7 @@ void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
 
 void ParFiniteElementSpace::ConstructTrueDofs()
 {
+   dbg("");
    int i, gr, n = GetVSize();
    GroupTopology &gt = pmesh->gtopo;
    gcomm = new GroupCommunicator(gt);
@@ -1229,6 +1234,10 @@ void ParFiniteElementSpace::ConstructTrueDofs()
 
    // have the group masters broadcast their ltdofs to the rest of the group
    gcomm->Bcast(ldof_ltdof);
+   //dbg("ldof_ltdof:"); ldof_ltdof.Print();
+   dbg("tdofs=%d",ltdof_size);
+   for (int k=0; k<ltdof_size; k++) {printf("%d ",ldof_ltdof[k]);}
+   dbg("");
 }
 
 void ParFiniteElementSpace::ConstructTrueNURBSDofs()
@@ -2997,22 +3006,18 @@ static void AddSubVector(const int num_unique_dst_indices,
 // *****************************************************************************
 DirectConformingProlongationOperator::DirectConformingProlongationOperator(
    const mfem::ParFiniteElementSpace &pfes)
-   : ConformingProlongationOperator(pfes),
-     //Operator(pfes.GetVSize(), pfes.GetTrueVSize()),
-     //shr_ltdof(),
-     //ext_ldof(),
-     //shr_buf(shr_ltdof.Size()),
-     //ext_buf(ext_ldof.Size()),
-     //shr_buf_offsets(NULL), ext_buf_offsets(NULL),
-     gc(pfes.GroupComm())
+   : ConformingProlongationOperator(pfes)
 {
    MFEM_ASSERT(pfes.Conforming(), "internal error");
    const mfem::SparseMatrix *R = pfes.GetRestrictionMatrix();
-   MFEM_ASSERT(R->Finalized(), "");
+   //const mfem::SparseMatrix *R = pfes.GetConformingRestriction();
+   MFEM_ASSERT(R, "R");
+   MFEM_ASSERT(R->Finalized(), "R->Finalized()");
    const int tdofs = R->Height();
    MFEM_ASSERT(tdofs == pfes.GetTrueVSize(), "");
    MFEM_ASSERT(tdofs == R->GetI()[tdofs], "");
-   ltdof_ldof = Memory<int>(const_cast<int*>(R->GetJ()), tdofs, false);
+   ltdof_ldof = Array<int>(const_cast<int*>(R->GetJ()), tdofs);
+   dbg("ltdof_ldof"); ltdof_ldof.Print();
    {
       Table nbr_ltdof;
       gc.GetNeighborLTDofTable(nbr_ltdof);
@@ -3034,10 +3039,17 @@ DirectConformingProlongationOperator::DirectConformingProlongationOperator(
          }
          Table unique_shr;
          Transpose(shr_ltdof, unique_shr, unique_ltdof.Size());
-         unq_ltdof = Memory<int>(unique_ltdof, unique_ltdof.Size(), true);
-         unq_shr_i = Memory<int>(unique_shr.GetI(), unique_shr.Size()+1, true);
-         unq_shr_j = Memory<int>(unique_shr.GetJ(), unique_shr.Size_of_connections(),
-                                 true);
+         unq_ltdof = Array<int>(unique_ltdof, unique_ltdof.Size());
+         unq_shr_i = Array<int>(unique_shr.GetI(), unique_shr.Size()+1);
+         unq_shr_j = Array<int>(unique_shr.GetJ(), unique_shr.Size_of_connections());
+         /*
+         unq_ltdof = Memory<int>(unique_ltdof.Size());
+         unq_ltdof.CopyFrom(unique_ltdof.GetMemory(), unique_ltdof.Size());
+         unq_shr_i = Memory<int>(unique_shr.Size()+1);
+         unq_shr_i.CopyFrom(unique_shr.GetIMemory(), unique_shr.Size()+1);
+         unq_shr_j = Memory<int>(unique_shr.Size_of_connections());
+         unq_shr_j.CopyFrom(unique_shr.GetJMemory(),unique_shr.Size_of_connections());
+         */
       }
       delete [] nbr_ltdof.GetJ();
       nbr_ltdof.LoseData();
@@ -3058,15 +3070,15 @@ DirectConformingProlongationOperator::DirectConformingProlongationOperator(
    // If the device has a separate memory space (e.g. CUDA device) and the MPI
    // library does not support buffers in that separate memory space, we
    // allocate separate host buffers to use for MPI communication.
-   if (true/*device.hasSeparateMemorySpace()*/)
+   if (false)//(device.hasSeparateMemorySpace())
    {
       bool need_host_buf = true;
-      if (true/*device.mode() == "CUDA"*/)
+      //if (device.mode() == "CUDA")
       {
 #ifdef MPIX_CUDA_AWARE_SUPPORT
          need_host_buf = !MPIX_Query_cuda_support();
 #endif
-         if (false/*engine.GetForceCudaAwareMPI()*/) { need_host_buf = false; }
+         //if (engine.GetForceCudaAwareMPI()) { need_host_buf = false; }
          /*if (gc.GetGroupTopology().MyRank() == 0)
          {
             mfem::out << "\nConformingProlongation: CUDA-aware MPI: "
@@ -3076,7 +3088,9 @@ DirectConformingProlongationOperator::DirectConformingProlongationOperator(
       if (need_host_buf)
       {
          const int sizeof_double = static_cast<int>(sizeof(double));
+         dbg("host_shr_buf:%d", shr_buf.Size()*sizeof_double);
          host_shr_buf = new char[shr_buf.Size()*sizeof_double];
+         dbg("host_ext_buf:%d", ext_buf.Size()*sizeof_double);
          host_ext_buf = new char[ext_buf.Size()*sizeof_double];
       }
    }
@@ -3093,6 +3107,7 @@ DirectConformingProlongationOperator::DirectConformingProlongationOperator(
       const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
       if (recv_size > 0) { req_counter++; }
    }
+   dbg("req_counter:%d",req_counter);
    requests = new MPI_Request[req_counter];
 }
 
@@ -3108,69 +3123,79 @@ DirectConformingProlongationOperator::~DirectConformingProlongationOperator()
 
 // *****************************************************************************
 void DirectConformingProlongationOperator::BcastBeginCopy(
-   const Memory<double> &src) const
+   const double *src) const
 {
    // shr_buf[i] = src[shr_ltdof[i]]
    if (shr_ltdof.Size() == 0) { return; }
+   dbg("shr_ltdof.Size()=%d",shr_ltdof.Size());
    ExtractSubVector(shr_ltdof.Size(), shr_ltdof, src, shr_buf);
-   if (host_shr_buf)
+   /*if (host_shr_buf)
    {
+      //MFEM_ABORT("not here");
       shr_buf.CopyTo(host_shr_buf);
-   }
+   }*/
 }
 
 // *****************************************************************************
 void DirectConformingProlongationOperator::BcastLocalCopy(
-   const Memory<double> &src, Memory<double> &dst) const
+   const double *src, double *dst) const
 {
    // dst[ltdof_ldof[i]] = src[i]
-   if (ltdof_ldof.Capacity() == 0) { return; }
-   SetSubVector(ltdof_ldof.Capacity(), ltdof_ldof, src, dst);
+   if (ltdof_ldof.Size() == 0) { return; }
+   dbg("ltdof_ldof.Size()=%d",ltdof_ldof.Size());
+   SetSubVector(ltdof_ldof.Size(), ltdof_ldof, src, dst);
 }
 
 // *****************************************************************************
 void DirectConformingProlongationOperator::BcastEndCopy(
-   Memory<double> &dst) const
+   double *dst) const
 {
    // dst[ext_ldof[i]] = ext_buf[i]
    if (ext_ldof.Size() == 0) { return; }
-   if (host_ext_buf)
+   /*if (host_ext_buf)
    {
+      //MFEM_ABORT("not here");
       ext_buf.CopyFrom(host_ext_buf);
-   }
+   }*/
+   dbg("ext_ldof.Size=%d",ext_ldof.Size());
    SetSubVector(ext_ldof.Size(), ext_ldof, ext_buf, dst);
 }
 
 // *****************************************************************************
 void DirectConformingProlongationOperator::ReduceBeginCopy(
-   const Memory<double> &src) const
+   const double *src) const
 {
    // ext_buf[i] = src[ext_ldof[i]]
    if (ext_ldof.Size() == 0) { return; }
+   dbg("ext_ldof.Size=%d",ext_ldof.Size());
    ExtractSubVector(ext_ldof.Size(), ext_ldof, src, ext_buf);
    // If the above kernel is executed asynchronously, wait for it to complete
-   if (host_ext_buf)
+   /*if (host_ext_buf)
    {
+      //MFEM_ABORT("not here");
       ext_buf.CopyTo(host_ext_buf);
-   }
+   }*/
 }
 
 void DirectConformingProlongationOperator::ReduceLocalCopy(
-   const Memory<double> &src, Memory<double> &dst) const
+   const double *src, double *dst) const
 {
    // dst[i] = src[ltdof_ldof[i]]
-   if (ltdof_ldof.Capacity() == 0) { return; }
-   ExtractSubVector(ltdof_ldof.Capacity(), ltdof_ldof, src, dst);
+   if (ltdof_ldof.Size() == 0) { return; }
+   dbg("ltdof_ldof.Size()=%d",ltdof_ldof.Size());
+   ExtractSubVector(ltdof_ldof.Size(), ltdof_ldof, src, dst);
 }
 
 void DirectConformingProlongationOperator::ReduceEndAssemble(
-   Memory<double> &dst) const
+   double *dst) const
 {
    // dst[shr_ltdof[i]] += shr_buf[i]
-   const int size = unq_ltdof.Capacity();
-   if (size) { return; }
+   const int size = unq_ltdof.Size();
+   if (size == 0) { return; }
+   dbg("unq_ltdof.size<int>().Size=%d",size);
    if (host_shr_buf)
    {
+      //MFEM_ABORT("not here");
       shr_buf.CopyFrom(host_shr_buf);
    }
    AddSubVector(size, unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, dst);
@@ -3181,25 +3206,27 @@ void DirectConformingProlongationOperator::Mult(const Vector &x,
 {
    const GroupTopology &gtopo = gc.GetGroupTopology();
 
-   BcastBeginCopy(x.GetMemory()); // copy to 'shr_buf'
+   BcastBeginCopy(x); // copy to 'shr_buf'
 
    int req_counter = 0;
    for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
    {
       const int send_offset = shr_buf_offsets[nbr];
       const int send_size = shr_buf_offsets[nbr+1] - send_offset;
-      const int sizeof_double = static_cast<int>(sizeof(double));
+      //const int sizeof_double = static_cast<int>(sizeof(double));
       if (send_size > 0)
       {
-         void *send_buf;
-         if (host_shr_buf)
-         {
-            send_buf = host_shr_buf + send_offset*sizeof_double;
-         }
-         else
+         double *send_buf;
+         /*if (host_shr_buf)
          {
             MFEM_ABORT("not here");
-            send_buf = shr_buf + send_offset*sizeof_double;
+            //send_buf = host_shr_buf + send_offset*sizeof(double);//sizeof_double;
+         }
+         else*/
+         {
+            //MFEM_ABORT("not here");
+            dbg("send_size=%d",send_size);
+            send_buf = ((double*)shr_buf) + send_offset;//*sizeof(double);//sizeof_double;
          }
          MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41822, gtopo.GetComm(), &requests[req_counter++]);
@@ -3209,26 +3236,28 @@ void DirectConformingProlongationOperator::Mult(const Vector &x,
       const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
       if (recv_size > 0)
       {
-         void *recv_buf;
-         if (host_ext_buf)
-         {
-            recv_buf = host_ext_buf + recv_offset*sizeof_double;
-         }
-         else
+         double *recv_buf;
+         /*if (host_ext_buf)
          {
             MFEM_ABORT("not here");
-            recv_buf = ext_buf + recv_offset*sizeof_double;
+            //recv_buf = host_ext_buf + recv_offset*sizeof(double);//sizeof_double;
+         }
+         else*/
+         {
+            //MFEM_ABORT("not here");
+            dbg("recv_size=%d",recv_size);
+            recv_buf = ((double*)ext_buf) + recv_offset;//*sizeof(double);//sizeof_double;
          }
          MPI_Irecv(recv_buf, recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41822, gtopo.GetComm(), &requests[req_counter++]);
       }
    }
 
-   BcastLocalCopy(x.GetMemory(), y.GetMemory());
+   BcastLocalCopy(x, y);
 
    MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
 
-   BcastEndCopy(y.GetMemory()); // copy from 'ext_buf'
+   BcastEndCopy(y); // copy from 'ext_buf'
 }
 
 // *****************************************************************************
@@ -3237,25 +3266,30 @@ void DirectConformingProlongationOperator::MultTranspose(const Vector &x,
 {
    const GroupTopology &gtopo = gc.GetGroupTopology();
 
-   ReduceBeginCopy(x.GetMemory()); // copy to 'ext_buf'
+   ReduceBeginCopy(x); // copy to 'ext_buf'
+   //fflush(0);
+   //while (true);
+   //MFEM_ABORT("EOP");
 
    int req_counter = 0;
    for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
    {
       const int send_offset = ext_buf_offsets[nbr];
       const int send_size = ext_buf_offsets[nbr+1] - send_offset;
-      const int sizeof_double = static_cast<int>(sizeof(double));
+      //const int sizeof_double = static_cast<int>(sizeof(double));
       if (send_size > 0)
       {
-         void *send_buf;
+         double *send_buf;
          if (host_ext_buf)
          {
-            send_buf = host_ext_buf + send_offset*sizeof_double;
+            MFEM_ABORT("not here");
+            //send_buf = host_ext_buf + send_offset*sizeof_double;
          }
          else
          {
-            MFEM_ABORT("not here");
-            send_buf = ext_buf + send_offset*sizeof_double;
+            //MFEM_ABORT("not here");
+            dbg("send_size=%d",send_size);
+            send_buf = ((double*)ext_buf) + send_offset;//*sizeof(double);//*sizeof_double;
          }
          MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41823, gtopo.GetComm(), &requests[req_counter++]);
@@ -3265,26 +3299,29 @@ void DirectConformingProlongationOperator::MultTranspose(const Vector &x,
       const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
       if (recv_size > 0)
       {
-         void *recv_buf;
+         double *recv_buf;
          if (host_shr_buf)
          {
-            recv_buf = host_shr_buf + recv_offset*sizeof_double;
+            MFEM_ABORT("not here");
+            //recv_buf = host_shr_buf + recv_offset*sizeof_double;
          }
          else
          {
-            MFEM_ABORT("not here");
-            recv_buf = shr_buf + recv_offset*sizeof_double;
+            //MFEM_ABORT("not here");
+            dbg("recv_size=%d",recv_size);
+            recv_buf = ((double*)shr_buf) + recv_offset;
+            //*sizeof(double));//*sizeof_double);
          }
          MPI_Irecv(recv_buf, recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41823, gtopo.GetComm(), &requests[req_counter++]);
       }
    }
 
-   ReduceLocalCopy(x.GetMemory(), y.GetMemory());
+   ReduceLocalCopy(x, y);
 
    MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
 
-   ReduceEndAssemble(y.GetMemory()); // assemble from 'shr_buf'
+   ReduceEndAssemble(y); // assemble from 'shr_buf'
 }
 
 } // namespace mfem
