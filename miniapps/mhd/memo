@@ -80,8 +80,7 @@ matS0.Mult( x, y, 1.0, 1.0)
 
 then delete DSl DRe
 
->>>tried but this is not going to work because ParallelAssemble removes all the terms w.r.t essential dofs
->>>However, this should not affect the preconditioner
+tried but this is not going to work because ParallelAssemble removes all the terms w.r.t essential dofs. However, this should not affect the preconditioner
 
 Step 2: double check notes; ok
 Step 3: build two operators and add capibility of changing time step (variable time stepping is left for later)
@@ -106,6 +105,13 @@ What would be a good stoppage critera for Jacobi iteration?
 
 Be careful for the negative signs in the preconditioner!
 Should I do something special for the boundary? 
+=======
+6/25
+try to reproduce results:
+srun -n 4 imMHDp -rs 4 -tf 1 -vs 200 -dt .001 -i 2 -no-vis
+
+but 
+EliminateEssentialBC(ess_bdr) will not generate the matrix I need
 
 6/16
 the explicit and implicit solvers are comparable with pcshell:

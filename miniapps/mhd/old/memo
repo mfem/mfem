@@ -1,3 +1,5 @@
 imMHDp.cpp: this version is identical to exMHDp but use J as an auxilary variable (preparing for the implicit time stepping)
 
 imMHDpTdofs.cpp: identical to exMHDp but use J as an auxilary varible and use true dofs in BlockVector instead dofs
+
+mini: a minimal case to demonstrate the failure of new PetscParVector
