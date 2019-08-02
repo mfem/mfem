@@ -1216,7 +1216,8 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
       cout << "offsets_[" << i << "] = " << offsets_[i] << endl;
-      (*pgf_)[i]->SetData(u.GetData() + offsets_[i]);
+      // (*pgf_)[i]->SetData(u.GetData() + offsets_[i]);
+      (*pgf_)[i]->MakeRef(fes_, u.GetData() + offsets_[i]);
    }
    pgf_->ExchangeFaceNbrData();
 
@@ -1224,7 +1225,8 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      (*dpgf_)[i]->SetData(dudt.GetData() + offsets_[i]);
+      // (*dpgf_)[i]->SetData(dudt.GetData() + offsets_[i]);
+      (*dpgf_)[i]->MakeRef(fes_, dudt.GetData() + offsets_[i]);
    }
    dpgf_->ExchangeFaceNbrData();
 
@@ -1351,13 +1353,15 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
    // Restore the data arrays to those used before this method was called.
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      (*pgf_)[i]->SetData(prev_u + offsets_[i]);
+      // (*pgf_)[i]->SetData(prev_u + offsets_[i]);
+      (*pgf_)[i]->MakeRef(fes_, prev_u + offsets_[i]);
    }
    pgf_->ExchangeFaceNbrData();
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      (*dpgf_)[i]->SetData(prev_du + offsets_[i]);
+      // (*dpgf_)[i]->SetData(prev_du + offsets_[i]);
+      (*dpgf_)[i]->MakeRef(fes_, prev_du + offsets_[i]);
    }
    dpgf_->ExchangeFaceNbrData();
 
@@ -1693,6 +1697,7 @@ DGTransportTDO::CombinedOp::CombinedOp(DGParams & dg,
    : neq_(5),
      MyRank_(pgf[0]->ParFESpace()->GetMyRank()),
      logging_(logging),
+     fes_(pgf[0]->ParFESpace()),
      pgf_(&pgf), dpgf_(&dpgf),
      /*
      n_n_op_(dg, pgf, dpgf, ion_charge, neutral_mass, neutral_temp),
@@ -1815,13 +1820,11 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &x) const
 
    delete grad_;
 
-   ParFiniteElementSpace *fes = (*dpgf_)[0]->ParFESpace();
-
    double *prev_x = (*dpgf_)[0]->GetData();
 
    for (int i=0; i<dpgf_->Size(); i++)
    {
-      (*dpgf_)[i]->MakeRef(fes, x.GetData() + offsets_[i]);
+      (*dpgf_)[i]->MakeRef(fes_, x.GetData() + offsets_[i]);
    }
    dpgf_->ExchangeFaceNbrData();
 
@@ -1843,7 +1846,8 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &x) const
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      (*dpgf_)[i]->SetData(prev_x + offsets_[i]);
+     // (*dpgf_)[i]->SetData(prev_x + offsets_[i]);
+     (*dpgf_)[i]->MakeRef(fes_, prev_x + offsets_[i]);
    }
    dpgf_->ExchangeFaceNbrData();
 
@@ -1863,13 +1867,11 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
         << (*pgf_)[0]->GetData() << ", dpgf = " << (*dpgf_)[0]->GetData() << " -> " <<
         k.GetData() << endl;
 
-   ParFiniteElementSpace *fes = (*pgf_)[0]->ParFESpace();
-
    double *prev_k = (*dpgf_)[0]->GetData();
 
    for (int i=0; i<dpgf_->Size(); i++)
    {
-      (*dpgf_)[i]->MakeRef(fes, k.GetData() + offsets_[i]);
+      (*dpgf_)[i]->MakeRef(fes_, k.GetData() + offsets_[i]);
    }
    dpgf_->ExchangeFaceNbrData();
 
@@ -1888,7 +1890,8 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      (*dpgf_)[i]->SetData(prev_k + offsets_[i]);
+      // (*dpgf_)[i]->SetData(prev_k + offsets_[i]);
+      (*dpgf_)[i]->MakeRef(fes_, prev_k + offsets_[i]);
    }
    dpgf_->ExchangeFaceNbrData();
 

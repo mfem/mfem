@@ -711,9 +711,10 @@ private:
       int neq_;
       int MyRank_;
       int logging_;
-
-      ParGridFunctionArray *pgf_;
-      ParGridFunctionArray *dpgf_;
+     
+      ParFiniteElementSpace *fes_;
+      ParGridFunctionArray  *pgf_;
+      ParGridFunctionArray  *dpgf_;
       /*
        NeutralDensityOp n_n_op_;
        IonDensityOp     n_i_op_;
