@@ -53,7 +53,7 @@ static inline void dbg_F_L_F_N_A(const char *file, const int line,
    const uint8_t color = 17 + chk8(file)%216;
    fflush(stdout);
    fprintf(stdout,"\033[38;5;%dm",color);
-   fprintf(stdout,"\n%30s\b\b\b\b:\033[2m%4d\033[22m: %s: \033[1m",
+   fprintf(stdout,"\n%30s:\033[2m%4d\033[22m: %s: \033[1m",
            file, line, func);
    if (nargs==0) { return; }
    va_list args;
