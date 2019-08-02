@@ -4,8 +4,10 @@
 //
 // Sample runs:  mpirun -np 4 ex14p -m ../data/inline-quad.mesh -o 0
 //               mpirun -np 4 ex14p -m ../data/star.mesh -o 2
+//               mpirun -np 4 ex14p -m ../data/star-mixed.mesh -o 2
 //               mpirun -np 4 ex14p -m ../data/escher.mesh -s 1
 //               mpirun -np 4 ex14p -m ../data/fichera.mesh -s 1 -k 1
+//               mpirun -np 4 ex14p -m ../data/fichera-mixed.mesh -s 1 -k 1
 //               mpirun -np 4 ex14p -m ../data/square-disc-p2.vtk -o 2
 //               mpirun -np 4 ex14p -m ../data/square-disc-p3.mesh -o 3
 //               mpirun -np 4 ex14p -m ../data/square-disc-nurbs.mesh -o 1

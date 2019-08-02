@@ -13,22 +13,52 @@ of MFEM is a (modern) C++ compiler, such as g++. The parallel version of MFEM
 requires an MPI C++ compiler, as well as the following external libraries:
 
 - hypre (a library of high-performance preconditioners)
-  http://www.llnl.gov/CASC/hypre
+  https://github.com/hypre-space/hypre
 
 - METIS (a family of multilevel partitioning algorithms)
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
 
+The hypre dependency can be downloaded as a tarball from GitHub or from the
+project webpage https://www.llnl.gov/casc/hypre. For example, the 2.16.0 release
+of hypre is available at
+
+   https://github.com/hypre-space/hypre/archive/v2.16.0.tar.gz
+
 The METIS dependency can be disabled but that is not generally recommended, see
 the option MFEM_USE_METIS.
+
+MFEM also includes support for devices such as GPUs, and programming models such
+as CUDA, OCCA, OpenMP and RAJA.
+
+- Starting with version 4.0, MFEM requires a C++11 compiler
+
+- CUDA support requires an NVIDIA GPU and an installation of the CUDA Toolkit
+  https://developer.nvidia.com/cuda-toolkit
+
+- OCCA support requires the OCCA library
+  https://libocca.org
+
+- OpenMP support requires a compiler implementing the OpenMP API
+  https://www.openmp.org
+
+- RAJA support requires installation of the RAJA performance portability layer
+  with (optionally) support for CUDA and OpenMP
+  https://github.com/LLNL/RAJA
 
 The library supports two build systems: one based on GNU make, and a second one
 based on CMake. Both build systems are described below. Some hints for building
 without GNU make or CMake can be found at the end of this file.
 
-In addition to the native build systems, MFEM packages are also available in
-the Homebrew/Science, https://github.com/Homebrew/homebrew-science, and the
-Spack, https://github.com/LLNL/spack, package managers.
+In addition to the native build systems, MFEM packages are also available in the
+following package managers:
 
+- Spack, https://github.com/spack/spack
+- OpenHPC, http://openhpc.community
+- Homebrew/Science, https://github.com/Homebrew/homebrew-science (deprecated)
+
+We also recommend downloading and building the MFEM-based GLVis visualization
+tool which can be used to visualize the meshes and solution in MFEM's examples
+and miniapps. See http://glvis.org and http://mfem.org/building.
 
 Quick start with GNU make
 =========================
@@ -36,10 +66,14 @@ Serial build:
    make serial -j 4
 
 Parallel build:
-   (download hypre 2.10.0b and METIS 4 from above URLs)
+   (download hypre and METIS 4 from above URLs)
    (build METIS 4 in ../metis-4.0 relative to mfem/)
-   (build hypre 2.10.0b in ../hypre-2.10.0b relative to mfem/)
+   (build hypre in ../hypre relative to mfem/)
    make parallel -j 4
+
+CUDA build:
+   make cuda -j 4
+   (build for a specific compute capability: 'make cuda -j 4 CUDA_ARCH=sm_30')
 
 Example codes (serial/parallel, depending on the build):
    cd examples
@@ -51,7 +85,6 @@ Build everything (library, examples and miniapps) with current configuration:
 Quick-check the build by running Example 1/1p (optional):
    make check
 
-
 Quick start with CMake
 ======================
 Serial build:
@@ -60,11 +93,17 @@ Serial build:
    make -j 4   (assuming "UNIX Makefiles" generator)
 
 Parallel build:
-   (download hypre 2.10.0b and METIS 4 from above URLs)
+   (download hypre and METIS 4 from above URLs)
    (build METIS 4 in ../metis-4.0 relative to mfem/)
-   (build hypre 2.10.0b in ../hypre-2.10.0b relative to mfem/)
+   (build hypre in ../hypre relative to mfem/)
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
    cmake <mfem-source-dir> -DMFEM_USE_MPI=YES
+   make -j 4
+
+CUDA build:
+   (this build requires CMake 3.8 or newer)
+   mkdir <mfem-build-dir> ; cd <mfem-build-dir>
+   cmake <mfem-source-dir> -DMFEM_USE_CUDA=YES
    make -j 4
 
 Example codes (serial/parallel, depending on the build):
@@ -126,6 +165,10 @@ are also defined:
    make parallel -> Builds parallel optimized version of the library
    make debug    -> Builds serial debug version of the library
    make pdebug   -> Builds parallel debug version of the library
+   make cuda     -> Builds serial cuda optimized version of the library
+   make pcuda    -> Builds parallel cuda optimized version of the library
+   make cudebug  -> Builds serial cuda debug version of the library
+   make pcudebug -> Builds parallel cuda debug version of the library
 
 Note that any of the above shortcuts accept configuration options, either at the
 command line or through a user configuration file.
@@ -187,8 +230,9 @@ Configuration options (GNU make)
 See the configuration file config/defaults.mk for the default settings.
 
 Compilers:
-   CXX    - C++ compiler, serial build
-   MPICXX - MPI C++ compiler, parallel build
+   CXX      - C++ compiler, serial build
+   MPICXX   - MPI C++ compiler, parallel build
+   CUDA_CXX - The CUDA compiler, 'nvcc'
 
 Compiler options:
    OPTIM_FLAGS - Options for optimized build
@@ -223,6 +267,10 @@ MFEM_DEBUG = YES/NO
    Choose debug/optimized build. The debug build enables a number of messages
    and consistency checks that may simplify bug-hunting.
 
+MFEM_USE_EXCEPTIONS = YES/NO
+   Enable the use of exceptions. In particular, modifies the default behavior
+   when errors are encountered: throw an exception, instead of aborting.
+
 MFEM_USE_LIBUNWIND = YES/NO
    Use libunwind to print a stacktrace whenever mfem_error is raised. The
    information printed is enough to determine the line numbers where the
@@ -240,8 +288,12 @@ MFEM_THREAD_SAFE = YES/NO
    Use thread-safe implementation for some classes/methods. This comes at the
    cost of extra memory allocation and de-allocation.
 
-MFEM_USE_OPENMP = YES/NO
+MFEM_USE_LEGACY_OPENMP = YES/NO
    Enable (basic) experimental OpenMP support. Requires MFEM_THREAD_SAFE.
+   This option is deprecated.
+
+MFEM_USE_OPENMP = YES/NO
+   Enable the OpenMP backend.
 
 MFEM_USE_MEMALLOC = YES/NO
    Internal MFEM option: enable batch allocation for some small objects.
@@ -326,6 +378,13 @@ MFEM_USE_SIDRE = YES/NO
    specification. When enabled, this option requires installation of HDF5 (see
    also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
 
+MFEM_USE_CONDUIT = YES/NO
+   Enables support for converting MFEM Mesh and Grid Function objects to and
+   from Conduit Mesh Blueprint Descriptions (https://github.com/LLNL/conduit/)
+   and support for JSON and Binary I/O via Conduit Relay. This option requires
+   an installation of Conduit. If Conduit was built with HDF5 support, it also
+   requires an installation of HDF5 (see also MFEM_USE_NETCDF).
+
 MFEM_USE_GZSTREAM = YES/NO
    Enables use of on-the-fly gzip compressed streams. With this feature enabled
    (YES), MFEM can compress its output files on-the-fly. In addition, it can
@@ -336,6 +395,34 @@ MFEM_USE_GZSTREAM = YES/NO
    able to properly read an input file if it is gzip compressed. In that case,
    the solution is to uncompress the file with an external tool (such as gunzip)
    before attempting to use it with MFEM.
+   When enabled, this option uses the ZLIB_* library options, see below.
+
+MFEM_USE_PUMI = YES/NO
+   Enable the usage of PUMI (https://scorec.rpi.edu/pumi/) in MFEM. The Parallel
+   Unstructured Mesh Infrastructure (PUMI) is an unstructured, distributed mesh
+   data management system that is capable of handling general non-manifold
+   models and effectively supports automated adaptive analysis. PUMI enables
+   support for parallel unstructured mesh modifications in MFEM.
+
+MFEM_USE_CUDA = YES/NO
+   Enables support for CUDA devices in MFEM. CUDA is a parallel computing
+   platform and programming model for general computing on graphical processing
+   units (GPUs). The variable CUDA_ARCH is used to specify the CUDA compute
+   capability used during compilation (by default, CUDA_ARCH=sm_60). When
+   enabled, this option uses the CUDA_* build options, see below.
+
+MFEM_USE_RAJA = YES/NO
+   Enable support for the RAJA performance portability layer in MFEM. RAJA
+   provides a portable abstraction for loops, supporting different programming
+   model backends. When using RAJA built with CUDA support, CUDA support must be
+   also enabled in MFEM, i.e. MFEM_USE_CUDA=YES must be set.
+
+MFEM_USE_OCCA = YES/NO
+   Enables support for the OCCA library in MFEM. OCCA is an open-source library
+   which aims to make it easy to program different types of devices (e.g. CPU,
+   GPU, FPGA) by providing an unified API for interacting with JIT-compiled
+   backends. In order to use the OCCA CUDA backend, CUDA support must be enabled
+   in MFEM as well, i.e. MFEM_USE_CUDA=YES must be set.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
@@ -358,7 +445,7 @@ directory and use the string @MFEM_DIR@, e.g. HYPRE_OPT = -I@MFEM_DIR@/../hypre.
 The specific libraries and their options are:
 
 - HYPRE, required for the parallel build, i.e. when MFEM_USE_MPI = YES.
-  URL: http://www.llnl.gov/CASC/hypre
+  URL: https://github.com/hypre-space/hypre and https://www.llnl.gov/casc/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
@@ -372,7 +459,8 @@ The specific libraries and their options are:
        http://math-atlas.sourceforge.net (ATLAS)
   Options: LAPACK_OPT (currently not used/needed), LAPACK_LIB.
 
-- OpenMP (optional), usually part of compiler, used when MFEM_USE_OPENMP = YES.
+- OpenMP (optional), usually part of compiler, used when either MFEM_USE_OPENMP
+  or MFEM_USE_LEGACY_OPENMP is set to YES.
   Options: OPENMP_OPT, OPENMP_LIB.
 
 - High-resolution POSIX clocks: when using MFEM_TIMER_TYPE = 2, it may be
@@ -404,7 +492,8 @@ The specific libraries and their options are:
 
 - STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
-  includes METIS 5 in its distribution.
+  includes METIS 5 in its distribution. Starting with STRUMPACK v2.2.0, ParMETIS
+  and PT-Scotch are optional dependencies.
   The support for STRUMPACK was added in MFEM v3.3.2 and it requires STRUMPACK
   2.0.0 or later.
   URL: http://portal.nersc.gov/project/sparse/strumpack
@@ -423,7 +512,7 @@ The specific libraries and their options are:
   URL: www.unidata.ucar.edu/software/netcdf
   Options: NETCDF_OPT, NETCDF_LIB.
 
-- PETSc (optional), used when MFEM_USE_PETSC = YES.  Version 3.8 or higher of
+- PETSc (optional), used when MFEM_USE_PETSC = YES. Version 3.8 or higher of
   the PETSC dev branch is required. The MFEM and PETSc builds can share common
   libraries, e.g., hypre and SUNDIALS. Here's an example configuration, assuming
   PETSc has been cloned on the same level as mfem and hypre:
@@ -440,6 +529,28 @@ The specific libraries and their options are:
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: SIDRE_OPT, SIDRE_LIB.
 
+- Conduit, used when MFEM_USE_CONDUIT = YES. Direct Conduit Mesh Blueprint
+  support requires Conduit >= v0.3.1 and VisIt >= v2.13.1 to read the output.
+  URL: https://github.com/LLNL/conduit (Conduit)
+       https://support.hdfgroup.org/HDF5 (HDF5)
+  Options: CONDUIT_OPT, CONDUIT_LIB.
+
+- PUMI, used when MFEM_USE_PUMI = YES.
+  URL: https://scorec.rpi.edu/pumi
+  Options: PUMI_OPT, PUMI_LIB.
+
+- CUDA, used when MFEM_USE_CUDA = YES.
+  URL: https://developer.nvidia.com/cuda-toolkit
+  Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
+
+- OCCA, used when MFEM_USE_OCCA = YES.
+  URL: https://libocca.org
+  Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
+
+- RAJA, used when MFEM_USE_RAJA = YES.
+  URL: https://github.com/LLNL/RAJA
+  Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
+
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
   Options: MPFR_OPT, MPFR_LIB.
@@ -449,6 +560,11 @@ The specific libraries and their options are:
   the libunwind-devel package.
   URL: http://www.nongnu.org/libunwind
   Options: LIBUNWIND_OPT, LIBUNWIND_LIB.
+
+- ZLIB (optional), used when MFEM_USE_GZSTREAM = YES, or when MFEM_USE_NETCDF =
+  YES (in the default settings for NETCDF_OPT and NETCDF_LIB).
+  URL: https://zlib.net
+  Options: ZLIB_OPT, ZLIB_LIB.
 
 
 Building with CMake
@@ -539,6 +655,8 @@ Configuration variables (CMake)
 ===============================
 See the configuration file config/defaults.cmake for the default settings.
 
+Note: the option MFEM_USE_CUDA requires CMake version 3.8 or newer!
+
 Non-standard CMake variables for compilers:
    CXX    - If set, overwrite the auto-detected C++ compiler, serial build
    MPICXX - If set, overwrite the auto-detected MPI C++ compiler, parallel build
@@ -556,6 +674,7 @@ MFEM_USE_METIS - Set to ${MFEM_USE_MPI}, can be overwritten.
 MFEM_USE_LIBUNWIND
 MFEM_USE_LAPACK
 MFEM_THREAD_SAFE
+MFEM_USE_LEGACY_OPENMP
 MFEM_USE_OPENMP
 MFEM_USE_MEMALLOC
 MFEM_TIMER_TYPE - Set automatically, can be overwritten.
@@ -567,6 +686,10 @@ MFEM_USE_GNUTLS
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_GZSTREAM
+MFEM_USE_PUMI
+MFEM_USE_CUDA
+MFEM_USE_OCCA
+MFEM_USE_RAJA
 
 The following options are CMake specific:
 
@@ -612,6 +735,9 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - MPFR
  - LIBUNWIND
  - POSIXCLOCKS
+ - PUMI
+ - OCCA
+ - RAJA
 
 The following built-in CMake packages are also used:
 

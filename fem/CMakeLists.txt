@@ -11,7 +11,10 @@
 
 set(SRCS
   bilinearform.cpp
+  bilinearform_ext.cpp
   bilininteg.cpp
+  bilininteg_diffusion.cpp
+  bilininteg_mass.cpp
   coefficient.cpp
   datacollection.cpp
   eltrans.cpp
@@ -33,6 +36,7 @@ set(SRCS
 
 set(HDRS
   bilinearform.hpp
+  bilinearform_ext.hpp
   bilininteg.hpp
   coefficient.hpp
   datacollection.hpp
@@ -65,6 +69,11 @@ set(HDRS
 if (MFEM_USE_SIDRE)
   list(APPEND SRCS sidredatacollection.cpp)
   list(APPEND HDRS sidredatacollection.hpp)
+endif()
+
+if (MFEM_USE_CONDUIT)
+  list(APPEND SRCS conduitdatacollection.cpp)
+  list(APPEND HDRS conduitdatacollection.hpp)
 endif()
 
 if (MFEM_USE_MPI)

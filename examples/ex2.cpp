@@ -6,6 +6,7 @@
 //               ex2 -m ../data/beam-quad.mesh
 //               ex2 -m ../data/beam-tet.mesh
 //               ex2 -m ../data/beam-hex.mesh
+//               ex2 -m ../data/beam-wedge.mesh
 //               ex2 -m ../data/beam-quad.mesh -o 3 -sc
 //               ex2 -m ../data/beam-quad-nurbs.mesh
 //               ex2 -m ../data/beam-hex-nurbs.mesh

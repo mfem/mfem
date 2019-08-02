@@ -56,9 +56,44 @@ RT_FESpace::~RT_FESpace()
    delete FEC_;
 }
 
+void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
+                   Mesh &mesh, const char *title,
+                   int x, int y, int w, int h, const char * keys, bool vec)
+{
+   bool newly_opened = false;
+   int connection_failed;
+
+   do
+   {
+      if (!sock.is_open() || !sock)
+      {
+         sock.open(vishost, visport);
+         sock.precision(8);
+         newly_opened = true;
+      }
+      sock << "solution\n";
+
+      mesh.Print(sock);
+
+      if (newly_opened)
+      {
+         sock << "window_title '" << title << "'\n"
+              << "window_geometry "
+              << x << " " << y << " " << w << " " << h << "\n";
+         if ( keys ) { sock << "keys " << keys << "\n"; }
+         else { sock << "keys maaAc\n"; }
+         if ( vec ) { sock << "vvv"; }
+         sock << endl;
+      }
+
+      connection_failed = !sock && !newly_opened;
+   }
+   while (connection_failed);
+}
+
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
                     GridFunction &gf, const char *title,
-                    int x, int y, int w, int h, bool vec)
+                    int x, int y, int w, int h, const char * keys, bool vec)
 {
    Mesh &mesh = *gf.FESpace()->GetMesh();
 
@@ -82,8 +117,9 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       {
          sock << "window_title '" << title << "'\n"
               << "window_geometry "
-              << x << " " << y << " " << w << " " << h << "\n"
-              << "keys maaAc";
+              << x << " " << y << " " << w << " " << h << "\n";
+         if ( keys ) { sock << "keys " << keys << "\n"; }
+         else { sock << "keys maaAc\n"; }
          if ( vec ) { sock << "vvv"; }
          sock << endl;
       }

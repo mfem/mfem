@@ -116,7 +116,92 @@ public:
    }
 };
 
-// Base and derived classes for finite elements
+
+/** @brief Structure representing the matrices/tensors needed to evaluate (in
+    reference space) the values, gradients, divergences, or curls of a
+    FiniteElement at a the quadrature points of a given IntegrationRule. */
+/** Object of this type are typically created and owned by the respective
+    FiniteElement object. */
+class DofToQuad
+{
+public:
+   /// The FiniteElement that created and owns this object.
+   /** This pointer is not owned. */
+   const class FiniteElement *FE;
+
+   /** @brief IntegrationRule that defines the quadrature points at which the
+       basis functions of the #FE are evaluated. */
+   /** This pointer is not owned. */
+   const IntegrationRule *IntRule;
+
+   /// Type of data stored in the arrays #B, #Bt, #G, and #Gt.
+   enum Mode
+   {
+      /** @brief Full multidimensional representation which does not use tensor
+          product structure. The ordering of the degrees of freedom is as
+          defined by #FE */
+      FULL,
+
+      /** @brief Tensor product representation using 1D matrices/tensors with
+          dimensions using 1D number of quadrature points and degrees of
+          freedom. */
+      /** When representing a vector-valued FiniteElement, two DofToQuad objects
+          are used to describe the "closed" and "open" 1D basis functions
+          (TODO). */
+      TENSOR
+   };
+
+   /// Describes the contents of the #B, #Bt, #G, and #Gt arrays, see #Mode.
+   Mode mode;
+
+   /** @brief Number of degrees of freedom = number of basis functions. When
+       #mode is TENSOR, this is the 1D number. */
+   int ndof;
+
+   /** @brief Number of quadrature points. When #mode is TENSOR, this is the 1D
+       number. */
+   int nqpt;
+
+   /// Basis functions evaluated at quadrature points.
+   /** The storage layout is column-major with dimensions:
+       - #nqpt x #ndof, for scalar elements, or
+       - #nqpt x dim x #ndof, for vector elements, (TODO)
+
+       where
+
+       - dim = dimension of the finite element reference space when #mode is
+         FULL, and dim = 1 when #mode is TENSOR. */
+   Array<double> B;
+
+   /// Transpose of #B.
+   /** The storage layout is column-major with dimensions:
+       - #ndof x #nqpt, for scalar elements, or
+       - #ndof x #nqpt x dim, for vector elements (TODO). */
+   Array<double> Bt;
+
+   /** @brief Gradients/divergences/curls of basis functions evaluated at
+       quadrature points. */
+   /** The storage layout is column-major with dimensions:
+       - #nqpt x dim x #ndof, for scalar elements, or
+       - #nqpt x #ndof, for H(div) vector elements (TODO), or
+       - #nqpt x cdim x #ndof, for H(curl) vector elements (TODO),
+
+       where
+
+       - dim = dimension of the finite element reference space when #mode is
+         FULL, and 1 when #mode is TENSOR,
+       - cdim = 1/1/3 in 1D/2D/3D, respectively, when #mode is FULL, and cdim =
+         1 when #mode is TENSOR. */
+   Array<double> G;
+
+   /// Transpose of #G.
+   /** The storage layout is column-major with dimensions:
+       - #ndof x #nqpt x dim, for scalar elements, or
+       - #ndof x #nqpt, for H(div) vector elements (TODO), or
+       - #ndof x #nqpt x cdim, for H(curl) vector elements (TODO). */
+   Array<double> Gt;
+};
+
 
 /// Describes the space on each element
 class FunctionSpace
@@ -136,22 +221,30 @@ class VectorCoefficient;
 class MatrixCoefficient;
 class KnotVector;
 
+
+// Base and derived classes for finite elements
+
+
 /// Abstract class for Finite Elements
 class FiniteElement
 {
 protected:
-   int Dim,      ///< Dimension of reference space
-       GeomType, ///< Geometry::Type of the reference element
-       FuncSpace, RangeType, MapType,
+   int Dim;      ///< Dimension of reference space
+   Geometry::Type GeomType; ///< Geometry::Type of the reference element
+   int FuncSpace, RangeType, MapType,
        DerivType, DerivRangeType, DerivMapType;
    mutable
-   int  Dof,      ///< Number of degrees of freedom
-        Order;    ///< Order/degree of the shape functions
+   int Dof,      ///< Number of degrees of freedom
+       Order;    ///< Order/degree of the shape functions
    mutable int Orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix vshape; // Dof x Dim
 #endif
+   /// Container for all DofToQuad objects created by the FiniteElement.
+   /** Multiple DofToQuad objects may be needed when different quadrature rules
+       or different DofToQuad::Mode are used. */
+   mutable Array<DofToQuad*> dof2quad_array;
 
 public:
    /// Enumeration for RangeType and DerivRangeType
@@ -205,13 +298,14 @@ public:
        @param O    Order/degree of the FiniteElement
        @param F    FunctionSpace type of the FiniteElement
     */
-   FiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk);
+   FiniteElement(int D, Geometry::Type G, int Do, int O,
+                 int F = FunctionSpace::Pk);
 
    /// Returns the reference space dimension for the finite element
    int GetDim() const { return Dim; }
 
    /// Returns the Geometry::Type of the reference element
-   int GetGeomType() const { return GeomType; }
+   Geometry::Type GetGeomType() const { return GeomType; }
 
    /// Returns the number of degrees of freedom in the finite element
    int GetDof() const { return Dof; }
@@ -330,11 +424,41 @@ public:
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &h) const;
 
-   /** Return the local interpolation matrix I (Dof x Dof) where the
+   /** @brief Return the local interpolation matrix @a I (Dof x Dof) where the
        fine element is the image of the base geometry under the given
        transformation. */
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const;
+
+   /** @brief Return a local restriction matrix @a R (Dof x Dof) mapping fine
+       dofs to coarse dofs.
+
+       The fine element is the image of the base geometry under the given
+       transformation, @a Trans.
+
+       The assumption in this method is that a subset of the coarse dofs can be
+       expressed only in terms of the dofs of the given fine element.
+
+       Rows in @a R corresponding to coarse dofs that cannot be expressed in
+       terms of the fine dofs will be marked as invalid by setting the first
+       entry (column 0) in the row to infinity().
+
+       This method assumes that the dimensions of @a R are set before it is
+       called. */
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const;
+
+   /** @brief Return interpolation matrix, @a I, which maps dofs from a coarse
+       element, @a fe, to the fine dofs on @a this finite element. */
+   /** @a Trans represents the mapping from the reference element of @a this
+       element into a subset of the reference space of the element @a fe, thus
+       allowing the "coarse" FiniteElement to be different from the "fine"
+       FiniteElement as when h-refinement is combined with p-refinement or
+       p-derefinement. It is assumed that both finite elements use the same
+       MapType. */
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const;
 
    /** Given a coefficient and a transformation, compute its projection
        (approximation) in the local finite dimensional space in terms
@@ -386,7 +510,13 @@ public:
                            ElementTransformation &Trans,
                            DenseMatrix &div) const;
 
-   virtual ~FiniteElement () { }
+   /** Return a DofToQuad structure corresponding to the given IntegrationRule
+       using the given DofToQuad::Mode. */
+   /** See the documentation for DofToQuad for more details. */
+   virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                         DofToQuad::Mode mode) const;
+
+   virtual ~FiniteElement();
 
    static bool IsClosedType(int b_type)
    {
@@ -421,10 +551,32 @@ public:
 
 class ScalarFiniteElement : public FiniteElement
 {
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector c_shape;
+#endif
+
+   static const ScalarFiniteElement &CheckScalarFE(const FiniteElement &fe)
+   {
+      if (fe.GetRangeType() != SCALAR)
+      { mfem_error("'fe' must be a ScalarFiniteElement"); }
+      return static_cast<const ScalarFiniteElement &>(fe);
+   }
+
+   const DofToQuad &GetTensorDofToQuad(const class TensorBasisElement &tb,
+                                       const IntegrationRule &ir,
+                                       DofToQuad::Mode mode) const;
+
 public:
-   ScalarFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
+   ScalarFiniteElement(int D, Geometry::Type G, int Do, int O,
+                       int F = FunctionSpace::Pk)
+#ifdef MFEM_THREAD_SAFE
       : FiniteElement(D, G, Do, O, F)
    { DerivType = GRAD; DerivRangeType = VECTOR; DerivMapType = H_CURL; }
+#else
+      : FiniteElement(D, G, Do, O, F), c_shape(Dof)
+   { DerivType = GRAD; DerivRangeType = VECTOR; DerivMapType = H_CURL; }
+#endif
 
    void SetMapType(int M)
    {
@@ -432,35 +584,47 @@ public:
       MapType = M;
       DerivType = (M == VALUE) ? GRAD : NONE;
    }
+
+   /// Nodal interpolation.
+   void NodalLocalInterpolation(ElementTransformation &Trans,
+                                DenseMatrix &I,
+                                const ScalarFiniteElement &fine_fe) const;
+
+   /// "Interpolation" defined through local L2-projection.
+   /** If the "fine" elements cannot represent all basis functions of the
+       "coarse" element, then boundary values from different sub-elements are
+       generally different. */
+   void ScalarLocalInterpolation(ElementTransformation &Trans,
+                                 DenseMatrix &I,
+                                 const ScalarFiniteElement &fine_fe) const;
+
+   virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                         DofToQuad::Mode mode) const;
 };
 
 class NodalFiniteElement : public ScalarFiniteElement
 {
 protected:
-   void NodalLocalInterpolation (ElementTransformation &Trans,
-                                 DenseMatrix &I,
-                                 const NodalFiniteElement &fine_fe) const;
-
    void ProjectCurl_2D(const FiniteElement &fe,
                        ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
-#ifndef MFEM_THREAD_SAFE
-   mutable Vector c_shape;
-#endif
-
 public:
-#ifdef MFEM_THREAD_SAFE
-   NodalFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
+   NodalFiniteElement(int D, Geometry::Type G, int Do, int O,
+                      int F = FunctionSpace::Pk)
       : ScalarFiniteElement(D, G, Do, O, F) { }
-#else
-   NodalFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
-      : ScalarFiniteElement(D, G, Do, O, F), c_shape(Do) { }
-#endif
 
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const
-   { NodalLocalInterpolation (Trans, I, *this); }
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { NodalLocalInterpolation(Trans, I, *this); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const;
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { CheckScalarFE(fe).NodalLocalInterpolation(Trans, I, *this); }
 
    virtual void Project (Coefficient &coeff,
                          ElementTransformation &Trans, Vector &dofs) const;
@@ -487,20 +651,20 @@ public:
 
 class PositiveFiniteElement : public ScalarFiniteElement
 {
-protected:
-   void PositiveLocalInterpolation(ElementTransformation &Trans,
-                                   DenseMatrix &I,
-                                   const PositiveFiniteElement &fine_fe) const;
-
 public:
-   PositiveFiniteElement(int D, int G, int Do, int O,
+   PositiveFiniteElement(int D, Geometry::Type G, int Do, int O,
                          int F = FunctionSpace::Pk) :
       ScalarFiniteElement(D, G, Do, O, F)
    { }
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { PositiveLocalInterpolation(Trans, I, *this); }
+   { ScalarLocalInterpolation(Trans, I, *this); }
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { CheckScalarFE(fe).ScalarLocalInterpolation(Trans, I, *this); }
 
    using FiniteElement::Project;
 
@@ -508,6 +672,9 @@ public:
    // dofs are set to be the Coefficient values at the nodes.
    virtual void Project(Coefficient &coeff,
                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
 
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;
@@ -583,16 +750,33 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &grad) const;
 
-   void LocalInterpolation_RT(const double *nk, const Array<int> &d2n,
+   void LocalInterpolation_RT(const VectorFiniteElement &cfe,
+                              const double *nk, const Array<int> &d2n,
                               ElementTransformation &Trans,
                               DenseMatrix &I) const;
 
-   void LocalInterpolation_ND(const double *tk, const Array<int> &d2t,
+   void LocalInterpolation_ND(const VectorFiniteElement &cfe,
+                              const double *tk, const Array<int> &d2t,
                               ElementTransformation &Trans,
                               DenseMatrix &I) const;
+
+   void LocalRestriction_RT(const double *nk, const Array<int> &d2n,
+                            ElementTransformation &Trans,
+                            DenseMatrix &R) const;
+
+   void LocalRestriction_ND(const double *tk, const Array<int> &d2t,
+                            ElementTransformation &Trans,
+                            DenseMatrix &R) const;
+
+   static const VectorFiniteElement &CheckVectorFE(const FiniteElement &fe)
+   {
+      if (fe.GetRangeType() != VECTOR)
+      { mfem_error("'fe' must be a VectorFiniteElement"); }
+      return static_cast<const VectorFiniteElement &>(fe);
+   }
 
 public:
-   VectorFiniteElement (int D, int G, int Do, int O, int M,
+   VectorFiniteElement (int D, Geometry::Type G, int Do, int O, int M,
                         int F = FunctionSpace::Pk) :
 #ifdef MFEM_THREAD_SAFE
       FiniteElement(D, G, Do, O, F)
@@ -974,6 +1158,7 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const
    { dofs = 0.0; dofs(vertex) = 1.0; }
 };
+
 
 /// Crouzeix-Raviart finite element on triangle
 class CrouzeixRaviartFiniteElement : public NodalFiniteElement
@@ -1521,6 +1706,8 @@ private:
 
    static void CalcChebyshev(const int p, const double x, double *u);
    static void CalcChebyshev(const int p, const double x, double *u, double *d);
+   static void CalcChebyshev(const int p, const double x, double *u, double *d,
+                             double *dd);
 
    QuadratureFunctions1D quad_func;
 
@@ -1574,6 +1761,14 @@ public:
    // { CalcBernstein(p, x, u, d); }
    // { CalcLegendre(p, x, u, d); }
    { CalcChebyshev(p, x, u, d); }
+
+   // Evaluate the values, derivatives and second derivatives of a hierarchical 1D basis at point x
+   static void CalcBasis(const int p, const double x, double *u, double *d,
+                         double *dd)
+   // { CalcMono(p, x, u, d); }
+   // { CalcBernstein(p, x, u, d); }
+   // { CalcLegendre(p, x, u, d); }
+   { CalcChebyshev(p, x, u, d, dd); }
 
    // Evaluate a representation of a Delta function at point x
    static double CalcDelta(const int p, const double x)
@@ -1629,14 +1824,16 @@ public:
        Array will be empty. */
    const Array<int> &GetDofMap() const { return dof_map; }
 
-   static int GetTensorProductGeometry(int dim)
+   static Geometry::Type GetTensorProductGeometry(int dim)
    {
       switch (dim)
       {
          case 1: return Geometry::SEGMENT;
          case 2: return Geometry::SQUARE;
          case 3: return Geometry::CUBE;
-         default: MFEM_ABORT("invalid dimension: " << dim); return -1;
+         default:
+            MFEM_ABORT("invalid dimension: " << dim);
+            return Geometry::INVALID;
       }
    }
 
@@ -1659,6 +1856,14 @@ class NodalTensorFiniteElement : public NodalFiniteElement,
 public:
    NodalTensorFiniteElement(const int dims, const int p, const int btype,
                             const DofMapType dmtype);
+
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const
+   {
+      return (mode == DofToQuad::FULL) ?
+             ScalarFiniteElement::GetDofToQuad(ir, mode) :
+             ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
+   }
 };
 
 class PositiveTensorFiniteElement : public PositiveFiniteElement,
@@ -1667,6 +1872,14 @@ class PositiveTensorFiniteElement : public PositiveFiniteElement,
 public:
    PositiveTensorFiniteElement(const int dims, const int p,
                                const DofMapType dmtype);
+
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const
+   {
+      return (mode == DofToQuad::FULL) ?
+             ScalarFiniteElement::GetDofToQuad(ir, mode) :
+             ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
+   }
 };
 
 class H1_SegmentElement : public NodalTensorFiniteElement
@@ -1777,7 +1990,8 @@ class H1_TriangleElement : public NodalFiniteElement
 private:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
-   mutable DenseMatrix du;
+   mutable Vector ddshape_x, ddshape_y, ddshape_l;
+   mutable DenseMatrix du, ddu;
 #endif
    DenseMatrixInverse Ti;
 
@@ -1786,6 +2000,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &ddshape) const;
 };
 
 
@@ -1795,7 +2011,8 @@ private:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_z, dshape_l, u;
-   mutable DenseMatrix du;
+   mutable Vector ddshape_x, ddshape_y, ddshape_z, ddshape_l;
+   mutable DenseMatrix du, ddu;
 #endif
    DenseMatrixInverse Ti;
 
@@ -1805,6 +2022,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &ddshape) const;
 };
 
 
@@ -1853,6 +2072,71 @@ public:
    // The size of dshape_1d is p+1; the size of dshape is (dof x dim).
    static void CalcDShape(const int p, const double x, const double y,
                           const double z, double *dshape_1d, double *dshape);
+
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
+
+class H1_WedgeElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector t_shape, s_shape;
+   mutable DenseMatrix t_dshape, s_dshape;
+#endif
+   Array<int> t_dof, s_dof;
+
+   H1_TriangleElement TriangleFE;
+   H1_SegmentElement  SegmentFE;
+
+public:
+   H1_WedgeElement(const int p,
+                   const int btype = BasisType::GaussLobatto);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
+/// Class for linear FE on wedge
+class BiLinear3DFiniteElement : public H1_WedgeElement
+{
+public:
+   /// Construct a linear FE on wedge
+   BiLinear3DFiniteElement() : H1_WedgeElement(1) {}
+};
+
+/// Class for quadratic FE on wedge
+class BiQuadratic3DFiniteElement : public H1_WedgeElement
+{
+public:
+   /// Construct a quadratic FE on wedge
+   BiQuadratic3DFiniteElement() : H1_WedgeElement(2) {}
+};
+
+/// Class for cubic FE on wedge
+class BiCubic3DFiniteElement : public H1_WedgeElement
+{
+public:
+   /// Construct a cubic FE on wedge
+   BiCubic3DFiniteElement() : H1_WedgeElement(3) {}
+};
+
+class H1Pos_WedgeElement : public PositiveFiniteElement
+{
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector t_shape, s_shape;
+   mutable DenseMatrix t_dshape, s_dshape;
+#endif
+   Array<int> t_dof, s_dof;
+
+   H1Pos_TriangleElement TriangleFE;
+   H1Pos_SegmentElement  SegmentFE;
+
+public:
+   H1Pos_WedgeElement(const int p);
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2037,6 +2321,53 @@ public:
 };
 
 
+class L2_WedgeElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector t_shape, s_shape;
+   mutable DenseMatrix t_dshape, s_dshape;
+#endif
+   Array<int> t_dof, s_dof;
+
+   L2_TriangleElement TriangleFE;
+   L2_SegmentElement  SegmentFE;
+
+public:
+   L2_WedgeElement(const int p,
+                   const int btype = BasisType::GaussLegendre);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
+class P0WedgeFiniteElement : public L2_WedgeElement
+{
+public:
+   P0WedgeFiniteElement () : L2_WedgeElement(0) {}
+};
+
+class L2Pos_WedgeElement : public PositiveFiniteElement
+{
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector t_shape, s_shape;
+   mutable DenseMatrix t_dshape, s_dshape;
+#endif
+   Array<int> t_dof, s_dof;
+
+   L2Pos_TriangleElement TriangleFE;
+   L2Pos_SegmentElement  SegmentFE;
+
+public:
+   L2Pos_WedgeElement(const int p);
+
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
+
 class RT_QuadrilateralElement : public VectorFiniteElement
 {
 private:
@@ -2062,7 +2393,14 @@ public:
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_RT(nk, dof2nk, Trans, I); }
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2111,7 +2449,14 @@ public:
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_RT(nk, dof2nk, Trans, I); }
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2153,7 +2498,14 @@ public:
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_RT(nk, dof2nk, Trans, I); }
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2201,7 +2553,14 @@ public:
                              Vector &divshape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_RT(nk, dof2nk, Trans, I); }
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2247,7 +2606,16 @@ public:
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
 
    using FiniteElement::Project;
 
@@ -2300,7 +2668,14 @@ public:
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2342,7 +2717,14 @@ public:
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2389,7 +2771,14 @@ public:
                               DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2428,7 +2817,14 @@ public:
    //                            DenseMatrix &curl_shape) const;
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
-   { LocalInterpolation_ND(tk, dof2tk, Trans, I); }
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -2456,7 +2852,7 @@ protected:
    mutable Vector weights;
 
 public:
-   NURBSFiniteElement(int D, int G, int Do, int O, int F)
+   NURBSFiniteElement(int D, Geometry::Type G, int Do, int O, int F)
       : ScalarFiniteElement(D, G, Do, O, F)
    {
       ijk = NULL;

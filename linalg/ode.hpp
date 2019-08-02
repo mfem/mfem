@@ -24,9 +24,10 @@ class ODESolver
 protected:
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
+   MemoryType mem_type;
 
 public:
-   ODESolver() : f(NULL) { }
+   ODESolver() : f(NULL) { mem_type = MemoryType::HOST; }
 
    /// Associate a TimeDependentOperator with the ODE solver.
    /** This method has to be called:
@@ -34,10 +35,7 @@ public:
        - When the dimensions of the associated TimeDependentOperator change.
        - When a time stepping sequence has to be restarted.
        - To change the associated TimeDependentOperator. */
-   virtual void Init(TimeDependentOperator &f)
-   {
-      this->f = &f;
-   }
+   virtual void Init(TimeDependentOperator &f);
 
    /** @brief Perform a time step from time @a t [in] to time @a t [out] based
        on the requested step size @a dt [in]. */
@@ -282,6 +280,29 @@ public:
    virtual void Step(Vector &x, double &t, double &dt);
 };
 
+
+/// Generalized-alpha ODE solver from "A generalized-α method for integrating
+/// the filtered Navier–Stokes equations with a stabilized finite element
+/// method" by K.E. Jansen, C.H. Whiting and G.M. Hulbert.
+class GeneralizedAlphaSolver : public ODESolver
+{
+protected:
+   Vector xdot,k,y;
+   double alpha_f, alpha_m, gamma;
+   bool first;
+
+   void SetRhoInf(double rho_inf);
+   void PrintProperties(std::ostream &out = mfem::out);
+public:
+
+   GeneralizedAlphaSolver(double rho = 1.0) { SetRhoInf(rho); };
+
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+
 /// The SIASolver class is based on the Symplectic Integration Algorithm
 /// described in "A Symplectic Integration Algorithm for Separable Hamiltonian
 /// Functions" by J. Candy and W. Rozmus, Journal of Computational Physics,
@@ -321,7 +342,7 @@ protected:
    mutable Vector dq_;
 };
 
-// First order Symplectic Integration Algorithm
+// First Order Symplectic Integration Algorithm
 class SIA1Solver : public SIASolver
 {
 public:
@@ -329,7 +350,7 @@ public:
    void Step(Vector &q, Vector &p, double &t, double &dt);
 };
 
-// Second order Symplectic Integration Algorithm
+// Second Order Symplectic Integration Algorithm
 class SIA2Solver : public SIASolver
 {
 public:

@@ -71,7 +71,7 @@ private:
    /// The matrix P (interpolation from true dof to dof). Owned.
    mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
-   class ConformingProlongationOperator *Pconf;
+   mutable class ConformingProlongationOperator *Pconf;
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
@@ -114,11 +114,15 @@ private:
 
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
    // Return the dofs associated with the interior of the given mesh entity.
-   // The MeshId may be the id of a regular or a ghost mesh entity.
-   void GetBareDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof) const;
    void UnpackDof(int dof, int &entity, int &index, int &edof) const;
+
+#ifdef MFEM_PMATRIX_STATS
+   mutable int n_msgs_sent, n_msgs_recv;
+   mutable int n_rows_sent, n_rows_recv, n_rows_fwd;
+#endif
 
    void ScheduleSendRow(const struct PMatrixRow &row, int dof, GroupId group_id,
                         std::map<int, class NeighborRowMessage> &send_msg) const;
@@ -128,7 +132,7 @@ private:
                    std::map<int, class NeighborRowMessage> &send_msg) const;
 
 #ifdef MFEM_DEBUG_PMATRIX
-   void DebugDumpDOFs(std::ofstream &os,
+   void DebugDumpDOFs(std::ostream &os,
                       const SparseMatrix &deps,
                       const Array<GroupId> &dof_group,
                       const Array<GroupId> &dof_owner,
@@ -183,7 +187,7 @@ public:
 
    /** @brief Copy constructor: deep copy all data from @a orig except the
        ParMesh, the FiniteElementCollection, and some derived data. */
-   /** If the @a pmesh or @a fec poiters are NULL (default), then the new
+   /** If the @a pmesh or @a fec pointers are NULL (default), then the new
        ParFiniteElementSpace will reuse the respective pointers from @a orig. If
        any of these pointers is not NULL, the given pointer will be used instead
        of the one used by @a orig.
@@ -206,7 +210,7 @@ public:
    ParFiniteElementSpace(const FiniteElementSpace &orig, ParMesh &pmesh,
                          const FiniteElementCollection *fec = NULL);
 
-   /** @brief Construct the *local* ParFiniteElementSpace corresponing to the
+   /** @brief Construct the *local* ParFiniteElementSpace corresponding to the
        global FE space, @a global_fes. */
    /** The parameter @a pm is the *local* ParMesh obtained by decomposing the
        global Mesh used by @a global_fes. The array @a partitioning represents
@@ -261,7 +265,8 @@ public:
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
-   void GetSharedFaceDofs(int group, int fi, Array<int> &dofs) const;
+   void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;
+   void GetSharedQuadrilateralDofs(int group, int fi, Array<int> &dofs) const;
 
    /// The true dof-to-dof interpolation matrix
    HypreParMatrix *Dof_TrueDof_Matrix() const
@@ -283,11 +288,17 @@ public:
    /// Return a reference to the internal GroupCommunicator (on VDofs)
    GroupCommunicator &GroupComm() { return *gcomm; }
 
-   /// Return a new GroupCommunicator on Dofs
+   /// Return a const reference to the internal GroupCommunicator (on VDofs)
+   const GroupCommunicator &GroupComm() const { return *gcomm; }
+
+   /// Return a new GroupCommunicator on scalar dofs, i.e. for VDim = 1.
+   /** @note The returned pointer must be deleted by the caller. */
    GroupCommunicator *ScalarGroupComm();
 
-   /** Given an integer array on the local degrees of freedom, perform
+   /** @brief Given an integer array on the local degrees of freedom, perform
        a bitwise OR between the shared dofs. */
+   /** For non-conforming mesh, synchronization is performed on the cut (aka
+       "partially conforming") space. */
    void Synchronize(Array<int> &ldof_marker) const;
 
    /// Determine the boundary degrees of freedom
@@ -314,9 +325,9 @@ public:
    HYPRE_Int GetMyDofOffset() const;
    HYPRE_Int GetMyTDofOffset() const;
 
-   virtual const Operator *GetProlongationMatrix();
+   virtual const Operator *GetProlongationMatrix() const;
    /// Get the R matrix which restricts a local dof vector to true dof vector.
-   virtual const SparseMatrix *GetRestrictionMatrix()
+   virtual const SparseMatrix *GetRestrictionMatrix() const
    { Dof_TrueDof_Matrix(); return R; }
 
    // Face-neighbor functions
@@ -335,6 +346,12 @@ public:
    bool Conforming() const { return pmesh->pncmesh == NULL; }
    bool Nonconforming() const { return pmesh->pncmesh != NULL; }
 
+   // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
+   // to this FE space, defined on a refined mesh. See full documentation in the
+   // base class, FiniteElementSpace::GetTrueTransferOperator.
+   virtual void GetTrueTransferOperator(const FiniteElementSpace &coarse_fes,
+                                        OperatorHandle &T) const;
+
    /** Reflect changes in the mesh. Calculate one of the refinement/derefinement
        /rebalance matrices, unless want_transform is false. */
    virtual void Update(bool want_transform = true);
@@ -348,6 +365,8 @@ public:
 
    virtual ~ParFiniteElementSpace() { Destroy(); }
 
+   void PrintPartitionStats();
+
    // Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
 };
@@ -358,10 +377,10 @@ class ConformingProlongationOperator : public Operator
 {
 protected:
    Array<int> external_ldofs;
-   GroupCommunicator &gc;
+   const GroupCommunicator &gc;
 
 public:
-   ConformingProlongationOperator(ParFiniteElementSpace &pfes);
+   ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 

@@ -145,10 +145,33 @@ void STRUMPACKSolver::SetReorderingStrategy( strumpack::ReorderingStrategy
    solver_->options().set_reordering_method( method );
 }
 
-void STRUMPACKSolver::SetMC64Job( strumpack::MC64Job job )
+void STRUMPACKSolver::DisableMatching( )
 {
-   solver_->options().set_mc64job( job );
+#if STRUMPACK_VERSION_MAJOR >= 3
+   solver_->options().set_matching( strumpack::MatchingJob::NONE );
+#else
+   solver_->options().set_mc64job( strumpack::MC64Job::NONE );
+#endif
 }
+
+void STRUMPACKSolver::EnableMatching( )
+{
+#if STRUMPACK_VERSION_MAJOR >= 3
+   solver_->options().set_matching
+   ( strumpack::MatchingJob::MAX_DIAGONAL_PRODUCT_SCALING );
+#else
+   solver_->options().set_mc64job
+   ( strumpack::MC64Job::MAX_DIAGONAL_PRODUCT_SCALING );
+#endif
+}
+
+#if STRUMPACK_VERSION_MAJOR >= 3
+void STRUMPACKSolver::EnableParallelMatching( )
+{
+   solver_->options().set_matching
+   ( strumpack::MatchingJob::COMBBLAS );
+}
+#endif
 
 void STRUMPACKSolver::SetRelTol( double rtol )
 {

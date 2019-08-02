@@ -19,6 +19,7 @@
 //               ex1 -m ../../data/fichera-amr.mesh
 //               ex1 -m ../../data/mobius-strip.mesh
 //               ex1 -m ../../data/mobius-strip.mesh -o -1 -sc
+//               ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -46,6 +47,9 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
+   const char *per_file  = "none";
+   Array<int> master(0);
+   Array<int> slave(0);
    bool static_cond = false;
    bool visualization = 1;
    Array<int> order(1);
@@ -54,6 +58,12 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&per_file, "-p", "--per",
+                  "Periodic BCS file.");
+   args.AddOption(&master, "-pm", "--master",
+                  "Master boundaries for periodic BCs");
+   args.AddOption(&slave, "-ps", "--slave",
+                  "Slave boundaries for periodic BCs");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -96,7 +106,40 @@ int main(int argc, char *argv[])
    NURBSExtension *NURBSext = NULL;
    int own_fec = 0;
 
-   if (order[0] == -1) // Isoparametric
+   if (mesh->NURBSext)
+   {
+      fec = new NURBSFECollection(order[0]);
+      own_fec = 1;
+
+      int nkv = mesh->NURBSext->GetNKV();
+      if (order.Size() == 1)
+      {
+         int tmp = order[0];
+         order.SetSize(nkv);
+         order = tmp;
+      }
+
+      if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
+      NURBSext = new NURBSExtension(mesh->NURBSext, order);
+
+      // Read periodic BCs from file
+      std::ifstream in;
+      in.open(per_file, std::ifstream::in);
+      if (in.is_open())
+      {
+         int psize;
+         in >> psize;
+         master.SetSize(psize);
+         slave.SetSize(psize);
+         master.Load(in, psize);
+         slave.Load(in, psize);
+         in.close();
+      }
+      master.Print();
+      slave.Print();
+      NURBSext->ConnectBoundaries(master,slave);
+   }
+   else if (order[0] == -1) // Isoparametric
    {
       if (mesh->GetNodes())
       {
@@ -110,21 +153,6 @@ int main(int argc, char *argv[])
          fec = new H1_FECollection(1, dim);
          own_fec = 1;
       }
-   }
-   else if (mesh->NURBSext && (order[0] > 0) )  // Subparametric NURBS
-   {
-      fec = new NURBSFECollection(order[0]);
-      own_fec = 1;
-      int nkv = mesh->NURBSext->GetNKV();
-
-      if (order.Size() == 1)
-      {
-         int tmp = order[0];
-         order.SetSize(nkv);
-         order = tmp;
-      }
-      if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
-      NURBSext = new NURBSExtension(mesh->NURBSext, order);
    }
    else
    {
@@ -145,6 +173,12 @@ int main(int argc, char *argv[])
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
       ess_bdr = 1;
+      // Remove periodic BCs
+      for (int i = 0; i < master.Size(); i++)
+      {
+         ess_bdr[master[i]-1] = 0;
+         ess_bdr[slave[i]-1] = 0;
+      }
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 

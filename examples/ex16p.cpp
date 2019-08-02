@@ -10,6 +10,7 @@
 //               mpirun -np 8 ex16p -s 3 -a 0.5 -k 0.5 -o 4
 //               mpirun -np 4 ex16p -s 14 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               mpirun -np 16 ex16p -m ../data/fichera-q2.mesh
+//               mpirun -np 16 ex16p -m ../data/fichera-mixed.mesh
 //               mpirun -np 16 ex16p -m ../data/escher-p2.mesh
 //               mpirun -np 8 ex16p -m ../data/beam-tet.mesh -tf 10 -dt 0.1
 //               mpirun -np 4 ex16p -m ../data/amr-quad.mesh -o 4 -rs 0 -rp 0
@@ -173,6 +174,7 @@ int main(int argc, char *argv[])
       case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
       case 13: ode_solver = new RK3SSPSolver; break;
       case 14: ode_solver = new RK4Solver; break;
+      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
       // Implicit A-stable methods (not L-stable)
       case 22: ode_solver = new ImplicitMidpointSolver; break;
       case 23: ode_solver = new SDIRK23Solver; break;

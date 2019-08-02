@@ -21,6 +21,55 @@
 #include <cmath>
 #include <cstdlib>
 
+// Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
+// mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
+// Note: the same macros are defined in hypre_parcsr.cpp.
+#if MFEM_HYPRE_VERSION < 21400
+
+#define mfem_hypre_TAlloc(type, size) hypre_TAlloc(type, size)
+#define mfem_hypre_CTAlloc(type, size) hypre_CTAlloc(type, size)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr)
+
+#else // MFEM_HYPRE_VERSION >= 21400
+
+#define mfem_hypre_TAlloc(type, size) \
+   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_CTAlloc(type, size) \
+   hypre_CTAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
+
+// Notes regarding allocation and deallocation of hypre objects in 2.14.0
+//-----------------------------------------------------------------------
+//
+// 1. hypre_CSRMatrix: i, j, data, and rownnz use HYPRE_MEMORY_SHARED while the
+//    hypre_CSRMatrix structure uses HYPRE_MEMORY_HOST.
+//
+//    Note: the function HYPRE_CSRMatrixCreate creates the i array using
+//          HYPRE_MEMORY_HOST!
+//    Note: the functions hypre_CSRMatrixAdd and hypre_CSRMatrixMultiply create
+//          C_i using HYPRE_MEMORY_HOST!
+//
+// 2. hypre_Vector: data uses HYPRE_MEMORY_SHARED while the hypre_Vector
+//    structure uses HYPRE_MEMORY_HOST.
+//
+// 3. hypre_ParVector: the structure hypre_ParVector uses HYPRE_MEMORY_HOST;
+//    partitioning uses HYPRE_MEMORY_HOST.
+//
+// 4. hypre_ParCSRMatrix: the structure hypre_ParCSRMatrix uses
+//    HYPRE_MEMORY_HOST; col_map_offd, row_starts, col_starts, rowindices,
+//    rowvalues also use HYPRE_MEMORY_HOST.
+//
+//    Note: the function hypre_ParCSRMatrixToCSRMatrixAll allocates matrix_i
+//          using HYPRE_MEMORY_HOST!
+//
+// 5. The goal for the MFEM wrappers of hypre objects is to support only the
+//    standard hypre build case, i.e. when hypre is build without device support
+//    and all memory types correspond to host memory. In this case memory
+//    allocated with operator new can be used by hypre but (as usual) it must
+//    not be owned by hypre.
+
+#endif // #if MFEM_HYPRE_VERSION < 21400
+
 using namespace std;
 
 namespace mfem
@@ -31,7 +80,7 @@ static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)
 {
    TargetT *target_array = cplusplus ? new TargetT[size]
-                           /*     */ : hypre_TAlloc(TargetT, size);
+                           /*     */ : mfem_hypre_TAlloc(TargetT, size);
    for (int i = 0; i < size; i++)
    {
       target_array[i] = array[i];
@@ -158,7 +207,8 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 
 void HypreParVector::SetData(double *_data)
 {
-   Vector::data = hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
+   hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
+   Vector::SetData(_data);
 }
 
 HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
@@ -326,7 +376,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
    hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
-   hypre_CSRMatrixI(A->offd) = hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
+   hypre_CSRMatrixI(A->offd) = mfem_hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
 
    /* Don't need to call these, since they allocate memory only
       if it was not already allocated */
@@ -365,7 +415,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
-   hypre_CSRMatrixI(A->offd) = hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
+   hypre_CSRMatrixI(A->offd) = mfem_hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
@@ -539,7 +589,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
-   hypre_CSRMatrixI(A->offd) = hypre_CTAlloc(HYPRE_Int, diag->Size()+1);
+   hypre_CSRMatrixI(A->offd) = mfem_hypre_CTAlloc(HYPRE_Int, diag->Size()+1);
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
@@ -670,7 +720,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
    HYPRE_Int *row_starts, *col_starts;
    if (rows == cols)
    {
-      row_starts = col_starts = hypre_TAlloc(HYPRE_Int, part_size);
+      row_starts = col_starts = mfem_hypre_TAlloc(HYPRE_Int, part_size);
       for (int i = 0; i < part_size; i++)
       {
          row_starts[i] = rows[i];
@@ -678,8 +728,8 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
    }
    else
    {
-      row_starts = hypre_TAlloc(HYPRE_Int, part_size);
-      col_starts = hypre_TAlloc(HYPRE_Int, part_size);
+      row_starts = mfem_hypre_TAlloc(HYPRE_Int, part_size);
+      col_starts = mfem_hypre_TAlloc(HYPRE_Int, part_size);
       for (int i = 0; i < part_size; i++)
       {
          row_starts[i] = rows[i];
@@ -814,7 +864,7 @@ void HypreParMatrix::CopyRowStarts()
    }
 
    HYPRE_Int *old_row_starts = hypre_ParCSRMatrixRowStarts(A);
-   HYPRE_Int *new_row_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
+   HYPRE_Int *new_row_starts = mfem_hypre_CTAlloc(HYPRE_Int, row_starts_size);
    for (int i = 0; i < row_starts_size; i++)
    {
       new_row_starts[i] = old_row_starts[i];
@@ -851,7 +901,7 @@ void HypreParMatrix::CopyColStarts()
    }
 
    HYPRE_Int *old_col_starts = hypre_ParCSRMatrixColStarts(A);
-   HYPRE_Int *new_col_starts = hypre_CTAlloc(HYPRE_Int, col_starts_size);
+   HYPRE_Int *new_col_starts = mfem_hypre_CTAlloc(HYPRE_Int, col_starts_size);
    for (int i = 0; i < col_starts_size; i++)
    {
       new_col_starts[i] = old_col_starts[i];
@@ -966,21 +1016,23 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
                << ", expected size = " << Height());
 
+   auto x_data = x.HostRead();
+   auto y_data = y.HostWrite();
    if (X == NULL)
    {
       X = new HypreParVector(A->comm,
                              GetGlobalNumCols(),
-                             x.GetData(),
+                             const_cast<double*>(x_data),
                              GetColStarts());
       Y = new HypreParVector(A->comm,
                              GetGlobalNumRows(),
-                             y.GetData(),
+                             y_data,
                              GetRowStarts());
    }
    else
    {
-      X->SetData(x.GetData());
-      Y->SetData(y.GetData());
+      X->SetData(const_cast<double*>(x_data));
+      Y->SetData(y_data);
    }
 
    hypre_ParCSRMatrixMatvec(a, A, *X, b, *Y);
@@ -996,21 +1048,23 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
 
    // Note: x has the dimensions of Y (height), and
    //       y has the dimensions of X (width)
+   auto x_data = x.HostRead();
+   auto y_data = y.HostWrite();
    if (X == NULL)
    {
       X = new HypreParVector(A->comm,
                              GetGlobalNumCols(),
-                             y.GetData(),
+                             y_data,
                              GetColStarts());
       Y = new HypreParVector(A->comm,
                              GetGlobalNumRows(),
-                             x.GetData(),
+                             const_cast<double*>(x_data),
                              GetRowStarts());
    }
    else
    {
-      X->SetData(y.GetData());
-      Y->SetData(x.GetData());
+      X->SetData(y_data);
+      Y->SetData(const_cast<double*>(x_data));
    }
 
    hypre_ParCSRMatrixMatvecT(a, A, *Y, b, *X);
@@ -1242,7 +1296,7 @@ static void get_sorted_rows_cols(const Array<int> &rows_cols,
 
 void HypreParMatrix::Threshold(double threshold)
 {
-   int  ierr = 0;
+   int ierr = 0;
 
    MPI_Comm comm;
    hypre_CSRMatrix * csr_A;
@@ -1271,8 +1325,14 @@ void HypreParMatrix::Threshold(double threshold)
                                            0, 0, 0);
    hypre_ParCSRMatrixOwnsRowStarts(parcsr_A_ptr) = old_owns_row;
    hypre_ParCSRMatrixOwnsColStarts(parcsr_A_ptr) = old_owns_col;
+   hypre_ParCSRMatrixOwnsRowStarts(A) = 0;
+   hypre_ParCSRMatrixOwnsColStarts(A) = 0;
 
    csr_A = hypre_MergeDiagAndOffd(A);
+
+   // Free A, if owned
+   Destroy();
+   Init();
 
    csr_A_wo_z = hypre_CSRMatrixDeleteZeros(csr_A,threshold);
 
@@ -1287,7 +1347,7 @@ void HypreParMatrix::Threshold(double threshold)
       ierr += hypre_CSRMatrixDestroy(csr_A);
    }
 
-   /* FIXME: GenerateDiagAndOffd() uses an int array of size equal to the number
+   /* TODO: GenerateDiagAndOffd() uses an int array of size equal to the number
       of columns in csr_A_wo_z which is the global number of columns in A. This
       does not scale well. */
    ierr += GenerateDiagAndOffd(csr_A_wo_z,parcsr_A_ptr,
@@ -1295,11 +1355,19 @@ void HypreParMatrix::Threshold(double threshold)
 
    ierr += hypre_CSRMatrixDestroy(csr_A_wo_z);
 
-   ierr += hypre_ParCSRMatrixDestroy(A);
-
    MFEM_VERIFY(ierr == 0, "");
 
    A = parcsr_A_ptr;
+
+   hypre_ParCSRMatrixSetNumNonzeros(A);
+   /* Make sure that the first entry in each row is the diagonal one. */
+   if (row_starts == col_starts)
+   {
+      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+   }
+   hypre_MatvecCommPkgCreate(A);
+   height = GetNumRows();
+   width = GetNumCols();
 }
 
 void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
@@ -1815,7 +1883,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    if (Z) { delete Z; }
    if (l1_norms)
    {
-      hypre_TFree(l1_norms);
+      mfem_hypre_TFree(l1_norms);
    }
    delete X0;
    delete X1;
@@ -1828,7 +1896,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    }
    else if (type == 5)
    {
-      l1_norms = hypre_CTAlloc(double, height);
+      l1_norms = mfem_hypre_CTAlloc(double, height);
       Vector ones(height), diag(l1_norms, height);
       ones = 1.0;
       A->Mult(ones, diag);
@@ -2013,7 +2081,7 @@ HypreSmoother::~HypreSmoother()
    if (Z) { delete Z; }
    if (l1_norms)
    {
-      hypre_TFree(l1_norms);
+      mfem_hypre_TFree(l1_norms);
    }
    if (fir_coeffs)
    {
@@ -2029,6 +2097,7 @@ HypreSolver::HypreSolver()
    A = NULL;
    setup_called = 0;
    B = X = NULL;
+   error_mode = ABORT_HYPRE_ERRORS;
 }
 
 HypreSolver::HypreSolver(HypreParMatrix *_A)
@@ -2037,10 +2106,12 @@ HypreSolver::HypreSolver(HypreParMatrix *_A)
    A = _A;
    setup_called = 0;
    B = X = NULL;
+   error_mode = ABORT_HYPRE_ERRORS;
 }
 
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 {
+   HYPRE_Int err;
    if (A == NULL)
    {
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
@@ -2048,7 +2119,16 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
    }
    if (!setup_called)
    {
-      SetupFcn()(*this, *A, b, x);
+      err = SetupFcn()(*this, *A, b, x);
+      if (error_mode == WARN_HYPRE_ERRORS)
+      {
+         if (err) { MFEM_WARNING("Error during setup! Error code: " << err); }
+      }
+      else if (error_mode == ABORT_HYPRE_ERRORS)
+      {
+         MFEM_VERIFY(!err, "Error during setup! Error code: " << err);
+      }
+      hypre_error_flag = 0;
       setup_called = 1;
    }
 
@@ -2056,7 +2136,16 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
    {
       x = 0.0;
    }
-   SolveFcn()(*this, *A, b, x);
+   err = SolveFcn()(*this, *A, b, x);
+   if (error_mode == WARN_HYPRE_ERRORS)
+   {
+      if (err) { MFEM_WARNING("Error during solve! Error code: " << err); }
+   }
+   else if (error_mode == ABORT_HYPRE_ERRORS)
+   {
+      MFEM_VERIFY(!err, "Error during solve! Error code: " << err);
+   }
+   hypre_error_flag = 0;
 }
 
 void HypreSolver::Mult(const Vector &b, Vector &x) const
@@ -2066,21 +2155,23 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
       return;
    }
+   auto b_data = b.HostRead();
+   auto x_data = x.HostWrite();
    if (B == NULL)
    {
       B = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumRows(),
-                             b.GetData(),
+                             const_cast<double*>(b_data),
                              A -> GetRowStarts());
       X = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumCols(),
-                             x.GetData(),
+                             x_data,
                              A -> GetColStarts());
    }
    else
    {
-      B -> SetData(b.GetData());
-      X -> SetData(x.GetData());
+      B -> SetData(const_cast<double*>(b_data));
+      X -> SetData(x_data);
    }
 
    Mult(*B, *X);
@@ -2189,6 +2280,9 @@ void HyprePCG::Mult(const HypreParVector &b, HypreParVector &x) const
    {
       x = 0.0;
    }
+
+   b.HostRead();
+   x.HostReadWrite();
 
    HYPRE_ParCSRPCGSolve(pcg_solver, *A, b, x);
 
@@ -2380,6 +2474,32 @@ void HypreParaSails::SetSymmetry(int sym)
 HypreParaSails::~HypreParaSails()
 {
    HYPRE_ParaSailsDestroy(sai_precond);
+}
+
+
+HypreEuclid::HypreEuclid(HypreParMatrix &A) : HypreSolver(&A)
+{
+   MPI_Comm comm;
+
+   int    euc_level = 1; // We use ILU(1)
+   int    euc_stats = 0; // No logging
+   int    euc_mem   = 0; // No memory logging
+   int    euc_bj    = 0; // 1: Use Block Jacobi
+   int    euc_ro_sc = 0; // 1: Use Row scaling
+
+   HYPRE_ParCSRMatrixGetComm(A, &comm);
+
+   HYPRE_EuclidCreate(comm, &euc_precond);
+   HYPRE_EuclidSetLevel(euc_precond, euc_level);
+   HYPRE_EuclidSetStats(euc_precond, euc_stats);
+   HYPRE_EuclidSetMem(euc_precond, euc_mem);
+   HYPRE_EuclidSetBJ(euc_precond, euc_bj);
+   HYPRE_EuclidSetRowScale(euc_precond, euc_ro_sc);
+}
+
+HypreEuclid::~HypreEuclid()
+{
+   HYPRE_EuclidDestroy(euc_precond);
 }
 
 
@@ -2634,6 +2754,12 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
 
    RecomputeRBMs();
    HYPRE_BoomerAMGSetInterpVectors(amg_precond, rbms.Size(), rbms.GetData());
+
+   // The above BoomerAMG options may result in singular matrices on the coarse
+   // grids, which are handled correctly in hypre's Solve method, but can produce
+   // hypre errors in the Setup (specifically in the l1 row norm computation).
+   // See the documentation of SetErrorMode() for more details.
+   error_mode = IGNORE_HYPRE_ERRORS;
 }
 
 HypreBoomerAMG::~HypreBoomerAMG()
@@ -2824,6 +2950,12 @@ HypreAMS::HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
                                theta, amg_interp_type, amg_Pmax);
    HYPRE_AMSSetBetaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
                               theta, amg_interp_type, amg_Pmax);
+
+   // The AMS preconditioner may sometimes require inverting singular matrices
+   // with BoomerAMG, which are handled correctly in hypre's Solve method, but
+   // can produce hypre errors in the Setup (specifically in the l1 row norm
+   // computation). See the documentation of SetErrorMode() for more details.
+   error_mode = IGNORE_HYPRE_ERRORS;
 }
 
 HypreAMS::~HypreAMS()
@@ -3062,6 +3194,12 @@ HypreADS::HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
                           theta, amg_interp_type, amg_Pmax);
    HYPRE_ADSSetAMSOptions(ads, ams_cycle_type, amg_coarsen_type, amg_agg_levels,
                           amg_rlx_type, theta, amg_interp_type, amg_Pmax);
+
+   // The ADS preconditioner requires inverting singular matrices with BoomerAMG,
+   // which are handled correctly in hypre's Solve method, but can produce hypre
+   // errors in the Setup (specifically in the l1 row norm computation). See the
+   // documentation of SetErrorMode() for more details.
+   error_mode = IGNORE_HYPRE_ERRORS;
 }
 
 HypreADS::~HypreADS()
@@ -3239,7 +3377,7 @@ HypreLOBPCG::SetPreconditioner(Solver & precond)
 void
 HypreLOBPCG::SetOperator(Operator & A)
 {
-   int locSize = A.Width();
+   HYPRE_Int locSize = A.Width();
 
    if (HYPRE_AssumedPartitionCheck())
    {
@@ -3255,7 +3393,7 @@ HypreLOBPCG::SetOperator(Operator & A)
    {
       part = new HYPRE_Int[numProcs+1];
 
-      MPI_Allgather(&locSize, 1, MPI_INT,
+      MPI_Allgather(&locSize, 1, HYPRE_MPI_INT,
                     &part[1], 1, HYPRE_MPI_INT, comm);
 
       part[0] = 0;
@@ -3478,7 +3616,7 @@ HypreAME::~HypreAME()
 {
    if ( multi_vec )
    {
-      hypre_TFree(multi_vec);
+      mfem_hypre_TFree(multi_vec);
    }
 
    if ( eigenvectors )
@@ -3492,7 +3630,7 @@ HypreAME::~HypreAME()
 
    if ( eigenvalues )
    {
-      hypre_TFree(eigenvalues);
+      mfem_hypre_TFree(eigenvalues);
    }
 
    HYPRE_AMEDestroy(ame_solver);

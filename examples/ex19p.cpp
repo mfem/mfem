@@ -7,6 +7,7 @@
 //    mpirun -np 2 ex19p -m ../data/beam-tri.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-hex.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-tet.mesh
+//    mpirun -np 2 ex19p -m ../data/beam-wedge.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an
@@ -50,7 +51,7 @@ using namespace mfem;
 //
 // and K^-1 is an approximation of the inverse of the displacement part of the
 // Jacobian and S^-1 is an approximation of the inverse of the Schur
-// complement S = B K^-1 B^T. The Schur complement is approximiated using
+// complement S = B K^-1 B^T. The Schur complement is approximated using
 // a mass matrix of the pressure variables.
 class JacobianPreconditioner : public Solver
 {
@@ -149,7 +150,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options
-   const char *mesh_file = "../data/beam-hex.mesh";
+   const char *mesh_file = "../data/beam-tet.mesh";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int order = 2;
