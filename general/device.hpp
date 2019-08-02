@@ -197,7 +197,13 @@ public:
        * Multiple backends can be configured at the same time.
        * Only one 'occa-*' backend can be configured at a time.
        * The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'
-         is already enabled. */
+         is already enabled. 
+       * The backend 'ceed-cpu' delegates to a libCEED cpu backend the setup
+         and evaluation of the operator.
+       * The backend 'ceed-cuda' delegates to a libCEED cuda backend the setup
+         and evaluation of the operator and enables the 'cuda' backend to
+         avoid transfer between host and device.
+   */
    void Configure(const std::string &device, const int dev = 0);
 
    /// Print the configuration of the MFEM virtual device object.
