@@ -100,9 +100,6 @@ public:
    int GetNGhostFaces() const { return NGhostFaces; }
    int GetNGhostElements() const { return NGhostElements; }
 
-   Geometry::Type GetGhostFaceGeometry(int ghost_face_id) const
-   { return Geometry::SQUARE; }
-
    // Return a list of vertices/edges/faces shared by this processor and at
    // least one other processor. These are subsets of NCMesh::<entity>_list. */
    const NCList& GetSharedVertices() { GetVertexList(); return shared_vertices; }
@@ -168,6 +165,12 @@ public:
    /// Return true if the specified vertex/edge/face is a ghost.
    bool IsGhost(int entity, int index) const
    {
+      if (index < 0) // special case prism edge-face constraint
+      {
+         MFEM_ASSERT(entity == 2, "");
+         entity = 1;
+         index = -1 - index;
+      }
       switch (entity)
       {
          case 0: return index >= NVertices;
@@ -256,7 +259,7 @@ protected: // implementation
    GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
    GroupMap group_id; // search index over groups
 
-   // owner rank for each vertex, edge and face (encoded as singleton groups)
+   // owner rank for each vertex, edge and face (encoded as singleton group)
    Array<GroupId> entity_owner[3];
    // P matrix comm pattern groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_pmat_group[3];
@@ -336,7 +339,8 @@ protected: // implementation
    void UpdateLayers();
 
    void MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
-                        Table &group_shared);
+                        Table &group_shared, Array<char> *entity_geom = NULL,
+                        char geom = 0);
 
    /** Uniquely encodes a set of leaf elements in the refinement hierarchy of
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,
@@ -527,8 +531,6 @@ protected: // implementation
    void ClearAuxPM();
 
    long GroupsMemoryUsage() const;
-
-   static bool compare_ranks_indices(const Element* a, const Element* b);
 
    friend class NeighborRowMessage;
 };

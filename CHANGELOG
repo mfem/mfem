@@ -10,6 +10,9 @@
 
 Version 4.0.1 (development)
 ===========================
+- Added support for non-conforming wedge AMR, including coarsening and parallel
+  load balancing. Anisotropic wedge refinement is only available in the serial
+  version at the moment.
 
 
 Version 4.0, released on May 24, 2019
@@ -53,7 +56,6 @@ GPU support
 
 Discretization improvements
 ---------------------------
-
 - Partial assembled finite element operators are now available in the core
   library, based on the new classes PABilinearFormExtension, ElementRestriction,
   DofToQuad and GeometricFactors (associated with the classes BilinearForm,
