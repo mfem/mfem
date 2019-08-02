@@ -505,8 +505,9 @@ int main(int argc, char *argv[])
    dg.kappa = -1.0;
 
    int ode_solver_type = 12;
-   int logging = 1;
+   int logging = 0;
    bool   imex = true;
+   int    op_flag = 31;
    double tol_ode = 1e-3;
    double rej_ode = 1.2;
    double kP_acc = 0.13;
@@ -543,6 +544,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&logging, "-l", "--logging",
                   "Set the logging level.");
+   args.AddOption(&op_flag, "-op", "--operator-test",
+                  "Bitmask for disabling operators.");
    args.AddOption(&problem_, "-p", "--problem",
                   "Problem setup to use. See options in velocity_function().");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
@@ -637,6 +640,7 @@ int main(int argc, char *argv[])
    {
       dg.kappa = (double)(order+1)*(order+1);
    }
+   if (op_flag < 0) { op_flag = 0; }
    /*
    if (ode_exp_solver_type < 0)
    {
@@ -987,11 +991,11 @@ int main(int argc, char *argv[])
    m.Finalize();
 
    // Density, Velocity, and Energy grid functions on for visualization.
-   ParGridFunction neu_density(&fes, u.GetData());
-   ParGridFunction ion_density(&fes, u.GetData() + offsets[1]);
+   ParGridFunction  neu_density (&fes, u.GetData());
+   ParGridFunction  ion_density (&fes, u.GetData() + offsets[1]);
    ParGridFunction para_velocity(&fes, u.GetData() + offsets[2]);
-   ParGridFunction ion_energy(&fes, u.GetData() + offsets[3]);
-   ParGridFunction elec_energy(&fes, u.GetData() + offsets[4]);
+   ParGridFunction  ion_energy  (&fes, u.GetData() + offsets[3]);
+   ParGridFunction elec_energy  (&fes, u.GetData() + offsets[4]);
 
    ParGridFunctionArray pgf;
    pgf.Append(&neu_density);
@@ -1008,14 +1012,14 @@ int main(int argc, char *argv[])
 
    // ParGridFunction u(&fes);
    // u.ProjectCoefficient(u0Coef);
-   neu_density = 1.0e16;
+   // neu_density = 1.0e16;
    ion_density = 1.0e19;
    para_velocity = 0.0;
 
    Array<double> weights(5);
    weights = 0.0;
    weights[0] = 1.0;
-   weights[4] = 1.0;
+   weights[4] = 0.0;
    VectorNormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD, weights);
    ode_diff_msr.SetOperator(m);
 
@@ -1035,7 +1039,8 @@ int main(int argc, char *argv[])
    // Intermediate Coefficients
    VectorFunctionCoefficient bHatCoef(2, bHatFunc);
    MatrixFunctionCoefficient perpCoef(2, perpFunc);
-   ProductCoefficient          mnCoef(ion_mass * amu_, niCoef);
+   // ProductCoefficient          mnCoef(ion_mass * amu_, niCoef); // ???
+   ConstantCoefficient         mnCoef(ion_mass * amu_);
    ProductCoefficient        nnneCoef(nnCoef, neCoef);
    ApproxIonizationRate        izCoef(TeCoef);
    ConstantCoefficient     DiPerpCoef(Di_perp);
@@ -1075,6 +1080,8 @@ int main(int argc, char *argv[])
    para_velocity.ProjectCoefficient(vi0Coef);
    ion_energy.ProjectCoefficient(Ti0Coef);
    elec_energy.ProjectCoefficient(Te0Coef);
+
+   neu_density.ProjectCoefficient(Te0Coef); neu_density *= 1.0e15;
 
    {
       L2_ParFESpace l2_fes(&pmesh, order - 1, dim);
@@ -1191,9 +1198,12 @@ int main(int argc, char *argv[])
    }
 
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
-   DGTransportTDO oper(dg, fes, ffes, pgf, dpgf,
+   cout << "calling DGTransportTDO with " << pgf[0]->GetData() << " and " <<
+        dpgf[0]->GetData() << endl;
+   DGTransportTDO oper(dg, fes, ffes, offsets, pgf, dpgf,
                        ion_charge, neutral_mass, neutral_temp,
-                       Di_perp, perpCoef, mnCoef, niCoef, neCoef, imex);
+                       Di_perp, perpCoef, mnCoef, niCoef, neCoef,
+                       imex, op_flag, logging);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
    /*
@@ -1204,6 +1214,7 @@ int main(int argc, char *argv[])
    oper.SetNiAdvectionCoefficient(ViCoef);
    oper.SetNiSourceCoefficient(SiCoef);
    */
+   /*
    oper.SetViDiffusionCoefficient(EtaCoef);
    oper.SetViAdvectionCoefficient(MomCoef);
    oper.SetViSourceCoefficient(SMomCoef);
@@ -1221,7 +1232,7 @@ int main(int argc, char *argv[])
    oper.SetViDirichletBC(dbcAttr, vi0Coef);
    oper.SetTiDirichletBC(dbcAttr, Ti0Coef);
    oper.SetTeDirichletBC(dbcAttr, Te0Coef);
-
+   */
    oper.SetTime(0.0);
    ode_solver->Init(oper);
 

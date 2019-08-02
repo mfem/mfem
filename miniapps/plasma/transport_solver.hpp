@@ -203,42 +203,133 @@ inline double eta_i_para(double ma, double Ta,
         tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 */
+
+class StateVariableFunc
+{
+public:
+   enum DerivType {INVALID, NEUTRAL_DENSITY,
+                   ION_DENSITY, ION_PARA_VELOCITY, ION_TEMPERATURE,
+                   ELECTRON_TEMPERATURE
+                  };
+
+   virtual bool NonTrivialValue(DerivType deriv) const = 0;
+
+   void SetDerivType(DerivType deriv) { derivType_ = deriv; }
+   DerivType GetDerivType() const { return derivType_; }
+
+protected:
+   StateVariableFunc(DerivType deriv = INVALID) : derivType_(deriv) {}
+
+   DerivType derivType_;
+};
+
+
+class StateVariableCoef : public StateVariableFunc, public Coefficient
+{
+public:
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      switch (derivType_)
+      {
+         case INVALID:
+            return Eval_Func(T, ip);
+         case NEUTRAL_DENSITY:
+            return Eval_dNn(T, ip);
+         case ION_DENSITY:
+            return Eval_dNi(T, ip);
+         case ION_PARA_VELOCITY:
+            return Eval_dVi(T, ip);
+         case ION_TEMPERATURE:
+            return Eval_dTi(T, ip);
+         case ELECTRON_TEMPERATURE:
+            return Eval_dTe(T, ip);
+         default:
+            return 0.0;
+      }
+   }
+
+   virtual double Eval_Func(ElementTransformation &T,
+                            const IntegrationPoint &ip) { return 0.0; }
+
+   virtual double Eval_dNn(ElementTransformation &T,
+                           const IntegrationPoint &ip) { return 0.0; }
+
+   virtual double Eval_dNi(ElementTransformation &T,
+                           const IntegrationPoint &ip) { return 0.0; }
+
+   virtual double Eval_dVi(ElementTransformation &T,
+                           const IntegrationPoint &ip) { return 0.0; }
+
+   virtual double Eval_dTi(ElementTransformation &T,
+                           const IntegrationPoint &ip) { return 0.0; }
+
+   virtual double Eval_dTe(ElementTransformation &T,
+                           const IntegrationPoint &ip) { return 0.0; }
+
+protected:
+   StateVariableCoef(DerivType deriv = INVALID) : StateVariableFunc(deriv) {}
+};
+
 /** Given the electron temperature in eV this coefficient returns an
     approzximation to the expected ionization rate in m^3/s.
 */
-class ApproxIonizationRate : public Coefficient
+class ApproxIonizationRate : public StateVariableCoef
 {
 private:
    Coefficient *TeCoef_;
    // GridFunction *Te_;
 
+   // StateVariable derivType_;
+
 public:
    // ApproxIonizationRate(GridFunction &Te) : Te_(&Te) {}
-   ApproxIonizationRate(Coefficient &TeCoef) : TeCoef_(&TeCoef) {}
+   ApproxIonizationRate(Coefficient &TeCoef)
+      : TeCoef_(&TeCoef) {}
 
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
    {
       double Te2 = pow(TeCoef_->Eval(T, ip), 2);
 
       return 3.0e-16 * Te2 / (3.0 + 0.01 * Te2);
    }
+
+   double Eval_dTe(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double Te = TeCoef_->Eval(T, ip);
+
+      return 2.0 * 3.0 * 3.0e-16 * Te / pow(3.0 + 0.01 * Te * Te, 2);
+   }
+
 };
 
-class NeutralDiffusionCoef : public Coefficient
+class NeutralDiffusionCoef : public StateVariableCoef
 {
 private:
-   Coefficient * ne_;
-   Coefficient * vn_;
-   Coefficient * iz_;
+   ProductCoefficient * ne_;
+   Coefficient        * vn_;
+   StateVariableCoef  * iz_;
 
 public:
-   NeutralDiffusionCoef(Coefficient &neCoef, Coefficient &vnCoef,
-                        Coefficient &izCoef)
+   NeutralDiffusionCoef(ProductCoefficient &neCoef, Coefficient &vnCoef,
+                        StateVariableCoef &izCoef)
       : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef) {}
 
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
+   bool NonTrivialValue(DerivType deriv) const
+   {
+      return (deriv == INVALID || deriv == ION_DENSITY ||
+              deriv == ELECTRON_TEMPERATURE);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
    {
       double ne = ne_->Eval(T, ip);
       double vn = vn_->Eval(T, ip);
@@ -246,6 +337,31 @@ public:
 
       return vn * vn / (3.0 * ne * iz);
    }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ne = ne_->Eval(T, ip);
+      double vn = vn_->Eval(T, ip);
+      double iz = iz_->Eval(T, ip);
+
+      double dNe_dNi = ne_->GetAConst();
+
+      return -vn * vn * dNe_dNi / (3.0 * ne * ne * iz);
+   }
+
+   double Eval_dTe(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ne = ne_->Eval(T, ip);
+      double vn = vn_->Eval(T, ip);
+      double iz = iz_->Eval_Func(T, ip);
+
+      double diz_dTe = iz_->Eval_dTe(T, ip);
+
+      return -vn * vn * diz_dTe / (3.0 * ne * iz * iz);
+   }
+
 };
 
 struct DGParams
@@ -351,16 +467,35 @@ public:
    void Update();
 };
 
+class TransportPrec : public BlockDiagonalPreconditioner
+{
+private:
+   Array<Operator*> diag_prec_;
+
+public:
+   TransportPrec(const Array<int> &offsets);
+   ~TransportPrec();
+
+   virtual void SetOperator(const Operator &op);
+};
+
 class DGTransportTDO : public TimeDependentOperator
 {
 private:
+   int MyRank_;
+   int logging_;
+
    ParFiniteElementSpace *fes_;
    ParFiniteElementSpace *ffes_;
    ParGridFunctionArray  *pgf_;
    ParGridFunctionArray  *dpgf_;
 
-   HypreSmoother newton_op_prec_;
-   MINRESSolver  newton_op_solver_;
+   Array<int> &offsets_;
+
+   // HypreSmoother newton_op_prec_;
+   // Array<HypreSmoother*> newton_op_prec_blocks_;
+   TransportPrec newton_op_prec_;
+   GMRESSolver  newton_op_solver_;
    NewtonSolver  newton_solver_;
 
    class NLOperator : public Operator
@@ -368,34 +503,93 @@ private:
    protected:
       DGParams & dg_;
 
+      int logging_;
+      std::string log_prefix_;
+
+      int index_;
       double dt_;
+      ParFiniteElementSpace *fes_;
+      ParMesh               *pmesh_;
       ParGridFunctionArray  *pgf_;
       ParGridFunctionArray  *dpgf_;
 
-      mutable Vector shape_;
-      mutable DenseMatrix dshape_;
-      mutable DenseMatrix dshapedxt_;
+      // mutable Vector shape_;
+      // mutable DenseMatrix dshape_;
+      // mutable DenseMatrix dshapedxt_;
+      mutable Array<int> vdofs_;
+      mutable Array<int> vdofs2_;
       mutable DenseMatrix elmat_;
+      mutable DenseMatrix elmat_k_;
       mutable Vector elvec_;
       mutable Vector locvec_;
       mutable Vector locdvec_;
-      mutable Vector vec_;
+      // mutable Vector vec_;
 
-      NLOperator(DGParams & dg,
+      Array<BilinearFormIntegrator*> dbfi_m_;  // Domain Integrators
+      Array<BilinearFormIntegrator*> dbfi_;  // Domain Integrators
+      Array<BilinearFormIntegrator*> fbfi_;  // Interior Face Integrators
+      Array<BilinearFormIntegrator*> bfbfi_; // Boundary Face Integrators
+      Array<Array<int>*>             bfbfi_marker_; ///< Entries are not owned.
+
+      Array<LinearFormIntegrator*> dlfi_;  // Domain Integrators
+
+      Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
+
+      NLOperator(DGParams & dg, int index,
                  ParGridFunctionArray & pgf,
-                 ParGridFunctionArray & dpgf)
-         : Operator(pgf[0]->ParFESpace()->GetVSize(),
-                    5*(pgf[0]->ParFESpace()->GetVSize())),
-           dg_(dg), dt_(0.0), pgf_(&pgf), dpgf_(&dpgf) {}
+                 ParGridFunctionArray & dpgf);
 
    public:
 
-      void SetTimeStep(double dt) { dt_ = dt; }
+      virtual ~NLOperator();
 
-      virtual void Update() = 0;
-      virtual Operator *GetGradientBlock(int i) = 0;
+      void SetLogging(int logging, const std::string & prefix = "");
+
+      virtual void SetTimeStep(double dt) { dt_ = dt; }
+
+      virtual void Mult(const Vector &k, Vector &y) const;
+
+      virtual void Update();
+      virtual Operator *GetGradientBlock(int i);
    };
 
+   /** The NeutralDensityOp is an mfem::Operator designed to work with
+       a NewtonSolver as one row in a block system of non-linear
+       transport equations.  Specifically, this operator models the
+       mass conservation equation for a neutral species.
+
+          d n_n / dt = Div(D_n Grad(n_n)) + S_n
+
+       Where the diffusion constant D_n is a function of n_e and T_e
+       (the electron density and temperature respectively) and the
+       source term S_n is a function of n_e, T_e, and n_n.  Note that n_e is
+       not a state variable but is related to n_i by the simple relation
+          n_e = z_i n_i
+       where z_i is the charge of the ions and n_i is the ion density.
+
+       To advance this equation in time we need to find k_nn = d n_n / dt
+       which satisfies:
+          k_nn - Div(D_n(n_e, T_e) Grad(n_n + dt k_nn))
+               - S_n(n_e, T_e, n_n + dt k_nn) = 0
+       Where n_e and T_e are also evaluated at the next time step.  This is
+       done with a Newton solver which needs the Jacobian of this block of
+       equations.
+
+       The diagonal block is given by:
+          1 - dt Div(D_n Grad) - dt d S_n / d n_n
+
+       The other non-trivial blocks are:
+          - dt Div(d D_n / d n_i Grad(n_n)) - dt d S_n / d n_i
+          - dt Div(d D_n / d T_e Grad(n_n)) - dt d S_n / d T_e
+
+       The blocks of the Jacobian will be assembled finite element matrices.
+       For the diagonal block we need a mass integrator with coefficient
+       (1 - dt d S_n / d n_n), and a set of integrators to model the DG
+       diffusion operator with coefficient (dt D_n).
+
+       The off-diagonal blocks will consist of a mass integrator with
+       coefficient (-dt d S_n / d n_i) or (-dt d S_n / d T_e).
+    */
    class NeutralDensityOp : public NLOperator
    {
    private:
@@ -403,9 +597,9 @@ private:
       double m_n_;
       double T_n_;
 
-      GridFunctionCoefficient nn0Coef_;
-      GridFunctionCoefficient ni0Coef_;
-      GridFunctionCoefficient Te0Coef_;
+      mutable GridFunctionCoefficient nn0Coef_;
+      mutable GridFunctionCoefficient ni0Coef_;
+      mutable GridFunctionCoefficient Te0Coef_;
 
       GridFunctionCoefficient dnnCoef_;
       GridFunctionCoefficient dniCoef_;
@@ -415,36 +609,35 @@ private:
       mutable SumCoefficient  ni1Coef_;
       mutable SumCoefficient  Te1Coef_;
 
+      ProductCoefficient      ne0Coef_;
       ProductCoefficient      ne1Coef_;
       ConstantCoefficient      vnCoef_;
       ApproxIonizationRate     izCoef_;
 
       NeutralDiffusionCoef      DCoef_;
+      ProductCoefficient      dtDCoef_;
 
-      mutable DGDiffusionIntegrator dg_diff_;
+      ProductCoefficient     nnizCoef_; // nn * iz
+      ProductCoefficient     neizCoef_; // ne * iz
+      ProductCoefficient dtdSndnnCoef_; // - dt * dSn/dnn
+      ProductCoefficient dtdSndniCoef_; // - dt * dSn/dni
+
+      // mutable DiffusionIntegrator   diff_;
+      // mutable DGDiffusionIntegrator dg_diff_;
 
    public:
       NeutralDensityOp(DGParams & dg,
                        ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
-                       int ion_charge, double neutral_mass, double neutral_temp)
-         : NLOperator(dg, pgf, dpgf),
-           z_i_(ion_charge), m_n_(neutral_mass), T_n_(neutral_temp),
-           nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), Te0Coef_(pgf[4]),
-           dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dTeCoef_(dpgf[4]),
-           nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
-           Te1Coef_(Te0Coef_, dTeCoef_), ne1Coef_(z_i_, ni1Coef_),
-           vnCoef_(sqrt(8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_))),
-           izCoef_(Te1Coef_), DCoef_(ne1Coef_, vnCoef_, izCoef_),
-           dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
-      {}
+                       int ion_charge, double neutral_mass,
+                       double neutral_temp);
 
-      void SetTimeStep(double dt);
+      virtual void SetTimeStep(double dt);
 
       void Update();
 
-      void Mult(const Vector &k, Vector &y) const;
+      // void Mult(const Vector &k, Vector &y) const;
 
-      Operator *GetGradientBlock(int i);
+      // Operator *GetGradientBlock(int i);
    };
 
    class IonDensityOp : public NLOperator
@@ -465,9 +658,17 @@ private:
       mutable SumCoefficient  ni1Coef_;
       mutable SumCoefficient  Te1Coef_;
 
+      ApproxIonizationRate     izCoef_;
+
       ConstantCoefficient DPerpCoef_;
       MatrixCoefficient * PerpCoef_;
       ScalarMatrixProductCoefficient DCoef_;
+      ScalarMatrixProductCoefficient dtDCoef_;
+
+      ProductCoefficient nnizCoef_;
+      ProductCoefficient niizCoef_;
+      ProductCoefficient dtdSndnnCoef_;
+      ProductCoefficient dtdSndniCoef_;
 
       mutable DiffusionIntegrator   diff_;
       mutable DGDiffusionIntegrator dg_diff_;
@@ -475,59 +676,79 @@ private:
    public:
       IonDensityOp(DGParams & dg,
                    ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
-                   int ion_charge, double DPerp, MatrixCoefficient & PerpCoef)
-         : NLOperator(dg, pgf, dpgf), z_i_(ion_charge), DPerpConst_(DPerp),
-           nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), Te0Coef_(pgf[4]),
-           dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dTeCoef_(dpgf[4]),
-           nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
-           Te1Coef_(Te0Coef_, dTeCoef_),
-           DPerpCoef_(DPerp),
-           PerpCoef_(&PerpCoef), DCoef_(DPerpCoef_, *PerpCoef_),
-           diff_(DCoef_), dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
-      {}
+                   int ion_charge, double DPerp, MatrixCoefficient & PerpCoef);
+
+      virtual void SetTimeStep(double dt);
 
       void Update();
 
-      void Mult(const Vector &k, Vector &y) const;
+      // void Mult(const Vector &k, Vector &y) const;
 
-      Operator *GetGradientBlock(int i);
+      // Operator *GetGradientBlock(int i);
+   };
+
+   class DummyOp : public NLOperator
+   {
+   public:
+      DummyOp(DGParams & dg,
+              ParGridFunctionArray & pgf,
+              ParGridFunctionArray & dpgf, int index);
+
+      virtual void SetTimeStep(double dt)
+      {
+         std::cout << "Setting time step: " << dt << " in DummyOp" << std::endl;
+         NLOperator::SetTimeStep(dt);
+      }
+
+      void Update();
+
+      // void Mult(const Vector &k, Vector &y) const;
    };
 
    class CombinedOp : public Operator
    {
    private:
       int neq_;
+      int MyRank_;
+      int logging_;
 
       ParGridFunctionArray *pgf_;
       ParGridFunctionArray *dpgf_;
-
-      NeutralDensityOp n_n_op_;
-      IonDensityOp     n_i_op_;
-
+      /*
+       NeutralDensityOp n_n_op_;
+       IonDensityOp     n_i_op_;
+       DummyOp          v_i_op_;
+       DummyOp          t_i_op_;
+       DummyOp          t_e_op_;
+      */
       Array<NLOperator*> op_;
 
-      Array<int> offsets_;
-      BlockOperator *grad_;
+      Array<int> & offsets_;
+      mutable BlockOperator *grad_;
 
       void updateOffsets();
 
    public:
       CombinedOp(DGParams & dg,
                  ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
+                 Array<int> & offsets,
                  int ion_charge, double neutral_mass, double neutral_temp,
-                 double DiPerp, MatrixCoefficient & PerpCoef);
+                 double DiPerp, MatrixCoefficient & PerpCoef,
+                 unsigned int op_flag = 31, int logging = 0);
 
       ~CombinedOp();
 
       void SetTimeStep(double dt);
+      void SetLogging(int logging);
 
       void Update();
 
       void Mult(const Vector &k, Vector &y) const;
 
-      void UpdateGradient();
+      void UpdateGradient(const Vector &x) const;
 
-      Operator &GetGradient(const Vector &x) const { return *grad_; }
+      Operator &GetGradient(const Vector &x) const
+      { UpdateGradient(x); return *grad_; }
    };
 
    CombinedOp op_;
@@ -536,9 +757,9 @@ private:
 
    // DGAdvectionDiffusionTDO n_n_oper_; // Neutral Density
    // DGAdvectionDiffusionTDO n_i_oper_; // Ion Density
-   DGAdvectionDiffusionTDO v_i_oper_; // Ion Parallel Velocity
-   DGAdvectionDiffusionTDO T_i_oper_; // Ion Temperature
-   DGAdvectionDiffusionTDO T_e_oper_; // Electron Temperature
+   // DGAdvectionDiffusionTDO v_i_oper_; // Ion Parallel Velocity
+   // DGAdvectionDiffusionTDO T_i_oper_; // Ion Temperature
+   // DGAdvectionDiffusionTDO T_e_oper_; // Electron Temperature
 
    mutable Vector x_;
    mutable Vector y_;
@@ -549,6 +770,7 @@ public:
    DGTransportTDO(DGParams & dg,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &ffes,
+                  Array<int> &offsets,
                   ParGridFunctionArray &pgf,
                   ParGridFunctionArray &dpgf,
                   int ion_charge,
@@ -559,7 +781,9 @@ public:
                   Coefficient &MomCCoef,
                   Coefficient &TiCCoef,
                   Coefficient &TeCCoef,
-                  bool imex = true);
+                  bool imex = true,
+                  unsigned int op_flag = 31,
+                  int logging = 0);
 
    ~DGTransportTDO();
 
@@ -581,30 +805,31 @@ public:
     void SetNiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
     void SetNiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
    */
-   void SetViAdvectionCoefficient(VectorCoefficient &VCoef);
-   void SetViDiffusionCoefficient(Coefficient &dCoef);
-   void SetViDiffusionCoefficient(MatrixCoefficient &DCoef);
-   void SetViSourceCoefficient(Coefficient &SCoef);
+   /*
+    void SetViAdvectionCoefficient(VectorCoefficient &VCoef);
+    void SetViDiffusionCoefficient(Coefficient &dCoef);
+    void SetViDiffusionCoefficient(MatrixCoefficient &DCoef);
+    void SetViSourceCoefficient(Coefficient &SCoef);
 
-   void SetViDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
-   void SetViNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
+    void SetViDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
+    void SetViNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
 
-   void SetTiAdvectionCoefficient(VectorCoefficient &VCoef);
-   void SetTiDiffusionCoefficient(Coefficient &dCoef);
-   void SetTiDiffusionCoefficient(MatrixCoefficient &DCoef);
-   void SetTiSourceCoefficient(Coefficient &SCoef);
+    void SetTiAdvectionCoefficient(VectorCoefficient &VCoef);
+    void SetTiDiffusionCoefficient(Coefficient &dCoef);
+    void SetTiDiffusionCoefficient(MatrixCoefficient &DCoef);
+    void SetTiSourceCoefficient(Coefficient &SCoef);
 
-   void SetTiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
-   void SetTiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
+    void SetTiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
+    void SetTiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
 
-   void SetTeAdvectionCoefficient(VectorCoefficient &VCoef);
-   void SetTeDiffusionCoefficient(Coefficient &dCoef);
-   void SetTeDiffusionCoefficient(MatrixCoefficient &DCoef);
-   void SetTeSourceCoefficient(Coefficient &SCoef);
+    void SetTeAdvectionCoefficient(VectorCoefficient &VCoef);
+    void SetTeDiffusionCoefficient(Coefficient &dCoef);
+    void SetTeDiffusionCoefficient(MatrixCoefficient &DCoef);
+    void SetTeSourceCoefficient(Coefficient &SCoef);
 
-   void SetTeDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
-   void SetTeNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
-
+    void SetTeDirichletBC(Array<int> &dbc_attr, Coefficient &dbc);
+    void SetTeNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
+   */
    // virtual void ExplicitMult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &u, Vector &dudt);
 
