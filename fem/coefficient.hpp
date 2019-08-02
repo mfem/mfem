@@ -552,14 +552,14 @@ public:
 class VectorFunctionRestrictedCoefficient : public VectorCoefficient
 {
 private:
-   void (*TDFunction)(const Vector &, double, int, Vector &);
+   void (*TDFunction)(double, int, Vector &);
    Array<int> active_attr;
    Coefficient *Q;
 
 public:
    /// Construct a time-dependent vector coefficient from a C-function
    VectorFunctionRestrictedCoefficient(int dim,
-                                       void (*TDF)(const Vector &, double, int, Vector &),
+                                       void (*TDF)(int, Vector &),
                                        Array<int> &attr, Coefficient *q = NULL)
       : VectorCoefficient(dim), Q(q)
    {

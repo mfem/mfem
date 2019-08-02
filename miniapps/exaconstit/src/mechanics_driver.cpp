@@ -84,7 +84,7 @@ void InitialDeformation(const Vector &x, double t,  Vector &y);
 // and end time steps. This function was from when the code was displacement
 // based
 void Velocity(const Vector &x, double t, Vector &y);
-void DirBdrFunc(const Vector &x, double t, int attr_id, Vector &y);
+void DirBdrFunc(int attr_id, Vector &y);
 // This initializes some grid function
 void InitGridFunction(const Vector &x, Vector &y);
 
@@ -932,17 +932,13 @@ void Velocity(const Vector &x, double t, Vector &y)
    y = temp_x; 
 }
 
-void DirBdrFunc(const Vector &x, double t, int attr_id, Vector &y)
+void DirBdrFunc(int attr_id, Vector &y)
 {
    BCManager & bcManager = BCManager::getInstance();
    BCData & bc = bcManager.GetBCInstance(attr_id);
-//   printf("DirBdrFunc attr_id: %d \n", attr_id);
 
-   bc.setDirBCs(x, t, y);
+   bc.setDirBCs(y);
 
-//   if (attr_id == 4) {
-//      printf("DirBdrFunc x[2]: %f \n", x[2]);
-//   }
 }
 
 void InitGridFunction(const Vector &x, Vector &y)

@@ -21,7 +21,7 @@ public:
    int compID;
    double dt, tf;
 
-   void setDirBCs(const Vector& x, double t, Vector& y);
+   void setDirBCs(Vector& y);
    
    void setScales();
   

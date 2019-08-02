@@ -17,7 +17,7 @@ BCData::~BCData()
 }
 
 
-void BCData::setDirBCs(const Vector& x, double t, Vector& y)
+void BCData::setDirBCs(Vector& y)
 {
    //When doing the velocity based methods we only
    //need to do the below.

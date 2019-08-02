@@ -297,7 +297,7 @@ void VectorFunctionRestrictedCoefficient::Eval(Vector &V,
    V.SetSize(vdim);
    if (active_attr[T.Attribute-1])
    {
-      (*TDFunction)(transip, GetTime(), T.Attribute, V);
+      (*TDFunction)(T.Attribute, V);
    }
    else
    {
