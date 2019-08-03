@@ -509,12 +509,14 @@ class VectorErrorEstimator : public ErrorEstimator
 {
 private:
    ParGridFunctionArray &pgf_;
-   ParFiniteElementSpace &fes_;
-   ParFiniteElementSpace &sm_fes_;
+   ParFiniteElementSpace &err_fes_;
+   ParFiniteElementSpace &flux_fes_;
+   ParFiniteElementSpace &sm_flux_fes_;
    Array<Coefficient*> &dCoef_;
    Array<MatrixCoefficient*> &DCoef_;
    Array<double> &w_;
 
+   Array<double> nrm_;
    Array<BilinearFormIntegrator*> integ_;
    Array<ErrorEstimator*> est_;
 
@@ -522,18 +524,20 @@ private:
 
 public:
   VectorErrorEstimator(ParGridFunctionArray & pgf,
-		       ParFiniteElementSpace & fes,
-		       ParFiniteElementSpace & sm_fes,
+		       ParFiniteElementSpace & err_fes,
+		       ParFiniteElementSpace & flux_fes,
+		       ParFiniteElementSpace & sm_flux_fes,
 		       Array<double> & weights,
 		       Array<Coefficient*> & dCoef,
 		       Array<MatrixCoefficient*> & DCoef)
     : pgf_(pgf),
-      fes_(fes),
-      sm_fes_(sm_fes),
+      err_fes_(err_fes),
+      flux_fes_(flux_fes),
+      sm_flux_fes_(sm_flux_fes),
       dCoef_(dCoef),
       DCoef_(DCoef),
       w_(weights),
-      err_(fes_.GetVSize())
+      err_(err_fes_.GetVSize())
    {
       integ_.SetSize(w_.Size());
       est_.SetSize(w_.Size());
@@ -550,7 +554,7 @@ public:
 	   else
 	     integ_[i] = new DiffusionIntegrator();
 	   est_[i] = new L2ZienkiewiczZhuEstimator(*integ_[i], *pgf_[i],
-						   fes_, sm_fes_);
+						   flux_fes_, sm_flux_fes_);
          }
       }
    }
@@ -568,7 +572,7 @@ public:
   
   const Vector & GetLocalErrors()
   {
-    err_.SetSize(fes_.GetVSize());
+    err_.SetSize(err_fes_.GetVSize());
     err_ = 0.0;
 
     for (int i=0; i<w_.Size(); i++)
@@ -1123,9 +1127,9 @@ int main(int argc, char *argv[])
    para_velocity = 0.0;
 
    Array<double> weights(5);
-   weights = 0.0;
-   weights[0] = 1.0;
-   weights[4] = 0.0;
+   weights = 1.0;
+   // weights[0] = 1.0;
+   // weights[4] = 0.0;
    VectorNormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD, weights);
    ode_diff_msr.SetOperator(m);
 
@@ -1192,7 +1196,7 @@ int main(int argc, char *argv[])
    elec_energy.ProjectCoefficient(Te0Coef);
 
 
-
+   Array<double> coefNrm(5);
    {
       L2_ParFESpace l2_fes(&pmesh, order - 1, dim);
       ParLinearForm Mc(&l2_fes);
@@ -1305,6 +1309,12 @@ int main(int argc, char *argv[])
       if (mpi.Root()) { cout << "|Eta/mn| = " << bEtab / bMb / mnAvg << endl; }
       if (mpi.Root()) { cout << "|nXi/ni| = " << bnXib / bMb / niAvg << endl; }
       if (mpi.Root()) { cout << "|nXe/ne| = " << bnXeb / bMb / neAvg << endl; }
+
+      coefNrm[0] = bDnb / bMb;
+      coefNrm[1] = bDib / bMb;
+      coefNrm[2] = bEtab / bMb;
+      coefNrm[3] = bnXib / bMb;
+      coefNrm[4] = bnXeb / bMb;      
    }
 
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
@@ -1386,9 +1396,12 @@ int main(int argc, char *argv[])
    DCoefs[2] = &EtaCoef;
    DCoefs[3] = &nXiCoef;
    DCoefs[4] = &nXeCoef;
+
+   Array<double> estWeights(5);
+   for (int i=0; i<5; i++) estWeights[i] = weights[i] / coefNrm[i];
    
-   VectorErrorEstimator estimator(pgf, flux_fes, smooth_flux_fes, weights,
-				  dCoefs, DCoefs);
+   VectorErrorEstimator estimator(pgf, fes_l2_o0, flux_fes, smooth_flux_fes,
+				  estWeights, dCoefs, DCoefs);
    
    if (max_elem_error < 0.0)
    {
