@@ -742,7 +742,7 @@ private:
       int neq_;
       int MyRank_;
       int logging_;
-     
+
       ParFiniteElementSpace *fes_;
       ParGridFunctionArray  *pgf_;
       ParGridFunctionArray  *dpgf_;

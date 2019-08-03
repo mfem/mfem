@@ -1397,7 +1397,7 @@ int main(int argc, char *argv[])
       coefNrm[1] = bDib / bMb;
       coefNrm[2] = bEtab / bMb;
       coefNrm[3] = bnXib / bMb;
-      coefNrm[4] = bnXeb / bMb;      
+      coefNrm[4] = bnXeb / bMb;
    }
 
    // DGAdvectionDiffusionTDO oper(dg, fes, one, imex);
@@ -1687,7 +1687,7 @@ int main(int argc, char *argv[])
             //     still represent the same function as before refinement.
             ffes.Update();
             fes.Update();
-	    fes.ExchangeFaceNbrData();
+            fes.ExchangeFaceNbrData();
             fes_l2_o0.Update();
             u.Update();
 
@@ -1715,7 +1715,7 @@ int main(int argc, char *argv[])
                // redistributes the GridFunction among the processors.
                ffes.Update();
                fes.Update();
-	       fes.ExchangeFaceNbrData();
+               fes.ExchangeFaceNbrData();
                fes_l2_o0.Update();
                u.Update();
                {
@@ -1748,8 +1748,8 @@ int main(int argc, char *argv[])
             // cout << "fes.Update();" << endl;
             ffes.Update();
             fes.Update();
-	    fes.ExchangeFaceNbrData();
-	    // cout << "fes_l2_o0.Update();" << endl;
+            fes.ExchangeFaceNbrData();
+            // cout << "fes_l2_o0.Update();" << endl;
             fes_l2_o0.Update();
             // cout << "u.Update();" << endl;
             u.Update();

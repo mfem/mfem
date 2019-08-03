@@ -1365,9 +1365,9 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
    }
    if (prev_du != NULL)
    {
-     dpgf_->ExchangeFaceNbrData();
+      dpgf_->ExchangeFaceNbrData();
    }
-   
+
    // T_e_oper_.ImplicitSolve(dt, u_, dudt_);
    if (fes_->GetMyRank() == 0 && logging_ > 1)
    {
@@ -1557,46 +1557,46 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       Vector locdvec2(NULL, 0);
 
       // DenseMatrix elmat(NULL, 0, 0);
-      
+
       int nsfaces = pmesh_->GetNSharedFaces();
       for (int i = 0; i < nsfaces; i++)
       {
-	ftrans = pmesh_->GetSharedFaceTransformations(i);
-	fes_->GetElementVDofs(ftrans->Elem1No, vdofs_);
-	fes_->GetFaceNbrElementVDofs(ftrans->Elem2No, vdofs2_);
-	// cout << "vdofs2_ = {" << vdofs2_[0] << "..." << vdofs2_[vdofs2_.Size()-1] << endl;
-	/*
-	vdofs_.Copy(vdofs_all_);
-	for (int j = 0; j < vdofs2_.Size(); j++)
-	{
-         if (vdofs2_[j] >= 0)
+         ftrans = pmesh_->GetSharedFaceTransformations(i);
+         fes_->GetElementVDofs(ftrans->Elem1No, vdofs_);
+         fes_->GetFaceNbrElementVDofs(ftrans->Elem2No, vdofs2_);
+         // cout << "vdofs2_ = {" << vdofs2_[0] << "..." << vdofs2_[vdofs2_.Size()-1] << endl;
+         /*
+         vdofs_.Copy(vdofs_all_);
+         for (int j = 0; j < vdofs2_.Size(); j++)
          {
-            vdofs2_[j] += height;
-         }
-         else
-         {
-            vdofs2_[j] -= height;
-         }
-      }
+               if (vdofs2_[j] >= 0)
+               {
+                  vdofs2_[j] += height;
+               }
+               else
+               {
+                  vdofs2_[j] -= height;
+               }
+            }
 
-      vdofs_all_.Append(vdofs2_);
-	*/
-	for (int k = 0; k < fbfi_.Size(); k++)
-	  {
-	    fbfi_[k]->AssembleFaceMatrix(*fes_->GetFE(ftrans->Elem1No),
-					 *fes_->GetFaceNbrFE(ftrans->Elem2No),
-					 *ftrans, elmat_);
-	    // cout << "vdof sizes " << vdofs_.Size() << " " << vdofs2_.Size() << " " << vdofs_all_.Size() << ", elmat " << elmat_.Height() << "x" << elmat_.Width() << endl;
-       	 /*
-         if (keep_nbr_block)
+            vdofs_all_.Append(vdofs2_);
+         */
+         for (int k = 0; k < fbfi_.Size(); k++)
          {
-            mat->AddSubMatrix(vdofs_all, vdofs_all, elemmat, skip_zeros);
-         }
-         else
-         {
-            mat->AddSubMatrix(vdofs1, vdofs_all, elemmat, skip_zeros);
-         }
-	 */
+            fbfi_[k]->AssembleFaceMatrix(*fes_->GetFE(ftrans->Elem1No),
+                                         *fes_->GetFaceNbrFE(ftrans->Elem2No),
+                                         *ftrans, elmat_);
+            // cout << "vdof sizes " << vdofs_.Size() << " " << vdofs2_.Size() << " " << vdofs_all_.Size() << ", elmat " << elmat_.Height() << "x" << elmat_.Width() << endl;
+            /*
+            if (keep_nbr_block)
+            {
+              mat->AddSubMatrix(vdofs_all, vdofs_all, elemmat, skip_zeros);
+            }
+            else
+            {
+              mat->AddSubMatrix(vdofs1, vdofs_all, elemmat, skip_zeros);
+            }
+            */
             int ndof  = vdofs_.Size();
             int ndof2 = vdofs2_.Size();
 
@@ -1604,16 +1604,16 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             locvec_.SetSize(ndof+ndof2);
             locdvec_.SetSize(ndof+ndof2);
 
-	    elvec.SetDataAndSize(&elvec_[0], ndof);
+            elvec.SetDataAndSize(&elvec_[0], ndof);
 
-	    locvec1.SetDataAndSize(&locvec_[0], ndof);
-	    locvec2.SetDataAndSize(&locvec_[ndof], ndof2);
-	    
-	    locdvec1.SetDataAndSize(&locdvec_[0], ndof);
-	    locdvec2.SetDataAndSize(&locdvec_[ndof], ndof2);
+            locvec1.SetDataAndSize(&locvec_[0], ndof);
+            locvec2.SetDataAndSize(&locvec_[ndof], ndof2);
 
-	    // elmat.UseExternalData(elmat_.Data(), ndof, ndof + ndof2);
-	    
+            locdvec1.SetDataAndSize(&locdvec_[0], ndof);
+            locdvec2.SetDataAndSize(&locdvec_[ndof], ndof2);
+
+            // elmat.UseExternalData(elmat_.Data(), ndof, ndof + ndof2);
+
             (*pgf_)[index_]->GetSubVector(vdofs_, locvec1);
             (*dpgf_)[index_]->GetSubVector(vdofs_, locdvec1);
 
@@ -1625,7 +1625,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             elmat_.Mult(locvec_, elvec_);
 
             y.AddElementVector(vdofs_, elvec);
-	  }
+         }
       }
 
    }
@@ -1929,14 +1929,14 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &x) const
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-     // (*dpgf_)[i]->SetData(prev_x + offsets_[i]);
-     (*dpgf_)[i]->MakeRef(fes_, prev_x + offsets_[i]);
+      // (*dpgf_)[i]->SetData(prev_x + offsets_[i]);
+      (*dpgf_)[i]->MakeRef(fes_, prev_x + offsets_[i]);
    }
    if (prev_x != NULL)
    {
-     dpgf_->ExchangeFaceNbrData();
+      dpgf_->ExchangeFaceNbrData();
    }
-   
+
    if ( MyRank_ == 0 && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::UpdateGradient done" << endl;
@@ -1981,9 +1981,9 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
    }
    if (prev_k != NULL)
    {
-     dpgf_->ExchangeFaceNbrData();
+      dpgf_->ExchangeFaceNbrData();
    }
-   
+
    if ( MyRank_ == 0 && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::Mult done" << endl;
