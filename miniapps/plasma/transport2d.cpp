@@ -505,6 +505,84 @@ public:
    }
 };
 
+class VectorErrorEstimator : public ErrorEstimator
+{
+private:
+   ParGridFunctionArray &pgf_;
+   ParFiniteElementSpace &fes_;
+   ParFiniteElementSpace &sm_fes_;
+   Array<Coefficient*> &dCoef_;
+   Array<MatrixCoefficient*> &DCoef_;
+   Array<double> &w_;
+
+   Array<BilinearFormIntegrator*> integ_;
+   Array<ErrorEstimator*> est_;
+
+   Vector err_;
+
+public:
+  VectorErrorEstimator(ParGridFunctionArray & pgf,
+		       ParFiniteElementSpace & fes,
+		       ParFiniteElementSpace & sm_fes,
+		       Array<double> & weights,
+		       Array<Coefficient*> & dCoef,
+		       Array<MatrixCoefficient*> & DCoef)
+    : pgf_(pgf),
+      fes_(fes),
+      sm_fes_(sm_fes),
+      dCoef_(dCoef),
+      DCoef_(DCoef),
+      w_(weights),
+      err_(fes_.GetVSize())
+   {
+      integ_.SetSize(w_.Size());
+      est_.SetSize(w_.Size());
+      integ_ = NULL;
+      est_ = NULL;
+      for (int i=0; i<w_.Size(); i++)
+      {
+         if (w_[i] != 0.0)
+         {
+	   if (dCoef_[i] != NULL)
+	     integ_[i] = new DiffusionIntegrator(*dCoef_[i]);
+	   else if (DCoef_[i] != NULL)
+	     integ_[i] = new DiffusionIntegrator(*DCoef_[i]);
+	   else
+	     integ_[i] = new DiffusionIntegrator();
+	   est_[i] = new L2ZienkiewiczZhuEstimator(*integ_[i], *pgf_[i],
+						   fes_, sm_fes_);
+         }
+      }
+   }
+
+  void Reset()
+  {
+    for (int i=0; i<est_.Size(); i++)
+      {
+	if (est_[i] != NULL)
+	  {
+	    est_[i]->Reset();
+	  }
+      }
+  }
+  
+  const Vector & GetLocalErrors()
+  {
+    err_.SetSize(fes_.GetVSize());
+    err_ = 0.0;
+
+    for (int i=0; i<w_.Size(); i++)
+    {
+      if (w_[i] != 0.0)
+      {
+	err_.Add(w_[i], est_[i]->GetLocalErrors());
+      }
+    }
+    
+    return err_;
+  }
+};
+
 // Initial condition
 void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &fespace,
@@ -1041,7 +1119,7 @@ int main(int argc, char *argv[])
    // ParGridFunction u(&fes);
    // u.ProjectCoefficient(u0Coef);
    // neu_density = 1.0e16;
-   ion_density = 1.0e19;
+   // ion_density = 1.0e19;
    para_velocity = 0.0;
 
    Array<double> weights(5);
@@ -1295,10 +1373,23 @@ int main(int argc, char *argv[])
    // Another possible option for the smoothed flux space:
    // H1_FECollection smooth_flux_fec(order, dim);
    // ParFiniteElementSpace smooth_flux_fes(&pmesh, &smooth_flux_fec, dim);
+   /*
    DiffusionIntegrator integ(nXeCoef);
    L2ZienkiewiczZhuEstimator estimator(integ, elec_energy, flux_fes,
                                        smooth_flux_fes);
+   */
+   Array<Coefficient*> dCoefs(5);       dCoefs = NULL;
+   Array<MatrixCoefficient*> DCoefs(5); DCoefs = NULL;
 
+   dCoefs[0] = &DnCoef;
+   DCoefs[1] = &DiCoef;
+   DCoefs[2] = &EtaCoef;
+   DCoefs[3] = &nXiCoef;
+   DCoefs[4] = &nXeCoef;
+   
+   VectorErrorEstimator estimator(pgf, flux_fes, smooth_flux_fes, weights,
+				  dCoefs, DCoefs);
+   
    if (max_elem_error < 0.0)
    {
       const Vector init_errors = estimator.GetLocalErrors();
