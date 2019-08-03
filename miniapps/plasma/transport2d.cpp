@@ -539,14 +539,23 @@ public:
       w_(weights),
       err_(err_fes_.GetVSize())
    {
+      nrm_.SetSize(w_.Size());
       integ_.SetSize(w_.Size());
       est_.SetSize(w_.Size());
+
+      nrm_  =1.0;
       integ_ = NULL;
       est_ = NULL;
+
       for (int i=0; i<w_.Size(); i++)
       {
          if (w_[i] != 0.0)
          {
+	   double loc_nrm = pgf_[i]->Normlinf();
+	   MPI_Allreduce(&loc_nrm, &nrm_[i], 1, MPI_DOUBLE, MPI_MAX,
+			 err_fes_.GetComm());
+	   if (nrm_[i] == 0.0) nrm_[i] = 1.0;
+	   
 	   if (dCoef_[i] != NULL)
 	     integ_[i] = new DiffusionIntegrator(*dCoef_[i]);
 	   else if (DCoef_[i] != NULL)
@@ -579,7 +588,9 @@ public:
     {
       if (w_[i] != 0.0)
       {
-	err_.Add(w_[i], est_[i]->GetLocalErrors());
+	const Vector & err_k = est_[i]->GetLocalErrors();
+	cout << i << " " << err_.Size() << " " << err_k.Size() << " " << err_k.Norml2() << " " << w_[i] << " " << nrm_[i] << endl;
+	err_.Add(w_[i] / nrm_[i], err_k);
       }
     }
     
