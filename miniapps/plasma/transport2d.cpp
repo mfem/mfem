@@ -154,8 +154,8 @@ double nnFunc(const Vector &x, double t)
 
    double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
    double rs = pow(x[0] + 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
-   return ni_max_ +
-          (ni_min_ - ni_max_) * (cos(0.5 * M_PI * sqrt(r)) - 0.75 * exp(-200.0 * rs));
+   return nn_max_ +
+          (nn_min_ - nn_max_) * (cos(0.5 * M_PI * sqrt(r)) - 0.75 * exp(-200.0 * rs));
 }
 
 double niFunc(const Vector &x, double t)
