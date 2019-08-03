@@ -6,22 +6,27 @@
 using namespace mfem;
 using namespace std;
 
-void vel_cyl(const Vector &x, Vector &u)
+#define KINVIS 1.0
+
+void vel_ex(const Vector &x, double t, Vector &u)
 {
    double xi = x(0);
    double yi = x(1);
 
-   double U = 1.5;
+   double F = exp(-2.0 * KINVIS * t);
 
-   if (xi == 0.0)
-   {
-      u(0) = 4.0 * U * yi * (0.41 - yi) / (pow(0.41, 2.0));
-   }
-   else
-   {
-      u(0) = 0.0;
-   }
-   u(1) = 0.0;
+   u(0) = cos(xi) * sin(yi) * F;
+   u(1) = -sin(xi) * cos(yi) * F;
+}
+
+double p_ex(const Vector &x, double t)
+{
+   double xi = x(0);
+   double yi = x(1);
+
+   double F = exp(-2.0 * KINVIS * t);
+
+   return -1.0 / 4.0 * (cos(2.0 * xi) + cos(2.0 * yi)) * pow(F, 2.0);
 }
 
 int main(int argc, char *argv[])
@@ -32,15 +37,15 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   const char *mesh_file = "cyl.msh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
 
    int serial_ref_levels = 0;
 
-   int order = 2;
+   int order = 6;
    int vel_order = order;
    int pres_order = order;
 
-   double kinvis = 1.0;
+   double kinvis = KINVIS;
 
    double t = 0.0;
    double dt = 1e-5;
@@ -70,6 +75,9 @@ int main(int argc, char *argv[])
 
    Mesh *mesh = new Mesh(mesh_file);
    int dim = mesh->Dimension();
+   mesh->EnsureNodes();
+   GridFunction *nodes = mesh->GetNodes();
+   *nodes *= M_PI;
 
    for (int l = 0; l < serial_ref_levels; l++)
    {
@@ -101,7 +109,7 @@ int main(int argc, char *argv[])
    ess_bdr_attr_u[0] = 1;
    ess_bdr_attr_u[1] = 1;
    ess_bdr_attr_u[2] = 1;
-   ess_bdr_attr_u[3] = 0;
+   ess_bdr_attr_u[3] = 1;
    vel_fes->GetEssentialTrueDofs(ess_bdr_attr_u, ess_tdof_list_u);
 
    Array<int> ess_tdof_list_p;
@@ -109,7 +117,7 @@ int main(int argc, char *argv[])
    ess_bdr_attr_p[0] = 0;
    ess_bdr_attr_p[1] = 0;
    ess_bdr_attr_p[2] = 0;
-   ess_bdr_attr_p[3] = 1;
+   ess_bdr_attr_p[3] = 0;
    pres_fes->GetEssentialTrueDofs(ess_bdr_attr_p, ess_tdof_list_p);
 
    Vector un(vel_fes->GetTrueVSize());
@@ -131,12 +139,15 @@ int main(int argc, char *argv[])
 
    ParGridFunction bdr_projector(vel_fes);
 
-   // Apply boundary conditions to IC
-   VectorFunctionCoefficient u_bdr_coeff(dim, vel_cyl);
+   VectorFunctionCoefficient u_ex_coeff(dim, vel_ex);
    ParGridFunction u_gf(vel_fes);
    u_gf = 0.0;
-   u_gf.ProjectBdrCoefficient(u_bdr_coeff, ess_bdr_attr_u);
+   u_gf.ProjectCoefficient(u_ex_coeff);
    u_gf.GetTrueDofs(un);
+
+   FunctionCoefficient p_ex_coeff(p_ex);
+   ParGridFunction p_ex_gf(pres_fes);
+   p_ex_gf.ProjectCoefficient(p_ex_coeff);
 
    ConstantCoefficient nlcoeff(-1.0);
    ParNonlinearForm *N = new ParNonlinearForm(vel_fes);
@@ -176,9 +187,7 @@ int main(int argc, char *argv[])
    HypreParMatrix *G = G_form->ParallelAssemble();
 
    ParLinearForm *g_bdr_form = new ParLinearForm(pres_fes);
-   g_bdr_form->AddBoundaryIntegrator(
-      new BoundaryNormalLFIntegrator(u_bdr_coeff));
-   g_bdr_form->Assemble();
+   g_bdr_form->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(u_ex_coeff));
 
    VectorGridFunctionCoefficient uh_gf_coeff(&uh_gf);
    ParLinearForm *uh_bdr_form = new ParLinearForm(pres_fes);
@@ -198,16 +207,16 @@ int main(int argc, char *argv[])
    CGSolver MvInv(MPI_COMM_WORLD);
    MvInv.SetPreconditioner(MvInvPC);
    MvInv.SetOperator(Mv);
-   MvInv.SetPrintLevel(2);
+   MvInv.SetPrintLevel(0);
    MvInv.SetRelTol(1e-8);
    MvInv.SetMaxIter(50);
 
    HypreBoomerAMG SpInvPC = HypreBoomerAMG(Sp);
    SpInvPC.SetPrintLevel(0);
-   CGSolver SpInv(MPI_COMM_WORLD);
+   GMRESSolver SpInv(MPI_COMM_WORLD);
    SpInv.SetPreconditioner(SpInvPC);
    SpInv.SetOperator(Sp);
-   SpInv.SetPrintLevel(2);
+   SpInv.SetPrintLevel(0);
    SpInv.SetRelTol(1e-8);
    SpInv.SetMaxIter(50);
 
@@ -216,7 +225,7 @@ int main(int argc, char *argv[])
    CGSolver HInv(MPI_COMM_WORLD);
    HInv.SetPreconditioner(HInvPC);
    HInv.SetOperator(H);
-   HInv.SetPrintLevel(2);
+   HInv.SetPrintLevel(0);
    HInv.SetRelTol(1e-8);
    HInv.SetMaxIter(50);
 
@@ -252,6 +261,20 @@ int main(int argc, char *argv[])
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
+   double err_u = u_gf.ComputeL2Error(u_ex_coeff, irs);
+   double err_p = 0.0;
+   double u_inf = u_gf.Normlinf();
+   double p_inf = p_gf.Normlinf();
+   if (myid == 0)
+   {
+      printf("%.2E %.2E %.5E %.5E %.5E %.5E\n",
+             t,
+             dt,
+             err_u,
+             err_p,
+             u_inf,
+             p_inf);
+   }
    Vector tmp1(vel_fes->GetTrueVSize());
    Vector tmp2(pres_fes->GetTrueVSize());
 
@@ -259,18 +282,19 @@ int main(int argc, char *argv[])
 
    for (int step = 0; !last_step; ++step)
    {
-      if (mpi.Root())
-      {
-         cout << "\nTime: " << t << endl;
-      }
       if (t + dt >= t_final - dt / 2)
       {
          last_step = true;
       }
 
+      t += dt;
+
+      u_ex_coeff.SetTime(t);
+      p_ex_coeff.SetTime(t);
+
       if (mpi.Root())
       {
-         cout << "\nExtrapolation" << endl;
+         // cout << "\nExtrapolation" << endl;
       }
 
       N->Mult(un, tmp1);
@@ -280,7 +304,7 @@ int main(int argc, char *argv[])
 
       if (mpi.Root())
       {
-         cout << "\nPressure poisson" << endl;
+         // cout << "\nPressure poisson" << endl;
       }
 
       D->Mult(uh, tmp2);
@@ -289,7 +313,7 @@ int main(int argc, char *argv[])
       ParGridFunction pn_gf(pres_fes), tmp2_gf(pres_fes);
       pn_gf = 0.0;
       tmp2_gf = 0.0;
-      pn_gf.Distribute(pn);
+      // pn_gf.Distribute(pn);
       pres_fes->GetRestrictionMatrix()->MultTranspose(tmp2, tmp2_gf);
       pn_gf = 0.0;
 
@@ -300,11 +324,18 @@ int main(int argc, char *argv[])
 
       pn_gf.GetTrueDofs(pn);
 
+      double sum = 0.0;
+      for (int i = 0; i < pn.Size(); i++)
+      {
+         sum += pn(i);
+      }
+      pn -= sum / pn.Size();
+
       p_gf.Distribute(pn);
 
       if (mpi.Root())
       {
-         cout << "\nProjection" << endl;
+         // cout << "\nProjection" << endl;
       }
 
       G->Mult(pn, uhh);
@@ -314,13 +345,13 @@ int main(int argc, char *argv[])
 
       if (mpi.Root())
       {
-         cout << "\nHelmholtz" << endl;
+         // cout << "\nHelmholtz" << endl;
       }
 
       ParGridFunction un_gf(vel_fes), uhh_gf(vel_fes);
       un_gf = 0.0;
       uhh_gf = 0.0;
-      un_gf.Distribute(un);
+      un_gf.ProjectBdrCoefficient(u_ex_coeff, ess_bdr_attr_u);
       vel_fes->GetRestrictionMatrix()->MultTranspose(uhh, uhh_gf);
 
       Vector X2, B2;
@@ -330,29 +361,35 @@ int main(int argc, char *argv[])
 
       un_gf.GetTrueDofs(un);
 
-      t += dt;
+      u_gf.Distribute(un);
 
-      if (step % 10 == 0)
+      if (step % 1 == 0)
       {
-         u_gf.Distribute(un);
          u_sock << "parallel " << num_procs << " " << myid << "\n"
                 << "solution\n"
                 << *pmesh << u_gf << "window_title 'velocity " << t << "'"
                 << endl;
 
-         p_gf.Distribute(pn);
          p_sock << "parallel " << num_procs << " " << myid << "\n"
                 << "solution\n"
                 << *pmesh << p_gf << "window_title 'pressure " << t << "'"
                 << endl;
       }
 
-      //      u_bdr_coeff.SetTime(t);
-      //      double err_u = u_gf.ComputeL2Error(u_bdr_coeff, irs);
-      //      if (myid == 0)
-      //      {
-      //         cout << "|| u_h - u_ex || = " << err_u << "\n";
-      //      }
+      err_u = u_gf.ComputeL2Error(u_ex_coeff, irs);
+      err_p = p_gf.ComputeL2Error(p_ex_coeff, irs);
+      u_inf = u_gf.Normlinf();
+      p_inf = p_gf.Normlinf();
+      if (myid == 0)
+      {
+         printf("%.2E %.2E %.5E %.5E %.5E %.5E\n",
+                t,
+                dt,
+                err_u,
+                err_p,
+                u_inf,
+                p_inf);
+      }
    }
 
    return 0;
