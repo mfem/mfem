@@ -37,6 +37,12 @@ const double gas_constant_ = 1.0;
 // Scalar coefficient for diffusion of momentum
 //static double diffusion_constant_ = 0.1;
 
+static double nn_max_ = 1.0e15;
+static double nn_min_ = 1.0e13;
+
+static double ni_max_ = 1.0e18;
+static double ni_min_ = 1.0e16;
+
 static double T_max_ = 10.0;
 static double T_min_ =  1.0;
 
@@ -141,6 +147,28 @@ double TFunc(const Vector &x, double t)
    return T_min_ + (T_max_ - T_min_) * cos(0.5 * M_PI * sqrt(r));
 }
 */
+double nnFunc(const Vector &x, double t)
+{
+   double a = 0.4;
+   double b = 0.8;
+
+   double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+   double rs = pow(x[0] + 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
+   return ni_max_ +
+          (ni_min_ - ni_max_) * (cos(0.5 * M_PI * sqrt(r)) - 0.75 * exp(-200.0 * rs));
+}
+
+double niFunc(const Vector &x, double t)
+{
+   double a = 0.4;
+   double b = 0.8;
+
+   double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+   double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] + 0.5 * b, 2);
+   return ni_min_ +
+          (ni_max_ - ni_min_) * (cos(0.5 * M_PI * sqrt(r)) + 0.25 * exp(-200.0 * rs));
+}
+
 double TiFunc(const Vector &x, double t)
 {
    double a = 0.4;
@@ -1073,15 +1101,19 @@ int main(int argc, char *argv[])
    // FunctionCoefficient QCoef(QFunc);
 
    // Coefficients for initial conditions
+   FunctionCoefficient nn0Coef(nnFunc);
+   FunctionCoefficient ni0Coef(niFunc);
    FunctionCoefficient vi0Coef(viFunc);
    FunctionCoefficient Ti0Coef(TiFunc);
    FunctionCoefficient Te0Coef(TeFunc);
 
+   neu_density.ProjectCoefficient(nn0Coef);
+   ion_density.ProjectCoefficient(ni0Coef);
    para_velocity.ProjectCoefficient(vi0Coef);
    ion_energy.ProjectCoefficient(Ti0Coef);
    elec_energy.ProjectCoefficient(Te0Coef);
 
-   neu_density.ProjectCoefficient(Te0Coef); neu_density *= 1.0e15;
+
 
    {
       L2_ParFESpace l2_fes(&pmesh, order - 1, dim);
