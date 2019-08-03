@@ -386,46 +386,45 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 };
 
-// *****************************************************************************
-class DirectConformingProlongationOperator : public
+/// Auxiliary device class used by ParFiniteElementSpace.
+class DeviceConformingProlongationOperator: public
    ConformingProlongationOperator
 {
 protected:
    Array<int> shr_ltdof, ext_ldof;
-   mutable Array<double> shr_buf, ext_buf;
+   mutable Vector shr_buf, ext_buf;
    char *host_shr_buf, *host_ext_buf;
    int *shr_buf_offsets, *ext_buf_offsets;
-   Array<int> ltdof_ldof;
-   Array<int> unq_ltdof;
-   mutable Array<int> unq_shr_i, unq_shr_j;
+   Array<int> ltdof_ldof, unq_ltdof;
+   Array<int> unq_shr_i, unq_shr_j;
    MPI_Request *requests;
    // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
    //         shr_buf[i] = src[shr_ltdof[i]]
-   void BcastBeginCopy(const double *src) const;
+   void BcastBeginCopy(const Vector &src) const;
 
    // Kernel: copy ltdofs from 'src' to ldofs in 'dst'.
    //         dst[ltdof_ldof[i]] = src[i]
-   void BcastLocalCopy(const double *src, double *dst) const;
+   void BcastLocalCopy(const Vector &src, Vector &dst) const;
 
    // Kernel: copy ext. dofs from 'ext_buf' to 'dst' - after recv.
    //         dst[ext_ldof[i]] = ext_buf[i]
-   void BcastEndCopy(double *dst) const;
+   void BcastEndCopy(Vector &dst) const;
 
    // Kernel: copy ext. dofs from 'src' to 'ext_buf' - prepare for send.
    //         ext_buf[i] = src[ext_ldof[i]]
-   void ReduceBeginCopy(const double *src) const;
+   void ReduceBeginCopy(const Vector &src) const;
 
    // Kernel: copy owned ldofs from 'src' to ltdofs in 'dst'.
    //         dst[i] = src[ltdof_ldof[i]]
-   void ReduceLocalCopy(const double *src, double *dst) const;
+   void ReduceLocalCopy(const Vector &src, Vector &dst) const;
 
    // Kernel: assemble dofs from 'shr_buf' into to 'dst' - after recv.
    //         dst[shr_ltdof[i]] += shr_buf[i]
-   void ReduceEndAssemble(double *dst) const;
+   void ReduceEndAssemble(Vector &dst) const;
 
 public:
-   DirectConformingProlongationOperator(const mfem::ParFiniteElementSpace &pfes);
-   virtual ~DirectConformingProlongationOperator();
+   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+   virtual ~DeviceConformingProlongationOperator();
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 };

@@ -106,6 +106,7 @@ private:
    unsigned long backends; ///< Bitwise-OR of all configured backends.
    /// Set to true during configuration, except in 'device_singleton'.
    bool destroy_mm;
+   bool force_cuda_aware_mpi;
 
    MemoryType mem_type;    ///< Current Device MemoryType
    MemoryClass mem_class;  ///< Current Device MemoryClass
@@ -143,6 +144,7 @@ public:
       : mode(Device::SEQUENTIAL),
         backends(Backend::CPU),
         destroy_mm(false),
+        force_cuda_aware_mpi(false),
         mem_type(MemoryType::HOST),
         mem_class(MemoryClass::HOST)
    { }
@@ -157,6 +159,7 @@ public:
       : mode(Device::SEQUENTIAL),
         backends(Backend::CPU),
         destroy_mm(false),
+        force_cuda_aware_mpi(false),
         mem_type(MemoryType::HOST),
         mem_class(MemoryClass::HOST)
    { Configure(device, dev); }
@@ -212,6 +215,13 @@ public:
    /** @brief Get the current Device MemoryClass. This is the MemoryClass used
        by most MFEM device kernels to access Memory objects. */
    static inline MemoryClass GetMemoryClass() { return Get().mem_class; }
+
+#ifdef MFEM_USE_MPI
+   static void SetForceCudaAwareMPI(const bool force = true)
+   { Get().force_cuda_aware_mpi = force; }
+
+   static bool GetForceCudaAwareMPI() { return Get().force_cuda_aware_mpi; }
+#endif
 };
 
 
