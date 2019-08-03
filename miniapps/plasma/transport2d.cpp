@@ -507,13 +507,8 @@ public:
 
 class VectorErrorEstimator : public ErrorEstimator
 {
-private:
-   ParGridFunctionArray &pgf_;
+protected:
    ParFiniteElementSpace &err_fes_;
-   ParFiniteElementSpace &flux_fes_;
-   ParFiniteElementSpace &sm_flux_fes_;
-   Array<Coefficient*> &dCoef_;
-   Array<MatrixCoefficient*> &DCoef_;
    Array<double> &w_;
 
    Array<double> nrm_;
@@ -523,21 +518,12 @@ private:
    Vector err_;
 
 public:
-  VectorErrorEstimator(ParGridFunctionArray & pgf,
-		       ParFiniteElementSpace & err_fes,
-		       ParFiniteElementSpace & flux_fes,
-		       ParFiniteElementSpace & sm_flux_fes,
-		       Array<double> & weights,
-		       Array<Coefficient*> & dCoef,
-		       Array<MatrixCoefficient*> & DCoef)
-    : pgf_(pgf),
-      err_fes_(err_fes),
-      flux_fes_(flux_fes),
-      sm_flux_fes_(sm_flux_fes),
-      dCoef_(dCoef),
-      DCoef_(DCoef),
-      w_(weights),
-      err_(err_fes_.GetVSize())
+
+   VectorErrorEstimator(ParFiniteElementSpace & err_fes,
+                        Array<double> &weights)
+      : err_fes_(err_fes),
+        w_(weights),
+        err_(err_fes_.GetVSize())
    {
       nrm_.SetSize(w_.Size());
       integ_.SetSize(w_.Size());
@@ -546,62 +532,126 @@ public:
       nrm_  =1.0;
       integ_ = NULL;
       est_ = NULL;
+   }
+
+   void Reset()
+   {
+      for (int i=0; i<est_.Size(); i++)
+      {
+         if (est_[i] != NULL)
+         {
+            est_[i]->Reset();
+         }
+      }
+   }
+
+   const Vector & GetLocalErrors()
+   {
+      err_.SetSize(err_fes_.GetVSize());
+      err_ = 0.0;
 
       for (int i=0; i<w_.Size(); i++)
       {
          if (w_[i] != 0.0)
          {
-	   double loc_nrm = pgf_[i]->Normlinf();
-	   MPI_Allreduce(&loc_nrm, &nrm_[i], 1, MPI_DOUBLE, MPI_MAX,
-			 err_fes_.GetComm());
-	   if (nrm_[i] == 0.0) nrm_[i] = 1.0;
-	   
-	   if (dCoef_[i] != NULL)
-	     integ_[i] = new DiffusionIntegrator(*dCoef_[i]);
-	   else if (DCoef_[i] != NULL)
-	     integ_[i] = new DiffusionIntegrator(*DCoef_[i]);
-	   else
-	     integ_[i] = new DiffusionIntegrator();
-	   est_[i] = new L2ZienkiewiczZhuEstimator(*integ_[i], *pgf_[i],
-						   flux_fes_, sm_flux_fes_);
+            const Vector & err_k = est_[i]->GetLocalErrors();
+            //cout << i << " " << err_.Size() << " " << err_k.Size() << " " << err_k.Norml2() << " " << w_[i] << " " << nrm_[i] << endl;
+            err_.Add(w_[i] / nrm_[i], err_k);
+         }
+      }
+
+      return err_;
+   }
+};
+
+class VectorL2ZZErrorEstimator : public VectorErrorEstimator
+{
+private:
+   ParGridFunctionArray &pgf_;
+   ParFiniteElementSpace &flux_fes_;
+   ParFiniteElementSpace &sm_flux_fes_;
+   Array<Coefficient*> &dCoef_;
+   Array<MatrixCoefficient*> &DCoef_;
+
+public:
+   VectorL2ZZErrorEstimator(ParGridFunctionArray & pgf,
+                            ParFiniteElementSpace & err_fes,
+                            ParFiniteElementSpace & flux_fes,
+                            ParFiniteElementSpace & sm_flux_fes,
+                            Array<double> & weights,
+                            Array<Coefficient*> & dCoef,
+                            Array<MatrixCoefficient*> & DCoef)
+      : VectorErrorEstimator(err_fes, weights),
+        pgf_(pgf),
+        flux_fes_(flux_fes),
+        sm_flux_fes_(sm_flux_fes),
+        dCoef_(dCoef),
+        DCoef_(DCoef)
+   {
+      for (int i=0; i<w_.Size(); i++)
+      {
+         if (w_[i] != 0.0)
+         {
+            double loc_nrm = pgf_[i]->Normlinf();
+            MPI_Allreduce(&loc_nrm, &nrm_[i], 1, MPI_DOUBLE, MPI_MAX,
+                          err_fes_.GetComm());
+            if (nrm_[i] == 0.0) { nrm_[i] = 1.0; }
+
+            if (dCoef_[i] != NULL)
+            {
+               integ_[i] = new DiffusionIntegrator(*dCoef_[i]);
+            }
+            else if (DCoef_[i] != NULL)
+            {
+               integ_[i] = new DiffusionIntegrator(*DCoef_[i]);
+            }
+            else
+            {
+               integ_[i] = new DiffusionIntegrator();
+            }
+            est_[i] = new L2ZienkiewiczZhuEstimator(*integ_[i], *pgf_[i],
+                                                    flux_fes_, sm_flux_fes_);
          }
       }
    }
+};
 
-  void Reset()
-  {
-    for (int i=0; i<est_.Size(); i++)
-      {
-	if (est_[i] != NULL)
-	  {
-	    est_[i]->Reset();
-	  }
-      }
-  }
-  
-  const Vector & GetLocalErrors()
-  {
-    err_.SetSize(err_fes_.GetVSize());
-    err_ = 0.0;
+class VectorLpErrorEstimator : public VectorErrorEstimator
+{
+private:
+   Array<Coefficient*> &coef_;
+   ParGridFunctionArray &pgf_;
 
-    for (int i=0; i<w_.Size(); i++)
-    {
-      if (w_[i] != 0.0)
+public:
+   VectorLpErrorEstimator(int p, Array<Coefficient*> & coef,
+                          ParGridFunctionArray & pgf,
+                          ParFiniteElementSpace & err_fes,
+                          Array<double> & weights)
+      : VectorErrorEstimator(err_fes, weights),
+        coef_(coef),
+        pgf_(pgf)
+   {
+      for (int i=0; i<w_.Size(); i++)
       {
-	const Vector & err_k = est_[i]->GetLocalErrors();
-	cout << i << " " << err_.Size() << " " << err_k.Size() << " " << err_k.Norml2() << " " << w_[i] << " " << nrm_[i] << endl;
-	err_.Add(w_[i] / nrm_[i], err_k);
+         if (w_[i] != 0.0)
+         {
+            double loc_nrm = pgf_[i]->Normlinf();
+            MPI_Allreduce(&loc_nrm, &nrm_[i], 1, MPI_DOUBLE, MPI_MAX,
+                          err_fes_.GetComm());
+            if (nrm_[i] == 0.0) { nrm_[i] = 1.0; }
+
+            est_[i] = new LpErrorEstimator(p, *coef_[i], *pgf_[i]);
+         }
       }
-    }
-    
-    return err_;
-  }
+   }
 };
 
 // Initial condition
 void AdaptInitialMesh(MPI_Session &mpi,
-                      ParMesh &pmesh, ParFiniteElementSpace &fespace,
-                      ParGridFunction & gf, Coefficient &coef,
+                      ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
+                      ParFiniteElementSpace &fespace,
+                      ParGridFunctionArray & gf, Array<Coefficient*> &coef,
+                      Array<double> &weights,
                       int p, double tol, bool visualization = false);
 
 void InitialCondition(const Vector &x, Vector &y);
