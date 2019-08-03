@@ -888,12 +888,34 @@ int main(int argc, char *argv[])
 
    // Adaptively refine mesh to accurately represent a given coefficient
    {
-      ParGridFunction coef_gf(&fes);
+      ParGridFunctionArray coef_gf(5, &fes);
+      Array<Coefficient*> coef(5);
+      coef[0] = new FunctionCoefficient(nnFunc);
+      coef[1] = new FunctionCoefficient(niFunc);
+      coef[2] = new FunctionCoefficient(viFunc);
+      coef[3] = new FunctionCoefficient(TiFunc);
+      coef[4] = new FunctionCoefficient(TeFunc);
 
-      FunctionCoefficient coef(TeFunc);
+      Array<double> w(5);
+      w[0] = 1.0 / nn_max_;
+      w[1] = 1.0 / ni_max_;
+      w[2] = 1.0 / v_max_;
+      w[3] = 1.0 / T_max_;
+      w[4] = 1.0 / T_max_;
 
-      AdaptInitialMesh(mpi, pmesh, fes, coef_gf, coef,
+      L2_FECollection fec_l2_o0(0, dim);
+      // Finite element space for a scalar (thermodynamic quantity)
+      ParFiniteElementSpace err_fes(&pmesh, &fec_l2_o0);
+
+      AdaptInitialMesh(mpi, pmesh, err_fes, fes, coef_gf, coef, w,
                        2, tol_init, visualization);
+
+      for (int i=0; i<5; i++)
+      {
+         delete coef[i];
+         delete coef_gf[i];
+      }
+      // exit(1);
    }
 
    // Finite element space for all variables together (full thermodynamic state)
@@ -1459,11 +1481,11 @@ int main(int argc, char *argv[])
    DCoefs[4] = &nXeCoef;
 
    Array<double> estWeights(5);
-   for (int i=0; i<5; i++) estWeights[i] = weights[i] / coefNrm[i];
-   
-   VectorErrorEstimator estimator(pgf, fes_l2_o0, flux_fes, smooth_flux_fes,
-				  estWeights, dCoefs, DCoefs);
-   
+   for (int i=0; i<5; i++) { estWeights[i] = weights[i] / coefNrm[i]; }
+
+   VectorL2ZZErrorEstimator estimator(pgf, fes_l2_o0, flux_fes, smooth_flux_fes,
+                                      estWeights, dCoefs, DCoefs);
+
    if (max_elem_error < 0.0)
    {
       const Vector init_errors = estimator.GetLocalErrors();
@@ -1814,23 +1836,26 @@ int main(int argc, char *argv[])
 
 // Initial condition
 void AdaptInitialMesh(MPI_Session &mpi,
-                      ParMesh &pmesh, ParFiniteElementSpace &fespace,
-                      ParGridFunction & gf, Coefficient &coef,
+                      ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
+                      ParFiniteElementSpace &fespace,
+                      ParGridFunctionArray & gf, Array<Coefficient*> &coef,
+                      Array<double> &weights,
                       int p, double tol, bool visualization)
 {
-   LpErrorEstimator estimator(p, coef, gf);
+   VectorLpErrorEstimator estimator(p, coef, gf, err_fespace, weights);
 
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0);
    refiner.SetTotalErrorNormP(p);
    refiner.SetLocalErrorGoal(tol);
 
-   socketstream sout;
+   Array<socketstream> sout(5);
    char vishost[] = "localhost";
    int  visport   = 19916;
 
    int Wx = 0, Wy = 0; // window position
    int Ww = 275, Wh = 250; // window size
+   int offx = Ww + 3;
 
    const int max_dofs = 100000;
    for (int it = 0; ; it++)
@@ -1847,7 +1872,28 @@ void AdaptInitialMesh(MPI_Session &mpi,
 
       if (visualization)
       {
-         VisualizeField(sout, vishost, visport, gf, "Initial Condition",
+         VisualizeField(sout[0], vishost, visport, *gf[0],
+                        "Initial Neutral Density",
+                        Wx, Wy, Ww, Wh);
+         Wx += offx;
+
+         VisualizeField(sout[1], vishost, visport, *gf[1],
+                        "Initial Ion Density",
+                        Wx, Wy, Ww, Wh);
+         Wx += offx;
+
+         VisualizeField(sout[2], vishost, visport, *gf[2],
+                        "Initial Ion Velocity",
+                        Wx, Wy, Ww, Wh);
+         Wx += offx;
+
+         VisualizeField(sout[3], vishost, visport, *gf[3],
+                        "Initial Ion Temperature",
+                        Wx, Wy, Ww, Wh);
+         Wx += offx;
+
+         VisualizeField(sout[4], vishost, visport, *gf[4],
+                        "Initial Electron Temperature",
                         Wx, Wy, Ww, Wh);
       }
 
@@ -1879,6 +1925,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
       //     to any GridFunctions over the space. In this case, the update
       //     matrix is an interpolation matrix so the updated GridFunction will
       //     still represent the same function as before refinement.
+      err_fespace.Update();
       fespace.Update();
       gf.Update();
 
@@ -1890,6 +1937,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
 
          // Update the space and the GridFunction. This time the update matrix
          // redistributes the GridFunction among the processors.
+         err_fespace.Update();
          fespace.Update();
          gf.Update();
       }
