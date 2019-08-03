@@ -1363,8 +1363,11 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
       // (*dpgf_)[i]->SetData(prev_du + offsets_[i]);
       (*dpgf_)[i]->MakeRef(fes_, prev_du + offsets_[i]);
    }
-   dpgf_->ExchangeFaceNbrData();
-
+   if (prev_du != NULL)
+   {
+     dpgf_->ExchangeFaceNbrData();
+   }
+   
    // T_e_oper_.ImplicitSolve(dt, u_, dudt_);
    if (fes_->GetMyRank() == 0 && logging_ > 1)
    {
@@ -1929,8 +1932,11 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &x) const
      // (*dpgf_)[i]->SetData(prev_x + offsets_[i]);
      (*dpgf_)[i]->MakeRef(fes_, prev_x + offsets_[i]);
    }
-   dpgf_->ExchangeFaceNbrData();
-
+   if (prev_x != NULL)
+   {
+     dpgf_->ExchangeFaceNbrData();
+   }
+   
    if ( MyRank_ == 0 && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::UpdateGradient done" << endl;
@@ -1973,8 +1979,11 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
       // (*dpgf_)[i]->SetData(prev_k + offsets_[i]);
       (*dpgf_)[i]->MakeRef(fes_, prev_k + offsets_[i]);
    }
-   dpgf_->ExchangeFaceNbrData();
-
+   if (prev_k != NULL)
+   {
+     dpgf_->ExchangeFaceNbrData();
+   }
+   
    if ( MyRank_ == 0 && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::Mult done" << endl;
