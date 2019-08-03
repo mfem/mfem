@@ -375,6 +375,37 @@ class ParGridFunctionArray : public Array<ParGridFunction*>
 public:
    ParGridFunctionArray() {}
    ParGridFunctionArray(int size) : Array<ParGridFunction*>(size) {}
+   ParGridFunctionArray(int size, ParFiniteElementSpace *pf)
+      : Array<ParGridFunction*>(size)
+   {
+      for (int i=0; i<size; i++)
+      {
+         data[i] = new ParGridFunction(pf);
+      }
+   }
+
+   void ProjectCoefficient(Array<Coefficient*> &coeff)
+   {
+      for (int i=0; i<size; i++)
+      {
+         if (coeff[i] != NULL)
+         {
+            data[i]->ProjectCoefficient(*coeff[i]);
+         }
+         else
+         {
+            *data[i] = 0.0;
+         }
+      }
+   }
+
+   void Update()
+   {
+      for (int i=0; i<size; i++)
+      {
+         data[i]->Update();
+      }
+   }
 
    void ExchangeFaceNbrData()
    {
