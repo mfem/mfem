@@ -915,7 +915,9 @@ int main(int argc, char *argv[])
       coef[3] = new FunctionCoefficient(TiFunc);
       coef[4] = new FunctionCoefficient(TeFunc);
 
-      Array<double> w(5);
+      coef_gf.ProjectCoefficient(coef);
+
+      Array<double> w(5); w = 1.0;
       w[0] = 1.0 / nn_max_;
       w[1] = 1.0 / ni_max_;
       w[2] = 1.0 / v_max_;
